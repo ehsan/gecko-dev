@@ -18,20 +18,6 @@ Cu.import("resource://gre/modules/AppsUtils.jsm");
 Cu.import("resource://gre/modules/Task.jsm");
 Cu.import("resource://gre/modules/Promise.jsm");
 
-// 0755
-const PERMS_DIRECTORY = OS.Constants.libc.S_IRWXU |
-                        OS.Constants.libc.S_IRGRP | OS.Constants.libc.S_IXGRP |
-                        OS.Constants.libc.S_IROTH | OS.Constants.libc.S_IXOTH;
-
-// 0644
-const PERMS_FILE = OS.Constants.libc.S_IRUSR | OS.Constants.libc.S_IWUSR |
-                   OS.Constants.libc.S_IRGRP |
-                   OS.Constants.libc.S_IROTH;
-
-const DESKTOP_DIR = OS.Constants.Path.desktopDir;
-const HOME_DIR = OS.Constants.Path.homeDir;
-const TMP_DIR = OS.Constants.Path.tmpDir;
-
 this.WebappsInstaller = {
   shell: null,
 
@@ -89,7 +75,7 @@ this.WebappsInstaller = {
 
     return this.shell.install(aZipPath).then(() => {
       let data = {
-        "installDir": this.shell.installDir,
+        "installDir": this.shell.installDir.path,
         "app": {
           "manifest": aManifest,
           "origin": aData.app.origin
@@ -143,7 +129,7 @@ NativeApp.prototype = {
    *
    */
   init: function(aData, aManifest) {
-    let app = this.app = aData.app;
+    let app = aData.app;
     let manifest = this.manifest = new ManifestHelper(aManifest,
                                                       app.origin);
 
@@ -189,10 +175,12 @@ NativeApp.prototype = {
 
     this.categories = app.categories.slice(0);
 
+    // The app registry is the Firefox profile from which the app
+    // was installed.
+    let registryFolder = Services.dirsvc.get("ProfD", Ci.nsIFile);
+
     this.webappJson = {
-      // The app registry is the Firefox profile from which the app
-      // was installed.
-      "registryDir": OS.Constants.Path.profileDir,
+      "registryDir": registryFolder.path,
       "app": {
         "manifest": aManifest,
         "origin": app.origin,
@@ -216,7 +204,7 @@ NativeApp.prototype = {
       this.webappJson.app.updateManifest = app.updateManifest;
     }
 
-    this.runtimeFolder = OS.Constants.Path.libDir;
+    this.runtimeFolder = Services.dirsvc.get("GreD", Ci.nsIFile);
   },
 
   /**
@@ -229,7 +217,10 @@ NativeApp.prototype = {
       // to point to the zip file (we can't use the app protocol yet
       // because the app isn't installed yet).
       if (this.iconURI.scheme == "app") {
-        let zipFile = getFile(this.tmpInstallDir, "application.zip");
+        let zipFile = Cc["@mozilla.org/file/local;1"].
+                      createInstance(Ci.nsIFile);
+        zipFile.initWithPath(OS.Path.join(this.installDir.path,
+                                          "application.zip"));
         let zipUrl = Services.io.newFileURI(zipFile).spec;
 
         let filePath = this.iconURI.QueryInterface(Ci.nsIURL).filePath;
@@ -271,10 +262,6 @@ NativeApp.prototype = {
 };
 
 #ifdef XP_WIN
-
-const PROGS_DIR = OS.Constants.Path.winStartMenuProgsDir;
-const APP_DATA_DIR = OS.Constants.Path.winAppDataDir;
-
 /*************************************
  * Windows app installer
  *
@@ -310,23 +297,7 @@ function WinNativeApp(aData) {
     this.size = aData.app.updateManifest.size / 1024;
   }
 
-  let filenameRE = new RegExp("[<>:\"/\\\\|\\?\\*]", "gi");
-
-  this.appNameAsFilename = this.appNameAsFilename.replace(filenameRE, "");
-  if (this.appNameAsFilename == "") {
-    this.appNameAsFilename = "webapp";
-  }
-
-  this.webapprt = this.appNameAsFilename + ".exe";
-  this.configJson = "webapp.json";
-  this.webappINI = "webapp.ini";
-  this.iconPath = OS.Path.join("chrome", "icons", "default", "default.ico");
-  this.uninstallDir = "uninstall";
-  this.uninstallerFile = OS.Path.join(this.uninstallDir,
-                                      "webapp-uninstaller.exe");
-  this.shortcutLogsINI = OS.Path.join(this.uninstallDir, "shortcuts_log.ini");
-
-  this.uninstallSubkeyStr = this.uniqueName;
+  this._init();
 }
 
 WinNativeApp.prototype = {
@@ -339,37 +310,18 @@ WinNativeApp.prototype = {
    */
   install: function(aZipPath) {
     return Task.spawn(function() {
-      this._getInstallDir();
-
       try {
-        yield this._createDirectoryStructure();
-        yield this._copyPrebuiltFiles();
+        this._copyPrebuiltFiles();
+        this._createShortcutFiles();
         this._createConfigFiles();
+        this._writeSystemKeys();
 
         if (aZipPath) {
-          yield OS.File.move(aZipPath, OS.Path.join(this.tmpInstallDir,
+          yield OS.File.move(aZipPath, OS.Path.join(this.installDir.path,
                                                     "application.zip"));
         }
 
         yield this.getIcon();
-
-        // Remove previously installed app
-        this._removeInstallation(true);
-      } catch (ex) {
-        removeFiles([this.tmpInstallDir]);
-        throw(ex);
-      }
-
-      try {
-        // On Windows, the webapprt executable can't be overwritten while it's
-        // running.
-        // As it takes care of updating itself, there's no need to update
-        // it here.
-        let filesToIgnore = [ this.webapprt ];
-        yield moveDirectory(this.tmpInstallDir, this.installDir, filesToIgnore);
-
-        this._createShortcutFiles();
-        this._writeSystemKeys();
       } catch (ex) {
         this._removeInstallation(false);
         throw(ex);
@@ -377,38 +329,78 @@ WinNativeApp.prototype = {
     }.bind(this));
   },
 
-  _getInstallDir: function() {
-    // The ${InstallDir} is: sanitized app name + "-" + manifest url hash
-    this.installDir = WebappOSUtils.getInstallPath(this.app);
-    if (this.installDir) {
-      if (this.uniqueName != OS.Path.basename(this.installDir)) {
-        // Bug 919799: If the app is still in the registry, migrate its data to
-        // the new format.
-        throw("Updates for apps installed with the old naming scheme unsupported");
-      }
+  /**
+   * Initializes properties that will be used during the installation process,
+   * such as paths and filenames.
+   */
+  _init: function() {
+    let filenameRE = new RegExp("[<>:\"/\\\\|\\?\\*]", "gi");
 
-      let shortcutLogsINIfile = getFile(this.installDir, this.shortcutLogsINI);
+    this.appNameAsFilename = this.appNameAsFilename.replace(filenameRE, "");
+    if (this.appNameAsFilename == "") {
+      this.appNameAsFilename = "webapp";
+    }
+
+    // The ${InstallDir} is: sanitized app name + "-" + manifest url hash
+    this.installDir = Services.dirsvc.get("AppData", Ci.nsIFile);
+    this.installDir.append(this.uniqueName);
+
+    this.webapprt = this.installDir.clone();
+    this.webapprt.append(this.appNameAsFilename + ".exe");
+
+    this.configJson = this.installDir.clone();
+    this.configJson.append("webapp.json");
+
+    this.webappINI = this.installDir.clone();
+    this.webappINI.append("webapp.ini");
+
+    this.uninstallDir = this.installDir.clone();
+    this.uninstallDir.append("uninstall");
+
+    this.uninstallerFile = this.uninstallDir.clone();
+    this.uninstallerFile.append("webapp-uninstaller.exe");
+
+    this.iconFile = this.installDir.clone();
+    this.iconFile.append("chrome");
+    this.iconFile.append("icons");
+    this.iconFile.append("default");
+    this.iconFile.append("default.ico");
+
+    this.uninstallSubkeyStr = this.uniqueName;
+
+    // ${UninstallDir}/shortcuts_log.ini
+    this.shortcutLogsINI = this.uninstallDir.clone();
+    this.shortcutLogsINI.append("shortcuts_log.ini");
+
+    if (this.shortcutLogsINI.exists()) {
       // If it's a reinstallation (or an update) get the shortcut names
       // from the shortcut_log.ini file
-      let parser = Cc["@mozilla.org/xpcom/ini-processor-factory;1"]
-                     .getService(Ci.nsIINIParserFactory)
-                     .createINIParser(shortcutLogsINIfile);
+      let factory = Cc["@mozilla.org/xpcom/ini-processor-factory;1"]
+                      .getService(Ci.nsIINIParserFactory);
+      let parser = factory.createINIParser(this.shortcutLogsINI);
+
       this.shortcutName = parser.getString("STARTMENU", "Shortcut0");
     } else {
-      this.installDir = OS.Path.join(APP_DATA_DIR, this.uniqueName);
+      let desktop = Services.dirsvc.get("Desk", Ci.nsIFile);
+      let startMenu = Services.dirsvc.get("Progs", Ci.nsIFile);
 
       // Check in both directories to see if a shortcut with the same name
       // already exists.
-      this.shortcutName = getAvailableFileName([ PROGS_DIR, DESKTOP_DIR ],
+      this.shortcutName = getAvailableFileName([ startMenu, desktop ],
                                                this.appNameAsFilename,
                                                ".lnk");
     }
+
+    // Remove previously installed app (for update purposes)
+    this._removeInstallation(true);
+
+    this._createDirectoryStructure();
   },
 
   /**
    * Remove the current installation
    */
-  _removeInstallation: function(keepProfile) {
+  _removeInstallation : function(keepProfile) {
     let uninstallKey;
     try {
       uninstallKey = Cc["@mozilla.org/windows-registry-key;1"]
@@ -426,17 +418,22 @@ WinNativeApp.prototype = {
         uninstallKey.close();
     }
 
-    let filesToRemove = [ OS.Path.join(DESKTOP_DIR, this.shortcutName),
-                          OS.Path.join(PROGS_DIR, this.shortcutName) ];
+    let desktopShortcut = Services.dirsvc.get("Desk", Ci.nsIFile);
+    desktopShortcut.append(this.shortcutName);
+
+    let startMenuShortcut = Services.dirsvc.get("Progs", Ci.nsIFile);
+    startMenuShortcut.append(this.shortcutName);
+
+    let filesToRemove = [desktopShortcut, startMenuShortcut];
 
     if (keepProfile) {
-      [ this.iconPath, this.webapprt, this.configJson,
-        this.webappINI, this.uninstallDir ].forEach((filePath) => {
-        filesToRemove.push(OS.Path.join(this.installDir, filePath));
-      });
+      filesToRemove.push(this.iconFile);
+      filesToRemove.push(this.webapprt);
+      filesToRemove.push(this.configJson);
+      filesToRemove.push(this.webappINI);
+      filesToRemove.push(this.uninstallDir);
     } else {
       filesToRemove.push(this.installDir);
-      filesToRemove.push(this.tmpInstallDir);
     }
 
     removeFiles(filesToRemove);
@@ -446,31 +443,24 @@ WinNativeApp.prototype = {
    * Creates the main directory structure.
    */
   _createDirectoryStructure: function() {
-    let dir = getFile(TMP_DIR, this.uniqueName);
-    dir.createUnique(Ci.nsIFile.DIRECTORY_TYPE, PERMS_DIRECTORY);
-    this.tmpInstallDir = dir.path;
-
-    yield OS.File.makeDir(OS.Path.join(this.tmpInstallDir, this.uninstallDir),
-                          { ignoreExisting: true });
-
-    // Recursively create the icon path's directory structure.
-    let path = this.tmpInstallDir;
-    let components = OS.Path.split(OS.Path.dirname(this.iconPath)).components;
-    for (let component of components) {
-      path = OS.Path.join(path, component);
-      yield OS.File.makeDir(path, { ignoreExisting: true });
+    if (!this.installDir.exists()) {
+      this.installDir.create(Ci.nsIFile.DIRECTORY_TYPE, 0755);
     }
+
+    this.uninstallDir.create(Ci.nsIFile.DIRECTORY_TYPE, 0755);
   },
 
   /**
    * Copy the pre-built files into their destination folders.
    */
   _copyPrebuiltFiles: function() {
-    yield OS.File.copy(OS.Path.join(this.runtimeFolder, "webapprt-stub.exe"),
-                       OS.Path.join(this.tmpInstallDir, this.webapprt));
+    let webapprtPre = this.runtimeFolder.clone();
+    webapprtPre.append("webapprt-stub.exe");
+    webapprtPre.copyTo(this.installDir, this.webapprt.leafName);
 
-    yield OS.File.copy(OS.Path.join(this.runtimeFolder, "webapp-uninstaller.exe"),
-                       OS.Path.join(this.tmpInstallDir, this.uninstallerFile));
+    let uninstaller = this.runtimeFolder.clone();
+    uninstaller.append("webapp-uninstaller.exe");
+    uninstaller.copyTo(this.uninstallDir, this.uninstallerFile.leafName);
   },
 
   /**
@@ -478,27 +468,20 @@ WinNativeApp.prototype = {
    */
   _createConfigFiles: function() {
     // ${InstallDir}/webapp.json
-    writeToFile(OS.Path.join(this.tmpInstallDir, this.configJson),
-                JSON.stringify(this.webappJson));
+    writeToFile(this.configJson, JSON.stringify(this.webappJson));
 
     let factory = Cc["@mozilla.org/xpcom/ini-processor-factory;1"]
                     .getService(Ci.nsIINIParserFactory);
 
     // ${InstallDir}/webapp.ini
-    let webappINIfile = getFile(this.tmpInstallDir, this.webappINI);
-
-    let writer = factory.createINIParser(webappINIfile)
-                        .QueryInterface(Ci.nsIINIParserWriter);
+    let writer = factory.createINIParser(this.webappINI).QueryInterface(Ci.nsIINIParserWriter);
     writer.setString("Webapp", "Name", this.appName);
-    writer.setString("Webapp", "Profile", OS.Path.basename(this.installDir));
+    writer.setString("Webapp", "Profile", this.installDir.leafName);
     writer.setString("Webapp", "Executable", this.appNameAsFilename);
-    writer.setString("WebappRT", "InstallDir", this.runtimeFolder);
+    writer.setString("WebappRT", "InstallDir", this.runtimeFolder.path);
     writer.writeFile(null, Ci.nsIINIParserWriter.WRITE_UTF16);
 
-    let shortcutLogsINIfile = getFile(this.tmpInstallDir, this.shortcutLogsINI);
-
-    writer = factory.createINIParser(shortcutLogsINIfile)
-                    .QueryInterface(Ci.nsIINIParserWriter);
+    writer = factory.createINIParser(this.shortcutLogsINI).QueryInterface(Ci.nsIINIParserWriter);
     writer.setString("STARTMENU", "Shortcut0", this.shortcutName);
     writer.setString("DESKTOP", "Shortcut0", this.shortcutName);
     writer.setString("TASKBAR", "Migrated", "true");
@@ -510,10 +493,9 @@ WinNativeApp.prototype = {
       "File: \\webapp.json\r\n" +
       "File: \\webapprt.old\r\n" +
       "File: \\chrome\\icons\\default\\default.ico";
-
-    writeToFile(OS.Path.join(this.tmpInstallDir, this.uninstallDir,
-                             "uninstall.log"),
-                uninstallContent);
+    let uninstallLog = this.uninstallDir.clone();
+    uninstallLog.append("uninstall.log");
+    writeToFile(uninstallLog, uninstallContent);
   },
 
   /**
@@ -536,14 +518,13 @@ WinNativeApp.prototype = {
 
       subKey.writeStringValue("DisplayName", this.appName);
 
-      let uninstallerPath = OS.Path.join(this.installDir,
-                                         this.uninstallerFile);
-
-      subKey.writeStringValue("UninstallString", '"' + uninstallerPath + '"');
-      subKey.writeStringValue("InstallLocation", '"' + this.installDir + '"');
+      subKey.writeStringValue("UninstallString", '"' + this.uninstallerFile.path + '"');
+      subKey.writeStringValue("InstallLocation", '"' + this.installDir.path + '"');
       subKey.writeStringValue("AppFilename", this.appNameAsFilename);
-      subKey.writeStringValue("DisplayIcon", OS.Path.join(this.installDir,
-                                                          this.iconPath));
+
+      if(this.iconFile) {
+        subKey.writeStringValue("DisplayIcon", this.iconFile.path);
+      }
 
       let date = new Date();
       let year = date.getYear().toString();
@@ -583,21 +564,23 @@ WinNativeApp.prototype = {
    * two copies of it: one into the desktop and one into the start menu.
    */
   _createShortcutFiles: function() {
-    let shortcut = getFile(this.installDir, this.shortcutName).
-                      QueryInterface(Ci.nsILocalFileWin);
+    let shortcut = this.installDir.clone().QueryInterface(Ci.nsILocalFileWin);
+    shortcut.append(this.shortcutName);
+
+    let target = this.installDir.clone();
+    target.append(this.webapprt.leafName);
 
     /* function nsILocalFileWin.setShortcut(targetFile, workingDir, args,
                                             description, iconFile, iconIndex) */
 
-    shortcut.setShortcut(getFile(this.installDir, this.webapprt),
-                         getFile(this.installDir),
-                         null,
-                         this.shortDescription,
-                         getFile(this.installDir, this.iconPath),
-                         0);
+    shortcut.setShortcut(target, this.installDir.clone(), null,
+                         this.shortDescription, this.iconFile, 0);
 
-    shortcut.copyTo(getFile(DESKTOP_DIR), this.shortcutName);
-    shortcut.copyTo(getFile(PROGS_DIR), this.shortcutName);
+    let desktop = Services.dirsvc.get("Desk", Ci.nsILocalFile);
+    let startMenu = Services.dirsvc.get("Progs", Ci.nsILocalFile);
+
+    shortcut.copyTo(desktop, this.shortcutName);
+    shortcut.copyTo(startMenu, this.shortcutName);
 
     shortcut.followLinks = false;
     shortcut.remove(false);
@@ -622,9 +605,10 @@ WinNativeApp.prototype = {
                                           "image/vnd.microsoft.icon",
                                           "format=bmp;bpp=32");
 
-    let tmpIconFile = getFile(this.tmpInstallDir, this.iconPath);
-
-    let outputStream = FileUtils.openSafeFileOutputStream(tmpIconFile);
+    if (!this.iconFile.parent.exists()) {
+      this.iconFile.parent.create(Ci.nsIFile.DIRECTORY_TYPE, parseInt("0755", 8));
+    }
+    let outputStream = FileUtils.openSafeFileOutputStream(this.iconFile);
     NetUtil.asyncCopy(iconStream, outputStream, function(aResult) {
       if (Components.isSuccessCode(aResult)) {
         deferred.resolve();
@@ -639,84 +623,68 @@ WinNativeApp.prototype = {
 
 #elifdef XP_MACOSX
 
-const USER_LIB_DIR = OS.Constants.Path.macUserLibDir;
-const LOCAL_APP_DIR = OS.Constants.Path.macLocalApplicationsDir;
-
 function MacNativeApp(aData) {
   NativeApp.call(this, aData);
-
-  let filenameRE = new RegExp("[<>:\"/\\\\|\\?\\*]", "gi");
-  this.appNameAsFilename = this.appNameAsFilename.replace(filenameRE, "");
-  if (this.appNameAsFilename == "") {
-    this.appNameAsFilename = "Webapp";
-  }
-
-  // The ${ProfileDir} is: sanitized app name + "-" + manifest url hash
-  this.appProfileDir = OS.Path.join(USER_LIB_DIR, "Application Support",
-                                    this.uniqueName);
-
-  this.contentsDir = "Contents";
-  this.macOSDir = OS.Path.join(this.contentsDir, "MacOS");
-  this.resourcesDir = OS.Path.join(this.contentsDir, "Resources");
-  this.iconFile = OS.Path.join(this.resourcesDir, "appicon.icns");
+  this._init();
 }
 
 MacNativeApp.prototype = {
   __proto__: NativeApp.prototype,
 
+  _init: function() {
+    this.appSupportDir = Services.dirsvc.get("ULibDir", Ci.nsILocalFile);
+    this.appSupportDir.append("Application Support");
+
+    let filenameRE = new RegExp("[<>:\"/\\\\|\\?\\*]", "gi");
+    this.appNameAsFilename = this.appNameAsFilename.replace(filenameRE, "");
+    if (this.appNameAsFilename == "") {
+      this.appNameAsFilename = "Webapp";
+    }
+
+    // The ${ProfileDir} is: sanitized app name + "-" + manifest url hash
+    this.appProfileDir = this.appSupportDir.clone();
+    this.appProfileDir.append(this.uniqueName);
+
+    this.installDir = Services.dirsvc.get("TmpD", Ci.nsILocalFile);
+    this.installDir.append(this.appNameAsFilename + ".app");
+    this.installDir.createUnique(Ci.nsIFile.DIRECTORY_TYPE, 0755);
+
+    this.contentsDir = this.installDir.clone();
+    this.contentsDir.append("Contents");
+
+    this.macOSDir = this.contentsDir.clone();
+    this.macOSDir.append("MacOS");
+
+    this.resourcesDir = this.contentsDir.clone();
+    this.resourcesDir.append("Resources");
+
+    this.iconFile = this.resourcesDir.clone();
+    this.iconFile.append("appicon.icns");
+
+    // Remove previously installed app (for update purposes)
+    this._removeInstallation(true);
+
+    this._createDirectoryStructure();
+  },
+
   install: function(aZipPath) {
     return Task.spawn(function() {
-      this._getInstallDir();
-
       try {
-        yield this._createDirectoryStructure();
         this._copyPrebuiltFiles();
         this._createConfigFiles();
 
         if (aZipPath) {
-          yield OS.File.move(aZipPath, OS.Path.join(this.tmpInstallDir,
+          yield OS.File.move(aZipPath, OS.Path.join(this.installDir.path,
                                                     "application.zip"));
         }
 
         yield this.getIcon();
-
-        // Remove previously installed app
-        this._removeInstallation(true);
-      } catch (ex) {
-        removeFiles([this.tmpInstallDir]);
-        throw(ex);
-      }
-
-      try {
-        // Move the temp installation directory to the /Applications directory
-        yield moveDirectory(this.tmpInstallDir, this.installDir, []);
+        this._moveToApplicationsFolder();
       } catch (ex) {
         this._removeInstallation(false);
         throw(ex);
       }
     }.bind(this));
-  },
-
-  _getInstallDir: function() {
-    let [ oldUniqueName, installPath ] = WebappOSUtils.getLaunchTarget(this.app);
-    if (installPath) {
-      this.installDir = installPath;
-
-      if (this.uniqueName != oldUniqueName) {
-        // Bug 919799: If the app is still in the registry, migrate its data to
-        // the new format.
-        throw("Updates for apps installed with the old naming scheme unsupported");
-      }
-    } else {
-      let destinationName = getAvailableFileName([ LOCAL_APP_DIR ],
-                                                 this.appNameAsFilename,
-                                                ".app");
-      if (!destinationName) {
-        throw("No available filename");
-      }
-
-      this.installDir = OS.Path.join(LOCAL_APP_DIR, destinationName);
-    }
   },
 
   _removeInstallation: function(keepProfile) {
@@ -730,45 +698,39 @@ MacNativeApp.prototype = {
   },
 
   _createDirectoryStructure: function() {
-    let dir = getFile(TMP_DIR, this.appNameAsFilename + ".app");
-    dir.createUnique(Ci.nsIFile.DIRECTORY_TYPE, PERMS_DIRECTORY);
-    this.tmpInstallDir = dir.path;
+    if (!this.appProfileDir.exists()) {
+      this.appProfileDir.create(Ci.nsIFile.DIRECTORY_TYPE, 0755);
+    }
 
-    yield OS.File.makeDir(this.appProfileDir,
-                          { unixMode: PERMS_DIRECTORY, ignoreExisting: true });
-
-    yield OS.File.makeDir(OS.Path.join(this.tmpInstallDir, this.contentsDir),
-                          { unixMode: PERMS_DIRECTORY, ignoreExisting: true });
-
-    yield OS.File.makeDir(OS.Path.join(this.tmpInstallDir, this.macOSDir),
-                          { unixMode: PERMS_DIRECTORY, ignoreExisting: true });
-
-    yield OS.File.makeDir(OS.Path.join(this.tmpInstallDir, this.resourcesDir),
-                          { unixMode: PERMS_DIRECTORY, ignoreExisting: true });
+    this.contentsDir.create(Ci.nsIFile.DIRECTORY_TYPE, 0755);
+    this.macOSDir.create(Ci.nsIFile.DIRECTORY_TYPE, 0755);
+    this.resourcesDir.create(Ci.nsIFile.DIRECTORY_TYPE, 0755);
   },
 
   _copyPrebuiltFiles: function() {
-    let destDir = getFile(this.tmpInstallDir, this.macOSDir);
-    let stub = getFile(this.runtimeFolder, "webapprt-stub");
-    stub.copyTo(destDir, "webapprt");
+    let webapprt = this.runtimeFolder.clone();
+    webapprt.append("webapprt-stub");
+    webapprt.copyTo(this.macOSDir, "webapprt");
   },
 
   _createConfigFiles: function() {
     // ${ProfileDir}/webapp.json
-    writeToFile(OS.Path.join(this.appProfileDir, "webapp.json"),
-                JSON.stringify(this.webappJson));
+    let configJson = this.appProfileDir.clone();
+    configJson.append("webapp.json");
+    writeToFile(configJson, JSON.stringify(this.webappJson));
 
     // ${InstallDir}/Contents/MacOS/webapp.ini
-    let applicationINI = getFile(this.tmpInstallDir, this.macOSDir, "webapp.ini");
+    let applicationINI = this.macOSDir.clone().QueryInterface(Ci.nsILocalFile);
+    applicationINI.append("webapp.ini");
 
-    let writer = Cc["@mozilla.org/xpcom/ini-processor-factory;1"]
-                   .getService(Ci.nsIINIParserFactory)
-                   .createINIParser(applicationINI)
-                   .QueryInterface(Ci.nsIINIParserWriter);
+    let factory = Cc["@mozilla.org/xpcom/ini-processor-factory;1"]
+                    .getService(Ci.nsIINIParserFactory);
+
+    let writer = factory.createINIParser(applicationINI).QueryInterface(Ci.nsIINIParserWriter);
     writer.setString("Webapp", "Name", this.appName);
-    writer.setString("Webapp", "Profile", OS.Path.basename(this.appProfileDir));
+    writer.setString("Webapp", "Profile", this.appProfileDir.leafName);
     writer.writeFile();
-    applicationINI.permissions = PERMS_FILE;
+    applicationINI.permissions = FileUtils.PERMS_FILE;
 
     // ${InstallDir}/Contents/Info.plist
     let infoPListContent = '<?xml version="1.0" encoding="UTF-8"?>\n\
@@ -802,8 +764,20 @@ MacNativeApp.prototype = {
   </dict>\n\
 </plist>';
 
-    writeToFile(OS.Path.join(this.tmpInstallDir, this.contentsDir, "Info.plist"),
-                infoPListContent);
+    let infoPListFile = this.contentsDir.clone();
+    infoPListFile.append("Info.plist");
+    writeToFile(infoPListFile, infoPListContent);
+  },
+
+  _moveToApplicationsFolder: function() {
+    let appDir = Services.dirsvc.get("LocApp", Ci.nsILocalFile);
+    let destinationName = getAvailableFileName([appDir],
+                                               this.appNameAsFilename,
+                                              ".app");
+    if (!destinationName) {
+      throw("No available filename");
+    }
+    this.installDir.moveTo(appDir, destinationName);
   },
 
   /**
@@ -827,13 +801,15 @@ MacNativeApp.prototype = {
 
     let process = Cc["@mozilla.org/process/util;1"].
                   createInstance(Ci.nsIProcess);
-    let sipsFile = getFile("/usr/bin/sips");
+    let sipsFile = Cc["@mozilla.org/file/local;1"].
+                   createInstance(Ci.nsILocalFile);
+    sipsFile.initWithPath("/usr/bin/sips");
 
     process.init(sipsFile);
     process.runAsync(["-s",
                 "format", "icns",
                 aIcon.path,
-                "--out", OS.Path.join(this.tmpInstallDir, this.iconFile),
+                "--out", this.iconFile.path,
                 "-z", "128", "128"],
                 9, conversionDone);
 
@@ -846,53 +822,66 @@ MacNativeApp.prototype = {
 
 function LinuxNativeApp(aData) {
   NativeApp.call(this, aData);
-
-  this.iconFile = "icon.png";
-  this.webapprt = "webapprt-stub";
-  this.configJson = "webapp.json";
-  this.webappINI = "webapp.ini";
-
-  let xdg_data_home = Cc["@mozilla.org/process/environment;1"]
-                        .getService(Ci.nsIEnvironment)
-                        .get("XDG_DATA_HOME");
-  if (!xdg_data_home) {
-    xdg_data_home = OS.Path.join(HOME_DIR, ".local", "share");
-  }
-
-  this.desktopINI = OS.Path.join(xdg_data_home, "applications",
-                                 "owa-" + this.uniqueName + ".desktop");
+  this._init();
 }
 
 LinuxNativeApp.prototype = {
   __proto__: NativeApp.prototype,
 
+  _init: function() {
+    // The ${InstallDir} and desktop entry filename are: sanitized app name +
+    // "-" + manifest url hash
+
+    this.installDir = Services.dirsvc.get("Home", Ci.nsIFile);
+    this.installDir.append("." + this.uniqueName);
+
+    this.iconFile = this.installDir.clone();
+    this.iconFile.append("icon.png");
+
+    this.webapprt = this.installDir.clone();
+    this.webapprt.append("webapprt-stub");
+
+    this.configJson = this.installDir.clone();
+    this.configJson.append("webapp.json");
+
+    this.webappINI = this.installDir.clone();
+    this.webappINI.append("webapp.ini");
+
+    let env = Cc["@mozilla.org/process/environment;1"]
+                .getService(Ci.nsIEnvironment);
+    let xdg_data_home_env = env.get("XDG_DATA_HOME");
+    if (xdg_data_home_env != "") {
+      this.desktopINI = Cc["@mozilla.org/file/local;1"]
+                          .createInstance(Ci.nsILocalFile);
+      this.desktopINI.initWithPath(xdg_data_home_env);
+    }
+    else {
+      this.desktopINI = Services.dirsvc.get("Home", Ci.nsIFile);
+      this.desktopINI.append(".local");
+      this.desktopINI.append("share");
+    }
+
+    this.desktopINI.append("applications");
+    this.desktopINI.append("owa-" + this.uniqueName + ".desktop");
+
+    // Remove previously installed app (for update purposes)
+    this._removeInstallation(true);
+
+    this._createDirectoryStructure();
+  },
+
   install: function(aZipPath) {
     return Task.spawn(function() {
-      this._getInstallDir();
-
       try {
-        this._createDirectoryStructure();
         this._copyPrebuiltFiles();
         this._createConfigFiles();
 
         if (aZipPath) {
-          yield OS.File.move(aZipPath, OS.Path.join(this.tmpInstallDir,
+          yield OS.File.move(aZipPath, OS.Path.join(this.installDir.path,
                                                     "application.zip"));
         }
 
         yield this.getIcon();
-
-        // Remove previously installed app
-        this._removeInstallation(true);
-      } catch (ex) {
-        removeFiles([this.tmpInstallDir]);
-        throw(ex);
-      }
-
-      try {
-        yield moveDirectory(this.tmpInstallDir, this.installDir, []);
-
-        this._createSystemFiles();
       } catch (ex) {
         this._removeInstallation(false);
         throw(ex);
@@ -900,50 +889,30 @@ LinuxNativeApp.prototype = {
     }.bind(this));
   },
 
-  _getInstallDir: function() {
-    // The ${InstallDir} and desktop entry filename are: sanitized app name +
-    // "-" + manifest url hash
-    this.installDir = WebappOSUtils.getInstallPath(this.app);
-    if (this.installDir) {
-      let baseName = OS.Path.basename(this.installDir)
-      let oldUniqueName = baseName.substring(1, baseName.length);
-      if (this.uniqueName != oldUniqueName) {
-        // Bug 919799: If the app is still in the registry, migrate its data to
-        // the new format.
-        throw("Updates for apps installed with the old naming scheme unsupported");
-      }
-    } else {
-      this.installDir = OS.Path.join(HOME_DIR, "." + this.uniqueName);
-    }
-  },
-
   _removeInstallation: function(keepProfile) {
     let filesToRemove = [this.desktopINI];
 
     if (keepProfile) {
-      [ this.iconFile, this.webapprt,
-        this.configJson, this.webappINI ].forEach((filePath) => {
-        filesToRemove.push(OS.Path.join(this.installDir, filePath));
-      });
+      filesToRemove.push(this.iconFile);
+      filesToRemove.push(this.webapprt);
+      filesToRemove.push(this.configJson);
+      filesToRemove.push(this.webappINI);
     } else {
       filesToRemove.push(this.installDir);
-      filesToRemove.push(this.tmpInstallDir);
     }
 
     removeFiles(filesToRemove);
   },
 
   _createDirectoryStructure: function() {
-    let dir = getFile(TMP_DIR, this.uniqueName);
-    dir.createUnique(Ci.nsIFile.DIRECTORY_TYPE, PERMS_DIRECTORY);
-    this.tmpInstallDir = dir.path;
+    if (!this.installDir.exists())
+      this.installDir.create(Ci.nsIFile.DIRECTORY_TYPE, 0755);
   },
 
   _copyPrebuiltFiles: function() {
-    let destDir = getFile(this.tmpInstallDir);
-    let stub = getFile(this.runtimeFolder, this.webapprt);
-
-    stub.copyTo(destDir, null);
+    let webapprtPre = this.runtimeFolder.clone();
+    webapprtPre.append(this.webapprt.leafName);
+    webapprtPre.copyTo(this.installDir, this.webapprt.leafName);
   },
 
   /**
@@ -989,42 +958,29 @@ LinuxNativeApp.prototype = {
 
   _createConfigFiles: function() {
     // ${InstallDir}/webapp.json
-    writeToFile(OS.Path.join(this.tmpInstallDir, this.configJson),
-                JSON.stringify(this.webappJson));
+    writeToFile(this.configJson, JSON.stringify(this.webappJson));
+
+    let factory = Cc["@mozilla.org/xpcom/ini-processor-factory;1"]
+                    .getService(Ci.nsIINIParserFactory);
 
     let webappsBundle = Services.strings.createBundle("chrome://global/locale/webapps.properties");
 
     // ${InstallDir}/webapp.ini
-    let webappINIfile = getFile(this.tmpInstallDir, this.webappINI);
-
-    let writer = Cc["@mozilla.org/xpcom/ini-processor-factory;1"]
-                   .getService(Ci.nsIINIParserFactory)
-                   .createINIParser(webappINIfile)
-                   .QueryInterface(Ci.nsIINIParserWriter);
+    let writer = factory.createINIParser(this.webappINI).QueryInterface(Ci.nsIINIParserWriter);
     writer.setString("Webapp", "Name", this.appName);
     writer.setString("Webapp", "Profile", this.uniqueName);
     writer.setString("Webapp", "UninstallMsg", webappsBundle.formatStringFromName("uninstall.notification", [this.appName], 1));
-    writer.setString("WebappRT", "InstallDir", this.runtimeFolder);
+    writer.setString("WebappRT", "InstallDir", this.runtimeFolder.path);
     writer.writeFile();
-  },
-
-  _createSystemFiles: function() {
-    let webappsBundle = Services.strings.createBundle("chrome://global/locale/webapps.properties");
-
-    let webapprtPath = OS.Path.join(this.installDir, this.webapprt);
 
     // $XDG_DATA_HOME/applications/owa-<webappuniquename>.desktop
-    let desktopINIfile = getFile(this.desktopINI);
+    this.desktopINI.create(Ci.nsIFile.NORMAL_FILE_TYPE, 0755);
 
-    let writer = Cc["@mozilla.org/xpcom/ini-processor-factory;1"]
-                   .getService(Ci.nsIINIParserFactory)
-                   .createINIParser(desktopINIfile)
-                   .QueryInterface(Ci.nsIINIParserWriter);
+    writer = factory.createINIParser(this.desktopINI).QueryInterface(Ci.nsIINIParserWriter);
     writer.setString("Desktop Entry", "Name", this.appName);
     writer.setString("Desktop Entry", "Comment", this.shortDescription);
-    writer.setString("Desktop Entry", "Exec", '"' + webapprtPath + '"');
-    writer.setString("Desktop Entry", "Icon", OS.Path.join(this.installDir,
-                                                           this.iconFile));
+    writer.setString("Desktop Entry", "Exec", '"'+this.webapprt.path+'"');
+    writer.setString("Desktop Entry", "Icon", this.iconFile.path);
     writer.setString("Desktop Entry", "Type", "Application");
     writer.setString("Desktop Entry", "Terminal", "false");
 
@@ -1034,11 +990,9 @@ LinuxNativeApp.prototype = {
 
     writer.setString("Desktop Entry", "Actions", "Uninstall;");
     writer.setString("Desktop Action Uninstall", "Name", webappsBundle.GetStringFromName("uninstall.label"));
-    writer.setString("Desktop Action Uninstall", "Exec", webapprtPath + " -remove");
+    writer.setString("Desktop Action Uninstall", "Exec", this.webapprt.path + " -remove");
 
     writer.writeFile();
-
-    desktopINIfile.permissions = PERMS_FILE | OS.Constants.libc.S_IXUSR;
   },
 
   /**
@@ -1057,8 +1011,7 @@ LinuxNativeApp.prototype = {
     let imgContainer = imgTools.decodeImage(aImageStream, aMimeType);
     let iconStream = imgTools.encodeImage(imgContainer, "image/png");
 
-    let iconFile = getFile(this.tmpInstallDir, this.iconFile);
-    let outputStream = FileUtils.openSafeFileOutputStream(iconFile);
+    let outputStream = FileUtils.openSafeFileOutputStream(this.iconFile);
     NetUtil.asyncCopy(iconStream, outputStream, function(aResult) {
       if (Components.isSuccessCode(aResult)) {
         deferred.resolve();
@@ -1078,13 +1031,13 @@ LinuxNativeApp.prototype = {
 /**
  * Async write a data string into a file
  *
- * @param aPath     the path to the file to write to
+ * @param aFile     the nsIFile to write to
  * @param aData     a string with the data to be written
  */
-function writeToFile(aPath, aData) {
+function writeToFile(aFile, aData) {
   return Task.spawn(function() {
     let data = new TextEncoder().encode(aData);
-    let file = yield OS.File.open(aPath, { truncate: true }, { unixMode: PERMS_FILE });
+    let file = yield OS.File.open(aFile.path, { truncate: true }, { unixMode: FileUtils.PERMS_FILE });
     yield file.write(data);
     yield file.close();
   });
@@ -1115,7 +1068,7 @@ function stripStringForFilename(aPossiblyBadFilenameString) {
 /**
  * Finds a unique name available in a folder (i.e., non-existent file)
  *
- * @param aPathSet a set of paths that represents the set of
+ * @param aFolderSet a set of nsIFile objects that represents the set of
  * directories where we want to write
  * @param aName   string with the filename (minus the extension) desired
  * @param aExtension string with the file extension, including the dot
@@ -1123,15 +1076,13 @@ function stripStringForFilename(aPossiblyBadFilenameString) {
  * @return file name or null if folder is unwritable or unique name
  *         was not available
  */
-function getAvailableFileName(aPathSet, aName, aExtension) {
+function getAvailableFileName(aFolderSet, aName, aExtension) {
   let fileSet = [];
   let name = aName + aExtension;
   let isUnique = true;
 
   // Check if the plain name is a unique name in all the directories.
-  for (let path of aPathSet) {
-    let folder = getFile(path);
-
+  for (let folder of aFolderSet) {
     folder.followLinks = false;
     if (!folder.isDirectory() || !folder.isWritable()) {
       return null;
@@ -1181,12 +1132,10 @@ function getAvailableFileName(aPathSet, aName, aExtension) {
 /**
  * Attempts to remove files or directories.
  *
- * @param aPaths An array with paths to files to remove
+ * @param aFiles An array with nsIFile objects to be removed
  */
-function removeFiles(aPaths) {
-  for (let path of aPaths) {
-    let file = getFile(path);
-
+function removeFiles(aFiles) {
+  for (let file of aFiles) {
     try {
       if (file.exists()) {
         file.followLinks = false;
@@ -1196,42 +1145,6 @@ function removeFiles(aPaths) {
   }
 }
 
-/**
- * Move (overwriting) the contents of one directory into another.
- *
- * @param srcPath A path to the source directory
- * @param destPath A path to the destination directory
- * @param filesToIgnore An array of files. If one of those files can't be
- *                      overwritten the function will not fail.
- */
-function moveDirectory(srcPath, destPath, filesToIgnore) {
-  let srcDir = getFile(srcPath);
-  let destDir = getFile(destPath);
-
-  let entries = srcDir.directoryEntries;
-  let array = [];
-  while (entries.hasMoreElements()) {
-    let entry = entries.getNext().QueryInterface(Ci.nsIFile);
-
-    if (entry.isDirectory()) {
-      yield moveDirectory(entry.path, OS.Path.join(destPath, entry.leafName));
-    } else {
-      try {
-        entry.moveTo(destDir, entry.leafName);
-      } catch (ex if ex.result == Cr.NS_ERROR_FILE_ACCESS_DENIED) {
-        if (filesToIgnore.indexOf(entry.leafName) != -1) {
-          yield OS.File.remove(entry.path);
-        } else {
-          throw(ex);
-        }
-      }
-    }
-  }
-
-  // The source directory is now empty, remove it.
-  yield OS.File.removeEmptyDir(srcPath);
-}
-
 function escapeXML(aStr) {
   return aStr.toString()
              .replace(/&/g, "&amp;")
@@ -1239,13 +1152,6 @@ function escapeXML(aStr) {
              .replace(/'/g, "&apos;")
              .replace(/</g, "&lt;")
              .replace(/>/g, "&gt;");
-}
-
-// Helper to create a nsIFile from a set of path components
-function getFile() {
-  let file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
-  file.initWithPath(OS.Path.join.apply(OS.Path, arguments));
-  return file;
 }
 
 /* More helpers for handling the app icon */

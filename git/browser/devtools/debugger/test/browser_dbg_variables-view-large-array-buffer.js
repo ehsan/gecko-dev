@@ -85,18 +85,14 @@ function performTest() {
   let paints = 0;
 
   // Make sure the variables view doesn't scroll while adding the properties.
-  let [oldX, oldY] = getScroll();
-  info("Initial scroll position: " + oldX + ", " + oldY);
+  let scrollTop = gVariables._list.parentNode.scrollTop;
 
   waitForProperties(total, {
     onLoading: function(aLoaded) {
       ok(aLoaded >= loaded,
         "Should have loaded more properties.");
-
-      let [newX, newY] = getScroll();
-      info("Current scroll position: " + newX + " " + newY);
-      is(oldX, newX, "The variables view hasn't scrolled horizontally.");
-      is(oldY, newY, "The variables view hasn't scrolled vertically.");
+      is(gVariables._list.scrollTop, scrollTop,
+        "The variables view hasn't scrolled.");
 
       info("Displayed " + aLoaded + " properties, not finished yet.");
 
@@ -106,13 +102,10 @@ function performTest() {
     onFinished: function(aLoaded) {
       ok(aLoaded == total,
         "Displayed all the properties.");
+      is(gVariables._list.scrollTop, scrollTop,
+        "The variables view hasn't scrolled.");
       isnot(paints, 0,
         "Debugger was unresponsive, sad panda.");
-
-      let [newX, newY] = getScroll();
-      info("Current scroll position: " + newX + ", " + newY);
-      is(oldX, newX, "The variables view hasn't scrolled horizontally.");
-      is(oldY, newY, "The variables view hasn't scrolled vertically.");
 
       is(bufferVar._enum.childNodes.length, 0,
         "The bufferVar should contain all the created enumerable elements.");
@@ -183,13 +176,6 @@ function performTest() {
       deferred.resolve();
     }
   });
-
-  function getScroll() {
-    let scrollX = {};
-    let scrollY = {};
-    gVariables._boxObject.getPosition(scrollX, scrollY);
-    return [scrollX.value, scrollY.value];
-  }
 
   return deferred.promise;
 }

@@ -170,8 +170,6 @@ exports.serializeStack = serializeStack
 //    to `true`.
 // - `sandbox`: A sandbox to share JS compartment with. If omitted new
 //    compartment will be created.
-// - `metadata`: A metadata object associated with the sandbox. It should
-//    be JSON-serializable.
 // For more details see:
 // https://developer.mozilla.org/en/Components.utils.Sandbox
 const Sandbox = iced(function Sandbox(options) {
@@ -186,8 +184,7 @@ const Sandbox = iced(function Sandbox(options) {
     wantGlobalProperties: 'wantGlobalProperties' in options ?
                           options.wantGlobalProperties : [],
     sandboxPrototype: 'prototype' in options ? options.prototype : {},
-    sameGroupAs: 'sandbox' in options ? options.sandbox : null,
-    metadata: 'metadata' in options ? options.metadata : {}
+    sameGroupAs: 'sandbox' in options ? options.sandbox : null
   };
 
   // Make `options.sameGroupAs` only if `sandbox` property is passed,
@@ -256,11 +253,7 @@ const load = iced(function load(loader, module) {
     sandbox: sandboxes[keys(sandboxes).shift()],
     prototype: create(globals, descriptors),
     wantXrays: false,
-    wantGlobalProperties: module.id == "sdk/indexed-db" ? ["indexedDB"] : [],
-    metadata: {
-      addonID: loader.id,
-      URI: module.uri
-    }
+    wantGlobalProperties: module.id == "sdk/indexed-db" ? ["indexedDB"] : []
   });
 
   try {
@@ -340,7 +333,6 @@ const resolveURI = iced(function resolveURI(id, mapping) {
     if (id.indexOf(path) === 0)
       return normalize(id.replace(path, uri));
   }
-  return void 0; // otherwise we raise a warning, see bug 910304
 });
 exports.resolveURI = resolveURI;
 
@@ -486,8 +478,6 @@ const Loader = iced(function Loader(options) {
     // Map of module sandboxes indexed by module URIs.
     sandboxes: { enumerable: false, value: {} },
     resolve: { enumerable: false, value: resolve },
-    // ID of the addon, if provided.
-    id: { enumerable: false, value: options.id },
     load: { enumerable: false, value: options.load || load },
     // Main (entry point) module, it can be set only once, since loader
     // instance can have only one main module.

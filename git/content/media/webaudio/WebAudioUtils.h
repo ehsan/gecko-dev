@@ -13,9 +13,6 @@
 #include "mozilla/FloatingPoint.h"
 #include "MediaSegment.h"
 
-// Forward declaration
-typedef struct SpeexResamplerState_ SpeexResamplerState;
-
 namespace mozilla {
 
 class AudioNodeStream;
@@ -217,18 +214,6 @@ struct WebAudioUtils {
   }
 
   static void Shutdown();
-
-  static int
-  SpeexResamplerProcess(SpeexResamplerState* aResampler,
-                        uint32_t aChannel,
-                        const float* aIn, uint32_t* aInLen,
-                        float* aOut, uint32_t* aOutLen);
-
-  static int
-  SpeexResamplerProcess(SpeexResamplerState* aResampler,
-                        uint32_t aChannel,
-                        const int16_t* aIn, uint32_t* aInLen,
-                        float* aOut, uint32_t* aOutLen);
 };
 
 }

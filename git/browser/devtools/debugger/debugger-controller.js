@@ -11,7 +11,6 @@ const DBG_STRINGS_URI = "chrome://browser/locale/devtools/debugger.properties";
 const NEW_SOURCE_IGNORED_URLS = ["debugger eval code", "self-hosted", "XStringBundle"];
 const NEW_SOURCE_DISPLAY_DELAY = 200; // ms
 const FETCH_SOURCE_RESPONSE_DELAY = 200; // ms
-const FETCH_EVENT_LISTENERS_DELAY = 200; // ms
 const FRAME_STEP_CLEAR_DELAY = 100; // ms
 const CALL_STACK_PAGE_SIZE = 25; // frames
 
@@ -47,10 +46,6 @@ const EVENTS = {
   // When a conditional breakpoint's popup is showing or hiding.
   CONDITIONAL_BREAKPOINT_POPUP_SHOWING: "Debugger:ConditionalBreakpointPopupShowing",
   CONDITIONAL_BREAKPOINT_POPUP_HIDING: "Debugger:ConditionalBreakpointPopupHiding",
-
-  // When event listeners are fetched or event breakpoints are updated.
-  EVENT_LISTENERS_FETCHED: "Debugger:EventListenersFetched",
-  EVENT_BREAKPOINTS_UPDATED: "Debugger:EventBreakpointsUpdated",
 
   // When a file search was performed.
   FILE_SEARCH_MATCH_FOUND: "Debugger:FileSearch:MatchFound",
@@ -279,17 +274,9 @@ let DebuggerController = {
         // Reset UI.
         DebuggerView._handleTabNavigation();
 
-        // Discard all the cached sources *before* the target starts navigating.
-        // Sources may be fetched during navigation, in which case we don't
-        // want to hang on to the old source contents.
-        DebuggerController.SourceScripts.clearCache();
+        // Discard all the old sources.
         DebuggerController.Parser.clearCache();
         SourceUtils.clearCache();
-
-        // Prevent performing any actions that were scheduled before navigation.
-        clearNamedTimeout("new-source");
-        clearNamedTimeout("event-breakpoints-update");
-        clearNamedTimeout("event-listeners-fetch");
         break;
       }
       case "navigate": {
@@ -400,7 +387,7 @@ let DebuggerController = {
         return;
       }
 
-      // Reset the view and fetch all the sources again.
+      // Reset UI, discard all the old sources and get them again.
       DebuggerView._handleTabNavigation();
       this.SourceScripts._handleTabNavigation();
 
@@ -1024,13 +1011,6 @@ SourceScripts.prototype = {
   },
 
   /**
-   * Clears all the cached source contents.
-   */
-  clearCache: function() {
-    this._cache.clear();
-  },
-
-  /**
    * Handles any initialization on a tab navigation event issued by the client.
    */
   _handleTabNavigation: function() {
@@ -1039,8 +1019,12 @@ SourceScripts.prototype = {
     }
     dumpn("Handling tab navigation in the SourceScripts");
 
+    // Don't expect the old sources to matter after the tab navigated.
+    clearNamedTimeout("new-source");
+
     // Retrieve the list of script sources known to the server from before
     // the client was ready to handle "newSource" notifications.
+    this._cache.clear();
     this.activeThread.getSources(this._onSourcesAdded);
   },
 
@@ -1084,11 +1068,6 @@ SourceScripts.prototype = {
     // both in the editor and the breakpoints pane.
     DebuggerController.Breakpoints.updateEditorBreakpoints();
     DebuggerController.Breakpoints.updatePaneBreakpoints();
-
-    // Make sure the events listeners are up to date.
-    if (DebuggerView.instrumentsPaneTab == "events-tab") {
-      DebuggerController.Breakpoints.DOM.scheduleEventListenersFetch();
-    }
 
     // Signal that a new source has been added.
     window.emit(EVENTS.NEW_SOURCE);
@@ -1324,82 +1303,6 @@ SourceScripts.prototype = {
 };
 
 /**
- * Handles breaking on event listeners in the currently debugged target.
- */
-function EventListeners() {
-  this._onEventListeners = this._onEventListeners.bind(this);
-}
-
-EventListeners.prototype = {
-  /**
-   * A list of event names on which the debuggee will automatically pause
-   * when invoked.
-   */
-  activeEventNames: [],
-
-  /**
-   * Updates the list of events types with listeners that, when invoked,
-   * will automatically pause the debuggee. The respective events are
-   * retrieved from the UI.
-   */
-  scheduleEventBreakpointsUpdate: function() {
-    // Make sure we're not sending a batch of closely repeated requests.
-    // This can easily happen when toggling all events of a certain type.
-    setNamedTimeout("event-breakpoints-update", 0, () => {
-      this.activeEventNames = DebuggerView.EventListeners.getCheckedEvents();
-      gThreadClient.pauseOnDOMEvents(this.activeEventNames);
-
-      // Notify that event breakpoints were added/removed on the server.
-      window.emit(EVENTS.EVENT_BREAKPOINTS_UPDATED);
-    });
-  },
-
-  /**
-   * Fetches the currently attached event listeners from the debugee.
-   */
-  scheduleEventListenersFetch: function() {
-    let getListeners = aCallback => gThreadClient.eventListeners(aResponse => {
-      this._onEventListeners(aResponse);
-
-      // Notify that event listeners were fetched and shown in the view,
-      // and callback to resume the active thread if necessary.
-      window.emit(EVENTS.EVENT_LISTENERS_FETCHED);
-      aCallback && aCallback();
-    });
-
-    // Make sure we're not sending a batch of closely repeated requests.
-    // This can easily happen whenever new sources are fetched.
-    setNamedTimeout("event-listeners-fetch", FETCH_EVENT_LISTENERS_DELAY, () => {
-      if (gThreadClient.state != "paused") {
-        gThreadClient.interrupt(() => getListeners(() => gThreadClient.resume()));
-      } else {
-        getListeners();
-      }
-    });
-  },
-
-  /**
-   * Callback for the debugger's active thread eventListeners() method.
-   */
-  _onEventListeners: function(aResponse) {
-    if (aResponse.error) {
-      let msg = "Error getting event listeners: " + aResponse.message;
-      Cu.reportError(msg);
-      dumpn(msg);
-      return;
-    }
-
-    // Add all the listeners in the debugger view event linsteners container.
-    for (let listener of aResponse.listeners) {
-      DebuggerView.EventListeners.addListener(listener, { staged: true });
-    }
-
-    // Flushes all the prepared events into the event listeners container.
-    DebuggerView.EventListeners.commit();
-  }
-};
-
-/**
  * Handles all the breakpoints in the current debugger.
  */
 function Breakpoints() {
@@ -1411,6 +1314,8 @@ function Breakpoints() {
 }
 
 Breakpoints.prototype = {
+  get activeThread() DebuggerController.activeThread,
+
   /**
    * A map of breakpoint promises as tracked by the debugger frontend.
    * The keys consist of a string representation of the breakpoint location.
@@ -1587,7 +1492,7 @@ Breakpoints.prototype = {
     this._added.set(identifier, deferred.promise);
 
     // Try adding the breakpoint.
-    gThreadClient.setBreakpoint(aLocation, (aResponse, aBreakpointClient) => {
+    this.activeThread.setBreakpoint(aLocation, (aResponse, aBreakpointClient) => {
       // If the breakpoint response has an "actualLocation" attached, then
       // the original requested placement for the breakpoint wasn't accepted.
       if (aResponse.actualLocation) {
@@ -1882,7 +1787,6 @@ DebuggerController.ThreadState = new ThreadState();
 DebuggerController.StackFrames = new StackFrames();
 DebuggerController.SourceScripts = new SourceScripts();
 DebuggerController.Breakpoints = new Breakpoints();
-DebuggerController.Breakpoints.DOM = new EventListeners();
 
 /**
  * Export some properties to the global scope for easier access.
