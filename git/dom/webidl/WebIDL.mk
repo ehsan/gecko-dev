@@ -359,7 +359,6 @@ endif
 
 ifdef MOZ_WEBRTC
 webidl_files += \
-  DataChannel.webidl \
   MediaStreamList.webidl \
   $(NULL)
 endif

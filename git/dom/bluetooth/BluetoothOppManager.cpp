@@ -29,7 +29,7 @@
 #include "nsIOutputStream.h"
 #include "nsNetUtil.h"
 
-#define TARGET_SUBDIR "Download/Bluetooth/"
+#define TARGET_SUBDIR "downloads/bluetooth/"
 
 USING_BLUETOOTH_NAMESPACE
 using namespace mozilla;
