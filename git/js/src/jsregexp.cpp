@@ -4249,42 +4249,21 @@ enum regexp_static_tinyid {
     REGEXP_STATIC_RIGHT_CONTEXT = -6
 };
 
-void
-js_InitRegExpStatics(JSContext *cx)
+JSBool
+js_InitRegExpStatics(JSContext *cx, JSRegExpStatics *res)
 {
-    /*
-     * To avoid multiple allocations in InitMatch(), the arena size parameter
-     * should be at least as big as:
-     *   INITIAL_BACKTRACK
-     *   + (sizeof(REProgState) * INITIAL_STATESTACK)
-     *   + (offsetof(REMatchState, parens) + avgParanSize * sizeof(RECapture))
-     */
-    JS_INIT_ARENA_POOL(&cx->regexpPool, "regexp",
-                       12 * 1024 - 40,  /* FIXME: bug 421435 */
-                       sizeof(void *), &cx->scriptStackQuota);
-
     JS_ClearRegExpStatics(cx);
+    return js_AddRoot(cx, &res->input, "res->input");
 }
 
 void
-js_TraceRegExpStatics(JSTracer *trc, JSContext *acx)
+js_FreeRegExpStatics(JSContext *cx, JSRegExpStatics *res)
 {
-    JSRegExpStatics *res = &acx->regExpStatics;
-
-    if (res->input)
-        JS_CALL_STRING_TRACER(trc, res->input, "res->input");
-}
-
-void
-js_FreeRegExpStatics(JSContext *cx)
-{
-    JSRegExpStatics *res = &cx->regExpStatics;
-
     if (res->moreParens) {
         JS_free(cx, res->moreParens);
         res->moreParens = NULL;
     }
-    JS_FinishArenaPool(&cx->regexpPool);
+    js_RemoveRoot(cx->runtime, &res->input);
 }
 
 static JSBool

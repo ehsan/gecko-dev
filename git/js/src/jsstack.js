@@ -99,37 +99,17 @@ function RedGreenCheck(fndecl, trace) {
   // Using walk_tree to walk the isns is a little crazy but robust.
   //
   this.hasRed = false;
-  let self = this;         // Allow our 'this' to be accessed inside closure
   for (let bb in cfg_bb_iterator(cfg)) {
     for (let isn in bb_isn_iterator(bb)) {
-      // Treehydra objects don't support reading never-defined properties
-      // as undefined, so we have to explicitly initialize anything we want
-      // to check for later.
-      isn.redInfo = undefined;
       walk_tree(isn, function(t, stack) {
-        function getLocation(skiptop) {
-          if (!skiptop) {
-            let loc = location_of(t);
-            if (loc !== undefined)
-              return loc;
-          }
-          
-          for (let i = stack.length - 1; i >= 0; --i) {
-            loc = location_of(stack[i]);
-            if (loc !== undefined)
-              return loc;
-          }
-          return location_of(DECL_SAVED_TREE(fndecl));
-        }
-                  
         switch (TREE_CODE(t)) {
           case FIELD_DECL:
             if (isRed(t)) {
               let varName = dehydra_convert(t).name;
               // location_of(t) is the location of the declaration.
               isn.redInfo = ["cannot access JS_REQUIRES_STACK variable " + varName,
-                             getLocation(true)];
-              self.hasRed = true;
+                             location_of(stack[stack.length - 1])];
+              this.hasRed = true;
             }
             break;
           case CALL_EXPR:
@@ -139,8 +119,8 @@ function RedGreenCheck(fndecl, trace) {
               if (isRed(callee)) {
                 let calleeName = dehydra_convert(callee).name;
                 isn.redInfo = ["cannot call JS_REQUIRES_STACK function " + calleeName,
-                              getLocation(false)];
-                self.hasRed = true;
+                              location_of(t)];
+                this.hasRed = true;
               } else if (isTurnRed(callee)) {
                 isn.turnRed = true;
               }
@@ -176,7 +156,7 @@ RedGreenCheck.prototype.flowState = function(isn, state) {
   let redInfo = isn.redInfo;
   if (green && redInfo) {
     error(redInfo[0], redInfo[1]);
-    isn.redInfo = undefined;  // avoid duplicate messages about this instruction
+    delete isn.redInfo;  // avoid duplicate messages about this instruction
   }
 
   // If we call a TURNS_RED function, it doesn't take effect until after the
