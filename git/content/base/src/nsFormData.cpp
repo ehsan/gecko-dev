@@ -42,7 +42,7 @@
 #include "nsContentUtils.h"
 
 nsFormData::nsFormData()
-  : nsFormSubmission(NS_LITERAL_CSTRING("UTF-8"), nsnull)
+  : nsFormSubmission(NS_LITERAL_CSTRING("UTF-8"))
 {
 }
 
@@ -141,7 +141,7 @@ NS_IMETHODIMP
 nsFormData::GetSendInfo(nsIInputStream** aBody, nsACString& aContentType,
                         nsACString& aCharset)
 {
-  nsFSMultipartFormData fs(NS_LITERAL_CSTRING("UTF-8"), nsnull);
+  nsFSMultipartFormData fs(NS_LITERAL_CSTRING("UTF-8"));
   
   for (PRUint32 i = 0; i < mFormData.Length(); ++i) {
     if (mFormData[i].valueIsFile) {

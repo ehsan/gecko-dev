@@ -219,10 +219,6 @@ nsInProcessTabChildGlobal::DelayedDisconnect()
     static_cast<nsFrameMessageManager*>(mMessageManager.get())->Disconnect();
     mMessageManager = nsnull;
   }
-  if (mListenerManager) {
-    mListenerManager->Disconnect();
-  }
-  
   if (!mLoadingScript) {
     if (mCx) {
       DestroyCx();
@@ -300,6 +296,7 @@ nsInProcessTabChildGlobal::InitTabChildGlobal()
 
   JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_JIT | JSOPTION_ANONFUNFIX | JSOPTION_PRIVATE_IS_NSISUPPORTS);
   JS_SetVersion(cx, JSVERSION_LATEST);
+  JS_SetGCParameterForThread(cx, JSGC_MAX_CODE_CACHE_BYTES, 1 * 1024 * 1024);
 
   JSAutoRequest ar(cx);
   nsIXPConnect* xpc = nsContentUtils::XPConnect();

@@ -45,7 +45,6 @@
 #include "nsIDOMNSHTMLFrameElement.h"
 #include "nsFrameLoader.h"
 #include "nsGkAtoms.h"
-#include "nsContentCreatorFunctions.h"
 
 class nsIDOMAttr;
 class nsIDOMEventListener;
@@ -477,9 +476,8 @@ public:
    *        a connected subtree with the node, the current form will be
    *        returned.  This is needed to handle cases when HTML elements have a
    *        current form that they're not descendants of.
-   * @note This method should not be called if the element has a form attribute.
    */
-  nsHTMLFormElement* FindAncestorForm(nsHTMLFormElement* aCurrentForm = nsnull);
+  nsHTMLFormElement* FindForm(nsHTMLFormElement* aCurrentForm = nsnull);
 
   virtual void RecompileScriptEventListeners();
 
@@ -494,19 +492,6 @@ public:
    */
   NS_HIDDEN_(nsresult) GetEditor(nsIEditor** aEditor);
   NS_HIDDEN_(nsresult) GetEditorInternal(nsIEditor** aEditor);
-
-  /**
-   * Helper method for NS_IMPL_URI_ATTR macro.
-   * Gets the absolute URI value of an attribute, by resolving any relative
-   * URIs in the attribute against the baseuri of the element. If the attribute
-   * isn't a relative URI the value of the attribute is returned as is. Only
-   * works for attributes in null namespace.
-   *
-   * @param aAttr      name of attribute.
-   * @param aBaseAttr  name of base attribute.
-   * @param aResult    result value [out]
-   */
-  NS_HIDDEN_(nsresult) GetURIAttr(nsIAtom* aAttr, nsIAtom* aBaseAttr, nsAString& aResult);
 
 protected:
   /**
@@ -667,6 +652,19 @@ protected:
    * @param aValue   Float value of attribute.
    */
   NS_HIDDEN_(nsresult) SetFloatAttr(nsIAtom* aAttr, float aValue);
+
+  /**
+   * Helper method for NS_IMPL_URI_ATTR macro.
+   * Gets the absolute URI value of an attribute, by resolving any relative
+   * URIs in the attribute against the baseuri of the element. If the attribute
+   * isn't a relative URI the value of the attribute is returned as is. Only
+   * works for attributes in null namespace.
+   *
+   * @param aAttr      name of attribute.
+   * @param aBaseAttr  name of base attribute.
+   * @param aResult    result value [out]
+   */
+  NS_HIDDEN_(nsresult) GetURIAttr(nsIAtom* aAttr, nsIAtom* aBaseAttr, nsAString& aResult);
 
   /**
    * Helper for GetURIAttr and GetHrefURIForAnchors which returns an
@@ -830,8 +828,6 @@ public:
 
           PRBool IsLabelableControl() const;
 
-          PRBool IsSubmittableControl() const;
-
   // nsIContent
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
@@ -842,11 +838,6 @@ public:
   virtual PRInt32 IntrinsicState() const;
 
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
-
-  /**
-   * Returns if the control can be disabled.
-   */
-  PRBool CanBeDisabled() const;
 
 protected:
   virtual nsresult BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
@@ -863,40 +854,14 @@ protected:
     return PR_FALSE;
   }
 
+  /**
+   * Returns true if the control can be disabled
+   */
+  PRBool CanBeDisabled() const;
+
   void UpdateEditableFormControlState();
 
   PRBool IsSingleLineTextControlInternal(PRBool aExcludePassword, PRInt32 mType) const;
-
-  /**
-   * This method will update the form owner, using @form or looking to a parent.
-   *
-   * @param aBindToTree Whether the element is being attached to the tree.
-   * @param aFormIdElement The element associated with the id in @form. If
-   * aBindToTree is false, aFormIdElement *must* contain the element associated
-   * with the id in @form. Otherwise, it *must* be null.
-   */
-  void UpdateFormOwner(bool aBindToTree, Element* aFormIdElement);
-
-  /**
-   * Add a form id observer which will observe when the element with the id in
-   * @form will change.
-   *
-   * @return The element associated with the current id in @form (may be null).
-   */
-  Element* AddFormIdObserver();
-
-  /**
-   * Remove the form id observer.
-   */
-  void RemoveFormIdObserver();
-
-  /**
-   * This method is a a callback for IDTargetObserver (from nsIDocument).
-   * It will be called each time the element associated with the id in @form
-   * changes.
-   */
-  static PRBool FormIdUpdated(Element* aOldElement, Element* aNewElement,
-                              void* aData);
 
   // The focusability state of this form control.  eUnfocusable means that it
   // shouldn't be focused at all, eInactiveWindow means it's in an inactive
@@ -944,11 +909,9 @@ class nsGenericHTMLFrameElement : public nsGenericHTMLElement,
                                   public nsIFrameLoaderOwner
 {
 public:
-  nsGenericHTMLFrameElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                            PRUint32 aFromParser)
+  nsGenericHTMLFrameElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     : nsGenericHTMLElement(aNodeInfo)
   {
-    mNetworkCreated = aFromParser == NS_FROM_PARSER_NETWORK;
   }
   virtual ~nsGenericHTMLFrameElement();
 
@@ -995,10 +958,6 @@ protected:
   nsresult GetContentDocument(nsIDOMDocument** aContentDocument);
 
   nsRefPtr<nsFrameLoader> mFrameLoader;
-  // True when the element is created by the parser
-  // using NS_FROM_PARSER_NETWORK flag.
-  // If the element is modified, it may lose the flag.
-  PRPackedBool            mNetworkCreated;
 };
 
 //----------------------------------------------------------------------

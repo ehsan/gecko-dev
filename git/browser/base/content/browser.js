@@ -750,7 +750,7 @@ const gXPInstallObserver = {
         PopupNotifications.remove(notification);
 
       var needsRestart = installInfo.installs.some(function(i) {
-        return i.addon.pendingOperations != AddonManager.PENDING_NONE;
+        return (i.addon.pendingOperations & AddonManager.PENDING_INSTALL) != 0;
       });
 
       if (needsRestart) {
@@ -1449,6 +1449,12 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
 
   // bookmark-all-tabs command
   gBookmarkAllTabsHandler.init();
+
+  // Attach a listener to watch for "command" events bubbling up from error
+  // pages.  This lets us fix bugs like 401575 which require error page UI to
+  // do privileged things, without letting error pages have any privilege
+  // themselves.
+  gBrowser.addEventListener("command", BrowserOnCommand, false);
 
   ctrlTab.readPref();
   gPrefService.addObserver(ctrlTab.prefName, ctrlTab, false);
@@ -2354,11 +2360,10 @@ function losslessDecodeURI(aURI) {
   value = value.replace(/[\v\x0c\x1c\x1d\x1e\x1f\u2028\u2029\ufffc]/g,
                         encodeURIComponent);
 
-  // Encode default ignorable characters (bug 546013)
-  // except ZWNJ (U+200C) and ZWJ (U+200D) (bug 582186).
+  // Encode default ignorable characters. (bug 546013)
   // This includes all bidirectional formatting characters.
   // (RFC 3987 sections 3.2 and 4.1 paragraph 6)
-  value = value.replace(/[\u00ad\u034f\u115f-\u1160\u17b4-\u17b5\u180b-\u180d\u200b\u200e-\u200f\u202a-\u202e\u2060-\u206f\u3164\ufe00-\ufe0f\ufeff\uffa0\ufff0-\ufff8]|\ud834[\udd73-\udd7a]|[\udb40-\udb43][\udc00-\udfff]/g,
+  value = value.replace(/[\u00ad\u034f\u115f-\u1160\u17b4-\u17b5\u180b-\u180d\u200b-\u200f\u202a-\u202e\u2060-\u206f\u3164\ufe00-\ufe0f\ufeff\uffa0\ufff0-\ufff8]|\ud834[\udd73-\udd7a]|[\udb40-\udb43][\udc00-\udfff]/g,
                         encodeURIComponent);
   return value;
 }
@@ -2485,9 +2490,9 @@ function BrowserImport()
 /**
  * Handle command events bubbling up from error page content
  */
-function BrowserOnClick(event) {
+function BrowserOnCommand(event) {
     // Don't trust synthetic events
-    if (!event.isTrusted || event.target.localName != "button")
+    if (!event.isTrusted)
       return;
 
     var ot = event.originalTarget;
@@ -2602,6 +2607,11 @@ function BrowserOnClick(event) {
           notificationBox.PRIORITY_CRITICAL_HIGH,
           buttons
         );
+      }
+    }
+    else if (/^about:privatebrowsing/.test(errorDoc.documentURI)) {
+      if (ot == errorDoc.getElementById("startPrivateBrowsing")) {
+        gPrivateBrowsingUI.toggleMode();
       }
     }
 }
@@ -3577,9 +3587,6 @@ function updateEditUIVisibility()
   let editMenuPopupState = document.getElementById("menu_EditPopup").state;
   let contextMenuPopupState = document.getElementById("contentAreaContextMenu").state;
   let placesContextMenuPopupState = document.getElementById("placesContext").state;
-#ifdef MENUBAR_CAN_AUTOHIDE
-  let appMenuPopupState = document.getElementById("appmenu-popup").state;
-#endif
 
   // The UI is visible if the Edit menu is opening or open, if the context menu
   // is open, or if the toolbar has been customized to include the Cut, Copy,
@@ -3590,10 +3597,6 @@ function updateEditUIVisibility()
                    contextMenuPopupState == "open" ||
                    placesContextMenuPopupState == "showing" ||
                    placesContextMenuPopupState == "open" ||
-#ifdef MENUBAR_CAN_AUTOHIDE
-                   appMenuPopupState == "showing" ||
-                   appMenuPopupState == "open" ||
-#endif
                    document.getElementById("cut-button") ||
                    document.getElementById("copy-button") ||
                    document.getElementById("paste-button") ? true : false;
@@ -4076,7 +4079,6 @@ var XULBrowserWindow = {
   onStateChange: function (aWebProgress, aRequest, aStateFlags, aStatus) {
     const nsIWebProgressListener = Ci.nsIWebProgressListener;
     const nsIChannel = Ci.nsIChannel;
-
     if (aStateFlags & nsIWebProgressListener.STATE_START &&
         aStateFlags & nsIWebProgressListener.STATE_IS_NETWORK) {
 
@@ -4523,32 +4525,16 @@ var CombinedStopReload = {
 };
 
 var TabsProgressListener = {
-  onStateChange: function (aBrowser, aWebProgress, aRequest, aStateFlags, aStatus) {
 #ifdef MOZ_CRASHREPORTER
+  onStateChange: function (aBrowser, aWebProgress, aRequest, aStateFlags, aStatus) {
     if (aRequest instanceof Ci.nsIChannel &&
         aStateFlags & Ci.nsIWebProgressListener.STATE_START &&
         aStateFlags & Ci.nsIWebProgressListener.STATE_IS_DOCUMENT &&
         gCrashReporter.enabled) {
       gCrashReporter.annotateCrashReport("URL", aRequest.URI.spec);
     }
-#endif
-
-    // Attach a listener to watch for "click" events bubbling up from error
-    // pages and other similar page. This lets us fix bugs like 401575 which
-    // require error page UI to do privileged things, without letting error
-    // pages have any privilege themselves.
-    // We can't look for this during onLocationChange since at that point the
-    // document URI is not yet the about:-uri of the error page.
-
-    if (aStateFlags & Ci.nsIWebProgressListener.STATE_STOP &&
-        /^about:/.test(aBrowser.contentWindow.document.documentURI)) {
-      aBrowser.addEventListener("click", BrowserOnClick, false);
-      aBrowser.addEventListener("pagehide", function () {
-        aBrowser.removeEventListener("click", BrowserOnClick, false);
-        aBrowser.removeEventListener("pagehide", arguments.callee, true);
-      }, true);
-    }
   },
+#endif
 
   onLocationChange: function (aBrowser, aWebProgress, aRequest, aLocationURI) {
     // Filter out any sub-frame loads
@@ -4688,7 +4674,7 @@ nsBrowserAccess.prototype = {
   }
 }
 
-function onViewToolbarsPopupShowing(aEvent, aInsertPoint) {
+function onViewToolbarsPopupShowing(aEvent) {
   var popup = aEvent.target;
   if (popup != aEvent.currentTarget)
     return;
@@ -4702,7 +4688,7 @@ function onViewToolbarsPopupShowing(aEvent, aInsertPoint) {
       popup.removeChild(deadItem);
   }
 
-  var firstMenuItem = aInsertPoint || popup.firstChild;
+  var firstMenuItem = popup.firstChild;
 
   for (i = 0; i < gNavToolbox.childNodes.length; ++i) {
     var toolbar = gNavToolbox.childNodes[i];
@@ -6638,22 +6624,16 @@ var FeedHandler = {
     }
   },
 
-  get _feedMenuitem() {
-    delete this._feedMenuitem;
-    return this._feedMenuitem = document.getElementById("singleFeedMenuitemState");
-  },
-
-  get _feedMenupopup() {
-    delete this._feedMenupopup;
-    return this._feedMenupopup = document.getElementById("multipleFeedsMenuState");
-  },
-
   /**
    * Update the browser UI to show whether or not feeds are available when
    * a page is loaded or the user switches tabs to a page that has feeds.
    */
   updateFeeds: function() {
     var feedButton = document.getElementById("feed-button");
+    if (!this._feedMenuitem)
+      this._feedMenuitem = document.getElementById("subscribeToPageMenuitem");
+    if (!this._feedMenupopup)
+      this._feedMenupopup = document.getElementById("subscribeToPageMenupopup");
 
     var feeds = gBrowser.selectedBrowser.feeds;
     if (!feeds || feeds.length == 0) {
@@ -6789,8 +6769,8 @@ var gBookmarkAllTabsHandler = {
     this._command = document.getElementById("Browser:BookmarkAllTabs");
     gBrowser.tabContainer.addEventListener("TabOpen", this, true);
     gBrowser.tabContainer.addEventListener("TabClose", this, true);
-    gBrowser.tabContainer.addEventListener("TabShow", this, true);
-    gBrowser.tabContainer.addEventListener("TabHide", this, true);
+    gBrowser.tabContainer.addEventListener("TabSelect", this, true);
+    gBrowser.tabContainer.addEventListener("TabMove", this, true);
     this._updateCommandState();
   },
 
@@ -7470,10 +7450,6 @@ let gPrivateBrowsingUI = {
       // Disable the menu item in auto-start mode
       document.getElementById("privateBrowsingItem")
               .setAttribute("disabled", "true");
-#ifdef MENUBAR_CAN_AUTOHIDE
-      document.getElementById("appmenu_privateBrowsing")
-              .setAttribute("disabled", "true");
-#endif
       document.getElementById("Tools:PrivateBrowsing")
               .setAttribute("disabled", "true");
     }
@@ -7541,10 +7517,6 @@ let gPrivateBrowsingUI = {
     // Enable the menu item in after exiting the auto-start mode
     document.getElementById("privateBrowsingItem")
             .removeAttribute("disabled");
-#ifdef MENUBAR_CAN_AUTOHIDE
-    document.getElementById("appmenu_privateBrowsing")
-            .removeAttribute("disabled");
-#endif
     document.getElementById("Tools:PrivateBrowsing")
             .removeAttribute("disabled");
 
@@ -7563,11 +7535,6 @@ let gPrivateBrowsingUI = {
     let pbMenuItem = document.getElementById("privateBrowsingItem");
     pbMenuItem.setAttribute("label", pbMenuItem.getAttribute(aMode + "label"));
     pbMenuItem.setAttribute("accesskey", pbMenuItem.getAttribute(aMode + "accesskey"));
-#ifdef MENUBAR_CAN_AUTOHIDE
-    let appmenupbMenuItem = document.getElementById("appmenu_privateBrowsing");
-    appmenupbMenuItem.setAttribute("label", appmenupbMenuItem.getAttribute(aMode + "label"));
-    appmenupbMenuItem.setAttribute("accesskey", appmenupbMenuItem.getAttribute(aMode + "accesskey"));
-#endif
   },
 
   toggleMode: function PBUI_toggleMode() {

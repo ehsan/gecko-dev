@@ -36,8 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-%include shared.inc
-
 .hud-box {
     border-bottom: 1px solid #aaa;
 }
@@ -88,6 +86,10 @@
     color: red; font-weight: bold;
 }
 
+.hud-hidden {
+    display: none;
+}
+
 .hud-msg-node {    
     width: 100%;
     margin-top: 0.3em; 
@@ -102,10 +104,6 @@
     overflow-x: auto; overflow: auto;
     font: 1em monospace; background-color: white;
     width: 100%;
-}
-
-.hud-filtered-by-type, .hud-filtered-by-string {
-    display: none;
 }
 
 .hud-group:first-child .hud-divider {
@@ -168,10 +166,8 @@
     font-size: 1.2em;
 }
 
+/* these need to be revised ... */
 .hud-console-filter-toolbar {
-    background: @scopeBarBackground@ !important;
-    border-bottom: @scopeBarSeparatorBorder@;
-    padding: 0px 1px;
-    -moz-appearance: none !important;
+    padding: 1px 0px;
     -moz-box-align: center;
 }

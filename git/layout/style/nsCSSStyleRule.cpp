@@ -1309,7 +1309,7 @@ public:
   virtual nsresult SetSelectorText(const nsAString& aSelectorText);
 
   virtual PRInt32 GetType() const;
-  virtual already_AddRefed<nsICSSRule> Clone() const;
+  virtual nsresult Clone(nsICSSRule*& aClone) const;
 
   nsIDOMCSSRule* GetDOMRuleWeak(nsresult* aResult);
 
@@ -1478,11 +1478,17 @@ CSSStyleRuleImpl::GetType() const
   return nsICSSRule::STYLE_RULE;
 }
 
-/* virtual */ already_AddRefed<nsICSSRule>
-CSSStyleRuleImpl::Clone() const
+/* virtual */ nsresult
+CSSStyleRuleImpl::Clone(nsICSSRule*& aClone) const
 {
-  nsCOMPtr<nsICSSRule> clone = new CSSStyleRuleImpl(*this);
-  return clone.forget();
+  CSSStyleRuleImpl* clone = new CSSStyleRuleImpl(*this);
+  if (!clone || !clone->mDeclaration || (!clone->mSelector != !mSelector)) {
+    delete clone;
+    aClone = nsnull;
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+  NS_ADDREF(aClone = clone);
+  return NS_OK;
 }
 
 nsIDOMCSSRule*

@@ -272,11 +272,8 @@ CSPRep.fromString = function(aStr, self) {
 
   } // end directive: loop
 
-  // if makeExplicit fails for any reason, default to allow 'none'.  This
-  // includes the case where "allow" is not present.
-  if (aCSPR.makeExplicit())
-    return aCSPR;
-  return CSPRep.fromString("allow 'none'", self);
+  aCSPR.makeExplicit();
+  return aCSPR;
 };
 
 CSPRep.prototype = {
@@ -412,7 +409,6 @@ CSPRep.prototype = {
     var SD = CSPRep.SRC_DIRECTIVES;
     var allowDir = this._directives[SD.ALLOW];
     if (!allowDir) {
-      CSPWarning("'allow' directive required but not present.  Reverting to \"allow 'none'\"");
       return false;
     }
 

@@ -28,12 +28,11 @@
 
 #include <stddef.h> // for ptrdiff_t
 #include <limits>
-#include "assembler/wtf/Assertions.h"
+#include <wtf/Assertions.h>
 
 #include "jsapi.h"
 #include "jsprvtd.h"
 #include "jsvector.h"
-#include "jslock.h"
 
 #if WTF_PLATFORM_IPHONE
 #include <libkern/OSCacheControl.h>
@@ -81,7 +80,7 @@ inline size_t roundUpAllocationSize(size_t request, size_t granularity)
     // Round up to next page boundary
     size_t size = request + (granularity - 1);
     size = size & ~(granularity - 1);
-    JS_ASSERT(size >= request);
+    ASSERT(size >= request);
     return size;
 }
 
@@ -105,16 +104,16 @@ private:
     typedef js::Vector<Allocation, 2 ,js::SystemAllocPolicy > AllocationList;
 
     // Reference count for automatic reclamation.
-    jsrefcount m_refCount;
+    unsigned m_refCount;
 
 public:
       // It should be impossible for us to roll over, because only small
       // pools have multiple holders, and they have one holder per chunk
       // of generated code, and they only hold 16KB or so of code.
-      void addRef() { JS_ATOMIC_INCREMENT(&m_refCount); }
+      void addRef() { ++m_refCount; }
       void release() { 
-	  JS_ASSERT(m_refCount != 0);
-	  if (JS_ATOMIC_DECREMENT(&m_refCount) == 0) 
+	  ASSERT(m_refCount != 0);
+	  if (--m_refCount == 0) 
 	      delete this; 
       }
 
@@ -126,7 +125,7 @@ public:
 
     void* alloc(size_t n)
     {
-        JS_ASSERT(m_freePtr <= m_end);
+        ASSERT(m_freePtr <= m_end);
 
         // Round 'n' up to a multiple of word size; if all allocations are of
         // word sized quantities, then all subsequent allocations will be aligned.
@@ -286,7 +285,7 @@ public:
     }
 #elif WTF_CPU_ARM_TRADITIONAL && WTF_PLATFORM_LINUX && WTF_COMPILER_RVCT
     static __asm void cacheFlush(void* code, size_t size);
-#elif WTF_CPU_ARM_TRADITIONAL && (WTF_PLATFORM_LINUX || WTF_PLATFORM_ANDROID) && WTF_COMPILER_GCC
+#elif WTF_CPU_ARM_TRADITIONAL && WTF_PLATFORM_LINUX && WTF_COMPILER_GCC
     static void cacheFlush(void* code, size_t size)
     {
         asm volatile (
@@ -340,7 +339,7 @@ inline void* ExecutablePool::poolAllocate(size_t n)
     if (!result.pages)
         CRASH(); // Failed to allocate
     
-    JS_ASSERT(m_end >= m_freePtr);
+    ASSERT(m_end >= m_freePtr);
     if ((allocSize - n) > static_cast<size_t>(m_end - m_freePtr)) {
         // Replace allocation pool
         m_freePtr = result.pages + n;

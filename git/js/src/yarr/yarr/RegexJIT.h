@@ -26,8 +26,6 @@
 #ifndef RegexJIT_h
 #define RegexJIT_h
 
-#if ENABLE_ASSEMBLER
-
 #include "assembler/assembler/MacroAssembler.h"
 #include "assembler/assembler/MacroAssemblerCodeRef.h"
 #include "assembler/jit/ExecutableAllocator.h"
@@ -93,7 +91,5 @@ inline int executeRegex(JSContext *cx, RegexCodeBlock& jitObject, const UChar* i
 }
 
 } } // namespace JSC::Yarr
-
-#endif /* ENABLE_ASSEMBLER */
 
 #endif // RegexJIT_h

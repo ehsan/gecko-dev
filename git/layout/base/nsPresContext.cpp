@@ -485,7 +485,7 @@ nsPresContext::GetFontPreferences()
     mMinimumFontSize = CSSPixelsToAppUnits(size);
   }
   else if (unit == eUnit_pt) {
-    mMinimumFontSize = CSSPointsToAppUnits(size);
+    mMinimumFontSize = this->PointsToAppUnits(size);
   }
 
   // get attributes specific to each generic font
@@ -549,10 +549,10 @@ nsPresContext::GetFontPreferences()
     size = nsContentUtils::GetIntPref(pref.get());
     if (size > 0) {
       if (unit == eUnit_px) {
-        font->size = CSSPixelsToAppUnits(size);
+        font->size = nsPresContext::CSSPixelsToAppUnits(size);
       }
       else if (unit == eUnit_pt) {
-        font->size = CSSPointsToAppUnits(size);
+        font->size = this->PointsToAppUnits(size);
       }
     }
 
@@ -898,18 +898,20 @@ nsPresContext::Init(nsIDeviceContext* aDeviceContext)
     mRefreshDriver = mDocument->GetDisplayDocument()->GetShell()->
       GetPresContext()->RefreshDriver();
   } else {
-    // We don't have our container set yet at this point
-    nsCOMPtr<nsISupports> ourContainer = mDocument->GetContainer();
-    nsCOMPtr<nsIDocShellTreeItem> ourItem = do_QueryInterface(ourContainer);
-    if (ourItem) {
-      nsCOMPtr<nsIDocShellTreeItem> parentItem;
-      ourItem->GetSameTypeParent(getter_AddRefs(parentItem));
-      nsCOMPtr<nsIDocShell> parentDocShell = do_QueryInterface(parentItem);
-      if (parentDocShell) {
-        nsCOMPtr<nsIPresShell> parentPresShell;
-        parentDocShell->GetPresShell(getter_AddRefs(parentPresShell));
-        if (parentPresShell) {
-          mRefreshDriver = parentPresShell->GetPresContext()->RefreshDriver();
+    nsIDocument* parent = mDocument->GetParentDocument();
+    if (parent) {
+      NS_ASSERTION(parent->GetShell() && parent->GetShell()->GetPresContext(),
+                   "How did we get a presshell?");
+
+      // We don't have our container set yet at this point
+      nsCOMPtr<nsISupports> ourContainer = mDocument->GetContainer();
+
+      nsCOMPtr<nsIDocShellTreeItem> ourItem = do_QueryInterface(ourContainer);
+      if (ourItem) {
+        nsCOMPtr<nsIDocShellTreeItem> parentItem;
+        ourItem->GetSameTypeParent(getter_AddRefs(parentItem));
+        if (parentItem) {
+          mRefreshDriver = parent->GetShell()->GetPresContext()->RefreshDriver();
         }
       }
     }

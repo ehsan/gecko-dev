@@ -25,13 +25,13 @@
 
 #include "RegexJIT.h"
 
-#if ENABLE_ASSEMBLER
-
 #include "assembler/assembler/LinkBuffer.h"
 #include "assembler/assembler/MacroAssembler.h"
 #include "RegexCompiler.h"
 
 #include "yarr/pcre/pcre.h" // temporary, remove when fallback is removed.
+
+#if ENABLE_YARR_JIT
 
 using namespace WTF;
 
@@ -73,17 +73,10 @@ class RegexGenerator : private MacroAssembler {
 
     static const RegisterID returnRegister = X86Registers::eax;
 #elif WTF_CPU_X86_64
-#if WTF_PLATFORM_WIN
-    static const RegisterID input = X86Registers::ecx;
-    static const RegisterID index = X86Registers::edx;
-    static const RegisterID length = X86Registers::r8;
-    static const RegisterID output = X86Registers::r9;
-#else
     static const RegisterID input = X86Registers::edi;
     static const RegisterID index = X86Registers::esi;
     static const RegisterID length = X86Registers::edx;
     static const RegisterID output = X86Registers::ecx;
-#endif
 
     static const RegisterID regT0 = X86Registers::eax;
     static const RegisterID regT1 = X86Registers::ebx;

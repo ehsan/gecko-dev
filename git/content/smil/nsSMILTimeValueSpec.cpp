@@ -44,35 +44,15 @@
 #include "nsSMILParserUtils.h"
 #include "nsISMILAnimationElement.h"
 #include "nsContentUtils.h"
-#include "nsIEventListenerManager.h"
-#include "nsIDOMEventGroup.h"
-#include "nsGUIEvent.h"
-#include "nsIDOMTimeEvent.h"
 #include "nsString.h"
-
-using namespace mozilla::dom;
-
-//----------------------------------------------------------------------
-// Nested class: EventListener
-
-NS_IMPL_ISUPPORTS1(nsSMILTimeValueSpec::EventListener, nsIDOMEventListener)
-
-NS_IMETHODIMP
-nsSMILTimeValueSpec::EventListener::HandleEvent(nsIDOMEvent* aEvent)
-{
-  if (mSpec) {
-    mSpec->HandleEvent(aEvent);
-  }
-  return NS_OK;
-}
 
 //----------------------------------------------------------------------
 // Implementation
 
 #ifdef _MSC_VER
 // Disable "warning C4355: 'this' : used in base member initializer list".
-// We can ignore that warning because we know that mReferencedElement's
-// constructor doesn't dereference the pointer passed to it.
+// We can ignore that warning because we know that mTimebase's constructor
+// doesn't dereference the pointer passed to it.
 #pragma warning(push)
 #pragma warning(disable:4355)
 #endif
@@ -80,7 +60,7 @@ nsSMILTimeValueSpec::nsSMILTimeValueSpec(nsSMILTimedElement& aOwner,
                                          PRBool aIsBegin)
   : mOwner(&aOwner),
     mIsBegin(aIsBegin),
-    mReferencedElement(this)
+    mTimebase(this)
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif
@@ -89,16 +69,12 @@ nsSMILTimeValueSpec::nsSMILTimeValueSpec(nsSMILTimedElement& aOwner,
 
 nsSMILTimeValueSpec::~nsSMILTimeValueSpec()
 {
-  UnregisterFromReferencedElement(mReferencedElement.get());
-  if (mEventListener) {
-    mEventListener->Disconnect();
-    mEventListener = nsnull;
-  }
+  UnregisterFromTimebase(GetTimebaseElement());
 }
 
 nsresult
 nsSMILTimeValueSpec::SetSpec(const nsAString& aStringSpec,
-                             Element* aContextNode)
+                             nsIContent* aContextNode)
 {
   nsSMILTimeValueSpecParams params;
   nsresult rv =
@@ -115,12 +91,11 @@ nsSMILTimeValueSpec::SetSpec(const nsAString& aStringSpec,
   //   "indefinite" in an end list. This value is not removed by a reset.
   if (mParams.mType == nsSMILTimeValueSpecParams::OFFSET ||
       (!mIsBegin && mParams.mType == nsSMILTimeValueSpecParams::INDEFINITE)) {
-    mOwner->AddInstanceTime(new nsSMILInstanceTime(mParams.mOffset), mIsBegin);
-  }
-
-  // Fill in the event symbol to simplify handling later
-  if (mParams.mType == nsSMILTimeValueSpecParams::REPEAT) {
-    mParams.mEventSymbol = nsGkAtoms::repeatEvent;
+    nsRefPtr<nsSMILInstanceTime> instance =
+      new nsSMILInstanceTime(mParams.mOffset);
+    if (!instance)
+      return NS_ERROR_OUT_OF_MEMORY;
+    mOwner->AddInstanceTime(instance, mIsBegin);
   }
 
   ResolveReferences(aContextNode);
@@ -131,9 +106,7 @@ nsSMILTimeValueSpec::SetSpec(const nsAString& aStringSpec,
 void
 nsSMILTimeValueSpec::ResolveReferences(nsIContent* aContextNode)
 {
-  if (mParams.mType != nsSMILTimeValueSpecParams::SYNCBASE &&
-      mParams.mType != nsSMILTimeValueSpecParams::EVENT &&
-      mParams.mType != nsSMILTimeValueSpecParams::REPEAT)
+  if (mParams.mType != nsSMILTimeValueSpecParams::SYNCBASE)
     return;
 
   NS_ABORT_IF_FALSE(aContextNode,
@@ -144,29 +117,15 @@ nsSMILTimeValueSpec::ResolveReferences(nsIContent* aContextNode)
   if (!aContextNode->IsInDoc())
     return;
 
-  // Hold ref to the old element so that it isn't destroyed in between resetting
-  // the referenced element and using the pointer to update the referenced
-  // element.
-  nsRefPtr<Element> oldReferencedElement = mReferencedElement.get();
+  // Hold ref to the old content so that it isn't destroyed in between resetting
+  // the timebase and using the pointer to update the timebase.
+  nsRefPtr<nsIContent> oldTimebaseContent = mTimebase.get();
 
-  if (mParams.mDependentElemID) {
-    mReferencedElement.ResetWithID(aContextNode,
-        nsDependentAtomString(mParams.mDependentElemID));
-  } else if (mParams.mType == nsSMILTimeValueSpecParams::EVENT) {
-    Element* target = mOwner->GetTargetElement();
-    mReferencedElement.ResetWithElement(target);
-  } else {
-    NS_ABORT_IF_FALSE(PR_FALSE, "Syncbase or repeat spec without ID");
-  }
-  UpdateReferencedElement(oldReferencedElement, mReferencedElement.get());
-}
-
-PRBool
-nsSMILTimeValueSpec::IsEventBased() const
-{
-  return mParams.mType == nsSMILTimeValueSpecParams::EVENT ||
-         mParams.mType == nsSMILTimeValueSpecParams::REPEAT ||
-         mParams.mType == nsSMILTimeValueSpecParams::ACCESSKEY;
+  NS_ABORT_IF_FALSE(mParams.mDependentElemID, "NULL syncbase element id");
+  nsString idStr;
+  mParams.mDependentElemID->ToString(idStr);
+  mTimebase.ResetWithID(aContextNode, idStr);
+  UpdateTimebase(oldTimebaseContent, mTimebase.get());
 }
 
 void
@@ -187,16 +146,10 @@ nsSMILTimeValueSpec::HandleNewInterval(nsSMILInterval& aInterval,
   nsRefPtr<nsSMILInstanceTime> newInstance =
     new nsSMILInstanceTime(newTime, nsSMILInstanceTime::SOURCE_SYNCBASE, this,
                            &aInterval);
-  mOwner->AddInstanceTime(newInstance, mIsBegin);
-}
-
-void
-nsSMILTimeValueSpec::HandleTargetElementChange(Element* aNewTarget)
-{
-  if (!IsEventBased() || mParams.mDependentElemID)
+  if (!newInstance)
     return;
 
-  mReferencedElement.ResetWithElement(aNewTarget);
+  mOwner->AddInstanceTime(newInstance, mIsBegin);
 }
 
 void
@@ -243,188 +196,60 @@ nsSMILTimeValueSpec::DependsOnBegin() const
 void
 nsSMILTimeValueSpec::Traverse(nsCycleCollectionTraversalCallback* aCallback)
 {
-  mReferencedElement.Traverse(aCallback);
+  mTimebase.Traverse(aCallback);
 }
 
 void
 nsSMILTimeValueSpec::Unlink()
 {
-  UnregisterFromReferencedElement(mReferencedElement.get());
-  mReferencedElement.Unlink();
+  UnregisterFromTimebase(GetTimebaseElement());
+  mTimebase.Unlink();
 }
 
 //----------------------------------------------------------------------
 // Implementation helpers
 
 void
-nsSMILTimeValueSpec::UpdateReferencedElement(Element* aFrom, Element* aTo)
+nsSMILTimeValueSpec::UpdateTimebase(nsIContent* aFrom, nsIContent* aTo)
 {
   if (aFrom == aTo)
     return;
 
-  UnregisterFromReferencedElement(aFrom);
+  UnregisterFromTimebase(GetTimedElementFromContent(aFrom));
 
-  switch (mParams.mType)
-  {
-  case nsSMILTimeValueSpecParams::SYNCBASE:
-    {
-      nsSMILTimedElement* to = GetTimedElement(aTo);
-      if (to) {
-        to->AddDependent(*this);
-      }
-    }
-    break;
-
-  case nsSMILTimeValueSpecParams::EVENT:
-  case nsSMILTimeValueSpecParams::REPEAT:
-    RegisterEventListener(aTo);
-    break;
-
-  default:
-    // not a referencing-type or not yet supported
-    break;
+  nsSMILTimedElement* to = GetTimedElementFromContent(aTo);
+  if (to) {
+    to->AddDependent(*this);
   }
 }
 
 void
-nsSMILTimeValueSpec::UnregisterFromReferencedElement(Element* aElement)
+nsSMILTimeValueSpec::UnregisterFromTimebase(nsSMILTimedElement* aTimedElement)
 {
-  if (!aElement)
+  if (!aTimedElement)
     return;
 
-  if (mParams.mType == nsSMILTimeValueSpecParams::SYNCBASE) {
-    nsSMILTimedElement* timedElement = GetTimedElement(aElement);
-    if (timedElement) {
-      timedElement->RemoveDependent(*this);
-    }
-    mOwner->RemoveInstanceTimesForCreator(this, mIsBegin);
-  } else if (IsEventBased()) {
-    UnregisterEventListener(aElement);
-  }
+  aTimedElement->RemoveDependent(*this);
+  mOwner->RemoveInstanceTimesForCreator(this, mIsBegin);
 }
 
 nsSMILTimedElement*
-nsSMILTimeValueSpec::GetTimedElement(Element* aElement)
+nsSMILTimeValueSpec::GetTimedElementFromContent(nsIContent* aContent)
 {
-  if (!aElement)
+  if (!aContent)
     return nsnull;
 
-  nsCOMPtr<nsISMILAnimationElement> animElement = do_QueryInterface(aElement);
+  nsCOMPtr<nsISMILAnimationElement> animElement = do_QueryInterface(aContent);
   if (!animElement)
     return nsnull;
 
   return &animElement->TimedElement();
 }
 
-void
-nsSMILTimeValueSpec::RegisterEventListener(Element* aTarget)
+nsSMILTimedElement*
+nsSMILTimeValueSpec::GetTimebaseElement()
 {
-  NS_ABORT_IF_FALSE(mParams.mType == nsSMILTimeValueSpecParams::EVENT ||
-                    mParams.mType == nsSMILTimeValueSpecParams::REPEAT,
-    "Attempting to register event-listener for unexpected nsSMILTimeValueSpec"
-    " type");
-  NS_ABORT_IF_FALSE(mParams.mEventSymbol,
-    "Attempting to register event-listener but there is no event name");
-
-  if (!aTarget)
-    return;
-
-  if (!mEventListener) {
-    mEventListener = new EventListener(this);
-  }
-
-  nsCOMPtr<nsIDOMEventGroup> sysGroup;
-  nsIEventListenerManager* elm =
-    GetEventListenerManager(aTarget, getter_AddRefs(sysGroup));
-  if (!elm)
-    return;
-  
-  elm->AddEventListenerByType(mEventListener,
-                              nsDependentAtomString(mParams.mEventSymbol),
-                              NS_EVENT_FLAG_BUBBLE |
-                              NS_PRIV_EVENT_UNTRUSTED_PERMITTED,
-                              sysGroup);
-}
-
-void
-nsSMILTimeValueSpec::UnregisterEventListener(Element* aTarget)
-{
-  if (!aTarget || !mEventListener)
-    return;
-
-  nsCOMPtr<nsIDOMEventGroup> sysGroup;
-  nsIEventListenerManager* elm =
-    GetEventListenerManager(aTarget, getter_AddRefs(sysGroup));
-  if (!elm)
-    return;
-
-  elm->RemoveEventListenerByType(mEventListener,
-                                 nsDependentAtomString(mParams.mEventSymbol),
-                                 NS_EVENT_FLAG_BUBBLE |
-                                 NS_PRIV_EVENT_UNTRUSTED_PERMITTED,
-                                 sysGroup);
-}
-
-nsIEventListenerManager*
-nsSMILTimeValueSpec::GetEventListenerManager(Element* aTarget,
-                                             nsIDOMEventGroup** aSystemGroup)
-{
-  NS_ABORT_IF_FALSE(aTarget, "null target; can't get EventListenerManager");
-  NS_ABORT_IF_FALSE(aSystemGroup && !*aSystemGroup,
-      "Bad out param for system group");
-
-  nsIEventListenerManager* elm = aTarget->GetListenerManager(PR_TRUE);
-  if (!elm)
-    return nsnull;
-
-  aTarget->GetSystemEventGroup(aSystemGroup);
-  if (!*aSystemGroup)
-    return nsnull;
-
-  return elm;
-}
-
-void
-nsSMILTimeValueSpec::HandleEvent(nsIDOMEvent* aEvent)
-{
-  NS_ABORT_IF_FALSE(mEventListener, "Got event without an event listener");
-  NS_ABORT_IF_FALSE(IsEventBased(),
-                    "Got event for non-event nsSMILTimeValueSpec");
-  NS_ABORT_IF_FALSE(aEvent, "No event supplied");
-
-  // XXX In the long run we should get the time from the event itself which will
-  // store the time in global document time which we'll need to convert to our
-  // time container
-  nsSMILTimeContainer* container = mOwner->GetTimeContainer();
-  if (!container)
-    return;
-
-  if (!CheckEventDetail(aEvent))
-    return;
-
-  nsSMILTime currentTime = container->GetCurrentTime();
-  nsSMILTimeValue newTime(currentTime + mParams.mOffset.GetMillis());
-
-  nsRefPtr<nsSMILInstanceTime> newInstance =
-    new nsSMILInstanceTime(newTime, nsSMILInstanceTime::SOURCE_EVENT);
-  mOwner->AddInstanceTime(newInstance, mIsBegin);
-}
-
-PRBool
-nsSMILTimeValueSpec::CheckEventDetail(nsIDOMEvent *aEvent)
-{
-  if (mParams.mType != nsSMILTimeValueSpecParams::REPEAT)
-    return PR_TRUE;
-
-  nsCOMPtr<nsIDOMTimeEvent> timeEvent = do_QueryInterface(aEvent);
-  if (!timeEvent) {
-    NS_WARNING("Received a repeat event that was not a DOMTimeEvent");
-    return PR_FALSE;
-  }
-
-  PRInt32 detail;
-  timeEvent->GetDetail(&detail);
-  return detail == mParams.mRepeatIterationOrAccessKey;
+  return GetTimedElementFromContent(mTimebase.get());
 }
 
 nsSMILTimeValue

@@ -50,7 +50,6 @@
 #include "nsIScriptableRegion.h"
 #include "nsContentUtils.h"
 #include "nsIContent.h"
-#include "nsCRT.h"
 
 NS_IMPL_CYCLE_COLLECTION_2(nsDOMDataTransfer, mDragTarget, mDragImage)
 
@@ -337,7 +336,7 @@ nsDOMDataTransfer::GetData(const nsAString& aFormat, nsAString& aData)
             aData.Assign(Substring(stringdata, lastidx));
           else
             aData.Assign(Substring(stringdata, lastidx, idx - lastidx));
-          aData = nsContentUtils::TrimWhitespace<nsCRT::IsAsciiSpace>(aData, PR_TRUE);
+          aData = nsContentUtils::TrimWhitespace(aData, PR_TRUE);
           return NS_OK;
         }
         lastidx = idx + 1;

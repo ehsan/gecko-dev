@@ -187,7 +187,6 @@
 @BINPATH@/components/jetpack.xpt
 @BINPATH@/components/jsdservice.xpt
 @BINPATH@/components/layout_base.xpt
-@BINPATH@/components/layout_forms.xpt
 #ifdef NS_PRINTING
 @BINPATH@/components/layout_printing.xpt
 #endif
@@ -236,6 +235,7 @@
 #ifdef MOZ_ENABLE_XREMOTE
 @BINPATH@/components/toolkitremote.xpt
 #endif
+@BINPATH@/components/toolkitsearch.xpt
 @BINPATH@/components/txtsvc.xpt
 @BINPATH@/components/txmgr.xpt
 #ifdef MOZ_USE_NATIVE_UCONV
@@ -380,6 +380,7 @@
 @BINPATH@/components/nsPrompter.js
 #ifdef MOZ_SERVICES_SYNC
 @BINPATH@/components/SyncComponents.manifest
+@BINPATH@/components/FormNotifier.js
 @BINPATH@/components/Weave.js
 @BINPATH@/components/WeaveCrypto.manifest
 @BINPATH@/components/WeaveCrypto.js
@@ -412,6 +413,7 @@
 #endif
 @BINPATH@/chrome/toolkit@JAREXT@
 @BINPATH@/chrome/toolkit.manifest
+@BINPATH@/@PREF_DIR@/reporter.js
 #ifdef XP_UNIX
 #ifndef XP_MACOSX
 @BINPATH@/chrome/icons/default/default16.png

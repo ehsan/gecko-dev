@@ -545,24 +545,8 @@ nsWindow::DispatchEvent(nsGUIEvent *aEvent,
 nsEventStatus
 nsWindow::DispatchEvent(nsGUIEvent *aEvent)
 {
-    if (mEventCallback) {
-        nsEventStatus status = (*mEventCallback)(aEvent);
-
-        // Don't track composition if event was dispatched to remote child
-        if (status != nsEventStatus_eConsumeNoDefault)
-            switch (aEvent->message) {
-            case NS_COMPOSITION_START:
-                mIMEComposing = PR_TRUE;
-                break;
-            case NS_COMPOSITION_END:
-                mIMEComposing = PR_FALSE;
-                break;
-            case NS_TEXT_TEXT:
-                mIMEComposingText = static_cast<nsTextEvent*>(aEvent)->theText;
-                break;
-            }
-        return status;
-    }
+    if (mEventCallback)
+        return (*mEventCallback)(aEvent);
     return nsEventStatus_eIgnore;
 }
 
@@ -1330,6 +1314,7 @@ nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
             nsCompositionEvent event(PR_TRUE, NS_COMPOSITION_END, this);
             InitEvent(event, nsnull);
             DispatchEvent(&event);
+            mIMEComposing = PR_FALSE;
         }
         return;
     case AndroidGeckoEvent::IME_COMPOSITION_BEGIN:
@@ -1338,6 +1323,7 @@ nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
             nsCompositionEvent event(PR_TRUE, NS_COMPOSITION_START, this);
             InitEvent(event, nsnull);
             DispatchEvent(&event);
+            mIMEComposing = PR_TRUE;
         }
         return;
     case AndroidGeckoEvent::IME_ADD_RANGE:
@@ -1379,20 +1365,20 @@ nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
                 AndroidBridge::Bridge()->ReturnIMEQueryResult(
                     nsnull, 0, 0, 0);
                 return;
-            } else if (!event.mWasAsync) {
-                AndroidBridge::Bridge()->ReturnIMEQueryResult(
-                    event.mReply.mString.get(), 
-                    event.mReply.mString.Length(), 0, 0);
             }
+
+            AndroidBridge::Bridge()->ReturnIMEQueryResult(
+                event.mReply.mString.get(), 
+                event.mReply.mString.Length(), 0, 0);
             //ALOGIME("IME:     -> l=%u", event.mReply.mString.Length());
         }
         return;
     case AndroidGeckoEvent::IME_DELETE_TEXT:
         {   
             ALOGIME("IME: IME_DELETE_TEXT");
-            nsKeyEvent event(PR_TRUE, NS_KEY_PRESS, this);
+            nsContentCommandEvent event(PR_TRUE,
+                                        NS_CONTENT_COMMAND_DELETE, this);
             InitEvent(event, nsnull);
-            event.keyCode = NS_VK_BACK;
             DispatchEvent(&event);
         }
         return;
@@ -1425,13 +1411,21 @@ nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
                 AndroidBridge::Bridge()->ReturnIMEQueryResult(
                     nsnull, 0, 0, 0);
                 return;
-            } else if (!event.mWasAsync) {
-                AndroidBridge::Bridge()->ReturnIMEQueryResult(
-                    event.mReply.mString.get(),
-                    event.mReply.mString.Length(), 
-                    event.GetSelectionStart(),
-                    event.GetSelectionEnd() - event.GetSelectionStart());
             }
+
+            int selStart = int(event.mReply.mOffset + 
+                            (event.mReply.mReversed ? 
+                                event.mReply.mString.Length() : 0));
+
+            int selLength = event.mReply.mReversed ?
+                                int(event.mReply.mString.Length()) : 
+                                -int(event.mReply.mString.Length());
+
+            AndroidBridge::Bridge()->ReturnIMEQueryResult(
+                event.mReply.mString.get(),
+                event.mReply.mString.Length(), 
+                selStart, selLength);
+
             //ALOGIME("IME:     -> o=%u, l=%u", event.mReply.mOffset, event.mReply.mString.Length());
         }
         return;
@@ -1474,14 +1468,10 @@ nsWindow::ResetInputState()
 
     // Cancel composition on Gecko side
     if (mIMEComposing) {
-        nsTextEvent textEvent(PR_TRUE, NS_TEXT_TEXT, this);
-        InitEvent(textEvent, nsnull);
-        textEvent.theText = mIMEComposingText;
-        DispatchEvent(&textEvent);
-
         nsCompositionEvent event(PR_TRUE, NS_COMPOSITION_END, this);
         InitEvent(event, nsnull);
         DispatchEvent(&event);
+        mIMEComposing = PR_FALSE;
     }
 
     AndroidBridge::NotifyIME(AndroidBridge::NOTIFY_IME_RESETINPUTSTATE, 0);
@@ -1519,6 +1509,7 @@ nsWindow::CancelIMEComposition()
         nsCompositionEvent compEvent(PR_TRUE, NS_COMPOSITION_END, this);
         InitEvent(compEvent, nsnull);
         DispatchEvent(&compEvent);
+        mIMEComposing = PR_FALSE;
     }
 
     AndroidBridge::NotifyIME(AndroidBridge::NOTIFY_IME_CANCELCOMPOSITION, 0);
@@ -1529,9 +1520,10 @@ NS_IMETHODIMP
 nsWindow::OnIMEFocusChange(PRBool aFocus)
 {
     ALOGIME("IME: OnIMEFocusChange: f=%d", aFocus);
-
-    AndroidBridge::NotifyIME(AndroidBridge::NOTIFY_IME_FOCUSCHANGE, 
-                             int(aFocus));
+    
+    if (AndroidBridge::Bridge())
+        AndroidBridge::NotifyIME(AndroidBridge::NOTIFY_IME_FOCUSCHANGE, 
+                                 int(aFocus));
     return NS_OK;
 }
 

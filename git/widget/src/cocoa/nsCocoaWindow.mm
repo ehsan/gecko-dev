@@ -1937,31 +1937,6 @@ void nsCocoaWindow::SetPopupWindowLevel()
 
 @end
 
-static float
-GetDPI(NSWindow* aWindow)
-{
-  NSScreen* screen = [aWindow screen];
-  if (!screen)
-    return 96.0f;
-
-  CGDirectDisplayID displayID =
-    [[[screen deviceDescription] objectForKey:@"NSScreenNumber"] intValue];
-  CGFloat heightMM = ::CGDisplayScreenSize(displayID).height;
-  size_t heightPx = ::CGDisplayPixelsHigh(displayID);
-  CGFloat scaleFactor = [aWindow userSpaceScaleFactor];
-  if (scaleFactor < 0.01 || heightMM < 1 || heightPx < 1) {
-    // Something extremely bogus is going on
-    return 96.0f;
-  }
-
-  // Currently we don't do our own scaling to take account
-  // of userSpaceScaleFactor, so every "pixel" we draw is actually
-  // userSpaceScaleFactor screen pixels. So divide the screen height
-  // by userSpaceScaleFactor to get the number of "device pixels"
-  // available.
-  return (heightPx / scaleFactor) / (heightMM / MM_PER_INCH_FLOAT);
-}
-
 @implementation BaseWindow
 
 - (id)initWithContentRect:(NSRect)aContentRect styleMask:(NSUInteger)aStyle backing:(NSBackingStoreType)aBufferingType defer:(BOOL)aFlag
@@ -1972,8 +1947,6 @@ GetDPI(NSWindow* aWindow)
   mActiveTitlebarColor = nil;
   mInactiveTitlebarColor = nil;
   mScheduledShadowInvalidation = NO;
-  mDPI = GetDPI(self);
-
   return self;
 }
 
@@ -2059,19 +2032,6 @@ static const NSString* kStateShowsToolbarButton = @"showsToolbarButton";
 {
   [super invalidateShadow];
   mScheduledShadowInvalidation = NO;
-}
-
-- (float)getDPI
-{
-  return mDPI;
-}
-
-- (void) doCommandBySelector:(SEL)aSelector
-{
-  // We override this so that it won't beep if it can't act.
-  // We want to control the beeping for missing or disabled
-  // commands ourselves.
-  [self tryToPerform:aSelector with:nil];
 }
 
 @end

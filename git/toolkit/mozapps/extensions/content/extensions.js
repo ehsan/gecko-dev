@@ -638,48 +638,6 @@ var gViewController = {
       doCommand: function(aAddon) {
         aAddon.cancelUninstall();
       }
-    },
-
-    cmd_installFromFile: {
-      isEnabled: function() true,
-      doCommand: function() {
-        const nsIFilePicker = Ci.nsIFilePicker;
-        var fp = Cc["@mozilla.org/filepicker;1"]
-                   .createInstance(nsIFilePicker);
-        fp.init(window,
-                gStrings.ext.GetStringFromName("installFromFile.dialogTitle"),
-                nsIFilePicker.modeOpenMultiple);
-        try {
-          fp.appendFilter(gStrings.ext.GetStringFromName("installFromFile.filterName"),
-                          "*.xpi;*.jar");
-          fp.appendFilters(nsIFilePicker.filterAll);
-        } catch (e) { }
-
-        if (fp.show() != nsIFilePicker.returnOK)
-          return;
-
-        var files = fp.files;
-        var installs = [];
-
-        function buildNextInstall() {
-          if (!files.hasMoreElements()) {
-            if (installs.length > 0) {
-              // Display the normal install confirmation for the installs
-              AddonManager.installAddonsFromWebpage("application/x-xpinstall",
-                                                    this, null, installs);
-            }
-            return;
-          }
-
-          var file = files.getNext();
-          AddonManager.getInstallForFile(file, function(aInstall) {
-            installs.push(aInstall);
-            buildNextInstall();
-          });
-        }
-
-        buildNextInstall();
-      }
     }
   },
 
@@ -762,7 +720,7 @@ function isInState(aInstall, aState) {
 }
 
 
-function createItem(aObj, aIsInstall, aIsRemote) {
+function createItem(aObj, aIsInstall, aRequiresRestart, aIsRemote) {
   let item = document.createElement("richlistitem");
 
   item.setAttribute("class", "addon");
@@ -772,29 +730,30 @@ function createItem(aObj, aIsInstall, aIsRemote) {
 
   if (aIsInstall) {
     item.mInstall = aObj;
+    item.setAttribute("status", "installing");
+  } else if (aRequiresRestart) {
+    item.mAddon = aObj;
+    item.setAttribute("status", "installing");
+  } else {
+    item.mAddon = aObj;
 
-    if (aObj.state != AddonManager.STATE_INSTALLED) {
-      item.setAttribute("status", "installing");
-      return item;
-    }
-    aObj = aObj.addon;
+    if (isPending(aObj, "uninstall"))
+      item.setAttribute("status", "uninstalled");
+    else
+      item.setAttribute("status", "installed");
+
+    // set only attributes needed for sorting and XBL binding,
+    // the binding handles the rest
+    item.setAttribute("value", aObj.id);
+
+    // The XUL sort service only supports 32 bit integers so we strip the
+    // milliseconds to make this small enough
+    if (aObj.updateDate)
+      item.setAttribute("dateUpdated", aObj.updateDate.getTime() / 1000);
+
+    if (aObj.size)
+      item.setAttribute("size", aObj.size);
   }
-
-  item.mAddon = aObj;
-
-  item.setAttribute("status", "installed");
-
-  // set only attributes needed for sorting and XBL binding,
-  // the binding handles the rest
-  item.setAttribute("value", aObj.id);
-
-  // The XUL sort service only supports 32 bit integers so we strip the
-  // milliseconds to make this small enough
-  if (aObj.updateDate)
-    item.setAttribute("dateUpdated", aObj.updateDate.getTime() / 1000);
-
-  if (aObj.size)
-    item.setAttribute("size", aObj.size);
   return item;
 }
 
@@ -1168,7 +1127,7 @@ var gSearchView = {
             return;
         }
 
-        let item = createItem(aObj, aIsInstall, aIsRemote);
+        let item = createItem(aObj, aIsInstall, false, aIsRemote);
         item.setAttribute("relevancescore", score);
         if (aIsRemote)
           gCachedAddons[aObj.id] = aObj;
@@ -1256,7 +1215,7 @@ var gSearchView = {
   hide: function() {
     var listitem = this._listBox.firstChild;
     while (listitem) {
-      if (listitem.getAttribute("pending") == "uninstall" &&
+      if (listitem.getAttribute("status") == "uninstalled" &&
           !listitem.isPending("uninstall"))
         listitem.mAddon.uninstall();
       listitem = listitem.nextSibling;
@@ -1408,7 +1367,7 @@ var gListView = {
 
     var listitem = this._listBox.firstChild;
     while (listitem) {
-      if (listitem.getAttribute("pending") == "uninstall" &&
+      if (listitem.getAttribute("status") == "uninstalled" &&
           !listitem.isPending("uninstall"))
         listitem.mAddon.uninstall();
       listitem = listitem.nextSibling;
@@ -1439,7 +1398,7 @@ var gListView = {
     if (this._types.indexOf(aAddon.type) == -1)
       return;
 
-    var item = createItem(aAddon, false);
+    var item = createItem(aAddon, false, aRequiresRestart);
     this._listBox.insertBefore(item, this._listBox.firstChild);
   },
 

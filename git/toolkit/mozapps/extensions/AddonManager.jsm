@@ -41,8 +41,7 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cr = Components.results;
 
-const PREF_EM_UPDATE_ENABLED   = "extensions.update.enabled";
-const PREF_EM_LAST_APP_VERSION = "extensions.lastAppVersion";
+const PREF_EM_UPDATE_ENABLED = "extensions.update.enabled";
 
 Components.utils.import("resource://gre/modules/Services.jsm");
 
@@ -178,17 +177,17 @@ var AddonManagerInternal = {
     this.installListeners = [];
     this.addonListeners = [];
 
-    let appChanged = undefined;
+    let appChanged = true;
 
     try {
       appChanged = Services.appinfo.version !=
-                   Services.prefs.getCharPref(PREF_EM_LAST_APP_VERSION);
+                   Services.prefs.getCharPref("extensions.lastAppVersion");
     }
     catch (e) { }
 
-    if (appChanged !== false) {
+    if (appChanged) {
       LOG("Application has been upgraded");
-      Services.prefs.setCharPref(PREF_EM_LAST_APP_VERSION,
+      Services.prefs.setCharPref("extensions.lastAppVersion",
                                  Services.appinfo.version);
     }
 

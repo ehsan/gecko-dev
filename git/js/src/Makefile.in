@@ -160,7 +160,6 @@ CPPSRCS		= \
 		jsprf.cpp \
 		jspropertycache.cpp \
 		jspropertytree.cpp \
-		jsreflect.cpp \
 		jsregexp.cpp \
 		jsscan.cpp \
 		jsscope.cpp \
@@ -224,7 +223,6 @@ INSTALLED_HEADERS = \
 		jsproto.tbl \
 		jsprvtd.h \
 		jspubtd.h \
-		jsreflect.h \
 		jsregexp.h \
 		jsscan.h \
 		jsscope.h \
@@ -343,6 +341,9 @@ CPPSRCS += 	Assertions.cpp \
 
 ifeq (86, $(findstring 86,$(TARGET_CPU)))
 ifeq (x86_64, $(TARGET_CPU))
+ifeq ($(OS_ARCH),WINNT)
+ASFILES +=	TrampolineMasmX64.asm
+endif
 #CPPSRCS		+= only_on_x86_64.cpp
 else
 #CPPSRCS		+= only_on_x86.cpp
@@ -638,7 +639,7 @@ endif
 ifeq ($(OS_ARCH),IRIX)
 ifndef GNU_CC
 _COMPILE_CFLAGS  = $(patsubst -O%,-O1,$(COMPILE_CFLAGS))
-jsapi.o jsxdrapi.o jsarena.o jsarray.o jsatom.o jsemit.o jsfun.o jsinterp.o jsreflect.o jsregexp.o jsparse.o jsopcode.o jsscript.o: %.o: %.cpp Makefile.in
+jsapi.o jsxdrapi.o jsarena.o jsarray.o jsatom.o jsemit.o jsfun.o jsinterp.o jsregexp.o jsparse.o jsopcode.o jsscript.o: %.o: %.cpp Makefile.in
 	$(REPORT_BUILD)
 	@$(MAKE_DEPS_AUTO_CXX)
 	$(CXX) -o $@ -c $(_COMPILE_CFLAGS) $<
@@ -830,12 +831,12 @@ endif
 # BEGIN kludges for the Nitro assembler
 #
 
+INCLUDES +=	-I$(srcdir)/assembler -I$(srcdir)/yarr
+#
 # Needed to "configure" it correctly.  Unfortunately these
 # flags wind up being applied to all code in js/src, not just
 # the code in js/src/assembler.
-CXXFLAGS += -DUSE_SYSTEM_MALLOC=1 -DENABLE_ASSEMBLER=1 -DENABLE_JIT=1
-
-INCLUDES +=	-I$(srcdir)/assembler -I$(srcdir)/yarr
+CXXFLAGS += -DENABLE_ASSEMBLER=1 -DUSE_SYSTEM_MALLOC=1 -DENABLE_JIT=1
 
 #
 # END kludges for the Nitro assembler

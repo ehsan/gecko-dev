@@ -63,7 +63,9 @@ LayerManagerD3D9::~LayerManagerD3D9()
   mSwapChain = nsnull;
 
   if (mDeviceManager) {
-    mDeviceManager->Release();
+    if (!mDeviceManager->Release()) {
+      mDeviceManager = nsnull;
+    }
   }
 }
 
@@ -253,7 +255,8 @@ LayerManagerD3D9::PaintToTarget()
 {
   nsRefPtr<IDirect3DSurface9> backBuff;
   nsRefPtr<IDirect3DSurface9> destSurf;
-  device()->GetRenderTarget(0, getter_AddRefs(backBuff));
+  device()->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO,
+                         getter_AddRefs(backBuff));
 
   D3DSURFACE_DESC desc;
   backBuff->GetDesc(&desc);

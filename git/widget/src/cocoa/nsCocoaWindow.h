@@ -76,11 +76,6 @@ typedef struct _nsCocoaWindowList {
 
   // Shadow
   BOOL mScheduledShadowInvalidation;
-
-  // DPI cache. Getting the physical screen size (CGDisplayScreenSize)
-  // is ridiculously slow, so we cache it in the toplevel window for all
-  // descendants to use.
-  float mDPI;
 }
 
 - (void)importState:(NSDictionary*)aState;
@@ -92,7 +87,6 @@ typedef struct _nsCocoaWindowList {
 
 - (void)deferredInvalidateShadow;
 - (void)invalidateShadow;
-- (float)getDPI;
 
 @end
 
@@ -312,14 +306,6 @@ protected:
   void                 AdjustWindowShadow();
   void                 SetUpWindowFilter();
   void                 CleanUpWindowFilter();
-
-  virtual already_AddRefed<nsIWidget>
-  AllocateChildPopupWidget()
-  {
-    static NS_DEFINE_IID(kCPopUpCID, NS_POPUP_CID);
-    nsCOMPtr<nsIWidget> widget = do_CreateInstance(kCPopUpCID);
-    return widget.forget();
-  }
 
   nsIWidget*           mParent;         // if we're a popup, this is our parent [WEAK]
   BaseWindow*          mWindow;         // our cocoa window [STRONG]
