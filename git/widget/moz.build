@@ -34,7 +34,6 @@ elif toolkit == 'cocoa':
         'nsIMacDockSupport.idl',
         'nsIMacWebAppUtils.idl',
         'nsIStandaloneNativeMenu.idl',
-        'nsISystemStatusBar.idl',
         'nsITaskbarProgress.idl',
     ]
     EXPORTS += [

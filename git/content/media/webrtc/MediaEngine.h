@@ -40,16 +40,6 @@ enum {
   kAudioTrack = 2
 };
 
-// includes everything from dom::MediaSourceEnum (really video sources), plus audio sources
-enum MediaSourceType {
-  Camera = (int) dom::MediaSourceEnum::Camera,
-  Screen = (int) dom::MediaSourceEnum::Screen,
-  Application = (int) dom::MediaSourceEnum::Application,
-  Window, // = (int) dom::MediaSourceEnum::Window, // XXX bug 1038926
-  //Browser = (int) dom::MediaSourceEnum::Browser, // proposed in WG, unclear if it's useful
-  Microphone
-};
-
 class MediaEngine
 {
 public:
@@ -65,12 +55,12 @@ public:
 
   /* Populate an array of video sources in the nsTArray. Also include devices
    * that are currently unavailable. */
-  virtual void EnumerateVideoDevices(MediaSourceType,
+  virtual void EnumerateVideoDevices(dom::MediaSourceEnum,
                                      nsTArray<nsRefPtr<MediaEngineVideoSource> >*) = 0;
 
   /* Populate an array of audio sources in the nsTArray. Also include devices
    * that are currently unavailable. */
-  virtual void EnumerateAudioDevices(MediaSourceType,
+  virtual void EnumerateAudioDevices(dom::MediaSourceEnum,
                                      nsTArray<nsRefPtr<MediaEngineAudioSource> >*) = 0;
 
 protected:
@@ -128,9 +118,6 @@ public:
    * false otherwise
    */
   virtual bool IsFake() = 0;
-
-  /* Returns the type of media source (camera, microphone, screen, window, etc) */
-  virtual const MediaSourceType GetMediaSource() = 0;
 
   /* Return false if device is currently allocated or started */
   bool IsAvailable() {
@@ -198,8 +185,8 @@ class MediaEngineVideoSource : public MediaEngineSource
 public:
   virtual ~MediaEngineVideoSource() {}
 
-  virtual const MediaSourceType GetMediaSource() {
-      return MediaSourceType::Camera;
+  virtual const dom::MediaSourceEnum GetMediaSource() {
+      return dom::MediaSourceEnum::Camera;
   }
   /* This call reserves but does not start the device. */
   virtual nsresult Allocate(const VideoTrackConstraintsN &aConstraints,

@@ -872,6 +872,8 @@ nsScriptSecurityManager::ScriptAllowed(JSObject *aGlobal)
 {
     MOZ_ASSERT(aGlobal);
     MOZ_ASSERT(JS_IsGlobalObject(aGlobal) || js::IsOuterObject(aGlobal));
+    AutoJSContext cx;
+    JS::RootedObject global(cx, js::UncheckedUnwrap(aGlobal, /* stopAtOuter = */ false));
 
     // Check the bits on the compartment private.
     return xpc::Scriptability::Get(aGlobal).Allowed();

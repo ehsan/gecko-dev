@@ -171,8 +171,7 @@ nsZipHandle::nsZipHandle()
 NS_IMPL_ADDREF(nsZipHandle)
 NS_IMPL_RELEASE(nsZipHandle)
 
-nsresult nsZipHandle::Init(nsIFile *file, bool aMustCacheFd, nsZipHandle **ret,
-                           PRFileDesc **aFd)
+nsresult nsZipHandle::Init(nsIFile *file, nsZipHandle **ret, PRFileDesc **aFd)
 {
   mozilla::AutoFDClose fd;
   int32_t flags = PR_RDONLY;
@@ -208,10 +207,6 @@ nsresult nsZipHandle::Init(nsIFile *file, bool aMustCacheFd, nsZipHandle **ret,
 #if defined(XP_WIN)
   if (aFd) {
     *aFd = fd.forget();
-  }
-#else
-  if (aMustCacheFd) {
-    handle->mNSPRFileDesc = fd.forget();
   }
 #endif
   handle->mMap = map;
@@ -249,16 +244,6 @@ int64_t nsZipHandle::SizeOfMapping()
     return mLen;
 }
 
-nsresult nsZipHandle::GetNSPRFileDesc(PRFileDesc** aNSPRFileDesc)
-{
-  if (!aNSPRFileDesc) {
-    return NS_ERROR_ILLEGAL_VALUE;
-  }
-
-  *aNSPRFileDesc = mNSPRFileDesc;
-  return NS_OK;
-}
-
 nsZipHandle::~nsZipHandle()
 {
   if (mMap) {
@@ -294,15 +279,14 @@ nsresult nsZipArchive::OpenArchive(nsZipHandle *aZipHandle, PRFileDesc *aFd)
   return rv;
 }
 
-nsresult nsZipArchive::OpenArchive(nsIFile *aFile, bool aMustCacheFd)
+nsresult nsZipArchive::OpenArchive(nsIFile *aFile)
 {
   nsRefPtr<nsZipHandle> handle;
 #if defined(XP_WIN)
   mozilla::AutoFDClose fd;
-  nsresult rv = nsZipHandle::Init(aFile, aMustCacheFd, getter_AddRefs(handle),
-                                  &fd.rwget());
+  nsresult rv = nsZipHandle::Init(aFile, getter_AddRefs(handle), &fd.rwget());
 #else
-  nsresult rv = nsZipHandle::Init(aFile, aMustCacheFd, getter_AddRefs(handle));
+  nsresult rv = nsZipHandle::Init(aFile, getter_AddRefs(handle));
 #endif
   if (NS_FAILED(rv))
     return rv;

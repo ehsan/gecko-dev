@@ -105,9 +105,9 @@ CompileRuntime::spsProfiler()
 }
 
 bool
-CompileRuntime::canUseSignalHandlers()
+CompileRuntime::signalHandlersInstalled()
 {
-    return runtime()->canUseSignalHandlers();
+    return runtime()->signalHandlersInstalled();
 }
 
 bool

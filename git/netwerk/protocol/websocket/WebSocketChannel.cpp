@@ -2425,16 +2425,11 @@ WebSocketChannel::OnProxyAvailable(nsICancelable *aRequest, nsIURI *aURI,
     LOG(("WebSocket OnProxyAvailable [%p] Proxy found skip DNS lookup\n", this));
     // call DNS callback directly without DNS resolver
     OnLookupComplete(nullptr, nullptr, NS_ERROR_FAILURE);
-  } else {
-    LOG(("WebSocketChannel::OnProxyAvailable[%] checking DNS resolution\n", this));
-    nsresult rv = DoAdmissionDNS();
-    if (NS_FAILED(rv)) {
-      LOG(("WebSocket OnProxyAvailable [%p] DNS lookup failed\n", this));
-      // call DNS callback directly without DNS resolver
-      OnLookupComplete(nullptr, nullptr, NS_ERROR_FAILURE);
-    }
+    return NS_OK;
   }
 
+  LOG(("WebSocketChannel::OnProxyAvailable[%] checking DNS resolution\n", this));
+  DoAdmissionDNS();
   return NS_OK;
 }
 

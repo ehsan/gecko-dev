@@ -11,13 +11,12 @@
 
 class nsBidiKeyboard : public nsIBidiKeyboard
 {
-  virtual ~nsBidiKeyboard();
-
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIBIDIKEYBOARD
 
   nsBidiKeyboard();
+  virtual ~nsBidiKeyboard();
 
 protected:
 
