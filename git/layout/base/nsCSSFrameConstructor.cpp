@@ -6345,7 +6345,7 @@ nsCSSFrameConstructor::CreateNeededFrames(nsIContent* aContent)
     }
   }
   if (inRun) {
-    ContentAppended(aContent, firstChildInRun, startOfRun, PR_FALSE);
+    ContentAppended(aContent, startOfRun, PR_FALSE);
   }
 
   // Now descend.
@@ -6498,7 +6498,6 @@ nsCSSFrameConstructor::MaybeRecreateForFrameset(nsIContent* aContainer,
 
 nsresult
 nsCSSFrameConstructor::ContentAppended(nsIContent*     aContainer,
-                                       nsIContent*     aFirstNewContent,
                                        PRInt32         aNewIndexInContainer,
                                        PRBool          aAllowLazyConstruction)
 {

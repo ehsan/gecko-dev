@@ -96,7 +96,6 @@
 #include "nsIDOMHTMLElement.h"
 #include "nsIDOMHTMLMapElement.h"
 #include "nsIDOMHTMLBodyElement.h"
-#include "nsIDOMHTMLHeadElement.h"
 #include "nsINameSpaceManager.h"
 #include "nsGenericHTMLElement.h"
 #include "nsCSSLoader.h"
@@ -1640,16 +1639,6 @@ nsHTMLDocument::SetBody(nsIDOMHTMLElement* aBody)
   }
 
   return rootElem->AppendChild(aBody, getter_AddRefs(tmp));
-}
-
-NS_IMETHODIMP
-nsHTMLDocument::GetHead(nsIDOMHTMLHeadElement** aHead)
-{
-  *aHead = nsnull;
-
-  Element* head = GetHeadElement();
-
-  return head ? CallQueryInterface(head, aHead) : NS_OK;
 }
 
 NS_IMETHODIMP

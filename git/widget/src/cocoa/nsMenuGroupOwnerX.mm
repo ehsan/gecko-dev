@@ -119,11 +119,12 @@ void nsMenuGroupOwnerX::CharacterDataChanged(nsIDocument* aDocument,
 
 void nsMenuGroupOwnerX::ContentAppended(nsIDocument* aDocument,
                                         nsIContent* aContainer,
-                                        nsIContent* aFirstNewContent,
                                         PRInt32 aNewIndexInContainer)
 {
-  for (nsIContent* cur = aFirstNewContent; cur; cur = cur->GetNextSibling()) {
-    ContentInserted(aDocument, aContainer, cur, aNewIndexInContainer);
+  PRUint32 childCount = aContainer->GetChildCount();
+  while ((PRUint32)aNewIndexInContainer < childCount) {
+    nsIContent *child = aContainer->GetChildAt(aNewIndexInContainer);
+    ContentInserted(aDocument, aContainer, child, aNewIndexInContainer);
     aNewIndexInContainer++;
   }
 }

@@ -1,3 +1,4 @@
+
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -197,8 +198,7 @@ nsSVGRenderingObserver::AttributeChanged(nsIDocument *aDocument,
 void
 nsSVGRenderingObserver::ContentAppended(nsIDocument *aDocument,
                                         nsIContent *aContainer,
-                                        nsIContent *aFirstNewContent,
-                                        PRInt32 /* unused */)
+                                        PRInt32 aNewIndexInContainer)
 {
   DoUpdate();
 }
@@ -207,7 +207,7 @@ void
 nsSVGRenderingObserver::ContentInserted(nsIDocument *aDocument,
                                         nsIContent *aContainer,
                                         nsIContent *aChild,
-                                        PRInt32 /* unused */)
+                                        PRInt32 aIndexInContainer)
 {
   DoUpdate();
 }

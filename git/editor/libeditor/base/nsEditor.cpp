@@ -2083,15 +2083,14 @@ nsEditor::GetComposing(PRBool* aResult)
 
 void
 nsEditor::ContentAppended(nsIDocument *aDocument, nsIContent* aContainer,
-                          nsIContent* aFirstNewContent,
-                          PRInt32 /* unused */)
+                          PRInt32 aNewIndexInContainer)
 {
-  ContentInserted(aDocument, aContainer, nsnull, 0);
+  ContentInserted(aDocument, aContainer, nsnull, aNewIndexInContainer);
 }
 
 void
 nsEditor::ContentInserted(nsIDocument *aDocument, nsIContent* aContainer,
-                          nsIContent* aChild, PRInt32 /* unused */)
+                          nsIContent* aChild, PRInt32 aIndexInContainer)
 {
   // XXX If we need aChild then nsEditor::ContentAppended should start passing
   //     in the child.

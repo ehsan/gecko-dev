@@ -1100,9 +1100,7 @@ nsXULContentBuilder::CreateContainerContents(nsIContent* aElement,
     if (aNotifyAtEnd && container) {
         MOZ_AUTO_DOC_UPDATE(container->GetCurrentDoc(), UPDATE_CONTENT_MODEL,
                             PR_TRUE);
-        nsNodeUtils::ContentAppended(container,
-                                     container->GetChildAt(newIndexInContainer),
-                                     newIndexInContainer);
+        nsNodeUtils::ContentAppended(container, newIndexInContainer);
     }
 
     NS_IF_RELEASE(container);

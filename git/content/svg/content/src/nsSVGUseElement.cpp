@@ -208,7 +208,6 @@ nsSVGUseElement::AttributeChanged(nsIDocument *aDocument,
 void
 nsSVGUseElement::ContentAppended(nsIDocument *aDocument,
                                  nsIContent *aContainer,
-                                 nsIContent *aFirstNewContent,
                                  PRInt32 aNewIndexInContainer)
 {
   if (nsContentUtils::IsInSameAnonymousTree(this, aContainer)) {
