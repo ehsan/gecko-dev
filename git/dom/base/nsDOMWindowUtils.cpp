@@ -3,7 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/layers/CompositorParent.h"
 #include "nsIDocShell.h"
 #include "nsPresContext.h"
 #include "nsDOMClassInfoID.h"
@@ -75,10 +74,6 @@
 #include "nsIScriptError.h"
 #include "nsIAppShell.h"
 #include "nsWidgetsCID.h"
-
-#ifdef XP_WIN
-#undef GetClassName
-#endif
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -2005,7 +2000,7 @@ nsDOMWindowUtils::SendContentCommandEvent(const nsAString& aType,
     msg = NS_CONTENT_COMMAND_PASTE_TRANSFERABLE;
   else
     return NS_ERROR_FAILURE;
-
+ 
   nsContentCommandEvent event(true, msg, widget);
   if (msg == NS_CONTENT_COMMAND_PASTE_TRANSFERABLE) {
     event.mTransferable = aTransferable;
@@ -2376,9 +2371,7 @@ nsDOMWindowUtils::AdvanceTimeAndRefresh(int64_t aMilliseconds)
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
-  nsRefreshDriver* driver = GetPresContext()->RefreshDriver();
-  driver->AdvanceTimeAndRefresh(aMilliseconds);
-  CompositorParent::SetTimeAndSampleAnimations(driver->MostRecentRefresh(), true);
+  GetPresContext()->RefreshDriver()->AdvanceTimeAndRefresh(aMilliseconds);
 
   return NS_OK;
 }
@@ -2390,9 +2383,7 @@ nsDOMWindowUtils::RestoreNormalRefresh()
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
-  nsRefreshDriver* driver = GetPresContext()->RefreshDriver();
-  driver->RestoreNormalRefresh();
-  CompositorParent::SetTimeAndSampleAnimations(driver->MostRecentRefresh(), false);
+  GetPresContext()->RefreshDriver()->RestoreNormalRefresh();
 
   return NS_OK;
 }

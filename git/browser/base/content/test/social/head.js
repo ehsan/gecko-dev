@@ -40,26 +40,6 @@ function promiseSocialUrlNotRemembered(url) {
 
 let gURLsNotRemembered = [];
 
-
-function checkProviderPrefsEmpty(isError) {
-  let MANIFEST_PREFS = Services.prefs.getBranch("social.manifest.");
-  let prefs = MANIFEST_PREFS.getChildList("", []);
-  let c = 0;
-  for (let pref of prefs) {
-    if (MANIFEST_PREFS.prefHasUserValue(pref)) {
-      info("provider [" + pref + "] manifest left installed from previous test");
-      c++;
-    }
-  }
-  is(c, 0, "all provider prefs uninstalled from previous test");
-  is(Social.providers.length, 0, "all providers uninstalled from previous test " + Social.providers.length);
-}
-
-function defaultFinishChecks() {
-  checkProviderPrefsEmpty(true);
-  finish();
-}
-
 function runSocialTestWithProvider(manifest, callback, finishcallback) {
   let SocialService = Cu.import("resource://gre/modules/SocialService.jsm", {}).SocialService;
 
@@ -87,7 +67,7 @@ function runSocialTestWithProvider(manifest, callback, finishcallback) {
   function finishIfDone(callFinish) {
     finishCount++;
     if (finishCount == manifests.length)
-      Task.spawn(finishCleanUp).then(finishcallback || defaultFinishChecks);
+      Task.spawn(finishCleanUp).then(finishcallback || finish);
   }
   function removeAddedProviders(cleanup) {
     manifests.forEach(function (m) {
@@ -148,7 +128,6 @@ function runSocialTestWithProvider(manifest, callback, finishcallback) {
 
 function runSocialTests(tests, cbPreTest, cbPostTest, cbFinish) {
   let testIter = Iterator(tests);
-  let providersAtStart = Social.providers.length;
 
   if (cbPreTest === undefined) {
     cbPreTest = function(cb) {cb()};
@@ -163,7 +142,7 @@ function runSocialTests(tests, cbPreTest, cbPostTest, cbFinish) {
       [name, func] = testIter.next();
     } catch (err if err instanceof StopIteration) {
       // out of items:
-      (cbFinish || defaultFinishChecks)();
+      (cbFinish || finish)();
       return;
     }
     // We run on a timeout as the frameworker also makes use of timeouts, so
@@ -174,7 +153,6 @@ function runSocialTests(tests, cbPreTest, cbPostTest, cbFinish) {
         cbPostTest(runNextTest);
       }
       cbPreTest(function() {
-        is(providersAtStart, Social.providers.length, "no new providers left enabled");
         info("sub-test " + name + " starting");
         try {
           func.call(tests, cleanupAndRunNextTest);
