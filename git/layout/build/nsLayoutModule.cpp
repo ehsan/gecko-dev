@@ -106,7 +106,6 @@
 #include "nsXMLHttpRequest.h"
 #include "nsChannelPolicy.h"
 #include "nsWebSocket.h"
-#include "nsDOMWorker.h"
 #include "nsEventSource.h"
 
 // view stuff
@@ -323,7 +322,6 @@ NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(IndexedDatabaseManager,
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDeviceMotionSystem)
 #endif
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(ThirdPartyUtil, Init)
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsWorkerFactory)
 #if defined(ANDROID) || defined(MOZ_PLATFORM_MAEMO)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsHapticFeedback)
 #endif
@@ -533,12 +531,8 @@ MAKE_CTOR(CreateXHTMLContentSerializer,   nsIContentSerializer,        NS_NewXHT
 MAKE_CTOR(CreatePlainTextSerializer,      nsIContentSerializer,        NS_NewPlainTextSerializer)
 MAKE_CTOR(CreateHTMLFragmentSink,         nsIFragmentContentSink,      NS_NewHTMLFragmentContentSink)
 MAKE_CTOR(CreateHTMLFragmentSink2,        nsIFragmentContentSink,      NS_NewHTMLFragmentContentSink2)
-MAKE_CTOR(CreateHTMLParanoidFragmentSink, nsIFragmentContentSink,      NS_NewHTMLParanoidFragmentSink)
-MAKE_CTOR(CreateHTMLParanoidFragmentSink2,nsIFragmentContentSink,      NS_NewHTMLParanoidFragmentSink2)
 MAKE_CTOR(CreateXMLFragmentSink,          nsIFragmentContentSink,      NS_NewXMLFragmentContentSink)
 MAKE_CTOR(CreateXMLFragmentSink2,         nsIFragmentContentSink,      NS_NewXMLFragmentContentSink2)
-MAKE_CTOR(CreateXHTMLParanoidFragmentSink,nsIFragmentContentSink,      NS_NewXHTMLParanoidFragmentSink)
-MAKE_CTOR(CreateXHTMLParanoidFragmentSink2,nsIFragmentContentSink,     NS_NewXHTMLParanoidFragmentSink2)
 MAKE_CTOR(CreateSanitizingHTMLSerializer, nsIContentSerializer,        NS_NewSanitizingHTMLSerializer)
 MAKE_CTOR(CreateXBLService,               nsIXBLService,               NS_NewXBLService)
 MAKE_CTOR(CreateContentPolicy,            nsIContentPolicy,            NS_NewContentPolicy)
@@ -784,13 +778,9 @@ NS_DEFINE_NAMED_CID(NS_HTMLCONTENTSERIALIZER_CID);
 NS_DEFINE_NAMED_CID(NS_PLAINTEXTSERIALIZER_CID);
 NS_DEFINE_NAMED_CID(NS_HTMLFRAGMENTSINK_CID);
 NS_DEFINE_NAMED_CID(NS_HTMLFRAGMENTSINK2_CID);
-NS_DEFINE_NAMED_CID(NS_HTMLPARANOIDFRAGMENTSINK_CID);
-NS_DEFINE_NAMED_CID(NS_HTMLPARANOIDFRAGMENTSINK2_CID);
 NS_DEFINE_NAMED_CID(MOZ_SANITIZINGHTMLSERIALIZER_CID);
 NS_DEFINE_NAMED_CID(NS_XMLFRAGMENTSINK_CID);
 NS_DEFINE_NAMED_CID(NS_XMLFRAGMENTSINK2_CID);
-NS_DEFINE_NAMED_CID(NS_XHTMLPARANOIDFRAGMENTSINK_CID);
-NS_DEFINE_NAMED_CID(NS_XHTMLPARANOIDFRAGMENTSINK2_CID);
 NS_DEFINE_NAMED_CID(NS_XBLSERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_CONTENTPOLICY_CID);
 NS_DEFINE_NAMED_CID(NS_DATADOCUMENTCONTENTPOLICY_CID);
@@ -862,7 +852,6 @@ NS_DEFINE_NAMED_CID(NS_SYSTEMPRINCIPAL_CID);
 NS_DEFINE_NAMED_CID(NS_NULLPRINCIPAL_CID);
 NS_DEFINE_NAMED_CID(NS_SECURITYNAMESET_CID);
 NS_DEFINE_NAMED_CID(THIRDPARTYUTIL_CID);
-NS_DEFINE_NAMED_CID(NS_WORKERFACTORY_CID);
 NS_DEFINE_NAMED_CID(NS_STRUCTUREDCLONECONTAINER_CID);
 
 #if defined(XP_UNIX)    || \
@@ -928,13 +917,9 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
   { &kNS_PLAINTEXTSERIALIZER_CID, false, NULL, CreatePlainTextSerializer },
   { &kNS_HTMLFRAGMENTSINK_CID, false, NULL, CreateHTMLFragmentSink },
   { &kNS_HTMLFRAGMENTSINK2_CID, false, NULL, CreateHTMLFragmentSink2 },
-  { &kNS_HTMLPARANOIDFRAGMENTSINK_CID, false, NULL, CreateHTMLParanoidFragmentSink },
-  { &kNS_HTMLPARANOIDFRAGMENTSINK2_CID, false, NULL, CreateHTMLParanoidFragmentSink2 },
   { &kMOZ_SANITIZINGHTMLSERIALIZER_CID, false, NULL, CreateSanitizingHTMLSerializer },
   { &kNS_XMLFRAGMENTSINK_CID, false, NULL, CreateXMLFragmentSink },
   { &kNS_XMLFRAGMENTSINK2_CID, false, NULL, CreateXMLFragmentSink2 },
-  { &kNS_XHTMLPARANOIDFRAGMENTSINK_CID, false, NULL, CreateXHTMLParanoidFragmentSink },
-  { &kNS_XHTMLPARANOIDFRAGMENTSINK2_CID, false, NULL, CreateXHTMLParanoidFragmentSink2 },
   { &kNS_XBLSERVICE_CID, false, NULL, CreateXBLService },
   { &kNS_CONTENTPOLICY_CID, false, NULL, CreateContentPolicy },
   { &kNS_DATADOCUMENTCONTENTPOLICY_CID, false, NULL, nsDataDocumentContentPolicyConstructor },
@@ -1015,7 +1000,6 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
   { &kNS_HAPTICFEEDBACK_CID, false, NULL, nsHapticFeedbackConstructor },
 #endif
   { &kTHIRDPARTYUTIL_CID, false, NULL, ThirdPartyUtilConstructor },
-  { &kNS_WORKERFACTORY_CID, false, NULL, nsWorkerFactoryConstructor },
   { &kNS_STRUCTUREDCLONECONTAINER_CID, false, NULL, nsStructuredCloneContainerConstructor },
   { NULL }
 };
@@ -1073,13 +1057,9 @@ static const mozilla::Module::ContractIDEntry kLayoutContracts[] = {
   { NS_PLAINTEXTSINK_CONTRACTID, &kNS_PLAINTEXTSERIALIZER_CID },
   { NS_HTMLFRAGMENTSINK_CONTRACTID, &kNS_HTMLFRAGMENTSINK_CID },
   { NS_HTMLFRAGMENTSINK2_CONTRACTID, &kNS_HTMLFRAGMENTSINK2_CID },
-  { NS_HTMLPARANOIDFRAGMENTSINK_CONTRACTID, &kNS_HTMLPARANOIDFRAGMENTSINK_CID },
-  { NS_HTMLPARANOIDFRAGMENTSINK2_CONTRACTID, &kNS_HTMLPARANOIDFRAGMENTSINK2_CID },
   { MOZ_SANITIZINGHTMLSERIALIZER_CONTRACTID, &kMOZ_SANITIZINGHTMLSERIALIZER_CID },
   { NS_XMLFRAGMENTSINK_CONTRACTID, &kNS_XMLFRAGMENTSINK_CID },
   { NS_XMLFRAGMENTSINK2_CONTRACTID, &kNS_XMLFRAGMENTSINK2_CID },
-  { NS_XHTMLPARANOIDFRAGMENTSINK_CONTRACTID, &kNS_XHTMLPARANOIDFRAGMENTSINK_CID },
-  { NS_XHTMLPARANOIDFRAGMENTSINK2_CONTRACTID, &kNS_XHTMLPARANOIDFRAGMENTSINK2_CID },
   { "@mozilla.org/xbl;1", &kNS_XBLSERVICE_CID },
   { NS_CONTENTPOLICY_CONTRACTID, &kNS_CONTENTPOLICY_CID },
   { NS_DATADOCUMENTCONTENTPOLICY_CONTRACTID, &kNS_DATADOCUMENTCONTENTPOLICY_CID },
@@ -1153,7 +1133,6 @@ static const mozilla::Module::ContractIDEntry kLayoutContracts[] = {
   { "@mozilla.org/widget/hapticfeedback;1", &kNS_HAPTICFEEDBACK_CID },
 #endif
   { THIRDPARTYUTIL_CONTRACTID, &kTHIRDPARTYUTIL_CID },
-  { NS_WORKERFACTORY_CONTRACTID, &kNS_WORKERFACTORY_CID },
   { NS_STRUCTUREDCLONECONTAINER_CONTRACTID, &kNS_STRUCTUREDCLONECONTAINER_CID },
   { NULL }
 };

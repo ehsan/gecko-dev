@@ -127,7 +127,6 @@
 #include "nsIFile.h"
 #include "nsIRollupListener.h"
 #include "nsIMenuRollup.h"
-#include "nsIRegion.h"
 #include "nsIServiceManager.h"
 #include "nsIClipboard.h"
 #include "nsIMM32Handler.h"
@@ -1666,7 +1665,17 @@ NS_IMETHODIMP nsWindow::SetSizeMode(PRInt32 aMode) {
       default :
         mode = SW_RESTORE;
     }
-    ::ShowWindow(mWnd, mode);
+
+    WINDOWPLACEMENT pl;
+    pl.length = sizeof(pl);
+    ::GetWindowPlacement(mWnd, &pl);
+    // Don't call ::ShowWindow if we're trying to "restore" a window that is
+    // already in a normal state.  Prevents a bug where snapping to one side
+    // of the screen and then minimizing would cause Windows to forget our
+    // window's correct restored position/size.
+    if( !(pl.showCmd == SW_SHOWNORMAL && mode == SW_RESTORE) ) {
+      ::ShowWindow(mWnd, mode);
+    }
     // we dispatch an activate event here to ensure that the right child window
     // is focused
     if (mode == SW_RESTORE || mode == SW_MAXIMIZE || mode == SW_SHOW)
