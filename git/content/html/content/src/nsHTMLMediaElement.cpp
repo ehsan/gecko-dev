@@ -973,16 +973,16 @@ void nsHTMLMediaElement::ResourceLoaded()
   mBegun = PR_FALSE;
   mNetworkState = nsIDOMHTMLMediaElement::NETWORK_LOADED;
   ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_ENOUGH_DATA);
-  DispatchAsyncProgressEvent(NS_LITERAL_STRING("load"));
+  DispatchProgressEvent(NS_LITERAL_STRING("load"));
 }
 
 void nsHTMLMediaElement::NetworkError()
 {
   mError = new nsHTMLMediaError(nsIDOMHTMLMediaError::MEDIA_ERR_NETWORK);
   mBegun = PR_FALSE;
-  DispatchAsyncProgressEvent(NS_LITERAL_STRING("error"));
+  DispatchProgressEvent(NS_LITERAL_STRING("error"));
   mNetworkState = nsIDOMHTMLMediaElement::NETWORK_EMPTY;
-  DispatchAsyncSimpleEvent(NS_LITERAL_STRING("emptied"));
+  DispatchSimpleEvent(NS_LITERAL_STRING("emptied"));
 }
 
 void nsHTMLMediaElement::PlaybackEnded()
@@ -990,7 +990,7 @@ void nsHTMLMediaElement::PlaybackEnded()
   NS_ASSERTION(mDecoder->IsEnded(), "Decoder fired ended, but not in ended state");
   mBegun = PR_FALSE;
   mPaused = PR_TRUE;
-  DispatchAsyncSimpleEvent(NS_LITERAL_STRING("ended"));
+  DispatchSimpleEvent(NS_LITERAL_STRING("ended"));
 }
 
 void nsHTMLMediaElement::SeekStarted()
