@@ -32,6 +32,17 @@ XPCOMUtils.defineLazyGetter(this, "tabviewBundle", function() {
 
 function tabviewString(name) tabviewBundle.GetStringFromName('tabview.' + name);
 
+XPCOMUtils.defineLazyGetter(this, "gPrefBranch", function() {
+  return Cc["@mozilla.org/preferences-service;1"].
+    getService(Ci.nsIPrefService).
+    getBranch("browser.panorama.");
+});
+
+XPCOMUtils.defineLazyGetter(this, "gPrivateBrowsing", function() {
+  return Cc["@mozilla.org/privatebrowsing;1"].
+           getService(Ci.nsIPrivateBrowsingService);
+});
+
 # NB: Certain files need to evaluate before others
 
 #include iq.js

@@ -473,11 +473,11 @@ menuitem:not([type]) {
 }
 
 #bookmarksToolbarFolderMenu,
-#BMB_bookmarksToolbarFolderMenu {
+#BMB_bookmarksToolbar {
   list-style-image: url("chrome://browser/skin/places/bookmarksToolbar.png");  
 }
 
-#unsortedBookmarksFolderMenu {
+#BMB_unsortedBookmarks {
   list-style-image: url("chrome://browser/skin/places/unsortedBookmarks.png");  
 }
 
@@ -952,62 +952,6 @@ toolbar[iconsize="small"] #sync-button[status="active"] {
   margin: 0;
 }
 
-/* urlbar progress */
-
-.tab-progress,
-#urlbar-progress {
-  -moz-appearance: none;
-  min-height: 0px;
-  height: 3px;
-  border: 0;
-  margin: -2px 0 -1px;
-  background-color: transparent;
-}
-
-.tab-progress[busy][stalled][value="0"],
-#urlbar-progress[busy][stalled][value="0"] {
-  /* TODO: add connecting state (bug 596812) */
-}
-
-.tab-progress > .progress-bar,
-#urlbar-progress > .progress-bar {
-  -moz-appearance: none;
-  min-width: 3px;
-  border-top: 1px solid rgba(100,100,100,.1);
-  border-bottom: 1px solid rgba(0,0,0,.2);
-  background-color: Highlight;
-  background-image: -moz-linear-gradient(left, rgba(255,255,255,.1) 50%,
-                                               rgba(255,255,255,.4) 90%,
-                                               rgba(255,255,255,.8));
-}
-
-.tab-progress > .progress-bar:-moz-locale-dir(rtl),
-#urlbar-progress > .progress-bar:-moz-locale-dir(rtl) {
-  background-image: -moz-linear-gradient(right, rgba(255,255,255,.1) 50%,
-                                                rgba(255,255,255,.4) 90%,
-                                                rgba(255,255,255,.8));
-}
-
-.tab-progress > .progress-remainder,
-#urlbar-progress > .progress-remainder {
-  border-top: 1px solid rgba(100,100,100,.1);
-  border-bottom: 1px solid rgba(0,0,0,.2);
-  background-image: -moz-linear-gradient(right, ThreeDShadow 80%, ThreeDLightShadow);
-}
-
-.tab-progress > .progress-remainder:-moz-locale-dir(rtl),
-#urlbar-progress > .progress-remainder:-moz-locale-dir(rtl) {
-  background-image: -moz-linear-gradient(left, ThreeDShadow 80%, ThreeDLightShadow);
-}
-
-.urlbar-contents {
-  -moz-margin-end: -2px;
-}
-
-.urlbar-history-dropmarker {
-  -moz-margin-end: 2px;
-}
-
 /* Favicon */
 #page-proxy-favicon,
 #urlbar-throbber {
@@ -1300,7 +1244,7 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   border-bottom-right-radius: 2px;
 }
 
-#urlbar > toolbarbutton:active:hover {
+#urlbar > toolbarbutton:not([disabled]):active:hover {
   padding-left: 4px;
   border-left: none;
   box-shadow: 0 0 6.5px rgba(0,0,0,.4) inset,
@@ -1322,7 +1266,7 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   -moz-image-region: rect(0px, 14px, 14px, 0px);
 }
 
-#urlbar-reload-button:hover {
+#urlbar-reload-button:not([disabled]):hover {
   -moz-image-region: rect(0px, 28px, 14px, 14px);
   background-image: -moz-linear-gradient(rgb(137,183,233), rgb(79,130,195));
   box-shadow: 0 1px 0 rgba(0,0,0,.1) inset,
@@ -1338,11 +1282,6 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 
 #urlbar-stop-button:hover {
   background-image: -moz-linear-gradient(rgb(237,120,120), rgb(216,92,92));
-}
-
-
-#urlbar-stop-button[disabled="true"] > .toolbarbutton-icon {
-  opacity: .5;
 }
 
 /* Star button */
@@ -1387,28 +1326,6 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 /* Content area */
 #sidebar {
   background-color: Window;
-}
-
-#status-bar {
-  border-top: none;
-}
-
-statusbarpanel#statusbar-display {
-  -moz-padding-start: 0;
-}
-
-#security-button[level="high"],
-#security-button[level="low"] {
-  list-style-image: url("chrome://browser/skin/Secure.png");
-}
-
-#security-button[level="broken"] {
-  list-style-image: url("chrome://browser/skin/Security-broken.png");
-}
-
-#page-report-button {
-  list-style-image: url("chrome://browser/skin/Info.png");
-  width: 20px;
 }
 
 /* Throbber */
@@ -1504,7 +1421,11 @@ statusbarpanel#statusbar-display {
 }
 
 .tabbrowser-tab[pinned][titlechanged]:not([selected="true"]) {
-  background-image: -moz-linear-gradient(rgba(255,0,0,.5), rgba(255,0,0,.5)) !important;
+  background-image: -moz-radial-gradient(40% 3px, circle farthest-corner, rgba(233,242,252,1) 2%, rgba(172,206,255,.75) 25%, rgba(87,151,201,.5) 40%, rgba(87,151,201,0) 80%);
+}
+.tabbrowser-tab[pinned][titlechanged]:not([selected="true"]):hover {
+  background-image: -moz-linear-gradient(hsla(0,0%,100%,.8), hsla(0,0%,100%,.6) 2px, hsla(0,0%,75%,.2) 50%),
+                    -moz-radial-gradient(40% 3px, circle farthest-corner, rgba(233,242,252,1) 2%, rgba(172,206,255,.75) 25%, rgba(87,151,201,.5) 40%, rgba(87,151,201,0) 80%);
 }
 
 .tabbrowser-tab[pinned] {
@@ -1515,6 +1436,7 @@ statusbarpanel#statusbar-display {
   outline: 1px dotted;
 }
 
+.tab-throbber,
 .tab-icon-image {
   width: 16px;
   height: 16px;
@@ -1523,6 +1445,15 @@ statusbarpanel#statusbar-display {
   -moz-image-region: rect(0px, 16px, 16px, 0px);
 }
 
+.tab-throbber {
+  list-style-image: url("chrome://browser/skin/tabbrowser/connecting.png");
+}
+
+.tab-throbber[progress] {
+  list-style-image: url("chrome://browser/skin/tabbrowser/loading.png");
+}
+
+.tab-throbber[pinned],
 .tab-icon-image[pinned],
 .tabs-newtab-button > .toolbarbutton-icon {
   -moz-margin-start: 2px;
@@ -1677,11 +1608,6 @@ toolbar[mode="text"] toolbarbutton.chevron > .toolbarbutton-icon {
   display: -moz-box; /* display chevron icon in text mode */
 }
 
-/* Popup blocking dialog */
-#pageReportFirstTime statusbarpanel.statusbar-resizerpanel {
-  visibility: collapse;
-}
-
 #download-monitor {
   list-style-image: url("chrome://browser/skin/Toolbar-small.png");
   -moz-image-region: rect(0px 16px 16px 0px);
@@ -1783,4 +1709,18 @@ listitem.style-section {
 
 panel[dimmed="true"] {
   opacity: 0.5;
+}
+
+/* Vertically-center the statusbar compatibility shim, because
+   toolbars, even in small-icon mode, are a bit taller than 
+   statusbars. */
+#status-bar {
+  margin-top: .3em;
+}
+
+/* Remove all borders from statusbarpanel children of
+   the statusbar. */
+#status-bar > statusbarpanel {
+  border-width: 0;
+  -moz-appearance: none;
 }

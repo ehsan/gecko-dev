@@ -44,10 +44,15 @@ include protocol PExternalHelperApp;
 include "mozilla/chrome/RegistryMessageUtils.h";
 include "mozilla/net/NeckoMessageUtils.h";
 
+include "nsGeoPositionIPCSerialiser.h";
+
+using GeoPosition;
+
 using ChromePackage;
 using ResourceMapping;
 using OverrideMapping;
 using IPC::URI;
+using IPC::Permission;
 
 namespace mozilla {
 namespace dom {
@@ -71,9 +76,14 @@ child:
 
     async NotifyVisited(URI uri);
 
-    NotifyRemotePrefObserver(nsCString aDomain);
+    PreferenceUpdate(nsCString pref);
 
     NotifyAlertsObserver(nsCString topic, nsString data);
+
+    GeolocationUpdate(GeoPosition somewhere);
+
+    // nsIPermissionManager messages
+    AddPermission(Permission permission);
 
 parent:
     PNecko();
@@ -87,20 +97,7 @@ parent:
     async LoadURIExternal(URI uri);
 
     // PrefService messages
-    sync GetPrefType(nsCString prefName) returns (PRInt32 retValue, nsresult rv);
-    sync GetBoolPref(nsCString prefName) returns (PRBool retValue, nsresult rv);
-    sync GetIntPref(nsCString prefName)  returns (PRInt32 retValue, nsresult rv);
-    sync GetCharPref(nsCString prefName) returns (nsCString retValue, nsresult rv);
-    sync GetPrefLocalizedString(nsCString prefName) returns (nsString retValue, nsresult rv);
-    sync PrefHasUserValue(nsCString prefName) returns (PRBool retValue, nsresult rv);
-    sync PrefIsLocked(nsCString prefName) returns (PRBool retValue, nsresult rv);
-    sync GetChildList(nsCString domain) returns (nsCString[] list, nsresult rv);
-
-    // PermissionsManager messages
-    sync TestPermission(URI uri, nsCString type, PRBool exact) returns (PRUint32 retValue);
-    NotifyIME(int aType, int aState);
-    NotifyIMEChange(nsString aText, PRUint32 aTextLen,
-                    int aStart, int aEnd, int aNewEnd);
+    sync ReadPrefs() returns (nsCString retValue);
 
     sync SyncMessage(nsString aMessage, nsString aJSON)
       returns (nsString[] retval);
@@ -115,6 +112,17 @@ parent:
     PExternalHelperApp(URI uri, nsCString aMimeContentType,
                        nsCString aContentDisposition, bool aForceSave,
                        PRInt64 aContentLength);
+    
+    GeolocationStart();
+    GeolocationStop();
+
+    ConsoleMessage(nsString message);
+    ScriptError(nsString message, nsString sourceName, nsString sourceLine,
+                PRUint32 lineNumber, PRUint32 colNumber, PRUint32 flags,
+                nsCString category); 
+
+    // nsIPermissionManager messages
+    sync ReadPermissions() returns (Permission[] permissions);
 
 both:
      AsyncMessage(nsString aMessage, nsString aJSON);

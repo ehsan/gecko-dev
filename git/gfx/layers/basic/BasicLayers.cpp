@@ -114,6 +114,14 @@ public:
   virtual ShadowableLayer* AsShadowableLayer() { return nsnull; }
 
   /**
+   * Implementations return true here if they *must* retain their
+   * layer contents.  This is true of shadowable layers with shadows,
+   * because there's no target on which to composite directly in the
+   * layer-publishing child process.
+   */
+  virtual bool MustRetainContent() { return false; }
+
+  /**
    * Layers will get this call when their layer manager is destroyed, this
    * indicates they should clear resources they don't really need after their
    * LayerManager ceases to exist.
@@ -127,7 +135,17 @@ ToData(Layer* aLayer)
   return static_cast<BasicImplData*>(aLayer->ImplData());
 }
 
+template<class Container>
+static void ContainerInsertAfter(Layer* aChild, Layer* aAfter, Container* aContainer);
+template<class Container>
+static void ContainerRemoveChild(Layer* aChild, Container* aContainer);
+
 class BasicContainerLayer : public ContainerLayer, BasicImplData {
+  template<class Container>
+  friend void ContainerInsertAfter(Layer* aChild, Layer* aAfter, Container* aContainer);
+  template<class Container>
+  friend void ContainerRemoveChild(Layer* aChild, Container* aContainer);
+
 public:
   BasicContainerLayer(BasicLayerManager* aManager) :
     ContainerLayer(aManager, static_cast<BasicImplData*>(this))
@@ -142,12 +160,21 @@ public:
                  "Can only set properties in construction phase");
     ContainerLayer::SetVisibleRegion(aRegion);
   }
-  virtual void InsertAfter(Layer* aChild, Layer* aAfter);
-  virtual void RemoveChild(Layer* aChild);
+  virtual void InsertAfter(Layer* aChild, Layer* aAfter)
+  {
+    NS_ASSERTION(BasicManager()->InConstruction(),
+                 "Can only set properties in construction phase");
+    ContainerInsertAfter(aChild, aAfter, this);
+  }
+
+  virtual void RemoveChild(Layer* aChild)
+  { 
+    NS_ASSERTION(BasicManager()->InConstruction(),
+                 "Can only set properties in construction phase");
+    ContainerRemoveChild(aChild, this);
+  }
 
 protected:
-  void RemoveChildInternal(Layer* aChild);
-
   BasicLayerManager* BasicManager()
   {
     return static_cast<BasicLayerManager*>(mManager);
@@ -157,37 +184,36 @@ protected:
 BasicContainerLayer::~BasicContainerLayer()
 {
   while (mFirstChild) {
-    RemoveChildInternal(mFirstChild);
+    ContainerRemoveChild(mFirstChild, this);
   }
 
   MOZ_COUNT_DTOR(BasicContainerLayer);
 }
 
-void
-BasicContainerLayer::InsertAfter(Layer* aChild, Layer* aAfter)
+template<class Container>
+static void
+ContainerInsertAfter(Layer* aChild, Layer* aAfter, Container* aContainer)
 {
-  NS_ASSERTION(BasicManager()->InConstruction(),
-               "Can only set properties in construction phase");
-  NS_ASSERTION(aChild->Manager() == Manager(),
+  NS_ASSERTION(aChild->Manager() == aContainer->Manager(),
                "Child has wrong manager");
   NS_ASSERTION(!aChild->GetParent(),
                "aChild already in the tree");
   NS_ASSERTION(!aChild->GetNextSibling() && !aChild->GetPrevSibling(),
                "aChild already has siblings?");
   NS_ASSERTION(!aAfter ||
-               (aAfter->Manager() == Manager() &&
-                aAfter->GetParent() == this),
+               (aAfter->Manager() == aContainer->Manager() &&
+                aAfter->GetParent() == aContainer),
                "aAfter is not our child");
 
   NS_ADDREF(aChild);
 
-  aChild->SetParent(this);
+  aChild->SetParent(aContainer);
   if (!aAfter) {
-    aChild->SetNextSibling(mFirstChild);
-    if (mFirstChild) {
-      mFirstChild->SetPrevSibling(aChild);
+    aChild->SetNextSibling(aContainer->mFirstChild);
+    if (aContainer->mFirstChild) {
+      aContainer->mFirstChild->SetPrevSibling(aChild);
     }
-    mFirstChild = aChild;
+    aContainer->mFirstChild = aChild;
     return;
   }
 
@@ -200,20 +226,13 @@ BasicContainerLayer::InsertAfter(Layer* aChild, Layer* aAfter)
   aAfter->SetNextSibling(aChild);
 }
 
-void
-BasicContainerLayer::RemoveChild(Layer* aChild)
+template<class Container>
+static void
+ContainerRemoveChild(Layer* aChild, Container* aContainer)
 {
-  NS_ASSERTION(BasicManager()->InConstruction(),
-               "Can only set properties in construction phase");
-  RemoveChildInternal(aChild);
-}
-
-void
-BasicContainerLayer::RemoveChildInternal(Layer* aChild)
-{
-  NS_ASSERTION(aChild->Manager() == Manager(),
+  NS_ASSERTION(aChild->Manager() == aContainer->Manager(),
                "Child has wrong manager");
-  NS_ASSERTION(aChild->GetParent() == this,
+  NS_ASSERTION(aChild->GetParent() == aContainer,
                "aChild not our child");
 
   Layer* prev = aChild->GetPrevSibling();
@@ -221,7 +240,7 @@ BasicContainerLayer::RemoveChildInternal(Layer* aChild)
   if (prev) {
     prev->SetNextSibling(next);
   } else {
-    mFirstChild = next;
+    aContainer->mFirstChild = next;
   }
   if (next) {
     next->SetPrevSibling(prev);
@@ -439,7 +458,8 @@ BasicThebesLayer::Paint(gfxContext* aContext,
 
   if (!BasicManager()->IsRetained() ||
       (aOpacity == 1.0 && !canUseOpaqueSurface &&
-       !ShouldRetainTransparentSurface(mContentFlags, targetSurface))) {
+       !ShouldRetainTransparentSurface(mContentFlags, targetSurface) &&
+       !MustRetainContent())) {
     mValidRegion.SetEmpty();
     mBuffer.Clear();
 
@@ -474,12 +494,11 @@ BasicThebesLayer::Paint(gfxContext* aContext,
       // subpixel AA)
       state.mRegionToInvalidate.And(state.mRegionToInvalidate, mVisibleRegion);
       InheritContextFlags(target, state.mContext);
+      mXResolution = paintXRes;
+      mYResolution = paintYRes;
       PaintBuffer(state.mContext,
                   state.mRegionToDraw, state.mRegionToInvalidate,
                   aCallback, aCallbackData);
-
-      mXResolution = paintXRes;
-      mYResolution = paintYRes;
       Mutated();
     } else {
       // It's possible that state.mRegionToInvalidate is nonempty here,
@@ -515,7 +534,10 @@ BasicThebesLayerBuffer::DrawTo(ThebesLayer* aLayer,
       IsClippingCheap(aTarget, aLayer->GetVisibleRegion())) {
     // We don't want to draw invalid stuff, so we need to clip. Might as
     // well clip to the smallest area possible --- the visible region.
-    gfxUtils::ClipToRegion(aTarget, aLayer->GetVisibleRegion());
+    // Bug 599189 if there is a non-integer-translation transform in aTarget,
+    // we might sample pixels outside GetVisibleRegion(), which is wrong
+    // and may cause gray lines.
+    gfxUtils::ClipToRegionSnapped(aTarget, aLayer->GetVisibleRegion());
   }
   if (aIsOpaqueContent) {
     aTarget->SetOperator(gfxContext::OPERATOR_SOURCE);
@@ -535,7 +557,8 @@ BasicThebesLayerBuffer::CreateBuffer(ContentType aType,
 class BasicImageLayer : public ImageLayer, BasicImplData {
 public:
   BasicImageLayer(BasicLayerManager* aLayerManager) :
-    ImageLayer(aLayerManager, static_cast<BasicImplData*>(this))
+    ImageLayer(aLayerManager, static_cast<BasicImplData*>(this)),
+    mSize(-1, -1)
   {
     MOZ_COUNT_CTOR(BasicImageLayer);
   }
@@ -664,7 +687,13 @@ public:
   virtual void Paint(gfxContext* aContext,
                      LayerManager::DrawThebesLayerCallback aCallback,
                      void* aCallbackData,
-                     float aOpacity);
+                     float aOpacity)
+  {
+    PaintColorTo(mColor, mOpacity, aContext);
+  }
+
+  static void PaintColorTo(gfxRGBA aColor, float aOpacity,
+                           gfxContext* aContext);
 
 protected:
   BasicLayerManager* BasicManager()
@@ -673,13 +702,11 @@ protected:
   }
 };
 
-void
-BasicColorLayer::Paint(gfxContext* aContext,
-                       LayerManager::DrawThebesLayerCallback aCallback,
-                       void* aCallbackData,
-                       float aOpacity)
+/*static*/ void
+BasicColorLayer::PaintColorTo(gfxRGBA aColor, float aOpacity,
+                              gfxContext* aContext)
 {
-  aContext->SetColor(mColor);
+  aContext->SetColor(aColor);
   aContext->Paint(aOpacity);
 }
 
@@ -1094,8 +1121,8 @@ BasicLayerManager::SetRoot(Layer* aLayer)
 static PRBool
 NeedsState(Layer* aLayer)
 {
-  return aLayer->GetClipRect() != nsnull ||
-         !aLayer->GetTransform().IsIdentity();
+  return aLayer->GetEffectiveClipRect() != nsnull ||
+         !aLayer->GetEffectiveTransform().IsIdentity();
 }
 
 static inline int
@@ -1122,25 +1149,24 @@ BasicLayerManager::PaintLayer(Layer* aLayer,
  if (needsSaveRestore) {
     mTarget->Save();
 
-    if (aLayer->GetClipRect()) {
-      const nsIntRect& r = *aLayer->GetClipRect();
+    if (const nsIntRect* r = aLayer->GetEffectiveClipRect()) {
       mTarget->NewPath();
-      mTarget->Rectangle(gfxRect(r.x, r.y, r.width, r.height), PR_TRUE);
+      mTarget->Rectangle(gfxRect(r->x, r->y, r->width, r->height), PR_TRUE);
       mTarget->Clip();
     }
 
     gfxMatrix transform;
     // XXX we need to add some kind of 3D transform support, possibly
     // using pixman?
-    NS_ASSERTION(aLayer->GetTransform().Is2D(),
+    NS_ASSERTION(aLayer->GetEffectiveTransform().Is2D(),
                  "Only 2D transforms supported currently");
-    aLayer->GetTransform().Is2D(&transform);
+    aLayer->GetEffectiveTransform().Is2D(&transform);
     mTarget->Multiply(transform);
 
     if (needsGroup && children > 1) {
       // If we need to call PushGroup, we should clip to the smallest possible
       // area first to minimize the size of the temporary surface.
-      ClipToContain(mTarget, aLayer->GetVisibleRegion().GetBounds());
+      ClipToContain(mTarget, aLayer->GetEffectiveVisibleRegion().GetBounds());
 
       gfxASurface::gfxContentType type = aLayer->CanUseOpaqueSurface()
           ? gfxASurface::CONTENT_COLOR : gfxASurface::CONTENT_COLOR_ALPHA;
@@ -1385,6 +1411,7 @@ public:
 
   virtual Layer* AsLayer() { return this; }
   virtual ShadowableLayer* AsShadowableLayer() { return this; }
+  virtual bool MustRetainContent() { return HasShadow(); }
 
   virtual PRBool SupportsSurfaceDescriptor() const { return PR_TRUE; }
 
@@ -1429,6 +1456,10 @@ private:
   // copy of the descriptor here so that we can call
   // DestroySharedSurface() on the descriptor.
   SurfaceDescriptor mBackBuffer;
+  // When we allocate a new front buffer, we keep a temporary record
+  // of it until reach PaintBuffer().  Then we pre-fill back->front
+  // and destroy our record.
+  SurfaceDescriptor mNewFrontBuffer;
   nsIntSize mBufferSize;
 };
  
@@ -1446,8 +1477,39 @@ BasicShadowableThebesLayer::PaintBuffer(gfxContext* aContext,
     NS_ABORT_IF_FALSE(IsSurfaceDescriptorValid(mBackBuffer),
                       "should have a back buffer by now");
 
+    nsIntRegion updatedRegion = aRegionToDraw;
+    if (IsSurfaceDescriptorValid(mNewFrontBuffer)) {
+      // We just allocated a new buffer pair.  We want to "pre-fill"
+      // the new front buffer by copying to it what we just painted
+      // into the back buffer.  This starts off our Swap()s from a
+      // stable base: the first swap will return the same valid region
+      // as our new back buffer.  Thereafter, we only need to
+      // invalidate what was painted into the back buffer.
+      nsRefPtr<gfxASurface> frontBuffer =
+        BasicManager()->OpenDescriptor(mNewFrontBuffer);
+      nsRefPtr<gfxASurface> backBuffer =
+        BasicManager()->OpenDescriptor(mBackBuffer);
+
+      nsRefPtr<gfxContext> ctx = new gfxContext(frontBuffer);
+      ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
+      ctx->DrawSurface(backBuffer, backBuffer->GetSize());
+
+      BasicManager()->CreatedThebesBuffer(BasicManager()->Hold(this),
+                                          mValidRegion,
+                                          mXResolution,
+                                          mYResolution,
+                                          mBuffer.BufferRect(),
+                                          mNewFrontBuffer);
+
+      // Clear temporary record of new front buffer
+      mNewFrontBuffer = SurfaceDescriptor();
+      // And pretend that we didn't update anything, in order to
+      // stabilize the first swap.
+      updatedRegion.SetEmpty();
+    }
+
     BasicManager()->PaintedThebesBuffer(BasicManager()->Hold(this),
-                                        aRegionToDraw,
+                                        updatedRegion,
                                         mBuffer.BufferRect(),
                                         mBuffer.BufferRotation(),
                                         mBackBuffer);
@@ -1468,19 +1530,15 @@ BasicShadowableThebesLayer::CreateBuffer(Buffer::ContentType aType,
     mBackBuffer = SurfaceDescriptor();
   }
 
-  SurfaceDescriptor tmpFront;
   // XXX error handling
+  NS_ABORT_IF_FALSE(!IsSurfaceDescriptorValid(mNewFrontBuffer),
+                    "Bad!  Did we create a buffer twice without painting?");
   if (!BasicManager()->AllocDoubleBuffer(gfxIntSize(aSize.width, aSize.height),
                                          aType,
-                                         &tmpFront,
+                                         &mNewFrontBuffer,
                                          &mBackBuffer))
     NS_RUNTIMEABORT("creating ThebesLayer 'back buffer' failed!");
   mBufferSize = aSize;
-
-  nsIntRect bufRect = mVisibleRegion.GetBounds();
-  BasicManager()->CreatedThebesBuffer(BasicManager()->Hold(this),
-                                      bufRect,
-                                      tmpFront);
   return BasicManager()->OpenDescriptor(mBackBuffer);
 }
 
@@ -1547,7 +1605,7 @@ BasicShadowableImageLayer::Paint(gfxContext* aContext,
     return;
 
   if (oldSize != mSize) {
-    NS_ASSERTION(oldSize == gfxIntSize(0, 0), "video changed size?");
+    NS_ASSERTION(oldSize == gfxIntSize(-1, -1), "video changed size?");
 
     if (mBackSurface) {
       BasicManager()->ShadowLayerForwarder::DestroySharedSurface(mBackSurface);
@@ -1766,6 +1824,10 @@ public:
     MOZ_COUNT_DTOR(BasicShadowThebesLayer);
   }
 
+  virtual void SetFrontBuffer(const ThebesBuffer& aNewFront,
+                              const nsIntRegion& aValidRegion,
+                              float aXResolution, float aYResolution);
+
   virtual void SetValidRegion(const nsIntRegion& aRegion)
   {
     mOldValidRegion = mValidRegion;
@@ -1799,7 +1861,7 @@ public:
     mOldYResolution = 1.0;
 
     if (IsSurfaceDescriptorValid(mFrontBufferDescriptor)) {
-      BasicManager()->ShadowLayerManager::DestroySharedSurface(&mFrontBufferDescriptor);
+      BasicManager()->ShadowLayerManager::DestroySharedSurface(&mFrontBufferDescriptor, mAllocator);
     }
   }
 
@@ -1827,6 +1889,25 @@ private:
 };
 
 void
+BasicShadowThebesLayer::SetFrontBuffer(const ThebesBuffer& aNewFront,
+                                       const nsIntRegion& aValidRegion,
+                                       float aXResolution, float aYResolution)
+{
+  mValidRegion = mOldValidRegion = aValidRegion;
+  mXResolution = mOldXResolution = aXResolution;
+  mYResolution = mOldYResolution = aYResolution;
+  nsRefPtr<gfxASurface> newFrontBuffer =
+    BasicManager()->OpenDescriptor(aNewFront.buffer());
+
+  nsRefPtr<gfxASurface> unused;
+  nsIntRect unusedRect;
+  nsIntPoint unusedRotation;
+  mFrontBuffer.Swap(newFrontBuffer, aNewFront.rect(), aNewFront.rotation(),
+                    getter_AddRefs(unused), &unusedRect, &unusedRotation);
+  mFrontBufferDescriptor = aNewFront.buffer();
+}
+
+void
 BasicShadowThebesLayer::Swap(const ThebesBuffer& aNewFront,
                              const nsIntRegion& aUpdatedRegion,
                              ThebesBuffer* aNewBack,
@@ -1838,15 +1919,22 @@ BasicShadowThebesLayer::Swap(const ThebesBuffer& aNewFront,
   // We have to invalidate the pixels painted into the new buffer.
   // They might overlap with our old pixels.
   if (mOldXResolution == mXResolution && mOldYResolution == mYResolution) {
-    aNewBackValidRegion->Sub(mValidRegion, aUpdatedRegion);
+    aNewBackValidRegion->Sub(mOldValidRegion, aUpdatedRegion);
   } else {
     // On resolution changes, pretend that our buffer has the new
     // resolution, but just has no valid content.  This can avoid
     // unnecessary buffer reallocs.
+    // 
+    // FIXME/bug 598866: when we start re-using buffers after
+    // resolution changes, we're going to need to implement
+    // front->back copies to avoid thrashing our valid region by
+    // always nullifying it.
     aNewBackValidRegion->SetEmpty();
     mOldXResolution = mXResolution;
     mOldYResolution = mYResolution;
   }
+  NS_ASSERTION(mXResolution == mOldXResolution && mYResolution == mOldYResolution,
+               "Uh-oh, buffer allocation thrash forthcoming!");
   *aNewXResolution = mXResolution;
   *aNewYResolution = mYResolution;
 
@@ -1888,6 +1976,32 @@ BasicShadowThebesLayer::Paint(gfxContext* aContext,
   mFrontBuffer.DrawTo(this, isOpaqueContent, target, aOpacity);
 }
 
+class BasicShadowContainerLayer : public ShadowContainerLayer, BasicImplData {
+  template<class Container>
+  friend void ContainerInsertAfter(Layer* aChild, Layer* aAfter, Container* aContainer);
+  template<class Container>
+  friend void ContainerRemoveChild(Layer* aChild, Container* aContainer);
+
+public:
+  BasicShadowContainerLayer(BasicShadowLayerManager* aLayerManager) :
+    ShadowContainerLayer(aLayerManager, static_cast<BasicImplData*>(this))
+  {
+    MOZ_COUNT_CTOR(BasicShadowContainerLayer);
+  }
+  virtual ~BasicShadowContainerLayer()
+  {
+    while (mFirstChild) {
+      ContainerRemoveChild(mFirstChild, this);
+    }
+
+    MOZ_COUNT_DTOR(BasicShadowContainerLayer);
+  }
+
+  virtual void InsertAfter(Layer* aChild, Layer* aAfter)
+  { ContainerInsertAfter(aChild, aAfter, this); }
+  virtual void RemoveChild(Layer* aChild)
+  { ContainerRemoveChild(aChild, this); }
+};
 
 class BasicShadowImageLayer : public ShadowImageLayer, BasicImplData {
 public:
@@ -1915,7 +2029,7 @@ public:
   virtual void DestroyFrontBuffer()
   {
     if (mFrontSurface) {
-      BasicManager()->ShadowLayerManager::DestroySharedSurface(mFrontSurface);
+      BasicManager()->ShadowLayerManager::DestroySharedSurface(mFrontSurface, mAllocator);
     }
     mFrontSurface = nsnull;
   }
@@ -1968,6 +2082,29 @@ BasicShadowImageLayer::Paint(gfxContext* aContext,
   BasicImageLayer::PaintContext(pat, mSize, aOpacity, aContext);
 }
 
+class BasicShadowColorLayer : public ShadowColorLayer,
+                              BasicImplData
+{
+public:
+  BasicShadowColorLayer(BasicShadowLayerManager* aLayerManager) :
+    ShadowColorLayer(aLayerManager, static_cast<BasicImplData*>(this))
+  {
+    MOZ_COUNT_CTOR(BasicShadowColorLayer);
+  }
+  virtual ~BasicShadowColorLayer()
+  {
+    MOZ_COUNT_DTOR(BasicShadowColorLayer);
+  }
+
+  virtual void Paint(gfxContext* aContext,
+                     LayerManager::DrawThebesLayerCallback aCallback,
+                     void* aCallbackData,
+                     float aOpacity)
+  {
+    BasicColorLayer::PaintColorTo(mColor, aOpacity, aContext);
+  }
+};
+
 class BasicShadowCanvasLayer : public ShadowCanvasLayer,
                                BasicImplData
 {
@@ -1999,7 +2136,7 @@ public:
   virtual void DestroyFrontBuffer()
   {
     if (mFrontSurface) {
-      BasicManager()->ShadowLayerManager::DestroySharedSurface(mFrontSurface);
+      BasicManager()->ShadowLayerManager::DestroySharedSurface(mFrontSurface, mAllocator);
     }
     mFrontSurface = nsnull;
   }
@@ -2145,11 +2282,27 @@ BasicShadowLayerManager::CreateShadowThebesLayer()
   return layer.forget();
 }
 
+already_AddRefed<ShadowContainerLayer>
+BasicShadowLayerManager::CreateShadowContainerLayer()
+{
+  NS_ASSERTION(InConstruction(), "Only allowed in construction phase");
+  nsRefPtr<ShadowContainerLayer> layer = new BasicShadowContainerLayer(this);
+  return layer.forget();
+}
+
 already_AddRefed<ShadowImageLayer>
 BasicShadowLayerManager::CreateShadowImageLayer()
 {
   NS_ASSERTION(InConstruction(), "Only allowed in construction phase");
   nsRefPtr<ShadowImageLayer> layer = new BasicShadowImageLayer(this);
+  return layer.forget();
+}
+
+already_AddRefed<ShadowColorLayer>
+BasicShadowLayerManager::CreateShadowColorLayer()
+{
+  NS_ASSERTION(InConstruction(), "Only allowed in construction phase");
+  nsRefPtr<ShadowColorLayer> layer = new BasicShadowColorLayer(this);
   return layer.forget();
 }
 

@@ -107,8 +107,7 @@ SealObjectAndPrototype(JSContext* cx, JSObject* parent, const char* name)
     return false;
 
   JSObject* prototype = JSVAL_TO_OBJECT(prop);
-  return JS_SealObject(cx, obj, JS_FALSE) &&
-         JS_SealObject(cx, prototype, JS_FALSE);
+  return JS_FreezeObject(cx, obj) && JS_FreezeObject(cx, prototype);
 }
 
 static JSBool
@@ -124,16 +123,18 @@ InitAndSealCTypesClass(JSContext* cx, JSObject* global)
       !JS_SetCTypesCallbacks(cx, JSVAL_TO_OBJECT(ctypes), &sCallbacks))
     return false;
 
-  // Seal up Object, Function, and Array and their prototypes.  (This single
-  // object instance is shared amongst everyone who imports the ctypes module.)
+  // Seal up Object, Function, Array and Error and their prototypes.  (This
+  // single object instance is shared amongst everyone who imports the ctypes
+  // module.)
   if (!SealObjectAndPrototype(cx, global, "Object") ||
       !SealObjectAndPrototype(cx, global, "Function") ||
-      !SealObjectAndPrototype(cx, global, "Array"))
+      !SealObjectAndPrototype(cx, global, "Array") ||
+      !SealObjectAndPrototype(cx, global, "Error"))
     return false;
 
   // Finally, seal the global object, for good measure. (But not recursively;
   // this breaks things.)
-  return JS_SealObject(cx, global, JS_FALSE);
+  return JS_FreezeObject(cx, global);
 }
 
 NS_IMETHODIMP

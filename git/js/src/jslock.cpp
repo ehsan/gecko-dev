@@ -45,7 +45,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "jspubtd.h"
-#include "jsutil.h" /* Added by JSIFY */
+#include "jsutil.h"
 #include "jstypes.h"
 #include "jsstdint.h"
 #include "jsbit.h"
@@ -507,8 +507,7 @@ FinishSharingTitle(JSContext *cx, JSTitle *title)
     JSObject *obj = TITLE_TO_OBJECT(title);
     if (obj) {
         uint32 nslots = obj->slotSpan();
-        JS_ASSERT(nslots >= JSSLOT_START(obj->getClass()));
-        for (uint32 i = JSSLOT_START(obj->getClass()); i != nslots; ++i) {
+        for (uint32 i = 0; i != nslots; ++i) {
             Value v = obj->getSlot(i);
             if (v.isString() &&
                 !js_MakeStringImmutable(cx, v.toString())) {
@@ -676,13 +675,13 @@ js_GetSlotThreadSafe(JSContext *cx, JSObject *obj, uint32 slot)
     JS_ASSERT(obj->containsSlot(slot));
 
     /*
-     * Avoid locking if called from the GC.  Also avoid locking a sealed
+     * Avoid locking if called from the GC.  Also avoid locking a non-extensible
      * object.  If neither of those special cases applies, try to claim obj's
      * flyweight lock from whatever context may have had it in an earlier
      * request.
      */
     if (CX_THREAD_IS_RUNNING_GC(cx) ||
-        obj->sealed() ||
+        !obj->isExtensible() ||
         (obj->title.ownercx && ClaimTitle(&obj->title, cx))) {
         return Jsvalify(obj->getSlot(slot));
     }
@@ -754,13 +753,13 @@ js_SetSlotThreadSafe(JSContext *cx, JSObject *obj, uint32 slot, jsval v)
     JS_ASSERT(obj->containsSlot(slot));
 
     /*
-     * Avoid locking if called from the GC.  Also avoid locking a sealed
+     * Avoid locking if called from the GC.  Also avoid locking a non-extensible
      * object.  If neither of those special cases applies, try to claim obj's
      * flyweight lock from whatever context may have had it in an earlier
      * request.
      */
     if (CX_THREAD_IS_RUNNING_GC(cx) ||
-        obj->sealed() ||
+        !obj->isExtensible() ||
         (obj->title.ownercx && ClaimTitle(&obj->title, cx))) {
         obj->lockedSetSlot(slot, Valueify(v));
         return;
@@ -1245,7 +1244,7 @@ js_LockObj(JSContext *cx, JSObject *obj)
     if (CX_THREAD_IS_RUNNING_GC(cx))
         return;
 
-    if (obj->sealed() && !cx->thread->lockedSealedTitle) {
+    if (!obj->isExtensible() && !cx->thread->lockedSealedTitle) {
         cx->thread->lockedSealedTitle = &obj->title;
         return;
     }
@@ -1311,7 +1310,7 @@ js_IsTitleLocked(JSContext *cx, JSTitle *title)
     if (CX_THREAD_IS_RUNNING_GC(cx))
         return JS_TRUE;
 
-    /* Special case: locked object is sealed (ES5 frozen) -- see js_LockObj. */
+    /* Special case: locked object is not extensible -- see js_LockObj. */
     if (cx->thread->lockedSealedTitle == title)
         return JS_TRUE;
 

@@ -613,18 +613,13 @@ nsFrameLoader::Show(PRInt32 marginWidth, PRInt32 marginHeight,
   AutoResetInShow resetInShow(this);
   mInShow = PR_TRUE;
 
-  nsContentType contentType;
-
   nsresult rv = MaybeCreateDocShell();
   if (NS_FAILED(rv)) {
     return PR_FALSE;
   }
 
 #ifdef MOZ_IPC
-  if (mRemoteFrame) {
-    contentType = eContentTypeContent;
-  }
-  else
+  if (!mRemoteFrame)
 #endif
   {
     if (!mDocShell)
@@ -643,22 +638,6 @@ nsFrameLoader::Show(PRInt32 marginWidth, PRInt32 marginHeight,
                                          scrollbarPrefX);
       sc->SetDefaultScrollbarPreferences(nsIScrollable::ScrollOrientation_Y,
                                          scrollbarPrefY);
-    }
-
-
-    nsCOMPtr<nsIDocShellTreeItem> treeItem = do_QueryInterface(mDocShell);
-    NS_ASSERTION(treeItem,
-                 "Found a nsIDocShell that isn't a nsIDocShellTreeItem.");
-
-    PRInt32 itemType;
-    treeItem->GetItemType(&itemType);
-
-    if (itemType == nsIDocShellTreeItem::typeChrome)
-      contentType = eContentTypeUI;
-    else {
-      nsCOMPtr<nsIDocShellTreeItem> sameTypeParent;
-      treeItem->GetSameTypeParent(getter_AddRefs(sameTypeParent));
-      contentType = sameTypeParent ? eContentTypeContentFrame : eContentTypeContent;
     }
   }
 
@@ -1068,9 +1047,6 @@ nsFrameLoader::DestroyChild()
 {
 #ifdef MOZ_IPC
   if (mRemoteBrowser) {
-#ifdef ANDROID
-    nsContentUtils::ClearActiveFrameLoader(this);
-#endif
     mRemoteBrowser->SetOwnerElement(nsnull);
     // If this fails, it's most likely due to a content-process crash,
     // and auto-cleanup will kick in.  Otherwise, the child side will
@@ -1564,8 +1540,10 @@ nsFrameLoader::UpdateViewportConfig(const ViewportConfig& aNewConfig)
   // it if found.
   nsIFrame* frame = GetPrimaryFrameOfOwningContent();
   if (!frame) {
-    // XXX should this be a silent failure?
-    return NS_ERROR_NOT_AVAILABLE;
+    // Oops, don't have a frame right now.  That's OK; the viewport
+    // config persists and will apply to the next frame we get, if we
+    // ever get one.
+    return NS_OK;
   }
 
   // XXX could be clever here and compute a smaller invalidation
@@ -1691,9 +1669,6 @@ nsFrameLoader::ActivateRemoteFrame() {
 #ifdef MOZ_IPC
   if (mRemoteBrowser) {
     mRemoteBrowser->Activate();
-#ifdef ANDROID
-    nsContentUtils::SetActiveFrameLoader(this);
-#endif
     return NS_OK;
   }
 #endif

@@ -99,6 +99,7 @@
 #include "nsWhitespaceTokenizer.h"
 #include "nsAttrName.h"
 #include "nsNetUtil.h"
+#include "nsIEventStateManager.h"
 
 #ifdef NS_DEBUG
 #include "nsIDOMCharacterData.h"
@@ -685,24 +686,23 @@ nsAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
   if (aExtraState)
     *aExtraState = 0;
 
-  // Set STATE_UNAVAILABLE state based on disabled attribute
-  // The disabled attribute is mostly used in XUL elements and HTML forms, but
-  // if someone sets it on another attribute, 
-  // it seems reasonable to consider it unavailable
-  PRBool isDisabled;
-  if (mContent->IsHTML()) {
-    // In HTML, just the presence of the disabled attribute means it is disabled,
-    // therefore disabled="false" indicates disabled!
-    isDisabled = mContent->HasAttr(kNameSpaceID_None,
-                                   nsAccessibilityAtoms::disabled);
-  }
-  else {
-    isDisabled = mContent->AttrValueIs(kNameSpaceID_None,
-                                       nsAccessibilityAtoms::disabled,
-                                       nsAccessibilityAtoms::_true,
-                                       eCaseMatters);
-  }
-  if (isDisabled) {
+  PRInt32 intrinsicState = mContent->IntrinsicState();
+
+  if (intrinsicState & NS_EVENT_STATE_INVALID)
+    *aState |= nsIAccessibleStates::STATE_INVALID;
+
+  if (intrinsicState & NS_EVENT_STATE_REQUIRED)
+    *aState |= nsIAccessibleStates::STATE_REQUIRED;
+
+  PRBool disabled = mContent->IsHTML() ? 
+    (intrinsicState & NS_EVENT_STATE_DISABLED) :
+    (mContent->AttrValueIs(kNameSpaceID_None,
+                           nsAccessibilityAtoms::disabled,
+                           nsAccessibilityAtoms::_true,
+                           eCaseMatters));
+
+  // Set unavailable state based on disabled state, otherwise set focus states
+  if (disabled) {
     *aState |= nsIAccessibleStates::STATE_UNAVAILABLE;
   }
   else if (mContent->IsElement()) {
@@ -2158,9 +2158,18 @@ nsAccessible::GetRelationByType(PRUint32 aRelationType,
 
   case nsIAccessibleRelation::RELATION_CONTROLLER_FOR:
     {
-      return nsRelUtils::
+      nsresult rv = nsRelUtils::
         AddTargetFromIDRefsAttr(aRelationType, aRelation, mContent,
                                 nsAccessibilityAtoms::aria_controls);
+      NS_ENSURE_SUCCESS(rv,rv);
+
+      if (rv != NS_OK_NO_RELATION_TARGET)
+        return NS_OK; // XXX bug 381599, avoid performance problems      
+
+      return nsRelUtils::
+        AddTargetFromNeighbour(aRelationType, aRelation, mContent,
+                               nsAccessibilityAtoms::_for,
+                               nsAccessibilityAtoms::output);
     }
 
   case nsIAccessibleRelation::RELATION_FLOWS_TO:
@@ -2723,7 +2732,7 @@ nsAccessible::AppendChild(nsAccessible* aChild)
   if (!mChildren.AppendElement(aChild))
     return PR_FALSE;
 
-  if (nsAccUtils::IsText(aChild))
+  if (!nsAccUtils::IsEmbeddedObject(aChild))
     mChildrenFlags = eMixedChildren;
 
   aChild->BindToParent(this, mChildren.Length() - 1);

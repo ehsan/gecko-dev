@@ -58,6 +58,8 @@
 #include "jscntxt.h"
 #include "jsdbgapi.h"
 #include "jsgc.h"
+#include "jscompartment.h"
+#include "xpcpublic.h"
 #include "nscore.h"
 #include "nsXPCOM.h"
 #include "nsAutoPtr.h"
@@ -495,7 +497,6 @@ public:
                                           bool explainExpectedLiveGarbage);
     virtual nsresult FinishCycleCollection();
     virtual nsCycleCollectionParticipant *ToParticipant(void *p);
-    virtual void CommenceShutdown();
     virtual void Collect();
 #ifdef DEBUG_CC
     virtual void PrintAllReferencesTo(void *p);
@@ -512,6 +513,11 @@ public:
 
     void RecordTraversal(void *p, nsISupports *s);
 #endif
+    virtual char* DebugPrintJSStack(PRBool showArgs,
+                                    PRBool showLocals,
+                                    PRBool showThisProps);
+
+
     static PRBool ReportAllJSExceptions()
     {
       return gReportAllJSExceptions > 0;
@@ -656,6 +662,7 @@ public:
         IDX_PROTO                   ,
         IDX_ITERATOR                ,
         IDX_EXPOSEDPROPS            ,
+        IDX_SCRIPTONLY              ,
         IDX_TOTAL_COUNT // just a count of the above
     };
 
@@ -1317,6 +1324,7 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JSObject *obj);
         js::Valueify(XPC_WN_JSOp_Enumerate),                                  \
         XPC_WN_JSOp_TypeOf_Function,                                          \
         nsnull, /* trace          */                                          \
+        nsnull, /* fix            */                                          \
         XPC_WN_JSOp_ThisObject,                                               \
         XPC_WN_JSOp_Clear                                                     \
     }
@@ -1333,6 +1341,7 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JSObject *obj);
         js::Valueify(XPC_WN_JSOp_Enumerate),                                  \
         XPC_WN_JSOp_TypeOf_Object,                                            \
         nsnull, /* trace          */                                          \
+        nsnull, /* fix            */                                          \
         XPC_WN_JSOp_ThisObject,                                               \
         XPC_WN_JSOp_Clear                                                     \
     }
@@ -1373,10 +1382,10 @@ DebugCheckWrapperClass(JSObject* obj)
 // Only use these macros if IS_WRAPPER_CLASS(obj->getClass()) is true.
 #define IS_WN_WRAPPER_OBJECT(obj)                                             \
     (DebugCheckWrapperClass(obj) &&                                           \
-     obj->getSlot(JSSLOT_START(obj->getClass())).isUndefined())
+     obj->getSlot(0).isUndefined())
 #define IS_SLIM_WRAPPER_OBJECT(obj)                                           \
     (DebugCheckWrapperClass(obj) &&                                           \
-     !obj->getSlot(JSSLOT_START(obj->getClass())).isUndefined())
+     !obj->getSlot(0).isUndefined())
 
 // Use these macros if IS_WRAPPER_CLASS(obj->getClass()) might be false.
 // Avoid calling them if IS_WRAPPER_CLASS(obj->getClass()) can only be
@@ -1512,14 +1521,6 @@ public:
 
     JSBool
     IsValid() const {return mRuntime != nsnull;}
-
-    /**
-     * Figures out what type of wrapper to create for obj if it were injected
-     * into 'this's scope.
-     */
-    XPCWrapper::WrapperType
-    GetWrapperFor(JSContext *cx, JSObject *obj, XPCWrapper::WrapperType hint,
-                  XPCWrappedNative **wn);
 
     static JSBool
     IsDyingScope(XPCWrappedNativeScope *scope);
@@ -2275,6 +2276,10 @@ private:
 };
 
 class xpcObjectHelper;
+JSObject *
+ConstructProxyObject(XPCCallContext &ccx,
+                     xpcObjectHelper &aHelper,
+                     XPCWrappedNativeScope *xpcscope);
 extern JSBool ConstructSlimWrapper(XPCCallContext &ccx,
                                    xpcObjectHelper &aHelper,
                                    XPCWrappedNativeScope* xpcScope,
@@ -2284,7 +2289,7 @@ extern JSBool MorphSlimWrapper(JSContext *cx, JSObject *obj);
 static inline XPCWrappedNativeProto*
 GetSlimWrapperProto(JSObject *obj)
 {
-  const js::Value &v = obj->getSlot(JSSLOT_START(obj->getClass()));
+  const js::Value &v = obj->getSlot(0);
   return static_cast<XPCWrappedNativeProto*>(v.toPrivate());
 }
 
@@ -3907,6 +3912,13 @@ extern JSBool
 xpc_DumpJSStack(JSContext* cx, JSBool showArgs, JSBool showLocals,
                 JSBool showThisProps);
 
+// Return a newly-allocated string containing a representation of the
+// current JS stack.  It is the *caller's* responsibility to free this
+// string with JS_smprintf_free().
+extern char*
+xpc_PrintJSStack(JSContext* cx, JSBool showArgs, JSBool showLocals,
+                 JSBool showThisProps);
+
 extern JSBool
 xpc_DumpEvalInJSStackFrame(JSContext* cx, JSUint32 frameno, const char* text);
 
@@ -3915,11 +3927,6 @@ xpc_DumpJSObject(JSObject* obj);
 
 extern JSBool
 xpc_InstallJSDebuggerKeywordHandler(JSRuntime* rt);
-
-nsresult
-xpc_CreateGlobalObject(JSContext *cx, JSClass *clasp,
-                       const nsACString &origin, nsIPrincipal *principal,
-                       JSObject **global, JSCompartment **compartment);
 
 /***************************************************************************/
 
@@ -4372,7 +4379,8 @@ xpc_GetGlobalForObject(JSObject *obj)
 // reachable through prinOrSop, a new null principal will be created
 // and used.
 nsresult
-xpc_CreateSandboxObject(JSContext * cx, jsval * vp, nsISupports *prinOrSop);
+xpc_CreateSandboxObject(JSContext * cx, jsval * vp, nsISupports *prinOrSop,
+                        JSObject *proto, bool preferXray);
 
 // Helper for evaluating scripts in a sandbox object created with
 // xpc_CreateSandboxObject(). The caller is responsible of ensuring
@@ -4415,6 +4423,21 @@ xpc_SameScope(XPCWrappedNativeScope *objectscope,
 
 nsISupports *
 XPC_GetIdentityObject(JSContext *cx, JSObject *obj);
+
+namespace xpc {
+
+struct CompartmentPrivate
+{
+  CompartmentPrivate(char *origin, bool preferXrays)
+    : origin(origin),
+      preferXrays(preferXrays)
+  {
+  }
+  char *origin;
+  bool preferXrays;
+};
+
+}
 
 #ifdef XPC_IDISPATCH_SUPPORT
 

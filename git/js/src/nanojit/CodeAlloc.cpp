@@ -279,6 +279,11 @@ extern  "C" void sync_instruction_memory(caddr_t v, u_int len);
         FlushInstructionCache(GetCurrentProcess(), NULL, NULL);
     }
 
+#elif defined NANOJIT_ARM && defined DARWIN
+    void CodeAlloc::flushICache(void *, size_t) {
+        VMPI_debugBreak();
+    }
+
 #elif defined AVMPLUS_MAC && defined NANOJIT_PPC
 
 #  ifdef NANOJIT_64BIT
@@ -312,6 +317,13 @@ extern  "C" void sync_instruction_memory(caddr_t v, u_int len);
             sync_instruction_memory((char*)start, len);
     }
 
+#elif defined NANOJIT_SH4
+#include <asm/cachectl.h> /* CACHEFLUSH_*, */
+#include <sys/syscall.h>  /* __NR_cacheflush, */
+    void CodeAlloc::flushICache(void *start, size_t len) {
+        syscall(__NR_cacheflush, start, len, CACHEFLUSH_D_WB | CACHEFLUSH_I);
+    }
+
 #elif defined(AVMPLUS_UNIX) && defined(NANOJIT_MIPS)
     void CodeAlloc::flushICache(void *start, size_t len) {
         // FIXME Use synci on MIPS32R2
@@ -332,6 +344,7 @@ extern  "C" void sync_instruction_memory(caddr_t v, u_int len);
 #endif // AVMPLUS_MAC && NANOJIT_PPC
 
     void CodeAlloc::addBlock(CodeList* &blocks, CodeList* b) {
+        NanoAssert(b->terminator != NULL);  // should not be mucking with terminator blocks
         b->next = blocks;
         blocks = b;
     }
@@ -355,7 +368,8 @@ extern  "C" void sync_instruction_memory(caddr_t v, u_int len);
         debug_only(sanity_check();)
 
         // add terminator to heapblocks list so we can track whole blocks
-        addBlock(heapblocks, terminator);
+        terminator->next = heapblocks;
+        heapblocks = terminator;
         return b;
     }
 
@@ -368,6 +382,7 @@ extern  "C" void sync_instruction_memory(caddr_t v, u_int len);
     CodeList* CodeAlloc::removeBlock(CodeList* &blocks) {
         CodeList* b = blocks;
         NanoAssert(b != NULL);
+        NanoAssert(b->terminator != NULL);  // should not be mucking with terminator blocks
         blocks = b->next;
         b->next = 0;
         return b;
@@ -418,7 +433,7 @@ extern  "C" void sync_instruction_memory(caddr_t v, u_int len);
         } else {
             // there's enough space left to split into three blocks (two new ones)
             CodeList* b1 = getBlock(start, end);
-            CodeList* b2 = (CodeList*) holeStart;
+            CodeList* b2 = (CodeList*) (void*) holeStart;
             CodeList* b3 = (CodeList*) (uintptr_t(holeEnd) - offsetof(CodeList, code));
             b1->higher = b2;
             b2->lower = b1;
@@ -494,12 +509,21 @@ extern  "C" void sync_instruction_memory(caddr_t v, u_int len);
     }
     #endif
 
+    // Variant of markExec(CodeList*) that walks all heapblocks (i.e. chunks) marking
+    // each one executable.   On systems where bytesPerAlloc is low (i.e. have lots
+    // of elements in the list) this can be expensive.
     void CodeAlloc::markAllExec() {
         for (CodeList* hb = heapblocks; hb != NULL; hb = hb->next) {
-            if (!hb->isExec) {
-                hb->isExec = true;
-                markCodeChunkExec(firstBlock(hb), bytesPerAlloc);
-            }
+            markChunkExec(hb);
+        }
+    }
+
+    // make an entire chunk executable
+    void CodeAlloc::markChunkExec(CodeList* term) {
+        NanoAssert(term->terminator == NULL);
+        if (!term->isExec) {
+            term->isExec = true;
+            markCodeChunkExec(firstBlock(term), bytesPerAlloc);
         }
     }
 }

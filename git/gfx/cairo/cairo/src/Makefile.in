@@ -210,7 +210,9 @@ endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
 CPPSRCS += cairo-qt-surface.cpp
+CSRCS   += $(PSPDF_BASE_CSRCS) $(PDF_CSRCS) 
 EXPORTS_cairo += cairo-qt.h
+EXPORTS_cairo += $(PDF_EXPORTS)
 OS_INCLUDES += $(MOZ_QT_CFLAGS)
 endif
 
@@ -255,6 +257,11 @@ endif
 
 ifdef MOZ_TREE_CAIRO
 DEFINES += -DMOZ_TREE_CAIRO
+endif
+
+ifndef MOZ_TREE_PIXMAN
+CFLAGS += $(MOZ_CAIRO_CFLAGS)
+CXXFLAGS += $(MOZ_CAIRO_CFLAGS)
 endif
 
 cairo-features.h: $(srcdir)/cairo-features.h.in $(GLOBAL_DEPS)

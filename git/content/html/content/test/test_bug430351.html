@@ -148,7 +148,6 @@ var focusableElements = [
     "<input type=\"text\" tabindex=\"1\">",
     "<input type=\"text\" contenteditable=\"true\">",
 
-    "<object></object>",
     "<object tabindex=\"-1\"></object>",
     "<object tabindex=\"0\"></object>",
     "<object tabindex=\"1\"></object>",
@@ -241,8 +240,7 @@ var nonFocusableElements = [
     "<input type=\"text\" tabindex=\"0\" disabled>",
     "<input type=\"text\" disabled>",
 
-    "<object tabindex=\"0\" disabled></object>",
-    "<object disabled></object>",
+    "<object></object>",
 
     "<select tabindex=\"0\" disabled></select>",
     "<select disabled></select>"
@@ -355,11 +353,13 @@ var focusableInContentEditable = [
     "<input type=\"text\" tabindex=\"1\">",
     "<input type=\"text\" contenteditable=\"true\">",
 
-    "<object></object>",
     "<object tabindex=\"-1\"></object>",
     "<object tabindex=\"0\"></object>",
     "<object tabindex=\"1\"></object>",
-    "<object contenteditable=\"true\"></object>",
+
+    // Disabled doesn't work for <object>.
+    "<object tabindex=\"0\" disabled></object>",
+    "<object disabled></object>",
 
     "<select></select>",
     "<select tabindex=\"-1\"></select>",

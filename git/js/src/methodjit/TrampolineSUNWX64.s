@@ -52,35 +52,49 @@ JaegerTrampoline:
     pushq %r15
     pushq %rbx
 
+    /* Load mask registers. */
+    movq $0xFFFF800000000000, %r13
+    movq $0x00007FFFFFFFFFFF, %r14
+
     /* Build the JIT frame.
      * rdi = cx
      * rsi = fp
      * rcx = inlineCallCount
      * fp must go into rbx
      */
-    pushq %rcx
-    pushq %rdi
-    pushq %rsi
+    pushq %rsi        /* entryFp */
+    pushq %rcx        /* inlineCallCount */
+    pushq %rdi        /* cx */
+    pushq %rsi        /* fp */
     movq  %rsi, %rbx
 
     /* Space for the rest of the VMFrame. */
     subq  $0x28, %rsp
 
-    /* Set cx->regs (requires saving rdx). */
+    /* This is actually part of the VMFrame. */
+    pushq %r8
+
+    /* Set cx->regs and set the active frame. Save rdx and align frame in one. */
     pushq %rdx
     movq  %rsp, %rdi
     call SetVMFrameRegs
-    popq  %rdx
+    movq  %rsp, %rdi
+    call PushActiveVMFrame
 
-    /*
-     * Jump into into the JIT'd code. The call implicitly fills in
-     * the precious f.scriptedReturn member of VMFrame.
-     */
-    call *%rdx
-    leaq -8(%rsp), %rdi
-    call UnsetVMFrameRegs
+    /* Jump into into the JIT'd code. */
+    jmp *0(%rsp)
+.size   JaegerTrampoline, . - JaegerTrampoline
 
-    addq $0x40, %rsp
+/ void JaegerTrampolineReturn()
+.global JaegerTrampolineReturn
+.type   JaegerTrampolineReturn, @function
+JaegerTrampolineReturn:
+    or   %rdx, %rcx
+    movq %rcx, 0x30(%rbx)
+    movq %rsp, %rdi
+    call PopActiveVMFrame
+
+    addq $0x58, %rsp
     popq %rbx
     popq %r15
     popq %r14
@@ -89,7 +103,7 @@ JaegerTrampoline:
     popq %rbp
     movq $1, %rax
     ret
-.size   JaegerTrampoline, . - JaegerTrampoline
+.size   JaegerTrampolineReturn, . - JaegerTrampolineReturn
 
 
 / void *JaegerThrowpoline(js::VMFrame *vmFrame)
@@ -102,20 +116,30 @@ JaegerThrowpoline:
     je   throwpoline_exit
     jmp  *%rax
   throwpoline_exit:
-    addq $0x48, %rsp
+    movq %rsp, %rdi
+    call PopActiveVMFrame
+    addq $0x58, %rsp
     popq %rbx
     popq %r15
     popq %r14
     popq %r13
     popq %r12
     popq %rbp
+    xorq %rax,%rax
     ret
 .size   JaegerThrowpoline, . - JaegerThrowpoline
 
-.global JaegerFromTracer
-.type   JaegerFromTracer, @function
-JaegerFromTracer:
-    /* Restore fp reg. */
-    movq 0x30(%rsp), %rbx
-    jmp *%rax
-.size   JaegerFromTracer, . - JaegerFromTracer
+.global InjectJaegerReturn
+.type   InjectJaegerReturn, @function
+InjectJaegerReturn:
+    movq 0x30(%rbx), %rcx        /* load fp->rval_ into typeReg */
+    movq 0x28(%rbx), %rax        /* fp->ncode_ */
+
+    /* Reimplementation of PunboxAssembler::loadValueAsComponents() */
+    movq %r14, %rdx              /* payloadReg = payloadMaskReg */
+    andq %rcx, %rdx
+    xorq %rdx, %rcx
+
+    movq 0x38(%rsp), %rbx        /* f.fp */
+    jmp *%rax                    /* return. */
+.size   InjectJaegerReturn, . - InjectJaegerReturn

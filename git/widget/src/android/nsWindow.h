@@ -93,6 +93,7 @@ public:
     NS_IMETHOD ConfigureChildren(const nsTArray<nsIWidget::Configuration>&);
     NS_IMETHOD SetParent(nsIWidget* aNewParent);
     virtual nsIWidget *GetParent(void);
+    virtual float GetDPI();
     NS_IMETHOD Show(PRBool aState);
     NS_IMETHOD SetModal(PRBool aModal);
     NS_IMETHOD IsVisible(PRBool & aState);
@@ -159,6 +160,7 @@ public:
     NS_IMETHOD OnIMEFocusChange(PRBool aFocus);
     NS_IMETHOD OnIMETextChange(PRUint32 aStart, PRUint32 aOldEnd, PRUint32 aNewEnd);
     NS_IMETHOD OnIMESelectionChange(void);
+    virtual nsIMEUpdatePreference GetIMEUpdatePreference();
 
     LayerManager* GetLayerManager();
     gfxASurface* GetThebesSurface();

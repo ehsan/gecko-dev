@@ -112,6 +112,7 @@
 #include "nsHtml5Module.h"
 #include "nsITextControlElement.h"
 #include "mozilla/dom/Element.h"
+#include "nsHTMLFieldSetElement.h"
 
 using namespace mozilla::dom;
 
@@ -2312,15 +2313,16 @@ nsGenericHTMLElement::GetIsContentEditable(PRBool* aContentEditable)
 NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsGenericHTMLFrameElement, TabIndex, tabindex, 0)
 
 nsGenericHTMLFormElement::nsGenericHTMLFormElement(already_AddRefed<nsINodeInfo> aNodeInfo)
-  : nsGenericHTMLElement(aNodeInfo),
-    mForm(nsnull)
+  : nsGenericHTMLElement(aNodeInfo)
+  , mForm(nsnull)
+  , mFieldSet(nsnull)
 {
 }
 
 nsGenericHTMLFormElement::~nsGenericHTMLFormElement()
 {
   // Check that this element doesn't know anything about its form at this point.
-  NS_ASSERTION(!mForm, "How did we get here?");
+  NS_ASSERTION(!mForm, "mForm should be null at this point!");
 }
 
 NS_IMPL_QUERY_INTERFACE_INHERITED1(nsGenericHTMLFormElement,
@@ -2368,7 +2370,7 @@ nsGenericHTMLFormElement::ClearForm(PRBool aRemoveFromForm,
     GetAttr(kNameSpaceID_None, nsGkAtoms::name, nameVal);
     GetAttr(kNameSpaceID_None, nsGkAtoms::id, idVal);
 
-    mForm->RemoveElement(this, aNotify);
+    mForm->RemoveElement(this, true, aNotify);
 
     if (!nameVal.IsEmpty()) {
       mForm->RemoveElementFromTable(this, nameVal);
@@ -2423,36 +2425,9 @@ nsGenericHTMLFrameElement::IsHTMLFocusable(PRBool aWithMouse,
     return PR_TRUE;
   }
 
-  // If there is no subdocument, docshell or content viewer, it's not tabbable
-  PRBool isFocusable = PR_FALSE;
-  nsIDocument *doc = GetCurrentDoc();
-  if (doc) {
-    // XXXbz should this use GetOwnerDoc() for GetSubDocumentFor?
-    // sXBL/XBL2 issue!
-    nsIDocument *subDoc = doc->GetSubDocumentFor(this);
-    if (subDoc) {
-      nsCOMPtr<nsISupports> container = subDoc->GetContainer();
-      nsCOMPtr<nsIDocShell> docShell(do_QueryInterface(container));
-      if (docShell) {
-        nsCOMPtr<nsIContentViewer> contentViewer;
-        docShell->GetContentViewer(getter_AddRefs(contentViewer));
-        if (contentViewer) {
-          isFocusable = PR_TRUE;
-          nsCOMPtr<nsIContentViewer> zombieViewer;
-          contentViewer->GetPreviousViewer(getter_AddRefs(zombieViewer));
-          if (zombieViewer) {
-            // If there are 2 viewers for the current docshell, that 
-            // means the current document is a zombie document.
-            // Only navigate into the frame/iframe if it's not a zombie.
-            isFocusable = PR_FALSE;
-          }
-        }
-      }
-    }
-  }
+  *aIsFocusable = nsContentUtils::IsSubDocumentTabbable(this);
 
-  *aIsFocusable = isFocusable;
-  if (!isFocusable && aTabIndex) {
+  if (!*aIsFocusable && aTabIndex) {
     *aTabIndex = -1;
   }
 
@@ -2494,6 +2469,9 @@ nsGenericHTMLFormElement::BindToTree(nsIDocument* aDocument,
     UpdateFormOwner(true, nsnull);
   }
 
+  // Set parent fieldset which should be used for the disabled state.
+  UpdateFieldSet();
+
   return NS_OK;
 }
 
@@ -2527,6 +2505,9 @@ nsGenericHTMLFormElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
   }
 
   nsGenericHTMLElement::UnbindFromTree(aDeep, aNullParent);
+
+  // The element might not have a fieldset anymore.
+  UpdateFieldSet();
 }
 
 nsresult
@@ -2561,7 +2542,7 @@ nsGenericHTMLFormElement::BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
         mForm->RemoveElementFromTable(this, tmp);
       }
 
-      mForm->RemoveElement(this, aNotify);
+      mForm->RemoveElement(this, false, aNotify);
 
       // Removing the element from the form can make it not be the default
       // control anymore.  Go ahead and notify on that change, though we might
@@ -2619,7 +2600,7 @@ nsGenericHTMLFormElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
         mForm->AddElementToTable(this, tmp);
       }
 
-      mForm->AddElement(this, aNotify);
+      mForm->AddElement(this, false, aNotify);
 
       // Adding the element to the form can make it be the default control .
       // Go ahead and notify on that change.
@@ -2687,7 +2668,6 @@ nsGenericHTMLFormElement::CanBeDisabled() const
   // It's easier to test the types that _cannot_ be disabled
   return
     type != NS_FORM_LABEL &&
-    type != NS_FORM_FIELDSET &&
     type != NS_FORM_OBJECT &&
     type != NS_FORM_OUTPUT;
 }
@@ -2760,9 +2740,7 @@ nsGenericHTMLFormElement::IntrinsicState() const
 
   if (CanBeDisabled()) {
     // :enabled/:disabled
-    PRBool disabled;
-    GetBoolAttr(nsGkAtoms::disabled, &disabled);
-    if (disabled) {
+    if (IsDisabled()) {
       state |= NS_EVENT_STATE_DISABLED;
       state &= ~NS_EVENT_STATE_ENABLED;
     } else {
@@ -2790,7 +2768,7 @@ nsGenericHTMLFormElement::FocusState()
     return eUnfocusable;
 
   // first see if we are disabled or not. If disabled then do nothing.
-  if (HasAttr(kNameSpaceID_None, nsGkAtoms::disabled)) {
+  if (IsDisabled()) {
     return eUnfocusable;
   }
 
@@ -2935,7 +2913,7 @@ nsGenericHTMLFormElement::UpdateFormOwner(bool aBindToTree,
     SetFlags(ADDED_TO_FORM);
 
     // Notify only if we just found this mForm.
-    mForm->AddElement(this, !hadForm);
+    mForm->AddElement(this, true, !hadForm);
 
     if (!nameVal.IsEmpty()) {
       mForm->AddElementToTable(this, nameVal);
@@ -2944,6 +2922,45 @@ nsGenericHTMLFormElement::UpdateFormOwner(bool aBindToTree,
     if (!idVal.IsEmpty()) {
       mForm->AddElementToTable(this, idVal);
     }
+  }
+}
+
+void
+nsGenericHTMLFormElement::UpdateFieldSet()
+{
+  nsIContent* parent = nsnull;
+  nsIContent* prev = nsnull;
+
+  for (parent = GetParent(); parent;
+       prev = parent, parent = parent->GetParent()) {
+    if (parent->IsHTML(nsGkAtoms::fieldset)) {
+      nsHTMLFieldSetElement* fieldset =
+        static_cast<nsHTMLFieldSetElement*>(parent);
+
+      if (!prev || fieldset->GetFirstLegend() != prev) {
+        mFieldSet = fieldset;
+        return;
+      }
+    }
+  }
+
+  // No fieldset found.
+  mFieldSet = nsnull;
+}
+
+void
+nsGenericHTMLFormElement::FieldSetDisabledChanged(PRInt32 aStates, PRBool aNotify)
+{
+  if (!aNotify) {
+    return;
+  }
+
+  aStates |= NS_EVENT_STATE_DISABLED | NS_EVENT_STATE_ENABLED;
+
+  nsIDocument* doc = GetCurrentDoc();
+  if (doc) {
+    MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
+    doc->ContentStatesChanged(this, nsnull, aStates);
   }
 }
 
@@ -3228,7 +3245,7 @@ nsGenericHTMLElement::IsHTMLFocusable(PRBool aWithMouse,
     override = PR_FALSE;
 
     // Just check for disabled attribute on form controls
-    disabled = HasAttr(kNameSpaceID_None, nsGkAtoms::disabled);
+    disabled = IsDisabled();
     if (disabled) {
       tabIndex = -1;
     }

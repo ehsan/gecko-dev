@@ -192,6 +192,12 @@ pref("gfx.color_management.rendering_intent", 0);
 pref("gfx.3d_video.enabled", false);
 
 pref("gfx.downloadable_fonts.enabled", true);
+pref("gfx.downloadable_fonts.sanitize", true);
+#ifdef XP_MACOSX
+pref("gfx.downloadable_fonts.sanitize.preserve_otl_tables", false);
+#else
+pref("gfx.downloadable_fonts.sanitize.preserve_otl_tables", true);
+#endif
 
 pref("gfx.font_rendering.harfbuzz.level", 1);
 
@@ -1748,9 +1754,6 @@ pref("network.autodial-helper.enabled", true);
 // and we're not already running).
 pref("advanced.system.supportDDEExec", true);
 
-// Use CP932 compatible map for JIS X 0208
-pref("intl.jis0208.map", "CP932");
-
 // Switch the keyboard layout per window
 pref("intl.keyboard.per_window_layout", false);
 
@@ -2397,9 +2400,6 @@ pref("applications.telnet.host", "%host%");
 pref("applications.telnet.port", "-p %port%");
 
 pref("mail.compose.max_recycled_windows", 0);
-
-// Use IBM943 compatible map for JIS X 0208
-pref("intl.jis0208.map", "IBM943");
 
 // Disable IPv6 name lookups by default.
 // This is because OS/2 doesn't support IPv6
@@ -3216,7 +3216,11 @@ pref("gfx.color_management.mode", 0);
 #ifdef XP_WIN
 pref("layers.accelerate-all", true);
 #else
+#ifdef XP_MACOSX
+pref("layers.accelerate-all", true);
+#else
 pref("layers.accelerate-all", false);
+#endif
 #endif
 
 // Whether to allow acceleration on layers at all.
@@ -3231,6 +3235,7 @@ pref("gfx.direct2d.disabled", false);
 pref("gfx.direct2d.force-enabled", false);
 
 pref("layers.prefer-opengl", false);
+pref("layers.use-d3d10", false);
 #endif
 #endif
 

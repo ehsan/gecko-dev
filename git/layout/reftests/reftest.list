@@ -50,6 +50,12 @@ include css-charset/reftest.list
 # css default pseudo class tests
 include css-default/reftest.list
 
+# css :disable tests
+include css-disabled/reftest.list
+
+# css :enable tests
+include css-enabled/reftest.list
+
 # css @import tests
 include css-import/reftest.list
 
@@ -92,6 +98,8 @@ include css-valuesandunits/reftest.list
 # Reftests in css-visited are run using
 # layout/style/test/test_visited_reftests instead of using the reftest
 # harness.
+
+include cssom/reftest.list
 
 # columns/
 include columns/reftest.list

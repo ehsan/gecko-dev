@@ -1263,7 +1263,7 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
             if (JS_GET_CLASS(cx, JS_GetPrototype(cx, obj)) != &global_class) {
                 JSObject *gobj;
 
-                if (!JS_SealObject(cx, obj, JS_TRUE))
+                if (!JS_DeepFreezeObject(cx, obj))
                     return JS_FALSE;
                 gobj = JS_NewGlobalObject(cx, &global_class);
                 if (!gobj)
@@ -1310,6 +1310,9 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
             break;
         case 'j':
             JS_ToggleOptions(cx, JSOPTION_JIT);
+            break;
+        case 'm':
+            JS_ToggleOptions(cx, JSOPTION_METHODJIT);
             break;
 #ifdef MOZ_SHARK
         case 'k':
@@ -1969,7 +1972,7 @@ main(int argc, char **argv)
 
         JS_BeginRequest(cx);
         {
-            JSAutoCrossCompartmentCall ac;
+            JSAutoEnterCompartment ac;
             if (!ac.enter(cx, glob)) {
                 JS_EndRequest(cx);
                 return 1;

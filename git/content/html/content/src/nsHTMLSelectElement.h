@@ -277,6 +277,8 @@ public:
   NS_IMETHOD SaveState();
   virtual PRBool RestoreState(nsPresState* aState);
 
+  virtual void FieldSetDisabledChanged(PRInt32 aStates, PRBool aNotify);
+
   PRInt32 IntrinsicState() const;
 
   // nsISelectElement
@@ -285,6 +287,9 @@ public:
   /**
    * Called when an attribute is about to be changed
    */
+  virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
+                               nsIContent* aBindingParent,
+                               PRBool aCompileEventHandlers);
   virtual nsresult BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                  const nsAString* aValue, PRBool aNotify);
   virtual nsresult AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
@@ -320,6 +325,10 @@ public:
   }
 
   virtual nsXPCClassInfo* GetClassInfo();
+
+  // nsIConstraintValidation
+  void UpdateBarredFromConstraintValidation();
+
 protected:
   friend class nsSafeOptionListMutation;
 
@@ -457,11 +466,13 @@ protected:
    * Is this a combobox?
    */
   PRBool IsCombobox() {
-    PRBool isMultiple = PR_TRUE;
+    if (HasAttr(kNameSpaceID_None, nsGkAtoms::multiple)) {
+      return PR_FALSE;
+    }
+
     PRInt32 size = 1;
     GetSize(&size);
-    GetMultiple(&isMultiple);
-    return !isMultiple && size <= 1;
+    return size <= 1;
   }
 
   /**

@@ -181,6 +181,15 @@ namespace nanojit
         #endif
     #endif
 
+    class Noise
+    {
+        public:
+            virtual ~Noise() {}
+
+            // produce a random number from 0-maxValue for the JIT to use in attack mitigation
+            virtual uint32_t getValue(uint32_t maxValue) = 0;
+    };
+
     // error codes
     enum AssmError
     {
@@ -284,15 +293,18 @@ namespace nanojit
             void        assemble(Fragment* frag, LirFilter* reader);
             void        beginAssembly(Fragment *frag);
 
+            void        setNoiseGenerator(Noise* noise)  { _noise = noise; } // used for attack mitigation; setting to 0 disables all mitigations
+
             void        releaseRegisters();
             void        patch(GuardRecord *lr);
             void        patch(SideExit *exit);
 #ifdef NANOJIT_IA32
             void        patch(SideExit *exit, SwitchInfo* si);
 #endif
-            AssmError   error()    { return _err; }
+            AssmError   error()               { return _err; }
             void        setError(AssmError e) { _err = e; }
-
+            void        cleanupAfterError();
+            void        clearNInsPtrs();
             void        reset();
 
             debug_only ( void       pageValidate(); )
@@ -348,6 +360,8 @@ namespace nanojit
             void        evict(LIns* vic);
             RegisterMask hint(LIns* ins);
 
+            void        getBaseIndexScale(LIns* addp, LIns** base, LIns** index, int* scale);
+
             void        codeAlloc(NIns *&start, NIns *&end, NIns *&eip
                                   verbose_only(, size_t &nBytes));
 
@@ -373,6 +387,7 @@ namespace nanojit
             RegAllocMap         _branchStateMap;
             NInsMap             _patches;
             LabelStateMap       _labels;
+            Noise*              _noise;             // object to generate random noise used when hardening enabled.
         #if NJ_USES_IMMD_POOL
             ImmDPoolMap     _immDPool;
         #endif
@@ -504,7 +519,13 @@ namespace nanojit
             debug_only( int32_t _fpuStkDepth; )
             debug_only( int32_t _sv_fpuStkDepth; )
 
-            // since we generate backwards the depth is negative
+            // The FPU stack depth is the number of pushes in excess of the number of pops.
+            // Since we generate backwards, we track the FPU stack depth as a negative number.
+            // We use the top of the x87 stack as the single allocatable FP register, FST0.
+            // Thus, between LIR instructions, the depth of the FPU stack must be either 0 or -1,
+            // depending on whether FST0 is in use.  Within the expansion of a single LIR
+            // instruction, however, deeper levels of the stack may be used as unmanaged
+            // temporaries.  Hence, we allow for all eight levels in the assertions below.
             inline void fpu_push() {
                 debug_only( ++_fpuStkDepth; NanoAssert(_fpuStkDepth <= 0); )
             }
