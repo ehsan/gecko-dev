@@ -116,7 +116,7 @@ nsFtpState::OnControlDataAvailable(const char *aData, PRUint32 aDataLen)
 
     if (!mReceivedControlData) {
         // parameter can be null cause the channel fills them in.
-        OnTransportStatus(nullptr, NS_NET_STATUS_BEGIN_FTP_TRANSACTION, 0, 0);
+        OnTransportStatus(nsnull, NS_NET_STATUS_BEGIN_FTP_TRANSACTION, 0, 0);
         mReceivedControlData = true;
     }
 
@@ -241,7 +241,7 @@ nsFtpState::EstablishControlConnection()
     LOG(("FTP:(%x) trying cached control\n", this));
         
     // Look to see if we can use a cached control connection:
-    nsFtpControlConnection *connection = nullptr;
+    nsFtpControlConnection *connection = nsnull;
     // Don't use cached control if anonymous (bug #473371)
     if (!mChannel->HasLoadFlag(nsIRequest::LOAD_ANONYMOUS))
         gFtpHandler->RemoveConnection(mChannel->URI(), &connection);
@@ -273,8 +273,8 @@ nsFtpState::EstablishControlConnection()
         LOG(("FTP:(%p) cached CC(%p) is unusable\n", this,
             mControlConnection.get()));
 
-        mControlConnection->WaitData(nullptr);
-        mControlConnection = nullptr;
+        mControlConnection->WaitData(nsnull);
+        mControlConnection = nsnull;
     }
 
     LOG(("FTP:(%p) creating CC\n", this));
@@ -295,7 +295,7 @@ nsFtpState::EstablishControlConnection()
     if (NS_FAILED(rv)) {
         LOG(("FTP:(%p) CC(%p) failed to connect [rv=%x]\n", this,
             mControlConnection.get(), rv));
-        mControlConnection = nullptr;
+        mControlConnection = nsnull;
         return rv;
     }
 
@@ -896,7 +896,7 @@ nsFtpState::R_syst() {
             nsCOMPtr<nsIPrompt> prompter;
             mChannel->GetCallback(prompter);
             if (prompter)
-                prompter->Alert(nullptr, formattedString.get());
+                prompter->Alert(nsnull, formattedString.get());
             
             // since we just alerted the user, clear mResponseMsg,
             // which is displayed to the user.
@@ -1024,7 +1024,7 @@ nsFtpState::R_mdtm() {
 
             // Save lastModified time for downloaded files.
             nsCAutoString timeString;
-            nsresult error;
+            PRInt32 error;
             PRExplodedTime exTime;
 
             mResponseMsg.Mid(timeString, 0, 4);
@@ -1097,9 +1097,7 @@ nsresult
 nsFtpState::S_list() {
     nsresult rv = SetContentType();
     if (NS_FAILED(rv)) 
-        // XXX Invalid cast of FTP_STATE to nsresult -- FTP_ERROR has
-        // value < 0x80000000 and will pass NS_SUCCEEDED() (bug 778109)
-        return (nsresult)FTP_ERROR;
+        return FTP_ERROR;
 
     rv = mChannel->PushStreamConverter("text/ftp-dir",
                                        APPLICATION_HTTP_INDEX_FORMAT);
@@ -1119,7 +1117,7 @@ nsFtpState::S_list() {
         // open cache entry for writing, and configure it to receive data.
         if (NS_FAILED(InstallCacheListener())) {
             mCacheEntry->Doom();
-            mCacheEntry = nullptr;
+            mCacheEntry = nsnull;
         }
     }
 
@@ -1182,7 +1180,7 @@ nsFtpState::R_retr() {
         // See bug 122548
         if (mCacheEntry) {
             (void)mCacheEntry->Doom();
-            mCacheEntry = nullptr;
+            mCacheEntry = nsnull;
         }
         if (HasPendingCallback())
             mDataStream->AsyncWait(this, 0, 0, CallbackTarget());
@@ -1289,9 +1287,7 @@ nsFtpState::S_pasv() {
 
         nsITransport *controlSocket = mControlConnection->Transport();
         if (!controlSocket)
-            // XXX Invalid cast of FTP_STATE to nsresult -- FTP_ERROR has
-            // value < 0x80000000 and will pass NS_SUCCEEDED() (bug 778109)
-            return (nsresult)FTP_ERROR;
+            return FTP_ERROR;
 
         nsCOMPtr<nsISocketTransport> sTrans = do_QueryInterface(controlSocket);
         if (sTrans) {
@@ -1424,8 +1420,8 @@ nsFtpState::R_pasv() {
 
         if (newDataConn) {
             mDataTransport->Close(NS_ERROR_ABORT);
-            mDataTransport = nullptr;
-            mDataStream = nullptr;
+            mDataTransport = nsnull;
+            mDataStream = nsnull;
         }
     }
 
@@ -1455,7 +1451,7 @@ nsFtpState::R_pasv() {
                 return FTP_ERROR;
         }
 
-        rv =  sts->CreateTransport(nullptr, 0, host,
+        rv =  sts->CreateTransport(nsnull, 0, host,
                                    port, mChannel->ProxyInfo(),
                                    getter_AddRefs(strans)); // the data socket
         if (NS_FAILED(rv))
@@ -1499,7 +1495,7 @@ nsFtpState::R_pasv() {
             if (NS_FAILED(rv))
                 return FTP_ERROR;
         
-            rv = copier->AsyncCopy(this, nullptr);
+            rv = copier->AsyncCopy(this, nsnull);
             if (NS_FAILED(rv))
                 return FTP_ERROR;
 
@@ -1615,7 +1611,7 @@ nsFtpState::InstallCacheListener()
             do_CreateInstance(NS_STREAMLISTENERTEE_CONTRACTID);
     NS_ENSURE_STATE(tee);
 
-    nsresult rv = tee->Init(mChannel->StreamListener(), out, nullptr);
+    nsresult rv = tee->Init(mChannel->StreamListener(), out, nsnull);
     NS_ENSURE_SUCCESS(rv, rv);
 
     mChannel->SetStreamListener(tee);
@@ -1796,7 +1792,7 @@ nsFtpState::KillControlConnection()
         return;
 
     // kill the reference to ourselves in the control connection.
-    mControlConnection->WaitData(nullptr);
+    mControlConnection->WaitData(nsnull);
 
     if (NS_SUCCEEDED(mInternalError) &&
         NS_SUCCEEDED(mControlStatus) &&
@@ -1821,7 +1817,7 @@ nsFtpState::KillControlConnection()
         mControlConnection->Disconnect(NS_BINDING_ABORTED);
     }     
 
-    mControlConnection = nullptr;
+    mControlConnection = nsnull;
 }
 
 nsresult
@@ -1846,7 +1842,7 @@ nsFtpState::StopProcessing()
         nsCOMPtr<nsIPrompt> prompter;
         mChannel->GetCallback(prompter);
         if (prompter)
-            prompter->Alert(nullptr, NS_ConvertASCIItoUTF16(mResponseMsg).get());
+            prompter->Alert(nsnull, NS_ConvertASCIItoUTF16(mResponseMsg).get());
     }
     
     nsresult broadcastErrorCode = mControlStatus;
@@ -1858,7 +1854,7 @@ nsFtpState::StopProcessing()
     KillControlConnection();
 
     // XXX This can fire before we are done loading data.  Is that a problem?
-    OnTransportStatus(nullptr, NS_NET_STATUS_END_FTP_TRANSACTION, 0, 0);
+    OnTransportStatus(nsnull, NS_NET_STATUS_END_FTP_TRANSACTION, 0, 0);
 
     if (NS_FAILED(broadcastErrorCode))
         CloseWithStatus(broadcastErrorCode);
@@ -2033,7 +2029,7 @@ nsFtpState::OnTransportStatus(nsITransport *transport, nsresult status,
     // Ignore the progressMax value from the socket.  We know the true size of
     // the file based on the response from our SIZE request. Additionally, only
     // report the max progress based on where we started/resumed.
-    mChannel->OnTransportStatus(nullptr, status, progress,
+    mChannel->OnTransportStatus(nsnull, status, progress,
                                 mFileSize - mChannel->StartPos());
     return NS_OK;
 }
@@ -2084,7 +2080,7 @@ NS_IMETHODIMP
 nsFtpState::OnStopRequest(nsIRequest *request, nsISupports *context,
                           nsresult status)
 {
-    mUploadRequest = nullptr;
+    mUploadRequest = nsnull;
 
     // Close() will be called when reply to STOR command is received
     // see bug #389394
@@ -2138,19 +2134,19 @@ nsFtpState::CloseWithStatus(nsresult status)
 
     if (mUploadRequest) {
         mUploadRequest->Cancel(NS_ERROR_ABORT);
-        mUploadRequest = nullptr;
+        mUploadRequest = nsnull;
     }
 
     if (mDataTransport) {
         // Shutdown the data transport.
         mDataTransport->Close(NS_ERROR_ABORT);
-        mDataTransport = nullptr;
+        mDataTransport = nsnull;
     }
 
-    mDataStream = nullptr;
+    mDataStream = nsnull;
     if (mDoomCache && mCacheEntry)
         mCacheEntry->Doom();
-    mCacheEntry = nullptr;
+    mCacheEntry = nsnull;
 
     return nsBaseContentStream::CloseWithStatus(status);
 }
@@ -2188,7 +2184,7 @@ nsFtpState::ReadCacheEntry()
     nsXPIDLCString serverType;
     mCacheEntry->GetMetaDataElement("servertype", getter_Copies(serverType));
     nsCAutoString serverNum(serverType.get());
-    nsresult err;
+    PRInt32 err;
     mServerType = serverNum.ToInteger(&err);
     
     mChannel->PushStreamConverter("text/ftp-dir",

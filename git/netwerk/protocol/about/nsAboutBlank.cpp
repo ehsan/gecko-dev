@@ -43,7 +43,7 @@ nsresult
 nsAboutBlank::Create(nsISupports *aOuter, REFNSIID aIID, void **aResult)
 {
     nsAboutBlank* about = new nsAboutBlank();
-    if (about == nullptr)
+    if (about == nsnull)
         return NS_ERROR_OUT_OF_MEMORY;
     NS_ADDREF(about);
     nsresult rv = about->QueryInterface(aIID, aResult);

@@ -168,7 +168,7 @@ public:
   NS_IMETHOD_(void) RequestRefresh(const mozilla::TimeStamp& aTime);
   // END NS_DECL_IMGICONTAINER
 
-  RasterImage(imgStatusTracker* aStatusTracker = nullptr);
+  RasterImage(imgStatusTracker* aStatusTracker = nsnull);
   virtual ~RasterImage();
 
   virtual nsresult StartAnimation();

@@ -139,7 +139,7 @@ nsDOMCSSDeclaration::GetPropertyCSSValue(const nsAString& aPropertyName,
   NS_ENSURE_ARG_POINTER(aReturn);
 
   // We don't support CSSValue yet so we'll just return null...
-  *aReturn = nullptr;
+  *aReturn = nsnull;
 
   return NS_OK;
 }
@@ -237,10 +237,10 @@ nsDOMCSSDeclaration::RemoveProperty(const nsAString& aPropertyName,
 nsDOMCSSDeclaration::GetCSSParsingEnvironmentForRule(css::Rule* aRule,
                                                      CSSParsingEnvironment& aCSSParseEnv)
 {
-  nsIStyleSheet* sheet = aRule ? aRule->GetStyleSheet() : nullptr;
+  nsIStyleSheet* sheet = aRule ? aRule->GetStyleSheet() : nsnull;
   nsRefPtr<nsCSSStyleSheet> cssSheet(do_QueryObject(sheet));
   if (!cssSheet) {
-    aCSSParseEnv.mPrincipal = nullptr;
+    aCSSParseEnv.mPrincipal = nsnull;
     return;
   }
 
@@ -248,7 +248,7 @@ nsDOMCSSDeclaration::GetCSSParsingEnvironmentForRule(css::Rule* aRule,
   aCSSParseEnv.mSheetURI = sheet->GetSheetURI();
   aCSSParseEnv.mBaseURI = sheet->GetBaseURI();
   aCSSParseEnv.mPrincipal = cssSheet->Principal();
-  aCSSParseEnv.mCSSLoader = document ? document->CSSLoader() : nullptr;
+  aCSSParseEnv.mCSSLoader = document ? document->CSSLoader() : nsnull;
 }
 
 nsresult

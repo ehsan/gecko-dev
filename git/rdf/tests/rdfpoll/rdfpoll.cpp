@@ -95,21 +95,21 @@ rdf_WriteOp(const char* aOp,
     printf("%.8s [%s]\n", aOp, source.get());
     printf("       --[%s]--\n", property.get());
 
-    if ((resource = do_QueryInterface(aTarget)) != nullptr) {
+    if ((resource = do_QueryInterface(aTarget)) != nsnull) {
         nsCString target;
         rv = resource->GetValue(getter_Copies(target));
         if (NS_FAILED(rv)) return rv;
 
         printf("       ->[%s]\n", target.get());
     }
-    else if ((literal = do_QueryInterface(aTarget)) != nullptr) {
+    else if ((literal = do_QueryInterface(aTarget)) != nsnull) {
         nsString target;
         rv = literal->GetValue(getter_Copies(target));
         if (NS_FAILED(rv)) return rv;
 
         printf("       ->\"%s\"\n", NS_ConvertUTF16toUTF8(target).get());
     }
-    else if ((date = do_QueryInterface(aTarget)) != nullptr) {
+    else if ((date = do_QueryInterface(aTarget)) != nsnull) {
         PRTime value;
         date->GetValue(&value);
 
@@ -125,7 +125,7 @@ rdf_WriteOp(const char* aOp,
                t.tm_sec,
                t.tm_usec);
     }
-    else if ((number = do_QueryInterface(aTarget)) != nullptr) {
+    else if ((number = do_QueryInterface(aTarget)) != nsnull) {
         PRInt32 value;
         number->GetValue(&value);
 
@@ -217,7 +217,7 @@ main(int argc, char** argv)
         return 1;
     }
 
-    rv = NS_InitXPCOM2(nullptr, nullptr, nullptr);
+    rv = NS_InitXPCOM2(nsnull, nsnull, nsnull);
     if (NS_FAILED(rv)) {
         fprintf(stderr, "NS_InitXPCOM2 failed\n");
         return 1;

@@ -18,7 +18,7 @@ txParseDocumentFromURI(const nsAString& aHref, const txXPathNode& aLoader,
                        nsAString& aErrMsg, txXPathNode** aResult)
 {
     NS_ENSURE_ARG_POINTER(aResult);
-    *aResult = nullptr;
+    *aResult = nsnull;
     nsCOMPtr<nsIURI> documentURI;
     nsresult rv = NS_NewURI(getter_AddRefs(documentURI), aHref);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -32,7 +32,7 @@ txParseDocumentFromURI(const nsAString& aHref, const txXPathNode& aLoader,
 
     // Raw pointer, we want the resulting txXPathNode to hold a reference to
     // the document.
-    nsIDOMDocument* theDocument = nullptr;
+    nsIDOMDocument* theDocument = nsnull;
     nsAutoSyncOperation sync(loaderDocument);
     rv = nsSyncLoadService::LoadDocument(documentURI,
                                          loaderDocument->NodePrincipal(),

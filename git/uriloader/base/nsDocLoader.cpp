@@ -48,7 +48,7 @@ static NS_DEFINE_CID(kThisImplCID, NS_THIS_DOCLOADER_IMPL_CID);
 // this enables PR_LOG_DEBUG level information and places all output in
 // the file nspr.log
 //
-PRLogModuleInfo* gDocLoaderLog = nullptr;
+PRLogModuleInfo* gDocLoaderLog = nsnull;
 #endif /* PR_LOGGING */
 
 
@@ -86,7 +86,7 @@ struct nsRequestInfo : public PLDHashEntryHdr
 {
   nsRequestInfo(const void *key)
     : mKey(key), mCurrentProgress(0), mMaxProgress(0), mUploading(false)
-    , mLastStatus(nullptr)
+    , mLastStatus(nsnull)
   {
     MOZ_COUNT_CTOR(nsRequestInfo);
   }
@@ -141,7 +141,7 @@ struct nsListenerInfo {
 
 
 nsDocLoader::nsDocLoader()
-  : mParent(nullptr),
+  : mParent(nsnull),
     mListenerInfoList(8),
     mCurrentSelfProgress(0),
     mMaxSelfProgress(0),
@@ -154,7 +154,7 @@ nsDocLoader::nsDocLoader()
     mIsFlushingLayout(false)
 {
 #if defined(PR_LOGGING)
-  if (nullptr == gDocLoaderLog) {
+  if (nsnull == gDocLoaderLog) {
       gDocLoaderLog = PR_NewLogModule("DocLoader");
   }
 #endif /* PR_LOGGING */
@@ -171,9 +171,9 @@ nsDocLoader::nsDocLoader()
     RequestInfoHashInitEntry
   };
 
-  if (!PL_DHashTableInit(&mRequestInfoHash, &hash_table_ops, nullptr,
+  if (!PL_DHashTableInit(&mRequestInfoHash, &hash_table_ops, nsnull,
                          sizeof(nsRequestInfo), 16)) {
-    mRequestInfoHash.ops = nullptr;
+    mRequestInfoHash.ops = nsnull;
   }
 
   ClearInternalProgress();
@@ -281,7 +281,7 @@ already_AddRefed<nsDocLoader>
 nsDocLoader::GetAsDocLoader(nsISupports* aSupports)
 {
   if (!aSupports) {
-    return nullptr;
+    return nsnull;
   }
   
   nsDocLoader* ptr;
@@ -417,7 +417,7 @@ nsDocLoader::GetLoadGroup(nsILoadGroup** aResult)
 {
   nsresult rv = NS_OK;
 
-  if (nullptr == aResult) {
+  if (nsnull == aResult) {
     rv = NS_ERROR_NULL_POINTER;
   } else {
     *aResult = mLoadGroup;
@@ -455,7 +455,7 @@ nsDocLoader::Destroy()
   mDocumentRequest = 0;
 
   if (mLoadGroup)
-    mLoadGroup->SetGroupObserver(nullptr);
+    mLoadGroup->SetGroupObserver(nsnull);
 
   DestroyChildren();
 }
@@ -476,7 +476,7 @@ nsDocLoader::DestroyChildren()
     if (loader) {
       // This is a safe cast, as we only put nsDocLoader objects into the
       // array
-      static_cast<nsDocLoader*>(loader)->SetDocLoaderParent(nullptr);
+      static_cast<nsDocLoader*>(loader)->SetDocLoaderParent(nsnull);
     }
   }
   mChildList.Clear();
@@ -598,7 +598,7 @@ nsDocLoader::OnStopRequest(nsIRequest *aRequest,
     // Null out mLastStatus now so we don't find it when looking for
     // status from now on.  This destroys the nsStatusInfo and hence
     // removes it from our list.
-    info->mLastStatus = nullptr;
+    info->mLastStatus = nsnull;
 
     PRInt64 oldMax = info->mMaxProgress;
 
@@ -712,7 +712,7 @@ nsresult nsDocLoader::RemoveChildLoader(nsDocLoader* aChild)
 {
   nsresult rv = mChildList.RemoveElement(aChild) ? NS_OK : NS_ERROR_FAILURE;
   if (NS_SUCCEEDED(rv)) {
-    aChild->SetDocLoaderParent(nullptr);
+    aChild->SetDocLoaderParent(nsnull);
   }
   return rv;
 }
@@ -729,7 +729,7 @@ nsresult nsDocLoader::AddChildLoader(nsDocLoader* aChild)
 NS_IMETHODIMP nsDocLoader::GetDocumentChannel(nsIChannel ** aChannel)
 {
   if (!mDocumentRequest) {
-    *aChannel = nullptr;
+    *aChannel = nsnull;
     return NS_OK;
   }
   
@@ -803,7 +803,7 @@ void nsDocLoader::DocLoaderIsEmpty(bool aFlushLayout)
       // New code to break the circular reference between 
       // the load group and the docloader... 
       // 
-      mLoadGroup->SetDefaultLoadRequest(nullptr); 
+      mLoadGroup->SetDefaultLoadRequest(nsnull); 
 
       // Take a ref to our parent now so that we can call DocLoaderIsEmpty() on
       // it even if our onload handler removes us from the docloader tree.
@@ -1517,7 +1517,7 @@ nsDocLoader::GetListenerInfo(nsIWebProgressListener *aListener)
         return info;
     }
   }
-  return nullptr;
+  return nsnull;
 }
 
 nsresult nsDocLoader::AddRequestInfo(nsIRequest *aRequest)
@@ -1544,7 +1544,7 @@ nsRequestInfo * nsDocLoader::GetRequestInfo(nsIRequest *aRequest)
   if (PL_DHASH_ENTRY_IS_FREE(info)) {
     // Nothing found in the hash, return null.
 
-    return nullptr;
+    return nsnull;
   }
 
   // Return what we found in the hash...
@@ -1569,7 +1569,7 @@ void nsDocLoader::ClearRequestInfoHash(void)
     return;
   }
 
-  PL_DHashTableEnumerate(&mRequestInfoHash, RemoveInfoCallback, nullptr);
+  PL_DHashTableEnumerate(&mRequestInfoHash, RemoveInfoCallback, nsnull);
 }
 
 // PLDHashTable enumeration callback that calculates the max progress.

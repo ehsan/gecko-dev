@@ -94,7 +94,7 @@ nsSVGForeignObjectElement::PrependLocalTransformsTo(const gfxMatrix &aMatrix,
   // our 'x' and 'y' attributes:
   float x, y;
   const_cast<nsSVGForeignObjectElement*>(this)->
-    GetAnimatedLengthValues(&x, &y, nullptr);
+    GetAnimatedLengthValues(&x, &y, nsnull);
   gfxMatrix toUserSpace = gfxMatrix().Translate(gfxPoint(x, y));
   if (aWhich == eChildToUserSpace) {
     return toUserSpace;

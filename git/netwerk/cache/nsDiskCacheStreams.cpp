@@ -84,7 +84,7 @@ nsDiskCacheInputStream::Close()
     if (!mClosed) {
         if (mFD) {
             (void) PR_Close(mFD);
-            mFD = nullptr;
+            mFD = nsnull;
         }
         mClosed = true;
     }
@@ -324,16 +324,16 @@ NS_IMPL_THREADSAFE_ISUPPORTS0(nsDiskCacheStreamIO)
 
 nsDiskCacheStreamIO::nsDiskCacheStreamIO(nsDiskCacheBinding *   binding)
     : mBinding(binding)
-    , mOutStream(nullptr)
+    , mOutStream(nsnull)
     , mInStreamCount(0)
-    , mFD(nullptr)
+    , mFD(nsnull)
     , mStreamPos(0)
     , mStreamEnd(0)
     , mBufPos(0)
     , mBufEnd(0)
     , mBufSize(0)
     , mBufDirty(false)
-    , mBuffer(nullptr)
+    , mBuffer(nsnull)
 {
     mDevice = (nsDiskCacheDevice *)mBinding->mCacheEntry->CacheDevice();
 
@@ -375,7 +375,7 @@ nsDiskCacheStreamIO::GetInputStream(PRUint32 offset, nsIInputStream ** inputStre
     NS_ENSURE_ARG_POINTER(inputStream);
     NS_ENSURE_TRUE(offset == 0, NS_ERROR_NOT_IMPLEMENTED);
 
-    *inputStream = nullptr;
+    *inputStream = nsnull;
     
     if (!mBinding)  return NS_ERROR_NOT_AVAILABLE;
 
@@ -385,7 +385,7 @@ nsDiskCacheStreamIO::GetInputStream(PRUint32 offset, nsIInputStream ** inputStre
     }
 
     nsresult            rv;
-    PRFileDesc *        fd = nullptr;
+    PRFileDesc *        fd = nsnull;
 
     mStreamEnd = mBinding->mCacheEntry->DataSize();
     if (mStreamEnd == 0) {
@@ -421,7 +421,7 @@ nsresult
 nsDiskCacheStreamIO::GetOutputStream(PRUint32 offset, nsIOutputStream ** outputStream)
 {
     NS_ENSURE_ARG_POINTER(outputStream);
-    *outputStream = nullptr;
+    *outputStream = nsnull;
 
     if (!mBinding)  return NS_ERROR_NOT_AVAILABLE;
         
@@ -457,7 +457,7 @@ nsDiskCacheStreamIO::ClearBinding()
     nsresult rv = NS_OK;
     if (mBinding && mOutStream)
         rv = Flush();
-    mBinding = nullptr;
+    mBinding = nsnull;
     return rv;
 }
 
@@ -482,7 +482,7 @@ nsDiskCacheStreamIO::CloseOutputStreamInternal(
     // output stream is closing
     if (!mBinding) {    // if we're severed, just clear member variables
         NS_ASSERTION(!mBufDirty, "oops");
-        mOutStream = nullptr;
+        mOutStream = nsnull;
         outputStream->ReleaseStreamIO();
         return NS_ERROR_NOT_AVAILABLE;
     }
@@ -491,7 +491,7 @@ nsDiskCacheStreamIO::CloseOutputStreamInternal(
     if (NS_FAILED(rv))
         NS_WARNING("Flush() failed");
 
-    mOutStream = nullptr;
+    mOutStream = nsnull;
     return rv;
 }
 
@@ -506,7 +506,7 @@ nsDiskCacheStreamIO::Flush()
     if (!mBufDirty) {
         if (mFD) {
             (void) PR_Close(mFD);
-            mFD = nullptr;
+            mFD = nsnull;
         }
         return NS_OK;
     }
@@ -554,7 +554,7 @@ nsDiskCacheStreamIO::Flush()
 
           // close file descriptor
           (void) PR_Close(mFD);
-          mFD = nullptr;
+          mFD = nsnull;
         }
         else
           NS_WARNING("no file descriptor");
@@ -801,7 +801,7 @@ nsDiskCacheStreamIO::DeleteBuffer()
     if (mBuffer) {
         NS_ASSERTION(!mBufDirty, "deleting dirty buffer");
         free(mBuffer);
-        mBuffer = nullptr;
+        mBuffer = nsnull;
         mBufPos = 0;
         mBufEnd = 0;
         mBufSize = 0;
@@ -957,7 +957,7 @@ nsDiskCacheStreamIO::SetEOF()
         UpdateFileSize();
         if (needToCloseFD) {
             (void) PR_Close(mFD);
-            mFD = nullptr;
+            mFD = nsnull;
         } 
     }
 

@@ -105,7 +105,7 @@ TestMemoryObjectCache()
     rv = descriptor->SetCacheElement(foo);
     rv = descriptor->SetDataSize(11);
     rv = descriptor->SetMetaDataElement("itemOne", "metaData works");
-    descriptor = nullptr;
+    descriptor = nsnull;
 
     // Test refetching entry
 
@@ -130,7 +130,7 @@ TestMemoryObjectCache()
     rv = descriptor->GetMetaDataElement("itemOne", &metaData);
     if (NS_SUCCEEDED(rv))   printf("metaData = %s\n", metaData);
     else printf("GetMetaDataElement failed : rv = %x\n", rv);
-    descriptor = nullptr;
+    descriptor = nsnull;
 
     // Test ACCESS_WRITE entry
     printf("\nTest ACCESS_WRITE:\n");
@@ -151,7 +151,7 @@ TestMemoryObjectCache()
     rv = descriptor->GetMetaDataElement("itemOne", &metaData);
     if (NS_SUCCEEDED(rv))
         if (metaData)  printf("metaData = %s\n", metaData);
-        else           printf("metaData = nullptr\n");
+        else           printf("metaData = nsnull\n");
     else printf("GetMetaDataElement failed : rv = %x\n", rv);
 
     printf("\n");
@@ -167,7 +167,7 @@ main(int argc, char* argv[])
     nsresult rv = NS_OK;
 
     // Start up XPCOM
-    rv = NS_InitXPCOM2(nullptr, nullptr, nullptr);
+    rv = NS_InitXPCOM2(nsnull, nsnull, nsnull);
     if (NS_FAILED(rv)) return rv;
 
     /**
@@ -186,10 +186,10 @@ main(int argc, char* argv[])
 
 
  error_exit:
-    gEventQ = nullptr;
-    eventQService = nullptr;
+    gEventQ = nsnull;
+    eventQService = nsnull;
 
-    NS_ShutdownXPCOM(nullptr);
+    NS_ShutdownXPCOM(nsnull);
 
     printf("XPCOM shut down.\n\n");
     return rv;

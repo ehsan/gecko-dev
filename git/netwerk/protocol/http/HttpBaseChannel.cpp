@@ -85,7 +85,7 @@ HttpBaseChannel::Init(nsIURI *aURI,
 
   mURI = aURI;
   mOriginalURI = aURI;
-  mDocumentURI = nullptr;
+  mDocumentURI = nsnull;
   mCaps = aCaps;
 
   // Construct connection info object
@@ -192,7 +192,7 @@ NS_IMETHODIMP
 HttpBaseChannel::SetLoadGroup(nsILoadGroup *aLoadGroup)
 {
   mLoadGroup = aLoadGroup;
-  mProgressSink = nullptr;
+  mProgressSink = nsnull;
   return NS_OK;
 }
 
@@ -271,7 +271,7 @@ NS_IMETHODIMP
 HttpBaseChannel::SetNotificationCallbacks(nsIInterfaceRequestor *aCallbacks)
 {
   mCallbacks = aCallbacks;
-  mProgressSink = nullptr;
+  mProgressSink = nsnull;
 
   // Will never change unless SetNotificationCallbacks called again, so cache
   mPrivateBrowsing = NS_UsePrivateBrowsing(this);
@@ -625,13 +625,13 @@ NS_IMETHODIMP
 HttpBaseChannel::GetContentEncodings(nsIUTF8StringEnumerator** aEncodings)
 {
   if (!mResponseHead) {
-    *aEncodings = nullptr;
+    *aEncodings = nsnull;
     return NS_OK;
   }
     
   const char *encoding = mResponseHead->PeekHeader(nsHttp::Content_Encoding);
   if (!encoding) {
-    *aEncodings = nullptr;
+    *aEncodings = nsnull;
     return NS_OK;
   }
   nsContentEncodings* enumerator = new nsContentEncodings(this, encoding);
@@ -819,7 +819,7 @@ HttpBaseChannel::SetReferrer(nsIURI *referrer)
   ENSURE_CALLED_BEFORE_ASYNC_OPEN();
 
   // clear existing referrer, if any
-  mReferrer = nullptr;
+  mReferrer = nsnull;
   mRequestHead.ClearHeader(nsHttp::Referer);
 
   if (!referrer)
@@ -883,7 +883,7 @@ HttpBaseChannel::SetReferrer(nsIURI *referrer)
     "https",
     "ftp",
     "gopher",
-    nullptr
+    nsnull
   };
   match = false;
   const char *const *scheme = referrerWhiteList;
@@ -1194,7 +1194,7 @@ HttpBaseChannel::SetCookie(const char *aCookieHeader)
   nsICookieService *cs = gHttpHandler->GetCookieService();
   NS_ENSURE_TRUE(cs, NS_ERROR_FAILURE);
 
-  return cs->SetCookieStringFromHttp(mURI, nullptr, nullptr, aCookieHeader,
+  return cs->SetCookieStringFromHttp(mURI, nsnull, nsnull, aCookieHeader,
                                      mResponseHead->PeekHeader(nsHttp::Date),
                                      this);
 }
@@ -1436,8 +1436,8 @@ HttpBaseChannel::DoNotifyListener()
     mIsPending = false;
   }
   // We have to make sure to drop the reference to the callbacks too
-  mCallbacks = nullptr;
-  mProgressSink = nullptr;
+  mCallbacks = nsnull;
+  mProgressSink = nsnull;
 
   DoNotifyListenerCleanup();
 }
@@ -1456,7 +1456,7 @@ HttpBaseChannel::AddCookiesToRequest()
     nsICookieService *cs = gHttpHandler->GetCookieService();
     if (cs) {
       cs->GetCookieStringFromHttp(mURI,
-                                  nullptr,
+                                  nsnull,
                                   this, getter_Copies(cookie));
     }
 

@@ -56,7 +56,7 @@ NS_IMETHODIMP ViewWrapper::QueryInterface(REFNSIID aIID, void** aInstancePtr)
   NS_ASSERTION(!aIID.Equals(NS_GET_IID(nsIView)),
                "Someone expects a viewwrapper to be a view!");
   
-  *aInstancePtr = nullptr;
+  *aInstancePtr = nsnull;
   
   if (aIID.Equals(NS_GET_IID(nsISupports))) {
     *aInstancePtr = static_cast<nsISupports*>(this);
@@ -109,7 +109,7 @@ static ViewWrapper* GetWrapperFor(nsIWidget* aWidget)
       return wrapper;
     }
   }
-  return nullptr;
+  return nsnull;
 }
 
 // Main events handler
@@ -133,17 +133,17 @@ static nsEventStatus HandleEvent(nsGUIEvent *aEvent)
 // Attached widget event helpers
 static ViewWrapper* GetAttachedWrapperFor(nsIWidget* aWidget)
 {
-  NS_PRECONDITION(nullptr != aWidget, "null widget ptr");
+  NS_PRECONDITION(nsnull != aWidget, "null widget ptr");
   return aWidget->GetAttachedViewPtr();
 }
 
 static nsView* GetAttachedViewFor(nsIWidget* aWidget)
 {           
-  NS_PRECONDITION(nullptr != aWidget, "null widget ptr");
+  NS_PRECONDITION(nsnull != aWidget, "null widget ptr");
 
   ViewWrapper* wrapper = GetAttachedWrapperFor(aWidget);
   if (!wrapper)
-    return nullptr;
+    return nsnull;
   return wrapper->GetView();
 }
 
@@ -173,8 +173,8 @@ nsView::nsView(nsViewManager* aViewManager, nsViewVisibility aVisibility)
   // SetViewContentTransparency.
   mVFlags = 0;
   mViewManager = aViewManager;
-  mDirtyRegion = nullptr;
-  mDeletionObserver = nullptr;
+  mDirtyRegion = nsnull;
+  mDeletionObserver = nsnull;
   mWidgetIsTopLevel = false;
 }
 
@@ -217,7 +217,7 @@ nsView::~nsView()
       if (rootView == this)
       {
         // Inform the view manager that the root view has gone away...
-        mViewManager->SetRootView(nullptr);
+        mViewManager->SetRootView(nsnull);
       }
     }
     else if (mParent)
@@ -225,7 +225,7 @@ nsView::~nsView()
       mParent->RemoveChild(this);
     }
     
-    mViewManager = nullptr;
+    mViewManager = nsnull;
   }
   else if (mParent)
   {
@@ -258,10 +258,10 @@ void nsView::DestroyWidget()
       ViewWrapper* wrapper = GetAttachedWrapperFor(mWindow);
       NS_IF_RELEASE(wrapper);
 
-      mWindow->SetAttachedViewPtr(nullptr);
+      mWindow->SetAttachedViewPtr(nsnull);
     }
     else {
-      mWindow->SetClientData(nullptr);
+      mWindow->SetClientData(nsnull);
       mWindow->Destroy();
     }
 
@@ -271,14 +271,14 @@ void nsView::DestroyWidget()
 
 nsresult nsView::QueryInterface(const nsIID& aIID, void** aInstancePtr)
 {
-  if (nullptr == aInstancePtr) {
+  if (nsnull == aInstancePtr) {
     return NS_ERROR_NULL_POINTER;
   }
 
   NS_ASSERTION(!aIID.Equals(NS_GET_IID(nsISupports)),
                "Someone expects views to be ISupports-derived!");
   
-  *aInstancePtr = nullptr;
+  *aInstancePtr = nsnull;
   
   if (aIID.Equals(NS_GET_IID(nsIView))) {
     *aInstancePtr = (void*)(nsIView*)this;
@@ -290,7 +290,7 @@ nsresult nsView::QueryInterface(const nsIID& aIID, void** aInstancePtr)
 
 nsIView* nsIView::GetViewFor(nsIWidget* aWidget)
 {           
-  NS_PRECONDITION(nullptr != aWidget, "null widget ptr");
+  NS_PRECONDITION(nsnull != aWidget, "null widget ptr");
 
   ViewWrapper* wrapper = GetWrapperFor(aWidget);
 
@@ -302,7 +302,7 @@ nsIView* nsIView::GetViewFor(nsIWidget* aWidget)
     return wrapper->GetView();
   }
 
-  return nullptr;
+  return nsnull;
 }
 
 void nsIView::Destroy()
@@ -468,7 +468,7 @@ void nsView::NotifyEffectiveVisibilityChanged(bool aEffectivelyVisible)
     DropMouseGrabbing();
   }
 
-  if (nullptr != mWindow)
+  if (nsnull != mWindow)
   {
     if (aEffectivelyVisible)
     {
@@ -524,11 +524,11 @@ void nsView::InvalidateHierarchy(nsViewManager *aViewManagerParent)
 
 void nsView::InsertChild(nsView *aChild, nsView *aSibling)
 {
-  NS_PRECONDITION(nullptr != aChild, "null ptr");
+  NS_PRECONDITION(nsnull != aChild, "null ptr");
 
-  if (nullptr != aChild)
+  if (nsnull != aChild)
   {
-    if (nullptr != aSibling)
+    if (nsnull != aSibling)
     {
 #ifdef DEBUG
       NS_ASSERTION(aSibling->GetParent() == this, "tried to insert view with invalid sibling");
@@ -550,28 +550,28 @@ void nsView::InsertChild(nsView *aChild, nsView *aSibling)
     nsViewManager *vm = aChild->GetViewManager();
     if (vm->GetRootViewImpl() == aChild)
     {
-      aChild->InvalidateHierarchy(nullptr); // don't care about releasing grabs
+      aChild->InvalidateHierarchy(nsnull); // don't care about releasing grabs
     }
   }
 }
 
 void nsView::RemoveChild(nsView *child)
 {
-  NS_PRECONDITION(nullptr != child, "null ptr");
+  NS_PRECONDITION(nsnull != child, "null ptr");
 
-  if (nullptr != child)
+  if (nsnull != child)
   {
-    nsView* prevKid = nullptr;
+    nsView* prevKid = nsnull;
     nsView* kid = mFirstChild;
     bool found = false;
-    while (nullptr != kid) {
+    while (nsnull != kid) {
       if (kid == child) {
-        if (nullptr != prevKid) {
+        if (nsnull != prevKid) {
           prevKid->SetNextSibling(kid->GetNextSibling());
         } else {
           mFirstChild = kid->GetNextSibling();
         }
-        child->SetParent(nullptr);
+        child->SetParent(nsnull);
         found = true;
         break;
       }
@@ -687,7 +687,7 @@ nsresult nsView::CreateWidget(nsWidgetInitData *aWidgetInitData,
   mViewManager->GetDeviceContext(*getter_AddRefs(dx));
 
   nsIWidget* parentWidget =
-    GetParent() ? GetParent()->GetNearestWidget(nullptr) : nullptr;
+    GetParent() ? GetParent()->GetNearestWidget(nsnull) : nsnull;
   if (!parentWidget) {
     NS_ERROR("nsView::CreateWidget without suitable parent widget??");
     return NS_ERROR_FAILURE;
@@ -765,8 +765,8 @@ nsresult nsView::CreateWidgetForPopup(nsWidgetInitData *aWidgetInitData,
                                          true).get();
   }
   else {
-    nsIWidget* nearestParent = GetParent() ? GetParent()->GetNearestWidget(nullptr)
-                                           : nullptr;
+    nsIWidget* nearestParent = GetParent() ? GetParent()->GetNearestWidget(nsnull)
+                                           : nsnull;
     if (!nearestParent) {
       // Without a parent, we can't make a popup.  This can happen
       // when printing
@@ -812,7 +812,7 @@ nsView::InitializeWindow(bool aEnableDragDrop, bool aResetVisibility)
 // Attach to a top level widget and start receiving mirrored events.
 nsresult nsIView::AttachToTopLevelWidget(nsIWidget* aWidget)
 {
-  NS_PRECONDITION(nullptr != aWidget, "null widget ptr");
+  NS_PRECONDITION(nsnull != aWidget, "null widget ptr");
   /// XXXjimm This is a temporary workaround to an issue w/document
   // viewer (bug 513162).
   nsIView *oldView = GetAttachedViewFor(aWidget);
@@ -857,7 +857,7 @@ nsresult nsIView::DetachFromTopLevelWidget()
   ViewWrapper* wrapper = GetAttachedWrapperFor(mWindow);
   NS_IF_RELEASE(wrapper);
 
-  mWindow->SetAttachedViewPtr(nullptr);
+  mWindow->SetAttachedViewPtr(nsnull);
   NS_RELEASE(mWindow);
 
   mWidgetIsTopLevel = false;
@@ -884,7 +884,7 @@ void nsView::AssertNoWindow()
     NS_ERROR("We already have a window for this view? BAD");
     ViewWrapper* wrapper = GetWrapperFor(mWindow);
     NS_IF_RELEASE(wrapper);
-    mWindow->SetClientData(nullptr);
+    mWindow->SetClientData(nsnull);
     mWindow->Destroy();
     NS_RELEASE(mWindow);
   }
@@ -896,14 +896,14 @@ void nsView::AssertNoWindow()
 EVENT_CALLBACK nsIView::AttachWidgetEventHandler(nsIWidget* aWidget)
 {
 #ifdef DEBUG
-  void* data = nullptr;
+  void* data = nsnull;
   aWidget->GetClientData(data);
   NS_ASSERTION(!data, "Already got client data");
 #endif
 
   ViewWrapper* wrapper = new ViewWrapper(Impl());
   if (!wrapper)
-    return nullptr;
+    return nsnull;
   NS_ADDREF(wrapper); // Will be released in DetachWidgetEventHandler
   aWidget->SetClientData(wrapper);
   return ::HandleEvent;
@@ -914,7 +914,7 @@ void nsIView::DetachWidgetEventHandler(nsIWidget* aWidget)
   ViewWrapper* wrapper = GetWrapperFor(aWidget);
   NS_ASSERTION(!wrapper || wrapper->GetView() == this, "Wrong view");
   NS_IF_RELEASE(wrapper);
-  aWidget->SetClientData(nullptr);
+  aWidget->SetClientData(nsnull);
 }
 
 #ifdef DEBUG
@@ -923,7 +923,7 @@ void nsIView::List(FILE* out, PRInt32 aIndent) const
   PRInt32 i;
   for (i = aIndent; --i >= 0; ) fputs("  ", out);
   fprintf(out, "%p ", (void*)this);
-  if (nullptr != mWindow) {
+  if (nsnull != mWindow) {
     nscoord p2a = mViewManager->AppUnitsPerDevPixel();
     nsIntRect rect;
     mWindow->GetClientBounds(rect);
@@ -976,7 +976,7 @@ nsPoint nsView::GetOffsetTo(const nsView* aOther, const PRInt32 aAPD) const
   const nsView* v = this;
   nsViewManager* currVM = v->GetViewManager();
   PRInt32 currAPD = currVM->AppUnitsPerDevPixel();
-  const nsView* root = nullptr;
+  const nsView* root = nsnull;
   for ( ; v != aOther && v; root = v, v = v->GetParent()) {
     nsViewManager* newVM = v->GetViewManager();
     if (newVM != currVM) {
@@ -1073,7 +1073,7 @@ nsIWidget* nsView::GetNearestWidget(nsPoint* aOffset, const PRInt32 aAPD) const
       pt += docPt.ConvertAppUnits(currAPD, aAPD);
       *aOffset = pt;
     }
-    return nullptr;
+    return nsnull;
   }
 
   // pt is now the offset from v's origin to this view's origin.
@@ -1088,7 +1088,7 @@ nsIWidget* nsView::GetNearestWidget(nsPoint* aOffset, const PRInt32 aAPD) const
 
 bool nsIView::IsRoot() const
 {
-  NS_ASSERTION(mViewManager != nullptr," View manager is null in nsView::IsRoot()");
+  NS_ASSERTION(mViewManager != nsnull," View manager is null in nsView::IsRoot()");
   return mViewManager->GetRootViewImpl() == this;
 }
 

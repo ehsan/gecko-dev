@@ -89,7 +89,7 @@ char* ToNewCString( const nsACString& aSource );
    * @return a new |char| buffer you must free with |nsMemory::Free|.
    */
 
-char* ToNewUTF8String( const nsAString& aSource, PRUint32 *aUTF8Count = nullptr );
+char* ToNewUTF8String( const nsAString& aSource, PRUint32 *aUTF8Count = nsnull );
 
 
   /**
@@ -135,7 +135,7 @@ PRUnichar* ToNewUnicode( const nsACString& aSource );
    * @return a new |PRUnichar| buffer you must free with |nsMemory::Free|.
    *         (UTF-16 encoded)
    */
-PRUnichar* UTF8ToNewUnicode( const nsACString& aSource, PRUint32 *aUTF16Count = nullptr );
+PRUnichar* UTF8ToNewUnicode( const nsACString& aSource, PRUint32 *aUTF16Count = nsnull );
 
   /**
    * Copies |aLength| 16-bit code units from the start of |aSource| to the

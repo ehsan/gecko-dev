@@ -137,10 +137,10 @@ static nsresult GetRealPath(const char* appDataFile, char* *aResult)
 class AutoAppData
 {
 public:
-  AutoAppData(nsIFile* aINIFile) : mAppData(nullptr) {
+  AutoAppData(nsIFile* aINIFile) : mAppData(nsnull) {
     nsresult rv = XRE_CreateAppData(aINIFile, &mAppData);
     if (NS_FAILED(rv))
-      mAppData = nullptr;
+      mAppData = nsnull;
   }
   ~AutoAppData() {
     if (mAppData)
@@ -353,7 +353,7 @@ main(int argc, char **argv)
 #ifdef XP_MACOSX
     // Check for <bundle>/Contents/Frameworks/XUL.framework/libxpcom.dylib
     CFURLRef fwurl = CFBundleCopyPrivateFrameworksURL(appBundle);
-    CFURLRef absfwurl = nullptr;
+    CFURLRef absfwurl = nsnull;
     if (fwurl) {
       absfwurl = CFURLCopyAbsoluteURL(fwurl);
       CFRelease(fwurl);
@@ -428,7 +428,7 @@ main(int argc, char **argv)
     { "XRE_CreateAppData", (NSFuncPtr*) &XRE_CreateAppData },
     { "XRE_FreeAppData", (NSFuncPtr*) &XRE_FreeAppData },
     { "XRE_main", (NSFuncPtr*) &XRE_main },
-    { nullptr, nullptr }
+    { nsnull, nsnull }
   };
 
   rv = XPCOMGlueLoadXULFunctions(kXULFuncs);

@@ -238,14 +238,14 @@ GonkGPSGeolocationProvider::GonkGPSGeolocationProvider()
   , mSupportsMSA(false) 
   , mSupportsSingleShot(false)
   , mSupportsTimeInjection(false)
-  , mGpsInterface(nullptr)
+  , mGpsInterface(nsnull)
 {
 }
 
 GonkGPSGeolocationProvider::~GonkGPSGeolocationProvider()
 {
   ShutdownNow();
-  sSingleton = nullptr;
+  sSingleton = nsnull;
 }
 
 already_AddRefed<GonkGPSGeolocationProvider>
@@ -264,17 +264,17 @@ GonkGPSGeolocationProvider::GetGPSInterface()
   hw_module_t* module;
 
   if (hw_get_module(GPS_HARDWARE_MODULE_ID, (hw_module_t const**)&module))
-    return nullptr;
+    return nsnull;
 
   hw_device_t* device;
   if (module->methods->open(module, GPS_HARDWARE_MODULE_ID, &device))
-    return nullptr;
+    return nsnull;
 
   gps_device_t* gps_device = (gps_device_t *)device;
   const GpsInterface* result = gps_device->get_gps_interface(gps_device);
 
   if (result->size != sizeof(GpsInterface)) {
-    return nullptr;
+    return nsnull;
   }
   return result;
 }
@@ -533,7 +533,7 @@ GonkGPSGeolocationProvider::ShutdownNow()
     mGpsInterface->cleanup();
   }
 
-  mInitThread = nullptr;
+  mInitThread = nsnull;
 }
 
 NS_IMETHODIMP

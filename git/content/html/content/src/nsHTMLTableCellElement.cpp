@@ -108,13 +108,13 @@ nsHTMLTableCellElement::GetTable() const
 {
   nsIContent *parent = GetParent();
   if (!parent) {
-    return nullptr;
+    return nsnull;
   }
 
   // parent should be a row.
   nsIContent* section = parent->GetParent();
   if (!section) {
-    return nullptr;
+    return nsnull;
   }
 
   if (section->IsHTML(nsGkAtoms::table)) {
@@ -128,7 +128,7 @@ nsHTMLTableCellElement::GetTable() const
     return static_cast<nsHTMLTableElement*>(result);
   }
 
-  return nullptr;
+  return nsnull;
 }
 
 NS_IMETHODIMP
@@ -381,7 +381,7 @@ nsHTMLTableCellElement::IsAttributeMapped(const nsIAtom* aAttribute) const
 #endif
     { &nsGkAtoms::width },
     { &nsGkAtoms::height },
-    { nullptr }
+    { nsnull }
   };
 
   static const MappedAttributeEntry* const map[] = {

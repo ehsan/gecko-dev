@@ -35,7 +35,7 @@ nsSVGMaskFrame::ComputeMaskAlpha(nsRenderingContext *aContext,
   // has a mask reference loop.
   if (mInUse) {
     NS_WARNING("Mask loop detected!");
-    return nullptr;
+    return nsnull;
   }
   AutoMaskReferencer maskRef(this);
 
@@ -69,15 +69,15 @@ nsSVGMaskFrame::ComputeMaskAlpha(nsRenderingContext *aContext,
 
   // 0 disables mask, < 0 is an error
   if (surfaceSize.width <= 0 || surfaceSize.height <= 0)
-    return nullptr;
+    return nsnull;
 
   if (resultOverflows)
-    return nullptr;
+    return nsnull;
 
   nsRefPtr<gfxImageSurface> image =
     new gfxImageSurface(surfaceSize, gfxASurface::ImageFormatARGB32);
   if (!image || image->CairoStatus())
-    return nullptr;
+    return nsnull;
 
   // We would like to use gfxImageSurface::SetDeviceOffset() to position
   // 'image'. However, we need to set the same matrix on the temporary context
@@ -106,7 +106,7 @@ nsSVGMaskFrame::ComputeMaskAlpha(nsRenderingContext *aContext,
     if (SVGFrame) {
       SVGFrame->NotifySVGChanged(nsISVGChildFrame::TRANSFORM_CHANGED);
     }
-    nsSVGUtils::PaintFrameWithEffects(&tmpCtx, nullptr, kid);
+    nsSVGUtils::PaintFrameWithEffects(&tmpCtx, nsnull, kid);
   }
 
   PRUint8 *data   = image->Data();

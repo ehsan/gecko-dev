@@ -174,7 +174,7 @@ DisableSensorNotifications(SensorType aSensor)
 {
   if (aSensor == SENSOR_ACCELERATION && sAccelerometer) {
     sAccelerometer->SetEventSink(NULL);
-    sAccelerometer = nullptr;
+    sAccelerometer = nsnull;
   }
 }
 

@@ -79,7 +79,7 @@ nsSVGDocument::GetURL(nsAString& aURL)
 NS_IMETHODIMP
 nsSVGDocument::GetRootElement(nsIDOMSVGSVGElement** aRootElement)
 {
-  *aRootElement = nullptr;
+  *aRootElement = nsnull;
   Element* root = nsDocument::GetRootElement();
 
   return root ? CallQueryInterface(root, aRootElement) : NS_OK;

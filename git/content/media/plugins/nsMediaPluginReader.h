@@ -44,8 +44,7 @@ public:
     return mHasVideo;
   }
 
-  virtual nsresult ReadMetadata(nsVideoInfo* aInfo,
-                                nsHTMLMediaElement::MetadataTags** aTags);
+  virtual nsresult ReadMetadata(nsVideoInfo* aInfo);
   virtual nsresult Seek(PRInt64 aTime, PRInt64 aStartTime, PRInt64 aEndTime, PRInt64 aCurrentTime);
   virtual nsresult GetBuffered(nsTimeRanges* aBuffered, PRInt64 aStartTime);
   virtual bool IsSeekableInBufferedRanges() {

@@ -63,8 +63,8 @@ public:
    */
   virtual nsIAtom* GetType() const;
 
-  virtual bool IsSVGTransformed(gfxMatrix *aOwnTransforms = nullptr,
-                                gfxMatrix *aFromParentTransforms = nullptr) const;
+  virtual bool IsSVGTransformed(gfxMatrix *aOwnTransforms = nsnull,
+                                gfxMatrix *aFromParentTransforms = nsnull) const;
 
 #ifdef DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const

@@ -46,7 +46,7 @@ public:
 
   void DropStyleSheetReference()
   {
-    mSheet = nullptr;
+    mSheet = nsnull;
   }
   void SetStyleSheet(nsHTMLStyleSheet* aSheet);
   nsHTMLStyleSheet* GetStyleSheet()

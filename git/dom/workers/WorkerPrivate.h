@@ -776,7 +776,7 @@ private:
     mozilla::MutexAutoLock lock(mMutex);
 
     mStatus = Dead;
-    mJSContext = nullptr;
+    mJSContext = nsnull;
 
     ClearQueue(&mControlQueue);
     ClearQueue(&mQueue);

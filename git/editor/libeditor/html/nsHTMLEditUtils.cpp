@@ -6,7 +6,7 @@
 #include "./../../mozilla-config.h"     // for MOZ_MEDIA
 #include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
 #include "mozilla/Util.h"               // for ArrayLength
-#include "mozilla/dom/Element.h"        // for Element, nsINode
+#include "mozilla/dom/Element.h"        // for Element
 #include "nsAString.h"                  // for nsAString_internal::IsEmpty
 #include "nsCOMPtr.h"                   // for nsCOMPtr, operator==, etc
 #include "nsCaseTreatment.h"
@@ -30,9 +30,9 @@ using namespace mozilla;
 ///////////////////////////////////////////////////////////////////////////
 //                  
 bool 
-nsHTMLEditUtils::IsBig(nsIDOMNode* aNode)
+nsHTMLEditUtils::IsBig(nsIDOMNode *node)
 {
-  return nsEditor::NodeIsType(aNode, nsEditProperty::big);
+  return nsEditor::NodeIsType(node, nsEditProperty::big);
 }
 
 
@@ -40,18 +40,18 @@ nsHTMLEditUtils::IsBig(nsIDOMNode* aNode)
 // IsInlineStyle true if node is an inline style
 //                  
 bool 
-nsHTMLEditUtils::IsInlineStyle(nsIDOMNode* aNode)
+nsHTMLEditUtils::IsInlineStyle(nsIDOMNode *node)
 {
-  NS_PRECONDITION(aNode, "null parent passed to nsHTMLEditUtils::IsInlineStyle");
-  nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
-  return node && IsInlineStyle(node);
+  NS_PRECONDITION(node, "null parent passed to nsHTMLEditUtils::IsInlineStyle");
+  nsCOMPtr<dom::Element> element = do_QueryInterface(node);
+  return element && IsInlineStyle(element);
 }
 
 bool
-nsHTMLEditUtils::IsInlineStyle(nsINode* aNode)
+nsHTMLEditUtils::IsInlineStyle(dom::Element* aElement)
 {
-  MOZ_ASSERT(aNode);
-  nsIAtom* nodeAtom = aNode->Tag();
+  MOZ_ASSERT(aElement);
+  nsIAtom* nodeAtom = aElement->Tag();
   return (nodeAtom == nsEditProperty::b)
       || (nodeAtom == nsEditProperty::i)
       || (nodeAtom == nsEditProperty::u)
@@ -70,18 +70,18 @@ nsHTMLEditUtils::IsInlineStyle(nsINode* aNode)
 // IsFormatNode true if node is a format node
 // 
 bool
-nsHTMLEditUtils::IsFormatNode(nsIDOMNode* aNode)
+nsHTMLEditUtils::IsFormatNode(nsIDOMNode *node)
 {
-  NS_PRECONDITION(aNode, "null parent passed to nsHTMLEditUtils::IsFormatNode");
-  nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
-  return node && IsFormatNode(node);
+  NS_PRECONDITION(node, "null parent passed to nsHTMLEditUtils::IsFormatNode");
+  nsCOMPtr<dom::Element> element = do_QueryInterface(node);
+  return element && IsFormatNode(element);
 }
 
 bool
-nsHTMLEditUtils::IsFormatNode(nsINode* aNode)
+nsHTMLEditUtils::IsFormatNode(dom::Element* aElement)
 {
-  MOZ_ASSERT(aNode);
-  nsIAtom* nodeAtom = aNode->Tag();
+  MOZ_ASSERT(aElement);
+  nsIAtom* nodeAtom = aElement->Tag();
   return (nodeAtom == nsEditProperty::p)
       || (nodeAtom == nsEditProperty::pre)
       || (nodeAtom == nsEditProperty::h1)
@@ -97,10 +97,10 @@ nsHTMLEditUtils::IsFormatNode(nsINode* aNode)
 // IsNodeThatCanOutdent true if node is a list, list item, or blockquote      
 //
 bool
-nsHTMLEditUtils::IsNodeThatCanOutdent(nsIDOMNode* aNode)
+nsHTMLEditUtils::IsNodeThatCanOutdent(nsIDOMNode *node)
 {
-  NS_PRECONDITION(aNode, "null parent passed to nsHTMLEditUtils::IsNodeThatCanOutdent");
-  nsCOMPtr<nsIAtom> nodeAtom = nsEditor::GetTag(aNode);
+  NS_PRECONDITION(node, "null parent passed to nsHTMLEditUtils::IsNodeThatCanOutdent");
+  nsCOMPtr<nsIAtom> nodeAtom = nsEditor::GetTag(node);
   return (nodeAtom == nsEditProperty::ul)
       || (nodeAtom == nsEditProperty::ol)
       || (nodeAtom == nsEditProperty::dl)
@@ -113,9 +113,9 @@ nsHTMLEditUtils::IsNodeThatCanOutdent(nsIDOMNode* aNode)
 ///////////////////////////////////////////////////////////////////////////
 //                  
 bool 
-nsHTMLEditUtils::IsSmall(nsIDOMNode* aNode)
+nsHTMLEditUtils::IsSmall(nsIDOMNode *node)
 {
-  return nsEditor::NodeIsType(aNode, nsEditProperty::small);
+  return nsEditor::NodeIsType(node, nsEditProperty::small);
 }
 
 
@@ -127,10 +127,10 @@ nsHTMLEditUtils::IsSmall(nsIDOMNode* aNode)
 // IsHeader: true if node an html header
 //                  
 bool 
-nsHTMLEditUtils::IsHeader(nsIDOMNode* aNode)
+nsHTMLEditUtils::IsHeader(nsIDOMNode *node)
 {
-  NS_PRECONDITION(aNode, "null parent passed to nsHTMLEditUtils::IsHeader");
-  nsCOMPtr<nsIAtom> nodeAtom = nsEditor::GetTag(aNode);
+  NS_PRECONDITION(node, "null parent passed to nsHTMLEditUtils::IsHeader");
+  nsCOMPtr<nsIAtom> nodeAtom = nsEditor::GetTag(node);
   return (nodeAtom == nsEditProperty::h1)
       || (nodeAtom == nsEditProperty::h2)
       || (nodeAtom == nsEditProperty::h3)
@@ -144,9 +144,9 @@ nsHTMLEditUtils::IsHeader(nsIDOMNode* aNode)
 // IsParagraph: true if node an html paragraph
 //                  
 bool 
-nsHTMLEditUtils::IsParagraph(nsIDOMNode* aNode)
+nsHTMLEditUtils::IsParagraph(nsIDOMNode *node)
 {
-  return nsEditor::NodeIsType(aNode, nsEditProperty::p);
+  return nsEditor::NodeIsType(node, nsEditProperty::p);
 }
 
 
@@ -154,9 +154,9 @@ nsHTMLEditUtils::IsParagraph(nsIDOMNode* aNode)
 // IsHR: true if node an horizontal rule
 //                  
 bool 
-nsHTMLEditUtils::IsHR(nsIDOMNode* aNode)
+nsHTMLEditUtils::IsHR(nsIDOMNode *node)
 {
-  return nsEditor::NodeIsType(aNode, nsEditProperty::hr);
+  return nsEditor::NodeIsType(node, nsEditProperty::hr);
 }
 
 
@@ -164,15 +164,15 @@ nsHTMLEditUtils::IsHR(nsIDOMNode* aNode)
 // IsListItem: true if node an html list item
 //                  
 bool 
-nsHTMLEditUtils::IsListItem(nsIDOMNode* aNode)
+nsHTMLEditUtils::IsListItem(nsIDOMNode *node)
 {
-  NS_PRECONDITION(aNode, "null parent passed to nsHTMLEditUtils::IsListItem");
-  nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
-  return node && IsListItem(node);
+  NS_PRECONDITION(node, "null parent passed to nsHTMLEditUtils::IsListItem");
+  nsCOMPtr<dom::Element> element = do_QueryInterface(node);
+  return element && IsListItem(element);
 }
 
 bool
-nsHTMLEditUtils::IsListItem(nsINode* node)
+nsHTMLEditUtils::IsListItem(dom::Element* node)
 {
   MOZ_ASSERT(node);
   nsCOMPtr<nsIAtom> nodeAtom = node->Tag();
@@ -186,15 +186,15 @@ nsHTMLEditUtils::IsListItem(nsINode* node)
 // IsTableElement: true if node an html table, td, tr, ...
 //                  
 bool
-nsHTMLEditUtils::IsTableElement(nsIDOMNode* aNode)
+nsHTMLEditUtils::IsTableElement(nsIDOMNode *node)
 {
-  NS_PRECONDITION(aNode, "null node passed to nsHTMLEditor::IsTableElement");
-  nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
-  return node && IsTableElement(node);
+  NS_PRECONDITION(node, "null node passed to nsHTMLEditor::IsTableElement");
+  nsCOMPtr<dom::Element> element = do_QueryInterface(node);
+  return element && IsTableElement(element);
 }
 
 bool
-nsHTMLEditUtils::IsTableElement(nsINode* node)
+nsHTMLEditUtils::IsTableElement(dom::Element* node)
 {
   MOZ_ASSERT(node);
   nsCOMPtr<nsIAtom> nodeAtom = node->Tag();
@@ -212,15 +212,15 @@ nsHTMLEditUtils::IsTableElement(nsINode* node)
 // IsTableElementButNotTable: true if node an html td, tr, ... (doesn't include table)
 //                  
 bool 
-nsHTMLEditUtils::IsTableElementButNotTable(nsIDOMNode* aNode)
+nsHTMLEditUtils::IsTableElementButNotTable(nsIDOMNode *node)
 {
-  NS_PRECONDITION(aNode, "null node passed to nsHTMLEditor::IsTableElementButNotTable");
-  nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
-  return node && IsTableElementButNotTable(node);
+  NS_PRECONDITION(node, "null node passed to nsHTMLEditor::IsTableElementButNotTable");
+  nsCOMPtr<dom::Element> element = do_QueryInterface(node);
+  return element && IsTableElementButNotTable(element);
 }
 
 bool
-nsHTMLEditUtils::IsTableElementButNotTable(nsINode* aNode)
+nsHTMLEditUtils::IsTableElementButNotTable(dom::Element* aNode)
 {
   MOZ_ASSERT(aNode);
   nsCOMPtr<nsIAtom> nodeAtom = aNode->Tag();
@@ -237,18 +237,18 @@ nsHTMLEditUtils::IsTableElementButNotTable(nsINode* aNode)
 // IsTable: true if node an html table
 //                  
 bool 
-nsHTMLEditUtils::IsTable(nsIDOMNode* aNode)
+nsHTMLEditUtils::IsTable(nsIDOMNode *node)
 {
-  return nsEditor::NodeIsType(aNode, nsEditProperty::table);
+  return nsEditor::NodeIsType(node, nsEditProperty::table);
 }
 
 ///////////////////////////////////////////////////////////////////////////
 // IsTableRow: true if node an html tr
 //                  
 bool 
-nsHTMLEditUtils::IsTableRow(nsIDOMNode* aNode)
+nsHTMLEditUtils::IsTableRow(nsIDOMNode *node)
 {
-  return nsEditor::NodeIsType(aNode, nsEditProperty::tr);
+  return nsEditor::NodeIsType(node, nsEditProperty::tr);
 }
 
 
@@ -256,15 +256,15 @@ nsHTMLEditUtils::IsTableRow(nsIDOMNode* aNode)
 // IsTableCell: true if node an html td or th
 //                  
 bool 
-nsHTMLEditUtils::IsTableCell(nsIDOMNode* aNode)
+nsHTMLEditUtils::IsTableCell(nsIDOMNode *node)
 {
-  NS_PRECONDITION(aNode, "null parent passed to nsHTMLEditUtils::IsTableCell");
-  nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
-  return node && IsTableCell(node);
+  NS_PRECONDITION(node, "null parent passed to nsHTMLEditUtils::IsTableCell");
+  nsCOMPtr<dom::Element> element = do_QueryInterface(node);
+  return element && IsTableCell(element);
 }
 
 bool
-nsHTMLEditUtils::IsTableCell(nsINode* node)
+nsHTMLEditUtils::IsTableCell(dom::Element* node)
 {
   MOZ_ASSERT(node);
   nsCOMPtr<nsIAtom> nodeAtom = node->Tag();
@@ -277,10 +277,10 @@ nsHTMLEditUtils::IsTableCell(nsINode* node)
 // IsTableCell: true if node an html td or th
 //                  
 bool 
-nsHTMLEditUtils::IsTableCellOrCaption(nsIDOMNode* aNode)
+nsHTMLEditUtils::IsTableCellOrCaption(nsIDOMNode *node)
 {
-  NS_PRECONDITION(aNode, "null parent passed to nsHTMLEditUtils::IsTableCell");
-  nsCOMPtr<nsIAtom> nodeAtom = nsEditor::GetTag(aNode);
+  NS_PRECONDITION(node, "null parent passed to nsHTMLEditUtils::IsTableCell");
+  nsCOMPtr<nsIAtom> nodeAtom = nsEditor::GetTag(node);
   return (nodeAtom == nsEditProperty::td)
       || (nodeAtom == nsEditProperty::th)
       || (nodeAtom == nsEditProperty::caption);
@@ -291,15 +291,15 @@ nsHTMLEditUtils::IsTableCellOrCaption(nsIDOMNode* aNode)
 // IsList: true if node an html list
 //                  
 bool
-nsHTMLEditUtils::IsList(nsIDOMNode* aNode)
+nsHTMLEditUtils::IsList(nsIDOMNode *node)
 {
-  NS_PRECONDITION(aNode, "null parent passed to nsHTMLEditUtils::IsList");
-  nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
-  return node && IsList(node);
+  NS_PRECONDITION(node, "null parent passed to nsHTMLEditUtils::IsList");
+  nsCOMPtr<dom::Element> element = do_QueryInterface(node);
+  return element && IsList(element);
 }
 
 bool
-nsHTMLEditUtils::IsList(nsINode* node)
+nsHTMLEditUtils::IsList(dom::Element* node)
 {
   MOZ_ASSERT(node);
   nsCOMPtr<nsIAtom> nodeAtom = node->Tag();
@@ -313,9 +313,9 @@ nsHTMLEditUtils::IsList(nsINode* node)
 // IsOrderedList: true if node an html ordered list
 //                  
 bool 
-nsHTMLEditUtils::IsOrderedList(nsIDOMNode* aNode)
+nsHTMLEditUtils::IsOrderedList(nsIDOMNode *node)
 {
-  return nsEditor::NodeIsType(aNode, nsEditProperty::ol);
+  return nsEditor::NodeIsType(node, nsEditProperty::ol);
 }
 
 
@@ -323,9 +323,9 @@ nsHTMLEditUtils::IsOrderedList(nsIDOMNode* aNode)
 // IsUnorderedList: true if node an html unordered list
 //                  
 bool 
-nsHTMLEditUtils::IsUnorderedList(nsIDOMNode* aNode)
+nsHTMLEditUtils::IsUnorderedList(nsIDOMNode *node)
 {
-  return nsEditor::NodeIsType(aNode, nsEditProperty::ul);
+  return nsEditor::NodeIsType(node, nsEditProperty::ul);
 }
 
 
@@ -333,9 +333,9 @@ nsHTMLEditUtils::IsUnorderedList(nsIDOMNode* aNode)
 // IsBlockquote: true if node an html blockquote node
 //                  
 bool 
-nsHTMLEditUtils::IsBlockquote(nsIDOMNode* aNode)
+nsHTMLEditUtils::IsBlockquote(nsIDOMNode *node)
 {
-  return nsEditor::NodeIsType(aNode, nsEditProperty::blockquote);
+  return nsEditor::NodeIsType(node, nsEditProperty::blockquote);
 }
 
 
@@ -343,9 +343,9 @@ nsHTMLEditUtils::IsBlockquote(nsIDOMNode* aNode)
 // IsPre: true if node an html pre node
 //                  
 bool 
-nsHTMLEditUtils::IsPre(nsIDOMNode* aNode)
+nsHTMLEditUtils::IsPre(nsIDOMNode *node)
 {
-  return nsEditor::NodeIsType(aNode, nsEditProperty::pre);
+  return nsEditor::NodeIsType(node, nsEditProperty::pre);
 }
 
 
@@ -353,9 +353,9 @@ nsHTMLEditUtils::IsPre(nsIDOMNode* aNode)
 // IsImage: true if node an html image node
 //                  
 bool 
-nsHTMLEditUtils::IsImage(nsIDOMNode* aNode)
+nsHTMLEditUtils::IsImage(nsIDOMNode *node)
 {
-  return nsEditor::NodeIsType(aNode, nsEditProperty::img);
+  return nsEditor::NodeIsType(node, nsEditProperty::img);
 }
 
 bool 
@@ -375,21 +375,21 @@ nsHTMLEditUtils::IsLink(nsIDOMNode *aNode)
 bool 
 nsHTMLEditUtils::IsNamedAnchor(nsIDOMNode *aNode)
 {
-  nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
-  return node && IsNamedAnchor(node);
+  nsCOMPtr<dom::Element> element = do_QueryInterface(aNode);
+  return element && IsNamedAnchor(element);
 }
 
 bool
-nsHTMLEditUtils::IsNamedAnchor(nsINode* aNode)
+nsHTMLEditUtils::IsNamedAnchor(dom::Element* aNode)
 {
   MOZ_ASSERT(aNode);
-  if (!aNode->IsElement() || !aNode->AsElement()->IsHTML(nsGkAtoms::a)) {
+  if (!aNode->IsHTML(nsGkAtoms::a)) {
     return false;
   }
 
   nsAutoString text;
-  return aNode->AsElement()->GetAttr(kNameSpaceID_None, nsGkAtoms::name,
-                                     text) && !text.IsEmpty();
+  return aNode->GetAttr(kNameSpaceID_None, nsGkAtoms::name, text) &&
+         !text.IsEmpty();
 }
 
 
@@ -397,9 +397,9 @@ nsHTMLEditUtils::IsNamedAnchor(nsINode* aNode)
 // IsDiv: true if node an html div node
 //                  
 bool 
-nsHTMLEditUtils::IsDiv(nsIDOMNode* aNode)
+nsHTMLEditUtils::IsDiv(nsIDOMNode *node)
 {
-  return nsEditor::NodeIsType(aNode, nsEditProperty::div);
+  return nsEditor::NodeIsType(node, nsEditProperty::div);
 }
 
 
@@ -407,9 +407,9 @@ nsHTMLEditUtils::IsDiv(nsIDOMNode* aNode)
 // IsMozDiv: true if node an html div node with type = _moz
 //                  
 bool 
-nsHTMLEditUtils::IsMozDiv(nsIDOMNode* aNode)
+nsHTMLEditUtils::IsMozDiv(nsIDOMNode *node)
 {
-  if (IsDiv(aNode) && nsTextEditUtils::HasMozAttr(aNode)) return true;
+  if (IsDiv(node) && nsTextEditUtils::HasMozAttr(node)) return true;
   return false;
 }
 
@@ -422,28 +422,24 @@ bool
 nsHTMLEditUtils::IsMailCite(nsIDOMNode* aNode)
 {
   NS_PRECONDITION(aNode, "null parent passed to nsHTMLEditUtils::IsMailCite");
-  nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
-  return node && IsMailCite(node);
+  nsCOMPtr<dom::Element> element = do_QueryInterface(aNode);
+  return element && IsMailCite(element);
 }
 
 bool
-nsHTMLEditUtils::IsMailCite(nsINode* aNode)
+nsHTMLEditUtils::IsMailCite(dom::Element* aElement)
 {
-  MOZ_ASSERT(aNode);
+  MOZ_ASSERT(aElement);
 
   // don't ask me why, but our html mailcites are id'd by "type=cite"...
-  if (aNode->IsElement() &&
-      aNode->AsElement()->AttrValueIs(kNameSpaceID_None, nsGkAtoms::type,
-                                      NS_LITERAL_STRING("cite"),
-                                      eIgnoreCase)) {
+  if (aElement->AttrValueIs(kNameSpaceID_None, nsGkAtoms::type,
+                            NS_LITERAL_STRING("cite"), eIgnoreCase)) {
     return true;
   }
 
   // ... but our plaintext mailcites by "_moz_quote=true".  go figure.
-  if (aNode->IsElement() &&
-      aNode->AsElement()->AttrValueIs(kNameSpaceID_None, nsGkAtoms::mozquote,
-                                      NS_LITERAL_STRING("true"),
-                                      eIgnoreCase)) {
+  if (aElement->AttrValueIs(kNameSpaceID_None, nsGkAtoms::mozquote,
+                            NS_LITERAL_STRING("true"), eIgnoreCase)) {
     return true;
   }
 
@@ -455,18 +451,18 @@ nsHTMLEditUtils::IsMailCite(nsINode* aNode)
 // IsFormWidget: true if node is a form widget of some kind
 //                  
 bool
-nsHTMLEditUtils::IsFormWidget(nsIDOMNode* aNode)
+nsHTMLEditUtils::IsFormWidget(nsIDOMNode *node)
 {
-  NS_PRECONDITION(aNode, "null node passed to nsHTMLEditUtils::IsFormWidget");
-  nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
-  return node && IsFormWidget(node);
+  NS_PRECONDITION(node, "null node passed to nsHTMLEditUtils::IsFormWidget");
+  nsCOMPtr<dom::Element> element = do_QueryInterface(node);
+  return element && IsFormWidget(element);
 }
 
 bool
-nsHTMLEditUtils::IsFormWidget(nsINode* aNode)
+nsHTMLEditUtils::IsFormWidget(dom::Element* node)
 {
-  MOZ_ASSERT(aNode);
-  nsCOMPtr<nsIAtom> nodeAtom = aNode->Tag();
+  MOZ_ASSERT(node);
+  nsCOMPtr<nsIAtom> nodeAtom = node->Tag();
   return (nodeAtom == nsEditProperty::textarea)
       || (nodeAtom == nsEditProperty::select)
       || (nodeAtom == nsEditProperty::button)
@@ -478,7 +474,7 @@ nsHTMLEditUtils::IsFormWidget(nsINode* aNode)
 }
 
 bool
-nsHTMLEditUtils::SupportsAlignAttr(nsIDOMNode* aNode)
+nsHTMLEditUtils::SupportsAlignAttr(nsIDOMNode * aNode)
 {
   NS_PRECONDITION(aNode, "null node passed to nsHTMLEditUtils::SupportsAlignAttr");
   nsCOMPtr<nsIAtom> nodeAtom = nsEditor::GetTag(aNode);

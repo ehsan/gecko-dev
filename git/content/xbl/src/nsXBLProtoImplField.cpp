@@ -16,8 +16,8 @@
 #include "nsXBLPrototypeBinding.h"
 
 nsXBLProtoImplField::nsXBLProtoImplField(const PRUnichar* aName, const PRUnichar* aReadOnly)
-  : mNext(nullptr),
-    mFieldText(nullptr),
+  : mNext(nsnull),
+    mFieldText(nsnull),
     mFieldTextLength(0),
     mLineNumber(0)
 {
@@ -34,8 +34,8 @@ nsXBLProtoImplField::nsXBLProtoImplField(const PRUnichar* aName, const PRUnichar
 
 
 nsXBLProtoImplField::nsXBLProtoImplField(const bool aIsReadOnly)
-  : mNext(nullptr),
-    mFieldText(nullptr),
+  : mNext(nsnull),
+    mFieldText(nsnull),
     mFieldTextLength(0),
     mLineNumber(0)
 {
@@ -128,7 +128,7 @@ nsXBLProtoImplField::InstallField(nsIScriptContext* aContext,
   nsDependentString name(mName);
   if (!::JS_DefineUCProperty(cx, aBoundNode,
                              reinterpret_cast<const jschar*>(mName), 
-                             name.Length(), result, nullptr, nullptr,
+                             name.Length(), result, nsnull, nsnull,
                              mJSAttributes)) {
     return NS_ERROR_OUT_OF_MEMORY;
   }

@@ -167,7 +167,6 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
 
     private interface AwesomeBarItem {
         public void onClick();
-        public ContextMenuSubject getSubject();
     }
 
     private class AwesomeBarCursorItem implements AwesomeBarItem {
@@ -175,6 +174,10 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
 
         public AwesomeBarCursorItem(Cursor cursor) {
             mCursor = cursor;
+        }
+
+        public Cursor getCursor() {
+            return mCursor;
         }
 
         public void onClick() {
@@ -190,22 +193,6 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
             }
             listener.onUrlOpen(url);
         }
-
-        public ContextMenuSubject getSubject() {
-            // Use the history id in order to allow removing history entries
-            int id = mCursor.getInt(mCursor.getColumnIndexOrThrow(Combined.HISTORY_ID));
-
-            String keyword = null;
-            int keywordCol = mCursor.getColumnIndex(URLColumns.KEYWORD);
-            if (keywordCol != -1)
-                keyword = mCursor.getString(keywordCol);
-
-            return new ContextMenuSubject(id,
-                                          mCursor.getString(mCursor.getColumnIndexOrThrow(URLColumns.URL)),
-                                          mCursor.getBlob(mCursor.getColumnIndexOrThrow(URLColumns.FAVICON)),
-                                          mCursor.getString(mCursor.getColumnIndexOrThrow(URLColumns.TITLE)),
-                                          keyword);
-        }
     }
 
     private class AwesomeBarSearchEngineItem implements AwesomeBarItem {
@@ -219,11 +206,6 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
             AwesomeBarTabs.OnUrlOpenListener listener = getUrlListener();
             if (listener != null)
                 listener.onSearch(mSearchEngine, mSearchTerm);
-        }
-
-        public ContextMenuSubject getSubject() {
-            // Do not show context menu for search engine items
-            return null;
         }
     }
 
@@ -545,7 +527,29 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
 
         ListView list = (ListView)view;
         AdapterView.AdapterContextMenuInfo info = (AdapterView.AdapterContextMenuInfo) menuInfo;
-        subject = ((AwesomeBarItem) list.getItemAtPosition(info.position)).getSubject();
+        Object selectedItem = list.getItemAtPosition(info.position);
+
+        if (!(selectedItem instanceof AwesomeBarCursorItem)) {
+            Log.e(LOGTAG, "item at " + info.position + " is a search item");
+            return subject;
+        }
+
+        Cursor cursor = ((AwesomeBarCursorItem) selectedItem).getCursor();
+
+        // Don't show the context menu for folders
+        String keyword = null;
+        int keywordCol = cursor.getColumnIndex(URLColumns.KEYWORD);
+        if (keywordCol != -1)
+            keyword = cursor.getString(keywordCol);
+
+        // Use the history id in order to allow removing history entries
+        int id = cursor.getInt(cursor.getColumnIndexOrThrow(Combined.HISTORY_ID));
+
+        subject = new ContextMenuSubject(id,
+                                        cursor.getString(cursor.getColumnIndexOrThrow(URLColumns.URL)),
+                                        cursor.getBlob(cursor.getColumnIndexOrThrow(URLColumns.FAVICON)),
+                                        cursor.getString(cursor.getColumnIndexOrThrow(URLColumns.TITLE)),
+                                        keyword);
 
         if (subject == null)
             return subject;

@@ -71,8 +71,8 @@ public:
     NS_ABORT_IF_FALSE(IndexIsValid(), "Bad index for DOMSVGPoint!");
   }
 
-  DOMSVGPoint(const DOMSVGPoint *aPt = nullptr)
-    : mList(nullptr)
+  DOMSVGPoint(const DOMSVGPoint *aPt = nsnull)
+    : mList(nsnull)
     , mListIndex(0)
     , mIsReadonly(false)
     , mIsAnimValItem(false)
@@ -83,7 +83,7 @@ public:
   }
 
   DOMSVGPoint(float aX, float aY)
-    : mList(nullptr)
+    : mList(nsnull)
     , mListIndex(0)
     , mIsReadonly(false)
     , mIsAnimValItem(false)
@@ -93,7 +93,7 @@ public:
   }
 
   DOMSVGPoint(const gfxPoint &aPt)
-    : mList(nullptr)
+    : mList(nsnull)
     , mListIndex(0)
     , mIsReadonly(false)
     , mIsAnimValItem(false)
@@ -110,7 +110,7 @@ public:
     // unlinked us using the cycle collector code, then that has already
     // happened, and mList is null.
     if (mList) {
-      mList->mItems[mListIndex] = nullptr;
+      mList->mItems[mListIndex] = nsnull;
     }
   }
 

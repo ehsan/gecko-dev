@@ -263,7 +263,7 @@ Sanity_Child()
     mozilla::Mutex m1("dd.sanity.m1");
     m1.Lock();
     m1.Lock();
-    return NS_OK;                  // not reached
+    return 0;                  // not reached
 }
 
 nsresult
@@ -293,7 +293,7 @@ Sanity2_Child()
     m1.Lock();
     m2.Lock();
     m1.Lock();
-    return NS_OK;                  // not reached
+    return 0;                  // not reached
 }
 
 nsresult
@@ -335,7 +335,7 @@ Sanity3_Child()
 
     m4.Lock();
     m1.Lock();
-    return NS_OK;
+    return 0;
 }
 
 nsresult
@@ -367,7 +367,7 @@ Sanity4_Child()
     m1.Enter();
     m2.Lock();
     m1.Enter();
-    return NS_OK;
+    return 0;
 }
 
 nsresult
@@ -427,7 +427,7 @@ TwoThreads_Child()
     PRThread* t2 = spawn(TwoThreads_thread, (void*) 1);
     PR_JoinThread(t2);
 
-    return NS_OK;
+    return 0;
 }
 
 nsresult
@@ -486,7 +486,7 @@ ContentionNoDeadlock_Child()
     for (PRUint32 i = 0; i < ArrayLength(cndMs); ++i)
         delete cndMs[i];
 
-    return NS_OK;
+    return 0;
 }
 
 nsresult

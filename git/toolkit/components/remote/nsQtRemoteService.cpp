@@ -93,7 +93,7 @@ nsQtRemoteService::Shutdown()
     return NS_ERROR_NOT_INITIALIZED;
 
   delete mServerWindow;
-  mServerWindow = nullptr;
+  mServerWindow = nsnull;
 
   return NS_OK;
 }

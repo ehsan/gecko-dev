@@ -117,7 +117,7 @@ SwapToISupportsArray(SmartPtr<T>& aSrc,
 {
   nsCOMPtr<nsISupports>* dest = aDest.AppendElement();
 
-  T* raw = nullptr;
+  T* raw = nsnull;
   aSrc.swap(raw);
 
   nsISupports* rawSupports =
@@ -191,7 +191,7 @@ struct WorkerStructuredCloneCallbacks
       if (!JS_ReadUint32Pair(aReader, &width, &height) ||
           !JS_ReadTypedArray(aReader, &dataArray))
       {
-        return nullptr;
+        return nsnull;
       }
       MOZ_ASSERT(dataArray.isObject());
 
@@ -202,7 +202,7 @@ struct WorkerStructuredCloneCallbacks
     }
 
     Error(aCx, 0);
-    return nullptr;
+    return nsnull;
   }
 
   static JSBool
@@ -306,7 +306,7 @@ struct MainThreadWorkerStructuredCloneCallbacks
                                      &NS_GET_IID(nsIDOMFile), &wrappedFile);
         if (NS_FAILED(rv)) {
           Error(aCx, DATA_CLONE_ERR);
-          return nullptr;
+          return nsnull;
         }
 
         return JSVAL_TO_OBJECT(wrappedFile);
@@ -339,7 +339,7 @@ struct MainThreadWorkerStructuredCloneCallbacks
                                      &NS_GET_IID(nsIDOMBlob), &wrappedBlob);
         if (NS_FAILED(rv)) {
           Error(aCx, DATA_CLONE_ERR);
-          return nullptr;
+          return nsnull;
         }
 
         return JSVAL_TO_OBJECT(wrappedBlob);
@@ -347,7 +347,7 @@ struct MainThreadWorkerStructuredCloneCallbacks
     }
 
     JS_ClearPendingException(aCx);
-    return NS_DOMReadStructuredClone(aCx, aReader, aTag, aData, nullptr);
+    return NS_DOMReadStructuredClone(aCx, aReader, aTag, aData, nsnull);
   }
 
   static JSBool
@@ -402,7 +402,7 @@ struct MainThreadWorkerStructuredCloneCallbacks
     }
 
     JS_ClearPendingException(aCx);
-    return NS_DOMWriteStructuredClone(aCx, aWriter, aObj, nullptr);
+    return NS_DOMWriteStructuredClone(aCx, aWriter, aObj, nsnull);
   }
 
   static void
@@ -473,7 +473,7 @@ struct MainThreadChromeWorkerStructuredCloneCallbacks
     }
 
     JS_ClearPendingException(aCx);
-    return NS_DOMReadStructuredClone(aCx, aReader, aTag, aData, nullptr);
+    return NS_DOMReadStructuredClone(aCx, aReader, aTag, aData, nsnull);
   }
 
   static JSBool
@@ -486,7 +486,7 @@ struct MainThreadChromeWorkerStructuredCloneCallbacks
                                                         aClosure) ||
         ChromeWorkerStructuredCloneCallbacks::Write(aCx, aWriter, aObj,
                                                     aClosure) ||
-        NS_DOMWriteStructuredClone(aCx, aWriter, aObj, nullptr)) {
+        NS_DOMWriteStructuredClone(aCx, aWriter, aObj, nsnull)) {
       return true;
     }
 
@@ -769,7 +769,7 @@ public:
     JSAutoStructuredCloneBuffer buffer;
     buffer.adopt(mData, mDataByteCount);
 
-    mData = nullptr;
+    mData = nsnull;
     mDataByteCount = 0;
 
     bool mainRuntime;
@@ -936,7 +936,7 @@ public:
   {
     JSObject* target = aWorkerPrivate->IsAcceptingEvents() ?
                        aWorkerPrivate->GetJSObject() :
-                       nullptr;
+                       nsnull;
     if (target) {
       aWorkerPrivate->AssertInnerWindowIsCorrect();
     }
@@ -1081,7 +1081,7 @@ public:
                                                   "Web Worker",
                                                   aInnerWindowId))) {
         NS_WARNING("Failed to init script error!");
-        scriptError = nullptr;
+        scriptError = nsnull;
       }
     }
 
@@ -1182,7 +1182,7 @@ public:
 
     // This can fail if we're racing to terminate or cancel, should be handled
     // by the terminate or cancel code.
-    mWorkerRunnable->Dispatch(nullptr);
+    mWorkerRunnable->Dispatch(nsnull);
 
     return NS_OK;
   }
@@ -1270,7 +1270,7 @@ public:
       return false;
     }
 
-    if (NS_FAILED(timer->InitWithFuncCallback(DummyCallback, nullptr, aDelayMS,
+    if (NS_FAILED(timer->InitWithFuncCallback(DummyCallback, nsnull, aDelayMS,
                                               nsITimer::TYPE_ONE_SHOT))) {
       JS_ReportError(aCx, "Failed to start timer!");
       return false;
@@ -1285,7 +1285,7 @@ public:
   {
     if (mTimer) {
       mTimer->Cancel();
-      mTimer = nullptr;
+      mTimer = nsnull;
     }
 
     return true;
@@ -1451,7 +1451,7 @@ public:
       *static_cast<int64_t*>(mData) = JS::GetExplicitNonHeapForRuntime(rt, JsWorkerMallocSizeOf);
       *mSucceeded = true;
     } else {
-      *mSucceeded = JS::CollectRuntimeStats(rt, static_cast<JS::RuntimeStats*>(mData), nullptr);
+      *mSucceeded = JS::CollectRuntimeStats(rt, static_cast<JS::RuntimeStats*>(mData), nsnull);
     }
 
     {
@@ -1607,17 +1607,17 @@ public:
   void Disable()
   {
 #ifdef DEBUG
-    // Setting mWorkerPrivate to nullptr is safe only because we've locked the
+    // Setting mWorkerPrivate to nsnull is safe only because we've locked the
     // worker's mutex on the worker's thread, in the caller.  So we check that.
     //
     // Also, we may have already disabled the reporter (and thus set
-    // mWorkerPrivate to nullptr) due to the use of CTypes (see
+    // mWorkerPrivate to nsnull) due to the use of CTypes (see
     // ChromeWorkerScope.cpp).  That's why the NULL check is necessary.
     if (mWorkerPrivate) {
         mWorkerPrivate->mMutex.AssertCurrentThreadOwns();
     }
 #endif
-    mWorkerPrivate = nullptr;
+    mWorkerPrivate = nsnull;
   }
 };
 
@@ -1673,11 +1673,11 @@ WorkerRunnable::Dispatch(JSContext* aCx)
   bool ok;
 
   if (!aCx) {
-    ok = PreDispatch(nullptr, mWorkerPrivate);
+    ok = PreDispatch(nsnull, mWorkerPrivate);
     if (ok) {
       ok = DispatchInternal();
     }
-    PostDispatch(nullptr, mWorkerPrivate, ok);
+    PostDispatch(nsnull, mWorkerPrivate, ok);
     return ok;
   }
 
@@ -1761,7 +1761,7 @@ WorkerRunnable::Run()
 {
   JSContext* cx;
   JSObject* targetCompartmentObject;
-  nsIThreadJSContextStack* contextStack = nullptr;
+  nsIThreadJSContextStack* contextStack = nsnull;
 
   nsRefPtr<WorkerPrivate> kungFuDeathGrip;
 
@@ -1783,7 +1783,7 @@ WorkerRunnable::Run()
 
       if (NS_FAILED(contextStack->Push(cx))) {
         NS_WARNING("Failed to push context!");
-        contextStack = nullptr;
+        contextStack = nsnull;
       }
     }
   }
@@ -1794,7 +1794,7 @@ WorkerRunnable::Run()
 
   JSAutoEnterCompartment ac;
   if (targetCompartmentObject && !ac.enter(cx, targetCompartmentObject)) {
-    return NS_OK;
+    return false;
   }
 
   bool result = WorkerRun(cx, mWorkerPrivate);
@@ -2102,9 +2102,9 @@ WorkerPrivateParent<Derived>::_finalize(JSFreeOp* aFop)
   MOZ_ASSERT(!mJSObjectRooted);
 
   // Clear the JS object.
-  mJSObject = nullptr;
+  mJSObject = nsnull;
 
-  if (!TerminatePrivate(nullptr)) {
+  if (!TerminatePrivate(nsnull)) {
     NS_WARNING("Failed to terminate!");
   }
 
@@ -2463,7 +2463,7 @@ WorkerPrivate::WorkerPrivate(JSContext* aCx, JSObject* aObject,
                                      aScriptURL, aIsChromeWorker, aDomain,
                                      aWindow, aParentScriptContext, aBaseURI,
                                      aPrincipal, aDocument),
-  mJSContext(nullptr), mErrorHandlerRecursionCount(0), mNextTimeoutId(1),
+  mJSContext(nsnull), mErrorHandlerRecursionCount(0), mNextTimeoutId(1),
   mStatus(Pending), mSuspended(false), mTimerRunning(false),
   mRunningExpiredTimeouts(false), mCloseHandlerStarted(false),
   mCloseHandlerFinished(false), mMemoryReporterRunning(false)
@@ -2515,7 +2515,7 @@ WorkerPrivate::Create(JSContext* aCx, JSObject* aObj, WorkerPrivate* aParent,
     // ChromeWorker if they called the ChromeWorker constructor.
     if (aIsChromeWorker && !isChrome) {
       xpc::Throw(aCx, NS_ERROR_DOM_SECURITY_ERR);
-      return nullptr;
+      return nsnull;
     }
 
     // Chrome callers (whether ChromeWorker of Worker) always get the system
@@ -2524,7 +2524,7 @@ WorkerPrivate::Create(JSContext* aCx, JSObject* aObj, WorkerPrivate* aParent,
     if (isChrome &&
         NS_FAILED(ssm->GetSystemPrincipal(getter_AddRefs(principal)))) {
       JS_ReportError(aCx, "Could not get system principal!");
-      return nullptr;
+      return nsnull;
     }
 
     // See if we're being called from a window or from somewhere else.
@@ -2538,19 +2538,19 @@ WorkerPrivate::Create(JSContext* aCx, JSObject* aObj, WorkerPrivate* aParent,
       // access it.
       nsPIDOMWindow* outerWindow = globalWindow ?
                                    globalWindow->GetOuterWindow() :
-                                   nullptr;
-      window = outerWindow ? outerWindow->GetCurrentInnerWindow() : nullptr;
+                                   nsnull;
+      window = outerWindow ? outerWindow->GetCurrentInnerWindow() : nsnull;
       if (!window ||
           (globalWindow != window &&
            !nsContentUtils::CanCallerAccess(window))) {
         xpc::Throw(aCx, NS_ERROR_DOM_SECURITY_ERR);
-        return nullptr;
+        return nsnull;
       }
 
       scriptContext = scriptGlobal->GetContext();
       if (!scriptContext) {
         JS_ReportError(aCx, "Couldn't get script context for this worker!");
-        return nullptr;
+        return nsnull;
       }
 
       parentContext = scriptContext->GetNativeContext();
@@ -2560,7 +2560,7 @@ WorkerPrivate::Create(JSContext* aCx, JSObject* aObj, WorkerPrivate* aParent,
       document = do_QueryInterface(window->GetExtantDocument());
       if (!document) {
         JS_ReportError(aCx, "No document in this window!");
-        return nullptr;
+        return nsnull;
       }
 
       baseURI = document->GetDocBaseURI();
@@ -2570,13 +2570,13 @@ WorkerPrivate::Create(JSContext* aCx, JSObject* aObj, WorkerPrivate* aParent,
       if (!principal) {
         if (!(principal = document->NodePrincipal())) {
           JS_ReportError(aCx, "Could not get document principal!");
-          return nullptr;
+          return nsnull;
         }
 
         nsCOMPtr<nsIURI> codebase;
         if (NS_FAILED(principal->GetURI(getter_AddRefs(codebase)))) {
           JS_ReportError(aCx, "Could not determine codebase!");
-          return nullptr;
+          return nsnull;
         }
 
         NS_NAMED_LITERAL_CSTRING(file, "file");
@@ -2584,7 +2584,7 @@ WorkerPrivate::Create(JSContext* aCx, JSObject* aObj, WorkerPrivate* aParent,
         bool isFile;
         if (NS_FAILED(codebase->SchemeIs(file.get(), &isFile))) {
           JS_ReportError(aCx, "Could not determine if codebase is file!");
-          return nullptr;
+          return nsnull;
         }
 
         if (isFile) {
@@ -2596,12 +2596,12 @@ WorkerPrivate::Create(JSContext* aCx, JSObject* aObj, WorkerPrivate* aParent,
             do_GetService(THIRDPARTYUTIL_CONTRACTID);
           if (!thirdPartyUtil) {
             JS_ReportError(aCx, "Could not get third party helper service!");
-            return nullptr;
+            return nsnull;
           }
 
           if (NS_FAILED(thirdPartyUtil->GetBaseDomain(codebase, domain))) {
             JS_ReportError(aCx, "Could not get domain!");
-            return nullptr;
+            return nsnull;
           }
         }
       }
@@ -2610,16 +2610,16 @@ WorkerPrivate::Create(JSContext* aCx, JSObject* aObj, WorkerPrivate* aParent,
       // Not a window
       NS_ASSERTION(isChrome, "Should be chrome only!");
 
-      parentContext = nullptr;
+      parentContext = nsnull;
 
       // We're being created outside of a window. Need to figure out the script
       // that is creating us in order for us to use relative URIs later on.
       JSScript *script;
-      if (JS_DescribeScriptedCaller(aCx, &script, nullptr)) {
+      if (JS_DescribeScriptedCaller(aCx, &script, nsnull)) {
         if (NS_FAILED(NS_NewURI(getter_AddRefs(baseURI),
                                 JS_GetScriptFilename(aCx, script)))) {
           JS_ReportError(aCx, "Failed to construct base URI!");
-          return nullptr;
+          return nsnull;
         }
       }
     }
@@ -2628,7 +2628,7 @@ WorkerPrivate::Create(JSContext* aCx, JSObject* aObj, WorkerPrivate* aParent,
 
     if (!isChrome && domain.IsEmpty()) {
       NS_ERROR("Must be chrome or have an domain!");
-      return nullptr;
+      return nsnull;
     }
   }
 
@@ -2636,7 +2636,7 @@ WorkerPrivate::Create(JSContext* aCx, JSObject* aObj, WorkerPrivate* aParent,
   const jschar* urlChars = JS_GetStringCharsZAndLength(aCx, aScriptURL,
                                                        &urlLength);
   if (!urlChars) {
-    return nullptr;
+    return nsnull;
   }
 
   nsDependentString scriptURL(urlChars, urlLength);
@@ -2651,7 +2651,7 @@ WorkerPrivate::Create(JSContext* aCx, JSObject* aObj, WorkerPrivate* aParent,
 
   nsRefPtr<CompileScriptRunnable> compiler = new CompileScriptRunnable(worker);
   if (!compiler->Dispatch(aCx)) {
-    return nullptr;
+    return nsnull;
   }
 
   return worker.forget();
@@ -2705,7 +2705,7 @@ WorkerPrivate::DoRunLoop(JSContext* aCx)
 
   if (NS_FAILED(NS_RegisterMemoryMultiReporter(mMemoryReporter))) {
     NS_WARNING("Failed to register memory reporter!");
-    mMemoryReporter = nullptr;
+    mMemoryReporter = nsnull;
   }
 
   for (;;) {
@@ -2736,7 +2736,7 @@ WorkerPrivate::DoRunLoop(JSContext* aCx)
 
           if (NS_SUCCEEDED(gcTimer->SetTarget(normalGCEventTarget)) &&
               NS_SUCCEEDED(gcTimer->InitWithFuncCallback(
-                                             DummyCallback, nullptr,
+                                             DummyCallback, nsnull,
                                              NORMAL_GC_TIMER_DELAY_MS,
                                              nsITimer::TYPE_REPEATING_SLACK))) {
             normalGCTimerRunning = true;
@@ -2779,7 +2779,7 @@ WorkerPrivate::DoRunLoop(JSContext* aCx)
     if (scheduleIdleGC) {
       if (NS_SUCCEEDED(gcTimer->SetTarget(idleGCEventTarget)) &&
           NS_SUCCEEDED(gcTimer->InitWithFuncCallback(
-                                                    DummyCallback, nullptr,
+                                                    DummyCallback, nsnull,
                                                     IDLE_GC_TIMER_DELAY_MS,
                                                     nsITimer::TYPE_ONE_SHOT))) {
       }
@@ -2826,7 +2826,7 @@ WorkerPrivate::DoRunLoop(JSContext* aCx)
           if (NS_FAILED(NS_UnregisterMemoryMultiReporter(mMemoryReporter))) {
             NS_WARNING("Failed to unregister memory reporter!");
           }
-          mMemoryReporter = nullptr;
+          mMemoryReporter = nsnull;
         }
 
         StopAcceptingEvents();
@@ -2888,7 +2888,7 @@ WorkerPrivate::ScheduleDeletion(bool aWasPending)
   nsIThread* currentThread;
   if (aWasPending) {
     // Don't want to close down this thread since we never got to run!
-    currentThread = nullptr;
+    currentThread = nsnull;
   }
   else {
     currentThread = NS_GetCurrentThread();
@@ -2899,7 +2899,7 @@ WorkerPrivate::ScheduleDeletion(bool aWasPending)
   if (parent) {
     nsRefPtr<WorkerFinishedRunnable> runnable =
       new WorkerFinishedRunnable(parent, this, currentThread);
-    if (!runnable->Dispatch(nullptr)) {
+    if (!runnable->Dispatch(nsnull)) {
       NS_WARNING("Failed to dispatch runnable!");
     }
   }
@@ -2927,7 +2927,7 @@ WorkerPrivate::BlockAndCollectRuntimeStats(bool aIsQuick, void* aData)
 
   nsRefPtr<CollectRuntimeStatsRunnable> runnable =
     new CollectRuntimeStatsRunnable(this, aIsQuick, aData, &succeeded);
-  if (!runnable->Dispatch(nullptr)) {
+  if (!runnable->Dispatch(nsnull)) {
     NS_WARNING("Failed to dispatch runnable!");
     succeeded = false;
   }
@@ -3270,7 +3270,7 @@ WorkerPrivate::CancelAllTimeouts(JSContext* aCx)
   }
 #endif
 
-  mTimer = nullptr;
+  mTimer = nsnull;
 }
 
 PRUint32
@@ -3331,7 +3331,7 @@ WorkerPrivate::RunSyncLoop(JSContext* aCx, PRUint32 aSyncLoopKey)
       mSyncQueues.RemoveElementAt(aSyncLoopKey);
 
 #ifdef DEBUG
-      syncQueue = nullptr;
+      syncQueue = nsnull;
 #endif
 
       return result;
@@ -3575,7 +3575,7 @@ WorkerPrivate::ReportError(JSContext* aCx, const char* aMessage,
                      !mCloseHandlerStarted &&
                      errorNumber != JSMSG_OUT_OF_MEMORY;
 
-  if (!ReportErrorRunnable::ReportError(aCx, this, fireAtScope, nullptr, message,
+  if (!ReportErrorRunnable::ReportError(aCx, this, fireAtScope, nsnull, message,
                                         filename, line, lineNumber,
                                         columnNumber, flags, errorNumber, 0)) {
     JS_ReportPendingException(aCx);
@@ -3798,7 +3798,7 @@ WorkerPrivate::RunExpiredTimeouts(JSContext* aCx)
            !JS_EvaluateUCScriptForPrincipals(aCx, global, principal, string,
                                              stringLength,
                                              info->mFilename.get(),
-                                             info->mLineNumber, nullptr)) &&
+                                             info->mLineNumber, nsnull)) &&
           !JS_ReportPendingException(aCx)) {
         retval = false;
         break;
@@ -3881,7 +3881,7 @@ WorkerPrivate::RescheduleTimeoutTimer(JSContext* aCx)
     (mTimeouts[0]->mTargetTime - TimeStamp::Now()).ToMilliseconds();
   PRUint32 delay = delta > 0 ? NS_MIN(delta, double(PR_UINT32_MAX)) : 0;
 
-  nsresult rv = mTimer->InitWithFuncCallback(DummyCallback, nullptr, delay,
+  nsresult rv = mTimer->InitWithFuncCallback(DummyCallback, nsnull, delay,
                                              nsITimer::TYPE_ONE_SHOT);
   if (NS_FAILED(rv)) {
     JS_ReportError(aCx, "Failed to start timer!");

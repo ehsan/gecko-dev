@@ -529,13 +529,13 @@ class ContextState {
 public:
   ContextState(const PRUnichar* aText, PRUint32 aLength) {
     mUniText = aText;
-    mText = nullptr;
+    mText = nsnull;
     mLength = aLength;
     Init();
   }
 
   ContextState(const PRUint8* aText, PRUint32 aLength) {
-    mUniText = nullptr;
+    mUniText = nsnull;
     mText = aText;
     mLength = aLength;
     Init();

@@ -45,7 +45,7 @@
 #include "hyphen.h"
 
 nsHyphenator::nsHyphenator(nsIURI *aURI)
-  : mDict(nullptr)
+  : mDict(nsnull)
 {
   nsCString uriSpec;
   nsresult rv = aURI->GetSpec(uriSpec);
@@ -62,16 +62,16 @@ nsHyphenator::nsHyphenator(nsIURI *aURI)
 
 nsHyphenator::~nsHyphenator()
 {
-  if (mDict != nullptr) {
+  if (mDict != nsnull) {
     hnj_hyphen_free((HyphenDict*)mDict);
-    mDict = nullptr;
+    mDict = nsnull;
   }
 }
 
 bool
 nsHyphenator::IsValid()
 {
-  return (mDict != nullptr);
+  return (mDict != nsnull);
 }
 
 nsresult
@@ -117,12 +117,12 @@ nsHyphenator::Hyphenate(const nsAString& aString,
                                  wordLimit - wordStart);
       nsAutoTArray<char,200> utf8hyphens;
       utf8hyphens.SetLength(utf8.Length() + 5);
-      char **rep = nullptr;
-      int *pos = nullptr;
-      int *cut = nullptr;
+      char **rep = nsnull;
+      int *pos = nsnull;
+      int *cut = nsnull;
       int err = hnj_hyphen_hyphenate2((HyphenDict*)mDict,
                                       utf8.BeginReading(), utf8.Length(),
-                                      utf8hyphens.Elements(), nullptr,
+                                      utf8hyphens.Elements(), nsnull,
                                       &rep, &pos, &cut);
       if (!err) {
         // Surprisingly, hnj_hyphen_hyphenate2 converts the 'hyphens' buffer

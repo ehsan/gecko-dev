@@ -30,17 +30,17 @@ public:
   /**
    * @copydoc nsBaseHashtable::Get
    * @param pData This is an XPCOM getter, so pData is already_addrefed.
-   *   If the key doesn't exist, pData will be set to nullptr.
+   *   If the key doesn't exist, pData will be set to nsnull.
    */
   bool Get(KeyType aKey, UserDataType* pData) const;
 
   /**
    * Gets a weak reference to the hashtable entry.
-   * @param aFound If not nullptr, will be set to true if the entry is found,
+   * @param aFound If not nsnull, will be set to true if the entry is found,
    *               to false otherwise.
-   * @return The entry, or nullptr if not found. Do not release this pointer!
+   * @return The entry, or nsnull if not found. Do not release this pointer!
    */
-  RefPtr* GetWeak(KeyType aKey, bool* aFound = nullptr) const;
+  RefPtr* GetWeak(KeyType aKey, bool* aFound = nsnull) const;
 };
 
 /**
@@ -61,7 +61,7 @@ public:
   /**
    * @copydoc nsBaseHashtable::Get
    * @param pData This is an XPCOM getter, so pData is already_addrefed.
-   *   If the key doesn't exist, pData will be set to nullptr.
+   *   If the key doesn't exist, pData will be set to nsnull.
    */
   bool Get(KeyType aKey, UserDataType* pData) const;
 
@@ -97,7 +97,7 @@ nsRefPtrHashtable<KeyClass,RefPtr>::Get
   // if the key doesn't exist, set *pRefPtr to null
   // so that it is a valid XPCOM getter
   if (pRefPtr)
-    *pRefPtr = nullptr;
+    *pRefPtr = nsnull;
 
   return false;
 }
@@ -117,10 +117,10 @@ nsRefPtrHashtable<KeyClass,RefPtr>::GetWeak
     return ent->mData;
   }
 
-  // Key does not exist, return nullptr and set aFound to false
+  // Key does not exist, return nsnull and set aFound to false
   if (aFound)
     *aFound = false;
-  return nullptr;
+  return nsnull;
 }
 
 //
@@ -153,7 +153,7 @@ nsRefPtrHashtableMT<KeyClass,RefPtr>::Get
   // if the key doesn't exist, set *pRefPtr to null
   // so that it is a valid XPCOM getter
   if (pRefPtr)
-    *pRefPtr = nullptr;
+    *pRefPtr = nsnull;
 
   PR_Unlock(this->mLock);
 

@@ -293,7 +293,7 @@ public:
    */
   void ClearOptionalBreakPosition() {
     SetFlag(LL_NEEDBACKUP, false);
-    mLastOptionalBreakContent = nullptr;
+    mLastOptionalBreakContent = nsnull;
     mLastOptionalBreakContentOffset = -1;
     mLastOptionalBreakPriority = eNoBreak;
   }
@@ -325,7 +325,7 @@ public:
     mForceBreakContent = aContent;
     mForceBreakContentOffset = aOffset;
   }
-  bool HaveForcedBreakPosition() { return mForceBreakContent != nullptr; }
+  bool HaveForcedBreakPosition() { return mForceBreakContent != nsnull; }
   PRInt32 GetForcedBreakPosition(nsIContent* aContent) {
     return mForceBreakContent == aContent ? mForceBreakContentOffset : -1;
   }
@@ -340,10 +340,10 @@ public:
     return mBlockReflowState;
   }
   const nsLineList::iterator* GetLine() const {
-    return GetFlag(LL_GOTLINEBOX) ? &mLineBox : nullptr;
+    return GetFlag(LL_GOTLINEBOX) ? &mLineBox : nsnull;
   }
   nsLineList::iterator* GetLine() {
-    return GetFlag(LL_GOTLINEBOX) ? &mLineBox : nullptr;
+    return GetFlag(LL_GOTLINEBOX) ? &mLineBox : nsnull;
   }
   
   /**
@@ -481,7 +481,7 @@ protected:
     nscoord* mBaseline;
 
     void AppendFrame(PerFrameData* pfd) {
-      if (nullptr == mLastFrame) {
+      if (nsnull == mLastFrame) {
         mFirstFrame = pfd;
       }
       else {

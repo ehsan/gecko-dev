@@ -64,7 +64,7 @@ using namespace mozilla::gfx;
 #endif
 
 static QPaintEngine::Type sDefaultQtPaintEngineType = QPaintEngine::Raster;
-gfxFontconfigUtils *gfxQtPlatform::sFontconfigUtils = nullptr;
+gfxFontconfigUtils *gfxQtPlatform::sFontconfigUtils = nsnull;
 static cairo_user_data_key_t cairo_qt_pixmap_key;
 static void do_qt_pixmap_unref (void *data)
 {
@@ -144,7 +144,7 @@ gfxQtPlatform::gfxQtPlatform()
 gfxQtPlatform::~gfxQtPlatform()
 {
     gfxFontconfigUtils::Shutdown();
-    sFontconfigUtils = nullptr;
+    sFontconfigUtils = nsnull;
 
 #ifdef MOZ_PANGO
     gfxPangoFontGroup::Shutdown();
@@ -181,11 +181,11 @@ gfxQtPlatform::GetXDisplay(QWidget* aWindow)
 #ifdef Q_WS_X11
   return aWindow ? aWindow->x11Info().display() : QX11Info::display();
 #else
-  return nullptr;
+  return nsnull;
 #endif
 #else
   return (Display*)(qApp->platformNativeInterface()->
-    nativeResourceForWindow("display", aWindow ? aWindow->windowHandle() : nullptr));
+    nativeResourceForWindow("display", aWindow ? aWindow->windowHandle() : nsnull));
 #endif
 }
 
@@ -196,13 +196,13 @@ gfxQtPlatform::GetXScreen(QWidget* aWindow)
 #ifdef Q_WS_X11
   return ScreenOfDisplay(GetXDisplay(aWindow), aWindow ? aWindow->x11Info().screen() : QX11Info().screen());
 #else
-  return nullptr;
+  return nsnull;
 #endif
 #else
   return ScreenOfDisplay(GetXDisplay(aWindow),
                          (int)qApp->platformNativeInterface()->
                            nativeResourceForWindow("screen",
-                             aWindow ? aWindow->windowHandle() : nullptr));
+                             aWindow ? aWindow->windowHandle() : nsnull));
 #endif
 }
 #endif
@@ -211,7 +211,7 @@ already_AddRefed<gfxASurface>
 gfxQtPlatform::CreateOffscreenSurface(const gfxIntSize& size,
                                       gfxASurface::gfxContentType contentType)
 {
-    nsRefPtr<gfxASurface> newSurface = nullptr;
+    nsRefPtr<gfxASurface> newSurface = nsnull;
 
     gfxASurface::gfxImageFormat imageFormat = OptimalFormatForContent(contentType);
 
@@ -504,7 +504,7 @@ gfxQtPlatform::IsFontFormatSupported(nsIURI *aFontURI, PRUint32 aFormatFlags)
 qcms_profile*
 gfxQtPlatform::GetPlatformCMSOutputProfile()
 {
-    return nullptr;
+    return nsnull;
 }
 
 #ifndef MOZ_PANGO
@@ -522,7 +522,7 @@ gfxQtPlatform::FindFontFamily(const nsAString& aName)
 
     nsRefPtr<FontFamily> ff;
     if (!gPlatformFonts->Get(name, &ff)) {
-        return nullptr;
+        return nsnull;
     }
     return ff.get();
 }
@@ -532,7 +532,7 @@ gfxQtPlatform::FindFontEntry(const nsAString& aName, const gfxFontStyle& aFontSt
 {
     nsRefPtr<FontFamily> ff = FindFontFamily(aName);
     if (!ff)
-        return nullptr;
+        return nsnull;
 
     return ff->FindFontEntry(aFontStyle);
 }
@@ -551,15 +551,15 @@ already_AddRefed<gfxFont>
 gfxQtPlatform::FindFontForChar(PRUint32 aCh, gfxFont *aFont)
 {
     if (!gPlatformFonts || !gCodepointsWithNoFonts)
-        return nullptr;
+        return nsnull;
 
     // is codepoint with no matching font? return null immediately
     if (gCodepointsWithNoFonts->test(aCh)) {
-        return nullptr;
+        return nsnull;
     }
 
     GlobalFontMatch data(aCh, GetScriptCode(aCh),
-                         (aFont ? aFont->GetStyle() : nullptr));
+                         (aFont ? aFont->GetStyle() : nsnull));
 
     // find fonts that support the character
     gPlatformFonts->Enumerate(FindFontForCharProc, &data);
@@ -575,7 +575,7 @@ gfxQtPlatform::FindFontForChar(PRUint32 aCh, gfxFont *aFont)
     // no match? add to set of non-matching codepoints
     gCodepointsWithNoFonts->set(aCh);
 
-    return nullptr;
+    return nsnull;
 }
 
 bool

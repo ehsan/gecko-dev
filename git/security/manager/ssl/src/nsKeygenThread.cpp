@@ -24,17 +24,17 @@ nsKeygenThread::nsKeygenThread()
  keygenReady(false),
  statusDialogClosed(false),
  alreadyReceivedParams(false),
- privateKey(nullptr),
- publicKey(nullptr),
- slot(nullptr),
+ privateKey(nsnull),
+ publicKey(nsnull),
+ slot(nsnull),
  flags(0),
- altSlot(nullptr),
+ altSlot(nsnull),
  altFlags(0),
- usedSlot(nullptr),
+ usedSlot(nsnull),
  keyGenMechanism(0),
- params(nullptr),
- wincx(nullptr),
- threadHandle(nullptr)
+ params(nsnull),
+ wincx(nsnull),
+ threadHandle(nsnull)
 {
 }
 
@@ -66,9 +66,9 @@ void nsKeygenThread::SetParams(
  
     if (!alreadyReceivedParams) {
       alreadyReceivedParams = true;
-      slot = (a_slot) ? PK11_ReferenceSlot(a_slot) : nullptr;
+      slot = (a_slot) ? PK11_ReferenceSlot(a_slot) : nsnull;
       flags = a_flags;
-      altSlot = (a_alternative_slot) ? PK11_ReferenceSlot(a_alternative_slot) : nullptr;
+      altSlot = (a_alternative_slot) ? PK11_ReferenceSlot(a_alternative_slot) : nsnull;
       altFlags = a_alternative_flags;
       keyGenMechanism = a_keyGenMechanism;
       params = a_params;
@@ -143,7 +143,7 @@ nsresult nsKeygenThread::StartKeyGeneration(nsIObserver* aObserver)
     threadHandle = PR_CreateThread(PR_USER_THREAD, nsKeygenThreadRunner, static_cast<void*>(this), 
       PR_PRIORITY_NORMAL, PR_LOCAL_THREAD, PR_JOINABLE_THREAD, 0);
 
-    // bool thread_started_ok = (threadHandle != nullptr);
+    // bool thread_started_ok = (threadHandle != nsnull);
     // we might want to return "thread started ok" to caller in the future
     NS_ASSERTION(threadHandle, "Could not create nsKeygenThreadRunner thread\n");
   
@@ -231,7 +231,7 @@ void nsKeygenThread::Run(void)
     if (!statusDialogClosed && mNotifyObserver)
       notifyObserver = mNotifyObserver;
 
-    mNotifyObserver = nullptr;
+    mNotifyObserver = nsnull;
   }
 
   if (notifyObserver) {
@@ -247,7 +247,7 @@ void nsKeygenThread::Join()
     return;
   
   PR_JoinThread(threadHandle);
-  threadHandle = nullptr;
+  threadHandle = nsnull;
 
   return;
 }

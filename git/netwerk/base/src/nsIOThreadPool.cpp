@@ -15,7 +15,7 @@
 //
 // NSPR_LOG_MODULES=nsIOThreadPool:5
 //
-static PRLogModuleInfo *gIOThreadPoolLog = nullptr;
+static PRLogModuleInfo *gIOThreadPoolLog = nsnull;
 #endif
 #define LOG(args) PR_LOG(gIOThreadPoolLog, PR_LOG_DEBUG, args)
 

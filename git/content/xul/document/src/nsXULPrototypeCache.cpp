@@ -55,8 +55,8 @@ DisableXULCacheChangedCallback(const char* aPref, void* aClosure)
 
 //----------------------------------------------------------------------
 
-StartupCache*   nsXULPrototypeCache::gStartupCache = nullptr;
-nsXULPrototypeCache*  nsXULPrototypeCache::sInstance = nullptr;
+StartupCache*   nsXULPrototypeCache::gStartupCache = nsnull;
+nsXULPrototypeCache*  nsXULPrototypeCache::sInstance = nsnull;
 
 
 nsXULPrototypeCache::nsXULPrototypeCache()
@@ -142,24 +142,24 @@ nsXULPrototypeCache::GetPrototype(nsIURI* aURI)
 
     nsresult rv = BeginCaching(aURI);
     if (NS_FAILED(rv))
-        return nullptr;
+        return nsnull;
 
     // No prototype in XUL memory cache. Spin up the cache Service.
     nsCOMPtr<nsIObjectInputStream> ois;
     rv = GetInputStream(aURI, getter_AddRefs(ois));
     if (NS_FAILED(rv))
-        return nullptr;
+        return nsnull;
     
     nsRefPtr<nsXULPrototypeDocument> newProto;
     rv = NS_NewXULPrototypeDocument(getter_AddRefs(newProto));
     if (NS_FAILED(rv))
-        return nullptr;
+        return nsnull;
     
     rv = newProto->Read(ois);
     if (NS_SUCCEEDED(rv)) {
         rv = PutPrototype(newProto);
     } else {
-        newProto = nullptr;
+        newProto = nsnull;
     }
     
     mInputStreamTable.Remove(aURI);
@@ -193,7 +193,7 @@ nsXULPrototypeCache::GetScript(nsIURI* aURI)
 {
     CacheScriptEntry entry;
     if (!mScriptTable.Get(aURI, &entry)) {
-        return nullptr;
+        return nsnull;
     }
     return entry.mScriptObject;
 }
@@ -223,7 +223,7 @@ nsXULPrototypeCache::PutScript(nsIURI* aURI, JSScript* aScriptObject)
         NS_WARNING(message.get());
 #endif
         // Reuse the callback used for enumeration in FlushScripts
-        ReleaseScriptObjectCallback(aURI, existingEntry, nullptr);
+        ReleaseScriptObjectCallback(aURI, existingEntry, nsnull);
     }
 
     CacheScriptEntry entry = {aScriptObject};
@@ -246,7 +246,7 @@ nsXULPrototypeCache::FlushScripts()
 {
     // This callback will unlock each object so it can once again be gc'd.
     // XXX - this might be slow - we fetch the runtime each and every object.
-    mScriptTable.Enumerate(ReleaseScriptObjectCallback, nullptr);
+    mScriptTable.Enumerate(ReleaseScriptObjectCallback, nsnull);
 }
 
 
@@ -304,15 +304,15 @@ void
 nsXULPrototypeCache::FlushSkinFiles()
 {
   // Flush out skin XBL files from the cache.
-  mXBLDocTable.Enumerate(FlushSkinXBL, nullptr);
+  mXBLDocTable.Enumerate(FlushSkinXBL, nsnull);
 
   // Now flush out our skin stylesheets from the cache.
-  mStyleSheetTable.Enumerate(FlushSkinSheets, nullptr);
+  mStyleSheetTable.Enumerate(FlushSkinSheets, nsnull);
 
   // Iterate over all the remaining XBL and make sure cached
   // scoped skin stylesheets are flushed and refetched by the
   // prototype bindings.
-  mXBLDocTable.Enumerate(FlushScopedSkinStylesheets, nullptr);
+  mXBLDocTable.Enumerate(FlushScopedSkinStylesheets, nsnull);
 }
 
 
@@ -483,7 +483,7 @@ nsXULPrototypeCache::FinishOutputStream(nsIURI* uri)
 nsresult
 nsXULPrototypeCache::HasData(nsIURI* uri, bool* exists)
 {
-    if (mOutputStreamTable.Get(uri, nullptr)) {
+    if (mOutputStreamTable.Get(uri, nsnull)) {
         *exists = true;
         return NS_OK;
     }
@@ -533,7 +533,7 @@ CachePrefChangedCallback(const char* aPref, void* aClosure)
 nsresult
 nsXULPrototypeCache::BeginCaching(nsIURI* aURI)
 {
-    nsresult rv, tmp;
+    nsresult rv;
 
     nsCAutoString path;
     aURI->GetPath(path);
@@ -606,10 +606,7 @@ nsXULPrototypeCache::BeginCaching(nsIURI* aURI)
     if (NS_SUCCEEDED(rv)) {
         buf.forget();
         rv = objectInput->ReadCString(fileLocale);
-        tmp = objectInput->ReadCString(fileChromePath);
-        if (NS_FAILED(tmp)) {
-          rv = tmp;
-        }
+        rv |= objectInput->ReadCString(fileChromePath);
         if (NS_FAILED(rv) ||
             (!fileChromePath.Equals(chromePath) ||
              !fileLocale.Equals(locale))) {
@@ -633,18 +630,9 @@ nsXULPrototypeCache::BeginCaching(nsIURI* aURI)
                                                  false);
         if (NS_SUCCEEDED(rv)) {
             rv = objectOutput->WriteStringZ(locale.get());
-            tmp = objectOutput->WriteStringZ(chromePath.get());
-            if (NS_FAILED(tmp)) {
-              rv = tmp;
-            }
-            tmp = objectOutput->Close();
-            if (NS_FAILED(tmp)) {
-              rv = tmp;
-            }
-            tmp = storageStream->NewInputStream(0, getter_AddRefs(inputStream));
-            if (NS_FAILED(tmp)) {
-              rv = tmp;
-            }
+            rv |= objectOutput->WriteStringZ(chromePath.get());
+            rv |= objectOutput->Close();
+            rv |= storageStream->NewInputStream(0, getter_AddRefs(inputStream));
         }
         if (NS_SUCCEEDED(rv))
             rv = inputStream->Available(&len);

@@ -57,7 +57,7 @@ protected:
                                         PRInt32 *aStatus, 
                                         nsAString & aSuggestedDriverVersion, 
                                         const nsTArray<GfxDriverInfo>& aDriverInfo, 
-                                        OperatingSystem* aOS = nullptr);
+                                        OperatingSystem* aOS = nsnull);
   virtual const nsTArray<GfxDriverInfo>& GetGfxDriverInfo();
 
 private:

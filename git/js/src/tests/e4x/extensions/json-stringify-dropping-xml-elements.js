@@ -1,4 +1,3 @@
-// |reftest| pref(javascript.options.xml.content,true)
 // Ported from dom/src/json/test/unit/test_dropping_elements_in_stringify.js
 
 assertEq(JSON.stringify({foo: 123, bar: <x><y></y></x>, baz: 123}),

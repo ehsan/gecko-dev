@@ -37,7 +37,7 @@ int WINAPI WinMain(HINSTANCE inst,
     {	//  Needed to scope all nsCOMPtr within XPCOM Init and Shutdown
       nsresult rv;
       nsCOMPtr<nsIServiceManager> servMan;
-      rv = NS_InitXPCOM2(getter_AddRefs(servMan), nullptr, nullptr);
+      rv = NS_InitXPCOM2(getter_AddRefs(servMan), nsnull, nsnull);
       if(NS_FAILED(rv))
       {
         ErrorBox("Failed to initialize xpcom.");
@@ -46,7 +46,7 @@ int WINAPI WinMain(HINSTANCE inst,
       
       nsCOMPtr<nsIComponentRegistrar> registrar = do_QueryInterface(servMan);
       NS_ASSERTION(registrar, "Null nsIComponentRegistrar");
-      registrar->AutoRegister(nullptr);
+      registrar->AutoRegister(nsnull);
       
       nsCOMPtr<nsINativeApp> nativeAppService(do_GetService(kNativeAppCID, &rv));
 
@@ -88,12 +88,12 @@ int WINAPI WinMain(HINSTANCE inst,
           return 0;
         } 
       
-      eventLoop->Run(nullptr, nullptr, nullptr, &retCode);
-      eventLoop = nullptr; // Clear out before Shutting down XPCOM
+      eventLoop->Run(nsnull, nsnull, nsnull, &retCode);
+      eventLoop = nsnull; // Clear out before Shutting down XPCOM
       
       InfoBox("Hello World app is out of loop");
     }
-	NS_ShutdownXPCOM(nullptr);
+	NS_ShutdownXPCOM(nsnull);
 	InfoBox("Hello World app is exiting");
 	return retCode;
 }

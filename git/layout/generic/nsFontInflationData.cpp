@@ -274,7 +274,7 @@ nsFontInflationData::FindEdgeInflatableFrameIn(nsIFrame* aFrame,
     }
   }
 
-  return nullptr;
+  return nsnull;
 }
 
 void

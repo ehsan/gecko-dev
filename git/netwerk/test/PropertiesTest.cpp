@@ -35,15 +35,15 @@ main(int argc, char* argv[])
   nsresult ret;
 
   nsCOMPtr<nsIServiceManager> servMan;
-  NS_InitXPCOM2(getter_AddRefs(servMan), nullptr, nullptr);
+  NS_InitXPCOM2(getter_AddRefs(servMan), nsnull, nsnull);
 
-  nsIInputStream* in = nullptr;
+  nsIInputStream* in = nsnull;
 
   nsCOMPtr<nsIIOService> service(do_GetService(kIOServiceCID, &ret));
   if (NS_FAILED(ret)) return ret;
 
-  nsIChannel *channel = nullptr;
-  ret = service->NewChannel(NS_LITERAL_CSTRING(TEST_URL), nullptr, nullptr, &channel);
+  nsIChannel *channel = nsnull;
+  ret = service->NewChannel(NS_LITERAL_CSTRING(TEST_URL), nsnull, nsnull, &channel);
   if (NS_FAILED(ret)) return ret;
 
   ret = channel->Open(&in);

@@ -139,7 +139,7 @@ public:
 
   nsIAtom* GetPrefix() const
   {
-    return IsAtom() ? nullptr : NodeInfo()->GetPrefixAtom();
+    return IsAtom() ? nsnull : NodeInfo()->GetPrefixAtom();
   }
 
   bool QualifiedNameEquals(const nsAString& aName) const

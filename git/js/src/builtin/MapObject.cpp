@@ -987,7 +987,7 @@ MapObject::construct(JSContext *cx, unsigned argc, Value *vp)
             if (!pairobj)
                 return false;
 
-            RootedValue key(cx);
+            Value key;
             if (!pairobj->getElement(cx, 0, &key))
                 return false;
             HashableValue hkey;
@@ -996,7 +996,7 @@ MapObject::construct(JSContext *cx, unsigned argc, Value *vp)
 
             HashableValue::AutoRooter hkeyRoot(cx, &hkey);
 
-            RootedValue val(cx);
+            Value val;
             if (!pairobj->getElement(cx, 1, &val))
                 return false;
 
@@ -1058,9 +1058,8 @@ MapObject::get_impl(JSContext *cx, CallArgs args)
 
     ValueMap &map = extract(args);
     ARG0_KEY(cx, args, key);
-
     if (ValueMap::Entry *p = map.get(key))
-        args.rval().set(p->value);
+        args.rval() = p->value;
     else
         args.rval().setUndefined();
     return true;
@@ -1280,7 +1279,7 @@ SetIteratorObject::next_impl(JSContext *cx, CallArgs args)
         return js_ThrowStopIteration(cx);
     }
 
-    args.rval().set(range->front().get());
+    args.rval() = range->front().get();
     range->popFront();
     return true;
 }

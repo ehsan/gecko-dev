@@ -76,9 +76,9 @@ BasicImageLayer::GetAndPaintCurrentImage(gfxContext* aContext,
                                          Layer* aMaskLayer)
 {
   if (!mContainer)
-    return nullptr;
+    return nsnull;
 
-  mContainer->SetImageFactory(mManager->IsCompositingCheap() ? nullptr : BasicManager()->GetImageFactory());
+  mContainer->SetImageFactory(mManager->IsCompositingCheap() ? nsnull : BasicManager()->GetImageFactory());
 
   nsRefPtr<gfxASurface> surface;
   AutoLockImage autoLock(mContainer, getter_AddRefs(surface));
@@ -86,12 +86,12 @@ BasicImageLayer::GetAndPaintCurrentImage(gfxContext* aContext,
   gfxIntSize size = mSize = autoLock.GetSize();
 
   if (!surface || surface->CairoStatus()) {
-    return nullptr;
+    return nsnull;
   }
 
   nsRefPtr<gfxPattern> pat = new gfxPattern(surface);
   if (!pat) {
-    return nullptr;
+    return nsnull;
   }
 
   pat->SetFilter(mFilter);
@@ -275,7 +275,7 @@ BasicShadowableImageLayer::Paint(gfxContext* aContext, Layer* aMaskLayer)
 
   if (aMaskLayer) {
     static_cast<BasicImplData*>(aMaskLayer->ImplData())
-      ->Paint(aContext, nullptr);
+      ->Paint(aContext, nsnull);
   }
 
   if (image->GetFormat() == Image::SHARED_TEXTURE &&
@@ -349,7 +349,7 @@ BasicShadowableImageLayer::Paint(gfxContext* aContext, Layer* aMaskLayer)
 
   gfxIntSize oldSize = mSize;
   nsRefPtr<gfxPattern> pat = GetAndPaintCurrentImage
-    (aContext, GetEffectiveOpacity(), nullptr);
+    (aContext, GetEffectiveOpacity(), nsnull);
   if (!pat)
     return;
 
@@ -378,7 +378,7 @@ BasicShadowableImageLayer::Paint(gfxContext* aContext, Layer* aMaskLayer)
   tmpCtx->SetOperator(gfxContext::OPERATOR_SOURCE);
   PaintContext(pat,
                nsIntRegion(nsIntRect(0, 0, mSize.width, mSize.height)),
-               1.0, tmpCtx, nullptr);
+               1.0, tmpCtx, nsnull);
 
   BasicManager()->PaintedImage(BasicManager()->Hold(this),
                                mBackBuffer);

@@ -18,8 +18,8 @@
 #include "gfxPattern.h"
 #include "nsTArray.h"
 #include "nsThreadUtils.h"
-#include "LayersTypes.h"
-#include "FrameMetrics.h"
+#include "nsStyleAnimation.h"
+#include "LayersBackend.h"
 #include "mozilla/gfx/2D.h"
 #include "mozilla/TimeStamp.h"
 
@@ -44,8 +44,14 @@ namespace gl {
 class GLContext;
 }
 
+namespace css {
+class ComputedTimingFunction;
+}
+
 namespace layers {
 
+class Animation;
+class CommonLayerAttributes;
 class Layer;
 class ThebesLayer;
 class ContainerLayer;
@@ -61,6 +67,75 @@ class ShadowableLayer;
 class ShadowLayerForwarder;
 class ShadowLayerManager;
 class SpecificLayerAttributes;
+
+/**
+ * The viewport and displayport metrics for the painted frame at the
+ * time of a layer-tree transaction.  These metrics are especially
+ * useful for shadow layers, because the metrics values are updated
+ * atomically with new pixels.
+ */
+struct THEBES_API FrameMetrics {
+public:
+  // We use IDs to identify frames across processes.
+  typedef PRUint64 ViewID;
+  static const ViewID NULL_SCROLL_ID;   // This container layer does not scroll.
+  static const ViewID ROOT_SCROLL_ID;   // This is the root scroll frame.
+  static const ViewID START_SCROLL_ID;  // This is the ID that scrolling subframes
+                                        // will begin at.
+
+  FrameMetrics()
+    : mViewport(0, 0, 0, 0)
+    , mContentRect(0, 0, 0, 0)
+    , mViewportScrollOffset(0, 0)
+    , mScrollId(NULL_SCROLL_ID)
+    , mCSSContentRect(0, 0, 0, 0)
+    , mResolution(1, 1)
+  {}
+
+  // Default copy ctor and operator= are fine
+
+  bool operator==(const FrameMetrics& aOther) const
+  {
+    return (mViewport.IsEqualEdges(aOther.mViewport) &&
+            mViewportScrollOffset == aOther.mViewportScrollOffset &&
+            mDisplayPort.IsEqualEdges(aOther.mDisplayPort) &&
+            mScrollId == aOther.mScrollId);
+  }
+  bool operator!=(const FrameMetrics& aOther) const
+  { 
+    return !operator==(aOther);
+  }
+
+  bool IsDefault() const
+  {
+    return (FrameMetrics() == *this);
+  }
+
+  bool IsRootScrollable() const
+  {
+    return mScrollId == ROOT_SCROLL_ID;
+  }
+
+  bool IsScrollable() const
+  {
+    return mScrollId != NULL_SCROLL_ID;
+  }
+
+  // These are all in layer coordinate space.
+  nsIntRect mViewport;
+  nsIntRect mContentRect;
+  nsIntPoint mViewportScrollOffset;
+  nsIntRect mDisplayPort;
+  ViewID mScrollId;
+
+  // Consumers often want to know the origin/size before scaling to pixels
+  // so we record this as well.
+  gfx::Rect mCSSContentRect;
+
+  // This represents the resolution at which the associated layer
+  // will been rendered.
+  gfxSize mResolution;
+};
 
 #define MOZ_LAYER_DECL_NAME(n, e)                           \
   virtual const char* Name() const { return n; }            \
@@ -148,10 +223,10 @@ public:
   bool IsDestroyed() { return mDestroyed; }
 
   virtual ShadowLayerForwarder* AsShadowForwarder()
-  { return nullptr; }
+  { return nsnull; }
 
   virtual ShadowLayerManager* AsShadowManager()
-  { return nullptr; }
+  { return nsnull; }
 
   /**
    * Returns true if this LayerManager is owned by an nsIWidget,
@@ -294,12 +369,12 @@ public:
    * CONSTRUCTION PHASE ONLY
    * Create a ReadbackLayer for this manager's layer tree.
    */
-  virtual already_AddRefed<ReadbackLayer> CreateReadbackLayer() { return nullptr; }
+  virtual already_AddRefed<ReadbackLayer> CreateReadbackLayer() { return nsnull; }
   /**
    * CONSTRUCTION PHASE ONLY
    * Create a RefLayer for this manager's layer tree.
    */
-  virtual already_AddRefed<RefLayer> CreateRefLayer() { return nullptr; }
+  virtual already_AddRefed<RefLayer> CreateRefLayer() { return nsnull; }
 
 
   /**
@@ -462,6 +537,13 @@ private:
 };
 
 class ThebesLayer;
+typedef InfallibleTArray<Animation> AnimationArray;
+
+struct AnimData {
+  InfallibleTArray<nsStyleAnimation::Value> mStartValues;
+  InfallibleTArray<nsStyleAnimation::Value> mEndValues;
+  InfallibleTArray<mozilla::css::ComputedTimingFunction*> mFunctions;
+};
 
 /**
  * A Layer represents anything that can be rendered onto a destination
@@ -483,7 +565,7 @@ public:
     TYPE_THEBES
   };
 
-  virtual ~Layer() {}
+  virtual ~Layer();
 
   /**
    * Returns the LayerManager this Layer belongs to. Note that the layer
@@ -570,7 +652,7 @@ public:
    */
   void SetClipRect(const nsIntRect* aRect)
   {
-    mUseClipRect = aRect != nullptr;
+    mUseClipRect = aRect != nsnull;
     if (aRect) {
       mClipRect = *aRect;
     }
@@ -655,6 +737,14 @@ public:
    */
   void SetIsFixedPosition(bool aFixedPosition) { mIsFixedPosition = aFixedPosition; }
 
+  // Call AddAnimation to add an animation to this layer from layout code.
+  void AddAnimation(const Animation& aAnimation);
+  // ClearAnimations clears animations on this layer.
+  void ClearAnimations();
+  // This is only called when the layer tree is updated. Do not call this from
+  // layout code.  To add an animation to this layer, use AddAnimation.
+  void SetAnimations(const AnimationArray& aAnimations);
+
   /**
    * CONSTRUCTION PHASE ONLY
    * If a layer is "fixed position", this determines which point on the layer
@@ -666,14 +756,14 @@ public:
 
   // These getters can be used anytime.
   float GetOpacity() { return mOpacity; }
-  const nsIntRect* GetClipRect() { return mUseClipRect ? &mClipRect : nullptr; }
+  const nsIntRect* GetClipRect() { return mUseClipRect ? &mClipRect : nsnull; }
   PRUint32 GetContentFlags() { return mContentFlags; }
   const nsIntRegion& GetVisibleRegion() { return mVisibleRegion; }
   ContainerLayer* GetParent() { return mParent; }
   Layer* GetNextSibling() { return mNextSibling; }
   Layer* GetPrevSibling() { return mPrevSibling; }
-  virtual Layer* GetFirstChild() { return nullptr; }
-  virtual Layer* GetLastChild() { return nullptr; }
+  virtual Layer* GetFirstChild() { return nsnull; }
+  virtual Layer* GetLastChild() { return nsnull; }
   const gfx3DMatrix GetTransform();
   const gfx3DMatrix& GetBaseTransform() { return mTransform; }
   float GetXScale() { return mXScale; }
@@ -681,7 +771,8 @@ public:
   bool GetIsFixedPosition() { return mIsFixedPosition; }
   gfxPoint GetFixedPositionAnchor() { return mAnchor; }
   Layer* GetMaskLayer() { return mMaskLayer; }
-
+  AnimationArray& GetAnimations() { return mAnimations; }
+  InfallibleTArray<AnimData>& GetAnimationData() { return mAnimationData; }
   /**
    * DRAWING PHASE ONLY
    *
@@ -758,31 +849,31 @@ public:
    * Dynamic downcast to a Thebes layer. Returns null if this is not
    * a ThebesLayer.
    */
-  virtual ThebesLayer* AsThebesLayer() { return nullptr; }
+  virtual ThebesLayer* AsThebesLayer() { return nsnull; }
 
   /**
    * Dynamic cast to a ContainerLayer. Returns null if this is not
    * a ContainerLayer.
    */
-  virtual ContainerLayer* AsContainerLayer() { return nullptr; }
+  virtual ContainerLayer* AsContainerLayer() { return nsnull; }
 
    /**
     * Dynamic cast to a RefLayer. Returns null if this is not a
     * RefLayer.
     */
-  virtual RefLayer* AsRefLayer() { return nullptr; }
+  virtual RefLayer* AsRefLayer() { return nsnull; }
 
   /**
    * Dynamic cast to a ShadowLayer.  Return null if this is not a
    * ShadowLayer.  Can be used anytime.
    */
-  virtual ShadowLayer* AsShadowLayer() { return nullptr; }
+  virtual ShadowLayer* AsShadowLayer() { return nsnull; }
 
   /**
    * Dynamic cast to a ShadowableLayer.  Return null if this is not a
    * ShadowableLayer.  Can be used anytime.
    */
-  virtual ShadowableLayer* AsShadowableLayer() { return nullptr; }
+  virtual ShadowableLayer* AsShadowableLayer() { return nsnull; }
 
   // These getters can be used anytime.  They return the effective
   // values that should be used when drawing this layer to screen,
@@ -882,22 +973,7 @@ public:
 #endif
 
 protected:
-  Layer(LayerManager* aManager, void* aImplData) :
-    mManager(aManager),
-    mParent(nullptr),
-    mNextSibling(nullptr),
-    mPrevSibling(nullptr),
-    mImplData(aImplData),
-    mMaskLayer(nullptr),
-    mXScale(1.0f),
-    mYScale(1.0f),
-    mOpacity(1.0),
-    mContentFlags(0),
-    mUseClipRect(false),
-    mUseTileSourceRect(false),
-    mIsFixedPosition(false),
-    mDebugColorIndex(0)
-    {}
+  Layer(LayerManager* aManager, void* aImplData);
 
   void Mutated() { mManager->Mutated(this); }
 
@@ -913,6 +989,12 @@ protected:
    * for shadow layers, GetShadowTransform()
    */
   const gfx3DMatrix GetLocalTransform();
+
+  /**
+   * Returns the local opacity for this layer: either mOpacity or,
+   * for shadow layers, GetShadowOpacity()
+   */
+  const float GetLocalOpacity();
 
   /**
    * Computes a tweaked version of aTransform that snaps a point or a rectangle
@@ -941,6 +1023,8 @@ protected:
   float mXScale;
   float mYScale;
   gfx3DMatrix mEffectiveTransform;
+  AnimationArray mAnimations;
+  InfallibleTArray<AnimData> mAnimationData;
   float mOpacity;
   nsIntRect mClipRect;
   nsIntRect mTileSourceRect;
@@ -1001,7 +1085,7 @@ public:
     gfx3DMatrix idealTransform = GetLocalTransform()*aTransformToSurface;
     gfxMatrix residual;
     mEffectiveTransform = SnapTransform(idealTransform, gfxRect(0, 0, 0, 0),
-        mAllowResidualTranslation ? &residual : nullptr);
+        mAllowResidualTranslation ? &residual : nsnull);
     // The residual can only be a translation because ThebesLayer snapping
     // only aligns a single point with the pixel grid; scale factors are always
     // preserved exactly
@@ -1150,8 +1234,8 @@ protected:
 
   ContainerLayer(LayerManager* aManager, void* aImplData)
     : Layer(aManager, aImplData),
-      mFirstChild(nullptr),
-      mLastChild(nullptr),
+      mFirstChild(nsnull),
+      mLastChild(nsnull),
       mUseIntermediateSurface(false),
       mSupportsComponentAlphaChildren(false),
       mMayHaveReadbackChild(false)
@@ -1205,7 +1289,7 @@ public:
   {
     // Snap 0,0 to pixel boundaries, no extra internal transform.
     gfx3DMatrix idealTransform = GetLocalTransform()*aTransformToSurface;
-    mEffectiveTransform = SnapTransform(idealTransform, gfxRect(0, 0, 0, 0), nullptr);
+    mEffectiveTransform = SnapTransform(idealTransform, gfxRect(0, 0, 0, 0), nsnull);
     ComputeEffectiveTransformForMaskLayer(aTransformToSurface);
   }
 
@@ -1234,8 +1318,8 @@ class THEBES_API CanvasLayer : public Layer {
 public:
   struct Data {
     Data()
-      : mSurface(nullptr), mGLContext(nullptr)
-      , mDrawTarget(nullptr), mGLBufferIsPremultiplied(false)
+      : mSurface(nsnull), mGLContext(nsnull)
+      , mDrawTarget(nsnull), mGLBufferIsPremultiplied(false)
     { }
 
     /* One of these two must be specified, but never both */
@@ -1295,15 +1379,15 @@ public:
     // transform, then we'd snap again when compositing the ThebesLayer).
     mEffectiveTransform =
         SnapTransform(GetLocalTransform(), gfxRect(0, 0, mBounds.width, mBounds.height),
-                      nullptr)*
-        SnapTransform(aTransformToSurface, gfxRect(0, 0, 0, 0), nullptr);
+                      nsnull)*
+        SnapTransform(aTransformToSurface, gfxRect(0, 0, 0, 0), nsnull);
     ComputeEffectiveTransformForMaskLayer(aTransformToSurface);
   }
 
 protected:
   CanvasLayer(LayerManager* aManager, void* aImplData)
     : Layer(aManager, aImplData),
-      mCallback(nullptr), mCallbackData(nullptr), mFilter(gfxPattern::FILTER_GOOD),
+      mCallback(nsnull), mCallbackData(nsnull), mFilter(gfxPattern::FILTER_GOOD),
       mDirty(false) {}
 
   virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix);
@@ -1390,8 +1474,8 @@ public:
     MOZ_ASSERT(aLayer == mFirstChild && mFirstChild == mLastChild);
     MOZ_ASSERT(aLayer->GetParent() == this);
 
-    mFirstChild = mLastChild = nullptr;
-    aLayer->SetParent(nullptr);
+    mFirstChild = mLastChild = nsnull;
+    aLayer->SetParent(nsnull);
   }
 
   // These getters can be used anytime.

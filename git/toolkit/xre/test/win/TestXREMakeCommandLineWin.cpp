@@ -204,7 +204,7 @@ int wmain(int argc, PRUnichar *argv[])
     _snwprintf(sOutputKey, MAXPATHLEN, L"output_%d", i);
     _snwprintf(sPassesKey, MAXPATHLEN, L"passes_%d", i);
 
-    if (!GetPrivateProfileStringW(L"MakeCommandLineTests", sInputKey, nullptr,
+    if (!GetPrivateProfileStringW(L"MakeCommandLineTests", sInputKey, nsnull,
                                   sInputVal, MAXPATHLEN, inifile)) {
       if (i == 0 || argc > 2 && _wcsicmp(argv[1], L"-check-one") == 0) {
         wprintf(L"TEST-UNEXPECTED-FAIL | %s | see following explanation:\n", TEST_NAME);
@@ -220,9 +220,9 @@ int wmain(int argc, PRUnichar *argv[])
       break;
     }
 
-    GetPrivateProfileStringW(L"MakeCommandLineTests", sOutputKey, nullptr,
+    GetPrivateProfileStringW(L"MakeCommandLineTests", sOutputKey, nsnull,
                              sOutputVal, MAXPATHLEN, inifile);
-    GetPrivateProfileStringW(L"MakeCommandLineTests", sPassesKey, nullptr,
+    GetPrivateProfileStringW(L"MakeCommandLineTests", sPassesKey, nsnull,
                              sPassesVal, MAXPATHLEN, inifile);
 
     rv |= verifyCmdLineCreation(sInputVal, sOutputVal,

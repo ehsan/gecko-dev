@@ -122,7 +122,7 @@ public:
      */
     nsresult OpenContainer(const nsCParserNode *aNode,
                            eHTMLTags aTag,
-                           nsEntryStack* aStyleStack = nullptr);
+                           nsEntryStack* aStyleStack = nsnull);
 
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
     NS_DECL_NSIDTD

@@ -36,7 +36,7 @@ NS_IMPL_ISUPPORTS1(nsUserInfo,nsIUserInfo)
 NS_IMETHODIMP
 nsUserInfo::GetFullname(PRUnichar **aFullname)
 {
-    struct passwd *pw = nullptr;
+    struct passwd *pw = nsnull;
 
     pw = getpwuid (geteuid());
 
@@ -81,7 +81,7 @@ nsUserInfo::GetFullname(PRUnichar **aFullname)
 NS_IMETHODIMP 
 nsUserInfo::GetUsername(char * *aUsername)
 {
-    struct passwd *pw = nullptr;
+    struct passwd *pw = nsnull;
 
     // is this portable?  those are POSIX compliant calls, but I need to check
     pw = getpwuid(geteuid());
@@ -103,7 +103,7 @@ nsUserInfo::GetDomain(char * *aDomain)
     nsresult rv = NS_ERROR_FAILURE;
 
     struct utsname buf;
-    char *domainname = nullptr;
+    char *domainname = nsnull;
 
     // is this portable?  that is a POSIX compliant call, but I need to check
     if (uname(&buf)) { 

@@ -171,7 +171,7 @@ nsObserverService::UnmarkGrayStrongObservers()
 {
     NS_ENSURE_VALIDCALL
 
-    mObserverTopicTable.EnumerateEntries(UnmarkGrayObserverEntry, nullptr);
+    mObserverTopicTable.EnumerateEntries(UnmarkGrayObserverEntry, nsnull);
 
     return NS_OK;
 }

@@ -83,7 +83,7 @@ protected:
 
   void DiscardTempSurface()
   {
-    mCachedTempSurface = nullptr;
+    mCachedTempSurface = nsnull;
   }
 };
 

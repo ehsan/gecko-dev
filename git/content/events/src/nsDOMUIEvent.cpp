@@ -62,7 +62,7 @@ nsDOMUIEvent::nsDOMUIEvent(nsPresContext* aPresContext, nsGUIEvent* aEvent)
       break;
   }
 
-  mView = nullptr;
+  mView = nsnull;
   if (mPresContext)
   {
     nsCOMPtr<nsISupports> container = mPresContext->GetContainer();
@@ -241,13 +241,13 @@ NS_IMETHODIMP
 nsDOMUIEvent::GetRangeParent(nsIDOMNode** aRangeParent)
 {
   NS_ENSURE_ARG_POINTER(aRangeParent);
-  nsIFrame* targetFrame = nullptr;
+  nsIFrame* targetFrame = nsnull;
 
   if (mPresContext) {
     targetFrame = mPresContext->EventStateManager()->GetEventTarget();
   }
 
-  *aRangeParent = nullptr;
+  *aRangeParent = nsnull;
 
   if (targetFrame) {
     nsPoint pt = nsLayoutUtils::GetEventCoordinatesRelativeTo(mEvent,
@@ -269,7 +269,7 @@ NS_IMETHODIMP
 nsDOMUIEvent::GetRangeOffset(PRInt32* aRangeOffset)
 {
   NS_ENSURE_ARG_POINTER(aRangeOffset);
-  nsIFrame* targetFrame = nullptr;
+  nsIFrame* targetFrame = nsnull;
 
   if (mPresContext) {
     targetFrame = mPresContext->EventStateManager()->GetEventTarget();

@@ -39,7 +39,7 @@ using namespace mozilla::widget;
 
 #ifdef PR_LOGGING
 
-PRLogModuleInfo* gLog = nullptr;
+PRLogModuleInfo* gLog = nsnull;
 
 static const char*
 OnOrOff(bool aBool)
@@ -544,7 +544,7 @@ TISInputSourceWrapper::InitByLanguage(CFStringRef aLanguage)
 const UCKeyboardLayout*
 TISInputSourceWrapper::GetUCKeyboardLayout()
 {
-  NS_ENSURE_TRUE(mInputSource, nullptr);
+  NS_ENSURE_TRUE(mInputSource, nsnull);
   if (mUCKeyboardLayout) {
     return mUCKeyboardLayout;
   }
@@ -553,7 +553,7 @@ TISInputSourceWrapper::GetUCKeyboardLayout()
                                 kTISPropertyUnicodeKeyLayoutData));
 
   // We should be always able to get the layout here.
-  NS_ENSURE_TRUE(uchr, nullptr);
+  NS_ENSURE_TRUE(uchr, nsnull);
   mUCKeyboardLayout =
     reinterpret_cast<const UCKeyboardLayout*>(CFDataGetBytePtr(uchr));
   return mUCKeyboardLayout;
@@ -573,7 +573,7 @@ TISInputSourceWrapper::GetStringProperty(const CFStringRef aKey,
 {
   aStr = static_cast<CFStringRef>(
     ::TISGetInputSourceProperty(mInputSource, aKey));
-  return aStr != nullptr;
+  return aStr != nsnull;
 }
 
 bool
@@ -613,7 +613,7 @@ TISInputSourceWrapper::GetLanguageList(CFArrayRef &aLanguageList)
   aLanguageList = static_cast<CFArrayRef>(
     ::TISGetInputSourceProperty(mInputSource,
                                 kTISPropertyInputSourceLanguages));
-  return aLanguageList != nullptr;
+  return aLanguageList != nsnull;
 }
 
 bool
@@ -626,7 +626,7 @@ TISInputSourceWrapper::GetPrimaryLanguage(CFStringRef &aPrimaryLanguage)
     return false;
   aPrimaryLanguage =
     static_cast<CFStringRef>(::CFArrayGetValueAtIndex(langList, 0));
-  return aPrimaryLanguage != nullptr;
+  return aPrimaryLanguage != nsnull;
 }
 
 bool
@@ -677,10 +677,10 @@ TISInputSourceWrapper::Clear()
   if (mInputSourceList) {
     ::CFRelease(mInputSourceList);
   }
-  mInputSourceList = nullptr;
-  mInputSource = nullptr;
+  mInputSourceList = nsnull;
+  mInputSource = nsnull;
   mIsRTL = -1;
-  mUCKeyboardLayout = nullptr;
+  mUCKeyboardLayout = nsnull;
   mOverrideKeyboard = false;
 }
 
@@ -1582,7 +1582,7 @@ TextInputHandler::InsertText(NSAttributedString *aAttrString)
      "keyevent=%p, keypressDispatched=%s",
      this, GetCharacters([aAttrString string]), TrueOrFalse(IsIMEComposing()),
      TrueOrFalse(IgnoreIMEComposition()),
-     currentKeyEvent ? currentKeyEvent->mKeyEvent : nullptr,
+     currentKeyEvent ? currentKeyEvent->mKeyEvent : nsnull,
      currentKeyEvent ?
        TrueOrFalse(currentKeyEvent->mKeyPressDispatched) : "N/A"));
 
@@ -1641,7 +1641,7 @@ TextInputHandler::InsertText(NSAttributedString *aAttrString)
       keypressEvent.flags |= NS_EVENT_FLAG_NO_DEFAULT;
     }
   } else {
-    nsCocoaUtils::InitInputEvent(keypressEvent, static_cast<NSEvent*>(nullptr));
+    nsCocoaUtils::InitInputEvent(keypressEvent, static_cast<NSEvent*>(nsnull));
     // Note that insertText is not called only at key pressing.
     if (!keypressEvent.charCode) {
       keypressEvent.keyCode =
@@ -1718,8 +1718,8 @@ TextInputHandler::DoCommandBySelector(const char* aSelector)
  ******************************************************************************/
 
 bool IMEInputHandler::sStaticMembersInitialized = false;
-CFStringRef IMEInputHandler::sLatestIMEOpenedModeInputSourceID = nullptr;
-IMEInputHandler* IMEInputHandler::sFocusedIMEHandler = nullptr;
+CFStringRef IMEInputHandler::sLatestIMEOpenedModeInputSourceID = nsnull;
+IMEInputHandler* IMEInputHandler::sFocusedIMEHandler = nsnull;
 
 // static
 void
@@ -1760,7 +1760,7 @@ IMEInputHandler::OnCurrentTextInputSourceChange(CFNotificationCenterRef aCenter,
 
 #ifdef PR_LOGGING
   if (PR_LOG_TEST(gLog, PR_LOG_ALWAYS)) {
-    static CFStringRef sLastTIS = nullptr;
+    static CFStringRef sLastTIS = nsnull;
     CFStringRef newTIS;
     tis.GetInputSourceID(newTIS);
     if (!sLastTIS ||
@@ -2043,7 +2043,7 @@ IMEInputHandler::ExecutePendingMethods()
 
   if (mTimer) {
     mTimer->Cancel();
-    mTimer = nullptr;
+    mTimer = nsnull;
   }
 
   if (![[NSApplication sharedApplication] isActive]) {
@@ -2650,7 +2650,7 @@ IMEInputHandler::GetValidAttributesForMarkedText()
 IMEInputHandler::IMEInputHandler(nsChildView* aWidget,
                                  NSView<mozView> *aNativeView) :
   PluginTextInputHandler(aWidget, aNativeView),
-  mPendingMethods(0), mIMECompositionString(nullptr),
+  mPendingMethods(0), mIMECompositionString(nsnull),
   mIsIMEComposing(false), mIsIMEEnabled(true),
   mIsASCIICapableOnly(false), mIgnoreIMECommit(false),
   mIsInFocusProcessing(false)
@@ -2665,10 +2665,10 @@ IMEInputHandler::~IMEInputHandler()
 {
   if (mTimer) {
     mTimer->Cancel();
-    mTimer = nullptr;
+    mTimer = nsnull;
   }
   if (sFocusedIMEHandler == this) {
-    sFocusedIMEHandler = nullptr;
+    sFocusedIMEHandler = nsnull;
   }
 }
 
@@ -2686,7 +2686,7 @@ IMEInputHandler::OnFocusChangeInGecko(bool aFocus)
   // improve the nsIMEStateManager implementation.
   if (!aFocus) {
     if (sFocusedIMEHandler == this)
-      sFocusedIMEHandler = nullptr;
+      sFocusedIMEHandler = nsnull;
     return;
   }
 
@@ -2785,7 +2785,7 @@ IMEInputHandler::OnEndIMEComposition()
 
   if (mIMECompositionString) {
     [mIMECompositionString release];
-    mIMECompositionString = nullptr;
+    mIMECompositionString = nsnull;
   }
 
   mLastDispatchedCompositionString.Truncate();
@@ -3782,7 +3782,7 @@ TextInputHandlerBase::OnDestroyWidget(nsChildView* aDestroyingWidget)
     return false;
   }
 
-  mWidget = nullptr;
+  mWidget = nsnull;
   return true;
 }
 

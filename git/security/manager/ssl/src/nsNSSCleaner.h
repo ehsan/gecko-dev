@@ -23,7 +23,7 @@
     ~CERTCertificateCleaner() {
       if (object) {
         CERT_DestroyCertificate(object);
-        object = nullptr;
+        object = nsnull;
       }
     }
   };
@@ -65,10 +65,10 @@ public:                                            \
   ~nsstype##Cleaner() {                            \
     if (object) {                                  \
       cleanfunc(object);                           \
-      object = nullptr;                             \
+      object = nsnull;                             \
     }                                              \
   }                                                \
-  void detach() {object=nullptr;}                   \
+  void detach() {object=nsnull;}                   \
 };
 
 #define NSSCleanupAutoPtrClass_WithParam(nsstype, cleanfunc, namesuffix, paramvalue) \
@@ -85,10 +85,10 @@ public:                                            \
   ~nsstype##Cleaner##namesuffix() {                \
     if (object) {                                  \
       cleanfunc(object, paramvalue);               \
-      object = nullptr;                             \
+      object = nsnull;                             \
     }                                              \
   }                                                \
-  void detach() {object=nullptr;}                   \
+  void detach() {object=nsnull;}                   \
 };
 
 #include "certt.h"

@@ -10,7 +10,7 @@
 using namespace mozilla::gfx;
 
 gfxAlphaBoxBlur::gfxAlphaBoxBlur()
- : mBlur(nullptr)
+ : mBlur(nsnull)
 {
 }
 
@@ -42,7 +42,7 @@ gfxAlphaBoxBlur::Init(const gfxRect& aRect,
 
     unsigned char* data = mBlur->GetData();
     if (!data)
-      return nullptr;
+      return nsnull;
 
     IntSize size = mBlur->GetSize();
     // Make an alpha-only surface to draw on. We will play with the data after
@@ -51,7 +51,7 @@ gfxAlphaBoxBlur::Init(const gfxRect& aRect,
                                         mBlur->GetStride(),
                                         gfxASurface::ImageFormatA8);
     if (mImageSurface->CairoStatus())
-        return nullptr;
+        return nsnull;
 
     IntRect irect = mBlur->GetRect();
     gfxPoint topleft(irect.TopLeft().x, irect.TopLeft().y);

@@ -43,11 +43,11 @@ class NS_COM_GLUE nsTObserverArray_base {
     };
 
     nsTObserverArray_base()
-      : mIterators(nullptr) {
+      : mIterators(nsnull) {
     }
 
     ~nsTObserverArray_base() {
-      NS_ASSERTION(mIterators == nullptr, "iterators outlasting array");
+      NS_ASSERTION(mIterators == nsnull, "iterators outlasting array");
     }
 
     /**
@@ -175,7 +175,7 @@ class nsAutoTObserverArray : protected nsTObserverArray_base {
         return true;
       }
       
-      bool inserted = mArray.InsertElementAt(0, item) != nullptr;
+      bool inserted = mArray.InsertElementAt(0, item) != nsnull;
       AdjustIterators(0, 1);
       return inserted;
     }
@@ -200,7 +200,7 @@ class nsAutoTObserverArray : protected nsTObserverArray_base {
     // @return       true if the element was found, or inserted successfully.
     template<class Item>
     bool AppendElementUnlessExists(const Item& item) {
-      return Contains(item) || AppendElement(item) != nullptr;
+      return Contains(item) || AppendElement(item) != nsnull;
     }
 
     // Remove an element from the array.

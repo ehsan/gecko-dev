@@ -23,7 +23,7 @@
 #include "keysym2ucs.h"
 
 #ifdef PR_LOGGING
-PRLogModuleInfo* gKeymapWrapperLog = nullptr;
+PRLogModuleInfo* gKeymapWrapperLog = nsnull;
 #endif // PR_LOGGING
 
 #include "mozilla/Util.h"
@@ -168,7 +168,7 @@ static const KeyPair kSunKeyPairs[] = {
 
 #define MOZ_MODIFIER_KEYS "MozKeymapWrapper"
 
-KeymapWrapper* KeymapWrapper::sInstance = nullptr;
+KeymapWrapper* KeymapWrapper::sInstance = nsnull;
 
 #ifdef PR_LOGGING
 
@@ -261,7 +261,7 @@ KeymapWrapper::GetModifierKey(guint aHardwareKeycode)
             return &key;
         }
     }
-    return nullptr;
+    return nsnull;
 }
 
 /* static */ KeymapWrapper*
@@ -506,7 +506,7 @@ KeymapWrapper::OnDestroyKeymap(KeymapWrapper* aKeymapWrapper,
     MOZ_ASSERT(aKeymapWrapper == sInstance,
                "Desroying unexpected instance");
     delete sInstance;
-    sInstance = nullptr;
+    sInstance = nsnull;
 }
 
 /* static */ void

@@ -482,7 +482,7 @@ UnregisterSensorObserver(SensorType aSensor, ISensorObserver *aObserver) {
     }
   }
   delete [] gSensorObservers;
-  gSensorObservers = nullptr;
+  gSensorObservers = nsnull;
 }
 
 void

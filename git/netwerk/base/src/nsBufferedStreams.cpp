@@ -42,11 +42,11 @@ static struct {
 // nsBufferedStream
 
 nsBufferedStream::nsBufferedStream()
-    : mBuffer(nullptr),
+    : mBuffer(nsnull),
       mBufferStartOffset(0),
       mCursor(0), 
       mFillPoint(0),
-      mStream(nullptr),
+      mStream(nsnull),
       mBufferDisabled(false),
       mEOF(false),
       mGetBufferCount(0)
@@ -64,14 +64,14 @@ nsresult
 nsBufferedStream::Init(nsISupports* stream, PRUint32 bufferSize)
 {
     NS_ASSERTION(stream, "need to supply a stream");
-    NS_ASSERTION(mStream == nullptr, "already inited");
+    NS_ASSERTION(mStream == nsnull, "already inited");
     mStream = stream;
     NS_IF_ADDREF(mStream);
     mBufferSize = bufferSize;
     mBufferStartOffset = 0;
     mCursor = 0;
     mBuffer = new char[bufferSize];
-    if (mBuffer == nullptr)
+    if (mBuffer == nsnull)
         return NS_ERROR_OUT_OF_MEMORY;
     return NS_OK;
 }
@@ -82,7 +82,7 @@ nsBufferedStream::Close()
     NS_IF_RELEASE(mStream);
     if (mBuffer) {
         delete[] mBuffer;
-        mBuffer = nullptr;
+        mBuffer = nsnull;
         mBufferSize = 0;
         mBufferStartOffset = 0;
         mCursor = 0;
@@ -122,7 +122,7 @@ nsBufferedStream::Close()
 NS_IMETHODIMP
 nsBufferedStream::Seek(PRInt32 whence, PRInt64 offset)
 {
-    if (mStream == nullptr)
+    if (mStream == nsnull)
         return NS_BASE_STREAM_CLOSED;
     
     // If the underlying stream isn't a random access store, then fail early.
@@ -214,7 +214,7 @@ nsBufferedStream::Seek(PRInt32 whence, PRInt64 offset)
 NS_IMETHODIMP
 nsBufferedStream::Tell(PRInt64 *result)
 {
-    if (mStream == nullptr)
+    if (mStream == nsnull)
         return NS_BASE_STREAM_CLOSED;
     
     PRInt64 result64 = mBufferStartOffset;
@@ -226,7 +226,7 @@ nsBufferedStream::Tell(PRInt64 *result)
 NS_IMETHODIMP
 nsBufferedStream::SetEOF()
 {
-    if (mStream == nullptr)
+    if (mStream == nsnull)
         return NS_BASE_STREAM_CLOSED;
     
     nsresult rv;
@@ -269,7 +269,7 @@ nsBufferedInputStream::Create(nsISupports *aOuter, REFNSIID aIID, void **aResult
     NS_ENSURE_NO_AGGREGATION(aOuter);
 
     nsBufferedInputStream* stream = new nsBufferedInputStream();
-    if (stream == nullptr)
+    if (stream == nsnull)
         return NS_ERROR_OUT_OF_MEMORY;
     NS_ADDREF(stream);
     nsresult rv = stream->QueryInterface(aIID, aResult);
@@ -405,16 +405,16 @@ nsBufferedInputStream::GetBuffer(PRUint32 aLength, PRUint32 aAlignMask)
 {
     NS_ASSERTION(mGetBufferCount == 0, "nested GetBuffer!");
     if (mGetBufferCount != 0)
-        return nullptr;
+        return nsnull;
 
     if (mBufferDisabled)
-        return nullptr;
+        return nsnull;
 
     char* buf = mBuffer + mCursor;
     PRUint32 rem = mFillPoint - mCursor;
     if (rem == 0) {
         if (NS_FAILED(Fill()))
-            return nullptr;
+            return nsnull;
         buf = mBuffer + mCursor;
         rem = mFillPoint - mCursor;
     }
@@ -423,7 +423,7 @@ nsBufferedInputStream::GetBuffer(PRUint32 aLength, PRUint32 aAlignMask)
     if (mod) {
         PRUint32 pad = aAlignMask + 1 - mod;
         if (pad > rem)
-            return nullptr;
+            return nsnull;
 
         memset(buf, 0, pad);
         mCursor += pad;
@@ -432,7 +432,7 @@ nsBufferedInputStream::GetBuffer(PRUint32 aLength, PRUint32 aAlignMask)
     }
 
     if (aLength > rem)
-        return nullptr;
+        return nsnull;
     mGetBufferCount++;
     return buf;
 }
@@ -534,7 +534,7 @@ nsBufferedOutputStream::Create(nsISupports *aOuter, REFNSIID aIID, void **aResul
     NS_ENSURE_NO_AGGREGATION(aOuter);
 
     nsBufferedOutputStream* stream = new nsBufferedOutputStream();
-    if (stream == nullptr)
+    if (stream == nsnull)
         return NS_ERROR_OUT_OF_MEMORY;
     NS_ADDREF(stream);
     nsresult rv = stream->QueryInterface(aIID, aResult);
@@ -701,16 +701,16 @@ nsBufferedOutputStream::GetBuffer(PRUint32 aLength, PRUint32 aAlignMask)
 {
     NS_ASSERTION(mGetBufferCount == 0, "nested GetBuffer!");
     if (mGetBufferCount != 0)
-        return nullptr;
+        return nsnull;
 
     if (mBufferDisabled)
-        return nullptr;
+        return nsnull;
 
     char* buf = mBuffer + mCursor;
     PRUint32 rem = mBufferSize - mCursor;
     if (rem == 0) {
         if (NS_FAILED(Flush()))
-            return nullptr;
+            return nsnull;
         buf = mBuffer + mCursor;
         rem = mBufferSize - mCursor;
     }
@@ -719,7 +719,7 @@ nsBufferedOutputStream::GetBuffer(PRUint32 aLength, PRUint32 aAlignMask)
     if (mod) {
         PRUint32 pad = aAlignMask + 1 - mod;
         if (pad > rem)
-            return nullptr;
+            return nsnull;
 
         memset(buf, 0, pad);
         mCursor += pad;
@@ -728,7 +728,7 @@ nsBufferedOutputStream::GetBuffer(PRUint32 aLength, PRUint32 aAlignMask)
     }
 
     if (aLength > rem)
-        return nullptr;
+        return nsnull;
     mGetBufferCount++;
     return buf;
 }

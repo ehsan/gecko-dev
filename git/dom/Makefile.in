@@ -70,7 +70,6 @@ DIRS += \
   ipc \
   identity \
   workers \
-  camera \
   $(NULL)
 
 ifdef MOZ_B2G_RIL

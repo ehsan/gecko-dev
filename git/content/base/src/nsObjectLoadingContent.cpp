@@ -105,7 +105,7 @@ nsAsyncInstantiateEvent::Run()
   if (mContent->mPendingInstantiateEvent != this) {
     return NS_OK;
   }
-  mContent->mPendingInstantiateEvent = nullptr;
+  mContent->mPendingInstantiateEvent = nsnull;
 
   return mContent->SyncStartPluginInstance();
 }
@@ -299,7 +299,7 @@ nsPluginCrashedEvent::Run()
   variant->SetAsBool(mSubmittedCrashReport);
   containerEvent->SetData(NS_LITERAL_STRING("submittedCrashReport"), variant);
 
-  nsEventDispatcher::DispatchDOMEvent(mContent, nullptr, event, nullptr, nullptr);
+  nsEventDispatcher::DispatchDOMEvent(mContent, nsnull, event, nsnull, nsnull);
   return NS_OK;
 }
 
@@ -363,7 +363,7 @@ nsStopPluginRunnable::Run()
     }
   }
 
-  mTimer = nullptr;
+  mTimer = nsnull;
 
   static_cast<nsObjectLoadingContent*>(mContent.get())->
     DoStopPlugin(mInstanceOwner, false, true);
@@ -606,8 +606,8 @@ nsObjectLoadingContent::UnbindFromTree(bool /*aDeep*/, bool /*aNullParent*/)
 }
 
 nsObjectLoadingContent::nsObjectLoadingContent()
-  : mPendingInstantiateEvent(nullptr)
-  , mChannel(nullptr)
+  : mPendingInstantiateEvent(nsnull)
+  , mChannel(nsnull)
   , mType(eType_Loading)
   , mInstantiating(false)
   , mUserDisabled(false)
@@ -878,7 +878,7 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest,
                                  doc->NodePrincipal(),
                                  static_cast<nsIImageLoadingContent*>(this),
                                  mContentType,
-                                 nullptr, //extra
+                                 nsnull, //extra
                                  &shouldProcess,
                                  nsContentUtils::GetContentPolicy(),
                                  nsContentUtils::GetSecurityManager());
@@ -966,7 +966,7 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest,
       if (!pluginHost) {
         return NS_ERROR_NOT_AVAILABLE;
       }
-      pluginHost->NewEmbeddedPluginStreamListener(uri, this, nullptr,
+      pluginHost->NewEmbeddedPluginStreamListener(uri, this, nsnull,
                                                   getter_AddRefs(mFinalListener));
       break;
     }
@@ -1027,11 +1027,11 @@ nsObjectLoadingContent::OnStopRequest(nsIRequest *aRequest,
     return NS_BINDING_ABORTED;
   }
 
-  mChannel = nullptr;
+  mChannel = nsnull;
 
   if (mFinalListener) {
     mFinalListener->OnStopRequest(aRequest, aContext, aStatusCode);
-    mFinalListener = nullptr;
+    mFinalListener = nsnull;
   }
 
   // Return value doesn't matter
@@ -1126,7 +1126,7 @@ NS_IMETHODIMP
 nsObjectLoadingContent::DisconnectFrame()
 {
   if (mInstanceOwner) {
-    mInstanceOwner->SetFrame(nullptr);
+    mInstanceOwner->SetFrame(nsnull);
   }
   return NS_OK;
 }
@@ -1134,7 +1134,7 @@ nsObjectLoadingContent::DisconnectFrame()
 NS_IMETHODIMP
 nsObjectLoadingContent::GetPluginInstance(nsNPAPIPluginInstance** aInstance)
 {
-  *aInstance = nullptr;
+  *aInstance = nsnull;
 
   if (!mInstanceOwner) {
     return NS_OK;
@@ -1313,7 +1313,7 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
 
   // Need to revoke any potentially pending instantiate events
   if (mType == eType_Plugin && mPendingInstantiateEvent) {
-    mPendingInstantiateEvent = nullptr;
+    mPendingInstantiateEvent = nsnull;
   }
 
   AutoNotifier notifier(this, aNotify);
@@ -1346,10 +1346,10 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
       // NOTE: Since mFinalListener is only set in onStartRequest, which takes
       // care of calling mFinalListener->OnStartRequest, mFinalListener is only
       // non-null here if onStartRequest was already called.
-      mFinalListener->OnStopRequest(mChannel, nullptr, NS_BINDING_ABORTED);
-      mFinalListener = nullptr;
+      mFinalListener->OnStopRequest(mChannel, nsnull, NS_BINDING_ABORTED);
+      mFinalListener = nsnull;
     }
-    mChannel = nullptr;
+    mChannel = nsnull;
   }
 
   // Security checks
@@ -1381,7 +1381,7 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
                                 doc->NodePrincipal(),
                                 static_cast<nsIImageLoadingContent*>(this),
                                 aTypeHint,
-                                nullptr, //extra
+                                nsnull, //extra
                                 &shouldLoad,
                                 nsContentUtils::GetContentPolicy(),
                                 secMan);
@@ -1422,7 +1422,7 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
         mFrameLoader = nsFrameLoader::Create(thisContent->AsElement(),
                                              mNetworkCreated);
         if (!mFrameLoader) {
-          mURI = nullptr;
+          mURI = nsnull;
           return NS_OK;
         }
       }
@@ -1560,7 +1560,7 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
     channelPolicy->SetContentSecurityPolicy(csp);
     channelPolicy->SetLoadType(nsIContentPolicy::TYPE_OBJECT);
   }
-  rv = NS_NewChannel(getter_AddRefs(chan), aURI, nullptr, group, this,
+  rv = NS_NewChannel(getter_AddRefs(chan), aURI, nsnull, group, this,
                      nsIChannel::LOAD_CALL_CONTENT_SNIFFERS |
                      nsIChannel::LOAD_CLASSIFY_URI,
                      channelPolicy);
@@ -1594,7 +1594,7 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
 
   // AsyncOpen can fail if a file does not exist.
   // Show fallback content in that case.
-  rv = chan->AsyncOpen(this, nullptr);
+  rv = chan->AsyncOpen(this, nsnull);
   if (NS_SUCCEEDED(rv)) {
     LOG(("OBJLC [%p]: Channel opened.\n", this));
 
@@ -1627,11 +1627,11 @@ nsObjectLoadingContent::RemovedFromDocument()
   if (mFrameLoader) {
     // XXX This is very temporary and must go away
     mFrameLoader->Destroy();
-    mFrameLoader = nullptr;
+    mFrameLoader = nsnull;
 
     // Clear the current URI, so that LoadObject doesn't think that we
     // have already loaded the content.
-    mURI = nullptr;
+    mURI = nsnull;
   }
 
   // When a plugin instance node is removed from the document we'll
@@ -1702,7 +1702,7 @@ nsObjectLoadingContent::CanHandleURI(nsIURI* aURI)
   nsCOMPtr<nsIExternalProtocolHandler> extHandler =
     do_QueryInterface(handler);
   // We can handle this URI if its protocol handler is not the external one
-  return extHandler == nullptr;
+  return extHandler == nsnull;
 }
 
 bool
@@ -1755,7 +1755,7 @@ nsObjectLoadingContent::UnloadContent()
   CancelImageRequests(false);
   if (mFrameLoader) {
     mFrameLoader->Destroy();
-    mFrameLoader = nullptr;
+    mFrameLoader = nsnull;
   }
   mType = eType_Null;
   mUserDisabled = mSuppressed = false;
@@ -1888,7 +1888,7 @@ nsObjectLoadingContent::GetObjectBaseURI(nsIContent* thisContent, nsIURI** aURI)
 {
   // We want to use swap(); since this is just called from this file,
   // we can assert this (callers use comptrs)
-  NS_PRECONDITION(*aURI == nullptr, "URI must be inited to zero");
+  NS_PRECONDITION(*aURI == nsnull, "URI must be inited to zero");
 
   // For plugins, the codebase attribute is the base URI
   nsCOMPtr<nsIURI> baseURI = thisContent->GetBaseURI();
@@ -2198,7 +2198,7 @@ nsObjectLoadingContent::StopPluginInstance()
   nsRefPtr<nsNPAPIPluginInstance> inst;
   mInstanceOwner->GetInstance(getter_AddRefs(inst));
   if (inst) {
-    const char* mime = nullptr;
+    const char* mime = nsnull;
     if (NS_SUCCEEDED(inst->GetMIMEType(&mime)) && mime) {
       if (strcmp(mime, "audio/x-pn-realaudio-plugin") == 0) {
         delayedStop = true;
@@ -2209,7 +2209,7 @@ nsObjectLoadingContent::StopPluginInstance()
 
   DoStopPlugin(mInstanceOwner, delayedStop);
 
-  mInstanceOwner = nullptr;
+  mInstanceOwner = nsnull;
 
   return NS_OK;
 }
@@ -2245,7 +2245,7 @@ nsObjectLoadingContent::NotifyContentObjectWrapper()
     return;
   }
   
-  JSObject *obj = nullptr;
+  JSObject *obj = nsnull;
   nsresult rv = wrapper->GetJSObject(&obj);
   if (NS_FAILED(rv))
     return;

@@ -91,7 +91,7 @@ public:
   /**
    * This method returns the DOMSVGPointList wrapper for an internal
    * SVGPointList object if it currently has a wrapper. If it does
-   * not, then nullptr is returned.
+   * not, then nsnull is returned.
    */
   static DOMSVGPointList*
   GetDOMWrapperIfExists(void *aList);

@@ -126,7 +126,7 @@ nsPrintSettingsGTK& nsPrintSettingsGTK::operator=(const nsPrintSettingsGTK& rhs)
 nsresult nsPrintSettingsGTK::_Clone(nsIPrintSettings **_retval)
 {
   NS_ENSURE_ARG_POINTER(_retval);
-  *_retval = nullptr;
+  *_retval = nsnull;
   
   nsPrintSettingsGTK *newSettings = new nsPrintSettingsGTK(*this);
   if (!newSettings)

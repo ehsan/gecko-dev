@@ -122,7 +122,7 @@ public:
   NS_DECL_NSIDOMEVENTLISTENER
 
   Proxy(XMLHttpRequest* aXHRPrivate)
-  : mWorkerPrivate(nullptr), mXMLHttpRequestPrivate(aXHRPrivate),
+  : mWorkerPrivate(nsnull), mXMLHttpRequestPrivate(aXHRPrivate),
     mInnerEventStreamId(0), mInnerChannelId(0), mOutstandingSendCount(0),
     mOuterEventStreamId(0), mOuterChannelId(0), mLastLoaded(0), mLastTotal(0),
     mLastUploadLoaded(0), mLastUploadTotal(0), mIsSyncXHR(false),
@@ -154,18 +154,18 @@ public:
                                mWorkerPrivate->GetScriptContext(),
                                mWorkerPrivate->GetWindow(),
                                mWorkerPrivate->GetBaseURI()))) {
-        mXHR = nullptr;
+        mXHR = nsnull;
         return false;
       }
 
       if (NS_FAILED(mXHR->GetUpload(getter_AddRefs(mXHRUpload)))) {
-        mXHR = nullptr;
+        mXHR = nsnull;
         return false;
       }
 
       if (!AddRemoveEventListeners(false, true)) {
-        mXHRUpload = nullptr;
-        mXHR = nullptr;
+        mXHRUpload = nsnull;
+        mXHR = nsnull;
         return false;
       }
     }
@@ -371,7 +371,7 @@ public:
     AssertIsOnMainThread();
 
     mProxy->Teardown();
-    mProxy = nullptr;
+    mProxy = nsnull;
 
     return NS_OK;
   }
@@ -481,16 +481,16 @@ public:
           new ProxyCompleteRunnable(mWorkerPrivate, mProxy,
                                     mXMLHttpRequestPrivate,
                                     mChannelId);
-        if (runnable->Dispatch(nullptr)) {
-          mProxy->mWorkerPrivate = nullptr;
+        if (runnable->Dispatch(nsnull)) {
+          mProxy->mWorkerPrivate = nsnull;
           mProxy->mOutstandingSendCount--;
         }
       }
     }
 
-    mProxy = nullptr;
-    mXHR = nullptr;
-    mXMLHttpRequestPrivate = nullptr;
+    mProxy = nsnull;
+    mXHR = nsnull;
+    mXMLHttpRequestPrivate = nsnull;
     return NS_OK;
   }
 
@@ -836,7 +836,7 @@ public:
 
     nsRefPtr<ResponseRunnable> response =
       new ResponseRunnable(mWorkerPrivate, mProxy, mSyncQueueKey, rv);
-    if (!response->Dispatch(nullptr)) {
+    if (!response->Dispatch(nsnull)) {
       NS_WARNING("Failed to dispatch response!");
     }
 
@@ -1300,16 +1300,16 @@ Proxy::Teardown()
     if (mOutstandingSendCount) {
       nsRefPtr<XHRUnpinRunnable> runnable =
         new XHRUnpinRunnable(mWorkerPrivate, mXMLHttpRequestPrivate);
-      if (!runnable->Dispatch(nullptr)) {
+      if (!runnable->Dispatch(nsnull)) {
         NS_RUNTIMEABORT("We're going to hang at shutdown anyways.");
       }
 
-      mWorkerPrivate = nullptr;
+      mWorkerPrivate = nsnull;
       mOutstandingSendCount = 0;
     }
 
-    mXHRUpload = nullptr;
-    mXHR = nullptr;
+    mXHRUpload = nsnull;
+    mXHR = nsnull;
   }
 }
 
@@ -1497,7 +1497,7 @@ XMLHttpRequest::ReleaseProxy(ReleaseType aType)
       // need to).
       nsRefPtr<AsyncTeardownRunnable> runnable =
         new AsyncTeardownRunnable(mProxy);
-      mProxy = nullptr;
+      mProxy = nsnull;
 
       if (NS_DispatchToMainThread(runnable)) {
         NS_ERROR("Failed to dispatch teardown runnable!");
@@ -1513,9 +1513,9 @@ XMLHttpRequest::ReleaseProxy(ReleaseType aType)
       // We need to make a sync call here.
       nsRefPtr<SyncTeardownRunnable> runnable =
         new SyncTeardownRunnable(mWorkerPrivate, mProxy);
-      mProxy = nullptr;
+      mProxy = nsnull;
 
-      if (!runnable->Dispatch(nullptr)) {
+      if (!runnable->Dispatch(nsnull)) {
         NS_ERROR("Failed to dispatch teardown runnable!");
       }
     }

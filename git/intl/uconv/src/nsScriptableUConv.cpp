@@ -55,7 +55,7 @@ nsScriptableUnicodeConverter::ConvertFromUnicodeWithLength(const nsAString& aSrc
     }
     moz_free(*_retval);
   }
-  *_retval = nullptr;
+  *_retval = nsnull;
   return NS_ERROR_FAILURE;
 }
 
@@ -258,13 +258,13 @@ nsScriptableUnicodeConverter::InitConverter()
 
   nsCOMPtr<nsICharsetConverterManager> ccm = do_GetService(NS_CHARSETCONVERTERMANAGER_CONTRACTID, &rv);
 
-  if (NS_SUCCEEDED( rv) && (nullptr != ccm)) {
+  if (NS_SUCCEEDED( rv) && (nsnull != ccm)) {
     // get charset atom due to getting unicode converter
     
     // get an unicode converter
     rv = ccm->GetUnicodeEncoder(mCharset.get(), getter_AddRefs(mEncoder));
     if(NS_SUCCEEDED(rv)) {
-      rv = mEncoder->SetOutputErrorBehavior(nsIUnicodeEncoder::kOnError_Replace, nullptr, (PRUnichar)'?');
+      rv = mEncoder->SetOutputErrorBehavior(nsIUnicodeEncoder::kOnError_Replace, nsnull, (PRUnichar)'?');
       if(NS_SUCCEEDED(rv)) {
         rv = mIsInternal ?
           ccm->GetUnicodeDecoderInternal(mCharset.get(),

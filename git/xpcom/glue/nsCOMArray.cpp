@@ -141,7 +141,7 @@ nsCOMArray_base::Clear()
     nsAutoVoidArray objects;
     objects = mArray;
     mArray.Clear();
-    objects.EnumerateForwards(ReleaseObjects, nullptr);
+    objects.EnumerateForwards(ReleaseObjects, nsnull);
 }
 
 bool
@@ -160,7 +160,7 @@ nsCOMArray_base::SetCount(PRInt32 aNewCount)
         }
     }
     bool result = mArray.SetCount(aNewCount);
-    objects.EnumerateForwards(ReleaseObjects, nullptr);
+    objects.EnumerateForwards(ReleaseObjects, nsnull);
     return result;
 }
 

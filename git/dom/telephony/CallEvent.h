@@ -54,7 +54,7 @@ public:
 
 private:
   CallEvent()
-  : nsDOMEvent(nullptr, nullptr)
+  : nsDOMEvent(nsnull, nsnull)
   { }
 
   ~CallEvent()

@@ -19,8 +19,8 @@
 USING_FILE_NAMESPACE
 
 ArchiveReader::ArchiveReader()
-: mBlob(nullptr),
-  mWindow(nullptr),
+: mBlob(nsnull),
+  mWindow(nsnull),
   mStatus(NOT_STARTED)
 {
   nsLayoutStatics::AddRef();

@@ -267,7 +267,7 @@ extern void
 UnwindForUncatchableException(JSContext *cx, const FrameRegs &regs);
 
 extern bool
-OnUnknownMethod(JSContext *cx, HandleObject obj, Value idval, MutableHandleValue vp);
+OnUnknownMethod(JSContext *cx, HandleObject obj, Value idval, Value *vp);
 
 class TryNoteIter
 {

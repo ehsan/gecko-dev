@@ -23,6 +23,7 @@ import android.text.Spanned;
 import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.util.Log;
+import android.view.ActionMode;
 import android.view.ContextMenu;
 import android.view.ContextMenu.ContextMenuInfo;
 import android.view.KeyEvent;
@@ -70,6 +71,10 @@ public class AwesomeBar extends GeckoActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        if (Build.VERSION.SDK_INT >= 11) {
+            getActionBar().hide();
+        }
 
         Log.d(LOGTAG, "creating awesomebar");
 
@@ -169,7 +174,8 @@ public class AwesomeBar extends GeckoActivity {
                 }
 
                 if (Build.VERSION.SDK_INT >= 11) {
-                    getActionBar().hide();
+                    if (getActionBar().isShowing())
+                        getActionBar().hide();
                 }
             }
 
@@ -228,7 +234,8 @@ public class AwesomeBar extends GeckoActivity {
             @Override
             public void onSelectionChanged(int selStart, int selEnd) {
                 if (Build.VERSION.SDK_INT >= 11 && selStart == selEnd) {
-                    getActionBar().hide();
+                    if (getActionBar().isShowing())
+                        getActionBar().hide();
                 }
             }
         });

@@ -479,7 +479,7 @@ nsLookAndFeel::GetFontImpl(FontID aID, nsString &aFontName,
     [NSFont boldSystemFontOfSize:     [NSFont smallSystemFontSize]]
 */
 
-    NSFont *font = nullptr;
+    NSFont *font = nsnull;
     switch (aID) {
         // css2
         case eFont_Caption:

@@ -108,14 +108,14 @@ XRE_ParseAppData(nsIFile* aINIFile, nsXREAppData *aAppData)
     { "App", "ID",        &aAppData->ID },
     { "App", "Copyright", &aAppData->copyright },
     { "App", "Profile",   &aAppData->profile },
-    { nullptr }
+    { nsnull }
   };
   ReadStrings(parser, strings);
 
   ReadFlag flags[] = {
     { "XRE", "EnableProfileMigrator", NS_XRE_ENABLE_PROFILE_MIGRATOR },
     { "XRE", "EnableExtensionManager", NS_XRE_ENABLE_EXTENSION_MANAGER },
-    { nullptr }
+    { nsnull }
   };
   ReadFlags(parser, flags, &aAppData->flags);
 
@@ -123,7 +123,7 @@ XRE_ParseAppData(nsIFile* aINIFile, nsXREAppData *aAppData)
     ReadString strings2[] = {
       { "Gecko", "MinVersion", &aAppData->minVersion },
       { "Gecko", "MaxVersion", &aAppData->maxVersion },
-      { nullptr }
+      { nsnull }
     };
     ReadStrings(parser, strings2);
   }
@@ -131,12 +131,12 @@ XRE_ParseAppData(nsIFile* aINIFile, nsXREAppData *aAppData)
   if (aAppData->size > offsetof(nsXREAppData, crashReporterURL)) {
     ReadString strings3[] = {
       { "Crash Reporter", "ServerURL", &aAppData->crashReporterURL },
-      { nullptr }
+      { nsnull }
     };
     ReadStrings(parser, strings3);
     ReadFlag flags2[] = {
       { "Crash Reporter", "Enabled", NS_XRE_ENABLE_CRASH_REPORTER },
-      { nullptr }
+      { nsnull }
     };
     ReadFlags(parser, flags2, &aAppData->flags);
   }
@@ -144,7 +144,7 @@ XRE_ParseAppData(nsIFile* aINIFile, nsXREAppData *aAppData)
   if (aAppData->size > offsetof(nsXREAppData, UAName)) {
     ReadString strings4[] = {
       { "App", "UAName",    &aAppData->UAName },
-      { nullptr }
+      { nsnull }
     };
     ReadStrings(parser, strings4);
   }

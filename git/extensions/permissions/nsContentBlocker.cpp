@@ -95,7 +95,7 @@ nsContentBlocker::Init()
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = mPrefBranchInternal->AddObserver("", this, true);
-  PrefChanged(prefBranch, nullptr);
+  PrefChanged(prefBranch, nsnull);
 
   return rv;
 }

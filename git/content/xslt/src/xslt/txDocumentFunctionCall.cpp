@@ -70,7 +70,7 @@ nsresult
 DocumentFunctionCall::evaluate(txIEvalContext* aContext,
                                txAExprResult** aResult)
 {
-    *aResult = nullptr;
+    *aResult = nsnull;
     txExecutionState* es =
         static_cast<txExecutionState*>(aContext->getPrivateContext());
 

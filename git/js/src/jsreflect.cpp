@@ -168,15 +168,15 @@ class NodeBuilder
 
         userv.setObject(*userobj);
 
-        RootedValue nullValue(cx, NullValue());
-        RootedValue funv(cx);
         for (unsigned i = 0; i < AST_LIMIT; i++) {
+            Value funv;
+
             const char *name = callbackNames[i];
             JSAtom *atom = js_Atomize(cx, name, strlen(name));
             if (!atom)
                 return false;
             RootedId id(cx, AtomToId(atom));
-            if (!baseops::GetPropertyDefault(cx, userobj, id, nullValue, &funv))
+            if (!baseops::GetPropertyDefault(cx, userobj, id, NullValue(), &funv))
                 return false;
 
             if (funv.isNullOrUndefined()) {
@@ -408,8 +408,7 @@ class NodeBuilder
         return newNode(type, pos, propName, array, dst);
     }
 
-    bool setProperty(JSObject *obj, const char *name, Value val_) {
-        RootedValue val(cx, val_);
+    bool setProperty(JSObject *obj, const char *name, Value val) {
         JS_ASSERT_IF(val.isMagic(), val.whyMagic() == JS_SERIALIZE_NO_NODE);
 
         /* Represent "no node" as null and ensure users are not exposed to magic values. */
@@ -651,7 +650,7 @@ NodeBuilder::newArray(NodeVector &elts, Value *dst)
         return false;
 
     for (size_t i = 0; i < len; i++) {
-        RootedValue val(cx, elts[i]);
+        Value val = elts[i];
 
         JS_ASSERT_IF(val.isMagic(), val.whyMagic() == JS_SERIALIZE_NO_NODE);
 
@@ -3191,12 +3190,11 @@ reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
 
         RootedObject config(cx, &arg.toObject());
 
-        RootedValue prop(cx);
+        Value prop;
 
         /* config.loc */
         RootedId locId(cx, NameToId(cx->runtime->atomState.locAtom));
-        RootedValue trueVal(cx, BooleanValue(true));
-        if (!baseops::GetPropertyDefault(cx, config, locId, trueVal, &prop))
+        if (!baseops::GetPropertyDefault(cx, config, locId, BooleanValue(true), &prop))
             return JS_FALSE;
 
         loc = ToBoolean(prop);
@@ -3204,8 +3202,7 @@ reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
         if (loc) {
             /* config.source */
             RootedId sourceId(cx, NameToId(cx->runtime->atomState.sourceAtom));
-            RootedValue nullValue(cx, NullValue());
-            if (!baseops::GetPropertyDefault(cx, config, sourceId, nullValue, &prop))
+            if (!baseops::GetPropertyDefault(cx, config, sourceId, NullValue(), &prop))
                 return JS_FALSE;
 
             if (!prop.isNullOrUndefined()) {
@@ -3226,8 +3223,7 @@ reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
 
             /* config.line */
             RootedId lineId(cx, NameToId(cx->runtime->atomState.lineAtom));
-            RootedValue oneValue(cx, Int32Value(1));
-            if (!baseops::GetPropertyDefault(cx, config, lineId, oneValue, &prop) ||
+            if (!baseops::GetPropertyDefault(cx, config, lineId, Int32Value(1), &prop) ||
                 !ToUint32(cx, prop, &lineno)) {
                 return JS_FALSE;
             }
@@ -3235,8 +3231,7 @@ reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
 
         /* config.builder */
         RootedId builderId(cx, NameToId(cx->runtime->atomState.builderAtom));
-        RootedValue nullValue(cx, NullValue());
-        if (!baseops::GetPropertyDefault(cx, config, builderId, nullValue, &prop))
+        if (!baseops::GetPropertyDefault(cx, config, builderId, NullValue(), &prop))
             return JS_FALSE;
 
         if (!prop.isNullOrUndefined()) {

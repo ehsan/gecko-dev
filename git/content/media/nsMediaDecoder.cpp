@@ -27,7 +27,7 @@ static const PRUint32 STALL_MS = 3000;
 static const PRInt64 CAN_PLAY_THROUGH_MARGIN = 10;
 
 nsMediaDecoder::nsMediaDecoder() :
-  mElement(nullptr),
+  mElement(nsnull),
   mFrameBufferLength(0),
   mPinnedForSeek(false),
   mShuttingDown(false)
@@ -52,7 +52,7 @@ bool nsMediaDecoder::Init(nsHTMLMediaElement* aElement)
 void nsMediaDecoder::Shutdown()
 {
   StopProgress();
-  mElement = nullptr;
+  mElement = nsnull;
 }
 
 nsHTMLMediaElement* nsMediaDecoder::GetMediaElement()
@@ -123,7 +123,7 @@ nsresult nsMediaDecoder::StopProgress()
     return NS_OK;
 
   nsresult rv = mProgressTimer->Cancel();
-  mProgressTimer = nullptr;
+  mProgressTimer = nsnull;
 
   return rv;
 }

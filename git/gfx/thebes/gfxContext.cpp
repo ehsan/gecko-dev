@@ -41,7 +41,7 @@ public:
     gfxContext::AzureState &state = mContext->CurrentState();
 
     if (state.pattern) {
-      return *state.pattern->GetPattern(mContext->mDT, state.patternTransformChanged ? &state.patternTransform : nullptr);
+      return *state.pattern->GetPattern(mContext->mDT, state.patternTransformChanged ? &state.patternTransform : nsnull);
     } else if (state.sourceSurface) {
       Matrix transform = state.surfTransform;
 
@@ -902,7 +902,7 @@ gfxContext::SetDash(gfxLineType ltype)
           break;
       case gfxLineSolid:
       default:
-          SetDash(nullptr, 0, 0.0);
+          SetDash(nsnull, 0, 0.0);
           break;
   }
 }
@@ -1372,7 +1372,7 @@ gfxContext::GetPattern()
     cairo_pattern_t *pat = cairo_get_source(mCairo);
     NS_ASSERTION(pat, "I was told this couldn't be null");
 
-    gfxPattern *wrapper = nullptr;
+    gfxPattern *wrapper = nsnull;
     if (pat)
         wrapper = new gfxPattern(pat);
     else

@@ -21,7 +21,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(IDBWrapperCache,
                                                 nsDOMEventTargetHelper)
   if (tmp->mScriptOwner) {
     NS_DROP_JS_OBJECTS(tmp, IDBWrapperCache);
-    tmp->mScriptOwner = nullptr;
+    tmp->mScriptOwner = nsnull;
   }
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
@@ -58,7 +58,7 @@ IDBWrapperCache::SetScriptOwner(JSObject* aScriptOwner)
   nsresult rv = nsContentUtils::HoldJSObjects(thisSupports, participant);
   if (NS_FAILED(rv)) {
     NS_WARNING("nsContentUtils::HoldJSObjects failed.");
-    mScriptOwner = nullptr;
+    mScriptOwner = nsnull;
     return false;
   }
 

@@ -147,7 +147,7 @@ NS_IMETHODIMP
 nsCharsetConverterManager::GetUnicodeEncoderRaw(const char * aDest, 
                                                 nsIUnicodeEncoder ** aResult)
 {
-  *aResult= nullptr;
+  *aResult= nsnull;
   nsCOMPtr<nsIUnicodeEncoder> encoder;
 
   nsresult rv = NS_OK;
@@ -203,7 +203,7 @@ NS_IMETHODIMP
 nsCharsetConverterManager::GetUnicodeDecoderRaw(const char * aSrc, 
                                                 nsIUnicodeDecoder ** aResult)
 {
-  *aResult= nullptr;
+  *aResult= nsnull;
   nsCOMPtr<nsIUnicodeDecoder> decoder;
 
   nsresult rv = NS_OK;
@@ -349,7 +349,7 @@ nsCharsetConverterManager::GetCharsetLangGroupRaw(const char * aCharset,
                                                   nsIAtom** aResult)
 {
 
-  *aResult = nullptr;
+  *aResult = nsnull;
   nsAutoString langGroup;
   // fully qualify to possibly avoid vtable call
   nsresult rv = nsCharsetConverterManager::GetCharsetData(

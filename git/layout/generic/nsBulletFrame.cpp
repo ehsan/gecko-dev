@@ -33,7 +33,7 @@
 
 using namespace mozilla;
 
-NS_DECLARE_FRAME_PROPERTY(FontSizeInflationProperty, nullptr)
+NS_DECLARE_FRAME_PROPERTY(FontSizeInflationProperty, nsnull)
 
 NS_IMPL_FRAMEARENA_HELPERS(nsBulletFrame)
 
@@ -51,11 +51,11 @@ nsBulletFrame::DestroyFrom(nsIFrame* aDestructRoot)
                                           mImageRequest,
                                           &mRequestRegistered);
     mImageRequest->CancelAndForgetObserver(NS_ERROR_FAILURE);
-    mImageRequest = nullptr;
+    mImageRequest = nsnull;
   }
 
   if (mListener) {
-    mListener->SetFrame(nullptr);
+    mListener->SetFrame(nsnull);
   }
 
   // Let base class do the rest
@@ -119,7 +119,7 @@ nsBulletFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
           nsLayoutUtils::DeregisterImageRequest(PresContext(), mImageRequest,
                                                 &mRequestRegistered);
           mImageRequest->Cancel(NS_ERROR_FAILURE);
-          mImageRequest = nullptr;
+          mImageRequest = nsnull;
         }
       }
     }
@@ -139,7 +139,7 @@ nsBulletFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
                                             &mRequestRegistered);
 
       mImageRequest->Cancel(NS_ERROR_FAILURE);
-      mImageRequest = nullptr;
+      mImageRequest = nsnull;
     }
   }
 
@@ -1530,7 +1530,7 @@ nsBulletFrame::GetLoadGroup(nsPresContext *aPresContext, nsILoadGroup **aLoadGro
   if (!aPresContext)
     return;
 
-  NS_PRECONDITION(nullptr != aLoadGroup, "null OUT parameter pointer");
+  NS_PRECONDITION(nsnull != aLoadGroup, "null OUT parameter pointer");
 
   nsIPresShell *shell = aPresContext->GetPresShell();
 
@@ -1545,7 +1545,7 @@ nsBulletFrame::GetLoadGroup(nsPresContext *aPresContext, nsILoadGroup **aLoadGro
 }
 
 union VoidPtrOrFloat {
-  VoidPtrOrFloat() : p(nullptr) {}
+  VoidPtrOrFloat() : p(nsnull) {}
 
   void *p;
   float f;
@@ -1622,7 +1622,7 @@ nsBulletFrame::GetBaseline() const
 NS_IMPL_ISUPPORTS2(nsBulletListener, imgIDecoderObserver, imgIContainerObserver)
 
 nsBulletListener::nsBulletListener() :
-  mFrame(nullptr)
+  mFrame(nsnull)
 {
 }
 

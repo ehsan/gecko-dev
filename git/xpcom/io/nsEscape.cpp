@@ -190,11 +190,11 @@ PRInt32 nsUnescapeCount(char * str)
 char *
 nsEscapeHTML(const char * string)
 {
-    char *rv = nullptr;
+    char *rv = nsnull;
     /* XXX Hardcoded max entity len. The +1 is for the trailing null. */
     PRUint32 len = PL_strlen(string);
     if (len >= (PR_UINT32_MAX / 6))
-      return nullptr;
+      return nsnull;
 
     rv = (char *)NS_Alloc( (6 * len) + 1 );
     char *ptr = rv;
@@ -264,7 +264,7 @@ nsEscapeHTML2(const PRUnichar *aSourceBuffer, PRInt32 aSourceBufferLen)
   /* XXX Hardcoded max entity len. */
   if (PRUint32(aSourceBufferLen) >=
       ((PR_UINT32_MAX - sizeof(PRUnichar)) / (6 * sizeof(PRUnichar))) )
-    return nullptr;
+    return nsnull;
 
   PRUnichar *resultBuffer = (PRUnichar *)nsMemory::Alloc(aSourceBufferLen *
                             6 * sizeof(PRUnichar) + sizeof(PRUnichar('\0')));

@@ -59,7 +59,7 @@ nsViewSourceChannel::Init(nsIURI* uri)
       return NS_ERROR_INVALID_ARG;
     }
 
-    rv = pService->NewChannel(path, nullptr, nullptr, getter_AddRefs(mChannel));
+    rv = pService->NewChannel(path, nsnull, nsnull, getter_AddRefs(mChannel));
     if (NS_FAILED(rv))
       return rv;
  
@@ -163,7 +163,7 @@ nsViewSourceChannel::GetURI(nsIURI* *aURI)
 
     /* XXX Gross hack -- NS_NewURI goes into an infinite loop on
        non-flat specs.  See bug 136980 */
-    return NS_NewURI(aURI, nsCAutoString(NS_LITERAL_CSTRING("view-source:")+spec), nullptr);
+    return NS_NewURI(aURI, nsCAutoString(NS_LITERAL_CSTRING("view-source:")+spec), nsnull);
 }
 
 NS_IMETHODIMP
@@ -196,14 +196,14 @@ nsViewSourceChannel::AsyncOpen(nsIStreamListener *aListener, nsISupports *ctxt)
     mChannel->GetLoadGroup(getter_AddRefs(loadGroup));
     if (loadGroup)
         loadGroup->AddRequest(static_cast<nsIViewSourceChannel*>
-                                         (this), nullptr);
+                                         (this), nsnull);
     
     nsresult rv = mChannel->AsyncOpen(this, ctxt);
 
     if (NS_FAILED(rv) && loadGroup)
         loadGroup->RemoveRequest(static_cast<nsIViewSourceChannel*>
                                             (this),
-                                 nullptr, rv);
+                                 nsnull, rv);
 
     if (NS_SUCCEEDED(rv)) {
         mOpened = true;
@@ -485,7 +485,7 @@ nsViewSourceChannel::OnStopRequest(nsIRequest *aRequest, nsISupports* aContext,
         {
             loadGroup->RemoveRequest(static_cast<nsIViewSourceChannel*>
                                                 (this),
-                                     nullptr, aStatus);
+                                     nsnull, aStatus);
         }
     }
     return mListener->OnStopRequest(static_cast<nsIViewSourceChannel*>

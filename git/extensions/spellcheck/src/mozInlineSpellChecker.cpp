@@ -125,7 +125,7 @@ mozInlineSpellStatus::InitForEditorChange(
     // to check to be empty, FinishInitOnEvent will fill in the range to be
     // the current word.
     mOp = eOpChangeDelete;
-    mRange = nullptr;
+    mRange = nsnull;
     return NS_OK;
   }
 
@@ -268,7 +268,7 @@ mozInlineSpellStatus::FinishInitOnEvent(mozInlineSpellWordUtil& aWordUtil)
 {
   nsresult rv;
   if (! mRange) {
-    rv = mSpellChecker->MakeSpellCheckRange(nullptr, 0, nullptr, 0,
+    rv = mSpellChecker->MakeSpellCheckRange(nsnull, 0, nsnull, 0,
                                             getter_AddRefs(mRange));
     NS_ENSURE_SUCCESS(rv, rv);
   }
@@ -363,7 +363,7 @@ mozInlineSpellStatus::FinishNavigationEvent(mozInlineSpellWordUtil& aWordUtil)
 
   if (isInRange) {
     // caller should give up
-    mRange = nullptr;
+    mRange = nsnull;
   } else {
     // check the old word
     mRange = oldWord;
@@ -407,7 +407,7 @@ nsresult
 mozInlineSpellStatus::GetDocument(nsIDOMDocument** aDocument)
 {
   nsresult rv;
-  *aDocument = nullptr;
+  *aDocument = nsnull;
   if (! mSpellChecker->mEditor)
     return NS_ERROR_UNEXPECTED;
 
@@ -432,7 +432,7 @@ nsresult
 mozInlineSpellStatus::PositionToCollapsedRange(nsIDOMDocument* aDocument,
     nsIDOMNode* aNode, PRInt32 aOffset, nsIDOMRange** aRange)
 {
-  *aRange = nullptr;
+  *aRange = nsnull;
   nsCOMPtr<nsIDOMRange> range;
   nsresult rv = aDocument->CreateRange(getter_AddRefs(range));
   NS_ENSURE_SUCCESS(rv, rv);
@@ -545,7 +545,7 @@ nsresult mozInlineSpellChecker::Cleanup(bool aDestroyingFrames)
 
     rv = UnregisterEventListeners();
   }
-  mEditor = nullptr;
+  mEditor = nsnull;
 
   return rv;
 }
@@ -648,7 +648,7 @@ NS_IMETHODIMP
 mozInlineSpellChecker::GetEnableRealTimeSpell(bool* aEnabled)
 {
   NS_ENSURE_ARG_POINTER(aEnabled);
-  *aEnabled = mSpellCheck != nullptr;
+  *aEnabled = mSpellCheck != nsnull;
   return NS_OK;
 }
 
@@ -658,7 +658,7 @@ NS_IMETHODIMP
 mozInlineSpellChecker::SetEnableRealTimeSpell(bool aEnabled)
 {
   if (!aEnabled) {
-    mSpellCheck = nullptr;
+    mSpellCheck = nsnull;
     return Cleanup(false);
   }
 
@@ -694,7 +694,7 @@ mozInlineSpellChecker::SetEnableRealTimeSpell(bool aEnabled)
   // range to DoSpellCheck, which in our case is the entire range. But this
   // optimization doesn't matter because there is nothing in the spellcheck
   // selection when starting, which triggers a better optimization.
-  return SpellCheckRange(nullptr);
+  return SpellCheckRange(nsnull);
 }
 
 // mozInlineSpellChecker::SpellCheckAfterEditorChange
@@ -839,7 +839,7 @@ mozInlineSpellChecker::RemoveWordFromDictionary(const nsAString &word)
   NS_ENSURE_SUCCESS(rv, rv); 
   
   mozInlineSpellStatus status(this);
-  rv = status.InitForRange(nullptr);
+  rv = status.InitForRange(nsnull);
   NS_ENSURE_SUCCESS(rv, rv);
   return ScheduleSpellCheck(status);
 }
@@ -983,7 +983,7 @@ mozInlineSpellChecker::MakeSpellCheckRange(
     nsRange** aRange)
 {
   nsresult rv;
-  *aRange = nullptr;
+  *aRange = nsnull;
 
   nsCOMPtr<nsIEditor> editor (do_QueryReferent(mEditor));
   NS_ENSURE_TRUE(editor, NS_ERROR_NULL_POINTER);
@@ -1199,7 +1199,7 @@ mozInlineSpellChecker::DoSpellCheckSelection(mozInlineSpellWordUtil& aWordUtil,
   // that we don't need to call FinishInit since we will be filling in the
   // necessary information.
   mozInlineSpellStatus status(this);
-  rv = status.InitForRange(nullptr);
+  rv = status.InitForRange(nsnull);
   NS_ENSURE_SUCCESS(rv, rv);
 
   bool doneChecking;
@@ -1509,7 +1509,7 @@ mozInlineSpellChecker::IsPointInSelection(nsISelection *aSelection,
                                           PRInt32 aOffset,
                                           nsIDOMRange **aRange)
 {
-  *aRange = nullptr;
+  *aRange = nsnull;
 
   nsCOMPtr<nsISelectionPrivate> privSel(do_QueryInterface(aSelection));
 
@@ -1788,7 +1788,7 @@ NS_IMETHODIMP mozInlineSpellChecker::UpdateCurrentDictionary()
   }
 
   if (!previousDictionary.Equals(currentDictionary)) {
-      rv = SpellCheckRange(nullptr);
+      rv = SpellCheckRange(nsnull);
   }
 
   return rv;

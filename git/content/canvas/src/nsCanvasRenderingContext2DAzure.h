@@ -475,7 +475,7 @@ public:
   NS_IMETHOD GetThebesSurface(gfxASurface **surface);
 
   mozilla::TemporaryRef<mozilla::gfx::SourceSurface> GetSurfaceSnapshot()
-  { return mTarget ? mTarget->Snapshot() : nullptr; }
+  { return mTarget ? mTarget->Snapshot() : nsnull; }
 
   NS_IMETHOD SetIsOpaque(bool isOpaque);
   NS_IMETHOD Reset();
@@ -775,7 +775,7 @@ protected:
       mDocShell->GetPresShell(getter_AddRefs(shell));
       return shell.get();
     }
-    return nullptr;
+    return nsnull;
   }
 
   // text
@@ -861,18 +861,18 @@ protected:
 
       void SetColorStyle(Style whichStyle, nscolor color) {
           colorStyles[whichStyle] = color;
-          gradientStyles[whichStyle] = nullptr;
-          patternStyles[whichStyle] = nullptr;
+          gradientStyles[whichStyle] = nsnull;
+          patternStyles[whichStyle] = nsnull;
       }
 
       void SetPatternStyle(Style whichStyle, nsCanvasPatternAzure* pat) {
-          gradientStyles[whichStyle] = nullptr;
+          gradientStyles[whichStyle] = nsnull;
           patternStyles[whichStyle] = pat;
       }
 
       void SetGradientStyle(Style whichStyle, nsCanvasGradientAzure* grad) {
           gradientStyles[whichStyle] = grad;
-          patternStyles[whichStyle] = nullptr;
+          patternStyles[whichStyle] = nsnull;
       }
 
       /**

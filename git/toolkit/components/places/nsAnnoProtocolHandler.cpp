@@ -152,7 +152,7 @@ public:
     rv = GetDefaultIcon(getter_AddRefs(newChannel));
     NS_ENSURE_SUCCESS(rv, mOutputStream->Close());
 
-    rv = newChannel->AsyncOpen(listener, nullptr);
+    rv = newChannel->AsyncOpen(listener, nsnull);
     NS_ENSURE_SUCCESS(rv, mOutputStream->Close());
 
     return NS_OK;
@@ -243,7 +243,7 @@ nsAnnoProtocolHandler::NewURI(const nsACString& aSpec,
   nsresult rv = uri->SetSpec(aSpec);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  *_retval = nullptr;
+  *_retval = nsnull;
   uri.swap(*_retval);
   return NS_OK;
 }

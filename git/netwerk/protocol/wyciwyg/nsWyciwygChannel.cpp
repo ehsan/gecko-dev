@@ -381,7 +381,7 @@ nsWyciwygChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *ctx)
   mListenerContext = ctx;
 
   if (mLoadGroup)
-    mLoadGroup->AddRequest(this, nullptr);
+    mLoadGroup->AddRequest(this, nsnull);
 
   return NS_OK;
 }
@@ -530,7 +530,8 @@ nsWyciwygChannel::GetCharsetAndSource(PRInt32* aSource, nsACString& aCharset)
   mCacheEntry->GetMetaDataElement("charset-source", getter_Copies(sourceStr));
 
   PRInt32 source;
-  nsresult err;
+  // XXXbz ToInteger takes an PRInt32* but outputs an nsresult in it... :(
+  PRInt32 err;
   source = sourceStr.ToInteger(&err);
   if (NS_FAILED(err) || source == 0) {
     return NS_ERROR_NOT_AVAILABLE;
@@ -604,7 +605,7 @@ nsWyciwygChannel::OnDataAvailable(nsIRequest *request, nsISupports *ctx,
 
   // XXX handle 64-bit stuff for real
   if (mProgressSink && NS_SUCCEEDED(rv) && !(mLoadFlags & LOAD_BACKGROUND))
-    mProgressSink->OnProgress(this, nullptr, PRUint64(offset + count),
+    mProgressSink->OnProgress(this, nsnull, PRUint64(offset + count),
                               PRUint64(mContentLength));
 
   return rv; // let the pump cancel on failure
@@ -638,7 +639,7 @@ nsWyciwygChannel::OnStopRequest(nsIRequest *request, nsISupports *ctx, nsresult 
   mListenerContext = 0;
 
   if (mLoadGroup)
-    mLoadGroup->RemoveRequest(this, nullptr, mStatus);
+    mLoadGroup->RemoveRequest(this, nsnull, mStatus);
 
   CloseCacheEntry(mStatus);
   mPump = 0;
@@ -718,7 +719,7 @@ nsWyciwygChannel::ReadFromCache()
   if (NS_FAILED(rv)) return rv;
 
   // Pump the cache data downstream
-  return mPump->AsyncRead(this, nullptr);
+  return mPump->AsyncRead(this, nsnull);
 }
 
 void
@@ -749,7 +750,7 @@ nsWyciwygChannel::NotifyListener()
 
   // Remove ourselves from the load group.
   if (mLoadGroup) {
-    mLoadGroup->RemoveRequest(this, nullptr, mStatus);
+    mLoadGroup->RemoveRequest(this, nsnull, mStatus);
   }
 }
 

@@ -29,8 +29,8 @@ public:
 protected:
   nsListItemFrame(nsIPresShell* aPresShell,
                   nsStyleContext *aContext,
-                  bool aIsRoot = nullptr,
-                  nsBoxLayout* aLayoutManager = nullptr);
+                  bool aIsRoot = nsnull,
+                  nsBoxLayout* aLayoutManager = nsnull);
   virtual ~nsListItemFrame();
 
 }; // class nsListItemFrame

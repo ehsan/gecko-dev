@@ -4312,8 +4312,7 @@ AnalyzePoppedThis(JSContext *cx, Vector<SSAUseChain *> *pendingPoppedThis,
             }
 
             unsigned slotSpan = obj->slotSpan();
-            RootedValue value(cx, UndefinedValue());
-            if (!DefineNativeProperty(cx, obj, id, value, NULL, NULL,
+            if (!DefineNativeProperty(cx, obj, id, UndefinedValue(), NULL, NULL,
                                       JSPROP_ENUMERATE, 0, 0, DNP_SKIP_TYPE)) {
                 cx->compartment->types.setPendingNukeTypes(cx);
                 *pbaseobj = NULL;

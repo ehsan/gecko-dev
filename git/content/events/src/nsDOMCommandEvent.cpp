@@ -9,7 +9,7 @@
 nsDOMCommandEvent::nsDOMCommandEvent(nsPresContext* aPresContext,
                                      nsCommandEvent* aEvent)
   : nsDOMEvent(aPresContext, aEvent ? aEvent :
-               new nsCommandEvent(false, nullptr, nullptr, nullptr))
+               new nsCommandEvent(false, nsnull, nsnull, nsnull))
 {
   mEvent->time = PR_Now();
   if (aEvent) {
@@ -23,7 +23,7 @@ nsDOMCommandEvent::~nsDOMCommandEvent()
 {
   if (mEventIsInternal && mEvent->eventStructType == NS_COMMAND_EVENT) {
     delete static_cast<nsCommandEvent*>(mEvent);
-    mEvent = nullptr;
+    mEvent = nsnull;
   }
 }
 
@@ -67,7 +67,7 @@ nsresult NS_NewDOMCommandEvent(nsIDOMEvent** aInstancePtrResult,
                                nsCommandEvent* aEvent)
 {
   nsDOMCommandEvent* it = new nsDOMCommandEvent(aPresContext, aEvent);
-  if (nullptr == it) {
+  if (nsnull == it) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
 

@@ -1611,7 +1611,7 @@ class ScopeNameCompiler : public PICStubCompiler
         return disable("scope object not handled yet");
     }
 
-    bool retrieve(MutableHandleValue vp, PICInfo::Kind kind)
+    bool retrieve(Value *vp, PICInfo::Kind kind)
     {
         JSObject *obj = getprop.obj;
         Rooted<JSObject*> holder(cx, getprop.holder);
@@ -1622,7 +1622,7 @@ class ScopeNameCompiler : public PICStubCompiler
             if (kind == ic::PICInfo::NAME) {
                 JSOp op2 = JSOp(f.pc()[JSOP_NAME_LENGTH]);
                 if (op2 == JSOP_TYPEOF) {
-                    vp.setUndefined();
+                    vp->setUndefined();
                     return true;
                 }
             }
@@ -1642,7 +1642,7 @@ class ScopeNameCompiler : public PICStubCompiler
         Rooted<JSObject*> normalized(cx, obj);
         if (obj->isWith() && !shape->hasDefaultGetter())
             normalized = &obj->asWith().object();
-        NATIVE_GET(cx, normalized, holder, shape, 0, vp.address(), return false);
+        NATIVE_GET(cx, normalized, holder, shape, 0, vp, return false);
         return true;
     }
 };
@@ -1842,7 +1842,7 @@ ic::GetProp(VMFrame &f, ic::PICInfo *pic)
             JSObject *obj = ValueToObject(f.cx, f.regs.sp[-1]);
             if (!obj)
                 THROW();
-            if (!obj->getProperty(f.cx, name, MutableHandleValue::fromMarkedLocation(&f.regs.sp[-1])))
+            if (!obj->getProperty(f.cx, name, &f.regs.sp[-1]))
                 THROW();
         }
         return;
@@ -1865,7 +1865,7 @@ ic::GetProp(VMFrame &f, ic::PICInfo *pic)
         if (!GetPropertyOperation(f.cx, f.script(), f.pc(), f.regs.sp[-1], v.address()))
             THROW();
     } else {
-        if (!obj->getProperty(f.cx, name, &v))
+        if (!obj->getProperty(f.cx, name, v.address()))
             THROW();
     }
 
@@ -1932,7 +1932,7 @@ ic::XName(VMFrame &f, ic::PICInfo *pic)
     if (status == Lookup_Error)
         THROW();
 
-    RootedValue rval(f.cx);
+    Value rval;
     if (!cc.retrieve(&rval, PICInfo::XNAME))
         THROW();
     f.regs.sp[-1] = rval;
@@ -1948,7 +1948,7 @@ ic::Name(VMFrame &f, ic::PICInfo *pic)
         THROW();
 
     RootedValue rval(f.cx);
-    if (!cc.retrieve(&rval, PICInfo::NAME))
+    if (!cc.retrieve(rval.address(), PICInfo::NAME))
         THROW();
     f.regs.sp[0] = rval;
 }
@@ -2114,7 +2114,7 @@ GetElementIC::purge(Repatcher &repatcher)
 
 LookupStatus
 GetElementIC::attachGetProp(VMFrame &f, HandleObject obj, HandleValue v, HandlePropertyName name,
-                            MutableHandleValue vp)
+                            Value *vp)
 {
     JS_ASSERT(v.isString());
     JSContext *cx = f.cx;
@@ -2280,14 +2280,14 @@ GetElementIC::attachGetProp(VMFrame &f, HandleObject obj, HandleValue v, HandleP
         disable(f, "max stubs reached");
 
     // Finally, fetch the value to avoid redoing the property lookup.
-    vp.set(holder->getSlot(shape->slot()));
+    *vp = holder->getSlot(shape->slot());
 
     return Lookup_Cacheable;
 }
 
 #if defined JS_METHODJIT_TYPED_ARRAY
 LookupStatus
-GetElementIC::attachTypedArray(VMFrame &f, HandleObject obj, HandleValue v, HandleId id, MutableHandleValue vp)
+GetElementIC::attachTypedArray(VMFrame &f, HandleObject obj, HandleValue v, HandleId id, Value *vp)
 {
     JSContext *cx = f.cx;
 
@@ -2380,7 +2380,7 @@ GetElementIC::attachTypedArray(VMFrame &f, HandleObject obj, HandleValue v, Hand
 #endif /* JS_METHODJIT_TYPED_ARRAY */
 
 LookupStatus
-GetElementIC::update(VMFrame &f, HandleObject obj, HandleValue v, HandleId id, MutableHandleValue vp)
+GetElementIC::update(VMFrame &f, HandleObject obj, HandleValue v, HandleId id, Value *vp)
 {
     /*JSObject *obj, const Value &v, jsid id, Value *vp)
      * Only treat this as a GETPROP for non-numeric string identifiers. The
@@ -2450,13 +2450,11 @@ ic::GetElement(VMFrame &f, ic::GetElementIC *ic)
             THROW();
     }
 
-    MutableHandleValue res = MutableHandleValue::fromMarkedLocation(&f.regs.sp[-2]);
-
     if (!monitor.recompiled() && ic->shouldUpdate(f)) {
 #ifdef DEBUG
         f.regs.sp[-2] = MagicValue(JS_GENERIC_MAGIC);
 #endif
-        LookupStatus status = ic->update(f, obj, idval_, id, res);
+        LookupStatus status = ic->update(f, obj, idval_, id, &f.regs.sp[-2]);
         if (status != Lookup_Uncacheable) {
             if (status == Lookup_Error)
                 THROW();
@@ -2467,12 +2465,12 @@ ic::GetElement(VMFrame &f, ic::GetElementIC *ic)
         }
     }
 
-    if (!obj->getGeneric(cx, id, res))
+    if (!obj->getGeneric(cx, id, &f.regs.sp[-2]))
         THROW();
 
 #if JS_HAS_NO_SUCH_METHOD
     if (*f.pc() == JSOP_CALLELEM && JS_UNLIKELY(f.regs.sp[-2].isPrimitive())) {
-        if (!OnUnknownMethod(cx, obj, idval, res))
+        if (!OnUnknownMethod(cx, obj, idval, &f.regs.sp[-2]))
             THROW();
     }
 #endif

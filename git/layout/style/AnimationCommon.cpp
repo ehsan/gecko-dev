@@ -7,6 +7,9 @@
 #include "nsRuleData.h"
 #include "nsCSSValue.h"
 #include "nsStyleContext.h"
+#include "nsIFrame.h"
+#include "nsAnimationManager.h"
+#include "nsLayoutUtils.h"
 
 namespace mozilla {
 namespace css {
@@ -28,7 +31,7 @@ CommonAnimationManager::Disconnect()
   // Content nodes might outlive the transition or animation manager.
   RemoveAllElementData();
 
-  mPresContext = nullptr;
+  mPresContext = nsnull;
 }
 
 void
@@ -212,6 +215,27 @@ ComputedTimingFunction::GetValue(double aPortion) const
       return StepEnd(mSteps, aPortion);
   }
 }
+
+bool
+CommonElementAnimationData::CanAnimatePropertyOnCompositor(const dom::Element *aElement,
+                                                           nsCSSProperty aProperty)
+{
+  nsIFrame* frame = aElement->GetPrimaryFrame();
+  if (aProperty == eCSSProperty_opacity) {
+    return nsLayoutUtils::AreOpacityAnimationsEnabled();
+  }
+  if (aProperty == eCSSProperty_transform && !(frame &&
+      frame->Preserves3D() &&
+      frame->Preserves3DChildren())) {
+    if (frame && frame->IsSVGTransformed()) {
+      return false;
+    }
+    return nsLayoutUtils::AreTransformAnimationsEnabled();
+  }
+  return false;
+}
+
+
 
 }
 }

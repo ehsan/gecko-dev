@@ -243,7 +243,7 @@ public:
     }
 
     virtual ~nsCacheEntryInfo() {}
-    void    DetachEntry() { mCacheEntry = nullptr; }
+    void    DetachEntry() { mCacheEntry = nsnull; }
     
 private:
     nsCacheEntry * mCacheEntry;

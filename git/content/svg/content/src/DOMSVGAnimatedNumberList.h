@@ -62,7 +62,7 @@ public:
   /**
    * This method returns the DOMSVGAnimatedNumberList wrapper for an internal
    * SVGAnimatedNumberList object if it currently has a wrapper. If it does
-   * not, then nullptr is returned.
+   * not, then nsnull is returned.
    */
   static DOMSVGAnimatedNumberList*
     GetDOMWrapperIfExists(SVGAnimatedNumberList *aList);
@@ -95,8 +95,8 @@ private:
    * type.
    */
   DOMSVGAnimatedNumberList(nsSVGElement *aElement, PRUint8 aAttrEnum)
-    : mBaseVal(nullptr)
-    , mAnimVal(nullptr)
+    : mBaseVal(nsnull)
+    , mAnimVal(nsnull)
     , mElement(aElement)
     , mAttrEnum(aAttrEnum)
   {}

@@ -284,8 +284,8 @@ PCCounts::countName(JSOp op, size_t which)
 
 #ifdef DEBUG
 
-void
-js_DumpPCCounts(JSContext *cx, HandleScript script, js::Sprinter *sp)
+JS_FRIEND_API(void)
+js_DumpPCCounts(JSContext *cx, JSScript *script, js::Sprinter *sp)
 {
     JS_ASSERT(script->hasScriptCounts);
 
@@ -359,8 +359,8 @@ js_DisassembleAtPC(JSContext *cx, JSScript *script_, JSBool lines, jsbytecode *p
     return JS_TRUE;
 }
 
-JSBool
-js_Disassemble(JSContext *cx, HandleScript script, JSBool lines, Sprinter *sp)
+JS_FRIEND_API(JSBool)
+js_Disassemble(JSContext *cx, JSScript *script, JSBool lines, Sprinter *sp)
 {
     return js_DisassembleAtPC(cx, script, lines, NULL, sp);
 }
@@ -377,12 +377,11 @@ js_DumpPC(JSContext *cx)
 }
 
 JSBool
-js_DumpScript(JSContext *cx, JSScript *script_)
+js_DumpScript(JSContext *cx, JSScript *script)
 {
     Sprinter sprinter(cx);
     if (!sprinter.init())
         return JS_FALSE;
-    RootedScript script(cx, script_);
     JSBool ok = js_Disassemble(cx, script, true, &sprinter);
     fprintf(stdout, "%s", sprinter.string());
     return ok;
@@ -470,8 +469,8 @@ ToDisassemblySource(JSContext *cx, jsval v, JSAutoByteString *bytes)
     return !!js_ValueToPrintable(cx, v, bytes, true);
 }
 
-unsigned
-js_Disassemble1(JSContext *cx, HandleScript script, jsbytecode *pc,
+JS_FRIEND_API(unsigned)
+js_Disassemble1(JSContext *cx, JSScript *script, jsbytecode *pc,
                 unsigned loc, JSBool lines, Sprinter *sp)
 {
     JSOp op = (JSOp)*pc;

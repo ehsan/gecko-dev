@@ -52,7 +52,7 @@ nsresult txExpandedNameMap_base::setItem(const txExpandedName& aKey,
                                          void* aValue,
                                          void** aOldValue)
 {
-    *aOldValue = nullptr;
+    *aOldValue = nsnull;
     PRUint32 pos = mItems.IndexOf(aKey, 0, txMapItemComparator());
     if (pos != mItems.NoIndex) {
         *aOldValue = mItems[pos].mValue;
@@ -83,7 +83,7 @@ void* txExpandedNameMap_base::getItem(const txExpandedName& aKey) const
         return mItems[pos].mValue;
     }
 
-    return nullptr;
+    return nsnull;
 }
 
 /**
@@ -94,7 +94,7 @@ void* txExpandedNameMap_base::getItem(const txExpandedName& aKey) const
  */
 void* txExpandedNameMap_base::removeItem(const txExpandedName& aKey)
 {
-    void* value = nullptr;
+    void* value = nsnull;
     PRUint32 pos = mItems.IndexOf(aKey, 0, txMapItemComparator());
     if (pos != mItems.NoIndex) {
         value = mItems[pos].mValue;

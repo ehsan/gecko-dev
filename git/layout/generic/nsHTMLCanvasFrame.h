@@ -12,13 +12,8 @@
 #include "nsString.h"
 #include "nsAString.h"
 #include "nsIIOService.h"
-
-namespace mozilla {
-namespace layers {
-class Layer;
-class LayerManager;
-}
-}
+#include "Layers.h"
+#include "ImageLayers.h"
 
 class nsPresContext;
 class nsDisplayItem;
@@ -63,7 +58,7 @@ public:
                     nsHTMLReflowMetrics&     aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&          aStatus);
-
+  
   nsRect GetInnerArea() const;
 
 #ifdef ACCESSIBILITY

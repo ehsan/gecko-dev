@@ -218,7 +218,7 @@ PRInt32 nsXPLookAndFeel::sCachedColorBits[COLOR_CACHE_SIZE] = {0};
 bool nsXPLookAndFeel::sInitialized = false;
 bool nsXPLookAndFeel::sUseNativeColors = true;
 
-nsLookAndFeel* nsXPLookAndFeel::sInstance = nullptr;
+nsLookAndFeel* nsXPLookAndFeel::sInstance = nsnull;
 bool nsXPLookAndFeel::sShutdown = false;
 
 // static
@@ -229,7 +229,7 @@ nsXPLookAndFeel::GetInstance()
     return sInstance;
   }
 
-  NS_ENSURE_TRUE(!sShutdown, nullptr);
+  NS_ENSURE_TRUE(!sShutdown, nsnull);
 
   sInstance = new nsLookAndFeel();
   return sInstance;
@@ -244,7 +244,7 @@ nsXPLookAndFeel::Shutdown()
   }
   sShutdown = true;
   delete sInstance;
-  sInstance = nullptr;
+  sInstance = nsnull;
 }
 
 nsXPLookAndFeel::nsXPLookAndFeel() : LookAndFeel()
@@ -440,7 +440,7 @@ nsXPLookAndFeel::~nsXPLookAndFeel()
 {
   NS_ASSERTION(sInstance == this,
                "This destroying instance isn't the singleton instance");
-  sInstance = nullptr;
+  sInstance = nsnull;
 }
 
 bool

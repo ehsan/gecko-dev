@@ -109,7 +109,7 @@ int main(int argc, char *argv[])
   nsresult rv;
   {
     nsCOMPtr<nsIServiceManager> servMan;
-    rv = NS_InitXPCOM2(getter_AddRefs(servMan), nullptr, nullptr);
+    rv = NS_InitXPCOM2(getter_AddRefs(servMan), nsnull, nsnull);
     if (NS_FAILED(rv)) return -1;
     nsCOMPtr<nsIComponentRegistrar> registrar = do_QueryInterface(servMan);
     NS_ASSERTION(registrar, "Null nsIComponentRegistrar");
@@ -117,7 +117,7 @@ int main(int argc, char *argv[])
     /* With no arguments, RegFactory will autoregister */
     if (argc <= 1)
     {
-      rv = registrar->AutoRegister(nullptr);
+      rv = registrar->AutoRegister(nsnull);
       ret = (NS_FAILED(rv)) ? -1 : 0;
     }
     else

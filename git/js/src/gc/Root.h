@@ -62,7 +62,6 @@ namespace JS {
  *   separate rooting analysis.
  */
 
-template <typename T> class MutableHandle;
 template <typename T> class Rooted;
 
 template <typename T>
@@ -137,12 +136,6 @@ class Handle : public HandleBase<T>
     template <typename S>
     inline
     Handle(Rooted<S> &root,
-           typename mozilla::EnableIf<mozilla::IsConvertible<S, T>::value, int>::Type dummy = 0);
-
-    /* Construct a read only handle from a mutable handle. */
-    template <typename S>
-    inline
-    Handle(MutableHandle<S> &root,
            typename mozilla::EnableIf<mozilla::IsConvertible<S, T>::value, int>::Type dummy = 0);
 
     const T *address() const { return ptr; }
@@ -223,9 +216,6 @@ class MutableHandle : public MutableHandleBase<T>
     MutableHandle() {}
 
     T *ptr;
-
-    template <typename S>
-    void operator =(S v) MOZ_DELETE;
 };
 
 typedef MutableHandle<JSObject*>    MutableHandleObject;
@@ -325,14 +315,6 @@ class Rooted : public RootedBase<T>
 template<typename T> template <typename S>
 inline
 Handle<T>::Handle(Rooted<S> &root,
-                  typename mozilla::EnableIf<mozilla::IsConvertible<S, T>::value, int>::Type dummy)
-{
-    ptr = reinterpret_cast<const T *>(root.address());
-}
-
-template<typename T> template <typename S>
-inline
-Handle<T>::Handle(MutableHandle<S> &root,
                   typename mozilla::EnableIf<mozilla::IsConvertible<S, T>::value, int>::Type dummy)
 {
     ptr = reinterpret_cast<const T *>(root.address());

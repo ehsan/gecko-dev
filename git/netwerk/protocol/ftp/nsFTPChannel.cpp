@@ -144,7 +144,7 @@ nsFtpChannel::GetStatusArg(nsresult status, nsString &statusArg)
 void
 nsFtpChannel::OnCallbacksChanged()
 {
-    mFTPEventSink = nullptr;
+    mFTPEventSink = nsnull;
 }
 
 //-----------------------------------------------------------------------------

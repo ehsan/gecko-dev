@@ -155,7 +155,7 @@ Volume::HandleVoldResponse(int aResponseCode, nsCWhitespaceTokenizer &aTokenizer
       //
       nsDependentCSubstring mntPoint(aTokenizer.nextToken());
       SetMountPoint(mntPoint);
-      nsresult errCode;
+      PRInt32 errCode;
       nsCString state(aTokenizer.nextToken());
       SetState((STATE)state.ToInteger(&errCode));
       break;
@@ -170,7 +170,7 @@ Volume::HandleVoldResponse(int aResponseCode, nsCWhitespaceTokenizer &aTokenizer
       while (aTokenizer.hasMoreTokens()) {
         nsCAutoString token(aTokenizer.nextToken());
         if (token.Equals("to")) {
-          nsresult errCode;
+          PRInt32 errCode;
           token = aTokenizer.nextToken();
           SetState((STATE)token.ToInteger(&errCode));
           break;

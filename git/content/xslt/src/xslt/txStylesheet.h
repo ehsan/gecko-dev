@@ -80,7 +80,7 @@ public:
     class ImportFrame {
     public:
         ImportFrame()
-            : mFirstNotImported(nullptr)
+            : mFirstNotImported(nsnull)
         {
         }
         ~ImportFrame();

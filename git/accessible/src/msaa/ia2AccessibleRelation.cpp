@@ -19,7 +19,7 @@ using namespace mozilla::a11y;
 ia2AccessibleRelation::ia2AccessibleRelation(PRUint32 aType, Relation* aRel) :
   mType(aType), mReferences(0)
 {
-  Accessible* target = nullptr;
+  Accessible* target = nsnull;
   while ((target = aRel->Next()))
     mTargets.AppendElement(target);
 }

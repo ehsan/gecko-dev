@@ -61,10 +61,10 @@ NS_METHOD_(already_AddRefed<nsIPrivateTextRange>) nsPrivateTextRangeList::Item(P
 {
   nsRefPtr<nsPrivateTextRange> ret = mList.ElementAt(aIndex);
   if (ret) {
-    nsPrivateTextRange *retPtr = nullptr;
+    nsPrivateTextRange *retPtr = nsnull;
     ret.swap(retPtr);
     return retPtr;
   }
-  return nullptr;
+  return nsnull;
 }
 

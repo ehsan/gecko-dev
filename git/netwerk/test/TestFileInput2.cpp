@@ -172,7 +172,7 @@ public:
     NS_DECL_ISUPPORTS
 
     FileSpecWorker()
-        : mInPath(nullptr), mOutPath(nullptr), mBuffer(nullptr),
+        : mInPath(nsnull), mOutPath(nsnull), mBuffer(nsnull),
           mBufferSize(0)
     {
     }
@@ -194,7 +194,7 @@ public:
                            PRUint32 bufferSize)
     {
         FileSpecWorker* worker = new FileSpecWorker();
-        if (worker == nullptr)
+        if (worker == nsnull)
             return NS_ERROR_OUT_OF_MEMORY;
         NS_ADDREF(worker);
 
@@ -264,7 +264,7 @@ public:
     NS_DECL_ISUPPORTS
 
     FileChannelWorker()
-        : mInPath(nullptr), mOutPath(nullptr), mBuffer(nullptr),
+        : mInPath(nsnull), mOutPath(nsnull), mBuffer(nsnull),
           mBufferSize(0)
     {
     }
@@ -286,7 +286,7 @@ public:
                            PRUint32 bufferSize)
     {
         FileChannelWorker* worker = new FileChannelWorker();
-        if (worker == nullptr)
+        if (worker == nsnull)
             return NS_ERROR_OUT_OF_MEMORY;
         NS_ADDREF(worker);
 
@@ -418,11 +418,11 @@ main(int argc, char* argv[])
 
     {
         nsCOMPtr<nsIServiceManager> servMan;
-        NS_InitXPCOM2(getter_AddRefs(servMan), nullptr, nullptr);
+        NS_InitXPCOM2(getter_AddRefs(servMan), nsnull, nsnull);
         nsCOMPtr<nsIComponentRegistrar> registrar = do_QueryInterface(servMan);
         NS_ASSERTION(registrar, "Null nsIComponentRegistrar");
         if (registrar)
-            registrar->AutoRegister(nullptr);
+            registrar->AutoRegister(nsnull);
 
         nsCOMPtr<nsIFile> inDirFile;
         rv = NS_NewNativeLocalFile(nsDependentCString(inDir), false, getter_AddRefs(inDirFile));
@@ -472,7 +472,7 @@ main(int argc, char* argv[])
 #endif
     } // this scopes the nsCOMPtrs
     // no nsCOMPtrs are allowed to be alive when you call NS_ShutdownXPCOM
-    rv = NS_ShutdownXPCOM(nullptr);
+    rv = NS_ShutdownXPCOM(nsnull);
     NS_ASSERTION(NS_SUCCEEDED(rv), "NS_ShutdownXPCOM failed");
     return 0;
 }

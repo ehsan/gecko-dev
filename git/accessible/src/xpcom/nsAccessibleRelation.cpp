@@ -18,7 +18,7 @@ nsAccessibleRelation::nsAccessibleRelation(PRUint32 aType,
   mType(aType)
 {
   mTargets = do_CreateInstance(NS_ARRAY_CONTRACTID);
-  nsIAccessible* targetAcc = nullptr;
+  nsIAccessible* targetAcc = nsnull;
   while ((targetAcc = aRel->Next()))
     mTargets->AppendElement(targetAcc, false);
 }

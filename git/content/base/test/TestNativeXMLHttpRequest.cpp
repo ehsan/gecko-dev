@@ -52,13 +52,13 @@ nsresult TestNativeXMLHttpRequest()
   rv = secman->GetSystemPrincipal(getter_AddRefs(systemPrincipal));
   TEST_ENSURE_SUCCESS(rv, "Couldn't get system principal!");
 
-  rv = xhr->Init(systemPrincipal, nullptr, nullptr, nullptr);
+  rv = xhr->Init(systemPrincipal, nsnull, nsnull, nsnull);
   TEST_ENSURE_SUCCESS(rv, "Couldn't initialize the XHR!");
 
   rv = xhr->Open(getString, testURL, false, empty, empty);
   TEST_ENSURE_SUCCESS(rv, "Open failed!");
 
-  rv = xhr->Send(nullptr);
+  rv = xhr->Send(nsnull);
   TEST_ENSURE_SUCCESS(rv, "Send failed!");
 
   nsAutoString response;

@@ -43,8 +43,8 @@ using namespace mozilla::dom;
 
 static NS_DEFINE_CID(kTextEditorCID, NS_TEXTEDITOR_CID);
 
-static nsINativeKeyBindings *sNativeInputBindings = nullptr;
-static nsINativeKeyBindings *sNativeTextAreaBindings = nullptr;
+static nsINativeKeyBindings *sNativeInputBindings = nsnull;
+static nsINativeKeyBindings *sNativeTextAreaBindings = nsnull;
 
 class RestoreSelectionState : public nsRunnable {
 public:
@@ -79,8 +79,8 @@ public:
 
   // Let the text editor tell us we're no longer relevant - avoids use of nsWeakFrame
   void Revoke() {
-    mFrame = nullptr;
-    mTextEditorState = nullptr;
+    mFrame = nsnull;
+    mTextEditorState = nsnull;
   }
 
 private:
@@ -102,7 +102,7 @@ nsITextControlElement::GetWrapPropertyEnum(nsIContent* aContent,
   nsAutoString wrap;
   if (aContent->IsHTML()) {
     static nsIContent::AttrValuesArray strings[] =
-      {&nsGkAtoms::HARD, &nsGkAtoms::OFF, nullptr};
+      {&nsGkAtoms::HARD, &nsGkAtoms::OFF, nsnull};
 
     switch (aContent->FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::wrap,
                                       strings, eIgnoreCase)) {
@@ -121,7 +121,7 @@ already_AddRefed<nsITextControlElement>
 nsITextControlElement::GetTextControlElementFromEditingHost(nsIContent* aHost)
 {
   if (!aHost) {
-    return nullptr;
+    return nsnull;
   }
 
   nsCOMPtr<nsITextControlElement> parent =
@@ -234,7 +234,7 @@ NS_IMPL_CYCLE_COLLECTION_2(nsTextInputSelectionImpl, mFrameSelection, mLimiter)
 nsTextInputSelectionImpl::nsTextInputSelectionImpl(nsFrameSelection *aSel,
                                                    nsIPresShell *aShell,
                                                    nsIContent *aLimiter)
-  : mScrollFrame(nullptr)
+  : mScrollFrame(nsnull)
 {
   if (aSel && aShell)
   {
@@ -251,7 +251,7 @@ nsTextInputSelectionImpl::SetScrollableFrame(nsIScrollableFrame *aScrollableFram
   mScrollFrame = aScrollableFrame;
   if (!mScrollFrame && mFrameSelection) {
     mFrameSelection->DisconnectFromPresShell();
-    mFrameSelection = nullptr;
+    mFrameSelection = nsnull;
   }
 }
 
@@ -683,7 +683,7 @@ protected:
  */
 
 nsTextInputListener::nsTextInputListener(nsITextControlElement* aTxtCtrlElement)
-: mFrame(nullptr)
+: mFrame(nsnull)
 , mTxtCtrlElement(aTxtCtrlElement)
 , mSelectionWasCollapsed(true)
 , mHadUndoItems(false)
@@ -932,9 +932,9 @@ nsTextInputListener::GetKeyBindings()
 
 nsTextEditorState::nsTextEditorState(nsITextControlElement* aOwningElement)
   : mTextCtrlElement(aOwningElement),
-    mRestoringSelection(nullptr),
-    mBoundFrame(nullptr),
-    mTextListener(nullptr),
+    mRestoringSelection(nsnull),
+    mBoundFrame(nsnull),
+    mTextListener(nsnull),
     mEverInited(false),
     mEditorInitialized(false),
     mInitializing(false),
@@ -960,7 +960,7 @@ nsTextEditorState::Clear()
     // to something which is not a text control.  In this case, we should pretend
     // that a frame is being destroyed, and clean up after ourselves properly.
     UnbindFromFrame(mBoundFrame);
-    mEditor = nullptr;
+    mEditor = nsnull;
   } else {
     // If we have a bound frame around, UnbindFromFrame will call DestroyEditor
     // for us.
@@ -992,7 +992,7 @@ nsFrameSelection*
 nsTextEditorState::GetConstFrameSelection() {
   if (mSelCon)
     return mSelCon->GetConstFrameSelection();
-  return nullptr;
+  return nsnull;
 }
 
 nsIEditor*
@@ -1000,7 +1000,7 @@ nsTextEditorState::GetEditor()
 {
   if (!mEditor) {
     nsresult rv = PrepareEditor();
-    NS_ENSURE_SUCCESS(rv, nullptr);
+    NS_ENSURE_SUCCESS(rv, nsnull);
   }
   return mEditor;
 }
@@ -1026,7 +1026,7 @@ public:
 
   NS_IMETHOD Run() {
     // Transfer the saved value to the editor if we have one
-    const nsAString *value = nullptr;
+    const nsAString *value = nsnull;
     if (!mCurrentValue.IsEmpty()) {
       value = &mCurrentValue;
     }
@@ -1406,7 +1406,7 @@ nsTextEditorState::UnbindFromFrame(nsTextControlFrame* aFrame)
 
   if (mRestoringSelection) {
     mRestoringSelection->Revoke();
-    mRestoringSelection = nullptr;
+    mRestoringSelection = nsnull;
   }
 
   // Save our selection state if needed.
@@ -1456,7 +1456,7 @@ nsTextEditorState::UnbindFromFrame(nsTextControlFrame* aFrame)
           nsCOMPtr<nsIControllerContext> editController = do_QueryInterface(controller);
           if (editController)
           {
-            editController->SetCommandContext(nullptr);
+            editController->SetCommandContext(nsnull);
           }
         }
       }
@@ -1476,13 +1476,13 @@ nsTextEditorState::UnbindFromFrame(nsTextControlFrame* aFrame)
       }
     }
 
-    mSelCon->SetScrollableFrame(nullptr);
-    mSelCon = nullptr;
+    mSelCon->SetScrollableFrame(nsnull);
+    mSelCon = nsnull;
   }
 
   if (mTextListener)
   {
-    mTextListener->SetFrame(nullptr);
+    mTextListener->SetFrame(nsnull);
 
     nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(mTextCtrlElement);
     nsEventListenerManager* manager =
@@ -1503,10 +1503,10 @@ nsTextEditorState::UnbindFromFrame(nsTextControlFrame* aFrame)
     }
 
     NS_RELEASE(mTextListener);
-    mTextListener = nullptr;
+    mTextListener = nsnull;
   }
 
-  mBoundFrame = nullptr;
+  mBoundFrame = nsnull;
 
   // Now that we don't have a frame any more, store the value in the text buffer.
   // The only case where we don't do this is if a value transfer is in progress.
@@ -1516,7 +1516,7 @@ nsTextEditorState::UnbindFromFrame(nsTextControlFrame* aFrame)
 
   if (mRootNode && mMutationObserver) {
     mRootNode->RemoveMutationObserver(mMutationObserver);
-    mMutationObserver = nullptr;
+    mMutationObserver = nsnull;
   }
 
   // Unbind the anonymous content from the tree.
@@ -1540,7 +1540,7 @@ nsTextEditorState::CreateRootNode()
 
   // Now create a DIV and add it to the anonymous content child list.
   nsCOMPtr<nsINodeInfo> nodeInfo;
-  nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::div, nullptr,
+  nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::div, nsnull,
                                                  kNameSpaceID_XHTML,
                                                  nsIDOMNode::ELEMENT_NODE);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
@@ -1625,7 +1625,7 @@ be called if @placeholder is the empty string when trimmed from line breaks");
   // Create a DIV for the placeholder
   // and add it to the anonymous content child list
   nsCOMPtr<nsINodeInfo> nodeInfo;
-  nodeInfo = pNodeInfoManager->GetNodeInfo(nsGkAtoms::div, nullptr,
+  nodeInfo = pNodeInfoManager->GetNodeInfo(nsGkAtoms::div, nsnull,
                                            kNameSpaceID_XHTML,
                                            nsIDOMNode::ELEMENT_NODE);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);

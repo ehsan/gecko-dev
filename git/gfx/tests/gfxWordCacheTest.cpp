@@ -27,7 +27,7 @@
 
 class FrameTextRunCache;
 
-static FrameTextRunCache *gTextRuns = nullptr;
+static FrameTextRunCache *gTextRuns = nsnull;
 
 /*
  * Cache textruns and expire them after 3*10 seconds of no use.
@@ -68,11 +68,11 @@ MakeTextRun(const PRUnichar *aText, PRUint32 aLength,
        textRun = aFontGroup->MakeTextRun(aText, aLength, aParams, aFlags);
    }
    if (!textRun)
-       return nullptr;
+       return nsnull;
    nsresult rv = gTextRuns->AddObject(textRun);
    if (NS_FAILED(rv)) {
        gTextRuns->RemoveFromCache(textRun);
-       return nullptr;
+       return nsnull;
    }
    return textRun.forget();
 }
@@ -102,7 +102,7 @@ main (int argc, char **argv) {
 #endif
 
    // Initialize XPCOM
-   nsresult rv = NS_InitXPCOM2(nullptr, nullptr, nullptr);
+   nsresult rv = NS_InitXPCOM2(nsnull, nsnull, nsnull);
    if (NS_FAILED(rv))
        return -1;
 
@@ -128,10 +128,10 @@ main (int argc, char **argv) {
                            NS_LITERAL_STRING(""));
 
        nsRefPtr<gfxFontGroup> fontGroup =
-           gfxPlatform::GetPlatform()->CreateFontGroup(NS_LITERAL_STRING("Geneva, MS Sans Serif, Helvetica,serif"), &style, nullptr);
+           gfxPlatform::GetPlatform()->CreateFontGroup(NS_LITERAL_STRING("Geneva, MS Sans Serif, Helvetica,serif"), &style, nsnull);
 
        gfxTextRunFactory::Parameters params = {
-           ctx, nullptr, nullptr, nullptr, 0, 60
+           ctx, nsnull, nsnull, nsnull, 0, 60
        };
 
        PRUint32 flags = gfxTextRunFactory::TEXT_IS_PERSISTENT;
@@ -141,7 +141,7 @@ main (int argc, char **argv) {
        nsDependentCString cStr(cString);
        NS_ConvertUTF8toUTF16 str(cStr);
        gfxTextRun *tr = MakeTextRun(str.get(), str.Length(), fontGroup, &params, flags);
-       tr->GetAdvanceWidth(0, str.Length(), nullptr);
+       tr->GetAdvanceWidth(0, str.Length(), nsnull);
 
        // Now try to trigger an assertion with a word cache bug. The first
        // word is in the cache so it gets added to the new textrun directly.
@@ -150,7 +150,7 @@ main (int argc, char **argv) {
        nsDependentCString cStr2(cString2);
        NS_ConvertUTF8toUTF16 str2(cStr2);
        gfxTextRun *tr2 = MakeTextRun(str2.get(), str2.Length(), fontGroup, &params, flags);
-       tr2->GetAdvanceWidth(0, str2.Length(), nullptr);
+       tr2->GetAdvanceWidth(0, str2.Length(), nsnull);
    }
 
    fflush (stderr);

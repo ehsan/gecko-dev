@@ -254,7 +254,7 @@ nsXHTMLContentSerializer::SerializeAttributes(nsIContent* aContent,
       PRInt32 startAttrVal = 0;
       aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::start, start);
       if (!start.IsEmpty()) {
-        nsresult rv = NS_OK;
+        PRInt32 rv = 0;
         startAttrVal = start.ToInteger(&rv);
         //If OL has "start" attribute, first LI element has to start with that value
         //Therefore subtracting 1 as all the LI elements are incrementing it before using it;
@@ -920,7 +920,7 @@ nsXHTMLContentSerializer::SerializeLIValueAttribute(nsIContent* aElement,
           offset++;
         else {
           found = true;
-          nsresult rv = NS_OK;
+          PRInt32 rv = 0;
           startVal = valueStr.ToInteger(&rv);
         }
       }

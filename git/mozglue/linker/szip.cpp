@@ -9,7 +9,6 @@
 #include <fcntl.h>
 #include <errno.h>
 #include "mozilla/Assertions.h"
-#include "mozilla/Scoped.h"
 #include "SeekableZStream.h"
 #include "Utils.h"
 #include "Logging.h"
@@ -25,8 +24,7 @@ int main(int argc, char* argv[])
     return 1;
   }
 
-  AutoCloseFD origFd;
-  origFd = open(argv[1], O_RDONLY);
+  AutoCloseFD origFd = open(argv[1], O_RDONLY);
   if (origFd == -1) {
     log("Couldn't open %s: %s", argv[1], strerror(errno));
     return 1;
@@ -55,8 +53,7 @@ int main(int argc, char* argv[])
   }
 
   /* Create the compressed file */
-  AutoCloseFD outFd;
-  outFd = open(argv[2], O_RDWR | O_CREAT | O_TRUNC, 0666);
+  AutoCloseFD outFd = open(argv[2], O_RDWR | O_CREAT | O_TRUNC, 0666);
   if (outFd == -1) {
     log("Couldn't open %s: %s", argv[2], strerror(errno));
     return 1;
@@ -96,8 +93,7 @@ int main(int argc, char* argv[])
   memset(&zStream, 0, sizeof(zStream));
 
   /* Compression buffer */
-  mozilla::ScopedDeleteArray<Bytef> outBuf;
-  outBuf = new Bytef[CHUNK * 2];
+  AutoDeleteArray<Bytef> outBuf = new Bytef[CHUNK * 2];
 
   Bytef *origData = static_cast<Bytef*>(origBuf);
   size_t avail = 0;

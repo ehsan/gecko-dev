@@ -32,7 +32,7 @@ nsresult
 nsDataHandler::Create(nsISupports* aOuter, const nsIID& aIID, void* *aResult) {
 
     nsDataHandler* ph = new nsDataHandler();
-    if (ph == nullptr)
+    if (ph == nsnull)
         return NS_ERROR_OUT_OF_MEMORY;
     NS_ADDREF(ph);
     nsresult rv = ph->QueryInterface(aIID, aResult);

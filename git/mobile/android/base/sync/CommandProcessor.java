@@ -64,22 +64,12 @@ public class CommandProcessor {
       this.args = args;
     }
 
-    /**
-     * Get list of arguments as strings.  Individual arguments may be null.
-     *
-     * @return list of strings.
-     */
     public synchronized List<String> getArgsList() {
       if (argsList == null) {
         ArrayList<String> argsList = new ArrayList<String>(args.size());
 
         for (int i = 0; i < args.size(); i++) {
-          final Object arg = args.get(i);
-          if (arg == null) {
-            argsList.add(null);
-            continue;
-          }
-          argsList.add(arg.toString());
+          argsList.add(args.get(i).toString());
         }
         this.argsList = argsList;
       }
@@ -162,17 +152,14 @@ public class CommandProcessor {
 
   @SuppressWarnings("unchecked")
   public void sendURIToClientForDisplay(String uri, String clientID, String title, String sender, Context context) {
-    Logger.info(LOG_TAG, "Sending URI to client " + clientID + ".");
-    if (Logger.LOG_PERSONAL_INFORMATION) {
-      Logger.pii(LOG_TAG, "URI is " + uri + "; title is '" + title + "'.");
-    }
+    Logger.info(LOG_TAG, "Sending URI to client: " + uri + " -> " + clientID + " (" + title + ")");
 
-    final JSONArray args = new JSONArray();
+    JSONArray args = new JSONArray();
     args.add(uri);
     args.add(sender);
     args.add(title);
 
-    final Command displayURICommand = new Command("displayURI", args);
+    Command displayURICommand = new Command("displayURI", args);
     this.sendCommand(clientID, displayURICommand, context);
   }
 

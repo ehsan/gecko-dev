@@ -64,7 +64,7 @@ JumpListBuilder::~JumpListBuilder()
 {
   mIOThread->Shutdown();
   Preferences::RemoveObserver(this, kPrefTaskbarEnabled);
-  mJumpListMgr = nullptr;
+  mJumpListMgr = nsnull;
   ::CoUninitialize();
 }
 
@@ -187,7 +187,7 @@ nsresult JumpListBuilder::RemoveIconCacheForItems(nsIMutableArray *items)
           // only tell us what the original icon is and not the URI.
           // So this field was used only temporarily as the actual icon file
           // path.  It should be cleared.
-          shortcut->SetFaviconPageUri(nullptr);
+          shortcut->SetFaviconPageUri(nsnull);
         }
       }
     }
@@ -468,8 +468,8 @@ nsresult JumpListBuilder::TransferIObjectArrayToIMutableArray(IObjectArray *objA
   nsCOMPtr<nsIJumpListItem> item;
 
   for (PRUint32 idx = 0; idx < count; idx++) {
-    IShellLinkW * pLink = nullptr;
-    IShellItem * pItem = nullptr;
+    IShellLinkW * pLink = nsnull;
+    IShellItem * pItem = nsnull;
 
     if (SUCCEEDED(objArray->GetAt(idx, IID_IShellLinkW, (LPVOID*)&pLink))) {
       nsCOMPtr<nsIJumpListShortcut> shortcut = 

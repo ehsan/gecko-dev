@@ -74,7 +74,7 @@ NS_NewCanvasRenderingContextWebGL(nsIDOMWebGLRenderingContext** aResult)
 }
 
 WebGLContext::WebGLContext()
-    : gl(nullptr)
+    : gl(nsnull)
 {
     SetIsDOMBinding();
     mExtensions.SetLength(WebGLExtensionID_number_of_extensions);
@@ -164,7 +164,7 @@ WebGLContext::~WebGLContext()
     DestroyResourcesAndContext();
     WebGLMemoryMultiReporterWrapper::RemoveWebGLContext(this);
     TerminateContextLossTimer();
-    mContextRestorer = nullptr;
+    mContextRestorer = nsnull;
 }
 
 JSObject*
@@ -185,7 +185,7 @@ WebGLContext::DestroyResourcesAndContext()
             observerService->RemoveObserver(mMemoryPressureObserver,
                                             "memory-pressure");
         }
-        mMemoryPressureObserver = nullptr;
+        mMemoryPressureObserver = nsnull;
     }
 
     if (!gl)
@@ -195,11 +195,11 @@ WebGLContext::DestroyResourcesAndContext()
 
     mBound2DTextures.Clear();
     mBoundCubeMapTextures.Clear();
-    mBoundArrayBuffer = nullptr;
-    mBoundElementArrayBuffer = nullptr;
-    mCurrentProgram = nullptr;
-    mBoundFramebuffer = nullptr;
-    mBoundRenderbuffer = nullptr;
+    mBoundArrayBuffer = nsnull;
+    mBoundElementArrayBuffer = nsnull;
+    mCurrentProgram = nsnull;
+    mBoundFramebuffer = nsnull;
+    mBoundRenderbuffer = nsnull;
 
     mAttribBuffers.Clear();
 
@@ -234,7 +234,7 @@ WebGLContext::DestroyResourcesAndContext()
     }
 #endif
 
-    gl = nullptr;
+    gl = nsnull;
 }
 
 void
@@ -249,7 +249,7 @@ WebGLContext::Invalidate()
     nsSVGEffects::InvalidateDirectRenderingObservers(mCanvasElement);
 
     mInvalidated = true;
-    mCanvasElement->InvalidateCanvasContent(nullptr);
+    mCanvasElement->InvalidateCanvasContent(nsnull);
 }
 
 /* readonly attribute nsIDOMHTMLCanvasElement canvas; */
@@ -723,7 +723,7 @@ WebGLContext::GetCanvasLayer(nsDisplayListBuilder* aBuilder,
                              LayerManager *aManager)
 {
     if (!IsContextStable())
-        return nullptr;
+        return nsnull;
 
     if (!mResetLayer && aOldLayer &&
         aOldLayer->HasUserData(&gWebGLLayerUserData)) {
@@ -734,9 +734,9 @@ WebGLContext::GetCanvasLayer(nsDisplayListBuilder* aBuilder,
     nsRefPtr<CanvasLayer> canvasLayer = aManager->CreateCanvasLayer();
     if (!canvasLayer) {
         NS_WARNING("CreateCanvasLayer returned null!");
-        return nullptr;
+        return nsnull;
     }
-    WebGLContextUserData *userData = nullptr;
+    WebGLContextUserData *userData = nsnull;
     if (aBuilder->IsPaintingToWindow()) {
       // Make the layer tell us whenever a transaction finishes (including
       // the current transaction), so we can clear our invalidation state and
@@ -914,10 +914,10 @@ nsIWebGLExtension*
 WebGLContext::GetExtension(const nsAString& aName)
 {
     if (!IsContextStable())
-        return nullptr;
+        return nsnull;
 
     if (mDisableExtensions) {
-        return nullptr;
+        return nsnull;
     }
 
     WebGLExtensionID ext = WebGLExtensionID_unknown_extension;
@@ -962,7 +962,7 @@ WebGLContext::GetExtension(const nsAString& aName)
     }
 
     if (ext == WebGLExtensionID_unknown_extension) {
-      return nullptr;
+      return nsnull;
     }
 
     if (!mExtensions[ext]) {
@@ -1170,7 +1170,7 @@ void
 WebGLContext::MaybeRestoreContext()
 {
     // Don't try to handle it if we already know it's busted.
-    if (mContextStatus != ContextStable || gl == nullptr)
+    if (mContextStatus != ContextStable || gl == nsnull)
         return;
 
     bool isEGL = gl->GetContextType() == GLContext::ContextTypeEGL,
@@ -1499,7 +1499,7 @@ WebGLContext::GetSupportedExtensions(nsIVariant **retval)
     GetSupportedExtensions(extensions);
 
     if (extensions.IsNull()) {
-        *retval = nullptr;
+        *retval = nsnull;
         return NS_OK;
     }
 
@@ -1517,7 +1517,7 @@ WebGLContext::GetSupportedExtensions(nsIVariant **retval)
         for (PRUint32 i = 0; i < extList.Length(); ++i) {
             exts.AppendElement(extList[i].get());
         }
-        rv = wrval->SetAsArray(nsIDataType::VTYPE_WCHAR_STR, nullptr,
+        rv = wrval->SetAsArray(nsIDataType::VTYPE_WCHAR_STR, nsnull,
                                exts.Length(), exts.Elements());
     } else {
         rv = wrval->SetAsEmptyArray();

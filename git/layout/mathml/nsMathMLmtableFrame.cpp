@@ -119,7 +119,7 @@ GetValueAt(nsIFrame*                      aTableOrRowFrame,
       valueList = new nsValueList(values);
     if (!valueList || !valueList->mArray.Length()) {
       delete valueList; // ok either way, delete is null safe
-      return nullptr;
+      return nsnull;
     }
     props.Set(aProperty, valueList);
   }
@@ -320,7 +320,7 @@ ParseAlignAttribute(nsString& aValue, eAlign& aAlign, PRInt32& aRowIndex)
     aAlign = eAlign_axis;
   }
   if (len) {
-    nsresult error;
+    PRInt32 error;
     aValue.Cut(0, len); // aValue is not a const here
     aRowIndex = aValue.ToInteger(&error);
     if (error)
@@ -461,8 +461,8 @@ nsMathMLmtableOuterFrame::AttributeChanged(PRInt32  aNameSpaceID,
   }
 
   // ...and the other attributes affect rows or columns in one way or another
-  nsIAtom* MOZrowAtom = nullptr;
-  nsIAtom* MOZcolAtom = nullptr;
+  nsIAtom* MOZrowAtom = nsnull;
+  nsIAtom* MOZcolAtom = nsnull;
   if (aAttribute == nsGkAtoms::rowalign_)
     MOZrowAtom = nsGkAtoms::_moz_math_rowalign_;
   else if (aAttribute == nsGkAtoms::rowlines_)
@@ -529,21 +529,21 @@ nsMathMLmtableOuterFrame::GetRowFrameAt(nsPresContext* aPresContext,
                  "should always have an inner table frame");
     nsIFrame* rgFrame = tableFrame->GetFirstPrincipalChild();
     if (!rgFrame || rgFrame->GetType() != nsGkAtoms::tableRowGroupFrame)
-      return nullptr;
+      return nsnull;
     nsTableIterator rowIter(*rgFrame);
     nsIFrame* rowFrame = rowIter.First();
     for ( ; rowFrame; rowFrame = rowIter.Next()) {
       if (aRowIndex == 0) {
         DEBUG_VERIFY_THAT_FRAME_IS(rowFrame, TABLE_ROW);
         if (rowFrame->GetType() != nsGkAtoms::tableRowFrame)
-          return nullptr;
+          return nsnull;
 
         return rowFrame;
       }
       --aRowIndex;
     }
   }
-  return nullptr;
+  return nsnull;
 }
 
 NS_IMETHODIMP
@@ -565,7 +565,7 @@ nsMathMLmtableOuterFrame::Reflow(nsPresContext*          aPresContext,
   // XXX should we also check <mstyle> ?
   PRInt32 rowIndex = 0;
   eAlign tableAlign = eAlign_axis;
-  GetAttribute(mContent, nullptr, nsGkAtoms::align, value);
+  GetAttribute(mContent, nsnull, nsGkAtoms::align, value);
   if (!value.IsEmpty()) {
     ParseAlignAttribute(value, tableAlign, rowIndex);
   }
@@ -576,7 +576,7 @@ nsMathMLmtableOuterFrame::Reflow(nsPresContext*          aPresContext,
   // doing so allows us to have a single code path for all cases).
   nscoord dy = 0;
   nscoord height = aDesiredSize.height;
-  nsIFrame* rowFrame = nullptr;
+  nsIFrame* rowFrame = nsnull;
   if (rowIndex) {
     rowFrame = GetRowFrameAt(aPresContext, rowIndex);
     if (rowFrame) {
@@ -775,7 +775,7 @@ nsMathMLmtdFrame::GetRowSpan()
     nsAutoString value;
     mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::rowspan, value);
     if (!value.IsEmpty()) {
-      nsresult error;
+      PRInt32 error;
       rowspan = value.ToInteger(&error);
       if (error || rowspan < 0)
         rowspan = 1;
@@ -795,7 +795,7 @@ nsMathMLmtdFrame::GetColSpan()
     nsAutoString value;
     mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::columnspan_, value);
     if (!value.IsEmpty()) {
-      nsresult error;
+      PRInt32 error;
       colspan = value.ToInteger(&error);
       if (error || colspan < 0 || colspan > MAX_COLSPAN)
         colspan = 1;

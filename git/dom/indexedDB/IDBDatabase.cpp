@@ -40,7 +40,7 @@ class NoRequestDatabaseHelper : public AsyncConnectionHelper
 {
 public:
   NoRequestDatabaseHelper(IDBTransaction* aTransaction)
-  : AsyncConnectionHelper(aTransaction, nullptr)
+  : AsyncConnectionHelper(aTransaction, nsnull)
   {
     NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
     NS_ASSERTION(aTransaction, "Null transaction!");
@@ -110,7 +110,7 @@ public:
                             jsval* aVal);
   void ReleaseMainThreadObjects()
   {
-    mFileInfo = nullptr;
+    mFileInfo = nsnull;
     AsyncConnectionHelper::ReleaseMainThreadObjects();
   }
 
@@ -155,7 +155,7 @@ public:
 
   void forget()
   {
-    mInfo = nullptr;
+    mInfo = nsnull;
   }
 
 private:
@@ -182,7 +182,7 @@ IDBDatabase::Create(IDBWrapperCache* aOwnerCache,
 
   db->BindToOwner(aOwnerCache);
   if (!db->SetScriptOwner(aOwnerCache->GetScriptOwner())) {
-    return nullptr;
+    return nsnull;
   }
 
   db->mDatabaseId = databaseInfo->id;
@@ -197,7 +197,7 @@ IDBDatabase::Create(IDBWrapperCache* aOwnerCache,
 
   if (!mgr->RegisterDatabase(db)) {
     // Either out of memory or shutting down.
-    return nullptr;
+    return nsnull;
   }
 
   return db.forget();
@@ -205,8 +205,8 @@ IDBDatabase::Create(IDBWrapperCache* aOwnerCache,
 
 IDBDatabase::IDBDatabase()
 : mDatabaseId(0),
-  mActorChild(nullptr),
-  mActorParent(nullptr),
+  mActorChild(nsnull),
+  mActorParent(nsnull),
   mInvalidated(0),
   mRegistered(false),
   mClosed(false),
@@ -322,7 +322,7 @@ IDBDatabase::ExitSetVersionTransaction()
 {
   NS_ASSERTION(mRunningVersionChange, "How did that happen?");
 
-  mPreviousDatabaseInfo = nullptr;
+  mPreviousDatabaseInfo = nsnull;
 
   mRunningVersionChange = false;
 }
@@ -331,7 +331,7 @@ void
 IDBDatabase::RevertToPreviousState()
 {
   mDatabaseInfo = mPreviousDatabaseInfo;
-  mPreviousDatabaseInfo = nullptr;
+  mPreviousDatabaseInfo = nsnull;
 }
 
 void
@@ -730,7 +730,7 @@ IDBDatabase::MozCreateFileHandle(const nsAString& aName,
     return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
   }
 
-  nsRefPtr<IDBRequest> request = IDBRequest::Create(nullptr, this, nullptr, aCx);
+  nsRefPtr<IDBRequest> request = IDBRequest::Create(nsnull, this, nsnull, aCx);
 
   nsRefPtr<CreateFileHelper> helper =
     new CreateFileHelper(this, request, aName, aType);
@@ -784,7 +784,7 @@ IDBDatabase::SetThreadLocals()
 void
 IDBDatabase::UnsetThreadLocals()
 {
-  IndexedDatabaseManager::SetCurrentWindow(nullptr);
+  IndexedDatabaseManager::SetCurrentWindow(nsnull);
 }
 
 nsresult
@@ -867,7 +867,7 @@ CreateObjectStoreHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 void
 CreateObjectStoreHelper::ReleaseMainThreadObjects()
 {
-  mObjectStore = nullptr;
+  mObjectStore = nsnull;
   NoRequestDatabaseHelper::ReleaseMainThreadObjects();
 }
 

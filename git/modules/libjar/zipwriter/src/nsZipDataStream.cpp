@@ -36,7 +36,7 @@ nsresult nsZipDataStream::Init(nsZipWriter *aWriter,
     mHeader->mCRC = crc32(0L, Z_NULL, 0);
 
     nsresult rv = NS_NewSimpleStreamListener(getter_AddRefs(mOutput), aStream,
-                                             nullptr);
+                                             nsnull);
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (aCompression > 0) {
@@ -46,7 +46,7 @@ nsresult nsZipDataStream::Init(nsZipWriter *aWriter,
         NS_ENSURE_TRUE(converter, NS_ERROR_OUT_OF_MEMORY);
 
         rv = converter->AsyncConvertData("uncompressed", "rawdeflate", mOutput,
-                                         nullptr);
+                                         nsnull);
         NS_ENSURE_SUCCESS(rv, rv);
 
         mOutput = do_QueryInterface(converter, &rv);
@@ -100,7 +100,7 @@ NS_IMETHODIMP nsZipDataStream::OnStopRequest(nsIRequest *aRequest,
         return NS_ERROR_NOT_INITIALIZED;
 
     nsresult rv = mOutput->OnStopRequest(aRequest, aContext, aStatusCode);
-    mOutput = nullptr;
+    mOutput = nsnull;
     if (NS_FAILED(rv)) {
         mWriter->EntryCompleteCallback(mHeader, rv);
     }
@@ -109,9 +109,9 @@ NS_IMETHODIMP nsZipDataStream::OnStopRequest(nsIRequest *aRequest,
         rv = mWriter->EntryCompleteCallback(mHeader, rv);
     }
 
-    mStream = nullptr;
-    mWriter = nullptr;
-    mHeader = nullptr;
+    mStream = nsnull;
+    mWriter = nsnull;
+    mHeader = nsnull;
 
     return rv;
 }
@@ -155,7 +155,7 @@ nsresult nsZipDataStream::ReadStream(nsIInputStream *aStream)
     if (!mOutput)
         return NS_ERROR_NOT_INITIALIZED;
 
-    nsresult rv = OnStartRequest(nullptr, nullptr);
+    nsresult rv = OnStartRequest(nsnull, nsnull);
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsAutoArrayPtr<char> buffer(new char[4096]);
@@ -167,19 +167,19 @@ nsresult nsZipDataStream::ReadStream(nsIInputStream *aStream)
     {
         rv = aStream->Read(buffer.get(), 4096, &read);
         if (NS_FAILED(rv)) {
-            OnStopRequest(nullptr, nullptr, rv);
+            OnStopRequest(nsnull, nsnull, rv);
             return rv;
         }
 
         if (read > 0) {
-            rv = ProcessData(nullptr, nullptr, buffer.get(), offset, read);
+            rv = ProcessData(nsnull, nsnull, buffer.get(), offset, read);
             if (NS_FAILED(rv)) {
-                OnStopRequest(nullptr, nullptr, rv);
+                OnStopRequest(nsnull, nsnull, rv);
                 return rv;
             }
             offset += read;
         }
     } while (read > 0);
 
-    return OnStopRequest(nullptr, nullptr, NS_OK);
+    return OnStopRequest(nsnull, nsnull, NS_OK);
 }

@@ -673,18 +673,9 @@ Reify(JSContext *cx, JSCompartment *origin, Value *vp)
     if (!CloseIterator(cx, iterObj))
         return false;
 
-    RootedValue value(cx, *vp);
-
-    if (isKeyIter) {
-        if (!VectorToKeyIterator(cx, obj, ni->flags, keys, &value))
-            return false;
-    } else {
-        if (!VectorToValueIterator(cx, obj, ni->flags, keys, &value))
-            return false;
-    }
-
-    *vp = value;
-    return true;
+    if (isKeyIter)
+        return VectorToKeyIterator(cx, obj, ni->flags, keys, vp);
+    return VectorToValueIterator(cx, obj, ni->flags, keys, vp);
 }
 
 bool
@@ -771,10 +762,10 @@ CrossCompartmentWrapper::nativeCall(JSContext *cx, IsAcceptableThis test, Native
     if (!CallNonGenericMethod(cx, test, impl, dstArgs))
         return false;
 
-    srcArgs.rval().set(dstArgs.rval());
+    srcArgs.rval() = dstArgs.rval();
     dstArgs.pop();
     call.leave();
-    return cx->compartment->wrap(cx, srcArgs.rval().address());
+    return cx->compartment->wrap(cx, &srcArgs.rval());
 }
 
 bool

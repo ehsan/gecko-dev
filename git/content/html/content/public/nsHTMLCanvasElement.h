@@ -17,16 +17,11 @@
 #include "nsICanvasElementExternal.h"
 #include "nsLayoutUtils.h"
 
+#include "Layers.h"
+
 class nsICanvasRenderingContextInternal;
 class nsIDOMFile;
 class nsIPropertyBag;
-
-namespace mozilla {
-namespace layers {
-class CanvasLayer;
-class LayerManager;
-}
-}
 
 class nsHTMLCanvasElement : public nsGenericHTMLElement,
                             public nsICanvasElementExternal,
@@ -42,7 +37,7 @@ public:
   static nsHTMLCanvasElement* FromContent(nsIContent* aPossibleCanvas)
   {
     if (!aPossibleCanvas || !aPossibleCanvas->IsHTML(nsGkAtoms::canvas)) {
-      return nullptr;
+      return nsnull;
     }
     return static_cast<nsHTMLCanvasElement*>(aPossibleCanvas);
   }
@@ -123,7 +118,7 @@ public:
   nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                    const nsAString& aValue, bool aNotify)
   {
-    return SetAttr(aNameSpaceID, aName, nullptr, aValue, aNotify);
+    return SetAttr(aNameSpaceID, aName, nsnull, aValue, aNotify);
   }
   virtual nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                            nsIAtom* aPrefix, const nsAString& aValue,
@@ -155,7 +150,7 @@ public:
 protected:
   nsIntSize GetWidthHeight();
 
-  nsresult UpdateContext(nsIPropertyBag *aNewContextOptions = nullptr);
+  nsresult UpdateContext(nsIPropertyBag *aNewContextOptions = nsnull);
   nsresult ExtractData(const nsAString& aType,
                        const nsAString& aOptions,
                        nsIInputStream** aStream,

@@ -28,8 +28,8 @@ class CGLLibrary
 public:
     CGLLibrary()
       : mInitialized(false),
-        mOGLLibrary(nullptr),
-        mPixelFormat(nullptr)
+        mOGLLibrary(nsnull),
+        mPixelFormat(nsnull)
     { }
 
     bool EnsureInitialized()
@@ -54,7 +54,7 @@ public:
 
     NSOpenGLPixelFormat *PixelFormat()
     {
-        if (mPixelFormat == nullptr) {
+        if (mPixelFormat == nsnull) {
             NSOpenGLPixelFormatAttribute attribs[] = {
                 NSOpenGLPFAAccelerated,
                 NSOpenGLPFAAllowOfflineRenderers,
@@ -90,7 +90,7 @@ public:
                  bool aIsOffscreen = false)
         : GLContext(aFormat, aIsOffscreen, aShareContext),
           mContext(aContext),
-          mPBuffer(nullptr),
+          mPBuffer(nsnull),
           mTempTextureName(0)
     { }
 
@@ -136,7 +136,7 @@ public:
             return mContext;
 
         default:
-            return nullptr;
+            return nsnull;
         }
     }
 
@@ -414,7 +414,7 @@ already_AddRefed<GLContext>
 GLContextProviderCGL::CreateForWindow(nsIWidget *aWidget)
 {
     if (!sCGLLibrary.EnsureInitialized()) {
-        return nullptr;
+        return nsnull;
     }
 
     GLContextCGL *shareContext = GetGlobalContextCGL();
@@ -423,7 +423,7 @@ GLContextProviderCGL::CreateForWindow(nsIWidget *aWidget)
                                 initWithFormat:sCGLLibrary.PixelFormat()
                                 shareContext:(shareContext ? shareContext->mContext : NULL)];
     if (!context) {
-        return nullptr;
+        return nsnull;
     }
 
     NSView *childView = (NSView *)aWidget->GetNativeData(NS_NATIVE_WIDGET);
@@ -434,7 +434,7 @@ GLContextProviderCGL::CreateForWindow(nsIWidget *aWidget)
                                                         shareContext,
                                                         context);
     if (!glContext->Init()) {
-        return nullptr;
+        return nsnull;
     }
 
     return glContext.forget();
@@ -446,12 +446,12 @@ CreateOffscreenPBufferContext(const gfxIntSize& aSize,
                               bool aShare = false)
 {
     if (!sCGLLibrary.EnsureInitialized()) {
-        return nullptr;
+        return nsnull;
     }
 
-    GLContextCGL *shareContext = aShare ? GetGlobalContextCGL() : nullptr;
+    GLContextCGL *shareContext = aShare ? GetGlobalContextCGL() : nsnull;
     if (aShare && !shareContext) {
-        return nullptr;
+        return nsnull;
     }
 
     nsTArray<NSOpenGLPixelFormatAttribute> attribs;
@@ -479,7 +479,7 @@ CreateOffscreenPBufferContext(const gfxIntSize& aSize,
     NSOpenGLPixelFormat *pbFormat = [[NSOpenGLPixelFormat alloc]
                                      initWithAttributes:attribs.Elements()];
     if (!pbFormat) {
-        return nullptr;
+        return nsnull;
     }
 
     // If we ask for any of these to be on/off and we get the opposite, we stop
@@ -493,7 +493,7 @@ CreateOffscreenPBufferContext(const gfxIntSize& aSize,
         (stencilBits && !aFormat.stencil) || (!stencilBits && aFormat.stencil)) 
     {
         [pbFormat release];
-        return nullptr;
+        return nsnull;
     }
 
     NSOpenGLPixelBuffer *pb = [[NSOpenGLPixelBuffer alloc]
@@ -504,7 +504,7 @@ CreateOffscreenPBufferContext(const gfxIntSize& aSize,
                                pixelsHigh:aSize.height];
     if (!pb) {
         [pbFormat release];
-        return nullptr;
+        return nsnull;
     }
 
     NSOpenGLContext *context = [[NSOpenGLContext alloc]
@@ -513,7 +513,7 @@ CreateOffscreenPBufferContext(const gfxIntSize& aSize,
     if (!context) {
         [pbFormat release];
         [pb release];
-        return nullptr;
+        return nsnull;
     }
 
     [context
@@ -539,20 +539,20 @@ CreateOffscreenFBOContext(const ContextFormat& aFormat,
                           bool aShare = true)
 {
     if (!sCGLLibrary.EnsureInitialized()) {
-        return nullptr;
+        return nsnull;
     }
 
-    GLContextCGL *shareContext = aShare ? GetGlobalContextCGL() : nullptr;
+    GLContextCGL *shareContext = aShare ? GetGlobalContextCGL() : nsnull;
     if (aShare && !shareContext) {
         // if there is no share context, then we can't use FBOs.
-        return nullptr;
+        return nsnull;
     }
 
     NSOpenGLContext *context = [[NSOpenGLContext alloc]
                                 initWithFormat:sCGLLibrary.PixelFormat()
                                 shareContext:shareContext ? shareContext->mContext : NULL];
     if (!context) {
-        return nullptr;
+        return nsnull;
     }
 
     nsRefPtr<GLContextCGL> glContext = new GLContextCGL(aFormat, shareContext, context, true);
@@ -569,7 +569,7 @@ GLContextProviderCGL::CreateOffscreen(const gfxIntSize& aSize,
 
     nsRefPtr<GLContextCGL> glContext;
     
-    NS_ENSURE_TRUE(Preferences::GetRootBranch(), nullptr);
+    NS_ENSURE_TRUE(Preferences::GetRootBranch(), nsnull);
     const bool preferFBOs = Preferences::GetBool("cgl.prefer-fbo", true);
     if (!preferFBOs)
     {
@@ -595,7 +595,7 @@ GLContextProviderCGL::CreateOffscreen(const gfxIntSize& aSize,
     }
 
     // everything failed
-    return nullptr;
+    return nsnull;
 }
 
 static nsRefPtr<GLContext> gGlobalContext;
@@ -604,7 +604,7 @@ GLContext *
 GLContextProviderCGL::GetGlobalContext(const ContextFlags)
 {
     if (!sCGLLibrary.EnsureInitialized()) {
-        return nullptr;
+        return nsnull;
     }
 
     if (!gGlobalContext) {
@@ -616,8 +616,8 @@ GLContextProviderCGL::GetGlobalContext(const ContextFlags)
                                                    false);
         if (!gGlobalContext || !static_cast<GLContextCGL*>(gGlobalContext.get())->Init()) {
             NS_WARNING("Couldn't init gGlobalContext.");
-            gGlobalContext = nullptr;
-            return nullptr; 
+            gGlobalContext = nsnull;
+            return nsnull; 
         }
 
         gGlobalContext->SetIsGlobalSharedContext(true);
@@ -629,7 +629,7 @@ GLContextProviderCGL::GetGlobalContext(const ContextFlags)
 void
 GLContextProviderCGL::Shutdown()
 {
-  gGlobalContext = nullptr;
+  gGlobalContext = nsnull;
 }
 
 } /* namespace gl */

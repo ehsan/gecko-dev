@@ -143,7 +143,7 @@ bool
 XULButtonAccessible::AreItemsOperable() const
 {
   if (IsMenuButton()) {
-    Accessible* menuPopup = mChildren.SafeElementAt(0, nullptr);
+    Accessible* menuPopup = mChildren.SafeElementAt(0, nsnull);
     if (menuPopup) {
       nsMenuPopupFrame* menuPopupFrame = do_QueryFrame(menuPopup->GetFrame());
       return menuPopupFrame->IsOpen();
@@ -157,7 +157,7 @@ XULButtonAccessible::ContainerWidget() const
 {
   if (IsMenuButton() && mParent && mParent->IsAutoComplete())
     return mParent;
-  return nullptr;
+  return nsnull;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -186,12 +186,12 @@ XULButtonAccessible::CacheChildren()
   if (!isMenu && !isMenuButton)
     return;
 
-  Accessible* menupopup = nullptr;
-  Accessible* button = nullptr;
+  Accessible* menupopup = nsnull;
+  Accessible* button = nsnull;
 
   nsAccTreeWalker walker(mDoc, mContent, true);
 
-  Accessible* child = nullptr;
+  Accessible* child = nsnull;
   while ((child = walker.NextChild())) {
     roles::Role role = child->Role();
 
@@ -226,7 +226,7 @@ bool
 XULButtonAccessible::ContainsMenu()
 {
   static nsIContent::AttrValuesArray strings[] =
-    {&nsGkAtoms::menu, &nsGkAtoms::menuButton, nullptr};
+    {&nsGkAtoms::menu, &nsGkAtoms::menuButton, nsnull};
 
   return mContent->FindAttrValueIn(kNameSpaceID_None,
                                    nsGkAtoms::type,
@@ -443,7 +443,7 @@ XULGroupboxAccessible::RelationByType(PRUint32 aType)
       // Ensure that it's our label
       Relation reverseRel =
         childAcc->RelationByType(nsIAccessibleRelation::RELATION_LABEL_FOR);
-      Accessible* testGroupbox = nullptr;
+      Accessible* testGroupbox = nsnull;
       while ((testGroupbox = reverseRel.Next()))
         if (testGroupbox == this) {
           // The <label> points back to this groupbox
@@ -811,7 +811,7 @@ XULTextFieldAccessible::GetEditor() const
   nsCOMPtr<nsIContent> inputField = GetInputField();
   nsCOMPtr<nsIDOMNSEditableElement> editableElt(do_QueryInterface(inputField));
   if (!editableElt)
-    return nullptr;
+    return nsnull;
 
   nsCOMPtr<nsIEditor> editor;
   editableElt->GetEditor(getter_AddRefs(editor));
@@ -833,7 +833,7 @@ XULTextFieldAccessible::CacheChildren()
 
   nsAccTreeWalker walker(mDoc, inputContent, false);
 
-  Accessible* child = nullptr;
+  Accessible* child = nsnull;
   while ((child = walker.NextChild()) && AppendChild(child));
 }
 
@@ -845,7 +845,7 @@ XULTextFieldAccessible::FrameSelection()
 {
   nsCOMPtr<nsIContent> inputContent(GetInputField());
   nsIFrame* frame = inputContent->GetPrimaryFrame();
-  return frame ? frame->GetFrameSelection() : nullptr;
+  return frame ? frame->GetFrameSelection() : nsnull;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -868,7 +868,7 @@ XULTextFieldAccessible::GetInputField() const
 
   NS_ASSERTION(inputFieldDOMNode, "No input field for XULTextFieldAccessible");
 
-  nsIContent* inputField = nullptr;
+  nsIContent* inputField = nsnull;
   if (inputFieldDOMNode)
     CallQueryInterface(inputFieldDOMNode, &inputField);
 

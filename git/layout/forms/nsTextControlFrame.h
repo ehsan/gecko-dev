@@ -49,7 +49,7 @@ public:
 
   virtual nsIScrollableFrame* GetScrollTargetFrame() {
     if (!IsScrollable())
-      return nullptr;
+      return nsnull;
     return do_QueryFrame(GetFirstPrincipalChild());
   }
 
@@ -122,7 +122,7 @@ public:
                                   SelectionDirection aDirection = eNone);
   NS_IMETHOD    GetSelectionRange(PRInt32* aSelectionStart,
                                   PRInt32* aSelectionEnd,
-                                  SelectionDirection* aDirection = nullptr);
+                                  SelectionDirection* aDirection = nsnull);
   NS_IMETHOD    GetOwnedSelectionController(nsISelectionController** aSelCon);
   virtual nsFrameSelection* GetOwnedFrameSelection();
 
@@ -160,7 +160,7 @@ public:
 
   // Temp reference to scriptrunner
   // We could make these auto-Revoking via the "delete" entry for safety
-  NS_DECLARE_FRAME_PROPERTY(TextControlInitializer, nullptr)
+  NS_DECLARE_FRAME_PROPERTY(TextControlInitializer, nsnull)
 
 protected:
   /**
@@ -272,7 +272,7 @@ protected:
 
     // avoids use of nsWeakFrame
     void Revoke() {
-      mFrame = nullptr;
+      mFrame = nsnull;
     }
 
   private:
@@ -290,7 +290,7 @@ protected:
     NS_DECL_NSIRUNNABLE
 
     void Revoke() {
-      mFrame = nullptr;
+      mFrame = nsnull;
     }
 
   private:
@@ -313,7 +313,7 @@ protected:
    */
   nsresult UpdateValueDisplay(bool aNotify,
                               bool aBeforeEditorInit = false,
-                              const nsAString *aValue = nullptr);
+                              const nsAString *aValue = nsnull);
 
   /**
    * Get the maxlength attribute

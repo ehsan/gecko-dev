@@ -55,7 +55,7 @@ nsBase64Encoder::IsNonBlocking(bool* aNonBlocking)
 nsresult
 nsBase64Encoder::Finish(nsCSubstring& result)
 {
-  char* b64 = PL_Base64Encode(mData.get(), mData.Length(), nullptr);
+  char* b64 = PL_Base64Encode(mData.get(), mData.Length(), nsnull);
   if (!b64)
     return NS_ERROR_OUT_OF_MEMORY;
 

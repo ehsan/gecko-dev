@@ -93,10 +93,10 @@ public:
 
     virtual float GetDPI();
     virtual mozilla::layers::LayerManager*
-        GetLayerManager(PLayersChild* aShadowManager = nullptr,
+        GetLayerManager(PLayersChild* aShadowManager = nsnull,
                         LayersBackend aBackendHint = mozilla::layers::LAYERS_NONE,
                         LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
-                        bool* aAllowRetaining = nullptr);
+                        bool* aAllowRetaining = nsnull);
     gfxASurface* GetThebesSurface();
 
     NS_IMETHOD_(void) SetInputContext(const InputContext& aContext,

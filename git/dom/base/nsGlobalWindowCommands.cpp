@@ -167,7 +167,7 @@ nsSelectionCommandsBase::DoCommandParams(const char *aCommandName,
 nsresult
 nsSelectionCommandsBase::GetPresShellFromWindow(nsPIDOMWindow *aWindow, nsIPresShell **aPresShell)
 {
-  *aPresShell = nullptr;
+  *aPresShell = nsnull;
   NS_ENSURE_TRUE(aWindow, NS_ERROR_FAILURE);
 
   nsIDocShell *docShell = aWindow->GetDocShell();
@@ -179,7 +179,7 @@ nsSelectionCommandsBase::GetPresShellFromWindow(nsPIDOMWindow *aWindow, nsIPresS
 nsresult
 nsSelectionCommandsBase::GetSelectionControllerFromWindow(nsPIDOMWindow *aWindow, nsISelectionController **aSelCon)
 {
-  *aSelCon = nullptr;
+  *aSelCon = nsnull;
 
   nsCOMPtr<nsIPresShell> presShell;
   GetPresShellFromWindow(aWindow, getter_AddRefs(presShell));
@@ -262,7 +262,7 @@ nsSelectMoveScrollCommand::DoCommand(const char *aCommandName, nsISupports *aCom
         nsIFocusManager* fm = nsFocusManager::GetFocusManager();
         if (fm) {
           nsCOMPtr<nsIDOMElement> result;
-          fm->MoveFocus(piWindow, nullptr, nsIFocusManager::MOVEFOCUS_CARET,
+          fm->MoveFocus(piWindow, nsnull, nsIFocusManager::MOVEFOCUS_CARET,
                         nsIFocusManager::FLAG_NOSCROLL,
                         getter_AddRefs(result));
         }
@@ -366,7 +366,7 @@ nsClipboardCommand::DoCommand(const char *aCommandName, nsISupports *aContext)
   docShell->GetPresShell(getter_AddRefs(presShell));
   NS_ENSURE_TRUE(presShell, NS_ERROR_FAILURE);
 
-  nsCopySupport::FireClipboardEvent(NS_COPY, presShell, nullptr);
+  nsCopySupport::FireClipboardEvent(NS_COPY, presShell, nsnull);
   return NS_OK;
 }
 
@@ -438,7 +438,7 @@ nsSelectionCommand::DoCommand(const char *aCommandName,
   GetContentViewerEditFromContext(aCommandContext,  getter_AddRefs(contentEdit));
   NS_ENSURE_TRUE(contentEdit, NS_ERROR_NOT_INITIALIZED);
 
-  return DoClipboardCommand(aCommandName, contentEdit, nullptr);
+  return DoClipboardCommand(aCommandName, contentEdit, nsnull);
 }
 
 NS_IMETHODIMP
@@ -466,7 +466,7 @@ nsSelectionCommand::GetContentViewerEditFromContext(nsISupports *aContext,
                                                     nsIContentViewerEdit **aEditInterface)
 {
   NS_ENSURE_ARG(aEditInterface);
-  *aEditInterface = nullptr;
+  *aEditInterface = nsnull;
 
   nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aContext);
   NS_ENSURE_TRUE(window, NS_ERROR_INVALID_ARG);

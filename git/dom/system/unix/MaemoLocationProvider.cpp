@@ -24,8 +24,8 @@ MaemoLocationProvider::MaemoLocationProvider() :
   mControlStopped(0),
   mHasSeenLocation(false),
   mHasGPS(true),
-  mGPSControl(nullptr),
-  mGPSDevice(nullptr),
+  mGPSControl(nsnull),
+  mGPSDevice(nsnull),
   mIgnoreMinorChanges(false),
   mPrevLat(0.0),
   mPrevLong(0.0),
@@ -222,16 +222,16 @@ NS_IMETHODIMP MaemoLocationProvider::Shutdown()
   g_signal_handler_disconnect(mGPSDevice, mControlStopped);
 
   mHasSeenLocation = false;
-  mCallback = nullptr;
+  mCallback = nsnull;
 
   if (mGPSControl) {
     location_gpsd_control_stop(mGPSControl);
     g_object_unref(mGPSControl);
-    mGPSControl = nullptr;
+    mGPSControl = nsnull;
   }
   if (mGPSDevice) {
     g_object_unref(mGPSDevice);
-    mGPSDevice = nullptr;
+    mGPSDevice = nsnull;
   }
 
   return NS_OK;

@@ -64,8 +64,8 @@ public:
 
   void FreeGlobalPrinters();
 
-  bool         PrintersAreAllocated() { return mPrinters != nullptr; }
-  LPWSTR       GetItemFromList(PRInt32 aInx) { return mPrinters?mPrinters->ElementAt(aInx):nullptr; }
+  bool         PrintersAreAllocated() { return mPrinters != nsnull; }
+  LPWSTR       GetItemFromList(PRInt32 aInx) { return mPrinters?mPrinters->ElementAt(aInx):nsnull; }
   nsresult     EnumeratePrinterList();
   void         GetDefaultPrinterName(nsString& aDefaultPrinterName);
   PRUint32     GetNumPrinters() { return mPrinters?mPrinters->Length():0; }
@@ -81,7 +81,7 @@ protected:
 //---------------
 // static members
 GlobalPrinters    GlobalPrinters::mGlobalPrinters;
-nsTArray<LPWSTR>* GlobalPrinters::mPrinters = nullptr;
+nsTArray<LPWSTR>* GlobalPrinters::mPrinters = nsnull;
 
 
 //******************************************************
@@ -143,8 +143,8 @@ const PRInt32 kNumPaperSizes = 41;
 //----------------------------------------------------------------------------------
 nsDeviceContextSpecWin::nsDeviceContextSpecWin()
 {
-  mDriverName    = nullptr;
-  mDeviceName    = nullptr;
+  mDriverName    = nsnull;
+  mDeviceName    = nsnull;
   mDevMode       = NULL;
 
 }
@@ -156,14 +156,14 @@ NS_IMPL_ISUPPORTS1(nsDeviceContextSpecWin, nsIDeviceContextSpec)
 
 nsDeviceContextSpecWin::~nsDeviceContextSpecWin()
 {
-  SetDeviceName(nullptr);
-  SetDriverName(nullptr);
+  SetDeviceName(nsnull);
+  SetDriverName(nsnull);
   SetDevMode(NULL);
 
   nsCOMPtr<nsIPrintSettingsWin> psWin(do_QueryInterface(mPrintSettings));
   if (psWin) {
-    psWin->SetDeviceName(nullptr);
-    psWin->SetDriverName(nullptr);
+    psWin->SetDeviceName(nsnull);
+    psWin->SetDriverName(nsnull);
     psWin->SetDevMode(NULL);
   }
 
@@ -400,7 +400,7 @@ NS_IMETHODIMP nsDeviceContextSpecWin::Init(nsIWidget* aWidget,
         SetDevMode(devMode);
 
         if (!aIsPrintPreview) {
-          rv = CheckForPrintToFile(mPrintSettings, deviceName, nullptr);
+          rv = CheckForPrintToFile(mPrintSettings, deviceName, nsnull);
           if (NS_FAILED(rv)) {
             nsCRT::free(deviceName);
             nsCRT::free(driverName);
@@ -425,7 +425,7 @@ NS_IMETHODIMP nsDeviceContextSpecWin::Init(nsIWidget* aWidget,
   }
 
   // Get the Print Name to be used
-  PRUnichar * printerName = nullptr;
+  PRUnichar * printerName = nsnull;
   if (mPrintSettings) {
     mPrintSettings->GetPrinterName(&printerName);
   }
@@ -439,7 +439,7 @@ NS_IMETHODIMP nsDeviceContextSpecWin::Init(nsIWidget* aWidget,
   if (!printerName || !*printerName) return rv;
 
   if (!aIsPrintPreview) {
-    CheckForPrintToFile(mPrintSettings, nullptr, printerName);
+    CheckForPrintToFile(mPrintSettings, nsnull, printerName);
   }
  
   return GetDataFromPrinter(printerName, mPrintSettings);
@@ -449,17 +449,17 @@ NS_IMETHODIMP nsDeviceContextSpecWin::Init(nsIWidget* aWidget,
 // Helper Function - Free and reallocate the string
 static void CleanAndCopyString(PRUnichar*& aStr, const PRUnichar* aNewStr)
 {
-  if (aStr != nullptr) {
-    if (aNewStr != nullptr && wcslen(aStr) > wcslen(aNewStr)) { // reuse it if we can
+  if (aStr != nsnull) {
+    if (aNewStr != nsnull && wcslen(aStr) > wcslen(aNewStr)) { // reuse it if we can
       wcscpy(aStr, aNewStr);
       return;
     } else {
       PR_Free(aStr);
-      aStr = nullptr;
+      aStr = nsnull;
     }
   }
 
-  if (nullptr != aNewStr) {
+  if (nsnull != aNewStr) {
     aStr = (PRUnichar *)PR_Malloc(sizeof(PRUnichar)*(wcslen(aNewStr) + 1));
     wcscpy(aStr, aNewStr);
   }
@@ -513,7 +513,7 @@ NS_IMETHODIMP nsDeviceContextSpecWin::GetSurfaceForPrinter(gfxASurface **surface
     return NS_OK;
   }
 
-  *surface = nullptr;
+  *surface = nsnull;
   return NS_ERROR_FAILURE;
 }
 
@@ -733,7 +733,7 @@ nsresult
 nsDeviceContextSpecWin::SetPrintSettingsFromDevMode(nsIPrintSettings* aPrintSettings, 
                                                     LPDEVMODEW         aDevMode)
 {
-  if (aPrintSettings == nullptr) {
+  if (aPrintSettings == nsnull) {
     return NS_ERROR_FAILURE;
   }
   aPrintSettings->SetIsInitializedFromPrinter(true);
@@ -867,7 +867,7 @@ NS_IMETHODIMP
 nsPrinterEnumeratorWin::GetPrinterNameList(nsIStringEnumerator **aPrinterNameList)
 {
   NS_ENSURE_ARG_POINTER(aPrinterNameList);
-  *aPrinterNameList = nullptr;
+  *aPrinterNameList = nsnull;
 
   nsresult rv = GlobalPrinters::GetInstance()->EnumeratePrinterList();
   if (NS_FAILED(rv)) {
@@ -917,12 +917,12 @@ GlobalPrinters::ReallocatePrinters()
 void 
 GlobalPrinters::FreeGlobalPrinters()
 {
-  if (mPrinters != nullptr) {
+  if (mPrinters != nsnull) {
     for (PRUint32 i=0;i<mPrinters->Length();i++) {
       free(mPrinters->ElementAt(i));
     }
     delete mPrinters;
-    mPrinters = nullptr;
+    mPrinters = nsnull;
   }
 }
 

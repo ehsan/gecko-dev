@@ -10,8 +10,8 @@
 NS_IMPL_ISUPPORTS1(nsKeyObject, nsIKeyObject)
 
 nsKeyObject::nsKeyObject()
-  : mKeyType(0), mSymKey(nullptr), mPrivateKey(nullptr),
-    mPublicKey(nullptr)
+  : mKeyType(0), mSymKey(nsnull), mPrivateKey(nsnull),
+    mPublicKey(nsnull)
 {
 }
 
@@ -174,15 +174,15 @@ nsKeyObjectFactory::KeyFromString(PRInt16 aAlgorithm, const nsACString & aKey,
   keyItem.data = (unsigned char*)flatKey.get();
   keyItem.len = flatKey.Length();
 
-  PK11SlotInfo *slot = nullptr;
-  slot = PK11_GetBestSlot(cipherMech, nullptr);
+  PK11SlotInfo *slot = nsnull;
+  slot = PK11_GetBestSlot(cipherMech, nsnull);
   if (!slot) {
     NS_ERROR("no slot");
     return NS_ERROR_FAILURE;
   }
 
   PK11SymKey* symKey = PK11_ImportSymKey(slot, cipherMech, PK11_OriginUnwrap,
-                                         cipherOperation, &keyItem, nullptr);
+                                         cipherOperation, &keyItem, nsnull);
   // cleanup code
   if (slot)
     PK11_FreeSlot(slot);

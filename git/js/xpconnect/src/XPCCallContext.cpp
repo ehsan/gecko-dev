@@ -13,16 +13,16 @@
 using namespace mozilla;
 
 XPCCallContext::XPCCallContext(XPCContext::LangType callerLanguage,
-                               JSContext* cx    /* = nullptr    */,
-                               JSObject* obj    /* = nullptr    */,
-                               JSObject* funobj /* = nullptr    */,
+                               JSContext* cx    /* = nsnull    */,
+                               JSObject* obj    /* = nsnull    */,
+                               JSObject* funobj /* = nsnull    */,
                                jsid name        /* = JSID_VOID */,
                                unsigned argc       /* = NO_ARGS   */,
-                               jsval *argv      /* = nullptr    */,
-                               jsval *rval      /* = nullptr    */)
+                               jsval *argv      /* = nsnull    */,
+                               jsval *rval      /* = nsnull    */)
     :   mState(INIT_FAILED),
         mXPC(nsXPConnect::GetXPConnect()),
-        mXPCContext(nullptr),
+        mXPCContext(nsnull),
         mJSContext(cx),
         mContextPopRequired(false),
         mDestroyJSContextInDestructor(false),
@@ -41,7 +41,7 @@ XPCCallContext::XPCCallContext(XPCContext::LangType callerLanguage,
                                XPCWrappedNativeTearOff* tearOff)
     :   mState(INIT_FAILED),
         mXPC(nsXPConnect::GetXPConnect()),
-        mXPCContext(nullptr),
+        mXPCContext(nsnull),
         mJSContext(cx),
         mContextPopRequired(false),
         mDestroyJSContextInDestructor(false),
@@ -50,9 +50,9 @@ XPCCallContext::XPCCallContext(XPCContext::LangType callerLanguage,
         mWrapper(wrapper),
         mTearOff(tearOff)
 {
-    Init(callerLanguage, callBeginRequest, obj, nullptr,
+    Init(callerLanguage, callBeginRequest, obj, nsnull,
          WRAPPER_PASSED_TO_CONSTRUCTOR, JSID_VOID, NO_ARGS,
-         nullptr, nullptr);
+         nsnull, nsnull);
 }
 
 void
@@ -73,7 +73,7 @@ XPCCallContext::Init(XPCContext::LangType callerLanguage,
 
     if (!stack) {
         // If we don't have a stack we're probably in shutdown.
-        mJSContext = nullptr;
+        mJSContext = nsnull;
         return;
     }
 
@@ -137,7 +137,7 @@ XPCCallContext::Init(XPCContext::LangType callerLanguage,
 
     mState = HAVE_OBJECT;
 
-    mTearOff = nullptr;
+    mTearOff = nsnull;
     if (wrapperInitOptions == INIT_SHOULD_LOOKUP_WRAPPER) {
         mWrapper = XPCWrappedNative::GetWrappedNativeOfJSObject(mJSContext, obj,
                                                                 funobj,
@@ -147,7 +147,7 @@ XPCCallContext::Init(XPCContext::LangType callerLanguage,
             mFlattenedJSObject = mWrapper->GetFlatJSObject();
 
             if (mTearOff)
-                mScriptableInfo = nullptr;
+                mScriptableInfo = nsnull;
             else
                 mScriptableInfo = mWrapper->GetScriptableInfo();
         } else {
@@ -173,26 +173,26 @@ XPCCallContext::SetName(jsid name)
     mName = name;
 
     if (mTearOff) {
-        mSet = nullptr;
+        mSet = nsnull;
         mInterface = mTearOff->GetInterface();
         mMember = mInterface->FindMember(name);
         mStaticMemberIsLocal = true;
         if (mMember && !mMember->IsConstant())
             mMethodIndex = mMember->GetIndex();
     } else {
-        mSet = mWrapper ? mWrapper->GetSet() : nullptr;
+        mSet = mWrapper ? mWrapper->GetSet() : nsnull;
 
         if (mSet &&
             mSet->FindMember(name, &mMember, &mInterface,
                              mWrapper->HasProto() ?
                              mWrapper->GetProto()->GetSet() :
-                             nullptr,
+                             nsnull,
                              &mStaticMemberIsLocal)) {
             if (mMember && !mMember->IsConstant())
                 mMethodIndex = mMember->GetIndex();
         } else {
-            mMember = nullptr;
-            mInterface = nullptr;
+            mMember = nsnull;
+            mInterface = nsnull;
             mStaticMemberIsLocal = false;
         }
     }
@@ -211,9 +211,9 @@ XPCCallContext::SetCallInfo(XPCNativeInterface* iface, XPCNativeMember* member,
 
     // don't be tricked if method is called with wrong 'this'
     if (mTearOff && mTearOff->GetInterface() != iface)
-        mTearOff = nullptr;
+        mTearOff = nsnull;
 
-    mSet = nullptr;
+    mSet = nsnull;
     mInterface = iface;
     mMember = member;
     mMethodIndex = mMember->GetIndex() + (isSetter ? 1 : 0);
@@ -231,9 +231,9 @@ XPCCallContext::SetArgsAndResultPtr(unsigned argc,
     CHECK_STATE(HAVE_OBJECT);
 
     if (mState < HAVE_NAME) {
-        mSet = nullptr;
-        mInterface = nullptr;
-        mMember = nullptr;
+        mSet = nsnull;
+        mInterface = nsnull;
+        mMember = nsnull;
         mStaticMemberIsLocal = false;
     }
 
@@ -257,7 +257,7 @@ XPCCallContext::CanCallNow()
     if (!mTearOff) {
         mTearOff = mWrapper->FindTearOff(*this, mInterface, false, &rv);
         if (!mTearOff || mTearOff->GetInterface() != mInterface) {
-            mTearOff = nullptr;
+            mTearOff = nsnull;
             return NS_FAILED(rv) ? rv : NS_ERROR_UNEXPECTED;
         }
     }
@@ -276,7 +276,7 @@ XPCCallContext::SystemIsBeingShutDown()
     // can be making this call on one thread for call contexts on another
     // thread.
     NS_WARNING("Shutting Down XPConnect even through there is a live XPCCallContext");
-    mXPCContext = nullptr;
+    mXPCContext = nsnull;
     mState = SYSTEM_SHUTDOWN;
     if (mPrevCallContext)
         mPrevCallContext->SystemIsBeingShutDown();
@@ -294,7 +294,7 @@ XPCCallContext::~XPCCallContext()
         DebugOnly<XPCCallContext*> old = XPCJSRuntime::Get()->SetCallContext(mPrevCallContext);
         NS_ASSERTION(old == this, "bad pop from per thread data");
 
-        shouldReleaseXPC = mPrevCallContext == nullptr;
+        shouldReleaseXPC = mPrevCallContext == nsnull;
     }
 
     // NB: Needs to happen before the context stack pop.
@@ -379,7 +379,7 @@ XPCCallContext::DeleteString(nsAString *string)
 NS_IMETHODIMP
 XPCCallContext::GetCallee(nsISupports * *aCallee)
 {
-    nsISupports* temp = mWrapper ? mWrapper->GetIdentityObject() : nullptr;
+    nsISupports* temp = mWrapper ? mWrapper->GetIdentityObject() : nsnull;
     NS_IF_ADDREF(temp);
     *aCallee = temp;
     return NS_OK;
@@ -417,7 +417,7 @@ XPCCallContext::GetCalleeInterface(nsIInterfaceInfo * *aCalleeInterface)
 NS_IMETHODIMP
 XPCCallContext::GetCalleeClassInfo(nsIClassInfo * *aCalleeClassInfo)
 {
-    nsIClassInfo* temp = mWrapper ? mWrapper->GetClassInfo() : nullptr;
+    nsIClassInfo* temp = mWrapper ? mWrapper->GetClassInfo() : nsnull;
     NS_IF_ADDREF(temp);
     *aCalleeClassInfo = temp;
     return NS_OK;

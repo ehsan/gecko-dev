@@ -520,7 +520,7 @@ StopDBus()
   }
 
   nsAutoPtr<DBusThread> thread(sDBusThread);
-  sDBusThread = nullptr;  
+  sDBusThread = nsnull;  
   return thread->StopEventLoop();
 }
 

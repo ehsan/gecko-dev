@@ -6,6 +6,7 @@
 #ifndef GFX_LAYERMANAGEROGL_H
 #define GFX_LAYERMANAGEROGL_H
 
+#include "Layers.h"
 #include "LayerManagerOGLProgram.h"
 
 #include "mozilla/layers/ShadowLayers.h"
@@ -469,7 +470,7 @@ public:
   virtual ~LayerOGL() { }
 
   virtual LayerOGL *GetFirstChildOGL() {
-    return nullptr;
+    return nsnull;
   }
 
   /* Do NOT call this from the generic LayerOGL destructor.  Only from the

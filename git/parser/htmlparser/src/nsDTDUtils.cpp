@@ -138,8 +138,8 @@ void nsEntryStack::PushTag(eHTMLTags aTag)
 {
   EnsureCapacityFor(mCount + 1);
   mEntries[mCount].mTag = aTag;
-  mEntries[mCount].mParent = nullptr;
-  mEntries[mCount].mStyles = nullptr;
+  mEntries[mCount].mParent = nsnull;
+  mEntries[mCount].mStyles = nsnull;
   ++mCount;
 }
 
@@ -234,7 +234,7 @@ nsCParserNode* nsEntryStack::Remove(PRInt32 anIndex,
       for (PRUint32 sindex = scount-1;; --sindex) {            
         if (theStyleEntry->mTag == aTag) {
           // This tells us that the style is not open at any level.
-          theStyleEntry->mParent = nullptr;
+          theStyleEntry->mParent = nsnull;
           break;
         }
         if (sindex == 0) {
@@ -281,7 +281,7 @@ nsCParserNode* nsEntryStack::Pop(void)
       for (PRUint32 sindex = scount - 1;; --sindex) {
         if (theStyleEntry->mTag == mEntries[mCount].mTag) {
           // This tells us that the style is not open at any level
-          theStyleEntry->mParent = nullptr;
+          theStyleEntry->mParent = nsnull;
           break;
         }
         if (sindex == 0) {
@@ -940,7 +940,7 @@ nsNodeAllocator::~nsNodeAllocator() {
     RemoveNode(theNode);
 #endif
     ::operator delete(theNode); 
-    theNode=nullptr;
+    theNode=nsnull;
   }
 #ifdef DEBUG_TRACK_NODES
   if(mCount) {

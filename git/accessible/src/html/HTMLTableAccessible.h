@@ -9,9 +9,7 @@
 #include "HyperTextAccessibleWrap.h"
 #include "nsIAccessibleTable.h"
 #include "TableAccessible.h"
-#include "TableCellAccessible.h"
 #include "xpcAccessibleTable.h"
-#include "xpcAccessibleTableCell.h"
 
 class nsITableLayout;
 class nsITableCellLayout;
@@ -23,9 +21,7 @@ namespace a11y {
  * HTML table cell accessible (html:td).
  */
 class HTMLTableCellAccessible : public HyperTextAccessibleWrap,
-                                public nsIAccessibleTableCell,
-                                public TableCellAccessible,
-                                public xpcAccessibleTableCell
+                                public nsIAccessibleTableCell
 {
 public:
   HTMLTableCellAccessible(nsIContent* aContent, DocAccessible* aDoc);
@@ -34,10 +30,9 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIAccessibleTableCell
-  NS_DECL_OR_FORWARD_NSIACCESSIBLETABLECELL_WITH_XPCACCESSIBLETABLECELL
+  NS_DECL_NSIACCESSIBLETABLECELL
 
   // Accessible
-  virtual void Shutdown();
   virtual a11y::role NativeRole();
   virtual PRUint64 NativeState();
   virtual PRUint64 NativeInteractiveState() const;

@@ -201,10 +201,10 @@ protected:
     return c;
   }
 
-  Chunk* FindChunkContaining(TrackTicks aOffset, TrackTicks* aStart = nullptr)
+  Chunk* FindChunkContaining(TrackTicks aOffset, TrackTicks* aStart = nsnull)
   {
     if (aOffset < 0) {
-      return nullptr;
+      return nsnull;
     }
     TrackTicks offset = 0;
     for (PRUint32 i = 0; i < mChunks.Length(); ++i) {
@@ -218,13 +218,13 @@ protected:
       }
       offset = nextOffset;
     }
-    return nullptr;
+    return nsnull;
   }
 
   Chunk* GetLastChunk()
   {
     if (mChunks.IsEmpty()) {
-      return nullptr;
+      return nsnull;
     }
     return &mChunks[mChunks.Length() - 1];
   }

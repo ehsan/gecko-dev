@@ -41,7 +41,7 @@ static nsresult
 SetUpEncoder(nsIDOMNode *aRoot, const nsACString& aCharset,
              nsIDocumentEncoder **aEncoder)
 {
-  *aEncoder = nullptr;
+  *aEncoder = nsnull;
    
   nsresult rv;
   nsCOMPtr<nsIDocumentEncoder> encoder =

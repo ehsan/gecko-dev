@@ -107,7 +107,7 @@ SwapChainD3D9::PrepareForRendering()
       return true;
     }
 
-    mSwapChain = nullptr;
+    mSwapChain = nsnull;
     
     Init(mWnd);
     
@@ -141,7 +141,7 @@ SwapChainD3D9::Present(const nsIntRect &aRect)
 void
 SwapChainD3D9::Reset()
 {
-  mSwapChain = nullptr;
+  mSwapChain = nsnull;
 }
 
 #define HAS_CAP(a, b) (((a) & (b)) == (b))
@@ -274,8 +274,8 @@ DeviceManagerD3D9::Init()
         // supports static D3DPOOL_DEFAULT textures.
         NS_WARNING("D3D9Ex device not used because of lack of support for \
                    dynamic textures. This is unexpected.");
-        mDevice = nullptr;
-        mDeviceEx = nullptr;
+        mDevice = nsnull;
+        mDeviceEx = nsnull;
       }
     }
   }
@@ -514,11 +514,11 @@ DeviceManagerD3D9::CreateSwapChain(HWND hWnd)
   // though and the need for a low-risk fix for this bug outweighs the
   // downside.
   if (!VerifyReadyForRendering()) {
-    return nullptr;
+    return nsnull;
   }
 
   if (!swapChain->Init(hWnd)) {
-    return nullptr;
+    return nsnull;
   }
 
   return swapChain.forget();
@@ -607,7 +607,7 @@ DeviceManagerD3D9::SetShaderMode(ShaderMode aMode, Layer* aMask, bool aIs2D)
     if (!LoadMaskTexture(aMask, mDevice, maskQuadRegister, maskTexRegister)) {
       // if we can't load the mask, fall back to unmasked rendering
       NS_WARNING("Could not load texture for mask layer.");
-      SetShaderMode(aMode, nullptr, true);
+      SetShaderMode(aMode, nsnull, true);
     }
   } else {
     switch (aMode) {
@@ -665,7 +665,7 @@ DeviceManagerD3D9::VerifyReadyForRendering()
     mSwapChains[i]->Reset();
   }
 
-  mVB = nullptr;
+  mVB = nsnull;
   
   D3DPRESENT_PARAMETERS pp;
   memset(&pp, 0, sizeof(D3DPRESENT_PARAMETERS));

@@ -20,7 +20,7 @@
 #include "nsIObserverService.h"
 #include "nsLayoutStatics.h"
 
-nsStyleSheetService *nsStyleSheetService::gInstance = nullptr;
+nsStyleSheetService *nsStyleSheetService::gInstance = nsnull;
 
 nsStyleSheetService::nsStyleSheetService()
 {
@@ -32,7 +32,7 @@ nsStyleSheetService::nsStyleSheetService()
 
 nsStyleSheetService::~nsStyleSheetService()
 {
-  gInstance = nullptr;
+  gInstance = nsnull;
   nsLayoutStatics::Release();
 }
 
@@ -122,7 +122,7 @@ nsStyleSheetService::LoadAndRegisterSheet(nsIURI *aSheetURI,
       // We're guaranteed that the new sheet is the last sheet in
       // mSheets[aSheetType]
       const nsCOMArray<nsIStyleSheet> & sheets = mSheets[aSheetType];
-      serv->NotifyObservers(sheets[sheets.Count() - 1], message, nullptr);
+      serv->NotifyObservers(sheets[sheets.Count() - 1], message, nsnull);
     }
   }
   return rv;
@@ -179,7 +179,7 @@ nsStyleSheetService::UnregisterSheet(nsIURI *sheetURI, PRUint32 aSheetType)
   nsCOMPtr<nsIObserverService> serv =
     mozilla::services::GetObserverService();
   if (serv)
-    serv->NotifyObservers(sheet, message, nullptr);
+    serv->NotifyObservers(sheet, message, nsnull);
 
   return NS_OK;
 }

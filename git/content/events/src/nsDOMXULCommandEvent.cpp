@@ -10,7 +10,7 @@
 nsDOMXULCommandEvent::nsDOMXULCommandEvent(nsPresContext* aPresContext,
                                            nsInputEvent* aEvent)
   : nsDOMUIEvent(aPresContext,
-                 aEvent ? aEvent : new nsInputEvent(false, 0, nullptr))
+                 aEvent ? aEvent : new nsInputEvent(false, 0, nsnull))
 {
   if (aEvent) {
     mEventIsInternal = false;

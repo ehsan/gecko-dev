@@ -340,7 +340,7 @@ already_AddRefed<nsIAtom>
 txXPathNodeUtils::getLocalName(const txXPathNode& aNode)
 {
     if (aNode.isDocument()) {
-        return nullptr;
+        return nsnull;
     }
 
     if (aNode.isContent()) {
@@ -359,7 +359,7 @@ txXPathNodeUtils::getLocalName(const txXPathNode& aNode)
             return NS_NewAtom(target);
         }
 
-        return nullptr;
+        return nsnull;
     }
 
     nsIAtom* localName = aNode.Content()->
@@ -373,7 +373,7 @@ nsIAtom*
 txXPathNodeUtils::getPrefix(const txXPathNode& aNode)
 {
     if (aNode.isDocument()) {
-        return nullptr;
+        return nsnull;
     }
 
     if (aNode.isContent()) {
@@ -649,7 +649,7 @@ txXPathNodeUtils::comparePosition(const txXPathNode& aNode,
 
     PRInt32 lastIndex = NS_MIN(total, otherTotal);
     PRInt32 i;
-    parent = nullptr;
+    parent = nsnull;
     for (i = 0; i <= lastIndex; ++i) {
         node = parents.ElementAt(total - i);
         otherNode = otherParents.ElementAt(otherTotal - i);
@@ -680,7 +680,7 @@ txXPathNodeUtils::comparePosition(const txXPathNode& aNode,
 txXPathNode*
 txXPathNativeNode::createXPathNode(nsIContent* aContent, bool aKeepRootAlive)
 {
-    nsINode* root = aKeepRootAlive ? txXPathNode::RootOf(aContent) : nullptr;
+    nsINode* root = aKeepRootAlive ? txXPathNode::RootOf(aContent) : nsnull;
 
     return new txXPathNode(aContent, txXPathNode::eContent, root);
 }
@@ -699,10 +699,10 @@ txXPathNativeNode::createXPathNode(nsIDOMNode* aNode, bool aKeepRootAlive)
         nsINodeInfo *nodeInfo = attr->NodeInfo();
         nsIContent *parent = attr->GetContent();
         if (!parent) {
-            return nullptr;
+            return nsnull;
         }
 
-        nsINode* root = aKeepRootAlive ? txXPathNode::RootOf(parent) : nullptr;
+        nsINode* root = aKeepRootAlive ? txXPathNode::RootOf(parent) : nsnull;
 
         PRUint32 i, total = parent->GetAttrCount();
         for (i = 0; i < total; ++i) {
@@ -714,12 +714,12 @@ txXPathNativeNode::createXPathNode(nsIDOMNode* aNode, bool aKeepRootAlive)
 
         NS_ERROR("Couldn't find the attribute in its parent!");
 
-        return nullptr;
+        return nsnull;
     }
 
     nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
     PRUint32 index;
-    nsINode* root = aKeepRootAlive ? node.get() : nullptr;
+    nsINode* root = aKeepRootAlive ? node.get() : nsnull;
 
     if (nodeType == nsIDOMNode::DOCUMENT_NODE) {
         index = txXPathNode::eDocument;

@@ -175,7 +175,7 @@ nsXMLFragmentContentSink::DidBuildModel(bool aTerminated)
 
   // Drop our reference to the parser to get rid of a circular
   // reference.
-  mParser = nullptr;
+  mParser = nsnull;
 
   return NS_OK;
 }
@@ -364,22 +364,22 @@ nsXMLFragmentContentSink::StartLayout()
 NS_IMETHODIMP 
 nsXMLFragmentContentSink::FinishFragmentParsing(nsIDOMDocumentFragment** aFragment)
 {
-  *aFragment = nullptr;
-  mTargetDocument = nullptr;
-  mNodeInfoManager = nullptr;
-  mScriptLoader = nullptr;
-  mCSSLoader = nullptr;
+  *aFragment = nsnull;
+  mTargetDocument = nsnull;
+  mNodeInfoManager = nsnull;
+  mScriptLoader = nsnull;
+  mCSSLoader = nsnull;
   mContentStack.Clear();
-  mDocumentURI = nullptr;
-  mDocShell = nullptr;
+  mDocumentURI = nsnull;
+  mDocShell = nsnull;
   if (mParseError) {
     //XXX PARSE_ERR from DOM3 Load and Save would be more appropriate
-    mRoot = nullptr;
+    mRoot = nsnull;
     mParseError = false;
     return NS_ERROR_DOM_SYNTAX_ERR;
   } else if (mRoot) {
     nsresult rv = CallQueryInterface(mRoot, aFragment);
-    mRoot = nullptr;
+    mRoot = nsnull;
     return rv;
   } else {
     return NS_OK;

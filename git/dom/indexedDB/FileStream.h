@@ -30,7 +30,7 @@ public:
   FileStream()
   : mFlags(0),
     mDeferredOpen(false),
-    mQuotaFile(nullptr)
+    mQuotaFile(nsnull)
   { }
 
   virtual ~FileStream()

@@ -46,8 +46,8 @@ public:
   };
 
   mozInlineSpellWordUtil()
-    : mRootNode(nullptr),
-      mSoftBegin(nullptr, 0), mSoftEnd(nullptr, 0),
+    : mRootNode(nsnull),
+      mSoftBegin(nsnull, 0), mSoftEnd(nsnull, 0),
       mNextWordIndex(-1), mSoftTextValid(false) {}
 
   nsresult Init(nsWeakPtr aWeakEditor);

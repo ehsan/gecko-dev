@@ -255,7 +255,7 @@ struct NS_STACK_CLASS AutoBufferTracker {
   }
 
   ~AutoBufferTracker() {
-    mLayer->mBufferTracker = nullptr;
+    mLayer->mBufferTracker = nsnull;
     mLayer->mBuffer.UnmapBuffer();
     // mInitialBuffer and mNewBuffer will clean up after themselves if
     // they were constructed.
@@ -291,10 +291,10 @@ BasicShadowableThebesLayer::PaintThebes(gfxContext* aContext,
 
   AutoBufferTracker tracker(this);
 
-  BasicThebesLayer::PaintThebes(aContext, nullptr, aCallback, aCallbackData, aReadback);
+  BasicThebesLayer::PaintThebes(aContext, nsnull, aCallback, aCallbackData, aReadback);
   if (aMaskLayer) {
     static_cast<BasicImplData*>(aMaskLayer->ImplData())
-      ->Paint(aContext, nullptr);
+      ->Paint(aContext, nsnull);
   }
 }
 

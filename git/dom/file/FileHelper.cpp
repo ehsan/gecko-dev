@@ -21,7 +21,7 @@ USING_FILE_NAMESPACE
 
 namespace {
 
-LockedFile* gCurrentLockedFile = nullptr;
+LockedFile* gCurrentLockedFile = nsnull;
 
 } // anonymous namespace
 
@@ -163,11 +163,11 @@ FileHelper::ReleaseObjects()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  mFileStorage = nullptr;
-  mLockedFile = nullptr;
-  mFileRequest = nullptr;
-  mListener = nullptr;
-  mRequest = nullptr;
+  mFileStorage = nsnull;
+  mLockedFile = nsnull;
+  mFileRequest = nsnull;
+  mListener = nsnull;
+  mRequest = nsnull;
 }
 
 void

@@ -125,7 +125,7 @@ GetGREVersion(const char *argv0,
 static void Usage(const char *argv0)
 {
     nsCAutoString milestone;
-    GetGREVersion(argv0, &milestone, nullptr);
+    GetGREVersion(argv0, &milestone, nsnull);
 
     // display additional information (XXX make localizable?)
     Output(false,
@@ -159,7 +159,7 @@ static const nsDynamicFunctionLoad kXULFuncs[] = {
     { "XRE_CreateAppData", (NSFuncPtr*) &XRE_CreateAppData },
     { "XRE_FreeAppData", (NSFuncPtr*) &XRE_FreeAppData },
     { "XRE_main", (NSFuncPtr*) &XRE_main },
-    { nullptr, nullptr }
+    { nsnull, nsnull }
 };
 
 static nsresult
@@ -205,7 +205,7 @@ InstallXULApp(nsIFile* aXULRunnerDir,
     NS_CStringToUTF16(nsDependentCString(aLeafName),
                       NS_CSTRING_ENCODING_NATIVE_FILESYSTEM, leafName);
 
-  rv = NS_InitXPCOM2(nullptr, aXULRunnerDir, nullptr);
+  rv = NS_InitXPCOM2(nsnull, aXULRunnerDir, nsnull);
   if (NS_FAILED(rv))
     return 3;
 
@@ -221,7 +221,7 @@ InstallXULApp(nsIFile* aXULRunnerDir,
     }
   }
 
-  NS_ShutdownXPCOM(nullptr);
+  NS_ShutdownXPCOM(nsnull);
 
   if (NS_FAILED(rv))
     return 3;
@@ -232,10 +232,10 @@ InstallXULApp(nsIFile* aXULRunnerDir,
 class AutoAppData
 {
 public:
-  AutoAppData(nsIFile* aINIFile) : mAppData(nullptr) {
+  AutoAppData(nsIFile* aINIFile) : mAppData(nsnull) {
     nsresult rv = XRE_CreateAppData(aINIFile, &mAppData);
     if (NS_FAILED(rv))
-      mAppData = nullptr;
+      mAppData = nsnull;
   }
   ~AutoAppData() {
     if (mAppData)
@@ -296,7 +296,7 @@ int main(int argc, char* argv[])
 
   if (argc > 1) {
     nsCAutoString milestone;
-    rv = GetGREVersion(argv[0], &milestone, nullptr);
+    rv = GetGREVersion(argv[0], &milestone, nsnull);
     if (NS_FAILED(rv))
       return 2;
 
@@ -318,18 +318,18 @@ int main(int argc, char* argv[])
 
       char *appLocation = argv[2];
 
-      char *installTo = nullptr;
+      char *installTo = nsnull;
       if (argc > 3) {
         installTo = argv[3];
         if (!*installTo) // left blank?
-          installTo = nullptr;
+          installTo = nsnull;
       }
 
-      char *leafName = nullptr;
+      char *leafName = nsnull;
       if (argc > 4) {
         leafName = argv[4];
         if (!*leafName)
-          leafName = nullptr;
+          leafName = nsnull;
       }
 
       nsCOMPtr<nsIFile> regDir;

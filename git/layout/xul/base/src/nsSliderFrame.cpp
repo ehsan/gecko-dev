@@ -171,7 +171,7 @@ nsSliderFrame::GetIntegerAttribute(nsIContent* content, nsIAtom* atom, PRInt32 d
     nsAutoString value;
     content->GetAttr(kNameSpaceID_None, atom, value);
     if (!value.IsEmpty()) {
-      nsresult error;
+      PRInt32 error;
 
       // convert it to an integer
       defaultValue = value.ToInteger(&error);
@@ -612,7 +612,7 @@ nsSliderFrame::GetScrollbar()
    nsIFrame* scrollbar;
    nsScrollbarButtonFrame::GetParentWithTag(nsGkAtoms::scrollbar, this, scrollbar);
 
-   if (scrollbar == nullptr)
+   if (scrollbar == nsnull)
        return this;
 
    return scrollbar->IsBoxFrame() ? scrollbar : this;
@@ -940,7 +940,7 @@ nsSliderFrame::DragThumb(bool aGrabMouseEvents)
     }
   }
 
-  nsIPresShell::SetCapturingContent(aGrabMouseEvents ? GetContent() : nullptr,
+  nsIPresShell::SetCapturingContent(aGrabMouseEvents ? GetContent() : nsnull,
                                     aGrabMouseEvents ? CAPTURE_IGNOREALLOWED : 0);
 }
 
@@ -1045,8 +1045,8 @@ nsSliderFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   // tell our mediator if we have one we are gone.
   if (mMediator) {
-    mMediator->SetSlider(nullptr);
-    mMediator = nullptr;
+    mMediator->SetSlider(nsnull);
+    mMediator = nsnull;
   }
   StopRepeat();
 

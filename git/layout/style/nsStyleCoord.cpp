@@ -174,6 +174,23 @@ nsStyleCoord::GetAngleValueInRadians() const
   }
 }
 
+// used by nsStyleSides and nsStyleCorners
+#define COMPARE_INDEXED_COORD(i)                                              \
+  PR_BEGIN_MACRO                                                              \
+  if (mUnits[i] != aOther.mUnits[i])                                          \
+    return false;                                                          \
+  if ((eStyleUnit_Percent <= mUnits[i]) &&                                    \
+      (mUnits[i] < eStyleUnit_Coord)) {                                       \
+    if (mValues[i].mFloat != aOther.mValues[i].mFloat)                        \
+      return false;                                                        \
+  }                                                                           \
+  else {                                                                      \
+    if (mValues[i].mInt != aOther.mValues[i].mInt)                            \
+      return false;                                                        \
+  }                                                                           \
+  PR_END_MACRO
+
+
 nsStyleSides::nsStyleSides()
 {
   memset(this, 0x00, sizeof(nsStyleSides));
@@ -182,10 +199,7 @@ nsStyleSides::nsStyleSides()
 bool nsStyleSides::operator==(const nsStyleSides& aOther) const
 {
   NS_FOR_CSS_SIDES(i) {
-    if (nsStyleCoord(mValues[i], (nsStyleUnit)mUnits[i]) !=
-        nsStyleCoord(aOther.mValues[i], (nsStyleUnit)aOther.mUnits[i])) {
-      return false;
-    }
+    COMPARE_INDEXED_COORD(i);
   }
   return true;
 }
@@ -204,10 +218,7 @@ bool
 nsStyleCorners::operator==(const nsStyleCorners& aOther) const
 {
   NS_FOR_CSS_HALF_CORNERS(i) {
-    if (nsStyleCoord(mValues[i], (nsStyleUnit)mUnits[i]) !=
-        nsStyleCoord(aOther.mValues[i], (nsStyleUnit)aOther.mUnits[i])) {
-      return false;
-    }
+    COMPARE_INDEXED_COORD(i);
   }
   return true;
 }

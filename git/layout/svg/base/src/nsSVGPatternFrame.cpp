@@ -161,7 +161,7 @@ nsSVGPatternFrame::PaintPattern(gfxASurface** surface,
    *    Call SVGPaint on all of our children
    *    Return
    */
-  *surface = nullptr;
+  *surface = nsnull;
 
   // Get the first child of the pattern data we will render
   nsIFrame* firstKid = GetPatternFirstChild();
@@ -301,12 +301,12 @@ nsSVGPatternFrame::PaintPattern(gfxASurface** surface,
       if (SVGFrame) {
         SVGFrame->NotifySVGChanged(nsISVGChildFrame::TRANSFORM_CHANGED);
       }
-      nsSVGUtils::PaintFrameWithEffects(&context, nullptr, kid);
+      nsSVGUtils::PaintFrameWithEffects(&context, nsnull, kid);
     }
     patternFrame->RemoveStateBits(NS_FRAME_DRAWING_AS_PAINTSERVER);
   }
 
-  patternFrame->mSource = nullptr;
+  patternFrame->mSource = nsnull;
 
   if (aGraphicOpacity != 1.0f) {
     gfx->PopGroupToSource();
@@ -336,7 +336,7 @@ nsSVGPatternFrame::GetPatternFirstChild()
 
   nsSVGPatternFrame* next = GetReferencedPatternIfNotInUse();
   if (!next)
-    return nullptr;
+    return nsnull;
 
   return next->GetPatternFirstChild();
 }
@@ -364,7 +364,7 @@ nsSVGPatternFrame::GetPatternTransformList(nsIContent* aDefault)
   SVGAnimatedTransformList *thisTransformList =
     static_cast<nsSVGPatternElement *>(mContent)->GetAnimatedTransformList();
 
-  if (thisTransformList && thisTransformList->IsExplicitlySet())
+  if (thisTransformList->IsExplicitlySet())
     return thisTransformList;
 
   AutoPatternReferencer patternRef(this);
@@ -438,7 +438,7 @@ nsSVGPatternFrame *
 nsSVGPatternFrame::GetReferencedPattern()
 {
   if (mNoHRefURI)
-    return nullptr;
+    return nsnull;
 
   nsSVGPaintingProperty *property = static_cast<nsSVGPaintingProperty*>
     (Properties().Get(nsSVGEffects::HrefProperty()));
@@ -450,7 +450,7 @@ nsSVGPatternFrame::GetReferencedPattern()
     pattern->mStringAttributes[nsSVGPatternElement::HREF].GetAnimValue(href, pattern);
     if (href.IsEmpty()) {
       mNoHRefURI = true;
-      return nullptr; // no URL
+      return nsnull; // no URL
     }
 
     // Convert href to an nsIURI
@@ -462,16 +462,16 @@ nsSVGPatternFrame::GetReferencedPattern()
     property =
       nsSVGEffects::GetPaintingProperty(targetURI, this, nsSVGEffects::HrefProperty());
     if (!property)
-      return nullptr;
+      return nsnull;
   }
 
   nsIFrame *result = property->GetReferencedFrame();
   if (!result)
-    return nullptr;
+    return nsnull;
 
   nsIAtom* frameType = result->GetType();
   if (frameType != nsGkAtoms::svgPatternFrame)
-    return nullptr;
+    return nsnull;
 
   return static_cast<nsSVGPatternFrame*>(result);
 }
@@ -481,12 +481,12 @@ nsSVGPatternFrame::GetReferencedPatternIfNotInUse()
 {
   nsSVGPatternFrame *referenced = GetReferencedPattern();
   if (!referenced)
-    return nullptr;
+    return nsnull;
 
   if (referenced->mLoopFlag) {
     // XXXjwatt: we should really send an error to the JavaScript Console here:
     NS_WARNING("pattern reference loop detected while inheriting attribute!");
-    return nullptr;
+    return nsnull;
   }
 
   return referenced;
@@ -536,7 +536,7 @@ nsSVGPatternFrame::ConstructCTM(const gfxRect &callerBBox,
                                 nsIFrame *aTarget)
 {
   gfxMatrix tCTM;
-  nsSVGSVGElement *ctx = nullptr;
+  nsSVGSVGElement *ctx = nsnull;
   nsIContent* targetContent = aTarget->GetContent();
 
   // The objectBoundingBox conversion must be handled in the CTM:
@@ -667,11 +667,11 @@ nsSVGPatternFrame::GetPaintServerPattern(nsIFrame *aSource,
                              aSource, aFillOrStroke, aGraphicOpacity, aOverrideBounds);
 
   if (NS_FAILED(rv)) {
-    return nullptr;
+    return nsnull;
   }
 
   if (pMatrix.IsSingular()) {
-    return nullptr;
+    return nsnull;
   }
 
   pMatrix.Invert();
@@ -679,7 +679,7 @@ nsSVGPatternFrame::GetPaintServerPattern(nsIFrame *aSource,
   nsRefPtr<gfxPattern> pattern = new gfxPattern(surface);
 
   if (!pattern || pattern->CairoStatus())
-    return nullptr;
+    return nsnull;
 
   pattern->SetMatrix(pMatrix);
   pattern->SetExtend(gfxPattern::EXTEND_REPEAT);

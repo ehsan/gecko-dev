@@ -159,7 +159,7 @@ nsSVGRectElement::ConstructPath(gfxContext *aCtx)
 {
   float x, y, width, height, rx, ry;
 
-  GetAnimatedLengthValues(&x, &y, &width, &height, &rx, &ry, nullptr);
+  GetAnimatedLengthValues(&x, &y, &width, &height, &rx, &ry, nsnull);
 
   /* In a perfect world, this would be handled by the DOM, and
      return a DOM exception. */

@@ -495,7 +495,7 @@ NS_METHOD nsWindow::Destroy()
     if (gRollupListener) {
       gRollupListener->Rollup(PR_UINT32_MAX);
     }
-    CaptureRollupEvents(nullptr, false, true);
+    CaptureRollupEvents(nsnull, false, true);
   }
 
   HWND hMain = GetMainWindow();
@@ -1540,7 +1540,7 @@ NS_IMETHODIMP nsWindow::CaptureRollupEvents(nsIRollupListener* aListener,
     gRollupWidget = this;
     NS_ADDREF(this);
  } else {
-    gRollupListener = nullptr;
+    gRollupListener = nsnull;
     NS_IF_RELEASE(gRollupWidget);
   }
 
@@ -2644,7 +2644,7 @@ bool nsWindow::OnImeRequest(MPARAM mp1, MPARAM mp2)
 
 bool nsWindow::DispatchKeyEvent(MPARAM mp1, MPARAM mp2)
 {
-  nsKeyEvent pressEvent(true, 0, nullptr);
+  nsKeyEvent pressEvent(true, 0, nsnull);
   USHORT fsFlags = SHORT1FROMMP(mp1);
   USHORT usVKey = SHORT2FROMMP(mp2);
   USHORT usChar = SHORT1FROMMP(mp2);
@@ -3093,7 +3093,7 @@ bool nsWindow::DispatchMouseEvent(PRUint32 aEventType, MPARAM mp1, MPARAM mp2,
       }
     }
 
-    InitEvent(event, nullptr);
+    InitEvent(event, nsnull);
     event.InitBasicModifiers(isKeyDown(VK_CTRL),
                              isKeyDown(VK_ALT) || isKeyDown(VK_ALTGRAF),
                              isKeyDown(VK_SHIFT), false);

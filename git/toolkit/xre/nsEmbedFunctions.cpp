@@ -117,7 +117,7 @@ XRE_LockProfileDirectory(nsIFile* aDirectory,
 {
   nsCOMPtr<nsIProfileLock> lock;
 
-  nsresult rv = NS_LockProfilePath(aDirectory, nullptr, nullptr,
+  nsresult rv = NS_LockProfilePath(aDirectory, nsnull, nsnull,
                                    getter_AddRefs(lock));
   if (NS_SUCCEEDED(rv))
     NS_ADDREF(*aLockObject = lock);
@@ -133,7 +133,7 @@ XRE_InitEmbedding2(nsIFile *aLibXULDirectory,
 		   nsIDirectoryServiceProvider *aAppDirProvider)
 {
   // Initialize some globals to make nsXREDirProvider happy
-  static char* kNullCommandLine[] = { nullptr };
+  static char* kNullCommandLine[] = { nsnull };
   gArgv = kNullCommandLine;
   gArgc = 0;
 
@@ -156,7 +156,7 @@ XRE_InitEmbedding2(nsIFile *aLibXULDirectory,
   if (NS_FAILED(rv))
     return rv;
 
-  rv = NS_InitXPCOM2(nullptr, aAppDirectory, gDirServiceProvider);
+  rv = NS_InitXPCOM2(nsnull, aAppDirectory, gDirServiceProvider);
   if (NS_FAILED(rv))
     return rv;
 
@@ -171,7 +171,7 @@ XRE_InitEmbedding2(nsIFile *aLibXULDirectory,
   if (!startupNotifier)
     return NS_ERROR_FAILURE;
 
-  startupNotifier->Observe(nullptr, APPSTARTUP_TOPIC, nullptr);
+  startupNotifier->Observe(nsnull, APPSTARTUP_TOPIC, nsnull);
 
   return NS_OK;
 }
@@ -193,7 +193,7 @@ XRE_TermEmbedding()
                "XRE_TermEmbedding without XRE_InitEmbedding");
 
   gDirServiceProvider->DoShutdown();
-  NS_ShutdownXPCOM(nullptr);
+  NS_ShutdownXPCOM(nsnull);
   delete gDirServiceProvider;
 }
 
@@ -201,7 +201,7 @@ const char*
 XRE_ChildProcessTypeToString(GeckoProcessType aProcessType)
 {
   return (aProcessType < GeckoProcessType_End) ?
-    kGeckoProcessTypeString[aProcessType] : nullptr;
+    kGeckoProcessTypeString[aProcessType] : nsnull;
 }
 
 GeckoProcessType
@@ -253,7 +253,7 @@ SetTaskbarGroupId(const nsString& aId)
 {
     typedef HRESULT (WINAPI * SetCurrentProcessExplicitAppUserModelIDPtr)(PCWSTR AppID);
 
-    SetCurrentProcessExplicitAppUserModelIDPtr funcAppUserModelID = nullptr;
+    SetCurrentProcessExplicitAppUserModelIDPtr funcAppUserModelID = nsnull;
 
     HMODULE hDLL = ::LoadLibraryW(kShellLibraryName);
 
@@ -687,7 +687,7 @@ TestShellParent* GetOrCreateTestShellParent()
     if (!gContentParent) {
         NS_ADDREF(gContentParent = ContentParent::GetNewOrUsed());
     } else if (!gContentParent->IsAlive()) {
-        return nullptr;
+        return nsnull;
     }
     TestShellParent* tsp = gContentParent->GetTestShellSingleton();
     if (!tsp) {

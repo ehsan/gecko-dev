@@ -141,7 +141,7 @@ bool nsCocoaAppModalWindowList::GeckoModalAboveCocoaModal()
 
   nsCocoaAppModalWindowListItem &topItem = mList.ElementAt(mList.Length() - 1);
 
-  return (topItem.mWidget != nullptr);
+  return (topItem.mWidget != nsnull);
 }
 
 @implementation GeckoNSApplication
@@ -204,8 +204,8 @@ nsAppShell::ResumeNative(void)
 }
 
 nsAppShell::nsAppShell()
-: mAutoreleasePools(nullptr)
-, mDelegate(nullptr)
+: mAutoreleasePools(nsnull)
+, mDelegate(nsnull)
 , mCFRunLoop(NULL)
 , mCFRunLoopSource(NULL)
 , mRunningEventLoop(false)
@@ -265,7 +265,7 @@ nsAppShell::Init()
   // by |this|.  CFArray is used instead of NSArray because NSArray wants to
   // retain each object you add to it, and you can't retain an
   // NSAutoreleasePool.
-  mAutoreleasePools = ::CFArrayCreateMutable(nullptr, 0, nullptr);
+  mAutoreleasePools = ::CFArrayCreateMutable(nsnull, 0, nsnull);
   NS_ENSURE_STATE(mAutoreleasePools);
 
   // Get the path of the nib file, which lives in the GRE location
@@ -796,8 +796,8 @@ nsAppShell::Exit(void)
   NS_ASSERTION(!cocoaModal,
                "Don't call nsAppShell::Exit() from a modal event loop!");
   if (cocoaModal)
-    [NSApp stop:nullptr];
-  [NSApp stop:nullptr];
+    [NSApp stop:nsnull];
+  [NSApp stop:nsnull];
 
   // A call to Exit() just after a call to ScheduleNativeEventCallback()
   // prevents the (normally) matching call to ProcessGeckoEvents() from

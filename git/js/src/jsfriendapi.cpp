@@ -445,11 +445,7 @@ js::GetGeneric(JSContext *cx, JSObject *obj, JSObject *receiver_, jsid id_,
 {
     RootedObject receiver(cx, receiver_);
     RootedId id(cx, id_);
-    RootedValue value(cx);
-    if (!obj->getGeneric(cx, receiver, id, &value))
-        return false;
-    *vp = value;
-    return true;
+    return obj->getGeneric(cx, receiver, id, vp);
 }
 
 void

@@ -509,7 +509,7 @@ class GLContext
 public:
     GLContext(const ContextFormat& aFormat,
               bool aIsOffscreen = false,
-              GLContext *aSharedContext = nullptr)
+              GLContext *aSharedContext = nsnull)
       : mUserBoundDrawFBO(0),
         mUserBoundReadFBO(0),
         mInternalBoundDrawFBO(0),
@@ -605,7 +605,7 @@ public:
     virtual void ReleaseSurface() {}
 
     void *GetUserData(void *aKey) {
-        void *result = nullptr;
+        void *result = nsnull;
         mUserData.Get(aKey, &result);
         return result;
     }
@@ -620,7 +620,7 @@ public:
 
     bool IsDestroyed() {
         // MarkDestroyed will mark all these as null.
-        return mSymbols.fUseProgram == nullptr;
+        return mSymbols.fUseProgram == nsnull;
     }
 
     enum NativeDataType {
@@ -659,7 +659,7 @@ public:
     /**
      * If this GL context has a D3D texture share handle, returns non-null.
      */
-    virtual void *GetD3DShareHandle() { return nullptr; }
+    virtual void *GetD3DShareHandle() { return nsnull; }
 
     /**
      * If this context is double-buffered, returns TRUE.
@@ -752,7 +752,7 @@ public:
 
     virtual already_AddRefed<TextureImage>
     CreateDirectTextureImage(android::GraphicBuffer* aBuffer, GLenum aWrapMode)
-    { return nullptr; }
+    { return nsnull; }
 
     /*
      * Offscreen support API
@@ -1350,7 +1350,7 @@ public:
                 TextureImage::ContentType aContentType,
                 TextureImage::Flags aFlags = TextureImage::NoFlags)
     {
-        return nullptr;
+        return nsnull;
     }
 
     /**
@@ -2600,7 +2600,7 @@ public:
         } else {
           // pass wrong values to cause the GL to generate GL_INVALID_VALUE.
           // See bug 737182 and the comment in IsTextureSizeSafeToPassToDriver.
-          mSymbols.fTexImage2D(target, -1, internalformat, -1, -1, -1, format, type, nullptr);
+          mSymbols.fTexImage2D(target, -1, internalformat, -1, -1, -1, format, type, nsnull);
         }
         AFTER_GL_CALL;
     }
@@ -3152,7 +3152,7 @@ public:
 
     struct NamedResource {
         NamedResource()
-            : origin(nullptr), name(0), originDeleted(false)
+            : origin(nsnull), name(0), originDeleted(false)
         { }
 
         NamedResource(GLContext *aOrigin, GLuint aName)

@@ -36,7 +36,7 @@ nsChannelClassifier::Start(nsIChannel *aChannel)
 {
     // Don't bother to run the classifier on a load that has already failed.
     // (this might happen after a redirect)
-    nsresult status;
+    PRUint32 status;
     aChannel->GetStatus(&status);
     if (NS_FAILED(status))
         return NS_OK;
@@ -144,7 +144,7 @@ nsChannelClassifier::MarkEntryClassified(nsresult status)
     }
 
     cacheEntry->SetMetaDataElement("necko:classified",
-                                   NS_SUCCEEDED(status) ? "1" : nullptr);
+                                   NS_SUCCEEDED(status) ? "1" : nsnull);
 }
 
 bool
@@ -198,7 +198,7 @@ nsChannelClassifier::OnClassifyComplete(nsresult aErrorCode)
              "OnClassifyComplete", this, mSuspendedChannel.get()));
 #endif
         mSuspendedChannel->Resume();
-        mSuspendedChannel = nullptr;
+        mSuspendedChannel = nsnull;
     }
 
     return NS_OK;

@@ -104,7 +104,7 @@ nsPrefetchQueueEnumerator::~nsPrefetchQueueEnumerator()
 NS_IMETHODIMP
 nsPrefetchQueueEnumerator::HasMoreElements(bool *aHasMore)
 {
-    *aHasMore = (mCurrent != nullptr);
+    *aHasMore = (mCurrent != nsnull);
     return NS_OK;
 }
 
@@ -165,11 +165,11 @@ nsPrefetchNode::nsPrefetchNode(nsPrefetchService *aService,
                                nsIURI *aURI,
                                nsIURI *aReferrerURI,
                                nsIDOMNode *aSource)
-    : mNext(nullptr)
+    : mNext(nsnull)
     , mURI(aURI)
     , mReferrerURI(aReferrerURI)
     , mService(aService)
-    , mChannel(nullptr)
+    , mChannel(nsnull)
     , mState(nsIDOMLoadStatus::UNINITIALIZED)
     , mBytesRead(0)
 {
@@ -181,7 +181,7 @@ nsPrefetchNode::OpenChannel()
 {
     nsresult rv = NS_NewChannel(getter_AddRefs(mChannel),
                                 mURI,
-                                nullptr, nullptr, this,
+                                nsnull, nsnull, this,
                                 nsIRequest::LOAD_BACKGROUND |
                                 nsICachingChannel::LOAD_ONLY_IF_MODIFIED);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -197,7 +197,7 @@ nsPrefetchNode::OpenChannel()
             false);
     }
 
-    rv = mChannel->AsyncOpen(this, nullptr);
+    rv = mChannel->AsyncOpen(this, nsnull);
     NS_ENSURE_SUCCESS(rv, rv);
 
     mState = nsIDOMLoadStatus::REQUESTED;
@@ -209,7 +209,7 @@ nsresult
 nsPrefetchNode::CancelChannel(nsresult error)
 {
     mChannel->Cancel(error);
-    mChannel = nullptr;
+    mChannel = nsnull;
 
     mState = nsIDOMLoadStatus::UNINITIALIZED;
 
@@ -284,7 +284,7 @@ nsPrefetchNode::OnDataAvailable(nsIRequest *aRequest,
                                 PRUint32 aCount)
 {
     PRUint32 bytesRead = 0;
-    aStream->ReadSegments(NS_DiscardSegment, nullptr, aCount, &bytesRead);
+    aStream->ReadSegments(NS_DiscardSegment, nsnull, aCount, &bytesRead);
     mBytesRead += bytesRead;
     LOG(("prefetched %u bytes [offset=%u]\n", bytesRead, aOffset));
     return NS_OK;
@@ -373,8 +373,8 @@ nsPrefetchNode::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
 //-----------------------------------------------------------------------------
 
 nsPrefetchService::nsPrefetchService()
-    : mQueueHead(nullptr)
-    , mQueueTail(nullptr)
+    : mQueueHead(nsnull)
+    , mQueueTail(nsnull)
     , mStopCount(0)
     , mHaveProcessed(false)
     , mDisabled(true)
@@ -424,7 +424,7 @@ nsPrefetchService::ProcessNextURI()
     nsresult rv;
     nsCOMPtr<nsIURI> uri, referrer;
 
-    mCurrentNode = nullptr;
+    mCurrentNode = nsnull;
 
     do {
         rv = DequeueNode(getter_AddRefs(mCurrentNode));
@@ -456,7 +456,7 @@ nsPrefetchService::NotifyLoadRequested(nsPrefetchNode *node)
       return;
 
     observerService->NotifyObservers(static_cast<nsIDOMLoadStatus*>(node),
-                                     "prefetch-load-requested", nullptr);
+                                     "prefetch-load-requested", nsnull);
 }
 
 void
@@ -468,7 +468,7 @@ nsPrefetchService::NotifyLoadCompleted(nsPrefetchNode *node)
       return;
 
     observerService->NotifyObservers(static_cast<nsIDOMLoadStatus*>(node),
-                                     "prefetch-load-completed", nullptr);
+                                     "prefetch-load-completed", nsnull);
 }
 
 //-----------------------------------------------------------------------------
@@ -537,10 +537,10 @@ nsPrefetchService::DequeueNode(nsPrefetchNode **node)
     // give the ref to the caller
     *node = mQueueHead;
     mQueueHead = mQueueHead->mNext;
-    (*node)->mNext = nullptr;
+    (*node)->mNext = nsnull;
 
     if (!mQueueHead)
-        mQueueTail = nullptr;
+        mQueueTail = nsnull;
 
     return NS_OK;
 }
@@ -588,7 +588,7 @@ nsPrefetchService::StopPrefetching()
         return;
 
     mCurrentNode->CancelChannel(NS_BINDING_ABORTED);
-    mCurrentNode = nullptr;
+    mCurrentNode = nsnull;
     EmptyQueue();
 }
 
@@ -753,7 +753,7 @@ nsPrefetchService::EnumerateQueue(bool aIncludeNormalItems,
 NS_IMETHODIMP
 nsPrefetchNode::GetSource(nsIDOMNode **aSource)
 {
-    *aSource = nullptr;
+    *aSource = nsnull;
     nsCOMPtr<nsIDOMNode> source = do_QueryReferent(mSource);
     if (source)
         source.swap(*aSource);

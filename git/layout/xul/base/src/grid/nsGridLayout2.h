@@ -34,11 +34,11 @@ public:
   NS_IMETHOD Layout(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState);
   virtual void IntrinsicWidthsDirty(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState);
 
-  virtual nsGridRowGroupLayout* CastToRowGroupLayout() { return nullptr; }
+  virtual nsGridRowGroupLayout* CastToRowGroupLayout() { return nsnull; }
   virtual nsGridLayout2* CastToGridLayout() { return this; }
-  virtual nsGrid* GetGrid(nsIBox* aBox, PRInt32* aIndex, nsGridRowLayout* aRequestor=nullptr);
+  virtual nsGrid* GetGrid(nsIBox* aBox, PRInt32* aIndex, nsGridRowLayout* aRequestor=nsnull);
   virtual nsIGridPart* GetParentGridPart(nsIBox* aBox, nsIBox** aParentBox) {
-    NS_NOTREACHED("Should not be called"); return nullptr;
+    NS_NOTREACHED("Should not be called"); return nsnull;
   }
   virtual nsSize GetMinSize(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState);
   virtual nsSize GetMaxSize(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState);

@@ -29,7 +29,7 @@ ShadowLayerForwarder::PlatformAllocBuffer(const gfxIntSize&,
 ShadowLayerForwarder::PlatformOpenDescriptor(OpenMode,
                                              const SurfaceDescriptor&)
 {
-  return nullptr;
+  return nsnull;
 }
 
 /*static*/ bool
@@ -80,7 +80,7 @@ ShadowLayerManager::OpenDescriptorForDirectTexturing(GLContext*,
                                                      const SurfaceDescriptor&,
                                                      GLenum)
 {
-  return nullptr;
+  return nsnull;
 }
 
 /*static*/ void
@@ -94,7 +94,7 @@ GetDescriptor(ID3D10Texture2D* aTexture, SurfaceDescriptorD3D10* aDescr)
   NS_ABORT_IF_FALSE(aTexture && aDescr, "Params must be nonnull");
 
   HRESULT hr;
-  IDXGIResource* dr = nullptr;
+  IDXGIResource* dr = nsnull;
   hr = aTexture->QueryInterface(__uuidof(IDXGIResource), (void**)&dr);
   if (!SUCCEEDED(hr) || !dr)
     return false;
@@ -107,12 +107,12 @@ already_AddRefed<ID3D10Texture2D>
 OpenForeign(ID3D10Device* aDevice, const SurfaceDescriptorD3D10& aDescr)
 {
   HRESULT hr;
-  ID3D10Texture2D* tex = nullptr;
+  ID3D10Texture2D* tex = nsnull;
   hr = aDevice->OpenSharedResource(reinterpret_cast<HANDLE>(aDescr.handle()),
                                    __uuidof(ID3D10Texture2D),
                                    (void**)&tex);
   if (!SUCCEEDED(hr) || !tex)
-    return nullptr;
+    return nsnull;
 
   // XXX FIXME TODO do we need this???
   return nsRefPtr<ID3D10Texture2D>(tex).forget();

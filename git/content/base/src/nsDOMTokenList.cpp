@@ -44,7 +44,7 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsDOMTokenList)
 void
 nsDOMTokenList::DropReference()
 {
-  mElement = nullptr;
+  mElement = nsnull;
 }
 
 NS_IMETHODIMP

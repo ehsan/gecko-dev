@@ -54,9 +54,9 @@ RunTests()
 int
 main(int argc, char **argv)
 {
-  if (NS_FAILED(NS_InitXPCOM2(nullptr, nullptr, nullptr)))
+  if (NS_FAILED(NS_InitXPCOM2(nsnull, nsnull, nsnull)))
     return -1;
   RunTests();
-  NS_ShutdownXPCOM(nullptr);
+  NS_ShutdownXPCOM(nsnull);
   return 0;
 }

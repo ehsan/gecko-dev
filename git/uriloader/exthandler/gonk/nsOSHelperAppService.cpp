@@ -30,7 +30,7 @@ nsOSHelperAppService::GetMIMEInfoFromOS(const nsACString& aMIMEType,
                                         bool* aFound)
 {
     *aFound = false;
-    return nullptr;
+    return nsnull;
 }
 
 nsresult

@@ -17,7 +17,7 @@ inline nsIScriptContext *
 GetScriptContextFromJSContext(JSContext *cx)
 {
   if (!(::JS_GetOptions(cx) & JSOPTION_PRIVATE_IS_NSISUPPORTS)) {
-    return nullptr;
+    return nsnull;
   }
 
   nsCOMPtr<nsIScriptContext> scx =
@@ -33,7 +33,7 @@ inline nsIScriptContextPrincipal*
 GetScriptContextPrincipalFromJSContext(JSContext *cx)
 {
   if (!(::JS_GetOptions(cx) & JSOPTION_PRIVATE_IS_NSISUPPORTS)) {
-    return nullptr;
+    return nsnull;
   }
 
   nsCOMPtr<nsIScriptContextPrincipal> scx =

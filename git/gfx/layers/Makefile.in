@@ -31,17 +31,18 @@ EXPORTS = \
         BasicLayers.h \
         BasicTiledThebesLayer.h \
         BasicImplData.h \
-        FrameMetrics.h \
+        CompositorParent.h \
         ImageLayers.h \
         Layers.h \
-        LayersTypes.h \
+        LayersBackend.h \
         LayerManagerOGLShaders.h \
         LayerManagerOGL.h \
         LayerManagerOGLProgram.h \
-        ReadbackLayer.h \
         LayerSorter.h \
-        TexturePoolOGL.h \
+        ReadbackLayer.h \
+        ShadowLayersManager.h \
         SharedTextureImage.h \
+        TexturePoolOGL.h \
         $(NULL)
 
 CPPSRCS = \

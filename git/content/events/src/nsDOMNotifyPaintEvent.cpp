@@ -167,7 +167,7 @@ nsresult NS_NewDOMNotifyPaintEvent(nsIDOMEvent** aInstancePtrResult,
   nsDOMNotifyPaintEvent* it =
     new nsDOMNotifyPaintEvent(aPresContext, aEvent, aEventType,
                               aInvalidateRequests);
-  if (nullptr == it) {
+  if (nsnull == it) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
 

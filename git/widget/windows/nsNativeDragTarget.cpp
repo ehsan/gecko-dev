@@ -35,7 +35,7 @@ nsNativeDragTarget::nsNativeDragTarget(nsIWidget * aWidget)
   : m_cRef(0), 
     mEffectsAllowed(DROPEFFECT_MOVE | DROPEFFECT_COPY | DROPEFFECT_LINK),
     mEffectsPreferred(DROPEFFECT_NONE),
-    mTookOwnRef(false), mWidget(aWidget), mDropTargetHelper(nullptr)
+    mTookOwnRef(false), mWidget(aWidget), mDropTargetHelper(nsnull)
 {
   mHWnd = (HWND)mWidget->GetNativeData(NS_NATIVE_WINDOW);
 
@@ -51,7 +51,7 @@ nsNativeDragTarget::~nsNativeDragTarget()
 
   if (mDropTargetHelper) {
     mDropTargetHelper->Release();
-    mDropTargetHelper = nullptr;
+    mDropTargetHelper = nsnull;
   }
 }
 
@@ -244,10 +244,10 @@ nsNativeDragTarget::DragEnter(LPDATAOBJECT pIDataSource,
   // outside app).
   mDragService->StartDragSession();
 
-  void* tempOutData = nullptr;
+  void* tempOutData = nsnull;
   PRUint32 tempDataLen = 0;
   nsresult loadResult = nsClipboard::GetNativeDataOffClipboard(
-      pIDataSource, 0, ::RegisterClipboardFormat(CFSTR_PREFERREDDROPEFFECT), nullptr, &tempOutData, &tempDataLen);
+      pIDataSource, 0, ::RegisterClipboardFormat(CFSTR_PREFERREDDROPEFFECT), nsnull, &tempOutData, &tempDataLen);
   if (NS_SUCCEEDED(loadResult) && tempOutData) {
     mEffectsPreferred = *((DWORD*)tempOutData);
     nsMemory::Free(tempOutData);

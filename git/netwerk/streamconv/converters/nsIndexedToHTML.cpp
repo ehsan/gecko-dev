@@ -53,7 +53,7 @@ nsIndexedToHTML::Create(nsISupports *aOuter, REFNSIID aIID, void **aResult) {
         return NS_ERROR_NO_AGGREGATION;
     
     nsIndexedToHTML* _s = new nsIndexedToHTML();
-    if (_s == nullptr)
+    if (_s == nsnull)
         return NS_ERROR_OUT_OF_MEMORY;
     
     rv = _s->QueryInterface(aIID, aResult);
@@ -691,12 +691,12 @@ nsIndexedToHTML::FormatInputStream(nsIRequest* aRequest, nsISupports *aContext, 
                                                           getter_AddRefs(mUnicodeEncoder));
         if (NS_SUCCEEDED(rv))
             rv = mUnicodeEncoder->SetOutputErrorBehavior(nsIUnicodeEncoder::kOnError_Replace, 
-                                                       nullptr, (PRUnichar)'?');
+                                                       nsnull, (PRUnichar)'?');
       }
     }
 
     // convert the data with unicode encoder
-    char *buffer = nullptr;
+    char *buffer = nsnull;
     PRInt32 dstLength;
     if (NS_SUCCEEDED(rv)) {
       PRInt32 unicharLength = aBuffer.Length();
@@ -722,7 +722,7 @@ nsIndexedToHTML::FormatInputStream(nsIRequest* aRequest, nsISupports *aContext, 
       rv = NS_OK;
       if (buffer) {
         nsMemory::Free(buffer);
-        buffer = nullptr;
+        buffer = nsnull;
       }
     }
 
@@ -877,7 +877,7 @@ nsIndexedToHTML::OnIndexAvailable(nsIRequest *aRequest,
     // if so, and if the location indeed appears to be a valid URI, then go
     // ahead and treat it like one.
     if (mExpectAbsLoc &&
-        NS_SUCCEEDED(net_ExtractURLScheme(utf8UnEscapeSpec, nullptr, nullptr, nullptr))) {
+        NS_SUCCEEDED(net_ExtractURLScheme(utf8UnEscapeSpec, nsnull, nsnull, nsnull))) {
         // escape as absolute 
         escFlags = esc_Forced | esc_OnlyASCII | esc_AlwaysCopy | esc_Minimal;
     }
@@ -954,14 +954,14 @@ nsIndexedToHTML::OnIndexAvailable(nsIRequest *aRequest,
         pushBuffer.AppendInt(t);
         pushBuffer.AppendLiteral("\">");
         nsAutoString formatted;
-        mDateTime->FormatPRTime(nullptr,
+        mDateTime->FormatPRTime(nsnull,
                                 kDateFormatShort,
                                 kTimeFormatNone,
                                 t,
                                 formatted);
         AppendNonAsciiToNCR(formatted, pushBuffer);
         pushBuffer.AppendLiteral("</td>\n <td>");
-        mDateTime->FormatPRTime(nullptr,
+        mDateTime->FormatPRTime(nsnull,
                                 kDateFormatNone,
                                 kTimeFormatSeconds,
                                 t,

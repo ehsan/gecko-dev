@@ -47,10 +47,10 @@ ParseVP(char *part, VersionPart &result)
   char *dot;
 
   result.numA = 0;
-  result.strB = nullptr;
+  result.strB = nsnull;
   result.strBlen = 0;
   result.numC = 0;
-  result.extraD = nullptr;
+  result.extraD = nsnull;
 
   if (!part)
     return part;
@@ -68,7 +68,7 @@ ParseVP(char *part, VersionPart &result)
   }
 
   if (!*result.strB) {
-    result.strB = nullptr;
+    result.strB = nsnull;
     result.strBlen = 0;
   }
   else {
@@ -89,7 +89,7 @@ ParseVP(char *part, VersionPart &result)
 
 	result.numC = strtol(numstart, &result.extraD, 10);
 	if (!*result.extraD)
-	  result.extraD = nullptr;
+	  result.extraD = nsnull;
       }
     }
   }
@@ -98,7 +98,7 @@ ParseVP(char *part, VersionPart &result)
     ++dot;
 
     if (!*dot)
-      dot = nullptr;
+      dot = nsnull;
   }
 
   return dot;
@@ -118,10 +118,10 @@ ParseVP(PRUnichar *part, VersionPartW &result)
   PRUnichar *dot;
 
   result.numA = 0;
-  result.strB = nullptr;
+  result.strB = nsnull;
   result.strBlen = 0;
   result.numC = 0;
-  result.extraD = nullptr;
+  result.extraD = nsnull;
 
   if (!part)
     return part;
@@ -139,7 +139,7 @@ ParseVP(PRUnichar *part, VersionPartW &result)
   }
 
   if (!*result.strB) {
-    result.strB = nullptr;
+    result.strB = nsnull;
     result.strBlen = 0;
   }
   else {
@@ -160,7 +160,7 @@ ParseVP(PRUnichar *part, VersionPartW &result)
 
 	result.numC = wcstol(numstart, &result.extraD, 10);
 	if (!*result.extraD)
-	  result.extraD = nullptr;
+	  result.extraD = nsnull;
       }
     }
   }
@@ -169,7 +169,7 @@ ParseVP(PRUnichar *part, VersionPartW &result)
     ++dot;
 
     if (!*dot)
-      dot = nullptr;
+      dot = nsnull;
   }
 
   return dot;

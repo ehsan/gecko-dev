@@ -39,7 +39,7 @@ public:
 
   virtual void ReleaseMembers()
   {
-    mDOMRequest = nullptr;
+    mDOMRequest = nsnull;
   }
 
 protected:

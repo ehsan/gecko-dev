@@ -69,7 +69,7 @@ NS_GetWeakReference( nsISupports* aInstancePtr, nsresult* aErrorPtr )
   {
     nsresult status;
 
-    nsIWeakReference* result = nullptr;
+    nsIWeakReference* result = nsnull;
 
     if ( aInstancePtr )
       {

@@ -104,7 +104,7 @@ IDBTransaction::CreateInternal(IDBDatabase* aDatabase,
 
   transaction->BindToOwner(aDatabase);
   if (!transaction->SetScriptOwner(aDatabase->GetScriptOwner())) {
-    return nullptr;
+    return nsnull;
   }
 
   transaction->mDatabase = aDatabase;
@@ -113,7 +113,7 @@ IDBTransaction::CreateInternal(IDBDatabase* aDatabase,
   transaction->mObjectStoreNames.AppendElements(aObjectStoreNames);
   transaction->mObjectStoreNames.Sort();
 
-  IndexedDBTransactionChild* actor = nullptr;
+  IndexedDBTransactionChild* actor = nsnull;
 
   transaction->mCreatedFileInfos.Init();
 
@@ -122,9 +122,9 @@ IDBTransaction::CreateInternal(IDBDatabase* aDatabase,
 
     if (aMode != IDBTransaction::VERSION_CHANGE) {
       TransactionThreadPool* pool = TransactionThreadPool::GetOrCreate();
-      NS_ENSURE_TRUE(pool, nullptr);
+      NS_ENSURE_TRUE(pool, nsnull);
 
-      pool->Dispatch(transaction, &gStartTransactionRunnable, false, nullptr);
+      pool->Dispatch(transaction, &gStartTransactionRunnable, false, nsnull);
     }
   }
   else if (!aIsVersionChangeTransactionChild) {
@@ -142,10 +142,10 @@ IDBTransaction::CreateInternal(IDBDatabase* aDatabase,
 
   if (!aDispatchDelayed) {
     nsCOMPtr<nsIAppShell> appShell = do_GetService(kAppShellCID);
-    NS_ENSURE_TRUE(appShell, nullptr);
+    NS_ENSURE_TRUE(appShell, nsnull);
 
     nsresult rv = appShell->RunBeforeNextEvent(transaction);
-    NS_ENSURE_SUCCESS(rv, nullptr);
+    NS_ENSURE_SUCCESS(rv, nsnull);
 
     transaction->mCreating = true;
   }
@@ -163,8 +163,8 @@ IDBTransaction::IDBTransaction()
   mMode(IDBTransaction::READ_ONLY),
   mPendingRequests(0),
   mSavepointCount(0),
-  mActorChild(nullptr),
-  mActorParent(nullptr),
+  mActorChild(nsnull),
+  mActorParent(nsnull),
   mAbortCode(NS_OK),
   mCreating(false)
 #ifdef DEBUG
@@ -305,12 +305,12 @@ IDBTransaction::ReleaseSavepoint()
   nsCOMPtr<mozIStorageStatement> stmt = GetCachedStatement(NS_LITERAL_CSTRING(
     "RELEASE SAVEPOINT " SAVEPOINT_NAME
   ));
-  NS_ENSURE_TRUE(stmt, NS_OK);
+  NS_ENSURE_TRUE(stmt, false);
 
   mozStorageStatementScoper scoper(stmt);
 
   nsresult rv = stmt->Execute();
-  NS_ENSURE_SUCCESS(rv, NS_OK);
+  NS_ENSURE_SUCCESS(rv, false);
 
   --mSavepointCount;
 
@@ -413,7 +413,7 @@ IDBTransaction::GetCachedStatement(const nsACString& aQuery)
       NS_ERROR(error.get());
     }
 #endif
-    NS_ENSURE_SUCCESS(rv, nullptr);
+    NS_ENSURE_SUCCESS(rv, nsnull);
 
     mCachedStatements.Put(aQuery, stmt);
   }
@@ -736,7 +736,7 @@ IDBTransaction::ObjectStoreInternal(const nsAString& aName,
     return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
   }
 
-  ObjectStoreInfo* info = nullptr;
+  ObjectStoreInfo* info = nsnull;
 
   if (mMode == IDBTransaction::VERSION_CHANGE ||
       mObjectStoreNames.Contains(aName)) {
@@ -760,7 +760,7 @@ NS_IMETHODIMP
 IDBTransaction::Abort()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  return AbortInternal(NS_ERROR_DOM_INDEXEDDB_ABORT_ERR, nullptr);
+  return AbortInternal(NS_ERROR_DOM_INDEXEDDB_ABORT_ERR, nsnull);
 }
 
 nsresult
@@ -839,7 +839,7 @@ CommitHelper::Run()
     mTransaction->ClearCreatedFileInfos();
     if (mUpdateFileRefcountFunction) {
       mUpdateFileRefcountFunction->ClearFileInfoEntries();
-      mUpdateFileRefcountFunction = nullptr;
+      mUpdateFileRefcountFunction = nsnull;
     }
 
     nsCOMPtr<nsIDOMEvent> event;
@@ -885,7 +885,7 @@ CommitHelper::Run()
       mListener->NotifyTransactionPostComplete(mTransaction);
     }
 
-    mTransaction = nullptr;
+    mTransaction = nsnull;
 
     return NS_OK;
   }
@@ -947,9 +947,9 @@ CommitHelper::Run()
     }
 
     mConnection->Close();
-    mConnection = nullptr;
+    mConnection = nsnull;
 
-    IndexedDatabaseManager::SetCurrentWindow(nullptr);
+    IndexedDatabaseManager::SetCurrentWindow(nsnull);
   }
 
   return NS_OK;
@@ -1018,7 +1018,7 @@ NS_IMETHODIMP
 UpdateRefcountFunction::OnFunctionCall(mozIStorageValueArray* aValues,
                                        nsIVariant** _retval)
 {
-  *_retval = nullptr;
+  *_retval = nsnull;
 
   PRUint32 numEntries;
   nsresult rv = aValues->GetNumEntries(&numEntries);

@@ -37,7 +37,7 @@ public:
                                      nsISupports*        aContainer,
                                      nsIStreamListener** aDocListener,
                                      bool                aReset = true,
-                                     nsIContentSink*     aSink = nullptr);
+                                     nsIContentSink*     aSink = nsnull);
 
   virtual void SetScriptGlobalObject(nsIScriptGlobalObject* aScriptGlobalObject);
   virtual bool CanSavePresentation(nsIRequest *aNewRequest);
@@ -181,7 +181,7 @@ PluginDocument::SetScriptGlobalObject(nsIScriptGlobalObject* aScriptGlobalObject
     }
     BecomeInteractive();
   } else {
-    mStreamListener = nullptr;
+    mStreamListener = nsnull;
   }
 }
 
@@ -262,7 +262,7 @@ PluginDocument::CreateSyntheticPluginDocument()
 
   // make plugin content
   nsCOMPtr<nsINodeInfo> nodeInfo;
-  nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::embed, nullptr,
+  nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::embed, nsnull,
                                            kNameSpaceID_XHTML,
                                            nsIDOMNode::ELEMENT_NODE);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
@@ -327,7 +327,7 @@ PluginDocument::Print()
       npprint.mode = NP_FULL;
       npprint.print.fullPrint.pluginPrinted = false;
       npprint.print.fullPrint.printOne = false;
-      npprint.print.fullPrint.platformPrint = nullptr;
+      npprint.print.fullPrint.platformPrint = nsnull;
 
       pi->Print(&npprint);
     }

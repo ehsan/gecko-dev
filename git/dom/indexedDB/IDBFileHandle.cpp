@@ -25,11 +25,11 @@ GetFileFor(FileInfo* aFileInfo)
 {
   FileManager* fileManager = aFileInfo->Manager();
   nsCOMPtr<nsIFile> directory = fileManager->GetDirectory();
-  NS_ENSURE_TRUE(directory, nullptr);
+  NS_ENSURE_TRUE(directory, nsnull);
 
   nsCOMPtr<nsIFile> file = fileManager->GetFileForId(directory,
                                                      aFileInfo->Id());
-  NS_ENSURE_TRUE(file, nullptr);
+  NS_ENSURE_TRUE(file, nsnull);
 
   return file.forget();
 }
@@ -57,7 +57,7 @@ IDBFileHandle::Create(IDBDatabase* aDatabase,
   newFile->mType = aType;
 
   newFile->mFile = GetFileFor(fileInfo);
-  NS_ENSURE_TRUE(newFile->mFile, nullptr);
+  NS_ENSURE_TRUE(newFile->mFile, nsnull);
   newFile->mFileName.AppendInt(fileInfo->Id());
 
   fileInfo.swap(newFile->mFileInfo);
@@ -80,7 +80,7 @@ IDBFileHandle::CreateStream(nsIFile* aFile, bool aReadOnly)
 
   nsresult rv = stream->Init(aFile, streamMode,
                              nsIStandardFileStream::FLAGS_DEFER_OPEN);
-  NS_ENSURE_SUCCESS(rv, nullptr);
+  NS_ENSURE_SUCCESS(rv, nsnull);
 
   nsCOMPtr<nsISupports> result =
     NS_ISUPPORTS_CAST(nsIStandardFileStream*, stream);

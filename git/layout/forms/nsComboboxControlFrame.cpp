@@ -116,7 +116,7 @@ NS_IMPL_ISUPPORTS1(nsComboButtonListener,
                    nsIDOMEventListener)
 
 // static class data member for Bug 32920
-nsComboboxControlFrame* nsComboboxControlFrame::sFocused = nullptr;
+nsComboboxControlFrame* nsComboboxControlFrame::sFocused = nsnull;
 
 nsIFrame*
 NS_NewComboboxControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRUint32 aStateFlags)
@@ -146,7 +146,7 @@ public:
   }
 
 private:
-  nsIWidget* GetWidget(nsIView** aOutView = nullptr) const;
+  nsIWidget* GetWidget(nsIView** aOutView = nsnull) const;
 
 private:
   nsCOMPtr<nsIContent> mCombobox;
@@ -155,7 +155,7 @@ private:
 
 NS_IMETHODIMP DestroyWidgetRunnable::Run()
 {
-  nsIView* view = nullptr;
+  nsIView* view = nsnull;
   nsIWidget* currentWidget = GetWidget(&view);
   // Make sure that we are destroying the same widget as what was requested
   // when the event was fired.
@@ -182,7 +182,7 @@ nsIWidget* DestroyWidgetRunnable::GetWidget(nsIView** aOutView) const
       }
     }
   }
-  return nullptr;
+  return nsnull;
 }
 
 }
@@ -280,10 +280,10 @@ static PRInt32 gReflowInx = -1;
 
 nsComboboxControlFrame::nsComboboxControlFrame(nsStyleContext* aContext)
   : nsBlockFrame(aContext)
-  , mDisplayFrame(nullptr)
-  , mButtonFrame(nullptr)
-  , mDropdownFrame(nullptr)
-  , mListControlFrame(nullptr)
+  , mDisplayFrame(nsnull)
+  , mButtonFrame(nsnull)
+  , mDropdownFrame(nsnull)
+  , mListControlFrame(nsnull)
   , mDisplayWidth(0)
   , mRecentSelectedIndex(NS_SKIP_NOTIFY_INDEX)
   , mDisplayedIndex(-1)
@@ -320,7 +320,7 @@ nsComboboxControlFrame::CreateAccessible()
                                                     PresContext()->PresShell());
   }
 
-  return nullptr;
+  return nsnull;
 }
 #endif
 
@@ -338,7 +338,7 @@ nsComboboxControlFrame::SetFocus(bool aOn, bool aRepaint)
       }
     }
   } else {
-    sFocused = nullptr;
+    sFocused = nsnull;
     mDelayedShowDropDown = false;
     if (mDroppedDown) {
       mListControlFrame->ComboboxFinish(mDisplayedIndex); // might destroy us
@@ -380,7 +380,7 @@ nsComboboxControlFrame::ShowPopup(bool aShowPopup)
   // fire a popup dom event
   nsEventStatus status = nsEventStatus_eIgnore;
   nsMouseEvent event(true, aShowPopup ?
-                     NS_XUL_POPUP_SHOWING : NS_XUL_POPUP_HIDING, nullptr,
+                     NS_XUL_POPUP_SHOWING : NS_XUL_POPUP_HIDING, nsnull,
                      nsMouseEvent::eReal);
 
   nsCOMPtr<nsIPresShell> shell = PresContext()->GetPresShell();
@@ -551,7 +551,7 @@ nsComboboxControlFrame::GetCSSTransformTranslation()
   gfxMatrix transform;
   while (frame) {
     nsIFrame* parent;
-    gfx3DMatrix ctm = frame->GetTransformMatrix(nullptr, &parent);
+    gfx3DMatrix ctm = frame->GetTransformMatrix(nsnull, &parent);
     gfxMatrix matrix;
     if (ctm.Is2D(&matrix)) {
       transform = transform * matrix;
@@ -1251,7 +1251,7 @@ nsComboboxControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
     return NS_ERROR_OUT_OF_MEMORY;
 
   nsCOMPtr<nsINodeInfo> nodeInfo;
-  nodeInfo = nimgr->GetNodeInfo(nsGkAtoms::button, nullptr, kNameSpaceID_XHTML,
+  nodeInfo = nimgr->GetNodeInfo(nsGkAtoms::button, nsnull, kNameSpaceID_XHTML,
                                 nsIDOMNode::ELEMENT_NODE);
 
   // create button which drops the list down
@@ -1375,13 +1375,13 @@ nsComboboxDisplayFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 nsIFrame*
 nsComboboxControlFrame::CreateFrameFor(nsIContent*      aContent)
 { 
-  NS_PRECONDITION(nullptr != aContent, "null ptr");
+  NS_PRECONDITION(nsnull != aContent, "null ptr");
 
   NS_ASSERTION(mDisplayContent, "mDisplayContent can't be null!");
 
   if (mDisplayContent != aContent) {
     // We only handle the frames for mDisplayContent here
-    return nullptr;
+    return nsnull;
   }
   
   // Get PresShell
@@ -1394,42 +1394,42 @@ nsComboboxControlFrame::CreateFrameFor(nsIContent*      aContent)
     ResolveAnonymousBoxStyle(nsCSSAnonBoxes::mozDisplayComboboxControlFrame,
                              mStyleContext);
   if (NS_UNLIKELY(!styleContext)) {
-    return nullptr;
+    return nsnull;
   }
 
   nsRefPtr<nsStyleContext> textStyleContext;
   textStyleContext = styleSet->ResolveStyleForNonElement(mStyleContext);
   if (NS_UNLIKELY(!textStyleContext)) {
-    return nullptr;
+    return nsnull;
   }
 
   // Start by by creating our anonymous block frame
   mDisplayFrame = new (shell) nsComboboxDisplayFrame(styleContext, this);
   if (NS_UNLIKELY(!mDisplayFrame)) {
-    return nullptr;
+    return nsnull;
   }
 
-  nsresult rv = mDisplayFrame->Init(mContent, this, nullptr);
+  nsresult rv = mDisplayFrame->Init(mContent, this, nsnull);
   if (NS_FAILED(rv)) {
     mDisplayFrame->Destroy();
-    mDisplayFrame = nullptr;
-    return nullptr;
+    mDisplayFrame = nsnull;
+    return nsnull;
   }
 
   // Create a text frame and put it inside the block frame
   nsIFrame* textFrame = NS_NewTextFrame(shell, textStyleContext);
   if (NS_UNLIKELY(!textFrame)) {
-    return nullptr;
+    return nsnull;
   }
 
   // initialize the text frame
-  rv = textFrame->Init(aContent, mDisplayFrame, nullptr);
+  rv = textFrame->Init(aContent, mDisplayFrame, nsnull);
   if (NS_FAILED(rv)) {
     mDisplayFrame->Destroy();
-    mDisplayFrame = nullptr;
+    mDisplayFrame = nsnull;
     textFrame->Destroy();
-    textFrame = nullptr;
-    return nullptr;
+    textFrame = nsnull;
+    return nsnull;
   }
   mDisplayContent->SetPrimaryFrame(textFrame);
 
@@ -1515,14 +1515,14 @@ nsComboboxControlFrame::Rollup(PRUint32 aCount, bool aGetLastRolledUp)
     nsWeakFrame weakFrame(this);
     mListControlFrame->AboutToRollup(); // might destroy us
     if (!weakFrame.IsAlive())
-      return nullptr;
+      return nsnull;
     ShowDropDown(false); // might destroy us
     if (!weakFrame.IsAlive())
-      return nullptr;
+      return nsnull;
     mListControlFrame->CaptureMouseEvents(false);
   }
 
-  return nullptr;
+  return nsnull;
 }
 
 void

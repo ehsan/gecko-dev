@@ -39,10 +39,10 @@ struct AudioChunk {
     }
     return true;
   }
-  bool IsNull() const { return mBuffer == nullptr; }
+  bool IsNull() const { return mBuffer == nsnull; }
   void SetNull(TrackTicks aDuration)
   {
-    mBuffer = nullptr;
+    mBuffer = nsnull;
     mDuration = aDuration;
     mOffset = 0;
     mVolume = 1.0f;

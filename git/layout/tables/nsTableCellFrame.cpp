@@ -63,7 +63,7 @@ nsTableCellFrame::GetNextCell() const
     }
     childFrame = childFrame->GetNextSibling();
   }
-  return nullptr;
+  return nsnull;
 }
 
 NS_IMETHODIMP
@@ -481,7 +481,7 @@ nsTableCellFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   // Push a null 'current table item' so that descendant tables can't
   // accidentally mess with our table
   nsAutoPushCurrentTableItem pushTableItem;
-  pushTableItem.Push(aBuilder, nullptr);
+  pushTableItem.Push(aBuilder, nsnull);
 
   nsIFrame* kid = mFrames.FirstChild();
   NS_ASSERTION(kid && !kid->GetNextSibling(), "Table cells should have just one child");
@@ -498,10 +498,10 @@ PRIntn
 nsTableCellFrame::GetSkipSides() const
 {
   PRIntn skip = 0;
-  if (nullptr != GetPrevInFlow()) {
+  if (nsnull != GetPrevInFlow()) {
     skip |= 1 << NS_SIDE_TOP;
   }
-  if (nullptr != GetNextInFlow()) {
+  if (nsnull != GetNextInFlow()) {
     skip |= 1 << NS_SIDE_BOTTOM;
   }
   return skip;
@@ -974,7 +974,7 @@ nsTableCellFrame::CreateAccessible()
                                                      PresContext()->PresShell());
   }
 
-  return nullptr;
+  return nsnull;
 }
 #endif
 
@@ -1155,7 +1155,7 @@ nsBCTableCellFrame::PaintBackground(nsRenderingContext& aRenderingContext,
   nsCSSRendering::PaintBackgroundWithSC(PresContext(), aRenderingContext, this,
                                         aDirtyRect, rect,
                                         GetStyleContext(), myBorder,
-                                        aFlags, nullptr);
+                                        aFlags, nsnull);
 
 #ifdef DEBUG
   myBorder.mImageTracked = false;

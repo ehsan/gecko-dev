@@ -223,7 +223,7 @@ struct nsStyleImage {
    * @return true iff |aActualCropRect| holds a meaningful value.
    */
   bool ComputeActualCropRect(nsIntRect& aActualCropRect,
-                               bool* aIsEntireImage = nullptr) const;
+                               bool* aIsEntireImage = nsnull) const;
 
   /**
    * Requests a decode on the image.
@@ -595,8 +595,8 @@ struct nsBorderColors {
   nsBorderColors* mNext;
   nscolor mColor;
 
-  nsBorderColors() : mNext(nullptr), mColor(NS_RGB(0,0,0)) {}
-  nsBorderColors(const nscolor& aColor) : mNext(nullptr), mColor(aColor) {}
+  nsBorderColors() : mNext(nsnull), mColor(NS_RGB(0,0,0)) {}
+  nsBorderColors(const nscolor& aColor) : mNext(nsnull), mColor(aColor) {}
   ~nsBorderColors();
 
   nsBorderColors* Clone() const { return Clone(true); }
@@ -747,14 +747,14 @@ struct nsStyleBorder {
       mBorderColors = new nsBorderColors*[4];
       if (mBorderColors)
         for (PRInt32 i = 0; i < 4; i++)
-          mBorderColors[i] = nullptr;
+          mBorderColors[i] = nsnull;
     }
   }
 
   void ClearBorderColors(mozilla::css::Side aSide) {
     if (mBorderColors && mBorderColors[aSide]) {
       delete mBorderColors[aSide];
-      mBorderColors[aSide] = nullptr;
+      mBorderColors[aSide] = nsnull;
     }
   }
 
@@ -858,7 +858,7 @@ struct nsStyleBorder {
   void GetCompositeColors(PRInt32 aIndex, nsBorderColors** aColors) const
   {
     if (!mBorderColors)
-      *aColors = nullptr;
+      *aColors = nsnull;
     else
       *aColors = mBorderColors[aIndex];
   }
@@ -1192,7 +1192,7 @@ struct nsStyleTextOverflow {
 
   // Returns the second value, or null if there was only one value specified.
   const nsStyleTextOverflowSide* GetSecondValue() const {
-    return mLogicalDirections ? nullptr : &mRight;
+    return mLogicalDirections ? nsnull : &mRight;
   }
 
   nsStyleTextOverflowSide mLeft;  // start side when mLogicalDirections is true
@@ -1660,7 +1660,7 @@ struct nsStyleDisplay {
 
   /* Returns whether the element has the -moz-transform property. */
   bool HasTransform() const {
-    return mSpecifiedTransform != nullptr || 
+    return mSpecifiedTransform != nsnull || 
            mTransformStyle == NS_STYLE_TRANSFORM_STYLE_PRESERVE_3D ||
            mBackfaceVisibility == NS_STYLE_BACKFACE_VISIBILITY_HIDDEN;
   }
@@ -1747,7 +1747,7 @@ struct nsStyleContentData {
 #ifdef DEBUG
     , mImageTracked(false)
 #endif
-  { mContent.mString = nullptr; }
+  { mContent.mString = nsnull; }
 
   ~nsStyleContentData();
   nsStyleContentData& operator=(const nsStyleContentData& aOther);
@@ -1777,7 +1777,7 @@ struct nsStyleCounterData {
 };
 
 
-#define DELETE_ARRAY_IF(array)  if (array) { delete[] array; array = nullptr; }
+#define DELETE_ARRAY_IF(array)  if (array) { delete[] array; array = nsnull; }
 
 struct nsStyleQuotes {
   nsStyleQuotes();
@@ -2130,7 +2130,7 @@ struct nsStyleSVGPaint
   nsStyleSVGPaintType mType;
   nscolor mFallbackColor;
 
-  nsStyleSVGPaint() : mType(nsStyleSVGPaintType(0)) { mPaint.mPaintServer = nullptr; }
+  nsStyleSVGPaint() : mType(nsStyleSVGPaintType(0)) { mPaint.mPaintServer = nsnull; }
   ~nsStyleSVGPaint();
   void SetType(nsStyleSVGPaintType aType);
   nsStyleSVGPaint& operator=(const nsStyleSVGPaint& aOther);

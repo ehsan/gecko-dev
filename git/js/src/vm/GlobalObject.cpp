@@ -80,7 +80,7 @@ ProtoGetterImpl(JSContext *cx, CallArgs args)
     if (!CheckAccess(cx, obj, nid, JSACC_PROTO, v.address(), &dummy))
         return false;
 
-    args.rval().set(v);
+    args.rval() = v;
     return true;
 }
 
@@ -117,7 +117,7 @@ ProtoSetterImpl(JSContext *cx, CallArgs args)
         JS_ASSERT(!thisv.isNullOrUndefined());
 
         // Mutating a boxed primitive's [[Prototype]] has no side effects.
-        args.rval().setUndefined();
+        args.rval() = UndefinedValue();
         return true;
     }
 
@@ -147,7 +147,7 @@ ProtoSetterImpl(JSContext *cx, CallArgs args)
 
     /* Do nothing if __proto__ isn't being set to an object or null. */
     if (args.length() == 0 || !args[0].isObjectOrNull()) {
-        args.rval().setUndefined();
+        args.rval() = UndefinedValue();
         return true;
     }
 
@@ -162,7 +162,7 @@ ProtoSetterImpl(JSContext *cx, CallArgs args)
     if (!SetProto(cx, obj, newProto, true))
         return false;
 
-    args.rval().setUndefined();
+    args.rval() = UndefinedValue();
     return true;
 }
 
@@ -331,8 +331,7 @@ GlobalObject::initFunctionAndObjectClasses(JSContext *cx)
     Rooted<JSFunction*> setter(cx, js_NewFunction(cx, NULL, ProtoSetter, 0, 0, self, NULL));
     if (!setter)
         return NULL;
-    RootedValue undefinedValue(cx, UndefinedValue());
-    if (!objectProto->defineProperty(cx, cx->runtime->atomState.protoAtom, undefinedValue,
+    if (!objectProto->defineProperty(cx, cx->runtime->atomState.protoAtom, UndefinedValue(),
                                      JS_DATA_TO_FUNC_PTR(PropertyOp, getter.get()),
                                      JS_DATA_TO_FUNC_PTR(StrictPropertyOp, setter.get()),
                                      JSPROP_GETTER | JSPROP_SETTER | JSPROP_SHARED))
@@ -428,8 +427,7 @@ GlobalObject::initStandardClasses(JSContext *cx, Handle<GlobalObject*> global)
     JSAtomState &state = cx->runtime->atomState;
 
     /* Define a top-level property 'undefined' with the undefined value. */
-    RootedValue undefinedValue(cx, UndefinedValue());
-    if (!global->defineProperty(cx, state.typeAtoms[JSTYPE_VOID], undefinedValue,
+    if (!global->defineProperty(cx, state.typeAtoms[JSTYPE_VOID], UndefinedValue(),
                                 JS_PropertyStub, JS_StrictPropertyStub, JSPROP_PERMANENT | JSPROP_READONLY))
     {
         return false;
@@ -572,14 +570,11 @@ LinkConstructorAndPrototype(JSContext *cx, JSObject *ctor_, JSObject *proto_)
 {
     RootedObject ctor(cx, ctor_), proto(cx, proto_);
 
-    RootedValue protoVal(cx, ObjectValue(*proto));
-    RootedValue ctorVal(cx, ObjectValue(*ctor));
-
     return ctor->defineProperty(cx, cx->runtime->atomState.classPrototypeAtom,
-                                protoVal, JS_PropertyStub, JS_StrictPropertyStub,
+                                ObjectValue(*proto), JS_PropertyStub, JS_StrictPropertyStub,
                                 JSPROP_PERMANENT | JSPROP_READONLY) &&
            proto->defineProperty(cx, cx->runtime->atomState.constructorAtom,
-                                 ctorVal, JS_PropertyStub, JS_StrictPropertyStub, 0);
+                                 ObjectValue(*ctor), JS_PropertyStub, JS_StrictPropertyStub, 0);
 }
 
 bool

@@ -44,11 +44,11 @@ getDocumentLocaleCB(AtkDocument *aDocument)
 {
   AccessibleWrap* accWrap = GetAccessibleWrap(ATK_OBJECT(aDocument));
   if (!accWrap)
-    return nullptr;
+    return nsnull;
 
   nsAutoString locale;
   accWrap->Language(locale);
-  return locale.IsEmpty() ? nullptr : AccessibleWrap::ReturnString(locale);
+  return locale.IsEmpty() ? nsnull : AccessibleWrap::ReturnString(locale);
 }
 
 static inline GSList *
@@ -69,10 +69,10 @@ getDocumentAttributesCB(AtkDocument *aDocument)
 {
   AccessibleWrap* accWrap = GetAccessibleWrap(ATK_OBJECT(aDocument));
   if (!accWrap || !accWrap->IsDoc())
-    return nullptr;
+    return nsnull;
 
   // according to atkobject.h, AtkAttributeSet is a GSList
-  GSList* attributes = nullptr;
+  GSList* attributes = nsnull;
   DocAccessible* document = accWrap->AsDoc();
   nsAutoString aURL;
   nsresult rv = document->GetURL(aURL);
@@ -98,7 +98,7 @@ getDocumentAttributeValueCB(AtkDocument *aDocument,
 {
   AccessibleWrap* accWrap = GetAccessibleWrap(ATK_OBJECT(aDocument));
   if (!accWrap || !accWrap->IsDoc())
-    return nullptr;
+    return nsnull;
 
   DocAccessible* document = accWrap->AsDoc();
   nsresult rv;
@@ -110,9 +110,9 @@ getDocumentAttributeValueCB(AtkDocument *aDocument,
   else if (!strcasecmp(aAttrName, kMimeTypeName))
     rv = document->GetMimeType(attrValue);
   else
-    return nullptr;
+    return nsnull;
 
-  NS_ENSURE_SUCCESS(rv, nullptr);
-  return attrValue.IsEmpty() ? nullptr : AccessibleWrap::ReturnString(attrValue);
+  NS_ENSURE_SUCCESS(rv, nsnull);
+  return attrValue.IsEmpty() ? nsnull : AccessibleWrap::ReturnString(attrValue);
 }
 }

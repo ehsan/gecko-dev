@@ -151,8 +151,8 @@ XULTreeAccessible::Shutdown()
   // not unique place where we have similar problem.
   ClearCache(mAccessibleCache);
 
-  mTree = nullptr;
-  mTreeView = nullptr;
+  mTree = nsnull;
+  mTreeView = nsnull;
 
   AccessibleWrap::Shutdown();
 }
@@ -184,13 +184,13 @@ XULTreeAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
 {
   nsIFrame *frame = GetFrame();
   if (!frame)
-    return nullptr;
+    return nsnull;
 
   nsPresContext *presContext = frame->PresContext();
   nsIPresShell* presShell = presContext->PresShell();
 
   nsIFrame *rootFrame = presShell->GetRootFrame();
-  NS_ENSURE_TRUE(rootFrame, nullptr);
+  NS_ENSURE_TRUE(rootFrame, nsnull);
 
   nsIntRect rootRect = rootFrame->GetScreenRect();
 
@@ -234,7 +234,7 @@ Accessible*
 XULTreeAccessible::CurrentItem()
 {
   if (!mTreeView)
-    return nullptr;
+    return nsnull;
 
   nsCOMPtr<nsITreeSelection> selection;
   mTreeView->GetSelection(getter_AddRefs(selection));
@@ -245,7 +245,7 @@ XULTreeAccessible::CurrentItem()
       return GetTreeItemAccessible(currentIndex);
   }
 
-  return nullptr;
+  return nsnull;
 }
 
 void
@@ -258,17 +258,17 @@ already_AddRefed<nsIArray>
 XULTreeAccessible::SelectedItems()
 {
   if (!mTreeView)
-    return nullptr;
+    return nsnull;
 
   nsCOMPtr<nsITreeSelection> selection;
   mTreeView->GetSelection(getter_AddRefs(selection));
   if (!selection)
-    return nullptr;
+    return nsnull;
 
   nsCOMPtr<nsIMutableArray> selectedItems =
     do_CreateInstance(NS_ARRAY_CONTRACTID);
   if (!selectedItems)
-    return nullptr;
+    return nsnull;
 
   PRInt32 rangeCount = 0;
   selection->GetRangeCount(&rangeCount);
@@ -282,7 +282,7 @@ XULTreeAccessible::SelectedItems()
     }
   }
 
-  nsIMutableArray* items = nullptr;
+  nsIMutableArray* items = nsnull;
   selectedItems.forget(&items);
   return items;
 }
@@ -377,12 +377,12 @@ Accessible*
 XULTreeAccessible::GetSelectedItem(PRUint32 aIndex)
 {
   if (!mTreeView)
-    return nullptr;
+    return nsnull;
 
   nsCOMPtr<nsITreeSelection> selection;
   mTreeView->GetSelection(getter_AddRefs(selection));
   if (!selection)
-    return nullptr;
+    return nsnull;
 
   PRUint32 selCount = 0;
   PRInt32 rangeCount = 0;
@@ -398,7 +398,7 @@ XULTreeAccessible::GetSelectedItem(PRUint32 aIndex)
     }
   }
 
-  return nullptr;
+  return nsnull;
 }
 
 bool
@@ -509,12 +509,12 @@ XULTreeAccessible::ContainerWidget() const
         if (inputNode) {
           Accessible* input = 
             mDoc->GetAccessible(inputNode);
-          return input ? input->ContainerWidget() : nullptr;
+          return input ? input->ContainerWidget() : nsnull;
         }
       }
     }
   }
-  return nullptr;
+  return nsnull;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -524,12 +524,12 @@ Accessible*
 XULTreeAccessible::GetTreeItemAccessible(PRInt32 aRow)
 {
   if (aRow < 0 || IsDefunct() || !mTreeView)
-    return nullptr;
+    return nsnull;
 
   PRInt32 rowCount = 0;
   nsresult rv = mTreeView->GetRowCount(&rowCount);
   if (NS_FAILED(rv) || aRow >= rowCount)
-    return nullptr;
+    return nsnull;
 
   void *key = reinterpret_cast<void*>(aRow);
   Accessible* cachedTreeItem = mAccessibleCache.GetWeak(key);
@@ -539,13 +539,13 @@ XULTreeAccessible::GetTreeItemAccessible(PRInt32 aRow)
   nsRefPtr<Accessible> treeItem = CreateTreeItemAccessible(aRow);
   if (treeItem) {
     mAccessibleCache.Put(key, treeItem);
-    if (Document()->BindToDocument(treeItem, nullptr))
+    if (Document()->BindToDocument(treeItem, nsnull))
       return treeItem;
 
     mAccessibleCache.Remove(key);
   }
 
-  return nullptr;
+  return nsnull;
 }
 
 void
@@ -733,7 +733,7 @@ NS_IMPL_RELEASE_INHERITED(XULTreeItemAccessibleBase, Accessible)
 Accessible*
 XULTreeItemAccessibleBase::FocusedChild()
 {
-  return FocusMgr()->FocusedAccessible() == this ? this : nullptr;
+  return FocusMgr()->FocusedAccessible() == this ? this : nsnull;
 }
 
 NS_IMETHODIMP
@@ -879,7 +879,7 @@ XULTreeItemAccessibleBase::DoAction(PRUint8 aIndex)
       (aIndex != eAction_Expand || !IsExpandable()))
     return NS_ERROR_INVALID_ARG;
 
-  DoCommand(nullptr, aIndex);
+  DoCommand(nsnull, aIndex);
   return NS_OK;
 }
 
@@ -889,8 +889,8 @@ XULTreeItemAccessibleBase::DoAction(PRUint8 aIndex)
 void
 XULTreeItemAccessibleBase::Shutdown()
 {
-  mTree = nullptr;
-  mTreeView = nullptr;
+  mTree = nsnull;
+  mTreeView = nsnull;
   mRow = -1;
 
   AccessibleWrap::Shutdown();
@@ -1163,7 +1163,7 @@ XULTreeItemAccessible::Init()
 void
 XULTreeItemAccessible::Shutdown()
 {
-  mColumn = nullptr;
+  mColumn = nsnull;
   XULTreeItemAccessibleBase::Shutdown();
 }
 
@@ -1246,6 +1246,6 @@ XULTreeColumAccessible::GetSiblingAtOffset(PRInt32 aOffset,
     }
   }
 
-  return nullptr;
+  return nsnull;
 }
 

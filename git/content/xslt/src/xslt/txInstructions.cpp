@@ -26,7 +26,7 @@ txApplyDefaultElementTemplate::execute(txExecutionState& aEs)
     txStylesheet::ImportFrame* frame = 0;
     txInstruction* templ =
         aEs.mStylesheet->findTemplate(aEs.getEvalContext()->getContextNode(),
-                                      mode, &aEs, nullptr, &frame);
+                                      mode, &aEs, nsnull, &frame);
 
     aEs.pushTemplateRule(frame, mode, aEs.mTemplateParams);
 
@@ -79,7 +79,7 @@ txApplyTemplates::execute(txExecutionState& aEs)
     txStylesheet::ImportFrame* frame = 0;
     txInstruction* templ =
         aEs.mStylesheet->findTemplate(aEs.getEvalContext()->getContextNode(),
-                                      mMode, &aEs, nullptr, &frame);
+                                      mMode, &aEs, nsnull, &frame);
 
     aEs.pushTemplateRule(frame, mMode, aEs.mTemplateParams);
 
@@ -157,7 +157,7 @@ txCallTemplate::execute(txExecutionState& aEs)
 }
 
 txCheckParam::txCheckParam(const txExpandedName& aName)
-    : mName(aName), mBailTarget(nullptr)
+    : mName(aName), mBailTarget(nsnull)
 {
 }
 
@@ -231,7 +231,7 @@ txCopyBase::copyNode(const txXPathNode& aNode, txExecutionState& aEs)
                 txXPathNodeUtils::getLocalName(aNode);
             return aEs.mResultHandler->
                 attribute(txXPathNodeUtils::getPrefix(aNode),
-                          localName, nullptr,
+                          localName, nsnull,
                           txXPathNodeUtils::getNamespaceID(aNode),
                           nodeValue);
         }
@@ -259,7 +259,7 @@ txCopyBase::copyNode(const txXPathNode& aNode, txExecutionState& aEs)
                 txXPathNodeUtils::getLocalName(aNode);
             nsresult rv = aEs.mResultHandler->
                 startElement(txXPathNodeUtils::getPrefix(aNode),
-                             localName, nullptr,
+                             localName, nsnull,
                              txXPathNodeUtils::getNamespaceID(aNode));
             NS_ENSURE_SUCCESS(rv, rv);
 
@@ -274,7 +274,7 @@ txCopyBase::copyNode(const txXPathNode& aNode, txExecutionState& aEs)
                     localName = txXPathNodeUtils::getLocalName(attr);
                     rv = aEs.mResultHandler->
                         attribute(txXPathNodeUtils::getPrefix(attr),
-                                  localName, nullptr,
+                                  localName, nsnull,
                                   txXPathNodeUtils::getNamespaceID(attr),
                                   nodeValue);
                     NS_ENSURE_SUCCESS(rv, rv);
@@ -311,7 +311,7 @@ txCopyBase::copyNode(const txXPathNode& aNode, txExecutionState& aEs)
 }
 
 txCopy::txCopy()
-    : mBailTarget(nullptr)
+    : mBailTarget(nsnull)
 {
 }
 
@@ -342,7 +342,7 @@ txCopy::execute(txExecutionState& aEs)
                 txXPathNodeUtils::getLocalName(node);
             rv = aEs.mResultHandler->
                 startElement(txXPathNodeUtils::getPrefix(node),
-                             localName, nullptr,
+                             localName, nsnull,
                              txXPathNodeUtils::getNamespaceID(node));
             NS_ENSURE_SUCCESS(rv, rv);
 
@@ -600,7 +600,7 @@ txProcessingInstruction::execute(txExecutionState& aEs)
 }
 
 txPushNewContext::txPushNewContext(nsAutoPtr<Expr> aSelect)
-    : mSelect(aSelect), mBailTarget(nullptr)
+    : mSelect(aSelect), mBailTarget(nsnull)
 {
 }
 
@@ -681,14 +681,14 @@ txPushNewContext::addSort(nsAutoPtr<Expr> aSelectExpr,
 nsresult
 txPushNullTemplateRule::execute(txExecutionState& aEs)
 {
-    aEs.pushTemplateRule(nullptr, txExpandedName(), nullptr);
+    aEs.pushTemplateRule(nsnull, txExpandedName(), nsnull);
     return NS_OK;
 }
 
 nsresult
 txPushParams::execute(txExecutionState& aEs)
 {
-    return aEs.pushParamMap(nullptr);
+    return aEs.pushParamMap(nsnull);
 }
 
 nsresult

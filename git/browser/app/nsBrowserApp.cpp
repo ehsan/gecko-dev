@@ -118,7 +118,7 @@ static const nsDynamicFunctionLoad kXULFuncs[] = {
     { "XRE_TelemetryAccumulate", (NSFuncPtr*) &XRE_TelemetryAccumulate },
     { "XRE_StartupTimelineRecord", (NSFuncPtr*) &XRE_StartupTimelineRecord },
     { "XRE_main", (NSFuncPtr*) &XRE_main },
-    { nullptr, nullptr }
+    { nsnull, nsnull }
 };
 
 static int do_main(int argc, char* argv[])

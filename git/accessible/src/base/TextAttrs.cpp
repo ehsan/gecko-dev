@@ -72,8 +72,8 @@ TextAttrsMgr::GetAttributes(nsIPersistentProperties* aAttributes,
   if (!rootFrame)
     return;
 
-  nsIContent *offsetNode = nullptr, *offsetElm = nullptr;
-  nsIFrame *frame = nullptr;
+  nsIContent *offsetNode = nsnull, *offsetElm = nsnull;
+  nsIFrame *frame = nsnull;
   if (mOffsetAcc) {
     offsetNode = mOffsetAcc->GetContent();
     offsetElm = nsCoreUtils::GetDOMElementFor(offsetNode);

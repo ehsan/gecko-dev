@@ -40,12 +40,12 @@ public:
      * methods callbacks for nsCacheService
      */
     nsCacheEntry * CacheEntry(void)      { return mCacheEntry; }
-    void           ClearCacheEntry(void) { mCacheEntry = nullptr; }
+    void           ClearCacheEntry(void) { mCacheEntry = nsnull; }
 
     nsresult       CloseOutput(void)
     {
       nsresult rv = InternalCleanup(mOutput);
-      mOutput = nullptr;
+      mOutput = nsnull;
       return rv;
     }
 
@@ -158,7 +158,7 @@ private:
              Close();
              {
              nsCacheServiceAutoLock lock(LOCK_TELEM(NSOUTPUTSTREAMWRAPPER_CLOSE));
-             mDescriptor->mOutput = nullptr;
+             mDescriptor->mOutput = nsnull;
              }
              NS_RELEASE(mDescriptor);
          }

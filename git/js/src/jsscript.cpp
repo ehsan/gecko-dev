@@ -519,9 +519,9 @@ js::XDRScript(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enc
                           ? (1 << ParentFilename)
                           : (1 << OwnFilename);
         }
-        if (script->scriptSource()) {
+        if (script->source) {
             scriptBits |= (1 << HaveSource);
-            if (!enclosingScript || enclosingScript->scriptSource() != script->scriptSource())
+            if (!enclosingScript || enclosingScript->source != script->source)
                 scriptBits |= (1 << OwnSource);
         }
         if (script->isGenerator)
@@ -635,19 +635,17 @@ js::XDRScript(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enc
     }
 
     if (scriptBits & (1 << HaveSource)) {
-        ScriptSource *ss = script->scriptSource();
         if (scriptBits & (1 << OwnSource)) {
-            if (!ScriptSource::performXDR<mode>(xdr, &ss))
+            if (!ScriptSource::performXDR<mode>(xdr, &script->source))
                 return false;
         } else {
             JS_ASSERT(enclosingScript);
-            ss = enclosingScript->scriptSource();
+            if (mode == XDR_DECODE)
+                script->source = enclosingScript->source;
         }
-        if (mode == XDR_DECODE)
-            script->setScriptSource(cx, ss);
     } else if (mode == XDR_DECODE) {
-        script->setScriptSource(cx, NULL);
-        JS_ASSERT_IF(enclosingScript, !enclosingScript->scriptSource());
+        script->source = NULL;
+        JS_ASSERT_IF(enclosingScript, !enclosingScript->source);
     }
     if (!xdr->codeUint32(&script->sourceStart))
         return false;
@@ -1026,45 +1024,15 @@ SourceCompressorThread::threadLoop()
           case IDLE:
             PR_WaitCondVar(wakeup, PR_INTERVAL_NO_TIMEOUT);
             break;
-          case COMPRESSING: {
+          case COMPRESSING:
             JS_ASSERT(tok);
-            ScriptSource *ss = tok->ss;
-            JS_ASSERT(!ss->ready());
-            const size_t COMPRESS_THRESHOLD = 512;
-            size_t compressedLength = 0;
-#ifdef USE_ZLIB
-            size_t nbytes = sizeof(jschar) * ss->length();
-            if (nbytes >= COMPRESS_THRESHOLD) {
-                Compressor comp(reinterpret_cast<const unsigned char *>(tok->chars),
-                                nbytes, ss->data.compressed);
-                if (comp.init()) {
-                    while (!stop && comp.compressMore())
-                        ;
-                    compressedLength = comp.finish();
-                    if (stop || compressedLength == nbytes)
-                        compressedLength = 0;
-                }
-            }
-#endif
-            ss->compressedLength_ = compressedLength;
-            if (compressedLength == 0) {
-                PodCopy(ss->data.source, tok->chars, ss->length());
-            } else {
-                // Shrink the buffer to the size of the compressed data. The
-                // memory allocation functions on JSContext and JSRuntime are
-                // not threadsafe, so use js_realloc directly. We'll fix up the
-                // memory accounting of the runtime in waitOnCompression().
-                void *newmem = js_realloc(ss->data.compressed, compressedLength);
-                JS_ASSERT(newmem); // Reducing memory size shouldn't fail.
-                ss->data.compressed = static_cast<unsigned char *>(newmem);
-            }
-
+            JS_ASSERT(!tok->ss->ready());
+            tok->ss->considerCompressing(rt, tok->chars);
             // We hold the lock, so no one should have changed this.
             JS_ASSERT(state == COMPRESSING);
             state = IDLE;
             PR_NotifyCondVar(done);
             break;
-          }
         }
     }
 }
@@ -1079,7 +1047,6 @@ SourceCompressorThread::compress(SourceCompressionToken *sct)
         waitOnCompression(tok);
     JS_ASSERT(state == IDLE);
     JS_ASSERT(!tok);
-    stop = false;
     PR_Lock(lock);
     tok = sct;
     state = COMPRESSING;
@@ -1096,49 +1063,18 @@ SourceCompressorThread::waitOnCompression(SourceCompressionToken *userTok)
     if (state == COMPRESSING)
         PR_WaitCondVar(done, PR_INTERVAL_NO_TIMEOUT);
     JS_ASSERT(state == IDLE);
-    SourceCompressionToken *saveTok = tok;
+    JS_ASSERT(tok->ss->ready());
+    tok->ss = NULL;
+    tok->chars = NULL;
     tok = NULL;
     PR_Unlock(lock);
-
-    JS_ASSERT(!saveTok->ss->ready());
-#ifdef DEBUG
-    saveTok->ss->ready_ = true;
-#endif
-
-    // Update memory accounting if needed.
-    if (saveTok->ss->compressed()) {
-        ptrdiff_t delta = saveTok->ss->compressedLength_ - sizeof(jschar) * saveTok->ss->length();
-        JS_ASSERT(delta < 0);
-        saveTok->cx->runtime->updateMallocCounter(NULL, delta);
-    }
-
-    saveTok->ss = NULL;
-    saveTok->chars = NULL;
-}
-
-void
-SourceCompressorThread::abort(SourceCompressionToken *userTok)
-{
-    JS_ASSERT(userTok == tok);
-    stop = true;
 }
 #endif /* JS_THREADSAFE */
-
-void
-JSScript::setScriptSource(JSContext *cx, ScriptSource *ss)
-{
-#ifdef JSGC_INCREMENTAL
-    // During IGC, we need to barrier writing to scriptSource_.
-    if (ss && cx->runtime->gcIncrementalState != NO_INCREMENTAL && cx->runtime->gcIsFull)
-        ss->mark();
-#endif
-    scriptSource_ = ss;
-}
 
 bool
 JSScript::loadSource(JSContext *cx, bool *worked)
 {
-    JS_ASSERT(!scriptSource_);
+    JS_ASSERT(!source);
     *worked = false;
     if (!cx->runtime->sourceHook)
         return true;
@@ -1153,7 +1089,7 @@ JSScript::loadSource(JSContext *cx, bool *worked)
         cx->free_(src);
         return false;
     }
-    setScriptSource(cx, ss);
+    source = ss;
     ss->attachToRuntime(cx->runtime);
     *worked = true;
     return true;
@@ -1162,8 +1098,8 @@ JSScript::loadSource(JSContext *cx, bool *worked)
 JSFixedString *
 JSScript::sourceData(JSContext *cx)
 {
-    JS_ASSERT(scriptSource_);
-    return scriptSource_->substring(cx, sourceStart, sourceEnd);
+    JS_ASSERT(source);
+    return source->substring(cx, sourceStart, sourceEnd);
 }
 
 JSFixedString *
@@ -1209,12 +1145,12 @@ ScriptSource::substring(JSContext *cx, uint32_t start, uint32_t stop)
     if (compressed()) {
         cached = cx->runtime->sourceDataCache.lookup(this);
         if (!cached) {
-            const size_t nbytes = sizeof(jschar) * (length_ + 1);
-            jschar *decompressed = static_cast<jschar *>(cx->malloc_(nbytes));
+            const size_t memlen = sizeof(jschar) * (length_ + 1);
+            jschar *decompressed = static_cast<jschar *>(cx->malloc_(memlen));
             if (!decompressed)
                 return NULL;
-            if (!DecompressString(data.compressed, compressedLength_,
-                                  reinterpret_cast<unsigned char *>(decompressed), nbytes)) {
+            if (!DecompressString(data.compressed, compressedLength,
+                                  reinterpret_cast<unsigned char *>(decompressed), memlen)) {
                 JS_ReportOutOfMemory(cx);
                 cx->free_(decompressed);
                 return NULL;
@@ -1243,12 +1179,12 @@ ScriptSource::createFromSource(JSContext *cx, const jschar *src, uint32_t length
                                bool argumentsNotIncluded, SourceCompressionToken *tok,
                                bool ownSource)
 {
-    ScriptSource *ss = static_cast<ScriptSource *>(cx->runtime->malloc_(sizeof(*ss)));
+    ScriptSource *ss = static_cast<ScriptSource *>(cx->malloc_(sizeof(*ss)));
     if (!ss)
         return NULL;
     if (!ownSource) {
-        const size_t nbytes = length * sizeof(jschar);
-        ss->data.compressed = static_cast<unsigned char *>(cx->runtime->malloc_(nbytes));
+        const size_t memlen = length * sizeof(jschar);
+        ss->data.compressed = static_cast<unsigned char *>(cx->malloc_(memlen));
         if (!ss->data.compressed) {
             cx->free_(ss);
             return NULL;
@@ -1256,48 +1192,74 @@ ScriptSource::createFromSource(JSContext *cx, const jschar *src, uint32_t length
     }
     ss->next = NULL;
     ss->length_ = length;
-    ss->compressedLength_ = 0;
+    ss->compressedLength = 0;
     ss->marked = ss->onRuntime_ = false;
     ss->argumentsNotIncluded_ = argumentsNotIncluded;
 #ifdef DEBUG
     ss->ready_ = false;
 #endif
 
+#ifdef JSGC_INCREMENTAL
+    /*
+     * During the IGC we need to ensure that source is marked whenever it is
+     * accessed even if the name was already in the table. At this point old
+     * scripts pointing to the source may no longer be reachable.
+     */
+    if (cx->runtime->gcIncrementalState != NO_INCREMENTAL && cx->runtime->gcIsFull)
+        ss->marked = true;
+#endif
+
     JS_ASSERT_IF(ownSource, !tok);
 
 #ifdef JS_THREADSAFE
-    if (tok && !ownSource) {
+    if (tok && 0) {
         tok->ss = ss;
         tok->chars = src;
         cx->runtime->sourceCompressorThread.compress(tok);
     } else
 #endif
-    {
-        if (ownSource)
-            ss->data.source = const_cast<jschar *>(src);
-        else
-            PodCopy(ss->data.source, src, ss->length_);
-#ifdef DEBUG
-        ss->ready_ = true;
-#endif
-    }
+        ss->considerCompressing(cx->runtime, src, ownSource);
+
 
     return ss;
+}
+
+void
+ScriptSource::considerCompressing(JSRuntime *rt, const jschar *src, bool ownSource)
+{
+    JS_ASSERT(!ready());
+    const size_t memlen = length_ * sizeof(jschar);
+    const size_t COMPRESS_THRESHOLD = 512;
+
+#if USE_ZLIB
+    size_t compressedLen;
+#endif
+    if (ownSource) {
+        data.source = const_cast<jschar *>(src);
+#if USE_ZLIB
+    } else if (memlen >= COMPRESS_THRESHOLD && 0 &&
+        TryCompressString(reinterpret_cast<const unsigned char *>(src), memlen,
+                          data.compressed, &compressedLen))
+    {
+        JS_ASSERT(compressedLen < memlen);
+        compressedLength = compressedLen;
+        void *mem = rt->realloc_(data.compressed, compressedLength);
+        data.compressed = static_cast<unsigned char *>(mem);
+        JS_ASSERT(data.compressed);
+#endif
+    } else {
+        PodCopy(data.source, src, length_);
+    }
+#ifdef DEBUG    
+    ready_ = true;
+#endif
 }
 
 void
 SourceCompressionToken::ensureReady()
 {
 #ifdef JS_THREADSAFE
-    cx->runtime->sourceCompressorThread.waitOnCompression(this);
-#endif
-}
-
-void
-SourceCompressionToken::abort()
-{
-#ifdef JS_THREADSAFE
-    cx->runtime->sourceCompressorThread.abort(this);
+    rt->sourceCompressorThread.waitOnCompression(this);
 #endif
 }
 
@@ -1336,7 +1298,6 @@ ScriptSource::sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf)
 void
 ScriptSource::sweep(JSRuntime *rt)
 {
-    JS_ASSERT(rt->gcIsFull);
     ScriptSource *next = rt->scriptSources, **prev = &rt->scriptSources;
     while (next) {
         ScriptSource *cur = next;
@@ -1395,15 +1356,14 @@ ScriptSource::performXDR(XDRState<mode> *xdr, ScriptSource **ssp)
     }
     if (!xdr->codeUint32(&ss->length_))
         return false;
-    if (!xdr->codeUint32(&ss->compressedLength_))
+    if (!xdr->codeUint32(&ss->compressedLength))
         return false;
-
     uint8_t argumentsNotIncluded = ss->argumentsNotIncluded_;
     if (!xdr->codeUint8(&argumentsNotIncluded))
         return false;
     ss->argumentsNotIncluded_ = argumentsNotIncluded;
-
-    size_t byteLen = ss->compressed() ? ss->compressedLength_ : (ss->length_ * sizeof(jschar));
+    size_t byteLen = ss->compressed() ? ss->compressedLength :
+        (ss->length_ * sizeof(jschar));
     if (mode == XDR_DECODE) {
         ss->data.compressed = static_cast<unsigned char *>(xdr->cx()->malloc_(byteLen));
         if (!ss->data.compressed)
@@ -1640,7 +1600,7 @@ JSScript::Create(JSContext *cx, HandleObject enclosingScope, bool savedCallerFun
     }
     script->staticLevel = uint16_t(staticLevel);
 
-    script->setScriptSource(cx, ss);
+    script->source = ss;
     script->sourceStart = bufStart;
     script->sourceEnd = bufEnd;
 
@@ -2304,7 +2264,7 @@ js::CloneScript(JSContext *cx, HandleObject enclosingScope, HandleFunction fun, 
            .setVersion(src->getVersion());
     JSScript *dst = JSScript::Create(cx, enclosingScope, src->savedCallerFun,
                                      options, src->staticLevel,
-                                     src->scriptSource(), src->sourceStart, src->sourceEnd);
+                                     src->source, src->sourceStart, src->sourceEnd);
     if (!dst) {
         Foreground::free_(data);
         return NULL;
@@ -2637,8 +2597,8 @@ JSScript::markChildren(JSTracer *trc)
         if (filename)
             MarkScriptFilename(trc->runtime, filename);
 
-        if (trc->runtime->gcIsFull && scriptSource_)
-            scriptSource_->mark();
+        if (trc->runtime->gcIsFull && source && source->onRuntime())
+            source->mark();
     }
 
     bindings.trace(trc);

@@ -247,9 +247,9 @@ protected:
 nsresult
 NS_NewXULTreeBuilder(nsISupports* aOuter, REFNSIID aIID, void** aResult)
 {
-    *aResult = nullptr;
+    *aResult = nsnull;
 
-    NS_PRECONDITION(aOuter == nullptr, "no aggregation");
+    NS_PRECONDITION(aOuter == nsnull, "no aggregation");
     if (aOuter)
         return NS_ERROR_NO_AGGREGATION;
 
@@ -1115,7 +1115,7 @@ bool
 nsXULTreeBuilder::GetInsertionLocations(nsIXULTemplateResult* aResult,
                                         nsCOMArray<nsIContent>** aLocations)
 {
-    *aLocations = nullptr;
+    *aLocations = nsnull;
 
     // Get the reference point and check if it is an open container. Rows
     // should not be generated otherwise.
@@ -1191,7 +1191,7 @@ nsXULTreeBuilder::ReplaceMatch(nsIXULTemplateResult* aOldResult,
     if (aNewMatch && aNewMatch->mResult) {
         // Insertion.
         PRInt32 row = -1;
-        nsTreeRows::Subtree* parent = nullptr;
+        nsTreeRows::Subtree* parent = nsnull;
         nsIXULTemplateResult* result = aNewMatch->mResult;
 
         nsAutoString ref;
@@ -1341,7 +1341,7 @@ nsXULTreeBuilder::EnsureSortVariables()
                     mSortVariable = do_GetAtom(sort);
 
                     static nsIContent::AttrValuesArray strings[] =
-                      {&nsGkAtoms::ascending, &nsGkAtoms::descending, nullptr};
+                      {&nsGkAtoms::ascending, &nsGkAtoms::descending, nsnull};
                     switch (child->FindAttrValueIn(kNameSpaceID_None,
                                                    nsGkAtoms::sortDirection,
                                                    strings, eCaseMatters)) {
@@ -1444,7 +1444,7 @@ nsXULTreeBuilder::GetTemplateActionRowFor(PRInt32 aRow, nsIContent** aResult)
         }
     }
 
-    *aResult = nullptr;
+    *aResult = nsnull;
     return NS_OK;
 }
 
@@ -1453,7 +1453,7 @@ nsXULTreeBuilder::GetTemplateActionCellFor(PRInt32 aRow,
                                            nsITreeColumn* aCol,
                                            nsIContent** aResult)
 {
-    *aResult = nullptr;
+    *aResult = nsnull;
 
     if (!aCol) return NS_ERROR_INVALID_ARG;
 
@@ -1623,8 +1623,8 @@ nsXULTreeBuilder::OpenSubtreeForQuerySet(nsTreeRows::Subtree* aSubtree,
 
         bool generateContent = true;
 
-        nsTemplateMatch* prevmatch = nullptr;
-        nsTemplateMatch* existingmatch = nullptr;
+        nsTemplateMatch* prevmatch = nsnull;
+        nsTemplateMatch* existingmatch = nsnull;
         if (mMatchMap.Get(resultid, &existingmatch)){
             // check if there is an existing match that matched a rule
             while (existingmatch) {
@@ -1637,7 +1637,7 @@ nsXULTreeBuilder::OpenSubtreeForQuerySet(nsTreeRows::Subtree* aSubtree,
 
         nsTemplateMatch *newmatch =
             nsTemplateMatch::Create(mPool, aQuerySet->Priority(),
-                                    nextresult, nullptr);
+                                    nextresult, nsnull);
         if (!newmatch)
             return NS_ERROR_OUT_OF_MEMORY;
 
@@ -1668,8 +1668,8 @@ nsXULTreeBuilder::OpenSubtreeForQuerySet(nsTreeRows::Subtree* aSubtree,
             }
 
             PRInt16 ruleindex;
-            nsTemplateRule* matchedrule = nullptr;
-            rv = DetermineMatchedRule(nullptr, nextresult, aQuerySet,
+            nsTemplateRule* matchedrule = nsnull;
+            rv = DetermineMatchedRule(nsnull, nextresult, aQuerySet,
                                       &matchedrule, &ruleindex);
             if (NS_FAILED(rv)) {
                 nsTemplateMatch::Destroy(mPool, newmatch, false);
@@ -1692,7 +1692,7 @@ nsXULTreeBuilder::OpenSubtreeForQuerySet(nsTreeRows::Subtree* aSubtree,
                 bool isOpen = false;
                 IsContainerOpen(nextresult, &isOpen);
                 if (isOpen) {
-                    if (open.AppendElement(count) == nullptr)
+                    if (open.AppendElement(count) == nsnull)
                         return NS_ERROR_OUT_OF_MEMORY;
                 }
 
@@ -1956,7 +1956,7 @@ nsXULTreeBuilder::Drop(PRInt32 row, PRInt32 orient, nsIDOMDataTransfer* dataTran
 NS_IMETHODIMP
 nsXULTreeBuilder::IsSorted(bool *_retval)
 {
-  *_retval = (mSortVariable != nullptr);
+  *_retval = (mSortVariable != nsnull);
   return NS_OK;
 }
 

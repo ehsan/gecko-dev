@@ -93,7 +93,7 @@ nsHTMLMenuElement::SendShowEvent()
   nsRefPtr<nsPresContext> presContext = shell->GetPresContext();
   nsEventStatus status = nsEventStatus_eIgnore;
   nsEventDispatcher::Dispatch(static_cast<nsIContent*>(this), presContext,
-                              &event, nullptr, &status);
+                              &event, nsnull, &status);
 
   return NS_OK;
 }
@@ -103,7 +103,7 @@ nsHTMLMenuElement::CreateBuilder(nsIMenuBuilder** _retval)
 {
   NS_ENSURE_TRUE(nsContentUtils::IsCallerChrome(), NS_ERROR_DOM_SECURITY_ERR);
 
-  *_retval = nullptr;
+  *_retval = nsnull;
 
   if (mType == MENU_TYPE_CONTEXT) {
     NS_ADDREF(*_retval = new nsXULContextMenuBuilder());

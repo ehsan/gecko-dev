@@ -34,7 +34,7 @@ public:
   NS_IMETHOD QueryElementAt(PRUint32 aIndex, const nsIID & aIID, void * *aResult) {
     if (aIndex < mCount) {
       nsISupports* element = mArray[aIndex];
-      if (nullptr != element)
+      if (nsnull != element)
         return element->QueryInterface(aIID, aResult);
     }
     return NS_ERROR_FAILURE;
@@ -43,13 +43,11 @@ public:
     return ReplaceElementAt(value, aIndex) ? NS_OK : NS_ERROR_FAILURE;
   }
   NS_IMETHOD AppendElement(nsISupports *aElement) {
-    // XXX Invalid cast of bool to nsresult (bug 778110)
-    return (nsresult)InsertElementAt(aElement, mCount)/* ? NS_OK : NS_ERROR_FAILURE*/;
+    return InsertElementAt(aElement, mCount)/* ? NS_OK : NS_ERROR_FAILURE*/;
   }
   // XXX this is badly named - should be RemoveFirstElement
   NS_IMETHOD RemoveElement(nsISupports *aElement) {
-    // XXX Invalid cast of bool to nsresult (bug 778110)
-    return (nsresult)RemoveElement(aElement, 0)/* ? NS_OK : NS_ERROR_FAILURE*/;
+    return RemoveElement(aElement, 0)/* ? NS_OK : NS_ERROR_FAILURE*/;
   }
   NS_IMETHOD_(bool) MoveElement(PRInt32 aFrom, PRInt32 aTo);
   NS_IMETHOD Enumerate(nsIEnumerator* *result);

@@ -17,7 +17,7 @@ using mozilla::TimeDuration;
 using mozilla::TimeStamp;
 
 static PRInt32          gGenerator = 0;
-static TimerThread*     gThread = nullptr;
+static TimerThread*     gThread = nsnull;
 
 #ifdef DEBUG_TIMERS
 #include <math.h>
@@ -118,7 +118,7 @@ private:
   static TimerEventAllocator* sAllocator;
 };
 
-TimerEventAllocator* nsTimerEvent::sAllocator = nullptr;
+TimerEventAllocator* nsTimerEvent::sAllocator = nsnull;
 
 NS_IMPL_THREADSAFE_QUERY_INTERFACE1(nsTimerImpl, nsITimer)
 NS_IMPL_THREADSAFE_ADDREF(nsTimerImpl)
@@ -180,7 +180,7 @@ NS_IMETHODIMP_(nsrefcnt) nsTimerImpl::Release(void)
 }
 
 nsTimerImpl::nsTimerImpl() :
-  mClosure(nullptr),
+  mClosure(nsnull),
   mCallbackType(CALLBACK_TYPE_UNKNOWN),
   mFiring(false),
   mArmed(false),
@@ -191,7 +191,7 @@ nsTimerImpl::nsTimerImpl() :
   // XXXbsmedberg: shouldn't this be in Init()?
   mEventTarget = static_cast<nsIEventTarget*>(NS_GetCurrentThread());
 
-  mCallback.c = nullptr;
+  mCallback.c = nsnull;
 }
 
 nsTimerImpl::~nsTimerImpl()
@@ -391,7 +391,7 @@ NS_IMETHODIMP nsTimerImpl::GetCallback(nsITimerCallback **aCallback)
   else if (mTimerCallbackWhileFiring)
     NS_ADDREF(*aCallback = mTimerCallbackWhileFiring);
   else
-    *aCallback = nullptr;
+    *aCallback = nsnull;
 
   return NS_OK;
 }
@@ -478,7 +478,7 @@ void nsTimerImpl::Fire()
     case CALLBACK_TYPE_OBSERVER:
       callback.o->Observe(static_cast<nsITimer*>(this),
                           NS_TIMER_CALLBACK_TOPIC,
-                          nullptr);
+                          nsnull);
       break;
     default:;
   }
@@ -498,7 +498,7 @@ void nsTimerImpl::Fire()
   }
 
   mFiring = false;
-  mTimerCallbackWhileFiring = nullptr;
+  mTimerCallbackWhileFiring = nsnull;
 
 #ifdef DEBUG_TIMERS
   if (PR_LOG_TEST(gTimerLog, PR_LOG_DEBUG)) {
@@ -533,7 +533,7 @@ void nsTimerEvent::Init()
 void nsTimerEvent::Shutdown()
 {
   delete sAllocator;
-  sAllocator = nullptr;
+  sAllocator = nsnull;
 }
 
 NS_IMETHODIMP nsTimerEvent::Run()
@@ -624,7 +624,7 @@ NS_NewTimer(nsITimer* *aResult, nsTimerCallbackFunc aCallback, void *aClosure,
             PRUint32 aDelay, PRUint32 aType)
 {
     nsTimerImpl* timer = new nsTimerImpl();
-    if (timer == nullptr)
+    if (timer == nsnull)
         return NS_ERROR_OUT_OF_MEMORY;
     NS_ADDREF(timer);
 

@@ -62,7 +62,7 @@ NS_NewThread(nsIThread **result, nsIRunnable *event, PRUint32 stackSize)
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  *result = nullptr;
+  *result = nsnull;
   thread.swap(*result);
   return NS_OK;
 }

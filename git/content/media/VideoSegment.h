@@ -30,7 +30,7 @@ public:
 
   Image* GetImage() const { return mImage; }
   const gfxIntSize& GetIntrinsicSize() const { return mIntrinsicSize; }
-  void SetNull() { mImage = nullptr; mIntrinsicSize = gfxIntSize(0, 0); }
+  void SetNull() { mImage = nsnull; mIntrinsicSize = gfxIntSize(0, 0); }
   void TakeFrom(VideoFrame* aFrame)
   {
     mImage = aFrame->mImage.forget();
@@ -82,19 +82,19 @@ public:
     VideoFrame frame(aImage, aIntrinsicSize);
     chunk->mFrame.TakeFrom(&frame);
   }
-  const VideoFrame* GetFrameAt(TrackTicks aOffset, TrackTicks* aStart = nullptr)
+  const VideoFrame* GetFrameAt(TrackTicks aOffset, TrackTicks* aStart = nsnull)
   {
     VideoChunk* c = FindChunkContaining(aOffset, aStart);
     if (!c) {
-      return nullptr;
+      return nsnull;
     }
     return &c->mFrame;
   }
-  const VideoFrame* GetLastFrame(TrackTicks* aStart = nullptr)
+  const VideoFrame* GetLastFrame(TrackTicks* aStart = nsnull)
   {
     VideoChunk* c = GetLastChunk();
     if (!c) {
-      return nullptr;
+      return nsnull;
     }
     if (aStart) {
       *aStart = mDuration - c->mDuration;

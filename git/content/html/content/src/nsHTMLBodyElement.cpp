@@ -266,14 +266,14 @@ NS_IMPL_NS_NEW_HTML_ELEMENT(Body)
 
 nsHTMLBodyElement::nsHTMLBodyElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo),
-    mContentStyleRule(nullptr)
+    mContentStyleRule(nsnull)
 {
 }
 
 nsHTMLBodyElement::~nsHTMLBodyElement()
 {
   if (mContentStyleRule) {
-    mContentStyleRule->mPart = nullptr;
+    mContentStyleRule->mPart = nsnull;
     NS_RELEASE(mContentStyleRule);
   }
 }
@@ -333,7 +333,7 @@ void
 nsHTMLBodyElement::UnbindFromTree(bool aDeep, bool aNullParent)
 {
   if (mContentStyleRule) {
-    mContentStyleRule->mPart = nullptr;
+    mContentStyleRule->mPart = nsnull;
 
     // destroy old style rule
     NS_RELEASE(mContentStyleRule);
@@ -427,7 +427,7 @@ nsHTMLBodyElement::IsAttributeMapped(const nsIAtom* aAttribute) const
     // dynamic changes...
     { &nsGkAtoms::marginwidth },
     { &nsGkAtoms::marginheight },
-    { nullptr },
+    { nsnull },
   };
 
   static const MappedAttributeEntry* const map[] = {
@@ -442,26 +442,26 @@ nsHTMLBodyElement::IsAttributeMapped(const nsIAtom* aAttribute) const
 already_AddRefed<nsIEditor>
 nsHTMLBodyElement::GetAssociatedEditor()
 {
-  nsIEditor* editor = nullptr;
+  nsIEditor* editor = nsnull;
   if (NS_SUCCEEDED(GetEditorInternal(&editor)) && editor) {
     return editor;
   }
 
   // Make sure this is the actual body of the document
   if (!IsCurrentBodyElement()) {
-    return nullptr;
+    return nsnull;
   }
 
   // For designmode, try to get document's editor
   nsPresContext* presContext = GetPresContext();
   if (!presContext) {
-    return nullptr;
+    return nsnull;
   }
 
   nsCOMPtr<nsISupports> container = presContext->GetContainer();
   nsCOMPtr<nsIEditorDocShell> editorDocShell = do_QueryInterface(container);
   if (!editorDocShell) {
-    return nullptr;
+    return nsnull;
   }
 
   editorDocShell->GetEditor(&editor);

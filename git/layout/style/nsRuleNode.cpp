@@ -210,7 +210,7 @@ GetMetricsFor(nsPresContext* aPresContext,
 {
   nsFont font = aStyleFont->mFont;
   font.size = aFontSize;
-  gfxUserFontSet *fs = nullptr;
+  gfxUserFontSet *fs = nsnull;
   if (aUseUserFontSet) {
     fs = aPresContext->GetUserFontSet();
   }
@@ -283,7 +283,7 @@ static nscoord CalcLengthWith(const nsCSSValue& aValue,
 
         if (docElement) {
           rootStyle = aPresContext->StyleSet()->ResolveStyleFor(docElement,
-                                                                nullptr);
+                                                                nsnull);
           if (rootStyle) {
             rootStyleFont = rootStyle->GetStyleFont();
           }
@@ -346,7 +346,7 @@ nsRuleNode::CalcLength(const nsCSSValue& aValue,
 {
   NS_ASSERTION(aStyleContext, "Must have style data");
 
-  return CalcLengthWith(aValue, -1, nullptr,
+  return CalcLengthWith(aValue, -1, nsnull,
                         aStyleContext, aPresContext,
                         false, true, aCanStoreInRuleTree);
 }
@@ -368,7 +368,7 @@ nsRuleNode::CalcLengthWithInitialFont(nsPresContext* aPresContext,
   nsStyleFont defaultFont(aPresContext); // FIXME: best language?
   bool canStoreInRuleTree;
   return CalcLengthWith(aValue, -1, &defaultFont,
-                        nullptr, aPresContext,
+                        nsnull, aPresContext,
                         true, false, canStoreInRuleTree);
 }
 
@@ -680,8 +680,8 @@ static inline bool SetAbsCoord(const nsCSSValue& aValue,
   // The values of the following variables will never be used; so it does not
   // matter what to set.
   const nsStyleCoord dummyParentCoord;
-  nsStyleContext* dummyStyleContext = nullptr;
-  nsPresContext* dummyPresContext = nullptr;
+  nsStyleContext* dummyStyleContext = nsnull;
+  nsPresContext* dummyPresContext = nsnull;
   bool dummyCanStoreInRuleTree = true;
 
   bool rv = SetCoord(aValue, aCoord, dummyParentCoord, aMask,
@@ -1176,7 +1176,7 @@ nsRuleNode::DestroyInternal(nsRuleNode ***aDestroyQueueTail)
   if (aDestroyQueueTail) {
     destroyQueueTail = *aDestroyQueueTail;
   } else {
-    destroyQueue = nullptr;
+    destroyQueue = nsnull;
     destroyQueueTail = &destroyQueue;
   }
 
@@ -1184,7 +1184,7 @@ nsRuleNode::DestroyInternal(nsRuleNode ***aDestroyQueueTail)
     PLDHashTable *children = ChildrenHash();
     PL_DHashTableEnumerate(children, EnqueueRuleNodeChildren,
                            &destroyQueueTail);
-    *destroyQueueTail = nullptr; // ensure null-termination
+    *destroyQueueTail = nsnull; // ensure null-termination
     PL_DHashTableDestroy(children);
   } else if (HaveChildren()) {
     *destroyQueueTail = ChildrenList();
@@ -1192,7 +1192,7 @@ nsRuleNode::DestroyInternal(nsRuleNode ***aDestroyQueueTail)
       destroyQueueTail = &(*destroyQueueTail)->mNextSibling;
     } while (*destroyQueueTail);
   }
-  mChildren.asVoid = nullptr;
+  mChildren.asVoid = nsnull;
 
   if (aDestroyQueueTail) {
     // Our caller destroys the queue.
@@ -1222,7 +1222,7 @@ nsRuleNode::DestroyInternal(nsRuleNode ***aDestroyQueueTail)
 nsRuleNode* nsRuleNode::CreateRootNode(nsPresContext* aPresContext)
 {
   return new (aPresContext)
-    nsRuleNode(aPresContext, nullptr, nullptr, 0xff, false);
+    nsRuleNode(aPresContext, nsnull, nsnull, 0xff, false);
 }
 
 nsRuleNode::nsRuleNode(nsPresContext* aContext, nsRuleNode* aParent,
@@ -1236,7 +1236,7 @@ nsRuleNode::nsRuleNode(nsPresContext* aContext, nsRuleNode* aParent,
     mNoneBits(0),
     mRefCnt(0)
 {
-  mChildren.asVoid = nullptr;
+  mChildren.asVoid = nsnull;
   MOZ_COUNT_CTOR(nsRuleNode);
   NS_IF_ADDREF(mRule);
 
@@ -1270,7 +1270,7 @@ nsRuleNode*
 nsRuleNode::Transition(nsIStyleRule* aRule, PRUint8 aLevel,
                        bool aIsImportantRule)
 {
-  nsRuleNode* next = nullptr;
+  nsRuleNode* next = nsnull;
   nsRuleNode::Key key(aRule, aLevel, aIsImportantRule);
 
   if (HaveChildren() && !ChildrenAreHashed()) {
@@ -1324,7 +1324,7 @@ nsRuleNode::ConvertChildrenToHash()
 {
   NS_ASSERTION(!ChildrenAreHashed() && HaveChildren(),
                "must have a non-empty list of children");
-  PLDHashTable *hash = PL_NewDHashTable(&ChildrenHashOps, nullptr,
+  PLDHashTable *hash = PL_NewDHashTable(&ChildrenHashOps, nsnull,
                                         sizeof(ChildrenHashEntry),
                                         kMaxChildrenInList * 4);
   if (!hash)
@@ -1812,10 +1812,10 @@ nsRuleNode::WalkRuleTree(const nsStyleStructID aSID,
   ruleData.mValueOffsets[aSID] = 0;
 
   // We start at the most specific rule in the tree.
-  void* startStruct = nullptr;
+  void* startStruct = nsnull;
 
   nsRuleNode* ruleNode = this;
-  nsRuleNode* highestNode = nullptr; // The highest node in the rule tree
+  nsRuleNode* highestNode = nsnull; // The highest node in the rule tree
                                     // that has the same properties
                                     // specified for struct |aSID| as
                                     // |this| does.
@@ -1836,7 +1836,7 @@ nsRuleNode::WalkRuleTree(const nsStyleStructID aSID,
     // If the dependent bit is set on a rule node for this struct, that
     // means its rule won't have any information to add, so skip it.
     while (ruleNode->mDependentBits & bit) {
-      NS_ASSERTION(ruleNode->mStyleData.GetStyleData(aSID) == nullptr,
+      NS_ASSERTION(ruleNode->mStyleData.GetStyleData(aSID) == nsnull,
                    "dependent bit with cached data makes no sense");
       // Climb up to the next rule in the tree (a less specific rule).
       rootNode = ruleNode;
@@ -1970,7 +1970,7 @@ nsRuleNode::WalkRuleTree(const nsStyleStructID aSID,
 #undef STYLE_STRUCT_TEST
 
   // If we have a post-resolve callback, handle that now.
-  if (ruleData.mPostResolveCallback && (NS_LIKELY(res != nullptr)))
+  if (ruleData.mPostResolveCallback && (NS_LIKELY(res != nsnull)))
     (*ruleData.mPostResolveCallback)(const_cast<void*>(res), &ruleData);
 
   // Now return the result.
@@ -1984,7 +1984,7 @@ nsRuleNode::SetDefaultOnRoot(const nsStyleStructID aSID, nsStyleContext* aContex
     case eStyleStruct_Font:
     {
       nsStyleFont* fontData = new (mPresContext) nsStyleFont(mPresContext);
-      if (NS_LIKELY(fontData != nullptr)) {
+      if (NS_LIKELY(fontData != nsnull)) {
         nscoord minimumFontSize = mPresContext->MinFontSize(fontData->mLanguage);
 
         if (minimumFontSize > 0 && !mPresContext->IsChrome()) {
@@ -2000,7 +2000,7 @@ nsRuleNode::SetDefaultOnRoot(const nsStyleStructID aSID, nsStyleContext* aContex
     case eStyleStruct_Display:
     {
       nsStyleDisplay* disp = new (mPresContext) nsStyleDisplay();
-      if (NS_LIKELY(disp != nullptr)) {
+      if (NS_LIKELY(disp != nsnull)) {
         aContext->SetStyle(eStyleStruct_Display, disp);
       }
       return disp;
@@ -2008,7 +2008,7 @@ nsRuleNode::SetDefaultOnRoot(const nsStyleStructID aSID, nsStyleContext* aContex
     case eStyleStruct_Visibility:
     {
       nsStyleVisibility* vis = new (mPresContext) nsStyleVisibility(mPresContext);
-      if (NS_LIKELY(vis != nullptr)) {
+      if (NS_LIKELY(vis != nsnull)) {
         aContext->SetStyle(eStyleStruct_Visibility, vis);
       }
       return vis;
@@ -2016,7 +2016,7 @@ nsRuleNode::SetDefaultOnRoot(const nsStyleStructID aSID, nsStyleContext* aContex
     case eStyleStruct_Text:
     {
       nsStyleText* text = new (mPresContext) nsStyleText();
-      if (NS_LIKELY(text != nullptr)) {
+      if (NS_LIKELY(text != nsnull)) {
         aContext->SetStyle(eStyleStruct_Text, text);
       }
       return text;
@@ -2024,7 +2024,7 @@ nsRuleNode::SetDefaultOnRoot(const nsStyleStructID aSID, nsStyleContext* aContex
     case eStyleStruct_TextReset:
     {
       nsStyleTextReset* text = new (mPresContext) nsStyleTextReset();
-      if (NS_LIKELY(text != nullptr)) {
+      if (NS_LIKELY(text != nsnull)) {
         aContext->SetStyle(eStyleStruct_TextReset, text);
       }
       return text;
@@ -2032,7 +2032,7 @@ nsRuleNode::SetDefaultOnRoot(const nsStyleStructID aSID, nsStyleContext* aContex
     case eStyleStruct_Color:
     {
       nsStyleColor* color = new (mPresContext) nsStyleColor(mPresContext);
-      if (NS_LIKELY(color != nullptr)) {
+      if (NS_LIKELY(color != nsnull)) {
         aContext->SetStyle(eStyleStruct_Color, color);
       }
       return color;
@@ -2040,7 +2040,7 @@ nsRuleNode::SetDefaultOnRoot(const nsStyleStructID aSID, nsStyleContext* aContex
     case eStyleStruct_Background:
     {
       nsStyleBackground* bg = new (mPresContext) nsStyleBackground();
-      if (NS_LIKELY(bg != nullptr)) {
+      if (NS_LIKELY(bg != nsnull)) {
         aContext->SetStyle(eStyleStruct_Background, bg);
       }
       return bg;
@@ -2048,7 +2048,7 @@ nsRuleNode::SetDefaultOnRoot(const nsStyleStructID aSID, nsStyleContext* aContex
     case eStyleStruct_Margin:
     {
       nsStyleMargin* margin = new (mPresContext) nsStyleMargin();
-      if (NS_LIKELY(margin != nullptr)) {
+      if (NS_LIKELY(margin != nsnull)) {
         aContext->SetStyle(eStyleStruct_Margin, margin);
       }
       return margin;
@@ -2056,7 +2056,7 @@ nsRuleNode::SetDefaultOnRoot(const nsStyleStructID aSID, nsStyleContext* aContex
     case eStyleStruct_Border:
     {
       nsStyleBorder* border = new (mPresContext) nsStyleBorder(mPresContext);
-      if (NS_LIKELY(border != nullptr)) {
+      if (NS_LIKELY(border != nsnull)) {
         aContext->SetStyle(eStyleStruct_Border, border);
       }
       return border;
@@ -2064,7 +2064,7 @@ nsRuleNode::SetDefaultOnRoot(const nsStyleStructID aSID, nsStyleContext* aContex
     case eStyleStruct_Padding:
     {
       nsStylePadding* padding = new (mPresContext) nsStylePadding();
-      if (NS_LIKELY(padding != nullptr)) {
+      if (NS_LIKELY(padding != nsnull)) {
         aContext->SetStyle(eStyleStruct_Padding, padding);
       }
       return padding;
@@ -2072,7 +2072,7 @@ nsRuleNode::SetDefaultOnRoot(const nsStyleStructID aSID, nsStyleContext* aContex
     case eStyleStruct_Outline:
     {
       nsStyleOutline* outline = new (mPresContext) nsStyleOutline(mPresContext);
-      if (NS_LIKELY(outline != nullptr)) {
+      if (NS_LIKELY(outline != nsnull)) {
         aContext->SetStyle(eStyleStruct_Outline, outline);
       }
       return outline;
@@ -2080,7 +2080,7 @@ nsRuleNode::SetDefaultOnRoot(const nsStyleStructID aSID, nsStyleContext* aContex
     case eStyleStruct_List:
     {
       nsStyleList* list = new (mPresContext) nsStyleList();
-      if (NS_LIKELY(list != nullptr)) {
+      if (NS_LIKELY(list != nsnull)) {
         aContext->SetStyle(eStyleStruct_List, list);
       }
       return list;
@@ -2088,7 +2088,7 @@ nsRuleNode::SetDefaultOnRoot(const nsStyleStructID aSID, nsStyleContext* aContex
     case eStyleStruct_Position:
     {
       nsStylePosition* pos = new (mPresContext) nsStylePosition();
-      if (NS_LIKELY(pos != nullptr)) {
+      if (NS_LIKELY(pos != nsnull)) {
         aContext->SetStyle(eStyleStruct_Position, pos);
       }
       return pos;
@@ -2096,7 +2096,7 @@ nsRuleNode::SetDefaultOnRoot(const nsStyleStructID aSID, nsStyleContext* aContex
     case eStyleStruct_Table:
     {
       nsStyleTable* table = new (mPresContext) nsStyleTable();
-      if (NS_LIKELY(table != nullptr)) {
+      if (NS_LIKELY(table != nsnull)) {
         aContext->SetStyle(eStyleStruct_Table, table);
       }
       return table;
@@ -2104,7 +2104,7 @@ nsRuleNode::SetDefaultOnRoot(const nsStyleStructID aSID, nsStyleContext* aContex
     case eStyleStruct_TableBorder:
     {
       nsStyleTableBorder* table = new (mPresContext) nsStyleTableBorder(mPresContext);
-      if (NS_LIKELY(table != nullptr)) {
+      if (NS_LIKELY(table != nsnull)) {
         aContext->SetStyle(eStyleStruct_TableBorder, table);
       }
       return table;
@@ -2112,7 +2112,7 @@ nsRuleNode::SetDefaultOnRoot(const nsStyleStructID aSID, nsStyleContext* aContex
     case eStyleStruct_Content:
     {
       nsStyleContent* content = new (mPresContext) nsStyleContent();
-      if (NS_LIKELY(content != nullptr)) {
+      if (NS_LIKELY(content != nsnull)) {
         aContext->SetStyle(eStyleStruct_Content, content);
       }
       return content;
@@ -2120,7 +2120,7 @@ nsRuleNode::SetDefaultOnRoot(const nsStyleStructID aSID, nsStyleContext* aContex
     case eStyleStruct_Quotes:
     {
       nsStyleQuotes* quotes = new (mPresContext) nsStyleQuotes();
-      if (NS_LIKELY(quotes != nullptr)) {
+      if (NS_LIKELY(quotes != nsnull)) {
         aContext->SetStyle(eStyleStruct_Quotes, quotes);
       }
       return quotes;
@@ -2128,7 +2128,7 @@ nsRuleNode::SetDefaultOnRoot(const nsStyleStructID aSID, nsStyleContext* aContex
     case eStyleStruct_UserInterface:
     {
       nsStyleUserInterface* ui = new (mPresContext) nsStyleUserInterface();
-      if (NS_LIKELY(ui != nullptr)) {
+      if (NS_LIKELY(ui != nsnull)) {
         aContext->SetStyle(eStyleStruct_UserInterface, ui);
       }
       return ui;
@@ -2136,7 +2136,7 @@ nsRuleNode::SetDefaultOnRoot(const nsStyleStructID aSID, nsStyleContext* aContex
     case eStyleStruct_UIReset:
     {
       nsStyleUIReset* ui = new (mPresContext) nsStyleUIReset();
-      if (NS_LIKELY(ui != nullptr)) {
+      if (NS_LIKELY(ui != nsnull)) {
         aContext->SetStyle(eStyleStruct_UIReset, ui);
       }
       return ui;
@@ -2145,7 +2145,7 @@ nsRuleNode::SetDefaultOnRoot(const nsStyleStructID aSID, nsStyleContext* aContex
     case eStyleStruct_XUL:
     {
       nsStyleXUL* xul = new (mPresContext) nsStyleXUL();
-      if (NS_LIKELY(xul != nullptr)) {
+      if (NS_LIKELY(xul != nsnull)) {
         aContext->SetStyle(eStyleStruct_XUL, xul);
       }
       return xul;
@@ -2154,7 +2154,7 @@ nsRuleNode::SetDefaultOnRoot(const nsStyleStructID aSID, nsStyleContext* aContex
     case eStyleStruct_Column:
     {
       nsStyleColumn* column = new (mPresContext) nsStyleColumn(mPresContext);
-      if (NS_LIKELY(column != nullptr)) {
+      if (NS_LIKELY(column != nsnull)) {
         aContext->SetStyle(eStyleStruct_Column, column);
       }
       return column;
@@ -2163,7 +2163,7 @@ nsRuleNode::SetDefaultOnRoot(const nsStyleStructID aSID, nsStyleContext* aContex
     case eStyleStruct_SVG:
     {
       nsStyleSVG* svg = new (mPresContext) nsStyleSVG();
-      if (NS_LIKELY(svg != nullptr)) {
+      if (NS_LIKELY(svg != nsnull)) {
         aContext->SetStyle(eStyleStruct_SVG, svg);
       }
       return svg;
@@ -2172,7 +2172,7 @@ nsRuleNode::SetDefaultOnRoot(const nsStyleStructID aSID, nsStyleContext* aContex
     case eStyleStruct_SVGReset:
     {
       nsStyleSVGReset* svgReset = new (mPresContext) nsStyleSVGReset();
-      if (NS_LIKELY(svgReset != nullptr)) {
+      if (NS_LIKELY(svgReset != nsnull)) {
         aContext->SetStyle(eStyleStruct_SVGReset, svgReset);
       }
       return svgReset;
@@ -2182,9 +2182,9 @@ nsRuleNode::SetDefaultOnRoot(const nsStyleStructID aSID, nsStyleContext* aContex
        * unhandled case: nsStyleStructID_Length.
        * last item of nsStyleStructID, to know its length.
        */
-      return nullptr;
+      return nsnull;
   }
-  return nullptr;
+  return nsnull;
 }
 
 /*
@@ -2262,8 +2262,8 @@ nsRuleNode::AdjustLogicalBoxProp(nsStyleContext* aContext,
                                                                               \
   nsStyleContext* parentContext = aContext->GetParent();                      \
                                                                               \
-  nsStyle##type_* data_ = nullptr;                                             \
-  const nsStyle##type_* parentdata_ = nullptr;                                 \
+  nsStyle##type_* data_ = nsnull;                                             \
+  const nsStyle##type_* parentdata_ = nsnull;                                 \
   bool canStoreInRuleTree = aCanStoreInRuleTree;                            \
                                                                               \
   /* If |canStoreInRuleTree| might be true by the time we're done, we */      \
@@ -2293,7 +2293,7 @@ nsRuleNode::AdjustLogicalBoxProp(nsStyleContext* aContext,
   }                                                                           \
                                                                               \
   if (NS_UNLIKELY(!data_))                                                    \
-    return nullptr;  /* Out Of Memory */                                       \
+    return nsnull;  /* Out Of Memory */                                       \
   if (!parentdata_)                                                           \
     parentdata_ = data_;
 
@@ -2329,7 +2329,7 @@ nsRuleNode::AdjustLogicalBoxProp(nsStyleContext* aContext,
     data_ = new (mPresContext) nsStyle##type_ ctorargs_;                      \
                                                                               \
   if (NS_UNLIKELY(!data_))                                                    \
-    return nullptr;  /* Out Of Memory */                                       \
+    return nsnull;  /* Out Of Memory */                                       \
                                                                               \
   /* If |canStoreInRuleTree| might be true by the time we're done, we */      \
   /* can't call parentContext->GetStyle##type_() since it could recur into */ \
@@ -2362,7 +2362,7 @@ nsRuleNode::AdjustLogicalBoxProp(nsStyleContext* aContext,
         new (mPresContext) nsInheritedStyleData;                              \
       if (NS_UNLIKELY(!aHighestNode->mStyleData.mInheritedData)) {            \
         data_->Destroy(mPresContext);                                         \
-        return nullptr;                                                        \
+        return nsnull;                                                        \
       }                                                                       \
     }                                                                         \
     NS_ASSERTION(!aHighestNode->mStyleData.mInheritedData->                   \
@@ -2406,7 +2406,7 @@ nsRuleNode::AdjustLogicalBoxProp(nsStyleContext* aContext,
         new (mPresContext) nsResetStyleData;                                  \
       if (NS_UNLIKELY(!aHighestNode->mStyleData.mResetData)) {                \
         data_->Destroy(mPresContext);                                         \
-        return nullptr;                                                        \
+        return nsnull;                                                        \
       }                                                                       \
     }                                                                         \
     NS_ASSERTION(!aHighestNode->mStyleData.mResetData->                       \
@@ -2773,7 +2773,7 @@ struct SetFontSizeCalcOps : public css::BasicCoordCalcOps,
       // between us and the parent is simply ignored.
       size = CalcLengthWith(aValue, mParentSize,
                             mParentFont,
-                            nullptr, mPresContext, mAtRoot,
+                            nsnull, mPresContext, mAtRoot,
                             true, mCanStoreInRuleTree);
       if (!aValue.IsRelativeLengthUnit()) {
         size = nsStyleFont::ZoomText(mPresContext, size);
@@ -3140,7 +3140,7 @@ nsRuleNode::SetFont(nsPresContext* aPresContext, nsStyleContext* aContext,
     aFont->mScriptMinSize =
       CalcLengthWith(*scriptMinSizeValue, aParentFont->mSize,
                      aParentFont,
-                     nullptr, aPresContext, atRoot, true,
+                     nsnull, aPresContext, atRoot, true,
                      aCanStoreInRuleTree);
   }
 
@@ -3482,7 +3482,7 @@ nsRuleNode::ComputeFontData(void* aStartStruct,
     // continue the normal processing
     nsRuleNode::SetFont(mPresContext, aContext, generic,
                         aRuleData, parentFont, font,
-                        aStartStruct != nullptr, canStoreInRuleTree);
+                        aStartStruct != nsnull, canStoreInRuleTree);
   }
   else {
     // re-calculate the font as a generic font
@@ -3520,7 +3520,7 @@ nsRuleNode::GetShadowData(const nsCSSValueList* aList,
   nsCSSShadowArray* shadowList = new(arrayLength) nsCSSShadowArray(arrayLength);
 
   if (!shadowList)
-    return nullptr;
+    return nsnull;
 
   nsStyleCoord tempCoord;
   bool unitOK;
@@ -3613,7 +3613,7 @@ nsRuleNode::ComputeTextData(void* aStartStruct,
   // text-shadow: none, list, inherit, initial
   const nsCSSValue* textShadowValue = aRuleData->ValueForTextShadow();
   if (textShadowValue->GetUnit() != eCSSUnit_Null) {
-    text->mTextShadow = nullptr;
+    text->mTextShadow = nsnull;
 
     // Don't need to handle none/initial explicitly: The above assignment
     // takes care of that
@@ -3927,7 +3927,7 @@ nsRuleNode::ComputeUserInterfaceData(void* aStartStruct,
   nsCSSUnit cursorUnit = cursorValue->GetUnit();
   if (cursorUnit != eCSSUnit_Null) {
     delete [] ui->mCursorArray;
-    ui->mCursorArray = nullptr;
+    ui->mCursorArray = nsnull;
     ui->mCursorArrayLength = 0;
 
     if (cursorUnit == eCSSUnit_Inherit) {
@@ -4142,7 +4142,7 @@ CountTransitionProps(const TransitionPropInfo* aInfo,
     data.unit = value.GetUnit();
     data.list = (value.GetUnit() == eCSSUnit_List ||
                  value.GetUnit() == eCSSUnit_ListDep)
-                  ? value.GetListValue() : nullptr;
+                  ? value.GetListValue() : nsnull;
 
     // General algorithm to determine how many total transitions we need
     // to build.  For each property:
@@ -4656,12 +4656,12 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
     if (NS_LIKELY(url->GetURI())) {
       display->mBinding = url;
     } else {
-      display->mBinding = nullptr;
+      display->mBinding = nsnull;
     }
   }
   else if (eCSSUnit_None == bindingValue->GetUnit() ||
            eCSSUnit_Initial == bindingValue->GetUnit()) {
-    display->mBinding = nullptr;
+    display->mBinding = nsnull;
   }
   else if (eCSSUnit_Inherit == bindingValue->GetUnit()) {
     canStoreInRuleTree = false;
@@ -4887,7 +4887,7 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
 
   case eCSSUnit_Initial:
   case eCSSUnit_None:
-    display->mSpecifiedTransform = nullptr;
+    display->mSpecifiedTransform = nsnull;
     break;
 
   case eCSSUnit_Inherit:
@@ -4900,8 +4900,8 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
     const nsCSSValueList* head = transformValue->GetListValue();
     // can get a _None in here from transform animation
     if (head->mValue.GetUnit() == eCSSUnit_None) {
-      NS_ABORT_IF_FALSE(head->mNext == nullptr, "none must be alone");
-      display->mSpecifiedTransform = nullptr;
+      NS_ABORT_IF_FALSE(head->mNext == nsnull, "none must be alone");
+      display->mSpecifiedTransform = nsnull;
     } else {
       display->mSpecifiedTransform = head; // weak pointer, owned by rule
     }
@@ -5776,7 +5776,7 @@ nsRuleNode::ComputeBorderData(void* aStartStruct,
 
   case eCSSUnit_Initial:
   case eCSSUnit_None:
-    border->mBoxShadow = nullptr;
+    border->mBoxShadow = nsnull;
     break;
 
   case eCSSUnit_Inherit:
@@ -6054,7 +6054,7 @@ nsRuleNode::ComputeBorderData(void* aStartStruct,
                          parentBorder->GetBorderImage());
   } else if (borderImageSource->GetUnit() == eCSSUnit_Initial ||
              borderImageSource->GetUnit() == eCSSUnit_None) {
-    border->SetBorderImage(nullptr);
+    border->SetBorderImage(nsnull);
   }
 
   nsCSSValue borderImageSliceValue;
@@ -6307,7 +6307,7 @@ nsRuleNode::ComputeListData(void* aStartStruct,
   }
   else if (eCSSUnit_None == imageValue->GetUnit() ||
            eCSSUnit_Initial == imageValue->GetUnit()) {
-    list->SetListStyleImage(nullptr);
+    list->SetListStyleImage(nsnull);
   }
   else if (eCSSUnit_Inherit == imageValue->GetUnit()) {
     canStoreInRuleTree = false;
@@ -6539,7 +6539,7 @@ nsRuleNode::ComputePositionData(void* aStartStruct,
   const nsCSSValue* zIndexValue = aRuleData->ValueForZIndex();
   if (! SetCoord(*zIndexValue, pos->mZIndex, parentPos->mZIndex,
                  SETCOORD_IA | SETCOORD_INITIAL_AUTO, aContext,
-                 nullptr, canStoreInRuleTree)) {
+                 nsnull, canStoreInRuleTree)) {
     if (eCSSUnit_Inherit == zIndexValue->GetUnit()) {
       // handle inherit, because it's ok to inherit 'auto' here
       canStoreInRuleTree = false;
@@ -6681,7 +6681,7 @@ nsRuleNode::ComputeContentData(void* aStartStruct,
     content->AllocateContents(1);
     nsStyleContentData& data = content->ContentAt(0);
     data.mType = eStyleContentType_AltContent;
-    data.mContent.mString = nullptr;
+    data.mContent.mString = nsnull;
     break;
   }
 
@@ -6738,7 +6738,7 @@ nsRuleNode::ComputeContentData(void* aStartStruct,
             data.mContent.mCounters->AddRef();
           }
           else {
-            data.mContent.mString = nullptr;
+            data.mContent.mString = nsnull;
           }
           contentValueList = contentValueList->mNext;
         }
@@ -7200,7 +7200,7 @@ nsRuleNode::ComputeSVGData(void* aStartStruct,
     svg->mMarkerEnd = markerEndValue->GetURLValue();
   } else if (eCSSUnit_None == markerEndValue->GetUnit() ||
              eCSSUnit_Initial == markerEndValue->GetUnit()) {
-    svg->mMarkerEnd = nullptr;
+    svg->mMarkerEnd = nsnull;
   } else if (eCSSUnit_Inherit == markerEndValue->GetUnit()) {
     canStoreInRuleTree = false;
     svg->mMarkerEnd = parentSVG->mMarkerEnd;
@@ -7212,7 +7212,7 @@ nsRuleNode::ComputeSVGData(void* aStartStruct,
     svg->mMarkerMid = markerMidValue->GetURLValue();
   } else if (eCSSUnit_None == markerMidValue->GetUnit() ||
              eCSSUnit_Initial == markerMidValue->GetUnit()) {
-    svg->mMarkerMid = nullptr;
+    svg->mMarkerMid = nsnull;
   } else if (eCSSUnit_Inherit == markerMidValue->GetUnit()) {
     canStoreInRuleTree = false;
     svg->mMarkerMid = parentSVG->mMarkerMid;
@@ -7224,7 +7224,7 @@ nsRuleNode::ComputeSVGData(void* aStartStruct,
     svg->mMarkerStart = markerStartValue->GetURLValue();
   } else if (eCSSUnit_None == markerStartValue->GetUnit() ||
              eCSSUnit_Initial == markerStartValue->GetUnit()) {
-    svg->mMarkerStart = nullptr;
+    svg->mMarkerStart = nsnull;
   } else if (eCSSUnit_Inherit == markerStartValue->GetUnit()) {
     canStoreInRuleTree = false;
     svg->mMarkerStart = parentSVG->mMarkerStart;
@@ -7268,14 +7268,14 @@ nsRuleNode::ComputeSVGData(void* aStartStruct,
   case eCSSUnit_Initial:
   case eCSSUnit_None:
     delete [] svg->mStrokeDasharray;
-    svg->mStrokeDasharray = nullptr;
+    svg->mStrokeDasharray = nsnull;
     svg->mStrokeDasharrayLength = 0;
     break;
 
   case eCSSUnit_List:
   case eCSSUnit_ListDep: {
     delete [] svg->mStrokeDasharray;
-    svg->mStrokeDasharray = nullptr;
+    svg->mStrokeDasharray = nsnull;
     svg->mStrokeDasharrayLength = 0;
 
     // count number of values
@@ -7288,7 +7288,7 @@ nsRuleNode::ComputeSVGData(void* aStartStruct,
 
     if (svg->mStrokeDasharray) {
       PRUint32 i = 0;
-      while (nullptr != value) {
+      while (nsnull != value) {
         SetCoord(value->mValue,
                  svg->mStrokeDasharray[i++], nsStyleCoord(),
                  SETCOORD_LP | SETCOORD_FACTOR,
@@ -7404,7 +7404,7 @@ nsRuleNode::ComputeSVGResetData(void* aStartStruct,
     svgReset->mClipPath = clipPathValue->GetURLValue();
   } else if (eCSSUnit_None == clipPathValue->GetUnit() ||
              eCSSUnit_Initial == clipPathValue->GetUnit()) {
-    svgReset->mClipPath = nullptr;
+    svgReset->mClipPath = nsnull;
   } else if (eCSSUnit_Inherit == clipPathValue->GetUnit()) {
     canStoreInRuleTree = false;
     svgReset->mClipPath = parentSVGReset->mClipPath;
@@ -7440,7 +7440,7 @@ nsRuleNode::ComputeSVGResetData(void* aStartStruct,
     svgReset->mFilter = filterValue->GetURLValue();
   } else if (eCSSUnit_None == filterValue->GetUnit() ||
              eCSSUnit_Initial == filterValue->GetUnit()) {
-    svgReset->mFilter = nullptr;
+    svgReset->mFilter = nsnull;
   } else if (eCSSUnit_Inherit == filterValue->GetUnit()) {
     canStoreInRuleTree = false;
     svgReset->mFilter = parentSVGReset->mFilter;
@@ -7452,7 +7452,7 @@ nsRuleNode::ComputeSVGResetData(void* aStartStruct,
     svgReset->mMask = maskValue->GetURLValue();
   } else if (eCSSUnit_None == maskValue->GetUnit() ||
              eCSSUnit_Initial == maskValue->GetUnit()) {
-    svgReset->mMask = nullptr;
+    svgReset->mMask = nsnull;
   } else if (eCSSUnit_Inherit == maskValue->GetUnit()) {
     canStoreInRuleTree = false;
     svgReset->mMask = parentSVGReset->mMask;
@@ -7466,14 +7466,14 @@ nsRuleNode::GetParentData(const nsStyleStructID aSID)
 {
   NS_PRECONDITION(mDependentBits & nsCachedStyleData::GetBitForSID(aSID),
                   "should be called when node depends on parent data");
-  NS_ASSERTION(mStyleData.GetStyleData(aSID) == nullptr,
+  NS_ASSERTION(mStyleData.GetStyleData(aSID) == nsnull,
                "both struct and dependent bits present");
   // Walk up the rule tree from this rule node (towards less specific
   // rules).
   PRUint32 bit = nsCachedStyleData::GetBitForSID(aSID);
   nsRuleNode *ruleNode = mParent;
   while (ruleNode->mDependentBits & bit) {
-    NS_ASSERTION(ruleNode->mStyleData.GetStyleData(aSID) == nullptr,
+    NS_ASSERTION(ruleNode->mStyleData.GetStyleData(aSID) == nsnull,
                  "both struct and dependent bits present");
     ruleNode = ruleNode->mParent;
   }
@@ -7488,14 +7488,14 @@ nsRuleNode::GetParent##name_()                                              \
   NS_PRECONDITION(mDependentBits &                                          \
                   nsCachedStyleData::GetBitForSID(eStyleStruct_##name_),    \
                   "should be called when node depends on parent data");     \
-  NS_ASSERTION(mStyleData.GetStyle##name_() == nullptr,                      \
+  NS_ASSERTION(mStyleData.GetStyle##name_() == nsnull,                      \
                "both struct and dependent bits present");                   \
   /* Walk up the rule tree from this rule node (towards less specific */    \
   /* rules). */                                                             \
   PRUint32 bit = nsCachedStyleData::GetBitForSID(eStyleStruct_##name_);     \
   nsRuleNode *ruleNode = mParent;                                           \
   while (ruleNode->mDependentBits & bit) {                                  \
-    NS_ASSERTION(ruleNode->mStyleData.GetStyle##name_() == nullptr,          \
+    NS_ASSERTION(ruleNode->mStyleData.GetStyle##name_() == nsnull,          \
                  "both struct and dependent bits present");                 \
     ruleNode = ruleNode->mParent;                                           \
   }                                                                         \
@@ -7521,16 +7521,16 @@ nsRuleNode::GetStyleData(nsStyleStructID aSID,
   }
 
   data = mStyleData.GetStyleData(aSID);
-  if (NS_LIKELY(data != nullptr))
+  if (NS_LIKELY(data != nsnull))
     return data; // We have a fully specified struct. Just return it.
 
   if (NS_UNLIKELY(!aComputeData))
-    return nullptr;
+    return nsnull;
 
   // Nothing is cached.  We'll have to delve further and examine our rules.
   data = WalkRuleTree(aSID, aContext);
 
-  if (NS_LIKELY(data != nullptr))
+  if (NS_LIKELY(data != nsnull))
     return data;
 
   NS_NOTREACHED("could not create style struct");
@@ -7559,16 +7559,16 @@ nsRuleNode::GetStyle##name_(nsStyleContext* aContext, bool aComputeData)    \
   }                                                                           \
                                                                               \
   data = mStyleData.GetStyle##name_();                                        \
-  if (NS_LIKELY(data != nullptr))                                              \
+  if (NS_LIKELY(data != nsnull))                                              \
     return data;                                                              \
                                                                               \
   if (NS_UNLIKELY(!aComputeData))                                             \
-    return nullptr;                                                            \
+    return nsnull;                                                            \
                                                                               \
   data = static_cast<const nsStyle##name_ *>                                  \
            (WalkRuleTree(eStyleStruct_##name_, aContext));                    \
                                                                               \
-  if (NS_LIKELY(data != nullptr))                                              \
+  if (NS_LIKELY(data != nsnull))                                              \
     return data;                                                              \
                                                                               \
   NS_NOTREACHED("could not create style struct");                             \
@@ -7623,7 +7623,7 @@ nsRuleNode::Sweep()
     if (ChildrenAreHashed()) {
       PLDHashTable *children = ChildrenHash();
       PRUint32 oldChildCount = children->entryCount;
-      PL_DHashTableEnumerate(children, SweepRuleNodeChildren, nullptr);
+      PL_DHashTableEnumerate(children, SweepRuleNodeChildren, nsnull);
       childrenDestroyed = children->entryCount - oldChildCount;
     } else {
       childrenDestroyed = 0;

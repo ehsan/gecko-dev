@@ -115,7 +115,7 @@ SVGAnimatedTransformList::ClearAnimValue(nsSVGElement *aElement)
     //
     domWrapper->InternalAnimValListWillChangeLengthTo(mBaseVal.Length());
   }
-  mAnimVal = nullptr;
+  mAnimVal = nsnull;
   aElement->DidAnimateTransformList();
 }
 

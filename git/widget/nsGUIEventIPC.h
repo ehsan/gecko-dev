@@ -297,7 +297,7 @@ struct ParamTraits<nsTextEvent>
       return false;
 
     if (!aResult->rangeCount) {
-      aResult->rangeArray = nullptr;
+      aResult->rangeArray = nsnull;
       return true;
     }
 

@@ -386,7 +386,7 @@ nsMultiplexInputStreamConstructor(nsISupports *outer,
                                   REFNSIID iid,
                                   void **result)
 {
-    *result = nullptr;
+    *result = nsnull;
 
     if (outer)
         return NS_ERROR_NO_AGGREGATION;

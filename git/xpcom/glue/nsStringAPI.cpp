@@ -75,7 +75,7 @@ nsAString::SetLength(PRUint32 aLen)
 {
   char_type *data;
   NS_StringGetMutableData(*this, aLen, &data);
-  return data != nullptr;
+  return data != nsnull;
 }
 
 void
@@ -576,7 +576,7 @@ nsACString::SetLength(PRUint32 aLen)
 {
   char_type *data;
   NS_CStringGetMutableData(*this, aLen, &data);
-  return data != nullptr;
+  return data != nsnull;
 }
 
 void

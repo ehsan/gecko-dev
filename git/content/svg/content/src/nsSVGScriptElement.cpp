@@ -122,16 +122,15 @@ nsSVGScriptElement::nsSVGScriptElement(already_AddRefed<nsINodeInfo> aNodeInfo,
 nsresult
 nsSVGScriptElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
 {
-  *aResult = nullptr;
+  *aResult = nsnull;
 
   nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
   nsSVGScriptElement* it = new nsSVGScriptElement(ni.forget(), NOT_FROM_PARSER);
 
   nsCOMPtr<nsINode> kungFuDeathGrip = it;
-  nsresult rv1 = it->Init();
-  nsresult rv2 = const_cast<nsSVGScriptElement*>(this)->CopyInnerTo(it);
-  NS_ENSURE_SUCCESS(rv1, rv1);
-  NS_ENSURE_SUCCESS(rv2, rv2);
+  nsresult rv = it->Init();
+  rv |= const_cast<nsSVGScriptElement*>(this)->CopyInnerTo(it);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // The clone should be marked evaluated if we are.
   it->mAlreadyStarted = mAlreadyStarted;
@@ -196,7 +195,7 @@ nsSVGScriptElement::FreezeUriAsyncDefer()
     mStringAttributes[HREF].GetAnimValue(src, this);
 
     nsCOMPtr<nsIURI> baseURI = GetBaseURI();
-    NS_NewURI(getter_AddRefs(mUri), src, nullptr, baseURI);
+    NS_NewURI(getter_AddRefs(mUri), src, nsnull, baseURI);
     // At this point mUri will be null for invalid URLs.
     mExternal = true;
   }

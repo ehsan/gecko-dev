@@ -55,7 +55,7 @@ using namespace mozilla;
 struct InlineBackgroundData
 {
   InlineBackgroundData()
-      : mFrame(nullptr), mBlockFrame(nullptr)
+      : mFrame(nsnull), mBlockFrame(nsnull)
   {
   }
 
@@ -67,7 +67,7 @@ struct InlineBackgroundData
   {
     mBoundingBox.SetRect(0,0,0,0);
     mContinuationPoint = mLineContinuationPoint = mUnbrokenWidth = 0;
-    mFrame = mBlockFrame = nullptr;
+    mFrame = mBlockFrame = nsnull;
   }
 
   nsRect GetContinuousRect(nsIFrame* aFrame)
@@ -292,7 +292,7 @@ static nscolor MakeBevelColor(mozilla::css::Side whichSide, PRUint8 style,
                               nscolor aBackgroundColor,
                               nscolor aBorderColor);
 
-static InlineBackgroundData* gInlineBGData = nullptr;
+static InlineBackgroundData* gInlineBGData = nsnull;
 
 // Initialize any static variables used by nsCSSRendering.
 void nsCSSRendering::Init()
@@ -305,7 +305,7 @@ void nsCSSRendering::Init()
 void nsCSSRendering::Shutdown()
 {
   delete gInlineBGData;
-  gInlineBGData = nullptr;
+  gInlineBGData = nsnull;
 }
 
 /**
@@ -691,7 +691,7 @@ nsCSSRendering::PaintOutline(nsPresContext* aPresContext,
                          outlineWidths,
                          outlineRadii,
                          outlineColors,
-                         nullptr, 0,
+                         nsnull, 0,
                          bgColor);
   br.DrawBorders();
 
@@ -744,7 +744,7 @@ nsCSSRendering::PaintFocus(nsPresContext* aPresContext,
                          focusWidths,
                          focusRadii,
                          focusColors,
-                         nullptr, 0,
+                         nsnull, 0,
                          NS_RGB(255, 0, 0));
   br.DrawBorders();
 
@@ -802,7 +802,7 @@ nsCSSRendering::FindNonTransparentBackgroundFrame(nsIFrame* aFrame,
 {
   NS_ASSERTION(aFrame, "Cannot find NonTransparentBackgroundFrame in a null frame");
 
-  nsIFrame* frame = nullptr;
+  nsIFrame* frame = nsnull;
   if (aStartAtParent) {
     frame = nsLayoutUtils::GetParentOrPlaceholderFor(aFrame);
   }
@@ -1079,7 +1079,7 @@ nsCSSRendering::PaintBoxShadowOuter(nsPresContext* aPresContext,
     shadowContext = 
       blurringArea.Init(shadowRect, pixelSpreadRadius,
                         blurRadius, twipsPerPixel, renderContext, aDirtyRect,
-                        useSkipGfxRect ? &skipGfxRect : nullptr,
+                        useSkipGfxRect ? &skipGfxRect : nsnull,
                         nativeTheme ? nsContextBoxBlur::FORCE_MASK : 0);
     if (!shadowContext)
       continue;
@@ -2474,7 +2474,7 @@ nsCSSRendering::PrepareBackgroundLayer(nsPresContext* aPresContext,
     nsIFrame* topFrame =
       aPresContext->PresShell()->FrameManager()->GetRootFrame();
     NS_ASSERTION(topFrame, "no root frame");
-    nsIFrame* pageContentFrame = nullptr;
+    nsIFrame* pageContentFrame = nsnull;
     if (aPresContext->IsPaginated()) {
       pageContentFrame =
         nsLayoutUtils::GetClosestFrameOfType(aForFrame, nsGkAtoms::pageContentFrame);
@@ -3291,7 +3291,7 @@ nsCSSRendering::ExpandPaintingRectForDecorationLine(nsIFrame* aFrame,
       return aClippedRect;
   }
 
-  nsBlockFrame* block = nullptr;
+  nsBlockFrame* block = nsnull;
   // Note that when we paint the decoration lines in relative positioned
   // box, we should paint them like all of the boxes are positioned as static.
   nscoord relativeX = 0;
@@ -3701,9 +3701,9 @@ nsImageRenderer::nsImageRenderer(nsIFrame* aForFrame,
   : mForFrame(aForFrame)
   , mImage(aImage)
   , mType(aImage->GetType())
-  , mImageContainer(nullptr)
-  , mGradientData(nullptr)
-  , mPaintServerFrame(nullptr)
+  , mImageContainer(nsnull)
+  , mGradientData(nsnull)
+  , mPaintServerFrame(nsnull)
   , mIsReady(false)
   , mSize(0, 0)
   , mFlags(aFlags)
@@ -4169,14 +4169,14 @@ already_AddRefed<mozilla::layers::ImageContainer>
 nsImageRenderer::GetContainer()
 {
   if (mType != eStyleImageType_Image)
-    return nullptr;
+    return nsnull;
   nsCOMPtr<imgIContainer> img;
   nsresult rv = mImage->GetImageData()->GetImage(getter_AddRefs(img));
   if (NS_FAILED(rv) || !img)
-    return nullptr;
+    return nsnull;
   nsRefPtr<ImageContainer> container;
   rv = img->GetImageContainer(getter_AddRefs(container));
-  NS_ENSURE_SUCCESS(rv, nullptr);
+  NS_ENSURE_SUCCESS(rv, nsnull);
   return container.forget();
 }
 
@@ -4211,8 +4211,8 @@ nsContextBoxBlur::Init(const nsRect& aRect, nscoord aSpreadRadius,
                        PRUint32 aFlags)
 {
   if (aRect.IsEmpty()) {
-    mContext = nullptr;
-    return nullptr;
+    mContext = nsnull;
+    return nsnull;
   }
 
   gfxFloat scaleX = 1;

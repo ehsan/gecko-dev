@@ -76,7 +76,7 @@ LayerManagerOGL::Destroy()
     if (mRoot) {
       RootLayer()->Destroy();
     }
-    mRoot = nullptr;
+    mRoot = nsnull;
 
     CleanupResources();
 
@@ -125,7 +125,7 @@ LayerManagerOGL::CleanupResources()
     mQuadVBO = 0;
   }
 
-  mGLContext = nullptr;
+  mGLContext = nsnull;
 }
 
 already_AddRefed<mozilla::gl::GLContext>
@@ -157,7 +157,7 @@ LayerManagerOGL::AddPrograms(ShaderProgramType aType)
       mPrograms[aType].mVariations[maskType] = new ShaderProgramOGL(this->gl(),
         ProgramProfileOGL::GetProfileFor(aType, static_cast<MaskType>(maskType)));
     } else {
-      mPrograms[aType].mVariations[maskType] = nullptr;
+      mPrograms[aType].mVariations[maskType] = nsnull;
     }
   }
 }
@@ -168,7 +168,7 @@ LayerManagerOGL::Initialize(nsRefPtr<GLContext> aContext, bool force)
   ScopedGfxFeatureReporter reporter("GL Layers", force);
 
   // Do not allow double initialization
-  NS_ABORT_IF_FALSE(mGLContext == nullptr, "Don't reinitialize layer managers");
+  NS_ABORT_IF_FALSE(mGLContext == nsnull, "Don't reinitialize layer managers");
 
 #ifdef MOZ_WIDGET_ANDROID
   if (!aContext)
@@ -385,7 +385,7 @@ LayerManagerOGL::EndEmptyTransaction()
   if (!mRoot)
     return false;
 
-  EndTransaction(nullptr, nullptr);
+  EndTransaction(nsnull, nsnull);
   return true;
 }
 
@@ -414,8 +414,8 @@ LayerManagerOGL::EndTransaction(DrawThebesLayerCallback aCallback,
 
     Render();
 
-    mThebesLayerCallback = nullptr;
-    mThebesLayerCallbackData = nullptr;
+    mThebesLayerCallback = nsnull;
+    mThebesLayerCallbackData = nsnull;
   }
 
   mTarget = NULL;
@@ -438,7 +438,7 @@ LayerManagerOGL::CreateThebesLayer()
 {
   if (mDestroyed) {
     NS_WARNING("Call on destroyed layer manager");
-    return nullptr;
+    return nsnull;
   }
 
   nsRefPtr<ThebesLayer> layer = new ThebesLayerOGL(this);
@@ -450,7 +450,7 @@ LayerManagerOGL::CreateContainerLayer()
 {
   if (mDestroyed) {
     NS_WARNING("Call on destroyed layer manager");
-    return nullptr;
+    return nsnull;
   }
 
   nsRefPtr<ContainerLayer> layer = new ContainerLayerOGL(this);
@@ -462,7 +462,7 @@ LayerManagerOGL::CreateImageLayer()
 {
   if (mDestroyed) {
     NS_WARNING("Call on destroyed layer manager");
-    return nullptr;
+    return nsnull;
   }
 
   nsRefPtr<ImageLayer> layer = new ImageLayerOGL(this);
@@ -474,7 +474,7 @@ LayerManagerOGL::CreateColorLayer()
 {
   if (mDestroyed) {
     NS_WARNING("Call on destroyed layer manager");
-    return nullptr;
+    return nsnull;
   }
 
   nsRefPtr<ColorLayer> layer = new ColorLayerOGL(this);
@@ -486,7 +486,7 @@ LayerManagerOGL::CreateCanvasLayer()
 {
   if (mDestroyed) {
     NS_WARNING("Call on destroyed layer manager");
-    return nullptr;
+    return nsnull;
   }
 
   nsRefPtr<CanvasLayer> layer = new CanvasLayerOGL(this);
@@ -498,7 +498,7 @@ LayerManagerOGL::RootLayer() const
 {
   if (mDestroyed) {
     NS_WARNING("Call on destroyed layer manager");
-    return nullptr;
+    return nsnull;
   }
 
   return static_cast<LayerOGL*>(mRoot->ImplData());
@@ -864,7 +864,7 @@ LayerManagerOGL::Render()
   const nsIntRect *r;
   nsIntRegionRectIterator iter(mClippingRegion);
 
-  while ((r = iter.Next()) != nullptr) {
+  while ((r = iter.Next()) != nsnull) {
     nsIntRect cRect = *r; r = &cRect;
     WorldTransformRect(cRect);
     float left = (GLfloat)r->x / width;
@@ -1202,7 +1202,7 @@ LayerManagerOGL::CreateShadowThebesLayer()
 {
   if (LayerManagerOGL::mDestroyed) {
     NS_WARNING("Call on destroyed layer manager");
-    return nullptr;
+    return nsnull;
   }
 #ifdef FORCE_BASICTILEDTHEBESLAYER
   return nsRefPtr<ShadowThebesLayer>(new TiledThebesLayerOGL(this)).forget();
@@ -1216,7 +1216,7 @@ LayerManagerOGL::CreateShadowContainerLayer()
 {
   if (LayerManagerOGL::mDestroyed) {
     NS_WARNING("Call on destroyed layer manager");
-    return nullptr;
+    return nsnull;
   }
   return nsRefPtr<ShadowContainerLayerOGL>(new ShadowContainerLayerOGL(this)).forget();
 }
@@ -1226,7 +1226,7 @@ LayerManagerOGL::CreateShadowImageLayer()
 {
   if (LayerManagerOGL::mDestroyed) {
     NS_WARNING("Call on destroyed layer manager");
-    return nullptr;
+    return nsnull;
   }
   return nsRefPtr<ShadowImageLayerOGL>(new ShadowImageLayerOGL(this)).forget();
 }
@@ -1236,7 +1236,7 @@ LayerManagerOGL::CreateShadowColorLayer()
 {
   if (LayerManagerOGL::mDestroyed) {
     NS_WARNING("Call on destroyed layer manager");
-    return nullptr;
+    return nsnull;
   }
   return nsRefPtr<ShadowColorLayerOGL>(new ShadowColorLayerOGL(this)).forget();
 }
@@ -1246,7 +1246,7 @@ LayerManagerOGL::CreateShadowCanvasLayer()
 {
   if (LayerManagerOGL::mDestroyed) {
     NS_WARNING("Call on destroyed layer manager");
-    return nullptr;
+    return nsnull;
   }
   return nsRefPtr<ShadowCanvasLayerOGL>(new ShadowCanvasLayerOGL(this)).forget();
 }
@@ -1256,7 +1256,7 @@ LayerManagerOGL::CreateShadowRefLayer()
 {
   if (LayerManagerOGL::mDestroyed) {
     NS_WARNING("Call on destroyed layer manager");
-    return nullptr;
+    return nsnull;
   }
   return nsRefPtr<ShadowRefLayerOGL>(new ShadowRefLayerOGL(this)).forget();
 }

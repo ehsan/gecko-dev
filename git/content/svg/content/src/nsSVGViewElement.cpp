@@ -16,7 +16,7 @@ nsSVGElement::StringListInfo nsSVGViewElement::sStringListInfo[1] =
 nsSVGEnumMapping nsSVGViewElement::sZoomAndPanMap[] = {
   {&nsGkAtoms::disable, nsIDOMSVGZoomAndPan::SVG_ZOOMANDPAN_DISABLE},
   {&nsGkAtoms::magnify, nsIDOMSVGZoomAndPan::SVG_ZOOMANDPAN_MAGNIFY},
-  {nullptr, 0}
+  {nsnull, 0}
 };
 
 nsSVGElement::EnumInfo nsSVGViewElement::sEnumInfo[1] =

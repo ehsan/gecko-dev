@@ -72,7 +72,7 @@ static NS_DEFINE_IID(kIRDFNodeIID,            NS_IRDFNODE_IID);
 static NS_DEFINE_IID(kISupportsIID,           NS_ISUPPORTS_IID);
 
 #ifdef PR_LOGGING
-static PRLogModuleInfo* gLog = nullptr;
+static PRLogModuleInfo* gLog = nsnull;
 #endif
 
 class BlobImpl;
@@ -148,7 +148,7 @@ static PLDHashTableOps gResourceTableOps = {
     PL_DHashMoveEntryStub,
     PL_DHashClearEntryStub,
     PL_DHashFinalizeStub,
-    nullptr
+    nsnull
 };
 
 // ----------------------------------------------------------------------
@@ -186,7 +186,7 @@ static PLDHashTableOps gLiteralTableOps = {
     PL_DHashMoveEntryStub,
     PL_DHashClearEntryStub,
     PL_DHashFinalizeStub,
-    nullptr
+    nsnull
 };
 
 // ----------------------------------------------------------------------
@@ -223,7 +223,7 @@ static PLDHashTableOps gIntTableOps = {
     PL_DHashMoveEntryStub,
     PL_DHashClearEntryStub,
     PL_DHashFinalizeStub,
-    nullptr
+    nsnull
 };
 
 // ----------------------------------------------------------------------
@@ -269,7 +269,7 @@ static PLDHashTableOps gDateTableOps = {
     PL_DHashMoveEntryStub,
     PL_DHashClearEntryStub,
     PL_DHashFinalizeStub,
-    nullptr
+    nsnull
 };
 
 class BlobImpl : public nsIRDFBlob
@@ -387,7 +387,7 @@ static PLDHashTableOps gBlobTableOps = {
     PL_DHashMoveEntryStub,
     PL_DHashClearEntryStub,
     PL_DHashFinalizeStub,
-    nullptr
+    nsnull
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -468,7 +468,7 @@ LiteralImpl::QueryInterface(REFNSIID iid, void** result)
     if (! result)
         return NS_ERROR_NULL_POINTER;
 
-    *result = nullptr;
+    *result = nsnull;
     if (iid.Equals(kIRDFLiteralIID) ||
         iid.Equals(kIRDFNodeIID) ||
         iid.Equals(kISupportsIID)) {
@@ -570,7 +570,7 @@ DateImpl::QueryInterface(REFNSIID iid, void** result)
     if (! result)
         return NS_ERROR_NULL_POINTER;
 
-    *result = nullptr;
+    *result = nsnull;
     if (iid.Equals(kIRDFDateIID) ||
         iid.Equals(kIRDFNodeIID) ||
         iid.Equals(kISupportsIID)) {
@@ -676,7 +676,7 @@ IntImpl::QueryInterface(REFNSIID iid, void** result)
     if (! result)
         return NS_ERROR_NULL_POINTER;
 
-    *result = nullptr;
+    *result = nsnull;
     if (iid.Equals(kIRDFIntIID) ||
         iid.Equals(kIRDFNodeIID) ||
         iid.Equals(kISupportsIID)) {
@@ -738,13 +738,13 @@ RDFServiceImpl*
 RDFServiceImpl::gRDFService;
 
 RDFServiceImpl::RDFServiceImpl()
-    :  mNamedDataSources(nullptr)
+    :  mNamedDataSources(nsnull)
 {
-    mResources.ops = nullptr;
-    mLiterals.ops = nullptr;
-    mInts.ops = nullptr;
-    mDates.ops = nullptr;
-    mBlobs.ops = nullptr;
+    mResources.ops = nsnull;
+    mLiterals.ops = nsnull;
+    mInts.ops = nsnull;
+    mDates.ops = nsnull;
+    mBlobs.ops = nsnull;
     gRDFService = this;
 }
 
@@ -757,34 +757,34 @@ RDFServiceImpl::Init()
                                         PL_HashString,
                                         PL_CompareStrings,
                                         PL_CompareValues,
-                                        &dataSourceHashAllocOps, nullptr);
+                                        &dataSourceHashAllocOps, nsnull);
 
     if (! mNamedDataSources)
         return NS_ERROR_OUT_OF_MEMORY;
 
-    if (!PL_DHashTableInit(&mResources, &gResourceTableOps, nullptr,
+    if (!PL_DHashTableInit(&mResources, &gResourceTableOps, nsnull,
                            sizeof(ResourceHashEntry), PL_DHASH_MIN_SIZE)) {
-        mResources.ops = nullptr;
+        mResources.ops = nsnull;
         return NS_ERROR_OUT_OF_MEMORY;
     }
-    if (!PL_DHashTableInit(&mLiterals, &gLiteralTableOps, nullptr,
+    if (!PL_DHashTableInit(&mLiterals, &gLiteralTableOps, nsnull,
                            sizeof(LiteralHashEntry), PL_DHASH_MIN_SIZE)) {
-        mLiterals.ops = nullptr;
+        mLiterals.ops = nsnull;
         return NS_ERROR_OUT_OF_MEMORY;
     }
-    if (!PL_DHashTableInit(&mInts, &gIntTableOps, nullptr,
+    if (!PL_DHashTableInit(&mInts, &gIntTableOps, nsnull,
                            sizeof(IntHashEntry), PL_DHASH_MIN_SIZE)) {
-        mInts.ops = nullptr;
+        mInts.ops = nsnull;
         return NS_ERROR_OUT_OF_MEMORY;
     }
-    if (!PL_DHashTableInit(&mDates, &gDateTableOps, nullptr,
+    if (!PL_DHashTableInit(&mDates, &gDateTableOps, nsnull,
                            sizeof(DateHashEntry), PL_DHASH_MIN_SIZE)) {
-        mDates.ops = nullptr;
+        mDates.ops = nsnull;
         return NS_ERROR_OUT_OF_MEMORY;
     }
-    if (!PL_DHashTableInit(&mBlobs, &gBlobTableOps, nullptr,
+    if (!PL_DHashTableInit(&mBlobs, &gBlobTableOps, nsnull,
                            sizeof(BlobHashEntry), PL_DHASH_MIN_SIZE)) {
-        mBlobs.ops = nullptr;
+        mBlobs.ops = nsnull;
         return NS_ERROR_OUT_OF_MEMORY;
     }
     mDefaultResourceFactory = do_GetClassObject(kRDFDefaultResourceCID, &rv);
@@ -804,7 +804,7 @@ RDFServiceImpl::~RDFServiceImpl()
 {
     if (mNamedDataSources) {
         PL_HashTableDestroy(mNamedDataSources);
-        mNamedDataSources = nullptr;
+        mNamedDataSources = nsnull;
     }
     if (mResources.ops)
         PL_DHashTableFinish(&mResources);
@@ -816,7 +816,7 @@ RDFServiceImpl::~RDFServiceImpl()
         PL_DHashTableFinish(&mDates);
     if (mBlobs.ops)
         PL_DHashTableFinish(&mBlobs);
-    gRDFService = nullptr;
+    gRDFService = nsnull;
 }
 
 
@@ -885,7 +885,7 @@ NS_IMETHODIMP
 RDFServiceImpl::GetResource(const nsACString& aURI, nsIRDFResource** aResource)
 {
     // Sanity checks
-    NS_PRECONDITION(aResource != nullptr, "null ptr");
+    NS_PRECONDITION(aResource != nsnull, "null ptr");
     NS_PRECONDITION(!aURI.IsEmpty(), "URI is empty");
     if (! aResource)
         return NS_ERROR_NULL_POINTER;
@@ -969,7 +969,7 @@ RDFServiceImpl::GetResource(const nsACString& aURI, nsIRDFResource** aResource)
     }
 
     nsIRDFResource *result;
-    rv = factory->CreateInstance(nullptr, NS_GET_IID(nsIRDFResource), (void**) &result);
+    rv = factory->CreateInstance(nsnull, NS_GET_IID(nsIRDFResource), (void**) &result);
     if (NS_FAILED(rv)) return rv;
 
     // Now initialize it with its URI. At this point, the resource
@@ -1058,11 +1058,11 @@ static PRInt32 kShift = 6;
 NS_IMETHODIMP
 RDFServiceImpl::GetLiteral(const PRUnichar* aValue, nsIRDFLiteral** aLiteral)
 {
-    NS_PRECONDITION(aValue != nullptr, "null ptr");
+    NS_PRECONDITION(aValue != nsnull, "null ptr");
     if (! aValue)
         return NS_ERROR_NULL_POINTER;
 
-    NS_PRECONDITION(aLiteral != nullptr, "null ptr");
+    NS_PRECONDITION(aLiteral != nsnull, "null ptr");
     if (! aLiteral)
         return NS_ERROR_NULL_POINTER;
 
@@ -1148,7 +1148,7 @@ RDFServiceImpl::GetBlobLiteral(const PRUint8 *aBytes, PRInt32 aLength,
 NS_IMETHODIMP
 RDFServiceImpl::IsAnonymousResource(nsIRDFResource* aResource, bool* _result)
 {
-    NS_PRECONDITION(aResource != nullptr, "null ptr");
+    NS_PRECONDITION(aResource != nsnull, "null ptr");
     if (! aResource)
         return NS_ERROR_NULL_POINTER;
 
@@ -1176,7 +1176,7 @@ RDFServiceImpl::IsAnonymousResource(nsIRDFResource* aResource, bool* _result)
 NS_IMETHODIMP
 RDFServiceImpl::RegisterResource(nsIRDFResource* aResource, bool aReplace)
 {
-    NS_PRECONDITION(aResource != nullptr, "null ptr");
+    NS_PRECONDITION(aResource != nsnull, "null ptr");
     if (! aResource)
         return NS_ERROR_NULL_POINTER;
 
@@ -1187,7 +1187,7 @@ RDFServiceImpl::RegisterResource(nsIRDFResource* aResource, bool aReplace)
     NS_ASSERTION(NS_SUCCEEDED(rv), "unable to get URI from resource");
     if (NS_FAILED(rv)) return rv;
 
-    NS_ASSERTION(uri != nullptr, "resource has no URI");
+    NS_ASSERTION(uri != nsnull, "resource has no URI");
     if (! uri)
         return NS_ERROR_NULL_POINTER;
 
@@ -1233,7 +1233,7 @@ RDFServiceImpl::RegisterResource(nsIRDFResource* aResource, bool aReplace)
 NS_IMETHODIMP
 RDFServiceImpl::UnregisterResource(nsIRDFResource* aResource)
 {
-    NS_PRECONDITION(aResource != nullptr, "null ptr");
+    NS_PRECONDITION(aResource != nsnull, "null ptr");
     if (! aResource)
         return NS_ERROR_NULL_POINTER;
 
@@ -1243,7 +1243,7 @@ RDFServiceImpl::UnregisterResource(nsIRDFResource* aResource)
     rv = aResource->GetValueConst(&uri);
     if (NS_FAILED(rv)) return rv;
 
-    NS_ASSERTION(uri != nullptr, "resource has no URI");
+    NS_ASSERTION(uri != nsnull, "resource has no URI");
     if (! uri)
         return NS_ERROR_UNEXPECTED;
 
@@ -1263,7 +1263,7 @@ RDFServiceImpl::UnregisterResource(nsIRDFResource* aResource)
 NS_IMETHODIMP
 RDFServiceImpl::RegisterDataSource(nsIRDFDataSource* aDataSource, bool aReplace)
 {
-    NS_PRECONDITION(aDataSource != nullptr, "null ptr");
+    NS_PRECONDITION(aDataSource != nsnull, "null ptr");
     if (! aDataSource)
         return NS_ERROR_NULL_POINTER;
 
@@ -1310,7 +1310,7 @@ RDFServiceImpl::RegisterDataSource(nsIRDFDataSource* aDataSource, bool aReplace)
 NS_IMETHODIMP
 RDFServiceImpl::UnregisterDataSource(nsIRDFDataSource* aDataSource)
 {
-    NS_PRECONDITION(aDataSource != nullptr, "null ptr");
+    NS_PRECONDITION(aDataSource != nsnull, "null ptr");
     if (! aDataSource)
         return NS_ERROR_NULL_POINTER;
 
@@ -1320,7 +1320,7 @@ RDFServiceImpl::UnregisterDataSource(nsIRDFDataSource* aDataSource)
     rv = aDataSource->GetURI(getter_Copies(uri));
     if (NS_FAILED(rv)) return rv;
 
-    //NS_ASSERTION(uri != nullptr, "datasource has no URI");
+    //NS_ASSERTION(uri != nsnull, "datasource has no URI");
     if (! uri)
         return NS_ERROR_UNEXPECTED;
 
@@ -1362,7 +1362,7 @@ RDFServiceImpl::GetDataSourceBlocking(const char* aURI, nsIRDFDataSource** aData
 nsresult
 RDFServiceImpl::GetDataSource(const char* aURI, bool aBlock, nsIRDFDataSource** aDataSource)
 {
-    NS_PRECONDITION(aURI != nullptr, "null ptr");
+    NS_PRECONDITION(aURI != nsnull, "null ptr");
     if (! aURI)
         return NS_ERROR_NULL_POINTER;
 

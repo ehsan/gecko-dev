@@ -27,8 +27,8 @@
 static NS_DEFINE_CID(kThisImplCID, NS_THIS_STANDARDURL_IMPL_CID);
 static NS_DEFINE_CID(kStandardURLCID, NS_STANDARDURL_CID);
 
-nsIIDNService *nsStandardURL::gIDN = nullptr;
-nsICharsetConverterManager *nsStandardURL::gCharsetMgr = nullptr;
+nsIIDNService *nsStandardURL::gIDN = nsnull;
+nsICharsetConverterManager *nsStandardURL::gCharsetMgr = nsnull;
 bool nsStandardURL::gInitialized = false;
 bool nsStandardURL::gEscapeUTF8 = true;
 bool nsStandardURL::gAlwaysEncodeInUTF8 = true;
@@ -230,7 +230,7 @@ nsSegmentEncoder::InitUnicodeEncoder()
 }
 
 #define GET_SEGMENT_ENCODER_INTERNAL(name, useUTF8) \
-    nsSegmentEncoder name(useUTF8 ? nullptr : mOriginCharset.get())
+    nsSegmentEncoder name(useUTF8 ? nsnull : mOriginCharset.get())
 
 #define GET_SEGMENT_ENCODER(name) \
     GET_SEGMENT_ENCODER_INTERNAL(name, gAlwaysEncodeInUTF8)
@@ -249,7 +249,7 @@ static PRCList gAllURLs;
 nsStandardURL::nsStandardURL(bool aSupportsFileURL)
     : mDefaultPort(-1)
     , mPort(-1)
-    , mHostA(nullptr)
+    , mHostA(nsnull)
     , mHostEncoding(eEncoding_ASCII)
     , mSpecEncoding(eEncoding_Unknown)
     , mURLType(URLTYPE_STANDARD)
@@ -314,7 +314,7 @@ nsStandardURL::InitGlobalObjects()
         prefBranch->AddObserver(NS_NET_PREF_ALWAYSENCODEINUTF8, obs.get(), false);
         prefBranch->AddObserver(NS_NET_PREF_ENABLEIDN, obs.get(), false);
 
-        PrefsChanged(prefBranch, nullptr);
+        PrefsChanged(prefBranch, nsnull);
     }
 
 #ifdef DEBUG_DUMP_URLS_AT_SHUTDOWN
@@ -894,7 +894,7 @@ nsStandardURL::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
 
     LOG(("nsStandardURL::PrefsChanged [pref=%s]\n", pref));
 
-#define PREF_CHANGED(p) ((pref == nullptr) || !strcmp(pref, p))
+#define PREF_CHANGED(p) ((pref == nsnull) || !strcmp(pref, p))
 #define GOT_PREF(p, b) (NS_SUCCEEDED(prefs->GetBoolPref(p, &b)))
 
     if (PREF_CHANGED(NS_NET_PREF_ENABLEIDN)) {
@@ -1758,7 +1758,7 @@ nsStandardURL::CloneInternal(nsStandardURL::RefHandlingEnum refHandlingMode,
     clone->mURLType = mURLType;
     clone->mParser = mParser;
     clone->mFile = mFile;
-    clone->mHostA = mHostA ? nsCRT::strdup(mHostA) : nullptr;
+    clone->mHostA = mHostA ? nsCRT::strdup(mHostA) : nsnull;
     clone->mMutable = true;
     clone->mSupportsFileURL = mSupportsFileURL;
     clone->mHostEncoding = mHostEncoding;
@@ -1787,7 +1787,7 @@ nsStandardURL::Resolve(const nsACString &in, nsACString &out)
     } else
         relpathLen = flat.Length();
     
-    char *result = nullptr;
+    char *result = nsnull;
 
     LOG(("nsStandardURL::Resolve [this=%p spec=%s relpath=%s]\n",
         this, mSpec.get(), relpath));
@@ -1805,7 +1805,7 @@ nsStandardURL::Resolve(const nsACString &in, nsACString &out)
 
     nsresult rv;
     URLSegment scheme;
-    char *resultPath = nullptr;
+    char *resultPath = nsnull;
     bool relative = false;
     PRUint32 offset = 0;
     netCoalesceFlags coalesceFlag = NET_COALESCE_NORMAL;
@@ -1816,8 +1816,8 @@ nsStandardURL::Resolve(const nsACString &in, nsACString &out)
     rv = mParser->ParseURL(relpath, 
                            relpathLen,
                            &scheme.mPos, &scheme.mLen,
-                           nullptr, nullptr,
-                           nullptr, nullptr);
+                           nsnull, nsnull,
+                           nsnull, nsnull);
 
     // if the parser fails (for example because there is no valid scheme)
     // reset the scheme and assume a relative url
@@ -2553,7 +2553,7 @@ nsStandardURL::SetFile(nsIFile *file)
 
     SetSpec(url);
 
-    rv = Init(mURLType, mDefaultPort, url, nullptr, nullptr);
+    rv = Init(mURLType, mDefaultPort, url, nsnull, nsnull);
 
     // must clone |file| since its value is not guaranteed to remain constant
     if (NS_SUCCEEDED(rv)) {
@@ -2609,7 +2609,7 @@ nsStandardURL::Init(PRUint32 urlType,
 
     mOriginCharset.Truncate();
 
-    if (charset == nullptr || *charset == '\0') {
+    if (charset == nsnull || *charset == '\0') {
         // check if baseURI provides an origin charset and use that.
         if (baseURI)
             baseURI->GetOriginCharset(mOriginCharset);
@@ -2631,7 +2631,7 @@ nsStandardURL::Init(PRUint32 urlType,
     if (baseURI) {
         PRUint32 start, end;
         // pull out the scheme and where it ends
-        nsresult rv = net_ExtractURLScheme(spec, &start, &end, nullptr);
+        nsresult rv = net_ExtractURLScheme(spec, &start, &end, nsnull);
         if (NS_SUCCEEDED(rv) && spec.Length() > end+2) {
             nsACString::const_iterator slash;
             spec.BeginReading(slash);
@@ -2640,7 +2640,7 @@ nsStandardURL::Init(PRUint32 urlType,
             // if it follows, aSpec is really absolute ... 
             // ignore aBaseURI in this case
             if (*slash == '/' && *(++slash) == '/')
-                baseURI = nullptr;
+                baseURI = nsnull;
         }
     }
 
@@ -2981,28 +2981,28 @@ NS_IMETHODIMP
 nsStandardURL::GetInterfaces(PRUint32 *count, nsIID * **array)
 {
     *count = 0;
-    *array = nullptr;
+    *array = nsnull;
     return NS_OK;
 }
 
 NS_IMETHODIMP 
 nsStandardURL::GetHelperForLanguage(PRUint32 language, nsISupports **_retval)
 {
-    *_retval = nullptr;
+    *_retval = nsnull;
     return NS_OK;
 }
 
 NS_IMETHODIMP 
 nsStandardURL::GetContractID(char * *aContractID)
 {
-    *aContractID = nullptr;
+    *aContractID = nsnull;
     return NS_OK;
 }
 
 NS_IMETHODIMP 
 nsStandardURL::GetClassDescription(char * *aClassDescription)
 {
-    *aClassDescription = nullptr;
+    *aClassDescription = nsnull;
     return NS_OK;
 }
 

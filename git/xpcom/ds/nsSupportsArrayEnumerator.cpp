@@ -69,10 +69,8 @@ nsSupportsArrayEnumerator::IsDone()
   PRUint32 cnt;
   nsresult rv = mArray->Count(&cnt);
   if (NS_FAILED(rv)) return rv;
-  // XXX This is completely incompatible with the meaning of nsresult.
-  // NS_ENUMERATOR_FALSE is defined to be 1.  (bug 778111)
   return (mCursor >= 0 && mCursor < (PRInt32)cnt)
-    ? (nsresult)NS_ENUMERATOR_FALSE : NS_OK;
+    ? NS_ENUMERATOR_FALSE : NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

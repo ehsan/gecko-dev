@@ -320,7 +320,7 @@ private:
                               HWND aWnd, UINT aMsg,
                               WPARAM aWParam, LPARAM aLParam,
                               bool isWindowed)
-          : ChildAsyncCall(aInst, nullptr, nullptr),
+          : ChildAsyncCall(aInst, nsnull, nsnull),
           mWnd(aWnd),
           mMsg(aMsg),
           mWParam(aWParam),

@@ -328,11 +328,10 @@ PKIX_PL_OID_CreateBySECItem(
                     plContext),
                     PKIX_COULDNOTCREATEOBJECT);
         rv = SECITEM_CopyItem(NULL, &oid->derOid, derOid);
-        if (rv != SECSuccess) {
-            PKIX_ERROR(PKIX_OUTOFMEMORY);
+        if (rv != SECFailure) {
+            *pOID = oid;
+            oid = NULL;
         }
-        *pOID = oid;
-        oid = NULL;
         
 cleanup:
         PKIX_DECREF(oid);

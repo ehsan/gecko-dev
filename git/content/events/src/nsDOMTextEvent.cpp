@@ -10,7 +10,7 @@
 nsDOMTextEvent::nsDOMTextEvent(nsPresContext* aPresContext,
                                nsTextEvent* aEvent)
   : nsDOMUIEvent(aPresContext, aEvent ? aEvent :
-                 new nsTextEvent(false, 0, nullptr))
+                 new nsTextEvent(false, 0, nsnull))
 {
   NS_ASSERTION(mEvent->eventStructType == NS_TEXT_EVENT, "event type mismatch");
 
@@ -65,11 +65,11 @@ NS_METHOD_(already_AddRefed<nsIPrivateTextRangeList>) nsDOMTextEvent::GetInputRa
 {
   if (mEvent->message == NS_TEXT_TEXT) {
     nsRefPtr<nsPrivateTextRangeList> textRange = mTextRange;
-    nsPrivateTextRangeList *textRangePtr = nullptr;
+    nsPrivateTextRangeList *textRangePtr = nsnull;
     textRange.swap(textRangePtr);
     return textRangePtr;
   }
-  return nullptr;
+  return nsnull;
 }
 
 nsresult NS_NewDOMTextEvent(nsIDOMEvent** aInstancePtrResult,
@@ -77,7 +77,7 @@ nsresult NS_NewDOMTextEvent(nsIDOMEvent** aInstancePtrResult,
                             nsTextEvent *aEvent)
 {
   nsDOMTextEvent* it = new nsDOMTextEvent(aPresContext, aEvent);
-  if (nullptr == it) {
+  if (nsnull == it) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
 

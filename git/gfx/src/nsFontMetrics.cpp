@@ -71,7 +71,7 @@ public:
 } // anon namespace
 
 nsFontMetrics::nsFontMetrics()
-    : mDeviceContext(nullptr), mP2A(0), mTextRunRTL(false)
+    : mDeviceContext(nsnull), mP2A(0), mTextRunRTL(false)
 {
 }
 
@@ -116,7 +116,7 @@ nsFontMetrics::Init(const nsFont& aFont, nsIAtom* aLanguage,
 void
 nsFontMetrics::Destroy()
 {
-    mDeviceContext = nullptr;
+    mDeviceContext = nsnull;
 }
 
 // XXXTODO get rid of this macro
@@ -307,7 +307,7 @@ nsFontMetrics::DrawString(const char *aString, PRUint32 aLength,
         pt.x += textRun->GetAdvanceWidth(0, aLength, &provider);
     }
     textRun->Draw(aContext->ThebesContext(), pt, gfxFont::GLYPH_FILL, 0, aLength,
-                  &provider, nullptr, nullptr);
+                  &provider, nsnull, nsnull);
 }
 
 void
@@ -329,7 +329,7 @@ nsFontMetrics::DrawString(const PRUnichar* aString, PRUint32 aLength,
         pt.x += textRun->GetAdvanceWidth(0, aLength, &provider);
     }
     textRun->Draw(aContext->ThebesContext(), pt, gfxFont::GLYPH_FILL, 0, aLength,
-                  &provider, nullptr, nullptr);
+                  &provider, nsnull, nsnull);
 }
 
 static nsBoundingMetrics

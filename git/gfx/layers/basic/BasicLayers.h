@@ -76,14 +76,18 @@ public:
    * mode we always completely overwrite the contents of aContext's
    * destination surface (within the clip region) using OPERATOR_SOURCE.
    */
+  enum BufferMode {
+    BUFFER_NONE,
+    BUFFER_BUFFERED
+  };
   virtual void SetDefaultTarget(gfxContext* aContext, BufferMode aDoubleBuffering,
                                 ScreenRotation aRotation);
   gfxContext* GetDefaultTarget() { return mDefaultTarget; }
 
   nsIWidget* GetRetainerWidget() { return mWidget; }
-  void ClearRetainerWidget() { mWidget = nullptr; }
+  void ClearRetainerWidget() { mWidget = nsnull; }
 
-  virtual bool IsWidgetLayerManager() { return mWidget != nullptr; }
+  virtual bool IsWidgetLayerManager() { return mWidget != nsnull; }
 
   virtual void BeginTransaction();
   virtual void BeginTransactionWithTarget(gfxContext* aTarget);
@@ -106,17 +110,17 @@ public:
   virtual ImageFactory *GetImageFactory();
 
   virtual already_AddRefed<ShadowThebesLayer> CreateShadowThebesLayer()
-  { return nullptr; }
+  { return nsnull; }
   virtual already_AddRefed<ShadowContainerLayer> CreateShadowContainerLayer()
-  { return nullptr; }
+  { return nsnull; }
   virtual already_AddRefed<ShadowImageLayer> CreateShadowImageLayer()
-  { return nullptr; }
+  { return nsnull; }
   virtual already_AddRefed<ShadowColorLayer> CreateShadowColorLayer()
-  { return nullptr; }
+  { return nsnull; }
   virtual already_AddRefed<ShadowCanvasLayer> CreateShadowCanvasLayer()
-  { return nullptr; }
+  { return nsnull; }
   virtual already_AddRefed<ShadowRefLayer> CreateShadowRefLayer()
-  { return nullptr; }
+  { return nsnull; }
 
   virtual LayersBackend GetBackendType() { return LAYERS_BASIC; }
   virtual void GetBackendName(nsAString& name) { name.AssignLiteral("Basic"); }
@@ -130,7 +134,7 @@ public:
 
   gfxContext* GetTarget() { return mTarget; }
   void SetTarget(gfxContext* aTarget) { mUsingDefaultTarget = false; mTarget = aTarget; }
-  bool IsRetained() { return mWidget != nullptr; }
+  bool IsRetained() { return mWidget != nsnull; }
 
 #ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() const { return "Basic"; }
@@ -312,10 +316,10 @@ public:
     // automatically managed by IPDL, so we don't need to explicitly
     // free them here (it's hard to get that right on emergency
     // shutdown anyway).
-    mShadow = nullptr;
+    mShadow = nsnull;
   }
 
-  virtual BasicShadowableThebesLayer* AsThebes() { return nullptr; }
+  virtual BasicShadowableThebesLayer* AsThebes() { return nsnull; }
 };
 
 

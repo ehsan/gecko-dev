@@ -12,7 +12,7 @@ BEGIN_INDEXEDDB_NAMESPACE
 
 inline
 StructuredCloneWriteInfo::StructuredCloneWriteInfo()
-: mTransaction(nullptr),
+: mTransaction(nsnull),
   mOffsetToKeyProp(0)
 {
 }
@@ -36,7 +36,7 @@ StructuredCloneWriteInfo::SetFromSerialized(
 
 inline
 StructuredCloneReadInfo::StructuredCloneReadInfo()
-: mDatabase(nullptr)
+: mDatabase(nsnull)
 {
 }
 

@@ -44,7 +44,7 @@
 
 using namespace mozilla;
 
-static nsOfflineCacheUpdateService *gOfflineCacheUpdateService = nullptr;
+static nsOfflineCacheUpdateService *gOfflineCacheUpdateService = nsnull;
 
 typedef mozilla::docshell::OfflineCacheUpdateParent OfflineCacheUpdateParent;
 typedef mozilla::docshell::OfflineCacheUpdateChild OfflineCacheUpdateChild;
@@ -162,7 +162,7 @@ nsOfflineCachePendingUpdate::OnStateChange(nsIWebProgress* aWebProgress,
     if (NS_SUCCEEDED(aStatus)) {
         nsCOMPtr<nsIOfflineCacheUpdate> update;
         mService->Schedule(mManifestURI, mDocumentURI,
-                           updateDoc, window, nullptr, getter_AddRefs(update));
+                           updateDoc, window, nsnull, getter_AddRefs(update));
     }
 
     aWebProgress->RemoveProgressListener(this);
@@ -221,7 +221,7 @@ nsOfflineCacheUpdateService::nsOfflineCacheUpdateService()
 
 nsOfflineCacheUpdateService::~nsOfflineCacheUpdateService()
 {
-    gOfflineCacheUpdateService = nullptr;
+    gOfflineCacheUpdateService = nsnull;
 }
 
 nsresult
@@ -255,12 +255,12 @@ nsOfflineCacheUpdateService::GetInstance()
     if (!gOfflineCacheUpdateService) {
         gOfflineCacheUpdateService = new nsOfflineCacheUpdateService();
         if (!gOfflineCacheUpdateService)
-            return nullptr;
+            return nsnull;
         NS_ADDREF(gOfflineCacheUpdateService);
         nsresult rv = gOfflineCacheUpdateService->Init();
         if (NS_FAILED(rv)) {
             NS_RELEASE(gOfflineCacheUpdateService);
-            return nullptr;
+            return nsnull;
         }
         return gOfflineCacheUpdateService;
     }
@@ -391,7 +391,7 @@ nsOfflineCacheUpdateService::GetUpdate(PRUint32 aIndex,
     if (aIndex < mUpdates.Length()) {
         NS_ADDREF(*aUpdate = mUpdates[aIndex]);
     } else {
-        *aUpdate = nullptr;
+        *aUpdate = nsnull;
     }
 
     return NS_OK;
@@ -467,7 +467,7 @@ nsOfflineCacheUpdateService::ScheduleUpdate(nsIURI *aManifestURI,
                                             nsIDOMWindow *aWindow,
                                             nsIOfflineCacheUpdate **aUpdate)
 {
-    return Schedule(aManifestURI, aDocumentURI, nullptr, aWindow, nullptr, aUpdate);
+    return Schedule(aManifestURI, aDocumentURI, nsnull, aWindow, nsnull, aUpdate);
 }
 
 NS_IMETHODIMP
@@ -479,7 +479,7 @@ nsOfflineCacheUpdateService::ScheduleCustomProfileUpdate(nsIURI *aManifestURI,
     // The profile directory is mandatory
     NS_ENSURE_ARG(aProfileDir);
 
-    return Schedule(aManifestURI, aDocumentURI, nullptr, nullptr, aProfileDir, aUpdate);
+    return Schedule(aManifestURI, aDocumentURI, nsnull, nsnull, aProfileDir, aUpdate);
 }
 
 //-----------------------------------------------------------------------------

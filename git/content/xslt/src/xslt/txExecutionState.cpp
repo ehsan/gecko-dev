@@ -52,15 +52,15 @@ txLoadedDocumentsHash::~txLoadedDocumentsHash()
 
 txExecutionState::txExecutionState(txStylesheet* aStylesheet,
                                    bool aDisableLoads)
-    : mOutputHandler(nullptr),
-      mResultHandler(nullptr),
+    : mOutputHandler(nsnull),
+      mResultHandler(nsnull),
       mStylesheet(aStylesheet),
-      mNextInstruction(nullptr),
-      mLocalVariables(nullptr),
+      mNextInstruction(nsnull),
+      mLocalVariables(nsnull),
       mRecursionDepth(0),
-      mEvalContext(nullptr),
-      mInitialEvalContext(nullptr),
-      mGlobalParams(nullptr),
+      mEvalContext(nsnull),
+      mInitialEvalContext(nsnull),
+      mGlobalParams(nsnull),
       mKeyHash(aStylesheet->getKeyMap()),
       mDisableLoads(aDisableLoads)
 {
@@ -145,7 +145,7 @@ txExecutionState::init(const txXPathNode& aNode,
     
     // The actual value here doesn't really matter since noone should use this
     // value. But lets put something errorlike in just in case
-    mGlobalVarPlaceholderValue = new StringResult(NS_LITERAL_STRING("Error"), nullptr);
+    mGlobalVarPlaceholderValue = new StringResult(NS_LITERAL_STRING("Error"), nsnull);
     NS_ENSURE_TRUE(mGlobalVarPlaceholderValue, NS_ERROR_OUT_OF_MEMORY);
 
     // Initiate first instruction. This has to be done last since findTemplate
@@ -153,8 +153,8 @@ txExecutionState::init(const txXPathNode& aNode,
     txStylesheet::ImportFrame* frame = 0;
     txExpandedName nullName;
     txInstruction* templ = mStylesheet->findTemplate(aNode, nullName,
-                                                     this, nullptr, &frame);
-    pushTemplateRule(frame, nullName, nullptr);
+                                                     this, nsnull, &frame);
+    pushTemplateRule(frame, nullName, nsnull);
 
     return runTemplate(templ);
 }
@@ -237,7 +237,7 @@ txExecutionState::getVariable(PRInt32 aNamespace, nsIAtom* aLName,
     pushEvalContext(mInitialEvalContext);
     if (var->mExpr) {
         txVariableMap* oldVars = mLocalVariables;
-        mLocalVariables = nullptr;
+        mLocalVariables = nsnull;
         rv = var->mExpr->evaluate(getEvalContext(), &aResult);
         mLocalVariables = oldVars;
 
@@ -253,12 +253,12 @@ txExecutionState::getVariable(PRInt32 aNamespace, nsIAtom* aLName,
         rtfHandler.forget();
 
         txInstruction* prevInstr = mNextInstruction;
-        // set return to nullptr to stop execution
-        mNextInstruction = nullptr;
+        // set return to nsnull to stop execution
+        mNextInstruction = nsnull;
         rv = runTemplate(var->mFirstInstruction);
         NS_ENSURE_SUCCESS(rv, rv);
 
-        pushTemplateRule(nullptr, txExpandedName(), nullptr);
+        pushTemplateRule(nsnull, txExpandedName(), nsnull);
         rv = txXSLTProcessor::execute(*this);
         NS_ENSURE_SUCCESS(rv, rv);
 
@@ -398,7 +398,7 @@ txExecutionState::retrieveDocument(const nsAString& aUri)
                  "Remove the fragment.");
 
     if (mDisableLoads) {
-        return nullptr;
+        return nsnull;
     }
 
     PR_LOG(txLog::xslt, PR_LOG_DEBUG,
@@ -407,7 +407,7 @@ txExecutionState::retrieveDocument(const nsAString& aUri)
     // try to get already loaded document
     txLoadedDocumentEntry *entry = mLoadedDocuments.PutEntry(aUri);
     if (!entry) {
-        return nullptr;
+        return nsnull;
     }
 
     if (!entry->mDocument && !entry->LoadingFailed()) {
@@ -470,7 +470,7 @@ txExecutionState::runTemplate(txInstruction* aTemplate)
     rv = mReturnStack.push(mNextInstruction);
     NS_ENSURE_SUCCESS(rv, rv);
     
-    mLocalVariables = nullptr;
+    mLocalVariables = nsnull;
     mNextInstruction = aTemplate;
     
     return NS_OK;

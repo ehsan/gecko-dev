@@ -140,7 +140,7 @@ NS_IMETHODIMP IMETextTxn::Merge(nsITransaction *aTransaction, bool *aDidMerge)
   //
   // if aTransaction is another IMETextTxn then absorb it
   //
-  IMETextTxn*  otherTxn = nullptr;
+  IMETextTxn*  otherTxn = nsnull;
   nsresult result = aTransaction->QueryInterface(IMETextTxn::GetCID(),(void**)&otherTxn);
   if (otherTxn && NS_SUCCEEDED(result))
   {

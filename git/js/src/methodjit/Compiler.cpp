@@ -1849,8 +1849,7 @@ mjit::Compiler::finishThisUp()
         if (IsJaegerSpewChannelActive(JSpew_JSOps)) {                         \
             Sprinter sprinter(cx);                                            \
             sprinter.init();                                                  \
-            RootedScript script_(cx, script);                                 \
-            js_Disassemble1(cx, script_, PC, PC - script->code,               \
+            js_Disassemble1(cx, script, PC, PC - script->code,                \
                             JS_TRUE, &sprinter);                              \
             JaegerSpew(JSpew_JSOps, "    %2d %s",                             \
                        frame.stackDepth(), sprinter.string());                \

@@ -318,7 +318,7 @@ ToNSString(id aValue)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  mGeckoTextAccessible = nullptr;
+  mGeckoTextAccessible = nsnull;
   NS_IF_RELEASE(mGeckoEditableTextAccessible);
   [super expire];
 

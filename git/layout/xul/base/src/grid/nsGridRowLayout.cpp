@@ -53,7 +53,7 @@ nsGridRowLayout::GetParentGridPart(nsIBox* aBox, nsIBox** aParentBox)
 {
   // go up and find our parent gridRow. Skip and non gridRow
   // parents.
-  *aParentBox = nullptr;
+  *aParentBox = nsnull;
   
   // walk up through any scrollboxes
   aBox = nsGrid::GetScrollBox(aBox);
@@ -71,7 +71,7 @@ nsGridRowLayout::GetParentGridPart(nsIBox* aBox, nsIBox** aParentBox)
     }
   }
 
-  return nullptr;
+  return nsnull;
 }
 
 
@@ -79,13 +79,13 @@ nsGrid*
 nsGridRowLayout::GetGrid(nsIBox* aBox, PRInt32* aIndex, nsGridRowLayout* aRequestor)
 {
 
-   if (aRequestor == nullptr)
+   if (aRequestor == nsnull)
    {
       nsIBox* parentBox; // nsIBox is implemented by nsIFrame and is not refcounted.
       nsIGridPart* parent = GetParentGridPart(aBox, &parentBox);
       if (parent)
          return parent->GetGrid(parentBox, aIndex, this);
-      return nullptr;
+      return nsnull;
    }
 
    PRInt32 index = -1;
@@ -116,7 +116,7 @@ nsGridRowLayout::GetGrid(nsIBox* aBox, PRInt32* aIndex, nsGridRowLayout* aReques
    // fail.
    if (index == -1) {
      *aIndex = -1;
-     return nullptr;
+     return nsnull;
    }
 
    (*aIndex) += index;
@@ -126,7 +126,7 @@ nsGridRowLayout::GetGrid(nsIBox* aBox, PRInt32* aIndex, nsGridRowLayout* aReques
    if (parent)
      return parent->GetGrid(parentBox, aIndex, this);
 
-   return nullptr;
+   return nsnull;
 }
 
 nsMargin
@@ -134,7 +134,7 @@ nsGridRowLayout::GetTotalMargin(nsIBox* aBox, bool aIsHorizontal)
 {
   // get our parents margin
   nsMargin margin(0,0,0,0);
-  nsIBox* parent = nullptr;
+  nsIBox* parent = nsnull;
   nsIGridPart* part = GetParentGridPart(aBox, &parent);
   if (part && parent) {
     // if we are the first or last child walk upward and add margins.
@@ -151,7 +151,7 @@ nsGridRowLayout::GetTotalMargin(nsIBox* aBox, bool aIsHorizontal)
     margin = part->GetTotalMargin(parent, aIsHorizontal);
 
     // if first or last
-    if (child == aBox || next == nullptr) {
+    if (child == aBox || next == nsnull) {
 
        // if it's not the first child remove the top margin
        // we don't need it.
@@ -165,7 +165,7 @@ nsGridRowLayout::GetTotalMargin(nsIBox* aBox, bool aIsHorizontal)
 
        // if it's not the last child remove the bottom margin
        // we don't need it.
-       if (next != nullptr)
+       if (next != nsnull)
        {
           if (aIsHorizontal)
               margin.bottom = 0;

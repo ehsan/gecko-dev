@@ -23,7 +23,7 @@ nsGenConList::Clear()
   }
   delete mFirstNode;
 
-  mFirstNode = nullptr;
+  mFirstNode = nsnull;
   mSize = 0;
 }
 
@@ -41,7 +41,7 @@ nsGenConList::DestroyNodesFor(nsIFrame* aFrame)
     Remove(mFirstNode);
     delete mFirstNode;
     if (isLastNode) {
-      mFirstNode = nullptr;
+      mFirstNode = nsnull;
       return true;
     }
     else {

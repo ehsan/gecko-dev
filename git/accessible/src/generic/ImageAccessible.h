@@ -84,7 +84,7 @@ inline mozilla::a11y::ImageAccessible*
 Accessible::AsImage()
 {
   return IsImage() ?
-    static_cast<mozilla::a11y::ImageAccessible*>(this) : nullptr;
+    static_cast<mozilla::a11y::ImageAccessible*>(this) : nsnull;
 }
 
 #endif

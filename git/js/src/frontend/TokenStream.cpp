@@ -1434,8 +1434,6 @@ TokenStream::getTokenInternal()
     const jschar *identStart;
     bool hadUnicodeEscape;
 
-    SkipRoot skipNum(cx, &numStart), skipIdent(cx, &identStart);
-
 #if JS_HAS_XML_SUPPORT
     /*
      * Look for XML text and tags.

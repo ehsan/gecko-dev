@@ -133,7 +133,7 @@ public:
   /**
    * This method returns the DOMSVGAnimatedLengthList wrapper for an internal
    * SVGAnimatedLengthList object if it currently has a wrapper. If it does
-   * not, then nullptr is returned.
+   * not, then nsnull is returned.
    */
   static DOMSVGAnimatedLengthList*
     GetDOMWrapperIfExists(SVGAnimatedLengthList *aList);
@@ -166,8 +166,8 @@ private:
    * type.
    */
   DOMSVGAnimatedLengthList(nsSVGElement *aElement, PRUint8 aAttrEnum, PRUint8 aAxis)
-    : mBaseVal(nullptr)
-    , mAnimVal(nullptr)
+    : mBaseVal(nsnull)
+    , mAnimVal(nsnull)
     , mElement(aElement)
     , mAttrEnum(aAttrEnum)
     , mAxis(aAxis)

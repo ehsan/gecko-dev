@@ -26,8 +26,8 @@ nsMenuItemX::nsMenuItemX()
 {
   mType           = eRegularMenuItemType;
   mNativeMenuItem = nil;
-  mMenuParent     = nullptr;
-  mMenuGroupOwner = nullptr;
+  mMenuParent     = nsnull;
+  mMenuGroupOwner = nsnull;
   mIsChecked      = false;
 
   MOZ_COUNT_CTOR(nsMenuItemX);
@@ -503,7 +503,7 @@ void nsMenuItemX::ObserveContentRemoved(nsIDocument *aDocument, nsIContent *aChi
 {
   if (aChild == mCommandContent) {
     mMenuGroupOwner->UnregisterForContentChanges(mCommandContent);
-    mCommandContent = nullptr;
+    mCommandContent = nsnull;
   }
 
   mMenuParent->SetRebuild(true);

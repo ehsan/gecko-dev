@@ -263,7 +263,7 @@ public:
 
   friend class MediaStreamGraphImpl;
 
-  virtual SourceMediaStream* AsSourceStream() { return nullptr; }
+  virtual SourceMediaStream* AsSourceStream() { return nsnull; }
 
   // media graph thread only
   void Init();
@@ -506,7 +506,7 @@ protected:
       }
     }
     NS_ERROR("Bad track ID!");
-    return nullptr;
+    return nsnull;
   }
 
   // Media stream graph thread only

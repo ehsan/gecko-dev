@@ -173,7 +173,7 @@ class UTF16CharEnumerator
 {
 public:
   static PRUint32 NextChar(const PRUnichar **buffer, const PRUnichar *end,
-                           bool *err = nullptr)
+                           bool *err = nsnull)
   {
     NS_ASSERTION(buffer && *buffer, "null buffer!");
 

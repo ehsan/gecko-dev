@@ -1,4 +1,4 @@
-// |reftest| pref(javascript.options.xml.content,true) skip-if(Android)
+// |reftest| skip-if(Android)
 /* -*- Mode: java; tab-width:8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 
 /* This Source Code Form is subject to the terms of the Mozilla Public

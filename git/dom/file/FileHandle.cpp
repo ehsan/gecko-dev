@@ -38,7 +38,7 @@ public:
   void
   ReleaseObjects()
   {
-    mFileHandle = nullptr;
+    mFileHandle = nsnull;
 
     MetadataHelper::ReleaseObjects();
   }
@@ -164,7 +164,7 @@ FileHandle::GetFileId()
 NS_IMETHODIMP_(mozilla::dom::indexedDB::FileInfo*)
 FileHandle::GetFileInfo()
 {
-  return nullptr;
+  return nsnull;
 }
 
 nsresult

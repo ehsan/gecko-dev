@@ -20,7 +20,7 @@ class nsPresState
 {
 public:
   nsPresState()
-    : mContentData(nullptr)
+    : mContentData(nsnull)
     , mScrollState(0, 0)
     , mDisabledSet(false)
     , mDisabled(false)
@@ -38,7 +38,7 @@ public:
 
   void ClearNonScrollState()
   {
-    mContentData = nullptr;
+    mContentData = nsnull;
     mDisabledSet = false;
   }
 

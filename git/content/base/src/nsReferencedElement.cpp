@@ -179,11 +179,11 @@ nsReferencedElement::Unlink()
   }
   if (mPendingNotification) {
     mPendingNotification->Clear();
-    mPendingNotification = nullptr;
+    mPendingNotification = nsnull;
   }
-  mWatchDocument = nullptr;
-  mWatchID = nullptr;
-  mElement = nullptr;
+  mWatchDocument = nsnull;
+  mWatchID = nsnull;
+  mElement = nsnull;
   mReferencingImage = false;
 }
 
@@ -203,8 +203,8 @@ nsReferencedElement::Observe(Element* aOldElement,
   }
   bool keepTracking = p->IsPersistent();
   if (!keepTracking) {
-    p->mWatchDocument = nullptr;
-    p->mWatchID = nullptr;
+    p->mWatchDocument = nsnull;
+    p->mWatchID = nsnull;
   }
   return keepTracking;
 }
@@ -224,12 +224,12 @@ nsReferencedElement::DocumentLoadNotification::Observe(nsISupports* aSubject,
                "Unexpected topic");
   if (mTarget) {
     nsCOMPtr<nsIDocument> doc = do_QueryInterface(aSubject);
-    mTarget->mPendingNotification = nullptr;
+    mTarget->mPendingNotification = nsnull;
     NS_ASSERTION(!mTarget->mElement, "Why do we have content here?");
     // If we got here, that means we had Reset() called with aWatch ==
     // true.  So keep watching if IsPersistent().
     mTarget->HaveNewDocument(doc, mTarget->IsPersistent(), mRef);
-    mTarget->ElementChanged(nullptr, mTarget->mElement);
+    mTarget->ElementChanged(nsnull, mTarget->mElement);
   }
   return NS_OK;
 }

@@ -112,7 +112,7 @@ BasicLayerManager::BasicLayerManager() :
 #ifdef DEBUG
   mPhase(PHASE_NONE),
 #endif
-  mWidget(nullptr)
+  mWidget(nsnull)
   , mDoubleBuffering(BUFFER_NONE), mUsingDefaultTarget(false)
   , mCachedSurfaceInUse(false)
   , mTransactionIncomplete(false)
@@ -126,7 +126,7 @@ BasicLayerManager::~BasicLayerManager()
 
   ClearCachedResources();
 
-  mRoot = nullptr;
+  mRoot = nsnull;
 
   MOZ_COUNT_DTOR(BasicLayerManager);
 }
@@ -446,14 +446,14 @@ BasicLayerManager::EndTransactionInternal(DrawThebesLayerCallback aCallback,
       }
     }
 
-    PaintLayer(mTarget, mRoot, aCallback, aCallbackData, nullptr);
+    PaintLayer(mTarget, mRoot, aCallback, aCallbackData, nsnull);
     if (mWidget) {
       FlashWidgetUpdateArea(mTarget);
     }
 
     if (!mTransactionIncomplete) {
       // Clear out target if we have a complete transaction.
-      mTarget = nullptr;
+      mTarget = nsnull;
     }
   }
 
@@ -510,7 +510,7 @@ BasicLayerManager::EndEmptyTransaction()
     return false;
   }
 
-  return EndTransactionInternal(nullptr, nullptr);
+  return EndTransactionInternal(nsnull, nsnull);
 }
 
 void
@@ -576,7 +576,7 @@ PixmanTransform(const gfxImageSurface *aDest,
 
   pixman_image_composite32(PIXMAN_OP_SRC,
                            src,
-                           nullptr,
+                           nsnull,
                            dest,
                            aDestOffset.x,
                            aDestOffset.y,
@@ -601,7 +601,7 @@ PixmanTransform(const gfxImageSurface *aDest,
  * @param aTransform    Transformation matrix.
  * @param aDrawOffset   Location to draw returned surface on aDest.
  * @param aDontBlit     Never draw to aDest if this is true.
- * @return              Transformed surface, or nullptr if it has been drawn to aDest.
+ * @return              Transformed surface, or nsnull if it has been drawn to aDest.
  */
 static already_AddRefed<gfxASurface> 
 Transform3D(gfxASurface* aSource, gfxContext* aDest, 
@@ -649,7 +649,7 @@ Transform3D(gfxASurface* aSource, gfxContext* aDest,
   PixmanTransform(destImage, sourceImage, translation * aTransform, offset);
 
   if (blitComplete) {
-    return nullptr;
+    return nsnull;
   }
 
   // If we haven't actually drawn to aDest then return our temporary image so that
@@ -791,7 +791,7 @@ BasicLayerManager::PaintLayer(gfxContext* aTarget,
       HasShadowManager()) {
     // 'paint' the mask so that it gets sent to the shadow layer tree
     static_cast<BasicImplData*>(aLayer->GetMaskLayer()->ImplData())
-      ->Paint(nullptr, nullptr);
+      ->Paint(nsnull, nsnull);
   }
 
   /* Only paint ourself, or our children - This optimization relies on this! */
@@ -877,7 +877,7 @@ BasicLayerManager::PaintLayer(gfxContext* aTarget,
       }
       AutoSetOperator setOperator(aTarget, container->GetOperator());
       PaintWithMask(aTarget, aLayer->GetEffectiveOpacity(),
-                    HasShadowManager() ? nullptr : aLayer->GetMaskLayer());
+                    HasShadowManager() ? nsnull : aLayer->GetMaskLayer());
     }
   }
 
@@ -1029,7 +1029,7 @@ BasicShadowLayerManager::EndTransaction(DrawThebesLayerCallback aCallback,
   } else if (mShadowTarget) {
     // Draw to shadow target at the recursion tail of the repeat transactions
     ShadowLayerForwarder::ShadowDrawToTarget(mShadowTarget);
-    mShadowTarget = nullptr;
+    mShadowTarget = nsnull;
   }
 }
 

@@ -57,9 +57,9 @@ LogHeaders(const char *lines)
 {
     nsCAutoString buf;
     char *p;
-    while ((p = PL_strstr(lines, "\r\n")) != nullptr) {
+    while ((p = PL_strstr(lines, "\r\n")) != nsnull) {
         buf.Assign(lines, p - lines);
-        if (PL_strcasestr(buf.get(), "authorization: ") != nullptr) {
+        if (PL_strcasestr(buf.get(), "authorization: ") != nsnull) {
             char *p = PL_strchr(PL_strchr(buf.get(), ' ')+1, ' ');
             while (*++p) *p = '*';
         }
@@ -75,14 +75,14 @@ LogHeaders(const char *lines)
 
 nsHttpTransaction::nsHttpTransaction()
     : mRequestSize(0)
-    , mConnection(nullptr)
-    , mConnInfo(nullptr)
-    , mRequestHead(nullptr)
-    , mResponseHead(nullptr)
+    , mConnection(nsnull)
+    , mConnInfo(nsnull)
+    , mRequestHead(nsnull)
+    , mResponseHead(nsnull)
     , mContentLength(-1)
     , mContentRead(0)
     , mInvalidResponseBytesRead(0)
-    , mChunkedDecoder(nullptr)
+    , mChunkedDecoder(nsnull)
     , mStatus(NS_OK)
     , mPriority(0)
     , mRestartCount(0)
@@ -106,7 +106,7 @@ nsHttpTransaction::nsHttpTransaction()
     , mPreserveStream(false)
     , mReportedStart(false)
     , mReportedResponseHeader(false)
-    , mForTakeResponseHead(nullptr)
+    , mForTakeResponseHead(nsnull)
     , mResponseHeadTaken(false)
 {
     LOG(("Creating nsHttpTransaction @%x\n", this));
@@ -195,7 +195,7 @@ nsHttpTransaction::Init(PRUint8 caps,
     } else {
         // there is no observer, so don't use it
         activityDistributorActive = false;
-        mActivityDistributor = nullptr;
+        mActivityDistributor = nsnull;
     }
 
     // create transport event sink proxy. it coalesces all events if and only 
@@ -335,7 +335,7 @@ nsHttpTransaction::TakeResponseHead()
     nsHttpResponseHead *head;
     if (mForTakeResponseHead) {
         head = mForTakeResponseHead;
-        mForTakeResponseHead = nullptr;
+        mForTakeResponseHead = nsnull;
         return head;
     }
     
@@ -343,11 +343,11 @@ nsHttpTransaction::TakeResponseHead()
     // canceled
     if (!mHaveAllHeaders) {
         NS_WARNING("response headers not available or incomplete");
-        return nullptr;
+        return nsnull;
     }
 
     head = mResponseHead;
-    mResponseHead = nullptr;
+    mResponseHead = nsnull;
     return head;
 }
 
@@ -540,7 +540,7 @@ nsHttpTransaction::ReadSegments(nsAHttpSegmentReader *reader,
 
     nsresult rv = mRequestStream->ReadSegments(ReadRequestSegment, this, count, countRead);
 
-    mReader = nullptr;
+    mReader = nsnull;
 
     // if read would block then we need to AsyncWait on the request stream.
     // have callback occur on socket thread so we stay synchronized.
@@ -615,7 +615,7 @@ nsHttpTransaction::WriteSegments(nsAHttpSegmentWriter *writer,
 
     nsresult rv = mPipeOut->WriteSegments(WritePipeSegment, this, count, countWritten);
 
-    mWriter = nullptr;
+    mWriter = nsnull;
 
     // if pipe would block then we need to AsyncWait on it.  have callback
     // occur on socket thread so we stay synchronized.
@@ -704,7 +704,7 @@ nsHttpTransaction::Close(nsresult reason)
             if (mPipelinePosition) {
                 gHttpHandler->ConnMgr()->PipelineFeedbackInfo(
                     mConnInfo, nsHttpConnectionMgr::RedCanceledPipeline,
-                    nullptr, 0);
+                    nsnull, 0);
             }
             if (NS_SUCCEEDED(Restart()))
                 return;
@@ -715,7 +715,7 @@ nsHttpTransaction::Close(nsresult reason)
             // restart as only idempotent is found there
 
             gHttpHandler->ConnMgr()->PipelineFeedbackInfo(
-                mConnInfo, nsHttpConnectionMgr::RedCorruptedContent, nullptr, 0);
+                mConnInfo, nsHttpConnectionMgr::RedCorruptedContent, nsnull, 0);
             if (NS_SUCCEEDED(RestartInProgress()))
                 return;
         }
@@ -729,13 +729,13 @@ nsHttpTransaction::Close(nsresult reason)
             // need to use a strong framing mechanism to pipeline.
             gHttpHandler->ConnMgr()->PipelineFeedbackInfo(
                 mConnInfo, nsHttpConnectionMgr::BadInsufficientFraming,
-                nullptr, mClassification);
+                nsnull, mClassification);
         }
         else if (mPipelinePosition) {
             // report this success as feedback
             gHttpHandler->ConnMgr()->PipelineFeedbackInfo(
                 mConnInfo, nsHttpConnectionMgr::GoodCompletedOK,
-                nullptr, mPipelinePosition);
+                nsnull, mPipelinePosition);
         }
 
         // the server has not sent the final \r\n terminating the header
@@ -774,12 +774,12 @@ nsHttpTransaction::Close(nsresult reason)
     mClosed = true;
 
     // release some resources that we no longer need
-    mRequestStream = nullptr;
+    mRequestStream = nsnull;
     mReqHeaderBuf.Truncate();
     mLineBuf.Truncate();
     if (mChunkedDecoder) {
         delete mChunkedDecoder;
-        mChunkedDecoder = nullptr;
+        mChunkedDecoder = nsnull;
     }
 
     // closing this pipe triggers the channel's OnStopRequest method.
@@ -853,7 +853,7 @@ nsHttpTransaction::RestartInProgress()
         // could happen at any time - so we can't continue to modify those
         // headers (which restarting will effectively do)
         mForTakeResponseHead = mResponseHead;
-        mResponseHead = nullptr;
+        mResponseHead = nsnull;
     }
 
     if (mResponseHead) {
@@ -863,7 +863,7 @@ nsHttpTransaction::RestartInProgress()
     mContentRead = 0;
     mContentLength = -1;
     delete mChunkedDecoder;
-    mChunkedDecoder = nullptr;
+    mChunkedDecoder = nsnull;
     mHaveStatusLine = false;
     mHaveAllHeaders = false;
     mHttpResponseMatched = false;
@@ -919,7 +919,7 @@ nsHttpTransaction::LocateHttpStart(char *buf, PRUint32 len,
     static const PRUint32 HTTP2HeaderLen = sizeof(HTTP2Header) - 1;
     
     if (aAllowPartialMatch && (len < HTTPHeaderLen))
-        return (PL_strncasecmp(buf, HTTPHeader, len) == 0) ? buf : nullptr;
+        return (PL_strncasecmp(buf, HTTPHeader, len) == 0) ? buf : nsnull;
 
     // mLineBuf can contain partial match from previous search
     if (!mLineBuf.IsEmpty()) {
@@ -1010,7 +1010,7 @@ nsHttpTransaction::ParseLineSegment(char *segment, PRUint32 len)
             if (NS_FAILED(rv)) {
                 gHttpHandler->ConnMgr()->PipelineFeedbackInfo(
                     mConnInfo, nsHttpConnectionMgr::RedCorruptedContent,
-                    nullptr, 0);
+                    nsnull, 0);
                 return rv;
             }
         }
@@ -1120,7 +1120,7 @@ nsHttpTransaction::ParseHead(char *buf,
     // otherwise we can assume that we don't have a HTTP/0.9 response.
 
     NS_ABORT_IF_FALSE (mHttpResponseMatched, "inconsistent");
-    while ((eol = static_cast<char *>(memchr(buf, '\n', count - *countRead))) != nullptr) {
+    while ((eol = static_cast<char *>(memchr(buf, '\n', count - *countRead))) != nsnull) {
         // found line in range [buf:eol]
         len = eol - buf + 1;
 
@@ -1217,7 +1217,7 @@ nsHttpTransaction::HandleContentStart()
         if (mInvalidResponseBytesRead)
             gHttpHandler->ConnMgr()->PipelineFeedbackInfo(
                 mConnInfo, nsHttpConnectionMgr::BadInsufficientFraming,
-                nullptr, mClassification);
+                nsnull, mClassification);
 
         if (mNoContent)
             mContentLength = 0;
@@ -1342,7 +1342,7 @@ nsHttpTransaction::HandleContent(char *buf,
         mContentRead += *contentRead;
         /* when uncommenting, take care of 64-bit integers w/ NS_MAX...
         if (mProgressSink)
-            mProgressSink->OnProgress(nullptr, nullptr, mContentRead, NS_MAX(0, mContentLength));
+            mProgressSink->OnProgress(nsnull, nsnull, mContentRead, NS_MAX(0, mContentLength));
         */
     }
 
@@ -1466,7 +1466,7 @@ nsHttpTransaction::CancelPipeline(PRUint32 reason)
     gHttpHandler->ConnMgr()->PipelineFeedbackInfo(
         mConnInfo,
         static_cast<nsHttpConnectionMgr::PipelineFeedbackInfoType>(reason),
-        nullptr, mClassification);
+        nsnull, mClassification);
 
     mConnection->CancelPipeline(NS_ERROR_ABORT);
 

@@ -24,10 +24,10 @@ struct encoder_error_mgr {
 };
 
 nsJPEGEncoder::nsJPEGEncoder() : mFinished(false),
-                                 mImageBuffer(nullptr), mImageBufferSize(0),
+                                 mImageBuffer(nsnull), mImageBufferSize(0),
                                  mImageBufferUsed(0), mImageBufferReadPoint(0),
-                                 mCallback(nullptr),
-                                 mCallbackTarget(nullptr), mNotifyThreshold(0),
+                                 mCallback(nsnull),
+                                 mCallbackTarget(nsnull), mNotifyThreshold(0),
                                  mReentrantMonitor("nsJPEGEncoder.mReentrantMonitor")
 {
 }
@@ -36,7 +36,7 @@ nsJPEGEncoder::~nsJPEGEncoder()
 {
   if (mImageBuffer) {
     PR_Free(mImageBuffer);
-    mImageBuffer = nullptr;
+    mImageBuffer = nsnull;
   }
 }
 
@@ -75,7 +75,7 @@ NS_IMETHODIMP nsJPEGEncoder::InitFromData(const PRUint8* aData,
   }
 
   // can't initialize more than once
-  if (mImageBuffer != nullptr)
+  if (mImageBuffer != nsnull)
     return NS_ERROR_ALREADY_INITIALIZED;
 
   // options: we only have one option so this is easy
@@ -225,9 +225,9 @@ NS_IMETHODIMP nsJPEGEncoder::EndImageEncode()
 /* void close (); */
 NS_IMETHODIMP nsJPEGEncoder::Close()
 {
-  if (mImageBuffer != nullptr) {
+  if (mImageBuffer != nsnull) {
     PR_Free(mImageBuffer);
-    mImageBuffer = nullptr;
+    mImageBuffer = nsnull;
     mImageBufferSize = 0;
     mImageBufferUsed = 0;
     mImageBufferReadPoint = 0;
@@ -412,7 +412,7 @@ nsJPEGEncoder::emptyOutputBuffer(jpeg_compress_struct* cinfo)
   if (! newBuf) {
     // can't resize, just zero (this will keep us from writing more)
     PR_Free(that->mImageBuffer);
-    that->mImageBuffer = nullptr;
+    that->mImageBuffer = nsnull;
     that->mImageBufferSize = 0;
     that->mImageBufferUsed = 0;
 
@@ -496,8 +496,8 @@ nsJPEGEncoder::NotifyListener()
     NS_ASSERTION(callback, "Shouldn't fail to make the callback");
     // Null the callback first because OnInputStreamReady could reenter
     // AsyncWait
-    mCallback = nullptr;
-    mCallbackTarget = nullptr;
+    mCallback = nsnull;
+    mCallbackTarget = nsnull;
     mNotifyThreshold = 0;
 
     callback->OnInputStreamReady(this);

@@ -37,7 +37,7 @@ SVGAnimatedPathSegList::SetBaseValueString(const nsAString& aValue)
     baseValWrapper->InternalListWillChangeTo(newBaseValue);
   }
 
-  DOMSVGPathSegList* animValWrapper = nullptr;
+  DOMSVGPathSegList* animValWrapper = nsnull;
   if (!IsAnimating()) {  // DOM anim val wraps our base val too!
     animValWrapper = DOMSVGPathSegList::GetDOMWrapperIfExists(GetAnimValKey());
     if (animValWrapper) {
@@ -137,7 +137,7 @@ SVGAnimatedPathSegList::ClearAnimValue(nsSVGElement *aElement)
     //
     domWrapper->InternalListWillChangeTo(mBaseVal);
   }
-  mAnimVal = nullptr;
+  mAnimVal = nsnull;
   aElement->DidAnimatePathSegList();
 }
 

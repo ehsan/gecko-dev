@@ -200,14 +200,14 @@ public:
   nsresult ReplaceContainer(nsINode* inNode,
                             mozilla::dom::Element** outNode,
                             const nsAString& aNodeType,
-                            const nsAString* aAttribute = nullptr,
-                            const nsAString* aValue = nullptr,
+                            const nsAString* aAttribute = nsnull,
+                            const nsAString* aValue = nsnull,
                             bool aCloneAttributes = false);
   nsresult ReplaceContainer(nsIDOMNode *inNode, 
                             nsCOMPtr<nsIDOMNode> *outNode, 
                             const nsAString &aNodeType,
-                            const nsAString *aAttribute = nullptr,
-                            const nsAString *aValue = nullptr,
+                            const nsAString *aAttribute = nsnull,
+                            const nsAString *aValue = nsnull,
                             bool aCloneAttributes = false);
 
   nsresult RemoveContainer(nsINode* aNode);
@@ -215,13 +215,13 @@ public:
   nsresult InsertContainerAbove(nsIContent* aNode,
                                 mozilla::dom::Element** aOutNode,
                                 const nsAString& aNodeType,
-                                const nsAString* aAttribute = nullptr,
-                                const nsAString* aValue = nullptr);
+                                const nsAString* aAttribute = nsnull,
+                                const nsAString* aValue = nsnull);
   nsresult InsertContainerAbove(nsIDOMNode *inNode, 
                                 nsCOMPtr<nsIDOMNode> *outNode, 
                                 const nsAString &aNodeType,
-                                const nsAString *aAttribute = nullptr,
-                                const nsAString *aValue = nullptr);
+                                const nsAString *aAttribute = nsnull,
+                                const nsAString *aValue = nsnull);
   nsresult JoinNodes(nsINode* aNodeToKeep, nsIContent* aNodeToMove);
   nsresult MoveNode(nsIContent* aNode, nsINode* aParent, PRInt32 aOffset);
   nsresult MoveNode(nsIDOMNode *aNode, nsIDOMNode *aParent, PRInt32 aOffset);
@@ -482,7 +482,7 @@ public:
     * @param aEditableNode  if true, only return an editable node
     * @param aResultNode    [OUT] the node that occurs before aCurrentNode in the tree,
     *                       skipping non-editable nodes if aEditableNode is true.
-    *                       If there is no prior node, aResultNode will be nullptr.
+    *                       If there is no prior node, aResultNode will be nsnull.
     * @param bNoBlockCrossing If true, don't move across "block" nodes, whatever that means.
     */
   nsresult GetPriorNode(nsIDOMNode  *aCurrentNode, 
@@ -509,7 +509,7 @@ public:
     * @param aEditableNode  if true, only return an editable node
     * @param aResultNode    [OUT] the node that occurs after aCurrentNode in the tree,
     *                       skipping non-editable nodes if aEditableNode is true.
-    *                       If there is no prior node, aResultNode will be nullptr.
+    *                       If there is no prior node, aResultNode will be nsnull.
     */
   nsresult GetNextNode(nsIDOMNode  *aCurrentNode, 
                        bool         aEditableNode,
@@ -537,7 +537,7 @@ public:
                        bool     bNoBlockCrossing);
   /**
    * Get the rightmost child of aCurrentNode;
-   * return nullptr if aCurrentNode has no children.
+   * return nsnull if aCurrentNode has no children.
    */
   already_AddRefed<nsIDOMNode> GetRightmostChild(nsIDOMNode *aCurrentNode, 
                                                  bool        bNoBlockCrossing = false);
@@ -546,7 +546,7 @@ public:
 
   /**
    * Get the leftmost child of aCurrentNode;
-   * return nullptr if aCurrentNode has no children.
+   * return nsnull if aCurrentNode has no children.
    */
   already_AddRefed<nsIDOMNode> GetLeftmostChild(nsIDOMNode  *aCurrentNode, 
                                                 bool        bNoBlockCrossing = false);
@@ -788,7 +788,7 @@ public:
 
   virtual nsresult InsertFromDrop(nsIDOMEvent* aDropEvent) = 0;
 
-  virtual already_AddRefed<nsIDOMNode> FindUserSelectAllNode(nsIDOMNode* aNode) { return nullptr; }
+  virtual already_AddRefed<nsIDOMNode> FindUserSelectAllNode(nsIDOMNode* aNode) { return nsnull; }
 
   NS_STACK_CLASS class HandlingTrustedAction
   {

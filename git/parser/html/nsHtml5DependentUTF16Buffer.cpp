@@ -23,7 +23,7 @@ nsHtml5DependentUTF16Buffer::FalliblyCopyAsOwningBuffer()
   nsRefPtr<nsHtml5OwningUTF16Buffer> newObj =
     nsHtml5OwningUTF16Buffer::FalliblyCreate(newLength);
   if (!newObj) {
-    return nullptr;
+    return nsnull;
   }
   newObj->setEnd(newLength);
   memcpy(newObj->getBuffer(),

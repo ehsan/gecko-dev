@@ -33,12 +33,12 @@ enum InternalState
 };
 
 static InternalState gInternalState = InternalState_Invalid;
-static ConIcConnection* gConnection = nullptr;
+static ConIcConnection* gConnection = nsnull;
 static bool gConnectionCallbackInvoked = false;
 
 using namespace mozilla;
 
-static ReentrantMonitor* gReentrantMonitor = nullptr;
+static ReentrantMonitor* gReentrantMonitor = nsnull;
 
 static void NotifyNetworkLinkObservers()
 {
@@ -131,33 +131,33 @@ nsMaemoNetworkManager::Startup()
   DBusConnection* dbusConnection = dbus_bus_get(DBUS_BUS_SYSTEM, &error);
   NS_ASSERTION(dbusConnection, "Error when connecting to the session bus");
 
-  dbus_connection_setup_with_g_main(dbusConnection, nullptr);
+  dbus_connection_setup_with_g_main(dbusConnection, nsnull);
 
   // grab a connection:
   gConnection = con_ic_connection_new();
   NS_ASSERTION(gConnection, "Error when creating connection");
   if (!gConnection) {
     delete gReentrantMonitor;
-    gReentrantMonitor = nullptr;
+    gReentrantMonitor = nsnull;
     return false;
   }
 
   g_signal_connect(G_OBJECT(gConnection),
                    "connection-event",
                    G_CALLBACK(connection_event_callback),
-                   nullptr);
+                   nsnull);
   
   g_object_set(G_OBJECT(gConnection),
                "automatic-connection-events",
                true,
-               nullptr);
+               nsnull);
   return true;
 }
 
 void
 nsMaemoNetworkManager::Shutdown()
 {
-  gConnection = nullptr;
+  gConnection = nsnull;
 
   if (gReentrantMonitor) {
     // notify anyone waiting

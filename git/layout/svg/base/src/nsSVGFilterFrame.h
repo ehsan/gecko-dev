@@ -90,8 +90,8 @@ public:
    *   aFilteredFrame, if non-null.
    */
   nsRect GetPostFilterBounds(nsIFrame *aFilteredFrame,
-                             const gfxRect *aOverrideBBox = nullptr,
-                             const nsRect *aPreFilterBounds = nullptr);
+                             const gfxRect *aOverrideBBox = nsnull,
+                             const nsRect *aPreFilterBounds = nsnull);
 
 #ifdef DEBUG
   NS_IMETHOD Init(nsIContent*      aContent,

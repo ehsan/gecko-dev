@@ -16,7 +16,7 @@ NS_IMPL_ISUPPORTS0(nsEmbedStream)
 
 nsEmbedStream::nsEmbedStream()
 {
-  mOwner = nullptr;
+  mOwner = nsnull;
 }
 
 nsEmbedStream::~nsEmbedStream()
@@ -56,7 +56,7 @@ nsEmbedStream::OpenStream(nsIURI *aBaseURI, const nsACString& aContentType)
 
   nsCOMPtr<nsIDocShell> docShell = do_GetInterface(mOwner);
   rv = docShell->LoadStream(inputStream, aBaseURI, aContentType,
-                            EmptyCString(), nullptr);
+                            EmptyCString(), nsnull);
   if (NS_FAILED(rv))
     return rv;
 

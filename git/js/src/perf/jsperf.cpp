@@ -20,12 +20,12 @@ static PerfMeasurement* GetPMFromThis(JSContext* cx, jsval* vp);
 
 #define GETTER(name)                                                    \
     static JSBool                                                       \
-    pm_get_##name(JSContext* cx, JS::HandleObject obj, JS::HandleId /*unused*/, JS::MutableHandleValue vp) \
+    pm_get_##name(JSContext* cx, JS::HandleObject obj, JS::HandleId /*unused*/, jsval* vp) \
     {                                                                   \
         PerfMeasurement* p = GetPM(cx, obj, #name);                     \
         if (!p)                                                         \
             return JS_FALSE;                                            \
-        return JS_NewNumberValue(cx, double(p->name), vp.address());    \
+        return JS_NewNumberValue(cx, double(p->name), vp);              \
     }
 
 GETTER(cpu_cycles)

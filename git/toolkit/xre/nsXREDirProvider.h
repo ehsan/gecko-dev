@@ -32,7 +32,7 @@ public:
   // if aXULAppDir is null, use gArgv[0]
   nsresult Initialize(nsIFile *aXULAppDir,
                       nsIFile *aGREDir,
-                      nsIDirectoryServiceProvider* aAppProvider = nullptr);
+                      nsIDirectoryServiceProvider* aAppProvider = nsnull);
   ~nsXREDirProvider();
 
   static nsXREDirProvider* GetSingleton();
@@ -57,10 +57,10 @@ public:
   nsresult GetProfileDefaultsDir(nsIFile* *aResult);
 
   static nsresult GetUserAppDataDirectory(nsIFile* *aFile) {
-    return GetUserDataDirectory(aFile, false, nullptr, nullptr, nullptr);
+    return GetUserDataDirectory(aFile, false, nsnull, nsnull, nsnull);
   }
   static nsresult GetUserLocalDataDirectory(nsIFile* *aFile) {
-    return GetUserDataDirectory(aFile, true, nullptr, nullptr, nullptr);
+    return GetUserDataDirectory(aFile, true, nsnull, nsnull, nsnull);
   }
 
   // By default GetUserDataDirectory gets profile path from gAppData,

@@ -38,22 +38,22 @@ public:
 
     bool LoadSymbols(SymLoadStruct *firstStruct,
                        bool tryplatform = false,
-                       const char *prefix = nullptr);
+                       const char *prefix = nsnull);
 
     /*
      * Static version of the functions in this class
      */
     static PRFuncPtr LookupSymbol(PRLibrary *lib,
                                   const char *symname,
-                                  PlatformLookupFunction lookupFunction = nullptr);
+                                  PlatformLookupFunction lookupFunction = nsnull);
     static bool LoadSymbols(PRLibrary *lib,
                               SymLoadStruct *firstStruct,
-                              PlatformLookupFunction lookupFunction = nullptr,
-                              const char *prefix = nullptr);
+                              PlatformLookupFunction lookupFunction = nsnull,
+                              const char *prefix = nsnull);
 protected:
     GLLibraryLoader() {
-        mLibrary = nullptr;
-        mLookupFunc = nullptr;
+        mLibrary = nsnull;
+        mLookupFunc = nsnull;
     }
 
     PRLibrary *mLibrary;

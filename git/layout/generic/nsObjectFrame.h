@@ -14,6 +14,8 @@
 #include "nsRegion.h"
 #include "nsDisplayList.h"
 #include "nsIReflowCallback.h"
+#include "Layers.h"
+#include "ImageLayers.h"
 
 #ifdef ACCESSIBILITY
 class nsIAccessible;
@@ -24,14 +26,6 @@ class nsPresContext;
 class nsDisplayPlugin;
 class nsIOSurface;
 class PluginBackgroundSink;
-
-namespace mozilla {
-namespace layers {
-class ImageContainer;
-class Layer;
-class LayerManager;
-}
-}
 
 #define nsObjectFrameSuper nsFrame
 
@@ -168,7 +162,7 @@ public:
 
   bool PaintedByGecko();
 
-  nsIWidget* GetWidget() { return mInnerView ? mWidget : nullptr; }
+  nsIWidget* GetWidget() { return mInnerView ? mWidget : nsnull; }
 
   /**
    * Adjust the plugin's idea of its size, using aSize as its new size.
@@ -193,7 +187,7 @@ protected:
                       const nsHTMLReflowState& aReflowState,
                       nsHTMLReflowMetrics& aDesiredSize);
 
-  bool IsFocusable(PRInt32 *aTabIndex = nullptr, bool aWithMouse = false);
+  bool IsFocusable(PRInt32 *aTabIndex = nsnull, bool aWithMouse = false);
 
   // check attributes and optionally CSS to see if we should display anything
   bool IsHidden(bool aCheckVisibilityStyle = true) const;

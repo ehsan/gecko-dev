@@ -86,7 +86,7 @@ protected:
 
   void FreeFileData() {
     PR_Free(mFileData);
-    mFileData = nullptr;
+    mFileData = nsnull;
     mDataLen = 0;
   }
 

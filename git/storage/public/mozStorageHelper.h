@@ -152,7 +152,7 @@ public:
    */
   void Abandon()
   {
-    mStatement = nullptr;
+    mStatement = nsnull;
   }
 
 protected:

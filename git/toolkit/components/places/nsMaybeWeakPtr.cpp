@@ -25,7 +25,7 @@ nsMaybeWeakPtr_base::GetValueAs(const nsIID &iid) const
     }
   }
 
-  return nullptr;
+  return nsnull;
 }
 
 nsresult

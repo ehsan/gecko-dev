@@ -70,7 +70,7 @@ private:
 
   void DiscardTempBlob()
   {
-      mCachedTempBlob = nullptr;
+      mCachedTempBlob = nsnull;
   }
 };
 

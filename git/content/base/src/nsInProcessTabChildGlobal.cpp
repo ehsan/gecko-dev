@@ -38,7 +38,7 @@ bool SendSyncMessageToParent(void* aCallbackData,
   }
   if (tabChild->mChromeMessageManager) {
     nsRefPtr<nsFrameMessageManager> mm = tabChild->mChromeMessageManager;
-    mm->ReceiveMessage(owner, aMessage, true, aJSON, nullptr, aJSONRetVal);
+    mm->ReceiveMessage(owner, aMessage, true, aJSON, nsnull, aJSONRetVal);
   }
   return true;
 }
@@ -56,7 +56,7 @@ public:
     if (mTabChild->mChromeMessageManager) {
       nsRefPtr<nsFrameMessageManager> mm = mTabChild->mChromeMessageManager;
       mm->ReceiveMessage(mTabChild->mOwner, mMessage, false,
-                         mJSON, nullptr, nullptr);
+                         mJSON, nsnull, nsnull);
     }
     return NS_OK;
   }
@@ -112,9 +112,9 @@ nsInProcessTabChildGlobal::Init()
   mMessageManager = new nsFrameMessageManager(false,
                                               SendSyncMessageToParent,
                                               SendAsyncMessageToParent,
-                                              nullptr,
+                                              nsnull,
                                               this,
-                                              nullptr,
+                                              nsnull,
                                               mCx);
 
   // Set the location information for the new global, so that tools like
@@ -158,7 +158,7 @@ NS_IMPL_RELEASE_INHERITED(nsInProcessTabChildGlobal, nsDOMEventTargetHelper)
 NS_IMETHODIMP
 nsInProcessTabChildGlobal::GetContent(nsIDOMWindow** aContent)
 {
-  *aContent = nullptr;
+  *aContent = nsnull;
   nsCOMPtr<nsIDOMWindow> window = do_GetInterface(mDocShell);
   window.swap(*aContent);
   return NS_OK;
@@ -206,11 +206,11 @@ void
 nsInProcessTabChildGlobal::DelayedDisconnect()
 {
   // Don't let the event escape
-  mOwner = nullptr;
+  mOwner = nsnull;
 
   // Fire the "unload" event
   nsCOMPtr<nsIDOMEvent> event;
-  NS_NewDOMEvent(getter_AddRefs(event), nullptr, nullptr);
+  NS_NewDOMEvent(getter_AddRefs(event), nsnull, nsnull);
   if (event) {
     event->InitEvent(NS_LITERAL_STRING("unload"), false, false);
     event->SetTrusted(true);
@@ -225,11 +225,11 @@ nsInProcessTabChildGlobal::DelayedDisconnect()
   if (pwin) {
     pwin->SetChromeEventHandler(pwin->GetChromeEventHandler());
   }
-  mDocShell = nullptr;
-  mChromeMessageManager = nullptr;
+  mDocShell = nsnull;
+  mChromeMessageManager = nsnull;
   if (mMessageManager) {
     static_cast<nsFrameMessageManager*>(mMessageManager.get())->Disconnect();
-    mMessageManager = nullptr;
+    mMessageManager = nsnull;
   }
   if (mListenerManager) {
     mListenerManager->Disconnect();

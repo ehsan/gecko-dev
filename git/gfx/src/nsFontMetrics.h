@@ -50,7 +50,7 @@ public:
      */
     nsresult Init(const nsFont& aFont, nsIAtom* aLanguage,
                   nsDeviceContext *aContext,
-                  gfxUserFontSet *aUserFontSet = nullptr);
+                  gfxUserFontSet *aUserFontSet = nsnull);
 
     /**
      * Destroy this font metrics. This breaks the association between

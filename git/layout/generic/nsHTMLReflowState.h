@@ -174,8 +174,8 @@ protected:
 
   void InitOffsets(nscoord aContainingBlockWidth,
                    nsIAtom* aFrameType,
-                   const nsMargin *aBorder = nullptr,
-                   const nsMargin *aPadding = nullptr);
+                   const nsMargin *aBorder = nsnull,
+                   const nsMargin *aPadding = nsnull);
 
   /*
    * Convert nsStyleCoord to nscoord when percentages depend on the
@@ -376,8 +376,8 @@ public:
   void Init(nsPresContext* aPresContext,
             nscoord         aContainingBlockWidth = -1,
             nscoord         aContainingBlockHeight = -1,
-            const nsMargin* aBorder = nullptr,
-            const nsMargin* aPadding = nullptr);
+            const nsMargin* aBorder = nsnull,
+            const nsMargin* aPadding = nsnull);
   /**
    * Find the content width of the containing block of aReflowState
    */

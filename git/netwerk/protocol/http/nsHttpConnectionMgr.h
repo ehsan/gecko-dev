@@ -557,7 +557,7 @@ private:
 
     nsresult PostEvent(nsConnEventHandler  handler,
                        PRInt32             iparam = 0,
-                       void               *vparam = nullptr);
+                       void               *vparam = nsnull);
 
     // message handlers
     void OnMsgShutdown             (PRInt32, void *);

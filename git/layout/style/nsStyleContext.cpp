@@ -32,12 +32,12 @@ nsStyleContext::nsStyleContext(nsStyleContext* aParent,
                                nsRuleNode* aRuleNode,
                                nsPresContext* aPresContext)
   : mParent(aParent),
-    mChild(nullptr),
-    mEmptyChild(nullptr),
+    mChild(nsnull),
+    mEmptyChild(nsnull),
     mPseudoTag(aPseudoTag),
     mRuleNode(aRuleNode),
-    mAllocations(nullptr),
-    mCachedResetData(nullptr),
+    mAllocations(nsnull),
+    mCachedResetData(nsnull),
     mBits(((PRUint32)aPseudoType) << NS_STYLE_CONTEXT_TYPE_SHIFT),
     mRefCnt(0)
 {
@@ -74,7 +74,7 @@ nsStyleContext::nsStyleContext(nsStyleContext* aParent,
 
 nsStyleContext::~nsStyleContext()
 {
-  NS_ASSERTION((nullptr == mChild) && (nullptr == mEmptyChild), "destructing context with children");
+  NS_ASSERTION((nsnull == mChild) && (nsnull == mEmptyChild), "destructing context with children");
 
   nsPresContext *presContext = mRuleNode->GetPresContext();
 
@@ -118,7 +118,7 @@ void nsStyleContext::AddChild(nsStyleContext* aChild)
 
 void nsStyleContext::RemoveChild(nsStyleContext* aChild)
 {
-  NS_PRECONDITION(nullptr != aChild && this == aChild->mParent, "bad argument");
+  NS_PRECONDITION(nsnull != aChild && this == aChild->mParent, "bad argument");
 
   nsStyleContext **list = aChild->mRuleNode->IsRoot() ? &mEmptyChild : &mChild;
 
@@ -129,7 +129,7 @@ void nsStyleContext::RemoveChild(nsStyleContext* aChild)
   } 
   else {
     NS_ASSERTION((*list) == aChild, "bad sibling pointers");
-    (*list) = nullptr;
+    (*list) = nsnull;
   }
 
   aChild->mPrevSibling->mNextSibling = aChild->mNextSibling;
@@ -149,7 +149,7 @@ nsStyleContext::FindChildWithRules(const nsIAtom* aPseudoTag,
   PRUint32 threshold = 10; // The # of siblings we're willing to examine
                            // before just giving this whole thing up.
 
-  nsStyleContext* result = nullptr;
+  nsStyleContext* result = nsnull;
   nsStyleContext *list = aRuleNode->IsRoot() ? mEmptyChild : mChild;
 
   if (list) {
@@ -199,7 +199,7 @@ const void* nsStyleContext::GetCachedStyleData(nsStyleStructID aSID)
     if (mCachedResetData) {
       cachedData = mCachedResetData->mStyleStructs[aSID];
     } else {
-      cachedData = nullptr;
+      cachedData = nsnull;
     }
   } else {
     cachedData = mCachedInheritedData.mStyleStructs[aSID];
@@ -251,7 +251,7 @@ nsStyleContext::GetUniqueStyleData(const nsStyleStructID& aSID)
 
   default:
     NS_ERROR("Struct type not supported.  Please find another way to do this if you can!");
-    return nullptr;
+    return nsnull;
   }
 
   if (!result) {
@@ -642,14 +642,14 @@ void nsStyleContext::List(FILE* out, PRInt32 aIndent)
     fputs("{}\n", out);
   }
 
-  if (nullptr != mChild) {
+  if (nsnull != mChild) {
     nsStyleContext* child = mChild;
     do {
       child->List(out, aIndent + 1);
       child = child->mNextSibling;
     } while (mChild != child);
   }
-  if (nullptr != mEmptyChild) {
+  if (nsnull != mEmptyChild) {
     nsStyleContext* child = mEmptyChild;
     do {
       child->List(out, aIndent + 1);

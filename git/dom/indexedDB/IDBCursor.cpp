@@ -42,7 +42,7 @@ class CursorHelper : public AsyncConnectionHelper
 public:
   CursorHelper(IDBCursor* aCursor)
   : AsyncConnectionHelper(aCursor->Transaction(), aCursor->Request()),
-    mCursor(aCursor), mActor(nullptr)
+    mCursor(aCursor), mActor(nsnull)
   {
     NS_ASSERTION(aCursor, "Null cursor!");
   }
@@ -320,7 +320,7 @@ IDBCursor::CreateCommon(IDBRequest* aRequest,
 
   if (cursor->mScriptOwner) {
     if (NS_FAILED(NS_HOLD_JS_OBJECTS(cursor, IDBCursor))) {
-      return nullptr;
+      return nsnull;
     }
 
     cursor->mRooted = true;
@@ -338,14 +338,14 @@ IDBCursor::CreateCommon(IDBRequest* aRequest,
 }
 
 IDBCursor::IDBCursor()
-: mScriptOwner(nullptr),
+: mScriptOwner(nsnull),
   mType(OBJECTSTORE),
   mDirection(IDBCursor::NEXT),
   mCachedKey(JSVAL_VOID),
   mCachedPrimaryKey(JSVAL_VOID),
   mCachedValue(JSVAL_VOID),
-  mActorChild(nullptr),
-  mActorParent(nullptr),
+  mActorChild(nsnull),
+  mActorParent(nsnull),
   mHaveCachedKey(false),
   mHaveCachedPrimaryKey(false),
   mHaveCachedValue(false),
@@ -457,7 +457,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(IDBCursor)
   // Don't unlink mObjectStore, mIndex, or mTransaction!
   if (tmp->mRooted) {
     NS_DROP_JS_OBJECTS(tmp, IDBCursor);
-    tmp->mScriptOwner = nullptr;
+    tmp->mScriptOwner = nsnull;
     tmp->mCachedKey = JSVAL_VOID;
     tmp->mCachedPrimaryKey = JSVAL_VOID;
     tmp->mCachedValue = JSVAL_VOID;
@@ -755,7 +755,7 @@ IDBCursor::Advance(PRInt64 aCount)
 void
 CursorHelper::ReleaseMainThreadObjects()
 {
-  mCursor = nullptr;
+  mCursor = nsnull;
   AsyncConnectionHelper::ReleaseMainThreadObjects();
 }
 

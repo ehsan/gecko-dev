@@ -31,7 +31,7 @@ public:
   NS_DECL_NSIDOMEVENTLISTENER
 
   nsIDOMEventListener* GetInner() { return mListener; }
-  void Disconnect() { mListener = nullptr; }
+  void Disconnect() { mListener = nsnull; }
 protected:
   nsCOMPtr<nsIDOMEventListener> mListener;
 };
@@ -40,7 +40,7 @@ class nsDOMEventTargetHelper : public nsIDOMEventTarget,
                                public nsWrapperCache
 {
 public:
-  nsDOMEventTargetHelper() : mOwner(nullptr), mHasOrHasHadOwner(false) {}
+  nsDOMEventTargetHelper() : mOwner(nsnull), mHasOrHasHadOwner(false) {}
   virtual ~nsDOMEventTargetHelper();
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsDOMEventTargetHelper)
@@ -74,7 +74,7 @@ public:
       CallQueryInterface(mOwner, aParentObject);
     }
     else {
-      *aParentObject = nullptr;
+      *aParentObject = nsnull;
     }
   }
 
@@ -97,7 +97,7 @@ public:
     return static_cast<nsDOMEventTargetHelper*>(target);
   }
 
-  void Init(JSContext* aCx = nullptr);
+  void Init(JSContext* aCx = nsnull);
 
   bool HasListenersFor(const nsAString& aType)
   {

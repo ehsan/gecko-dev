@@ -24,7 +24,7 @@
 #include "nsIPrincipal.h"
 #include "nsContentUtils.h"
 
-static nsPermissionManager *gPermissionManager = nullptr;
+static nsPermissionManager *gPermissionManager = nsnull;
 
 using mozilla::dom::ContentParent;
 using mozilla::dom::ContentChild;
@@ -38,7 +38,7 @@ IsChildProcess()
 
 /**
  * @returns The child process object, or if we are not in the child
- *          process, nullptr.
+ *          process, nsnull.
  */
 static ContentChild*
 ChildProcess()
@@ -50,7 +50,7 @@ ChildProcess()
     return cpc;
   }
 
-  return nullptr;
+  return nsnull;
 }
 
 
@@ -73,7 +73,7 @@ ChildProcess()
 #define PL_ARENA_CONST_ALIGN_MASK 3
 #include "plarena.h"
 
-static PLArenaPool *gHostArena = nullptr;
+static PLArenaPool *gHostArena = nsnull;
 
 // making sHostArena 512b for nice allocation
 // growing is quite cheap
@@ -234,7 +234,7 @@ nsPermissionManager::nsPermissionManager()
 nsPermissionManager::~nsPermissionManager()
 {
   RemoveAllFromMemory();
-  gPermissionManager = nullptr;
+  gPermissionManager = nsnull;
 }
 
 // static
@@ -736,15 +736,15 @@ void
 nsPermissionManager::CloseDB(bool aRebuildOnSuccess)
 {
   // Null the statements, this will finalize them.
-  mStmtInsert = nullptr;
-  mStmtDelete = nullptr;
-  mStmtUpdate = nullptr;
+  mStmtInsert = nsnull;
+  mStmtDelete = nsnull;
+  mStmtUpdate = nsnull;
   if (mDBConn) {
     mozIStorageCompletionCallback* cb = new CloseDatabaseListener(this,
            aRebuildOnSuccess);
     mozilla::DebugOnly<nsresult> rv = mDBConn->AsyncClose(cb);
     MOZ_ASSERT(NS_SUCCEEDED(rv));
-    mDBConn = nullptr; // Avoid race conditions
+    mDBConn = nsnull; // Avoid race conditions
   }
 }
 
@@ -756,7 +756,7 @@ nsPermissionManager::RemoveAllInternal(bool aNotifyObservers)
   // on-disk database to notify observers.
   RemoveAllFromMemory();
   if (aNotifyObservers) {
-    NotifyObservers(nullptr, NS_LITERAL_STRING("cleared").get());
+    NotifyObservers(nsnull, NS_LITERAL_STRING("cleared").get());
   }
 
   // clear the db
@@ -904,7 +904,7 @@ nsPermissionManager::GetHostEntry(const nsAFlatCString &aHost,
         break;
 
       // reset entry, to be able to return null on failure
-      entry = nullptr;
+      entry = nsnull;
     }
     if (aExactHostMatch)
       break; // do not try super domains
@@ -997,7 +997,7 @@ nsPermissionManager::RemoveAllFromMemory()
     PL_FinishArenaPool(gHostArena);
     delete gHostArena;
   }
-  gHostArena = nullptr;
+  gHostArena = nsnull;
   return NS_OK;
 }
 
@@ -1173,7 +1173,7 @@ nsPermissionManager::Import()
     if (lineArray[0].EqualsLiteral(kMatchTypeHost) &&
         lineArray.Length() == 4) {
       
-      nsresult error;
+      PRInt32 error;
       PRUint32 permission = lineArray[2].ToInteger(&error);
       if (error)
         continue;

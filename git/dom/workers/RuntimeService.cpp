@@ -113,7 +113,7 @@ const PRUint32 kRequiredJSContextOptions =
 PRUint32 gMaxWorkersPerDomain = MAX_WORKERS_PER_DOMAIN;
 
 // Does not hold an owning reference.
-RuntimeService* gRuntimeService = nullptr;
+RuntimeService* gRuntimeService = nsnull;
 
 enum {
   ID_Worker = 0,
@@ -259,7 +259,7 @@ CreateJSContextForWorker(WorkerPrivate* aWorkerPrivate)
   JSRuntime* runtime = JS_NewRuntime(WORKER_DEFAULT_RUNTIME_HEAPSIZE);
   if (!runtime) {
     NS_WARNING("Could not create new runtime!");
-    return nullptr;
+    return nsnull;
   }
 
   // This is the real place where we set the max memory for the runtime.
@@ -272,7 +272,7 @@ CreateJSContextForWorker(WorkerPrivate* aWorkerPrivate)
   if (!workerCx) {
     JS_DestroyRuntime(runtime);
     NS_WARNING("Could not create new context!");
-    return nullptr;
+    return nsnull;
   }
 
   JS_SetContextPrivate(workerCx, aWorkerPrivate);
@@ -318,7 +318,7 @@ public:
   Run()
   {
     WorkerPrivate* workerPrivate = mWorkerPrivate;
-    mWorkerPrivate = nullptr;
+    mWorkerPrivate = nsnull;
 
     workerPrivate->AssertIsOnWorkerThread();
 
@@ -374,7 +374,7 @@ ResolveWorkerClasses(JSContext* aCx, JSHandleObject aObj, JSHandleId aId, unsign
 
   // Don't care about assignments, bail now.
   if (aFlags & JSRESOLVE_ASSIGNING) {
-    aObjp.set(nullptr);
+    aObjp.set(nsnull);
     return true;
   }
 
@@ -418,7 +418,7 @@ ResolveWorkerClasses(JSContext* aCx, JSHandleObject aObj, JSHandleId aId, unsign
   if (shouldResolve) {
     // Don't do anything if workers are disabled.
     if (!isChrome && !Preferences::GetBool(PREF_WORKERS_ENABLED)) {
-      aObjp.set(nullptr);
+      aObjp.set(nsnull);
       return true;
     }
 
@@ -445,7 +445,7 @@ ResolveWorkerClasses(JSContext* aCx, JSHandleObject aObj, JSHandleId aId, unsign
   }
 
   // Not resolved.
-  aObjp.set(nullptr);
+  aObjp.set(nsnull);
   return true;
 }
 
@@ -521,7 +521,7 @@ WorkerCrossThreadDispatcher::PostTask(WorkerTask* aTask)
   }
 
   nsRefPtr<WorkerTaskRunnable> runnable = new WorkerTaskRunnable(mPrivate, aTask);
-  runnable->Dispatch(nullptr);
+  runnable->Dispatch(nsnull);
   return true;
 }
 
@@ -554,7 +554,7 @@ RuntimeService::~RuntimeService()
   NS_ASSERTION(!gRuntimeService || gRuntimeService == this,
                "More than one service!");
 
-  gRuntimeService = nullptr;
+  gRuntimeService = nsnull;
 }
 
 // static
@@ -568,7 +568,7 @@ RuntimeService::GetOrCreateService()
     if (NS_FAILED(service->Init())) {
       NS_WARNING("Failed to initialize!");
       service->Cleanup();
-      return nullptr;
+      return nsnull;
     }
 
     // The observer service now owns us until shutdown.
@@ -690,7 +690,7 @@ RuntimeService::UnregisterWorker(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
     AssertIsOnMainThread();
   }
 
-  WorkerPrivate* queuedWorker = nullptr;
+  WorkerPrivate* queuedWorker = nsnull;
   {
     const nsCString& domain = aWorkerPrivate->Domain();
 
@@ -783,7 +783,7 @@ RuntimeService::ScheduleWorker(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
 
   if (!thread) {
     if (NS_FAILED(NS_NewNamedThread("DOM Worker",
-                                    getter_AddRefs(thread), nullptr,
+                                    getter_AddRefs(thread), nsnull,
                                     WORKER_STACK_SIZE))) {
       UnregisterWorker(aCx, aWorkerPrivate);
       JS_ReportError(aCx, "Could not create new thread!");
@@ -863,7 +863,7 @@ RuntimeService::ShutdownIdleThreads(nsITimer* aTimer, void* /* aClosure */)
     PRUint32 delay(delta > TimeDuration(0) ? delta.ToMilliseconds() : 0);
 
     // Reschedule the timer.
-    if (NS_FAILED(aTimer->InitWithFuncCallback(ShutdownIdleThreads, nullptr,
+    if (NS_FAILED(aTimer->InitWithFuncCallback(ShutdownIdleThreads, nsnull,
                                                delay,
                                                nsITimer::TYPE_ONE_SHOT))) {
       NS_ERROR("Can't schedule timer!");
@@ -949,8 +949,8 @@ RuntimeService::Cleanup()
   NS_WARN_IF_FALSE(obs, "Failed to get observer service?!");
 
   // Tell anyone that cares that they're about to lose worker support.
-  if (obs && NS_FAILED(obs->NotifyObservers(nullptr, WORKERS_SHUTDOWN_TOPIC,
-                                            nullptr))) {
+  if (obs && NS_FAILED(obs->NotifyObservers(nsnull, WORKERS_SHUTDOWN_TOPIC,
+                                            nsnull))) {
     NS_WARNING("NotifyObservers failed!");
   }
 
@@ -961,7 +961,7 @@ RuntimeService::Cleanup()
     if (NS_FAILED(mIdleThreadTimer->Cancel())) {
       NS_WARNING("Failed to cancel idle timer!");
     }
-    mIdleThreadTimer = nullptr;
+    mIdleThreadTimer = nsnull;
   }
 
   if (mDomainMap.IsInitialized()) {
@@ -1194,7 +1194,7 @@ RuntimeService::NoteIdleThread(nsIThread* aThread)
 
   // Schedule timer.
   if (NS_FAILED(mIdleThreadTimer->
-                  InitWithFuncCallback(ShutdownIdleThreads, nullptr,
+                  InitWithFuncCallback(ShutdownIdleThreads, nsnull,
                                        IDLE_THREAD_TIMEOUT_SEC * 1000,
                                        nsITimer::TYPE_ONE_SHOT))) {
     NS_ERROR("Can't schedule timer!");
@@ -1265,7 +1265,7 @@ RuntimeService::AutoSafeJSContext::AutoSafeJSContext(JSContext* aCx)
 
     if (NS_FAILED(stack->Push(mContext))) {
       NS_ERROR("Couldn't push safe JSContext!");
-      mContext = nullptr;
+      mContext = nsnull;
       return;
     }
 
@@ -1307,7 +1307,7 @@ RuntimeService::AutoSafeJSContext::GetSafeContext()
   JSContext* cx = stack->GetSafeJSContext();
   if (!cx) {
     NS_ERROR("Couldn't get safe JSContext!");
-    return nullptr;
+    return nsnull;
   }
 
   NS_ASSERTION(!JS_IsExceptionPending(cx), "Already has an exception?!");

@@ -196,7 +196,7 @@ class TableBackgroundPainter
       TableBackgroundData  mCol;
       TableBackgroundData* mColGroup; //link to col's parent colgroup's data (owned by painter)
       ColData() {
-        mColGroup = nullptr;
+        mColGroup = nsnull;
       }
     };
 

@@ -74,17 +74,17 @@
 using namespace mozilla;
 using namespace mozilla::layers;
 
-gfxPlatform *gPlatform = nullptr;
+gfxPlatform *gPlatform = nsnull;
 static bool gEverInitialized = false;
-static nsTArray<nsCString>* gBackendList = nullptr;
+static nsTArray<nsCString>* gBackendList = nsnull;
 
 // These two may point to the same profile
-static qcms_profile *gCMSOutputProfile = nullptr;
-static qcms_profile *gCMSsRGBProfile = nullptr;
+static qcms_profile *gCMSOutputProfile = nsnull;
+static qcms_profile *gCMSsRGBProfile = nsnull;
 
-static qcms_transform *gCMSRGBTransform = nullptr;
-static qcms_transform *gCMSInverseRGBTransform = nullptr;
-static qcms_transform *gCMSRGBATransform = nullptr;
+static qcms_transform *gCMSRGBTransform = nsnull;
+static qcms_transform *gCMSInverseRGBTransform = nsnull;
+static qcms_transform *gCMSRGBATransform = nsnull;
 
 static bool gCMSInitialized = false;
 static eCMSMode gCMSMode = eCMSMode_Off;
@@ -98,11 +98,11 @@ using namespace mozilla::gfx;
 
 // logs shared across gfx
 #ifdef PR_LOGGING
-static PRLogModuleInfo *sFontlistLog = nullptr;
-static PRLogModuleInfo *sFontInitLog = nullptr;
-static PRLogModuleInfo *sTextrunLog = nullptr;
-static PRLogModuleInfo *sTextrunuiLog = nullptr;
-static PRLogModuleInfo *sCmapDataLog = nullptr;
+static PRLogModuleInfo *sFontlistLog = nsnull;
+static PRLogModuleInfo *sFontInitLog = nsnull;
+static PRLogModuleInfo *sTextrunLog = nsnull;
+static PRLogModuleInfo *sTextrunuiLog = nsnull;
+static PRLogModuleInfo *sCmapDataLog = nsnull;
 #endif
 
 /* Class to listen for pref changes so that chrome code can dynamically
@@ -146,7 +146,7 @@ static const char* kObservedPrefs[] = {
     "gfx.downloadable_fonts.",
     "gfx.font_rendering.",
     "bidi.numeral",
-    nullptr
+    nsnull
 };
 
 class FontPrefsObserver MOZ_FINAL : public nsIObserver
@@ -372,11 +372,11 @@ gfxPlatform::Shutdown()
         /* Unregister our CMS Override callback. */
         NS_ASSERTION(gPlatform->mSRGBOverrideObserver, "mSRGBOverrideObserver has alreay gone");
         Preferences::RemoveObserver(gPlatform->mSRGBOverrideObserver, "gfx.color_management.force_srgb");
-        gPlatform->mSRGBOverrideObserver = nullptr;
+        gPlatform->mSRGBOverrideObserver = nsnull;
 
         NS_ASSERTION(gPlatform->mFontPrefsObserver, "mFontPrefsObserver has alreay gone");
         Preferences::RemoveObservers(gPlatform->mFontPrefsObserver, kObservedPrefs);
-        gPlatform->mFontPrefsObserver = nullptr;
+        gPlatform->mFontPrefsObserver = nsnull;
     }
 
 #ifdef MOZ_WIDGET_ANDROID
@@ -407,15 +407,15 @@ gfxPlatform::Shutdown()
     CompositorParent::ShutDown();
 
     delete gBackendList;
-    gBackendList = nullptr;
+    gBackendList = nsnull;
 
     delete gPlatform;
-    gPlatform = nullptr;
+    gPlatform = nsnull;
 }
 
 gfxPlatform::~gfxPlatform()
 {
-    mScreenReferenceSurface = nullptr;
+    mScreenReferenceSurface = nsnull;
 
     // The cairo folks think we should only clean up in debug builds,
     // but we're generally in the habit of trying to shut down as
@@ -455,12 +455,12 @@ gfxPlatform::OptimizeImage(gfxImageSurface *aSurface,
 #ifdef XP_WIN
     if (gfxWindowsPlatform::GetPlatform()->GetRenderMode() == 
         gfxWindowsPlatform::RENDER_DIRECT2D) {
-        return nullptr;
+        return nsnull;
     }
 #endif
     nsRefPtr<gfxASurface> optSurface = CreateOffscreenSurface(surfaceSize, gfxASurface::ContentFromFormat(format));
     if (!optSurface || optSurface->CairoStatus() != 0)
-        return nullptr;
+        return nsnull;
 
     gfxContext tmpCtx(optSurface);
     tmpCtx.SetOperator(gfxContext::OPERATOR_SOURCE);
@@ -503,13 +503,7 @@ gfxPlatform::GetSourceSurfaceForSurface(DrawTarget *aTarget, gfxASurface *aSurfa
   void *userData = aSurface->GetData(&kSourceSurface);
 
   if (userData) {
-    SourceSurface *surf = static_cast<SourceSurface*>(userData);
-
-    if (surf->IsValid()) {
-      return surf;
-    }
-    // We can just continue here as when setting new user data the destroy
-    // function will be called for the old user data.
+    return static_cast<SourceSurface*>(userData);
   }
 
   SurfaceFormat format;
@@ -584,7 +578,7 @@ gfxPlatform::GetSourceSurfaceForSurface(DrawTarget *aTarget, gfxASurface *aSurfa
         // a copy. For now let's just abort.
         NS_RUNTIMEABORT("Attempt to create unsupported SourceSurface from"
             "non-image surface.");
-        return nullptr;
+        return nsnull;
       }
 
       srcBuffer = Factory::CreateWrappingDataSourceSurface(imgSurface->Data(),
@@ -837,7 +831,7 @@ gfxPlatform::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
     if (aFontData) {
         NS_Free((void*)aFontData);
     }
-    return nullptr;
+    return nsnull;
 }
 
 static void
@@ -887,9 +881,9 @@ gfxPlatform::GetPrefFonts(nsIAtom *aLanguage, nsString& aFonts, bool aAppendUnic
 {
     aFonts.Truncate();
 
-    AppendGenericFontFromPref(aFonts, aLanguage, nullptr);
+    AppendGenericFontFromPref(aFonts, aLanguage, nsnull);
     if (aAppendUnicode)
-        AppendGenericFontFromPref(aFonts, nsGkAtoms::Unicode, nullptr);
+        AppendGenericFontFromPref(aFonts, nsGkAtoms::Unicode, nsnull);
 }
 
 bool gfxPlatform::ForEachPrefFont(eFontPrefLang aLangArray[], PRUint32 aLangArrayLen, PrefFontCallback aCallback,
@@ -979,7 +973,7 @@ gfxPlatform::GetPrefLangName(eFontPrefLang aLang)
 {
     if (PRUint32(aLang) < PRUint32(eFontPrefLang_AllCount))
         return gPrefLangNames[PRUint32(aLang)];
-    return nullptr;
+    return nsnull;
 }
 
 eFontPrefLang
@@ -1323,7 +1317,7 @@ gfxPlatform::TransformPixel(const gfxRGBA& in, gfxRGBA& out, qcms_transform *tra
 qcms_profile *
 gfxPlatform::GetPlatformCMSOutputProfile()
 {
-    return nullptr;
+    return nsnull;
 }
 
 qcms_profile *
@@ -1361,7 +1355,7 @@ gfxPlatform::GetCMSOutputProfile()
             NS_ASSERTION(gCMSOutputProfile != GetCMSsRGBProfile(),
                          "Builtin sRGB profile tagged as bogus!!!");
             qcms_profile_release(gCMSOutputProfile);
-            gCMSOutputProfile = nullptr;
+            gCMSOutputProfile = nsnull;
         }
 
         if (!gCMSOutputProfile) {
@@ -1395,7 +1389,7 @@ gfxPlatform::GetCMSRGBTransform()
         inProfile = GetCMSsRGBProfile();
 
         if (!inProfile || !outProfile)
-            return nullptr;
+            return nsnull;
 
         gCMSRGBTransform = qcms_transform_create(inProfile, QCMS_DATA_RGB_8,
                                               outProfile, QCMS_DATA_RGB_8,
@@ -1414,7 +1408,7 @@ gfxPlatform::GetCMSInverseRGBTransform()
         outProfile = GetCMSsRGBProfile();
 
         if (!inProfile || !outProfile)
-            return nullptr;
+            return nsnull;
 
         gCMSInverseRGBTransform = qcms_transform_create(inProfile, QCMS_DATA_RGB_8,
                                                      outProfile, QCMS_DATA_RGB_8,
@@ -1433,7 +1427,7 @@ gfxPlatform::GetCMSRGBATransform()
         inProfile = GetCMSsRGBProfile();
 
         if (!inProfile || !outProfile)
-            return nullptr;
+            return nsnull;
 
         gCMSRGBATransform = qcms_transform_create(inProfile, QCMS_DATA_RGBA_8,
                                                outProfile, QCMS_DATA_RGBA_8,
@@ -1449,27 +1443,27 @@ static void ShutdownCMS()
 
     if (gCMSRGBTransform) {
         qcms_transform_release(gCMSRGBTransform);
-        gCMSRGBTransform = nullptr;
+        gCMSRGBTransform = nsnull;
     }
     if (gCMSInverseRGBTransform) {
         qcms_transform_release(gCMSInverseRGBTransform);
-        gCMSInverseRGBTransform = nullptr;
+        gCMSInverseRGBTransform = nsnull;
     }
     if (gCMSRGBATransform) {
         qcms_transform_release(gCMSRGBATransform);
-        gCMSRGBATransform = nullptr;
+        gCMSRGBATransform = nsnull;
     }
     if (gCMSOutputProfile) {
         qcms_profile_release(gCMSOutputProfile);
 
         // handle the aliased case
         if (gCMSsRGBProfile == gCMSOutputProfile)
-            gCMSsRGBProfile = nullptr;
-        gCMSOutputProfile = nullptr;
+            gCMSsRGBProfile = nsnull;
+        gCMSOutputProfile = nsnull;
     }
     if (gCMSsRGBProfile) {
         qcms_profile_release(gCMSsRGBProfile);
-        gCMSsRGBProfile = nullptr;
+        gCMSsRGBProfile = nsnull;
     }
 
     // Reset the state variables
@@ -1521,7 +1515,7 @@ gfxPlatform::GetBidiNumeralOption()
 void
 gfxPlatform::FontsPrefsChanged(const char *aPref)
 {
-    NS_ASSERTION(aPref != nullptr, "null preference");
+    NS_ASSERTION(aPref != nsnull, "null preference");
     if (!strcmp(GFX_DOWNLOADABLE_FONTS_ENABLED, aPref)) {
         mAllowDownloadableFonts = UNINITIALIZED_VALUE;
     } else if (!strcmp(GFX_DOWNLOADABLE_FONTS_SANITIZE, aPref)) {
@@ -1574,9 +1568,9 @@ gfxPlatform::GetLog(eGfxLog aWhichLog)
         break;
     }
 
-    return nullptr;
+    return nsnull;
 #else
-    return nullptr;
+    return nsnull;
 #endif
 }
 

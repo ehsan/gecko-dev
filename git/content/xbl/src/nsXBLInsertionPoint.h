@@ -22,7 +22,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_NATIVE_CLASS(nsXBLInsertionPoint)
 
   nsIContent* GetInsertionParent();
-  void ClearInsertionParent() { mParentElement = nullptr; }
+  void ClearInsertionParent() { mParentElement = nsnull; }
 
   PRInt32 GetInsertionIndex() { return mIndex; }
 
