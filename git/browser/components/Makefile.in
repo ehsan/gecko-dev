@@ -59,7 +59,6 @@ EXTRA_PP_COMPONENTS = \
 EXTRA_JS_MODULES = distribution.js
 
 DIRS = \
-	certerror \
 	dirprovider \
 	microsummaries \
 	migration \
