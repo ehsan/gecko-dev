@@ -588,9 +588,9 @@ public:
     mMaxZoom = aMaxZoom;
   }
 
-  virtual bool GetRootZoomConstraints(bool* aOutAllowZoom,
-                                      CSSToScreenScale* aOutMinZoom,
-                                      CSSToScreenScale* aOutMaxZoom)
+  virtual bool GetZoomConstraints(bool* aOutAllowZoom,
+                                  CSSToScreenScale* aOutMinZoom,
+                                  CSSToScreenScale* aOutMaxZoom)
   {
     if (mHaveZoomConstraints) {
       *aOutAllowZoom = mAllowZoom;
@@ -827,11 +827,10 @@ RenderFrameParent::OwnerContentChanged(nsIContent* aContent)
 
 void
 RenderFrameParent::NotifyInputEvent(const WidgetInputEvent& aEvent,
-                                    ScrollableLayerGuid* aOutTargetGuid,
                                     WidgetInputEvent* aOutEvent)
 {
   if (GetApzcTreeManager()) {
-    GetApzcTreeManager()->ReceiveInputEvent(aEvent, aOutTargetGuid, aOutEvent);
+    GetApzcTreeManager()->ReceiveInputEvent(aEvent, nullptr, aOutEvent);
   }
 }
 
@@ -839,8 +838,8 @@ void
 RenderFrameParent::NotifyDimensionsChanged(ScreenIntSize size)
 {
   if (GetApzcTreeManager()) {
-    GetApzcTreeManager()->UpdateRootCompositionBounds(
-      mLayersId, ScreenIntRect(ScreenIntPoint(), size));
+    GetApzcTreeManager()->UpdateCompositionBounds(ScrollableLayerGuid(mLayersId),
+                                                  ScreenIntRect(ScreenIntPoint(), size));
   }
 }
 
@@ -1002,36 +1001,33 @@ RenderFrameParent::BuildDisplayList(nsDisplayListBuilder* aBuilder,
 }
 
 void
-RenderFrameParent::ZoomToRect(uint32_t aPresShellId, ViewID aViewId,
-                              const CSSRect& aRect)
+RenderFrameParent::ZoomToRect(const CSSRect& aRect)
 {
   if (GetApzcTreeManager()) {
-    GetApzcTreeManager()->ZoomToRect(ScrollableLayerGuid(mLayersId, aPresShellId, aViewId),
+    GetApzcTreeManager()->ZoomToRect(ScrollableLayerGuid(mLayersId),
                                      aRect);
   }
 }
 
 void
-RenderFrameParent::ContentReceivedTouch(const ScrollableLayerGuid& aGuid,
-                                        bool aPreventDefault)
+RenderFrameParent::ContentReceivedTouch(bool aPreventDefault)
 {
   if (GetApzcTreeManager()) {
-    GetApzcTreeManager()->ContentReceivedTouch(aGuid, aPreventDefault);
+    GetApzcTreeManager()->ContentReceivedTouch(ScrollableLayerGuid(mLayersId),
+                                               aPreventDefault);
   }
 }
 
 void
-RenderFrameParent::UpdateZoomConstraints(uint32_t aPresShellId,
-                                         ViewID aViewId,
-                                         bool aAllowZoom,
+RenderFrameParent::UpdateZoomConstraints(bool aAllowZoom,
                                          const CSSToScreenScale& aMinZoom,
                                          const CSSToScreenScale& aMaxZoom)
 {
-  if (mContentController && aViewId == FrameMetrics::ROOT_SCROLL_ID) {
+  if (mContentController) {
     mContentController->SaveZoomConstraints(aAllowZoom, aMinZoom, aMaxZoom);
   }
   if (GetApzcTreeManager()) {
-    GetApzcTreeManager()->UpdateZoomConstraints(ScrollableLayerGuid(mLayersId, aPresShellId, aViewId),
+    GetApzcTreeManager()->UpdateZoomConstraints(ScrollableLayerGuid(mLayersId),
                                                 aAllowZoom, aMinZoom, aMaxZoom);
   }
 }

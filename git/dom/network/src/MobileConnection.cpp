@@ -77,13 +77,14 @@ NS_IMPL_EVENT_HANDLER(MobileConnection, dataerror)
 NS_IMPL_EVENT_HANDLER(MobileConnection, cfstatechange)
 NS_IMPL_EVENT_HANDLER(MobileConnection, emergencycbmodechange)
 NS_IMPL_EVENT_HANDLER(MobileConnection, otastatuschange)
-NS_IMPL_EVENT_HANDLER(MobileConnection, iccchange)
 
-MobileConnection::MobileConnection(uint32_t aClientId)
-: mClientId(aClientId)
+MobileConnection::MobileConnection()
 {
   mProvider = do_GetService(NS_RILCONTENTHELPER_CONTRACTID);
   mWindow = nullptr;
+
+  // TODO: Bug 814629 - WebMobileConnection API: support multiple sim cards
+  mClientId = 0;
 
   // Not being able to acquire the provider isn't fatal since we check
   // for it explicitly below.
@@ -125,35 +126,35 @@ MobileConnection::Shutdown()
 // nsIDOMMozMobileConnection
 
 NS_IMETHODIMP
-MobileConnection::GetLastKnownNetwork(nsAString& aNetwork)
+MobileConnection::GetLastKnownNetwork(nsAString& network)
 {
-  aNetwork.SetIsVoid(true);
+  network.SetIsVoid(true);
 
   if (!CheckPermission("mobilenetwork")) {
     return NS_OK;
   }
 
-  aNetwork = mozilla::Preferences::GetString("ril.lastKnownNetwork");
+  network = mozilla::Preferences::GetString("ril.lastKnownNetwork");
   return NS_OK;
 }
 
 NS_IMETHODIMP
-MobileConnection::GetLastKnownHomeNetwork(nsAString& aNetwork)
+MobileConnection::GetLastKnownHomeNetwork(nsAString& network)
 {
-  aNetwork.SetIsVoid(true);
+  network.SetIsVoid(true);
 
   if (!CheckPermission("mobilenetwork")) {
     return NS_OK;
   }
 
-  aNetwork = mozilla::Preferences::GetString("ril.lastKnownHomeNetwork");
+  network = mozilla::Preferences::GetString("ril.lastKnownHomeNetwork");
   return NS_OK;
 }
 
 // All fields below require the "mobileconnection" permission.
 
 bool
-MobileConnection::CheckPermission(const char* aType)
+MobileConnection::CheckPermission(const char* type)
 {
   nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
   NS_ENSURE_TRUE(window, false);
@@ -163,58 +164,47 @@ MobileConnection::CheckPermission(const char* aType)
   NS_ENSURE_TRUE(permMgr, false);
 
   uint32_t permission = nsIPermissionManager::DENY_ACTION;
-  permMgr->TestPermissionFromWindow(window, aType, &permission);
+  permMgr->TestPermissionFromWindow(window, type, &permission);
   return permission == nsIPermissionManager::ALLOW_ACTION;
 }
 
 NS_IMETHODIMP
-MobileConnection::GetVoice(nsIDOMMozMobileConnectionInfo** aVoice)
+MobileConnection::GetVoice(nsIDOMMozMobileConnectionInfo** voice)
 {
-  *aVoice = nullptr;
+  *voice = nullptr;
 
   if (!mProvider || !CheckPermission("mobileconnection")) {
     return NS_OK;
   }
-  return mProvider->GetVoiceConnectionInfo(mClientId, aVoice);
+  return mProvider->GetVoiceConnectionInfo(mClientId, voice);
 }
 
 NS_IMETHODIMP
-MobileConnection::GetData(nsIDOMMozMobileConnectionInfo** aData)
+MobileConnection::GetData(nsIDOMMozMobileConnectionInfo** data)
 {
-  *aData = nullptr;
+  *data = nullptr;
 
   if (!mProvider || !CheckPermission("mobileconnection")) {
     return NS_OK;
   }
-  return mProvider->GetDataConnectionInfo(mClientId, aData);
+  return mProvider->GetDataConnectionInfo(mClientId, data);
 }
 
 NS_IMETHODIMP
-MobileConnection::GetIccId(nsAString& aIccId)
+MobileConnection::GetNetworkSelectionMode(nsAString& networkSelectionMode)
 {
-  aIccId.SetIsVoid(true);
-
-  if (!mProvider || !CheckPermission("mobileconnection")) {
-     return NS_OK;
-  }
-  return mProvider->GetIccId(mClientId, aIccId);
-}
-
-NS_IMETHODIMP
-MobileConnection::GetNetworkSelectionMode(nsAString& aNetworkSelectionMode)
-{
-  aNetworkSelectionMode.SetIsVoid(true);
+  networkSelectionMode.SetIsVoid(true);
 
   if (!mProvider || !CheckPermission("mobileconnection")) {
      return NS_OK;
   }
-  return mProvider->GetNetworkSelectionMode(mClientId, aNetworkSelectionMode);
+  return mProvider->GetNetworkSelectionMode(mClientId, networkSelectionMode);
 }
 
 NS_IMETHODIMP
-MobileConnection::GetNetworks(nsIDOMDOMRequest** aRequest)
+MobileConnection::GetNetworks(nsIDOMDOMRequest** request)
 {
-  *aRequest = nullptr;
+  *request = nullptr;
 
   if (!CheckPermission("mobileconnection")) {
     return NS_OK;
@@ -224,13 +214,13 @@ MobileConnection::GetNetworks(nsIDOMDOMRequest** aRequest)
     return NS_ERROR_FAILURE;
   }
 
-  return mProvider->GetNetworks(mClientId, GetOwner(), aRequest);
+  return mProvider->GetNetworks(mClientId, GetOwner(), request);
 }
 
 NS_IMETHODIMP
-MobileConnection::SelectNetwork(nsIDOMMozMobileNetworkInfo* aNetwork, nsIDOMDOMRequest** aRequest)
+MobileConnection::SelectNetwork(nsIDOMMozMobileNetworkInfo* network, nsIDOMDOMRequest** request)
 {
-  *aRequest = nullptr;
+  *request = nullptr;
 
   if (!CheckPermission("mobileconnection")) {
     return NS_OK;
@@ -240,13 +230,13 @@ MobileConnection::SelectNetwork(nsIDOMMozMobileNetworkInfo* aNetwork, nsIDOMDOMR
     return NS_ERROR_FAILURE;
   }
 
-  return mProvider->SelectNetwork(mClientId, GetOwner(), aNetwork, aRequest);
+  return mProvider->SelectNetwork(mClientId, GetOwner(), network, request);
 }
 
 NS_IMETHODIMP
-MobileConnection::SelectNetworkAutomatically(nsIDOMDOMRequest** aRequest)
+MobileConnection::SelectNetworkAutomatically(nsIDOMDOMRequest** request)
 {
-  *aRequest = nullptr;
+  *request = nullptr;
 
   if (!CheckPermission("mobileconnection")) {
     return NS_OK;
@@ -256,7 +246,7 @@ MobileConnection::SelectNetworkAutomatically(nsIDOMDOMRequest** aRequest)
     return NS_ERROR_FAILURE;
   }
 
-  return mProvider->SelectNetworkAutomatically(mClientId, GetOwner(), aRequest);
+  return mProvider->SelectNetworkAutomatically(mClientId, GetOwner(), request);
 }
 
 NS_IMETHODIMP
@@ -648,9 +638,7 @@ MobileConnection::NotifyOtaStatusChanged(const nsAString& aStatus)
 NS_IMETHODIMP
 MobileConnection::NotifyIccChanged()
 {
-  if (!CheckPermission("mobileconnection")) {
-    return NS_OK;
-  }
-
-  return DispatchTrustedEvent(NS_LITERAL_STRING("iccchange"));
+  // TODO: Bug 814629 - WebMobileConnection API: support multiple sim cards
+  // Return NS_OK for now, will be implemented in Bug 814629.
+  return NS_OK;
 }

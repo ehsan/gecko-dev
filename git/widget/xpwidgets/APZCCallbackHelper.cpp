@@ -112,10 +112,10 @@ APZCCallbackHelper::UpdateSubFrame(nsIContent* aContent,
 }
 
 already_AddRefed<nsIDOMWindowUtils>
-APZCCallbackHelper::GetDOMWindowUtils(const nsIDocument* aDoc)
+APZCCallbackHelper::GetDOMWindowUtils(nsIDocument* doc)
 {
     nsCOMPtr<nsIDOMWindowUtils> utils;
-    nsCOMPtr<nsIDOMWindow> window = aDoc->GetDefaultView();
+    nsCOMPtr<nsIDOMWindow> window = doc->GetDefaultView();
     if (window) {
         utils = do_GetInterface(window);
     }
@@ -123,26 +123,14 @@ APZCCallbackHelper::GetDOMWindowUtils(const nsIDocument* aDoc)
 }
 
 already_AddRefed<nsIDOMWindowUtils>
-APZCCallbackHelper::GetDOMWindowUtils(const nsIContent* aContent)
+APZCCallbackHelper::GetDOMWindowUtils(nsIContent* content)
 {
     nsCOMPtr<nsIDOMWindowUtils> utils;
-    nsIDocument* doc = aContent->GetCurrentDoc();
+    nsIDocument* doc = content->GetCurrentDoc();
     if (doc) {
         utils = GetDOMWindowUtils(doc);
     }
     return utils.forget();
-}
-
-bool
-APZCCallbackHelper::GetScrollIdentifiers(const nsIContent* aContent,
-                                         uint32_t* aPresShellIdOut,
-                                         FrameMetrics::ViewID* aViewIdOut)
-{
-    if (!nsLayoutUtils::FindIDFor(aContent, aViewIdOut)) {
-        return false;
-    }
-    nsCOMPtr<nsIDOMWindowUtils> utils = GetDOMWindowUtils(aContent);
-    return utils && (utils->GetPresShellId(aPresShellIdOut) == NS_OK);
 }
 
 }

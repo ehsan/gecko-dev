@@ -35,6 +35,7 @@ class MediaStreamConstraintsInternal;
 }
 
 #ifdef MOZ_B2G_RIL
+class nsIDOMMozMobileConnection;
 class nsIDOMMozIccManager;
 #endif // MOZ_B2G_RIL
 
@@ -72,7 +73,7 @@ class MozGetUserMediaDevicesSuccessCallback;
 namespace network {
 class Connection;
 #ifdef MOZ_B2G_RIL
-class MobileConnectionArray;
+class MobileConnection;
 #endif
 } // namespace Connection;
 
@@ -218,7 +219,7 @@ public:
                             ErrorResult& aRv);
   bool MozHasPendingMessage(const nsAString& aType, ErrorResult& aRv);
 #ifdef MOZ_B2G_RIL
-  network::MobileConnectionArray* GetMozMobileConnections(ErrorResult& aRv);
+  nsIDOMMozMobileConnection* GetMozMobileConnection(ErrorResult& aRv);
   CellBroadcast* GetMozCellBroadcast(ErrorResult& aRv);
   Voicemail* GetMozVoicemail(ErrorResult& aRv);
   nsIDOMMozIccManager* GetMozIccManager(ErrorResult& aRv);
@@ -287,9 +288,6 @@ public:
 #ifdef MOZ_B2G_FM
   static bool HasFMRadioSupport(JSContext* /* unused */, JSObject* aGlobal);
 #endif // MOZ_B2G_FM
-#ifdef MOZ_NFC
-  static bool HasNfcSupport(JSContext* /* unused */, JSObject* aGlobal);
-#endif // MOZ_NFC
 #ifdef MOZ_TIME_MANAGER
   static bool HasTimeSupport(JSContext* /* unused */, JSObject* aGlobal);
 #endif // MOZ_TIME_MANAGER
@@ -331,7 +329,7 @@ private:
   nsRefPtr<Telephony> mTelephony;
   nsRefPtr<network::Connection> mConnection;
 #ifdef MOZ_B2G_RIL
-  nsRefPtr<network::MobileConnectionArray> mMobileConnections;
+  nsRefPtr<network::MobileConnection> mMobileConnection;
   nsRefPtr<CellBroadcast> mCellBroadcast;
   nsRefPtr<IccManager> mIccManager;
   nsRefPtr<Voicemail> mVoicemail;
