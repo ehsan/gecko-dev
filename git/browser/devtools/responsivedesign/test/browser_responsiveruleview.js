@@ -102,7 +102,6 @@ function test() {
     // Menus are correctly updated?
     is(document.getElementById("Tools:ResponsiveUI").getAttribute("checked"), "false", "menu unchecked");
 
-    Services.prefs.clearUserPref("devtools.toolbox.splitconsoleEnabled");
     gBrowser.removeCurrentTab();
     finish();
   }

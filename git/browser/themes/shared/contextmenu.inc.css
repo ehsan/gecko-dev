@@ -1,3 +1,8 @@
+
+menugroup > .menuitem-iconic[disabled="true"] > .menu-iconic-left {
+  opacity: .3;
+}
+
 #context-navigation > .menuitem-iconic {
   -moz-box-flex: 1;
   -moz-box-pack: center;
@@ -8,64 +13,44 @@
   -moz-appearance: none;
 }
 
-#context-back {
+#context-back > .menu-iconic-left {
   list-style-image: url("chrome://browser/skin/content-contextmenu.svg#back");
 }
 
-#context-back[_moz-menuactive=true] {
+#context-back[_moz-menuactive=true]:not([disabled]) > .menu-iconic-left {
   list-style-image: url("chrome://browser/skin/content-contextmenu.svg#back-active");
 }
 
-#context-back[disabled=true] {
-  list-style-image: url("chrome://browser/skin/content-contextmenu.svg#back-disabled");
-}
-
-#context-forward {
+#context-forward > .menu-iconic-left {
   list-style-image: url("chrome://browser/skin/content-contextmenu.svg#forward");
 }
 
-#context-forward[_moz-menuactive=true] {
+#context-forward[_moz-menuactive=true]:not([disabled]) > .menu-iconic-left {
   list-style-image: url("chrome://browser/skin/content-contextmenu.svg#forward-active");
 }
 
-#context-forward[disabled=true] {
-  list-style-image: url("chrome://browser/skin/content-contextmenu.svg#forward-disabled");
-}
-
-#context-reload {
+#context-reload > .menu-iconic-left {
   list-style-image: url("chrome://browser/skin/content-contextmenu.svg#reload");
 }
 
-#context-reload[_moz-menuactive=true] {
+#context-reload[_moz-menuactive=true]:not([disabled]) > .menu-iconic-left {
   list-style-image: url("chrome://browser/skin/content-contextmenu.svg#reload-active");
 }
 
-#context-reload[disabled=true] {
-  list-style-image: url("chrome://browser/skin/content-contextmenu.svg#reload-disabled");
-}
-
-#context-stop {
+#context-stop > .menu-iconic-left {
   list-style-image: url("chrome://browser/skin/content-contextmenu.svg#stop");
 }
 
-#context-stop[_moz-menuactive=true] {
+#context-stop[_moz-menuactive=true]:not([disabled]) > .menu-iconic-left {
   list-style-image: url("chrome://browser/skin/content-contextmenu.svg#stop-active");
 }
 
-#context-stop[disabled=true] {
-  list-style-image: url("chrome://browser/skin/content-contextmenu.svg#stop-disabled");
-}
-
-#context-bookmarkpage {
+#context-bookmarkpage > .menu-iconic-left {
   list-style-image: url("chrome://browser/skin/content-contextmenu.svg#bookmark");
 }
 
-#context-bookmarkpage[_moz-menuactive=true] {
+#context-bookmarkpage[_moz-menuactive=true]:not([disabled]) > .menu-iconic-left {
   list-style-image: url("chrome://browser/skin/content-contextmenu.svg#bookmark-active");
-}
-
-#context-bookmarkpage[disabled=true] {
-  list-style-image: url("chrome://browser/skin/content-contextmenu.svg#bookmark-disabled");
 }
 
 #context-back:-moz-locale-dir(rtl),
