@@ -551,8 +551,9 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
 
     if (childHitResult.shouldZoom) {
       // Zoom in!
-      var tab = this.tab;
       var orig = $tabEl.bounds();
+      var scale = window.innerWidth/orig.width;
+      var tab = this.tab;
 
       function onZoomDone() {
         UI.goToTab(tab);
@@ -569,11 +570,24 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
           childHitResult.callback();
       }
 
+      // The scaleCheat is a clever way to speed up the zoom-in code.
+      // Because image scaling is slowest on big images, we cheat and stop the image
+      // at scaled-down size and placed accordingly. Because the animation is fast, you can't
+      // see the difference but it feels a lot zippier. The only trick is choosing the
+      // right animation function so that you don't see a change in percieved
+      // animation speed.
+      var scaleCheat = 1.7;
+
       let animateZoom = gPrefBranch.getBoolPref("animate_zoom");
       if (animateZoom) {
         TabItems.pausePainting();
         $tabEl.addClass("front")
-        .animate(this.getZoomRect(), {
+        .animate({
+          top:    orig.top    * (1 - 1/scaleCheat),
+          left:   orig.left   * (1 - 1/scaleCheat),
+          width:  orig.width  * scale/scaleCheat,
+          height: orig.height * scale/scaleCheat
+        }, {
           duration: 230,
           easing: 'fast',
           complete: function() {
@@ -639,33 +653,6 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   },
 
   // ----------
-  // Function: getZoomRect
-  // Returns a faux rect (just an object with top, left, width, height)
-  // which represents the maximum bounds of the tab thumbnail in the zoom
-  // animation. Note that this is not just the rect of the window itself,
-  // due to scaleCheat.
-  getZoomRect: function TabItem_getZoomRect(scaleCheat) {
-    let $tabEl = iQ(this.container);
-    let orig = $tabEl.bounds();
-    // The scaleCheat is a clever way to speed up the zoom-in code.
-    // Because image scaling is slowest on big images, we cheat and stop
-    // the image at scaled-down size and placed accordingly. Because the
-    // animation is fast, you can't see the difference but it feels a lot
-    // zippier. The only trick is choosing the right animation function so
-    // that you don't see a change in percieved animation speed.
-    if (!scaleCheat)
-      scaleCheat = 1.7;
-
-    let zoomWidth = orig.width + (window.innerWidth - orig.width) / scaleCheat;
-    return {
-      top:    orig.top    * (1 - 1/scaleCheat),
-      left:   orig.left   * (1 - 1/scaleCheat),
-      width:  zoomWidth,
-      height: orig.height * zoomWidth / orig.width
-    };
-  },
-
-  // ----------
   // Function: setZoomPrep
   // Either go into or return from (depending on <value>) "zoom prep" mode,
   // where the tab fills a large portion of the screen in anticipation of
@@ -680,7 +667,7 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     if (value && animateZoom) {
       this._zoomPrep = true;
 
-      // The scaleCheat of 2 here is a clever way to speed up the zoom-out code.
+      // The divide by two part here is a clever way to speed up the zoom-out code.
       // Because image scaling is slowest on big images, we cheat and start the image
       // at half-size and placed accordingly. Because the animation is fast, you can't
       // see the difference but it feels a lot zippier. The only trick is choosing the
@@ -688,10 +675,15 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       // animation speed from frame #1 (the tab) to frame #2 (the half-size image) to
       // frame #3 (the first frame of real animation). Choosing an animation that starts
       // fast is key.
-
+      var scaleCheat = 2;
       $div
         .addClass('front')
-        .css(this.getZoomRect(2));
+        .css({
+          left: box.left * (1-1/scaleCheat),
+          top: box.top * (1-1/scaleCheat),
+          width: window.innerWidth/scaleCheat,
+          height: box.height * (window.innerWidth / box.width)/scaleCheat
+        });
     } else {
       this._zoomPrep = false;
       $div.removeClass('front');
