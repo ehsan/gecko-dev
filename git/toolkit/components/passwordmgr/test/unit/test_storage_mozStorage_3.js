@@ -7,13 +7,21 @@
  */
 
 
-const STORAGE_TYPE = "mozStorage";
-
 function run_test() {
+
+// Disable test for now
+return;
 
 try {
 
-var storage, testnum = 0;
+
+/* ========== 0 ========== */
+var testnum = 0;
+var testdesc = "Initial connection to storage module"
+
+var storage = LoginTest.newMozStorage();
+if (!storage)
+    throw "Couldn't create storage instance.";
 
 
 /* ========== 1 ========== */
@@ -50,12 +58,14 @@ LoginTest.deleteFile(OUTDIR, "signons.sqlite");
 testnum++;
 
 testdesc = "checking import of mime64-obscured entries"
-storage = LoginTest.initStorage(INDIR, "signons-380961-1.txt",
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, INDIR, "signons-380961-1.txt",
                                OUTDIR, "output-380961-1.sqlite");
 LoginTest.checkStorageData(storage, [], [dummyuser1]);
 
 testdesc = "[flush and reload for verification]"
-storage = LoginTest.reloadStorage(OUTDIR, "output-380961-1.sqlite");
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, null, null, OUTDIR, "output-380961-1.sqlite");
 LoginTest.checkStorageData(storage, [], [dummyuser1]);
 
 LoginTest.deleteFile(OUTDIR, "output-380961-1.sqlite");
@@ -65,12 +75,14 @@ LoginTest.deleteFile(OUTDIR, "output-380961-1.sqlite");
 testnum++;
 
 testdesc = "testing import of multiple mime-64 entries for a host"
-storage = LoginTest.initStorage(INDIR, "signons-380961-2.txt",
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, INDIR, "signons-380961-2.txt",
                                OUTDIR, "output-380961-2.sqlite");
 LoginTest.checkStorageData(storage, [], [dummyuser2, dummyuser3]);
 
 testdesc = "[flush and reload for verification]"
-storage = LoginTest.reloadStorage(OUTDIR, "output-380961-2.sqlite");
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, null, null, OUTDIR, "output-380961-2.sqlite");
 LoginTest.checkStorageData(storage, [], [dummyuser2, dummyuser3]);
 
 LoginTest.deleteFile(OUTDIR, "output-380961-2.sqlite");
@@ -80,12 +92,14 @@ LoginTest.deleteFile(OUTDIR, "output-380961-2.sqlite");
 testnum++;
 
 testdesc = "testing import of mixed encrypted and mime-64 entries."
-storage = LoginTest.initStorage(INDIR, "signons-380961-3.txt",
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, INDIR, "signons-380961-3.txt",
                                OUTDIR, "output-380961-3.sqlite");
 LoginTest.checkStorageData(storage, [], [dummyuser1, dummyuser2, dummyuser3]);
 
 testdesc = "[flush and reload for verification]"
-storage = LoginTest.reloadStorage(OUTDIR, "output-380961-3.sqlite");
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, null, null, OUTDIR, "output-380961-3.sqlite");
 LoginTest.checkStorageData(storage, [], [dummyuser1, dummyuser2, dummyuser3]);
 
 LoginTest.deleteFile(OUTDIR, "output-380961-3.sqlite");
@@ -123,12 +137,14 @@ dummyuser4.httpRealm     = null;
 testnum++;
 
 testdesc = "testing import of non-ascii username and password."
-storage = LoginTest.initStorage(INDIR, "signons-381262.txt",
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, INDIR, "signons-381262.txt",
                                OUTDIR, "output-381262-1.sqlite");
 LoginTest.checkStorageData(storage, [], [dummyuser4]);
 
 testdesc = "[flush and reload for verification]"
-storage = LoginTest.reloadStorage(OUTDIR, "output-381262-1.sqlite");
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, null, null, OUTDIR, "output-381262-1.sqlite");
 LoginTest.checkStorageData(storage, [], [dummyuser4]);
 
 LoginTest.deleteFile(OUTDIR, "output-381262-1.sqlite");
@@ -138,14 +154,16 @@ LoginTest.deleteFile(OUTDIR, "output-381262-1.sqlite");
 testnum++;
 
 testdesc = "testing storage of non-ascii username and password."
-storage = LoginTest.initStorage(INDIR, "signons-empty.txt",
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, INDIR, "signons-empty.txt",
                                OUTDIR, "output-381262-2.sqlite");
 LoginTest.checkStorageData(storage, [], []);
 storage.addLogin(dummyuser4);
 LoginTest.checkStorageData(storage, [], [dummyuser4]);
 
 testdesc = "[flush and reload for verification]"
-storage = LoginTest.reloadStorage(OUTDIR, "output-381262-2.sqlite");
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, null, null, OUTDIR, "output-381262-2.sqlite");
 LoginTest.checkStorageData(storage, [], [dummyuser4]);
 
 LoginTest.deleteFile(OUTDIR, "output-381262-2.sqlite");
@@ -162,7 +180,8 @@ LoginTest.deleteFile(OUTDIR, "output-381262-2.sqlite");
 testnum++;
 
 testdesc = "checking double reading of mime64-obscured entries";
-storage = LoginTest.initStorage(INDIR, "signons-380961-1.txt",
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, INDIR, "signons-380961-1.txt",
                                OUTDIR, "output-400751-0.sqlite");
 LoginTest.checkStorageData(storage, [], [dummyuser1]);
 
@@ -176,7 +195,8 @@ LoginTest.deleteFile(OUTDIR, "output-400751-0.sqlite");
 testnum++;
 
 testdesc = "checking correct storage of mime64 converted entries";
-storage = LoginTest.initStorage(INDIR, "signons-380961-1.txt",
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, INDIR, "signons-380961-1.txt",
                                OUTDIR, "output-400751-1.sqlite");
 LoginTest.checkStorageData(storage, [], [dummyuser1]);
 LoginTest.checkStorageData(storage, [], [dummyuser1]);
@@ -184,7 +204,7 @@ storage.addLogin(dummyuser2); // trigger a write
 LoginTest.checkStorageData(storage, [], [dummyuser1, dummyuser2]);
 
 testdesc = "[flush and reload for verification]";
-storage = LoginTest.reloadStorage(OUTDIR, "output-400751-1.sqlite");
+LoginTest.initStorage(storage, null, null, OUTDIR, "output-400751-1.sqlite");
 LoginTest.checkStorageData(storage, [], [dummyuser1, dummyuser2]);
 
 LoginTest.deleteFile(OUTDIR, "output-400751-1.sqlite");
@@ -211,7 +231,8 @@ function tryAddUser(storage, aUser, aExpectedError) {
 }
 
 testdesc = "preparting to try logins with bogus values";
-storage = LoginTest.initStorage(INDIR, "signons-empty.txt",
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, INDIR, "signons-empty.txt",
                                OUTDIR, "output-394610-1.sqlite");
 LoginTest.checkStorageData(storage, [], []);
 
@@ -304,7 +325,7 @@ failUser.password = "pass\r\nword";
 tryAddUser(storage, failUser, null);
 
 testdesc = "[flush and reload for verification]"
-storage = LoginTest.reloadStorage(OUTDIR, "output-394610-1.sqlite");
+LoginTest.initStorage(storage, OUTDIR, "output-394610-1.txt");
 LoginTest.checkStorageData(storage, [], [failUser]);
 
 failUser.username = "username";
@@ -317,7 +338,8 @@ LoginTest.deleteFile(OUTDIR, "output-394610-1.sqlite");
 testnum++;
 
 testdesc = "storing data values with special period-only value"
-storage = LoginTest.initStorage(INDIR, "signons-empty.txt",
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, INDIR, "signons-empty.txt",
                                OUTDIR, "output-394610-2.sqlite");
 LoginTest.checkStorageData(storage, [], []);
 
@@ -347,7 +369,8 @@ testdesc = "check added data"
 LoginTest.checkStorageData(storage, [], []);
 
 testdesc = "[flush and reload for verification]"
-storage = LoginTest.reloadStorage(OUTDIR, "output-394610-2.sqlite");
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, null, null, OUTDIR, "output-394610-2.sqlite");
 LoginTest.checkStorageData(storage, [], []);
 
 LoginTest.deleteFile(OUTDIR, "output-394610-2.sqlite");
@@ -358,7 +381,8 @@ testnum++;
 
 testdesc = "create logins with parens in host/httpRealm"
 
-storage = LoginTest.initStorage(INDIR, "signons-empty.txt",
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, INDIR, "signons-empty.txt",
                                OUTDIR, "output-394610-3.sqlite");
 LoginTest.checkStorageData(storage, [], []);
 
@@ -427,7 +451,8 @@ testdesc = "check added data"
 LoginTest.checkStorageData(storage, [], parenLogins);
 
 testdesc = "[flush and reload for verification]"
-storage = LoginTest.reloadStorage(OUTDIR, "output-394610-3.sqlite");
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, null, null, OUTDIR, "output-394610-3.sqlite");
 LoginTest.checkStorageData(storage, [], parenLogins);
 
 LoginTest.deleteFile(OUTDIR, "output-394610-3.sqlite");
@@ -442,7 +467,8 @@ testdesc = "storing data values with embedded nulls."
 do_check_eq( "foo\0bar", "foo\0bar");
 do_check_neq("foo\0bar", "foobar");
 
-storage = LoginTest.initStorage(INDIR, "signons-empty.txt",
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, INDIR, "signons-empty.txt",
                                OUTDIR, "output-394610-4.sqlite");
 LoginTest.checkStorageData(storage, [], []);
 
@@ -513,7 +539,8 @@ nullUser.password = "password";
 LoginTest.checkStorageData(storage, [], []);
 
 testdesc = "[flush and reload for verification]";
-storage = LoginTest.reloadStorage(OUTDIR, "output-394610-4.sqlite");
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, null, null, OUTDIR, "output-394610-4.sqlite");
 LoginTest.checkStorageData(storage, [], []);
 
 nullUser.username = "username";

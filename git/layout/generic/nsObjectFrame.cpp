@@ -54,12 +54,6 @@
 #include "nsIView.h"
 #include "nsIViewManager.h"
 #include "nsIDOMKeyListener.h"
-#ifdef MOZ_X11
-#ifdef MOZ_WIDGET_QT
-#include <QWidget>
-#include <QX11Info>
-#endif
-#endif
 #include "nsIPluginHost.h"
 #include "nsplugin.h"
 #include "nsString.h"
@@ -173,10 +167,6 @@ enum { XKeyPress = KeyPress };
 
 #ifdef MOZ_WIDGET_GTK2
 #include "gfxGdkNativeRenderer.h"
-#endif
-
-#ifdef MOZ_WIDGET_QT
-#include "gfxQtNativeRenderer.h"
 #endif
 
 #ifdef XP_WIN
@@ -490,7 +480,7 @@ private:
 
   nsresult EnsureCachedAttrParamArrays();
 
-#if defined(MOZ_WIDGET_GTK2)
+#ifdef MOZ_WIDGET_GTK2
   class Renderer : public gfxGdkNativeRenderer {
   public:
     Renderer(nsPluginWindow* aWindow, nsIPluginInstance* aInstance,
@@ -500,22 +490,6 @@ private:
     {}
     virtual nsresult NativeDraw(GdkDrawable * drawable, short offsetX, 
             short offsetY, GdkRectangle * clipRects, PRUint32 numClipRects);
-  private:
-    nsPluginWindow* mWindow;
-    nsIPluginInstance* mInstance;
-    const nsIntSize& mPluginSize;
-    const nsIntRect& mDirtyRect;
-  };
-#elif defined(MOZ_WIDGET_QT)
-  class Renderer : public gfxQtNativeRenderer {
-  public:
-    Renderer(nsPluginWindow* aWindow, nsIPluginInstance* aInstance,
-             const nsIntSize& aPluginSize, const nsIntRect& aDirtyRect)
-      : mWindow(aWindow), mInstance(aInstance),
-        mPluginSize(aPluginSize), mDirtyRect(aDirtyRect)
-    {}
-    virtual nsresult NativeDraw(QWidget * drawable, short offsetX, 
-            short offsetY, QRect * clipRects, PRUint32 numClipRects);
   private:
     nsPluginWindow* mWindow;
     nsIPluginInstance* mInstance;
@@ -4155,7 +4129,6 @@ DepthOfVisual(const Screen* screen, const Visual* visual)
 }
 #endif
 
-#if defined(MOZ_WIDGET_GTK2)
 nsresult
 nsPluginInstanceOwner::Renderer::NativeDraw(GdkDrawable * drawable, 
                                             short offsetX, short offsetY,
@@ -4167,20 +4140,6 @@ nsPluginInstanceOwner::Renderer::NativeDraw(GdkDrawable * drawable,
   Visual * visual = GDK_VISUAL_XVISUAL(gdk_drawable_get_visual(drawable));
   Colormap colormap = GDK_COLORMAP_XCOLORMAP(gdk_drawable_get_colormap(drawable));
   Screen * screen = GDK_SCREEN_XSCREEN (gdk_drawable_get_screen(drawable));
-#endif
-#elif defined(MOZ_WIDGET_QT)
-nsresult
-nsPluginInstanceOwner::Renderer::NativeDraw(QWidget * drawable,
-                                            short offsetX, short offsetY,
-                                            QRect * clipRects,
-                                            PRUint32 numClipRects)
-{
-#ifdef MOZ_X11
-  QX11Info xinfo = drawable->x11Info();
-  Visual * visual = (Visual*) xinfo.visual();
-  Colormap colormap = xinfo.colormap();
-  Screen * screen = (Screen*) xinfo.screen();
-#endif
 #endif
   // See if the plugin must be notified of new window parameters.
   PRBool doupdatewindow = PR_FALSE;
@@ -4201,17 +4160,10 @@ nsPluginInstanceOwner::Renderer::NativeDraw(QWidget * drawable,
   NS_ASSERTION(numClipRects <= 1, "We don't support multiple clip rectangles!");
   nsIntRect clipRect;
   if (numClipRects) {
-#if defined(MOZ_WIDGET_GTK2)
     clipRect.x = clipRects[0].x;
     clipRect.y = clipRects[0].y;
     clipRect.width  = clipRects[0].width;
     clipRect.height = clipRects[0].height;
-#elif defined(MOZ_WIDGET_QT)
-    clipRect.x = clipRects[0].x();
-    clipRect.y = clipRects[0].y();
-    clipRect.width  = clipRects[0].width();
-    clipRect.height = clipRects[0].height();
-#endif
   }
   else {
     // nsPluginRect members are unsigned, but
@@ -4264,12 +4216,7 @@ nsPluginInstanceOwner::Renderer::NativeDraw(QWidget * drawable,
   // set the drawing info
   exposeEvent.type = GraphicsExpose;
   exposeEvent.display = DisplayOfScreen(screen);
-  exposeEvent.drawable =
-#if defined(MOZ_WIDGET_GTK2)
-      GDK_DRAWABLE_XID(drawable);
-#elif defined(MOZ_WIDGET_QT)
-      drawable->x11PictureHandle();
-#endif
+  exposeEvent.drawable = GDK_DRAWABLE_XID(drawable);
   exposeEvent.x = mDirtyRect.x + offsetX;
   exposeEvent.y = mDirtyRect.y + offsetY;
   exposeEvent.width  = mDirtyRect.width;

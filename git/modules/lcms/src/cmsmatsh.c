@@ -98,26 +98,16 @@ LPMATSHAPER cmsAllocMatShaper2(LPMAT3 Matrix, LPGAMMATABLE In[], LPLCMSPRECACHE 
        if (NewMatShaper)
               ZeroMemory(NewMatShaper, sizeof(MATSHAPER));
 
-       NewMatShaper->dwFlags = Behaviour;
+       NewMatShaper->dwFlags = Behaviour & (MATSHAPER_ALLSMELTED);
 
        // Fill matrix part
-       if (Behaviour & MATSHAPER_FLOATMAT) {
-              FMAT3ASetup(&NewMatShaper->Matrix.FA);
-              MAT3toFloatTranspose(NewMatShaper -> Matrix.FA.F, Matrix);
-              if (!FMAT3isIdentity(NewMatShaper -> Matrix.FA.F, 0.00001f))
-                            NewMatShaper -> dwFlags |= MATSHAPER_HASMATRIX;
 
-              // This needs to be calculated by the CPU or a very precise
-              // compiler. If it's too big (like 1.0), values are clamped
-              // to 65536 instead 65535, and we either have an overflow of
-              // the precache bounds or scary downcasting.
-              NewMatShaper -> clampMax = ((FLOAT) (65536 - 1)) / 65536.0f;
-       }
-       else {
-              MAT3toFix(&NewMatShaper -> Matrix.W, Matrix);
-              if (!MAT3isIdentity(&NewMatShaper -> Matrix.W, 0.00001))
-                            NewMatShaper -> dwFlags |= MATSHAPER_HASMATRIX;
-       }
+       MAT3toFix(&NewMatShaper -> Matrix, Matrix);
+
+       // Reality check
+
+       if (!MAT3isIdentity(&NewMatShaper -> Matrix, 0.00001))
+                     NewMatShaper -> dwFlags |= MATSHAPER_HASMATRIX;
 
        // Now, on the table characteristics
 
@@ -158,6 +148,8 @@ LPMATSHAPER cmsAllocMatShaper2(LPMAT3 Matrix, LPGAMMATABLE In[], LPLCMSPRECACHE 
 
 }
 
+
+
 // Creation & Destruction
 
 LPMATSHAPER cmsAllocMatShaper(LPMAT3 Matrix, LPGAMMATABLE Tables[], DWORD Behaviour)
@@ -173,11 +165,11 @@ LPMATSHAPER cmsAllocMatShaper(LPMAT3 Matrix, LPGAMMATABLE Tables[], DWORD Behavi
 
        // Fill matrix part
 
-       MAT3toFix(&NewMatShaper -> Matrix.W, Matrix);
+       MAT3toFix(&NewMatShaper -> Matrix, Matrix);
 
        // Reality check
 
-       if (!MAT3isIdentity(&NewMatShaper -> Matrix.W, 0.00001))
+       if (!MAT3isIdentity(&NewMatShaper -> Matrix, 0.00001))
                      NewMatShaper -> dwFlags |= MATSHAPER_HASMATRIX;
 
        // Now, on the table characteristics
@@ -280,7 +272,7 @@ void AllSmeltedBehaviour(LPMATSHAPER MatShaper, WORD In[], WORD Out[])
        if (MatShaper -> dwFlags & MATSHAPER_HASMATRIX)
        {       
                          
-             MAT3evalW(&OutVect, &MatShaper -> Matrix.W, &InVect);
+             MAT3evalW(&OutVect, &MatShaper -> Matrix, &InVect);
        }
        else 
        {
@@ -342,7 +334,7 @@ void InputBehaviour(LPMATSHAPER MatShaper, WORD In[], WORD Out[])
 
        if (MatShaper -> dwFlags & MATSHAPER_HASMATRIX)
        {
-              MAT3evalW(&OutVect, &MatShaper -> Matrix.W, &InVect);
+              MAT3evalW(&OutVect, &MatShaper -> Matrix, &InVect);
        }
        else
        {
@@ -373,7 +365,7 @@ void OutputBehaviour(LPMATSHAPER MatShaper, WORD In[], WORD Out[])
 
        if (MatShaper -> dwFlags & MATSHAPER_HASMATRIX)
        {
-              MAT3evalW(&OutVect, &MatShaper -> Matrix.W, &InVect);
+              MAT3evalW(&OutVect, &MatShaper -> Matrix, &InVect);
        }
        else
        {
@@ -408,6 +400,7 @@ void OutputBehaviour(LPMATSHAPER MatShaper, WORD In[], WORD Out[])
 
 void cmsEvalMatShaper(LPMATSHAPER MatShaper, WORD In[], WORD Out[])
 {
+
        if ((MatShaper -> dwFlags & MATSHAPER_ALLSMELTED) == MATSHAPER_ALLSMELTED)
        {
               AllSmeltedBehaviour(MatShaper, In, Out);
@@ -421,4 +414,3 @@ void cmsEvalMatShaper(LPMATSHAPER MatShaper, WORD In[], WORD Out[])
 
        OutputBehaviour(MatShaper, In, Out);
 }
-

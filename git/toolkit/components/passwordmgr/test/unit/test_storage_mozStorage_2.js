@@ -7,13 +7,21 @@
  */
 
 
-const STORAGE_TYPE = "mozStorage";
-
 function run_test() {
+
+// Disable test for now
+return;
 
 try {
 
-var storage, testnum = 0;
+
+/* ========== 0 ========== */
+var testnum = 0;
+var testdesc = "Initial connection to storage module"
+
+var storage = LoginTest.newMozStorage();
+if (!storage)
+    throw "Couldn't create storage instance.";
 
 
 /* ========== 1 ========== */
@@ -41,25 +49,28 @@ dummyuser3.init("http://dummyhost2.mozilla.org", "http://cgi.site.com", null,
 testnum++;
 
 testdesc = "[ensuring file doesn't exist]";
-var filename="non-existant-file-pwmgr.sqlite";
+storage = LoginTest.newMozStorage();
+var filename="non-existant-file-"+Math.floor(Math.random() * 10000);
 var file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsILocalFile);
 file.initWithPath(OUTDIR);
 file.append(filename);
-if(file.exists())
+var exists = file.exists();
+if (exists) {
+    // Go ahead and remove the file, so that this failure
+    // doesn't repeat itself w/o intervention.
     file.remove(false);
+    do_check_false(exists); // fail on purpose
+}
 
 testdesc = "Initialize with no existing file";
-storage = LoginTest.reloadStorage(OUTDIR, filename);
+LoginTest.initStorage(storage, null, null, OUTDIR, filename);
 LoginTest.checkStorageData(storage, [], []);
 
 testdesc = "Add 1 disabled host only";
 storage.setLoginSavingEnabled("http://www.nsa.gov", false);
 LoginTest.checkStorageData(storage, ["http://www.nsa.gov"], []);
 
-// Can't reliably delete the DB on Windows, so ignore failures.
-try {
-    file.remove(false);
-} catch (e) { }
+file.remove(false);
 
 
 
@@ -67,7 +78,8 @@ try {
 testnum++;
 
 testdesc = "Initialize with existing file (valid, but empty)";
-storage = LoginTest.initStorage(INDIR, "signons-empty.txt",
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, INDIR, "signons-empty.txt",
                                OUTDIR, "output-01.sqlite");
 LoginTest.checkStorageData(storage, [], []);
 
@@ -88,7 +100,8 @@ LoginTest.deleteFile(OUTDIR, "output-01.sqlite");
 testnum++;
 
 testdesc = "[clear data and reinitialize with signons-empty.txt]";
-storage = LoginTest.initStorage(INDIR, "signons-empty.txt",
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, INDIR, "signons-empty.txt",
                                OUTDIR, "output-02.sqlite");
 
 // Previous tests made sure we can write to an existing file, so now just
@@ -97,7 +110,8 @@ testdesc = "Add 1 login only";
 storage.addLogin(dummyuser1);
 
 testdesc = "[flush and reload for verification]";
-storage = LoginTest.reloadStorage(OUTDIR, "output-02.sqlite");
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, null, null, OUTDIR, "output-02.sqlite");
 
 testdesc = "Verify output-02.sqlite";
 LoginTest.checkStorageData(storage, [], [dummyuser1]);
@@ -109,14 +123,16 @@ LoginTest.deleteFile(OUTDIR, "output-02.sqlite");
 testnum++;
 
 testdesc = "[clear data and reinitialize with signons-empty.txt]";
-storage = LoginTest.initStorage(INDIR, "signons-empty.txt",
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, INDIR, "signons-empty.txt",
                                OUTDIR, "output-03.sqlite");
 
 testdesc = "Add 1 disabled host only";
 storage.setLoginSavingEnabled("http://www.nsa.gov", false);
 
 testdesc = "[flush and reload for verification]";
-storage = LoginTest.reloadStorage(OUTDIR, "output-03.sqlite");
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, null, null, OUTDIR, "output-03.sqlite");
 
 testdesc = "Verify output-03.sqlite";
 LoginTest.checkStorageData(storage, ["http://www.nsa.gov"], []);
@@ -128,7 +144,8 @@ LoginTest.deleteFile(OUTDIR, "output-03.sqlite");
 testnum++;
 
 testdesc = "[clear data and reinitialize with signons-empty.txt]";
-storage = LoginTest.initStorage(INDIR, "signons-empty.txt",
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, INDIR, "signons-empty.txt",
                                OUTDIR, "output-04.sqlite");
 
 testdesc = "Add 1 disabled host and 1 login";
@@ -136,7 +153,8 @@ storage.setLoginSavingEnabled("http://www.nsa.gov", false);
 storage.addLogin(dummyuser1);
 
 testdesc = "[flush and reload for verification]";
-storage = LoginTest.reloadStorage(OUTDIR, "output-04.sqlite");
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, null, null, OUTDIR, "output-04.sqlite");
 
 testdesc = "Verify output-04.sqlite";
 LoginTest.checkStorageData(storage, ["http://www.nsa.gov"], [dummyuser1]);
@@ -148,7 +166,8 @@ LoginTest.deleteFile(OUTDIR, "output-04.sqlite");
 testnum++;
 
 testdesc = "[clear data and reinitialize with signons-empty.txt]";
-storage = LoginTest.initStorage(INDIR, "signons-empty.txt",
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, INDIR, "signons-empty.txt",
                                OUTDIR, "output-03-2.sqlite");
 
 testdesc = "Add 2 logins (to different hosts)";
@@ -156,7 +175,8 @@ storage.addLogin(dummyuser1);
 storage.addLogin(dummyuser2);
 
 testdesc = "[flush and reload for verification]";
-storage = LoginTest.reloadStorage(OUTDIR, "output-03-2.sqlite");
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, null, null, OUTDIR, "output-03-2.sqlite");
 
 testdesc = "Verify output-03-2.sqlite";
 LoginTest.checkStorageData(storage, [], [dummyuser2, dummyuser1]);
@@ -168,7 +188,8 @@ LoginTest.deleteFile(OUTDIR, "output-03-2.sqlite");
 testnum++;
 
 testdesc = "[clear data and reinitialize with signons-empty.txt]";
-storage = LoginTest.initStorage(INDIR, "signons-empty.txt",
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, INDIR, "signons-empty.txt",
                                OUTDIR, "output-04-2.sqlite");
 
 testdesc = "Add 2 logins (to same host)";
@@ -176,7 +197,8 @@ storage.addLogin(dummyuser2);
 storage.addLogin(dummyuser3);
 
 testdesc = "[flush and reload for verification]";
-storage = LoginTest.reloadStorage(OUTDIR, "output-04-2.sqlite");
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, null, null, OUTDIR, "output-04-2.sqlite");
 
 testdesc = "Verify output-04-2.sqlite";
 LoginTest.checkStorageData(storage, [], [dummyuser3, dummyuser2]);
@@ -188,7 +210,8 @@ LoginTest.deleteFile(OUTDIR, "output-04-2.sqlite");
 testnum++;
 
 testdesc = "[clear data and reinitialize with signons-empty.txt]";
-storage = LoginTest.initStorage(INDIR, "signons-empty.txt",
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, INDIR, "signons-empty.txt",
                                OUTDIR, "output-05.sqlite");
 
 testdesc = "Add 3 logins (2 to same host)";
@@ -197,7 +220,8 @@ storage.addLogin(dummyuser1);
 storage.addLogin(dummyuser2);
 
 testdesc = "[flush and reload for verification]";
-storage = LoginTest.reloadStorage(OUTDIR, "output-05.sqlite");
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, null, null, OUTDIR, "output-05.sqlite");
 
 testdesc = "Verify output-05.sqlite";
 LoginTest.checkStorageData(storage, [], [dummyuser1, dummyuser2, dummyuser3]);
@@ -217,7 +241,8 @@ LoginTest.deleteFile(OUTDIR, "output-05.sqlite");
 testnum++;
 testdesc = "[init with 1 login, 1 disabled host]";
 
-storage = LoginTest.initStorage(INDIR, "signons-06.txt",
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, INDIR, "signons-06.txt",
                                OUTDIR, "output-06.sqlite");
 // storage.removeAllLogins();
 var oldfile1 = PROFDIR.clone();

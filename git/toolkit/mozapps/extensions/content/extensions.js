@@ -694,9 +694,13 @@ function displaySearchResults(addons, count, isRecommended) {
                      gRDF.GetLiteral("header-recommended"),
                      true);
 
-    // Locale sensitive sort
+    // Case insensitive sort
     function compare(a, b) {
-      return String.localeCompare(a.name, b.name);
+      if (a.name.toLowerCase() < b.name.toLowerCase())
+        return -1;
+      if (a.name.toLowerCase() > b.name.toLowerCase())
+        return 1;
+      return 0;
     }
     addons.sort(compare);
   }
@@ -895,9 +899,13 @@ function rebuildPluginsDS()
 
   cleanDataSource(gPluginsDS, rootctr);
 
-  // Locale sensitive sort
+  // Case insensitive sort
   function compare(a, b) {
-    return String.localeCompare(a.name, b.name);
+    if (a.name.toLowerCase() < b.name.toLowerCase())
+      return -1;
+    if (a.name.toLowerCase() > b.name.toLowerCase())
+      return 1;
+    return 0;
   }
   plugins.sort(compare);
 

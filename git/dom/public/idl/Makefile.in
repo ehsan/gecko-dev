@@ -60,8 +60,7 @@ DIRS =						\
 	storage                                 \
 	json                                    \
 	offline                                 \
-	geolocation                             \
-	threads
+	geolocation
 
 ifdef MOZ_SVG
 DIRS += svg

@@ -372,7 +372,7 @@ public:
     if (mRefNum > 0)
       ::CloseResFile(mRefNum);
   }
-  PRBool ResourceOpened()
+  PRBool nsAutoCloseResourceObject::ResourceOpened()
   {
     return (mRefNum > 0);
   }

@@ -5518,10 +5518,6 @@ static BOOL keyUpAlreadySentKeyDown = NO;
   if (nsTSMManager::IsComposing())
     return NO;
 
-  // Set to true if embedding menus handled the event when a plugin has focus.
-  // We give menus a crack at handling commands before Gecko in the plugin case.
-  BOOL handledByEmbedding = NO;
-
   // Perform native menu UI feedback even if we stop the event from propagating to it normally.
   // Recall that the menu system won't actually execute any commands for keyboard command invocations.
   //
@@ -5529,14 +5525,10 @@ static BOOL keyUpAlreadySentKeyDown = NO;
   // If the action on plugins here changes the first responder, don't continue.
   NSMenu* mainMenu = [NSApp mainMenu];
   if (mIsPluginView) {
-    if ([mainMenu isKindOfClass:[GeckoNSMenu class]]) {
+    if ([mainMenu isKindOfClass:[GeckoNSMenu class]])
       [(GeckoNSMenu*)mainMenu actOnKeyEquivalent:theEvent];
-    }
-    else {
-      // This is probably an embedding situation. If the native menu handle the event
-      // then return YES from pKE no matter what Gecko or the plugin does.
-      handledByEmbedding = [mainMenu performKeyEquivalent:theEvent];
-    }
+    else
+      [mainMenu performKeyEquivalent:theEvent];
     if ([[self window] firstResponder] != self)
       return YES;
   }
@@ -5558,7 +5550,7 @@ static BOOL keyUpAlreadySentKeyDown = NO;
   // if we reject here
   if (!keyDownNeverFiredEvent &&
       (modifierFlags & (NSFunctionKeyMask| NSNumericPadKeyMask)))
-    return handledByEmbedding;
+    return NO;
 
   // Control and option modifiers are used when changing input sources in the
   // input menu. We need to send such key events via "keyDown:", which will
@@ -5567,12 +5559,12 @@ static BOOL keyUpAlreadySentKeyDown = NO;
   // for such events.
   if (!keyDownNeverFiredEvent &&
       (modifierFlags & (NSControlKeyMask | NSAlternateKeyMask)))
-    return handledByEmbedding;
+    return NO;
 
   if ([theEvent type] == NSKeyDown) {
     // We trust the Gecko handled status for cmd key events. See bug 417466 for more info.
     if (modifierFlags & NSCommandKeyMask)
-      return ([self processKeyDownEvent:theEvent keyEquiv:YES] || handledByEmbedding);
+      return [self processKeyDownEvent:theEvent keyEquiv:YES];
     else
       [self processKeyDownEvent:theEvent keyEquiv:YES];
   }

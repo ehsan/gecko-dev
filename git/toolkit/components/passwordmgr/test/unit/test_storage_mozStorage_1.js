@@ -7,9 +7,10 @@
  */
 
 
-const STORAGE_TYPE = "mozStorage";
-
 function run_test() {
+
+// Disable test for now
+return;
 
 try {
 
@@ -33,8 +34,8 @@ testuser2.init("http://dummyhost.mozilla.org", "", null,
 var testnum = 1;
 var testdesc = "Initial connection to storage module"
 
-var storage;
-storage = LoginTest.initStorage(INDIR, "signons-empty.txt", OUTDIR, "signons-empty.sqlite");
+var storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, INDIR, "signons-empty.txt", OUTDIR, "signons-empty.sqlite");
 storage.getAllLogins({});
 
 var testdesc = "[ensuring file exists]"
@@ -49,30 +50,36 @@ LoginTest.deleteFile(OUTDIR, "signons-empty.sqlite");
 testnum++;
 testdesc = "[ensuring file doesn't exist]";
 
-var filename="this-file-does-not-exist.pwmgr.sqlite";
+storage = LoginTest.newMozStorage();
+
+var filename="this-file-does-not-exist-"+Math.floor(Math.random() * 10000);
 file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsILocalFile);
 file.initWithPath(OUTDIR);
 file.append(filename);
-if(file.exists())
+var exists = file.exists();
+if (exists) {
+    // Go ahead and remove the file, so that this failure doesn't
+    // repeat itself w/o intervention.
     file.remove(false);
+    do_check_false(exists); // fail on purpose
+}
 
 testdesc = "Initialize with a non-existant data file";
 
-storage = LoginTest.reloadStorage(OUTDIR, filename);
+LoginTest.initStorage(storage, null, null, OUTDIR, filename);
 
 LoginTest.checkStorageData(storage, [], []);
 
-try {
-    if (file.exists())
-        file.remove(false);
-} catch (e) { }
+if (file.exists())
+    file.remove(false);
 
 
 /* ========== 3 ========== */
 testnum++;
 testdesc = "Initialize with signons-02.txt (valid, but empty)";
 
-storage = LoginTest.initStorage(INDIR, "signons-02.txt", OUTDIR, "signons-02.sqlite");
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, INDIR, "signons-02.txt", OUTDIR, "signons-02.sqlite");
 LoginTest.checkStorageData(storage, [], []);
 
 LoginTest.deleteFile(OUTDIR, "signons-02.sqlite");
@@ -82,7 +89,8 @@ LoginTest.deleteFile(OUTDIR, "signons-02.sqlite");
 testnum++;
 testdesc = "Initialize with signons-03.txt (1 disabled, 0 logins)";
 
-storage = LoginTest.initStorage(INDIR, "signons-03.txt", OUTDIR, "signons-03.sqlite");
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, INDIR, "signons-03.txt", OUTDIR, "signons-03.sqlite");
 LoginTest.checkStorageData(storage, ["http://www.disabled.com"], []);
 
 LoginTest.deleteFile(OUTDIR, "signons-03.sqlite");
@@ -92,10 +100,11 @@ LoginTest.deleteFile(OUTDIR, "signons-03.sqlite");
 testnum++;
 testdesc = "Initialize with signons-04.txt (1 disabled, 0 logins, extra '.')";
 
+storage = LoginTest.newMozStorage();
 // Mozilla code should never have generated the extra ".", but it's possible
 // someone writing an external utility might have generated it, since it
 // would seem consistant with the format.
-storage = LoginTest.initStorage(INDIR, "signons-04.txt", OUTDIR, "signons-04.sqlite");
+LoginTest.initStorage(storage, INDIR, "signons-04.txt", OUTDIR, "signons-04.sqlite");
 LoginTest.checkStorageData(storage, ["http://www.disabled.com"], []);
 
 LoginTest.deleteFile(OUTDIR, "signons-04.sqlite");
@@ -105,7 +114,8 @@ LoginTest.deleteFile(OUTDIR, "signons-04.sqlite");
 testnum++;
 testdesc = "Initialize with signons-05.txt (0 disabled, 1 login)";
 
-storage = LoginTest.initStorage(INDIR, "signons-05.txt", OUTDIR, "signons-05.sqlite");
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, INDIR, "signons-05.txt", OUTDIR, "signons-05.sqlite");
 LoginTest.checkStorageData(storage, [], [testuser1]);
 // counting logins matching host
 do_check_eq(1, storage.countLogins("http://dummyhost.mozilla.org", "",    null));
@@ -132,7 +142,8 @@ LoginTest.deleteFile(OUTDIR, "signons-05.sqlite");
 testnum++;
 testdesc = "Initialize with signons-06.txt (1 disabled, 1 login)";
 
-storage = LoginTest.initStorage(INDIR, "signons-06.txt", OUTDIR, "signons-06.sqlite");
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, INDIR, "signons-06.txt", OUTDIR, "signons-06.sqlite");
 LoginTest.checkStorageData(storage, ["https://www.site.net"], [testuser1]);
 
 LoginTest.deleteFile(OUTDIR, "signons-06.sqlite");
@@ -142,7 +153,8 @@ LoginTest.deleteFile(OUTDIR, "signons-06.sqlite");
 testnum++;
 testdesc = "Initialize with signons-07.txt (0 disabled, 2 logins on same host)";
 
-storage = LoginTest.initStorage(INDIR, "signons-07.txt", OUTDIR, "signons-07.sqlite");
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, INDIR, "signons-07.txt", OUTDIR, "signons-07.sqlite");
 LoginTest.checkStorageData(storage, [], [testuser1, testuser2]);
 // counting logins matching host
 do_check_eq(2, storage.countLogins("http://dummyhost.mozilla.org", "", null));
@@ -160,7 +172,8 @@ LoginTest.deleteFile(OUTDIR, "signons-07.sqlite");
 testnum++;
 testdesc = "Initialize with signons-08.txt (500 disabled, 500 logins)";
 
-storage = LoginTest.initStorage(INDIR, "signons-08.txt", OUTDIR, "signons-08.sqlite");
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, INDIR, "signons-08.txt", OUTDIR, "signons-08.sqlite");
 
 var disabledHosts = [];
 for (var i = 1; i <= 500; i++) {
@@ -209,7 +222,8 @@ LoginTest.deleteFile(OUTDIR, "signons-08.sqlite");
 testnum++;
 testdesc = "Initialize with signons-06.txt (1 disabled, 1 login); test removeLogin";
 
-storage = LoginTest.initStorage(INDIR, "signons-06.txt", OUTDIR, "signons-06-2.sqlite");
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, INDIR, "signons-06.txt", OUTDIR, "signons-06-2.sqlite");
 LoginTest.checkStorageData(storage, ["https://www.site.net"], [testuser1]);
 
 storage.removeLogin(testuser1);
@@ -222,7 +236,8 @@ LoginTest.deleteFile(OUTDIR, "signons-06-2.sqlite");
 testnum++;
 testdesc = "Initialize with signons-06.txt (1 disabled, 1 login); test modifyLogin";
 
-storage = LoginTest.initStorage(INDIR, "signons-06.txt", OUTDIR, "signons-06-3.sqlite");
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, INDIR, "signons-06.txt", OUTDIR, "signons-06-3.sqlite");
 LoginTest.checkStorageData(storage, ["https://www.site.net"], [testuser1]);
 
 storage.modifyLogin(testuser1, testuser2);
@@ -244,12 +259,13 @@ testdesc = "checking import of JS formSubmitURL entries"
 
 testuser1.init("http://jstest.site.org", "javascript:", null,
                "dummydude", "itsasecret", "put_user_here", "put_pw_here");
-storage = LoginTest.initStorage(INDIR, "signons-427033-1.txt",
+storage = LoginTest.newMozStorage();
+LoginTest.initStorage(storage, INDIR, "signons-427033-1.txt",
                                OUTDIR, "signons-427033-1.sqlite");
 LoginTest.checkStorageData(storage, [], [testuser1]);
 
 testdesc = "[flush and reload for verification]"
-storage = LoginTest.reloadStorage(OUTDIR, "signons-427033-1.sqlite");
+LoginTest.initStorage(storage, null, null, OUTDIR, "signons-427033-1.sqlite");
 LoginTest.checkStorageData(storage, [], [testuser1]);
 
 LoginTest.deleteFile(OUTDIR, "signons-427033-1.sqlite");

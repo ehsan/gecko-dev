@@ -79,6 +79,8 @@
 
 #ifdef MOZ_SVG
 #include "nsSVGUtils.h"
+#endif
+#ifdef MOZ_SVG_FOREIGNOBJECT
 #include "nsSVGForeignObjectFrame.h"
 #include "nsSVGOuterSVGFrame.h"
 #endif
@@ -247,19 +249,12 @@ nsLayoutUtils::IsGeneratedContentFor(nsIContent* aContent,
   if (!aFrame->IsGeneratedContentFrame()) {
     return PR_FALSE;
   }
-  nsIFrame* parent = aFrame->GetParent();
-  NS_ASSERTION(parent, "Generated content can't be root frame");
-  if (parent->IsGeneratedContentFrame()) {
-    // Not the root of the generated content
-    return PR_FALSE;
-  }
   
-  if (aContent && parent->GetContent() != aContent) {
+  if (aContent && aFrame->GetContent() != aContent) {
     return PR_FALSE;
   }
 
-  return (aFrame->GetContent()->Tag() == nsGkAtoms::mozgeneratedcontentbefore) ==
-    (aPseudoElement == nsCSSPseudoElements::before);
+  return aFrame->GetStyleContext()->GetPseudoType() == aPseudoElement;
 }
 
 // static
@@ -637,7 +632,7 @@ nsLayoutUtils::GetEventCoordinatesRelativeTo(const nsEvent* aEvent, nsIFrame* aF
   // then we need to do extra work
   nsIFrame* rootFrame = aFrame;
   for (nsIFrame* f = aFrame; f; f = GetCrossDocParentFrame(f)) {
-#ifdef MOZ_SVG
+#ifdef MOZ_SVG_FOREIGNOBJECT
     if (f->IsFrameOfType(nsIFrame::eSVGForeignObject) && f->GetFirstChild(nsnull)) {
       nsSVGForeignObjectFrame* fo = static_cast<nsSVGForeignObjectFrame*>(f);
       nsIFrame* outer = nsSVGUtils::GetOuterSVGFrame(fo);
@@ -1004,22 +999,18 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
 
 static void
 AccumulateItemInRegion(nsRegion* aRegion, const nsRect& aAreaRect,
-                       const nsRect& aItemRect, const nsRect& aExclude,
-                       nsDisplayItem* aItem)
+                       const nsRect& aItemRect, nsDisplayItem* aItem)
 {
   nsRect damageRect;
   if (damageRect.IntersectRect(aAreaRect, aItemRect)) {
-    nsRegion r;
-    r.Sub(damageRect, aExclude);
 #ifdef DEBUG
     if (gDumpRepaintRegionForCopy) {
-      nsRect bounds = r.GetBounds();
       fprintf(stderr, "Adding rect %d,%d,%d,%d for frame %p\n",
-              bounds.x, bounds.y, bounds.width, bounds.height,
+              damageRect.x, damageRect.y, damageRect.width, damageRect.height,
               (void*)aItem->GetUnderlyingFrame());
     }
 #endif
-    aRegion->Or(*aRegion, r);
+    aRegion->Or(*aRegion, damageRect);
   }
 }
 
@@ -1061,28 +1052,25 @@ AddItemsToRegion(nsDisplayListBuilder* aBuilder, nsDisplayList* aList,
       if (r.IntersectRect(aClipRect, item->GetBounds(aBuilder))) {
         nsIFrame* f = item->GetUnderlyingFrame();
         NS_ASSERTION(f, "Must have an underlying frame for leaf item");
-        nsRect exclude;
         if (aBuilder->IsMovingFrame(f)) {
           if (item->IsVaryingRelativeToMovingFrame(aBuilder)) {
             // something like background-attachment:fixed that varies
             // its drawing when it moves
-            AccumulateItemInRegion(aRegion, aRect + aDelta, r, exclude, item);
+            AccumulateItemInRegion(aRegion, aRect + aDelta, r, item);
           }
         } else {
-          // not moving.
-          if (item->IsUniform(aBuilder)) {
-            // If it's uniform, we don't need to invalidate where one part
-            // of the item was copied to another part.
-            exclude.IntersectRect(r, r + aDelta);
+          // not moving. If it's uniform and it includes both the old and
+          // new areas, then we don't need to paint it
+          PRBool skip = r.Contains(aRect) && r.Contains(aRect + aDelta) &&
+              item->IsUniform(aBuilder);
+          if (!skip) {
+            // area where a non-moving element is visible must be repainted
+            AccumulateItemInRegion(aRegion, aRect + aDelta, r, item);
+            // we may have bitblitted an area that was painted by a non-moving
+            // element. This bitblitted data is invalid and was copied to
+            // "r + aDelta".
+            AccumulateItemInRegion(aRegion, aRect + aDelta, r + aDelta, item);
           }
-          // area where a non-moving element is visible must be repainted
-          AccumulateItemInRegion(aRegion, aRect + aDelta, r, exclude, item);
-          // we may have bitblitted an area that was painted by a non-moving
-          // element. This bitblitted data is invalid and was copied to
-          // "r + aDelta". The area to exclude was also copied and is now
-          // at "exclude + aDelta".
-          AccumulateItemInRegion(aRegion, aRect + aDelta, r + aDelta,
-                                 exclude + aDelta, item);
         }
       }
     }

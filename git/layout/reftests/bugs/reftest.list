@@ -505,6 +505,7 @@ random-if(MOZ_WIDGET_TOOLKIT=="gtk2") == 368020-5.html 368020-5-ref.html # bug 3
 == 373383-1.html 373383-1-ref.html
 == 374038-1.xul 374038-1-ref.xul
 == 374038-2.xul 374038-2-ref.xul
+== 374193-1.xhtml about:blank
 fails == 374927-1.html 374927-1-ref.html # Was broken by patch for bug 368600; fails until bug 400776 is fixed
 == 375716-1.html 375716-1-ref.html
 == 375827-1.html 375827-1-ref.html
@@ -819,7 +820,6 @@ skip-if(MOZ_WIDGET_TOOLKIT=="cocoa") == 413292-1.html 413292-1-ref.html # disabl
 == 423385-1.html 423385-1-ref.html
 == 423599-1.html 423599-1-ref.html
 == 423676-1.html 423676-1-ref.html
-== 423823-1.html 423823-1-ref.html
 == 424074-1.xul 424074-1-ref.xul
 != 424074-1.xul 424074-1-ref2.xul
 fails-if(MOZ_WIDGET_TOOLKIT=="gtk2") == 424074-1-ref2.xul 424074-1-ref3.xul
@@ -880,4 +880,3 @@ random == 429849-1.html 429849-1-ref.html # bug 432288
 fails == 441259-2.html 441259-2-ref.html # bug 441400
 # == 448987.html 448987-ref.html  # Disabled for now - it needs privileges
 == 449519-1.html 449519-1-ref.html
-== 450670-1.html 450670-1-ref.html

@@ -389,7 +389,9 @@
 #include "nsIDOMSVGFilterElement.h"
 #include "nsIDOMSVGFilters.h"
 #include "nsIDOMSVGFitToViewBox.h"
+#ifdef MOZ_SVG_FOREIGNOBJECT
 #include "nsIDOMSVGForeignObjectElem.h"
+#endif
 #include "nsIDOMSVGGElement.h"
 #include "nsIDOMSVGGradientElement.h"
 #include "nsIDOMSVGImageElement.h"
@@ -1210,7 +1212,10 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(ClientRectList, nsClientRectListSH,
                            ARRAY_SCRIPTABLE_FLAGS)
 
-#ifdef MOZ_SVG
+  // Define MOZ_SVG_FOREIGNOBJECT here so that when it gets switched on,
+  // we preserve binary compatibility. New classes should be added
+  // at the end.
+#if defined(MOZ_SVG) && defined(MOZ_SVG_FOREIGNOBJECT)
   NS_DEFINE_CLASSINFO_DATA(SVGForeignObjectElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
 #endif
@@ -3375,7 +3380,7 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
-#ifdef MOZ_SVG
+#if defined(MOZ_SVG) && defined(MOZ_SVG_FOREIGNOBJECT)
   DOM_CLASSINFO_MAP_BEGIN(SVGForeignObjectElement, nsIDOMSVGForeignObjectElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGForeignObjectElement)
     DOM_CLASSINFO_SVG_GRAPHIC_ELEMENT_MAP_ENTRIES

@@ -542,24 +542,18 @@ info_callback(png_structp png_ptr, png_infop info_ptr)
   }
   if (decoder->mInProfile && gfxPlatform::GetCMSOutputProfile()) {
     PRUint32 outType;
-    PRUint32 dwFlags = 0;
 
     if (color_type & PNG_COLOR_MASK_ALPHA || num_trans)
       outType = TYPE_RGBA_8;
     else
       outType = TYPE_RGB_8;
 
-    /* Determine if we can use the optimized floating point path. */
-    if ((inType == outType) && 
-        ((inType == TYPE_RGB_8) || (inType == TYPE_RGBA_8)))
-      dwFlags |= cmsFLAGS_FLOATSHAPER;
-
     decoder->mTransform = cmsCreateTransform(decoder->mInProfile,
                                              inType,
                                              gfxPlatform::GetCMSOutputProfile(),
                                              outType,
                                              intent,
-                                             dwFlags);
+                                             0);
   } else {
     png_set_gray_to_rgb(png_ptr);
     if (gfxPlatform::GetCMSMode() == eCMSMode_All) {

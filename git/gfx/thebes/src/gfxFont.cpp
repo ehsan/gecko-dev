@@ -961,10 +961,8 @@ gfxFontGroup::ForEachFontInternal(const nsAString& aFamilies,
                 genericFamily.SetIsVoid(PR_TRUE);
             }
         }
-
-        if (generic) {
-            ForEachFontInternal(family, lang, PR_FALSE, aResolveFontName, fc, closure);
-        } else if (!family.IsEmpty()) {
+        
+        if (!family.IsEmpty()) {
             NS_LossyConvertUTF16toASCII gf(genericFamily);
             if (aResolveFontName) {
                 ResolveData data(fc, gf, closure);
@@ -1123,7 +1121,7 @@ void gfxFontGroup::ComputeRanges(nsTArray<gfxTextRange>& aRanges, const PRUnicha
         }
         
         // find the font for this char
-        nsRefPtr<gfxFont> font = FindFontForChar(ch, prevCh, nextCh, (aRanges.Length() == 0) ? nsnull : aRanges[aRanges.Length() - 1].font.get());
+        nsRefPtr<gfxFont> font = FindFontForChar(ch, prevCh, nextCh, (aRanges.Length() == 0) ? nsnull : aRanges[aRanges.Length() - 1].font);
 
         prevCh = ch;
 

@@ -7989,15 +7989,17 @@ ExtensionsDataSource.prototype = {
       if (itemType & type) {
         items.push({ item   : item,
                      ordinal: ordinal,
-                     sortkey: this.getItemProperty(id, propertyName) });
+                     sortkey: this.getItemProperty(id, propertyName).toLowerCase() });
         ordinal++;
       }
     }
 
     var direction = isAscending ? 1 : -1;
-    // Locale sensitive sort
+    // Case insensitive sort
     function compare(a, b) {
-      return String.localeCompare(a.sortkey, b.sortkey) * direction;
+        if (a.sortkey < b.sortkey) return (-1 * direction);
+        if (a.sortkey > b.sortkey) return (1 * direction);
+        return 0;
     }
     items.sort(compare);
 

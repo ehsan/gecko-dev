@@ -287,7 +287,7 @@ nsTableRowGroupFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   if (!IsVisibleInSelection(aBuilder))
     return NS_OK;
 
-  PRBool isRoot = aBuilder->IsAtRootOfPseudoStackingContext() || IsScrolled();
+  PRBool isRoot = aBuilder->IsAtRootOfPseudoStackingContext();
   nsDisplayTableItem* item = nsnull;
   if (isRoot) {
     // This background is created regardless of whether this frame is
