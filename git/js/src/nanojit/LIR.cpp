@@ -1480,10 +1480,12 @@ namespace nanojit
 
     LabelMap::Entry::~Entry()
     {
+        delete name;
     }
 
     LirNameMap::Entry::~Entry()
     {
+        delete name;
     }
 
     LirNameMap::~LirNameMap()
@@ -1491,24 +1493,18 @@ namespace nanojit
         Entry *e;
 
         while ((e = names.removeLast()) != NULL) {
-            labels->core->freeString(e->name);
             delete e;
         }
     }
 
-	bool LirNameMap::addName(LInsp i, Stringp name) {
+	void LirNameMap::addName(LInsp i, Stringp name) {
 		if (!names.containsKey(i)) { 
 			Entry *e = new (labels->core->gc) Entry(name);
 			names.put(i, e);
-            return true;
 		}
-        return false;
 	}
 	void LirNameMap::addName(LInsp i, const char *name) {
-        Stringp new_name = labels->core->newString(name);
-        if (!addName(i, new_name)) {
-            labels->core->freeString(new_name);
-        }
+		addName(i, labels->core->newString(name));
 	}
 
 	void LirNameMap::copyName(LInsp i, const char *s, int suffix) {
@@ -1917,7 +1913,6 @@ namespace nanojit
         Entry *e;
         
         while ((e = names.removeLast()) != NULL) {
-            core->freeString(e->name);
             delete e;
         } 
     }

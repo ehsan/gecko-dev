@@ -43,7 +43,7 @@
 #include <CoreServices/CoreServices.h>
 #endif
 
-#if defined AVMPLUS_UNIX
+#if defined DARWIN || defined LINUX
 #include <sys/mman.h>
 #include <errno.h>
 #endif
@@ -344,14 +344,10 @@ namespace nanojit
 		#if defined WIN32 || defined WIN64
 			DWORD dwIgnore;
 			VirtualProtect(&page->code, count*NJ_PAGE_SIZE, PAGE_EXECUTE_READWRITE, &dwIgnore);
-		#elif defined AVMPLUS_UNIX
+		#elif defined DARWIN || defined AVMPLUS_LINUX
 			intptr_t addr = (intptr_t)&page->code;
 			addr &= ~((uintptr_t)NJ_PAGE_SIZE - 1);
-			#if defined SOLARIS
-			if (mprotect((char *)addr, count*NJ_PAGE_SIZE, PROT_READ|PROT_WRITE|PROT_EXEC) == -1) {
-			#else
 			if (mprotect((void *)addr, count*NJ_PAGE_SIZE, PROT_READ|PROT_WRITE|PROT_EXEC) == -1) {
-			#endif
                 AvmDebugLog(("FATAL ERROR: mprotect(PROT_EXEC) failed\n"));
                 abort();
             }
@@ -895,14 +891,7 @@ namespace nanojit
 			}
 			// else, rA already has a register assigned.
 
-#if defined __SUNPRO_CC
-			// from Sun Studio C++ Readme: #pragma align inside namespace requires mangled names
-			static uint32_t temp[] = {0, 0, 0, 0, 0, 0, 0};
-			static uint32_t *negateMask = (uint32_t *)alignUp(temp, 16);
-			negateMask[1] = 0x80000000;
-#else
 			static const AVMPLUS_ALIGN16(uint32_t) negateMask[] = {0,0x80000000,0,0};
-#endif
 			SSE_XORPD(rr, negateMask);
 
 			if (rr != ra)

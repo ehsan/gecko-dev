@@ -47,9 +47,6 @@
 #include <malloc.h>
 #define alloca _alloca
 #endif
-#ifdef SOLARIS
-#include <alloca.h>
-#endif
 
 #include "nanojit/avmplus.h"    // nanojit
 #include "nanojit/nanojit.h"
@@ -2551,15 +2548,6 @@ js_CheckForSSE2()
         /* We have no inputs */
         /* We don't clobber anything */
        );
-#elif defined __SUNPRO_C || defined __SUNPRO_CC
-    asm("push %%ebx\n"
-        "mov $0x01, %%eax\n"
-        "cpuid\n"
-        "pop %%ebx\n"
-        : "=d" (features)
-        : /* We have no inputs */
-        : "%eax", "%ecx"
-       );
 #endif
     return (features & (1<<26)) != 0;
 }
@@ -4547,7 +4535,6 @@ KNOWN_NATIVE_DECL(js_fun_apply)
 KNOWN_NATIVE_DECL(js_math_ceil)
 KNOWN_NATIVE_DECL(js_math_cos)
 KNOWN_NATIVE_DECL(js_math_floor)
-KNOWN_NATIVE_DECL(js_math_log)
 KNOWN_NATIVE_DECL(js_math_pow)
 KNOWN_NATIVE_DECL(js_math_random)
 KNOWN_NATIVE_DECL(js_math_sin)
@@ -4601,7 +4588,6 @@ TraceRecorder::record_JSOP_CALL()
         { js_math_floor,               F_Math_floor,           "",    "d",    INFALLIBLE },
         { js_math_ceil,                F_Math_ceil,            "",    "d",    INFALLIBLE },
         { js_math_random,              F_Math_random,          "R",    "",    INFALLIBLE },
-        { js_math_log,                 F_Math_log,             "",    "d",    INFALLIBLE },
         { js_num_parseInt,             F_ParseInt,             "C",   "s",    INFALLIBLE },
         { js_num_parseFloat,           F_ParseFloat,           "C",   "s",    INFALLIBLE },
         { js_num_toString,             F_NumberToString,       "TC",   "",    FAIL_NULL },
@@ -6100,12 +6086,6 @@ TraceRecorder::record_JSOP_CALLPROP()
     if (PCVAL_IS_NULL(pcval) || !PCVAL_IS_OBJECT(pcval))
         ABORT_TRACE("callee is not an object");
     JS_ASSERT(HAS_FUNCTION_CLASS(PCVAL_TO_OBJECT(pcval)));
-
-    if (JSVAL_IS_PRIMITIVE(l)) {
-        JSFunction* fun = GET_FUNCTION_PRIVATE(cx, PCVAL_TO_OBJECT(pcval));
-        if (!PRIMITIVE_THIS_TEST(fun, l))
-            ABORT_TRACE("callee does not accept primitive |this|");
-    }
 
     stack(-1, INS_CONSTPTR(PCVAL_TO_OBJECT(pcval)));
     return true;
