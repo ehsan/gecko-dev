@@ -1574,8 +1574,7 @@ nsPresContext::HasAuthorSpecifiedRules(nsIFrame *aFrame, PRUint32 ruleTypeMask) 
 }
 
 static void
-InsertFontFaceRule(nsCSSFontFaceRule *aRule, gfxUserFontSet* aFontSet,
-                   PRUint8 aSheetType)
+InsertFontFaceRule(nsCSSFontFaceRule *aRule, gfxUserFontSet* aFontSet)
 {
   PRInt32 type;
   NS_ABORT_IF_FALSE(NS_SUCCEEDED(aRule->GetType(type)) 
@@ -1665,16 +1664,6 @@ InsertFontFaceRule(nsCSSFontFaceRule *aRule, gfxUserFontSet* aFontSet,
         face->mURI = val.GetURLValue();
         NS_ASSERTION(face->mURI, "null url in @font-face rule");
         face->mReferrer = val.GetURLStructValue()->mReferrer;
-        face->mOriginPrincipal = val.GetURLStructValue()->mOriginPrincipal;
-        NS_ASSERTION(face->mOriginPrincipal, "null origin principal in @font-face rule");
-        
-        // agent and user stylesheets are treated slightly differently,
-        // the same-site origin check and access control headers are
-        // enforced against the sheet principal rather than the document
-        // principal to allow user stylesheets to include @font-face rules
-        face->mUseOriginPrincipal = (aSheetType == nsStyleSet::eUserSheet ||
-                                     aSheetType == nsStyleSet::eAgentSheet);
-                                     
         face->mLocalName.Truncate();
         face->mFormatFlags = 0;
         while (i + 1 < numSrc && (val = srcArr->Item(i+1), 
@@ -1741,7 +1730,7 @@ nsPresContext::FlushUserFontSet()
     if (gfxPlatform::GetPlatform()->DownloadableFontsEnabled()) {
       nsRefPtr<gfxUserFontSet> oldUserFontSet = mUserFontSet;
 
-      nsTArray<nsFontFaceRuleContainer> rules;
+      nsTArray< nsRefPtr<nsCSSFontFaceRule> > rules;
       if (!mShell->StyleSet()->AppendFontFaceRules(this, rules))
         return;
 
@@ -1749,8 +1738,7 @@ nsPresContext::FlushUserFontSet()
       if (rules.Length() == mFontFaceRules.Length()) {
         differ = PR_FALSE;
         for (PRUint32 i = 0, i_end = rules.Length(); i < i_end; ++i) {
-          if (rules[i].mRule != mFontFaceRules[i].mRule ||
-              rules[i].mSheetType != mFontFaceRules[i].mSheetType) {
+          if (rules[i] != mFontFaceRules[i]) {
             differ = PR_TRUE;
             break;
           }
@@ -1778,7 +1766,7 @@ nsPresContext::FlushUserFontSet()
           NS_ADDREF(mUserFontSet);
 
           for (PRUint32 i = 0, i_end = rules.Length(); i < i_end; ++i) {
-            InsertFontFaceRule(rules[i].mRule, fs, rules[i].mSheetType);
+            InsertFontFaceRule(rules[i], fs);
           }
         }
       }

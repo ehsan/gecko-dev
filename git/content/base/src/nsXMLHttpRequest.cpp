@@ -2494,8 +2494,9 @@ nsXMLHttpRequest::Send(nsIVariant *aBody)
           rv = storStream->GetOutputStream(0, getter_AddRefs(output));
           NS_ENSURE_SUCCESS(rv, rv);
 
-          // Make sure to use the encoding we'll send
-          rv = serializer->SerializeToStream(doc, output, charset);
+          // Empty string for encoding means to use document's current
+          // encoding.
+          rv = serializer->SerializeToStream(doc, output, EmptyCString());
           NS_ENSURE_SUCCESS(rv, rv);
 
           output->Close();

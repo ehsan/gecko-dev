@@ -286,10 +286,6 @@ NS_CP_GetDocShellFromContext(nsISupports *aContext)
         }
 
         if (doc) {
-            if (doc->GetDisplayDocument()) {
-                doc = doc->GetDisplayDocument();
-            }
-            
             window = doc->GetWindow();
         }
     }

@@ -178,8 +178,7 @@ nsStyleSet::GatherRuleProcessors(sheetType aType)
           NS_ASSERTION(cssSheet, "not a CSS sheet");
           cssSheets.AppendObject(cssSheet);
         }
-        mRuleProcessors[aType] = new nsCSSRuleProcessor(cssSheets, 
-                                                        PRUint8(aType));
+        mRuleProcessors[aType] = new nsCSSRuleProcessor(cssSheets);
       } break;
 
       default:
@@ -792,7 +791,7 @@ nsStyleSet::ProbePseudoStyleFor(nsIContent* aParentContent,
 
 PRBool
 nsStyleSet::AppendFontFaceRules(nsPresContext* aPresContext,
-                                nsTArray<nsFontFaceRuleContainer>& aArray)
+                                nsTArray< nsRefPtr<nsCSSFontFaceRule> >& aArray)
 {
   NS_ENSURE_FALSE(mInShutdown, PR_FALSE);
 
