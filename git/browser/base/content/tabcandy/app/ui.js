@@ -49,7 +49,7 @@ window.Keys = {meta: false};
 Navbar = {
   // ----------
   get urlBar() {
-    let win = Utils.getCurrentWindow();
+    var win = Utils.getCurrentWindow();
     if (win)
       return win.gURLBar;
     return null;
@@ -69,7 +69,7 @@ var Tabbar = {
   // Function: getVisibleTabCount
   // Returns the number of tabs that are currently visible
   getVisibleTabCount: function(){
-    let visibleTabCount = 0;
+    var visibleTabCount = 0;
     this.getAllTabs().forEach(function(tab){
       if ( !tab.collapsed )
         visibleTabCount++
@@ -82,11 +82,11 @@ var Tabbar = {
   // Returns an array of all tabs which exist in the current window
   // tabbrowser. Returns an Array.
   getAllTabs: function() {
-    let tabBarTabs = [];
+    var tabBarTabs = [];
     if (this.el) {
       // this.el.children is not a real array and does contain
       // useful functions like filter or forEach. Convert it into a real array.
-      for (let i = 0; i < this.el.children.length; i++) {
+      for (var i = 0; i < this.el.children.length; i++) {
         tabBarTabs.push(this.el.children[i]);
       }
     }
@@ -152,6 +152,7 @@ window.Page = {
   startY: 70,
   closedLastVisibleTab: false,
   closedSelectedTabInTabCandy: false,
+  stopZoomPreparation: false,
     
   isTabCandyVisible: function(){
     return (Utils.getCurrentWindow().document.getElementById("tab-candy-deck").
@@ -159,33 +160,43 @@ window.Page = {
   },
   
   hideChrome: function(){
-    let currentWin = Utils.getCurrentWindow();
-    currentWin.document.getElementById("tab-candy-deck").selectedIndex = 1;    
+    var currentWin = Utils.getCurrentWindow();
+    currentWin.document.getElementById("tab-candy-deck").selectedIndex = 1;
     
-    // Mac Only
-    Utils.getCurrentWindow().document.getElementById("main-window").
-      setAttribute("activetitlebarcolor", "#C4C4C4");
+    currentWin.gBrowser.updateTitlebar();
+    this._setActiveTitleColor(true);
   },
-  
+    
   showChrome: function(){
-    let currentWin = Utils.getCurrentWindow();
-    let tabContainer = currentWin.gBrowser.tabContainer;
+    var currentWin = Utils.getCurrentWindow();
+    var tabContainer = currentWin.gBrowser.tabContainer;
     currentWin.document.getElementById("tab-candy-deck").selectedIndex = 0;
-
+    
     // set the close button on tab
-    iQ.timeout(function() { // Marshal event from chrome thread to DOM thread   
+/*     iQ.timeout(function() { // Marshal event from chrome thread to DOM thread    */
       tabContainer.adjustTabstrip();
-    }, 1);
+/*     }, 1); */
 
-    // Mac Only
-    Utils.getCurrentWindow().document.getElementById("main-window").
-      removeAttribute("activetitlebarcolor");
+    currentWin.gBrowser.updateTitlebar();
+    this._setActiveTitleColor(false);
   },
 
-  showTabCandy : function() {
-    let self = this;
-    let currentTab = UI.currentTab;
-    let item = null;
+  _setActiveTitleColor: function(set) {
+    // Mac Only
+    if (Utils.isMac()) {
+      var mainWindow =
+        Utils.getCurrentWindow().document.getElementById("main-window");
+      if (set)
+        mainWindow.setAttribute("activetitlebarcolor", "#C4C4C4");
+      else
+        mainWindow.removeAttribute("activetitlebarcolor");
+    }
+  },
+
+  showTabCandy: function() {
+    var self = this;
+    var currentTab = UI.currentTab;
+    var item = null;
 
     if (currentTab && currentTab.mirror)
       item = TabItems.getItemByTabElement(currentTab.mirror.el);
@@ -202,7 +213,7 @@ window.Page = {
 
         self.setActiveTab(item);
 
-        let activeGroup = Groups.getActiveGroup();
+        var activeGroup = Groups.getActiveGroup();
         if ( activeGroup )
           activeGroup.setTopChild(item);
   
@@ -267,20 +278,19 @@ window.Page = {
       if ((e.which == 27 || e.which == 13) && iQ(":focus").length == 0 )
         if ( self.getActiveTab() ) self.getActiveTab().zoomIn();
     });
-    
   },
     
   // ----------  
   init: function() {
     var self = this;
         
-    // When you click on the background/empty part of TabCandy
+    // When you click on the background/empty part of TabCandy,
     // we create a new group.
-    let tabCandyContentDoc =
+    var tabCandyContentDoc =
       Utils.getCurrentWindow().document.getElementById("tab-candy").
         contentDocument;
     iQ(tabCandyContentDoc).mousedown(function(e){
-      if ( e.originalTarget.id == "bg" )
+      if ( e.originalTarget.id == "content" )
         Page.createGroupOnDrag(e)
     });
 
@@ -328,64 +338,72 @@ window.Page = {
       self.tabOnFocus(this);
     });
   },
-
+  
   // ----------  
   tabOnFocus: function(tab) {
     var focusTab = tab;
     var currentTab = UI.currentTab;
+    var currentWindow = Utils.getCurrentWindow();
+    var self = this;
     
     UI.currentTab = focusTab;
     // if the last visible tab has just been closed, don't show the chrome UI.
-    if (this.isTabCandyVisible()) {
-      if (!this.closedLastVisibleTab && !this.closedSelectedTabInTabCandy) {
-        this.showChrome();
-        doSetup = true;
-      }
-    } else {
-      doSetup = true;
+    if (this.isTabCandyVisible() && (this.closedLastVisibleTab || this.closedSelectedTabInTabCandy)) {
+      this.closedLastVisibleTab = false;
+      this.closedSelectedTabInTabCandy = false;
+      return;      
     }
-    
-    if (doSetup) {
-      iQ.timeout(function() { // Marshal event from chrome thread to DOM thread      
-        let visibleTabCount = Tabbar.getVisibleTabCount();
-   
-        if (focusTab != UI.currentTab) {
-          // things have changed while we were in timeout
-          return;
-        }
-         
-        let newItem = null;
-        if (focusTab && focusTab.mirror)
-          newItem = TabItems.getItemByTabElement(focusTab.mirror.el);
-  
-        if (newItem)
-          Groups.setActiveGroup(newItem.parent);
-  
-        // ___ prepare for when we return to TabCandy
-        let oldItem = null;
-        if (currentTab && currentTab.mirror)
-          oldItem = TabItems.getItemByTabElement(currentTab.mirror.el);
-  
-        if (newItem != oldItem) {
-          if (oldItem)
-            oldItem.setZoomPrep(false);
-          
-          // if the last visible tab is removed, don't set zoom prep because
-          // we shoud be in the Tab Candy interface.
-          if (visibleTabCount > 0) {
-            if (newItem)
-              newItem.setZoomPrep(true);
-          }
-        } else {
-          // the tab is already focused so the new and old items are the
-          // same.
-          if (oldItem)
-            oldItem.setZoomPrep(true);
-        }
-      }, 1);
-    }
+
+    // if TabCandy is visible but we didn't just close the last tab or selected tab, show chrome.
+    if (this.isTabCandyVisible())
+      this.showChrome();
+
+    // reset these vars, just in case.    
     this.closedLastVisibleTab = false;
     this.closedSelectedTabInTabCandy = false;
+    
+    iQ.timeout(function() { // Marshal event from chrome thread to DOM thread      
+      // this value is true when tabcandy is open at browser startup.
+      if (Page.stopZoomPreparation) {
+        self.stopZoomPreparation = false;
+        return;
+      }
+      var visibleTabCount = Tabbar.getVisibleTabCount();
+ 
+      if (focusTab != UI.currentTab) {
+        // things have changed while we were in timeout
+        return;
+      }
+       
+      var newItem = null;
+      if (focusTab && focusTab.mirror)
+        newItem = TabItems.getItemByTabElement(focusTab.mirror.el);
+  
+      if (newItem)
+        Groups.setActiveGroup(newItem.parent);
+
+      // ___ prepare for when we return to TabCandy
+      var oldItem = null;
+      if (currentTab && currentTab.mirror)
+        oldItem = TabItems.getItemByTabElement(currentTab.mirror.el);
+
+      if (newItem != oldItem) {
+        if (oldItem)
+          oldItem.setZoomPrep(false);
+        
+        // if the last visible tab is removed, don't set zoom prep because
+        // we shoud be in the Tab Candy interface.
+        if (visibleTabCount > 0) {
+          if (newItem)
+            newItem.setZoomPrep(true);
+        }
+      } else {
+        // the tab is already focused so the new and old items are the
+        // same.
+        if (oldItem)
+          oldItem.setZoomPrep(true);
+      }
+    }, 1);
   },
 
   // ----------  
@@ -549,42 +567,58 @@ window.Page = {
 // ##########
 // Class: UIClass
 // Singleton top-level UI manager. TODO: Integrate with <Page>.
-function UIClass(){ 
-  if (window.Tabs)
-    this.init();
-  else {
-    var self = this;
-    TabsManager.addSubscriber(this, 'load', function() {
-      self.init();
-    });
+function UIClass() { 
+  try {
+    Utils.log('TabCandy init --------------------');
+
+    // Variable: navBar
+    // A reference to the <Navbar>, for manipulating the browser's nav bar. 
+    this.navBar = Navbar;
+    
+    // Variable: tabBar
+    // A reference to the <Tabbar>, for manipulating the browser's tab bar.
+    this.tabBar = Tabbar;
+    
+    // Variable: devMode
+    // If true (set by an url parameter), adds extra features to the screen. 
+    // TODO: Integrate with the dev menu
+    this.devMode = false;
+    
+    // Variable: currentTab
+    // Keeps track of which <Tabs> tab we are currently on.
+    // Used to facilitate zooming down from a previous tab. 
+    this.currentTab = Utils.activeTab;
+  } catch(e) {
+    Utils.log(e);
   }
 };
 
 // ----------
 UIClass.prototype = {
   // ----------
+  // Function: init
+  // Must be called after the object is created. 
   init: function() {
     try {
-      Utils.log('TabCandy init --------------------');
-
-      // Variable: navBar
-      // A reference to the <Navbar>, for manipulating the browser's nav bar. 
-      this.navBar = Navbar;
-      
-      // Variable: tabBar
-      // A reference to the <Tabbar>, for manipulating the browser's tab bar.
-      this.tabBar = Tabbar;
-      
-      // Variable: devMode
-      // If true (set by an url parameter), adds extra features to the screen. 
-      // TODO: Integrate with the dev menu
-      this.devMode = false;
-      
-      // Variable: currentTab
-      // Keeps track of which <Tabs> tab we are currently on.
-      // Used to facilitate zooming down from a previous tab. 
-      this.currentTab = Utils.activeTab;
-      
+      if (window.Tabs)
+        this._secondaryInit();
+      else {
+        var self = this;
+        TabsManager.addSubscriber(this, 'load', function() {
+          self._secondaryInit();
+        });
+      }
+    } catch(e) {
+      Utils.log(e);
+    }
+  },
+  
+  // -----------
+  // Function: _secondaryInit
+  // This is the bulk of the initialization, kicked off automatically by init
+  // once the system is ready.
+  _secondaryInit: function() {
+    try {   
       var self = this;
       
       this.setBrowserKeyHandler();
@@ -610,7 +644,7 @@ UIClass.prototype = {
       });
       
       // ___ Page
-      let currentWindow = Utils.getCurrentWindow();
+      var currentWindow = Utils.getCurrentWindow();
       Page.init();
       
       currentWindow.addEventListener(
@@ -629,35 +663,35 @@ UIClass.prototype = {
           
       // ___ delay init
       Storage.onReady(function() {
-        self.delayInit();
+        self._delayInit();
       });
-    }catch(e) {
-      Utils.log("Error in UIClass(): " + e);
-      Utils.log(e.fileName);
-      Utils.log(e.lineNumber);
-      Utils.log(e.stack);
+    } catch(e) {
+      Utils.log(e);
     }
   },
 
   // ----------
-  delayInit : function() {
+  // Function: _delayInit
+  // Called automatically by _secondaryInit once sessionstore is online. 
+  _delayInit : function() {
     try {
       // ___ Storage
-      let currentWindow = Utils.getCurrentWindow();
-      let data = Storage.readUIData(currentWindow);
+      var currentWindow = Utils.getCurrentWindow();
+      
+      var data = Storage.readUIData(currentWindow);
       this.storageSanity(data);
   
-      let groupsData = Storage.readGroupsData(currentWindow);
-      let firstTime = !groupsData || iQ.isEmptyObject(groupsData);
-      let groupData = Storage.readGroupData(currentWindow);
+      var groupsData = Storage.readGroupsData(currentWindow);
+      var firstTime = !groupsData || iQ.isEmptyObject(groupsData);
+      var groupData = Storage.readGroupData(currentWindow);
       Groups.reconstitute(groupsData, groupData);
   
       TabItems.init();
   
       if (firstTime) {
         var padding = 10;
-        var infoWidth = 300;
-        var infoHeight = 200;
+        var infoWidth = 350;
+        var infoHeight = 350;
         var pageBounds = Items.getPageBounds();
         pageBounds.inset(padding, padding);      
                 
@@ -671,7 +705,7 @@ UIClass.prototype = {
   
         var group = new Group([], options); 
 
-        let items = TabItems.getItems();
+        var items = TabItems.getItems();
         items.forEach(function(item) {
           if (item.parent)
             item.parent.remove(item);
@@ -680,8 +714,12 @@ UIClass.prototype = {
         });
         
         // ___ make info item
-        var html = '<h1>Welcome to Firefox Tab Sets</h1>'
-          + '(more goes here)';
+        var html = 
+          "<div class='intro'>"
+            + "<h1>Welcome to Firefox Tab Sets</h1>"
+            + "<div>(more goes here)</div><br>"
+            + "<video src='http://html5demos.com/assets/dizzy.ogv' width='100%' preload controls>"
+          + "</div>";
         
         box.left = box.right + padding;
         box.width = infoWidth;
@@ -701,7 +739,42 @@ UIClass.prototype = {
       iQ(window).resize(function() {
         self.resize();
       });
-  
+      
+      // ___ show tab candy at startup
+      var visibilityData = Storage.readVisibilityData(currentWindow);
+      if (visibilityData && visibilityData.visible) {
+        var currentTab = UI.currentTab;
+        var item;
+
+        if (currentTab && currentTab.mirror) 
+          item = TabItems.getItemByTabElement(currentTab.mirror.el);
+          
+        if (item)
+          item.setZoomPrep(false);
+        else
+          Page.stopZoomPreparation = true;
+
+        Page.hideChrome();
+      } else
+        Page.showChrome();        
+      
+      // ___ setup observer to save canvas images
+      Components.utils.import("resource://gre/modules/Services.jsm");
+      var observer = {
+        observe : function(subject, topic, data) {
+          if (topic == "quit-application-requested") {
+            if (Page.isTabCandyVisible()) {
+              TabItems.saveAll(true);
+              self.saveVisibility(true);
+            } else {
+              self.saveVisibility(false);
+            }
+          }
+        }
+      };
+      Services.obs.addObserver(
+        observer, "quit-application-requested", false);
+
       // ___ Done
       this.initialized = true;
       this.save(); // for this.pageBounds
@@ -782,9 +855,8 @@ UIClass.prototype = {
         // http://mxr.mozilla.org/mozilla1.9.2/source/toolkit/content/widgets/tabbox.xml#246
         // The below handles the ctrl/meta + number key and prevent the default
         // actions.
-        var isMac = (navigator.platform.search(/mac/i) > -1);
-        
-        if ((isMac && event.metaKey) || (!isMac && event.ctrlKey)) {
+        if ((Utils.isMac() && event.metaKey) ||
+            (!Utils.isMac() && event.ctrlKey)) {
           var charCode = event.charCode;
           // 1 to 9
           if (48 < charCode && charCode < 58) {
@@ -864,7 +936,7 @@ UIClass.prototype = {
                                                 // the empty space the user has left on the page.
     itemBounds.width = 1;
     itemBounds.height = 1;
-    iQ.each(items, function(index, item) {
+    items.forEach(function(item) {
       if (item.locked.bounds)
         return;
         
@@ -894,7 +966,7 @@ UIClass.prototype = {
     var scale = Math.min(hScale, wScale);
     var self = this;
     var pairs = [];
-    iQ.each(items, function(index, item) {
+    items.forEach(function(item) {
       if (item.locked.bounds)
         return;
         
@@ -916,7 +988,7 @@ UIClass.prototype = {
     
     Items.unsquish(pairs);
     
-    iQ.each(pairs, function(index, pair) {
+    pairs.forEach(function(pair) {
       pair.item.setBounds(pair.bounds, true);
       pair.item.snap();
     });
@@ -933,11 +1005,12 @@ UIClass.prototype = {
       var $select = iQ('<select>')
         .css({
           position: 'absolute',
-          top: 5,
+          bottom: 5,
           right: 5,
+          zIndex: 99999, 
           opacity: .2
         })
-        .appendTo('body')
+        .appendTo('#content')
         .change(function () {
           var index = iQ(this).val();
           try {
@@ -1038,13 +1111,18 @@ UIClass.prototype = {
       
     return true;
   },
-  
+
+  // ----------
+  saveVisibility: function(isVisible) {
+    Storage.saveVisibilityData(Utils.getCurrentWindow(), { visible: isVisible });
+  },
+
   // ----------
   arrangeBySite: function() {
     function putInGroup(set, key) {
       var group = Groups.getGroupWithTitle(key);
       if (group) {
-        iQ.each(set, function(index, el) {
+        set.forEach(function(el) {
           group.add(el);
         });
       } else 
@@ -1056,7 +1134,7 @@ UIClass.prototype = {
     var newTabsGroup = Groups.getNewTabGroup();
     var groups = [];
     var items = TabItems.getItems();
-    iQ.each(items, function(index, item) {
+    items.forEach(function(item) {
       var url = item.getURL(); 
       var domain = url.split('/')[2]; 
       if (!domain)
@@ -1101,5 +1179,6 @@ UIClass.prototype = {
 
 // ----------
 window.UI = new UIClass();
+window.UI.init();
 
 })();

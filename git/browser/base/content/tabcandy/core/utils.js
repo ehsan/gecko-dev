@@ -46,12 +46,6 @@ const Ci = Components.interfaces;
 const Cu = Components.utils;
 const Cr = Components.results;
 
-// Get this in a way where we can load the page automatically
-// where it doesn't need to be focused...
-var homeWindow = Cc["@mozilla.org/embedcomp/window-watcher;1"]
-    .getService(Ci.nsIWindowWatcher)
-    .activeWindow;
-
 var consoleService = Cc["@mozilla.org/consoleservice;1"]
     .getService(Components.interfaces.nsIConsoleService);
 
@@ -369,11 +363,8 @@ window.Range.prototype = {
 // ##########
 // Class: Subscribable
 // A mix-in for allowing objects to collect subscribers for custom events. 
-// Currently supports only onClose. 
-// TODO generalize for any number of events
 window.Subscribable = function() {
-  this.subscribers = {};
-  this.onCloseSubscribers = null;
+  this.subscribers = null;
 };
 
 window.Subscribable.prototype = {
@@ -382,22 +373,34 @@ window.Subscribable.prototype = {
   // The given callback will be called when the Subscribable fires the given event.
   // The refObject is used to facilitate removal if necessary. 
   addSubscriber: function(refObject, eventName, callback) {
-    if (!this.subscribers[eventName])
-      this.subscribers[eventName] = [];
-      
-    var subs = this.subscribers[eventName];
-    var existing = iQ.grep(subs, function(element) {
-      return element.refObject == refObject;
-    });
-    
-    if (existing.length) {
-      Utils.assert('should only ever be one', existing.length == 1);
-      existing[0].callback = callback;
-    } else {  
-      subs.push({
-        refObject: refObject, 
-        callback: callback
+    try {
+      Utils.assertThrow("refObject", refObject);
+      Utils.assertThrow("callback must be a function", iQ.isFunction(callback));
+      Utils.assertThrow("eventName must be a non-empty string", 
+          eventName && typeof(eventName) == "string");
+          
+      if (!this.subscribers)
+        this.subscribers = {};
+        
+      if (!this.subscribers[eventName])
+        this.subscribers[eventName] = [];
+        
+      var subs = this.subscribers[eventName];
+      var existing = subs.filter(function(element) {
+        return element.refObject == refObject;
       });
+      
+      if (existing.length) {
+        Utils.assert('should only ever be one', existing.length == 1);
+        existing[0].callback = callback;
+      } else {  
+        subs.push({
+          refObject: refObject, 
+          callback: callback
+        });
+      }
+    } catch(e) {
+      Utils.log(e);
     }
   },
   
@@ -405,80 +408,50 @@ window.Subscribable.prototype = {
   // Function: removeSubscriber
   // Removes the callback associated with refObject for the given event. 
   removeSubscriber: function(refObject, eventName) {
-    if (!this.subscribers[eventName])
-      return;
-      
-    this.subscribers[eventName] = iQ.grep(this.subscribers[eventName], function(element) {
-      return element.refObject == refObject;
-    }, true);
+    try {
+      Utils.assertThrow("refObject", refObject);
+      Utils.assertThrow("eventName must be a non-empty string", 
+          eventName && typeof(eventName) == "string");
+          
+      if (!this.subscribers || !this.subscribers[eventName])
+        return;
+        
+      this.subscribers[eventName] = this.subscribers[eventName].filter(function(element) {
+        return element.refObject != refObject;
+      });
+    } catch(e) {
+      Utils.log(e);
+    }
   },
   
   // ----------
   // Function: _sendToSubscribers
   // Internal routine. Used by the Subscribable to fire events.
   _sendToSubscribers: function(eventName, eventInfo) {
-    if (!this.subscribers[eventName])
-      return;
-      
-    var self = this;
-    var subsCopy = iQ.merge([], this.subscribers[eventName]);
-    iQ.each(subsCopy, function(index, object) { 
-      object.callback(self, eventInfo);
-    });
-  },
-  
-  // ----------
-  // Function: addOnClose
-  // The given callback will be called when the Subscribable fires its onClose.
-  // The referenceElement is used to facilitate removal if necessary. 
-  addOnClose: function(referenceElement, callback) {
-    if (!this.onCloseSubscribers)
-      this.onCloseSubscribers = [];
-      
-    var existing = iQ.grep(this.onCloseSubscribers, function(element) {
-      return element.referenceElement == referenceElement;
-    });
-    
-    if (existing.length) {
-      Utils.assert('should only ever be one', existing.length == 1);
-      existing[0].callback = callback;
-    } else {  
-      this.onCloseSubscribers.push({
-        referenceElement: referenceElement, 
-        callback: callback
+    try {
+      Utils.assertThrow("eventName must be a non-empty string", 
+          eventName && typeof(eventName) == "string");
+          
+      if (!this.subscribers || !this.subscribers[eventName])
+        return;
+        
+      var self = this;
+      var subsCopy = iQ.merge([], this.subscribers[eventName]);
+      subsCopy.forEach(function(object) { 
+        object.callback(self, eventInfo);
       });
+    } catch(e) {
+      Utils.log(e);
     }
-  },
-  
-  // ----------
-  // Function: removeOnClose
-  // Removes the callback associated with referenceElement for onClose notification. 
-  removeOnClose: function(referenceElement) {
-    if (!this.onCloseSubscribers)
-      return;
-      
-    this.onCloseSubscribers = iQ.grep(this.onCloseSubscribers, function(element) {
-      return element.referenceElement == referenceElement;
-    }, true);
-  },
-  
-  // ----------
-  // Function: _sendOnClose
-  // Internal routine. Used by the Subscribable to fire onClose events.
-  _sendOnClose: function() {
-    if (!this.onCloseSubscribers)
-      return;
-      
-    iQ.each(this.onCloseSubscribers, function(index, object) { 
-      object.callback(this);
-    });
   }
 };
 
 // ##########
 // Class: Utils
 // Singelton with common utility functions.
-var Utils = {  
+var Utils = {
+  _isMac : null,
+  
   // ___ Windows and Tabs
 
   // ----------
@@ -512,7 +485,7 @@ var Utils = {
     while (browserEnumerator.hasMoreElements()) {
       var browserWin = browserEnumerator.getNext();
       var tabbrowser = browserWin.gBrowser;
-      let tabCandyContainer = browserWin.document.getElementById("tab-candy");
+      var tabCandyContainer = browserWin.document.getElementById("tab-candy");
       if (tabCandyContainer && tabCandyContainer.contentWindow == window) {
         return browserWin;
       }
@@ -520,46 +493,9 @@ var Utils = {
     
     return null;
   },
-
-  // ___ Files
-  getInstallDirectory: function(id, callback) { 
-    if (Cc["@mozilla.org/extensions/manager;1"]) {
-      var extensionManager = Cc["@mozilla.org/extensions/manager;1"]  
-                             .getService(Ci.nsIExtensionManager);  
-      var file = extensionManager.getInstallLocation(id).getItemFile(id, "install.rdf"); 
-      callback(file.parent);  
-    }
-    else {
-      Components.utils.import("resource://gre/modules/AddonManager.jsm");
-      AddonManager.getAddonByID(id, function(addon) {
-        var fileStr = addon.getResourceURL("install.rdf");
-        var ios = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);  
-        var url = ios.newURI(fileStr, null, null);
-        callback(url.QueryInterface(Ci.nsIFileURL).file.parent);
-      });
-    }
-  }, 
   
-  getFiles: function(dir) {
-    var files = [];
-    if (dir.isReadable() && dir.isDirectory) {
-      var entries = dir.directoryEntries;
-      while (entries.hasMoreElements()) {
-        var entry = entries.getNext();
-        entry.QueryInterface(Ci.nsIFile);
-        files.push(entry);
-      }
-    }
-    
-    return files;
-  },
-
   // ___ Logging
-  
-  ilog: function(){ 
-    Utils.log('!!ilog is no longer supported!!');
-  },
-  
+    
   log: function() { // pass as many arguments as you want, it'll print them all
     var text = this.expandArgumentsForLog(arguments);
     consoleService.logStringMessage(text);
@@ -707,6 +643,18 @@ var Utils = {
     }
       
     return value;
+  },
+
+  // ___ Is Mac
+  isMac: function() {
+    if (this._isMac == null) {
+      var xulRuntime =
+        Components.classes["@mozilla.org/xre/app-info;1"].
+	  getService(Components.interfaces.nsIXULRuntime);
+      this._isMac = (xulRuntime.OS == "Darwin");
+    }
+    
+    return this._isMac;
   }
 };
 

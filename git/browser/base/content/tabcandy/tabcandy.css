@@ -12,6 +12,14 @@ body {
   margin: 0 auto;  
 }
 
+#content {
+  position:absolute;
+  top:0;
+  left:0;
+  width: 100%;
+  height: 100%;
+}
+
 #bg {
   background: -moz-linear-gradient(top,#C4C4C4,#9E9E9E);
   position:absolute;
@@ -37,7 +45,8 @@ body {
   cursor: pointer;  
 }
 
-.tab canvas {
+.tab canvas,
+.thumb-placeholder {
   border: 1px solid rgba(0,0,0,0.2);
   width: 100%;
   height: 100%;
@@ -48,7 +57,7 @@ body {
   height: 100%;    
 }
 
-.thumbShadow {
+.thumb-shadow {
     position: absolute;
     border-bottom: 5px solid rgba(0,0,0,0.05);
     margin-right: -12px;
@@ -77,7 +86,6 @@ body {
   width: 16px;
   height: 16px;
 }
-
 
 .close {
   position: absolute;
@@ -120,10 +128,10 @@ body {
 
 .stacked {padding:0;}
 .stacked .tab-title{ display: none; }
-.stacked .thumbShadow{display: none;}
+.stacked .thumb-shadow{display: none;}
 .stacked .thumb{-moz-box-shadow: rgba(0,0,0,.2) 1px 1px 6px;}
 
-.stack-trayed .tab-title{
+.stack-trayed .tab-title {
   display: block !important;
   text-shadow: rgba(0,0,0,1) 1px 1px 2px;
   color: #EEE;
@@ -135,7 +143,7 @@ body {
   -moz-box-shadow:  rgba(54,79,225,1) 0px 0px 5px -1px !important;
 }
 
-.front .tab-title, .front .close, .front .favicon, .front .expander, .front .thumbShadow {
+.front .tab-title, .front .close, .front .favicon, .front .expander, .front .thumb-shadow {
   display: none;
 }
 
@@ -200,18 +208,8 @@ body {
     rgba(0,0,0, .2) 1px 1px 4px;
 }
 
-/* InfoItems
-----------------------------------*/
-
-.info-item {
-	position: absolute;
-  cursor: move;
-	border: 1px solid rgba(230,230,230,1);
-	background-color: rgba(248,248,248,1);
-	-moz-border-radius: 0.4em;
-	-moz-box-shadow: 
-		inset rgba(255, 255, 255, 0.6) 0 0 0 2px,
-		rgba(0,0,0, .2) 1px 1px 4px;
+.intro {
+  margin: 10px;
 }
 
 /* Trenches
@@ -224,10 +222,10 @@ body {
 .guideTrench {
   z-index: -101;
   opacity: 0.9;
-  border: 1px dashed  rgba(0,0,0,.12);
+  border: 1px dashed  rgba(0,0,0,.08);
   border-bottom: none;
   border-right: none;
-  -moz-box-shadow: 1px 1px 0 rgba(255,255,255,.15);
+  -moz-box-shadow: 1px 1px 0 rgba(255,255,255,.1);
 }
 
 .visibleTrench {
@@ -310,7 +308,7 @@ body {
   -moz-box-shadow: none;
 }
 
-.inNewTabGroup .tab-title{
+.inNewTabGroup .tab-title {
   color: #2C2C2C;
   text-shadow: 0px 1px 0px rgba(255,255,255,.25);
 }
@@ -434,7 +432,7 @@ input.defaultName:hover{
   width: 100px;
   height: 20px;
   line-height: 20px;
-  z-index: 99 !important;
+  z-index: 99999 !important;
   background-color: blue;
   text-align: center;
   color: white;
