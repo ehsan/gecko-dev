@@ -204,7 +204,6 @@ FT_BEGIN_HEADER
 #endif
 
     FT_Bool  pathIsOpen;     /* true after MoveTo                     */
-    FT_Bool  pathIsClosing;  /* true when synthesizing closepath line */
     FT_Bool  darken;         /* true if stem darkening                */
     FT_Bool  moveIsPending;  /* true between MoveTo and offset MoveTo */
 
@@ -230,8 +229,7 @@ FT_BEGIN_HEADER
     FT_Vector  currentCS;
     /* current point, device space */
     FT_Vector  currentDS;
-    /* start point of subpath, character space */
-    FT_Vector  start;
+    FT_Vector  start;         /* start point of subpath */
 
     /* the following members constitute the `queue' of one element */
     FT_Bool  elemIsQueued;

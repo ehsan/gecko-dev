@@ -21,7 +21,7 @@
 namespace JS {
 
 class Latin1CharsZ;
-class ConstTwoByteChars;
+class StableCharPtr;
 class TwoByteChars;
 
 class AutoFunctionVector;
@@ -62,7 +62,7 @@ using JS::UndefinedValue;
 using JS::IsPoisonedPtr;
 
 using JS::Latin1CharsZ;
-using JS::ConstTwoByteChars;
+using JS::StableCharPtr;
 using JS::TwoByteChars;
 
 using JS::AutoFunctionVector;

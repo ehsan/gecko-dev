@@ -43,7 +43,6 @@ FT_BEGIN_HEADER
   FT_LOCAL( void )
   TT_Get_VMetrics( TT_Face     face,
                    FT_UInt     idx,
-                   FT_Pos      yMax,
                    FT_Short*   tsb,
                    FT_UShort*  ah );
 

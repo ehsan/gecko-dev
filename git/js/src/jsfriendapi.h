@@ -262,7 +262,6 @@ namespace js {
         js::proxy_HasInstance,   /* hasInstance */                                      \
         constructOp,             /* construct   */                                      \
         js::proxy_Trace,         /* trace       */                                      \
-        JS_NULL_CLASS_SPEC,                                                             \
         ext,                                                                            \
         {                                                                               \
             js::proxy_LookupGeneric,                                                    \

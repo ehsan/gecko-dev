@@ -20,7 +20,7 @@ let line0 = Error().lineNumber;
 try {             // line0 + 1
   eval(...["("]); // line0 + 2
 } catch (e) {
-  assertEq(e.lineNumber, 1);
+  assertEq(e.lineNumber, line0 + 2);
 }
 
 // other iterable objects

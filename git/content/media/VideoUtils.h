@@ -26,7 +26,6 @@ using mozilla::CheckedInt32;
 using mozilla::CheckedUint32;
 
 struct nsIntSize;
-struct nsIntRect;
 
 // This file contains stuff we'd rather put elsewhere, but which is
 // dependent on other changes which we don't want to wait for. We plan to
@@ -136,7 +135,7 @@ static const int32_t MAX_VIDEO_WIDTH = 4000;
 static const int32_t MAX_VIDEO_HEIGHT = 3000;
 
 // Scales the display rect aDisplay by aspect ratio aAspectRatio.
-// Note that aDisplay must be validated by IsValidVideoRegion()
+// Note that aDisplay must be validated by VideoInfo::ValidateVideoRegion()
 // before being used!
 void ScaleDisplayByAspectRatio(nsIntSize& aDisplay, float aAspectRatio);
 
@@ -157,13 +156,6 @@ int DownmixAudioToStereo(mozilla::AudioDataValue* buffer,
                          uint32_t frames);
 
 bool IsVideoContentType(const nsCString& aContentType);
-
-// Returns true if it's safe to use aPicture as the picture to be
-// extracted inside a frame of size aFrame, and scaled up to and displayed
-// at a size of aDisplay. You should validate the frame, picture, and
-// display regions before using them to display video frames.
-bool IsValidVideoRegion(const nsIntSize& aFrame, const nsIntRect& aPicture,
-                        const nsIntSize& aDisplay);
 
 } // end namespace mozilla
 

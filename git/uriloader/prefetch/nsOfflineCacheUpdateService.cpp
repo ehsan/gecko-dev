@@ -583,13 +583,25 @@ nsOfflineCacheUpdateService::ScheduleUpdate(nsIURI *aManifestURI,
 }
 
 NS_IMETHODIMP
+nsOfflineCacheUpdateService::ScheduleCustomProfileUpdate(nsIURI *aManifestURI,
+                                                         nsIURI *aDocumentURI,
+                                                         nsIFile *aProfileDir,
+                                                         nsIOfflineCacheUpdate **aUpdate)
+{
+    // The profile directory is mandatory
+    NS_ENSURE_ARG(aProfileDir);
+
+    return Schedule(aManifestURI, aDocumentURI, nullptr, nullptr, aProfileDir,
+                    NECKO_NO_APP_ID, false, aUpdate);
+}
+
+NS_IMETHODIMP
 nsOfflineCacheUpdateService::ScheduleAppUpdate(nsIURI *aManifestURI,
                                                nsIURI *aDocumentURI,
                                                uint32_t aAppID, bool aInBrowser,
-                                               nsIFile *aProfileDir,
                                                nsIOfflineCacheUpdate **aUpdate)
 {
-    return Schedule(aManifestURI, aDocumentURI, nullptr, nullptr, aProfileDir,
+    return Schedule(aManifestURI, aDocumentURI, nullptr, nullptr, nullptr,
                     aAppID, aInBrowser, aUpdate);
 }
 
@@ -656,10 +668,6 @@ OfflineAppPermForPrincipal(nsIPrincipal *aPrincipal,
                            bool *aAllowed)
 {
     *aAllowed = false;
-
-    if (!aPrincipal)
-        return NS_ERROR_INVALID_ARG;
-
     nsCOMPtr<nsIURI> uri;
     aPrincipal->GetURI(getter_AddRefs(uri));
 

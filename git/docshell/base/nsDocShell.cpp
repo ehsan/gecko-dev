@@ -4776,10 +4776,8 @@ nsDocShell::LoadErrorPage(nsIURI *aURI, const char16_t *aURL,
     }
     errorPageUrl.AppendLiteral("&c=");
     errorPageUrl.AppendASCII(escapedCharset.get());
-
-    nsAutoCString frameType(FrameTypeToString(mFrameType));
-    errorPageUrl.AppendLiteral("&f=");
-    errorPageUrl.AppendASCII(frameType.get());
+    errorPageUrl.AppendLiteral("&d=");
+    errorPageUrl.AppendASCII(escapedDescription.get());
 
     // Append the manifest URL if the error comes from an app.
     nsString manifestURL;
@@ -4793,10 +4791,9 @@ nsDocShell::LoadErrorPage(nsIURI *aURI, const char16_t *aURL,
       errorPageUrl.AppendASCII(manifestParam.get());
     }
 
-    // netError.xhtml's getDescription only handles the "d" parameter at the
-    // end of the URL, so append it last.
-    errorPageUrl.AppendLiteral("&d=");
-    errorPageUrl.AppendASCII(escapedDescription.get());
+    nsAutoCString frameType(FrameTypeToString(mFrameType));
+    errorPageUrl.AppendLiteral("&f=");
+    errorPageUrl.AppendASCII(frameType.get());
 
     nsCOMPtr<nsIURI> errorPageURI;
     rv = NS_NewURI(getter_AddRefs(errorPageURI), errorPageUrl);
@@ -6784,15 +6781,9 @@ nsDocShell::OnRedirectStateChange(nsIChannel* aOldChannel,
             // Permission will be checked in the parent process.
             appCacheChannel->SetChooseApplicationCache(true);
         } else {
-            nsCOMPtr<nsIScriptSecurityManager> secMan =
-                do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID);
-
-            if (secMan) {
-                nsCOMPtr<nsIPrincipal> principal;
-                secMan->GetDocShellCodebasePrincipal(newURI, this, getter_AddRefs(principal));
-                appCacheChannel->SetChooseApplicationCache(NS_ShouldCheckAppCache(principal,
-                    mInPrivateBrowsing));
-            }
+            appCacheChannel->SetChooseApplicationCache(
+                                NS_ShouldCheckAppCache(newURI,
+                                                       mInPrivateBrowsing));
         }
     }
 
@@ -9722,15 +9713,8 @@ nsDocShell::DoURILoad(nsIURI * aURI,
             // Permission will be checked in the parent process
             appCacheChannel->SetChooseApplicationCache(true);
         } else {
-            nsCOMPtr<nsIScriptSecurityManager> secMan =
-                do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID);
-
-            if (secMan) {
-                nsCOMPtr<nsIPrincipal> principal;
-                secMan->GetDocShellCodebasePrincipal(aURI, this, getter_AddRefs(principal));
-                appCacheChannel->SetChooseApplicationCache(
-                    NS_ShouldCheckAppCache(principal, mInPrivateBrowsing));
-            }
+            appCacheChannel->SetChooseApplicationCache(
+                NS_ShouldCheckAppCache(aURI, mInPrivateBrowsing));
         }
     }
 

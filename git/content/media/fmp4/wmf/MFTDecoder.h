@@ -14,7 +14,7 @@
 
 namespace mozilla {
 
-class MFTDecoder : public AtomicRefCounted<MFTDecoder> {
+class MFTDecoder {
 public:
   MFTDecoder();
   ~MFTDecoder();

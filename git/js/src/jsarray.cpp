@@ -843,7 +843,13 @@ const Class ArrayObject::class_ = {
     nullptr,        /* call        */
     nullptr,        /* hasInstance */
     nullptr,        /* construct   */
-    nullptr         /* trace       */
+    nullptr,        /* trace       */
+    {
+        nullptr,    /* outerObject */
+        nullptr,    /* innerObject */
+        nullptr,    /* iteratorObject  */
+        false,      /* isWrappedNative */
+    }
 };
 
 static bool

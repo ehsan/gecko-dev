@@ -2256,11 +2256,6 @@ void
 ContentParent::FriendlyName(nsAString& aName)
 {
     aName.Truncate();
-#ifdef MOZ_NUWA_PROCESS
-    if (IsNuwaProcess()) {
-        aName.AssignLiteral("(Nuwa)");
-    } else
-#endif
     if (IsPreallocated()) {
         aName.AssignLiteral("(Preallocated)");
     } else if (mIsForBrowser) {

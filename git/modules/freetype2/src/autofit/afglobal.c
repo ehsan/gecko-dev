@@ -17,62 +17,37 @@
 
 
 #include "afglobal.h"
-
-  /* get writing system specific header files */
-#undef  WRITING_SYSTEM
-#define WRITING_SYSTEM( ws, WS )  /* empty */
-#include "afwrtsys.h"
-
-#include "aferrors.h"
+#include "afdummy.h"
+#include "aflatin.h"
+#include "afcjk.h"
+#include "afindic.h"
 #include "afpic.h"
 
+#include "aferrors.h"
+
+#ifdef FT_OPTION_AUTOFIT2
+#include "aflatin2.h"
+#endif
 
 #ifndef FT_CONFIG_OPTION_PIC
 
-#undef  WRITING_SYSTEM
-#define WRITING_SYSTEM( ws, WS )               \
-          &af_ ## ws ## _writing_system_class,
+  /* when updating this table, don't forget to update          */
+  /* AF_SCRIPT_CLASSES_COUNT and autofit_module_class_pic_init */
 
-  FT_LOCAL_ARRAY_DEF( AF_WritingSystemClass )
-  af_writing_system_classes[] =
+  /* populate this list when you add new scripts */
+  static AF_ScriptClass const  af_script_classes[] =
   {
-
-#include "afwrtsys.h"
-
-    NULL  /* do not remove */
-  };
-
-
-#undef  SCRIPT
-#define SCRIPT( s, S, d )             \
-          &af_ ## s ## _script_class,
-
-  FT_LOCAL_ARRAY_DEF( AF_ScriptClass )
-  af_script_classes[] =
-  {
-
-#include "afscript.h"
-
+    &af_dummy_script_class,
+#ifdef FT_OPTION_AUTOFIT2
+    &af_latin2_script_class,
+#endif
+    &af_latin_script_class,
+    &af_cjk_script_class,
+    &af_indic_script_class,
     NULL  /* do not remove */
   };
 
 #endif /* !FT_CONFIG_OPTION_PIC */
-
-
-#ifdef FT_DEBUG_LEVEL_TRACE
-
-#undef  SCRIPT
-#define SCRIPT( s, S, d )  #s,
-
-  FT_LOCAL_ARRAY_DEF( char* )
-  af_script_names[] =
-  {
-
-#include "afscript.h"
-
-  };
-
-#endif /* FT_DEBUG_LEVEL_TRACE */
 
 
   /* Compute the script index of each glyph within a given face. */
@@ -107,20 +82,18 @@
     /* scan each script in a Unicode charmap */
     for ( ss = 0; AF_SCRIPT_CLASSES_GET[ss]; ss++ )
     {
-      AF_ScriptClass      script_class = AF_SCRIPT_CLASSES_GET[ss];
+      AF_ScriptClass      clazz = AF_SCRIPT_CLASSES_GET[ss];
       AF_Script_UniRange  range;
 
 
-      if ( script_class->script_uni_ranges == NULL )
+      if ( clazz->script_uni_ranges == NULL )
         continue;
 
       /*
        *  Scan all Unicode points in the range and set the corresponding
        *  glyph script index.
        */
-      for ( range = script_class->script_uni_ranges;
-            range->first != 0;
-            range++ )
+      for ( range = clazz->script_uni_ranges; range->first != 0; range++ )
       {
         FT_ULong  charcode = range->first;
         FT_UInt   gindex;
@@ -231,14 +204,13 @@
       {
         if ( globals->metrics[nn] )
         {
-          AF_ScriptClass         script_class =
-            AF_SCRIPT_CLASSES_GET[nn];
-          AF_WritingSystemClass  writing_system_class =
-            AF_WRITING_SYSTEM_CLASSES_GET[script_class->writing_system];
+          AF_ScriptClass  clazz = AF_SCRIPT_CLASSES_GET[nn];
 
 
-          if ( writing_system_class->script_metrics_done )
-            writing_system_class->script_metrics_done( globals->metrics[nn] );
+          FT_ASSERT( globals->metrics[nn]->clazz == clazz );
+
+          if ( clazz->script_metrics_done )
+            clazz->script_metrics_done( globals->metrics[nn] );
 
           FT_FREE( globals->metrics[nn] );
         }
@@ -260,12 +232,12 @@
                                AF_ScriptMetrics  *ametrics )
   {
     AF_ScriptMetrics  metrics = NULL;
-
-    AF_Script              script = (AF_Script)( options & 15 );
-    AF_WritingSystemClass  writing_system_class;
-    AF_ScriptClass         script_class;
-
-    FT_Error  error = FT_Err_Ok;
+    FT_UInt           gidx;
+    AF_ScriptClass    clazz;
+    FT_UInt           script     = options & 15;
+    const FT_Offset   script_max = sizeof ( AF_SCRIPT_CLASSES_GET ) /
+                                     sizeof ( AF_SCRIPT_CLASSES_GET[0] );
+    FT_Error          error      = FT_Err_Ok;
 
 
     if ( gindex >= (FT_ULong)globals->glyph_count )
@@ -274,43 +246,41 @@
       goto Exit;
     }
 
-    /* if we have a forced script (via `options'), use it, */
-    /* otherwise look into `glyph_scripts' array           */
-    if ( script == AF_SCRIPT_DFLT || script + 1 >= AF_SCRIPT_MAX )
-      script = (AF_Script)( globals->glyph_scripts[gindex] & AF_SCRIPT_NONE );
+    gidx = script;
+    if ( gidx == 0 || gidx + 1 >= script_max )
+      gidx = globals->glyph_scripts[gindex] & AF_SCRIPT_NONE;
 
-    script_class         = AF_SCRIPT_CLASSES_GET[script];
-    writing_system_class = AF_WRITING_SYSTEM_CLASSES_GET
-                             [script_class->writing_system];
+    clazz = AF_SCRIPT_CLASSES_GET[gidx];
+    if ( script == 0 )
+      script = clazz->script;
 
-    metrics = globals->metrics[script];
+    metrics = globals->metrics[clazz->script];
     if ( metrics == NULL )
     {
       /* create the global metrics object if necessary */
       FT_Memory  memory = globals->face->memory;
 
 
-      if ( FT_ALLOC( metrics, writing_system_class->script_metrics_size ) )
+      if ( FT_ALLOC( metrics, clazz->script_metrics_size ) )
         goto Exit;
 
-      metrics->script_class = script_class;
-      metrics->globals      = globals;
+      metrics->clazz   = clazz;
+      metrics->globals = globals;
 
-      if ( writing_system_class->script_metrics_init )
+      if ( clazz->script_metrics_init )
       {
-        error = writing_system_class->script_metrics_init( metrics,
-                                                           globals->face );
+        error = clazz->script_metrics_init( metrics, globals->face );
         if ( error )
         {
-          if ( writing_system_class->script_metrics_done )
-            writing_system_class->script_metrics_done( metrics );
+          if ( clazz->script_metrics_done )
+            clazz->script_metrics_done( metrics );
 
           FT_FREE( metrics );
           goto Exit;
         }
       }
 
-      globals->metrics[script] = metrics;
+      globals->metrics[clazz->script] = metrics;
     }
 
   Exit:
