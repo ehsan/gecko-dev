@@ -557,7 +557,7 @@ bool
 DirectProxyHandler::hasOwn(JSContext *cx, JSObject *proxy, jsid id, bool *bp)
 {
     JSObject *target = GetProxyTargetObject(proxy);
-    AutoPropertyDescriptorRooter desc(cx);
+    PropertyDescriptor desc;
     if (!JS_GetPropertyDescriptorById(cx, target, id, JSRESOLVE_QUALIFIED,
                                       &desc))
         return false;
