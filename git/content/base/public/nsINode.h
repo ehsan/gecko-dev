@@ -38,7 +38,7 @@
 #ifndef nsINode_h___
 #define nsINode_h___
 
-#include "nsPIDOMEventTarget.h"
+#include "nsIDOMEventTarget.h"
 #include "nsEvent.h"
 #include "nsPropertyTable.h"
 #include "nsTObserverArray.h"
@@ -59,7 +59,7 @@ class nsIPresShell;
 class nsEventChainVisitor;
 class nsEventChainPreVisitor;
 class nsEventChainPostVisitor;
-class nsIEventListenerManager;
+class nsEventListenerManager;
 class nsIPrincipal;
 class nsIMutationObserver;
 class nsChildContentList;
@@ -288,7 +288,7 @@ private:
  * nsIContent and nsIDocument share.  An instance of this interface has a list
  * of nsIContent children and provides access to them.
  */
-class nsINode : public nsPIDOMEventTarget,
+class nsINode : public nsIDOMEventTarget,
                 public nsWrapperCache
 {
 public:
@@ -703,6 +703,11 @@ public:
   {
     return mParent;
   }
+
+  /**
+   * See nsIDOMEventTarget
+   */
+  NS_DECL_NSIDOMEVENTTARGET
 
   /**
    * Adds a mutation observer to be notified when this node, or any of its
