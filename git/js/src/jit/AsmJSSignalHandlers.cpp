@@ -6,6 +6,8 @@
 
 #include "jit/AsmJSSignalHandlers.h"
 
+#include "jscntxt.h"
+
 #include "assembler/assembler/MacroAssembler.h"
 #include "jit/AsmJSModule.h"
 

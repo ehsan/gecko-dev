@@ -17,6 +17,8 @@
 #include "mozilla/ReentrancyGuard.h"
 
 #include "jsalloc.h"
+#include "jsgc.h"
+#include "jsobj.h"
 
 #include "ds/LifoAlloc.h"
 #include "gc/Nursery.h"

@@ -10,7 +10,6 @@
 
 #include "mozilla/PodOperations.h"
 
-#include <ctype.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -20,6 +19,8 @@
 #include "jscntxt.h"
 #include "jsexn.h"
 #include "jsnum.h"
+#include "jsopcode.h"
+#include "jsscript.h"
 
 #include "frontend/BytecodeCompiler.h"
 #include "js/CharacterEncoding.h"
@@ -359,6 +360,7 @@ JS_ALWAYS_INLINE void
 TokenStream::updateFlagsForEOL()
 {
     flags.isDirtyLine = false;
+    flags.sawEOL = true;
 }
 
 // This gets the next char, normalizing all EOL sequences to '\n' as it goes.

@@ -11,12 +11,18 @@
 
 #include "mozilla/DebugOnly.h"
 #include "mozilla/MemoryReporting.h"
+#include "mozilla/Util.h"
 
-#include "jsapi.h"
-#include "jsobj.h"
+#include "jsalloc.h"
+#include "jsclass.h"
 #include "jslock.h"
+#include "jspubtd.h"
+#include "jsscript.h"
+#include "jstypes.h"
 
+#include "gc/Heap.h"
 #include "js/GCAPI.h"
+#include "js/HashTable.h"
 #include "js/Vector.h"
 
 class JSAtom;
@@ -34,15 +40,12 @@ class BaseShape;
 class DebugScopeObject;
 class GCHelperThread;
 class GlobalObject;
-class LazyScript;
 class Nursery;
 class PropertyName;
 class ScopeObject;
 class Shape;
 class UnownedBaseShape;
 struct SliceBudget;
-
-unsigned GetCPUCount();
 
 enum HeapState {
     Idle,             // doing nothing with the GC heap
@@ -674,8 +677,6 @@ extern void
 js_FinishGC(JSRuntime *rt);
 
 namespace js {
-
-class StackFrame;
 
 extern void
 MarkCompartmentActive(js::StackFrame *fp);

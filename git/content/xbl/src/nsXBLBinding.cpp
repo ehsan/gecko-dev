@@ -1105,10 +1105,10 @@ nsXBLBinding::ResolveAllFields(JSContext *cx, JS::Handle<JSObject*> obj) const
 
 bool
 nsXBLBinding::LookupMember(JSContext* aCx, JS::HandleId aId,
-                           JS::MutableHandle<JSPropertyDescriptor> aDesc)
+                           JSPropertyDescriptor* aDesc)
 {
   // We should never enter this function with a pre-filled property descriptor.
-  MOZ_ASSERT(!aDesc.object());
+  MOZ_ASSERT(!aDesc->obj);
 
   // Get the string as an nsString before doing anything, so we can make
   // convenient comparisons during our search.
@@ -1148,7 +1148,7 @@ nsXBLBinding::LookupMember(JSContext* aCx, JS::HandleId aId,
 bool
 nsXBLBinding::LookupMemberInternal(JSContext* aCx, nsString& aName,
                                    JS::HandleId aNameAsId,
-                                   JS::MutableHandle<JSPropertyDescriptor> aDesc,
+                                   JSPropertyDescriptor* aDesc,
                                    JS::Handle<JSObject*> aXBLScope)
 {
   // First, see if we have a JSClass. If we don't, it means that this binding
@@ -1186,7 +1186,7 @@ nsXBLBinding::LookupMemberInternal(JSContext* aCx, nsString& aName,
   {
     return false;
   }
-  if (aDesc.object() || !mNextBinding) {
+  if (aDesc->obj || !mNextBinding) {
     return true;
   }
 

@@ -16,13 +16,12 @@
 
 #include "jit/BaselineJIT.h"
 #include "jit/Ion.h"
-#include "vm/ArrayObject.h"
 #include "vm/Runtime.h"
 #include "vm/Shape.h"
 #include "vm/WrapperObject.h"
 #include "vm/String.h"
 
-#include "vm/ObjectImpl-inl.h"
+#include "jsobjinlines.h"
 
 using mozilla::DebugOnly;
 using mozilla::Move;

@@ -11,12 +11,14 @@
 
 #include "mozilla/MemoryReporting.h"
 
+#include "jsalloc.h"
 #include "jsfriendapi.h"
 
 #include "ds/LifoAlloc.h"
-#include "ds/IdValuePair.h"
 #include "gc/Barrier.h"
-#include "js/Utility.h"
+#include "gc/Heap.h"
+#include "js/HashTable.h"
+#include "js/Vector.h"
 
 class JSScript;
 
@@ -103,15 +105,7 @@ namespace ion {
     struct IonScript;
 }
 
-namespace analyze {
-    class ScriptAnalysis;
-}
-
 namespace types {
-
-class TypeCallsite;
-class TypeCompartment;
-class TypeSet;
 
 /* Type set entry for either a JSObject with singleton type or a non-singleton TypeObject. */
 struct TypeObjectKey {

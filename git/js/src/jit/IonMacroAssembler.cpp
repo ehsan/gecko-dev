@@ -7,7 +7,6 @@
 #include "jit/IonMacroAssembler.h"
 
 #include "jsinfer.h"
-#include "jsprf.h"
 
 #include "jit/Bailouts.h"
 #include "jit/BaselineFrame.h"
@@ -15,6 +14,7 @@
 #include "jit/BaselineJIT.h"
 #include "jit/BaselineRegisters.h"
 #include "jit/MIR.h"
+#include "js/RootingAPI.h"
 #include "vm/ForkJoin.h"
 
 #include "jsgcinlines.h"

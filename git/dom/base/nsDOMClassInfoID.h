@@ -81,7 +81,7 @@ class EventTarget;
 
 #define DOMCI_CASTABLE_NODECL_INTERFACE DOMCI_CASTABLE_INTERFACE
 
-#ifdef MOZILLA_INTERNAL_API
+#ifdef _IMPL_NS_LAYOUT
 
 #define DOMCI_CLASS(_dom_class)                                               \
   extern const uint32_t kDOMClassInfo_##_dom_class##_interfaces;
@@ -167,6 +167,6 @@ NS_GetDOMClassInfoInstance(nsDOMClassInfoID aID);
 
 // See nsIDOMClassInfo.h
 
-#endif // MOZILLA_INTERNAL_API
+#endif // _IMPL_NS_LAYOUT
 
 #endif // nsDOMClassInfoID_h__

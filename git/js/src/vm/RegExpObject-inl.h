@@ -9,6 +9,8 @@
 
 #include "vm/RegExpObject.h"
 
+#include "mozilla/Util.h"
+
 namespace js {
 
 inline void

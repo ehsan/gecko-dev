@@ -82,7 +82,7 @@ public:
 
   bool AppendDone() const
   {
-    return mReadyState == MediaSourceReadyState::Closed || mReadyState == MediaSourceReadyState::Ended;
+    return mReadyState == MediaSourceReadyState::Closed;
   }
 
   // Attach this MediaSource to MediaElement aElement.  Returns false if already attached.

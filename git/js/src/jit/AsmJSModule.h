@@ -9,6 +9,9 @@
 
 #ifdef JS_ION
 
+#include "mozilla/MathAlgorithms.h"
+
+#include "jsfriendapi.h"
 #include "jsscript.h"
 
 #include "gc/Marking.h"

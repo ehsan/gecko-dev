@@ -135,9 +135,8 @@ ImageLayerComposite::ComputeEffectiveTransforms(const gfx3DMatrix& aTransformToS
 CompositableHost*
 ImageLayerComposite::GetCompositableHost()
 {
-  if (mImageHost && mImageHost->IsAttached()) {
+  if (mImageHost->IsAttached())
     return mImageHost.get();
-  }
 
   return nullptr;
 }

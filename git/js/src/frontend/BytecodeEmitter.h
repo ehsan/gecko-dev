@@ -11,22 +11,18 @@
  * JS bytecode generation.
  */
 
-#include "jscntxt.h"
+#include "jsatom.h"
 #include "jsopcode.h"
+#include "jspubtd.h"
 #include "jsscript.h"
 
 #include "frontend/ParseMaps.h"
+#include "frontend/SharedContext.h"
 #include "frontend/SourceNotes.h"
+#include "vm/ScopeObject.h"
 
 namespace js {
 namespace frontend {
-
-class FullParseHandler;
-class ObjectBox;
-class ParseNode;
-template <typename ParseHandler> class Parser;
-class SharedContext;
-class TokenStream;
 
 struct CGTryNoteList {
     Vector<JSTryNote> list;

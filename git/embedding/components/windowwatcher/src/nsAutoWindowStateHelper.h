@@ -30,6 +30,7 @@ protected:
   bool DispatchEventToChrome(const char *aEventName);
 
   nsIDOMWindow *mWindow;
+  nsCOMPtr<nsIDOMWindow> mCallerWindow;
   bool mDefaultEnabled;
 };
 

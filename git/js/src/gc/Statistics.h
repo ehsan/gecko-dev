@@ -10,7 +10,7 @@
 #include "mozilla/DebugOnly.h"
 #include "mozilla/PodOperations.h"
 
-#include "jsapi.h"
+#include "jsfriendapi.h"
 #include "jspubtd.h"
 
 #include "js/GCAPI.h"

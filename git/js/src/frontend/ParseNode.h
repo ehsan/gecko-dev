@@ -21,8 +21,6 @@ template <typename ParseHandler>
 struct ParseContext;
 
 class FullParseHandler;
-class FunctionBox;
-class ObjectBox;
 
 /*
  * Indicates a location in the stack that an upvar value can be retrieved from

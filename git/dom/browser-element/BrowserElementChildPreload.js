@@ -346,7 +346,12 @@ BrowserElementChild.prototype = {
     debug("Entering modal state (outerWindowID=" + outerWindowID + ", " +
                                 "innerWindowID=" + innerWindowID + ")");
 
-    utils.enterModalState();
+    // In theory, we're supposed to pass |modalStateWin| back to
+    // leaveModalStateWithWindow.  But in practice, the window is always null,
+    // because it's the window associated with this script context, which
+    // doesn't have a window.  But we'll play along anyway in case this
+    // changes.
+    var modalStateWin = utils.enterModalStateWithWindow();
 
     // We'll decrement win.modalDepth when we receive a unblock-modal-prompt message
     // for the window.
@@ -383,7 +388,7 @@ BrowserElementChild.prototype = {
     delete win.modalReturnValue;
 
     if (!this._shuttingDown) {
-      utils.leaveModalState();
+      utils.leaveModalStateWithWindow(modalStateWin);
     }
 
     debug("Leaving modal state (outerID=" + outerWindowID + ", " +

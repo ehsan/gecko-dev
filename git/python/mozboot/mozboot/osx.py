@@ -62,10 +62,7 @@ When that has finished installing, please relaunch this script.
 
 UPGRADE_XCODE_COMMAND_LINE_TOOLS = '''
 An old version of the Xcode command line tools is installed. You will need to
-install a newer version in order to compile Firefox. If Xcode itself is old,
-its command line tools may be too old even if it claims there are no updates
-available, so if you are seeing this message multiple times, please update
-Xcode first.
+install a newer version in order to compile Firefox.
 '''
 
 PACKAGE_MANAGER_INSTALL = '''

@@ -28,8 +28,6 @@
 
 #include "yarr/YarrInterpreter.h"
 
-#include "jscntxt.h"
-
 #include "yarr/Yarr.h"
 #include "yarr/YarrCanonicalizeUCS2.h"
 #include "yarr/BumpPointerAllocator.h"

@@ -513,6 +513,7 @@ NO_PKG_FILES += \
 	nsinstall \
 	viewer \
 	TestGtkEmbed \
+	codesighs* \
 	elf-dynstr-gc \
 	mangle* \
 	maptsv* \
@@ -816,6 +817,16 @@ upload: checksum
 	$(PYTHON) $(MOZILLA_DIR)/build/upload.py --base-path $(DIST) \
 		$(UPLOAD_FILES) \
 		$(CHECKSUM_FILES)
+
+ifeq (WINNT,$(OS_TARGET))
+CODESIGHS_PACKAGE = $(INSTALLER_PACKAGE)
+else
+CODESIGHS_PACKAGE = $(DIST)/$(PACKAGE)
+endif
+
+codesighs:
+	$(PYTHON) $(topsrcdir)/tools/codesighs/codesighs.py \
+	  "$(DIST)/$(MOZ_PKG_DIR)" "$(CODESIGHS_PACKAGE)"
 
 ifndef MOZ_PKG_SRCDIR
 MOZ_PKG_SRCDIR = $(topsrcdir)

@@ -5,7 +5,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "jsapi.h"
-#include "jscompartment.h"
 #include "jsgc.h"
 
 #include "gc/GCInternals.h"

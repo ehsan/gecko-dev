@@ -37,9 +37,8 @@ var ContextCommands = {
   cut: function cc_cut() {
     let target = ContextMenuUI.popupState.target;
 
-    if (!target) {
+    if (!target)
       return;
-    }
 
     if (target.localName === "browser") {
       // content
@@ -50,7 +49,7 @@ var ContextCommands = {
       }
     } else {
       // chrome
-      CommandUpdater.doCommand("cmd_cut");
+      target.editor.cut();
     }
 
     target.focus();
@@ -59,9 +58,8 @@ var ContextCommands = {
   copy: function cc_copy() {
     let target = ContextMenuUI.popupState.target;
 
-    if (!target) {
+    if (!target)
       return;
-    }
 
     if (target.localName == "browser") {
       // content
@@ -74,7 +72,7 @@ var ContextCommands = {
       this.clipboard.copyString(ContextMenuUI.popupState.string, this.docRef);
     } else {
       // chrome
-      CommandUpdater.doCommand("cmd_copy");
+      target.editor.copy();
     }
 
     target.focus();
@@ -82,11 +80,6 @@ var ContextCommands = {
 
   paste: function cc_paste() {
     let target = ContextMenuUI.popupState.target;
-
-    if (!target) {
-      return;
-    }
-
     if (target.localName == "browser") {
       // content
       let x = ContextMenuUI.popupState.x;
@@ -96,7 +89,7 @@ var ContextCommands = {
       SelectionHelperUI.closeEditSession();
     } else {
       // chrome
-      CommandUpdater.doCommand("cmd_paste");
+      target.editor.paste(Ci.nsIClipboard.kGlobalClipboard);
       target.focus();
     }
   },

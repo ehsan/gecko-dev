@@ -6,8 +6,6 @@
 
 #include "jit/BaselineIC.h"
 
-#include "jslibmath.h"
-
 #include "builtin/Eval.h"
 #include "jit/BaselineCompiler.h"
 #include "jit/BaselineHelpers.h"
@@ -17,10 +15,8 @@
 #include "jit/VMFunctions.h"
 
 #include "jsboolinlines.h"
-#include "jsscriptinlines.h"
 
 #include "vm/Interpreter-inl.h"
-#include "vm/ScopeObject-inl.h"
 
 namespace js {
 namespace ion {

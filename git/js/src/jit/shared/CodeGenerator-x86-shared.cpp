@@ -9,6 +9,10 @@
 #include "mozilla/DebugOnly.h"
 #include "mozilla/MathAlgorithms.h"
 
+#include "jscntxt.h"
+#include "jscompartment.h"
+#include "jsmath.h"
+
 #include "jit/IonCompartment.h"
 #include "jit/IonFrames.h"
 #include "jit/ParallelFunctions.h"

@@ -53,8 +53,8 @@ function registerMockPromptService()
       // accounting for triggering the "stop showing more prompts" code for
       // abusive pages.
       var winUtils = SpecialPowers.getDOMWindowUtils(this.domWindow);
-      winUtils.enterModalState();
-      winUtils.leaveModalState();
+      var w = winUtils.enterModalStateWithWindow();
+      winUtils.leaveModalStateWithWindow(w);
     },
 
     alert: function(aDialogTitle, aText)

@@ -12,6 +12,7 @@
 #include "jscntxt.h"
 #include "jsfun.h"
 #include "jsgc.h"
+#include "jsprvtd.h"
 #include "jswrapper.h"
 
 #include "gc/Marking.h"
@@ -370,7 +371,7 @@ DirectProxyHandler::getPropertyDescriptor(JSContext *cx, HandleObject proxy, Han
     assertEnteredPolicy(cx, proxy, id);
     JS_ASSERT(!hasPrototype()); // Should never be called if there's a prototype.
     RootedObject target(cx, proxy->as<ProxyObject>().target());
-    return JS_GetPropertyDescriptorById(cx, target, id, 0, desc);
+    return JS_GetPropertyDescriptorById(cx, target, id, 0, desc.address());
 }
 
 static bool
@@ -382,7 +383,7 @@ GetOwnPropertyDescriptor(JSContext *cx, HandleObject obj, HandleId id, unsigned 
     if (obj->is<ProxyObject>())
         return Proxy::getOwnPropertyDescriptor(cx, obj, id, desc, flags);
 
-    if (!JS_GetPropertyDescriptorById(cx, obj, id, flags, desc))
+    if (!JS_GetPropertyDescriptorById(cx, obj, id, flags, desc.address()))
         return false;
     if (desc.object() != obj)
         desc.object().set(NULL);
@@ -553,7 +554,7 @@ DirectProxyHandler::hasOwn(JSContext *cx, HandleObject proxy, HandleId id, bool 
     assertEnteredPolicy(cx, proxy, id);
     RootedObject target(cx, proxy->as<ProxyObject>().target());
     Rooted<PropertyDescriptor> desc(cx);
-    if (!JS_GetPropertyDescriptorById(cx, target, id, 0, &desc))
+    if (!JS_GetPropertyDescriptorById(cx, target, id, 0, desc.address()))
         return false;
     *bp = (desc.object() == target);
     return true;
@@ -1321,7 +1322,7 @@ static bool
 HasOwn(JSContext *cx, HandleObject obj, HandleId id, bool *bp)
 {
     Rooted<PropertyDescriptor> desc(cx);
-    if (!JS_GetPropertyDescriptorById(cx, obj, id, 0, &desc))
+    if (!JS_GetPropertyDescriptorById(cx, obj, id, 0, desc.address()))
         return false;
     *bp = (desc.object() == obj);
     return true;
@@ -1716,7 +1717,7 @@ ScriptedDirectProxyHandler::getPropertyDescriptor(JSContext *cx, HandleObject pr
         JS_ASSERT(!desc.object());
         return true;
     }
-    return JS_GetPropertyDescriptorById(cx, proto, id, 0, desc);
+    return JS_GetPropertyDescriptorById(cx, proto, id, 0, desc.address());
 }
 
 bool
@@ -2310,7 +2311,8 @@ Proxy::getPropertyDescriptor(JSContext *cx, HandleObject proxy, HandleId id,
         return false;
     if (desc.object())
         return true;
-    INVOKE_ON_PROTOTYPE(cx, handler, proxy, JS_GetPropertyDescriptorById(cx, proto, id, 0, desc));
+    INVOKE_ON_PROTOTYPE(cx, handler, proxy,
+                        JS_GetPropertyDescriptorById(cx, proto, id, 0, desc.address()));
 }
 
 bool
@@ -2543,7 +2545,7 @@ Proxy::set(JSContext *cx, HandleObject proxy, HandleObject receiver, HandleId id
                 return false;
             if (proto) {
                 Rooted<PropertyDescriptor> desc(cx);
-                if (!JS_GetPropertyDescriptorById(cx, proto, id, 0, &desc))
+                if (!JS_GetPropertyDescriptorById(cx, proto, id, 0, desc.address()))
                     return false;
                 if (desc.object() && desc.setter())
                     return JSObject::setGeneric(cx, proto, receiver, id, vp, strict);

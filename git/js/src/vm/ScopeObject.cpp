@@ -11,7 +11,6 @@
 #include "jscompartment.h"
 #include "jsiter.h"
 
-#include "vm/ArgumentsObject.h"
 #include "vm/GlobalObject.h"
 #include "vm/ProxyObject.h"
 #include "vm/Shape.h"
@@ -19,7 +18,6 @@
 
 #include "jsatominlines.h"
 #include "jsobjinlines.h"
-#include "jsscriptinlines.h"
 
 #include "gc/Barrier-inl.h"
 #include "vm/Stack-inl.h"
@@ -1415,7 +1413,7 @@ class DebugScopeProxy : public BaseProxyHandler
             return true;
         }
 
-        return JS_GetPropertyDescriptorById(cx, scope, id, 0, desc);
+        return JS_GetPropertyDescriptorById(cx, scope, id, 0, desc.address());
     }
 
     bool get(JSContext *cx, HandleObject proxy, HandleObject receiver,  HandleId id,

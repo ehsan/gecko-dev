@@ -17,7 +17,7 @@
  * This parser attempts no error recovery.
  */
 
-#include "frontend/Parser-inl.h"
+#include "frontend/Parser.h"
 
 #include "jsapi.h"
 #include "jsatom.h"
@@ -34,6 +34,7 @@
 #include "frontend/ParseMaps.h"
 #include "frontend/TokenStream.h"
 #include "jit/AsmJS.h"
+#include "vm/NumericConversions.h"
 #include "vm/RegExpStatics.h"
 #include "vm/Shape.h"
 
@@ -44,7 +45,6 @@
 
 #include "frontend/ParseMaps-inl.h"
 #include "frontend/ParseNode-inl.h"
-#include "vm/ScopeObject-inl.h"
 
 using namespace js;
 using namespace js::gc;

@@ -9,8 +9,15 @@
 
 #include "jsscript.h"
 
+#include "jsautooplen.h"
+#include "jscntxt.h"
+#include "jsfun.h"
+#include "jsopcode.h"
+
 #include "jit/AsmJSLink.h"
-#include "vm/ScopeObject.h"
+#include "vm/GlobalObject.h"
+#include "vm/RegExpObject.h"
+#include "vm/Shape.h"
 
 #include "jscompartmentinlines.h"
 

@@ -10,8 +10,6 @@
 
 #include "jsdate.h"
 
-#include "js/Date.h"
-
 #include "mozilla/FloatingPoint.h"
 #include "mozilla/Util.h"
 

@@ -6,7 +6,6 @@
 
 #ifndef jsclass_h
 #define jsclass_h
-
 /*
  * A JSClass acts as a vtable for JS objects that allows JSAPI clients to
  * control various aspects of the behavior of an object like property lookup.
@@ -15,15 +14,13 @@
  */
 
 #include "jsapi.h"
+#include "jsprvtd.h"
 
 namespace js {
 
-class Class;
-class FreeOp;
-class PropertyId;
 class PropertyName;
-class Shape;
 class SpecialId;
+class PropertyId;
 
 // This is equal to JSFunction::class_.  Use it in places where you don't want
 // to #include jsfun.h.
@@ -138,32 +135,32 @@ typedef JS::Handle<SpecialId> HandleSpecialId;
 
 typedef bool
 (* LookupGenericOp)(JSContext *cx, HandleObject obj, HandleId id,
-                    MutableHandleObject objp, JS::MutableHandle<Shape*> propp);
+                    MutableHandleObject objp, MutableHandleShape propp);
 typedef bool
-(* LookupPropOp)(JSContext *cx, HandleObject obj, JS::Handle<PropertyName*> name,
-                 MutableHandleObject objp, JS::MutableHandle<Shape*> propp);
+(* LookupPropOp)(JSContext *cx, HandleObject obj, HandlePropertyName name,
+                 MutableHandleObject objp, MutableHandleShape propp);
 typedef bool
 (* LookupElementOp)(JSContext *cx, HandleObject obj, uint32_t index,
-                    MutableHandleObject objp, JS::MutableHandle<Shape*> propp);
+                    MutableHandleObject objp, MutableHandleShape propp);
 typedef bool
 (* LookupSpecialOp)(JSContext *cx, HandleObject obj, HandleSpecialId sid,
-                    MutableHandleObject objp, JS::MutableHandle<Shape*> propp);
+                    MutableHandleObject objp, MutableHandleShape propp);
 typedef bool
 (* DefineGenericOp)(JSContext *cx, HandleObject obj, HandleId id, HandleValue value,
-                    JSPropertyOp getter, JSStrictPropertyOp setter, unsigned attrs);
+                    PropertyOp getter, StrictPropertyOp setter, unsigned attrs);
 typedef bool
-(* DefinePropOp)(JSContext *cx, HandleObject obj, JS::Handle<PropertyName*> name, HandleValue value,
-                 JSPropertyOp getter, JSStrictPropertyOp setter, unsigned attrs);
+(* DefinePropOp)(JSContext *cx, HandleObject obj, HandlePropertyName name, HandleValue value,
+                 PropertyOp getter, StrictPropertyOp setter, unsigned attrs);
 typedef bool
 (* DefineElementOp)(JSContext *cx, HandleObject obj, uint32_t index, HandleValue value,
-                    JSPropertyOp getter, JSStrictPropertyOp setter, unsigned attrs);
+                    PropertyOp getter, StrictPropertyOp setter, unsigned attrs);
 typedef bool
 (* DefineSpecialOp)(JSContext *cx, HandleObject obj, HandleSpecialId sid, HandleValue value,
-                    JSPropertyOp getter, JSStrictPropertyOp setter, unsigned attrs);
+                    PropertyOp getter, StrictPropertyOp setter, unsigned attrs);
 typedef bool
 (* GenericIdOp)(JSContext *cx, HandleObject obj, HandleObject receiver, HandleId id, MutableHandleValue vp);
 typedef bool
-(* PropertyIdOp)(JSContext *cx, HandleObject obj, HandleObject receiver, JS::Handle<PropertyName*> name, MutableHandleValue vp);
+(* PropertyIdOp)(JSContext *cx, HandleObject obj, HandleObject receiver, HandlePropertyName name, MutableHandleValue vp);
 typedef bool
 (* ElementIdOp)(JSContext *cx, HandleObject obj, HandleObject receiver, uint32_t index, MutableHandleValue vp);
 typedef bool
@@ -173,7 +170,7 @@ typedef bool
 typedef bool
 (* StrictGenericIdOp)(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp, bool strict);
 typedef bool
-(* StrictPropertyIdOp)(JSContext *cx, HandleObject obj, JS::Handle<PropertyName*> name, MutableHandleValue vp, bool strict);
+(* StrictPropertyIdOp)(JSContext *cx, HandleObject obj, HandlePropertyName name, MutableHandleValue vp, bool strict);
 typedef bool
 (* StrictElementIdOp)(JSContext *cx, HandleObject obj, uint32_t index, MutableHandleValue vp, bool strict);
 typedef bool
@@ -181,13 +178,13 @@ typedef bool
 typedef bool
 (* GenericAttributesOp)(JSContext *cx, HandleObject obj, HandleId id, unsigned *attrsp);
 typedef bool
-(* PropertyAttributesOp)(JSContext *cx, HandleObject obj, JS::Handle<PropertyName*> name, unsigned *attrsp);
+(* PropertyAttributesOp)(JSContext *cx, HandleObject obj, HandlePropertyName name, unsigned *attrsp);
 typedef bool
 (* ElementAttributesOp)(JSContext *cx, HandleObject obj, uint32_t index, unsigned *attrsp);
 typedef bool
 (* SpecialAttributesOp)(JSContext *cx, HandleObject obj, HandleSpecialId sid, unsigned *attrsp);
 typedef bool
-(* DeletePropertyOp)(JSContext *cx, HandleObject obj, JS::Handle<PropertyName*> name, bool *succeeded);
+(* DeletePropertyOp)(JSContext *cx, HandleObject obj, HandlePropertyName name, bool *succeeded);
 typedef bool
 (* DeleteElementOp)(JSContext *cx, HandleObject obj, uint32_t index, bool *succeeded);
 typedef bool

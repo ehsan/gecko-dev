@@ -42,9 +42,16 @@ SocialUI = {
 
     gBrowser.addEventListener("ActivateSocialFeature", this._activationEventHandler.bind(this), true, true);
 
+    SocialChatBar.init();
+    SocialMark.init();
+    SocialShare.init();
+    SocialMenu.init();
+    SocialToolbar.init();
+    SocialSidebar.init();
+
     if (!Social.initialized) {
       Social.init();
-    } else if (Social.enabled) {
+    } else {
       // social was previously initialized, so it's not going to notify us of
       // anything, so handle that now.
       this.observe(null, "social:providers-changed", null);
@@ -339,6 +346,8 @@ SocialUI = {
 }
 
 SocialChatBar = {
+  init: function() {
+  },
   closeWindows: function() {
     // close all windows of type Social:Chat
     let windows = Services.wm.getEnumerator("Social:Chat");
@@ -577,6 +586,9 @@ SocialFlyout = {
 }
 
 SocialShare = {
+  // Called once, after window load, when the Social.provider object is initialized
+  init: function() {},
+
   get panel() {
     return document.getElementById("social-share-panel");
   },
@@ -834,6 +846,10 @@ SocialShare = {
 };
 
 SocialMark = {
+  // Called once, after window load, when the Social.provider object is initialized
+  init: function SSB_init() {
+  },
+
   get button() {
     return document.getElementById("social-mark-button");
   },
@@ -909,6 +925,9 @@ SocialMark = {
 };
 
 SocialMenu = {
+  init: function SocialMenu_init() {
+  },
+
   populate: function SocialMenu_populate() {
     let submenu = document.getElementById("menu_social-statusarea-popup");
     let ambientMenuItems = submenu.getElementsByClassName("ambient-menuitem");
@@ -942,10 +961,8 @@ SocialMenu = {
 SocialToolbar = {
   // Called once, after window load, when the Social.provider object is
   // initialized.
-  get _dynamicResizer() {
-    delete this._dynamicResizer;
+  init: function SocialToolbar_init() {
     this._dynamicResizer = new DynamicResizeWatcher();
-    return this._dynamicResizer;
   },
 
   update: function() {
@@ -1282,6 +1299,14 @@ SocialToolbar = {
 }
 
 SocialSidebar = {
+  // Called once, after window load, when the Social.provider object is initialized
+  init: function SocialSidebar_init() {
+    let sbrowser = document.getElementById("social-sidebar-browser");
+    Social.setErrorListener(sbrowser, this.setSidebarErrorMessage.bind(this));
+    // setting isAppTab causes clicks on untargeted links to open new tabs
+    sbrowser.docShell.isAppTab = true;
+  },
+
   // Whether the sidebar can be shown for this window.
   get canShow() {
     return SocialUI.enabled && Social.provider.sidebarURL;
@@ -1342,9 +1367,6 @@ SocialSidebar = {
 
       // Make sure the right sidebar URL is loaded
       if (sbrowser.getAttribute("src") != Social.provider.sidebarURL) {
-        Social.setErrorListener(sbrowser, this.setSidebarErrorMessage.bind(this));
-        // setting isAppTab causes clicks on untargeted links to open new tabs
-        sbrowser.docShell.isAppTab = true;
         sbrowser.setAttribute("src", Social.provider.sidebarURL);
         PopupNotifications.locationChange(sbrowser);
       }

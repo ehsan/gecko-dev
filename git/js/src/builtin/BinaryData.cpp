@@ -6,6 +6,8 @@
 
 #include "builtin/BinaryData.h"
 
+#include "mozilla/FloatingPoint.h"
+
 #include "jscompartment.h"
 #include "jsfun.h"
 #include "jsobj.h"

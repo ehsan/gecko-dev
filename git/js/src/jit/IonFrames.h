@@ -317,10 +317,9 @@ GetTopIonJSScript(PerThreadData *pt, const SafepointIndex **safepointIndexOut, v
 }
 
 inline JSScript *
-GetTopIonJSScript(ThreadSafeContext *cx, const SafepointIndex **safepointIndexOut = NULL,
-                  void **returnAddrOut = NULL)
+GetTopIonJSScript(JSContext *cx, const SafepointIndex **safepointIndexOut, void **returnAddrOut)
 {
-    return GetTopIonJSScript(cx->perThreadData, safepointIndexOut, returnAddrOut);
+    return GetTopIonJSScript(&cx->mainThread(), safepointIndexOut, returnAddrOut);
 }
 
 } // namespace ion
@@ -336,6 +335,11 @@ GetTopIonJSScript(ThreadSafeContext *cx, const SafepointIndex **safepointIndexOu
 
 namespace js {
 namespace ion {
+
+JSScript *
+GetTopIonJSScript(JSContext *cx,
+                  const SafepointIndex **safepointIndexOut = NULL,
+                  void **returnAddrOut = NULL);
 
 void
 GetPcScript(JSContext *cx, JSScript **scriptRes, jsbytecode **pcRes);

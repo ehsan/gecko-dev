@@ -11,9 +11,7 @@
 #include "jsfriendapi.h"
 #include "jsgc.h"
 #include "jsobj.h"
-#ifndef JS_MORE_DETERMINISTIC
 #include "jsprf.h"
-#endif
 #include "jswrapper.h"
 
 #include "jit/AsmJS.h"

@@ -11,6 +11,8 @@
 #include "jsclass.h"
 #include "jsobj.h"
 
+#include "gc/Barrier.h"
+
 typedef struct JSProperty JSProperty;
 
 namespace js {

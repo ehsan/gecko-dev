@@ -99,7 +99,6 @@ PerThreadData::removeFromThreadList()
 JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
   : mainThread(this),
     interrupt(0),
-    operationCallback(NULL),
 #ifdef JS_THREADSAFE
     operationCallbackLock(NULL),
 #ifdef DEBUG

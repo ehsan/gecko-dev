@@ -25,3 +25,5 @@ INCLUDES	+= \
 		-I$(topsrcdir)/xpcom/ds \
 		-I$(topsrcdir)/content/svg/content/src \
 		$(NULL)
+
+DEFINES += -D_IMPL_NS_LAYOUT

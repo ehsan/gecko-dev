@@ -11,15 +11,22 @@
 
 #include "mozilla/PodOperations.h"
 
+#include "jsarray.h"
+#include "jsbool.h"
 #include "jscntxt.h"
+#include "jsdbgapi.h"
+#include "jsfun.h"
 #include "jsgc.h"
 #include "jsobj.h"
 
 #include "gc/Marking.h"
+#include "vm/ArgumentsObject.h"
 #include "vm/ScopeObject.h"
+#include "vm/StringObject.h"
 
 #include "jsatominlines.h"
 #include "jscntxtinlines.h"
+#include "jsgcinlines.h"
 
 namespace js {
 

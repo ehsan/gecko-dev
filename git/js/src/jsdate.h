@@ -11,21 +11,18 @@
 #ifndef jsdate_h
 #define jsdate_h
 
+#include "jsapi.h"
 #include "jstypes.h"
 
-#include "js/RootingAPI.h"
+#include "js/Date.h"
 
 extern "C" {
 class JSObject;
 struct JSContext;
 }
 
-namespace JS {
-class Value;
-}
-
 extern JSObject *
-js_InitDateClass(JSContext *cx, JS::HandleObject obj);
+js_InitDateClass(JSContext *cx, js::HandleObject obj);
 
 /*
  * These functions provide a C interface to the date/time object
@@ -69,6 +66,6 @@ js_DateGetSeconds(JSObject *obj);
 
 /* Date constructor native. Exposed only so the JIT can know its address. */
 bool
-js_Date(JSContext *cx, unsigned argc, JS::Value *vp);
+js_Date(JSContext *cx, unsigned argc, js::Value *vp);
 
 #endif /* jsdate_h */

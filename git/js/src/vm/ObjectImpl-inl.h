@@ -11,10 +11,13 @@
 
 #include "mozilla/Assertions.h"
 
+#include "jscompartment.h"
 #include "jsgc.h"
 #include "jsproxy.h"
 
+#include "gc/Heap.h"
 #include "gc/Marking.h"
+#include "vm/Interpreter.h"
 #include "vm/ProxyObject.h"
 
 #include "gc/Barrier-inl.h"
