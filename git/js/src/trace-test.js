@@ -122,25 +122,6 @@ function ursh(n)
 test("ursh", [ursh(8),ursh(33),ursh(0),ursh(1)],
      "16777215,2147483620,4294967241,2147483620");
 
-// pass Math as an argument until JSOP_NAME works again
-function doMath(Math)
-{
-    var s = 0;
-    for (var i = 0; i < 200; i++)
-      s = -Math.pow(Math.sin(i) + Math.cos(i * 0.75), 4);
-    return s;
-}
-test("Math.sin/cos/pow", doMath(Math), -0.5405549555611059);
-
-function unknownCall(Math)
-{
-   var s = 0;
-   for (var i = 0; i < 200; i++)
-     s = Math.log(i);
-   return s;
-}
-test("untraced call", unknownCall(Math), 5.293304824724492);
-
 function fannkuch(n) {
    var count = Array(n);
 
@@ -160,3 +141,4 @@ function fannkuch(n) {
 }
 
 test("fannkuch", fannkuch(8), 41);
+
