@@ -37,6 +37,7 @@
 #include "jsopcode.h"
 #include "jstypes.h"
 #include "jsutil.h"
+#include "jsversion.h"
 
 #include "builtin/RegExp.h"
 #include "vm/GlobalObject.h"

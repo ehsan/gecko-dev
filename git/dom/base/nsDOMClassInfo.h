@@ -11,7 +11,6 @@
 #include "nsIXPCScriptable.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIDOMScriptObjectFactory.h"
-#include "js/Id.h"
 
 #ifdef XP_WIN
 #undef GetClassName

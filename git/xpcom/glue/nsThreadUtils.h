@@ -71,15 +71,9 @@ NS_NewNamedThread(const char (&name)[LEN],
                   nsIRunnable *initialEvent = nullptr,
                   uint32_t stackSize = nsIThreadManager::DEFAULT_STACK_SIZE)
 {
-  nsresult rv = NS_NewThread(result, nullptr, stackSize);
-  NS_ENSURE_SUCCESS(rv, rv);
-  NS_SetThreadName<LEN>(*result, name);
-  if (initialEvent) {
-    rv = (*result)->Dispatch(initialEvent, NS_DISPATCH_NORMAL);
-    NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Initial event dispatch failed");
-  }
-
-  return rv;
+    nsresult rv = NS_NewThread(result, initialEvent, stackSize);
+    NS_SetThreadName<LEN>(*result, name);
+    return rv;
 }
 
 /**

@@ -8,9 +8,8 @@
 #define vm_TypedArrayObject_h
 
 #include "jsapi.h"
+#include "jsclass.h"
 #include "jsobj.h"
-
-#include "js/Class.h"
 
 typedef struct JSProperty JSProperty;
 

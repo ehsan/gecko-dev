@@ -23,12 +23,6 @@ public:
 
   virtual gfx::IntSize GetSize() const MOZ_OVERRIDE { return mSize; }
 
-  virtual gfx::SurfaceFormat GetFormat() const MOZ_OVERRIDE
-  {
-    return mDrawTarget ? mDrawTarget->GetFormat()
-                       : gfx::FORMAT_UNKNOWN;
-  }
-
   RefPtr<gfx::DrawTarget> mDrawTarget;
   gfx::IntSize mSize;
 };
@@ -45,6 +39,9 @@ public:
 
   virtual void Destroy() MOZ_OVERRIDE;
 
+  virtual TemporaryRef<DataTextureSource>
+  CreateDataTextureSource(TextureFlags aFlags = 0) MOZ_OVERRIDE { return nullptr; }
+
   virtual TextureFactoryIdentifier GetTextureFactoryIdentifier() MOZ_OVERRIDE
   {
     return TextureFactoryIdentifier(LAYERS_BASIC,
@@ -58,11 +55,6 @@ public:
   virtual TemporaryRef<CompositingRenderTarget>
   CreateRenderTargetFromSource(const gfx::IntRect &aRect,
                                const CompositingRenderTarget *aSource) MOZ_OVERRIDE;
-
-  virtual TemporaryRef<DataTextureSource>
-  CreateDataTextureSource(TextureFlags aFlags = 0) MOZ_OVERRIDE;
-
-  virtual bool SupportsEffect(EffectTypes aEffect) MOZ_OVERRIDE;
 
   virtual void SetRenderTarget(CompositingRenderTarget *aSource) MOZ_OVERRIDE
   {

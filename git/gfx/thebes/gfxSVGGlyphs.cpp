@@ -29,9 +29,6 @@
 #include "nsIPrincipal.h"
 #include "Element.h"
 #include "nsSVGUtils.h"
-#include "nsIScriptSecurityManager.h"
-#include "nsHostObjectProtocolHandler.h"
-#include "nsContentUtils.h"
 #include "harfbuzz/hb.h"
 
 #define SVG_CONTENT_TYPE NS_LITERAL_CSTRING("image/svg+xml")
@@ -310,16 +307,12 @@ gfxSVGGlyphsDocument::ParseDocument(const uint8_t *aBuffer, uint32_t aBufLen)
     nsresult rv = CreateBufferedStream(aBuffer, aBufLen, stream);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsCOMPtr<nsIURI> uri;
-    nsHostObjectProtocolHandler::GenerateURIString(NS_LITERAL_CSTRING(FONTTABLEURI_SCHEME),
-                                                   mSVGGlyphsDocumentURI);
- 
-    rv = NS_NewURI(getter_AddRefs(uri), mSVGGlyphsDocumentURI);
+    nsCOMPtr<nsIPrincipal> principal =
+        do_CreateInstance("@mozilla.org/nullprincipal;1", &rv);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsCOMPtr<nsIPrincipal> principal;
-    nsContentUtils::GetSecurityManager()->
-        GetNoAppCodebasePrincipal(uri, getter_AddRefs(principal));
+    nsCOMPtr<nsIURI> uri;
+    principal->GetURI(getter_AddRefs(uri));
 
     nsCOMPtr<nsIDOMDocument> domDoc;
     rv = NS_NewDOMDocument(getter_AddRefs(domDoc),
@@ -332,11 +325,6 @@ gfxSVGGlyphsDocument::ParseDocument(const uint8_t *aBuffer, uint32_t aBufLen)
                            DocumentFlavorSVG);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsCOMPtr<nsIDocument> document(do_QueryInterface(domDoc));
-    if (!document) {
-        return NS_ERROR_FAILURE;
-    }
-
     nsCOMPtr<nsIChannel> channel;
     rv = NS_NewInputStreamChannel(getter_AddRefs(channel), uri, nullptr /* stream */,
                                   SVG_CONTENT_TYPE, UTF8_CHARSET);
@@ -344,6 +332,10 @@ gfxSVGGlyphsDocument::ParseDocument(const uint8_t *aBuffer, uint32_t aBufLen)
 
     channel->SetOwner(principal);
 
+    nsCOMPtr<nsIDocument> document(do_QueryInterface(domDoc));
+    if (!document) {
+        return NS_ERROR_FAILURE;
+    }
     document->SetReadyStateInternal(nsIDocument::READYSTATE_UNINITIALIZED);
 
     nsCOMPtr<nsIStreamListener> listener;
@@ -355,6 +347,9 @@ gfxSVGGlyphsDocument::ParseDocument(const uint8_t *aBuffer, uint32_t aBufLen)
     if (NS_FAILED(rv) || !listener) {
         return NS_ERROR_FAILURE;
     }
+
+    document->SetBaseURI(uri);
+    document->SetPrincipal(principal);
 
     rv = listener->OnStartRequest(channel, nullptr /* aContext */);
     if (NS_FAILED(rv)) {
