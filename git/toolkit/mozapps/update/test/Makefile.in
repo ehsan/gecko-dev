@@ -48,7 +48,7 @@ XPCSHELL_TESTS = \
   unit \
   $(NULL)
 
-TESTROOT	= $(shell cd $(DEPTH) && pwd)/_tests/xpcshell/$(MODULE)
+TESTROOT	= $(shell cd $(DEPTH) && pwd)/_tests/xpcshell-simple/$(MODULE)
 
 CPPSRCS = \
   TestAUSReadStrings.cpp \
@@ -65,7 +65,7 @@ INI_TEST_FILES = \
 
 LOCAL_INCLUDES += \
   -I$(srcdir) \
-  -I$(topsrcdir)/toolkit/mozapps/update/src \
+  -I$(topsrcdir)/toolkit/mozapps/update/src/updater \
   $(NULL)
 
 MOZ_WINCONSOLE = 1

@@ -417,9 +417,6 @@ var PlacesOrganizer = {
   populateRestoreMenu: function PO_populateRestoreMenu() {
     var restorePopup = document.getElementById("fileRestorePopup");
 
-    var dateSvc = Cc["@mozilla.org/intl/scriptabledateformat;1"].
-                  getService(Ci.nsIScriptableDateFormat);
-
     // remove existing menu items
     // last item is the restoreFromFile item
     while (restorePopup.childNodes.length > 1)
@@ -432,17 +429,13 @@ var PlacesOrganizer = {
     var files = this.bookmarksBackupDir.directoryEntries;
     while (files.hasMoreElements()) {
       var f = files.getNext().QueryInterface(Ci.nsIFile);
-      var rx = new RegExp("^(bookmarks|" + localizedFilenamePrefix +
-                          ")-([0-9]{4}-[0-9]{2}-[0-9]{2})\.json$");
-      if (!f.isHidden() && f.leafName.match(rx)) {
-        var date = f.leafName.match(rx)[2].replace(/-/g, "/");
-        var dateObj = new Date(date);
-        fileList.push({date: dateObj, filename: f.leafName});
-      }
+      var rx = new RegExp("^(bookmarks|" + localizedFilenamePrefix + ")-.+\.json");
+      if (!f.isHidden() && f.leafName.match(rx))
+        fileList.push(f);
     }
 
     fileList.sort(function PO_fileList_compare(a, b) {
-      return b.date - a.date;
+      return b.lastModifiedTime - a.lastModifiedTime;
     });
 
     if (fileList.length == 0)
@@ -453,13 +446,12 @@ var PlacesOrganizer = {
       var m = restorePopup.insertBefore
         (document.createElement("menuitem"),
          document.getElementById("restoreFromFile"));
-      m.setAttribute("label",
-                     dateSvc.FormatDate("",
-                                        Ci.nsIScriptableDateFormat.dateFormatLong,
-                                        fileList[i].date.getFullYear(),
-                                        fileList[i].date.getMonth() + 1,
-                                        fileList[i].date.getDate()));
-      m.setAttribute("value", fileList[i].filename);
+      var rx = new RegExp("^(bookmarks|" + localizedFilenamePrefix + ")-");
+      var dateStr = fileList[i].leafName.replace(rx, "").replace(/\.json$/, "");
+      if (!dateStr.length)
+        dateStr = fileList[i].leafName;
+      m.setAttribute("label", dateStr);
+      m.setAttribute("value", fileList[i].leafName);
       m.setAttribute("oncommand",
                      "PlacesOrganizer.onRestoreMenuItemClick(this);");
     }
@@ -1510,6 +1502,7 @@ var PlacesQueryBuilder = {
     switch (id) {
       case "scopeBarHistory":
         PlacesSearchBox.filterCollection = "history";
+        folders = [];
         break;
       case "scopeBarFolder":
         var selectedFolder = PlacesOrganizer._places.selectedNode.itemId;
@@ -1517,8 +1510,7 @@ var PlacesQueryBuilder = {
         // bookmark folders
         if (selectedFolder != PlacesUIUtils.allBookmarksFolderId) {
           PlacesSearchBox.filterCollection = "collection";
-          folders.push(PlacesUtils.getConcreteItemId(
-                         PlacesOrganizer._places.selectedNode));
+          folders.push(PlacesOrganizer._places.selectedNode.itemId);
           break;
         }
       default: // all bookmarks

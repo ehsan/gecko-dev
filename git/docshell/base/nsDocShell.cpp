@@ -6493,6 +6493,8 @@ nsDocShell::SetupNewViewer(nsIContentViewer * aNewViewer)
     }
 
     nscolor bgcolor = NS_RGBA(0, 0, 0, 0);
+    PRBool bgSet = PR_FALSE;
+
     // Ensure that the content viewer is destroyed *after* the GC - bug 71515
     nsCOMPtr<nsIContentViewer> kungfuDeathGrip = mContentViewer;
     if (mContentViewer) {
@@ -6500,8 +6502,8 @@ nsDocShell::SetupNewViewer(nsIContentViewer * aNewViewer)
         // releasing it...
         mContentViewer->Stop();
 
-        // Try to extract the canvas background color from the old
-        // presentation shell, so we can use it for the next document.
+        // Try to extract the default background color from the old
+        // view manager, so we can use it for the next document.
         nsCOMPtr<nsIDocumentViewer> docviewer =
         do_QueryInterface(mContentViewer);
 
@@ -6510,7 +6512,13 @@ nsDocShell::SetupNewViewer(nsIContentViewer * aNewViewer)
             docviewer->GetPresShell(getter_AddRefs(shell));
 
             if (shell) {
-                bgcolor = shell->GetCanvasBackground();
+                nsIViewManager* vm = shell->GetViewManager();
+
+                if (vm) {
+                    vm->GetDefaultBackgroundColor(&bgcolor);
+                    // If the background color is not known, don't propagate it.
+                    bgSet = NS_GET_A(bgcolor) != 0;
+                }
             }
         }
 
@@ -6571,18 +6579,23 @@ nsDocShell::SetupNewViewer(nsIContentViewer * aNewViewer)
         focusController->SetSuppressFocus(PR_FALSE,
                                           "Win32-Only Link Traversal Issue");
 
+    if (bgSet && widget) {
+        // Stuff the bgcolor from the last view manager into the new
+        // view manager. This improves page load continuity.
+        nsCOMPtr<nsIDocumentViewer> docviewer =
+            do_QueryInterface(mContentViewer);
 
-    // Stuff the bgcolor from the old pres shell into the new
-    // pres shell. This improves page load continuity.
-    nsCOMPtr<nsIDocumentViewer> docviewer =
-        do_QueryInterface(mContentViewer);
+        if (docviewer) {
+            nsCOMPtr<nsIPresShell> shell;
+            docviewer->GetPresShell(getter_AddRefs(shell));
 
-    if (docviewer) {
-        nsCOMPtr<nsIPresShell> shell;
-        docviewer->GetPresShell(getter_AddRefs(shell));
+            if (shell) {
+                nsIViewManager* vm = shell->GetViewManager();
 
-        if (shell) {
-            shell->SetCanvasBackground(bgcolor);
+                if (vm) {
+                    vm->SetDefaultBackgroundColor(bgcolor);
+                }
+            }
         }
     }
 

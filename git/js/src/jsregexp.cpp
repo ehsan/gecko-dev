@@ -41,6 +41,7 @@
 /*
  * JS regular expressions, after Perl.
  */
+#include "jsstddef.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>

@@ -94,7 +94,6 @@ nsFtpProtocolHandler *gFtpHandler = nsnull;
 
 nsFtpProtocolHandler::nsFtpProtocolHandler()
     : mIdleTimeout(-1)
-    , mSessionId(0)
 {
 #if defined(PR_LOGGING)
     if (!gFTPLog)
@@ -109,7 +108,7 @@ nsFtpProtocolHandler::~nsFtpProtocolHandler()
 {
     LOG(("FTP:destroying handler @%x\n", this));
 
-    NS_ASSERTION(mRootConnectionList.Length() == 0, "why wasn't Observe called?");
+    NS_ASSERTION(mRootConnectionList.Count() == 0, "why wasn't Observe called?");
 
     gFtpHandler = nsnull;
 }
@@ -139,16 +138,11 @@ nsFtpProtocolHandler::Init()
 
     nsCOMPtr<nsIObserverService> observerService =
         do_GetService("@mozilla.org/observer-service;1");
-    if (observerService) {
+    if (observerService)
         observerService->AddObserver(this,
                                      "network:offline-about-to-go-offline",
                                      PR_TRUE);
-
-        observerService->AddObserver(this,
-                                     "net:clear-active-logins",
-                                     PR_TRUE);
-    }
-
+    
     return NS_OK;
 }
 
@@ -273,11 +267,11 @@ nsFtpProtocolHandler::RemoveConnection(nsIURI *aKey, nsFtpControlConnection* *_r
     LOG(("FTP:removing connection for %s\n", spec.get()));
    
     timerStruct* ts = nsnull;
-    PRUint32 i;
+    PRInt32 i;
     PRBool found = PR_FALSE;
     
-    for (i=0;i<mRootConnectionList.Length();++i) {
-        ts = mRootConnectionList[i];
+    for (i=0;i<mRootConnectionList.Count();++i) {
+        ts = (timerStruct*)mRootConnectionList[i];
         if (strcmp(spec.get(), ts->key) == 0) {
             found = PR_TRUE;
             mRootConnectionList.RemoveElementAt(i);
@@ -301,10 +295,7 @@ nsFtpProtocolHandler::InsertConnection(nsIURI *aKey, nsFtpControlConnection *aCo
 {
     NS_ASSERTION(aConn, "null pointer");
     NS_ASSERTION(aKey, "null pointer");
-
-    if (aConn->mSessionId != mSessionId)
-        return NS_ERROR_FAILURE;
-
+    
     nsCAutoString spec;
     aKey->GetPrePath(spec);
 
@@ -342,18 +333,18 @@ nsFtpProtocolHandler::InsertConnection(nsIURI *aKey, nsFtpControlConnection *aCo
     // eldest connection with matching key.  if none matching, then prune
     // eldest connection.
     //
-    if (mRootConnectionList.Length() == IDLE_CONNECTION_LIMIT) {
-        PRUint32 i;
-        for (i=0;i<mRootConnectionList.Length();++i) {
-            timerStruct *candidate = mRootConnectionList[i];
+    if (mRootConnectionList.Count() == IDLE_CONNECTION_LIMIT) {
+        PRInt32 i;
+        for (i=0;i<mRootConnectionList.Count();++i) {
+            timerStruct *candidate = (timerStruct *) mRootConnectionList[i];
             if (strcmp(candidate->key, ts->key) == 0) {
                 mRootConnectionList.RemoveElementAt(i);
                 delete candidate;
                 break;
             }
         }
-        if (mRootConnectionList.Length() == IDLE_CONNECTION_LIMIT) {
-            timerStruct *eldest = mRootConnectionList[0];
+        if (mRootConnectionList.Count() == IDLE_CONNECTION_LIMIT) {
+            timerStruct *eldest = (timerStruct *) mRootConnectionList[0];
             mRootConnectionList.RemoveElementAt(0);
             delete eldest;
         }
@@ -384,22 +375,13 @@ nsFtpProtocolHandler::Observe(nsISupports *aSubject,
         if (NS_SUCCEEDED(rv))
             mIdleTimeout = timeout;
     } else if (!strcmp(aTopic, "network:offline-about-to-go-offline")) {
-        ClearAllConnections();
-    } else if (!strcmp(aTopic, "net:clear-active-logins")) {
-        ClearAllConnections();
-        mSessionId++;
+        PRInt32 i;
+        for (i=0;i<mRootConnectionList.Count();++i)
+            delete (timerStruct*)mRootConnectionList[i];
+        mRootConnectionList.Clear();
     } else {
         NS_NOTREACHED("unexpected topic");
     }
 
     return NS_OK;
-}
-
-void
-nsFtpProtocolHandler::ClearAllConnections()
-{
-    PRUint32 i;
-    for (i=0;i<mRootConnectionList.Length();++i)
-        delete mRootConnectionList[i];
-    mRootConnectionList.Clear();
 }

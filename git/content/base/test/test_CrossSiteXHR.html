@@ -17,11 +17,6 @@
 <pre id="test">
 <script class="testbody" type="application/javascript;version=1.8">
 
-const runOriginTests = 1;
-const runPreflightTests = 1;
-const runCookieTests = 1;
-const runRedirectTests = 1;
-
 SimpleTest.waitForExplicitFinish();
 
 var origins =
@@ -69,11 +64,6 @@ function runTest() {
   // Test preflight-less requests
   basePath = "/tests/content/base/test/file_CrossSiteXHR_server.sjs?"
   baseURL = "http://localhost:8888" + basePath;
-
-  if (!runOriginTests) {
-    origins = [];
-  }
-
   for each(originEntry in origins) {
     origin = originEntry.origin || originEntry.server;
 
@@ -289,29 +279,29 @@ function runTest() {
                  headers: { "x-my-header": "myValue" },
                  allowHeaders: "x-my-header, $_%",
                },
-               { method: "DELETE",
-                 allowMethods: "DELETE",
+               { method: "XXDELETE",
+                 allowMethods: "XXDELETE",
                },
-               { method: "DELETE",
-                 allowMethods: "POST, PUT, DELETE",
+               { method: "XXDELETE",
+                 allowMethods: "POST, PUT, XXDELETE",
                },
-               { method: "DELETE",
-                 allowMethods: "POST, DELETE, PUT",
+               { method: "XXDELETE",
+                 allowMethods: "POST, XXDELETE, PUT",
                },
-               { method: "DELETE",
-                 allowMethods: "DELETE, POST, PUT",
+               { method: "XXDELETE",
+                 allowMethods: "XXDELETE, POST, PUT",
                },
-               { method: "DELETE",
-                 allowMethods: "POST ,PUT ,DELETE",
+               { method: "XXDELETE",
+                 allowMethods: "POST ,PUT ,XXDELETE",
                },
-               { method: "DELETE",
-                 allowMethods: "POST,PUT,DELETE",
+               { method: "XXDELETE",
+                 allowMethods: "POST,PUT,XXDELETE",
                },
-               { method: "DELETE",
-                 allowMethods: "POST , PUT , DELETE",
+               { method: "XXDELETE",
+                 allowMethods: "POST , PUT , XXDELETE",
                },
-               { method: "DELETE",
-                 allowMethods: "  ,,  PUT ,,  ,    , DELETE  ,  ,",
+               { method: "XXDELETE",
+                 allowMethods: "  ,,  PUT ,,  ,    , XXDELETE  ,  ,",
                },
                { method: "POST",
                  body: "hi there",
@@ -379,8 +369,8 @@ function runTest() {
                  headers: { "x-my-header": "myValue" },
                  allowHeaders: "x-my-header y-my-header",
                },
-               { method: "DELETE",
-                 allowHeaders: "DELETE",
+               { method: "XXDELETE",
+                 allowHeaders: "XXDELETE",
                },
                { method: "POST",
                  noAllowPreflight: 1,
@@ -390,34 +380,34 @@ function runTest() {
                  headers: { "Content-Type": "foo/bar" },
                  noAllowPreflight: 1,
                },
-               { method: "DELETE",
+               { method: "XXDELETE",
                },
-               { method: "DELETE",
+               { method: "XXDELETE",
                  allowMethods: "",
                },
-               { method: "DELETE",
+               { method: "XXDELETE",
                  allowMethods: "PUT",
                },
-               { method: "DELETE",
-                 allowMethods: "DELETEZ",
+               { method: "XXDELETE",
+                 allowMethods: "XXDELETEZ",
                },
-               { method: "DELETE",
-                 allowMethods: "DELETE PUT",
+               { method: "XXDELETE",
+                 allowMethods: "XXDELETE PUT",
                },
-               { method: "DELETE",
-                 allowMethods: "DELETE, PUT Z",
+               { method: "XXDELETE",
+                 allowMethods: "XXDELETE, PUT Z",
                },
-               { method: "DELETE",
-                 allowMethods: "DELETE, PU(T",
+               { method: "XXDELETE",
+                 allowMethods: "XXDELETE, PU(T",
                },
-               { method: "DELETE",
-                 allowMethods: "PUT DELETE",
+               { method: "XXDELETE",
+                 allowMethods: "PUT XXDELETE",
                },
-               { method: "DELETE",
-                 allowMethods: "PUT Z, DELETE",
+               { method: "XXDELETE",
+                 allowMethods: "PUT Z, XXDELETE",
                },
-               { method: "DELETE",
-                 allowMethods: "PU(T, DELETE",
+               { method: "XXDELETE",
+                 allowMethods: "PU(T, XXDELETE",
                },
                { method: "MYMETHOD",
                  allowMethods: "myMethod",
@@ -438,10 +428,6 @@ function runTest() {
                  uploadProgress: "progress",
                },
                ];
-
-  if (!runPreflightTests) {
-    passTests = failTests = [];
-  }
 
   for each(test in passTests) {
     req = {
@@ -470,9 +456,6 @@ function runTest() {
       req.url += "&allowHeaders=" + escape(test.allowHeaders);
     if ("allowMethods" in test)
       req.url += "&allowMethods=" + escape(test.allowMethods);
-    if (test.body)
-      req.url += "&body=" + escape(test.body);
-
 
     loaderWindow.postMessage(req.toSource(), origin);
 
@@ -508,6 +491,10 @@ function runTest() {
       uploadProgress: test.uploadProgress,
       body: test.body,
     };
+
+    if (test.body) {
+      req.url += "&body=" + escape(test.body);
+    }
 
     if (test.noAllowPreflight)
       req.url += "&noAllowPreflight";
@@ -607,10 +594,6 @@ function runTest() {
              allowCred: 1,
            },
            ];
-
-  if (!runCookieTests) {
-    tests = [];
-  }
 
   for each(test in tests) {
     req = {
@@ -783,124 +766,14 @@ function runTest() {
                     },
                     ],
            },
-           { pass: 1,
-             method: "POST",
-             body: "hi there",
-             headers: { "Content-Type": "text/plain" },
-             hops: [{ server: "http://example.org",
-                    },
-                    { server: "http://example.com",
-                      allowOrigin: origin,
-                    },
-                    ],
-           },
-           { pass: 0,
-             method: "POST",
-             body: "hi there",
-             headers: { "Content-Type": "text/plain",
-                        "my-header": "myValue",
-                      },
-             hops: [{ server: "http://example.org",
-                    },
-                    { server: "http://example.com",
-                      allowOrigin: origin,
-                      allowHeaders: "my-header",
-                    },
-                    ],
-           },
-           { pass: 0,
-             method: "DELETE",
-             hops: [{ server: "http://example.org",
-                    },
-                    { server: "http://example.com",
-                      allowOrigin: origin,
-                    },
-                    ],
-           },
-           { pass: 0,
-             method: "POST",
-             body: "hi there",
-             headers: { "Content-Type": "text/plain",
-                        "my-header": "myValue",
-                      },
-             hops: [{ server: "http://example.com",
-                      allowOrigin: origin,
-                    },
-                    { server: "http://sub1.test1.example.org",
-                      allowOrigin: origin,
-                    },
-                    ],
-           },
-           { pass: 0,
-             method: "DELETE",
-             hops: [{ server: "http://example.com",
-                      allowOrigin: origin,
-                    },
-                    { server: "http://sub1.test1.example.org",
-                      allowOrigin: origin,
-                    },
-                    ],
-           },
-           { pass: 0,
-             method: "POST",
-             body: "hi there",
-             headers: { "Content-Type": "text/plain",
-                        "my-header": "myValue",
-                      },
-             hops: [{ server: "http://example.com",
-                    },
-                    { server: "http://sub1.test1.example.org",
-                      allowOrigin: origin,
-                      allowHeaders: "my-header",
-                    },
-                    ],
-           },
-           { pass: 1,
-             method: "POST",
-             body: "hi there",
-             headers: { "Content-Type": "text/plain" },
-             hops: [{ server: "http://example.org",
-                    },
-                    { server: "http://example.com",
-                      allowOrigin: origin,
-                    },
-                    ],
-           },
-           { pass: 0,
-             method: "POST",
-             body: "hi there",
-             headers: { "Content-Type": "text/plain",
-                        "my-header": "myValue",
-                      },
-             hops: [{ server: "http://example.com",
-                      allowOrigin: origin,
-                      allowHeaders: "my-header",
-                    },
-                    { server: "http://example.org",
-                      allowOrigin: origin,
-                      allowHeaders: "my-header",
-                    },
-                    ],
-           },
            ];
-
-  if (!runRedirectTests) {
-    tests = [];
-  }
 
   for each(test in tests) {
     req = {
       url: test.hops[0].server + basePath + "hop=1&hops=" +
            escape(test.hops.toSource()),
       method: test.method,
-      headers: test.headers,
-      body: test.body,
     };
-
-    if (test.pass) {
-      if (test.body)
-        req.url += "&body=" + escape(test.body);
-    }
 
     loaderWindow.postMessage(req.toSource(), origin);
 
@@ -929,7 +802,7 @@ function runTest() {
          "opening,rs1,sending,rs1,loadstart,rs2,rs4,error",
          "wrong events in test for " + test.toSource());
       is(res.progressEvents, 0,
-         "wrong progressevents in test for " + test.toSource());
+         "wrong events in test for " + test.toSource());
     }
   }
 

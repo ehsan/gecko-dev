@@ -526,8 +526,7 @@ nsHTMLSelectOptionAccessible::GetNameInternal(nsAString& aName)
 
   if (text->IsNodeOfType(nsINode::eTEXT)) {
     nsAutoString txtValue;
-    nsresult rv = nsTextEquivUtils::
-      AppendTextEquivFromTextContent(text, &txtValue);
+    nsresult rv = AppendFlatStringFromContentNode(text, &txtValue);
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Temp var (txtValue) needed until CompressWhitespace built for nsAString

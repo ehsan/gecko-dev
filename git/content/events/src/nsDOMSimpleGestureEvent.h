@@ -38,12 +38,12 @@
 #define nsDOMSimpleGestureEvent_h__
 
 #include "nsIDOMSimpleGestureEvent.h"
-#include "nsDOMMouseEvent.h"
+#include "nsDOMUIEvent.h"
 
 class nsPresContext;
 
 class nsDOMSimpleGestureEvent : public nsIDOMSimpleGestureEvent,
-                                public nsDOMMouseEvent
+  public nsDOMUIEvent
 {
 public:
   nsDOMSimpleGestureEvent(nsPresContext*, nsSimpleGestureEvent*);
@@ -54,7 +54,7 @@ public:
   NS_DECL_NSIDOMSIMPLEGESTUREEVENT
 
   // Forward to base class
-  NS_FORWARD_TO_NSDOMMOUSEEVENT
+  NS_FORWARD_TO_NSDOMUIEVENT
 };
 
 #endif

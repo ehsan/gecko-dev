@@ -422,7 +422,7 @@ function ServeFiles(manifestURL, depth, directory, files)
     }
 
     gCount++;
-    var path = "/" + Date.now() + "/" + gCount;
+    var path = "/" + gCount;
     gServer.registerDirectory(path + "/", directory);
 
     var secMan = CC[NS_SCRIPTSECURITYMANAGER_CONTRACTID]

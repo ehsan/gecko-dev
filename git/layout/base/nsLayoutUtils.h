@@ -755,8 +755,7 @@ public:
                          nsIRenderingContext* aContext,
                          const PRUnichar*     aString,
                          PRInt32              aLength,
-                         nsPoint              aPoint,
-                         PRUint8              aDirection = NS_STYLE_DIRECTION_INHERIT);
+                         nsPoint              aPoint);
 
   static nscoord GetStringWidth(const nsIFrame*      aFrame,
                                 nsIRenderingContext* aContext,

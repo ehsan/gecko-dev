@@ -474,8 +474,6 @@ enum nsDOMClassInfoID {
 
 class nsIClassInfo;
 
-#ifdef _IMPL_NS_LAYOUT
-
 extern nsIClassInfo*
 NS_GetDOMClassInfoInstance(nsDOMClassInfoID aID);
 
@@ -487,11 +485,5 @@ NS_GetDOMClassInfoInstance(nsDOMClassInfoID aID);
       return NS_ERROR_OUT_OF_MEMORY;                                          \
     }                                                                         \
   } else
-
-#else
-
-// See nsIDOMClassInfo.h
-
-#endif // _IMPL_NS_LAYOUT
 
 #endif // nsDOMClassInfoID_h__

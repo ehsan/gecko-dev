@@ -101,7 +101,6 @@ OUTPARAMS_PASS_TESTCASES = \
   o16.cpp \
   onull.cpp \
   onull2.cpp \
-  opmember.cpp \
   $(NULL)
 
 FLOW_PASS_TESTCASES = \

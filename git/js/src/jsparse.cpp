@@ -51,6 +51,7 @@
  *
  * This parser attempts no error recovery.
  */
+#include "jsstddef.h"
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -2799,7 +2800,7 @@ Statement(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
                  * 'var' and 'const'.
                  */
                 pn2 = pn1->pn_head;
-                if (pn2->pn_type == TOK_NAME && pn2->pn_expr
+                if ((pn2->pn_type == TOK_NAME && pn2->pn_expr)
 #if JS_HAS_DESTRUCTURING
                     || pn2->pn_type == TOK_ASSIGN
 #endif

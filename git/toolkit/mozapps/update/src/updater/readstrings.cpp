@@ -43,7 +43,7 @@
 #include "errors.h"
 #include "prtypes.h"
 
-#ifdef XP_WIN
+#if defined(XP_WIN) || defined(XP_OS2)
 # define NS_tfopen _wfopen
 # define OPEN_MODE L"rb"
 #else

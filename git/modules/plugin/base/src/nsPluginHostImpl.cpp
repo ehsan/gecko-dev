@@ -354,11 +354,6 @@ nsPluginInstanceTag::~nsPluginInstanceTag()
       rv = peer->GetOwner(getter_AddRefs(owner));
       if (owner)
         owner->SetInstance(nsnull);
-
-      nsCOMPtr<nsIPluginInstancePeer2> peer2(do_QueryInterface(peer));
-
-      if (peer2)
-        peer2->InvalidateOwner();
     }
 
     // now check for cached plugins because they haven't had nsIPluginInstance::Destroy()

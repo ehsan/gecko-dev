@@ -57,7 +57,6 @@ function test()
   var obj = { index: 1 };
 
   expect = 'No Error';
-  actual = 'No Error';
 
   function gen()
   {
@@ -69,18 +68,13 @@ function test()
     for (index in gen());
   }
 
-  try
-  {
-    if ('index' in obj)
-      throw "for-in binds name to early";
+  if ('index' in obj)
+    throw "for-in binds name to early";
 
-    if (index !== 2)
-      throw "unexpected value of index: "+index;
-  }
-  catch(ex)
-  {
-    actual = ex + '';
-  }
+  if (index !== 2)
+    throw "unexpected value of index: "+index;
+
+  actual = 'No Error';
 
   reportCompare(expect, actual, summary);
 

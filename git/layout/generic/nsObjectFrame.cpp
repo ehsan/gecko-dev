@@ -824,7 +824,6 @@ nsObjectFrame::Reflow(nsPresContext*           aPresContext,
 
   // Get our desired size
   GetDesiredSize(aPresContext, aReflowState, aMetrics);
-  aMetrics.mOverflowArea.SetRect(0, 0, aMetrics.width, aMetrics.height);
   FinishAndStoreOverflow(&aMetrics);
 
   // delay plugin instantiation until all children have
@@ -1515,8 +1514,7 @@ nsObjectFrame::PaintPlugin(nsIRenderingContext& aRenderingContext,
         printProc = reinterpret_cast<PrintWindowPtr>
           (::GetProcAddress(module, "PrintWindow"));
       }
-      // Disable this for Sun Java, it makes it go into a 100% cpu burn loop.
-      if (printProc && !mInstanceOwner->MatchPluginName("Java(TM) Platform")) {
+      if (printProc) {
         HWND hwnd = reinterpret_cast<HWND>(window->window);
         RECT rc;
         GetWindowRect(hwnd, &rc);
@@ -2304,10 +2302,21 @@ NS_INTERFACE_MAP_BEGIN(nsPluginInstanceOwner)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIPluginInstanceOwner)
 NS_INTERFACE_MAP_END
 
-NS_IMETHODIMP
-nsPluginInstanceOwner::SetInstance(nsIPluginInstance *aInstance)
+NS_IMETHODIMP nsPluginInstanceOwner::SetInstance(nsIPluginInstance *aInstance)
 {
-  NS_ASSERTION(!mInstance || !aInstance, "mInstance should only be set once!");
+  // XXX: We should probably never already have an instance when we
+  // get here, but in case we do... At some point we should remove
+  // this code and ensure elsewhere that it's not needed.
+  if (mInstance && mInstance != aInstance) {
+    nsCOMPtr<nsIPluginInstancePeer> peer;
+    mInstance->GetPeer(getter_AddRefs(peer));
+
+    nsCOMPtr<nsIPluginInstancePeer2> peer2(do_QueryInterface(peer));
+
+    if (peer2) {
+      peer2->InvalidateOwner();
+    }
+  }
 
   mInstance = aInstance;
 
@@ -3493,7 +3502,7 @@ nsresult nsPluginInstanceOwner::KeyPress(nsIDOMEvent* aKeyEvent)
 #else
 
   if (SendNativeEvents())
-    DispatchKeyToPlugin(aKeyEvent);
+    return DispatchKeyToPlugin(aKeyEvent);
 
   if (mInstance) {
     // If this event is going to the plugin, we want to kill it.
@@ -3820,9 +3829,10 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
         const nsMouseEvent& mouseEvent =
           static_cast<const nsMouseEvent&>(anEvent);
         // Get reference point relative to screen:
-        nsIntPoint rootPoint(-1,-1);
+        nsIntRect windowRect(anEvent.refPoint, nsIntSize(1, 1));
+        nsIntRect rootPoint(-1,-1,1,1);
         if (widget)
-          rootPoint = anEvent.refPoint + widget->WidgetToScreenOffset();
+          widget->WidgetToScreen(windowRect, rootPoint);
 #ifdef MOZ_WIDGET_GTK2
         Window root = GDK_ROOT_WINDOW();
 #else
@@ -4727,7 +4737,14 @@ WindowRef nsPluginInstanceOwner::FixUpPluginWindow(PRInt32 inPaintState)
     // use its native widget (an obj-c object) we have to go
     // from the widget's screen coordinates to its window coords
     // instead of straight to window coords.
-    nsIntPoint geckoScreenCoords = mWidget->WidgetToScreenOffset();
+    nsIntRect geckoBounds;
+    mWidget->GetBounds(geckoBounds);
+    // we need a rect that is the entire *internal* rect, so the
+    // x and y coords are 0, width is the same.
+    geckoBounds.x = 0;
+    geckoBounds.y = 0;
+    nsIntRect geckoScreenCoords;
+    mWidget->WidgetToScreen(geckoBounds, geckoScreenCoords);
 
     Rect windowRect;
     WindowRef window = (WindowRef)pluginPort->cgPort.window;

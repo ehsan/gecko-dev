@@ -78,6 +78,8 @@ public:
     {
         mFontFace = nsnull;
         mFTFontIndex = 0;
+        mUnicodeFont = PR_FALSE;
+        mSymbolFont = PR_FALSE;
     }
 
     FontEntry(const FontEntry& aFontEntry);
@@ -86,6 +88,7 @@ public:
     const nsString& GetName() const {
         return mFaceName;
     }
+
 
     static FontEntry* 
     CreateFontEntry(const gfxProxyFontEntry &aProxyEntry, nsISupports *aLoader,
@@ -101,6 +104,9 @@ public:
     nsString mFaceName;
     nsCString mFilename;
     PRUint8 mFTFontIndex;
+
+    PRPackedBool mTrueType    : 1;
+    PRPackedBool mIsType1     : 1;
 };
 
 

@@ -41,6 +41,7 @@
 /*
  * JavaScript iterators.
  */
+#include "jsstddef.h"
 #include <string.h>     /* for memcpy */
 #include "jstypes.h"
 #include "jsutil.h"

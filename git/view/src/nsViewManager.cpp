@@ -180,6 +180,7 @@ nsViewManager::nsViewManager()
   }
   // NOTE:  we use a zeroing operator new, so all data members are
   // assumed to be cleared here.
+  mDefaultBackgroundColor = NS_RGBA(0, 0, 0, 0);
   mHasPendingUpdates = PR_FALSE;
   mRecursiveRefreshPending = PR_FALSE;
   mUpdateBatchFlags = 0;
@@ -531,6 +532,44 @@ void nsViewManager::Refresh(nsView *aView, nsIRenderingContext *aContext,
 
 }
 
+// aRect is in app units and relative to the top-left of the aView->GetWidget()
+void nsViewManager::DefaultRefresh(nsView* aView,
+                                   nsIRenderingContext *aContext,
+                                   const nsRect* aRect)
+{
+  NS_PRECONDITION(aView, "Must have a view to work with!");
+
+  // Don't draw anything if there's no widget or it's transparent.
+  nsIWidget* widget = aView->GetNearestWidget(nsnull);
+  if (!widget || widget->GetTransparencyMode() != eTransparencyOpaque)
+    return;
+
+  nsCOMPtr<nsIRenderingContext> context = aContext;
+  if (!context)
+    context = CreateRenderingContext(*aView);
+
+  // XXXzw I think this can only happen if we don't have a widget, in
+  // which case we bailed out above.
+  if (!context) {
+    NS_WARNING("nsViewManager: No rendering context for DefaultRefresh");
+    return;
+  }
+
+  nscolor bgcolor = mDefaultBackgroundColor;
+  // If we somehow get here before any default background color has
+  // been set, warn and use white.
+  if (bgcolor == NS_RGBA(0,0,0,0)) {
+    NS_WARNING("nsViewManager: DefaultRefresh called with no background set");
+    bgcolor = NS_RGB(255,255,255);
+  }
+
+  NS_ASSERTION(NS_GET_A(bgcolor) == 255,
+               "nsViewManager: non-opaque background color snuck in");
+
+  context->SetColor(bgcolor);
+  context->FillRect(*aRect);
+}
+
 void nsViewManager::AddCoveringWidgetsToOpaqueRegion(nsRegion &aRgn, nsIDeviceContext* aContext,
                                                      nsView* aRootView) {
   NS_PRECONDITION(aRootView, "Must have root view");
@@ -554,10 +593,6 @@ void nsViewManager::AddCoveringWidgetsToOpaqueRegion(nsRegion &aRgn, nsIDeviceCo
     return;
   }
   
-  if (widget->GetTransparencyMode() == eTransparencyTransparent) {
-    return;
-  }
-
   for (nsIWidget* childWidget = widget->GetFirstChild();
        childWidget;
        childWidget = childWidget->GetNextSibling()) {
@@ -817,24 +852,22 @@ nsViewManager::UpdateWidgetArea(nsView *aWidgetView, const nsRegion &aDamagedReg
   // accumulate the union of all the child widget areas, or at least
   // some subset of that.
   nsRegion children;
-  if (widget->GetTransparencyMode() != eTransparencyTransparent) {
-    for (nsIWidget* childWidget = widget->GetFirstChild();
-         childWidget;
-         childWidget = childWidget->GetNextSibling()) {
-      nsView* view = nsView::GetViewFor(childWidget);
-      NS_ASSERTION(view != aWidgetView, "will recur infinitely");
-      if (view && view->GetVisibility() == nsViewVisibility_kShow) {
-        // Don't mess with views that are in completely different view
-        // manager trees
-        if (view->GetViewManager()->RootViewManager() == RootViewManager()) {
-          // get the damage region into 'view's coordinate system
-          nsRegion damage = intersection;
-          nsPoint offset = view->GetOffsetTo(aWidgetView);
-          damage.MoveBy(-offset);
-          UpdateWidgetArea(view, damage, aIgnoreWidgetView);
-          children.Or(children, view->GetDimensions() + offset);
-          children.SimplifyInward(20);
-        }
+  for (nsIWidget* childWidget = widget->GetFirstChild();
+       childWidget;
+       childWidget = childWidget->GetNextSibling()) {
+    nsView* view = nsView::GetViewFor(childWidget);
+    NS_ASSERTION(view != aWidgetView, "will recur infinitely");
+    if (view && view->GetVisibility() == nsViewVisibility_kShow) {
+      // Don't mess with views that are in completely different view
+      // manager trees
+      if (view->GetViewManager()->RootViewManager() == RootViewManager()) {
+        // get the damage region into 'view's coordinate system
+        nsRegion damage = intersection;
+        nsPoint offset = view->GetOffsetTo(aWidgetView);
+        damage.MoveBy(-offset);
+        UpdateWidgetArea(view, damage, aIgnoreWidgetView);
+        children.Or(children, view->GetDimensions() + offset);
+        children.SimplifyInward(20);
       }
     }
   }
@@ -1101,25 +1134,11 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus *aS
           }
         } else {
           // since we got an NS_PAINT event, we need to
-          // draw something so we don't get blank areas,
-          // unless there's no widget or it's transparent.
+          // draw something so we don't get blank areas.
           nsIntRect damIntRect;
-          region->GetBoundingBox(&damIntRect.x, &damIntRect.y,
-                                 &damIntRect.width, &damIntRect.height);
-          nsRect damRect =
-            nsIntRect::ToAppUnits(damIntRect, mContext->AppUnitsPerDevPixel());
-
-          nsIWidget* widget = view->GetNearestWidget(nsnull);
-          if (widget && widget->GetTransparencyMode() == eTransparencyOpaque) {
-            nsCOMPtr<nsIRenderingContext> context = event->renderingContext;
-            if (!context)
-              context = CreateRenderingContext(*view);
-
-            if (context)
-              mObserver->PaintDefaultBackground(view, context, damRect);
-            else
-              NS_WARNING("nsViewManager: no rc for default refresh");
-          }
+          region->GetBoundingBox(&damIntRect.x, &damIntRect.y, &damIntRect.width, &damIntRect.height);
+          nsRect damRect = nsIntRect::ToAppUnits(damIntRect, mContext->AppUnitsPerDevPixel());
+          DefaultRefresh(view, event->renderingContext, &damRect);
         
           // Clients like the editor can trigger multiple
           // reflows during what the user perceives as a single
@@ -1144,7 +1163,7 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus *aS
           // async paint event for the *entire* ScrollPort or
           // ScrollingView's viewable area. (See bug 97674 for this
           // alternate patch.)
-
+          
           UpdateView(view, damRect, NS_VMREFRESH_NO_SYNC);
         }
 
@@ -2211,6 +2230,22 @@ nsViewManager::ProcessInvalidateEvent()
     PostInvalidateEvent();
   }
 }
+
+NS_IMETHODIMP
+nsViewManager::SetDefaultBackgroundColor(nscolor aColor)
+{
+  NS_ASSERTION(NS_GET_A(aColor) == 255, "default background must be opaque");
+  mDefaultBackgroundColor = aColor;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsViewManager::GetDefaultBackgroundColor(nscolor* aColor)
+{
+  *aColor = mDefaultBackgroundColor;
+  return NS_OK;
+}
+
 
 NS_IMETHODIMP
 nsViewManager::GetLastUserEventTime(PRUint32& aTime)

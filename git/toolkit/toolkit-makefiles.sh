@@ -494,6 +494,7 @@ MAKEFILES_widget="
   widget/src/os2/Makefile
   widget/src/windows/Makefile
   widget/src/xpwidgets/Makefile
+  widget/src/support/Makefile
 "
 
 MAKEFILES_xpcom="

@@ -8,7 +8,8 @@
 
   <!-- test code goes here -->
   <script type="application/javascript"><![CDATA[
-    var imports = [ "SimpleTest", "is", "isnot", "ok", "onerror" ];
+    var imports = [ "SimpleTest", "is", "isnot", "ok", "snapshotWindow",
+                    "compareSnapshots", "onerror" ];
     for each (var import in imports) {
       window[import] = window.opener.wrappedJSObject[import];
     }

@@ -259,7 +259,6 @@ NS_IMETHODIMP nsIconChannel::AsyncOpen(nsIStreamListener *aListener, nsISupports
   return rv;
 }
 
-#ifndef WINCE
 static DWORD GetSpecialFolderIcon(nsIFile* aFile, int aFolder, SHFILEINFOW* aSFI, UINT aInfoFlags)
 {
   DWORD shellResult = 0;
@@ -293,13 +292,11 @@ static DWORD GetSpecialFolderIcon(nsIFile* aFile, int aFolder, SHFILEINFOW* aSFI
   }
   return shellResult;
 }
-#endif
 
 static UINT GetSizeInfoFlag(PRUint32 aDesiredImageSize)
 {
   UINT infoFlag;
 #ifndef WINCE
-  // SHGFI_SHELLICONSIZE does not exist on windows mobile.
   if (aDesiredImageSize > 16)
     infoFlag = SHGFI_SHELLICONSIZE;
   else
@@ -311,10 +308,6 @@ static UINT GetSizeInfoFlag(PRUint32 aDesiredImageSize)
 
 nsresult nsIconChannel::GetHIconFromFile(HICON *hIcon)
 {
-#ifdef WINCE
-    // GetDIBits does not exist on windows mobile.
-  return NS_ERROR_NOT_AVAILABLE;
-#else
   nsXPIDLCString contentType;
   nsCString fileExt;
   nsCOMPtr<nsIFile> localFile; // file we want an icon for
@@ -390,7 +383,6 @@ nsresult nsIconChannel::GetHIconFromFile(HICON *hIcon)
     rv = NS_ERROR_NOT_AVAILABLE;
 
   return rv;
-#endif
 }
 
 #ifndef MOZ_DISABLE_VISTA_SDK_REQUIREMENTS
@@ -441,10 +433,7 @@ nsresult nsIconChannel::GetStockHIcon(nsIMozIconURI *aIconURI, HICON *hIcon)
 nsresult nsIconChannel::MakeInputStream(nsIInputStream** _retval, PRBool nonBlocking)
 {
   // Check whether the icon requested's a file icon or a stock icon
-  nsresult rv = NS_ERROR_NOT_AVAILABLE;
-
-  // GetDIBits does not exist on windows mobile.
-#ifndef WINCE
+  nsresult rv;
   HICON hIcon = NULL;
 
 #ifndef MOZ_DISABLE_VISTA_SDK_REQUIREMENTS
@@ -533,7 +522,6 @@ nsresult nsIconChannel::MakeInputStream(nsIInputStream** _retval, PRBool nonBloc
     DestroyIcon(hIcon);
   } // if we got an hIcon
 
-#endif
   return rv;
 }
 

@@ -53,32 +53,8 @@
 #include "nsWhitespaceTokenizer.h"
 #include "nsIChannelEventSink.h"
 #include "nsCommaSeparatedTokenizer.h"
-#include "nsXMLHttpRequest.h"
 
 static NS_DEFINE_CID(kCParserCID, NS_PARSER_CID);
-
-class nsChannelCanceller
-{
-public:
-  nsChannelCanceller(nsIChannel* aChannel)
-    : mChannel(aChannel)
-  {
-  }
-  ~nsChannelCanceller()
-  {
-    if (mChannel) {
-      mChannel->Cancel(NS_ERROR_DOM_BAD_URI);
-    }
-  }
-
-  void DontCancel()
-  {
-    mChannel = nsnull;
-  }
-
-private:
-  nsIChannel* mChannel;
-};
 
 NS_IMPL_ISUPPORTS4(nsCrossSiteListenerProxy, nsIStreamListener,
                    nsIRequestObserver, nsIChannelEventSink,
@@ -141,18 +117,6 @@ nsCrossSiteListenerProxy::OnStartRequest(nsIRequest* aRequest,
 {
   mRequestApproved = NS_SUCCEEDED(CheckRequestApproved(aRequest, PR_FALSE));
   if (!mRequestApproved) {
-    if (nsXMLHttpRequest::sAccessControlCache) {
-      nsCOMPtr<nsIChannel> channel = do_QueryInterface(aRequest);
-      if (channel) {
-      nsCOMPtr<nsIURI> uri;
-        channel->GetURI(getter_AddRefs(uri));
-        if (uri) {
-          nsXMLHttpRequest::sAccessControlCache->
-            RemoveEntries(uri, mRequestingPrincipal);
-        }
-      }
-    }
-
     aRequest->Cancel(NS_ERROR_DOM_BAD_URI);
     mOuterListener->OnStartRequest(aRequest, aContext);
 
@@ -350,21 +314,10 @@ nsCrossSiteListenerProxy::OnChannelRedirect(nsIChannel *aOldChannel,
                                             nsIChannel *aNewChannel,
                                             PRUint32    aFlags)
 {
-  nsChannelCanceller canceller(aOldChannel);
   nsresult rv;
   if (!NS_IsInternalSameURIRedirect(aOldChannel, aNewChannel, aFlags)) {
     rv = CheckRequestApproved(aOldChannel, PR_TRUE);
-    if (NS_FAILED(rv)) {
-      if (nsXMLHttpRequest::sAccessControlCache) {
-        nsCOMPtr<nsIURI> oldURI;
-        aOldChannel->GetURI(getter_AddRefs(oldURI));
-        if (oldURI) {
-          nsXMLHttpRequest::sAccessControlCache->
-            RemoveEntries(oldURI, mRequestingPrincipal);
-        }
-      }
-      return NS_ERROR_DOM_BAD_URI;
-    }
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   nsCOMPtr<nsIChannelEventSink> outer =
@@ -374,12 +327,7 @@ nsCrossSiteListenerProxy::OnChannelRedirect(nsIChannel *aOldChannel,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  rv = UpdateChannel(aNewChannel);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  canceller.DontCancel();
-  
-  return NS_OK;
+  return UpdateChannel(aNewChannel);
 }
 
 nsresult

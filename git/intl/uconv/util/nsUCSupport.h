@@ -110,12 +110,6 @@ public:
 
   //--------------------------------------------------------------------
   // Interface nsIUnicodeDecoder [declaration]
-
-  virtual void SetInputErrorBehavior(PRInt32 aBehavior);
-  virtual PRUnichar GetCharacterForUnMapped();
-
-protected:
-  PRInt32   mErrBehavior;
 };
 
 //----------------------------------------------------------------------

@@ -190,7 +190,7 @@ const iso_country_map country_list[] = {
   { "IL", verIsrael },
   { "IT", verItaly },
   { "JP", verJapan },
-  { "KR", verKorea },
+  { "KP", verKorea },
   { "LV", verLatvia },
   { "LY", verArabic },
   { "LT", verLithuania },

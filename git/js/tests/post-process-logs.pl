@@ -81,6 +81,7 @@ local ($test_id,
        $state);
 
 local $test_memory = 0;
+local $test_cpuspeed = 0;
 local %test_reported = ();
 local $test_repo = 'CVS';
 
@@ -178,6 +179,19 @@ while ($file = shift @ARGV)
             $test_jsoptions = $j || "none";
             dbg "javascriptoptions: $test_jsoptions";
         }
+    }
+
+    if ($test_cpuspeed < 4)
+    {
+        $test_cpuspeed = 'slow';
+    }
+    elsif ($test_cpuspeed < 9)
+    {
+        $test_cpuspeed = 'medium';
+    }
+    else
+    {
+        $test_cpuspeed = 'fast';
     }
 
     if ($test_product eq "js")
@@ -582,6 +596,7 @@ sub outputrecord
         "TEST_KERNEL=$test_kernel, " .
         "TEST_PROCESSORTYPE=$test_processortype, " .
         "TEST_MEMORY=$test_memory, " .
+        "TEST_CPUSPEED=$test_cpuspeed, " . 
         "TEST_TIMEZONE=$test_timezone, " . 
         "TEST_OPTIONS=$test_jsoptions, " .
         "TEST_RESULT=$test_result, " .

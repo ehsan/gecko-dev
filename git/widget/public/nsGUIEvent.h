@@ -124,11 +124,6 @@ class nsHashKey;
 // Event has been dispatched at least once
 #define NS_EVENT_DISPATCHED               0x0400
 #define NS_EVENT_FLAG_DISPATCHING         0x0800
-// When an event is synthesized for testing, this flag will be set.
-// Note that this is currently used only with mouse events.  Because this flag
-// is not needed on other events now.  Therfore, if you need this flag on other
-// events, you can do it.
-#define NS_EVENT_FLAG_SYNTETIC_TEST_EVENT 0x1000
 
 #define NS_PRIV_EVENT_UNTRUSTED_PERMITTED 0x8000
 
@@ -775,8 +770,7 @@ class nsDragEvent : public nsMouseEvent
 {
 public:
   nsDragEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
-    : nsMouseEvent(isTrusted, msg, w, NS_DRAG_EVENT, eReal),
-      userCancelled(PR_FALSE)
+    : nsMouseEvent(isTrusted, msg, w, NS_DRAG_EVENT, eReal)
   {
     if (msg == NS_DRAGDROP_EXIT_SYNTH ||
         msg == NS_DRAGDROP_LEAVE_SYNTH ||
@@ -786,7 +780,6 @@ public:
   }
 
   nsCOMPtr<nsIDOMDataTransfer> dataTransfer;
-  PRPackedBool userCancelled;
 };
 
 /**
@@ -1184,12 +1177,12 @@ public:
 /**
  * Simple gesture event
  */
-class nsSimpleGestureEvent : public nsMouseEvent_base
+class nsSimpleGestureEvent : public nsInputEvent
 {
 public:
   nsSimpleGestureEvent(PRBool isTrusted, PRUint32 msg, nsIWidget* w,
                          PRUint32 directionArg, PRFloat64 deltaArg)
-    : nsMouseEvent_base(isTrusted, msg, w, NS_SIMPLE_GESTURE_EVENT),
+    : nsInputEvent(isTrusted, msg, w, NS_SIMPLE_GESTURE_EVENT),
       direction(directionArg), delta(deltaArg)
   {
   }

@@ -75,7 +75,6 @@ REQUIRES	= xpcom \
 		  editor \
 		  plugin \
 		  txtsvc \
-		  uriloader \
 		  $(NULL)
 
 CPPSRCS		= \

@@ -119,7 +119,6 @@
       <rule fromsubtree="true"/>
       <rule attr="title" type="string"/>
     </ruleset>
-
   </ruledfn>
 
   <rulesample>
@@ -194,13 +193,12 @@
                    role="gridcell"
                    aria-label="test1"
                    aria-labelledby="l1 l2"
-                   a11yname="This is a paragraph This is a link • Listitem1 • Listitem2"
+                   a11yname="  This is a paragraph  This is a link     This is a list"
                    title="This is a paragraph This is a link This is a list">
             <html:p>This is a paragraph</html:p>
             <html:a href="#">This is a link</html:a>
             <html:ul>
-              <html:li>Listitem1</html:li>
-              <html:li>Listitem2</html:li>
+              <html:li>This is a list</html:li>
             </html:ul>
           </html:td>
         </html:tr>

@@ -274,10 +274,8 @@ var treeView = {
 
   hasNextSibling: function(idx, after) {
     var thisLevel = this.getLevel(idx);
-    for (var t = after + 1; t < gTreeData.length; t++)
-      if (this.getLevel(t) <= thisLevel)
-        return this.getLevel(t) == thisLevel;
-    return false;
+    for (var t = idx + 1; t < gTreeData.length && this.getLevel(t) > thisLevel; t++);
+    return thisLevel == this.getLevel(t);
   },
 
   toggleOpenState: function(idx) {
@@ -300,7 +298,6 @@ var treeView = {
       this.treeBox.rowCountChanged(idx + 1, toinsert.length);
     }
     item.open = !item.open;
-    this.treeBox.invalidateRow(idx);
   },
 
   getCellProperties: function(idx, column, prop) {

@@ -2023,13 +2023,13 @@ nsCacheService::DeactivateAndClearEntry(PLDHashTable *    table,
 void
 nsCacheService::DoomActiveEntries()
 {
-    nsAutoTArray<nsCacheEntry*, 8> array;
+    nsAutoVoidArray array;
 
     mActiveEntries.VisitEntries(RemoveActiveEntry, &array);
 
-    PRUint32 count = array.Length();
+    PRUint32 count = array.Count();
     for (PRUint32 i=0; i < count; ++i)
-        DoomEntry_Internal(array[i]);
+        DoomEntry_Internal((nsCacheEntry *) array[i]);
 }
 
 
@@ -2042,7 +2042,7 @@ nsCacheService::RemoveActiveEntry(PLDHashTable *    table,
     nsCacheEntry * entry = ((nsCacheEntryHashTableEntry *)hdr)->cacheEntry;
     NS_ASSERTION(entry, "### active entry = nsnull!");
 
-    nsTArray<nsCacheEntry*> * array = (nsTArray<nsCacheEntry*> *) arg;
+    nsVoidArray * array = (nsVoidArray *) arg;
     NS_ASSERTION(array, "### array = nsnull!");
     array->AppendElement(entry);
 
