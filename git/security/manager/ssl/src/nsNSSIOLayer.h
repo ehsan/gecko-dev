@@ -156,7 +156,7 @@ public:
 
   nsresult SetSecurityState(PRUint32 aState);
   nsresult SetShortSecurityDescription(const PRUnichar *aText);
-  void SetErrorMessage(const PRUnichar *aText);
+  nsresult SetErrorMessage(const PRUnichar *aText);
 
   nsresult SetForSTARTTLS(bool aForSTARTTLS);
   nsresult GetForSTARTTLS(bool *aForSTARTTLS);
@@ -190,7 +190,8 @@ public:
 
   void SetAllowTLSIntoleranceTimeout(bool aAllow);
 
-  bool GetExternalErrorReporting();
+  nsresult GetExternalErrorReporting(bool* state);
+  nsresult SetExternalErrorReporting(bool aState);
 
   nsresult RememberCAChain(CERTCertList *aCertList);
 
