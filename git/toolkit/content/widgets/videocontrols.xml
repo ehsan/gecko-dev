@@ -85,7 +85,6 @@
                 animationStep : 0,
                 animationDirection : 1,
                 animationTimer : null,
-                dynamicHideControls : true,
 
                 handleEvent : function (aEvent) {
                     this.log("Got " + aEvent.type + " media event");
@@ -164,8 +163,6 @@
             var video = this.parentNode;
             this.Utils.video = video;
             this.Utils.controls = this;
-            // We shouldn't dynamically hide the controls for audio elements
-            this.Utils.dynamicHideControls = video instanceof HTMLVideoElement;
 
             this.Utils.playButton = document.getAnonymousElementByAttribute(this, "id", "playButton");
             this.Utils.muteButton = document.getAnonymousElementByAttribute(this, "id", "muteButton");
@@ -173,9 +170,7 @@
             // Set initial state of play/pause button.
             this.Utils.playButton.setAttribute("paused", video.paused);
 
-            if (this.Utils.dynamicHideControls) {
-                this.style.opacity = 0;
-            }
+            this.style.opacity = 0;
 
             // Use Utils.handleEvent() callback for all media events.
             video.addEventListener("play",         this.Utils, false);
@@ -193,14 +188,15 @@
     <handlers>
         <handler event="mouseover">
             <![CDATA[
-            if (!this.Utils.dynamicHideControls)
-                return;
-
             // Ignore events caused by transitions between child nodes.
             if (this.Utils.isChildNode(event.relatedTarget))
                 return;
 
+            // Don't show controls unless they're enabled
+            // XXX sucks that spec defaults to controls=false. :-(
             // XXX add support for dynamically hiding controls w/o waiting for mouseout?
+            if (!this.Utils.video.controls)
+                return;
 
             this.Utils.animationDirection = 1;
             if (!this.Utils.animationTimer)
@@ -210,9 +206,6 @@
 
         <handler event="mouseout">
             <![CDATA[
-            if (!this.Utils.dynamicHideControls)
-                return;
-
             // Ignore events caused by transitions between child nodes.
             if (this.Utils.isChildNode(event.relatedTarget))
                 return;

@@ -3306,7 +3306,6 @@ IsSpecialContent(nsIContent*     aContent,
       aTag == nsGkAtoms::canvas ||
 #if defined(MOZ_MEDIA)
       aTag == nsGkAtoms::video ||
-      aTag == nsGkAtoms::audio ||
 #endif
       PR_FALSE;
   }
@@ -5550,10 +5549,7 @@ nsCSSFrameConstructor::ConstructHTMLFrame(nsFrameConstructorState& aState,
     triedFrame = PR_TRUE;
   }
 #if defined(MOZ_MEDIA)
-  else if (nsGkAtoms::video == aTag || nsGkAtoms::audio == aTag) {
-    // We create video frames for audio elements so we can show controls.
-    // Note that html.css specifies display:none for audio elements
-    // without the "controls" attribute.
+  else if (nsGkAtoms::video == aTag) {
     if (!aHasPseudoParent && !aState.mPseudoFrames.IsEmpty()) {
       ProcessPseudoFrames(aState, aFrameItems); 
     }
@@ -5676,7 +5672,6 @@ nsCSSFrameConstructor::CreateAnonymousFrames(nsIAtom*                 aTag,
 #endif
 #ifdef MOZ_MEDIA
       && aTag != nsGkAtoms::video
-      && aTag != nsGkAtoms::audio
 #endif
       )
     return NS_OK;

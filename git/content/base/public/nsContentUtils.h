@@ -59,7 +59,6 @@
 #include "nsIDOMEvent.h"
 #include "nsTArray.h"
 #include "nsTextFragment.h"
-#include "nsReadableUtils.h"
 
 struct nsNativeKeyEvent; // Don't include nsINativeKeyBindings.h here: it will force strange compilation error!
 
@@ -113,7 +112,6 @@ class nsIXTFService;
 #ifdef IBMBIDI
 class nsIBidiKeyboard;
 #endif
-class nsIMIMEHeaderParam;
 
 extern const char kLoadAsData[];
 
@@ -1697,21 +1695,5 @@ inline NS_HIDDEN_(PRBool) NS_FloatIsFinite(jsdouble f) {
       cur = next;                                                             \
     }                                                                         \
   }
-
-class nsContentTypeParser {
-public:
-  nsContentTypeParser(const nsAString& aString);
-  ~nsContentTypeParser();
-
-  nsresult GetParameter(const char* aParameterName, nsAString& aResult);
-  nsresult GetType(nsAString& aResult)
-  {
-    return GetParameter(nsnull, aResult);
-  }
-
-private:
-  NS_ConvertUTF16toUTF8 mString;
-  nsIMIMEHeaderParam*   mService;
-};
 
 #endif /* nsContentUtils_h___ */

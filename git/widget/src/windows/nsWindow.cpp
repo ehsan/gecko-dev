@@ -297,11 +297,7 @@ PRInt32    nsWindow::sIMEAttributeArraySize    = 0;
 PRUint32*  nsWindow::sIMECompClauseArray       = NULL;
 PRInt32    nsWindow::sIMECompClauseArrayLength = 0;
 PRInt32    nsWindow::sIMECompClauseArraySize   = 0;
-
-// Some IMEs (e.g., the standard IME for Korean) don't have caret position,
-// then, we should not set caret position to text event.
-#define NO_IME_CARET -1
-long       nsWindow::sIMECursorPosition        = NO_IME_CARET;
+long       nsWindow::sIMECursorPosition        = 0;
 
 RECT*      nsWindow::sIMECompCharPos           = nsnull;
 
@@ -6690,7 +6686,7 @@ nsWindow::HandleTextEvent(HIMC hIMEContext, PRBool aCheckAttr)
     // Record previous composing char position
     // The cursor is always on the right char before it, but not necessarily on the
     // left of next char, as what happens in wrapping.
-    if (sIMECursorPosition > 0 && sIMECompCharPos &&
+    if (sIMECursorPosition && sIMECompCharPos &&
         sIMECursorPosition < IME_MAX_CHAR_POS) {
       sIMECompCharPos[sIMECursorPosition-1].right = cursorPosition.x;
       sIMECompCharPos[sIMECursorPosition-1].top = cursorPosition.y;
@@ -6827,11 +6823,11 @@ static PRUint32 PlatformToNSAttr(PRUint8 aAttr)
       return NS_TEXTRANGE_CARETPOSITION;
   }
 }
-
-
+//
+// This function converts the composition string (CGS_COMPSTR) into Unicode while mapping the
+//  attribute (GCS_ATTR) string t
 void
-nsWindow::GetTextRangeList(PRUint32* aListLength,
-                           nsTextRangeArray* textRangeListResult)
+nsWindow::GetTextRangeList(PRUint32* textRangeListLengthResult,nsTextRangeArray* textRangeListResult)
 {
   NS_ASSERTION(sIMECompUnicode, "sIMECompUnicode is null");
 
@@ -6844,25 +6840,39 @@ nsWindow::GetTextRangeList(PRUint32* aListLength,
   if (cursor > maxlen)
     cursor = maxlen;
 
+  //
+  // figure out the ranges from the compclause string
+  //
   if (sIMECompClauseArrayLength == 0) {
-    // Some IMEs don't return clause array information, then, we assume that
-    // all characters in the composition string are in one clause.
-    *aListLength = 1;
-    // need one more room for caret
-    *textRangeListResult = new nsTextRange[*aListLength + 1];
+    *textRangeListLengthResult = 2;
+    *textRangeListResult = new nsTextRange[2];
     (*textRangeListResult)[0].mStartOffset = 0;
     (*textRangeListResult)[0].mEndOffset = maxlen;
     (*textRangeListResult)[0].mRangeType = NS_TEXTRANGE_RAWINPUT;
+    (*textRangeListResult)[1].mStartOffset = cursor;
+    (*textRangeListResult)[1].mEndOffset = cursor;
+    (*textRangeListResult)[1].mRangeType = NS_TEXTRANGE_CARETPOSITION;
   } else {
-    *aListLength = sIMECompClauseArrayLength - 1;
+    *textRangeListLengthResult = sIMECompClauseArrayLength;
 
-    // need one more room for caret
-    *textRangeListResult = new nsTextRange[*aListLength + 1];
+    //
+    //  allocate the offset array
+    //
+    *textRangeListResult = new nsTextRange[*textRangeListLengthResult];
 
-    // iterate over the attributes
+    //
+    // figure out the cursor position
+    //
+    (*textRangeListResult)[0].mStartOffset = cursor;
+    (*textRangeListResult)[0].mEndOffset = cursor;
+    (*textRangeListResult)[0].mRangeType = NS_TEXTRANGE_CARETPOSITION;
+
+    //
+    // iterate over the attributes and convert them into unicode 
+    //
     int lastOffset = 0;
-    for (int i = 0; i < *aListLength; i++) {
-      long current = sIMECompClauseArray[i + 1];
+    for(int i = 1; i < sIMECompClauseArrayLength; i++) {
+      long current = sIMECompClauseArray[i];
       NS_ASSERTION(current <= maxlen, "wrong offset");
       if(current > maxlen)
         current = maxlen;
@@ -6875,14 +6885,6 @@ nsWindow::GetTextRangeList(PRUint32* aListLength,
       lastOffset = current;
     } // for
   } // if else
-
-  if (cursor == NO_IME_CARET)
-    return;
-
-  (*textRangeListResult)[*aListLength].mStartOffset = cursor;
-  (*textRangeListResult)[*aListLength].mEndOffset = cursor;
-  (*textRangeListResult)[*aListLength].mRangeType = NS_TEXTRANGE_CARETPOSITION;
-  ++(*aListLength);
 }
 
 
@@ -7148,23 +7150,12 @@ BOOL nsWindow::OnIMEComposition(LPARAM aGCS)
     //--------------------------------------------------------
     // 4. Get GCS_CURSOPOS
     //--------------------------------------------------------
-    // Some IMEs (e.g., the standard IME for Korean) don't have caret position.
-    if (aGCS & GCS_CURSORPOS) {
-      sIMECursorPosition =
-        ::ImmGetCompositionStringW(hIMEContext, GCS_CURSORPOS, NULL, 0);
-      if (sIMECursorPosition < 0)
-        sIMECursorPosition = NO_IME_CARET; // The result is error
-    } else {
-      sIMECursorPosition = NO_IME_CARET;
-    }
+    sIMECursorPosition = ::ImmGetCompositionStringW(hIMEContext, GCS_CURSORPOS, NULL, 0);
 
     NS_ASSERTION(sIMECursorPosition <= (long)sIMECompUnicode->Length(), "illegal pos");
 
 #ifdef DEBUG_IME
-    if (aGCS & GCS_CURSORPOS)
-      printf("sIMECursorPosition(Unicode): %d\n", sIMECursorPosition);
-    else
-      printf("sIMECursorPosition: None\n");
+    printf("sIMECursorPosition(Unicode): %d\n", sIMECursorPosition);
 #endif
     //--------------------------------------------------------
     // 5. Send the text event
