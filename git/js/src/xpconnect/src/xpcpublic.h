@@ -41,10 +41,8 @@
 #define xpcpublic_h
 
 #include "jsapi.h"
-#include "jsobj.h"
-#include "jsgc.h"
-
 #include "nsISupports.h"
+#include "jsobj.h"
 #include "nsIPrincipal.h"
 #include "nsWrapperCache.h"
 
