@@ -111,7 +111,7 @@ PluginInstanceParent::PluginInstanceParent(PluginModuleParent* parent,
 void
 PluginInstanceParent::InitQuirksModes(const nsCString& aMimeType)
 {
-#ifdef MOZ_WIDGET_COCOA
+#ifdef OS_MACOSX
     NS_NAMED_LITERAL_CSTRING(flash, "application/x-shockwave-flash");
     // Flash sends us Invalidate events so we will use those
     // instead of the refresh timer.
@@ -130,7 +130,7 @@ PluginInstanceParent::~PluginInstanceParent()
     NS_ASSERTION(!(mPluginHWND || mPluginWndProc),
         "Subclass was not reset correctly before the dtor was reached!");
 #endif
-#if defined(MOZ_WIDGET_COCOA)
+#if defined(OS_MACOSX)
     if (mShWidth != 0 && mShHeight != 0) {
         DeallocShmem(mShSurface);
     }
@@ -526,7 +526,7 @@ PluginInstanceParent::RecvShow(const NPRect& updatedRect,
             return false;
         }
       
-        mFrontIOSurface = newIOSurface;
+        mIOSurface = newIOSurface;
 
         RecvNPN_InvalidateRect(updatedRect);
 
@@ -616,15 +616,7 @@ nsresult
 PluginInstanceParent::GetImage(ImageContainer* aContainer, Image** aImage)
 {
 #ifdef XP_MACOSX
-    nsIOSurface* ioSurface = NULL;
-  
-    if (mFrontIOSurface) {
-      ioSurface = mFrontIOSurface;
-    } else if (mIOSurface) {
-      ioSurface = mIOSurface;
-    }
-
-    if (!mFrontSurface && !ioSurface)
+    if (!mFrontSurface && !mIOSurface)
 #else
     if (!mFrontSurface)
 #endif
@@ -632,7 +624,7 @@ PluginInstanceParent::GetImage(ImageContainer* aContainer, Image** aImage)
 
     Image::Format format = Image::CAIRO_SURFACE;
 #ifdef XP_MACOSX
-    if (ioSurface) {
+    if (mIOSurface) {
         format = Image::MAC_IO_SURFACE;
         if (!aContainer->Manager()) {
             return NS_ERROR_FAILURE;
@@ -647,11 +639,11 @@ PluginInstanceParent::GetImage(ImageContainer* aContainer, Image** aImage)
     }
 
 #ifdef XP_MACOSX
-    if (ioSurface) {
+    if (mIOSurface) {
         NS_ASSERTION(image->GetFormat() == Image::MAC_IO_SURFACE, "Wrong format?");
         MacIOSurfaceImage* ioImage = static_cast<MacIOSurfaceImage*>(image.get());
         MacIOSurfaceImage::Data ioData;
-        ioData.mIOSurface = ioSurface;
+        ioData.mIOSurface = mIOSurface;
         ioImage->SetData(ioData);
         *aImage = image.forget().get();
         return NS_OK;
@@ -679,10 +671,7 @@ PluginInstanceParent::GetImageSize(nsIntSize* aSize)
     }
 
 #ifdef XP_MACOSX
-    if (mFrontIOSurface) {
-        *aSize = nsIntSize(mFrontIOSurface->GetWidth(), mFrontIOSurface->GetHeight());
-        return NS_OK;
-    } else if (mIOSurface) {
+    if (mIOSurface) {
         *aSize = nsIntSize(mIOSurface->GetWidth(), mIOSurface->GetHeight());
         return NS_OK;
     }
@@ -690,16 +679,6 @@ PluginInstanceParent::GetImageSize(nsIntSize* aSize)
 
     return NS_ERROR_NOT_AVAILABLE;
 }
-
-#ifdef XP_MACOSX
-nsresult
-PluginInstanceParent::IsRemoteDrawingCoreAnimation(PRBool *aDrawing)
-{
-    *aDrawing = (NPDrawingModelCoreAnimation == (NPDrawingModel)mDrawingModel ||
-                 NPDrawingModelInvalidatingCoreAnimation == (NPDrawingModel)mDrawingModel);
-    return NS_OK;
-}
-#endif
 
 nsresult
 PluginInstanceParent::SetBackgroundUnknown()
@@ -941,22 +920,6 @@ PluginInstanceParent::NPP_GetValue(NPPVariable aVariable,
 {
     switch (aVariable) {
 
-    case NPPVpluginWantsAllNetworkStreams: {
-        bool wantsAllStreams;
-        NPError rv;
-
-        if (!CallNPP_GetValue_NPPVpluginWantsAllNetworkStreams(&wantsAllStreams, &rv)) {
-            return NPERR_GENERIC_ERROR;
-        }
-
-        if (NPERR_NO_ERROR != rv) {
-            return rv;
-        }
-
-        (*(NPBool*)_retval) = wantsAllStreams;
-        return NPERR_NO_ERROR;
-    }
-
 #ifdef MOZ_X11
     case NPPVpluginNeedsXEmbed: {
         bool needsXEmbed;
@@ -1188,25 +1151,7 @@ PluginInstanceParent::NPP_HandleEvent(void* event)
                                                      npevent->data.draw.width,
                                                      npevent->data.draw.height);
             }
-            return true;
-        } else if (mFrontIOSurface) {
-            CGContextRef cgContext = npevent->data.draw.context;
-            if (!mShColorSpace) {
-                mShColorSpace = CreateSystemColorSpace();
-            }
-            if (!mShColorSpace) {
-                PLUGIN_LOG_DEBUG(("Could not allocate ColorSpace."));
-                return false;
-            }
-            if (cgContext) {
-                nsCARenderer::DrawSurfaceToCGContext(cgContext, mFrontIOSurface, 
-                                                     mShColorSpace,
-                                                     npevent->data.draw.x,
-                                                     npevent->data.draw.y,
-                                                     npevent->data.draw.width,
-                                                     npevent->data.draw.height);
-            }
-            return true;
+            return false;
         } else {
             if (mShWidth == 0 && mShHeight == 0) {
                 PLUGIN_LOG_DEBUG(("NPCocoaEventDrawRect on window of size 0."));
@@ -1636,12 +1581,6 @@ PluginInstanceParent::PluginWindowHookProc(HWND hWnd,
         break;
     }
 
-    if (self->mPluginWndProc == PluginWindowHookProc) {
-      NS_NOTREACHED(
-        "PluginWindowHookProc invoking mPluginWndProc w/"
-        "mPluginWndProc == PluginWindowHookProc????");
-        return DefWindowProc(hWnd, message, wParam, lParam);
-    }
     return ::CallWindowProc(self->mPluginWndProc, hWnd, message, wParam,
                             lParam);
 }
@@ -1822,7 +1761,7 @@ PluginInstanceParent::AnswerPluginFocusChange(const bool& gotFocus)
 #endif
 }
 
-#ifdef MOZ_WIDGET_COCOA
+#ifdef OS_MACOSX
 void
 PluginInstanceParent::Invalidate()
 {

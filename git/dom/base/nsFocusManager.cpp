@@ -108,7 +108,7 @@ struct nsDelayedBlurOrFocusEvent
   nsDelayedBlurOrFocusEvent(PRUint32 aType,
                             nsIPresShell* aPresShell,
                             nsIDocument* aDocument,
-                            nsIDOMEventTarget* aTarget)
+                            nsPIDOMEventTarget* aTarget)
    : mType(aType),
      mPresShell(aPresShell),
      mDocument(aDocument),
@@ -123,7 +123,7 @@ struct nsDelayedBlurOrFocusEvent
   PRUint32 mType;
   nsCOMPtr<nsIPresShell> mPresShell;
   nsCOMPtr<nsIDocument> mDocument;
-  nsCOMPtr<nsIDOMEventTarget> mTarget;
+  nsCOMPtr<nsPIDOMEventTarget> mTarget;
 };
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsFocusManager)
@@ -239,7 +239,6 @@ nsFocusManager::Observe(nsISupports *aSubject,
     mFirstBlurEvent = nsnull;
     mFirstFocusEvent = nsnull;
     mWindowBeingLowered = nsnull;
-    mDelayedBlurFocusEvents.Clear();
     mMouseDownEventHandlingDocument = nsnull;
   }
 
@@ -1008,7 +1007,7 @@ nsFocusManager::FireDelayedEvents(nsIDocument* aDocument)
     if (mDelayedBlurFocusEvents[i].mDocument == aDocument &&
         !aDocument->EventHandlingSuppressed()) {
       PRUint32 type = mDelayedBlurFocusEvents[i].mType;
-      nsCOMPtr<nsIDOMEventTarget> target = mDelayedBlurFocusEvents[i].mTarget;
+      nsCOMPtr<nsPIDOMEventTarget> target = mDelayedBlurFocusEvents[i].mTarget;
       nsCOMPtr<nsIPresShell> presShell = mDelayedBlurFocusEvents[i].mPresShell;
       mDelayedBlurFocusEvents.RemoveElementAt(i);
       SendFocusOrBlurEvent(type, presShell, aDocument, target, 0, PR_FALSE);
@@ -1732,7 +1731,7 @@ nsFocusManager::Focus(nsPIDOMWindow* aWindow,
     mFocusedContent = aContent;
 
     nsIContent* focusedNode = aWindow->GetFocusedNode();
-    PRBool isRefocus = focusedNode && focusedNode->IsEqualTo(aContent);
+    PRBool isRefocus = focusedNode && focusedNode->IsEqual(aContent);
 
     aWindow->SetFocusedNode(aContent, focusMethod);
 
@@ -1851,7 +1850,7 @@ nsFocusManager::SendFocusOrBlurEvent(PRUint32 aType,
   NS_ASSERTION(aType == NS_FOCUS_CONTENT || aType == NS_BLUR_CONTENT,
                "Wrong event type for SendFocusOrBlurEvent");
 
-  nsCOMPtr<nsIDOMEventTarget> eventTarget = do_QueryInterface(aTarget);
+  nsCOMPtr<nsPIDOMEventTarget> eventTarget = do_QueryInterface(aTarget);
 
   // for focus events, if this event was from a mouse or key and event
   // handling on the document is suppressed, queue the event and fire it
@@ -2181,9 +2180,13 @@ nsFocusManager::GetSelectionLocation(nsIDocument* aDocument,
       // logical frame's primary node - so for this case we need to
       // change caretContent to that node.
 
-      if (startContent->NodeType() == nsIDOMNode::TEXT_NODE) {
+      nsCOMPtr<nsIDOMNode> domNode(do_QueryInterface(startContent));
+      PRUint16 nodeType;
+      domNode->GetNodeType(&nodeType);
+
+      if (nodeType == nsIDOMNode::TEXT_NODE) {
         nsAutoString nodeValue;
-        startContent->AppendTextTo(nodeValue);
+        domNode->GetNodeValue(nodeValue);
 
         PRBool isFormControl =
           startContent->IsNodeOfType(nsINode::eHTML_FORM_CONTROL);

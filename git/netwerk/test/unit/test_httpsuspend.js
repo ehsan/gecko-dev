@@ -25,9 +25,7 @@ var listener = {
     // Insert a delay between this and the next callback to ensure message buffering
     // works correctly
     request.suspend();
-    request.suspend();
     do_timeout(RESUME_DELAY, function() request.resume());
-    do_timeout(RESUME_DELAY + 1000, function() request.resume());
   },
 
   onDataAvailable: function(request, context, stream, offset, count) {
@@ -36,8 +34,6 @@ var listener = {
 
     // Ensure that suspending and resuming inside a callback works correctly
     request.suspend();
-    request.suspend();
-    request.resume();
     request.resume();
 
     this._gotData = true;

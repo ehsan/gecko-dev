@@ -23,7 +23,6 @@
 #   Alec Flett <alecf@netscape.com>
 #   Ehsan Akhgari <ehsan.akhgari@gmail.com>
 #   Gavin Sharp <gavin@gavinsharp.com>
-#   Dão Gottwald <dao@design-noir.de>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -617,11 +616,4 @@ function openPrefsHelp() {
 
   var helpTopic = document.getElementsByTagName("prefwindow")[0].currentPane.helpTopic;
   openHelpLink(helpTopic, !instantApply);
-}
-
-function trimURL(aURL) {
-  return aURL /* remove single trailing slash for http/https/ftp URLs */
-             .replace(/^((?:http|https|ftp):\/\/[^/]+)\/$/, "$1")
-              /* remove http:// unless the host starts with "ftp." or contains "@" */
-             .replace(/^http:\/\/((?!ftp\.)[^\/@]+(?:\/|$))/, "$1");
 }

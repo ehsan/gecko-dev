@@ -42,8 +42,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-Components.utils.import("resource://gre/modules/Geometry.jsm");
-
 // Maximum delay in ms between the two taps of a double-tap
 const kDoubleClickInterval = 400;
 
@@ -118,7 +116,7 @@ function MouseModule() {
   this._mouseOverTimeout = new Util.Timeout(this._doMouseOver.bind(this));
   this._longClickTimeout = new Util.Timeout(this._doLongClick.bind(this));
 
-  this._doubleClickRadius = Util.displayDPI * kDoubleClickRadius;
+  this._doubleClickRadius = Util.getWindowUtils(window).displayDPI * kDoubleClickRadius;
 
   window.addEventListener("mousedown", this, true);
   window.addEventListener("mouseup", this, true);
@@ -570,7 +568,7 @@ MouseModule.prototype = {
 var ScrollUtils = {
   // threshold in pixels for sensing a tap as opposed to a pan
   get tapRadius() {
-    let dpi = Util.displayDPI;
+    let dpi = Util.getWindowUtils(window).displayDPI;
 
     delete this.tapRadius;
     return this.tapRadius = Services.prefs.getIntPref("ui.dragThresholdX") / 240 * dpi;
@@ -686,7 +684,7 @@ var ScrollUtils = {
  */
 function DragData() {
   this._domUtils = Cc["@mozilla.org/inspector/dom-utils;1"].getService(Ci.inIDOMUtils);
-  this._lockRevertThreshold = Util.displayDPI * kAxisLockRevertThreshold;
+  this._lockRevertThreshold = Util.getWindowUtils(window).displayDPI * kAxisLockRevertThreshold;
   this.reset();
 };
 

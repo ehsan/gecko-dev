@@ -148,7 +148,7 @@ DOMSVGPointList::InternalListWillChangeTo(const SVGPointList& aNewValue)
   }
 
   nsRefPtr<DOMSVGPointList> kungFuDeathGrip;
-  if (newLength < oldLength) {
+  if (oldLength && !newLength) {
     // RemovingFromList() might clear last reference to |this|.
     // Retain a temporary reference to keep from dying before returning.
     kungFuDeathGrip = this;

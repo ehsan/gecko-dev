@@ -36,9 +36,11 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+
 #include "nsCOMPtr.h"
 #include "nsTextControlFrame.h"
 #include "nsIDocument.h"
+#include "nsIDOMNSHTMLTextAreaElement.h"
 #include "nsIFormControl.h"
 #include "nsIServiceManager.h"
 #include "nsFrameSelection.h"
@@ -86,6 +88,8 @@
 #include "nsIStyleRule.h"//observe documents to send onchangenotifications
 #include "nsIDOMEventListener.h"//observe documents to send onchangenotifications
 #include "nsGUIEvent.h"
+#include "nsIDOMEventGroup.h"
+#include "nsIDOM3EventTarget.h"
 #include "nsIDOMNSEvent.h"
 #include "nsIDOMNSUIEvent.h"
 
@@ -106,6 +110,8 @@
 #include "nsNodeInfoManager.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsIDOMKeyListener.h"
+#include "nsIDOMEventGroup.h"
+#include "nsIDOM3EventTarget.h"
 #include "nsINativeKeyBindings.h"
 #include "nsIJSContextStack.h"
 #include "nsFocusManager.h"
@@ -194,6 +200,12 @@ void
 nsTextControlFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   mScrollEvent.Revoke();
+
+  EditorInitializer* initializer = (EditorInitializer*) Properties().Get(TextControlInitializer());
+  if (initializer) {
+    initializer->Revoke();
+    Properties().Delete(TextControlInitializer());
+  }
 
   // Unbind the text editor state object from the frame.  The editor will live
   // on, but things like controllers will be released.
@@ -439,8 +451,16 @@ nsTextControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
   if (initEagerly) {
     NS_ASSERTION(!nsContentUtils::IsSafeToRunScript(),
                  "Someone forgot a script blocker?");
-
-    if (!nsContentUtils::AddScriptRunner(new EditorInitializer(this))) {
+    EditorInitializer* initializer = (EditorInitializer*) Properties().Get(TextControlInitializer());
+    if (initializer) {
+      initializer->Revoke();
+    }
+    initializer = new EditorInitializer(this);
+    Properties().Set(TextControlInitializer(),initializer);
+    if (!nsContentUtils::AddScriptRunner(initializer)) {
+      initializer->Revoke(); // paranoia
+      Properties().Delete(TextControlInitializer());
+      delete initializer;
       return NS_ERROR_OUT_OF_MEMORY;
     }
   }

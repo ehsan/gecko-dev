@@ -66,6 +66,7 @@ class nsXULTreeAccessible : public nsAccessibleWrap
 public:
   using nsAccessible::GetChildCount;
   using nsAccessible::GetChildAt;
+  using nsAccessible::GetChildAtPoint;
 
   nsXULTreeAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
@@ -85,8 +86,8 @@ public:
   // nsAccessible
   virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
-  virtual nsAccessible* ChildAtPoint(PRInt32 aX, PRInt32 aY,
-                                     EWhichChildAtPoint aWhichChild);
+  virtual nsAccessible* GetChildAtPoint(PRInt32 aX, PRInt32 aY,
+                                        EWhichChildAtPoint aWhichChild);
 
   virtual nsAccessible* GetChildAt(PRUint32 aIndex);
   virtual PRInt32 GetChildCount();
@@ -176,10 +177,8 @@ public:
                               nsAccessible *aParent, nsITreeBoxObject *aTree,
                               nsITreeView *aTreeView, PRInt32 aRow);
 
-  // nsISupports and cycle collection
+  // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsXULTreeItemAccessibleBase,
-                                           nsAccessibleWrap)
 
   // nsIAccessible
   NS_IMETHOD GetFocusedChild(nsIAccessible **aFocusedChild);
@@ -208,7 +207,7 @@ public:
 
   // nsAccessible
   virtual PRUint64 NativeState();
-  virtual PRInt32 IndexInParent() const;
+  virtual PRInt32 GetIndexInParent() const;
 
   // nsXULTreeItemAccessibleBase
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_XULTREEITEMBASEACCESSIBLE_IMPL_CID)
@@ -245,11 +244,6 @@ protected:
    */
   PRBool IsExpandable();
 
-  /**
-   * Return name for cell at the given column.
-   */
-  void GetCellName(nsITreeColumn* aColumn, nsAString& aName);
-
   nsCOMPtr<nsITreeBoxObject> mTree;
   nsCOMPtr<nsITreeView> mTreeView;
   PRInt32 mRow;
@@ -268,11 +262,6 @@ public:
   nsXULTreeItemAccessible(nsIContent *aContent, nsIWeakReference *aShell,
                           nsAccessible *aParent, nsITreeBoxObject *aTree,
                           nsITreeView *aTreeView, PRInt32 aRow);
-
-  // nsISupports and cycle collection
-  NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsXULTreeItemAccessible,
-                                           nsXULTreeItemAccessibleBase)
 
   NS_IMETHOD GetName(nsAString& aName);
 

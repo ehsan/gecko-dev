@@ -102,7 +102,6 @@ struct PageData
   , canAddToHistory(true)
   , iconId(0)
   {
-    guid.SetIsVoid(PR_TRUE);
   }
 
   PRInt64 id;
@@ -111,7 +110,6 @@ struct PageData
   nsString revHost;
   bool canAddToHistory; // False for disabled history and unsupported schemas.
   PRInt64 iconId;
-  nsCString guid;
 };
 
 /**

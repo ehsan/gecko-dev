@@ -137,9 +137,8 @@ static PRBool
 IsCallerSecure()
 {
   nsCOMPtr<nsIPrincipal> subjectPrincipal;
-  nsresult rv = nsContentUtils::GetSecurityManager()->
-                  GetSubjectPrincipal(getter_AddRefs(subjectPrincipal));
-  NS_ENSURE_SUCCESS(rv, PR_FALSE);
+  nsContentUtils::GetSecurityManager()->
+    GetSubjectPrincipal(getter_AddRefs(subjectPrincipal));
 
   if (!subjectPrincipal) {
     // No subject principal means no code is running. Default to not
@@ -162,7 +161,7 @@ IsCallerSecure()
   }
 
   PRBool isHttps = PR_FALSE;
-  rv = innerUri->SchemeIs("https", &isHttps);
+  nsresult rv = innerUri->SchemeIs("https", &isHttps);
 
   return NS_SUCCEEDED(rv) && isHttps;
 }
@@ -1471,9 +1470,8 @@ nsDOMStorage::CanUseStorage(PRPackedBool* aSessionOnly)
     return PR_TRUE;
 
   nsCOMPtr<nsIPrincipal> subjectPrincipal;
-  nsresult rv = nsContentUtils::GetSecurityManager()->
-                  GetSubjectPrincipal(getter_AddRefs(subjectPrincipal));
-  NS_ENSURE_SUCCESS(rv, PR_FALSE);
+  nsContentUtils::GetSecurityManager()->
+    GetSubjectPrincipal(getter_AddRefs(subjectPrincipal));
 
   // if subjectPrincipal were null we'd have returned after
   // IsCallerChrome().
@@ -1535,8 +1533,7 @@ nsDOMStorage::CacheStoragePermissions()
     return PR_FALSE;
 
   nsCOMPtr<nsIPrincipal> subjectPrincipal;
-  nsresult rv = ssm->GetSubjectPrincipal(getter_AddRefs(subjectPrincipal));
-  NS_ENSURE_SUCCESS(rv, PR_FALSE);
+  ssm->GetSubjectPrincipal(getter_AddRefs(subjectPrincipal));
 
   NS_ASSERTION(mSecurityChecker, "Has non-null mSecurityChecker");
   return mSecurityChecker->CanAccess(subjectPrincipal);

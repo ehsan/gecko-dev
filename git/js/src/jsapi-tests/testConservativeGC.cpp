@@ -1,6 +1,6 @@
 #include "tests.h"
 #include "jsobj.h"
-#include "vm/String.h"
+#include "jsstr.h"
 
 BEGIN_TEST(testConservativeGC)
 {

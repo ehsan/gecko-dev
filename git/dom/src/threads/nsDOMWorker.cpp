@@ -853,8 +853,9 @@ NS_IMPL_ISUPPORTS_INHERITED3(nsDOMWorkerScope, nsDOMWorkerMessageHandler,
                                                nsIWorkerGlobalScope,
                                                nsIXPCScriptable)
 
-NS_IMPL_CI_INTERFACE_GETTER4(nsDOMWorkerScope, nsIWorkerScope,
+NS_IMPL_CI_INTERFACE_GETTER5(nsDOMWorkerScope, nsIWorkerScope,
                                                nsIWorkerGlobalScope,
+                                               nsIDOMNSEventTarget,
                                                nsIDOMEventTarget,
                                                nsIXPCScriptable)
 
@@ -1158,6 +1159,14 @@ nsDOMWorkerScope::SetOnclose(nsIDOMEventListener* aOnclose)
 }
 
 NS_IMETHODIMP
+nsDOMWorkerScope::AddEventListener(const nsAString& aType,
+                                   nsIDOMEventListener* aListener,
+                                   PRBool aUseCapture)
+{
+  return AddEventListener(aType, aListener, aUseCapture, PR_FALSE, 1);
+}
+
+NS_IMETHODIMP
 nsDOMWorkerScope::RemoveEventListener(const nsAString& aType,
                                       nsIDOMEventListener* aListener,
                                       PRBool aUseCapture)
@@ -1430,8 +1439,9 @@ NS_INTERFACE_MAP_BEGIN(nsDOMWorker)
   NS_INTERFACE_MAP_ENTRY(nsIXPCScriptable)
   NS_INTERFACE_MAP_ENTRY(nsIWorker)
   NS_INTERFACE_MAP_ENTRY(nsIAbstractWorker)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsIDOMEventTarget,
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsIDOMNSEventTarget,
                                    nsDOMWorkerMessageHandler)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsIDOMEventTarget, nsDOMWorkerMessageHandler)
   NS_INTERFACE_MAP_ENTRY(nsIJSNativeInitializer)
   NS_INTERFACE_MAP_ENTRY(nsITimerCallback)
 NS_INTERFACE_MAP_END
@@ -1537,8 +1547,9 @@ nsDOMWorker::Finalize(nsIXPConnectWrappedNative* /* aWrapper */,
   return NS_OK;
 }
 
-NS_IMPL_CI_INTERFACE_GETTER3(nsDOMWorker, nsIWorker,
+NS_IMPL_CI_INTERFACE_GETTER4(nsDOMWorker, nsIWorker,
                                           nsIAbstractWorker,
+                                          nsIDOMNSEventTarget,
                                           nsIDOMEventTarget)
 NS_IMPL_THREADSAFE_DOM_CI_GETINTERFACES(nsDOMWorker)
 NS_IMPL_THREADSAFE_DOM_CI_ALL_THE_REST(nsDOMWorker)
@@ -2551,6 +2562,14 @@ nsDOMWorker::QueueSuspendedRunnable(nsIRunnable* aRunnable)
 }
 
 NS_IMETHODIMP
+nsDOMWorker::AddEventListener(const nsAString& aType,
+                              nsIDOMEventListener* aListener,
+                              PRBool aUseCapture)
+{
+  return AddEventListener(aType, aListener, aUseCapture, PR_FALSE, 1);
+}
+
+NS_IMETHODIMP
 nsDOMWorker::RemoveEventListener(const nsAString& aType,
                                  nsIDOMEventListener* aListener,
                                  PRBool aUseCapture)
@@ -2589,7 +2608,7 @@ nsDOMWorker::AddEventListener(const nsAString& aType,
                               nsIDOMEventListener* aListener,
                               PRBool aUseCapture,
                               PRBool aWantsUntrusted,
-                              PRUint8 aOptionalArgc)
+                              PRUint8 optional_argc)
 {
   NS_ASSERTION(mWrappedNative, "Called after Finalize!");
   if (IsCanceled()) {
@@ -2599,7 +2618,7 @@ nsDOMWorker::AddEventListener(const nsAString& aType,
   return nsDOMWorkerMessageHandler::AddEventListener(aType, aListener,
                                                      aUseCapture,
                                                      aWantsUntrusted,
-                                                     aOptionalArgc);
+                                                     optional_argc);
 }
 
 /**

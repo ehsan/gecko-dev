@@ -144,18 +144,7 @@ public:
    */
   nsresult FinalizeStatements();
 
-  /**
-   * Call to send out favicon changed notifications. Should only be called
-   * when there is data loaded for the favicon.
-   * @param aPageURI
-   *        The URI of the page to notify about.
-   * @param aFaviconURI
-   *        The moz-anno:favicon URI of the icon.
-   * @param aGUID
-   *        The unique ID associated with the page.
-   */
-  void SendFaviconNotifications(nsIURI* aPageURI, nsIURI* aFaviconURI,
-                                const nsACString& aGUID);
+  void SendFaviconNotifications(nsIURI* aPage, nsIURI* aFaviconURI);
 
   /**
    * This cache should be used only for background thread statements.

@@ -11,11 +11,9 @@ function test() {
     let groupItem = cw.GroupItems.groupItems[0];
     groupItem.setBounds(new cw.Rect(cw.innerWidth - 200, 0, 200, 200));
 
-    whenTabViewIsHidden(function () waitForFocus(finish), win);
+    whenTabViewIsHidden(finish, win);
 
-    waitForFocus(function () {
-      let button = cw.document.getElementById("exit-button");
-      EventUtils.synthesizeMouseAtCenter(button, {}, cw);
-    }, cw);
+    let button = cw.document.getElementById("exit-button");
+    EventUtils.synthesizeMouseAtCenter(button, {}, cw);
   });
 }

@@ -81,6 +81,9 @@ public:
 
   NS_IMETHOD SetTotalNumPages(PRInt32 aTotal) = 0;
 
+  // Gets the dead space (the gray area) around the Print Preview Page
+  NS_IMETHOD GetDeadSpaceValue(nscoord* aValue) = 0;
+
   // For Shrink To Fit
   NS_IMETHOD GetSTFPercent(float& aSTFPercent) = 0;
 };

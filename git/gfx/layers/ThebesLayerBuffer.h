@@ -82,7 +82,8 @@ public:
   };
 
   ThebesLayerBuffer(BufferSizePolicy aBufferSizePolicy)
-    : mBufferRotation(0,0)
+    : mBufferDims(0,0)
+    , mBufferRotation(0,0)
     , mBufferSizePolicy(aBufferSizePolicy)
   {
     MOZ_COUNT_CTOR(ThebesLayerBuffer);
@@ -99,6 +100,7 @@ public:
   void Clear()
   {
     mBuffer = nsnull;
+    mBufferDims.SizeTo(0, 0);
     mBufferRect.SetEmpty();
   }
 
@@ -138,6 +140,7 @@ public:
    * fill the buffer bounds).
    */
   PaintState BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
+                        float aXResolution, float aYResolution,
                         PRUint32 aFlags);
 
   enum {
@@ -167,23 +170,32 @@ protected:
   };
   nsIntRect GetQuadrantRectangle(XSide aXSide, YSide aYSide);
   void DrawBufferQuadrant(gfxContext* aTarget, XSide aXSide, YSide aYSide,
-                          float aOpacity);
-  void DrawBufferWithRotation(gfxContext* aTarget, float aOpacity);
+                          float aOpacity, float aXRes, float aYRes);
+  void DrawBufferWithRotation(gfxContext* aTarget, float aOpacity,
+                              float aXRes, float aYRes);
 
   /**
    * |BufferRect()| is the rect of device pixels that this
    * ThebesLayerBuffer covers.  That is what DrawBufferWithRotation()
    * will paint when it's called.
+   *
+   * |BufferDims()| is the actual dimensions of the underlying surface
+   * maintained by this, also in device pixels.  It is *not*
+   * necessarily true that |BufferRect().Size() == BufferDims()|.
+   * They may differ if a ThebesLayer is drawn at a non-1.0
+   * resolution.
    */
+  const nsIntSize& BufferDims() const { return mBufferDims; }
   const nsIntRect& BufferRect() const { return mBufferRect; }
   const nsIntPoint& BufferRotation() const { return mBufferRotation; }
 
   already_AddRefed<gfxASurface>
-  SetBuffer(gfxASurface* aBuffer,
+  SetBuffer(gfxASurface* aBuffer, const nsIntSize& aBufferDims,
             const nsIntRect& aBufferRect, const nsIntPoint& aBufferRotation)
   {
     nsRefPtr<gfxASurface> tmp = mBuffer.forget();
     mBuffer = aBuffer;
+    mBufferDims = aBufferDims;
     mBufferRect = aBufferRect;
     mBufferRotation = aBufferRotation;
     return tmp.forget();
@@ -194,17 +206,24 @@ protected:
    * which must be contained within a single quadrant.
    */
   already_AddRefed<gfxContext>
-  GetContextForQuadrantUpdate(const nsIntRect& aBounds);
+  GetContextForQuadrantUpdate(const nsIntRect& aBounds,
+                              float aXResolution, float aYResolution);
 
 private:
   PRBool BufferSizeOkFor(const nsIntSize& aSize)
   {
-    return (aSize == mBufferRect.Size() ||
+    return (aSize == mBufferDims ||
             (SizedToVisibleBounds != mBufferSizePolicy &&
-             aSize < mBufferRect.Size()));
+             aSize < mBufferDims));
   }
 
   nsRefPtr<gfxASurface> mBuffer;
+  /**
+   * The actual dimensions of mBuffer.  For the ContainsVisibleBounds
+   * policy or with resolution-scaled drawing, mBufferDims might be
+   * different than mBufferRect.Size().
+   */
+  nsIntSize             mBufferDims;
   /** The area of the ThebesLayer that is covered by the buffer as a whole */
   nsIntRect             mBufferRect;
   /**

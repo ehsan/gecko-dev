@@ -45,8 +45,6 @@
 :root {
   font-family: "Nokia Sans", Tahoma, sans-serif !important;
   font-size: @font_normal@ !important;
-  background-color: @color_background_default@; /* force */
-  color: @color_text_default@; /* force */
 }
 
 ::-moz-selection {
@@ -98,11 +96,6 @@ textbox[disabled="true"] {
   background-color: lightgray;
 }
 
-.link {
-  color: @color_text_as_link@;
-  text-decoration: underline;
-}
-
 /* sidebars spacer --------------------------------------------------------- */
 .sidebar-spacer {
   background-color: #767973;
@@ -118,14 +111,14 @@ textbox[disabled="true"] {
 }
 
 .context-block {
-  padding: @margin_context_popup@;
+  padding: @touch_normal@;
 }
 
 .dialog-dark,
 .panel-arrowcontent {
   background-color: @color_background_inverse@;
   box-shadow: black 0 @border_radius_tiny@ @border_radius_tiny@, black 0 -@border_radius_tiny@ @border_radius_tiny@;
-  padding: 0;
+  padding: @padding_normal@ 0; /* core spacing */
 }
 
 @media (max-width: 499px) {
@@ -613,12 +606,12 @@ dialog {
 
 .panel-arrow[side="top"] {
   list-style-image: url("chrome://browser/skin/images/arrowbox-up.png");
-  margin-bottom: -@margin_snormal@;
+  margin-bottom: -@margin_normal@;
 }
 
 .panel-arrow[side="bottom"] {
   list-style-image: url("chrome://browser/skin/images/arrowbox-down.png");
-  margin-top: -@margin_snormal@;
+  margin-top: -@margin_normal@;
 }
 
 .panel-arrow[side="left"] {
@@ -736,7 +729,7 @@ dialog {
     -moz-box-align: start;
   }
   
-  #panel-controls > .panel-row-button {
+  .panel-row-button {
     -moz-box-orient: horizontal;
     -moz-box-flex: 0;
     min-width: @tablet_panel_controls@ !important;
@@ -751,10 +744,4 @@ dialog {
     -moz-box-pack: center;
     padding: @padding_xlarge@ 0px;
   }
-}
-
-/* because the buttons can wrap, we need to use the margin to create inter-button
-  spacing and a bottom margin for the notification */
-notification > button {
-  margin-bottom: @margin_normal@;
 }

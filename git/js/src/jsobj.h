@@ -198,6 +198,9 @@ struct PropDesc {
 
 typedef Vector<PropDesc, 1> PropDescArray;
 
+void
+MeterEntryCount(uintN count);
+
 } /* namespace js */
 
 enum {
@@ -263,10 +266,6 @@ class ArgumentsObject;
 class NormalArgumentsObject;
 class StrictArgumentsObject;
 class StringObject;
-
-/* ES5 8.12.8. */
-extern JSBool
-DefaultValue(JSContext *cx, JSObject *obj, JSType hint, Value *vp);
 
 }
 
@@ -352,19 +351,18 @@ struct JSObject : js::gc::Cell {
     inline bool nativeContains(const js::Shape &shape);
 
     enum {
-        DELEGATE                  =   0x01,
-        SYSTEM                    =   0x02,
-        NOT_EXTENSIBLE            =   0x04,
-        BRANDED                   =   0x08,
-        GENERIC                   =   0x10,
-        METHOD_BARRIER            =   0x20,
-        INDEXED                   =   0x40,
-        OWN_SHAPE                 =   0x80,
-        BOUND_FUNCTION            =  0x100,
-        HAS_EQUALITY              =  0x200,
-        VAROBJ                    =  0x400,
-        METHOD_THRASH_COUNT_MASK  = 0x3000,
-        METHOD_THRASH_COUNT_SHIFT =     12,
+        DELEGATE                  =  0x01,
+        SYSTEM                    =  0x02,
+        NOT_EXTENSIBLE            =  0x04,
+        BRANDED                   =  0x08,
+        GENERIC                   =  0x10,
+        METHOD_BARRIER            =  0x20,
+        INDEXED                   =  0x40,
+        OWN_SHAPE                 =  0x80,
+        BOUND_FUNCTION            = 0x100,
+        HAS_EQUALITY              = 0x200,
+        METHOD_THRASH_COUNT_MASK  = 0xc00,
+        METHOD_THRASH_COUNT_SHIFT =    10,
         METHOD_THRASH_COUNT_MAX   = METHOD_THRASH_COUNT_MASK >> METHOD_THRASH_COUNT_SHIFT
     };
 
@@ -468,10 +466,6 @@ struct JSObject : js::gc::Cell {
 
     /* Sets an object's HAS_EQUALITY flag based on its clasp. */
     inline void syncSpecialEquality();
-
-    /* See StackFrame::varObj. */
-    inline bool isVarObj() const { return flags & VAROBJ; }
-    inline void makeVarObj() { flags |= VAROBJ; }
 
   private:
     void generateOwnShape(JSContext *cx);
@@ -1040,8 +1034,8 @@ struct JSObject : js::gc::Cell {
     JS_ALWAYS_INLINE void finalize(JSContext *cx);
 
     /*
-     * Like init, but also initializes map.  proto must have an empty shape
-     * created for it via proto->getEmptyShape.
+     * Like init, but also initializes map. The catch: proto must be the result
+     * of a call to js_InitClass(...clasp, ...).
      */
     inline bool initSharingEmptyShape(JSContext *cx,
                                       js::Class *clasp,
@@ -1179,11 +1173,6 @@ struct JSObject : js::gc::Cell {
         return (op ? op : js_Enumerate)(cx, this, iterop, statep, idp);
     }
 
-    bool defaultValue(JSContext *cx, JSType hint, js::Value *vp) {
-        js::ConvertOp op = getClass()->convert;
-        return (op == js::ConvertStub ? js::DefaultValue : op)(cx, this, hint, vp);
-    }
-
     JSType typeOf(JSContext *cx) {
         js::TypeOfOp op = getOps()->typeOf;
         return (op ? op : js_TypeOf)(cx, this);
@@ -1257,12 +1246,6 @@ static JS_ALWAYS_INLINE bool
 operator==(const JSObject &lhs, const JSObject &rhs)
 {
     return &lhs == &rhs;
-}
-
-static JS_ALWAYS_INLINE bool
-operator!=(const JSObject &lhs, const JSObject &rhs)
-{
-    return &lhs != &rhs;
 }
 
 inline js::Value*
@@ -1416,7 +1399,7 @@ js_XDRBlockObject(JSXDRState *xdr, JSObject **objp);
 
 struct JSSharpObjectMap {
     jsrefcount  depth;
-    uint32      sharpgen;
+    jsatomid    sharpgen;
     JSHashTable *table;
 };
 
@@ -1735,11 +1718,14 @@ js_SetNativeAttributes(JSContext *cx, JSObject *obj, js::Shape *shape,
 namespace js {
 
 /*
- * If obj has an already-resolved data property for methodid, return true and
- * store the property value in *vp.
+ * If obj has a data property methodid which is a function object for the given
+ * native, return that function object. Otherwise, return NULL.
  */
+extern JSObject *
+HasNativeMethod(JSObject *obj, jsid methodid, Native native);
+
 extern bool
-HasDataProperty(JSObject *obj, jsid methodid, js::Value *vp);
+DefaultValue(JSContext *cx, JSObject *obj, JSType hint, Value *vp);
 
 extern JSBool
 CheckAccess(JSContext *cx, JSObject *obj, jsid id, JSAccessMode mode,
@@ -1783,36 +1769,17 @@ namespace js {
  * If *vp might already be an object, use ToObject.
  */
 extern JSObject *
-ToObjectSlow(JSContext *cx, Value *vp);
+ToObjectSlow(JSContext *cx, js::Value *vp);
 
 JS_ALWAYS_INLINE JSObject *
-ToObject(JSContext *cx, Value *vp)
+ToObject(JSContext *cx, js::Value *vp)
 {
     if (vp->isObject())
         return &vp->toObject();
     return ToObjectSlow(cx, vp);
 }
 
-/* ES5 9.1 ToPrimitive(input). */
-static JS_ALWAYS_INLINE bool
-ToPrimitive(JSContext *cx, Value *vp)
-{
-    if (vp->isPrimitive())
-        return true;
-    return vp->toObject().defaultValue(cx, JSTYPE_VOID, vp);
 }
-
-/* ES5 9.1 ToPrimitive(input, PreferredType). */
-static JS_ALWAYS_INLINE bool
-ToPrimitive(JSContext *cx, JSType preferredType, Value *vp)
-{
-    JS_ASSERT(preferredType != JSTYPE_VOID); /* Use the other ToPrimitive! */
-    if (vp->isPrimitive())
-        return true;
-    return vp->toObject().defaultValue(cx, preferredType, vp);
-}
-
-} /* namespace js */
 
 /*
  * v and vp may alias. On successful return, vp->isObject(). If vp is not
@@ -1820,6 +1787,9 @@ ToPrimitive(JSContext *cx, JSType preferredType, Value *vp)
  */
 extern JSObject *
 js_ValueToNonNullObject(JSContext *cx, const js::Value &v);
+
+extern JSBool
+js_TryValueOf(JSContext *cx, JSObject *obj, JSType type, js::Value *rval);
 
 extern JSBool
 js_XDRObject(JSXDRState *xdr, JSObject **objp);
@@ -1835,6 +1805,10 @@ js_GetReservedSlot(JSContext *cx, JSObject *obj, uint32 index, js::Value *vp);
 
 extern bool
 js_SetReservedSlot(JSContext *cx, JSObject *obj, uint32 index, const js::Value &v);
+
+/* For CSP -- checks if eval() and friends are allowed to run. */
+extern JSBool
+js_CheckContentSecurityPolicy(JSContext *cx, JSObject *scopeObj);
 
 extern JSBool
 js_ReportGetterOnlyAssignment(JSContext *cx);

@@ -59,5 +59,10 @@ EXPORTS		= \
 
 SHARED_LIBRARY_LIBS = ../src/$(LIB_PREFIX)msgmork_s.$(LIB_SUFFIX)
 
+EXTRA_DSO_LDOPTS = \
+		$(LIBS_DIR) \
+		$(MOZ_COMPONENT_LIBS) \
+		$(NULL)
+
 include $(topsrcdir)/config/rules.mk
 

@@ -1415,7 +1415,7 @@ nsresult
 RasterImage::SetSourceSizeHint(PRUint32 sizeHint)
 {
   if (sizeHint && StoringSourceData())
-    return mSourceData.SetCapacity(sizeHint) ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
+    mSourceData.SetCapacity(sizeHint);
   return NS_OK;
 }
 
@@ -2770,15 +2770,10 @@ RasterImage::WriteToRasterImage(nsIInputStream* /* unused */,
   // Retrieve the RasterImage
   RasterImage* image = static_cast<RasterImage*>(aClosure);
 
-  // Copy the source data. Unless we hit OOM, we squelch the return value
-  // here, because returning an error means that ReadSegments stops
-  // reading data, violating our invariant that we read everything we get.
-  // If we hit OOM then we fail and the load is aborted.
-  nsresult rv = image->AddSourceData(aFromRawSegment, aCount);
-  if (rv == NS_ERROR_OUT_OF_MEMORY) {
-    image->DoError();
-    return rv;
-  }
+  // Copy the source data. We squelch the return value here, because returning
+  // an error means that ReadSegments stops reading data, violating our
+  // invariant that we read everything we get.
+  (void) image->AddSourceData(aFromRawSegment, aCount);
 
   // We wrote everything we got
   *aWriteCount = aCount;

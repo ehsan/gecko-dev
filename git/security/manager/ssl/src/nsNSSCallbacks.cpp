@@ -436,7 +436,7 @@ nsNSSHttpRequestSession::internal_send_receive_attempt(PRBool &retryable_error,
 
       if (!request_canceled)
       {
-        PRBool wantExit = nsSSLThread::stoppedOrStopping();
+        PRBool wantExit = nsSSLThread::exitRequested();
         PRBool timeout = 
           (PRIntervalTime)(PR_IntervalNow() - start_time) > mTimeoutInterval;
 

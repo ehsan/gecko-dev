@@ -334,11 +334,7 @@ struct AutoCXPusher
   }
 };
 
-namespace mozilla {
-namespace plugins {
-namespace parent {
-
-JSContext *
+static JSContext *
 GetJSContext(NPP npp)
 {
   NS_ENSURE_TRUE(npp, nsnull);
@@ -364,9 +360,6 @@ GetJSContext(NPP npp)
   return (JSContext *)scx->GetNativeContext();
 }
 
-}
-}
-}
 
 static NPP
 LookupNPP(NPObject *npobj);
@@ -2306,11 +2299,6 @@ NPObjectMember_Trace(JSTracer *trc, JSObject *obj)
     (NPObjectMemberPrivate *)::JS_GetPrivate(trc->context, obj);
   if (!memberPrivate)
     return;
-
-  // Our NPIdentifier is not always interned, so we must root it explicitly.
-  jsid id = NPIdentifierToJSId(memberPrivate->methodName);
-  if (JSID_IS_STRING(id))
-    JS_CALL_STRING_TRACER(trc, JSID_TO_STRING(id), "NPObjectMemberPrivate.methodName");
 
   if (!JSVAL_IS_PRIMITIVE(memberPrivate->fieldValue)) {
     JS_CALL_VALUE_TRACER(trc, memberPrivate->fieldValue,
