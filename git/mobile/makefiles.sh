@@ -36,27 +36,18 @@
 # ***** END LICENSE BLOCK *****
 
 add_makefiles "
-netwerk/locales/Makefile
-dom/locales/Makefile
-toolkit/locales/Makefile
-security/manager/locales/Makefile
-mobile/app/Makefile
-mobile/app/profile/extensions/Makefile
-$MOZ_BRANDING_DIRECTORY/Makefile
-$MOZ_BRANDING_DIRECTORY/locales/Makefile
-mobile/chrome/Makefile
-mobile/chrome/tests/Makefile
-mobile/components/Makefile
-mobile/components/phone/Makefile
-mobile/modules/Makefile
-mobile/installer/Makefile
-mobile/locales/Makefile
 mobile/Makefile
-mobile/themes/Makefile
-mobile/themes/core/Makefile"
-
-if test -n "$MOZ_UPDATE_PACKAGING"; then
-   add_makefiles "
-     tools/update-packaging/Makefile
-   "
-fi
+mobile/chrome/Makefile
+mobile/chrome/branding/Makefile
+mobile/chrome/content/Makefile
+mobile/app/Makefile
+mobile/installer/Makefile
+mobile/installer/debian/changelog
+mobile/installer/debian/compat
+mobile/installer/debian/control
+mobile/installer/debian/fennec.desktop
+mobile/installer/debian/fennec.links
+mobile/installer/debian/fennec.service
+mobile/installer/debian/files
+mobile/installer/debian/icon_base64
+mobile/installer/debian/menu"

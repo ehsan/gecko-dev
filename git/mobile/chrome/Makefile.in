@@ -42,14 +42,6 @@ VPATH     = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-DEFINES += -DAB_CD=$(MOZ_UI_LOCALE) \
-           -DPACKAGE=browser \
-           -DMOZ_APP_VERSION=$(MOZ_APP_VERSION) \
-           $(NULL)
-
-
-ifdef ENABLE_TESTS
-DIRS += tests
-endif
+DEFINES   += -DAB_CD=$(MOZ_UI_LOCALE) -DPACKAGE=browser
 
 include $(topsrcdir)/config/rules.mk

@@ -35,56 +35,28 @@
 #
 # ***** END LICENSE BLOCK *****
 
-ifndef LIBXUL_SDK
-# Needed for building our components as part of libxul
-APP_LIBXUL_DIRS += mobile/components/build
-
-include $(topsrcdir)/toolkit/toolkit-tiers.mk
-else
-ifdef ENABLE_TESTS
-tier_testharness_dirs += \
-  testing/mochitest \
-  $(NULL)
-endif
-endif
-
 TIERS += app
 
 ifdef MOZ_EXTENSIONS
 tier_app_dirs += extensions
 endif
 
-ifdef MOZ_SERVICES_SYNC
-tier_app_dirs += services
-endif
-
 tier_app_dirs += \
-  $(MOZ_BRANDING_DIRECTORY) \
   mobile \
   $(NULL)
 
-
-installer: 
-	@$(MAKE) -C mobile/installer installer
+installer:
+	@echo "Mobile doesn't have an installer yet."
+	@exit 1
 
 package:
-	rm -rf dist/fennec*
-ifeq ($(OS_ARCH),WINCE)
-	@$(MAKE) -C mobile/installer installer
-else
 	@$(MAKE) -C mobile/installer
-endif
 
 install::
 	@echo "Mobile can't be installed directly."
 	@exit 1
 
+ifeq ($(OS_TARGET),Linux)
 deb: package
 	@$(MAKE) -C mobile/installer deb
-
-upload::
-	@$(MAKE) -C mobile/installer upload
-
-ifeq ($(OS_TARGET),Linux)
-deb: installer
 endif

@@ -36,27 +36,11 @@
 # ***** END LICENSE BLOCK *****
 
 MOZ_APP_NAME=fennec
-MOZ_APP_UA_NAME=Fennec
+MOZ_APP_DISPLAYNAME=Fennec
+MOZ_APP_VERSION=0.3
 
-MOZ_APP_VERSION=4.1a1pre
-
-MOZ_BRANDING_DIRECTORY=mobile/branding/nightly
-MOZ_OFFICIAL_BRANDING_DIRECTORY=mobile/branding/official
-# MOZ_APP_DISPLAYNAME is set by branding/configure.sh
-
-MOZ_SERVICES_SYNC=1
-
+MOZ_XUL_APP=1
+MOZ_UPDATER=0
 MOZ_ENABLE_LIBXUL=1
-MOZ_DISABLE_DOMCRYPTO=1
-
-if test "$LIBXUL_SDK"; then
+MOZ_NO_XPCOM_OBSOLETE=1
 MOZ_XULRUNNER=1
-else
-MOZ_XULRUNNER=
-MOZ_MORK=
-MOZ_PLACES=1
-fi
-
-# Needed for building our components as part of libxul
-MOZ_APP_COMPONENT_LIBS="browsercomps"
-MOZ_APP_COMPONENT_INCLUDE=nsBrowserComponents.h
