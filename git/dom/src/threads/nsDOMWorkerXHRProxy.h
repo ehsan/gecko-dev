@@ -59,7 +59,6 @@ class nsIXPConnectWrappedNative;
 class nsDOMWorkerXHR;
 class nsDOMWorkerXHREvent;
 class nsDOMWorkerXHRFinishSyncXHRRunnable;
-class nsDOMWorkerXHRState;
 class nsDOMWorkerXHRWrappedListener;
 class nsXMLHttpRequest;
 
@@ -107,14 +106,6 @@ public:
   }
 
 protected:
-  struct ProgressInfo {
-    ProgressInfo() : computable(PR_FALSE), loaded(0), total(0) { }
-
-    PRBool computable;
-    PRUint64 loaded;
-    PRUint64 total;
-  };
-
   nsresult InitInternal();
   void DestroyInternal();
 
@@ -128,7 +119,9 @@ protected:
   nsresult HandleWorkerEvent(nsDOMWorkerXHREvent* aEvent,
                              PRBool aUploadEvent);
 
-  nsresult HandleEventRunnable(nsIRunnable* aRunnable);
+  nsresult HandleEventInternal(PRUint32 aType,
+                               nsIDOMEvent* aEvent,
+                               PRBool aUploadEvent);
 
   // Methods of nsIXMLHttpRequest that we implement
   nsresult GetAllResponseHeaders(char** _retval);
@@ -150,13 +143,10 @@ protected:
 
   nsresult RunSyncEventLoop();
 
-  PRBool IsUploadEvent(nsIDOMEvent* aEvent);
-
-  nsresult DispatchPrematureAbortEvents(PRUint32 aType,
-                                        nsIDOMEventTarget* aTarget,
-                                        ProgressInfo* aProgressInfo);
-
-  nsresult MaybeDispatchPrematureAbortEvents(PRBool aFromOpenRequest);
+  // aEvent is used to see if we should check upload listeners as well. If left
+  // unset we always check upload listeners.
+  PRBool HasListenersForType(const nsAString& aType,
+                             nsIDOMEvent* aEvent = nsnull);
 
   // May be weak or strong, check mOwnedByXHR.
   nsDOMWorkerXHR* mWorkerXHR;
@@ -171,7 +161,7 @@ protected:
 
   nsCOMPtr<nsIThread> mMainThread;
 
-  nsRefPtr<nsDOMWorkerXHRState> mLastXHRState;
+  nsRefPtr<nsDOMWorkerXHREvent> mLastXHREvent;
   nsRefPtr<nsDOMWorkerXHREvent> mLastProgressOrLoadEvent;
 
   SyncEventQueue* mSyncEventQueue;
@@ -184,9 +174,6 @@ protected:
   // Touched on more than one thread, protected by the worker's lock.
   nsRefPtr<nsDOMWorkerXHRFinishSyncXHRRunnable> mSyncFinishedRunnable;
 
-  nsAutoPtr<ProgressInfo> mDownloadProgressInfo;
-  nsAutoPtr<ProgressInfo> mUploadProgressInfo;
-
   // Whether or not this object is owned by the real XHR object.
   PRPackedBool mOwnedByXHR;
 
@@ -194,7 +181,6 @@ protected:
   PRPackedBool mCanceled;
 
   PRPackedBool mSyncRequest;
-
 };
 
 #endif /* __NSDOMWORKERXHRPROXY_H__ */

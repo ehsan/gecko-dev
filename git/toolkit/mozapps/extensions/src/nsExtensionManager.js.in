@@ -2519,6 +2519,10 @@ ExtensionManager.prototype = {
    */
   observe: function EM_observe(subject, topic, data) {
     switch (topic) {
+    case "app-startup":
+      gOS.addObserver(this, "profile-after-change", false);
+      gOS.addObserver(this, "quit-application", false);
+      break;
     case "profile-after-change":
       this._profileSelected();
       break;
@@ -2527,6 +2531,10 @@ ExtensionManager.prototype = {
       break;
     case "offline-requested":
       this._confirmCancelDownloadsOnOffline(subject);
+      break;
+    case "quit-application":
+      gOS.removeObserver(this, "profile-after-change");
+      gOS.removeObserver(this, "quit-application");
       break;
     case "xpcom-shutdown":
       this._shutdown();
@@ -2680,11 +2688,9 @@ ExtensionManager.prototype = {
 
     // Release strongly held services.
     gOS = null;
-    if (this._ds) {
+    if (this._ptr && gRDF) {
       gRDF.UnregisterDataSource(this._ptr);
       this._ptr = null;
-      this._ds.shutdown();
-      this._ds = null;
     }
     gRDF = null;
     if (gPref) {
@@ -5939,7 +5945,7 @@ ExtensionManager.prototype = {
    */
   get datasource() {
     this._ensureDS();
-    return this._ds;
+    return this._ds.QueryInterface(Ci.nsIRDFDataSource);
   },
 
   // nsIClassInfo
@@ -5955,7 +5961,7 @@ ExtensionManager.prototype = {
   classDescription: "Extension Manager",
   contractID: "@mozilla.org/extensions/manager;1",
   classID: Components.ID("{8A115FAA-7DCB-4e8f-979B-5F53472F51CF}"),
-  _xpcom_categories: [{ category: "profile-after-change" }],
+  _xpcom_categories: [{ category: "app-startup", service: true }],
   _xpcom_factory: {
     createInstance: function(outer, iid) {
       if (outer != null)
@@ -7120,17 +7126,6 @@ ExtensionsDataSource.prototype = {
   _em       : null,
   _itemRoot     : null,
   _defaultTheme : null,
-
-  /**
-   * Called during application shutdown to clear any references held.
-   * The ExtensionsDataSource is unusable after calling this.
-   */
-  shutdown: function EMDS_shutdown() {
-    this._inner = null;
-    this._em = null;
-    this._itemRoot = null;
-    this._defaultTheme = null;
-  },
 
   /**
    * Determines if an item's dependencies are satisfied. An item's dependencies
@@ -8895,13 +8890,6 @@ ExtensionsDataSource.prototype = {
   FlushTo: function EMDS_FlushTo(uri) {
   },
 
-  classDescription: "Extension Manager Data Source",
-  contractID: "@mozilla.org/rdf/datasource;1?name=extensions",
-  classID: Components.ID("{69BB8313-2D4F-45EC-97E0-D39DA58ECCE9}"),
-  _xpcom_factory: {
-    createInstance: function() Cc[ExtensionManager.prototype.contractID].
-                               getService(Ci.nsIExtensionManager).datasource
-  },
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIRDFDataSource,
                                          Ci.nsIRDFRemoteDataSource])
 };
@@ -8972,8 +8960,20 @@ UpdateItem.prototype = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIUpdateItem])
 };
 
+function DatasourceModule() {}
+DatasourceModule.prototype = {
+  classDescription: "Extension Manager Data Source",
+  contractID: "@mozilla.org/rdf/datasource;1?name=extensions",
+  classID: Components.ID("{69BB8313-2D4F-45EC-97E0-D39DA58ECCE9}"),
+  _xpcom_factory: {
+    createInstance: function() Cc[ExtensionManager.prototype.contractID].
+                               getService(Ci.nsIExtensionManager).datasource
+  }
+};
+
+
 function NSGetModule(compMgr, fileSpec)
-  XPCOMUtils.generateModule([ExtensionManager, ExtensionsDataSource, UpdateItem]);
+  XPCOMUtils.generateModule([ExtensionManager, DatasourceModule, UpdateItem]);
 
 #if 0
 /**

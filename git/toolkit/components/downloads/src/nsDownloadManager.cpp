@@ -940,11 +940,13 @@ nsDownloadManager::AddDownloadToDB(const nsAString &aName,
 }
 
 nsresult
-nsDownloadManager::InitDB()
+nsDownloadManager::Init()
 {
-  nsresult rv = NS_OK;
-  PRBool doImport = PR_FALSE;
+  nsresult rv;
+  mObserverService = do_GetService("@mozilla.org/observer-service;1", &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
 
+  PRBool doImport = PR_FALSE;
   switch (mDBType) {
     case DATABASE_MEMORY:
       rv = InitMemoryDB();
@@ -963,35 +965,8 @@ nsDownloadManager::InitDB()
   if (doImport)
     ImportDownloadHistory();
 
-  rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
-    "UPDATE moz_downloads "
-    "SET tempPath = ?1, startTime = ?2, endTime = ?3, state = ?4, "
-        "referrer = ?5, entityID = ?6, currBytes = ?7, maxBytes = ?8, "
-        "autoResume = ?9 "
-    "WHERE id = ?10"), getter_AddRefs(mUpdateDownloadStatement));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
-    "SELECT id "
-    "FROM moz_downloads "
-    "WHERE source = ?1"), getter_AddRefs(mGetIdsForURIStatement));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return rv;
-}
-
-nsresult
-nsDownloadManager::Init()
-{
-  nsresult rv;
-  mObserverService = do_GetService("@mozilla.org/observer-service;1", &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
   nsCOMPtr<nsIStringBundleService> bundleService =
     do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = InitDB();
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = bundleService->CreateBundle(DOWNLOAD_MANAGER_BUNDLE,
@@ -1006,6 +981,20 @@ nsDownloadManager::Init()
   if (NS_FAILED(rv))
     mScanner = nsnull;
 #endif
+
+  rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
+    "UPDATE moz_downloads "
+    "SET tempPath = ?1, startTime = ?2, endTime = ?3, state = ?4, "
+        "referrer = ?5, entityID = ?6, currBytes = ?7, maxBytes = ?8, "
+        "autoResume = ?9 "
+    "WHERE id = ?10"), getter_AddRefs(mUpdateDownloadStatement));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
+    "SELECT id "
+    "FROM moz_downloads "
+    "WHERE source = ?1"), getter_AddRefs(mGetIdsForURIStatement));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // Do things *after* initializing various download manager properties such as
   // restoring downloads to a consistent state
@@ -1914,18 +1903,7 @@ nsDownloadManager::SwitchDatabaseTypeTo(enum nsDownloadManager::DatabaseType aTy
   (void)PauseAllDownloads(PR_TRUE);
   (void)RemoveAllDownloads();
 
-  nsresult rv = InitDB();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Do things *after* initializing various download manager properties such as
-  // restoring downloads to a consistent state
-  rv = RestoreDatabaseState();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = RestoreActiveDownloads();
-  NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Failed to restore all active downloads");
-
-  return rv;
+  return Init();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2914,10 +2892,7 @@ nsDownload::OpenWithApplication()
 #endif
   }
 
-  // Always schedule files to be deleted at the end of the private browsing
-  // mode, regardless of the value of the pref.
-  if (deleteTempFileOnExit ||
-      nsDownloadManager::gDownloadManagerService->mInPrivateBrowsing) {
+  if (deleteTempFileOnExit) {
     // Use the ExternalHelperAppService to push the temporary file to the list
     // of files to be deleted on exit.
     nsCOMPtr<nsPIExternalAppLauncher> appLauncher(do_GetService

@@ -666,6 +666,12 @@ new TestCase( SECTION,
 	      -"-Infinity" );
 
 new TestCase( SECTION,
+	      "-\"-infinity\"",
+	      NaN,
+	      -"-infinity" );
+
+
+new TestCase( SECTION,
 	      "-\"+Infinity\"",
 	      -Infinity,
 	      -"+Infinity" );
