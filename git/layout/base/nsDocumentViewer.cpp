@@ -617,7 +617,7 @@ nsDocumentViewer::SetContainer(nsIDocShell* aContainer)
 {
   mContainer = static_cast<nsDocShell*>(aContainer)->asWeakPtr();
   if (mPresContext) {
-    mPresContext->SetContainer(mContainer);
+    mPresContext->SetContainer(aContainer);
   }
 
   // We're loading a new document into the window where this document
@@ -887,7 +887,7 @@ nsDocumentViewer::InitInternal(nsIWidget* aParentWidget,
       requestor->GetInterface(NS_GET_IID(nsILinkHandler),
                               getter_AddRefs(linkHandler));
 
-      mPresContext->SetContainer(mContainer);
+      mPresContext->SetContainer(requestor);
       mPresContext->SetLinkHandler(linkHandler);
     }
 
@@ -1309,13 +1309,13 @@ AttachContainerRecurse(nsIDocShell* aShell)
     nsRefPtr<nsPresContext> pc;
     viewer->GetPresContext(getter_AddRefs(pc));
     if (pc) {
-      pc->SetContainer(static_cast<nsDocShell*>(aShell));
+      pc->SetContainer(aShell);
       pc->SetLinkHandler(nsCOMPtr<nsILinkHandler>(do_QueryInterface(aShell)));
     }
     nsCOMPtr<nsIPresShell> presShell;
     viewer->GetPresShell(getter_AddRefs(presShell));
     if (presShell) {
-      presShell->SetForwardingContainer(WeakPtr<nsDocShell>());
+      presShell->SetForwardingContainer(nullptr);
     }
   }
 
@@ -1343,7 +1343,7 @@ nsDocumentViewer::Open(nsISupports *aState, nsISHEntry *aSHEntry)
   mHidden = false;
 
   if (mPresShell)
-    mPresShell->SetForwardingContainer(WeakPtr<nsDocShell>());
+    mPresShell->SetForwardingContainer(nullptr);
 
   // Rehook the child presentations.  The child shells are still in
   // session history, so get them from there.
@@ -1469,8 +1469,7 @@ DetachContainerRecurse(nsIDocShell *aShell)
     nsCOMPtr<nsIPresShell> presShell;
     viewer->GetPresShell(getter_AddRefs(presShell));
     if (presShell) {
-      auto weakShell = static_cast<nsDocShell*>(aShell)->asWeakPtr();
-      presShell->SetForwardingContainer(weakShell);
+      presShell->SetForwardingContainer(nsWeakPtr(do_GetWeakReference(aShell)));
     }
   }
 
@@ -1591,7 +1590,9 @@ nsDocumentViewer::Destroy()
       mPresContext->SetContainer(nullptr);
     }
     if (mPresShell) {
-      mPresShell->SetForwardingContainer(mContainer);
+      nsWeakPtr container =
+        do_GetWeakReference(static_cast<nsIDocShell*>(mContainer));
+      mPresShell->SetForwardingContainer(container);
     }
 
     // Do the same for our children.  Note that we need to get the child
@@ -1992,7 +1993,7 @@ nsDocumentViewer::Show(void)
         mPresContext->SetLinkHandler(linkHandler);
       }
 
-      mPresContext->SetContainer(mContainer);
+      mPresContext->SetContainer(base_win);
     }
 
     if (mPresContext) {

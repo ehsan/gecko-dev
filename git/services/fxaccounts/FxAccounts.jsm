@@ -130,14 +130,6 @@ InternalMethods.prototype = {
     }
   },
 
-  signOut: function signOut() {
-    this.abortExistingFlow();
-    this.signedInUser = null; // clear in-memory cache
-    return this.signedInUserStorage.set(null).then(() => {
-      this.notifyObservers("fxaccounts:onlogout");
-    });
-  },
-
   /**
    * Fetch encryption keys for the signed-in-user from the FxA API server.
    *
@@ -590,7 +582,11 @@ this.FxAccounts.prototype = Object.freeze({
    *         The promise is rejected if a storage error occurs.
    */
   signOut: function signOut() {
-    return internal.signOut();
+    internal.abortExistingFlow();
+    internal.signedInUser = null; // clear in-memory cache
+    return internal.signedInUserStorage.set(null).then(() => {
+      internal.notifyObservers("fxaccounts:onlogout");
+    });
   },
 
   // Return the URI of the remote UI flows.

@@ -55,7 +55,6 @@
 #include "nsIWebBrowserFocus.h"
 #include "nsIWebBrowserSetup.h"
 #include "nsIWebProgress.h"
-#include "nsIXULRuntime.h"
 #include "nsInterfaceHashtable.h"
 #include "nsPIDOMWindow.h"
 #include "nsPIWindowRoot.h"
@@ -2315,8 +2314,8 @@ TabChild::InitRenderingState()
                                      false);
     }
 
-    // This state can't change during the lifetime of the child.
-    sCpowsEnabled = BrowserTabsRemote();
+    // This state can't really change during the lifetime of the child.
+    sCpowsEnabled = Preferences::GetBool("browser.tabs.remote", false);
     if (Preferences::GetBool("dom.ipc.cpows.force-enabled", false))
       sCpowsEnabled = true;
 

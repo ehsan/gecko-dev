@@ -2042,7 +2042,12 @@ XULDocument::StartLayout(void)
         if (! cx)
             return NS_ERROR_UNEXPECTED;
 
-        nsCOMPtr<nsIDocShell> docShell = cx->GetDocShell();
+        nsCOMPtr<nsISupports> container = cx->GetContainer();
+        NS_ASSERTION(container != nullptr, "pres context has no container");
+        if (! container)
+            return NS_ERROR_UNEXPECTED;
+
+        nsCOMPtr<nsIDocShell> docShell(do_QueryInterface(container));
         NS_ASSERTION(docShell != nullptr, "container is not a docshell");
         if (! docShell)
             return NS_ERROR_UNEXPECTED;

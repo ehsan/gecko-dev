@@ -49,8 +49,6 @@ from .reader import (
     SandboxValidationError,
 )
 
-from .gyp_reader import GypSandbox
-
 
 class TreeMetadataEmitter(LoggingMixin):
     """Converts the executed mozbuild files into data structures.
@@ -93,7 +91,7 @@ class TreeMetadataEmitter(LoggingMixin):
                     raise Exception('Unhandled object of type %s' % type(o))
 
         for out in output:
-            if isinstance(out, (MozbuildSandbox, GypSandbox)):
+            if isinstance(out, MozbuildSandbox):
                 # Keep all sandboxes around, we will need them later.
                 sandboxes[out['OBJDIR']] = out
 
@@ -109,7 +107,7 @@ class TreeMetadataEmitter(LoggingMixin):
                 sandbox_execution_time += out.execution_time
 
             else:
-                raise Exception('Unhandled output type: %s' % type(out))
+                raise Exception('Unhandled output type: %s' % out)
 
         start = time.time()
         objs = list(self._emit_libs_derived(sandboxes))
@@ -211,8 +209,6 @@ class TreeMetadataEmitter(LoggingMixin):
             ANDROID_RES_DIRS='ANDROID_RES_DIRS',
             CPP_UNIT_TESTS='CPP_UNIT_TESTS',
             EXPORT_LIBRARY='EXPORT_LIBRARY',
-            EXTRA_ASSEMBLER_FLAGS='EXTRA_ASSEMBLER_FLAGS',
-            EXTRA_COMPILE_FLAGS='EXTRA_COMPILE_FLAGS',
             EXTRA_COMPONENTS='EXTRA_COMPONENTS',
             EXTRA_JS_MODULES='EXTRA_JS_MODULES',
             EXTRA_PP_COMPONENTS='EXTRA_PP_COMPONENTS',
@@ -224,7 +220,6 @@ class TreeMetadataEmitter(LoggingMixin):
             GENERATED_FILES='GENERATED_FILES',
             HOST_LIBRARY_NAME='HOST_LIBRARY_NAME',
             IS_COMPONENT='IS_COMPONENT',
-            IS_GYP_DIR='IS_GYP_DIR',
             JS_MODULES_PATH='JS_MODULES_PATH',
             LIBS='LIBS',
             LIBXUL_LIBRARY='LIBXUL_LIBRARY',
@@ -234,7 +229,7 @@ class TreeMetadataEmitter(LoggingMixin):
             SDK_LIBRARY='SDK_LIBRARY',
         )
         for mak, moz in varmap.items():
-            if moz in sandbox and sandbox[moz]:
+            if sandbox[moz]:
                 passthru.variables[mak] = sandbox[moz]
 
         # NO_VISIBILITY_FLAGS is slightly different
@@ -495,6 +490,8 @@ class TreeMetadataEmitter(LoggingMixin):
         o.tool_dirs = sandbox.get('TOOL_DIRS', [])
         o.test_dirs = sandbox.get('TEST_DIRS', [])
         o.test_tool_dirs = sandbox.get('TEST_TOOL_DIRS', [])
+        o.external_make_dirs = sandbox.get('EXTERNAL_MAKE_DIRS', [])
+        o.parallel_external_make_dirs = sandbox.get('PARALLEL_EXTERNAL_MAKE_DIRS', [])
         o.is_tool_dir = sandbox.get('IS_TOOL_DIR', False)
         o.affected_tiers = sandbox.get_affected_tiers()
 

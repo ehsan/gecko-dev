@@ -109,12 +109,6 @@ PathBuilderSkia::Finish()
   return path;
 }
 
-void
-PathBuilderSkia::AppendPath(const SkPath &aPath)
-{
-  mPath.addPath(aPath);
-}
-
 TemporaryRef<PathBuilder>
 PathSkia::CopyToBuilder(FillRule aFillRule) const
 {

@@ -29,7 +29,7 @@
 #include "nsBoxLayoutState.h"
 #include "nsIScrollableFrame.h"
 #include "nsIRootBox.h"
-#include "nsIDocShell.h"
+#include "nsIDocShellTreeItem.h"
 #include "nsReadableUtils.h"
 #include "nsUnicharUtils.h"
 #include "nsLayoutUtils.h"
@@ -147,7 +147,8 @@ nsMenuPopupFrame::Init(nsIContent*      aContent,
     mIsDragPopup = true;
   }
 
-  nsCOMPtr<nsIDocShellTreeItem> dsti = PresContext()->GetDocShell();
+  nsCOMPtr<nsISupports> cont = PresContext()->GetContainer();
+  nsCOMPtr<nsIDocShellTreeItem> dsti = do_QueryInterface(cont);
   int32_t type = -1;
   if (dsti && NS_SUCCEEDED(dsti->GetItemType(&type)) &&
       type == nsIDocShellTreeItem::typeChrome)
@@ -279,7 +280,8 @@ nsMenuPopupFrame::CreateWidgetForView(nsView* aView)
   // should be in front of it.
   nsCOMPtr<nsIWidget> parentWidget;
   if (widgetData.mPopupLevel != ePopupLevelTop) {
-    nsCOMPtr<nsIDocShellTreeItem> dsti = PresContext()->GetDocShell();
+    nsCOMPtr<nsISupports> cont = PresContext()->GetContainer();
+    nsCOMPtr<nsIDocShellTreeItem> dsti = do_QueryInterface(cont);
     if (!dsti)
       return NS_ERROR_FAILURE;
 

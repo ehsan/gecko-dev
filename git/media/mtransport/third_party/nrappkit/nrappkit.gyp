@@ -22,6 +22,9 @@
 	      'src/stats',
 	      'src/util',
 	      'src/util/libekr',
+
+	      # Mozilla, hopefully towards the end
+             '$(DEPTH)/dist/include',
           ],
 
           'sources' : [

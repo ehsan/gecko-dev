@@ -518,32 +518,29 @@ Tooltip.prototype = {
     }
     vbox.appendChild(image);
 
-    // Dimension label
+    // Temporary label during image load
     let label = this.doc.createElement("label");
     label.classList.add("devtools-tooltip-caption");
     label.classList.add("theme-comment");
-    if (options.naturalWidth && options.naturalHeight) {
-      label.textContent = this._getImageDimensionLabel(options.naturalWidth,
-        options.naturalHeight);
-      this.setSize(vbox.width, vbox.height);
-    } else {
-      // If no dimensions were provided, load the image to get them
-      label.textContent = l10n.strings.GetStringFromName("previewTooltip.image.brokenImage");
-      let imgObj = new this.doc.defaultView.Image();
-      imgObj.src = imageUrl;
-      imgObj.onload = () => {
-        imgObj.onload = null;
-        label.textContent = this._getImageDimensionLabel(imgObj.naturalWidth,
-          imgObj.naturalHeight);
-        this.setSize(vbox.width, vbox.height);
-      }
-    }
+    label.textContent = l10n.strings.GetStringFromName("previewTooltip.image.brokenImage");
     vbox.appendChild(label);
 
     this.content = vbox;
-  },
 
-  _getImageDimensionLabel: (w, h) => w + " x " + h,
+    // Load the image to get dimensions and display it when done
+    let imgObj = new this.doc.defaultView.Image();
+    imgObj.src = imageUrl;
+    imgObj.onload = () => {
+      imgObj.onload = null;
+
+      // Display dimensions
+      let w = options.naturalWidth || imgObj.naturalWidth;
+      let h = options.naturalHeight || imgObj.naturalHeight;
+      label.textContent = w + " x " + h;
+
+      this.setSize(vbox.width, vbox.height);
+    }
+  },
 
   /**
    * Exactly the same as the `image` function but takes a css background image

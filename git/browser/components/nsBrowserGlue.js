@@ -481,7 +481,7 @@ BrowserGlue.prototype = {
     SessionStore.init();
     BrowserUITelemetry.init();
 
-    if (Services.appinfo.browserTabsRemote)
+    if (Services.prefs.getBoolPref("browser.tabs.remote"))
       ContentClick.init();
 
     Services.obs.notifyObservers(null, "browser-ui-startup-complete", "");

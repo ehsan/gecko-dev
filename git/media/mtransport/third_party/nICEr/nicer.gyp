@@ -34,6 +34,9 @@
               "./src/net",
               "./src/stun",
               "./src/util",
+
+	      # Mozilla, hopefully towards the end
+             '$(DEPTH)/dist/include',
           ],
 
           'sources' : [

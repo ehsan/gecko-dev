@@ -559,9 +559,6 @@ public:
   void PassNullableUnionWithDefaultValue11(const Nullable<UnrestrictedFloatOrString>& arg);
   void PassNullableUnionWithDefaultValue12(const Nullable<UnrestrictedFloatOrString>& arg);
 
-  void PassSequenceOfUnions(const Sequence<OwningCanvasPatternOrCanvasGradient>&);
-  void PassVariadicUnion(const Sequence<OwningCanvasPatternOrCanvasGradient>&);
-
   void ReceiveUnion(OwningCanvasPatternOrCanvasGradient&);
   void ReceiveUnion2(JSContext*, OwningObjectOrLong&);
   void ReceiveUnionContainingNull(OwningCanvasPatternOrNullOrCanvasGradient&);

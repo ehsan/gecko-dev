@@ -1124,9 +1124,7 @@ void CreateAnswer(sipcc::MediaConstraints& constraints, std::string offer,
       return nullptr;
     }
 
-    const auto &pipelines = streamInfo->GetPipelines();
-    auto it = pipelines.find(track);
-    return (it == pipelines.end())? nullptr : it->second;
+    return streamInfo->GetPipeline(track);
   }
 
   void CheckMediaPipeline(int stream, int track, uint32_t flags,

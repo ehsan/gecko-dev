@@ -6183,8 +6183,7 @@ nsDocument::DoNotifyPossibleTitleChange()
 
   nsCOMPtr<nsIPresShell> shell = GetShell();
   if (shell) {
-    nsCOMPtr<nsISupports> container =
-      shell->GetPresContext()->GetContainerWeak();
+    nsCOMPtr<nsISupports> container = shell->GetPresContext()->GetContainer();
     if (container) {
       nsCOMPtr<nsIBaseWindow> docShellWin = do_QueryInterface(container);
       if (docShellWin) {

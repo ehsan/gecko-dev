@@ -13,7 +13,6 @@
 
 #include "mozilla/IHistory.h"
 #include "mozilla/MemoryReporting.h"
-#include "mozilla/dom/URLSearchParams.h"
 #include "nsEventStates.h"
 #include "nsIContent.h"
 
@@ -26,7 +25,7 @@ class Element;
 { 0xb25edee6, 0xdd35, 0x4f8b,                             \
   { 0xab, 0x90, 0x66, 0xd0, 0xbd, 0x3c, 0x22, 0xd5 } }
 
-class Link : public URLSearchParamsObserver
+class Link : public nsISupports
 {
 public:
   NS_DECLARE_STATIC_IID_ACCESSOR(MOZILLA_DOM_LINK_IMPLEMENTATION_IID)
@@ -62,7 +61,6 @@ public:
   void SetHostname(const nsAString &aHostname);
   void SetPathname(const nsAString &aPathname);
   void SetSearch(const nsAString &aSearch);
-  void SetSearchParams(mozilla::dom::URLSearchParams* aSearchParams);
   void SetPort(const nsAString &aPort);
   void SetHash(const nsAString &aHash);
   void GetOrigin(nsAString &aOrigin);
@@ -73,7 +71,6 @@ public:
   void GetHostname(nsAString &_hostname);
   void GetPathname(nsAString &_pathname);
   void GetSearch(nsAString &_search);
-  URLSearchParams* GetSearchParams();
   void GetPort(nsAString &_port);
   void GetHash(nsAString &_hash);
 
@@ -112,10 +109,6 @@ public:
 
   bool ElementHasHref() const;
 
-  // URLSearchParamsObserver
-  void URLSearchParamsUpdated() MOZ_OVERRIDE;
-  void URLSearchParamsNeedsUpdates() MOZ_OVERRIDE;
-
 protected:
   virtual ~Link();
 
@@ -134,10 +127,6 @@ protected:
   nsIURI* GetCachedURI() const { return mCachedURI; }
   bool HasCachedURI() const { return !!mCachedURI; }
 
-  // CC methods
-  void Unlink();
-  void Traverse(nsCycleCollectionTraversalCallback &cb);
-
 private:
   /**
    * Unregisters from History so this node no longer gets notifications about
@@ -147,10 +136,6 @@ private:
 
   already_AddRefed<nsIURI> GetURIToMutate();
   void SetHrefAttribute(nsIURI *aURI);
-
-  void CreateSearchParamsIfNeeded();
-
-  void SetSearchInternal(const nsAString& aSearch);
 
   mutable nsCOMPtr<nsIURI> mCachedURI;
 
@@ -165,9 +150,6 @@ private:
   bool mNeedsRegistration;
 
   bool mRegistered;
-
-protected:
-  nsRefPtr<URLSearchParams> mSearchParams;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(Link, MOZILLA_DOM_LINK_IMPLEMENTATION_IID)

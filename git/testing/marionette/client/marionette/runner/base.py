@@ -634,14 +634,12 @@ class BaseMarionetteTestRunner(object):
                                              logcat_dir=self.logcat_dir,
                                              gecko_path=self.gecko_path,
                                              symbols_path=self.symbols_path,
-                                             timeout=self.timeout,
-                                             device_serial=self.device_serial)
+                                             timeout=self.timeout)
             else:
                 self.marionette = Marionette(host=host,
                                              port=int(port),
                                              baseurl=self.baseurl,
-                                             timeout=self.timeout,
-                                             device_serial=self.device_serial)
+                                             timeout=self.timeout)
         elif self.emulator:
             self.marionette = Marionette.getMarionetteOrExit(
                                          emulator=self.emulator,
@@ -655,8 +653,7 @@ class BaseMarionetteTestRunner(object):
                                          gecko_path=self.gecko_path,
                                          symbols_path=self.symbols_path,
                                          timeout=self.timeout,
-                                         sdcard=self.sdcard,
-                                         device_serial=self.device_serial)
+                                         sdcard=self.sdcard)
         else:
             raise Exception("must specify binary, address or emulator")
 

@@ -742,7 +742,7 @@ var gBrowserInit = {
   delayedStartupFinished: false,
 
   onLoad: function() {
-    gMultiProcessBrowser = Services.appinfo.browserTabsRemote;
+    gMultiProcessBrowser = gPrefService.getBoolPref("browser.tabs.remote");
 
     var mustLoadSidebar = false;
 
@@ -2936,29 +2936,27 @@ const BrowserSearch = {
 
     let searchBar = this.searchBar;
     let placement = CustomizableUI.getPlacementOfWidget("search-container");
-    let focusSearchBar = () => {
-      searchBar = this.searchBar;
-      searchBar.select();
-      openSearchPageIfFieldIsNotActive(searchBar);
-    };
     if (placement && placement.area == CustomizableUI.AREA_PANEL) {
       PanelUI.show().then(() => {
         // The panel is not constructed until the first time it is shown.
-        focusSearchBar();
+        searchBar = this.searchBar;
+        searchBar.select();
+        openSearchPageIfFieldIsNotActive(searchBar);
       });
       return;
-    }
-    if (placement.area == CustomizableUI.AREA_NAVBAR && searchBar &&
-        searchBar.parentNode.classList.contains("overflowedItem")) {
+    } else if (placement.area == CustomizableUI.AREA_NAVBAR && searchBar &&
+               searchBar.parentNode.classList.contains("overflowedItem")) {
       let navBar = document.getElementById(CustomizableUI.AREA_NAVBAR);
       navBar.overflowable.show().then(() => {
-        focusSearchBar();
+        // The searchBar gets moved when the overflow panel opens.
+        searchBar = this.searchBar;
+        searchBar.select();
+        openSearchPageIfFieldIsNotActive(searchBar);
       });
       return;
     }
-    if (searchBar) {
-      if (window.fullScreen)
-        FullScreen.mouseoverToggle(true);
+    if (searchBar && window.fullScreen) {
+      FullScreen.mouseoverToggle(true);
       searchBar.select();
     }
     openSearchPageIfFieldIsNotActive(searchBar);

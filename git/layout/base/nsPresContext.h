@@ -9,7 +9,6 @@
 #define nsPresContext_h___
 
 #include "mozilla/Attributes.h"
-#include "mozilla/WeakPtr.h"
 #include "nsColor.h"
 #include "nsCoord.h"
 #include "nsCOMPtr.h"
@@ -43,8 +42,6 @@ class nsBidiPresUtils;
 
 class nsAString;
 class nsIPrintSettings;
-class nsDocShell;
-class nsIDocShell;
 class nsIDocument;
 class nsILanguageAtomService;
 class nsITheme;
@@ -413,19 +410,17 @@ public:
   bool GetFocusRingOnAnything() const { return mFocusRingOnAnything; }
   uint8_t GetFocusRingStyle() const { return mFocusRingStyle; }
 
-  NS_HIDDEN_(void) SetContainer(nsIDocShell* aContainer);
+  NS_HIDDEN_(void) SetContainer(nsISupports* aContainer);
 
-  virtual nsISupports* GetContainerWeakExternal() const;
-  nsISupports* GetContainerWeakInternal() const;
+  virtual NS_HIDDEN_(already_AddRefed<nsISupports>) GetContainerExternal() const;
+  NS_HIDDEN_(already_AddRefed<nsISupports>) GetContainerInternal() const;
 #ifdef MOZILLA_INTERNAL_API
-  nsISupports* GetContainerWeak() const
-  { return GetContainerWeakInternal(); }
+  already_AddRefed<nsISupports> GetContainer() const
+  { return GetContainerInternal(); }
 #else
-  nsISupports* GetContainerWeak() const
-  { return GetContainerWeakExternal(); }
+  already_AddRefed<nsISupports> GetContainer() const
+  { return GetContainerExternal(); }
 #endif
-
-  nsIDocShell* GetDocShell() const;
 
   // XXX this are going to be replaced with set/get container
   void SetLinkHandler(nsILinkHandler* aHandler) { mLinkHandler = aHandler; }
@@ -1176,7 +1171,7 @@ public:
 
 protected:
 
-  mozilla::WeakPtr<nsDocShell>             mContainer;
+  nsWeakPtr             mContainer;
 
   PRCList               mDOMMediaQueryLists;
 

@@ -63,7 +63,7 @@ nsDOMUIEvent::nsDOMUIEvent(mozilla::dom::EventTarget* aOwner,
   mView = nullptr;
   if (mPresContext)
   {
-    nsISupports* container = mPresContext->GetContainerWeak();
+    nsCOMPtr<nsISupports> container = mPresContext->GetContainer();
     if (container)
     {
        nsCOMPtr<nsIDOMWindow> window = do_GetInterface(container);

@@ -692,7 +692,7 @@ getRoleCB(AtkObject *aAtkObj)
   return aAtkObj->role;
 }
 
-static AtkAttributeSet*
+AtkAttributeSet*
 ConvertToAtkAttributeSet(nsIPersistentProperties* aAttributes)
 {
     if (!aAttributes)

@@ -62,7 +62,6 @@ EXPORTS.mozilla.dom += [
     'ScriptSettings.h',
     'StructuredCloneTags.h',
     'URL.h',
-    'URLSearchParams.h',
 ]
 
 UNIFIED_SOURCES += [
@@ -98,7 +97,6 @@ UNIFIED_SOURCES += [
     'nsWrapperCache.cpp',
     'ScriptSettings.cpp',
     'URL.cpp',
-    'URLSearchParams.cpp',
     'WindowNamedPropertiesHandler.cpp',
 ]
 

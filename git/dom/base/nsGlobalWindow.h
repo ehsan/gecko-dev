@@ -946,9 +946,6 @@ public:
   JSObject* GetContent(JSContext* aCx, mozilla::ErrorResult& aError);
   JSObject* Get_content(JSContext* aCx, mozilla::ErrorResult& aError)
   {
-    if (mDoc) {
-      mDoc->WarnOnceAbout(nsIDocument::eWindow_Content);
-    }
     return GetContent(aCx, aError);
   }
 

@@ -325,7 +325,8 @@ MaybeReflowForInflationScreenWidthChange(nsPresContext *aPresContext)
     changed = changed ||
       (fontInflationWasEnabled != presShell->FontSizeInflationEnabled());
     if (changed) {
-      nsCOMPtr<nsIDocShell> docShell = aPresContext->GetDocShell();
+      nsCOMPtr<nsISupports> container = aPresContext->GetContainer();
+      nsCOMPtr<nsIDocShell> docShell = do_QueryInterface(container);
       if (docShell) {
         nsCOMPtr<nsIContentViewer> cv;
         docShell->GetContentViewer(getter_AddRefs(cv));

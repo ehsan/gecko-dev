@@ -6581,7 +6581,8 @@ nsContentUtils::GetSelectionInTextControl(Selection* aSelection,
 nsIEditor*
 nsContentUtils::GetHTMLEditor(nsPresContext* aPresContext)
 {
-  nsCOMPtr<nsIDocShell> docShell(aPresContext->GetDocShell());
+  nsCOMPtr<nsISupports> container = aPresContext->GetContainer();
+  nsCOMPtr<nsIDocShell> docShell(do_QueryInterface(container));
   bool isEditable;
   if (!docShell ||
       NS_FAILED(docShell->GetEditable(&isEditable)) || !isEditable)

@@ -20,8 +20,6 @@
 #include "vm/Shape-inl.h"
 
 using namespace js;
-
-using mozilla::DebugOnly;
 using js::frontend::TokenStream;
 
 JS_STATIC_ASSERT(IgnoreCaseFlag == JSREG_FOLD);
@@ -632,46 +630,13 @@ RegExpShared::executeMatchOnly(JSContext *cx, const jschar *chars, size_t length
 /* RegExpCompartment */
 
 RegExpCompartment::RegExpCompartment(JSRuntime *rt)
-  : map_(rt), inUse_(rt), matchResultTemplateObject_(nullptr)
+  : map_(rt), inUse_(rt)
 {}
 
 RegExpCompartment::~RegExpCompartment()
 {
     JS_ASSERT(map_.empty());
     JS_ASSERT(inUse_.empty());
-}
-
-HeapPtrObject &
-RegExpCompartment::getOrCreateMatchResultTemplateObject(JSContext *cx)
-{
-    if (matchResultTemplateObject_)
-        return matchResultTemplateObject_;
-
-    /* Create template array object */
-    RootedObject templateObject(cx, NewDenseUnallocatedArray(cx, 0, nullptr, TenuredObject));
-
-    /* Set dummy index property */
-    RootedValue index(cx, Int32Value(0));
-    if (!baseops::DefineProperty(cx, templateObject, cx->names().index, index,
-                                 JS_PropertyStub, JS_StrictPropertyStub, JSPROP_ENUMERATE))
-        return matchResultTemplateObject_; // = nullptr
-
-    /* Set dummy input property */
-    RootedValue inputVal(cx, StringValue(cx->runtime()->emptyString));
-    if (!baseops::DefineProperty(cx, templateObject, cx->names().input, inputVal,
-                                 JS_PropertyStub, JS_StrictPropertyStub, JSPROP_ENUMERATE))
-        return matchResultTemplateObject_; // = nullptr
-
-    // Make sure that the properties are in the right slots.
-    DebugOnly<Shape *> shape = templateObject->lastProperty();
-    JS_ASSERT(shape->previous()->slot() == 0 &&
-              shape->previous()->propidRef() == NameToId(cx->names().index));
-    JS_ASSERT(shape->slot() == 1 &&
-              shape->propidRef() == NameToId(cx->names().input));
-
-    matchResultTemplateObject_ = templateObject;
-
-    return matchResultTemplateObject_;
 }
 
 bool
@@ -704,8 +669,6 @@ RegExpCompartment::sweep(JSRuntime *rt)
             e.removeFront();
         }
     }
-
-    matchResultTemplateObject_ = nullptr;
 }
 
 void

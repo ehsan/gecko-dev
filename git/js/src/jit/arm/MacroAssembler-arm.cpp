@@ -74,10 +74,9 @@ MacroAssemblerARM::convertUInt32ToFloat32(const Register &src, const FloatRegist
     as_vcvt(VFPRegister(dest).singleOverlay(), dest.uintOverlay());
 }
 
-void MacroAssemblerARM::convertDoubleToFloat(const FloatRegister &src, const FloatRegister &dest,
-                                             Condition c)
+void MacroAssemblerARM::convertDoubleToFloat(const FloatRegister &src, const FloatRegister &dest)
 {
-    as_vcvt(VFPRegister(dest).singleOverlay(), VFPRegister(src), false, c);
+    as_vcvt(VFPRegister(dest).singleOverlay(), VFPRegister(src));
 }
 
 // there are two options for implementing emitTruncateDouble.

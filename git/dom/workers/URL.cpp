@@ -19,7 +19,6 @@
 
 #include "mozilla/dom/URL.h"
 #include "mozilla/dom/URLBinding.h"
-#include "mozilla/dom/URLSearchParams.h"
 #include "nsIIOService.h"
 #include "nsNetCID.h"
 
@@ -537,17 +536,6 @@ private:
   mozilla::ErrorResult& mRv;
 };
 
-NS_IMPL_CYCLE_COLLECTION_1(URL, mSearchParams)
-
-// The reason for using worker::URL is to have different refcnt logging than
-// for main thread URL.
-NS_IMPL_CYCLE_COLLECTING_ADDREF(workers::URL)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(workers::URL)
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(URL)
-  NS_INTERFACE_MAP_ENTRY(nsISupports)
-NS_INTERFACE_MAP_END
-
 // static
 URL*
 URL::Constructor(const GlobalObject& aGlobal, const nsAString& aUrl,
@@ -618,9 +606,10 @@ URL::~URL()
 }
 
 JSObject*
-URL::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
+URL::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope,
+                bool* aTookOwnership)
 {
-  return URLBinding_workers::Wrap(aCx, aScope, this);
+  return URLBinding_workers::Wrap(aCx, aScope, this, aTookOwnership);
 }
 
 void
@@ -644,10 +633,6 @@ URL::SetHref(const nsAString& aHref, ErrorResult& aRv)
 
   if (!runnable->Dispatch(mWorkerPrivate->GetJSContext())) {
     JS_ReportPendingException(mWorkerPrivate->GetJSContext());
-  }
-
-  if (mSearchParams) {
-    mSearchParams->Invalidate();
   }
 }
 
@@ -853,16 +838,6 @@ URL::GetSearch(nsString& aSearch) const
 void
 URL::SetSearch(const nsAString& aSearch)
 {
-  SetSearchInternal(aSearch);
-
-  if (mSearchParams) {
-    mSearchParams->Invalidate();
-  }
-}
-
-void
-URL::SetSearchInternal(const nsAString& aSearch)
-{
   ErrorResult rv;
   nsRefPtr<SetterRunnable> runnable =
     new SetterRunnable(mWorkerPrivate, SetterRunnable::SetterSearch,
@@ -871,36 +846,6 @@ URL::SetSearchInternal(const nsAString& aSearch)
   if (!runnable->Dispatch(mWorkerPrivate->GetJSContext())) {
     JS_ReportPendingException(mWorkerPrivate->GetJSContext());
   }
-}
-
-mozilla::dom::URLSearchParams*
-URL::GetSearchParams()
-{
-  CreateSearchParamsIfNeeded();
-  return mSearchParams;
-}
-
-void
-URL::SetSearchParams(URLSearchParams* aSearchParams)
-{
-  if (!aSearchParams) {
-    return;
-  }
-
-  if (!aSearchParams->HasURLAssociated()) {
-    MOZ_ASSERT(aSearchParams->IsValid());
-
-    mSearchParams = aSearchParams;
-    mSearchParams->SetObserver(this);
-  } else {
-    CreateSearchParamsIfNeeded();
-    mSearchParams->CopyFromURLSearchParams(*aSearchParams);
-  }
-
-
-  nsString search;
-  mSearchParams->Serialize(search);
-  SetSearchInternal(search);
 }
 
 void
@@ -976,36 +921,6 @@ URL::RevokeObjectURL(const GlobalObject& aGlobal, const nsAString& aUrl)
 
   if (!runnable->Dispatch(cx)) {
     JS_ReportPendingException(cx);
-  }
-}
-
-void
-URL::URLSearchParamsUpdated()
-{
-  MOZ_ASSERT(mSearchParams && mSearchParams->IsValid());
-
-  nsString search;
-  mSearchParams->Serialize(search);
-  SetSearchInternal(search);
-}
-
-void
-URL::URLSearchParamsNeedsUpdates()
-{
-  MOZ_ASSERT(mSearchParams);
-
-  nsString search;
-  GetSearch(search);
-  mSearchParams->ParseInput(NS_ConvertUTF16toUTF8(Substring(search, 1)));
-}
-
-void
-URL::CreateSearchParamsIfNeeded()
-{
-  if (!mSearchParams) {
-    mSearchParams = new URLSearchParams();
-    mSearchParams->SetObserver(this);
-    mSearchParams->Invalidate();
   }
 }
 

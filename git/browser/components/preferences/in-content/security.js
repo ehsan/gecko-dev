@@ -57,7 +57,7 @@ var gSecurityPane = {
 
     openDialog("chrome://browser/content/preferences/permissions.xul",
                "Browser:Permissions",
-               "modal=yes",
+               "model=yes",
                params);
   },
 
@@ -111,7 +111,7 @@ var gSecurityPane = {
   {
     openDialog("chrome://passwordmgr/content/passwordManagerExceptions.xul",
                "Toolkit:PasswordManagerExceptions",
-               "modal=yes",
+               "model=yes",
                null);
   },
 

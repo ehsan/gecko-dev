@@ -22,7 +22,6 @@
 
 #include "mozilla/EventForwards.h"
 #include "mozilla/MemoryReporting.h"
-#include "mozilla/WeakPtr.h"
 #include "gfxPoint.h"
 #include "nsTHashtable.h"
 #include "nsHashKeys.h"
@@ -43,7 +42,6 @@
 #include "nsMargin.h"
 
 class nsIContent;
-class nsDocShell;
 class nsIDocument;
 class nsIFrame;
 class nsPresContext;
@@ -958,7 +956,7 @@ public:
    * user events at the docshell's parent.  This pointer allows us to do that.
    * It should not be used for any other purpose.
    */
-  void SetForwardingContainer(const mozilla::WeakPtr<nsDocShell> &aContainer)
+  void SetForwardingContainer(nsWeakPtr aContainer)
   {
     mForwardingContainer = aContainer;
   }
@@ -1510,7 +1508,7 @@ protected:
   // Pointer into mFrameConstructor - this is purely so that FrameManager() and
   // GetRootFrame() can be inlined:
   nsFrameManagerBase*       mFrameManager;
-  mozilla::WeakPtr<nsDocShell>                 mForwardingContainer;
+  nsWeakPtr                 mForwardingContainer;
   nsRefreshDriver*          mHiddenInvalidationObserverRefreshDriver;
 #ifdef ACCESSIBILITY
   mozilla::a11y::DocAccessible* mDocAccessible;

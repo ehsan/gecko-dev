@@ -17,4 +17,3 @@ moztreedocs.pth:tools/docs
 copy:build/buildconfig.py
 packages.txt:testing/mozbase/packages.txt
 objdir:build
-gyp.pth:media/webrtc/trunk/tools/gyp/pylib

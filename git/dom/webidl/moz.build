@@ -407,7 +407,6 @@ WEBIDL_FILES = [
     'UIEvent.webidl',
     'UndoManager.webidl',
     'URL.webidl',
-    'URLSearchParams.webidl',
     'URLUtils.webidl',
     'URLUtilsReadOnly.webidl',
     'ValidityState.webidl',

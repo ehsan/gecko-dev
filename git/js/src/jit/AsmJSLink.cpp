@@ -70,17 +70,10 @@ ValidateGlobalVariable(JSContext *cx, const AsmJSModule &module, AsmJSModule::Gl
     switch (global.varInitKind()) {
       case AsmJSModule::Global::InitConstant: {
         const Value &v = global.varInitConstant();
-        switch (global.varInitCoercion()) {
-          case AsmJS_ToInt32:
+        if (v.isInt32())
             *(int32_t *)datum = v.toInt32();
-            break;
-          case AsmJS_ToNumber:
+        else
             *(double *)datum = v.toDouble();
-            break;
-          case AsmJS_FRound:
-            *(float *)datum = static_cast<float>(v.toDouble());
-            break;
-        }
         break;
       }
       case AsmJSModule::Global::InitImport: {
@@ -89,17 +82,13 @@ ValidateGlobalVariable(JSContext *cx, const AsmJSModule &module, AsmJSModule::Gl
         if (!GetDataProperty(cx, importVal, field, &v))
             return false;
 
-        switch (global.varInitCoercion()) {
+        switch (global.varImportCoercion()) {
           case AsmJS_ToInt32:
             if (!ToInt32(cx, v, (int32_t *)datum))
                 return false;
             break;
           case AsmJS_ToNumber:
             if (!ToNumber(cx, v, (double *)datum))
-                return false;
-            break;
-          case AsmJS_FRound:
-            if (!RoundFloat32(cx, v, (float *)datum))
                 return false;
             break;
         }
@@ -168,7 +157,6 @@ ValidateMathBuiltin(JSContext *cx, AsmJSModule::Global &global, HandleValue glob
       case AsmJSMathBuiltin_abs: native = js_math_abs; break;
       case AsmJSMathBuiltin_atan2: native = math_atan2; break;
       case AsmJSMathBuiltin_imul: native = math_imul; break;
-      case AsmJSMathBuiltin_fround: native = math_fround; break;
     }
 
     if (!IsNativeFunction(v, native))
@@ -374,10 +362,6 @@ CallAsmJS(JSContext *cx, unsigned argc, Value *vp)
             break;
           case AsmJS_ToNumber:
             if (!ToNumber(cx, v, (double*)&coercedArgs[i]))
-                return false;
-            break;
-          case AsmJS_FRound:
-            if (!RoundFloat32(cx, v, (float *)&coercedArgs[i]))
                 return false;
             break;
         }

@@ -1466,7 +1466,8 @@ nsXULPopupManager::MayShowPopup(nsMenuPopupFrame* aPopup)
   if (widget && widget->GetLastRollup() == aPopup->GetContent())
       return false;
 
-  nsCOMPtr<nsIDocShellTreeItem> dsti = aPopup->PresContext()->GetDocShell();
+  nsCOMPtr<nsISupports> cont = aPopup->PresContext()->GetContainer();
+  nsCOMPtr<nsIDocShellTreeItem> dsti = do_QueryInterface(cont);
   nsCOMPtr<nsIBaseWindow> baseWin = do_QueryInterface(dsti);
   if (!baseWin)
     return false;
