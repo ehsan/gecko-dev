@@ -6,7 +6,7 @@
 const DEFAULT_DETAILS_SUBVIEW = "waterfall";
 
 /**
- * Details view containing profiler call tree and markers waterfall. Manages
+ * Details view containing profiler call tree. Manages
  * subviews and toggles visibility between them.
  */
 let DetailsView = {

@@ -136,7 +136,8 @@ BackgroundChildImpl::DeallocPBackgroundTestChild(PBackgroundTestChild* aActor)
 }
 
 BackgroundChildImpl::PBackgroundIDBFactoryChild*
-BackgroundChildImpl::AllocPBackgroundIDBFactoryChild()
+BackgroundChildImpl::AllocPBackgroundIDBFactoryChild(
+                                      const OptionalWindowId& aOptionalWindowId)
 {
   MOZ_CRASH("PBackgroundIDBFactoryChild actors should be manually "
             "constructed!");

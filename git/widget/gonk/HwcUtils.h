@@ -76,10 +76,8 @@ static bool CalculateClipRect(const gfx::Matrix& aTransform,
  *
  * @param aVisible Input. Layer's unclipped visible region
  *        The origin is the top-left corner of the layer
- * @param aLayerTransform Input. Layer's transformation matrix
+ * @param aTransform Input. Layer's transformation matrix
  *        It transforms from layer space to screen space
- * @param aLayerBufferTransform Input. Layer buffer's transformation matrix
- *        It transforms from layer buffer's space to screen space
  * @param aClip Input. A clipping rectangle.
  *        The origin is the top-left corner of the screen
  * @param aBufferRect Input. The layer's buffer bounds
@@ -90,8 +88,7 @@ static bool CalculateClipRect(const gfx::Matrix& aTransform,
  *         false if the layer can be skipped
  */
 static bool PrepareVisibleRegion(const nsIntRegion& aVisible,
-                                 const gfx::Matrix& aLayerTransform,
-                                 const gfx::Matrix& aLayerBufferTransform,
+                                 const gfx::Matrix& aTransform,
                                  nsIntRect aClip, nsIntRect aBufferRect,
                                  RectVector* aVisibleRegionScreen);
 
@@ -101,10 +98,8 @@ static bool PrepareVisibleRegion(const nsIntRegion& aVisible,
  *
  * @param aVisible Input. Layer's unclipped visible rectangle
  *        The origin is the top-left corner of the layer
- * @param aLayerTransform Input. Layer's transformation matrix
+ * @param aTransform Input. Layer's transformation matrix
  *        It transforms from layer space to screen space
- * @param aLayerBufferTransform Input. Layer buffer's transformation matrix
- *        It transforms from layer buffer's space to screen space
  * @param aClip Input. A clipping rectangle.
  *        The origin is the top-left corner of the screen
  * @param aBufferRect Input. The layer's buffer bounds
@@ -117,9 +112,7 @@ static bool PrepareVisibleRegion(const nsIntRegion& aVisible,
  * @return true if the layer should be rendered.
  *         false if the layer can be skipped
  */
-static bool PrepareLayerRects(nsIntRect aVisible,
-                              const gfx::Matrix& aLayerTransform,
-                              const gfx::Matrix& aLayerBufferTransform,
+static bool PrepareLayerRects(nsIntRect aVisible, const gfx::Matrix& aTransform,
                               nsIntRect aClip, nsIntRect aBufferRect,
                               bool aYFlipped,
                               hwc_rect_t* aSourceCrop,

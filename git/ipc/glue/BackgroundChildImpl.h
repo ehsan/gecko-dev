@@ -53,7 +53,8 @@ protected:
   DeallocPBackgroundTestChild(PBackgroundTestChild* aActor) MOZ_OVERRIDE;
 
   virtual PBackgroundIDBFactoryChild*
-  AllocPBackgroundIDBFactoryChild() MOZ_OVERRIDE;
+  AllocPBackgroundIDBFactoryChild(const OptionalWindowId& aOptionalWindowId)
+                                  MOZ_OVERRIDE;
 
   virtual bool
   DeallocPBackgroundIDBFactoryChild(PBackgroundIDBFactoryChild* aActor)
