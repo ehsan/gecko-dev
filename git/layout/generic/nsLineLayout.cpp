@@ -442,7 +442,7 @@ nsLineLayout::BeginSpan(nsIFrame* aFrame,
 
   nsIFrame* frame = aSpanReflowState->frame;
   psd->mNoWrap = !frame->StyleText()->WhiteSpaceCanWrap(frame) ||
-                 frame->StyleContext()->IsInlineDescendantOfRuby();
+                 frame->StyleContext()->IsDirectlyInsideRuby();
   psd->mWritingMode = aSpanReflowState->GetWritingMode();
 
   // Switch to new span
@@ -2854,13 +2854,13 @@ nsLineLayout::TextAlignLine(nsLineBox* aLine,
     ComputeFrameJustification(psd, computeState);
     if (mHasRuby && computeState.mFirstParticipant) {
       PerFrameData* firstFrame = computeState.mFirstParticipant;
-      if (firstFrame->mFrame->StyleContext()->IsInlineDescendantOfRuby()) {
+      if (firstFrame->mFrame->StyleContext()->IsDirectlyInsideRuby()) {
         MOZ_ASSERT(!firstFrame->mJustificationAssignment.mGapsAtStart);
         firstFrame->mJustificationAssignment.mGapsAtStart = 1;
         additionalGaps++;
       }
       PerFrameData* lastFrame = computeState.mLastParticipant;
-      if (lastFrame->mFrame->StyleContext()->IsInlineDescendantOfRuby()) {
+      if (lastFrame->mFrame->StyleContext()->IsDirectlyInsideRuby()) {
         MOZ_ASSERT(!lastFrame->mJustificationAssignment.mGapsAtEnd);
         lastFrame->mJustificationAssignment.mGapsAtEnd = 1;
         additionalGaps++;

@@ -13,6 +13,7 @@
 #include "gfxRect.h"
 
 using namespace mozilla;
+using namespace mozilla;
 
 #define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GeckoPlugins" , ## args)
 #define ASSIGN(obj, name)   (obj)->name = anp_native_window_##name
@@ -23,13 +24,8 @@ static ANPNativeWindow anp_native_window_acquireNativeWindow(NPP instance) {
 }
 
 static void anp_native_window_invertPluginContent(NPP instance, bool isContentInverted) {
-    // NativeWindow is TopLeft if uninverted.
-  gl::OriginPos newOriginPos = gl::OriginPos::TopLeft;
-  if (isContentInverted)
-    newOriginPos = gl::OriginPos::BottomLeft;
-
   nsNPAPIPluginInstance* pinst = static_cast<nsNPAPIPluginInstance*>(instance->ndata);
-  pinst->SetOriginPos(newOriginPos);
+  pinst->SetInverted(isContentInverted);
   pinst->RedrawPlugin();
 }
 

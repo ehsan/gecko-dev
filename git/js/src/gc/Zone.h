@@ -62,7 +62,6 @@ class ZoneHeapThreshold
 
     double gcHeapGrowthFactor() const { return gcHeapGrowthFactor_; }
     size_t gcTriggerBytes() const { return gcTriggerBytes_; }
-    bool isCloseToAllocTrigger(const js::gc::HeapUsage& usage, bool highFrequencyGC) const;
 
     void updateAfterGC(size_t lastBytes, JSGCInvocationKind gckind,
                        const GCSchedulingTunables &tunables, const GCSchedulingState &state);
@@ -153,6 +152,8 @@ struct Zone : public JS::shadow::Zone,
 
     bool isTooMuchMalloc() const { return gcMallocBytes <= 0; }
     void onTooMuchMalloc();
+
+    bool isCloseToAllocTrigger(bool highFrequencyGC) const;
 
     void *onOutOfMemory(void *p, size_t nbytes) {
         return runtimeFromMainThread()->onOutOfMemory(p, nbytes);

@@ -170,7 +170,7 @@ NextNode(VerifyNode *node)
 void
 gc::GCRuntime::startVerifyPreBarriers()
 {
-    if (verifyPreData || isIncrementalGCInProgress())
+    if (verifyPreData || incrementalState != NO_INCREMENTAL)
         return;
 
     /*
@@ -403,8 +403,11 @@ struct VerifyPostTracer : JSTracer
 void
 gc::GCRuntime::startVerifyPostBarriers()
 {
-    if (verifyPostData || isIncrementalGCInProgress())
+    if (verifyPostData ||
+        incrementalState != NO_INCREMENTAL)
+    {
         return;
+    }
 
     evictNursery();
 

@@ -72,7 +72,7 @@ MP4Reader::MP4Reader(AbstractMediaDecoder* aDecoder)
   , mDemuxerInitialized(false)
   , mIsEncrypted(false)
   , mIndexReady(false)
-  , mDemuxerMonitor("MP4 Demuxer")
+  , mIndexMonitor("MP4 index")
 {
   MOZ_ASSERT(NS_IsMainThread(), "Must be on main thread.");
   MOZ_COUNT_CTOR(MP4Reader);
@@ -157,7 +157,7 @@ MP4Reader::Init(MediaDecoderReader* aCloneDonor)
 {
   MOZ_ASSERT(NS_IsMainThread(), "Must be on main thread.");
   PlatformDecoderModule::Init();
-  mDemuxer = new MP4Demuxer(new MP4Stream(mDecoder->GetResource(), &mDemuxerMonitor), &mDemuxerMonitor);
+  mDemuxer = new MP4Demuxer(new MP4Stream(mDecoder->GetResource(), &mIndexMonitor), &mIndexMonitor);
 
   InitLayersBackendType();
 
@@ -294,10 +294,12 @@ MP4Reader::ReadMetadata(MediaInfo* aInfo,
                         MetadataTags** aTags)
 {
   if (!mDemuxerInitialized) {
-    MonitorAutoLock mon(mDemuxerMonitor);
-    bool ok = mDemuxer->Init();
-    NS_ENSURE_TRUE(ok, NS_ERROR_FAILURE);
-    mIndexReady = true;
+    {
+      MonitorAutoLock mon(mIndexMonitor);
+      bool ok = mDemuxer->Init();
+      NS_ENSURE_TRUE(ok, NS_ERROR_FAILURE);
+      mIndexReady = true;
+    }
 
     // To decode, we need valid video and a place to put it.
     mInfo.mVideo.mHasVideo = mVideo.mActive = mDemuxer->HasValidVideo() &&
@@ -306,7 +308,6 @@ MP4Reader::ReadMetadata(MediaInfo* aInfo,
     mInfo.mAudio.mHasAudio = mAudio.mActive = mDemuxer->HasValidAudio();
 
     {
-      MonitorAutoUnlock unlock(mDemuxerMonitor);
       ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
       mIsEncrypted = mDemuxer->Crypto().valid;
     }
@@ -410,11 +411,7 @@ MP4Reader::ReadMetadata(MediaInfo* aInfo,
   }
 
   // Get the duration, and report it to the decoder if we have it.
-  Microseconds duration;
-  {
-    MonitorAutoLock lock(mDemuxerMonitor);
-    duration = mDemuxer->Duration();
-  }
+  Microseconds duration = mDemuxer->Duration();
   if (duration != -1) {
     ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
     mDecoder->SetMediaDuration(duration);
@@ -423,7 +420,7 @@ MP4Reader::ReadMetadata(MediaInfo* aInfo,
   *aInfo = mInfo;
   *aTags = nullptr;
 
-  MonitorAutoLock mon(mDemuxerMonitor);
+  MonitorAutoLock mon(mIndexMonitor);
   UpdateIndex();
 
   return NS_OK;
@@ -440,7 +437,6 @@ MP4Reader::IsMediaSeekable()
 {
   // We can seek if we get a duration *and* the reader reports that it's
   // seekable.
-  MonitorAutoLock mon(mDemuxerMonitor);
   return mDecoder->GetResource()->IsTransportSeekable() && mDemuxer->CanSeek();
 }
 
@@ -635,14 +631,7 @@ MP4Reader::ReturnOutput(MediaData* aData, TrackType aTrack)
 MP4Sample*
 MP4Reader::PopSample(TrackType aTrack)
 {
-  MonitorAutoLock mon(mDemuxerMonitor);
-  return PopSampleLocked(aTrack);
-}
-
-MP4Sample*
-MP4Reader::PopSampleLocked(TrackType aTrack)
-{
-  mDemuxerMonitor.AssertCurrentThreadOwns();
+  MonitorAutoLock mon(mIndexMonitor);
   switch (aTrack) {
     case kAudio:
       return mDemuxer->DemuxAudioSample();
@@ -684,12 +673,12 @@ MP4Reader::ResetDecode()
   MOZ_ASSERT(GetTaskQueue()->IsCurrentThreadIn());
   Flush(kVideo);
   {
-    MonitorAutoLock mon(mDemuxerMonitor);
+    MonitorAutoLock mon(mIndexMonitor);
     mDemuxer->SeekVideo(0);
   }
   Flush(kAudio);
   {
-    MonitorAutoLock mon(mDemuxerMonitor);
+    MonitorAutoLock mon(mIndexMonitor);
     mDemuxer->SeekAudio(0);
   }
   return MediaDecoderReader::ResetDecode();
@@ -832,7 +821,6 @@ MP4Reader::Seek(int64_t aTime,
 {
   LOG("MP4Reader::Seek(%lld)", aTime);
   MOZ_ASSERT(GetTaskQueue()->IsCurrentThreadIn());
-  MonitorAutoLock mon(mDemuxerMonitor);
   if (!mDecoder->GetResource()->IsTransportSeekable() || !mDemuxer->CanSeek()) {
     VLOG("Seek() END (Unseekable)");
     return SeekPromise::CreateAndReject(NS_ERROR_FAILURE, __func__);
@@ -841,7 +829,7 @@ MP4Reader::Seek(int64_t aTime,
   mQueuedVideoSample = nullptr;
   if (mDemuxer->HasValidVideo()) {
     mDemuxer->SeekVideo(aTime);
-    mQueuedVideoSample = PopSampleLocked(kVideo);
+    mQueuedVideoSample = PopSample(kVideo);
   }
   if (mDemuxer->HasValidAudio()) {
     mDemuxer->SeekAudio(
@@ -868,7 +856,7 @@ MP4Reader::UpdateIndex()
 int64_t
 MP4Reader::GetEvictionOffset(double aTime)
 {
-  MonitorAutoLock mon(mDemuxerMonitor);
+  MonitorAutoLock mon(mIndexMonitor);
   if (!mIndexReady) {
     return 0;
   }
@@ -879,7 +867,7 @@ MP4Reader::GetEvictionOffset(double aTime)
 nsresult
 MP4Reader::GetBuffered(dom::TimeRanges* aBuffered)
 {
-  MonitorAutoLock mon(mDemuxerMonitor);
+  MonitorAutoLock mon(mIndexMonitor);
   if (!mIndexReady) {
     return NS_OK;
   }

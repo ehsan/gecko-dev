@@ -176,7 +176,7 @@ AttachToContainerAsEGLImage(ImageContainer* container,
   EGLImageImage::Data data;
   data.mImage = image;
   data.mSize = gfx::IntSize(rect.width, rect.height);
-  data.mOriginPos = instance->OriginPos();
+  data.mInverted = instance->Inverted();
 
   EGLImageImage* typedImg = static_cast<EGLImageImage*>(img.get());
   typedImg->SetData(data);
@@ -203,7 +203,7 @@ AttachToContainerAsSurfaceTexture(ImageContainer* container,
   SurfaceTextureImage::Data data;
   data.mSurfTex = surfTex;
   data.mSize = gfx::IntSize(rect.width, rect.height);
-  data.mOriginPos = instance->OriginPos();
+  data.mInverted = instance->Inverted();
 
   SurfaceTextureImage* typedImg = static_cast<SurfaceTextureImage*>(img.get());
   typedImg->SetData(data);
@@ -1386,8 +1386,7 @@ nsPluginInstanceOwner::GetImageContainerForVideo(nsNPAPIPluginInstance::VideoInf
 
   // The logic below for Honeycomb is just a guess, but seems to work. We don't have a separate
   // inverted flag for video.
-  data.mOriginPos = AndroidBridge::Bridge()->IsHoneycomb() ? gl::OriginPos::BottomLeft
-                                                           : mInstance->OriginPos();
+  data.mInverted = AndroidBridge::Bridge()->IsHoneycomb() ? true : mInstance->Inverted();
   data.mSize = gfx::IntSize(aVideoInfo->mDimensions.width, aVideoInfo->mDimensions.height);
 
   SurfaceTextureImage* typedImg = static_cast<SurfaceTextureImage*>(img.get());
@@ -1452,28 +1451,6 @@ void nsPluginInstanceOwner::ExitFullScreen(jobject view) {
 }
 
 #endif
-
-void
-nsPluginInstanceOwner::NotifyHostAsyncInitFailed()
-{
-  nsCOMPtr<nsIObjectLoadingContent> content = do_QueryInterface(mContent);
-  content->StopPluginInstance();
-}
-
-void
-nsPluginInstanceOwner::NotifyHostCreateWidget()
-{
-  mPluginHost->CreateWidget(this);
-#ifdef XP_MACOSX
-  FixUpPluginWindow(ePluginPaintEnable);
-#else
-  if (mPluginFrame) {
-    mPluginFrame->InvalidateFrame();
-  } else {
-    CallSetWindow();
-  }
-#endif
-}
 
 nsresult nsPluginInstanceOwner::DispatchFocusToPlugin(nsIDOMEvent* aFocusEvent)
 {
@@ -3192,10 +3169,6 @@ nsPluginInstanceOwner::UpdateDocumentActiveState(bool aIsActive)
 NS_IMETHODIMP
 nsPluginInstanceOwner::CallSetWindow()
 {
-  if (!mWidgetCreationComplete) {
-    // No widget yet, we can't run this code
-    return NS_OK;
-  }
   if (mPluginFrame) {
     mPluginFrame->CallSetWindow(false);
   } else if (mInstance) {

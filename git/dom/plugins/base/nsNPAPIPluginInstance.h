@@ -220,10 +220,8 @@ public:
 
   void GetVideos(nsTArray<VideoInfo*>& aVideos);
 
-  void SetOriginPos(mozilla::gl::OriginPos aOriginPos) {
-    mOriginPos = aOriginPos;
-  }
-  mozilla::gl::OriginPos OriginPos() const { return mOriginPos; }
+  void SetInverted(bool aInverted);
+  bool Inverted() { return mInverted; }
 
   static nsNPAPIPluginInstance* GetFromNPP(NPP npp);
 #endif
@@ -330,7 +328,7 @@ protected:
   uint32_t mFullScreenOrientation;
   bool mWakeLocked;
   bool mFullScreen;
-  mozilla::gl::OriginPos mOriginPos;
+  bool mInverted;
 
   mozilla::RefPtr<SharedPluginTexture> mContentTexture;
   mozilla::RefPtr<mozilla::gl::AndroidSurfaceTexture> mContentSurface;

@@ -1586,9 +1586,9 @@ public abstract class GeckoApp
 
         mPromptService = new PromptService(this);
 
-        mTextSelection = new TextSelection((TextSelectionHandle) findViewById(R.id.anchor_handle),
-                                           (TextSelectionHandle) findViewById(R.id.caret_handle),
-                                           (TextSelectionHandle) findViewById(R.id.focus_handle),
+        mTextSelection = new TextSelection((TextSelectionHandle) findViewById(R.id.start_handle),
+                                           (TextSelectionHandle) findViewById(R.id.middle_handle),
+                                           (TextSelectionHandle) findViewById(R.id.end_handle),
                                            EventDispatcher.getInstance(),
                                            this);
 
@@ -1914,7 +1914,7 @@ public abstract class GeckoApp
         }
 
         if (mAppStateListeners != null) {
-            for (GeckoAppShell.AppStateListener listener : mAppStateListeners) {
+            for (GeckoAppShell.AppStateListener listener: mAppStateListeners) {
                 listener.onResume();
             }
         }
@@ -1946,7 +1946,7 @@ public abstract class GeckoApp
                     Log.w(LOGTAG, "Can't record session: rec is null.");
                 }
             }
-        });
+         });
     }
 
     @Override
@@ -1996,7 +1996,7 @@ public abstract class GeckoApp
         });
 
         if (mAppStateListeners != null) {
-            for (GeckoAppShell.AppStateListener listener : mAppStateListeners) {
+            for(GeckoAppShell.AppStateListener listener: mAppStateListeners) {
                 listener.onPause();
             }
         }

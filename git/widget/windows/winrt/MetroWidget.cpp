@@ -880,11 +880,8 @@ MetroWidget::WindowProcedure(HWND aWnd, UINT aMsg, WPARAM aWParam, LPARAM aLPara
     }
 
     case WM_APPCOMMAND:
-    {
-      MSG msg = WinUtils::InitMSG(aMsg, aWParam, aLParam, aWnd);
-      processDefault = HandleAppCommandMsg(msg, &processResult);
+      processDefault = HandleAppCommandMsg(aWParam, aLParam, &processResult);
       break;
-    }
 
     case WM_GETOBJECT:
     {

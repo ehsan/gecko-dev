@@ -49,7 +49,7 @@ GLScreenBuffer::Create(GLContext* gl,
         XRE_GetProcessType() != GeckoProcessType_Default)
     {
         layers::TextureFlags flags = layers::TextureFlags::DEALLOCATE_CLIENT |
-                                     layers::TextureFlags::ORIGIN_BOTTOM_LEFT;
+                                     layers::TextureFlags::NEEDS_Y_FLIP;
         if (!caps.premultAlpha) {
             flags |= layers::TextureFlags::NON_PREMULTIPLIED;
         }

@@ -78,7 +78,7 @@ ClientCanvasLayer::Initialize(const Data& aData)
         if (mGLContext->GetContextType() == GLContextType::EGL) {
 #ifdef MOZ_WIDGET_GONK
           TextureFlags flags = TextureFlags::DEALLOCATE_CLIENT |
-                               TextureFlags::ORIGIN_BOTTOM_LEFT;
+                               TextureFlags::NEEDS_Y_FLIP;
           if (!aData.mIsGLAlphaPremult) {
             flags |= TextureFlags::NON_PREMULTIPLIED;
           }
@@ -153,8 +153,8 @@ ClientCanvasLayer::RenderLayer()
 
   if (!mCanvasClient) {
     TextureFlags flags = TextureFlags::IMMEDIATE_UPLOAD;
-    if (mOriginPos == gl::OriginPos::BottomLeft) {
-      flags |= TextureFlags::ORIGIN_BOTTOM_LEFT;
+    if (mNeedsYFlip) {
+      flags |= TextureFlags::NEEDS_Y_FLIP;
     }
 
     if (!mGLContext) {

@@ -1669,10 +1669,9 @@ MacroAssembler::printf(const char *output, Register value)
 
 #ifdef JS_TRACE_LOGGING
 void
-MacroAssembler::tracelogStartId(Register logger, uint32_t textId, bool force)
+MacroAssembler::tracelogStart(Register logger, uint32_t textId)
 {
-    if (!force && !TraceLogTextIdEnabled(textId))
-        return;
+    void (&TraceLogFunc)(TraceLogger*, uint32_t) = TraceLogStartEvent;
 
     PushRegsInMask(RegisterSet::Volatile());
 
@@ -1685,56 +1684,38 @@ MacroAssembler::tracelogStartId(Register logger, uint32_t textId, bool force)
     passABIArg(logger);
     move32(Imm32(textId), temp);
     passABIArg(temp);
-    callWithABINoProfiling(JS_FUNC_TO_DATA_PTR(void *, TraceLogStartEventPrivate));
-
-    PopRegsInMask(RegisterSet::Volatile());
-}
-
-void
-MacroAssembler::tracelogStartId(Register logger, Register textId)
-{
-    PushRegsInMask(RegisterSet::Volatile());
-
-    RegisterSet regs = RegisterSet::Volatile();
-    regs.takeUnchecked(logger);
-    regs.takeUnchecked(textId);
-
-    Register temp = regs.takeGeneral();
-
-    setupUnalignedABICall(2, temp);
-    passABIArg(logger);
-    passABIArg(textId);
-    callWithABINoProfiling(JS_FUNC_TO_DATA_PTR(void *, TraceLogStartEventPrivate));
-
-    PopRegsInMask(RegisterSet::Volatile());
-}
-
-void
-MacroAssembler::tracelogStartEvent(Register logger, Register event)
-{
-    void (&TraceLogFunc)(TraceLoggerThread *, const TraceLoggerEvent &) = TraceLogStartEvent;
-
-    PushRegsInMask(RegisterSet::Volatile());
-
-    RegisterSet regs = RegisterSet::Volatile();
-    regs.takeUnchecked(logger);
-    regs.takeUnchecked(event);
-
-    Register temp = regs.takeGeneral();
-
-    setupUnalignedABICall(2, temp);
-    passABIArg(logger);
-    passABIArg(event);
     callWithABINoProfiling(JS_FUNC_TO_DATA_PTR(void *, TraceLogFunc));
 
     PopRegsInMask(RegisterSet::Volatile());
 }
 
 void
-MacroAssembler::tracelogStopId(Register logger, uint32_t textId, bool force)
+MacroAssembler::tracelogStart(Register logger, Register textId)
 {
-    if (!force && !TraceLogTextIdEnabled(textId))
-        return;
+    void (&TraceLogFunc)(TraceLogger*, uint32_t) = TraceLogStartEvent;
+
+    PushRegsInMask(RegisterSet::Volatile());
+
+    RegisterSet regs = RegisterSet::Volatile();
+    regs.takeUnchecked(logger);
+    regs.takeUnchecked(textId);
+
+    Register temp = regs.takeGeneral();
+
+    setupUnalignedABICall(2, temp);
+    passABIArg(logger);
+    passABIArg(textId);
+    callWithABINoProfiling(JS_FUNC_TO_DATA_PTR(void *, TraceLogFunc));
+
+    regs.add(temp);
+
+    PopRegsInMask(RegisterSet::Volatile());
+}
+
+void
+MacroAssembler::tracelogStop(Register logger, uint32_t textId)
+{
+    void (&TraceLogFunc)(TraceLogger*, uint32_t) = TraceLogStopEvent;
 
     PushRegsInMask(RegisterSet::Volatile());
 
@@ -1747,19 +1728,23 @@ MacroAssembler::tracelogStopId(Register logger, uint32_t textId, bool force)
     passABIArg(logger);
     move32(Imm32(textId), temp);
     passABIArg(temp);
+    callWithABINoProfiling(JS_FUNC_TO_DATA_PTR(void *, TraceLogFunc));
 
-    callWithABINoProfiling(JS_FUNC_TO_DATA_PTR(void *, TraceLogStopEventPrivate));
+    regs.add(temp);
 
     PopRegsInMask(RegisterSet::Volatile());
 }
 
 void
-MacroAssembler::tracelogStopId(Register logger, Register textId)
+MacroAssembler::tracelogStop(Register logger, Register textId)
 {
+#ifdef DEBUG
+    void (&TraceLogFunc)(TraceLogger*, uint32_t) = TraceLogStopEvent;
+
     PushRegsInMask(RegisterSet::Volatile());
+
     RegisterSet regs = RegisterSet::Volatile();
     regs.takeUnchecked(logger);
-
     regs.takeUnchecked(textId);
 
     Register temp = regs.takeGeneral();
@@ -1767,7 +1752,33 @@ MacroAssembler::tracelogStopId(Register logger, Register textId)
     setupUnalignedABICall(2, temp);
     passABIArg(logger);
     passABIArg(textId);
-    callWithABINoProfiling(JS_FUNC_TO_DATA_PTR(void *, TraceLogStopEventPrivate));
+    callWithABINoProfiling(JS_FUNC_TO_DATA_PTR(void *, TraceLogFunc));
+
+    regs.add(temp);
+
+    PopRegsInMask(RegisterSet::Volatile());
+#else
+    tracelogStop(logger);
+#endif
+}
+
+void
+MacroAssembler::tracelogStop(Register logger)
+{
+    void (&TraceLogFunc)(TraceLogger*) = TraceLogStopEvent;
+
+    PushRegsInMask(RegisterSet::Volatile());
+
+    RegisterSet regs = RegisterSet::Volatile();
+    regs.takeUnchecked(logger);
+
+    Register temp = regs.takeGeneral();
+
+    setupUnalignedABICall(1, temp);
+    passABIArg(logger);
+    callWithABINoProfiling(JS_FUNC_TO_DATA_PTR(void *, TraceLogFunc));
+
+    regs.add(temp);
 
     PopRegsInMask(RegisterSet::Volatile());
 }

@@ -95,17 +95,16 @@ function afterNotificationShown(hud, notification, deferred)
     messages: [
       {
         name: "Logged blocking mixed active content",
-        text: "Loading mixed (insecure) active content \"http://example.com/\"" +
-          " on a secure page",
+        text: "Loading mixed (insecure) active content on a secure"+
+          " page \"http://example.com/\"",
         category: CATEGORY_SECURITY,
         severity: SEVERITY_WARNING,
         objects: true,
       },
       {
         name: "Logged blocking mixed passive content - image",
-        text: "Loading mixed (insecure) display content" +
-          " \"http://example.com/tests/image/test/mochitest/blue.png\"" +
-          " on a secure page",
+        text: "Loading mixed (insecure) display content on a secure page"+
+          " \"http://example.com/tests/image/test/mochitest/blue.png\"",
         category: CATEGORY_SECURITY,
         severity: SEVERITY_WARNING,
         objects: true,
