@@ -39,9 +39,9 @@ public class BrowserDB {
 
         public Cursor filter(ContentResolver cr, CharSequence constraint, int limit);
 
-        // This should onlyl return frecent sites, BrowserDB.getTopSites will do the
+        // This should only return frecent bookmarks, BrowserDB.getTopBookmarks will do the
         // work to combine that list with the pinned sites list
-        public Cursor getTopSites(ContentResolver cr, int limit);
+        public Cursor getTopBookmarks(ContentResolver cr, int limit);
 
         public void updateVisitedHistory(ContentResolver cr, String uri);
 
@@ -138,12 +138,12 @@ public class BrowserDB {
         return sDb.filter(cr, constraint, limit);
     }
 
-    public static Cursor getTopSites(ContentResolver cr, int minLimit, int maxLimit) {
-        // Note this is not a single query anymore, but actually returns a mixture
-        // of two queries, one for topSites and one for pinned sites.
-        Cursor pinnedSites = sDb.getPinnedSites(cr, minLimit);
-        Cursor topSites = sDb.getTopSites(cr, maxLimit - pinnedSites.getCount());
-        return new TopSitesCursorWrapper(pinnedSites, topSites, minLimit);
+    public static Cursor getTopBookmarks(ContentResolver cr, int limit) {
+        // Note this is not a single query anymore, but actually returns a mixture of two queries,
+        // one for top bookmarks, and one for pinned sites (which are actually bookmarks as well).
+        Cursor topBookmarks = sDb.getTopBookmarks(cr, limit);
+        Cursor pinnedSites = sDb.getPinnedSites(cr, limit);
+        return new TopSitesCursorWrapper(pinnedSites, topBookmarks, limit);
     }
 
     public static void updateVisitedHistory(ContentResolver cr, String uri) {
@@ -342,12 +342,12 @@ public class BrowserDB {
         int mSize = 0;
         private SparseArray<PinnedSite> mPinnedSites = null;
 
-        public TopSitesCursorWrapper(Cursor pinnedCursor, Cursor normalCursor, int minSize) {
+        public TopSitesCursorWrapper(Cursor pinnedCursor, Cursor normalCursor, int size) {
             super(normalCursor);
 
             setPinnedSites(pinnedCursor);
             mCursor = normalCursor;
-            mSize = Math.max(minSize, mPinnedSites.size() + mCursor.getCount());
+            mSize = size;
         }
 
         public void setPinnedSites(Cursor c) {
@@ -449,20 +449,6 @@ public class BrowserDB {
 
             if (!super.isBeforeFirst() && !super.isAfterLast())
                 return super.getLong(columnIndex);
-            return 0;
-        }
-
-        @Override
-        public int getInt(int columnIndex) {
-            if (hasPinnedSites()) {
-                PinnedSite site = getPinnedSite(mIndex);
-                if (site != null) {
-                    return 0;
-                }
-            }
-
-            if (!super.isBeforeFirst() && !super.isAfterLast())
-                return super.getInt(columnIndex);
             return 0;
         }
 

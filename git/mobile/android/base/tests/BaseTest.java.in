@@ -616,7 +616,6 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
         public String type; // "tablet" or "phone"
         public final int width;
         public final int height;
-        public final float density;
 
         public Device() {
             // Determine device version
@@ -635,7 +634,6 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
             getActivity().getWindowManager().getDefaultDisplay().getMetrics(dm);
             height = dm.heightPixels;
             width = dm.widthPixels;
-            density = dm.density;
             // Determine device type
             type = "phone";
             try {

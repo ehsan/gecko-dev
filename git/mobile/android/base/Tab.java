@@ -93,7 +93,7 @@ public class Tab {
         mUserSearch = "";
         mExternal = external;
         mParentId = parentId;
-        mAboutHomePage = HomePager.Page.TOP_SITES;
+        mAboutHomePage = HomePager.Page.BOOKMARKS;
         mTitle = title == null ? "" : title;
         mFavicon = null;
         mFaviconUrl = null;

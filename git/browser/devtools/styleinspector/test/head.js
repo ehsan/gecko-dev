@@ -64,8 +64,8 @@ function openComputedView(callback)
   openInspector(inspector => {
     inspector.sidebar.once("computedview-ready", () => {
       inspector.sidebar.select("computedview");
-      let computedView = inspector.sidebar.getWindowForTab("computedview").computedview.view;
-      callback(inspector, computedView);
+      let ruleView = inspector.sidebar.getWindowForTab("computedview").computedview.view;
+      callback(inspector, ruleView);
     })
   });
 }
