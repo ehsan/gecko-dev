@@ -11,7 +11,7 @@ import android.content.Context;
 import android.content.Intent;
 
 /**
- * Start the announcements service when instructed by the {@link android.app.AlarmManager}.
+ * Start the announcements service when instructed by the {@link AlarmManager}.
  */
 public class AnnouncementsStartReceiver extends BroadcastReceiver {
 

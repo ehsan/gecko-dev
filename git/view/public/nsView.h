@@ -466,6 +466,7 @@ private:
   nsRect            mDimBounds;
   // in our appunits
   nsPoint           mViewToWidgetOffset;
+  float             mOpacity;
   uint32_t          mVFlags;
   bool              mWidgetIsTopLevel;
   bool              mForcedRepaint;

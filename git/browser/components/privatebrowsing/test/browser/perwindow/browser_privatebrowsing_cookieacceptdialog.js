@@ -60,7 +60,9 @@ function test() {
       expiry: time,
       isHttpOnly: true,
       QueryInterface: function(iid) {
-        const validIIDs = [Ci.nsISupports, Ci.nsICookie, Ci.nsICookie2];
+        const validIIDs = [Ci.nsISupports,
+                           Ci.nsICookie,
+                           Ci.nsICookie2];
         for (var i = 0; i < validIIDs.length; ++i)
           if (iid == validIIDs[i])
             return this;
@@ -71,18 +73,14 @@ function test() {
   }
 
   function checkSettingDialog(aIsPrivateWindow, aWindow, aCallback) {
+    aWindow.gBrowser.selectedTab = aWindow.gBrowser.addTab();
     let selectedBrowser = aWindow.gBrowser.selectedBrowser;
 
     function onLoad() {
-      if (aWindow.content.location.href != TEST_URL) {
-        selectedBrowser.loadURI(TEST_URL);
-        return;
-      }
       selectedBrowser.removeEventListener("load", onLoad, true);
       Services.ww.unregisterNotification(observer);
 
-      ok(aIsPrivateWindow,
-         "Confirm setting dialog is not displayed for private window");
+      ok(aIsPrivateWindow, "Confirm setting dialog is not displayed for private window");
 
       executeSoon(aCallback);
     }
@@ -93,12 +91,13 @@ function test() {
         return;
       selectedBrowser.removeEventListener("load", onLoad, true);
       Services.ww.unregisterNotification(observer);
-      ok(!aIsPrivateWindow,
-         "Confirm setting dialog is displayed for normal window");
+
+      ok(!aIsPrivateWindow, "Confirm setting dialog is displayed for normal window");
+
       let win = aSubject.QueryInterface(Ci.nsIDOMWindow);
       executeSoon(function () {
-        info("Wait for window close");
-        waitForWindowClose(win, aCallback);
+        win.close();
+        executeSoon(aCallback);
       });
     }
     Services.ww.registerNotification(observer);
@@ -106,30 +105,30 @@ function test() {
     selectedBrowser.loadURI(TEST_URL);
   }
 
-  let windowsToClose = [];
-  function testOnWindow(aIsPrivate, aCallback) {
-    whenNewWindowLoaded({private: aIsPrivate}, function(aWin) {
-      windowsToClose.push(aWin);
-      aCallback(aWin);
-    });
+  var windowsToClose = [];
+  function testOnWindow(options, callback) {
+    var win = OpenBrowserWindow(options);
+    win.addEventListener("load", function onLoad() {
+      win.removeEventListener("load", onLoad, false);
+      windowsToClose.push(win);
+      callback(win);
+    }, false);
   }
 
   registerCleanupFunction(function() {
-    Services.prefs.clearUserPref("network.cookie.lifetimePolicy");
     windowsToClose.forEach(function(win) {
+      Services.prefs.clearUserPref("network.cookie.lifetimePolicy");
       win.close();
     });
   });
 
-  // Ask all cookies
+  // ask all cookies
   Services.prefs.setIntPref("network.cookie.lifetimePolicy", 1);
 
-  testOnWindow(true, function(aPrivWin) {
-    info("Test on private window");
+  testOnWindow({private: true}, function(aPrivWin) {
     checkRememberOption(true, aPrivWin, function() {
       checkSettingDialog(true, aPrivWin, function() {
-        testOnWindow(false, function(aWin) {
-          info("Test on public window");
+        testOnWindow(undefined, function(aWin) {
           checkRememberOption(false, aWin, function() {
             checkSettingDialog(false, aWin, finish);
           });
@@ -137,16 +136,4 @@ function test() {
       });
     });
   });
-}
-
-function waitForWindowClose(aWin, aCallback) {
-  function observer(aSubject, aTopic, aData) {
-    if (aTopic == "domwindowclosed") {
-      info("Window closed");
-      Services.ww.unregisterNotification(observer);
-      executeSoon(aCallback);
-    }
-  }
-  Services.ww.registerNotification(observer);
-  aWin.close();
 }

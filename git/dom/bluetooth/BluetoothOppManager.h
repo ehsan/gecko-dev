@@ -87,9 +87,6 @@ private:
   void AfterOppConnected();
   void AfterFirstPut();
   void AfterOppDisconnected();
-  void ValidateFileName();
-  bool IsReservedChar(PRUnichar c);
-
   virtual void OnConnectSuccess() MOZ_OVERRIDE;
   virtual void OnConnectError() MOZ_OVERRIDE;
   virtual void OnDisconnect() MOZ_OVERRIDE;

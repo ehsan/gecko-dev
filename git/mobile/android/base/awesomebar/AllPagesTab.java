@@ -397,7 +397,7 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
             if (type == ROW_SEARCH || type == ROW_SUGGEST) {
                 SearchEntryViewHolder viewHolder = null;
 
-                if (convertView == null || !(convertView.getTag() instanceof SearchEntryViewHolder)) {
+                if (convertView == null) {
                     convertView = getInflater().inflate(R.layout.awesomebar_suggestion_row, getListView(), false);
 
                     viewHolder = new SearchEntryViewHolder();
@@ -415,7 +415,7 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
             } else {
                 AwesomeEntryViewHolder viewHolder = null;
 
-                if (convertView == null || !(convertView.getTag() instanceof AwesomeEntryViewHolder)) {
+                if (convertView == null) {
                     convertView = getInflater().inflate(R.layout.awesomebar_row, null);
 
                     viewHolder = new AwesomeEntryViewHolder();
@@ -627,14 +627,6 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
     }
 
     private void setSuggestionsEnabled(final boolean enabled) {
-        // Clicking the yes/no buttons quickly can cause the click events be
-        // queued before the listeners are removed above, so it's possible
-        // setSuggestionsEnabled() can be called twice. mSuggestionsOptInPrompt
-        // can be null if this happens (bug 828480).
-        if (mSuggestionsOptInPrompt == null) {
-            return;
-        }
-
         // Make suggestions appear immediately after the user opts in
         primeSuggestions();
 

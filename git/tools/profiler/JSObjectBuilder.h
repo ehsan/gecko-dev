@@ -10,7 +10,7 @@
 
 class JSCustomObject;
 class JSCustomObjectBuilder;
-struct JSContext;
+class JSContext;
 class nsAString;
 
 /* this is handy wrapper around JSAPI to make it more pleasant to use.

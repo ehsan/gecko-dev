@@ -5,7 +5,7 @@
 
 #include <algorithm>
 
-#ifdef XP_MACOSX
+#ifdef XP_MACOS
 #include <fstream>
 #endif
 
@@ -1527,26 +1527,12 @@ CreateJSStackObject(JSContext *cx, const CombinedStacks &stacks) {
   return ret;
 }
 
-static bool
-IsValidBreakpadId(const std::string &breakpadId) {
-  if (breakpadId.size() < 33) {
-    return false;
-  }
-  for (unsigned i = 0, n = breakpadId.size(); i < n; ++i) {
-    char c = breakpadId[i];
-    if ((c < '0' || c > '9') && (c < 'A' || c > 'F')) {
-      return false;
-    }
-  }
-  return true;
-}
-
 // Read a stack from the given file name. In case of any error, aStack is
 // unchanged.
 static void
 ReadStack(const char *aFileName, Telemetry::ProcessedStack &aStack)
 {
-#ifdef XP_MACOSX
+#ifdef XP_MACOS
   std::ifstream file(aFileName);
 
   size_t numModules;
@@ -1562,26 +1548,17 @@ ReadStack(const char *aFileName, Telemetry::ProcessedStack &aStack)
 
   Telemetry::ProcessedStack stack;
   for (size_t i = 0; i < numModules; ++i) {
-    std::string breakpadId;
-    file >> breakpadId;
-    if (file.fail() || !IsValidBreakpadId(breakpadId)) {
-      return;
-    }
-
-    char space = file.get();
-    if (file.fail() || space != ' ') {
-      return;
-    }
-
     std::string moduleName;
     getline(file, moduleName);
-    if (file.fail() || moduleName[0] == ' ') {
+    if (file.fail()) {
       return;
     }
 
     Telemetry::ProcessedStack::Module module = {
       moduleName,
-      breakpadId
+      0,  // mPdbAge
+      "", // mPdbSignature
+      ""  // mPdbName
     };
     stack.AddModule(module);
   }

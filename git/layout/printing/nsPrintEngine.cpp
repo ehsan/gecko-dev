@@ -239,8 +239,7 @@ nsPrintEngine::nsPrintEngine() :
   mOldPrtPreview(nullptr),
   mDebugFile(nullptr),
   mLoadCounter(0),
-  mDidLoadDataForPrinting(false),
-  mIsDestroying(false)
+  mDidLoadDataForPrinting(false)
 {
 }
 
@@ -253,11 +252,6 @@ nsPrintEngine::~nsPrintEngine()
 //-------------------------------------------------------
 void nsPrintEngine::Destroy()
 {
-  if (mIsDestroying) {
-    return;
-  }
-  mIsDestroying = true;
-
   if (mPrt) {
     delete mPrt;
     mPrt = nullptr;

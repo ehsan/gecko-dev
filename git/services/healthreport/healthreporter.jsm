@@ -357,11 +357,9 @@ HealthReporter.prototype = Object.freeze({
     // could occur.
     this._shutdownInitiated = true;
 
-    // We may not have registered the observer yet. If not, this will
-    // throw.
-    try {
+    if (this._initialized) {
       Services.obs.removeObserver(this, "idle-daily");
-    } catch (ex) { }
+    }
 
     // If we have collectors, we need to shut down providers.
     if (this._collector) {
