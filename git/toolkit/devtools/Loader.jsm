@@ -263,7 +263,6 @@ SrcdirProvider.prototype = {
  */
 this.DevToolsLoader = function DevToolsLoader() {
   this.require = this.require.bind(this);
-  this.lazyRequireGetter = this.lazyRequireGetter.bind(this);
 };
 
 DevToolsLoader.prototype = {

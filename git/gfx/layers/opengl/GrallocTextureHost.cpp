@@ -285,20 +285,18 @@ GrallocTextureHostOGL::GrallocTextureHostOGL(TextureFlags aFlags,
                                              const NewSurfaceDescriptorGralloc& aDescriptor)
   : TextureHost(aFlags)
 {
-  gfx::SurfaceFormat format = gfx::SurfaceFormat::UNKNOWN;
   mGrallocHandle = aDescriptor;
 
   android::GraphicBuffer* graphicBuffer = GetGraphicBufferFromDesc(mGrallocHandle).get();
-  MOZ_ASSERT(graphicBuffer);
+  if (!graphicBuffer) {
+	  NS_RUNTIMEABORT("Invalid SurfaceDescriptor passed in");
+  }
 
   mSize = aDescriptor.size();
-  if (graphicBuffer) {
-    format =
-      SurfaceFormatForAndroidPixelFormat(graphicBuffer->getPixelFormat(),
-                                         aFlags & TextureFlags::RB_SWAPPED);
-  } else {
-    NS_WARNING("gralloc buffer is nullptr");
-  }
+  gfx::SurfaceFormat format =
+    SurfaceFormatForAndroidPixelFormat(graphicBuffer->getPixelFormat(),
+                                       aFlags & TextureFlags::RB_SWAPPED);
+
   mTextureSource = new GrallocTextureSourceOGL(nullptr,
                                                graphicBuffer,
                                                format);

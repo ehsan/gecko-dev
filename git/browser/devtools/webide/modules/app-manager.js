@@ -19,8 +19,6 @@ const {ConnectionManager, Connection} = require("devtools/client/connection-mana
 const AppActorFront = require("devtools/app-actor-front");
 const {getDeviceFront} = require("devtools/server/actors/device");
 
-const Strings = Services.strings.createBundle("chrome://webide/content/webide.properties");
-
 exports.AppManager = AppManager = {
 
   // FIXME: will break when devtools/app-manager will be removed:
@@ -57,24 +55,17 @@ exports.AppManager = AppManager = {
     this.connection = null;
   },
 
+  console: {
+    // Forward console.* calls to the UI
+    log: function(msg)      { AppManager.update("console", {level: "log", message: msg}); },
+    warning: function(msg)  { AppManager.update("console", {level: "warning", message: msg}); },
+    error: function(msg)    { AppManager.update("console", {level: "error", message: msg}); },
+    success: function(msg)  { AppManager.update("console", {level: "success", message: msg}); },
+  },
+
   update: function(what, details) {
     // Anything we want to forward to the UI
     this.emit("app-manager-update", what, details);
-  },
-
-  reportError: function(l10nProperty, ...l10nArgs) {
-    let win = Services.wm.getMostRecentWindow("devtools:webide");
-    if (win) {
-      win.UI.reportError(l10nProperty, ...l10nArgs);
-    } else {
-      let text;
-      if (l10nArgs.length > 0) {
-        text = Strings.formatStringFromName(l10nProperty, l10nArgs, l10nArgs.length);
-      } else {
-        text = Strings.GetStringFromName(l10nProperty);
-      }
-      console.error(text);
-    }
   },
 
   onConnectionChanged: function() {
@@ -83,7 +74,7 @@ exports.AppManager = AppManager = {
     }
 
     if (this.connection.status != Connection.Status.CONNECTED) {
-      console.log("Connection status changed: " + this.connection.status);
+      AppManager.console.log("Connection status changed: " + this.connection.status);
       this._runningApps.clear();
       this._unlistenToApps();
       this._listTabsResponse = null;
@@ -110,8 +101,7 @@ exports.AppManager = AppManager = {
     };
     client.request(request, (res) => {
       if (res.error) {
-        this.reportError("error_listRunningApps");
-        console.error("listRunningApps error: " + res.error);
+        AppManager.console.error("listRunningApps error: " + res.error);
       }
       for (let m of res.apps) {
         this._runningApps.add(m);
@@ -122,16 +112,19 @@ exports.AppManager = AppManager = {
   _listenToApps: function() {
     let client = this.connection.client;
     client.addListener("appOpen", (type, { manifestURL }) => {
+      AppManager.console.log("App open: " + manifestURL);
       this._runningApps.add(manifestURL);
       this.checkIfProjectIsRunning();
     });
 
     client.addListener("appClose", (type, { manifestURL }) => {
+      AppManager.console.log("App close: " + manifestURL);
       this._runningApps.delete(manifestURL);
       this.checkIfProjectIsRunning();
     });
 
     client.addListener("appUninstall", (type, { manifestURL }) => {
+      AppManager.console.log("App uninstall: " + manifestURL);
       this._runningApps.delete(manifestURL);
       this.checkIfProjectIsRunning();
     });
@@ -149,9 +142,15 @@ exports.AppManager = AppManager = {
   checkIfProjectIsRunning: function() {
     if (this.selectedProject) {
       if (this.isProjectRunning()) {
+        AppManager.console.log("Project is running on " + this.selectedRuntime.getName());
         this.update("project-is-running");
+          this._notRunningLogged = false;
       } else {
         this.update("project-is-not-running");
+        if (!this._notRunningLogged) {
+          this._notRunningLogged = true;
+          AppManager.console.log("Project is not running");
+        }
       }
     }
   },
@@ -164,15 +163,12 @@ exports.AppManager = AppManager = {
       let actor = this._listTabsResponse.webappsActor;
 
       let promise = AppActorFront.getTargetForApp(client, actor, manifest);
-      promise.then(( ) => { },
-                   (e) => {
-                     this.reportError("error_cantConnectToApp", manifestURL);
-                     console.error("Can't connect to app: " + e)
-                   });
+      promise.then(( ) => { AppManager.console.log("Connected to app: " + name) },
+                   (e) => { AppManager.console.error("Can't connect to app: " + e) });
       return promise;
 
     }
-    console.error("Can't find manifestURL for selected project");
+    AppManager.console.error("Can't find manifestURL for selected project");
     return promise.reject();
   },
 
@@ -200,11 +196,14 @@ exports.AppManager = AppManager = {
       this._selectedProject = value;
 
       if (this.selectedProject) {
+        AppManager.console.log("New project selected: " + this.selectedProject.name);
         if (this.selectedProject.type == "runtimeApp") {
           this.runRuntimeApp();
         } else {
           this.validateProject(this.selectedProject);
         }
+      } else {
+        AppManager.console.log("No project selected");
       }
 
       this.update("project");
@@ -244,6 +243,7 @@ exports.AppManager = AppManager = {
     this.selectedRuntime = runtime;
     let deferred = promise.defer();
 
+    AppManager.console.log("Connecting to " + runtime.getName());
     let onConnectedOrDisconnected = () => {
       this.connection.off(Connection.Events.CONNECTED, onConnectedOrDisconnected);
       this.connection.off(Connection.Events.DISCONNECTED, onConnectedOrDisconnected);
@@ -293,19 +293,19 @@ exports.AppManager = AppManager = {
     let project = this.selectedProject;
 
     if (!project || (project.type != "packaged" && project.type != "hosted")) {
-      console.error("Can't install project. Unknown type of project.");
+      AppManager.console.error("Can't install project. Unknown type of project.");
       return promise.reject("Can't install");
     }
 
     if (!this._listTabsResponse) {
-      this.reportError("error_cantInstallNotFullyConnected");
+      AppManager.console.error("Can't install project. Not fully connected.");
       return promise.reject("Can't install");
     }
 
     return this.validateProject(project).then(() => {
 
       if (project.errorsCount > 0) {
-        this.reportError("error_cantInstallValidationErrors");
+        AppManager.console.error("Can't install project. Validation errors.");
         return;
       }
 
@@ -342,15 +342,15 @@ exports.AppManager = AppManager = {
       return installPromise.then(() => {
         let manifest = this.getProjectManifestURL(project);
         if (!this._runningApps.has(manifest)) {
-          console.log("Launching app: " + project.name);
+          AppManager.console.log("Launching app: " + project.name);
           AppActorFront.launchApp(client, actor, manifest);
         } else {
-          console.log("Reloading app: " + project.name);
+          AppManager.console.log("Reloading app: " + project.name);
           AppActorFront.reloadApp(client, actor, manifest);
         }
       });
 
-    }, console.error);
+    }, AppManager.console.error);
   },
 
   stopRunningApp: function() {
@@ -411,18 +411,22 @@ exports.AppManager = AppManager = {
           project.warningsCount = validation.warnings.length;
           project.warnings = validation.warnings;
           project.validationStatus = "warning";
+          AppManager.console.warning("Validation (" + project.name + "): found " + validation.warnings.length + " warnings.");
         } else {
           project.warnings = "";
           project.warningsCount = 0;
+          AppManager.console.log("Validation (" + project.name + "): no warnings found.");
         }
 
         if (validation.errors.length > 0) {
           project.errorsCount = validation.errors.length;
           project.errors = validation.errors;
           project.validationStatus = "error";
+          AppManager.console.error("Validation (" + project.name + "): found " + validation.errors.length + " errors.");
         } else {
           project.errors = "";
           project.errorsCount = 0;
+          AppManager.console.log("Validation (" + project.name + "): no errors found.");
         }
 
         if (project.warningsCount && project.errorsCount) {
@@ -438,7 +442,7 @@ exports.AppManager = AppManager = {
         }
 
         return project;
-      }, console.error);
+      }, AppManager.console.error);
   },
 
   /* RUNTIME LIST */
@@ -511,7 +515,7 @@ USBRuntime.prototype = {
   connect: function(connection) {
     let device = Devices.getByName(this.id);
     if (!device) {
-      console.error("Can't find device: " + id);
+      AppManager.console.error("Can't find device: " + id);
       return promise.reject();
     }
     return device.connect().then((port) => {
@@ -537,7 +541,7 @@ SimulatorRuntime.prototype = {
     let port = ConnectionManager.getFreeTCPPort();
     let simulator = Simulator.getByVersion(this.version);
     if (!simulator || !simulator.launch) {
-      console.error("Can't find simulator: " + this.version);
+      AppManager.console.error("Can't find simulator: " + this.version);
       return promise.reject();
     }
     return simulator.launch({port: port}).then(() => {
