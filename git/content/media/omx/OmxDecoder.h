@@ -42,7 +42,6 @@ class MediaStreamSource : public DataSource {
   typedef mozilla::MediaResource MediaResource;
   typedef mozilla::AbstractMediaDecoder AbstractMediaDecoder;
 
-  Mutex mLock;
   nsRefPtr<MediaResource> mResource;
   AbstractMediaDecoder *mDecoder;
 public:
