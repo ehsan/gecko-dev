@@ -15,7 +15,6 @@ dictionary NetworkCommandOptions
                                       //     "removeHostRoutes".
   DOMString ip;                       // for "removeNetworkRoute", "setWifiTethering".
   DOMString netmask;                  // for "removeNetworkRoute".
-  DOMString domain;                   // for "setDNS"
   DOMString dns1_str;                 // for "setDNS", "setDefaultRouteAndDNS".
   DOMString dns2_str;                 // for "setDNS", "setDefaultRouteAndDNS".
   DOMString oldIfname;                // for "setDefaultRouteAndDNS".
