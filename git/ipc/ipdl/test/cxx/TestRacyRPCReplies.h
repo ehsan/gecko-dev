@@ -1,21 +1,21 @@
-#ifndef mozilla__ipdltest_TestRacyInterruptReplies_h
-#define mozilla__ipdltest_TestRacyInterruptReplies_h 1
+#ifndef mozilla__ipdltest_TestRacyRPCReplies_h
+#define mozilla__ipdltest_TestRacyRPCReplies_h 1
 
 #include "mozilla/_ipdltest/IPDLUnitTests.h"
 
-#include "mozilla/_ipdltest/PTestRacyInterruptRepliesParent.h"
-#include "mozilla/_ipdltest/PTestRacyInterruptRepliesChild.h"
+#include "mozilla/_ipdltest/PTestRacyRPCRepliesParent.h"
+#include "mozilla/_ipdltest/PTestRacyRPCRepliesChild.h"
 
 namespace mozilla {
 namespace _ipdltest {
 
 
-class TestRacyInterruptRepliesParent :
-    public PTestRacyInterruptRepliesParent
+class TestRacyRPCRepliesParent :
+    public PTestRacyRPCRepliesParent
 {
 public:
-    TestRacyInterruptRepliesParent();
-    virtual ~TestRacyInterruptRepliesParent();
+    TestRacyRPCRepliesParent();
+    virtual ~TestRacyRPCRepliesParent();
 
     static bool RunTestInProcesses() { return true; }
     static bool RunTestInThreads() { return true; }
@@ -40,12 +40,12 @@ private:
 };
 
 
-class TestRacyInterruptRepliesChild :
-    public PTestRacyInterruptRepliesChild
+class TestRacyRPCRepliesChild :
+    public PTestRacyRPCRepliesChild
 {
 public:
-    TestRacyInterruptRepliesChild();
-    virtual ~TestRacyInterruptRepliesChild();
+    TestRacyRPCRepliesChild();
+    virtual ~TestRacyRPCRepliesChild();
 
 protected:
     virtual bool AnswerR_(int* replyNum) MOZ_OVERRIDE;
@@ -70,4 +70,4 @@ private:
 } // namespace mozilla
 
 
-#endif // ifndef mozilla__ipdltest_TestRacyInterruptReplies_h
+#endif // ifndef mozilla__ipdltest_TestRacyRPCReplies_h

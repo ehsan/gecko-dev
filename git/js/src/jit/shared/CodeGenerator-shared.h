@@ -200,7 +200,6 @@ class CodeGeneratorShared : public LInstructionVisitor
     }
 
 #ifdef CHECK_OSIPOINT_REGISTERS
-    void resetOsiPointRegs(LSafepoint *safepoint);
     bool shouldVerifyOsiPointRegs(LSafepoint *safepoint);
     void verifyOsiPointRegs(LSafepoint *safepoint);
 #endif

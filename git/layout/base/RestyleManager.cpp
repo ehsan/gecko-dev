@@ -2638,7 +2638,7 @@ ElementRestyler::InitializeAccessibilityNotifications()
   // it is not inside a {ib} split or is the first frame of {ib} split.
   if (nsIPresShell::IsAccessibilityActive() &&
       !mFrame->GetPrevContinuation() &&
-      !mFrame->FrameIsNonFirstInIBSplit()) {
+      !nsLayoutUtils::FrameIsNonFirstInIBSplit(mFrame)) {
     if (mDesiredA11yNotifications == eSendAllNotifications) {
       bool isFrameVisible = mFrame->StyleVisibility()->IsVisible();
       if (isFrameVisible != mWasFrameVisible) {

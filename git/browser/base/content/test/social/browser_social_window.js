@@ -31,24 +31,12 @@ function openWindowAndWaitForInit(callback) {
   }, topic, false);
 }
 
-function closeOneWindow(cb) {
-  let w = createdWindows.pop();
-  if (!w) {
-    cb();
-    return;
-  }
-  waitForCondition(function() w.closed,
-                   function() {
-                    closeOneWindow(cb);
-                    }, "window did not close");
-  w.close();
-}
-
 function postTestCleanup(cb) {
-  closeOneWindow(function() {
-    Services.prefs.clearUserPref("social.enabled");
-    cb();
-  });
+  for (let w of createdWindows)
+    w.close();
+  createdWindows = [];
+  Services.prefs.clearUserPref("social.enabled");
+  cb();
 }
 
 let manifest = { // normal provider

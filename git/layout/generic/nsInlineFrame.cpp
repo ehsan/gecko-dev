@@ -132,8 +132,8 @@ nsInlineFrame::IsSelfEmpty()
       // avoid having to get it twice..
       nsIFrame* firstCont = FirstContinuation();
       return
-        (!haveStart || firstCont->FrameIsNonFirstInIBSplit()) &&
-        (!haveEnd || firstCont->FrameIsNonLastInIBSplit());
+        (!haveStart || nsLayoutUtils::FrameIsNonFirstInIBSplit(firstCont)) &&
+        (!haveEnd || nsLayoutUtils::FrameIsNonLastInIBSplit(firstCont));
     }
     return false;
   }
@@ -463,7 +463,8 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
   nscoord leftEdge = 0;
   // Don't offset by our start borderpadding if we have a prev continuation or
   // if we're in a part of an {ib} split other than the first one.
-  if (!GetPrevContinuation() && !FrameIsNonFirstInIBSplit()) {
+  if (!GetPrevContinuation() &&
+      !nsLayoutUtils::FrameIsNonFirstInIBSplit(this)) {
     leftEdge = ltr ? aReflowState.mComputedBorderPadding.left
                    : aReflowState.mComputedBorderPadding.right;
   }
@@ -625,7 +626,8 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
   // Make sure to not include our start border and padding if we have a prev
   // continuation or if we're in a part of an {ib} split other than the first
   // one.
-  if (!GetPrevContinuation() && !FrameIsNonFirstInIBSplit()) {
+  if (!GetPrevContinuation() &&
+      !nsLayoutUtils::FrameIsNonFirstInIBSplit(this)) {
     aMetrics.width += ltr ? aReflowState.mComputedBorderPadding.left
                           : aReflowState.mComputedBorderPadding.right;
   }
@@ -639,7 +641,7 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
    */
   if (NS_FRAME_IS_COMPLETE(aStatus) &&
       !LastInFlow()->GetNextContinuation() &&
-      !FrameIsNonLastInIBSplit()) {
+      !nsLayoutUtils::FrameIsNonLastInIBSplit(this)) {
     aMetrics.width += ltr ? aReflowState.mComputedBorderPadding.right
                           : aReflowState.mComputedBorderPadding.left;
   }
@@ -885,10 +887,10 @@ nsInlineFrame::GetSkipSides(const nsHTMLReflowState* aReflowState) const
       // We're missing one of the skip bits, so check whether we need to set it.
       // Only get the first continuation once, as an optimization.
       nsIFrame* firstContinuation = FirstContinuation();
-      if (firstContinuation->FrameIsNonLastInIBSplit()) {
+      if (nsLayoutUtils::FrameIsNonLastInIBSplit(firstContinuation)) {
         skip |= endBit;
       }
-      if (firstContinuation->FrameIsNonFirstInIBSplit()) {
+      if (nsLayoutUtils::FrameIsNonFirstInIBSplit(firstContinuation)) {
         skip |= startBit;
       }
     }

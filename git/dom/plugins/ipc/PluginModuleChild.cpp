@@ -583,7 +583,7 @@ PluginModuleChild::AnswerNP_Shutdown(NPError *rv)
     mozilla::widget::StopAudioSession();
 #endif
 
-    // the PluginModuleParent shuts down this process after this interrupt
+    // the PluginModuleParent shuts down this process after this RPC
     // call pops off its stack
 
     *rv = mShutdownFunc ? mShutdownFunc() : NPERR_NO_ERROR;
@@ -2350,7 +2350,7 @@ PluginModuleChild::NestedInputEventHook(int nCode, WPARAM wParam, LPARAM lParam)
     uint32_t len = self->mIncallPumpingStack.Length();
     if (nCode >= 0 && len && !self->mIncallPumpingStack[len - 1]._spinning) {
         MessageLoop* loop = MessageLoop::current();
-        self->SendProcessNativeEventsInInterruptCall();
+        self->SendProcessNativeEventsInRPCCall();
         IncallFrame& f = self->mIncallPumpingStack[len - 1];
         f._spinning = true;
         f._savedNestableTasksAllowed = loop->NestableTasksAllowed();
@@ -2399,15 +2399,15 @@ PluginModuleChild::ResetEventHooks()
 #endif
 
 bool
-PluginModuleChild::RecvProcessNativeEventsInInterruptCall()
+PluginModuleChild::RecvProcessNativeEventsInRPCCall()
 {
     PLUGIN_LOG_DEBUG(("%s", FULLFUNCTION));
 #if defined(OS_WIN)
-    ProcessNativeEventsInInterruptCall();
+    ProcessNativeEventsInRPCCall();
     return true;
 #else
     NS_RUNTIMEABORT(
-        "PluginModuleChild::RecvProcessNativeEventsInInterruptCall not implemented!");
+        "PluginModuleChild::RecvProcessNativeEventsInRPCCall not implemented!");
     return false;
 #endif
 }

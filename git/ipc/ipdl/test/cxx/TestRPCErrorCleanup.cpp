@@ -1,4 +1,4 @@
-#include "TestInterruptErrorCleanup.h"
+#include "TestRPCErrorCleanup.h"
 
 #include "mozilla/CondVar.h"
 #include "mozilla/Mutex.h"
@@ -33,13 +33,13 @@ void DeleteSubprocess(Mutex* mutex, CondVar* cvar)
 
 void DeleteTheWorld()
 {
-    delete static_cast<TestInterruptErrorCleanupParent*>(gParentActor);
+    delete static_cast<TestRPCErrorCleanupParent*>(gParentActor);
     gParentActor = nullptr;
 
     // needs to be synchronous to avoid affecting event ordering on
     // the main thread
-    Mutex mutex("TestInterruptErrorCleanup.DeleteTheWorld.mutex");
-    CondVar cvar(mutex, "TestInterruptErrorCleanup.DeleteTheWorld.cvar");
+    Mutex mutex("TestRPCErrorCleanup.DeleteTheWorld.mutex");
+    CondVar cvar(mutex, "TestRPCErrorCleanup.DeleteTheWorld.cvar");
 
     MutexAutoLock lock(mutex);
 
@@ -61,26 +61,26 @@ void Done()
 
 } // namespace <anon>
 
-TestInterruptErrorCleanupParent::TestInterruptErrorCleanupParent()
+TestRPCErrorCleanupParent::TestRPCErrorCleanupParent()
     : mGotProcessingError(false)
 {
-    MOZ_COUNT_CTOR(TestInterruptErrorCleanupParent);
+    MOZ_COUNT_CTOR(TestRPCErrorCleanupParent);
 }
 
-TestInterruptErrorCleanupParent::~TestInterruptErrorCleanupParent()
+TestRPCErrorCleanupParent::~TestRPCErrorCleanupParent()
 {
-    MOZ_COUNT_DTOR(TestInterruptErrorCleanupParent);
+    MOZ_COUNT_DTOR(TestRPCErrorCleanupParent);
 }
 
 void
-TestInterruptErrorCleanupParent::Main()
+TestRPCErrorCleanupParent::Main()
 {
     // This test models the following sequence of events
     //
-    // (1) Parent: Interrupt out-call
+    // (1) Parent: RPC out-call
     // (2) Child: crash
     // --[Parent-only hereafter]--
-    // (3) Interrupt out-call return false
+    // (3) RPC out-call return false
     // (4) Close()
     // --[event loop]--
     // (5) delete parentActor
@@ -122,7 +122,7 @@ TestInterruptErrorCleanupParent::Main()
 }
 
 void
-TestInterruptErrorCleanupParent::ProcessingError(Result what)
+TestRPCErrorCleanupParent::ProcessingError(Result what)
 {
     if (what != MsgDropped)
         fail("unexpected processing error");
@@ -132,18 +132,18 @@ TestInterruptErrorCleanupParent::ProcessingError(Result what)
 //-----------------------------------------------------------------------------
 // child
 
-TestInterruptErrorCleanupChild::TestInterruptErrorCleanupChild()
+TestRPCErrorCleanupChild::TestRPCErrorCleanupChild()
 {
-    MOZ_COUNT_CTOR(TestInterruptErrorCleanupChild);
+    MOZ_COUNT_CTOR(TestRPCErrorCleanupChild);
 }
 
-TestInterruptErrorCleanupChild::~TestInterruptErrorCleanupChild()
+TestRPCErrorCleanupChild::~TestRPCErrorCleanupChild()
 {
-    MOZ_COUNT_DTOR(TestInterruptErrorCleanupChild);
+    MOZ_COUNT_DTOR(TestRPCErrorCleanupChild);
 }
 
 bool
-TestInterruptErrorCleanupChild::AnswerError()
+TestRPCErrorCleanupChild::AnswerError()
 {
     _exit(0);
     NS_RUNTIMEABORT("unreached");

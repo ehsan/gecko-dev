@@ -126,7 +126,6 @@ reserved = set((
         'delete',                       # reserve 'delete' to prevent its use
         'goto',
         'include',
-        'intr',
         'manager',
         'manages',
         'namespace',
@@ -137,6 +136,7 @@ reserved = set((
         'protocol',
         'recv',
         'returns',
+        'rpc',
         'send',
         'spawns',
         'start',
@@ -216,7 +216,6 @@ def p_TranslationUnit(p):
         tu.namespaces = tu.protocol.namespaces
         tu.name = tu.protocol.name
     else:
-        print tu.filetype
         assert tu.filetype == 'header'
         # There's not really a canonical "thing" in headers.  So
         # somewhat arbitrarily use the namespace of the last
@@ -606,12 +605,12 @@ def p_OptionalSendSemanticsQual(p):
 
 def p_SendSemanticsQual(p):
     """SendSemanticsQual : ASYNC
-                         | INTR
+                         | RPC
                          | URGENT
                          | SYNC"""
     s = p[1]
     if 'async' == s: p[0] =    ASYNC
-    elif 'intr' == s: p[0] =   INTR
+    elif 'rpc' == s: p[0] =    RPC
     elif 'sync' == s: p[0] =   SYNC
     elif 'urgent' == s: p[0] = URGENT
     else:

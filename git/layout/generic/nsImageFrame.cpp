@@ -265,8 +265,8 @@ nsImageFrame::UpdateIntrinsicSize(imgIContainer* aImage)
   if (!aImage)
     return false;
 
-  IntrinsicSize oldIntrinsicSize = mIntrinsicSize;
-  mIntrinsicSize = IntrinsicSize();
+  nsIFrame::IntrinsicSize oldIntrinsicSize = mIntrinsicSize;
+  mIntrinsicSize = nsIFrame::IntrinsicSize();
 
   // Set intrinsic size to match aImage's reported intrinsic width & height.
   nsSize intrinsicSize;
@@ -793,7 +793,7 @@ nsImageFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
     mIntrinsicSize.width.GetCoordValue() : 0;
 }
 
-/* virtual */ IntrinsicSize
+/* virtual */ nsIFrame::IntrinsicSize
 nsImageFrame::GetIntrinsicSize()
 {
   return mIntrinsicSize;

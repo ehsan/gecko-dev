@@ -768,15 +768,6 @@ XULTextFieldAccessible::CanHaveAnonChildren()
   return false;
 }
 
-bool
-XULTextFieldAccessible::IsAcceptableChild(Accessible* aPossibleChild) const
-{
-  // XXX: entry shouldn't contain anything but text leafs. Currently it may
-  // contain a trailing fake HTML br element added for layout needs. We don't
-  // need to expose it since it'd be confusing for AT.
-  return aPossibleChild->IsTextLeaf();
-}
-
 already_AddRefed<nsIEditor>
 XULTextFieldAccessible::GetEditor() const
 {
@@ -803,9 +794,17 @@ XULTextFieldAccessible::CacheChildren()
   if (!inputContent)
     return;
 
+  // XXX: entry shouldn't contain anything but text leafs. Currently it may
+  // contain a trailing fake HTML br element added for layout needs. We don't
+  // need to expose it since it'd be confusing for AT.
   TreeWalker walker(this, inputContent);
-  while (Accessible* child = walker.NextChild())
-    AppendChild(child);
+  Accessible* child = nullptr;
+  while ((child = walker.NextChild())) {
+    if (child->IsTextLeaf())
+      AppendChild(child);
+    else
+      Document()->UnbindFromDocument(child);
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

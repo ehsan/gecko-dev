@@ -1,21 +1,21 @@
-#ifndef mozilla__ipdltest_TestInterruptErrorCleanup_h
-#define mozilla__ipdltest_TestInterruptErrorCleanup_h 1
+#ifndef mozilla__ipdltest_TestRPCErrorCleanup_h
+#define mozilla__ipdltest_TestRPCErrorCleanup_h 1
 
 #include "mozilla/_ipdltest/IPDLUnitTests.h"
 
-#include "mozilla/_ipdltest/PTestInterruptErrorCleanupParent.h"
-#include "mozilla/_ipdltest/PTestInterruptErrorCleanupChild.h"
+#include "mozilla/_ipdltest/PTestRPCErrorCleanupParent.h"
+#include "mozilla/_ipdltest/PTestRPCErrorCleanupChild.h"
 
 namespace mozilla {
 namespace _ipdltest {
 
 
-class TestInterruptErrorCleanupParent :
-    public PTestInterruptErrorCleanupParent
+class TestRPCErrorCleanupParent :
+    public PTestRPCErrorCleanupParent
 {
 public:
-    TestInterruptErrorCleanupParent();
-    virtual ~TestInterruptErrorCleanupParent();
+    TestRPCErrorCleanupParent();
+    virtual ~TestRPCErrorCleanupParent();
 
     static bool RunTestInProcesses() { return true; }
     // FIXME/bug 703323 Could work if modified
@@ -36,12 +36,12 @@ protected:
 };
 
 
-class TestInterruptErrorCleanupChild :
-    public PTestInterruptErrorCleanupChild
+class TestRPCErrorCleanupChild :
+    public PTestRPCErrorCleanupChild
 {
 public:
-    TestInterruptErrorCleanupChild();
-    virtual ~TestInterruptErrorCleanupChild();
+    TestRPCErrorCleanupChild();
+    virtual ~TestRPCErrorCleanupChild();
 
 protected:
     virtual bool AnswerError() MOZ_OVERRIDE;
@@ -57,4 +57,4 @@ protected:
 } // namespace mozilla
 
 
-#endif // ifndef mozilla__ipdltest_TestInterruptErrorCleanup_h
+#endif // ifndef mozilla__ipdltest_TestRPCErrorCleanup_h

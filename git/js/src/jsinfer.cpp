@@ -1417,7 +1417,7 @@ types::UseNewType(JSContext *cx, JSScript *script, jsbytecode *pc)
 }
 
 NewObjectKind
-types::UseNewTypeForInitializer(JSScript *script, jsbytecode *pc, JSProtoKey key)
+types::UseNewTypeForInitializer(JSContext *cx, JSScript *script, jsbytecode *pc, JSProtoKey key)
 {
     /*
      * Objects created outside loops in global and eval scripts should have
@@ -1425,7 +1425,7 @@ types::UseNewTypeForInitializer(JSScript *script, jsbytecode *pc, JSProtoKey key
      * arrays, but not normal arrays.
      */
 
-    if (script->function() && !script->treatAsRunOnce)
+    if (!cx->typeInferenceEnabled() || (script->function() && !script->treatAsRunOnce))
         return GenericObject;
 
     if (key != JSProto_Object && !(key >= JSProto_Int8Array && key <= JSProto_Uint8ClampedArray))
@@ -1458,9 +1458,9 @@ types::UseNewTypeForInitializer(JSScript *script, jsbytecode *pc, JSProtoKey key
 }
 
 NewObjectKind
-types::UseNewTypeForInitializer(JSScript *script, jsbytecode *pc, const Class *clasp)
+types::UseNewTypeForInitializer(JSContext *cx, JSScript *script, jsbytecode *pc, const Class *clasp)
 {
-    return UseNewTypeForInitializer(script, pc, JSCLASS_CACHED_PROTO_KEY(clasp));
+    return UseNewTypeForInitializer(cx, script, pc, JSCLASS_CACHED_PROTO_KEY(clasp));
 }
 
 static inline bool
@@ -3854,35 +3854,54 @@ TypeScript::AddFreezeConstraints(JSContext *cx, JSScript *script)
     }
 }
 
+static void
+SizeOfScriptTypeInferenceData(JSScript *script, JS::TypeInferenceSizes *sizes,
+                              mozilla::MallocSizeOf mallocSizeOf)
+{
+    TypeScript *typeScript = script->types;
+    if (!typeScript)
+        return;
+
+    /* If TI is disabled, a single TypeScript is still present. */
+    if (!script->compartment()->zone()->types.inferenceEnabled) {
+        sizes->typeScripts += mallocSizeOf(typeScript);
+        return;
+    }
+
+    sizes->typeScripts += mallocSizeOf(typeScript);
+}
+
 void
-Zone::addSizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf, size_t *typePool)
+Zone::sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf, size_t *typePool)
 {
     *typePool += types.typeLifoAlloc.sizeOfExcludingThis(mallocSizeOf);
 }
 
 void
-TypeCompartment::addSizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf,
-                                        size_t *pendingArrays,
-                                        size_t *allocationSiteTables,
-                                        size_t *arrayTypeTables,
-                                        size_t *objectTypeTables)
+JSCompartment::sizeOfTypeInferenceData(JS::TypeInferenceSizes *sizes, mozilla::MallocSizeOf mallocSizeOf)
 {
     /* Pending arrays are cleared on GC along with the analysis pool. */
-    *pendingArrays += mallocSizeOf(pendingArray);
+    sizes->pendingArrays += mallocSizeOf(types.pendingArray);
 
     /* TypeCompartment::pendingRecompiles is non-NULL only while inference code is running. */
-    JS_ASSERT(!pendingRecompiles);
+    JS_ASSERT(!types.pendingRecompiles);
 
-    if (allocationSiteTable)
-        *allocationSiteTables += allocationSiteTable->sizeOfIncludingThis(mallocSizeOf);
+    for (gc::CellIter i(zone(), gc::FINALIZE_SCRIPT); !i.done(); i.next()) {
+        JSScript *script = i.get<JSScript>();
+        if (script->compartment() == this)
+            SizeOfScriptTypeInferenceData(script, sizes, mallocSizeOf);
+    }
 
-    if (arrayTypeTable)
-        *arrayTypeTables += arrayTypeTable->sizeOfIncludingThis(mallocSizeOf);
+    if (types.allocationSiteTable)
+        sizes->allocationSiteTables += types.allocationSiteTable->sizeOfIncludingThis(mallocSizeOf);
 
-    if (objectTypeTable) {
-        *objectTypeTables += objectTypeTable->sizeOfIncludingThis(mallocSizeOf);
+    if (types.arrayTypeTable)
+        sizes->arrayTypeTables += types.arrayTypeTable->sizeOfIncludingThis(mallocSizeOf);
 
-        for (ObjectTypeTable::Enum e(*objectTypeTable);
+    if (types.objectTypeTable) {
+        sizes->objectTypeTables += types.objectTypeTable->sizeOfIncludingThis(mallocSizeOf);
+
+        for (ObjectTypeTable::Enum e(*types.objectTypeTable);
              !e.empty();
              e.popFront())
         {
@@ -3890,13 +3909,13 @@ TypeCompartment::addSizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf,
             const ObjectTableEntry &value = e.front().value;
 
             /* key.ids and values.types have the same length. */
-            *objectTypeTables += mallocSizeOf(key.properties) + mallocSizeOf(value.types);
+            sizes->objectTypeTables += mallocSizeOf(key.properties) + mallocSizeOf(value.types);
         }
     }
 }
 
 size_t
-TypeObject::sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf) const
+TypeObject::sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf)
 {
     if (singleton) {
         /*

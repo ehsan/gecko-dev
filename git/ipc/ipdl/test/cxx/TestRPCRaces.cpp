@@ -1,48 +1,48 @@
-#include "TestInterruptRaces.h"
+#include "TestRPCRaces.h"
 
 #include "IPDLUnitTests.h"      // fail etc.
 
 using mozilla::ipc::MessageChannel;
 
 template<>
-struct RunnableMethodTraits<mozilla::_ipdltest::TestInterruptRacesParent>
+struct RunnableMethodTraits<mozilla::_ipdltest::TestRPCRacesParent>
 {
-    static void RetainCallee(mozilla::_ipdltest::TestInterruptRacesParent* obj) { }
-    static void ReleaseCallee(mozilla::_ipdltest::TestInterruptRacesParent* obj) { }
+    static void RetainCallee(mozilla::_ipdltest::TestRPCRacesParent* obj) { }
+    static void ReleaseCallee(mozilla::_ipdltest::TestRPCRacesParent* obj) { }
 };
 
 
 namespace mozilla {
 namespace _ipdltest {
 
-ipc::RacyInterruptPolicy
+ipc::RacyRPCPolicy
 MediateRace(const MessageChannel::Message& parent,
             const MessageChannel::Message& child)
 {
-    return (PTestInterruptRaces::Msg_Child__ID == parent.type()) ?
-        ipc::RIPParentWins : ipc::RIPChildWins;
+    return (PTestRPCRaces::Msg_Child__ID == parent.type()) ?
+        ipc::RRPParentWins : ipc::RRPChildWins;
 }
 
 //-----------------------------------------------------------------------------
 // parent
 void
-TestInterruptRacesParent::Main()
+TestRPCRacesParent::Main()
 {
     if (!SendStart())
         fail("sending Start()");
 }
 
 bool
-TestInterruptRacesParent::RecvStartRace()
+TestRPCRacesParent::RecvStartRace()
 {
     MessageLoop::current()->PostTask(
         FROM_HERE,
-        NewRunnableMethod(this, &TestInterruptRacesParent::OnRaceTime));
+        NewRunnableMethod(this, &TestRPCRacesParent::OnRaceTime));
     return true;
 }
 
 void
-TestInterruptRacesParent::OnRaceTime()
+TestRPCRacesParent::OnRaceTime()
 {
     if (!CallRace(&mChildHasReply))
         fail("problem calling Race()");
@@ -54,20 +54,20 @@ TestInterruptRacesParent::OnRaceTime()
 
     MessageLoop::current()->PostTask(
         FROM_HERE,
-        NewRunnableMethod(this, &TestInterruptRacesParent::Test2));
+        NewRunnableMethod(this, &TestRPCRacesParent::Test2));
 }
 
 bool
-TestInterruptRacesParent::AnswerRace(bool* hasReply)
+TestRPCRacesParent::AnswerRace(bool* hasReply)
 {
     if (mHasReply)
-        fail("apparently the parent won the Interrupt race!");
+        fail("apparently the parent won the RPC race!");
     *hasReply = hasReply;
     return true;
 }
 
 void
-TestInterruptRacesParent::Test2()
+TestRPCRacesParent::Test2()
 {
     puts("  passed");
     puts("Test 2");
@@ -82,11 +82,11 @@ TestInterruptRacesParent::Test2()
 
     MessageLoop::current()->PostTask(
         FROM_HERE,
-        NewRunnableMethod(this, &TestInterruptRacesParent::Test3));
+        NewRunnableMethod(this, &TestRPCRacesParent::Test3));
 }
 
 bool
-TestInterruptRacesParent::AnswerStackFrame()
+TestRPCRacesParent::AnswerStackFrame()
 {
     if (!SendWakeup())
         fail("can't wake up the child");
@@ -102,7 +102,7 @@ TestInterruptRacesParent::AnswerStackFrame()
 }
 
 void
-TestInterruptRacesParent::Test3()
+TestRPCRacesParent::Test3()
 {
     puts("Test 3");
 
@@ -115,7 +115,7 @@ TestInterruptRacesParent::Test3()
 }
 
 bool
-TestInterruptRacesParent::AnswerStackFrame3()
+TestRPCRacesParent::AnswerStackFrame3()
 {
     if (!SendWakeup3())
         fail("can't wake up the child");
@@ -127,14 +127,14 @@ TestInterruptRacesParent::AnswerStackFrame3()
 }
 
 bool
-TestInterruptRacesParent::AnswerParent()
+TestRPCRacesParent::AnswerParent()
 {
     mAnsweredParent = true;
     return true;
 }
 
 bool
-TestInterruptRacesParent::RecvGetAnsweredParent(bool* answeredParent)
+TestRPCRacesParent::RecvGetAnsweredParent(bool* answeredParent)
 {
     *answeredParent = mAnsweredParent;
     return true;
@@ -143,7 +143,7 @@ TestInterruptRacesParent::RecvGetAnsweredParent(bool* answeredParent)
 //-----------------------------------------------------------------------------
 // child
 bool
-TestInterruptRacesChild::RecvStart()
+TestRPCRacesChild::RecvStart()
 {
     puts("Test 1");
 
@@ -159,10 +159,10 @@ TestInterruptRacesChild::RecvStart()
 }
 
 bool
-TestInterruptRacesChild::AnswerRace(bool* hasReply)
+TestRPCRacesChild::AnswerRace(bool* hasReply)
 {
     if (!mHasReply)
-        fail("apparently the child lost the Interrupt race!");
+        fail("apparently the child lost the RPC race!");
 
     *hasReply = mHasReply;
 
@@ -170,7 +170,7 @@ TestInterruptRacesChild::AnswerRace(bool* hasReply)
 }
 
 bool
-TestInterruptRacesChild::AnswerStackFrame()
+TestRPCRacesChild::AnswerStackFrame()
 {
     // reset for the second test
     mHasReply = false;
@@ -185,7 +185,7 @@ TestInterruptRacesChild::AnswerStackFrame()
 }
 
 bool
-TestInterruptRacesChild::RecvWakeup()
+TestRPCRacesChild::RecvWakeup()
 {
     bool dontcare;
     if (!CallRace(&dontcare))
@@ -196,7 +196,7 @@ TestInterruptRacesChild::RecvWakeup()
 }
 
 bool
-TestInterruptRacesChild::AnswerStackFrame3()
+TestRPCRacesChild::AnswerStackFrame3()
 {
     if (!CallStackFrame3())
         fail("can't set up stack frame");
@@ -204,7 +204,7 @@ TestInterruptRacesChild::AnswerStackFrame3()
 }
 
 bool
-TestInterruptRacesChild::RecvWakeup3()
+TestRPCRacesChild::RecvWakeup3()
 {
     if (!CallParent())
         fail("can't set up race condition");
@@ -212,7 +212,7 @@ TestInterruptRacesChild::RecvWakeup3()
 }
 
 bool
-TestInterruptRacesChild::AnswerChild()
+TestRPCRacesChild::AnswerChild()
 {
     bool parentAnsweredParent;
     // the parent is supposed to win the race, which means its

@@ -1131,12 +1131,10 @@ public:
 
     if (!logged || nsContentUtils::DOMWindowDumpEnabled()) {
       NS_ConvertUTF16toUTF8 msg(aMessage);
-      NS_ConvertUTF16toUTF8 fname(aFilename);
 #ifdef ANDROID
-      __android_log_print(ANDROID_LOG_INFO, "Gecko", "JS error in worker: %s, %s:%u",
-                          msg.get(), fname.get(), aLineNumber);
+      __android_log_print(ANDROID_LOG_INFO, "Gecko", "%s", msg.get());
 #endif
-      fprintf(stderr, "JS error in worker: %s, %s:%u\n", msg.get(), fname.get(), aLineNumber);
+      fputs(msg.get(), stderr);
       fflush(stderr);
     }
 

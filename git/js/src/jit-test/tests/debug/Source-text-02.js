@@ -1,5 +1,4 @@
-// Nested compilation units (say, an eval with in an eval) should have the
-// correct sources attributed to them.
+// Source.prototype.text should be a string
 let g = newGlobal();
 let dbg = new Debugger(g);
 

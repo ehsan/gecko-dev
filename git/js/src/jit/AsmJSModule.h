@@ -740,8 +740,9 @@ class AsmJSModule
         exitIndexToGlobalDatum(exitIndex).exit = interpExitTrampoline(exit(exitIndex));
     }
 
-    void addSizeOfMisc(mozilla::MallocSizeOf mallocSizeOf, size_t *asmJSModuleCode,
-                       size_t *asmJSModuleData);
+    // Part of about:memory reporting:
+    void sizeOfMisc(mozilla::MallocSizeOf mallocSizeOf, size_t *asmJSModuleCode,
+                    size_t *asmJSModuleData);
 };
 
 // An AsmJSModuleObject is an internal implementation object (i.e., not exposed
@@ -761,9 +762,9 @@ class AsmJSModuleObject : public JSObject
 
     AsmJSModule &module() const;
 
-    void addSizeOfMisc(mozilla::MallocSizeOf mallocSizeOf, size_t *asmJSModuleCode,
-                       size_t *asmJSModuleData) {
-        module().addSizeOfMisc(mallocSizeOf, asmJSModuleCode, asmJSModuleData);
+    void sizeOfMisc(mozilla::MallocSizeOf mallocSizeOf, size_t *asmJSModuleCode,
+                    size_t *asmJSModuleData) {
+        module().sizeOfMisc(mallocSizeOf, asmJSModuleCode, asmJSModuleData);
     }
 
     static const Class class_;

@@ -81,7 +81,7 @@ public:
                                 const nsDisplayListSet& aLists) MOZ_OVERRIDE;
   virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
   virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
-  virtual mozilla::IntrinsicSize GetIntrinsicSize();
+  virtual IntrinsicSize GetIntrinsicSize();
   virtual nsSize GetIntrinsicRatio();
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
@@ -286,7 +286,7 @@ private:
 
   nsCOMPtr<imgIContainer> mImage;
   nsSize mComputedSize;
-  mozilla::IntrinsicSize mIntrinsicSize;
+  nsIFrame::IntrinsicSize mIntrinsicSize;
   nsSize mIntrinsicRatio;
 
   bool mDisplayingIcon;

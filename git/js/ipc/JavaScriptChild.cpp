@@ -112,7 +112,7 @@ JavaScriptChild::fail(JSContext *cx, ReturnStatus *rs)
 {
     // By default, we set |undefined| unless we can get a more meaningful
     // exception.
-    *rs = ReturnStatus(ReturnException(JSVariant(void_t())));
+    *rs = ReturnStatus(false, JSVariant(void_t()));
 
     // Note we always return true from this function, since this propagates
     // to the IPC code, and we don't want a JS failure to cause the death
@@ -127,12 +127,7 @@ JavaScriptChild::fail(JSContext *cx, ReturnStatus *rs)
     // that would crash.
     JS_ClearPendingException(cx);
 
-    if (JS_IsStopIteration(exn)) {
-        *rs = ReturnStatus(ReturnStopIteration());
-        return true;
-    }
-
-    if (!toVariant(cx, exn, &rs->get_ReturnException().exn()))
+    if (!toVariant(cx, exn, &rs->exn()))
         return true;
 
     return true;
@@ -141,7 +136,7 @@ JavaScriptChild::fail(JSContext *cx, ReturnStatus *rs)
 bool
 JavaScriptChild::ok(ReturnStatus *rs)
 {
-    *rs = ReturnStatus(ReturnSuccess());
+    *rs = ReturnStatus(true, JSVariant(void_t()));
     return true;
 }
 

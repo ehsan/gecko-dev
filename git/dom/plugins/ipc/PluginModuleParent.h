@@ -124,7 +124,7 @@ public:
     PluginIdentifierParent*
     GetIdentifierForNPIdentifier(NPP npp, NPIdentifier aIdentifier);
 
-    void ProcessRemoteNativeEventsInInterruptCall();
+    void ProcessRemoteNativeEventsInRPCCall();
 
     void TerminateChildProcess(MessageLoop* aMsgLoop);
 
@@ -134,8 +134,8 @@ public:
 #endif // XP_WIN
 
 protected:
-    virtual mozilla::ipc::RacyInterruptPolicy
-    MediateInterruptRace(const Message& parent, const Message& child) MOZ_OVERRIDE
+    virtual mozilla::ipc::RacyRPCPolicy
+    MediateRPCRace(const Message& parent, const Message& child) MOZ_OVERRIDE
     {
         return MediateRace(parent, child);
     }
@@ -158,7 +158,7 @@ protected:
     virtual bool AnswerProcessSomeEvents() MOZ_OVERRIDE;
 
     virtual bool
-    RecvProcessNativeEventsInInterruptCall() MOZ_OVERRIDE;
+    RecvProcessNativeEventsInRPCCall() MOZ_OVERRIDE;
 
     virtual bool
     RecvPluginShowWindow(const uint32_t& aWindowId, const bool& aModal,

@@ -11,8 +11,6 @@
 #include "nsCxPusher.h"
 #include "nsError.h"
 #include <new>
-#include "nsIContent.h"
-#include "nsIDocument.h"
 #include "nsINode.h"
 #include "nsPIDOMWindow.h"
 #include "nsDOMTouchEvent.h"
