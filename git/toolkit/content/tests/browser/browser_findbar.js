@@ -1,65 +1,51 @@
 XPCOMUtils.defineLazyModuleGetter(this, "Promise",
   "resource://gre/modules/Promise.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "Task",
+  "resource://gre/modules/Task.jsm");
 Components.utils.import("resource://gre/modules/Timer.jsm", this);
 
-add_task(function* test_not_found() {
-  info("Check correct 'Phrase not found' on new tab");
+let gTabs = [];
 
-  let tab = yield promiseTestPageLoad();
-
-  // Search for the first word.
-  yield promiseFindFinished("--- THIS SHOULD NEVER MATCH ---", false);
-  let findbar = gBrowser.getFindBar();
-  is(findbar._findStatusDesc.textContent, findbar._notFoundStr,
-     "Findbar status text should be 'Phrase not found'");
-
-  gBrowser.removeTab(tab);
+registerCleanupFunction(function() {
+  for (let tab of gTabs) {
+    if (!tab)
+      continue;
+    gBrowser.removeTab(tab);
+  }
 });
 
-add_task(function* test_found() {
-  let tab = yield promiseTestPageLoad();
+function test() {
+  waitForExplicitFinish();
 
-  // Search for a string that WILL be found, with 'Highlight All' on
-  yield promiseFindFinished("S", true);
-  ok(!gBrowser.getFindBar()._findStatusDesc.textContent,
-     "Findbar status should be empty");
+  Task.spawn(function() {
+    info("Check correct 'Phrase not found' on new tab");
 
-  gBrowser.removeTab(tab);
-});
+    // Create a tab to run the test.
+    yield promiseTestPageLoad();
 
-// Setting first findbar to case-sensitive mode should not affect
-// new tab find bar.
-add_task(function* test_tabwise_case_sensitive() {
-  let tab1 = yield promiseTestPageLoad();
-  let findbar1 = gBrowser.getFindBar();
+    // Search for the first word.
+    yield promiseFindFinished("--- THIS SHOULD NEVER MATCH ---", false);
+    let findbar = gBrowser.getFindBar();
+    is(findbar._findStatusDesc.textContent, findbar._notFoundStr,
+       "Findbar status text should be 'Phrase not found'");
 
-  let tab2 = yield promiseTestPageLoad();
-  let findbar2 = gBrowser.getFindBar();
+    // Create second tab.
+    yield promiseTestPageLoad();
 
-  // Toggle case sensitivity for first findbar
-  findbar1.getElement("find-case-sensitive").click();
+    // Search for a string that WILL be found, with 'Highlight All' on
+    yield promiseFindFinished("s", true);
+    ok(!gBrowser.getFindBar()._findStatusDesc.textContent,
+       "Findbar status should be empty");
 
-  gBrowser.selectedTab = tab1;
-
-  // Not found for first tab.
-  yield promiseFindFinished("S", true);
-  is(findbar1._findStatusDesc.textContent, findbar1._notFoundStr,
-     "Findbar status text should be 'Phrase not found'");
-
-  gBrowser.selectedTab = tab2;
-
-  // But it didn't affect the second findbar.
-  yield promiseFindFinished("S", true);
-  ok(!findbar2._findStatusDesc.textContent, "Findbar status should be empty");
-
-  gBrowser.removeTab(tab1);
-  gBrowser.removeTab(tab2);
-});
+    finish();
+  });
+}
 
 function promiseTestPageLoad() {
   let deferred = Promise.defer();
 
   let tab = gBrowser.selectedTab = gBrowser.addTab("data:text/html;charset=utf-8,The letter s.");
+  gTabs.push(tab);
   let browser = gBrowser.selectedBrowser;
   browser.addEventListener("load", function listener() {
     if (browser.currentURI.spec == "about:blank")
@@ -67,7 +53,7 @@ function promiseTestPageLoad() {
     info("Page loaded: " + browser.currentURI.spec);
     browser.removeEventListener("load", listener, true);
 
-    deferred.resolve(tab);
+    deferred.resolve();
   }, true);
 
   return deferred.promise;

@@ -67,8 +67,6 @@ window.busy-determined #action-busy-undetermined {
 
 #project-panel-button {
   -moz-box-pack: start;
-  width: 150px;
-  max-width: 150px;
 }
 
 #project-panel-button > .panel-button-image {
@@ -88,7 +86,6 @@ window.busy-determined #action-busy-undetermined {
 }
 
 #project-panel-button > .panel-button-label {
-  width: 150px;
   max-width: 150px;
 }
 

@@ -389,13 +389,10 @@ UnixSocketConsumerIO::OnSocketCanReceiveWithoutBlocking()
   MOZ_ASSERT(MessageLoopForIO::current() == GetIOLoop());
   MOZ_ASSERT(GetConnectionStatus() == SOCKET_IS_CONNECTED); // see bug 990984
 
-  ssize_t res = ReceiveData(GetFd(), this);
-  if (res < 0) {
-    /* I/O error */
+  nsresult rv = ReceiveData(GetFd(), this);
+  if (NS_FAILED(rv)) {
     RemoveWatchers(READ_WATCHER|WRITE_WATCHER);
-  } else if (!res) {
-    /* EOF or peer shutdown */
-    RemoveWatchers(READ_WATCHER);
+    return;
   }
 }
 

@@ -25,8 +25,6 @@ struct JSContext;
 namespace mozilla {
 namespace dom {
 
-class MozNDEFRecordOptions;
-
 class MozNDEFRecord MOZ_FINAL : public nsISupports,
                                 public nsWrapperCache
 {
@@ -36,8 +34,10 @@ public:
 
 public:
 
-  MozNDEFRecord(JSContext* aCx, nsPIDOMWindow* aWindow,
-                const MozNDEFRecordOptions& aOptions);
+  MozNDEFRecord(JSContext* aCx, nsPIDOMWindow* aWindow, uint8_t aTnf,
+                const Optional<Uint8Array>& aType,
+                const Optional<Uint8Array>& aId,
+                const Optional<Uint8Array>& aPlayload);
 
   ~MozNDEFRecord();
 
@@ -49,9 +49,10 @@ public:
   virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE;
 
   static already_AddRefed<MozNDEFRecord>
-  Constructor(const GlobalObject& aGlobal,
-              const MozNDEFRecordOptions& aOptions,
-              ErrorResult& aRv);
+  Constructor(const GlobalObject& aGlobal, uint8_t aTnf,
+              const Optional<Uint8Array>& aType,
+              const Optional<Uint8Array>& aId,
+              const Optional<Uint8Array>& aPayload, ErrorResult& aRv);
 
   uint8_t Tnf() const
   {

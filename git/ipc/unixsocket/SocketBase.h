@@ -311,7 +311,7 @@ private:
 //
 
 /* |SocketIOBase| is a base class for Socket I/O classes that
- * perform operations on the I/O thread. It provides methods
+ * perform operations on the I/O thread. It provides methds
  * for the most common read and write scenarios.
  */
 class SocketIOBase
@@ -323,42 +323,46 @@ public:
   bool HasPendingData() const;
 
   template <typename T>
-  ssize_t ReceiveData(int aFd, T* aIO)
+  nsresult ReceiveData(int aFd, T* aIO)
   {
     MOZ_ASSERT(aFd >= 0);
     MOZ_ASSERT(aIO);
 
-    nsAutoPtr<UnixSocketRawData> incoming(
-      new UnixSocketRawData(mMaxReadSize));
+    do {
+      nsAutoPtr<UnixSocketRawData> incoming(
+        new UnixSocketRawData(mMaxReadSize));
 
-    ssize_t res =
-      TEMP_FAILURE_RETRY(read(aFd, incoming->mData, incoming->mSize));
+      ssize_t res =
+        TEMP_FAILURE_RETRY(read(aFd, incoming->mData, incoming->mSize));
 
-    if (res < 0) {
-      /* an I/O error occured */
-      nsRefPtr<nsRunnable> r = new SocketIORequestClosingRunnable<T>(aIO);
-      NS_DispatchToMainThread(r);
-      return -1;
-    } else if (!res) {
-      /* EOF or peer shut down sending */
-      nsRefPtr<nsRunnable> r = new SocketIORequestClosingRunnable<T>(aIO);
-      NS_DispatchToMainThread(r);
-      return 0;
-    }
-
-    incoming->mSize = res;
+      if (res < 0) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+          return NS_OK; /* no more data available */
+        }
+        /* an error occored */
+        nsRefPtr<nsRunnable> r = new SocketIORequestClosingRunnable<T>(aIO);
+        NS_DispatchToMainThread(r);
+        return NS_ERROR_FAILURE;
+      } else if (!res) {
+        /* EOF or peer shut down sending */
+        nsRefPtr<nsRunnable> r = new SocketIORequestClosingRunnable<T>(aIO);
+        NS_DispatchToMainThread(r);
+        return NS_OK;
+      }
 
 #ifdef MOZ_TASK_TRACER
-    // Make unix socket creation events to be the source events of TaskTracer,
-    // and originate the rest correlation tasks from here.
-    AutoSourceEvent taskTracerEvent(SourceEventType::UNIXSOCKET);
+      // Make unix socket creation events to be the source events of TaskTracer,
+      // and originate the rest correlation tasks from here.
+      AutoSourceEvent taskTracerEvent(SourceEventType::UNIXSOCKET);
 #endif
 
-    nsRefPtr<nsRunnable> r =
-      new SocketIOReceiveRunnable<T>(aIO, incoming.forget());
-    NS_DispatchToMainThread(r);
+      incoming->mSize = res;
+      nsRefPtr<nsRunnable> r =
+        new SocketIOReceiveRunnable<T>(aIO, incoming.forget());
+      NS_DispatchToMainThread(r);
+    } while (true);
 
-    return res;
+    return NS_OK;
   }
 
   template <typename T>

@@ -1785,12 +1785,6 @@ Messages.ConsoleTable.prototype = Heritage.extend(Messages.Extended.prototype,
             this._columns["_index"] = l10n.getStr("table.index");
           }
 
-          if (data.class == "Array") {
-            if (index == parseInt(index)) {
-              index = parseInt(index);
-            }
-          }
-
           let property = ownProperties[index].value;
           let item = { _index: index };
 
@@ -1838,9 +1832,10 @@ Messages.ConsoleTable.prototype = Heritage.extend(Messages.Extended.prototype,
       }
 
       let rowCount = 0;
-      for (let [key, value] of entries) {
+      for (let index of Object.keys(entries || {})) {
+        let [key, value] = entries[index];
         let item = {
-          _index: rowCount,
+          _index: index,
           _key: this._renderValueGrip(key, { concise: true }),
           _value: this._renderValueGrip(value, { concise: true })
         };
@@ -1862,10 +1857,11 @@ Messages.ConsoleTable.prototype = Heritage.extend(Messages.Extended.prototype,
       }
 
       let rowCount = 0;
-      for (let entry of entries) {
+      for (let index of Object.keys(entries || {})) {
+        let value = entries[index];
         let item = {
-          _index : rowCount,
-          _value: this._renderValueGrip(entry, { concise: true })
+          _index : index,
+          _value: this._renderValueGrip(value, { concise: true })
         };
 
         this._data.push(item);
