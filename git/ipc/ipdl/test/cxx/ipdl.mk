@@ -14,13 +14,16 @@ IPDLSRCS =					\
   PTestMultiMgrsLeft.ipdl			\
   PTestMultiMgrsRight.ipdl			\
   PTestMultiMgrsBottom.ipdl			\
+  PTestNestedLoops.ipdl				\
   PTestRacyRPCReplies.ipdl			\
   PTestRPCErrorCleanup.ipdl			\
   PTestRPCRaces.ipdl				\
+  PTestRPCShutdownRace.ipdl			\
   PTestSanity.ipdl				\
   PTestShmem.ipdl				\
   PTestShutdown.ipdl				\
   PTestShutdownSub.ipdl				\
   PTestShutdownSubsub.ipdl			\
+  PTestStackHooks.ipdl				\
   PTestSyncWakeup.ipdl				\
   $(NULL)

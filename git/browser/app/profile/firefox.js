@@ -804,6 +804,7 @@ pref("places.frecency.defaultBucketWeight", 10);
 
 // bonus (in percent) for visit transition types for frecency calculations
 pref("places.frecency.embedVisitBonus", 0);
+pref("places.frecency.framedLinkVisitBonus", 0);
 pref("places.frecency.linkVisitBonus", 100);
 pref("places.frecency.typedVisitBonus", 2000);
 pref("places.frecency.bookmarkVisitBonus", 75);
@@ -905,7 +906,11 @@ pref("toolbar.customization.usesheet", true);
 pref("toolbar.customization.usesheet", false);
 #endif
 
+#ifdef XP_MACOSX
+pref("dom.ipc.plugins.enabled", false);
+#else
 pref("dom.ipc.plugins.enabled", true);
+#endif
 
 #ifdef XP_WIN
 #ifndef WINCE

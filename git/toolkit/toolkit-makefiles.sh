@@ -121,6 +121,7 @@ MAKEFILES_xmlparser="
 MAKEFILES_gfx="
   gfx/Makefile
   gfx/idl/Makefile
+  gfx/layers/Makefile
   gfx/public/Makefile
   gfx/src/Makefile
   gfx/src/psshared/Makefile
@@ -276,7 +277,6 @@ MAKEFILES_layout="
   layout/build/Makefile
   layout/forms/Makefile
   layout/generic/Makefile
-  layout/html/tests/Makefile
   layout/inspector/public/Makefile
   layout/inspector/src/Makefile
   layout/printing/Makefile
@@ -590,9 +590,6 @@ MAKEFILES_xpinstall="
 MAKEFILES_xpfe="
   widget/src/xremoteclient/Makefile
   toolkit/components/remote/Makefile
-  xpfe/Makefile
-  xpfe/browser/Makefile
-  xpfe/browser/src/Makefile
   xpfe/components/Makefile
   xpfe/components/directory/Makefile
   xpfe/components/find/Makefile
@@ -630,9 +627,6 @@ MAKEFILES_embedding="
   embedding/browser/gtk/Makefile
   embedding/browser/gtk/src/Makefile
   embedding/browser/gtk/tests/Makefile
-  embedding/browser/photon/Makefile
-  embedding/browser/photon/src/Makefile
-  embedding/browser/photon/tests/Makefile
   embedding/components/Makefile
   embedding/components/appstartup/Makefile
   embedding/components/appstartup/src/Makefile
@@ -654,9 +648,6 @@ MAKEFILES_embedding="
   embedding/components/windowwatcher/Makefile
   embedding/components/windowwatcher/public/Makefile
   embedding/components/windowwatcher/src/Makefile
-  embedding/components/ui/Makefile
-  embedding/components/ui/helperAppDlg/Makefile
-  embedding/components/ui/progressDlg/Makefile
   embedding/tests/Makefile
   embedding/tests/winEmbed/Makefile
 "
@@ -735,6 +726,7 @@ MAKEFILES_xulapp="
   toolkit/components/startup/Makefile
   toolkit/components/startup/public/Makefile
   toolkit/components/startup/src/Makefile
+  toolkit/components/statusfilter/Makefile
   toolkit/components/typeaheadfind/Makefile
   toolkit/components/typeaheadfind/public/Makefile
   toolkit/components/typeaheadfind/src/Makefile

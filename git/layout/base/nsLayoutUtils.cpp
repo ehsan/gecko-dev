@@ -89,6 +89,7 @@
 #include "nsIImageLoadingContent.h"
 #include "nsCOMPtr.h"
 #include "nsListControlFrame.h"
+#include "ImageLayers.h"
 
 #ifdef MOZ_SVG
 #include "nsSVGUtils.h"
@@ -97,11 +98,15 @@
 #include "nsSVGOuterSVGFrame.h"
 #endif
 
+#ifdef MOZ_XUL
+#include "nsXULPopupManager.h"
+#endif
+
+using namespace mozilla::layers;
+
 /**
  * A namespace class for static layout utilities.
  */
-
-PRBool nsLayoutUtils::sDisableGetUsedXAssertions = PR_FALSE;
 
 nsIFrame*
 nsLayoutUtils::GetLastContinuationWithChild(nsIFrame* aFrame)
@@ -778,6 +783,28 @@ nsLayoutUtils::GetEventCoordinatesRelativeTo(const nsEvent* aEvent, nsIFrame* aF
   return widgetToView - aFrame->GetOffsetTo(rootFrame);
 }
 
+nsIFrame*
+nsLayoutUtils::GetPopupFrameForEventCoordinates(const nsEvent* aEvent)
+{
+#ifdef MOZ_XUL
+  nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
+  if (!pm) {
+    return nsnull;
+  }
+  nsTArray<nsIFrame*> popups = pm->GetVisiblePopups();
+  PRUint32 i;
+  // Search from top to bottom
+  for (i = 0; i < popups.Length(); i++) {
+    nsIFrame* popup = popups[i];
+    if (popup->GetOverflowRect().Contains(
+          GetEventCoordinatesRelativeTo(aEvent, popup))) {
+      return popup;
+    }
+  }
+#endif
+  return nsnull;
+}
+
 gfxMatrix
 nsLayoutUtils::ChangeMatrixBasis(const gfxPoint &aOrigin,
                                  const gfxMatrix &aMatrix)
@@ -892,6 +919,15 @@ nsLayoutUtils::InvertTransformsToRoot(nsIFrame *aFrame,
 
   /* Otherwise, invert the CTM and use it to transform the point. */
   return MatrixTransformPoint(aPoint, ctm.Invert(), aFrame->PresContext()->AppUnitsPerDevPixel());
+}
+
+nsresult
+nsLayoutUtils::GfxRectToIntRect(const gfxRect& aIn, nsIntRect* aOut)
+{
+  *aOut = nsIntRect(PRInt32(aIn.X()), PRInt32(aIn.Y()),
+                    PRInt32(aIn.Width()), PRInt32(aIn.Height()));
+  return gfxRect(aOut->x, aOut->y, aOut->width, aOut->height) == aIn
+    ? NS_OK : NS_ERROR_FAILURE;
 }
 
 static nsIntPoint GetWidgetOffset(nsIWidget* aWidget, nsIWidget*& aRootWidget) {
@@ -1113,8 +1149,6 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
                           const nsRegion& aDirtyRegion, nscolor aBackstop,
                           PRUint32 aFlags)
 {
-  nsAutoDisableGetUsedXAssertions disableAssert;
-
   nsDisplayListBuilder builder(aFrame, PR_FALSE, PR_TRUE);
   nsDisplayList list;
   nsRect dirtyRect = aDirtyRegion.GetBounds();
@@ -1192,7 +1226,17 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
   }
 #endif
 
-  list.Paint(&builder, aRenderingContext);
+  PRUint32 flags = nsDisplayList::PAINT_DEFAULT;
+  if (aFlags & PAINT_WIDGET_LAYERS) {
+    flags |= nsDisplayList::PAINT_USE_WIDGET_LAYERS;
+    nsIWidget *widget = aFrame->GetWindow();
+    PRInt32 pixelRatio = widget->GetDeviceContext()->AppUnitsPerDevPixel();
+    nsIntRegion visibleWindowRegion(visibleRegion.ToOutsidePixels(pixelRatio));
+    nsIntRegion dirtyWindowRegion(aDirtyRegion.ToOutsidePixels(pixelRatio));
+
+    widget->UpdatePossiblyTransparentRegion(dirtyWindowRegion, visibleWindowRegion);
+  }
+  list.Paint(&builder, aRenderingContext, flags);
   // Flush the list so we don't trigger the IsEmpty-on-destruction assertion
   list.DeleteAll();
   return NS_OK;
@@ -1349,8 +1393,6 @@ nsLayoutUtils::ComputeRepaintRegionForCopy(nsIFrame* aRootFrame,
 {
   NS_ASSERTION(aRootFrame != aMovingFrame,
                "The root frame shouldn't be the one that's moving, that makes no sense");
-
-  nsAutoDisableGetUsedXAssertions disableAssert;
 
   // Build the 'after' display list over the whole area of interest.
   // (We have to build the 'after' display list because the frame/view
@@ -1650,7 +1692,7 @@ nsLayoutUtils::GetFontMetricsForStyleContext(nsStyleContext* aStyleContext,
   
   return aStyleContext->PresContext()->DeviceContext()->GetMetricsFor(
                   aStyleContext->GetStyleFont()->mFont,
-                  aStyleContext->GetStyleVisibility()->mLangGroup,
+                  aStyleContext->GetStyleVisibility()->mLanguage,
                   fs, *aFontMetrics);
 }
 
@@ -3129,7 +3171,7 @@ nsLayoutUtils::SetFontFromStyle(nsIRenderingContext* aRC, nsStyleContext* aSC)
   const nsStyleFont* font = aSC->GetStyleFont();
   const nsStyleVisibility* visibility = aSC->GetStyleVisibility();
 
-  aRC->SetFont(font->mFont, visibility->mLangGroup,
+  aRC->SetFont(font->mFont, visibility->mLanguage,
                aSC->PresContext()->GetUserFontSet());
 }
 
@@ -3429,26 +3471,31 @@ nsLayoutUtils::SurfaceFromElement(nsIDOMElement *aElement,
     if (!principal)
       return result;
 
-    PRUint32 w, h;
-    rv = video->GetVideoWidth(&w);
-    rv |= video->GetVideoHeight(&h);
-    if (NS_FAILED(rv))
+    ImageContainer *container = video->GetImageContainer();
+    if (!container)
       return result;
 
-    nsRefPtr<gfxASurface> surf;
-    if (wantImageSurface) {
-      surf = new gfxImageSurface(gfxIntSize(w, h), gfxASurface::ImageFormatARGB32);
-    } else {
-      surf = gfxPlatform::GetPlatform()->CreateOffscreenSurface(gfxIntSize(w, h), gfxASurface::ImageFormatARGB32);
+    gfxIntSize size;
+    nsRefPtr<gfxASurface> surf = container->GetCurrentAsSurface(&size);
+    if (!surf)
+      return result;
+
+    if (wantImageSurface && surf->GetType() != gfxASurface::SurfaceTypeImage) {
+      nsRefPtr<gfxImageSurface> imgSurf =
+        new gfxImageSurface(size, gfxASurface::ImageFormatARGB32);
+      if (!imgSurf)
+        return result;
+
+      nsRefPtr<gfxContext> ctx = new gfxContext(imgSurf);
+      if (!ctx)
+        return result;
+      ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
+      ctx->DrawSurface(surf, size);
+      surf = imgSurf;
     }
 
-    nsRefPtr<gfxContext> ctx = new gfxContext(surf);
-
-    ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
-    video->Paint(ctx, gfxPattern::FILTER_NEAREST, gfxRect(0, 0, w, h));
-
     result.mSurface = surf;
-    result.mSize = gfxIntSize(w, h);
+    result.mSize = size;
     result.mPrincipal = principal;
     result.mIsWriteOnly = PR_FALSE;
 

@@ -72,8 +72,8 @@ enum nsLinkState {
 
 // IID for the nsIContent interface
 #define NS_ICONTENT_IID       \
-{ 0xe88a767e, 0x1ca1, 0x4855, \
- { 0xa7, 0xa4, 0x37, 0x9f, 0x07, 0x89, 0x45, 0xef } }
+{ 0x07734640, 0x0900, 0x480d, \
+ { 0x97, 0x5a, 0x31, 0xc7, 0x0e, 0xcd, 0x15, 0x2b } }
 
 /**
  * A node of content in a document's content model. This interface
@@ -668,17 +668,6 @@ public:
    */
   virtual PRBool IsLink(nsIURI** aURI) const = 0;
 
-   /**
-   * If the implementing element is a link, calling this method forces it to
-   * clear its cached href, if it has one.
-   *
-   * This function does not notify the document that it may need to restyle the
-   * link.
-   */
-  virtual void DropCachedHref()
-  {
-  }
-
   /**
    * Get the cached state of the link.  If the state is unknown, 
    * return eLinkState_Unknown.
@@ -688,17 +677,6 @@ public:
   virtual nsLinkState GetLinkState() const
   {
     return eLinkState_NotLink;
-  }
-
-  /**
-   * Set the cached state of the link.
-   *
-   * @param aState The cached link state of the link.
-   */
-  virtual void SetLinkState(nsLinkState aState)
-  {
-    NS_ASSERTION(aState == eLinkState_NotLink,
-                 "Need to override SetLinkState?");
   }
 
   /**
@@ -916,7 +894,7 @@ public:
    *
    * The CALLER OWNS the result and is responsible for deleting it.
    */
-  virtual nsISMILAttr* GetAnimatedAttr(const nsIAtom* aName) = 0;
+  virtual nsISMILAttr* GetAnimatedAttr(nsIAtom* aName) = 0;
 
    /**
     * Get the SMIL override style for this content node.  This is a style

@@ -71,7 +71,6 @@
 #include "nsIFile.h"
 #include "nsIFileURL.h"
 #include "nsIZipReader.h"
-#include "nsIJAR.h"
 #include "nsIPluginInstance.h"
 #include "nsIXPConnect.h"
 #include "nsIScriptGlobalObject.h"
@@ -94,6 +93,7 @@
 #include "nsCDefaultURIFixup.h"
 #include "nsIChromeRegistry.h"
 #include "nsPrintfCString.h"
+#include "nsIContentSecurityPolicy.h"
 
 static NS_DEFINE_CID(kZipReaderCID, NS_ZIPREADER_CID);
 
@@ -515,6 +515,55 @@ NS_IMPL_ISUPPORTS5(nsScriptSecurityManager,
 
 ///////////////// Security Checks /////////////////
 JSBool
+nsScriptSecurityManager::ContentSecurityPolicyPermitsJSAction(JSContext *cx)
+{
+    // Get the security manager
+    nsScriptSecurityManager *ssm =
+        nsScriptSecurityManager::GetScriptSecurityManager();
+
+    NS_ASSERTION(ssm, "Failed to get security manager service");
+    if (!ssm)
+        return JS_FALSE;
+
+    nsresult rv;
+    nsIPrincipal* subjectPrincipal = ssm->GetSubjectPrincipal(cx, &rv);
+
+    NS_ASSERTION(NS_SUCCEEDED(rv), "CSP: Failed to get nsIPrincipal from js context");
+    if (NS_FAILED(rv))
+        return JS_FALSE; // Not just absence of principal, but failure.
+
+    if (!subjectPrincipal) {
+        // See bug 553448 for discussion of this case.
+        NS_ASSERTION(!JS_GetSecurityCallbacks(cx)->findObjectPrincipals,
+                     "CSP: Should have been able to find subject principal. "
+                     "Reluctantly granting access.");
+        return JS_TRUE;
+    }
+
+    nsCOMPtr<nsIContentSecurityPolicy> csp;
+    rv = subjectPrincipal->GetCsp(getter_AddRefs(csp));
+    NS_ASSERTION(NS_SUCCEEDED(rv), "CSP: Failed to get CSP from principal.");
+
+    // don't do anything unless there's a CSP
+    if (!csp)
+        return JS_TRUE;
+
+    PRBool evalOK = PR_TRUE;
+    // this call will send violation reports as warranted (and return true if
+    // reportOnly is set).
+    rv = csp->GetAllowsEval(&evalOK);
+
+    if (NS_FAILED(rv))
+    {
+        NS_WARNING("CSP: failed to get allowsEval");
+        return JS_TRUE; // fail open to not break sites.
+    }
+
+    return evalOK;
+}
+
+
+JSBool
 nsScriptSecurityManager::CheckObjectAccess(JSContext *cx, JSObject *obj,
                                            jsval id, JSAccessMode mode,
                                            jsval *vp)
@@ -764,13 +813,13 @@ nsScriptSecurityManager::CheckPropertyAccessImpl(PRUint32 aAction,
     {
         nsCOMPtr<nsIXPConnectWrappedNative> wrapper;
         nsCOMPtr<nsIInterfaceInfo> interfaceInfo;
-        const nsIID* objIID;
+        const nsIID* objIID = nsnull;
         rv = aCallContext->GetCalleeWrapper(getter_AddRefs(wrapper));
-        if (NS_SUCCEEDED(rv))
+        if (NS_SUCCEEDED(rv) && wrapper)
             rv = wrapper->FindInterfaceWithMember(aProperty, getter_AddRefs(interfaceInfo));
-        if (NS_SUCCEEDED(rv))
+        if (NS_SUCCEEDED(rv) && interfaceInfo)
             rv = interfaceInfo->GetIIDShared(&objIID);
-        if (NS_SUCCEEDED(rv))
+        if (NS_SUCCEEDED(rv) && objIID)
         {
             switch (aAction)
             {
@@ -1360,6 +1409,19 @@ nsScriptSecurityManager::CheckLoadURIWithPrincipal(nsIPrincipal* aPrincipal,
        return NS_ERROR_DOM_BAD_URI;
     }
 
+    NS_NAMED_LITERAL_STRING(errorTag, "CheckLoadURIError");
+
+    // Check for uris that are only loadable by principals that subsume them
+    PRBool hasFlags;
+    rv = NS_URIChainHasFlags(targetBaseURI,
+                             nsIProtocolHandler::URI_LOADABLE_BY_SUBSUMERS,
+                             &hasFlags);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    if (hasFlags) {
+        return aPrincipal->CheckMayLoad(targetBaseURI, PR_TRUE);
+    }
+
     //-- get the source scheme
     nsCAutoString sourceScheme;
     rv = sourceBaseURI->GetScheme(sourceScheme);
@@ -1379,8 +1441,6 @@ nsScriptSecurityManager::CheckLoadURIWithPrincipal(nsIPrincipal* aPrincipal,
         return NS_OK;
     }
 
-    NS_NAMED_LITERAL_STRING(errorTag, "CheckLoadURIError");
-    
     // If the schemes don't match, the policy is specified by the protocol
     // flags on the target URI.  Note that the order of policy checks here is
     // very important!  We start from most restrictive and work our way down.
@@ -1398,7 +1458,6 @@ nsScriptSecurityManager::CheckLoadURIWithPrincipal(nsIPrincipal* aPrincipal,
     }
 
     // Check for chrome target URI
-    PRBool hasFlags;
     rv = NS_URIChainHasFlags(targetBaseURI,
                              nsIProtocolHandler::URI_IS_UI_RESOURCE,
                              &hasFlags);
@@ -1973,6 +2032,20 @@ nsScriptSecurityManager::CreateCodebasePrincipal(nsIURI* aURI, nsIPrincipal **re
     // I _think_ it's safe to not create null principals here based on aURI.
     // At least all the callers would do the right thing in those cases, as far
     // as I can tell.  --bz
+
+    nsCOMPtr<nsIURIWithPrincipal> uriPrinc = do_QueryInterface(aURI);
+    if (uriPrinc) {
+        nsCOMPtr<nsIPrincipal> principal;
+        uriPrinc->GetPrincipal(getter_AddRefs(principal));
+        if (!principal || principal == mSystemPrincipal) {
+            return CallCreateInstance(NS_NULLPRINCIPAL_CONTRACTID, result);
+        }
+
+        principal.forget(result);
+
+        return NS_OK;
+    }
+
     nsRefPtr<nsPrincipal> codebase = new nsPrincipal();
     if (!codebase)
         return NS_ERROR_OUT_OF_MEMORY;
@@ -2847,9 +2920,7 @@ nsScriptSecurityManager::SetCanEnableCapability(const nsACString& certFingerprin
         rv = systemCertZip->Open(systemCertFile);
         if (NS_SUCCEEDED(rv))
         {
-            nsCOMPtr<nsIJAR> systemCertJar(do_QueryInterface(systemCertZip, &rv));
-            if (NS_FAILED(rv)) return NS_ERROR_FAILURE;
-            rv = systemCertJar->GetCertificatePrincipal(nsnull,
+            rv = systemCertZip->GetCertificatePrincipal(nsnull,
                                                         getter_AddRefs(mSystemCertificate));
             if (NS_FAILED(rv)) return NS_ERROR_FAILURE;
         }
@@ -3340,9 +3411,10 @@ nsresult nsScriptSecurityManager::Init()
     NS_ENSURE_SUCCESS(rv, rv);
 
     static JSSecurityCallbacks securityCallbacks = {
-      CheckObjectAccess,
-      NULL,
-      NULL
+        CheckObjectAccess,
+        NULL,
+        NULL,
+        ContentSecurityPolicyPermitsJSAction
     };
 
 #ifdef DEBUG

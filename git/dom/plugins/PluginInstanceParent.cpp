@@ -57,6 +57,8 @@ UINT gOOPPSpinNativeLoopEvent =
     RegisterWindowMessage(L"SyncChannel Spin Inner Loop Message");
 UINT gOOPPStopNativeLoopEvent =
     RegisterWindowMessage(L"SyncChannel Stop Inner Loop Message");
+#elif defined(MOZ_WIDGET_GTK2)
+#include <gdk/gdk.h>
 #endif
 
 using namespace mozilla::plugins;
@@ -71,6 +73,7 @@ PluginInstanceParent::PluginInstanceParent(PluginModuleParent* parent,
 #if defined(OS_WIN)
     , mPluginHWND(NULL)
     , mPluginWndProc(NULL)
+    , mNestedEventState(false)
 #endif // defined(XP_WIN)
 {
 }
@@ -131,10 +134,8 @@ NPError
 PluginInstanceParent::Destroy()
 {
     NPError retval;
-    if (!CallNPP_Destroy(&retval)) {
-        NS_WARNING("Failed to send message!");
-        return NPERR_GENERIC_ERROR;
-    }
+    if (!CallNPP_Destroy(&retval))
+        retval = NPERR_GENERIC_ERROR;
 
 #if defined(OS_WIN)
     SharedSurfaceRelease();
@@ -187,6 +188,16 @@ PluginInstanceParent::DeallocPPluginStream(PPluginStreamParent* stream)
     return true;
 }
 
+#ifdef MOZ_X11
+static Display* GetXDisplay() {
+#  ifdef MOZ_WIDGET_GTK2
+        return GDK_DISPLAY();
+#  elif defined(MOZ_WIDGET_QT)
+        return QX11Info::display();
+#  endif
+}
+#endif
+
 bool
 PluginInstanceParent::AnswerNPN_GetValue_NPNVjavascriptEnabledBool(
                                                        bool* value,
@@ -216,8 +227,10 @@ PluginInstanceParent::AnswerNPN_GetValue_NPNVnetscapeWindow(NativeWindowHandle* 
     HWND id;
 #elif defined(MOZ_X11)
     XID id;
+#elif defined(XP_MACOSX)
+    intptr_t id;
 #else
-    return false;
+#warning Implement me
 #endif
 
     *result = mNPNIface->getvalue(mNPP, NPNVnetscapeWindow, &id);
@@ -367,7 +380,7 @@ PluginInstanceParent::AnswerPStreamNotifyConstructor(PStreamNotifyParent* actor,
     if (!streamDestroyed) {
         static_cast<StreamNotifyParent*>(actor)->ClearDestructionFlag();
         if (*result != NPERR_NO_ERROR)
-            PStreamNotifyParent::Call__delete__(actor, NPERR_GENERIC_ERROR);
+            PStreamNotifyParent::Send__delete__(actor, NPERR_GENERIC_ERROR);
     }
 
     return true;
@@ -432,10 +445,10 @@ PluginInstanceParent::NPP_SetWindow(const NPWindow* aWindow)
     window.colormap = ws_info->colormap;
 #endif
 
-    NPError prv;
-    if (!CallNPP_SetWindow(window, &prv))
+    if (!CallNPP_SetWindow(window))
         return NPERR_GENERIC_ERROR;
-    return prv;
+
+    return NPERR_NO_ERROR;
 }
 
 NPError
@@ -526,7 +539,11 @@ PluginInstanceParent::NPP_HandleEvent(void* event)
 {
     PLUGIN_LOG_DEBUG_FUNCTION;
 
+#if defined(XP_MACOSX)
+    NPCocoaEvent* npevent = reinterpret_cast<NPCocoaEvent*>(event);
+#else
     NPEvent* npevent = reinterpret_cast<NPEvent*>(event);
+#endif
     NPRemoteEvent npremoteevent;
     npremoteevent.event = *npevent;
     int16_t handled = 0;
@@ -538,8 +555,9 @@ PluginInstanceParent::NPP_HandleEvent(void* event)
             {
                 RECT rect;
                 SharedSurfaceBeforePaint(rect, npremoteevent);
-                CallNPP_HandleEvent(npremoteevent, &handled);
+                CallPaint(npremoteevent, &handled);
                 SharedSurfaceAfterPaint(npevent);
+                return handled;
             }
             break;
 
@@ -559,23 +577,25 @@ PluginInstanceParent::NPP_HandleEvent(void* event)
                   !wcscmp(szClass, L"ShockwaveFlashFullScreen")) {
                   return 0;
               }
-              // intentional fall through
             }
+            break;
 
-            default:
-                if (!CallNPP_HandleEvent(npremoteevent, &handled))
-                    return 0;
+            case WM_WINDOWPOSCHANGED:
+            {
+                // We send this in nsObjectFrame just before painting
+                SendWindowPosChanged(npremoteevent);
+                // nsObjectFrame doesn't care whether we handle this
+                // or not, just returning 1 for good hygiene
+                return 1;
+            }
             break;
         }
-    }
-    else {
-        if (!CallNPP_HandleEvent(npremoteevent, &handled))
-            return 0;
     }
 #endif
 
 #if defined(MOZ_X11)
-    if (GraphicsExpose == npevent->type) {
+    switch (npevent->type) {
+    case GraphicsExpose:
         PLUGIN_LOG_DEBUG(("  schlepping drawable 0x%lx across the pipe\n",
                           npevent->xgraphicsexpose.drawable));
         // Make sure the X server has created the Drawable and completes any
@@ -585,16 +605,29 @@ PluginInstanceParent::NPP_HandleEvent(void* event)
         // process does not need to wait; the child is the process that needs
         // to wait.  A possibly-slightly-better alternative would be to send
         // an X event to the child that the child would wait for.
+        XSync(GetXDisplay(), False);
+        break;
+    case ButtonPress:
+        // Release any active pointer grab so that the plugin X client can
+        // grab the pointer if it wishes.
+        Display *dpy = GetXDisplay();
 #  ifdef MOZ_WIDGET_GTK2
-        XSync(GDK_DISPLAY(), False);
-#  elif defined(MOZ_WIDGET_QT)
-        XSync(QX11Info::display(), False);
+        // GDK attempts to (asynchronously) track whether there is an active
+        // grab so ungrab through GDK.
+        gdk_pointer_ungrab(npevent->xbutton.time);
+#  else
+        XUngrabPointer(dpy, npevent->xbutton.time);
 #  endif
+        // Wait for the ungrab to complete.
+        XSync(dpy, False);
+        break;
+
+        return CallPaint(npremoteevent, &handled) ? handled : 0;
     }
+#endif
 
     if (!CallNPP_HandleEvent(npremoteevent, &handled))
         return 0; // no good way to handle errors here...
-#endif
 
     return handled;
 }
@@ -620,7 +653,7 @@ PluginInstanceParent::NPP_NewStream(NPMIMEType type, NPStream* stream,
         return NPERR_GENERIC_ERROR;
 
     if (NPERR_NO_ERROR != err)
-        PBrowserStreamParent::Call__delete__(bs, NPERR_GENERIC_ERROR, true);
+        PBrowserStreamParent::Send__delete__(bs);
 
     return err;
 }
@@ -638,7 +671,7 @@ PluginInstanceParent::NPP_DestroyStream(NPStream* stream, NPReason reason)
         if (sp->mNPP != this)
             NS_RUNTIMEABORT("Mismatched plugin data");
 
-        PBrowserStreamParent::Call__delete__(sp, reason, false);
+        sp->NPP_DestroyStream(reason);
         return NPERR_NO_ERROR;
     }
     else {
@@ -716,7 +749,7 @@ PluginInstanceParent::DeallocPPluginScriptableObject(
 }
 
 bool
-PluginInstanceParent::AnswerPPluginScriptableObjectConstructor(
+PluginInstanceParent::RecvPPluginScriptableObjectConstructor(
                                           PPluginScriptableObjectParent* aActor)
 {
     // This is only called in response to the child process requesting the
@@ -741,7 +774,7 @@ PluginInstanceParent::NPP_URLNotify(const char* url, NPReason reason,
 
     PStreamNotifyParent* streamNotify =
         static_cast<PStreamNotifyParent*>(notifyData);
-    PStreamNotifyParent::Call__delete__(streamNotify, reason);
+    PStreamNotifyParent::Send__delete__(streamNotify, reason);
 }
 
 bool
@@ -787,7 +820,7 @@ PluginInstanceParent::GetActorForNPObject(NPObject* aObject)
         return nsnull;
     }
 
-    if (!CallPPluginScriptableObjectConstructor(actor)) {
+    if (!SendPPluginScriptableObjectConstructor(actor)) {
         NS_WARNING("Failed to send constructor message!");
         return nsnull;
     }
@@ -797,17 +830,16 @@ PluginInstanceParent::GetActorForNPObject(NPObject* aObject)
 }
 
 bool
-PluginInstanceParent::AnswerNPN_PushPopupsEnabledState(const bool& aState,
-                                                       bool* aSuccess)
+PluginInstanceParent::AnswerNPN_PushPopupsEnabledState(const bool& aState)
 {
-    *aSuccess = mNPNIface->pushpopupsenabledstate(mNPP, aState ? 1 : 0);
+    mNPNIface->pushpopupsenabledstate(mNPP, aState ? 1 : 0);
     return true;
 }
 
 bool
-PluginInstanceParent::AnswerNPN_PopPopupsEnabledState(bool* aSuccess)
+PluginInstanceParent::AnswerNPN_PopPopupsEnabledState()
 {
-    *aSuccess = mNPNIface->poppopupsenabledstate(mNPP);
+    mNPNIface->poppopupsenabledstate(mNPP);
     return true;
 }
 
@@ -903,11 +935,8 @@ PluginInstanceParent::PluginWindowHookProc(HWND hWnd,
 
     switch (message) {
         case WM_SETFOCUS:
-        // Widget may be calling us back from AnswerPluginGotFocus(), make
-        // sure we don't end up sending this back over. If we're not in
-        // SendMessage, this is coming from the dom / focus manager.
-        if ((::InSendMessageEx(NULL) & (ISMEX_SEND|ISMEX_REPLIED)) != ISMEX_SEND)
-            self->CallSetPluginFocus();
+        // Let the child plugin window know it should take focus.
+        self->CallSetPluginFocus();
         break;
 
         case WM_CLOSE:

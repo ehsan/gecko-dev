@@ -78,19 +78,19 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSVGViewBox::DOMAnimatedRect)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGViewBox::DOMBaseVal)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGRect)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGRect)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGRect)
 NS_INTERFACE_MAP_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGViewBox::DOMAnimVal)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGRect)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGRect)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGRect)
 NS_INTERFACE_MAP_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGViewBox::DOMAnimatedRect)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAnimatedRect)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGAnimatedRect)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGAnimatedRect)
 NS_INTERFACE_MAP_END
 
 /* Implementation of nsSVGViewBox methods */
@@ -101,15 +101,6 @@ nsSVGViewBox::Init()
   mBaseVal = nsSVGViewBoxRect();
   mAnimVal = nsnull;
   mHasBaseVal = PR_FALSE;
-}
-
-const nsSVGViewBoxRect&
-nsSVGViewBox::GetAnimValue(nsSVGElement *aSVGElement) const
-{
-#ifdef MOZ_SMIL
-  aSVGElement->FlushAnimations();
-#endif
-  return mAnimVal ? *mAnimVal : mBaseVal;
 }
 
 void
@@ -293,12 +284,8 @@ nsSVGViewBox::SMILViewBox
     return res;
   }
   nsSMILValue val(&SVGViewBoxSMILType::sSingleton);
-  // Check for OOM when the nsSMILValue ctor called SVGViewBoxSMILType::Init:
-  if (val.IsNull()) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
   *static_cast<nsSVGViewBoxRect*>(val.mU.mPtr) = viewBox;
-  aValue = val;
+  aValue.Swap(val);
   aCanCache = PR_TRUE;
   
   return NS_OK;
@@ -308,10 +295,7 @@ nsSMILValue
 nsSVGViewBox::SMILViewBox::GetBaseValue() const
 {
   nsSMILValue val(&SVGViewBoxSMILType::sSingleton);
-  // Check for OOM when the nsSMILValue ctor called SVGViewBoxSMILType::Init:
-  if (!val.IsNull()) {
-    *static_cast<nsSVGViewBoxRect*>(val.mU.mPtr) = mVal->mBaseVal;
-  }
+  *static_cast<nsSVGViewBoxRect*>(val.mU.mPtr) = mVal->mBaseVal;
   return val;
 }
 

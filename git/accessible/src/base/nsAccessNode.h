@@ -43,7 +43,7 @@
 #ifndef _nsAccessNode_H_
 #define _nsAccessNode_H_
 
-#include "nsCOMPtr.h"
+#include "nsAccCache.h"
 #include "nsAccessibilityAtoms.h"
 #include "nsCoreUtils.h"
 #include "nsAccUtils.h"
@@ -55,7 +55,6 @@
 #include "nsINameSpaceManager.h"
 #include "nsIStringBundle.h"
 #include "nsWeakReference.h"
-#include "nsInterfaceHashtable.h"
 #include "nsAccessibilityService.h"
 
 class nsIPresShell;
@@ -64,14 +63,11 @@ class nsIAccessibleDocument;
 class nsIFrame;
 class nsIDOMNodeList;
 class nsRootAccessible;
-class nsApplicationAccessibleWrap;
+class nsApplicationAccessible;
 class nsIDocShellTreeItem;
 
 #define ACCESSIBLE_BUNDLE_URL "chrome://global-platform/locale/accessible.properties"
 #define PLATFORM_KEYS_BUNDLE_URL "chrome://global-platform/locale/platformKeys.properties"
-
-typedef nsInterfaceHashtable<nsVoidPtrHashKey, nsAccessNode>
-        nsAccessNodeHashtable;
 
 // What we want is: NS_INTERFACE_MAP_ENTRY(self) for static IID accessors,
 // but some of our classes have an ambiguous base class of nsISupports which
@@ -122,23 +118,20 @@ class nsAccessNode: public nsIAccessNode
     static void InitXPAccessibility();
     static void ShutdownXPAccessibility();
 
-    /**
-     * Return an application accessible.
-     */
-    static already_AddRefed<nsApplicationAccessibleWrap> GetApplicationAccessible();
+  /**
+   * Return an application accessible.
+   */
+  static nsApplicationAccessible* GetApplicationAccessible();
 
   /**
-   * Clear the cache and shutdown the access nodes.
+   * Return the document accessible for this accesnode.
    */
-  static void ClearCache(nsAccessNodeHashtable& aCache);
+  nsDocAccessible* GetDocAccessible() const;
 
-    // Static cache methods for global document cache
-    static already_AddRefed<nsIAccessibleDocument> GetDocAccessibleFor(nsIDocument *aDocument);
-    static already_AddRefed<nsIAccessibleDocument> GetDocAccessibleFor(nsIWeakReference *aWeakShell);
-    static already_AddRefed<nsIAccessibleDocument> GetDocAccessibleFor(nsIDocShellTreeItem *aContainer, PRBool aCanCreate = PR_FALSE);
-    static already_AddRefed<nsIAccessibleDocument> GetDocAccessibleFor(nsIDOMNode *aNode);
-
-    already_AddRefed<nsRootAccessible> GetRootAccessible();
+  /**
+   * Return the root document accessible for this accessnode.
+   */
+  already_AddRefed<nsRootAccessible> GetRootAccessible();
 
     static nsIDOMNode *gLastFocusedNode;
 
@@ -182,11 +175,25 @@ class nsAccessNode: public nsIAccessNode
   PRBool IsInCache();
 #endif
 
+  /**
+   * Return cached document accessible.
+   */
+  static nsDocAccessible* GetDocAccessibleFor(nsIDocument *aDocument);
+  static nsDocAccessible* GetDocAccessibleFor(nsIWeakReference *aWeakShell);
+  static nsDocAccessible* GetDocAccessibleFor(nsIDOMNode *aNode);
+
+  /**
+   * Return document accessible.
+   */
+  static already_AddRefed<nsIAccessibleDocument>
+    GetDocAccessibleFor(nsIDocShellTreeItem *aContainer,
+                        PRBool aCanCreate = PR_FALSE);
+
 protected:
     nsresult MakeAccessNode(nsIDOMNode *aNode, nsIAccessNode **aAccessNode);
 
     nsPresContext* GetPresContext();
-    already_AddRefed<nsIAccessibleDocument> GetDocAccessible();
+
     void LastRelease();
 
     nsCOMPtr<nsIDOMNode> mDOMNode;
@@ -208,10 +215,11 @@ protected:
     static PRBool gIsCacheDisabled;
     static PRBool gIsFormFillEnabled;
 
-    static nsAccessNodeHashtable gGlobalDocAccessibleCache;
+  static nsRefPtrHashtable<nsVoidPtrHashKey, nsDocAccessible>
+    gGlobalDocAccessibleCache;
 
 private:
-  static nsApplicationAccessibleWrap *gApplicationAccessible;
+  static nsApplicationAccessible *gApplicationAccessible;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsAccessNode,

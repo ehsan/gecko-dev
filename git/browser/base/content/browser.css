@@ -9,6 +9,14 @@ tabbrowser {
   -moz-binding: url("chrome://browser/content/tabbrowser.xml#tabbrowser");
 }
 
+.tabbrowser-tabs {
+  -moz-binding: url("chrome://browser/content/tabbrowser.xml#tabbrowser-tabs");
+}
+
+.tabbrowser-tab {
+  -moz-binding: url("chrome://browser/content/tabbrowser.xml#tabbrowser-tab");
+}
+
 toolbar[printpreview="true"] {
   -moz-binding: url("chrome://global/content/printPreviewBindings.xml#printpreviewtoolbar");
 }
@@ -71,8 +79,7 @@ toolbar[mode="icons"] > #reload-button[displaystop] {
 }
 
 #urlbar[pageproxystate="invalid"] > #urlbar-icons > .urlbar-icon:not(#go-button),
-#urlbar[pageproxystate="valid"] > #urlbar-icons > #go-button ,
-#urlbar[isempty="true"] > #urlbar-icons > #go-button {
+#urlbar[pageproxystate="valid"] > #urlbar-icons > #go-button {
   visibility: collapse;
 }
 
@@ -84,7 +91,7 @@ toolbar[mode="icons"] > #reload-button[displaystop] {
   direction: ltr;
 }
 
-#identity-box.verifiedIdentity > hbox > #identity-icon-labels > #identity-icon-label {
+#identity-box.verifiedIdentity > #identity-box-inner > #identity-icon-labels > #identity-icon-label {
   -moz-margin-end: 0.25em !important;
 }
 
@@ -103,13 +110,9 @@ toolbar[mode="icons"] > #reload-button[displaystop] {
   font-weight: bold;
 }
 
-%ifdef MOZ_WIDGET_GTK2
-/* Bookmarks override the "images-in-menus" metric in xul.css */
-.bookmark-item > .menu-iconic-left,
-.searchbar-engine-menuitem > .menu-iconic-left {
-  visibility: inherit;
+toolbarbutton.bookmark-item {
+  max-width: 13em;
 }
-%endif
 
 #editBMPanel_tagsSelector {
   /* override default listbox width from xul.css */

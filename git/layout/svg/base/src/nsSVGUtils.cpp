@@ -635,7 +635,7 @@ nsSVGUtils::FindFilterInvalidation(nsIFrame *aFrame, const nsRect& aRect)
                          TransformBounds(gfxRect(x, y, width, height));
       bounds.RoundOut();
       nsIntRect r;
-      if (NS_SUCCEEDED(nsSVGUtils::GfxRectToIntRect(bounds, &r))) {
+      if (NS_SUCCEEDED(nsLayoutUtils::GfxRectToIntRect(bounds, &r))) {
         rect = r;
       } else {
         NS_NOTREACHED("Not going to invalidate the correct area");
@@ -809,8 +809,8 @@ nsSVGUtils::GetViewBoxTransform(nsSVGElement* aElement,
   NS_ASSERTION(aViewboxWidth > 0, "viewBox width must be greater than zero!");
   NS_ASSERTION(aViewboxHeight > 0, "viewBox height must be greater than zero!");
 
-  PRUint16 align = aPreserveAspectRatio.GetAnimValue(aElement).GetAlign();
-  PRUint16 meetOrSlice = aPreserveAspectRatio.GetAnimValue(aElement).GetMeetOrSlice();
+  PRUint16 align = aPreserveAspectRatio.GetAnimValue().GetAlign();
+  PRUint16 meetOrSlice = aPreserveAspectRatio.GetAnimValue().GetMeetOrSlice();
 
   // default to the defaults
   if (align == nsIDOMSVGPreserveAspectRatio::SVG_PRESERVEASPECTRATIO_UNKNOWN)
@@ -953,7 +953,7 @@ public:
       gfxRect dirtyBounds = userToDeviceSpace.TransformBounds(
         gfxRect(aDirtyRect->x, aDirtyRect->y, aDirtyRect->width, aDirtyRect->height));
       dirtyBounds.RoundOut();
-      if (NS_SUCCEEDED(nsSVGUtils::GfxRectToIntRect(dirtyBounds, &tmpDirtyRect))) {
+      if (NS_SUCCEEDED(nsLayoutUtils::GfxRectToIntRect(dirtyBounds, &tmpDirtyRect))) {
         dirtyRect = &tmpDirtyRect;
       }
     }
@@ -1109,8 +1109,9 @@ nsSVGUtils::HitTestClip(nsIFrame *aFrame, const nsPoint &aPoint)
   if (!props.mClipPath)
     return PR_TRUE;
 
-  nsSVGClipPathFrame *clipPathFrame = props.GetClipPathFrame(nsnull);
-  if (!clipPathFrame) {
+  PRBool isOK = PR_TRUE;
+  nsSVGClipPathFrame *clipPathFrame = props.GetClipPathFrame(&isOK);
+  if (!clipPathFrame || !isOK) {
     // clipPath is not a valid resource, so nothing gets painted, so
     // hit-testing must fail.
     return PR_FALSE;
@@ -1346,15 +1347,6 @@ nsSVGUtils::ClipToGfxRect(nsIntRect* aRect, const gfxRect& aGfxRect)
                      PRInt32(r.Width()), PRInt32(r.Height()));
 }
 
-nsresult
-nsSVGUtils::GfxRectToIntRect(const gfxRect& aIn, nsIntRect* aOut)
-{
-  *aOut = nsIntRect(PRInt32(aIn.X()), PRInt32(aIn.Y()),
-                    PRInt32(aIn.Width()), PRInt32(aIn.Height()));
-  return gfxRect(aOut->x, aOut->y, aOut->width, aOut->height) == aIn
-    ? NS_OK : NS_ERROR_FAILURE;
-}
-
 gfxRect
 nsSVGUtils::GetBBox(nsIFrame *aFrame)
 {
@@ -1437,7 +1429,7 @@ nsSVGUtils::AdjustMatrixForUnits(const gfxMatrix &aMatrix,
                                  nsIFrame *aFrame)
 {
   if (aFrame &&
-      aUnits->GetAnimValue(static_cast<nsSVGElement*>(aFrame->GetContent())) ==
+      aUnits->GetAnimValue() ==
       nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_OBJECTBOUNDINGBOX) {
     gfxRect bbox = GetBBox(aFrame);
     return gfxMatrix().Scale(bbox.Width(), bbox.Height()) *

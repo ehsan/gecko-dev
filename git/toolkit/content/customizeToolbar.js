@@ -62,6 +62,7 @@ function onLoad()
 function InitWithToolbox(aToolbox)
 {
   gToolbox = aToolbox;
+  dispatchCustomizationEvent("beforecustomization");
   gToolboxDocument = gToolbox.ownerDocument;
   gToolbox.customizing = true;
 
@@ -71,8 +72,6 @@ function InitWithToolbox(aToolbox)
   gToolbox.addEventListener("drop", onToolbarDrop, false);
 
   initDialog();
-
-  notifyParentInitialized();
 }
 
 function onClose()
@@ -147,16 +146,7 @@ function notifyParentComplete()
 {
   if ("customizeDone" in gToolbox)
     gToolbox.customizeDone(gToolboxChanged);
-}
-
-/**
- * Invoke a callback on the toolbox to notify it that the dialog is fully
- * initialized.
- */
-function notifyParentInitialized()
-{
-  if ("customizeInitialized" in gToolbox)
-    gToolbox.customizeInitialized();
+  dispatchCustomizationEvent("aftercustomization");
 }
 
 function toolboxChanged(aEvent)
@@ -164,11 +154,13 @@ function toolboxChanged(aEvent)
   gToolboxChanged = true;
   if ("customizeChange" in gToolbox)
     gToolbox.customizeChange(aEvent);
+  dispatchCustomizationEvent("customizationchange");
 }
 
-function getToolbarAt(i)
-{
-  return gToolbox.childNodes[i];
+function dispatchCustomizationEvent(aEventName) {
+  var evt = document.createEvent("Events");
+  evt.initEvent(aEventName, true, true);
+  gToolbox.dispatchEvent(evt);
 }
 
 /**
@@ -181,34 +173,29 @@ function persistCurrentSets()
     return;
 
   var customCount = 0;
-  for (var i = 0; i < gToolbox.childNodes.length; ++i) {
-    // Look for customizable toolbars that need to be persisted.
-    var toolbar = getToolbarAt(i);
-    if (isCustomizableToolbar(toolbar)) {
-      // Calculate currentset and store it in the attribute.
-      var currentSet = toolbar.currentSet;
-      toolbar.setAttribute("currentset", currentSet);
+  forEachCustomizableToolbar(function (toolbar) {
+    // Calculate currentset and store it in the attribute.
+    var currentSet = toolbar.currentSet;
+    toolbar.setAttribute("currentset", currentSet);
 
-      var customIndex = toolbar.hasAttribute("customindex");
-      if (customIndex) {
-        if (!toolbar.firstChild) {
-          // Remove custom toolbars whose contents have been removed.
-          gToolbox.removeChild(toolbar);
-          --i;
-        } else {
-          // Persist custom toolbar info on the <toolbarset/>
-          gToolbox.toolbarset.setAttribute("toolbar"+(++customCount),
-                                           toolbar.toolbarName + ":" + currentSet);
-          gToolboxDocument.persist(gToolbox.toolbarset.id, "toolbar"+customCount);
-        }
-      }
-
-      if (!customIndex) {
-        // Persist the currentset attribute directly on hardcoded toolbars.
-        gToolboxDocument.persist(toolbar.id, "currentset");
+    var customIndex = toolbar.hasAttribute("customindex");
+    if (customIndex) {
+      if (!toolbar.hasChildNodes()) {
+        // Remove custom toolbars whose contents have been removed.
+        gToolbox.removeChild(toolbar);
+      } else {
+        // Persist custom toolbar info on the <toolbarset/>
+        gToolbox.toolbarset.setAttribute("toolbar"+(++customCount),
+                                         toolbar.toolbarName + ":" + currentSet);
+        gToolboxDocument.persist(gToolbox.toolbarset.id, "toolbar"+customCount);
       }
     }
-  }
+
+    if (!customIndex) {
+      // Persist the currentset attribute directly on hardcoded toolbars.
+      gToolboxDocument.persist(toolbar.id, "currentset");
+    }
+  });
 
   // Remove toolbarX attributes for removed toolbars.
   while (gToolbox.toolbarset.hasAttribute("toolbar"+(++customCount))) {
@@ -222,24 +209,19 @@ function persistCurrentSets()
  */
 function wrapToolbarItems()
 {
-  for (var i = 0; i < gToolbox.childNodes.length; ++i) {
-    var toolbar = getToolbarAt(i);
-    if (isCustomizableToolbar(toolbar)) {
-      for (var k = 0; k < toolbar.childNodes.length; ++k) {
-        var item = toolbar.childNodes[k];
-
+  forEachCustomizableToolbar(function (toolbar) {
+    Array.forEach(toolbar.childNodes, function (item) {
 #ifdef XP_MACOSX
-        if (item.firstChild && item.firstChild.localName == "menubar")
-          continue;
+      if (item.firstChild && item.firstChild.localName == "menubar")
+        return;
 #endif
 
-        if (isToolbarItem(item)) {
-          var wrapper = wrapToolbarItem(item);
-          cleanupItemForToolbar(item, wrapper);
-        }
+      if (isToolbarItem(item)) {
+        let wrapper = wrapToolbarItem(item);
+        cleanupItemForToolbar(item, wrapper);
       }
-    }
-  }
+    });
+  });
 }
 
 /**
@@ -332,17 +314,14 @@ function wrapToolbarItem(aToolbarItem)
 function getCurrentItemIds()
 {
   var currentItems = {};
-  for (var i = 0; i < gToolbox.childNodes.length; ++i) {
-    var toolbar = getToolbarAt(i);
-    if (isCustomizableToolbar(toolbar)) {
-      var child = toolbar.firstChild;
-      while (child) {
-        if (isToolbarItem(child))
-          currentItems[child.id] = 1;
-        child = child.nextSibling;
-      }
+  forEachCustomizableToolbar(function (toolbar) {
+    var child = toolbar.firstChild;
+    while (child) {
+      if (isToolbarItem(child))
+        currentItems[child.id] = 1;
+      child = child.nextSibling;
     }
-  }
+  });
   return currentItems;
 }
 
@@ -576,7 +555,7 @@ function addNewToolbar()
     var dupeFound = false;
 
      // Check for an existing toolbar with the same display name
-    for (i = 0; i < gToolbox.childNodes.length; ++i) {
+    for (let i = 0; i < gToolbox.childNodes.length; ++i) {
       var toolbar = gToolbox.childNodes[i];
       var toolbarName = toolbar.getAttribute("toolbarname");
 
@@ -624,15 +603,11 @@ function restoreDefaultSet()
   }
 
   // Restore the defaultset for fixed toolbars.
-  var toolbar = gToolbox.firstChild;
-  while (toolbar) {
-    if (isCustomizableToolbar(toolbar)) {
-      var defaultSet = toolbar.getAttribute("defaultset");
-      if (defaultSet)
-        toolbar.currentSet = defaultSet;
-    }
-    toolbar = toolbar.nextSibling;
-  }
+  forEachCustomizableToolbar(function (toolbar) {
+    var defaultSet = toolbar.getAttribute("defaultset");
+    if (defaultSet)
+      toolbar.currentSet = defaultSet;
+  });
 
   // Restore the default icon size and mode.
   document.getElementById("smallicons").checked = (updateIconSize() == "small");
@@ -667,10 +642,7 @@ function updateToolboxProperty(aProp, aValue, aToolkitDefault) {
   gToolbox.setAttribute(aProp, aValue || toolboxDefault);
   gToolboxDocument.persist(gToolbox.id, aProp);
 
-  Array.forEach(gToolbox.childNodes, function (toolbar) {
-    if (!isCustomizableToolbar(toolbar))
-      return;
-
+  forEachCustomizableToolbar(function (toolbar) {
     var toolbarDefault = toolbar.getAttribute("default" + aProp) ||
                          toolboxDefault;
     if (toolbar.getAttribute("lock" + aProp) == "true" &&
@@ -682,6 +654,10 @@ function updateToolboxProperty(aProp, aValue, aToolkitDefault) {
   });
 
   return aValue || toolboxDefault;
+}
+
+function forEachCustomizableToolbar(callback) {
+  Array.filter(gToolbox.childNodes, isCustomizableToolbar).forEach(callback);
 }
 
 function isCustomizableToolbar(aElt)
@@ -743,13 +719,13 @@ function onToolbarDragOver(aEvent)
     toolbar = toolbar.parentNode;
   }
 
-  var previousDragItem = gCurrentDragOverItem;
-
   // Make sure we are dragging over a customizable toolbar.
-  if (!isCustomizableToolbar(toolbar)) {
+  if (!toolbar || !isCustomizableToolbar(toolbar)) {
     gCurrentDragOverItem = null;
     return;
   }
+
+  var previousDragItem = gCurrentDragOverItem;
 
   if (dropTarget.localName == "toolbar") {
     gCurrentDragOverItem = dropTarget;
@@ -806,10 +782,8 @@ function onToolbarDrop(aEvent)
     if (wrapper == gCurrentDragOverItem)
        return;
 
-    // Don't allow static kids (e.g., the menubar) to move.
-    if (wrapper.parentNode.firstPermanentChild && wrapper.parentNode.firstPermanentChild.id == wrapper.firstChild.id)
-      return;
-    if (wrapper.parentNode.lastPermanentChild && wrapper.parentNode.lastPermanentChild.id == wrapper.firstChild.id)
+    // Don't allow non-removable kids (e.g., the menubar) to move.
+    if (wrapper.firstChild.getAttribute("removable") != "true")
       return;
 
     // Remove the item from its place in the toolbar.
@@ -905,10 +879,8 @@ function onPaletteDrop(aEvent)
 
   var wrapper = gToolboxDocument.getElementById("wrapper-"+itemId);
   if (wrapper) {
-    // Don't allow static kids (e.g., the menubar) to move.
-    if (wrapper.parentNode.firstPermanentChild && wrapper.parentNode.firstPermanentChild.id == wrapper.firstChild.id)
-      return;
-    if (wrapper.parentNode.lastPermanentChild && wrapper.parentNode.lastPermanentChild.id == wrapper.firstChild.id)
+    // Don't allow non-removable kids (e.g., the menubar) to move.
+    if (wrapper.firstChild.getAttribute("removable") != "true")
       return;
 
     var wrapperType = wrapper.getAttribute("type");

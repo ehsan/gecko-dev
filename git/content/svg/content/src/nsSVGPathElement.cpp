@@ -64,7 +64,7 @@ NS_INTERFACE_TABLE_HEAD(nsSVGPathElement)
   NS_NODE_INTERFACE_TABLE5(nsSVGPathElement, nsIDOMNode, nsIDOMElement,
                            nsIDOMSVGElement, nsIDOMSVGPathElement,
                            nsIDOMSVGAnimatedPathData)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGPathElement)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGPathElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGPathElementBase)
 
 //----------------------------------------------------------------------
@@ -124,7 +124,7 @@ nsSVGPathElement::GetPointAtLength(float distance, nsIDOMSVGPoint **_retval)
 
   float totalLength = flat->GetLength();
   if (HasAttr(kNameSpaceID_None, nsGkAtoms::pathLength)) {
-    float pathLength = mPathLength.GetAnimValue(this);
+    float pathLength = mPathLength.GetAnimValue();
     distance *= totalLength / pathLength;
   }
   distance = NS_MAX(0.f,         distance);

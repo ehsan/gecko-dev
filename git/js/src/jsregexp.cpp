@@ -5896,3 +5896,9 @@ js_ContainsRegExpMetaChars(const jschar *chars, size_t length)
     }
     return false;
 }
+
+JSBool
+js_ObjectIsRegExp(JSObject *obj)
+{
+    return obj->isRegExp();
+}

@@ -154,7 +154,7 @@ NS_INTERFACE_MAP_BEGIN(nsSVGLength)
   NS_INTERFACE_MAP_ENTRY(nsISVGValue)
   NS_INTERFACE_MAP_ENTRY(nsISVGLength)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGLength)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGLength)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGLength)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsISVGValue)
 NS_INTERFACE_MAP_END
 
@@ -342,9 +342,7 @@ nsSVGLength::GetValueAsString(nsAString & aValueAsString)
       return NS_ERROR_UNEXPECTED;
   }
 
-  nsAutoString unitString;
-  UnitAtom->ToString(unitString);
-  aValueAsString.Append(unitString);
+  aValueAsString.Append(nsDependentAtomString(UnitAtom));
 
   return NS_OK;
 }

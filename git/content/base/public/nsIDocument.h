@@ -59,7 +59,7 @@
 #include "nsGkAtoms.h"
 #include "nsAutoPtr.h"
 #ifdef MOZ_SMIL
-class nsSMILAnimationController;
+#include "nsSMILAnimationController.h"
 #endif // MOZ_SMIL
 
 class nsIContent;
@@ -69,6 +69,7 @@ class nsIDocShell;
 class nsStyleSet;
 class nsIStyleSheet;
 class nsIStyleRule;
+class nsICSSStyleSheet;
 class nsIViewManager;
 class nsIScriptGlobalObject;
 class nsPIDOMWindow;
@@ -89,7 +90,6 @@ class nsIDOMDocumentType;
 class nsScriptLoader;
 class nsIContentSink;
 class nsIScriptEventManager;
-class nsICSSLoader;
 class nsHTMLStyleSheet;
 class nsHTMLCSSStyleSheet;
 class nsILayoutHistoryState;
@@ -104,13 +104,29 @@ struct JSObject;
 class nsFrameLoader;
 class nsIBoxObject;
 
-// IID for the nsIDocument interface
+namespace mozilla {
+namespace css {
+class Loader;
+} // namespace css
+
+namespace dom {
+class Link;
+} // namespace dom
+} // namespace mozilla
+
 #define NS_IDOCUMENT_IID      \
-{ 0x6b2f1996, 0x95d4, 0x48db, \
-  {0xaf, 0xd1, 0xfd, 0xaa, 0x75, 0x4c, 0x79, 0x92 } }
+{ 0x94fb5716, 0xff00, 0x4b97, \
+ { 0x90, 0x01, 0x91, 0x65, 0x1a, 0x5f, 0xbe, 0x64 } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
+
+// Document states
+
+// RTL locale: specific to the XUL localedir attribute
+#define NS_DOCUMENT_STATE_RTL_LOCALE              (1 << 0)
+// Window activation status
+#define NS_DOCUMENT_STATE_WINDOW_INACTIVE         (1 << 1)
 
 //----------------------------------------------------------------------
 
@@ -561,7 +577,7 @@ public:
   /**
    * Get this document's CSSLoader.  This is guaranteed to not return null.
    */
-  nsICSSLoader* CSSLoader() const {
+  mozilla::css::Loader* CSSLoader() const {
     return mCSSLoader;
   }
 
@@ -667,6 +683,11 @@ public:
   virtual void ContentStatesChanged(nsIContent* aContent1,
                                     nsIContent* aContent2,
                                     PRInt32 aStateMask) = 0;
+
+  // Notify that a document state has changed.
+  // This should only be called by callers whose state is also reflected in the
+  // implementation of nsDocument::GetDocumentState.
+  virtual void DocumentStatesChanged(PRInt32 aStateMask) = 0;
 
   // Observation hooks for style data to propagate notifications
   // to document observers
@@ -907,22 +928,16 @@ public:
    * style.
    */
   /**
-   * Notification that an element is a link with a given URI that is
-   * relevant to style.
+   * Notification that an element is a link that is relevant to style.
    */
-  virtual void AddStyleRelevantLink(nsIContent* aContent, nsIURI* aURI) = 0;
+  virtual void AddStyleRelevantLink(mozilla::dom::Link* aLink) = 0;
   /**
    * Notification that an element is a link and its URI might have been
    * changed or the element removed. If the element is still a link relevant
    * to style, then someone must ensure that AddStyleRelevantLink is
    * (eventually) called on it again.
    */
-  virtual void ForgetLink(nsIContent* aContent) = 0;
-  /**
-   * Notification that the visitedness state of a URI has been changed
-   * and style related to elements linking to that URI should be updated.
-   */
-  virtual void NotifyURIVisitednessChanged(nsIURI* aURI) = 0;
+  virtual void ForgetLink(mozilla::dom::Link* aLink) = 0;
 
   /**
    * Resets and removes a box object from the document's box object cache
@@ -1161,7 +1176,14 @@ public:
                                   void* aData);
 
 #ifdef MOZ_SMIL
-  // Getter for this document's SMIL Animation Controller
+  // Indicates whether mAnimationController has been (lazily) initialized.
+  // If this returns PR_TRUE, we're promising that GetAnimationController()
+  // will have a non-null return value.
+  PRBool HasAnimationController()  { return !!mAnimationController; }
+
+  // Getter for this document's SMIL Animation Controller. Performs lazy
+  // initialization, if this document supports animation and if
+  // mAnimationController isn't yet initialized.
   virtual nsSMILAnimationController* GetAnimationController() = 0;
 #endif // MOZ_SMIL
 
@@ -1207,6 +1229,23 @@ public:
    * parser-module is linked with gklayout-module.
    */
   virtual void MaybePreLoadImage(nsIURI* uri) = 0;
+
+  /**
+   * Called by nsParser to preload style sheets.  Can also be merged into
+   * the parser if and when the parser is merged with libgklayout.
+   */
+  virtual void PreloadStyle(nsIURI* aURI, const nsAString& aCharset) = 0;
+
+  /**
+   * Called by the chrome registry to load style sheets.  Can be put
+   * back there if and when when that module is merged with libgklayout.
+   *
+   * This always does a synchronous load.  If aIsAgentSheet is true,
+   * it also uses the system principal and enables unsafe rules.
+   * DO NOT USE FOR UNTRUSTED CONTENT.
+   */
+  virtual nsresult LoadChromeSheetSync(nsIURI* aURI, PRBool aIsAgentSheet,
+                                       nsICSSStyleSheet** aSheet) = 0;
 
   /**
    * Returns true if the locale used for the document specifies a direction of
@@ -1256,6 +1295,13 @@ public:
   virtual int GetDocumentLWTheme() { return Doc_Theme_None; }
 
   /**
+   * Returns the document state.
+   * Document state bits have the form NS_DOCUMENT_STATE_* and are declared in
+   * nsIDocument.h.
+   */
+  virtual PRInt32 GetDocumentState() = 0;
+
+  /**
    * Gets the document's cached pointer to the first <base> element in this
    * document which has an href attribute.  If the document doesn't contain any
    * <base> elements with an href, returns null.
@@ -1274,6 +1320,14 @@ public:
   virtual nsresult SetFirstBaseNodeWithHref(nsIContent *node) = 0;
 
   virtual nsISupports* GetCurrentContentSink() = 0;
+
+  /**
+   * Register a filedata uri as being "owned" by this document. I.e. that its
+   * lifetime is connected with this document. When the document goes away it
+   * should "kill" the uri by calling
+   * nsFileDataProtocolHandler::RemoveFileDataEntry
+   */
+  virtual void RegisterFileDataUri(nsACString& aUri) = 0;
 
 protected:
   ~nsIDocument()
@@ -1315,13 +1369,18 @@ protected:
   // additional headers that we don't want to expose.
   // The cleanup is handled by the nsDocument destructor.
   nsNodeInfoManager* mNodeInfoManager; // [STRONG]
-  nsICSSLoader* mCSSLoader; // [STRONG]
+  mozilla::css::Loader* mCSSLoader; // [STRONG]
 
   // The set of all object, embed, applet, video and audio elements for
   // which this is the owner document. (They might not be in the document.)
   // These are non-owning pointers, the elements are responsible for removing
   // themselves when they go away.
   nsAutoPtr<nsTHashtable<nsPtrHashKey<nsIContent> > > mFreezableElements;
+
+#ifdef MOZ_SMIL
+  // SMIL Animation Controller, lazily-initialized in GetAnimationController
+  nsRefPtr<nsSMILAnimationController> mAnimationController;
+#endif // MOZ_SMIL
 
   // Table of element properties for this document.
   nsPropertyTable mPropertyTable;

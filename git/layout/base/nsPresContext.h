@@ -538,7 +538,7 @@ public:
 
   nsIDeviceContext* DeviceContext() { return mDeviceContext; }
   nsIEventStateManager* EventStateManager() { return mEventManager; }
-  nsIAtom* GetLangGroup() { return mLangGroup; }
+  nsIAtom* GetLanguageFromCharset() { return mLanguage; }
 
   float TextZoom() { return mTextZoom; }
   void SetTextZoom(float aZoom) {
@@ -757,6 +757,8 @@ public:
 
   PRBool IsRenderingOnlySelection() const { return mIsRenderingOnlySelection; }
 
+  NS_HIDDEN_(PRBool) IsTopLevelWindowInactive();
+
   /*
    * Obtain a native them for rendering our widgets (both form controls and html)
    */
@@ -852,6 +854,16 @@ public:
     mInvalidateRequests.mRequests.Clear();
   }
 
+  PRBool IsProcessingRestyles() const {
+    return mProcessingRestyles;
+  }
+
+  void SetProcessingRestyles(PRBool aProcessing) {
+    NS_ASSERTION(aProcessing != PRBool(mProcessingRestyles),
+                 "should never nest");
+    mProcessingRestyles = aProcessing;
+  }
+
   PRBool IsProcessingAnimationStyleChange() const {
     return mProcessingAnimationStyleChange;
   }
@@ -913,14 +925,6 @@ public:
    * ReflowStarted call. Cannot itself trigger an interrupt check.
    */
   PRBool HasPendingInterrupt() { return mHasPendingInterrupt; }
-
-#ifdef MOZ_SMIL
-  /**
-   * Indicates that the given element's SMIL Override Style has changed,
-   * and as a result, we need to update our display.
-   */
-  void SMILOverrideStyleChanged(nsIContent* aContent);
-#endif // MOZ_SMIL
 
   /**
    * If we have a presshell, and if the given content's current
@@ -994,7 +998,13 @@ protected:
                                         // weak pointer to static atom
 
   nsILinkHandler*       mLinkHandler;   // [WEAK]
-  nsIAtom*              mLangGroup;     // [STRONG]
+
+  // Formerly mLangGroup; moving from charset-oriented langGroup to
+  // maintaining actual language settings everywhere (see bug 524107).
+  // This may in fact hold a langGroup such as x-western rather than
+  // a specific language, however (e.g, if it is inferred from the
+  // charset rather than explicitly specified as a lang attribute).
+  nsIAtom*              mLanguage;      // [STRONG]
 
   nsRefPtrHashtable<nsVoidPtrHashKey, nsImageLoader>
                         mImageLoaders[IMAGE_LOAD_TYPE_COUNT];
@@ -1100,6 +1110,7 @@ protected:
 
   unsigned              mIsVisual : 1;
 
+  unsigned              mProcessingRestyles : 1;
   unsigned              mProcessingAnimationStyleChange : 1;
 
 #ifdef DEBUG

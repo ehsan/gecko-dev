@@ -42,6 +42,8 @@
 #include "IPC/IPCMessageUtils.h"
 #include "base/message_loop.h"
 
+#include "mozilla/ipc/RPCChannel.h"
+
 #include "npapi.h"
 #include "npruntime.h"
 #include "npfunctions.h"
@@ -50,6 +52,7 @@
 #include "nsTArray.h"
 #include "nsThreadUtils.h"
 #include "prlog.h"
+#include "nsHashKeys.h"
 
 namespace mozilla {
 
@@ -58,12 +61,6 @@ namespace mozilla {
 struct void_t { };
 struct null_t { };
 
-namespace ipc {
-
-typedef intptr_t NPRemoteIdentifier;
-
-} /* namespace ipc */
-
 namespace plugins {
 
 enum ScriptableObjectType
@@ -71,6 +68,10 @@ enum ScriptableObjectType
   LocalObject,
   Proxy
 };
+
+mozilla::ipc::RPCChannel::RacyRPCPolicy
+MediateRace(const mozilla::ipc::RPCChannel::Message& parent,
+            const mozilla::ipc::RPCChannel::Message& child);
 
 extern PRLogModuleInfo* gPluginLog;
 
@@ -121,6 +122,8 @@ struct NPRemoteWindow
 typedef HWND NativeWindowHandle;
 #elif defined(MOZ_X11)
 typedef XID NativeWindowHandle;
+#elif defined(XP_MACOSX)
+typedef intptr_t NativeWindowHandle; // never actually used, will always be 0
 #else
 #error Need NativeWindowHandle for this platform
 #endif
@@ -195,12 +198,32 @@ NPNVariableToString(NPNVariable aVar)
 }
 #undef VARSTR
 
+inline bool IsPluginThread()
+{
+  MessageLoop::Type type = MessageLoop::current()->type();
+  return type == MessageLoop::TYPE_UI;
+}
 
 inline void AssertPluginThread()
 {
-  NS_ASSERTION(MessageLoopForUI::current(),
-               "should be on the plugin's main thread!");
+  NS_ASSERTION(IsPluginThread(), "Should be on the plugin's main thread!");
 }
+
+#define ENSURE_PLUGIN_THREAD(retval) \
+  PR_BEGIN_MACRO \
+    if (!IsPluginThread()) { \
+      NS_WARNING("Not running on the plugin's main thread!"); \
+      return (retval); \
+    } \
+  PR_END_MACRO
+
+#define ENSURE_PLUGIN_THREAD_VOID() \
+  PR_BEGIN_MACRO \
+    if (!IsPluginThread()) { \
+      NS_WARNING("Not running on the plugin's main thread!"); \
+      return; \
+    } \
+  PR_END_MACRO
 
 void DeferNPObjectLastRelease(const NPNetscapeFuncs* f, NPObject* o);
 void DeferNPVariantLastRelease(const NPNetscapeFuncs* f, NPVariant* v);
@@ -226,6 +249,16 @@ NullableStringGet(const nsCString& str)
 
   return str.get();
 }
+
+struct DeletingObjectEntry : public nsPtrHashKey<NPObject>
+{
+  DeletingObjectEntry(const NPObject* key)
+    : nsPtrHashKey<NPObject>(key)
+    , mDeleted(false)
+  { }
+
+  bool mDeleted;
+};
 
 } /* namespace plugins */
 

@@ -185,9 +185,6 @@ protected:
   void        BeginEditorInit();
   nsresult    EndEditorInit();
 
-  // Create the event listeners for the editor to install.
-  virtual nsresult CreateEventListeners();
-
   // Helpers for output routines
   NS_IMETHOD GetAndInitDocEncoder(const nsAString& aFormatType,
                                   PRUint32 aFlags,
@@ -222,10 +219,8 @@ protected:
   PRBool   mIgnoreSpuriousDragEvent;
   NS_IMETHOD IgnoreSpuriousDragEvent(PRBool aIgnoreSpuriousDragEvent) {mIgnoreSpuriousDragEvent = aIgnoreSpuriousDragEvent; return NS_OK;}
 
-  // Wrapper for nsCopySupport::GetClipboardEventTarget, finds target to fire
-  // [cut,copy,paste] and [beforecut,beforecopy,beforepaste] events at.
-  nsresult GetClipboardEventTarget(nsIDOMNode** aEventTarget);
-  nsresult FireClipboardEvent(PRUint32 msg, PRBool* aPreventDefault);
+  PRBool CanCutOrCopy();
+  PRBool FireClipboardEvent(PRInt32 aType);
 
 // Data members
 protected:

@@ -1806,6 +1806,7 @@ nsStyleDisplay::nsStyleDisplay()
   mBreakAfter = PR_FALSE;
   mOverflowX = NS_STYLE_OVERFLOW_VISIBLE;
   mOverflowY = NS_STYLE_OVERFLOW_VISIBLE;
+  mResize = NS_STYLE_RESIZE_NONE;
   mClipFlags = NS_STYLE_CLIP_AUTO;
   mClip.SetRect(0,0,0,0);
   mOpacity = 1.0f;
@@ -1841,6 +1842,7 @@ nsStyleDisplay::nsStyleDisplay(const nsStyleDisplay& aSource)
   mBreakAfter = aSource.mBreakAfter;
   mOverflowX = aSource.mOverflowX;
   mOverflowY = aSource.mOverflowY;
+  mResize = aSource.mResize;
   mClipFlags = aSource.mClipFlags;
   mClip = aSource.mClip;
   mOpacity = aSource.mOpacity;
@@ -1864,7 +1866,8 @@ nsChangeHint nsStyleDisplay::CalcDifference(const nsStyleDisplay& aOther) const
       || mDisplay != aOther.mDisplay
       || (mFloats == NS_STYLE_FLOAT_NONE) != (aOther.mFloats == NS_STYLE_FLOAT_NONE)
       || mOverflowX != aOther.mOverflowX
-      || mOverflowY != aOther.mOverflowY)
+      || mOverflowY != aOther.mOverflowY
+      || mResize != aOther.mResize)
     NS_UpdateHint(hint, nsChangeHint_ReconstructFrame);
 
   if (mFloats != aOther.mFloats) {
@@ -1950,7 +1953,21 @@ nsStyleVisibility::nsStyleVisibility(nsPresContext* aPresContext)
   else
     mDirection = NS_STYLE_DIRECTION_LTR;
 
-  mLangGroup = aPresContext->GetLangGroup();
+  nsAutoString language;
+  aPresContext->Document()->GetContentLanguage(language);
+  language.StripWhitespace();
+
+  // Content-Language may be a comma-separated list of language codes,
+  // in which case the HTML5 spec says to treat it as unknown
+  if (!language.IsEmpty() &&
+      language.FindChar(PRUnichar(',')) == kNotFound) {
+    mLanguage = do_GetAtom(language);
+  } else {
+    // we didn't find a (usable) Content-Language, so we fall back
+    // to whatever the presContext guessed from the charset
+    mLanguage = aPresContext->GetLanguageFromCharset();
+  }
+
   mVisible = NS_STYLE_VISIBILITY_VISIBLE;
   mPointerEvents = NS_STYLE_POINTER_EVENTS_AUTO;
 }
@@ -1960,14 +1977,14 @@ nsStyleVisibility::nsStyleVisibility(const nsStyleVisibility& aSource)
   MOZ_COUNT_CTOR(nsStyleVisibility);
   mDirection = aSource.mDirection;
   mVisible = aSource.mVisible;
-  mLangGroup = aSource.mLangGroup;
+  mLanguage = aSource.mLanguage;
   mPointerEvents = aSource.mPointerEvents;
 } 
 
 nsChangeHint nsStyleVisibility::CalcDifference(const nsStyleVisibility& aOther) const
 {
   if ((mDirection == aOther.mDirection) &&
-      (mLangGroup == aOther.mLangGroup)) {
+      (mLanguage == aOther.mLanguage)) {
     if ((mVisible == aOther.mVisible)) {
       return NS_STYLE_HINT_NONE;
     }

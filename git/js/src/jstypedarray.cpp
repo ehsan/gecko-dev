@@ -16,7 +16,7 @@
  * The Original Code is Mozilla WebGL impl
  *
  * The Initial Developer of the Original Code is
- *   Mozilla Corp
+ *   Mozilla Foundation
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
@@ -520,9 +520,18 @@ class TypedArrayTemplate
         jsuint index;
         // We can't just chain to js_SetProperty, because we're not a normal object.
         if (!tarray->isArrayIndex(cx, id, &index)) {
+#if 0
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                                  JSMSG_TYPED_ARRAY_BAD_INDEX);
             return false;
+#endif
+            // Silent ignore is better than an exception here, because
+            // at some point we may want to support other properties on
+            // these objects.  This is especially true when these arrays
+            // are used to implement HTML Canvas 2D's PixelArray objects,
+            // which used to be plain old arrays.
+            *vp = JSVAL_VOID;
+            return true;
         }
 
         if (JSVAL_IS_INT(*vp)) {

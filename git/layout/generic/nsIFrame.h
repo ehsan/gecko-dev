@@ -804,8 +804,8 @@ public:
 
   /**
    * Return the distance between the border edge of the frame and the
-   * margin edge of the frame.  Can only be called after Reflow for the
-   * frame has at least *started*.
+   * margin edge of the frame.  Like GetRect(), returns the dimensions
+   * as of the most recent reflow.
    *
    * This doesn't include any margin collapsing that may have occurred.
    *
@@ -817,8 +817,8 @@ public:
 
   /**
    * Return the distance between the border edge of the frame (which is
-   * its rect) and the padding edge of the frame.  Can only be called
-   * after Reflow for the frame has at least *started*.
+   * its rect) and the padding edge of the frame. Like GetRect(), returns
+   * the dimensions as of the most recent reflow.
    *
    * Note that this differs from GetStyleBorder()->GetBorder() in that
    * this describes region of the frame's box, and
@@ -829,8 +829,8 @@ public:
 
   /**
    * Return the distance between the padding edge of the frame and the
-   * content edge of the frame.  Can only be called after Reflow for the
-   * frame has at least *started*.
+   * content edge of the frame.  Like GetRect(), returns the dimensions
+   * as of the most recent reflow.
    */
   virtual nsMargin GetUsedPadding() const;
 
@@ -1653,6 +1653,12 @@ public:
   virtual nsIWidget* GetWindow() const;
 
   /**
+   * Same as GetWindow() with an offset out param.
+   * @param the offset of this frame in widget coordinates
+   */
+  virtual nsIWidget* GetWindowOffset(nsPoint& aOffset) const;
+
+  /**
    * Get the "type" of the frame. May return a NULL atom pointer
    *
    * @see nsGkAtoms
@@ -2286,12 +2292,11 @@ NS_PTR_TO_INT32(frame->GetProperty(nsGkAtoms::embeddingLevel))
    */
   virtual PRBool HasTerminalNewline() const;
 
-  static PRBool AddCSSPrefSize(nsBoxLayoutState& aState, nsIBox* aBox, nsSize& aSize);
-  static PRBool AddCSSMinSize(nsBoxLayoutState& aState, nsIBox* aBox, nsSize& aSize);
-  static PRBool AddCSSMaxSize(nsBoxLayoutState& aState, nsIBox* aBox, nsSize& aSize);
+  static PRBool AddCSSPrefSize(nsIBox* aBox, nsSize& aSize, PRBool& aWidth, PRBool& aHeightSet);
+  static PRBool AddCSSMinSize(nsBoxLayoutState& aState, nsIBox* aBox,
+                              nsSize& aSize, PRBool& aWidth, PRBool& aHeightSet);
+  static PRBool AddCSSMaxSize(nsIBox* aBox, nsSize& aSize, PRBool& aWidth, PRBool& aHeightSet);
   static PRBool AddCSSFlex(nsBoxLayoutState& aState, nsIBox* aBox, nscoord& aFlex);
-  static PRBool AddCSSCollapsed(nsBoxLayoutState& aState, nsIBox* aBox, PRBool& aCollapsed);
-  static PRBool AddCSSOrdinal(nsBoxLayoutState& aState, nsIBox* aBox, PRUint32& aOrdinal);
 
   // END OF BOX LAYOUT METHODS
   // The above methods have been migrated from nsIBox and are in the process of

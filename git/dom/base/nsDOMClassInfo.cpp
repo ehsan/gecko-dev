@@ -37,6 +37,12 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+// JavaScript includes
+#include "jsapi.h"
+#include "jsprvtd.h"    // we are using private JS typedefs...
+#include "jscntxt.h"
+#include "jsdbgapi.h"
+
 #include "nscore.h"
 #include "nsDOMClassInfo.h"
 #include "nsCRT.h"
@@ -61,13 +67,6 @@
 #include "nsCSSValue.h"
 #include "nsIRunnable.h"
 #include "nsThreadUtils.h"
-
-// JavaScript includes
-#include "jsapi.h"
-#include "jsprvtd.h"    // we are using private JS typedefs...
-#include "jscntxt.h"
-#include "jsobj.h"
-#include "jsdbgapi.h"
 
 // General helper includes
 #include "nsGlobalWindow.h"
@@ -132,7 +131,6 @@
 #include "nsIForm.h"
 #include "nsIFormControl.h"
 #include "nsIDOMHTMLFormElement.h"
-#include "nsIDOMNSHTMLFormControlList.h"
 #include "nsIDOMHTMLCollection.h"
 #include "nsIHTMLCollection.h"
 #include "nsHTMLDocument.h"
@@ -458,6 +456,7 @@
 #include "nsDOMFileReader.h"
 #include "nsIDOMFileException.h"
 #include "nsIDOMFileError.h"
+#include "nsIDOMFormData.h"
 
 // Simple gestures include
 #include "nsIDOMSimpleGestureEvent.h"
@@ -583,7 +582,8 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            WINDOW_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA(Location, nsLocationSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
+                           (DOM_DEFAULT_SCRIPTABLE_FLAGS &
+                            ~nsIXPCScriptable::ALLOW_PROP_MODS_TO_PROTOTYPE))
 
   NS_DEFINE_CLASSINFO_DATA(Navigator, nsNavigatorSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS |
@@ -671,12 +671,9 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            nsHTMLOptionsCollectionSH,
                            ARRAY_SCRIPTABLE_FLAGS |
                            nsIXPCScriptable::WANT_SETPROPERTY)
-  NS_DEFINE_CLASSINFO_DATA_WITH_NAME(HTMLFormControlCollection, HTMLCollection,
-                                     nsHTMLCollectionSH,
-                                     ARRAY_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA_WITH_NAME(HTMLGenericCollection, HTMLCollection,
-                                     nsHTMLCollectionSH,
-                                     ARRAY_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA(HTMLCollection,
+                           nsHTMLCollectionSH,
+                           ARRAY_SCRIPTABLE_FLAGS)
 
   // HTML element classes
   NS_DEFINE_CLASSINFO_DATA(HTMLAnchorElement, nsElementSH,
@@ -1337,6 +1334,9 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(TransitionEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
+
+  NS_DEFINE_CLASSINFO_DATA(FormData, nsDOMGenericSH,
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
 };
 
 // Objects that should be constructable through |new Name();|
@@ -1353,6 +1353,7 @@ static const nsContractIDMapData kConstructorMap[] =
 {
   NS_DEFINE_CONSTRUCTOR_DATA(DOMParser, NS_DOMPARSER_CONTRACTID)
   NS_DEFINE_CONSTRUCTOR_DATA(FileReader, NS_FILEREADER_CONTRACTID)
+  NS_DEFINE_CONSTRUCTOR_DATA(FormData, NS_FORMDATA_CONTRACTID)
   NS_DEFINE_CONSTRUCTOR_DATA(XMLSerializer, NS_XMLSERIALIZER_CONTRACTID)
   NS_DEFINE_CONSTRUCTOR_DATA(XMLHttpRequest, NS_XMLHTTPREQUEST_CONTRACTID)
   NS_DEFINE_CONSTRUCTOR_DATA(XPathEvaluator, NS_XPATH_EVALUATOR_CONTRACTID)
@@ -2263,14 +2264,7 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLCollection)
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN_NO_CLASS_IF(HTMLFormControlCollection,
-                                      nsIDOMHTMLCollection)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLCollection)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSHTMLFormControlList)
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN_NO_CLASS_IF(HTMLGenericCollection,
-                                      nsIDOMHTMLCollection)
+  DOM_CLASSINFO_MAP_BEGIN(HTMLCollection, nsIDOMHTMLCollection)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLCollection)
   DOM_CLASSINFO_MAP_END
 
@@ -3755,6 +3749,10 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
+  DOM_CLASSINFO_MAP_BEGIN(FormData, nsIDOMFormData)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMFormData)
+  DOM_CLASSINFO_MAP_END
+
 #ifdef NS_DEBUG
   {
     PRUint32 i = NS_ARRAY_LENGTH(sClassInfoData);
@@ -4339,13 +4337,17 @@ nsDOMClassInfo::PostCreatePrototype(JSContext * cx, JSObject * proto)
   }
 
   nsGlobalWindow *win = nsGlobalWindow::FromSupports(globalNative);
+  if (win->IsClosedOrClosing()) {
+    return NS_OK;
+  }
   if (win->IsOuterWindow()) {
     // XXXjst: Do security checks here when we remove the security
     // checks on the inner window.
 
     win = win->GetCurrentInnerWindowInternal();
 
-    if (!win || !(global = win->GetGlobalJSObject())) {
+    if (!win || !(global = win->GetGlobalJSObject()) ||
+        win->IsClosedOrClosing()) {
       return NS_OK;
     }
   }
@@ -5189,6 +5191,9 @@ BaseStubConstructor(nsIWeakReference* aWeakOwner,
       nsDOMConstructorFunc func = FindConstructorFunc(ci_data);
       if (func) {
         rv = func(getter_AddRefs(native));
+      }
+      else {
+        rv = NS_ERROR_NOT_AVAILABLE;
       }
     }
   } else if (name_struct->mType == nsGlobalNameStruct::eTypeExternalConstructor) {
@@ -6536,7 +6541,9 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
     JSBool ok = ::JS_DefineUCProperty(cx, obj, ::JS_GetStringChars(str),
                                       ::JS_GetStringLength(str), v, nsnull,
-                                      nsnull, JSPROP_ENUMERATE);
+                                      nsnull,
+                                      JSPROP_PERMANENT |
+                                      JSPROP_ENUMERATE);
 
     if (!ok) {
       return NS_ERROR_FAILURE;
@@ -7879,8 +7886,7 @@ nsNodeListSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
   nsWrapperCache* cache = nsnull;
   CallQueryInterface(nativeObj, &cache);
   if (!cache) {
-    *parentObj = globalObj;
-    return NS_OK;
+    return nsDOMClassInfo::PreCreate(nativeObj, cx, globalObj, parentObj);
   }
 
   // nsChildContentList is the only class that uses nsNodeListSH and has a
@@ -8153,7 +8159,9 @@ nsDocumentSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     JSString *str = JSVAL_TO_STRING(id);
     JSBool ok = ::JS_DefineUCProperty(cx, obj, ::JS_GetStringChars(str),
                                       ::JS_GetStringLength(str), v, nsnull,
-                                      nsnull, JSPROP_ENUMERATE);
+                                      nsnull,
+                                      JSPROP_PERMANENT |
+                                      JSPROP_ENUMERATE);
 
     if (!ok) {
       return NS_ERROR_FAILURE;

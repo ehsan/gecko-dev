@@ -48,17 +48,17 @@
 #include "nsHtml5TreeOpExecutor.h"
 #include "nsHtml5UTF16Buffer.h"
 #include "nsIInputStream.h"
-#include "nsICharsetAlias.h"
 #include "mozilla/Mutex.h"
 #include "nsHtml5AtomTable.h"
 #include "nsHtml5Speculation.h"
 #include "nsITimer.h"
 #include "nsICharsetDetector.h"
+#include "nsAHtml5EncodingDeclarationHandler.h"
 
 class nsHtml5Parser;
 
 #define NS_HTML5_STREAM_PARSER_READ_BUFFER_SIZE 1024
-#define NS_HTML5_STREAM_PARSER_SNIFFING_BUFFER_SIZE 512
+#define NS_HTML5_STREAM_PARSER_SNIFFING_BUFFER_SIZE 1024
 
 enum eBomState {
   /**
@@ -103,7 +103,9 @@ enum eHtml5StreamState {
 };
 
 class nsHtml5StreamParser : public nsIStreamListener,
-                            public nsICharsetDetectionObserver {
+                            public nsICharsetDetectionObserver,
+                            public nsAHtml5EncodingDeclarationHandler
+{
 
   friend class nsHtml5RequestStopper;
   friend class nsHtml5DataAvailable;
@@ -133,11 +135,11 @@ class nsHtml5StreamParser : public nsIStreamListener,
      */
     NS_IMETHOD Notify(const char* aCharset, nsDetectionConfident aConf);
 
-    // EncodingDeclarationHandler
+    // nsAHtml5EncodingDeclarationHandler
     /**
      * Tree builder uses this to report a late <meta charset>
      */
-    void internalEncodingDeclaration(nsString* aEncoding);
+    virtual void internalEncodingDeclaration(nsString* aEncoding);
 
     // Not from an external interface
 
@@ -451,6 +453,8 @@ class nsHtml5StreamParser : public nsIStreamListener,
     
     nsCOMPtr<nsIRunnable>         mExecutorFlusher;
     
+    nsCOMPtr<nsIRunnable>         mLoadFlusher;
+
     /**
      * The chardet instance if chardet is enabled.
      */

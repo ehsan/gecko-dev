@@ -39,7 +39,6 @@ browser.jar:
         skin/classic/browser/menu-forward.png                        (menu-forward.png)
         skin/classic/browser/monitor.png
         skin/classic/browser/monitor_16-10.png
-        skin/classic/browser/navbar-textbox-buttons.png
         skin/classic/browser/urlbar-favicon-glow.png
         skin/classic/browser/feeds/feed-icons-16.png                 (feeds/feed-icons-16.png)
         skin/classic/browser/feeds/feedIcon.png                      (feeds/feedIcon.png)
@@ -81,12 +80,10 @@ browser.jar:
         skin/classic/browser/tabbrowser/progress-pulsing.png                    (tabbrowser/progress-pulsing.png)
         skin/classic/browser/tabbrowser/tab-arrow-left.png                      (tabbrowser/tab-arrow-left.png)
         skin/classic/browser/tabbrowser/tab-arrow-right.png                     (tabbrowser/tab-arrow-right.png)
-        skin/classic/browser/tabbrowser/tabbrowser-tabs-bkgnd.png               (tabbrowser/tabbrowser-tabs-bkgnd.png)
         skin/classic/browser/tabbrowser/tabDragIndicator.png                    (tabbrowser/tabDragIndicator.png)
         skin/classic/browser/tabbrowser/tab-bkgnd.png                           (tabbrowser/tab-bkgnd.png)
         skin/classic/browser/tabbrowser/tab-active-bkgnd.png                    (tabbrowser/tab-active-bkgnd.png)
         skin/classic/browser/tabbrowser/tab-hover-bkgnd.png                     (tabbrowser/tab-hover-bkgnd.png)
-        skin/classic/browser/tabbrowser/tabstrip-bottom.png                     (tabbrowser/tabstrip-bottom.png)
 
 #ifdef XP_WIN
 browser.jar:
@@ -127,7 +124,6 @@ browser.jar:
         skin/classic/aero/browser/menu-forward.png                   (menu-forward-aero.png)
         skin/classic/aero/browser/monitor.png
         skin/classic/aero/browser/monitor_16-10.png
-        skin/classic/aero/browser/navbar-textbox-buttons.png         (navbar-textbox-buttons-aero.png)
         skin/classic/aero/browser/urlbar-favicon-glow.png
         skin/classic/aero/browser/feeds/feed-icons-16.png            (feeds/feed-icons-16-aero.png)
         skin/classic/aero/browser/feeds/feedIcon.png                 (feeds/feedIcon-aero.png)
@@ -171,10 +167,8 @@ browser.jar:
         skin/classic/aero/browser/tabbrowser/progress-pulsing.png               (tabbrowser/progress-pulsing.png)
         skin/classic/aero/browser/tabbrowser/tab-arrow-left.png                 (tabbrowser/tab-arrow-left-aero.png)
         skin/classic/aero/browser/tabbrowser/tab-arrow-right.png                (tabbrowser/tab-arrow-right-aero.png)
-        skin/classic/aero/browser/tabbrowser/tabbrowser-tabs-bkgnd.png          (tabbrowser/tabbrowser-tabs-bkgnd.png)
         skin/classic/aero/browser/tabbrowser/tabDragIndicator.png               (tabbrowser/tabDragIndicator-aero.png)
         skin/classic/aero/browser/tabbrowser/tab-bkgnd.png                      (tabbrowser/tab-bkgnd.png)
         skin/classic/aero/browser/tabbrowser/tab-active-bkgnd.png               (tabbrowser/tab-active-bkgnd.png)
         skin/classic/aero/browser/tabbrowser/tab-hover-bkgnd.png                (tabbrowser/tab-hover-bkgnd.png)
-        skin/classic/aero/browser/tabbrowser/tabstrip-bottom.png                (tabbrowser/tabstrip-bottom.png)
 #endif

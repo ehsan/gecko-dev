@@ -88,6 +88,10 @@ MODULE_OPTIMIZE_FLAGS = -O2 -ip
 endif
 else # not INTEL_CXX
 MODULE_OPTIMIZE_FLAGS = -O3 -fstrict-aliasing $(MOZ_OPTIMIZE_SIZE_TWEAK)
+ifeq ($(OS_ARCH),Linux)
+#TODO: move this up a line when we fix OS X (bug 517832)
+MODULE_OPTIMIZE_FLAGS += -fomit-frame-pointer
+endif
 # Special optimization flags for jsinterp.c
 INTERP_OPTIMIZER = -O3 -fstrict-aliasing
 endif
@@ -364,6 +368,7 @@ check-valgrind::
 endif
 
 ifdef ENABLE_TRACEJIT
+ifndef WINCE
 check::
 	$(wildcard $(RUN_TEST_PROGRAM)) $(PYTHON) -u $(srcdir)/trace-test/trace-test.py \
 	        --no-slow --no-progress --tinderbox $(DIST)/bin/js$(BIN_SUFFIX)
@@ -372,9 +377,9 @@ check-valgrind::
 	$(wildcard $(RUN_TEST_PROGRAM)) $(PYTHON) -u $(srcdir)/trace-test/trace-test.py \
 	        --valgrind --no-slow --no-progress --tinderbox $(DIST)/bin/js$(BIN_SUFFIX)
 endif
+endif
 
 DIST_GARBAGE = config.cache config.log config.status \
-   config/myrules.mk config/myconfig.mk \
    unallmakefiles js-config js-config.h js-confdefs.h
 
 distclean::
@@ -650,6 +655,7 @@ endif
 
 ifdef GNU_CC
 ifndef CROSS_COMPILE
+ifndef QEMU_CANT_RUN_JS_SHELL
 # If we don't have run-mozilla.sh *and* we're linking against NSPR, we don't
 # know how to run the JS binary. Oh well
 
@@ -696,6 +702,7 @@ update-nanojit:
 	(cd $(srcdir) && hg commit --message="Update nanojit-import-rev stamp." nanojit-import-rev)
 
 .PHONY: update-imacros update-nanojit
+endif
 endif
 endif
 endif

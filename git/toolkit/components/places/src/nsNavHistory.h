@@ -64,7 +64,7 @@
 
 #include "nsINavBookmarksService.h"
 #include "nsIPrivateBrowsingService.h"
-
+#include "nsIFaviconService.h"
 #include "nsNavHistoryResult.h"
 #include "nsNavHistoryQuery.h"
 
@@ -87,6 +87,16 @@
 // See bug 319004 for details.
 #define URI_LENGTH_MAX 65536
 #define TITLE_LENGTH_MAX 4096
+
+namespace mozilla {
+namespace places {
+
+  enum HistoryStatementId {
+    DB_GET_PAGE_INFO = 0
+  };
+
+} // namespace places
+} // namespace mozilla
 
 
 class mozIAnnotationService;
@@ -158,8 +168,10 @@ public:
    * Adds a lazy message for adding a favicon. Used by the favicon service so
    * that favicons are handled lazily just like page adds.
    */
-  nsresult AddLazyLoadFaviconMessage(nsIURI* aPage, nsIURI* aFavicon,
-                                     PRBool aForceReload);
+  nsresult AddLazyLoadFaviconMessage(nsIURI* aPageURI,
+                                     nsIURI* aFaviconURI,
+                                     PRBool aForceReload,
+                                     nsIFaviconDataCallback* aCallback);
 #endif
 
   /**
@@ -255,7 +267,7 @@ public:
 
   // Take a row of kGetInfoIndex_* columns and construct a ResultNode.
   // The row must contain the full set of columns.
-  nsresult RowToResult(mozIStorageValueArray* aRow,
+  nsresult RowToResult(mozIStorageStatement* aRow,
                        nsNavHistoryQueryOptions* aOptions,
                        nsNavHistoryResultNode** aResult);
   nsresult QueryRowToResult(PRInt64 aItemId, const nsACString& aURI,
@@ -370,7 +382,20 @@ public:
    * @returns true if it is OK to notify, false otherwise.
    */
   bool canNotify() { return mCanNotify; }
- private:
+
+  mozIStorageStatement* GetStatementById(
+    enum mozilla::places::HistoryStatementId aStatementId
+  )
+  {
+    using namespace mozilla::places;
+    switch(aStatementId) {
+      case DB_GET_PAGE_INFO:
+        return mDBGetURLPageInfo;
+    }
+    return nsnull;
+  }
+
+private:
   ~nsNavHistory();
 
   // used by GetHistoryService
@@ -488,7 +513,7 @@ protected:
   nsresult AddVisitChain(nsIURI* aURI, PRTime aTime,
                          PRBool aToplevel, PRBool aRedirect,
                          nsIURI* aReferrer, PRInt64* aVisitID,
-                         PRInt64* aSessionID, PRInt64* aRedirectBookmark);
+                         PRInt64* aSessionID);
   nsresult InternalAddNewPage(nsIURI* aURI, const nsAString& aTitle,
                               PRBool aHidden, PRBool aTyped,
                               PRInt32 aVisitCount, PRBool aCalculateFrecency,
@@ -496,7 +521,9 @@ protected:
   nsresult InternalAddVisit(PRInt64 aPageID, PRInt64 aReferringVisit,
                             PRInt64 aSessionID, PRTime aTime,
                             PRInt32 aTransitionType, PRInt64* aVisitID);
-  PRBool FindLastVisit(nsIURI* aURI, PRInt64* aVisitID,
+  PRBool FindLastVisit(nsIURI* aURI,
+                       PRInt64* aVisitID,
+                       PRTime* aTime,
                        PRInt64* aSessionID);
   PRBool IsURIStringVisited(const nsACString& url);
 
@@ -562,6 +589,7 @@ protected:
     // valid when type == LAZY_FAVICON
     nsCOMPtr<nsIURI> favicon;
     PRBool alwaysLoadFavicon;
+    nsCOMPtr<nsIFaviconDataCallback> callback;
   };
   nsTArray<LazyMessage> mLazyMessages;
   nsCOMPtr<nsITimer> mLazyTimer;
@@ -620,6 +648,7 @@ protected:
   // recent events
   typedef nsDataHashtable<nsCStringHashKey, PRInt64> RecentEventHash;
   RecentEventHash mRecentTyped;
+  RecentEventHash mRecentLink;
   RecentEventHash mRecentBookmark;
 
   PRBool CheckIsRecentEvent(RecentEventHash* hashTable,
@@ -668,6 +697,7 @@ protected:
   PRInt32 mFourthBucketWeight;
   PRInt32 mDefaultWeight;
   PRInt32 mEmbedVisitBonus;
+  PRInt32 mFramedLinkVisitBonus;
   PRInt32 mLinkVisitBonus;
   PRInt32 mTypedVisitBonus;
   PRInt32 mBookmarkVisitBonus;
@@ -689,18 +719,25 @@ protected:
 
   PRUint16 mDatabaseStatus;
 
+  PRInt8 mHasHistoryEntries;
+
   // Used to enable and disable the observer notifications
   bool mCanNotify;
   nsCategoryCache<nsINavHistoryObserver> mCacheObservers;
 };
 
 /**
- * Shared between the places components, this function binds the given URI as
- * UTF8 to the given parameter for the statement.
+ * These utils bind a specified URI (or URL) to a statement, at the specified
+ * index.
+ * @note URIs are always bound as UTF8.
  */
-nsresult BindStatementURI(mozIStorageStatement* statement, PRInt32 index,
+nsresult BindStatementURI(mozIStorageStatement* statement,
+                          PRInt32 index,
                           nsIURI* aURI);
-
+nsresult BindStatementURLCString(mozIStorageStatement* statement,
+                                 PRInt32 index,
+                                 const nsACString& aURLString);
+                        
 #define PLACES_URI_PREFIX "place:"
 
 /* Returns true if the given URI represents a history query. */

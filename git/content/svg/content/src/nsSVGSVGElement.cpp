@@ -79,7 +79,7 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSVGTranslatePoint::DOMVal)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGTranslatePoint::DOMVal)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGPoint)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGPoint)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGPoint)
 NS_INTERFACE_MAP_END
 
 nsresult
@@ -185,7 +185,7 @@ NS_INTERFACE_TABLE_HEAD(nsSVGSVGElement)
                            nsIDOMSVGElement, nsIDOMSVGSVGElement,
                            nsIDOMSVGFitToViewBox, nsIDOMSVGLocatable,
                            nsIDOMSVGZoomAndPan)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGSVGElement)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGSVGElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGSVGElementBase)
 
 //----------------------------------------------------------------------
@@ -819,7 +819,7 @@ nsSVGSVGElement::GetTransformToElement(nsIDOMSVGElement *element,
 NS_IMETHODIMP
 nsSVGSVGElement::GetZoomAndPan(PRUint16 *aZoomAndPan)
 {
-  *aZoomAndPan = mEnumAttributes[ZOOMANDPAN].GetAnimValue(this);
+  *aZoomAndPan = mEnumAttributes[ZOOMANDPAN].GetAnimValue();
   return NS_OK;
 }
 
@@ -873,7 +873,7 @@ nsSVGSVGElement::SetCurrentScaleTranslate(float s, float x, float y)
   if (doc) {
     nsCOMPtr<nsIPresShell> presShell = doc->GetPrimaryShell();
     if (presShell && IsRoot()) {
-      PRBool scaling = (s != mCurrentScale);
+      PRBool scaling = (mPreviousScale != mCurrentScale);
       nsEventStatus status = nsEventStatus_eIgnore;
       nsGUIEvent event(PR_TRUE, scaling ? NS_SVG_ZOOM : NS_SVG_SCROLL, 0);
       event.eventStructType = scaling ? NS_SVGZOOM_EVENT : NS_SVG_EVENT;
@@ -989,7 +989,7 @@ nsSVGSVGElement::GetViewBoxTransform()
 
   nsSVGViewBoxRect viewBox;
   if (mViewBox.IsValid()) {
-    viewBox = mViewBox.GetAnimValue(this);
+    viewBox = mViewBox.GetAnimValue();
   } else {
     viewBox.x = viewBox.y = 0.0f;
     viewBox.width  = viewportWidth;
@@ -1114,7 +1114,7 @@ nsSVGSVGElement::GetLength(PRUint8 aCtxType)
   float h, w;
 
   if (mViewBox.IsValid()) {
-    const nsSVGViewBoxRect& viewbox = mViewBox.GetAnimValue(this);
+    const nsSVGViewBoxRect& viewbox = mViewBox.GetAnimValue();
     w = viewbox.width;
     h = viewbox.height;
   } else {

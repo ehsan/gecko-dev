@@ -145,9 +145,11 @@ nsAccessNodeWrap::QueryService(REFGUID guidService, REFIID iid, void** ppv)
 
   // Can get to IAccessibleApplication from any node via QS
   if (iid == IID_IAccessibleApplication) {
-    nsRefPtr<nsApplicationAccessibleWrap> app =
-      GetApplicationAccessible();
-    nsresult rv = app->QueryNativeInterface(iid, ppv);
+    nsApplicationAccessible *applicationAcc = GetApplicationAccessible();
+    if (!applicationAcc)
+      return E_NOINTERFACE;
+
+    nsresult rv = applicationAcc->QueryNativeInterface(iid, ppv);
     return NS_SUCCEEDED(rv) ? S_OK : E_NOINTERFACE;
   }
 
@@ -249,12 +251,10 @@ __try{
   for (PRUint32 index = 0; index < numAttribs; index++) {
     aNameSpaceIDs[index] = 0; aAttribValues[index] = aAttribNames[index] = nsnull;
     nsAutoString attributeValue;
-    const char *pszAttributeName; 
 
     const nsAttrName* name = content->GetAttrNameAt(index);
     aNameSpaceIDs[index] = static_cast<short>(name->NamespaceID());
-    name->LocalName()->GetUTF8String(&pszAttributeName);
-    aAttribNames[index] = ::SysAllocString(NS_ConvertUTF8toUTF16(pszAttributeName).get());
+    aAttribNames[index] = ::SysAllocString(name->LocalName()->GetUTF16String());
     content->GetAttr(name->NamespaceID(), name->LocalName(), attributeValue);
     aAttribValues[index] = ::SysAllocString(attributeValue.get());
   }

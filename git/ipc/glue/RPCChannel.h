@@ -39,11 +39,19 @@
 #ifndef ipc_glue_RPCChannel_h
 #define ipc_glue_RPCChannel_h 1
 
+#include <stdio.h>
+
 // FIXME/cjones probably shouldn't depend on STL
 #include <queue>
 #include <stack>
+#include <vector>
+
+#include "base/basictypes.h"
+
+#include "pratom.h"
 
 #include "mozilla/ipc/SyncChannel.h"
+#include "nsAutoPtr.h"
 
 namespace mozilla {
 namespace ipc {
@@ -51,7 +59,16 @@ namespace ipc {
 
 class RPCChannel : public SyncChannel
 {
+    friend class CxxStackFrame;
+
 public:
+    // What happens if RPC calls race?
+    enum RacyRPCPolicy {
+        RRPError,
+        RRPChildWins,
+        RRPParentWins
+    };
+
     class /*NS_INTERFACE_CLASS*/ RPCListener :
         public SyncChannel::SyncListener
     {
@@ -66,21 +83,40 @@ public:
                                          Message*& aReply) = 0;
         virtual Result OnCallReceived(const Message& aMessage,
                                       Message*& aReply) = 0;
+
+        virtual void OnEnteredCxxStack()
+        {
+            NS_RUNTIMEABORT("default impl shouldn't be invoked");
+        }
+
+        virtual void OnExitedCxxStack()
+        {
+            NS_RUNTIMEABORT("default impl shouldn't be invoked");
+        }
+
+        virtual RacyRPCPolicy MediateRPCRace(const Message& parent,
+                                             const Message& child)
+        {
+            return RRPChildWins;
+        }
     };
 
-    // What happens if RPC calls race?
-    enum RacyRPCPolicy {
-        RRPError,
-        RRPChildWins,
-        RRPParentWins
-    };
-
-    RPCChannel(RPCListener* aListener, RacyRPCPolicy aPolicy=RRPChildWins);
+    RPCChannel(RPCListener* aListener);
 
     virtual ~RPCChannel();
 
+    NS_OVERRIDE
+    void Clear();
+
     // Make an RPC to the other side of the channel
     bool Call(Message* msg, Message* reply);
+
+    // RPCChannel overrides these so that the async and sync messages
+    // can be counted against mStackFrames
+    NS_OVERRIDE
+    virtual bool Send(Message* msg);
+    NS_OVERRIDE
+    virtual bool Send(Message* msg, Message* reply);
 
     // Asynchronously, send the child a message that puts it in such a
     // state that it can't send messages to the parent unless the
@@ -105,6 +141,11 @@ public:
     // Return true iff successful.
     bool UnblockChild();
 
+    // Return true iff this has code on the C++ stack.
+    bool IsOnCxxStack() const {
+        return !mCxxStackFrames.empty();
+    }
+
     NS_OVERRIDE
     virtual bool OnSpecialMessage(uint16 id, const Message& msg);
 
@@ -117,27 +158,47 @@ public:
 
 #ifdef OS_WIN
     static bool IsSpinLoopActive() {
-        return (sInnerEventLoopDepth > 0);
+        return (sModalEventCount > 0);
     }
-
 protected:
     bool WaitForNotify();
-    bool IsMessagePending();
-    bool SpinInternalEventLoop();
-    static void EnterModalLoop() {
+    void SpinInternalEventLoop();
+    static bool WaitNeedsSpinLoop() {
+        return (IsSpinLoopActive() && 
+                (sModalEventCount > sInnerEventLoopDepth));
+    }
+    static void EnterSpinLoop() {
         sInnerEventLoopDepth++;
     }
-    static void ExitModalLoop() {
+    static void ExitSpinLoop() {
         sInnerEventLoopDepth--;
         NS_ASSERTION(sInnerEventLoopDepth >= 0,
             "sInnerEventLoopDepth dropped below zero!");
     }
+    static void IncModalLoopCnt() {
+        sModalEventCount++;
+    }
+    static void DecModalLoopCnt() {
+        sModalEventCount--;
+        NS_ASSERTION(sModalEventCount >= 0,
+            "sModalEventCount dropped below zero!");
+    }
 
     static int sInnerEventLoopDepth;
+    static int sModalEventCount;
 #endif
 
   private:
     // Called on worker thread only
+
+    RPCListener* Listener() const {
+        return static_cast<RPCListener*>(mListener);
+    }
+
+    NS_OVERRIDE
+    virtual bool ShouldDeferNotifyMaybeError() {
+        return IsOnCxxStack();
+    }
 
     bool EventOccurred();
 
@@ -151,6 +212,75 @@ protected:
     void BlockOnParent();
     void UnblockFromParent();
 
+    // This helper class managed RPCChannel.mCxxStackDepth on behalf
+    // of RPCChannel.  When the stack depth is incremented from zero
+    // to non-zero, it invokes an RPCChannel callback, and similarly
+    // for when the depth goes from non-zero to zero;
+    void EnteredCxxStack()
+    {
+        Listener()->OnEnteredCxxStack();
+    }
+
+    void ExitedCxxStack();
+
+    enum Direction { IN_MESSAGE, OUT_MESSAGE };
+    struct RPCFrame {
+        RPCFrame(Direction direction, const Message* msg) :
+            mDirection(direction), mMsg(msg)
+        { }
+
+        void Describe(int32* id, const char** dir, const char** sems,
+                      const char** name)
+            const
+        {
+            *id = mMsg->routing_id();
+            *dir = (IN_MESSAGE == mDirection) ? "in" : "out";
+            *sems = mMsg->is_rpc() ? "rpc" : mMsg->is_sync() ? "sync" : "async";
+            *name = mMsg->name();
+        }
+
+        Direction mDirection;
+        const Message* mMsg;
+    };
+
+    class NS_STACK_CLASS CxxStackFrame
+    {
+    public:
+
+        CxxStackFrame(RPCChannel& that, Direction direction,
+                      const Message* msg) : mThat(that) {
+            mThat.AssertWorkerThread();
+
+            if (mThat.mCxxStackFrames.empty())
+                mThat.EnteredCxxStack();
+
+            mThat.mCxxStackFrames.push_back(RPCFrame(direction, msg));
+            mThat.mSawRPCOutMsg |= (direction == OUT_MESSAGE) &&
+                                   (msg->is_rpc());
+        }
+
+        ~CxxStackFrame() {
+            mThat.mCxxStackFrames.pop_back();
+            bool exitingStack = mThat.mCxxStackFrames.empty();
+
+            // mListener could have gone away if Close() was called while
+            // RPCChannel code was still on the stack
+            if (!mThat.mListener)
+                return;
+
+            mThat.AssertWorkerThread();
+            if (exitingStack)
+                mThat.ExitedCxxStack();
+        }
+    private:
+        RPCChannel& mThat;
+
+        // disable harmful methods
+        CxxStackFrame();
+        CxxStackFrame(const CxxStackFrame&);
+        CxxStackFrame& operator=(const CxxStackFrame&);
+    };
+
     // Called from both threads
     size_t StackDepth() {
         mMutex.AssertCurrentThreadOwns();
@@ -160,6 +290,10 @@ protected:
     void DebugAbort(const char* file, int line, const char* cond,
                     const char* why,
                     const char* type="rpc", bool reply=false);
+
+    // This method is only safe to call on the worker thread, or in a
+    // debugger with all threads paused.  |outfile| defaults to stdout.
+    void DumpRPCStack(FILE* outfile=NULL, const char* const pfx="");
 
     // 
     // Queue of all incoming messages, except for replies to sync
@@ -252,10 +386,71 @@ protected:
     // detect the same race.
     //
     size_t mRemoteStackDepthGuess;
-    RacyRPCPolicy mRacePolicy;
 
     // True iff the parent has put us in a |BlockChild()| state.
     bool mBlockedOnParent;
+
+    // Approximation of Sync/RPCChannel-code frames on the C++ stack.
+    // It can only be interpreted as the implication
+    //
+    //  !mCxxStackFrames.empty() => RPCChannel code on C++ stack
+    //
+    // This member is only accessed on the worker thread, and so is
+    // not protected by mMutex.  It is managed exclusively by the
+    // helper |class CxxStackFrame|.
+    std::vector<RPCFrame> mCxxStackFrames;
+
+    // Did we process an RPC out-call during this stack?  Only
+    // meaningful in ExitedCxxStack(), from which this variable is
+    // reset.
+    bool mSawRPCOutMsg;
+
+private:
+
+    //
+    // All dequeuing tasks require a single point of cancellation,
+    // which is handled via a reference-counted task.
+    //
+    class RefCountedTask
+    {
+      public:
+        RefCountedTask(CancelableTask* aTask)
+        : mTask(aTask)
+        , mRefCnt(0) {}
+        ~RefCountedTask() { delete mTask; }
+        void Run() { mTask->Run(); }
+        void Cancel() { mTask->Cancel(); }
+        void AddRef() {
+            PR_AtomicIncrement(reinterpret_cast<PRInt32*>(&mRefCnt));
+        }
+        void Release() {
+            nsrefcnt count =
+                PR_AtomicDecrement(reinterpret_cast<PRInt32*>(&mRefCnt));
+            if (0 == count)
+                delete this;
+        }
+
+      private:
+        CancelableTask* mTask;
+        nsrefcnt mRefCnt;
+    };
+
+    //
+    // Wrap an existing task which can be cancelled at any time
+    // without the wrapper's knowledge.
+    //
+    class DequeueTask : public Task
+    {
+      public:
+        DequeueTask(RefCountedTask* aTask) : mTask(aTask) {}
+        void Run() { mTask->Run(); }
+        
+      private:
+        nsRefPtr<RefCountedTask> mTask;
+    };
+
+    // A task encapsulating dequeuing one pending task
+    nsRefPtr<RefCountedTask> mDequeueOneTask;
 };
 
 

@@ -163,13 +163,14 @@ public:
   virtual void DidAnimateEnum(PRUint8 aAttrEnum);
   virtual void DidAnimateViewBox();
   virtual void DidAnimatePreserveAspectRatio();
+  virtual void DidAnimateTransform();
 
   void GetAnimatedLengthValues(float *aFirst, ...);
   void GetAnimatedNumberValues(float *aFirst, ...);
   void GetAnimatedIntegerValues(PRInt32 *aFirst, ...);
 
 #ifdef MOZ_SMIL
-  virtual nsISMILAttr* GetAnimatedAttr(const nsIAtom* aName);
+  virtual nsISMILAttr* GetAnimatedAttr(nsIAtom* aName);
   void AnimationNeedsResample();
   void FlushAnimations();
 #endif
@@ -192,6 +193,11 @@ protected:
   virtual PRBool IsEventName(nsIAtom* aName);
 
   void UpdateContentStyleRule();
+#ifdef MOZ_SMIL
+  void UpdateAnimatedContentStyleRule();
+  nsICSSStyleRule* GetAnimatedContentStyleRule();
+#endif // MOZ_SMIL
+
   nsISVGValue* GetMappedAttribute(PRInt32 aNamespaceID, nsIAtom* aName);
   nsresult AddMappedSVGValue(nsIAtom* aName, nsISupports* aValue,
                              PRInt32 aNamespaceID = kNameSpaceID_None);
@@ -363,6 +369,20 @@ private:
                               PRUint32 aIndex1, PRUint32 aIndex2);
 
   void ResetOldStyleBaseType(nsISVGValue *svg_value);
+
+  struct ObservableModificationData {
+    // Only to be used if |name| is non-null.  Otherwise, modType will
+    // be 0 to indicate NS_OK should be returned and 1 to indicate
+    // NS_ERROR_UNEXPECTED should be returned.
+    ObservableModificationData(const nsAttrName* aName, PRUint32 aModType):
+      name(aName), modType(aModType)
+    {}
+    const nsAttrName* name;
+    PRUint8 modType;
+  };
+  ObservableModificationData
+    GetModificationDataForObservable(nsISVGValue* aObservable,
+                                     nsISVGValue::modificationType aModType);
 
   nsCOMPtr<nsICSSStyleRule> mContentStyleRule;
   nsAttrAndChildArray mMappedAttributes;

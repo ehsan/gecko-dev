@@ -4629,7 +4629,10 @@ nsCSSFrameConstructor::FindMathMLData(nsIContent* aContent,
 
   // Handle <math> specially, because it sometimes produces inlines
   if (aTag == nsGkAtoms::math) {
-    if (aStyleContext->GetStyleDisplay()->mDisplay == NS_STYLE_DISPLAY_BLOCK) {
+    // This needs to match the test in EnsureBlockDisplay in
+    // nsRuleNode.cpp.  Though the behavior here for the display:table
+    // case is pretty weird...
+    if (aStyleContext->GetStyleDisplay()->IsBlockOutside()) {
       static const FrameConstructionData sBlockMathData =
         FCDATA_DECL(FCDATA_FORCE_NULL_ABSPOS_CONTAINER |
                     FCDATA_WRAP_KIDS_IN_BLOCKS,
@@ -4739,6 +4742,11 @@ nsCSSFrameConstructor::FindSVGData(nsIContent* aContent,
     // adding to the undisplayed content map.
     //
     // We don't currently handle any UI for desc/title
+    return &sSuppressData;
+  }
+
+  // We don't need frames for animation elements
+  if (aContent->IsNodeOfType(nsINode::eANIMATION)) {
     return &sSuppressData;
   }
 
@@ -5819,8 +5827,7 @@ nsCSSFrameConstructor::FindFrameForContentSibling(nsIContent* aContent,
   // If the frame is out-of-flow, GetPrimaryFrame() will have returned the
   // out-of-flow frame; we want the placeholder.
   if (sibling->GetStateBits() & NS_FRAME_OUT_OF_FLOW) {
-    nsIFrame* placeholderFrame;
-    mPresShell->GetPlaceholderFrameFor(sibling, &placeholderFrame);
+    nsIFrame* placeholderFrame = mPresShell->FrameManager()->GetPlaceholderFrameFor(sibling);
     NS_ASSERTION(placeholderFrame, "no placeholder for out-of-flow frame");
     sibling = placeholderFrame;
   }
@@ -8239,8 +8246,7 @@ nsCSSFrameConstructor::ReplicateFixedFrames(nsPageContentFrame* aParentFrame)
   // are within fixed frames, because that would cause duplicates on the new
   // page - bug 389619)
   for (nsIFrame* fixed = firstFixed; fixed; fixed = fixed->GetNextSibling()) {
-    nsIFrame* prevPlaceholder = nsnull;
-    mPresShell->GetPlaceholderFrameFor(fixed, &prevPlaceholder);
+    nsIFrame* prevPlaceholder = mPresShell->FrameManager()->GetPlaceholderFrameFor(fixed);
     if (prevPlaceholder &&
         nsLayoutUtils::IsProperAncestorFrame(prevCanvasFrame, prevPlaceholder)) {
       nsresult rv = ConstructFrame(state, fixed->GetContent(),
@@ -9110,9 +9116,7 @@ nsCSSFrameConstructor::ProcessChildren(nsFrameConstructorState& aState,
     // no?  And if we cared we could look through the item list
     // instead of groveling through the framelist here..
     nsIContent *badKid = AnyKidsNeedBlockParent(aFrameItems.FirstChild());
-    nsAutoString parentTag, kidTag;
-    aContent->Tag()->ToString(parentTag);
-    badKid->Tag()->ToString(kidTag);
+    nsDependentAtomString parentTag(aContent->Tag()), kidTag(badKid->Tag());
     const PRUnichar* params[] = { parentTag.get(), kidTag.get() };
     nsStyleContext *frameStyleContext = aFrame->GetStyleContext();
     const nsStyleDisplay *display = frameStyleContext->GetStyleDisplay();
@@ -11143,11 +11147,16 @@ nsCSSFrameConstructor::ProcessPendingRestyleTable(
 void
 nsCSSFrameConstructor::ProcessPendingRestyles()
 {
-  NS_PRECONDITION(mDocument, "No document?  Pshaw!\n");
+  NS_PRECONDITION(mDocument, "No document?  Pshaw!");
   NS_PRECONDITION(!nsContentUtils::IsSafeToRunScript(),
                   "Missing a script blocker!");
 
   // Process non-animation restyles...
+  nsPresContext *presContext = mPresShell->GetPresContext();
+  NS_ABORT_IF_FALSE(!presContext->IsProcessingRestyles(),
+                    "Nesting calls to ProcessPendingRestyles?");
+  presContext->SetProcessingRestyles(PR_TRUE);
+
   ProcessPendingRestyleTable(mPendingRestyles);
 
   NS_POSTCONDITION(mPendingRestyles.Count() == 0,
@@ -11161,11 +11170,11 @@ nsCSSFrameConstructor::ProcessPendingRestyles()
   // mid-transition (since processing the non-animation restyle ignores
   // the running transition so it can check for a new change on the same
   // property, and then posts an immediate animation style change).
-  nsPresContext *presContext = mPresShell->GetPresContext();
   presContext->SetProcessingAnimationStyleChange(PR_TRUE);
   ProcessPendingRestyleTable(mPendingAnimationRestyles);
   presContext->SetProcessingAnimationStyleChange(PR_FALSE);
 
+  presContext->SetProcessingRestyles(PR_FALSE);
   mInStyleRefresh = PR_FALSE;
 
   NS_POSTCONDITION(mPendingAnimationRestyles.Count() == 0,

@@ -1,4 +1,5 @@
 == dynamic-mi.xhtml dynamic-mi-ref.xhtml
+== mfenced-1.xhtml mfenced-1-ref.xhtml
 == mi-mathvariant-1.xhtml mi-mathvariant-1-ref.xhtml
 == mi-mathvariant-2.xhtml mi-mathvariant-2-ref.xhtml
 != non-spacing-accent-1.xhtml non-spacing-accent-1-ref.xhtml
@@ -7,3 +8,4 @@
 != stretchy-underbar-1.xhtml stretchy-underbar-1-ref.xhtml 
 == table-width-1.xhtml table-width-1-ref.xhtml
 == underbar-width-1.xhtml underbar-width-1-ref.xhtml
+== mathml-type-supported.xhtml mathml-type-supported-ref.xml

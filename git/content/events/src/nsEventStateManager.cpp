@@ -184,6 +184,15 @@ static PRUint32 gPixelScrollDeltaTimeout = 0;
 static nscoord
 GetScrollableLineHeight(nsIFrame* aTargetFrame);
 
+static inline PRBool
+IsMouseEventReal(nsEvent* aEvent)
+{
+  NS_ABORT_IF_FALSE(aEvent->eventStructType == NS_MOUSE_EVENT,
+                    "Not a mouse event");
+  // Return true if not synthesized.
+  return static_cast<nsMouseEvent*>(aEvent)->reason == nsMouseEvent::eReal;
+}
+
 #ifdef DEBUG_DOCSHELL_FOCUS
 static void
 PrintDocTree(nsIDocShellTreeItem* aParentItem, int aLevel)
@@ -197,7 +206,7 @@ PrintDocTree(nsIDocShellTreeItem* aParentItem, int aLevel)
   aParentItem->GetItemType(&type);
   nsCOMPtr<nsIPresShell> presShell;
   parentAsDocShell->GetPresShell(getter_AddRefs(presShell));
-  nsCOMPtr<nsPresContext> presContext;
+  nsRefPtr<nsPresContext> presContext;
   parentAsDocShell->GetPresContext(getter_AddRefs(presContext));
   nsCOMPtr<nsIContentViewer> cv;
   parentAsDocShell->GetContentViewer(getter_AddRefs(cv));
@@ -509,7 +518,7 @@ nsMouseWheelTransaction::OnEvent(nsEvent* aEvent)
       return;
     case NS_MOUSE_MOVE:
     case NS_DRAGDROP_OVER:
-      if (((nsMouseEvent*)aEvent)->reason == nsMouseEvent::eReal) {
+      if (IsMouseEventReal(aEvent)) {
         // If the cursor is moving to be outside the frame,
         // terminate the scrollwheel transaction.
         nsIntPoint pt = GetScreenPoint((nsGUIEvent*)aEvent);
@@ -1031,7 +1040,7 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
   // when user is not active doesn't change the state to active.
   if (NS_IS_TRUSTED_EVENT(aEvent) &&
       ((aEvent->eventStructType == NS_MOUSE_EVENT  &&
-        static_cast<nsMouseEvent*>(aEvent)->reason == nsMouseEvent::eReal &&
+        IsMouseEventReal(aEvent) &&
         aEvent->message != NS_MOUSE_ENTER &&
         aEvent->message != NS_MOUSE_EXIT) ||
        aEvent->eventStructType == NS_MOUSE_SCROLL_EVENT ||
@@ -1348,6 +1357,11 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
   case NS_CONTENT_COMMAND_PASTE_TRANSFERABLE:
     {
       DoContentCommandEvent(static_cast<nsContentCommandEvent*>(aEvent));
+    }
+    break;
+  case NS_CONTENT_COMMAND_SCROLL:
+    {
+      DoContentCommandScrollEvent(static_cast<nsContentCommandEvent*>(aEvent));
     }
     break;
   }
@@ -2814,13 +2828,15 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
   case NS_MOUSE_BUTTON_UP:
     {
       SetContentState(nsnull, NS_EVENT_STATE_ACTIVE);
-      if (!mCurrentTarget) {
-        nsIFrame* targ;
-        GetEventTarget(&targ);
-      }
-      if (mCurrentTarget) {
-        ret =
-          CheckForAndDispatchClick(presContext, (nsMouseEvent*)aEvent, aStatus);
+      if (IsMouseEventReal(aEvent)) {
+        if (!mCurrentTarget) {
+          nsIFrame* targ;
+          GetEventTarget(&targ);
+        }
+        if (mCurrentTarget) {
+          ret = CheckForAndDispatchClick(presContext, (nsMouseEvent*)aEvent,
+                                         aStatus);
+        }
       }
 
       nsIPresShell *shell = presContext->GetPresShell();
@@ -3453,9 +3469,9 @@ nsEventStateManager::NotifyMouseOut(nsGUIEvent* aEvent, nsIContent* aMovingInto)
       nsCOMPtr<nsIDocShell> docshell;
       subdocFrame->GetDocShell(getter_AddRefs(docshell));
       if (docshell) {
-        nsCOMPtr<nsPresContext> presContext;
+        nsRefPtr<nsPresContext> presContext;
         docshell->GetPresContext(getter_AddRefs(presContext));
-        
+
         if (presContext) {
           nsEventStateManager* kidESM =
             static_cast<nsEventStateManager*>(presContext->EventStateManager());
@@ -4427,5 +4443,52 @@ nsEventStateManager::DoContentCommandEvent(nsContentCommandEvent* aEvent)
     }
   }
   aEvent->mSucceeded = PR_TRUE;
+  return NS_OK;
+}
+
+nsresult
+nsEventStateManager::DoContentCommandScrollEvent(nsContentCommandEvent* aEvent)
+{
+  NS_ENSURE_TRUE(mPresContext, NS_ERROR_NOT_AVAILABLE);
+  nsIPresShell* ps = mPresContext->GetPresShell();
+  NS_ENSURE_TRUE(ps, NS_ERROR_NOT_AVAILABLE);
+  NS_ENSURE_TRUE(aEvent->mScroll.mAmount != 0, NS_ERROR_INVALID_ARG);
+
+  nsIScrollableFrame::ScrollUnit scrollUnit;
+  switch (aEvent->mScroll.mUnit) {
+    case nsContentCommandEvent::eCmdScrollUnit_Line:
+      scrollUnit = nsIScrollableFrame::LINES;
+      break;
+    case nsContentCommandEvent::eCmdScrollUnit_Page:
+      scrollUnit = nsIScrollableFrame::PAGES;
+      break;
+    case nsContentCommandEvent::eCmdScrollUnit_Whole:
+      scrollUnit = nsIScrollableFrame::WHOLE;
+      break;
+    default:
+      return NS_ERROR_INVALID_ARG;
+  }
+
+  aEvent->mSucceeded = PR_TRUE;
+
+  nsIScrollableFrame* sf =
+    ps->GetFrameToScrollAsScrollable(nsIPresShell::eEither);
+  aEvent->mIsEnabled = sf ? CanScrollOn(sf, aEvent->mScroll.mAmount,
+                                        aEvent->mScroll.mIsHorizontal) :
+                            PR_FALSE;
+
+  if (!aEvent->mIsEnabled || aEvent->mOnlyEnabledCheck) {
+    return NS_OK;
+  }
+
+  nsIntPoint pt(0, 0);
+  if (aEvent->mScroll.mIsHorizontal) {
+    pt.x = aEvent->mScroll.mAmount;
+  } else {
+    pt.y = aEvent->mScroll.mAmount;
+  }
+
+  // The caller may want synchronous scrolling.
+  sf->ScrollBy(pt, scrollUnit, nsIScrollableFrame::INSTANT);
   return NS_OK;
 }

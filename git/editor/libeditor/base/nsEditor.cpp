@@ -23,6 +23,7 @@
  *   Pierre Phaneuf <pp@ludusdesign.com>
  *   Daniel Glazman <glazman@netscape.com>
  *   Masayuki Nakano <masayuki@d-toybox.com>
+ *   Mats Palmgren <matspal@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -106,6 +107,7 @@
 
 #include "nsEditor.h"
 #include "nsEditorUtils.h"
+#include "nsEditorEventListener.h"
 #include "nsISelectionDisplay.h"
 #include "nsIInlineSpellChecker.h"
 #include "nsINameSpaceManager.h"
@@ -180,12 +182,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsEditor)
  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mEditorObservers)
  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mDocStateListeners)
  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mEventTarget)
- NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mKeyListenerP)
- NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mMouseListenerP)
- NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mTextListenerP)
- NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mCompositionListenerP)
- NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDragListenerP)
- NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mFocusListenerP)
+ NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mEventListener)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsEditor)
@@ -198,12 +195,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsEditor)
  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mEditorObservers)
  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mDocStateListeners)
  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mEventTarget)
- NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mKeyListenerP)
- NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mMouseListenerP)
- NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mTextListenerP)
- NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mCompositionListenerP)
- NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mDragListenerP)
- NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mFocusListenerP)
+ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mEventListener)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsEditor)
@@ -317,11 +309,19 @@ nsEditor::PostCreate()
 }
 
 nsresult
+nsEditor::CreateEventListeners()
+{
+  NS_ENSURE_TRUE(!mEventListener, NS_ERROR_ALREADY_INITIALIZED);
+  mEventListener = do_QueryInterface(
+    static_cast<nsIDOMKeyListener*>(new nsEditorEventListener(this)));
+  NS_ENSURE_TRUE(mEventListener, NS_ERROR_OUT_OF_MEMORY);
+  return NS_OK;
+}
+
+nsresult
 nsEditor::InstallEventListeners()
 {
-  NS_ENSURE_TRUE(mDocWeak && mPresShellWeak && mKeyListenerP &&
-                 mMouseListenerP && mFocusListenerP && mTextListenerP &&
-                 mCompositionListenerP && mDragListenerP,
+  NS_ENSURE_TRUE(mDocWeak && mPresShellWeak && mEventListener,
                  NS_ERROR_NOT_INITIALIZED);
 
   nsCOMPtr<nsPIDOMEventTarget> piTarget = GetPIDOMEventTarget();
@@ -340,7 +340,7 @@ nsEditor::InstallEventListeners()
 
   if (sysGroup && elmP)
   {
-    rv = elmP->AddEventListenerByType(mKeyListenerP,
+    rv = elmP->AddEventListenerByType(mEventListener,
                                       NS_LITERAL_STRING("keypress"),
                                       NS_EVENT_FLAG_BUBBLE |
                                       NS_PRIV_EVENT_UNTRUSTED_PERMITTED,
@@ -349,31 +349,36 @@ nsEditor::InstallEventListeners()
                  "failed to register key listener in system group");
   }
 
-  rv |= piTarget->AddEventListenerByIID(mMouseListenerP,
+  rv |= piTarget->AddEventListenerByIID(mEventListener,
                                         NS_GET_IID(nsIDOMMouseListener));
 
   if (elmP) {
     // Focus event doesn't bubble so adding the listener to capturing phase.
     // Make sure this works after bug 235441 gets fixed.
-    rv |= elmP->AddEventListenerByIID(mFocusListenerP,
+    rv |= elmP->AddEventListenerByIID(mEventListener,
                                       NS_GET_IID(nsIDOMFocusListener),
                                       NS_EVENT_FLAG_CAPTURE);
   }
 
-  rv |= piTarget->AddEventListenerByIID(mTextListenerP,
+  rv |= piTarget->AddEventListenerByIID(mEventListener,
                                         NS_GET_IID(nsIDOMTextListener));
 
-  rv |= piTarget->AddEventListenerByIID(mCompositionListenerP,
+  rv |= piTarget->AddEventListenerByIID(mEventListener,
                                         NS_GET_IID(nsIDOMCompositionListener));
 
   nsCOMPtr<nsIDOMEventTarget> target(do_QueryInterface(piTarget));
   if (target) {
     // See bug 455215, we cannot use the standard dragstart event yet
-    rv |= target->AddEventListener(NS_LITERAL_STRING("draggesture"), mDragListenerP, PR_FALSE);
-    rv |= target->AddEventListener(NS_LITERAL_STRING("dragenter"), mDragListenerP, PR_FALSE);
-    rv |= target->AddEventListener(NS_LITERAL_STRING("dragover"), mDragListenerP, PR_FALSE);
-    rv |= target->AddEventListener(NS_LITERAL_STRING("dragleave"), mDragListenerP, PR_FALSE);
-    rv |= target->AddEventListener(NS_LITERAL_STRING("drop"), mDragListenerP, PR_FALSE);
+    rv |= target->AddEventListener(NS_LITERAL_STRING("draggesture"),
+                                   mEventListener, PR_FALSE);
+    rv |= target->AddEventListener(NS_LITERAL_STRING("dragenter"),
+                                   mEventListener, PR_FALSE);
+    rv |= target->AddEventListener(NS_LITERAL_STRING("dragover"),
+                                   mEventListener, PR_FALSE);
+    rv |= target->AddEventListener(NS_LITERAL_STRING("dragleave"),
+                                   mEventListener, PR_FALSE);
+    rv |= target->AddEventListener(NS_LITERAL_STRING("drop"),
+                                   mEventListener, PR_FALSE);
   }
 
   if (NS_FAILED(rv))
@@ -389,7 +394,7 @@ nsEditor::InstallEventListeners()
 void
 nsEditor::RemoveEventListeners()
 {
-  if (!mDocWeak)
+  if (!mDocWeak || !mEventListener)
   {
     return;
   }
@@ -401,55 +406,42 @@ nsEditor::RemoveEventListeners()
     // unregister the event listeners with the DOM event target
     nsCOMPtr<nsIEventListenerManager> elmP =
       piTarget->GetListenerManager(PR_TRUE);
-    if (mKeyListenerP)
+    nsCOMPtr<nsIDOMEventGroup> sysGroup;
+    piTarget->GetSystemEventGroup(getter_AddRefs(sysGroup));
+    if (sysGroup && elmP)
     {
-      nsCOMPtr<nsIDOMEventGroup> sysGroup;
-      piTarget->GetSystemEventGroup(getter_AddRefs(sysGroup));
-      if (sysGroup && elmP)
-      {
-        elmP->RemoveEventListenerByType(mKeyListenerP,
-                                        NS_LITERAL_STRING("keypress"),
-                                        NS_EVENT_FLAG_BUBBLE |
-                                        NS_PRIV_EVENT_UNTRUSTED_PERMITTED,
-                                        sysGroup);
-      }
+      elmP->RemoveEventListenerByType(mEventListener,
+                                      NS_LITERAL_STRING("keypress"),
+                                      NS_EVENT_FLAG_BUBBLE |
+                                      NS_PRIV_EVENT_UNTRUSTED_PERMITTED,
+                                      sysGroup);
     }
 
-    if (mMouseListenerP)
-    {
-      piTarget->RemoveEventListenerByIID(mMouseListenerP,
-                                         NS_GET_IID(nsIDOMMouseListener));
-    }
+    piTarget->RemoveEventListenerByIID(mEventListener,
+                                       NS_GET_IID(nsIDOMMouseListener));
 
-    if (mFocusListenerP && elmP)
-    {
-      elmP->RemoveEventListenerByIID(mFocusListenerP,
-                                     NS_GET_IID(nsIDOMFocusListener),
-                                     NS_EVENT_FLAG_CAPTURE);
-    }
+    elmP->RemoveEventListenerByIID(mEventListener,
+                                   NS_GET_IID(nsIDOMFocusListener),
+                                   NS_EVENT_FLAG_CAPTURE);
 
-    if (mTextListenerP)
-    {
-      piTarget->RemoveEventListenerByIID(mTextListenerP,
-                                         NS_GET_IID(nsIDOMTextListener));
-    }
+    piTarget->RemoveEventListenerByIID(mEventListener,
+                                       NS_GET_IID(nsIDOMTextListener));
 
-    if (mCompositionListenerP)
-    {
-      piTarget->RemoveEventListenerByIID(mCompositionListenerP,
-                                         NS_GET_IID(nsIDOMCompositionListener));
-    }
+    piTarget->RemoveEventListenerByIID(mEventListener,
+                                       NS_GET_IID(nsIDOMCompositionListener));
 
-    if (mDragListenerP)
-    {
-      nsCOMPtr<nsIDOMEventTarget> target(do_QueryInterface(piTarget));
-      if (target) {
-        target->RemoveEventListener(NS_LITERAL_STRING("draggesture"), mDragListenerP, PR_FALSE);
-        target->RemoveEventListener(NS_LITERAL_STRING("dragenter"), mDragListenerP, PR_FALSE);
-        target->RemoveEventListener(NS_LITERAL_STRING("dragover"), mDragListenerP, PR_FALSE);
-        target->RemoveEventListener(NS_LITERAL_STRING("dragleave"), mDragListenerP, PR_FALSE);
-        target->RemoveEventListener(NS_LITERAL_STRING("drop"), mDragListenerP, PR_FALSE);
-      }
+    nsCOMPtr<nsIDOMEventTarget> target(do_QueryInterface(piTarget));
+    if (target) {
+      target->RemoveEventListener(NS_LITERAL_STRING("draggesture"),
+                                  mEventListener, PR_FALSE);
+      target->RemoveEventListener(NS_LITERAL_STRING("dragenter"),
+                                  mEventListener, PR_FALSE);
+      target->RemoveEventListener(NS_LITERAL_STRING("dragover"),
+                                  mEventListener, PR_FALSE);
+      target->RemoveEventListener(NS_LITERAL_STRING("dragleave"),
+                                  mEventListener, PR_FALSE);
+      target->RemoveEventListener(NS_LITERAL_STRING("drop"),
+                                  mEventListener, PR_FALSE);
     }
   }
 }
@@ -1209,25 +1201,6 @@ nsEditor::SetDocumentCharacterSet(const nsACString& characterSet)
   }
 
   return rv;
-}
-
-//
-// Get an appropriate wrap width for saving this document.
-// This class just uses a pref; subclasses are expected to
-// override if they know more about the document.
-//
-NS_IMETHODIMP
-nsEditor::GetWrapWidth(PRInt32 *aWrapColumn)
-{
-  NS_ENSURE_ARG_POINTER(aWrapColumn);
-  *aWrapColumn = 72;
-
-  nsresult rv;
-  nsCOMPtr<nsIPrefBranch> prefBranch =
-    do_GetService(NS_PREFSERVICE_CONTRACTID, &rv);
-  if (NS_SUCCEEDED(rv) && prefBranch)
-    (void) prefBranch->GetIntPref("editor.htmlWrapColumn", aWrapColumn);
-  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -2051,18 +2024,15 @@ nsEditor::QueryComposition(nsTextEventReply* aReply)
 
       // XXX_kin: END HACK! HACK! HACK!
 
-      nsIView *view = nsnull;
       nsRect rect;
-      result =
-        caretP->GetCaretCoordinates(nsCaret::eRenderingViewCoordinates,
-                                    selection,
-                                    &rect,
-                                    &(aReply->mCursorIsCollapsed),
-                                    &view);
+      nsIFrame* frame = caretP->GetGeometry(selection, &rect);
+      if (!frame)
+        return NS_ERROR_FAILURE;
+      nsPoint nearestWidgetOffset;
+      aReply->mReferenceWidget = frame->GetWindowOffset(nearestWidgetOffset);
+      rect.MoveBy(nearestWidgetOffset);
       aReply->mCursorPosition =
-        rect.ToOutsidePixels(ps->GetPresContext()->AppUnitsPerDevPixel());
-      if (NS_SUCCEEDED(result) && view)
-        aReply->mReferenceWidget = view->GetWidget();
+        rect.ToOutsidePixels(frame->PresContext()->AppUnitsPerDevPixel());
     }
   }
   return result;

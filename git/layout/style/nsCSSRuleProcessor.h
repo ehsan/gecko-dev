@@ -76,7 +76,8 @@ public:
 public:
   nsresult ClearRuleCascades();
 
-  static void Startup();
+  static nsresult Startup();
+  static void Shutdown();
   static void FreeSystemMetrics();
   static PRBool HasSystemMetric(nsIAtom* aMetric);
 
@@ -102,6 +103,8 @@ public:
 #endif
 
   virtual nsReStyleHint HasStateDependentStyle(StateRuleProcessorData* aData);
+
+  virtual PRBool HasDocumentStateDependentStyle(StateRuleProcessorData* aData);
 
   virtual nsReStyleHint
     HasAttributeDependentStyle(AttributeRuleProcessorData* aData);

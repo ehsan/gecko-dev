@@ -9,7 +9,8 @@ include $(DEPTH)/config/autoconf.mk
 MODULE		= thebes
 
 
-EXPORTS		= 	gfxASurface.h \
+EXPORTS		= 	gfx3DMatrix.h \
+			gfxASurface.h \
 			gfxAlphaRecovery.h \
 			gfxBlur.h \
 			gfxColor.h \
@@ -51,7 +52,8 @@ EXPORTS +=	gfxFT2Fonts.h \
 		gfxDDrawSurface.h \
 		$(NULL)
 else
-EXPORTS +=	gfxWindowsFonts.h 
+EXPORTS +=  gfxDWriteFonts.h
+EXPORTS +=  gfxD2DSurface.h
 endif
 
 endif
@@ -79,9 +81,13 @@ EXPORTS += gfxFT2FontBase.h
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
+ifdef MOZ_PANGO
+EXPORTS += gfxPangoFonts.h
+else
+EXPORTS += gfxFT2Fonts.h
+endif
 EXPORTS += gfxQtPlatform.h gfxQPainterSurface.h
 EXPORTS += gfxXlibSurface.h gfxQtNativeRenderer.h
-EXPORTS += gfxFT2Fonts.h
 EXPORTS += gfxFT2FontBase.h
 endif
 
@@ -105,14 +111,9 @@ EXPORTS +=	gfxPlatformMac.h \
 		gfxQuartzSurface.h \
 		gfxQuartzImageSurface.h \
 		gfxQuartzPDFSurface.h \
-		gfxAtsuiFonts.h \
 		gfxQuartzNativeDrawing.h \
 		$(NULL)
 
-endif
-
-ifdef MOZ_CORETEXT
-EXPORTS += gfxCoreTextFonts.h
 endif
 
 include $(topsrcdir)/config/rules.mk

@@ -57,6 +57,9 @@
 #include "gfxWindowsSurface.h"
 #include "nsWindowDbg.h"
 #include "cairo.h"
+#ifdef CAIRO_HAS_D2D_SURFACE
+#include "gfxD2DSurface.h"
+#endif
 
 #if !defined(WINCE)
 #include "nsWinGesture.h"
@@ -74,6 +77,9 @@
 #include "nsIAccessible.h"
 #endif
 
+#if !defined(WINCE)
+#include "nsUXThemeData.h"
+#endif // !defined(WINCE)
 /**
  * Forward class definitions
  */
@@ -179,6 +185,7 @@ public:
 #ifdef MOZ_XUL
   virtual void            SetTransparencyMode(nsTransparencyMode aMode);
   virtual nsTransparencyMode GetTransparencyMode();
+  virtual void            UpdatePossiblyTransparentRegion(const nsIntRegion &aDirtyRegion, const nsIntRegion& aPossiblyTransparentRegion);
 #endif // MOZ_XUL
 #ifdef NS_ENABLE_TSF
   NS_IMETHOD              OnIMEFocusChange(PRBool aFocus);
@@ -382,12 +389,13 @@ private:
   void                    ResizeTranslucentWindow(PRInt32 aNewWidth, PRInt32 aNewHeight, PRBool force = PR_FALSE);
   nsresult                UpdateTranslucentWindow();
   void                    SetupTranslucentWindowMemoryBitmap(nsTransparencyMode aMode);
+  void                    UpdateGlass();
 protected:
 #endif // MOZ_XUL
 
 #ifdef MOZ_IPC
   static bool             IsAsyncResponseEvent(UINT aMsg, LRESULT& aResult);
-  static void             IPCWindowProcHandler(HWND& hWnd, UINT& msg, WPARAM& wParam, LPARAM& lParam);
+  void                    IPCWindowProcHandler(UINT& msg, WPARAM& wParam, LPARAM& lParam);
 #endif // MOZ_IPC
 
   /**
@@ -399,7 +407,7 @@ protected:
   static void             SetupKeyModifiersSequence(nsTArray<KeyPair>* aArray, PRUint32 aModifiers);
   nsresult                SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
                                               PRBool aIntersectWithExisting);
-  nsCOMPtr<nsIRegion>     GetRegionToPaint(PRBool aForceFullRepaint, 
+  nsIntRegion             GetRegionToPaint(PRBool aForceFullRepaint, 
                                            PAINTSTRUCT ps, HDC aDC);
 #if !defined(WINCE)
   static void             ActivateOtherWindowHelper(HWND aWnd);
@@ -479,12 +487,20 @@ protected:
   // Graphics
   HDC                   mPaintDC; // only set during painting
 
+#ifdef CAIRO_HAS_D2D_SURFACE
+  nsRefPtr<gfxD2DSurface>    mD2DWindowSurface; // Surface for this window.
+#endif
+
   // Transparency
 #ifdef MOZ_XUL
   // Use layered windows to support full 256 level alpha translucency
   nsRefPtr<gfxWindowsSurface> mTransparentSurface;
   HDC                   mMemoryDC;
   nsTransparencyMode    mTransparencyMode;
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
+  nsIntRegion           mPossiblyTransparentRegion;
+  MARGINS               mGlassMargins;
+#endif // #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
 #endif // MOZ_XUL
 
   // Win7 Gesture processing and management

@@ -87,8 +87,18 @@ nsHTMLCSSStyleSheet::RulesMatching(ElementRuleProcessorData* aData)
 #ifdef MOZ_SMIL
   rule = content->GetSMILOverrideStyleRule();
   if (rule) {
-    rule->RuleMatched();
-    aData->mRuleWalker->Forward(rule);
+    if (aData->mPresContext->IsProcessingRestyles() &&
+        !aData->mPresContext->IsProcessingAnimationStyleChange()) {
+      // Non-animation restyle -- don't process SMIL override style, because we
+      // don't want SMIL animation to trigger new CSS transitions. Instead,
+      // request an Animation restyle, so we still get noticed.
+      aData->mPresContext->PresShell()->RestyleForAnimation(aData->mContent);
+    } else {
+      // Animation restyle (or non-restyle traversal of rules)
+      // Now we can walk SMIL overrride style, without triggering transitions.
+      rule->RuleMatched();
+      aData->mRuleWalker->Forward(rule);
+    }
   }
 #endif // MOZ_SMIL
 
@@ -136,6 +146,12 @@ nsReStyleHint
 nsHTMLCSSStyleSheet::HasStateDependentStyle(StateRuleProcessorData* aData)
 {
   return nsReStyleHint(0);
+}
+
+PRBool
+nsHTMLCSSStyleSheet::HasDocumentStateDependentStyle(StateRuleProcessorData* aData)
+{
+  return PR_FALSE;
 }
 
 // Test if style is dependent on attribute

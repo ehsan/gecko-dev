@@ -1,6 +1,3 @@
-#include "mozqwidget.h"
-#include "nsWindow.h"
-
 #include <QtGui/QApplication>
 #include <QtGui/QCursor>
 #include <QtGui/QInputContext>
@@ -13,14 +10,20 @@
 #include <QtCore/QEvent>
 #include <QtCore/QVariant>
 
+#include "mozqwidget.h"
+#include "nsWindow.h"
+
 
 MozQWidget::MozQWidget(nsWindow* aReceiver, QGraphicsItem* aParent)
     : QGraphicsWidget(aParent),
       mReceiver(aReceiver)
 {
-    setFlag(QGraphicsItem::ItemIsFocusable);
+#if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
+     setFlag(QGraphicsItem::ItemAcceptsInputMethod);
 
-    setFocusPolicy(Qt::WheelFocus);
+     setAcceptTouchEvents(true);
+     grabGesture(Qt::PinchGesture);
+#endif
 }
 
 MozQWidget::~MozQWidget()
@@ -32,6 +35,20 @@ MozQWidget::~MozQWidget()
 void MozQWidget::paint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, QWidget* aWidget /*= 0*/)
 {
     mReceiver->DoPaint(aPainter, aOption);
+}
+
+void MozQWidget::activate()
+{
+    // ensure that the keyboard is hidden when we activate the window
+    hideVKB();
+    mReceiver->DispatchActivateEvent();
+}
+
+void MozQWidget::deactivate()
+{
+    // ensure that the keyboard is hidden when we deactivate the window
+    hideVKB();
+    mReceiver->DispatchDeactivateEvent();
 }
 
 void MozQWidget::resizeEvent(QGraphicsSceneResizeEvent* aEvent)
@@ -119,15 +136,33 @@ void MozQWidget::mouseReleaseEvent(QGraphicsSceneMouseEvent* aEvent)
     mReceiver->OnButtonReleaseEvent(aEvent);
 }
 
-bool MozQWidget::sceneEvent(QEvent* aEvent)
+bool MozQWidget::event ( QEvent * event )
 {
-    if (QEvent::WindowActivate == aEvent->type()) {
-        mReceiver->OnFocusInEvent(aEvent);
-    } else if (QEvent::WindowDeactivate == aEvent->type()) {
-        mReceiver->OnFocusOutEvent(aEvent);
+#if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
+    switch (event->type())
+    {
+    case QEvent::TouchBegin:
+    case QEvent::TouchEnd:
+    case QEvent::TouchUpdate:
+    {
+        // Do not send this event to other handlers, this is needed
+        // to be able to receive the gesture events
+        PRBool handled = PR_FALSE;
+        mReceiver->OnTouchEvent(static_cast<QTouchEvent *>(event),handled);
+        return handled;
+    }
+    case (QEvent::Gesture):
+    {
+        PRBool handled = PR_FALSE;
+        mReceiver->OnGestureEvent(static_cast<QGestureEvent*>(event),handled);
+        return handled;
     }
 
-    return QGraphicsWidget::sceneEvent(aEvent);
+    default:
+        break;
+    }
+#endif
+    return QGraphicsWidget::event(event);
 }
 
 void MozQWidget::wheelEvent(QGraphicsSceneWheelEvent* aEvent)
@@ -143,11 +178,13 @@ void MozQWidget::closeEvent(QCloseEvent* aEvent)
 void MozQWidget::hideEvent(QHideEvent* aEvent)
 {
     mReceiver->hideEvent(aEvent);
+    QGraphicsWidget::hideEvent(aEvent);
 }
 
 void MozQWidget::showEvent(QShowEvent* aEvent)
 {
     mReceiver->showEvent(aEvent);
+    QGraphicsWidget::showEvent(aEvent);
 }
 
 bool MozQWidget::SetCursor(nsCursor aCursor)
@@ -223,3 +260,55 @@ void MozQWidget::setModal(bool modal)
     LOG(("Modal QGraphicsWidgets not supported in Qt < 4.6\n"));
 #endif
 }
+
+QVariant MozQWidget::inputMethodQuery(Qt::InputMethodQuery aQuery) const
+{
+    return QGraphicsWidget::inputMethodQuery(aQuery);
+}
+
+void MozQWidget::showVKB()
+{
+#if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
+    QWidget* focusWidget = qApp->focusWidget();
+
+    if (focusWidget) {
+        QInputContext *inputContext = qApp->inputContext();
+        if (!inputContext) {
+            NS_WARNING("Requesting SIP: but no input context");
+            return;
+        }
+
+        QEvent request(QEvent::RequestSoftwareInputPanel);
+        inputContext->filterEvent(&request);
+        focusWidget->setAttribute(Qt::WA_InputMethodEnabled, true);
+        inputContext->setFocusWidget(focusWidget);
+    }
+#else
+    LOG(("VKB not supported in Qt < 4.6\n"));
+#endif
+}
+
+void MozQWidget::hideVKB()
+{
+#if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
+    QInputContext *inputContext = qApp->inputContext();
+    if (!inputContext) {
+        NS_WARNING("Closing SIP: but no input context");
+        return;
+    }
+
+    QEvent request(QEvent::CloseSoftwareInputPanel);
+    inputContext->filterEvent(&request);
+    inputContext->reset();
+#else
+    LOG(("VKB not supported in Qt < 4.6\n"));
+#endif
+}
+
+bool MozQWidget::isVKBOpen()
+{
+    // There is no clear API in Pure QT about how to get OPEN/CLOSED vkb state
+    // FIXME in bug 555019.
+    return PR_FALSE;
+}
+

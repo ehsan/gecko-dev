@@ -126,7 +126,7 @@ nsDOMDocumentType::~nsDOMDocumentType()
 NS_INTERFACE_TABLE_HEAD(nsDOMDocumentType)
   NS_NODE_INTERFACE_TABLE2(nsDOMDocumentType, nsIDOMNode, nsIDOMDocumentType)
   NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(nsDOMDocumentType)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(DocumentType)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(DocumentType)
 NS_INTERFACE_MAP_END_INHERITING(nsGenericDOMDataNode)
 
 
@@ -152,7 +152,8 @@ nsDOMDocumentType::GetText()
 NS_IMETHODIMP    
 nsDOMDocumentType::GetName(nsAString& aName)
 {
-  return mName->ToString(aName);
+  mName->ToString(aName);
+  return NS_OK;
 }
 
 NS_IMETHODIMP    
@@ -205,7 +206,8 @@ nsDOMDocumentType::GetInternalSubset(nsAString& aInternalSubset)
 NS_IMETHODIMP
 nsDOMDocumentType::GetNodeName(nsAString& aNodeName)
 {
-  return mName->ToString(aNodeName);
+  mName->ToString(aNodeName);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -250,7 +252,7 @@ nsDOMDocumentType::BindToTree(nsIDocument *aDocument, nsIContent *aParent,
     // case.
     // XXX We may want to move this to nsDOMImplementation::CreateDocument if
     //     we want to rely on the nodeinfo and wrappers being right before
-    //     getting into doReplaceOrInsertBefore or doInsertChildAt. That would
+    //     getting into ReplaceOrInsertBefore or doInsertChildAt. That would
     //     break inserting DOMDocumentType nodes through other DOM methods
     //     though.
     nsNodeInfoManager *nimgr = aParent ?
