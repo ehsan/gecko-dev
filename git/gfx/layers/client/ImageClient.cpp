@@ -103,7 +103,7 @@ void
 ImageClientSingle::FlushAllImages(bool aExceptFront)
 {
   if (!aExceptFront && mFrontBuffer) {
-    GetForwarder()->RemoveTextureFromCompositable(this, mFrontBuffer);
+    GetForwarder()->HoldUntilTransaction(mFrontBuffer);
     mFrontBuffer = nullptr;
   }
 }
@@ -112,11 +112,11 @@ void
 ImageClientBuffered::FlushAllImages(bool aExceptFront)
 {
   if (!aExceptFront && mFrontBuffer) {
-    GetForwarder()->RemoveTextureFromCompositable(this, mFrontBuffer);
+    GetForwarder()->HoldUntilTransaction(mFrontBuffer);
     mFrontBuffer = nullptr;
   }
   if (mBackBuffer) {
-    GetForwarder()->RemoveTextureFromCompositable(this, mBackBuffer);
+    GetForwarder()->HoldUntilTransaction(mBackBuffer);
     mBackBuffer = nullptr;
   }
 }
@@ -142,7 +142,7 @@ ImageClientSingle::UpdateImage(ImageContainer* aContainer,
 
 
     if (mFrontBuffer) {
-      GetForwarder()->RemoveTextureFromCompositable(this, mFrontBuffer);
+      GetForwarder()->HoldUntilTransaction(mFrontBuffer);
     }
     mFrontBuffer = texture;
     if (!AddTextureClient(texture)) {
@@ -159,7 +159,7 @@ ImageClientSingle::UpdateImage(ImageContainer* aContainer,
     }
 
     if (mFrontBuffer && mFrontBuffer->IsImmutable()) {
-      GetForwarder()->RemoveTextureFromCompositable(this, mFrontBuffer);
+      GetForwarder()->HoldUntilTransaction(mFrontBuffer);
       mFrontBuffer = nullptr;
     }
 
@@ -202,7 +202,7 @@ ImageClientSingle::UpdateImage(ImageContainer* aContainer,
     gfx::IntSize size = gfx::IntSize(image->GetSize().width, image->GetSize().height);
 
     if (mFrontBuffer) {
-      GetForwarder()->RemoveTextureFromCompositable(this, mFrontBuffer);
+      GetForwarder()->HoldUntilTransaction(mFrontBuffer);
       mFrontBuffer = nullptr;
     }
 
@@ -223,7 +223,7 @@ ImageClientSingle::UpdateImage(ImageContainer* aContainer,
 
     if (mFrontBuffer &&
         (mFrontBuffer->IsImmutable() || mFrontBuffer->GetSize() != size)) {
-      GetForwarder()->RemoveTextureFromCompositable(this, mFrontBuffer);
+      GetForwarder()->HoldUntilTransaction(mFrontBuffer);
       mFrontBuffer = nullptr;
     }
 

@@ -7,6 +7,9 @@
 #ifdef WIN32
 #include <windows.h>
 #endif
+#ifdef XP_OS2
+#include <os2.h>
+#endif
 
 #include "nscore.h"
 #include "nsCOMPtr.h"

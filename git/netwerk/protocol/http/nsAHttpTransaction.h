@@ -127,9 +127,7 @@ public:
     // return the load group connection information associated with the transaction
     virtual nsILoadGroupConnectionInfo *LoadGroupConnectionInfo() { return nullptr; }
 
-    // The base definition of these is done in nsHttpTransaction.cpp
-    virtual bool ResponseTimeoutEnabled() const;
-    virtual PRIntervalTime ResponseTimeout();
+    virtual bool ResponseTimeoutEnabled() const { return false; }
 
     // Every transaction is classified into one of the types below. When using
     // HTTP pipelines, only transactions with the same type appear on the same

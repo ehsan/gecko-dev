@@ -383,7 +383,6 @@ var DebuggerServer = {
     this.registerModule("devtools/server/actors/styleeditor");
     this.registerModule("devtools/server/actors/tracer");
     this.registerModule("devtools/server/actors/memory");
-    this.registerModule("devtools/server/actors/eventlooplag");
     if ("nsIProfiler" in Ci)
       this.addActors("resource://gre/modules/devtools/server/actors/profiler.js");
   },

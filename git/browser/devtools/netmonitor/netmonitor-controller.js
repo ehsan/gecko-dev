@@ -691,8 +691,7 @@ let L10N = new ViewHelpers.L10N(NET_STRINGS_URI);
 let Prefs = new ViewHelpers.Prefs("devtools.netmonitor", {
   networkDetailsWidth: ["Int", "panes-network-details-width"],
   networkDetailsHeight: ["Int", "panes-network-details-height"],
-  statistics: ["Bool", "statistics"],
-  filters: ["Json", "filters"]
+  statistics: ["Bool", "statistics"]
 });
 
 /**

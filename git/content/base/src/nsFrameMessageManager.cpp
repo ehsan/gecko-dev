@@ -29,7 +29,6 @@
 #include "nsIDOMClassInfo.h"
 #include "nsIDOMFile.h"
 #include "xpcpublic.h"
-#include "mozilla/Debug.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/dom/StructuredCloneUtils.h"
 #include "JavaScriptChild.h"
@@ -38,6 +37,9 @@
 #include "nsPrintfCString.h"
 #include <algorithm>
 
+#ifdef ANDROID
+#include <android/log.h>
+#endif
 #ifdef XP_WIN
 #include <windows.h>
 # if defined(SendMessage)
@@ -721,7 +723,16 @@ nsFrameMessageManager::GetChildAt(uint32_t aIndex,
 NS_IMETHODIMP
 nsFrameMessageManager::Dump(const nsAString& aStr)
 {
-  PrintToDebugger(aStr, stdout);
+#ifdef ANDROID
+  __android_log_print(ANDROID_LOG_INFO, "Gecko", "%s", NS_ConvertUTF16toUTF8(aStr).get());
+#endif
+#ifdef XP_WIN
+  if (IsDebuggerPresent()) {
+    OutputDebugStringW(PromiseFlatString(aStr).get());
+  }
+#endif
+  fputs(NS_ConvertUTF16toUTF8(aStr).get(), stdout);
+  fflush(stdout);
   return NS_OK;
 }
 
@@ -1031,7 +1042,7 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
         }
 
         if (!JS_CallFunctionValue(cx, thisObject,
-                                  funval, argv, rval.address())) {
+                                  funval, 1, argv.address(), rval.address())) {
           nsJSUtils::ReportPendingException(cx);
           continue;
         }
@@ -1419,7 +1430,7 @@ nsFrameScriptExecutor::LoadFrameScriptInternal(const nsAString& aURL,
       JS::Rooted<JS::Value> rval(cx);
       JS::Rooted<JS::Value> methodVal(cx, JS::ObjectValue(*method));
       ok = JS_CallFunctionValue(cx, global, methodVal,
-                                JS::EmptyValueArray, rval.address());
+                                0, nullptr, rval.address());
     } else if (script) {
       ok = JS_ExecuteScript(cx, global, script, nullptr);
     }

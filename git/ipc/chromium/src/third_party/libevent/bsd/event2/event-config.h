@@ -184,7 +184,7 @@
 #define _EVENT_HAVE_SELECT 1
 
 /* Define to 1 if you have the `sendfile' function. */
-#define _EVENT_HAVE_SENDFILE 1
+/* #undef _EVENT_HAVE_SENDFILE */
 
 /* Define to 1 if you have the `setenv' function. */
 #define _EVENT_HAVE_SETENV 1

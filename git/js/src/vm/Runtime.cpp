@@ -119,7 +119,7 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
 #endif
     ),
     mainThread(this),
-    interrupt(false),
+    interrupt(0),
 #if defined(JS_THREADSAFE) && defined(JS_ION)
     interruptPar(false),
 #endif
@@ -660,7 +660,7 @@ JSRuntime::triggerOperationCallback(OperationCallbackTrigger trigger)
      */
     mainThread.setIonStackLimit(-1);
 
-    interrupt = true;
+    interrupt = 1;
 
 #ifdef JS_ION
 #ifdef JS_THREADSAFE

@@ -503,9 +503,6 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
           if (elm->MayHaveMouseEnterLeaveEventListener()) {
             window->SetHasMouseEnterLeaveEventListeners();
           }
-          if (elm->MayHavePointerEnterLeaveEventListener()) {
-            window->SetHasPointerEnterLeaveEventListeners();
-          }
         }
       }
     }

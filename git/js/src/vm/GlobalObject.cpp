@@ -354,8 +354,9 @@ GlobalObject::initFunctionAndObjectClasses(JSContext *cx)
                                           self, NullPtr()));
     if (!setter)
         return nullptr;
+    RootedValue undefinedValue(cx, UndefinedValue());
     if (!JSObject::defineProperty(cx, objectProto,
-                                  cx->names().proto, UndefinedHandleValue,
+                                  cx->names().proto, undefinedValue,
                                   JS_DATA_TO_FUNC_PTR(PropertyOp, getter.get()),
                                   JS_DATA_TO_FUNC_PTR(StrictPropertyOp, setter.get()),
                                   JSPROP_GETTER | JSPROP_SETTER | JSPROP_SHARED))
@@ -568,7 +569,8 @@ GlobalObject::valueIsEval(Value val)
 GlobalObject::initStandardClasses(JSContext *cx, Handle<GlobalObject*> global)
 {
     /* Define a top-level property 'undefined' with the undefined value. */
-    if (!JSObject::defineProperty(cx, global, cx->names().undefined, UndefinedHandleValue,
+    RootedValue undefinedValue(cx, UndefinedValue());
+    if (!JSObject::defineProperty(cx, global, cx->names().undefined, undefinedValue,
                                   JS_PropertyStub, JS_StrictPropertyStub, JSPROP_PERMANENT | JSPROP_READONLY))
     {
         return false;

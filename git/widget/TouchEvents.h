@@ -149,6 +149,16 @@ public:
     MOZ_COUNT_CTOR(WidgetTouchEvent);
   }
 
+  WidgetTouchEvent(bool aIsTrusted, const WidgetTouchEvent* aEvent) :
+    WidgetInputEvent(aIsTrusted, aEvent->message, aEvent->widget,
+                     NS_TOUCH_EVENT)
+  {
+    modifiers = aEvent->modifiers;
+    time = aEvent->time;
+    touches.AppendElements(aEvent->touches);
+    MOZ_COUNT_CTOR(WidgetTouchEvent);
+  }
+
   WidgetTouchEvent(bool aIsTrusted, uint32_t aMessage, nsIWidget* aWidget) :
     WidgetInputEvent(aIsTrusted, aMessage, aWidget, NS_TOUCH_EVENT)
   {
@@ -164,8 +174,8 @@ public:
   {
     MOZ_ASSERT(eventStructType == NS_TOUCH_EVENT,
                "Duplicate() must be overridden by sub class");
-    // Not copying widget, it is a weak reference.
-    WidgetTouchEvent* result = new WidgetTouchEvent(false, message, nullptr);
+    // XXX Why does only WidgetTouchEvent copy the widget?
+    WidgetTouchEvent* result = new WidgetTouchEvent(false, this);
     result->AssignTouchEventData(*this, true);
     result->mFlags = mFlags;
     return result;
@@ -177,9 +187,7 @@ public:
   {
     AssignInputEventData(aEvent, aCopyTargets);
 
-    // Assign*EventData() assume that they're called only new instance.
-    MOZ_ASSERT(touches.IsEmpty());
-    touches.AppendElements(aEvent.touches);
+    // Currently, we don't need to copy touches.
   }
 };
 

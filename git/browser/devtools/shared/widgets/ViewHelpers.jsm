@@ -395,23 +395,15 @@ ViewHelpers.Prefs.prototype = {
 
   /**
    * Maps a property name to a pref, defining lazy getters and setters.
-   * Supported types are "Bool", "Char", "Int" and "Json" (which is basically
-   * just sugar for "Char" using the standard JSON serializer).
    *
    * @param string aAccessorName
    * @param string aType
    * @param string aPrefName
-   * @param array aSerializer
    */
-  map: function(aAccessorName, aType, aPrefName, aSerializer = { in: e => e, out: e => e }) {
-    if (aType == "Json") {
-      this.map(aAccessorName, "Char", aPrefName, { in: JSON.parse, out: JSON.stringify });
-      return;
-    }
-
+  map: function(aAccessorName, aType, aPrefName) {
     Object.defineProperty(this, aAccessorName, {
-      get: () => aSerializer.in(this._get(aType, [this.root, aPrefName].join("."))),
-      set: (e) => this._set(aType, [this.root, aPrefName].join("."), aSerializer.out(e))
+      get: () => this._get(aType, [this.root, aPrefName].join(".")),
+      set: (aValue) => this._set(aType, [this.root, aPrefName].join("."), aValue)
     });
   }
 };

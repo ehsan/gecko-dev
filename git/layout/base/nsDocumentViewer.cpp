@@ -115,7 +115,6 @@ static const char sPrintOptionsContractID[] =
 #include "nsISHistoryInternal.h"
 #include "nsIWebNavigation.h"
 #include "nsEventDispatcher.h"
-#include "nsXMLHttpRequest.h"
 
 //paint forcing
 #include <stdio.h>
@@ -1072,8 +1071,6 @@ nsDocumentViewer::PermitUnloadInternal(bool aCallerClosesWindow,
                                        bool *aShouldPrompt,
                                        bool *aPermitUnload)
 {
-  AutoDontWarnAboutSyncXHR disableSyncXHRWarning;
-
   *aPermitUnload = true;
 
   if (!mDocument
@@ -1279,8 +1276,6 @@ nsDocumentViewer::ResetCloseWindow()
 NS_IMETHODIMP
 nsDocumentViewer::PageHide(bool aIsUnload)
 {
-  AutoDontWarnAboutSyncXHR disableSyncXHRWarning;
-
   mHidden = true;
 
   if (!mDocument) {

@@ -513,7 +513,7 @@ public:
     , mInput(aInput)
     , mTopDir(aTopDir)
     , mFileListLength(0)
-    , mCanceled(false)
+    , mCanceled(0)
   {}
 
   NS_IMETHOD Run() {
@@ -578,7 +578,7 @@ public:
     // Clear mInput to make sure that it can't lose its last strong ref off the
     // main thread (which may happen if our dtor runs off the main thread)!
     mInput = nullptr;
-    mCanceled = true;
+    mCanceled = 1; // true
   }
 
   uint32_t GetFileListLength() const
@@ -606,7 +606,8 @@ private:
   // this atomic member to make the access thread safe:
   mozilla::Atomic<uint32_t> mFileListLength;
 
-  mozilla::Atomic<bool> mCanceled;
+  // We'd prefer this member to be bool, but we don't support Atomic<bool>.
+  mozilla::Atomic<uint32_t> mCanceled;
 };
 
 

@@ -1413,7 +1413,6 @@ void
 gfxContext::SetPattern(gfxPattern *pattern)
 {
   if (mCairo) {
-    MOZ_ASSERT(!pattern->IsAzure());
     cairo_set_source(mCairo, pattern->CairoPattern());
   } else {
     CurrentState().sourceSurfCairo = nullptr;
@@ -1458,7 +1457,6 @@ void
 gfxContext::Mask(gfxPattern *pattern)
 {
   if (mCairo) {
-    MOZ_ASSERT(!pattern->IsAzure());
     cairo_mask(mCairo, pattern->CairoPattern());
   } else {
     if (pattern->Extend() == gfxPattern::EXTEND_NONE) {

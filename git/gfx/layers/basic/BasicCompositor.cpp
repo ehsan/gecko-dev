@@ -293,7 +293,6 @@ DrawSurfaceWithTextureCoords(DrawTarget *aDest,
                              const gfx::Rect& aDestRect,
                              SourceSurface *aSource,
                              const gfx::Rect& aTextureCoords,
-                             gfx::Filter aFilter,
                              float aOpacity,
                              SourceSurface *aMask,
                              const Matrix& aMaskTransform)
@@ -310,11 +309,6 @@ DrawSurfaceWithTextureCoords(DrawTarget *aDest,
                                   gfxPoint(aDestRect.XMost(), aDestRect.y),
                                   gfxPoint(aDestRect.XMost(), aDestRect.YMost()));
   Matrix matrix = ToMatrix(transform);
-
-  // Only use REPEAT if aTextureCoords is outside (0, 0, 1, 1).
-  gfx::Rect unitRect(0, 0, 1, 1);
-  ExtendMode mode = unitRect.Contains(aTextureCoords) ? ExtendMode::CLAMP : ExtendMode::REPEAT;
-
   if (aMask) {
     aDest->PushClipRect(aDestRect);
     Matrix maskTransformInverse = aMaskTransform;
@@ -322,13 +316,13 @@ DrawSurfaceWithTextureCoords(DrawTarget *aDest,
     Matrix dtTransform = aDest->GetTransform();
     aDest->SetTransform(aMaskTransform);
     Matrix patternMatrix = maskTransformInverse * dtTransform * matrix;
-    aDest->MaskSurface(SurfacePattern(aSource, mode, patternMatrix, aFilter),
+    aDest->MaskSurface(SurfacePattern(aSource, ExtendMode::REPEAT, patternMatrix),
                        aMask, Point(), DrawOptions(aOpacity));
     aDest->SetTransform(dtTransform);
     aDest->PopClip();
   } else {
     aDest->FillRect(aDestRect,
-                    SurfacePattern(aSource, mode, matrix, aFilter),
+                    SurfacePattern(aSource, ExtendMode::REPEAT, matrix),
                     DrawOptions(aOpacity));
   }
 }
@@ -493,7 +487,6 @@ BasicCompositor::DrawQuad(const gfx::Rect& aRect,
       DrawSurfaceWithTextureCoords(dest, aRect,
                                    source->GetSurface(),
                                    texturedEffect->mTextureCoords,
-                                   texturedEffect->mFilter,
                                    aOpacity, sourceMask, maskTransform);
       break;
     }
@@ -511,7 +504,6 @@ BasicCompositor::DrawQuad(const gfx::Rect& aRect,
       DrawSurfaceWithTextureCoords(dest, aRect,
                                    sourceSurf,
                                    effectRenderTarget->mTextureCoords,
-                                   effectRenderTarget->mFilter,
                                    aOpacity, sourceMask, maskTransform);
       break;
     }
@@ -554,19 +546,11 @@ BasicCompositor::BeginFrame(const nsIntRegion& aInvalidRegion,
 {
   nsIntRect intRect;
   mWidget->GetClientBounds(intRect);
-
-  // The result of GetClientBounds is shifted over by the size of the window
-  // manager styling. We want to ignore that.
-  intRect.MoveTo(0, 0);
   Rect rect = Rect(0, 0, intRect.width, intRect.height);
 
-  // Sometimes the invalid region is larger than we want to draw.
-  nsIntRegion invalidRegionSafe;
-  invalidRegionSafe.And(aInvalidRegion, intRect);
-
-  nsIntRect invalidRect = invalidRegionSafe.GetBounds();
+  nsIntRect invalidRect = aInvalidRegion.GetBounds();
   mInvalidRect = IntRect(invalidRect.x, invalidRect.y, invalidRect.width, invalidRect.height);
-  mInvalidRegion = invalidRegionSafe;
+  mInvalidRegion = aInvalidRegion;
 
   if (aRenderBoundsOut) {
     *aRenderBoundsOut = Rect();
@@ -617,19 +601,7 @@ BasicCompositor::BeginFrame(const nsIntRegion& aInvalidRegion,
 void
 BasicCompositor::EndFrame()
 {
-  // Pop aClipRectIn/bounds rect
   mRenderTarget->mDrawTarget->PopClip();
-
-  if (gfxPlatform::GetPlatform()->WidgetUpdateFlashing()) {
-    float r = float(rand()) / RAND_MAX;
-    float g = float(rand()) / RAND_MAX;
-    float b = float(rand()) / RAND_MAX;
-    // We're still clipped to mInvalidRegion, so just fill the bounds.
-    mRenderTarget->mDrawTarget->FillRect(ToRect(mInvalidRegion.GetBounds()),
-                                         ColorPattern(Color(r, g, b, 0.2f)));
-  }
-
-  // Pop aInvalidregion
   mRenderTarget->mDrawTarget->PopClip();
 
   // Note: Most platforms require us to buffer drawing to the widget surface.

@@ -8,6 +8,9 @@
 #ifdef WIN32
 #include <windows.h>
 #endif
+#ifdef OS2
+#include <os2.h>
+#endif
 
 #include "nspr.h"
 #include "nscore.h"

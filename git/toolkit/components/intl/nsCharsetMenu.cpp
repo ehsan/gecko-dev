@@ -15,6 +15,7 @@
 #include "nsICharsetConverterManager.h"
 #include "nsICollation.h"
 #include "nsCollationCID.h"
+#include "nsLocaleCID.h"
 #include "nsILocaleService.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
