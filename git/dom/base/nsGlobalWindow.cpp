@@ -1034,9 +1034,6 @@ nsGlobalWindow::~nsGlobalWindow()
     mURLProperty->ClearWindowReference();
   }
 
-  DisableDeviceMotionUpdates();
-  mHasDeviceMotion = PR_FALSE;
-
   nsLayoutStatics::Release();
 }
 
@@ -1154,6 +1151,9 @@ nsGlobalWindow::CleanUp(PRBool aIgnoreModalDialog)
   if (inner) {
     inner->CleanUp(aIgnoreModalDialog);
   }
+
+  DisableDeviceMotionUpdates();
+  mHasDeviceMotion = PR_FALSE;
 
   if (mCleanMessageManager) {
     NS_ABORT_IF_FALSE(mIsChrome, "only chrome should have msg manager cleaned");
