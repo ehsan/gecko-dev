@@ -227,14 +227,7 @@ TreePanel.prototype = {
     treeBox = this.document.createElement("vbox");
     treeBox.id = "inspector-tree-box";
     treeBox.state = "open"; // for the registerTools API.
-    try {
-      treeBox.height =
-        Services.prefs.getIntPref("devtools.inspector.htmlHeight");
-    } catch(e) {
-      treeBox.height = 112;
-    }
-                      
-    treeBox.minHeight = 64;
+    treeBox.minHeight = 10;
     treeBox.flex = 1;
     toolbarParent.insertBefore(treeBox, toolbar);
 
@@ -269,7 +262,6 @@ TreePanel.prototype = {
       this.IUI.toolbar.removeAttribute("treepanel-open");
 
       let treeBox = this.container;
-      Services.prefs.setIntPref("devtools.inspector.htmlHeight", treeBox.height);
       let treeBoxParent = treeBox.parentNode;
       treeBoxParent.removeChild(treeBox);
     } else {
@@ -585,7 +577,6 @@ TreePanel.prototype = {
     this.editingContext.attrObj.innerHTML = editorInput.value;
 
     this.IUI.isDirty = true;
-    this.IUI.nodeChanged(this.registrationObject);
 
     // event notification
     Services.obs.notifyObservers(null, this.IUI.INSPECTOR_NOTIFICATIONS.EDITOR_SAVED,
