@@ -45,7 +45,8 @@ const TELEMETRY_DB_OPEN = "HEALTHREPORT_DB_OPEN_MS";
 const TELEMETRY_DB_OPEN_FIRSTRUN = "HEALTHREPORT_DB_OPEN_FIRSTRUN_MS";
 const TELEMETRY_GENERATE_PAYLOAD = "HEALTHREPORT_GENERATE_JSON_PAYLOAD_MS";
 const TELEMETRY_JSON_PAYLOAD_SERIALIZE = "HEALTHREPORT_JSON_PAYLOAD_SERIALIZE_MS";
-const TELEMETRY_PAYLOAD_SIZE = "HEALTHREPORT_PAYLOAD_UNCOMPRESSED_BYTES";
+const TELEMETRY_PAYLOAD_SIZE_UNCOMPRESSED = "HEALTHREPORT_PAYLOAD_UNCOMPRESSED_BYTES";
+const TELEMETRY_PAYLOAD_SIZE_COMPRESSED = "HEALTHREPORT_PAYLOAD_COMPRESSED_BYTES";
 const TELEMETRY_SAVE_LAST_PAYLOAD = "HEALTHREPORT_SAVE_LAST_PAYLOAD_MS";
 const TELEMETRY_UPLOAD = "HEALTHREPORT_UPLOAD_MS";
 const TELEMETRY_SHUTDOWN_DELAY = "HEALTHREPORT_SHUTDOWN_DELAY_MS";
@@ -572,6 +573,7 @@ AbstractHealthReporter.prototype = Object.freeze({
     }
 
     return Task.spawn(function collectAndObtain() {
+      yield this._storage.setAutoCheckpoint(0);
       yield this._providerManager.ensurePullOnlyProvidersRegistered();
 
       let payload;
@@ -586,6 +588,7 @@ AbstractHealthReporter.prototype = Object.freeze({
                                ex);
       } finally {
         yield this._providerManager.ensurePullOnlyProvidersUnregistered();
+        yield this._storage.setAutoCheckpoint(1);
 
         if (error) {
           throw error;
@@ -1209,7 +1212,7 @@ HealthReporter.prototype = Object.freeze({
     return Task.spawn(function doUpload() {
       let payload = yield this.getJSONPayload();
 
-      let histogram = Services.telemetry.getHistogramById(TELEMETRY_PAYLOAD_SIZE);
+      let histogram = Services.telemetry.getHistogramById(TELEMETRY_PAYLOAD_SIZE_UNCOMPRESSED);
       histogram.add(payload.length);
 
       TelemetryStopwatch.start(TELEMETRY_SAVE_LAST_PAYLOAD, this);
@@ -1224,8 +1227,12 @@ HealthReporter.prototype = Object.freeze({
       TelemetryStopwatch.start(TELEMETRY_UPLOAD, this);
       let result;
       try {
+        let options = {
+          deleteID: this.lastSubmitID,
+          telemetryCompressed: TELEMETRY_PAYLOAD_SIZE_COMPRESSED,
+        };
         result = yield client.uploadJSON(this.serverNamespace, id, payload,
-                                         this.lastSubmitID);
+                                         options);
         TelemetryStopwatch.finish(TELEMETRY_UPLOAD, this);
       } catch (ex) {
         TelemetryStopwatch.cancel(TELEMETRY_UPLOAD, this);

@@ -650,7 +650,7 @@ AlphaBoxBlur::BoxBlur_C(uint8_t* aData,
       return;
   }
 
-  uint32_t stride32bit = aIntegralImageStride / 4;
+  int32_t stride32bit = aIntegralImageStride / 4;
 
   int32_t leftInflation = RoundUpToMultipleOf4(aLeftLobe).value();
 

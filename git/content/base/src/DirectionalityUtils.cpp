@@ -238,7 +238,8 @@ DoesNotParticipateInAutoDirection(const Element* aElement)
   return (!aElement->IsHTML() ||
           nodeInfo->Equals(nsGkAtoms::script) ||
           nodeInfo->Equals(nsGkAtoms::style) ||
-          nodeInfo->Equals(nsGkAtoms::textarea));
+          nodeInfo->Equals(nsGkAtoms::textarea) ||
+          aElement->IsInAnonymousSubtree());
 }
 
 static inline bool
@@ -754,8 +755,6 @@ void SetAncestorDirectionIfAuto(nsINode* aTextNode, Directionality aDir,
       break;
     }
 
-    aTextNode->SetAncestorHasDirAuto();
-
     if (parent->HasDirAuto()) {
       bool resetDirection = false;
       nsINode* directionWasSetByTextNode =
@@ -857,10 +856,15 @@ SetDirectionFromChangedTextNode(nsIContent* aTextNode, uint32_t aOffset,
 }
 
 void
-SetDirectionFromNewTextNode(nsTextNode* aTextNode)
+SetDirectionFromNewTextNode(nsIContent* aTextNode)
 {
   if (!NodeAffectsDirAutoAncestor(aTextNode)) {
     return;
+  }
+
+  Element* parent = aTextNode->GetParentElement();
+  if (parent && parent->NodeOrAncestorHasDirAuto()) {
+    aTextNode->SetAncestorHasDirAuto();
   }
 
   Directionality dir = GetDirectionFromText(aTextNode->GetText());

@@ -299,17 +299,10 @@ const nsTArray<GfxDriverInfo>&
 GfxInfo::GetGfxDriverInfo()
 {
   if (mDriverInfo->IsEmpty()) {
-#ifdef MOZ_ANDROID_OMTC
     APPEND_TO_DRIVER_BLOCKLIST2( DRIVER_OS_ALL,
       (nsAString&) GfxDriverInfo::GetDeviceVendor(VendorAll), GfxDriverInfo::allDevices,
       nsIGfxInfo::FEATURE_OPENGL_LAYERS, nsIGfxInfo::FEATURE_NO_INFO,
       DRIVER_COMPARISON_IGNORED, GfxDriverInfo::allDriverVersions );
-#else
-    APPEND_TO_DRIVER_BLOCKLIST2( DRIVER_OS_ALL,
-      (nsAString&) GfxDriverInfo::GetDeviceVendor(VendorAll), GfxDriverInfo::allDevices,
-      nsIGfxInfo::FEATURE_OPENGL_LAYERS, nsIGfxInfo::FEATURE_BLOCKED_DEVICE,
-      DRIVER_COMPARISON_IGNORED, GfxDriverInfo::allDriverVersions );
-#endif
   }
 
   return *mDriverInfo;
@@ -449,7 +442,9 @@ GfxInfo::GetFeatureStatusImpl(int32_t aFeature,
         //     Samsung SGH-I757 (Bug 845729)
         //     Samsung SGH-T989 (Bug 845729)
         //   All Galaxy nexus ICS devices
+        //   Sony Xperia Ion (LT28) ICS devices
         bool isWhitelisted =
+          cModel.Equals("LT28h", nsCaseInsensitiveCStringComparator()) ||
           cManufacturer.Equals("samsung", nsCaseInsensitiveCStringComparator()) ||
           cModel.Equals("galaxy nexus", nsCaseInsensitiveCStringComparator()); // some Galaxy Nexus have manufacturer=amazon
 
@@ -468,7 +463,24 @@ GfxInfo::GetFeatureStatusImpl(int32_t aFeature,
       }
       else if (CompareVersions(mOSVersion.get(), "4.2.0") < 0)
       {
+        // Whitelist:
+        //   All JB phones except for those in blocklist below
+        // Blocklist:
+        //   Samsung devices from bug 812881 and 853522.
+        //   All Sony devices (Bug 845734)
+
         bool isBlocklisted =
+          cModel.Find("SCH-I535", true) ||
+          cModel.Find("SGH-I747", true) ||
+          cModel.Find("SGH-T999", true) ||
+          cModel.Find("SPH-L710", true) ||
+          cModel.Find("GT-I8190", true) ||
+          cModel.Find("GT-P3100", true) ||
+          cModel.Find("GT-P3110", true) ||
+          cModel.Find("GT-P3113", true) ||
+          cModel.Find("GT-P5100", true) ||
+          cModel.Find("GT-P5110", true) ||
+          cModel.Find("GT-P5113", true) ||
           cManufacturer.Equals("Sony", nsCaseInsensitiveCStringComparator());
 
         if (isBlocklisted) {

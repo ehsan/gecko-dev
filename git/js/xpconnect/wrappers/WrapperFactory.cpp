@@ -39,6 +39,13 @@ Wrapper XrayWaiver(WrapperFactory::WAIVE_XRAY_WRAPPER_FLAG);
 // off it.
 WaiveXrayWrapper WaiveXrayWrapper::singleton(0);
 
+bool
+WrapperFactory::IsCOW(JSObject *obj)
+{
+    return IsWrapper(obj) &&
+           Wrapper::wrapperHandler(obj) == &ChromeObjectWrapper::singleton;
+}
+
 JSObject *
 WrapperFactory::GetXrayWaiver(JSObject *obj)
 {
@@ -284,9 +291,8 @@ DEBUG_CheckUnwrapSafety(JSObject *obj, js::Wrapper *handler,
         // The Components object that is restricted regardless of origin.
         MOZ_ASSERT(!handler->isSafeToUnwrap());
     } else if (AccessCheck::needsSystemOnlyWrapper(obj)) {
-        // SOWs are opaque to everyone but Chrome and XBL scopes.
-        // FIXME: Re-enable in bug 834732.
-        // MOZ_ASSERT(handler->isSafeToUnwrap() == nsContentUtils::CanAccessNativeAnon());
+        // SOWs have a dynamic unwrap check, so we can't really say anything useful
+        // about them here :-(
     } else {
         // Otherwise, it should depend on whether the target subsumes the origin.
         MOZ_ASSERT(handler->isSafeToUnwrap() == AccessCheck::subsumes(target, origin));
@@ -342,6 +348,9 @@ WrapperFactory::Rewrap(JSContext *cx, JSObject *existing, JSObject *obj,
                "wrapped object passed to rewrap");
     MOZ_ASSERT(JS_GetClass(obj) != &XrayUtils::HolderClass, "trying to wrap a holder");
     MOZ_ASSERT(!js::IsInnerObject(obj));
+    // We sometimes end up here after nsContentUtils has been shut down but before
+    // XPConnect has been shut down, so check the context stack the roundabout way.
+    MOZ_ASSERT(XPCJSRuntime::Get()->GetJSContextStack()->Peek() == cx);
 
     // Compute the information we need to select the right wrapper.
     JSCompartment *origin = js::GetObjectCompartment(obj);
@@ -359,8 +368,6 @@ WrapperFactory::Rewrap(JSContext *cx, JSObject *existing, JSObject *obj,
 
     Wrapper *wrapper;
     CompartmentPrivate *targetdata = EnsureCompartmentPrivate(target);
-    bool canAccessNAC = targetIsChrome ||
-                        (targetSubsumesOrigin && nsContentUtils::IsCallerXBL());
 
     //
     // First, handle the special cases.
@@ -381,7 +388,9 @@ WrapperFactory::Rewrap(JSContext *cx, JSObject *existing, JSObject *obj,
     } else if (IsComponentsObject(obj) && !AccessCheck::isChrome(target)) {
         wrapper = &FilteringWrapper<CrossCompartmentSecurityWrapper,
                                     ComponentsObjectPolicy>::singleton;
-    } else if (AccessCheck::needsSystemOnlyWrapper(obj) && !canAccessNAC) {
+    } else if (AccessCheck::needsSystemOnlyWrapper(obj) &&
+               !(targetIsChrome || (targetSubsumesOrigin && nsContentUtils::IsCallerXBL())))
+    {
         wrapper = &FilteringWrapper<CrossCompartmentSecurityWrapper,
                                     OnlyIfSubjectIsSystem>::singleton;
     }
@@ -497,7 +506,8 @@ WrapperFactory::WrapForSameCompartment(JSContext *cx, JSObject *obj)
 
     // The WN knows what to do.
     JSObject *wrapper = wn->GetSameCompartmentSecurityWrapper(cx);
-    MOZ_ASSERT_IF(wrapper != obj, !Wrapper::wrapperHandler(wrapper)->isSafeToUnwrap());
+    MOZ_ASSERT_IF(wrapper != obj && IsComponentsObject(js::UnwrapObject(obj)),
+                  !Wrapper::wrapperHandler(wrapper)->isSafeToUnwrap());
     return wrapper;
 }
 
