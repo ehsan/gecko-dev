@@ -300,6 +300,14 @@ struct nsCSSRendering {
                            bool& aDrawBackgroundImage,
                            bool& aDrawBackgroundColor);
 
+  static nsRect
+  ComputeBackgroundPositioningArea(nsPresContext* aPresContext,
+                                   nsIFrame* aForFrame,
+                                   const nsRect& aBorderArea,
+                                   const nsStyleBackground& aBackground,
+                                   const nsStyleBackground::Layer& aLayer,
+                                   nsIFrame** aAttachedToFrame);
+
   static nsBackgroundLayerState
   PrepareBackgroundLayer(nsPresContext* aPresContext,
                          nsIFrame* aForFrame,
@@ -335,12 +343,24 @@ struct nsCSSRendering {
                               const nsRect& aDirtyRect,
                               const nsRect& aBorderArea,
                               uint32_t aFlags,
-                              nsRect* aBGClipRect = nullptr);
+                              nsRect* aBGClipRect = nullptr,
+                              int32_t aLayer = -1);
+ 
+  static void PaintBackgroundColor(nsPresContext* aPresContext,
+                                   nsRenderingContext& aRenderingContext,
+                                   nsIFrame* aForFrame,
+                                   const nsRect& aDirtyRect,
+                                   const nsRect& aBorderArea,
+                                   uint32_t aFlags);
 
   /**
    * Same as |PaintBackground|, except using the provided style structs.
    * This short-circuits the code that ensures that the root element's
    * background is drawn on the canvas.
+   * The aLayer parameter allows you to paint a single layer of the background.
+   * The default value for aLayer, -1, means that all layers will be painted.
+   * The background color will only be painted if the back-most layer is also
+   * being painted.
    */
   static void PaintBackgroundWithSC(nsPresContext* aPresContext,
                                     nsRenderingContext& aRenderingContext,
@@ -350,8 +370,17 @@ struct nsCSSRendering {
                                     nsStyleContext *aStyleContext,
                                     const nsStyleBorder& aBorder,
                                     uint32_t aFlags,
-                                    nsRect* aBGClipRect = nullptr);
+                                    nsRect* aBGClipRect = nullptr,
+                                    int32_t aLayer = -1);
 
+  static void PaintBackgroundColorWithSC(nsPresContext* aPresContext,
+                                         nsRenderingContext& aRenderingContext,
+                                         nsIFrame* aForFrame,
+                                         const nsRect& aDirtyRect,
+                                         const nsRect& aBorderArea,
+                                         nsStyleContext *aStyleContext,
+                                         const nsStyleBorder& aBorder,
+                                         uint32_t aFlags);
   /**
    * Returns the rectangle covered by the given background layer image, taking
    * into account background positioning, sizing, and repetition, but not

@@ -17,6 +17,10 @@ const MAX_RP_CALLS = 100;
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
+XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
+                                   "@mozilla.org/childprocessmessagemanager;1",
+                                   "nsIMessageSender");
+
 // This is the child process corresponding to nsIDOMIdentity.
 
 
@@ -98,7 +102,13 @@ nsDOMIdentity.prototype = {
   },
 
   request: function nsDOMIdentity_request(aOptions) {
-    // TODO: Bug 769569 - "must be invoked from within a click handler"
+    let util = this._window.QueryInterface(Ci.nsIInterfaceRequestor)
+                           .getInterface(Ci.nsIDOMWindowUtils);
+
+    // Do not allow call of request() outside of a user input handler.
+    if (!util.isHandlingUserInput) {
+      return;
+    }
 
     // Has the caller called watch() before this?
     if (!this._rpWatcher) {
@@ -477,10 +487,7 @@ nsDOMIdentityInternal.prototype = {
 
     this._log("init was called from " + aWindow.document.location);
 
-    this._mm = aWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-                      .getInterface(Ci.nsIWebNavigation)
-                      .QueryInterface(Ci.nsIInterfaceRequestor)
-                      .getInterface(Ci.nsIContentFrameMessageManager);
+    this._mm = cpmm;
 
     // Setup listeners for messages from parent process.
     this._messages = [
@@ -527,4 +534,4 @@ nsDOMIdentityInternal.prototype = {
 
 };
 
-const NSGetFactory = XPCOMUtils.generateNSGetFactory([nsDOMIdentityInternal]);
+this.NSGetFactory = XPCOMUtils.generateNSGetFactory([nsDOMIdentityInternal]);

@@ -5,6 +5,7 @@
 import socket
 
 from client import MarionetteClient
+from application_cache import ApplicationCache
 from keys import Keys
 from errors import *
 from emulator import Emulator
@@ -75,8 +76,16 @@ class HTMLElement(object):
         return self.marionette._send_message('isElementDisplayed', 'value', element=self.id)
 
     @property
+    def size(self):
+        return self.marionette._send_message('getElementSize', 'value', element=self.id)
+
+    @property
     def tag_name(self):
         return self.marionette._send_message('getElementTagName', 'value', element=self.id)
+
+    @property
+    def location(self):
+        return self.marionette._send_message('getElementPosition', 'value', element=self.id)
 
 
 class Marionette(object):
@@ -85,9 +94,10 @@ class Marionette(object):
     CONTEXT_CONTENT = 'content'
 
     def __init__(self, host='localhost', port=2828, bin=None, profile=None,
-                 emulator=None, emulatorBinary=None, emulatorImg=None,
-                 emulator_res='480x800', connectToRunningEmulator=False,
-                 homedir=None, baseurl=None, noWindow=False, logcat_dir=None):
+                 emulator=None, sdcard=None, emulatorBinary=None,
+                 emulatorImg=None, emulator_res='480x800', gecko_path=None,
+                 connectToRunningEmulator=False, homedir=None, baseurl=None,
+                 noWindow=False, logcat_dir=None):
         self.host = host
         self.port = self.local_port = port
         self.bin = bin
@@ -101,17 +111,21 @@ class Marionette(object):
         self.baseurl = baseurl
         self.noWindow = noWindow
         self.logcat_dir = logcat_dir
+        self.gecko_path = gecko_path
+        self._test_name = None
 
         if bin:
             self.instance = GeckoInstance(host=self.host, port=self.port,
                                           bin=self.bin, profile=self.profile)
             self.instance.start()
             assert(self.instance.wait_for_port())
+
         if emulator:
             self.emulator = Emulator(homedir=homedir,
                                      noWindow=self.noWindow,
                                      logcat_dir=self.logcat_dir,
                                      arch=emulator,
+                                     sdcard=sdcard,
                                      emulatorBinary=emulatorBinary,
                                      userdata=emulatorImg,
                                      res=emulator_res)
@@ -120,17 +134,23 @@ class Marionette(object):
             assert(self.emulator.wait_for_port())
 
         if connectToRunningEmulator:
-            self.emulator = Emulator(homedir=homedir, logcat_dir=self.logcat_dir)
+            self.emulator = Emulator(homedir=homedir,
+                                     logcat_dir=self.logcat_dir)
             self.emulator.connect()
             self.port = self.emulator.setup_port_forwarding(self.port)
             assert(self.emulator.wait_for_port())
 
         self.client = MarionetteClient(self.host, self.port)
 
+        if emulator:
+            self.emulator.wait_for_system_message(self)
+        if self.gecko_path:
+            self.emulator.install_gecko(self.gecko_path, self)
+
     def __del__(self):
         if self.emulator:
             self.emulator.close()
-        if self.bin:
+        if self.instance:
             self.instance.close()
         for qemu in self.extra_emulators:
             qemu.emulator.close()
@@ -225,6 +245,22 @@ class Marionette(object):
                 raise MarionetteException(message=message, status=status, stacktrace=stacktrace)
         raise MarionetteException(message=response, status=500)
 
+    def check_for_crash(self):
+        returncode = None
+        name = None
+        if self.emulator:
+            if self.emulator.check_for_crash():
+                returncode = self.emulator.proc.returncode
+                name = 'emulator'
+        elif self.instance:
+            # In the future, a check for crashed Firefox processes
+            # should be here.
+            pass
+        if returncode is not None:
+            print ('TEST-UNEXPECTED-FAIL - PROCESS CRASH - %s has terminated with exit code %d' %
+                (name, returncode))
+        return returncode is not None
+
     def absolute_url(self, relative_url):
         return "%s%s" % (self.baseurl, relative_url)
 
@@ -236,6 +272,15 @@ class Marionette(object):
         self.session = self._send_message('newSession', 'value')
         self.b2g = 'b2g' in self.session
         return self.session
+
+    @property
+    def test_name(self):
+        return self._test_name
+
+    @test_name.setter
+    def test_name(self, test_name):
+        if self._send_message('setTestName', 'ok', value=test_name):
+            self._test_name = test_name
 
     def delete_session(self):
         response = self._send_message('deleteSession', 'ok')
@@ -261,7 +306,7 @@ class Marionette(object):
     def current_window_handle(self):
         self.window = self._send_message('getWindow', 'value')
         return self.window
-    
+
     @property
     def title(self):
         response = self._send_message('getTitle', 'value') 
@@ -421,7 +466,12 @@ class Marionette(object):
     def get_perf_data(self):
         return self._send_message('getPerfData', 'value')
 
-    def import_script(self, file):
-        f = open(file, "r")
-        js = f.read()
+    def import_script(self, js_file):
+        js = ''
+        with open(js_file, "r") as f:
+            js = f.read()
         return self._send_message('importScript', 'ok', script=js)
+
+    @property
+    def application_cache(self):
+        return ApplicationCache(self)

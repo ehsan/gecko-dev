@@ -72,7 +72,7 @@ nsAuthSASL::GetNextToken(const void *inToken,
     void *unwrappedToken;
     char *message;
     uint32_t unwrappedTokenLen, messageLen;
-    nsCAutoString userbuf;
+    nsAutoCString userbuf;
     
     if (!mInnerModule) 
         return NS_ERROR_NOT_INITIALIZED;
@@ -148,4 +148,11 @@ nsAuthSASL::Wrap(const void *inToken,
                  uint32_t   *outTokenLen)
 {
     return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+nsAuthSASL::GetModuleProperties(uint32_t *flags)
+{
+    *flags = 0;
+    return NS_OK;
 }

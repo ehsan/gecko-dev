@@ -20,8 +20,10 @@
 #include "mozilla/Attributes.h"
 #include "TrackUnionStream.h"
 #include "ImageContainer.h"
+#include "AudioChannelCommon.h"
 
 using namespace mozilla::layers;
+using namespace mozilla::dom;
 
 namespace mozilla {
 
@@ -294,6 +296,10 @@ public:
    * Get the current audio position of the stream's audio output.
    */
   GraphTime GetAudioPosition(MediaStream* aStream);
+  /**
+   * Call NotifyHaveCurrentData on aStream's listeners.
+   */
+  void NotifyHasCurrentData(MediaStream* aStream);
   /**
    * If aStream needs an audio stream but doesn't have one, create it.
    * If aStream doesn't need an audio stream but has one, destroy it.
@@ -1107,6 +1113,16 @@ MediaStreamGraphImpl::RecomputeBlockingAt(const nsTArray<MediaStream*>& aStreams
 }
 
 void
+MediaStreamGraphImpl::NotifyHasCurrentData(MediaStream* aStream)
+{
+  for (uint32_t j = 0; j < aStream->mListeners.Length(); ++j) {
+    MediaStreamListener* l = aStream->mListeners[j];
+    l->NotifyHasCurrentData(this,
+      GraphTimeToStreamTime(aStream, mCurrentTime) < aStream->mBuffer.GetEnd());
+  }
+}
+
+void
 MediaStreamGraphImpl::CreateOrDestroyAudioStreams(GraphTime aAudioOutputStartTime,
                                                   MediaStream* aStream)
 {
@@ -1148,7 +1164,7 @@ MediaStreamGraphImpl::CreateOrDestroyAudioStreams(GraphTime aAudioOutputStartTim
         audioOutputStream->mBlockedAudioTime = 0;
         audioOutputStream->mStream = nsAudioStream::AllocateStream();
         audioOutputStream->mStream->Init(audio->GetChannels(),
-                                         tracks->GetRate());
+                                         tracks->GetRate(), AUDIO_CHANNEL_NORMAL);
         audioOutputStream->mTrackID = tracks->GetID();
       }
     }
@@ -1397,6 +1413,7 @@ MediaStreamGraphImpl::RunThread()
                      GraphTimeToStreamTime(stream, mStateComputedTime),
                      "Stream did not produce enough data");
       }
+      NotifyHasCurrentData(stream);
       CreateOrDestroyAudioStreams(prevComputedTime, stream);
       PlayAudio(stream, prevComputedTime, mStateComputedTime);
       audioStreamsActive += stream->mAudioOutputStreams.Length();

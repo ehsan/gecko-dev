@@ -20,7 +20,10 @@ let SocialUI = {
     gBrowser.addEventListener("ActivateSocialFeature", this._activationEventHandler, true, true);
 
     // Called when we enter DOM full-screen mode.
-    window.addEventListener("mozfullscreenchange", function () SocialSidebar.updateSidebar());
+    window.addEventListener("mozfullscreenchange", function () {
+      SocialSidebar.update();
+      SocialChatBar.update();
+    });
 
     Social.init(this._providerReady.bind(this));
   },
@@ -54,7 +57,7 @@ let SocialUI = {
           this.updateToggleCommand();
           SocialShareButton.updateButtonHiddenState();
           SocialToolbar.updateButtonHiddenState();
-          SocialSidebar.updateSidebar();
+          SocialSidebar.update();
           SocialChatBar.update();
           SocialFlyout.unload();
         } catch (e) {
@@ -78,7 +81,7 @@ let SocialUI = {
         }
         break;
       case "nsPref:changed":
-        SocialSidebar.updateSidebar();
+        SocialSidebar.update();
         SocialToolbar.updateButton();
         SocialMenu.populate();
         break;
@@ -241,22 +244,26 @@ let SocialChatBar = {
   get chatbar() {
     return document.getElementById("pinnedchats");
   },
-  // Whether the chats can be shown for this window.
-  get canShow() {
+  // Whether the chatbar is available for this window.  Note that in full-screen
+  // mode chats are available, but not shown.
+  get isAvailable() {
     if (!SocialUI.haveLoggedInUser())
       return false;
     let docElem = document.documentElement;
     let chromeless = docElem.getAttribute("disablechrome") ||
                      docElem.getAttribute("chromehidden").indexOf("extrachrome") >= 0;
-    return Social.uiVisible && !chromeless && !document.mozFullScreen;
+    return Social.uiVisible && !chromeless;
   },
   openChat: function(aProvider, aURL, aCallback, aMode) {
-    if (this.canShow)
+    if (this.isAvailable)
       this.chatbar.openChat(aProvider, aURL, aCallback, aMode);
   },
   update: function() {
-    if (!this.canShow)
+    if (!this.isAvailable)
       this.chatbar.removeAll();
+    else {
+      this.chatbar.hidden = document.mozFullScreen;
+    }
   }
 }
 
@@ -659,8 +666,8 @@ var SocialMenu = {
     // This menu is only accessible through keyboard navigation.
     let submenu = document.getElementById("menu_socialAmbientMenuPopup");
     let ambientMenuItems = submenu.getElementsByClassName("ambient-menuitem");
-    for (let ambientMenuItem of ambientMenuItems)
-      submenu.removeChild(ambientMenuItem);
+    while (ambientMenuItems.length)
+      submenu.removeChild(ambientMenuItems.item(0));
 
     let separator = document.getElementById("socialAmbientMenuSeparator");
     separator.hidden = true;
@@ -951,7 +958,7 @@ var SocialSidebar = {
     let sbrowser = document.getElementById("social-sidebar-browser");
     this.errorListener = new SocialErrorListener("sidebar");
     this.configureSidebarDocShell(sbrowser.docShell);
-    this.updateSidebar();
+    this.update();
   },
 
   configureSidebarDocShell: function SocialSidebar_configureDocShell(aDocShell) {
@@ -973,7 +980,7 @@ var SocialSidebar = {
   get chromeless() {
     let docElem = document.documentElement;
     return docElem.getAttribute('disablechrome') ||
-           docElem.getAttribute('chromehidden').indexOf("toolbar") != -1;
+           docElem.getAttribute('chromehidden').contains("toolbar");
   },
 
   // Whether the user has toggled the sidebar on (for windows where it can appear)
@@ -989,7 +996,7 @@ var SocialSidebar = {
     sbrowser.contentDocument.documentElement.dispatchEvent(evt);
   },
 
-  updateSidebar: function SocialSidebar_updateSidebar() {
+  update: function SocialSidebar_update() {
     clearTimeout(this._unloadTimeoutId);
     // Hide the toggle menu item if the sidebar cannot appear
     let command = document.getElementById("Social:ToggleSidebar");
@@ -1096,7 +1103,8 @@ function SocialErrorListener(aType) {
 
 SocialErrorListener.prototype = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIWebProgressListener,
-                                         Ci.nsISupportsWeakReference]),
+                                         Ci.nsISupportsWeakReference,
+                                         Ci.nsISupports]),
 
   onStateChange: function SPL_onStateChange(aWebProgress, aRequest, aState, aStatus) {
     let failure = false;

@@ -585,8 +585,7 @@ public:
         ContextTypeWGL,
         ContextTypeCGL,
         ContextTypeGLX,
-        ContextTypeEGL,
-        ContextTypeOSMesa
+        ContextTypeEGL
     };
 
     virtual GLContextType GetContextType() { return ContextTypeUnknown; }
@@ -769,6 +768,12 @@ public:
      * Applies aFilter to the texture currently bound to GL_TEXTURE_2D.
      */
     void ApplyFilterToBoundTexture(gfxPattern::GraphicsFilter aFilter);
+
+    /**
+     * Applies aFilter to the texture currently bound to aTarget.
+     */
+    void ApplyFilterToBoundTexture(GLuint aTarget,
+                                   gfxPattern::GraphicsFilter aFilter);
 
     virtual bool BindExternalBuffer(GLuint texture, void* buffer) { return false; }
     virtual bool UnbindExternalBuffer(GLuint texture) { return false; }
@@ -1048,6 +1053,26 @@ public:
         }
     }
 
+    void fGetIntegerv(GLenum pname, GLint *params) {
+        switch (pname)
+        {
+            // LOCAL_GL_FRAMEBUFFER_BINDING is equal to
+            // LOCAL_GL_DRAW_FRAMEBUFFER_BINDING_EXT, so we don't need two
+            // cases.
+            case LOCAL_GL_FRAMEBUFFER_BINDING:
+                *params = GetUserBoundDrawFBO();
+                break;
+
+            case LOCAL_GL_READ_FRAMEBUFFER_BINDING_EXT:
+                *params = GetUserBoundReadFBO();
+                break;
+
+            default:
+                raw_fGetIntegerv(pname, params);
+                break;
+        }
+    }
+
 #ifdef DEBUG
     // See comment near BindInternalDrawFBO()
     bool mInInternalBindingMode_DrawFBO;
@@ -1056,6 +1081,8 @@ public:
 
     GLuint GetUserBoundDrawFBO() {
 #ifdef DEBUG
+        MOZ_ASSERT(IsCurrent());
+
         GLint ret = 0;
         // Don't need a branch here, because:
         // LOCAL_GL_DRAW_FRAMEBUFFER_BINDING_EXT == LOCAL_GL_FRAMEBUFFER_BINDING == 0x8CA6
@@ -1087,6 +1114,8 @@ public:
 
     GLuint GetUserBoundReadFBO() {
 #ifdef DEBUG
+        MOZ_ASSERT(IsCurrent());
+
         GLint ret = 0;
         // We use raw_ here because this is debug code and we need to see what
         // the driver thinks.
@@ -1629,6 +1658,8 @@ public:
         EXT_texture_compression_dxt1,
         ANGLE_texture_compression_dxt3,
         ANGLE_texture_compression_dxt5,
+        AMD_compressed_ATC_texture,
+        IMG_texture_compression_pvrtc,
         EXT_framebuffer_blit,
         ANGLE_framebuffer_blit,
         EXT_framebuffer_multisample,
@@ -1644,7 +1675,7 @@ public:
         Extensions_Max
     };
 
-    bool IsExtensionSupported(GLExtensions aKnownExtension) {
+    bool IsExtensionSupported(GLExtensions aKnownExtension) const {
         return mAvailableExtensions[aKnownExtension];
     }
 
@@ -1702,6 +1733,11 @@ public:
         }
 
         bool& operator[](size_t index) {
+            MOZ_ASSERT(index < Size, "out of range");
+            return extensions[index];
+        }
+
+        const bool& operator[](size_t index) const {
             MOZ_ASSERT(index < Size, "out of range");
             return extensions[index];
         }
@@ -2393,26 +2429,6 @@ private:
     }
 
 public:
-    void fGetIntegerv(GLenum pname, GLint *params) {
-        switch (pname)
-        {
-            // LOCAL_GL_FRAMEBUFFER_BINDING is equal to
-            // LOCAL_GL_DRAW_FRAMEBUFFER_BINDING_EXT, so we don't need two
-            // cases.
-            case LOCAL_GL_FRAMEBUFFER_BINDING:
-                *params = GetUserBoundDrawFBO();
-                break;
-
-            case LOCAL_GL_READ_FRAMEBUFFER_BINDING_EXT:
-                *params = GetUserBoundReadFBO();
-                break;
-
-            default:
-                raw_fGetIntegerv(pname, params);
-                break;
-        }
-    }
-
     void GetUIntegerv(GLenum pname, GLuint *params) {
         fGetIntegerv(pname, reinterpret_cast<GLint*>(params));
     }
@@ -2620,7 +2636,7 @@ public:
 
     void raw_fReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLvoid *pixels) {
         BEFORE_GL_CALL;
-        mSymbols.fReadPixels(x, y, width, height, format, type, pixels);
+        mSymbols.fReadPixels(x, FixYValue(y, height), width, height, format, type, pixels);
         AFTER_GL_CALL;
     }
 

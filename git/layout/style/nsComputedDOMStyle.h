@@ -8,6 +8,7 @@
 #ifndef nsComputedDOMStyle_h__
 #define nsComputedDOMStyle_h__
 
+#include "mozilla/Attributes.h"
 #include "nsDOMCSSDeclaration.h"
 
 #include "nsROCSSPrimitiveValue.h"
@@ -44,7 +45,7 @@ public:
 
   static void Shutdown();
 
-  virtual nsINode *GetParentObject()
+  virtual nsINode *GetParentObject() MOZ_OVERRIDE
   {
     return mContent;
   }
@@ -70,10 +71,10 @@ public:
   // nsDOMCSSDeclaration abstract methods which should never be called
   // on a nsComputedDOMStyle object, but must be defined to avoid
   // compile errors.
-  virtual mozilla::css::Declaration* GetCSSDeclaration(bool);
-  virtual nsresult SetCSSDeclaration(mozilla::css::Declaration*);
-  virtual nsIDocument* DocToUpdate();
-  virtual void GetCSSParsingEnvironment(CSSParsingEnvironment& aCSSParseEnv);
+  virtual mozilla::css::Declaration* GetCSSDeclaration(bool) MOZ_OVERRIDE;
+  virtual nsresult SetCSSDeclaration(mozilla::css::Declaration*) MOZ_OVERRIDE;
+  virtual nsIDocument* DocToUpdate() MOZ_OVERRIDE;
+  virtual void GetCSSParsingEnvironment(CSSParsingEnvironment& aCSSParseEnv) MOZ_OVERRIDE;
 
 private:
   void AssertFlushedPendingReflows() {
@@ -334,6 +335,7 @@ private:
 
   /* Column properties */
   nsIDOMCSSValue* DoGetColumnCount();
+  nsIDOMCSSValue* DoGetColumnFill();
   nsIDOMCSSValue* DoGetColumnWidth();
   nsIDOMCSSValue* DoGetColumnGap();
   nsIDOMCSSValue* DoGetColumnRuleWidth();

@@ -43,6 +43,7 @@
 #include "nsScreenManagerGonk.h"
 #include "nsWindow.h"
 #include "OrientationObserver.h"
+#include "GonkMemoryPressureMonitoring.h"
 
 #include "android/log.h"
 #include "libui/EventHub.h"
@@ -154,7 +155,7 @@ addDOMTouch(UserInputData& data, nsTouchEvent& event, int i)
 }
 
 static nsEventStatus
-sendTouchEvent(UserInputData& data)
+sendTouchEvent(UserInputData& data, bool* captured)
 {
     uint32_t msg;
     int32_t action = data.action & AMOTION_EVENT_ACTION_MASK;
@@ -190,7 +191,7 @@ sendTouchEvent(UserInputData& data)
             addDOMTouch(data, event, i);
     }
 
-    return nsWindow::DispatchInputEvent(event);
+    return nsWindow::DispatchInputEvent(event, captured);
 }
 
 static nsEventStatus
@@ -435,7 +436,11 @@ GeckoInputDispatcher::dispatchOnce()
         nsEventStatus status = nsEventStatus_eIgnore;
         if ((data.action & AMOTION_EVENT_ACTION_MASK) !=
             AMOTION_EVENT_ACTION_HOVER_MOVE) {
-            status = sendTouchEvent(data);
+            bool captured;
+            status = sendTouchEvent(data, &captured);
+            if (captured) {
+                return;
+            }
         }
 
         uint32_t msg;
@@ -612,6 +617,8 @@ nsAppShell::Init()
 
     rv = AddFdHandler(signalfds[0], pipeHandler, "");
     NS_ENSURE_SUCCESS(rv, rv);
+
+    InitGonkMemoryPressureMonitoring();
 
     // Delay initializing input devices until the screen has been
     // initialized (and we know the resolution).

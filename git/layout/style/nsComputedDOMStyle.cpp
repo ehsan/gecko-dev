@@ -23,6 +23,7 @@
 #include "nsCSSProps.h"
 #include "nsCSSKeywords.h"
 #include "nsDOMCSSRect.h"
+#include "nsFlexContainerFrame.h"
 #include "nsGkAtoms.h"
 #include "nsHTMLReflowState.h"
 #include "nsThemeConstants.h"
@@ -710,6 +711,16 @@ nsComputedDOMStyle::DoGetColumnGap()
 }
 
 nsIDOMCSSValue*
+nsComputedDOMStyle::DoGetColumnFill()
+{
+  nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  val->SetIdent(
+    nsCSSProps::ValueToKeywordEnum(GetStyleColumn()->mColumnFill,
+                                   nsCSSProps::kColumnFillKTable));
+  return val;
+}
+
+nsIDOMCSSValue*
 nsComputedDOMStyle::DoGetColumnRuleWidth()
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
@@ -1233,17 +1244,8 @@ nsComputedDOMStyle::DoGetFontWeight()
   const nsStyleFont* font = GetStyleFont();
 
   uint16_t weight = font->mFont.weight;
-  if (weight % 100 == 0) {
-    val->SetNumber(font->mFont.weight);
-  } else if (weight % 100 > 50) {
-    // FIXME: This doesn't represent the full range of computed values,
-    // but at least it's legal CSS.
-    val->SetIdent(eCSSKeyword_lighter);
-  } else {
-    // FIXME: This doesn't represent the full range of computed values,
-    // but at least it's legal CSS.
-    val->SetIdent(eCSSKeyword_bolder);
-  }
+  NS_ASSERTION(weight % 100 == 0, "unexpected value of font-weight");
+  val->SetNumber(font->mFont.weight);
 
   return val;
 }
@@ -3364,7 +3366,17 @@ nsIDOMCSSValue*
 nsComputedDOMStyle::DoGetMinHeight()
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
-  SetValueToCoord(val, GetStylePosition()->mMinHeight, true,
+  nsStyleCoord minHeight = GetStylePosition()->mMinHeight;
+
+  if (eStyleUnit_Auto == minHeight.GetUnit()) {
+    // In non-flexbox contexts, "min-height: auto" means "min-height: 0"
+    // XXXdholbert For flex items, we should set |minHeight| to the
+    // -moz-min-content keyword, instead of 0, once we support -moz-min-content
+    // as a height value.
+    minHeight.SetCoordValue(0);
+  }
+
+  SetValueToCoord(val, minHeight, true,
                   &nsComputedDOMStyle::GetCBContentHeight);
   return val;
 }
@@ -3373,7 +3385,27 @@ nsIDOMCSSValue*
 nsComputedDOMStyle::DoGetMinWidth()
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
-  SetValueToCoord(val, GetStylePosition()->mMinWidth, true,
+
+  nsStyleCoord minWidth = GetStylePosition()->mMinWidth;
+
+  if (eStyleUnit_Auto == minWidth.GetUnit()) {
+    // "min-width: auto" means "0", unless we're a flex item in a horizontal
+    // flex container, in which case it means "min-content"
+    minWidth.SetCoordValue(0);
+#ifdef MOZ_FLEXBOX
+    if (mOuterFrame && mOuterFrame->IsFlexItem()) {
+      nsIFrame* flexContainer = mOuterFrame->GetParent();
+      MOZ_ASSERT(flexContainer &&
+                 flexContainer->GetType() == nsGkAtoms::flexContainerFrame,
+                 "IsFlexItem() lied...?");
+
+      if (static_cast<nsFlexContainerFrame*>(flexContainer)->IsHorizontal()) {
+        minWidth.SetIntValue(NS_STYLE_WIDTH_MIN_CONTENT, eStyleUnit_Enumerated);
+      }
+    }
+#endif // MOZ_FLEXBOX
+  }
+  SetValueToCoord(val, minWidth, true,
                   &nsComputedDOMStyle::GetCBContentWidth,
                   nsCSSProps::kWidthKTable);
   return val;
@@ -3938,6 +3970,16 @@ nsComputedDOMStyle::GetSVGPaintFor(bool aFill)
       val->SetURI(paint->mPaint.mPaintServer);
       SetToRGBAColor(fallback, paint->mFallbackColor);
       return valueList;
+    }
+    case eStyleSVGPaintType_ObjectFill:
+    {
+      val->SetIdent(eCSSKeyword__moz_objectfill);
+      break;
+    }
+    case eStyleSVGPaintType_ObjectStroke:
+    {
+      val->SetIdent(eCSSKeyword__moz_objectstroke);
+      break;
     }
   }
 
@@ -4768,6 +4810,7 @@ nsComputedDOMStyle::GetQueryablePropertyMap(uint32_t* aLength)
     COMPUTED_STYLE_MAP_ENTRY(box_pack,                      BoxPack),
     COMPUTED_STYLE_MAP_ENTRY(box_sizing,                    BoxSizing),
     COMPUTED_STYLE_MAP_ENTRY(_moz_column_count,             ColumnCount),
+    COMPUTED_STYLE_MAP_ENTRY(_moz_column_fill,              ColumnFill),
     COMPUTED_STYLE_MAP_ENTRY(_moz_column_gap,               ColumnGap),
     //// COMPUTED_STYLE_MAP_ENTRY(_moz_column_rule,         ColumnRule),
     COMPUTED_STYLE_MAP_ENTRY(_moz_column_rule_color,        ColumnRuleColor),

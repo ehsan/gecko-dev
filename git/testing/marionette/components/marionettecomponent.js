@@ -12,7 +12,7 @@ const MARIONETTE_ENABLED_PREF = 'marionette.defaultPrefs.enabled';
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/FileUtils.jsm");
-Cu.import("resource://gre/modules/services-common/log4moz.js");
+Cu.import("resource:///modules/services-common/log4moz.js");
 
 function MarionetteComponent() {
   this._loaded = false;
@@ -23,6 +23,7 @@ function MarionetteComponent() {
   
   let formatter = new Log4Moz.BasicFormatter();
   this.logger.addAppender(new Log4Moz.FileAppender(logf, formatter));
+  this.logger.addAppender(new Log4Moz.DumpAppender(formatter));
   this.logger.info("MarionetteComponent loaded");
 }
 
@@ -102,4 +103,4 @@ MarionetteComponent.prototype = {
 
 };
 
-const NSGetFactory = XPCOMUtils.generateNSGetFactory([MarionetteComponent]);
+this.NSGetFactory = XPCOMUtils.generateNSGetFactory([MarionetteComponent]);

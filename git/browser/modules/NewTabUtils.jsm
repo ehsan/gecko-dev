@@ -4,7 +4,7 @@
 
 "use strict";
 
-let EXPORTED_SYMBOLS = ["NewTabUtils"];
+this.EXPORTED_SYMBOLS = ["NewTabUtils"];
 
 const Ci = Components.interfaces;
 const Cc = Components.classes;
@@ -623,7 +623,8 @@ let LinkChecker = {
   _cache: {},
 
   get flags() {
-    return Ci.nsIScriptSecurityManager.DISALLOW_INHERIT_PRINCIPAL;
+    return Ci.nsIScriptSecurityManager.DISALLOW_INHERIT_PRINCIPAL |
+           Ci.nsIScriptSecurityManager.DONT_REPORT_ERRORS;
   },
 
   checkLoadURI: function LinkChecker_checkLoadURI(aURI) {
@@ -674,7 +675,7 @@ let ExpirationFilter = {
 /**
  * Singleton that provides the public API of this JSM.
  */
-let NewTabUtils = {
+this.NewTabUtils = {
   _initialized: false,
 
   init: function NewTabUtils_init() {

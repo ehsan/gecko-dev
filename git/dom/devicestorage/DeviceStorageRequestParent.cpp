@@ -17,6 +17,8 @@ namespace dom {
 namespace devicestorage {
 
 DeviceStorageRequestParent::DeviceStorageRequestParent(const DeviceStorageParams& aParams)
+  : mMutex("DeviceStorageRequestParent::mMutex")
+  , mActorDestoryed(false)
 {
   MOZ_COUNT_CTOR(DeviceStorageRequestParent);
 
@@ -28,7 +30,7 @@ DeviceStorageRequestParent::DeviceStorageRequestParent(const DeviceStorageParams
       nsCOMPtr<nsIFile> f;
       NS_NewLocalFile(p.fullpath(), false, getter_AddRefs(f));
 
-      nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(f);
+      nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(p.type(), f);
 
       BlobParent* bp = static_cast<BlobParent*>(p.blobParent());
       nsCOMPtr<nsIDOMBlob> blob = bp->GetBlob();
@@ -51,7 +53,7 @@ DeviceStorageRequestParent::DeviceStorageRequestParent(const DeviceStorageParams
       nsCOMPtr<nsIFile> f;
       NS_NewLocalFile(p.fullpath(), false, getter_AddRefs(f));
 
-      nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(f);
+      nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(p.type(), f);
       dsf->SetPath(p.name());
       nsRefPtr<CancelableRunnable> r = new ReadFileEvent(this, dsf);
 
@@ -68,7 +70,7 @@ DeviceStorageRequestParent::DeviceStorageRequestParent(const DeviceStorageParams
       nsCOMPtr<nsIFile> f;
       NS_NewLocalFile(p.fullpath(), false, getter_AddRefs(f));
 
-      nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(f);
+      nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(p.type(), f);
       nsRefPtr<CancelableRunnable> r = new DeleteFileEvent(this, dsf);
 
       nsCOMPtr<nsIEventTarget> target = do_GetService(NS_STREAMTRANSPORTSERVICE_CONTRACTID);
@@ -84,7 +86,7 @@ DeviceStorageRequestParent::DeviceStorageRequestParent(const DeviceStorageParams
       nsCOMPtr<nsIFile> f;
       NS_NewLocalFile(p.fullpath(), false, getter_AddRefs(f));
 
-      nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(f);
+      nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(p.type(), f);
       nsRefPtr<StatFileEvent> r = new StatFileEvent(this, dsf);
 
       nsCOMPtr<nsIEventTarget> target = do_GetService(NS_STREAMTRANSPORTSERVICE_CONTRACTID);
@@ -100,7 +102,7 @@ DeviceStorageRequestParent::DeviceStorageRequestParent(const DeviceStorageParams
       nsCOMPtr<nsIFile> f;
       NS_NewLocalFile(p.fullpath(), false, getter_AddRefs(f));
 
-      nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(f);
+      nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(p.type(), f);
       nsRefPtr<CancelableRunnable> r = new EnumerateFileEvent(this, dsf, p.since());
 
       nsCOMPtr<nsIEventTarget> target = do_GetService(NS_STREAMTRANSPORTSERVICE_CONTRACTID);
@@ -127,6 +129,8 @@ NS_IMPL_THREADSAFE_RELEASE(DeviceStorageRequestParent);
 void
 DeviceStorageRequestParent::ActorDestroy(ActorDestroyReason)
 {
+  MutexAutoLock lock(mMutex);
+  mActorDestoryed = true;
   int32_t count = mRunnables.Length();
   for (int32_t index = 0; index < count; index++) {
     mRunnables[index]->Cancel();
@@ -171,9 +175,11 @@ DeviceStorageRequestParent::PostSuccessEvent::CancelableRun() {
 DeviceStorageRequestParent::PostBlobSuccessEvent::PostBlobSuccessEvent(DeviceStorageRequestParent* aParent,
                                                                        DeviceStorageFile* aFile,
                                                                        uint32_t aLength,
-                                                                       nsACString& aMimeType)
+                                                                       nsACString& aMimeType,
+                                                                       uint64_t aLastModifiedDate)
   : CancelableRunnable(aParent)
   , mLength(aLength)
+  , mLastModificationDate(aLastModifiedDate)
   , mFile(aFile)
   , mMimeType(aMimeType)
 {
@@ -188,7 +194,7 @@ DeviceStorageRequestParent::PostBlobSuccessEvent::CancelableRun() {
   nsString mime;
   CopyASCIItoUTF16(mMimeType, mime);
 
-  nsCOMPtr<nsIDOMBlob> blob = new nsDOMFileFile(mFile->mPath, mime, mLength, mFile->mFile);
+  nsCOMPtr<nsIDOMBlob> blob = new nsDOMFileFile(mFile->mPath, mime, mLength, mFile->mFile, mLastModificationDate);
 
   ContentParent* cp = static_cast<ContentParent*>(mParent->Manager());
   BlobParent* actor = cp->GetOrCreateActorForBlob(blob);
@@ -241,6 +247,14 @@ DeviceStorageRequestParent::WriteFileEvent::CancelableRun()
   if (!mInputStream) {
     r = new PostErrorEvent(mParent, POST_ERROR_EVENT_UNKNOWN);
     NS_DispatchToMainThread(r);
+    return NS_OK;
+  }
+
+  bool check = false;
+  mFile->mFile->Exists(&check);
+  if (check) {
+    nsCOMPtr<PostErrorEvent> event = new PostErrorEvent(mParent, POST_ERROR_EVENT_FILE_EXISTS);
+    NS_DispatchToMainThread(event);
     return NS_OK;
   }
 
@@ -308,14 +322,15 @@ DeviceStorageRequestParent::StatFileEvent::CancelableRun()
   NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
 
   nsCOMPtr<nsIRunnable> r;
-  uint64_t diskUsage = DeviceStorageFile::DirectoryDiskUsage(mFile->mFile);
-  int64_t freeSpace;
+  uint64_t diskUsage = 0;
+  DeviceStorageFile::DirectoryDiskUsage(mFile->mFile, &diskUsage, mFile->mStorageType);
+  int64_t freeSpace = 0;
   nsresult rv = mFile->mFile->GetDiskSpaceAvailable(&freeSpace);
   if (NS_FAILED(rv)) {
     freeSpace = 0;
   }
-  
-  r = new PostStatResultEvent(mParent, diskUsage, freeSpace);
+
+  r = new PostStatResultEvent(mParent, freeSpace, diskUsage);
   NS_DispatchToMainThread(r);
   return NS_OK;
 }
@@ -361,7 +376,15 @@ DeviceStorageRequestParent::ReadFileEvent::CancelableRun()
     return NS_OK;
   }
 
-  r = new PostBlobSuccessEvent(mParent, mFile, fileSize, mMimeType);
+  PRTime modDate;
+  rv = mFile->mFile->GetLastModifiedTime(&modDate);
+  if (NS_FAILED(rv)) {
+    r = new PostErrorEvent(mParent, POST_ERROR_EVENT_UNKNOWN);
+    NS_DispatchToMainThread(r);
+    return NS_OK;
+  }
+
+  r = new PostBlobSuccessEvent(mParent, mFile, fileSize, mMimeType, modDate);
   NS_DispatchToMainThread(r);
   return NS_OK;
 }
@@ -402,7 +425,7 @@ DeviceStorageRequestParent::EnumerateFileEvent::CancelableRun()
   for (uint32_t i = 0; i < count; i++) {
     nsString fullpath;
     files[i]->mFile->GetPath(fullpath);
-    DeviceStorageFileValue dsvf(files[i]->mPath, fullpath);
+    DeviceStorageFileValue dsvf(mFile->mStorageType, files[i]->mPath, fullpath);
     values.AppendElement(dsvf);
   }
 

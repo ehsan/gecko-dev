@@ -6,6 +6,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozJSSubScriptLoader.h"
+#include "mozJSComponentLoader.h"
 #include "mozJSLoaderUtils.h"
 
 #include "nsIServiceManager.h"
@@ -28,7 +29,6 @@
 #include "jsfriendapi.h"
 #include "nsJSPrincipals.h"
 
-#include "mozilla/FunctionTimer.h"
 #include "mozilla/scache/StartupCache.h"
 #include "mozilla/scache/StartupCacheUtils.h"
 
@@ -53,6 +53,9 @@ mozJSLoaderErrorReporter(JSContext *cx, const char *message, JSErrorReport *rep)
 
 mozJSSubScriptLoader::mozJSSubScriptLoader() : mSystemPrincipal(nullptr)
 {
+    // Force construction of the JS component loader.  We may need it later.
+    nsCOMPtr<xpcIJSModuleLoader> componentLoader =
+        do_GetService(MOZJSCOMPONENTLOADER_CONTRACTID);
 }
 
 mozJSSubScriptLoader::~mozJSSubScriptLoader()
@@ -113,7 +116,7 @@ mozJSSubScriptLoader::ReadScript(nsIURI *uri, JSContext *cx, JSObject *target_ob
     options.setPrincipals(nsJSPrincipals::get(principal))
            .setFileAndLine(uriStr, 1)
            .setSourcePolicy(JS::CompileOptions::LAZY_SOURCE);
-    JS::RootedObject target_obj_root(cx, target_obj);
+    js::RootedObject target_obj_root(cx, target_obj);
     if (!charset.IsVoid()) {
         nsString script;
         rv = nsScriptLoader::ConvertToUTF16(nullptr, reinterpret_cast<const uint8_t*>(buf.get()), len,
@@ -155,11 +158,6 @@ mozJSSubScriptLoader::LoadSubScript(const nsAString& url,
 
     nsresult rv = NS_OK;
 
-#ifdef NS_FUNCTION_TIMER
-    NS_TIME_FUNCTION_FMT("%s (line %d) (url: %s)", MOZ_FUNCTION_NAME,
-                         __LINE__, NS_LossyConvertUTF16toASCII(url).get());
-#endif
-
     /* set the system principal if it's not here already */
     if (!mSystemPrincipal) {
         nsCOMPtr<nsIScriptSecurityManager> secman =
@@ -180,23 +178,10 @@ mozJSSubScriptLoader::LoadSubScript(const nsAString& url,
 
 
     if (!targetObj) {
-        // If the user didn't provide an object to eval onto, find the global
-        // object by walking the parent chain of the calling object.
-        nsCOMPtr<nsIXPConnect> xpc = do_GetService(nsIXPConnect::GetCID());
-        NS_ENSURE_TRUE(xpc, NS_ERROR_FAILURE);
-
-        nsAXPCNativeCallContext *cc = nullptr;
-        rv = xpc->GetCurrentNativeCallContext(&cc);
-        NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
-
-        nsCOMPtr<nsIXPConnectWrappedNative> wn;
-        rv = cc->GetCalleeWrapper(getter_AddRefs(wn));
-        NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
-
-        rv = wn->GetJSObject(&targetObj);
-        NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
-
-        targetObj = JS_GetGlobalForObject(cx, targetObj);
+        // If the user didn't provide an object to eval onto, find one.
+        mozJSComponentLoader* loader = mozJSComponentLoader::Get();
+        rv = loader->FindTargetObject(cx, &targetObj);
+        NS_ENSURE_SUCCESS(rv, rv);
     }
 
     // Remember an object out of the calling compartment so that we
@@ -222,8 +207,8 @@ mozJSSubScriptLoader::LoadSubScript(const nsAString& url,
     /* load up the url.  From here on, failures are reflected as ``custom''
      * js exceptions */
     nsCOMPtr<nsIURI> uri;
-    nsCAutoString uriStr;
-    nsCAutoString scheme;
+    nsAutoCString uriStr;
+    nsAutoCString scheme;
 
     JSScript* script = nullptr;
 
@@ -269,7 +254,7 @@ mozJSSubScriptLoader::LoadSubScript(const nsAString& url,
 
         // For file URIs prepend the filename with the filename of the
         // calling script, and " -> ". See bug 418356.
-        nsCAutoString tmp(JS_GetScriptFilename(cx, script));
+        nsAutoCString tmp(JS_GetScriptFilename(cx, script));
         tmp.AppendLiteral(" -> ");
         tmp.Append(uriStr);
 
@@ -278,7 +263,7 @@ mozJSSubScriptLoader::LoadSubScript(const nsAString& url,
 
     bool writeScript = false;
     JSVersion version = JS_GetVersion(cx);
-    nsCAutoString cachePath;
+    nsAutoCString cachePath;
     cachePath.AppendPrintf("jssubloader/%d", version);
     PathifyURI(uri, cachePath);
 

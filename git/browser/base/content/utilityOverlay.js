@@ -109,7 +109,8 @@ function openUILink(url, event, aIgnoreButton, aIgnoreAlt, aAllowThirdPartyFixup
     params = {
       allowThirdPartyFixup: aAllowThirdPartyFixup,
       postData: aPostData,
-      referrerURI: aReferrerURI
+      referrerURI: aReferrerURI,
+      initiatingDoc: event.target.ownerDocument
     };
   }
 
@@ -224,9 +225,10 @@ function openLinkIn(url, where, params) {
   var aDisallowInheritPrincipal = params.disallowInheritPrincipal;
   // Currently, this parameter works only for where=="tab" or "current"
   var aIsUTF8               = params.isUTF8;
+  var aInitiatingDoc        = params.initiatingDoc;
 
   if (where == "save") {
-    saveURL(url, null, null, true, null, aReferrerURI);
+    saveURL(url, null, null, true, null, aReferrerURI, aInitiatingDoc);
     return;
   }
   const Cc = Components.classes;
@@ -323,9 +325,8 @@ function openLinkIn(url, where, params) {
   var fm = Components.classes["@mozilla.org/focus-manager;1"].
              getService(Components.interfaces.nsIFocusManager);
   if (window == fm.activeWindow)
-    w.content.focus();
-  else
-    w.gBrowser.selectedBrowser.focus();
+    w.focus();
+  w.gBrowser.selectedBrowser.focus();
 
   if (!loadInBackground && isBlankPageURL(url))
     w.focusAndSelectUrlBar();
