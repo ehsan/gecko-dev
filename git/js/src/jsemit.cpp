@@ -67,9 +67,8 @@
 #include "jsregexp.h"
 #include "jsscan.h"
 #include "jsscope.h"
-#include "jsscopeinlines.h"
 #include "jsscript.h"
-#include "jsautooplen.h"        // generated headers last
+#include "jsautooplen.h"
 #include "jsstaticcheck.h"
 
 #include "jsobjinlines.h"
@@ -102,8 +101,7 @@ JSCodeGenerator::JSCodeGenerator(Parser *parser,
     numSpanDeps(0), numJumpTargets(0), spanDepTodo(0),
     arrayCompDepth(0),
     emitLevel(0),
-    constMap(parser->context),
-    globalUses(ContextAllocPolicy(parser->context))
+    constMap(parser->context)
 {
     flags = TCF_COMPILING;
     memset(&prolog, 0, sizeof prolog);
@@ -1560,7 +1558,7 @@ js_DefineCompileTimeConstant(JSContext *cx, JSCodeGenerator *cg, JSAtom *atom,
                              JSParseNode *pn)
 {
     jsdouble dval;
-    jsint ival;
+    int32_t ival;
     JSAtom *valueAtom;
 
     /* XXX just do numbers for now */
@@ -1622,6 +1620,14 @@ js_LexicalLookup(JSTreeContext *tc, JSAtom *atom, jsint *slotp, JSStmtInfo *stmt
     return stmt;
 }
 
+/*
+ * Check if the attributes describe a property holding a compile-time constant
+ * or a permanent, read-only property without a getter.
+ */
+#define IS_CONSTANT_PROPERTY(attrs)                                           \
+    (((attrs) & (JSPROP_READONLY | JSPROP_PERMANENT | JSPROP_GETTER)) ==      \
+     (JSPROP_READONLY | JSPROP_PERMANENT))
+
 static JSAtom *NO_CONSTANT = (JSAtom *)SPECIAL_TO_JSBOXEDWORD(0xabcd);
 
 /*
@@ -1660,8 +1666,11 @@ static JSBool
 LookupCompileTimeConstant(JSContext *cx, JSCodeGenerator *cg, JSAtom *atom,
                           JSAtom **constp)
 {
+    JSBool ok;
     JSStmtInfo *stmt;
-    JSObject *obj;
+    JSObject *obj, *objbox;
+    JSProperty *prop;
+    uintN attrs;
 
     /*
      * Chase down the cg stack, but only until we reach the outermost cg.
@@ -1670,7 +1679,7 @@ LookupCompileTimeConstant(JSContext *cx, JSCodeGenerator *cg, JSAtom *atom,
      */
     *constp = NO_CONSTANT;
     do {
-        if (cg->inFunction() || cg->compileAndGo()) {
+        if (cg->inFunction() && cg->compileAndGo()) {
             /* XXX this will need revising if 'const' becomes block-scoped. */
             stmt = js_LexicalLookup(cg, atom, NULL);
             if (stmt)
@@ -1695,28 +1704,29 @@ LookupCompileTimeConstant(JSContext *cx, JSCodeGenerator *cg, JSAtom *atom,
             } else {
                 JS_ASSERT(cg->compileAndGo());
                 obj = cg->scopeChain;
-
-                JS_LOCK_OBJ(cx, obj);
-                JSScope *scope = obj->scope();
-                JSScopeProperty *sprop = scope->lookup(ATOM_TO_JSID(atom));
-                if (sprop) {
+                ok = obj->lookupProperty(cx, ATOM_TO_JSID(atom), &objbox, &prop);
+                if (!ok)
+                    return JS_FALSE;
+                if (objbox == obj) {
                     /*
                      * We're compiling code that will be executed immediately,
                      * not re-executed against a different scope chain and/or
                      * variable object.  Therefore we can get constant values
                      * from our variable object here.
                      */
-                    if (!sprop->writable() && !sprop->configurable() &&
-                        sprop->hasDefaultGetter() && SPROP_HAS_VALID_SLOT(sprop, scope)) {
-                        Value v = obj->lockedGetSlot(sprop->slot);
-                        if (!ValueToCompilerConstant(cx, v, constp)) {
-                            JS_UNLOCK_SCOPE(cx, scope);
-                            return JS_FALSE;
-                        }
+                    ok = obj->getAttributes(cx, ATOM_TO_JSID(atom), prop, &attrs);
+                    if (ok && IS_CONSTANT_PROPERTY(attrs)) {
+                        Value v;
+                        ok = obj->getProperty(cx, ATOM_TO_JSID(atom), &v);
+                        if (ok)
+                            ok = ValueToCompilerConstant(cx, v, constp);
                     }
                 }
-                JS_UNLOCK_SCOPE(cx, scope);
-                if (sprop)
+                if (prop)
+                    objbox->dropProperty(cx, prop);
+                if (!ok)
+                    return JS_FALSE;
+                if (prop)
                     break;
             }
         }
@@ -2162,40 +2172,6 @@ BindNameToSlot(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
     }
 
     if (dn->pn_dflags & PND_GVAR) {
-        if (js_CodeSpec[dn->pn_op].type() == JOF_GLOBAL) {
-            switch (op) {
-              case JSOP_NAME:     op = JSOP_GETGLOBAL; break;
-              case JSOP_SETNAME:  op = JSOP_SETGLOBAL; break;
-              case JSOP_INCNAME:  op = JSOP_INCGLOBAL; break;
-              case JSOP_NAMEINC:  op = JSOP_GLOBALINC; break;
-              case JSOP_DECNAME:  op = JSOP_DECGLOBAL; break;
-              case JSOP_NAMEDEC:  op = JSOP_GLOBALDEC; break;
-              case JSOP_FORNAME:  op = JSOP_FORGLOBAL; break;
-              case JSOP_SETCONST:
-              case JSOP_DELNAME:
-                /* Not supported. */
-                return JS_TRUE;
-              default: JS_NOT_REACHED("gvar");
-            }
-
-            JSCodeGenerator *globalCg = cg->compiler()->globalScope->cg;
-            if (globalCg != cg) {
-                uint32 slot = globalCg->globalUses[cookie].slot;
-
-                /* Fall back to NAME if we can't add a slot. */
-                if (!cg->addGlobalUse(atom, slot, &cookie))
-                    return JS_FALSE;
-
-                if (cookie == FREE_UPVAR_COOKIE)
-                    return JS_TRUE;
-            }
-
-            pn->pn_op = op;
-            pn->pn_cookie = cookie;
-            pn->pn_dflags |= PND_BOUND;
-            return JS_TRUE;
-        }
-
         /*
          * If this is a global reference from within a function, leave pn_op as
          * JSOP_NAME, etc. We could emit JSOP_*GVAR ops within function code if
@@ -2461,40 +2437,6 @@ BindNameToSlot(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
     return JS_TRUE;
 }
 
-bool
-JSCodeGenerator::addGlobalUse(JSAtom *atom, uint32 slot, uint32 *indexp)
-{
-    JSAtomListElement *ale = globalMap.lookup(atom);
-    if (ale) {
-        *indexp = ALE_INDEX(ale);
-        return true;
-    }
-
-    /* Don't bother encoding indexes >= uint16 */
-    if (globalUses.length() >= UINT16_LIMIT) {
-        *indexp = FREE_UPVAR_COOKIE;
-        return true;
-    }
-
-    /* Find or add an existing atom table entry. */
-    ale = atomList.add(parser, atom);
-    if (!ale)
-        return false;
-
-    *indexp = uint32(globalUses.length());
-
-    GlobalSlotArray::Entry entry = { ALE_INDEX(ale), slot };
-    if (!globalUses.append(entry))
-        return false;
-
-    ale = globalMap.add(parser, atom);
-    if (!ale)
-        return false;
-
-    ALE_SET_INDEX(ale, *indexp);
-    return true;
-}
-
 /*
  * If pn contains a useful expression, return true with *answer set to true.
  * If pn contains a useless expression, return true with *answer set to false.
@@ -2722,9 +2664,6 @@ EmitNameOp(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn,
             JS_ASSERT(!cg->funbox);
             op = JSOP_CALLGVAR;
             break;
-          case JSOP_GETGLOBAL:
-            op = JSOP_CALLGLOBAL;
-            break;
           case JSOP_GETARG:
             op = JSOP_CALLARG;
             break;
@@ -2933,7 +2872,7 @@ EmitElemOp(JSContext *cx, JSParseNode *pn, JSOp op, JSCodeGenerator *cg)
 {
     ptrdiff_t top;
     JSParseNode *left, *right, *next, ltmp, rtmp;
-    jsint slot;
+    int32_t slot;
 
     top = CG_OFFSET(cg);
     if (pn->pn_arity == PN_LIST) {
@@ -3053,7 +2992,7 @@ EmitElemOp(JSContext *cx, JSParseNode *pn, JSOp op, JSCodeGenerator *cg)
 static JSBool
 EmitNumberOp(JSContext *cx, jsdouble dval, JSCodeGenerator *cg)
 {
-    jsint ival;
+    int32_t ival;
     uint32 u;
     ptrdiff_t off;
     jsbytecode *pc;
@@ -3108,7 +3047,7 @@ EmitSwitch(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn,
     uint32 caseCount, tableLength;
     JSParseNode **table;
     jsdouble d;
-    jsint i, low, high;
+    int32_t i, low, high;
     JSAtom *atom;
     JSAtomListElement *ale;
     intN noteIndex;
@@ -3743,9 +3682,7 @@ MaybeEmitVarDecl(JSContext *cx, JSCodeGenerator *cg, JSOp prologOp,
     }
 
     if (JOF_OPTYPE(pn->pn_op) == JOF_ATOM &&
-        (!cg->inFunction() || (cg->flags & TCF_FUN_HEAVYWEIGHT)) &&
-        js_CodeSpec[pn->pn_op].type() != JOF_GLOBAL)
-    {
+        (!cg->inFunction() || (cg->flags & TCF_FUN_HEAVYWEIGHT))) {
         CG_SWITCH_TO_PROLOG(cg);
         if (!UpdateLineNumberNotes(cx, cg, pn->pn_pos.begin.lineno))
             return JS_FALSE;
@@ -3857,7 +3794,6 @@ EmitDestructuringLHS(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
 
           case JSOP_SETARG:
           case JSOP_SETGVAR:
-          case JSOP_SETGLOBAL:
             slot = (jsuint) pn->pn_cookie;
             EMIT_UINT16_IMM_OP(PN_OP(pn), slot);
             if (js_Emit1(cx, cg, JSOP_POP) < 0)
@@ -4897,8 +4833,6 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
                       case JSOP_SETGVAR:  op = JSOP_FORNAME; break;
                       case JSOP_GETLOCAL: /* FALL THROUGH */
                       case JSOP_SETLOCAL: op = JSOP_FORLOCAL; break;
-                      case JSOP_GETGLOBAL: /* FALL THROUGH */
-                      case JSOP_SETGLOBAL: op = JSOP_FORGLOBAL; break;
                       default:            JS_ASSERT(0);
                     }
                 } else {
@@ -5903,8 +5837,6 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
                     JS_ASSERT(PN_OP(pn2) != JSOP_GETUPVAR);
                     EMIT_UINT16_IMM_OP((PN_OP(pn2) == JSOP_SETGVAR)
                                        ? JSOP_GETGVAR
-                                       : (PN_OP(pn2) == JSOP_SETGLOBAL)
-                                       ? JSOP_GETGLOBAL
                                        : (PN_OP(pn2) == JSOP_SETARG)
                                        ? JSOP_GETARG
                                        : JSOP_GETLOCAL,

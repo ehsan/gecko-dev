@@ -1499,23 +1499,6 @@ do_incop:
     int incr, incr2;
     Value *vp;
 
-BEGIN_CASE(JSOP_INCGLOBAL)
-    incr =  1; incr2 =  1; goto do_bound_global_incop;
-BEGIN_CASE(JSOP_DECGLOBAL)
-    incr = -1; incr2 = -1; goto do_bound_global_incop;
-BEGIN_CASE(JSOP_GLOBALINC)
-    incr =  1; incr2 =  0; goto do_bound_global_incop;
-BEGIN_CASE(JSOP_GLOBALDEC)
-    incr = -1; incr2 =  0; goto do_bound_global_incop;
-
-  do_bound_global_incop:
-    uint32 slot = GET_SLOTNO(regs.pc);
-    slot = script->getGlobalSlot(slot);
-    JSObject *obj = fp->scopeChain->getGlobal();
-    vp = &obj->getSlotRef(slot);
-    goto do_int_fast_incop;
-END_CASE(JSOP_INCGLOBAL)
-
     /* Position cases so the most frequent i++ does not need a jump. */
 BEGIN_CASE(JSOP_DECARG)
     incr = -1; incr2 = -1; goto do_arg_incop;
@@ -1527,6 +1510,8 @@ BEGIN_CASE(JSOP_ARGINC)
     incr =  1; incr2 =  0;
 
   do_arg_incop:
+    // If we initialize in the declaration, MSVC complains that the labels skip init.
+    uint32 slot;
     slot = GET_ARGNO(regs.pc);
     JS_ASSERT(slot < fp->fun->nargs);
     METER_SLOT_OP(op, slot);
@@ -1685,52 +1670,54 @@ BEGIN_CASE(JSOP_GETXPROP)
     VALUE_TO_OBJECT(cx, vp, obj);
 
   do_getprop_with_obj:
-    Value rval;
-    do {
-        /*
-         * We do not impose the method read barrier if in an imacro,
-         * assuming any property gets it does (e.g., for 'toString'
-         * from JSOP_NEW) will not be leaked to the calling script.
-         */
-        JSObject *aobj = js_GetProtoIfDenseArray(obj);
+    {
+        Value rval;
+        do {
+            /*
+             * We do not impose the method read barrier if in an imacro,
+             * assuming any property gets it does (e.g., for 'toString'
+             * from JSOP_NEW) will not be leaked to the calling script.
+             */
+            JSObject *aobj = js_GetProtoIfDenseArray(obj);
 
-        PropertyCacheEntry *entry;
-        JSObject *obj2;
-        JSAtom *atom;
-        JS_PROPERTY_CACHE(cx).test(cx, regs.pc, aobj, obj2, entry, atom);
-        if (!atom) {
-            ASSERT_VALID_PROPERTY_CACHE_HIT(i, aobj, obj2, entry);
-            if (entry->vword.isFunObj()) {
-                rval.setFunObj(entry->vword.toFunObj());
-            } else if (entry->vword.isSlot()) {
-                uint32 slot = entry->vword.toSlot();
-                JS_ASSERT(slot < obj2->scope()->freeslot);
-                rval = obj2->lockedGetSlot(slot);
-            } else {
-                JS_ASSERT(entry->vword.isSprop());
-                JSScopeProperty *sprop = entry->vword.toSprop();
-                NATIVE_GET(cx, obj, obj2, sprop,
-                           fp->imacpc ? JSGET_NO_METHOD_BARRIER : JSGET_METHOD_BARRIER,
-                           &rval);
+            PropertyCacheEntry *entry;
+            JSObject *obj2;
+            JSAtom *atom;
+            JS_PROPERTY_CACHE(cx).test(cx, regs.pc, aobj, obj2, entry, atom);
+            if (!atom) {
+                ASSERT_VALID_PROPERTY_CACHE_HIT(i, aobj, obj2, entry);
+                if (entry->vword.isFunObj()) {
+                    rval.setFunObj(entry->vword.toFunObj());
+                } else if (entry->vword.isSlot()) {
+                    uint32 slot = entry->vword.toSlot();
+                    JS_ASSERT(slot < obj2->scope()->freeslot);
+                    rval = obj2->lockedGetSlot(slot);
+                } else {
+                    JS_ASSERT(entry->vword.isSprop());
+                    JSScopeProperty *sprop = entry->vword.toSprop();
+                    NATIVE_GET(cx, obj, obj2, sprop,
+                               fp->imacpc ? JSGET_NO_METHOD_BARRIER : JSGET_METHOD_BARRIER,
+                               &rval);
+                }
+                break;
             }
-            break;
-        }
 
-        jsid id = ATOM_TO_JSID(atom);
-        if (JS_LIKELY(aobj->map->ops->getProperty == js_GetProperty)
-            ? !js_GetPropertyHelper(cx, obj, id,
-                                    fp->imacpc
-                                    ? JSGET_CACHE_RESULT | JSGET_NO_METHOD_BARRIER
-                                    : JSGET_CACHE_RESULT | JSGET_METHOD_BARRIER,
-                                    &rval)
-            : !obj->getProperty(cx, id, &rval)) {
-            goto error;
-        }
-    } while (0);
+            jsid id = ATOM_TO_JSID(atom);
+            if (JS_LIKELY(aobj->map->ops->getProperty == js_GetProperty)
+                ? !js_GetPropertyHelper(cx, obj, id,
+                                        fp->imacpc
+                                        ? JSGET_CACHE_RESULT | JSGET_NO_METHOD_BARRIER
+                                        : JSGET_CACHE_RESULT | JSGET_METHOD_BARRIER,
+                                        &rval)
+                : !obj->getProperty(cx, id, &rval)) {
+                goto error;
+            }
+        } while (0);
 
-    regs.sp[-1] = rval;
-    JS_ASSERT(JSOP_GETPROP_LENGTH + i == js_CodeSpec[op].length);
-    jsint len = JSOP_GETPROP_LENGTH + i;
+        regs.sp[-1] = rval;
+        JS_ASSERT(JSOP_GETPROP_LENGTH + i == js_CodeSpec[op].length);
+        len = JSOP_GETPROP_LENGTH + i;
+    }
 END_VARLEN_CASE
 
 BEGIN_CASE(JSOP_LENGTH)
@@ -2236,11 +2223,11 @@ END_CASE(JSOP_ENUMELEM)
     JSObject *obj;
     uintN flags;
     uintN argc;
-    Value lval;
     Value *vp;
 
 BEGIN_CASE(JSOP_NEW)
 {
+    Value lval;
     /* Get immediate argc and find the constructor function. */
     argc = GET_ARGC(regs.pc);
     vp = regs.sp - (2 + argc);
@@ -2291,6 +2278,7 @@ BEGIN_CASE(JSOP_CALL)
 BEGIN_CASE(JSOP_EVAL)
 BEGIN_CASE(JSOP_APPLY)
 {
+    Value lval;
     argc = GET_ARGC(regs.pc);
     vp = regs.sp - (argc + 2);
 
@@ -2981,62 +2969,6 @@ BEGIN_CASE(JSOP_CALLDSLOT)
         PUSH_NULL();
 }
 END_CASE(JSOP_GETDSLOT)
-
-BEGIN_CASE(JSOP_GETGLOBAL)
-BEGIN_CASE(JSOP_CALLGLOBAL)
-{
-    uint32 slot = GET_SLOTNO(regs.pc);
-    slot = script->getGlobalSlot(slot);
-    JSObject *obj = fp->scopeChain->getGlobal();
-    JS_ASSERT(slot < obj->scope()->freeslot);
-    PUSH_COPY(obj->getSlot(slot));
-    if (op == JSOP_CALLGLOBAL)
-        PUSH_NULL();
-}
-END_CASE(JSOP_GETGLOBAL)
-
-BEGIN_CASE(JSOP_FORGLOBAL)
-{
-    Value rval;
-    if (!IteratorNext(cx, &regs.sp[-1].asObject(), &rval))
-        goto error;
-    PUSH_COPY(rval);
-    uint32 slot = GET_SLOTNO(regs.pc);
-    slot = script->getGlobalSlot(slot);
-    JSObject *obj = fp->scopeChain->getGlobal();
-    JS_ASSERT(slot < obj->scope()->freeslot);
-    JS_LOCK_OBJ(cx, obj);
-    {
-        JSScope *scope = obj->scope();
-        if (!scope->methodWriteBarrier(cx, slot, rval)) {
-            JS_UNLOCK_SCOPE(cx, scope);
-            goto error;
-        }
-        obj->lockedSetSlot(slot, rval);
-        JS_UNLOCK_SCOPE(cx, scope);
-    }
-    regs.sp--;
-}
-END_CASE(JSOP_FORGLOBAL)
-
-BEGIN_CASE(JSOP_SETGLOBAL)
-{
-    uint32 slot = GET_SLOTNO(regs.pc);
-    slot = script->getGlobalSlot(slot);
-    JSObject *obj = fp->scopeChain->getGlobal();
-    JS_ASSERT(slot < obj->scope()->freeslot);
-    {
-        JS_LOCK_OBJ(cx, obj);
-        JSScope *scope = obj->scope();
-        if (!scope->methodWriteBarrier(cx, slot, regs.sp[-1])) {
-            JS_UNLOCK_SCOPE(cx, scope);
-            goto error;
-        }
-        obj->lockedSetSlot(slot, regs.sp[-1]);
-        JS_UNLOCK_SCOPE(cx, scope);
-    }
-}
-END_SET_CASE(JSOP_SETGLOBAL)
 
 BEGIN_CASE(JSOP_GETGVAR)
 BEGIN_CASE(JSOP_CALLGVAR)
