@@ -2741,10 +2741,10 @@ dnl ========================================================
 dnl Checks for library functions.
 dnl ========================================================
 AC_PROG_GCC_TRADITIONAL
-_SAVE_LIBS="$LIBS"
-LIBS="$LIBS $OS_LIBS"
+_SAVE_LDFLAGS="$LDFLAGS"
+LDFLAGS="$OS_LIBS"
 AC_CHECK_FUNCS(lchown strerror dladdr)
-LIBS="$_SAVE_LIBS"
+LDFLAGS="$_SAVE_LDFLAGS"
 
 dnl AC_FUNC_MEMCMP
 dnl AC_FUNC_MMAP
