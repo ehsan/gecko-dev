@@ -23,7 +23,7 @@
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
 
-namespace stagefright {
+namespace android {
 
 struct ABuffer;
 class GraphicBuffer;
@@ -118,6 +118,6 @@ private:
     MediaBuffer &operator=(const MediaBuffer &);
 };
 
-}  // namespace stagefright
+}  // namespace android
 
 #endif  // MEDIA_BUFFER_H_

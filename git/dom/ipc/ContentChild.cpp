@@ -617,7 +617,7 @@ ContentChild::GetProcessName(nsACString& aName)
 ContentChild::AppendProcessId(nsACString& aName)
 {
     if (!aName.IsEmpty()) {
-        aName.Append(' ');
+        aName.AppendLiteral(" ");
     }
     unsigned pid = getpid();
     aName.Append(nsPrintfCString("(pid %u)", pid));

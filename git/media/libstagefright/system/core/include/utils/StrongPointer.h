@@ -24,7 +24,7 @@
 #include <stdlib.h>
 
 // ---------------------------------------------------------------------------
-namespace stagefright {
+namespace android {
 
 template<typename T> class wp;
 
@@ -204,7 +204,7 @@ void sp<T>::set_pointer(T* ptr) {
     m_ptr = ptr;
 }
 
-}; // namespace stagefright
+}; // namespace android
 
 // ---------------------------------------------------------------------------
 

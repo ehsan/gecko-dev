@@ -20,7 +20,7 @@
 #include <sys/types.h>
 #include <errno.h>
 
-namespace stagefright {
+namespace android {
 namespace tinyutils {
 
 // use this type to return error codes
@@ -41,7 +41,7 @@ enum {
 
 
 } // namespace tinyutils
-} // namespace stagefright
+} // namespace android
     
 // ---------------------------------------------------------------------------
     

@@ -209,8 +209,6 @@ public:
                              nsBindingManager* aOldBindingManager = nullptr) MOZ_OVERRIDE;
   virtual ShadowRoot *GetShadowRoot() const MOZ_OVERRIDE;
   virtual ShadowRoot *GetContainingShadow() const MOZ_OVERRIDE;
-  virtual nsTArray<nsIContent*> &DestInsertionPoints() MOZ_OVERRIDE;
-  virtual nsTArray<nsIContent*> *GetExistingDestInsertionPoints() const MOZ_OVERRIDE;
   virtual void SetShadowRoot(ShadowRoot* aBinding) MOZ_OVERRIDE;
   virtual nsIContent *GetXBLInsertionParent() const MOZ_OVERRIDE;
   virtual void SetXBLInsertionParent(nsIContent* aContent) MOZ_OVERRIDE;
@@ -376,12 +374,6 @@ public:
      * The root ShadowRoot of this element if it is in a shadow tree.
      */
     nsRefPtr<ShadowRoot> mContainingShadow;
-
-    /**
-     * An array of web component insertion points to which this element
-     * is distributed.
-     */
-    nsTArray<nsIContent*> mDestInsertionPoints;
 
     /**
      * XBL binding installed on the element.

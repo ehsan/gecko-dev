@@ -20,7 +20,7 @@
 #include <sys/types.h>
 #include <errno.h>
 
-namespace stagefright {
+namespace android {
 
 // use this type to return error codes
 #ifdef HAVE_MS_C_RUNTIME
@@ -81,7 +81,7 @@ enum {
 # define NO_ERROR 0L
 #endif
 
-}; // namespace stagefright
+}; // namespace android
     
 // ---------------------------------------------------------------------------
     

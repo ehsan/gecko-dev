@@ -398,7 +398,7 @@ GfxInfo::GetFeatureStatusImpl(int32_t aFeature,
         return NS_OK;
       }
 
-      if (mHardware.EqualsLiteral("ville")) {
+      if (mHardware.Equals(NS_LITERAL_STRING("ville"))) {
         *aStatus = nsIGfxInfo::FEATURE_BLOCKED_DEVICE;
         return NS_OK;
       }
@@ -409,12 +409,12 @@ GfxInfo::GetFeatureStatusImpl(int32_t aFeature,
       NS_LossyConvertUTF16toASCII cModel(mModel);
       NS_LossyConvertUTF16toASCII cHardware(mHardware);
 
-      if (cHardware.EqualsLiteral("antares") ||
-          cHardware.EqualsLiteral("harmony") ||
-          cHardware.EqualsLiteral("picasso") ||
-          cHardware.EqualsLiteral("picasso_e") ||
-          cHardware.EqualsLiteral("ventana") ||
-          cHardware.EqualsLiteral("rk30board"))
+      if (cHardware.Equals("antares") ||
+          cHardware.Equals("harmony") ||
+          cHardware.Equals("picasso") ||
+          cHardware.Equals("picasso_e") ||
+          cHardware.Equals("ventana") ||
+          cHardware.Equals("rk30board"))
       {
         *aStatus = nsIGfxInfo::FEATURE_BLOCKED_DEVICE;
         return NS_OK;
@@ -555,7 +555,7 @@ GfxInfo::GetFeatureStatusImpl(int32_t aFeature,
       NS_LossyConvertUTF16toASCII cModel(mModel);
       NS_LossyConvertUTF16toASCII cHardware(mHardware);
 
-      if (cHardware.EqualsLiteral("hammerhead") &&
+      if (cHardware.Equals("hammerhead") &&
           CompareVersions(mOSVersion.get(), "4.4.2") >= 0 &&
           cManufacturer.Equals("lge", nsCaseInsensitiveCStringComparator()) &&
           cModel.Equals("nexus 5", nsCaseInsensitiveCStringComparator())) {

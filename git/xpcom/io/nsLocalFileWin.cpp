@@ -238,8 +238,8 @@ private:
     // "what do you want to do" dialog
     if (r == SE_ERR_NOASSOC) {
       nsAutoString shellArg;
-      shellArg.AssignLiteral("shell32.dll,OpenAs_RunDLL ");
-      shellArg.Append(mResolvedPath);
+      shellArg.Assign(NS_LITERAL_STRING("shell32.dll,OpenAs_RunDLL ") +
+                      mResolvedPath);
       seinfo.lpFile = L"RUNDLL32.EXE";
       seinfo.lpParameters = shellArg.get();
       if (ShellExecuteExW(&seinfo)) {
@@ -1454,8 +1454,7 @@ nsLocalFile::AppendInternal(const nsAFlatString& aNode,
 
   MakeDirty();
 
-  mWorkingPath.Append('\\');
-  mWorkingPath.Append(aNode);
+  mWorkingPath.Append(NS_LITERAL_STRING("\\") + aNode);
 
   return NS_OK;
 }

@@ -22,7 +22,7 @@
 
 // ---------------------------------------------------------------------------
 
-namespace stagefright {
+namespace android {
 
 class SharedBuffer
 {
@@ -130,7 +130,7 @@ bool SharedBuffer::onlyOwner() const {
     return (mRefs == 1);
 }
 
-}; // namespace stagefright
+}; // namespace android
 
 // ---------------------------------------------------------------------------
 

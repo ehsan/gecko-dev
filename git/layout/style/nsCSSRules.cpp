@@ -428,16 +428,16 @@ ImportRule::GetCssText(nsAString& aCssText)
 {
   aCssText.AssignLiteral("@import url(");
   nsStyleUtil::AppendEscapedCSSString(mURLSpec, aCssText);
-  aCssText.Append(')');
+  aCssText.Append(NS_LITERAL_STRING(")"));
   if (mMedia) {
     nsAutoString mediaText;
     mMedia->GetText(mediaText);
     if (!mediaText.IsEmpty()) {
-      aCssText.Append(' ');
+      aCssText.AppendLiteral(" ");
       aCssText.Append(mediaText);
     }
   }
-  aCssText.Append(';');
+  aCssText.AppendLiteral(";");
   return NS_OK;
 }
 
@@ -687,13 +687,13 @@ GroupRule::AppendRulesToCssText(nsAString& aCssText)
     if (domRule) {
       nsAutoString cssText;
       domRule->GetCssText(cssText);
-      aCssText.AppendLiteral("  ");
-      aCssText.Append(cssText);
-      aCssText.Append('\n');
+      aCssText.Append(NS_LITERAL_STRING("  ") +
+                      cssText +
+                      NS_LITERAL_STRING("\n"));
     }
   }
 
-  aCssText.Append('}');
+  aCssText.AppendLiteral("}");
 }
 
 // nsIDOMCSSMediaRule or nsIDOMCSSMozDocumentRule methods
@@ -1311,7 +1311,7 @@ NameSpaceRule::GetCssText(nsAString& aCssText)
   }
   aCssText.AppendLiteral("url(");
   nsStyleUtil::AppendEscapedCSSString(mURLSpec, aCssText);
-  aCssText.AppendLiteral(");");
+  aCssText.Append(NS_LITERAL_STRING(");"));
   return NS_OK;
 }
 
@@ -1376,12 +1376,12 @@ AppendSerializedFontSrc(const nsCSSValue& src, nsAString & aResult)
       aResult.AppendLiteral("url(");
       nsDependentString url(sources[i].GetOriginalURLValue());
       nsStyleUtil::AppendEscapedCSSString(url, aResult);
-      aResult.Append(')');
+      aResult.AppendLiteral(")");
     } else if (sources[i].GetUnit() == eCSSUnit_Local_Font) {
       aResult.AppendLiteral("local(");
       nsDependentString local(sources[i].GetStringBufferValue());
       nsStyleUtil::AppendEscapedCSSString(local, aResult);
-      aResult.Append(')');
+      aResult.AppendLiteral(")");
     } else {
       NS_NOTREACHED("entry in src: descriptor with improper unit");
       i++;
@@ -1961,18 +1961,18 @@ FeatureValuesToString(
     // for each ident-values tuple
     uint32_t j, numValues = fv.valuelist.Length();
     for (j = 0; j < numValues; j++) {
-      aOutStr.Append(' ');
+      aOutStr.AppendLiteral(" ");
       const gfxFontFeatureValueSet::ValueList& vlist = fv.valuelist[j];
       nsStyleUtil::AppendEscapedCSSIdent(vlist.name, aOutStr);
-      aOutStr.Append(':');
+      aOutStr.AppendLiteral(":");
 
       uint32_t k, numSelectors = vlist.featureSelectors.Length();
       for (k = 0; k < numSelectors; k++) {
-        aOutStr.Append(' ');
+        aOutStr.AppendLiteral(" ");
         aOutStr.AppendInt(vlist.featureSelectors[k]);
       }
 
-      aOutStr.Append(';');
+      aOutStr.AppendLiteral(";");
     }
     aOutStr.AppendLiteral(" }\n");
   }
@@ -1991,7 +1991,7 @@ FontFeatureValuesRuleToString(
   aOutStr.AppendLiteral(" {\n");
   FeatureValuesToString(aFeatureValues, valueTextStr);
   aOutStr.Append(valueTextStr);
-  aOutStr.Append('}');
+  aOutStr.AppendLiteral("}");
 }
 
 #ifdef DEBUG
@@ -2515,9 +2515,9 @@ nsCSSKeyframesRule::GetCssText(nsAString& aCssText)
   for (uint32_t i = 0, i_end = mRules.Count(); i != i_end; ++i) {
     static_cast<nsCSSKeyframeRule*>(mRules[i])->GetCssText(tmp);
     aCssText.Append(tmp);
-    aCssText.Append('\n');
+    aCssText.AppendLiteral("\n");
   }
-  aCssText.Append('}');
+  aCssText.AppendLiteral("}");
   return NS_OK;
 }
 

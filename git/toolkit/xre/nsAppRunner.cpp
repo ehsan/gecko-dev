@@ -2268,7 +2268,7 @@ SelectProfile(nsIProfileLock* *aResult, nsIToolkitProfileService* aProfileSvc, n
       rv = profile->Lock(nullptr, aResult);
       if (NS_SUCCEEDED(rv)) {
         if (aProfileName)
-          aProfileName->AssignLiteral("default");
+          aProfileName->Assign(NS_LITERAL_CSTRING("default"));
         return NS_OK;
       }
     }

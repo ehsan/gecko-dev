@@ -1088,6 +1088,22 @@ nsMenuFrame::BuildAcceleratorText(bool aNotify)
     }
   }
 
+  static int32_t accelKey = 0;
+
+  if (!accelKey)
+  {
+    // Compiled-in defaults, in case we can't get LookAndFeel --
+    // command for mac, control for all other platforms.
+#ifdef XP_MACOSX
+    accelKey = nsIDOMKeyEvent::DOM_VK_META;
+#else
+    accelKey = nsIDOMKeyEvent::DOM_VK_CONTROL;
+#endif
+
+    // Get the accelerator key value from prefs, overriding the default:
+    accelKey = Preferences::GetInt("ui.key.accelKey", accelKey);
+  }
+
   nsAutoString modifiers;
   keyElement->GetAttr(kNameSpaceID_None, nsGkAtoms::modifiers, modifiers);
   
@@ -1122,22 +1138,23 @@ nsMenuFrame::BuildAcceleratorText(bool aNotify)
     else if (PL_strcmp(token, "control") == 0) 
       accelText += controlText; 
     else if (PL_strcmp(token, "accel") == 0) {
-      switch (WidgetInputEvent::AccelModifier()) {
-        case MODIFIER_META:
+      switch (accelKey)
+      {
+        case nsIDOMKeyEvent::DOM_VK_META:
           accelText += metaText;
           break;
-        case MODIFIER_OS:
+
+        case nsIDOMKeyEvent::DOM_VK_WIN:
           accelText += osText;
           break;
-        case MODIFIER_ALT:
+
+        case nsIDOMKeyEvent::DOM_VK_ALT:
           accelText += altText;
           break;
-        case MODIFIER_CONTROL:
-          accelText += controlText;
-          break;
+
+        case nsIDOMKeyEvent::DOM_VK_CONTROL:
         default:
-          MOZ_CRASH(
-            "Handle the new result of WidgetInputEvent::AccelModifier()");
+          accelText += controlText;
           break;
       }
     }

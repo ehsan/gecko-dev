@@ -518,7 +518,7 @@ TextAttrsMgr::FontSizeTextAttr::
 
   nsAutoString value;
   value.AppendInt(pts);
-  value.AppendLiteral("pt");
+  value.Append(NS_LITERAL_STRING("pt"));
 
   nsAccUtils::SetAccAttr(aAttributes, nsGkAtoms::font_size, value);
 }
