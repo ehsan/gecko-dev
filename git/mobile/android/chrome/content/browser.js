@@ -117,10 +117,6 @@ function resolveGeckoURI(aURI) {
   return aURI;
 }
 
-function shouldShowProgress(url) {
-  return (url != "about:home" && !/^about:reader/.test(url));
-}
-
 /**
  * Cache of commonly used string bundles.
  */
@@ -315,7 +311,7 @@ var BrowserApp = {
       // Start the restore
       ss.restoreLastSession(restoreToFront, restoreMode == 1);
     } else {
-      loadParams.showProgress = shouldShowProgress(url);
+      loadParams.showProgress = (url != "about:home");
       loadParams.pinned = pinned;
       this.addTab(url, loadParams);
 
@@ -1060,8 +1056,8 @@ var BrowserApp = {
         }
       }
 
-      // Don't show progress throbber for about:home or about:reader
-      if (!shouldShowProgress(url))
+      // Don't show progress throbber for about:home
+      if (url == "about:home")
         params.showProgress = false;
 
       if (aTopic == "Tab:Add")
@@ -2525,9 +2521,14 @@ Tab.prototype = {
     return aDisplayPort;
   },
 
-  setScrollClampingSize: function(zoom) {
-    let viewportWidth = gScreenWidth / zoom;
-    let viewportHeight = gScreenHeight / zoom;
+  setViewport: function(aViewport) {
+    // Transform coordinates based on zoom
+    let x = aViewport.x / aViewport.zoom;
+    let y = aViewport.y / aViewport.zoom;
+
+    // Set scroll position and scroll-port clamping size
+    let viewportWidth = gScreenWidth / aViewport.zoom;
+    let viewportHeight = gScreenHeight / aViewport.zoom;
     let [pageWidth, pageHeight] = this.getPageSize(this.browser.contentDocument,
                                                    viewportWidth, viewportHeight);
     let scrollPortWidth = Math.min(viewportWidth, pageWidth);
@@ -2536,16 +2537,6 @@ Tab.prototype = {
     let win = this.browser.contentWindow;
     win.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils).
         setScrollPositionClampingScrollPortSize(scrollPortWidth, scrollPortHeight);
-  },
-
-  setViewport: function(aViewport) {
-    // Transform coordinates based on zoom
-    let x = aViewport.x / aViewport.zoom;
-    let y = aViewport.y / aViewport.zoom;
-
-    this.setScrollClampingSize(aViewport.zoom);
-
-    let win = this.browser.contentWindow;
     win.scrollTo(x, y);
 
     this.userScrollPos.x = win.scrollX;
@@ -3295,7 +3286,6 @@ Tab.prototype = {
     let zoomScale = (screenW * oldBrowserWidth) / (aOldScreenWidth * viewportW);
     let zoom = this.clampZoom(this._zoom * zoomScale);
     this.setResolution(zoom, false);
-    this.setScrollClampingSize(zoom);
     this.sendViewportUpdate();
   },
 
@@ -6358,32 +6348,18 @@ var WebappsUI = {
     });
   },
 
-  get iconSize() {
-    let iconSize = 64;
-    try {
-      Cu.import("resource://gre/modules/JNI.jsm");
-      let jni = new JNI();
-      let cls = jni.findClass("org.mozilla.gecko.GeckoAppShell");
-      let method = jni.getStaticMethodID(cls, "getPreferredIconSize", "()I");
-      iconSize = jni.callStaticIntMethod(cls, method, null);
-      jni.close();
-    } catch(ex) {
-      console.log(ex);
-    }
-
-    delete this.iconSize;
-    return this.iconSize = iconSize;
-  },
-
   makeBase64Icon: function loadAndMakeBase64Icon(aIconURL, aCallbackFunction) {
-    let size = this.iconSize;
+    // The images are 64px, but Android will resize as needed.
+    // Bigger is better than too small.
+    const kIconSize = 64;
 
     let canvas = document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
-    canvas.width = canvas.height = size;
+
+    canvas.width = canvas.height = kIconSize;
     let ctx = canvas.getContext("2d");
     let favicon = new Image();
     favicon.onload = function() {
-      ctx.drawImage(favicon, 0, 0, size, size);
+      ctx.drawImage(favicon, 0, 0, kIconSize, kIconSize);
       let base64icon = canvas.toDataURL("image/png", "");
       canvas = null;
       aCallbackFunction.call(null, base64icon);

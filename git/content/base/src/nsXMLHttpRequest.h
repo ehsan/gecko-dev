@@ -41,12 +41,6 @@
 #include "mozilla/dom/XMLHttpRequestBinding.h"
 #include "mozilla/dom/XMLHttpRequestUploadBinding.h"
 
-#ifdef Status
-/* Xlib headers insist on this for some reason... Nuke it because
-   it'll override our member name */
-#undef Status
-#endif
-
 class nsILoadGroup;
 class AsyncVerifyRedirectCallbackForwarder;
 class nsIUnicodeDecoder;
@@ -242,7 +236,7 @@ public:
   IMPL_EVENT_HANDLER(readystatechange)
 
   // states
-  uint16_t ReadyState();
+  uint16_t GetReadyState();
 
   // request
   void Open(const nsAString& aMethod, const nsAString& aUrl, bool aAsync,
@@ -259,14 +253,14 @@ public:
     aRv = SetRequestHeader(NS_ConvertUTF16toUTF8(aHeader),
                            NS_ConvertUTF16toUTF8(aValue));
   }
-  uint32_t Timeout()
+  uint32_t GetTimeout()
   {
     return mTimeoutMilliseconds;
   }
   void SetTimeout(uint32_t aTimeout, ErrorResult& aRv);
-  bool WithCredentials();
+  bool GetWithCredentials();
   void SetWithCredentials(bool aWithCredentials, nsresult& aRv);
-  nsXMLHttpRequestUpload* Upload();
+  nsXMLHttpRequestUpload* GetUpload();
 
 private:
   class RequestBody
@@ -393,7 +387,7 @@ public:
   void Abort();
 
   // response
-  uint32_t Status();
+  uint32_t GetStatus();
   void GetStatusText(nsString& aStatusText);
   void GetResponseHeader(const nsACString& aHeader, nsACString& aResult,
                          ErrorResult& aRv);
@@ -419,7 +413,7 @@ public:
     // XXX Should we do some validation here?
     mOverrideMimeType = aMimeType;
   }
-  XMLHttpRequestResponseType ResponseType()
+  XMLHttpRequestResponseType GetResponseType()
   {
     return XMLHttpRequestResponseType(mResponseType);
   }
@@ -428,13 +422,13 @@ public:
   void GetResponseText(nsString& aResponseText, ErrorResult& aRv);
   nsIDocument* GetResponseXML(ErrorResult& aRv);
 
-  bool MozBackgroundRequest();
+  bool GetMozBackgroundRequest();
   void SetMozBackgroundRequest(bool aMozBackgroundRequest, nsresult& aRv);
-  bool Multipart();
+  bool GetMultipart();
   void SetMultipart(bool aMultipart, nsresult& aRv);
 
-  bool MozAnon();
-  bool MozSystem();
+  bool GetMozAnon();
+  bool GetMozSystem();
 
   nsIChannel* GetChannel()
   {
@@ -580,7 +574,7 @@ protected:
 
   nsCString mResponseCharset;
 
-  enum ResponseTypeEnum {
+  enum ResponseType {
     XML_HTTP_RESPONSE_TYPE_DEFAULT,
     XML_HTTP_RESPONSE_TYPE_ARRAYBUFFER,
     XML_HTTP_RESPONSE_TYPE_BLOB,
@@ -592,9 +586,9 @@ protected:
     XML_HTTP_RESPONSE_TYPE_MOZ_BLOB
   };
 
-  void SetResponseType(nsXMLHttpRequest::ResponseTypeEnum aType, ErrorResult& aRv);
+  void SetResponseType(nsXMLHttpRequest::ResponseType aType, ErrorResult& aRv);
 
-  ResponseTypeEnum mResponseType;
+  ResponseType mResponseType;
 
   // It is either a cached blob-response from the last call to GetResponse,
   // but is also explicitly set in OnStopRequest.

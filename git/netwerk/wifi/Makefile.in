@@ -41,8 +41,7 @@ ifneq (,$(filter WINNT,$(OS_ARCH)))
 CPPSRCS += nsWifiScannerWin.cpp
 else
 ifeq ($(OS_ARCH),Linux)
-CPPSRCS += nsWifiScannerDBus.cpp
-OS_INCLUDES += $(MOZ_DBUS_GLIB_CFLAGS)
+CPPSRCS += nsWifiScannerUnix.cpp
 else
 ifeq ($(OS_ARCH),SunOS)
 CPPSRCS += nsWifiScannerSolaris.cpp

@@ -429,6 +429,9 @@ members = [
     # can't be quickstubbed
     '-nsIXMLHttpRequest.upload',
 
+    # WebSocket
+    'nsIWebSocket.*',
+
     # webgl
     'nsIDOMWebGLRenderingContext.*',
     # getContextAttributes is directly manipulating its return value

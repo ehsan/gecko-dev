@@ -3100,11 +3100,11 @@ ASTSerializer::identifier(ParseNode *pn, Value *dst)
 bool
 ASTSerializer::function(ParseNode *pn, ASTType type, Value *dst)
 {
-    JSFunction *func = pn->pn_funbox->fun();
+    JSFunction *func = (JSFunction *)pn->pn_funbox->object;
 
     bool isGenerator =
 #if JS_HAS_GENERATORS
-        pn->pn_funbox->isGenerator();
+        pn->pn_funbox->funIsGenerator();
 #else
         false;
 #endif

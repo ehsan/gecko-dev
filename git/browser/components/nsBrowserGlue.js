@@ -1638,15 +1638,11 @@ ContentPermissionPrompt.prototype = {
     }
 
     var browserBundle = Services.strings.createBundle("chrome://browser/locale/browser.properties");
-    let secHistogram = Components.classes["@mozilla.org/base/telemetry;1"].
-                                  getService(Ci.nsITelemetry).
-                                  getHistogramById("SECURITY_UI");
 
     var mainAction = {
       label: browserBundle.GetStringFromName("geolocation.shareLocation"),
       accessKey: browserBundle.GetStringFromName("geolocation.shareLocation.accesskey"),
       callback: function() {
-        secHistogram.add(Ci.nsISecurityUITelemetry.WARNING_GEOLOCATION_REQUEST_SHARE_LOCATION);
         request.allow();
       },
     };
@@ -1671,7 +1667,6 @@ ContentPermissionPrompt.prototype = {
           accessKey: browserBundle.GetStringFromName("geolocation.alwaysShareLocation.accesskey"),
           callback: function () {
             Services.perms.addFromPrincipal(requestingPrincipal, "geo", Ci.nsIPermissionManager.ALLOW_ACTION);
-            secHistogram.add(Ci.nsISecurityUITelemetry.WARNING_GEOLOCATION_REQUEST_ALWAYS_SHARE);
             request.allow();
           }
         });
@@ -1680,7 +1675,6 @@ ContentPermissionPrompt.prototype = {
           accessKey: browserBundle.GetStringFromName("geolocation.neverShareLocation.accesskey"),
           callback: function () {
             Services.perms.addFromPrincipal(requestingPrincipal, "geo", Ci.nsIPermissionManager.DENY_ACTION);
-            secHistogram.add(Ci.nsISecurityUITelemetry.WARNING_GEOLOCATION_REQUEST_NEVER_SHARE);
             request.cancel();
           }
         });
@@ -1689,7 +1683,6 @@ ContentPermissionPrompt.prototype = {
 
     var browser = chromeWin.gBrowser.getBrowserForDocument(requestingWindow.document);
 
-    secHistogram.add(Ci.nsISecurityUITelemetry.WARNING_GEOLOCATION_REQUEST);
     chromeWin.PopupNotifications.show(browser, "geolocation", message, "geo-notification-icon",
                                       mainAction, secondaryActions);
   }

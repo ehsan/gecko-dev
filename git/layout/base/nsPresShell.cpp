@@ -3994,9 +3994,6 @@ PresShell::DocumentStatesChanged(nsIDocument* aDocument,
     nsIFrame* root = mFrameConstructor->GetRootFrame();
     if (root) {
       root->InvalidateFrameSubtree();
-      if (root->HasView()) {
-        root->GetView()->SetForcedRepaint(true);
-      }
     }
   }
 }
@@ -5301,7 +5298,7 @@ PresShell::Paint(nsIView*           aViewToPaint,
       NS_WARNING("Must complete empty transaction when compositing!");
     } else  if (!(frame->GetStateBits() & NS_FRAME_UPDATE_LAYER_TREE)) {
       layerManager->BeginTransaction();
-      if (layerManager->EndEmptyTransaction((aType == PaintType_NoComposite) ? LayerManager::END_NO_COMPOSITE : LayerManager::END_DEFAULT)) {
+      if (layerManager->EndEmptyTransaction(LayerManager::END_NO_COMPOSITE)) {
         frame->UpdatePaintCountForPaintedPresShells();
         presContext->NotifyDidPaintForSubtree();
         return;
@@ -6531,7 +6528,7 @@ PresShell::DispatchTouchEvent(nsEvent *aEvent,
       if (!content) {
         content = do_QueryInterface(targetPtr);
       }
-      nsRefPtr<PresShell> contentPresShell;
+      PresShell* contentPresShell = nullptr;
       if (content && content->OwnerDoc() == mDocument) {
         contentPresShell = static_cast<PresShell*>
             (content->OwnerDoc()->GetShell());

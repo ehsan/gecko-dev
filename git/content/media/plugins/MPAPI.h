@@ -100,7 +100,6 @@ struct PluginHost {
   uint64_t (*GetLength)(Decoder *aDecoder);
   void (*SetMetaDataReadMode)(Decoder *aDecoder);
   void (*SetPlaybackReadMode)(Decoder *aDecoder);
-  bool (*GetIntPref)(const char *aPref, int32_t *aResult);
 };
 
 struct Decoder {

@@ -283,10 +283,8 @@ OrientationObserver::DisableAutoOrientation()
 bool
 OrientationObserver::LockScreenOrientation(ScreenOrientation aOrientation)
 {
-  MOZ_ASSERT(aOrientation | (eScreenOrientation_PortraitPrimary |
-                             eScreenOrientation_PortraitSecondary |
-                             eScreenOrientation_LandscapePrimary |
-                             eScreenOrientation_LandscapeSecondary));
+  MOZ_ASSERT(eScreenOrientation_None < aOrientation &&
+             aOrientation < eScreenOrientation_EndGuard);
 
   // Enable/disable the observer depending on 1. multiple orientations
   // allowed, and 2. observer enabled.

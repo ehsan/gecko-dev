@@ -1,9 +1,5 @@
-/* Copyright (C) 2001-2012 IETF Trust, Erik de Castro Lopo. All rights reserved.*/
+/* Copyright (C) 2001 Erik de Castro Lopo <erikd AT mega-nerd DOT com> */
 /*
-
-   This file is extracted from RFC6716. Please see that RFC for additional
-   information.
-
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions
    are met:

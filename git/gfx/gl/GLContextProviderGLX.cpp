@@ -1025,14 +1025,15 @@ private:
                    GLContext* aContext,
                    gfxASurface* aSurface,
                    GLXPixmap aPixmap,
-                   TextureImage::Flags aFlags,
-                   LibType aLibType)
+                   TextureImage::Flags aFlags = TextureImage::NoFlags,
+                   LibType aLibType = GLXLibrary::OPENGL_LIB)
         : TextureImage(aSize, aWrapMode, aContentType, aFlags)
         , mGLContext(aContext)
         , mUpdateSurface(aSurface)
         , mPixmap(aPixmap)
         , mInUpdate(false)
         , mTexture(aTexture)
+        , mLibType(aLibType)
         , sGLXLib(sGLXLibrary[aLibType])
     {
         if (aSurface->GetContentType() == gfxASurface::CONTENT_COLOR_ALPHA) {
@@ -1047,6 +1048,7 @@ private:
     GLXPixmap mPixmap;
     bool mInUpdate;
     GLuint mTexture;
+    LibType mLibType;
     GLXLibrary& sGLXLib;
 
     virtual void ApplyFilter()

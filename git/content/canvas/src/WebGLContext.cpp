@@ -1529,7 +1529,7 @@ DOMCI_DATA(WebGLExtension, WebGLExtension)
 NS_IMETHODIMP
 WebGLContext::GetDrawingBufferWidth(WebGLsizei *aWidth)
 {
-    *aWidth = DrawingBufferWidth();
+    *aWidth = GetDrawingBufferWidth();
     return NS_OK;
 }
 
@@ -1537,7 +1537,7 @@ WebGLContext::GetDrawingBufferWidth(WebGLsizei *aWidth)
 NS_IMETHODIMP
 WebGLContext::GetDrawingBufferHeight(WebGLsizei *aHeight)
 {
-    *aHeight = DrawingBufferHeight();
+    *aHeight = GetDrawingBufferHeight();
     return NS_OK;
 }
 

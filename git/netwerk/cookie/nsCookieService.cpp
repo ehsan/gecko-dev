@@ -2487,7 +2487,7 @@ nsCookieService::GetCookieStringInternal(nsIURI *aHostURI,
   }
 
   if (!aCookieString.IsEmpty())
-    COOKIE_LOGSUCCESS(GET_COOKIE, aHostURI, aCookieString, nullptr, false);
+    COOKIE_LOGSUCCESS(GET_COOKIE, aHostURI, aCookieString, nullptr, nullptr);
 }
 
 // processes a single cookie, and returns true if there are more cookies

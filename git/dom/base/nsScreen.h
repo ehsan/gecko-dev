@@ -57,14 +57,6 @@ private:
   nsScreen();
   virtual ~nsScreen();
 
-  enum LockPermission {
-    LOCK_DENIED,
-    FULLSCREEN_LOCK_ALLOWED,
-    LOCK_ALLOWED
-  };
-
-  LockPermission GetLockOrientationPermission() const;
-
   nsRefPtr<FullScreenEventListener> mEventListener;
 };
 

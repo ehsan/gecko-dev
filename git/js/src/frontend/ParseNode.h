@@ -1465,14 +1465,9 @@ struct ObjectBox {
     ObjectBox           *traceLink;
     ObjectBox           *emitLink;
     JSObject            *object;
-
-    // An ObjectBox can hold a JSObject or a JSFunction.  In the latter case,
-    // the ObjectBox will be embedded within a FunctionBox;  |funbox| points to
-    // that FunctionBox.
-    FunctionBox         *const funbox;
+    bool                isFunctionBox;
 
     ObjectBox(ObjectBox *traceLink, JSObject *obj);
-    ObjectBox(ObjectBox *traceLink, JSFunction *fun, FunctionBox *funbox);
 };
 
 } /* namespace frontend */

@@ -20,7 +20,6 @@
 #include "android/log.h"
 #include "ui/FramebufferNativeWindow.h"
 
-#include "mozilla/dom/TabParent.h"
 #include "mozilla/Hal.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/FileUtils.h"
@@ -284,30 +283,15 @@ nsWindow::DoDraw(void)
 }
 
 nsEventStatus
-nsWindow::DispatchInputEvent(nsGUIEvent &aEvent, bool* aWasCaptured)
+nsWindow::DispatchInputEvent(nsGUIEvent &aEvent)
 {
-    if (aWasCaptured) {
-        *aWasCaptured = false;
-    }
-    if (!gFocusedWindow) {
+    if (!gFocusedWindow)
         return nsEventStatus_eIgnore;
-    }
 
     gFocusedWindow->UserActivity();
 
-    aEvent.widget = gFocusedWindow;
-
-    if (TabParent* capturer = TabParent::GetEventCapturer()) {
-        bool captured = capturer->TryCapture(aEvent);
-        if (aWasCaptured) {
-            *aWasCaptured = captured;
-        }
-        if (captured) {
-            return nsEventStatus_eConsumeNoDefault;
-        }
-    }
-
     nsEventStatus status;
+    aEvent.widget = gFocusedWindow;
     gFocusedWindow->DispatchEvent(&aEvent, status);
     return status;
 }

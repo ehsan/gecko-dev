@@ -58,7 +58,6 @@ PARALLEL_DIRS += \
   sms \
   mms \
   src \
-  time \
   locales \
   network \
   permission \

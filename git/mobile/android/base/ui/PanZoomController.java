@@ -457,8 +457,6 @@ public class PanZoomController
     }
 
     private boolean onTouchCancel(MotionEvent event) {
-        cancelTouch();
-
         if (mState == PanZoomState.WAITING_LISTENERS) {
             // we might get a cancel event from the TouchEventHandler while in the
             // WAITING_LISTENERS state if the touch listeners prevent-default the
@@ -469,6 +467,7 @@ public class PanZoomController
             return false;
         }
 
+        cancelTouch();
         // ensure we snap back if we're overscrolled
         bounce();
         return false;
@@ -1111,14 +1110,5 @@ public class PanZoomController
     public void abortPanning() {
         checkMainThread();
         bounce();
-    }
-
-    public void setOverScrollMode(int overscrollMode) {
-        mX.setOverScrollMode(overscrollMode);
-        mY.setOverScrollMode(overscrollMode);
-    }
-
-    public int getOverScrollMode() {
-        return mX.getOverScrollMode();
     }
 }

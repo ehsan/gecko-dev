@@ -50,8 +50,8 @@ public:
   // We need a GetParentObject to make binding codegen happy
   virtual nsISupports* GetParentObject();
 
-  bool IndirectlyImplementedProperty();
-  void IndirectlyImplementedProperty(bool);
+  bool GetIndirectlyImplementedProperty();
+  void SetIndirectlyImplementedProperty(bool);
   void IndirectlyImplementedMethod();
 };
 
@@ -128,8 +128,8 @@ public:
   */
   
   // Integer types
-  int8_t ReadonlyByte();
-  int8_t WritableByte();
+  int8_t GetReadonlyByte();
+  int8_t GetWritableByte();
   void SetWritableByte(int8_t);
   void PassByte(int8_t);
   int8_t ReceiveByte();
@@ -138,56 +138,56 @@ public:
   void PassNullableByte(Nullable<int8_t>&);
   void PassOptionalNullableByte(const Optional< Nullable<int8_t> >&);
 
-  int16_t ReadonlyShort();
-  int16_t WritableShort();
+  int16_t GetReadonlyShort();
+  int16_t GetWritableShort();
   void SetWritableShort(int16_t);
   void PassShort(int16_t);
   int16_t ReceiveShort();
   void PassOptionalShort(const Optional<int16_t>&);
   void PassOptionalShortWithDefault(int16_t);
 
-  int32_t ReadonlyLong();
-  int32_t WritableLong();
+  int32_t GetReadonlyLong();
+  int32_t GetWritableLong();
   void SetWritableLong(int32_t);
   void PassLong(int32_t);
   int16_t ReceiveLong();
   void PassOptionalLong(const Optional<int32_t>&);
   void PassOptionalLongWithDefault(int32_t);
 
-  int64_t ReadonlyLongLong();
-  int64_t WritableLongLong();
+  int64_t GetReadonlyLongLong();
+  int64_t GetWritableLongLong();
   void SetWritableLongLong(int64_t);
   void PassLongLong(int64_t);
   int64_t ReceiveLongLong();
   void PassOptionalLongLong(const Optional<int64_t>&);
   void PassOptionalLongLongWithDefault(int64_t);
 
-  uint8_t ReadonlyOctet();
-  uint8_t WritableOctet();
+  uint8_t GetReadonlyOctet();
+  uint8_t GetWritableOctet();
   void SetWritableOctet(uint8_t);
   void PassOctet(uint8_t);
   uint8_t ReceiveOctet();
   void PassOptionalOctet(const Optional<uint8_t>&);
   void PassOptionalOctetWithDefault(uint8_t);
 
-  uint16_t ReadonlyUnsignedShort();
-  uint16_t WritableUnsignedShort();
+  uint16_t GetReadonlyUnsignedShort();
+  uint16_t GetWritableUnsignedShort();
   void SetWritableUnsignedShort(uint16_t);
   void PassUnsignedShort(uint16_t);
   uint16_t ReceiveUnsignedShort();
   void PassOptionalUnsignedShort(const Optional<uint16_t>&);
   void PassOptionalUnsignedShortWithDefault(uint16_t);
 
-  uint32_t ReadonlyUnsignedLong();
-  uint32_t WritableUnsignedLong();
+  uint32_t GetReadonlyUnsignedLong();
+  uint32_t GetWritableUnsignedLong();
   void SetWritableUnsignedLong(uint32_t);
   void PassUnsignedLong(uint32_t);
   uint32_t ReceiveUnsignedLong();
   void PassOptionalUnsignedLong(const Optional<uint32_t>&);
   void PassOptionalUnsignedLongWithDefault(uint32_t);
 
-  uint64_t ReadonlyUnsignedLongLong();
-  uint64_t WritableUnsignedLongLong();
+  uint64_t GetReadonlyUnsignedLongLong();
+  uint64_t GetWritableUnsignedLongLong();
   void SetWritableUnsignedLongLong(uint64_t);
   void PassUnsignedLongLong(uint64_t);
   uint64_t ReceiveUnsignedLongLong();
@@ -202,7 +202,7 @@ public:
   void PassSelf(TestInterface&);
   void PassSelf2(NonNull<TestInterface>&);
   void PassNullableSelf(TestInterface*);
-  already_AddRefed<TestInterface> NonNullSelf();
+  already_AddRefed<TestInterface> GetNonNullSelf();
   void SetNonNullSelf(TestInterface&);
   already_AddRefed<TestInterface> GetNullableSelf();
   void SetNullableSelf(TestInterface*);
@@ -224,7 +224,7 @@ public:
   void PassOther(TestNonCastableInterface&);
   void PassOther2(NonNull<TestNonCastableInterface>&);
   void PassNullableOther(TestNonCastableInterface*);
-  already_AddRefed<TestNonCastableInterface> NonNullOther();
+  already_AddRefed<TestNonCastableInterface> GetNonNullOther();
   void SetNonNullOther(TestNonCastableInterface&);
   already_AddRefed<TestNonCastableInterface> GetNullableOther();
   void SetNullableOther(TestNonCastableInterface*);
@@ -239,7 +239,7 @@ public:
   void PassExternal(TestExternalInterface*);
   void PassExternal2(TestExternalInterface*);
   void PassNullableExternal(TestExternalInterface*);
-  already_AddRefed<TestExternalInterface> NonNullExternal();
+  already_AddRefed<TestExternalInterface> GetNonNullExternal();
   void SetNonNullExternal(TestExternalInterface*);
   already_AddRefed<TestExternalInterface> GetNullableExternal();
   void SetNullableExternal(TestExternalInterface*);
@@ -254,7 +254,7 @@ public:
   void PassCallbackInterface(TestCallbackInterface&);
   void PassCallbackInterface2(OwningNonNull<TestCallbackInterface>);
   void PassNullableCallbackInterface(TestCallbackInterface*);
-  already_AddRefed<TestCallbackInterface> NonNullCallbackInterface();
+  already_AddRefed<TestCallbackInterface> GetNonNullCallbackInterface();
   void SetNonNullCallbackInterface(TestCallbackInterface&);
   already_AddRefed<TestCallbackInterface> GetNullableCallbackInterface();
   void SetNullableCallbackInterface(TestCallbackInterface*);
@@ -326,8 +326,8 @@ public:
   void PassOptionalEnum(const Optional<TestEnum>&);
   void PassEnumWithDefault(TestEnum);
   TestEnum ReceiveEnum();
-  TestEnum EnumAttribute();
-  TestEnum ReadonlyEnumAttribute();
+  TestEnum GetEnumAttribute();
+  TestEnum GetReadonlyEnumAttribute();
   void SetEnumAttribute(TestEnum);
 
   // Callback types
@@ -384,8 +384,8 @@ public:
   // binaryNames tests
   void MethodRenamedTo();
   void MethodRenamedTo(int8_t);
-  int8_t AttributeGetterRenamedTo();
-  int8_t AttributeRenamedTo();
+  int8_t GetAttributeGetterRenamedTo();
+  int8_t GetAttributeRenamedTo();
   void SetAttributeRenamedTo(int8_t);
 
   // Dictionary tests
@@ -401,21 +401,17 @@ public:
   already_AddRefed<TestInterface> ExerciseTypedefInterfaces2(TestInterface*);
   void ExerciseTypedefInterfaces3(TestInterface&);
 
-  // Miscellania
-  int32_t AttrWithLenientThis();
-  void SetAttrWithLenientThis(int32_t);
-
   // Methods and properties imported via "implements"
-  bool ImplementedProperty();
+  bool GetImplementedProperty();
   void SetImplementedProperty(bool);
   void ImplementedMethod();
-  bool ImplementedParentProperty();
+  bool GetImplementedParentProperty();
   void SetImplementedParentProperty(bool);
   void ImplementedParentMethod();
-  bool IndirectlyImplementedProperty();
+  bool GetIndirectlyImplementedProperty();
   void SetIndirectlyImplementedProperty(bool);
   void IndirectlyImplementedMethod();
-  uint32_t DiamondImplementedProperty();
+  uint32_t GetDiamondImplementedProperty();
 
   // Test EnforceRange/Clamp
   void DontEnforceRangeOrClamp(int8_t);
@@ -560,7 +556,7 @@ public:
   uint32_t IndexedGetter(uint32_t&) MOZ_DELETE;
   uint32_t Item(uint32_t&);
   uint32_t Item(uint32_t, bool&) MOZ_DELETE;
-  uint32_t Length();
+  uint32_t GetLength();
 };
 
 class TestNamedGetterInterface : public nsISupports,
@@ -587,7 +583,7 @@ public:
   uint32_t IndexedGetter(uint32_t, bool&);
   void NamedGetter(const nsAString&, bool&, nsAString&);
   void NamedItem(const nsAString&, nsAString&);
-  uint32_t Length();
+  uint32_t GetLength();
 };
 
 class TestIndexedSetterInterface : public nsISupports,
@@ -640,7 +636,7 @@ public:
   void IndexedSetter(uint32_t, const nsAString&) MOZ_DELETE;
   void NamedSetter(const nsAString&, const nsAString&);
   void Stringify(nsAString&);
-  uint32_t Length();
+  uint32_t GetLength();
 };
 
 } // namespace dom

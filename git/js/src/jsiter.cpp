@@ -729,16 +729,7 @@ GetIterator(JSContext *cx, HandleObject obj, unsigned flags, MutableHandleValue 
     return true;
 }
 
-JSObject *
-GetIteratorObject(JSContext *cx, HandleObject obj, uint32_t flags)
-{
-    RootedValue value(cx);
-    if (!GetIterator(cx, obj, flags, &value))
-        return NULL;
-    return &value.toObject();
 }
-
-} /* namespace js */
 
 JSBool
 js_ThrowStopIteration(JSContext *cx)
@@ -752,8 +743,8 @@ js_ThrowStopIteration(JSContext *cx)
 
 /*** Iterator objects ****************************************************************************/
 
-JSBool
-js::IteratorConstructor(JSContext *cx, unsigned argc, Value *vp)
+static JSBool
+Iterator(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     if (args.length() == 0) {
@@ -1205,7 +1196,7 @@ js_SuppressDeletedElements(JSContext *cx, HandleObject obj, uint32_t begin, uint
     return SuppressDeletedPropertyHelper(cx, obj, IndexRangePredicate(begin, end));
 }
 
-bool
+JSBool
 js_IteratorMore(JSContext *cx, HandleObject iterobj, MutableHandleValue rval)
 {
     /* Fast path for native iterators */
@@ -1264,7 +1255,7 @@ js_IteratorMore(JSContext *cx, HandleObject iterobj, MutableHandleValue rval)
     return true;
 }
 
-bool
+JSBool
 js_IteratorNext(JSContext *cx, JSObject *iterobj, MutableHandleValue rval)
 {
     /* Fast path for native iterators */
@@ -1777,8 +1768,7 @@ GlobalObject::initIteratorClasses(JSContext *cx, Handle<GlobalObject *> global)
 
         iteratorProto->asPropertyIterator().setNativeIterator(ni);
 
-        Rooted<JSFunction*> ctor(cx, global->createConstructor(cx, IteratorConstructor,
-                                                               CLASS_NAME(cx, Iterator), 2));
+        Rooted<JSFunction*> ctor(cx, global->createConstructor(cx, Iterator, CLASS_NAME(cx, Iterator), 2));
         if (!ctor)
             return false;
         if (!LinkConstructorAndPrototype(cx, ctor, iteratorProto))

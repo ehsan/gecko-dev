@@ -306,9 +306,6 @@ public:
    * Returns true if the view has a widget associated with it.
    */
   bool HasWidget() const { return mWindow != nullptr; }
-  
-  void SetForcedRepaint(bool aForceRepaint) { mForcedRepaint = aForceRepaint; }
-  bool ForcedRepaint() { return mForcedRepaint; }
 
   /**
    * Make aWidget direct its events to this view.
@@ -366,7 +363,6 @@ protected:
   float             mOpacity;
   uint32_t          mVFlags;
   bool              mWidgetIsTopLevel;
-  bool              mForcedRepaint;
 
   virtual ~nsIView() {}
 

@@ -39,50 +39,50 @@ public:
   JSObject* WrapObject(JSContext *cx, JSObject *scope, bool *triedToWrap);
 
   // PerformanceNavigation WebIDL methods
-  DOMTimeMilliSec NavigationStart() const {
+  DOMTimeMilliSec GetNavigationStart() const {
     return GetDOMTiming()->GetNavigationStart();
   }
-  DOMTimeMilliSec UnloadEventStart() {
+  DOMTimeMilliSec GetUnloadEventStart() {
     return GetDOMTiming()->GetUnloadEventStart();
   }
-  DOMTimeMilliSec UnloadEventEnd() {
+  DOMTimeMilliSec GetUnloadEventEnd() {
     return GetDOMTiming()->GetUnloadEventEnd();
   }
-  DOMTimeMilliSec RedirectStart() {
+  DOMTimeMilliSec GetRedirectStart() {
     return GetDOMTiming()->GetRedirectStart();
   }
-  DOMTimeMilliSec RedirectEnd() {
+  DOMTimeMilliSec GetRedirectEnd() {
     return GetDOMTiming()->GetRedirectEnd();
   }
-  DOMTimeMilliSec FetchStart() const {
+  DOMTimeMilliSec GetFetchStart() const {
     return GetDOMTiming()->GetFetchStart();
   }
-  DOMTimeMilliSec DomainLookupStart() const;
-  DOMTimeMilliSec DomainLookupEnd() const;
-  DOMTimeMilliSec ConnectStart() const;
-  DOMTimeMilliSec ConnectEnd() const;
-  DOMTimeMilliSec RequestStart() const;
-  DOMTimeMilliSec ResponseStart() const;
-  DOMTimeMilliSec ResponseEnd() const;
-  DOMTimeMilliSec DomLoading() const {
+  DOMTimeMilliSec GetDomainLookupStart() const;
+  DOMTimeMilliSec GetDomainLookupEnd() const;
+  DOMTimeMilliSec GetConnectStart() const;
+  DOMTimeMilliSec GetConnectEnd() const;
+  DOMTimeMilliSec GetRequestStart() const;
+  DOMTimeMilliSec GetResponseStart() const;
+  DOMTimeMilliSec GetResponseEnd() const;
+  DOMTimeMilliSec GetDomLoading() const {
     return GetDOMTiming()->GetDomLoading();
   }
-  DOMTimeMilliSec DomInteractive() const {
+  DOMTimeMilliSec GetDomInteractive() const {
     return GetDOMTiming()->GetDomInteractive();
   }
-  DOMTimeMilliSec DomContentLoadedEventStart() const {
+  DOMTimeMilliSec GetDomContentLoadedEventStart() const {
     return GetDOMTiming()->GetDomContentLoadedEventStart();
   }
-  DOMTimeMilliSec DomContentLoadedEventEnd() const {
+  DOMTimeMilliSec GetDomContentLoadedEventEnd() const {
     return GetDOMTiming()->GetDomContentLoadedEventEnd();
   }
-  DOMTimeMilliSec DomComplete() const {
+  DOMTimeMilliSec GetDomComplete() const {
     return GetDOMTiming()->GetDomComplete();
   }
-  DOMTimeMilliSec LoadEventStart() const {
+  DOMTimeMilliSec GetLoadEventStart() const {
     return GetDOMTiming()->GetLoadEventStart();
   }
-  DOMTimeMilliSec LoadEventEnd() const {
+  DOMTimeMilliSec GetLoadEventEnd() const {
     return GetDOMTiming()->GetLoadEventEnd();
   }
 
@@ -111,10 +111,10 @@ public:
   JSObject* WrapObject(JSContext *cx, JSObject *scope, bool *triedToWrap);
 
   // PerformanceNavigation WebIDL methods
-  uint16_t Type() const {
+  uint16_t GetType() const {
     return GetDOMTiming()->GetType();
   }
-  uint16_t RedirectCount() const {
+  uint16_t GetRedirectCount() const {
     return GetDOMTiming()->GetRedirectCount();
   }
 
@@ -154,8 +154,8 @@ public:
 
   // Performance WebIDL methods
   DOMHighResTimeStamp Now();
-  nsPerformanceTiming* Timing();
-  nsPerformanceNavigation* Navigation();
+  nsPerformanceTiming* GetTiming();
+  nsPerformanceNavigation* GetNavigation();
 
 private:
   ~nsPerformance();

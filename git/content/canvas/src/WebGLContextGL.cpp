@@ -481,7 +481,6 @@ void
 WebGLContext::BufferData(WebGLenum target, WebGLsizeiptr size,
                          WebGLenum usage)
 {
-    InvalidateCachedMinInUseAttribArrayLength();
     if (!IsContextStable())
         return;
 
@@ -521,7 +520,6 @@ WebGLContext::BufferData(WebGLenum target, WebGLsizeiptr size,
 void
 WebGLContext::BufferData(WebGLenum target, ArrayBuffer *data, WebGLenum usage)
 {
-    InvalidateCachedMinInUseAttribArrayLength();
     if (!IsContextStable())
         return;
 
@@ -564,7 +562,6 @@ WebGLContext::BufferData(WebGLenum target, ArrayBuffer *data, WebGLenum usage)
 void
 WebGLContext::BufferData(WebGLenum target, ArrayBufferView& data, WebGLenum usage)
 {
-    InvalidateCachedMinInUseAttribArrayLength();
     if (!IsContextStable())
         return;
 
@@ -1497,7 +1494,6 @@ WebGLContext::MozDisableVertexAttribArray(WebGLuint index)
 void
 WebGLContext::DisableVertexAttribArray(WebGLuint index)
 {
-    InvalidateCachedMinInUseAttribArrayLength();
     if (!IsContextStable())
         return;
 
@@ -1980,7 +1976,6 @@ WebGLContext::MozEnableVertexAttribArray(WebGLuint index)
 void
 WebGLContext::EnableVertexAttribArray(WebGLuint index)
 {
-    InvalidateCachedMinInUseAttribArrayLength();
     if (!IsContextStable())
         return;
 
@@ -3706,7 +3701,6 @@ WebGLContext::LinkProgram(nsIWebGLProgram *pobj)
 void
 WebGLContext::LinkProgram(WebGLProgram *program, ErrorResult& rv)
 {
-    InvalidateCachedMinInUseAttribArrayLength();
     if (!IsContextStable())
         return;
 
@@ -4834,7 +4828,6 @@ WebGLContext::UseProgram(nsIWebGLProgram *pobj)
 void
 WebGLContext::UseProgram(WebGLProgram *prog)
 {
-    InvalidateCachedMinInUseAttribArrayLength();
     if (!IsContextStable())
         return;
 
@@ -5502,7 +5495,6 @@ WebGLContext::VertexAttribPointer(WebGLuint index, WebGLint size, WebGLenum type
                                   WebGLboolean normalized, WebGLsizei stride,
                                   WebGLintptr byteOffset)
 {
-    InvalidateCachedMinInUseAttribArrayLength();
     if (!IsContextStable())
         return;
 

@@ -22,11 +22,11 @@
 namespace js {
 namespace frontend {
 
-// These flags apply to both global and function contexts.
-class AnyContextFlags
-{
+class ContextFlags {
+
     // This class's data is all private and so only visible to these friends.
     friend struct SharedContext;
+    friend struct FunctionBox;
 
     // True if "use strict"; appears in the body instead of being inherited.
     bool            hasExplicitUseStrict:1;
@@ -54,24 +54,12 @@ class AnyContextFlags
     //
     bool            bindingsAccessedDynamically:1;
 
-  public:
-    AnyContextFlags()
-     :  hasExplicitUseStrict(false),
-        bindingsAccessedDynamically(false)
-    { }
-};
-
-class FunctionContextFlags
-{
-    // This class's data is all private and so only visible to these friends.
-    friend struct FunctionBox;
-
     // We parsed a yield statement in the function.
-    bool            isGenerator:1;
+    bool            funIsGenerator:1;
 
     // The function or a function that encloses it may define new local names
     // at runtime through means other than calling eval.
-    bool            mightAliasLocals:1;
+    bool            funMightAliasLocals:1;
 
     // This function does something that can extend the set of bindings in its
     // call objects --- it does a direct eval in non-strict code, or includes a
@@ -80,7 +68,7 @@ class FunctionContextFlags
     // This flag is *not* inherited by enclosed or enclosing functions; it
     // applies only to the function in whose flags it appears.
     //
-    bool            hasExtensibleScope:1;
+    bool            funHasExtensibleScope:1;
 
     // Technically, every function has a binding named 'arguments'. Internally,
     // this binding is only added when 'arguments' is mentioned by the function
@@ -103,7 +91,7 @@ class FunctionContextFlags
     // have no special semantics: the initial value is unconditionally the
     // actual argument (or undefined if nactual < nformal).
     //
-    bool            argumentsHasLocalBinding:1;
+    bool            funArgumentsHasLocalBinding:1;
 
     // In many cases where 'arguments' has a local binding (as described above)
     // we do not need to actually create an arguments object in the function
@@ -114,19 +102,19 @@ class FunctionContextFlags
     // be unsound in several cases. The frontend filters out such cases by
     // setting this flag which eagerly sets script->needsArgsObj to true.
     //
-    bool            definitelyNeedsArgsObj:1;
+    bool            funDefinitelyNeedsArgsObj:1;
 
   public:
-    FunctionContextFlags()
-     :  isGenerator(false),
-        mightAliasLocals(false),
-        hasExtensibleScope(false),
-        argumentsHasLocalBinding(false),
-        definitelyNeedsArgsObj(false)
+    ContextFlags()
+     :  hasExplicitUseStrict(false),
+        bindingsAccessedDynamically(false),
+        funIsGenerator(false),
+        funMightAliasLocals(false),
+        funHasExtensibleScope(false),
+        funArgumentsHasLocalBinding(false),
+        funDefinitelyNeedsArgsObj(false)
     { }
 };
-
-class GlobalSharedContext;
 
 /*
  * The struct SharedContext is part of the current parser context (see
@@ -134,14 +122,19 @@ class GlobalSharedContext;
  * the bytecode emitter. Note however, that this information is not shared
  * between the two; they simply reuse the same data structure.
  */
-class SharedContext
-{
-  public:
+struct SharedContext {
     JSContext       *const context;
 
-    const bool isFunction;          /* true for function code, false for
-                                       global code */
-    AnyContextFlags anyCxFlags;
+  private:
+    FunctionBox *const funbox_;     /* null or box for function we're compiling
+                                       (if inFunction() is true) */
+
+    const RootedObject scopeChain_; /* scope chain object for the script
+                                       (if inFunction() is false) */
+
+  public:
+    ContextFlags    cxFlags;
+
 
     // strictModeState tracks the strictness of this context. Normally, it
     // should be STRICT or NOTSTRICT. However, it can be UNKNOWN when parsing
@@ -165,70 +158,40 @@ class SharedContext
 
     // If it's function code, funbox must be non-NULL and scopeChain must be NULL.
     // If it's global code, funbox must be NULL.
-    inline SharedContext(JSContext *cx, bool isFun, StrictMode sms);
+    inline SharedContext(JSContext *cx, JSObject *scopeChain, FunctionBox *funbox,
+                         StrictMode sms);
 
-    inline GlobalSharedContext *asGlobal();
-    inline FunctionBox *asFunbox();
+    // The |fun*| flags are only relevant if |inFunction()| is true.
+#define INFUNC JS_ASSERT(inFunction())
 
-    bool hasExplicitUseStrict()        const { return anyCxFlags.hasExplicitUseStrict; }
-    bool bindingsAccessedDynamically() const { return anyCxFlags.bindingsAccessedDynamically; }
+    bool hasExplicitUseStrict()        const {         return cxFlags.hasExplicitUseStrict; }
+    bool bindingsAccessedDynamically() const {         return cxFlags.bindingsAccessedDynamically; }
+    bool funIsGenerator()              const { INFUNC; return cxFlags.funIsGenerator; }
+    bool funMightAliasLocals()         const { INFUNC; return cxFlags.funMightAliasLocals; }
+    bool funHasExtensibleScope()       const { INFUNC; return cxFlags.funHasExtensibleScope; }
+    bool funArgumentsHasLocalBinding() const { INFUNC; return cxFlags.funArgumentsHasLocalBinding; }
+    bool funDefinitelyNeedsArgsObj()   const { INFUNC; return cxFlags.funDefinitelyNeedsArgsObj; }
 
-    void setExplicitUseStrict()           { anyCxFlags.hasExplicitUseStrict        = true; }
-    void setBindingsAccessedDynamically() { anyCxFlags.bindingsAccessedDynamically = true; }
+    void setExplicitUseStrict()               {         cxFlags.hasExplicitUseStrict        = true; }
+    void setBindingsAccessedDynamically()     {         cxFlags.bindingsAccessedDynamically = true; }
+    void setFunIsGenerator()                  { INFUNC; cxFlags.funIsGenerator              = true; }
+    void setFunMightAliasLocals()             { INFUNC; cxFlags.funMightAliasLocals         = true; }
+    void setFunHasExtensibleScope()           { INFUNC; cxFlags.funHasExtensibleScope       = true; }
+    void setFunArgumentsHasLocalBinding()     { INFUNC; cxFlags.funArgumentsHasLocalBinding = true; }
+    void setFunDefinitelyNeedsArgsObj()       { JS_ASSERT(cxFlags.funArgumentsHasLocalBinding);
+                                                INFUNC; cxFlags.funDefinitelyNeedsArgsObj   = true; }
+
+#undef INFUNC
+
+    bool inFunction() const { return !!funbox_; }
+
+    FunctionBox *funbox()  const { JS_ASSERT(inFunction());  return funbox_; }
+    JSObject *scopeChain() const { JS_ASSERT(!inFunction()); return scopeChain_; }
 
     // JSOPTION_STRICT warnings or strict mode errors.
     inline bool needStrictChecks();
     inline bool inStrictMode();
 };
-
-class GlobalSharedContext : public SharedContext
-{
-  private:
-    const RootedObject scopeChain_; /* scope chain object for the script */
-
-  public:
-    inline GlobalSharedContext(JSContext *cx, JSObject *scopeChain, StrictMode sms);
-
-    JSObject *scopeChain() const { return scopeChain_; }
-};
-
-class FunctionBox : public SharedContext
-{
-  public:
-    ObjectBox       objbox;
-    FunctionBox     *siblings;
-    FunctionBox     *kids;
-    Bindings        bindings;               /* bindings for this function */
-    size_t          bufStart;
-    size_t          bufEnd;
-    uint16_t        ndefaults;
-    bool            inWith:1;               /* some enclosing scope is a with-statement
-                                               or E4X filter-expression */
-    bool            inGenexpLambda:1;       /* lambda from generator expression */
-
-    FunctionContextFlags funCxFlags;
-
-    FunctionBox(JSContext *cx, ObjectBox* traceListHead, JSFunction *fun, ParseContext *pc,
-                StrictMode sms);
-
-    JSFunction *fun() const { return objbox.object->toFunction(); }
-
-    void recursivelySetStrictMode(StrictMode strictness);
-
-    bool isGenerator()              const { return funCxFlags.isGenerator; }
-    bool mightAliasLocals()         const { return funCxFlags.mightAliasLocals; }
-    bool hasExtensibleScope()       const { return funCxFlags.hasExtensibleScope; }
-    bool argumentsHasLocalBinding() const { return funCxFlags.argumentsHasLocalBinding; }
-    bool definitelyNeedsArgsObj()   const { return funCxFlags.definitelyNeedsArgsObj; }
-
-    void setIsGenerator()                  { funCxFlags.isGenerator              = true; }
-    void setMightAliasLocals()             { funCxFlags.mightAliasLocals         = true; }
-    void setHasExtensibleScope()           { funCxFlags.hasExtensibleScope       = true; }
-    void setArgumentsHasLocalBinding()     { funCxFlags.argumentsHasLocalBinding = true; }
-    void setDefinitelyNeedsArgsObj()       { JS_ASSERT(funCxFlags.argumentsHasLocalBinding);
-                                             funCxFlags.definitelyNeedsArgsObj   = true; }
-};
-
 
 /*
  * NB: If you add a new type of statement that is a scope, add it between
@@ -318,6 +281,31 @@ struct StmtInfoBase {
     bool isTrying() const {
         return STMT_TRY <= type && type <= STMT_SUBROUTINE;
     }
+};
+
+struct FunctionBox : public ObjectBox
+{
+    FunctionBox     *siblings;
+    FunctionBox     *kids;
+    Bindings        bindings;               /* bindings for this function */
+    size_t          bufStart;
+    size_t          bufEnd;
+    uint16_t        ndefaults;
+    StrictMode      strictModeState;
+    bool            inWith:1;               /* some enclosing scope is a with-statement
+                                               or E4X filter-expression */
+    bool            inGenexpLambda:1;       /* lambda from generator expression */
+
+    ContextFlags    cxFlags;
+
+    FunctionBox(ObjectBox* traceListHead, JSObject *obj, ParseContext *pc,
+                StrictMode sms);
+
+    bool funIsGenerator() const { return cxFlags.funIsGenerator; }
+
+    JSFunction *fun() const { return (JSFunction *) object; }
+
+    void recursivelySetStrictMode(StrictMode strictness);
 };
 
 // Push the C-stack-allocated struct at stmt onto the StmtInfoPC stack.

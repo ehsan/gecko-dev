@@ -18,7 +18,6 @@
 
 #include "base/basictypes.h"
 #include "BluetoothDBusService.h"
-#include "BluetoothServiceUuid.h"
 #include "BluetoothTypes.h"
 #include "BluetoothReplyRunnable.h"
 
@@ -141,8 +140,6 @@ static const char* sBluetoothDBusSignals[] =
 static nsAutoPtr<RawDBusConnection> gThreadConnection;
 static nsDataHashtable<nsStringHashKey, DBusMessage* > sPairingReqTable;
 static nsDataHashtable<nsStringHashKey, DBusMessage* > sAuthorizeReqTable;
-static nsString sDefaultAdapterPath;
-static nsTArray<uint32_t> sServiceHandles;
 
 typedef void (*UnpackFunc)(DBusMessage*, DBusError*, BluetoothValue&, nsAString&);
 
@@ -337,7 +334,6 @@ AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
     } else {
       dbus_connection_send(conn, reply, NULL);
       dbus_message_unref(reply);
-      v = parameters;
     }
   } else if (dbus_message_is_method_call(msg, DBUS_AGENT_IFACE, "Authorize")) {
     // This method gets called when the service daemon needs to authorize a
@@ -353,11 +349,11 @@ AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
     } else {
       nsString deviceAddress = GetAddressFromObjectPath(NS_ConvertUTF8toUTF16(objectPath));
 
-      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("deviceAddress"), deviceAddress));
-      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("uuid"),
+      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("Device"), deviceAddress));
+      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("UUID"),
                                                    NS_ConvertUTF8toUTF16(uuid)));
 
-      // Because we may have authorization request and pairing request from the
+      // Because we may have authorization request and pairing request from the 
       // same remote device at the same time, we need two tables to keep these messages.
       sAuthorizeReqTable.Put(deviceAddress, msg);
 
@@ -380,9 +376,10 @@ AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
       errorStr.AssignLiteral("Invalid arguments for RequestConfirmation() method");
     } else {
       nsString deviceAddress = GetAddressFromObjectPath(NS_ConvertUTF8toUTF16(objectPath));
-      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("deviceAddress"), deviceAddress));
-      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("passkey"), passkey));
 
+      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("Device"), deviceAddress));
+      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("Passkey"), passkey));
+      
       KeepDBusPairingMessage(deviceAddress, msg);
 
       v = parameters;
@@ -399,7 +396,8 @@ AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
       errorStr.AssignLiteral("Invalid arguments for RequestPinCode() method");
     } else {
       nsString deviceAddress = GetAddressFromObjectPath(NS_ConvertUTF8toUTF16(objectPath));
-      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("deviceAddress"), deviceAddress));
+
+      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("Device"), deviceAddress));
 
       KeepDBusPairingMessage(deviceAddress, msg);
 
@@ -416,7 +414,8 @@ AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
       errorStr.AssignLiteral("Invalid arguments for RequestPasskey() method");
     } else {
       nsString deviceAddress = GetAddressFromObjectPath(NS_ConvertUTF8toUTF16(objectPath));
-      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("deviceAddress"), deviceAddress));
+
+      parameters.AppendElement(BluetoothNamedValue(NS_LITERAL_STRING("Device"), deviceAddress));
 
       KeepDBusPairingMessage(deviceAddress, msg);
 
@@ -553,28 +552,6 @@ RegisterAgent(const nsAString& aAdapterPath)
   }
 
   return true;
-}
-
-
-
-static void
-AddReservedServices(const nsAString& aAdapterPath)
-{
-  MOZ_ASSERT(!NS_IsMainThread());
-
-  nsTArray<uint32_t> uuids;
-
-  uuids.AppendElement((uint32_t)(BluetoothServiceUuid::HandsfreeAG >> 32));
-  uuids.AppendElement((uint32_t)(BluetoothServiceUuid::HeadsetAG >> 32));
-
-  BluetoothService* bs = BluetoothService::Get();
-  if (!bs) {
-    NS_WARNING("BluetoothService not available!");
-    return ;
-  }
-
-  sServiceHandles.Clear();
-  bs->AddReservedServicesInternal(aAdapterPath, uuids, sServiceHandles);
 }
 
 void
@@ -965,8 +942,7 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
       LOG_AND_FREE_DBUS_ERROR_WITH_MSG(&err, aMsg);
       errorStr.AssignLiteral("Cannot parse manager path!");
     } else {
-      sDefaultAdapterPath = NS_ConvertUTF8toUTF16(str);
-      v = sDefaultAdapterPath;
+      v = NS_ConvertUTF8toUTF16(str);
     }
   } else if (dbus_message_is_signal(aMsg, DBUS_MANAGER_IFACE, "PropertyChanged")) {
     ParsePropertyChange(aMsg,
@@ -1076,8 +1052,6 @@ BluetoothDBusService::StopInternal()
     return NS_OK;
   }
 
-  RemoveReservedServicesInternal(sDefaultAdapterPath, sServiceHandles);
-
   DBusError err;
   dbus_error_init(&err);
   for (uint32_t i = 0; i < ArrayLength(sBluetoothDBusSignals); ++i) {
@@ -1174,7 +1148,6 @@ public:
                                                                          path));
 
     RegisterAgent(path);
-    AddReservedServices(path);
 
     DispatchBluetoothReply(mRunnable, v, replyError);
    

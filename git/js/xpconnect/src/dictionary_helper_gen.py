@@ -412,7 +412,6 @@ def write_cpp(iface, fd):
     
     fd.write("nsresult\n%s::Init(JSContext* aCx, const jsval* aVal)\n" % iface.name)
     fd.write("{\n"
-             "  MOZ_ASSERT(NS_IsMainThread());\n"
              "  if (!aCx || !aVal) {\n"
              "    return NS_OK;\n"
              "  }\n"
@@ -420,8 +419,11 @@ def write_cpp(iface, fd):
              "    return aVal->isNullOrUndefined() ? NS_OK : NS_ERROR_TYPE_ERR;\n"
              "  }\n\n"
              "  JSObject* obj = &aVal->toObject();\n"
-             "  nsCxPusher pusher;\n"
-             "  NS_ENSURE_STATE(pusher.Push(aCx, false));\n"
+             "  Maybe<nsCxPusher> pusher;\n"
+             "  if (NS_IsMainThread()) {\n"
+             "    pusher.construct();\n"
+             "    NS_ENSURE_STATE(pusher.ref().Push(aCx, false));\n"
+             "  }\n"
              "  JSAutoRequest ar(aCx);\n"
              "  JSAutoCompartment ac(aCx, obj);\n")
 

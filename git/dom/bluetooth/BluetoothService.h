@@ -22,7 +22,6 @@ class BluetoothReplyRunnable;
 class BluetoothSignal;
 
 class BluetoothService : public nsIObserver
-                       , public BluetoothSignalObserver
 {
   class ToggleBtAck;
   friend class ToggleBtAck;
@@ -118,16 +117,10 @@ public:
    */
   void UnregisterManager(BluetoothManager* aManager);
 
-  /**
-   * Called when get a Bluetooth Signal from BluetoothDBusService
-   *
-   */
-  void Notify(const BluetoothSignal& aParam);
-
-  /**
+  /** 
    * Returns the BluetoothService singleton. Only to be called from main thread.
    *
-   * @param aService Pointer to return singleton into.
+   * @param aService Pointer to return singleton into. 
    *
    * @return NS_OK on proper assignment, NS_ERROR_FAILURE otherwise (if service
    * has not yet been started, for instance)
@@ -288,7 +281,8 @@ protected:
     mBluetoothSignalObserverTable.Init();
   }
 
-  ~BluetoothService();
+  virtual ~BluetoothService()
+  { }
 
   nsresult StartStopBluetooth(bool aStart);
 

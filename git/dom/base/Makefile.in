@@ -136,6 +136,5 @@ LDFLAGS += $(TK_LIBS)
 endif
 
 XPIDL_FLAGS += \
-  -I$(topsrcdir)/dom/interfaces/base \
   -I$(topsrcdir)/dom/interfaces/events \
   $(NULL)

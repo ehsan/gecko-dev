@@ -39,7 +39,6 @@ let AboutReader = function(doc, win) {
   this._creditsElementRef = Cu.getWeakReference(doc.getElementById("reader-credits"));
   this._contentElementRef = Cu.getWeakReference(doc.getElementById("reader-content"));
   this._toolbarElementRef = Cu.getWeakReference(doc.getElementById("reader-toolbar"));
-  this._messageElementRef = Cu.getWeakReference(doc.getElementById("reader-message"));
 
   this._toolbarEnabled = false;
 
@@ -137,11 +136,7 @@ AboutReader.prototype = {
     return this._toolbarElementRef.get();
   },
 
-  get _messageElement() {
-    return this._messageElementRef.get();
-  },
-
-  observe: function Reader_observe(aMessage, aTopic, aData) {
+  observe: function(aMessage, aTopic, aData) {
     switch(aTopic) {
       case "Reader:FaviconReturn": {
         let info = JSON.parse(aData);
@@ -340,7 +335,7 @@ AboutReader.prototype = {
   },
 
   _loadFromURL: function Reader_loadFromURL(url) {
-    this._showProgressDelayed();
+    this._showProgress();
 
     gChromeWin.Reader.parseDocumentFromURL(url, function(article) {
       if (article)
@@ -351,7 +346,7 @@ AboutReader.prototype = {
   },
 
   _loadFromTab: function Reader_loadFromTab(tabId, url) {
-    this._showProgressDelayed();
+    this._showProgress();
 
     gChromeWin.Reader.getArticleForTab(tabId, url, function(article) {
       if (article)
@@ -429,17 +424,13 @@ AboutReader.prototype = {
 
   _showError: function Reader_showError(error) {
     this._headerElement.style.display = "none";
-    this._contentElement.style.display = "none";
-
-    this._messageElement.innerHTML = error;
-    this._messageElement.style.display = "block";
+    this._contentElement.innerHTML = error;
+    this._contentElement.style.display = "block";
 
     this._doc.title = error;
   },
 
   _showContent: function Reader_showContent(article) {
-    this._messageElement.style.display = "none";
-
     this._article = article;
 
     let articleUri = Services.io.newURI(article.url, null, null);
@@ -474,19 +465,10 @@ AboutReader.prototype = {
     this._contentElement.style.display = "none";
   },
 
-  _showProgressDelayed: function Reader_showProgressDelayed() {
-    this._win.setTimeout(function() {
-      // Article has already been loaded, no need to show
-      // progress anymore.
-      if (this._article)
-        return;
-
-      this._headerElement.style.display = "none";
-      this._contentElement.style.display = "none";
-
-      this._messageElement.innerHTML = gStrings.GetStringFromName("aboutReader.loading");
-      this._messageElement.style.display = "block";
-    }.bind(this), 300);
+  _showProgress: function Reader_showProgress() {
+    this._headerElement.style.display = "none";
+    this._contentElement.innerHTML = gStrings.GetStringFromName("aboutReader.loading");
+    this._contentElement.style.display = "block";
   },
 
   _decodeQueryString: function Reader_decodeQueryString(url) {

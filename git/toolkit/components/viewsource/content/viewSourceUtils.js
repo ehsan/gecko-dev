@@ -188,11 +188,14 @@ var gViewSourceUtils = {
   getExternalViewSourceEditor: function()
   {
     try {
-      let viewSourceAppPath =
+      let prefPath =
           Components.classes["@mozilla.org/preferences-service;1"]
                     .getService(Components.interfaces.nsIPrefBranch)
-                    .getComplexValue("view_source.editor.path",
-                                     Components.interfaces.nsIFile);
+                    .getCharPref("view_source.editor.path");
+      let viewSourceAppPath =
+              Components.classes["@mozilla.org/file/local;1"]
+                        .createInstance(Components.interfaces.nsILocalFile);
+      viewSourceAppPath.initWithPath(prefPath);
       let editor = Components.classes['@mozilla.org/process/util;1']
                              .createInstance(Components.interfaces.nsIProcess);
       editor.init(viewSourceAppPath);

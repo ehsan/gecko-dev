@@ -28,7 +28,8 @@ SimpleTest.waitForExplicitFinish();
 
 const DOMIdentity = Cu.import("resource://gre/modules/DOMIdentity.jsm")
                       .DOMIdentity;
-let outerWinId = SpecialPowers.getDOMWindowUtils(window).outerWindowID;
+let outerWinId = window.QueryInterface(Ci.nsIInterfaceRequestor)
+                       .getInterface(Ci.nsIDOMWindowUtils).outerWindowID;
 
 function run_next_auth_test() {
   // Reset the DOM state then run the next test

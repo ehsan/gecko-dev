@@ -49,7 +49,6 @@
 #include "jsstr.h"
 #include "prmjtime.h"
 #include "jsweakmap.h"
-#include "jsworkers.h"
 #include "jswrapper.h"
 #include "jstypedarray.h"
 #include "jsxml.h"
@@ -83,10 +82,6 @@
 #if ENABLE_YARR_JIT
 #include "assembler/jit/ExecutableAllocator.h"
 #include "methodjit/Logging.h"
-#endif
-
-#ifdef JS_METHODJIT
-#include "ion/Ion.h"
 #endif
 
 using namespace js;
@@ -745,40 +740,7 @@ static JSBool js_NewRuntimeWasCalled = JS_FALSE;
  */
 namespace JS {
 mozilla::ThreadLocal<JSRuntime *> TlsRuntime;
-
-#ifdef DEBUG
-JS_FRIEND_API(void)
-EnterAssertNoGCScope()
-{
-    ++TlsRuntime.get()->gcAssertNoGCDepth;
 }
-
-JS_FRIEND_API(void)
-LeaveAssertNoGCScope()
-{
-    --TlsRuntime.get()->gcAssertNoGCDepth;
-    JS_ASSERT(TlsRuntime.get()->gcAssertNoGCDepth >= 0);
-}
-
-JS_FRIEND_API(bool)
-InNoGCScope()
-{
-    return TlsRuntime.get()->gcAssertNoGCDepth > 0;
-}
-
-JS_FRIEND_API(bool)
-NeedRelaxedRootChecks()
-{
-    return TlsRuntime.get()->gcRelaxRootChecks;
-}
-#else
-JS_FRIEND_API(void) EnterAssertNoGCScope() {}
-JS_FRIEND_API(void) LeaveAssertNoGCScope() {}
-JS_FRIEND_API(bool) InNoGCScope() { return false; }
-JS_FRIEND_API(bool) NeedRelaxedRootChecks() { return false; }
-#endif
-
-} /* namespace JS */
 
 static const JSSecurityCallbacks NullSecurityCallbacks = { };
 
@@ -855,10 +817,6 @@ JSRuntime::JSRuntime()
     gcSliceBudget(SliceBudget::Unlimited),
     gcIncrementalEnabled(true),
     gcExactScanningEnabled(true),
-#ifdef DEBUG
-    gcRelaxRootChecks(false),
-    gcAssertNoGCDepth(0),
-#endif
     gcPoke(false),
     heapState(Idle),
 #ifdef JS_GC_ZEAL
@@ -921,12 +879,7 @@ JSRuntime::JSRuntime()
     noGCOrAllocationCheck(0),
 #endif
     inOOMReport(0),
-    jitHardening(false),
-    ionTop(NULL),
-    ionJSContext(NULL),
-    ionStackLimit(0),
-    ionActivation(NULL),
-    ionReturnOverride_(MagicValue(JS_ARG_POISON))
+    jitHardening(false)
 {
     /* Initialize infallibly first, so we can goto bad and JS_DestroyRuntime. */
     JS_INIT_CLIST(&contextList);
@@ -995,12 +948,6 @@ JSRuntime::init(uint32_t maxbytes)
         return false;
 
 #ifdef JS_THREADSAFE
-# ifdef JS_ION
-    workerThreadState = this->new_<WorkerThreadState>();
-    if (!workerThreadState || !workerThreadState->init(this))
-        return false;
-# endif
-
     if (!sourceCompressorThread.init())
         return false;
 #endif
@@ -1033,9 +980,6 @@ JSRuntime::~JSRuntime()
     FreeScriptFilenames(this);
 
 #ifdef JS_THREADSAFE
-# ifdef JS_ION
-    js_delete(workerThreadState);
-# endif
     sourceCompressorThread.finish();
 #endif
 
@@ -1165,11 +1109,6 @@ JS_NewRuntime(uint32_t maxbytes)
     JSRuntime *rt = js_new<JSRuntime>();
     if (!rt)
         return NULL;
-
-#if defined(JS_METHODJIT) && defined(JS_ION)
-    if (!ion::InitializeIon())
-        return NULL;
-#endif
 
     if (!rt->init(maxbytes)) {
         JS_DestroyRuntime(rt);
@@ -2672,10 +2611,6 @@ JS_GetTraceThingInfo(char *buf, size_t bufsize, JSTracer *trc, void *thing,
         name = "script";
         break;
 
-      case JSTRACE_IONCODE:
-        name = "ioncode";
-        break;
-
       case JSTRACE_SHAPE:
         name = "shape";
         break;
@@ -2749,7 +2684,6 @@ JS_GetTraceThingInfo(char *buf, size_t bufsize, JSTracer *trc, void *thing,
             break;
           }
 
-          case JSTRACE_IONCODE:
           case JSTRACE_SHAPE:
           case JSTRACE_BASE_SHAPE:
           case JSTRACE_TYPE_OBJECT:
@@ -3364,7 +3298,7 @@ JS_HasInstance(JSContext *cx, JSObject *objArg, jsval valueArg, JSBool *bp)
     RootedValue value(cx, valueArg);
     AssertHeapIsIdle(cx);
     assertSameCompartment(cx, obj, value);
-    return HasInstance(cx, obj, value, bp);
+    return HasInstance(cx, obj, &value, bp);
 }
 
 JS_PUBLIC_API(void *)
@@ -3517,7 +3451,7 @@ JS_NewObject(JSContext *cx, JSClass *jsclasp, JSObject *protoArg, JSObject *pare
     JS_ASSERT(!(clasp->flags & JSCLASS_IS_GLOBAL));
 
     JSObject *obj = NewObjectWithClassProto(cx, clasp, proto, parent);
-    AutoAssertNoGC nogc;
+    AssertRootingUnnecessary safe(cx);
     if (obj) {
         if (clasp->ext.equality)
             MarkTypeObjectFlags(cx, obj, OBJECT_FLAG_SPECIAL_EQUALITY);
@@ -3545,7 +3479,7 @@ JS_NewObjectWithGivenProto(JSContext *cx, JSClass *jsclasp, JSObject *protoArg, 
     JS_ASSERT(!(clasp->flags & JSCLASS_IS_GLOBAL));
 
     JSObject *obj = NewObjectWithGivenProto(cx, clasp, proto, parent);
-    AutoAssertNoGC nogc;
+    AssertRootingUnnecessary safe(cx);
     if (obj)
         MarkTypeObjectUnknownProperties(cx, obj->type());
     return obj;
@@ -4745,7 +4679,7 @@ JS_PUBLIC_API(JSBool)
 JS_NextProperty(JSContext *cx, JSObject *iterobjArg, jsid *idp)
 {
     RootedObject iterobj(cx, iterobjArg);
-    AutoAssertNoGC nogc;
+    AssertRootingUnnecessary safe(cx);
     int32_t i;
     Shape *shape;
     JSIdArray *ida;

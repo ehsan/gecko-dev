@@ -45,7 +45,8 @@ NS_IMPL_ISUPPORTS1(nsSecurityNameSet, nsIScriptExternalNameSet)
 static JSBool
 netscape_security_enablePrivilege(JSContext *cx, unsigned argc, jsval *vp)
 {
-    return xpc::EnableUniversalXPConnect(cx);
+    xpc::EnableUniversalXPConnect(cx);
+    return JS_TRUE;
 }
 
 static JSFunctionSpec PrivilegeManager_static_methods[] = {

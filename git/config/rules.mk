@@ -380,7 +380,13 @@ ifndef HOST_PROGOBJS
 HOST_PROGOBJS		= $(HOST_OBJS)
 endif
 
-GARBAGE_DIRS    += $(wildcard $(CURDIR)/$(MDDEPDIR))
+# MAKE_DIRS: List of directories to build while looping over directories.
+# A Makefile that needs $(MDDEPDIR) created but doesn't set any of these
+# variables we know to check can just set NEED_MDDEPDIR explicitly.
+ifneq (,$(OBJS)$(XPIDLSRCS)$(SIMPLE_PROGRAMS)$(NEED_MDDEPDIR))
+MAKE_DIRS       += $(CURDIR)/$(MDDEPDIR)
+GARBAGE_DIRS    += $(CURDIR)/$(MDDEPDIR)
+endif
 
 #
 # Tags: emacs (etags), vi (ctags)
@@ -946,7 +952,7 @@ $(HOST_CMMOBJS): host_%.$(OBJ_SUFFIX): %.mm
 	$(REPORT_BUILD)
 	$(ELOG) $(HOST_CXX) $(HOST_OUTOPTION)$@ -c $(HOST_CXXFLAGS) $(HOST_CMMFLAGS) $(INCLUDES) $(NSPR_CFLAGS) $(_VPATH_SRCS)
 
-$(COBJS): %.$(OBJ_SUFFIX): %.c $(call mkdir_deps,$(MDDEPDIR))
+$(COBJS): %.$(OBJ_SUFFIX): %.c
 	$(REPORT_BUILD)
 	@$(MAKE_DEPS_AUTO_CC)
 	$(ELOG) $(CC) $(OUTOPTION)$@ -c $(COMPILE_CFLAGS) $(_VPATH_SRCS)
@@ -976,45 +982,45 @@ $(SOBJS): %.$(OBJ_SUFFIX): %.S
 #
 # Please keep the next two rules in sync.
 #
-$(CCOBJS): %.$(OBJ_SUFFIX): %.cc $(call mkdir_deps,$(MDDEPDIR))
+$(CCOBJS): %.$(OBJ_SUFFIX): %.cc
 	$(REPORT_BUILD)
 	@$(MAKE_DEPS_AUTO_CXX)
 	$(ELOG) $(CCC) $(OUTOPTION)$@ -c $(COMPILE_CXXFLAGS) $(_VPATH_SRCS)
 
-$(CPPOBJS): %.$(OBJ_SUFFIX): %.cpp $(call mkdir_deps,$(MDDEPDIR))
+$(CPPOBJS): %.$(OBJ_SUFFIX): %.cpp
 	$(REPORT_BUILD)
 	@$(MAKE_DEPS_AUTO_CXX)
 	$(ELOG) $(CCC) $(OUTOPTION)$@ -c $(COMPILE_CXXFLAGS) $(_VPATH_SRCS)
 
-$(CMMOBJS): $(OBJ_PREFIX)%.$(OBJ_SUFFIX): %.mm $(call mkdir_deps,$(MDDEPDIR))
+$(CMMOBJS): $(OBJ_PREFIX)%.$(OBJ_SUFFIX): %.mm
 	$(REPORT_BUILD)
 	@$(MAKE_DEPS_AUTO_CXX)
 	$(ELOG) $(CCC) -o $@ -c $(COMPILE_CXXFLAGS) $(COMPILE_CMMFLAGS) $(_VPATH_SRCS)
 
-$(CMOBJS): $(OBJ_PREFIX)%.$(OBJ_SUFFIX): %.m $(call mkdir_deps,$(MDDEPDIR))
+$(CMOBJS): $(OBJ_PREFIX)%.$(OBJ_SUFFIX): %.m
 	$(REPORT_BUILD)
 	@$(MAKE_DEPS_AUTO_CC)
 	$(ELOG) $(CC) -o $@ -c $(COMPILE_CFLAGS) $(COMPILE_CMFLAGS) $(_VPATH_SRCS)
 
-%.s: %.cpp $(call mkdir_deps,$(MDDEPDIR))
+%.s: %.cpp
 	$(CCC) -S $(COMPILE_CXXFLAGS) $(_VPATH_SRCS)
 
-%.s: %.cc $(call mkdir_deps,$(MDDEPDIR))
+%.s: %.cc
 	$(CCC) -S $(COMPILE_CXXFLAGS) $(_VPATH_SRCS)
 
-%.s: %.c $(call mkdir_deps,$(MDDEPDIR))
+%.s: %.c
 	$(CC) -S $(COMPILE_CFLAGS) $(_VPATH_SRCS)
 
-%.i: %.cpp $(call mkdir_deps,$(MDDEPDIR))
+%.i: %.cpp
 	$(CCC) -C -E $(COMPILE_CXXFLAGS) $(_VPATH_SRCS) > $*.i
 
-%.i: %.cc $(call mkdir_deps,$(MDDEPDIR))
+%.i: %.cc
 	$(CCC) -C -E $(COMPILE_CXXFLAGS) $(_VPATH_SRCS) > $*.i
 
-%.i: %.c $(call mkdir_deps,$(MDDEPDIR))
+%.i: %.c
 	$(CC) -C -E $(COMPILE_CFLAGS) $(_VPATH_SRCS) > $*.i
 
-%.i: %.mm $(call mkdir_deps,$(MDDEPDIR))
+%.i: %.mm
 	$(CCC) -C -E $(COMPILE_CXXFLAGS) $(COMPILE_CMMFLAGS) $(_VPATH_SRCS) > $*.i
 
 %.res: %.rc
@@ -1350,7 +1356,6 @@ endif
 # objdir/_tests/modules/. If TESTING_JS_MODULE_DIR is defined, that path
 # wlll be appended to the output directory.
 
-ifdef ENABLE_TESTS
 ifdef TESTING_JS_MODULES
 testmodulesdir = $(DEPTH)/_tests/modules/$(TESTING_JS_MODULE_DIR)
 
@@ -1362,7 +1367,6 @@ TESTING_JS_MODULES_DEST := $(testmodulesdir)
 INSTALL_TARGETS += TESTING_JS_MODULES
 endif
 
-endif
 endif
 
 ################################################################################
@@ -1477,6 +1481,9 @@ endif
 #   a previous build in the source tree) and thus neglect to create a
 #   dependency directory in the object directory, where we really need
 #   it.
+
+$(CURDIR)/$(MDDEPDIR):
+	$(MKDIR) -p $@
 
 ifneq (,$(filter-out all chrome default export realchrome tools clean clobber clobber_all distclean realclean,$(MAKECMDGOALS)))
 MDDEPEND_FILES		:= $(strip $(wildcard $(foreach file,$(OBJS) $(PROGOBJS) $(HOST_OBJS) $(HOST_PROGOBJS) $(TARGETS) $(XPIDLSRCS:.idl=.h) $(XPIDLSRCS:.idl=.xpt),$(MDDEPDIR)/$(notdir $(file)).pp) $(addprefix $(MDDEPDIR)/,$(EXTRA_MDDEPEND_FILES))))

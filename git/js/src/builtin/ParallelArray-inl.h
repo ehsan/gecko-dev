@@ -14,20 +14,6 @@
 
 namespace js {
 
-inline bool
-ParallelArrayObject::IndexInfo::inBounds() const
-{
-    JS_ASSERT(isInitialized());
-    JS_ASSERT(indices.length() <= dimensions.length());
-
-    for (uint32_t d = 0; d < indices.length(); d++) {
-        if (indices[d] >= dimensions[d])
-            return false;
-    }
-
-    return true;
-}
-
 inline uint32_t
 ParallelArrayObject::IndexInfo::scalarLengthOfDimensions()
 {

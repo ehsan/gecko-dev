@@ -7,7 +7,6 @@
 let Cu = Components.utils;
 let Ci = Components.interfaces;
 let Cc = Components.classes;
-let Cr = Components.results;
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
@@ -319,18 +318,10 @@ BrowserElementParent.prototype = {
   },
 
   _sendAsyncMsg: function(msg, data) {
-    try {
-      this._mm.sendAsyncMessage('browser-element-api:' + msg, data);
-    } catch (e) {
-      // Ignore NS_ERROR_NOT_INITIALIZED. This exception is thrown when
-      // we call _sendAsyncMsg if our frame is not in the DOM, in which case
-      // we don't have child to receive the message.
-      if (e.result == Cr.NS_ERROR_NOT_INITIALIZED) {
-        debug("Handle NS_ERROR_NOT_INITIALIZED");
-        return;
-      }
-      throw e;
-    }
+    this._frameElement.QueryInterface(Ci.nsIFrameLoaderOwner)
+                      .frameLoader
+                      .messageManager
+                      .sendAsyncMessage('browser-element-api:' + msg, data);
   },
 
   _recvHello: function(data) {

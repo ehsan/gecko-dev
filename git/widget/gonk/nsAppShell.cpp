@@ -154,7 +154,7 @@ addDOMTouch(UserInputData& data, nsTouchEvent& event, int i)
 }
 
 static nsEventStatus
-sendTouchEvent(UserInputData& data, bool* captured)
+sendTouchEvent(UserInputData& data)
 {
     uint32_t msg;
     int32_t action = data.action & AMOTION_EVENT_ACTION_MASK;
@@ -190,7 +190,7 @@ sendTouchEvent(UserInputData& data, bool* captured)
             addDOMTouch(data, event, i);
     }
 
-    return nsWindow::DispatchInputEvent(event, captured);
+    return nsWindow::DispatchInputEvent(event);
 }
 
 static nsEventStatus
@@ -435,11 +435,7 @@ GeckoInputDispatcher::dispatchOnce()
         nsEventStatus status = nsEventStatus_eIgnore;
         if ((data.action & AMOTION_EVENT_ACTION_MASK) !=
             AMOTION_EVENT_ACTION_HOVER_MOVE) {
-            bool captured;
-            status = sendTouchEvent(data, &captured);
-            if (captured) {
-                return;
-            }
+            status = sendTouchEvent(data);
         }
 
         uint32_t msg;

@@ -599,9 +599,6 @@ public:
   virtual void AddCatalogStyleSheet(nsIStyleSheet* aSheet);
   virtual void EnsureCatalogStyleSheet(const char *aStyleSheetURI);
 
-  virtual nsresult LoadAdditionalStyleSheet(additionalSheetType aType, nsIURI* aSheetURI);
-  virtual void RemoveAdditionalStyleSheet(additionalSheetType aType, nsIURI* sheetURI);
-
   virtual nsIChannel* GetChannel() const {
     return mChannel;
   }
@@ -1073,8 +1070,6 @@ protected:
                          nsCompatibility aCompatMode,
                          nsIPresShell** aInstancePtrResult);
 
-  void RemoveStyleSheetsFromStyleSets(nsCOMArray<nsIStyleSheet>& aSheets, 
-                                      nsStyleSet::sheetType aType);
   nsresult ResetStylesheetsToURI(nsIURI* aURI);
   void FillStyleSet(nsStyleSet* aStyleSet);
 
@@ -1124,7 +1119,6 @@ protected:
 
   nsCOMArray<nsIStyleSheet> mStyleSheets;
   nsCOMArray<nsIStyleSheet> mCatalogSheets;
-  nsCOMArray<nsIStyleSheet> mAdditionalSheets[2];
 
   // Array of observers
   nsTObserverArray<nsIDocumentObserver*> mObservers;

@@ -104,7 +104,6 @@ FENNEC_JAVA_FILES = \
   sqlite/MatrixBlobCursor.java \
   sqlite/SQLiteBridge.java \
   sqlite/SQLiteBridgeException.java \
-  ReaderModeUtils.java \
   RemoteTabs.java \
   RobocopAPI.java \
   SetupScreen.java \

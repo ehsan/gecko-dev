@@ -1,10 +1,6 @@
-/* Copyright (c) 2011-2012 IETF Trust, Xiph.Org Foundation, Skype Limited. All rights reserved.
+/* Copyright (c) 2011 Xiph.Org Foundation, Skype Limited
    Written by Jean-Marc Valin and Koen Vos */
 /*
-
-   This file is extracted from RFC6716. Please see that RFC for additional
-   information.
-
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions
    are met:

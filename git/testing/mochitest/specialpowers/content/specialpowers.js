@@ -47,9 +47,11 @@ SpecialPowers.prototype._messageReceived = function(aMessage) {
   switch (aMessage.name) {
     case "SPProcessCrashService":
       if (aMessage.json.type == "crash-observed") {
-        for (let e of aMessage.json.dumpIDs) {
-          this._encounteredCrashDumpFiles.push(e.id + "." + e.extension);
-        }
+        var self = this;
+        aMessage.json.dumpIDs.forEach(function(id) {
+          self._encounteredCrashDumpFiles.push(id + ".dmp");
+          self._encounteredCrashDumpFiles.push(id + ".extra");
+        });
       }
       break;
 

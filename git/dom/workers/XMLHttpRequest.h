@@ -113,7 +113,7 @@ public:
 #undef IMPL_GETTER_AND_SETTER
 
   uint16_t
-  ReadyState() const
+  GetReadyState() const
   {
     return mStateData.mReadyState;
   }
@@ -128,7 +128,7 @@ public:
                    ErrorResult& aRv);
 
   uint32_t
-  Timeout() const
+  GetTimeout() const
   {
     return mTimeout;
   }
@@ -137,7 +137,7 @@ public:
   SetTimeout(uint32_t aTimeout, ErrorResult& aRv);
 
   bool
-  WithCredentials() const
+  GetWithCredentials() const
   {
     return mWithCredentials;
   }
@@ -146,7 +146,7 @@ public:
   SetWithCredentials(bool aWithCredentials, ErrorResult& aRv);
 
   bool
-  Multipart() const
+  GetMultipart() const
   {
     return mMultipart;
   }
@@ -155,7 +155,7 @@ public:
   SetMultipart(bool aMultipart, ErrorResult& aRv);
 
   bool
-  MozBackgroundRequest() const
+  GetMozBackgroundRequest() const
   {
     return mBackgroundRequest;
   }
@@ -210,7 +210,7 @@ public:
   OverrideMimeType(const nsAString& aMimeType, ErrorResult& aRv);
 
   XMLHttpRequestResponseType
-  ResponseType() const
+  GetResponseType() const
   {
     return mResponseType;
   }
@@ -262,12 +262,12 @@ public:
     mStateData.mResponse = JSVAL_NULL;
   }
 
-  bool MozAnon() {
+  bool GetMozAnon() {
     // TODO: bug 761227
     return false;
   }
 
-  bool MozSystem() {
+  bool GetMozSystem() {
     // TODO: bug 761227
     return false;
   }

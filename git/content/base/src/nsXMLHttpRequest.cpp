@@ -958,7 +958,7 @@ nsXMLHttpRequest::StaticAssertions()
 /* attribute AString responseType; */
 NS_IMETHODIMP nsXMLHttpRequest::SetResponseType(const nsAString& aResponseType)
 {
-  nsXMLHttpRequest::ResponseTypeEnum responseType;
+  nsXMLHttpRequest::ResponseType responseType;
   if (aResponseType.IsEmpty()) {
     responseType = XML_HTTP_RESPONSE_TYPE_DEFAULT;
   } else if (aResponseType.EqualsLiteral("arraybuffer")) {
@@ -990,11 +990,11 @@ void
 nsXMLHttpRequest::SetResponseType(XMLHttpRequestResponseType aType,
                                   ErrorResult& aRv)
 {
-  SetResponseType(ResponseTypeEnum(aType), aRv);
+  SetResponseType(ResponseType(aType), aRv);
 }
 
 void
-nsXMLHttpRequest::SetResponseType(nsXMLHttpRequest::ResponseTypeEnum aResponseType,
+nsXMLHttpRequest::SetResponseType(nsXMLHttpRequest::ResponseType aResponseType,
                                   ErrorResult& aRv)
 {
   // If the state is not OPENED or HEADERS_RECEIVED raise an
@@ -1156,12 +1156,12 @@ nsXMLHttpRequest::GetResponse(JSContext* aCx, ErrorResult& aRv)
 NS_IMETHODIMP
 nsXMLHttpRequest::GetStatus(uint32_t *aStatus)
 {
-  *aStatus = Status();
+  *aStatus = GetStatus();
   return NS_OK;
 }
 
 uint32_t
-nsXMLHttpRequest::Status()
+nsXMLHttpRequest::GetStatus()
 {
   if (mState & XML_HTTP_REQUEST_USE_XSITE_AC) {
     // Make sure we don't leak status information from denied cross-site
@@ -3176,7 +3176,7 @@ nsXMLHttpRequest::SetRequestHeader(const nsACString& header,
 NS_IMETHODIMP
 nsXMLHttpRequest::GetTimeout(uint32_t *aTimeout)
 {
-  *aTimeout = Timeout();
+  *aTimeout = GetTimeout();
   return NS_OK;
 }
 
@@ -3240,12 +3240,12 @@ nsXMLHttpRequest::StartTimeoutTimer()
 NS_IMETHODIMP
 nsXMLHttpRequest::GetReadyState(uint16_t *aState)
 {
-  *aState = ReadyState();
+  *aState = GetReadyState();
   return NS_OK;
 }
 
 uint16_t
-nsXMLHttpRequest::ReadyState()
+nsXMLHttpRequest::GetReadyState()
 {
   // Translate some of our internal states for external consumers
   if (mState & XML_HTTP_REQUEST_UNSENT) {
@@ -3276,12 +3276,12 @@ nsXMLHttpRequest::SlowOverrideMimeType(const nsAString& aMimeType)
 NS_IMETHODIMP
 nsXMLHttpRequest::GetMultipart(bool *_retval)
 {
-  *_retval = Multipart();
+  *_retval = GetMultipart();
   return NS_OK;
 }
 
 bool
-nsXMLHttpRequest::Multipart()
+nsXMLHttpRequest::GetMultipart()
 {
   return !!(mState & XML_HTTP_REQUEST_MULTIPART);
 }
@@ -3314,12 +3314,12 @@ nsXMLHttpRequest::SetMultipart(bool aMultipart, nsresult& aRv)
 NS_IMETHODIMP
 nsXMLHttpRequest::GetMozBackgroundRequest(bool *_retval)
 {
-  *_retval = MozBackgroundRequest();
+  *_retval = GetMozBackgroundRequest();
   return NS_OK;
 }
 
 bool
-nsXMLHttpRequest::MozBackgroundRequest()
+nsXMLHttpRequest::GetMozBackgroundRequest()
 {
   return !!(mState & XML_HTTP_REQUEST_BACKGROUND);
 }
@@ -3363,12 +3363,12 @@ nsXMLHttpRequest::SetMozBackgroundRequest(bool aMozBackgroundRequest, nsresult& 
 NS_IMETHODIMP
 nsXMLHttpRequest::GetWithCredentials(bool *_retval)
 {
-  *_retval = WithCredentials();
+  *_retval = GetWithCredentials();
   return NS_OK;
 }
 
 bool
-nsXMLHttpRequest::WithCredentials()
+nsXMLHttpRequest::GetWithCredentials()
 {
   return !!(mState & XML_HTTP_REQUEST_AC_WITH_CREDENTIALS);
 }
@@ -3776,7 +3776,7 @@ nsXMLHttpRequest::GetInterface(JSContext* aCx, nsIJSIID* aIID, ErrorResult& aRv)
 }
 
 nsXMLHttpRequestUpload*
-nsXMLHttpRequest::Upload()
+nsXMLHttpRequest::GetUpload()
 {
   if (!mUpload) {
     mUpload = new nsXMLHttpRequestUpload(this);
@@ -3787,13 +3787,13 @@ nsXMLHttpRequest::Upload()
 NS_IMETHODIMP
 nsXMLHttpRequest::GetUpload(nsIXMLHttpRequestUpload** aUpload)
 {
-  nsRefPtr<nsXMLHttpRequestUpload> upload = Upload();
+  nsRefPtr<nsXMLHttpRequestUpload> upload = GetUpload();
   upload.forget(aUpload);
   return NS_OK;
 }
 
 bool
-nsXMLHttpRequest::MozAnon()
+nsXMLHttpRequest::GetMozAnon()
 {
   return mIsAnon;
 }
@@ -3801,12 +3801,12 @@ nsXMLHttpRequest::MozAnon()
 NS_IMETHODIMP
 nsXMLHttpRequest::GetMozAnon(bool* aAnon)
 {
-  *aAnon = MozAnon();
+  *aAnon = GetMozAnon();
   return NS_OK;
 }
 
 bool
-nsXMLHttpRequest::MozSystem()
+nsXMLHttpRequest::GetMozSystem()
 {
   return IsSystemXHR();
 }
@@ -3814,7 +3814,7 @@ nsXMLHttpRequest::MozSystem()
 NS_IMETHODIMP
 nsXMLHttpRequest::GetMozSystem(bool* aSystem)
 {
-  *aSystem = MozSystem();
+  *aSystem = GetMozSystem();
   return NS_OK;
 }
 
