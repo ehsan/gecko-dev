@@ -344,7 +344,6 @@ class WebGLContext :
 {
     friend class WebGLMemoryReporter;
     friend class WebGLExtensionLoseContext;
-    friend class WebGLContextUserData;
 
 public:
     WebGLContext();
@@ -580,7 +579,7 @@ protected:
                                 int jsArrayType,
                                 int srcFormat, bool srcPremultiplied);
     nsresult ReadPixels_base(WebGLint x, WebGLint y, WebGLsizei width, WebGLsizei height,
-                             WebGLenum format, WebGLenum type, JSObject* pixels);
+                             WebGLenum format, WebGLenum type, void *data, PRUint32 byteLength);
     nsresult TexParameter_base(WebGLenum target, WebGLenum pname,
                                WebGLint *intParamPtr, WebGLfloat *floatParamPtr);
 

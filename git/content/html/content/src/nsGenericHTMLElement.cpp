@@ -3403,8 +3403,7 @@ nsresult nsGenericHTMLElement::MozRequestFullScreen()
   // This stops the full-screen from being abused similar to the popups of old,
   // and it also makes it harder for bad guys' script to go full-screen and
   // spoof the browser chrome/window and phish logins etc.
-  if (!nsContentUtils::IsRequestFullScreenAllowed() ||
-      !IsInDoc()) {
+  if (!nsContentUtils::IsRequestFullScreenAllowed()) {
     return NS_OK;
   }
 
@@ -3419,7 +3418,11 @@ nsresult nsGenericHTMLElement::MozRequestFullScreen()
 
   doc->RequestFullScreen(this);
 #ifdef DEBUG
+  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(doc->GetWindow());
+  NS_ENSURE_STATE(window);
   bool fullscreen;
+  window->GetFullScreen(&fullscreen);
+  NS_ASSERTION(fullscreen, "Windows should report fullscreen");
   domDocument->GetMozFullScreen(&fullscreen);
   NS_ASSERTION(fullscreen, "Document should report fullscreen");
   NS_ASSERTION(doc->IsFullScreenDoc(), "Should be in full screen state!");

@@ -645,7 +645,6 @@ LayerManagerOGL::FPSState::DrawFPS(GLContext* context, CopyProgram* copyprog)
   context->fEnable(LOCAL_GL_BLEND);
   context->fBlendFunc(LOCAL_GL_ONE, LOCAL_GL_SRC_COLOR);
 
-  context->fActiveTexture(LOCAL_GL_TEXTURE0);
   context->fBindTexture(LOCAL_GL_TEXTURE_2D, texture);
 
   copyprog->Activate();
