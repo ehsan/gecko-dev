@@ -22,13 +22,13 @@
  * - memory after length and up to the end of the corresponding page is nulled
  *   out.
  */
-class Mappable: public mozilla::RefCounted<Mappable>
+class Mappable
 {
 public:
   virtual ~Mappable() { }
 
-  virtual MemoryRange mmap(const void *addr, size_t length, int prot, int flags,
-                           off_t offset) = 0;
+  virtual void *mmap(const void *addr, size_t length, int prot, int flags,
+                     off_t offset) = 0;
 
   enum Kind {
     MAPPABLE_FILE,
@@ -92,7 +92,7 @@ public:
   static Mappable *Create(const char *path);
 
   /* Inherited from Mappable */
-  virtual MemoryRange mmap(const void *addr, size_t length, int prot, int flags, off_t offset);
+  virtual void *mmap(const void *addr, size_t length, int prot, int flags, off_t offset);
   virtual void finalize();
   virtual size_t GetLength() const;
 
@@ -119,9 +119,6 @@ public:
    * argument is used to create the cache file in the cache directory.
    */
   static Mappable *Create(const char *name, Zip *zip, Zip::Stream *stream);
-
-  /* Override finalize from MappableFile */
-  virtual void finalize() {}
 
   virtual Kind GetKind() const { return MAPPABLE_EXTRACT_FILE; };
 private:
@@ -170,7 +167,7 @@ public:
   static Mappable *Create(const char *name, Zip *zip, Zip::Stream *stream);
 
   /* Inherited from Mappable */
-  virtual MemoryRange mmap(const void *addr, size_t length, int prot, int flags, off_t offset);
+  virtual void *mmap(const void *addr, size_t length, int prot, int flags, off_t offset);
   virtual void finalize();
   virtual size_t GetLength() const;
 
@@ -207,7 +204,7 @@ public:
                                          Zip::Stream *stream);
 
   /* Inherited from Mappable */
-  virtual MemoryRange mmap(const void *addr, size_t length, int prot, int flags, off_t offset);
+  virtual void *mmap(const void *addr, size_t length, int prot, int flags, off_t offset);
   virtual void munmap(void *addr, size_t length);
   virtual void finalize();
   virtual bool ensure(const void *addr);

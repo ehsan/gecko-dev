@@ -6,9 +6,6 @@
 
 /* Inline members for javascript type inference. */
 
-#ifndef jsinferinlines_h
-#define jsinferinlines_h
-
 #include "mozilla/PodOperations.h"
 
 #include "jsarray.h"
@@ -29,9 +26,12 @@
 #include "vm/StringObject.h"
 
 #include "jsanalyzeinlines.h"
-#include "jscntxtinlines.h"
 
 #include "gc/Barrier-inl.h"
+#include "vm/Stack-inl.h"
+
+#ifndef jsinferinlines_h
+#define jsinferinlines_h
 
 inline bool
 js::TaggedProto::isObject() const
@@ -925,7 +925,7 @@ SetInitializerObjectType(JSContext *cx, HandleScript script, jsbytecode *pc, Han
         types::TypeObject *type = TypeScript::InitObject(cx, script, pc, key);
         if (!type)
             return false;
-        obj->uninlinedSetType(type);
+        obj->setType(type);
     }
 
     return true;
@@ -1497,7 +1497,7 @@ TypeSet::getTypeOrSingleObject(JSContext *cx, unsigned i) const
         JSObject *singleton = getSingleObject(i);
         if (!singleton)
             return NULL;
-        type = singleton->uninlinedGetType(cx);
+        type = singleton->getType(cx);
         if (!type)
             cx->compartment()->types.setPendingNukeTypes(cx);
     }
@@ -1653,6 +1653,11 @@ TypeObject::writeBarrierPre(TypeObject *type)
 }
 
 inline void
+TypeObject::writeBarrierPost(TypeObject *type, void *addr)
+{
+}
+
+inline void
 TypeObject::readBarrier(TypeObject *type)
 {
 #ifdef JSGC_INCREMENTAL
@@ -1678,6 +1683,11 @@ TypeNewScript::writeBarrierPre(TypeNewScript *newScript)
         MarkShape(zone->barrierTracer(), &newScript->shape, "write barrier");
     }
 #endif
+}
+
+inline void
+TypeNewScript::writeBarrierPost(TypeNewScript *newScript, void *addr)
+{
 }
 
 inline

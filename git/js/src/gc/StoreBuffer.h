@@ -217,7 +217,7 @@ class StoreBuffer
                 return;
 
             /* Check for overflow. */
-            if (unsigned(top - pos) < unsigned(sizeof(unsigned) + sizeof(T))) {
+            if (top - pos < (unsigned)(sizeof(unsigned) + sizeof(T))) {
                 owner->setOverflowed();
                 return;
             }

@@ -21,7 +21,6 @@
 #include "builtin/RegExp.h"
 
 #include "jscompartmentinlines.h"
-#include "jsfuninlines.h"
 #include "jsobjinlines.h"
 
 #include "vm/GlobalObject-inl.h"

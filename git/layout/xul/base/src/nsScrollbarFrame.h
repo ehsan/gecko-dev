@@ -81,8 +81,6 @@ public:
    */
   virtual bool DoesClipChildren() MOZ_OVERRIDE { return true; }
 
-  NS_IMETHOD GetMargin(nsMargin& aMargin) MOZ_OVERRIDE;
-
 private:
   nsCOMPtr<nsIContent> mScrollbarMediator;
 }; // class nsScrollbarFrame

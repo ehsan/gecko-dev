@@ -13,7 +13,6 @@
 
 #include "vm/Stack-inl.h"
 
-#include "jsfuninlines.h"
 #include "jsopcodeinlines.h"
 
 using namespace js;

@@ -120,8 +120,9 @@ function test() {
 /////////////////////////////////////
 // shared test setup
 function resetDownloads(){
-  // clear out existing and any pending downloads in the db
-  // returns a promise
+  var defd = Promise.defer();
+  // do the reset, resolve the defd when done
+    // TODO (sfoster) clear out downloads db, reset relevant state
 
   let promisedResult = getPromisedDbResult(
     "DELETE FROM moz_downloads"
@@ -189,7 +190,7 @@ function addDownloadRow(aDataRow) {
 
 function gen_addDownloadRows(aDataRows){
   if (!aDataRows.length) {
-    yield null;
+    yield;
   }
 
   try {
@@ -237,17 +238,17 @@ gTests.push({
 
     yield resetDownloads();
 
-    let downloadsList = document.getElementById("downloads-list");
+    let downloadslist = document.getElementById("downloads-list");
 
     // wait for the richgrid to announce its readiness
     // .. fail a test if the timeout is exceeded
-    let isReady = waitForEvent(downloadsList, "DownloadsReady", 2000);
+    let isReady = waitForEvent(downloadslist, "DownloadsReady", 2000);
     // tickle the view to cause it to refresh itself
     DownloadsPanelView._view.getDownloads();
 
     yield isReady;
 
-    let count = downloadsList.children.length;
+    let count = downloadslist.children.length;
     is(count, 0, "Zero items in grid view with empty downloads db");
   }
 });
@@ -271,16 +272,11 @@ gTests.push({
       { endTime: 1180493839859232, state: nsIDM.DOWNLOAD_CANCELED },
       { endTime: 1180493839859231, state: nsIDM.DOWNLOAD_BLOCKED_PARENTAL },
       { endTime: 1180493839859230, state: nsIDM.DOWNLOAD_DIRTY },
-      { endTime: 1180493839859229, state: nsIDM.DOWNLOAD_BLOCKED_POLICY }
+      { endTime: 1180493839859229, state: nsIDM.DOWNLOAD_BLOCKED_POLICY },
     ];
 
     yield resetDownloads();
-
-    // Test item data and count.  This also tests the ordering of the display.
-    let downloadsList = document.getElementById("downloads-list");
-    // wait for the richgrid to announce its readiness
-    // .. fail a test if the timeout is exceeded
-    let isReady = waitForEvent(downloadsList, "DownloadsReady", 2000);
+    DownloadsPanelView._view.getDownloads();
 
     // NB: beware display limits which might cause mismatch btw. rendered item and db rows
 
@@ -288,6 +284,12 @@ gTests.push({
       // Populate the downloads database with the data required by this test.
       // we're going to add stuff to the downloads db.
       yield spawn( gen_addDownloadRows( DownloadData ) );
+
+      // Test item data and count.  This also tests the ordering of the display.
+      let downloadslist = document.getElementById("downloads-list");
+      // wait for the richgrid to announce its readiness
+      // .. fail a test if the timeout is exceeded
+      let isReady = waitForEvent(downloadslist, "DownloadsReady", 2000);
 
       // tickle the view to cause it to refresh itself
       DownloadsPanelView._view.getDownloads();
@@ -298,11 +300,11 @@ gTests.push({
         ok(false, "DownloadsReady event never fired");
       }
 
-      is(downloadsList.children.length, DownloadData.length,
+      is(downloadslist.children.length, DownloadData.length,
          "There is the correct number of richlistitems");
 
-      for (let i = 0; i < downloadsList.children.length; i++) {
-        let element = downloadsList.children[i];
+      for (let i = 0; i < downloadslist.children.length; i++) {
+        let element = downloadslist.children[i];
         let id = element.getAttribute("downloadId");
         let dataItem = Downloads.manager.getDownload(id); // nsIDownload object
 
@@ -363,10 +365,10 @@ gTests.push({
       yield spawn( gen_addDownloadRows( DownloadData ) );
 
       // Test item data and count.  This also tests the ordering of the display.
-      let downloadsList = document.getElementById("downloads-list");
+      let downloadslist = document.getElementById("downloads-list");
       // wait for the richgrid to announce its readiness
       // .. fail a test if the timeout is exceeded
-      let isReady = waitForEvent(downloadsList, "DownloadsReady", 2000);
+      let isReady = waitForEvent(downloadslist, "DownloadsReady", 2000);
       // tickle the view to cause it to refresh itself
       DownloadsPanelView._view.getDownloads();
 
@@ -393,7 +395,7 @@ gTests.push({
       is(downloadRows.length, 3, "Correct number of downloads in the db before removal");
 
       // remove the first one
-      let itemNode = downloadsList.children[0];
+      let itemNode = downloadslist.children[0];
       let id = itemNode.getAttribute("downloadId");
       // check the file exists
       let download = Downloads.manager.getDownload( id );
@@ -419,7 +421,7 @@ gTests.push({
 
       is(downloadRows.length, 2, "Correct number of downloads in the db after removal");
 
-      is(2, downloadsList.children.length,
+      is(2, downloadslist.children.length,
          "Removing a download updates the items list");
       ok(file && file.exists(), "File still exists after download removal");
 

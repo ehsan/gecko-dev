@@ -22,8 +22,6 @@
 #include "ion/SnapshotReader.h"
 #include "ion/VMFunctions.h"
 
-#include "jsfuninlines.h"
-
 #include "ion/IonFrameIterator-inl.h"
 #include "ion/IonFrames-inl.h"
 #include "ion/PcScriptCache-inl.h"

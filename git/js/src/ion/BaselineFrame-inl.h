@@ -9,8 +9,6 @@
 
 #ifdef JS_ION
 
-#include "ion/BaselineFrame.h"
-
 #include "jscntxt.h"
 #include "jscompartment.h"
 

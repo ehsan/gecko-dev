@@ -657,12 +657,9 @@ class MOZ_STACK_CLASS Rooted : public js::RootedBase<T>
     Rooted<void*> **stack, *prev;
 #endif
 
-#if defined(DEBUG) && defined(JS_GC_ZEAL) && defined(JSGC_ROOT_ANALYSIS) && !defined(JS_THREADSAFE)
+#ifdef JSGC_ROOT_ANALYSIS
     /* Has the rooting analysis ever scanned this Rooted's stack location? */
     friend void JS::CheckStackRoots(JSContext*);
-#endif
-
-#ifdef JSGC_ROOT_ANALYSIS
     bool scanned;
 #endif
 

@@ -926,12 +926,8 @@ GLContext::UpdatePixelFormat()
     MOZ_ASSERT(caps.color == !!format.blue);
 
     MOZ_ASSERT(caps.alpha == !!format.alpha);
-
-    // These we either must have if they're requested, or
-    // we can have if they're not.
-    MOZ_ASSERT(caps.depth == !!format.depth || !caps.depth);
-    MOZ_ASSERT(caps.stencil == !!format.stencil || !caps.stencil);
-
+    MOZ_ASSERT(caps.depth == !!format.depth);
+    MOZ_ASSERT(caps.stencil == !!format.stencil);
     MOZ_ASSERT(caps.antialias == (format.samples > 1));
 #endif
     mPixelFormat = new PixelBufferFormat(format);

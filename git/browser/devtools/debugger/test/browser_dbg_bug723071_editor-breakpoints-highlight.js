@@ -26,10 +26,7 @@ function test()
     gSources.preferredSource = EXAMPLE_URL + "test-script-switching-02.js";
 
     gDebugger.addEventListener("Debugger:SourceShown", function _onEvent(aEvent) {
-      let { url, loaded, text } = aEvent.detail;
-      info("Shown source: " + url + ", loaded: " + loaded + ", text:\n" + text);
-      info("Shown label: " + gSources.selectedLabel);
-      info("All labels:" + gSources.labels);
+      let url = aEvent.detail.url;
       if (url.indexOf("-02") != -1) {
         gDebugger.removeEventListener(aEvent.type, _onEvent);
         performTest();
@@ -40,15 +37,15 @@ function test()
   function performTest()
   {
     initialChecks();
-    gPane.addBreakpoint({url: gSources.orderedItems[0].value, line: 5}, function(cl, err) {
+    gPane.addBreakpoint({url: gSources.values[0], line: 5}, function(cl, err) {
       initialChecks();
-      gPane.addBreakpoint({url: gSources.orderedItems[1].value, line: 6}, function(cl, err) {
+      gPane.addBreakpoint({url: gSources.values[1], line: 6}, function(cl, err) {
         initialChecks();
-        gPane.addBreakpoint({url: gSources.orderedItems[1].value, line: 7}, function(cl, err) {
+        gPane.addBreakpoint({url: gSources.values[1], line: 7}, function(cl, err) {
           initialChecks();
-          gPane.addBreakpoint({url: gSources.orderedItems[1].value, line: 8}, function(cl, err) {
+          gPane.addBreakpoint({url: gSources.values[1], line: 8}, function(cl, err) {
             initialChecks();
-            gPane.addBreakpoint({url: gSources.orderedItems[1].value, line: 9}, function(cl, err) {
+            gPane.addBreakpoint({url: gSources.values[1], line: 9}, function(cl, err) {
               initialChecks();
               testHighlight1();
             });
@@ -59,7 +56,7 @@ function test()
   }
 
   function initialChecks() {
-    is(gSources.selectedValue, gSources.orderedItems[1].value,
+    is(gSources.selectedValue, gSources.values[1],
       "The currently selected source is incorrect (0).");
     is(gEditor.getCaretPosition().line, 0,
       "The editor caret line was incorrect (0).");
@@ -68,10 +65,10 @@ function test()
   }
 
   function testHighlight1() {
-    gSources.highlightBreakpoint(gSources.orderedItems[0].value, 5);
-    checkHighlight(gSources.orderedItems[0].value, 5);
+    gSources.highlightBreakpoint(gSources.values[0], 5);
+    checkHighlight(gSources.values[0], 5);
 
-    is(gSources.selectedValue, gSources.orderedItems[1].value,
+    is(gSources.selectedValue, gSources.values[1],
       "The currently selected source is incorrect (1).");
 
     is(gEditor.getCaretPosition().line, 0,
@@ -90,10 +87,10 @@ function test()
   }
 
   function testHighlight2() {
-    gSources.highlightBreakpoint(gSources.orderedItems[1].value, 6);
-    checkHighlight(gSources.orderedItems[1].value, 6);
+    gSources.highlightBreakpoint(gSources.values[1], 6);
+    checkHighlight(gSources.values[1], 6);
 
-    is(gSources.selectedValue, gSources.orderedItems[0].value,
+    is(gSources.selectedValue, gSources.values[0],
       "The currently selected source is incorrect (2).");
 
     is(gEditor.getCaretPosition().line, 4,
@@ -112,10 +109,10 @@ function test()
   }
 
   function testHighlight3() {
-    gSources.highlightBreakpoint(gSources.orderedItems[1].value, 7);
-    checkHighlight(gSources.orderedItems[1].value, 7);
+    gSources.highlightBreakpoint(gSources.values[1], 7);
+    checkHighlight(gSources.values[1], 7);
 
-    is(gSources.selectedValue, gSources.orderedItems[1].value,
+    is(gSources.selectedValue, gSources.values[1],
       "The currently selected source is incorrect (3).");
 
     is(gEditor.getCaretPosition().line, 5,
@@ -134,10 +131,10 @@ function test()
   }
 
   function testHighlight4() {
-    gSources.highlightBreakpoint(gSources.orderedItems[1].value, 8);
-    checkHighlight(gSources.orderedItems[1].value, 8);
+    gSources.highlightBreakpoint(gSources.values[1], 8);
+    checkHighlight(gSources.values[1], 8);
 
-    is(gSources.selectedValue, gSources.orderedItems[1].value,
+    is(gSources.selectedValue, gSources.values[1],
       "The currently selected source is incorrect (4).");
 
     is(gEditor.getCaretPosition().line, 6,
@@ -156,10 +153,10 @@ function test()
   }
 
   function testHighlight5() {
-    gSources.highlightBreakpoint(gSources.orderedItems[1].value, 9);
-    checkHighlight(gSources.orderedItems[1].value, 9);
+    gSources.highlightBreakpoint(gSources.values[1], 9);
+    checkHighlight(gSources.values[1], 9);
 
-    is(gSources.selectedValue, gSources.orderedItems[1].value,
+    is(gSources.selectedValue, gSources.values[1],
       "The currently selected source is incorrect (5).");
 
     is(gEditor.getCaretPosition().line, 7,

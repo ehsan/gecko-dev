@@ -139,6 +139,7 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
                      handleItemClick(parent, view, position, id);
                 }
             });
+            list.setOnKeyListener(GamepadUtils.getListItemClickDispatcher());
 
             AwesomeBarCursorAdapter adapter = getCursorAdapter();
             list.setAdapter(adapter);

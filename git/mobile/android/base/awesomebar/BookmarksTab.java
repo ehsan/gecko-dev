@@ -76,6 +76,7 @@ public class BookmarksTab extends AwesomeBarTab {
                     handleItemClick(parent, view, position, id);
                 }
             });
+            list.setOnKeyListener(GamepadUtils.getListItemClickDispatcher());
 
             if (mShowReadingList) {
                 String title = getResources().getString(R.string.bookmarks_folder_reading_list);

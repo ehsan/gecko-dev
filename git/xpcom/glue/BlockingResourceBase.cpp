@@ -72,6 +72,9 @@ BlockingResourceBase::BlockingResourceBase(
         NS_RUNTIMEABORT("can't initialize blocking resource static members");
 
     mDDEntry = new BlockingResourceBase::DeadlockDetectorEntry(aName, aType);
+    if (!mDDEntry)
+        NS_RUNTIMEABORT("can't allocated deadlock detector entry");
+
     mChainPrev = 0;
     sDeadlockDetector->Add(mDDEntry);
 }
