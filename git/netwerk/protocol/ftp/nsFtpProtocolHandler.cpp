@@ -31,7 +31,6 @@ using namespace mozilla::net;
 #include "nsIObserverService.h"
 #include "nsEscape.h"
 #include "nsAlgorithm.h"
-#include "nsICacheSession.h"
 
 //-----------------------------------------------------------------------------
 
@@ -207,7 +206,7 @@ nsFtpProtocolHandler::NewChannel2(nsIURI* url,
                                   nsILoadInfo* aLoadInfo,
                                   nsIChannel** result)
 {
-    return NewProxiedChannel(url, nullptr, 0, nullptr, result);
+    return NewProxiedChannel2(url, nullptr, 0, nullptr, aLoadInfo, result);
 }
 
 NS_IMETHODIMP
@@ -234,7 +233,13 @@ nsFtpProtocolHandler::NewProxiedChannel2(nsIURI* uri, nsIProxyInfo* proxyInfo,
     if (NS_FAILED(rv)) {
         return rv;
     }
-    
+
+    // set the loadInfo on the new channel
+    rv = channel->SetLoadInfo(aLoadInfo);
+    if (NS_FAILED(rv)) {
+        return rv;
+    }
+
     channel.forget(result);
     return rv;
 }

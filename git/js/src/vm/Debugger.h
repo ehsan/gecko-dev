@@ -22,24 +22,27 @@
 #include "vm/GlobalObject.h"
 #include "vm/SavedStacks.h"
 
-typedef enum JSTrapStatus {
+enum JSTrapStatus {
     JSTRAP_ERROR,
     JSTRAP_CONTINUE,
     JSTRAP_RETURN,
     JSTRAP_THROW,
     JSTRAP_LIMIT
-} JSTrapStatus;
+};
 
 namespace js {
 
 class Breakpoint;
 class DebuggerMemory;
 
+typedef HashSet<ReadBarrieredGlobalObject,
+                DefaultHasher<ReadBarrieredGlobalObject>,
+                SystemAllocPolicy> WeakGlobalObjectSet;
+
 /*
- * A weakmap that supports the keys being in different compartments to the
- * values, although all values must be in the same compartment.
- *
- * The Key and Value classes must support the compartment() method.
+ * A weakmap from GC thing keys to JSObject values that supports the keys being
+ * in different compartments to the values. All values must be in the same
+ * compartment.
  *
  * The purpose of this is to allow the garbage collector to easily find edges
  * from debugee object compartments to debugger compartments when calculating
@@ -55,10 +58,13 @@ class DebuggerMemory;
  * debugger compartments. If it is false, we assert that such entries are never
  * created.
  */
-template <class Key, class Value, bool InvisibleKeysOk=false>
-class DebuggerWeakMap : private WeakMap<Key, Value, DefaultHasher<Key> >
+template <class UnbarrieredKey, bool InvisibleKeysOk=false>
+class DebuggerWeakMap : private WeakMap<PreBarriered<UnbarrieredKey>, RelocatablePtrObject>
 {
   private:
+    typedef PreBarriered<UnbarrieredKey> Key;
+    typedef RelocatablePtrObject Value;
+
     typedef HashMap<JS::Zone *,
                     uintptr_t,
                     DefaultHasher<JS::Zone *>,
@@ -112,8 +118,10 @@ class DebuggerWeakMap : private WeakMap<Key, Value, DefaultHasher<Key> >
     }
 
   public:
-    void markKeys(JSTracer *tracer) {
+    template <void (traceValueEdges)(JSTracer *, JSObject *)>
+    void markCrossCompartmentEdges(JSTracer *tracer) {
         for (Enum e(*static_cast<Base *>(this)); !e.empty(); e.popFront()) {
+            traceValueEdges(tracer, e.front().value());
             Key key = e.front().key();
             gc::Mark(tracer, &key, "Debugger WeakMap key");
             if (key != e.front().key())
@@ -124,8 +132,8 @@ class DebuggerWeakMap : private WeakMap<Key, Value, DefaultHasher<Key> >
 
     bool hasKeyInZone(JS::Zone *zone) {
         CountMap::Ptr p = zoneCounts.lookup(zone);
-        MOZ_ASSERT_IF(p, p->value() > 0);
-        return p;
+        MOZ_ASSERT_IF(p.found(), p->value() > 0);
+        return p.found();
     }
 
   private:
@@ -228,9 +236,13 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
         Observing = 1
     };
 
+    // Return true if the given compartment is a debuggee of this debugger,
+    // false otherwise.
+    bool isDebuggee(const JSCompartment *compartment) const;
+
   private:
     HeapPtrNativeObject object;         /* The Debugger object. Strong reference. */
-    GlobalObjectSet debuggees;          /* Debuggee globals. Cross-compartment weak references. */
+    WeakGlobalObjectSet debuggees;      /* Debuggee globals. Cross-compartment weak references. */
     js::HeapPtrObject uncaughtExceptionHook; /* Strong reference. */
     bool enabled;
     JSCList breakpoints;                /* Circular list of all js::Breakpoints in this debugger */
@@ -245,12 +257,17 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
     };
     typedef mozilla::LinkedList<AllocationSite> AllocationSiteList;
 
+    bool allowUnobservedAsmJS;
+
     bool trackingAllocationSites;
     double allocationSamplingProbability;
     AllocationSiteList allocationsLog;
     size_t allocationsLogLength;
     size_t maxAllocationsLogLength;
+    bool allocationsLogOverflowed;
+
     static const size_t DEFAULT_MAX_ALLOCATIONS_LOG_LENGTH = 5000;
+
     bool appendAllocationSite(JSContext *cx, HandleSavedFrame frame, int64_t when);
     void emptyAllocationsLog();
 
@@ -282,26 +299,38 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
     FrameMap frames;
 
     /* An ephemeral map from JSScript* to Debugger.Script instances. */
-    typedef DebuggerWeakMap<PreBarrieredScript, RelocatablePtrObject> ScriptWeakMap;
+    typedef DebuggerWeakMap<JSScript*> ScriptWeakMap;
     ScriptWeakMap scripts;
 
     /* The map from debuggee source script objects to their Debugger.Source instances. */
-    typedef DebuggerWeakMap<PreBarrieredObject, RelocatablePtrObject, true> SourceWeakMap;
+    typedef DebuggerWeakMap<JSObject*, true> SourceWeakMap;
     SourceWeakMap sources;
 
     /* The map from debuggee objects to their Debugger.Object instances. */
-    typedef DebuggerWeakMap<PreBarrieredObject, RelocatablePtrObject> ObjectWeakMap;
+    typedef DebuggerWeakMap<JSObject*> ObjectWeakMap;
     ObjectWeakMap objects;
 
     /* The map from debuggee Envs to Debugger.Environment instances. */
     ObjectWeakMap environments;
+
+    /*
+     * Keep track of tracelogger last drained identifiers to know if there are
+     * lost events.
+     */
+#ifdef NIGHTLY_BUILD
+    uint32_t traceLoggerLastDrainedId;
+    uint32_t traceLoggerLastDrainedIteration;
+#endif
+    uint32_t traceLoggerScriptedCallsLastDrainedId;
+    uint32_t traceLoggerScriptedCallsLastDrainedIteration;
 
     class FrameRange;
     class ScriptQuery;
     class ObjectQuery;
 
     bool addDebuggeeGlobal(JSContext *cx, Handle<GlobalObject*> obj);
-    void removeDebuggeeGlobal(FreeOp *fop, GlobalObject *global, GlobalObjectSet::Enum *debugEnum);
+    void removeDebuggeeGlobal(FreeOp *fop, GlobalObject *global,
+                              WeakGlobalObjectSet::Enum *debugEnum);
 
     /*
      * Cope with an error or exception in a debugger hook.
@@ -356,7 +385,7 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
     static void traceObject(JSTracer *trc, JSObject *obj);
     void trace(JSTracer *trc);
     static void finalize(FreeOp *fop, JSObject *obj);
-    void markKeysInCompartment(JSTracer *tracer);
+    void markCrossCompartmentEdges(JSTracer *tracer);
 
     static const Class jsclass;
 
@@ -381,6 +410,8 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
     static bool setOnPromiseSettled(JSContext *cx, unsigned argc, Value *vp);
     static bool getUncaughtExceptionHook(JSContext *cx, unsigned argc, Value *vp);
     static bool setUncaughtExceptionHook(JSContext *cx, unsigned argc, Value *vp);
+    static bool getAllowUnobservedAsmJS(JSContext *cx, unsigned argc, Value *vp);
+    static bool setAllowUnobservedAsmJS(JSContext *cx, unsigned argc, Value *vp);
     static bool getMemory(JSContext *cx, unsigned argc, Value *vp);
     static bool addDebuggee(JSContext *cx, unsigned argc, Value *vp);
     static bool addAllGlobalsAsDebuggees(JSContext *cx, unsigned argc, Value *vp);
@@ -394,11 +425,19 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
     static bool findObjects(JSContext *cx, unsigned argc, Value *vp);
     static bool findAllGlobals(JSContext *cx, unsigned argc, Value *vp);
     static bool makeGlobalObjectReference(JSContext *cx, unsigned argc, Value *vp);
+    static bool setupTraceLoggerScriptCalls(JSContext *cx, unsigned argc, Value *vp);
+    static bool drainTraceLoggerScriptCalls(JSContext *cx, unsigned argc, Value *vp);
+    static bool startTraceLogger(JSContext *cx, unsigned argc, Value *vp);
+    static bool endTraceLogger(JSContext *cx, unsigned argc, Value *vp);
+#ifdef NIGHTLY_BUILD
+    static bool setupTraceLogger(JSContext *cx, unsigned argc, Value *vp);
+    static bool drainTraceLogger(JSContext *cx, unsigned argc, Value *vp);
+#endif
     static bool construct(JSContext *cx, unsigned argc, Value *vp);
     static const JSPropertySpec properties[];
     static const JSFunctionSpec methods[];
 
-    static bool getNewestAbstractFramePtr(JSContext *cx);
+    static void removeFromFrameMapsAndClearBreakpointsIn(JSContext *cx, AbstractFramePtr frame);
     static bool updateExecutionObservabilityOfFrames(JSContext *cx, const ExecutionObservableSet &obs,
                                                      IsObserving observing);
     static bool updateExecutionObservabilityOfScripts(JSContext *cx, const ExecutionObservableSet &obs,
@@ -407,18 +446,27 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
                                              IsObserving observing);
 
   public:
+    static bool ensureExecutionObservabilityOfOsrFrame(JSContext *cx, InterpreterFrame *frame);
+
     // Public for DebuggerScript_setBreakpoint.
     static bool ensureExecutionObservabilityOfScript(JSContext *cx, JSScript *script);
+
+    // Whether the Debugger instance needs to observe all non-AOT JS
+    // execution of its debugees.
+    IsObserving observesAllExecution() const;
+
+    // Whether the Debugger instance needs to observe AOT-compiled asm.js
+    // execution of its debuggees.
+    IsObserving observesAsmJS() const;
 
   private:
     static bool ensureExecutionObservabilityOfFrame(JSContext *cx, AbstractFramePtr frame);
     static bool ensureExecutionObservabilityOfCompartment(JSContext *cx, JSCompartment *comp);
 
     static bool hookObservesAllExecution(Hook which);
-    bool anyOtherDebuggerObservingAllExecution(GlobalObject *global) const;
-    bool hasAnyLiveHooksThatObserveAllExecution() const;
-    bool hasAnyHooksThatObserveAllExecution() const;
-    bool setObservesAllExecution(JSContext *cx, IsObserving observing);
+
+    bool updateObservesAllExecutionOnDebuggees(JSContext *cx, IsObserving observing);
+    void updateObservesAsmJSOnDebuggees(IsObserving observing);
 
     JSObject *getHook(Hook hook) const;
     bool hasAnyLiveHooks() const;
@@ -427,8 +475,7 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
     static bool slowPathOnLeaveFrame(JSContext *cx, AbstractFramePtr frame, bool ok);
     static JSTrapStatus slowPathOnDebuggerStatement(JSContext *cx, AbstractFramePtr frame);
     static JSTrapStatus slowPathOnExceptionUnwind(JSContext *cx, AbstractFramePtr frame);
-    static void slowPathOnNewScript(JSContext *cx, HandleScript script,
-                                    GlobalObject *compileAndGoGlobal);
+    static void slowPathOnNewScript(JSContext *cx, HandleScript script);
     static void slowPathOnNewGlobalObject(JSContext *cx, Handle<GlobalObject *> global);
     static bool slowPathOnLogAllocationSite(JSContext *cx, HandleSavedFrame frame,
                                             int64_t when, GlobalObject::DebuggerVector &dbgs);
@@ -487,7 +534,7 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
     bool hasMemory() const;
     DebuggerMemory &memory() const;
 
-    GlobalObjectSet::Range allDebuggees() const { return debuggees.all(); }
+    WeakGlobalObjectSet::Range allDebuggees() const { return debuggees.all(); }
 
     /*********************************** Methods for interaction with the GC. */
 
@@ -506,7 +553,7 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
      * Debugger objects that are definitely live but not yet marked, it marks
      * them and returns true. If not, it returns false.
      */
-    static void markCrossCompartmentDebuggerObjectReferents(JSTracer *tracer);
+    static void markIncomingCrossCompartmentEdges(JSTracer *tracer);
     static bool markAllIteratively(GCMarker *trc);
     static void markAll(JSTracer *trc);
     static void sweepAll(FreeOp *fop);
@@ -573,15 +620,17 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
      */
     static inline bool onLeaveFrame(JSContext *cx, AbstractFramePtr frame, bool ok);
 
-    static inline void onNewScript(JSContext *cx, HandleScript script, GlobalObject *compileAndGoGlobal);
+    static inline void onNewScript(JSContext *cx, HandleScript script);
     static inline void onNewGlobalObject(JSContext *cx, Handle<GlobalObject *> global);
     static inline bool onLogAllocationSite(JSContext *cx, HandleSavedFrame frame, int64_t when);
     static JSTrapStatus onTrap(JSContext *cx, MutableHandleValue vp);
     static JSTrapStatus onSingleStep(JSContext *cx, MutableHandleValue vp);
     static bool handleBaselineOsr(JSContext *cx, InterpreterFrame *from, jit::BaselineFrame *to);
     static bool handleIonBailout(JSContext *cx, jit::RematerializedFrame *from, jit::BaselineFrame *to);
+    static void handleUnrecoverableIonBailoutError(JSContext *cx, jit::RematerializedFrame *frame);
     static void propagateForcedReturn(JSContext *cx, AbstractFramePtr frame, HandleValue rval);
     static bool hasLiveHook(GlobalObject *global, Hook which);
+    static void assertNotInFrameMaps(AbstractFramePtr frame);
 
     /************************************* Functions for use by Debugger.cpp. */
 
@@ -724,8 +773,8 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
     JSObject *wrapSource(JSContext *cx, js::HandleScriptSource source);
 
   private:
-    Debugger(const Debugger &) MOZ_DELETE;
-    Debugger & operator=(const Debugger &) MOZ_DELETE;
+    Debugger(const Debugger &) = delete;
+    Debugger & operator=(const Debugger &) = delete;
 };
 
 class BreakpointSite {
@@ -845,22 +894,20 @@ Debugger::observesNewGlobalObject() const
 bool
 Debugger::observesGlobal(GlobalObject *global) const
 {
-    return debuggees.has(global);
+    ReadBarriered<GlobalObject*> debuggee(global);
+    return debuggees.has(debuggee);
 }
 
 /* static */ void
-Debugger::onNewScript(JSContext *cx, HandleScript script, GlobalObject *compileAndGoGlobal)
+Debugger::onNewScript(JSContext *cx, HandleScript script)
 {
-    MOZ_ASSERT_IF(script->compileAndGo(), compileAndGoGlobal);
-    MOZ_ASSERT_IF(script->compileAndGo(), compileAndGoGlobal == &script->uninlinedGlobal());
     // We early return in slowPathOnNewScript for self-hosted scripts, so we can
     // ignore those in our assertion here.
     MOZ_ASSERT_IF(!script->compartment()->options().invisibleToDebugger() &&
                   !script->selfHosted(),
                   script->compartment()->firedOnNewGlobalObject);
-    MOZ_ASSERT_IF(!script->compileAndGo(), !compileAndGoGlobal);
     if (script->compartment()->isDebuggee())
-        slowPathOnNewScript(cx, script, compileAndGoGlobal);
+        slowPathOnNewScript(cx, script);
 }
 
 /* static */ void
@@ -882,11 +929,6 @@ Debugger::onLogAllocationSite(JSContext *cx, HandleSavedFrame frame, int64_t whe
         return true;
     return Debugger::slowPathOnLogAllocationSite(cx, frame, when, *dbgs);
 }
-
-extern bool
-EvaluateInEnv(JSContext *cx, Handle<Env*> env, HandleValue thisv, AbstractFramePtr frame,
-              mozilla::Range<const char16_t> chars, const char *filename, unsigned lineno,
-              MutableHandleValue rval);
 
 bool ReportObjectRequired(JSContext *cx);
 

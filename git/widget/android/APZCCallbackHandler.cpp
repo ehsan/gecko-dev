@@ -27,11 +27,11 @@ namespace android {
 
 StaticRefPtr<APZCCallbackHandler> APZCCallbackHandler::sInstance;
 
-NativePanZoomController*
-APZCCallbackHandler::SetNativePanZoomController(jobject obj)
+NativePanZoomController::LocalRef
+APZCCallbackHandler::SetNativePanZoomController(NativePanZoomController::Param obj)
 {
-    NativePanZoomController* old = mNativePanZoomController;
-    mNativePanZoomController = NativePanZoomController::Wrap(obj);
+    NativePanZoomController::LocalRef old = mNativePanZoomController;
+    mNativePanZoomController = obj;
     return old;
 }
 
@@ -52,7 +52,7 @@ APZCCallbackHandler::NotifyDefaultPrevented(uint64_t aInputBlockId,
     MOZ_ASSERT(AndroidBridge::IsJavaUiThread());
     APZCTreeManager* controller = nsWindow::GetAPZCTreeManager();
     if (controller) {
-        controller->ContentReceivedTouch(aInputBlockId, aDefaultPrevented);
+        controller->ContentReceivedInputBlock(aInputBlockId, aDefaultPrevented);
     }
 }
 
@@ -90,7 +90,6 @@ APZCCallbackHandler::RequestContentRepaint(const FrameMetrics& aFrameMetrics)
         if (utils && APZCCallbackHelper::HasValidPresShellId(utils, aFrameMetrics)) {
             FrameMetrics metrics = aFrameMetrics;
             APZCCallbackHelper::UpdateRootFrame(utils, metrics);
-            APZCCallbackHelper::UpdateCallbackTransform(aFrameMetrics, metrics);
         }
     } else {
         // aFrameMetrics.mIsRoot is false, so we are trying to update a subframe.
@@ -99,9 +98,15 @@ APZCCallbackHandler::RequestContentRepaint(const FrameMetrics& aFrameMetrics)
         if (content) {
             FrameMetrics newSubFrameMetrics(aFrameMetrics);
             APZCCallbackHelper::UpdateSubFrame(content, newSubFrameMetrics);
-            APZCCallbackHelper::UpdateCallbackTransform(aFrameMetrics, newSubFrameMetrics);
         }
     }
+}
+
+void
+APZCCallbackHandler::RequestFlingSnap(const FrameMetrics::ViewID& aScrollId,
+                                      const mozilla::CSSPoint& aDestination)
+{
+    APZCCallbackHelper::RequestFlingSnap(aScrollId, aDestination);
 }
 
 void
@@ -113,7 +118,7 @@ APZCCallbackHandler::AcknowledgeScrollUpdate(const FrameMetrics::ViewID& aScroll
 
 void
 APZCCallbackHandler::HandleDoubleTap(const CSSPoint& aPoint,
-                                     int32_t aModifiers,
+                                     Modifiers aModifiers,
                                      const mozilla::layers::ScrollableLayerGuid& aGuid)
 {
     CSSIntPoint point = RoundedToInt(aPoint);
@@ -124,7 +129,7 @@ APZCCallbackHandler::HandleDoubleTap(const CSSPoint& aPoint,
 
 void
 APZCCallbackHandler::HandleSingleTap(const CSSPoint& aPoint,
-                                     int32_t aModifiers,
+                                     Modifiers aModifiers,
                                      const mozilla::layers::ScrollableLayerGuid& aGuid)
 {
     // FIXME Send the modifier data to Gecko for use in mouse events.
@@ -136,7 +141,7 @@ APZCCallbackHandler::HandleSingleTap(const CSSPoint& aPoint,
 
 void
 APZCCallbackHandler::HandleLongTap(const CSSPoint& aPoint,
-                                   int32_t aModifiers,
+                                   Modifiers aModifiers,
                                    const mozilla::layers::ScrollableLayerGuid& aGuid,
                                    uint64_t aInputBlockId)
 {
@@ -149,7 +154,7 @@ APZCCallbackHandler::HandleLongTap(const CSSPoint& aPoint,
 
 void
 APZCCallbackHandler::HandleLongTapUp(const CSSPoint& aPoint,
-                                     int32_t aModifiers,
+                                     Modifiers aModifiers,
                                      const mozilla::layers::ScrollableLayerGuid& aGuid)
 {
     HandleSingleTap(aPoint, aModifiers, aGuid);

@@ -10,11 +10,14 @@
 
 #include "mozilla/a11y/DocManager.h"
 #include "mozilla/a11y/FocusManager.h"
+#include "mozilla/a11y/Role.h"
 #include "mozilla/a11y/SelectionManager.h"
+#include "mozilla/Preferences.h"
 
 #include "nsIObserver.h"
 
 class nsImageFrame;
+class nsIPersistentProperties;
 class nsPluginFrame;
 class nsITreeView;
 
@@ -40,6 +43,23 @@ SelectionManager* SelectionMgr();
 ApplicationAccessible* ApplicationAcc();
 xpcAccessibleApplication* XPCApplicationAcc();
 
+typedef Accessible* (New_Accessible)(nsIContent* aContent, Accessible* aContext);
+
+struct MarkupAttrInfo {
+  nsIAtom** name;
+  nsIAtom** value;
+
+  nsIAtom** DOMAttrName;
+  nsIAtom** DOMAttrValue;
+};
+
+struct MarkupMapInfo {
+  nsIAtom** tag;
+  New_Accessible* new_func;
+  a11y::role role;
+  MarkupAttrInfo attrs[4];
+};
+
 } // namespace a11y
 } // namespace mozilla
 
@@ -63,7 +83,7 @@ public:
 
   // nsIAccessibilityService
   virtual Accessible* GetRootDocumentAccessible(nsIPresShell* aPresShell,
-                                                bool aCanCreate);
+                                                bool aCanCreate) MOZ_OVERRIDE;
   already_AddRefed<Accessible>
     CreatePluginAccessible(nsPluginFrame* aFrame, nsIContent* aContent,
                            Accessible* aContext);
@@ -72,8 +92,8 @@ public:
    * Adds/remove ATK root accessible for gtk+ native window to/from children
    * of the application accessible.
    */
-  virtual Accessible* AddNativeRootAccessible(void* aAtkAccessible);
-  virtual void RemoveNativeRootAccessible(Accessible* aRootAccessible);
+  virtual Accessible* AddNativeRootAccessible(void* aAtkAccessible) MOZ_OVERRIDE;
+  virtual void RemoveNativeRootAccessible(Accessible* aRootAccessible) MOZ_OVERRIDE;
 
   virtual bool HasAccessible(nsIDOMNode* aDOMNode) MOZ_OVERRIDE;
 
@@ -144,7 +164,7 @@ public:
    */
   void RecreateAccessible(nsIPresShell* aPresShell, nsIContent* aContent);
 
-  virtual void FireAccessibleEvent(uint32_t aEvent, Accessible* aTarget);
+  virtual void FireAccessibleEvent(uint32_t aEvent, Accessible* aTarget) MOZ_OVERRIDE;
 
   // nsAccessibiltiyService
 
@@ -164,6 +184,19 @@ public:
    */
   Accessible* GetOrCreateAccessible(nsINode* aNode, Accessible* aContext,
                                     bool* aIsSubtreeHidden = nullptr);
+
+  mozilla::a11y::role MarkupRole(const nsIContent* aContent) const
+  {
+    const mozilla::a11y::MarkupMapInfo* markupMap =
+      mMarkupMaps.Get(aContent->NodeInfo()->NameAtom());
+    return markupMap ? markupMap->role : mozilla::a11y::roles::NOTHING;
+  }
+
+  /**
+   * Set the object attribute defined by markup for the given element.
+   */
+  void MarkupAttributes(const nsIContent* aContent,
+                        nsIPersistentProperties* aAttributes) const;
 
 private:
   // nsAccessibilityService creation is controlled by friend
@@ -188,13 +221,6 @@ private:
    */
   already_AddRefed<Accessible>
     CreateAccessibleByType(nsIContent* aContent, DocAccessible* aDoc);
-
-  /**
-   * Create accessible for HTML node by tag name.
-   */
-  already_AddRefed<Accessible>
-    CreateHTMLAccessibleByMarkup(nsIFrame* aFrame, nsIContent* aContent,
-                                 Accessible* aContext);
 
   /**
    * Create an accessible whose type depends on the given frame.
@@ -227,6 +253,8 @@ private:
    */
   static bool gIsShutdown;
 
+  nsDataHashtable<nsPtrHashKey<const nsIAtom>, const mozilla::a11y::MarkupMapInfo*> mMarkupMaps;
+
   friend nsAccessibilityService* GetAccService();
   friend mozilla::a11y::FocusManager* mozilla::a11y::FocusMgr();
   friend mozilla::a11y::SelectionManager* mozilla::a11y::SelectionMgr();
@@ -251,12 +279,13 @@ GetAccService()
 inline bool
 IPCAccessibilityActive()
 {
-  // XXX temporarily disable ipc accessibility because of crashes.
-return false;
+	// XXX reenable when crashes are fixed
+	return false;
 #ifdef MOZ_B2G
   return false;
 #else
-  return XRE_GetProcessType() == GeckoProcessType_Content;
+  return XRE_GetProcessType() == GeckoProcessType_Content &&
+    mozilla::Preferences::GetBool("accessibility.ipc_architecture.enabled", true);
 #endif
 }
 

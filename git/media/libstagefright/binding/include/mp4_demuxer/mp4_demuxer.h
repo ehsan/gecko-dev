@@ -43,8 +43,9 @@ enum TrackType { kVideo = 1, kAudio };
 class MP4Demuxer
 {
 public:
-  explicit MP4Demuxer(Stream* aSource, Microseconds aTimestampOffset, Monitor* aMonitor);
-  ~MP4Demuxer();
+  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(MP4Demuxer)
+
+  explicit MP4Demuxer(Stream* aSource, Monitor* aMonitor);
 
   bool Init();
   Microseconds Duration();
@@ -77,6 +78,9 @@ public:
   // report this.
   Microseconds GetNextKeyframeTime();
 
+protected:
+  ~MP4Demuxer();
+
 private:
   AudioDecoderConfig mAudioConfig;
   VideoDecoderConfig mVideoConfig;
@@ -86,7 +90,6 @@ private:
   nsRefPtr<Stream> mSource;
   nsTArray<mozilla::MediaByteRange> mCachedByteRanges;
   nsTArray<Interval<Microseconds>> mCachedTimeRanges;
-  Microseconds mTimestampOffset;
   Monitor* mMonitor;
   Microseconds mNextKeyframeTime;
 };

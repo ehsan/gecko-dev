@@ -44,11 +44,23 @@ WebappsRegistry.prototype = {
 
   receiveMessage: function(aMessage) {
     let msg = aMessage.json;
-    if (msg.oid != this._id)
-      return
-    let req = this.getRequest(msg.requestID);
-    if (!req)
-      return;
+    let req;
+    if (aMessage.name != "Webapps:AdditionalLanguageChange") {
+      if (msg.oid != this._id) {
+        return
+      }
+
+      if (aMessage.name == "Webapps:GetAdditionalLanguages:Return" ||
+        aMessage.name == "Webapps:GetLocalizationResource:Return") {
+        req = this.takePromiseResolver(msg.requestID);
+      } else {
+        req = this.getRequest(msg.requestID);
+      }
+      if (!req) {
+        return;
+      }
+    }
+
     let app = msg.app;
     switch (aMessage.name) {
       case "Webapps:Install:Return:OK":
@@ -77,6 +89,26 @@ WebappsRegistry.prototype = {
       case "Webapps:GetInstalled:Return:OK":
         this.removeMessageListeners(aMessage.name);
         Services.DOMRequest.fireSuccess(req, convertAppsArray(msg.apps, this._window));
+        break;
+      case "Webapps:AdditionalLanguageChange":
+        // Check if the current page is from the app receiving the event.
+        let manifestURL = AppsUtils.getAppManifestURLFromWindow(this._window);
+        if (manifestURL && manifestURL == msg.manifestURL) {
+          // Let's dispatch an "additionallanguageschange" event on the document.
+          let doc = this._window.document;
+          let event = doc.createEvent("CustomEvent");
+          event.initCustomEvent("additionallanguageschange", true, true,
+                                Cu.cloneInto(msg.languages, this._window));
+          doc.dispatchEvent(event);
+        }
+        break;
+      case "Webapps:GetLocalizationResource:Return":
+        this.removeMessageListeners(["Webapps:GetLocalizationResource:Return"]);
+        if (msg.error) {
+          req.reject(new this._window.DOMError(msg.error));
+        } else {
+          req.resolve(Cu.cloneInto(msg.data, this._window));
+        }
         break;
     }
     this.removeRequest(msg.requestID);
@@ -148,6 +180,7 @@ WebappsRegistry.prototype = {
 
              from: installURL,
              oid: this._id,
+             topId: this._topId,
              requestID: requestID,
              appId: principal.appId,
              isBrowser: principal.isInBrowserElement,
@@ -176,7 +209,7 @@ WebappsRegistry.prototype = {
     this.addMessageListeners("Webapps:GetSelf:Return:OK");
     cpmm.sendAsyncMessage("Webapps:GetSelf", { origin: this._getOrigin(this._window.location.href),
                                                appId: this._window.document.nodePrincipal.appId,
-                                               oid: this._id,
+                                               oid: this._id, topId: this._topId,
                                                requestID: this.getRequestId(request) });
     return request;
   },
@@ -197,7 +230,7 @@ WebappsRegistry.prototype = {
     this.addMessageListeners("Webapps:CheckInstalled:Return:OK");
     cpmm.sendAsyncMessage("Webapps:CheckInstalled", { origin: this._getOrigin(this._window.location.href),
                                                       manifestURL: manifestURL.spec,
-                                                      oid: this._id,
+                                                      oid: this._id, topId: this._topId,
                                                       requestID: this.getRequestId(request) });
     return request;
   },
@@ -206,7 +239,7 @@ WebappsRegistry.prototype = {
     let request = this.createRequest();
     this.addMessageListeners("Webapps:GetInstalled:Return:OK");
     cpmm.sendAsyncMessage("Webapps:GetInstalled", { origin: this._getOrigin(this._window.location.href),
-                                                    oid: this._id,
+                                                    oid: this._id, topId: this._topId,
                                                     requestID: this.getRequestId(request) });
     return request;
   },
@@ -221,6 +254,7 @@ WebappsRegistry.prototype = {
                    .createInstance(Ci.nsISupports);
       mgmt.wrappedJSObject.init(this._window, this.hasFullMgmtPrivilege);
       mgmt.wrappedJSObject._windowId = this._id;
+      mgmt.wrappedJSObject._topId = this._topId;
       this._mgmt = mgmt.__DOM_IMPL__
         ? mgmt.__DOM_IMPL__
         : this._window.DOMApplicationsManager._create(this._window, mgmt.wrappedJSObject);
@@ -231,7 +265,9 @@ WebappsRegistry.prototype = {
   uninit: function() {
     this._mgmt = null;
     cpmm.sendAsyncMessage("Webapps:UnregisterForMessages",
-                          ["Webapps:Install:Return:OK"]);
+                          ["Webapps:Install:Return:OK",
+                           "Webapps:AdditionalLanguageChange"]);
+    this._window.removeEventListener("pagehide", this);
   },
 
   installPackage: function(aURL, aParams) {
@@ -248,19 +284,77 @@ WebappsRegistry.prototype = {
     return request;
   },
 
+  _getCurrentAppManifestURL: function() {
+    let appId = this._window.document.nodePrincipal.appId;
+    if (appId === Ci.nsIScriptSecurityManager.NO_APP_ID) {
+      return null;
+    }
+
+    return appsService.getManifestURLByLocalId(appId);
+  },
+
+  getAdditionalLanguages: function() {
+    let manifestURL = AppsUtils.getAppManifestURLFromWindow(this._window);
+
+    return new this._window.Promise((aResolve, aReject) => {
+      if (!manifestURL) {
+        aReject("NotInApp");
+      } else {
+        let langs = DOMApplicationRegistry.getAdditionalLanguages(manifestURL);
+        aResolve(Cu.cloneInto(langs, this._window));
+      }
+    });
+  },
+
+  getLocalizationResource: function(aLanguage, aVersion, aPath, aType) {
+    let manifestURL = AppsUtils.getAppManifestURLFromWindow(this._window);
+
+    if (!manifestURL) {
+      return new Promise((aResolve, aReject) => {
+        aReject("NotInApp");
+      });
+    }
+
+    this.addMessageListeners(["Webapps:GetLocalizationResource:Return"]);
+    return this.createPromise((aResolve, aReject) => {
+      cpmm.sendAsyncMessage("Webapps:GetLocalizationResource", {
+        manifestURL: manifestURL,
+        lang: aLanguage,
+        version: aVersion,
+        path: aPath,
+        dataType: aType,
+        oid: this._id,
+        topId: this._topId,
+        requestID: this.getPromiseResolverId({
+          resolve: aResolve,
+          reject: aReject
+        })
+      });
+    });
+  },
+
   // nsIDOMGlobalPropertyInitializer implementation
   init: function(aWindow) {
     const prefs = new Preferences();
 
     this._window = aWindow;
+    this._window.addEventListener("pagehide", this);
 
-    this.initDOMRequestHelper(aWindow, "Webapps:Install:Return:OK");
+    this.initDOMRequestHelper(aWindow, ["Webapps:Install:Return:OK",
+                                        "Webapps:AdditionalLanguageChange"]);
 
     let util = this._window.QueryInterface(Ci.nsIInterfaceRequestor)
                            .getInterface(Ci.nsIDOMWindowUtils);
     this._id = util.outerWindowID;
+
+    let topUtil = this._window.top
+                              .QueryInterface(Ci.nsIInterfaceRequestor)
+                              .getInterface(Ci.nsIDOMWindowUtils);
+    this._topId = topUtil.outerWindowID;
+
     cpmm.sendAsyncMessage("Webapps:RegisterForMessages",
-                          { messages: ["Webapps:Install:Return:OK"]});
+                          { messages: ["Webapps:Install:Return:OK",
+                                       "Webapps:AdditionalLanguageChange"]});
 
     let principal = aWindow.document.nodePrincipal;
     let appId = principal.appId;
@@ -281,6 +375,15 @@ WebappsRegistry.prototype = {
     this.hasMgmtPrivilege = hasWebappsPermission ||
          (isCurrentHomescreen && hasHomescreenPermission);
     this.hasFullMgmtPrivilege = hasWebappsPermission;
+  },
+
+  handleEvent(event) {
+    if (event.type == "pagehide" &&
+        event.target.defaultView == this._window) {
+      cpmm.sendAsyncMessage("Webapps:LocationChange", {
+        oid: this._id,
+      });
+    }
   },
 
   classID: Components.ID("{fff440b3-fae2-45c1-bf03-3b5a2e432270}"),
@@ -465,6 +568,7 @@ WebappsApplication.prototype = {
     cpmm.sendAsyncMessage("Webapps:CheckForUpdate",
                           { manifestURL: this.manifestURL,
                             oid: this._id,
+                            topId: this._topId,
                             requestID: this.getRequestId(request) });
     return request;
   },
@@ -477,6 +581,7 @@ WebappsApplication.prototype = {
                                               manifestURL: this.manifestURL,
                                               startPoint: aStartPoint || "",
                                               oid: this._id,
+                                              topId: this._topId,
                                               timestamp: Date.now(),
                                               requestID: this.getRequestId(request) });
     return request;
@@ -491,6 +596,7 @@ WebappsApplication.prototype = {
       browserChild.messageManager.sendAsyncMessage("Webapps:ClearBrowserData", {
         manifestURL: this.manifestURL,
         oid: this._id,
+        topId: this._topId,
         requestID: this.getRequestId(request)
       });
     } else {
@@ -508,6 +614,7 @@ WebappsApplication.prototype = {
         rules: aRules,
         manifestURL: this.manifestURL,
         outerWindowID: this._id,
+        topWindowID: this._topId,
         requestID: this.getPromiseResolverId({
           resolve: aResolve,
           reject: aReject
@@ -522,6 +629,7 @@ WebappsApplication.prototype = {
       cpmm.sendAsyncMessage("Webapps:GetConnections", {
         manifestURL: this.manifestURL,
         outerWindowID: this._id,
+        topWindowID: this._topId,
         requestID: this.getPromiseResolverId({
           resolve: aResolve,
           reject: aReject
@@ -539,6 +647,7 @@ WebappsApplication.prototype = {
     cpmm.sendAsyncMessage("Webapps:AddReceipt", { manifestURL: this.manifestURL,
                                                   receipt: receipt,
                                                   oid: this._id,
+                                                  topId: this._topId,
                                                   requestID: this.getRequestId(request) });
 
     return request;
@@ -553,6 +662,7 @@ WebappsApplication.prototype = {
     cpmm.sendAsyncMessage("Webapps:RemoveReceipt", { manifestURL: this.manifestURL,
                                                      receipt: receipt,
                                                      oid: this._id,
+                                                     topId: this._topId,
                                                      requestID: this.getRequestId(request) });
 
     return request;
@@ -568,6 +678,7 @@ WebappsApplication.prototype = {
                                                       newReceipt: newReceipt,
                                                       oldReceipt: oldReceipt,
                                                       oid: this._id,
+                                                      topId: this._topId,
                                                       requestID: this.getRequestId(request) });
 
     return request;
@@ -579,6 +690,25 @@ WebappsApplication.prototype = {
       cpmm.sendAsyncMessage("Webapps:Export",
         { manifestURL: this.manifestURL,
           oid: this._id,
+          topId: this._topId,
+          requestID: this.getPromiseResolverId({
+            resolve: aResolve,
+            reject: aReject
+          })
+        });
+    });
+  },
+
+  getLocalizedValue: function(aProperty, aLang, aEntryPoint) {
+    this.addMessageListeners(["Webapps:GetLocalizedValue:Return"]);
+    return this.createPromise((aResolve, aReject) => {
+      cpmm.sendAsyncMessage("Webapps:GetLocalizedValue",
+        { manifestURL: this.manifestURL,
+          oid: this._id,
+          topId: this._topId,
+          property: aProperty,
+          lang: aLang,
+          entryPoint: aEntryPoint,
           requestID: this.getPromiseResolverId({
             resolve: aResolve,
             reject: aReject
@@ -624,7 +754,8 @@ WebappsApplication.prototype = {
     if (aMessage.name == "Webapps:Connect:Return:OK" ||
         aMessage.name == "Webapps:Connect:Return:KO" ||
         aMessage.name == "Webapps:GetConnections:Return:OK" ||
-        aMessage.name == "Webapps:Export:Return") {
+        aMessage.name == "Webapps:Export:Return" ||
+        aMessage.name == "Webapps:GetLocalizedValue:Return") {
       req = this.takePromiseResolver(msg.requestID);
     } else {
       req = this.takeRequest(msg.requestID);
@@ -720,6 +851,14 @@ WebappsApplication.prototype = {
           req.reject(new this._window.DOMError(msg.error || ""));
         }
         break;
+      case "Webapps:GetLocalizedValue:Return":
+        this.removeMessageListeners(["Webapps:GetLocalizedValue:Return"]);
+        if (msg.success) {
+          req.resolve(msg.value);
+        } else {
+          req.reject(new this._window.DOMError(msg.error || ""));
+        }
+        break;
     }
   },
 
@@ -748,6 +887,7 @@ WebappsApplicationMgmt.prototype = {
                                         "Webapps:Uninstall:Return:KO",
                                         "Webapps:Install:Return:OK",
                                         "Webapps:GetNotInstalled:Return:OK",
+                                        "Webapps:GetIcon:Return",
                                         "Webapps:Import:Return",
                                         "Webapps:ExtractManifest:Return",
                                         "Webapps:SetEnabled:Return"]);
@@ -794,6 +934,7 @@ WebappsApplicationMgmt.prototype = {
       origin: aApp.origin,
       manifestURL: aApp.manifestURL,
       oid: this._id,
+      topId: this._topId,
       from: this._window.location.href,
       windowId: this._windowId,
       requestID: this.getRequestId(request)
@@ -813,12 +954,29 @@ WebappsApplicationMgmt.prototype = {
     return request;
   },
 
+  getIcon: function(aApp, aIconID, aEntryPoint) {
+    return this.createPromise(function(aResolve, aReject) {
+      cpmm.sendAsyncMessage("Webapps:GetIcon", {
+        oid: this._id,
+        topId: this._topId,
+        manifestURL: aApp.manifestURL,
+        iconID: aIconID,
+        entryPoint: aEntryPoint,
+        requestID: this.getPromiseResolverId({
+          resolve: aResolve,
+          reject: aReject
+        })
+      });
+    }.bind(this));
+  },
+
   getNotInstalled: function() {
     let request = this.createRequest();
     let principal = this._window.document.nodePrincipal;
 
     cpmm.sendAsyncMessage("Webapps:GetNotInstalled", {
       oid: this._id,
+      topId: this._topId,
       requestID: this.getRequestId(request)
     }, null, principal);
 
@@ -831,6 +989,7 @@ WebappsApplicationMgmt.prototype = {
       cpmm.sendAsyncMessage("Webapps:Import",
         { blob: aBlob,
           oid: this._id,
+          topId: this._topId,
           requestID: this.getPromiseResolverId({
             resolve: aResolve,
             reject: aReject
@@ -844,6 +1003,7 @@ WebappsApplicationMgmt.prototype = {
       cpmm.sendAsyncMessage("Webapps:ExtractManifest",
         { blob: aBlob,
           oid: this._id,
+          topId: this._topId,
           requestID: this.getPromiseResolverId({
             resolve: aResolve,
             reject: aReject
@@ -887,7 +1047,8 @@ WebappsApplicationMgmt.prototype = {
     let msg = aMessage.data;
     let req;
 
-    if (["Webapps:Import:Return",
+    if (["Webapps:GetIcon:Return",
+         "Webapps:Import:Return",
          "Webapps:ExtractManifest:Return"]
          .indexOf(aMessage.name) != -1) {
       req = this.takePromiseResolver(msg.requestID);
@@ -953,7 +1114,18 @@ WebappsApplicationMgmt.prototype = {
           this.__DOM_IMPL__.dispatchEvent(event);
         }
         break;
+      case "Webapps:GetIcon:Return":
+        if (msg.blob) {
+          req.resolve(Cu.cloneInto(msg.blob, this._window));
+        } else if (msg.error && msg.error == "NETWORK_ERROR"
+                             && !this._window.navigator.onLine) {
+          req.reject(new this._window.DOMError("NETWORK_OFFLINE"));
+        } else {
+          req.reject(new this._window.DOMError(msg.error || ""));
+        }
+        break;
     }
+
     if (aMessage.name !== "Webapps:Uninstall:Broadcast:Return:OK") {
       this.removeRequest(msg.requestID);
     }

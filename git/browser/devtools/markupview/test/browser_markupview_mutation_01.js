@@ -33,12 +33,9 @@ const TEST_DATA = [
       node1.removeAttribute("newattr");
     },
     check: function*(inspector) {
-      // The markup-view is a little weird in that it doesn't remove the
-      // attribute but only hides it with display:none
       let {editor} = yield getContainerForSelector("#node1", inspector);
-      ok([...editor.attrList.querySelectorAll(".attreditor")].some(attr => {
-        return attr.textContent.trim() === "newattr=\"newattrval\"" &&
-               attr.style.display === "none";
+      ok(![...editor.attrList.querySelectorAll(".attreditor")].some(attr => {
+        return attr.textContent.trim() === "newattr=\"newattrval\"";
       }), "newattr attribute removed");
     }
   },
@@ -146,7 +143,7 @@ const TEST_DATA = [
   }
 ];
 
-let test = asyncTest(function*() {
+add_task(function*() {
   let {toolbox, inspector} = yield addTab(TEST_URL).then(openInspector);
 
   info("Expanding all markup-view nodes");

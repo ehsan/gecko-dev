@@ -89,6 +89,11 @@ public:
   virtual ~ContentClient()
   {}
 
+  virtual void PrintInfo(std::stringstream& aStream, const char* aPrefix);
+
+  virtual void Dump(std::stringstream& aStream,
+                    const char* aPrefix="",
+                    bool aDumpHtml=false) {};
 
   virtual void Clear() = 0;
   virtual RotatedContentBuffer::PaintState BeginPaintBuffer(PaintedLayer* aLayer,
@@ -132,7 +137,7 @@ public:
   typedef RotatedContentBuffer::PaintState PaintState;
   typedef RotatedContentBuffer::ContentType ContentType;
 
-  virtual void Clear() { RotatedContentBuffer::Clear(); }
+  virtual void Clear() MOZ_OVERRIDE { RotatedContentBuffer::Clear(); }
   virtual PaintState BeginPaintBuffer(PaintedLayer* aLayer,
                                       uint32_t aFlags) MOZ_OVERRIDE
   {
@@ -201,12 +206,16 @@ public:
   typedef RotatedContentBuffer::PaintState PaintState;
   typedef RotatedContentBuffer::ContentType ContentType;
 
-  virtual void Clear()
+  virtual void Clear() MOZ_OVERRIDE
   {
     RotatedContentBuffer::Clear();
     mTextureClient = nullptr;
     mTextureClientOnWhite = nullptr;
   }
+
+  virtual void Dump(std::stringstream& aStream,
+                    const char* aPrefix="",
+                    bool aDumpHtml=false) MOZ_OVERRIDE;
 
   virtual PaintState BeginPaintBuffer(PaintedLayer* aLayer,
                                       uint32_t aFlags) MOZ_OVERRIDE
@@ -236,7 +245,7 @@ public:
 
   virtual void Updated(const nsIntRegion& aRegionToDraw,
                        const nsIntRegion& aVisibleRegion,
-                       bool aDidSelfCopy);
+                       bool aDidSelfCopy) MOZ_OVERRIDE;
 
   virtual void SwapBuffers(const nsIntRegion& aFrontUpdatedRegion) MOZ_OVERRIDE;
 
@@ -338,6 +347,9 @@ public:
     return TextureInfo(CompositableType::CONTENT_DOUBLE, mTextureFlags);
   }
 
+  virtual void Dump(std::stringstream& aStream,
+                    const char* aPrefix="",
+                    bool aDumpHtml=false) MOZ_OVERRIDE;
 protected:
   virtual void DestroyFrontBuffer() MOZ_OVERRIDE;
 
@@ -383,89 +395,6 @@ public:
   {
     return TextureInfo(CompositableType::CONTENT_SINGLE, mTextureFlags);
   }
-};
-
-/**
- * A single buffered ContentClient that creates temporary buffers which are
- * used to update the host-side texture. The ownership of the buffers is
- * passed to the host side during the transaction, and we need to create
- * new ones each frame.
- */
-class ContentClientIncremental : public ContentClientRemote
-                               , public BorrowDrawTarget
-{
-public:
-  explicit ContentClientIncremental(CompositableForwarder* aFwd)
-    : ContentClientRemote(aFwd)
-    , mContentType(gfxContentType::COLOR_ALPHA)
-    , mHasBuffer(false)
-    , mHasBufferOnWhite(false)
-  {
-    mTextureInfo.mCompositableType = CompositableType::CONTENT_INC;
-  }
-
-  typedef RotatedContentBuffer::PaintState PaintState;
-  typedef RotatedContentBuffer::ContentType ContentType;
-
-  virtual TextureInfo GetTextureInfo() const
-  {
-    return mTextureInfo;
-  }
-
-  virtual void Clear()
-  {
-    mBufferRect.SetEmpty();
-    mHasBuffer = false;
-    mHasBufferOnWhite = false;
-  }
-
-  virtual PaintState BeginPaintBuffer(PaintedLayer* aLayer,
-                                      uint32_t aFlags) MOZ_OVERRIDE;
-  virtual gfx::DrawTarget* BorrowDrawTargetForPainting(PaintState& aPaintState,
-                                                       RotatedContentBuffer::DrawIterator* aIter = nullptr) MOZ_OVERRIDE;
-  virtual void ReturnDrawTargetToBuffer(gfx::DrawTarget*& aReturned) MOZ_OVERRIDE
-  {
-    BorrowDrawTarget::ReturnDrawTarget(aReturned);
-  }
-
-  virtual void Updated(const nsIntRegion& aRegionToDraw,
-                       const nsIntRegion& aVisibleRegion,
-                       bool aDidSelfCopy);
-
-  virtual void EndPaint(nsTArray<ReadbackProcessor::Update>* aReadbackUpdates = nullptr)
-  {
-    if (IsSurfaceDescriptorValid(mUpdateDescriptor)) {
-      mForwarder->DestroySharedSurface(&mUpdateDescriptor);
-    }
-    if (IsSurfaceDescriptorValid(mUpdateDescriptorOnWhite)) {
-      mForwarder->DestroySharedSurface(&mUpdateDescriptorOnWhite);
-    }
-    ContentClientRemote::EndPaint(aReadbackUpdates);
-  }
-
-private:
-
-  enum BufferType{
-    BUFFER_BLACK,
-    BUFFER_WHITE
-  };
-
-  void NotifyBufferCreated(ContentType aType, TextureFlags aFlags);
-
-  TemporaryRef<gfx::DrawTarget> GetUpdateSurface(BufferType aType,
-                                                 const nsIntRegion& aUpdateRegion);
-
-  TextureInfo mTextureInfo;
-  nsIntRect mBufferRect;
-  nsIntPoint mBufferRotation;
-
-  SurfaceDescriptor mUpdateDescriptor;
-  SurfaceDescriptor mUpdateDescriptorOnWhite;
-
-  ContentType mContentType;
-
-  bool mHasBuffer;
-  bool mHasBufferOnWhite;
 };
 
 }

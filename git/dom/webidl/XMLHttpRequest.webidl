@@ -140,9 +140,7 @@ interface XMLHttpRequest : XMLHttpRequestEventTarget {
   [ChromeOnly, Exposed=Window]
   readonly attribute MozChannel? channel;
 
-  [Throws]
-  void sendAsBinary(DOMString body);
-  [Throws, ChromeOnly]
+  [Throws, ChromeOnly, Exposed=Window]
   any getInterface(IID iid);
 
   readonly attribute boolean mozAnon;

@@ -10,6 +10,7 @@
 #include "nsLeafFrame.h"
 #include "nsIReflowCallback.h"
 #include "nsFrameLoader.h"
+#include "Units.h"
 
 /******************************************************************************
  * nsSubDocumentFrame
@@ -103,7 +104,7 @@ public:
     IGNORE_PAINT_SUPPRESSION = 0x1
   };
   nsIPresShell* GetSubdocumentPresShellForPainting(uint32_t aFlags);
-  nsIntSize GetSubdocumentSize();
+  mozilla::ScreenIntSize GetSubdocumentSize();
 
   // nsIReflowCallback
   virtual bool ReflowFinished() MOZ_OVERRIDE;
@@ -126,6 +127,8 @@ public:
    * content in the subdocument.
    */
   bool PassPointerEventsToChildren();
+
+  nsIntPoint GetChromeDisplacement();
 
 protected:
   friend class AsyncFrameInit;
@@ -151,7 +154,7 @@ protected:
    * frame for the document element of the document we're embedding.
    *
    * Called "Obtain*" and not "Get*" because of comment on GetDocShell that
-   * says it should be called ObtainDocShell because of it's side effects.
+   * says it should be called ObtainDocShell because of its side effects.
    */
   nsIFrame* ObtainIntrinsicSizeFrame();
 

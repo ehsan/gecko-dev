@@ -57,8 +57,11 @@ Sink(MIRGenerator *mir, MIRGraph &graph)
 
             // Only instructions which can be recovered on bailout can be moved
             // into the bailout paths.
-            if (ins->isGuard() || ins->isRecoveredOnBailout() || !ins->canRecoverOnBailout())
+            if (ins->isGuard() || ins->isGuardRangeBailouts() ||
+                ins->isRecoveredOnBailout() || !ins->canRecoverOnBailout())
+            {
                 continue;
+            }
 
             // Compute a common dominator for all uses of the current
             // instruction.
@@ -106,6 +109,12 @@ Sink(MIRGenerator *mir, MIRGraph &graph)
             // the Dead Code elimination used to move instructions with no-live
             // uses to the bailout path.
             if (!sinkEnabled)
+                continue;
+
+            // To move an effectful instruction, we would have to verify that the
+            // side-effect is not observed. In the mean time, we just inhibit
+            // this optimization on effectful instructions.
+            if (ins->isEffectful())
                 continue;
 
             // If all the uses are under a loop, we might not want to work
@@ -201,6 +210,12 @@ Sink(MIRGenerator *mir, MIRGraph &graph)
 
                 use->replaceProducer(clone);
             }
+
+            // As we move this instruction in a different block, we should
+            // verify that we do not carry over a resume point which would refer
+            // to an outdated state of the control flow.
+            if (ins->resumePoint())
+                ins->clearResumePoint();
 
             // Now, that all uses which are not dominated by usesDominator are
             // using the cloned instruction, we can safely move the instruction

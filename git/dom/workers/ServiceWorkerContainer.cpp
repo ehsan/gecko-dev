@@ -56,7 +56,10 @@ ServiceWorkerContainer::RemoveReadyPromise()
   if (window) {
     nsCOMPtr<nsIServiceWorkerManager> swm =
       mozilla::services::GetServiceWorkerManager();
-    MOZ_ASSERT(swm);
+    if (!swm) {
+      // If the browser is shutting down, we don't need to remove the promise.
+      return;
+    }
 
     swm->RemoveReadyPromise(window);
   }
@@ -81,7 +84,7 @@ ServiceWorkerContainer::Register(const nsAString& aScriptURL,
     return nullptr;
   }
 
-  aRv = swm->Register(aOptions.mScope, aScriptURL, getter_AddRefs(promise));
+  aRv = swm->Register(GetOwner(), aOptions.mScope, aScriptURL, getter_AddRefs(promise));
   if (aRv.Failed()) {
     return nullptr;
   }
@@ -179,14 +182,6 @@ ServiceWorkerContainer::GetReady(ErrorResult& aRv)
 }
 
 // Testing only.
-already_AddRefed<Promise>
-ServiceWorkerContainer::ClearAllServiceWorkerData(ErrorResult& aRv)
-{
-  aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
-  return nullptr;
-}
-
-// Testing only.
 void
 ServiceWorkerContainer::GetScopeForUrl(const nsAString& aUrl,
                                        nsString& aScope,
@@ -201,14 +196,5 @@ ServiceWorkerContainer::GetScopeForUrl(const nsAString& aUrl,
   aRv = swm->GetScopeForUrl(aUrl, aScope);
 }
 
-// Testing only.
-void
-ServiceWorkerContainer::GetControllingWorkerScriptURLForPath(
-                                                        const nsAString& aPath,
-                                                        nsString& aScriptURL,
-                                                        ErrorResult& aRv)
-{
-  aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
-}
 } // namespace dom
 } // namespace mozilla

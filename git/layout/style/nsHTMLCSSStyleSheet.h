@@ -50,11 +50,16 @@ public:
   virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf)
     const MOZ_MUST_OVERRIDE MOZ_OVERRIDE;
 
-  // Variant of RulesMatching method above that is specific to this
+  // Variants of RulesMatching method above that is specific to this
   // rule processor.
   void ElementRulesMatching(nsPresContext* aPresContext,
                             mozilla::dom::Element* aElement,
                             nsRuleWalker* aRuleWalker);
+  // aPseudoElement here is the content node for the pseudo-element, not
+  // its corresponding real element.
+  void PseudoElementRulesMatching(mozilla::dom::Element* aPseudoElement,
+                                  nsCSSPseudoElements::Type aPseudoType,
+                                  nsRuleWalker* aRuleWalker);
 
   void CacheStyleAttr(const nsAString& aSerialized, MiscContainer* aValue);
   void EvictStyleAttr(const nsAString& aSerialized, MiscContainer* aValue);
@@ -63,8 +68,8 @@ public:
 private: 
   ~nsHTMLCSSStyleSheet();
 
-  nsHTMLCSSStyleSheet(const nsHTMLCSSStyleSheet& aCopy) MOZ_DELETE;
-  nsHTMLCSSStyleSheet& operator=(const nsHTMLCSSStyleSheet& aCopy) MOZ_DELETE;
+  nsHTMLCSSStyleSheet(const nsHTMLCSSStyleSheet& aCopy) = delete;
+  nsHTMLCSSStyleSheet& operator=(const nsHTMLCSSStyleSheet& aCopy) = delete;
 
 protected:
   nsDataHashtable<nsStringHashKey, MiscContainer*> mCachedStyleAttrs;

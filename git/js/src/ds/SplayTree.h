@@ -39,8 +39,8 @@ class SplayTree
     bool enableCheckCoherency;
 #endif
 
-    SplayTree(const SplayTree &) MOZ_DELETE;
-    SplayTree &operator=(const SplayTree &) MOZ_DELETE;
+    SplayTree(const SplayTree &) = delete;
+    SplayTree &operator=(const SplayTree &) = delete;
 
   public:
 
@@ -63,6 +63,14 @@ class SplayTree
 
     bool empty() const {
         return !root;
+    }
+
+    T *maybeLookup(const T &v)
+    {
+        if (!root)
+            return nullptr;
+        Node *last = lookup(v);
+        return (C::compare(v, last->item) == 0) ? &(last->item) : nullptr;
     }
 
     bool contains(const T &v, T *res)

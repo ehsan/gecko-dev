@@ -20,6 +20,9 @@ namespace mozilla {
 namespace css {
 class Declaration;
 } /* namespace css */
+namespace dom {
+class Promise;
+} /* namespace dom */
 
 struct AnimationEventInfo {
   nsRefPtr<mozilla::dom::Element> mElement;
@@ -56,13 +59,14 @@ public:
     : dom::AnimationPlayer(aTimeline)
     , mIsStylePaused(false)
     , mPauseShouldStick(false)
-    , mLastNotification(LAST_NOTIFICATION_NONE)
+    , mPreviousPhaseOrIteration(PREVIOUS_PHASE_BEFORE)
   {
   }
 
   virtual CSSAnimationPlayer*
   AsCSSAnimationPlayer() MOZ_OVERRIDE { return this; }
 
+  virtual dom::Promise* GetReady(ErrorResult& aRv) MOZ_OVERRIDE;
   virtual void Play() MOZ_OVERRIDE;
   virtual void Pause() MOZ_OVERRIDE;
 
@@ -135,12 +139,12 @@ protected:
   bool mPauseShouldStick;
 
   enum {
-    LAST_NOTIFICATION_NONE = uint64_t(-1),
-    LAST_NOTIFICATION_END = uint64_t(-2)
+    PREVIOUS_PHASE_BEFORE = uint64_t(-1),
+    PREVIOUS_PHASE_AFTER = uint64_t(-2)
   };
-  // One of the LAST_NOTIFICATION_* constants, or an integer for the iteration
+  // One of the PREVIOUS_PHASE_* constants, or an integer for the iteration
   // whose start we last notified on.
-  uint64_t mLastNotification;
+  uint64_t mPreviousPhaseOrIteration;
 };
 
 } /* namespace mozilla */

@@ -26,6 +26,8 @@ loader.lazyGetter(this, "ConsoleOutput",
                   () => require("devtools/webconsole/console-output").ConsoleOutput);
 loader.lazyGetter(this, "Messages",
                   () => require("devtools/webconsole/console-output").Messages);
+loader.lazyGetter(this, "asyncStorage",
+                  () => require("devtools/toolkit/shared/async-storage"));
 loader.lazyImporter(this, "EnvironmentClient", "resource://gre/modules/devtools/dbg-client.jsm");
 loader.lazyImporter(this, "ObjectClient", "resource://gre/modules/devtools/dbg-client.jsm");
 loader.lazyImporter(this, "VariablesView", "resource:///modules/devtools/VariablesView.jsm");
@@ -52,7 +54,7 @@ const VARIABLES_VIEW_URL = "chrome://browser/content/devtools/widgets/VariablesV
 
 const CONSOLE_DIR_VIEW_HEIGHT = 0.6;
 
-const IGNORED_SOURCE_URLS = ["debugger eval code", "self-hosted"];
+const IGNORED_SOURCE_URLS = ["debugger eval code"];
 
 // The amount of time in milliseconds that we wait before performing a live
 // search.
@@ -105,14 +107,14 @@ const SEVERITY_CLASS_FRAGMENTS = [
 // Most of these rather idiosyncratic names are historical and predate the
 // division of message type into "category" and "severity".
 const MESSAGE_PREFERENCE_KEYS = [
-//  Error         Warning       Info      Log
-  [ "network",    "netwarn",    null,     "networkinfo", ],  // Network
-  [ "csserror",   "cssparser",  null,     "csslog",      ],  // CSS
-  [ "exception",  "jswarn",     null,     "jslog",       ],  // JS
-  [ "error",      "warn",       "info",   "log",         ],  // Web Developer
-  [ null,         null,         null,     null,          ],  // Input
-  [ null,         null,         null,     null,          ],  // Output
-  [ "secerror",   "secwarn",    null,     null,          ],  // Security
+//  Error         Warning       Info       Log
+  [ "network",    "netwarn",    "netxhr",  "networkinfo", ],  // Network
+  [ "csserror",   "cssparser",  null,      "csslog",      ],  // CSS
+  [ "exception",  "jswarn",     null,      "jslog",       ],  // JS
+  [ "error",      "warn",       "info",    "log",         ],  // Web Developer
+  [ null,         null,         null,      null,          ],  // Input
+  [ null,         null,         null,      null,          ],  // Output
+  [ "secerror",   "secwarn",    null,      null,          ],  // Security
 ];
 
 // A mapping from the console API log event levels to the Web Console
@@ -176,6 +178,7 @@ const MIN_FONT_SIZE = 10;
 const PREF_CONNECTION_TIMEOUT = "devtools.debugger.remote-timeout";
 const PREF_PERSISTLOG = "devtools.webconsole.persistlog";
 const PREF_MESSAGE_TIMESTAMP = "devtools.webconsole.timestampMessages";
+const PREF_INPUT_HISTORY_COUNT = "devtools.webconsole.inputHistoryCount";
 
 /**
  * A WebConsoleFrame instance is an interactive console initialized *per target*
@@ -437,18 +440,39 @@ WebConsoleFrame.prototype = {
    * @type boolean
    */
   get persistLog() {
-    return Services.prefs.getBoolPref(PREF_PERSISTLOG);
+    // For the browser console, we receive tab navigation
+    // when the original top level window we attached to is closed,
+    // but we don't want to reset console history and just switch to
+    // the next available window.
+    return this.owner._browserConsole || Services.prefs.getBoolPref(PREF_PERSISTLOG);
   },
 
   /**
    * Initialize the WebConsoleFrame instance.
    * @return object
-   *         A promise object for the initialization.
+   *         A promise object that resolves once the frame is ready to use.
    */
-  init: function WCF_init()
+  init: function()
   {
     this._initUI();
-    return this._initConnection();
+    let connectionInited = this._initConnection();
+
+    // Don't reject if the history fails to load for some reason.
+    // This would be fine, the panel will just start with empty history.
+    let allReady = this.jsterm.historyLoaded.catch(() => {}).then(() => {
+      return connectionInited;
+    });
+
+    // This notification is only used in tests. Don't chain it onto
+    // the returned promise because the console panel needs to be attached
+    // to the toolbox before the web-console-created event is receieved.
+    let notifyObservers = () => {
+      let id = WebConsoleUtils.supportsString(this.hudId);
+      Services.obs.notifyObservers(id, "web-console-created", null);
+    };
+    allReady.then(notifyObservers, notifyObservers);
+
+    return allReady;
   },
 
   /**
@@ -475,9 +499,6 @@ WebConsoleFrame.prototype = {
                                         aReason.error + ": " + aReason.message);
       this.outputMessage(CATEGORY_JS, node, [aReason]);
       this._initDefer.reject(aReason);
-    }).then(() => {
-      let id = WebConsoleUtils.supportsString(this.hudId);
-      Services.obs.notifyObservers(id, "web-console-created", null);
     });
 
     return this._initDefer.promise;
@@ -547,25 +568,29 @@ WebConsoleFrame.prototype = {
       });
     }
 
+    let saveBodiesDisabled = !this.getFilterState("networkinfo") &&
+                             !this.getFilterState("netxhr") &&
+                             !this.getFilterState("network");
+
     let saveBodies = doc.getElementById("saveBodies");
     saveBodies.addEventListener("command", reverseSaveBodiesPref);
-    saveBodies.disabled = !this.getFilterState("networkinfo") &&
-                          !this.getFilterState("network");
+    saveBodies.disabled = saveBodiesDisabled;
 
     let saveBodiesContextMenu = doc.getElementById("saveBodiesContextMenu");
     saveBodiesContextMenu.addEventListener("command", reverseSaveBodiesPref);
-    saveBodiesContextMenu.disabled = !this.getFilterState("networkinfo") &&
-                                     !this.getFilterState("network");
+    saveBodiesContextMenu.disabled = saveBodiesDisabled;
 
     saveBodies.parentNode.addEventListener("popupshowing", () => {
       updateSaveBodiesPrefUI(saveBodies);
       saveBodies.disabled = !this.getFilterState("networkinfo") &&
+                            !this.getFilterState("netxhr") &&
                             !this.getFilterState("network");
     });
 
     saveBodiesContextMenu.parentNode.addEventListener("popupshowing", () => {
       updateSaveBodiesPrefUI(saveBodiesContextMenu);
       saveBodiesContextMenu.disabled = !this.getFilterState("networkinfo") &&
+                                       !this.getFilterState("netxhr") &&
                                        !this.getFilterState("network");
     });
 
@@ -624,7 +649,7 @@ WebConsoleFrame.prototype = {
   {
     let prefs = ["network", "networkinfo", "csserror", "cssparser", "csslog",
                  "exception", "jswarn", "jslog", "error", "info", "warn", "log",
-                 "secerror", "secwarn", "netwarn"];
+                 "secerror", "secwarn", "netwarn", "netxhr"];
     for (let pref of prefs) {
       this.filterPrefs[pref] = Services.prefs
                                .getBoolPref(this._filterPrefsPrefix + pref);
@@ -690,6 +715,9 @@ WebConsoleFrame.prototype = {
     let categories = this.document
                      .querySelectorAll(".webconsole-filter-button[category]");
     Array.forEach(categories, function(aButton) {
+      aButton.addEventListener("contextmenu", (aEvent) => {
+        aButton.open = true;
+      }, false);
       aButton.addEventListener("click", this._toggleFilter, false);
 
       let someChecked = false;
@@ -811,7 +839,9 @@ WebConsoleFrame.prototype = {
   {
     let target = aEvent.target;
     let tagName = target.tagName;
-    if (tagName != aEvent.currentTarget.tagName) {
+    // Prevent toggle if generated from a contextmenu event (right click)
+    let isRightClick = (aEvent.button === 2); // right click is button 2;
+    if (tagName != aEvent.currentTarget.tagName || isRightClick) {
       return;
     }
 
@@ -878,8 +908,9 @@ WebConsoleFrame.prototype = {
         this.setFilterState(prefKey, state);
 
         // Disable the log response and request body if network logging is off.
-        if (prefKey == "networkinfo" || prefKey == "network") {
+        if (prefKey == "networkinfo" || prefKey == "netxhr" || prefKey == "network") {
           let checkState = !this.getFilterState("networkinfo") &&
+                           !this.getFilterState("netxhr") &&
                            !this.getFilterState("network");
           this.document.getElementById("saveBodies").disabled = checkState;
           this.document.getElementById("saveBodiesContextMenu").disabled = checkState;
@@ -1488,6 +1519,10 @@ WebConsoleFrame.prototype = {
     let request = networkInfo.request;
     let clipboardText = request.method + " " + request.url;
     let severity = SEVERITY_LOG;
+    if (networkInfo.isXHR) {
+      clipboardText = request.method + " XHR " + request.url;
+      severity = SEVERITY_INFO;
+    }
     let mixedRequest =
       WebConsoleUtils.isMixedHTTPSRequest(request.url, this.contentLocation);
     if (mixedRequest) {
@@ -1509,6 +1544,14 @@ WebConsoleFrame.prototype = {
 
     let body = methodNode.parentNode;
     body.setAttribute("aria-haspopup", true);
+
+    if (networkInfo.isXHR) {
+      let xhrNode = this.document.createElementNS(XHTML_NS, "span");
+      xhrNode.className = "xhr";
+      xhrNode.textContent = l10n.getStr("webConsoleXhrIndicator");
+      body.appendChild(xhrNode);
+      body.appendChild(this.document.createTextNode(" "));
+    }
 
     let displayUrl = request.url;
     let pos = displayUrl.indexOf("?");
@@ -1745,6 +1788,7 @@ WebConsoleFrame.prototype = {
         url: aActor.url,
         method: aActor.method,
       },
+      isXHR: aActor.isXHR,
       response: {},
       timings: {},
       updates: [], // track the list of network event updates
@@ -1841,6 +1885,7 @@ WebConsoleFrame.prototype = {
     let hasEventTimings = updates.indexOf("eventTimings") > -1;
     let hasResponseStart = updates.indexOf("responseStart") > -1;
     let request = networkInfo.request;
+    let methodText = (networkInfo.isXHR)? request.method + ' XHR' : request.method;
     let response = networkInfo.response;
     let updated = false;
 
@@ -1858,7 +1903,7 @@ WebConsoleFrame.prototype = {
       let statusNode = messageNode.getElementsByClassName("status")[0];
       statusNode.textContent = statusText;
 
-      messageNode.clipboardText = [request.method, request.url, statusText]
+      messageNode.clipboardText = [methodText, request.url, statusText]
                                   .join(" ");
 
       if (hasResponseStart && response.status >= MIN_HTTP_ERROR_CODE &&
@@ -2837,6 +2882,9 @@ WebConsoleFrame.prototype = {
    *        - linkOnly:
    *        An optional flag to copy only URL without timestamp and
    *        other meta-information. Default is false.
+   *        - contextmenu:
+   *        An optional flag to copy the last clicked item which brought
+   *        up the context menu if nothing is selected. Default is false.
    */
   copySelectedItems: function WCF_copySelectedItems(aOptions)
   {
@@ -2859,7 +2907,7 @@ WebConsoleFrame.prototype = {
           strings.push(item.url);
         }
         else {
-          strings.push("[" + timestampString + "] " + item.clipboardText);
+          strings.push(item.clipboardText);
         }
       }
     }
@@ -3027,17 +3075,11 @@ function JSTerm(aWebConsoleFrame)
 {
   this.hud = aWebConsoleFrame;
   this.hudId = this.hud.hudId;
+  this.inputHistoryCount = Services.prefs.getIntPref(PREF_INPUT_HISTORY_COUNT);
 
   this.lastCompletion = { value: null };
-  this.history = [];
+  this._loadHistory();
 
-  // Holds the number of entries in history. This value is incremented in
-  // this.execute().
-  this.historyIndex = 0; // incremented on this.execute()
-
-  // Holds the index of the history entry that the user is currently viewing.
-  // This is reset to this.history.length when this.execute() is invoked.
-  this.historyPlaceHolder = 0;
   this._objectActorsInVariablesViews = new Map();
 
   this._keyPress = this._keyPress.bind(this);
@@ -3051,6 +3093,53 @@ function JSTerm(aWebConsoleFrame)
 
 JSTerm.prototype = {
   SELECTED_FRAME: -1,
+
+  /**
+   * Load the console history from previous sessions.
+   * @private
+   */
+  _loadHistory: function() {
+    this.history = [];
+    this.historyIndex = this.historyPlaceHolder = 0;
+
+    this.historyLoaded = asyncStorage.getItem("webConsoleHistory").then(value => {
+      if (Array.isArray(value)) {
+        // Since it was gotten asynchronously, there could be items already in
+        // the history.  It's not likely but stick them onto the end anyway.
+        this.history = value.concat(this.history);
+
+        // Holds the number of entries in history. This value is incremented in
+        // this.execute().
+        this.historyIndex = this.history.length;
+
+        // Holds the index of the history entry that the user is currently viewing.
+        // This is reset to this.history.length when this.execute() is invoked.
+        this.historyPlaceHolder = this.history.length;
+      }
+    }, console.error);
+  },
+
+  /**
+   * Clear the console history altogether.  Note that this will not affect
+   * other consoles that are already opened (since they have their own copy),
+   * but it will reset the array for all newly-opened consoles.
+   * @returns Promise
+   *          Resolves once the changes have been persisted.
+   */
+  clearHistory: function() {
+    this.history = [];
+    this.historyIndex = this.historyPlaceHolder = 0;
+    return this.storeHistory();
+  },
+
+  /**
+   * Stores the console history for future console instances.
+   * @returns Promise
+   *          Resolves once the changes have been persisted.
+   */
+  storeHistory: function() {
+    return asyncStorage.setItem("webConsoleHistory", this.history);
+  },
 
   /**
    * Stores the data for the last completion.
@@ -3242,6 +3331,9 @@ JSTerm.prototype = {
         case "clearOutput":
           this.clearOutput();
           break;
+        case "clearHistory":
+          this.clearHistory();
+          break;
         case "inspectObject":
           if (aAfterMessage) {
             if (!aAfterMessage._objectActors) {
@@ -3264,6 +3356,9 @@ JSTerm.prototype = {
           break;
         case "help":
           this.hud.owner.openLink(HELP_URL);
+          break;
+        case "copyValueToClipboard":
+          clipboardHelper.copyString(helperResult.value);
           break;
       }
     }
@@ -3313,9 +3408,20 @@ JSTerm.prototype = {
    *        user input is used - taken from |this.inputNode.value|.
    * @param function [aCallback]
    *        Optional function to invoke when the result is displayed.
+   *        This is deprecated - please use the promise return value instead.
+   * @returns Promise
+   *          Resolves with the message once the result is displayed.
    */
   execute: function JST_execute(aExecuteString, aCallback)
   {
+    let deferred = promise.defer();
+    let callback = function(msg) {
+      deferred.resolve(msg);
+      if (aCallback) {
+        aCallback(msg);
+      }
+    }
+
     // attempt to execute the content of the inputNode
     aExecuteString = aExecuteString || this.inputNode.value;
     if (!aExecuteString) {
@@ -3324,7 +3430,7 @@ JSTerm.prototype = {
 
     let selectedNodeActor = null;
     let inspectorSelection = this.hud.owner.getInspectorSelection();
-    if (inspectorSelection) {
+    if (inspectorSelection && inspectorSelection.nodeFront) {
       selectedNodeActor = inspectorSelection.nodeFront.actorID;
     }
 
@@ -3333,7 +3439,7 @@ JSTerm.prototype = {
       severity: "log",
     });
     this.hud.output.addMessage(message);
-    let onResult = this._executeResultCallback.bind(this, message, aCallback);
+    let onResult = this._executeResultCallback.bind(this, message, callback);
 
     let options = {
       frame: this.SELECTED_FRAME,
@@ -3347,9 +3453,16 @@ JSTerm.prototype = {
     // value that was not evaluated yet.
     this.history[this.historyIndex++] = aExecuteString;
     this.historyPlaceHolder = this.history.length;
+
+    if (this.history.length > this.inputHistoryCount) {
+      this.history.splice(0, this.history.length - this.inputHistoryCount);
+      this.historyIndex = this.historyPlaceHolder = this.history.length;
+    }
+    this.storeHistory();
     WebConsoleUtils.usageCount++;
     this.setInputValue("");
     this.clearCompletion();
+    return deferred.promise;
   },
 
   /**
@@ -3400,7 +3513,7 @@ JSTerm.prototype = {
       selectedNodeActor: aOptions.selectedNodeActor,
     };
 
-    this.webConsoleClient.evaluateJS(aString, onResult, evalOptions);
+    this.webConsoleClient.evaluateJSAsync(aString, onResult, evalOptions);
     return deferred.promise;
   },
 
@@ -3535,8 +3648,8 @@ JSTerm.prototype = {
       deferred.resolve(window);
     };
 
-    let tab = this.sidebar.getTab("variablesview");
-    if (tab) {
+    let tabPanel = this.sidebar.getTabPanel("variablesview");
+    if (tabPanel) {
       if (this.sidebar.getCurrentTabID() == "variablesview") {
         onTabReady();
       }
@@ -4766,6 +4879,14 @@ CommandController.prototype = {
     this.owner.copySelectedItems({ linkOnly: true, contextmenu: true });
   },
 
+  /**
+   * Copies the last clicked message.
+   */
+  copyLastClicked: function CommandController_copy()
+  {
+    this.owner.copySelectedItems({ linkOnly: false, contextmenu: true });
+  },
+
   supportsCommand: function CommandController_supportsCommand(aCommand)
   {
     if (!this.owner || !this.owner.output) {
@@ -4783,6 +4904,12 @@ CommandController.prototype = {
         let selectedItem = this.owner.output.getSelectedMessages(1)[0] ||
                            this.owner._contextMenuHandler.lastClickedMessage;
         return selectedItem && "url" in selectedItem;
+      }
+      case "cmd_copy": {
+        // Only copy if we right-clicked the console and there's no selected text.
+        // With text selected, we want to fall back onto the default copy behavior.
+        return this.owner._contextMenuHandler.lastClickedMessage &&
+              !this.owner.output.getSelectedMessages(1)[0];
       }
       case "consoleCmd_clearOutput":
       case "cmd_selectAll":
@@ -4808,6 +4935,9 @@ CommandController.prototype = {
         break;
       case "consoleCmd_clearOutput":
         this.owner.jsterm.clearOutput(true);
+        break;
+      case "cmd_copy":
+        this.copyLastClicked();
         break;
       case "cmd_find":
         this.owner.filterBox.focus();
@@ -4969,7 +5099,7 @@ WebConsoleConnectionProxy.prototype = {
     this.target.on("navigate", this._onTabNavigated);
 
     this._consoleActor = this.target.form.consoleActor;
-    if (!this.target.chrome) {
+    if (this.target.isTabActor) {
       let tab = this.target.form;
       this.owner.onLocationChange(tab.url, tab.title);
     }
@@ -5395,4 +5525,3 @@ ConsoleContextMenu.prototype = {
     this.lastClickedMessage = null;
   },
 };
-

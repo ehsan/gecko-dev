@@ -8,6 +8,7 @@
 #define mozilla_dom_bluetooth_bluetootheventservice_h__
 
 #include "BluetoothCommon.h"
+#include "BluetoothInterface.h"
 #include "BluetoothProfileManagerBase.h"
 #include "nsAutoPtr.h"
 #include "nsClassHashtable.h"
@@ -92,21 +93,39 @@ public:
   UnregisterAllSignalHandlers(BluetoothSignalObserver* aMsgHandler);
 
   /**
+   * Create a signal without value and distribute it to the observer list
+   *
+   * @param aName Name of the signal
+   * @param aPath Path of the signal to distribute to
+   */
+  void
+  DistributeSignal(const nsAString& aName, const nsAString& aPath);
+
+  /**
+   * Create a signal and distribute it to the observer list
+   *
+   * @param aName Name of the signal
+   * @param aPath Path of the signal to distribute to
+   * @param aValue Value of the signal to carry
+   */
+  void
+  DistributeSignal(const nsAString& aName, const nsAString& aPath,
+                   const BluetoothValue& aValue);
+
+  /**
    * Distribute a signal to the observer list
    *
    * @param aSignal Signal object to distribute
-   *
-   * @return NS_OK if signal distributed, NS_ERROR_FAILURE on error
    */
   void
-  DistributeSignal(const BluetoothSignal& aEvent);
+  DistributeSignal(const BluetoothSignal& aSignal);
 
   /**
    * Returns the BluetoothService singleton. Only to be called from main thread.
    *
    * @param aService Pointer to return singleton into.
    *
-   * @return NS_OK on proper assignment, NS_ERROR_FAILURE otherwise (if service
+   * @return non-nullptr on proper assignment, nullptr otherwise (if service
    * has not yet been started, for instance)
    */
   static BluetoothService*
@@ -306,6 +325,31 @@ public:
   SendInputMessage(const nsAString& aDeviceAddresses,
                    const nsAString& aMessage) = 0;
 
+  /**
+   * Connect to a remote GATT server. (platform specific implementation)
+   */
+  virtual void
+  ConnectGattClientInternal(const nsAString& aAppUuid,
+                            const nsAString& aDeviceAddress,
+                            BluetoothReplyRunnable* aRunnable) = 0;
+
+  /**
+   * Disconnect GATT client from a remote GATT server.
+   * (platform specific implementation)
+   */
+  virtual void
+  DisconnectGattClientInternal(const nsAString& aAppUuid,
+                               const nsAString& aDeviceAddress,
+                               BluetoothReplyRunnable* aRunnable) = 0;
+
+  /**
+   * Unregister a GATT client. (platform specific implementation)
+   */
+  virtual void
+  UnregisterGattClientInternal(int aClientIf,
+                               BluetoothReplyRunnable* aRunnable) = 0;
+
+
   bool
   IsEnabled() const
   {
@@ -314,6 +358,8 @@ public:
 
   bool
   IsToggling() const;
+
+  static void AcknowledgeToggleBt(bool aEnabled);
 
   void FireAdapterStateChanged(bool aEnable);
   nsresult EnableDisable(bool aEnable,
@@ -392,10 +438,15 @@ protected:
   static BluetoothService*
   Create();
 
+  void
+  CompleteToggleBt(bool aEnabled);
+
   typedef nsClassHashtable<nsStringHashKey, BluetoothSignalObserverList >
   BluetoothSignalObserverTable;
 
   BluetoothSignalObserverTable mBluetoothSignalObserverTable;
+
+  nsTArray<BluetoothSignal> mPendingPairReqSignals;
 
   bool mEnabled;
 };

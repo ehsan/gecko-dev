@@ -51,11 +51,14 @@ public:
                                PTextureChild* aTexture,
                                const FenceHandle& aFence);
 
+  uint64_t GetId() const { return mId; }
+
 protected:
-  LayerTransactionChild()
+  explicit LayerTransactionChild(const uint64_t& aId)
     : mForwarder(nullptr)
     , mIPCOpen(false)
     , mDestroyed(false)
+    , mId(aId)
   {}
   ~LayerTransactionChild() { }
 
@@ -70,7 +73,7 @@ protected:
   virtual bool DeallocPTextureChild(PTextureChild* actor) MOZ_OVERRIDE;
 
   virtual bool
-  RecvParentAsyncMessages(const InfallibleTArray<AsyncParentMessageData>& aMessages) MOZ_OVERRIDE;
+  RecvParentAsyncMessages(InfallibleTArray<AsyncParentMessageData>&& aMessages) MOZ_OVERRIDE;
 
   virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
 
@@ -90,6 +93,7 @@ protected:
   ShadowLayerForwarder* mForwarder;
   bool mIPCOpen;
   bool mDestroyed;
+  uint64_t mId;
 };
 
 } // namespace layers

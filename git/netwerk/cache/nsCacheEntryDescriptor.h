@@ -15,7 +15,6 @@
 #include "nsCacheService.h"
 #include "zlib.h"
 #include "mozilla/Mutex.h"
-#include "nsVoidArray.h"
 
 /******************************************************************************
 * nsCacheEntryDescriptor
@@ -45,7 +44,7 @@ public:
     nsCacheEntry * CacheEntry(void)      { return mCacheEntry; }
     bool           ClearCacheEntry(void)
     {
-      NS_ASSERTION(mInputWrappers.Count() == 0, "Bad state");
+      NS_ASSERTION(mInputWrappers.IsEmpty(), "Bad state");
       NS_ASSERTION(!mOutputWrapper, "Bad state");
 
       bool doomEntry = false;
@@ -128,8 +127,8 @@ private:
           , mStreamEnded(false)
          {
          }
-         NS_IMETHOD Read(char* buf, uint32_t count, uint32_t * result);
-         NS_IMETHOD Close();
+         NS_IMETHOD Read(char* buf, uint32_t count, uint32_t * result) MOZ_OVERRIDE;
+         NS_IMETHOD Close() MOZ_OVERRIDE;
      private:
          virtual ~nsDecompressInputStreamWrapper()
          {
@@ -209,8 +208,8 @@ private:
           , mUncompressedCount(0)
          {
          }
-         NS_IMETHOD Write(const char* buf, uint32_t count, uint32_t * result);
-         NS_IMETHOD Close();
+         NS_IMETHOD Write(const char* buf, uint32_t count, uint32_t * result) MOZ_OVERRIDE;
+         NS_IMETHOD Close() MOZ_OVERRIDE;
      private:
          virtual ~nsCompressOutputStreamWrapper()
          { 
@@ -226,7 +225,7 @@ private:
       */
      nsCacheEntry          * mCacheEntry; // we are a child of the entry
      nsCacheAccessMode       mAccessGranted;
-     nsVoidArray             mInputWrappers;
+     nsTArray<nsInputStreamWrapper*> mInputWrappers;
      nsOutputStreamWrapper * mOutputWrapper;
      mozilla::Mutex          mLock;
      bool                    mAsyncDoomPending;

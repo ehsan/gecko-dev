@@ -1286,7 +1286,9 @@ Search.prototype = {
       // search or because of the user's preferences), so only set it if we
       // haven't already done so.
       if (showTags) {
-        match.style = "tag";
+        // If we're not suggesting bookmarks, then this shouldn't
+        // display as one.
+        match.style = this.hasBehavior("bookmark") ? "bookmark-tag" : "tag";
       }
       else if (bookmarked) {
         match.style = "bookmark";
@@ -1381,7 +1383,7 @@ Search.prototype = {
       queryString = searchString.substring(queryIndex + 1);
     }
     // We need to escape the parameters as if they were the query in a URL
-    queryString = encodeURIComponent(queryString).replace("%20", "+", "g");
+    queryString = encodeURIComponent(queryString).replace(/%20/g, "+");
 
     // The first word could be a keyword, so that's what we'll search.
     let keyword = this._searchTokens[0];

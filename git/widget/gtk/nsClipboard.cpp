@@ -911,52 +911,54 @@ RetrievalContext::Wait()
         return data;
     }
 
-    Display *xDisplay = GDK_DISPLAY_XDISPLAY(gdk_display_get_default()) ;
-    checkEventContext context;
-    context.cbWidget = nullptr;
-    context.selAtom = gdk_x11_atom_to_xatom(gdk_atom_intern("GDK_SELECTION",
-                                                            FALSE));
+    GdkDisplay *gdkDisplay = gdk_display_get_default();
+    if (GDK_IS_X11_DISPLAY(gdkDisplay)) {
+        Display *xDisplay = GDK_DISPLAY_XDISPLAY(gdkDisplay);
+        checkEventContext context;
+        context.cbWidget = nullptr;
+        context.selAtom = gdk_x11_atom_to_xatom(gdk_atom_intern("GDK_SELECTION",
+                                                                FALSE));
 
-    // Send X events which are relevant to the ongoing selection retrieval
-    // to the clipboard widget.  Wait until either the operation completes, or
-    // we hit our timeout.  All other X events remain queued.
+        // Send X events which are relevant to the ongoing selection retrieval
+        // to the clipboard widget.  Wait until either the operation completes, or
+        // we hit our timeout.  All other X events remain queued.
 
-    int select_result;
+        int select_result;
 
-    int cnumber = ConnectionNumber(xDisplay);
-    fd_set select_set;
-    FD_ZERO(&select_set);
-    FD_SET(cnumber, &select_set);
-    ++cnumber;
-    TimeStamp start = TimeStamp::Now();
+        int cnumber = ConnectionNumber(xDisplay);
+        fd_set select_set;
+        FD_ZERO(&select_set);
+        FD_SET(cnumber, &select_set);
+        ++cnumber;
+        TimeStamp start = TimeStamp::Now();
 
-    do {
-        XEvent xevent;
+        do {
+            XEvent xevent;
 
-        while (XCheckIfEvent(xDisplay, &xevent, checkEventProc,
-                             (XPointer) &context)) {
+            while (XCheckIfEvent(xDisplay, &xevent, checkEventProc,
+                                 (XPointer) &context)) {
 
-            if (xevent.xany.type == SelectionNotify)
-                DispatchSelectionNotifyEvent(context.cbWidget, &xevent);
-            else
-                DispatchPropertyNotifyEvent(context.cbWidget, &xevent);
+                if (xevent.xany.type == SelectionNotify)
+                    DispatchSelectionNotifyEvent(context.cbWidget, &xevent);
+                else
+                    DispatchPropertyNotifyEvent(context.cbWidget, &xevent);
 
-            if (mState == COMPLETED) {
-                void *data = mData;
-                mData = nullptr;
-                return data;
+                if (mState == COMPLETED) {
+                    void *data = mData;
+                    mData = nullptr;
+                    return data;
+                }
             }
-        }
 
-        TimeStamp now = TimeStamp::Now();
-        struct timeval tv;
-        tv.tv_sec = 0;
-        tv.tv_usec = std::max<int32_t>(0,
-            kClipboardTimeout - (now - start).ToMicroseconds());
-        select_result = select(cnumber, &select_set, nullptr, nullptr, &tv);
-    } while (select_result == 1 ||
-             (select_result == -1 && errno == EINTR));
-
+            TimeStamp now = TimeStamp::Now();
+            struct timeval tv;
+            tv.tv_sec = 0;
+            tv.tv_usec = std::max<int32_t>(0,
+                kClipboardTimeout - (now - start).ToMicroseconds());
+            select_result = select(cnumber, &select_set, nullptr, nullptr, &tv);
+        } while (select_result == 1 ||
+                 (select_result == -1 && errno == EINTR));
+    }
 #ifdef DEBUG_CLIPBOARD
     printf("exceeded clipboard timeout\n");
 #endif
@@ -979,7 +981,7 @@ wait_for_contents(GtkClipboard *clipboard, GdkAtom target)
 {
     RefPtr<RetrievalContext> context = new RetrievalContext();
     // Balanced by Release in clipboard_contents_received
-    context->AddRef();
+    context.get()->AddRef();
     gtk_clipboard_request_contents(clipboard, target,
                                    clipboard_contents_received,
                                    context.get());
@@ -1001,7 +1003,7 @@ wait_for_text(GtkClipboard *clipboard)
 {
     RefPtr<RetrievalContext> context = new RetrievalContext();
     // Balanced by Release in clipboard_text_received
-    context->AddRef();
+    context.get()->AddRef();
     gtk_clipboard_request_text(clipboard, clipboard_text_received, context.get());
     return static_cast<gchar*>(context->Wait());
 }

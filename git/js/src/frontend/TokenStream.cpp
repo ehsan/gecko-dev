@@ -130,6 +130,12 @@ frontend::IsIdentifier(JSLinearString *str)
 }
 
 bool
+frontend::IsIdentifier(const char16_t *chars, size_t length)
+{
+    return ::IsIdentifier(chars, length);
+}
+
+bool
 frontend::IsKeyword(JSLinearString *str)
 {
     return FindKeyword(str) != nullptr;
@@ -151,7 +157,7 @@ TokenStream::SourceCoords::SourceCoords(ExclusiveContext *cx, uint32_t ln)
     // appends cannot fail because |lineStartOffsets_| has statically-allocated
     // elements.
     MOZ_ASSERT(lineStartOffsets_.capacity() >= 2);
-    (void)lineStartOffsets_.reserve(2);
+    MOZ_ALWAYS_TRUE(lineStartOffsets_.reserve(2));
     lineStartOffsets_.infallibleAppend(0);
     lineStartOffsets_.infallibleAppend(maxPtr);
 }
@@ -308,26 +314,6 @@ TokenStream::TokenStream(ExclusiveContext *cx, const ReadOnlyCompileOptions &opt
     // much easier.  Don't worry, the time to initialize them for each
     // TokenStream is trivial.  See bug 639420.
 
-    // See getChar() for an explanation of maybeEOL[].
-    memset(maybeEOL, 0, sizeof(maybeEOL));
-    maybeEOL[unsigned('\n')] = true;
-    maybeEOL[unsigned('\r')] = true;
-    maybeEOL[unsigned(LINE_SEPARATOR & 0xff)] = true;
-    maybeEOL[unsigned(PARA_SEPARATOR & 0xff)] = true;
-
-    // See getTokenInternal() for an explanation of maybeStrSpecial[].
-    memset(maybeStrSpecial, 0, sizeof(maybeStrSpecial));
-    maybeStrSpecial[unsigned('"')] = true;
-    maybeStrSpecial[unsigned('`')] = true;
-    maybeStrSpecial[unsigned('$')] = true;
-    maybeStrSpecial[unsigned('\'')] = true;
-    maybeStrSpecial[unsigned('\\')] = true;
-    maybeStrSpecial[unsigned('\n')] = true;
-    maybeStrSpecial[unsigned('\r')] = true;
-    maybeStrSpecial[unsigned(LINE_SEPARATOR & 0xff)] = true;
-    maybeStrSpecial[unsigned(PARA_SEPARATOR & 0xff)] = true;
-    maybeStrSpecial[unsigned(EOF & 0xff)] = true;
-
     // See Parser::assignExpr() for an explanation of isExprEnding[].
     memset(isExprEnding, 0, sizeof(isExprEnding));
     isExprEnding[TOK_COMMA] = 1;
@@ -391,31 +377,18 @@ TokenStream::getChar()
     if (MOZ_LIKELY(userbuf.hasRawChars())) {
         c = userbuf.getRawChar();
 
-        // Normalize the char16_t if it was a newline.  We need to detect any of
-        // these four characters:  '\n' (0x000a), '\r' (0x000d),
-        // LINE_SEPARATOR (0x2028), PARA_SEPARATOR (0x2029).  Testing for each
-        // one in turn is slow, so we use a single probabilistic check, and if
-        // that succeeds, test for them individually.
-        //
-        // We use the bottom 8 bits to index into a lookup table, succeeding
-        // when d&0xff is 0xa, 0xd, 0x28 or 0x29.  Among ASCII chars (which
-        // are by the far the most common) this gives false positives for '('
-        // (0x0028) and ')' (0x0029).  We could avoid those by incorporating
-        // the 13th bit of d into the lookup, but that requires extra shifting
-        // and masking and isn't worthwhile.  See TokenStream::TokenStream()
-        // for the initialization of the relevant entries in the table.
-        if (MOZ_UNLIKELY(maybeEOL[c & 0xff])) {
-            if (c == '\n')
-                goto eol;
-            if (c == '\r') {
-                // If it's a \r\n sequence: treat as a single EOL, skip over the \n.
-                if (userbuf.hasRawChars())
-                    userbuf.matchRawChar('\n');
-                goto eol;
-            }
-            if (c == LINE_SEPARATOR || c == PARA_SEPARATOR)
-                goto eol;
+        // Normalize the char16_t if it was a newline.
+        if (MOZ_UNLIKELY(c == '\n'))
+            goto eol;
+        if (MOZ_UNLIKELY(c == '\r')) {
+            // If it's a \r\n sequence: treat as a single EOL, skip over the \n.
+            if (MOZ_LIKELY(userbuf.hasRawChars()))
+                userbuf.matchRawChar('\n');
+            goto eol;
         }
+        if (MOZ_UNLIKELY(c == LINE_SEPARATOR || c == PARA_SEPARATOR))
+            goto eol;
+
         return c;
     }
 
@@ -601,7 +574,7 @@ CompileError::throwError(JSContext *cx)
     // as the non-top-level "load", "eval", or "compile" native function
     // returns false, the top-level reporter will eventually receive the
     // uncaught exception report.
-    if (!js_ErrorToException(cx, message, &report, nullptr, nullptr))
+    if (!ErrorToException(cx, message, &report, nullptr, nullptr))
         CallErrorReporter(cx, message, &report);
 }
 
@@ -668,8 +641,8 @@ TokenStream::reportCompileErrorNumberVA(uint32_t offset, unsigned flags, unsigne
 
     err.argumentsType = (flags & JSREPORT_UC) ? ArgumentsAreUnicode : ArgumentsAreASCII;
 
-    if (!js_ExpandErrorArguments(cx, js_GetErrorMessage, nullptr, errorNumber, &err.message,
-                                 &err.report, err.argumentsType, args))
+    if (!ExpandErrorArguments(cx, GetErrorMessage, nullptr, errorNumber, &err.message,
+                              &err.report, err.argumentsType, args))
     {
         return false;
     }
@@ -1003,8 +976,14 @@ TokenStream::putIdentInTokenbuf(const char16_t *identStart)
 bool
 TokenStream::checkForKeyword(const KeywordInfo *kw, TokenKind *ttp)
 {
-    if (kw->tokentype == TOK_RESERVED)
+    if (kw->tokentype == TOK_RESERVED
+#ifndef JS_HAS_CLASSES
+        || kw->tokentype == TOK_CLASS
+#endif
+        )
+    {
         return reportError(JSMSG_RESERVED_ID, kw->chars);
+    }
 
     if (kw->tokentype != TOK_STRICT_RESERVED) {
         if (kw->version <= versionNumber()) {
@@ -1671,122 +1650,136 @@ TokenStream::getTokenInternal(TokenKind *ttp, Modifier modifier)
     return false;
 }
 
-bool TokenStream::getStringOrTemplateToken(int qc, Token **tp)
+bool
+TokenStream::getStringOrTemplateToken(int untilChar, Token **tp)
 {
-    *tp = newToken(-1);
     int c;
     int nc = -1;
+
+    bool parsingTemplate = (untilChar == '`');
+
+    *tp = newToken(-1);
     tokenbuf.clear();
-    while (true) {
-        // We need to detect any of these chars:  " or ', \n (or its
-        // equivalents), \\, EOF.  We use maybeStrSpecial[] in a manner
-        // similar to maybeEOL[], see above.  Because we detect EOL
-        // sequences here and put them back immediately, we can use
-        // getCharIgnoreEOL().
-        c = getCharIgnoreEOL();
-        if (maybeStrSpecial[c & 0xff]) {
-            if (c == qc)
-                break;
-            if (c == '\\') {
-                switch (c = getChar()) {
-                  case 'b': c = '\b'; break;
-                  case 'f': c = '\f'; break;
-                  case 'n': c = '\n'; break;
-                  case 'r': c = '\r'; break;
-                  case 't': c = '\t'; break;
-                  case 'v': c = '\v'; break;
 
-                  default:
-                    if ('0' <= c && c < '8') {
-                        int32_t val = JS7_UNDEC(c);
+    // We need to detect any of these chars:  " or ', \n (or its
+    // equivalents), \\, EOF.  Because we detect EOL sequences here and
+    // put them back immediately, we can use getCharIgnoreEOL().
+    while ((c = getCharIgnoreEOL()) != untilChar) {
+        if (c == EOF) {
+            ungetCharIgnoreEOL(c);
+            reportError(JSMSG_UNTERMINATED_STRING);
+            return false;
+        }
 
-                        c = peekChar();
-                        // Strict mode code allows only \0, then a non-digit.
-                        if (val != 0 || JS7_ISDEC(c)) {
-                            if (qc == '`') {
-                                reportError(JSMSG_DEPRECATED_OCTAL);
-                                return false;
-                            }
-                            if (!reportStrictModeError(JSMSG_DEPRECATED_OCTAL))
-                                return false;
-                            flags.sawOctalEscape = true;
-                        }
-                        if ('0' <= c && c < '8') {
-                            val = 8 * val + JS7_UNDEC(c);
-                            getChar();
-                            c = peekChar();
-                            if ('0' <= c && c < '8') {
-                                int32_t save = val;
-                                val = 8 * val + JS7_UNDEC(c);
-                                if (val <= 0377)
-                                    getChar();
-                                else
-                                    val = save;
-                            }
-                        }
+        if (c == '\\') {
+            switch (c = getChar()) {
+              case 'b': c = '\b'; break;
+              case 'f': c = '\f'; break;
+              case 'n': c = '\n'; break;
+              case 'r': c = '\r'; break;
+              case 't': c = '\t'; break;
+              case 'v': c = '\v'; break;
 
-                        c = char16_t(val);
-                    } else if (c == 'u') {
-                        char16_t cp[4];
-                        if (peekChars(4, cp) &&
-                            JS7_ISHEX(cp[0]) && JS7_ISHEX(cp[1]) &&
-                            JS7_ISHEX(cp[2]) && JS7_ISHEX(cp[3])) {
-                            c = (((((JS7_UNHEX(cp[0]) << 4)
-                                    + JS7_UNHEX(cp[1])) << 4)
-                                  + JS7_UNHEX(cp[2])) << 4)
-                                + JS7_UNHEX(cp[3]);
-                            skipChars(4);
-                        } else {
-                            reportError(JSMSG_MALFORMED_ESCAPE, "Unicode");
-                            return false;
-                        }
-                    } else if (c == 'x') {
-                        char16_t cp[2];
-                        if (peekChars(2, cp) &&
-                                JS7_ISHEX(cp[0]) && JS7_ISHEX(cp[1])) {
-                            c = (JS7_UNHEX(cp[0]) << 4) + JS7_UNHEX(cp[1]);
-                            skipChars(2);
-                        } else {
-                            reportError(JSMSG_MALFORMED_ESCAPE, "hexadecimal");
-                            return false;
-                        }
-                    } else if (c == '\n') {
-                        // ES5 7.8.4: an escaped line terminator represents
-                        // no character.
-                        continue;
-                    }
-                    break;
+              case '\n':
+                // ES5 7.8.4: an escaped line terminator represents
+                // no character.
+                continue;
+
+              // Unicode character specification.
+              case 'u': {
+                char16_t cp[4];
+                if (peekChars(4, cp) &&
+                    JS7_ISHEX(cp[0]) && JS7_ISHEX(cp[1]) && JS7_ISHEX(cp[2]) && JS7_ISHEX(cp[3]))
+                {
+                    c = JS7_UNHEX(cp[0]);
+                    c = (c << 4) + JS7_UNHEX(cp[1]);
+                    c = (c << 4) + JS7_UNHEX(cp[2]);
+                    c = (c << 4) + JS7_UNHEX(cp[3]);
+                    skipChars(4);
+                } else {
+                    reportError(JSMSG_MALFORMED_ESCAPE, "Unicode");
+                    return false;
                 }
-            } else if (c == EOF) {
+                break;
+              }
+
+              // Hexadecimal character specification.
+              case 'x': {
+                char16_t cp[2];
+                if (peekChars(2, cp) && JS7_ISHEX(cp[0]) && JS7_ISHEX(cp[1])) {
+                    c = (JS7_UNHEX(cp[0]) << 4) + JS7_UNHEX(cp[1]);
+                    skipChars(2);
+                } else {
+                    reportError(JSMSG_MALFORMED_ESCAPE, "hexadecimal");
+                    return false;
+                }
+                break;
+              }
+
+              default:
+                // Octal character specification.
+                if (JS7_ISOCT(c)) {
+                    int32_t val = JS7_UNOCT(c);
+
+                    c = peekChar();
+
+                    // Strict mode code allows only \0, then a non-digit.
+                    if (val != 0 || JS7_ISDEC(c)) {
+                        if (parsingTemplate) {
+                            reportError(JSMSG_DEPRECATED_OCTAL);
+                            return false;
+                        }
+                        if (!reportStrictModeError(JSMSG_DEPRECATED_OCTAL))
+                            return false;
+                        flags.sawOctalEscape = true;
+                    }
+
+                    if (JS7_ISOCT(c)) {
+                        val = 8 * val + JS7_UNOCT(c);
+                        getChar();
+                        c = peekChar();
+                        if (JS7_ISOCT(c)) {
+                            int32_t save = val;
+                            val = 8 * val + JS7_UNOCT(c);
+                            if (val <= 0xFF)
+                                getChar();
+                            else
+                                val = save;
+                        }
+                    }
+
+                    c = char16_t(val);
+                } 
+                break;
+            }
+        } else if (TokenBuf::isRawEOLChar(c)) {
+            if (!parsingTemplate) {
                 ungetCharIgnoreEOL(c);
                 reportError(JSMSG_UNTERMINATED_STRING);
                 return false;
-            } else if (TokenBuf::isRawEOLChar(c)) {
-                if (qc != '`') {
-                    ungetCharIgnoreEOL(c);
-                    reportError(JSMSG_UNTERMINATED_STRING);
-                    return false;
-                }
-                if (c == '\r') {
-                    c = '\n';
-                    if (userbuf.peekRawChar() == '\n')
-                        skipChars(1);
-                }
-                updateLineInfoForEOL();
-                updateFlagsForEOL();
-            } else if (qc == '`' && c == '$') {
-                if ((nc = getCharIgnoreEOL()) == '{')
-                    break;
-                ungetCharIgnoreEOL(nc);
             }
+            if (c == '\r') {
+                c = '\n';
+                if (userbuf.peekRawChar() == '\n')
+                    skipChars(1);
+            }
+            updateLineInfoForEOL();
+            updateFlagsForEOL();
+        } else if (parsingTemplate && c == '$') {
+            if ((nc = getCharIgnoreEOL()) == '{')
+                break;
+            ungetCharIgnoreEOL(nc);
         }
+
         if (!tokenbuf.append(c))
             return false;
     }
+
     JSAtom *atom = atomize(cx, tokenbuf);
     if (!atom)
         return false;
-    if (qc != '`') {
+
+    if (!parsingTemplate) {
         (*tp)->type = TOK_STRING;
     } else {
         if (c == '$' && nc == '{')
@@ -1794,6 +1787,7 @@ bool TokenStream::getStringOrTemplateToken(int qc, Token **tp)
         else
             (*tp)->type = TOK_NO_SUBS_TEMPLATE;
     }
+
     (*tp)->setAtom(atom);
     return true;
 }

@@ -30,14 +30,14 @@ using namespace mozilla::pkix;
 extern PRLogModuleInfo* gPIPNSSLog;
 #endif
 
-static const unsigned int DEFAULT_MINIMUM_NON_ECC_BITS = 2048;
+static const unsigned int DEFAULT_MIN_RSA_BITS = 2048;
 
 namespace mozilla { namespace psm {
 
 AppTrustDomain::AppTrustDomain(ScopedCERTCertList& certChain, void* pinArg)
   : mCertChain(certChain)
   , mPinArg(pinArg)
-  , mMinimumNonECCBits(DEFAULT_MINIMUM_NON_ECC_BITS)
+  , mMinRSABits(DEFAULT_MIN_RSA_BITS)
 {
 }
 
@@ -75,7 +75,7 @@ AppTrustDomain::SetTrustedRoot(AppTrustedRoot trustedRoot)
       trustedDER.data = const_cast<uint8_t*>(marketplaceStageRoot);
       trustedDER.len = mozilla::ArrayLength(marketplaceStageRoot);
       // The staging root was generated with a 1024-bit key.
-      mMinimumNonECCBits = 1024u;
+      mMinRSABits = 1024u;
       break;
 
     case nsIX509CertDB::AppXPCShellRoot:
@@ -214,18 +214,12 @@ AppTrustDomain::GetCertTrust(EndEntityOrCA endEntityOrCA,
 }
 
 Result
-AppTrustDomain::VerifySignedData(const SignedDataWithSignature& signedData,
-                                 Input subjectPublicKeyInfo)
-{
-  return ::mozilla::pkix::VerifySignedData(signedData, subjectPublicKeyInfo,
-                                           mMinimumNonECCBits, mPinArg);
-}
-
-Result
-AppTrustDomain::DigestBuf(Input item, /*out*/ uint8_t* digestBuf,
+AppTrustDomain::DigestBuf(Input item,
+                          DigestAlgorithm digestAlg,
+                          /*out*/ uint8_t* digestBuf,
                           size_t digestBufLen)
 {
-  return ::mozilla::pkix::DigestBuf(item, digestBuf, digestBufLen);
+  return DigestBufNSS(item, digestAlg, digestBuf, digestBufLen);
 }
 
 Result
@@ -250,10 +244,51 @@ AppTrustDomain::IsChainValid(const DERArray& certChain, Time time)
 }
 
 Result
-AppTrustDomain::CheckPublicKey(Input subjectPublicKeyInfo)
+AppTrustDomain::CheckSignatureDigestAlgorithm(DigestAlgorithm)
 {
-  return ::mozilla::pkix::CheckPublicKey(subjectPublicKeyInfo,
-                                         mMinimumNonECCBits);
+  // TODO: We should restrict signatures to SHA-256 or better.
+  return Success;
+}
+
+Result
+AppTrustDomain::CheckRSAPublicKeyModulusSizeInBits(
+  EndEntityOrCA /*endEntityOrCA*/, unsigned int modulusSizeInBits)
+{
+  if (modulusSizeInBits < mMinRSABits) {
+    return Result::ERROR_INADEQUATE_KEY_SIZE;
+  }
+  return Success;
+}
+
+Result
+AppTrustDomain::VerifyRSAPKCS1SignedDigest(const SignedDigest& signedDigest,
+                                           Input subjectPublicKeyInfo)
+{
+  // TODO: We should restrict signatures to SHA-256 or better.
+  return VerifyRSAPKCS1SignedDigestNSS(signedDigest, subjectPublicKeyInfo,
+                                       mPinArg);
+}
+
+Result
+AppTrustDomain::CheckECDSACurveIsAcceptable(EndEntityOrCA /*endEntityOrCA*/,
+                                            NamedCurve curve)
+{
+  switch (curve) {
+    case NamedCurve::secp256r1: // fall through
+    case NamedCurve::secp384r1: // fall through
+    case NamedCurve::secp521r1:
+      return Success;
+  }
+
+  return Result::ERROR_UNSUPPORTED_ELLIPTIC_CURVE;
+}
+
+Result
+AppTrustDomain::VerifyECDSASignedDigest(const SignedDigest& signedDigest,
+                                        Input subjectPublicKeyInfo)
+{
+  return VerifyECDSASignedDigestNSS(signedDigest, subjectPublicKeyInfo,
+                                    mPinArg);
 }
 
 } } // namespace mozilla::psm

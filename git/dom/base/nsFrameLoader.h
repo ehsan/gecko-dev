@@ -21,8 +21,8 @@
 #include "nsFrameMessageManager.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/Attributes.h"
-#include "FrameMetrics.h"
 #include "nsStubMutationObserver.h"
+#include "Units.h"
 
 class nsIURI;
 class nsSubDocumentFrame;
@@ -86,8 +86,8 @@ public:
   /**
    * MessageManagerCallback methods that we override.
    */
-  virtual bool DoLoadFrameScript(const nsAString& aURL,
-                                 bool aRunInGlobalScope) MOZ_OVERRIDE;
+  virtual bool DoLoadMessageManagerScript(const nsAString& aURL,
+                                          bool aRunInGlobalScope) MOZ_OVERRIDE;
   virtual bool DoSendAsyncMessage(JSContext* aCx,
                                   const nsAString& aMessage,
                                   const mozilla::dom::StructuredCloneData& aData,
@@ -224,6 +224,9 @@ public:
 
   void GetURL(nsString& aURL);
 
+  void ActivateUpdateHitRegion();
+  void DeactivateUpdateHitRegion();
+
 private:
 
   void SetOwnerContent(mozilla::dom::Element* aContent);
@@ -284,7 +287,7 @@ private:
 
   // Updates the subdocument position and size. This gets called only
   // when we have our own in-process DocShell.
-  nsresult UpdateBaseWindowPositionAndSize(nsSubDocumentFrame *aIFrame);
+  void UpdateBaseWindowPositionAndSize(nsSubDocumentFrame *aIFrame);
   nsresult CheckURILoad(nsIURI* aURI);
   void FireErrorEvent();
   nsresult ReallyStartLoadingInternal();
@@ -293,7 +296,7 @@ private:
   bool TryRemoteBrowser();
 
   // Tell the remote browser that it's now "virtually visible"
-  bool ShowRemoteFrame(const nsIntSize& size,
+  bool ShowRemoteFrame(const mozilla::ScreenIntSize& size,
                        nsSubDocumentFrame *aFrame = nullptr);
 
   bool AddTreeItemToTreeOwner(nsIDocShellTreeItem* aItem,
@@ -302,12 +305,15 @@ private:
                               nsIDocShell* aParentNode);
 
   nsIAtom* TypeAttrName() const {
-    return mOwnerContent->IsXUL() ? nsGkAtoms::type : nsGkAtoms::mozframetype;
+    return mOwnerContent->IsXULElement()
+             ? nsGkAtoms::type : nsGkAtoms::mozframetype;
   }
 
   // Update the permission manager's app-id refcount based on mOwnerContent's
   // own-or-containing-app.
   void ResetPermissionManagerStatus();
+
+  void InitializeBrowserAPI();
 
   nsCOMPtr<nsIDocShell> mDocShell;
   nsCOMPtr<nsIURI> mURIToLoad;
@@ -331,6 +337,7 @@ private:
   // a reframe, so that we know not to restore the presentation.
   nsCOMPtr<nsIDocument> mContainerDocWhileDetached;
 
+  bool mIsPrerendered : 1;
   bool mDepthTooGreat : 1;
   bool mIsTopLevelContent : 1;
   bool mDestroyCalled : 1;
@@ -347,7 +354,6 @@ private:
   bool mRemoteFrame : 1;
   bool mClipSubdocument : 1;
   bool mClampScrollPosition : 1;
-  bool mRemoteBrowserInitialized : 1;
   bool mObservingOwnerContent : 1;
 
   // Backs nsIFrameLoader::{Get,Set}Visible.  Visibility state here relates to
@@ -365,9 +371,6 @@ private:
   // See nsIFrameLoader.idl. EVENT_MODE_NORMAL_DISPATCH automatically
   // forwards some input events to out-of-process content.
   uint32_t mEventMode;
-
-  // Indicate if we have sent 'remote-browser-pending'.
-  bool mPendingFrameSent;
 };
 
 #endif

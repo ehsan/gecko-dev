@@ -58,10 +58,7 @@ public:
   void SetPorts(MessagePortList* aPorts);
 
   // Non WebIDL methods
-  void SetSource(mozilla::dom::MessagePort* aPort)
-  {
-    mPortSource = aPort;
-  }
+  void SetSource(mozilla::dom::MessagePort* aPort);
 
   void SetSource(nsPIDOMWindow* aWindow)
   {
@@ -70,6 +67,12 @@ public:
 
   static already_AddRefed<MessageEvent>
   Constructor(const GlobalObject& aGlobal,
+              const nsAString& aType,
+              const MessageEventInit& aEventInit,
+              ErrorResult& aRv);
+
+  static already_AddRefed<MessageEvent>
+  Constructor(EventTarget* aEventTarget,
               const nsAString& aType,
               const MessageEventInit& aEventInit,
               ErrorResult& aRv);

@@ -12,6 +12,9 @@ namespace jit {
 
 #define MIR_OPCODE_LIST(_)                                                  \
     _(Constant)                                                             \
+    _(NurseryObject)                                                        \
+    _(SimdBox)                                                              \
+    _(SimdUnbox)                                                            \
     _(SimdValueX4)                                                          \
     _(SimdSplatX4)                                                          \
     _(SimdConstant)                                                         \
@@ -21,13 +24,14 @@ namespace jit {
     _(SimdInsertElement)                                                    \
     _(SimdSignMask)                                                         \
     _(SimdSwizzle)                                                          \
+    _(SimdGeneralSwizzle)                                                   \
     _(SimdShuffle)                                                          \
     _(SimdUnaryArith)                                                       \
     _(SimdBinaryComp)                                                       \
     _(SimdBinaryArith)                                                      \
     _(SimdBinaryBitwise)                                                    \
     _(SimdShift)                                                            \
-    _(SimdTernaryBitwise)                                                   \
+    _(SimdSelect)                                                           \
     _(CloneLiteral)                                                         \
     _(Parameter)                                                            \
     _(Callee)                                                               \
@@ -36,7 +40,7 @@ namespace jit {
     _(Goto)                                                                 \
     _(Test)                                                                 \
     _(GotoWithFake)                                                         \
-    _(TypeObjectDispatch)                                                   \
+    _(ObjectGroupDispatch)                                                  \
     _(FunctionDispatch)                                                     \
     _(Compare)                                                              \
     _(Phi)                                                                  \
@@ -91,7 +95,6 @@ namespace jit {
     _(Div)                                                                  \
     _(Mod)                                                                  \
     _(Concat)                                                               \
-    _(ConcatPar)                                                            \
     _(CharCodeAt)                                                           \
     _(FromCharCode)                                                         \
     _(StringSplit)                                                          \
@@ -102,6 +105,7 @@ namespace jit {
     _(Unbox)                                                                \
     _(GuardObject)                                                          \
     _(GuardString)                                                          \
+    _(PolyInlineGuard)                                                      \
     _(AssertRange)                                                          \
     _(ToDouble)                                                             \
     _(ToFloat32)                                                            \
@@ -156,15 +160,15 @@ namespace jit {
     _(SetElementCache)                                                      \
     _(BindNameCache)                                                        \
     _(GuardShape)                                                           \
-    _(GuardShapePolymorphic)                                                \
-    _(GuardObjectType)                                                      \
+    _(GuardReceiverPolymorphic)                                             \
+    _(GuardObjectGroup)                                                     \
     _(GuardObjectIdentity)                                                  \
     _(GuardClass)                                                           \
     _(ArrayLength)                                                          \
     _(SetArrayLength)                                                       \
     _(TypedArrayLength)                                                     \
     _(TypedArrayElements)                                                   \
-    _(TypedObjectProto)                                                     \
+    _(TypedObjectDescr)                                                     \
     _(TypedObjectElements)                                                  \
     _(SetTypedObjectOffset)                                                 \
     _(InitializedLength)                                                    \
@@ -181,6 +185,7 @@ namespace jit {
     _(StoreElementHole)                                                     \
     _(StoreUnboxedObjectOrNull)                                             \
     _(StoreUnboxedString)                                                   \
+    _(ConvertUnboxedObjectToNative)                                         \
     _(ArrayPopShift)                                                        \
     _(ArrayPush)                                                            \
     _(ArrayConcat)                                                          \
@@ -200,7 +205,6 @@ namespace jit {
     _(CallGetProperty)                                                      \
     _(GetNameCache)                                                         \
     _(CallGetIntrinsicValue)                                                \
-    _(CallsiteCloneCache)                                                   \
     _(CallGetElement)                                                       \
     _(CallSetElement)                                                       \
     _(CallSetProperty)                                                      \
@@ -226,13 +230,11 @@ namespace jit {
     _(CallInstanceOf)                                                       \
     _(InterruptCheck)                                                       \
     _(AsmJSInterruptCheck)                                                  \
-    _(ProfilerStackOp)                                                      \
     _(GetDOMProperty)                                                       \
     _(GetDOMMember)                                                         \
     _(SetDOMProperty)                                                       \
     _(IsCallable)                                                           \
     _(IsObject)                                                             \
-    _(HaveSameClass)                                                        \
     _(HasClass)                                                             \
     _(AsmJSNeg)                                                             \
     _(AsmJSUnsignedToDouble)                                                \
@@ -248,17 +250,7 @@ namespace jit {
     _(AsmJSVoidReturn)                                                      \
     _(AsmJSPassStackArg)                                                    \
     _(AsmJSCall)                                                            \
-    _(CheckOverRecursedPar)                                                 \
-    _(NewCallObjectPar)                                                     \
-    _(NewPar)                                                               \
-    _(NewDenseArrayPar)                                                     \
     _(NewDerivedTypedObject)                                                \
-    _(LambdaPar)                                                            \
-    _(RestPar)                                                              \
-    _(ForkJoinContext)                                                      \
-    _(ForkJoinGetSlice)                                                     \
-    _(GuardThreadExclusive)                                                 \
-    _(InterruptCheckPar)                                                    \
     _(RecompileCheck)                                                       \
     _(MemoryBarrier)                                                        \
     _(AsmJSCompareExchangeHeap)                                             \
@@ -276,7 +268,7 @@ namespace jit {
 class MDefinitionVisitor // interface i.e. pure abstract class
 {
   public:
-#define VISIT_INS(op) virtual bool visit##op(M##op *) = 0;
+#define VISIT_INS(op) virtual void visit##op(M##op *) = 0;
     MIR_OPCODE_LIST(VISIT_INS)
 #undef VISIT_INS
 };
@@ -286,7 +278,7 @@ class MDefinitionVisitor // interface i.e. pure abstract class
 class MDefinitionVisitorDefaultNYI : public MDefinitionVisitor
 {
   public:
-#define VISIT_INS(op) virtual bool visit##op(M##op *) { MOZ_CRASH("NYI: " #op); }
+#define VISIT_INS(op) virtual void visit##op(M##op *) { MOZ_CRASH("NYI: " #op); }
     MIR_OPCODE_LIST(VISIT_INS)
 #undef VISIT_INS
 };
@@ -295,7 +287,7 @@ class MDefinitionVisitorDefaultNYI : public MDefinitionVisitor
 class MDefinitionVisitorDefaultNoop : public MDefinitionVisitor
 {
   public:
-#define VISIT_INS(op) virtual bool visit##op(M##op *) { return true; }
+#define VISIT_INS(op) virtual void visit##op(M##op *) { }
     MIR_OPCODE_LIST(VISIT_INS)
 #undef VISIT_INS
 };

@@ -27,11 +27,9 @@ class GLContextCGL : public GLContext
     NSOpenGLContext *mContext;
 
 public:
-    MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(GLContextCGL)
-    GLContextCGL(const SurfaceCaps& caps,
-                 GLContext *shareContext,
-                 NSOpenGLContext *context,
-                 bool isOffscreen = false);
+    MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(GLContextCGL, MOZ_OVERRIDE)
+    GLContextCGL(const SurfaceCaps& caps, NSOpenGLContext* context,
+                 bool isOffscreen, ContextProfile profile);
 
     ~GLContextCGL();
 

@@ -22,11 +22,14 @@
 #include "Units.h"
 #include "mozilla/Mutex.h"
 #include <vector>
+#include "nsRefPtr.h"
 
 class nsIWidget;
 
 namespace mozilla {
-class WidgetMouseEvent;
+namespace layers {
+class CompositorVsyncObserver;
+}
 
 // Used to resample touch events whenever a vsync event occurs. It batches
 // touch moves and on every vsync, resamples the touch position to create smooth
@@ -38,28 +41,36 @@ class WidgetMouseEvent;
 // this sample time, we extrapolate the last two touch events to the sample
 // time. The magic numbers defined as constants are taken from android
 // InputTransport.cpp.
-class GeckoTouchDispatcher
+class GeckoTouchDispatcher MOZ_FINAL
 {
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(GeckoTouchDispatcher)
 
 public:
-  GeckoTouchDispatcher();
+  static GeckoTouchDispatcher* GetInstance();
   void NotifyTouch(MultiTouchInput& aTouch, TimeStamp aEventTime);
-  void DispatchTouchEvent(MultiTouchInput& aMultiTouch);
+  void DispatchTouchEvent(MultiTouchInput aMultiTouch);
+  void DispatchTouchNonMoveEvent(MultiTouchInput aInput);
   void DispatchTouchMoveEvents(TimeStamp aVsyncTime);
-  static bool NotifyVsync(TimeStamp aVsyncTimestamp);
+  void NotifyVsync(TimeStamp aVsyncTimestamp);
+  void SetCompositorVsyncObserver(layers::CompositorVsyncObserver* aObserver);
+
+protected:
+  ~GeckoTouchDispatcher() {}
 
 private:
+  GeckoTouchDispatcher();
   void ResampleTouchMoves(MultiTouchInput& aOutTouch, TimeStamp vsyncTime);
   void SendTouchEvent(MultiTouchInput& aData);
   void DispatchMouseEvent(MultiTouchInput& aMultiTouch,
                           bool aForwardToChildren);
-  WidgetMouseEvent ToWidgetMouseEvent(const MultiTouchInput& aData, nsIWidget* aWidget) const;
 
-  // mTouchQueueLock are used to protect the vector below
-  // as it is accessed on the vsync thread and main thread
+  // mTouchQueueLock is used to protect the vector and state below
+  // as it is accessed on multiple threads.
   Mutex mTouchQueueLock;
   std::vector<MultiTouchInput> mTouchMoveEvents;
+  bool mHavePendingTouchMoves;
+  int mInflightNonMoveEvents;
+  // end stuff protected by mTouchQueueLock
 
   bool mResamplingEnabled;
   bool mTouchEventsFiltered;
@@ -78,6 +89,8 @@ private:
 
   // How far ahead can vsync events get ahead of touch events.
   TimeDuration mOldTouchThreshold;
+
+  nsRefPtr<layers::CompositorVsyncObserver> mCompositorVsyncObserver;
 };
 
 } // namespace mozilla

@@ -10,13 +10,9 @@
 
 #include "JavaScriptShared.h"
 #include "mozilla/ipc/ProtocolUtils.h"
+#include "mozilla/jsipc/CrossProcessObjectWrappers.h"
 #include "js/Class.h"
-#include "jsproxy.h"
-
-#ifdef XP_WIN
-#undef GetClassName
-#undef GetClassInfo
-#endif
+#include "js/Proxy.h"
 
 namespace mozilla {
 namespace jsipc {
@@ -32,20 +28,22 @@ class WrapperOwner : public virtual JavaScriptShared
     bool init();
 
     // Standard internal methods.
-    // (The traps should be in the same order like js/src/jsproxy.h)
+    // (The traps should be in the same order like js/Proxy.h)
     bool getOwnPropertyDescriptor(JSContext *cx, JS::HandleObject proxy, JS::HandleId id,
                                   JS::MutableHandle<JSPropertyDescriptor> desc);
     bool defineProperty(JSContext *cx, JS::HandleObject proxy, JS::HandleId id,
-                        JS::MutableHandle<JSPropertyDescriptor> desc);
+                        JS::MutableHandle<JSPropertyDescriptor> desc,
+                        JS::ObjectOpResult &result);
     bool ownPropertyKeys(JSContext *cx, JS::HandleObject proxy, JS::AutoIdVector &props);
-    bool delete_(JSContext *cx, JS::HandleObject proxy, JS::HandleId id, bool *bp);
-    bool preventExtensions(JSContext *cx, JS::HandleObject proxy, bool *succeeded);
+    bool delete_(JSContext *cx, JS::HandleObject proxy, JS::HandleId id,
+                 JS::ObjectOpResult &result);
+    bool preventExtensions(JSContext *cx, JS::HandleObject proxy, JS::ObjectOpResult &result);
     bool isExtensible(JSContext *cx, JS::HandleObject proxy, bool *extensible);
     bool has(JSContext *cx, JS::HandleObject proxy, JS::HandleId id, bool *bp);
     bool get(JSContext *cx, JS::HandleObject proxy, JS::HandleObject receiver,
              JS::HandleId id, JS::MutableHandleValue vp);
     bool set(JSContext *cx, JS::HandleObject proxy, JS::HandleObject receiver,
-             JS::HandleId id, bool strict, JS::MutableHandleValue vp);
+             JS::HandleId id, JS::MutableHandleValue vp, JS::ObjectOpResult &result);
     bool callOrConstruct(JSContext *cx, JS::HandleObject proxy, const JS::CallArgs &args,
                          bool construct);
 
@@ -55,12 +53,11 @@ class WrapperOwner : public virtual JavaScriptShared
     bool hasOwn(JSContext *cx, JS::HandleObject proxy, JS::HandleId id, bool *bp);
     bool getOwnEnumerablePropertyKeys(JSContext *cx, JS::HandleObject proxy,
                                       JS::AutoIdVector &props);
-    bool getEnumerablePropertyKeys(JSContext *cx, JS::HandleObject proxy,
-                                   JS::AutoIdVector &props);
-    // We use "iterate" provided by the base class here.
     bool hasInstance(JSContext *cx, JS::HandleObject proxy, JS::MutableHandleValue v, bool *bp);
     bool objectClassIs(JSContext *cx, JS::HandleObject obj, js::ESClassValue classValue);
     const char* className(JSContext *cx, JS::HandleObject proxy);
+    bool getPrototype(JSContext *cx, JS::HandleObject proxy, JS::MutableHandleObject protop);
+
     bool regexp_toShared(JSContext *cx, JS::HandleObject proxy, js::RegExpGuard *g);
 
     nsresult instanceOf(JSObject *obj, const nsID *id, bool *bp);
@@ -98,6 +95,10 @@ class WrapperOwner : public virtual JavaScriptShared
     bool ipcfail(JSContext *cx);
 
     // Check whether a return status is okay, and if not, propagate its error.
+    //
+    // If 'status' might be a ReturnObjectOpResult, which is only possible for
+    // a subset of the operations below, 'result' must be passed.
+    bool ok(JSContext *cx, const ReturnStatus &status, JS::ObjectOpResult &result);
     bool ok(JSContext *cx, const ReturnStatus &status);
 
     bool inactive_;
@@ -105,8 +106,7 @@ class WrapperOwner : public virtual JavaScriptShared
     /*** Dummy call handlers ***/
   public:
     virtual bool SendDropObject(const ObjectId &objId) = 0;
-    virtual bool SendPreventExtensions(const ObjectId &objId, ReturnStatus *rs,
-                                       bool *succeeded) = 0;
+    virtual bool SendPreventExtensions(const ObjectId &objId, ReturnStatus *rs) = 0;
     virtual bool SendGetPropertyDescriptor(const ObjectId &objId, const JSIDVariant &id,
                                            ReturnStatus *rs,
                                            PPropertyDescriptor *out) = 0;
@@ -118,7 +118,7 @@ class WrapperOwner : public virtual JavaScriptShared
                                     const PPropertyDescriptor &flags,
                                     ReturnStatus *rs) = 0;
     virtual bool SendDelete(const ObjectId &objId, const JSIDVariant &id,
-                            ReturnStatus *rs, bool *success) = 0;
+                            ReturnStatus *rs) = 0;
 
     virtual bool SendHas(const ObjectId &objId, const JSIDVariant &id,
                          ReturnStatus *rs, bool *bp) = 0;
@@ -128,8 +128,8 @@ class WrapperOwner : public virtual JavaScriptShared
                          const JSIDVariant &id,
                          ReturnStatus *rs, JSVariant *result) = 0;
     virtual bool SendSet(const ObjectId &objId, const ObjectVariant &receiverVar,
-                         const JSIDVariant &id, const bool &strict,
-                         const JSVariant &value, ReturnStatus *rs, JSVariant *result) = 0;
+                         const JSIDVariant &id, const JSVariant &value,
+                         ReturnStatus *rs, JSVariant *result) = 0;
 
     virtual bool SendIsExtensible(const ObjectId &objId, ReturnStatus *rs,
                                   bool *result) = 0;
@@ -141,6 +141,7 @@ class WrapperOwner : public virtual JavaScriptShared
     virtual bool SendObjectClassIs(const ObjectId &objId, const uint32_t &classValue,
                                    bool *result) = 0;
     virtual bool SendClassName(const ObjectId &objId, nsString *result) = 0;
+    virtual bool SendGetPrototype(const ObjectId &objId, ReturnStatus *rs, ObjectOrNullVariant *result) = 0;
     virtual bool SendRegExpToShared(const ObjectId &objId, ReturnStatus *rs, nsString *source,
                                     uint32_t *flags) = 0;
 
@@ -151,21 +152,6 @@ class WrapperOwner : public virtual JavaScriptShared
     virtual bool SendDOMInstanceOf(const ObjectId &objId, const int &prototypeID, const int &depth,
                                    ReturnStatus *rs, bool *instanceof) = 0;
 };
-
-bool
-IsCPOW(JSObject *obj);
-
-bool
-IsWrappedCPOW(JSObject *obj);
-
-nsresult
-InstanceOf(JSObject *obj, const nsID *id, bool *bp);
-
-bool
-DOMInstanceOf(JSContext *cx, JSObject *obj, int prototypeID, int depth, bool *bp);
-
-void
-GetWrappedCPOWTag(JSObject *obj, nsACString &out);
 
 } // jsipc
 } // mozilla

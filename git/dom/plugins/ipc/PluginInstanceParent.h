@@ -22,6 +22,7 @@
 #include "nsDataHashtable.h"
 #include "nsHashKeys.h"
 #include "nsRect.h"
+#include "PluginDataResolver.h"
 
 #ifdef MOZ_X11
 class gfxXlibSurface;
@@ -30,6 +31,7 @@ class gfxXlibSurface;
 
 class gfxASurface;
 class gfxContext;
+class nsPluginInstanceOwner;
 
 namespace mozilla {
 namespace layers {
@@ -42,11 +44,21 @@ class PBrowserStreamParent;
 class PluginModuleParent;
 
 class PluginInstanceParent : public PPluginInstanceParent
+                           , public PluginDataResolver
 {
     friend class PluginModuleParent;
     friend class BrowserStreamParent;
     friend class PluginStreamParent;
     friend class StreamNotifyParent;
+
+#if defined(XP_WIN)
+public:
+    /**
+     * Helper method for looking up instances based on a supplied id.
+     */
+    static PluginInstanceParent*
+    LookupPluginInstanceByID(uintptr_t aId);
+#endif // defined(XP_WIN)
 
 public:
     PluginInstanceParent(PluginModuleParent* parent,
@@ -56,7 +68,8 @@ public:
 
     virtual ~PluginInstanceParent();
 
-    bool Init();
+    bool InitMetadata(const nsACString& aMimeType,
+                      const nsACString& aSrcAttribute);
     NPError Destroy();
 
     virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
@@ -74,11 +87,7 @@ public:
                               const uint32_t& length,
                               const uint32_t& lastmodified,
                               PStreamNotifyParent* notifyData,
-                              const nsCString& headers,
-                              const nsCString& mimeType,
-                              const bool& seekable,
-                              NPError* rv,
-                              uint16_t *stype) MOZ_OVERRIDE;
+                              const nsCString& headers) MOZ_OVERRIDE;
     virtual bool
     DeallocPBrowserStreamParent(PBrowserStreamParent* stream) MOZ_OVERRIDE;
 
@@ -210,6 +219,9 @@ public:
     virtual bool
     RecvNegotiatedCarbon() MOZ_OVERRIDE;
 
+    virtual bool
+    RecvAsyncNPP_NewResult(const NPError& aResult) MOZ_OVERRIDE;
+
     NPError NPP_SetWindow(const NPWindow* aWindow);
 
     NPError NPP_GetValue(NPPVariable variable, void* retval);
@@ -254,6 +266,30 @@ public:
       return mNPP;
     }
 
+    bool
+    UseSurrogate() const
+    {
+        return mUseSurrogate;
+    }
+
+    void
+    GetSrcAttribute(nsACString& aOutput) const
+    {
+        aOutput = mSrcAttribute;
+    }
+
+    /**
+     * This function tells us whether this plugin instance would have been
+     * whitelisted for Shumway if Shumway had been enabled. This is being used
+     * for the purpose of gathering telemetry on Flash hangs that could
+     * potentially be avoided by using Shumway instead.
+     */
+    bool
+    IsWhitelistedForShumway() const
+    {
+        return mIsWhitelistedForShumway;
+    }
+
     virtual bool
     AnswerPluginFocusChange(const bool& gotFocus) MOZ_OVERRIDE;
 
@@ -270,6 +306,13 @@ public:
     nsresult EndUpdateBackground(gfxContext* aCtx,
                                  const nsIntRect& aRect);
     void DidComposite() { unused << SendNPP_DidComposite(); }
+
+    virtual PluginAsyncSurrogate* GetAsyncSurrogate() MOZ_OVERRIDE;
+
+    virtual PluginInstanceParent* GetInstance() MOZ_OVERRIDE { return this; }
+
+    static PluginInstanceParent* Cast(NPP instance,
+                                      PluginAsyncSurrogate** aSurrogate = nullptr);
 
 private:
     // Create an appropriate platform surface for a background of size
@@ -291,10 +334,16 @@ private:
                                      PPluginScriptableObjectParent** aValue,
                                      NPError* aResult);
 
+    nsPluginInstanceOwner* GetOwner();
+
 private:
     PluginModuleParent* mParent;
+    nsRefPtr<PluginAsyncSurrogate> mSurrogate;
+    bool mUseSurrogate;
     NPP mNPP;
     const NPNetscapeFuncs* mNPNIface;
+    nsCString mSrcAttribute;
+    bool mIsWhitelistedForShumway;
     NPWindowType mWindowType;
     int16_t            mDrawingModel;
     nsAutoPtr<mozilla::layers::CompositionNotifySink> mNotifySink;

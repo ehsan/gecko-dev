@@ -15,6 +15,8 @@ BEGIN_BLUETOOTH_NAMESPACE
 // Socket module
 //
 
+const int BluetoothDaemonSocketModule::MAX_NUM_CLIENTS = 1;
+
 // Commands
 //
 
@@ -34,7 +36,7 @@ BluetoothDaemonSocketModule::ListenCmd(BluetoothSocketType aType,
     aType,
     PackConversion<nsAString, BluetoothServiceName>(aServiceName),
     PackArray<uint8_t>(aServiceUuid, 16),
-    PackConversion<int, uint16_t>(aChannel),
+    PackConversion<int, int32_t>(aChannel),
     SocketFlags(aEncrypt, aAuth), *pdu);
   if (NS_FAILED(rv)) {
     return rv;
@@ -63,7 +65,7 @@ BluetoothDaemonSocketModule::ConnectCmd(const nsAString& aBdAddr,
     PackConversion<nsAString, BluetoothAddress>(aBdAddr),
     aType,
     PackArray<uint8_t>(aUuid, 16),
-    PackConversion<int, int16_t>(aChannel),
+    PackConversion<int, int32_t>(aChannel),
     SocketFlags(aEncrypt, aAuth), *pdu);
   if (NS_FAILED(rv)) {
     return rv;
@@ -313,8 +315,11 @@ BluetoothDaemonSocketInterface::Listen(BluetoothSocketType aType,
 {
   MOZ_ASSERT(mModule);
 
-  mModule->ListenCmd(aType, aServiceName, aServiceUuid, aChannel,
-                     aEncrypt, aAuth, aRes);
+  nsresult rv = mModule->ListenCmd(aType, aServiceName, aServiceUuid,
+                                   aChannel, aEncrypt, aAuth, aRes);
+  if (NS_FAILED(rv))  {
+    DispatchError(aRes, rv);
+  }
 }
 
 void
@@ -327,7 +332,11 @@ BluetoothDaemonSocketInterface::Connect(const nsAString& aBdAddr,
 {
   MOZ_ASSERT(mModule);
 
-  mModule->ConnectCmd(aBdAddr, aType, aUuid, aChannel, aEncrypt, aAuth, aRes);
+  nsresult rv = mModule->ConnectCmd(aBdAddr, aType, aUuid, aChannel,
+                                    aEncrypt, aAuth, aRes);
+  if (NS_FAILED(rv))  {
+    DispatchError(aRes, rv);
+  }
 }
 
 void
@@ -336,7 +345,10 @@ BluetoothDaemonSocketInterface::Accept(int aFd,
 {
   MOZ_ASSERT(mModule);
 
-  mModule->AcceptCmd(aFd, aRes);
+  nsresult rv = mModule->AcceptCmd(aFd, aRes);
+  if (NS_FAILED(rv))  {
+    DispatchError(aRes, rv);
+  }
 }
 
 void
@@ -344,7 +356,32 @@ BluetoothDaemonSocketInterface::Close(BluetoothSocketResultHandler* aRes)
 {
   MOZ_ASSERT(mModule);
 
-  mModule->CloseCmd(aRes);
+  nsresult rv = mModule->CloseCmd(aRes);
+  if (NS_FAILED(rv))  {
+    DispatchError(aRes, rv);
+  }
+}
+
+void
+BluetoothDaemonSocketInterface::DispatchError(
+  BluetoothSocketResultHandler* aRes, BluetoothStatus aStatus)
+{
+  BluetoothResultRunnable1<BluetoothSocketResultHandler, void,
+                           BluetoothStatus, BluetoothStatus>::Dispatch(
+    aRes, &BluetoothSocketResultHandler::OnError,
+    ConstantInitOp1<BluetoothStatus>(aStatus));
+}
+
+void
+BluetoothDaemonSocketInterface::DispatchError(
+  BluetoothSocketResultHandler* aRes, nsresult aRv)
+{
+  BluetoothStatus status;
+
+  if (NS_WARN_IF(NS_FAILED(Convert(aRv, status)))) {
+    status = STATUS_FAIL;
+  }
+  DispatchError(aRes, status);
 }
 
 END_BLUETOOTH_NAMESPACE

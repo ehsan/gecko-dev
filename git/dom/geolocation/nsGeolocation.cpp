@@ -49,6 +49,11 @@ class nsIPrincipal;
 #include "CoreLocationLocationProvider.h"
 #endif
 
+#ifdef XP_WIN
+#include "WindowsLocationProvider.h"
+#include "mozilla/WindowsVersion.h"
+#endif
+
 // Some limit to the number of get or watch geolocation requests
 // that a window can make.
 #define MAX_GEO_REQUESTS_PER_WINDOW  1500
@@ -133,7 +138,7 @@ public:
     MOZ_COUNT_CTOR(GeolocationSettingsCallback);
   }
 
-  NS_IMETHOD Handle(const nsAString& aName, JS::Handle<JS::Value> aResult)
+  NS_IMETHOD Handle(const nsAString& aName, JS::Handle<JS::Value> aResult) MOZ_OVERRIDE
   {
     MOZ_ASSERT(NS_IsMainThread());
 
@@ -159,7 +164,7 @@ public:
     return NS_OK;
   }
 
-  NS_IMETHOD HandleError(const nsAString& aName)
+  NS_IMETHOD HandleError(const nsAString& aName) MOZ_OVERRIDE
   {
     if (aName.EqualsASCII(GEO_SETTINGS_ENABLED)) {
       GPSLOG("Unable to get value for '" GEO_SETTINGS_ENABLED "'");
@@ -805,8 +810,15 @@ nsresult nsGeolocationService::Init()
 #endif
 
 #ifdef MOZ_WIDGET_COCOA
-  if (Preferences::GetBool("geo.provider.use_corelocation", false)) {
+  if (Preferences::GetBool("geo.provider.use_corelocation", true)) {
     mProvider = new CoreLocationLocationProvider();
+  }
+#endif
+
+#ifdef XP_WIN
+  if (Preferences::GetBool("geo.provider.ms-windows-location", false) &&
+      IsWin8OrLater()) {
+    mProvider = new WindowsLocationProvider();
   }
 #endif
 
@@ -841,11 +853,8 @@ nsGeolocationService::HandleMozsettingChanged(nsISupports* aSubject)
     // The string that we're interested in will be a JSON string that looks like:
     //  {"key":"gelocation.enabled","value":true}
 
-    AutoJSAPI jsapi;
-    jsapi.Init();
-    JSContext* cx = jsapi.cx();
-    RootedDictionary<SettingChangeNotification> setting(cx);
-    if (!WrappedJSToDictionary(cx, aSubject, setting)) {
+    RootedDictionary<SettingChangeNotification> setting(nsContentUtils::RootingCxForThread());
+    if (!WrappedJSToDictionary(aSubject, setting)) {
       return;
     }
     if (!setting.mKey.EqualsASCII(GEO_SETTINGS_ENABLED)) {
@@ -1261,7 +1270,7 @@ Geolocation::Update(nsIDOMGeoPosition *aSomewhere)
     if (coords) {
       double accuracy = -1;
       coords->GetAccuracy(&accuracy);
-      mozilla::Telemetry::Accumulate(mozilla::Telemetry::GEOLOCATION_ACCURACY, accuracy);
+      mozilla::Telemetry::Accumulate(mozilla::Telemetry::GEOLOCATION_ACCURACY_EXPONENTIAL, accuracy);
     }
   }
 

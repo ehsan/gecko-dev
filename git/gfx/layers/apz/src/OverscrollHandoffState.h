@@ -11,6 +11,7 @@
 #include "nsAutoPtr.h"
 #include "nsISupportsImpl.h"  // for NS_INLINE_DECL_REFCOUNTING
 #include "Units.h"            // for ScreenPoint
+#include "APZUtils.h"         // for CancelAnimationFlags
 
 namespace mozilla {
 namespace layers {
@@ -93,7 +94,7 @@ public:
   void FlushRepaints() const;
 
   // Cancel animations all the way up the chain.
-  void CancelAnimations() const;
+  void CancelAnimations(CancelAnimationFlags aFlags = Default) const;
 
   // Clear overscroll all the way up the chain.
   void ClearOverscroll() const;
@@ -126,8 +127,13 @@ private:
  */
 struct OverscrollHandoffState {
   OverscrollHandoffState(const OverscrollHandoffChain& aChain,
-                         const ScreenPoint& aPanDistance)
-      : mChain(aChain), mChainIndex(0), mPanDistance(aPanDistance) {}
+                         const ScreenPoint& aPanDistance,
+                         ScrollSource aScrollSource)
+    : mChain(aChain),
+      mChainIndex(0),
+      mPanDistance(aPanDistance),
+      mScrollSource(aScrollSource)
+  {}
 
   // The chain of APZCs along which we hand off scroll.
   // This is const to indicate that the chain does not change over the
@@ -143,6 +149,8 @@ struct OverscrollHandoffState {
   // course of handoff.
   // The x/y components of this are non-negative.
   const ScreenPoint mPanDistance;
+
+  ScrollSource mScrollSource;
 };
 // Don't pollute other files with this macro for now.
 #undef NS_INLINE_DECL_THREADSAFE_MUTABLE_REFCOUNTING

@@ -42,18 +42,20 @@ public:
   virtual bool IsTransportSeekable() MOZ_FINAL MOZ_OVERRIDE;
   virtual bool OnDecodeThread() const MOZ_FINAL MOZ_OVERRIDE;
   virtual bool OnStateMachineThread() const MOZ_FINAL MOZ_OVERRIDE;
-  virtual int64_t GetTimestampOffset() const MOZ_FINAL MOZ_OVERRIDE { return mTimestampOffset; }
   virtual int64_t GetMediaDuration() MOZ_FINAL MOZ_OVERRIDE;
   virtual layers::ImageContainer* GetImageContainer() MOZ_FINAL MOZ_OVERRIDE;
   virtual MediaDecoderOwner* GetOwner() MOZ_FINAL MOZ_OVERRIDE;
   virtual SourceBufferResource* GetResource() const MOZ_FINAL MOZ_OVERRIDE;
   virtual ReentrantMonitor& GetReentrantMonitor() MOZ_FINAL MOZ_OVERRIDE;
   virtual VideoFrameContainer* GetVideoFrameContainer() MOZ_FINAL MOZ_OVERRIDE;
-  virtual void MetadataLoaded(nsAutoPtr<MediaInfo> aInfo, nsAutoPtr<MetadataTags> aTags, bool aRestoredFromDromant) MOZ_FINAL MOZ_OVERRIDE;
-  virtual void FirstFrameLoaded(nsAutoPtr<MediaInfo> aInfo, bool aRestoredFromDromant) MOZ_FINAL MOZ_OVERRIDE;
+  virtual void MetadataLoaded(nsAutoPtr<MediaInfo> aInfo,
+                              nsAutoPtr<MetadataTags> aTags,
+                              MediaDecoderEventVisibility aEventVisibility) MOZ_FINAL MOZ_OVERRIDE;
+  virtual void FirstFrameLoaded(nsAutoPtr<MediaInfo> aInfo,
+                                MediaDecoderEventVisibility aEventVisibility) MOZ_FINAL MOZ_OVERRIDE;
   virtual void NotifyBytesConsumed(int64_t aBytes, int64_t aOffset) MOZ_FINAL MOZ_OVERRIDE;
   virtual void NotifyDataArrived(const char* aBuffer, uint32_t aLength, int64_t aOffset) MOZ_FINAL MOZ_OVERRIDE;
-  virtual void NotifyDecodedFrames(uint32_t aParsed, uint32_t aDecoded) MOZ_FINAL MOZ_OVERRIDE;
+  virtual void NotifyDecodedFrames(uint32_t aParsed, uint32_t aDecoded, uint32_t aDropped) MOZ_FINAL MOZ_OVERRIDE;
   virtual void NotifyWaitingForResourcesStatusChanged() MOZ_FINAL MOZ_OVERRIDE;
   virtual void OnReadMetadataCompleted() MOZ_FINAL MOZ_OVERRIDE;
   virtual void QueueMetadata(int64_t aTime, nsAutoPtr<MediaInfo> aInfo, nsAutoPtr<MetadataTags> aTags) MOZ_FINAL MOZ_OVERRIDE;
@@ -62,10 +64,11 @@ public:
   virtual void SetMediaEndTime(int64_t aTime) MOZ_FINAL MOZ_OVERRIDE;
   virtual void SetMediaSeekable(bool aMediaSeekable) MOZ_FINAL MOZ_OVERRIDE;
   virtual void UpdateEstimatedMediaDuration(int64_t aDuration) MOZ_FINAL MOZ_OVERRIDE;
-  virtual void UpdatePlaybackPosition(int64_t aTime) MOZ_FINAL MOZ_OVERRIDE;
   virtual bool HasInitializationData() MOZ_FINAL MOZ_OVERRIDE;
 
   // SourceBufferResource specific interface below.
+  int64_t GetTimestampOffset() const { return mTimestampOffset; }
+  void SetTimestampOffset(int64_t aOffset)  { mTimestampOffset = aOffset; }
 
   // Warning: this mirrors GetBuffered in MediaDecoder, but this class's base is
   // AbstractMediaDecoder, which does not supply this interface.
@@ -77,7 +80,7 @@ public:
     mReader = aReader;
   }
 
-  MediaDecoderReader* GetReader()
+  MediaDecoderReader* GetReader() const
   {
     return mReader;
   }

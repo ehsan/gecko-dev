@@ -86,6 +86,7 @@ namespace mozilla {
 class CSSStyleSheet;
 class ErrorResult;
 class EventStates;
+class PendingPlayerTracker;
 class SVGAttrAnimationRuleProcessor;
 
 namespace css {
@@ -146,8 +147,8 @@ struct FullScreenOptions {
 } // namespace mozilla
 
 #define NS_IDOCUMENT_IID \
-{ 0xf63d2f6e, 0xd1c1, 0x49b9, \
- { 0x88, 0x26, 0xd5, 0x9e, 0x5d, 0x72, 0x2a, 0x42 } }
+{ 0x0b78eabe, 0x8b94, 0x4ea1, \
+  { 0x93, 0x31, 0x5d, 0x48, 0xe8, 0x3a, 0xda, 0x95 } }
 
 // Enum for requesting a particular type of document when creating a doc
 enum DocumentFlavor {
@@ -1300,7 +1301,7 @@ public:
    * media documents).  Returns false for XHTML and any other documents parsed
    * by the XML parser.
    */
-  bool IsHTML() const
+  bool IsHTMLDocument() const
   {
     return mType == eHTML;
   }
@@ -1308,15 +1309,15 @@ public:
   {
     return mType == eHTML || mType == eXHTML;
   }
-  bool IsXML() const
+  bool IsXMLDocument() const
   {
-    return !IsHTML();
+    return !IsHTMLDocument();
   }
-  bool IsSVG() const
+  bool IsSVGDocument() const
   {
     return mType == eSVG;
   }
-  bool IsXUL() const
+  bool IsXULDocument() const
   {
     return mType == eXUL;
   }
@@ -1326,7 +1327,7 @@ public:
   }
   bool LoadsFullXULStyleSheetUpFront()
   {
-    return IsXUL() || AllowXULXBL();
+    return IsXULDocument() || AllowXULXBL();
   }
 
   virtual bool IsScriptEnabled() = 0;
@@ -1822,6 +1823,17 @@ public:
   // mAnimationController isn't yet initialized.
   virtual nsSMILAnimationController* GetAnimationController() = 0;
 
+  // Gets the tracker for animation players that are waiting to start.
+  // Returns nullptr if there is no pending player tracker for this document
+  // which will be the case if there have never been any CSS animations or
+  // transitions on elements in the document.
+  virtual mozilla::PendingPlayerTracker* GetPendingPlayerTracker() = 0;
+
+  // Gets the tracker for animation players that are waiting to start and
+  // creates it if it doesn't already exist. As a result, the return value
+  // will never be nullptr.
+  virtual mozilla::PendingPlayerTracker* GetOrCreatePendingPlayerTracker() = 0;
+
   // Makes the images on this document capable of having their animation
   // active or suspended. An Image will animate as long as at least one of its
   // owning Documents needs it to animate; otherwise it can suspend.
@@ -1912,6 +1924,39 @@ public:
     return mOriginalDocument;
   }
 
+  /**
+   * These are called by the parser as it encounters <picture> tags, the end of
+   * said tags, and possible picture <source srcset> sources respectively. These
+   * are used to inform ResolvePreLoadImage() calls.  Unset attributes are
+   * expected to be marked void.
+   *
+   * NOTE that the parser does not attempt to track the current picture nesting
+   * level or whether the given <source> tag is within a picture -- it is only
+   * guaranteed to order these calls properly with respect to
+   * ResolvePreLoadImage.
+   */
+
+  virtual void PreloadPictureOpened() = 0;
+
+  virtual void PreloadPictureClosed() = 0;
+
+  virtual void PreloadPictureImageSource(const nsAString& aSrcsetAttr,
+                                         const nsAString& aSizesAttr,
+                                         const nsAString& aTypeAttr,
+                                         const nsAString& aMediaAttr) = 0;
+
+  /**
+   * Called by the parser to resolve an image for preloading. The parser will
+   * call the PreloadPicture* functions to inform us of possible <picture>
+   * nesting and possible sources, which are used to inform URL selection
+   * responsive <picture> or <img srcset> images.  Unset attributes are expected
+   * to be marked void.
+   */
+  virtual already_AddRefed<nsIURI>
+    ResolvePreloadImage(nsIURI *aBaseURI,
+                        const nsAString& aSrcAttr,
+                        const nsAString& aSrcsetAttr,
+                        const nsAString& aSizesAttr) = 0;
   /**
    * Called by nsParser to preload images. Can be removed and code moved
    * to nsPreloadURIs::PreloadURIs() in file nsParser.cpp whenever the
@@ -2103,6 +2148,18 @@ public:
   bool HasWarnedAbout(DeprecatedOperations aOperation);
   void WarnOnceAbout(DeprecatedOperations aOperation, bool asError = false);
 
+#define DOCUMENT_WARNING(_op) e##_op,
+  enum DocumentWarnings {
+#include "nsDocumentWarningList.h"
+    eDocumentWarningCount
+  };
+#undef DOCUMENT_WARNING
+  bool HasWarnedAbout(DocumentWarnings aWarning);
+  void WarnOnceAbout(DocumentWarnings aWarning,
+                     bool asError = false,
+                     const char16_t **aParams = nullptr,
+                     uint32_t aParamsLength = 0);
+
   virtual void PostVisibilityUpdateEvent() = 0;
   
   bool IsSyntheticDocument() const { return mIsSyntheticDocument; }
@@ -2213,10 +2270,9 @@ public:
                                         Element* aCustomElement,
                                         mozilla::dom::LifecycleCallbackArgs* aArgs = nullptr,
                                         mozilla::dom::CustomElementDefinition* aDefinition = nullptr) = 0;
-  virtual void SwizzleCustomElement(Element* aElement,
-                                    const nsAString& aTypeExtension,
-                                    uint32_t aNamespaceID,
-                                    mozilla::ErrorResult& rv) = 0;
+  virtual void SetupCustomElement(Element* aElement,
+                                  uint32_t aNamespaceID,
+                                  const nsAString* aTypeExtension = nullptr) = 0;
   virtual void
     RegisterElement(JSContext* aCx, const nsAString& aName,
                     const mozilla::dom::ElementRegistrationOptions& aOptions,
@@ -2459,7 +2515,8 @@ public:
   bool DidFireDOMContentLoaded() const { return mDidFireDOMContentLoaded; }
 
 private:
-  uint64_t mWarnedAbout;
+  uint64_t mDeprecationWarnedAbout;
+  uint64_t mDocWarningWarnedAbout;
   SelectorCache mSelectorCache;
 
 protected:
@@ -2484,7 +2541,7 @@ protected:
   virtual void MutationEventDispatched(nsINode* aTarget) = 0;
   friend class mozAutoSubtreeModified;
 
-  virtual Element* GetNameSpaceElement()
+  virtual Element* GetNameSpaceElement() MOZ_OVERRIDE
   {
     return GetRootElement();
   }

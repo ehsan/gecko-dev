@@ -8,14 +8,17 @@
 #define mozilla_a11y_ProxyAccessible_h
 
 #include "mozilla/a11y/Role.h"
+#include "nsIAccessibleText.h"
 #include "nsString.h"
 #include "nsTArray.h"
+#include "nsRect.h"
 
 namespace mozilla {
 namespace a11y {
 
 class Attribute;
 class DocAccessibleParent;
+enum class RelationType;
 
 class ProxyAccessible
 {
@@ -23,16 +26,23 @@ public:
 
   ProxyAccessible(uint64_t aID, ProxyAccessible* aParent,
                   DocAccessibleParent* aDoc, role aRole) :
-     mParent(aParent), mDoc(aDoc), mID(aID), mRole(aRole), mOuterDoc(false)
+     mParent(aParent), mDoc(aDoc), mWrapper(0), mID(aID), mRole(aRole),
+     mOuterDoc(false)
   {
     MOZ_COUNT_CTOR(ProxyAccessible);
   }
-  ~ProxyAccessible() { MOZ_COUNT_DTOR(ProxyAccessible); }
+  ~ProxyAccessible()
+  {
+    MOZ_COUNT_DTOR(ProxyAccessible);
+    MOZ_ASSERT(!mWrapper);
+  }
 
   void AddChildAt(uint32_t aIdx, ProxyAccessible* aChild)
   { mChildren.InsertElementAt(aIdx, aChild); }
 
   uint32_t ChildrenCount() const { return mChildren.Length(); }
+  ProxyAccessible* ChildAt(uint32_t aIdx) const { return mChildren[aIdx]; }
+  bool MustPruneChildren() const;
 
   void Shutdown();
 
@@ -64,6 +74,11 @@ public:
    */
   void Name(nsString& aName) const;
 
+  /*
+   * Set aValue to the value of the proxied accessible.
+   */
+  void Value(nsString& aValue) const;
+
   /**
    * Set aDesc to the description of the proxied accessible.
    */
@@ -73,6 +88,91 @@ public:
    * Get the set of attributes on the proxied accessible.
    */
   void Attributes(nsTArray<Attribute> *aAttrs) const;
+
+  /**
+   * Return set of targets of given relation type.
+   */
+  nsTArray<ProxyAccessible*> RelationByType(RelationType aType) const;
+
+  /**
+   * Get all relations for this accessible.
+   */
+  void Relations(nsTArray<RelationType>* aTypes,
+                 nsTArray<nsTArray<ProxyAccessible*>>* aTargetSets) const;
+
+  int32_t CaretOffset();
+  bool SetCaretOffset(int32_t aOffset);
+
+  int32_t CharacterCount();
+  int32_t SelectionCount();
+
+  /**
+   * Get the text between the given offsets.
+   */
+  void TextSubstring(int32_t aStartOffset, int32_t aEndOfset,
+                     nsString& aText) const;
+
+  void GetTextAfterOffset(int32_t aOffset, AccessibleTextBoundary aBoundaryType,
+                          nsString& aText, int32_t* aStartOffset,
+                          int32_t* aEndOffset);
+
+  void GetTextAtOffset(int32_t aOffset, AccessibleTextBoundary aBoundaryType,
+                       nsString& aText, int32_t* aStartOffset,
+                       int32_t* aEndOffset);
+
+  void GetTextBeforeOffset(int32_t aOffset, AccessibleTextBoundary aBoundaryType,
+                           nsString& aText, int32_t* aStartOffset,
+                           int32_t* aEndOffset);
+
+  char16_t CharAt(int32_t aOffset);
+
+  void TextAttributes(bool aIncludeDefAttrs,
+                      const int32_t aOffset,
+                      nsTArray<Attribute>* aAttributes,
+                      int32_t* aStartOffset,
+                      int32_t* aEndOffset);
+  void DefaultTextAttributes(nsTArray<Attribute>* aAttrs);
+
+  nsIntRect TextBounds(int32_t aStartOffset, int32_t aEndOffset,
+                       uint32_t aCoordType);
+
+  nsIntRect CharBounds(int32_t aOffset, uint32_t aCoordType);
+
+  int32_t OffsetAtPoint(int32_t aX, int32_t aY, uint32_t aCoordType);
+
+  bool SelectionBoundsAt(int32_t aSelectionNum,
+                         nsString& aData,
+                         int32_t* aStartOffset,
+                         int32_t* aEndOffset);
+
+  bool SetSelectionBoundsAt(int32_t aSelectionNum,
+                            int32_t aStartOffset,
+                            int32_t aEndOffset);
+
+  bool AddToSelection(int32_t aStartOffset,
+                      int32_t aEndOffset);
+
+  bool RemoveFromSelection(int32_t aSelectionNum);
+
+  void ScrollSubstringTo(int32_t aStartOffset, int32_t aEndOffset,
+                         uint32_t aScrollType);
+
+  void ScrollSubstringToPoint(int32_t aStartOffset,
+                              int32_t aEndOffset,
+                              uint32_t aCoordinateType,
+                              int32_t aX, int32_t aY);
+
+  void ReplaceText(const nsString& aText);
+
+  void InsertText(const nsString& aText, int32_t aPosition);
+
+  void CopyText(int32_t aStartPos, int32_t aEndPos);
+
+  void CutText(int32_t aStartPos, int32_t aEndPos);
+
+  void DeleteText(int32_t aStartPos, int32_t aEndPos);
+
+  void PasteText(int32_t aPosition);
 
   /**
    * Allow the platform to store a pointers worth of data on us.
@@ -86,8 +186,9 @@ public:
   uint64_t ID() const { return mID; }
 
 protected:
-  ProxyAccessible() :
-    mParent(nullptr), mDoc(nullptr), mWrapper(0), mID(0)
+  explicit ProxyAccessible(DocAccessibleParent* aThisAsDoc) :
+    mParent(nullptr), mDoc(aThisAsDoc), mWrapper(0), mID(0),
+    mRole(roles::DOCUMENT)
   { MOZ_COUNT_CTOR(ProxyAccessible); }
 
 protected:
@@ -100,6 +201,11 @@ private:
   uint64_t mID;
   role mRole : 31;
   bool mOuterDoc : 1;
+};
+
+enum Interfaces
+{
+  HYPERTEXT = 1
 };
 
 }

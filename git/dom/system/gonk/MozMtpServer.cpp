@@ -88,14 +88,6 @@ public:
     obs->AddObserver(this, "file-watcher-update", false);
   }
 
-  ~FileWatcherUpdate()
-  {
-    MOZ_ASSERT(NS_IsMainThread());
-
-    nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
-    obs->RemoveObserver(this, "file-watcher-update");
-  }
-
   NS_IMETHOD
   Observe(nsISupports* aSubject, const char* aTopic, const char16_t* aData)
   {
@@ -130,6 +122,15 @@ public:
     mIOThread->Dispatch(r, NS_DISPATCH_NORMAL);
 
     return NS_OK;
+  }
+
+protected:
+  ~FileWatcherUpdate()
+  {
+    MOZ_ASSERT(NS_IsMainThread());
+
+    nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
+    obs->RemoveObserver(this, "file-watcher-update");
   }
 
 private:
@@ -232,7 +233,7 @@ MozMtpServer::Init()
   const char *mtpUsbFilename = "/dev/mtp_usb";
   mMtpUsbFd = open(mtpUsbFilename, O_RDWR);
   if (mMtpUsbFd.get() < 0) {
-    MTP_ERR("open of '%s' failed", mtpUsbFilename);
+    MTP_ERR("open of '%s' failed((%s))", mtpUsbFilename, strerror(errno));
     return false;
   }
   MTP_LOG("Opened '%s' fd %d", mtpUsbFilename, mMtpUsbFd.get());

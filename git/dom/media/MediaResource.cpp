@@ -22,7 +22,7 @@
 #include "nsIRequestObserver.h"
 #include "nsIStreamListener.h"
 #include "nsIScriptSecurityManager.h"
-#include "nsCrossSiteListenerProxy.h"
+#include "nsCORSListenerProxy.h"
 #include "mozilla/dom/HTMLMediaElement.h"
 #include "nsError.h"
 #include "nsICachingChannel.h"
@@ -80,7 +80,7 @@ ChannelMediaResource::ChannelMediaResource(MediaDecoder* aDecoder,
   : BaseMediaResource(aDecoder, aChannel, aURI, aContentType),
     mOffset(0), mSuspendCount(0),
     mReopenOnError(false), mIgnoreClose(false),
-    mCacheStream(MOZ_THIS_IN_INITIALIZER_LIST()),
+    mCacheStream(this),
     mLock("ChannelMediaResource.mLock"),
     mIgnoreResume(false),
     mIsTransportSeekable(true)
@@ -918,10 +918,19 @@ ChannelMediaResource::RecreateChannel()
   nsCOMPtr<nsILoadGroup> loadGroup = element->GetDocumentLoadGroup();
   NS_ENSURE_TRUE(loadGroup, NS_ERROR_NULL_POINTER);
 
+  nsSecurityFlags securityFlags = nsILoadInfo::SEC_NORMAL;
+  if (nsContentUtils::ChannelShouldInheritPrincipal(element->NodePrincipal(),
+                                                    mURI,
+                                                    false, // aInheritForAboutBlank
+                                                    false // aForceInherit
+                                                    )) {
+    securityFlags = nsILoadInfo::SEC_FORCE_INHERIT_PRINCIPAL;
+  }
+
   nsresult rv = NS_NewChannel(getter_AddRefs(mChannel),
                               mURI,
                               element,
-                              nsILoadInfo::SEC_NORMAL,
+                              securityFlags,
                               nsIContentPolicy::TYPE_MEDIA,
                               loadGroup,
                               nullptr,  // aCallbacks
@@ -1009,6 +1018,13 @@ ChannelMediaResource::CacheClientNotifyPrincipalChanged()
   mDecoder->NotifyPrincipalChanged();
 }
 
+void
+ChannelMediaResource::CacheClientNotifySuspendedStatusChanged()
+{
+  NS_ASSERTION(NS_IsMainThread(), "Don't call on non-main thread");
+  mDecoder->NotifySuspendedStatusChanged();
+}
+
 nsresult
 ChannelMediaResource::CacheClientSeek(int64_t aOffset, bool aResume)
 {
@@ -1067,8 +1083,6 @@ nsresult
 ChannelMediaResource::CacheClientSuspend()
 {
   Suspend(false);
-
-  mDecoder->NotifySuspendedStatusChanged();
   return NS_OK;
 }
 
@@ -1076,8 +1090,6 @@ nsresult
 ChannelMediaResource::CacheClientResume()
 {
   Resume();
-
-  mDecoder->NotifySuspendedStatusChanged();
   return NS_OK;
 }
 
@@ -1433,12 +1445,21 @@ already_AddRefed<MediaResource> FileMediaResource::CloneData(MediaDecoder* aDeco
   nsCOMPtr<nsILoadGroup> loadGroup = element->GetDocumentLoadGroup();
   NS_ENSURE_TRUE(loadGroup, nullptr);
 
+  nsSecurityFlags securityFlags = nsILoadInfo::SEC_NORMAL;
+  if (nsContentUtils::ChannelShouldInheritPrincipal(element->NodePrincipal(),
+                                                    mURI,
+                                                    false, // aInheritForAboutBlank
+                                                    false // aForceInherit
+                                                    )) {
+    securityFlags = nsILoadInfo::SEC_FORCE_INHERIT_PRINCIPAL;
+  }
+
   nsCOMPtr<nsIChannel> channel;
   nsresult rv =
     NS_NewChannel(getter_AddRefs(channel),
                   mURI,
                   element,
-                  nsILoadInfo::SEC_NORMAL,
+                  securityFlags,
                   nsIContentPolicy::TYPE_MEDIA,
                   loadGroup);
 

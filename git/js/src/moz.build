@@ -51,7 +51,6 @@ EXPORTS += [
     'jsfriendapi.h',
     'jsprf.h',
     'jsprototypes.h',
-    'jsproxy.h',
     'jspubtd.h',
     'jstypes.h',
     'jsversion.h',
@@ -67,6 +66,7 @@ EXPORTS.js += [
     '../public/CallNonGenericMethod.h',
     '../public/CharacterEncoding.h',
     '../public/Class.h',
+    '../public/Conversions.h',
     '../public/Date.h',
     '../public/Debug.h',
     '../public/GCAPI.h',
@@ -78,11 +78,13 @@ EXPORTS.js += [
     '../public/Principals.h',
     '../public/ProfilingFrameIterator.h',
     '../public/ProfilingStack.h',
+    '../public/Proxy.h',
     '../public/RequiredDefines.h',
     '../public/RootingAPI.h',
     '../public/SliceBudget.h',
     '../public/StructuredClone.h',
     '../public/TracingAPI.h',
+    '../public/TrackedOptimizationInfo.h',
     '../public/TypeDecls.h',
     '../public/UbiNode.h',
     '../public/UbiNodeTraverse.h',
@@ -118,8 +120,8 @@ UNIFIED_SOURCES += [
     'frontend/ParseMaps.cpp',
     'frontend/ParseNode.cpp',
     'frontend/TokenStream.cpp',
+    'gc/Allocator.cpp',
     'gc/Barrier.cpp',
-    'gc/ForkJoinNursery.cpp',
     'gc/GCTrace.cpp',
     'gc/Iteration.cpp',
     'gc/Marking.cpp',
@@ -139,6 +141,7 @@ UNIFIED_SOURCES += [
     'irregexp/RegExpParser.cpp',
     'irregexp/RegExpStack.cpp',
     'jit/AliasAnalysis.cpp',
+    'jit/AlignmentMaskAnalysis.cpp',
     'jit/BacktrackingAllocator.cpp',
     'jit/Bailouts.cpp',
     'jit/BaselineBailouts.cpp',
@@ -154,6 +157,8 @@ UNIFIED_SOURCES += [
     'jit/C1Spewer.cpp',
     'jit/CodeGenerator.cpp',
     'jit/CompileWrappers.cpp',
+    'jit/Disassembler.cpp',
+    'jit/EagerSimdUnbox.cpp',
     'jit/EdgeCaseAnalysis.cpp',
     'jit/EffectiveAddressAnalysis.cpp',
     'jit/ExecutableAllocator.cpp',
@@ -178,8 +183,7 @@ UNIFIED_SOURCES += [
     'jit/MIR.cpp',
     'jit/MIRGraph.cpp',
     'jit/MoveResolver.cpp',
-    'jit/ParallelFunctions.cpp',
-    'jit/ParallelSafetyAnalysis.cpp',
+    'jit/OptimizationTracking.cpp',
     'jit/PerfSpewer.cpp',
     'jit/RangeAnalysis.cpp',
     'jit/Recover.cpp',
@@ -202,14 +206,12 @@ UNIFIED_SOURCES += [
     'jsbool.cpp',
     'jscntxt.cpp',
     'jscompartment.cpp',
-    'jscrashreport.cpp',
     'jsdate.cpp',
     'jsdtoa.cpp',
     'jsexn.cpp',
     'jsfriendapi.cpp',
     'jsfun.cpp',
     'jsgc.cpp',
-    'jsinfer.cpp',
     'jsiter.cpp',
     'jsnativestack.cpp',
     'jsnum.cpp',
@@ -243,7 +245,6 @@ UNIFIED_SOURCES += [
     'vm/Debugger.cpp',
     'vm/DebuggerMemory.cpp',
     'vm/ErrorObject.cpp',
-    'vm/ForkJoin.cpp',
     'vm/ForOfIterator.cpp',
     'vm/GeneratorObject.cpp',
     'vm/GlobalObject.cpp',
@@ -254,6 +255,7 @@ UNIFIED_SOURCES += [
     'vm/MemoryMetrics.cpp',
     'vm/Monitor.cpp',
     'vm/NativeObject.cpp',
+    'vm/ObjectGroup.cpp',
     'vm/PIC.cpp',
     'vm/Probes.cpp',
     'vm/ProxyObject.cpp',
@@ -272,9 +274,10 @@ UNIFIED_SOURCES += [
     'vm/StringBuffer.cpp',
     'vm/StructuredClone.cpp',
     'vm/Symbol.cpp',
-    'vm/ThreadPool.cpp',
     'vm/TypedArrayObject.cpp',
+    'vm/TypeInference.cpp',
     'vm/UbiNode.cpp',
+    'vm/UnboxedObject.cpp',
     'vm/Unicode.cpp',
     'vm/Value.cpp',
     'vm/WeakMapPtr.cpp',
@@ -313,6 +316,8 @@ if CONFIG['MOZ_INSTRUMENTS']:
 if CONFIG['ENABLE_TRACE_LOGGING']:
     SOURCES += [
         'vm/TraceLogging.cpp',
+        'vm/TraceLoggingGraph.cpp',
+        'vm/TraceLoggingTypes.cpp',
     ]
 
 if not CONFIG['ENABLE_ION']:
@@ -322,9 +327,11 @@ if not CONFIG['ENABLE_ION']:
 elif CONFIG['JS_CODEGEN_X86'] or CONFIG['JS_CODEGEN_X64']:
     UNIFIED_SOURCES += [
         'jit/shared/Assembler-x86-shared.cpp',
+        'jit/shared/AssemblerBuffer-x86-shared.cpp',
         'jit/shared/BaselineCompiler-x86-shared.cpp',
         'jit/shared/BaselineIC-x86-shared.cpp',
         'jit/shared/CodeGenerator-x86-shared.cpp',
+        'jit/shared/Disassembler-x86-shared.cpp',
         'jit/shared/Lowering-x86-shared.cpp',
         'jit/shared/MacroAssembler-x86-shared.cpp',
         'jit/shared/MoveEmitter-x86-shared.cpp',
@@ -422,10 +429,7 @@ else:
         'perf/pm_stub.cpp'
     ]
 
-# Disable PGO for MSVC 2010 due to unpredictable performance, see
-# bug 1030706.
-if CONFIG['_MSC_VER'] != '1600':
-    MSVC_ENABLE_PGO = True
+MSVC_ENABLE_PGO = True
 
 HostSimplePrograms([
     'host_jskwgen',
@@ -472,11 +476,8 @@ if CONFIG['MOZ_ETW']:
     RESFILE = 'ETWProvider.res'
 
 if CONFIG['NIGHTLY_BUILD']:
-    DEFINES['ENABLE_PARALLEL_JS'] = True
     DEFINES['ENABLE_BINARYDATA'] = True
     DEFINES['ENABLE_SHARED_ARRAY_BUFFER'] = True
-    if CONFIG['ENABLE_ION'] and CONFIG['JSGC_GENERATIONAL_CONFIGURED']:
-        DEFINES['JSGC_FJGENERATIONAL'] = True
 
 DEFINES['EXPORT_JS_API'] = True
 
@@ -496,6 +497,11 @@ if CONFIG['_MSC_VER']:
     # Prevent floating point errors caused by VC++ optimizations
     # XXX We should add this to CXXFLAGS, too?
     CFLAGS += ['-fp:precise']
+    # C4805 warns mixing bool with other integral types in computation.
+    # But given the conversion from bool is specified, and this is a
+    # pattern widely used in code in js/src, suppress this warning here.
+    CXXFLAGS += ['-wd4805']
+    CXXFLAGS += ['-we4067', '-we4258', '-we4275']
 
 if CONFIG['OS_ARCH'] not in ('WINNT', 'HP-UX'):
     OS_LIBS += [
@@ -519,3 +525,6 @@ if CONFIG['OS_ARCH'] == 'SunOS':
         'nsl',
         'socket',
     ]
+
+if CONFIG['GNU_CXX']:
+    FAIL_ON_WARNINGS = True

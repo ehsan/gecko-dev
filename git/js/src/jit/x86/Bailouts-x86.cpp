@@ -23,8 +23,8 @@ namespace jit {
 class BailoutStack
 {
     uintptr_t frameClassId_;
-    mozilla::Array<double, FloatRegisters::Total> fpregs_;
-    mozilla::Array<uintptr_t, Registers::Total> regs_;
+    RegisterDump::FPUArray fpregs_;
+    RegisterDump::GPRArray regs_;
     union {
         uintptr_t frameSize_;
         uintptr_t tableOffset_;
@@ -75,10 +75,7 @@ BailoutFrameInfo::BailoutFrameInfo(const JitActivationIterator &activations,
 
     JSScript *script = ScriptFromCalleeToken(((JitFrameLayout *) framePointer_)->calleeToken());
     JitActivation *activation = activations.activation()->asJit();
-    if (activation->cx()->isForkJoinContext())
-        topIonScript_ = script->parallelIonScript();
-    else
-        topIonScript_ = script->ionScript();
+    topIonScript_ = script->ionScript();
 
     attachOnJitActivation(activations);
 

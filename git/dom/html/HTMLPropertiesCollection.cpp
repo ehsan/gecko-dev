@@ -14,6 +14,8 @@
 #include "nsWrapperCacheInlines.h"
 #include "mozilla/dom/HTMLPropertiesCollectionBinding.h"
 #include "jsapi.h"
+#include "MainThreadUtils.h"
+#include "mozilla/Assertions.h"
 
 namespace mozilla {
 namespace dom {
@@ -275,11 +277,11 @@ HTMLPropertiesCollection::CrawlSubtree(Element* aElement)
   while (aContent) {
     // We must check aContent against mRoot because 
     // an element must not be its own property
-    if (aContent == mRoot || !aContent->IsHTML()) {
+    if (aContent == mRoot || !aContent->IsHTMLElement()) {
       // Move on to the next node in the tree
       aContent = aContent->GetNextNode(aElement);
     } else {
-      MOZ_ASSERT(aContent->IsElement(), "IsHTML() returned true!");
+      MOZ_ASSERT(aContent->IsElement(), "IsHTMLElement() returned true!");
       Element* element = aContent->AsElement();
       if (element->HasAttr(kNameSpaceID_None, nsGkAtoms::itemprop) &&
           !mProperties.Contains(element)) {
@@ -509,6 +511,8 @@ NS_INTERFACE_MAP_END_INHERITING(DOMStringList)
 void
 PropertyStringList::EnsureFresh()
 {
+  MOZ_ASSERT(NS_IsMainThread());
+
   mCollection->EnsureFresh();
 }
 

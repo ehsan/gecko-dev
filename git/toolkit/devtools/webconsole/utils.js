@@ -1070,7 +1070,9 @@ function getMatchedProps_impl(aObj, aMatch, {chainIterator, getProperties})
       if (prop.indexOf(aMatch) != 0) {
         continue;
       }
-
+      if (prop.indexOf('-') > -1) {
+        continue;
+      }
       // If it is an array index, we can't take it.
       // This uses a trick: converting a string to a number yields NaN if
       // the operation failed, and NaN is not equal to itself.
@@ -1597,6 +1599,16 @@ function JSTermHelpers(aOwner)
   };
 
   /**
+   * Clears the input history of the JSTerm.
+   */
+  aOwner.sandbox.clearHistory = function JSTH_clearHistory()
+  {
+    aOwner.helperResult = {
+      type: "clearHistory",
+    };
+  };
+
+  /**
    * Returns the result of Object.keys(aObject).
    *
    * @param object aObject
@@ -1751,6 +1763,33 @@ function JSTermHelpers(aOwner)
     // code will run with content privileges, and the result will be rendered
     // inert by coercing it to a String.
     return String(Cu.waiveXrays(aValue));
+  };
+
+  /**
+   * Copy the String representation of a value to the clipboard.
+   *
+   * @param any aValue
+   *        A value you want to copy as a string.
+   * @return void
+   */
+  aOwner.sandbox.copy = function JSTH_copy(aValue)
+  {
+    let payload;
+    try {
+      if (aValue instanceof Ci.nsIDOMElement) {
+        payload = aValue.outerHTML;
+      } else if (typeof aValue == "string") {
+        payload = aValue;
+      } else {
+        payload = JSON.stringify(aValue, null, "  ");
+      }
+    } catch (ex) {
+      payload = "/* " + ex  + " */";
+    }
+    aOwner.helperResult = {
+      type: "copyValueToClipboard",
+      value: payload,
+    };
   };
 }
 exports.JSTermHelpers = JSTermHelpers;

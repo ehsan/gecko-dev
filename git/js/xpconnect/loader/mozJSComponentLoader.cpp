@@ -53,18 +53,7 @@ using namespace JS;
 // This JSClass exists to trick silly code that expects toString()ing the
 // global in a component scope to return something with "BackstagePass" in it
 // to continue working.
-static const JSClass kFakeBackstagePassJSClass =
-{
-    "FakeBackstagePass",
-    0,
-    JS_PropertyStub,
-    JS_DeletePropertyStub,
-    JS_PropertyStub,
-    JS_StrictPropertyStub,
-    JS_EnumerateStub,
-    JS_ResolveStub,
-    JS_ConvertStub
-};
+static const JSClass kFakeBackstagePassJSClass = { "FakeBackstagePass" };
 
 static const char kXPConnectServiceContractID[] = "@mozilla.org/js/xpc/XPConnect;1";
 static const char kObserverServiceContractID[] = "@mozilla.org/observer-service;1";
@@ -158,8 +147,8 @@ private:
     char*      mBuf;
 
     // prevent copying and assignment
-    JSCLContextHelper(const JSCLContextHelper &) MOZ_DELETE;
-    const JSCLContextHelper& operator=(const JSCLContextHelper &) MOZ_DELETE;
+    JSCLContextHelper(const JSCLContextHelper &) = delete;
+    const JSCLContextHelper& operator=(const JSCLContextHelper &) = delete;
 };
 
 static nsresult
@@ -248,7 +237,15 @@ class MOZ_STACK_CLASS ComponentLoaderInfo {
     nsIChannel* ScriptChannel() { MOZ_ASSERT(mScriptChannel); return mScriptChannel; }
     nsresult EnsureScriptChannel() {
         BEGIN_ENSURE(ScriptChannel, IOService, URI);
-        return mIOService->NewChannelFromURI(mURI, getter_AddRefs(mScriptChannel));
+        return NS_NewChannel(getter_AddRefs(mScriptChannel),
+                             mURI,
+                             nsContentUtils::GetSystemPrincipal(),
+                             nsILoadInfo::SEC_NORMAL,
+                             nsIContentPolicy::TYPE_SCRIPT,
+                             nullptr, // aLoadGroup
+                             nullptr, // aCallbacks
+                             nsIRequest::LOAD_NORMAL,
+                             mIOService);
     }
 
     nsIURI* ResolvedURI() { MOZ_ASSERT(mResolvedURI); return mResolvedURI; }
@@ -599,7 +596,7 @@ mozJSComponentLoader::PrepareObjectForLocation(JSContext* aCx,
     if (aReuseLoaderGlobal) {
         // If we're reusing the loader global, we don't actually use the
         // global, but rather we use a different object as the 'this' object.
-        obj = JS_NewObject(aCx, &kFakeBackstagePassJSClass, NullPtr(), NullPtr());
+        obj = JS_NewObject(aCx, &kFakeBackstagePassJSClass);
         NS_ENSURE_TRUE(obj, nullptr);
     }
 

@@ -9,10 +9,12 @@
 #include "mozilla/EventDispatcher.h"
 #include "mozilla/dom/HTMLMenuElementBinding.h"
 #include "mozilla/dom/HTMLMenuItemElement.h"
+#include "nsIMenuBuilder.h"
 #include "nsAttrValueInlines.h"
 #include "nsContentUtils.h"
-#include "nsXULContextMenuBuilder.h"
 #include "nsIURI.h"
+
+#define HTMLMENUBUILDER_CONTRACTID "@mozilla.org/content/html-menu-builder;1"
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Menu)
 
@@ -97,12 +99,8 @@ HTMLMenuElement::CreateBuilder(nsIMenuBuilder** _retval)
 {
   NS_ENSURE_TRUE(nsContentUtils::IsCallerChrome(), NS_ERROR_DOM_SECURITY_ERR);
 
-  *_retval = nullptr;
-
-  if (mType == MENU_TYPE_CONTEXT) {
-    NS_ADDREF(*_retval = new nsXULContextMenuBuilder());
-  }
-
+  nsCOMPtr<nsIMenuBuilder> builder = CreateBuilder();
+  builder.swap(*_retval);
   return NS_OK;
 }
 
@@ -113,8 +111,9 @@ HTMLMenuElement::CreateBuilder()
     return nullptr;
   }
 
-  nsCOMPtr<nsIMenuBuilder> ret = new nsXULContextMenuBuilder();
-  return ret.forget();
+  nsCOMPtr<nsIMenuBuilder> builder = do_CreateInstance(HTMLMENUBUILDER_CONTRACTID);
+  NS_WARN_IF_FALSE(builder, "No builder available");
+  return builder.forget();
 }
 
 NS_IMETHODIMP
@@ -207,9 +206,7 @@ HTMLMenuElement::TraverseContent(nsIContent* aContent,
       continue;
     }
 
-    nsIAtom* tag = child->Tag();
-
-    if (tag == nsGkAtoms::menuitem) {
+    if (child->IsHTMLElement(nsGkAtoms::menuitem)) {
       HTMLMenuItemElement* menuitem = HTMLMenuItemElement::FromContent(child);
 
       if (menuitem->IsHidden()) {
@@ -228,7 +225,7 @@ HTMLMenuElement::TraverseContent(nsIContent* aContent,
       aBuilder->AddItemFor(menuitem, CanLoadIcon(child, icon));
 
       aSeparator = ST_FALSE;
-    } else if (tag == nsGkAtoms::menu && !element->IsHidden()) {
+    } else if (child->IsHTMLElement(nsGkAtoms::menu) && !element->IsHidden()) {
       if (child->HasAttr(kNameSpaceID_None, nsGkAtoms::label)) {
         nsAutoString label;
         child->GetAttr(kNameSpaceID_None, nsGkAtoms::label, label);

@@ -7,6 +7,7 @@
 #include "mozilla/dom/InternalHeaders.h"
 
 #include "mozilla/ErrorResult.h"
+#include "mozilla/dom/PHeaders.h"
 
 #include "nsCharSeparatedTokenizer.h"
 #include "nsContentUtils.h"
@@ -15,6 +16,23 @@
 
 namespace mozilla {
 namespace dom {
+
+InternalHeaders::InternalHeaders(const nsTArray<PHeadersEntry>& aHeaders,
+                                 HeadersGuardEnum aGuard)
+  : mGuard(aGuard)
+{
+  for (uint32_t i = 0; i < aHeaders.Length(); ++i) {
+    mList.AppendElement(Entry(aHeaders[i].name(), aHeaders[i].value()));
+  }
+}
+
+void
+InternalHeaders::GetPHeaders(nsTArray<PHeadersEntry>& aPHeadersOut) const
+{
+  for (uint32_t i = 0; i < mList.Length(); ++i) {
+    aPHeadersOut.AppendElement(PHeadersEntry(mList[i].mName, mList[i].mValue));
+  }
+}
 
 void
 InternalHeaders::Append(const nsACString& aName, const nsACString& aValue,
@@ -303,9 +321,27 @@ InternalHeaders::CORSHeaders(InternalHeaders* aHeaders)
   nsRefPtr<InternalHeaders> cors = new InternalHeaders(aHeaders->mGuard);
   ErrorResult result;
 
-  nsAutoTArray<nsCString, 1> acExposedNames;
-  aHeaders->GetAll(NS_LITERAL_CSTRING("Access-Control-Expose-Headers"), acExposedNames, result);
+  nsAutoCString acExposedNames;
+  aHeaders->Get(NS_LITERAL_CSTRING("Access-Control-Expose-Headers"), acExposedNames, result);
   MOZ_ASSERT(!result.Failed());
+
+  nsAutoTArray<nsCString, 5> exposeNamesArray;
+  nsCCharSeparatedTokenizer exposeTokens(acExposedNames, ',');
+  while (exposeTokens.hasMoreTokens()) {
+    const nsDependentCSubstring& token = exposeTokens.nextToken();
+    if (token.IsEmpty()) {
+      continue;
+    }
+
+    if (!NS_IsValidHTTPToken(token)) {
+      NS_WARNING("Got invalid HTTP token in Access-Control-Expose-Headers. Header value is:");
+      NS_WARNING(acExposedNames.get());
+      exposeNamesArray.Clear();
+      break;
+    }
+
+    exposeNamesArray.AppendElement(token);
+  }
 
   nsCaseInsensitiveCStringArrayComparator comp;
   for (uint32_t i = 0; i < aHeaders->mList.Length(); ++i) {
@@ -316,13 +352,32 @@ InternalHeaders::CORSHeaders(InternalHeaders* aHeaders)
         entry.mName.EqualsASCII("expires") ||
         entry.mName.EqualsASCII("last-modified") ||
         entry.mName.EqualsASCII("pragma") ||
-        acExposedNames.Contains(entry.mName, comp)) {
+        exposeNamesArray.Contains(entry.mName, comp)) {
       cors->Append(entry.mName, entry.mValue, result);
       MOZ_ASSERT(!result.Failed());
     }
   }
 
   return cors.forget();
+}
+
+void
+InternalHeaders::GetEntries(nsTArray<InternalHeaders::Entry>& aEntries) const
+{
+  MOZ_ASSERT(aEntries.IsEmpty());
+  aEntries.AppendElements(mList);
+}
+
+void
+InternalHeaders::GetUnsafeHeaders(nsTArray<nsCString>& aNames) const
+{
+  MOZ_ASSERT(aNames.IsEmpty());
+  for (uint32_t i = 0; i < mList.Length(); ++i) {
+    const Entry& header = mList[i];
+    if (!InternalHeaders::IsSimpleHeader(header.mName, header.mValue)) {
+      aNames.AppendElement(header.mName);
+    }
+  }
 }
 } // namespace dom
 } // namespace mozilla

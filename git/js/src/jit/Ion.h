@@ -31,7 +31,7 @@ enum MethodStatus
 enum AbortReason {
     AbortReason_Alloc,
     AbortReason_Inlining,
-    AbortReason_NewScriptProperties,
+    AbortReason_PreliminaryObjects,
     AbortReason_Disable,
     AbortReason_Error,
     AbortReason_NoAbort
@@ -88,8 +88,6 @@ MethodStatus CanEnter(JSContext *cx, RunState &state);
 MethodStatus CompileFunctionForBaseline(JSContext *cx, HandleScript script, BaselineFrame *frame);
 MethodStatus CanEnterUsingFastInvoke(JSContext *cx, HandleScript script, uint32_t numActualArgs);
 
-MethodStatus CanEnterInParallel(JSContext *cx, HandleScript script);
-
 MethodStatus
 Recompile(JSContext *cx, HandleScript script, BaselineFrame *osrFrame, jsbytecode *osrPc,
           bool constructing, bool force);
@@ -124,12 +122,10 @@ JitExecStatus IonCannon(JSContext *cx, RunState &state);
 JitExecStatus FastInvoke(JSContext *cx, HandleFunction fun, CallArgs &args);
 
 // Walk the stack and invalidate active Ion frames for the invalid scripts.
-void Invalidate(types::TypeZone &types, FreeOp *fop,
-                const types::RecompileInfoVector &invalid, bool resetUses = true,
+void Invalidate(TypeZone &types, FreeOp *fop,
+                const RecompileInfoVector &invalid, bool resetUses = true,
                 bool cancelOffThread = true);
-void Invalidate(JSContext *cx, const types::RecompileInfoVector &invalid, bool resetUses = true,
-                bool cancelOffThread = true);
-bool Invalidate(JSContext *cx, JSScript *script, ExecutionMode mode, bool resetUses = true,
+void Invalidate(JSContext *cx, const RecompileInfoVector &invalid, bool resetUses = true,
                 bool cancelOffThread = true);
 bool Invalidate(JSContext *cx, JSScript *script, bool resetUses = true,
                 bool cancelOffThread = true);
@@ -148,6 +144,7 @@ CodeGenerator *CompileBackEnd(MIRGenerator *mir);
 
 void AttachFinishedCompilations(JSContext *cx);
 void FinishOffThreadBuilder(JSContext *cx, IonBuilder *builder);
+void StopAllOffThreadCompilations(Zone *zone);
 void StopAllOffThreadCompilations(JSCompartment *comp);
 
 uint8_t *LazyLinkTopActivation(JSContext *cx);
@@ -194,7 +191,6 @@ NumLocalsAndArgs(JSScript *script)
 }
 
 void ForbidCompilation(JSContext *cx, JSScript *script);
-void ForbidCompilation(JSContext *cx, JSScript *script, ExecutionMode mode);
 
 void PurgeCaches(JSScript *script);
 size_t SizeOfIonData(JSScript *script, mozilla::MallocSizeOf mallocSizeOf);

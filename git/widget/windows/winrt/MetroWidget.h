@@ -89,14 +89,12 @@ public:
                          nsIntPoint* aPoint = nullptr) MOZ_OVERRIDE;
 
   // nsBaseWidget
-  virtual CompositorParent* NewCompositorParent(int aSurfaceWidth, int aSurfaceHeight);
   virtual void SetWidgetListener(nsIWidgetListener* aWidgetListener);
 
   // nsIWidget interface
   NS_IMETHOD    Create(nsIWidget *aParent,
                        nsNativeWidget aNativeParent,
                        const nsIntRect &aRect,
-                       nsDeviceContext *aContext,
                        nsWidgetInitData *aInitData = nullptr);
   NS_IMETHOD    Destroy();
   NS_IMETHOD    EnableDragDrop(bool aEnable);
@@ -129,10 +127,10 @@ public:
                                             uint32_t aModifierFlags,
                                             const nsAString& aCharacters,
                                             const nsAString& aUnmodifiedCharacters);
-  virtual nsresult SynthesizeNativeMouseEvent(nsIntPoint aPoint,
+  virtual nsresult SynthesizeNativeMouseEvent(mozilla::LayoutDeviceIntPoint aPoint,
                                               uint32_t aNativeMessage,
                                               uint32_t aModifierFlags);
-  virtual nsresult SynthesizeNativeMouseScrollEvent(nsIntPoint aPoint,
+  virtual nsresult SynthesizeNativeMouseScrollEvent(mozilla::LayoutDeviceIntPoint aPoint,
                                                     uint32_t aNativeMessage,
                                                     double aDeltaX,
                                                     double aDeltaY,
@@ -149,7 +147,6 @@ public:
   virtual bool  IsEnabled() const;
   // ShouldUseOffMainThreadCompositing is defined in base widget
   virtual bool  ShouldUseOffMainThreadCompositing();
-  bool          ShouldUseMainThreadD3D10Manager();
   bool          ShouldUseBasicManager();
   bool          ShouldUseAPZC();
   virtual LayerManager* GetLayerManager(PLayerTransactionChild* aShadowManager = nullptr,
@@ -162,7 +159,6 @@ public:
   NS_IMETHOD_(void) SetInputContext(const InputContext& aContext,
                                     const InputContextAction& aAction);
   NS_IMETHOD_(nsIWidget::InputContext) GetInputContext();
-  NS_IMETHOD    NotifyIME(const IMENotification& aIMENotification) MOZ_OVERRIDE;
   NS_IMETHOD    GetToggledKeyState(uint32_t aKeyCode, bool* aLEDState);
   virtual nsIMEUpdatePreference GetIMEUpdatePreference() MOZ_OVERRIDE;
 
@@ -175,7 +171,7 @@ public:
   virtual nsresult ConfigureChildren(const nsTArray<Configuration>& aConfigurations);
   virtual void* GetNativeData(uint32_t aDataType);
   virtual void  FreeNativeData(void * data, uint32_t aDataType);
-  virtual nsIntPoint WidgetToScreenOffset();
+  virtual mozilla::LayoutDeviceIntPoint WidgetToScreenOffset();
 
   already_AddRefed<nsIPresShell> GetPresShell();
 
@@ -208,7 +204,6 @@ public:
   TouchBehaviorFlags ContentGetAllowedTouchBehavior(const nsIntPoint& aPoint);
 
   // apzc controller related api
-  void ApzcGetAllowedTouchBehavior(mozilla::WidgetInputEvent* aTransformedEvent, nsTArray<TouchBehaviorFlags>& aOutBehaviors);
   void ApzcSetAllowedTouchBehavior(uint64_t aInputBlockId, nsTArray<TouchBehaviorFlags>& aBehaviors);
 
   // Hit test a point to see if an apzc would consume input there
@@ -246,9 +241,16 @@ protected:
     }
   };
 
+  // nsBaseWidget
+  void ConfigureAPZCTreeManager() MOZ_OVERRIDE;
+  already_AddRefed<GeckoContentController> NewRootContentController() MOZ_OVERRIDE;
+
   void SetSubclass();
   void RemoveSubclass();
   nsIWidgetListener* GetPaintListener();
+
+  virtual nsresult NotifyIMEInternal(
+                     const IMENotification& aIMENotification) MOZ_OVERRIDE;
 
   // Async event dispatching
   void DispatchAsyncScrollEvent(DispatchMsg* aEvent);

@@ -43,7 +43,6 @@ public:
 
   static const int MAX_PACKET_LENGTH = 0xFFFE;
 
-  virtual ~BluetoothOppManager();
   static BluetoothOppManager* Get();
   void ClientDataHandler(mozilla::ipc::UnixSocketRawData* aMessage);
   void ServerDataHandler(mozilla::ipc::UnixSocketRawData* aMessage);
@@ -73,10 +72,14 @@ public:
   virtual void OnSocketConnectError(BluetoothSocket* aSocket) MOZ_OVERRIDE;
   virtual void OnSocketDisconnect(BluetoothSocket* aSocket) MOZ_OVERRIDE;
 
+protected:
+  virtual ~BluetoothOppManager();
+
 private:
   BluetoothOppManager();
   bool Init();
   void HandleShutdown();
+  void HandleVolumeStateChanged(nsISupports* aSubject);
 
   void StartFileTransfer();
   void StartSendingNextFile();
@@ -85,8 +88,7 @@ private:
   void ReceivingFileConfirmation();
   bool CreateFile();
   bool WriteToFile(const uint8_t* aData, int aDataLength);
-  void RecoverFileName();
-  void DeleteDummyFile();
+  void RestoreReceivedFileAndNotify();
   void DeleteReceivedFile();
   void ReplyToConnect();
   void ReplyToDisconnectOrAbort();

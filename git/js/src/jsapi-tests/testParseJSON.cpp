@@ -330,17 +330,15 @@ static bool
 Censor(JSContext *cx, unsigned argc, jsval *vp)
 {
     JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
-    MOZ_ASSERT(args.length() == 2);
-#ifdef DEBUG
-    MOZ_ASSERT(args[0].isString());
-#endif
+    MOZ_RELEASE_ASSERT(args.length() == 2);
+    MOZ_RELEASE_ASSERT(args[0].isString());
     args.rval().setNull();
     return true;
 }
 
 BEGIN_TEST(testParseJSON_reviver)
 {
-    JSFunction *fun = JS_NewFunction(cx, Censor, 0, 0, global, "censor");
+    JSFunction *fun = JS_NewFunction(cx, Censor, 0, 0, "censor");
     CHECK(fun);
 
     JS::RootedValue filter(cx, OBJECT_TO_JSVAL(JS_GetFunctionObject(fun)));

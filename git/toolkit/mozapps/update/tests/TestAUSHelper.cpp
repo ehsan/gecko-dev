@@ -14,7 +14,9 @@
 # define F_OK 00
 # define W_OK 02
 # define R_OK 04
-# define stat _stat
+# if _MSC_VER < 1900
+#  define stat _stat
+# endif
 # define NS_T(str) L ## str
 # define NS_tsnprintf(dest, count, fmt, ...) \
   { \
@@ -50,7 +52,6 @@
 # define LOG_S "%s"
 #endif
 
-#include "mozilla/NullPtr.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -75,8 +76,9 @@ static void
 WriteMsg(const NS_tchar *path, const char *status)
 {
   FILE* outFP = NS_tfopen(path, NS_T("wb"));
-  if (!outFP)
+  if (!outFP) {
     return;
+  }
 
   fprintf(outFP, "%s\n", status);
   fclose(outFP);
@@ -144,7 +146,7 @@ VerifyCertificateTrustForFile(LPCWSTR filePath)
   trustData.pPolicyCallbackData = nullptr;
   trustData.pSIPClientData = nullptr;
   trustData.dwUIChoice = WTD_UI_NONE;
-  trustData.fdwRevocationChecks = WTD_REVOKE_NONE; 
+  trustData.fdwRevocationChecks = WTD_REVOKE_NONE;
   trustData.dwUnionChoice = WTD_CHOICE_FILE;
   trustData.dwStateAction = 0;
   trustData.hWVTStateData = nullptr;
@@ -234,7 +236,7 @@ int NS_main(int argc, NS_tchar **argv)
     } else {
       return 1;
     }
-#else 
+#else
     // Not implemented on non-Windows platforms
     return 1;
 #endif
@@ -312,7 +314,7 @@ int NS_main(int argc, NS_tchar **argv)
     } else {
       return serviceState;
     }
-#else 
+#else
     // Not implemented on non-Windows platforms
     return 1;
 #endif
@@ -330,7 +332,7 @@ int NS_main(int argc, NS_tchar **argv)
     } else {
       return 2;
     }
-#else 
+#else
     // Not implemented on non-Windows platforms
     return 1;
 #endif
@@ -399,4 +401,4 @@ int NS_main(int argc, NS_tchar **argv)
   }
 
   return 0;
-} 
+}

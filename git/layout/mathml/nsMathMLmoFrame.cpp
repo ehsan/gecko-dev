@@ -955,6 +955,60 @@ nsMathMLmoFrame::Reflow(nsPresContext*          aPresContext,
                              aReflowState, aStatus);
 }
 
+nsresult
+nsMathMLmoFrame::Place(nsRenderingContext&  aRenderingContext,
+                       bool                 aPlaceOrigin,
+                       nsHTMLReflowMetrics& aDesiredSize)
+{
+  nsresult rv = nsMathMLTokenFrame::Place(aRenderingContext, aPlaceOrigin,
+                                          aDesiredSize);
+
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+
+  /* Special behaviour for largeops.
+     In MathML "stretchy" and displaystyle "largeop" are different notions,
+     even if we use the same technique to draw them (picking size variants).
+     So largeop display operators should be considered "non-stretchy" and
+     thus their sizes should be taken into account for the stretch size of
+     other elements.
+
+     This is a preliminary stretch - exact sizing/placement is handled by the
+     Stretch() method.
+  */
+
+  if (!aPlaceOrigin &&
+      StyleFont()->mMathDisplay == NS_MATHML_DISPLAYSTYLE_BLOCK &&
+      NS_MATHML_OPERATOR_IS_LARGEOP(mFlags) && UseMathMLChar()) {
+    nsBoundingMetrics newMetrics;
+    rv = mMathMLChar.Stretch(PresContext(), aRenderingContext,
+                                      nsLayoutUtils::FontSizeInflationFor(this),
+                                      NS_STRETCH_DIRECTION_VERTICAL,
+                                      aDesiredSize.mBoundingMetrics, newMetrics,
+                                      NS_STRETCH_LARGEOP, StyleVisibility()->mDirection);
+
+    if (NS_FAILED(rv)) {
+      // Just use the initial size
+      return NS_OK;
+    }
+
+    aDesiredSize.mBoundingMetrics = newMetrics;
+     /* Treat the ascent/descent values calculated in the TokenFrame place
+       calculations as the minimum for aDesiredSize calculations, rather
+       than fetching them from font metrics again.
+    */
+    aDesiredSize.SetBlockStartAscent(std::max(mBoundingMetrics.ascent,
+                                              newMetrics.ascent));
+    aDesiredSize.Height() = aDesiredSize.BlockStartAscent() +
+                            std::max(mBoundingMetrics.descent,
+                                     newMetrics.descent);
+    aDesiredSize.Width() = newMetrics.width;
+    mBoundingMetrics = newMetrics;
+  }
+  return NS_OK;
+}
+
 /* virtual */ void
 nsMathMLmoFrame::MarkIntrinsicISizesDirty()
 {
@@ -981,7 +1035,8 @@ nsMathMLmoFrame::MarkIntrinsicISizesDirty()
 }
 
 /* virtual */ void
-nsMathMLmoFrame::GetIntrinsicISizeMetrics(nsRenderingContext *aRenderingContext, nsHTMLReflowMetrics& aDesiredSize)
+nsMathMLmoFrame::GetIntrinsicISizeMetrics(nsRenderingContext* aRenderingContext,
+                                          nsHTMLReflowMetrics& aDesiredSize)
 {
   ProcessOperatorData();
   if (UseMathMLChar()) {
@@ -990,8 +1045,7 @@ nsMathMLmoFrame::GetIntrinsicISizeMetrics(nsRenderingContext *aRenderingContext,
     aDesiredSize.Width() = mMathMLChar.
       GetMaxWidth(PresContext(), *aRenderingContext,
                   nsLayoutUtils::FontSizeInflationFor(this),
-                  stretchHint, mMaxSize,
-                  NS_MATHML_OPERATOR_MAXSIZE_IS_ABSOLUTE(mFlags));
+                  stretchHint);
   }
   else {
     nsMathMLTokenFrame::GetIntrinsicISizeMetrics(aRenderingContext,

@@ -5,6 +5,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include <cstdlib>
+
+#include "gc/GCInternals.h"
 #include "gc/Memory.h"
 #include "jsapi-tests/tests.h"
 
@@ -38,7 +41,14 @@ BEGIN_TEST(testGCAllocator)
 #else
     return true;
 #endif
-    if (addressesGrowUp())
+
+    /* Finish any ongoing background free activity. */
+    js::gc::AutoFinishGC finishGC(rt);
+
+    bool growUp;
+    CHECK(addressesGrowUp(&growUp));
+
+    if (growUp)
         return testGCAllocatorUp(PageSize);
     return testGCAllocatorDown(PageSize);
 }
@@ -49,13 +59,41 @@ static const int MaxTempChunks = 4096;
 static const size_t StagingSize = 16 * Chunk;
 
 bool
-addressesGrowUp()
+addressesGrowUp(bool *resultOut)
 {
-    void *p1 = mapMemory(2 * Chunk);
-    void *p2 = mapMemory(2 * Chunk);
-    unmapPages(p1, 2 * Chunk);
-    unmapPages(p2, 2 * Chunk);
-    return p1 < p2;
+    /*
+     * Try to detect whether the OS allocates memory in increasing or decreasing
+     * address order by making several allocations and comparing the addresses.
+     */
+
+    static const unsigned ChunksToTest = 20;
+    static const int ThresholdCount = 15;
+
+    void *chunks[ChunksToTest];
+    for (unsigned i = 0; i < ChunksToTest; i++) {
+        chunks[i] = mapMemory(2 * Chunk);
+        CHECK(chunks[i]);
+    }
+
+    int upCount = 0;
+    int downCount = 0;
+
+    for (unsigned i = 0; i < ChunksToTest - 1; i++) {
+        if (chunks[i] < chunks[i + 1])
+            upCount++;
+        else
+            downCount++;
+    }
+
+    for (unsigned i = 0; i < ChunksToTest; i++)
+        unmapPages(chunks[i], 2 * Chunk);
+
+    /* Check results were mostly consistent. */
+    CHECK(abs(upCount - downCount) >= ThresholdCount);
+
+    *resultOut = upCount > downCount;
+
+    return true;
 }
 
 size_t
@@ -257,15 +295,15 @@ unmapPages(void *p, size_t size)
 void *
 mapMemoryAt(void *desired, size_t length)
 {
-#if defined(__ia64__)
-    MOZ_ASSERT(0xffff800000000000ULL & (uintptr_t(desired) + length - 1) == 0);
+#if defined(__ia64__) || (defined(__sparc64__) && defined(__NetBSD__))
+    MOZ_RELEASE_ASSERT(0xffff800000000000ULL & (uintptr_t(desired) + length - 1) == 0);
 #endif
     void *region = mmap(desired, length, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
     if (region == MAP_FAILED)
         return nullptr;
     if (region != desired) {
         if (munmap(region, length))
-            MOZ_ASSERT(errno == ENOMEM);
+            MOZ_RELEASE_ASSERT(errno == ENOMEM);
         return nullptr;
     }
     return region;
@@ -275,16 +313,16 @@ void *
 mapMemory(size_t length)
 {
     void *hint = nullptr;
-#if defined(__ia64__)
+#if defined(__ia64__) || (defined(__sparc64__) && defined(__NetBSD__))
     hint = (void*)0x0000070000000000ULL;
 #endif
     void *region = mmap(hint, length, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
     if (region == MAP_FAILED)
         return nullptr;
-#if defined(__ia64__)
+#if defined(__ia64__) || (defined(__sparc64__) && defined(__NetBSD__))
     if ((uintptr_t(region) + (length - 1)) & 0xffff800000000000ULL) {
         if (munmap(region, length))
-            MOZ_ASSERT(errno == ENOMEM);
+            MOZ_RELEASE_ASSERT(errno == ENOMEM);
         return nullptr;
     }
 #endif
@@ -295,7 +333,7 @@ void
 unmapPages(void *p, size_t size)
 {
     if (munmap(p, size))
-        MOZ_ASSERT(errno == ENOMEM);
+        MOZ_RELEASE_ASSERT(errno == ENOMEM);
 }
 
 #else // !defined(XP_WIN) && !defined(SOLARIS) && !defined(XP_UNIX)

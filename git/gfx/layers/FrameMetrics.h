@@ -40,14 +40,12 @@ public:
 
   FrameMetrics()
     : mCompositionBounds(0, 0, 0, 0)
+    , mPresShellResolution(1)
     , mDisplayPort(0, 0, 0, 0)
     , mCriticalDisplayPort(0, 0, 0, 0)
     , mScrollableRect(0, 0, 0, 0)
-    , mPresShellResolution(1)
     , mCumulativeResolution(1)
     , mDevPixelsPerCSSPixel(1)
-    , mMayHaveTouchListeners(false)
-    , mMayHaveTouchCaret(false)
     , mIsRoot(false)
     , mHasScrollgrab(false)
     , mScrollId(NULL_SCROLL_ID)
@@ -66,6 +64,7 @@ public:
     , mExtraResolution(1)
     , mBackgroundColor(0, 0, 0, 0)
     , mLineScrollAmount(0, 0)
+    , mAllowVerticalScrollWithWheel(false)
   {
   }
 
@@ -84,8 +83,6 @@ public:
            mPresShellResolution == aOther.mPresShellResolution &&
            mCumulativeResolution == aOther.mCumulativeResolution &&
            mDevPixelsPerCSSPixel == aOther.mDevPixelsPerCSSPixel &&
-           mMayHaveTouchListeners == aOther.mMayHaveTouchListeners &&
-           mMayHaveTouchCaret == aOther.mMayHaveTouchCaret &&
            mPresShellId == aOther.mPresShellId &&
            mIsRoot == aOther.mIsRoot &&
            mScrollId == aOther.mScrollId &&
@@ -94,10 +91,12 @@ public:
            mSmoothScrollOffset == aOther.mSmoothScrollOffset &&
            mHasScrollgrab == aOther.mHasScrollgrab &&
            mUpdateScrollOffset == aOther.mUpdateScrollOffset &&
+           mScrollGeneration == aOther.mScrollGeneration &&
            mExtraResolution == aOther.mExtraResolution &&
            mBackgroundColor == aOther.mBackgroundColor &&
            mDoSmoothScroll == aOther.mDoSmoothScroll &&
-           mLineScrollAmount == aOther.mLineScrollAmount;
+           mLineScrollAmount == aOther.mLineScrollAmount &&
+           mAllowVerticalScrollWithWheel == aOther.mAllowVerticalScrollWithWheel;
   }
   bool operator!=(const FrameMetrics& aOther) const
   {
@@ -234,8 +233,8 @@ public:
   // The following metrics are all in widget space/device pixels.
   //
 
-  // This is the area within the widget that we're compositing to. It is relative
-  // to the layer tree origin.
+  // This is the area within the widget that we're compositing to. It is in the
+  // same coordinate space as the reference frame for the scrolled frame.
   //
   // This is useful because, on mobile, the viewport and composition dimensions
   // are not always the same. In this case, we calculate the displayport using
@@ -251,74 +250,57 @@ public:
   // layout/paint time.
   ParentLayerRect mCompositionBounds;
 
-  // ---------------------------------------------------------------------------
-  // The following metrics are all in CSS pixels. They are not in any uniform
-  // space, so each is explained separately.
-  //
-
-  // The area of a frame's contents that has been painted, relative to the
-  // viewport. It is in the same coordinate space as |mViewport|. For example,
-  // if it is at 0,0, then it's at the same place at the viewport, which is at
-  // the top-left in the layer, and at the same place as the scroll offset of
-  // the document.
-  //
-  // Note that this is structured in such a way that it doesn't depend on the
-  // method layout uses to scroll content.
-  //
-  // May be larger or smaller than |mScrollableRect|.
-  //
-  // To pre-render a margin of 100 CSS pixels around the window,
-  // { x = -100, y = - 100,
-  //   width = window.innerWidth + 200, height = window.innerHeight + 200 }
-  CSSRect mDisplayPort;
-
-  // If non-empty, the area of a frame's contents that is considered critical
-  // to paint. Area outside of this area (i.e. area inside mDisplayPort, but
-  // outside of mCriticalDisplayPort) is considered low-priority, and may be
-  // painted with lower precision, or not painted at all.
-  //
-  // The same restrictions for mDisplayPort apply here.
-  CSSRect mCriticalDisplayPort;
-
-  // The scrollable bounds of a frame. This is determined by reflow.
-  // Ordinarily the x and y will be 0 and the width and height will be the
-  // size of the element being scrolled. However for RTL pages or elements
-  // the x value may be negative.
-  //
-  // This is relative to the document. It is in the same coordinate space as
-  // |mScrollOffset|, but a different coordinate space than |mViewport| and
-  // |mDisplayPort|. Note also that this coordinate system is understood by
-  // window.scrollTo().
-  //
-  // This is valid on any layer unless it has no content.
-  CSSRect mScrollableRect;
-
-  // ---------------------------------------------------------------------------
-  // The following metrics are dimensionless.
-  //
-
-  // The pres-shell resolution that has been induced on the document containing
-  // this scroll frame as a result of zooming this scroll frame (whether via
-  // user action, or choosing an initial zoom level on page load). This can
-  // only be different from 1.0 for frames that are zoomable, which currently
-  // is just the root content document's root scroll frame (mIsRoot = true).
-  // This is a plain float rather than a ScaleFactor because in and of itself
-  // it does not convert between any coordinate spaces for which we have names.
-  float mPresShellResolution;
-
-  // The cumulative resolution that the current frame has been painted at.
-  // This is the product of the pres-shell resolutions of the document
-  // containing this scroll frame and its ancestors, and any css-driven
-  // resolution. This information is provided by Gecko at layout/paint time.
-  LayoutDeviceToLayerScale mCumulativeResolution;
-
-  // The conversion factor between CSS pixels and device pixels for this frame.
-  // This can vary based on a variety of things, such as reflowing-zoom. The
-  // conversion factor for device pixels to layers pixels is just the
-  // resolution.
-  CSSToLayoutDeviceScale mDevPixelsPerCSSPixel;
-
 public:
+  void SetPresShellResolution(const float aPresShellResolution)
+  {
+    mPresShellResolution = aPresShellResolution;
+  }
+
+  float GetPresShellResolution() const
+  {
+    return mPresShellResolution;
+  }
+
+  void SetDisplayPort(const CSSRect& aDisplayPort)
+  {
+    mDisplayPort = aDisplayPort;
+  }
+
+  CSSRect GetDisplayPort() const
+  {
+    return mDisplayPort;
+  }
+
+  void SetCriticalDisplayPort(const CSSRect& aCriticalDisplayPort)
+  {
+    mCriticalDisplayPort = aCriticalDisplayPort;
+  }
+
+  CSSRect GetCriticalDisplayPort() const
+  {
+    return mCriticalDisplayPort;
+  }
+
+  void SetCumulativeResolution(const LayoutDeviceToLayerScale& aCumulativeResolution)
+  {
+    mCumulativeResolution = aCumulativeResolution;
+  }
+
+  LayoutDeviceToLayerScale GetCumulativeResolution() const
+  {
+    return mCumulativeResolution;
+  }
+
+  void SetDevPixelsPerCSSPixel(const CSSToLayoutDeviceScale& aDevPixelsPerCSSPixel)
+  {
+    mDevPixelsPerCSSPixel = aDevPixelsPerCSSPixel;
+  }
+
+  CSSToLayoutDeviceScale GetDevPixelsPerCSSPixel() const
+  {
+    return mDevPixelsPerCSSPixel;
+  }
+
   void SetIsRoot(bool aIsRoot)
   {
     mIsRoot = aIsRoot;
@@ -496,26 +478,6 @@ public:
     mContentDescription = aContentDescription;
   }
 
-  bool GetMayHaveTouchCaret() const
-  {
-    return mMayHaveTouchCaret;
-  }
-
-  void SetMayHaveTouchCaret(bool aMayHaveTouchCaret)
-  {
-    mMayHaveTouchCaret = aMayHaveTouchCaret;
-  }
-
-  bool GetMayHaveTouchListeners() const
-  {
-    return mMayHaveTouchListeners;
-  }
-
-  void SetMayHaveTouchListeners(bool aMayHaveTouchListeners)
-  {
-    mMayHaveTouchListeners = aMayHaveTouchListeners;
-  }
-
   const LayoutDeviceIntSize& GetLineScrollAmount() const
   {
     return mLineScrollAmount;
@@ -526,15 +488,85 @@ public:
     mLineScrollAmount = size;
   }
 
+  const CSSRect& GetScrollableRect() const
+  {
+    return mScrollableRect;
+  }
+
+  void SetScrollableRect(const CSSRect& aScrollableRect)
+  {
+    mScrollableRect = aScrollableRect;
+  }
+
+  bool AllowVerticalScrollWithWheel() const
+  {
+    return mAllowVerticalScrollWithWheel;
+  }
+
+  void SetAllowVerticalScrollWithWheel()
+  {
+    mAllowVerticalScrollWithWheel = true;
+  }
+
 private:
+
+  // The pres-shell resolution that has been induced on the document containing
+  // this scroll frame as a result of zooming this scroll frame (whether via
+  // user action, or choosing an initial zoom level on page load). This can
+  // only be different from 1.0 for frames that are zoomable, which currently
+  // is just the root content document's root scroll frame (mIsRoot = true).
+  // This is a plain float rather than a ScaleFactor because in and of itself
+  // it does not convert between any coordinate spaces for which we have names.
+  float mPresShellResolution;
+
+  // The area of a frame's contents that has been painted, relative to
+  // mCompositionBounds.
+  //
+  // Note that this is structured in such a way that it doesn't depend on the
+  // method layout uses to scroll content.
+  //
+  // May be larger or smaller than |mScrollableRect|.
+  //
+  // To pre-render a margin of 100 CSS pixels around the window,
+  // { x = -100, y = - 100,
+  //   width = window.innerWidth + 200, height = window.innerHeight + 200 }
+  CSSRect mDisplayPort;
+
+  // If non-empty, the area of a frame's contents that is considered critical
+  // to paint. Area outside of this area (i.e. area inside mDisplayPort, but
+  // outside of mCriticalDisplayPort) is considered low-priority, and may be
+  // painted with lower precision, or not painted at all.
+  //
+  // The same restrictions for mDisplayPort apply here.
+  CSSRect mCriticalDisplayPort;
+
+  // The scrollable bounds of a frame. This is determined by reflow.
+  // Ordinarily the x and y will be 0 and the width and height will be the
+  // size of the element being scrolled. However for RTL pages or elements
+  // the x value may be negative.
+  //
+  // This is relative to the document. It is in the same coordinate space as
+  // |mScrollOffset|, but a different coordinate space than |mViewport| and
+  // |mDisplayPort|. Note also that this coordinate system is understood by
+  // window.scrollTo().
+  //
+  // This is valid on any layer unless it has no content.
+  CSSRect mScrollableRect;
+
+  // The cumulative resolution that the current frame has been painted at.
+  // This is the product of the pres-shell resolutions of the document
+  // containing this scroll frame and its ancestors, and any css-driven
+  // resolution. This information is provided by Gecko at layout/paint time.
+  LayoutDeviceToLayerScale mCumulativeResolution;
+
   // New fields from now on should be made private and old fields should
   // be refactored to be private.
 
-  // Whether or not this frame may have a touch listeners.
-  bool mMayHaveTouchListeners;
-
-  // Whether or not this frame may have a touch caret.
-  bool mMayHaveTouchCaret;
+  // The conversion factor between CSS pixels and device pixels for this frame.
+  // This can vary based on a variety of things, such as reflowing-zoom. The
+  // conversion factor for device pixels to layers pixels is just the
+  // resolution.
+  CSSToLayoutDeviceScale mDevPixelsPerCSSPixel;
 
   // Whether or not this is the root scroll frame for the root content document.
   bool mIsRoot;
@@ -620,6 +652,9 @@ private:
 
   // The value of GetLineScrollAmount(), for scroll frames.
   LayoutDeviceIntSize mLineScrollAmount;
+
+  // Whether or not the frame can be vertically scrolled with a mouse wheel.
+  bool mAllowVerticalScrollWithWheel;
 };
 
 /**
@@ -640,7 +675,6 @@ struct ScrollableLayerGuid {
     , mPresShellId(0)
     , mScrollId(0)
   {
-    MOZ_COUNT_CTOR(ScrollableLayerGuid);
   }
 
   ScrollableLayerGuid(uint64_t aLayersId, uint32_t aPresShellId,
@@ -649,7 +683,6 @@ struct ScrollableLayerGuid {
     , mPresShellId(aPresShellId)
     , mScrollId(aScrollId)
   {
-    MOZ_COUNT_CTOR(ScrollableLayerGuid);
   }
 
   ScrollableLayerGuid(uint64_t aLayersId, const FrameMetrics& aMetrics)
@@ -657,7 +690,6 @@ struct ScrollableLayerGuid {
     , mPresShellId(aMetrics.GetPresShellId())
     , mScrollId(aMetrics.GetScrollId())
   {
-    MOZ_COUNT_CTOR(ScrollableLayerGuid);
   }
 
   ScrollableLayerGuid(const ScrollableLayerGuid& other)
@@ -665,12 +697,10 @@ struct ScrollableLayerGuid {
     , mPresShellId(other.mPresShellId)
     , mScrollId(other.mScrollId)
   {
-    MOZ_COUNT_CTOR(ScrollableLayerGuid);
   }
 
   ~ScrollableLayerGuid()
   {
-    MOZ_COUNT_DTOR(ScrollableLayerGuid);
   }
 
   bool operator==(const ScrollableLayerGuid& other) const

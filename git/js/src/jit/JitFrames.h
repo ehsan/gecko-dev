@@ -13,6 +13,7 @@
 #include "jsfun.h"
 
 #include "jit/JitFrameIterator.h"
+#include "jit/Safepoints.h"
 
 namespace js {
 namespace jit {
@@ -269,20 +270,16 @@ struct ResumeFromException
 };
 
 void HandleException(ResumeFromException *rfe);
-void HandleParallelFailure(ResumeFromException *rfe);
 
 void EnsureExitFrame(CommonFrameLayout *frame);
 
-void MarkJitActivations(PerThreadData *ptd, JSTracer *trc);
+void MarkJitActivations(JSRuntime *rt, JSTracer *trc);
 void MarkIonCompilerRoots(JSTracer *trc);
 
 JSCompartment *
 TopmostIonActivationCompartment(JSRuntime *rt);
 
-#ifdef JSGC_GENERATIONAL
-template<typename T>
-void UpdateJitActivationsForMinorGC(PerThreadData *ptd, JSTracer *trc);
-#endif
+void UpdateJitActivationsForMinorGC(JSRuntime *rt, JSTracer *trc);
 
 static inline uint32_t
 MakeFrameDescriptor(uint32_t frameSize, FrameType type)
@@ -292,15 +289,11 @@ MakeFrameDescriptor(uint32_t frameSize, FrameType type)
 
 // Returns the JSScript associated with the topmost JIT frame.
 inline JSScript *
-GetTopJitJSScript(ThreadSafeContext *cx, void **returnAddrOut = nullptr)
+GetTopJitJSScript(JSContext *cx)
 {
     JitFrameIterator iter(cx);
     MOZ_ASSERT(iter.type() == JitFrame_Exit);
     ++iter;
-
-    MOZ_ASSERT(iter.returnAddressToFp() != nullptr);
-    if (returnAddrOut)
-        *returnAddrOut = (void *) iter.returnAddressToFp();
 
     if (iter.isBaselineStub()) {
         ++iter;
@@ -334,6 +327,9 @@ class CommonFrameLayout
   public:
     static size_t offsetOfDescriptor() {
         return offsetof(CommonFrameLayout, descriptor_);
+    }
+    uintptr_t descriptor() const {
+        return descriptor_;
     }
     static size_t offsetOfReturnAddress() {
         return offsetof(CommonFrameLayout, returnAddress_);
@@ -401,11 +397,10 @@ class JitFrameLayout : public CommonFrameLayout
         return numActualArgs_;
     }
 
-    // Computes a reference to a slot, where a slot is a distance from the base
-    // frame pointer (as would be used for LStackSlot).
-    uintptr_t *slotRef(uint32_t slot) {
-        return (uintptr_t *)((uint8_t *)this - slot);
-    }
+    // Computes a reference to a stack or argument slot, where a slot is a
+    // distance from the base frame pointer, as would be used for LStackSlot
+    // or LArgument.
+    uintptr_t *slotRef(SafepointSlotEntry where);
 
     static inline size_t Size() {
         return sizeof(JitFrameLayout);
@@ -426,6 +421,21 @@ class RectifierFrameLayout : public JitFrameLayout
   public:
     static inline size_t Size() {
         return sizeof(RectifierFrameLayout);
+    }
+};
+
+class IonAccessorICFrameLayout : public CommonFrameLayout
+{
+  protected:
+    // Pointer to root the stub's JitCode.
+    JitCode *stubCode_;
+
+  public:
+    JitCode **stubCode() {
+        return &stubCode_;
+    }
+    static size_t Size() {
+        return sizeof(IonAccessorICFrameLayout);
     }
 };
 
@@ -476,6 +486,19 @@ class IonOOLPropertyOpExitFrameLayout;
 class IonOOLProxyExitFrameLayout;
 class IonDOMExitFrameLayout;
 
+enum ExitFrameTokenValues
+{
+    NativeExitFrameLayoutToken            = 0x0,
+    IonDOMExitFrameLayoutGetterToken      = 0x1,
+    IonDOMExitFrameLayoutSetterToken      = 0x2,
+    IonDOMMethodExitFrameLayoutToken      = 0x3,
+    IonOOLNativeExitFrameLayoutToken      = 0x4,
+    IonOOLPropertyOpExitFrameLayoutToken  = 0x5,
+    IonOOLSetterOpExitFrameLayoutToken    = 0x6,
+    IonOOLProxyExitFrameLayoutToken       = 0x7,
+    ExitFrameLayoutBareToken              = 0xFF
+};
+
 // this is the frame layout when we are exiting ion code, and about to enter platform ABI code
 class ExitFrameLayout : public CommonFrameLayout
 {
@@ -486,7 +509,7 @@ class ExitFrameLayout : public CommonFrameLayout
   public:
     // Pushed for "bare" fake exit frames that have no GC things on stack to be
     // marked.
-    static JitCode *BareToken() { return (JitCode *)0xFF; }
+    static JitCode *BareToken() { return (JitCode *)ExitFrameLayoutBareToken; }
 
     static inline size_t Size() {
         return sizeof(ExitFrameLayout);
@@ -540,7 +563,7 @@ class NativeExitFrameLayout
     uint32_t hiCalleeResult_;
 
   public:
-    static JitCode *Token() { return (JitCode *)0x0; }
+    static JitCode *Token() { return (JitCode *)NativeExitFrameLayoutToken; }
 
     static inline size_t Size() {
         return sizeof(NativeExitFrameLayout);
@@ -578,7 +601,7 @@ class IonOOLNativeExitFrameLayout
     uint32_t hiThis_;
 
   public:
-    static JitCode *Token() { return (JitCode *)0x4; }
+    static JitCode *Token() { return (JitCode *)IonOOLNativeExitFrameLayoutToken; }
 
     static inline size_t Size(size_t argc) {
         // The frame accounts for the callee/result and |this|, so we only need args.
@@ -605,7 +628,7 @@ class IonOOLNativeExitFrameLayout
 
 class IonOOLPropertyOpExitFrameLayout
 {
-  protected: // only to silence a clang warning about unused private fields
+  protected:
     ExitFooterFrame footer_;
     ExitFrameLayout exit_;
 
@@ -624,10 +647,14 @@ class IonOOLPropertyOpExitFrameLayout
     JitCode *stubCode_;
 
   public:
-    static JitCode *Token() { return (JitCode *)0x5; }
+    static JitCode *Token() { return (JitCode *)IonOOLPropertyOpExitFrameLayoutToken; }
 
     static inline size_t Size() {
         return sizeof(IonOOLPropertyOpExitFrameLayout);
+    }
+
+    static size_t offsetOfId() {
+        return offsetof(IonOOLPropertyOpExitFrameLayout, id_);
     }
 
     static size_t offsetOfResult() {
@@ -648,15 +675,35 @@ class IonOOLPropertyOpExitFrameLayout
     }
 };
 
+class IonOOLSetterOpExitFrameLayout : public IonOOLPropertyOpExitFrameLayout
+{
+  protected: // only to silence a clang warning about unused private fields
+    JS::ObjectOpResult result_;
+
+  public:
+    static JitCode *Token() { return (JitCode *)IonOOLSetterOpExitFrameLayoutToken; }
+
+    static size_t offsetOfObjectOpResult() {
+        return offsetof(IonOOLSetterOpExitFrameLayout, result_);
+    }
+
+    static size_t Size() {
+        return sizeof(IonOOLSetterOpExitFrameLayout);
+    }
+};
+
 // Proxy::get(JSContext *cx, HandleObject proxy, HandleObject receiver, HandleId id,
 //            MutableHandleValue vp)
 // Proxy::set(JSContext *cx, HandleObject proxy, HandleObject receiver, HandleId id,
-//            bool strict, MutableHandleValue vp)
+//            MutableHandleValue vp, ObjectOpResult &result)
 class IonOOLProxyExitFrameLayout
 {
   protected: // only to silence a clang warning about unused private fields
     ExitFooterFrame footer_;
     ExitFrameLayout exit_;
+
+    // result out-parameter (unused for Proxy::get)
+    JS::ObjectOpResult result_;
 
     // The proxy object.
     JSObject *proxy_;
@@ -676,7 +723,7 @@ class IonOOLProxyExitFrameLayout
     JitCode *stubCode_;
 
   public:
-    static JitCode *Token() { return (JitCode *)0x6; }
+    static JitCode *Token() { return (JitCode *)IonOOLProxyExitFrameLayoutToken; }
 
     static inline size_t Size() {
         return sizeof(IonOOLProxyExitFrameLayout);
@@ -684,6 +731,14 @@ class IonOOLProxyExitFrameLayout
 
     static size_t offsetOfResult() {
         return offsetof(IonOOLProxyExitFrameLayout, vp0_);
+    }
+
+    static size_t offsetOfId() {
+        return offsetof(IonOOLProxyExitFrameLayout, id_);
+    }
+
+    static size_t offsetOfObjectOpResult() {
+        return offsetof(IonOOLProxyExitFrameLayout, result_);
     }
 
     inline JitCode **stubCode() {
@@ -716,8 +771,8 @@ class IonDOMExitFrameLayout
     uint32_t hiCalleeResult_;
 
   public:
-    static JitCode *GetterToken() { return (JitCode *)0x1; }
-    static JitCode *SetterToken() { return (JitCode *)0x2; }
+    static JitCode *GetterToken() { return (JitCode *)IonDOMExitFrameLayoutGetterToken; }
+    static JitCode *SetterToken() { return (JitCode *)IonDOMExitFrameLayoutSetterToken; }
 
     static inline size_t Size() {
         return sizeof(IonDOMExitFrameLayout);
@@ -756,7 +811,7 @@ class IonDOMMethodExitFrameLayout
     friend struct IonDOMMethodExitFrameLayoutTraits;
 
   public:
-    static JitCode *Token() { return (JitCode *)0x3; }
+    static JitCode *Token() { return (JitCode *)IonDOMMethodExitFrameLayoutToken; }
 
     static inline size_t Size() {
         return sizeof(IonDOMMethodExitFrameLayout);
@@ -827,6 +882,11 @@ class BaselineStubFrameLayout : public CommonFrameLayout
         return -int(2 * sizeof(void *));
     }
 
+    void *reverseSavedFramePtr() {
+        uint8_t *addr = ((uint8_t *) this) + reverseOffsetOfSavedFramePtr();
+        return *(void **)addr;
+    }
+
     inline ICStub *maybeStubPtr() {
         uint8_t *fp = reinterpret_cast<uint8_t *>(this);
         return *reinterpret_cast<ICStub **>(fp + reverseOffsetOfStubPtr());
@@ -840,8 +900,8 @@ class BaselineStubFrameLayout : public CommonFrameLayout
 // An invalidation bailout stack is at the stack pointer for the callee frame.
 class InvalidationBailoutStack
 {
-    mozilla::Array<double, FloatRegisters::TotalPhys> fpregs_;
-    mozilla::Array<uintptr_t, Registers::Total> regs_;
+    RegisterDump::FPUArray fpregs_;
+    RegisterDump::GPRArray regs_;
     IonScript   *ionScript_;
     uint8_t       *osiPointReturnAddress_;
 

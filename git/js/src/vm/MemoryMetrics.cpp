@@ -358,7 +358,7 @@ StatsArenaCallback(JSRuntime *rt, void *data, gc::Arena *arena,
     // unused space like this:  arenaUnused = maxArenaUnused - arenaUsed.
     // We do this by setting arenaUnused to maxArenaUnused here, and then
     // subtracting thingSize for every used cell, in StatsCellCallback().
-    rtStats->currZoneStats->unusedGCThings += allocationSpace;
+    rtStats->currZoneStats->unusedGCThings.addToKind(traceKind, allocationSpace);
 }
 
 static CompartmentStats *
@@ -428,74 +428,6 @@ StatsCellCallback(JSRuntime *rt, void *data, void *thing, JSGCTraceKind traceKin
         break;
       }
 
-      case JSTRACE_STRING: {
-        JSString *str = static_cast<JSString *>(thing);
-
-        JS::StringInfo info;
-        if (str->hasLatin1Chars()) {
-            info.gcHeapLatin1 = thingSize;
-            info.mallocHeapLatin1 = str->sizeOfExcludingThis(rtStats->mallocSizeOf_);
-        } else {
-            info.gcHeapTwoByte = thingSize;
-            info.mallocHeapTwoByte = str->sizeOfExcludingThis(rtStats->mallocSizeOf_);
-        }
-        info.numCopies = 1;
-
-        zStats->stringInfo.add(info);
-
-        // The primary use case for anonymization is automated crash submission
-        // (to help detect OOM crashes). In that case, we don't want to pay the
-        // memory cost required to do notable string detection.
-        if (granularity == FineGrained && !closure->anonymize) {
-            ZoneStats::StringsHashMap::AddPtr p = zStats->allStrings->lookupForAdd(str);
-            if (!p) {
-                // Ignore failure -- we just won't record the string as notable.
-                (void)zStats->allStrings->add(p, str, info);
-            } else {
-                p->value().add(info);
-            }
-        }
-        break;
-      }
-
-      case JSTRACE_SYMBOL:
-        zStats->symbolsGCHeap += thingSize;
-        break;
-
-      case JSTRACE_SHAPE: {
-        Shape *shape = static_cast<Shape *>(thing);
-        CompartmentStats *cStats = GetCompartmentStats(shape->compartment());
-        JS::ClassInfo info;        // This zeroes all the sizes.
-        if (shape->inDictionary())
-            info.shapesGCHeapDict += thingSize;
-        else
-            info.shapesGCHeapTree += thingSize;
-        shape->addSizeOfExcludingThis(rtStats->mallocSizeOf_, &info);
-        cStats->classInfo.add(info);
-
-        const BaseShape *base = shape->base();
-        const Class *clasp = base->clasp();
-        const char *className = clasp->name;
-        AddClassInfo(granularity, cStats, className, info);
-        break;
-      }
-
-      case JSTRACE_BASE_SHAPE: {
-        BaseShape *base = static_cast<BaseShape *>(thing);
-        CompartmentStats *cStats = GetCompartmentStats(base->compartment());
-
-        JS::ClassInfo info;        // This zeroes all the sizes.
-        info.shapesGCHeapBase += thingSize;
-        // No malloc-heap measurements.
-
-        cStats->classInfo.add(info);
-
-        const Class *clasp = base->clasp();
-        const char *className = clasp->name;
-        AddClassInfo(granularity, cStats, className, info);
-        break;
-      }
-
       case JSTRACE_SCRIPT: {
         JSScript *script = static_cast<JSScript *>(thing);
         CompartmentStats *cStats = GetCompartmentStats(script->compartment());
@@ -536,10 +468,53 @@ StatsCellCallback(JSRuntime *rt, void *data, void *thing, JSGCTraceKind traceKin
         break;
       }
 
-      case JSTRACE_LAZY_SCRIPT: {
-        LazyScript *lazy = static_cast<LazyScript *>(thing);
-        zStats->lazyScriptsGCHeap += thingSize;
-        zStats->lazyScriptsMallocHeap += lazy->sizeOfExcludingThis(rtStats->mallocSizeOf_);
+      case JSTRACE_STRING: {
+        JSString *str = static_cast<JSString *>(thing);
+
+        JS::StringInfo info;
+        if (str->hasLatin1Chars()) {
+            info.gcHeapLatin1 = thingSize;
+            info.mallocHeapLatin1 = str->sizeOfExcludingThis(rtStats->mallocSizeOf_);
+        } else {
+            info.gcHeapTwoByte = thingSize;
+            info.mallocHeapTwoByte = str->sizeOfExcludingThis(rtStats->mallocSizeOf_);
+        }
+        info.numCopies = 1;
+
+        zStats->stringInfo.add(info);
+
+        // The primary use case for anonymization is automated crash submission
+        // (to help detect OOM crashes). In that case, we don't want to pay the
+        // memory cost required to do notable string detection.
+        if (granularity == FineGrained && !closure->anonymize) {
+            ZoneStats::StringsHashMap::AddPtr p = zStats->allStrings->lookupForAdd(str);
+            if (!p) {
+                // Ignore failure -- we just won't record the string as notable.
+                (void)zStats->allStrings->add(p, str, info);
+            } else {
+                p->value().add(info);
+            }
+        }
+        break;
+      }
+
+      case JSTRACE_SYMBOL:
+        zStats->symbolsGCHeap += thingSize;
+        break;
+
+      case JSTRACE_BASE_SHAPE: {
+        BaseShape *base = static_cast<BaseShape *>(thing);
+        CompartmentStats *cStats = GetCompartmentStats(base->compartment());
+
+        JS::ClassInfo info;        // This zeroes all the sizes.
+        info.shapesGCHeapBase += thingSize;
+        // No malloc-heap measurements.
+
+        cStats->classInfo.add(info);
+
+        const Class *clasp = base->clasp();
+        const char *className = clasp->name;
+        AddClassInfo(granularity, cStats, className, info);
         break;
       }
 
@@ -549,19 +524,44 @@ StatsCellCallback(JSRuntime *rt, void *data, void *thing, JSGCTraceKind traceKin
         break;
       }
 
-      case JSTRACE_TYPE_OBJECT: {
-        types::TypeObject *obj = static_cast<types::TypeObject *>(thing);
-        zStats->typeObjectsGCHeap += thingSize;
-        zStats->typeObjectsMallocHeap += obj->sizeOfExcludingThis(rtStats->mallocSizeOf_);
+      case JSTRACE_LAZY_SCRIPT: {
+        LazyScript *lazy = static_cast<LazyScript *>(thing);
+        zStats->lazyScriptsGCHeap += thingSize;
+        zStats->lazyScriptsMallocHeap += lazy->sizeOfExcludingThis(rtStats->mallocSizeOf_);
+        break;
+      }
+
+      case JSTRACE_SHAPE: {
+        Shape *shape = static_cast<Shape *>(thing);
+        CompartmentStats *cStats = GetCompartmentStats(shape->compartment());
+        JS::ClassInfo info;        // This zeroes all the sizes.
+        if (shape->inDictionary())
+            info.shapesGCHeapDict += thingSize;
+        else
+            info.shapesGCHeapTree += thingSize;
+        shape->addSizeOfExcludingThis(rtStats->mallocSizeOf_, &info);
+        cStats->classInfo.add(info);
+
+        const BaseShape *base = shape->base();
+        const Class *clasp = base->clasp();
+        const char *className = clasp->name;
+        AddClassInfo(granularity, cStats, className, info);
+        break;
+      }
+
+      case JSTRACE_OBJECT_GROUP: {
+        ObjectGroup *group = static_cast<ObjectGroup *>(thing);
+        zStats->objectGroupsGCHeap += thingSize;
+        zStats->objectGroupsMallocHeap += group->sizeOfExcludingThis(rtStats->mallocSizeOf_);
         break;
       }
 
       default:
-        MOZ_CRASH("invalid traceKind");
+        MOZ_CRASH("invalid traceKind in StatsCellCallback");
     }
 
     // Yes, this is a subtraction:  see StatsArenaCallback() for details.
-    zStats->unusedGCThings -= thingSize;
+    zStats->unusedGCThings.addToKind(traceKind, -thingSize);
 }
 
 bool
@@ -763,7 +763,7 @@ JS::CollectRuntimeStats(JSRuntime *rt, RuntimeStats *rtStats, ObjectPrivateVisit
 #ifdef DEBUG
     // Check that the in-arena measurements look ok.
     size_t totalArenaSize = rtStats->zTotals.gcHeapArenaAdmin +
-                            rtStats->zTotals.unusedGCThings +
+                            rtStats->zTotals.unusedGCThings.totalSize() +
                             rtStats->gcHeapGCThings;
     MOZ_ASSERT(totalArenaSize % gc::ArenaSize == 0);
 #endif
@@ -782,7 +782,7 @@ JS::CollectRuntimeStats(JSRuntime *rt, RuntimeStats *rtStats, ObjectPrivateVisit
     rtStats->gcHeapUnusedArenas = rtStats->gcHeapChunkTotal -
                                   rtStats->gcHeapDecommittedArenas -
                                   rtStats->gcHeapUnusedChunks -
-                                  rtStats->zTotals.unusedGCThings -
+                                  rtStats->zTotals.unusedGCThings.totalSize() -
                                   rtStats->gcHeapChunkAdmin -
                                   rtStats->zTotals.gcHeapArenaAdmin -
                                   rtStats->gcHeapGCThings;

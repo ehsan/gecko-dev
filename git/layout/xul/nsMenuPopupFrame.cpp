@@ -59,6 +59,10 @@ using namespace mozilla;
 using mozilla::dom::PopupBoxObject;
 
 int8_t nsMenuPopupFrame::sDefaultLevelIsTop = -1;
+uint32_t nsMenuPopupFrame::sTimeoutOfIncrementalSearch = 1000;
+
+const char* kPrefIncrementalSearchTimeout =
+  "ui.menu.incremental_search.timeout";
 
 // NS_NewMenuPopupFrame
 //
@@ -67,7 +71,7 @@ int8_t nsMenuPopupFrame::sDefaultLevelIsTop = -1;
 nsIFrame*
 NS_NewMenuPopupFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
-  return new (aPresShell) nsMenuPopupFrame (aPresShell, aContext);
+  return new (aPresShell) nsMenuPopupFrame(aContext);
 }
 
 NS_IMPL_FRAMEARENA_HELPERS(nsMenuPopupFrame)
@@ -79,8 +83,8 @@ NS_QUERYFRAME_TAIL_INHERITING(nsBoxFrame)
 //
 // nsMenuPopupFrame ctor
 //
-nsMenuPopupFrame::nsMenuPopupFrame(nsIPresShell* aShell, nsStyleContext* aContext)
-  :nsBoxFrame(aShell, aContext),
+nsMenuPopupFrame::nsMenuPopupFrame(nsStyleContext* aContext)
+  :nsBoxFrame(aContext),
   mCurrentMenu(nullptr),
   mPrefSize(-1, -1),
   mLastClientOffset(0, 0),
@@ -109,8 +113,9 @@ nsMenuPopupFrame::nsMenuPopupFrame(nsIPresShell* aShell, nsStyleContext* aContex
     return;
   sDefaultLevelIsTop =
     Preferences::GetBool("ui.panel.default_level_parent", false);
+  Preferences::AddUintVarCache(&sTimeoutOfIncrementalSearch,
+                               kPrefIncrementalSearchTimeout, 1000);
 } // ctor
-
 
 void
 nsMenuPopupFrame::Init(nsIContent*       aContent,
@@ -274,8 +279,8 @@ nsMenuPopupFrame::CreateWidgetForView(nsView* aView)
   nsTransparencyMode mode = nsLayoutUtils::GetFrameTransparency(this, this);
   nsIContent* parentContent = GetContent()->GetParent();
   nsIAtom *tag = nullptr;
-  if (parentContent)
-    tag = parentContent->Tag();
+  if (parentContent && parentContent->IsXULElement())
+    tag = parentContent->NodeInfo()->NameAtom();
   widgetData.mSupportTranslucency = mode == eTransparencyTransparent;
   widgetData.mDropShadow = !(mode == eTransparencyTransparent || tag == nsGkAtoms::menulist);
   widgetData.mPopupLevel = PopupLevel(widgetData.mNoAutoHide);
@@ -1477,7 +1482,9 @@ nsMenuPopupFrame::GetConstraintRect(const nsRect& aAnchorRect,
   return screenRect;
 }
 
-void nsMenuPopupFrame::CanAdjustEdges(int8_t aHorizontalSide, int8_t aVerticalSide, nsIntPoint& aChange)
+void nsMenuPopupFrame::CanAdjustEdges(int8_t aHorizontalSide,
+                                      int8_t aVerticalSide,
+                                      LayoutDeviceIntPoint& aChange)
 {
   int8_t popupAlign(mPopupAlignment);
   if (IsDirectionRTL()) {
@@ -1507,27 +1514,32 @@ void nsMenuPopupFrame::CanAdjustEdges(int8_t aHorizontalSide, int8_t aVerticalSi
   }
 }
 
-bool nsMenuPopupFrame::ConsumeOutsideClicks()
+ConsumeOutsideClicksResult nsMenuPopupFrame::ConsumeOutsideClicks()
 {
   // If the popup has explicitly set a consume mode, honor that.
   if (mConsumeRollupEvent != PopupBoxObject::ROLLUP_DEFAULT) {
-    return (mConsumeRollupEvent == PopupBoxObject::ROLLUP_CONSUME);
+    return (mConsumeRollupEvent == PopupBoxObject::ROLLUP_CONSUME) ?
+           ConsumeOutsideClicks_True : ConsumeOutsideClicks_ParentOnly;
   }
 
   if (mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::consumeoutsideclicks,
                             nsGkAtoms::_true, eCaseMatters)) {
-    return true;
+    return ConsumeOutsideClicks_True;
   }
   if (mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::consumeoutsideclicks,
                             nsGkAtoms::_false, eCaseMatters)) {
-    return false;
+    return ConsumeOutsideClicks_ParentOnly;
+  }
+  if (mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::consumeoutsideclicks,
+                            nsGkAtoms::never, eCaseMatters)) {
+    return ConsumeOutsideClicks_Never;
   }
 
   nsCOMPtr<nsIContent> parentContent = mContent->GetParent();
   if (parentContent) {
     dom::NodeInfo *ni = parentContent->NodeInfo();
     if (ni->Equals(nsGkAtoms::menulist, kNameSpaceID_XUL)) {
-      return true;  // Consume outside clicks for combo boxes on all platforms
+      return ConsumeOutsideClicks_True;  // Consume outside clicks for combo boxes on all platforms
     }
 #if defined(XP_WIN)
     // Don't consume outside clicks for menus in Windows
@@ -1540,19 +1552,19 @@ bool nsMenuPopupFrame::ConsumeOutsideClicks()
                                      nsGkAtoms::menu, eCaseMatters) ||
           parentContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::type,
                                      nsGkAtoms::menuButton, eCaseMatters)))) {
-      return false;
+      return ConsumeOutsideClicks_Never;
     }
 #endif
     if (ni->Equals(nsGkAtoms::textbox, kNameSpaceID_XUL)) {
       // Don't consume outside clicks for autocomplete widget
       if (parentContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::type,
                                      nsGkAtoms::autocomplete, eCaseMatters)) {
-        return false;
+        return ConsumeOutsideClicks_Never;
       }
     }
   }
 
-  return true;
+  return ConsumeOutsideClicks_True;
 }
 
 // XXXroc this is megalame. Fossicking around for a frame of the right
@@ -1720,10 +1732,14 @@ nsMenuPopupFrame::FindMenuWithShortcut(nsIDOMKeyEvent* aKeyEvent, bool& doAction
   }
   else {
     char16_t uniChar = ToLowerCase(static_cast<char16_t>(charCode));
-    if (isMenu || // Menu supports only first-letter navigation
-        keyTime - lastKeyTime > INC_TYP_INTERVAL) // Interval too long, treat as new typing
+    if (isMenu) {
+      // Menu supports only first-letter navigation
       mIncrementalString = uniChar;
-    else {
+    } else if (sTimeoutOfIncrementalSearch &&
+               keyTime - lastKeyTime > sTimeoutOfIncrementalSearch) {
+      // Interval too long, treat as new typing
+      mIncrementalString = uniChar;
+    } else {
       mIncrementalString.Append(uniChar);
     }
   }

@@ -19,8 +19,8 @@ class CDATASection MOZ_FINAL : public Text,
 private:
   void Init()
   {
-    NS_ABORT_IF_FALSE(mNodeInfo->NodeType() == nsIDOMNode::CDATA_SECTION_NODE,
-                      "Bad NodeType in aNodeInfo");
+    MOZ_ASSERT(mNodeInfo->NodeType() == nsIDOMNode::CDATA_SECTION_NODE,
+               "Bad NodeType in aNodeInfo");
   }
 
   virtual ~CDATASection();
@@ -57,7 +57,7 @@ public:
   // Empty interface
 
   // nsINode
-  virtual bool IsNodeOfType(uint32_t aFlags) const;
+  virtual bool IsNodeOfType(uint32_t aFlags) const MOZ_OVERRIDE;
 
   virtual nsGenericDOMDataNode* CloneDataNode(mozilla::dom::NodeInfo *aNodeInfo,
                                               bool aCloneText) const MOZ_OVERRIDE;

@@ -195,8 +195,11 @@ Convert(bt_property_type_t aIn, BluetoothPropertyType& aOut)
     CONVERT(BT_PROPERTY_ADAPTER_DISCOVERY_TIMEOUT,
       PROPERTY_ADAPTER_DISCOVERY_TIMEOUT),
     CONVERT(BT_PROPERTY_REMOTE_FRIENDLY_NAME, PROPERTY_REMOTE_FRIENDLY_NAME),
-    CONVERT(BT_PROPERTY_REMOTE_RSSI, PROPERTY_REMOTE_RSSI),
+    CONVERT(BT_PROPERTY_REMOTE_RSSI, PROPERTY_REMOTE_RSSI)
+#if ANDROID_VERSION >= 18
+    ,
     CONVERT(BT_PROPERTY_REMOTE_VERSION_INFO,PROPERTY_REMOTE_VERSION_INFO)
+#endif
   };
   if (aIn == BT_PROPERTY_REMOTE_DEVICE_TIMESTAMP) {
     /* This case is handled separately to not populate
@@ -762,6 +765,23 @@ Convert(btrc_remote_features_t aIn, unsigned long& aOut)
   return NS_OK;
 }
 #endif // ANDROID_VERSION >= 19
+
+inline nsresult
+Convert(int aIn, BluetoothGattStatus& aOut)
+{
+  /**
+   * Currently we only map bluedroid's GATT status into GATT_STATUS_SUCCESS and
+   * GATT_STATUS_ERROR. This function needs to be revised if we want to support
+   * specific error status.
+   */
+  if (!aIn) {
+    aOut = GATT_STATUS_SUCCESS;
+  } else {
+    aOut = GATT_STATUS_ERROR;
+  }
+
+  return NS_OK;
+}
 
 nsresult
 Convert(const uint8_t* aIn, BluetoothGattAdvData& aOut);

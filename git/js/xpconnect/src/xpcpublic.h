@@ -8,9 +8,9 @@
 #define xpcpublic_h
 
 #include "jsapi.h"
-#include "jsproxy.h"
 #include "js/HeapAPI.h"
 #include "js/GCAPI.h"
+#include "js/Proxy.h"
 
 #include "nsISupports.h"
 #include "nsIURI.h"
@@ -29,10 +29,6 @@ class nsGlobalWindow;
 class nsIPrincipal;
 class nsScriptNameSpaceManager;
 class nsIMemoryReporterCallback;
-
-#ifndef BAD_TLS_INDEX
-#define BAD_TLS_INDEX ((uint32_t) -1)
-#endif
 
 namespace xpc {
 
@@ -143,6 +139,9 @@ XrayAwareCalleeGlobal(JSObject *fun);
 void
 TraceXPCGlobal(JSTracer *trc, JSObject *obj);
 
+uint64_t
+GetCompartmentCPOWMicroseconds(JSCompartment *compartment);
+
 } /* namespace xpc */
 
 namespace JS {
@@ -176,20 +175,6 @@ xpc_FastGetCachedWrapper(JSContext *cx, nsWrapperCache *cache, JS::MutableHandle
     return nullptr;
 }
 
-// The JS GC marks objects gray that are held alive directly or
-// indirectly by an XPConnect root. The cycle collector explores only
-// this subset of the JS heap.
-inline bool
-xpc_IsGrayGCThing(void *thing)
-{
-    return JS::GCThingIsMarkedGray(thing);
-}
-
-// The cycle collector only cares about some kinds of GCthings that are
-// reachable from an XPConnect root. Implemented in nsXPConnect.cpp.
-extern bool
-xpc_GCThingIsGrayCCThing(void *thing);
-
 inline JSScript *
 xpc_UnmarkGrayScript(JSScript *script)
 {
@@ -221,7 +206,11 @@ class XPCStringConvert
     // would take a lot more machinery.
     struct ZoneStringCache
     {
-        nsStringBuffer* mBuffer;
+        // mString owns mBuffer.  mString is a JS thing, so it can only die
+        // during GC.  We clear mString and mBuffer during GC.  As long as
+        // the above holds, mBuffer should not be a dangling pointer, so
+        // using this as a cache key should be safe.
+        void* mBuffer;
         JSString* mString;
     };
 
@@ -386,8 +375,8 @@ public:
     nsAutoCString pathPrefix;
 
 private:
-    ZoneStatsExtras(const ZoneStatsExtras &other) MOZ_DELETE;
-    ZoneStatsExtras& operator=(const ZoneStatsExtras &other) MOZ_DELETE;
+    ZoneStatsExtras(const ZoneStatsExtras &other) = delete;
+    ZoneStatsExtras& operator=(const ZoneStatsExtras &other) = delete;
 };
 
 // ReportJSRuntimeExplicitTreeStats will expect this in the |extra| member
@@ -402,8 +391,8 @@ public:
     nsCOMPtr<nsIURI> location;
 
 private:
-    CompartmentStatsExtras(const CompartmentStatsExtras &other) MOZ_DELETE;
-    CompartmentStatsExtras& operator=(const CompartmentStatsExtras &other) MOZ_DELETE;
+    CompartmentStatsExtras(const CompartmentStatsExtras &other) = delete;
+    CompartmentStatsExtras& operator=(const CompartmentStatsExtras &other) = delete;
 };
 
 // This reports all the stats in |rtStats| that belong in the "explicit" tree,

@@ -116,6 +116,9 @@ public:
   static void PokeShrinkGCBuffers();
   static void KillShrinkGCBuffersTimer();
 
+  static void PokeShrinkingGC();
+  static void KillShrinkingGCTimer();
+
   static void MaybePokeCC();
   static void KillCCTimer();
   static void KillICCTimer();
@@ -124,8 +127,6 @@ public:
 
   // Calling LikelyShortLivingObjectCreated() makes a GC more likely.
   static void LikelyShortLivingObjectCreated();
-
-  virtual void GC(JS::gcreason::Reason aReason) MOZ_OVERRIDE;
 
   static uint32_t CleanupsSinceLastGC();
 
@@ -194,7 +195,7 @@ public:
     : mReport(aReport)
   {}
 
-  NS_IMETHOD Run()
+  NS_IMETHOD Run() MOZ_OVERRIDE
   {
     mReport->LogToConsole();
     return NS_OK;

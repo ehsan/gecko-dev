@@ -8,6 +8,8 @@ var ignoreIndirectCalls = {
     "aMallocSizeOf" : true,
     "_malloc_message" : true,
     "je_malloc_message" : true,
+    "chunk_dalloc" : true,
+    "chunk_alloc" : true,
     "__conv" : true,
     "__convf" : true,
     "prerrortable.c:callback_newtable" : true,
@@ -79,6 +81,8 @@ var ignoreCallees = {
     "PLDHashTableOps.hashKey" : true,
     "z_stream_s.zfree" : true,
     "GrGLInterface.fCallback" : true,
+    "std::strstreambuf._M_alloc_fun" : true,
+    "std::strstreambuf._M_free_fun" : true,
 };
 
 function fieldCallCannotGC(csu, fullfield)
@@ -134,6 +138,10 @@ var ignoreFunctions = {
     "PR_SetThreadPrivate" : true,
     "JSObject* js::GetWeakmapKeyDelegate(JSObject*)" : true, // FIXME: mark with AutoSuppressGCAnalysis instead
     "uint8 NS_IsMainThread()" : true,
+
+    // Has an indirect call under it by the name "__f", which seemed too
+    // generic to ignore by itself.
+    "void* std::_Locale_impl::~_Locale_impl(int32)" : true,
 
     // FIXME!
     "NS_LogInit": true,
@@ -198,7 +206,7 @@ function isRootedTypeName(name)
     return false;
 }
 
-function isRootedPointerTypeName(name)
+function stripUCSAndNamespace(name)
 {
     if (name.startsWith('struct '))
         name = name.substr(7);
@@ -214,11 +222,26 @@ function isRootedPointerTypeName(name)
         name = name.substr(4);
     if (name.startsWith('mozilla::dom::'))
         name = name.substr(14);
+    if (name.startsWith('mozilla::'))
+        name = name.substr(9);
+
+    return name;
+}
+
+function isRootedPointerTypeName(name)
+{
+    name = stripUCSAndNamespace(name);
 
     if (name.startsWith('MaybeRooted<'))
         return /\(js::AllowGC\)1u>::RootType/.test(name);
 
     return name.startsWith('Rooted') || name.startsWith('PersistentRooted');
+}
+
+function isUnsafeStorage(typeName)
+{
+    typeName = stripUCSAndNamespace(typeName);
+    return typeName.startsWith('UniquePtr<');
 }
 
 function isSuppressConstructor(name)

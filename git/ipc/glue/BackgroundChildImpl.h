@@ -7,14 +7,13 @@
 
 #include "mozilla/Attributes.h"
 #include "mozilla/ipc/PBackgroundChild.h"
-
-template <class> class nsAutoPtr;
+#include "nsAutoPtr.h"
 
 namespace mozilla {
 namespace dom {
 namespace indexedDB {
 
-class IDBTransaction;
+class ThreadLocal;
 
 } // namespace indexedDB
 } // namespace dom
@@ -41,7 +40,7 @@ protected:
   virtual ~BackgroundChildImpl();
 
   virtual void
-  ProcessingError(Result aWhat) MOZ_OVERRIDE;
+  ProcessingError(Result aCode, const char* aReason) MOZ_OVERRIDE;
 
   virtual void
   ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
@@ -53,8 +52,7 @@ protected:
   DeallocPBackgroundTestChild(PBackgroundTestChild* aActor) MOZ_OVERRIDE;
 
   virtual PBackgroundIDBFactoryChild*
-  AllocPBackgroundIDBFactoryChild(const OptionalWindowId& aOptionalWindowId)
-                                  MOZ_OVERRIDE;
+  AllocPBackgroundIDBFactoryChild(const LoggingInfo& aLoggingInfo) MOZ_OVERRIDE;
 
   virtual bool
   DeallocPBackgroundIDBFactoryChild(PBackgroundIDBFactoryChild* aActor)
@@ -72,6 +70,38 @@ protected:
 
   virtual bool
   DeallocPFileDescriptorSetChild(PFileDescriptorSetChild* aActor) MOZ_OVERRIDE;
+
+  virtual PVsyncChild*
+  AllocPVsyncChild() MOZ_OVERRIDE;
+
+  virtual bool
+  DeallocPVsyncChild(PVsyncChild* aActor) MOZ_OVERRIDE;
+
+  virtual PBroadcastChannelChild*
+  AllocPBroadcastChannelChild(const PrincipalInfo& aPrincipalInfo,
+                              const nsString& aOrigin,
+                              const nsString& aChannel) MOZ_OVERRIDE;
+
+  virtual bool
+  DeallocPBroadcastChannelChild(PBroadcastChannelChild* aActor) MOZ_OVERRIDE;
+
+  virtual dom::cache::PCacheStorageChild*
+  AllocPCacheStorageChild(const dom::cache::Namespace& aNamespace,
+                          const PrincipalInfo& aPrincipalInfo) MOZ_OVERRIDE;
+
+  virtual bool
+  DeallocPCacheStorageChild(dom::cache::PCacheStorageChild* aActor) MOZ_OVERRIDE;
+
+  virtual dom::cache::PCacheChild* AllocPCacheChild() MOZ_OVERRIDE;
+
+  virtual bool
+  DeallocPCacheChild(dom::cache::PCacheChild* aActor) MOZ_OVERRIDE;
+
+  virtual dom::cache::PCacheStreamControlChild*
+  AllocPCacheStreamControlChild() MOZ_OVERRIDE;
+
+  virtual bool
+  DeallocPCacheStreamControlChild(dom::cache::PCacheStreamControlChild* aActor) MOZ_OVERRIDE;
 };
 
 class BackgroundChildImpl::ThreadLocal MOZ_FINAL
@@ -79,12 +109,7 @@ class BackgroundChildImpl::ThreadLocal MOZ_FINAL
   friend class nsAutoPtr<ThreadLocal>;
 
 public:
-  mozilla::dom::indexedDB::IDBTransaction* mCurrentTransaction;
-
-#ifdef MOZ_ENABLE_PROFILER_SPS
-  uint64_t mNextTransactionSerialNumber;
-  uint64_t mNextRequestSerialNumber;
-#endif
+  nsAutoPtr<mozilla::dom::indexedDB::ThreadLocal> mIndexedDBThreadLocal;
 
 public:
   ThreadLocal();

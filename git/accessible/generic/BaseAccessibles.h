@@ -34,7 +34,7 @@ public:
 
   // Accessible
   virtual Accessible* ChildAtPoint(int32_t aX, int32_t aY,
-                                   EWhichChildAtPoint aWhichChild);
+                                   EWhichChildAtPoint aWhichChild) MOZ_OVERRIDE;
   virtual bool InsertChildAt(uint32_t aIndex, Accessible* aChild) MOZ_OVERRIDE MOZ_FINAL;
   virtual bool RemoveChild(Accessible* aChild) MOZ_OVERRIDE MOZ_FINAL;
 
@@ -42,7 +42,7 @@ protected:
   virtual ~LeafAccessible() {}
 
   // Accessible
-  virtual void CacheChildren();
+  virtual void CacheChildren() MOZ_OVERRIDE;
 };
 
 /**
@@ -70,17 +70,17 @@ public:
   virtual uint8_t ActionCount() MOZ_OVERRIDE;
   virtual void ActionNameAt(uint8_t aIndex, nsAString& aName) MOZ_OVERRIDE;
   virtual bool DoAction(uint8_t index) MOZ_OVERRIDE;
-  virtual KeyBinding AccessKey() const;
+  virtual KeyBinding AccessKey() const MOZ_OVERRIDE;
 
   // HyperLinkAccessible
-  virtual already_AddRefed<nsIURI> AnchorURIAt(uint32_t aAnchorIndex);
+  virtual already_AddRefed<nsIURI> AnchorURIAt(uint32_t aAnchorIndex) MOZ_OVERRIDE;
 
 protected:
   virtual ~LinkableAccessible() {}
 
   // Accessible
-  virtual void BindToParent(Accessible* aParent, uint32_t aIndexInParent);
-  virtual void UnbindFromParent();
+  virtual void BindToParent(Accessible* aParent, uint32_t aIndexInParent) MOZ_OVERRIDE;
+  virtual void UnbindFromParent() MOZ_OVERRIDE;
 
   /**
    * Parent accessible that provides an action for this linkable accessible.
@@ -91,23 +91,23 @@ protected:
 };
 
 /**
- * A simple accessible that gets its enumerated role passed into constructor.
+ * A simple accessible that gets its enumerated role.
  */
+template<a11y::role R>
 class EnumRoleAccessible : public AccessibleWrap
 {
 public:
-  EnumRoleAccessible(nsIContent* aContent, DocAccessible* aDoc, 
-                     a11y::role aRole);
+  EnumRoleAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+    AccessibleWrap(aContent, aDoc) { }
 
-  NS_DECL_ISUPPORTS_INHERITED
+  NS_IMETHOD QueryInterface(REFNSIID aIID, void** aPtr) MOZ_OVERRIDE
+    { return Accessible::QueryInterface(aIID, aPtr); }
 
   // Accessible
-  virtual a11y::role NativeRole() MOZ_OVERRIDE;
+  virtual a11y::role NativeRole() MOZ_OVERRIDE { return R; }
 
 protected:
   virtual ~EnumRoleAccessible() { }
-
-  a11y::role mRole;
 };
 
 

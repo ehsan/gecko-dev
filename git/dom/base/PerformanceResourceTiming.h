@@ -28,14 +28,15 @@ public:
       PerformanceEntry)
 
   PerformanceResourceTiming(nsPerformanceTiming* aPerformanceTiming,
-                            nsPerformance* aPerformance);
+                            nsPerformance* aPerformance,
+                            const nsAString& aName);
 
   virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE;
 
 
-  virtual DOMHighResTimeStamp StartTime() const;
+  virtual DOMHighResTimeStamp StartTime() const MOZ_OVERRIDE;
 
-  virtual DOMHighResTimeStamp Duration() const
+  virtual DOMHighResTimeStamp Duration() const MOZ_OVERRIDE
   {
     return ResponseEnd() - StartTime();
   }

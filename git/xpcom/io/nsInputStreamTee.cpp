@@ -95,7 +95,7 @@ public:
                  "memory not allocated\n");
       return NS_OK;
     }
-    NS_ABORT_IF_FALSE(mSink, "mSink is null!");
+    MOZ_ASSERT(mSink, "mSink is null!");
 
     //  The output stream could have been invalidated between when
     //  this event was dispatched and now, so check before writing.
@@ -347,10 +347,6 @@ NS_NewInputStreamTeeAsync(nsIInputStream** aResult,
   nsresult rv;
 
   nsCOMPtr<nsIInputStreamTee> tee = new nsInputStreamTee();
-  if (!tee) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
-
   rv = tee->SetSource(aSource);
   if (NS_FAILED(rv)) {
     return rv;

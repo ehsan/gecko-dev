@@ -6,17 +6,19 @@
 
 #include "mozilla/dom/ContentBridgeParent.h"
 #include "mozilla/dom/TabParent.h"
-#include "JavaScriptParent.h"
+#include "mozilla/jsipc/CrossProcessObjectWrappers.h"
 #include "nsXULAppAPI.h"
+#include "nsIObserverService.h"
 
-using namespace base;
 using namespace mozilla::ipc;
 using namespace mozilla::jsipc;
 
 namespace mozilla {
 namespace dom {
 
-NS_IMPL_ISUPPORTS(ContentBridgeParent, nsIContentParent)
+NS_IMPL_ISUPPORTS(ContentBridgeParent,
+                  nsIContentParent,
+                  nsIObserver)
 
 ContentBridgeParent::ContentBridgeParent(Transport* aTransport)
   : mTransport(aTransport)
@@ -30,6 +32,10 @@ ContentBridgeParent::~ContentBridgeParent()
 void
 ContentBridgeParent::ActorDestroy(ActorDestroyReason aWhy)
 {
+  nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
+  if (os) {
+    os->RemoveObserver(this, "content-child-shutdown");
+  }
   MessageLoop::current()->PostTask(
     FROM_HERE,
     NewRunnableMethod(this, &ContentBridgeParent::DeferredDestroy));
@@ -49,6 +55,16 @@ ContentBridgeParent::Create(Transport* aTransport, ProcessId aOtherProcess)
 
   DebugOnly<bool> ok = bridge->Open(aTransport, handle, XRE_GetIOMessageLoop());
   MOZ_ASSERT(ok);
+
+  nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
+  if (os) {
+    os->AddObserver(bridge, "content-child-shutdown", false);
+  }
+
+  // Initialize the message manager (and load delayed scripts) now that we
+  // have established communications with the child.
+  bridge->mMessageManager->InitWithCallback(bridge);
+
   return bridge.get();
 }
 
@@ -62,20 +78,22 @@ ContentBridgeParent::DeferredDestroy()
 bool
 ContentBridgeParent::RecvSyncMessage(const nsString& aMsg,
                                      const ClonedMessageData& aData,
-                                     const InfallibleTArray<jsipc::CpowEntry>& aCpows,
+                                     InfallibleTArray<jsipc::CpowEntry>&& aCpows,
                                      const IPC::Principal& aPrincipal,
                                      InfallibleTArray<nsString>* aRetvals)
 {
-  return nsIContentParent::RecvSyncMessage(aMsg, aData, aCpows, aPrincipal, aRetvals);
+  return nsIContentParent::RecvSyncMessage(aMsg, aData, Move(aCpows),
+                                           aPrincipal, aRetvals);
 }
 
 bool
 ContentBridgeParent::RecvAsyncMessage(const nsString& aMsg,
                                       const ClonedMessageData& aData,
-                                      const InfallibleTArray<jsipc::CpowEntry>& aCpows,
+                                      InfallibleTArray<jsipc::CpowEntry>&& aCpows,
                                       const IPC::Principal& aPrincipal)
 {
-  return nsIContentParent::RecvAsyncMessage(aMsg, aData, aCpows, aPrincipal);
+  return nsIContentParent::RecvAsyncMessage(aMsg, aData, Move(aCpows),
+                                            aPrincipal);
 }
 
 PBlobParent*
@@ -152,14 +170,24 @@ ContentBridgeParent::DeallocPBrowserParent(PBrowserParent* aParent)
 // This implementation is identical to ContentParent::GetCPOWManager but we can't
 // move it to nsIContentParent because it calls ManagedPJavaScriptParent() which
 // only exists in PContentParent and PContentBridgeParent.
-jsipc::JavaScriptShared*
+jsipc::CPOWManager*
 ContentBridgeParent::GetCPOWManager()
 {
   if (ManagedPJavaScriptParent().Length()) {
-    return static_cast<JavaScriptParent*>(ManagedPJavaScriptParent()[0]);
+    return CPOWManagerFor(ManagedPJavaScriptParent()[0]);
   }
-  JavaScriptParent* actor = static_cast<JavaScriptParent*>(SendPJavaScriptConstructor());
-  return actor;
+  return CPOWManagerFor(SendPJavaScriptConstructor());
+}
+
+NS_IMETHODIMP
+ContentBridgeParent::Observe(nsISupports* aSubject,
+                             const char* aTopic,
+                             const char16_t* aData)
+{
+  if (!strcmp(aTopic, "content-child-shutdown")) {
+    Close();
+  }
+  return NS_OK;
 }
 
 } // namespace dom

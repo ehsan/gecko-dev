@@ -14,7 +14,7 @@
 using namespace js;
 
 Latin1CharsZ
-JS::LossyTwoByteCharsToNewLatin1CharsZ(js::ThreadSafeContext *cx,
+JS::LossyTwoByteCharsToNewLatin1CharsZ(js::ExclusiveContext *cx,
                                        const mozilla::Range<const char16_t> tbchars)
 {
     MOZ_ASSERT(cx);
@@ -116,7 +116,7 @@ DeflateStringToUTF8Buffer(const CharT *src, size_t srclen, mozilla::RangedPtr<ch
             utf8Len = 1;
         } else {
             uint8_t utf8buf[4];
-            utf8Len = js_OneUcs4ToUtf8Char(utf8buf, v);
+            utf8Len = OneUcs4ToUtf8Char(utf8buf, v);
             for (size_t i = 0; i < utf8Len; i++)
                 *dst++ = char(utf8buf[i]);
         }
@@ -134,7 +134,7 @@ JS::DeflateStringToUTF8Buffer(JSFlatString *src, mozilla::RangedPtr<char> dst)
 
 template <typename CharT>
 UTF8CharsZ
-JS::CharsToNewUTF8CharsZ(js::ThreadSafeContext *cx, const mozilla::Range<const CharT> chars)
+JS::CharsToNewUTF8CharsZ(js::ExclusiveContext *cx, const mozilla::Range<const CharT> chars)
 {
     MOZ_ASSERT(cx);
 
@@ -155,10 +155,10 @@ JS::CharsToNewUTF8CharsZ(js::ThreadSafeContext *cx, const mozilla::Range<const C
 }
 
 template UTF8CharsZ
-JS::CharsToNewUTF8CharsZ(js::ThreadSafeContext *cx, const mozilla::Range<const Latin1Char> chars);
+JS::CharsToNewUTF8CharsZ(js::ExclusiveContext *cx, const mozilla::Range<const Latin1Char> chars);
 
 template UTF8CharsZ
-JS::CharsToNewUTF8CharsZ(js::ThreadSafeContext *cx, const mozilla::Range<const char16_t> chars);
+JS::CharsToNewUTF8CharsZ(js::ExclusiveContext *cx, const mozilla::Range<const char16_t> chars);
 
 static const uint32_t INVALID_UTF8 = UINT32_MAX;
 
@@ -200,14 +200,14 @@ ReportInvalidCharacter(JSContext *cx, uint32_t offset)
 {
     char buffer[10];
     JS_snprintf(buffer, 10, "%d", offset);
-    JS_ReportErrorFlagsAndNumber(cx, JSREPORT_ERROR, js_GetErrorMessage, nullptr,
+    JS_ReportErrorFlagsAndNumber(cx, JSREPORT_ERROR, GetErrorMessage, nullptr,
                                  JSMSG_MALFORMED_UTF8_CHAR, buffer);
 }
 
 static void
 ReportBufferTooSmall(JSContext *cx, uint32_t dummy)
 {
-    JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_BUFFER_TOO_SMALL);
+    JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_BUFFER_TOO_SMALL);
 }
 
 static void
@@ -215,7 +215,7 @@ ReportTooBigCharacter(JSContext *cx, uint32_t v)
 {
     char buffer[10];
     JS_snprintf(buffer, 10, "0x%x", v + 0x10000);
-    JS_ReportErrorFlagsAndNumber(cx, JSREPORT_ERROR, js_GetErrorMessage, nullptr,
+    JS_ReportErrorFlagsAndNumber(cx, JSREPORT_ERROR, GetErrorMessage, nullptr,
                                  JSMSG_UTF8_CHAR_TOO_LARGE, buffer);
 }
 

@@ -107,13 +107,8 @@ LayerActivity::~LayerActivity()
   }
 }
 
-static void DestroyLayerActivity(void* aPropertyValue)
-{
-  delete static_cast<LayerActivity*>(aPropertyValue);
-}
-
 // Frames with this property have NS_FRAME_HAS_LAYER_ACTIVITY_PROPERTY set
-NS_DECLARE_FRAME_PROPERTY(LayerActivityProperty, DestroyLayerActivity)
+NS_DECLARE_FRAME_PROPERTY(LayerActivityProperty, DeleteValue<LayerActivity>)
 
 void
 LayerActivityTracker::NotifyExpired(LayerActivity* aObject)
@@ -270,12 +265,13 @@ ActiveLayerTracker::IsStyleAnimated(nsDisplayListBuilder* aBuilder,
                                     nsIFrame* aFrame, nsCSSProperty aProperty)
 {
   // TODO: Add some abuse restrictions
-  if ((aFrame->StyleDisplay()->mWillChangeBitField & NS_STYLE_WILL_CHANGE_TRANSFORM) &&
+  auto willChangeBitField = aFrame->StylePosition()->mWillChangeBitField;
+  if ((willChangeBitField & NS_STYLE_WILL_CHANGE_TRANSFORM) &&
       aProperty == eCSSProperty_transform &&
       (!aBuilder || aBuilder->IsInWillChangeBudget(aFrame))) {
     return true;
   }
-  if ((aFrame->StyleDisplay()->mWillChangeBitField & NS_STYLE_WILL_CHANGE_OPACITY) &&
+  if ((willChangeBitField & NS_STYLE_WILL_CHANGE_OPACITY) &&
       aProperty == eCSSProperty_opacity &&
       (!aBuilder || aBuilder->IsInWillChangeBudget(aFrame))) {
     return true;

@@ -38,6 +38,7 @@ class MacroAssemblerARM : public Assembler
     // address.
     Register secondScratchReg_;
 
+  public:
     // Higher level tag testing code.
     Operand ToPayload(Operand base) {
         return Operand(Register::FromCode(base.base()), base.disp());
@@ -45,6 +46,8 @@ class MacroAssemblerARM : public Assembler
     Address ToPayload(Address base) {
         return ToPayload(Operand(base)).toAddress();
     }
+
+  protected:
     Operand ToType(Operand base) {
         return Operand(Register::FromCode(base.base()), base.disp() + sizeof(void *));
     }
@@ -105,10 +108,16 @@ class MacroAssemblerARM : public Assembler
     void ma_alu(Register src1, Operand op2, Register dest, ALUOp op,
                 SetCond_ sc = NoSetCond, Condition c = Always);
     void ma_nop();
+
     void ma_movPatchable(Imm32 imm, Register dest, Assembler::Condition c,
-                         RelocStyle rs, Instruction *i = nullptr);
+                         RelocStyle rs);
     void ma_movPatchable(ImmPtr imm, Register dest, Assembler::Condition c,
-                         RelocStyle rs, Instruction *i = nullptr);
+                         RelocStyle rs);
+
+    static void ma_mov_patch(Imm32 imm, Register dest, Assembler::Condition c,
+                             RelocStyle rs, Instruction *i);
+    static void ma_mov_patch(ImmPtr imm, Register dest, Assembler::Condition c,
+                             RelocStyle rs, Instruction *i);
 
     // These should likely be wrapped up as a set of macros or something like
     // that. I cannot think of a good reason to explicitly have all of this
@@ -398,7 +407,8 @@ class MacroAssemblerARM : public Assembler
     BufferOffset ma_vstr(VFPRegister src, VFPAddr addr, Condition cc = Always);
     BufferOffset ma_vstr(VFPRegister src, const Operand &addr, Condition cc = Always);
 
-    BufferOffset ma_vstr(VFPRegister src, Register base, Register index, int32_t shift = defaultShift, Condition cc = Always);
+    BufferOffset ma_vstr(VFPRegister src, Register base, Register index, int32_t shift,
+                         int32_t offset, Condition cc = Always);
     // Calls an Ion function, assumes that the stack is untouched (8 byte
     // aligned).
     void ma_callJit(const Register reg);
@@ -799,6 +809,7 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
     // Unboxing code.
     void unboxNonDouble(const ValueOperand &operand, Register dest);
     void unboxNonDouble(const Address &src, Register dest);
+    void unboxNonDouble(const BaseIndex &src, Register dest);
     void unboxInt32(const ValueOperand &src, Register dest) { unboxNonDouble(src, dest); }
     void unboxInt32(const Address &src, Register dest) { unboxNonDouble(src, dest); }
     void unboxBoolean(const ValueOperand &src, Register dest) { unboxNonDouble(src, dest); }
@@ -809,6 +820,7 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
     void unboxSymbol(const Address &src, Register dest) { unboxNonDouble(src, dest); }
     void unboxObject(const ValueOperand &src, Register dest) { unboxNonDouble(src, dest); }
     void unboxObject(const Address &src, Register dest) { unboxNonDouble(src, dest); }
+    void unboxObject(const BaseIndex &src, Register dest) { unboxNonDouble(src, dest); }
     void unboxDouble(const ValueOperand &src, FloatRegister dest);
     void unboxDouble(const Address &src, FloatRegister dest);
     void unboxValue(const ValueOperand &src, AnyRegister dest);
@@ -1099,6 +1111,11 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
         ma_cmp(secondScratchReg_, rhs);
         ma_b(label, cond);
     }
+    void branch32(Condition cond, AsmJSAbsoluteAddress addr, Imm32 imm, Label *label) {
+        loadPtr(addr, ScratchRegister);
+        ma_cmp(ScratchRegister, imm);
+        ma_b(label, cond);
+    }
 
     void loadUnboxedValue(Address address, MIRType type, AnyRegister dest) {
         if (dest.isFloat())
@@ -1117,6 +1134,19 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
     template <typename T>
     void storeUnboxedValue(ConstantOrRegister value, MIRType valueType, const T &dest,
                            MIRType slotType);
+
+    template <typename T>
+    void storeUnboxedPayload(ValueOperand value, T address, size_t nbytes) {
+        switch (nbytes) {
+          case 4:
+            storePtr(value.payloadReg(), address);
+            return;
+          case 1:
+            store8(value.payloadReg(), address);
+            return;
+          default: MOZ_CRASH("Bad payload width");
+        }
+    }
 
     void moveValue(const Value &val, const ValueOperand &dest);
 
@@ -1284,7 +1314,7 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
 
     // Builds an exit frame on the stack, with a return address to an internal
     // non-function. Returns offset to be passed to markSafepointAt().
-    bool buildFakeExitFrame(Register scratch, uint32_t *offset);
+    void buildFakeExitFrame(Register scratch, uint32_t *offset);
 
     void callWithExitFrame(Label *target);
     void callWithExitFrame(JitCode *target);
@@ -1293,7 +1323,7 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
     // Makes a call using the only two methods that it is sane for
     // independent code to make a call.
     void callJit(Register callee);
-    void callJitFromAsmJS(Register callee);
+    void callJitFromAsmJS(Register callee) { as_blx(callee); }
 
     void reserveStack(uint32_t amount);
     void freeStack(uint32_t amount);
@@ -1368,12 +1398,16 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
     void loadAlignedInt32x4(const Address &addr, FloatRegister dest) { MOZ_CRASH("NYI"); }
     void storeAlignedInt32x4(FloatRegister src, Address addr) { MOZ_CRASH("NYI"); }
     void loadUnalignedInt32x4(const Address &addr, FloatRegister dest) { MOZ_CRASH("NYI"); }
+    void loadUnalignedInt32x4(const BaseIndex &addr, FloatRegister dest) { MOZ_CRASH("NYI"); }
     void storeUnalignedInt32x4(FloatRegister src, Address addr) { MOZ_CRASH("NYI"); }
+    void storeUnalignedInt32x4(FloatRegister src, BaseIndex addr) { MOZ_CRASH("NYI"); }
 
     void loadAlignedFloat32x4(const Address &addr, FloatRegister dest) { MOZ_CRASH("NYI"); }
     void storeAlignedFloat32x4(FloatRegister src, Address addr) { MOZ_CRASH("NYI"); }
     void loadUnalignedFloat32x4(const Address &addr, FloatRegister dest) { MOZ_CRASH("NYI"); }
+    void loadUnalignedFloat32x4(const BaseIndex &addr, FloatRegister dest) { MOZ_CRASH("NYI"); }
     void storeUnalignedFloat32x4(FloatRegister src, Address addr) { MOZ_CRASH("NYI"); }
+    void storeUnalignedFloat32x4(FloatRegister src, BaseIndex addr) { MOZ_CRASH("NYI"); }
 
     void loadDouble(const Address &addr, FloatRegister dest);
     void loadDouble(const BaseIndex &src, FloatRegister dest);
@@ -1413,10 +1447,8 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
         ma_vstr(src, Operand(addr));
     }
     void storeDouble(FloatRegister src, BaseIndex addr) {
-        // Harder cases not handled yet.
-        MOZ_ASSERT(addr.offset == 0);
         uint32_t scale = Imm32::ShiftOf(addr.scale).value;
-        ma_vstr(src, addr.base, addr.index, scale);
+        ma_vstr(src, addr.base, addr.index, scale, addr.offset);
     }
     void moveDouble(FloatRegister src, FloatRegister dest) {
         ma_vmov(src, dest);
@@ -1426,10 +1458,8 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
         ma_vstr(VFPRegister(src).singleOverlay(), Operand(addr));
     }
     void storeFloat32(FloatRegister src, BaseIndex addr) {
-        // Harder cases not handled yet.
-        MOZ_ASSERT(addr.offset == 0);
         uint32_t scale = Imm32::ShiftOf(addr.scale).value;
-        ma_vstr(VFPRegister(src).singleOverlay(), addr.base, addr.index, scale);
+        ma_vstr(VFPRegister(src).singleOverlay(), addr.base, addr.index, scale, addr.offset);
     }
 
   private:
@@ -1615,14 +1645,16 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
     void cmp32(const Operand &lhs, Imm32 rhs);
     void cmp32(const Operand &lhs, Register rhs);
 
+    void cmpPtr(Register lhs, Register rhs);
     void cmpPtr(Register lhs, ImmWord rhs);
     void cmpPtr(Register lhs, ImmPtr rhs);
-    void cmpPtr(Register lhs, Register rhs);
     void cmpPtr(Register lhs, ImmGCPtr rhs);
     void cmpPtr(Register lhs, Imm32 rhs);
     void cmpPtr(const Address &lhs, Register rhs);
     void cmpPtr(const Address &lhs, ImmWord rhs);
     void cmpPtr(const Address &lhs, ImmPtr rhs);
+    void cmpPtr(const Address &lhs, ImmGCPtr rhs);
+    void cmpPtr(const Address &lhs, Imm32 rhs);
 
     void subPtr(Imm32 imm, const Register dest);
     void subPtr(const Address &addr, const Register dest);
@@ -1822,10 +1854,8 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
         as_vmov(VFPRegister(dest).singleOverlay(), VFPRegister(src).singleOverlay());
     }
 
-#ifdef JSGC_GENERATIONAL
     void branchPtrInNurseryRange(Condition cond, Register ptr, Register temp, Label *label);
     void branchValueIsNurseryObject(Condition cond, ValueOperand value, Register temp, Label *label);
-#endif
 
     void loadAsmJSActivation(Register dest) {
         loadPtr(Address(GlobalReg, AsmJSActivationGlobalDataOffset - AsmJSGlobalRegBias), dest);
@@ -1836,6 +1866,10 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
     void pushReturnAddress() {
         push(lr);
     }
+
+    // Instrumentation for entering and leaving the profiler.
+    void profilerEnterFrame(Register framePtr, Register scratch);
+    void profilerExitFrame();
 };
 
 typedef MacroAssemblerARMCompat MacroAssemblerSpecific;

@@ -94,7 +94,7 @@ JSONParser<CharT>::error(const char *msg)
         char lineNumber[MaxWidth];
         JS_snprintf(lineNumber, sizeof lineNumber, "%lu", line);
 
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_JSON_BAD_PARSE,
+        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_JSON_BAD_PARSE,
                              msg, lineNumber, columnNumber);
     }
 }
@@ -581,12 +581,12 @@ JSObject *
 JSONParserBase::createFinishedObject(PropertyVector &properties)
 {
     /*
-     * Look for an existing cached type and shape for objects with this set of
+     * Look for an existing cached group and shape for objects with this set of
      * properties.
      */
     {
-        JSObject *obj = cx->compartment()->types.newTypedObject(cx, properties.begin(),
-                                                                properties.length());
+        JSObject *obj = ObjectGroup::newPlainObject(cx, properties.begin(),
+                                                    properties.length());
         if (obj)
             return obj;
     }
@@ -596,7 +596,7 @@ JSONParserBase::createFinishedObject(PropertyVector &properties)
      * shape in manually.
      */
     gc::AllocKind allocKind = gc::GetGCObjectKind(properties.length());
-    RootedNativeObject obj(cx, NewNativeBuiltinClassInstance(cx, &JSObject::class_, allocKind));
+    RootedPlainObject obj(cx, NewBuiltinClassInstance<PlainObject>(cx, allocKind));
     if (!obj)
         return nullptr;
 
@@ -606,18 +606,16 @@ JSONParserBase::createFinishedObject(PropertyVector &properties)
     for (size_t i = 0; i < properties.length(); i++) {
         propid = properties[i].id;
         value = properties[i].value;
-        if (!DefineNativeProperty(cx, obj, propid, value, JS_PropertyStub, JS_StrictPropertyStub,
-                                  JSPROP_ENUMERATE)) {
+        if (!NativeDefineProperty(cx, obj, propid, value, nullptr, nullptr, JSPROP_ENUMERATE))
             return nullptr;
-        }
     }
 
     /*
-     * Try to assign a new type to the object with type information for its
-     * properties, and update the initializer type object cache with this
+     * Try to assign a new group to the object with type information for its
+     * properties, and update the initializer object group cache with this
      * object's final shape.
      */
-    cx->compartment()->types.fixObjectType(cx, obj);
+    ObjectGroup::fixPlainObjectGroup(cx, obj);
 
     return obj;
 }
@@ -647,8 +645,8 @@ JSONParserBase::finishArray(MutableHandleValue vp, ElementVector &elements)
     if (!obj)
         return false;
 
-    /* Try to assign a new type to the array according to its elements. */
-    cx->compartment()->types.fixArrayType(cx, obj);
+    /* Try to assign a new group to the array according to its elements. */
+    ObjectGroup::fixArrayGroup(cx, obj);
 
     vp.setObject(*obj);
     if (!freeElements.append(&elements))

@@ -93,7 +93,7 @@ struct BidiParagraphData {
       for (nsIContent* content = aBlockFrame->GetContent() ; content; 
            content = content->GetParent()) {
         if (content->IsNodeOfType(nsINode::eHTML_FORM_CONTROL) ||
-            content->IsXUL()) {
+            content->IsXULElement()) {
           mIsVisual = false;
           break;
         }
@@ -1148,7 +1148,7 @@ nsBidiPresUtils::TraverseFrames(nsBlockFrame*              aBlockFrame,
         // U+FFFC"
         // <wbr>, however, is treated as U+200B ZERO WIDTH SPACE. See
         // http://dev.w3.org/html5/spec/Overview.html#phrasing-content-1
-        aBpd->AppendUnichar(content->IsHTML(nsGkAtoms::wbr) ?
+        aBpd->AppendUnichar(content->IsHTMLElement(nsGkAtoms::wbr) ?
                             kZWSP : kObjectSubstitute);
         if (!frame->IsInlineOutside()) {
           // if it is not inline, end the paragraph
@@ -1222,11 +1222,11 @@ nsBidiPresUtils::ResolveParagraphWithinBlock(nsBlockFrame* aBlockFrame,
 }
 
 void
-nsBidiPresUtils::ReorderFrames(nsIFrame*   aFirstFrameOnLine,
-                               int32_t     aNumFramesOnLine,
-                               WritingMode aLineWM,
-                               nscoord     aLineWidth,
-                               nscoord     aStart)
+nsBidiPresUtils::ReorderFrames(nsIFrame*     aFirstFrameOnLine,
+                               int32_t       aNumFramesOnLine,
+                               WritingMode   aLineWM,
+                               const nsSize& aContainerSize,
+                               nscoord       aStart)
 {
   // If this line consists of a line frame, reorder the line frame's children.
   if (aFirstFrameOnLine->GetType() == nsGkAtoms::lineFrame) {
@@ -1239,7 +1239,8 @@ nsBidiPresUtils::ReorderFrames(nsIFrame*   aFirstFrameOnLine,
   }
 
   BidiLineData bld(aFirstFrameOnLine, aNumFramesOnLine);
-  RepositionInlineFrames(&bld, aFirstFrameOnLine, aLineWM, aLineWidth, aStart);
+  RepositionInlineFrames(&bld, aFirstFrameOnLine, aLineWM,
+                         aContainerSize, aStart);
 }
 
 nsIFrame*
@@ -1400,7 +1401,7 @@ nsBidiPresUtils::RepositionFrame(nsIFrame*             aFrame,
                                  nscoord&              aStart,
                                  nsContinuationStates* aContinuationStates,
                                  WritingMode           aContainerWM,
-                                 nscoord               aContainerWidth)
+                                 const nsSize&         aContainerSize)
 {
   if (!aFrame)
     return;
@@ -1465,7 +1466,7 @@ nsBidiPresUtils::RepositionFrame(nsIFrame*             aFrame,
                       iCoord,
                       aContinuationStates,
                       frameWM,
-                      aFrame->GetLogicalSize(aContainerWM).Width(aContainerWM));
+                      aFrame->GetSize());
       index++;
       frame = reverseOrder ?
                 childList[childList.Length() - index - 1] :
@@ -1477,11 +1478,22 @@ nsBidiPresUtils::RepositionFrame(nsIFrame*             aFrame,
     aStart += aFrame->ISize(aContainerWM);
   }
 
-  LogicalRect logicalRect = aFrame->GetLogicalRect(aContainerWM,
-                                                   aContainerWidth);
-  logicalRect.IStart(aContainerWM) = start;
-  logicalRect.ISize(aContainerWM) = aStart - start;
-  aFrame->SetRect(aContainerWM, logicalRect, aContainerWidth);
+  // LogicalRect doesn't correctly calculate the vertical position
+  // in vertical writing modes with right-to-left direction (Bug 1131451).
+  // This does the correct calculation ad hoc pending the fix for that.
+  nsRect rect = aFrame->GetRect();
+  nscoord lineSize = aContainerWM.IsVertical()
+    ? aContainerSize.height : aContainerSize.width;
+  NS_ASSERTION(aContainerWM.IsBidiLTR() || lineSize != NS_UNCONSTRAINEDSIZE,
+               "Unconstrained inline line size in bidi frame reordering");
+
+  nscoord frameIStart = aContainerWM.IsBidiLTR() ? start : lineSize - aStart;
+  nscoord frameISize = aStart - start;
+
+  (aContainerWM.IsVertical() ? rect.y : rect.x) = frameIStart;
+  (aContainerWM.IsVertical() ? rect.height : rect.width) = frameISize;
+
+  aFrame->SetRect(rect);
 
   aStart += margin.IEnd(aContainerWM);
 }
@@ -1510,7 +1522,7 @@ void
 nsBidiPresUtils::RepositionInlineFrames(BidiLineData *aBld,
                                         nsIFrame* aFirstChild,
                                         WritingMode aLineWM,
-                                        nscoord aLineWidth,
+                                        const nsSize& aContainerSize,
                                         nscoord aStart)
 {
   nscoord start = aStart;
@@ -1543,7 +1555,7 @@ nsBidiPresUtils::RepositionInlineFrames(BidiLineData *aBld,
                     start,
                     &continuationStates,
                     aLineWM,
-                    aLineWidth);
+                    aContainerSize);
   }
 }
 
@@ -2090,10 +2102,16 @@ public:
                                                *mTextRunConstructionContext);
   }
 
-  virtual void DrawText(nscoord aXOffset,
+  virtual void DrawText(nscoord aIOffset,
                         nscoord) MOZ_OVERRIDE
   {
-    mFontMetrics->DrawString(mText, mLength, mPt.x + aXOffset, mPt.y,
+    nsPoint pt(mPt);
+    if (mFontMetrics->GetVertical()) {
+      pt.y += aIOffset;
+    } else {
+      pt.x += aIOffset;
+    }
+    mFontMetrics->DrawString(mText, mLength, pt.x, pt.y,
                              mCtx, mTextRunConstructionContext);
   }
 
@@ -2214,7 +2232,7 @@ void nsBidiPresUtils::CopyLogicalToVisual(const nsAString& aSource,
   uint32_t srcLength = aSource.Length();
   if (srcLength == 0)
     return;
-  if (!aDest.SetLength(srcLength, fallible_t())) {
+  if (!aDest.SetLength(srcLength, fallible)) {
     return;
   }
   nsAString::const_iterator fromBegin, fromEnd;

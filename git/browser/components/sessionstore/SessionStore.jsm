@@ -615,7 +615,7 @@ let SessionStoreInternal = {
     let tab = win.gBrowser.getTabForBrowser(browser);
 
     // Ensure we receive only specific messages from <xul:browser>s that
-    // have no tab assigned, e.g. the ones that preload aobut:newtab pages.
+    // have no tab assigned, e.g. the ones that preload about:newtab pages.
     if (!tab && !FMM_NOTAB_MESSAGES.has(aMessage.name)) {
       throw new Error(`received unexpected message '${aMessage.name}' ` +
                       `from a browser that has no tab`);
@@ -669,14 +669,20 @@ let SessionStoreInternal = {
         break;
       case "SessionStore:restoreTabContentStarted":
         if (this.isCurrentEpoch(browser, aMessage.data.epoch)) {
-          // If the user was typing into the URL bar when we crashed, but hadn't hit
-          // enter yet, then we just need to write that value to the URL bar without
-          // loading anything. This must happen after the load, since it will clear
-          // userTypedValue.
-          let tabData = browser.__SS_data;
-          if (tabData.userTypedValue && !tabData.userTypedClear) {
-            browser.userTypedValue = tabData.userTypedValue;
-            win.URLBarSetURI();
+          if (browser.__SS_restoreState == TAB_STATE_NEEDS_RESTORE) {
+            // If a load not initiated by sessionstore was started in a
+            // previously pending tab. Mark the tab as no longer pending.
+            this.markTabAsRestoring(tab);
+          } else {
+            // If the user was typing into the URL bar when we crashed, but hadn't hit
+            // enter yet, then we just need to write that value to the URL bar without
+            // loading anything. This must happen after the load, since it will clear
+            // userTypedValue.
+            let tabData = browser.__SS_data;
+            if (tabData.userTypedValue && !tabData.userTypedClear) {
+              browser.userTypedValue = tabData.userTypedValue;
+              win.URLBarSetURI();
+            }
           }
         }
         break;
@@ -688,10 +694,6 @@ let SessionStoreInternal = {
             Services.obs.notifyObservers(browser, NOTIFY_TAB_RESTORED, null);
           }
 
-          let tab = browser.__SS_restore_tab;
-
-          delete browser.__SS_restore_data;
-          delete browser.__SS_restore_tab;
           delete browser.__SS_data;
 
           SessionStoreInternal._resetLocalTabRestoringState(tab);
@@ -702,7 +704,7 @@ let SessionStoreInternal = {
         break;
       case "SessionStore:reloadPendingTab":
         if (this.isCurrentEpoch(browser, aMessage.data.epoch)) {
-          if (tab && browser.__SS_restoreState == TAB_STATE_NEEDS_RESTORE) {
+          if (browser.__SS_restoreState == TAB_STATE_NEEDS_RESTORE) {
             this.restoreTabContent(tab);
           }
         }
@@ -757,7 +759,7 @@ let SessionStoreInternal = {
         this.saveStateDelayed(win);
         break;
       case "oop-browser-crashed":
-        this._crashedBrowsers.add(aEvent.originalTarget.permanentKey);
+        this.onBrowserCrashed(win, aEvent.originalTarget);
         break;
     }
     this._clearRestoringWindows();
@@ -1450,6 +1452,29 @@ let SessionStoreInternal = {
     // Default delay of 2 seconds gives enough time to catch multiple TabHide
     // events due to changing groups in Panorama.
     this.saveStateDelayed(aWindow);
+  },
+
+  /**
+   * Handler for the event that is fired when a <xul:browser> crashes.
+   *
+   * @param aWindow
+   *        The window that the crashed browser belongs to.
+   * @param aBrowser
+   *        The <xul:browser> that is now in the crashed state.
+   */
+  onBrowserCrashed: function(aWindow, aBrowser) {
+    this._crashedBrowsers.add(aBrowser.permanentKey);
+    // If we never got around to restoring this tab, clear its state so
+    // that we don't try restoring if the user switches to it before
+    // reviving the crashed browser. This is throwing away the information
+    // that the tab was in a pending state when the browser crashed, which
+    // is an explicit choice. For now, when restoring all crashed tabs, based
+    // on a user preference we'll either restore all of them at once, or only
+    // restore the selected tab and lazily restore the rest. We'll make no
+    // efforts at this time to be smart and restore all of the tabs that had
+    // been in a restored state at the time of the crash.
+    let tab = aWindow.gBrowser.getTabForBrowser(aBrowser);
+    this._resetLocalTabRestoringState(tab);
   },
 
   onGatherTelemetry: function() {
@@ -2663,26 +2688,32 @@ let SessionStoreInternal = {
   },
 
   /**
-   * Restores the specified tab. If the tab can't be restored (eg, no history or
-   * calling gotoIndex fails), then state changes will be rolled back.
-   * This method will check if gTabsProgressListener is attached to the tab's
-   * window, ensuring that we don't get caught without one.
-   * This method removes the session history listener right before starting to
-   * attempt a load. This will prevent cases of "stuck" listeners.
-   * If this method returns false, then it is up to the caller to decide what to
-   * do. In the common case (restoreNextTab), we will want to then attempt to
-   * restore the next tab. In the other case (selecting the tab, reloading the
-   * tab), the caller doesn't actually want to do anything if no page is loaded.
+   * Kicks off restoring the given tab.
    *
    * @param aTab
    *        the tab to restore
-   *
-   * @returns true/false indicating whether or not a load actually happened
+   * @param aLoadArguments
+   *        optional load arguments used for loadURI()
    */
   restoreTabContent: function (aTab, aLoadArguments = null) {
-    let window = aTab.ownerDocument.defaultView;
+    this.markTabAsRestoring(aTab);
+
     let browser = aTab.linkedBrowser;
-    let tabData = browser.__SS_data;
+    browser.messageManager.sendAsyncMessage("SessionStore:restoreTabContent",
+      {loadArguments: aLoadArguments});
+  },
+
+  /**
+   * Marks a given pending tab as restoring.
+   *
+   * @param aTab
+   *        the pending tab to mark as restoring
+   */
+  markTabAsRestoring(aTab) {
+    let browser = aTab.linkedBrowser;
+    if (browser.__SS_restoreState != TAB_STATE_NEEDS_RESTORE) {
+      throw new Error("Given tab is not pending.");
+    }
 
     // Make sure that this tab is removed from the priority queue.
     TabRestoreQueue.remove(aTab);
@@ -2694,22 +2725,6 @@ let SessionStoreInternal = {
     browser.__SS_restoreState = TAB_STATE_RESTORING;
     browser.removeAttribute("pending");
     aTab.removeAttribute("pending");
-
-    let activeIndex = tabData.index - 1;
-
-    // Attach data that will be restored on "load" event, after tab is restored.
-    if (tabData.entries.length) {
-      // restore those aspects of the currently active documents which are not
-      // preserved in the plain history entries (mainly scroll state and text data)
-      browser.__SS_restore_data = tabData.entries[activeIndex] || {};
-    } else {
-      browser.__SS_restore_data = {};
-    }
-
-    browser.__SS_restore_tab = aTab;
-
-    browser.messageManager.sendAsyncMessage("SessionStore:restoreTabContent",
-      {loadArguments: aLoadArguments});
   },
 
   /**
@@ -2847,7 +2862,7 @@ let SessionStoreInternal = {
     }
     var sidebar = aWindow.document.getElementById("sidebar-box");
     if (sidebar.getAttribute("sidebarcommand") != aSidebar) {
-      aWindow.toggleSidebar(aSidebar);
+      aWindow.SidebarUI.show(aSidebar);
     }
     // since resizing/moving a window brings it to the foreground,
     // we might want to re-focus the last focused window
@@ -3261,7 +3276,7 @@ let SessionStoreInternal = {
 
     // By creating a regex we reduce overhead and there is only one loop pass
     // through either array (cookieHosts and aWinState.cookies).
-    let hosts = Object.keys(cookieHosts).join("|").replace("\\.", "\\.", "g");
+    let hosts = Object.keys(cookieHosts).join("|").replace(/\./g, "\\.");
     // If we don't actually have any hosts, then we don't want to do anything.
     if (!hosts.length)
       return;

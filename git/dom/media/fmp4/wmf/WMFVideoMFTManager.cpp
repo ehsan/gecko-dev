@@ -18,6 +18,7 @@
 #include "mp4_demuxer/DecoderData.h"
 #include "prlog.h"
 #include "gfx2DGlue.h"
+#include "gfxWindowsPlatform.h"
 
 #ifdef PR_LOGGING
 PRLogModuleInfo* GetDemuxerLog();
@@ -70,13 +71,11 @@ WMFVideoMFTManager::WMFVideoMFTManager(
                             mozilla::layers::LayersBackend aLayersBackend,
                             mozilla::layers::ImageContainer* aImageContainer,
                             bool aDXVAEnabled)
-  : mVideoStride(0)
-  , mVideoWidth(0)
-  , mVideoHeight(0)
-  , mImageContainer(aImageContainer)
+  : mImageContainer(aImageContainer)
   , mDXVAEnabled(aDXVAEnabled)
   , mLayersBackend(aLayersBackend)
-  , mUseHwAccel(false)
+  // mVideoStride, mVideoWidth, mVideoHeight, mUseHwAccel are initialized in
+  // Init().
 {
   NS_ASSERTION(!NS_IsMainThread(), "Should not be on main thread.");
   MOZ_ASSERT(mImageContainer);
@@ -153,7 +152,8 @@ WMFVideoMFTManager::InitializeDXVA()
     return false;
   }
 
-  if (!gfxPlatform::CanUseDXVA()) {
+  if (gfxWindowsPlatform::GetPlatform()->IsWARP() ||
+      !gfxPlatform::CanUseDXVA()) {
     return false;
   }
 
@@ -168,6 +168,7 @@ WMFVideoMFTManager::InitializeDXVA()
 TemporaryRef<MFTDecoder>
 WMFVideoMFTManager::Init()
 {
+  mUseHwAccel = false; // default value; changed if D3D setup succeeds.
   bool useDxva = InitializeDXVA();
 
   RefPtr<MFTDecoder> decoder(new MFTDecoder());
@@ -226,15 +227,28 @@ WMFVideoMFTManager::Init()
   mDecoder = decoder;
   LOG("Video Decoder initialized, Using DXVA: %s", (mUseHwAccel ? "Yes" : "No"));
 
+  // Just in case ConfigureVideoFrameGeometry() does not set these
+  mVideoInfo = VideoInfo();
+  mVideoStride = 0;
+  mVideoWidth = 0;
+  mVideoHeight = 0;
+  mPictureRegion.SetEmpty();
+
   return decoder.forget();
 }
 
 HRESULT
 WMFVideoMFTManager::Input(mp4_demuxer::MP4Sample* aSample)
 {
+  if (!mDecoder) {
+    // This can happen during shutdown.
+    return E_FAIL;
+  }
   if (mStreamType != VP8 && mStreamType != VP9) {
     // We must prepare samples in AVC Annex B.
-    mp4_demuxer::AnnexB::ConvertSampleToAnnexB(aSample);
+    if (!mp4_demuxer::AnnexB::ConvertSampleToAnnexB(aSample)) {
+      return E_FAIL;
+    }
   }
   // Forward sample data to the decoder.
   const uint8_t* data = reinterpret_cast<const uint8_t*>(aSample->data);
@@ -491,6 +505,12 @@ WMFVideoMFTManager::Shutdown()
 {
   mDecoder = nullptr;
   DeleteOnMainThread(mDXVA2Manager);
+}
+
+bool
+WMFVideoMFTManager::IsHardwareAccelerated() const
+{
+  return mDecoder && mUseHwAccel;
 }
 
 } // namespace mozilla

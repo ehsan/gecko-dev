@@ -53,6 +53,9 @@ interface BluetoothAdapter : EventTarget {
   // Fired when a remote device gets unpaired from the adapter
            attribute EventHandler   ondeviceunpaired;
 
+  // Fired when the pairing process aborted
+           attribute EventHandler   onpairingaborted;
+
   // Fired when a2dp connection status changed
            attribute EventHandler   ona2dpstatuschanged;
 
@@ -72,24 +75,24 @@ interface BluetoothAdapter : EventTarget {
    * Several onattributechanged events would be triggered during processing the
    * request, and the last one indicates adapter.state becomes enabled/disabled.
    */
-  [NewObject, Throws]
+  [NewObject, AvailableIn=CertifiedApps]
   Promise<void> enable();
-  [NewObject, Throws]
+  [NewObject, AvailableIn=CertifiedApps]
   Promise<void> disable();
 
-  [NewObject, Throws]
-  Promise<void> setName(DOMString aName);
-  [NewObject, Throws]
-  Promise<void> setDiscoverable(boolean aDiscoverable);
+  [NewObject, AvailableIn=CertifiedApps]
+  Promise<void> setName(DOMString name);
+  [NewObject]
+  Promise<void> setDiscoverable(boolean discoverable);
 
-  [NewObject, Throws]
+  [NewObject]
   Promise<BluetoothDiscoveryHandle> startDiscovery();
-  [NewObject, Throws]
+  [NewObject]
   Promise<void> stopDiscovery();
 
-  [NewObject, Throws]
+  [NewObject]
   Promise<void> pair(DOMString deviceAddress);
-  [NewObject, Throws]
+  [NewObject]
   Promise<void> unpair(DOMString deviceAddress);
 
   sequence<BluetoothDevice> getPairedDevices();

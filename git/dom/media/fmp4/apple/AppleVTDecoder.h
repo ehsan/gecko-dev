@@ -16,7 +16,7 @@ namespace mozilla {
 class AppleVTDecoder : public AppleVDADecoder {
 public:
   AppleVTDecoder(const mp4_demuxer::VideoDecoderConfig& aConfig,
-                 MediaTaskQueue* aVideoTaskQueue,
+                 FlushableMediaTaskQueue* aVideoTaskQueue,
                  MediaDataDecoderCallback* aCallback,
                  layers::ImageContainer* aImageContainer);
   virtual ~AppleVTDecoder();
@@ -25,6 +25,10 @@ public:
   virtual nsresult Flush() MOZ_OVERRIDE;
   virtual nsresult Drain() MOZ_OVERRIDE;
   virtual nsresult Shutdown() MOZ_OVERRIDE;
+  virtual bool IsHardwareAccelerated() const MOZ_OVERRIDE
+  {
+    return mIsHardwareAccelerated;
+  }
 
 private:
   CMVideoFormatDescriptionRef mFormat;
@@ -37,6 +41,7 @@ private:
   nsresult WaitForAsynchronousFrames();
   CFDictionaryRef CreateDecoderSpecification();
   CFDictionaryRef CreateDecoderExtensions();
+  bool mIsHardwareAccelerated;
 };
 
 } // namespace mozilla

@@ -152,6 +152,7 @@ this.DownloadIntegration = {
   dontCheckApplicationReputation: true,
 #endif
   shouldBlockInTestForApplicationReputation: false,
+  shouldKeepBlockedDataInTest: false,
   dontOpenFileAndFolder: false,
   downloadDoneCalled: false,
   _deferTestOpenFile: null,
@@ -172,6 +173,35 @@ this.DownloadIntegration = {
   set testMode(mode) {
     this._downloadsDirectory = null;
     return (this._testMode = mode);
+  },
+
+  /**
+   * Returns whether data for blocked downloads should be kept on disk.
+   * Implementations which support unblocking downloads may return true to
+   * keep the blocked download on disk until its fate is decided.
+   *
+   * If a download is blocked and the partial data is kept the Download's
+   * 'hasBlockedData' property will be true. In this state Download.unblock()
+   * or Download.confirmBlock() may be used to either unblock the download or
+   * remove the downloaded data respectively.
+   *
+   * Even if shouldKeepBlockedData returns true, if the download did not use a
+   * partFile the blocked data will be removed - preventing the complete
+   * download from existing on disk with its final filename.
+   *
+   * @return boolean True if data should be kept.
+   */
+  shouldKeepBlockedData: function() {
+    if (this.shouldBlockInTestForApplicationReputation) {
+      return this.shouldKeepBlockedDataInTest;
+    }
+
+    const FIREFOX_ID = "{ec8030f7-c20a-464f-9b0e-13a3a9e97384}";
+    let os = Services.appinfo.OS;
+    return Services.appinfo.ID == FIREFOX_ID &&
+           (os == "Darwin" ||
+            os == "Linux" ||
+            os == "WINNT");
   },
 
   /**
@@ -314,13 +344,15 @@ this.DownloadIntegration = {
     // progress, as well as stopped downloads for which we retained partially
     // downloaded data.  Stopped downloads for which we don't need to track the
     // presence of a ".part" file are only retained in the browser history.
-    // On b2g, we keep a few days of history.
+    // On b2g, we keep a few days of history. On Android we store all history.
 #ifdef MOZ_B2G
     let maxTime = Date.now() -
       Services.prefs.getIntPref("dom.downloads.max_retention_days") * 24 * 60 * 60 * 1000;
     return (aDownload.startTime > maxTime) ||
            aDownload.hasPartialData ||
            !aDownload.stopped;
+#elif defined(MOZ_WIDGET_ANDROID)
+    return true;
 #else
     return aDownload.hasPartialData || !aDownload.stopped;
 #endif
@@ -635,7 +667,12 @@ this.DownloadIntegration = {
         // We should report errors with making the permissions less restrictive
         // or marking the file as read-only on Unix and Mac, but this should not
         // prevent the download from completing.
-        Cu.reportError(ex);
+        // The setPermissions API error EPERM is expected to occur when working
+        // on a file system that does not support file permissions, like FAT32,
+        // thus we don't report this error.
+        if (!(ex instanceof OS.File.Error) || ex.unixErrno != OS.Constants.libc.EPERM) {
+          Cu.reportError(ex);
+        }
       }
 
       gDownloadPlatform.downloadDone(NetUtil.newURI(aDownload.source.url),

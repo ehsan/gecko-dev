@@ -38,9 +38,18 @@ SimpleTest.registerCleanupFunction(() => {
 // All tests are asynchronous.
 waitForExplicitFinish();
 
-registerCleanupFunction(function() {
+registerCleanupFunction(function* () {
   info("finish() was called, cleaning up...");
   Services.prefs.setBoolPref("devtools.debugger.log", gEnableLogging);
+
+  while (gBrowser && gBrowser.tabs && gBrowser.tabs.length > 1) {
+    info("Destroying toolbox.");
+    let target = TargetFactory.forTab(gBrowser.selectedTab);
+    yield gDevTools.closeToolbox(target);
+
+    info("Removing tab.");
+    gBrowser.removeCurrentTab();
+  }
 
   // Properly shut down the server to avoid memory leaks.
   DebuggerServer.destroy();
@@ -551,9 +560,10 @@ AddonDebugger.prototype = {
     info("Initializing an addon debugger panel.");
 
     if (!DebuggerServer.initialized) {
-      DebuggerServer.init(() => true);
+      DebuggerServer.init();
       DebuggerServer.addBrowserActors();
     }
+    DebuggerServer.allowChromeProcess = true;
 
     this.frame = document.createElement("iframe");
     this.frame.setAttribute("height", 400);
@@ -572,7 +582,8 @@ AddonDebugger.prototype = {
     let targetOptions = {
       form: addonActor,
       client: this.client,
-      chrome: true
+      chrome: true,
+      isTabActor: false
     };
 
     let toolboxOptions = {

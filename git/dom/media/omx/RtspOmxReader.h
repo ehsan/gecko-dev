@@ -32,7 +32,9 @@ protected:
 
 public:
   RtspOmxReader(AbstractMediaDecoder* aDecoder)
-    : MediaOmxReader(aDecoder) {
+    : MediaOmxReader(aDecoder)
+    , mEnsureActiveFromSeek(false)
+  {
     MOZ_COUNT_CTOR(RtspOmxReader);
     NS_ASSERTION(mDecoder, "RtspOmxReader mDecoder is null.");
     NS_ASSERTION(mDecoder->GetResource(),
@@ -59,7 +61,7 @@ public:
   // ChannelMediaResource, it has a "cache" that can store the whole streaming
   // data so the |GetBuffered| function can retrieve useful time ranges.
   virtual nsresult GetBuffered(mozilla::dom::TimeRanges* aBuffered) MOZ_FINAL MOZ_OVERRIDE {
-    return NS_OK;
+    return NS_ERROR_NOT_IMPLEMENTED;
   }
 
   virtual void SetIdle() MOZ_OVERRIDE;
@@ -73,6 +75,8 @@ private:
   // holds the MediaDecoderStateMachine and RtspMediaResource.
   // And MediaDecoderStateMachine holds this RtspOmxReader.
   RtspMediaResource* mRtspResource;
+
+  bool mEnsureActiveFromSeek;
 };
 
 } // namespace mozilla

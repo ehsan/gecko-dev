@@ -48,7 +48,7 @@ class RegExpStatics
 
   public:
     RegExpStatics() : bufferLink(nullptr), copied(false) { clear(); }
-    static RegExpStaticsObject *create(ExclusiveContext *cx, GlobalObject *parent);
+    static RegExpStaticsObject *create(ExclusiveContext *cx, Handle<GlobalObject*> parent);
 
   private:
     bool executeLazy(JSContext *cx);
@@ -62,7 +62,7 @@ class RegExpStatics
         buffer->bufferLink = bufferLink;
         bufferLink = buffer;
         if (!buffer->matches.allocOrExpandArray(matches.length())) {
-            js_ReportOutOfMemory(cx);
+            ReportOutOfMemory(cx);
             return false;
         }
         return true;
@@ -486,7 +486,7 @@ RegExpStatics::updateFromMatchPairs(JSContext *cx, JSLinearString *input, MatchP
                                                matchesInput, input);
 
     if (!matches.initArrayFrom(newPairs)) {
-        js_ReportOutOfMemory(cx);
+        ReportOutOfMemory(cx);
         return false;
     }
 

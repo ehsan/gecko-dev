@@ -14,6 +14,7 @@ import java.util.Set;
 
 import org.mozilla.gecko.AppConstants.Versions;
 import org.mozilla.gecko.BrowserLocaleManager;
+import org.mozilla.gecko.Locales;
 import org.mozilla.gecko.R;
 
 import android.content.Context;
@@ -117,7 +118,7 @@ public class LocaleListPreference extends ListPreference {
         private final String nativeName;
 
         public LocaleDescriptor(String tag) {
-            this(BrowserLocaleManager.parseLocaleCode(tag), tag);
+            this(Locales.parseLocaleCode(tag), tag);
         }
 
         public LocaleDescriptor(Locale locale, String tag) {
@@ -198,6 +199,7 @@ public class LocaleListPreference extends ListPreference {
             // See documentation for CharacterValidator.
             // Note that bn-IN is checked here even if it passed above.
             if (this.tag.equals("or") ||
+                this.tag.equals("my") ||
                 this.tag.equals("pa-IN") ||
                 this.tag.equals("gu-IN") ||
                 this.tag.equals("bn-IN")) {
@@ -221,7 +223,7 @@ public class LocaleListPreference extends ListPreference {
 
         // Future: single-locale builds should be specified, too.
         if (shippingLocales == null) {
-            final String fallbackTag = BrowserLocaleManager.getFallbackLocaleTag();
+            final String fallbackTag = BrowserLocaleManager.getInstance().getFallbackLocaleTag();
             return new LocaleDescriptor[] { new LocaleDescriptor(fallbackTag) };
         }
 
@@ -262,7 +264,7 @@ public class LocaleListPreference extends ListPreference {
         if (tag == null || tag.equals("")) {
             return Locale.getDefault();
         }
-        return BrowserLocaleManager.parseLocaleCode(tag);
+        return Locales.parseLocaleCode(tag);
     }
 
     @Override

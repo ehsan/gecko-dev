@@ -187,10 +187,10 @@ FRAME_STATE_BIT(Generic, 37, NS_FRAME_HAS_ABSPOS_CHILDREN)
 // A display item for this frame has been painted as part of a PaintedLayer.
 FRAME_STATE_BIT(Generic, 38, NS_FRAME_PAINTED_THEBES)
 
-// Frame is or is a descendant of something with a fixed height, unless that
-// ancestor is a body or html element, and has no closer ancestor that is
+// Frame is or is a descendant of something with a fixed block-size, unless
+// that ancestor is a body or html element, and has no closer ancestor that is
 // overflow:auto or overflow:scroll.
-FRAME_STATE_BIT(Generic, 39, NS_FRAME_IN_CONSTRAINED_HEIGHT)
+FRAME_STATE_BIT(Generic, 39, NS_FRAME_IN_CONSTRAINED_BSIZE)
 
 // This is only set during painting
 FRAME_STATE_BIT(Generic, 40, NS_FRAME_FORCE_DISPLAY_LIST_DESCEND_INTO)
@@ -408,6 +408,9 @@ FRAME_STATE_BIT(Text, 60, TEXT_IN_UNINFLATED_TEXTRUN_USER_DATA)
 
 FRAME_STATE_BIT(Text, 61, TEXT_HAS_FONT_INFLATION)
 
+// Set when this text frame contains nothing that will actually render
+FRAME_STATE_BIT(Text, 62, TEXT_NO_RENDERED_GLYPHS)
+
 // Whether this frame is cached in the Offset Frame Cache
 // (OffsetToFrameProperty)
 FRAME_STATE_BIT(Text, 63, TEXT_IN_OFFSET_CACHE)
@@ -512,6 +515,22 @@ FRAME_STATE_GROUP(Inline, nsInlineFrame)
 FRAME_STATE_BIT(Inline, 21, NS_INLINE_FRAME_BIDI_VISUAL_STATE_IS_SET)
 FRAME_STATE_BIT(Inline, 22, NS_INLINE_FRAME_BIDI_VISUAL_IS_FIRST)
 FRAME_STATE_BIT(Inline, 23, NS_INLINE_FRAME_BIDI_VISUAL_IS_LAST)
+// nsRubyTextFrame inherits from nsInlineFrame
+
+
+// == Frame state bits that apply to ruby text frames =========================
+
+FRAME_STATE_GROUP(RubyText, nsRubyTextFrame)
+
+// inherits from nsInlineFrame
+FRAME_STATE_BIT(RubyText, 24, NS_RUBY_TEXT_FRAME_AUTOHIDE)
+
+
+// == Frame state bits that apply to ruby text container frames ===============
+
+FRAME_STATE_GROUP(RubyTextContainer, nsRubyTextContainerFrame)
+
+FRAME_STATE_BIT(RubyTextContainer, 20, NS_RUBY_TEXT_CONTAINER_IS_SPAN)
 
 
 // == Frame state bits that apply to placeholder frames =======================
@@ -576,6 +595,9 @@ FRAME_STATE_BIT(TableRowGroup, 30, NS_ROWGROUP_HAS_STYLE_HEIGHT)
 // thead or tfoot should be repeated on every printed page
 FRAME_STATE_BIT(TableRowGroup, 31, NS_ROWGROUP_REPEATABLE)
 
+FRAME_STATE_GROUP(Table, nsTableFrame)
+
+FRAME_STATE_BIT(Table, 28, NS_TABLE_PART_HAS_FIXED_BACKGROUND)
 
 #ifdef DEFINED_FRAME_STATE_GROUP
 #undef DEFINED_FRAME_STATE_GROUP

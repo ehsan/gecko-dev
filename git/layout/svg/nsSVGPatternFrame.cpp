@@ -42,7 +42,7 @@ public:
     MOZ_GUARD_OBJECT_NOTIFIER_INIT;
     // Reference loops should normally be detected in advance and handled, so
     // we're not expecting to encounter them here
-    NS_ABORT_IF_FALSE(!mFrame->mLoopFlag, "Undetected reference loop!");
+    MOZ_ASSERT(!mFrame->mLoopFlag, "Undetected reference loop!");
     mFrame->mLoopFlag = true;
   }
   ~AutoPatternReferencer() {
@@ -105,7 +105,7 @@ nsSVGPatternFrame::Init(nsIContent*       aContent,
                         nsContainerFrame* aParent,
                         nsIFrame*         aPrevInFlow)
 {
-  NS_ASSERTION(aContent->IsSVG(nsGkAtoms::pattern), "Content is not an SVG pattern");
+  NS_ASSERTION(aContent->IsSVGElement(nsGkAtoms::pattern), "Content is not an SVG pattern");
 
   nsSVGPatternFrameBase::Init(aContent, aParent, aPrevInFlow);
 }
@@ -406,7 +406,7 @@ nsSVGPatternFrame::PaintPattern(const DrawTarget* aDrawTarget,
         SVGFrame->NotifySVGChanged(nsISVGChildFrame::TRANSFORM_CHANGED);
       }
       gfxMatrix tm = *(patternWithChildren->mCTM);
-      if (kid->GetContent()->IsSVG()) {
+      if (kid->GetContent()->IsSVGElement()) {
         tm = static_cast<nsSVGElement*>(kid->GetContent())->
               PrependLocalTransformsTo(tm, nsSVGElement::eUserSpaceToParent);
       }
@@ -647,7 +647,7 @@ nsSVGPatternFrame::ConstructCTM(const nsSVGViewBox& aViewBox,
   if (IncludeBBoxScale(aViewBox, aPatternContentUnits, aPatternUnits)) {
     tCTM.Scale(callerBBox.Width(), callerBBox.Height());
   } else {
-    if (targetContent->IsSVG()) {
+    if (targetContent->IsSVGElement()) {
       ctx = static_cast<nsSVGElement*>(targetContent)->GetCtx();
     }
     float scale = MaxExpansion(callerCTM);
@@ -664,7 +664,7 @@ nsSVGPatternFrame::ConstructCTM(const nsSVGViewBox& aViewBox,
   }
 
   float viewportWidth, viewportHeight;
-  if (targetContent->IsSVG()) {
+  if (targetContent->IsSVGElement()) {
     // If we're dealing with an SVG target only retrieve the context once.
     // Calling the nsIFrame* variant of GetAnimValue would look it up on
     // every call.

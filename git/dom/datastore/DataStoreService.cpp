@@ -649,7 +649,7 @@ public:
     // DataStore will run this callback when the revisionID is retrieved.
     JSFunction* func = js::NewFunctionWithReserved(aCx, JSCallback,
                                                    0 /* nargs */, 0 /* flags */,
-                                                   nullptr, nullptr);
+                                                   nullptr);
     if (!func) {
       return;
     }
@@ -1005,9 +1005,12 @@ DataStoreService::GetDataStoresResolve(nsPIDOMWindow* aWindow,
       return;
     }
 
+    nsCOMPtr<nsIGlobalObject> global = do_QueryInterface(aWindow);
+    MOZ_ASSERT(global);
+
     JSAutoCompartment ac(cx, dataStoreJS);
     nsRefPtr<DataStoreImpl> dataStoreObj = new DataStoreImpl(dataStoreJS,
-                                                             aWindow);
+                                                             global);
 
     nsRefPtr<DataStore> exposedStore = new DataStore(aWindow);
 

@@ -10,7 +10,7 @@ import java.net.URISyntaxException;
 import org.mozilla.gecko.AppConstants;
 import org.mozilla.gecko.Assert;
 import org.mozilla.gecko.GeckoProfile;
-import org.mozilla.gecko.LocaleAware;
+import org.mozilla.gecko.Locales;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.Telemetry;
 import org.mozilla.gecko.TelemetryContract;
@@ -22,7 +22,6 @@ import org.mozilla.gecko.overlays.service.sharemethods.SendTab;
 import org.mozilla.gecko.overlays.service.sharemethods.ShareMethod;
 import org.mozilla.gecko.sync.setup.activities.WebURLFinder;
 import org.mozilla.gecko.mozglue.ContextUtils;
-import org.mozilla.gecko.util.HardwareUtils;
 import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.util.UIAsyncTask;
 
@@ -50,7 +49,7 @@ import android.widget.Toast;
 /**
  * A transparent activity that displays the share overlay.
  */
-public class ShareDialog extends LocaleAware.LocaleAwareActivity implements SendTabTargetSelectedListener {
+public class ShareDialog extends Locales.LocaleAwareActivity implements SendTabTargetSelectedListener {
     private static final String LOGTAG = "GeckoShareDialog";
 
     private String url;
@@ -214,13 +213,7 @@ public class ShareDialog extends LocaleAware.LocaleAwareActivity implements Send
         sendTabList.setAdapter(adapter);
         sendTabList.setSendTabTargetSelectedListener(this);
 
-        // If we're a low memory device, just hide the reading list button. Otherwise, configure it.
         final OverlayDialogButton readinglistBtn = (OverlayDialogButton) findViewById(R.id.overlay_share_reading_list_btn);
-
-        if (HardwareUtils.isLowMemoryPlatform()) {
-            readinglistBtn.setVisibility(View.GONE);
-            return;
-        }
 
         final String readingListEnabledLabel = resources.getString(R.string.overlay_share_reading_list_btn_label);
         final Drawable readingListEnabledIcon = resources.getDrawable(R.drawable.overlay_readinglist_icon);
@@ -261,7 +254,7 @@ public class ShareDialog extends LocaleAware.LocaleAwareActivity implements Send
                 final ContentResolver contentResolver = getApplicationContext().getContentResolver();
 
                 isBookmark = browserDB.isBookmark(contentResolver, pageURL);
-                isReadingListItem = browserDB.isReadingListItem(contentResolver, pageURL);
+                isReadingListItem = browserDB.getReadingListAccessor().isReadingListItem(contentResolver, pageURL);
 
                 return null;
             }
@@ -383,6 +376,9 @@ public class ShareDialog extends LocaleAware.LocaleAwareActivity implements Send
 
             @Override
             public void onAnimationEnd(Animation animation) {
+                // (bug 1132720) Hide the View so it doesn't flicker as the Activity closes.
+                ShareDialog.this.setVisible(false);
+
                 finish();
             }
 

@@ -9,6 +9,7 @@
 
 #include "mozilla/MemoryReporting.h"
 
+#include "prmjtime.h"
 #include "builtin/RegExp.h"
 #include "gc/Zone.h"
 #include "vm/GlobalObject.h"
@@ -103,7 +104,7 @@ struct CrossCompartmentKey
     }
 
   private:
-    CrossCompartmentKey() MOZ_DELETE;
+    CrossCompartmentKey() = delete;
 };
 
 struct WrapperHasher : public DefaultHasher<CrossCompartmentKey>
@@ -166,10 +167,22 @@ struct JSCompartment
     js::ReadBarrieredGlobalObject global_;
 
     unsigned                     enterCompartmentDepth;
+    int64_t                      startInterval;
 
   public:
-    void enter() { enterCompartmentDepth++; }
-    void leave() { enterCompartmentDepth--; }
+    int64_t                      totalTime;
+    void enter() {
+        if (addonId && !enterCompartmentDepth) {
+            startInterval = PRMJ_Now();
+        }
+        enterCompartmentDepth++;
+    }
+    void leave() {
+        enterCompartmentDepth--;
+        if (addonId && !enterCompartmentDepth) {
+            totalTime += (PRMJ_Now() - startInterval);
+        }
+    }
     bool hasBeenEntered() { return !!enterCompartmentDepth; }
 
     JS::Zone *zone() { return zone_; }
@@ -207,16 +220,6 @@ struct JSCompartment
     inline void initGlobal(js::GlobalObject &global);
 
   public:
-    /*
-     * Moves all data from the allocator |workerAllocator|, which was
-     * in use by a parallel worker, into the compartment's main
-     * allocator.  This is used at the end of a parallel section.
-     */
-    void adoptWorkerAllocator(js::Allocator *workerAllocator);
-
-    /* Type information about the scripts and objects in this compartment. */
-    js::types::TypeCompartment   types;
-
     void                         *data;
 
   private:
@@ -270,26 +273,14 @@ struct JSCompartment
     js::InitialShapeSet          initialShapes;
     void sweepInitialShapeTable();
 
-    /* Set of default 'new' or lazy types in the compartment. */
-    js::types::TypeObjectWithNewScriptSet newTypeObjects;
-    js::types::TypeObjectWithNewScriptSet lazyTypeObjects;
-    void sweepNewTypeObjectTable(js::types::TypeObjectWithNewScriptSet &table);
+    // Object group tables and other state in the compartment.
+    js::ObjectGroupCompartment   objectGroups;
 
 #ifdef JSGC_HASH_TABLE_CHECKS
-    void checkTypeObjectTablesAfterMovingGC();
-    void checkTypeObjectTableAfterMovingGC(js::types::TypeObjectWithNewScriptSet &table);
     void checkInitialShapesTableAfterMovingGC();
     void checkWrapperMapAfterMovingGC();
     void checkBaseShapeTableAfterMovingGC();
 #endif
-
-    /*
-     * Hash table of all manually call site-cloned functions from within
-     * self-hosted code. Cloning according to call site provides extra
-     * sensitivity for type specialization and inlining.
-     */
-    js::CallsiteCloneTable callsiteClones;
-    void sweepCallsiteClones();
 
     /*
      * Lazily initialized script source object to use for scripts cloned
@@ -302,6 +293,9 @@ struct JSCompartment
 
     // Map from typed objects to array buffers lazily created for them.
     js::LazyArrayBufferTable *lazyArrayBuffers;
+
+    // All unboxed layouts in the compartment.
+    mozilla::LinkedList<js::UnboxedLayout> unboxedLayouts;
 
     /* During GC, stores the index of this compartment in rt->compartments. */
     unsigned                     gcIndex;
@@ -323,16 +317,19 @@ struct JSCompartment
     bool                         gcPreserveJitCode;
 
     enum {
-        DebugMode = 1 << 0,
-        DebugObservesAllExecution = 1 << 1,
-        DebugNeedDelazification = 1 << 2
+        IsDebuggee = 1 << 0,
+        DebuggerObservesAllExecution = 1 << 1,
+        DebuggerObservesAsmJS = 1 << 2,
+        DebuggerNeedsDelazification = 1 << 3
     };
 
-    // DebugObservesAllExecution is a submode of DebugMode, and is only valid
-    // when DebugMode is also set.
-    static const unsigned DebugExecutionMask = DebugMode | DebugObservesAllExecution;
-
     unsigned                     debugModeBits;
+
+    static const unsigned DebuggerObservesMask = IsDebuggee |
+                                                 DebuggerObservesAllExecution |
+                                                 DebuggerObservesAsmJS;
+
+    void updateDebuggerObservesFlag(unsigned flag);
 
   public:
     JSCompartment(JS::Zone *zone, const JS::CompartmentOptions &options);
@@ -380,7 +377,6 @@ struct JSCompartment
 
     void sweepInnerViews();
     void sweepCrossCompartmentWrappers();
-    void sweepTypeObjectTables();
     void sweepSavedStacks();
     void sweepGlobalObject(js::FreeOp *fop);
     void sweepSelfHostingScriptSource();
@@ -393,13 +389,10 @@ struct JSCompartment
     void purge();
     void clearTables();
 
-#ifdef JSGC_COMPACTING
     void fixupInitialShapeTable();
-    void fixupNewTypeObjectTable(js::types::TypeObjectWithNewScriptSet &table);
     void fixupAfterMovingGC();
     void fixupGlobal();
     void fixupBaseShapeTable();
-#endif
 
     bool hasObjectMetadataCallback() const { return objectMetadataCallback; }
     void setObjectMetadataCallback(js::ObjectMetadataCallback callback);
@@ -429,14 +422,17 @@ struct JSCompartment
     //
     // The Debugger observes execution on a frame-by-frame basis. The
     // invariants of JSCompartment's debug mode bits, JSScript::isDebuggee,
-    // InterpreterFrame::isDebuggee, and Baseline::isDebuggee are enumerated
-    // below.
+    // InterpreterFrame::isDebuggee, and BaselineFrame::isDebuggee are
+    // enumerated below.
     //
-    // 1. When a compartment's isDebuggee() == true, relazification, lazy
-    //    parsing, and asm.js are disabled.
+    // 1. When a compartment's isDebuggee() == true, relazification and lazy
+    //    parsing are disabled.
     //
-    // 2. When a compartment's debugObservesAllExecution() == true, all of the
-    //    compartment's scripts are considered debuggee scripts.
+    //    Whether AOT asm.js is disabled is togglable by the Debugger API. By
+    //    default it is disabled. See debuggerObservesAsmJS below.
+    //
+    // 2. When a compartment's debuggerObservesAllExecution() == true, all of
+    //    the compartment's scripts are considered debuggee scripts.
     //
     // 3. A script is considered a debuggee script either when, per above, its
     //    compartment is observing all execution, or if it has breakpoints set.
@@ -461,36 +457,50 @@ struct JSCompartment
 
     // True if this compartment's global is a debuggee of some Debugger
     // object.
-    bool isDebuggee() const { return !!(debugModeBits & DebugMode); }
-    void setIsDebuggee() { debugModeBits |= DebugMode; }
+    bool isDebuggee() const { return !!(debugModeBits & IsDebuggee); }
+    void setIsDebuggee() { debugModeBits |= IsDebuggee; }
     void unsetIsDebuggee();
 
-    // True if an this compartment's global is a debuggee of some Debugger
+    // True if this compartment's global is a debuggee of some Debugger
     // object with a live hook that observes all execution; e.g.,
     // onEnterFrame.
-    bool debugObservesAllExecution() const {
-        return (debugModeBits & DebugExecutionMask) == DebugExecutionMask;
+    bool debuggerObservesAllExecution() const {
+        static const unsigned Mask = IsDebuggee | DebuggerObservesAllExecution;
+        return (debugModeBits & Mask) == Mask;
     }
-    void setDebugObservesAllExecution() {
-        MOZ_ASSERT(isDebuggee());
-        debugModeBits |= DebugObservesAllExecution;
+    void updateDebuggerObservesAllExecution() {
+        updateDebuggerObservesFlag(DebuggerObservesAllExecution);
     }
-    void unsetDebugObservesAllExecution() {
-        MOZ_ASSERT(isDebuggee());
-        debugModeBits &= ~DebugObservesAllExecution;
+
+    // True if this compartment's global is a debuggee of some Debugger object
+    // whose allowUnobservedAsmJS flag is false.
+    //
+    // Note that since AOT asm.js functions cannot bail out, this flag really
+    // means "observe asm.js from this point forward". We cannot make
+    // already-compiled asm.js code observable to Debugger.
+    bool debuggerObservesAsmJS() const {
+        static const unsigned Mask = IsDebuggee | DebuggerObservesAsmJS;
+        return (debugModeBits & Mask) == Mask;
+    }
+    void updateDebuggerObservesAsmJS() {
+        updateDebuggerObservesFlag(DebuggerObservesAsmJS);
+    }
+
+    bool needsDelazificationForDebugger() const {
+        return debugModeBits & DebuggerNeedsDelazification;
     }
 
     /*
      * Schedule the compartment to be delazified. Called from
      * LazyScript::Create.
      */
-    void scheduleDelazificationForDebugMode() { debugModeBits |= DebugNeedDelazification; }
+    void scheduleDelazificationForDebugger() { debugModeBits |= DebuggerNeedsDelazification; }
 
     /*
      * If we scheduled delazification for turning on debug mode, delazify all
      * scripts.
      */
-    bool ensureDelazifyScriptsForDebugMode(JSContext *cx);
+    bool ensureDelazifyScriptsForDebugger(JSContext *cx);
 
     void clearBreakpointsIn(js::FreeOp *fop, js::Debugger *dbg, JS::HandleObject handler);
 
@@ -529,6 +539,26 @@ struct JSCompartment
     js::jit::JitCompartment *jitCompartment() {
         return jitCompartment_;
     }
+
+    enum DeprecatedLanguageExtension {
+        DeprecatedForEach = 0,              // JS 1.6+
+        DeprecatedDestructuringForIn = 1,   // JS 1.7 only
+        DeprecatedLegacyGenerator = 2,      // JS 1.7+
+        DeprecatedExpressionClosure = 3,    // Added in JS 1.8
+        DeprecatedLetBlock = 4,             // Added in JS 1.7
+        DeprecatedLetExpression = 5,        // Added in JS 1.7
+        DeprecatedNoSuchMethod = 6,         // JS 1.7+
+        DeprecatedLanguageExtensionCount
+    };
+
+  private:
+    // Used for collecting telemetry on SpiderMonkey's deprecated language extensions.
+    bool sawDeprecatedLanguageExtension[DeprecatedLanguageExtensionCount];
+
+    void reportTelemetry();
+
+  public:
+    void addTelemetry(const char *filename, DeprecatedLanguageExtension e);
 };
 
 inline bool
@@ -586,8 +616,8 @@ class AutoCompartment
     JSCompartment *origin() const { return origin_; }
 
   private:
-    AutoCompartment(const AutoCompartment &) MOZ_DELETE;
-    AutoCompartment & operator=(const AutoCompartment &) MOZ_DELETE;
+    AutoCompartment(const AutoCompartment &) = delete;
+    AutoCompartment & operator=(const AutoCompartment &) = delete;
 };
 
 /*

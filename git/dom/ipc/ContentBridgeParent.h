@@ -10,17 +10,20 @@
 #include "mozilla/dom/PContentBridgeParent.h"
 #include "mozilla/dom/nsIContentParent.h"
 #include "mozilla/dom/ipc/IdType.h"
+#include "nsIObserver.h"
 
 namespace mozilla {
 namespace dom {
 
 class ContentBridgeParent : public PContentBridgeParent
                           , public nsIContentParent
+                          , public nsIObserver
 {
 public:
   explicit ContentBridgeParent(Transport* aTransport);
 
   NS_DECL_ISUPPORTS
+  NS_DECL_NSIOBSERVER
 
   virtual void ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
   void DeferredDestroy();
@@ -41,7 +44,7 @@ public:
                           const bool& aIsForApp,
                           const bool& aIsForBrowser) MOZ_OVERRIDE;
 
-  jsipc::JavaScriptShared* GetCPOWManager() MOZ_OVERRIDE;
+  jsipc::CPOWManager* GetCPOWManager() MOZ_OVERRIDE;
 
   virtual ContentParentId ChildID() MOZ_OVERRIDE
   {
@@ -75,12 +78,12 @@ protected:
 protected:
   virtual bool RecvSyncMessage(const nsString& aMsg,
                                const ClonedMessageData& aData,
-                               const InfallibleTArray<jsipc::CpowEntry>& aCpows,
+                               InfallibleTArray<jsipc::CpowEntry>&& aCpows,
                                const IPC::Principal& aPrincipal,
                                InfallibleTArray<nsString>* aRetvals) MOZ_OVERRIDE;
   virtual bool RecvAsyncMessage(const nsString& aMsg,
                                 const ClonedMessageData& aData,
-                                const InfallibleTArray<jsipc::CpowEntry>& aCpows,
+                                InfallibleTArray<jsipc::CpowEntry>&& aCpows,
                                 const IPC::Principal& aPrincipal) MOZ_OVERRIDE;
 
   virtual jsipc::PJavaScriptParent* AllocPJavaScriptParent() MOZ_OVERRIDE;

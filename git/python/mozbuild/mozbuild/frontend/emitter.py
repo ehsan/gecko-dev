@@ -32,7 +32,9 @@ from .data import (
     Exports,
     FinalTargetFiles,
     GeneratedEventWebIDLFile,
+    GeneratedFile,
     GeneratedInclude,
+    GeneratedSources,
     GeneratedWebIDLFile,
     ExampleWebIDLInterface,
     ExternalStaticLibrary,
@@ -41,10 +43,12 @@ from .data import (
     HostLibrary,
     HostProgram,
     HostSimpleProgram,
+    HostSources,
     InstallationTarget,
     IPDLFile,
     JARManifest,
     JavaScriptModules,
+    JsPreferenceFile,
     Library,
     Linkable,
     LinkageWrongKindError,
@@ -57,10 +61,12 @@ from .data import (
     Resources,
     SharedLibrary,
     SimpleProgram,
+    Sources,
     StaticLibrary,
     TestHarnessFiles,
     TestWebIDLFile,
     TestManifest,
+    UnifiedSources,
     VariablePassthru,
     WebIDLFile,
     XPIDLFile,
@@ -68,7 +74,10 @@ from .data import (
 
 from .reader import SandboxValidationError
 
-from .context import Context
+from .context import (
+    Context,
+    SubContext,
+)
 
 
 class TreeMetadataEmitter(LoggingMixin):
@@ -129,6 +138,11 @@ class TreeMetadataEmitter(LoggingMixin):
                     raise Exception('Unhandled object of type %s' % type(o))
 
         for out in output:
+            # Nothing in sub-contexts is currently of interest to us. Filter
+            # them all out.
+            if isinstance(out, SubContext):
+                continue
+
             if isinstance(out, Context):
                 # Keep all contexts around, we will need them later.
                 contexts[out.objdir] = out
@@ -341,6 +355,14 @@ class TreeMetadataEmitter(LoggingMixin):
 
         This is a generator of mozbuild.frontend.data.ContextDerived instances.
         """
+
+        # We only want to emit an InstallationTarget if one of the consulted
+        # variables is defined. Later on, we look up FINAL_TARGET, which has
+        # the side-effect of populating it. So, we need to do this lookup
+        # early.
+        if any(k in context for k in ('FINAL_TARGET', 'XPI_NAME', 'DIST_SUBDIR')):
+            yield InstallationTarget(context)
+
         # We always emit a directory traversal descriptor. This is needed by
         # the recursive make backend.
         for o in self._emit_directory_traversal_from_context(context): yield o
@@ -396,9 +418,7 @@ class TreeMetadataEmitter(LoggingMixin):
             'EXTRA_DSO_LDOPTS',
             'EXTRA_PP_COMPONENTS',
             'FAIL_ON_WARNINGS',
-            'FILES_PER_UNIFIED_FILE',
             'USE_STATIC_LIBS',
-            'GENERATED_FILES',
             'IS_GYP_DIR',
             'MSVC_ENABLE_PGO',
             'NO_DIST_INSTALL',
@@ -428,47 +448,6 @@ class TreeMetadataEmitter(LoggingMixin):
         if context['NO_VISIBILITY_FLAGS']:
             passthru.variables['VISIBILITY_FLAGS'] = ''
 
-        varmap = dict(
-            SOURCES={
-                '.s': 'ASFILES',
-                '.asm': 'ASFILES',
-                '.c': 'CSRCS',
-                '.m': 'CMSRCS',
-                '.mm': 'CMMSRCS',
-                '.cc': 'CPPSRCS',
-                '.cpp': 'CPPSRCS',
-                '.cxx': 'CPPSRCS',
-                '.S': 'SSRCS',
-            },
-            HOST_SOURCES={
-                '.c': 'HOST_CSRCS',
-                '.mm': 'HOST_CMMSRCS',
-                '.cc': 'HOST_CPPSRCS',
-                '.cpp': 'HOST_CPPSRCS',
-                '.cxx': 'HOST_CPPSRCS',
-            },
-            UNIFIED_SOURCES={
-                '.c': 'UNIFIED_CSRCS',
-                '.mm': 'UNIFIED_CMMSRCS',
-                '.cc': 'UNIFIED_CPPSRCS',
-                '.cpp': 'UNIFIED_CPPSRCS',
-                '.cxx': 'UNIFIED_CPPSRCS',
-            }
-        )
-        varmap.update(dict(('GENERATED_%s' % k, v) for k, v in varmap.items()
-                           if k in ('SOURCES', 'UNIFIED_SOURCES')))
-        for variable, mapping in varmap.items():
-            for f in context[variable]:
-                ext = mozpath.splitext(f)[1]
-                if ext not in mapping:
-                    raise SandboxValidationError(
-                        '%s has an unknown file type.' % f, context)
-                l = passthru.variables.setdefault(mapping[ext], [])
-                l.append(f)
-                if variable.startswith('GENERATED_'):
-                    l = passthru.variables.setdefault('GARBAGE', [])
-                    l.append(f)
-
         no_pgo = context.get('NO_PGO')
         sources = context.get('SOURCES', [])
         no_pgo_sources = [f for f in sources if sources[f].no_pgo]
@@ -480,6 +459,63 @@ class TreeMetadataEmitter(LoggingMixin):
         if no_pgo_sources:
             passthru.variables['NO_PROFILE_GUIDED_OPTIMIZE'] = no_pgo_sources
 
+        # A map from "canonical suffixes" for a particular source file
+        # language to the range of suffixes associated with that language.
+        #
+        # We deliberately don't list the canonical suffix in the suffix list
+        # in the definition; we'll add it in programmatically after defining
+        # things.
+        suffix_map = {
+            '.s': set(['.asm']),
+            '.c': set(),
+            '.m': set(),
+            '.mm': set(),
+            '.cpp': set(['.cc', '.cxx']),
+            '.S': set(),
+        }
+
+        # The inverse of the above, mapping suffixes to their canonical suffix.
+        canonicalized_suffix_map = {}
+        for suffix, alternatives in suffix_map.iteritems():
+            alternatives.add(suffix)
+            for a in alternatives:
+                canonicalized_suffix_map[a] = suffix
+
+        def canonical_suffix_for_file(f):
+            return canonicalized_suffix_map[mozpath.splitext(f)[1]]
+
+        # A map from moz.build variables to the canonical suffixes of file
+        # kinds that can be listed therein.
+        all_suffixes = list(suffix_map.keys())
+        varmap = dict(
+            SOURCES=(Sources, all_suffixes),
+            HOST_SOURCES=(HostSources, ['.c', '.mm', '.cpp']),
+            UNIFIED_SOURCES=(UnifiedSources, ['.c', '.mm', '.cpp']),
+            GENERATED_SOURCES=(GeneratedSources, all_suffixes),
+        )
+
+        for variable, (klass, suffixes) in varmap.items():
+            allowed_suffixes = set().union(*[suffix_map[s] for s in suffixes])
+
+            # First ensure that we haven't been given filetypes that we don't
+            # recognize.
+            for f in context[variable]:
+                ext = mozpath.splitext(f)[1]
+                if ext not in allowed_suffixes:
+                    raise SandboxValidationError(
+                        '%s has an unknown file type.' % f, context)
+                if variable.startswith('GENERATED_'):
+                    l = passthru.variables.setdefault('GARBAGE', [])
+                    l.append(f)
+
+            # Now sort the files to let groupby work.
+            sorted_files = sorted(context[variable], key=canonical_suffix_for_file)
+            for canonical_suffix, files in itertools.groupby(sorted_files, canonical_suffix_for_file):
+                arglist = [context, list(files), canonical_suffix]
+                if variable.startswith('UNIFIED_') and 'FILES_PER_UNIFIED_FILE' in context:
+                    arglist.append(context['FILES_PER_UNIFIED_FILE'])
+                yield klass(*arglist)
+
         sources_with_flags = [f for f in sources if sources[f].flags]
         for f in sources_with_flags:
             ext = mozpath.splitext(f)[1]
@@ -489,6 +525,40 @@ class TreeMetadataEmitter(LoggingMixin):
         if exports:
             yield Exports(context, exports,
                 dist_install=not context.get('NO_DIST_INSTALL', False))
+
+        generated_files = context.get('GENERATED_FILES')
+        if generated_files:
+            for f in generated_files:
+                flags = generated_files[f]
+                output = f
+                if flags.script:
+                    method = "main"
+                    # Deal with cases like "C:\\path\\to\\script.py:function".
+                    if not flags.script.endswith('.py') and ':' in flags.script:
+                        script, method = flags.script.rsplit(':', 1)
+                    else:
+                        script = flags.script
+                    script = mozpath.join(context.srcdir, script)
+                    inputs = [mozpath.join(context.srcdir, i) for i in flags.inputs]
+
+                    if not os.path.exists(script):
+                        raise SandboxValidationError(
+                            'Script for generating %s does not exist: %s'
+                            % (f, script), context)
+                    if os.path.splitext(script)[1] != '.py':
+                        raise SandboxValidationError(
+                            'Script for generating %s does not end in .py: %s'
+                            % (f, script), context)
+                    for i in inputs:
+                        if not os.path.exists(i):
+                            raise SandboxValidationError(
+                                'Input for generating %s does not exist: %s'
+                                % (f, i), context)
+                else:
+                    script = None
+                    method = None
+                    inputs = []
+                yield GeneratedFile(context, script, method, output, inputs)
 
         test_harness_files = context.get('TEST_HARNESS_FILES')
         if test_harness_files:
@@ -504,9 +574,9 @@ class TreeMetadataEmitter(LoggingMixin):
                 for s in strings:
                     if context.is_objdir_path(s):
                         if s.startswith('!/'):
-                            raise SandboxValidationError(
-                                'Topobjdir-relative file not allowed in TEST_HARNESS_FILES: %s' % s, context)
-                        objdir_files[path].append(s[1:])
+                            objdir_files[path].append('$(DEPTH)/%s' % s[2:])
+                        else:
+                            objdir_files[path].append(s[1:])
                     else:
                         resolved = context.resolve_path(s)
                         if '*' in s:
@@ -527,6 +597,9 @@ class TreeMetadataEmitter(LoggingMixin):
         resources = context.get('RESOURCE_FILES')
         if resources:
             yield Resources(context, resources, defines)
+
+        for pref in sorted(context['JS_PREFERENCE_FILES']):
+            yield JsPreferenceFile(context, pref)
 
         for kind, cls in [('PROGRAM', Program), ('HOST_PROGRAM', HostProgram)]:
             program = context.get(kind)
@@ -596,10 +669,6 @@ class TreeMetadataEmitter(LoggingMixin):
                 raise SandboxValidationError('Path specified in LOCAL_INCLUDES '
                     'does not exist: %s (resolved to %s)' % (local_include, actual_include), context)
             yield LocalInclude(context, local_include)
-
-        if context.get('FINAL_TARGET') or context.get('XPI_NAME') or \
-                context.get('DIST_SUBDIR'):
-            yield InstallationTarget(context)
 
         final_target_files = context.get('FINAL_TARGET_FILES')
         if final_target_files:
@@ -839,7 +908,8 @@ class TreeMetadataEmitter(LoggingMixin):
         install_prefix = mozpath.join(install_root, install_subdir)
 
         try:
-            m = manifestparser.TestManifest(manifests=[path], strict=True)
+            m = manifestparser.TestManifest(manifests=[path], strict=True,
+                                            rootdir=context.config.topsrcdir)
             defaults = m.manifest_defaults[os.path.normpath(path)]
             if not m.tests and not 'support-files' in defaults:
                 raise SandboxValidationError('Empty test manifest: %s'
@@ -933,8 +1003,10 @@ class TreeMetadataEmitter(LoggingMixin):
                 # Some test files are compiled and should not be copied into the
                 # test package. They function as identifiers rather than files.
                 if package_tests:
+                    manifest_relpath = mozpath.relpath(test['path'],
+                        mozpath.dirname(test['manifest']))
                     obj.installs[mozpath.normpath(test['path'])] = \
-                        (mozpath.join(out_dir, test['relpath']), True)
+                        ((mozpath.join(out_dir, manifest_relpath)), True)
 
                 process_support_files(test)
 

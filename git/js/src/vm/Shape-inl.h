@@ -13,18 +13,18 @@
 
 #include "jsobj.h"
 
+#include "gc/Allocator.h"
 #include "vm/Interpreter.h"
 #include "vm/ScopeObject.h"
 #include "vm/TypedArrayCommon.h"
 
 #include "jsatominlines.h"
 #include "jscntxtinlines.h"
-#include "jsgcinlines.h"
 
 namespace js {
 
 inline
-StackBaseShape::StackBaseShape(ThreadSafeContext *cx, const Class *clasp,
+StackBaseShape::StackBaseShape(ExclusiveContext *cx, const Class *clasp,
                                JSObject *parent, JSObject *metadata, uint32_t objectFlags)
   : flags(objectFlags),
     clasp(clasp),
@@ -33,103 +33,57 @@ StackBaseShape::StackBaseShape(ThreadSafeContext *cx, const Class *clasp,
     compartment(cx->compartment_)
 {}
 
-inline bool
-Shape::get(JSContext* cx, HandleObject receiver, JSObject* obj, JSObject *pobj,
-           MutableHandleValue vp)
-{
-    MOZ_ASSERT(!hasDefaultGetter());
-
-    if (hasGetterValue()) {
-        Value fval = getterValue();
-        return InvokeGetterOrSetter(cx, receiver, fval, 0, 0, vp);
-    }
-
-    RootedId id(cx, propid());
-    return CallJSPropertyOp(cx, getterOp(), receiver, id, vp);
-}
-
 inline Shape *
 Shape::search(ExclusiveContext *cx, jsid id)
 {
-    Shape **_;
+    ShapeTable::Entry *_;
     return search(cx, this, id, &_);
 }
 
-inline Shape *
-Shape::searchThreadLocal(ThreadSafeContext *cx, Shape *start, jsid id,
-                         Shape ***pspp, bool adding)
-{
-    /*
-     * Note that adding is a best-effort attempt to claim an entry in a shape
-     * table. In the sequential case, this can be done either when the object
-     * is in dictionary mode, or when it has been hashified.
-     *
-     * In parallel, an object that is in dictionary mode may be thread
-     * local. That is, it was converted to a dictionary in the current thread,
-     * with all its shapes cloned into the current thread, and its shape table
-     * allocated thread locally. In that case, we may add to the
-     * table. Otherwise it is not allowed.
-     */
-    MOZ_ASSERT_IF(adding, cx->isThreadLocal(start) && start->inDictionary());
-
-    if (start->inDictionary()) {
-        *pspp = start->table().search(id, adding);
-        return SHAPE_FETCH(*pspp);
-    }
-
-    *pspp = nullptr;
-
-    return searchNoHashify(start, id);
-}
-
 inline bool
-Shape::set(JSContext* cx, HandleObject obj, HandleObject receiver, bool strict,
-           MutableHandleValue vp)
+Shape::set(JSContext* cx, HandleNativeObject obj, HandleObject receiver, MutableHandleValue vp,
+           ObjectOpResult &result)
 {
     MOZ_ASSERT_IF(hasDefaultSetter(), hasGetterValue());
+    MOZ_ASSERT(!obj->is<DynamicWithObject>());  // See bug 1128681.
 
     if (attrs & JSPROP_SETTER) {
         Value fval = setterValue();
-        return InvokeGetterOrSetter(cx, receiver, fval, 1, vp.address(), vp);
+        if (!InvokeGetterOrSetter(cx, receiver, fval, 1, vp.address(), vp))
+            return false;
+        return result.succeed();
     }
 
     if (attrs & JSPROP_GETTER)
-        return js_ReportGetterOnlyAssignment(cx, strict);
+        return result.fail(JSMSG_GETTER_ONLY);
+
+    if (!setterOp())
+        return result.succeed();
 
     RootedId id(cx, propid());
-
-    /*
-     * |with (it) color='red';| ends up here.
-     * Avoid exposing the With object to native setters.
-     */
-    if (obj->is<DynamicWithObject>()) {
-        RootedObject nobj(cx, &obj->as<DynamicWithObject>().object());
-        return CallJSPropertyOpSetter(cx, setterOp(), nobj, id, strict, vp);
-    }
-
-    return CallJSPropertyOpSetter(cx, setterOp(), obj, id, strict, vp);
+    return CallJSSetterOp(cx, setterOp(), obj, id, vp, result);
 }
 
 /* static */ inline Shape *
-Shape::search(ExclusiveContext *cx, Shape *start, jsid id, Shape ***pspp, bool adding)
+Shape::search(ExclusiveContext *cx, Shape *start, jsid id, ShapeTable::Entry **pentry, bool adding)
 {
     if (start->inDictionary()) {
-        *pspp = start->table().search(id, adding);
-        return SHAPE_FETCH(*pspp);
+        *pentry = &start->table().search(id, adding);
+        return (*pentry)->shape();
     }
 
-    *pspp = nullptr;
+    *pentry = nullptr;
 
     if (start->hasTable()) {
-        Shape **spp = start->table().search(id, adding);
-        return SHAPE_FETCH(spp);
+        ShapeTable::Entry &entry = start->table().search(id, adding);
+        return entry.shape();
     }
 
     if (start->numLinearSearches() == LINEAR_SEARCHES_MAX) {
         if (start->isBigEnoughForAShapeTable()) {
             if (Shape::hashify(cx, start)) {
-                Shape **spp = start->table().search(id, adding);
-                return SHAPE_FETCH(spp);
+                ShapeTable::Entry &entry = start->table().search(id, adding);
+                return entry.shape();
             } else {
                 cx->recoverFromOutOfMemory();
             }
@@ -155,9 +109,11 @@ inline Shape *
 Shape::new_(ExclusiveContext *cx, StackShape &unrootedOther, uint32_t nfixed)
 {
     RootedGeneric<StackShape*> other(cx, &unrootedOther);
-    Shape *shape = other->isAccessorShape() ? NewGCAccessorShape(cx) : NewGCShape(cx);
+    Shape *shape = other->isAccessorShape()
+                   ? js::Allocate<AccessorShape>(cx)
+                   : js::Allocate<Shape>(cx);
     if (!shape) {
-        js_ReportOutOfMemory(cx);
+        ReportOutOfMemory(cx);
         return nullptr;
     }
 
@@ -203,8 +159,8 @@ EmptyShape::ensureInitialCustomShape(ExclusiveContext *cx, Handle<ObjectSubclass
 }
 
 inline
-AutoRooterGetterSetter::Inner::Inner(ThreadSafeContext *cx, uint8_t attrs,
-                                     PropertyOp *pgetter_, StrictPropertyOp *psetter_)
+AutoRooterGetterSetter::Inner::Inner(ExclusiveContext *cx, uint8_t attrs,
+                                     GetterOp *pgetter_, SetterOp *psetter_)
   : CustomAutoRooter(cx), attrs(attrs),
     pgetter(pgetter_), psetter(psetter_)
 {
@@ -213,8 +169,8 @@ AutoRooterGetterSetter::Inner::Inner(ThreadSafeContext *cx, uint8_t attrs,
 }
 
 inline
-AutoRooterGetterSetter::AutoRooterGetterSetter(ThreadSafeContext *cx, uint8_t attrs,
-                                               PropertyOp *pgetter, StrictPropertyOp *psetter
+AutoRooterGetterSetter::AutoRooterGetterSetter(ExclusiveContext *cx, uint8_t attrs,
+                                               GetterOp *pgetter, SetterOp *psetter
                                                MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL)
 {
     if (attrs & (JSPROP_GETTER | JSPROP_SETTER))
@@ -223,13 +179,13 @@ AutoRooterGetterSetter::AutoRooterGetterSetter(ThreadSafeContext *cx, uint8_t at
 }
 
 inline
-AutoRooterGetterSetter::AutoRooterGetterSetter(ThreadSafeContext *cx, uint8_t attrs,
+AutoRooterGetterSetter::AutoRooterGetterSetter(ExclusiveContext *cx, uint8_t attrs,
                                                JSNative *pgetter, JSNative *psetter
                                                MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL)
 {
     if (attrs & (JSPROP_GETTER | JSPROP_SETTER)) {
-        inner.emplace(cx, attrs, reinterpret_cast<PropertyOp *>(pgetter),
-                      reinterpret_cast<StrictPropertyOp *>(psetter));
+        inner.emplace(cx, attrs, reinterpret_cast<GetterOp *>(pgetter),
+                      reinterpret_cast<SetterOp *>(psetter));
     }
     MOZ_GUARD_OBJECT_NOTIFIER_INIT;
 }
@@ -247,15 +203,6 @@ GetShapeAttributes(JSObject *obj, Shape *shape)
 
     return shape->attributes();
 }
-
-#ifdef JSGC_COMPACTING
-inline void
-BaseShape::fixupAfterMovingGC()
-{
-    if (hasTable())
-        table().fixupAfterMovingGC();
-}
-#endif
 
 } /* namespace js */
 

@@ -58,7 +58,7 @@ public:
   NS_DECL_NSIWEBPROGRESSLISTENER
 
   // nsIForm
-  NS_IMETHOD_(nsIFormControl*) GetElementAt(int32_t aIndex) const;
+  NS_IMETHOD_(nsIFormControl*) GetElementAt(int32_t aIndex) const MOZ_OVERRIDE;
   NS_IMETHOD_(uint32_t) GetElementCount() const MOZ_OVERRIDE;
   NS_IMETHOD_(int32_t) IndexOfControl(nsIFormControl* aControl) MOZ_OVERRIDE;
   NS_IMETHOD_(nsIFormControl*) GetDefaultSubmitElement() const MOZ_OVERRIDE;
@@ -494,6 +494,16 @@ protected:
    */
   nsresult NotifySubmitObservers(nsIURI* aActionURL, bool* aCancelSubmit,
                                  bool aEarlyNotify);
+
+  /**
+   * If this form submission is secure -> insecure, ask the user if they want
+   * to continue.
+   *
+   * @param aActionURL the URL being submitted to
+   * @param aCancelSubmit out param: will be true if the user wants to cancel
+   */
+  nsresult DoSecureToInsecureSubmitCheck(nsIURI* aActionURL,
+                                         bool* aCancelSubmit);
 
   /**
    * Find form controls in this form with the correct value in the name

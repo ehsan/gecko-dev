@@ -21,7 +21,9 @@ EXPORTS.mozilla.plugins += [
     'NPEventOSX.h',
     'NPEventUnix.h',
     'NPEventWindows.h',
+    'PluginAsyncSurrogate.h',
     'PluginBridge.h',
+    'PluginDataResolver.h',
     'PluginInstanceChild.h',
     'PluginInstanceParent.h',
     'PluginMessageUtils.h',
@@ -38,9 +40,9 @@ EXPORTS.mozilla.plugins += [
     'PluginUtilsOSX.h',
     'PluginWidgetChild.h',
     'PluginWidgetParent.h',
-    'ScopedMethodFactory.h',
     'StreamNotifyChild.h',
     'StreamNotifyParent.h',
+    'TaskFactory.h',
 ]
 
 if CONFIG['OS_ARCH'] == 'WINNT':
@@ -80,6 +82,7 @@ UNIFIED_SOURCES += [
     'BrowserStreamParent.cpp',
     'ChildAsyncCall.cpp',
     'ChildTimer.cpp',
+    'PluginAsyncSurrogate.cpp',
     'PluginBackgroundDestroyer.cpp',
     'PluginInstanceParent.cpp',
     'PluginMessageUtils.cpp',

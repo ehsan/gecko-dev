@@ -104,7 +104,7 @@ SafeOptionListMutation::~SafeOptionListMutation()
 HTMLSelectElement::HTMLSelectElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo,
                                      FromParser aFromParser)
   : nsGenericHTMLFormElementWithState(aNodeInfo),
-    mOptions(new HTMLOptionsCollection(MOZ_THIS_IN_INITIALIZER_LIST())),
+    mOptions(new HTMLOptionsCollection(this)),
     mAutocompleteAttrState(nsContentUtils::eAutocompleteAttrState_Unknown),
     mIsDoneAddingChildren(!aFromParser),
     mDisabledChanged(false),
@@ -350,7 +350,7 @@ HTMLSelectElement::InsertOptionsIntoListRecurse(nsIContent* aOptions,
   }
 
   // Recurse down into optgroups
-  if (aOptions->IsHTML(nsGkAtoms::optgroup)) {
+  if (aOptions->IsHTMLElement(nsGkAtoms::optgroup)) {
     mOptGroupCount++;
 
     for (nsIContent* child = aOptions->GetFirstChild();
@@ -391,7 +391,7 @@ HTMLSelectElement::RemoveOptionsFromListRecurse(nsIContent* aOptions,
   }
 
   // Recurse down deeper for options
-  if (mOptGroupCount && aOptions->IsHTML(nsGkAtoms::optgroup)) {
+  if (mOptGroupCount && aOptions->IsHTMLElement(nsGkAtoms::optgroup)) {
     mOptGroupCount--;
 
     for (nsIContent* child = aOptions->GetFirstChild();
@@ -1135,7 +1135,7 @@ HTMLSelectElement::IsOptionDisabled(HTMLOptionElement* aOption)
          node;
          node = node->GetParentElement()) {
       // If we reached the select element, we're done
-      if (node->IsHTML(nsGkAtoms::select)) {
+      if (node->IsHTMLElement(nsGkAtoms::select)) {
         return false;
       }
 
@@ -1792,7 +1792,7 @@ AddOptionsRecurse(nsIContent* aRoot, HTMLOptionsCollection* aArray)
     HTMLOptionElement* opt = HTMLOptionElement::FromContent(cur);
     if (opt) {
       aArray->AppendOption(opt);
-    } else if (cur->IsHTML(nsGkAtoms::optgroup)) {
+    } else if (cur->IsHTMLElement(nsGkAtoms::optgroup)) {
       AddOptionsRecurse(cur, aArray);
     }
   }
@@ -1873,7 +1873,7 @@ VerifyOptionsRecurse(nsIContent* aRoot, int32_t& aIndex,
     if (opt) {
       NS_ASSERTION(opt == aArray->ItemAsOption(aIndex++),
                    "Options collection broken");
-    } else if (cur->IsHTML(nsGkAtoms::optgroup)) {
+    } else if (cur->IsHTMLElement(nsGkAtoms::optgroup)) {
       VerifyOptionsRecurse(cur, aIndex, aArray);
     }
   }

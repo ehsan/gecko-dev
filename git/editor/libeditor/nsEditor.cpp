@@ -3,6 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "nsEditor.h"
+
 #include "mozilla/DebugOnly.h"          // for DebugOnly
 
 #include <stdio.h>                      // for nullptr, stdout
@@ -43,7 +45,6 @@
 #include "nsContentUtils.h"             // for nsContentUtils
 #include "nsDOMString.h"                // for DOMStringIsNull
 #include "nsDebug.h"                    // for NS_ENSURE_TRUE, etc
-#include "nsEditor.h"
 #include "nsEditorEventListener.h"      // for nsEditorEventListener
 #include "nsEditorUtils.h"              // for nsAutoRules, etc
 #include "nsError.h"                    // for NS_OK, etc
@@ -3136,7 +3137,7 @@ nsEditor::CanContain(nsINode& aParent, nsIContent& aChild)
   switch (aParent.NodeType()) {
   case nsIDOMNode::ELEMENT_NODE:
   case nsIDOMNode::DOCUMENT_FRAGMENT_NODE:
-    return TagCanContain(*aParent.Tag(), aChild);
+    return TagCanContain(*aParent.NodeInfo()->NameAtom(), aChild);
   }
   return false;
 }
@@ -3147,7 +3148,7 @@ nsEditor::CanContainTag(nsINode& aParent, nsIAtom& aChildTag)
   switch (aParent.NodeType()) {
   case nsIDOMNode::ELEMENT_NODE:
   case nsIDOMNode::DOCUMENT_FRAGMENT_NODE:
-    return TagCanContainTag(*aParent.Tag(), aChildTag);
+    return TagCanContainTag(*aParent.NodeInfo()->NameAtom(), aChildTag);
   }
   return false;
 }
@@ -3159,7 +3160,7 @@ nsEditor::TagCanContain(nsIAtom& aParentTag, nsIContent& aChild)
   case nsIDOMNode::TEXT_NODE:
   case nsIDOMNode::ELEMENT_NODE:
   case nsIDOMNode::DOCUMENT_FRAGMENT_NODE:
-    return TagCanContainTag(aParentTag, *aChild.Tag());
+    return TagCanContainTag(aParentTag, *aChild.NodeInfo()->NameAtom());
   }
   return false;
 }
@@ -3409,12 +3410,12 @@ nsEditor::GetTag(nsIDOMNode *aNode)
 
   if (!content) 
   {
-    NS_ASSERTION(aNode, "null node passed to nsEditor::Tag()");
+    NS_ASSERTION(aNode, "null node passed to nsEditor::GetTag()");
 
     return nullptr;
   }
   
-  return content->Tag();
+  return content->NodeInfo()->NameAtom();
 }
 
 
@@ -3426,7 +3427,7 @@ nsEditor::GetTagString(nsIDOMNode *aNode, nsAString& outString)
 {
   if (!aNode) 
   {
-    NS_NOTREACHED("null node passed to nsEditor::GetTag()");
+    NS_NOTREACHED("null node passed to nsEditor::GetTagString()");
     return NS_ERROR_NULL_POINTER;
   }
   
@@ -3467,7 +3468,7 @@ nsEditor::AreNodesSameType(nsIContent* aNode1, nsIContent* aNode2)
 {
   MOZ_ASSERT(aNode1);
   MOZ_ASSERT(aNode2);
-  return aNode1->Tag() == aNode2->Tag();
+  return aNode1->NodeInfo()->NameAtom() == aNode2->NodeInfo()->NameAtom();
 }
 
 
@@ -3560,7 +3561,7 @@ nsEditor::GetStartNodeAndOffset(Selection* aSelection, nsINode** aStartNode,
   *aStartNode = nullptr;
   *aStartOffset = 0;
 
-  NS_ENSURE_TRUE(aSelection->GetRangeCount(), NS_ERROR_FAILURE);
+  NS_ENSURE_TRUE(aSelection->RangeCount(), NS_ERROR_FAILURE);
 
   const nsRange* range = aSelection->GetRangeAt(0);
   NS_ENSURE_TRUE(range, NS_ERROR_FAILURE);
@@ -3607,7 +3608,7 @@ nsEditor::GetEndNodeAndOffset(Selection* aSelection, nsINode** aEndNode,
   *aEndNode = nullptr;
   *aEndOffset = 0;
 
-  NS_ENSURE_TRUE(aSelection->GetRangeCount(), NS_ERROR_FAILURE);
+  NS_ENSURE_TRUE(aSelection->RangeCount(), NS_ERROR_FAILURE);
 
   const nsRange* range = aSelection->GetRangeAt(0);
   NS_ENSURE_TRUE(range, NS_ERROR_FAILURE);
@@ -4161,7 +4162,7 @@ nsEditor::CreateTxnForDeleteSelection(EDirection aAction,
   // allocate the out-param transaction
   nsRefPtr<EditAggregateTxn> aggTxn = new EditAggregateTxn();
 
-  for (int32_t rangeIdx = 0; rangeIdx < selection->GetRangeCount(); ++rangeIdx) {
+  for (uint32_t rangeIdx = 0; rangeIdx < selection->RangeCount(); ++rangeIdx) {
     nsRefPtr<nsRange> range = selection->GetRangeAt(rangeIdx);
     NS_ENSURE_STATE(range);
 

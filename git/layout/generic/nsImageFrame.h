@@ -63,6 +63,7 @@ typedef nsSplittableFrame ImageFrameSuper;
 class nsImageFrame : public ImageFrameSuper,
                      public nsIReflowCallback {
 public:
+  typedef mozilla::image::DrawResult DrawResult;
   typedef mozilla::layers::ImageContainer ImageContainer;
   typedef mozilla::layers::ImageLayer ImageLayer;
   typedef mozilla::layers::LayerManager LayerManager;
@@ -214,9 +215,9 @@ protected:
                       const nsString&      aAltText,
                       const nsRect&        aRect);
 
-  void PaintImage(nsRenderingContext& aRenderingContext, nsPoint aPt,
-                  const nsRect& aDirtyRect, imgIContainer* aImage,
-                  uint32_t aFlags);
+  DrawResult PaintImage(nsRenderingContext& aRenderingContext, nsPoint aPt,
+                        const nsRect& aDirtyRect, imgIContainer* aImage,
+                        uint32_t aFlags);
 
 protected:
   friend class nsImageListener;
@@ -335,14 +336,14 @@ private:
     NS_DECL_IMGINOTIFICATIONOBSERVER
 
     void AddIconObserver(nsImageFrame *frame) {
-        NS_ABORT_IF_FALSE(!mIconObservers.Contains(frame),
-                          "Observer shouldn't aleady be in array");
+        MOZ_ASSERT(!mIconObservers.Contains(frame),
+                   "Observer shouldn't aleady be in array");
         mIconObservers.AppendElement(frame);
     }
 
     void RemoveIconObserver(nsImageFrame *frame) {
       mozilla::DebugOnly<bool> didRemove = mIconObservers.RemoveElement(frame);
-      NS_ABORT_IF_FALSE(didRemove, "Observer not in array");
+      MOZ_ASSERT(didRemove, "Observer not in array");
     }
 
   private:
@@ -383,6 +384,8 @@ public:
   virtual ~nsDisplayImage() {
     MOZ_COUNT_DTOR(nsDisplayImage);
   }
+
+  virtual nsDisplayItemGeometry* AllocateGeometry(nsDisplayListBuilder* aBuilder) MOZ_OVERRIDE;
   virtual void ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
                                          const nsDisplayItemGeometry* aGeometry,
                                          nsRegion* aInvalidRegion) MOZ_OVERRIDE;

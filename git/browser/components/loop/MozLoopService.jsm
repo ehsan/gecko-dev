@@ -15,6 +15,20 @@ const LOOP_SESSION_TYPE = {
   FXA: 2,
 };
 
+/***
+ * Buckets that we segment 2-way media connection length telemetry probes
+ * into.
+ *
+ * @type {{SHORTER_THAN_10S: string, BETWEEN_10S_AND_30S: string,
+ *   BETWEEN_30S_AND_5M: string, MORE_THAN_5M: string}}
+ */
+const TWO_WAY_MEDIA_CONN_LENGTH = {
+  SHORTER_THAN_10S: "SHORTER_THAN_10S",
+  BETWEEN_10S_AND_30S: "BETWEEN_10S_AND_30S",
+  BETWEEN_30S_AND_5M: "BETWEEN_30S_AND_5M",
+  MORE_THAN_5M: "MORE_THAN_5M",
+};
+
 // See LOG_LEVELS in Console.jsm. Common examples: "All", "Info", "Warn", & "Error".
 const PREF_LOG_LEVEL = "loop.debug.loglevel";
 
@@ -28,7 +42,7 @@ Cu.import("resource://gre/modules/FxAccountsOAuthClient.jsm");
 
 Cu.importGlobalProperties(["URL"]);
 
-this.EXPORTED_SYMBOLS = ["MozLoopService", "LOOP_SESSION_TYPE"];
+this.EXPORTED_SYMBOLS = ["MozLoopService", "LOOP_SESSION_TYPE", "TWO_WAY_MEDIA_CONN_LENGTH"];
 
 XPCOMUtils.defineLazyModuleGetter(this, "injectLoopAPI",
   "resource:///modules/loop/MozLoopAPI.jsm");
@@ -158,37 +172,6 @@ let MozLoopServiceInternal = {
   },
 
   /**
-   * Gets the current latest expiry time for urls.
-   *
-   * In seconds since epoch.
-   */
-  get expiryTimeSeconds() {
-    try {
-      return Services.prefs.getIntPref("loop.urlsExpiryTimeSeconds");
-    } catch (x) {
-      // It is ok for the pref not to exist.
-      return 0;
-    }
-  },
-
-  /**
-   * Sets the expiry time to either the specified time, or keeps it the same
-   * depending on which is latest.
-   */
-  set expiryTimeSeconds(time) {
-    if (time > this.expiryTimeSeconds) {
-      Services.prefs.setIntPref("loop.urlsExpiryTimeSeconds", time);
-    }
-  },
-
-  /**
-   * Returns true if the expiry time is in the future.
-   */
-  urlExpiryTimeIsInFuture: function() {
-    return this.expiryTimeSeconds * 1000 > Date.now();
-  },
-
-  /**
    * Retrieves MozLoopService Firefox Accounts OAuth token.
    *
    * @return {Object} OAuth token
@@ -260,6 +243,7 @@ let MozLoopServiceInternal = {
    */
   setError: function(errorType, error, actionCallback = null) {
     log.debug("setError", errorType, error);
+    log.trace();
     let messageString, detailsString, detailsButtonLabelString, detailsButtonCallback;
     const NETWORK_ERRORS = [
       Cr.NS_ERROR_CONNECTION_REFUSED,
@@ -300,14 +284,23 @@ let MozLoopServiceInternal = {
     }
 
     error.friendlyMessage = this.localizedStrings.get(messageString);
-    error.friendlyDetails = detailsString ?
-                              this.localizedStrings.get(detailsString) :
-                              null;
+
+    // Default to the generic "retry_button" text even though the button won't be shown if
+    // error.friendlyDetails is null.
     error.friendlyDetailsButtonLabel = detailsButtonLabelString ?
                                          this.localizedStrings.get(detailsButtonLabelString) :
-                                         null;
+                                         this.localizedStrings.get("retry_button");
 
     error.friendlyDetailsButtonCallback = actionCallback || detailsButtonCallback || null;
+
+    if (detailsString) {
+      error.friendlyDetails = this.localizedStrings.get(detailsString);
+    } else if (error.friendlyDetailsButtonCallback) {
+      // If we have a retry callback but no details use the generic try again string.
+      error.friendlyDetails = this.localizedStrings.get("generic_failure_no_reason2");
+    } else {
+      error.friendlyDetails = null;
+    }
 
     gErrors.set(errorType, error);
     this.notifyStatusChanged();
@@ -380,17 +373,20 @@ let MozLoopServiceInternal = {
     let options = this.mocks.webSocket ? { mockWebSocket: this.mocks.webSocket } : {};
     this.pushHandler.initialize(options); // This can be called more than once.
 
-    let callsID = sessionType == LOOP_SESSION_TYPE.GUEST ?
-          MozLoopService.channelIDs.callsGuest :
-          MozLoopService.channelIDs.callsFxA,
-        roomsID = sessionType == LOOP_SESSION_TYPE.GUEST ?
-          MozLoopService.channelIDs.roomsGuest :
-          MozLoopService.channelIDs.roomsFxA;
-
-    let regPromise = this.createNotificationChannel(
-      callsID, sessionType, "calls", LoopCalls.onNotification).then(() => {
-        return this.createNotificationChannel(
-          roomsID, sessionType, "rooms", roomsPushNotification)});
+    let regPromise;
+    if (sessionType == LOOP_SESSION_TYPE.GUEST) {
+      regPromise = this.createNotificationChannel(
+        MozLoopService.channelIDs.roomsGuest, sessionType, "rooms",
+        roomsPushNotification);
+    } else {
+      regPromise = this.createNotificationChannel(
+        MozLoopService.channelIDs.callsFxA, sessionType, "calls",
+        LoopCalls.onNotification).then(() => {
+          return this.createNotificationChannel(
+            MozLoopService.channelIDs.roomsFxA, sessionType, "rooms",
+            roomsPushNotification);
+        });
+    }
 
     log.debug("assigning to deferredRegistrations for sessionType:", sessionType);
     this.deferredRegistrations.set(sessionType, regPromise);
@@ -577,11 +573,8 @@ let MozLoopServiceInternal = {
           this.setError("login", error);
           throw error;
         });
-      } else if (this.urlExpiryTimeIsInFuture()) {
-        // If there are no Guest URLs in the future, don't use setError to notify the user since
-        // there isn't a need for a Guest registration at this time.
-        this.setError("registration", error);
       }
+      this.setError("registration", error);
       throw error;
     };
 
@@ -720,6 +713,11 @@ let MozLoopServiceInternal = {
       let string = enumerator.getNext().QueryInterface(Ci.nsIPropertyElement);
       gLocalizedStrings.set(string.key, string.value);
     }
+    // Supply the strings from the branding bundle on a per-need basis.
+    let brandBundle =
+      Services.strings.createBundle("chrome://branding/locale/brand.properties");
+    // Unfortunately the `brandShortName` string is used by Loop with a lowercase 'N'.
+    gLocalizedStrings.set("brandShortname", brandBundle.GetStringFromName("brandShortName"));
 
     return gLocalizedStrings;
   },
@@ -833,6 +831,7 @@ let MozLoopServiceInternal = {
       }
 
       chatbox.setAttribute("dark", true);
+      chatbox.setAttribute("large", true);
 
       chatbox.addEventListener("DOMContentLoaded", function loaded(event) {
         if (event.target != chatbox.contentDocument) {
@@ -1036,12 +1035,12 @@ let gInitializeTimerFunc = (deferredInitialization) => {
  */
 this.MozLoopService = {
   _DNSService: gDNSService,
+  _activeScreenShares: [],
 
   get channelIDs() {
     // Channel ids that will be registered with the PushServer for notifications
     return {
       callsFxA: "25389583-921f-4169-a426-a4673658944b",
-      callsGuest: "801f754b-686b-43ec-bd83-1419bbf58388",
       roomsFxA: "6add272a-d316-477c-8335-f00f73dfde71",
       roomsGuest: "19d3f799-a8f3-4328-9822-b7cd02765832",
     };
@@ -1065,13 +1064,6 @@ this.MozLoopService = {
     // Do this here, rather than immediately after definition, so that we can
     // stub out API functions for unit testing
     Object.freeze(this);
-
-    // Clear the old throttling mechanism. This code will be removed in bug 1094915,
-    // should be around Fx 39.
-    Services.prefs.clearUserPref("loop.throttled");
-    Services.prefs.clearUserPref("loop.throttled2");
-    Services.prefs.clearUserPref("loop.soft_start_ticket_number");
-    Services.prefs.clearUserPref("loop.soft_start_hostname");
 
     // Don't do anything if loop is not enabled.
     if (!Services.prefs.getBoolPref("loop.enabled")) {
@@ -1114,10 +1106,9 @@ this.MozLoopService = {
 
     LoopRooms.on("joined", this.maybeResumeTourOnRoomJoined.bind(this));
 
-    // If expiresTime is not in the future and the user hasn't
+    // If there's no guest room created and the user hasn't
     // previously authenticated then skip registration.
-    if (!MozLoopServiceInternal.urlExpiryTimeIsInFuture() &&
-        !LoopRooms.getGuestCreatedRoom() &&
+    if (!LoopRooms.getGuestCreatedRoom() &&
         !MozLoopServiceInternal.fxAOAuthTokenData) {
       return Promise.resolve("registration not needed");
     }
@@ -1194,11 +1185,10 @@ this.MozLoopService = {
     });
 
     try {
-      if (MozLoopServiceInternal.urlExpiryTimeIsInFuture() ||
-          LoopRooms.getGuestCreatedRoom()) {
+      if (LoopRooms.getGuestCreatedRoom()) {
         yield this.promiseRegisteredWithServers(LOOP_SESSION_TYPE.GUEST);
       } else {
-        log.debug("delayedInitialize: URL expiry time isn't in the future so not registering as a guest");
+        log.debug("delayedInitialize: Guest Room hasn't been created so not registering as a guest");
       }
     } catch (ex) {
       log.debug("MozLoopService: Failure of guest registration", ex);
@@ -1219,7 +1209,8 @@ this.MozLoopService = {
       deferredInitialization.resolve("initialized to logged-in status");
     }, error => {
       log.debug("MozLoopService: error logging in using cached auth token");
-      MozLoopServiceInternal.setError("login", error);
+      let retryFunc = () => MozLoopServiceInternal.promiseRegisteredWithServers(LOOP_SESSION_TYPE.FXA);
+      MozLoopServiceInternal.setError("login", error, retryFunc);
       deferredInitialization.reject("error logging in using cached auth token");
     });
     yield completedPromise;
@@ -1241,22 +1232,6 @@ this.MozLoopService = {
    */
   promiseRegisteredWithServers: function(sessionType = LOOP_SESSION_TYPE.GUEST) {
     return MozLoopServiceInternal.promiseRegisteredWithServers(sessionType);
-  },
-
-  /**
-   * Used to note a call url expiry time. If the time is later than the current
-   * latest expiry time, then the stored expiry time is increased. For times
-   * sooner, this function is a no-op; this ensures we always have the latest
-   * expiry time for a url.
-   *
-   * This is used to determine whether or not we should be registering with the
-   * push server on start.
-   *
-   * @param {Integer} expiryTimeSeconds The seconds since epoch of the expiry time
-   *                                    of the url.
-   */
-  noteCallUrlExpiry: function(expiryTimeSeconds) {
-    MozLoopServiceInternal.expiryTimeSeconds = expiryTimeSeconds;
   },
 
   /**
@@ -1437,27 +1412,17 @@ this.MozLoopService = {
         MozLoopServiceInternal.clearError("profile");
         return MozLoopServiceInternal.fxAOAuthTokenData;
       });
-    }).then(tokenData => {
-      let client = new FxAccountsProfileClient({
-        serverURL: gFxAOAuthClient.parameters.profile_uri,
-        token: tokenData.access_token
-      });
-      client.fetchProfile().then(result => {
-        MozLoopServiceInternal.fxAOAuthProfile = result;
-      }, error => {
-        log.error("Failed to retrieve profile", error);
-        this.setError("profile", error);
-        MozLoopServiceInternal.fxAOAuthProfile = null;
-        MozLoopServiceInternal.notifyStatusChanged();
-      });
+    }).then(Task.async(function* fetchProfile(tokenData) {
+      yield MozLoopService.fetchFxAProfile(tokenData);
       return tokenData;
-    }).catch(error => {
+    })).catch(error => {
       MozLoopServiceInternal.fxAOAuthTokenData = null;
       MozLoopServiceInternal.fxAOAuthProfile = null;
       MozLoopServiceInternal.deferredRegistrations.delete(LOOP_SESSION_TYPE.FXA);
       throw error;
     }).catch((error) => {
-      MozLoopServiceInternal.setError("login", error);
+      MozLoopServiceInternal.setError("login", error,
+                                      () => MozLoopService.logInToFxA());
       // Re-throw for testing
       throw error;
     });
@@ -1476,7 +1441,7 @@ this.MozLoopService = {
       yield MozLoopServiceInternal.unregisterFromLoopServer(LOOP_SESSION_TYPE.FXA);
     }
     catch (err) {
-      throw err
+      throw err;
     }
     finally {
       MozLoopServiceInternal.clearSessionToken(LOOP_SESSION_TYPE.FXA);
@@ -1500,6 +1465,30 @@ this.MozLoopService = {
       MozLoopServiceInternal.clearError("profile");
     }
   }),
+
+  /**
+   * Fetch/update the FxA Profile for the logged in user.
+   *
+   * @return {Promise} resolving if the profile information was succesfully retrieved
+   *                   rejecting if the profile information couldn't be retrieved.
+   *                   A profile error is registered.
+   **/
+  fetchFxAProfile: function() {
+    log.debug("fetchFxAProfile");
+    let client = new FxAccountsProfileClient({
+      serverURL: gFxAOAuthClient.parameters.profile_uri,
+      token: MozLoopServiceInternal.fxAOAuthTokenData.access_token
+    });
+    return client.fetchProfile().then(result => {
+      MozLoopServiceInternal.fxAOAuthProfile = result;
+      MozLoopServiceInternal.clearError("profile");
+    }, error => {
+      log.error("Failed to retrieve profile", error, this.fetchFxAProfile.bind(this));
+      MozLoopServiceInternal.setError("profile", error);
+      MozLoopServiceInternal.fxAOAuthProfile = null;
+      MozLoopServiceInternal.notifyStatusChanged();
+    });
+  },
 
   openFxASettings: Task.async(function() {
     try {
@@ -1645,5 +1634,33 @@ this.MozLoopService = {
 
   addConversationContext: function(windowId, context) {
     MozLoopServiceInternal.conversationContexts.set(windowId, context);
+  },
+
+  /**
+   * Used to record the screen sharing state for a window so that it can
+   * be reflected on the toolbar button.
+   *
+   * @param {String} windowId The id of the conversation window the state
+   *                          is being changed for.
+   * @param {Boolean} active  Whether or not screen sharing is now active.
+   */
+  setScreenShareState: function(windowId, active) {
+    if (active) {
+      this._activeScreenShares.push(windowId);
+    } else {
+      var index = this._activeScreenShares.indexOf(windowId);
+      if (index != -1) {
+        this._activeScreenShares.splice(index, 1);
+      }
+    }
+
+    MozLoopServiceInternal.notifyStatusChanged();
+  },
+
+  /**
+   * Returns true if screen sharing is active in at least one window.
+   */
+  get screenShareActive() {
+    return this._activeScreenShares.length > 0;
   }
 };

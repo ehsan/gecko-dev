@@ -50,6 +50,14 @@ class gfxTextContextPaint;
 
 #define SMALL_CAPS_SCALE_FACTOR        0.8
 
+// The skew factor used for synthetic-italic [oblique] fonts;
+// we use a platform-dependent value to harmonize with the platform's own APIs.
+#ifdef XP_WIN
+#define OBLIQUE_SKEW_FACTOR  0.3
+#else
+#define OBLIQUE_SKEW_FACTOR  0.25
+#endif
+
 struct gfxTextRunDrawCallbacks;
 
 namespace mozilla {
@@ -304,7 +312,7 @@ public:
 
     // This gets called when the timeout has expired on a zero-refcount
     // font; we just delete it.
-    virtual void NotifyExpired(gfxFont *aFont);
+    virtual void NotifyExpired(gfxFont *aFont) MOZ_OVERRIDE;
 
     // Cleans out the hashtable and removes expired fonts waiting for cleanup.
     // Other gfxFont objects may be still in use but they will be pushed
@@ -628,14 +636,15 @@ public:
 
     gfxFont *GetFont() const { return mFont; }
 
-    // returns true if features exist in output, false otherwise
-    static bool
+    static void
     MergeFontFeatures(const gfxFontStyle *aStyle,
                       const nsTArray<gfxFontFeature>& aFontFeatures,
                       bool aDisableLigatures,
                       const nsAString& aFamilyName,
                       bool aAddSmallCaps,
-                      nsDataHashtable<nsUint32HashKey,uint32_t>& aMergedFeatures);
+                      PLDHashOperator (*aHandleFeature)(const uint32_t&,
+                                                        uint32_t&, void*),
+                      void* aHandleFeatureData);
 
 protected:
     // the font this shaper is working with
@@ -1189,7 +1198,7 @@ public:
         moz_free(p);
     }
 
-    CompressedGlyph *GetCharacterGlyphs() {
+    virtual CompressedGlyph *GetCharacterGlyphs() MOZ_OVERRIDE {
         return &mCharGlyphsStorage[0];
     }
 
@@ -1395,6 +1404,16 @@ public:
     // check whether this is an sfnt we can potentially use with Graphite
     bool FontCanSupportGraphite() {
         return mFontEntry->HasGraphiteTables();
+    }
+
+    // Whether this is a font that may be doing full-color rendering,
+    // and therefore needs us to use a mask for text-shadow even when
+    // we're not actually blurring.
+    bool AlwaysNeedsMaskForShadow() {
+        return mFontEntry->TryGetColorGlyphs() ||
+               mFontEntry->TryGetSVGData(this) ||
+               mFontEntry->HasFontTable(TRUETYPE_TAG('C','B','D','T')) ||
+               mFontEntry->HasFontTable(TRUETYPE_TAG('s','b','i','x'));
     }
 
     // whether a feature is supported by the font (limited to a small set
@@ -1838,6 +1857,8 @@ protected:
         return -1;
     }
 
+    bool IsSpaceGlyphInvisible(gfxContext *aRefContext, gfxTextRun *aTextRun);
+
     void AddGlyphChangeObserver(GlyphChangeObserver *aObserver);
     void RemoveGlyphChangeObserver(GlyphChangeObserver *aObserver);
 
@@ -1873,6 +1894,7 @@ protected:
                           const char16_t *aText,
                           uint32_t         aOffset, // position within aShapedText
                           uint32_t         aLength,
+                          bool             aVertical,
                           gfxShapedText   *aShapedText);
 
     // Shape text directly into a range within a textrun, without using the

@@ -34,7 +34,7 @@ CheckLength(ExclusiveContext *cx, SourceBufferHolder &srcBuf)
     // is using size_t internally already.
     if (srcBuf.length() > UINT32_MAX) {
         if (cx->isJSContext())
-            JS_ReportErrorNumber(cx->asJSContext(), js_GetErrorMessage, nullptr,
+            JS_ReportErrorNumber(cx->asJSContext(), GetErrorMessage, nullptr,
                                  JSMSG_SOURCE_TOO_LONG);
         return false;
     }
@@ -210,6 +210,7 @@ frontend::CreateScriptSourceObject(ExclusiveContext *cx, const ReadOnlyCompileOp
 JSScript *
 frontend::CompileScript(ExclusiveContext *cx, LifoAlloc *alloc, HandleObject scopeChain,
                         HandleScript evalCaller,
+                        Handle<StaticEvalObject *> evalStaticScope,
                         const ReadOnlyCompileOptions &options,
                         SourceBufferHolder &srcBuf,
                         JSString *source_ /* = nullptr */,
@@ -220,14 +221,14 @@ frontend::CompileScript(ExclusiveContext *cx, LifoAlloc *alloc, HandleObject sco
 
     RootedString source(cx, source_);
 
-    js::TraceLogger *logger = nullptr;
+    js::TraceLoggerThread *logger = nullptr;
     if (cx->isJSContext())
         logger = TraceLoggerForMainThread(cx->asJSContext()->runtime());
     else
         logger = TraceLoggerForCurrentThread();
-    uint32_t logId = js::TraceLogCreateTextId(logger, options);
-    js::AutoTraceLog scriptLogger(logger, logId);
-    js::AutoTraceLog typeLogger(logger, TraceLogger::ParserCompileScript);
+    js::TraceLoggerEvent event(logger, TraceLogger_AnnotateScripts, options);
+    js::AutoTraceLog scriptLogger(logger, event);
+    js::AutoTraceLog typeLogger(logger, TraceLogger_ParserCompileScript);
 
     /*
      * The scripted callerFrame can only be given for compile-and-go scripts
@@ -284,7 +285,7 @@ frontend::CompileScript(ExclusiveContext *cx, LifoAlloc *alloc, HandleObject sco
     GlobalSharedContext globalsc(cx, scopeChain, directives, options.extraWarningsOption);
 
     bool savedCallerFun = evalCaller && evalCaller->functionOrCallerFunction();
-    Rooted<JSScript*> script(cx, JSScript::Create(cx, NullPtr(), savedCallerFun,
+    Rooted<JSScript*> script(cx, JSScript::Create(cx, evalStaticScope, savedCallerFun,
                                                   options, staticLevel, sourceObject, 0,
                                                   srcBuf.length()));
     if (!script)
@@ -300,7 +301,7 @@ frontend::CompileScript(ExclusiveContext *cx, LifoAlloc *alloc, HandleObject sco
         options.selfHostingMode ? BytecodeEmitter::SelfHosting : BytecodeEmitter::Normal;
     BytecodeEmitter bce(/* parent = */ nullptr, &parser, &globalsc, script,
                         /* lazyScript = */ js::NullPtr(), options.forEval,
-                        evalCaller, !!globalScope, options.lineno, emitterMode);
+                        evalCaller, evalStaticScope, !!globalScope, options.lineno, emitterMode);
     if (!bce.init())
         return nullptr;
 
@@ -467,16 +468,16 @@ frontend::CompileLazyFunction(JSContext *cx, Handle<LazyScript*> lazy, const cha
 
     CompileOptions options(cx, lazy->version());
     options.setMutedErrors(lazy->mutedErrors())
-           .setFileAndLine(lazy->source()->filename(), lazy->lineno())
+           .setFileAndLine(lazy->filename(), lazy->lineno())
            .setColumn(lazy->column())
            .setCompileAndGo(true)
            .setNoScriptRval(false)
            .setSelfHostingMode(false);
 
-    js::TraceLogger *logger = js::TraceLoggerForMainThread(cx->runtime());
-    uint32_t logId = js::TraceLogCreateTextId(logger, options);
-    js::AutoTraceLog scriptLogger(logger, logId);
-    js::AutoTraceLog typeLogger(logger, TraceLogger::ParserCompileLazy);
+    js::TraceLoggerThread *logger = js::TraceLoggerForMainThread(cx->runtime());
+    js::TraceLoggerEvent event(logger, TraceLogger_AnnotateScripts, options);
+    js::AutoTraceLog scriptLogger(logger, event);
+    js::AutoTraceLog typeLogger(logger, TraceLogger_ParserCompileLazy);
 
     Parser<FullParseHandler> parser(cx, &cx->tempLifoAlloc(), options, chars, length,
                                     /* foldConstants = */ true, nullptr, lazy);
@@ -516,6 +517,7 @@ frontend::CompileLazyFunction(JSContext *cx, Handle<LazyScript*> lazy, const cha
 
     BytecodeEmitter bce(/* parent = */ nullptr, &parser, pn->pn_funbox, script, lazy,
                         options.forEval, /* evalCaller = */ js::NullPtr(),
+                        /* evalStaticScope = */ js::NullPtr(),
                         /* hasGlobalScope = */ true, options.lineno,
                         BytecodeEmitter::LazyFunction);
     if (!bce.init())
@@ -531,10 +533,10 @@ CompileFunctionBody(JSContext *cx, MutableHandleFunction fun, const ReadOnlyComp
                     const AutoNameVector &formals, SourceBufferHolder &srcBuf,
                     HandleObject enclosingScope, GeneratorKind generatorKind)
 {
-    js::TraceLogger *logger = js::TraceLoggerForMainThread(cx->runtime());
-    uint32_t logId = js::TraceLogCreateTextId(logger, options);
-    js::AutoTraceLog scriptLogger(logger, logId);
-    js::AutoTraceLog typeLogger(logger, TraceLogger::ParserCompileFunction);
+    js::TraceLoggerThread *logger = js::TraceLoggerForMainThread(cx->runtime());
+    js::TraceLoggerEvent event(logger, TraceLogger_AnnotateScripts, options);
+    js::AutoTraceLog scriptLogger(logger, event);
+    js::AutoTraceLog typeLogger(logger, TraceLogger_ParserCompileFunction);
 
     // FIXME: make Function pass in two strings and parse them as arguments and
     // ProgramElements respectively.
@@ -648,6 +650,7 @@ CompileFunctionBody(JSContext *cx, MutableHandleFunction fun, const ReadOnlyComp
         BytecodeEmitter funbce(/* parent = */ nullptr, &parser, fn->pn_funbox, script,
                                /* lazyScript = */ js::NullPtr(), /* insideEval = */ false,
                                /* evalCaller = */ js::NullPtr(),
+                               /* evalStaticScope = */ js::NullPtr(),
                                fun->environment() && fun->environment()->is<GlobalObject>(),
                                options.lineno);
         if (!funbce.init())

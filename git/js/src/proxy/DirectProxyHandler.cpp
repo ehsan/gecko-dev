@@ -4,9 +4,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jsproxy.h"
 #include "jswrapper.h" // UncheckedUnwrap
 
+#include "js/Proxy.h"
 #include "vm/ProxyObject.h"
 
 #include "jsobjinlines.h"
@@ -20,7 +20,7 @@ DirectProxyHandler::getPropertyDescriptor(JSContext *cx, HandleObject proxy, Han
     assertEnteredPolicy(cx, proxy, id, GET | SET | GET_PROPERTY_DESCRIPTOR);
     MOZ_ASSERT(!hasPrototype()); // Should never be called if there's a prototype.
     RootedObject target(cx, proxy->as<ProxyObject>().target());
-    return JS_GetPropertyDescriptorById(cx, target, id, desc);
+    return GetPropertyDescriptor(cx, target, id, desc);
 }
 
 bool
@@ -29,25 +29,17 @@ DirectProxyHandler::getOwnPropertyDescriptor(JSContext *cx, HandleObject proxy, 
 {
     assertEnteredPolicy(cx, proxy, id, GET | SET | GET_PROPERTY_DESCRIPTOR);
     RootedObject target(cx, proxy->as<ProxyObject>().target());
-    return js::GetOwnPropertyDescriptor(cx, target, id, desc);
+    return GetOwnPropertyDescriptor(cx, target, id, desc);
 }
 
 bool
 DirectProxyHandler::defineProperty(JSContext *cx, HandleObject proxy, HandleId id,
-                                   MutableHandle<PropertyDescriptor> desc) const
+                                   MutableHandle<PropertyDescriptor> desc,
+                                   ObjectOpResult &result) const
 {
     assertEnteredPolicy(cx, proxy, id, SET);
     RootedObject target(cx, proxy->as<ProxyObject>().target());
-    RootedValue v(cx, desc.value());
-    return CheckDefineProperty(cx, target, id, v, desc.attributes(),
-                               desc.getter(), desc.setter()) &&
-           JS_DefinePropertyById(cx, target, id, v,
-                                 // Descriptors never store JSNatives for
-                                 // accessors: they have either JSFunctions or
-                                 // JSPropertyOps.
-                                 desc.attributes() | JSPROP_PROPOP_ACCESSORS,
-                                 JS_PROPERTYOP_GETTER(desc.getter()),
-                                 JS_PROPERTYOP_SETTER(desc.setter()));
+    return StandardDefineProperty(cx, target, id, desc, result);
 }
 
 bool
@@ -60,11 +52,21 @@ DirectProxyHandler::ownPropertyKeys(JSContext *cx, HandleObject proxy,
 }
 
 bool
-DirectProxyHandler::delete_(JSContext *cx, HandleObject proxy, HandleId id, bool *bp) const
+DirectProxyHandler::delete_(JSContext *cx, HandleObject proxy, HandleId id,
+                            ObjectOpResult &result) const
 {
     assertEnteredPolicy(cx, proxy, id, SET);
     RootedObject target(cx, proxy->as<ProxyObject>().target());
-    return JSObject::deleteGeneric(cx, target, id, bp);
+    return DeleteProperty(cx, target, id, result);
+}
+
+bool
+DirectProxyHandler::enumerate(JSContext *cx, HandleObject proxy, MutableHandleObject objp) const
+{
+    assertEnteredPolicy(cx, proxy, JSID_VOID, ENUMERATE);
+    MOZ_ASSERT(!hasPrototype()); // Should never be called if there's a prototype.
+    RootedObject target(cx, proxy->as<ProxyObject>().target());
+    return GetIterator(cx, target, 0, objp);
 }
 
 bool
@@ -110,38 +112,39 @@ DirectProxyHandler::hasInstance(JSContext *cx, HandleObject proxy, MutableHandle
 }
 
 bool
-DirectProxyHandler::getPrototypeOf(JSContext *cx, HandleObject proxy, MutableHandleObject protop) const
+DirectProxyHandler::getPrototype(JSContext *cx, HandleObject proxy, MutableHandleObject protop) const
 {
     RootedObject target(cx, proxy->as<ProxyObject>().target());
-    return JSObject::getProto(cx, target, protop);
+    return GetPrototype(cx, target, protop);
 }
 
 bool
-DirectProxyHandler::setPrototypeOf(JSContext *cx, HandleObject proxy, HandleObject proto, bool *bp) const
+DirectProxyHandler::setPrototype(JSContext *cx, HandleObject proxy, HandleObject proto,
+                                 ObjectOpResult &result) const
 {
     RootedObject target(cx, proxy->as<ProxyObject>().target());
-    return JSObject::setProto(cx, target, proto, bp);
+    return SetPrototype(cx, target, proto, result);
 }
 
 bool
 DirectProxyHandler::setImmutablePrototype(JSContext *cx, HandleObject proxy, bool *succeeded) const
 {
     RootedObject target(cx, proxy->as<ProxyObject>().target());
-    return JSObject::setImmutablePrototype(cx, target, succeeded);
+    return SetImmutablePrototype(cx, target, succeeded);
 }
 
 bool
-DirectProxyHandler::preventExtensions(JSContext *cx, HandleObject proxy, bool *succeeded) const
+DirectProxyHandler::preventExtensions(JSContext *cx, HandleObject proxy, ObjectOpResult &result) const
 {
     RootedObject target(cx, proxy->as<ProxyObject>().target());
-    return JSObject::preventExtensions(cx, target, succeeded);
+    return PreventExtensions(cx, target, result);
 }
 
 bool
 DirectProxyHandler::isExtensible(JSContext *cx, HandleObject proxy, bool *extensible) const
 {
     RootedObject target(cx, proxy->as<ProxyObject>().target());
-    return JSObject::isExtensible(cx, target, extensible);
+    return IsExtensible(cx, target, extensible);
 }
 
 bool
@@ -157,7 +160,7 @@ DirectProxyHandler::className(JSContext *cx, HandleObject proxy) const
 {
     assertEnteredPolicy(cx, proxy, JSID_VOID, GET);
     RootedObject target(cx, proxy->as<ProxyObject>().target());
-    return JSObject::className(cx, target);
+    return GetObjectClassName(cx, target);
 }
 
 JSString *
@@ -208,11 +211,7 @@ DirectProxyHandler::hasOwn(JSContext *cx, HandleObject proxy, HandleId id, bool 
 {
     assertEnteredPolicy(cx, proxy, id, GET);
     RootedObject target(cx, proxy->as<ProxyObject>().target());
-    Rooted<PropertyDescriptor> desc(cx);
-    if (!JS_GetPropertyDescriptorById(cx, target, id, &desc))
-        return false;
-    *bp = (desc.object() == target);
-    return true;
+    return js::HasOwnProperty(cx, target, id, bp);
 }
 
 bool
@@ -221,16 +220,16 @@ DirectProxyHandler::get(JSContext *cx, HandleObject proxy, HandleObject receiver
 {
     assertEnteredPolicy(cx, proxy, id, GET);
     RootedObject target(cx, proxy->as<ProxyObject>().target());
-    return JSObject::getGeneric(cx, target, receiver, id, vp);
+    return GetProperty(cx, target, receiver, id, vp);
 }
 
 bool
 DirectProxyHandler::set(JSContext *cx, HandleObject proxy, HandleObject receiver,
-                        HandleId id, bool strict, MutableHandleValue vp) const
+                        HandleId id, MutableHandleValue vp, ObjectOpResult &result) const
 {
     assertEnteredPolicy(cx, proxy, id, SET);
     RootedObject target(cx, proxy->as<ProxyObject>().target());
-    return JSObject::setGeneric(cx, target, receiver, id, vp, strict);
+    return SetProperty(cx, target, receiver, id, vp, result);
 }
 
 bool
@@ -240,26 +239,6 @@ DirectProxyHandler::getOwnEnumerablePropertyKeys(JSContext *cx, HandleObject pro
     assertEnteredPolicy(cx, proxy, JSID_VOID, ENUMERATE);
     RootedObject target(cx, proxy->as<ProxyObject>().target());
     return GetPropertyKeys(cx, target, JSITER_OWNONLY, &props);
-}
-
-bool
-DirectProxyHandler::getEnumerablePropertyKeys(JSContext *cx, HandleObject proxy,
-                                              AutoIdVector &props) const
-{
-    assertEnteredPolicy(cx, proxy, JSID_VOID, ENUMERATE);
-    MOZ_ASSERT(!hasPrototype()); // Should never be called if there's a prototype.
-    RootedObject target(cx, proxy->as<ProxyObject>().target());
-    return GetPropertyKeys(cx, target, 0, &props);
-}
-
-bool
-DirectProxyHandler::iterate(JSContext *cx, HandleObject proxy, unsigned flags,
-                            MutableHandleObject objp) const
-{
-    assertEnteredPolicy(cx, proxy, JSID_VOID, ENUMERATE);
-    MOZ_ASSERT(!hasPrototype()); // Should never be called if there's a prototype.
-    RootedObject target(cx, proxy->as<ProxyObject>().target());
-    return GetIterator(cx, target, flags, objp);
 }
 
 bool

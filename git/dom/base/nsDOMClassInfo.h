@@ -285,7 +285,7 @@ public:
 
   NS_IMETHOD HasInstance(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                          JSObject *obj, JS::Handle<JS::Value> val, bool *bp,
-                         bool *_retval);
+                         bool *_retval) MOZ_OVERRIDE;
 
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {
@@ -310,6 +310,31 @@ public:
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {
     return new nsNonDOMObjectSH(aData);
+  }
+};
+
+template<typename Super>
+class nsMessageManagerSH : public Super
+{
+protected:
+  explicit nsMessageManagerSH(nsDOMClassInfoData* aData)
+    : Super(aData)
+  {
+  }
+
+  virtual ~nsMessageManagerSH()
+  {
+  }
+public:
+  NS_IMETHOD Resolve(nsIXPConnectWrappedNative* wrapper, JSContext* cx,
+                     JSObject* obj_, jsid id_, bool* resolvedp,
+                     bool* _retval) MOZ_OVERRIDE;
+  NS_IMETHOD Enumerate(nsIXPConnectWrappedNative* wrapper, JSContext* cx,
+                       JSObject* obj_, bool* _retval) MOZ_OVERRIDE;
+
+  static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
+  {
+    return new nsMessageManagerSH(aData);
   }
 };
 

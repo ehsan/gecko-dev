@@ -6,8 +6,9 @@
 
 #include "BluetoothReplyRunnable.h"
 #include "BluetoothService.h"
-#include "BluetoothUtils.h"
 #include "DOMRequest.h"
+#include "nsIDocument.h"
+#include "nsIPrincipal.h"
 #include "nsTArrayHelpers.h"
 
 #include "mozilla/dom/BluetoothAdapter2Binding.h"
@@ -193,11 +194,15 @@ BluetoothAdapter::BluetoothAdapter(nsPIDOMWindow* aWindow,
   , mState(BluetoothAdapterState::Disabled)
   , mDiscoverable(false)
   , mDiscovering(false)
+  , mPairingReqs(nullptr)
   , mDiscoveryHandleInUse(nullptr)
 {
   MOZ_ASSERT(aWindow);
 
-  mPairingReqs = BluetoothPairingListener::Create(aWindow);
+  // Only allow certified bluetooth application to receive pairing requests
+  if (IsBluetoothCertifiedApp()) {
+    mPairingReqs = BluetoothPairingListener::Create(aWindow);
+  }
 
   const InfallibleTArray<BluetoothNamedValue>& values =
     aValue.get_ArrayOfBluetoothNamedValue();
@@ -275,6 +280,13 @@ BluetoothAdapter::SetPropertyByValue(const BluetoothNamedValue& aValue)
       = value.get_ArrayOfnsString();
 
     for (uint32_t i = 0; i < pairedDeviceAddresses.Length(); i++) {
+      // Check whether or not the address exists in mDevices.
+      if (mDevices.Contains(pairedDeviceAddresses[i])) {
+        // If the paired device exists in mDevices, it would handle
+        // 'PropertyChanged' signal in BluetoothDevice::Notify().
+        continue;
+      }
+
       InfallibleTArray<BluetoothNamedValue> props;
       BT_APPEND_NAMED_VALUE(props, "Address", pairedDeviceAddresses[i]);
       BT_APPEND_NAMED_VALUE(props, "Paired", true);
@@ -283,10 +295,8 @@ BluetoothAdapter::SetPropertyByValue(const BluetoothNamedValue& aValue)
       nsRefPtr<BluetoothDevice> pairedDevice =
         BluetoothDevice::Create(GetOwner(), BluetoothValue(props));
 
-      // Append to adapter's device array if the device hasn't been created
-      if (!mDevices.Contains(pairedDevice)) {
-        mDevices.AppendElement(pairedDevice);
-      }
+      // Append to adapter's device array
+      mDevices.AppendElement(pairedDevice);
     }
 
     // Retrieve device properties, result will be handled by device objects.
@@ -329,8 +339,6 @@ BluetoothAdapter::Notify(const BluetoothSignal& aData)
     if (mDiscoveryHandleInUse) {
       HandleDeviceFound(v);
     }
-  } else if (aData.name().EqualsLiteral("PairingRequest")) {
-    HandlePairingRequest(v);
   } else if (aData.name().EqualsLiteral(DEVICE_PAIRED_ID)) {
     HandleDevicePaired(aData.value());
   } else if (aData.name().EqualsLiteral(DEVICE_UNPAIRED_ID)) {
@@ -356,15 +364,9 @@ BluetoothAdapter::Notify(const BluetoothSignal& aData)
     nsRefPtr<BluetoothStatusChangedEvent> event =
       BluetoothStatusChangedEvent::Constructor(this, aData.name(), init);
     DispatchTrustedEvent(event);
-  } else if (aData.name().EqualsLiteral(REQUEST_MEDIA_PLAYSTATUS_ID)) {
-    nsCOMPtr<nsIDOMEvent> event;
-    nsresult rv = NS_NewDOMEvent(getter_AddRefs(event), this, nullptr, nullptr);
-    NS_ENSURE_SUCCESS_VOID(rv);
-
-    rv = event->InitEvent(aData.name(), false, false);
-    NS_ENSURE_SUCCESS_VOID(rv);
-
-    DispatchTrustedEvent(event);
+  } else if (aData.name().EqualsLiteral(PAIRING_ABORTED_ID) ||
+             aData.name().EqualsLiteral(REQUEST_MEDIA_PLAYSTATUS_ID)) {
+    DispatchEmptyEvent(aData.name());
   } else {
     BT_WARNING("Not handling adapter signal: %s",
                NS_ConvertUTF16toUTF8(aData.name()).get());
@@ -762,6 +764,23 @@ BluetoothAdapter::IsAdapterAttributeChanged(BluetoothAdapterAttribute aType,
   }
 }
 
+bool
+BluetoothAdapter::IsBluetoothCertifiedApp()
+{
+  // Retrieve the app status and origin for permission checking
+  nsCOMPtr<nsIDocument> doc = GetOwner()->GetExtantDoc();
+  NS_ENSURE_TRUE(doc, false);
+
+  uint16_t appStatus = nsIPrincipal::APP_STATUS_NOT_INSTALLED;
+  nsAutoCString appOrigin;
+
+  doc->NodePrincipal()->GetAppStatus(&appStatus);
+  doc->NodePrincipal()->GetOrigin(getter_Copies(appOrigin));
+
+  return appStatus == nsIPrincipal::APP_STATUS_CERTIFIED &&
+         appOrigin.EqualsLiteral(BLUETOOTH_APP_ORIGIN);
+}
+
 void
 BluetoothAdapter::SetAdapterState(BluetoothAdapterState aState)
 {
@@ -832,39 +851,74 @@ BluetoothAdapter::HandleDeviceFound(const BluetoothValue& aValue)
 }
 
 void
-BluetoothAdapter::HandlePairingRequest(const BluetoothValue& aValue)
+BluetoothAdapter::HandleDevicePaired(const BluetoothValue& aValue)
 {
-  MOZ_ASSERT(mPairingReqs);
   MOZ_ASSERT(aValue.type() == BluetoothValue::TArrayOfBluetoothNamedValue);
+
+  if (mState != BluetoothAdapterState::Enabled) {
+    BT_WARNING("HandleDevicePaired() is called when adapter isn't enabled.");
+    return;
+  }
 
   const InfallibleTArray<BluetoothNamedValue>& arr =
     aValue.get_ArrayOfBluetoothNamedValue();
 
   MOZ_ASSERT(arr.Length() == 3 &&
-             arr[0].value().type() == BluetoothValue::TnsString && // address
-             arr[1].value().type() == BluetoothValue::TnsString && // passkey
-             arr[2].value().type() == BluetoothValue::TnsString);  // type
+             arr[0].value().type() == BluetoothValue::TnsString && // Address
+             arr[1].value().type() == BluetoothValue::Tbool &&     // Paired
+             arr[2].value().type() == BluetoothValue::TnsString);  // Name
+  MOZ_ASSERT(!arr[0].value().get_nsString().IsEmpty() &&
+             arr[1].value().get_bool());
 
   nsString deviceAddress = arr[0].value().get_nsString();
-  nsString passkey = arr[1].value().get_nsString();
-  nsString type = arr[2].value().get_nsString();
 
-  // Create a temporary device with deviceAddress for searching
-  InfallibleTArray<BluetoothNamedValue> props;
-  BT_APPEND_NAMED_VALUE(props, "Address", deviceAddress);
-  nsRefPtr<BluetoothDevice> device =
-    BluetoothDevice::Create(GetOwner(), props);
+  nsRefPtr<BluetoothDevice> pairedDevice = nullptr;
 
-  // Find the remote device by address
-  size_t index = mDevices.IndexOf(device);
+  // Check whether or not the address exists in mDevices.
+  size_t index = mDevices.IndexOf(deviceAddress);
   if (index == mDevices.NoIndex) {
-    BT_WARNING("Cannot find the remote device with address %s",
-               NS_ConvertUTF16toUTF8(deviceAddress).get());
+    // Create a new device and append it to adapter's device array
+    pairedDevice = BluetoothDevice::Create(GetOwner(), aValue);
+    mDevices.AppendElement(pairedDevice);
+  } else {
+    // Use existing device
+    pairedDevice = mDevices[index];
+  }
+
+  // Notify application of paired device
+  BluetoothDeviceEventInit init;
+  init.mDevice = pairedDevice;
+  DispatchDeviceEvent(NS_LITERAL_STRING("devicepaired"), init);
+}
+
+void
+BluetoothAdapter::HandleDeviceUnpaired(const BluetoothValue& aValue)
+{
+  MOZ_ASSERT(aValue.type() == BluetoothValue::TArrayOfBluetoothNamedValue);
+
+  if (mState != BluetoothAdapterState::Enabled) {
+    BT_WARNING("HandleDeviceUnpaired() is called when adapter isn't enabled.");
     return;
   }
 
-  // Notify application of pairing requests
-  mPairingReqs->DispatchPairingEvent(mDevices[index], passkey, type);
+  const InfallibleTArray<BluetoothNamedValue>& arr =
+    aValue.get_ArrayOfBluetoothNamedValue();
+
+  MOZ_ASSERT(arr.Length() == 2 &&
+             arr[0].value().type() == BluetoothValue::TnsString && // Address
+             arr[1].value().type() == BluetoothValue::Tbool);      // Paired
+  MOZ_ASSERT(!arr[0].value().get_nsString().IsEmpty() &&
+             !arr[1].value().get_bool());
+
+  nsString deviceAddress = arr[0].value().get_nsString();
+
+  // Remove the device with the same address
+  mDevices.RemoveElement(deviceAddress);
+
+  // Notify application of unpaired device
+  BluetoothDeviceEventInit init;
+  init.mAddress = deviceAddress;
+  DispatchDeviceEvent(NS_LITERAL_STRING("deviceunpaired"), init);
 }
 
 void
@@ -892,63 +946,6 @@ BluetoothAdapter::DispatchAttributeEvent(const nsTArray<nsString>& aTypes)
 }
 
 void
-BluetoothAdapter::HandleDevicePaired(const BluetoothValue& aValue)
-{
-  MOZ_ASSERT(aValue.type() == BluetoothValue::TArrayOfBluetoothNamedValue);
-
-  if (mState != BluetoothAdapterState::Enabled) {
-    BT_WARNING("HandleDevicePaired() is called when adapter isn't enabled.");
-    return;
-  }
-
-  // Create paired device with 'address' and 'paired' attributes
-  nsRefPtr<BluetoothDevice> pairedDevice =
-    BluetoothDevice::Create(GetOwner(), aValue);
-
-  size_t index = mDevices.IndexOf(pairedDevice);
-  if (index == mDevices.NoIndex) {
-    mDevices.AppendElement(pairedDevice);
-  } else {
-    pairedDevice = mDevices[index];
-  }
-
-  // Notify application of paired device
-  BluetoothDeviceEventInit init;
-  init.mDevice = pairedDevice;
-  DispatchDeviceEvent(NS_LITERAL_STRING("devicepaired"), init);
-}
-
-void
-BluetoothAdapter::HandleDeviceUnpaired(const BluetoothValue& aValue)
-{
-  MOZ_ASSERT(aValue.type() == BluetoothValue::TArrayOfBluetoothNamedValue);
-
-  if (mState != BluetoothAdapterState::Enabled) {
-    BT_WARNING("HandleDeviceUnpaired() is called when adapter isn't enabled.");
-    return;
-  }
-
-  // Create unpaired device with 'address' and 'paired' attributes
-  nsRefPtr<BluetoothDevice> unpairedDevice =
-    BluetoothDevice::Create(GetOwner(), aValue);
-
-  size_t index = mDevices.IndexOf(unpairedDevice);
-
-  nsString deviceAddress;
-  if (index == mDevices.NoIndex) {
-    unpairedDevice->GetAddress(deviceAddress);
-  } else {
-    mDevices[index]->GetAddress(deviceAddress);
-    mDevices.RemoveElementAt(index);
-  }
-
-  // Notify application of unpaired device
-  BluetoothDeviceEventInit init;
-  init.mAddress = deviceAddress;
-  DispatchDeviceEvent(NS_LITERAL_STRING("deviceunpaired"), init);
-}
-
-void
 BluetoothAdapter::DispatchDeviceEvent(const nsAString& aType,
                                       const BluetoothDeviceEventInit& aInit)
 {
@@ -956,6 +953,19 @@ BluetoothAdapter::DispatchDeviceEvent(const nsAString& aType,
 
   nsRefPtr<BluetoothDeviceEvent> event =
     BluetoothDeviceEvent::Constructor(this, aType, aInit);
+  DispatchTrustedEvent(event);
+}
+
+void
+BluetoothAdapter::DispatchEmptyEvent(const nsAString& aType)
+{
+  nsCOMPtr<nsIDOMEvent> event;
+  nsresult rv = NS_NewDOMEvent(getter_AddRefs(event), this, nullptr, nullptr);
+  NS_ENSURE_SUCCESS_VOID(rv);
+
+  rv = event->InitEvent(aType, false, false);
+  NS_ENSURE_SUCCESS_VOID(rv);
+
   DispatchTrustedEvent(event);
 }
 

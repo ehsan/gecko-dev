@@ -40,7 +40,7 @@ function generateHash(aString) {
   stringStream.data = aString;
   cryptoHash.updateFromStream(stringStream, -1);
   // base64 allows the '/' char, but we can't use it for filenames.
-  return cryptoHash.finish(true).replace("/", "-", "g");
+  return cryptoHash.finish(true).replace(/\//g, "-");
 }
 
 this.BookmarkJSONUtils = Object.freeze({
@@ -211,7 +211,14 @@ BookmarkImporter.prototype = {
     };
 
     try {
-      let channel = Services.io.newChannelFromURI(NetUtil.newURI(aSpec));
+      var uri = NetUtil.newURI(aSpec);
+      let principal = Services.scriptSecurityManager.getNoAppCodebasePrincipal(uri);
+      let channel = Services.io.newChannelFromURI2(uri,
+                                                   null,      // aLoadingNode
+                                                   principal,
+                                                   null,      // aTriggeringPrincipal
+                                                   Ci.nsILoadInfo.SEC_NORMAL,
+                                                   Ci.nsIContentPolicy.TYPE_DATAREQUEST);
       let streamLoader = Cc["@mozilla.org/network/stream-loader;1"].
                          createInstance(Ci.nsIStreamLoader);
 

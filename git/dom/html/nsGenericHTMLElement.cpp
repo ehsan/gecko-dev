@@ -177,7 +177,7 @@ class nsGenericHTMLElementTearoff : public nsIDOMElementCSSInlineStyle
   {
   }
 
-  NS_IMETHOD GetStyle(nsIDOMCSSStyleDeclaration** aStyle)
+  NS_IMETHOD GetStyle(nsIDOMCSSStyleDeclaration** aStyle) MOZ_OVERRIDE
   {
     NS_ADDREF(*aStyle = mElement->Style());
     return NS_OK;
@@ -316,8 +316,9 @@ IsOffsetParent(nsIFrame* aFrame)
     // with display: table-cell with no actual table
     nsIContent* content = aFrame->GetContent();
 
-    return content->IsHTML(nsGkAtoms::table) || content->IsHTML(nsGkAtoms::td)
-      || content->IsHTML(nsGkAtoms::th);
+    return content->IsAnyOfHTMLElements(nsGkAtoms::table,
+                                        nsGkAtoms::td,
+                                        nsGkAtoms::th);
   }
   return false;
 }
@@ -345,7 +346,8 @@ nsGenericHTMLElement::GetOffsetRect(CSSIntRect& aRect)
   Element* docElement = GetComposedDoc()->GetRootElement();
   nsIContent* content = frame->GetContent();
 
-  if (content && (content->IsHTML(nsGkAtoms::body) || content == docElement)) {
+  if (content && (content->IsHTMLElement(nsGkAtoms::body) ||
+                  content == docElement)) {
     parent = frame;
   }
   else {
@@ -377,7 +379,7 @@ nsGenericHTMLElement::GetOffsetRect(CSSIntRect& aRect)
 
         // Break if the ancestor frame type makes it suitable as offset parent
         // and this element is *not* positioned or if we found the body element.
-        if (isOffsetParent || content->IsHTML(nsGkAtoms::body)) {
+        if (isOffsetParent || content->IsHTMLElement(nsGkAtoms::body)) {
           offsetParent = content;
           break;
         }
@@ -437,7 +439,7 @@ nsGenericHTMLElement::Spellcheck()
   // Has the state has been explicitly set?
   nsIContent* node;
   for (node = this; node; node = node->GetParent()) {
-    if (node->IsHTML()) {
+    if (node->IsHTMLElement()) {
       static nsIContent::AttrValuesArray strings[] =
         {&nsGkAtoms::_true, &nsGkAtoms::_false, nullptr};
       switch (node->FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::spellcheck,
@@ -589,7 +591,7 @@ HTMLFormElement*
 nsGenericHTMLElement::FindAncestorForm(HTMLFormElement* aCurrentForm)
 {
   NS_ASSERTION(!HasAttr(kNameSpaceID_None, nsGkAtoms::form) ||
-               IsHTML(nsGkAtoms::img),
+               IsHTMLElement(nsGkAtoms::img),
                "FindAncestorForm should not be called if @form is set!");
 
   // Make sure we don't end up finding a form that's anonymous from
@@ -599,7 +601,7 @@ nsGenericHTMLElement::FindAncestorForm(HTMLFormElement* aCurrentForm)
   nsIContent* content = this;
   while (content != bindingParent && content) {
     // If the current ancestor is a form, return it as our form
-    if (content->IsHTML(nsGkAtoms::form)) {
+    if (content->IsHTMLElement(nsGkAtoms::form)) {
 #ifdef DEBUG
       if (!nsContentUtils::IsInSameAnonymousTree(this, content)) {
         // It's possible that we started unbinding at |content| or
@@ -655,7 +657,8 @@ nsGenericHTMLElement::CheckHandleEventForAnchorsPreconditions(
   nsCOMPtr<nsIContent> target = aVisitor.mPresContext->EventStateManager()->
     GetEventTargetContent(aVisitor.mEvent);
 
-  return !target || !target->IsHTML(nsGkAtoms::area) || IsHTML(nsGkAtoms::area);
+  return !target || !target->IsHTMLElement(nsGkAtoms::area) ||
+         IsHTMLElement(nsGkAtoms::area);
 }
 
 nsresult
@@ -712,8 +715,8 @@ nsGenericHTMLElement::AfterSetAttr(int32_t aNamespaceID, nsIAtom* aName,
 {
   if (aNamespaceID == kNameSpaceID_None) {
     if (IsEventAttributeName(aName) && aValue) {
-      NS_ABORT_IF_FALSE(aValue->Type() == nsAttrValue::eString,
-        "Expected string value for script body");
+      MOZ_ASSERT(aValue->Type() == nsAttrValue::eString,
+                 "Expected string value for script body");
       nsresult rv = SetEventHandler(aName, aValue->GetStringValue());
       NS_ENSURE_SUCCESS(rv, rv);
     }
@@ -799,7 +802,7 @@ nsGenericHTMLElement::GetEventListenerManagerForAttr(nsIAtom* aAttrName,
 EventHandlerNonNull*                                                          \
 nsGenericHTMLElement::GetOn##name_()                                          \
 {                                                                             \
-  if (Tag() == nsGkAtoms::body || Tag() == nsGkAtoms::frameset) {             \
+  if (IsAnyOfHTMLElements(nsGkAtoms::body, nsGkAtoms::frameset)) {            \
     /* XXXbz note to self: add tests for this! */                             \
     nsPIDOMWindow* win = OwnerDoc()->GetInnerWindow();                        \
     if (win) {                                                                \
@@ -815,7 +818,7 @@ nsGenericHTMLElement::GetOn##name_()                                          \
 void                                                                          \
 nsGenericHTMLElement::SetOn##name_(EventHandlerNonNull* handler)              \
 {                                                                             \
-  if (Tag() == nsGkAtoms::body || Tag() == nsGkAtoms::frameset) {             \
+  if (IsAnyOfHTMLElements(nsGkAtoms::body, nsGkAtoms::frameset)) {            \
     nsPIDOMWindow* win = OwnerDoc()->GetInnerWindow();                        \
     if (!win) {                                                               \
       return;                                                                 \
@@ -832,7 +835,7 @@ nsGenericHTMLElement::SetOn##name_(EventHandlerNonNull* handler)              \
 already_AddRefed<EventHandlerNonNull>                                         \
 nsGenericHTMLElement::GetOn##name_()                                          \
 {                                                                             \
-  if (Tag() == nsGkAtoms::body || Tag() == nsGkAtoms::frameset) {             \
+  if (IsAnyOfHTMLElements(nsGkAtoms::body, nsGkAtoms::frameset)) {            \
     /* XXXbz note to self: add tests for this! */                             \
     nsPIDOMWindow* win = OwnerDoc()->GetInnerWindow();                        \
     if (win) {                                                                \
@@ -854,7 +857,7 @@ nsGenericHTMLElement::GetOn##name_()                                          \
 void                                                                          \
 nsGenericHTMLElement::SetOn##name_(EventHandlerNonNull* handler)              \
 {                                                                             \
-  if (Tag() == nsGkAtoms::body || Tag() == nsGkAtoms::frameset) {             \
+  if (IsAnyOfHTMLElements(nsGkAtoms::body, nsGkAtoms::frameset)) {            \
     nsPIDOMWindow* win = OwnerDoc()->GetInnerWindow();                        \
     if (!win) {                                                               \
       return;                                                                 \
@@ -1002,7 +1005,7 @@ nsGenericHTMLElement::ParseAttribute(int32_t aNamespaceID,
 
       aResult.ParseAtom(aValue);
 
-      if (CanHaveName(Tag())) {
+      if (CanHaveName(NodeInfo()->NameAtom())) {
         SetHasName();
         AddToNameTable(aResult.GetAtomValue());
       }
@@ -1444,10 +1447,10 @@ nsGenericHTMLElement::MapImageMarginAttributeInto(const nsMappedAttributes* aAtt
       hval.SetPercentValue(value->GetPercentValue());
 
     if (hval.GetUnit() != eCSSUnit_Null) {
-      nsCSSValue* left = aData->ValueForMarginLeftValue();
+      nsCSSValue* left = aData->ValueForMarginLeft();
       if (left->GetUnit() == eCSSUnit_Null)
         *left = hval;
-      nsCSSValue* right = aData->ValueForMarginRightValue();
+      nsCSSValue* right = aData->ValueForMarginRight();
       if (right->GetUnit() == eCSSUnit_Null)
         *right = hval;
     }
@@ -1517,39 +1520,39 @@ nsGenericHTMLElement::MapImageBorderAttributeInto(const nsMappedAttributes* aAtt
   if (value->Type() == nsAttrValue::eInteger)
     val = value->GetIntegerValue();
 
-  nsCSSValue* borderLeftWidth = aData->ValueForBorderLeftWidthValue();
+  nsCSSValue* borderLeftWidth = aData->ValueForBorderLeftWidth();
   if (borderLeftWidth->GetUnit() == eCSSUnit_Null)
     borderLeftWidth->SetFloatValue((float)val, eCSSUnit_Pixel);
   nsCSSValue* borderTopWidth = aData->ValueForBorderTopWidth();
   if (borderTopWidth->GetUnit() == eCSSUnit_Null)
     borderTopWidth->SetFloatValue((float)val, eCSSUnit_Pixel);
-  nsCSSValue* borderRightWidth = aData->ValueForBorderRightWidthValue();
+  nsCSSValue* borderRightWidth = aData->ValueForBorderRightWidth();
   if (borderRightWidth->GetUnit() == eCSSUnit_Null)
     borderRightWidth->SetFloatValue((float)val, eCSSUnit_Pixel);
   nsCSSValue* borderBottomWidth = aData->ValueForBorderBottomWidth();
   if (borderBottomWidth->GetUnit() == eCSSUnit_Null)
     borderBottomWidth->SetFloatValue((float)val, eCSSUnit_Pixel);
 
-  nsCSSValue* borderLeftStyle = aData->ValueForBorderLeftStyleValue();
+  nsCSSValue* borderLeftStyle = aData->ValueForBorderLeftStyle();
   if (borderLeftStyle->GetUnit() == eCSSUnit_Null)
     borderLeftStyle->SetIntValue(NS_STYLE_BORDER_STYLE_SOLID, eCSSUnit_Enumerated);
   nsCSSValue* borderTopStyle = aData->ValueForBorderTopStyle();
   if (borderTopStyle->GetUnit() == eCSSUnit_Null)
     borderTopStyle->SetIntValue(NS_STYLE_BORDER_STYLE_SOLID, eCSSUnit_Enumerated);
-  nsCSSValue* borderRightStyle = aData->ValueForBorderRightStyleValue();
+  nsCSSValue* borderRightStyle = aData->ValueForBorderRightStyle();
   if (borderRightStyle->GetUnit() == eCSSUnit_Null)
     borderRightStyle->SetIntValue(NS_STYLE_BORDER_STYLE_SOLID, eCSSUnit_Enumerated);
   nsCSSValue* borderBottomStyle = aData->ValueForBorderBottomStyle();
   if (borderBottomStyle->GetUnit() == eCSSUnit_Null)
     borderBottomStyle->SetIntValue(NS_STYLE_BORDER_STYLE_SOLID, eCSSUnit_Enumerated);
 
-  nsCSSValue* borderLeftColor = aData->ValueForBorderLeftColorValue();
+  nsCSSValue* borderLeftColor = aData->ValueForBorderLeftColor();
   if (borderLeftColor->GetUnit() == eCSSUnit_Null)
     borderLeftColor->SetIntValue(NS_STYLE_COLOR_MOZ_USE_TEXT_COLOR, eCSSUnit_Enumerated);
   nsCSSValue* borderTopColor = aData->ValueForBorderTopColor();
   if (borderTopColor->GetUnit() == eCSSUnit_Null)
     borderTopColor->SetIntValue(NS_STYLE_COLOR_MOZ_USE_TEXT_COLOR, eCSSUnit_Enumerated);
-  nsCSSValue* borderRightColor = aData->ValueForBorderRightColorValue();
+  nsCSSValue* borderRightColor = aData->ValueForBorderRightColor();
   if (borderRightColor->GetUnit() == eCSSUnit_Null)
     borderRightColor->SetIntValue(NS_STYLE_COLOR_MOZ_USE_TEXT_COLOR, eCSSUnit_Enumerated);
   nsCSSValue* borderBottomColor = aData->ValueForBorderBottomColor();
@@ -1787,8 +1790,15 @@ nsGenericHTMLElement::GetContextMenu(nsIDOMHTMLMenuElement** aContextMenu)
 bool
 nsGenericHTMLElement::IsLabelable() const
 {
-  return Tag() == nsGkAtoms::progress ||
-         Tag() == nsGkAtoms::meter;
+  return IsAnyOfHTMLElements(nsGkAtoms::progress, nsGkAtoms::meter);
+}
+
+bool
+nsGenericHTMLElement::IsInteractiveHTMLContent() const
+{
+  return IsAnyOfHTMLElements(nsGkAtoms::details, nsGkAtoms::embed,
+                             nsGkAtoms::keygen) ||
+         HasAttr(kNameSpaceID_None, nsGkAtoms::tabindex);
 }
 
 already_AddRefed<UndoManager>
@@ -2143,8 +2153,8 @@ nsGenericHTMLFormElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
 
     if (mForm && (aName == nsGkAtoms::name || aName == nsGkAtoms::id) &&
         aValue && !aValue->IsEmptyString()) {
-      NS_ABORT_IF_FALSE(aValue->Type() == nsAttrValue::eAtom,
-        "Expected atom value for name/id");
+      MOZ_ASSERT(aValue->Type() == nsAttrValue::eAtom,
+                 "Expected atom value for name/id");
       mForm->AddElementToTable(this,
         nsDependentAtomString(aValue->GetAtomValue()));
     }
@@ -2394,7 +2404,7 @@ nsGenericHTMLFormElement::FormIdUpdated(Element* aOldElement,
   nsGenericHTMLFormElement* element =
     static_cast<nsGenericHTMLFormElement*>(aData);
 
-  NS_ASSERTION(element->IsHTML(), "aData should be an HTML element");
+  NS_ASSERTION(element->IsHTMLElement(), "aData should be an HTML element");
 
   element->UpdateFormOwner(false, aNewElement);
 
@@ -2450,7 +2460,7 @@ nsGenericHTMLFormElement::UpdateFormOwner(bool aBindToTree,
                      "element should be equals to the current element "
                      "associated with the id in @form!");
 
-        if (element && element->IsHTML(nsGkAtoms::form)) {
+        if (element && element->IsHTMLElement(nsGkAtoms::form)) {
           mForm = static_cast<HTMLFormElement*>(element);
         }
       }
@@ -2754,7 +2764,7 @@ nsGenericHTMLElement::IsCurrentBodyElement()
 {
   // TODO Bug 698498: Should this handle the case where GetBody returns a
   //                  frameset?
-  if (!IsHTML(nsGkAtoms::body)) {
+  if (!IsHTMLElement(nsGkAtoms::body)) {
     return false;
   }
 
@@ -3025,7 +3035,7 @@ nsGenericHTMLElement::GetItemValue(JSContext* aCx, JSObject* aScope,
     return;
   }
 
-  nsString string;
+  DOMString string;
   GetItemValueText(string);
   if (!xpc::NonVoidStringToJsval(aCx, string, aRetval)) {
     aError.Throw(NS_ERROR_FAILURE);
@@ -3046,9 +3056,11 @@ nsGenericHTMLElement::GetItemValue(nsIVariant** aValue)
   if (ItemScope()) {
     out->SetAsISupports(static_cast<nsIContent*>(this));
   } else {
-    nsAutoString string;
+    DOMString string;
     GetItemValueText(string);
-    out->SetAsAString(string);
+    nsString xpcomString;
+    string.ToString(xpcomString);
+    out->SetAsAString(xpcomString);
   }
 
   out.forget(aValue);
@@ -3089,7 +3101,7 @@ nsGenericHTMLElement::SetItemValue(nsIVariant* aValue)
 }
 
 void
-nsGenericHTMLElement::GetItemValueText(nsAString& text)
+nsGenericHTMLElement::GetItemValueText(DOMString& text)
 {
   ErrorResult rv;
   GetTextContentInternal(text, rv);

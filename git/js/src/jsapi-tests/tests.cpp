@@ -21,7 +21,8 @@ bool JSAPITest::init()
     if (!cx)
         return false;
     JS_BeginRequest(cx);
-    JS::RootedObject global(cx, createGlobal());
+    global.init(rt);
+    createGlobal();
     if (!global)
         return false;
     JS_EnterCompartment(cx, global);
@@ -36,7 +37,6 @@ void JSAPITest::uninit()
     }
     if (global) {
         JS_LeaveCompartment(cx, nullptr);
-        JS::RemoveObjectRoot(cx, &global);
         global = nullptr;
     }
     if (cx) {
@@ -53,7 +53,6 @@ void JSAPITest::uninit()
 bool JSAPITest::exec(const char *bytes, const char *filename, int lineno)
 {
     JS::RootedValue v(cx);
-    JS::HandleObject global = JS::HandleObject::fromMarkedLocation(this->global.unsafeGet());
     JS::CompileOptions opts(cx);
     opts.setFileAndLine(filename, lineno);
     return JS::Evaluate(cx, global, opts, bytes, strlen(bytes), &v) ||
@@ -63,7 +62,6 @@ bool JSAPITest::exec(const char *bytes, const char *filename, int lineno)
 bool JSAPITest::evaluate(const char *bytes, const char *filename, int lineno,
                          JS::MutableHandleValue vp)
 {
-    JS::HandleObject global = JS::HandleObject::fromMarkedLocation(this->global.unsafeGet());
     JS::CompileOptions opts(cx);
     opts.setFileAndLine(filename, lineno);
     return JS::Evaluate(cx, global, opts, bytes, strlen(bytes), vp) ||
@@ -72,30 +70,29 @@ bool JSAPITest::evaluate(const char *bytes, const char *filename, int lineno,
 
 bool JSAPITest::definePrint()
 {
-    JS::HandleObject global = JS::HandleObject::fromMarkedLocation(this->global.unsafeGet());
     return JS_DefineFunction(cx, global, "print", (JSNative) print, 0, 0);
 }
 
 JSObject * JSAPITest::createGlobal(JSPrincipals *principals)
 {
     /* Create the global object. */
+    JS::RootedObject newGlobal(cx);
     JS::CompartmentOptions options;
     options.setVersion(JSVERSION_LATEST);
-    global = JS_NewGlobalObject(cx, getGlobalClass(), principals, JS::FireOnNewGlobalHook, options);
-    if (!global)
+    newGlobal = JS_NewGlobalObject(cx, getGlobalClass(), principals, JS::FireOnNewGlobalHook,
+                                   options);
+    if (!newGlobal)
         return nullptr;
-    JS::AddNamedObjectRoot(cx, &global, "test-global");
-    JS::HandleObject globalHandle = JS::HandleObject::fromMarkedLocation(global.unsafeGet());
-    JSAutoCompartment ac(cx, globalHandle);
+
+    JSAutoCompartment ac(cx, newGlobal);
 
     /* Populate the global object with the standard globals, like Object and
        Array. */
-    if (!JS_InitStandardClasses(cx, globalHandle)) {
-        global = nullptr;
-        JS::RemoveObjectRoot(cx, &global);
-    }
+    if (!JS_InitStandardClasses(cx, newGlobal))
+        return nullptr;
 
-    return global;
+    global = newGlobal;
+    return newGlobal;
 }
 
 int main(int argc, char *argv[])
@@ -124,8 +121,7 @@ int main(int argc, char *argv[])
             continue;
         }
 
-        JS::HandleObject global = JS::HandleObject::fromMarkedLocation(test->global.unsafeGet());
-        if (test->run(global)) {
+        if (test->run(test->global)) {
             printf("TEST-PASS | %s | ok\n", name);
         } else {
             JSAPITestString messages = test->messages();

@@ -27,6 +27,7 @@ struct SelectionDetails;
 
 namespace mozilla {
 class ErrorResult;
+struct AutoPrepareFocusRange;
 }
 
 struct RangeData
@@ -114,7 +115,6 @@ public:
   nsresult      Collapse(nsINode* aParentNode, int32_t aOffset);
   nsresult      Extend(nsINode* aParentNode, int32_t aOffset);
   nsRange*      GetRangeAt(int32_t aIndex);
-  int32_t GetRangeCount() { return mRanges.Length(); }
 
   // Get the anchor-to-focus range if we don't care which end is
   // anchor and which end is focus.
@@ -226,7 +226,7 @@ public:
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
   };
 private:
-
+  friend struct mozilla::AutoPrepareFocusRange;
   class ScrollSelectionIntoViewEvent;
   friend class ScrollSelectionIntoViewEvent;
 
@@ -311,6 +311,28 @@ private:
    * It determines whether we exclude -moz-user-select:none nodes or not.
    */
   bool mApplyUserSelectStyle;
+};
+
+// Stack-class to turn on/off selection batching.
+class MOZ_STACK_CLASS SelectionBatcher MOZ_FINAL
+{
+private:
+  nsRefPtr<Selection> mSelection;
+public:
+  explicit SelectionBatcher(Selection* aSelection)
+  {
+    mSelection = aSelection;
+    if (mSelection) {
+      mSelection->StartBatchChanges();
+    }
+  }
+
+  ~SelectionBatcher()
+  {
+    if (mSelection) {
+      mSelection->EndBatchChanges();
+    }
+  }
 };
 
 } // namespace dom

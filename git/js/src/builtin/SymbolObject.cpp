@@ -7,11 +7,11 @@
 #include "builtin/SymbolObject.h"
 
 #include "vm/StringBuffer.h"
+#include "vm/Symbol.h"
 
 #include "jsobjinlines.h"
 
 #include "vm/NativeObject-inl.h"
-#include "vm/Symbol-inl.h"
 
 using JS::Symbol;
 using namespace js;
@@ -19,17 +19,17 @@ using namespace js;
 const Class SymbolObject::class_ = {
     "Symbol",
     JSCLASS_HAS_RESERVED_SLOTS(RESERVED_SLOTS) | JSCLASS_HAS_CACHED_PROTO(JSProto_Symbol),
-    JS_PropertyStub,         /* addProperty */
-    JS_DeletePropertyStub,   /* delProperty */
-    JS_PropertyStub,         /* getProperty */
-    JS_StrictPropertyStub,   /* setProperty */
-    JS_EnumerateStub,
-    JS_ResolveStub,
+    nullptr, /* addProperty */
+    nullptr, /* delProperty */
+    nullptr, /* getProperty */
+    nullptr, /* setProperty */
+    nullptr, /* enumerate */
+    nullptr, /* resolve */
     convert
 };
 
 SymbolObject *
-SymbolObject::create(JSContext *cx, JS::Symbol *symbol)
+SymbolObject::create(JSContext *cx, JS::HandleSymbol symbol)
 {
     JSObject *obj = NewBuiltinClassInstance(cx, &class_);
     if (!obj)
@@ -63,7 +63,7 @@ SymbolObject::initClass(JSContext *cx, HandleObject obj)
     // This uses &JSObject::class_ because: "The Symbol prototype object is an
     // ordinary object. It is not a Symbol instance and does not have a
     // [[SymbolData]] internal slot." (ES6 rev 24, 19.4.3)
-    RootedObject proto(cx, global->createBlankPrototype(cx, &JSObject::class_));
+    RootedObject proto(cx, global->createBlankPrototype<PlainObject>(cx));
     if (!proto)
         return nullptr;
 
@@ -79,7 +79,7 @@ SymbolObject::initClass(JSContext *cx, HandleObject obj)
     WellKnownSymbols *wks = cx->runtime()->wellKnownSymbols;
     for (size_t i = 0; i < JS::WellKnownSymbolLimit; i++) {
         value.setSymbol(wks->get(i));
-        if (!DefineNativeProperty(cx, ctor, names[i], value, nullptr, nullptr, attrs))
+        if (!NativeDefineProperty(cx, ctor, names[i], value, nullptr, nullptr, attrs))
             return nullptr;
     }
 
@@ -103,7 +103,7 @@ SymbolObject::construct(JSContext *cx, unsigned argc, Value *vp)
     // yet, so just throw a TypeError.
     CallArgs args = CallArgsFromVp(argc, vp);
     if (args.isConstructing()) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_NOT_CONSTRUCTOR, "Symbol");
+        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_NOT_CONSTRUCTOR, "Symbol");
         return false;
     }
 
@@ -159,8 +159,8 @@ SymbolObject::keyFor(JSContext *cx, unsigned argc, Value *vp)
     // step 1
     HandleValue arg = args.get(0);
     if (!arg.isSymbol()) {
-        js_ReportValueErrorFlags(cx, JSREPORT_ERROR, JSMSG_UNEXPECTED_TYPE, JSDVG_SEARCH_STACK,
-                                 arg, js::NullPtr(), "not a symbol", nullptr);
+        ReportValueErrorFlags(cx, JSREPORT_ERROR, JSMSG_UNEXPECTED_TYPE, JSDVG_SEARCH_STACK,
+                              arg, js::NullPtr(), "not a symbol", nullptr);
         return false;
     }
 
@@ -230,7 +230,7 @@ SymbolObject::valueOf(JSContext *cx, unsigned argc, Value *vp)
 }
 
 JSObject *
-js_InitSymbolClass(JSContext *cx, HandleObject obj)
+js::InitSymbolClass(JSContext *cx, HandleObject obj)
 {
     return SymbolObject::initClass(cx, obj);
 }

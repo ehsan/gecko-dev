@@ -13,7 +13,7 @@
 #include "mozilla/ipc/SharedMemory.h"   // for SharedMemory, etc
 #include "mozilla/layers/AsyncTransactionTracker.h" // for AsyncTransactionTrackerHolder
 #include "mozilla/layers/CompositableForwarder.h"
-#include "mozilla/layers/CompositorTypes.h"  // for TextureIdentifier, etc
+#include "mozilla/layers/CompositorTypes.h"
 #include "mozilla/layers/PImageBridgeChild.h"
 #include "nsDebug.h"                    // for NS_RUNTIMEABORT
 #include "nsRegion.h"                   // for nsIntRegion
@@ -189,7 +189,7 @@ public:
   DeallocPTextureChild(PTextureChild* actor) MOZ_OVERRIDE;
 
   virtual bool
-  RecvParentAsyncMessages(const InfallibleTArray<AsyncParentMessageData>& aMessages) MOZ_OVERRIDE;
+  RecvParentAsyncMessages(InfallibleTArray<AsyncParentMessageData>&& aMessages) MOZ_OVERRIDE;
 
   TemporaryRef<ImageClient> CreateImageClient(CompositableType aType);
   TemporaryRef<ImageClient> CreateImageClientNow(CompositableType aType);
@@ -248,16 +248,6 @@ public:
     NS_RUNTIMEABORT("should not be called");
   }
 
-  virtual void UpdateTextureIncremental(CompositableClient* aCompositable,
-                                        TextureIdentifier aTextureId,
-                                        SurfaceDescriptor& aDescriptor,
-                                        const nsIntRegion& aUpdatedRegion,
-                                        const nsIntRect& aBufferRect,
-                                        const nsIntPoint& aBufferRotation) MOZ_OVERRIDE
-  {
-    NS_RUNTIMEABORT("should not be called");
-  }
-
   /**
    * Communicate the picture rect of a YUV image in aLayer to the compositor
    */
@@ -265,12 +255,6 @@ public:
                                  const nsIntRect& aRect) MOZ_OVERRIDE;
 
 
-  virtual void CreatedIncrementalBuffer(CompositableClient* aCompositable,
-                                        const TextureInfo& aTextureInfo,
-                                        const nsIntRect& aBufferRect) MOZ_OVERRIDE
-  {
-    NS_RUNTIMEABORT("should not be called");
-  }
   virtual void UpdateTextureRegion(CompositableClient* aCompositable,
                                    const ThebesBufferData& aThebesBufferData,
                                    const nsIntRegion& aUpdatedRegion) MOZ_OVERRIDE {
@@ -303,14 +287,14 @@ public:
    * If used outside the ImageBridgeChild thread, it will proxy a synchronous
    * call on the ImageBridgeChild thread.
    */
-  virtual void DeallocShmem(mozilla::ipc::Shmem& aShmem);
+  virtual void DeallocShmem(mozilla::ipc::Shmem& aShmem) MOZ_OVERRIDE;
 
   virtual PTextureChild* CreateTexture(const SurfaceDescriptor& aSharedData,
                                        TextureFlags aFlags) MOZ_OVERRIDE;
 
   virtual bool IsSameProcess() const MOZ_OVERRIDE;
 
-  virtual void SendPendingAsyncMessges();
+  virtual void SendPendingAsyncMessges() MOZ_OVERRIDE;
 
   void MarkShutDown();
 protected:

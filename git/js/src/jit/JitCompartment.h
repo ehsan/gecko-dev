@@ -7,10 +7,12 @@
 #ifndef jit_JitCompartment_h
 #define jit_JitCompartment_h
 
+#include "mozilla/Array.h"
 #include "mozilla/MemoryReporting.h"
 
 #include "jsweakcache.h"
 
+#include "builtin/TypedObject.h"
 #include "jit/CompileInfo.h"
 #include "jit/IonCode.h"
 #include "jit/JitFrames.h"
@@ -141,23 +143,17 @@ class JitRuntime
 {
     friend class JitCompartment;
 
-    // Executable allocator for all code except the main code in an IonScript.
-    // Shared with the runtime.
-    ExecutableAllocator *execAlloc_;
-
-    // Executable allocator used for allocating the main code in an IonScript.
-    // All accesses on this allocator must be protected by the runtime's
-    // interrupt lock, as the executable memory may be protected() when
-    // requesting an interrupt to force a fault in the Ion code and avoid the
-    // need for explicit interrupt checks.
-    ExecutableAllocator *ionAlloc_;
+    // Executable allocator for all code except asm.js code.
+    ExecutableAllocator execAlloc_;
 
     // Shared exception-handler tail.
     JitCode *exceptionTail_;
-    JitCode *exceptionTailParallel_;
 
     // Shared post-bailout-handler tail.
     JitCode *bailoutTail_;
+
+    // Shared profiler exit frame tail.
+    JitCode *profilerExitFrameTail_;
 
     // Trampoline for entering JIT code. Contains OSR prologue.
     JitCode *enterJIT_;
@@ -171,16 +167,10 @@ class JitRuntime
     // Generic bailout table; used if the bailout table overflows.
     JitCode *bailoutHandler_;
 
-    // Bailout handler for parallel execution.
-    JitCode *parallelBailoutHandler_;
-
     // Argument-rectifying thunk, in the case of insufficient arguments passed
     // to a function call site.
     JitCode *argumentsRectifier_;
     void *argumentsRectifierReturnAddr_;
-
-    // Arguments-rectifying thunk which loads |parallelIon| instead of |ion|.
-    JitCode *parallelArgumentsRectifier_;
 
     // Thunk that invalides an (Ion compiled) caller on the Ion stack.
     JitCode *invalidator_;
@@ -190,7 +180,7 @@ class JitRuntime
     JitCode *stringPreBarrier_;
     JitCode *objectPreBarrier_;
     JitCode *shapePreBarrier_;
-    JitCode *typeObjectPreBarrier_;
+    JitCode *objectGroupPreBarrier_;
 
     // Thunk to call malloc/free.
     JitCode *mallocStub_;
@@ -201,9 +191,6 @@ class JitRuntime
 
     // Thunk used by the debugger for breakpoint and step mode.
     JitCode *debugTrapHandler_;
-
-    // Stub used to inline the ForkJoinGetSlice intrinsic.
-    JitCode *forkJoinGetSliceStub_;
 
     // Thunk used to fix up on-stack recompile of baseline scripts.
     JitCode *baselineDebugModeOSRHandler_;
@@ -242,24 +229,24 @@ class JitRuntime
     // Global table of jitcode native address => bytecode address mappings.
     JitcodeGlobalTable *jitcodeGlobalTable_;
 
+    bool hasIonNurseryObjects_;
+
   private:
     JitCode *generateLazyLinkStub(JSContext *cx);
+    JitCode *generateProfilerExitFrameTailStub(JSContext *cx);
     JitCode *generateExceptionTailStub(JSContext *cx, void *handler);
     JitCode *generateBailoutTailStub(JSContext *cx);
     JitCode *generateEnterJIT(JSContext *cx, EnterJitType type);
-    JitCode *generateArgumentsRectifier(JSContext *cx, ExecutionMode mode, void **returnAddrOut);
+    JitCode *generateArgumentsRectifier(JSContext *cx, void **returnAddrOut);
     JitCode *generateBailoutTable(JSContext *cx, uint32_t frameClass);
-    JitCode *generateBailoutHandler(JSContext *cx, ExecutionMode mode);
+    JitCode *generateBailoutHandler(JSContext *cx);
     JitCode *generateInvalidator(JSContext *cx);
     JitCode *generatePreBarrier(JSContext *cx, MIRType type);
     JitCode *generateMallocStub(JSContext *cx);
     JitCode *generateFreeStub(JSContext *cx);
     JitCode *generateDebugTrapHandler(JSContext *cx);
-    JitCode *generateForkJoinGetSliceStub(JSContext *cx);
     JitCode *generateBaselineDebugModeOSRHandler(JSContext *cx, uint32_t *noFrameRegPopOffsetOut);
     JitCode *generateVMWrapper(JSContext *cx, const VMFunction &f);
-
-    ExecutableAllocator *createIonAlloc(JSContext *cx);
 
   public:
     JitRuntime();
@@ -270,25 +257,18 @@ class JitRuntime
     void freeOsrTempData();
 
     static void Mark(JSTracer *trc);
+    static void MarkJitcodeGlobalTable(JSTracer *trc);
+    static void SweepJitcodeGlobalTable(JSRuntime *rt);
 
-    ExecutableAllocator *execAlloc() const {
+    ExecutableAllocator &execAlloc() {
         return execAlloc_;
-    }
-    ExecutableAllocator *getIonAlloc(JSContext *cx) {
-        return ionAlloc_ ? ionAlloc_ : createIonAlloc(cx);
-    }
-    ExecutableAllocator *ionAlloc(JSRuntime *rt) {
-        return ionAlloc_;
-    }
-    bool hasIonAlloc() const {
-        return !!ionAlloc_;
     }
 
     class AutoMutateBackedges
     {
         JitRuntime *jrt_;
       public:
-        AutoMutateBackedges(JitRuntime *jrt) : jrt_(jrt) {
+        explicit AutoMutateBackedges(JitRuntime *jrt) : jrt_(jrt) {
             MOZ_ASSERT(!jrt->mutatingBackedgeList_);
             jrt->mutatingBackedgeList_ = true;
         }
@@ -322,33 +302,26 @@ class JitRuntime
     JitCode *getBaselineDebugModeOSRHandler(JSContext *cx);
     void *getBaselineDebugModeOSRHandlerAddress(JSContext *cx, bool popFrameReg);
 
-    JitCode *getGenericBailoutHandler(ExecutionMode mode) const {
-        switch (mode) {
-          case SequentialExecution: return bailoutHandler_;
-          case ParallelExecution:   return parallelBailoutHandler_;
-          default:                  MOZ_CRASH("No such execution mode");
-        }
+    JitCode *getGenericBailoutHandler() const {
+        return bailoutHandler_;
     }
 
     JitCode *getExceptionTail() const {
         return exceptionTail_;
-    }
-    JitCode *getExceptionTailParallel() const {
-        return exceptionTailParallel_;
     }
 
     JitCode *getBailoutTail() const {
         return bailoutTail_;
     }
 
+    JitCode *getProfilerExitFrameTail() const {
+        return profilerExitFrameTail_;
+    }
+
     JitCode *getBailoutTable(const FrameSizeClass &frameClass) const;
 
-    JitCode *getArgumentsRectifier(ExecutionMode mode) const {
-        switch (mode) {
-          case SequentialExecution: return argumentsRectifier_;
-          case ParallelExecution:   return parallelArgumentsRectifier_;
-          default:                  MOZ_CRASH("No such execution mode");
-        }
+    JitCode *getArgumentsRectifier() const {
+        return argumentsRectifier_;
     }
 
     void *getArgumentsRectifierReturnAddr() const {
@@ -373,7 +346,7 @@ class JitRuntime
           case MIRType_String: return stringPreBarrier_;
           case MIRType_Object: return objectPreBarrier_;
           case MIRType_Shape: return shapePreBarrier_;
-          case MIRType_TypeObject: return typeObjectPreBarrier_;
+          case MIRType_ObjectGroup: return objectGroupPreBarrier_;
           default: MOZ_CRASH();
         }
     }
@@ -390,11 +363,6 @@ class JitRuntime
         return lazyLinkStub_;
     }
 
-    bool ensureForkJoinGetSliceStubExists(JSContext *cx);
-    JitCode *forkJoinGetSliceStub() const {
-        return forkJoinGetSliceStub_;
-    }
-
     bool hasIonReturnOverride() const {
         return !ionReturnOverride_.isMagic(JS_ARG_POISON);
     }
@@ -409,6 +377,13 @@ class JitRuntime
         ionReturnOverride_ = v;
     }
 
+    bool hasIonNurseryObjects() const {
+        return hasIonNurseryObjects_;
+    }
+    void setHasIonNurseryObjects(bool b)  {
+        hasIonNurseryObjects_ = b;
+    }
+
     bool hasJitcodeGlobalTable() const {
         return jitcodeGlobalTable_ != nullptr;
     }
@@ -418,12 +393,12 @@ class JitRuntime
         return jitcodeGlobalTable_;
     }
 
-    bool isNativeToBytecodeMapEnabled(JSRuntime *rt) {
-#ifdef DEBUG
-        return true;
-#else // DEBUG
+    bool isProfilerInstrumentationEnabled(JSRuntime *rt) {
         return rt->spsProfiler.enabled();
-#endif // DEBUG
+    }
+
+    bool isOptimizationTrackingEnabled(JSRuntime *rt) {
+        return isProfilerInstrumentationEnabled(rt);
     }
 };
 
@@ -459,22 +434,40 @@ class JitCompartment
     // which may occur off thread and whose barriers are captured during
     // CodeGenerator::link.
     JitCode *stringConcatStub_;
-    JitCode *parallelStringConcatStub_;
     JitCode *regExpExecStub_;
     JitCode *regExpTestStub_;
 
-    // Set of JSScripts invoked by ForkJoin (i.e. the entry script). These
-    // scripts are marked if their respective parallel IonScripts' age is less
-    // than a certain amount. See IonScript::parallelAge_.
-    typedef HashSet<PreBarrieredScript, DefaultHasher<PreBarrieredScript>, SystemAllocPolicy>
-        ScriptSet;
-    ScriptSet *activeParallelEntryScripts_;
+    mozilla::Array<ReadBarrieredObject, SimdTypeDescr::LAST_TYPE + 1> simdTemplateObjects_;
 
-    JitCode *generateStringConcatStub(JSContext *cx, ExecutionMode mode);
+    JitCode *generateStringConcatStub(JSContext *cx);
     JitCode *generateRegExpExecStub(JSContext *cx);
     JitCode *generateRegExpTestStub(JSContext *cx);
 
   public:
+    JSObject *getSimdTemplateObjectFor(JSContext *cx, Handle<SimdTypeDescr*> descr) {
+        ReadBarrieredObject &tpl = simdTemplateObjects_[descr->type()];
+        if (!tpl)
+            tpl.set(TypedObject::createZeroed(cx, descr, 0, gc::TenuredHeap));
+        return tpl.get();
+    }
+
+    JSObject *maybeGetSimdTemplateObjectFor(SimdTypeDescr::Type type) const {
+        const ReadBarrieredObject &tpl = simdTemplateObjects_[type];
+
+        // This function is used by Eager Simd Unbox phase, so we cannot use the
+        // read barrier. For more information, see the comment above
+        // CodeGenerator::simdRefreshTemplatesDuringLink_ .
+        return tpl.unbarrieredGet();
+    }
+
+    // This function is used to call the read barrier, to mark the SIMD template
+    // type as used. This function can only be called from the main thread.
+    void registerSimdTemplateObjectFor(SimdTypeDescr::Type type) {
+        ReadBarrieredObject &tpl = simdTemplateObjects_[type];
+        MOZ_ASSERT(tpl.unbarrieredGet());
+        tpl.get();
+    }
+
     JitCode *getStubCode(uint32_t key) {
         ICStubCodeMap::AddPtr p = stubCodes_->lookupForAdd(key);
         if (p)
@@ -514,12 +507,7 @@ class JitCompartment
         return baselineSetPropReturnAddr_;
     }
 
-    bool notifyOfActiveParallelEntryScript(JSContext *cx, HandleScript script);
-    bool hasRecentParallelActivity() const;
-
     void toggleBarriers(bool enabled);
-
-    ExecutableAllocator *createIonAlloc();
 
   public:
     JitCompartment();
@@ -533,12 +521,8 @@ class JitCompartment
     void mark(JSTracer *trc, JSCompartment *compartment);
     void sweep(FreeOp *fop, JSCompartment *compartment);
 
-    JitCode *stringConcatStubNoBarrier(ExecutionMode mode) const {
-        switch (mode) {
-          case SequentialExecution: return stringConcatStub_;
-          case ParallelExecution:   return parallelStringConcatStub_;
-          default:                  MOZ_CRASH("No such execution mode");
-        }
+    JitCode *stringConcatStubNoBarrier() const {
+        return stringConcatStub_;
     }
 
     JitCode *regExpExecStubNoBarrier() const {
@@ -566,7 +550,6 @@ class JitCompartment
 
 // Called from JSCompartment::discardJitCode().
 void InvalidateAll(FreeOp *fop, JS::Zone *zone);
-template <ExecutionMode mode>
 void FinishInvalidation(FreeOp *fop, JSScript *script);
 
 // On windows systems, really large frames need to be incrementally touched.

@@ -50,6 +50,8 @@
 #include "mozilla/dom/ScriptSettings.h"
 #include "nsILoadInfo.h"
 
+#include "mozilla/ipc/URIUtils.h"
+
 using mozilla::dom::AutoEntryScript;
 
 static NS_DEFINE_CID(kJSURICID, NS_JSURI_CID);
@@ -1223,6 +1225,11 @@ nsJSProtocolHandler::NewChannel2(nsIURI* uri,
     NS_ADDREF(channel);
 
     rv = channel->Init(uri);
+
+    // set the loadInfo on the new channel
+    rv = channel->SetLoadInfo(aLoadInfo);
+    NS_ENSURE_SUCCESS(rv, rv);
+
     if (NS_SUCCEEDED(rv)) {
         *result = channel;
         NS_ADDREF(*result);
@@ -1304,6 +1311,48 @@ nsJSURI::Write(nsIObjectOutputStream* aStream)
     }
 
     return NS_OK;
+}
+
+// nsIIPCSerializableURI
+void
+nsJSURI::Serialize(mozilla::ipc::URIParams& aParams)
+{
+    using namespace mozilla::ipc;
+
+    JSURIParams jsParams;
+    URIParams simpleParams;
+
+    nsSimpleURI::Serialize(simpleParams);
+
+    jsParams.simpleParams() = simpleParams;
+    if (mBaseURI) {
+        SerializeURI(mBaseURI, jsParams.baseURI());
+    } else {
+        jsParams.baseURI() = mozilla::void_t();
+    }
+
+    aParams = jsParams;
+}
+
+bool
+nsJSURI::Deserialize(const mozilla::ipc::URIParams& aParams)
+{
+    using namespace mozilla::ipc;
+
+    if (aParams.type() != URIParams::TJSURIParams) {
+        NS_ERROR("Received unknown parameters from the other process!");
+        return false;
+    }
+
+    const JSURIParams& jsParams = aParams.get_JSURIParams();
+    nsSimpleURI::Deserialize(jsParams.simpleParams());
+
+    if (jsParams.baseURI().type() != OptionalURIParams::Tvoid_t) {
+        mBaseURI = DeserializeURI(jsParams.baseURI().get_URIParams());
+    } else {
+        mBaseURI = nullptr;
+    }
+    return true;
 }
 
 // nsSimpleURI methods:

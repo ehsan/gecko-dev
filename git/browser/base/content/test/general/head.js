@@ -123,6 +123,23 @@ function promiseWaitForEvent(object, eventName, capturing = false, chrome = fals
   });
 }
 
+/**
+ * Allows setting focus on a window, and waiting for that window to achieve
+ * focus.
+ *
+ * @param aWindow
+ *        The window to focus and wait for.
+ *
+ * @return {Promise}
+ * @resolves When the window is focused.
+ * @rejects Never.
+ */
+function promiseWaitForFocus(aWindow) {
+  return new Promise((resolve) => {
+    waitForFocus(resolve, aWindow);
+  });
+}
+
 function getTestPlugin(aName) {
   var pluginName = aName || "Test Plug-in";
   var ph = Cc["@mozilla.org/plugin/host;1"].getService(Ci.nsIPluginHost);
@@ -202,14 +219,21 @@ function whenNewWindowLoaded(aOptions, aCallback) {
   }, false);
 }
 
-function promiseWindowClosed(win) {
-  let deferred = Promise.defer();
-  win.addEventListener("unload", function onunload() {
-    win.removeEventListener("unload", onunload);
-    deferred.resolve();
+function promiseWindowWillBeClosed(win) {
+  return new Promise((resolve, reject) => {
+    Services.obs.addObserver(function observe(subject, topic) {
+      if (subject == win) {
+        Services.obs.removeObserver(observe, topic);
+        resolve();
+      }
+    }, "domwindowclosed", false);
   });
+}
+
+function promiseWindowClosed(win) {
+  let promise = promiseWindowWillBeClosed(win);
   win.close();
-  return deferred.promise;
+  return promise;
 }
 
 function promiseOpenAndLoadWindow(aOptions, aWaitForDelayedStartup=false) {
@@ -310,45 +334,6 @@ function promiseTabLoaded(aTab) {
   return deferred.promise;
 }
 
-function addVisits(aPlaceInfo, aCallback) {
-  let places = [];
-  if (aPlaceInfo instanceof Ci.nsIURI) {
-    places.push({ uri: aPlaceInfo });
-  } else if (Array.isArray(aPlaceInfo)) {
-    places = places.concat(aPlaceInfo);
-  } else {
-    places.push(aPlaceInfo);
-   }
-
-  // Create mozIVisitInfo for each entry.
-  let now = Date.now();
-  for (let i = 0; i < places.length; i++) {
-    if (!places[i].title) {
-      places[i].title = "test visit for " + places[i].uri.spec;
-    }
-    places[i].visits = [{
-      transitionType: places[i].transition === undefined ? Ci.nsINavHistoryService.TRANSITION_LINK
-                                                         : places[i].transition,
-      visitDate: places[i].visitDate || (now++) * 1000,
-      referrerURI: places[i].referrer
-    }];
-  }
-
-  PlacesUtils.asyncHistory.updatePlaces(
-    places,
-    {
-      handleError: function AAV_handleError() {
-        throw("Unexpected error in adding visit.");
-      },
-      handleResult: function () {},
-      handleCompletion: function UP_handleCompletion() {
-        if (aCallback)
-          aCallback();
-      }
-    }
-  );
-}
-
 /**
  * Ensures that the specified URIs are either cleared or not.
  *
@@ -374,40 +359,6 @@ function promiseHistoryClearedState(aURIs, aShouldBeCleared) {
   });
 
   return deferred.promise;
-}
-
-/**
- * Allows waiting for an observer notification once.
- *
- * @param topic
- *        Notification topic to observe.
- *
- * @return {Promise}
- * @resolves The array [subject, data] from the observed notification.
- * @rejects Never.
- */
-function promiseTopicObserved(topic)
-{
-  let deferred = Promise.defer();
-  info("Waiting for observer topic " + topic);
-  Services.obs.addObserver(function PTO_observe(subject, topic, data) {
-    Services.obs.removeObserver(PTO_observe, topic);
-    deferred.resolve([subject, data]);
-  }, topic, false);
-  return deferred.promise;
-}
-
-/**
- * Clears history asynchronously.
- *
- * @return {Promise}
- * @resolves When history has been cleared.
- * @rejects Never.
- */
-function promiseClearHistory() {
-  let promise = promiseTopicObserved(PlacesUtils.TOPIC_EXPIRATION_FINISHED);
-  PlacesUtils.bhistory.removeAllPages();
-  return promise;
 }
 
 /**
@@ -463,28 +414,35 @@ function waitForDocLoadAndStopIt(aExpectedURL, aBrowser=gBrowser.selectedBrowser
  * @return promise
  */
 function waitForDocLoadComplete(aBrowser=gBrowser) {
-  let deferred = Promise.defer();
-  let progressListener = {
-    onStateChange: function (webProgress, req, flags, status) {
-      let docStop = Ci.nsIWebProgressListener.STATE_IS_NETWORK |
-                    Ci.nsIWebProgressListener.STATE_STOP;
-      info("Saw state " + flags.toString(16) + " and status " + status.toString(16));
+  return new Promise(resolve => {
+    let listener = {
+      onStateChange: function (webProgress, req, flags, status) {
+        let docStop = Ci.nsIWebProgressListener.STATE_IS_NETWORK |
+                      Ci.nsIWebProgressListener.STATE_STOP;
+        info("Saw state " + flags.toString(16) + " and status " + status.toString(16));
 
-      // When a load needs to be retargetted to a new process it is cancelled
-      // with NS_BINDING_ABORTED so ignore that case
-      if ((flags & docStop) == docStop && status != Cr.NS_BINDING_ABORTED) {
-        aBrowser.removeProgressListener(progressListener);
-        info("Browser loaded " + aBrowser.contentWindow.location);
-        deferred.resolve();
-      }
-    },
-    QueryInterface: XPCOMUtils.generateQI([Ci.nsIWebProgressListener,
-                                           Ci.nsISupportsWeakReference])
-  };
-  aBrowser.addProgressListener(progressListener);
-  info("Waiting for browser load");
-  return deferred.promise;
+        // When a load needs to be retargetted to a new process it is cancelled
+        // with NS_BINDING_ABORTED so ignore that case
+        if ((flags & docStop) == docStop && status != Cr.NS_BINDING_ABORTED) {
+          aBrowser.removeProgressListener(this);
+          waitForDocLoadComplete.listeners.delete(this);
+          info("Browser loaded " + aBrowser.contentWindow.location);
+          resolve();
+        }
+      },
+      QueryInterface: XPCOMUtils.generateQI([Ci.nsIWebProgressListener,
+                                             Ci.nsISupportsWeakReference])
+    };
+    aBrowser.addProgressListener(listener);
+    waitForDocLoadComplete.listeners.add(listener);
+    info("Waiting for browser load");
+  });
 }
+
+// Keep a set of progress listeners for waitForDocLoadComplete() to make sure
+// they're not GC'ed before we saw the page load.
+waitForDocLoadComplete.listeners = new Set();
+registerCleanupFunction(() => waitForDocLoadComplete.listeners.clear());
 
 let FullZoomHelper = {
 
@@ -636,6 +594,21 @@ function promiseTabLoadEvent(tab, url, eventType="load")
   if (url)
     tab.linkedBrowser.loadURI(url);
   return deferred.promise;
+}
+
+/**
+ * Returns a Promise that resolves once a new tab has been opened in
+ * a xul:tabbrowser.
+ *
+ * @param aTabBrowser
+ *        The xul:tabbrowser to monitor for a new tab.
+ * @return {Promise}
+ *        Resolved when the new tab has been opened.
+ * @resolves to the TabOpen event that was fired.
+ * @rejects Never.
+ */
+function waitForNewTabEvent(aTabBrowser) {
+  return promiseWaitForEvent(aTabBrowser.tabContainer, "TabOpen");
 }
 
 function assertWebRTCIndicatorStatus(expected) {
@@ -790,28 +763,47 @@ function promiseNotificationShown(notification) {
   return panelPromise;
 }
 
-// NOTE: If you're using this, and attempting to interact with one of the
-// autocomplete results, your test is likely to be unreliable on Linux.
-// See bug 1073339.
-let gURLBarOnSearchComplete = null;
-function promiseSearchComplete() {
-  info("Waiting for onSearchComplete");
-  return new Promise(resolve => {
-    if (!gURLBarOnSearchComplete) {
-      gURLBarOnSearchComplete = gURLBar.onSearchComplete;
-      registerCleanupFunction(() => {
-        gURLBar.onSearchComplete = gURLBarOnSearchComplete;
-      });
+function promiseSearchComplete(win = window) {
+  return promisePopupShown(win.gURLBar.popup).then(() => {
+    function searchIsComplete() {
+      return win.gURLBar.controller.searchStatus >=
+        Ci.nsIAutoCompleteController.STATUS_COMPLETE_NO_MATCH;
     }
 
-    gURLBar.onSearchComplete = function () {
-      ok(gURLBar.popupOpen, "The autocomplete popup is correctly open");
-      gURLBarOnSearchComplete.apply(gURLBar);
-      resolve();
-    }
-  }).then(() => {
-    // On Linux, the popup may or may not be open at this stage. So we need
-    // additional checks to ensure we wait long enough.
-    return promisePopupShown(gURLBar.popup);
+    // Wait until there are at least two matches.
+    return new Promise(resolve => waitForCondition(searchIsComplete, resolve));
   });
 }
+
+function promiseAutocompleteResultPopup(inputText, win = window) {
+  waitForFocus(() => {
+    win.gURLBar.focus();
+    win.gURLBar.value = inputText;
+    win.gURLBar.controller.startSearch(inputText);
+  }, win);
+
+  return promiseSearchComplete(win);
+}
+
+/**
+ * Allows waiting for an observer notification once.
+ *
+ * @param aTopic
+ *        Notification topic to observe.
+ *
+ * @return {Promise}
+ * @resolves An object with subject and data properties from the observed
+ *           notification.
+ * @rejects Never.
+ */
+function promiseTopicObserved(aTopic)
+{
+  return new Promise((resolve) => {
+    Services.obs.addObserver(
+      function PTO_observe(aSubject, aTopic, aData) {
+        Services.obs.removeObserver(PTO_observe, aTopic);
+        resolve({subject: aSubject, data: aData});
+      }, aTopic, false);
+  });
+}
+

@@ -12,13 +12,16 @@
 namespace mozilla {
 namespace system {
 
-class nsVolumeStat : public nsIVolumeStat
+class nsVolumeStat MOZ_FINAL : public nsIVolumeStat
 {
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIVOLUMESTAT
 
   nsVolumeStat(const nsAString& aPath);
+
+protected:
+  ~nsVolumeStat() {}
 
 private:
   struct statfs mStat;

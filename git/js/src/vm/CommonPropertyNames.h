@@ -12,6 +12,7 @@
 #include "jsprototypes.h"
 
 #define FOR_EACH_COMMON_PROPERTYNAME(macro) \
+    macro(add, add, "add") \
     macro(anonymous, anonymous, "anonymous") \
     macro(Any, Any, "Any") \
     macro(apply, apply, "apply") \
@@ -20,6 +21,7 @@
     macro(ArrayIteratorNext, ArrayIteratorNext, "ArrayIteratorNext") \
     macro(ArrayType, ArrayType, "ArrayType") \
     macro(ArrayValues, ArrayValues, "ArrayValues") \
+    macro(Async, Async, "Async") \
     macro(buffer, buffer, "buffer") \
     macro(builder, builder, "builder") \
     macro(byteLength, byteLength, "byteLength") \
@@ -46,7 +48,6 @@
     macro(count, count, "count") \
     macro(currency, currency, "currency") \
     macro(currencyDisplay, currencyDisplay, "currencyDisplay") \
-    macro(std_iterator, std_iterator, "@@iterator") \
     macro(DateTimeFormat, DateTimeFormat, "DateTimeFormat") \
     macro(DateTimeFormatFormatGet, DateTimeFormatFormatGet, "Intl_DateTimeFormat_format_get") \
     macro(decodeURI, decodeURI, "decodeURI") \
@@ -60,9 +61,11 @@
     macro(displayURL, displayURL, "displayURL") \
     macro(done, done, "done") \
     macro(dotGenerator, dotGenerator, ".generator") \
+    macro(dotGenRVal, dotGenRVal, ".genrval") \
     macro(each, each, "each") \
     macro(elementType, elementType, "elementType") \
     macro(empty, empty, "") \
+    macro(emptyRegExp, emptyRegExp, "(?:)") \
     macro(encodeURI, encodeURI, "encodeURI") \
     macro(encodeURIComponent, encodeURIComponent, "encodeURIComponent") \
     macro(enumerable, enumerable, "enumerable") \
@@ -77,6 +80,7 @@
     macro(float32, float32, "float32") \
     macro(float32x4, float32x4, "float32x4") \
     macro(float64, float64, "float64") \
+    macro(float64x2, float64x2, "float64x2") \
     macro(forceInterpreter, forceInterpreter, "forceInterpreter") \
     macro(format, format, "format") \
     macro(frame, frame, "frame") \
@@ -177,6 +181,7 @@
     macro(signMask, signMask, "signMask") \
     macro(source, source, "source") \
     macro(stack, stack, "stack") \
+    macro(static, static_, "static") \
     macro(sticky, sticky, "sticky") \
     macro(strings, strings, "strings") \
     macro(StructType, StructType, "StructType") \
@@ -195,6 +200,7 @@
     macro(true, true_, "true") \
     macro(unescape, unescape, "unescape") \
     macro(uneval, uneval, "uneval") \
+    macro(unicode, unicode, "unicode") \
     macro(uninitialized, uninitialized, "uninitialized") \
     macro(uint8, uint8, "uint8") \
     macro(uint8Clamped, uint8Clamped, "uint8Clamped") \
@@ -208,11 +214,13 @@
     macro(useAsm, useAsm, "use asm") \
     macro(useStrict, useStrict, "use strict") \
     macro(value, value, "value") \
+    macro(values, values, "values") \
     macro(valueOf, valueOf, "valueOf") \
     macro(var, var, "var") \
     macro(variable, variable, "variable") \
     macro(void0, void0, "(void 0)") \
     macro(watch, watch, "watch") \
+    macro(WeakSet_add, WeakSet_add, "WeakSet_add") \
     macro(writable, writable, "writable") \
     macro(w, w, "w") \
     macro(x, x, "x") \

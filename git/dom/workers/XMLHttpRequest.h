@@ -45,7 +45,7 @@ public:
     nsresult mResponseResult;
 
     StateData()
-    : mStatus(0), mReadyState(0), mResponse(JSVAL_VOID),
+    : mStatus(0), mReadyState(0), mResponse(JS::UndefinedValue()),
       mResponseTextResult(NS_OK), mStatusResult(NS_OK),
       mResponseResult(NS_OK)
     { }
@@ -177,9 +177,6 @@ public:
 
   void
   Send(const ArrayBufferView& aBody, ErrorResult& aRv);
-
-  void
-  SendAsBinary(const nsAString& aBody, ErrorResult& aRv);
 
   void
   Abort(ErrorResult& aRv);

@@ -29,6 +29,7 @@
 #include "mozilla/layers/TextureHost.h"  // for TextureSource, etc
 #include "mozilla/layers/TextureHostOGL.h"  // for TextureSourceOGL, etc
 #include "mozilla/mozalloc.h"           // for operator delete, etc
+#include "nsAppRunner.h"
 #include "nsAString.h"
 #include "nsIConsoleService.h"          // for nsIConsoleService, etc
 #include "nsIWidget.h"                  // for nsIWidget
@@ -104,6 +105,13 @@ CompositorOGL::CreateContext()
 {
   nsRefPtr<GLContext> context;
 
+  // Used by mock widget to create an offscreen context
+  void* widgetOpenGLContext = mWidget->GetNativeData(NS_NATIVE_OPENGL_CONTEXT);
+  if (widgetOpenGLContext) {
+    GLContext* alreadyRefed = reinterpret_cast<GLContext*>(widgetOpenGLContext);
+    return already_AddRefed<GLContext>(alreadyRefed);
+  }
+
 #ifdef XP_WIN
   if (PR_GetEnv("MOZ_LAYERS_PREFER_EGL")) {
     printf_stderr("Trying GL layers...\n");
@@ -116,8 +124,11 @@ CompositorOGL::CreateContext()
     SurfaceCaps caps = SurfaceCaps::ForRGB();
     caps.preserve = false;
     caps.bpp16 = gfxPlatform::GetPlatform()->GetOffscreenFormat() == gfxImageFormat::RGB16_565;
+
+    bool requireCompatProfile = true;
     context = GLContextProvider::CreateOffscreen(gfxIntSize(mSurfaceSize.width,
-                                                            mSurfaceSize.height), caps);
+                                                            mSurfaceSize.height),
+                                                 caps, requireCompatProfile);
   }
 
   if (!context)
@@ -175,6 +186,8 @@ CompositorOGL::CleanupResources()
     mQuadVBO = 0;
   }
 
+  DestroyVR(ctx);
+
   mGLContext->MakeCurrent();
 
   mBlitTextureImageHelper = nullptr;
@@ -199,7 +212,7 @@ CompositorOGL::Initialize()
   ScopedGfxFeatureReporter reporter("GL Layers", force);
 
   // Do not allow double initialization
-  NS_ABORT_IF_FALSE(mGLContext == nullptr, "Don't reinitialize CompositorOGL");
+  MOZ_ASSERT(mGLContext == nullptr, "Don't reinitialize CompositorOGL");
 
   mGLContext = CreateContext();
 
@@ -384,6 +397,13 @@ CompositorOGL::Initialize()
     console->LogStringMessage(msg.get());
   }
 
+  mVR.mInitialized = false;
+  if (gfxPrefs::VREnabled()) {
+    if (!InitializeVR()) {
+      NS_WARNING("Failed to initialize VR in CompositorOGL");
+    }
+  }
+
   reporter.SetSuccessful();
   return true;
 }
@@ -426,7 +446,7 @@ CompositorOGL::PrepareViewport(const gfx::IntSize& aSize)
   // Matrix to transform (0, 0, aWidth, aHeight) to viewport space (-1.0, 1.0,
   // 2, 2) and flip the contents.
   Matrix viewMatrix;
-  if (mGLContext->IsOffscreen()) {
+  if (mGLContext->IsOffscreen() && !gIsGtest) {
     // In case of rendering via GL Offscreen context, disable Y-Flipping
     viewMatrix.PreTranslate(-1.0, -1.0);
     viewMatrix.PreScale(2.0f / float(aSize.width), 2.0f / float(aSize.height));
@@ -567,7 +587,7 @@ CompositorOGL::BeginFrame(const nsIntRegion& aInvalidRegion,
   PROFILER_LABEL("CompositorOGL", "BeginFrame",
     js::ProfileEntry::Category::GRAPHICS);
 
-  MOZ_ASSERT(!mFrameInProgress, "frame still in progress (should have called EndFrame or AbortFrame");
+  MOZ_ASSERT(!mFrameInProgress, "frame still in progress (should have called EndFrame");
 
   mFrameInProgress = true;
   gfx::Rect rect;
@@ -889,6 +909,11 @@ CompositorOGL::DrawQuad(const Rect& aRect,
   MOZ_ASSERT(mFrameInProgress, "frame not started");
   MOZ_ASSERT(mCurrentRenderTarget, "No destination");
 
+  if (aEffectChain.mPrimaryEffect->mType == EffectTypes::VR_DISTORTION) {
+    DrawVRDistortion(aRect, aClipRect, aEffectChain, aOpacity, aTransform);
+    return;
+  }
+
   Rect clipRect = aClipRect;
   // aClipRect is in destination coordinate space (after all
   // transforms and offsets have been applied) so if our
@@ -1204,9 +1229,10 @@ CompositorOGL::EndFrame()
       mWidget->GetBounds(rect);
     }
     RefPtr<DrawTarget> target = gfxPlatform::GetPlatform()->CreateOffscreenContentDrawTarget(IntSize(rect.width, rect.height), SurfaceFormat::B8G8R8A8);
-    CopyToTarget(target, nsIntPoint(), Matrix());
-
-    WriteSnapshotToDumpFile(this, target);
+    if (target) {
+      CopyToTarget(target, nsIntPoint(), Matrix());
+      WriteSnapshotToDumpFile(this, target);
+    }
   }
 #endif
 
@@ -1309,18 +1335,6 @@ CompositorOGL::EndFrameForExternalComposition(const gfx::Matrix& aTransform)
 }
 
 void
-CompositorOGL::AbortFrame()
-{
-  mGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
-  mFrameInProgress = false;
-  mCurrentRenderTarget = nullptr;
-
-  if (mTexturePool) {
-    mTexturePool->EndFrame();
-  }
-}
-
-void
 CompositorOGL::SetDestinationSurfaceSize(const gfx::IntSize& aSize)
 {
   mSurfaceSize.width = aSize.width;
@@ -1330,6 +1344,7 @@ CompositorOGL::SetDestinationSurfaceSize(const gfx::IntSize& aSize)
 void
 CompositorOGL::CopyToTarget(DrawTarget* aTarget, const nsIntPoint& aTopLeft, const gfx::Matrix& aTransform)
 {
+  MOZ_ASSERT(aTarget);
   IntRect rect;
   if (mUseExternalSurfaceSize) {
     rect = IntRect(0, 0, mSurfaceSize.width, mSurfaceSize.height);

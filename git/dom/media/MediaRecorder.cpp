@@ -20,6 +20,7 @@
 #include "mozilla/dom/VideoStreamTrack.h"
 #include "nsError.h"
 #include "nsIDocument.h"
+#include "nsIPermissionManager.h"
 #include "nsIPrincipal.h"
 #include "nsMimeTypes.h"
 #include "nsProxyRelease.h"
@@ -294,23 +295,21 @@ class MediaRecorder::Session: public nsIObserver
      : mSession(aSession) {}
     virtual void NotifyTracksAvailable(DOMMediaStream* aStream)
     {
-      uint8_t trackType = aStream->GetHintContents();
-      // ToDo: GetHintContents return 0 when recording media tags.
-      if (trackType == 0) {
-        nsTArray<nsRefPtr<mozilla::dom::AudioStreamTrack> > audioTracks;
-        aStream->GetAudioTracks(audioTracks);
-        nsTArray<nsRefPtr<mozilla::dom::VideoStreamTrack> > videoTracks;
-        aStream->GetVideoTracks(videoTracks);
-        // What is inside the track
-        if (videoTracks.Length() > 0) {
-          trackType |= DOMMediaStream::HINT_CONTENTS_VIDEO;
-        }
-        if (audioTracks.Length() > 0) {
-          trackType |= DOMMediaStream::HINT_CONTENTS_AUDIO;
-        }
+      uint8_t trackTypes = 0;
+      nsTArray<nsRefPtr<mozilla::dom::AudioStreamTrack>> audioTracks;
+      aStream->GetAudioTracks(audioTracks);
+      if (!audioTracks.IsEmpty()) {
+        trackTypes |= ContainerWriter::CREATE_AUDIO_TRACK;
       }
-      LOG(PR_LOG_DEBUG, ("Session.NotifyTracksAvailable track type = (%d)", trackType));
-      mSession->InitEncoder(trackType);
+
+      nsTArray<nsRefPtr<mozilla::dom::VideoStreamTrack>> videoTracks;
+      aStream->GetVideoTracks(videoTracks);
+      if (!videoTracks.IsEmpty()) {
+        trackTypes |= ContainerWriter::CREATE_VIDEO_TRACK;
+      }
+
+      LOG(PR_LOG_DEBUG, ("Session.NotifyTracksAvailable track type = (%d)", trackTypes));
+      mSession->InitEncoder(trackTypes);
     }
   private:
     nsRefPtr<Session> mSession;
@@ -541,8 +540,35 @@ private:
       domStream->OnTracksAvailable(tracksAvailableCallback);
     } else {
       // Web Audio node has only audio.
-      InitEncoder(DOMMediaStream::HINT_CONTENTS_AUDIO);
+      InitEncoder(ContainerWriter::CREATE_AUDIO_TRACK);
     }
+  }
+
+  bool Check3gppPermission()
+  {
+    nsCOMPtr<nsIDocument> doc = mRecorder->GetOwner()->GetExtantDoc();
+    if (!doc) {
+      return false;
+    }
+
+    uint16_t appStatus = nsIPrincipal::APP_STATUS_NOT_INSTALLED;
+    doc->NodePrincipal()->GetAppStatus(&appStatus);
+
+    // Certified applications can always assign AUDIO_3GPP
+    if (appStatus == nsIPrincipal::APP_STATUS_CERTIFIED) {
+      return true;
+    }
+
+    nsCOMPtr<nsIPermissionManager> pm =
+       do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
+
+    if (!pm) {
+      return false;
+    }
+
+    uint32_t perm = nsIPermissionManager::DENY_ACTION;
+    pm->TestExactPermissionFromPrincipal(doc->NodePrincipal(), "audio-capture:3gpp", &perm);
+    return perm == nsIPermissionManager::ALLOW_ACTION;
   }
 
   void InitEncoder(uint8_t aTrackTypes)
@@ -553,14 +579,8 @@ private:
     // Allocate encoder and bind with union stream.
     // At this stage, the API doesn't allow UA to choose the output mimeType format.
 
-    nsCOMPtr<nsIDocument> doc = mRecorder->GetOwner()->GetExtantDoc();
-    uint16_t appStatus = nsIPrincipal::APP_STATUS_NOT_INSTALLED;
-    if (doc) {
-      doc->NodePrincipal()->GetAppStatus(&appStatus);
-    }
-    // Only allow certificated application can assign AUDIO_3GPP
-    if (appStatus == nsIPrincipal::APP_STATUS_CERTIFIED &&
-         mRecorder->mMimeType.EqualsLiteral(AUDIO_3GPP)) {
+    // Make sure the application has permission to assign AUDIO_3GPP
+    if (mRecorder->mMimeType.EqualsLiteral(AUDIO_3GPP) && Check3gppPermission()) {
       mEncoder = MediaEncoder::CreateEncoder(NS_LITERAL_STRING(AUDIO_3GPP), aTrackTypes);
     } else {
       mEncoder = MediaEncoder::CreateEncoder(NS_LITERAL_STRING(""), aTrackTypes);
@@ -957,7 +977,7 @@ MediaRecorder::Constructor(const GlobalObject& aGlobal,
 nsresult
 MediaRecorder::CreateAndDispatchBlobEvent(already_AddRefed<nsIDOMBlob>&& aBlob)
 {
-  NS_ABORT_IF_FALSE(NS_IsMainThread(), "Not running on main thread");
+  MOZ_ASSERT(NS_IsMainThread(), "Not running on main thread");
   if (!CheckPrincipal()) {
     // Media is not same-origin, don't allow the data out.
     nsRefPtr<nsIDOMBlob> blob = aBlob;
@@ -981,7 +1001,7 @@ MediaRecorder::CreateAndDispatchBlobEvent(already_AddRefed<nsIDOMBlob>&& aBlob)
 void
 MediaRecorder::DispatchSimpleEvent(const nsAString & aStr)
 {
-  NS_ABORT_IF_FALSE(NS_IsMainThread(), "Not running on main thread");
+  MOZ_ASSERT(NS_IsMainThread(), "Not running on main thread");
   nsresult rv = CheckInnerWindowCorrectness();
   if (NS_FAILED(rv)) {
     return;
@@ -1012,7 +1032,7 @@ MediaRecorder::DispatchSimpleEvent(const nsAString & aStr)
 void
 MediaRecorder::NotifyError(nsresult aRv)
 {
-  NS_ABORT_IF_FALSE(NS_IsMainThread(), "Not running on main thread");
+  MOZ_ASSERT(NS_IsMainThread(), "Not running on main thread");
   nsresult rv = CheckInnerWindowCorrectness();
   if (NS_FAILED(rv)) {
     return;
@@ -1048,7 +1068,7 @@ MediaRecorder::NotifyError(nsresult aRv)
 
 bool MediaRecorder::CheckPrincipal()
 {
-  NS_ABORT_IF_FALSE(NS_IsMainThread(), "Not running on main thread");
+  MOZ_ASSERT(NS_IsMainThread(), "Not running on main thread");
   if (!mDOMStream && !mAudioNode) {
     return false;
   }

@@ -12,7 +12,7 @@
 
 #include "NamespaceImports.h"
 
-#include "vm/NumericConversions.h"
+#include "js/Conversions.h"
 
 namespace js {
 
@@ -26,11 +26,11 @@ extern void
 FinishRuntimeNumberState(JSRuntime *rt);
 #endif
 
-} /* namespace js */
-
 /* Initialize the Number class, returning its prototype object. */
 extern JSObject *
-js_InitNumberClass(JSContext *cx, js::HandleObject obj);
+InitNumberClass(JSContext *cx, HandleObject obj);
+
+} /* namespace js */
 
 /*
  * String constants for global function names, used in jsapi.c and jsnum.c.
@@ -49,16 +49,16 @@ namespace js {
  * ECMA-262-5 section 9.8.1; but note that it handles integers specially for
  * performance.  See also js::NumberToCString().
  */
-template <js::AllowGC allowGC>
+template <AllowGC allowGC>
 extern JSString *
-NumberToString(js::ThreadSafeContext *cx, double d);
+NumberToString(ExclusiveContext *cx, double d);
 
 extern JSAtom *
-NumberToAtom(js::ExclusiveContext *cx, double d);
+NumberToAtom(ExclusiveContext *cx, double d);
 
 template <AllowGC allowGC>
 extern JSFlatString *
-Int32ToString(ThreadSafeContext *cx, int32_t i);
+Int32ToString(ExclusiveContext *cx, int32_t i);
 
 extern JSAtom *
 Int32ToAtom(ExclusiveContext *cx, int32_t si);
@@ -101,7 +101,7 @@ struct ToCStringBuf
  * Convert a number to a C string.  When base==10, this function implements
  * ToString() as specified by ECMA-262-5 section 9.8.1.  It handles integral
  * values cheaply.  Return nullptr if we ran out of memory.  See also
- * js_NumberToCString().
+ * NumberToCString().
  */
 extern char *
 NumberToCString(JSContext *cx, ToCStringBuf *cbuf, double d, int base = 10);
@@ -136,7 +136,7 @@ ParseDecimalNumber(const mozilla::Range<const CharT> chars);
  */
 template <typename CharT>
 extern bool
-GetPrefixInteger(ThreadSafeContext *cx, const CharT *start, const CharT *end, int base,
+GetPrefixInteger(ExclusiveContext *cx, const CharT *start, const CharT *end, int base,
                  const CharT **endp, double *dp);
 
 /*
@@ -148,7 +148,7 @@ extern bool
 GetDecimalInteger(ExclusiveContext *cx, const char16_t *start, const char16_t *end, double *dp);
 
 extern bool
-StringToNumber(ThreadSafeContext *cx, JSString *str, double *result);
+StringToNumber(ExclusiveContext *cx, JSString *str, double *result);
 
 /* ES5 9.3 ToNumber, overwriting *vp with the appropriate number value. */
 MOZ_ALWAYS_INLINE bool
@@ -184,16 +184,16 @@ num_parseInt(JSContext *cx, unsigned argc, Value *vp);
  */
 template <typename CharT>
 extern bool
-js_strtod(js::ThreadSafeContext *cx, const CharT *begin, const CharT *end,
+js_strtod(js::ExclusiveContext *cx, const CharT *begin, const CharT *end,
           const CharT **dEnd, double *d);
 
-extern bool
-js_num_toString(JSContext *cx, unsigned argc, js::Value *vp);
-
-extern bool
-js_num_valueOf(JSContext *cx, unsigned argc, js::Value *vp);
-
 namespace js {
+
+extern bool
+num_toString(JSContext *cx, unsigned argc, Value *vp);
+
+extern bool
+num_valueOf(JSContext *cx, unsigned argc, Value *vp);
 
 static MOZ_ALWAYS_INLINE bool
 ValueFitsInInt32(const Value &v, int32_t *pi)
@@ -246,7 +246,7 @@ ToInteger(JSContext *cx, HandleValue v, double *dp)
         if (!ToNumberSlow(cx, v, dp))
             return false;
     }
-    *dp = ToInteger(*dp);
+    *dp = JS::ToInteger(*dp);
     return true;
 }
 
@@ -298,49 +298,6 @@ ToNumber(ExclusiveContext *cx, const Value &v, double *out)
         return true;
     }
     return ToNumberSlow(cx, v, out);
-}
-
-/*
- * Thread safe variants of number conversion functions.
- */
-
-bool
-NonObjectToNumberSlow(ThreadSafeContext *cx, Value v, double *out);
-
-inline bool
-NonObjectToNumber(ThreadSafeContext *cx, const Value &v, double *out)
-{
-    if (v.isNumber()) {
-        *out = v.toNumber();
-        return true;
-    }
-    return NonObjectToNumberSlow(cx, v, out);
-}
-
-bool
-NonObjectToInt32Slow(ThreadSafeContext *cx, const Value &v, int32_t *out);
-
-inline bool
-NonObjectToInt32(ThreadSafeContext *cx, const Value &v, int32_t *out)
-{
-    if (v.isInt32()) {
-        *out = v.toInt32();
-        return true;
-    }
-    return NonObjectToInt32Slow(cx, v, out);
-}
-
-bool
-NonObjectToUint32Slow(ThreadSafeContext *cx, const Value &v, uint32_t *out);
-
-MOZ_ALWAYS_INLINE bool
-NonObjectToUint32(ThreadSafeContext *cx, const Value &v, uint32_t *out)
-{
-    if (v.isInt32()) {
-        *out = uint32_t(v.toInt32());
-        return true;
-    }
-    return NonObjectToUint32Slow(cx, v, out);
 }
 
 void FIX_FPU();

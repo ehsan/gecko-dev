@@ -40,8 +40,9 @@ Convert(ConvertNamedValue& aIn, bt_property_t& aOut)
 
   if (aIn.mNamedValue.value().type() == BluetoothValue::Tuint32_t) {
     // Set discoverable timeout
-    aOut.val =
-      reinterpret_cast<void*>(aIn.mNamedValue.value().get_uint32_t());
+    aOut.val = const_cast<void*>(static_cast<const void*>(
+      &(aIn.mNamedValue.value().get_uint32_t())));
+      aOut.len = sizeof(uint32_t);
   } else if (aIn.mNamedValue.value().type() == BluetoothValue::TnsString) {
     // Set name
     aIn.mStringValue =
@@ -210,6 +211,39 @@ Convert(const btrc_player_settings_t& aIn, BluetoothAvrcpPlayerSettings& aOut)
   return NS_OK;
 }
 #endif // ANDROID_VERSION >= 18
+
+#if ANDROID_VERSION >= 21
+nsresult
+Convert(const bt_activity_energy_info& aIn, BluetoothActivityEnergyInfo& aOut)
+{
+  nsresult rv = Convert(aIn.status, aOut.mStatus);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+  rv = Convert(aIn.ctrl_state, aOut.mStackState);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+  rv = Convert(aIn.tx_time, aOut.mTxTime);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+  rv = Convert(aIn.rx_time, aOut.mRxTime);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+  rv = Convert(aIn.idle_time, aOut.mIdleTime);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+  rv = Convert(aIn.energy_used, aOut.mEnergyUsed);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+
+  return NS_OK;
+}
+#endif // ANDROID_VERSION >= 21
 
 nsresult
 Convert(const bt_property_t& aIn, BluetoothProperty& aOut)

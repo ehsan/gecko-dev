@@ -121,23 +121,12 @@ public:
   /**
    * Append the desired widget configuration to aConfigurations.
    */
-  void GetWidgetConfiguration(nsTArray<nsIWidget::Configuration>* aConfigurations)
-  {
-    if (mWidget) {
-      if (!mWidget->GetParent()) {
-        // Plugin widgets should not be toplevel except when they're out of the
-        // document, in which case the plugin should not be registered for
-        // geometry updates and this should not be called. But apparently we
-        // have bugs where mWidget sometimes is toplevel here. Bail out.
-        NS_ERROR("Plugin widgets registered for geometry updates should not be toplevel");
-        return;
-      }
-      nsIWidget::Configuration* configuration = aConfigurations->AppendElement();
-      configuration->mChild = mWidget;
-      configuration->mBounds = mNextConfigurationBounds;
-      configuration->mClipRegion = mNextConfigurationClipRegion;
-    }
+  void GetWidgetConfiguration(nsTArray<nsIWidget::Configuration>* aConfigurations);
+
+  nsIntRect GetWidgetlessClipRect() {
+    return RegionFromArray(mNextConfigurationClipRegion).GetBounds();
   }
+
   /**
    * Called after all widget position/size/clip regions have been changed
    * (even if there isn't a widget for this plugin).
@@ -257,6 +246,15 @@ private:
   // Unregisters the plugin for geometry updated with the root pres context
   // stored in mRootPresContextRegisteredWith.
   void UnregisterPluginForGeometryUpdates();
+
+  static const nsIntRegion RegionFromArray(const nsTArray<nsIntRect>& aRects)
+  {
+    nsIntRegion region;
+    for (uint32_t i = 0; i < aRects.Length(); ++i) {
+      region.Or(region, aRects[i]);
+    }
+    return region;
+  }
 
   class PluginEventNotifier : public nsRunnable {
   public:

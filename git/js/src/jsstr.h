@@ -30,7 +30,7 @@ class MutatingRopeSegmentRange;
 
 template <AllowGC allowGC>
 extern JSString *
-ConcatStrings(ThreadSafeContext *cx,
+ConcatStrings(ExclusiveContext *cx,
               typename MaybeRooted<JSString*, allowGC>::HandleType left,
               typename MaybeRooted<JSString*, allowGC>::HandleType right);
 
@@ -91,20 +91,11 @@ struct JSSubString {
  */
 #define JS7_ISDEC(c)    ((((unsigned)(c)) - '0') <= 9)
 #define JS7_UNDEC(c)    ((c) - '0')
+#define JS7_ISOCT(c)    ((((unsigned)(c)) - '0') <= 7)
+#define JS7_UNOCT(c)    (JS7_UNDEC(c))
 #define JS7_ISHEX(c)    ((c) < 128 && isxdigit(c))
 #define JS7_UNHEX(c)    (unsigned)(JS7_ISDEC(c) ? (c) - '0' : 10 + tolower(c) - 'a')
 #define JS7_ISLET(c)    ((c) < 128 && isalpha(c))
-
-/* Initialize the String class, returning its prototype object. */
-extern JSObject *
-js_InitStringClass(JSContext *cx, js::HandleObject obj);
-
-/*
- * Convert a value to a printable C string.
- */
-extern const char *
-js_ValueToPrintable(JSContext *cx, const js::Value &,
-                    JSAutoByteString *bytes, bool asSource = false);
 
 extern size_t
 js_strlen(const char16_t *s);
@@ -124,11 +115,21 @@ js_strncpy(char16_t *dst, const char16_t *src, size_t nelem)
 
 namespace js {
 
+/* Initialize the String class, returning its prototype object. */
+extern JSObject *
+InitStringClass(JSContext *cx, HandleObject obj);
+
+/*
+ * Convert a value to a printable C string.
+ */
+extern const char *
+ValueToPrintable(JSContext *cx, const Value &, JSAutoByteString *bytes, bool asSource = false);
+
 extern mozilla::UniquePtr<char[], JS::FreePolicy>
-DuplicateString(ThreadSafeContext *cx, const char *s);
+DuplicateString(ExclusiveContext *cx, const char *s);
 
 extern mozilla::UniquePtr<char16_t[], JS::FreePolicy>
-DuplicateString(ThreadSafeContext *cx, const char16_t *s);
+DuplicateString(ExclusiveContext *cx, const char16_t *s);
 
 /*
  * Convert a non-string value to a string, returning null after reporting an
@@ -184,7 +185,7 @@ EqualStrings(JSContext *cx, JSString *str1, JSString *str2, bool *result);
 
 /* Use the infallible method instead! */
 extern bool
-EqualStrings(JSContext *cx, JSLinearString *str1, JSLinearString *str2, bool *result) MOZ_DELETE;
+EqualStrings(JSContext *cx, JSLinearString *str1, JSLinearString *str2, bool *result) = delete;
 
 /* EqualStrings is infallible on linear strings. */
 extern bool
@@ -264,7 +265,7 @@ SubstringKernel(JSContext *cx, HandleString str, int32_t beginInt, int32_t lengt
  * appended, but it is not included in the length.
  */
 extern char16_t *
-InflateString(ThreadSafeContext *cx, const char *bytes, size_t *length);
+InflateString(ExclusiveContext *cx, const char *bytes, size_t *length);
 
 /*
  * Inflate bytes to JS chars in an existing buffer. 'dst' must be large
@@ -325,31 +326,23 @@ str_toLowerCase(JSContext *cx, unsigned argc, Value *vp);
 extern bool
 str_toUpperCase(JSContext *cx, unsigned argc, Value *vp);
 
-} /* namespace js */
+extern bool
+str_toString(JSContext *cx, unsigned argc, Value *vp);
 
 extern bool
-js_str_toString(JSContext *cx, unsigned argc, js::Value *vp);
-
-extern bool
-js_str_charAt(JSContext *cx, unsigned argc, js::Value *vp);
-
-namespace js {
+str_charAt(JSContext *cx, unsigned argc, Value *vp);
 
 extern bool
 str_charCodeAt_impl(JSContext *cx, HandleString string, HandleValue index, MutableHandleValue res);
 
-} /* namespace js */
-
 extern bool
-js_str_charCodeAt(JSContext *cx, unsigned argc, js::Value *vp);
+str_charCodeAt(JSContext *cx, unsigned argc, Value *vp);
 /*
  * Convert one UCS-4 char and write it into a UTF-8 buffer, which must be at
  * least 6 bytes long.  Return the number of UTF-8 bytes of data written.
  */
 extern int
-js_OneUcs4ToUtf8Char(uint8_t *utf8Buffer, uint32_t ucs4Char);
-
-namespace js {
+OneUcs4ToUtf8Char(uint8_t *utf8Buffer, uint32_t ucs4Char);
 
 extern size_t
 PutEscapedStringImpl(char *buffer, size_t size, FILE *fp, JSLinearString *str, uint32_t quote);
@@ -400,6 +393,12 @@ FileEscapedString(FILE *fp, JSLinearString *str, uint32_t quote)
     return PutEscapedStringImpl(nullptr, 0, fp, str, quote) != size_t(-1);
 }
 
+inline bool
+FileEscapedString(FILE *fp, const char *chars, size_t length, uint32_t quote)
+{
+    return PutEscapedStringImpl(nullptr, 0, fp, chars, length, quote) != size_t(-1);
+}
+
 bool
 str_match(JSContext *cx, unsigned argc, Value *vp);
 
@@ -410,7 +409,7 @@ bool
 str_split(JSContext *cx, unsigned argc, Value *vp);
 
 JSObject *
-str_split_string(JSContext *cx, HandleTypeObject type, HandleString str, HandleString sep);
+str_split_string(JSContext *cx, HandleObjectGroup group, HandleString str, HandleString sep);
 
 bool
 str_resolve(JSContext *cx, HandleObject obj, HandleId id, bool *resolvedp);
@@ -423,9 +422,9 @@ bool
 str_replace_string_raw(JSContext *cx, HandleString string, HandleString pattern,
                        HandleString replacement, MutableHandleValue rval);
 
-} /* namespace js */
-
 extern bool
-js_String(JSContext *cx, unsigned argc, js::Value *vp);
+StringConstructor(JSContext *cx, unsigned argc, Value *vp);
+
+} /* namespace js */
 
 #endif /* jsstr_h */

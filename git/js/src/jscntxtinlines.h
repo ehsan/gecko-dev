@@ -14,13 +14,10 @@
 
 #include "builtin/Object.h"
 #include "jit/JitFrames.h"
-#include "vm/ForkJoin.h"
 #include "vm/HelperThreads.h"
 #include "vm/Interpreter.h"
 #include "vm/ProxyObject.h"
 #include "vm/Symbol.h"
-
-#include "gc/ForkJoinNursery-inl.h"
 
 namespace js {
 
@@ -136,6 +133,15 @@ class CompartmentChecker
     void check(InterpreterFrame *fp);
     void check(AbstractFramePtr frame);
     void check(SavedStacks *stacks);
+
+    void check(Handle<JSPropertyDescriptor> desc) {
+        check(desc.object());
+        if (desc.hasGetterObject())
+            check(desc.getterObject());
+        if (desc.hasSetterObject())
+            check(desc.setterObject());
+        check(desc.value());
+    }
 };
 #endif /* JS_CRASH_DIAGNOSTICS */
 
@@ -144,14 +150,12 @@ class CompartmentChecker
  * depends on other objects not having been swept yet.
  */
 #define START_ASSERT_SAME_COMPARTMENT()                                       \
-    if (!cx->isExclusiveContext())                                            \
-        return;                                                               \
     if (cx->isJSContext() && cx->asJSContext()->runtime()->isHeapBusy())      \
         return;                                                               \
-    CompartmentChecker c(cx->asExclusiveContext())
+    CompartmentChecker c(cx)
 
 template <class T1> inline void
-assertSameCompartment(ThreadSafeContext *cx, const T1 &t1)
+assertSameCompartment(ExclusiveContext *cx, const T1 &t1)
 {
 #ifdef JS_CRASH_DIAGNOSTICS
     START_ASSERT_SAME_COMPARTMENT();
@@ -160,7 +164,7 @@ assertSameCompartment(ThreadSafeContext *cx, const T1 &t1)
 }
 
 template <class T1> inline void
-assertSameCompartmentDebugOnly(ThreadSafeContext *cx, const T1 &t1)
+assertSameCompartmentDebugOnly(ExclusiveContext *cx, const T1 &t1)
 {
 #if defined(DEBUG) && defined(JS_CRASH_DIAGNOSTICS)
     START_ASSERT_SAME_COMPARTMENT();
@@ -169,7 +173,7 @@ assertSameCompartmentDebugOnly(ThreadSafeContext *cx, const T1 &t1)
 }
 
 template <class T1, class T2> inline void
-assertSameCompartment(ThreadSafeContext *cx, const T1 &t1, const T2 &t2)
+assertSameCompartment(ExclusiveContext *cx, const T1 &t1, const T2 &t2)
 {
 #ifdef JS_CRASH_DIAGNOSTICS
     START_ASSERT_SAME_COMPARTMENT();
@@ -179,7 +183,7 @@ assertSameCompartment(ThreadSafeContext *cx, const T1 &t1, const T2 &t2)
 }
 
 template <class T1, class T2, class T3> inline void
-assertSameCompartment(ThreadSafeContext *cx, const T1 &t1, const T2 &t2, const T3 &t3)
+assertSameCompartment(ExclusiveContext *cx, const T1 &t1, const T2 &t2, const T3 &t3)
 {
 #ifdef JS_CRASH_DIAGNOSTICS
     START_ASSERT_SAME_COMPARTMENT();
@@ -190,7 +194,7 @@ assertSameCompartment(ThreadSafeContext *cx, const T1 &t1, const T2 &t2, const T
 }
 
 template <class T1, class T2, class T3, class T4> inline void
-assertSameCompartment(ThreadSafeContext *cx,
+assertSameCompartment(ExclusiveContext *cx,
                       const T1 &t1, const T2 &t2, const T3 &t3, const T4 &t4)
 {
 #ifdef JS_CRASH_DIAGNOSTICS
@@ -203,7 +207,7 @@ assertSameCompartment(ThreadSafeContext *cx,
 }
 
 template <class T1, class T2, class T3, class T4, class T5> inline void
-assertSameCompartment(ThreadSafeContext *cx,
+assertSameCompartment(ExclusiveContext *cx,
                       const T1 &t1, const T2 &t2, const T3 &t3, const T4 &t4, const T5 &t5)
 {
 #ifdef JS_CRASH_DIAGNOSTICS
@@ -294,7 +298,8 @@ CallJSNativeConstructor(JSContext *cx, Native native, const CallArgs &args)
 }
 
 MOZ_ALWAYS_INLINE bool
-CallJSPropertyOp(JSContext *cx, PropertyOp op, HandleObject receiver, HandleId id, MutableHandleValue vp)
+CallJSGetterOp(JSContext *cx, GetterOp op, HandleObject receiver, HandleId id,
+               MutableHandleValue vp)
 {
     JS_CHECK_RECURSION(cx, return false);
 
@@ -306,42 +311,49 @@ CallJSPropertyOp(JSContext *cx, PropertyOp op, HandleObject receiver, HandleId i
 }
 
 MOZ_ALWAYS_INLINE bool
-CallJSPropertyOpSetter(JSContext *cx, StrictPropertyOp op, HandleObject obj, HandleId id,
-                       bool strict, MutableHandleValue vp)
+CallJSSetterOp(JSContext *cx, SetterOp op, HandleObject obj, HandleId id, MutableHandleValue vp,
+               ObjectOpResult &result)
 {
     JS_CHECK_RECURSION(cx, return false);
 
     assertSameCompartment(cx, obj, id, vp);
-    return op(cx, obj, id, strict, vp);
+    return op(cx, obj, id, vp, result);
 }
 
-static inline bool
+inline bool
 CallJSDeletePropertyOp(JSContext *cx, JSDeletePropertyOp op, HandleObject receiver, HandleId id,
-                       bool *succeeded)
+                       ObjectOpResult &result)
 {
     JS_CHECK_RECURSION(cx, return false);
 
     assertSameCompartment(cx, receiver, id);
-    return op(cx, receiver, id, succeeded);
+    if (op)
+        return op(cx, receiver, id, result);
+    return result.succeed();
 }
 
 inline bool
-CallSetter(JSContext *cx, HandleObject obj, HandleId id, StrictPropertyOp op, unsigned attrs,
-           bool strict, MutableHandleValue vp)
+CallSetter(JSContext *cx, HandleObject obj, HandleId id, SetterOp op, unsigned attrs,
+           MutableHandleValue vp, ObjectOpResult &result)
 {
     if (attrs & JSPROP_SETTER) {
         RootedValue opv(cx, CastAsObjectJsval(op));
-        return InvokeGetterOrSetter(cx, obj, opv, 1, vp.address(), vp);
+        if (!InvokeGetterOrSetter(cx, obj, opv, 1, vp.address(), vp))
+            return false;
+        return result.succeed();
     }
 
     if (attrs & JSPROP_GETTER)
-        return js_ReportGetterOnlyAssignment(cx, strict);
+        return result.fail(JSMSG_GETTER_ONLY);
 
-    return CallJSPropertyOpSetter(cx, op, obj, id, strict, vp);
+    if (!op)
+        return result.succeed();
+
+    return CallJSSetterOp(cx, op, obj, id, vp, result);
 }
 
 inline uintptr_t
-GetNativeStackLimit(ThreadSafeContext *cx)
+GetNativeStackLimit(ExclusiveContext *cx)
 {
     StackKind kind;
     if (cx->isJSContext()) {
@@ -367,7 +379,7 @@ inline void
 JSContext::setPendingException(js::Value v)
 {
     MOZ_ASSERT(!IsPoisonedValue(v));
-    // overRecursed_ is set after the fact by js_ReportOverRecursed.
+    // overRecursed_ is set after the fact by ReportOverRecursed.
     this->overRecursed_ = false;
     this->throwing = true;
     this->unwrappedException_ = v;
@@ -437,7 +449,7 @@ js::ExclusiveContext::setCompartment(JSCompartment *comp)
 
     compartment_ = comp;
     zone_ = comp ? comp->zone() : nullptr;
-    allocator_ = zone_ ? &zone_->allocator : nullptr;
+    arenas_ = zone_ ? &zone_->arenas : nullptr;
 }
 
 inline JSScript *
@@ -447,7 +459,7 @@ JSContext::currentScript(jsbytecode **ppc,
     if (ppc)
         *ppc = nullptr;
 
-    js::Activation *act = mainThread().activation();
+    js::Activation *act = runtime()->activation();
     while (act && (act->cx() != this || (act->isJit() && !act->asJit()->isActive())))
         act = act->prev();
 
@@ -459,8 +471,11 @@ JSContext::currentScript(jsbytecode **ppc,
     if (act->isJit()) {
         JSScript *script = nullptr;
         js::jit::GetPcScript(const_cast<JSContext *>(this), &script, ppc);
-        if (!allowCrossCompartment && script->compartment() != compartment())
+        if (!allowCrossCompartment && script->compartment() != compartment()) {
+            if (ppc)
+                *ppc = nullptr;
             return nullptr;
+        }
         return script;
     }
 
@@ -481,26 +496,6 @@ JSContext::currentScript(jsbytecode **ppc,
         MOZ_ASSERT(script->containsPC(*ppc));
     }
     return script;
-}
-
-template <JSThreadSafeNative threadSafeNative>
-inline bool
-JSNativeThreadSafeWrapper(JSContext *cx, unsigned argc, JS::Value *vp)
-{
-    return threadSafeNative(cx, argc, vp);
-}
-
-template <JSThreadSafeNative threadSafeNative>
-inline bool
-JSParallelNativeThreadSafeWrapper(js::ForkJoinContext *cx, unsigned argc, JS::Value *vp)
-{
-    return threadSafeNative(cx, argc, vp);
-}
-
-/* static */ inline JSContext *
-js::ExecutionModeTraits<js::SequentialExecution>::toContextType(ExclusiveContext *cx)
-{
-    return cx->asJSContext();
 }
 
 #endif /* jscntxtinlines_h */

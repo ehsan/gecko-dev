@@ -13,11 +13,11 @@ BEGIN_TEST(testOOM)
     char16_t ch;
     if (!JS_GetStringCharAt(cx, jsstr, 0, &ch))
         return false;
-    MOZ_ASSERT(ch == '9');
+    MOZ_RELEASE_ASSERT(ch == '9');
     return true;
 }
 
-virtual JSRuntime * createRuntime()
+virtual JSRuntime * createRuntime() MOZ_OVERRIDE
 {
     JSRuntime *rt = JS_NewRuntime(0);
     if (!rt)

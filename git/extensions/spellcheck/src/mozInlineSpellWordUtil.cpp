@@ -366,8 +366,7 @@ IsDOMWordSeparator(char16_t ch)
 static inline bool
 IsBRElement(nsINode* aNode)
 {
-  return aNode->IsElement() &&
-         aNode->AsElement()->IsHTML(nsGkAtoms::br);
+  return aNode->IsHTMLElement(nsGkAtoms::br);
 }
 
 /**
@@ -442,7 +441,7 @@ IsBreakElement(nsINode* aNode)
 
   dom::Element *element = aNode->AsElement();
     
-  if (element->IsHTML(nsGkAtoms::br))
+  if (element->IsHTMLElement(nsGkAtoms::br))
     return true;
 
   // If we don't have a frame, we don't consider ourselves a break
@@ -576,7 +575,7 @@ mozInlineSpellWordUtil::BuildSoftText()
           DOMTextMapping(NodeOffset(node, firstOffsetInNode), mSoftText.Length(), len));
 
         bool ok = textFragment->AppendTo(mSoftText, firstOffsetInNode, len,
-                                         mozilla::fallible_t());
+                                         mozilla::fallible);
         if (!ok) {
             // probably out of memory, remove from mSoftTextDOMMapping
             mSoftTextDOMMapping.RemoveElementAt(mSoftTextDOMMapping.Length() - 1);

@@ -200,7 +200,7 @@ this.PlacesUtils = {
    * @param aNode
    *        A result node
    */
-  nodeAncestors: function PU_nodeAncestors(aNode) {
+  nodeAncestors: function* PU_nodeAncestors(aNode) {
     let node = aNode.parent;
     while (node) {
       yield node;
@@ -1958,7 +1958,12 @@ let GuidHelper = {
         },
 
         QueryInterface: XPCOMUtils.generateQI(Ci.nsINavBookmarkObserver),
-        __noSuchMethod__: () => {}, // Catch all all onItem* methods.
+
+        onBeginUpdateBatch: function() {},
+        onEndUpdateBatch: function() {},
+        onItemChanged: function() {},
+        onItemVisited: function() {},
+        onItemMoved: function() {},
       };
       PlacesUtils.bookmarks.addObserver(this.observer, false);
       PlacesUtils.registerShutdownFunction(() => {

@@ -14,7 +14,8 @@ XPCOMUtils.defineLazyGetter(this, "BROWSER_NEW_TAB_URL", function () {
 
   function getNewTabPageURL() {
     if (PrivateBrowsingUtils.isWindowPrivate(window) &&
-        !PrivateBrowsingUtils.permanentPrivateBrowsing) {
+        !PrivateBrowsingUtils.permanentPrivateBrowsing &&
+        !Services.prefs.prefHasUserValue(PREF)) {
       return "about:privatebrowsing";
     }
 
@@ -222,6 +223,7 @@ function openLinkIn(url, where, params) {
   var aIsPrivate            = params.private;
   var aSkipTabAnimation     = params.skipTabAnimation;
   var aAllowPinnedTabHostChange = !!params.allowPinnedTabHostChange;
+  var aNoReferrer           = params.noReferrer;
 
   if (where == "save") {
     if (!aInitiatingDoc) {
@@ -229,7 +231,7 @@ function openLinkIn(url, where, params) {
         "where == 'save' but without initiatingDoc.  See bug 814264.");
       return;
     }
-    saveURL(url, null, null, true, null, aReferrerURI, aInitiatingDoc);
+    saveURL(url, null, null, true, null, aNoReferrer ? null : aReferrerURI, aInitiatingDoc);
     return;
   }
   const Cc = Components.classes;
@@ -263,7 +265,7 @@ function openLinkIn(url, where, params) {
 
     sa.AppendElement(wuri);
     sa.AppendElement(charset);
-    sa.AppendElement(aReferrerURI);
+    sa.AppendElement(aNoReferrer ? null : aReferrerURI);
     sa.AppendElement(aPostData);
     sa.AppendElement(allowThirdPartyFixupSupports);
 
@@ -309,8 +311,6 @@ function openLinkIn(url, where, params) {
   // result in a new frontmost window (e.g. "javascript:window.open('');").
   w.focus();
 
-  let newTab;
-
   switch (where) {
   case "current":
     let flags = Ci.nsIWebNavigation.LOAD_FLAGS_NONE;
@@ -327,13 +327,13 @@ function openLinkIn(url, where, params) {
     if (aDisallowInheritPrincipal && !(uriObj && uriObj.schemeIs("javascript")))
       flags |= Ci.nsIWebNavigation.LOAD_FLAGS_DISALLOW_INHERIT_OWNER;
 
-    w.gBrowser.loadURIWithFlags(url, flags, aReferrerURI, null, aPostData);
+    w.gBrowser.loadURIWithFlags(url, flags, aNoReferrer ? null : aReferrerURI, null, aPostData);
     break;
   case "tabshifted":
     loadInBackground = !loadInBackground;
     // fall through
   case "tab":
-    newTab = w.gBrowser.loadOneTab(url, {
+    w.gBrowser.loadOneTab(url, {
       referrerURI: aReferrerURI,
       charset: aCharset,
       postData: aPostData,
@@ -341,7 +341,8 @@ function openLinkIn(url, where, params) {
       allowThirdPartyFixup: aAllowThirdPartyFixup,
       relatedToCurrent: aRelatedToCurrent,
       skipAnimation: aSkipTabAnimation,
-      allowMixedContent: aAllowMixedContent
+      allowMixedContent: aAllowMixedContent,
+      noReferrer: aNoReferrer
     });
     break;
   }
@@ -349,12 +350,6 @@ function openLinkIn(url, where, params) {
   w.gBrowser.selectedBrowser.focus();
 
   if (!loadInBackground && w.isBlankPageURL(url)) {
-    if (newTab && gMultiProcessBrowser) {
-      // Remote browsers are switched to asynchronously, and we need to
-      // ensure that the location bar remains focused in that case rather
-      // than the content area being focused.
-      newTab._skipContentFocus = true;
-    }
     w.focusAndSelectUrlBar();
   }
 }
@@ -521,18 +516,33 @@ function openPreferences(paneID, extraArgs)
 
   if (getBoolPref("browser.preferences.inContent")) {
     let win = Services.wm.getMostRecentWindow("navigator:browser");
-    if (!win) {
-      return;
-    }
-
     let friendlyCategoryName = internalPrefCategoryNameToFriendlyName(paneID);
     let preferencesURL = "about:preferences" +
                          (friendlyCategoryName ? "#" + friendlyCategoryName : "");
-    let newLoad = !win.switchToTabHavingURI(preferencesURL, true, {ignoreFragment: true});
-    let browser = win.gBrowser.selectedBrowser;
+    let newLoad = true;
+    let browser = null;
+    if (!win) {
+      const Cc = Components.classes;
+      const Ci = Components.interfaces;
+      let windowArguments = Cc["@mozilla.org/supports-array;1"]
+                              .createInstance(Ci.nsISupportsArray);
+      let supportsStringPrefURL = Cc["@mozilla.org/supports-string;1"]
+                                    .createInstance(Ci.nsISupportsString);
+      supportsStringPrefURL.data = preferencesURL;
+      windowArguments.AppendElement(supportsStringPrefURL);
+
+      win = Services.ww.openWindow(null, Services.prefs.getCharPref("browser.chromeURL"),
+                                   "_blank", "chrome,dialog=no,all", windowArguments);
+    } else {
+      newLoad = !win.switchToTabHavingURI(preferencesURL, true, {ignoreFragment: true});
+      browser = win.gBrowser.selectedBrowser;
+    }
 
     if (newLoad) {
       Services.obs.addObserver(function advancedPaneLoadedObs(prefWin, topic, data) {
+        if (!browser) {
+          browser = win.gBrowser.selectedBrowser;
+        }
         if (prefWin != browser.contentWindow) {
           return;
         }

@@ -30,7 +30,7 @@ class FFmpegH264Decoder<LIBAV_VER> : public FFmpegDataDecoder<LIBAV_VER>
   };
 
 public:
-  FFmpegH264Decoder(MediaTaskQueue* aTaskQueue,
+  FFmpegH264Decoder(FlushableMediaTaskQueue* aTaskQueue,
                     MediaDataDecoderCallback* aCallback,
                     const mp4_demuxer::VideoDecoderConfig& aConfig,
                     ImageContainer* aImageContainer);
@@ -62,6 +62,8 @@ private:
 
   MediaDataDecoderCallback* mCallback;
   nsRefPtr<ImageContainer> mImageContainer;
+  uint32_t mDisplayWidth;
+  uint32_t mDisplayHeight;
 };
 
 } // namespace mozilla

@@ -464,9 +464,10 @@ this.Utils = { // jshint ignore:line
         typeof aDetails === 'string' ? { eventType : aDetails } : aDetails)
     };
     let window = this.win;
-    if (window.shell) {
+    let shell = window.shell || window.content.shell;
+    if (shell) {
       // On B2G device.
-      window.shell.sendChromeEvent(details);
+      shell.sendChromeEvent(details);
     } else {
       // Dispatch custom event to have support for desktop and screen reader
       // emulator add-on.
@@ -847,7 +848,8 @@ PivotContext.prototype = {
         hints.push(hint);
       } else if (aAccessible.actionCount > 0) {
         hints.push({
-          string: Utils.AccRetrieval.getStringRole(aAccessible.role) + '-hint'
+          string: Utils.AccRetrieval.getStringRole(
+            aAccessible.role).replace(/\s/g, '') + '-hint'
         });
       }
     });

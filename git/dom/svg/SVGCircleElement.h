@@ -30,7 +30,7 @@ public:
   virtual bool HasValidDimensions() const MOZ_OVERRIDE;
 
   // nsSVGPathGeometryElement methods:
-  virtual bool GetGeometryBounds(Rect* aBounds, Float aStrokeWidth,
+  virtual bool GetGeometryBounds(Rect* aBounds, const StrokeOptions& aStrokeOptions,
                                  const Matrix& aTransform) MOZ_OVERRIDE;
   virtual TemporaryRef<Path> BuildPath(PathBuilder* aBuilder) MOZ_OVERRIDE;
 

@@ -19,7 +19,14 @@ var httpServer = null;
 function make_channel(url, callback, ctx) {
   var ios = Cc["@mozilla.org/network/io-service;1"].
             getService(Ci.nsIIOService);
-  return ios.newChannel(url, "", null);
+  return ios.newChannel2(url,
+                        "",
+                        null,
+                        null,      // aLoadingNode
+                        Services.scriptSecurityManager.getSystemPrincipal(),
+                        null,      // aTriggeringPrincipal
+                        Ci.nsILoadInfo.SEC_NORMAL,
+                        Ci.nsIContentPolicy.TYPE_OTHER);
 }
 
 // Have 2kb response (8 * 2 ^ 8)
@@ -56,8 +63,8 @@ var enforcePref;
 
 function run_test()
 {
-  enforcePref = Services.prefs.getBoolPref("network.http.enforce-framing.http1");
-  Services.prefs.setBoolPref("network.http.enforce-framing.http1", false);
+  enforcePref = Services.prefs.getBoolPref("network.http.enforce-framing.soft");
+  Services.prefs.setBoolPref("network.http.enforce-framing.soft", false);
 
   httpServer = new HttpServer();
   httpServer.registerPathHandler("/content", contentHandler);
@@ -80,6 +87,6 @@ function firstTimeThrough(request, buffer)
 function finish_test(request, buffer)
 {
   do_check_eq(buffer, responseBody);
-  Services.prefs.setBoolPref("network.http.enforce-framing.http1", enforcePref);
+  Services.prefs.setBoolPref("network.http.enforce-framing.soft", enforcePref);
   httpServer.stop(do_test_finished);
 }

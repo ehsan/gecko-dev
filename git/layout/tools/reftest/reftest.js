@@ -36,7 +36,9 @@ const NS_DIRECTORY_SERVICE_CONTRACTID =
 const NS_OBSERVER_SERVICE_CONTRACTID =
           "@mozilla.org/observer-service;1";
 
-Components.utils.import("resource://gre/modules/FileUtils.jsm");
+CU.import("resource://gre/modules/FileUtils.jsm");
+CU.import("chrome://reftest/content/httpd.jsm", this);
+CU.import("resource://gre/modules/Services.jsm");
 
 var gLoadTimeout = 0;
 var gTimeoutHook = null;
@@ -58,6 +60,7 @@ const BLANK_URL_FOR_CLEARING = "data:text/html;charset=UTF-8,%3C%21%2D%2DCLEAR%2
 var gBrowser;
 // Are we testing web content loaded in a separate process?
 var gBrowserIsRemote;           // bool
+var gB2GisMulet;                // bool
 // Are we using <iframe mozbrowser>?
 var gBrowserIsIframe;           // bool
 var gBrowserMessageManager;
@@ -247,6 +250,12 @@ this.OnRefTestLoad = function OnRefTestLoad(win)
     }
 
     try {
+        gB2GisMulet = prefs.getBoolPref("b2g.is_mulet");
+    } catch (e) {
+        gB2GisMulet = false;
+    }
+
+    try {
       gBrowserIsIframe = prefs.getBoolPref("reftest.browser.iframe.enabled");
     } catch (e) {
       gBrowserIsIframe = false;
@@ -269,7 +278,6 @@ this.OnRefTestLoad = function OnRefTestLoad(win)
     gBrowser.setAttribute("id", "browser");
     gBrowser.setAttribute("type", "content-primary");
     gBrowser.setAttribute("remote", gBrowserIsRemote ? "true" : "false");
-    gBrowser.setAttribute("mozasyncpanzoom", "true");
     // Make sure the browser element is exactly 800x1000, no matter
     // what size our window is
     gBrowser.setAttribute("style", "padding: 0px; margin: 0px; border:none; min-width: 800px; min-height: 1000px; max-width: 800px; max-height: 1000px");
@@ -397,17 +405,7 @@ function InitAndStartRefTests()
     if (gRemote) {
         gServer = null;
     } else {
-        // not all gecko applications autoregister xpcom components
-        if (CC["@mozilla.org/server/jshttp;1"] === undefined) {
-            var file = CC["@mozilla.org/file/directory_service;1"].
-                        getService(CI.nsIProperties).get("ProfD", CI.nsIFile);
-            file.appendRelativePath("extensions/reftest@mozilla.org/chrome.manifest");
-
-            registrar = Components.manager.QueryInterface(CI.nsIComponentRegistrar);
-            registrar.autoRegister(file);
-        }
-        gServer = CC["@mozilla.org/server/jshttp;1"].
-                      createInstance(CI.nsIHttpServer);
+        gServer = new HttpServer();
     }
     try {
         if (gServer)
@@ -676,9 +674,12 @@ function BuildConditionSandbox(aURL) {
     sandbox.http = new sandbox.Object();
     httpProps.forEach((x) => sandbox.http[x] = hh[x]);
 
-    // Set OSX to the Mac OS X version for Mac, and 0 otherwise.
-    var osxmatch = /Mac OS X (\d+.\d+)$/.exec(hh.oscpu);
-    sandbox.OSX = osxmatch ? parseFloat(osxmatch[1]) : 0;
+    // Set OSX to be the Mac OS X version, as an integer, or undefined
+    // for other platforms.  The integer is formed by 100 times the
+    // major version plus the minor version, so 1006 for 10.6, 1010 for
+    // 10.10, etc.
+    var osxmatch = /Mac OS X (\d+).(\d+)$/.exec(hh.oscpu);
+    sandbox.OSX = osxmatch ? parseInt(osxmatch[1]) * 100 + parseInt(osxmatch[2]) : undefined;
 
     // see if we have the test plugin available,
     // and set a sandox prop accordingly
@@ -736,6 +737,7 @@ function BuildConditionSandbox(aURL) {
     // Tests shouldn't care about this except for when they need to
     // crash the content process
     sandbox.browserIsRemote = gBrowserIsRemote;
+    sandbox.Mulet = gB2GisMulet;
 
     try {
         sandbox.asyncPanZoom = prefs.getBoolPref("layers.async-pan-zoom.enabled");
@@ -807,7 +809,12 @@ function ReadManifest(aURL, inherited_status)
                      .getService(CI.nsIScriptSecurityManager);
 
     var listURL = aURL;
-    var channel = gIOService.newChannelFromURI(aURL);
+    var channel = gIOService.newChannelFromURI2(aURL,
+                                                null,      // aLoadingNode
+                                                Services.scriptSecurityManager.getSystemPrincipal(),
+                                                null,      // aTriggeringPrincipal
+                                                CI.nsILoadInfo.SEC_NORMAL,
+                                                CI.nsIContentPolicy.TYPE_OTHER);
     var inputStream = channel.open();
     if (channel instanceof Components.interfaces.nsIHttpChannel
         && channel.responseStatus != 200) {
@@ -1479,6 +1486,12 @@ function UpdateCurrentCanvasForInvalidation(rects)
         var top = Math.floor(r.top);
         var right = Math.ceil(r.right);
         var bottom = Math.ceil(r.bottom);
+
+        // Clamp the values to the canvas size
+        left = Math.max(0, Math.min(left, gCurrentCanvas.width));
+        top = Math.max(0, Math.min(top, gCurrentCanvas.height));
+        right = Math.max(0, Math.min(right, gCurrentCanvas.width));
+        bottom = Math.max(0, Math.min(bottom, gCurrentCanvas.height));
 
         ctx.save();
         ctx.translate(left, top);

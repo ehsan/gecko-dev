@@ -43,6 +43,10 @@
 #include "nsThreadUtils.h"
 #include "nsXPCOMStrings.h"
 
+#include "nsIContentPolicy.h"
+#include "nsILoadInfo.h"
+#include "nsContentUtils.h"
+
 using mozilla::Preferences;
 using mozilla::TimeStamp;
 using mozilla::Telemetry::Accumulate;
@@ -292,6 +296,8 @@ PendingDBLookup::LookupSpecInternal(const nsACString& aSpec)
   LOG(("Checking DB service for principal %s [this = %p]", mSpec.get(), this));
   nsCOMPtr<nsIUrlClassifierDBService> dbService =
     do_GetService(NS_URLCLASSIFIERDBSERVICE_CONTRACTID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   nsAutoCString tables;
   nsAutoCString allowlist;
   Preferences::GetCString(PREF_DOWNLOAD_ALLOW_TABLE, &allowlist);
@@ -897,7 +903,15 @@ PendingLookup::SendRemoteQueryInternal()
   // Set up the channel to transmit the request to the service.
   nsCOMPtr<nsIChannel> channel;
   nsCOMPtr<nsIIOService> ios = do_GetService(NS_IOSERVICE_CONTRACTID, &rv);
-  rv = ios->NewChannel(serviceUrl, nullptr, nullptr, getter_AddRefs(channel));
+  rv = ios->NewChannel2(serviceUrl,
+                        nullptr,
+                        nullptr,
+                        nullptr, // aLoadingNode
+                        nsContentUtils::GetSystemPrincipal(),
+                        nullptr, // aTriggeringPrincipal
+                        nsILoadInfo::SEC_NORMAL,
+                        nsIContentPolicy::TYPE_OTHER,
+                        getter_AddRefs(channel));
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIHttpChannel> httpChannel(do_QueryInterface(channel, &rv));

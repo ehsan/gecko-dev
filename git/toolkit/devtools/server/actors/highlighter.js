@@ -12,6 +12,7 @@ const events = require("sdk/event/core");
 const Heritage = require("sdk/core/heritage");
 const {CssLogic} = require("devtools/styleinspector/css-logic");
 const EventEmitter = require("devtools/toolkit/event-emitter");
+const {setIgnoreLayoutChanges} = require("devtools/server/actors/layout");
 
 Cu.import("resource://gre/modules/devtools/LayoutHelpers.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
@@ -25,8 +26,8 @@ const XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 const HIGHLIGHTER_STYLESHEET_URI = "resource://gre/modules/devtools/server/actors/highlighter.css";
 const HIGHLIGHTER_PICKED_TIMER = 1000;
 // How high is the nodeinfobar
-const NODE_INFOBAR_HEIGHT = 40; //px
-const NODE_INFOBAR_ARROW_SIZE = 15; // px
+const NODE_INFOBAR_HEIGHT = 34; //px
+const NODE_INFOBAR_ARROW_SIZE = 9; // px
 // Width of boxmodelhighlighter guides
 const GUIDE_STROKE_WIDTH = 1;
 // The minimum distance a line should be before it has an arrow marker-end
@@ -43,14 +44,45 @@ const SIMPLE_OUTLINE_SHEET = ".__fx-devtools-hide-shortcut__ {" +
                              "  outline: 2px dashed #F06!important;" +
                              "  outline-offset: -2px!important;" +
                              "}";
+// Distance of the width or height handles from the node's edge.
+const GEOMETRY_SIZE_ARROW_OFFSET = .25; // 25%
+const GEOMETRY_LABEL_SIZE = 6;
 
-// All possible highlighter classes
-let HIGHLIGHTER_CLASSES = exports.HIGHLIGHTER_CLASSES = {
-  "BoxModelHighlighter": BoxModelHighlighter,
-  "CssTransformHighlighter": CssTransformHighlighter,
-  "SelectorHighlighter": SelectorHighlighter,
-  "RectHighlighter": RectHighlighter
+/**
+ * The registration mechanism for highlighters provide a quick way to
+ * have modular highlighters, instead of a hard coded list.
+ * It allow us to split highlighers in sub modules, and add them dynamically
+ * using add-on (useful for 3rd party developers, or prototyping)
+ *
+ * Note that currently, highlighters added using add-ons, can only work on
+ * Firefox desktop, or Fennec if the same add-on is installed in both.
+ */
+const highlighterTypes = new Map();
+
+/**
+ * Returns `true` if a highlighter for the given `typeName` is registered,
+ * `false` otherwise.
+ */
+const isTypeRegistered = (typeName) => highlighterTypes.has(typeName);
+exports.isTypeRegistered = isTypeRegistered;
+
+/**
+ * Registers a given constructor as highlighter, for the `typeName` given.
+ * If no `typeName` is provided, is looking for a `typeName` property in
+ * the prototype's constructor.
+ */
+const register = (constructor, typeName=constructor.prototype.typeName) => {
+  if (!typeName) {
+    throw Error("No type's name found, or provided.")
+  }
+
+  if (highlighterTypes.has(typeName)) {
+    throw Error(`${typeName} is already registered.`)
+  }
+
+  highlighterTypes.set(typeName, constructor);
 };
+exports.register = register;
 
 /**
  * The Highlighter is the server-side entry points for any tool that wishes to
@@ -246,25 +278,8 @@ let HighlighterActor = exports.HighlighterActor = protocol.ActorClass({
     return this._walker.attachElement(node);
   },
 
-  /**
-   * Get the right target for listening to mouse events while in pick mode.
-   * - On a firefox desktop content page: tabActor is a BrowserTabActor from
-   *   which the browser property will give us a target we can use to listen to
-   *   events, even in nested iframes.
-   * - On B2G: tabActor is a ContentActor which doesn't have a browser but
-   *   since it overrides BrowserTabActor, it does get a browser property
-   *   anyway, which points to its window object.
-   * - When using the Browser Toolbox (to inspect firefox desktop): tabActor is
-   *   the RootActor, in which case, the window property can be used to listen
-   *   to events
-   */
-  _getPickerListenerTarget: function() {
-    let actor = this._tabActor;
-    return actor.isRootActor ? actor.window : actor.chromeEventHandler;
-  },
-
   _startPickerListeners: function() {
-    let target = this._getPickerListenerTarget();
+    let target = getPageListenerTarget(this._tabActor);
     target.addEventListener("mousemove", this._onHovered, true);
     target.addEventListener("click", this._onPick, true);
     target.addEventListener("mousedown", this._preventContentEvent, true);
@@ -273,7 +288,7 @@ let HighlighterActor = exports.HighlighterActor = protocol.ActorClass({
   },
 
   _stopPickerListeners: function() {
-    let target = this._getPickerListenerTarget();
+    let target = getPageListenerTarget(this._tabActor);
     target.removeEventListener("mousemove", this._onHovered, true);
     target.removeEventListener("click", this._onPick, true);
     target.removeEventListener("mousedown", this._preventContentEvent, true);
@@ -318,10 +333,11 @@ let CustomHighlighterActor = exports.CustomHighlighterActor = protocol.ActorClas
 
     this._inspector = inspector;
 
-    let constructor = HIGHLIGHTER_CLASSES[typeName];
+    let constructor = highlighterTypes.get(typeName);
     if (!constructor) {
-      throw new Error(typeName + " isn't a valid highlighter class (" +
-        Object.keys(HIGHLIGHTER_CLASSES) + ")");
+      let list = [...highlighterTypes.keys()];
+
+      throw new Error(`${typeName} isn't a valid highlighter class (${list})`);
       return;
     }
 
@@ -420,6 +436,9 @@ let CustomHighlighterFront = protocol.FrontClass(CustomHighlighterActor, {});
 function CanvasFrameAnonymousContentHelper(tabActor, nodeBuilder) {
   this.tabActor = tabActor;
   this.nodeBuilder = nodeBuilder;
+  this.anonymousContentDocument = this.tabActor.window.document;
+  // XXX the next line is a wallpaper for bug 1123362.
+  this.anonymousContentGlobal = Cu.getGlobalForObject(this.anonymousContentDocument);
 
   this._insert();
 
@@ -432,27 +451,45 @@ CanvasFrameAnonymousContentHelper.prototype = {
     // If the current window isn't the one the content was inserted into, this
     // will fail, but that's fine.
     try {
-      let doc = this.tabActor.window.document;
+      let doc = this.anonymousContentDocument;
       doc.removeAnonymousContent(this._content);
     } catch (e) {}
     events.off(this.tabActor, "navigate", this._onNavigate);
     this.tabActor = this.nodeBuilder = this._content = null;
+    this.anonymousContentDocument = null;
+    this.anonymousContentGlobal = null;
   },
 
   _insert: function() {
     // Re-insert the content node after page navigation only if the new page
     // isn't XUL.
-    if (!isXUL(this.tabActor)) {
-      // For now highlighter.css is injected in content as a ua sheet because
-      // <style scoped> doesn't work inside anonymous content (see bug 1086532).
-      // If it did, highlighter.css would be injected as an anonymous content
-      // node using CanvasFrameAnonymousContentHelper instead.
-      installHelperSheet(this.tabActor.window,
-        "@import url('" + HIGHLIGHTER_STYLESHEET_URI + "');");
-      let node = this.nodeBuilder();
-      let doc = this.tabActor.window.document;
-      this._content = doc.insertAnonymousContent(node);
+    if (isXUL(this.tabActor)) {
+      return;
     }
+    let doc = this.tabActor.window.document;
+
+    // On B2G, for example, when connecting to keyboard just after startup,
+    // we connect to a hidden document, which doesn't accept
+    // insertAnonymousContent call yet.
+    if (doc.hidden) {
+      // In such scenario, just wait for the document to be visible
+      // before injecting anonymous content.
+      let onVisibilityChange = () => {
+        doc.removeEventListener("visibilitychange", onVisibilityChange);
+        this._insert();
+      };
+      doc.addEventListener("visibilitychange", onVisibilityChange);
+      return;
+    }
+
+    // For now highlighter.css is injected in content as a ua sheet because
+    // <style scoped> doesn't work inside anonymous content (see bug 1086532).
+    // If it did, highlighter.css would be injected as an anonymous content
+    // node using CanvasFrameAnonymousContentHelper instead.
+    installHelperSheet(this.tabActor.window,
+      "@import url('" + HIGHLIGHTER_STYLESHEET_URI + "');");
+    let node = this.nodeBuilder();
+    this._content = doc.insertAnonymousContent(node);
   },
 
   _onNavigate: function({isTopLevel}) {
@@ -493,8 +530,19 @@ CanvasFrameAnonymousContentHelper.prototype = {
     }
   },
 
+  getElement: function(id) {
+    let self = this;
+    return {
+      getTextContent: () => self.getTextContentForElement(id),
+      setTextContent: text => self.setTextContentForElement(id, text),
+      setAttribute: (name, value) => self.setAttributeForElement(id, name, value),
+      getAttribute: name => self.getAttributeForElement(id, name),
+      removeAttribute: name => self.removeAttributeForElement(id, name)
+    };
+  },
+
   get content() {
-    if (Cu.isDeadWrapper(this._content)) {
+    if (!this._content || Cu.isDeadWrapper(this._content)) {
       return null;
     }
     return this._content;
@@ -549,12 +597,16 @@ CanvasFrameAnonymousContentHelper.prototype = {
  * - this.currentNode: the node to be shown
  * - this.currentQuads: all of the node's box model region quads
  * - this.win: the current window
+ *
+ * Emits the following events:
+ * - shown
+ * - hidden
+ * - updated
  */
 function AutoRefreshHighlighter(tabActor) {
   EventEmitter.decorate(this);
 
   this.tabActor = tabActor;
-  this.browser = tabActor.browser;
   this.win = tabActor.window;
 
   this.currentNode = null;
@@ -587,6 +639,8 @@ AutoRefreshHighlighter.prototype = {
     this._updateAdjustedQuads();
     this._startRefreshLoop();
     this._show();
+
+    this.emit("shown");
   },
 
   /**
@@ -602,6 +656,8 @@ AutoRefreshHighlighter.prototype = {
     this.currentNode = null;
     this.currentQuads = {};
     this.options = null;
+
+    this.emit("hidden");
   },
 
   /**
@@ -681,18 +737,17 @@ AutoRefreshHighlighter.prototype = {
   },
 
   _startRefreshLoop: function() {
-    let win = this.currentNode.ownerDocument.defaultView;
+    let win = getWindow(this.currentNode);
     this.rafID = win.requestAnimationFrame(this._startRefreshLoop.bind(this));
+    this.rafWin = win;
     this.update();
   },
 
   _stopRefreshLoop: function() {
-    if (!this.rafID) {
-      return;
+    if (this.rafID && !Cu.isDeadWrapper(this.rafWin)) {
+      this.rafWin.cancelAnimationFrame(this.rafID);
     }
-    let win = this.currentNode.ownerDocument.defaultView;
-    win.cancelAnimationFrame(this.rafID);
-    this.rafID = null;
+    this.rafID = this.rafWin = null;
   },
 
   destroy: function() {
@@ -700,7 +755,6 @@ AutoRefreshHighlighter.prototype = {
 
     this.tabActor = null;
     this.win = null;
-    this.browser = null;
     this.currentNode = null;
     this.layoutHelpers = null;
   }
@@ -777,6 +831,8 @@ function BoxModelHighlighter(tabActor) {
 }
 
 BoxModelHighlighter.prototype = Heritage.extend(AutoRefreshHighlighter.prototype, {
+  typeName: "BoxModelHighlighter",
+
   ID_CLASS_PREFIX: "box-model-",
 
   get zoom() {
@@ -965,7 +1021,7 @@ BoxModelHighlighter.prototype = Heritage.extend(AutoRefreshHighlighter.prototype
    */
   _trackMutations: function() {
     if (isNodeValid(this.currentNode)) {
-      let win = this.currentNode.ownerDocument.defaultView;
+      let win = getWindow(this.currentNode);
       this.currentNodeObserver = new win.MutationObserver(this.update);
       this.currentNodeObserver.observe(this.currentNode, {attributes: true});
     }
@@ -984,6 +1040,8 @@ BoxModelHighlighter.prototype = Heritage.extend(AutoRefreshHighlighter.prototype
    * Should be called whenever node size or attributes change
    */
   _update: function() {
+    setIgnoreLayoutChanges(true);
+
     if (this._updateBoxModel()) {
       if (!this.options.hideInfoBar) {
         this._showInfobar();
@@ -995,15 +1053,21 @@ BoxModelHighlighter.prototype = Heritage.extend(AutoRefreshHighlighter.prototype
       // Nothing to highlight (0px rectangle like a <script> tag for instance)
       this._hide();
     }
+
+    setIgnoreLayoutChanges(false, this.currentNode.ownerDocument.documentElement);
   },
 
   /**
    * Hide the highlighter, the outline and the infobar.
    */
   _hide: function() {
+    setIgnoreLayoutChanges(true);
+
     this._untrackMutations();
     this._hideBoxModel();
     this._hideInfobar();
+
+    setIgnoreLayoutChanges(false, this.currentNode.ownerDocument.documentElement);
   },
 
   /**
@@ -1097,7 +1161,7 @@ BoxModelHighlighter.prototype = Heritage.extend(AutoRefreshHighlighter.prototype
         Cu.isDeadWrapper(this.currentNode) ||
         this.currentNode.nodeType !== Ci.nsIDOMNode.ELEMENT_NODE ||
         !this.currentNode.ownerDocument ||
-        !this.currentNode.ownerDocument.defaultView ||
+        !getWindow(this.currentNode) ||
         hasNoQuads) {
       return false;
     }
@@ -1249,8 +1313,8 @@ BoxModelHighlighter.prototype = Heritage.extend(AutoRefreshHighlighter.prototype
       pseudos += ":" + pseudo;
     }
 
-    let rect = node.getBoundingClientRect();
-    let dim = Math.ceil(rect.width) + " x " + Math.ceil(rect.height);
+    let rect = this.currentQuads.border.bounds;
+    let dim = parseFloat(rect.width.toPrecision(6)) + " \u00D7 " + parseFloat(rect.height.toPrecision(6));
 
     let elementId = this.ID_CLASS_PREFIX + "nodeinfobar-";
     this.markup.setTextContentForElement(elementId + "tagname", tagName);
@@ -1313,6 +1377,8 @@ BoxModelHighlighter.prototype = Heritage.extend(AutoRefreshHighlighter.prototype
     this.markup.setAttributeForElement(containerId, "style", style);
   }
 });
+register(BoxModelHighlighter);
+exports.BoxModelHighlighter = BoxModelHighlighter;
 
 /**
  * The CssTransformHighlighter is the class that draws an outline around a
@@ -1329,6 +1395,8 @@ function CssTransformHighlighter(tabActor) {
 let MARKER_COUNTER = 1;
 
 CssTransformHighlighter.prototype = Heritage.extend(AutoRefreshHighlighter.prototype, {
+  typeName: "CssTransformHighlighter",
+
   ID_CLASS_PREFIX: "css-transform-",
 
   _buildMarkup: function() {
@@ -1491,6 +1559,8 @@ CssTransformHighlighter.prototype = Heritage.extend(AutoRefreshHighlighter.proto
    * Should be called whenever node size or attributes change
    */
   _update: function() {
+    setIgnoreLayoutChanges(true);
+
     // Getting the points for the transformed shape
     let quad = this.currentQuads.border;
     if (!quad || quad.bounds.width <= 0 || quad.bounds.height <= 0) {
@@ -1511,13 +1581,17 @@ CssTransformHighlighter.prototype = Heritage.extend(AutoRefreshHighlighter.proto
     this.markup.scaleRootElement(this.currentNode, this.ID_CLASS_PREFIX + "root");
 
     this._showShapes();
+
+    setIgnoreLayoutChanges(false, this.currentNode.ownerDocument.documentElement);
   },
 
   /**
    * Hide the highlighter, the outline and the infobar.
    */
   _hide: function() {
+    setIgnoreLayoutChanges(true);
     this._hideShapes();
+    setIgnoreLayoutChanges(false, this.currentNode.ownerDocument.documentElement);
   },
 
   _hideShapes: function() {
@@ -1530,6 +1604,9 @@ CssTransformHighlighter.prototype = Heritage.extend(AutoRefreshHighlighter.proto
       "hidden");
   }
 });
+register(CssTransformHighlighter);
+exports.CssTransformHighlighter = CssTransformHighlighter;
+
 
 /**
  * The SelectorHighlighter runs a given selector through querySelectorAll on the
@@ -1542,6 +1619,7 @@ function SelectorHighlighter(tabActor) {
 }
 
 SelectorHighlighter.prototype = {
+  typeName: "SelectorHighlighter",
   /**
    * Show BoxModelHighlighter on each node that matches that provided selector.
    * @param {DOMNode} node A context node that is used to get the document on
@@ -1593,6 +1671,8 @@ SelectorHighlighter.prototype = {
     this.tabActor = null;
   }
 };
+register(SelectorHighlighter);
+exports.SelectorHighlighter = SelectorHighlighter;
 
 /**
  * The RectHighlighter is a class that draws a rectangle highlighter at specific
@@ -1609,6 +1689,8 @@ function RectHighlighter(tabActor) {
 }
 
 RectHighlighter.prototype = {
+  typeName: "RectHighlighter",
+
   _buildMarkup: function() {
     let doc = this.win.document;
 
@@ -1673,6 +1755,598 @@ RectHighlighter.prototype = {
     this.markup.setAttributeForElement("highlighted-rect", "hidden", "true");
   }
 };
+register(RectHighlighter);
+exports.RectHighlighter = RectHighlighter;
+
+/**
+ * Element geometry properties helper that gives names of position and size
+ * properties.
+ */
+let GeoProp = {
+  SIDES: ["top", "right", "bottom", "left"],
+  SIZES: ["width", "height"],
+
+  allProps: function() {
+    return [...this.SIDES, ...this.SIZES];
+  },
+
+  isSide: function(name) {
+    return this.SIDES.indexOf(name) !== -1;
+  },
+
+  isSize: function(name) {
+    return this.SIZES.indexOf(name) !== -1;
+  },
+
+  containsSide: function(names) {
+    return names.some(name => this.SIDES.indexOf(name) !== -1);
+  },
+
+  containsSize: function(names) {
+    return names.some(name => this.SIZES.indexOf(name) !== -1);
+  },
+
+  isHorizontal: function(name) {
+    return name === "left" || name === "right" || name === "width";
+  },
+
+  isInverted: function(name) {
+    return name === "right" || name === "bottom";
+  },
+
+  mainAxisStart: function(name) {
+    return this.isHorizontal(name) ? "left" : "top";
+  },
+
+  crossAxisStart: function(name) {
+    return this.isHorizontal(name) ? "top" : "left";
+  },
+
+  mainAxisSize: function(name) {
+    return this.isHorizontal(name) ? "width" : "height";
+  },
+
+  crossAxisSize: function(name) {
+    return this.isHorizontal(name) ? "height" : "width";
+  },
+
+  axis: function(name) {
+    return this.isHorizontal(name) ? "x" : "y";
+  },
+
+  crossAxis: function(name) {
+    return this.isHorizontal(name) ? "y" : "x";
+  }
+};
+
+/**
+ * The GeometryEditor highlights an elements's top, left, bottom, right, width
+ * and height dimensions, when they are set.
+ *
+ * To determine if an element has a set size and position, the highlighter lists
+ * the CSS rules that apply to the element and checks for the top, left, bottom,
+ * right, width and height properties.
+ * The highlighter won't be shown if the element doesn't have any of these
+ * properties set, but will be shown when at least 1 property is defined.
+ *
+ * The highlighter displays lines and labels for each of the defined properties
+ * in and around the element (relative to the offset parent when one exists).
+ * The highlighter also highlights the element itself and its offset parent if
+ * there is one.
+ *
+ * Note that the class name contains the word Editor because the aim is for the
+ * handles to be draggable in content to make the geometry editable.
+ */
+function GeometryEditorHighlighter(tabActor) {
+  AutoRefreshHighlighter.call(this, tabActor);
+
+  // The list of element geometry properties that can be set.
+  this.definedProperties = new Map();
+
+  this.markup = new CanvasFrameAnonymousContentHelper(tabActor,
+    this._buildMarkup.bind(this));
+}
+
+GeometryEditorHighlighter.prototype = Heritage.extend(AutoRefreshHighlighter.prototype, {
+  typeName: "GeometryEditorHighlighter",
+
+  ID_CLASS_PREFIX: "geometry-editor-",
+
+  _buildMarkup: function() {
+    let container = createNode(this.win, {
+      attributes: {"class": "highlighter-container"}
+    });
+
+    let root = createNode(this.win, {
+      parent: container,
+      attributes: {
+        "id": "root",
+        "class": "root"
+      },
+      prefix: this.ID_CLASS_PREFIX
+    });
+
+    let svg = createSVGNode(this.win, {
+      nodeType: "svg",
+      parent: root,
+      attributes: {
+        "id": "elements",
+        "width": "100%",
+        "height": "100%",
+        "style": "width:100%;height:100%;"
+      },
+      prefix: this.ID_CLASS_PREFIX
+    });
+
+    // Offset parent node highlighter.
+    createSVGNode(this.win, {
+      nodeType: "polygon",
+      parent: svg,
+      attributes: {
+        "class": "offset-parent",
+        "id": "offset-parent",
+        "hidden": "true"
+      },
+      prefix: this.ID_CLASS_PREFIX
+    });
+
+    // Current node highlighter (margin box).
+    createSVGNode(this.win, {
+      nodeType: "polygon",
+      parent: svg,
+      attributes: {
+        "class": "current-node",
+        "id": "current-node",
+        "hidden": "true"
+      },
+      prefix: this.ID_CLASS_PREFIX
+    });
+
+    // Build the 4 side arrows and labels.
+    for (let name of GeoProp.SIDES) {
+      createSVGNode(this.win, {
+        nodeType: "line",
+        parent: svg,
+        attributes: {
+          "class": "arrow " + name,
+          "id": "arrow-" + name,
+          "hidden": "true"
+        },
+        prefix: this.ID_CLASS_PREFIX
+      });
+
+      // Labels are positioned by using a translated <g>. This group contains
+      // a path and text that are themselves positioned using another translated
+      // <g>. This is so that the label arrow points at the 0,0 coordinates of
+      // parent <g>.
+      let labelG = createSVGNode(this.win, {
+        nodeType: "g",
+        parent: svg,
+        attributes: {
+          "id": "label-" + name,
+          "hidden": "true"
+        },
+        prefix: this.ID_CLASS_PREFIX
+      });
+
+      let subG = createSVGNode(this.win, {
+        nodeType: "g",
+        parent: labelG,
+        attributes: {
+          "transform": GeoProp.isHorizontal(name)
+                       ? "translate(-30 -30)"
+                       : "translate(5 -10)"
+        }
+      });
+
+      createSVGNode(this.win, {
+        nodeType: "path",
+        parent: subG,
+        attributes: {
+          "class": "label-bubble",
+          "d": GeoProp.isHorizontal(name)
+               ? "M0 0 L60 0 L60 20 L35 20 L30 25 L25 20 L0 20z"
+               : "M5 0 L65 0 L65 20 L5 20 L5 15 L0 10 L5 5z"
+        },
+        prefix: this.ID_CLASS_PREFIX
+      });
+
+      createSVGNode(this.win, {
+        nodeType: "text",
+        parent: subG,
+        attributes: {
+          "class": "label-text",
+          "id": "label-text-" + name,
+          "x": GeoProp.isHorizontal(name) ? "30" : "35",
+          "y": "10"
+        },
+        prefix: this.ID_CLASS_PREFIX
+      });
+    }
+
+    // Build the width/height label and resize handle.
+    let labelSizeG = createSVGNode(this.win, {
+      nodeType: "g",
+      parent: svg,
+      attributes: {
+        "id": "label-size",
+        "hidden": "true"
+      },
+      prefix: this.ID_CLASS_PREFIX
+    });
+
+    let subSizeG = createSVGNode(this.win, {
+      nodeType: "g",
+      parent: labelSizeG,
+      attributes: {
+        "transform": "translate(-50 -10)"
+      }
+    });
+
+    createSVGNode(this.win, {
+      nodeType: "path",
+      parent: subSizeG,
+      attributes: {
+        "class": "label-bubble",
+        "d": "M0 0 L100 0 L100 20 L0 20z"
+      },
+      prefix: this.ID_CLASS_PREFIX
+    });
+
+    createSVGNode(this.win, {
+      nodeType: "text",
+      parent: subSizeG,
+      attributes: {
+        "class": "label-text",
+        "id": "label-text-size",
+        "x": "50",
+        "y": "10"
+      },
+      prefix: this.ID_CLASS_PREFIX
+    });
+
+    return container;
+  },
+
+  destroy: function() {
+    AutoRefreshHighlighter.prototype.destroy.call(this);
+
+    this.markup.destroy();
+    this.definedProperties.clear();
+    this.definedProperties = null;
+    this.offsetParent = null;
+  },
+
+  /**
+   * Get the list of geometry properties that are actually set on the current
+   * node.
+   * @return {Map} A map indexed by property name and where the value is an
+   * object having the cssRule property.
+   */
+  getDefinedGeometryProperties: function() {
+    let props = new Map();
+    if (!this.currentNode) {
+      return props;
+    }
+
+    // Get the list of css rules applying to the current node.
+    let cssRules = DOMUtils.getCSSStyleRules(this.currentNode);
+    for (let i = 0; i < cssRules.Count(); i++) {
+      let rule = cssRules.GetElementAt(i);
+      for (let name of GeoProp.allProps()) {
+        let value = rule.style.getPropertyValue(name);
+        if (value && value !== "auto") {
+          // getCSSStyleRules returns rules ordered from least-specific to
+          // most-specific, so just override any previous properties we have set.
+          props.set(name, {
+            cssRule: rule
+          });
+        }
+      }
+    }
+
+    // Go through the inline styles last.
+    for (let name of GeoProp.allProps()) {
+      let value = this.currentNode.style.getPropertyValue(name);
+      if (value && value !== "auto") {
+        props.set(name, {
+          // There's no cssRule to store here, so store the node instead since
+          // node.style exists.
+          cssRule: this.currentNode
+        });
+      }
+    }
+
+    // Post-process the list for invalid properties. This is done after the fact
+    // because of cases like relative positioning with both top and bottom where
+    // only top will actually be used, but both exists in css rules and computed
+    // styles.
+    for (let [name] of props) {
+      let pos = this.computedStyle.position;
+
+      // Top/left/bottom/right on static positioned elements have no effect.
+      if (pos === "static" && GeoProp.SIDES.indexOf(name) !== -1) {
+        props.delete(name);
+      }
+
+      // Bottom/right on relative positioned elements are only used if top/left
+      // are not defined.
+      let hasRightAndLeft = name === "right" && props.has("left");
+      let hasBottomAndTop = name === "bottom" && props.has("top");
+      if (pos === "relative" && (hasRightAndLeft || hasBottomAndTop)) {
+        props.delete(name);
+      }
+    }
+
+    return props;
+  },
+
+  _show: function() {
+    this.computedStyle = CssLogic.getComputedStyle(this.currentNode);
+    let pos = this.computedStyle.position;
+    // XXX: sticky positioning is ignored for now. To be implemented next.
+    if (pos === "sticky") {
+      this.hide();
+      return;
+    }
+
+    let hasUpdated = this._update();
+    if (!hasUpdated) {
+      this.hide();
+    }
+  },
+
+  _update: function() {
+    // At each update, the position or/and size may have changed, so get the
+    // list of defined properties, and re-position the arrows and highlighters.
+    this.definedProperties = this.getDefinedGeometryProperties();
+
+    let isStatic = this.computedStyle.position === "static";
+    let hasSizes = GeoProp.containsSize([...this.definedProperties.keys()]);
+
+    if (!this.definedProperties.size) {
+      console.warn("The element does not have editable geometry properties");
+      return false;
+    }
+
+    setIgnoreLayoutChanges(true);
+
+    // Update the highlighters and arrows.
+    this.updateOffsetParent();
+    this.updateCurrentNode();
+    this.updateArrows();
+    this.updateSize();
+
+    // Avoid zooming the arrows when content is zoomed.
+    this.markup.scaleRootElement(this.currentNode, this.ID_CLASS_PREFIX + "root");
+
+    setIgnoreLayoutChanges(false, this.currentNode.ownerDocument.documentElement);
+    return true;
+  },
+
+  /**
+   * Update the offset parent rectangle.
+   * There are 3 different cases covered here:
+   * - the node is absolutely/fixed positioned, and an offsetParent is defined
+   *   (i.e. it's not just positioned in the viewport): the offsetParent node
+   *   is highlighted (i.e. the rectangle is shown),
+   * - the node is relatively positioned: the rectangle is shown where the node
+   *   would originally have been (because that's where the relative positioning
+   *   is calculated from),
+   * - the node has no offset parent at all: the offsetParent rectangle is
+   *   hidden.
+   */
+  updateOffsetParent: function() {
+    // Get the offsetParent, if any.
+    this.offsetParent = getOffsetParent(this.currentNode);
+    // And the offsetParent quads.
+    this.parentQuads = this.layoutHelpers
+                       .getAdjustedQuads(this.offsetParent.element, "padding");
+
+    let el = this.markup.getElement(this.ID_CLASS_PREFIX + "offset-parent");
+
+    let isPositioned = this.computedStyle.position === "absolute" ||
+                       this.computedStyle.position === "fixed";
+    let isRelative = this.computedStyle.position === "relative";
+    let isHighlighted = false;
+
+    if (this.offsetParent.element && isPositioned) {
+      let {p1, p2, p3, p4} = this.parentQuads;
+      let points = p1.x + "," + p1.y + " " +
+                   p2.x + "," + p2.y + " " +
+                   p3.x + "," + p3.y + " " +
+                   p4.x + "," + p4.y;
+      el.setAttribute("points", points);
+      isHighlighted = true;
+    } else if (isRelative) {
+      let xDelta = parseFloat(this.computedStyle.left);
+      let yDelta = parseFloat(this.computedStyle.top);
+      if (xDelta || yDelta) {
+        let {p1, p2, p3, p4} = this.currentQuads.margin;
+        let points = (p1.x - xDelta) + "," + (p1.y - yDelta) + " " +
+                     (p2.x - xDelta) + "," + (p2.y - yDelta) + " " +
+                     (p3.x - xDelta) + "," + (p3.y - yDelta) + " " +
+                     (p4.x - xDelta) + "," + (p4.y - yDelta);
+        el.setAttribute("points", points);
+        isHighlighted = true;
+      }
+    }
+
+    if (isHighlighted) {
+      el.removeAttribute("hidden");
+    } else {
+      el.setAttribute("hidden", "true");
+    }
+  },
+
+  updateCurrentNode: function() {
+    let box = this.markup.getElement(this.ID_CLASS_PREFIX + "current-node");
+    let {p1, p2, p3, p4} = this.currentQuads.margin;
+    let attr = p1.x + "," + p1.y + " " +
+               p2.x + "," + p2.y + " " +
+               p3.x + "," + p3.y + " " +
+               p4.x + "," + p4.y;
+    box.setAttribute("points", attr);
+    box.removeAttribute("hidden");
+  },
+
+  _hide: function() {
+    setIgnoreLayoutChanges(true);
+
+    let id = this.ID_CLASS_PREFIX;
+    this.markup.setAttributeForElement(id + "current-node", "hidden", "true");
+    this.markup.setAttributeForElement(id + "offset-parent", "hidden", "true");
+    this.hideArrows();
+    this.hideSize();
+
+    this.definedProperties.clear();
+
+    setIgnoreLayoutChanges(false, this.currentNode.ownerDocument.documentElement);
+  },
+
+  hideArrows: function() {
+    for (let side of GeoProp.SIDES) {
+      let id = this.ID_CLASS_PREFIX;
+      this.markup.setAttributeForElement(id + "arrow-" + side, "hidden", "true");
+      this.markup.setAttributeForElement(id + "label-" + side, "hidden", "true");
+    }
+  },
+
+  hideSize: function() {
+    this.markup.setAttributeForElement(this.ID_CLASS_PREFIX + "label-size",
+      "hidden", "true");
+  },
+
+  updateSize: function() {
+    this.hideSize();
+
+    let labels = [];
+    let width = this.definedProperties.get("width");
+    let height = this.definedProperties.get("height");
+
+    if (width) {
+      labels.push("↔ " + width.cssRule.style.getPropertyValue("width"));
+    }
+    if (height) {
+      labels.push("↕ " + height.cssRule.style.getPropertyValue("height"));
+    }
+
+    if (labels.length) {
+      let id = this.ID_CLASS_PREFIX;
+      let labelEl = this.markup.getElement(id + "label-size");
+      let labelTextEl = this.markup.getElement(id + "label-text-size");
+
+      let {bounds} = this.currentQuads.margin;
+
+      labelEl.setAttribute("transform", "translate(" +
+        (bounds.left + bounds.width/2) + " " +
+        (bounds.top + bounds.height/2) + ")");
+      labelEl.removeAttribute("hidden");
+      labelTextEl.setTextContent(labels.join(" "));
+    }
+  },
+
+  updateArrows: function() {
+    this.hideArrows();
+
+    // Position arrows always end at the node's margin box.
+    let marginBox = this.currentQuads.margin.bounds;
+    // But size arrows are displayed in the box that corresponds to the current
+    // box-sizing.
+    let boxSizing = this.computedStyle.boxSizing.split("-")[0];
+    let box = this.currentQuads[boxSizing].bounds;
+
+    // Position the side arrows which need to be visible.
+    // Arrows always start at the offsetParent edge, and end at the middle
+    // position of the node's margin edge.
+    // Note that for relative positioning, the offsetParent is considered to be
+    // the node itself, where it would have been originally.
+    // +------------------+----------------+
+    // | offsetparent     | top            |
+    // | or viewport      |                |
+    // |         +--------+--------+       |
+    // |         | node            |       |
+    // +---------+                 +-------+
+    // | left    |                 | right |
+    // |         +--------+--------+       |
+    // |                  | bottom         |
+    // +------------------+----------------+
+    let getSideArrowStartPos = side => {
+      // In case an offsetParent exists and is highlighted.
+      if (this.parentQuads) {
+        return this.parentQuads.bounds[side];
+      }
+
+      // In case of relative positioning.
+      if (this.computedStyle.position === "relative") {
+        if (GeoProp.isInverted(side)) {
+          return marginBox[side] + parseFloat(this.computedStyle[side]);
+        } else {
+          return marginBox[side] - parseFloat(this.computedStyle[side]);
+        }
+      }
+
+      // In case the element is positioned in the viewport.
+      if (GeoProp.isInverted(side)) {
+        return this.offsetParent.dimension[GeoProp.mainAxisSize(side)];
+      } else {
+        return -1 * getWindow(this.currentNode)["scroll" +
+                                                GeoProp.axis(side).toUpperCase()];
+      }
+    };
+
+    for (let side of GeoProp.SIDES) {
+      let sideProp = this.definedProperties.get(side);
+      if (!sideProp) {
+        continue;
+      }
+
+      let mainAxisStartPos = getSideArrowStartPos(side);
+      let mainAxisEndPos = marginBox[side];
+      let crossAxisPos = marginBox[GeoProp.crossAxisStart(side)] +
+                         marginBox[GeoProp.crossAxisSize(side)] / 2;
+
+      this.updateArrow(side, mainAxisStartPos, mainAxisEndPos, crossAxisPos,
+                       sideProp.cssRule.style.getPropertyValue(side));
+    }
+  },
+
+  updateArrow: function(side, mainStart, mainEnd, crossPos, labelValue) {
+    let id = this.ID_CLASS_PREFIX;
+    let arrowEl = this.markup.getElement(id + "arrow-" + side);
+    let labelEl = this.markup.getElement(id + "label-" + side);
+    let labelTextEl = this.markup.getElement(id + "label-text-" + side);
+
+    // Position the arrow <line>.
+    arrowEl.setAttribute(GeoProp.axis(side) + "1", mainStart);
+    arrowEl.setAttribute(GeoProp.crossAxis(side) + "1", crossPos);
+    arrowEl.setAttribute(GeoProp.axis(side) + "2", mainEnd);
+    arrowEl.setAttribute(GeoProp.crossAxis(side) + "2", crossPos);
+    arrowEl.removeAttribute("hidden");
+
+    // Position the label <text> in the middle of the arrow (making sure it's
+    // not hidden below the fold).
+    let capitalize = str => str.substring(0, 1).toUpperCase() + str.substring(1);
+    let winMain = this.win["inner" + capitalize(GeoProp.mainAxisSize(side))]
+    let labelMain = mainStart + (mainEnd - mainStart) / 2;
+    if ((mainStart > 0 && mainStart < winMain) ||
+        (mainEnd > 0 && mainEnd < winMain)) {
+      if (labelMain < GEOMETRY_LABEL_SIZE) {
+        labelMain = GEOMETRY_LABEL_SIZE;
+      } else if (labelMain > winMain - GEOMETRY_LABEL_SIZE) {
+        labelMain = winMain - GEOMETRY_LABEL_SIZE;
+      }
+    }
+    let labelCross = crossPos;
+    labelEl.setAttribute("transform", GeoProp.isHorizontal(side)
+                         ? "translate(" + labelMain + " " + labelCross + ")"
+                         : "translate(" + labelCross + " " + labelMain + ")");
+    labelEl.removeAttribute("hidden");
+    labelTextEl.setTextContent(labelValue);
+  }
+});
+register(GeometryEditorHighlighter);
+exports.GeometryEditorHighlighter = GeometryEditorHighlighter;
 
 /**
  * The SimpleOutlineHighlighter is a class that has the same API than the
@@ -1702,7 +2376,7 @@ SimpleOutlineHighlighter.prototype = {
     if (!this.currentNode || node !== this.currentNode) {
       this.hide();
       this.currentNode = node;
-      installHelperSheet(node.ownerDocument.defaultView, SIMPLE_OUTLINE_SHEET);
+      installHelperSheet(getWindow(node), SIMPLE_OUTLINE_SHEET);
       DOMUtils.addPseudoClassLock(node, HIGHLIGHTED_PSEUDO_CLASS);
     }
   },
@@ -1822,6 +2496,64 @@ function createNode(win, options) {
   }
 
   return node;
+}
+
+/**
+ * Get the right target for listening to events on the page (while picking an
+ * element for instance).
+ * - On a firefox desktop content page: tabActor is a BrowserTabActor from
+ *   which the browser property will give us a target we can use to listen to
+ *   events, even in nested iframes.
+ * - On B2G: tabActor is a ContentActor which doesn't have a browser but
+ *   since it overrides BrowserTabActor, it does get a browser property
+ *   anyway, which points to its window object.
+ * - When using the Browser Toolbox (to inspect firefox desktop): tabActor is
+ *   the RootActor, in which case, the window property can be used to listen
+ *   to events
+ */
+function getPageListenerTarget(tabActor) {
+  return tabActor.isRootActor ? tabActor.window : tabActor.chromeEventHandler;
+}
+
+/**
+ * Get a node's owner window.
+ */
+function getWindow(node) {
+  return node.ownerDocument.defaultView;
+}
+
+/**
+ * Get the provided node's offsetParent dimensions.
+ * Returns an object with the {parent, dimension} properties.
+ * Note that the returned parent will be null if the offsetParent is the
+ * default, non-positioned, body or html node.
+ *
+ * node.offsetParent returns the nearest positioned ancestor but if it is
+ * non-positioned itself, we just return null to let consumers know the node is
+ * actually positioned relative to the viewport.
+ *
+ * @return {Object}
+ */
+function getOffsetParent(node) {
+  let offsetParent = node.offsetParent;
+  if (offsetParent &&
+      CssLogic.getComputedStyle(offsetParent).position === "static") {
+    offsetParent = null;
+  }
+
+  let width, height;
+  if (!offsetParent) {
+    height = getWindow(node).innerHeight;
+    width = getWindow(node).innerWidth;
+  } else {
+    height = offsetParent.offsetHeight;
+    width = offsetParent.offsetWidth;
+  }
+
+  return {
+    element: offsetParent,
+    dimension: {width, height}
+  };
 }
 
 XPCOMUtils.defineLazyGetter(this, "DOMUtils", function () {

@@ -58,11 +58,15 @@ class AnyContextFlags
     // scope chain.
     bool            hasDebuggerStatement:1;
 
+    // A direct eval occurs in the body of the script.
+    bool            hasDirectEval:1;
+
   public:
     AnyContextFlags()
      :  hasExplicitUseStrict(false),
         bindingsAccessedDynamically(false),
-        hasDebuggerStatement(false)
+        hasDebuggerStatement(false),
+        hasDirectEval(false)
     { }
 };
 
@@ -174,7 +178,8 @@ class SharedContext
   public:
     ExclusiveContext *const context;
     AnyContextFlags anyCxFlags;
-    bool strict;
+    bool strictScript;
+    bool localStrict;
     bool extraWarnings;
 
     // If it's function code, funbox must be non-nullptr and scopeChain must be
@@ -182,7 +187,8 @@ class SharedContext
     SharedContext(ExclusiveContext *cx, Directives directives, bool extraWarnings)
       : context(cx),
         anyCxFlags(),
-        strict(directives.strict()),
+        strictScript(directives.strict()),
+        localStrict(false),
         extraWarnings(extraWarnings)
     {}
 
@@ -195,16 +201,31 @@ class SharedContext
     bool hasExplicitUseStrict()        const { return anyCxFlags.hasExplicitUseStrict; }
     bool bindingsAccessedDynamically() const { return anyCxFlags.bindingsAccessedDynamically; }
     bool hasDebuggerStatement()        const { return anyCxFlags.hasDebuggerStatement; }
+    bool hasDirectEval()               const { return anyCxFlags.hasDirectEval; }
 
     void setExplicitUseStrict()           { anyCxFlags.hasExplicitUseStrict        = true; }
     void setBindingsAccessedDynamically() { anyCxFlags.bindingsAccessedDynamically = true; }
     void setHasDebuggerStatement()        { anyCxFlags.hasDebuggerStatement        = true; }
+    void setHasDirectEval()               { anyCxFlags.hasDirectEval               = true; }
 
     inline bool allLocalsAliased();
 
+    bool strict() {
+        return strictScript || localStrict;
+    }
+    bool setLocalStrictMode(bool strict) {
+        bool retVal = localStrict;
+        localStrict = strict;
+        return retVal;
+    }
+
     // JSOPTION_EXTRA_WARNINGS warnings or strict mode errors.
     bool needStrictChecks() {
-        return strict || extraWarnings;
+        return strict() || extraWarnings;
+    }
+
+    bool isDotVariable(JSAtom *atom) const {
+        return atom == context->names().dotGenerator || atom == context->names().dotGenRVal;
     }
 };
 

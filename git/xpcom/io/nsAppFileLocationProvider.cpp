@@ -420,7 +420,7 @@ public:
   {
   }
 
-  NS_IMETHOD HasMoreElements(bool* aResult)
+  NS_IMETHOD HasMoreElements(bool* aResult) MOZ_OVERRIDE
   {
     while (!mNext && *mCurrentKey) {
       bool dontCare;
@@ -436,7 +436,7 @@ public:
     return NS_OK;
   }
 
-  NS_IMETHOD GetNext(nsISupports** aResult)
+  NS_IMETHOD GetNext(nsISupports** aResult) MOZ_OVERRIDE
   {
     if (NS_WARN_IF(!aResult)) {
       return NS_ERROR_INVALID_ARG;
@@ -457,7 +457,7 @@ public:
   }
 
 protected:
-  nsIDirectoryServiceProvider* mProvider;
+  nsCOMPtr<nsIDirectoryServiceProvider> mProvider;
   const char** mCurrentKey;
   nsCOMPtr<nsIFile> mNext;
 
@@ -580,8 +580,8 @@ nsAppFileLocationProvider::GetFiles(const char* aProp,
     }
     *aResult = new nsPathsDirectoryEnumerator(this, keys);
 #endif
-    NS_IF_ADDREF(*aResult);
-    rv = *aResult ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
+    NS_ADDREF(*aResult);
+    rv = NS_OK;
   }
   if (!nsCRT::strcmp(aProp, NS_APP_SEARCH_DIR_LIST)) {
     static const char* keys[] = { nullptr, NS_APP_SEARCH_DIR, NS_APP_USER_SEARCH_DIR, nullptr };
@@ -590,8 +590,8 @@ nsAppFileLocationProvider::GetFiles(const char* aProp,
       keys[0] = &nullstr;
     }
     *aResult = new nsPathsDirectoryEnumerator(this, keys);
-    NS_IF_ADDREF(*aResult);
-    rv = *aResult ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
+    NS_ADDREF(*aResult);
+    rv = NS_OK;
   }
   return rv;
 }

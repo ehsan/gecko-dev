@@ -5,6 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "gc/Marking.h"
+#include "jit/Disassembler.h"
 #include "jit/JitCompartment.h"
 #if defined(JS_CODEGEN_X86)
 # include "jit/x86/MacroAssembler-x86.h"
@@ -16,6 +17,9 @@
 
 #ifdef _MSC_VER
 # include <intrin.h> // for __cpuid
+# if defined(_M_X64) && (_MSC_FULL_VER >= 160040219)
+#  include <immintrin.h> // for _xgetbv
+# endif
 #endif
 
 using namespace js;
@@ -47,7 +51,7 @@ TraceDataRelocations(JSTracer *trc, uint8_t *buffer, CompactBufferReader &reader
 {
     while (reader.more()) {
         size_t offset = reader.readUnsigned();
-        void **ptr = X86Assembler::getPointerRef(buffer + offset);
+        void **ptr = X86Encoding::GetPointerRef(buffer + offset);
 
 #ifdef JS_PUNBOX64
         // All pointers on x64 will have the top bits cleared. If those bits
@@ -63,8 +67,14 @@ TraceDataRelocations(JSTracer *trc, uint8_t *buffer, CompactBufferReader &reader
         }
 #endif
 
+        // The low bit shouldn't be set. If it is, we probably got a dummy
+        // pointer inserted by CodeGenerator::visitNurseryObject, but we
+        // shouldn't be able to trigger GC before those are patched to their
+        // real values.
+        MOZ_ASSERT(!(*reinterpret_cast<uintptr_t *>(ptr) & 0x1));
+
         // No barrier needed since these are constants.
-        gc::MarkGCThingUnbarriered(trc, reinterpret_cast<void **>(ptr), "ion-masm-ptr");
+        gc::MarkGCThingUnbarriered(trc, ptr, "ion-masm-ptr");
     }
 }
 
@@ -73,6 +83,45 @@ void
 AssemblerX86Shared::TraceDataRelocations(JSTracer *trc, JitCode *code, CompactBufferReader &reader)
 {
     ::TraceDataRelocations(trc, code->raw(), reader);
+}
+
+void
+AssemblerX86Shared::FixupNurseryObjects(JSContext *cx, JitCode *code, CompactBufferReader &reader,
+                                        const ObjectVector &nurseryObjects)
+{
+    MOZ_ASSERT(!nurseryObjects.empty());
+
+    uint8_t *buffer = code->raw();
+    bool hasNurseryPointers = false;
+
+    while (reader.more()) {
+        size_t offset = reader.readUnsigned();
+        void **ptr = X86Encoding::GetPointerRef(buffer + offset);
+
+        uintptr_t *word = reinterpret_cast<uintptr_t *>(ptr);
+
+#ifdef JS_PUNBOX64
+        if (*word >> JSVAL_TAG_SHIFT)
+            continue; // This is a Value.
+#endif
+
+        if (!(*word & 0x1))
+            continue;
+
+        uint32_t index = *word >> 1;
+        JSObject *obj = nurseryObjects[index];
+        *word = uintptr_t(obj);
+
+        // Either all objects are still in the nursery, or all objects are
+        // tenured.
+        MOZ_ASSERT_IF(hasNurseryPointers, IsInsideNursery(obj));
+
+        if (!hasNurseryPointers && IsInsideNursery(obj))
+            hasNurseryPointers = true;
+    }
+
+    if (hasNurseryPointers)
+        cx->runtime()->gc.storeBuffer.putWholeCellFromMainThread(code);
 }
 
 void
@@ -88,7 +137,7 @@ AssemblerX86Shared::trace(JSTracer *trc)
     }
     if (dataRelocations_.length()) {
         CompactBufferReader reader(dataRelocations_);
-        ::TraceDataRelocations(trc, masm.buffer(), reader);
+        ::TraceDataRelocations(trc, masm.data(), reader);
     }
 }
 
@@ -136,8 +185,43 @@ AssemblerX86Shared::InvertCondition(Condition cond)
     }
 }
 
+void
+AssemblerX86Shared::verifyHeapAccessDisassembly(uint32_t begin, uint32_t end,
+                                                const Disassembler::HeapAccess &heapAccess)
+{
+#ifdef DEBUG
+    Disassembler::VerifyHeapAccess(masm.data() + begin, masm.data() + end, heapAccess);
+#endif
+}
+
 CPUInfo::SSEVersion CPUInfo::maxSSEVersion = UnknownSSE;
 CPUInfo::SSEVersion CPUInfo::maxEnabledSSEVersion = UnknownSSE;
+bool CPUInfo::avxPresent = false;
+bool CPUInfo::avxEnabled = false;
+
+static uintptr_t
+ReadXGETBV()
+{
+    // We use a variety of low-level mechanisms to get at the xgetbv
+    // instruction, including spelling out the xgetbv instruction as bytes,
+    // because older compilers and assemblers may not recognize the instruction
+    // by name.
+    size_t xcr0EAX = 0;
+#if defined(_XCR_XFEATURE_ENABLED_MASK)
+    xcr0EAX = _xgetbv(_XCR_XFEATURE_ENABLED_MASK);
+#elif defined(__GNUC__)
+    // xgetbv returns its results in %eax and %edx, and for our purposes here,
+    // we're only interested in the %eax value.
+    asm(".byte 0x0f, 0x01, 0xd0" : "=a"(xcr0EAX) : "c"(0) : "%edx");
+#elif defined(_MSC_VER) && defined(_M_IX86)
+    __asm {
+        xor ecx, ecx
+        _asm _emit 0x0f _asm _emit 0x01 _asm _emit 0xd0
+        mov xcr0EAX, eax
+    }
+#endif
+    return xcr0EAX;
+}
 
 void
 CPUInfo::SetSSEVersion()
@@ -196,4 +280,45 @@ CPUInfo::SetSSEVersion()
 
     if (maxEnabledSSEVersion != UnknownSSE)
         maxSSEVersion = Min(maxSSEVersion, maxEnabledSSEVersion);
+
+    static const int AVXBit = 1 << 28;
+    static const int XSAVEBit = 1 << 27;
+    avxPresent = (flagsECX & AVXBit) && (flagsECX & XSAVEBit) && avxEnabled;
+
+    // If the hardware supports AVX, check whether the OS supports it too.
+    if (avxPresent) {
+        size_t xcr0EAX = ReadXGETBV();
+        static const int xcr0SSEBit = 1 << 1;
+        static const int xcr0AVXBit = 1 << 2;
+        avxPresent = (xcr0EAX & xcr0SSEBit) && (xcr0EAX & xcr0AVXBit);
+    }
+}
+
+const char *
+FloatRegister::name() const {
+    static const char *const names[] = {
+
+#ifdef JS_CODEGEN_X64
+#define FLOAT_REGS_(TYPE) \
+        "%xmm0" TYPE, "%xmm1" TYPE, "%xmm2" TYPE, "%xmm3" TYPE, \
+        "%xmm4" TYPE, "%xmm5" TYPE, "%xmm6" TYPE, "%xmm7" TYPE, \
+        "%xmm8" TYPE, "%xmm9" TYPE, "%xmm10" TYPE, "%xmm11" TYPE, \
+        "%xmm12" TYPE, "%xmm13" TYPE, "%xmm14" TYPE, "%xmm15" TYPE
+#else
+#define FLOAT_REGS_(TYPE) \
+        "%xmm0" TYPE, "%xmm1" TYPE, "%xmm2" TYPE, "%xmm3" TYPE, \
+        "%xmm4" TYPE, "%xmm5" TYPE, "%xmm6" TYPE, "%xmm7" TYPE
+#endif
+
+        // These should be enumerated in the same order as in
+        // FloatRegisters::ContentType.
+        FLOAT_REGS_(".s"),
+        FLOAT_REGS_(".d"),
+        FLOAT_REGS_(".i4"),
+        FLOAT_REGS_(".s4")
+#undef FLOAT_REGS_
+
+    };
+    MOZ_ASSERT(size_t(code()) < mozilla::ArrayLength(names));
+    return names[size_t(code())];
 }

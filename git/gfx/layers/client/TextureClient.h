@@ -21,6 +21,7 @@
 #include "mozilla/ipc/Shmem.h"          // for Shmem
 #include "mozilla/layers/AtomicRefCountedWithFinalize.h"
 #include "mozilla/layers/CompositorTypes.h"  // for TextureFlags, etc
+#include "mozilla/layers/LayersTypes.h"
 #include "mozilla/layers/LayersSurfaces.h"  // for SurfaceDescriptor
 #include "mozilla/mozalloc.h"           // for operator delete
 #include "nsAutoPtr.h"                  // for nsRefPtr
@@ -70,7 +71,33 @@ class KeepAlive;
 enum TextureAllocationFlags {
   ALLOC_DEFAULT = 0,
   ALLOC_CLEAR_BUFFER = 1,
-  ALLOC_CLEAR_BUFFER_WHITE = 2
+  ALLOC_CLEAR_BUFFER_WHITE = 2,
+  ALLOC_DISALLOW_BUFFERTEXTURECLIENT = 4
+};
+
+#ifdef XP_WIN
+typedef void* SyncHandle;
+#else
+typedef uintptr_t SyncHandle;
+#endif // XP_WIN
+
+class SyncObject : public RefCounted<SyncObject>
+{
+public:
+  MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(SyncObject)
+  virtual ~SyncObject() { }
+
+  static TemporaryRef<SyncObject> CreateSyncObject(SyncHandle aHandle);
+
+  enum class SyncType {
+    D3D11,
+  };
+
+  virtual SyncType GetSyncType() = 0;
+  virtual void FinalizeFrame() = 0;
+
+protected:
+  SyncObject() { }
 };
 
 /**
@@ -146,7 +173,8 @@ class TextureClient
   : public AtomicRefCountedWithFinalize<TextureClient>
 {
 public:
-  explicit TextureClient(TextureFlags aFlags = TextureFlags::DEFAULT);
+  explicit TextureClient(ISurfaceAllocator* aAllocator,
+                         TextureFlags aFlags = TextureFlags::DEFAULT);
   virtual ~TextureClient();
 
   // Creates and allocates a TextureClient usable with Moz2D.
@@ -253,6 +281,20 @@ public:
   {
     return gfx::SurfaceFormat::UNKNOWN;
   }
+
+  /**
+   * This method is strictly for debugging. It causes locking and
+   * needless copies.
+   */
+  virtual TemporaryRef<gfx::DataSourceSurface> GetAsSurface() {
+    Lock(OpenMode::OPEN_READ);
+    RefPtr<gfx::SourceSurface> surf = BorrowDrawTarget()->Snapshot();
+    RefPtr<gfx::DataSourceSurface> data = surf->GetDataSurface();
+    Unlock();
+    return data;
+  }
+
+  virtual void PrintInfo(std::stringstream& aStream, const char* aPrefix);
 
   /**
    * Copies a rectangle from this texture client to a position in aTarget.
@@ -417,7 +459,7 @@ public:
   /**
    * This function waits until the buffer is no longer being used.
    */
-  virtual void WaitForBufferOwnership() {}
+  virtual void WaitForBufferOwnership(bool aWaitReleaseFence = true) {}
 
   /**
    * Track how much of this texture is wasted.
@@ -435,6 +477,8 @@ public:
    virtual void SetReadbackSink(TextureReadbackSink* aReadbackSink) {
      mReadbackSink = aReadbackSink;
    }
+   
+   virtual void SyncWithObject(SyncObject* aSyncObject) { }
 
 private:
   /**
@@ -526,11 +570,11 @@ public:
 
   virtual ~BufferTextureClient();
 
-  virtual bool IsAllocated() const = 0;
+  virtual bool IsAllocated() const MOZ_OVERRIDE = 0;
 
   virtual uint8_t* GetBuffer() const = 0;
 
-  virtual gfx::IntSize GetSize() const { return mSize; }
+  virtual gfx::IntSize GetSize() const MOZ_OVERRIDE { return mSize; }
 
   virtual bool Lock(OpenMode aMode) MOZ_OVERRIDE;
 
@@ -569,15 +613,12 @@ public:
 
   virtual bool HasInternalBuffer() const MOZ_OVERRIDE { return true; }
 
-  ISurfaceAllocator* GetAllocator() const;
-
   virtual TemporaryRef<TextureClient>
   CreateSimilar(TextureFlags aFlags = TextureFlags::DEFAULT,
                 TextureAllocationFlags aAllocFlags = ALLOC_DEFAULT) const MOZ_OVERRIDE;
 
 protected:
   RefPtr<gfx::DrawTarget> mDrawTarget;
-  RefPtr<ISurfaceAllocator> mAllocator;
   gfx::SurfaceFormat mFormat;
   gfx::IntSize mSize;
   gfx::BackendType mBackend;
@@ -656,7 +697,8 @@ protected:
 class SharedSurfaceTextureClient : public TextureClient
 {
 public:
-  SharedSurfaceTextureClient(TextureFlags aFlags, gl::SharedSurface* surf);
+  SharedSurfaceTextureClient(ISurfaceAllocator* aAllocator, TextureFlags aFlags,
+                             gl::SharedSurface* surf);
 
 protected:
   ~SharedSurfaceTextureClient();

@@ -74,6 +74,8 @@
 #define DEVICESTORAGE_PROPERTIES \
   "chrome://global/content/devicestorage.properties"
 #define DEFAULT_THREAD_TIMEOUT_MS 30000
+#define PREF_STORAGE_WRITABLE_NAME \
+  "device.storage.writable.name"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -2202,21 +2204,21 @@ nsDOMDeviceStorageCursor::GetTypes(nsIArray** aTypes)
 }
 
 NS_IMETHODIMP
-nsDOMDeviceStorageCursor::GetPrincipal(nsIPrincipal * *aRequestingPrincipal)
+nsDOMDeviceStorageCursor::GetPrincipal(nsIPrincipal** aRequestingPrincipal)
 {
   NS_IF_ADDREF(*aRequestingPrincipal = mPrincipal);
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDOMDeviceStorageCursor::GetWindow(nsIDOMWindow * *aRequestingWindow)
+nsDOMDeviceStorageCursor::GetWindow(nsIDOMWindow** aRequestingWindow)
 {
   NS_IF_ADDREF(*aRequestingWindow = GetOwner());
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDOMDeviceStorageCursor::GetElement(nsIDOMElement * *aRequestingElement)
+nsDOMDeviceStorageCursor::GetElement(nsIDOMElement** aRequestingElement)
 {
   *aRequestingElement = nullptr;
   return NS_OK;
@@ -2270,10 +2272,10 @@ nsDOMDeviceStorageCursor::Continue(ErrorResult& aRv)
     return;
   }
 
-  if (mResult != JSVAL_VOID) {
+  if (!mResult.isUndefined()) {
     // We call onsuccess multiple times. Clear the last
     // result.
-    mResult = JSVAL_VOID;
+    mResult.setUndefined();
     mDone = false;
   }
 
@@ -2900,7 +2902,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(DeviceStorageRequest,
                                            nsIContentPermissionRequest)
 
-  NS_IMETHOD Run()
+  NS_IMETHOD Run() MOZ_OVERRIDE
   {
     MOZ_ASSERT(NS_IsMainThread());
 
@@ -2912,7 +2914,7 @@ public:
     return nsContentPermissionUtils::AskPermission(this, mWindow);
   }
 
-  NS_IMETHODIMP GetTypes(nsIArray** aTypes)
+  NS_IMETHODIMP GetTypes(nsIArray** aTypes) MOZ_OVERRIDE
   {
     nsCString type;
     nsresult rv =
@@ -2932,25 +2934,25 @@ public:
     return nsContentPermissionUtils::CreatePermissionArray(type, access, emptyOptions, aTypes);
   }
 
-  NS_IMETHOD GetPrincipal(nsIPrincipal * *aRequestingPrincipal)
+  NS_IMETHOD GetPrincipal(nsIPrincipal * *aRequestingPrincipal) MOZ_OVERRIDE
   {
     NS_IF_ADDREF(*aRequestingPrincipal = mPrincipal);
     return NS_OK;
   }
 
-  NS_IMETHOD GetWindow(nsIDOMWindow * *aRequestingWindow)
+  NS_IMETHOD GetWindow(nsIDOMWindow * *aRequestingWindow) MOZ_OVERRIDE
   {
     NS_IF_ADDREF(*aRequestingWindow = mWindow);
     return NS_OK;
   }
 
-  NS_IMETHOD GetElement(nsIDOMElement * *aRequestingElement)
+  NS_IMETHOD GetElement(nsIDOMElement * *aRequestingElement) MOZ_OVERRIDE
   {
     *aRequestingElement = nullptr;
     return NS_OK;
   }
 
-  NS_IMETHOD Cancel()
+  NS_IMETHOD Cancel() MOZ_OVERRIDE
   {
     nsCOMPtr<nsIRunnable> event
       = new PostErrorEvent(mRequest.forget(),
@@ -2958,7 +2960,7 @@ public:
     return NS_DispatchToMainThread(event);
   }
 
-  NS_IMETHOD Allow(JS::HandleValue aChoices)
+  NS_IMETHOD Allow(JS::HandleValue aChoices) MOZ_OVERRIDE
   {
     MOZ_ASSERT(NS_IsMainThread());
     MOZ_ASSERT(aChoices.isUndefined());
@@ -3337,6 +3339,7 @@ NS_IMPL_RELEASE_INHERITED(nsDOMDeviceStorage, DOMEventTargetHelper)
 nsDOMDeviceStorage::nsDOMDeviceStorage(nsPIDOMWindow* aWindow)
   : DOMEventTargetHelper(aWindow)
   , mIsShareable(false)
+  , mIsRemovable(false)
   , mIsWatchingFile(false)
   , mAllowedToWatchFile(false)
 {
@@ -3383,6 +3386,12 @@ nsDOMDeviceStorage::Init(nsPIDOMWindow* aWindow, const nsAString &aType,
         return rv;
       }
       mIsShareable = !isFake;
+      bool isRemovable;
+      rv = vol->GetIsHotSwappable(&isRemovable);
+      if (NS_WARN_IF(NS_FAILED(rv))) {
+        return rv;
+      }
+      mIsRemovable = isRemovable;
     }
 #endif
   }
@@ -3618,20 +3627,29 @@ nsDOMDeviceStorage::GetDefaultStorageName(const nsAString& aStorageType,
                                           nsAString& aStorageName)
 {
   // See if the preferred volume is available.
-  nsRefPtr<nsDOMDeviceStorage> ds;
   nsAdoptingString prefStorageName =
-    mozilla::Preferences::GetString("device.storage.writable.name");
+    mozilla::Preferences::GetString(PREF_STORAGE_WRITABLE_NAME);
+
   if (prefStorageName) {
-    aStorageName = prefStorageName;
-    return;
+    nsString status;
+    nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(aStorageType,
+                                                            prefStorageName);
+    dsf->GetStorageStatus(status);
+
+    if (!status.EqualsLiteral("NoMedia")) {
+      aStorageName = prefStorageName;
+      return;
+    }
   }
 
-  // No preferred storage, we'll use the first one (which should be sdcard).
-
+  // If there is no preferred storage or preferred storage is not presented,
+  // we'll use the first one (which should be sdcard).
   VolumeNameArray volNames;
   GetOrderedVolumeNames(volNames);
   if (volNames.Length() > 0) {
     aStorageName = volNames[0];
+    // overwrite the value of "device.storage.writable.name"
+    mozilla::Preferences::SetString(PREF_STORAGE_WRITABLE_NAME, aStorageName);
     return;
   }
 
@@ -4224,6 +4242,12 @@ bool
 nsDOMDeviceStorage::CanBeShared()
 {
   return mIsShareable;
+}
+
+bool
+nsDOMDeviceStorage::IsRemovable()
+{
+  return mIsRemovable;
 }
 
 already_AddRefed<Promise>

@@ -30,8 +30,8 @@ class BailoutStack
     };
 
   protected: // Silence Clang warning about unused private fields.
-    mozilla::Array<double, FloatRegisters::TotalPhys> fpregs_;
-    mozilla::Array<uintptr_t, Registers::Total> regs_;
+    RegisterDump::FPUArray fpregs_;
+    RegisterDump::GPRArray regs_;
 
     uintptr_t snapshotOffset_;
     uintptr_t padding_;
@@ -79,10 +79,7 @@ BailoutFrameInfo::BailoutFrameInfo(const JitActivationIterator &activations,
 
     JSScript *script = ScriptFromCalleeToken(((JitFrameLayout *) framePointer_)->calleeToken());
     JitActivation *activation = activations.activation()->asJit();
-    if (activation->cx()->isForkJoinContext())
-        topIonScript_ = script->parallelIonScript();
-    else
-        topIonScript_ = script->ionScript();
+    topIonScript_ = script->ionScript();
 
     attachOnJitActivation(activations);
 

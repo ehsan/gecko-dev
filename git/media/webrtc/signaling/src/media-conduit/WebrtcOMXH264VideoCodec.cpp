@@ -21,8 +21,8 @@
 using namespace android;
 
 // WebRTC
-#include "common_video/interface/texture_video_frame.h"
-#include "video_engine/include/vie_external_codec.h"
+#include "webrtc/common_video/interface/texture_video_frame.h"
+#include "webrtc/video_engine/include/vie_external_codec.h"
 #include "runnable_utils.h"
 
 // Gecko
@@ -32,17 +32,18 @@ using namespace android;
 #include "nsThreadUtils.h"
 #include "OMXCodecWrapper.h"
 #include "TextureClient.h"
+#include "mozilla/IntegerPrintfMacros.h"
 
 #define DEQUEUE_BUFFER_TIMEOUT_US (100 * 1000ll) // 100ms.
 #define START_DEQUEUE_BUFFER_TIMEOUT_US (10 * DEQUEUE_BUFFER_TIMEOUT_US) // 1s.
 #define DRAIN_THREAD_TIMEOUT_US  (1000 * 1000ll) // 1s.
 
-#define LOG_TAG "WebrtcOMXH264VideoCodec"
-#define CODEC_LOGV(...) CSFLogInfo(LOG_TAG, __VA_ARGS__)
-#define CODEC_LOGD(...) CSFLogDebug(LOG_TAG, __VA_ARGS__)
-#define CODEC_LOGI(...) CSFLogInfo(LOG_TAG, __VA_ARGS__)
-#define CODEC_LOGW(...) CSFLogWarn(LOG_TAG, __VA_ARGS__)
-#define CODEC_LOGE(...) CSFLogError(LOG_TAG, __VA_ARGS__)
+#define WOHVC_LOG_TAG "WebrtcOMXH264VideoCodec"
+#define CODEC_LOGV(...) CSFLogInfo(WOHVC_LOG_TAG, __VA_ARGS__)
+#define CODEC_LOGD(...) CSFLogDebug(WOHVC_LOG_TAG, __VA_ARGS__)
+#define CODEC_LOGI(...) CSFLogInfo(WOHVC_LOG_TAG, __VA_ARGS__)
+#define CODEC_LOGW(...) CSFLogWarn(WOHVC_LOG_TAG, __VA_ARGS__)
+#define CODEC_LOGE(...) CSFLogError(WOHVC_LOG_TAG, __VA_ARGS__)
 
 namespace mozilla {
 
@@ -257,8 +258,8 @@ public:
     : mWidth(0)
     , mHeight(0)
     , mStarted(false)
-    , mDecodedFrameLock("WebRTC decoded frame lock")
     , mCallback(aCallback)
+    , mDecodedFrameLock("WebRTC decoded frame lock")
     , mEnding(false)
   {
     // Create binder thread pool required by stagefright.
@@ -524,8 +525,8 @@ public:
     }
     MOZ_ASSERT(timestamp >= 0 && renderTimeMs >= 0);
 
-    CODEC_LOGD("Decoder NewFrame: %d bytes, %dx%d, timestamp %lld, renderTimeMs %lld",
-               buffer->GetSize(), grallocData.mPicSize.width, grallocData.mPicSize.height, timestamp, renderTimeMs);
+    CODEC_LOGD("Decoder NewFrame: %dx%d, timestamp %lld, renderTimeMs %lld",
+               grallocData.mPicSize.width, grallocData.mPicSize.height, timestamp, renderTimeMs);
 
     nsAutoPtr<webrtc::I420VideoFrame> videoFrame(
       new webrtc::TextureVideoFrame(new ImageNativeHandle(grallocImage.forget()),
@@ -719,7 +720,7 @@ protected:
       encoded.capture_time_ms_ = input_frame.mRenderTimeMs;
       encoded._completeFrame = true;
 
-      CODEC_LOGD("Encoded frame: %d bytes, %dx%d, is_param %d, is_iframe %d, timestamp %u, captureTimeMs %u",
+      CODEC_LOGD("Encoded frame: %d bytes, %dx%d, is_param %d, is_iframe %d, timestamp %u, captureTimeMs %" PRIu64,
                  encoded._length, encoded._encodedWidth, encoded._encodedHeight,
                  isParamSets, isIFrame, encoded._timeStamp, encoded.capture_time_ms_);
       // Prepend SPS/PPS to I-frames unless they were sent last time.
@@ -748,19 +749,23 @@ private:
   void SendEncodedDataToCallback(webrtc::EncodedImage& aEncodedImage,
                                  bool aPrependParamSets)
   {
-    // Individual NALU inherits metadata from input encoded data.
-    webrtc::EncodedImage nalu(aEncodedImage);
-
     if (aPrependParamSets) {
+      webrtc::EncodedImage prepend(aEncodedImage);
       // Insert current parameter sets in front of the input encoded data.
       MOZ_ASSERT(mParamSets.Length() > sizeof(kNALStartCode)); // Start code + ...
-      nalu._length = mParamSets.Length();
-      nalu._buffer = mParamSets.Elements();
+      prepend._length = mParamSets.Length();
+      prepend._buffer = mParamSets.Elements();
       // Break into NALUs and send.
-      CODEC_LOGD("Prepending SPS/PPS: %d bytes, timestamp %u, captureTimeMs %u",
-                 nalu._length, nalu._timeStamp, nalu.capture_time_ms_);
-      SendEncodedDataToCallback(nalu, false);
+      CODEC_LOGD("Prepending SPS/PPS: %d bytes, timestamp %u, captureTimeMs %" PRIu64,
+                 prepend._length, prepend._timeStamp, prepend.capture_time_ms_);
+      SendEncodedDataToCallback(prepend, false);
     }
+
+    struct nal_entry {
+      uint32_t offset;
+      uint32_t size;
+    };
+    nsAutoTArray<nal_entry, 1> nals;
 
     // Break input encoded data into NALUs and send each one to callback.
     const uint8_t* data = aEncodedImage._buffer;
@@ -768,9 +773,23 @@ private:
     const uint8_t* nalStart = nullptr;
     size_t nalSize = 0;
     while (getNextNALUnit(&data, &size, &nalStart, &nalSize, true) == OK) {
-      nalu._buffer = const_cast<uint8_t*>(nalStart);
-      nalu._length = nalSize;
-      mCallback->Encoded(nalu, nullptr, nullptr);
+      // XXX optimize by making buffer an offset
+      nal_entry nal = {((uint32_t) (nalStart - aEncodedImage._buffer)), (uint32_t) nalSize};
+      nals.AppendElement(nal);
+    }
+
+    size_t num_nals = nals.Length();
+    if (num_nals > 0) {
+      webrtc::RTPFragmentationHeader fragmentation;
+      fragmentation.VerifyAndAllocateFragmentationHeader(num_nals);
+      for (size_t i = 0; i < num_nals; i++) {
+        fragmentation.fragmentationOffset[i] = nals[i].offset;
+        fragmentation.fragmentationLength[i] = nals[i].size;
+      }
+      webrtc::EncodedImage unit(aEncodedImage);
+      unit._completeFrame = true;
+
+      mCallback->Encoded(unit, nullptr, &fragmentation);
     }
   }
 
@@ -846,8 +865,8 @@ WebrtcOMXH264VideoEncoder::Encode(const webrtc::I420VideoFrame& aInputImage,
   // Have to reconfigure for resolution or framerate changes :-(
   // ~220ms initial configure on 8x10, 50-100ms for re-configure it appears
   // XXX drop frames while this is happening?
-  if (aInputImage.width() != mWidth ||
-      aInputImage.height() != mHeight) {
+  if (aInputImage.width() < 0 || (uint32_t)aInputImage.width() != mWidth ||
+      aInputImage.height() < 0 || (uint32_t)aInputImage.height() != mHeight) {
     mWidth = aInputImage.width();
     mHeight = aInputImage.height();
     mOMXReconfigure = true;
@@ -967,7 +986,7 @@ WebrtcOMXH264VideoEncoder::Encode(const webrtc::I420VideoFrame& aInputImage,
   // SetDataNoCopy() doesn't need AllocateAndGetNewBuffer(); OMXVideoEncoder is ok with this
   img.SetDataNoCopy(yuvData);
 
-  CODEC_LOGD("Encode frame: %dx%d, timestamp %u (%lld), renderTimeMs %u",
+  CODEC_LOGD("Encode frame: %dx%d, timestamp %u (%lld), renderTimeMs %" PRIu64,
              aInputImage.width(), aInputImage.height(),
              aInputImage.timestamp(), aInputImage.timestamp() * 1000ll / 90,
              aInputImage.render_time_ms());
@@ -1169,7 +1188,6 @@ WebrtcOMXH264VideoDecoder::Decode(const webrtc::EncodedImage& aInputImage,
 
   bool feedFrame = true;
   while (feedFrame) {
-    int64_t timeUs;
     status_t err = mOMX->FillInput(aInputImage, !configured, aRenderTimeMs);
     feedFrame = (err == -EAGAIN); // No input buffer available. Try again.
   }

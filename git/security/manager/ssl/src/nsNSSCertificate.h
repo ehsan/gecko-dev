@@ -10,7 +10,6 @@
 #include "nsIX509CertDB.h"
 #include "nsIX509CertList.h"
 #include "nsIASN1Object.h"
-#include "nsIIdentityInfo.h"
 #include "nsCOMPtr.h"
 #include "nsNSSShutDown.h"
 #include "nsISimpleEnumerator.h"
@@ -26,7 +25,6 @@ class nsINSSComponent;
 class nsIASN1Sequence;
 
 class nsNSSCertificate MOZ_FINAL : public nsIX509Cert,
-                                   public nsIIdentityInfo,
                                    public nsISerializable,
                                    public nsIClassInfo,
                                    public nsNSSShutDownObject
@@ -34,7 +32,6 @@ class nsNSSCertificate MOZ_FINAL : public nsIX509Cert,
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIX509CERT
-  NS_DECL_NSIIDENTITYINFO
   NS_DECL_NSISERIALIZABLE
   NS_DECL_NSICLASSINFO
 
@@ -48,6 +45,13 @@ public:
   static nsNSSCertificate* Create(CERTCertificate*cert = nullptr,
                                   SECOidTag* evOidPolicy = nullptr);
   static nsNSSCertificate* ConstructFromDER(char* certDER, int derLen);
+  nsresult GetIsExtendedValidation(bool* aIsEV);
+
+  enum EVStatus {
+    ev_status_invalid = 0,
+    ev_status_valid = 1,
+    ev_status_unknown = 2
+  };
 
 private:
   virtual ~nsNSSCertificate();
@@ -59,15 +63,13 @@ private:
   nsresult CreateTBSCertificateASN1Struct(nsIASN1Sequence** retSequence,
                                           nsINSSComponent* nssComponent);
   nsresult GetSortableDate(PRTime aTime, nsAString& _aSortableDate);
-  virtual void virtualDestroyNSSReference();
+  virtual void virtualDestroyNSSReference() MOZ_OVERRIDE;
   void destructorSafeDestroyNSSReference();
   bool InitFromDER(char* certDER, int derLen);  // return false on failure
 
   nsresult GetCertificateHash(nsAString& aFingerprint, SECOidTag aHashAlg);
 
-  enum {
-    ev_status_invalid = 0, ev_status_valid = 1, ev_status_unknown = 2
-  } mCachedEVStatus;
+  EVStatus mCachedEVStatus;
   SECOidTag mCachedEVOidTag;
   nsresult hasValidEVOidTag(SECOidTag& resultOidTag, bool& validEV);
   nsresult getValidEVOidTag(SECOidTag& resultOidTag, bool& validEV);
@@ -101,13 +103,13 @@ public:
                                      proofOfLock);
 private:
    virtual ~nsNSSCertList();
-   virtual void virtualDestroyNSSReference();
+   virtual void virtualDestroyNSSReference() MOZ_OVERRIDE;
    void destructorSafeDestroyNSSReference();
 
    mozilla::ScopedCERTCertList mCertList;
 
-   nsNSSCertList(const nsNSSCertList&) MOZ_DELETE;
-   void operator=(const nsNSSCertList&) MOZ_DELETE;
+   nsNSSCertList(const nsNSSCertList&) = delete;
+   void operator=(const nsNSSCertList&) = delete;
 };
 
 class nsNSSCertListEnumerator: public nsISimpleEnumerator,
@@ -121,13 +123,13 @@ public:
                            const nsNSSShutDownPreventionLock& proofOfLock);
 private:
    virtual ~nsNSSCertListEnumerator();
-   virtual void virtualDestroyNSSReference();
+   virtual void virtualDestroyNSSReference() MOZ_OVERRIDE;
    void destructorSafeDestroyNSSReference();
 
    mozilla::ScopedCERTCertList mCertList;
 
-   nsNSSCertListEnumerator(const nsNSSCertListEnumerator&) MOZ_DELETE;
-   void operator=(const nsNSSCertListEnumerator&) MOZ_DELETE;
+   nsNSSCertListEnumerator(const nsNSSCertListEnumerator&) = delete;
+   void operator=(const nsNSSCertListEnumerator&) = delete;
 };
 
 

@@ -34,13 +34,23 @@ public:
         bool                 aPlaceOrigin,
         nsHTMLReflowMetrics& aDesiredSize) MOZ_OVERRIDE;
 
+  virtual mozilla::LogicalSize
+  ComputeSize(nsRenderingContext *aRenderingContext,
+              mozilla::WritingMode aWritingMode,
+              const mozilla::LogicalSize& aCBSize,
+              nscoord aAvailableISize,
+              const mozilla::LogicalSize& aMargin,
+              const mozilla::LogicalSize& aBorder,
+              const mozilla::LogicalSize& aPadding,
+              ComputeSizeFlags aFlags) MOZ_OVERRIDE;
+
   virtual void
   Reflow(nsPresContext*          aPresContext,
          nsHTMLReflowMetrics&     aDesiredSize,
          const nsHTMLReflowState& aReflowState,
          nsReflowStatus&          aStatus) MOZ_OVERRIDE;
 
-  virtual nsQueryFrame::FrameIID GetFrameId() = 0;
+  virtual nsQueryFrame::FrameIID GetFrameId() MOZ_OVERRIDE = 0;
 
 protected:
   explicit nsMathMLSelectedFrame(nsStyleContext* aContext) :
@@ -53,7 +63,7 @@ protected:
   bool            mInvalidMarkup;
   
 private:
-  void* operator new(size_t, nsIPresShell*) MOZ_MUST_OVERRIDE MOZ_DELETE;
+  void* operator new(size_t, nsIPresShell*) MOZ_MUST_OVERRIDE = delete;
 };
 
 #endif /* nsMathMLSelectedFrame_h___ */

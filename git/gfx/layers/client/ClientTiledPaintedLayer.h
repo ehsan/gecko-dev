@@ -47,13 +47,15 @@ public:
 protected:
   ~ClientTiledPaintedLayer();
 
+  virtual void PrintInfo(std::stringstream& aStream, const char* aPrefix) MOZ_OVERRIDE;
+
 public:
   // Override name to distinguish it from ClientPaintedLayer in layer dumps
-  virtual const char* Name() const { return "TiledPaintedLayer"; }
+  virtual const char* Name() const MOZ_OVERRIDE { return "TiledPaintedLayer"; }
 
   // PaintedLayer
-  virtual Layer* AsLayer() { return this; }
-  virtual void InvalidateRegion(const nsIntRegion& aRegion) {
+  virtual Layer* AsLayer() MOZ_OVERRIDE { return this; }
+  virtual void InvalidateRegion(const nsIntRegion& aRegion) MOZ_OVERRIDE {
     mInvalidRegion.Or(mInvalidRegion, aRegion);
     mInvalidRegion.SimplifyOutward(20);
     mValidRegion.Sub(mValidRegion, mInvalidRegion);
@@ -61,15 +63,15 @@ public:
   }
 
   // Shadow methods
-  virtual void FillSpecificAttributes(SpecificLayerAttributes& aAttrs);
-  virtual ShadowableLayer* AsShadowableLayer() { return this; }
+  virtual void FillSpecificAttributes(SpecificLayerAttributes& aAttrs) MOZ_OVERRIDE;
+  virtual ShadowableLayer* AsShadowableLayer() MOZ_OVERRIDE { return this; }
 
-  virtual void Disconnect()
+  virtual void Disconnect() MOZ_OVERRIDE
   {
     ClientLayer::Disconnect();
   }
 
-  virtual void RenderLayer();
+  virtual void RenderLayer() MOZ_OVERRIDE;
 
   virtual void ClearCachedResources() MOZ_OVERRIDE;
 
@@ -79,7 +81,8 @@ public:
    * which hold the return values; the values passed in may be null.
    */
   void GetAncestorLayers(LayerMetricsWrapper* aOutScrollAncestor,
-                         LayerMetricsWrapper* aOutDisplayPortAncestor);
+                         LayerMetricsWrapper* aOutDisplayPortAncestor,
+                         bool* aOutHasTransformAnimation);
 
 private:
   ClientLayerManager* ClientManager()
@@ -94,10 +97,16 @@ private:
   void BeginPaint();
 
   /**
-   * Determine if we can use a fast path to just do a single high-precision,
-   * non-progressive paint.
+   * Check if the layer is being scrolled by APZ on the compositor.
    */
-  bool UseFastPath();
+  bool IsScrollingOnCompositor(const FrameMetrics& aParentMetrics);
+
+  /**
+   * Check if we should use progressive draw on this layer. We will
+   * disable progressive draw based on a preference or if the layer
+   * is not being scrolled.
+   */
+  bool UseProgressiveDraw();
 
   /**
    * Helper function to do the high-precision paint.

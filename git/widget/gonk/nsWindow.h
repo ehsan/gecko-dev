@@ -16,6 +16,7 @@
 #ifndef nsWindow_h
 #define nsWindow_h
 
+#include "InputData.h"
 #include "nsBaseWidget.h"
 #include "nsRegion.h"
 #include "nsIIdleServiceInternal.h"
@@ -47,16 +48,16 @@ class nsWindow : public nsBaseWidget
 {
 public:
     nsWindow();
-    virtual ~nsWindow();
+
+    NS_DECL_ISUPPORTS_INHERITED
 
     static void DoDraw(void);
-    static nsEventStatus DispatchInputEvent(mozilla::WidgetGUIEvent& aEvent,
-                                            bool* aWasCaptured = nullptr);
+    static nsEventStatus DispatchInputEvent(mozilla::WidgetGUIEvent& aEvent);
+    static void DispatchTouchInput(mozilla::MultiTouchInput& aInput);
 
     NS_IMETHOD Create(nsIWidget *aParent,
                       void *aNativeParent,
                       const nsIntRect &aRect,
-                      nsDeviceContext *aContext,
                       nsWidgetInitData *aInitData);
     NS_IMETHOD Destroy(void);
 
@@ -85,9 +86,19 @@ public:
     {
         return NS_OK;
     }
-    virtual nsIntPoint WidgetToScreenOffset();
+    virtual mozilla::LayoutDeviceIntPoint WidgetToScreenOffset();
+    void DispatchTouchInputViaAPZ(mozilla::MultiTouchInput& aInput);
+    void DispatchTouchEventForAPZ(const mozilla::MultiTouchInput& aInput,
+                                  const ScrollableLayerGuid& aGuid,
+                                  const uint64_t aInputBlockId);
     NS_IMETHOD DispatchEvent(mozilla::WidgetGUIEvent* aEvent,
                              nsEventStatus& aStatus);
+    virtual nsresult SynthesizeNativeTouchPoint(uint32_t aPointerId,
+                                                TouchPointerState aPointerState,
+                                                nsIntPoint aPointerScreenPoint,
+                                                double aPointerPressure,
+                                                uint32_t aPointerOrientation) MOZ_OVERRIDE;
+
     NS_IMETHOD CaptureRollupEvents(nsIRollupListener *aListener,
                                    bool aDoCapture)
     {
@@ -140,11 +151,18 @@ protected:
     // destruction.
     mozilla::RefPtr<mozilla::gfx::DrawTarget> mBackBuffer;
 
+    virtual ~nsWindow();
+
     void BringToTop();
 
     // Call this function when the users activity is the direct cause of an
     // event (like a keypress or mouse click).
     void UserActivity();
+
+private:
+    // This is used by SynthesizeNativeTouchPoint to maintain state between
+    // multiple synthesized points
+    nsAutoPtr<mozilla::MultiTouchInput> mSynthesizedTouchInput;
 };
 
 #endif /* nsWindow_h */

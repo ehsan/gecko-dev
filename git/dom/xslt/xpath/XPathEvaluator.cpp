@@ -121,7 +121,8 @@ XPathEvaluator::CreateExpression(const nsAString& aExpression,
                                  XPathNSResolver* aResolver, ErrorResult& aRv)
 {
     nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocument);
-    XPathEvaluatorParseContext pContext(aResolver, !(doc && doc->IsHTML()));
+    XPathEvaluatorParseContext pContext(aResolver,
+                                        !(doc && doc->IsHTMLDocument()));
     return CreateExpression(aExpression, &pContext, doc, aRv);
 }
 
@@ -130,7 +131,8 @@ XPathEvaluator::CreateExpression(const nsAString& aExpression,
                                  nsINode* aResolver, ErrorResult& aRv)
 {
     nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocument);
-    XPathEvaluatorParseContext pContext(aResolver, !(doc && doc->IsHTML()));
+    XPathEvaluatorParseContext pContext(aResolver,
+                                        !(doc && doc->IsHTMLDocument()));
     return CreateExpression(aExpression, &pContext, doc, aRv);
 }
 
@@ -158,10 +160,11 @@ XPathEvaluator::CreateExpression(const nsAString & aExpression,
     return new XPathExpression(Move(expression), mRecycler, aDocument);
 }
 
-JSObject*
-XPathEvaluator::WrapObject(JSContext* aCx)
+bool
+XPathEvaluator::WrapObject(JSContext* aCx,
+                           JS::MutableHandle<JSObject*> aReflector)
 {
-    return dom::XPathEvaluatorBinding::Wrap(aCx, this);
+    return dom::XPathEvaluatorBinding::Wrap(aCx, this, aReflector);
 }
 
 /* static */

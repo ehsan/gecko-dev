@@ -143,7 +143,7 @@ public:
 
   virtual ~nsBoxFrame();
   
-  nsBoxFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, bool aIsRoot = false, nsBoxLayout* aLayoutManager = nullptr);
+  explicit nsBoxFrame(nsStyleContext* aContext, bool aIsRoot = false, nsBoxLayout* aLayoutManager = nullptr);
 
   // virtual so nsStackFrame, nsButtonBoxFrame, nsSliderFrame and nsMenuFrame
   // can override it
@@ -209,7 +209,8 @@ protected:
     bool GetEventPoint(mozilla::WidgetGUIEvent* aEvent, nsPoint& aPoint);
     // Gets the event coordinates relative to the widget offset associated with
     // this frame. Return true if a single valid point was found.
-    bool GetEventPoint(mozilla::WidgetGUIEvent* aEvent, nsIntPoint& aPoint);
+    bool GetEventPoint(mozilla::WidgetGUIEvent* aEvent,
+                       mozilla::LayoutDeviceIntPoint& aPoint);
 
 protected:
     void RegUnregAccessKey(bool aDoReg);

@@ -120,7 +120,8 @@ AvStatusToSinkString(BluetoothA2dpConnectionState aState, nsAString& aString)
   }
 }
 
-class InitAvrcpResultHandler MOZ_FINAL : public BluetoothAvrcpResultHandler
+class BluetoothA2dpManager::InitAvrcpResultHandler MOZ_FINAL
+  : public BluetoothAvrcpResultHandler
 {
 public:
   InitAvrcpResultHandler(BluetoothProfileResultHandler* aRes)
@@ -155,7 +156,8 @@ private:
   nsRefPtr<BluetoothProfileResultHandler> mRes;
 };
 
-class InitA2dpResultHandler MOZ_FINAL : public BluetoothA2dpResultHandler
+class BluetoothA2dpManager::InitA2dpResultHandler MOZ_FINAL
+  : public BluetoothA2dpResultHandler
 {
 public:
   InitA2dpResultHandler(BluetoothProfileResultHandler* aRes)
@@ -197,7 +199,8 @@ private:
   nsRefPtr<BluetoothProfileResultHandler> mRes;
 };
 
-class OnErrorProfileResultHandlerRunnable MOZ_FINAL : public nsRunnable
+class BluetoothA2dpManager::OnErrorProfileResultHandlerRunnable MOZ_FINAL
+  : public nsRunnable
 {
 public:
   OnErrorProfileResultHandlerRunnable(BluetoothProfileResultHandler* aRes,
@@ -328,7 +331,8 @@ BluetoothA2dpManager::Get()
   return sBluetoothA2dpManager;
 }
 
-class CleanupAvrcpResultHandler MOZ_FINAL : public BluetoothAvrcpResultHandler
+class BluetoothA2dpManager::CleanupAvrcpResultHandler MOZ_FINAL
+  : public BluetoothAvrcpResultHandler
 {
 public:
   CleanupAvrcpResultHandler(BluetoothProfileResultHandler* aRes)
@@ -364,7 +368,8 @@ private:
   nsRefPtr<BluetoothProfileResultHandler> mRes;
 };
 
-class CleanupA2dpResultHandler MOZ_FINAL : public BluetoothA2dpResultHandler
+class BluetoothA2dpManager::CleanupA2dpResultHandler MOZ_FINAL
+  : public BluetoothA2dpResultHandler
 {
 public:
   CleanupA2dpResultHandler(BluetoothProfileResultHandler* aRes)
@@ -397,7 +402,8 @@ private:
   nsRefPtr<BluetoothProfileResultHandler> mRes;
 };
 
-class CleanupA2dpResultHandlerRunnable MOZ_FINAL : public nsRunnable
+class BluetoothA2dpManager::CleanupA2dpResultHandlerRunnable MOZ_FINAL
+  : public nsRunnable
 {
 public:
   CleanupA2dpResultHandlerRunnable(BluetoothProfileResultHandler* aRes)
@@ -461,7 +467,8 @@ BluetoothA2dpManager::OnConnectError()
   mDeviceAddress.Truncate();
 }
 
-class ConnectResultHandler MOZ_FINAL : public BluetoothA2dpResultHandler
+class BluetoothA2dpManager::ConnectResultHandler MOZ_FINAL
+  : public BluetoothA2dpResultHandler
 {
 public:
   void OnError(BluetoothStatus aStatus) MOZ_OVERRIDE
@@ -512,7 +519,8 @@ BluetoothA2dpManager::OnDisconnectError()
   mController->NotifyCompletion(NS_LITERAL_STRING(ERR_DISCONNECTION_FAILED));
 }
 
-class DisconnectResultHandler MOZ_FINAL : public BluetoothA2dpResultHandler
+class BluetoothA2dpManager::DisconnectResultHandler MOZ_FINAL
+  : public BluetoothA2dpResultHandler
 {
 public:
   void OnError(BluetoothStatus aStatus) MOZ_OVERRIDE
@@ -1014,10 +1022,8 @@ BluetoothA2dpManager::GetPlayStatusNotification()
     return;
   }
 
-  bs->DistributeSignal(
-    BluetoothSignal(NS_LITERAL_STRING(REQUEST_MEDIA_PLAYSTATUS_ID),
-                    NS_LITERAL_STRING(KEY_ADAPTER),
-                    InfallibleTArray<BluetoothNamedValue>()));
+  bs->DistributeSignal(NS_LITERAL_STRING(REQUEST_MEDIA_PLAYSTATUS_ID),
+                       NS_LITERAL_STRING(KEY_ADAPTER));
 }
 
 /* Player application settings is optional for AVRCP 1.3. B2G

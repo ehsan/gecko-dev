@@ -32,9 +32,9 @@ class nsTextControlFrame MOZ_FINAL : public nsContainerFrame,
 public:
   NS_DECL_FRAMEARENA_HELPERS
 
-  NS_DECLARE_FRAME_PROPERTY(ContentScrollPos, DestroyPoint)
+  NS_DECLARE_FRAME_PROPERTY(ContentScrollPos, DeleteValue<nsPoint>)
 
-  nsTextControlFrame(nsIPresShell* aShell, nsStyleContext* aContext);
+  explicit nsTextControlFrame(nsStyleContext* aContext);
   virtual ~nsTextControlFrame();
 
   virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;

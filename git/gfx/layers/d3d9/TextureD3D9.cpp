@@ -290,17 +290,19 @@ TextureSourceD3D9::SurfaceToTexture(DeviceManagerD3D9* aDeviceManager,
                                        reinterpret_cast<unsigned char*>(lockedRect.pBits),
                                        aSize, lockedRect.Pitch,
                                        gfxPlatform::GetPlatform()->Optimal2DFormatForContent(aSurface->GetContentType()));
-    NativeSurface nativeSurf;
-    nativeSurf.mSize = aSize;
-    nativeSurf.mType = NativeSurfaceType::CAIRO_SURFACE;
-    // We don't know that this is actually the right format, but it's the best
-    // we can get for the content type. In practice this probably always works.
-    nativeSurf.mFormat = dt->GetFormat();
-    nativeSurf.mSurface = aSurface->CairoSurface();
 
-    RefPtr<SourceSurface> surf = dt->CreateSourceSurfaceFromNativeSurface(nativeSurf);
+    if (dt) {
+        NativeSurface nativeSurf;
+        nativeSurf.mSize = aSize;
+        nativeSurf.mType = NativeSurfaceType::CAIRO_SURFACE;
+        // We don't know that this is actually the right format, but it's the best
+        // we can get for the content type. In practice this probably always works.
+        nativeSurf.mFormat = dt->GetFormat();
+        nativeSurf.mSurface = aSurface->CairoSurface();
 
-    dt->CopySurface(surf, IntRect(IntPoint(), aSize), IntPoint());
+        RefPtr<SourceSurface> surf = dt->CreateSourceSurfaceFromNativeSurface(nativeSurf);
+        dt->CopySurface(surf, IntRect(IntPoint(), aSize), IntPoint());
+    }
   }
 
   FinishTextures(aDeviceManager, texture, surface);
@@ -550,8 +552,10 @@ DataTextureSourceD3D9::GetTileRect()
   return ThebesIntRect(GetTileRect(mCurrentTile));
 }
 
-CairoTextureClientD3D9::CairoTextureClientD3D9(gfx::SurfaceFormat aFormat, TextureFlags aFlags)
-  : TextureClient(aFlags)
+CairoTextureClientD3D9::CairoTextureClientD3D9(ISurfaceAllocator* aAllocator,
+                                               gfx::SurfaceFormat aFormat,
+                                               TextureFlags aFlags)
+  : TextureClient(aAllocator, aFlags)
   , mFormat(aFormat)
   , mIsLocked(false)
   , mNeedsClear(false)
@@ -569,7 +573,8 @@ CairoTextureClientD3D9::~CairoTextureClientD3D9()
 TemporaryRef<TextureClient>
 CairoTextureClientD3D9::CreateSimilar(TextureFlags aFlags, TextureAllocationFlags aAllocFlags) const
 {
-  RefPtr<TextureClient> tex = new CairoTextureClientD3D9(mFormat, mFlags | aFlags);
+  RefPtr<TextureClient> tex = new CairoTextureClientD3D9(mAllocator, mFormat,
+                                                         mFlags | aFlags);
 
   if (!tex->AllocateForSurface(mSize, aAllocFlags)) {
     return nullptr;
@@ -615,11 +620,19 @@ CairoTextureClientD3D9::Lock(OpenMode aMode)
 
   if (mNeedsClear) {
     mDrawTarget = BorrowDrawTarget();
+    if (!mDrawTarget) {
+      Unlock();
+      return false;
+    }
     mDrawTarget->ClearRect(Rect(0, 0, GetSize().width, GetSize().height));
     mNeedsClear = false;
   }
   if (mNeedsClearWhite) {
     mDrawTarget = BorrowDrawTarget();
+    if (!mDrawTarget) {
+      Unlock();
+      return false;
+    }
     mDrawTarget->FillRect(Rect(0, 0, GetSize().width, GetSize().height), ColorPattern(Color(1.0, 1.0, 1.0, 1.0)));
     mNeedsClearWhite = false;
   }
@@ -722,8 +735,10 @@ CairoTextureClientD3D9::AllocateForSurface(gfx::IntSize aSize, TextureAllocation
   return true;
 }
 
-SharedTextureClientD3D9::SharedTextureClientD3D9(gfx::SurfaceFormat aFormat, TextureFlags aFlags)
-  : TextureClient(aFlags)
+SharedTextureClientD3D9::SharedTextureClientD3D9(ISurfaceAllocator* aAllocator,
+                                                 gfx::SurfaceFormat aFormat,
+                                                 TextureFlags aFlags)
+  : TextureClient(aAllocator, aFlags)
   , mFormat(aFormat)
   , mHandle(0)
   , mIsLocked(false)
@@ -735,6 +750,9 @@ SharedTextureClientD3D9::~SharedTextureClientD3D9()
 {
   if (mTexture && mActor) {
     KeepUntilFullDeallocation(MakeUnique<TKeepAlive<IDirect3DTexture9>>(mTexture));
+  }
+  if (mTexture) {
+    gfxWindowsPlatform::sD3D9SharedTextureUsed -= mDesc.Width * mDesc.Height * 4;
   }
   MOZ_COUNT_DTOR(SharedTextureClientD3D9);
 }

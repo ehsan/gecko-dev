@@ -31,11 +31,12 @@ public:
   IMPL_EVENT_HANDLER(controllerchange)
   IMPL_EVENT_HANDLER(reloadpage)
   IMPL_EVENT_HANDLER(error)
+  IMPL_EVENT_HANDLER(message)
 
   explicit ServiceWorkerContainer(nsPIDOMWindow* aWindow);
 
-  JSObject*
-  WrapObject(JSContext* aCx);
+  virtual JSObject*
+  WrapObject(JSContext* aCx) MOZ_OVERRIDE;
 
   already_AddRefed<Promise>
   Register(const nsAString& aScriptURL,
@@ -56,18 +57,8 @@ public:
   GetReady(ErrorResult& aRv);
 
   // Testing only.
-  already_AddRefed<Promise>
-  ClearAllServiceWorkerData(ErrorResult& aRv);
-
-  // Testing only.
   void
   GetScopeForUrl(const nsAString& aUrl, nsString& aScope, ErrorResult& aRv);
-
-  // Testing only.
-  void
-  GetControllingWorkerScriptURLForPath(const nsAString& aPath,
-                                       nsString& aScriptURL,
-                                       ErrorResult& aRv);
 
   // DOMEventTargetHelper
   void DisconnectFromOwner() MOZ_OVERRIDE;

@@ -46,7 +46,7 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     };
 
   private:
-    MBasicBlock(MIRGraph &graph, CompileInfo &info, const BytecodeSite *site, Kind kind);
+    MBasicBlock(MIRGraph &graph, CompileInfo &info, BytecodeSite *site, Kind kind);
     bool init();
     void copySlots(MBasicBlock *from);
     bool inherit(TempAllocator &alloc, BytecodeAnalysis *analysis, MBasicBlock *pred,
@@ -56,6 +56,8 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
 
     // This block cannot be reached by any means.
     bool unreachable_;
+
+    MResumePoint *callerResumePoint_;
 
     // Pushes a copy of a local variable or argument.
     void pushVariable(uint32_t slot);
@@ -107,14 +109,14 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     // Creates a new basic block for a MIR generator. If |pred| is not nullptr,
     // its slots and stack depth are initialized from |pred|.
     static MBasicBlock *New(MIRGraph &graph, BytecodeAnalysis *analysis, CompileInfo &info,
-                            MBasicBlock *pred, const BytecodeSite *site, Kind kind);
+                            MBasicBlock *pred, BytecodeSite *site, Kind kind);
     static MBasicBlock *NewPopN(MIRGraph &graph, CompileInfo &info,
-                                MBasicBlock *pred, const BytecodeSite *site, Kind kind, uint32_t popn);
+                                MBasicBlock *pred, BytecodeSite *site, Kind kind, uint32_t popn);
     static MBasicBlock *NewWithResumePoint(MIRGraph &graph, CompileInfo &info,
-                                           MBasicBlock *pred, const BytecodeSite *site,
+                                           MBasicBlock *pred, BytecodeSite *site,
                                            MResumePoint *resumePoint);
     static MBasicBlock *NewPendingLoopHeader(MIRGraph &graph, CompileInfo &info,
-                                             MBasicBlock *pred, const BytecodeSite *site,
+                                             MBasicBlock *pred, BytecodeSite *site,
                                              unsigned loopStateSlots);
     static MBasicBlock *NewSplitEdge(MIRGraph &graph, CompileInfo &info, MBasicBlock *pred);
     static MBasicBlock *NewAsmJS(MIRGraph &graph, CompileInfo &info,
@@ -231,8 +233,7 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     bool initEntrySlots(TempAllocator &alloc);
 
     // Replaces an edge for a given block with a new block. This is
-    // used for critical edge splitting and also for inserting
-    // bailouts during ParallelSafetyAnalysis.
+    // used for critical edge splitting.
     //
     // Note: If successorWithPhis is set, you must not be replacing it.
     void replacePredecessor(MBasicBlock *old, MBasicBlock *split);
@@ -546,14 +547,14 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
         discardResumePoint(outerResumePoint_);
         outerResumePoint_ = nullptr;
     }
-    MResumePoint *callerResumePoint() {
-        return entryResumePoint() ? entryResumePoint()->caller() : nullptr;
+    MResumePoint *callerResumePoint() const {
+        return callerResumePoint_;
     }
     void setCallerResumePoint(MResumePoint *caller) {
-        entryResumePoint()->setCaller(caller);
+        callerResumePoint_ = caller;
     }
     size_t numEntrySlots() const {
-        return entryResumePoint()->numOperands();
+        return entryResumePoint()->stackDepth();
     }
     MDefinition *getEntrySlot(size_t i) const {
         MOZ_ASSERT(i < numEntrySlots());
@@ -603,13 +604,14 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     void dump(FILE *fp);
     void dump();
 
-    // Track bailouts by storing the current pc in MIR instruction added at this
-    // cycle. This is also used for tracking calls when profiling.
-    void updateTrackedSite(const BytecodeSite *site) {
+    // Track bailouts by storing the current pc in MIR instruction added at
+    // this cycle. This is also used for tracking calls and optimizations when
+    // profiling.
+    void updateTrackedSite(BytecodeSite *site) {
         MOZ_ASSERT(site->tree() == trackedSite_->tree());
         trackedSite_ = site;
     }
-    const BytecodeSite *trackedSite() const {
+    BytecodeSite *trackedSite() const {
         return trackedSite_;
     }
     jsbytecode *trackedPc() const {
@@ -658,7 +660,7 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     Vector<MBasicBlock *, 1, JitAllocPolicy> immediatelyDominated_;
     MBasicBlock *immediateDominator_;
 
-    const BytecodeSite *trackedSite_;
+    BytecodeSite *trackedSite_;
 
 #if defined(JS_ION_PERF) || defined(DEBUG)
     unsigned lineno_;
@@ -806,12 +808,6 @@ class MIRGraph
     void setHasTryBlock() {
         hasTryBlock_ = true;
     }
-
-    // The per-thread context. So as not to modify the calling convention for
-    // parallel code, we obtain the current ForkJoinContext from thread-local
-    // storage.  This helper method will lazilly insert an MForkJoinContext
-    // instruction in the entry block and return the definition.
-    MDefinition *forkJoinContext();
 
     void dump(FILE *fp);
     void dump();

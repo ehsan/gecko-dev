@@ -28,18 +28,14 @@ class CodeGeneratorX86 : public CodeGeneratorX86Shared
     ValueOperand ToOutValue(LInstruction *ins);
     ValueOperand ToTempValue(LInstruction *ins, size_t pos);
 
-    template<typename T>
-    bool loadAndNoteViewTypeElement(AsmJSHeapAccess::ViewType vt, const T &srcAddr,
-                                    const LDefinition *out);
-    template<typename T>
-    void loadViewTypeElement(AsmJSHeapAccess::ViewType vt, const T &srcAddr,
-                             const LDefinition *out);
-    template<typename T>
-    void storeAndNoteViewTypeElement(AsmJSHeapAccess::ViewType vt, const LAllocation *value,
-                                     const T &dstAddr);
-    template<typename T>
-    void storeViewTypeElement(AsmJSHeapAccess::ViewType vt, const LAllocation *value,
-                              const T &dstAddr);
+    void load(Scalar::Type vt, const Operand &srcAddr, const LDefinition *out);
+    void store(Scalar::Type vt, const LAllocation *value, const Operand &dstAddr);
+
+    void loadSimd(Scalar::Type type, unsigned numElems, const Operand &srcAddr, FloatRegister out);
+    void emitSimdLoad(LAsmJSLoadHeap *ins);
+
+    void storeSimd(Scalar::Type type, unsigned numElems, FloatRegister in, const Operand &dstAddr);
+    void emitSimdStore(LAsmJSStoreHeap *ins);
 
     void memoryBarrier(MemoryBarrierBits barrier);
 
@@ -47,32 +43,32 @@ class CodeGeneratorX86 : public CodeGeneratorX86Shared
     CodeGeneratorX86(MIRGenerator *gen, LIRGraph *graph, MacroAssembler *masm);
 
   public:
-    bool visitBox(LBox *box);
-    bool visitBoxFloatingPoint(LBoxFloatingPoint *box);
-    bool visitUnbox(LUnbox *unbox);
-    bool visitValue(LValue *value);
-    bool visitCompareB(LCompareB *lir);
-    bool visitCompareBAndBranch(LCompareBAndBranch *lir);
-    bool visitCompareV(LCompareV *lir);
-    bool visitCompareVAndBranch(LCompareVAndBranch *lir);
-    bool visitAsmJSUInt32ToDouble(LAsmJSUInt32ToDouble *lir);
-    bool visitAsmJSUInt32ToFloat32(LAsmJSUInt32ToFloat32 *lir);
-    bool visitTruncateDToInt32(LTruncateDToInt32 *ins);
-    bool visitTruncateFToInt32(LTruncateFToInt32 *ins);
-    bool visitLoadTypedArrayElementStatic(LLoadTypedArrayElementStatic *ins);
-    bool visitStoreTypedArrayElementStatic(LStoreTypedArrayElementStatic *ins);
-    bool visitAsmJSCall(LAsmJSCall *ins);
-    bool visitAsmJSLoadHeap(LAsmJSLoadHeap *ins);
-    bool visitAsmJSStoreHeap(LAsmJSStoreHeap *ins);
-    bool visitAsmJSCompareExchangeHeap(LAsmJSCompareExchangeHeap *ins);
-    bool visitAsmJSAtomicBinopHeap(LAsmJSAtomicBinopHeap *ins);
-    bool visitAsmJSLoadGlobalVar(LAsmJSLoadGlobalVar *ins);
-    bool visitAsmJSStoreGlobalVar(LAsmJSStoreGlobalVar *ins);
-    bool visitAsmJSLoadFuncPtr(LAsmJSLoadFuncPtr *ins);
-    bool visitAsmJSLoadFFIFunc(LAsmJSLoadFFIFunc *ins);
+    void visitBox(LBox *box);
+    void visitBoxFloatingPoint(LBoxFloatingPoint *box);
+    void visitUnbox(LUnbox *unbox);
+    void visitValue(LValue *value);
+    void visitCompareB(LCompareB *lir);
+    void visitCompareBAndBranch(LCompareBAndBranch *lir);
+    void visitCompareV(LCompareV *lir);
+    void visitCompareVAndBranch(LCompareVAndBranch *lir);
+    void visitAsmJSUInt32ToDouble(LAsmJSUInt32ToDouble *lir);
+    void visitAsmJSUInt32ToFloat32(LAsmJSUInt32ToFloat32 *lir);
+    void visitTruncateDToInt32(LTruncateDToInt32 *ins);
+    void visitTruncateFToInt32(LTruncateFToInt32 *ins);
+    void visitLoadTypedArrayElementStatic(LLoadTypedArrayElementStatic *ins);
+    void visitStoreTypedArrayElementStatic(LStoreTypedArrayElementStatic *ins);
+    void visitAsmJSCall(LAsmJSCall *ins);
+    void visitAsmJSLoadHeap(LAsmJSLoadHeap *ins);
+    void visitAsmJSStoreHeap(LAsmJSStoreHeap *ins);
+    void visitAsmJSCompareExchangeHeap(LAsmJSCompareExchangeHeap *ins);
+    void visitAsmJSAtomicBinopHeap(LAsmJSAtomicBinopHeap *ins);
+    void visitAsmJSLoadGlobalVar(LAsmJSLoadGlobalVar *ins);
+    void visitAsmJSStoreGlobalVar(LAsmJSStoreGlobalVar *ins);
+    void visitAsmJSLoadFuncPtr(LAsmJSLoadFuncPtr *ins);
+    void visitAsmJSLoadFFIFunc(LAsmJSLoadFFIFunc *ins);
 
-    bool visitOutOfLineTruncate(OutOfLineTruncate *ool);
-    bool visitOutOfLineTruncateFloat32(OutOfLineTruncateFloat32 *ool);
+    void visitOutOfLineTruncate(OutOfLineTruncate *ool);
+    void visitOutOfLineTruncateFloat32(OutOfLineTruncateFloat32 *ool);
 };
 
 typedef CodeGeneratorX86 CodeGeneratorSpecific;

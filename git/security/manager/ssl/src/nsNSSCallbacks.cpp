@@ -86,7 +86,15 @@ nsHTTPDownloadEvent::Run()
   NS_ENSURE_STATE(ios);
 
   nsCOMPtr<nsIChannel> chan;
-  ios->NewChannel(mRequestSession->mURL, nullptr, nullptr, getter_AddRefs(chan));
+  ios->NewChannel2(mRequestSession->mURL,
+                   nullptr,
+                   nullptr,
+                   nullptr, // aLoadingNode
+                   nsContentUtils::GetSystemPrincipal(),
+                   nullptr, // aTriggeringPrincipal
+                   nsILoadInfo::SEC_NORMAL,
+                   nsIContentPolicy::TYPE_OTHER,
+                   getter_AddRefs(chan));
   NS_ENSURE_STATE(chan);
 
   // Security operations scheduled through normal HTTP channels are given
@@ -1132,14 +1140,15 @@ void HandshakeCallback(PRFileDesc* fd, void* client_data) {
                                            infoObject->GetPort(),
                                            versions.max);
 
-  bool weakEncryption = false;
+  bool usesWeakCipher = false;
   SSLChannelInfo channelInfo;
   rv = SSL_GetChannelInfo(fd, &channelInfo, sizeof(channelInfo));
   MOZ_ASSERT(rv == SECSuccess);
   if (rv == SECSuccess) {
     // Get the protocol version for telemetry
-    // 0=ssl3, 1=tls1, 2=tls1.1, 3=tls1.2
+    // 1=tls1, 2=tls1.1, 3=tls1.2
     unsigned int versionEnum = channelInfo.protocolVersion & 0xFF;
+    MOZ_ASSERT(versionEnum > 0);
     Telemetry::Accumulate(Telemetry::SSL_HANDSHAKE_VERSION, versionEnum);
     AccumulateCipherSuite(
       infoObject->IsFullHandshake() ? Telemetry::SSL_CIPHER_SUITE_FULL
@@ -1151,9 +1160,7 @@ void HandshakeCallback(PRFileDesc* fd, void* client_data) {
                                 sizeof cipherInfo);
     MOZ_ASSERT(rv == SECSuccess);
     if (rv == SECSuccess) {
-      weakEncryption =
-        (channelInfo.protocolVersion <= SSL_LIBRARY_VERSION_3_0) ||
-        (cipherInfo.symCipher == ssl_calg_rc4);
+      usesWeakCipher = cipherInfo.symCipher == ssl_calg_rc4;
 
       // keyExchange null=0, rsa=1, dh=2, fortezza=3, ecdh=4
       Telemetry::Accumulate(
@@ -1225,15 +1232,20 @@ void HandshakeCallback(PRFileDesc* fd, void* client_data) {
   if (rv != SECSuccess) {
     siteSupportsSafeRenego = false;
   }
+  bool renegotiationUnsafe = !siteSupportsSafeRenego &&
+                             ioLayerHelpers.treatUnsafeNegotiationAsBroken();
 
-  if (!weakEncryption &&
-      (siteSupportsSafeRenego ||
-       !ioLayerHelpers.treatUnsafeNegotiationAsBroken())) {
-    infoObject->SetSecurityState(nsIWebProgressListener::STATE_IS_SECURE |
-                                 nsIWebProgressListener::STATE_SECURE_HIGH);
+  uint32_t state;
+  if (usesWeakCipher || renegotiationUnsafe) {
+    state = nsIWebProgressListener::STATE_IS_BROKEN;
+    if (usesWeakCipher) {
+      state |= nsIWebProgressListener::STATE_USES_WEAK_CRYPTO;
+    }
   } else {
-    infoObject->SetSecurityState(nsIWebProgressListener::STATE_IS_BROKEN);
+    state = nsIWebProgressListener::STATE_IS_SECURE |
+            nsIWebProgressListener::STATE_SECURE_HIGH;
   }
+  infoObject->SetSecurityState(state);
 
   // XXX Bug 883674: We shouldn't be formatting messages here in PSM; instead,
   // we should set a flag on the channel that higher (UI) level code can check
@@ -1252,8 +1264,6 @@ void HandshakeCallback(PRFileDesc* fd, void* client_data) {
     nsContentUtils::LogSimpleConsoleError(msg, "SSL");
   }
 
-  ScopedCERTCertificate serverCert(SSL_PeerCertificate(fd));
-
   /* Set the SSL Status information */
   RefPtr<nsSSLStatus> status(infoObject->SSLStatus());
   if (!status) {
@@ -1264,33 +1274,15 @@ void HandshakeCallback(PRFileDesc* fd, void* client_data) {
   RememberCertErrorsTable::GetInstance().LookupCertErrorBits(infoObject,
                                                              status);
 
-  RefPtr<nsNSSCertificate> nssc(nsNSSCertificate::Create(serverCert.get()));
-  nsCOMPtr<nsIX509Cert> prevcert;
-  infoObject->GetPreviousCert(getter_AddRefs(prevcert));
-
-  bool equals_previous = false;
-  if (prevcert && nssc) {
-    nsresult rv = nssc->Equals(prevcert, &equals_previous);
-    if (NS_FAILED(rv)) {
-      equals_previous = false;
-    }
-  }
-
-  if (equals_previous) {
+  if (status->HasServerCert()) {
     PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
-            ("HandshakeCallback using PREV cert %p\n", prevcert.get()));
-    status->mServerCert = prevcert;
-  }
-  else {
-    if (status->mServerCert) {
-      PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
-              ("HandshakeCallback KEEPING cert %p\n", status->mServerCert.get()));
-    }
-    else {
-      PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
-              ("HandshakeCallback using NEW cert %p\n", nssc.get()));
-      status->mServerCert = nssc;
-    }
+           ("HandshakeCallback KEEPING existing cert\n"));
+  } else {
+    ScopedCERTCertificate serverCert(SSL_PeerCertificate(fd));
+    RefPtr<nsNSSCertificate> nssc(nsNSSCertificate::Create(serverCert.get()));
+    PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
+           ("HandshakeCallback using NEW cert %p\n", nssc.get()));
+    status->SetServerCert(nssc, nsNSSCertificate::ev_status_unknown);
   }
 
   infoObject->NoteTimeUntilReady();

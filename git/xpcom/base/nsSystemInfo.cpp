@@ -29,7 +29,6 @@
 
 #ifdef MOZ_WIDGET_ANDROID
 #include "AndroidBridge.h"
-using namespace mozilla::widget::android;
 #endif
 
 #ifdef MOZ_WIDGET_GONK
@@ -308,7 +307,7 @@ nsSystemInfo::Init()
           "android/os/Build", "HARDWARE", str)) {
       SetPropertyAsAString(NS_LITERAL_STRING("hardware"), str);
     }
-    bool isTablet = mozilla::widget::android::GeckoAppShell::IsTablet();
+    bool isTablet = mozilla::widget::GeckoAppShell::IsTablet();
     SetPropertyAsBool(NS_LITERAL_STRING("tablet"), isTablet);
     // NSPR "version" is the kernel version. For Android we want the Android version.
     // Rename SDK version to version and put the kernel version into kernel_version.
@@ -361,6 +360,12 @@ nsSystemInfo::Init()
 
   SetPropertyAsBool(NS_LITERAL_STRING("hasSeccompBPF"),
                     sandInfo.Test(SandboxInfo::kHasSeccompBPF));
+  SetPropertyAsBool(NS_LITERAL_STRING("hasSeccompTSync"),
+                    sandInfo.Test(SandboxInfo::kHasSeccompTSync));
+  SetPropertyAsBool(NS_LITERAL_STRING("hasUserNamespaces"),
+                    sandInfo.Test(SandboxInfo::kHasUserNamespaces));
+  SetPropertyAsBool(NS_LITERAL_STRING("hasPrivilegedUserNamespaces"),
+                    sandInfo.Test(SandboxInfo::kHasPrivilegedUserNamespaces));
 
   if (sandInfo.Test(SandboxInfo::kEnabledForContent)) {
     SetPropertyAsBool(NS_LITERAL_STRING("canSandboxContent"),

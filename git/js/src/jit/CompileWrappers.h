@@ -31,16 +31,22 @@ class CompileRuntime
 
     js::PerThreadData *mainThread();
 
-    // &mainThread.jitTop
+    // &runtime()->jitTop
     const void *addressOfJitTop();
 
-    // rt->mainThread.jitStackLimit;
+    // &runtime()->jitActivation
+    const void *addressOfJitActivation();
+
+    // &runtime()->profilingActivation
+    const void *addressOfProfilingActivation();
+
+    // rt->runtime()->jitStackLimit;
     const void *addressOfJitStackLimit();
 
-    // &mainThread.jitJSContext
+    // &runtime()->jitJSContext
     const void *addressOfJSContext();
 
-    // &mainThread.activation_
+    // &runtime()->activation_
     const void *addressOfActivation();
 
     // &GetJitContext()->runtime->nativeIterCache.last
@@ -51,9 +57,6 @@ class CompileRuntime
 #endif
 
     const void *addressOfInterruptUint32();
-    const void *addressOfInterruptParUint32();
-
-    const void *addressOfThreadPool();
 
     const JitRuntime *jitRuntime();
 
@@ -70,6 +73,7 @@ class CompileRuntime
     const StaticStrings &staticStrings();
     const Value &NaNValue();
     const Value &positiveInfinityValue();
+    const WellKnownSymbols &wellKnownSymbols();
 
 #ifdef DEBUG
     bool isInsideNursery(gc::Cell *cell);
@@ -80,9 +84,7 @@ class CompileRuntime
 
     const MathCache *maybeGetMathCache();
 
-#ifdef JSGC_GENERATIONAL
     const Nursery &gcNursery();
-#endif
 };
 
 class CompileZone
@@ -94,7 +96,7 @@ class CompileZone
 
     const void *addressOfNeedsIncrementalBarrier();
 
-    // allocator.arenas.getFreeList(allocKind)
+    // arenas.getFreeList(allocKind)
     const void *addressOfFreeListFirst(gc::AllocKind allocKind);
     const void *addressOfFreeListLast(gc::AllocKind allocKind);
 };
@@ -110,8 +112,6 @@ class CompileCompartment
     CompileRuntime *runtime();
 
     const void *addressOfEnumerators();
-
-    const CallsiteCloneTable &callsiteClones();
 
     const JitCompartment *jitCompartment();
 

@@ -1,3 +1,8 @@
+/* -*- Mode: Java; c-basic-offset: 4; tab-width: 4; indent-tabs-mode: nil; -*-
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 package org.mozilla.gecko.tests;
 
 
@@ -29,6 +34,7 @@ public class StringHelper {
     public static final String ABOUT_DOWNLOADS_URL = "about:downloads";
     public static final String ABOUT_HOME_URL = "about:home";
     public static final String ABOUT_ADDONS_URL = "about:addons";
+    public static final String ABOUT_PASSWORDS_URL = "about:passwords";
     public static final String ABOUT_APPS_URL = "about:apps";
     public static final String ABOUT_ABOUT_URL = "about:about";
     public static final String ABOUT_SCHEME = "about:";
@@ -143,7 +149,6 @@ public class StringHelper {
     public static final String ROBOCOP_SEARCH_TITLE = "Robocop Search Engine";
     public static final String ROBOCOP_TEXT_PAGE_TITLE = "Robocop Text Page";
     public static final String ROBOCOP_INPUT_TITLE = "Robocop Input";
-    public static final String ROBOCOP_SELECTION_HANDLER_TITLE = "Automated Text Selection tests for Mobile";
 
     // Distribution tile labels
     public static final String DISTRIBUTION1_LABEL = "Distribution 1";
@@ -176,9 +181,11 @@ public class StringHelper {
     public static final String SHOW_PAGE_ADDRESS_LABEL = "Show page address";
 
     // Privacy
-    public static final String TRACKING_LABEL = "Do not track";
+    public static final String TRACKING_PROTECTION_LABEL = "Tracking protection";
+    public static final String DNT_LABEL = "Do not track";
     public static final String COOKIES_LABEL = "Cookies";
     public static final String REMEMBER_PASSWORDS_LABEL = "Remember passwords";
+    public static final String MANAGE_LOGINS_LABEL = "Manage logins";
     public static final String MASTER_PASSWORD_LABEL = "Use master password";
     public static final String CLEAR_PRIVATE_DATA_LABEL = "Clear now";
 
@@ -221,9 +228,11 @@ public class StringHelper {
     public static final String PDF_LABEL = "Save as PDF";
     public static final String DOWNLOADS_LABEL = "Downloads";
     public static final String ADDONS_LABEL = "Add-ons";
+    public static final String LOGINS_LABEL = "Logins";
     public static final String APPS_LABEL = "Apps";
     public static final String SETTINGS_LABEL = "Settings";
     public static final String GUEST_MODE_LABEL = "New Guest Session";
+    public static final String TAB_QUEUE_LABEL = "Open later";
 
     // Android 3.0+
     public static final String TOOLS_LABEL = "Tools";
