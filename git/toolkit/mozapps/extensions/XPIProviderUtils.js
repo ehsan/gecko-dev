@@ -978,11 +978,8 @@ this.XPIDatabase = {
 
   /**
    * Shuts down the database connection and releases all cached objects.
-   * Return: Promise{integer} resolves / rejects with the result of the DB
-   *                          flush after the database is flushed and
-   *                          all cleanup is done
    */
-  shutdown: function XPIDB_shutdown() {
+  shutdown: function XPIDB_shutdown(aCallback) {
     LOG("shutdown");
     if (this.initialized) {
       // If our last database I/O had an error, try one last time to save.
@@ -1000,17 +997,21 @@ this.XPIDatabase = {
             "XPIDB_saves_late", this._deferredSave.dirty ? 1 : 0);
       }
 
-      // Return a promise that any pending writes of the DB are complete and we
-      // are finished cleaning up
-      let flushPromise = this.flush();
-      flushPromise.then(null, error => {
+      // Make sure any pending writes of the DB are complete, and we
+      // finish cleaning up, and then call back
+      this.flush()
+        .then(null, error => {
           ERROR("Flush of XPI database failed", error);
           AddonManagerPrivate.recordSimpleMeasure("XPIDB_shutdownFlush_failed", 1);
-          // If our last attempt to read or write the DB failed, force a new
-          // extensions.ini to be written to disk on the next startup
-          Services.prefs.setBoolPref(PREF_PENDING_OPERATIONS, true);
+          return 0;
         })
         .then(count => {
+          // If our last attempt to read or write the DB failed, force a new
+          // extensions.ini to be written to disk on the next startup
+          let lastSaveFailed = this.lastError;
+          if (lastSaveFailed)
+            Services.prefs.setBoolPref(PREF_PENDING_OPERATIONS, true);
+
           // Clear out the cached addons data loaded from JSON
           delete this.addonDB;
           delete this._dbPromise;
@@ -1018,10 +1019,15 @@ this.XPIDatabase = {
           delete this._deferredSave;
           // re-enable the schema version setter
           delete this._schemaVersionSet;
+
+          if (aCallback)
+            aCallback(lastSaveFailed);
         });
-      return flushPromise;
     }
-    return Promise.resolve(0);
+    else {
+      if (aCallback)
+        aCallback(null);
+    }
   },
 
   /**
@@ -1376,13 +1382,6 @@ this.XPIDatabase = {
    * Synchronously calculates and updates all the active flags in the database.
    */
   updateActiveAddons: function XPIDB_updateActiveAddons() {
-    if (!this.addonDB) {
-      WARN("updateActiveAddons called when DB isn't loaded");
-      // force the DB to load
-      AddonManagerPrivate.recordSimpleMeasure("XPIDB_lateOpen_updateActive",
-          XPIProvider.runPhase);
-      this.syncLoadDB(true);
-    }
     LOG("Updating add-on states");
     for (let [, addon] of this.addonDB) {
       let newActive = (addon.visible && !addon.userDisabled &&

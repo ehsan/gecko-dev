@@ -7,6 +7,7 @@
 #include "nsStyleConsts.h"
 
 #include "nsIContent.h"
+#include "nsReadableUtils.h"
 #include "nsCSSProps.h"
 #include "nsRuleNode.h"
 #include "nsROCSSPrimitiveValue.h"

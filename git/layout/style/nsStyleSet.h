@@ -26,6 +26,7 @@
 #include "nsCSSPseudoElements.h"
 #include "gfxFontFeatures.h"
 
+class nsIURI;
 class nsCSSFontFaceRule;
 class nsCSSKeyframesRule;
 class nsCSSFontFeatureValuesRule;

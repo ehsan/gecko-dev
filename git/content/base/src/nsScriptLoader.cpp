@@ -716,9 +716,9 @@ nsScriptLoader::ProcessOffThreadRequest(void **aOffThreadToken)
 {
     nsCOMPtr<nsScriptLoadRequest> request = mOffThreadScriptRequest;
     mOffThreadScriptRequest = nullptr;
-    nsresult rv = ProcessRequest(request, aOffThreadToken);
     mDocument->UnblockOnload(false);
-    return rv;
+
+    return ProcessRequest(request, aOffThreadToken);
 }
 
 NS_IMETHODIMP

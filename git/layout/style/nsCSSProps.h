@@ -12,8 +12,9 @@
 #define nsCSSProps_h___
 
 #include "nsString.h"
+#include "nsChangeHint.h"
 #include "nsCSSProperty.h"
-#include "nsStyleStructFwd.h"
+#include "nsStyleStruct.h"
 #include "nsCSSKeywords.h"
 
 // Flags for ParseVariant method

@@ -46,7 +46,6 @@
 #include "nsCanvasFrame.h"
 #include "StickyScrollContainer.h"
 #include "mozilla/LookAndFeel.h"
-#include "mozilla/Preferences.h"
 
 #include <stdint.h>
 #include <algorithm>

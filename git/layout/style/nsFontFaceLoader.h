@@ -17,10 +17,12 @@
 #include "nsTHashtable.h"
 #include "nsCSSRules.h"
 
+class nsISupports;
 class nsPresContext;
 class nsIPrincipal;
 
 class nsFontFaceLoader;
+class nsCSSFontFaceRule;
 
 // nsUserFontSet - defines the loading mechanism for downloadable fonts
 class nsUserFontSet : public gfxUserFontSet
