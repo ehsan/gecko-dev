@@ -480,28 +480,33 @@ ValueNumberer::fixupOSROnlyLoop(MBasicBlock *block, MBasicBlock *backedge)
 // Remove the CFG edge between |pred| and |block|, after releasing the phi
 // operands on that edge and discarding any definitions consequently made dead.
 bool
-ValueNumberer::removePredecessorAndDoDCE(MBasicBlock *block, MBasicBlock *pred, size_t predIndex)
+ValueNumberer::removePredecessorAndDoDCE(MBasicBlock *block, MBasicBlock *pred)
 {
     MOZ_ASSERT(!block->isMarked(),
                "Block marked unreachable should have predecessors removed already");
 
     // Before removing the predecessor edge, scan the phi operands for that edge
     // for dead code before they get removed.
-    MOZ_ASSERT(nextDef_ == nullptr);
-    for (MPhiIterator iter(block->phisBegin()), end(block->phisEnd()); iter != end; ) {
-        MPhi *phi = *iter++;
-        MOZ_ASSERT(!values_.has(phi), "Visited phi in block having predecessor removed");
+    if (!block->phisEmpty()) {
+        uint32_t index = pred->positionInPhiSuccessor();
+        for (MPhiIterator iter(block->phisBegin()), end(block->phisEnd()); iter != end; ++iter) {
+            MPhi *phi = *iter;
+            MOZ_ASSERT(!values_.has(phi), "Visited phi in block having predecessor removed");
 
-        MDefinition *op = phi->getOperand(predIndex);
-        phi->removeOperand(predIndex);
+            MDefinition *op = phi->getOperand(index);
+            if (op == phi)
+                continue;
 
-        nextDef_ = *iter;
-        if (!handleUseReleased(op, DontSetUseRemoved) || !processDeadDefs())
-            return false;
+            // Set the operand to the phi itself rather than just releasing it
+            // because removePredecessor expects to have something to release.
+            phi->replaceOperand(index, phi);
+
+            if (!handleUseReleased(op, DontSetUseRemoved) || !processDeadDefs())
+                return false;
+        }
     }
-    nextDef_ = nullptr;
 
-    block->removePredecessorWithoutPhiOperands(pred, predIndex);
+    block->removePredecessor(pred);
     return true;
 }
 
@@ -546,7 +551,7 @@ ValueNumberer::removePredecessorAndCleanUp(MBasicBlock *block, MBasicBlock *pred
     }
 
     // Actually remove the CFG edge.
-    if (!removePredecessorAndDoDCE(block, pred, block->getPredecessorIndex(pred)))
+    if (!removePredecessorAndDoDCE(block, pred))
         return false;
 
     // We've now edited the CFG; check to see if |block| became unreachable.
@@ -568,7 +573,7 @@ ValueNumberer::removePredecessorAndCleanUp(MBasicBlock *block, MBasicBlock *pred
         if (block->isLoopHeader())
             block->clearLoopHeader();
         for (size_t i = 0, e = block->numPredecessors(); i < e; ++i) {
-            if (!removePredecessorAndDoDCE(block, block->getPredecessor(i), i))
+            if (!removePredecessorAndDoDCE(block, block->getPredecessor(i)))
                 return false;
         }
 
@@ -581,7 +586,6 @@ ValueNumberer::removePredecessorAndCleanUp(MBasicBlock *block, MBasicBlock *pred
                 if (!releaseResumePointOperands(outer) || !processDeadDefs())
                     return false;
             }
-            MOZ_ASSERT(nextDef_ == nullptr);
             for (MInstructionIterator iter(block->begin()), end(block->end()); iter != end; ) {
                 MInstruction *ins = *iter++;
                 nextDef_ = *iter;
@@ -590,7 +594,6 @@ ValueNumberer::removePredecessorAndCleanUp(MBasicBlock *block, MBasicBlock *pred
                         return false;
                 }
             }
-            nextDef_ = nullptr;
         } else {
 #ifdef DEBUG
             MOZ_ASSERT(block->outerResumePoint() == nullptr,
@@ -867,7 +870,6 @@ ValueNumberer::visitUnreachableBlock(MBasicBlock *block)
 
     // Discard any instructions with no uses. The remaining instructions will be
     // discarded when their last use is discarded.
-    MOZ_ASSERT(nextDef_ == nullptr);
     for (MDefinitionIterator iter(block); iter; ) {
         MDefinition *def = *iter++;
         if (def->hasUses())
@@ -892,7 +894,6 @@ ValueNumberer::visitBlock(MBasicBlock *block, const MBasicBlock *dominatorRoot)
     JitSpew(JitSpew_GVN, "    Visiting block%u", block->id());
 
     // Visit the definitions in the block top-down.
-    MOZ_ASSERT(nextDef_ == nullptr);
     for (MDefinitionIterator iter(block); iter; ) {
         MDefinition *def = *iter++;
 

@@ -2,15 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "BackgroundChild.h"
-#include "BackgroundParent.h"
-
-#include "BackgroundChildImpl.h"
-#include "BackgroundParentImpl.h"
 #include "base/process_util.h"
-#include "FileDescriptor.h"
-#include "GeckoProfiler.h"
-#include "InputStreamUtils.h"
 #include "mozilla/Assertions.h"
 #include "mozilla/Atomics.h"
 #include "mozilla/ClearOnShutdown.h"
@@ -20,17 +12,16 @@
 #include "mozilla/unused.h"
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/ContentParent.h"
-#include "mozilla/dom/ipc/BlobChild.h"
-#include "mozilla/dom/ipc/BlobParent.h"
-#include "mozilla/dom/ipc/nsIRemoteBlob.h"
 #include "mozilla/ipc/ProtocolTypes.h"
+#include "BackgroundChild.h"
+#include "BackgroundChildImpl.h"
+#include "BackgroundParent.h"
+#include "BackgroundParentImpl.h"
+#include "GeckoProfiler.h"
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
-#include "nsDOMFile.h"
-#include "nsIDOMFile.h"
 #include "nsIEventTarget.h"
 #include "nsIIPCBackgroundChildCreateCallback.h"
-#include "nsIMutable.h"
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
 #include "nsIRunnable.h"
@@ -61,8 +52,10 @@
   while (0)
 
 using namespace mozilla;
-using namespace mozilla::dom;
 using namespace mozilla::ipc;
+
+using mozilla::dom::ContentChild;
+using mozilla::dom::ContentParent;
 
 namespace {
 
@@ -231,10 +224,6 @@ private:
   // Forwarded from BackgroundParent.
   static already_AddRefed<ContentParent>
   GetContentParent(PBackgroundParent* aBackgroundActor);
-
-  // Forwarded from BackgroundParent.
-  static intptr_t
-  GetRawContentParentForComparison(PBackgroundParent* aBackgroundActor);
 
   // Forwarded from BackgroundParent.
   static PBackgroundParent*
@@ -844,32 +833,6 @@ BackgroundParent::GetContentParent(PBackgroundParent* aBackgroundActor)
 }
 
 // static
-PBlobParent*
-BackgroundParent::GetOrCreateActorForBlobImpl(
-                                            PBackgroundParent* aBackgroundActor,
-                                            DOMFileImpl* aBlobImpl)
-{
-  AssertIsOnBackgroundThread();
-  MOZ_ASSERT(aBackgroundActor);
-  MOZ_ASSERT(aBlobImpl);
-
-  BlobParent* actor = BlobParent::GetOrCreate(aBackgroundActor, aBlobImpl);
-  if (NS_WARN_IF(!actor)) {
-    return nullptr;
-  }
-
-  return actor;
-}
-
-// static
-intptr_t
-BackgroundParent::GetRawContentParentForComparison(
-                                            PBackgroundParent* aBackgroundActor)
-{
-  return ParentImpl::GetRawContentParentForComparison(aBackgroundActor);
-}
-
-// static
 PBackgroundParent*
 BackgroundParent::Alloc(ContentParent* aContent,
                         Transport* aTransport,
@@ -909,29 +872,6 @@ BackgroundChild::GetOrCreateForCurrentThread(
                                  nsIIPCBackgroundChildCreateCallback* aCallback)
 {
   return ChildImpl::GetOrCreateForCurrentThread(aCallback);
-}
-
-// static
-PBlobChild*
-BackgroundChild::GetOrCreateActorForBlob(PBackgroundChild* aBackgroundActor,
-                                         nsIDOMBlob* aBlob)
-{
-  MOZ_ASSERT(aBackgroundActor);
-  MOZ_ASSERT(aBlob);
-  MOZ_ASSERT(GetForCurrentThread(),
-             "BackgroundChild not created on this thread yet!");
-  MOZ_ASSERT(aBackgroundActor == GetForCurrentThread(),
-             "BackgroundChild is bound to a different thread!");
-
-  nsRefPtr<DOMFileImpl> blobImpl = static_cast<DOMFile*>(aBlob)->Impl();
-  MOZ_ASSERT(blobImpl);
-
-  BlobChild* actor = BlobChild::GetOrCreate(aBackgroundActor, blobImpl);
-  if (NS_WARN_IF(!actor)) {
-    return nullptr;
-  }
-
-  return actor;
 }
 
 // static
@@ -1037,25 +977,6 @@ ParentImpl::GetContentParent(PBackgroundParent* aBackgroundActor)
 }
 
 // static
-intptr_t
-ParentImpl::GetRawContentParentForComparison(
-                                            PBackgroundParent* aBackgroundActor)
-{
-  AssertIsOnBackgroundThread();
-  MOZ_ASSERT(aBackgroundActor);
-
-  auto actor = static_cast<ParentImpl*>(aBackgroundActor);
-  if (actor->mActorDestroyed) {
-    MOZ_ASSERT(false,
-               "GetRawContentParentForComparison called after ActorDestroy was "
-               "called!");
-    return intptr_t(-1);
-  }
-
-  return intptr_t(static_cast<nsIContentParent*>(actor->mContent.get()));
-}
-
-// static
 PBackgroundParent*
 ParentImpl::Alloc(ContentParent* aContent,
                   Transport* aTransport,
@@ -1092,6 +1013,10 @@ ParentImpl::Alloc(ContentParent* aContent,
 
     MOZ_ASSERT(sLiveActorCount);
     sLiveActorCount--;
+
+    if (!sLiveActorCount) {
+      ShutdownBackgroundThread();
+    }
 
     return nullptr;
   }
@@ -1204,7 +1129,7 @@ ParentImpl::ShutdownBackgroundThread()
   AssertIsInMainProcess();
   AssertIsOnMainThread();
   MOZ_ASSERT_IF(!sBackgroundThread, !sBackgroundThreadMessageLoop);
-  MOZ_ASSERT(sShutdownHasStarted);
+  MOZ_ASSERT_IF(!sShutdownHasStarted, !sLiveActorCount);
   MOZ_ASSERT_IF(!sBackgroundThread, !sLiveActorCount);
   MOZ_ASSERT_IF(sBackgroundThread, sShutdownTimer);
 
@@ -1222,44 +1147,51 @@ ParentImpl::ShutdownBackgroundThread()
       }
     }
 
-    sPendingCallbacks = nullptr;
+    if (sShutdownHasStarted) {
+      sPendingCallbacks = nullptr;
+    }
   }
 
-  nsCOMPtr<nsITimer> shutdownTimer = sShutdownTimer.get();
-  sShutdownTimer = nullptr;
+  nsCOMPtr<nsITimer> shutdownTimer;
+  if (sShutdownHasStarted) {
+    shutdownTimer = sShutdownTimer.get();
+    sShutdownTimer = nullptr;
+  }
 
   if (sBackgroundThread) {
     nsCOMPtr<nsIThread> thread = sBackgroundThread.get();
-    sBackgroundThread = nullptr;
-
     nsAutoPtr<nsTArray<ParentImpl*>> liveActors(sLiveActorsForBackgroundThread);
-    sLiveActorsForBackgroundThread = nullptr;
 
+    sBackgroundThread = nullptr;
+    sLiveActorsForBackgroundThread = nullptr;
     sBackgroundThreadMessageLoop = nullptr;
 
     MOZ_ASSERT_IF(!sShutdownHasStarted, !sLiveActorCount);
 
-    if (sLiveActorCount) {
-      // We need to spin the event loop while we wait for all the actors to be
-      // cleaned up. We also set a timeout to force-kill any hanging actors.
-      TimerCallbackClosure closure(thread, liveActors);
+    if (sShutdownHasStarted) {
+      // If this is final shutdown then we need to spin the event loop while we
+      // wait for all the actors to be cleaned up. We also set a timeout to
+      // force-kill any hanging actors.
 
-      MOZ_ALWAYS_TRUE(NS_SUCCEEDED(
-        shutdownTimer->InitWithFuncCallback(&ShutdownTimerCallback,
-                                            &closure,
-                                            kShutdownTimerDelayMS,
-                                            nsITimer::TYPE_ONE_SHOT)));
+      if (sLiveActorCount) {
+        TimerCallbackClosure closure(thread, liveActors);
 
-      nsIThread* currentThread = NS_GetCurrentThread();
-      MOZ_ASSERT(currentThread);
+        MOZ_ALWAYS_TRUE(NS_SUCCEEDED(
+          shutdownTimer->InitWithFuncCallback(&ShutdownTimerCallback, &closure,
+                                              kShutdownTimerDelayMS,
+                                              nsITimer::TYPE_ONE_SHOT)));
 
-      while (sLiveActorCount) {
-        NS_ProcessNextEvent(currentThread);
+        nsIThread* currentThread = NS_GetCurrentThread();
+        MOZ_ASSERT(currentThread);
+
+        while (sLiveActorCount) {
+          NS_ProcessNextEvent(currentThread);
+        }
+
+        MOZ_ASSERT(liveActors->IsEmpty());
+
+        MOZ_ALWAYS_TRUE(NS_SUCCEEDED(shutdownTimer->Cancel()));
       }
-
-      MOZ_ASSERT(liveActors->IsEmpty());
-
-      MOZ_ALWAYS_TRUE(NS_SUCCEEDED(shutdownTimer->Cancel()));
     }
 
     // Dispatch this runnable to unregister the thread from the profiler.
@@ -1336,6 +1268,10 @@ ParentImpl::MainThreadActorDestroy()
 
   MOZ_ASSERT(sLiveActorCount);
   sLiveActorCount--;
+
+  if (!sLiveActorCount) {
+    ShutdownBackgroundThread();
+  }
 
   // This may be the last reference!
   Release();
@@ -1439,8 +1375,6 @@ ParentImpl::RequestMessageLoopRunnable::Run()
   AssertIsInMainProcess();
   MOZ_ASSERT(mTargetThread);
 
-  char stackBaseGuess;
-
   if (NS_IsMainThread()) {
     MOZ_ASSERT(mMessageLoop);
 
@@ -1470,6 +1404,7 @@ ParentImpl::RequestMessageLoopRunnable::Run()
     return NS_OK;
   }
 
+  char stackBaseGuess;
   profiler_register_thread("IPDL Background", &stackBaseGuess);
 
 #ifdef DEBUG

@@ -594,10 +594,46 @@ private:
   gfxFloat GetOffsetScale(nsIFrame* aTextPathFrame);
   gfxFloat GetStartOffset(nsIFrame* aTextPathFrame);
 
-  DrawMode SetupContextPaint(const gfxMatrix& aContextMatrix,
+  DrawMode SetupCairoState(gfxContext* aContext,
+                           nsIFrame* aFrame,
+                           gfxTextContextPaint* aOuterContextPaint,
+                           gfxTextContextPaint** aThisContextPaint);
+
+  /**
+   * Sets up the stroke style for |aFrame| in |aContext| and stores stroke
+   * pattern information in |aThisContextPaint|.
+   */
+  bool SetupCairoStroke(gfxContext* aContext,
+                        nsIFrame* aFrame,
+                        gfxTextContextPaint* aOuterContextPaint,
+                        SVGTextContextPaint* aThisContextPaint);
+
+  /**
+   * Sets up the fill style for |aFrame| in |aContext| and stores fill pattern
+   * information in |aThisContextPaint|.
+   */
+  bool SetupCairoFill(gfxContext* aContext,
+                      nsIFrame* aFrame,
+                      gfxTextContextPaint* aOuterContextPaint,
+                      SVGTextContextPaint* aThisContextPaint);
+
+  /**
+   * Stores in |aTargetPaint| information on how to reconstruct the current
+   * fill or stroke pattern. Will also set the paint opacity to transparent if
+   * the paint is set to "none".
+   * @param aOuterContextPaint pattern information from the outer text context
+   * @param aTargetPaint where to store the current pattern information
+   * @param aFillOrStroke member pointer to the paint we are setting up
+   * @param aProperty the frame property descriptor of the fill or stroke paint
+   *   server frame
+   */
+  void SetupInheritablePaint(gfxContext* aContext,
                              nsIFrame* aFrame,
+                             float& aOpacity,
                              gfxTextContextPaint* aOuterContextPaint,
-                             SVGTextContextPaint* aThisContextPaint);
+                             SVGTextContextPaint::Paint& aTargetPaint,
+                             nsStyleSVGPaint nsStyleSVG::*aFillOrStroke,
+                             const FramePropertyDescriptor* aProperty);
 
   /**
    * The MutationObserver we have registered for the <text> element subtree.

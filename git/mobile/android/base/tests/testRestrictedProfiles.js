@@ -26,7 +26,8 @@ add_task(function test_isUserRestricted() {
   do_check_true(pc.isAllowed(Ci.nsIParentalControlsService.SHARE));
   do_check_true(pc.isAllowed(Ci.nsIParentalControlsService.BOOKMARK));
   do_check_true(pc.isAllowed(Ci.nsIParentalControlsService.INSTALL_EXTENSION));
-  do_check_true(pc.isAllowed(Ci.nsIParentalControlsService.MODIFY_ACCOUNTS));
+
+  run_next_test();
 });
 
 add_task(function test_getUserRestrictions() {

@@ -398,6 +398,8 @@ var commandsPeerConnection = [
       if (test.pcLocal.localRequiresTrickleIce) {
         ok(test.pcLocal._local_ice_candidates.length > 0, "Received local trickle ICE candidates");
       }
+      // a super slow TURN server might make this fail
+      ok(test.pcLocal.endOfTrickleIce, "Received end of ICE gathering candidate");
       isnot(test.pcLocal._pc.iceGatheringState, GATH_NEW, "ICE gathering state is not 'new'");
       test.next();
     }
@@ -438,6 +440,8 @@ var commandsPeerConnection = [
       if (test.pcRemote.localRequiresTrickleIce) {
         ok(test.pcRemote._local_ice_candidates.length > 0, "Received local trickle ICE candidates");
       }
+      // a super slow TURN server might make this fail
+      ok(test.pcRemote.endOfTrickleIce, "Received end of ICE gathering candidate");
       isnot(test.pcRemote._pc.iceGatheringState, GATH_NEW, "ICE gathering state is not 'new'");
       test.next();
     }
@@ -995,6 +999,8 @@ var commandsDataChannel = [
       if (test.pcLocal.localRequiresTrickleIce) {
         ok(test.pcLocal._local_ice_candidates.length > 0, "Received local trickle ICE candidates");
       }
+      // a super slow TURN server might make this fail
+      ok(test.pcLocal.endOfTrickleIce, "Received end of ICE gathering candidate");
       isnot(test.pcLocal._pc.iceGatheringState, GATH_NEW, "ICE gathering state is not 'new'");
       test.next();
     }
@@ -1035,6 +1041,8 @@ var commandsDataChannel = [
       if (test.pcRemote.localRequiresTrickleIce) {
         ok(test.pcRemote._local_ice_candidates.length > 0, "Received local trickle ICE candidates");
       }
+      // a super slow TURN server might make this fail
+      ok(test.pcRemote.endOfTrickleIce, "Received end of ICE gathering candidate");
       isnot(test.pcRemote._pc.iceGatheringState, GATH_NEW, "ICE gathering state is not 'new'");
       test.next();
     }

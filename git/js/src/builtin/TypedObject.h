@@ -68,9 +68,9 @@
  *   object's header are inline typed objects. These do not have an associated
  *   array buffer, so only opaque typed objects can be inline.
  *
- * OutlineTypedObject: Transparent or opaque typed objects whose data is owned by
+ * OwnedTypedObject: Transparent or opaque typed objects whose data is owned by
  *   another object, which can be either an array buffer or an inline typed
- *   object (opaque objects only). Outline typed objects may be attached or
+ *   object (opaque objects only). Owned typed objects may be attached or
  *   unattached. An unattached typed object has no memory associated with it.
  *   When first created, objects are always attached, but they can become
  *   unattached if their buffer is neutered (note that this implies that typed
@@ -665,7 +665,7 @@ class TypedObject : public ArrayBufferViewObject
 
 typedef Handle<TypedObject*> HandleTypedObject;
 
-class OutlineTypedObject : public TypedObject
+class OwnedTypedObject : public TypedObject
 {
   public:
     static const size_t DATA_SLOT = 3;
@@ -692,10 +692,10 @@ class OutlineTypedObject : public TypedObject
     }
 
     // Helper for createUnattached()
-    static OutlineTypedObject *createUnattachedWithClass(JSContext *cx,
-                                                         const Class *clasp,
-                                                         HandleTypeDescr type,
-                                                         int32_t length);
+    static OwnedTypedObject *createUnattachedWithClass(JSContext *cx,
+                                                       const Class *clasp,
+                                                       HandleTypeDescr type,
+                                                       int32_t length);
 
     // Creates an unattached typed object or handle (depending on the
     // type parameter T). Note that it is only legal for unattached
@@ -705,16 +705,16 @@ class OutlineTypedObject : public TypedObject
     // Arguments:
     // - type: type object for resulting object
     // - length: 0 unless this is an array, otherwise the length
-    static OutlineTypedObject *createUnattached(JSContext *cx, HandleTypeDescr type,
-                                                int32_t length);
+    static OwnedTypedObject *createUnattached(JSContext *cx, HandleTypeDescr type,
+                                              int32_t length);
 
     // Creates a typedObj that aliases the memory pointed at by `owner`
     // at the given offset. The typedObj will be a handle iff type is a
     // handle and a typed object otherwise.
-    static OutlineTypedObject *createDerived(JSContext *cx,
-                                             HandleSizedTypeDescr type,
-                                             Handle<TypedObject*> typedContents,
-                                             int32_t offset);
+    static OwnedTypedObject *createDerived(JSContext *cx,
+                                           HandleSizedTypeDescr type,
+                                           Handle<TypedObject*> typedContents,
+                                           int32_t offset);
 
     // Use this method when `buffer` is the owner of the memory.
     void attach(JSContext *cx, ArrayBufferObject &buffer, int32_t offset);
@@ -729,7 +729,7 @@ class OutlineTypedObject : public TypedObject
 };
 
 // Class for a transparent typed object, whose owner is an array buffer.
-class TransparentTypedObject : public OutlineTypedObject
+class TransparentTypedObject : public OwnedTypedObject
 {
   public:
     static const Class class_;
@@ -737,7 +737,7 @@ class TransparentTypedObject : public OutlineTypedObject
 
 // Class for an opaque typed object, whose owner may be either an array buffer
 // or an opaque inlined typed object.
-class OutlineOpaqueTypedObject : public OutlineTypedObject
+class OwnedOpaqueTypedObject : public OwnedTypedObject
 {
   public:
     static const Class class_;
@@ -982,7 +982,7 @@ inline bool
 IsTypedObjectClass(const Class *class_)
 {
     return class_ == &TransparentTypedObject::class_ ||
-           class_ == &OutlineOpaqueTypedObject::class_ ||
+           class_ == &OwnedOpaqueTypedObject::class_ ||
            class_ == &InlineOpaqueTypedObject::class_;
 }
 
@@ -1057,10 +1057,10 @@ JSObject::is<js::TypedObject>() const
 
 template <>
 inline bool
-JSObject::is<js::OutlineTypedObject>() const
+JSObject::is<js::OwnedTypedObject>() const
 {
     return getClass() == &js::TransparentTypedObject::class_ ||
-           getClass() == &js::OutlineOpaqueTypedObject::class_;
+           getClass() == &js::OwnedOpaqueTypedObject::class_;
 }
 
 inline void

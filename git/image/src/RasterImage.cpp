@@ -578,7 +578,7 @@ RasterImage::GetType()
 }
 
 already_AddRefed<imgFrame>
-RasterImage::LookupFrameNoDecode(uint32_t aFrameNum)
+RasterImage::GetFrameNoDecode(uint32_t aFrameNum)
 {
   if (!mAnim) {
     NS_ASSERTION(aFrameNum == 0, "Don't ask for a frame > 0 if we're not animated!");
@@ -588,9 +588,7 @@ RasterImage::LookupFrameNoDecode(uint32_t aFrameNum)
 }
 
 DrawableFrameRef
-RasterImage::LookupFrame(uint32_t aFrameNum,
-                         uint32_t aFlags,
-                         bool aShouldSyncNotify /* = true */)
+RasterImage::GetFrame(uint32_t aFrameNum)
 {
   if (mMultipart &&
       aFrameNum == GetCurrentFrameIndex() &&
@@ -602,10 +600,10 @@ RasterImage::LookupFrame(uint32_t aFrameNum,
   }
 
   // Try our best to start decoding if it's necessary.
-  nsresult rv = WantDecodedFrames(aFlags, aShouldSyncNotify);
+  nsresult rv = WantDecodedFrames();
   CONTAINER_ENSURE_TRUE(NS_SUCCEEDED(rv), DrawableFrameRef());
 
-  nsRefPtr<imgFrame> frame = LookupFrameNoDecode(aFrameNum);
+  nsRefPtr<imgFrame> frame = GetFrameNoDecode(aFrameNum);
   if (!frame) {
     return DrawableFrameRef();
   }
@@ -616,17 +614,9 @@ RasterImage::LookupFrame(uint32_t aFrameNum,
     MOZ_ASSERT(!mAnim, "Animated frames should be locked");
     if (CanForciblyDiscardAndRedecode()) {
       ForceDiscard();
-      WantDecodedFrames(aFlags, aShouldSyncNotify);
-
-      // See if we managed to entirely redecode the frame.
-      frame = LookupFrameNoDecode(aFrameNum);
-      ref = frame->DrawableRef();
+      WantDecodedFrames();
     }
-
-    if (!ref) {
-      // We didn't successfully redecode, so just fail.
-      return DrawableFrameRef();
-    }
+    return DrawableFrameRef();
   }
 
   // We will return a paletted frame if it's not marked as compositing failed
@@ -669,7 +659,7 @@ RasterImage::FrameIsOpaque(uint32_t aWhichFrame)
 
   // See if we can get an image frame.
   nsRefPtr<imgFrame> frame =
-    LookupFrameNoDecode(GetRequestedFrameIndex(aWhichFrame));
+    GetFrameNoDecode(GetRequestedFrameIndex(aWhichFrame));
 
   // If we don't get a frame, the safe answer is "not opaque".
   if (!frame)
@@ -693,7 +683,7 @@ RasterImage::FrameRect(uint32_t aWhichFrame)
 
   // Get the requested frame.
   nsRefPtr<imgFrame> frame =
-    LookupFrameNoDecode(GetRequestedFrameIndex(aWhichFrame));
+    GetFrameNoDecode(GetRequestedFrameIndex(aWhichFrame));
 
   // If we have the frame, use that rectangle.
   if (frame) {
@@ -758,8 +748,7 @@ RasterImage::GetFirstFrameDelay()
 
 TemporaryRef<SourceSurface>
 RasterImage::CopyFrame(uint32_t aWhichFrame,
-                       uint32_t aFlags,
-                       bool aShouldSyncNotify /* = true */)
+                       uint32_t aFlags)
 {
   if (aWhichFrame > FRAME_MAX_VALUE)
     return nullptr;
@@ -771,16 +760,27 @@ RasterImage::CopyFrame(uint32_t aWhichFrame,
   if (mInDecoder && (aFlags & imgIContainer::FLAG_SYNC_DECODE))
     return nullptr;
 
+  nsresult rv;
+
   if (!ApplyDecodeFlags(aFlags, aWhichFrame))
     return nullptr;
+
+  // If requested, synchronously flush any data we have lying around to the decoder
+  if (aFlags & FLAG_SYNC_DECODE) {
+    rv = SyncDecode();
+    CONTAINER_ENSURE_TRUE(NS_SUCCEEDED(rv), nullptr);
+  }
 
   // Get the frame. If it's not there, it's probably the caller's fault for
   // not waiting for the data to be loaded from the network or not passing
   // FLAG_SYNC_DECODE
-  DrawableFrameRef frameRef = LookupFrame(GetRequestedFrameIndex(aWhichFrame),
-                                          aFlags, aShouldSyncNotify);
+  DrawableFrameRef frameRef = GetFrame(GetRequestedFrameIndex(aWhichFrame));
   if (!frameRef) {
-    // The OS threw this frame away and we couldn't redecode it right now.
+    // The OS threw this frame away.
+    if (aFlags & FLAG_SYNC_DECODE) {
+      ForceDiscard();
+      return CopyFrame(aWhichFrame, aFlags);
+    }
     return nullptr;
   }
 
@@ -832,14 +832,6 @@ NS_IMETHODIMP_(TemporaryRef<SourceSurface>)
 RasterImage::GetFrame(uint32_t aWhichFrame,
                       uint32_t aFlags)
 {
-  return GetFrameInternal(aWhichFrame, aFlags);
-}
-
-TemporaryRef<SourceSurface>
-RasterImage::GetFrameInternal(uint32_t aWhichFrame,
-                              uint32_t aFlags,
-                              bool aShouldSyncNotify /* = true */)
-{
   MOZ_ASSERT(aWhichFrame <= FRAME_MAX_VALUE);
 
   if (aWhichFrame > FRAME_MAX_VALUE)
@@ -855,15 +847,25 @@ RasterImage::GetFrameInternal(uint32_t aWhichFrame,
   if (!ApplyDecodeFlags(aFlags, aWhichFrame))
     return nullptr;
 
+  // If the caller requested a synchronous decode, do it
+  if (aFlags & FLAG_SYNC_DECODE) {
+    nsresult rv = SyncDecode();
+    CONTAINER_ENSURE_TRUE(NS_SUCCEEDED(rv), nullptr);
+  }
+
   // Get the frame. If it's not there, it's probably the caller's fault for
   // not waiting for the data to be loaded from the network or not passing
   // FLAG_SYNC_DECODE
-  DrawableFrameRef frameRef = LookupFrame(GetRequestedFrameIndex(aWhichFrame),
-                                          aFlags, aShouldSyncNotify);
+  DrawableFrameRef frameRef = GetFrame(GetRequestedFrameIndex(aWhichFrame));
   if (!frameRef) {
-    // The OS threw this frame away and we couldn't redecode it.
+    // The OS threw this frame away. We'll request a redecode.
+    if (aFlags & FLAG_SYNC_DECODE) {
+      ForceDiscard();
+      return GetFrame(aWhichFrame, aFlags);
+    }
     return nullptr;
   }
+
 
   // If this frame covers the entire image, we can just reuse its existing
   // surface.
@@ -878,7 +880,7 @@ RasterImage::GetFrameInternal(uint32_t aWhichFrame,
   // The image doesn't have a usable surface because it's been optimized away or
   // because it's a partial update frame from an animation. Create one.
   if (!frameSurf) {
-    frameSurf = CopyFrame(aWhichFrame, aFlags, aShouldSyncNotify);
+    frameSurf = CopyFrame(aWhichFrame, aFlags);
   }
 
   return frameSurf;
@@ -887,11 +889,21 @@ RasterImage::GetFrameInternal(uint32_t aWhichFrame,
 already_AddRefed<layers::Image>
 RasterImage::GetCurrentImage()
 {
-  RefPtr<SourceSurface> surface =
-    GetFrameInternal(FRAME_CURRENT, FLAG_NONE, /* aShouldSyncNotify = */ false);
+  if (!mDecoded) {
+    // We can't call StartDecoding because that can synchronously notify
+    // which can cause DOM modification
+    RequestDecodeCore(ASYNCHRONOUS);
+    return nullptr;
+  }
+
+  RefPtr<SourceSurface> surface = GetFrame(FRAME_CURRENT, FLAG_NONE);
   if (!surface) {
-    // The OS threw out some or all of our buffer. We'll need to wait for the
-    // redecode (which was automatically triggered by GetFrame) to complete.
+    // The OS threw out some or all of our buffer. Start decoding again.
+    // GetFrame will only return null in the case that the image was
+    // discarded. We already checked that the image is decoded, so other
+    // error paths are not possible.
+    ForceDiscard();
+    RequestDecodeCore(ASYNCHRONOUS);
     return nullptr;
   }
 
@@ -1393,7 +1405,7 @@ RasterImage::StartAnimation()
 
   EnsureAnimExists();
 
-  nsRefPtr<imgFrame> currentFrame = LookupFrameNoDecode(GetCurrentFrameIndex());
+  nsRefPtr<imgFrame> currentFrame = GetFrameNoDecode(GetCurrentFrameIndex());
   // A timeout of -1 means we should display this frame forever.
   if (currentFrame &&
       mFrameBlender.GetTimeoutForFrame(GetCurrentFrameIndex()) < 0) {
@@ -2125,12 +2137,12 @@ RasterImage::WriteToDecoder(const char *aBuffer, uint32_t aCount, DecodeStrategy
 }
 
 // This function is called in situations where it's clear that we want the
-// frames in decoded form (Draw, LookupFrame, etc).  If we're completely decoded,
+// frames in decoded form (Draw, GetFrame, etc).  If we're completely decoded,
 // this method resets the discard timer (if we're discardable), since wanting
 // the frames now is a good indicator of wanting them again soon. If we're not
 // decoded, this method kicks off asynchronous decoding to generate the frames.
 nsresult
-RasterImage::WantDecodedFrames(uint32_t aFlags, bool aShouldSyncNotify)
+RasterImage::WantDecodedFrames()
 {
   nsresult rv;
 
@@ -2142,17 +2154,8 @@ RasterImage::WantDecodedFrames(uint32_t aFlags, bool aShouldSyncNotify)
     CONTAINER_ENSURE_SUCCESS(rv);
   }
 
-  // Request a decode, which does nothing if we're already decoded.
-  if (aShouldSyncNotify) {
-    // We can sync notify, which means we can also sync decode.
-    if (aFlags & FLAG_SYNC_DECODE) {
-      return SyncDecode();
-    }
-    return StartDecoding();
-  }
-
-  // We can't sync notify, so do an async decode.
-  return RequestDecodeCore(ASYNCHRONOUS);
+  // Request a decode (no-op if we're decoded)
+  return StartDecoding();
 }
 
 //******************************************************************************
@@ -2672,8 +2675,7 @@ RasterImage::Draw(gfxContext* aContext,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  DrawableFrameRef ref = LookupFrame(GetRequestedFrameIndex(aWhichFrame),
-                                     aFlags);
+  DrawableFrameRef ref = GetFrame(GetRequestedFrameIndex(aWhichFrame));
   if (!ref) {
     return NS_OK; // Getting the frame (above) touches the image and kicks off decoding
   }
@@ -3594,7 +3596,7 @@ RasterImage::OptimalImageSizeForDest(const gfxSize& aDest, uint32_t aWhichFrame,
     }
     if (!frameRef) {
       // We could HQ scale to this size, but we haven't. Request a scale now.
-      frameRef = LookupFrame(GetRequestedFrameIndex(aWhichFrame), aFlags);
+      frameRef = GetFrame(GetRequestedFrameIndex(aWhichFrame));
       if (frameRef) {
         RequestScale(frameRef.get(), aFlags, destSize);
       }

@@ -503,7 +503,8 @@ public:
                             std::min(double(INT32_MAX), aVal)));
   }
 
-  static nscolor GetFallbackOrPaintColor(nsStyleContext *aStyleContext,
+  static nscolor GetFallbackOrPaintColor(gfxContext *aContext,
+                                         nsStyleContext *aStyleContext,
                                          nsStyleSVGPaint nsStyleSVG::*aFillOrStroke);
 
   /**
