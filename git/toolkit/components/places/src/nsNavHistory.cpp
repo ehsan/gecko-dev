@@ -3876,12 +3876,6 @@ PlacesSQLQueryBuilder::OrderBy()
   switch(mSortingMode)
   {
     case nsINavHistoryQueryOptions::SORT_BY_NONE:
-      // If this is an URI bookmarks query the sorting could change based on the
-      // sync status of disk and temp tables, we must ensure sorting does not
-      // change between queries.
-      if (mQueryType == nsINavHistoryQueryOptions::QUERY_TYPE_BOOKMARKS &&
-          mResultType == nsINavHistoryQueryOptions::RESULTS_AS_URI)
-        mQueryString += NS_LITERAL_CSTRING(" ORDER BY b.id ASC ");
       break;
     case nsINavHistoryQueryOptions::SORT_BY_TITLE_ASCENDING:
     case nsINavHistoryQueryOptions::SORT_BY_TITLE_DESCENDING:
@@ -4088,10 +4082,6 @@ nsNavHistory::ConstructQueryString(
                         "SELECT id FROM moz_historyvisits "
                            "WHERE from_visit = v.id AND visit_type IN (%d,%d)) "
         ") ",
-        TRANSITION_REDIRECT_PERMANENT,
-        TRANSITION_REDIRECT_TEMPORARY,
-        TRANSITION_REDIRECT_PERMANENT,
-        TRANSITION_REDIRECT_TEMPORARY,
         TRANSITION_REDIRECT_PERMANENT,
         TRANSITION_REDIRECT_TEMPORARY,
         TRANSITION_REDIRECT_PERMANENT,
