@@ -2003,8 +2003,6 @@ BluetoothDBusService::SendAsyncDBusMessage(const nsAString& aObjectPath,
   MOZ_ASSERT(!aObjectPath.IsEmpty());
   MOZ_ASSERT(aInterface);
 
-  NS_ENSURE_TRUE(mConnection, NS_ERROR_FAILURE);
-
   nsAutoPtr<BluetoothServiceClass> serviceClass(new BluetoothServiceClass());
   if (!strcmp(aInterface, DBUS_SINK_IFACE)) {
     *serviceClass = BluetoothServiceClass::A2DP;
@@ -2589,15 +2587,12 @@ BluetoothDBusService::SetPairingConfirmationInternal(
 static void
 NextBluetoothProfileController()
 {
-  MOZ_ASSERT(NS_IsMainThread());
-
-  // First, remove the task at the front which has been already done.
-  NS_ENSURE_FALSE_VOID(sControllerArray.IsEmpty());
+  sControllerArray[0] = nullptr;
   sControllerArray.RemoveElementAt(0);
 
-  // Re-check if the task array is empty, if it's not, the next task will begin.
-  NS_ENSURE_FALSE_VOID(sControllerArray.IsEmpty());
-  sControllerArray[0]->Start();
+  if (!sControllerArray.IsEmpty()) {
+    sControllerArray[0]->Start();
+  }
 }
 
 static void

@@ -877,14 +877,9 @@ let RIL = {
       this.appType,
       options.contactType,
       function onsuccess(contacts) {
-        for (let i = 0; i < contacts.length; i++) {
-          let contact = contacts[i];
-          let pbrIndex = contact.pbrIndex || 0;
-          let recordIndex = pbrIndex * ICC_MAX_LINEAR_FIXED_RECORDS + contact.recordId;
-          contact.contactId = this.iccInfo.iccid + recordIndex;
-        }
         // Reuse 'options' to get 'requestId' and 'contactType'.
         options.contacts = contacts;
+        options.iccid = RIL.iccInfo.iccid;
         RIL.sendChromeMessage(options);
       }.bind(this),
       function onerror(errorMsg) {
@@ -919,14 +914,9 @@ let RIL = {
 
     let contact = options.contact;
     let iccid = RIL.iccInfo.iccid;
-    if (typeof contact.contactId === "string" &&
-        contact.contactId.startsWith(iccid)) {
-      let recordIndex = contact.contactId.substring(iccid.length);
-      contact.pbrIndex = Math.floor(recordIndex / ICC_MAX_LINEAR_FIXED_RECORDS);
-      contact.recordId = recordIndex % ICC_MAX_LINEAR_FIXED_RECORDS;
+    if (contact.id.startsWith(iccid)) {
+      contact.recordId = contact.id.substring(iccid.length);
     }
-
-    let isValidRecordId = contact.recordId > 0 && contact.recordId < 0xff;
 
     if (DEBUG) {
       debug("Update ICC Contact " + JSON.stringify(contact));
@@ -934,12 +924,12 @@ let RIL = {
 
     // If contact has 'recordId' property, updates corresponding record.
     // If not, inserts the contact into a free record.
-    if (isValidRecordId) {
+    if (options.contact.recordId) {
       ICCContactHelper.updateICCContact(
-        this.appType, options.contactType, contact, options.pin2, onsuccess, onerror);
+        this.appType, options.contactType, options.contact, options.pin2, onsuccess, onerror);
     } else {
       ICCContactHelper.addICCContact(
-        this.appType, options.contactType, contact, options.pin2, onsuccess, onerror);
+        this.appType, options.contactType, options.contact, options.pin2, onsuccess, onerror);
     }
   },
 
@@ -5056,6 +5046,15 @@ RIL[REQUEST_GET_IMSI] = function REQUEST_GET_IMSI(length, options) {
   options.rilMessageType = "iccimsi";
   options.imsi = this.iccInfoPrivate.imsi;
   this.sendChromeMessage(options);
+
+  if (this._isCdma) {
+    let mccMnc = ICCUtilsHelper.parseMccMncFromImsi(this.iccInfoPrivate.imsi);
+    if (mccMnc) {
+      this.iccInfo.mcc = mccMnc.mcc;
+      this.iccInfo.mnc = mccMnc.mnc;
+      ICCUtilsHelper.handleICCInfoChange();
+    }
+  }
 };
 RIL[REQUEST_HANGUP] = function REQUEST_HANGUP(length, options) {
   if (options.rilRequestError) {
@@ -10902,7 +10901,6 @@ let ICCFileHelper = {
    */
   getRuimEFPath: function getRuimEFPath(fileId) {
     switch(fileId) {
-      case ICC_EF_CSIM_IMSI_M:
       case ICC_EF_CSIM_CDMAHOME:
       case ICC_EF_CSIM_CST:
       case ICC_EF_CSIM_SPN:
@@ -12675,7 +12673,7 @@ let ICCContactHelper = {
     switch (contactType) {
       case "adn":
         if (!this.hasDfPhoneBook(appType)) {
-          ICCRecordHelper.findFreeRecordId(ICC_EF_ADN, onsuccess.bind(null, 0), onerror);
+          ICCRecordHelper.findFreeRecordId(ICC_EF_ADN, onsuccess, onerror);
         } else {
           let gotPbrCb = function gotPbrCb(pbrs) {
             this.findUSimFreeADNRecordId(pbrs, onsuccess, onerror);
@@ -12685,7 +12683,7 @@ let ICCContactHelper = {
         }
         break;
       case "fdn":
-        ICCRecordHelper.findFreeRecordId(ICC_EF_FDN, onsuccess.bind(null, 0), onerror);
+        ICCRecordHelper.findFreeRecordId(ICC_EF_FDN, onsuccess, onerror);
         break;
       default:
         let error = onerror || debug;
@@ -12712,8 +12710,10 @@ let ICCContactHelper = {
       let pbr = pbrs[pbrIndex];
       ICCRecordHelper.findFreeRecordId(
         pbr.adn.fileId,
-        onsuccess.bind(this, pbrIndex),
-        findFreeRecordId.bind(null, pbrIndex + 1));
+        onsuccess,
+        function (errorMsg) {
+          findFreeRecordId.bind(this, pbrIndex + 1);
+        }.bind(this));
     })(0);
   },
 
@@ -12728,11 +12728,10 @@ let ICCContactHelper = {
    * @param onerror       Callback to be called when error.
    */
   addICCContact: function addICCContact(appType, contactType, contact, pin2, onsuccess, onerror) {
-    let foundFreeCb = function foundFreeCb(pbrIndex, recordId) {
-      contact.pbrIndex = pbrIndex;
+    let foundFreeCb = function foundFreeCb(recordId) {
       contact.recordId = recordId;
       ICCContactHelper.updateICCContact(appType, contactType, contact, pin2, onsuccess, onerror);
-    };
+    }.bind(this);
 
     // Find free record first.
     ICCContactHelper.findFreeICCContact(appType, contactType, foundFreeCb, onerror);
@@ -12801,7 +12800,7 @@ let ICCContactHelper = {
 
       let cLen = contacts ? contacts.length : 0;
       for (let i = 0; i < cLen; i++) {
-        contacts[i].pbrIndex = pbrIndex;
+        contacts[i].recordId += pbrIndex * ICC_MAX_LINEAR_FIXED_RECORDS;
       }
 
       pbrIndex++;
@@ -12992,12 +12991,14 @@ let ICCContactHelper = {
    */
   updateUSimContact: function updateUSimContact(contact, onsuccess, onerror) {
     let gotPbrCb = function gotPbrCb(pbrs) {
-      let pbr = pbrs[contact.pbrIndex];
+      let pbrIndex = Math.floor(contact.recordId / ICC_MAX_LINEAR_FIXED_RECORDS);
+      let pbr = pbrs[pbrIndex];
       if (!pbr) {
         let error = onerror || debug;
         error("Cannot access Phonebook.");
         return;
       }
+      contact.recordId %= ICC_MAX_LINEAR_FIXED_RECORDS;
       this.updatePhonebookSet(pbr, contact, onsuccess, onerror);
     }.bind(this);
 
@@ -13182,104 +13183,10 @@ let ICCContactHelper = {
 let RuimRecordHelper = {
   fetchRuimRecords: function fetchRuimRecords() {
     ICCRecordHelper.readICCID();
-    this.getIMSI_M();
+    RIL.getIMSI();
     this.readCST();
     this.readCDMAHome();
     RIL.getCdmaSubscription();
-  },
-
-  /**
-   * Get IMSI_M from CSIM/RUIM.
-   * See 3GPP2 C.S0065 Sec. 5.2.2
-   */
-  getIMSI_M: function getIMSI_M() {
-    function callback() {
-      let strLen = Buf.readInt32();
-      let encodedImsi = GsmPDUHelper.readHexOctetArray(strLen / 2);
-      Buf.readStringDelimiter(strLen);
-
-      if ((encodedImsi[CSIM_IMSI_M_PROGRAMMED_BYTE] & 0x80)) { // IMSI_M programmed
-        RIL.iccInfoPrivate.imsi = this.decodeIMSI(encodedImsi);
-        RIL.sendChromeMessage({rilMessageType: "iccimsi",
-                               imsi: RIL.iccInfoPrivate.imsi});
-
-        let mccMnc = ICCUtilsHelper.parseMccMncFromImsi(RIL.iccInfoPrivate.imsi);
-        if (mccMnc) {
-          RIL.iccInfo.mcc = mccMnc.mcc;
-          RIL.iccInfo.mnc = mccMnc.mnc;
-          ICCUtilsHelper.handleICCInfoChange();
-        }
-      }
-    }
-
-    ICCIOHelper.loadTransparentEF({fileId: ICC_EF_CSIM_IMSI_M,
-                                   callback: callback.bind(this)});
-  },
-
-  /**
-   * Decode IMSI from IMSI_M
-   * See 3GPP2 C.S0005 Sec. 2.3.1
-   * +---+---------+------------+---+--------+---------+---+---------+--------+
-   * |RFU|   MCC   | programmed |RFU|  MNC   |  MIN1   |RFU|   MIN2  |  CLASS |
-   * +---+---------+------------+---+--------+---------+---+---------+--------+
-   * | 6 | 10 bits |   8 bits   | 1 | 7 bits | 24 bits | 6 | 10 bits | 8 bits |
-   * +---+---------+------------+---+--------+---------+---+---------+--------+
-   */
-  decodeIMSI: function decodeIMSI(encodedImsi) {
-    // MCC: 10 bits, 3 digits
-    let encodedMCC = ((encodedImsi[CSIM_IMSI_M_MCC_BYTE + 1] & 0x03) << 8) +
-                      (encodedImsi[CSIM_IMSI_M_MCC_BYTE] & 0xff);
-    let mcc = this.decodeIMSIValue(encodedMCC, 3);
-
-    // MNC: 7 bits, 2 digits
-    let encodedMNC =  encodedImsi[CSIM_IMSI_M_MNC_BYTE] & 0x7f;
-    let mnc = this.decodeIMSIValue(encodedMNC, 2);
-
-    // MIN2: 10 bits, 3 digits
-    let encodedMIN2 = ((encodedImsi[CSIM_IMSI_M_MIN2_BYTE + 1] & 0x03) << 8) +
-                       (encodedImsi[CSIM_IMSI_M_MIN2_BYTE] & 0xff);
-    let min2 = this.decodeIMSIValue(encodedMIN2, 3);
-
-    // MIN1: 10+4+10 bits, 3+1+3 digits
-    let encodedMIN1First3 = ((encodedImsi[CSIM_IMSI_M_MIN1_BYTE + 2] & 0xff) << 2) +
-                             ((encodedImsi[CSIM_IMSI_M_MIN1_BYTE + 1] & 0xc0) >> 6);
-    let min1First3 = this.decodeIMSIValue(encodedMIN1First3, 3);
-
-    let encodedFourthDigit = (encodedImsi[CSIM_IMSI_M_MIN1_BYTE + 1] & 0x3c) >> 2;
-    if (encodedFourthDigit > 9) {
-      encodedFourthDigit = 0;
-    }
-    let fourthDigit = encodedFourthDigit.toString();
-
-    let encodedMIN1Last3 = ((encodedImsi[CSIM_IMSI_M_MIN1_BYTE + 1] & 0x03) << 8) +
-                            (encodedImsi[CSIM_IMSI_M_MIN1_BYTE] & 0xff);
-    let min1Last3 = this.decodeIMSIValue(encodedMIN1Last3, 3);
-
-    return mcc + mnc + min2 + min1First3 + fourthDigit + min1Last3;
-  },
-
-  /**
-   * Decode IMSI Helper function
-   * See 3GPP2 C.S0005 section 2.3.1.1
-   */
-  decodeIMSIValue: function decodeIMSIValue(encoded, length) {
-    let offset = length === 3 ? 111 : 11;
-    let value = encoded + offset;
-
-    for (let base = 10, temp = value, i = 0; i < length; i++) {
-      if (temp % 10 === 0) {
-        value -= base;
-      }
-      temp = Math.floor(value / base);
-      base = base * 10;
-    }
-
-    let s = value.toString();
-    while (s.length < length) {
-      s = "0" + s;
-    }
-
-    return s;
   },
 
   /**
