@@ -65,7 +65,7 @@ your mq patch queue.
 
 QIMPORTBZ_INFO = '''
 The qimportbz extension
-(https://hg.mozilla.org/hgcustom/version-control-tools/file/default/hgext/qimportbz/README) makes it possible to
+(https://hg.mozilla.org/users/robarnold_cmu.edu/qimportbz) makes it possible to
 import patches from Bugzilla using a friendly bz:// URL handler. e.g.
 |hg qimport bz://123456|.
 '''.strip()
@@ -206,18 +206,23 @@ class MercurialSetupWizard(object):
                 'default',
                 'Ensuring mqext extension is up to date...')
 
-            activate_qimportbz = True
+            update_qimportbz = 'qimportbz' in active
             if 'qimportbz' not in active:
                 print(QIMPORTBZ_INFO)
-                if not self._prompt_yn('Would you like to activate qimportbz'):
-                    activate_qimportbz = False
+                if self._prompt_yn('Would you like to activate qimportbz'):
+                    update_qimportbz = True
+                    c.activate_extension('qimportbz',
+                        os.path.join(self.ext_dir, 'qimportbz'))
+                    print('Activated qimportbz extension.')
+                    print('')
 
-            if activate_qimportbz:
-                update_vcs_tools = True
-                c.activate_extension('qimportbz',
-                    os.path.join(self.vcs_tools_dir, 'hgext', 'qimportbz'))
-                print('Activated qimportbz extension.')
-                print('')
+            if update_qimportbz:
+                self.update_mercurial_repo(
+                    hg,
+                    'https://hg.mozilla.org/users/robarnold_cmu.edu/qimportbz',
+                    os.path.join(self.ext_dir, 'qimportbz'),
+                    'default',
+                    'Ensuring qimportbz extension is up to date...')
 
             if not c.have_qnew_currentuser_default():
                 print(QNEWCURRENTUSER_INFO)
@@ -236,7 +241,7 @@ class MercurialSetupWizard(object):
                 'Ensuring version-control-tools is up to date...')
 
         # Look for and clean up old extensions.
-        for ext in {'bzexport', 'qimportbz'}:
+        for ext in {'bzexport',}:
             path = os.path.join(self.ext_dir, ext)
             if os.path.exists(path):
                 if self._prompt_yn('Would you like to remove the old and no '

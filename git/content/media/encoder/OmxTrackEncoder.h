@@ -35,9 +35,7 @@ public:
   nsresult GetEncodedTrack(EncodedFrameContainer& aData) MOZ_OVERRIDE;
 
 protected:
-  nsresult Init(int aWidth, int aHeight,
-                int aDisplayWidth, int aDisplayHeight,
-                TrackRate aTrackRate) MOZ_OVERRIDE;
+  nsresult Init(int aWidth, int aHeight, TrackRate aTrackRate) MOZ_OVERRIDE;
 
 private:
   nsAutoPtr<android::OMXVideoEncoder> mEncoder;

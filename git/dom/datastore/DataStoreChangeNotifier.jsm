@@ -56,6 +56,15 @@ this.DataStoreChangeNotifier = {
     }
   },
 
+  broadcastMessage: function broadcastMessage(aMsgName, aData) {
+    debug("Broadast");
+    this.children.forEach(function(obj) {
+      if (obj.store == aData.store && obj.owner == aData.owner) {
+        obj.mm.sendAsyncMessage(aMsgName, aData.message);
+      }
+    });
+  },
+
   receiveMessage: function(aMessage) {
     debug("receiveMessage");
 
@@ -72,9 +81,7 @@ this.DataStoreChangeNotifier = {
 
     switch (aMessage.name) {
       case "DataStore:Changed":
-        debug("Broadasting message.");
-        let childMM = aMessage.target.QueryInterface(Ci.nsIMessageSender);
-        childMM.sendAsyncMessage("DataStore:Changed:Return:OK", aMessage.data);
+        this.broadcastMessage("DataStore:Changed:Return:OK", aMessage.data);
         break;
 
       case "DataStore:RegisterForMessages":

@@ -390,7 +390,7 @@ PuppetWidget::NotifyIME(const IMENotification& aIMENotification)
     case NOTIFY_IME_OF_BLUR:
       return NotifyIMEOfFocusChange(false);
     case NOTIFY_IME_OF_SELECTION_CHANGE:
-      return NotifyIMEOfSelectionChange(aIMENotification);
+      return NotifyIMEOfSelectionChange();
     case NOTIFY_IME_OF_TEXT_CHANGE:
       return NotifyIMEOfTextChange(aIMENotification);
     case NOTIFY_IME_OF_COMPOSITION_UPDATE:
@@ -467,16 +467,14 @@ PuppetWidget::NotifyIMEOfFocusChange(bool aFocus)
   }
 
   uint32_t chromeSeqno;
-  mIMEPreferenceOfParent = nsIMEUpdatePreference();
+  mIMEPreferenceOfParent.mWantUpdates = nsIMEUpdatePreference::NOTIFY_NOTHING;
   if (!mTabChild->SendNotifyIMEFocus(aFocus, &mIMEPreferenceOfParent,
                                      &chromeSeqno)) {
     return NS_ERROR_FAILURE;
   }
 
   if (aFocus) {
-    IMENotification notification(NOTIFY_IME_OF_SELECTION_CHANGE);
-    notification.mSelectionChangeData.mCausedByComposition = false;
-    NotifyIMEOfSelectionChange(notification); // Update selection
+    NotifyIMEOfSelectionChange(); // Update selection
   } else {
     mIMELastBlurSeqno = chromeSeqno;
   }
@@ -533,9 +531,6 @@ PuppetWidget::GetIMEUpdatePreference()
 nsresult
 PuppetWidget::NotifyIMEOfTextChange(const IMENotification& aIMENotification)
 {
-  MOZ_ASSERT(aIMENotification.mMessage == NOTIFY_IME_OF_TEXT_CHANGE,
-             "Passed wrong notification");
-
 #ifndef MOZ_CROSS_PROCESS_IME
   return NS_OK;
 #endif
@@ -555,25 +550,18 @@ PuppetWidget::NotifyIMEOfTextChange(const IMENotification& aIMENotification)
 
   // TabParent doesn't this this to cache.  we don't send the notification
   // if parent process doesn't request NOTIFY_TEXT_CHANGE.
-  if (mIMEPreferenceOfParent.WantTextChange() &&
-      (mIMEPreferenceOfParent.WantChangesCausedByComposition() ||
-       !aIMENotification.mTextChangeData.mCausedByComposition)) {
+  if (mIMEPreferenceOfParent.WantTextChange()) {
     mTabChild->SendNotifyIMETextChange(
       aIMENotification.mTextChangeData.mStartOffset,
       aIMENotification.mTextChangeData.mOldEndOffset,
-      aIMENotification.mTextChangeData.mNewEndOffset,
-      aIMENotification.mTextChangeData.mCausedByComposition);
+      aIMENotification.mTextChangeData.mNewEndOffset);
   }
   return NS_OK;
 }
 
 nsresult
-PuppetWidget::NotifyIMEOfSelectionChange(
-                const IMENotification& aIMENotification)
+PuppetWidget::NotifyIMEOfSelectionChange()
 {
-  MOZ_ASSERT(aIMENotification.mMessage == NOTIFY_IME_OF_SELECTION_CHANGE,
-             "Passed wrong notification");
-
 #ifndef MOZ_CROSS_PROCESS_IME
   return NS_OK;
 #endif
@@ -587,11 +575,9 @@ PuppetWidget::NotifyIMEOfSelectionChange(
   DispatchEvent(&queryEvent, status);
 
   if (queryEvent.mSucceeded) {
-    mTabChild->SendNotifyIMESelection(
-      mIMELastReceivedSeqno,
-      queryEvent.GetSelectionStart(),
-      queryEvent.GetSelectionEnd(),
-      aIMENotification.mSelectionChangeData.mCausedByComposition);
+    mTabChild->SendNotifyIMESelection(mIMELastReceivedSeqno,
+                                      queryEvent.GetSelectionStart(),
+                                      queryEvent.GetSelectionEnd());
   }
   return NS_OK;
 }
