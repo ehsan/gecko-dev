@@ -1189,8 +1189,7 @@ MacroAssemblerARMCompat::callWithExitFrame(IonCode *target)
 #endif
     Push(ScratchRegister); // padding
     Push(Imm32(descriptor)); // descriptor
-
-    addPendingJump(m_buffer.nextOffset(), target->raw(), Relocation::IONCODE);
+    // TODO: Use relocation here.
     ma_mov(Imm32((int) target->raw()), ScratchRegister);
     callIon(ScratchRegister);
 }
