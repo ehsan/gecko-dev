@@ -93,6 +93,6 @@ windowObserver.on("activate", function onWindowActivate(chromeWindow) {
 
 // We should synchronize state, since probably we already have at least one
 // window open.
-for (let window of browserWindowIterator()) onWindowOpen(window);
+for each (let window in browserWindowIterator()) onWindowOpen(window);
 
 exports.observer = observer;

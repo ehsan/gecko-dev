@@ -7,6 +7,8 @@
 #ifndef jit_AsmJSModule_h
 #define jit_AsmJSModule_h
 
+#ifdef JS_ION
+
 #include "mozilla/Maybe.h"
 #include "mozilla/Move.h"
 #include "mozilla/PodOperations.h"
@@ -1222,5 +1224,7 @@ class AsmJSModuleObject : public JSObject
 };
 
 }  // namespace js
+
+#endif  // JS_ION
 
 #endif /* jit_AsmJSModule_h */

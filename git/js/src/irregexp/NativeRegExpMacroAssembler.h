@@ -31,6 +31,8 @@
 #ifndef V8_NATIVE_REGEXP_MACRO_ASSEMBLER_H_
 #define V8_NATIVE_REGEXP_MACRO_ASSEMBLER_H_
 
+#ifdef JS_ION
+
 #include "irregexp/RegExpMacroAssembler.h"
 
 namespace js {
@@ -217,5 +219,7 @@ class MOZ_STACK_CLASS NativeRegExpMacroAssembler : public RegExpMacroAssembler
 };
 
 } }  // namespace js::irregexp
+
+#endif // JS_ION
 
 #endif  // V8_NATIVE_REGEXP_MACRO_ASSEMBLER_H_

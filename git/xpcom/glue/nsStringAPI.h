@@ -1307,7 +1307,7 @@ class nsGetterCopies
 public:
   typedef char16_t char_type;
 
-  explicit nsGetterCopies(nsString& aStr)
+  nsGetterCopies(nsString& aStr)
     : mString(aStr)
     , mData(nullptr)
   {
@@ -1333,7 +1333,7 @@ class nsCGetterCopies
 public:
   typedef char char_type;
 
-  explicit nsCGetterCopies(nsCString& aStr)
+  nsCGetterCopies(nsCString& aStr)
     : mString(aStr)
     , mData(nullptr)
   {

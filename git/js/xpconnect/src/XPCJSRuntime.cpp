@@ -101,13 +101,6 @@ static mozilla::Atomic<bool> sDiscardSystemSource(false);
 bool
 xpc::ShouldDiscardSystemSource() { return sDiscardSystemSource; }
 
-#ifdef DEBUG
-static mozilla::Atomic<bool> sExtraWarningsForSystemJS(false);
-bool xpc::ExtraWarningsForSystemJS() { return sExtraWarningsForSystemJS; }
-#else
-bool xpc::ExtraWarningsForSystemJS() { return false; }
-#endif
-
 static void * const UNMARK_ONLY = nullptr;
 static void * const UNMARK_AND_SWEEP = (void *)1;
 
@@ -1545,17 +1538,11 @@ ReloadPrefsCallback(const char *pref, void *data)
 
     bool werror = Preferences::GetBool(JS_OPTIONS_DOT_STR "werror");
 
-    bool extraWarnings = Preferences::GetBool(JS_OPTIONS_DOT_STR "strict");
-#ifdef DEBUG
-    sExtraWarningsForSystemJS = Preferences::GetBool(JS_OPTIONS_DOT_STR "strict.debug");
-#endif
-
     JS::RuntimeOptionsRef(rt).setBaseline(useBaseline)
                              .setIon(useIon)
                              .setAsmJS(useAsmJS)
                              .setNativeRegExp(useNativeRegExp)
-                             .setWerror(werror)
-                             .setExtraWarnings(extraWarnings);
+                             .setWerror(werror);
 
     JS_SetParallelParsingEnabled(rt, parallelParsing);
     JS_SetOffthreadIonCompilationEnabled(rt, offthreadIonCompilation);
@@ -3108,7 +3095,7 @@ static const JSWrapObjectCallbacks WrapObjectCallbacks = {
 };
 
 XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
-   : CycleCollectedJSRuntime(nullptr, JS::DefaultHeapMaxBytes, JS::DefaultNurseryBytes),
+   : CycleCollectedJSRuntime(nullptr, JS::DefaultHeapMaxBytes),
    mJSContextStack(new XPCJSContextStack(MOZ_THIS_IN_INITIALIZER_LIST())),
    mCallContext(nullptr),
    mAutoRoots(nullptr),

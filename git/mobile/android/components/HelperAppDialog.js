@@ -11,6 +11,7 @@ const URI_GENERIC_ICON_DOWNLOAD = "drawable://alert_download";
 
 Cu.import("resource://gre/modules/FileUtils.jsm");
 Cu.import("resource://gre/modules/HelperApps.jsm");
+Cu.import("resource://gre/modules/Prompt.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 

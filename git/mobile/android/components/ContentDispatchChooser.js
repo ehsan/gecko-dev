@@ -19,10 +19,8 @@ ContentDispatchChooser.prototype =
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIContentDispatchChooser]),
 
   get protoSvc() {
-    if (!this._protoSvc) {
-      this._protoSvc = Cc["@mozilla.org/uriloader/external-protocol-service;1"].getService(Ci.nsIExternalProtocolService);
-    }
-    return this._protoSvc;
+    delete this.protoSvc;
+    return this.protoSvc = Cc["@mozilla.org/uriloader/external-protocol-service;1"].getService(Ci.nsIExternalProtocolService);
   },
 
   _getChromeWin: function getChromeWin() {

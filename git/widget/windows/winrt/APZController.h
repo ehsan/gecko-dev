@@ -12,15 +12,11 @@
 #include "FrameMetrics.h"
 #include "Units.h"
 
+class nsIWidgetListener;
+
 namespace mozilla {
 namespace widget {
 namespace winrt {
-
-class APZPendingResponseFlusher
-{
-public:
-  virtual void FlushPendingContentResponse() = 0;
-};
 
 class APZController :
   public mozilla::layers::GeckoContentController
@@ -31,7 +27,7 @@ class APZController :
 
 public:
   APZController() :
-    mFlusher(nullptr)
+    mWidgetListener(nullptr)
   {
   }
 
@@ -56,9 +52,9 @@ public:
   virtual void NotifyAPZStateChange(const ScrollableLayerGuid& aGuid,
                                     APZStateChange aChange,
                                     int aArg);
-
-  void SetPendingResponseFlusher(APZPendingResponseFlusher* aFlusher);
   
+  void SetWidgetListener(nsIWidgetListener* aWidgetListener);
+
   bool HitTestAPZC(mozilla::ScreenIntPoint& aPoint);
   void TransformCoordinateToGecko(const mozilla::ScreenIntPoint& aPoint,
                                   LayoutDeviceIntPoint* aRefPointOut);
@@ -71,7 +67,7 @@ public:
   static nsRefPtr<mozilla::layers::APZCTreeManager> sAPZC;
 
 private:
-  APZPendingResponseFlusher* mFlusher;
+  nsIWidgetListener* mWidgetListener;
 };
 
 } } }

@@ -35,6 +35,7 @@ namespace types {
 inline jit::IonScript *
 CompilerOutput::ion() const
 {
+#ifdef JS_ION
     // Note: If type constraints are generated before compilation has finished
     // (i.e. after IonBuilder but before CodeGenerator::link) then a valid
     // CompilerOutput may not yet have an associated IonScript.
@@ -42,6 +43,9 @@ CompilerOutput::ion() const
     jit::IonScript *ion = jit::GetIonScript(script(), mode());
     JS_ASSERT(ion != ION_COMPILING_SCRIPT);
     return ion;
+#else
+    MOZ_CRASH("Invalid kind of CompilerOutput");
+#endif
 }
 
 inline CompilerOutput*
@@ -659,9 +663,13 @@ TypeScript::BytecodeTypes(JSScript *script, jsbytecode *pc, uint32_t *bytecodeMa
 TypeScript::BytecodeTypes(JSScript *script, jsbytecode *pc)
 {
     JS_ASSERT(CurrentThreadCanAccessRuntime(script->runtimeFromMainThread()));
+#ifdef JS_ION
     uint32_t *hint = script->baselineScript()->bytecodeTypeMap() + script->nTypeSets();
     return BytecodeTypes(script, pc, script->baselineScript()->bytecodeTypeMap(),
                          hint, script->types->typeArray());
+#else
+    MOZ_CRASH();
+#endif
 }
 
 struct AllocationSiteKey : public DefaultHasher<AllocationSiteKey> {

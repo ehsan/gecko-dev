@@ -255,7 +255,9 @@ ForkJoinNursery::pjsCollection(int op)
     ForkJoinNurseryCollectionTracer trc(rt, this);
     forwardFromRoots(&trc);
     collectToFixedPoint(&trc);
+#ifdef JS_ION
     jit::UpdateJitActivationsForMinorGC<ForkJoinNursery>(TlsPerThreadData.get(), &trc);
+#endif
     freeFromspace();
 
     size_t live = movedSize_;

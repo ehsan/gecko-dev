@@ -983,16 +983,14 @@ JS::IncrementalReferenceBarrier(void *ptr, JSGCTraceKind kind)
         JSScript::writeBarrierPre(static_cast<JSScript*>(cell));
     else if (kind == JSTRACE_LAZY_SCRIPT)
         LazyScript::writeBarrierPre(static_cast<LazyScript*>(cell));
-    else if (kind == JSTRACE_JITCODE)
-        jit::JitCode::writeBarrierPre(static_cast<jit::JitCode*>(cell));
     else if (kind == JSTRACE_SHAPE)
         Shape::writeBarrierPre(static_cast<Shape*>(cell));
     else if (kind == JSTRACE_BASE_SHAPE)
         BaseShape::writeBarrierPre(static_cast<BaseShape*>(cell));
     else if (kind == JSTRACE_TYPE_OBJECT)
-        types::TypeObject::writeBarrierPre(static_cast<types::TypeObject *>(cell));
+        types::TypeObject::writeBarrierPre((types::TypeObject *) ptr);
     else
-        MOZ_CRASH("invalid trace kind");
+        MOZ_ASSUME_UNREACHABLE("invalid trace kind");
 }
 
 JS_FRIEND_API(void)

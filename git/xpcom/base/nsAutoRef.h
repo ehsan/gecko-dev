@@ -321,7 +321,7 @@ public:
   // For returning a smart reference from a raw reference that must be
   // released.  Explicit construction is required so as not to risk
   // unintentionally releasing the resource associated with a raw ref.
-  MOZ_IMPLICIT nsReturnRef(RawRefOnly aRefToRelease)
+  explicit nsReturnRef(RawRefOnly aRefToRelease)
     : BaseClass(aRefToRelease)
   {
   }
@@ -332,7 +332,7 @@ public:
   {
   }
 
-  MOZ_IMPLICIT nsReturnRef(const nsReturningRef<T>& aReturning)
+  nsReturnRef(const nsReturningRef<T>& aReturning)
     : BaseClass(aReturning)
   {
   }
@@ -513,7 +513,7 @@ protected:
   }
   // Construct with a handle to a resource.
   // A specialization must provide this.
-  explicit nsSimpleRef(RawRef aRawRef)
+  nsSimpleRef(RawRef aRawRef)
     : mRawRef(aRawRef)
   {
   }
@@ -567,7 +567,7 @@ protected:
   class RawRefOnly
   {
   public:
-    MOZ_IMPLICIT RawRefOnly(RawRef aRawRef)
+    RawRefOnly(RawRef aRawRef)
       : mRawRef(aRawRef)
     {
     }

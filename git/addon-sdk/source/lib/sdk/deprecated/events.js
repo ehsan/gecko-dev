@@ -148,7 +148,7 @@ const eventEmitter =  {
     if (!listeners.length)
       return false;
     let params = Array.slice(arguments, 2);
-    for (let listener of listeners) {
+    for each (let listener in listeners) {
       try {
         listener.apply(targetObj, params);
       } catch(e) {

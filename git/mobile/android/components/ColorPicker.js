@@ -8,9 +8,7 @@ const Cc = Components.classes;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "Prompt",
-                                  "resource://gre/modules/Prompt.jsm");
+Cu.import("resource://gre/modules/Prompt.jsm");
 
 function ColorPicker() {
 }
@@ -21,10 +19,8 @@ ColorPicker.prototype = {
   _title: "",
 
   get strings() {
-    if (!this._strings) {
-      this._strings = Services.strings.createBundle("chrome://browser/locale/browser.properties");
-    }
-    return this._strings;
+    delete this.strings;
+    return this.strings = Services.strings.createBundle("chrome://browser/locale/browser.properties");
   },
 
   init: function(aParent, aTitle, aInitial) {

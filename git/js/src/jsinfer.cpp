@@ -21,10 +21,12 @@
 #include "prmjtime.h"
 
 #include "gc/Marking.h"
+#ifdef JS_ION
 #include "jit/BaselineJIT.h"
 #include "jit/Ion.h"
 #include "jit/IonAnalysis.h"
 #include "jit/JitCompartment.h"
+#endif
 #include "js/MemoryMetrics.h"
 #include "vm/HelperThreads.h"
 #include "vm/Opcodes.h"
@@ -772,6 +774,7 @@ class types::CompilerConstraintList
     // OOM during generation of some constraint.
     bool failed_;
 
+#ifdef JS_ION
     // Allocator used for constraints.
     LifoAlloc *alloc_;
 
@@ -780,18 +783,25 @@ class types::CompilerConstraintList
 
     // Scripts whose stack type sets were frozen for the compilation.
     Vector<FrozenScript, 1, jit::IonAllocPolicy> frozenScripts;
+#endif
 
   public:
     explicit CompilerConstraintList(jit::TempAllocator &alloc)
-      : failed_(false),
-        alloc_(alloc.lifoAlloc()),
-        constraints(alloc),
-        frozenScripts(alloc)
+      : failed_(false)
+#ifdef JS_ION
+      , alloc_(alloc.lifoAlloc())
+      , constraints(alloc)
+      , frozenScripts(alloc)
+#endif
     {}
 
     void add(CompilerConstraint *constraint) {
+#ifdef JS_ION
         if (!constraint || !constraints.append(constraint))
             setFailed();
+#else
+        MOZ_CRASH();
+#endif
     }
 
     void freezeScript(JSScript *script,
@@ -799,6 +809,7 @@ class types::CompilerConstraintList
                       TemporaryTypeSet *argTypes,
                       TemporaryTypeSet *bytecodeTypes)
     {
+#ifdef JS_ION
         FrozenScript entry;
         entry.script = script;
         entry.thisTypes = thisTypes;
@@ -806,22 +817,41 @@ class types::CompilerConstraintList
         entry.bytecodeTypes = bytecodeTypes;
         if (!frozenScripts.append(entry))
             setFailed();
+#else
+        MOZ_CRASH();
+#endif
     }
 
     size_t length() {
+#ifdef JS_ION
         return constraints.length();
+#else
+        MOZ_CRASH();
+#endif
     }
 
     CompilerConstraint *get(size_t i) {
+#ifdef JS_ION
         return constraints[i];
+#else
+        MOZ_CRASH();
+#endif
     }
 
     size_t numFrozenScripts() {
+#ifdef JS_ION
         return frozenScripts.length();
+#else
+        MOZ_CRASH();
+#endif
     }
 
     const FrozenScript &frozenScript(size_t i) {
+#ifdef JS_ION
         return frozenScripts[i];
+#else
+        MOZ_CRASH();
+#endif
     }
 
     bool failed() {
@@ -831,14 +861,22 @@ class types::CompilerConstraintList
         failed_ = true;
     }
     LifoAlloc *alloc() const {
+#ifdef JS_ION
         return alloc_;
+#else
+        MOZ_CRASH();
+#endif
     }
 };
 
 CompilerConstraintList *
 types::NewCompilerConstraintList(jit::TempAllocator &alloc)
 {
+#ifdef JS_ION
     return alloc.lifoAlloc()->new_<CompilerConstraintList>(alloc);
+#else
+    MOZ_CRASH();
+#endif
 }
 
 /* static */ bool
@@ -1021,6 +1059,7 @@ TypeObjectKey::property(jsid id)
 void
 TypeObjectKey::ensureTrackedProperty(JSContext *cx, jsid id)
 {
+#ifdef JS_ION
     // If we are accessing a lazily defined property which actually exists in
     // the VM and has not been instantiated yet, instantiate it now if we are
     // on the main thread and able to do so.
@@ -1031,6 +1070,7 @@ TypeObjectKey::ensureTrackedProperty(JSContext *cx, jsid id)
                 EnsureTrackPropertyTypes(cx, obj, id);
         }
     }
+#endif // JS_ION
 }
 
 bool
@@ -2248,7 +2288,9 @@ TypeZone::processPendingRecompiles(FreeOp *fop)
 
     JS_ASSERT(!pending->empty());
 
+#ifdef JS_ION
     jit::Invalidate(*this, fop, *pending);
+#endif
 
     fop->delete_(pending);
 }
@@ -2280,6 +2322,7 @@ TypeZone::addPendingRecompile(JSContext *cx, JSScript *script)
 {
     JS_ASSERT(script);
 
+#ifdef JS_ION
     CancelOffThreadIonCompile(cx->compartment(), script);
 
     // Let the script warm up again before attempting another compile.
@@ -2291,6 +2334,7 @@ TypeZone::addPendingRecompile(JSContext *cx, JSScript *script)
 
     if (script->hasParallelIonScript())
         addPendingRecompile(cx, script->parallelIonScript()->recompileInfo());
+#endif
 
     // When one script is inlined into another the caller listens to state
     // changes on the callee's script, so trigger these to force recompilation
@@ -3387,6 +3431,7 @@ CheckNewScriptProperties(JSContext *cx, TypeObject *type, JSFunction *fun)
 {
     JS_ASSERT(cx->compartment()->activeAnalysis);
 
+#ifdef JS_ION
     if (type->unknownProperties())
         return;
 
@@ -3461,6 +3506,7 @@ CheckNewScriptProperties(JSContext *cx, TypeObject *type, JSFunction *fun)
             initializerList.length());
 
     js::gc::TraceTypeNewScript(type);
+#endif // JS_ION
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -4300,10 +4346,12 @@ Zone::addSizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf,
                              size_t *baselineStubsOptimized)
 {
     *typePool += types.typeLifoAlloc.sizeOfExcludingThis(mallocSizeOf);
+#ifdef JS_ION
     if (jitZone()) {
         *baselineStubsOptimized +=
             jitZone()->optimizedStubSpace()->sizeOfExcludingThis(mallocSizeOf);
     }
+#endif
 }
 
 void
@@ -4371,6 +4419,7 @@ TypeZone::sweep(FreeOp *fop, bool releaseTypes, bool *oom)
     /* Sweep and find compressed indexes for each compiler output. */
     size_t newCompilerOutputCount = 0;
 
+#ifdef JS_ION
     if (compilerOutputs) {
         for (size_t i = 0; i < compilerOutputs->length(); i++) {
             CompilerOutput &output = (*compilerOutputs)[i];
@@ -4385,6 +4434,7 @@ TypeZone::sweep(FreeOp *fop, bool releaseTypes, bool *oom)
             }
         }
     }
+#endif
 
     {
         gcstats::AutoPhase ap2(rt->gc.stats, gcstats::PHASE_DISCARD_TI);

@@ -1547,23 +1547,32 @@ private:
   }
 };
 
-class UpdateRuntimeOptionsRunnable MOZ_FINAL : public WorkerControlRunnable
+class UpdateRuntimeAndContextOptionsRunnable MOZ_FINAL : public WorkerControlRunnable
 {
   JS::RuntimeOptions mRuntimeOptions;
+  JS::ContextOptions mContentCxOptions;
+  JS::ContextOptions mChromeCxOptions;
 
 public:
-  UpdateRuntimeOptionsRunnable(
+  UpdateRuntimeAndContextOptionsRunnable(
                                     WorkerPrivate* aWorkerPrivate,
-                                    const JS::RuntimeOptions& aRuntimeOptions)
+                                    const JS::RuntimeOptions& aRuntimeOptions,
+                                    const JS::ContextOptions& aContentCxOptions,
+                                    const JS::ContextOptions& aChromeCxOptions)
   : WorkerControlRunnable(aWorkerPrivate, WorkerThreadUnchangedBusyCount),
-    mRuntimeOptions(aRuntimeOptions)
+    mRuntimeOptions(aRuntimeOptions),
+    mContentCxOptions(aContentCxOptions),
+    mChromeCxOptions(aChromeCxOptions)
   { }
 
 private:
   virtual bool
   WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate) MOZ_OVERRIDE
   {
-    aWorkerPrivate->UpdateRuntimeOptionsInternal(aCx, mRuntimeOptions);
+    aWorkerPrivate->UpdateRuntimeAndContextOptionsInternal(aCx,
+                                                           mRuntimeOptions,
+                                                           mContentCxOptions,
+                                                           mChromeCxOptions);
     return true;
   }
 };
@@ -2872,19 +2881,26 @@ WorkerPrivateParent<Derived>::GetInnerWindowId()
 
 template <class Derived>
 void
-WorkerPrivateParent<Derived>::UpdateRuntimeOptions(
+WorkerPrivateParent<Derived>::UpdateRuntimeAndContextOptions(
                                     JSContext* aCx,
-                                    const JS::RuntimeOptions& aRuntimeOptions)
+                                    const JS::RuntimeOptions& aRuntimeOptions,
+                                    const JS::ContextOptions& aContentCxOptions,
+                                    const JS::ContextOptions& aChromeCxOptions)
 {
   AssertIsOnParentThread();
 
   {
     MutexAutoLock lock(mMutex);
     mJSSettings.runtimeOptions = aRuntimeOptions;
+    mJSSettings.content.contextOptions = aContentCxOptions;
+    mJSSettings.chrome.contextOptions = aChromeCxOptions;
   }
 
-  nsRefPtr<UpdateRuntimeOptionsRunnable> runnable =
-    new UpdateRuntimeOptionsRunnable(ParentAsWorkerPrivate(), aRuntimeOptions);
+  nsRefPtr<UpdateRuntimeAndContextOptionsRunnable> runnable =
+    new UpdateRuntimeAndContextOptionsRunnable(ParentAsWorkerPrivate(),
+                                               aRuntimeOptions,
+                                               aContentCxOptions,
+                                               aChromeCxOptions);
   if (!runnable->Dispatch(aCx)) {
     NS_WARNING("Failed to update worker context options!");
     JS_ClearPendingException(aCx);
@@ -5518,16 +5534,21 @@ WorkerPrivate::RescheduleTimeoutTimer(JSContext* aCx)
 }
 
 void
-WorkerPrivate::UpdateRuntimeOptionsInternal(
+WorkerPrivate::UpdateRuntimeAndContextOptionsInternal(
                                     JSContext* aCx,
-                                    const JS::RuntimeOptions& aRuntimeOptions)
+                                    const JS::RuntimeOptions& aRuntimeOptions,
+                                    const JS::ContextOptions& aContentCxOptions,
+                                    const JS::ContextOptions& aChromeCxOptions)
 {
   AssertIsOnWorkerThread();
 
   JS::RuntimeOptionsRef(aCx) = aRuntimeOptions;
+  JS::ContextOptionsRef(aCx) = IsChromeWorker() ? aChromeCxOptions : aContentCxOptions;
 
   for (uint32_t index = 0; index < mChildWorkers.Length(); index++) {
-    mChildWorkers[index]->UpdateRuntimeOptions(aCx, aRuntimeOptions);
+    mChildWorkers[index]->UpdateRuntimeAndContextOptions(aCx, aRuntimeOptions,
+                                                         aContentCxOptions,
+                                                         aChromeCxOptions);
   }
 }
 

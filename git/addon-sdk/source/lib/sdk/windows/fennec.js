@@ -40,7 +40,7 @@ const browserWindows = exports.browserWindows = BrowserWindows();
  * registered, `null` otherwise.
  */
 function getRegisteredWindow(chromeWindow) {
-  for (let window of browserWindows) {
+  for each (let window in browserWindows) {
     if (chromeWindow === windowNS(window).window)
       return window;
   }

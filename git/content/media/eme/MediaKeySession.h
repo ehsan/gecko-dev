@@ -53,8 +53,6 @@ public:
 
   void GetSessionId(nsString& aRetval) const;
 
-  const nsString& GetSessionId() const;
-
   // Number of ms since epoch at which expiration occurs, or NaN if unknown.
   // TODO: The type of this attribute is still under contention.
   // https://www.w3.org/Bugs/Public/show_bug.cgi?id=25902
@@ -70,7 +68,7 @@ public:
   already_AddRefed<Promise> Remove(ErrorResult& aRv);
 
   void DispatchKeyMessage(const nsTArray<uint8_t>& aMessage,
-                          const nsAString& aURL);
+                          const nsString& aURL);
 
   void DispatchKeyError(uint32_t system_code);
 

@@ -2625,7 +2625,9 @@ JSScript::finalize(FreeOp *fop)
     if (types)
         types->destroy();
 
+#ifdef JS_ION
     jit::DestroyIonScripts(fop, this);
+#endif
 
     destroyScriptCounts(fop);
     destroyDebugScript(fop);
@@ -3195,8 +3197,10 @@ JSScript::setNewStepMode(FreeOp *fop, uint32_t newValue)
     debug->stepMode = newValue;
 
     if (!prior != !newValue) {
+#ifdef JS_ION
         if (hasBaselineScript())
             baseline->toggleDebugTraps(this, nullptr);
+#endif
 
         if (!stepModeEnabled() && !debug->numSites)
             fop->free_(releaseDebugScript());
@@ -3364,7 +3368,9 @@ JSScript::markChildren(JSTracer *trc)
 
     bindings.trace(trc);
 
+#ifdef JS_ION
     jit::TraceIonScripts(trc, this);
+#endif
 }
 
 void
@@ -3457,7 +3463,12 @@ void
 JSScript::setArgumentsHasVarBinding()
 {
     argsHasVarBinding_ = true;
+#ifdef JS_ION
     needsArgsAnalysis_ = true;
+#else
+    // The arguments analysis is performed by IonBuilder.
+    needsArgsObj_ = true;
+#endif
 }
 
 void
@@ -3523,6 +3534,7 @@ JSScript::argumentsOptimizationFailed(JSContext *cx, HandleScript script)
 
     script->needsArgsObj_ = true;
 
+#ifdef JS_ION
     /*
      * Since we can't invalidate baseline scripts, set a flag that's checked from
      * JIT code to indicate the arguments optimization failed and JSOP_ARGUMENTS
@@ -3530,6 +3542,7 @@ JSScript::argumentsOptimizationFailed(JSContext *cx, HandleScript script)
      */
     if (script->hasBaselineScript())
         script->baselineScript()->setNeedsArgsObj();
+#endif
 
     /*
      * By design, the arguments optimization is only made when there are no
@@ -3769,6 +3782,7 @@ LazyScript::staticLevel(JSContext *cx) const
 void
 JSScript::updateBaselineOrIonRaw()
 {
+#ifdef JS_ION
     if (hasIonScript()) {
         baselineOrIonRaw = ion->method()->raw();
         baselineOrIonSkipArgCheck = ion->method()->raw() + ion->getSkipArgCheckEntryOffset();
@@ -3779,6 +3793,7 @@ JSScript::updateBaselineOrIonRaw()
         baselineOrIonRaw = nullptr;
         baselineOrIonSkipArgCheck = nullptr;
     }
+#endif
 }
 
 bool

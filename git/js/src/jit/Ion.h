@@ -7,6 +7,8 @@
 #ifndef jit_Ion_h
 #define jit_Ion_h
 
+#ifdef JS_ION
+
 #include "mozilla/MemoryReporting.h"
 
 #include "jscntxt.h"
@@ -205,5 +207,7 @@ bool UpdateForDebugMode(JSContext *maybecx, JSCompartment *comp,
 
 } // namespace jit
 } // namespace js
+
+#endif // JS_ION
 
 #endif /* jit_Ion_h */

@@ -171,7 +171,7 @@ private:
     int     mCnt;
     Type*   mObj;
 
-    explicit Inner(Type* aObj)
+    Inner(Type* aObj)
       : mCnt(1)
       , mObj(aObj)
     {

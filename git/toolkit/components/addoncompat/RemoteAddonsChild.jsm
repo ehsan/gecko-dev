@@ -129,7 +129,7 @@ let ContentPolicyChild = {
   shouldLoad: function(contentType, contentLocation, requestOrigin, node, mimeTypeGuess, extra) {
     let cpmm = Cc["@mozilla.org/childprocessmessagemanager;1"]
                .getService(Ci.nsISyncMessageSender);
-    let rval = cpmm.sendRpcMessage("Addons:ContentPolicy:Run", {}, {
+    var rval = cpmm.sendRpcMessage("Addons:ContentPolicy:Run", {}, {
       contentType: contentType,
       mimeTypeGuess: mimeTypeGuess,
       contentLocation: contentLocation,
@@ -157,11 +157,15 @@ let ContentPolicyChild = {
 
 // This is a shim channel whose only purpose is to return some string
 // data from an about: protocol handler.
-function AboutProtocolChannel(uri, contractID)
+function AboutProtocolChannel(data, uri, originalURI, contentType)
 {
-  this.URI = uri;
-  this.originalURI = uri;
-  this._contractID = contractID;
+  let stream = Cc["@mozilla.org/io/string-input-stream;1"].createInstance(Ci.nsIStringInputStream);
+  stream.setData(data, data.length);
+  this._stream = stream;
+
+  this.URI = BrowserUtils.makeURI(uri);
+  this.originalURI = BrowserUtils.makeURI(originalURI);
+  this.contentType = contentType;
 }
 
 AboutProtocolChannel.prototype = {
@@ -176,35 +180,13 @@ AboutProtocolChannel.prototype = {
   status: Cr.NS_OK,
 
   asyncOpen: function(listener, context) {
-    // Ask the parent to synchronously read all the data from the channel.
-    let cpmm = Cc["@mozilla.org/childprocessmessagemanager;1"]
-               .getService(Ci.nsISyncMessageSender);
-    let rval = cpmm.sendRpcMessage("Addons:AboutProtocol:OpenChannel", {
-      uri: this.URI.spec,
-      contractID: this._contractID
-    }, {
-      notificationCallbacks: this.notificationCallbacks,
-      loadGroupNotificationCallbacks: this.loadGroup.notificationCallbacks
-    });
-
-    if (rval.length != 1) {
-      throw Cr.NS_ERROR_FAILURE;
-    }
-
-    let {data, contentType} = rval[0];
-    this.contentType = contentType;
-
-    // Return the data via an nsIStringInputStream.
-    let stream = Cc["@mozilla.org/io/string-input-stream;1"].createInstance(Ci.nsIStringInputStream);
-    stream.setData(data, data.length);
-
     let runnable = {
       run: () => {
         try {
           listener.onStartRequest(this, context);
         } catch(e) {}
         try {
-          listener.onDataAvailable(this, context, stream, 0, stream.available());
+          listener.onDataAvailable(this, context, this._stream, 0, this._stream.available());
         } catch(e) {}
         try {
           listener.onStopRequest(this, context, Cr.NS_OK);
@@ -262,7 +244,7 @@ AboutProtocolInstance.prototype = {
     let cpmm = Cc["@mozilla.org/childprocessmessagemanager;1"]
                .getService(Ci.nsISyncMessageSender);
 
-    let rval = cpmm.sendRpcMessage("Addons:AboutProtocol:GetURIFlags", {
+    var rval = cpmm.sendRpcMessage("Addons:AboutProtocol:GetURIFlags", {
       uri: uri.spec,
       contractID: this._contractID
     });
@@ -278,11 +260,25 @@ AboutProtocolInstance.prototype = {
   // We take some shortcuts here. Ideally, we would return a CPOW that
   // wraps the add-on's nsIChannel. However, many of the methods
   // related to nsIChannel are marked [noscript], so they're not
-  // available to CPOWs. Consequently, we return a shim channel that,
-  // when opened, asks the parent to open the channel and read out all
-  // the data.
+  // available to CPOWs. Consequently, the parent simply reads all the
+  // data out of the add-on's channel and returns that as a string. We
+  // create a new AboutProtocolChannel whose only purpose is to return
+  // the string data via an nsIStringInputStream.
   newChannel: function(uri) {
-    return new AboutProtocolChannel(uri, this._contractID);
+    let cpmm = Cc["@mozilla.org/childprocessmessagemanager;1"]
+               .getService(Ci.nsISyncMessageSender);
+
+    var rval = cpmm.sendRpcMessage("Addons:AboutProtocol:NewChannel", {
+      uri: uri.spec,
+      contractID: this._contractID
+    });
+
+    if (rval.length != 1) {
+      throw Cr.NS_ERROR_FAILURE;
+    }
+
+    let {data, uri, originalURI, contentType} = rval[0];
+    return new AboutProtocolChannel(data, uri, originalURI, contentType);
   },
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIFactory, Ci.nsIAboutModule])

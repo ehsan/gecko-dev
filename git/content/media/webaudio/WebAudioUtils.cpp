@@ -8,6 +8,7 @@
 #include "AudioNodeStream.h"
 #include "AudioParamTimeline.h"
 #include "blink/HRTFDatabaseLoader.h"
+#include "speex/speex_resampler.h"
 
 namespace mozilla {
 

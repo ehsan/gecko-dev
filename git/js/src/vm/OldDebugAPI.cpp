@@ -262,6 +262,7 @@ JS_DumpCompartmentPCCounts(JSContext *cx)
             JS_DumpPCCounts(cx, script);
     }
 
+#if defined(JS_ION)
     for (unsigned thingKind = FINALIZE_OBJECT0; thingKind < FINALIZE_OBJECT_LIMIT; thingKind++) {
         for (ZoneCellIter i(cx->zone(), (AllocKind) thingKind); !i.done(); i.next()) {
             JSObject *obj = i.get<JSObject>();
@@ -287,6 +288,7 @@ JS_DumpCompartmentPCCounts(JSContext *cx)
             }
         }
     }
+#endif
 }
 
 static const char *

@@ -8,6 +8,7 @@
 #include "nsThreadUtils.h"
 #include "MetroUtils.h"
 #include "nsPrintfCString.h"
+#include "nsIWidgetListener.h"
 #include "mozilla/layers/APZCCallbackHelper.h"
 #include "nsIDocument.h"
 #include "nsPresContext.h"
@@ -84,8 +85,10 @@ class RequestContentRepaintEvent : public nsRunnable
   typedef mozilla::layers::FrameMetrics FrameMetrics;
 
 public:
-  RequestContentRepaintEvent(const FrameMetrics& aFrameMetrics) :
-    mFrameMetrics(aFrameMetrics)
+  RequestContentRepaintEvent(const FrameMetrics& aFrameMetrics,
+                             nsIWidgetListener* aListener) :
+    mFrameMetrics(aFrameMetrics),
+    mWidgetListener(aListener)
   {
   }
 
@@ -141,12 +144,13 @@ public:
   }
 protected:
   FrameMetrics mFrameMetrics;
+  nsIWidgetListener* mWidgetListener;
 };
 
 void
-APZController::SetPendingResponseFlusher(APZPendingResponseFlusher* aFlusher)
+APZController::SetWidgetListener(nsIWidgetListener* aWidgetListener)
 {
-  mFlusher = aFlusher;
+  mWidgetListener = aWidgetListener;
 }
 
 void
@@ -194,11 +198,17 @@ APZController::ReceiveInputEvent(WidgetInputEvent* aEvent,
 void
 APZController::RequestContentRepaint(const FrameMetrics& aFrameMetrics)
 {
+  if (!mWidgetListener) {
+    NS_WARNING("Can't update display port, !mWidgetListener");
+    return;
+  }
+
 #ifdef DEBUG_CONTROLLER
   WinUtils::Log("APZController::RequestContentRepaint scrollid=%I64d",
     aFrameMetrics.GetScrollId());
 #endif
-  nsCOMPtr<nsIRunnable> r1 = new RequestContentRepaintEvent(aFrameMetrics);
+  nsCOMPtr<nsIRunnable> r1 = new RequestContentRepaintEvent(aFrameMetrics,
+                                                            mWidgetListener);
   if (!NS_IsMainThread()) {
     NS_DispatchToMainThread(r1);
   } else {
@@ -236,10 +246,6 @@ APZController::HandleLongTap(const CSSPoint& aPoint,
                              int32_t aModifiers,
                              const ScrollableLayerGuid& aGuid)
 {
-  if (mFlusher) {
-    mFlusher->FlushPendingContentResponse();
-  }
-  ContentReceivedTouch(aGuid, false);
 }
 
 void

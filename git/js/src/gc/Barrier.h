@@ -786,7 +786,6 @@ class ArrayBufferObject;
 class NestedScopeObject;
 class DebugScopeObject;
 class GlobalObject;
-class ScriptSourceObject;
 class Shape;
 class BaseShape;
 class UnownedBaseShape;
