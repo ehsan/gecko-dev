@@ -88,8 +88,6 @@
     _(MathD)                        \
     _(BinaryV)                      \
     _(Concat)                       \
-    _(CharCodeAt)                   \
-    _(FromCharCode)                 \
     _(Int32ToDouble)                \
     _(ValueToDouble)                \
     _(ValueToInt32)                 \

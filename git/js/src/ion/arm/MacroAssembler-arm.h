@@ -593,13 +593,10 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
         ma_tst(lhs, rhs);
         ma_b(label, cond);
     }
-    void branchTest32(Condition cond, const Register &lhs, Imm32 imm, Label *label) {
-        ma_tst(lhs, imm);
-        ma_b(label, cond);
-    }
     void branchTest32(Condition cond, const Address &address, Imm32 imm, Label *label) {
         ma_ldr(Operand(address.base, address.offset), ScratchRegister);
-        branchTest32(cond, ScratchRegister, imm, label);
+        ma_tst(ScratchRegister, imm);
+        ma_b(label, cond);
     }
     void branchPtr(Condition cond, Register lhs, Register rhs, Label *label) {
         branch32(cond, lhs, rhs, label);
@@ -776,15 +773,12 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
     void movePtr(const Address &src, const Register &dest);
 
     void load16(const Address &address, const Register &dest);
-    void load16(const BaseIndex &src, const Register &dest);
     void load32(const Address &address, const Register &dest);
     void load32(const ImmWord &imm, const Register &dest);
     void loadPtr(const Address &address, const Register &dest);
-    void loadPtr(const BaseIndex &src, const Register &dest);
     void loadPtr(const ImmWord &imm, const Register &dest);
     void loadPrivate(const Address &address, const Register &dest);
 
-    void store16(const Register &src, const Address &address);
     void store32(Register src, const ImmWord &imm);
     void store32(Register src, const Address &address);
     void store32(Imm32 src, const Address &address);
@@ -807,9 +801,6 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
 
     void rshiftPtr(Imm32 imm, const Register &dest) {
         ma_lsr(imm, dest, dest);
-    }
-    void lshiftPtr(Imm32 imm, const Register &dest) {
-        ma_lsl(imm, dest, dest);
     }
 
     // Setup a call to C/C++ code, given the number of general arguments it
