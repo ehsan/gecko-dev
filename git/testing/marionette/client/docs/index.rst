@@ -72,8 +72,8 @@ Debugging
 .. automethod:: Marionette.get_logs
 .. automethod:: Marionette.screenshot
 
-Querying and Modifying Document Content
----------------------------------------
+HTMLElement Objects
+-------------------
 .. autoclass:: HTMLElement
 
 .. autoattribute:: HTMLElement.text
@@ -87,11 +87,6 @@ Querying and Modifying Document Content
 .. automethod:: HTMLElement.is_enabled
 .. automethod:: HTMLElement.is_displayed
 .. automethod:: HTMLElement.value_of_css_property
-
-.. autoclass:: DateTimeValue
-
-.. autoattribute:: DateTimeValue.date
-.. autoattribute:: DateTimeValue.time
 
 Action Objects
 --------------

@@ -23,8 +23,7 @@ let Keyboard = {
     'SetValue', 'RemoveFocus', 'SetSelectedOption', 'SetSelectedOptions',
     'SetSelectionRange', 'ReplaceSurroundingText', 'ShowInputMethodPicker',
     'SwitchToNextInputMethod', 'HideInputMethod',
-    'GetText', 'SendKey', 'GetContext',
-    'SetComposition', 'EndComposition'
+    'GetText', 'SendKey', 'GetContext'
   ],
 
   get messageManager() {
@@ -67,8 +66,6 @@ let Keyboard = {
       mm.addMessageListener('Forms:SendKey:Result:OK', this);
       mm.addMessageListener('Forms:SequenceError', this);
       mm.addMessageListener('Forms:GetContext:Result:OK', this);
-      mm.addMessageListener('Forms:SetComposition:Result:OK', this);
-      mm.addMessageListener('Forms:EndComposition:Result:OK', this);
 
       // When not running apps OOP, we need to load forms.js here since this
       // won't happen from dom/ipc/preload.js
@@ -119,8 +116,6 @@ let Keyboard = {
       case 'Forms:SendKey:Result:OK':
       case 'Forms:SequenceError':
       case 'Forms:GetContext:Result:OK':
-      case 'Forms:SetComposition:Result:OK':
-      case 'Forms:EndComposition:Result:OK':
         let name = msg.name.replace(/^Forms/, 'Keyboard');
         this.forwardEvent(name, msg);
         break;
@@ -157,12 +152,6 @@ let Keyboard = {
         break;
       case 'Keyboard:GetContext':
         this.getContext(msg);
-        break;
-      case 'Keyboard:SetComposition':
-        this.setComposition(msg);
-        break;
-      case 'Keyboard:EndComposition':
-        this.endComposition(msg);
         break;
     }
   },
@@ -234,14 +223,6 @@ let Keyboard = {
 
   getContext: function keyboardGetContext(msg) {
     this.messageManager.sendAsyncMessage('Forms:GetContext', msg.data);
-  },
-
-  setComposition: function keyboardSetComposition(msg) {
-    this.messageManager.sendAsyncMessage('Forms:SetComposition', msg.data);
-  },
-
-  endComposition: function keyboardEndComposition(msg) {
-    this.messageManager.sendAsyncMessage('Forms:EndComposition', msg.data);
   }
 };
 
