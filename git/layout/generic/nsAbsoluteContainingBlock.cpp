@@ -497,7 +497,8 @@ nsAbsoluteContainingBlock::ReflowAbsoluteFrame(nsIFrame*                aDelegat
       (aDelegatingFrame->GetStateBits() & NS_FRAME_FIRST_REFLOW)) {
     // The frame moved
     aKidFrame->GetParent()->Invalidate(oldOverflowRect);
-    aKidFrame->InvalidateFrameSubtree();
+    aKidFrame->GetParent()->Invalidate(kidDesiredSize.mOverflowArea +
+                                       rect.TopLeft());
   } else if (oldRect.Size() != rect.Size()) {
     // Invalidate the area where the frame changed size.
     nscoord innerWidth = NS_MIN(oldRect.width, rect.width);
