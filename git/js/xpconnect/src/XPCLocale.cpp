@@ -102,13 +102,13 @@ private:
   ChangeCase(JSContext* cx, HandleString src, MutableHandleValue rval,
              void(*changeCaseFnc)(const nsAString&, nsAString&))
   {
-    nsAutoJSString autoStr;
-    if (!autoStr.init(cx, src)) {
+    nsDependentJSString depStr;
+    if (!depStr.init(cx, src)) {
       return false;
     }
 
     nsAutoString result;
-    changeCaseFnc(autoStr, result);
+    changeCaseFnc(depStr, result);
 
     JSString *ucstr =
       JS_NewUCStringCopyN(cx, result.get(), result.Length());
@@ -149,14 +149,14 @@ private:
       }
     }
 
-    nsAutoJSString autoStr1, autoStr2;
-    if (!autoStr1.init(cx, src1) || !autoStr2.init(cx, src2)) {
+    nsDependentJSString depStr1, depStr2;
+    if (!depStr1.init(cx, src1) || !depStr2.init(cx, src2)) {
       return false;
     }
 
     int32_t result;
     rv = mCollation->CompareString(nsICollation::kCollationStrengthDefault,
-                                   autoStr1, autoStr2, &result);
+                                   depStr1, depStr2, &result);
 
     if (NS_FAILED(rv)) {
       xpc::Throw(cx, rv);

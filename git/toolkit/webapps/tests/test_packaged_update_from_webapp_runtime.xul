@@ -60,7 +60,7 @@ let app = {
   installTime: Date.now(),
 };
 
-let testAppInfo = new TestAppInfo(app, true);
+let testAppInfo = new TestAppInfo(app);
 
 let runTest = Task.async(function*() {
   // Get to a clean state before the test
@@ -81,12 +81,13 @@ let runTest = Task.async(function*() {
   // On Mac build servers, we don't have enough privileges to write to /Applications,
   // so we install apps in a user-owned directory.
   if (MAC) {
-    yield setMacRootInstallDir(OS.Path.join(OS.Constants.Path.homeDir, "Applications"));
+    nativeApp._rootInstallDir = OS.Path.join(OS.Constants.Path.homeDir, "Applications");
+    yield OS.File.makeDir(nativeApp._rootInstallDir, { ignoreExisting: true });
   }
 
   // Install application
   info("Test installation");
-  yield nativeApp.install(app, manifest, zipPath);
+  yield nativeApp.install(manifest, zipPath);
   while (!WebappOSUtils.isLaunchable(app)) {
     yield wait(1000);
   }
@@ -97,7 +98,7 @@ let runTest = Task.async(function*() {
 
   zipPath = buildAppPackage(updatedManifest);
 
-  yield nativeApp.prepareUpdate(app, updatedManifest, zipPath);
+  yield nativeApp.prepareUpdate(updatedManifest, zipPath);
   while (!WebappOSUtils.isLaunchable(app)) {
     yield wait(1000);
   }

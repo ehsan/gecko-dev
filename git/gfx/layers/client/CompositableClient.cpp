@@ -205,9 +205,6 @@ CompositableClient::CreateTextureClientForDrawing(SurfaceFormat aFormat,
 bool
 CompositableClient::AddTextureClient(TextureClient* aClient)
 {
-  if(!aClient || !aClient->IsAllocated()) {
-    return false;
-  }
   return aClient->InitIPDLActor(mForwarder);
 }
 

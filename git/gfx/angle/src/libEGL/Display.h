@@ -11,6 +11,8 @@
 #ifndef LIBEGL_DISPLAY_H_
 #define LIBEGL_DISPLAY_H_
 
+#include "common/system.h"
+
 #include <set>
 #include <vector>
 
@@ -40,7 +42,7 @@ class Display
 
     EGLSurface createWindowSurface(HWND window, EGLConfig config, const EGLint *attribList);
     EGLSurface createOffscreenSurface(EGLConfig config, HANDLE shareHandle, const EGLint *attribList);
-    EGLContext createContext(EGLConfig configHandle, EGLint clientVersion, const gl::Context *shareContext, bool notifyResets, bool robustAccess);
+    EGLContext createContext(EGLConfig configHandle, const gl::Context *shareContext, bool notifyResets, bool robustAccess);
 
     void destroySurface(egl::Surface *surface);
     void destroyContext(gl::Context *context);

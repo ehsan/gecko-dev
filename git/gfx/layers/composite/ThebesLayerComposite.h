@@ -56,8 +56,6 @@ public:
 
   virtual void CleanupResources() MOZ_OVERRIDE;
 
-  virtual void GenEffectChain(EffectChain& aEffect) MOZ_OVERRIDE;
-
   virtual bool SetCompositableHost(CompositableHost* aHost) MOZ_OVERRIDE;
 
   virtual LayerComposite* AsLayerComposite() MOZ_OVERRIDE { return this; }
@@ -83,11 +81,8 @@ protected:
   virtual void PrintInfo(std::stringstream& aStream, const char* aPrefix) MOZ_OVERRIDE;
 
 private:
-  gfx::Filter GetEffectFilter() { return gfx::Filter::LINEAR; }
-
   CSSToScreenScale GetEffectiveResolution();
 
-private:
   RefPtr<ContentHost> mBuffer;
   bool mRequiresTiledProperties;
 };

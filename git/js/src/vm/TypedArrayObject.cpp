@@ -883,7 +883,7 @@ class TypedArrayObjectTemplate : public TypedArrayObject
     static bool
     canConvertInfallibly(const Value &v)
     {
-        return v.isNumber() || v.isBoolean() || v.isNull() || v.isUndefined() || v.isSymbol();
+        return v.isNumber() || v.isBoolean() || v.isNull() || v.isUndefined();
     }
 
     static NativeType
@@ -898,7 +898,7 @@ class TypedArrayObjectTemplate : public TypedArrayObject
         if (v.isNull())
             return NativeType(0);
 
-        MOZ_ASSERT(v.isUndefined() || v.isSymbol());
+        MOZ_ASSERT(v.isUndefined());
         return ArrayTypeIsFloatingPoint() ? NativeType(GenericNaN()) : NativeType(0);
     }
 
@@ -2155,8 +2155,8 @@ IMPL_TYPED_ARRAY_COMBINED_UNWRAPPERS(Float64, double, double)
 
 #define TYPED_ARRAY_CLASS_SPEC(_typedArray)                                    \
 {                                                                              \
-    GenericCreateConstructor<_typedArray##Object::class_constructor, 3,        \
-                             JSFunction::FinalizeKind>,                        \
+    GenericCreateConstructor<_typedArray##Object::class_constructor,           \
+                             NAME_OFFSET(_typedArray), 3>,                     \
     _typedArray##Object::CreatePrototype,                                      \
     nullptr,                                                                   \
     _typedArray##Object::jsfuncs,                                              \

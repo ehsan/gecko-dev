@@ -7,7 +7,6 @@ Cu.import("resource://gre/modules/osfile.jsm");
 Cu.import("resource://gre/modules/Task.jsm");
 Cu.import("resource://gre/modules/Promise.jsm");
 Cu.import("resource://gre/modules/WebappOSUtils.jsm");
-Cu.import("resource://gre/modules/NativeApp.jsm");
 
 const LINUX = navigator.platform.startsWith("Linux");
 const MAC = navigator.platform.startsWith("Mac");
@@ -116,11 +115,11 @@ function setDryRunPref() {
   });
 }
 
-function TestAppInfo(aApp, aIsPackaged) {
+function TestAppInfo(aApp) {
   this.appProcess = Cc["@mozilla.org/process/util;1"].
                     createInstance(Ci.nsIProcess);
 
-  this.isPackaged = aIsPackaged;
+  this.isPackaged = !!aApp.updateManifest;
 
   if (LINUX) {
     this.installPath = OS.Path.join(OS.Constants.Path.homeDir,
@@ -344,10 +343,9 @@ function buildAppPackage(aManifest, aIconFile) {
                          getFile(getTestFilePath("data/app/index.html")),
                          false);
 
-  let manifestJSON = JSON.stringify(aManifest);
-  let manStream = Cc["@mozilla.org/io/string-input-stream;1"].
+  var manStream = Cc["@mozilla.org/io/string-input-stream;1"].
                   createInstance(Ci.nsIStringInputStream);
-  manStream.setData(manifestJSON, manifestJSON.length);
+  manStream.setData(aManifest, aManifest.length);
   zipWriter.addEntryStream("manifest.webapp", Date.now(),
                            Ci.nsIZipWriter.COMPRESSION_NONE,
                            manStream, false);
@@ -399,35 +397,3 @@ function generateDataURI(aFile) {
   return "data:" + contentType + ";base64," +
          btoa(stream.readBytes(stream.available()));
 }
-
-function confirmNextInstall() {
-  let popupPanel = window.top.QueryInterface(Ci.nsIInterfaceRequestor).
-                              getInterface(Ci.nsIWebNavigation).
-                              QueryInterface(Ci.nsIDocShell).
-                              chromeEventHandler.ownerDocument.defaultView.
-                              PopupNotifications.panel;
-
-  popupPanel.addEventListener("popupshown", function onPopupShown() {
-    popupPanel.removeEventListener("popupshown", onPopupShown, false);
-    this.childNodes[0].button.doCommand();
-  }, false);
-}
-
-let readJSON = Task.async(function*(aPath) {
-  let decoder = new TextDecoder();
-  let data = yield OS.File.read(aPath);
-  return JSON.parse(decoder.decode(data));
-});
-
-let setMacRootInstallDir = Task.async(function*(aPath) {
-  let oldRootInstallDir = NativeApp.prototype._rootInstallDir;
-
-  NativeApp.prototype._rootInstallDir = OS.Path.join(OS.Constants.Path.homeDir,
-                                                     "Applications");
-  yield OS.File.makeDir(NativeApp.prototype._rootInstallDir,
-                        { ignoreExisting: true });
-
-  SimpleTest.registerCleanupFunction(function() {
-    NativeApp.prototype._rootInstallDir = oldRootInstallDir;
-  });
-});

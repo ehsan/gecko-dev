@@ -763,7 +763,7 @@ AudioChannelService::Observe(nsISupports* aSubject, const char* aTopic, const ch
     if (!jsKey) {
       return NS_OK;
     }
-    nsAutoJSString keyStr;
+    nsDependentJSString keyStr;
     if (!keyStr.init(cx, jsKey) || keyStr.Find("audio.volume.", 0, false)) {
       return NS_OK;
     }

@@ -10,9 +10,7 @@
 
 #include "libGLESv2/renderer/VertexBuffer.h"
 #include "libGLESv2/renderer/Renderer.h"
-#include "libGLESv2/VertexAttribute.h"
-#include "libGLESv2/renderer/BufferStorage.h"
-#include "common/mathutil.h"
+#include "libGLESv2/Context.h"
 
 namespace rx
 {
@@ -89,8 +87,8 @@ bool VertexBufferInterface::discard()
     return mVertexBuffer->discard();
 }
 
-bool VertexBufferInterface::storeVertexAttributes(const gl::VertexAttribute &attrib, const gl::VertexAttribCurrentValueData &currentValue,
-                                                  GLint start, GLsizei count, GLsizei instances, unsigned int *outStreamOffset)
+bool VertexBufferInterface::storeVertexAttributes(const gl::VertexAttribute &attrib,  GLint start, GLsizei count, GLsizei instances,
+                                                  unsigned int *outStreamOffset)
 {
     unsigned int spaceRequired;
     if (!mVertexBuffer->getSpaceRequired(attrib, count, instances, &spaceRequired))
@@ -109,7 +107,7 @@ bool VertexBufferInterface::storeVertexAttributes(const gl::VertexAttribute &att
     }
     mReservedSpace = 0;
 
-    if (!mVertexBuffer->storeVertexAttributes(attrib, currentValue, start, count, instances, mWritePosition))
+    if (!mVertexBuffer->storeVertexAttributes(attrib, start, count, instances, mWritePosition))
     {
         return false;
     }
@@ -121,8 +119,33 @@ bool VertexBufferInterface::storeVertexAttributes(const gl::VertexAttribute &att
 
     mWritePosition += spaceRequired;
 
-    // Align to 16-byte boundary
-    mWritePosition = rx::roundUp(mWritePosition, 16u);
+    return true;
+}
+
+bool VertexBufferInterface::storeRawData(const void* data, unsigned int size, unsigned int *outStreamOffset)
+{
+    if (mWritePosition + size < mWritePosition)
+    {
+        return false;
+    }
+
+    if (!reserveSpace(mReservedSpace))
+    {
+        return false;
+    }
+    mReservedSpace = 0;
+
+    if (!mVertexBuffer->storeRawData(data, size, mWritePosition))
+    {
+        return false;
+    }
+
+    if (outStreamOffset)
+    {
+        *outStreamOffset = mWritePosition;
+    }
+
+    mWritePosition += size;
 
     return true;
 }
@@ -142,10 +165,18 @@ bool VertexBufferInterface::reserveVertexSpace(const gl::VertexAttribute &attrib
     }
 
     mReservedSpace += requiredSpace;
+    return true;
+}
 
-    // Align to 16-byte boundary
-    mReservedSpace = rx::roundUp(mReservedSpace, 16u);
+bool VertexBufferInterface::reserveRawDataSpace(unsigned int size)
+{
+    // Protect against integer overflow
+    if (mReservedSpace + size < mReservedSpace)
+    {
+         return false;
+    }
 
+    mReservedSpace += size;
     return true;
 }
 
@@ -154,39 +185,6 @@ VertexBuffer* VertexBufferInterface::getVertexBuffer() const
     return mVertexBuffer;
 }
 
-bool VertexBufferInterface::directStoragePossible(const gl::VertexAttribute &attrib,
-                                                  const gl::VertexAttribCurrentValueData &currentValue) const
-{
-    gl::Buffer *buffer = attrib.mBoundBuffer.get();
-    BufferStorage *storage = buffer ? buffer->getStorage() : NULL;
-
-    if (!storage || !storage->supportsDirectBinding())
-    {
-        return false;
-    }
-
-    // Alignment restrictions: In D3D, vertex data must be aligned to
-    //  the format stride, or to a 4-byte boundary, whichever is smaller.
-    //  (Undocumented, and experimentally confirmed)
-    size_t alignment = 4;
-    bool requiresConversion = false;
-
-    if (attrib.mType != GL_FLOAT)
-    {
-        gl::VertexFormat vertexFormat(attrib, currentValue.Type);
-
-        unsigned int outputElementSize;
-        getVertexBuffer()->getSpaceRequired(attrib, 1, 0, &outputElementSize);
-        alignment = std::min<size_t>(outputElementSize, 4);
-
-        requiresConversion = (mRenderer->getVertexConversionType(vertexFormat) & VERTEX_CONVERT_CPU) != 0;
-    }
-
-    bool isAligned = (static_cast<size_t>(attrib.stride()) % alignment == 0) &&
-                     (static_cast<size_t>(attrib.mOffset) % alignment == 0);
-
-    return !requiresConversion && isAligned;
-}
 
 StreamingVertexBufferInterface::StreamingVertexBufferInterface(rx::Renderer *renderer, std::size_t initialSize) : VertexBufferInterface(renderer, true)
 {
@@ -233,8 +231,7 @@ bool StaticVertexBufferInterface::lookupAttribute(const gl::VertexAttribute &att
         if (mCache[element].type == attribute.mType &&
             mCache[element].size == attribute.mSize &&
             mCache[element].stride == attribute.stride() &&
-            mCache[element].normalized == attribute.mNormalized &&
-            mCache[element].pureInteger == attribute.mPureInteger)
+            mCache[element].normalized == attribute.mNormalized)
         {
             if (mCache[element].attributeOffset == attribute.mOffset % attribute.stride())
             {
@@ -269,14 +266,14 @@ bool StaticVertexBufferInterface::reserveSpace(unsigned int size)
     }
 }
 
-bool StaticVertexBufferInterface::storeVertexAttributes(const gl::VertexAttribute &attrib, const gl::VertexAttribCurrentValueData &currentValue,
-                                                       GLint start, GLsizei count, GLsizei instances, unsigned int *outStreamOffset)
+bool StaticVertexBufferInterface::storeVertexAttributes(const gl::VertexAttribute &attrib, GLint start, GLsizei count, GLsizei instances,
+                                                        unsigned int *outStreamOffset)
 {
     unsigned int streamOffset;
-    if (VertexBufferInterface::storeVertexAttributes(attrib, currentValue, start, count, instances, &streamOffset))
+    if (VertexBufferInterface::storeVertexAttributes(attrib, start, count, instances, &streamOffset))
     {
         int attributeOffset = attrib.mOffset % attrib.stride();
-        VertexElement element = { attrib.mType, attrib.mSize, attrib.stride(), attrib.mNormalized, attrib.mPureInteger, attributeOffset, streamOffset };
+        VertexElement element = { attrib.mType, attrib.mSize, attrib.stride(), attrib.mNormalized, attributeOffset, streamOffset };
         mCache.push_back(element);
 
         if (outStreamOffset)

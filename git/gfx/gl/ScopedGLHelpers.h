@@ -74,8 +74,7 @@ struct ScopedBindFramebuffer
     friend struct ScopedGLWrapper<ScopedBindFramebuffer>;
 
 protected:
-    GLuint mOldReadFB;
-    GLuint mOldDrawFB;
+    GLuint mOldFB;
 
 private:
     void Init();

@@ -10,69 +10,38 @@
 #include <string>
 #include <vector>
 
-#include <GLES3/gl3.h>
+#define GL_APICALL
 #include <GLES2/gl2.h>
 
 #include "common/debug.h"
-#include "angletypes.h"
-#include "common/shadervars.h"
 
 namespace gl
 {
 
 // Helper struct representing a single shader uniform
-struct LinkedUniform
+struct Uniform
 {
-    LinkedUniform(GLenum type, GLenum precision, const std::string &name, unsigned int arraySize, const int blockIndex, const BlockMemberInfo &blockInfo);
+    Uniform(GLenum type, GLenum precision, const std::string &name, unsigned int arraySize);
 
-    ~LinkedUniform();
+    ~Uniform();
 
     bool isArray() const;
     unsigned int elementCount() const;
-    bool isReferencedByVertexShader() const;
-    bool isReferencedByFragmentShader() const;
-    bool isInDefaultBlock() const;
-    size_t dataSize() const;
-    bool isSampler() const;
 
     const GLenum type;
     const GLenum precision;
     const std::string name;
     const unsigned int arraySize;
-    const int blockIndex;
-    const BlockMemberInfo blockInfo;
 
     unsigned char *data;
     bool dirty;
 
-    unsigned int psRegisterIndex;
-    unsigned int vsRegisterIndex;
+    int psRegisterIndex;
+    int vsRegisterIndex;
     unsigned int registerCount;
-
-    // Register "elements" are used for uniform structs in ES3, to appropriately identify single uniforms
-    // inside aggregate types, which are packed according C-like structure rules.
-    unsigned int registerElement;
 };
 
-// Helper struct representing a single shader uniform block
-struct UniformBlock
-{
-    // use GL_INVALID_INDEX for non-array elements
-    UniformBlock(const std::string &name, unsigned int elementIndex, unsigned int dataSize);
-
-    bool isArrayElement() const;
-    bool isReferencedByVertexShader() const;
-    bool isReferencedByFragmentShader() const;
-
-    const std::string name;
-    const unsigned int elementIndex;
-    const unsigned int dataSize;
-
-    std::vector<unsigned int> memberUniformIndexes;
-
-    unsigned int psRegisterIndex;
-    unsigned int vsRegisterIndex;
-};
+typedef std::vector<Uniform*> UniformArray;
 
 }
 

@@ -2135,7 +2135,7 @@ this.DOMApplicationRegistry = {
       if (xhr.status == 200) {
         if (!AppsUtils.checkManifestContentType(app.installOrigin, app.origin,
                                                 xhr.getResponseHeader("content-type"))) {
-          sendError("INVALID_MANIFEST_CONTENT_TYPE");
+          sendError("INVALID_MANIFEST");
           return;
         }
 
@@ -2235,7 +2235,7 @@ this.DOMApplicationRegistry = {
       if (xhr.status == 200) {
         if (!AppsUtils.checkManifestContentType(app.installOrigin, app.origin,
                                                 xhr.getResponseHeader("content-type"))) {
-          sendError("INVALID_MANIFEST_CONTENT_TYPE");
+          sendError("INVALID_MANIFEST");
           return;
         }
 
@@ -2568,7 +2568,7 @@ this.DOMApplicationRegistry = {
     if (!aData.isPackage) {
       this.updateAppHandlers(null, app.manifest, app);
       if (aInstallSuccessCallback) {
-        aInstallSuccessCallback(app, app.manifest);
+        aInstallSuccessCallback(app.manifest);
       }
     }
 
@@ -2657,7 +2657,7 @@ this.DOMApplicationRegistry = {
     });
 
     if (aInstallSuccessCallback) {
-      aInstallSuccessCallback(aNewApp, aManifest, zipFile.path);
+      aInstallSuccessCallback(aManifest, zipFile.path);
     }
   }),
 

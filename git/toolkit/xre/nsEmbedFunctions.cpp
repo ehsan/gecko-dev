@@ -754,7 +754,7 @@ XRE_SendTestShellCommand(JSContext* aCx,
     TestShellParent* tsp = GetOrCreateTestShellParent();
     NS_ENSURE_TRUE(tsp, false);
 
-    nsAutoJSString command;
+    nsDependentJSString command;
     NS_ENSURE_TRUE(command.init(aCx, cmd), false);
 
     if (!aCallback) {

@@ -11,7 +11,6 @@
 #define LIBGLESV2_RENDERER_INDEXRANGECACHE_H_
 
 #include "common/angleutils.h"
-#include <map>
 
 namespace rx
 {
@@ -19,9 +18,9 @@ namespace rx
 class IndexRangeCache
 {
   public:
-    void addRange(GLenum type, unsigned int offset, GLsizei count, unsigned int minIdx, unsigned int maxIdx,
+    void addRange(GLenum type, intptr_t offset, GLsizei count, unsigned int minIdx, unsigned int maxIdx, 
                   unsigned int streamOffset);
-    bool findRange(GLenum type, unsigned int offset, GLsizei count, unsigned int *outMinIndex,
+    bool findRange(GLenum type, intptr_t offset, GLsizei count, unsigned int *outMinIndex,
                    unsigned int *outMaxIndex, unsigned int *outStreamOffset) const;
 
     void invalidateRange(unsigned int offset, unsigned int size);
@@ -31,7 +30,7 @@ class IndexRangeCache
     struct IndexRange
     {
         GLenum type;
-        unsigned int offset;
+        intptr_t offset;
         GLsizei count;
 
         IndexRange();

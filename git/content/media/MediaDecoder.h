@@ -751,7 +751,10 @@ public:
   // main thread to be presented when the |currentTime| of the media is greater
   // or equal to aPublishTime.
   void QueueMetadata(int64_t aPublishTime,
-                     MediaInfo* aInfo,
+                     int aChannels,
+                     int aRate,
+                     bool aHasAudio,
+                     bool aHasVideo,
                      MetadataTags* aTags);
 
   /******
@@ -774,17 +777,11 @@ public:
 
   // Called when the metadata from the media file has been loaded by the
   // state machine. Call on the main thread only.
-  virtual void MetadataLoaded(MediaInfo* aInfo,
+  virtual void MetadataLoaded(int aChannels,
+                              int aRate,
+                              bool aHasAudio,
+                              bool aHasVideo,
                               MetadataTags* aTags);
-
-  // Called from MetadataLoaded(). Creates audio tracks and adds them to its
-  // owner's audio track list, and implies to video tracks respectively.
-  // Call on the main thread only.
-  void ConstructMediaTracks();
-
-  // Removes all audio tracks and video tracks that are previously added into
-  // the track list. Call on the main thread only.
-  virtual void RemoveMediaTracks() MOZ_OVERRIDE;
 
   // Called when the first frame has been loaded.
   // Call on the main thread only.
@@ -1218,14 +1215,6 @@ protected:
   // to minimize preroll, as we assume the user is likely to keep playing,
   // or play the media again.
   bool mMinimizePreroll;
-
-  // True if audio tracks and video tracks are constructed and added into the
-  // track list, false if all tracks are removed from the track list.
-  bool mMediaTracksConstructed;
-
-  // Stores media info, including info of audio tracks and video tracks, should
-  // only be accessed from main thread.
-  nsAutoPtr<MediaInfo> mInfo;
 };
 
 } // namespace mozilla

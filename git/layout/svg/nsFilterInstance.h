@@ -183,6 +183,7 @@ private:
    * nodes
    */
   nsresult BuildSourcePaint(SourceInfo *aPrimitive,
+                            gfxASurface* aTargetSurface,
                             DrawTarget* aTargetDT);
 
   /**
@@ -190,13 +191,15 @@ private:
    * nodes, fills its contents and assigns it to mFillPaint.mSourceSurface and
    * mStrokePaint.mSourceSurface respectively.
    */
-  nsresult BuildSourcePaints(DrawTarget* aTargetDT);
+  nsresult BuildSourcePaints(gfxASurface* aTargetSurface,
+                             DrawTarget* aTargetDT);
 
   /**
    * Creates the SourceSurface for the SourceGraphic graph node, paints its
    * contents, and assigns it to mSourceGraphic.mSourceSurface.
    */
-  nsresult BuildSourceImage(DrawTarget* aTargetDT);
+  nsresult BuildSourceImage(gfxASurface* aTargetSurface,
+                            DrawTarget* aTargetDT);
 
   /**
    * Build the list of FilterPrimitiveDescriptions that describes the filter's

@@ -26,8 +26,10 @@
 #ifndef THIRD_PARTY_COMPILER_ARRAY_BOUNDS_CLAMPER_H_
 #define THIRD_PARTY_COMPILER_ARRAY_BOUNDS_CLAMPER_H_
 
-#include "compiler/translator/InfoSink.h"
-#include "compiler/translator/intermediate.h"
+#include "GLSLANG/ShaderLang.h"
+
+#include "compiler/InfoSink.h"
+#include "compiler/intermediate.h"
 
 class ArrayBoundsClamper {
 public:

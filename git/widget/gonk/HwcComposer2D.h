@@ -97,7 +97,6 @@ private:
           const gfxMatrix& aParentTransform, const gfxMatrix& aGLWorldTransform);
     void setCrop(HwcLayer* layer, hwc_rect_t srcCrop);
     void setHwcGeometry(bool aGeometryChanged);
-    void SendtoLayerScope();
 
     HwcDevice*              mHwc;
     HwcList*                mList;

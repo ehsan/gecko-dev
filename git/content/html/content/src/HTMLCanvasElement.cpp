@@ -440,7 +440,7 @@ HTMLCanvasElement::ParseParams(JSContext* aCx,
   *usingCustomParseOptions = false;
   if (aParams.Length() == 0 && aEncoderOptions.isString()) {
     NS_NAMED_LITERAL_STRING(mozParseOptions, "-moz-parse-options:");
-    nsAutoJSString paramString;
+    nsDependentJSString paramString;
     if (!paramString.init(aCx, aEncoderOptions.toString())) {
       return NS_ERROR_FAILURE;
     }

@@ -1,6 +1,6 @@
 /*
 //
-// Copyright (c) 2002-2014 The ANGLE Project Authors. All rights reserved.
+// Copyright (c) 2002-2013 The ANGLE Project Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -14,7 +14,7 @@ IF YOU MODIFY THIS FILE YOU ALSO NEED TO RUN generate_parser.sh.
 
 %top{
 //
-// Copyright (c) 2011-2014 The ANGLE Project Authors. All rights reserved.
+// Copyright (c) 2011-2013 The ANGLE Project Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -78,9 +78,9 @@ NEWLINE     \n|\r|\r\n
 IDENTIFIER  [_a-zA-Z][_a-zA-Z0-9]*
 PUNCTUATOR  [][<>(){}.+-/*%^|&~=!:;,?]
 
-DECIMAL_CONSTANT      [1-9][0-9]*[uU]?
-OCTAL_CONSTANT        0[0-7]*[uU]?
-HEXADECIMAL_CONSTANT  0[xX][0-9a-fA-F]+[uU]?
+DECIMAL_CONSTANT      [1-9][0-9]*
+OCTAL_CONSTANT        0[0-7]*
+HEXADECIMAL_CONSTANT  0[xX][0-9a-fA-F]+
 
 DIGIT                [0-9]
 EXPONENT_PART        [eE][+-]?{DIGIT}+
@@ -114,12 +114,12 @@ FRACTIONAL_CONSTANT  ({DIGIT}*"."{DIGIT}+)|({DIGIT}+".")
     return pp::Token::IDENTIFIER;
 }
 
-({DECIMAL_CONSTANT}[uU]?)|({OCTAL_CONSTANT}[uU]?)|({HEXADECIMAL_CONSTANT}[uU]?) {
+{DECIMAL_CONSTANT}|{OCTAL_CONSTANT}|{HEXADECIMAL_CONSTANT} {
     yylval->assign(yytext, yyleng);
     return pp::Token::CONST_INT;
 }
 
-({DIGIT}+{EXPONENT_PART}[fF]?)|({FRACTIONAL_CONSTANT}{EXPONENT_PART}?[fF]?) {
+({DIGIT}+{EXPONENT_PART})|({FRACTIONAL_CONSTANT}{EXPONENT_PART}?) {
     yylval->assign(yytext, yyleng);
     return pp::Token::CONST_FLOAT;
 }
@@ -256,7 +256,7 @@ FRACTIONAL_CONSTANT  ({DIGIT}*"."{DIGIT}+)|({DIGIT}+".")
 
     if (YY_START == COMMENT)
     {
-        yyextra->diagnostics->report(pp::Diagnostics::PP_EOF_IN_COMMENT,
+        yyextra->diagnostics->report(pp::Diagnostics::EOF_IN_COMMENT,
                                      pp::SourceLocation(yyfileno, yylineno),
                                      "");
     }
@@ -267,7 +267,11 @@ FRACTIONAL_CONSTANT  ({DIGIT}*"."{DIGIT}+)|({DIGIT}+".")
 
 namespace pp {
 
-Tokenizer::Tokenizer(Diagnostics *diagnostics) : mHandle(0)
+// TODO(alokp): Maximum token length should ideally be specified by
+// the preprocessor client, i.e., the compiler.
+const size_t Tokenizer::kMaxTokenLength = 256;
+
+Tokenizer::Tokenizer(Diagnostics* diagnostics) : mHandle(0)
 {
     mContext.diagnostics = diagnostics;
 }
@@ -277,10 +281,9 @@ Tokenizer::~Tokenizer()
     destroyScanner();
 }
 
-bool Tokenizer::init(size_t count, const char * const string[], const int length[])
+bool Tokenizer::init(size_t count, const char* const string[], const int length[])
 {
-    if ((count > 0) && (string == 0))
-        return false;
+    if ((count > 0) && (string == 0)) return false;
 
     mContext.input = Input(count, string, length);
     return initScanner();
@@ -298,19 +301,14 @@ void Tokenizer::setLineNumber(int line)
     yyset_lineno(line, mHandle);
 }
 
-void Tokenizer::setMaxTokenSize(size_t maxTokenSize)
-{
-    mMaxTokenSize = maxTokenSize;
-}
-
-void Tokenizer::lex(Token *token)
+void Tokenizer::lex(Token* token)
 {
     token->type = yylex(&token->text, &token->location, mHandle);
-    if (token->text.size() > mMaxTokenSize)
+    if (token->text.size() > kMaxTokenLength)
     {
-        mContext.diagnostics->report(Diagnostics::PP_TOKEN_TOO_LONG,
+        mContext.diagnostics->report(Diagnostics::TOKEN_TOO_LONG,
                                      token->location, token->text);
-        token->text.erase(mMaxTokenSize);
+        token->text.erase(kMaxTokenLength);
     }
 
     token->flags = 0;

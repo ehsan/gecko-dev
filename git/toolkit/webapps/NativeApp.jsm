@@ -70,6 +70,8 @@ function CommonNativeApp(aApp, aManifest, aCategories, aRegistryDir) {
 
   this.registryDir = aRegistryDir || OS.Constants.Path.profileDir;
 
+  this.app = aApp;
+
   this._dryRun = false;
   try {
     if (Services.prefs.getBoolPref("browser.mozApps.installer.dry_run")) {
@@ -98,9 +100,9 @@ CommonNativeApp.prototype = {
    * @param aManifest {Object} the manifest data provided by the web app
    *
    */
-  _setData: function(aApp, aManifest) {
-    let manifest = new ManifestHelper(aManifest, aApp.origin);
-    let origin = Services.io.newURI(aApp.origin, null, null);
+  _setData: function(aManifest) {
+    let manifest = new ManifestHelper(aManifest, this.app.origin);
+    let origin = Services.io.newURI(this.app.origin, null, null);
 
     this.iconURI = Services.io.newURI(manifest.biggestIconURL || DEFAULT_ICON_URL,
                                       null, null);
@@ -138,25 +140,25 @@ CommonNativeApp.prototype = {
       "registryDir": this.registryDir,
       "app": {
         "manifest": aManifest,
-        "origin": aApp.origin,
-        "manifestURL": aApp.manifestURL,
-        "installOrigin": aApp.installOrigin,
+        "origin": this.app.origin,
+        "manifestURL": this.app.manifestURL,
+        "installOrigin": this.app.installOrigin,
         "categories": this.categories,
-        "receipts": aApp.receipts,
-        "installTime": aApp.installTime,
+        "receipts": this.app.receipts,
+        "installTime": this.app.installTime,
       }
     };
 
-    if (aApp.etag) {
-      this.webappJson.app.etag = aApp.etag;
+    if (this.app.etag) {
+      this.webappJson.app.etag = this.app.etag;
     }
 
-    if (aApp.packageEtag) {
-      this.webappJson.app.packageEtag = aApp.packageEtag;
+    if (this.app.packageEtag) {
+      this.webappJson.app.packageEtag = this.app.packageEtag;
     }
 
-    if (aApp.updateManifest) {
-      this.webappJson.app.updateManifest = aApp.updateManifest;
+    if (this.app.updateManifest) {
+      this.webappJson.app.updateManifest = this.app.updateManifest;
     }
 
     this.runtimeFolder = OS.Constants.Path.libDir;

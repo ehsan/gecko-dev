@@ -15,7 +15,7 @@
 #include <vector>
 
 #include "common/debug.h"
-#include "common/mathutil.h"
+#include "libGLESv2/mathutil.h"
 #include "libGLESv2/main.h"
 #include "libGLESv2/Context.h"
 #include "libGLESv2/renderer/SwapChain.h"
@@ -191,10 +191,6 @@ EGLSurface Display::createWindowSurface(HWND window, EGLConfig config, const EGL
     const Config *configuration = mConfigSet.get(config);
     EGLint postSubBufferSupported = EGL_FALSE;
 
-    EGLint width = 0;
-    EGLint height = 0;
-    EGLint fixedSize = EGL_FALSE;
-
     if (attribList)
     {
         while (*attribList != EGL_NONE)
@@ -215,15 +211,6 @@ EGLSurface Display::createWindowSurface(HWND window, EGLConfig config, const EGL
               case EGL_POST_SUB_BUFFER_SUPPORTED_NV:
                 postSubBufferSupported = attribList[1];
                 break;
-              case EGL_WIDTH:
-                width = attribList[1];
-                break;
-              case EGL_HEIGHT:
-                height = attribList[1];
-                break;
-              case EGL_FIXED_SIZE_ANGLE:
-                fixedSize = attribList[1];
-                break;
               case EGL_VG_COLORSPACE:
                 return error(EGL_BAD_MATCH, EGL_NO_SURFACE);
               case EGL_VG_ALPHA_FORMAT:
@@ -234,17 +221,6 @@ EGLSurface Display::createWindowSurface(HWND window, EGLConfig config, const EGL
 
             attribList += 2;
         }
-    }
-
-    if (width < 0 || height < 0)
-    {
-        return error(EGL_BAD_PARAMETER, EGL_NO_SURFACE);
-    }
-
-    if (!fixedSize)
-    {
-        width = -1;
-        height = -1;
     }
 
     if (hasExistingWindowSurface(window))
@@ -258,7 +234,7 @@ EGLSurface Display::createWindowSurface(HWND window, EGLConfig config, const EGL
             return EGL_NO_SURFACE;
     }
 
-    Surface *surface = new Surface(this, configuration, window, fixedSize, width, height, postSubBufferSupported);
+    Surface *surface = new Surface(this, configuration, window, postSubBufferSupported);
 
     if (!surface->initialize())
     {
@@ -384,29 +360,22 @@ EGLSurface Display::createOffscreenSurface(EGLConfig config, HANDLE shareHandle,
     return success(surface);
 }
 
-EGLContext Display::createContext(EGLConfig configHandle, EGLint clientVersion, const gl::Context *shareContext, bool notifyResets, bool robustAccess)
+EGLContext Display::createContext(EGLConfig configHandle, const gl::Context *shareContext, bool notifyResets, bool robustAccess)
 {
     if (!mRenderer)
     {
-        return EGL_NO_CONTEXT;
+        return NULL;
     }
     else if (mRenderer->testDeviceLost(false))   // Lost device
     {
         if (!restoreLostDevice())
-        {
-            return error(EGL_CONTEXT_LOST, EGL_NO_CONTEXT);
-        }
+            return NULL;
     }
 
-    if (clientVersion > 2 && mRenderer->getMajorShaderModel() < 4)
-    {
-        return error(EGL_BAD_CONFIG, EGL_NO_CONTEXT);
-    }
-
-    gl::Context *context = glCreateContext(clientVersion, shareContext, mRenderer, notifyResets, robustAccess);
+    gl::Context *context = glCreateContext(shareContext, mRenderer, notifyResets, robustAccess);
     mContextSet.insert(context);
 
-    return success(context);
+    return context;
 }
 
 bool Display::restoreLostDevice()
@@ -502,6 +471,7 @@ bool Display::hasExistingWindowSurface(HWND window)
 
 void Display::initExtensionString()
 {
+    HMODULE swiftShader = GetModuleHandle(TEXT("swiftshader_d3d9.dll"));
     bool shareHandleSupported = mRenderer->getShareHandleSupport();
 
     mExtensionString = "";
@@ -517,7 +487,10 @@ void Display::initExtensionString()
 
     mExtensionString += "EGL_ANGLE_query_surface_pointer ";
 
-    mExtensionString += "EGL_ANGLE_window_fixed_size ";
+    if (swiftShader)
+    {
+        mExtensionString += "EGL_ANGLE_software_display ";
+    }
 
     if (shareHandleSupported)
     {
@@ -526,11 +499,8 @@ void Display::initExtensionString()
 
     if (mRenderer->getPostSubBufferSupport())
     {
-        mExtensionString += "EGL_NV_post_sub_buffer ";
+        mExtensionString += "EGL_NV_post_sub_buffer";
     }
-
-    // TODO: complete support for the EGL_KHR_create_context extension
-    mExtensionString += "EGL_KHR_create_context ";
 
     std::string::size_type end = mExtensionString.find_last_not_of(' ');
     if (end != std::string::npos)

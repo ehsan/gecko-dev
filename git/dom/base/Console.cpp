@@ -107,7 +107,7 @@ ConsoleStructuredCloneCallbacksWrite(JSContext* aCx,
     return false;
   }
 
-  nsAutoJSString string;
+  nsDependentJSString string;
   if (!string.init(aCx, jsString)) {
     return false;
   }
@@ -1227,7 +1227,7 @@ Console::ProcessArguments(JSContext* aCx,
     return;
   }
 
-  nsAutoJSString string;
+  nsDependentJSString string;
   if (!string.init(aCx, jsString)) {
     return;
   }
@@ -1378,7 +1378,7 @@ Console::ProcessArguments(JSContext* aCx,
             return;
           }
 
-          nsAutoJSString v;
+          nsDependentJSString v;
           if (!v.init(aCx, jsString)) {
             return;
           }
@@ -1473,7 +1473,7 @@ Console::ComposeGroupName(JSContext* aCx,
       return;
     }
 
-    nsAutoJSString string;
+    nsDependentJSString string;
     if (!string.init(aCx, jsString)) {
       return;
     }
@@ -1505,7 +1505,7 @@ Console::StartTimer(JSContext* aCx, const JS::Value& aName,
     return JS::UndefinedValue();
   }
 
-  nsAutoJSString key;
+  nsDependentJSString key;
   if (!key.init(aCx, jsString)) {
     return JS::UndefinedValue();
   }
@@ -1539,7 +1539,7 @@ Console::StopTimer(JSContext* aCx, const JS::Value& aName,
     return JS::UndefinedValue();
   }
 
-  nsAutoJSString key;
+  nsDependentJSString key;
   if (!key.init(aCx, jsString)) {
     return JS::UndefinedValue();
   }
@@ -1585,7 +1585,7 @@ Console::IncreaseCounter(JSContext* aCx, const ConsoleStackEntry& aFrame,
     JS::Rooted<JS::Value> labelValue(aCx, aArguments[0]);
     JS::Rooted<JSString*> jsString(aCx, JS::ToString(aCx, labelValue));
 
-    nsAutoJSString string;
+    nsDependentJSString string;
     if (jsString && string.init(aCx, jsString)) {
       label = string;
       key = string;
