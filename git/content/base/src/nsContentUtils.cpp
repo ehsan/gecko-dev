@@ -462,7 +462,7 @@ nsContentUtils::InitializeEventTable() {
     { &nsGkAtoms::onloadstart,                   { NS_LOADSTART, EventNameType_HTML }},
     { &nsGkAtoms::onprogress,                    { NS_PROGRESS, EventNameType_HTML }},
     { &nsGkAtoms::onloadedmetadata,              { NS_LOADEDMETADATA, EventNameType_HTML }},
-    { &nsGkAtoms::onloadedfirstframe,            { NS_LOADEDFIRSTFRAME, EventNameType_HTML }},
+    { &nsGkAtoms::onloadeddata,                  { NS_LOADEDDATA, EventNameType_HTML }},
     { &nsGkAtoms::onemptied,                     { NS_EMPTIED, EventNameType_HTML }},
     { &nsGkAtoms::onstalled,                     { NS_STALLED, EventNameType_HTML }},
     { &nsGkAtoms::onplay,                        { NS_PLAY, EventNameType_HTML }},
@@ -472,8 +472,6 @@ nsContentUtils::InitializeEventTable() {
     { &nsGkAtoms::onseeked,                      { NS_SEEKED, EventNameType_HTML }},
     { &nsGkAtoms::ontimeupdate,                  { NS_TIMEUPDATE, EventNameType_HTML }},
     { &nsGkAtoms::onended,                       { NS_ENDED, EventNameType_HTML }},
-    { &nsGkAtoms::ondataunavailable,             { NS_DATAUNAVAILABLE, EventNameType_HTML }},
-    { &nsGkAtoms::oncanshowcurrentframe,         { NS_CANSHOWCURRENTFRAME, EventNameType_HTML }},
     { &nsGkAtoms::oncanplay,                     { NS_CANPLAY, EventNameType_HTML }},
     { &nsGkAtoms::oncanplaythrough,              { NS_CANPLAYTHROUGH, EventNameType_HTML }},
     { &nsGkAtoms::onratechange,                  { NS_RATECHANGE, EventNameType_HTML }},
@@ -3862,6 +3860,8 @@ nsContentUtils::GetWidgetStatusFromIMEStatus(PRUint32 aState)
       return nsIWidget::IME_STATUS_ENABLED;
     case nsIContent::IME_STATUS_PASSWORD:
       return nsIWidget::IME_STATUS_PASSWORD;
+    case nsIContent::IME_STATUS_PLUGIN:
+      return nsIWidget::IME_STATUS_PLUGIN;
     default:
       NS_ERROR("The given state doesn't have valid enable state");
       return nsIWidget::IME_STATUS_ENABLED;

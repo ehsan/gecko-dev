@@ -22,9 +22,10 @@ var seekFlagEnd = false;
 var readonly = true;
 var completed = false;
 
-ok(!document.getElementById('v').seeking, "seeking should default to false");
+var v = document.getElementById('v');
+ok(!v.seeking, "seeking should default to false");
 try {
-  v1.seeking = 1;
+  v.seeking = 1;
   readonly = false;
 }
 catch(e) {

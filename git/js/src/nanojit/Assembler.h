@@ -167,13 +167,15 @@ namespace nanojit
 		public:
 			#ifdef NJ_VERBOSE
 			static char  outline[8192]; 
+			static char  outlineEOL[512];  // string to be added to the end of the line
 			static char* outputAlign(char* s, int col); 
 
+			void FASTCALL outputForEOL(const char* format, ...);
 			void FASTCALL output(const char* s); 
 			void FASTCALL outputf(const char* format, ...); 
 			void FASTCALL output_asm(const char* s); 
 			
-			bool _verbose, vpad[3];
+			bool _verbose, outputAddr, vpad[2];  // if outputAddr=true then next asm instr. will include address in output
 			void printActivationState();
 
 			StringList* _outputCache;
@@ -189,8 +191,6 @@ namespace nanojit
 			void		releaseRegisters();
             void        patch(GuardRecord *lr);
             void        patch(SideExit *exit);
-			void        disconnectLoop(GuardRecord *lr);
-			void        reconnectLoop(GuardRecord *lr);
 			AssmError   error()	{ return _err; }
 			void		setError(AssmError e) { _err = e; }
 			void		setCallTable(const CallInfo *functions);
@@ -260,6 +260,7 @@ namespace nanojit
 			
 			NIns*		_nIns;			// current native instruction
 			NIns*		_nExitIns;		// current instruction in exit fragment page
+			NIns*		_startingIns;	// starting location of code compilation for error handling
 			NIns*       _epilogue;
 			Page*		_nativePages;	// list of NJ_PAGE_SIZE pages that have been alloc'd
 			Page*		_nativeExitPages; // list of pages that have been allocated for exit code
@@ -273,7 +274,7 @@ namespace nanojit
 			Reservation _resvTable[ NJ_MAX_STACK_ENTRY ]; // table where we house stack and register information
 			uint32_t	_resvFree;
 			bool		_inExit, vpad2[3];
-            avmplus::List<LIns*, avmplus::LIST_GCObjects> pending_lives;
+            InsList     pending_lives;
 
 			void		asm_cmp(LIns *cond);
 			void		asm_fcmp(LIns *cond);
@@ -313,18 +314,25 @@ namespace nanojit
 			void		asm_call(LInsp);
             void        asm_arg(ArgSize, LInsp, Register);
 			Register	asm_binop_rhs_reg(LInsp ins);
-			NIns*		asm_branch(bool branchOnFalse, LInsp cond, NIns* targ, bool far);
+			NIns*		asm_branch(bool branchOnFalse, LInsp cond, NIns* targ, bool isfar);
             void        assignSavedRegs();
             void        reserveSavedRegs();
             void        assignParamRegs();
             void        handleLoopCarriedExprs();
-
+			
+			// flag values for nMarkExecute
+			enum 
+			{
+				PAGE_READ = 0x0,	// here only for clarity: all permissions include READ
+				PAGE_WRITE = 0x01,
+				PAGE_EXEC = 0x02
+			};
+			
 			// platform specific implementation (see NativeXXX.cpp file)
-			void		nInit(uint32_t flags);
 			void		nInit(AvmCore *);
 			Register	nRegisterAllocFromSet(int32_t set);
 			void		nRegisterResetAll(RegAlloc& a);
-			void		nMarkExecute(Page* page, int32_t count=1, bool enable=true);
+			void		nMarkExecute(Page* page, int flags);
 			void		nFrameRestore(RegisterMask rmask);
 			NIns*    	nPatchBranch(NIns* branch, NIns* location);
 			void		nFragExit(LIns* guard);
@@ -349,9 +357,9 @@ namespace nanojit
 			// these pointers are required to store
 			// the address range where code has been
 			// modified so we can flush the instruction cache.
-			void* _endJit1Addr;
 			void* _endJit2Addr;
 	#endif // AVMPLUS_PORTING_API
+			avmplus::Config &config;
 	};
 
 	inline int32_t disp(Reservation* r) 

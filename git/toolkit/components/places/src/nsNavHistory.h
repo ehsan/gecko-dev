@@ -737,11 +737,14 @@ protected:
   PRInt32 mAutoCompleteSearchTimeout;
   nsCOMPtr<nsITimer> mAutoCompleteTimer;
 
-  PRBool mRestrictHistory;
-  PRBool mRestrictBookmark;
-  PRBool mRestrictTag;
-  PRBool mMatchTitle;
-  PRBool mMatchUrl;
+  static const PRInt32 kAutoCompleteBehaviorHistory;
+  static const PRInt32 kAutoCompleteBehaviorBookmark;
+  static const PRInt32 kAutoCompleteBehaviorTag;
+  static const PRInt32 kAutoCompleteBehaviorTitle;
+  static const PRInt32 kAutoCompleteBehaviorUrl;
+
+  PRInt32 mAutoCompleteDefaultBehavior; // kAutoCompleteBehavior* bitmap
+  PRInt32 mAutoCompleteCurrentBehavior; // kAutoCompleteBehavior* bitmap
 
   // Original search string for case-sensitive usage
   nsString mOrigSearchString;
@@ -845,7 +848,7 @@ protected:
 
   PRBool mInPrivateBrowsing;
 
-  PRBool mDatabaseStatus;
+  PRUint16 mDatabaseStatus;
 };
 
 /**

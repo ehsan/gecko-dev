@@ -45,7 +45,7 @@ function startTest() {
   completed = true;
   ok(thrown1, "Setting currentTime to invalid value of NaN");
   ok(thrown2, "Setting currentTime to invalid value of -1");
-  ok(thrown2, "Setting currentTime to invalid value of a function");
+  ok(thrown3, "Setting currentTime to invalid value of a function");
   SimpleTest.finish();
   return false;
 }

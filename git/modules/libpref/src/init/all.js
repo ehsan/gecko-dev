@@ -131,6 +131,13 @@ pref("browser.chrome.image_icons.max_size", 1024);
 
 pref("browser.triple_click_selects_paragraph", true);
 
+#ifdef MOZ_OGG
+pref("media.ogg.enabled", true);
+#endif
+#ifdef MOZ_WAVE
+pref("media.wave.enabled", true);
+#endif
+
 // 0 = Off, 1 = Full, 2 = Tagged Images Only. 
 // See eCMSMode in gfx/thebes/public/gfxPlatform.h
 pref("gfx.color_management.mode", 2);
@@ -374,6 +381,7 @@ pref("capability.policy.mailnews.*.substringData.get", "noAccess");
 pref("capability.policy.mailnews.*.text.get", "noAccess");
 pref("capability.policy.mailnews.*.textContent", "noAccess");
 pref("capability.policy.mailnews.*.title.get", "noAccess");
+pref("capability.policy.mailnews.*.wholeText", "noAccess");
 pref("capability.policy.mailnews.DOMException.toString", "noAccess");
 pref("capability.policy.mailnews.HTMLAnchorElement.toString", "noAccess");
 pref("capability.policy.mailnews.HTMLDocument.domain", "noAccess");
@@ -1028,6 +1036,11 @@ pref("bidi.edit.delete_immediately", false);
 // 1 = visual
 // 2 = visual, but logical during selection
 pref("bidi.edit.caret_movement_style", 2);
+
+// Setting this pref to |true| forces Bidi UI menu items and keyboard shortcuts
+// to be exposed, and enables the directional caret hook. By default, only
+// expose it for bidi-associated system locales.
+pref("bidi.browser.ui", false);
 
 // used for double-click word selection behavior. Win will override.
 pref("layout.word_select.eat_space_to_next_word", false);

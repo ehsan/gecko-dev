@@ -515,15 +515,26 @@ BrowserGlue.prototype = {
     if (importBookmarks && !restoreDefaultBookmarks && !importBookmarksHTML) {
       // get latest JSON backup
       Cu.import("resource://gre/modules/utils.js");
-      var bookmarksFile = PlacesUtils.getMostRecentBackup();
-      if (bookmarksFile && bookmarksFile.leafName.match("\.json$")) {
+      var bookmarksBackupFile = PlacesUtils.getMostRecentBackup();
+      if (bookmarksBackupFile && bookmarksBackupFile.leafName.match("\.json$")) {
         // restore from JSON backup
-        PlacesUtils.restoreBookmarksFromJSONFile(bookmarksFile);
+        PlacesUtils.restoreBookmarksFromJSONFile(bookmarksBackupFile);
         importBookmarks = false;
       }
       else {
-        // No backup was available we will try to import from bookmarks.html
+        // We have created a new database but we don't have any backup available
         importBookmarks = true;
+        var dirService = Cc["@mozilla.org/file/directory_service;1"].
+                         getService(Ci.nsIProperties);
+        var bookmarksHTMLFile = dirService.get("BMarks", Ci.nsILocalFile);
+        if (bookmarksHTMLFile.exists()) {
+          // If bookmarks.html is available in current profile import it...
+          importBookmarksHTML = true;
+        }
+        else {
+          // ...otherwise we will restore defaults
+          restoreDefaultBookmarks = true;
+        }
       }
     }
 
@@ -533,10 +544,6 @@ BrowserGlue.prototype = {
       this.ensurePlacesDefaultQueriesInitialized();
     }
     else {
-      // Create a new Organizer left pane folder root, the old will not be
-      // valid anymore.
-      this._prefs.setIntPref("browser.places.leftPaneFolderId", -1);
-
       // ensurePlacesDefaultQueriesInitialized() is called by import.
       this._prefs.setIntPref("browser.places.smartBookmarksVersion", 0);
 
