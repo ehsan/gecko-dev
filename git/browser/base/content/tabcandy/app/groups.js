@@ -124,7 +124,8 @@ window.Group = function(listOfEls, options) {
         .one("mouseout", function(){
           self.$title.removeClass("transparentBorder");
         });
-    }
+    } else 
+      self.adjustTitleSize();
   }
   
   this.$title = $('.name', this.$titlebar)
@@ -142,7 +143,7 @@ window.Group = function(listOfEls, options) {
           .val('');
       }
     })
-    .keydown(handleKeyPress);
+    .keyup(handleKeyPress);
   
   titleUnfocus();
   
@@ -215,10 +216,19 @@ window.Group.prototype = $.extend(new Item(), new Subscribable(), {
   },
 
   // ----------  
-  setValue: function(value) {
+  setTitle: function(value) {
     this.$title.val(value); 
   },
 
+  // ----------  
+  adjustTitleSize: function() {
+    Utils.assert('bounds needs to have been set', this.bounds);
+    var w = Math.min(this.bounds.width - 35, Math.max(150, this.getTitle().length * 6));
+    this.$title.css({
+      width: w
+    });
+  },
+  
   // ----------  
   _getBoundingBox: function(els) {
     var el;
@@ -313,6 +323,8 @@ window.Group.prototype = $.extend(new Item(), new Subscribable(), {
       this.$titlebar.animate(titlebarCSS).dequeue();        
       this.$content.animate(contentCSS).dequeue();        
     }
+    
+    this.adjustTitleSize();
 
     this._updateDebugBounds();
   },
@@ -924,14 +936,10 @@ DragInfo.prototype = {
   stop: function() {
     this.$el.data('isDragging', false);    
 
-    // I'm commenting this out for a while as I believe it feels uncomfortable
-    // that groups go away when there is still a tab in them. I do this at
-    // the cost of symmetry. -- Aza
-    /*
     if(this.parent && !this.parent.locked && this.parent != this.item.parent 
         && this.parent._children.length == 1 && !this.parent.getTitle()) {
       this.parent.remove(this.parent._children[0]);
-    }*/
+    }
      
     if(this.item && !this.$el.hasClass('willGroup') && !this.item.parent) {
       this.item.setZ(drag.zIndex);

@@ -129,14 +129,6 @@ window.Page = {
   init: function() {    
     Utils.homeTab.raw.maxWidth = 60;
     Utils.homeTab.raw.minWidth = 60;
-
-    // When you click on the background/empty part of TabCandy
-    // we create a new group.
-    $(Utils.homeTab.contentDocument).mousedown(function(e){
-      if( e.originalTarget.nodeName == "HTML" )
-        Page.createGroupOnDrag(e)
-    })
-
         
     Tabs.onClose(function(){
       // Only go back to the TabCandy tab when there you close the last
@@ -185,155 +177,7 @@ window.Page = {
       }
       lastTab = this;
     });
-  },
-  
-  // ----------  
-  createGroupOnDrag: function(e){
-    e.preventDefault();
-    const minSize = 60;
-    
-    var startPos = {x:e.clientX, y:e.clientY}
-    var phantom = $("<div class='group'>").css({
-      position: "absolute",
-      top: startPos.y,
-      left: startPos.x,
-      width: 0,
-      height: 0,
-      opacity: .7,
-      zIndex: -1,
-      cursor: "default"
-    }).appendTo("body");
-    
-    function updateSize(e){
-      var css = {width: e.clientX-startPos.x, height:e.clientY-startPos.y}
-      if( css.width > minSize || css.height > minSize ) css.opacity = 1;
-      else css.opacity = .7
-      
-      phantom.css(css);
-      e.preventDefault();     
-    }
-    
-    function collapse(){
-      phantom.animate({
-        width: 0,
-        height: 0,
-        top: phantom.position().top + phantom.height()/2,
-        left: phantom.position().left + phantom.width()/2
-      }, 300, function(){
-        phantom.remove();
-      })
-    }
-    
-    function finalize(e){
-      $("html").unbind("mousemove");
-      if( phantom.css("opacity") != 1 ) collapse();
-      else{
-        var bounds = new Rect(startPos.x, startPos.y, phantom.width(), phantom.height())
-
-        // Add all of the orphaned tabs that are contained inside the new group
-        // to that group.
-        var tabs = Groups.getOrphanedTabs();
-        var insideTabs = [];
-        for each( tab in tabs ){
-          if( bounds.contains( tab.bounds ) ){
-            insideTabs.push(tab);
-          }
-        }
-        
-        var group = new Group(insideTabs,{bounds:bounds});
-        phantom.remove();
-      }
-    }
-    
-    $("html").mousemove(updateSize)
-    $("html").one('mouseup',finalize);
-    return false;
-  },
-  
-  // ----------  
-  findOpenSpaceFor: function($div) {
-    var w = window.innerWidth;
-    var h = 0;
-    var bufferX = 30;
-    var bufferY = 30;
-    var rects = [];
-    var r;
-    var $el;
-    $(".tab:visible").each(function(i) {
-      if(this == $div.get(0))
-        return;
-        
-      $el = $(this);
-      r = {x: parseInt($el.css('left')),
-        y: parseInt($el.css('top')),
-        w: parseInt($el.css('width')) + bufferX,
-        h: parseInt($el.css('height')) + bufferY};
-        
-      if(r.x + r.w > w)
-        w = r.x + r.w;
-
-      if(r.y + r.h > h)
-        h = r.y + r.h;
-  
-      rects.push(r);
-    });
-
-    if(!h) 
-      return { 'x': this.startX, 'y': this.startY };
-      
-    var canvas = document.createElement('canvas');
-    $(canvas).attr({width:w,height:h});
-
-    var ctx = canvas.getContext('2d');
-    ctx.fillStyle = 'rgb(255, 255, 255)';
-    ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = 'rgb(0, 0, 0)';
-    var count = rects.length;
-    var a;
-    for(a = 0; a < count; a++) {
-      r = rects[a];
-      ctx.fillRect(r.x, r.y, r.w, r.h);
-    }
-    
-    var divWidth = parseInt($div.css('width')) + bufferX;
-    var divHeight = parseInt($div.css('height')) + bufferY;
-    var strideX = divWidth / 4;
-    var strideY = divHeight / 4;
-    var data = ctx.getImageData(0, 0, w, h).data;
-
-    function isEmpty(x1, y1) {
-      return (x1 >= 0 && y1 >= 0
-          && x1 < w && y1 < h
-          && data[(y1 * w + x1) * 4]);
-    }
-
-    function isEmptyBox(x1, y1) {
-      return (isEmpty(x1, y1) 
-          && isEmpty(x1 + (divWidth - 1), y1)
-          && isEmpty(x1, y1 + (divHeight - 1))
-          && isEmpty(x1 + (divWidth - 1), y1 + (divHeight - 1)));
-    }
-    
-    for(var y = this.startY; y < h; y += strideY) {
-      for(var x = this.startX; x < w; x += strideX) {
-        if(isEmptyBox(x, y)) {
-          for(; y > this.startY + 1; y--) {
-            if(!isEmptyBox(x, y - 1))
-              break;
-          }
-
-          for(; x > this.startX + 1; x--) {
-            if(!isEmptyBox(x - 1, y))
-              break;
-          }
-
-          return { 'x': x, 'y': y };
-        }
-  	  }
-    }
-
-    return { 'x': this.startX, 'y': h };        
-  }
+  }  
 }
 
 // ##########
@@ -391,23 +235,12 @@ function UIClass(){
     self.navBar.show();
   });
 
-  // ___ tab bar
-  this.$tabBarToggle = $("#tabbar-toggle")
-    .click(function() {
-      if(self.tabBar.isHidden)
-        self.showTabBar();
-      else
-        self.hideTabBar();
-    });
-
   // ___ Page
   Page.init();
   
   // ___ Storage
   var data = Storage.read();
   this.storageSanity(data);
-  if(data.hideTabBar)
-    this.hideTabBar();
     
   if(data.dataVersion < 2) {
     data.groups = null;
@@ -421,7 +254,6 @@ function UIClass(){
     if(self.initialized) {
       var data = {
         dataVersion: 2,
-        hideTabBar: self.tabBar._hidden,
         groups: Groups.getStorageData(),
         tabs: TabItems.getStorageData(), 
         pageBounds: Items.getPageBounds()
@@ -451,18 +283,6 @@ function UIClass(){
 
 // ----------
 UIClass.prototype = {
-  // ----------
-  showTabBar: function() {
-    this.tabBar.show();
-    this.$tabBarToggle.removeClass("tabbar-off");        
-  },
-
-  // ----------
-  hideTabBar: function() {
-    this.tabBar.hide();
-    this.$tabBarToggle.addClass("tabbar-off");        
-  },
-
   // ----------
   resize: function() {
 /*     Groups.repositionNewTabGroup(); */
