@@ -76,6 +76,8 @@
 #include "jstracer.h"
 #include "jslibmath.h"
 #include "jsvector.h"
+#include "methodjit/MethodJIT.h"
+#include "methodjit/Logging.h"
 
 #include "jsatominlines.h"
 #include "jscntxtinlines.h"
@@ -399,6 +401,53 @@ const uint32 PrimitiveValue::Masks[PrimitiveValue::THISP_ARRAY_SIZE] = {
     JSVAL_MASK32_BOOLEAN | FAKE_NUMBER_MASK | JSVAL_MASK32_STRING  /* 111 */
 };
 
+struct AutoInterpPreparer 
+{
+    JSContext *cx;
+    JSScript *script;
+
+    AutoInterpPreparer(JSContext *cx, JSScript *script)
+      : cx(cx), script(script)
+    {
+        if (script->staticLevel < JS_DISPLAY_SIZE) {
+            JSStackFrame **disp = &cx->display[script->staticLevel];
+            cx->fp->displaySave = *disp;
+            *disp = cx->fp;
+        }
+        cx->interpLevel++;
+    }
+
+    ~AutoInterpPreparer()
+    {
+        if (script->staticLevel < JS_DISPLAY_SIZE)
+            cx->display[script->staticLevel] = cx->fp->displaySave;
+        --cx->interpLevel;
+    }
+};
+
+JS_REQUIRES_STACK bool
+RunScript(JSContext *cx, JSScript *script, JSFunction *fun, JSObject *scopeChain)
+{
+    JS_ASSERT(script);
+
+#ifdef JS_METHODJIT_SPEW
+    JMCheckLogging();
+#endif
+
+    AutoInterpPreparer prepareInterp(cx, script);
+
+#ifdef JS_METHODJIT
+    mjit::CompileStatus status = mjit::CanMethodJIT(cx, script, fun, scopeChain);
+    if (status == mjit::Compile_Error)
+        return JS_FALSE;
+
+    if (status == mjit::Compile_Okay)
+        return mjit::JaegerShot(cx);
+#endif
+
+    return Interpret(cx);
+}
+
 /*
  * Find a function reference and its 'this' object implicit first parameter
  * under argc arguments on cx's stack, and call the function.  Push missing
@@ -628,7 +677,7 @@ Invoke(JSContext *cx, const InvokeArgsGuard &args, uintN flags)
 #endif
     } else {
         JS_ASSERT(script);
-        ok = Interpret(cx);
+        ok = RunScript(cx, script, fun, fp->scopeChain);
     }
 
     DTrace::exitJSFun(cx, fp, fun, fp->rval);
@@ -815,7 +864,7 @@ Execute(JSContext *cx, JSObject *chain, JSScript *script,
     if (JSInterpreterHook hook = cx->debugHooks->executeHook)
         hookData = hook(cx, fp, JS_TRUE, 0, cx->debugHooks->executeHookData);
 
-    JSBool ok = Interpret(cx);
+    JSBool ok = RunScript(cx, script, fp->fun, fp->scopeChain);
     if (result)
         *result = fp->rval;
 
