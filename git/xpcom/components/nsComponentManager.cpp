@@ -1987,9 +1987,8 @@ nsFactoryEntry::GetFactory()
         if (!mFactory)
             return NULL;
     }
-    nsIFactory* factory = mFactory.get();
-    NS_ADDREF(factory);
-    return factory;
+    NS_ADDREF(mFactory);
+    return mFactory.get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

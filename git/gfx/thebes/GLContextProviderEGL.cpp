@@ -1554,8 +1554,10 @@ public:
 
     virtual already_AddRefed<gfxASurface> GetBackingSurface()
     {
-        nsRefPtr<gfxASurface> copy = mBackingSurface;
-        return copy.forget();
+        if (mBackingSurface) {
+            NS_ADDREF(mBackingSurface);
+        }
+        return mBackingSurface.get();
     }
 
     virtual PRBool CreateEGLSurface(gfxASurface* aSurface)

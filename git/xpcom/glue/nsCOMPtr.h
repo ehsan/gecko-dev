@@ -429,31 +429,6 @@ nsCOMPtr_base
   {
     public:
 
-      template <class T>
-      class
-        NS_FINAL_CLASS
-        NS_STACK_CLASS
-      nsDerivedSafe : public T
-          /*
-            No client should ever see or have to type the name of this class.  It is the
-            artifact that makes it a compile-time error to call |AddRef| and |Release|
-            on a |nsCOMPtr|.  DO NOT USE THIS TYPE DIRECTLY IN YOUR CODE.
-
-            See |nsCOMPtr::operator->| and |nsRefPtr::operator->|.
-          */
-        {
-          private:
-            using T::AddRef;
-            using T::Release;
-
-          protected:
-            nsDerivedSafe(); // NOT TO BE IMPLEMENTED
-              /*
-                This ctor exists to avoid compile errors and warnings about nsDerivedSafe using the
-                default ctor but inheriting classes without an empty ctor.  See bug 209667.
-              */
-        };
-
       nsCOMPtr_base( nsISupports* rawPtr = 0 )
           : mRawPtr(rawPtr)
         {
@@ -828,11 +803,11 @@ nsCOMPtr
           return get();
         }
 
-      nsCOMPtr_base::nsDerivedSafe<T>*
+      T*
       operator->() const
         {
           NS_PRECONDITION(mRawPtr != 0, "You can't dereference a NULL nsCOMPtr with operator->().");
-          return reinterpret_cast<nsCOMPtr_base::nsDerivedSafe<T>*> (get());
+          return get();
         }
 
       nsCOMPtr<T>*
@@ -1135,11 +1110,11 @@ class nsCOMPtr<nsISupports>
           return get();
         }
 
-      nsDerivedSafe<nsISupports>*
+      nsISupports*
       operator->() const
         {
           NS_PRECONDITION(mRawPtr != 0, "You can't dereference a NULL nsCOMPtr with operator->().");
-          return reinterpret_cast<nsCOMPtr_base::nsDerivedSafe<nsISupports>*> (get());
+          return get();
         }
 
       nsCOMPtr<nsISupports>*
