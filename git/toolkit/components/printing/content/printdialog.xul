@@ -55,8 +55,7 @@
   screenX="24" screenY="24">
 
   <script type="application/javascript" src="chrome://global/content/printdialog.js"/>
-
-  <stringbundle id="printingBundle" src="chrome://global/locale/printing.properties"/>
+  <script type="application/javascript" src="chrome://global/content/strres.js"/>
 
   <groupbox>
     <caption label="&printer.label;"/>
