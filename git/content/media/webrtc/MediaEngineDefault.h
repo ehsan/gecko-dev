@@ -25,8 +25,6 @@ class ImageContainer;
 class PlanarYCbCrImage;
 }
 
-class MediaEngineDefault;
-
 /**
  * The default implementation of the MediaEngine interface.
  */
@@ -34,7 +32,7 @@ class MediaEngineDefaultVideoSource : public nsITimerCallback,
                                       public MediaEngineVideoSource
 {
 public:
-  MediaEngineDefaultVideoSource(int aWidth, int aHeight, int aFPS);
+  MediaEngineDefaultVideoSource();
   ~MediaEngineDefaultVideoSource();
 
   virtual void GetName(nsAString&);
@@ -59,21 +57,19 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSITIMERCALLBACK
 
-  static const int DEFAULT_VIDEO_FPS = 60;
-  static const int DEFAULT_VIDEO_MIN_FPS = 10;
-  static const int DEFAULT_VIDEO_WIDTH = 640;
-  static const int DEFAULT_VIDEO_HEIGHT = 480;
+  // Need something better...
+  static const int DEFAULT_WIDTH=640;
+  static const int DEFAULT_HEIGHT=480;
+  static const int DEFAULT_FPS=30;
 
 protected:
-  friend class MediaEngineDefault;
-
   TrackID mTrackID;
   nsCOMPtr<nsITimer> mTimer;
   nsRefPtr<layers::ImageContainer> mImageContainer;
 
   SourceMediaStream* mSource;
   layers::PlanarYCbCrImage* mImage;
-  MediaEngineVideoOptions mOpts;
+  static const MediaEngineVideoOptions mOpts;
   int mCb;
   int mCr;
 };

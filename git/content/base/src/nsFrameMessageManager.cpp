@@ -1111,8 +1111,7 @@ nsFrameScriptExecutor::TryCacheLoadAndCompileScript(const nsAString& aURL,
 }
 
 bool
-nsFrameScriptExecutor::InitTabChildGlobalInternal(nsISupports* aScope,
-                                                  const nsACString& aID)
+nsFrameScriptExecutor::InitTabChildGlobalInternal(nsISupports* aScope)
 {
   
   nsCOMPtr<nsIJSRuntimeService> runtimeSvc = 
@@ -1152,11 +1151,6 @@ nsFrameScriptExecutor::InitTabChildGlobalInternal(nsISupports* aScope,
   NS_ENSURE_SUCCESS(rv, false);
 
   JS_SetGlobalObject(cx, global);
-
-  // Set the location information for the new global, so that tools like
-  // about:memory may use that information.
-  xpc::SetLocationForGlobal(global, aID);
-
   DidCreateCx();
   return true;
 }

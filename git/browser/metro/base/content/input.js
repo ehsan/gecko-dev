@@ -165,6 +165,8 @@ var TouchModule = {
 
     this._targetScrollbox = null;
     this._targetScrollInterface = null;
+
+    this._cleanClickBuffer();
   },
 
   _onContextMenu: function _onContextMenu(aEvent) {

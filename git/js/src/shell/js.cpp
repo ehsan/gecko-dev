@@ -115,8 +115,7 @@ static uintptr_t gStackBase;
  */
 static double MAX_TIMEOUT_INTERVAL = 1800.0;
 static double gTimeoutInterval = -1.0;
-static volatile bool gTimedOut = false;
-static js::Value gTimeoutFunc;
+static volatile bool gCanceled = false;
 
 static bool enableMethodJit = true;
 static bool enableTypeInference = true;
@@ -454,7 +453,7 @@ static JSShellContextData *
 NewContextData()
 {
     /* Prevent creation of new contexts after we have been canceled. */
-    if (gTimedOut)
+    if (gCanceled)
         return NULL;
 
     JSShellContextData *data = (JSShellContextData *)
@@ -477,28 +476,11 @@ GetContextData(JSContext *cx)
 static JSBool
 ShellOperationCallback(JSContext *cx)
 {
-    if (!gTimedOut)
+    if (!gCanceled)
         return true;
 
     JS_ClearPendingException(cx);
-
-    bool result;
-    if (!gTimeoutFunc.isNull()) {
-        jsval returnedValue;
-        if (!JS_CallFunctionValue(cx, NULL, gTimeoutFunc, 0, NULL, &returnedValue))
-            return false;
-        if (returnedValue.isBoolean())
-            result = returnedValue.toBoolean();
-        else
-            result = false;
-    } else {
-        result = false;
-    }
-
-    if (!result && gExitCode == 0)
-        gExitCode = EXITCODE_TIMEOUT;
-
-    return result;
+    return false;
 }
 
 static void
@@ -593,7 +575,7 @@ Process(JSContext *cx, JSObject *obj_, const char *filename, bool forceTTY)
         JS_ASSERT_IF(!script, gGotError);
         if (script && !compileOnly) {
             if (!JS_ExecuteScript(cx, obj, script, NULL)) {
-                if (!gQuitting && !gTimedOut)
+                if (!gQuitting && !gCanceled)
                     gExitCode = EXITCODE_RUNTIME_ERROR;
             }
             int64_t t2 = PRMJ_Now() - t1;
@@ -620,7 +602,7 @@ Process(JSContext *cx, JSObject *obj_, const char *filename, bool forceTTY)
         size_t len = 0; /* initialize to avoid warnings */
         do {
             ScheduleWatchdog(cx->runtime, -1);
-            gTimedOut = false;
+            gCanceled = false;
             errno = 0;
 
             char *line = GetLine(file, startline == lineno ? "js> " : "");
@@ -2797,7 +2779,7 @@ Sleep_fn(JSContext *cx, unsigned argc, jsval *vp)
     int64_t to_wakeup = PRMJ_Now() + t_ticks;
     for (;;) {
         PR_WaitCondVar(gSleepWakeup, t_ticks);
-        if (gTimedOut)
+        if (gCanceled)
             break;
         int64_t now = PRMJ_Now();
         if (!IsBefore(now, to_wakeup))
@@ -2805,7 +2787,7 @@ Sleep_fn(JSContext *cx, unsigned argc, jsval *vp)
         t_ticks = to_wakeup - now;
     }
     PR_Unlock(gWatchdogLock);
-    return !gTimedOut;
+    return !gCanceled;
 }
 
 static bool
@@ -2997,20 +2979,20 @@ ScheduleWatchdog(JSRuntime *rt, double t)
 static void
 CancelExecution(JSRuntime *rt)
 {
-    gTimedOut = true;
+    gCanceled = true;
+    if (gExitCode == 0)
+        gExitCode = EXITCODE_TIMEOUT;
     JS_TriggerOperationCallback(rt);
 
-    if (!gTimeoutFunc.isNull()) {
-        static const char msg[] = "Script runs for too long, terminating.\n";
+    static const char msg[] = "Script runs for too long, terminating.\n";
 #if defined(XP_UNIX) && !defined(JS_THREADSAFE)
-        /* It is not safe to call fputs from signals. */
-        /* Dummy assignment avoids GCC warning on "attribute warn_unused_result" */
-        ssize_t dummy = write(2, msg, sizeof(msg) - 1);
-        (void)dummy;
+    /* It is not safe to call fputs from signals. */
+    /* Dummy assignment avoids GCC warning on "attribute warn_unused_result" */
+    ssize_t dummy = write(2, msg, sizeof(msg) - 1);
+    (void)dummy;
 #else
-        fputs(msg, stderr);
+    fputs(msg, stderr);
 #endif
-    }
 }
 
 static JSBool
@@ -3037,7 +3019,7 @@ Timeout(JSContext *cx, unsigned argc, jsval *vp)
         return true;
     }
 
-    if (argc > 2) {
+    if (argc > 1) {
         JS_ReportError(cx, "Wrong number of arguments");
         return false;
     }
@@ -3045,15 +3027,6 @@ Timeout(JSContext *cx, unsigned argc, jsval *vp)
     double t;
     if (!JS_ValueToNumber(cx, JS_ARGV(cx, vp)[0], &t))
         return false;
-
-    if (argc > 1) {
-        RootedValue value(cx, JS_ARGV(cx, vp)[1]);
-        if (!value.isObject() || !value.toObject().isFunction()) {
-            JS_ReportError(cx, "Second argument must be a timeout function");
-            return false;
-        }
-        gTimeoutFunc = value;
-    }
 
     *vp = JSVAL_VOID;
     return SetTimeoutValue(cx, t);
@@ -3823,10 +3796,9 @@ static JSFunctionSpecWithHelp shell_functions[] = {
 "  Parses a string, potentially throwing."),
 
     JS_FN_HELP("timeout", Timeout, 1, 0,
-"timeout([seconds], [func])",
+"timeout([seconds])",
 "  Get/Set the limit in seconds for the execution time for the current context.\n"
-"  A negative value (default) means that the execution time is unlimited.\n"
-"  If a second argument is provided, it will be invoked when the timer elapses.\n"),
+"  A negative value (default) means that the execution time is unlimited."),
 
     JS_FN_HELP("elapsed", Elapsed, 0, 0,
 "elapsed()",
@@ -5366,9 +5338,6 @@ main(int argc, char **argv, char **envp)
     /* Use the same parameters as the browser in xpcjsruntime.cpp. */
     rt = JS_NewRuntime(32L * 1024L * 1024L, JS_USE_HELPER_THREADS);
     if (!rt)
-        return 1;
-    gTimeoutFunc = JSVAL_NULL;
-    if (!JS_AddNamedValueRootRT(rt, &gTimeoutFunc, "gTimeoutFunc"))
         return 1;
 
     JS_SetGCParameter(rt, JSGC_MAX_BYTES, 0xffffffff);

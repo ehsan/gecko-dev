@@ -113,7 +113,6 @@ class XPCShellRunner(MozbuildObject):
             'verbose': test_path is not None,
             'xunitFilename': os.path.join(self.statedir, 'xpchsell.xunit.xml'),
             'xunitName': 'xpcshell',
-            'pluginsPath': os.path.join(self.distdir, 'plugins'),
         }
 
         if manifest is not None:
@@ -175,3 +174,4 @@ class MachCommands(MachCommandBase):
         except InvalidTestPathError as e:
             print(e.message)
             return 1
+

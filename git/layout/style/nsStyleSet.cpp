@@ -767,14 +767,13 @@ nsStyleSet::GetContext(nsStyleContext* aParentContext,
 
   if (!result) {
     result = NS_NewStyleContext(aParentContext, aPseudoTag, aPseudoType,
-                                aRuleNode, aFlags & eSkipFlexItemStyleFixup);
+                                aRuleNode);
     if (!result)
       return nullptr;
     if (aVisitedRuleNode) {
       nsRefPtr<nsStyleContext> resultIfVisited =
         NS_NewStyleContext(parentIfVisited, aPseudoTag, aPseudoType,
-                           aVisitedRuleNode,
-                           aFlags & eSkipFlexItemStyleFixup);
+                           aVisitedRuleNode);
       if (!resultIfVisited) {
         return nullptr;
       }
@@ -1175,9 +1174,6 @@ nsStyleSet::ResolveStyleFor(Element* aElement,
                             HasState(NS_EVENT_STATE_VISITED)) {
     flags |= eIsVisitedLink;
   }
-  if (aTreeMatchContext.mSkippingFlexItemStyleFixup) {
-    flags |= eSkipFlexItemStyleFixup;
-  }
 
   return GetContext(aParentContext, ruleNode, visitedRuleNode,
                     nullptr, nsCSSPseudoElements::ePseudo_NotPseudoElement,
@@ -1323,10 +1319,7 @@ nsStyleSet::ResolvePseudoElementStyle(Element* aParentElement,
 
   // For pseudos, |data.IsLink()| being true means that
   // our parent node is a link.
-  // Also: Flex containers shouldn't have pseudo-elements, so given that we're
-  // looking up pseudo-element style, make sure we're not treating our node as
-  // a flex item.
-  uint32_t flags = eSkipFlexItemStyleFixup;
+  uint32_t flags = eNoFlags;
   if (aType == nsCSSPseudoElements::ePseudo_before ||
       aType == nsCSSPseudoElements::ePseudo_after) {
     flags |= eDoAnimation;
@@ -1389,10 +1382,7 @@ nsStyleSet::ProbePseudoElementStyle(Element* aParentElement,
 
   // For pseudos, |data.IsLink()| being true means that
   // our parent node is a link.
-  // Also: Flex containers shouldn't have pseudo-elements, so given that we're
-  // looking up pseudo-element style, make sure we're not treating our node as
-  // a flex item.
-  uint32_t flags = eSkipFlexItemStyleFixup;
+  uint32_t flags = eNoFlags;
   if (aType == nsCSSPseudoElements::ePseudo_before ||
       aType == nsCSSPseudoElements::ePseudo_after) {
     flags |= eDoAnimation;

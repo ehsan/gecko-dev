@@ -46,13 +46,11 @@ CurrentScriptFileLineOrigin(JSContext *cx, const char **file, unsigned *linenop,
 {
     if (opt == CALLED_FROM_JSOP_EVAL) {
         AutoAssertNoGC nogc;
-        JSScript *script = NULL;
-        jsbytecode *pc = NULL;
-        types::TypeScript::GetPcScript(cx, &script, &pc);
-        JS_ASSERT(JSOp(*pc) == JSOP_EVAL);
-        JS_ASSERT(*(pc + JSOP_EVAL_LENGTH) == JSOP_LINENO);
+        JS_ASSERT(JSOp(*cx->regs().pc) == JSOP_EVAL);
+        JS_ASSERT(*(cx->regs().pc + JSOP_EVAL_LENGTH) == JSOP_LINENO);
+        UnrootedScript script = cx->fp()->script();
         *file = script->filename;
-        *linenop = GET_UINT16(pc + JSOP_EVAL_LENGTH);
+        *linenop = GET_UINT16(cx->regs().pc + JSOP_EVAL_LENGTH);
         *origin = script->originPrincipals;
         return;
     }
@@ -91,10 +89,6 @@ MarkScriptBytecode(JSRuntime *rt, const jsbytecode *bytecode)
         SharedScriptData::fromBytecode(bytecode)->marked = true;
 }
 
-void
-SetFrameArgumentsObject(JSContext *cx, AbstractFramePtr frame,
-                        HandleScript script, JSObject *argsobj);
-
 } // namespace js
 
 inline void
@@ -116,16 +110,6 @@ JSScript::getCallerFunction()
 {
     JS_ASSERT(savedCallerFun);
     return getFunction(0);
-}
-
-inline JSFunction *
-JSScript::functionOrCallerFunction()
-{
-    if (function())
-        return function();
-    if (savedCallerFun)
-        return getCallerFunction();
-    return NULL;
 }
 
 inline js::RegExpObject *

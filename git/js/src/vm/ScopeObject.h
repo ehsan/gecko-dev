@@ -402,7 +402,6 @@ class ScopeIter
     enum Type { Call, Block, With, StrictEvalScope };
 
   private:
-    JSContext *cx;
     AbstractFramePtr frame_;
     RootedObject cur_;
     Rooted<StaticBlockObject *> block_;

@@ -238,18 +238,13 @@ DoesNotParticipateInAutoDirection(const Element* aElement)
   return (!aElement->IsHTML() ||
           nodeInfo->Equals(nsGkAtoms::script) ||
           nodeInfo->Equals(nsGkAtoms::style) ||
-          nodeInfo->Equals(nsGkAtoms::textarea) ||
-          aElement->IsInAnonymousSubtree());
+          nodeInfo->Equals(nsGkAtoms::textarea));
 }
 
 static inline bool
 IsBdiWithoutDirAuto(const Element* aElement)
 {
-  // We are testing for bdi elements without explicit dir="auto", so we can't
-  // use the HasDirAuto() flag, since that will return true for bdi element with
-  // no dir attribute or an invalid dir attribute
-  return (aElement->IsHTML(nsGkAtoms::bdi) &&
-          (!aElement->HasValidDir() || aElement->HasFixedDir()));
+  return aElement->IsHTML(nsGkAtoms::bdi) && !aElement->HasDirAuto();
 }
 
 /**

@@ -26,6 +26,7 @@
 #include "nsCOMArray.h"
 #include "nsJSUtils.h"
 #include "nsTArray.h"
+#include "nsIJSNativeInitializer.h"
 #include "nsIDOMLSProgressEvent.h"
 #include "nsITimer.h"
 #include "nsIDOMProgressEvent.h"
@@ -123,6 +124,7 @@ class nsXMLHttpRequest : public nsXHREventTarget,
                          public nsIProgressEventSink,
                          public nsIInterfaceRequestor,
                          public nsSupportsWeakReference,
+                         public nsIJSNativeInitializer,
                          public nsITimerCallback,
                          public nsISizeOfEventTarget
 {
@@ -191,6 +193,8 @@ public:
     mBaseURI = aBaseURI;
   }
 
+  // Initialize XMLHttpRequestParameter object.
+  nsresult InitParameters(JSContext* aCx, const jsval* aParams);
   void InitParameters(bool aAnon, bool aSystem);
 
   void SetParameters(bool aAnon, bool aSystem)
@@ -223,6 +227,10 @@ public:
 
   // nsITimerCallback
   NS_DECL_NSITIMERCALLBACK
+
+  // nsIJSNativeInitializer
+  NS_IMETHOD Initialize(nsISupports* aOwner, JSContext* cx, JSObject* obj,
+                       uint32_t argc, jsval* argv);
 
   // nsISizeOfEventTarget
   virtual size_t

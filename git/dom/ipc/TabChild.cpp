@@ -2060,8 +2060,7 @@ TabChild::InitTabChildGlobal(FrameScriptLoading aScriptLoading)
 
     nsISupports* scopeSupports = NS_ISUPPORTS_CAST(nsIDOMEventTarget*, scope);
 
-    NS_NAMED_LITERAL_CSTRING(globalId, "outOfProcessTabChildGlobal");
-    NS_ENSURE_TRUE(InitTabChildGlobalInternal(scopeSupports, globalId), false);
+    NS_ENSURE_TRUE(InitTabChildGlobalInternal(scopeSupports), false); 
 
     scope->Init();
 

@@ -1445,42 +1445,6 @@ class MApplyArgs
     }
 };
 
-class MCallDirectEval
-  : public MAryInstruction<3>,
-    public MixPolicy<ObjectPolicy<0>, MixPolicy<StringPolicy<1>, BoxPolicy<2> > >
-{
-  protected:
-    MCallDirectEval(MDefinition *scopeChain, MDefinition *string, MDefinition *thisValue)
-    {
-        setOperand(0, scopeChain);
-        setOperand(1, string);
-        setOperand(2, thisValue);
-        setResultType(MIRType_Value);
-    }
-
-  public:
-    INSTRUCTION_HEADER(CallDirectEval)
-
-    static MCallDirectEval *
-    New(MDefinition *scopeChain, MDefinition *string, MDefinition *thisValue) {
-        return new MCallDirectEval(scopeChain, string, thisValue);
-    }
-
-    MDefinition *getScopeChain() const {
-        return getOperand(0);
-    }
-    MDefinition *getString() const {
-        return getOperand(1);
-    }
-    MDefinition *getThisValue() const {
-        return getOperand(2);
-    }
-
-    TypePolicy *typePolicy() {
-        return this;
-    }
-};
-
 class MBinaryInstruction : public MAryInstruction<2>
 {
   protected:
@@ -1795,7 +1759,6 @@ class MUnbox : public MUnaryInstruction
     AliasSet getAliasSet() const {
         return AliasSet::None();
     }
-    void printOpcode(FILE *fp);
 };
 
 class MGuardObject : public MUnaryInstruction, public SingleObjectPolicy
@@ -1829,7 +1792,7 @@ class MGuardObject : public MUnaryInstruction, public SingleObjectPolicy
 
 class MGuardString
   : public MUnaryInstruction,
-    public StringPolicy<0>
+    public StringPolicy
 {
     MGuardString(MDefinition *ins)
       : MUnaryInstruction(ins)
@@ -3070,7 +3033,7 @@ class MConcat
 
 class MCharCodeAt
   : public MBinaryInstruction,
-    public MixPolicy<StringPolicy<0>, IntPolicy<1> >
+    public MixPolicy<StringPolicy, IntPolicy<1> >
 {
     MCharCodeAt(MDefinition *str, MDefinition *index)
         : MBinaryInstruction(str, index)
@@ -3495,7 +3458,7 @@ class MRegExp : public MNullaryInstruction
 
 class MRegExpTest
   : public MBinaryInstruction,
-    public MixPolicy<ObjectPolicy<1>, StringPolicy<0> >
+    public MixPolicy<ObjectPolicy<1>, StringPolicy >
 {
   private:
 
@@ -4993,11 +4956,9 @@ class MPolyInlineDispatch : public MControlInstruction, public SingleObjectPolic
 
 
 class MGetElementCache
-  : public MBinaryInstruction
+  : public MBinaryInstruction,
+    public MixPolicy<ObjectPolicy<0>, BoxPolicy<1> >
 {
-    MixPolicy<ObjectPolicy<0>, BoxPolicy<1> > PolicyV;
-    MixPolicy<ObjectPolicy<0>, IntPolicy<1> > PolicyT;
-
     // See the comment in IonBuilder::jsop_getelem.
     bool monitoredResult_;
 
@@ -5024,9 +4985,7 @@ class MGetElementCache
         return monitoredResult_;
     }
     TypePolicy *typePolicy() {
-        if (type() == MIRType_Value)
-            return &PolicyV;
-        return &PolicyT;
+        return this;
     }
 };
 
@@ -5753,7 +5712,7 @@ class MGetDOMProperty
 
 class MStringLength
   : public MUnaryInstruction,
-    public StringPolicy<0>
+    public StringPolicy
 {
     MStringLength(MDefinition *string)
       : MUnaryInstruction(string)
@@ -6368,7 +6327,7 @@ class MParNewCallObject : public MBinaryInstruction
 
 class MNewStringObject :
   public MUnaryInstruction,
-  public StringPolicy<0>
+  public StringPolicy
 {
     CompilerRootObject templateObj_;
 

@@ -374,7 +374,6 @@ struct Parser : private AutoGCRooter
      * Some parsers have two versions:  an always-inlined version (with an 'i'
      * suffix) and a never-inlined version (with an 'n' suffix).
      */
-    ParseNode *moduleDecl();
     ParseNode *functionStmt();
     ParseNode *functionExpr();
     ParseNode *statements(bool *hasFunctionStmt = NULL);

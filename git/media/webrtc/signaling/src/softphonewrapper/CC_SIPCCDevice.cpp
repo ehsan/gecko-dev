@@ -2,8 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "CSFLog.h"
-
 #include "CC_Common.h"
 
 #include "CC_SIPCCDevice.h"
@@ -22,6 +20,8 @@ extern "C"
 
 using namespace std;
 using namespace CSF;
+
+#include "CSFLogStream.h"
 
 CSF_IMPLEMENT_WRAP(CC_SIPCCDevice, cc_device_handle_t);
 

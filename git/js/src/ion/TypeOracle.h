@@ -100,10 +100,9 @@ class TypeOracle
     virtual bool elementReadIsPacked(UnrootedScript script, jsbytecode *pc) {
         return false;
     }
-    virtual void elementReadGeneric(UnrootedScript script, jsbytecode *pc, bool *cacheable, bool *monitorResult, bool *intIndex) {
+    virtual void elementReadGeneric(UnrootedScript script, jsbytecode *pc, bool *cacheable, bool *monitorResult) {
         *cacheable = false;
         *monitorResult = true;
-        *intIndex = false;
     }
     virtual bool setElementHasWrittenHoles(UnrootedScript script, jsbytecode *pc) {
         return true;
@@ -111,13 +110,7 @@ class TypeOracle
     virtual bool elementWriteIsDenseNative(HandleScript script, jsbytecode *pc) {
         return false;
     }
-    virtual bool elementWriteIsDenseNative(types::StackTypeSet *obj, types::StackTypeSet *id) {
-        return false;
-    }
     virtual bool elementWriteIsTypedArray(RawScript script, jsbytecode *pc, int *arrayType) {
-        return false;
-    }
-    virtual bool elementWriteIsTypedArray(types::StackTypeSet *obj, types::StackTypeSet *id, int *arrayType) {
         return false;
     }
     virtual bool elementWriteNeedsDoubleConversion(UnrootedScript script, jsbytecode *pc) {
@@ -127,6 +120,12 @@ class TypeOracle
         return false;
     }
     virtual bool elementWriteIsPacked(RawScript script, jsbytecode *pc) {
+        return false;
+    }
+    virtual bool elementAccessIsDenseNative(types::StackTypeSet *obj, types::StackTypeSet *id) {
+        return false;
+    }
+    virtual bool elementAccessIsTypedArray(types::StackTypeSet *obj, types::StackTypeSet *id, int *arrayType) {
         return false;
     }
     virtual bool arrayResultShouldHaveDoubleConversion(UnrootedScript script, jsbytecode *pc) {
@@ -257,11 +256,11 @@ class TypeInferenceOracle : public TypeOracle
     bool elementReadShouldAlwaysLoadDoubles(UnrootedScript script, jsbytecode *pc);
     bool elementReadHasExtraIndexedProperty(UnrootedScript, jsbytecode *pc);
     bool elementReadIsPacked(UnrootedScript script, jsbytecode *pc);
-    void elementReadGeneric(UnrootedScript script, jsbytecode *pc, bool *cacheable, bool *monitorResult, bool *intIndex);
+    void elementReadGeneric(UnrootedScript script, jsbytecode *pc, bool *cacheable, bool *monitorResult);
     bool elementWriteIsDenseNative(HandleScript script, jsbytecode *pc);
-    bool elementWriteIsDenseNative(types::StackTypeSet *obj, types::StackTypeSet *id);
+    bool elementAccessIsDenseNative(types::StackTypeSet *obj, types::StackTypeSet *id);
     bool elementWriteIsTypedArray(RawScript script, jsbytecode *pc, int *arrayType);
-    bool elementWriteIsTypedArray(types::StackTypeSet *obj, types::StackTypeSet *id, int *arrayType);
+    bool elementAccessIsTypedArray(types::StackTypeSet *obj, types::StackTypeSet *id, int *arrayType);
     bool elementWriteNeedsDoubleConversion(UnrootedScript script, jsbytecode *pc);
     bool elementWriteHasExtraIndexedProperty(RawScript script, jsbytecode *pc);
     bool elementWriteIsPacked(RawScript script, jsbytecode *pc);

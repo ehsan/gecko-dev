@@ -570,7 +570,7 @@ MarkIonExitFrame(JSTracer *trc, const IonFrameIterator &frame)
         gc::MarkValueRoot(trc, oolgetter->thisp(), "ion-ool-getter-this");
         return;
     }
-
+ 
     if (frame.isOOLPropertyOp()) {
         IonOOLPropertyOpExitFrameLayout *oolgetter = frame.exitFrame()->oolPropertyOpExit();
         gc::MarkIonCodeRoot(trc, oolgetter->stubCode(), "ion-ool-property-op-code");
@@ -917,7 +917,7 @@ InlineFrameIterator::resetOn(const IonFrameIterator *iter)
 }
 
 InlineFrameIterator::InlineFrameIterator(JSContext *cx, const InlineFrameIterator *iter)
-  : frame_(iter ? iter->frame_ : NULL),
+  : frame_(iter->frame_),
     framesRead_(0),
     callee_(cx),
     script_(cx)

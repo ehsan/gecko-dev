@@ -126,15 +126,15 @@ nsPluginByteRangeStreamListener::OnStartRequest(nsIRequest *request, nsISupports
   }
   
   if (responseCode != 200) {
-    uint32_t wantsAllNetworkStreams = 0;
+    bool bWantsAllNetworkStreams = false;
     rv = pslp->GetPluginInstance()->GetValueFromPlugin(NPPVpluginWantsAllNetworkStreams,
-                                                       &wantsAllNetworkStreams);
+                                                       &bWantsAllNetworkStreams);
     // If the call returned an error code make sure we still use our default value.
     if (NS_FAILED(rv)) {
-      wantsAllNetworkStreams = 0;
+      bWantsAllNetworkStreams = false;
     }
 
-    if (!wantsAllNetworkStreams){
+    if (!bWantsAllNetworkStreams){
       return NS_ERROR_FAILURE;
     }
   }
@@ -476,20 +476,20 @@ nsPluginStreamListenerPeer::OnStartRequest(nsIRequest *request,
     }
 
     if (responseCode > 206) { // not normal
-      uint32_t wantsAllNetworkStreams = 0;
+      bool bWantsAllNetworkStreams = false;
 
       // We don't always have an instance here already, but if we do, check
       // to see if it wants all streams.
       if (mPluginInstance) {
         rv = mPluginInstance->GetValueFromPlugin(NPPVpluginWantsAllNetworkStreams,
-                                                 &wantsAllNetworkStreams);
+                                                 &bWantsAllNetworkStreams);
         // If the call returned an error code make sure we still use our default value.
         if (NS_FAILED(rv)) {
-          wantsAllNetworkStreams = 0;
+          bWantsAllNetworkStreams = false;
         }
       }
 
-      if (!wantsAllNetworkStreams) {
+      if (!bWantsAllNetworkStreams) {
         mRequestFailed = true;
         return NS_ERROR_FAILURE;
       }

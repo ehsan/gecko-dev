@@ -274,11 +274,10 @@ PowPolicy::adjustInputs(MInstruction *ins)
     return IntPolicy<1>::staticAdjustInputs(ins);
 }
 
-template <unsigned Op>
 bool
-StringPolicy<Op>::staticAdjustInputs(MInstruction *def)
+StringPolicy::staticAdjustInputs(MInstruction *def)
 {
-    MDefinition *in = def->getOperand(Op);
+    MDefinition *in = def->getOperand(0);
     if (in->type() == MIRType_String)
         return true;
 
@@ -292,12 +291,9 @@ StringPolicy<Op>::staticAdjustInputs(MInstruction *def)
     }
 
     def->block()->insertBefore(def, replace);
-    def->replaceOperand(Op, replace);
+    def->replaceOperand(0, replace);
     return true;
 }
-
-template bool StringPolicy<0>::staticAdjustInputs(MInstruction *ins);
-template bool StringPolicy<1>::staticAdjustInputs(MInstruction *ins);
 
 template <unsigned Op>
 bool

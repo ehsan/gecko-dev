@@ -2,8 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "CSFLog.h"
-
 #include "CC_Common.h"
 
 #include "CC_SIPCCDeviceInfo.h"
@@ -23,6 +21,8 @@ extern "C"
 
 using namespace std;
 using namespace CSF;
+
+#include "CSFLog.h"
 
 #define MAX_SUPPORTED_NUM_CALLS        100
 #define MAX_SUPPORTED_NUM_LINES        100

@@ -4,8 +4,6 @@
 
 // Original author: ekr@rtfm.com
 
-#include "CSFLog.h"
-
 #include "MediaPipeline.h"
 
 #include <math.h>
@@ -40,7 +38,7 @@ using namespace mozilla;
 // Dial up pipeline logging in debug mode
 #define MP_LOG_INFO PR_LOG_WARN
 #else
-#define MP_LOG_INFO PR_LOG_DEBUG
+#define MP_LOG_INFO PR_LOG_INFO
 #endif
 
 

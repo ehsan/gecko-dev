@@ -5,18 +5,22 @@
 
 package org.mozilla.gecko.util;
 
+import android.app.Activity;
 import android.os.Handler;
 
 // AsyncTask runs onPostExecute on the thread it is constructed on
 // We construct these off of the main thread, and we want that to run
 // on the main UI thread, so this is a convenience class to do that
-public abstract class UiAsyncTask<Params, Progress, Result> {
+public abstract class GeckoAsyncTask<Params, Progress, Result> {
+    public enum Priority { NORMAL, HIGH };
+
+    private final Activity mActivity;
     private volatile boolean mCancelled = false;
     private final Handler mBackgroundThreadHandler;
-    private final Handler mUiHandler;
+    private Priority mPriority = Priority.NORMAL;
 
-    public UiAsyncTask(Handler uiHandler, Handler backgroundThreadHandler) {
-        mUiHandler = uiHandler;
+    public GeckoAsyncTask(Activity activity, Handler backgroundThreadHandler) {
+        mActivity = activity;
         mBackgroundThreadHandler = backgroundThreadHandler;
     }
 
@@ -30,7 +34,7 @@ public abstract class UiAsyncTask<Params, Progress, Result> {
         public void run() {
             final Result result = doInBackground(mParams);
 
-            mUiHandler.post(new Runnable() {
+            mActivity.runOnUiThread(new Runnable() {
                 public void run() {
                     if (mCancelled)
                         onCancelled();
@@ -42,12 +46,22 @@ public abstract class UiAsyncTask<Params, Progress, Result> {
     }
 
     public final void execute(final Params... params) {
-        mUiHandler.post(new Runnable() {
+        mActivity.runOnUiThread(new Runnable() {
             public void run() {
                 onPreExecute();
-                mBackgroundThreadHandler.post(new BackgroundTaskRunnable(params));
+
+                BackgroundTaskRunnable runnable = new BackgroundTaskRunnable(params);
+                if (mPriority == Priority.HIGH)
+                    mBackgroundThreadHandler.postAtFrontOfQueue(runnable);
+                else
+                    mBackgroundThreadHandler.post(runnable);
             }
         });
+    }
+
+    public final GeckoAsyncTask<Params, Progress, Result> setPriority(Priority priority) {
+        mPriority = priority;
+        return this;
     }
 
     @SuppressWarnings({"UnusedParameters"})

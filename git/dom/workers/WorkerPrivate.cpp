@@ -193,7 +193,7 @@ struct WorkerStructuredCloneCallbacks
 
       // Read the information out of the stream.
       uint32_t width, height;
-      JS::Value dataArray;
+      jsval dataArray;
       if (!JS_ReadUint32Pair(aReader, &width, &height) ||
           !JS_ReadTypedArray(aReader, &dataArray))
       {
@@ -203,7 +203,7 @@ struct WorkerStructuredCloneCallbacks
 
       // Construct the ImageData.
       JSObject* obj = imagedata::Create(aCx, width, height,
-                                        &dataArray.toObject());
+                                        JSVAL_TO_OBJECT(dataArray));
       return obj;
     }
 
@@ -306,7 +306,7 @@ struct MainThreadWorkerStructuredCloneCallbacks
 
         // nsIDOMFiles should be threadsafe, thus we will use the same instance
         // on the main thread.
-        JS::Value wrappedFile;
+        jsval wrappedFile;
         nsresult rv =
           nsContentUtils::WrapNative(aCx, JS_GetGlobalForScopeChain(aCx), file,
                                      &NS_GET_IID(nsIDOMFile), &wrappedFile);
@@ -315,7 +315,7 @@ struct MainThreadWorkerStructuredCloneCallbacks
           return nullptr;
         }
 
-        return &wrappedFile.toObject();
+        return JSVAL_TO_OBJECT(wrappedFile);
       }
     }
     // See if object is a nsIDOMBlob pointer.
@@ -339,7 +339,7 @@ struct MainThreadWorkerStructuredCloneCallbacks
 
         // nsIDOMBlobs should be threadsafe, thus we will use the same instance
         // on the main thread.
-        JS::Value wrappedBlob;
+        jsval wrappedBlob;
         nsresult rv =
           nsContentUtils::WrapNative(aCx, JS_GetGlobalForScopeChain(aCx), blob,
                                      &NS_GET_IID(nsIDOMBlob), &wrappedBlob);
@@ -348,7 +348,7 @@ struct MainThreadWorkerStructuredCloneCallbacks
           return nullptr;
         }
 
-        return &wrappedBlob.toObject();
+        return JSVAL_TO_OBJECT(wrappedBlob);
       }
     }
 
@@ -2156,9 +2156,8 @@ WorkerPrivateParent<Derived>::ForgetMainThreadObjects(
 
 template <class Derived>
 bool
-WorkerPrivateParent<Derived>::PostMessage(JSContext* aCx,
-                                          JS::Value aMessage,
-                                          JS::Value aTransferable)
+WorkerPrivateParent<Derived>::PostMessage(JSContext* aCx, jsval aMessage,
+                                          jsval aTransferable)
 {
   AssertIsOnParentThread();
 

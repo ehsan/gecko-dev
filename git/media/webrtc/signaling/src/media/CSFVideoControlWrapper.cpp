@@ -2,8 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "CSFLog.h"
 #include "CSFVideoControlWrapper.h"
+#include "CSFLogStream.h"
 
 static const char* logTag = "VcmSipccBinding";
 
@@ -17,8 +17,7 @@ void VideoControlWrapper::setVideoMode( bool enable )
 	}
 	else
 	{
-		CSFLogWarn( logTag, "Attempt to setVideoMode to %s for expired video control",
-			enable ? "TRUE" : "FALSE");
+		CSFLogWarnS( logTag, "Attempt to setVideoMode to " << enable << " for expired video control");
 	}
 }
 
@@ -43,8 +42,7 @@ void VideoControlWrapper::showPreviewWindow( bool show )
 	}
 	else
 	{
-		CSFLogWarn( logTag, "Attempt to showPreviewWindow( %s ) for expired video control",
-			show ? "TRUE" : "FALSE");
+		CSFLogWarnS( logTag, "Attempt to showPreviewWindow( " << show << " ) for expired video control");
 	}
 }
 
@@ -85,8 +83,7 @@ bool VideoControlWrapper::setCaptureDevice( const std::string& name )
 	}
 	else
 	{
-		CSFLogWarn( logTag, "Attempt to setCaptureDevice to %s for expired video control",
-			name.c_str());
+		CSFLogWarnS( logTag, "Attempt to setCaptureDevice to " << name << " for expired video control");
 		return false;
 	}
 }
