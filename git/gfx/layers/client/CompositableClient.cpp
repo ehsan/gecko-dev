@@ -169,23 +169,19 @@ CompositableClient::CreateDeprecatedTextureClient(DeprecatedTextureClientType aD
 
 TemporaryRef<BufferTextureClient>
 CompositableClient::CreateBufferTextureClient(SurfaceFormat aFormat,
-                                              TextureFlags aTextureFlags,
-                                              gfx::BackendType aMoz2DBackend)
+                                              TextureFlags aTextureFlags)
 {
   return TextureClient::CreateBufferTextureClient(GetForwarder(), aFormat,
-                                                  aTextureFlags | mTextureFlags,
-                                                  aMoz2DBackend);
+                                                  aTextureFlags | mTextureFlags);
 }
 
 TemporaryRef<TextureClient>
 CompositableClient::CreateTextureClientForDrawing(SurfaceFormat aFormat,
                                                   TextureFlags aTextureFlags,
-                                                  gfx::BackendType aMoz2DBackend,
                                                   const IntSize& aSizeHint)
 {
   return TextureClient::CreateTextureClientForDrawing(GetForwarder(), aFormat,
                                                       aTextureFlags | mTextureFlags,
-                                                      aMoz2DBackend,
                                                       aSizeHint);
 }
 

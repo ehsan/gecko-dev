@@ -6,12 +6,14 @@
 #ifndef WEBGLBUFFER_H_
 #define WEBGLBUFFER_H_
 
+#include "WebGLObjectModel.h"
+#include "WebGLElementArrayCache.h"
 #include "GLDefs.h"
+
+#include "nsWrapperCache.h"
+
 #include "mozilla/LinkedList.h"
 #include "mozilla/MemoryReporting.h"
-#include "nsWrapperCache.h"
-#include "WebGLObjectModel.h"
-#include "WebGLTypes.h"
 
 namespace mozilla {
 
@@ -30,7 +32,10 @@ public:
 
     void Delete();
 
-    size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+    size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const {
+        size_t sizeOfCache = mCache ? mCache->SizeOfIncludingThis(aMallocSizeOf) : 0;
+        return aMallocSizeOf(this) + sizeOfCache;
+    }
 
     bool HasEverBeenBound() { return mHasEverBeenBound; }
     void SetHasEverBeenBound(bool x) { mHasEverBeenBound = x; }
@@ -46,8 +51,9 @@ public:
 
     void ElementArrayCacheBufferSubData(size_t pos, const void* ptr, size_t update_size_in_bytes);
 
-    bool Validate(GLenum type, uint32_t max_allowed, size_t first, size_t count,
-                  uint32_t* out_upperBound);
+    bool Validate(GLenum type, uint32_t max_allowed, size_t first, size_t count) {
+        return mCache->Validate(type, max_allowed, first, count);
+    }
 
     WebGLContext *GetParentObject() const {
         return Context();

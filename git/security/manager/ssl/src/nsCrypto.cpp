@@ -167,11 +167,11 @@ typedef struct nsKeyPairInfoStr {
 //to the nsCryptoRunnable event.
 class nsCryptoRunArgs : public nsISupports {
 public:
-  nsCryptoRunArgs(JSContext *aCx);
+  nsCryptoRunArgs();
   virtual ~nsCryptoRunArgs();
   nsCOMPtr<nsISupports> m_kungFuDeathGrip;
   JSContext *m_cx;
-  JS::PersistentRooted<JSObject*> m_scope;
+  JSObject  *m_scope;
   nsCOMPtr<nsIPrincipal> m_principals;
   nsXPIDLCString m_jsCallback;
   NS_DECL_ISUPPORTS
@@ -2054,8 +2054,9 @@ nsCrypto::GenerateCRMFRequest(JSContext* aContext,
     return nullptr;
   }
 
-  nsCryptoRunArgs *args = new nsCryptoRunArgs(aContext);
+  nsCryptoRunArgs *args = new nsCryptoRunArgs();
 
+  args->m_cx         = aContext;
   args->m_kungFuDeathGrip = GetISupportsFromContext(aContext);
   args->m_scope      = JS_GetParent(script_obj);
   if (!aJsCallback.IsVoid()) {
@@ -2168,9 +2169,11 @@ nsP12Runnable::Run()
   return NS_OK;
 }
 
-nsCryptoRunArgs::nsCryptoRunArgs(JSContext *cx) : m_cx(cx), m_scope(cx) {}
-
+nsCryptoRunArgs::nsCryptoRunArgs() 
+{
+}
 nsCryptoRunArgs::~nsCryptoRunArgs() {}
+
 
 nsCryptoRunnable::nsCryptoRunnable(nsCryptoRunArgs *args)
 {
@@ -2178,11 +2181,18 @@ nsCryptoRunnable::nsCryptoRunnable(nsCryptoRunArgs *args)
   NS_ASSERTION(args,"Passed nullptr to nsCryptoRunnable constructor.");
   m_args = args;
   NS_IF_ADDREF(m_args);
+  JS_AddNamedObjectRoot(args->m_cx, &args->m_scope,"nsCryptoRunnable::mScope");
 }
 
 nsCryptoRunnable::~nsCryptoRunnable()
 {
   nsNSSShutDownPreventionLock locker;
+
+  {
+    JSAutoRequest ar(m_args->m_cx);
+    JS_RemoveObjectRoot(m_args->m_cx, &m_args->m_scope);
+  }
+
   NS_IF_RELEASE(m_args);
 }
 
@@ -2194,11 +2204,10 @@ nsCryptoRunnable::Run()
   nsNSSShutDownPreventionLock locker;
   AutoPushJSContext cx(m_args->m_cx);
   JSAutoRequest ar(cx);
-  JS::Rooted<JSObject*> scope(cx, m_args->m_scope);
-  JSAutoCompartment ac(cx, scope);
+  JSAutoCompartment ac(cx, m_args->m_scope);
 
   bool ok =
-    JS_EvaluateScript(cx, scope, m_args->m_jsCallback,
+    JS_EvaluateScript(cx, m_args->m_scope, m_args->m_jsCallback, 
                       strlen(m_args->m_jsCallback), nullptr, 0, nullptr);
   return ok ? NS_OK : NS_ERROR_FAILURE;
 }

@@ -678,6 +678,7 @@ jsd_GetScriptForValue(JSDContext* jsdc, JSDValue* jsdval)
 {
     AutoSafeJSContext cx;
     JS::RootedValue val(cx, jsdval->val);
+    JSFunction* fun = nullptr;
     JS::RootedScript script(cx);
     JSDScript* jsdscript;
 
@@ -687,7 +688,7 @@ jsd_GetScriptForValue(JSDContext* jsdc, JSDValue* jsdval)
     {
         JSAutoCompartment ac(cx, JSVAL_TO_OBJECT(val));
         AutoSaveExceptionState as(cx);
-        JS::RootedFunction fun(cx, JSD_GetValueFunction(jsdc, jsdval));
+        fun = JSD_GetValueFunction(jsdc, jsdval);
         if (fun)
             script = JS_GetFunctionScript(cx, fun);
     }

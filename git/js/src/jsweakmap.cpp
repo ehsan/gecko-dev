@@ -350,12 +350,12 @@ WeakMap_set(JSContext *cx, unsigned argc, Value *vp)
 }
 
 JS_FRIEND_API(bool)
-JS_NondeterministicGetWeakMapKeys(JSContext *cx, HandleObject objArg, MutableHandleObject ret)
+JS_NondeterministicGetWeakMapKeys(JSContext *cx, JSObject *objArg, JSObject **ret)
 {
     RootedObject obj(cx, objArg);
     obj = UncheckedUnwrap(obj);
     if (!obj || !obj->is<WeakMapObject>()) {
-        ret.set(nullptr);
+        *ret = nullptr;
         return true;
     }
     RootedObject arr(cx, NewDenseEmptyArray(cx));
@@ -373,7 +373,7 @@ JS_NondeterministicGetWeakMapKeys(JSContext *cx, HandleObject objArg, MutableHan
                 return false;
         }
     }
-    ret.set(arr);
+    *ret = arr;
     return true;
 }
 

@@ -90,7 +90,8 @@ class SystemClockTest(MarionetteTestCase):
         start = time.time()
         self.clock.sleep(0.1)
         end = time.time() - start
-        self.assertGreater(end, 0)
+
+        self.assertGreaterEqual(end, 0.1)
 
     def test_time_now(self):
         self.assertIsNotNone(self.clock.now)

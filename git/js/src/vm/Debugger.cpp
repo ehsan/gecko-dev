@@ -5895,8 +5895,10 @@ static const JSFunctionSpec DebuggerEnv_methods[] = {
 /*** Glue ****************************************************************************************/
 
 extern JS_PUBLIC_API(bool)
-JS_DefineDebuggerObject(JSContext *cx, HandleObject obj)
+JS_DefineDebuggerObject(JSContext *cx, JSObject *obj_)
 {
+    RootedObject obj(cx, obj_);
+
     RootedObject
         objProto(cx),
         debugCtor(cx),

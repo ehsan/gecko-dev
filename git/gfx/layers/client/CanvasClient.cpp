@@ -65,9 +65,7 @@ CanvasClient2D::Update(gfx::IntSize aSize, ClientCanvasLayer* aLayer)
                                                 : gfxContentType::COLOR_ALPHA;
     gfxImageFormat format
       = gfxPlatform::GetPlatform()->OptimalFormatForContent(contentType);
-    mBuffer = CreateBufferTextureClient(gfx::ImageFormatToSurfaceFormat(format),
-                                        TEXTURE_FLAGS_DEFAULT,
-                                        gfxPlatform::GetPlatform()->GetPreferredCanvasBackend());
+    mBuffer = CreateBufferTextureClient(gfx::ImageFormatToSurfaceFormat(format));
     MOZ_ASSERT(mBuffer->AsTextureClientSurface());
     mBuffer->AsTextureClientSurface()->AllocateForSurface(aSize);
 
@@ -81,10 +79,10 @@ CanvasClient2D::Update(gfx::IntSize aSize, ClientCanvasLayer* aLayer)
   bool updated = false;
   {
     // Restrict drawTarget to a scope so that terminates before Unlock.
-    nsRefPtr<gfxASurface> surface =
-      mBuffer->AsTextureClientSurface()->GetAsSurface();
-    if (surface) {
-      aLayer->DeprecatedUpdateSurface(surface);
+    RefPtr<DrawTarget> drawTarget =
+      mBuffer->AsTextureClientDrawTarget()->GetAsDrawTarget();
+    if (drawTarget) {
+      aLayer->UpdateTarget(drawTarget);
       updated = true;
     }
   }

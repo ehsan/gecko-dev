@@ -80,7 +80,7 @@ JS_SetIsWorkerRuntime(JSRuntime *rt)
 }
 
 JS_FRIEND_API(JSObject *)
-JS_FindCompilationScope(JSContext *cx, HandleObject objArg)
+JS_FindCompilationScope(JSContext *cx, JSObject *objArg)
 {
     RootedObject obj(cx, objArg);
 
@@ -109,8 +109,10 @@ JS_GetObjectFunction(JSObject *obj)
 }
 
 JS_FRIEND_API(bool)
-JS_SplicePrototype(JSContext *cx, HandleObject obj, HandleObject proto)
+JS_SplicePrototype(JSContext *cx, JSObject *objArg, JSObject *protoArg)
 {
+    RootedObject obj(cx, objArg);
+    RootedObject proto(cx, protoArg);
     /*
      * Change the prototype of an object which hasn't been used anywhere
      * and does not share its type with another object. Unlike JS_SetPrototype,
@@ -131,9 +133,10 @@ JS_SplicePrototype(JSContext *cx, HandleObject obj, HandleObject proto)
 }
 
 JS_FRIEND_API(JSObject *)
-JS_NewObjectWithUniqueType(JSContext *cx, const JSClass *clasp, HandleObject proto,
-                           HandleObject parent)
+JS_NewObjectWithUniqueType(JSContext *cx, const JSClass *clasp, JSObject *protoArg, JSObject *parentArg)
 {
+    RootedObject proto(cx, protoArg);
+    RootedObject parent(cx, parentArg);
     /*
      * Create our object with a null proto and then splice in the correct proto
      * after we setSingletonType, so that we don't pollute the default
@@ -285,8 +288,9 @@ DefineHelpProperty(JSContext *cx, HandleObject obj, const char *prop, const char
 }
 
 JS_FRIEND_API(bool)
-JS_DefineFunctionsWithHelp(JSContext *cx, HandleObject obj, const JSFunctionSpecWithHelp *fs)
+JS_DefineFunctionsWithHelp(JSContext *cx, JSObject *objArg, const JSFunctionSpecWithHelp *fs)
 {
+    RootedObject obj(cx, objArg);
     JS_ASSERT(!cx->runtime()->isAtomsCompartment(cx->compartment()));
 
     CHECK_REQUEST(cx);

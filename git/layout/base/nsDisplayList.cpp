@@ -772,8 +772,7 @@ static void RecordFrameMetrics(nsIFrame* aForFrame,
           metrics.mCompositionBounds = ParentLayerIntRect::FromUnknownRect(mozilla::gfx::IntRect(
               bounds.x, bounds.y, bounds.width, bounds.height));
         } else {
-          nsRect viewBounds = view->GetBounds() + rootFrame->GetOffsetToCrossDoc(aReferenceFrame);
-          metrics.mCompositionBounds = RoundedToInt(LayoutDeviceRect::FromAppUnits(viewBounds, auPerDevPixel)
+          metrics.mCompositionBounds = RoundedToInt(LayoutDeviceRect::FromAppUnits(view->GetBounds(), auPerDevPixel)
                                      * metrics.GetParentResolution());
         }
       }
@@ -2359,7 +2358,6 @@ nsDisplayThemedBackground::nsDisplayThemedBackground(nsDisplayListBuilder* aBuil
     case NS_THEME_WINDOW_TITLEBAR:
     case NS_THEME_WINDOW_BUTTON_BOX:
     case NS_THEME_MOZ_MAC_FULLSCREEN_BUTTON:
-    case NS_THEME_WINDOW_BUTTON_BOX_MAXIMIZED:
       RegisterThemeGeometry(aBuilder, aFrame);
       break;
     case NS_THEME_WIN_BORDERLESS_GLASS:
@@ -2447,7 +2445,11 @@ nsDisplayThemedBackground::PaintInternal(nsDisplayListBuilder* aBuilder,
   theme->GetWidgetOverflow(presContext->DeviceContext(), mFrame, mAppearance,
                            &drawing);
   drawing.IntersectRect(drawing, aBounds);
-  theme->DrawWidgetBackground(aCtx, mFrame, mAppearance, borderArea, drawing);
+  nsIntRegion clear;
+  theme->DrawWidgetBackground(aCtx, mFrame, mAppearance, borderArea, drawing, &clear);
+  MOZ_ASSERT(clear.IsEmpty() || ReferenceFrame() == aBuilder->RootReferenceFrame(),
+             "Can't add to clear region if we're transformed!");
+  aBuilder->AddRegionToClear(clear);
 }
 
 bool nsDisplayThemedBackground::IsWindowActive()
