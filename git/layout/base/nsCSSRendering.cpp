@@ -987,7 +987,8 @@ nsCSSRendering::FindBackgroundStyleFrame(nsIFrame* aForFrame)
         // and thus |InitialReflow| on the pres shell.  See bug 119351
         // for the ugly details.
         if (bodyContent) {
-          nsIFrame *bodyFrame = bodyContent->GetPrimaryFrame();
+          nsIFrame *bodyFrame = aForFrame->PresContext()->GetPresShell()->
+            GetPrimaryFrameFor(bodyContent);
           if (bodyFrame) {
             return nsLayoutUtils::GetStyleFrame(bodyFrame);
           }

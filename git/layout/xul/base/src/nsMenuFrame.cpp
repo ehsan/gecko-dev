@@ -369,7 +369,7 @@ nsMenuFrame::GetAdditionalChildListName(PRInt32 aIndex) const
 }
 
 void
-nsMenuFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsMenuFrame::Destroy()
 {
   // Kill our timer if one is active. This is not strictly necessary as
   // the pointer to this frame will be cleared from the mediator, but
@@ -393,9 +393,9 @@ nsMenuFrame::DestroyFrom(nsIFrame* aDestructRoot)
   }
 
   if (mPopupFrame)
-    mPopupFrame->DestroyFrom(aDestructRoot);
+    mPopupFrame->Destroy();
 
-  nsBoxFrame::DestroyFrom(aDestructRoot);
+  nsBoxFrame::Destroy();
 }
 
 NS_IMETHODIMP
@@ -1328,7 +1328,7 @@ nsMenuFrame::SetActiveChild(nsIDOMElement* aChild)
 
   nsCOMPtr<nsIContent> child(do_QueryInterface(aChild));
 
-  nsIFrame* kid = child->GetPrimaryFrame();
+  nsIFrame* kid = PresContext()->PresShell()->GetPrimaryFrameFor(child);
   if (kid && kid->GetType() == nsGkAtoms::menuFrame)
     mPopupFrame->ChangeMenuItem(static_cast<nsMenuFrame *>(kid), PR_FALSE);
   return NS_OK;

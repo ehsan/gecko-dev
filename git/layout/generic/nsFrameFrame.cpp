@@ -136,7 +136,7 @@ public:
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
 
   virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
   virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
@@ -284,7 +284,7 @@ nsSubDocumentFrame::Init(nsIContent*     aContent,
   // Set the primary frame now so that
   // DocumentViewerImpl::FindContainerView called by ShowViewer below
   // can find it if necessary.
-  aContent->SetPrimaryFrame(this);
+  PresContext()->FrameManager()->SetPrimaryFrameFor(aContent, this);
 
   ShowViewer();
   return NS_OK;
@@ -566,7 +566,7 @@ nsSubDocumentFrame::Reflow(nsPresContext*           aPresContext,
 
   aStatus = NS_FRAME_COMPLETE;
 
-  NS_ASSERTION(mContent->GetPrimaryFrame() == this,
+  NS_ASSERTION(aPresContext->GetPresShell()->GetPrimaryFrameFor(mContent) == this,
                "Shouldn't happen");
 
   // "offset" is the offset of our content area from our frame's
@@ -783,7 +783,7 @@ NS_NewSubDocumentFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 NS_IMPL_FRAMEARENA_HELPERS(nsSubDocumentFrame)
 
 void
-nsSubDocumentFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsSubDocumentFrame::Destroy()
 {
   if (mPostedReflowCallback) {
     PresContext()->PresShell()->CancelReflowCallback(this);
@@ -792,7 +792,7 @@ nsSubDocumentFrame::DestroyFrom(nsIFrame* aDestructRoot)
   
   HideViewer();
 
-  nsLeafFrame::DestroyFrom(aDestructRoot);
+  nsLeafFrame::Destroy();
 }
 
 void

@@ -3416,7 +3416,7 @@ nsTextFrame::Init(nsIContent*      aContent,
 }
 
 void
-nsTextFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsTextFrame::Destroy()
 {
   // We might want to clear NS_CREATE_FRAME_IF_NON_WHITESPACE or
   // NS_REFRAME_IF_WHITESPACE on mContent here, since our parent frame
@@ -3426,7 +3426,7 @@ nsTextFrame::DestroyFrom(nsIFrame* aDestructRoot)
     mNextContinuation->SetPrevInFlow(nsnull);
   }
   // Let the base class destroy the frame
-  nsFrame::DestroyFrom(aDestructRoot);
+  nsFrame::Destroy();
 }
 
 class nsContinuingTextFrame : public nsTextFrame {
@@ -3439,7 +3439,7 @@ public:
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
 
   virtual nsIFrame* GetPrevContinuation() const {
     return mPrevContinuation;
@@ -3551,7 +3551,7 @@ nsContinuingTextFrame::Init(nsIContent* aContent,
 }
 
 void
-nsContinuingTextFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsContinuingTextFrame::Destroy()
 {
   // The text associated with this frame will become associated with our
   // prev-continuation. If that means the text has changed style, then
@@ -3574,7 +3574,7 @@ nsContinuingTextFrame::DestroyFrom(nsIFrame* aDestructRoot)
   }
   nsSplittableFrame::RemoveFromFlow(this);
   // Let the base class destroy the frame
-  nsFrame::DestroyFrom(aDestructRoot);
+  nsFrame::Destroy();
 }
 
 nsIFrame*

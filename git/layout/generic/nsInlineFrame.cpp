@@ -1117,10 +1117,10 @@ NS_NewPositionedInlineFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 NS_IMPL_FRAMEARENA_HELPERS(nsPositionedInlineFrame)
 
 void
-nsPositionedInlineFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsPositionedInlineFrame::Destroy()
 {
-  mAbsoluteContainer.DestroyFrames(this, aDestructRoot);
-  nsInlineFrame::DestroyFrom(aDestructRoot);
+  mAbsoluteContainer.DestroyFrames(this);
+  nsInlineFrame::Destroy();
 }
 
 NS_IMETHODIMP

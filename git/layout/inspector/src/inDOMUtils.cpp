@@ -100,7 +100,13 @@ inDOMUtils::IsIgnorableWhitespace(nsIDOMCharacterData *aDataNode,
     return NS_OK;
   }
 
-  nsIFrame* frame = content->GetPrimaryFrame();
+  nsCOMPtr<nsIPresShell> presShell = inLayoutUtils::GetPresShellFor(win);
+  if (!presShell) {
+    // Display:none iframe or something... Bail out
+    return NS_OK;
+  }
+
+  nsIFrame* frame = presShell->GetPrimaryFrameFor(content);
   if (frame) {
     const nsStyleText* text = frame->GetStyleText();
     *aReturn = !text->WhiteSpaceIsSignificant();

@@ -17,5 +17,4 @@ pref("app.update.url.details", "http://www.mozilla.com/%LOCALE%/%APP%/releases/"
 pref("app.releaseNotesURL", "http://www.mozilla.com/%LOCALE%/%APP%/%VERSION%/releasenotes/");
 
 pref("browser.search.param.yahoo-fr", "moz35");
-pref("browser.search.param.yahoo-fr-cjkt", "moz35"); // now unused
-pref("browser.search.param.yahoo-fr-ja", "mozff");
+pref("browser.search.param.yahoo-fr-cjkt", "moz35");

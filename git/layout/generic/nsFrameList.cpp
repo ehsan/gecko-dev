@@ -72,31 +72,15 @@ nsFrameList::Destroy()
 }
 
 void
-nsFrameList::DestroyFrom(nsIFrame* aDestructRoot)
-{
-  NS_PRECONDITION(this != sEmptyList, "Shouldn't Destroy() sEmptyList");
-
-  DestroyFramesFrom(aDestructRoot);
-  delete this;
-}
-
-void
 nsFrameList::DestroyFrames()
 {
-  while (nsIFrame* frame = RemoveFirstChild()) {
+  nsIFrame* next;
+  for (nsIFrame* frame = mFirstChild; frame; frame = next) {
+    next = frame->GetNextSibling();
     frame->Destroy();
+    mFirstChild = next;
   }
-  mLastChild = nsnull;
-}
 
-void
-nsFrameList::DestroyFramesFrom(nsIFrame* aDestructRoot)
-{
-  NS_PRECONDITION(aDestructRoot, "Missing destruct root");
-
-  while (nsIFrame* frame = RemoveFirstChild()) {
-    frame->DestroyFrom(aDestructRoot);
-  }
   mLastChild = nsnull;
 }
 
@@ -168,15 +152,14 @@ nsFrameList::RemoveFramesAfter(nsIFrame* aAfterFrame)
   return nsFrameList(tail, tail ? oldLastChild : nsnull);
 }
 
-nsIFrame*
+PRBool
 nsFrameList::RemoveFirstChild()
 {
   if (mFirstChild) {
-    nsIFrame* firstChild = mFirstChild;
-    RemoveFrame(firstChild);
-    return firstChild;
+    RemoveFrame(mFirstChild);
+    return PR_TRUE;
   }
-  return nsnull;
+  return PR_FALSE;
 }
 
 void

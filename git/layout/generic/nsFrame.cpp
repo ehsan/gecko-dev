@@ -339,6 +339,8 @@ nsFrame::Init(nsIContent*      aContent,
 
   if (aContent) {
     NS_ADDREF(aContent);
+    aContent->SetMayHaveFrame(PR_TRUE);
+    NS_ASSERTION(mContent->MayHaveFrame(), "SetMayHaveFrame failed?");
   }
 
   if (aPrevInFlow) {
@@ -412,13 +414,10 @@ nsFrame::RemoveFrame(nsIAtom*        aListName,
 }
 
 void
-nsFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsFrame::Destroy()
 {
   NS_ASSERTION(!nsContentUtils::IsSafeToRunScript(),
     "destroy called on frame while scripts not blocked");
-  NS_ASSERTION(!GetNextSibling() && !GetPrevSibling(),
-               "Frames should be removed before destruction.");
-  NS_ASSERTION(aDestructRoot, "Must specify destruct root");
 
 #ifdef MOZ_SVG
   nsSVGEffects::InvalidateDirectRenderingObservers(this);
@@ -433,12 +432,6 @@ nsFrame::DestroyFrom(nsIFrame* aDestructRoot)
   if (mState & NS_FRAME_OUT_OF_FLOW) {
     nsPlaceholderFrame* placeholder =
       shell->FrameManager()->GetPlaceholderFrameFor(this);
-    NS_ASSERTION(!placeholder || (aDestructRoot != this),
-                 "Don't call Destroy() on OOFs, call Destroy() on the placeholder.");
-    NS_ASSERTION(!placeholder ||
-                 nsLayoutUtils::IsProperAncestorFrame(aDestructRoot, placeholder),
-                 "Placeholder relationship should have been torn down already; "
-                 "this might mean we have a stray placeholder in the tree.");
     if (placeholder) {
       shell->FrameManager()->UnregisterPlaceholderFrame(placeholder);
       placeholder->SetOutOfFlowFrame(nsnull);
@@ -462,11 +455,6 @@ nsFrame::DestroyFrom(nsIFrame* aDestructRoot)
 
     // Destroy the view
     view->Destroy();
-  }
-
-  // Make sure that our deleted frame can't be returned from GetPrimaryFrame()
-  if (mContent && mContent->GetPrimaryFrame() == this) {
-    mContent->SetPrimaryFrame(nsnull);
   }
 
   // Must retrieve the object ID before calling destructors, so the
@@ -758,10 +746,13 @@ nsFrame::GetChildList(nsIAtom* aListName) const
 static nsIFrame*
 GetActiveSelectionFrame(nsPresContext* aPresContext, nsIFrame* aFrame)
 {
-  nsIContent* capturingContent = nsIPresShell::GetCapturingContent();
-  if (capturingContent) {
-    nsIFrame* activeFrame = aPresContext->GetPrimaryFrameFor(capturingContent);
-    return activeFrame ? activeFrame : aFrame;
+  nsIPresShell* shell = aPresContext->GetPresShell(); 
+  if (shell) {
+    nsIContent* capturingContent = nsIPresShell::GetCapturingContent();
+    if (capturingContent) {
+      nsIFrame* activeFrame = shell->GetPrimaryFrameFor(capturingContent);
+      return activeFrame ? activeFrame : aFrame;
+    }
   }
 
   return aFrame;

@@ -87,7 +87,7 @@ public:
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
 
   virtual nsIAtom* GetType() const { return nsGkAtoms::menuBarFrame; }
 

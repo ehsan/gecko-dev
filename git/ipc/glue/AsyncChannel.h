@@ -176,7 +176,6 @@ protected:
     MessageLoop* mIOLoop;       // thread where IO happens
     MessageLoop* mWorkerLoop;   // thread where work is done
     bool mChild;                // am I the child or parent?
-    CancelableTask* mChannelErrorTask; // NotifyMaybeChannelError runnable
 };
 
 

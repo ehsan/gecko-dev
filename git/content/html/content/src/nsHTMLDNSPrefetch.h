@@ -129,7 +129,7 @@ public:
     struct deferred_entry
     {
       PRUint16                         mFlags;
-      nsWeakPtr                        mElement;
+      nsRefPtr<nsGenericHTMLElement>   mElement;
     } mEntries[sMaxDeferred];
   };
 };

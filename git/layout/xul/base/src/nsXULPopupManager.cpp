@@ -270,7 +270,7 @@ nsXULPopupManager::AdjustPopupsOnWindowChange()
   while (item) {
     // if the auto positioning has been disabled, don't move the popup
     if (item->Frame()->GetAutoPosition())
-      item->Frame()->SetPopupPosition(nsnull);
+      item->Frame()->SetPopupPosition(nsnull, PR_TRUE);
     item = item->GetParent();
   }
 }
@@ -287,7 +287,7 @@ nsXULPopupManager::GetFrameOfTypeForContent(nsIContent* aContent,
       if (aShouldFlush)
         presShell->FlushPendingNotifications(Flush_Frames);
 
-      nsIFrame* frame = aContent->GetPrimaryFrame();
+      nsIFrame* frame = presShell->GetPrimaryFrameFor(aContent);
       if (frame && frame->GetType() == aFrameType)
         return frame;
     }
@@ -1064,7 +1064,7 @@ nsXULPopupManager::FirePopupShowingEvent(nsIContent* aPopup,
     document->FlushPendingNotifications(Flush_Layout);
 
   // get the frame again in case it went away
-  nsIFrame* frame = aPopup->GetPrimaryFrame();
+  nsIFrame* frame = presShell->GetPrimaryFrameFor(aPopup);
   if (frame && frame->GetType() == nsGkAtoms::menuPopupFrame) {
     nsMenuPopupFrame* popupFrame = static_cast<nsMenuPopupFrame *>(frame);
 
@@ -1113,7 +1113,7 @@ nsXULPopupManager::FirePopupHidingEvent(nsIContent* aPopup,
   }
 
   // get frame again in case it went away
-  nsIFrame* frame = aPopup->GetPrimaryFrame();
+  nsIFrame* frame = presShell->GetPrimaryFrameFor(aPopup);
   if (frame && frame->GetType() == nsGkAtoms::menuPopupFrame) {
     nsMenuPopupFrame* popupFrame = static_cast<nsMenuPopupFrame *>(frame);
 

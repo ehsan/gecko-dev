@@ -241,7 +241,7 @@ protected:
     virtual PRBool GetInitialVAlignment(Valignment& aValign); 
     virtual PRBool GetInitialAutoStretch(PRBool& aStretch); 
   
-    virtual void DestroyFrom(nsIFrame* aDestructRoot);
+    virtual void Destroy();
 
     nsSize mPrefSize;
     nsSize mMinSize;

@@ -64,10 +64,10 @@ ViewportFrame::Init(nsIContent*      aContent,
 }
 
 void
-ViewportFrame::DestroyFrom(nsIFrame* aDestructRoot)
+ViewportFrame::Destroy()
 {
-  mFixedContainer.DestroyFrames(this, aDestructRoot);
-  nsContainerFrame::DestroyFrom(aDestructRoot);
+  mFixedContainer.DestroyFrames(this);
+  nsContainerFrame::Destroy();
 }
 
 NS_IMETHODIMP

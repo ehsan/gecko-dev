@@ -1104,7 +1104,7 @@ nsTextControlFrame::PreDestroy()
 }
 
 void
-nsTextControlFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsTextControlFrame::Destroy()
 {
   if (mInSecureKeyboardInputMode) {
     MaybeEndSecureKeyboardInput();
@@ -1116,7 +1116,16 @@ nsTextControlFrame::DestroyFrom(nsIFrame* aDestructRoot)
     mFrameSel->SetScrollableViewProvider(nsnull);
   }
   nsContentUtils::DestroyAnonymousContent(&mAnonymousDiv);
-  nsBoxFrame::DestroyFrom(aDestructRoot);
+  nsBoxFrame::Destroy();
+}
+
+void 
+nsTextControlFrame::RemovedAsPrimaryFrame()
+{
+  if (!mDidPreDestroy) {
+    PreDestroy();
+  }
+  else NS_ASSERTION(PR_FALSE, "RemovedAsPrimaryFrame called after PreDestroy");
 }
 
 nsIAtom*

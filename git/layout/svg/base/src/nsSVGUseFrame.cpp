@@ -69,7 +69,7 @@ public:
                                nsIAtom*        aAttribute,
                                PRInt32         aModType);
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
 
   /**
    * Get the "type" of the frame
@@ -151,10 +151,10 @@ nsSVGUseFrame::AttributeChanged(PRInt32         aNameSpaceID,
 }
 
 void
-nsSVGUseFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsSVGUseFrame::Destroy()
 {
   nsRefPtr<nsSVGUseElement> use = static_cast<nsSVGUseElement*>(mContent);
-  nsSVGUseFrameBase::DestroyFrom(aDestructRoot);
+  nsSVGUseFrameBase::Destroy();
   use->DestroyAnonymousContent();
 }
 

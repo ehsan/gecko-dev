@@ -4016,10 +4016,8 @@ nsPluginHost::WritePluginInfo()
     }
   }
 
-  if (fd) {
-    PR_Sync(fd);
+  if (fd)
     PR_Close(fd);
-  }
   return NS_OK;
 }
 

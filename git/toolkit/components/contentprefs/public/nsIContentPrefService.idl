@@ -200,8 +200,3 @@ interface nsIContentPrefService : nsISupports
    */
   readonly attribute mozIStorageConnection DBConnection;
 };
-
-%{C++
-// The contractID for the generic implementation built in to xpcom.
-#define NS_CONTENT_PREF_SERVICE_CONTRACTID "@mozilla.org/content-pref/service;1"
-%}

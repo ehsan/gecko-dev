@@ -103,7 +103,7 @@ public:
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
 
   virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
 

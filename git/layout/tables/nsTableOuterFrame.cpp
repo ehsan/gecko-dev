@@ -211,10 +211,10 @@ nsTableOuterFrame::IsContainingBlock() const
 }
 
 void
-nsTableOuterFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsTableOuterFrame::Destroy()
 {
-  mCaptionFrames.DestroyFramesFrom(aDestructRoot);
-  nsHTMLContainerFrame::DestroyFrom(aDestructRoot);
+  mCaptionFrames.DestroyFrames();
+  nsHTMLContainerFrame::Destroy();
 }
 
 nsFrameList
@@ -452,11 +452,11 @@ nsTableOuterFrame::InitChildReflowState(nsPresContext&    aPresContext,
 // get the margin and padding data. nsHTMLReflowState doesn't handle the
 // case of auto margins
 void
-nsTableOuterFrame::GetChildMargin(nsPresContext*           aPresContext,
-                                  const nsHTMLReflowState& aOuterRS,
-                                  nsIFrame*                aChildFrame,
-                                  nscoord                  aAvailWidth,
-                                  nsMargin&                aMargin)
+nsTableOuterFrame::GetMargin(nsPresContext*           aPresContext,
+                             const nsHTMLReflowState& aOuterRS,
+                             nsIFrame*                aChildFrame,
+                             nscoord                  aAvailWidth,
+                             nsMargin&                aMargin)
 {
   // construct a reflow state to compute margin and padding. Auto margins
   // will not be computed at this time.
@@ -963,8 +963,8 @@ nsTableOuterFrame::OuterBeginReflowChild(nsPresContext*           aPresContext,
       availHeight = NS_UNCONSTRAINEDSIZE;
     } else {
       nsMargin margin;
-      GetChildMargin(aPresContext, aOuterRS, aChildFrame,
-                     aOuterRS.availableWidth, margin);
+      GetMargin(aPresContext, aOuterRS, aChildFrame, aOuterRS.availableWidth,
+                margin);
     
       NS_ASSERTION(NS_UNCONSTRAINEDSIZE != margin.top, "No unconstrainedsize arithmetic, please");
       availHeight -= margin.top;

@@ -141,7 +141,7 @@ public:
 #ifdef NS_DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
   virtual nsFrameList GetChildList(nsIAtom* aListName) const;
   NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
                                  nsFrameList&    aChildList);

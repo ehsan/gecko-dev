@@ -284,38 +284,38 @@ nsBlockFrame::~nsBlockFrame()
 }
 
 void
-nsBlockFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsBlockFrame::Destroy()
 {
-  mAbsoluteContainer.DestroyFrames(this, aDestructRoot);
+  mAbsoluteContainer.DestroyFrames(this);
   // Outside bullets are not in our child-list so check for them here
   // and delete them when present.
   if (mBullet && HaveOutsideBullet()) {
-    mBullet->DestroyFrom(aDestructRoot);
+    mBullet->Destroy();
     mBullet = nsnull;
   }
 
-  mFloats.DestroyFramesFrom(aDestructRoot);
+  mFloats.DestroyFrames();
 
   nsPresContext* presContext = PresContext();
 
-  nsLineBox::DeleteLineList(presContext, mLines, aDestructRoot);
+  nsLineBox::DeleteLineList(presContext, mLines);
   // Now clear mFrames, since we've destroyed all the frames in it.
   mFrames.Clear();
 
   // destroy overflow lines now
   nsLineList* overflowLines = RemoveOverflowLines();
   if (overflowLines) {
-    nsLineBox::DeleteLineList(presContext, *overflowLines, aDestructRoot);
+    nsLineBox::DeleteLineList(presContext, *overflowLines);
     delete overflowLines;
   }
 
   {
     nsAutoOOFFrameList oofs(this);
-    oofs.mList.DestroyFramesFrom(aDestructRoot);
+    oofs.mList.DestroyFrames();
     // oofs is now empty and will remove the frame list property
   }
 
-  nsBlockFrameSuper::DestroyFrom(aDestructRoot);
+  nsBlockFrameSuper::Destroy();
 }
 
 /* virtual */ nsILineIterator*
@@ -4548,7 +4548,7 @@ DestroyOverflowLines(void*           aFrame,
   if (aPropertyValue) {
     nsLineList* lines = static_cast<nsLineList*>(aPropertyValue);
     nsPresContext *context = static_cast<nsPresContext*>(aDtorData);
-    nsLineBox::DeleteLineList(context, *lines, nsnull);
+    nsLineBox::DeleteLineList(context, *lines);
     delete lines;
   }
 }
@@ -5296,7 +5296,6 @@ nsBlockFrame::DoRemoveFrame(nsIFrame* aDeletedFrame, PRUint32 aFlags)
         // change this SetNextSibling call.
         prevSibling->SetNextSibling(nextFrame);
       }
-      aDeletedFrame->SetNextSibling(nsnull);
     } else {
       mFrames.RemoveFrame(aDeletedFrame);
     }

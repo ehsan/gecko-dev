@@ -613,7 +613,7 @@ nsObjectFrame::Init(nsIContent*      aContent,
 }
 
 void
-nsObjectFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsObjectFrame::Destroy()
 {
   NS_ASSERTION(!mPreventInstantiation ||
                (mContent && mContent->GetCurrentDoc()->GetDisplayDocument()),
@@ -634,7 +634,7 @@ nsObjectFrame::DestroyFrom(nsIFrame* aDestructRoot)
     mWidget->Destroy();
   }
 
-  nsObjectFrameSuper::DestroyFrom(aDestructRoot);
+  nsObjectFrameSuper::Destroy();
 }
 
 /* virtual */ void
@@ -4907,8 +4907,19 @@ DepthOfVisual(const Screen* screen, const Visual* visual)
 
 static GdkWindow* GetClosestWindow(nsIDOMElement *element)
 {
+  nsCOMPtr<nsIDOMDocument> domDocument;
+  element->GetOwnerDocument(getter_AddRefs(domDocument));
+
+  nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDocument);  
+  if (!doc)
+    return nsnull;
+
+  nsIPresShell *presShell = doc->GetPrimaryShell();
+  if (!presShell)
+    return nsnull;
+
   nsCOMPtr<nsIContent> content = do_QueryInterface(element);
-  nsIFrame* frame = content->GetPrimaryFrame();
+  nsIFrame* frame = presShell->GetPrimaryFrameFor(content);
   if (!frame)
     return nsnull;
 
@@ -5020,7 +5031,7 @@ nsPluginInstanceOwner::SetupXShm()
 //
 // This method supports the NPImageExpose API which is specific to the
 // HILDON platform.  Basically what it allows us to do is to pass a
-// memory buffer into a plugin (namely flash), and have flash draw
+// memory buffer into a plugin (namely flash), and have flase draw
 // directly into the buffer.
 //
 // It may be faster if the rest of the system used offscreen image
@@ -5055,10 +5066,10 @@ nsPluginInstanceOwner::NativeImageDraw(NPRect* invalidRect)
   if (absPosHeight == 0 || absPosWidth == 0)
     return;
 
-  PRBool sizeChanged = (mPluginSize.width != absPosWidth ||
-                        mPluginSize.height != absPosHeight);
-
-  if (!mSharedXImage || sizeChanged) {
+  if (!mSharedXImage ||
+      mPluginSize.width != absPosWidth ||
+      mPluginSize.height != absPosHeight) {
+    
     mPluginSize = nsIntSize(absPosWidth, absPosHeight);
 
     if (NS_FAILED(SetupXShm()))
@@ -5072,24 +5083,23 @@ nsPluginInstanceOwner::NativeImageDraw(NPRect* invalidRect)
   // setup window such that it knows about the size and clip.  This
   // is to work around a flash clipping bug when using the Image
   // Expose API.
-  if (!invalidRect && sizeChanged) {
-    NPRect newClipRect;
-    newClipRect.left = 0;
-    newClipRect.top = 0;
-    newClipRect.right = window->width;
-    newClipRect.bottom = window->height;
+  
+  NPRect newClipRect;
+  newClipRect.left = 0;
+  newClipRect.top = 0;
+  newClipRect.right = window->width;
+  newClipRect.bottom = window->height;
+  
+  window->clipRect = newClipRect; 
+  window->x = 0;
+  window->y = 0;
     
-    window->clipRect = newClipRect; 
-    window->x = 0;
-    window->y = 0;
-      
-    NPSetWindowCallbackStruct* ws_info =
-      static_cast<NPSetWindowCallbackStruct*>(window->ws_info);
-    ws_info->visual = 0;
-    ws_info->colormap = 0;
-    ws_info->depth = 16;
-    mInstance->SetWindow(window);
-  }
+  NPSetWindowCallbackStruct* ws_info =
+    static_cast<NPSetWindowCallbackStruct*>(window->ws_info);
+  ws_info->visual = 0;
+  ws_info->colormap = 0;
+  ws_info->depth = 16;
+  mInstance->SetWindow(window);
 
   NPEvent pluginEvent;
   NPImageExpose imageExpose;
@@ -5771,7 +5781,7 @@ nsPluginInstanceOwner::SetAbsoluteScreenPosition(nsIDOMElement* element,
   clip->GetWidth(&width);
   clip->GetHeight(&height);
 
-  mAbsolutePositionClip = gfxRect(left, top, width, height);
+  mAbsolutePositionClip = gfxRect(left,top, width, height);
 
   mBlitParentElement = element;
     

@@ -81,11 +81,11 @@ nsTreeColFrame::Init(nsIContent*      aContent,
   return rv;
 }
 
-void
-nsTreeColFrame::DestroyFrom(nsIFrame* aDestructRoot)
+void                                                                
+nsTreeColFrame::Destroy()                          
 {
   InvalidateColumns(PR_FALSE);
-  nsBoxFrame::DestroyFrom(aDestructRoot);
+  nsBoxFrame::Destroy();
 }
 
 class nsDisplayXULTreeColSplitterTarget : public nsDisplayItem {

@@ -2296,8 +2296,8 @@ public:
   PRBool LessThan(const nsListIter &a, const nsListIter &b) const
   {
     // compare by entryclass pointer, then by index.
-    if (a.entry != b.entry)
-      return a.entry < b.entry;
+    if (&a != &b)
+      return &a < &b;
 
     return a.index < b.index;
   }

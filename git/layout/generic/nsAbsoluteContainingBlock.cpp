@@ -345,10 +345,9 @@ nsAbsoluteContainingBlock::FrameDependsOnContainer(nsIFrame* f,
 }
 
 void
-nsAbsoluteContainingBlock::DestroyFrames(nsIFrame* aDelegatingFrame,
-                                         nsIFrame* aDestructRoot)
+nsAbsoluteContainingBlock::DestroyFrames(nsIFrame* aDelegatingFrame)
 {
-  mAbsoluteFrames.DestroyFramesFrom(aDestructRoot);
+  mAbsoluteFrames.DestroyFrames();
 }
 
 void

@@ -67,7 +67,7 @@ public:
   {}
   virtual ~ViewportFrame() { } // useful for debugging
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
 
   NS_IMETHOD Init(nsIContent*      aContent,
                   nsIFrame*        aParent,

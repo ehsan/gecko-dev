@@ -193,8 +193,8 @@ public:
                            nsIContent*     aContent, 
                            nsIAtom*        aAttribute); 
 
-  /** @see nsIFrame::DestroyFrom */
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  /** @see nsIFrame::Destroy */
+  virtual void Destroy();
   
   /** @see nsIFrame::DidSetStyleContext */
   virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);

@@ -320,7 +320,7 @@ public:
                           nsIFrame*       aPrevFrame,
                           nsFrameList&    aFrameList);
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
 
   NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame);
@@ -491,7 +491,7 @@ public:
                           nsIFrame*       aPrevFrame,
                           nsFrameList&    aFrameList);
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
 
   NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame);

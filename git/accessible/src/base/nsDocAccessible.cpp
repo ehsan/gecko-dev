@@ -1505,8 +1505,12 @@ nsDocAccessible::FireTextChangeEventForText(nsIContent *aContent,
     aInfo->mChangeEnd - start; // text has been removed
 
   if (length > 0) {
+    nsCOMPtr<nsIPresShell> shell(do_QueryReferent(mWeakShell));
+    if (!shell)
+      return;
+
     PRUint32 renderedStartOffset, renderedEndOffset;
-    nsIFrame* frame = aContent->GetPrimaryFrame();
+    nsIFrame* frame = shell->GetPrimaryFrameFor(aContent);
     if (!frame)
       return;
 
@@ -1718,7 +1722,7 @@ nsDocAccessible::FlushPendingEvents()
       // such as a:focus { overflow: scroll; }
       nsCOMPtr<nsIContent> focusContent(do_QueryInterface(domNode));
       if (focusContent) {
-        nsIFrame *focusFrame = focusContent->GetPrimaryFrame();
+        nsIFrame *focusFrame = presShell->GetRealPrimaryFrameFor(focusContent);
         nsIAtom *newFrameType =
           (focusFrame && focusFrame->GetStyleVisibility()->IsVisible()) ?
           focusFrame->GetType() : nsnull;
@@ -2098,7 +2102,7 @@ nsDocAccessible::InvalidateCacheSubtree(nsIContent *aChild,
     if (isHiding) {
       nsCOMPtr<nsIContent> content(do_QueryInterface(childNode));
       if (content) {
-        nsIFrame *frame = content->GetPrimaryFrame();
+        nsIFrame *frame = presShell->GetPrimaryFrameFor(content);
         if (frame) {
           nsIFrame *frameParent = frame->GetParent();
           if (!frameParent || !frameParent->GetStyleVisibility()->IsVisible()) {

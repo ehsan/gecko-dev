@@ -56,7 +56,7 @@ public:
   nsIsIndexFrame(nsStyleContext* aContext);
   virtual ~nsIsIndexFrame();
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy(); 
 
 private:
   void KeyPress(nsIDOMEvent* aKeyEvent);

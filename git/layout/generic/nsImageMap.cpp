@@ -734,9 +734,10 @@ NS_IMPL_ISUPPORTS4(nsImageMap,
 
 NS_IMETHODIMP
 nsImageMap::GetBoundsForAreaContent(nsIContent *aContent,
-                                    nsRect& aBounds)
+                                   nsPresContext* aPresContext,
+                                   nsRect& aBounds)
 {
-  NS_ENSURE_TRUE(aContent, NS_ERROR_INVALID_ARG);
+  NS_ENSURE_TRUE(aContent && aPresContext, NS_ERROR_INVALID_ARG);
 
   // Find the Area struct associated with this content node, and return bounds
   PRUint32 i, n = mAreas.Length();
@@ -744,9 +745,12 @@ nsImageMap::GetBoundsForAreaContent(nsIContent *aContent,
     Area* area = mAreas.ElementAt(i);
     if (area->mArea == aContent) {
       aBounds = nsRect();
-      nsIFrame* frame = aContent->GetPrimaryFrame();
-      if (frame) {
-        area->GetRect(frame, aBounds);
+      nsIPresShell* shell = aPresContext->PresShell();
+      if (shell) {
+        nsIFrame* frame = shell->GetPrimaryFrameFor(aContent);
+        if (frame) {
+          area->GetRect(frame, aBounds);
+        }
       }
       return NS_OK;
     }
@@ -896,7 +900,9 @@ nsImageMap::AddArea(nsIContent* aArea)
   // nsCSSFrameConstructor::ContentRemoved (both hacks there), and
   // nsCSSFrameConstructor::ProcessRestyledFrames to work around this issue can
   // be removed.
-  aArea->SetPrimaryFrame(mImageFrame);
+  mPresShell->FrameManager()->SetPrimaryFrameFor(aArea, mImageFrame);
+  aArea->SetMayHaveFrame(PR_TRUE);
+  NS_ASSERTION(aArea->MayHaveFrame(), "SetMayHaveFrame failed?");
 
   area->ParseCoords(coords);
   mAreas.AppendElement(area);
@@ -1011,15 +1017,22 @@ nsImageMap::ChangeFocus(nsIDOMEvent* aEvent, PRBool aFocus)
         Area* area = mAreas.ElementAt(i);
         nsCOMPtr<nsIContent> areaContent;
         area->GetArea(getter_AddRefs(areaContent));
-        if (areaContent == targetContent) {
+        if (areaContent.get() == targetContent.get()) {
           //Set or Remove internal focus
           area->HasFocus(aFocus);
           //Now invalidate the rect
-          nsIFrame* imgFrame = targetContent->GetPrimaryFrame();
-          if (imgFrame) {
-            nsRect dmgRect;
-            area->GetRect(imgFrame, dmgRect);
-            imgFrame->Invalidate(dmgRect);
+          nsCOMPtr<nsIDocument> doc = targetContent->GetDocument();
+          //This check is necessary to see if we're still attached to the doc
+          if (doc) {
+            nsIPresShell *presShell = doc->GetPrimaryShell();
+            if (presShell) {
+              nsIFrame* imgFrame = presShell->GetPrimaryFrameFor(targetContent);
+              if (imgFrame) {
+                nsRect dmgRect;
+                area->GetRect(imgFrame, dmgRect);
+                imgFrame->Invalidate(dmgRect);
+              }
+            }
           }
           break;
         }

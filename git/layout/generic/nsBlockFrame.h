@@ -175,7 +175,7 @@ public:
   virtual nsFrameList GetChildList(nsIAtom* aListName) const;
   virtual nscoord GetBaseline() const;
   virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
   virtual nsSplittableType GetSplittableType() const;
   virtual PRBool IsContainingBlock() const;
   virtual PRBool IsFloatContainingBlock() const;

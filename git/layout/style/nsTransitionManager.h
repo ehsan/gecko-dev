@@ -61,7 +61,9 @@ public:
   /**
    * Notify the transition manager that the pres context is going away.
    */
-  void Disconnect();
+  void Disconnect() {
+    mPresContext = nsnull;
+  }
 
   /**
    * StyleContextChanged 

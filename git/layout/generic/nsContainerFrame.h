@@ -93,7 +93,7 @@ public:
 
   virtual nsFrameList GetChildList(nsIAtom* aListName) const;
   virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
   virtual void ChildIsDirty(nsIFrame* aChild);
 
   virtual PRBool IsLeaf() const;
@@ -383,8 +383,7 @@ protected:
   /**
    * Destroy the overflow list and any frames that are on  it.
    */
-  void DestroyOverflowList(nsPresContext* aPresContext,
-                           nsIFrame*      aDestructRoot = nsnull);
+  void DestroyOverflowList(nsPresContext* aPresContext);
 
   /**
    * Moves any frames on both the prev-in-flow's overflow list and the

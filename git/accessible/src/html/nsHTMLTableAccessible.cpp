@@ -99,7 +99,7 @@ nsHTMLTableCellAccessible::GetStateInternal(PRUint32 *aState,
 
   nsCOMPtr<nsIContent> content = do_QueryInterface(mDOMNode);
   nsCOMPtr<nsIPresShell> presShell = do_QueryReferent(mWeakShell);
-  nsIFrame *frame = content->GetPrimaryFrame();
+  nsIFrame *frame = presShell->GetPrimaryFrameFor(content);
   NS_ASSERTION(frame, "No frame for valid cell accessible!");
 
   if (frame) {
@@ -291,7 +291,11 @@ nsHTMLTableCellAccessible::GetCellLayout()
 {
   nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
   
-  nsIFrame *frame = content->GetPrimaryFrame();
+  nsCOMPtr<nsIPresShell> shell = GetPresShell();
+  if (!shell)
+    return nsnull;
+  
+  nsIFrame *frame = shell->GetPrimaryFrameFor(content);
   NS_ASSERTION(frame, "The frame cannot be obtaied for HTML table cell.");
   if (!frame)
     return nsnull;
@@ -1246,7 +1250,9 @@ nsITableLayout*
 nsHTMLTableAccessible::GetTableLayout()
 {
   nsCOMPtr<nsIContent> tableContent(do_QueryInterface(mDOMNode));
-  nsIFrame *frame = tableContent->GetPrimaryFrame();
+  nsCOMPtr<nsIPresShell> shell = GetPresShell();
+
+  nsIFrame *frame = shell->GetPrimaryFrameFor(tableContent);
   if (!frame)
     return nsnull;
 
@@ -1439,7 +1445,8 @@ nsHTMLTableAccessible::IsProbablyForLayout(PRBool *aIsProbablyForLayout)
 
   nsCOMPtr<nsIContent> cellContent(do_QueryInterface(cellElement));
   NS_ENSURE_TRUE(cellContent, NS_ERROR_FAILURE);
-  nsIFrame *cellFrame = cellContent->GetPrimaryFrame();
+  nsCOMPtr<nsIPresShell> shell(GetPresShell());
+  nsIFrame *cellFrame = shell->GetPrimaryFrameFor(cellContent);
   if (!cellFrame) {
     return NS_OK;
   }

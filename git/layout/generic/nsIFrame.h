@@ -521,24 +521,14 @@ public:
 
   /**
    * Destroys this frame and each of its child frames (recursively calls
-   * Destroy() for each child). If this frame is a first-continuation, this
-   * also removes the frame from the primary frame man and clears undisplayed
-   * content for its content node.
-   * If the frame is a placeholder, it also ensures the out-of-flow frame's
-   * removal and destruction.
+   * Destroy() for each child)
    */
-  void Destroy() { DestroyFrom(this); }
+  virtual void Destroy() = 0;
 
-protected:
-  /**
-   * Implements Destroy(). Do not call this directly except from within a
-   * DestroyFrom() implementation.
-   * @param  aDestructRoot is the root of the subtree being destroyed
+  /*
+   * Notify the frame that it has been removed as the primary frame for its content
    */
-  virtual void DestroyFrom(nsIFrame* aDestructRoot) = 0;
-  friend class nsFrameList; // needed to pass aDestructRoot through to children
-  friend class nsLineBox;   // needed to pass aDestructRoot through to children
-public:
+  virtual void RemovedAsPrimaryFrame() {}
 
   /**
    * Called to set the initial list of frames. This happens after the frame

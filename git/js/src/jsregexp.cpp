@@ -375,15 +375,17 @@ upcase(uintN ch)
     return (cu < 128) ? ch : cu;
 }
 
-/*
- * Return the 'canonical' inverse upcase of |ch|. That is the character
- * |lch| such that |upcase(lch) == ch| and (|lch| is the lower-case form
- * of |ch| or is |ch|).
- */
-static inline jschar inverse_upcase(jschar ch)
+static JS_ALWAYS_INLINE uintN
+downcase(uintN ch)
 {
-    jschar lch = JS_TOLOWER(ch);
-    return (upcase(lch) == ch) ? lch : ch;       
+    JS_ASSERT((uintN) (jschar) ch == ch);
+    if (ch < 128) {
+        if (ch - (uintN) 'A' <= (uintN) ('Z' - 'A'))
+            ch += (uintN) ('a' - 'A');
+        return ch;
+    }
+
+    return JS_TOLOWER(ch);
 }
 
 /* Construct and initialize an RENode, returning NULL for out-of-memory */
@@ -1088,7 +1090,7 @@ lexHex:
                 jschar uch, dch;
 
                 uch = upcase(i);
-                dch = inverse_upcase(i);
+                dch = downcase(i);
                 maxch = JS_MAX(maxch, uch);
                 maxch = JS_MAX(maxch, dch);
             }
@@ -2358,7 +2360,7 @@ class RegExpNativeCompiler {
 
         if (cs->flags & JSREG_FOLD) {
             ch = JS_TOUPPER(ch);
-            jschar lch = inverse_upcase(ch);
+            jschar lch = JS_TOLOWER(ch);
 
             if (ch != lch) {
                 if (L'A' <= ch && ch <= L'Z') {
@@ -3882,7 +3884,7 @@ ProcessCharSet(JSContext *cx, JSRegExp *re, RECharSet *charSet)
 
                     AddCharacterToCharSet(charSet, i);
                     uch = upcase(i);
-                    dch = inverse_upcase(i);
+                    dch = downcase(i);
                     if (i != uch)
                         AddCharacterToCharSet(charSet, uch);
                     if (i != dch)
@@ -3895,7 +3897,7 @@ ProcessCharSet(JSContext *cx, JSRegExp *re, RECharSet *charSet)
         } else {
             if (re->flags & JSREG_FOLD) {
                 AddCharacterToCharSet(charSet, upcase(thisCh));
-                AddCharacterToCharSet(charSet, inverse_upcase(thisCh));
+                AddCharacterToCharSet(charSet, downcase(thisCh));
             } else {
                 AddCharacterToCharSet(charSet, thisCh);
             }

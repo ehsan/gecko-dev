@@ -69,10 +69,10 @@ nsLegendFrame::GetType() const
 }
 
 void
-nsLegendFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsLegendFrame::Destroy()
 {
   nsFormControlFrame::RegUnRegAccessKey(static_cast<nsIFrame*>(this), PR_FALSE);
-  nsBlockFrame::DestroyFrom(aDestructRoot);
+  nsBlockFrame::Destroy();
 }
 
 NS_QUERYFRAME_HEAD(nsLegendFrame)

@@ -252,7 +252,7 @@ public:
 
   virtual ~nsPositionedInlineFrame() { } // useful for debugging
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
 
   NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
                                  nsFrameList&    aChildList);

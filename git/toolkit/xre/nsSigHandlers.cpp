@@ -279,11 +279,9 @@ void InstallSignalHandlers(const char *ProgramName)
   signal(SIGABRT, abnormal_exit_handler);
 
 #elif defined(CRAWL_STACK_ON_SIGSEGV)
-  if (!getenv("XRE_NO_WINDOWS_CRASH_DIALOG")) {
-    signal(SIGSEGV, ah_crap_handler);
-    signal(SIGILL, ah_crap_handler);
-    signal(SIGABRT, ah_crap_handler);
-  }
+  signal(SIGSEGV, ah_crap_handler);
+  signal(SIGILL, ah_crap_handler);
+  signal(SIGABRT, ah_crap_handler);
 #endif // CRAWL_STACK_ON_SIGSEGV
 
   /* Install a handler for floating point exceptions and disable them if they occur. */

@@ -257,7 +257,7 @@ nsContainerFrame::RemoveFrame(nsIAtom*  aListName,
 }
 
 void
-nsContainerFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsContainerFrame::Destroy()
 {
   // Prevent event dispatch during destruction
   if (HasView()) {
@@ -265,23 +265,23 @@ nsContainerFrame::DestroyFrom(nsIFrame* aDestructRoot)
   }
 
   // Delete the primary child list
-  mFrames.DestroyFramesFrom(aDestructRoot);
+  mFrames.DestroyFrames();
 
   // Destroy auxiliary frame lists
   nsPresContext* prescontext = PresContext();
 
-  DestroyOverflowList(prescontext, aDestructRoot);
+  DestroyOverflowList(prescontext);
 
   if (IsFrameOfType(nsIFrame::eCanContainOverflowContainers)) {
     nsFrameList* frameList = RemovePropTableFrames(prescontext,
                                nsGkAtoms::overflowContainersProperty);
     if (frameList)
-      frameList->DestroyFrom(aDestructRoot);
+      frameList->Destroy();
 
     frameList = RemovePropTableFrames(prescontext,
                   nsGkAtoms::excessOverflowContainersProperty);
     if (frameList)
-      frameList->DestroyFrom(aDestructRoot);
+      frameList->Destroy();
   }
 
   if (IsGeneratedContentFrame()) {
@@ -307,7 +307,7 @@ nsContainerFrame::DestroyFrom(nsIFrame* aDestructRoot)
   }
 
   // Destroy the frame and remove the flow pointers
-  nsSplittableFrame::DestroyFrom(aDestructRoot);
+  nsSplittableFrame::Destroy();
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -1118,13 +1118,12 @@ nsContainerFrame::StealFramesAfter(nsIFrame* aChild)
 }
 
 void
-nsContainerFrame::DestroyOverflowList(nsPresContext* aPresContext,
-                                      nsIFrame*      aDestructRoot)
+nsContainerFrame::DestroyOverflowList(nsPresContext* aPresContext)
 {
   nsFrameList* list =
     RemovePropTableFrames(aPresContext, nsGkAtoms::overflowProperty);
   if (list)
-    list->DestroyFrom(aDestructRoot);
+    list->Destroy();
 }
 
 /**

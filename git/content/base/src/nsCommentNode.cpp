@@ -64,6 +64,7 @@ public:
   // Empty interface
 
   // nsIContent
+  virtual PRBool MayHaveFrame() const;
   virtual PRBool IsNodeOfType(PRUint32 aFlags) const;
 
 #ifdef DEBUG
@@ -118,6 +119,13 @@ NS_INTERFACE_MAP_END_INHERITING(nsGenericDOMDataNode)
 NS_IMPL_ADDREF_INHERITED(nsCommentNode, nsGenericDOMDataNode)
 NS_IMPL_RELEASE_INHERITED(nsCommentNode, nsGenericDOMDataNode)
 
+
+// virtual
+PRBool
+nsCommentNode::MayHaveFrame() const
+{
+  return PR_FALSE;
+}
 
 PRBool
 nsCommentNode::IsNodeOfType(PRUint32 aFlags) const

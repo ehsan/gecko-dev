@@ -76,7 +76,7 @@ public:
   nsImageControlFrame(nsStyleContext* aContext);
   ~nsImageControlFrame();
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
   NS_IMETHOD Init(nsIContent*      aContent,
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
@@ -124,12 +124,12 @@ nsImageControlFrame::~nsImageControlFrame()
 }
 
 void
-nsImageControlFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsImageControlFrame::Destroy()
 {
   if (!GetPrevInFlow()) {
     nsFormControlFrame::RegUnRegAccessKey(this, PR_FALSE);
   }
-  nsImageControlFrameSuper::DestroyFrom(aDestructRoot);
+  nsImageControlFrameSuper::Destroy();
 }
 
 nsIFrame*

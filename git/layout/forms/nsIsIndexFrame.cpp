@@ -97,7 +97,7 @@ nsIsIndexFrame::~nsIsIndexFrame()
 }
 
 void
-nsIsIndexFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsIsIndexFrame::Destroy()
 {
   // remove ourself as a listener of the text control (bug 40533)
   if (mInputContent) {
@@ -109,7 +109,7 @@ nsIsIndexFrame::DestroyFrom(nsIFrame* aDestructRoot)
   nsContentUtils::DestroyAnonymousContent(&mTextContent);
   nsContentUtils::DestroyAnonymousContent(&mPreHr);
   nsContentUtils::DestroyAnonymousContent(&mPostHr);
-  nsBlockFrame::DestroyFrom(aDestructRoot);
+  nsBlockFrame::Destroy();
 }
 
 // REVIEW: We don't need to override BuildDisplayList, nsBlockFrame will honour
@@ -146,9 +146,10 @@ nsIsIndexFrame::UpdatePromptLabel(PRBool aNotify)
 nsresult
 nsIsIndexFrame::GetInputFrame(nsIFormControlFrame** oFrame)
 {
+  nsIPresShell *presShell = PresContext()->GetPresShell();
   if (!mInputContent) NS_WARNING("null content - cannot restore state");
-  if (mInputContent) {
-    nsIFrame *frame = mInputContent->GetPrimaryFrame();
+  if (presShell && mInputContent) {
+    nsIFrame *frame = presShell->GetPrimaryFrameFor(mInputContent);
     if (frame) {
       *oFrame = do_QueryFrame(frame);
       return *oFrame ? NS_OK : NS_NOINTERFACE;

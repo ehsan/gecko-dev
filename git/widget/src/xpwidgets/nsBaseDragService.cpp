@@ -470,7 +470,7 @@ nsBaseDragService::DrawDrag(nsIDOMNode* aDOMNode,
       // otherwise, there was no region so just set the rectangle to
       // the size of the primary frame of the content.
       nsCOMPtr<nsIContent> content = do_QueryInterface(dragNode);
-      nsIFrame* frame = content->GetPrimaryFrame();
+      nsIFrame* frame = presShell->GetPrimaryFrameFor(content);
       if (frame) {
         nsIntRect screenRect = frame->GetScreenRectExternal();
         aScreenDragRect->SetRect(screenRect.x, screenRect.y,

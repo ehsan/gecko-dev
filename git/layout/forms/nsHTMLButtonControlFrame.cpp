@@ -86,10 +86,10 @@ nsHTMLButtonControlFrame::~nsHTMLButtonControlFrame()
 }
 
 void
-nsHTMLButtonControlFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsHTMLButtonControlFrame::Destroy()
 {
   nsFormControlFrame::RegUnRegAccessKey(static_cast<nsIFrame*>(this), PR_FALSE);
-  nsHTMLContainerFrame::DestroyFrom(aDestructRoot);
+  nsHTMLContainerFrame::Destroy();
 }
 
 NS_IMETHODIMP

@@ -945,7 +945,7 @@ nsBoxFrame::DoLayout(nsBoxLayoutState& aState)
 }
 
 void
-nsBoxFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsBoxFrame::Destroy()
 {
   // unregister access key
   RegUnregAccessKey(PR_FALSE);
@@ -953,7 +953,7 @@ nsBoxFrame::DestroyFrom(nsIFrame* aDestructRoot)
   // clean up the container box's layout manager and child boxes
   SetLayoutManager(nsnull);
 
-  nsContainerFrame::DestroyFrom(aDestructRoot);
+  nsContainerFrame::Destroy();
 } 
 
 #ifdef DEBUG_LAYOUT

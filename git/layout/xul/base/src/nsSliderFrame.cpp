@@ -818,10 +818,13 @@ nsSliderFrame::SetCurrentPositionInternal(nsIContent* aScrollbar, PRInt32 aNewPo
       mediator->PositionChanged(scrollbarFrame, GetCurrentPosition(scrollbar), aNewPos);
       // 'mediator' might be dangling now...
       UpdateAttribute(scrollbar, aNewPos, PR_FALSE, aIsSmooth);
-      nsIFrame* frame = content->GetPrimaryFrame();
-      if (frame && frame->GetType() == nsGkAtoms::sliderFrame) {
-        static_cast<nsSliderFrame*>(frame)->
-          CurrentPositionChanged(frame->PresContext(), aImmediateRedraw);
+      nsIPresShell* shell = context->GetPresShell();
+      if (shell) {
+        nsIFrame* frame = shell->GetPrimaryFrameFor(content);
+        if (frame && frame->GetType() == nsGkAtoms::sliderFrame) {
+          static_cast<nsSliderFrame*>(frame)->
+            CurrentPositionChanged(frame->PresContext(), aImmediateRedraw);
+        }
       }
       mUserChanged = PR_FALSE;
       return;
@@ -1060,7 +1063,7 @@ nsSliderFrame::HandleRelease(nsPresContext* aPresContext,
 }
 
 void
-nsSliderFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsSliderFrame::Destroy()
 {
   // tell our mediator if we have one we are gone.
   if (mMediator) {
@@ -1070,7 +1073,7 @@ nsSliderFrame::DestroyFrom(nsIFrame* aDestructRoot)
   StopRepeat();
 
   // call base class Destroy()
-  nsBoxFrame::DestroyFrom(aDestructRoot);
+  nsBoxFrame::Destroy();
 }
 
 nsSize

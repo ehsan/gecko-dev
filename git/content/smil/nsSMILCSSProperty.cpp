@@ -55,12 +55,8 @@ GetCSSComputedValue(nsIContent* aElem,
                  PR_FALSE);
 
   nsIDocument* doc = aElem->GetCurrentDoc();
-  if (!doc) {
-    // This can happen if we process certain types of restyles mid-sample
-    // and remove anonymous animated content from the document as a result.
-    // See bug 534975.
-    return PR_FALSE;
-  }
+  NS_ABORT_IF_FALSE(doc,"any target element that's actively being animated "
+                    "must be in a document");
 
   nsPIDOMWindow* win = doc->GetWindow();
   NS_ABORT_IF_FALSE(win, "actively animated document w/ no window");
