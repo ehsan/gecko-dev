@@ -192,6 +192,12 @@ pref("gfx.color_management.rendering_intent", 0);
 pref("gfx.3d_video.enabled", false);
 
 pref("gfx.downloadable_fonts.enabled", true);
+pref("gfx.downloadable_fonts.sanitize", true);
+#ifdef XP_MACOSX
+pref("gfx.downloadable_fonts.sanitize.preserve_otl_tables", false);
+#else
+pref("gfx.downloadable_fonts.sanitize.preserve_otl_tables", true);
+#endif
 
 pref("gfx.font_rendering.harfbuzz.level", 1);
 
@@ -591,7 +597,7 @@ pref("javascript.options.methodjit.chrome",  false);
 // please find Bug 417052 comment 17 and Bug 456721
 // Comment 32.
 pref("javascript.options.mem.high_water_mark", 32);
-pref("javascript.options.mem.gc_frequency",   1600);
+pref("javascript.options.mem.gc_frequency",   300);
 
 // advanced prefs
 pref("advanced.mailftp",                    false);
@@ -1312,6 +1318,12 @@ pref("dom.ipc.plugins.processLaunchTimeoutSecs", 45);
 // No timeout in DEBUG builds
 pref("dom.ipc.plugins.timeoutSecs", 0);
 pref("dom.ipc.plugins.processLaunchTimeoutSecs", 0);
+#endif
+
+#ifdef XP_WIN
+// Disable oopp for java on windows. They run their own
+// process isolation which conflicts with our implementation.
+pref("dom.ipc.plugins.java.enabled", false);
 #endif
 
 #ifndef ANDROID
@@ -3229,7 +3241,7 @@ pref("gfx.direct2d.disabled", false);
 pref("gfx.direct2d.force-enabled", false);
 
 pref("layers.prefer-opengl", false);
-pref("layers.use-d3d10", false);
+pref("layers.prefer-d3d9", false);
 #endif
 #endif
 
