@@ -962,8 +962,8 @@ CompositorOGL::DrawQuad(const Rect& aRect, const Rect& aClipRect,
 
   IntRect intClipRect;
   aClipRect.ToIntRect(&intClipRect);
-  mGLContext->PushScissorRect(nsIntRect(intClipRect.x, intClipRect.y,
-                                        intClipRect.width, intClipRect.height));
+  mGLContext->fScissor(intClipRect.x, intClipRect.y,
+                       intClipRect.width, intClipRect.height);
 
   MaskType maskType;
   EffectMask* effectMask;
@@ -1198,7 +1198,6 @@ CompositorOGL::DrawQuad(const Rect& aRect, const Rect& aClipRect,
     break;
   }
 
-  mGLContext->PopScissorRect();
   mGLContext->fActiveTexture(LOCAL_GL_TEXTURE0);
   // in case rendering has used some other GL context
   MakeCurrent();

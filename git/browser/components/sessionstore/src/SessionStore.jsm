@@ -290,6 +290,12 @@ let SessionStoreInternal = {
   // number of tabs currently restoring
   _tabsRestoringCount: 0,
 
+  // overrides MAX_CONCURRENT_TAB_RESTORES and restore_hidden_tabs when true
+  _restoreOnDemand: false,
+
+  // whether to restore app tabs on demand or not, pref controlled.
+  _restorePinnedTabsOnDemand: null,
+
   // The state from the previous session (after restoring pinned tabs). This
   // state is persisted and passed through to the next session during an app
   // restart to make the third party add-on warning not trash the deferred
@@ -364,6 +370,14 @@ let SessionStoreInternal = {
     // this pref is only read at startup, so no need to observe it
     this._sessionhistory_max_entries =
       this._prefBranch.getIntPref("sessionhistory.max_entries");
+
+    this._restoreOnDemand =
+      this._prefBranch.getBoolPref("sessionstore.restore_on_demand");
+    this._prefBranch.addObserver("sessionstore.restore_on_demand", this, true);
+
+    this._restorePinnedTabsOnDemand =
+      this._prefBranch.getBoolPref("sessionstore.restore_pinned_tabs_on_demand");
+    this._prefBranch.addObserver("sessionstore.restore_pinned_tabs_on_demand", this, true);
 
     gSessionStartup.onceInitialized.then(
       this.initSession.bind(this)
@@ -1173,6 +1187,14 @@ let SessionStoreInternal = {
         if (!this._resume_from_crash)
           _SessionFile.wipe();
         this.saveState(true);
+        break;
+      case "sessionstore.restore_on_demand":
+        this._restoreOnDemand =
+          this._prefBranch.getBoolPref("sessionstore.restore_on_demand");
+        break;
+      case "sessionstore.restore_pinned_tabs_on_demand":
+        this._restorePinnedTabsOnDemand =
+          this._prefBranch.getBoolPref("sessionstore.restore_pinned_tabs_on_demand");
         break;
     }
   },
@@ -3244,8 +3266,10 @@ let SessionStoreInternal = {
     if (this._loadState == STATE_QUITTING)
       return;
 
-    // Don't exceed the maximum number of concurrent tab restores.
-    if (this._tabsRestoringCount >= MAX_CONCURRENT_TAB_RESTORES)
+    // If it's not possible to restore anything, then just bail out.
+    if ((this._restoreOnDemand &&
+        (this._restorePinnedTabsOnDemand || !TabRestoreQueue.hasPriorityTabs)) ||
+        this._tabsRestoringCount >= MAX_CONCURRENT_TAB_RESTORES)
       return;
 
     let tab = TabRestoreQueue.shift();
@@ -4472,50 +4496,20 @@ let TabRestoreQueue = {
   // The separate buckets used to store tabs.
   tabs: {priority: [], visible: [], hidden: []},
 
-  // Preferences used by the TabRestoreQueue to determine which tabs
-  // are restored automatically and which tabs will be on-demand.
-  prefs: {
-    // Lazy getter that returns whether tabs are restored on demand.
-    get restoreOnDemand() {
-      let updateValue = () => {
-        let value = Services.prefs.getBoolPref(PREF);
-        let definition = {value: value, configurable: true};
-        Object.defineProperty(this, "restoreOnDemand", definition);
-        return value;
-      }
+  // Returns whether we have any high priority tabs in the queue.
+  get hasPriorityTabs() !!this.tabs.priority.length,
 
-      const PREF = "browser.sessionstore.restore_on_demand";
-      Services.prefs.addObserver(PREF, updateValue, false);
-      return updateValue();
-    },
-
-    // Lazy getter that returns whether pinned tabs are restored on demand.
-    get restorePinnedTabsOnDemand() {
-      let updateValue = () => {
-        let value = Services.prefs.getBoolPref(PREF);
-        let definition = {value: value, configurable: true};
-        Object.defineProperty(this, "restorePinnedTabsOnDemand", definition);
-        return value;
-      }
-
-      const PREF = "browser.sessionstore.restore_pinned_tabs_on_demand";
-      Services.prefs.addObserver(PREF, updateValue, false);
-      return updateValue();
-    },
-
-    // Lazy getter that returns whether we should restore hidden tabs.
-    get restoreHiddenTabs() {
-      let updateValue = () => {
-        let value = Services.prefs.getBoolPref(PREF);
-        let definition = {value: value, configurable: true};
-        Object.defineProperty(this, "restoreHiddenTabs", definition);
-        return value;
-      }
-
-      const PREF = "browser.sessionstore.restore_hidden_tabs";
-      Services.prefs.addObserver(PREF, updateValue, false);
-      return updateValue();
+  // Lazy getter that returns whether we should restore hidden tabs.
+  get restoreHiddenTabs() {
+    let updateValue = () => {
+      let value = Services.prefs.getBoolPref(PREF);
+      let definition = {value: value, configurable: true};
+      Object.defineProperty(this, "restoreHiddenTabs", definition);
     }
+
+    const PREF = "browser.sessionstore.restore_hidden_tabs";
+    Services.prefs.addObserver(PREF, updateValue, false);
+    updateValue();
   },
 
   // Resets the queue and removes all tabs.
@@ -4560,16 +4554,12 @@ let TabRestoreQueue = {
     let set;
     let {priority, hidden, visible} = this.tabs;
 
-    let {restoreOnDemand, restorePinnedTabsOnDemand} = this.prefs;
-    let restorePinned = !(restoreOnDemand && restorePinnedTabsOnDemand);
-    if (restorePinned && priority.length) {
+    if (priority.length) {
       set = priority;
-    } else if (!restoreOnDemand) {
-      if (visible.length) {
-        set = visible;
-      } else if (this.prefs.restoreHiddenTabs && hidden.length) {
-        set = hidden;
-      }
+    } else if (visible.length) {
+      set = visible;
+    } else if (this.restoreHiddenTabs && hidden.length) {
+      set = hidden;
     }
 
     return set && set.shift();

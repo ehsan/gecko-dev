@@ -113,9 +113,6 @@ class HandleBase {};
 template <typename T>
 class MutableHandleBase {};
 
-template <typename T>
-class HeapBase {};
-
 /*
  * js::NullPtr acts like a NULL pointer in contexts that require a Handle.
  *
@@ -133,10 +130,6 @@ struct NullPtr
 {
     static void * const constNullValue;
 };
-
-namespace gc {
-struct Cell;
-} /* namespace gc */
 
 } /* namespace js */
 
@@ -167,69 +160,6 @@ CheckStackRoots(JSContext *cx);
 struct JS_PUBLIC_API(NullPtr)
 {
     static void * const constNullValue;
-};
-
-/*
- * Encapsulated pointer class for use on the heap.
- *
- * Implements post barriers for heap-based GC thing pointers outside the engine.
- */
-template <typename T>
-class Heap : public js::HeapBase<T>
-{
-  public:
-    Heap() { set(js::RootMethods<T>::initial()); }
-    explicit Heap(T p) { set(p); }
-    explicit Heap(const Heap<T> &p) { set(p.ptr); }
-
-    ~Heap() {
-        if (js::RootMethods<T>::needsPostBarrier(ptr))
-            relocate();
-    }
-
-    bool operator!=(const T &other) { return *ptr != other; }
-    bool operator==(const T &other) { return *ptr == other; }
-
-    operator T() const { return ptr; }
-    T operator->() const { return ptr; }
-    const T *address() const { return &ptr; }
-    const T &get() const { return ptr; }
-
-    T *unsafeGet() { return &ptr; }
-
-    Heap<T> &operator=(T p) {
-        set(p);
-        return *this;
-    }
-
-    void set(T newPtr) {
-        JS_ASSERT(!js::RootMethods<T>::poisoned(newPtr));
-        if (js::RootMethods<T>::needsPostBarrier(newPtr)) {
-            ptr = newPtr;
-            post();
-        } else if (js::RootMethods<T>::needsPostBarrier(ptr)) {
-            relocate();  /* Called before overwriting ptr. */
-            ptr = newPtr;
-        } else {
-            ptr = newPtr;
-        }
-    }
-
-  private:
-    void post() {
-#ifdef JSGC_GENERATIONAL
-        JS_ASSERT(js::RootMethods<T>::needsPostBarrier(ptr));
-        js::RootMethods<T>::postBarrier(&ptr);
-#endif
-    }
-
-    void relocate() {
-#ifdef JSGC_GENERATIONAL
-        js::RootMethods<T>::relocate(&ptr);
-#endif
-    }
-
-    T ptr;
 };
 
 /*
@@ -270,10 +200,6 @@ class MOZ_STACK_CLASS Handle : public js::HandleBase<T>
 
     Handle(MutableHandle<T> handle) {
         ptr = handle.address();
-    }
-
-    Handle(const Heap<T> &heapPtr) {
-        ptr = heapPtr.address();
     }
 
     /*
@@ -389,11 +315,6 @@ typedef MutableHandle<JSString*>   MutableHandleString;
 typedef MutableHandle<jsid>        MutableHandleId;
 typedef MutableHandle<Value>       MutableHandleValue;
 
-#ifdef JSGC_GENERATIONAL
-JS_PUBLIC_API(void) HeapCellPostBarrier(js::gc::Cell **cellp);
-JS_PUBLIC_API(void) HeapCellRelocate(js::gc::Cell **cellp);
-#endif
-
 } /* namespace JS */
 
 namespace js {
@@ -473,15 +394,6 @@ struct RootMethods<T *>
     static T *initial() { return NULL; }
     static ThingRootKind kind() { return RootKind<T *>::rootKind(); }
     static bool poisoned(T *v) { return JS::IsPoisonedPtr(v); }
-    static bool needsPostBarrier(T *v) { return v; }
-#ifdef JSGC_GENERATIONAL
-    static void postBarrier(T **vp) {
-        JS::HeapCellPostBarrier(reinterpret_cast<js::gc::Cell **>(vp));
-    }
-    static void relocate(T **vp) {
-        JS::HeapCellRelocate(reinterpret_cast<js::gc::Cell **>(vp));
-    }
-#endif
 };
 
 } /* namespace js */
@@ -877,6 +789,10 @@ inline void MaybeCheckStackRoots(JSContext *cx)
     JS::CheckStackRoots(cx);
 #endif
 }
+
+namespace gc {
+struct Cell;
+} /* namespace gc */
 
 /* Base class for automatic read-only object rooting during compilation. */
 class CompilerRootNode

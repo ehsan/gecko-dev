@@ -1509,7 +1509,7 @@ HTMLMediaElement::SetVolume(double aVolume, ErrorResult& aRv)
   mVolume = aVolume;
 
   // Here we want just to update the volume.
-  SetVolumeInternal();
+  SetMutedInternal(mMuted);
 
   DispatchAsyncEvent(NS_LITERAL_STRING("volumechange"));
 }
@@ -1687,11 +1687,6 @@ void HTMLMediaElement::SetMutedInternal(uint32_t aMuted)
     return;
   }
 
-  SetVolumeInternal();
-}
-
-void HTMLMediaElement::SetVolumeInternal()
-{
   float effectiveVolume = mMuted ? 0.0f : float(mVolume);
 
   if (mDecoder) {

@@ -72,7 +72,10 @@ private:
   nsSVGGradientFrame* GetReferencedGradient();
 
   // Optionally get a stop frame (returns stop index/count)
-  void GetStopFrames(nsTArray<nsIFrame*>* aStopFrames);
+  int32_t GetStopFrame(int32_t aIndex, nsIFrame * *aStopFrame);
+
+  void GetStopInformation(int32_t aIndex,
+                          float *aOffset, nscolor *aColor, float *aStopOpacity);
 
   const mozilla::nsSVGAnimatedTransformList* GetGradientTransformList(
     nsIContent* aDefault);
@@ -81,7 +84,8 @@ private:
                                  const gfxRect *aOverrideBounds);
 
 protected:
-  virtual bool GradientVectorLengthIsZero() = 0;
+  uint32_t GetStopCount();
+  virtual bool IsSingleColour(uint32_t nStops) = 0;
   virtual already_AddRefed<gfxPattern> CreateGradient() = 0;
 
   // Internal methods for handling referenced gradients
@@ -159,7 +163,7 @@ protected:
   float GetLengthValue(uint32_t aIndex);
   virtual mozilla::dom::SVGLinearGradientElement* GetLinearGradientWithLength(
     uint32_t aIndex, mozilla::dom::SVGLinearGradientElement* aDefault);
-  virtual bool GradientVectorLengthIsZero();
+  virtual bool IsSingleColour(uint32_t nStops);
   virtual already_AddRefed<gfxPattern> CreateGradient();
 };
 
@@ -207,7 +211,7 @@ protected:
                                   mozilla::dom::SVGRadialGradientElement& aElement);
   virtual mozilla::dom::SVGRadialGradientElement* GetRadialGradientWithLength(
     uint32_t aIndex, mozilla::dom::SVGRadialGradientElement* aDefault);
-  virtual bool GradientVectorLengthIsZero();
+  virtual bool IsSingleColour(uint32_t nStops);
   virtual already_AddRefed<gfxPattern> CreateGradient();
 };
 
