@@ -199,7 +199,6 @@ let EXPECTED_ENGINE = {
           type: "text/html",
           method: "GET",
           template: "http://www.google.com/search",
-          resultDomain: "google.com",
           params: [
             {
               "name": "q",
@@ -251,7 +250,6 @@ let EXPECTED_ENGINE = {
           type: "application/x-moz-default-purpose",
           method: "GET",
           template: "http://www.google.com/search",
-          resultDomain: "purpose.google.com",
           params: [
             {
               "name": "q",

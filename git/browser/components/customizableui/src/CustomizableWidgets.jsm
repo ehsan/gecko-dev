@@ -770,6 +770,7 @@ const CustomizableWidgets = [{
         elem.section = aSection;
         elem.value = item.value;
         elem.setAttribute("class", "subviewbutton");
+        addShortcut(item, doc, elem);
         containerElem.appendChild(elem);
       }
     },
