@@ -319,7 +319,29 @@ DOMStorage::PrincipalEquals(nsIPrincipal* aPrincipal)
 bool
 DOMStorage::CanAccess(nsIPrincipal* aPrincipal)
 {
-  return !aPrincipal || aPrincipal->Subsumes(mPrincipal);
+  // Allow C++ callers to access the storage
+  if (!aPrincipal) {
+    return true;
+  }
+
+  // For content, either the code base or domain must be the same.  When code
+  // base is the same, this is enough to say it is safe for a page to access
+  // this storage.
+
+  bool subsumes;
+  nsresult rv = aPrincipal->SubsumesIgnoringDomain(mPrincipal, &subsumes);
+  if (NS_FAILED(rv)) {
+    return false;
+  }
+
+  if (!subsumes) {
+    nsresult rv = aPrincipal->Subsumes(mPrincipal, &subsumes);
+    if (NS_FAILED(rv)) {
+      return false;
+    }
+  }
+
+  return subsumes;
 }
 
 nsTArray<nsString>*

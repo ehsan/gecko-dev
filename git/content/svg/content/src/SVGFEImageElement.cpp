@@ -295,7 +295,11 @@ SVGFEImageElement::OutputIsTainted(const nsTArray<bool>& aInputsAreTainted,
     return false;
   }
 
-  if (aReferencePrincipal->Subsumes(principal)) {
+  // Ignore document.domain in this check.
+  bool subsumes;
+  rv = aReferencePrincipal->SubsumesIgnoringDomain(principal, &subsumes);
+
+  if (NS_SUCCEEDED(rv) && subsumes) {
     // The page is allowed to read from the image.
     return false;
   }

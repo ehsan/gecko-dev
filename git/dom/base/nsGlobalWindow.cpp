@@ -1177,10 +1177,10 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
   if (!PR_GetEnv("MOZ_QUIET")) {
     printf_stderr("++DOMWINDOW == %d (%p) [pid = %d] [serial = %d] [outer = %p]\n",
                   gRefCnt,
-                  static_cast<void*>(ToCanonicalSupports(this)),
+                  static_cast<void*>(static_cast<nsIScriptGlobalObject*>(this)),
                   getpid(),
                   gSerialCounter,
-                  static_cast<void*>(ToCanonicalSupports(aOuterWindow)));
+                  static_cast<void*>(static_cast<nsIScriptGlobalObject*>(aOuterWindow)));
   }
 #endif
 
@@ -1255,10 +1255,10 @@ nsGlobalWindow::~nsGlobalWindow()
     nsGlobalWindow* outer = static_cast<nsGlobalWindow*>(mOuterWindow.get());
     printf_stderr("--DOMWINDOW == %d (%p) [pid = %d] [serial = %d] [outer = %p] [url = %s]\n",
                   gRefCnt,
-                  static_cast<void*>(ToCanonicalSupports(this)),
+                  static_cast<void*>(static_cast<nsIScriptGlobalObject*>(this)),
                   getpid(),
                   mSerial,
-                  static_cast<void*>(ToCanonicalSupports(outer)),
+                  static_cast<void*>(static_cast<nsIScriptGlobalObject*>(outer)),
                   url.get());
   }
 #endif
@@ -7438,9 +7438,7 @@ JSObject* nsGlobalWindow::CallerGlobal()
   // isn't, something is screwy, and we want to clamp to the cx global.
   JS::Rooted<JSObject*> scriptedGlobal(cx, JS_GetScriptedGlobal(cx));
   JS::Rooted<JSObject*> cxGlobal(cx, JS::CurrentGlobalOrNull(cx));
-  nsIPrincipal* scriptedPrin = nsContentUtils::GetObjectPrincipal(scriptedGlobal);
-  nsIPrincipal* cxPrin = nsContentUtils::GetObjectPrincipal(cxGlobal);
-  if (!cxPrin->SubsumesConsideringDomain(scriptedPrin)) {
+  if (!xpc::AccessCheck::subsumes(cxGlobal, scriptedGlobal)) {
     NS_WARNING("Something nasty is happening! Applying countermeasures...");
     return cxGlobal;
   }
@@ -7720,7 +7718,7 @@ PostMessageEvent::Run()
     //       don't do that in other places it seems better to hold the line for
     //       now.  Long-term, we want HTML5 to address this so that we can
     //       be compliant while being safer.
-    if (!targetPrin->Equals(mProvidedPrincipal)) {
+    if (!targetPrin->EqualsIgnoringDomain(mProvidedPrincipal)) {
       return NS_OK;
     }
   }

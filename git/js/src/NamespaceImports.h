@@ -37,8 +37,6 @@ template <typename T> class AutoVectorRooter;
 template<typename K, typename V> class AutoHashMapRooter;
 template<typename T> class AutoHashSetRooter;
 
-class HandleValueArray;
-
 }
 
 // Do the importing.
@@ -122,8 +120,6 @@ using JS::MutableHandleValue;
 
 using JS::NullHandleValue;
 using JS::UndefinedHandleValue;
-
-using JS::HandleValueArray;
 
 using JS::Zone;
 

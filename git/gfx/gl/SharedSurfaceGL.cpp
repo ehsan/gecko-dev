@@ -294,7 +294,8 @@ SharedSurface_Basic::~SharedSurface_Basic()
     if (!mGL->MakeCurrent())
         return;
 
-    mGL->fDeleteTextures(1, &mTex);
+    GLuint tex = mTex;
+    mGL->fDeleteTextures(1, &tex);
 }
 
 void
@@ -338,7 +339,8 @@ SharedSurface_GLTexture::~SharedSurface_GLTexture()
     if (!mGL->MakeCurrent())
         return;
 
-    mGL->fDeleteTextures(1, &mTex);
+    GLuint tex = mTex;
+    mGL->fDeleteTextures(1, &tex);
 
     if (mSync) {
         mGL->fDeleteSync(mSync);

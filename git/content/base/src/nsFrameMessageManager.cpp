@@ -1042,7 +1042,8 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
           return NS_ERROR_UNEXPECTED;
         }
 
-        if (!JS_CallFunctionValue(cx, thisObject, funval, argv, &rval)) {
+        if (!JS_CallFunctionValue(cx, thisObject,
+                                  funval, argv, rval.address())) {
           nsJSUtils::ReportPendingException(cx);
           continue;
         }
@@ -1429,7 +1430,8 @@ nsFrameScriptExecutor::LoadFrameScriptInternal(const nsAString& aURL,
       }
       JS::Rooted<JS::Value> rval(cx);
       JS::Rooted<JS::Value> methodVal(cx, JS::ObjectValue(*method));
-      ok = JS_CallFunctionValue(cx, global, methodVal, JS::EmptyValueArray, &rval);
+      ok = JS_CallFunctionValue(cx, global, methodVal,
+                                JS::EmptyValueArray, rval.address());
     } else if (script) {
       ok = JS_ExecuteScript(cx, global, script, nullptr);
     }

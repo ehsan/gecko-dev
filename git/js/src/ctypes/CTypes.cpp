@@ -2414,10 +2414,7 @@ ImplicitConvert(JSContext* cx,
       // Convert ArrayBuffer to pointer without any copy.
       // Just as with C arrays, we make no effort to
       // keep the ArrayBuffer alive.
-      void* p = JS_GetStableArrayBufferData(cx, valObj);
-      if (!p)
-          return false;
-      *static_cast<void**>(buffer) = p;
+      *static_cast<void**>(buffer) = JS_GetArrayBufferData(valObj);
       break;
     } if (!JSVAL_IS_PRIMITIVE(val) && JS_IsTypedArrayObject(valObj)) {
       if(!CanConvertTypedArrayItemTo(baseType, valObj, cx)) {
@@ -6137,12 +6134,12 @@ CClosure::ClosureStub(ffi_cif* cif, void* result, void** args, void* userData)
 
   RootedObject typeObj(cx, cinfo->typeObj);
   RootedObject thisObj(cx, cinfo->thisObj);
-  RootedValue jsfnVal(cx, ObjectValue(*cinfo->jsfnObj));
+  RootedObject jsfnObj(cx, cinfo->jsfnObj);
 
   JS_AbortIfWrongThread(JS_GetRuntime(cx));
 
   JSAutoRequest ar(cx);
-  JSAutoCompartment ac(cx, cinfo->jsfnObj);
+  JSAutoCompartment ac(cx, jsfnObj);
 
   // Assert that our CIFs agree.
   FunctionInfo* fninfo = FunctionType::GetFunctionInfo(typeObj);
@@ -6190,7 +6187,7 @@ CClosure::ClosureStub(ffi_cif* cif, void* result, void** args, void* userData)
   // Call the JS function. 'thisObj' may be nullptr, in which case the JS
   // engine will find an appropriate object to use.
   RootedValue rval(cx);
-  bool success = JS_CallFunctionValue(cx, thisObj, jsfnVal, argv, &rval);
+  bool success = JS_CallFunctionValue(cx, thisObj, OBJECT_TO_JSVAL(jsfnObj), argv, rval.address());
 
   // Convert the result. Note that we pass 'isArgument = false', such that
   // ImplicitConvert will *not* autoconvert a JS string into a pointer-to-char

@@ -588,9 +588,7 @@ Desktop browser's sync prefs.
             </hbox>
             <hbox align="center"
                   pack="end">
-              <checkbox id="console-follow-checkbox" label="&consoleFollowCheckbox.label;" checked="true"/>
-              <spacer flex="1"/>
-              <radiogroup id="console-filter" orient="horizontal"
+              <radiogroup id="console-filter"
                           oncommand="ConsolePanelView.changeMode();">
                 <radio id="console-filter-all"
                        value="all"
@@ -610,10 +608,6 @@ Desktop browser's sync prefs.
                       class="show-text"
                       label="&consoleClear.label;"
                       oncommand="ConsolePanelView.clearConsole();"/>
-              <button id="console-copy"
-                      class="show-text"
-                      label="&consoleCopyAll.label;"
-                      oncommand="ConsolePanelView.copyAll();"/>
             </hbox>
           </vbox>
 

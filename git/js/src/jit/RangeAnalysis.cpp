@@ -2050,8 +2050,8 @@ RangeAnalysis::addRangeAssertions()
     for (ReversePostorderIterator iter(graph_.rpoBegin()); iter != graph_.rpoEnd(); iter++) {
         MBasicBlock *block = *iter;
 
-        for (MDefinitionIterator iter(block); iter; iter++) {
-            MDefinition *ins = *iter;
+        for (MInstructionIterator iter(block->begin()); iter != block->end(); iter++) {
+            MInstruction *ins = *iter;
 
             // Perform range checking for all numeric and numeric-like types.
             if (!IsNumberType(ins->type()) &&
@@ -2069,19 +2069,12 @@ RangeAnalysis::addRangeAssertions()
 
             MAssertRange *guard = MAssertRange::New(alloc(), ins, new(alloc()) Range(r));
 
-            // Beta nodes and interrupt checks are required to be located at the
-            // beginnings of basic blocks, so we must insert range assertions
-            // after any such instructions.
-            MInstructionIterator insertIter = ins->isPhi()
-                                            ? block->begin()
-                                            : block->begin(ins->toInstruction());
-            while (insertIter->isBeta() ||
-                   insertIter->isInterruptCheck() ||
-                   insertIter->isInterruptCheckPar() ||
-                   insertIter->isConstant())
-            {
+            // The code that removes beta nodes assumes that it can find them
+            // in a contiguous run at the top of each block. Don't insert
+            // range assertions in between beta nodes.
+            MInstructionIterator insertIter = iter;
+            while (insertIter->isBeta())
                 insertIter++;
-            }
 
             if (*insertIter == *iter)
                 block->insertAfter(*insertIter,  guard);

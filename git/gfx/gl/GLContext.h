@@ -90,7 +90,6 @@ MOZ_BEGIN_ENUM_CLASS(GLFeature)
     element_index_uint,
     ES2_compatibility,
     ES3_compatibility,
-    frag_depth,
     framebuffer_blit,
     framebuffer_multisample,
     framebuffer_object,
@@ -108,7 +107,6 @@ MOZ_BEGIN_ENUM_CLASS(GLFeature)
     texture_float,
     texture_float_linear,
     texture_half_float,
-    texture_half_float_linear,
     texture_non_power_of_two,
     transform_feedback,
     vertex_array_object,
@@ -363,7 +361,6 @@ public:
         OES_texture_float_linear,
         ARB_texture_float,
         OES_texture_half_float,
-        OES_texture_half_float_linear,
         NV_half_float,
         EXT_unpack_subimage,
         OES_standard_derivatives,
@@ -411,7 +408,6 @@ public:
         EXT_framebuffer_sRGB,
         KHR_debug,
         ARB_half_float_pixel,
-        EXT_frag_depth,
         Extensions_Max,
         Extensions_End
     };
@@ -1162,7 +1158,7 @@ public:
         AFTER_GL_CALL;
     }
 
-    void fGetObjectPtrLabel(const GLvoid* ptr, GLsizei bufSize, GLsizei* length, GLchar* label) {
+    void fGetObjectPtrLabel(GLvoid* ptr, GLsizei bufSize, GLsizei* length, GLchar* label) {
         BEFORE_GL_CALL;
         ASSERT_SYMBOL_PRESENT(fGetObjectPtrLabel);
         mSymbols.fGetObjectPtrLabel(ptr, bufSize, length, label);
@@ -1193,7 +1189,7 @@ public:
         AFTER_GL_CALL;
     }
 
-    void fTexParameteriv(GLenum target, GLenum pname, const GLint* params) {
+    void fTexParameteriv(GLenum target, GLenum pname, GLint* params) {
         BEFORE_GL_CALL;
         mSymbols.fTexParameteriv(target, pname, params);
         AFTER_GL_CALL;
@@ -1227,13 +1223,13 @@ public:
         AFTER_GL_CALL;
     }
 
-    void fGetTexParameterfv(GLenum target, GLenum pname, GLfloat* params) {
+    void fGetTexParameterfv(GLenum target, GLenum pname, const GLfloat *params) {
         BEFORE_GL_CALL;
         mSymbols.fGetTexParameterfv(target, pname, params);
         AFTER_GL_CALL;
     }
 
-    void fGetTexParameteriv(GLenum target, GLenum pname, GLint* params) {
+    void fGetTexParameteriv(GLenum target, GLenum pname, const GLint *params) {
         BEFORE_GL_CALL;
         mSymbols.fGetTexParameteriv(target, pname, params);
         AFTER_GL_CALL;
@@ -1336,7 +1332,7 @@ public:
         AFTER_GL_CALL;
     }
 
-    void fObjectPtrLabel(const GLvoid* ptr, GLsizei length, const GLchar* label) {
+    void fObjectPtrLabel(GLvoid* ptr, GLsizei length, const GLchar* label) {
         BEFORE_GL_CALL;
         ASSERT_SYMBOL_PRESENT(fObjectPtrLabel);
         mSymbols.fObjectPtrLabel(ptr, length, label);

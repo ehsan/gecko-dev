@@ -1,8 +1,6 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-"use strict";
-
 Cu.import("resource://gre/modules/Promise.jsm");
 Cu.import("resource://services-common/hawk.js");
 
@@ -22,6 +20,7 @@ add_task(function test_now() {
   let client = new HawkClient("https://example.com");
 
   do_check_true(client.now() - Date.now() < SECOND_MS);
+  run_next_test();
 });
 
 add_task(function test_updateClockOffset() {
@@ -42,6 +41,8 @@ add_task(function test_updateClockOffset() {
   // that it agrees with the server.  We are one hour ahead of the server, so
   // our offset should be -1 hour.
   do_check_true(Math.abs(client.localtimeOffsetMsec + HOUR_MS) <= SECOND_MS);
+
+  run_next_test();
 });
 
 add_task(function test_authenticated_get_request() {
@@ -104,7 +105,6 @@ add_task(function test_credentials_optional() {
   let client = new HawkClient(server.baseURI);
   let result = yield client.request("/foo", method); // credentials undefined
   do_check_eq(JSON.parse(result).msg, "you're in the friend zone");
-
   yield deferredStop(server);
 });
 
@@ -122,7 +122,6 @@ add_task(function test_server_error() {
 
   try {
     yield client.request("/foo", method, TEST_CREDS);
-    do_throw("Expected an error");
   } catch(err) {
     do_check_eq(418, err.code);
     do_check_eq("I am a Teapot", err.message);
@@ -145,7 +144,6 @@ add_task(function test_server_error_json() {
 
   try {
     yield client.request("/foo", method, TEST_CREDS);
-    do_throw("Expected an error");
   } catch(err) {
     do_check_eq("Cannot get ye flask.", err.error);
   }
@@ -245,6 +243,7 @@ add_task(function test_2xx_success() {
   do_check_eq(response, "");
 
   yield deferredStop(server);
+
 });
 
 add_task(function test_retry_request_on_fail() {
@@ -270,8 +269,7 @@ add_task(function test_retry_request_on_fail() {
         do_check_true(delta > MINUTE_MS);
         let message = "never!!!";
         response.setStatusLine(request.httpVersion, 401, "Unauthorized");
-        response.bodyOutputStream.write(message, message.length);
-        return;
+        return response.bodyOutputStream.write(message, message.length);
       }
 
       // Second time through, timestamp should be corrected by client
@@ -279,7 +277,6 @@ add_task(function test_retry_request_on_fail() {
       let message = "i love you!!!";
       response.setStatusLine(request.httpVersion, 200, "OK");
       response.bodyOutputStream.write(message, message.length);
-      return;
     }
   });
 
@@ -353,6 +350,7 @@ add_task(function test_multiple_401_retry_once() {
 add_task(function test_500_no_retry() {
   // If we get a 500 error, the client should not retry (as it would with a
   // 401)
+  let attempts = 0;
   let credentials = {
     id: "eyJleHBpcmVzIjogMTM2NTAxMDg5OC4x",
     key: "qTZf4ZFpAMpMoeSsX3zVRjiqmNs=",
@@ -362,6 +360,7 @@ add_task(function test_500_no_retry() {
 
   let server = httpd_setup({
     "/no-shutup": function() {
+      attempts += 1;
       let message = "Cannot get ye flask.";
       response.setStatusLine(request.httpVersion, 500, "Internal server error");
       response.bodyOutputStream.write(message, message.length);
@@ -382,12 +381,13 @@ add_task(function test_500_no_retry() {
   // Request will 500; no retries
   try {
     yield client.request("/no-shutup", method, credentials);
-    do_throw("Expected an error");
   } catch(err) {
     do_check_eq(err.code, 500);
   }
+  do_check_eq(attempts, 1);
 
   yield deferredStop(server);
+
 });
 
 add_task(function test_401_then_500() {
@@ -417,8 +417,7 @@ add_task(function test_401_then_500() {
         do_check_true(delta > MINUTE_MS);
         let message = "never!!!";
         response.setStatusLine(request.httpVersion, 401, "Unauthorized");
-        response.bodyOutputStream.write(message, message.length);
-        return;
+        return response.bodyOutputStream.write(message, message.length);
       }
 
       // Second time through, timestamp should be corrected by client
@@ -427,7 +426,6 @@ add_task(function test_401_then_500() {
       let message = "Cannot get ye flask.";
       response.setStatusLine(request.httpVersion, 500, "Internal server error");
       response.bodyOutputStream.write(message, message.length);
-      return;
     }
   });
 
@@ -455,12 +453,13 @@ add_task(function test_401_then_500() {
 });
 
 add_task(function throw_if_not_json_body() {
+  do_test_pending();
   let client = new HawkClient("https://example.com");
   try {
     yield client.request("/bogus", "GET", {}, "I am not json");
-    do_throw("Expected an error");
   } catch(err) {
     do_check_true(!!err.message);
+    do_test_finished();
   }
 });
 

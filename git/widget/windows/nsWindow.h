@@ -287,8 +287,6 @@ public:
 
   virtual void GetPreferredCompositorBackends(nsTArray<mozilla::layers::LayersBackend>& aHints);
 
-  virtual bool ShouldUseOffMainThreadCompositing();
-
 protected:
 
   virtual void WindowUsesOMTC() MOZ_OVERRIDE;

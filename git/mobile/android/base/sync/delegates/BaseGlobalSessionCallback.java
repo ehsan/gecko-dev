@@ -32,11 +32,5 @@ public interface BaseGlobalSessionCallback {
   void handleSuccess(GlobalSession globalSession);
   void handleStageCompleted(Stage currentState, GlobalSession globalSession);
 
-  /**
-   * Called when a {@link GlobalSession} wants to know if it should continue
-   * to make storage requests.
-   *
-   * @return false if the session should make no further requests.
-   */
-  boolean shouldBackOffStorage();
+  boolean shouldBackOff();
 }

@@ -2060,7 +2060,7 @@ BaseStubConstructor(nsIWeakReference* aWeakOwner,
         }
 
         JS::Rooted<JS::Value> frval(cx);
-        bool ret = JS_CallFunctionValue(cx, thisObject, funval, argv, &frval);
+        bool ret = JS_CallFunctionValue(cx, thisObject, funval, argv, frval.address());
 
         if (!ret) {
           return NS_ERROR_FAILURE;
