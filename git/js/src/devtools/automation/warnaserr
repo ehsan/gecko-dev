@@ -1,4 +1,4 @@
 --enable-threadsafe
 --enable-optimize
---enable-warnings-as-errors
+--enable-sm-fail-on-warnings
 

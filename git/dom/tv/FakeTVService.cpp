@@ -180,7 +180,7 @@ FakeTVService::SetSource(const nsAString& aTunerId,
   return NS_DispatchToCurrentThread(runnable);
 }
 
-class EITBroadcastedCallback MOZ_FINAL : public nsITimerCallback
+class EITBroadcastedCallback : public nsITimerCallback
 {
 public:
   NS_DECL_ISUPPORTS
@@ -228,7 +228,7 @@ private:
 
 NS_IMPL_ISUPPORTS(EITBroadcastedCallback, nsITimerCallback)
 
-class ScanCompleteCallback MOZ_FINAL : public nsITimerCallback
+class ScanCompleteCallback : public nsITimerCallback
 {
 public:
   NS_DECL_ISUPPORTS

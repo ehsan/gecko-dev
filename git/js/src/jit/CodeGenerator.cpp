@@ -4099,7 +4099,7 @@ CodeGenerator::generateBody()
 
             if (iter->mirRaw()) {
                 // Only add instructions that have a tracked inline script tree.
-                if (iter->mirRaw()->trackedTree()) {
+                if (iter->mirRaw()->trackedSite().hasTree()) {
                     if (!addNativeToBytecodeEntry(iter->mirRaw()->trackedSite()))
                         return false;
                 }
@@ -7335,8 +7335,7 @@ CodeGenerator::generate()
     // top-level script.
     InlineScriptTree *tree = gen->info().inlineScriptTree();
     jsbytecode *startPC = tree->script()->code();
-    BytecodeSite *startSite = new(gen->alloc()) BytecodeSite(tree, startPC);
-    if (!addNativeToBytecodeEntry(startSite))
+    if (!addNativeToBytecodeEntry(BytecodeSite(tree, startPC)))
         return false;
 
     if (!snapshots_.init())
@@ -7395,21 +7394,21 @@ CodeGenerator::generate()
         return false;
 
     // Reset native => bytecode map table with top-level script and startPc.
-    if (!addNativeToBytecodeEntry(startSite))
+    if (!addNativeToBytecodeEntry(BytecodeSite(tree, startPC)))
         return false;
 
     if (!generateBody())
         return false;
 
     // Reset native => bytecode map table with top-level script and startPc.
-    if (!addNativeToBytecodeEntry(startSite))
+    if (!addNativeToBytecodeEntry(BytecodeSite(tree, startPC)))
         return false;
 
     if (!generateEpilogue())
         return false;
 
     // Reset native => bytecode map table with top-level script and startPc.
-    if (!addNativeToBytecodeEntry(startSite))
+    if (!addNativeToBytecodeEntry(BytecodeSite(tree, startPC)))
         return false;
 
     if (!generateInvalidateEpilogue())
@@ -7425,7 +7424,7 @@ CodeGenerator::generate()
         return false;
 
     // Add terminal entry.
-    if (!addNativeToBytecodeEntry(startSite))
+    if (!addNativeToBytecodeEntry(BytecodeSite(tree, startPC)))
         return false;
 
     // Dump Native to bytecode entries to spew.

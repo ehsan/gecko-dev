@@ -21,6 +21,7 @@
 #include "nsIDOMCharacterData.h"
 #include "nsIEditor.h"
 #include "nsINode.h"
+#include "nsISelection.h"
 #include "nsISupportsUtils.h"
 #include "nsMemory.h"
 #include "nsReadableUtils.h"

@@ -647,10 +647,11 @@ nsSimplePageSequenceFrame::PrePrintNextPage(nsITimerCallback* aCallback, bool* a
 
       mCalledBeginPage = true;
       
-      nsRefPtr<gfxContext> renderingContext = dc->CreateRenderingContext();
+      nsRefPtr<nsRenderingContext> renderingContext =
+        dc->CreateRenderingContext();
 
       nsRefPtr<gfxASurface> renderingSurface =
-          renderingContext->CurrentSurface();
+          renderingContext->ThebesContext()->CurrentSurface();
       NS_ENSURE_TRUE(renderingSurface, NS_ERROR_OUT_OF_MEMORY);
 
       for (int32_t i = mCurrentCanvasList.Length() - 1; i >= 0 ; i--) {
@@ -776,11 +777,12 @@ nsSimplePageSequenceFrame::PrintNextPage()
 
       PR_PL(("SeqFr::PrintNextPage -> %p PageNo: %d", pf, mPageNum));
 
-      nsRenderingContext renderingContext(dc->CreateRenderingContext());
+      nsRefPtr<nsRenderingContext> renderingContext =
+        dc->CreateRenderingContext();
 
       nsRect drawingRect(nsPoint(0, 0), currentPage->GetSize());
       nsRegion drawingRegion(drawingRect);
-      nsLayoutUtils::PaintFrame(&renderingContext, currentPage,
+      nsLayoutUtils::PaintFrame(renderingContext, currentPage,
                                 drawingRegion, NS_RGBA(0,0,0,0),
                                 nsLayoutUtils::PAINT_SYNC_DECODE_IMAGES);
 

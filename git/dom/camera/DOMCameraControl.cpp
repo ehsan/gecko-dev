@@ -46,6 +46,12 @@ using namespace mozilla;
 using namespace mozilla::dom;
 using namespace mozilla::ipc;
 
+#ifdef MOZ_WIDGET_GONK
+StaticRefPtr<ICameraControl> nsDOMCameraControl::sCachedCameraControl;
+/* static */ nsresult nsDOMCameraControl::sCachedCameraControlStartResult = NS_OK;
+/* static */ nsCOMPtr<nsITimer> nsDOMCameraControl::sDiscardCachedCameraControlTimer;
+#endif
+
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsDOMCameraControl)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END_INHERITING(DOMMediaStream)
@@ -144,6 +150,60 @@ nsDOMCameraControl::DOMCameraConfiguration::~DOMCameraConfiguration()
   MOZ_COUNT_DTOR(nsDOMCameraControl::DOMCameraConfiguration);
 }
 
+#ifdef MOZ_WIDGET_GONK
+// This shoudl be long enough for even our slowest platforms.
+static const unsigned long kCachedCameraTimeoutMs = 3500;
+
+// Open the battery-door-facing camera by default.
+static const uint32_t kDefaultCameraId = 0;
+
+/* static */ void
+nsDOMCameraControl::PreinitCameraHardware()
+{
+  // Assume a default, minimal configuration. This should initialize the
+  // hardware, but won't (can't) start the preview.
+  nsRefPtr<ICameraControl> cameraControl = ICameraControl::Create(kDefaultCameraId);
+  if (NS_WARN_IF(!cameraControl)) {
+    return;
+  }
+
+  sCachedCameraControlStartResult = cameraControl->Start();
+  if (NS_WARN_IF(NS_FAILED(sCachedCameraControlStartResult))) {
+    return;
+  }
+
+  sCachedCameraControl = cameraControl;
+
+  nsCOMPtr<nsITimer> timer = do_CreateInstance(NS_TIMER_CONTRACTID);
+  if (NS_WARN_IF(!timer)) {
+    return;
+  }
+
+  nsresult rv = timer->InitWithFuncCallback(DiscardCachedCameraInstance,
+                                            nullptr,
+                                            kCachedCameraTimeoutMs,
+                                            nsITimer::TYPE_ONE_SHOT);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    // If we can't start the timer, it's possible for an app to never grab the
+    // camera, leaving the hardware tied up indefinitely. Better to take the
+    // performance hit.
+    sCachedCameraControl = nullptr;
+    return;
+  }
+
+  sDiscardCachedCameraControlTimer = timer;
+}
+
+/* static */ void
+nsDOMCameraControl::DiscardCachedCameraInstance(nsITimer* aTimer, void* aClosure)
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  sDiscardCachedCameraControlTimer = nullptr;
+  sCachedCameraControl = nullptr;
+}
+#endif
+
 nsDOMCameraControl::nsDOMCameraControl(uint32_t aCameraId,
                                        const CameraConfiguration& aInitialConfig,
                                        GetCameraCallback* aOnSuccess,
@@ -214,7 +274,19 @@ nsDOMCameraControl::nsDOMCameraControl(uint32_t aCameraId,
     config.mRecorderProfile = aInitialConfig.mRecorderProfile;
   }
 
-  mCameraControl = ICameraControl::Create(aCameraId);
+#ifdef MOZ_WIDGET_GONK
+  bool gotCached = false;
+  if (sCachedCameraControl && aCameraId == kDefaultCameraId) {
+    mCameraControl = sCachedCameraControl;
+    sCachedCameraControl = nullptr;
+    gotCached = true;
+  } else {
+    sCachedCameraControl = nullptr;
+#endif
+    mCameraControl = ICameraControl::Create(aCameraId);
+#ifdef MOZ_WIDGET_GONK
+  }
+#endif
   mCurrentConfiguration = initialConfig.forget();
 
   // Attach our DOM-facing media stream to our viewfinder stream.
@@ -228,12 +300,20 @@ nsDOMCameraControl::nsDOMCameraControl(uint32_t aCameraId,
   mListener = new DOMCameraControlListener(this, mInput);
   mCameraControl->AddListener(mListener);
 
-  // Start the camera...
-  if (haveInitialConfig) {
-    rv = mCameraControl->Start(&config);
+#ifdef MOZ_WIDGET_GONK
+  if (!gotCached || NS_FAILED(sCachedCameraControlStartResult)) {
+#endif
+    // Start the camera...
+    if (haveInitialConfig) {
+      rv = mCameraControl->Start(&config);
+    } else {
+      rv = mCameraControl->Start();
+    }
+#ifdef MOZ_WIDGET_GONK
   } else {
-    rv = mCameraControl->Start();
+    rv = mCameraControl->SetConfiguration(config);
   }
+#endif
   if (NS_FAILED(rv)) {
     mListener->OnUserError(DOMCameraControlListener::kInStartCamera, rv);
   }
@@ -664,12 +744,7 @@ nsDOMCameraControl::Capabilities()
   nsRefPtr<CameraCapabilities> caps = mCapabilities;
 
   if (!caps) {
-    caps = new CameraCapabilities(mWindow);
-    nsresult rv = caps->Populate(mCameraControl);
-    if (NS_FAILED(rv)) {
-      DOM_CAMERA_LOGW("Failed to populate camera capabilities (%d)\n", rv);
-      return nullptr;
-    }
+    caps = new CameraCapabilities(mWindow, mCameraControl);
     mCapabilities = caps;
   }
 
@@ -1140,10 +1215,9 @@ nsDOMCameraControl::OnHardwareStateChange(CameraControlListener::HardwareState a
   MOZ_ASSERT(NS_IsMainThread());
   ErrorResult ignored;
 
-  DOM_CAMERA_LOGI("DOM OnHardwareStateChange(%d)\n", aState);
-
   switch (aState) {
     case CameraControlListener::kHardwareOpen:
+      DOM_CAMERA_LOGI("DOM OnHardwareStateChange: open\n");
       {
         // The hardware is open, so we can return a camera to JS, even if
         // the preview hasn't started yet.
@@ -1164,6 +1238,7 @@ nsDOMCameraControl::OnHardwareStateChange(CameraControlListener::HardwareState a
       break;
 
     case CameraControlListener::kHardwareClosed:
+      DOM_CAMERA_LOGI("DOM OnHardwareStateChange: closed\n");
       {
         nsRefPtr<Promise> promise = mReleasePromise.forget();
         if (promise || mReleaseOnSuccessCb) {
@@ -1188,6 +1263,7 @@ nsDOMCameraControl::OnHardwareStateChange(CameraControlListener::HardwareState a
       break;
 
     default:
+      DOM_CAMERA_LOGE("DOM OnHardwareStateChange: UNKNOWN=%d\n", aState);
       MOZ_ASSERT_UNREACHABLE("Unanticipated camera hardware state");
   }
 }
@@ -1402,7 +1478,7 @@ nsDOMCameraControl::OnAutoFocusMoving(bool aIsMoving)
 void
 nsDOMCameraControl::OnFacesDetected(const nsTArray<ICameraControl::Face>& aFaces)
 {
-  DOM_CAMERA_LOGI("DOM OnFacesDetected %u face(s)\n", aFaces.Length());
+  DOM_CAMERA_LOGI("DOM OnFacesDetected %zu face(s)\n", aFaces.Length());
   MOZ_ASSERT(NS_IsMainThread());
 
   Sequence<OwningNonNull<DOMCameraDetectedFace> > faces;

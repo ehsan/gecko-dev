@@ -13,7 +13,7 @@
 #include "nsRegion.h"
 #include "nsSVGUtils.h"
 
-class gfxContext;
+class nsRenderingContext;
 class nsSVGOuterSVGFrame;
 
 typedef nsContainerFrame nsSVGForeignObjectFrameBase;
@@ -76,7 +76,7 @@ public:
 #endif
 
   // nsISVGChildFrame interface:
-  virtual nsresult PaintSVG(gfxContext& aContext,
+  virtual nsresult PaintSVG(nsRenderingContext *aContext,
                             const gfxMatrix& aTransform,
                             const nsIntRect* aDirtyRect = nullptr) MOZ_OVERRIDE;
   virtual nsIFrame* GetFrameForPoint(const gfxPoint& aPoint) MOZ_OVERRIDE;

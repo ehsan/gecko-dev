@@ -34,6 +34,7 @@ class nsIContent;
 class nsIDocument;
 class nsIFrame;
 class nsPresContext;
+class nsRenderingContext;
 class nsStyleContext;
 class nsStyleCoord;
 class nsSVGClipPathFrame;
@@ -278,7 +279,7 @@ public:
    * redrawn, in device pixel coordinates relative to the outer svg */
   static void
   PaintFrameWithEffects(nsIFrame *aFrame,
-                        gfxContext& aContext,
+                        nsRenderingContext *aContext,
                         const gfxMatrix& aTransform,
                         const nsIntRect *aDirtyRect = nullptr);
 

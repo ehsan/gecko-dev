@@ -192,7 +192,7 @@ nsSVGForeignObjectFrame::IsSVGTransformed(Matrix *aOwnTransform,
 }
 
 nsresult
-nsSVGForeignObjectFrame::PaintSVG(gfxContext& aContext,
+nsSVGForeignObjectFrame::PaintSVG(nsRenderingContext *aContext,
                                   const gfxMatrix& aTransform,
                                   const nsIntRect* aDirtyRect)
 {
@@ -241,7 +241,9 @@ nsSVGForeignObjectFrame::PaintSVG(gfxContext& aContext,
       return NS_OK;
   }
 
-  aContext.Save();
+  gfxContext *gfx = aContext->ThebesContext();
+
+  gfx->Save();
 
   if (StyleDisplay()->IsScrollableOverflow()) {
     float x, y, width, height;
@@ -250,7 +252,7 @@ nsSVGForeignObjectFrame::PaintSVG(gfxContext& aContext,
 
     gfxRect clipRect =
       nsSVGUtils::GetClipRectForFrame(this, 0.0f, 0.0f, width, height);
-    nsSVGUtils::SetClipRect(&aContext, aTransform, clipRect);
+    nsSVGUtils::SetClipRect(gfx, aTransform, clipRect);
   }
 
   // SVG paints in CSS px, but normally frames paint in dev pixels. Here we
@@ -261,17 +263,16 @@ nsSVGForeignObjectFrame::PaintSVG(gfxContext& aContext,
   gfxMatrix canvasTMForChildren = aTransform;
   canvasTMForChildren.Scale(cssPxPerDevPx, cssPxPerDevPx);
 
-  aContext.Multiply(canvasTMForChildren);
+  gfx->Multiply(canvasTMForChildren);
 
   uint32_t flags = nsLayoutUtils::PAINT_IN_TRANSFORM;
-  if (SVGAutoRenderState::IsPaintingToWindow(aContext.GetDrawTarget())) {
+  if (SVGAutoRenderState::IsPaintingToWindow(aContext->GetDrawTarget())) {
     flags |= nsLayoutUtils::PAINT_TO_WINDOW;
   }
-  nsRenderingContext rendCtx(&aContext);
-  nsresult rv = nsLayoutUtils::PaintFrame(&rendCtx, kid, nsRegion(kidDirtyRect),
+  nsresult rv = nsLayoutUtils::PaintFrame(aContext, kid, nsRegion(kidDirtyRect),
                                           NS_RGBA(0,0,0,0), flags);
 
-  aContext.Restore();
+  gfx->Restore();
 
   return rv;
 }
@@ -524,14 +525,14 @@ nsSVGForeignObjectFrame::DoReflow()
     return;
 
   // initiate a synchronous reflow here and now:  
-  nsRenderingContext renderingContext(
-    presContext->PresShell()->CreateReferenceRenderingContext());
+  nsRefPtr<nsRenderingContext> renderingContext =
+    presContext->PresShell()->CreateReferenceRenderingContext();
 
   mInReflow = true;
 
   WritingMode wm = kid->GetWritingMode();
   nsHTMLReflowState reflowState(presContext, kid,
-                                &renderingContext,
+                                renderingContext,
                                 LogicalSize(wm, GetLogicalSize(wm).ISize(wm),
                                             NS_UNCONSTRAINEDSIZE));
   nsHTMLReflowMetrics desiredSize(reflowState);

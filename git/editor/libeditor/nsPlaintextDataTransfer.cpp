@@ -5,7 +5,6 @@
 
 #include "mozilla/ArrayUtils.h"
 #include "mozilla/MouseEvents.h"
-#include "mozilla/dom/Selection.h"
 #include "nsAString.h"
 #include "nsCOMPtr.h"
 #include "nsCRT.h"
@@ -22,6 +21,7 @@
 #include "nsIDOMDragEvent.h"
 #include "nsIDOMEvent.h"
 #include "nsIDOMNode.h"
+#include "nsIDOMRange.h"
 #include "nsIDOMUIEvent.h"
 #include "nsIDocument.h"
 #include "nsIDragService.h"
@@ -33,12 +33,12 @@
 #include "nsIPrincipal.h"
 #include "nsIFormControl.h"
 #include "nsIPlaintextEditor.h"
+#include "nsISelection.h"
 #include "nsISupportsPrimitives.h"
 #include "nsITransferable.h"
 #include "nsIVariant.h"
 #include "nsLiteralString.h"
 #include "nsPlaintextEditor.h"
-#include "nsRange.h"
 #include "nsSelectionState.h"
 #include "nsServiceManagerUtils.h"
 #include "nsString.h"
@@ -77,8 +77,9 @@ nsresult nsPlaintextEditor::InsertTextAt(const nsAString &aStringToInsert,
   if (aDestinationNode)
   {
     nsresult res;
-    nsRefPtr<Selection> selection = GetSelection();
-    NS_ENSURE_STATE(selection);
+    nsCOMPtr<nsISelection>selection;
+    res = GetSelection(getter_AddRefs(selection));
+    NS_ENSURE_SUCCESS(res, res);
 
     nsCOMPtr<nsIDOMNode> targetNode = aDestinationNode;
     int32_t targetOffset = aDestOffset;
@@ -219,7 +220,9 @@ nsresult nsPlaintextEditor::InsertFromDrop(nsIDOMEvent* aDropEvent)
   rv = uiEvent->GetRangeOffset(&newSelectionOffset);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsRefPtr<Selection> selection = GetSelection();
+  nsCOMPtr<nsISelection> selection;
+  rv = GetSelection(getter_AddRefs(selection));
+  NS_ENSURE_SUCCESS(rv, rv);
   NS_ENSURE_TRUE(selection, NS_ERROR_FAILURE);
 
   bool isCollapsed = selection->Collapsed();
@@ -256,11 +259,10 @@ nsresult nsPlaintextEditor::InsertFromDrop(nsIDOMEvent* aDropEvent)
 
     for (int32_t j = 0; j < rangeCount; j++)
     {
-      nsRefPtr<nsRange> range = selection->GetRangeAt(j);
-      if (!range) {
-        // don't bail yet, iterate through them all
-        continue;
-      }
+      nsCOMPtr<nsIDOMRange> range;
+      rv = selection->GetRangeAt(j, getter_AddRefs(range));
+      if (NS_FAILED(rv) || !range) 
+        continue;  // don't bail yet, iterate through them all
 
       rv = range->IsPointInRange(newSelectionParent, newSelectionOffset, &cursorIsInSelection);
       if (cursorIsInSelection)

@@ -21,7 +21,6 @@
 #include "mozilla/AppUnits.h"           // for AppUnits
 
 class gfxASurface;
-class gfxContext;
 class gfxTextPerfMetrics;
 class gfxUserFontSet;
 struct nsFont;
@@ -33,6 +32,7 @@ class nsIScreen;
 class nsIScreenManager;
 class nsIWidget;
 struct nsRect;
+class nsRenderingContext;
 
 class nsDeviceContext MOZ_FINAL
 {
@@ -61,7 +61,7 @@ public:
      *
      * @return the new rendering context (guaranteed to be non-null)
      */
-    already_AddRefed<gfxContext> CreateRenderingContext();
+    already_AddRefed<nsRenderingContext> CreateRenderingContext();
 
     /**
      * Gets the number of app units in one CSS pixel; this number is global,

@@ -198,7 +198,7 @@ LoopUnroller::go(LoopIterationBound *bound)
     // The old preheader will go before the unrolled loop, and the old loop
     // will need a new empty preheader.
     CompileInfo &info = oldPreheader->info();
-    if (header->trackedPc()) {
+    if (header->trackedSite().pc()) {
         unrolledHeader =
             MBasicBlock::New(graph, nullptr, info,
                              oldPreheader, header->trackedSite(), MBasicBlock::LOOP_HEADER);

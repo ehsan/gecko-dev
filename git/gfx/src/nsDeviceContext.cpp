@@ -6,7 +6,6 @@
 #include "nsDeviceContext.h"
 #include <algorithm>                    // for max
 #include "gfxASurface.h"                // for gfxASurface, etc
-#include "gfxContext.h"
 #include "gfxFont.h"                    // for gfxFontGroup
 #include "gfxImageSurface.h"            // for gfxImageSurface
 #include "gfxPoint.h"                   // for gfxSize
@@ -386,7 +385,7 @@ nsDeviceContext::Init(nsIWidget *aWidget)
     return NS_OK;
 }
 
-already_AddRefed<gfxContext>
+already_AddRefed<nsRenderingContext>
 nsDeviceContext::CreateRenderingContext()
 {
     nsRefPtr<gfxASurface> printingSurface = mPrintingSurface;
@@ -401,6 +400,7 @@ nsDeviceContext::CreateRenderingContext()
       printingSurface = mCachedPrintingSurface;
     }
 #endif
+    nsRefPtr<nsRenderingContext> pContext = new nsRenderingContext();
 
     RefPtr<gfx::DrawTarget> dt =
       gfxPlatform::GetPlatform()->CreateDrawTargetForSurface(printingSurface,
@@ -409,10 +409,13 @@ nsDeviceContext::CreateRenderingContext()
 #ifdef XP_MACOSX
     dt->AddUserData(&gfxContext::sDontUseAsSourceKey, dt, nullptr);
 #endif
-    dt->AddUserData(&sDisablePixelSnapping, (void*)0x1, nullptr);
 
-    nsRefPtr<gfxContext> pContext = new gfxContext(dt);
-    pContext->SetMatrix(gfxMatrix::Scaling(mPrintingScale, mPrintingScale));
+    pContext->Init(dt);
+    pContext->GetDrawTarget()->AddUserData(&sDisablePixelSnapping,
+                                           (void*)0x1, nullptr);
+    pContext->ThebesContext()->SetMatrix(gfxMatrix::Scaling(mPrintingScale,
+                                                            mPrintingScale));
+
     return pContext.forget();
 }
 

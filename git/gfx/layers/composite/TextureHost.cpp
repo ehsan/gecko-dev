@@ -814,12 +814,17 @@ SharedSurfaceToTexSource(gl::SharedSurface* abstractSurf, Compositor* compositor
 #ifdef XP_WIN
     case gl::SharedSurfaceType::EGLSurfaceANGLE: {
       auto surf = gl::SharedSurface_ANGLEShareHandle::Cast(abstractSurf);
+      HANDLE shareHandle = surf->GetShareHandle();
 
       MOZ_ASSERT(compositor->GetBackendType() == LayersBackend::LAYERS_D3D11);
       CompositorD3D11* compositorD3D11 = static_cast<CompositorD3D11*>(compositor);
-      RefPtr<ID3D11Texture2D> tex = surf->GetConsumerTexture();
+      ID3D11Device* d3d = compositorD3D11->GetDevice();
 
-      if (!tex) {
+      nsRefPtr<ID3D11Texture2D> tex;
+      HRESULT hr = d3d->OpenSharedResource(shareHandle,
+                                           __uuidof(ID3D11Texture2D),
+                                           getter_AddRefs(tex));
+      if (FAILED(hr)) {
         NS_WARNING("Failed to open shared resource.");
         break;
       }

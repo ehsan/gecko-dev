@@ -124,23 +124,16 @@ nsHTMLEditUtils::IsSmall(nsIDOMNode* aNode)
 // IsHeader: true if node an html header
 //                  
 bool 
-nsHTMLEditUtils::IsHeader(nsINode& aNode)
+nsHTMLEditUtils::IsHeader(nsIDOMNode* aNode)
 {
-  nsCOMPtr<nsIAtom> nodeAtom = aNode.Tag();
+  NS_PRECONDITION(aNode, "null parent passed to nsHTMLEditUtils::IsHeader");
+  nsCOMPtr<nsIAtom> nodeAtom = nsEditor::GetTag(aNode);
   return (nodeAtom == nsGkAtoms::h1)
       || (nodeAtom == nsGkAtoms::h2)
       || (nodeAtom == nsGkAtoms::h3)
       || (nodeAtom == nsGkAtoms::h4)
       || (nodeAtom == nsGkAtoms::h5)
       || (nodeAtom == nsGkAtoms::h6);
-}
-
-bool
-nsHTMLEditUtils::IsHeader(nsIDOMNode* aNode)
-{
-  nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
-  NS_PRECONDITION(node, "null parent passed to nsHTMLEditUtils::IsHeader");
-  return IsHeader(*node);
 }
 
 
@@ -362,12 +355,6 @@ nsHTMLEditUtils::IsPre(nsIDOMNode* aNode)
 ///////////////////////////////////////////////////////////////////////////
 // IsImage: true if node an html image node
 //                  
-bool
-nsHTMLEditUtils::IsImage(nsINode* aNode)
-{
-  return aNode && aNode->Tag() == nsGkAtoms::img;
-}
-
 bool 
 nsHTMLEditUtils::IsImage(nsIDOMNode* aNode)
 {

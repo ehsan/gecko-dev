@@ -725,8 +725,7 @@ protected:
 
     PINCHING,                 /* nth touch-start, where n > 1. this mode allows pan and zoom */
     ANIMATING_ZOOM,           /* animated zoom to a new rect */
-    OVERSCROLL_ANIMATION,     /* Spring-based animation used to relieve overscroll once
-                                 the finger is lifted. */
+    SNAP_BACK,                /* snap-back animation to relieve overscroll */
     SMOOTH_SCROLL,            /* Smooth scrolling to destination. Used by
                                  CSSOM-View smooth scroll-behavior */
   };
@@ -830,7 +829,7 @@ public:
 
 private:
   friend class FlingAnimation;
-  friend class OverscrollAnimation;
+  friend class OverscrollSnapBackAnimation;
   friend class SmoothScrollAnimation;
   // The initial velocity of the most recent fling.
   ScreenPoint mLastFlingVelocity;
@@ -850,10 +849,11 @@ private:
   // Helper function used by TakeOverFling() and HandleFlingOverscroll().
   void AcceptFling(const ScreenPoint& aVelocity,
                    const nsRefPtr<const OverscrollHandoffChain>& aOverscrollHandoffChain,
-                   bool aHandoff);
+                   bool aHandoff,
+                   bool aAllowOverscroll);
 
-  // Start an overscroll animation with the given initial velocity.
-  void StartOverscrollAnimation(const ScreenPoint& aVelocity);
+  // Start a snap-back animation to relieve overscroll.
+  void StartSnapBack();
 
   void StartSmoothScroll();
 

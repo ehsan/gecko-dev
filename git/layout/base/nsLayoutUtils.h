@@ -74,9 +74,6 @@ class HTMLImageElement;
 class HTMLCanvasElement;
 class HTMLVideoElement;
 } // namespace dom
-namespace gfx {
-struct RectCornerRadii;
-} // namespace gfx
 namespace layers {
 class Layer;
 class ClientLayerManager;
@@ -129,7 +126,6 @@ class nsLayoutUtils
   typedef mozilla::gfx::Point Point;
   typedef mozilla::gfx::Rect Rect;
   typedef mozilla::gfx::Matrix4x4 Matrix4x4;
-  typedef mozilla::gfx::RectCornerRadii RectCornerRadii;
   typedef mozilla::gfx::StrokeOptions StrokeOptions;
 
 public:
@@ -874,7 +870,7 @@ public:
                                            const nscoord aRadii[8],
                                            const nsRect& aContainedRect);
   static nsIntRegion RoundedRectIntersectIntRect(const nsIntRect& aRoundedRect,
-                                                 const RectCornerRadii& aCornerRadii,
+                                                 const gfxCornerSizes& aCorners,
                                                  const nsIntRect& aContainedRect);
 
   /**
@@ -1495,7 +1491,7 @@ public:
    *   @param aDirty            Pixels outside this area may be skipped.
    *   @param aImageFlags       Image flags of the imgIContainer::FLAG_* variety
    */
-  static nsresult DrawBackgroundImage(gfxContext&         aContext,
+  static nsresult DrawBackgroundImage(nsRenderingContext* aRenderingContext,
                                       nsPresContext*      aPresContext,
                                       imgIContainer*      aImage,
                                       const nsIntSize&    aImageSize,
@@ -1521,7 +1517,7 @@ public:
    *   @param aDirty            Pixels outside this area may be skipped.
    *   @param aImageFlags       Image flags of the imgIContainer::FLAG_* variety
    */
-  static nsresult DrawImage(gfxContext&         aContext,
+  static nsresult DrawImage(nsRenderingContext* aRenderingContext,
                             nsPresContext*      aPresContext,
                             imgIContainer*      aImage,
                             GraphicsFilter      aGraphicsFilter,
@@ -1575,7 +1571,7 @@ public:
    *                            in appunits. For best results it should
    *                            be aligned with image pixels.
    */
-  static nsresult DrawSingleUnscaledImage(gfxContext&          aContext,
+  static nsresult DrawSingleUnscaledImage(nsRenderingContext* aRenderingContext,
                                           nsPresContext*       aPresContext,
                                           imgIContainer*       aImage,
                                           GraphicsFilter       aGraphicsFilter,
@@ -1604,7 +1600,7 @@ public:
    *                            in appunits. For best results it should
    *                            be aligned with image pixels.
    */
-  static nsresult DrawSingleImage(gfxContext&         aContext,
+  static nsresult DrawSingleImage(nsRenderingContext* aRenderingContext,
                                   nsPresContext*      aPresContext,
                                   imgIContainer*      aImage,
                                   GraphicsFilter      aGraphicsFilter,

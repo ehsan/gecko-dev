@@ -781,7 +781,7 @@ ImageDocument::UpdateTitleAndCharset()
     "ImageTitleWithDimensions2AndFile",
   };
 
-  MediaDocument::UpdateTitleAndCharset(typeStr, mChannel, formatNames,
+  MediaDocument::UpdateTitleAndCharset(typeStr, formatNames,
                                        mImageWidth, mImageHeight, status);
 }
 

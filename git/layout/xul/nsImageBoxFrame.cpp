@@ -12,7 +12,6 @@
 
 #include "nsImageBoxFrame.h"
 #include "nsGkAtoms.h"
-#include "nsRenderingContext.h"
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
 #include "nsCOMPtr.h"
@@ -339,8 +338,7 @@ nsImageBoxFrame::PaintImage(nsRenderingContext& aRenderingContext,
 
   if (imgCon) {
     bool hasSubRect = !mUseSrcAttr && (mSubRect.width > 0 || mSubRect.height > 0);
-    nsLayoutUtils::DrawSingleImage(*aRenderingContext.ThebesContext(),
-        PresContext(), imgCon,
+    nsLayoutUtils::DrawSingleImage(&aRenderingContext, PresContext(), imgCon,
         nsLayoutUtils::GetGraphicsFilterForFrame(this),
         rect, dirty, nullptr, aFlags, hasSubRect ? &mSubRect : nullptr);
   }

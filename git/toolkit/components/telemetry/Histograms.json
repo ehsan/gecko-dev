@@ -4283,18 +4283,6 @@
     "kind": "count",
     "description": "a testing histogram; not meant to be touched"
   },
-  "TELEMETRY_TEST_KEYED_FLAG": {
-    "expires_in_version": "default",
-    "kind": "flag",
-    "keyed": true,
-    "description": "a testing histogram; not meant to be touched"
-  },
-  "TELEMETRY_TEST_KEYED_COUNT": {
-    "expires_in_version": "default",
-    "kind": "count",
-    "keyed": true,
-    "description": "a testing histogram; not meant to be touched"
-  },
   "STARTUP_CRASH_DETECTED": {
     "expires_in_version": "never",
     "kind": "flag",
@@ -4492,18 +4480,6 @@
     "kind": "enumerated",
     "n_values": 100,
     "description": "Security UI Telemetry"
-  },
-  "SEARCH_COUNTS": {
-    "expires_in_version": "never",
-    "kind": "count",
-    "keyed": true,
-    "description": "Record the search counts for search engines that have partner agreements with Mozilla"
-  },
-  "SEARCH_DEFAULT_ENGINE": {
-    "expires_in_version": "never",
-    "kind": "flag",
-    "keyed": true,
-    "description": "Record the default search engine."
   },
   "SEARCH_SERVICE_INIT_MS": {
     "expires_in_version": "40",
@@ -6405,11 +6381,6 @@
     "kind": "enumerated",
     "n_values": 64,
     "description": "TLS/SSL version intolerance was falsely detected, server rejected handshake"
-  },
-  "SSL_WEAK_CIPHERS_FALLBACK": {
-    "expires_in_version": "never",
-    "kind": "boolean",
-    "description": "Fallback attempted when server did not support any strong cipher suites"
   },
   "SSL_CIPHER_SUITE_FULL": {
     "expires_in_version": "never",
