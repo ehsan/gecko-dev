@@ -5,7 +5,7 @@
  * Tests that the break-on-dom-events request works.
  */
 
-const TAB_URL = EXAMPLE_URL + "doc_event-listeners-01.html";
+const TAB_URL = EXAMPLE_URL + "doc_event-listeners.html";
 
 let gClient, gThreadClient, gInput, gButton;
 
