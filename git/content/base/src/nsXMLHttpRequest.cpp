@@ -480,8 +480,7 @@ nsXMLHttpRequest::Init()
   nsIScriptSecurityManager *secMan = nsContentUtils::GetSecurityManager();
   nsCOMPtr<nsIPrincipal> subjectPrincipal;
   if (secMan) {
-    nsresult rv = secMan->GetSubjectPrincipal(getter_AddRefs(subjectPrincipal));
-    NS_ENSURE_SUCCESS(rv, rv);
+    secMan->GetSubjectPrincipal(getter_AddRefs(subjectPrincipal));
   }
   NS_ENSURE_STATE(subjectPrincipal);
   mPrincipal = subjectPrincipal;
@@ -865,9 +864,9 @@ nsresult nsXMLHttpRequest::CreateResponseArrayBuffer(JSContext *aCx)
   }
 
   if (dataLen > 0) {
-    JSObject *abuf = js::ArrayBuffer::getArrayBuffer(mResultArrayBuffer);
+    js::ArrayBuffer *abuf = js::ArrayBuffer::fromJSObject(mResultArrayBuffer);
     NS_ASSERTION(abuf, "What happened?");
-    memcpy(JS_GetArrayBufferData(abuf), mResponseBody.BeginReading(), dataLen);
+    memcpy(abuf->data, mResponseBody.BeginReading(), dataLen);
   }
 
   return NS_OK;

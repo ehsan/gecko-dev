@@ -58,8 +58,7 @@ class THEBES_API nsCARenderer {
 public:
   nsCARenderer() : mCARenderer(nsnull), mPixelBuffer(nsnull), mOpenGLContext(nsnull),
                    mCGImage(nsnull), mCGData(nsnull), mIOSurface(nsnull), mFBO(nsnull),
-                   mIOTexture(nsnull), 
-                   mUnsupportedWidth(UINT32_MAX), mUnsupportedHeight(UINT32_MAX) {}
+                   mIOTexture(nsnull) {}
   ~nsCARenderer();
   nsresult SetupRenderer(void* aCALayer, int aWidth, int aHeight);
   nsresult Render(int aWidth, int aHeight, CGImageRef *aOutCAImage);
@@ -86,8 +85,6 @@ private:
   nsIOSurface       *mIOSurface;
   uint32_t           mFBO;
   uint32_t           mIOTexture;
-  uint32_t           mUnsupportedWidth;
-  uint32_t           mUnsupportedHeight;
 };
 
 typedef uint32_t IOSurfaceID;

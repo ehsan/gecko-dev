@@ -239,7 +239,6 @@ nsFocusManager::Observe(nsISupports *aSubject,
     mFirstBlurEvent = nsnull;
     mFirstFocusEvent = nsnull;
     mWindowBeingLowered = nsnull;
-    mDelayedBlurFocusEvents.Clear();
     mMouseDownEventHandlingDocument = nsnull;
   }
 

@@ -6,6 +6,7 @@
  * Tests that history navigation works for the add-ons manager.
  */
 
+const PREF_DISCOVERURL = "extensions.webservice.discoverURL";
 const MAIN_URL = "https://example.com/" + RELATIVE_DIR + "discovery.html";
 const SECOND_URL = "https://example.com/" + RELATIVE_DIR + "releaseNotes.xhtml";
 
@@ -57,6 +58,9 @@ function test() {
   waitForExplicitFinish();
 
   Services.prefs.setCharPref(PREF_DISCOVERURL, MAIN_URL);
+  registerCleanupFunction(function() {
+    Services.prefs.clearUserPref(PREF_DISCOVERURL);
+  });
 
   var gProvider = new MockProvider();
   gProvider.createAddons([{

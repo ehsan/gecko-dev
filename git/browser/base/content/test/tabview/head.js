@@ -45,19 +45,14 @@ function createGroupItemWithBlankTabs(win, width, height, padding, numNewTabs, a
 
 // ----------
 function closeGroupItem(groupItem, callback) {
-  groupItem.addSubscriber(groupItem, "close", function () {
-    groupItem.removeSubscriber(groupItem, "close");
-    if ("function" == typeof callback)
-      executeSoon(callback);
-  });
-
-  if (groupItem.getChildren().length) {
-    groupItem.addSubscriber(groupItem, "groupHidden", function () {
-      groupItem.removeSubscriber(groupItem, "groupHidden");
-      groupItem.closeHidden();
+  groupItem.addSubscriber(groupItem, "groupHidden", function() {
+    groupItem.removeSubscriber(groupItem, "groupHidden");
+    groupItem.addSubscriber(groupItem, "close", function() {
+      groupItem.removeSubscriber(groupItem, "close");
+      callback();
     });
-  }
-
+    groupItem.closeHidden();
+  });
   groupItem.closeAll();
 }
 
@@ -317,17 +312,13 @@ function restoreTab(callback, index, win) {
   let tab = win.undoCloseTab(index || 0);
   let tabItem = tab._tabViewTabItem;
 
-  let finalize = function () {
-    afterAllTabsLoaded(function () callback(tab), win);
-  };
-
   if (tabItem._reconnected) {
-    finalize();
+    afterAllTabsLoaded(callback, win);
     return;
   }
 
   tab._tabViewTabItem.addSubscriber(tab, "reconnected", function onReconnected() {
     tab._tabViewTabItem.removeSubscriber(tab, "reconnected");
-    finalize();
+    afterAllTabsLoaded(callback, win);
   });
 }

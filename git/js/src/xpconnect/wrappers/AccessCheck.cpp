@@ -50,6 +50,7 @@
 #include "WrapperFactory.h"
 
 #include "jsfriendapi.h"
+#include "jsstr.h"
 
 namespace xpc {
 

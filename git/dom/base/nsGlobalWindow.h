@@ -326,6 +326,9 @@ public:
   // nsIDOMWindow
   NS_DECL_NSIDOMWINDOW
 
+  // nsIDOMWindow2
+  NS_DECL_NSIDOMWINDOW2
+
   // nsIDOMWindowInternal
   NS_DECL_NSIDOMWINDOWINTERNAL
 
@@ -568,10 +571,10 @@ public:
 
 private:
   // Enable updates for the accelerometer.
-  void EnableDeviceMotionUpdates();
+  void EnableAccelerationUpdates();
 
   // Disables updates for the accelerometer.
-  void DisableDeviceMotionUpdates();
+  void DisableAccelerationUpdates();
 
 protected:
   friend class HashchangeCallback;
@@ -886,8 +889,8 @@ protected:
   // should be displayed.
   PRPackedBool           mFocusByKeyOccurred : 1;
 
-  // Indicates whether this window is getting device motion change events
-  PRPackedBool           mHasDeviceMotion : 1;
+  // Indicates whether this window is getting acceleration change events
+  PRPackedBool           mHasAcceleration : 1;
 
   // whether we've sent the destroy notification for our window id
   PRPackedBool           mNotifiedIDDestroyed : 1;
@@ -1023,8 +1026,8 @@ public:
     mCleanMessageManager = PR_FALSE;
   }
 
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsGlobalChromeWindow,
-                                           nsGlobalWindow)
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsGlobalChromeWindow,
+                                                     nsGlobalWindow)
 
   nsCOMPtr<nsIBrowserDOMWindow> mBrowserDOMWindow;
   nsCOMPtr<nsIChromeFrameMessageManager> mMessageManager;

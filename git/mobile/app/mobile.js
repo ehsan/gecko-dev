@@ -428,7 +428,7 @@ pref("dom.ipc.plugins.enabled", true);
 
 // process priority
 // higher values give content process less CPU time
-#if MOZ_PLATFORM_MAEMO == 5
+#if MOZ_PLATFORM_MAEMO
 pref("dom.ipc.content.nice", 10);
 #else
 pref("dom.ipc.content.nice", 1);

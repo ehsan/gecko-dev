@@ -97,7 +97,7 @@
 #include "nsCanvasFrame.h"
 #include "nsIWidget.h"
 #include "nsIBaseWindow.h"
-#include "nsDeviceMotion.h"
+#include "nsAccelerometer.h"
 #include "nsIContent.h"
 #include "nsIContentViewerEdit.h"
 #include "nsIDocShell.h"
@@ -830,7 +830,7 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
 #endif
     mShowFocusRingForContent(PR_FALSE),
     mFocusByKeyOccurred(PR_FALSE),
-    mHasDeviceMotion(PR_FALSE),
+    mHasAcceleration(PR_FALSE),
     mNotifiedIDDestroyed(PR_FALSE),
     mTimeoutInsertionPoint(nsnull),
     mTimeoutPublicIdCounter(1),
@@ -1137,8 +1137,8 @@ nsGlobalWindow::CleanUp(PRBool aIgnoreModalDialog)
     inner->CleanUp(aIgnoreModalDialog);
   }
 
-  DisableDeviceMotionUpdates();
-  mHasDeviceMotion = PR_FALSE;
+  DisableAccelerationUpdates();
+  mHasAcceleration = PR_FALSE;
 
   if (mCleanMessageManager) {
     NS_ABORT_IF_FALSE(mIsChrome, "only chrome should have msg manager cleaned");
@@ -1328,6 +1328,7 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsGlobalWindow)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIScriptGlobalObject)
   NS_INTERFACE_MAP_ENTRY(nsIDOMWindowInternal)
   NS_INTERFACE_MAP_ENTRY(nsIDOMWindow)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMWindow2)
   NS_INTERFACE_MAP_ENTRY(nsIDOMJSWindow)
   NS_INTERFACE_MAP_ENTRY(nsIScriptGlobalObject)
   NS_INTERFACE_MAP_ENTRY(nsIScriptObjectPrincipal)
@@ -1409,14 +1410,10 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGlobalWindow)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOuterWindow)
 
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOpenerScriptPrincipal)
-  if (tmp->mListenerManager) {
-    tmp->mListenerManager->Disconnect();
-    NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mListenerManager)
-  }
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mListenerManager)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mSessionStorage)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mApplicationCache)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDocumentPrincipal)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDoc)
 
   // Unlink stuff from nsPIDOMWindow
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mChromeEventHandler)
@@ -3239,6 +3236,18 @@ nsGlobalWindow::GetApplicationCache(nsIDOMOfflineResourceList **aApplicationCach
   NS_IF_ADDREF(*aApplicationCache = mApplicationCache);
 
   return NS_OK;
+}
+
+NS_IMETHODIMP
+nsGlobalWindow::CreateBlobURL(nsIDOMBlob* aBlob, nsAString& aURL)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+nsGlobalWindow::RevokeBlobURL(const nsAString& aURL)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
@@ -7528,12 +7537,13 @@ void nsGlobalWindow::UpdateTouchState()
   }
 }
 
+
 void
-nsGlobalWindow::EnableDeviceMotionUpdates()
+nsGlobalWindow::EnableAccelerationUpdates()
 {
-  if (mHasDeviceMotion) {
-    nsCOMPtr<nsIDeviceMotion> ac =
-      do_GetService(NS_DEVICE_MOTION_CONTRACTID);
+  if (mHasAcceleration) {
+    nsCOMPtr<nsIAccelerometer> ac =
+      do_GetService(NS_ACCELEROMETER_CONTRACTID);
     if (ac) {
       ac->AddWindowListener(this);
     }
@@ -7541,11 +7551,11 @@ nsGlobalWindow::EnableDeviceMotionUpdates()
 }
 
 void
-nsGlobalWindow::DisableDeviceMotionUpdates()
+nsGlobalWindow::DisableAccelerationUpdates()
 {
-  if (mHasDeviceMotion) {
-    nsCOMPtr<nsIDeviceMotion> ac =
-      do_GetService(NS_DEVICE_MOTION_CONTRACTID);
+  if (mHasAcceleration) {
+    nsCOMPtr<nsIAccelerometer> ac =
+      do_GetService(NS_ACCELEROMETER_CONTRACTID);
     if (ac) {
       ac->RemoveWindowListener(this);
     }
@@ -8863,7 +8873,11 @@ nsGlobalWindow::SetTimeoutOrInterval(nsIScriptTimeoutHandler *aHandler,
     interval = maxTimeoutMs;
   }
 
-  nsRefPtr<nsTimeout> timeout = new nsTimeout();
+  nsTimeout *timeout = new nsTimeout();
+
+  // Increment the timeout's reference count to represent this function's hold
+  // on the timeout.
+  timeout->AddRef();
 
   if (aIsInterval) {
     timeout->mInterval = interval;
@@ -8889,6 +8903,8 @@ nsGlobalWindow::SetTimeoutOrInterval(nsIScriptTimeoutHandler *aHandler,
   rv = nsContentUtils::GetSecurityManager()->
     GetSubjectPrincipal(getter_AddRefs(subjectPrincipal));
   if (NS_FAILED(rv)) {
+    timeout->Release();
+
     return NS_ERROR_FAILURE;
   }
 
@@ -8901,6 +8917,8 @@ nsGlobalWindow::SetTimeoutOrInterval(nsIScriptTimeoutHandler *aHandler,
   // of course).
   rv = ourPrincipal->Subsumes(subjectPrincipal, &subsumes);
   if (NS_FAILED(rv)) {
+    timeout->Release();
+
     return NS_ERROR_FAILURE;
   }
 
@@ -8921,6 +8939,8 @@ nsGlobalWindow::SetTimeoutOrInterval(nsIScriptTimeoutHandler *aHandler,
 
     timeout->mTimer = do_CreateInstance("@mozilla.org/timer;1", &rv);
     if (NS_FAILED(rv)) {
+      timeout->Release();
+
       return rv;
     }
 
@@ -8928,6 +8948,8 @@ nsGlobalWindow::SetTimeoutOrInterval(nsIScriptTimeoutHandler *aHandler,
                                                realInterval,
                                                nsITimer::TYPE_ONE_SHOT);
     if (NS_FAILED(rv)) {
+      timeout->Release();
+
       return rv;
     }
 
@@ -8973,6 +8995,10 @@ nsGlobalWindow::SetTimeoutOrInterval(nsIScriptTimeoutHandler *aHandler,
 
   timeout->mPublicId = ++mTimeoutPublicIdCounter;
   *aReturn = timeout->mPublicId;
+
+  // Our hold on the timeout is expiring. Note that this should not actually
+  // free the timeout (since the list should have taken ownership as well).
+  timeout->Release();
 
   return NS_OK;
 
@@ -9547,9 +9573,16 @@ nsGlobalWindow::InsertTimeoutIntoList(nsTimeout *aTimeout)
 void
 nsGlobalWindow::TimerCallback(nsITimer *aTimer, void *aClosure)
 {
-  nsRefPtr<nsTimeout> timeout = (nsTimeout *)aClosure;
+  nsTimeout *timeout = (nsTimeout *)aClosure;
+
+  // Hold on to the timeout to ensure it doesn't go away while it's
+  // being handled (aka kungFuDeathGrip).
+  timeout->AddRef();
 
   timeout->mWindow->RunTimeout(timeout);
+
+  // Drop our reference to the timeout now that we're done with it.
+  timeout->Release();
 }
 
 //*****************************************************************************
@@ -9848,7 +9881,7 @@ nsGlobalWindow::SuspendTimeouts(PRUint32 aIncrease,
   mTimeoutsSuspendDepth += aIncrease;
 
   if (!suspended) {
-    DisableDeviceMotionUpdates();
+    DisableAccelerationUpdates();
 
     nsDOMThreadService* dts = nsDOMThreadService::get();
     if (dts) {
@@ -9924,7 +9957,7 @@ nsGlobalWindow::ResumeTimeouts(PRBool aThawChildren)
   nsresult rv;
 
   if (shouldResume) {
-    EnableDeviceMotionUpdates();
+    EnableAccelerationUpdates();
 
     nsDOMThreadService* dts = nsDOMThreadService::get();
     if (dts) {
@@ -10043,8 +10076,8 @@ nsGlobalWindow::SetScriptTypeID(PRUint32 aScriptType)
 void
 nsGlobalWindow::SetHasOrientationEventListener()
 {
-  mHasDeviceMotion = PR_TRUE;
-  EnableDeviceMotionUpdates();
+  mHasAcceleration = PR_TRUE;
+  EnableAccelerationUpdates();
 }
 
 NS_IMETHODIMP
@@ -10076,17 +10109,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsGlobalChromeWindow,
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mBrowserDOMWindow)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mMessageManager)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsGlobalChromeWindow,
-                                                nsGlobalWindow)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mBrowserDOMWindow)
-  if (tmp->mMessageManager) {
-    static_cast<nsFrameMessageManager*>(
-      tmp->mMessageManager.get())->Disconnect();
-    NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mMessageManager)
-  }
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 DOMCI_DATA(ChromeWindow, nsGlobalChromeWindow)
 

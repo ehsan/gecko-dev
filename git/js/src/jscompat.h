@@ -45,6 +45,7 @@
  * the NSPR typedef names may be.
  */
 #include "jstypes.h"
+#include "jslong.h"
 
 typedef JSIntn intN;
 typedef JSUintn uintN;

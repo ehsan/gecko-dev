@@ -113,9 +113,7 @@
 #include "gfxContext.h"
 #include "gfxTextRunWordCache.h"
 #include "gfxImageSurface.h"
-
 #include "mozilla/dom/Element.h"
-#include "mozilla/Util.h" // for DebugOnly
 
 #ifdef NS_DEBUG
 #undef NOISY_BLINK
@@ -463,7 +461,7 @@ UnhookTextRunFromFrames(gfxTextRun* aTextRun, nsTextFrame* aStartContinuation)
 
   if (aTextRun->GetFlags() & nsTextFrameUtils::TEXT_IS_SIMPLE_FLOW) {
     nsIFrame* userDataFrame = static_cast<nsIFrame*>(aTextRun->GetUserData());
-    DebugOnly<PRBool> found =
+    PRBool found =
       ClearAllTextRunReferences(static_cast<nsTextFrame*>(userDataFrame),
                                 aTextRun, aStartContinuation);
     NS_ASSERTION(!aStartContinuation || found,
@@ -3324,14 +3322,10 @@ nsTextPaintStyle::GetURLSecondaryColor(nscolor* aForeColor)
 {
   NS_ASSERTION(aForeColor, "aForeColor is null");
 
-  nscolor textColor = GetTextColor();
-  textColor = NS_RGBA(NS_GET_R(textColor),
-                      NS_GET_G(textColor),
-                      NS_GET_B(textColor),
-                      (PRUint8)(255 * 0.5f));
-  // Don't use true alpha color for readability.
-  InitCommonColors();
-  *aForeColor = NS_ComposeColors(mFrameBackgroundColor, textColor);
+  nsILookAndFeel* look = mPresContext->LookAndFeel();
+  nscolor foreColor;
+  look->GetColor(nsILookAndFeel::eColor_graytext, foreColor);
+  *aForeColor = foreColor;
 }
 
 void
