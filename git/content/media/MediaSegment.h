@@ -40,11 +40,6 @@ inline double MediaTimeToSeconds(MediaTime aTime)
   return aTime*(1.0/(1 << MEDIA_TIME_FRAC_BITS));
 }
 
-inline int64_t MediaTimeToMicroseconds(MediaTime aTime)
-{
-  return aTime*(1000000.0/(1 << MEDIA_TIME_FRAC_BITS));
-}
-
 /**
  * A number of ticks at a rate determined by some underlying track (e.g.
  * audio sample rate). We want to make sure that multiplying TrackTicks by

@@ -14,16 +14,7 @@ const {colorUtils} = require("devtools/css-color");
 const Heritage = require("sdk/core/heritage");
 
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "setNamedTimeout",
-  "resource:///modules/devtools/ViewHelpers.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "clearNamedTimeout",
-  "resource:///modules/devtools/ViewHelpers.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "VariablesView",
-  "resource:///modules/devtools/VariablesView.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "VariablesViewController",
-  "resource:///modules/devtools/VariablesViewController.jsm");
+Cu.import("resource:///modules/devtools/ViewHelpers.jsm");
 
 const GRADIENT_RE = /\b(repeating-)?(linear|radial)-gradient\(((rgb|hsl)a?\(.+?\)|[^\)])+\)/gi;
 const BORDERCOLOR_RE = /^border-[-a-z]*color$/ig;
@@ -33,6 +24,7 @@ const XHTML_NS = "http://www.w3.org/1999/xhtml";
 const SPECTRUM_FRAME = "chrome://browser/content/devtools/spectrum-frame.xhtml";
 const ESCAPE_KEYCODE = Ci.nsIDOMKeyEvent.DOM_VK_ESCAPE;
 const ENTER_KEYCODE = Ci.nsIDOMKeyEvent.DOM_VK_RETURN;
+const SHOW_TIMEOUT = 50;
 
 /**
  * Tooltip widget.
@@ -193,9 +185,8 @@ module.exports.Tooltip = Tooltip;
 
 Tooltip.prototype = {
   defaultPosition: "before_start",
-  defaultOffsetX: 0, // px
-  defaultOffsetY: 0, // px
-  defaultShowDelay: 50, // ms
+  defaultOffsetX: 0,
+  defaultOffsetY: 0,
 
   /**
    * Show the tooltip. It might be wise to append some content first if you
@@ -203,11 +194,13 @@ Tooltip.prototype = {
    * tooltip by setting a XUL node to t.content.
    * @param {node} anchor
    *        Which node should the tooltip be shown on
-   * @param {string} position [optional]
+   * @param {string} position
    *        Optional tooltip position. Defaults to before_start
    *        https://developer.mozilla.org/en-US/docs/XUL/PopupGuide/Positioning
-   * @param {number} x, y [optional]
-   *        The left and top offset coordinates, in pixels.
+   * @param {number} x
+   *        Optional x offset. Defaults to 0
+   * @param {number} y
+   *        Optional y offset. Defaults to 0
    */
   show: function(anchor,
     position = this.defaultPosition,
@@ -239,22 +232,6 @@ Tooltip.prototype = {
   },
 
   /**
-   * Gets this panel's visibility state.
-   * @return boolean
-   */
-  isHidden: function() {
-    return this.panel.state == "closed" || this.panel.state == "hiding";
-  },
-
-  /**
-   * Gets if this panel has any child nodes.
-   * @return boolean
-   */
-  isEmpty: function() {
-    return !this.panel.hasChildNodes();
-  },
-
-  /**
    * Get rid of references and event listeners
    */
   destroy: function () {
@@ -276,7 +253,7 @@ Tooltip.prototype = {
 
     this.doc = null;
 
-    this.panel.remove();
+    this.panel.parentNode.removeChild(this.panel);
     this.panel = null;
   },
 
@@ -310,9 +287,9 @@ Tooltip.prototype = {
    *        tooltip if needed. If omitted, the tooltip will be shown everytime.
    * @param {Number} showDelay
    *        An optional delay that will be observed before showing the tooltip.
-   *        Defaults to this.defaultShowDelay.
+   *        Defaults to SHOW_TIMEOUT
    */
-  startTogglingOnHover: function(baseNode, targetNodeCb, showDelay = this.defaultShowDelay) {
+  startTogglingOnHover: function(baseNode, targetNodeCb, showDelay=SHOW_TIMEOUT) {
     if (this._basedNode) {
       this.stopTogglingOnHover();
     }
@@ -376,13 +353,7 @@ Tooltip.prototype = {
    *        A node that can be appended in the tooltip XUL element
    */
   set content(content) {
-    if (this.content == content) {
-      return;
-    }
-
     this.empty();
-    this.panel.removeAttribute("clamped-dimensions");
-
     if (content) {
       this.panel.appendChild(content);
     }
@@ -395,87 +366,23 @@ Tooltip.prototype = {
   /**
    * Sets some text as the content of this tooltip.
    *
-   * @param {array} messages
+   * @param {string[]} messages
    *        A list of text messages.
-   * @param {string} messagesClass [optional]
-   *        A style class for the text messages.
-   * @param {string} containerClass [optional]
-   *        A style class for the text messages container.
    */
-  setTextContent: function(messages,
-    messagesClass = "default-tooltip-simple-text-colors",
-    containerClass = "default-tooltip-simple-text-colors") {
-
+  setTextContent: function(...messages) {
     let vbox = this.doc.createElement("vbox");
-    vbox.className = "devtools-tooltip-simple-text-container " + containerClass;
+    vbox.className = "devtools-tooltip-simple-text-container";
     vbox.setAttribute("flex", "1");
 
     for (let text of messages) {
       let description = this.doc.createElement("description");
       description.setAttribute("flex", "1");
-      description.className = "devtools-tooltip-simple-text " + messagesClass;
+      description.className = "devtools-tooltip-simple-text";
       description.textContent = text;
       vbox.appendChild(description);
     }
 
     this.content = vbox;
-  },
-
-  /**
-   * Fill the tooltip with a variables view, inspecting an object via its
-   * corresponding object actor, as specified in the remote debugging protocol.
-   *
-   * @param {object} objectActor
-   *        The value grip for the object actor.
-   * @param {object} viewOptions [optional]
-   *        Options for the variables view visualization.
-   * @param {object} controllerOptions [optional]
-   *        Options for the variables view controller.
-   * @param {object} relayEvents [optional]
-   *        A collection of events to listen on the variables view widget.
-   *        For example, { fetched: () => ... }
-   * @param {boolean} reuseCachedWidget [optional]
-   *        Pass false to instantiate a brand new widget for this variable.
-   *        Otherwise, if a variable was previously inspected, its widget
-   *        will be reused.
-   */
-  setVariableContent: function(
-    objectActor,
-    viewOptions = {},
-    controllerOptions = {},
-    relayEvents = {},
-    reuseCachedWidget = true) {
-
-    if (reuseCachedWidget && this._cachedVariablesView) {
-      var [vbox, widget] = this._cachedVariablesView;
-    } else {
-      var vbox = this.doc.createElement("vbox");
-      vbox.className = "devtools-tooltip-variables-view-box";
-      vbox.setAttribute("flex", "1");
-
-      let innerbox = this.doc.createElement("vbox");
-      innerbox.className = "devtools-tooltip-variables-view-innerbox";
-      innerbox.setAttribute("flex", "1");
-      vbox.appendChild(innerbox);
-
-      var widget = new VariablesView(innerbox, viewOptions);
-      for (let e in relayEvents) widget.on(e, relayEvents[e]);
-      VariablesViewController.attach(widget, controllerOptions);
-
-      this._cachedVariablesView = [vbox, widget];
-    }
-
-    // Some of the view options are allowed to change between uses.
-    widget.searchPlaceholder = viewOptions.searchPlaceholder;
-    widget.searchEnabled = viewOptions.searchEnabled;
-
-    // Use the object actor's grip to display it as a variable in the widget.
-    // The controller options are allowed to change between uses.
-    widget.controller.setSingleVariable(
-      { objectActor: objectActor }, controllerOptions);
-
-    this.content = vbox;
-    this.panel.setAttribute("clamped-dimensions", "");
   },
 
   /**

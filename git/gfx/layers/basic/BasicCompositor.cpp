@@ -122,7 +122,7 @@ protected:
     return EnsureSurface();
   }
 
-  virtual TemporaryRef<gfx::DataSourceSurface> GetAsSurface() MOZ_OVERRIDE {
+  virtual already_AddRefed<gfxImageSurface> GetAsSurface() MOZ_OVERRIDE {
     return nullptr;
   }
 

@@ -14,6 +14,8 @@
 #include "nsTArray.h"
 #include "nsRegion.h"
 
+class gfxASurface;
+
 namespace mozilla {
 namespace gfx {
 
@@ -341,7 +343,7 @@ public:
                           const IntRect& aFillPaintRect,
                           SourceSurface* aStrokePaint,
                           const IntRect& aStrokePaintRect,
-                          nsTArray<RefPtr<SourceSurface>>& aAdditionalImages);
+                          nsTArray<nsRefPtr<gfxASurface> >& aAdditionalImages);
 
   /**
    * Computes the region that changes in the filter output due to a change in

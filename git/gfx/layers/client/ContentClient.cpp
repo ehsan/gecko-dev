@@ -73,11 +73,11 @@ ContentClient::CreateContentClient(CompositableForwarder* aForwarder)
 
 }
 
-// We pass a null pointer for the ContentClient Forwarder argument, which means
-// this client will not have a ContentHost on the other side.
-ContentClientBasic::ContentClientBasic()
-  : ContentClient(nullptr)
+ContentClientBasic::ContentClientBasic(CompositableForwarder* aForwarder,
+                                       BasicLayerManager* aManager)
+  : ContentClient(aForwarder)
   , RotatedContentBuffer(ContainsVisibleBounds)
+  , mManager(aManager)
 {}
 
 void

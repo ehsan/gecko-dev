@@ -21,7 +21,8 @@
 #include "nsCOMPtr.h"                   // for already_AddRefed
 #include "nsRect.h"                     // for nsIntRect
 #include "nscore.h"                     // for nsACString
-
+ 
+class gfxImageSurface;
 class nsIntRegion;
 
 namespace mozilla {
@@ -81,7 +82,7 @@ public:
                     const char* aPrefix="",
                     bool aDumpHtml=false) MOZ_OVERRIDE;
 
-  virtual TemporaryRef<gfx::DataSourceSurface> GetAsSurface() MOZ_OVERRIDE;
+  virtual already_AddRefed<gfxImageSurface> GetAsSurface() MOZ_OVERRIDE;
 #endif
 
 protected:
@@ -148,7 +149,7 @@ public:
                     const char* aPrefix="",
                     bool aDumpHtml=false) MOZ_OVERRIDE;
 
-  virtual TemporaryRef<gfx::DataSourceSurface> GetAsSurface() MOZ_OVERRIDE;
+  virtual already_AddRefed<gfxImageSurface> GetAsSurface() MOZ_OVERRIDE;
 #endif
 
 protected:

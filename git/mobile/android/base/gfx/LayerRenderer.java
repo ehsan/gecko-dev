@@ -25,7 +25,6 @@ import android.graphics.RectF;
 import android.opengl.GLES20;
 import android.os.SystemClock;
 import android.util.Log;
-import org.mozilla.gecko.mozglue.JNITarget;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -82,6 +81,7 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
     private boolean mProfileRender;
     private long mProfileOutputTime;
 
+    /* Used by robocop for testing purposes */
     private IntBuffer mPixelBuffer;
 
     // Used by GLES 2.0
@@ -489,7 +489,6 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
         }
 
         /** This function is invoked via JNI; be careful when modifying signature. */
-        @JNITarget
         public void beginDrawing() {
             mFrameStartTime = System.nanoTime();
 
@@ -579,7 +578,6 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
         }
 
         /** This function is invoked via JNI; be careful when modifying signature. */
-        @JNITarget
         public void drawBackground() {
             // Any GL state which is changed here must be restored in
             // CompositorOGL::RestoreState
@@ -614,7 +612,7 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
             rootLayer.draw(mPageContext);
         }
 
-        @JNITarget
+        /** This function is invoked via JNI; be careful when modifying signature. */
         public void drawForeground() {
             // Any GL state which is changed here must be restored in
             // CompositorOGL::RestoreState
@@ -668,7 +666,6 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
         }
 
         /** This function is invoked via JNI; be careful when modifying signature. */
-        @JNITarget
         public void endDrawing() {
             // If a layer update requires further work, schedule another redraw
             if (!mUpdated)

@@ -90,6 +90,7 @@ this.VariablesView = function VariablesView(aParentNode, aFlags = {}) {
   this._list.addEventListener("keypress", this._onViewKeyPress, false);
   this._list.addEventListener("keydown", this._onViewKeyDown, false);
   this._parent.appendChild(this._list);
+  this._boxObject = this._list.boxObject.QueryInterface(Ci.nsIScrollBoxObject);
 
   for (let name in aFlags) {
     this[name] = aFlags[name];
@@ -195,6 +196,7 @@ VariablesView.prototype = {
 
       this._parent.removeChild(prevList);
       this._parent.appendChild(currList);
+      this._boxObject = currList.boxObject.QueryInterface(Ci.nsIScrollBoxObject);
 
       if (!this._store.length) {
         this._appendEmptyNotice();
@@ -412,7 +414,7 @@ VariablesView.prototype = {
       return;
     }
     let document = this.document;
-    let ownerNode = this._parent.parentNode;
+    let ownerView = this._parent.parentNode;
 
     let container = this._searchboxContainer = document.createElement("hbox");
     container.className = "devtools-toolbar";
@@ -430,7 +432,7 @@ VariablesView.prototype = {
     searchbox.addEventListener("keypress", this._onSearchboxKeyPress, false);
 
     container.appendChild(searchbox);
-    ownerNode.insertBefore(container, this._parent);
+    ownerView.insertBefore(container, this._parent);
   },
 
   /**
@@ -738,7 +740,7 @@ VariablesView.prototype = {
       aItem.collapse();
     }
     aItem._target.focus();
-    this.boxObject.ensureElementIsVisible(aItem._arrow);
+    this._boxObject.ensureElementIsVisible(aItem._arrow);
     return true;
   },
 
@@ -928,12 +930,6 @@ VariablesView.prototype = {
    * Gets the parent node holding this view.
    * @return nsIDOMNode
    */
-  get boxObject() this._list.boxObject.QueryInterface(Ci.nsIScrollBoxObject),
-
-  /**
-   * Gets the parent node holding this view.
-   * @return nsIDOMNode
-   */
   get parentNode() this._parent,
 
   /**
@@ -958,6 +954,7 @@ VariablesView.prototype = {
   _nonEnumVisible: true,
   _parent: null,
   _list: null,
+  _boxObject: null,
   _searchboxNode: null,
   _searchboxContainer: null,
   _searchboxPlaceholder: "",
@@ -1059,8 +1056,7 @@ VariablesView.getterOrSetterEvalMacro = function(aItem, aCurrentString, aPrefix 
       // morph it into a plain value.
       if ((type == "set" && propertyObject.getter.type == "undefined") ||
           (type == "get" && propertyObject.setter.type == "undefined")) {
-        // Make sure the right getter/setter to value override macro is applied
-        // to the target object.
+        // Make sure the right getter/setter to value override macro is applied to the target object.
         return propertyObject.evaluationMacro(propertyObject, "undefined", aPrefix);
       }
 
@@ -2606,7 +2602,7 @@ Variable.prototype = Heritage.extend(Scope.prototype, {
 
     // Replace the specified label with a textbox input element.
     aLabel.parentNode.replaceChild(input, aLabel);
-    this._variablesView.boxObject.ensureElementIsVisible(input);
+    this._variablesView._boxObject.ensureElementIsVisible(input);
     input.select();
 
     // When the value is a string (displayed as "value"), then we probably want
@@ -2640,7 +2636,7 @@ Variable.prototype = Heritage.extend(Scope.prototype, {
    */
   _deactivateInput: function(aLabel, aInput, aCallbacks) {
     aInput.parentNode.replaceChild(aLabel, aInput);
-    this._variablesView.boxObject.scrollBy(-this._target.clientWidth, 0);
+    this._variablesView._boxObject.scrollBy(-this._target.clientWidth, 0);
 
     aInput.removeEventListener("keypress", aCallbacks.onKeypress, false);
     aInput.removeEventListener("blur", aCallbacks.onBlur, false);

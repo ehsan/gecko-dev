@@ -70,7 +70,7 @@ SVGFESpecularLightingElement::KernelUnitLengthY()
 FilterPrimitiveDescription
 SVGFESpecularLightingElement::GetPrimitiveDescription(nsSVGFilterInstance* aInstance,
                                                       const IntRect& aFilterSubregion,
-                                                      nsTArray<RefPtr<SourceSurface>>& aInputImages)
+                                                      nsTArray<nsRefPtr<gfxASurface> >& aInputImages)
 {
   float specularExponent = mNumberAttributes[SPECULAR_EXPONENT].GetAnimValue();
   float specularConstant = mNumberAttributes[SPECULAR_CONSTANT].GetAnimValue();

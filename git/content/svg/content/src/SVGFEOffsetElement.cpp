@@ -72,7 +72,7 @@ SVGFEOffsetElement::GetOffset(const nsSVGFilterInstance& aInstance)
 FilterPrimitiveDescription
 SVGFEOffsetElement::GetPrimitiveDescription(nsSVGFilterInstance* aInstance,
                                             const IntRect& aFilterSubregion,
-                                            nsTArray<RefPtr<SourceSurface>>& aInputImages)
+                                            nsTArray<nsRefPtr<gfxASurface> >& aInputImages)
 {
   FilterPrimitiveDescription descr(FilterPrimitiveDescription::eOffset);
   nsIntPoint offset = GetOffset(*aInstance);

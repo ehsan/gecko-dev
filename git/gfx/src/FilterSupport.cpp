@@ -561,7 +561,7 @@ FilterNodeFromPrimitiveDescription(const FilterPrimitiveDescription& aDescriptio
                                    DrawTarget* aDT,
                                    nsTArray<RefPtr<FilterNode> >& aSources,
                                    nsTArray<IntRect>& aSourceRegions,
-                                   nsTArray<RefPtr<SourceSurface>>& aInputImages)
+                                   nsTArray<nsRefPtr<gfxASurface> >& aInputImages)
 {
   const AttributeMap& atts = aDescription.Attributes();
   switch (aDescription.Type()) {
@@ -914,11 +914,13 @@ FilterNodeFromPrimitiveDescription(const FilterPrimitiveDescription& aDescriptio
 
       // Pull the image from the additional image list using the index that's
       // stored in the primitive description.
-      RefPtr<SourceSurface> inputImage =
+      nsRefPtr<gfxASurface> inputImage =
         aInputImages[atts.GetUint(eImageInputIndex)];
+      RefPtr<SourceSurface> inputSurface =
+        gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(aDT, inputImage);
 
       RefPtr<FilterNode> transform = aDT->CreateFilter(FILTER_TRANSFORM);
-      transform->SetInput(IN_TRANSFORM_IN, inputImage);
+      transform->SetInput(IN_TRANSFORM_IN, inputSurface);
       transform->SetAttribute(ATT_TRANSFORM_MATRIX, TM);
       transform->SetAttribute(ATT_TRANSFORM_FILTER, atts.GetUint(eImageFilter));
       return transform;
@@ -1002,7 +1004,7 @@ FilterNodeGraphFromDescription(DrawTarget* aDT,
                                const IntRect& aFillPaintRect,
                                SourceSurface* aStrokePaint,
                                const IntRect& aStrokePaintRect,
-                               nsTArray<RefPtr<SourceSurface>>& aAdditionalImages)
+                               nsTArray<nsRefPtr<gfxASurface> >& aAdditionalImages)
 {
   const nsTArray<FilterPrimitiveDescription>& primitives = aFilter.mPrimitives;
   const IntRect& filterSpaceBounds = aFilter.mFilterSpaceBounds;
@@ -1106,7 +1108,7 @@ FilterSupport::RenderFilterDescription(DrawTarget* aDT,
                                        const IntRect& aFillPaintRect,
                                        SourceSurface* aStrokePaint,
                                        const IntRect& aStrokePaintRect,
-                                       nsTArray<RefPtr<SourceSurface>>& aAdditionalImages)
+                                       nsTArray<nsRefPtr<gfxASurface> >& aAdditionalImages)
 {
   RefPtr<FilterNode> resultFilter =
     FilterNodeGraphFromDescription(aDT, aFilter, aRenderRect,

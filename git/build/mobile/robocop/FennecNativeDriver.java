@@ -50,6 +50,7 @@ public class FennecNativeDriver implements Driver {
     private ClassLoader mClassLoader;
     private Class mApiClass;
     private Class mEventListenerClass;
+    private Class mPanningPerfClass;
     private Method mRegisterEventListener;
     private Method mGetPixels;
     private Method mStartFrameRecording;
@@ -90,13 +91,14 @@ public class FennecNativeDriver implements Driver {
 
             mApiClass = mClassLoader.loadClass("org.mozilla.gecko.RobocopAPI");
             mEventListenerClass = mClassLoader.loadClass("org.mozilla.gecko.util.GeckoEventListener");
+            mPanningPerfClass = mClassLoader.loadClass("org.mozilla.gecko.gfx.PanningPerfAPI");
 
             mRegisterEventListener = mApiClass.getMethod("registerEventListener", String.class, mEventListenerClass);
             mGetPixels = mApiClass.getMethod("getViewPixels", View.class);
-            mStartFrameRecording = mApiClass.getDeclaredMethod("startFrameTimeRecording");
-            mStopFrameRecording = mApiClass.getDeclaredMethod("stopFrameTimeRecording");
-            mStartCheckerboardRecording = mApiClass.getDeclaredMethod("startCheckerboardRecording");
-            mStopCheckerboardRecording = mApiClass.getDeclaredMethod("stopCheckerboardRecording");
+            mStartFrameRecording = mPanningPerfClass.getDeclaredMethod("startFrameTimeRecording");
+            mStopFrameRecording = mPanningPerfClass.getDeclaredMethod("stopFrameTimeRecording");
+            mStartCheckerboardRecording = mPanningPerfClass.getDeclaredMethod("startCheckerboardRecording");
+            mStopCheckerboardRecording = mPanningPerfClass.getDeclaredMethod("stopCheckerboardRecording");
 
             mRobocopApi = mApiClass.getConstructor(Activity.class).newInstance(activity);
         } catch (Exception e) {

@@ -5,7 +5,6 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.mozglue.RobocopTarget;
 import org.mozilla.gecko.util.ThreadUtils;
 
 import org.json.JSONArray;
@@ -88,7 +87,6 @@ public final class Distribution {
      *
      * @param packagePath where to look for the distribution directory.
      */
-    @RobocopTarget
     public static void init(final Context context, final String packagePath, final String prefsPath) {
         // Read/write preferences and files on the background thread.
         ThreadUtils.postToBackgroundThread(new Runnable() {

@@ -6,12 +6,12 @@
 package org.mozilla.gecko;
 
 import org.mozilla.gecko.mozglue.GeckoLoader;
-import org.mozilla.gecko.mozglue.RobocopTarget;
 import org.mozilla.gecko.util.GeckoEventListener;
 import org.mozilla.gecko.util.ThreadUtils;
 
 import org.json.JSONObject;
 
+import android.content.Intent;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.content.res.Resources;
@@ -28,7 +28,6 @@ import java.util.Locale;
 public class GeckoThread extends Thread implements GeckoEventListener {
     private static final String LOGTAG = "GeckoThread";
 
-    @RobocopTarget
     public enum LaunchState {
         Launching,
         WaitForDebugger,
@@ -188,7 +187,6 @@ public class GeckoThread extends Thread implements GeckoEventListener {
         }
     }
 
-    @RobocopTarget
     public static boolean checkLaunchState(LaunchState checkState) {
         synchronized (sLock) {
             return sLaunchState == checkState;
