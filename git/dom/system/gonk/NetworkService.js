@@ -10,7 +10,6 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/NetUtil.jsm");
 Cu.import("resource://gre/modules/FileUtils.jsm");
-Cu.import("resource://gre/modules/Promise.jsm");
 
 const NETWORKSERVICE_CONTRACTID = "@mozilla.org/network/service;1";
 const NETWORKSERVICE_CID = Components.ID("{baec696c-c78d-42db-8b44-603f8fbfafb4}");
@@ -316,33 +315,30 @@ NetworkService.prototype = {
     this.controlMessage(options);
   },
 
-  _setHostRoute: function(doAdd, interfaceName, gateway, host) {
-    let command = doAdd ? "addHostRoute" : "removeHostRoute";
-
-    if (DEBUG) debug(command + " " + host + " on " + interfaceName);
-    let deferred = Promise.defer();
+  addHostRoute: function(network) {
+    if(DEBUG) debug("Going to add host route on " + network.name);
+    let gateways = network.getGateways();
+    let dnses = network.getDnses();
     let options = {
-      cmd: command,
-      ifname: interfaceName,
-      gateway: gateway,
-      ip: host
+      cmd: "addHostRoute",
+      ifname: network.name,
+      gateways: gateways,
+      hostnames: dnses.concat(network.httpProxyHost)
     };
-    this.controlMessage(options, function(data) {
-      if (data.error) {
-        deferred.reject(data.reason);
-        return;
-      }
-      deferred.resolve();
-    });
-    return deferred.promise;
+    this.controlMessage(options);
   },
 
-  addHostRoute: function(interfaceName, gateway, host) {
-    return this._setHostRoute(true, interfaceName, gateway, host);
-  },
-
-  removeHostRoute: function(interfaceName, gateway, host) {
-    return this._setHostRoute(false, interfaceName, gateway, host);
+  removeHostRoute: function(network) {
+    if(DEBUG) debug("Going to remove host route on " + network.name);
+    let gateways = network.getGateways();
+    let dnses = network.getDnses();
+    let options = {
+      cmd: "removeHostRoute",
+      ifname: network.name,
+      gateways: gateways,
+      hostnames: dnses.concat(network.httpProxyHost)
+    };
+    this.controlMessage(options);
   },
 
   removeHostRoutes: function(ifname) {
@@ -350,6 +346,30 @@ NetworkService.prototype = {
     let options = {
       cmd: "removeHostRoutes",
       ifname: ifname,
+    };
+    this.controlMessage(options);
+  },
+
+  addHostRouteWithResolve: function(network, hosts) {
+    if(DEBUG) debug("Going to add host route after dns resolution on " + network.name);
+    let gateways = network.getGateways();
+    let options = {
+      cmd: "addHostRoute",
+      ifname: network.name,
+      gateways: gateways,
+      hostnames: hosts
+    };
+    this.controlMessage(options);
+  },
+
+  removeHostRouteWithResolve: function(network, hosts) {
+    if(DEBUG) debug("Going to remove host route after dns resolution on " + network.name);
+    let gateways = network.getGateways();
+    let options = {
+      cmd: "removeHostRoute",
+      ifname: network.name,
+      gateways: gateways,
+      hostnames: hosts
     };
     this.controlMessage(options);
   },
