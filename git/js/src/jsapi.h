@@ -926,6 +926,8 @@ JS_StringToVersion(const char *string);
                                                    leaving that up to the
                                                    embedding. */
 
+#define JSOPTION_METHODJIT      JS_BIT(14)      /* Whole-method JIT. */
+
 extern JS_PUBLIC_API(uint32)
 JS_GetOptions(JSContext *cx);
 
@@ -1032,7 +1034,6 @@ JS_InitCTypesClass(JSContext *cx, JSObject *global);
  */
 #define JS_CALLEE(cx,vp)        ((vp)[0])
 #define JS_ARGV_CALLEE(argv)    ((argv)[-2])
-#define JS_THIS(cx,vp)          JS_ComputeThis(cx, vp)
 #define JS_THIS_OBJECT(cx,vp)   (JSVAL_TO_OBJECT(JS_THIS(cx,vp)))
 #define JS_ARGV(cx,vp)          ((vp) + 2)
 #define JS_RVAL(cx,vp)          (*(vp))
@@ -1040,6 +1041,14 @@ JS_InitCTypesClass(JSContext *cx, JSObject *global);
 
 extern JS_PUBLIC_API(jsval)
 JS_ComputeThis(JSContext *cx, jsval *vp);
+
+#ifdef __cplusplus
+static inline jsval
+JS_THIS(JSContext *cx, jsval *vp)
+{
+    return JSVAL_IS_PRIMITIVE(vp[1]) ? JS_ComputeThis(cx, vp) : vp[1];
+}
+#endif
 
 extern JS_PUBLIC_API(void *)
 JS_malloc(JSContext *cx, size_t nbytes);
@@ -3388,6 +3397,7 @@ class Value
 
     JSObject &asObject() const {
         JS_ASSERT(isObject());
+        JS_ASSERT(JSVAL_TO_OBJECT_IMPL(data));
         return *JSVAL_TO_OBJECT_IMPL(data);
     }
 
