@@ -72,7 +72,6 @@
 #include "nsILoadContext.h"
 #include "ipc/nsGUIEventIPC.h"
 #include "mozilla/gfx/Matrix.h"
-#include "UnitTransforms.h"
 
 #include "nsColorPickerProxy.h"
 
@@ -317,9 +316,7 @@ TabChild::InitializeRootMetrics()
   // be keeping, as well as putting the scroll offset back to
   // the top-left of the page.
   mLastRootMetrics.mViewport = CSSRect(CSSPoint(), kDefaultViewportSize);
-  mLastRootMetrics.mCompositionBounds = ParentLayerIntRect(
-      ParentLayerIntPoint(),
-      ViewAs<ParentLayerPixel>(mInnerSize, PixelCastJustification::ScreenToParentLayerForRoot));
+  mLastRootMetrics.mCompositionBounds = ScreenIntRect(ScreenIntPoint(), mInnerSize);
   mLastRootMetrics.mZoom = mLastRootMetrics.CalculateIntrinsicScale();
   mLastRootMetrics.mDevPixelsPerCSSPixel = mWidget->GetDefaultScale();
   // We use ScreenToLayerScale(1) below in order to turn the
@@ -591,9 +588,7 @@ TabChild::HandlePossibleViewportChange()
 
   FrameMetrics metrics(mLastRootMetrics);
   metrics.mViewport = CSSRect(CSSPoint(), viewport);
-  metrics.mCompositionBounds = ParentLayerIntRect(
-      ParentLayerIntPoint(),
-      ViewAs<ParentLayerPixel>(mInnerSize, PixelCastJustification::ScreenToParentLayerForRoot));
+  metrics.mCompositionBounds = ScreenIntRect(ScreenIntPoint(), mInnerSize);
 
   // This change to the zoom accounts for all types of changes I can conceive:
   // 1. screen size changes, CSS viewport does not (pages with no meta viewport
@@ -636,7 +631,7 @@ TabChild::HandlePossibleViewportChange()
   metrics.mResolution = metrics.mCumulativeResolution / LayoutDeviceToParentLayerScale(1);
   utils->SetResolution(metrics.mResolution.scale, metrics.mResolution.scale);
 
-  CSSSize scrollPort = CSSSize(metrics.CalculateCompositedRectInCssPixels().Size());
+  CSSSize scrollPort = metrics.CalculateCompositedRectInCssPixels().Size();
   utils->SetScrollPositionClampingScrollPortSize(scrollPort.width, scrollPort.height);
 
   // The call to GetPageSize forces a resize event to content, so we need to
@@ -1516,7 +1511,7 @@ TabChild::ProcessUpdateFrame(const FrameMetrics& aFrameMetrics)
     FrameMetrics newMetrics = aFrameMetrics;
     APZCCallbackHelper::UpdateRootFrame(utils, newMetrics);
 
-    CSSRect cssCompositedRect = CSSRect(newMetrics.CalculateCompositedRectInCssPixels());
+    CSSRect cssCompositedRect = newMetrics.CalculateCompositedRectInCssPixels();
     // The BrowserElementScrolling helper must know about these updated metrics
     // for other functions it performs, such as double tap handling.
     // Note, %f must not be used because it is locale specific!
@@ -1528,6 +1523,22 @@ TabChild::ProcessUpdateFrame(const FrameMetrics& aFrameMetrics)
         data.AppendFloat(newMetrics.mViewport.width);
         data.AppendLiteral(", \"height\" : ");
         data.AppendFloat(newMetrics.mViewport.height);
+        data.AppendLiteral(" }");
+    data.AppendLiteral(", \"displayPort\" : ");
+        data.AppendLiteral("{ \"x\" : ");
+        data.AppendFloat(newMetrics.mDisplayPort.x);
+        data.AppendLiteral(", \"y\" : ");
+        data.AppendFloat(newMetrics.mDisplayPort.y);
+        data.AppendLiteral(", \"width\" : ");
+        data.AppendFloat(newMetrics.mDisplayPort.width);
+        data.AppendLiteral(", \"height\" : ");
+        data.AppendFloat(newMetrics.mDisplayPort.height);
+        data.AppendLiteral(" }");
+    data.AppendLiteral(", \"compositionBounds\" : ");
+        data.AppendPrintf("{ \"x\" : %d", newMetrics.mCompositionBounds.x);
+        data.AppendPrintf(", \"y\" : %d", newMetrics.mCompositionBounds.y);
+        data.AppendPrintf(", \"width\" : %d", newMetrics.mCompositionBounds.width);
+        data.AppendPrintf(", \"height\" : %d", newMetrics.mCompositionBounds.height);
         data.AppendLiteral(" }");
     data.AppendLiteral(", \"cssPageRect\" : ");
         data.AppendLiteral("{ \"x\" : ");

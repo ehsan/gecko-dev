@@ -800,11 +800,7 @@ public:
  */
 struct MaskLayerUserData : public LayerUserData
 {
-  MaskLayerUserData()
-    : mScaleX(-1.0f)
-    , mScaleY(-1.0f)
-    , mAppUnitsPerDevPixel(-1)
-  { }
+  MaskLayerUserData() : mImageKey(nullptr) {}
 
   bool
   operator== (const MaskLayerUserData& aOther) const
@@ -3761,9 +3757,6 @@ FrameLayerBuilder::DrawThebesLayer(ThebesLayer* aLayer,
   nsRefPtr<nsRenderingContext> rc = new nsRenderingContext();
   rc->Init(presContext->DeviceContext(), aContext);
 
-  nsIntRegion temp = builder->GetRegionToClear();
-  builder->ResetRegionToClear();
-
   if (shouldDrawRectsSeparately) {
     nsIntRegionRectIterator it(aRegionToDraw);
     while (const nsIntRect* iterRect = it.Next()) {
@@ -3805,12 +3798,6 @@ FrameLayerBuilder::DrawThebesLayer(ThebesLayer* aLayer,
   if (!aRegionToInvalidate.IsEmpty()) {
     aLayer->AddInvalidRect(aRegionToInvalidate.GetBounds());
   }
-
-  if (!builder->GetRegionToClear().IsEmpty()) {
-    aLayer->Manager()->SetRegionToClear(builder->GetRegionToClear());
-  }
-  builder->ResetRegionToClear();
-  builder->AddRegionToClear(temp);
 }
 
 bool
@@ -3988,8 +3975,6 @@ ContainerState::SetupMaskLayer(Layer *aLayer, const DisplayItemClip& aClip,
   // save the details of the clip in user data
   userData->mScaleX = newData.mScaleX;
   userData->mScaleY = newData.mScaleY;
-  userData->mOffset = newData.mOffset;
-  userData->mAppUnitsPerDevPixel = newData.mAppUnitsPerDevPixel;
   userData->mRoundedClipRects.SwapElements(newData.mRoundedClipRects);
   userData->mImageKey = lookupKey;
 

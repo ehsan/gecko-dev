@@ -58,8 +58,8 @@ class RtpReceiverImpl : public RtpReceiver {
   void SetNACKStatus(const NACKMethod method);
 
   // Returns the last received timestamp.
-  bool Timestamp(uint32_t* timestamp) const;
-  bool LastReceivedTimeMs(int64_t* receive_time_ms) const;
+  virtual uint32_t Timestamp() const;
+  int32_t LastReceivedTimeMs() const;
 
   uint32_t SSRC() const;
 
@@ -77,8 +77,6 @@ class RtpReceiverImpl : public RtpReceiver {
   TelephoneEventHandler* GetTelephoneEventHandler();
 
  private:
-  bool HaveReceivedFrame() const;
-
   RtpVideoCodecTypes VideoCodecType() const;
 
   void CheckSSRCChanged(const RTPHeader& rtp_header);

@@ -78,11 +78,7 @@ const EVENTS = {
   // Fired when charts have been displayed in the PerformanceStatisticsView.
   PLACEHOLDER_CHARTS_DISPLAYED: "NetMonitor:PlaceholderChartsDisplayed",
   PRIMED_CACHE_CHART_DISPLAYED: "NetMonitor:PrimedChartsDisplayed",
-  EMPTY_CACHE_CHART_DISPLAYED: "NetMonitor:EmptyChartsDisplayed",
-
-  // Fired once the NetMonitorController establishes a connection to the debug
-  // target.
-  CONNECTED: "connected",
+  EMPTY_CACHE_CHART_DISPLAYED: "NetMonitor:EmptyChartsDisplayed"
 };
 
 // Descriptions for what this frontend is currently doing.
@@ -204,10 +200,7 @@ let NetMonitorController = {
       this._startMonitoringTab(client, form, deferred.resolve);
     }
 
-    return deferred.promise.then((result) => {
-      window.emit(EVENTS.CONNECTED);
-      return result;
-    });
+    return deferred.promise;
   },
 
   /**
@@ -369,25 +362,6 @@ let NetMonitorController = {
     return promise.reject(new Error("Invalid activity type"));
   },
 
-  /**
-   * Getter that tells if the server supports sending custom network requests.
-   * @type boolean
-   */
-  get supportsCustomRequest() {
-    return this.webConsoleClient &&
-           (this.webConsoleClient.traits.customNetworkRequest ||
-            !this._target.isApp);
-  },
-
-  /**
-   * Getter that tells if the server can do network performance statistics.
-   * @type boolean
-   */
-  get supportsPerfStats() {
-    return this.tabClient &&
-           (this.tabClient.traits.reconfigure || !this._target.isApp);
-  },
-
   _startup: null,
   _shutdown: null,
   _connection: null,
@@ -519,11 +493,6 @@ NetworkEventsHandler.prototype = {
    *        The message received from the server.
    */
   _onNetworkEvent: function(aType, aPacket) {
-    if (aPacket.from != this.webConsoleClient.actor) {
-      // Skip events from different console actors.
-      return;
-    }
-
     let { actor, startedDateTime, method, url, isXHR } = aPacket.eventActor;
     NetMonitorView.RequestsMenu.addRequest(actor, startedDateTime, method, url, isXHR);
     window.emit(EVENTS.NETWORK_EVENT);
@@ -539,10 +508,6 @@ NetworkEventsHandler.prototype = {
    */
   _onNetworkEventUpdate: function(aType, aPacket) {
     let actor = aPacket.from;
-    if (!NetMonitorView.RequestsMenu.getItemByValue(actor)) {
-      // Skip events from unknown actors.
-      return;
-    }
 
     switch (aPacket.updateType) {
       case "requestHeaders":

@@ -40,17 +40,18 @@ public class MockMyIDTokenFactory {
    *          sign username@mockmyid.com
    * @param issuedAt
    *          timestamp for certificate, in milliseconds since the epoch.
-   * @param expiresAt
-   *          expiration timestamp for certificate, in milliseconds since the epoch.
+   * @param durationInMilliseconds
+   *          lifespan of certificate, in milliseconds.
    * @return encoded certificate string.
    * @throws Exception
    */
   public String createMockMyIDCertificate(final VerifyingPublicKey publicKeyToSign, String username,
-      final long issuedAt, final long expiresAt)
+      final long issuedAt, final long durationInMilliseconds)
           throws Exception {
     if (!username.endsWith("@mockmyid.com")) {
       username = username + "@mockmyid.com";
     }
+    long expiresAt = issuedAt + durationInMilliseconds;
     SigningPrivateKey mockMyIdPrivateKey = getMockMyIDPrivateKey();
     return JSONWebTokenUtils.createCertificate(publicKeyToSign, username, "mockmyid.com", issuedAt, expiresAt, mockMyIdPrivateKey);
   }
@@ -68,9 +69,8 @@ public class MockMyIDTokenFactory {
    */
   public String createMockMyIDCertificate(final VerifyingPublicKey publicKeyToSign, final String username)
       throws Exception {
-    long ciat = System.currentTimeMillis();
-    long cexp = ciat + JSONWebTokenUtils.DEFAULT_CERTIFICATE_DURATION_IN_MILLISECONDS;
-    return createMockMyIDCertificate(publicKeyToSign, username, ciat, cexp);
+    return createMockMyIDCertificate(publicKeyToSign, username,
+        System.currentTimeMillis(), JSONWebTokenUtils.DEFAULT_CERTIFICATE_DURATION_IN_MILLISECONDS );
   }
 
   /**
@@ -84,24 +84,23 @@ public class MockMyIDTokenFactory {
    *          sign username@mockmyid.com.
    * @param certificateIssuedAt
    *          timestamp for certificate, in milliseconds since the epoch.
-   * @param certificateExpiresAt
-   *          expiration timestamp for certificate, in milliseconds since the epoch.
+   * @param certificateDurationInMilliseconds
+   *          lifespan of certificate, in milliseconds.
    * @param assertionIssuedAt
-   *          timestamp for assertion, in milliseconds since the epoch; if null,
-   *          no timestamp is included.
-   * @param assertionExpiresAt
-   *          expiration timestamp for assertion, in milliseconds since the epoch.
+   *          timestamp for assertion, in milliseconds since the epoch.
+   * @param assertionDurationInMilliseconds
+   *          lifespan of assertion, in milliseconds.
    * @return encoded assertion string.
    * @throws Exception
    */
   public String createMockMyIDAssertion(BrowserIDKeyPair keyPair, String username, String audience,
-      long certificateIssuedAt, long certificateExpiresAt,
-      Long assertionIssuedAt, long assertionExpiresAt)
+      long certificateIssuedAt, long certificateDurationInMilliseconds,
+      long assertionIssuedAt, long assertionDurationInMilliseconds)
           throws Exception {
     String certificate = createMockMyIDCertificate(keyPair.getPublic(), username,
-        certificateIssuedAt, certificateExpiresAt);
+        certificateIssuedAt, certificateDurationInMilliseconds);
     return JSONWebTokenUtils.createAssertion(keyPair.getPrivate(), certificate, audience,
-        JSONWebTokenUtils.DEFAULT_ASSERTION_ISSUER, assertionIssuedAt, assertionExpiresAt);
+        JSONWebTokenUtils.DEFAULT_ASSERTION_ISSUER, assertionIssuedAt, assertionDurationInMilliseconds);
   }
 
   /**
@@ -118,11 +117,9 @@ public class MockMyIDTokenFactory {
    */
   public String createMockMyIDAssertion(BrowserIDKeyPair keyPair, String username, String audience)
       throws Exception {
-    long ciat = System.currentTimeMillis();
-    long cexp = ciat + JSONWebTokenUtils.DEFAULT_CERTIFICATE_DURATION_IN_MILLISECONDS;
-    long aiat = ciat + 1;
-    long aexp = aiat + JSONWebTokenUtils.DEFAULT_ASSERTION_DURATION_IN_MILLISECONDS;
+    long now = System.currentTimeMillis();
     return createMockMyIDAssertion(keyPair, username, audience,
-        ciat, cexp, aiat, aexp);
+        now, JSONWebTokenUtils.DEFAULT_CERTIFICATE_DURATION_IN_MILLISECONDS,
+        now + 1, JSONWebTokenUtils.DEFAULT_ASSERTION_DURATION_IN_MILLISECONDS);
   }
 }

@@ -714,11 +714,12 @@ bool TabParent::SendRealMouseEvent(WidgetMouseEvent& event)
   if (mIsDestroyed) {
     return false;
   }
-  MaybeForwardEventToRenderFrame(event, nullptr);
-  if (!MapEventCoordinatesForChildProcess(&event)) {
+  WidgetMouseEvent outEvent(event);
+  MaybeForwardEventToRenderFrame(event, nullptr, &outEvent);
+  if (!MapEventCoordinatesForChildProcess(&outEvent)) {
     return false;
   }
-  return PBrowserParent::SendRealMouseEvent(event);
+  return PBrowserParent::SendRealMouseEvent(outEvent);
 }
 
 CSSIntPoint TabParent::AdjustTapToChildWidget(const CSSIntPoint& aPoint)
@@ -781,11 +782,12 @@ bool TabParent::SendMouseWheelEvent(WidgetWheelEvent& event)
   if (mIsDestroyed) {
     return false;
   }
-  MaybeForwardEventToRenderFrame(event, nullptr);
-  if (!MapEventCoordinatesForChildProcess(&event)) {
+  WidgetWheelEvent outEvent(event);
+  MaybeForwardEventToRenderFrame(event, nullptr, &outEvent);
+  if (!MapEventCoordinatesForChildProcess(&outEvent)) {
     return false;
   }
-  return PBrowserParent::SendMouseWheelEvent(event);
+  return PBrowserParent::SendMouseWheelEvent(outEvent);
 }
 
 bool TabParent::SendRealKeyEvent(WidgetKeyboardEvent& event)
@@ -793,11 +795,12 @@ bool TabParent::SendRealKeyEvent(WidgetKeyboardEvent& event)
   if (mIsDestroyed) {
     return false;
   }
-  MaybeForwardEventToRenderFrame(event, nullptr);
-  if (!MapEventCoordinatesForChildProcess(&event)) {
+  WidgetKeyboardEvent outEvent(event);
+  MaybeForwardEventToRenderFrame(event, nullptr, &outEvent);
+  if (!MapEventCoordinatesForChildProcess(&outEvent)) {
     return false;
   }
-  return PBrowserParent::SendRealKeyEvent(event);
+  return PBrowserParent::SendRealKeyEvent(outEvent);
 }
 
 bool TabParent::SendRealTouchEvent(WidgetTouchEvent& event)
@@ -838,18 +841,24 @@ bool TabParent::SendRealTouchEvent(WidgetTouchEvent& event)
     }
   }
 
+  // Create an out event for remote content that is identical to the event that
+  // we send to the render frame. The out event will be transformed in such a
+  // way that its async transform in the compositor is unapplied. The event that
+  // it is created from does not get mutated.
+  WidgetTouchEvent outEvent(event);
+
   ScrollableLayerGuid guid;
-  MaybeForwardEventToRenderFrame(event, &guid);
+  MaybeForwardEventToRenderFrame(event, &guid, &outEvent);
 
   if (mIsDestroyed) {
     return false;
   }
 
-  MapEventCoordinatesForChildProcess(mChildProcessOffsetAtTouchStart, &event);
+  MapEventCoordinatesForChildProcess(mChildProcessOffsetAtTouchStart, &outEvent);
 
-  return (event.message == NS_TOUCH_MOVE) ?
-    PBrowserParent::SendRealTouchMoveEvent(event, guid) :
-    PBrowserParent::SendRealTouchEvent(event, guid);
+  return (outEvent.message == NS_TOUCH_MOVE) ?
+    PBrowserParent::SendRealTouchMoveEvent(outEvent, guid) :
+    PBrowserParent::SendRealTouchEvent(outEvent, guid);
 }
 
 /*static*/ TabParent*
@@ -1802,11 +1811,12 @@ TabParent::UseAsyncPanZoom()
 }
 
 void
-TabParent::MaybeForwardEventToRenderFrame(WidgetInputEvent& aEvent,
-                                          ScrollableLayerGuid* aOutTargetGuid)
+TabParent::MaybeForwardEventToRenderFrame(const WidgetInputEvent& aEvent,
+                                          ScrollableLayerGuid* aOutTargetGuid,
+                                          WidgetInputEvent* aOutEvent)
 {
   if (RenderFrameParent* rfp = GetRenderFrame()) {
-    rfp->NotifyInputEvent(aEvent, aOutTargetGuid);
+    rfp->NotifyInputEvent(aEvent, aOutTargetGuid, aOutEvent);
   }
 }
 

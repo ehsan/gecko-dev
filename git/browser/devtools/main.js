@@ -239,8 +239,7 @@ Tools.netMonitor = {
   inMenu: true,
 
   isTargetSupported: function(target) {
-    let root = target.client.mainRoot;
-    return root.traits.networkMonitor || !target.isApp;
+    return !target.isApp;
   },
 
   build: function(iframeWindow, toolbox) {

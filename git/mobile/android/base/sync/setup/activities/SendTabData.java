@@ -5,7 +5,6 @@
 package org.mozilla.gecko.sync.setup.activities;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import android.content.Intent;
@@ -51,7 +50,10 @@ public class SendTabData {
 
     // For URL, take first URL from EXTRA_TEXT, EXTRA_SUBJECT, and EXTRA_TITLE
     // (in that order).
-    List<String> strings = Arrays.asList(text, subject, title);
+    List<String> strings = new ArrayList<String>();
+    strings.add(text);
+    strings.add(subject);
+    strings.add(title);
     String theUri = new WebURLFinder(strings).bestWebURL();
 
     return new SendTabData(theTitle, theUri);

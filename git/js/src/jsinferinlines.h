@@ -323,7 +323,7 @@ inline TypeObject *
 GetTypeNewObject(JSContext *cx, JSProtoKey key)
 {
     RootedObject proto(cx);
-    if (!GetBuiltinPrototype(cx, key, &proto))
+    if (!js_GetClassPrototype(cx, key, &proto))
         return nullptr;
     return cx->getNewType(GetClassForProtoKey(key), proto.get());
 }

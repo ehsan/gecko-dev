@@ -5,7 +5,6 @@
 #include "ClientTiledThebesLayer.h"
 #include "FrameMetrics.h"               // for FrameMetrics
 #include "Units.h"                      // for ScreenIntRect, CSSPoint, etc
-#include "UnitTransforms.h"             // for TransformTo
 #include "ClientLayerManager.h"         // for ClientLayerManager, etc
 #include "gfx3DMatrix.h"                // for gfx3DMatrix
 #include "gfxPlatform.h"                // for gfxPlatform
@@ -53,9 +52,11 @@ ClientTiledThebesLayer::FillSpecificAttributes(SpecificLayerAttributes& aAttrs)
 }
 
 static LayoutDeviceRect
-ApplyParentLayerToLayoutTransform(const gfx3DMatrix& aTransform, const ParentLayerRect& aParentLayerRect)
+ApplyScreenToLayoutTransform(const gfx3DMatrix& aTransform, const ScreenRect& aScreenRect)
 {
-  return TransformTo<LayoutDevicePixel>(aTransform, aParentLayerRect);
+  gfxRect input(aScreenRect.x, aScreenRect.y, aScreenRect.width, aScreenRect.height);
+  gfxRect output = aTransform.TransformBounds(input);
+  return LayoutDeviceRect(output.x, output.y, output.width, output.height);
 }
 
 void
@@ -88,32 +89,30 @@ ClientTiledThebesLayer::BeginPaint()
 
   const FrameMetrics& metrics = scrollParent->GetFrameMetrics();
 
-  // Calculate the transform required to convert parent layer space into
-  // transformed layout device space.
+  // Calculate the transform required to convert screen space into transformed
+  // layout device space.
   gfx::Matrix4x4 effectiveTransform = GetEffectiveTransform();
   for (ContainerLayer* parent = GetParent(); parent; parent = parent->GetParent()) {
     if (parent->UseIntermediateSurface()) {
       effectiveTransform = effectiveTransform * parent->GetEffectiveTransform();
     }
   }
-  gfx3DMatrix layoutToParentLayer;
-  gfx::To3DMatrix(effectiveTransform, layoutToParentLayer);
-  layoutToParentLayer.ScalePost(metrics.GetParentResolution().scale,
-                                metrics.GetParentResolution().scale,
-                                1.f);
+  gfx3DMatrix layoutToScreen;
+  gfx::To3DMatrix(effectiveTransform, layoutToScreen);
+  layoutToScreen.ScalePost(metrics.mCumulativeResolution.scale,
+                           metrics.mCumulativeResolution.scale,
+                           1.f);
 
-  mPaintData.mTransformParentLayerToLayout = layoutToParentLayer.Inverse();
+  mPaintData.mTransformScreenToLayout = layoutToScreen.Inverse();
 
   // Compute the critical display port in layer space.
   mPaintData.mLayoutCriticalDisplayPort.SetEmpty();
   if (!metrics.mCriticalDisplayPort.IsEmpty()) {
     // Convert the display port to screen space first so that we can transform
     // it into layout device space.
-    const ParentLayerRect& criticalDisplayPort = metrics.mCriticalDisplayPort
-                                               * metrics.mDevPixelsPerCSSPixel
-                                               * metrics.GetParentResolution();
+    const ScreenRect& criticalDisplayPort = metrics.mCriticalDisplayPort * metrics.mZoom;
     LayoutDeviceRect transformedCriticalDisplayPort =
-      ApplyParentLayerToLayoutTransform(mPaintData.mTransformParentLayerToLayout, criticalDisplayPort);
+      ApplyScreenToLayoutTransform(mPaintData.mTransformScreenToLayout, criticalDisplayPort);
     mPaintData.mLayoutCriticalDisplayPort =
       LayoutDeviceIntRect::ToUntyped(RoundedOut(transformedCriticalDisplayPort));
   }
@@ -131,8 +130,8 @@ ClientTiledThebesLayer::BeginPaint()
     const FrameMetrics& metrics = primaryScrollable->AsContainerLayer()->GetFrameMetrics();
     mPaintData.mScrollOffset = metrics.mScrollOffset * metrics.mZoom;
     mPaintData.mCompositionBounds =
-      ApplyParentLayerToLayoutTransform(mPaintData.mTransformParentLayerToLayout,
-                                        ParentLayerRect(metrics.mCompositionBounds));
+      ApplyScreenToLayoutTransform(mPaintData.mTransformScreenToLayout,
+                                   ScreenRect(metrics.mCompositionBounds));
   }
 }
 

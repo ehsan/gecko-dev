@@ -1489,6 +1489,7 @@ class FrameIter
     // the heap, so this structure should not contain any GC things.
     struct Data
     {
+        PerThreadData * perThread_;
         JSContext *     cx_;
         SavedOption     savedOption_;
         ContextOption   contextOption_;
@@ -1505,8 +1506,8 @@ class FrameIter
         jit::IonFrameIterator ionFrames_;
 #endif
 
-        Data(JSContext *cx, SavedOption savedOption, ContextOption contextOption,
-             JSPrincipals *principals);
+        Data(JSContext *cx, PerThreadData *perThread, SavedOption savedOption,
+             ContextOption contextOption, JSPrincipals *principals);
         Data(const Data &other);
     };
 

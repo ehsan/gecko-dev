@@ -446,15 +446,15 @@ GlobalObject::initFunctionAndObjectClasses(JSContext *cx)
 /* static */ bool
 GlobalObject::ensureConstructor(JSContext *cx, Handle<GlobalObject*> global, JSProtoKey key)
 {
-    if (global->isStandardClassResolved(key))
+    if (global->getConstructor(key).isObject())
         return true;
-    return resolveConstructor(cx, global, key);
+    return initConstructor(cx, global, key);
 }
 
 /* static*/ bool
-GlobalObject::resolveConstructor(JSContext *cx, Handle<GlobalObject*> global, JSProtoKey key)
+GlobalObject::initConstructor(JSContext *cx, Handle<GlobalObject*> global, JSProtoKey key)
 {
-    MOZ_ASSERT(!global->isStandardClassResolved(key));
+    MOZ_ASSERT(global->getConstructor(key).isUndefined());
 
     // There are two different kinds of initialization hooks. One of them is
     // the class js_InitFoo hook, defined in a JSProtoKey-keyed table at the
@@ -468,7 +468,7 @@ GlobalObject::resolveConstructor(JSContext *cx, Handle<GlobalObject*> global, JS
 
     // Some classes have no init routine, which means that they're disabled at
     // compile-time. We could try to enforce that callers never pass such keys
-    // to resolveConstructor, but that would cramp the style of consumers like
+    // to initConstructor, but that would cramp the style of consumers like
     // GlobalObject::initStandardClasses that want to just carpet-bomb-call
     // ensureConstructor with every JSProtoKey. So it's easier to just handle
     // it here.
@@ -519,30 +519,7 @@ GlobalObject::resolveConstructor(JSContext *cx, Handle<GlobalObject*> global, JS
         return false;
 
     // Stash things in the right slots and define the constructor on the global.
-    return initBuiltinConstructor(cx, global, key, ctor, proto);
-}
-
-/* static */ bool
-GlobalObject::initBuiltinConstructor(JSContext *cx, Handle<GlobalObject*> global,
-                                     JSProtoKey key, HandleObject ctor, HandleObject proto)
-{
-    JS_ASSERT(!global->nativeEmpty()); // reserved slots already allocated
-    JS_ASSERT(key != JSProto_Null);
-    JS_ASSERT(ctor);
-    JS_ASSERT(proto);
-
-    RootedId id(cx, NameToId(ClassName(key, cx)));
-    JS_ASSERT(!global->nativeLookup(cx, id));
-
-    if (!global->addDataProperty(cx, id, constructorPropertySlot(key), 0))
-        return false;
-
-    global->setConstructor(key, ObjectValue(*ctor));
-    global->setPrototype(key, ObjectValue(*proto));
-    global->setConstructorPropertySlot(key, ObjectValue(*ctor));
-
-    types::AddTypePropertyId(cx, global, id, ObjectValue(*ctor));
-    return true;
+    return DefineConstructorAndPrototype(cx, global, key, ctor, proto);
 }
 
 GlobalObject *

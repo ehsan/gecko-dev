@@ -626,9 +626,10 @@ FrameIter::settleOnActivation()
     }
 }
 
-FrameIter::Data::Data(JSContext *cx, SavedOption savedOption, ContextOption contextOption,
-                      JSPrincipals *principals)
-  : cx_(cx),
+FrameIter::Data::Data(JSContext *cx, PerThreadData *perThread, SavedOption savedOption,
+                      ContextOption contextOption, JSPrincipals *principals)
+  : perThread_(perThread),
+    cx_(cx),
     savedOption_(savedOption),
     contextOption_(contextOption),
     principals_(principals),
@@ -642,7 +643,8 @@ FrameIter::Data::Data(JSContext *cx, SavedOption savedOption, ContextOption cont
 }
 
 FrameIter::Data::Data(const FrameIter::Data &other)
-  : cx_(other.cx_),
+  : perThread_(other.perThread_),
+    cx_(other.cx_),
     savedOption_(other.savedOption_),
     contextOption_(other.contextOption_),
     principals_(other.principals_),
@@ -657,7 +659,7 @@ FrameIter::Data::Data(const FrameIter::Data &other)
 }
 
 FrameIter::FrameIter(JSContext *cx, SavedOption savedOption)
-  : data_(cx, savedOption, CURRENT_CONTEXT, nullptr)
+  : data_(cx, &cx->runtime()->mainThread, savedOption, CURRENT_CONTEXT, nullptr)
 #ifdef JS_ION
     , ionInlineFrames_(cx, (js::jit::IonFrameIterator*) nullptr)
 #endif
@@ -667,7 +669,7 @@ FrameIter::FrameIter(JSContext *cx, SavedOption savedOption)
 
 FrameIter::FrameIter(JSContext *cx, ContextOption contextOption,
                      SavedOption savedOption, JSPrincipals *principals)
-  : data_(cx, savedOption, contextOption, principals)
+  : data_(cx, &cx->runtime()->mainThread, savedOption, contextOption, principals)
 #ifdef JS_ION
     , ionInlineFrames_(cx, (js::jit::IonFrameIterator*) nullptr)
 #endif
@@ -1558,7 +1560,7 @@ AsmJSActivation::AsmJSActivation(JSContext *cx, AsmJSModule &module, unsigned ex
 
     prevAsmJS_ = cx_->runtime()->mainThread.asmJSActivationStack_;
 
-    JSRuntime::AutoLockForInterrupt lock(cx_->runtime());
+    JSRuntime::AutoLockForOperationCallback lock(cx_->runtime());
     cx_->runtime()->mainThread.asmJSActivationStack_ = this;
 
     (void) errorRejoinSP_;  // squelch GCC warning
@@ -1571,7 +1573,7 @@ AsmJSActivation::~AsmJSActivation()
 
     JS_ASSERT(cx_->runtime()->mainThread.asmJSActivationStack_ == this);
 
-    JSRuntime::AutoLockForInterrupt lock(cx_->runtime());
+    JSRuntime::AutoLockForOperationCallback lock(cx_->runtime());
     cx_->runtime()->mainThread.asmJSActivationStack_ = prevAsmJS_;
 }
 

@@ -16,21 +16,10 @@ let devtools = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devto
 
 XPCOMUtils.defineLazyModuleGetter(this, "Services",
                                   "resource://gre/modules/Services.jsm");
-XPCOMUtils.defineLazyGetter(this, "NetworkMonitor", () => {
-  return devtools.require("devtools/toolkit/webconsole/network-monitor")
-         .NetworkMonitor;
-});
-XPCOMUtils.defineLazyGetter(this, "NetworkMonitorChild", () => {
-  return devtools.require("devtools/toolkit/webconsole/network-monitor")
-         .NetworkMonitorChild;
-});
-XPCOMUtils.defineLazyGetter(this, "ConsoleProgressListener", () => {
-  return devtools.require("devtools/toolkit/webconsole/network-monitor")
-         .ConsoleProgressListener;
-});
 
 for (let name of ["WebConsoleUtils", "ConsoleServiceListener",
-                  "ConsoleAPIListener", "JSTermHelpers", "JSPropertyProvider",
+                  "ConsoleAPIListener", "ConsoleProgressListener",
+                  "JSTermHelpers", "JSPropertyProvider", "NetworkMonitor",
                   "ConsoleReflowListener"]) {
   Object.defineProperty(this, name, {
     get: function(prop) {
@@ -76,10 +65,6 @@ function WebConsoleActor(aConnection, aParentActor)
     Services.obs.addObserver(this._onObserverNotification,
                              "last-pb-context-exited", false);
   }
-
-  this.traits = {
-    customNetworkRequest: !this._parentIsContentActor,
-  };
 }
 
 WebConsoleActor.l10n = new WebConsoleUtils.l10n("chrome://global/locale/console.properties");
@@ -129,23 +114,6 @@ WebConsoleActor.prototype =
    * @type object
    */
   conn: null,
-
-  /**
-   * List of supported features by the console actor.
-   * @type object
-   */
-  traits: null,
-
-  /**
-   * Boolean getter that tells if the parent actor is a ContentActor.
-   *
-   * @private
-   * @type boolean
-   */
-  get _parentIsContentActor() {
-    return "ContentActor" in DebuggerServer &&
-            this.parentActor instanceof DebuggerServer.ContentActor;
-  },
 
   /**
    * The window we work with.
@@ -285,6 +253,13 @@ WebConsoleActor.prototype =
    * @type array
    */
   _jstermHelpersCache: null,
+
+  /**
+   * Getter for the NetworkMonitor.saveRequestAndResponseBodies preference.
+   * @type boolean
+   */
+  get saveRequestAndResponseBodies()
+    this._prefs["NetworkMonitor.saveRequestAndResponseBodies"] || null,
 
   actorPrefix: "console",
 
@@ -502,14 +477,6 @@ WebConsoleActor.prototype =
   {
     let startedListeners = [];
     let window = !this.parentActor.isRootActor ? this.window : null;
-    let appId = null;
-    let messageManager = null;
-
-    if (this._parentIsContentActor) {
-      // Filter network requests by appId on Firefox OS devices.
-      appId = this.parentActor.docShell.appId;
-      messageManager = this.parentActor._chromeGlobal;
-    }
 
     while (aRequest.listeners.length > 0) {
       let listener = aRequest.listeners.shift();
@@ -532,13 +499,8 @@ WebConsoleActor.prototype =
           break;
         case "NetworkActivity":
           if (!this.networkMonitor) {
-            if (appId && messageManager) {
-              this.networkMonitor =
-                new NetworkMonitorChild(appId, messageManager, this);
-            }
-            else {
-              this.networkMonitor = new NetworkMonitor({ window: window }, this);
-            }
+            this.networkMonitor =
+              new NetworkMonitor(window, this);
             this.networkMonitor.init();
           }
           startedListeners.push(listener);
@@ -564,7 +526,6 @@ WebConsoleActor.prototype =
     return {
       startedListeners: startedListeners,
       nativeConsoleAPI: this.hasNativeConsoleAPI(this.window),
-      traits: this.traits,
     };
   },
 
@@ -860,11 +821,6 @@ WebConsoleActor.prototype =
   {
     for (let key in aRequest.preferences) {
       this._prefs[key] = aRequest.preferences[key];
-
-      if (key == "NetworkMonitor.saveRequestAndResponseBodies" &&
-          this.networkMonitor) {
-        this.networkMonitor.saveRequestAndResponseBodies = this._prefs[key];
-      }
     }
     return { updated: Object.keys(aRequest.preferences) };
   },
@@ -1175,8 +1131,6 @@ WebConsoleActor.prototype =
    *
    * @param object aEvent
    *        The initial network request event information.
-   * @param nsIHttpChannel aChannel
-   *        The network request nsIHttpChannel object.
    * @return object
    *         A new NetworkEventActor is returned. This is used for tracking the
    *         network request and response.
@@ -1201,10 +1155,8 @@ WebConsoleActor.prototype =
    * Get the NetworkEventActor for a nsIChannel, if it exists,
    * otherwise create a new one.
    *
-   * @param nsIHttpChannel aChannel
+   * @param object aChannel
    *        The channel for the network event.
-   * @return object
-   *         The NetworkEventActor for the given channel.
    */
   getNetworkEventActor: function WCA_getNetworkEventActor(aChannel) {
     let actor = this._netEvents.get(aChannel);

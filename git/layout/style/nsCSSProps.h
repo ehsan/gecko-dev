@@ -572,8 +572,6 @@ public:
   static const KTableValue kFontVariantNumericKTable[];
   static const KTableValue kFontVariantPositionKTable[];
   static const KTableValue kFontWeightKTable[];
-  static const KTableValue kGridAutoFlowKTable[];
-  static const KTableValue kGridTrackBreadthKTable[];
   static const KTableValue kImageOrientationKTable[];
   static const KTableValue kImageOrientationFlipKTable[];
   static const KTableValue kIMEModeKTable[];

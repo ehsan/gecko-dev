@@ -148,9 +148,9 @@ class JitRuntime
 
     // Executable allocator used for allocating the main code in an IonScript.
     // All accesses on this allocator must be protected by the runtime's
-    // interrupt lock, as the executable memory may be protected() when
-    // requesting an interrupt to force a fault in the Ion code and avoid the
-    // need for explicit interrupt checks.
+    // operation callback lock, as the executable memory may be protected()
+    // when triggering a callback to force a fault in the Ion code and avoid
+    // the neeed for explicit interrupt checks.
     JSC::ExecutableAllocator *ionAlloc_;
 
     // Shared post-exception-handler tail
@@ -246,12 +246,12 @@ class JitRuntime
     }
 
     JSC::ExecutableAllocator *getIonAlloc(JSContext *cx) {
-        JS_ASSERT(cx->runtime()->currentThreadOwnsInterruptLock());
+        JS_ASSERT(cx->runtime()->currentThreadOwnsOperationCallbackLock());
         return ionAlloc_ ? ionAlloc_ : createIonAlloc(cx);
     }
 
     JSC::ExecutableAllocator *ionAlloc(JSRuntime *rt) {
-        JS_ASSERT(rt->currentThreadOwnsInterruptLock());
+        JS_ASSERT(rt->currentThreadOwnsOperationCallbackLock());
         return ionAlloc_;
     }
 

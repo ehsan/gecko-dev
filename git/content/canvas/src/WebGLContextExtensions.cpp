@@ -30,7 +30,6 @@ static const char *sExtensionNames[] = {
     "OES_vertex_array_object",
     "WEBGL_color_buffer_float",
     "WEBGL_compressed_texture_atc",
-    "WEBGL_compressed_texture_etc1",
     "WEBGL_compressed_texture_pvrtc",
     "WEBGL_compressed_texture_s3tc",
     "WEBGL_debug_renderer_info",
@@ -132,8 +131,6 @@ bool WebGLContext::IsExtensionSupported(WebGLExtensionID ext) const
             return false;
         case WEBGL_compressed_texture_atc:
             return gl->IsExtensionSupported(GLContext::AMD_compressed_ATC_texture);
-        case WEBGL_compressed_texture_etc1:
-            return gl->IsExtensionSupported(GLContext::OES_compressed_ETC1_RGB8_texture);
         case WEBGL_compressed_texture_pvrtc:
             return gl->IsExtensionSupported(GLContext::IMG_texture_compression_pvrtc);
         case WEBGL_depth_texture:
@@ -270,9 +267,6 @@ WebGLContext::EnableExtension(WebGLExtensionID ext)
             break;
         case WEBGL_compressed_texture_atc:
             obj = new WebGLExtensionCompressedTextureATC(this);
-            break;
-        case WEBGL_compressed_texture_etc1:
-            obj = new WebGLExtensionCompressedTextureETC1(this);
             break;
         case WEBGL_compressed_texture_pvrtc:
             obj = new WebGLExtensionCompressedTexturePVRTC(this);
