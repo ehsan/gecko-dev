@@ -106,7 +106,6 @@ AudioTrackEncoder::AppendAudioSegment(const AudioSegment& aSegment)
 static const int AUDIO_PROCESSING_FRAMES = 640; /* > 10ms of 48KHz audio */
 static const uint8_t gZeroChannel[MAX_AUDIO_SAMPLE_SIZE*AUDIO_PROCESSING_FRAMES] = {0};
 
-/*static*/
 void
 AudioTrackEncoder::InterleaveTrackData(AudioChunk& aChunk,
                                        int32_t aDuration,
@@ -120,11 +119,11 @@ AudioTrackEncoder::InterleaveTrackData(AudioChunk& aChunk,
 
   if (aChunk.mChannelData.Length() > aOutputChannels) {
     DownmixAndInterleave(aChunk.mChannelData, aChunk.mBufferFormat, aDuration,
-                         aChunk.mVolume, aOutputChannels, aOutput);
+                         aChunk.mVolume, mChannels, aOutput);
   } else {
     InterleaveAndConvertBuffer(aChunk.mChannelData.Elements(),
                                aChunk.mBufferFormat, aDuration, aChunk.mVolume,
-                               aOutputChannels, aOutput);
+                               mChannels, aOutput);
   }
 }
 

@@ -29,7 +29,6 @@ namespace net {
 class CacheStorageService;
 class CacheStorage;
 class CacheEntry;
-class CacheEntryHandle;
 class CacheEntryTable;
 
 class CacheMemoryConsumer
@@ -87,7 +86,7 @@ private:
   /**
    * Removes the entry from the related entry hash table, if still present.
    */
-  bool RemoveEntry(CacheEntry* aEntry, bool aOnlyUnreferenced = false);
+  void RemoveEntry(CacheEntry* aEntry);
 
   /**
    * Tells the storage service whether this entry is only to be stored in
@@ -110,7 +109,7 @@ private:
                            const nsACString & aIdExtension,
                            bool aCreateIfNotExist,
                            bool aReplace,
-                           CacheEntryHandle** aResult);
+                           CacheEntry** aResult);
 
   /**
    * Removes the entry from the related entry hash table, if still present
@@ -181,7 +180,7 @@ private:
                            bool aWriteToDisk,
                            bool aCreateIfNotExist,
                            bool aReplace,
-                           CacheEntryHandle** aResult);
+                           CacheEntry** aResult);
 
   static CacheStorageService* sSelf;
 

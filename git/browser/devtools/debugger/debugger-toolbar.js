@@ -569,7 +569,9 @@ StackFramesClassicListView.prototype = Heritage.extend(WidgetMethods, {
   initialize: function() {
     dumpn("Initializing the StackFramesClassicListView");
 
-    this.widget = new SideMenuWidget(document.getElementById("callstack-list"));
+    this.widget = new SideMenuWidget(document.getElementById("callstack-list"), {
+      theme: "light"
+    });
     this.widget.addEventListener("select", this._onSelect, false);
 
     this.emptyText = L10N.getStr("noStackFramesText");
@@ -866,6 +868,7 @@ FilterView.prototype = {
     if (!aToken) {
       return;
     }
+
     DebuggerView.editor.find(aToken);
   },
 
@@ -997,9 +1000,6 @@ FilterView.prototype = {
       } else if (targetView.hidden) {
         targetView.scheduleSearch(args[0], 0);
       } else {
-        if (!targetView.selectedItem) {
-          targetView.selectedIndex = 0;
-        }
         this.clearSearch();
       }
       return;
@@ -1023,9 +1023,6 @@ FilterView.prototype = {
       } else if (targetView.hidden) {
         targetView.scheduleSearch(args[0], 0);
       } else {
-        if (!targetView.selectedItem) {
-          targetView.selectedIndex = 0;
-        }
         this.clearSearch();
       }
       return;
@@ -1261,11 +1258,8 @@ FilteredSourcesView.prototype = Heritage.extend(ResultsPanelContainer.prototype,
       });
     }
 
-    // There's at least one item displayed in this container. Don't select it
-    // automatically if not forced (by tests) or in tandem with an operator.
-    if (this._autoSelectFirstItem || DebuggerView.Filtering.searchOperator) {
-      this.selectedIndex = 0;
-    }
+    // Select the first entry in this container.
+    this.selectedIndex = 0;
     this.hidden = false;
 
     // Signal that file search matches were found and displayed.
@@ -1465,11 +1459,8 @@ FilteredFunctionsView.prototype = Heritage.extend(ResultsPanelContainer.prototyp
       });
     }
 
-    // There's at least one item displayed in this container. Don't select it
-    // automatically if not forced (by tests).
-    if (this._autoSelectFirstItem) {
-      this.selectedIndex = 0;
-    }
+    // Select the first entry in this container.
+    this.selectedIndex = 0;
     this.hidden = false;
 
     // Signal that function search matches were found and displayed.

@@ -81,7 +81,7 @@ NS_IMETHODIMP CacheStorage::AsyncOpenURI(nsIURI *aURI,
     return NS_OK;
   }
 
-  nsRefPtr<CacheEntryHandle> entry;
+  nsRefPtr<CacheEntry> entry;
   rv = CacheStorageService::Self()->AddStorageEntry(
     this, noRefURI, aIdExtension,
     true, // create always
@@ -90,7 +90,7 @@ NS_IMETHODIMP CacheStorage::AsyncOpenURI(nsIURI *aURI,
   NS_ENSURE_SUCCESS(rv, rv);
 
   // May invoke the callback synchronously
-  entry->Entry()->AsyncOpen(aCallback, aFlags);
+  entry->AsyncOpen(aCallback, aFlags);
 
   return NS_OK;
 }

@@ -360,13 +360,6 @@ public class SyncClientsEngineStage extends AbstractSessionManagingSyncStage {
     return GlobalConstants.MOZ_APP_VERSION;
   }
 
-  @SuppressWarnings("unchecked")
-  protected JSONArray getLocalClientProtocols() {
-    final JSONArray protocols = new JSONArray();
-    protocols.add(ClientRecord.PROTOCOL_LEGACY_SYNC);
-    return protocols;
-  }
-
   protected ClientRecord newLocalClientRecord(ClientsDataDelegate delegate) {
     final String ourGUID = delegate.getAccountGUID();
     final String ourName = delegate.getClientName();
@@ -374,7 +367,6 @@ public class SyncClientsEngineStage extends AbstractSessionManagingSyncStage {
     ClientRecord r = new ClientRecord(ourGUID);
     r.name = ourName;
     r.version = getLocalClientVersion();
-    r.protocols = getLocalClientProtocols();
     return r;
   }
 
@@ -405,8 +397,7 @@ public class SyncClientsEngineStage extends AbstractSessionManagingSyncStage {
   protected void handleDownloadedLocalRecord(ClientRecord r) {
     session.config.persistServerClientRecordTimestamp(r.lastModified);
 
-    if (!getLocalClientVersion().equals(r.version) ||
-        !getLocalClientProtocols().equals(r.protocols)) {
+    if (!getLocalClientVersion().equals(r.version)) {
       shouldUploadLocalRecord = true;
     }
     processCommands(r.commands);

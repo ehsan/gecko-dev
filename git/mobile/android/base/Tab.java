@@ -207,7 +207,7 @@ public class Tab {
             public void run() {
                 if (b != null) {
                     try {
-                        mThumbnail = new BitmapDrawable(mAppContext.getResources(), b);
+                        mThumbnail = new BitmapDrawable(b);
                         if (mState == Tab.STATE_SUCCESS)
                             saveThumbnailToDB();
                     } catch (OutOfMemoryError oom) {

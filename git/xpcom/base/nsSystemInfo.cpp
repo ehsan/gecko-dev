@@ -181,8 +181,7 @@ nsSystemInfo::Init()
     nsAutoString version;
     rv = GetPropertyAsAString(NS_LITERAL_STRING("version"), version);
     NS_ENSURE_SUCCESS(rv, rv);
-    double versionDouble = version.ToDouble(&rv);
-    NS_ENSURE_SUCCESS(rv, rv);
+    double versionDouble = atof(NS_ConvertUTF16toUTF8(version).get());
 
     rv = SetPropertyAsBool(NS_ConvertASCIItoUTF16("hasWindowsTouchInterface"),
       versionDouble >= 6.2);
