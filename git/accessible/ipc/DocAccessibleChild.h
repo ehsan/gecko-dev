@@ -13,6 +13,9 @@
 
 namespace mozilla {
 namespace a11y {
+class Accessible;
+class HyperTextAccessible;
+
 class AccShowEvent;
 
   /*
@@ -30,6 +33,9 @@ public:
     mDoc->SetIPCDoc(nullptr);
     MOZ_COUNT_DTOR(DocAccessibleChild);
   }
+
+  Accessible* IdToAccessible(const uint64_t& aID);
+  HyperTextAccessible* IdToHyperTextAccessible(const uint64_t& aID);
 
   void ShowEvent(AccShowEvent* aShowEvent);
 
@@ -49,12 +55,34 @@ public:
    * Get the description for the accessible with given id.
    */
   virtual bool RecvDescription(const uint64_t& aID, nsString* aDesc) MOZ_OVERRIDE;
+  virtual bool RecvRelationByType(const uint64_t& aID, const uint32_t& aType,
+                                  nsTArray<uint64_t>* aTargets) MOZ_OVERRIDE;
+  virtual bool RecvRelations(const uint64_t& aID,
+                             nsTArray<RelationTargets>* aRelations)
+    MOZ_OVERRIDE;
 
-  virtual bool RecvAttributes(const uint64_t& aID, nsTArray<Attribute> *aAttributes) MOZ_OVERRIDE;
+  virtual bool RecvAttributes(const uint64_t& aID,
+                              nsTArray<Attribute> *aAttributes) MOZ_OVERRIDE;
   virtual bool RecvTextSubstring(const uint64_t& aID,
                                  const int32_t& aStartOffset,
                                  const int32_t& aEndOffset, nsString* aText)
     MOZ_OVERRIDE;
+
+  virtual bool RecvGetTextAfterOffset(const uint64_t& aID,
+                                      const int32_t& aOffset,
+                                      const AccessibleTextBoundary& aBoundaryType,
+                                      nsString* aText, int32_t* aStartOffset,
+                                      int32_t* aEndOffset) MOZ_OVERRIDE;
+  virtual bool RecvGetTextAtOffset(const uint64_t& aID,
+                                   const int32_t& aOffset,
+                                   const AccessibleTextBoundary& aBoundaryType,
+                                   nsString* aText, int32_t* aStartOffset,
+                                   int32_t* aEndOffset) MOZ_OVERRIDE;
+  virtual bool RecvGetTextBeforeOffset(const uint64_t& aID,
+                                       const int32_t& aOffset,
+                                       const AccessibleTextBoundary& aBoundaryType,
+                                       nsString* aText, int32_t* aStartOffset,
+                                       int32_t* aEndOffset) MOZ_OVERRIDE;
 
 private:
   DocAccessible* mDoc;
