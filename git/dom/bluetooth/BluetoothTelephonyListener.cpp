@@ -42,12 +42,6 @@ TelephonyListener::CallStateChanged(uint32_t aCallIndex,
 }
 
 NS_IMETHODIMP
-TelephonyListener::EnumerateCallStateComplete()
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 TelephonyListener::EnumerateCallState(uint32_t aCallIndex,
                                       uint16_t aCallState,
                                       const nsAString_internal& aNumber,

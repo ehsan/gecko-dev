@@ -76,9 +76,6 @@
             if (this.isVisible)
               return;
 
-            let event = document.createEvent("Events");
-            event.initEvent("MozFlyoutPanelShowing", true, false);
-            this.dispatchEvent(event);
             this.setAttribute("visible", "true");
             this.classList.add("flyoutpanel-slide-in");
             DialogUI.pushPopup(this, this);

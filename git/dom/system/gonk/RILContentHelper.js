@@ -1274,11 +1274,6 @@ RILContentHelper.prototype = {
   handleEnumerateCalls: function handleEnumerateCalls(calls) {
     debug("handleEnumerateCalls: " + JSON.stringify(calls));
     let callback = this._enumerateTelephonyCallbacks.shift();
-    if (!calls.length) {
-      callback.enumerateCallStateComplete();
-      return;
-    }
-
     for (let i in calls) {
       let call = calls[i];
       let keepGoing;
@@ -1296,8 +1291,6 @@ RILContentHelper.prototype = {
         break;
       }
     }
-
-    callback.enumerateCallStateComplete();
   },
 
   handleGetAvailableNetworks: function handleGetAvailableNetworks(message) {

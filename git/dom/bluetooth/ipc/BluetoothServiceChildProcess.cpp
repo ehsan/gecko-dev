@@ -207,17 +207,9 @@ BluetoothServiceChildProcess::GetScoSocket(
 }
 
 nsresult
-BluetoothServiceChildProcess::GetServiceChannel(const nsAString& aDeviceAddress,
+BluetoothServiceChildProcess::GetServiceChannel(const nsAString& aObjectPath,
                                                 const nsAString& aServiceUuid,
                                                 BluetoothProfileManagerBase* aManager)
-{
-  MOZ_NOT_REACHED("This should never be called!");
-  return NS_ERROR_FAILURE;
-}
-
-bool
-BluetoothServiceChildProcess::UpdateSdpRecords(const nsAString& aDeviceAddress,
-                                               BluetoothProfileManagerBase* aManager)
 {
   MOZ_NOT_REACHED("This should never be called!");
   return NS_ERROR_FAILURE;

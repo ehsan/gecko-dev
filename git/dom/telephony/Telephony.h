@@ -30,9 +30,6 @@ class Telephony : public nsDOMEventTargetHelper,
    */
   class Listener;
 
-  class EnumerationAck;
-  friend class EnumerationAck;
-
   nsCOMPtr<nsITelephonyProvider> mProvider;
   nsRefPtr<Listener> mListener;
 
@@ -44,24 +41,16 @@ class Telephony : public nsDOMEventTargetHelper,
   JSObject* mCallsArray;
 
   bool mRooted;
-  bool mEnumerated;
 
 public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIDOMTELEPHONY
   NS_DECL_NSITELEPHONYLISTENER
 
-  NS_DECL_NSIDOMEVENTTARGET
+  NS_REALLY_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper)
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(
                                                    Telephony,
                                                    nsDOMEventTargetHelper)
-
-  using nsDOMEventTargetHelper::RemoveEventListener;
-  virtual void AddEventListener(const nsAString& aType,
-                                nsIDOMEventListener* aListener,
-                                bool aUseCapture,
-                                const mozilla::dom::Nullable<bool>& aWantsUntrusted,
-                                mozilla::ErrorResult& aRv) MOZ_OVERRIDE;
 
   static already_AddRefed<Telephony>
   Create(nsPIDOMWindow* aOwner, nsITelephonyProvider* aProvider);
@@ -117,9 +106,6 @@ private:
   nsresult
   DispatchCallEvent(const nsAString& aType,
                     nsIDOMTelephonyCall* aCall);
-
-  void
-  EnqueueEnumerationAck();
 };
 
 END_TELEPHONY_NAMESPACE

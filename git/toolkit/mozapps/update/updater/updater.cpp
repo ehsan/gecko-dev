@@ -1674,7 +1674,6 @@ PatchIfFile::Finish(int status)
 
 #ifdef XP_WIN
 #include "nsWindowsRestart.cpp"
-#include "nsWindowsHelpers.h"
 #include "uachelper.h"
 #include "pathhash.h"
 #endif
@@ -1703,16 +1702,6 @@ LaunchCallbackApp(const NS_tchar *workingDir,
   // Do not allow the callback to run when running an update through the
   // service as session 0.  The unelevated updater.exe will do the launching.
   if (!usingService) {
-#if defined(MOZ_METRO)
-    // If our callback application is the default metro browser, then
-    // launch it now.
-    for (int i = 0; i < argc; i++) {
-      if (!wcsicmp(L"-ServerName:DefaultBrowserServer", argv[i])) {
-        LaunchDefaultMetroBrowser();
-        return;
-      }
-    }
-#endif
     WinLaunchChild(argv[0], argc, argv, NULL);
   }
 #else
