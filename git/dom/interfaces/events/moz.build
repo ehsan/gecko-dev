@@ -28,6 +28,7 @@ XPIDL_SOURCES += [
     'nsIDOMMouseEvent.idl',
     'nsIDOMMouseScrollEvent.idl',
     'nsIDOMMutationEvent.idl',
+    'nsIDOMNotifyAudioAvailableEvent.idl',
     'nsIDOMNotifyPaintEvent.idl',
     'nsIDOMNSEvent.idl',
     'nsIDOMPageTransitionEvent.idl',

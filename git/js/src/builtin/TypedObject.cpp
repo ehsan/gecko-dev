@@ -193,31 +193,6 @@ GetPrototype(JSContext *cx, HandleObject obj)
 }
 
 /***************************************************************************
- * Typed Prototypes
- *
- * Every type descriptor has an associated prototype. Instances of
- * that type descriptor use this as their prototype. Per the spec,
- * typed object prototypes cannot be mutated.
- */
-
-const Class js::TypedProto::class_ = {
-    "TypedProto",
-    JSCLASS_HAS_RESERVED_SLOTS(JS_TYPROTO_SLOTS),
-    JS_PropertyStub,       /* addProperty */
-    JS_DeletePropertyStub, /* delProperty */
-    JS_PropertyStub,       /* getProperty */
-    JS_StrictPropertyStub, /* setProperty */
-    JS_EnumerateStub,
-    JS_ResolveStub,
-    JS_ConvertStub,
-    nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
-    nullptr
-};
-
-/***************************************************************************
  * Scalar type objects
  *
  * Scalar type objects like `uint8`, `uint16`, are all instances of
@@ -485,25 +460,16 @@ X4TypeDescr::alignment(Type t)
  * TypedObject.StructType constructor function, then returns an empty
  * object with the .prototype.prototype object as its [[Prototype]].
  */
-static TypedProto *
+static JSObject *
 CreatePrototypeObjectForComplexTypeInstance(JSContext *cx,
-                                            Handle<TypeDescr*> descr,
                                             HandleObject ctorPrototype)
 {
     RootedObject ctorPrototypePrototype(cx, GetPrototype(cx, ctorPrototype));
     if (!ctorPrototypePrototype)
         return nullptr;
 
-    Rooted<TypedProto*> result(cx);
-    result = NewObjectWithProto<TypedProto>(cx,
-                                            &*ctorPrototypePrototype,
-                                            nullptr,
-                                            TenuredObject);
-    if (!result)
-        return nullptr;
-
-    result->initTypeDescrSlot(*descr);
-    return result;
+    return NewObjectWithProto<JSObject>(cx, &*ctorPrototypePrototype, nullptr,
+                                        TenuredObject);
 }
 
 const Class UnsizedArrayTypeDescr::class_ = {
@@ -662,12 +628,12 @@ ArrayMetaTypeDescr::create(JSContext *cx,
     if (!CreateUserSizeAndAlignmentProperties(cx, obj))
         return nullptr;
 
-    Rooted<TypedProto*> prototypeObj(cx);
-    prototypeObj = CreatePrototypeObjectForComplexTypeInstance(cx, obj, arrayTypePrototype);
+    RootedObject prototypeObj(cx);
+    prototypeObj = CreatePrototypeObjectForComplexTypeInstance(cx, arrayTypePrototype);
     if (!prototypeObj)
         return nullptr;
 
-    obj->initReservedSlot(JS_DESCR_SLOT_TYPROTO, ObjectValue(*prototypeObj));
+    obj->initReservedSlot(JS_DESCR_SLOT_PROTO, ObjectValue(*prototypeObj));
 
     if (!LinkConstructorAndPrototype(cx, obj, prototypeObj))
         return nullptr;
@@ -1081,12 +1047,12 @@ StructMetaTypeDescr::create(JSContext *cx,
     if (!CreateUserSizeAndAlignmentProperties(cx, descr))
         return nullptr;
 
-    Rooted<TypedProto*> prototypeObj(cx);
-    prototypeObj = CreatePrototypeObjectForComplexTypeInstance(cx, descr, structTypePrototype);
+    RootedObject prototypeObj(cx);
+    prototypeObj = CreatePrototypeObjectForComplexTypeInstance(cx, structTypePrototype);
     if (!prototypeObj)
         return nullptr;
 
-    descr->initReservedSlot(JS_DESCR_SLOT_TYPROTO, ObjectValue(*prototypeObj));
+    descr->initReservedSlot(JS_DESCR_SLOT_PROTO, ObjectValue(*prototypeObj));
 
     if (!LinkConstructorAndPrototype(cx, descr, prototypeObj))
         return nullptr;
@@ -1222,13 +1188,8 @@ DefineSimpleTypeDescr(JSContext *cx,
                       typename T::Type type,
                       HandlePropertyName className)
 {
-    RootedObject objProto(cx, global->getOrCreateObjectPrototype(cx));
-    if (!objProto)
-        return false;
-
     RootedObject funcProto(cx, global->getOrCreateFunctionPrototype(cx));
-    if (!funcProto)
-        return false;
+    JS_ASSERT(funcProto);
 
     Rooted<T*> descr(cx);
     descr = NewObjectWithProto<T>(cx, funcProto, global, TenuredObject);
@@ -1247,15 +1208,6 @@ DefineSimpleTypeDescr(JSContext *cx,
 
     if (!JS_DefineFunctions(cx, descr, T::typeObjectMethods))
         return false;
-
-    // Create the typed prototype for the scalar type. This winds up
-    // not being user accessible, but we still create one for consistency.
-    Rooted<TypedProto*> proto(cx);
-    proto = NewObjectWithProto<TypedProto>(cx, objProto, nullptr, TenuredObject);
-    if (!proto)
-        return nullptr;
-    proto->initTypeDescrSlot(*descr);
-    descr->initReservedSlot(JS_DESCR_SLOT_TYPROTO, ObjectValue(*proto));
 
     RootedValue descrValue(cx, ObjectValue(*descr));
     if (!JSObject::defineProperty(cx, module, className,
@@ -2362,7 +2314,7 @@ TypedObject::constructSized(JSContext *cx, unsigned int argc, Value *vp)
         Rooted<ArrayBufferObject*> buffer(cx);
         buffer = &args[0].toObject().as<ArrayBufferObject>();
 
-        if (callee->opaque() || buffer->isNeutered()) {
+        if (buffer->isNeutered()) {
             JS_ReportErrorNumber(cx, js_GetErrorMessage,
                                  nullptr, JSMSG_TYPEDOBJECT_BAD_ARGS);
             return false;
@@ -2474,7 +2426,7 @@ TypedObject::constructUnsized(JSContext *cx, unsigned int argc, Value *vp)
         Rooted<ArrayBufferObject*> buffer(cx);
         buffer = &args[0].toObject().as<ArrayBufferObject>();
 
-        if (callee->opaque() || buffer->isNeutered()) {
+        if (buffer->isNeutered()) {
             JS_ReportErrorNumber(cx, js_GetErrorMessage,
                                  nullptr, JSMSG_TYPEDOBJECT_BAD_ARGS);
             return false;

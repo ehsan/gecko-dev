@@ -11,6 +11,7 @@
 #include "ChildIterator.h"
 #include "nsDOMClassInfoID.h"
 #include "nsError.h"
+#include "nsEventStates.h"
 #include "nsINodeInfo.h"
 #include "nsIXULSortService.h"
 #include "nsContentUtils.h"

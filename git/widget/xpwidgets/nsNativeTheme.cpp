@@ -23,14 +23,12 @@
 #include "nsMenuFrame.h"
 #include "nsRangeFrame.h"
 #include "nsCSSRendering.h"
-#include "mozilla/EventStates.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/HTMLBodyElement.h"
 #include "mozilla/dom/HTMLProgressElement.h"
 #include "nsIDocumentInlines.h"
 #include <algorithm>
 
-using namespace mozilla;
 using namespace mozilla::dom;
 
 nsNativeTheme::nsNativeTheme()
@@ -52,11 +50,11 @@ nsNativeTheme::GetPresShell(nsIFrame* aFrame)
   return context ? context->GetPresShell() : nullptr;
 }
 
-EventStates
+nsEventStates
 nsNativeTheme::GetContentState(nsIFrame* aFrame, uint8_t aWidgetType)
 {
   if (!aFrame)
-    return EventStates();
+    return nsEventStates();
 
   bool isXULCheckboxRadio = 
     (aWidgetType == NS_THEME_CHECKBOX ||
@@ -66,14 +64,14 @@ nsNativeTheme::GetContentState(nsIFrame* aFrame, uint8_t aWidgetType)
     aFrame = aFrame->GetParent();
 
   if (!aFrame->GetContent())
-    return EventStates();
+    return nsEventStates();
 
   nsIPresShell *shell = GetPresShell(aFrame);
   if (!shell)
-    return EventStates();
+    return nsEventStates();
 
   nsIContent* frameContent = aFrame->GetContent();
-  EventStates flags;
+  nsEventStates flags;
   if (frameContent->IsElement()) {
     flags = frameContent->AsElement()->State();
 
@@ -233,7 +231,7 @@ nsNativeTheme::IsButtonTypeMenu(nsIFrame* aFrame)
 bool
 nsNativeTheme::IsPressedButton(nsIFrame* aFrame)
 {
-  EventStates eventState = GetContentState(aFrame, NS_THEME_TOOLBAR_BUTTON);
+  nsEventStates eventState = GetContentState(aFrame, NS_THEME_TOOLBAR_BUTTON);
   if (IsDisabled(aFrame, eventState))
     return false;
 
@@ -356,7 +354,7 @@ nsNativeTheme::IsWidgetStyled(nsPresContext* aPresContext, nsIFrame* aFrame,
 }
 
 bool
-nsNativeTheme::IsDisabled(nsIFrame* aFrame, EventStates aEventStates)
+nsNativeTheme::IsDisabled(nsIFrame* aFrame, nsEventStates aEventStates)
 {
   if (!aFrame) {
     return false;
@@ -535,7 +533,7 @@ nsNativeTheme::IsNextToSelectedTab(nsIFrame* aFrame, int32_t aOffset)
 // progressbar:
 bool
 nsNativeTheme::IsIndeterminateProgress(nsIFrame* aFrame,
-                                       EventStates aEventStates)
+                                       nsEventStates aEventStates)
 {
   if (!aFrame || !aFrame->GetContent())
     return false;

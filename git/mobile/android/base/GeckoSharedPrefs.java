@@ -11,7 +11,6 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.Editor;
 import android.os.Build;
-import android.os.StrictMode;
 import android.preference.PreferenceManager;
 import android.util.Log;
 
@@ -152,20 +151,30 @@ public final class GeckoSharedPrefs {
             return;
         }
 
-        // We deliberatly perform the migration in the current thread (which
-        // is likely the UI thread) as this is actually cheaper than enforcing a
-        // context switch to another thread (see bug 940575).
-        if (Build.VERSION.SDK_INT < 9) {
+        if (ThreadUtils.isOnBackgroundThread()) {
+            Log.d(LOGTAG, "Already in background thread, migrating directly");
             performMigration(context);
         } else {
-            // Avoid strict mode warnings.
-            final StrictMode.ThreadPolicy savedPolicy = StrictMode.allowThreadDiskReads();
-            StrictMode.allowThreadDiskWrites();
+            Log.d(LOGTAG, "Not in background thread, migrating with lock");
+
+            final Object migrationLock = new Object();
+
+            ThreadUtils.getBackgroundHandler().post(new Runnable() {
+                @Override
+                public void run() {
+                    synchronized(migrationLock) {
+                        performMigration(context);
+                        migrationLock.notifyAll();
+                    }
+                }
+            });
 
             try {
-                performMigration(context);
-            } finally {
-                StrictMode.setThreadPolicy(savedPolicy);
+                synchronized(migrationLock) {
+                    migrationLock.wait(MIGRATION_COMMIT_TIMEOUT_MSEC);
+                }
+            } catch (InterruptedException e) {
+                throw new IllegalStateException("Failed to commit migration before timeout");
             }
         }
 

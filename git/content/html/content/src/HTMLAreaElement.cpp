@@ -9,7 +9,6 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/HTMLAreaElementBinding.h"
 #include "mozilla/EventDispatcher.h"
-#include "mozilla/EventStates.h"
 #include "mozilla/MemoryReporting.h"
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Area)
@@ -246,7 +245,7 @@ HTMLAreaElement::GetHrefURI() const
   return GetHrefURIForAnchors();
 }
 
-EventStates
+nsEventStates
 HTMLAreaElement::IntrinsicState() const
 {
   return Link::LinkState() | nsGenericHTMLElement::IntrinsicState();

@@ -37,7 +37,6 @@
 
 #include "nsIDOMHTMLMapElement.h"
 #include "mozilla/EventDispatcher.h"
-#include "mozilla/EventStates.h"
 
 #include "nsLayoutUtils.h"
 
@@ -527,7 +526,7 @@ HTMLImageElement::MaybeLoadImage()
   }
 }
 
-EventStates
+nsEventStates
 HTMLImageElement::IntrinsicState() const
 {
   return nsGenericHTMLElement::IntrinsicState() |

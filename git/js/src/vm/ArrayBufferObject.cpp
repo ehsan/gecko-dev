@@ -955,9 +955,9 @@ JS_GetArrayBufferData(JSObject *obj)
 }
 
 JS_FRIEND_API(uint8_t *)
-JS_GetStableArrayBufferData(JSContext *cx, HandleObject objArg)
+JS_GetStableArrayBufferData(JSContext *cx, JSObject *obj)
 {
-    JSObject *obj = CheckedUnwrap(objArg);
+    obj = CheckedUnwrap(obj);
     if (!obj)
         return nullptr;
 

@@ -60,7 +60,6 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/Debug.h"
 #include "mozilla/EventListenerManager.h"
-#include "mozilla/EventStates.h"
 #include "mozilla/MouseEvents.h"
 #include "AudioChannelService.h"
 
@@ -2488,18 +2487,18 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
       {
         JSAutoCompartment ac(cx, mJSObject);
 
+        JS_SetParent(cx, mJSObject, newInnerWindow->mJSObject);
+
         JS::Rooted<JSObject*> obj(cx, mJSObject);
-        JS::Rooted<JSObject*> newParent(cx, newInnerWindow->mJSObject);
-        JS_SetParent(cx, obj, newParent);
 
         // Inform the nsJSContext, which is the canonical holder of the outer.
         mContext->SetWindowProxy(obj);
 
         NS_ASSERTION(!JS_IsExceptionPending(cx),
                      "We might overwrite a pending exception!");
-        XPCWrappedNativeScope* scope = xpc::GetObjectScope(obj);
+        XPCWrappedNativeScope* scope = xpc::GetObjectScope(mJSObject);
         if (scope->mWaiverWrapperMap) {
-          scope->mWaiverWrapperMap->Reparent(cx, newParent);
+          scope->mWaiverWrapperMap->Reparent(cx, newInnerWindow->mJSObject);
         }
       }
     }
@@ -13440,6 +13439,16 @@ nsGlobalModalWindow::SetReturnValue(nsIVariant *aRetVal)
   mReturnValue = new DialogValueHolder(nsContentUtils::GetSubjectPrincipal(),
                                        aRetVal);
   return NS_OK;
+}
+
+void
+nsGlobalWindow::SetHasAudioAvailableEventListeners()
+{
+  MOZ_ASSERT(IsInnerWindow());
+
+  if (mDoc) {
+    mDoc->NotifyAudioAvailableListener();
+  }
 }
 
 NS_IMETHODIMP

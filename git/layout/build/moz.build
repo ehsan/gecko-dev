@@ -51,6 +51,7 @@ LOCAL_INCLUDES += [
     '/dom/audiochannel',
     '/dom/base',
     '/dom/camera',
+    '/dom/events',
     '/dom/file',
     '/dom/filesystem',
     '/dom/media',

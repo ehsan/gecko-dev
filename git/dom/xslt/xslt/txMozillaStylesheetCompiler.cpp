@@ -381,13 +381,9 @@ private:
     nsCOMPtr<nsILoadGroup> mLoadGroup;
     nsCOMPtr<nsIPrincipal> mCallerPrincipal;
 
+protected:
     // This exists solely to suppress a warning from nsDerivedSafe
     txCompileObserver();
-
-    // Private destructor, to discourage deletion outside of Release():
-    ~txCompileObserver()
-    {
-    }
 };
 
 txCompileObserver::txCompileObserver(txMozillaXSLTProcessor* aProcessor,
@@ -609,12 +605,7 @@ public:
     TX_DECL_ACOMPILEOBSERVER
     NS_INLINE_DECL_REFCOUNTING(txSyncCompileObserver)
 
-private:
-    // Private destructor, to discourage deletion outside of Release():
-    ~txSyncCompileObserver()
-    {
-    }
-
+protected:
     nsRefPtr<txMozillaXSLTProcessor> mProcessor;
 };
 

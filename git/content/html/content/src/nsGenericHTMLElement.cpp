@@ -8,7 +8,6 @@
 #include "mozilla/EventDispatcher.h"
 #include "mozilla/EventListenerManager.h"
 #include "mozilla/EventStateManager.h"
-#include "mozilla/EventStates.h"
 #include "mozilla/MouseEvents.h"
 #include "mozilla/Likely.h"
 
@@ -508,10 +507,10 @@ nsGenericHTMLElement::UpdateEditableState(bool aNotify)
   nsStyledElement::UpdateEditableState(aNotify);
 }
 
-EventStates
+nsEventStates
 nsGenericHTMLElement::IntrinsicState() const
 {
-  EventStates state = nsGenericHTMLElementBase::IntrinsicState();
+  nsEventStates state = nsGenericHTMLElementBase::IntrinsicState();
 
   if (GetDirectionality() == eDir_RTL) {
     state |= NS_EVENT_STATE_RTL;
@@ -2301,13 +2300,13 @@ nsGenericHTMLFormElement::IsHTMLFocusable(bool aWithMouse,
   return false;
 }
 
-EventStates
+nsEventStates
 nsGenericHTMLFormElement::IntrinsicState() const
 {
   // If you add attribute-dependent states here, you need to add them them to
   // AfterSetAttr too.  And add them to AfterSetAttr for all subclasses that
   // implement IntrinsicState() and are affected by that attribute.
-  EventStates state = nsGenericHTMLElement::IntrinsicState();
+  nsEventStates state = nsGenericHTMLElement::IntrinsicState();
 
   if (CanBeDisabled()) {
     // :enabled/:disabled

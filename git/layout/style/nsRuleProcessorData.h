@@ -21,7 +21,6 @@
 #include "nsIDocument.h"
 #include "mozilla/AutoRestore.h"
 #include "mozilla/BloomFilter.h"
-#include "mozilla/EventStates.h"
 #include "mozilla/GuardObjects.h"
 
 class nsAttrValue;
@@ -541,7 +540,7 @@ struct MOZ_STACK_CLASS StateRuleProcessorData :
                           public ElementDependentRuleProcessorData {
   StateRuleProcessorData(nsPresContext* aPresContext,
                          mozilla::dom::Element* aElement,
-                         mozilla::EventStates aStateMask,
+                         nsEventStates aStateMask,
                          TreeMatchContext& aTreeMatchContext)
     : ElementDependentRuleProcessorData(aPresContext, aElement, nullptr,
                                         aTreeMatchContext),
@@ -549,16 +548,15 @@ struct MOZ_STACK_CLASS StateRuleProcessorData :
   {
     NS_PRECONDITION(!aTreeMatchContext.mForStyling, "Not styling here!");
   }
-  // |HasStateDependentStyle| for which state(s)?
-  // Constants defined in mozilla/EventStates.h .
-  const mozilla::EventStates mStateMask;
+  const nsEventStates mStateMask; // |HasStateDependentStyle| for which state(s)?
+                                  //  Constants defined in nsEventStates.h .
 };
 
 struct MOZ_STACK_CLASS PseudoElementStateRuleProcessorData :
                           public StateRuleProcessorData {
   PseudoElementStateRuleProcessorData(nsPresContext* aPresContext,
                                       mozilla::dom::Element* aElement,
-                                      mozilla::EventStates aStateMask,
+                                      nsEventStates aStateMask,
                                       nsCSSPseudoElements::Type aPseudoType,
                                       TreeMatchContext& aTreeMatchContext,
                                       mozilla::dom::Element* aPseudoElement)

@@ -213,6 +213,7 @@ LOCAL_INCLUDES += [
     '/content/xul/document/src',
     '/docshell/base',
     '/dom/base',
+    '/dom/events',
     '/dom/ipc',
     '/dom/workers',
     '/dom/xbl',

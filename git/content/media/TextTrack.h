@@ -106,7 +106,6 @@ public:
 
   TextTrackReadyState ReadyState() const;
   void SetReadyState(TextTrackReadyState aState);
-  void SetReadyState(uint32_t aReadyState);
 
   void AddCue(TextTrackCue& aCue);
   void RemoveCue(TextTrackCue& aCue, ErrorResult& aRv);

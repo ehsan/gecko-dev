@@ -542,10 +542,9 @@ jsd_EnableSingleStepInterrupts(JSDContext* jsdc, JSDScript* jsdscript, bool enab
 {
     bool rv;
     AutoSafeJSContext cx;
-    JS::RootedScript script(cx, jsdscript->script);
-    JSAutoCompartment ac(cx, script);
+    JSAutoCompartment ac(cx, jsdscript->script);
     JSD_LOCK();
-    rv = JS_SetSingleStepMode(cx, script, enable);
+    rv = JS_SetSingleStepMode(cx, jsdscript->script, enable);
     JSD_UNLOCK();
     return rv;
 }

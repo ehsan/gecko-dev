@@ -27,7 +27,6 @@
 #include "nsNameSpaceManager.h"
 #include "mozilla/dom/ScriptSettings.h"
 
-#include "mozilla/EventStates.h"
 #include "mozilla/FloatingPoint.h"
 #include "mozilla/Preferences.h"
 
@@ -232,7 +231,7 @@ HTMLButtonAccessible::NativeState()
 {
   uint64_t state = HyperTextAccessibleWrap::NativeState();
 
-  EventStates elmState = mContent->AsElement()->State();
+  nsEventStates elmState = mContent->AsElement()->State();
   if (elmState.HasState(NS_EVENT_STATE_DEFAULT))
     state |= states::DEFAULT;
 

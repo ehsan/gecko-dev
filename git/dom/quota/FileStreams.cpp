@@ -77,7 +77,7 @@ FileQuotaStreamWithWrite<FileStreamBase>::Write(const char* aBuf,
 
     if (!FileQuotaStreamWithWrite::
          mQuotaObject->MaybeAllocateMoreSpace(offset, aCount)) {
-      return NS_ERROR_FILE_NO_DEVICE_SPACE;
+      return NS_ERROR_FAILURE;
     }
   }
 

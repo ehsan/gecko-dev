@@ -5,7 +5,6 @@
 
 #include "nsRangeFrame.h"
 
-#include "mozilla/EventStates.h"
 #include "mozilla/TouchEvents.h"
 
 #include "nsContentCreatorFunctions.h"
@@ -242,7 +241,7 @@ nsRangeFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     return;
   }
 
-  EventStates eventStates = mContent->AsElement()->State();
+  nsEventStates eventStates = mContent->AsElement()->State();
   if (eventStates.HasState(NS_EVENT_STATE_DISABLED) ||
       !eventStates.HasState(NS_EVENT_STATE_FOCUSRING)) {
     return; // can't have focus or doesn't match :-moz-focusring

@@ -211,8 +211,9 @@ CheckDebugMode(JSContext *cx)
 }
 
 JS_PUBLIC_API(bool)
-JS_SetSingleStepMode(JSContext *cx, HandleScript script, bool singleStep)
+JS_SetSingleStepMode(JSContext *cx, JSScript *scriptArg, bool singleStep)
 {
+    RootedScript script(cx, scriptArg);
     assertSameCompartment(cx, script);
 
     if (!CheckDebugMode(cx))
@@ -818,8 +819,9 @@ JS_GetGlobalDebugHooks(JSRuntime *rt)
 /************************************************************************/
 
 extern JS_PUBLIC_API(void)
-JS_DumpPCCounts(JSContext *cx, HandleScript script)
+JS_DumpPCCounts(JSContext *cx, JSScript *scriptArg)
 {
+    Rooted<JSScript*> script(cx, scriptArg);
     JS_ASSERT(script->hasScriptCounts());
 
     Sprinter sprinter(cx);
@@ -836,7 +838,7 @@ JS_PUBLIC_API(void)
 JS_DumpCompartmentPCCounts(JSContext *cx)
 {
     for (CellIter i(cx->zone(), gc::FINALIZE_SCRIPT); !i.done(); i.next()) {
-        RootedScript script(cx, i.get<JSScript>());
+        JSScript *script = i.get<JSScript>();
         if (script->compartment() != cx->compartment())
             continue;
 

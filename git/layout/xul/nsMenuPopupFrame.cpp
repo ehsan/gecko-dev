@@ -47,7 +47,6 @@
 #include "nsDisplayList.h"
 #include "mozilla/EventDispatcher.h"
 #include "mozilla/EventStateManager.h"
-#include "mozilla/EventStates.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/LookAndFeel.h"
 #include "mozilla/MouseEvents.h"
@@ -839,7 +838,7 @@ nsMenuPopupFrame::HidePopup(bool aDeselectMenu, nsPopupState aNewState)
   // mouse_enter/mouse_exit event will be fired to clear current hover state, we should clear it manually.
   // This code may not the best solution, but we can leave it here until we find the better approach.
   NS_ASSERTION(mContent->IsElement(), "How do we have a non-element?");
-  EventStates state = mContent->AsElement()->State();
+  nsEventStates state = mContent->AsElement()->State();
 
   if (state.HasState(NS_EVENT_STATE_HOVER)) {
     EventStateManager* esm = PresContext()->EventStateManager();

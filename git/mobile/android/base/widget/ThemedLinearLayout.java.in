@@ -1,3 +1,0 @@
-#filter substitution
-#define VIEWTYPE LinearLayout
-#include ThemedView.java.frag

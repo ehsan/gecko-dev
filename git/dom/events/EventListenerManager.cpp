@@ -92,6 +92,7 @@ EventListenerManager::EventListenerManager(EventTarget* aTarget)
   , mMayHaveMutationListeners(false)
   , mMayHaveCapturingListeners(false)
   , mMayHaveSystemGroupListeners(false)
+  , mMayHaveAudioAvailableEventListener(false)
   , mMayHaveTouchEventListener(false)
   , mMayHaveMouseEnterLeaveEventListener(false)
   , mMayHavePointerEnterLeaveEventListener(false)
@@ -280,6 +281,12 @@ EventListenerManager::AddEventListenerInternal(
     nsPIDOMWindow* window = GetInnerWindowForTarget();
     if (window) {
       window->SetHasPaintEventListeners();
+    }
+  } else if (aType == NS_MOZAUDIOAVAILABLE) {
+    mMayHaveAudioAvailableEventListener = true;
+    nsPIDOMWindow* window = GetInnerWindowForTarget();
+    if (window) {
+      window->SetHasAudioAvailableEventListeners();
     }
   } else if (aType >= NS_MUTATION_START && aType <= NS_MUTATION_END) {
     // For mutation listeners, we need to update the global bit on the DOM window.

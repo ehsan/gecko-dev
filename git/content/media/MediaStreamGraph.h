@@ -89,11 +89,9 @@ class MediaStreamGraph;
  * attached to a stream that has already finished, we'll call NotifyFinished.
  */
 class MediaStreamListener {
-protected:
-  // Protected destructor, to discourage deletion outside of Release():
+public:
   virtual ~MediaStreamListener() {}
 
-public:
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(MediaStreamListener)
 
   enum Consumption {
@@ -293,9 +291,6 @@ public:
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(MediaStream)
 
   MediaStream(DOMMediaStream* aWrapper);
-
-protected:
-  // Protected destructor, to discourage deletion outside of Release():
   virtual ~MediaStream()
   {
     MOZ_COUNT_DTOR(MediaStream);
@@ -304,7 +299,6 @@ protected:
                  "All main thread listeners should have been removed");
   }
 
-public:
   /**
    * Returns the graph that owns this stream.
    */
@@ -816,8 +810,7 @@ protected:
  * the Destroy message is processed on the graph manager thread we disconnect
  * the port and drop the graph's reference, destroying the object.
  */
-class MediaInputPort MOZ_FINAL {
-private:
+class MediaInputPort {
   // Do not call this constructor directly. Instead call aDest->AllocateInputPort.
   MediaInputPort(MediaStream* aSource, ProcessedMediaStream* aDest,
                  uint32_t aFlags, uint16_t aInputNumber,
@@ -830,12 +823,6 @@ private:
     , mGraph(nullptr)
   {
     MOZ_COUNT_CTOR(MediaInputPort);
-  }
-
-  // Private destructor, to discourage deletion outside of Release():
-  ~MediaInputPort()
-  {
-    MOZ_COUNT_DTOR(MediaInputPort);
   }
 
 public:
@@ -854,6 +841,10 @@ public:
     // stream.
     FLAG_BLOCK_OUTPUT = 0x02
   };
+  ~MediaInputPort()
+  {
+    MOZ_COUNT_DTOR(MediaInputPort);
+  }
 
   // Called on graph manager thread
   // Do not call these from outside MediaStreamGraph.cpp!
@@ -895,7 +886,7 @@ public:
    */
   void SetGraphImpl(MediaStreamGraphImpl* aGraph);
 
-private:
+protected:
   friend class MediaStreamGraphImpl;
   friend class MediaStream;
   friend class ProcessedMediaStream;

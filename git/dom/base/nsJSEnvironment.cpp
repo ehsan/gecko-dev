@@ -2793,10 +2793,9 @@ NS_DOMWriteStructuredClone(JSContext* cx,
 
   // Write the internals to the stream.
   JSAutoCompartment ac(cx, dataArray);
-  JS::Rooted<JS::Value> arrayValue(cx, JS::ObjectValue(*dataArray));
   return JS_WriteUint32Pair(writer, SCTAG_DOM_IMAGEDATA, 0) &&
          JS_WriteUint32Pair(writer, width, height) &&
-         JS_WriteTypedArray(writer, arrayValue);
+         JS_WriteTypedArray(writer, JS::ObjectValue(*dataArray));
 }
 
 void
