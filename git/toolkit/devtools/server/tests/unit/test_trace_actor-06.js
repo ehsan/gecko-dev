@@ -67,25 +67,23 @@ function eval_code()
     let circular = {};
     circular.self = circular;
 
-    // Make sure there is only 3 properties per object because that is the value
+    // Make sure there is only 5 properties per object because that is the value
     // of MAX_PROPERTIES in the server.
     let obj = {
       num: 0,
       str: "foo",
       bool: false,
+      undef: undefined,
+      nil: null
     };
     let obj2 = {
-      undef: undefined,
-      nil: null,
-      inf: Infinity
-    };
-    let obj3 = {
+      inf: Infinity,
       ninf: -Infinity,
       nan: NaN,
-      nzero: -0
+      nzero: -0,
+      obj: circular
     };
-    let obj4 = {
-      obj: circular,
+    let obj3 = {
       arr: [1,2,3,4,5]
     };
 
@@ -102,7 +100,6 @@ function eval_code()
     identity(obj);
     identity(obj2);
     identity(obj3);
-    identity(obj4);
   } + ")()");
 }
 
@@ -173,11 +170,6 @@ function check_trace(aTrace)
   case 26:
   case 27:
     check_obj3(aTrace.type, value);
-    break;
-  case 28:
-  case 29:
-    check_obj4(aTrace.type, value);
-    break;
   }
 }
 
@@ -199,9 +191,7 @@ function check_obj(aType, aObj) {
 
   do_check_eq(typeof aObj.ownProperties.bool, "object");
   do_check_eq(aObj.ownProperties.bool.value, false);
-}
 
-function check_obj2(aType, aObj) {
   do_check_eq(typeof aObj.ownProperties.undef, "object");
   do_check_eq(typeof aObj.ownProperties.undef.value, "object");
   do_check_eq(aObj.ownProperties.undef.value.type, "undefined");
@@ -209,13 +199,13 @@ function check_obj2(aType, aObj) {
   do_check_eq(typeof aObj.ownProperties.nil, "object");
   do_check_eq(typeof aObj.ownProperties.nil.value, "object");
   do_check_eq(aObj.ownProperties.nil.value.type, "null");
+}
 
+function check_obj2(aType, aObj) {
   do_check_eq(typeof aObj.ownProperties.inf, "object");
   do_check_eq(typeof aObj.ownProperties.inf.value, "object");
   do_check_eq(aObj.ownProperties.inf.value.type, "Infinity");
-}
 
-function check_obj3(aType, aObj) {
   do_check_eq(typeof aObj.ownProperties.ninf, "object");
   do_check_eq(typeof aObj.ownProperties.ninf.value, "object");
   do_check_eq(aObj.ownProperties.ninf.value.type, "-Infinity");
@@ -227,10 +217,12 @@ function check_obj3(aType, aObj) {
   do_check_eq(typeof aObj.ownProperties.nzero, "object");
   do_check_eq(typeof aObj.ownProperties.nzero.value, "object");
   do_check_eq(aObj.ownProperties.nzero.value.type, "-0");
-}
 
-function check_obj4(aType, aObj) {
   // Sub-objects aren't added.
   do_check_eq(typeof aObj.ownProperties.obj, "undefined");
+}
+
+function check_obj3(aType, aObj) {
+  // Sub-objects aren't added.
   do_check_eq(typeof aObj.ownProperties.arr, "undefined");
 }

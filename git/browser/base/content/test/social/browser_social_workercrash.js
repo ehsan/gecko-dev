@@ -13,6 +13,7 @@ let {getFrameWorkerHandle} = Cu.import("resource://gre/modules/FrameWorker.jsm",
 function test() {
   waitForExplicitFinish();
 
+  Services.prefs.setBoolPref("social.allowMultipleWorkers", true);
   // We need to ensure all our workers are in the same content process.
   Services.prefs.setIntPref("dom.ipc.processCount", 1);
 
@@ -21,6 +22,7 @@ function test() {
     runSocialTests(tests, undefined, undefined, function() {
       Services.prefs.clearUserPref("dom.ipc.processCount");
       Services.prefs.clearUserPref("social.sidebar.open");
+      Services.prefs.clearUserPref("social.allowMultipleWorkers");
       finishcb();
     });
   });

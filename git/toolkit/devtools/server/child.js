@@ -1,5 +1,6 @@
-const {DevToolsUtils} = Cu.import("resource://gre/modules/devtools/DevToolsUtils.jsm", {});
-const {DebuggerServer, ActorPool} = Cu.import("resource://gre/modules/devtools/dbg-server.jsm", {});
+Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/devtools/dbg-server.jsm");
+Cu.import("resource://gre/modules/devtools/DevToolsUtils.jsm");
 
 if (!DebuggerServer.initialized) {
   DebuggerServer.init();

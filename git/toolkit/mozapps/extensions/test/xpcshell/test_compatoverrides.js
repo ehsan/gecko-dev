@@ -6,6 +6,7 @@
 
 
 const PREF_GETADDONS_CACHE_ENABLED = "extensions.getAddons.cache.enabled";
+const PREF_GETADDONS_BYIDS         = "extensions.getAddons.getWithPerformance.url";
 
 Components.utils.import("resource://testing-common/httpd.js");
 var gServer = new HttpServer();
@@ -22,7 +23,7 @@ mapUrlToFile(REQ_URL, do_get_file("data/test_compatoverrides.xml"), gServer);
 
 Services.prefs.setBoolPref(PREF_EM_STRICT_COMPATIBILITY, false);
 Services.prefs.setBoolPref(PREF_GETADDONS_CACHE_ENABLED, true);
-Services.prefs.setCharPref(PREF_GETADDONS_BYIDS_PERFORMANCE,
+Services.prefs.setCharPref(PREF_GETADDONS_BYIDS,
                            BASE_URL + REQ_URL);
 
 
