@@ -106,13 +106,9 @@ class THEBES_API DeviceManagerD3D9
 {
 public:
   DeviceManagerD3D9();
-  NS_IMETHOD_(nsrefcnt) AddRef(void);
-  NS_IMETHOD_(nsrefcnt) Release(void);
-protected:
-  nsAutoRefCnt mRefCnt;
-  NS_DECL_OWNINGTHREAD
 
-public:
+  NS_INLINE_DECL_REFCOUNTING(DeviceManagerD3D9)
+
   bool Init();
 
   /**
