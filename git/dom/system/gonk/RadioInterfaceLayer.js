@@ -527,7 +527,8 @@ CdmaIccInfo.prototype = {
 
   // nsIDOMMozCdmaIccInfo
 
-  mdn: null
+  mdn: null,
+  min: null
 };
 
 function RadioInterfaceLayer() {
@@ -2922,18 +2923,6 @@ RadioInterface.prototype = {
                                        options.segmentChars,
                                        options.segmentChars - charsInLastSegment);
     request.notifySegmentInfoForTextGot(result);
-  },
-
-  getSmscAddress: function getSmscAddress(request) {
-    this.workerMessenger.send("getSmscAddress",
-                              null,
-                              (function(response) {
-      if (!response.errorMsg) {
-        request.notifyGetSmscAddress(response.smscAddress);
-      } else {
-        request.notifyGetSmscAddressFailed(response.errorMsg);
-      }
-    }).bind(this));
   },
 
   sendSMS: function sendSMS(number, message, silent, request) {

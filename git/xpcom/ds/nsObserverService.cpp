@@ -42,21 +42,25 @@ GetObserverServiceLog()
 
 namespace mozilla {
 
-class ObserverServiceReporter MOZ_FINAL : public MemoryMultiReporter
+class ObserverServiceReporter MOZ_FINAL : public nsIMemoryReporter
 {
 public:
-    ObserverServiceReporter()
-        : MemoryMultiReporter("observer-service")
-    {}
-
-    NS_IMETHOD CollectReports(nsIMemoryReporterCallback *aCb,
-                              nsISupports *aClosure);
-
+    NS_DECL_ISUPPORTS
+    NS_DECL_NSIMEMORYREPORTER
 protected:
     static const size_t kSuspectReferentCount = 100;
     static PLDHashOperator CountReferents(nsObserverList* aObserverList,
                                           void* aClosure);
 };
+
+NS_IMPL_ISUPPORTS1(ObserverServiceReporter, nsIMemoryReporter)
+
+NS_IMETHODIMP
+ObserverServiceReporter::GetName(nsACString& aName)
+{
+    aName.AssignLiteral("observer-service");
+    return NS_OK;
+}
 
 struct SuspectObserver {
     SuspectObserver(const char* aTopic, size_t aReferentCount)

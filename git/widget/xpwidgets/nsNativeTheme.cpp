@@ -664,15 +664,11 @@ nsNativeTheme::IsRangeHorizontal(nsIFrame* aFrame)
 {
   nsIFrame* rangeFrame = aFrame;
   if (rangeFrame->GetType() != nsGkAtoms::rangeFrame) {
-    // If the thumb's frame is passed in, get its range parent:
     rangeFrame = aFrame->GetParent();
   }
-  if (rangeFrame->GetType() == nsGkAtoms::rangeFrame) {
-    return static_cast<nsRangeFrame*>(rangeFrame)->IsHorizontal();
-  }
-  // Not actually a range frame - just use the ratio of the frame's size to
-  // decide:
-  return aFrame->GetSize().width >= aFrame->GetSize().height;
+  MOZ_ASSERT(rangeFrame->GetType() == nsGkAtoms::rangeFrame);
+
+  return static_cast<nsRangeFrame*>(rangeFrame)->IsHorizontal();
 }
 
 static nsIFrame*

@@ -844,14 +844,8 @@ class Mochitest(MochitestUtilsMixin):
                                        dump_screen_on_timeout=not debuggerInfo,
       )
 
-    def timeoutHandler():
-      browserProcessId = outputHandler.browserProcessId
-      self.handleTimeout(timeout, proc, utilityPath, debuggerInfo, browserProcessId)
-    kp_kwargs = {'kill_on_timeout': False,
-                 'onTimeout': [timeoutHandler]}
     # if the output handler is a pipe, it will process output via the subprocess
-    if not outputHandler.pipe:
-      kp_kwargs['processOutputLine'] = [outputHandler]
+    kp_kwargs = {} if outputHandler.pipe else {'processOutputLine': [outputHandler]}
 
     # create mozrunner instance and start the system under test process
     self.lastTestSeen = self.test_name
@@ -907,6 +901,11 @@ class Mochitest(MochitestUtilsMixin):
 
     # finalize output handler
     outputHandler.finish(didTimeout)
+
+    # handle timeout
+    if didTimeout:
+      browserProcessId = outputHandler.browserProcessId
+      self.handleTimeout(timeout, proc, utilityPath, debuggerInfo, browserProcessId)
 
     # record post-test information
     if status:

@@ -73,7 +73,7 @@ static bool
 #endif
 ToBooleanOp(const FrameRegs &regs)
 {
-    return ToBoolean(regs.stackHandleAt(-1));
+    return ToBoolean(regs.sp[-1]);
 }
 
 template <bool Eq>

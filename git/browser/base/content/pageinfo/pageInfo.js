@@ -471,7 +471,7 @@ function openCacheEntry(key, cb)
 {
   var checkCacheListener = {
     onCacheEntryCheck: function(entry, appCache) {
-      return Components.interfaces.nsICacheEntryOpenCallback.ENTRY_WANTED;
+      return nsICacheEntryOpenCallback.ENTRY_VALID;
     },
     onCacheEntryAvailable: function(entry, isNew, appCache, status) {
       cb(entry);

@@ -11,16 +11,21 @@ using namespace mozilla;
 
 NS_IMPL_ISUPPORTS1(WebGLMemoryPressureObserver, nsIObserver)
 
-class WebGLMemoryReporter MOZ_FINAL : public MemoryMultiReporter
+class WebGLMemoryReporter MOZ_FINAL : public nsIMemoryReporter
 {
-public:
-    WebGLMemoryReporter()
-        : MemoryMultiReporter("webgl")
-    {}
-
-    NS_IMETHOD CollectReports(nsIMemoryReporterCallback* aCb,
-                              nsISupports* aClosure);
+  public:
+    NS_DECL_ISUPPORTS
+    NS_DECL_NSIMEMORYREPORTER
 };
+
+NS_IMPL_ISUPPORTS1(WebGLMemoryReporter, nsIMemoryReporter)
+
+NS_IMETHODIMP
+WebGLMemoryReporter::GetName(nsACString &aName)
+{
+  aName.AssignLiteral("webgl");
+  return NS_OK;
+}
 
 NS_IMETHODIMP
 WebGLMemoryReporter::CollectReports(nsIMemoryReporterCallback* aCb,

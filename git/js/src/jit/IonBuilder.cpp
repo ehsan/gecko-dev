@@ -4963,17 +4963,19 @@ IonBuilder::jsop_call(uint32_t argc, bool constructing)
     }
     JS_ASSERT_IF(gotLambda, originals.length() <= 1);
 
-    // If any call targets need to be cloned, look for existing clones to use.
-    // Keep track of the originals as we need to case on them for poly inline.
+    // If any call targets need to be cloned, clone them. Keep track of the
+    // originals as we need to case on them for poly inline.
     bool hasClones = false;
     ObjectVector targets;
+    RootedFunction fun(cx);
+    RootedScript scriptRoot(cx, script());
     for (uint32_t i = 0; i < originals.length(); i++) {
-        JSFunction *fun = &originals[i]->as<JSFunction>();
+        fun = &originals[i]->as<JSFunction>();
         if (fun->hasScript() && fun->nonLazyScript()->shouldCloneAtCallsite) {
-            if (JSFunction *clone = ExistingCloneFunctionAtCallsite(compartment, fun, script(), pc)) {
-                fun = clone;
-                hasClones = true;
-            }
+            fun = CloneFunctionAtCallsite(cx, fun, scriptRoot, pc);
+            if (!fun)
+                return false;
+            hasClones = true;
         }
         if (!targets.append(fun))
             return false;
@@ -7471,14 +7473,23 @@ IonBuilder::jsop_arguments_length()
     return pushConstant(Int32Value(inlineCallInfo_->argv().length()));
 }
 
+static JSObject *
+CreateRestArgumentsTemplateObject(JSContext *cx, unsigned length)
+{
+    JSObject *templateObject = NewDenseUnallocatedArray(cx, length, nullptr, TenuredObject);
+    if (templateObject)
+        types::FixRestArgumentsType(cx, templateObject);
+    return templateObject;
+}
+
 bool
 IonBuilder::jsop_rest()
 {
-    JSObject *templateObject = inspector->getTemplateObject(pc);
-    JS_ASSERT(templateObject->is<ArrayObject>());
-
+    // We don't know anything about the callee.
     if (inliningDepth_ == 0) {
-        // We don't know anything about the callee.
+        JSObject *templateObject = CreateRestArgumentsTemplateObject(cx, 0);
+        if (!templateObject)
+            return false;
         MArgumentsLength *numActuals = MArgumentsLength::New();
         current->add(numActuals);
 
@@ -7494,6 +7505,9 @@ IonBuilder::jsop_rest()
     unsigned numActuals = inlineCallInfo_->argv().length();
     unsigned numFormals = info().nargs() - 1;
     unsigned numRest = numActuals > numFormals ? numActuals - numFormals : 0;
+    JSObject *templateObject = CreateRestArgumentsTemplateObject(cx, numRest);
+    if (!templateObject)
+        return false;
 
     MNewArray *array = new MNewArray(numRest, templateObject, MNewArray::NewArray_Allocating);
     current->add(array);

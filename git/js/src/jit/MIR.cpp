@@ -2459,12 +2459,12 @@ MNot::foldsTo(bool useValueNumbers)
 {
     // Fold if the input is constant
     if (operand()->isConstant()) {
-        bool result = operand()->toConstant()->valueToBoolean();
+        const Value &v = operand()->toConstant()->value();
         if (type() == MIRType_Int32)
-            return MConstant::New(Int32Value(!result));
+            return MConstant::New(Int32Value(!ToBoolean(v)));
 
-        // ToBoolean can't cause side effects, so this is safe.
-        return MConstant::New(BooleanValue(!result));
+        // ToBoolean can cause no side effects, so this is safe.
+        return MConstant::New(BooleanValue(!ToBoolean(v)));
     }
 
     // NOT of an undefined or null value is always true

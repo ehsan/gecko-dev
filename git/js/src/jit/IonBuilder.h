@@ -583,11 +583,10 @@ class IonBuilder : public MIRGenerator
     InliningStatus inlineNewParallelArray(CallInfo &callInfo);
     InliningStatus inlineParallelArray(CallInfo &callInfo);
     InliningStatus inlineParallelArrayTail(CallInfo &callInfo,
-                                           JSFunction *target,
+                                           HandleFunction target,
                                            MDefinition *ctor,
                                            types::TemporaryTypeSet *ctorTypes,
-                                           uint32_t discards,
-                                           Native native);
+                                           uint32_t discards);
 
     // Utility intrinsics.
     InliningStatus inlineIsCallable(CallInfo &callInfo);

@@ -522,14 +522,14 @@ DeterministicGC(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    if (args.length() != 1) {
+    if (argc != 1) {
         RootedObject callee(cx, &args.callee());
         ReportUsageError(cx, callee, "Wrong number of arguments");
         return false;
     }
 
-    gc::SetDeterministicGC(cx, ToBoolean(args[0]));
-    args.rval().setUndefined();
+    gc::SetDeterministicGC(cx, ToBoolean(vp[2]));
+    *vp = JSVAL_VOID;
     return true;
 }
 #endif /* JS_GC_ZEAL */
@@ -1326,7 +1326,13 @@ Neuter(JSContext *cx, unsigned argc, jsval *vp)
         return false;
     }
 
-    return JS_NeuterArrayBuffer(cx, obj);
+    void *contents;
+    uint8_t *data;
+    if (!JS_StealArrayBufferContents(cx, obj, &contents, &data))
+        return false;
+
+    js_free(contents);
+    return true;
 }
 
 static const JSFunctionSpecWithHelp TestingFunctions[] = {
