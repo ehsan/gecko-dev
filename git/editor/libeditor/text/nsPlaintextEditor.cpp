@@ -76,6 +76,7 @@
 #include "nsIPrefService.h"
 #include "nsUnicharUtils.h"
 #include "nsContentCID.h"
+#include "nsAOLCiter.h"
 #include "nsInternetCiter.h"
 #include "nsEventDispatcher.h"
 #include "nsGkAtoms.h"
@@ -1466,12 +1467,38 @@ nsPlaintextEditor::PasteAsQuotation(PRInt32 aSelectionType)
   return rv;
 }
 
+// Utility routine to make a new citer.  This addrefs, of course.
+static nsICiter* MakeACiter()
+{
+  // Make a citer of an appropriate type
+  nsICiter* citer = 0;
+  nsresult rv;
+  nsCOMPtr<nsIPrefBranch> prefBranch =
+    do_GetService(NS_PREFSERVICE_CONTRACTID, &rv);
+  if (NS_FAILED(rv)) return 0;
+
+  char *citationType = 0;
+  rv = prefBranch->GetCharPref("mail.compose.citationType", &citationType);
+                          
+  if (NS_SUCCEEDED(rv) && citationType[0] && !strncmp(citationType, "aol", 3))
+    citer = new nsAOLCiter;
+  else
+    citer = new nsInternetCiter;
+
+  if (citationType)
+    PL_strfree(citationType);
+
+  if (citer)
+    NS_ADDREF(citer);
+  return citer;
+}
+
 NS_IMETHODIMP
 nsPlaintextEditor::InsertAsQuotation(const nsAString& aQuotedText,
                                      nsIDOMNode **aNodeInserted)
 {
   // We have the text.  Cite it appropriately:
-  nsCOMPtr<nsICiter> citer = new nsInternetCiter();
+  nsCOMPtr<nsICiter> citer = dont_AddRef(MakeACiter());
 
   // Let the citer quote it for us:
   nsString quotedStuff;
@@ -1573,7 +1600,7 @@ nsPlaintextEditor::Rewrap(PRBool aRespectNewlines)
                           &isCollapsed, current);
   if (NS_FAILED(rv)) return rv;
 
-  nsCOMPtr<nsICiter> citer = new nsInternetCiter();
+  nsCOMPtr<nsICiter> citer = dont_AddRef(MakeACiter());
   if (NS_FAILED(rv)) return rv;
   if (!citer) return NS_ERROR_UNEXPECTED;
 
@@ -1602,7 +1629,7 @@ nsPlaintextEditor::StripCites()
                                    &isCollapsed, current);
   if (NS_FAILED(rv)) return rv;
 
-  nsCOMPtr<nsICiter> citer = new nsInternetCiter();
+  nsCOMPtr<nsICiter> citer = dont_AddRef(MakeACiter());
   if (!citer) return NS_ERROR_UNEXPECTED;
 
   nsString stripped;

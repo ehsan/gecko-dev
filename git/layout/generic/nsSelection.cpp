@@ -213,8 +213,6 @@ public:
   nsresult      Collapse(nsINode* aParentNode, PRInt32 aOffset);
   nsresult      Extend(nsINode* aParentNode, PRInt32 aOffset);
   nsresult      AddRange(nsIRange* aRange);
-  // The nsIRange version of RemoveRange assumes the caller is holding
-  // a strong reference to aRange.
   nsresult      RemoveRange(nsIRange* aRange);
   nsIRange*     GetRangeAt(PRInt32 aIndex);
   nsresult      GetTableSelectionType(nsIRange* aRange,
@@ -2713,9 +2711,7 @@ printf("HandleTableSelection: Unselecting mUnselectCellOnMouseUp; rangeCount=%d\
 #endif
         for( PRInt32 i = 0; i < rangeCount; i++)
         {
-          // Strong reference, because sometimes we want to remove
-          // this range, and then we might be the only owner.
-          nsCOMPtr<nsIRange> range = mDomSelections[index]->GetRangeAt(i);
+          nsIRange* range = mDomSelections[index]->GetRangeAt(i);
           if (!range) return NS_ERROR_NULL_POINTER;
 
           nsINode* parent = range->GetStartParent();
@@ -2803,8 +2799,7 @@ nsFrameSelection::SelectBlockOfCells(nsIContent *aStartCell, nsIContent *aEndCel
     if (!mDomSelections[index])
       return NS_ERROR_NULL_POINTER;
 
-    // Strong reference because we sometimes remove the range
-    nsCOMPtr<nsIRange> range = GetFirstCellRange();
+    nsIRange* range = GetFirstCellRange();
     nsIContent* cellNode = GetFirstSelectedContent(range);
     NS_PRECONDITION(!range || cellNode, "Must have cellNode if had a range");
 
