@@ -211,12 +211,12 @@ public:
   void RemoveAnonTempFileFiles() {
     nsCOMPtr<nsIFile> tmpDir;
     nsresult rv = GetTempDir(getter_AddRefs(tmpDir));
-    NS_ENSURE_SUCCESS_VOID(rv);
+    NS_ENSURE_SUCCESS(rv,);
 
-    // Remove the directory recursively.
+    // Remove the directory recursively.  
     tmpDir->Remove(true);
   }
-
+  
 private:
   nsCOMPtr<nsITimer> mTimer;
 };

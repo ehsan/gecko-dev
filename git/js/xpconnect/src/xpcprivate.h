@@ -2798,6 +2798,7 @@ public:
                            JSObject* aNewParent,
                            nsISupports* aCOMObj);
 
+    bool IsOrphan();
     nsresult RescueOrphans(XPCCallContext& ccx);
 
     void FlatJSObjectFinalized();

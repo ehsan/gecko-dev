@@ -37,58 +37,68 @@
 #include "nsSMILAnimationController.h"
 #include "nsSMILTypes.h"
 #include "nsIContentIterator.h"
-#include "SVGAngle.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
 
-NS_SVG_VAL_IMPL_CYCLE_COLLECTION_WRAPPERCACHED(nsSVGTranslatePoint::DOMVal, mElement)
+NS_SVG_VAL_IMPL_CYCLE_COLLECTION(nsSVGTranslatePoint::DOMVal, mElement)
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsSVGTranslatePoint::DOMVal)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSVGTranslatePoint::DOMVal)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGTranslatePoint::DOMVal)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
-  NS_INTERFACE_MAP_ENTRY(nsISVGPoint)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGPoint)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGPoint)
 NS_INTERFACE_MAP_END
 
 nsresult
 nsSVGTranslatePoint::ToDOMVal(nsSVGSVGElement *aElement,
-                              nsISupports **aResult)
+                              nsIDOMSVGPoint **aResult)
 {
-  NS_ADDREF(*aResult = new DOMVal(this, aElement));
+  *aResult = new DOMVal(this, aElement);
+  if (!*aResult)
+    return NS_ERROR_OUT_OF_MEMORY;
+  
+  NS_ADDREF(*aResult);
   return NS_OK;
 }
 
-nsISupports*
-nsSVGTranslatePoint::DOMVal::GetParentObject()
+NS_IMETHODIMP
+nsSVGTranslatePoint::DOMVal::SetX(float aValue)
 {
-  return static_cast<nsIDOMSVGSVGElement*>(mElement);
+  NS_ENSURE_FINITE(aValue, NS_ERROR_ILLEGAL_VALUE);
+  return mElement->SetCurrentTranslate(aValue, mVal->GetY());
 }
 
-void
-nsSVGTranslatePoint::DOMVal::SetX(float aValue, ErrorResult& rv)
+NS_IMETHODIMP
+nsSVGTranslatePoint::DOMVal::SetY(float aValue)
 {
-  rv = mElement->SetCurrentTranslate(aValue, mVal->GetY());
+  NS_ENSURE_FINITE(aValue, NS_ERROR_ILLEGAL_VALUE);
+  return mElement->SetCurrentTranslate(mVal->GetX(), aValue);
 }
 
-void
-nsSVGTranslatePoint::DOMVal::SetY(float aValue, ErrorResult& rv)
+/* nsIDOMSVGPoint matrixTransform (in nsIDOMSVGMatrix matrix); */
+NS_IMETHODIMP
+nsSVGTranslatePoint::DOMVal::MatrixTransform(nsIDOMSVGMatrix *matrix,
+                                             nsIDOMSVGPoint **_retval)
 {
-  rv = mElement->SetCurrentTranslate(mVal->GetX(), aValue);
-}
+  if (!matrix)
+    return NS_ERROR_DOM_SVG_WRONG_TYPE_ERR;
 
-already_AddRefed<nsISVGPoint>
-nsSVGTranslatePoint::DOMVal::MatrixTransform(DOMSVGMatrix& matrix)
-{
-  float a = matrix.A(), b = matrix.B(), c = matrix.C();
-  float d = matrix.D(), e = matrix.E(), f = matrix.F();
+  float a, b, c, d, e, f;
+  matrix->GetA(&a);
+  matrix->GetB(&b);
+  matrix->GetC(&c);
+  matrix->GetD(&d);
+  matrix->GetE(&e);
+  matrix->GetF(&f);
+
   float x = mVal->GetX();
   float y = mVal->GetY();
 
-  nsCOMPtr<nsISVGPoint> point = new DOMSVGPoint(a*x + c*y + e, b*x + d*y + f);
-  return point.forget();
+  NS_ADDREF(*_retval = new DOMSVGPoint(a*x + c*y + e, b*x + d*y + f));
+  return NS_OK;
 }
 
 nsSVGElement::LengthInfo nsSVGSVGElement::sLengthInfo[4] =
@@ -138,10 +148,10 @@ NS_IMPL_RELEASE_INHERITED(nsSVGSVGElement,nsSVGSVGElementBase)
 DOMCI_NODE_DATA(SVGSVGElement, nsSVGSVGElement)
 
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsSVGSVGElement)
-  NS_NODE_INTERFACE_TABLE6(nsSVGSVGElement, nsIDOMNode, nsIDOMElement,
-                           nsIDOMSVGElement,
+  NS_NODE_INTERFACE_TABLE8(nsSVGSVGElement, nsIDOMNode, nsIDOMElement,
+                           nsIDOMSVGElement, nsIDOMSVGTests,
                            nsIDOMSVGSVGElement,
-                           nsIDOMSVGFitToViewBox,
+                           nsIDOMSVGFitToViewBox, nsIDOMSVGLocatable,
                            nsIDOMSVGZoomAndPan)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGSVGElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGSVGElementBase)
@@ -293,9 +303,9 @@ nsSVGSVGElement::SetCurrentScale(float aCurrentScale)
     mCurrentTranslate.GetX(), mCurrentTranslate.GetY());
 }
 
-/* readonly attribute DOMSVGPoint currentTranslate; */
+/* readonly attribute nsIDOMSVGPoint currentTranslate; */
 NS_IMETHODIMP
-nsSVGSVGElement::GetCurrentTranslate(nsISupports * *aCurrentTranslate)
+nsSVGSVGElement::GetCurrentTranslate(nsIDOMSVGPoint * *aCurrentTranslate)
 {
   return mCurrentTranslate.ToDOMVal(this, aCurrentTranslate);
 }
@@ -508,27 +518,24 @@ nsSVGSVGElement::CreateSVGLength(nsIDOMSVGLength **_retval)
   return NS_OK;
 }
 
-/* SVGAngle createSVGAngle (); */
+/* nsIDOMSVGAngle createSVGAngle (); */
 NS_IMETHODIMP
-nsSVGSVGElement::CreateSVGAngle(nsISupports **_retval)
+nsSVGSVGElement::CreateSVGAngle(nsIDOMSVGAngle **_retval)
 {
-  nsSVGAngle* angle = new nsSVGAngle();
-  angle->Init();
-  NS_ADDREF(*_retval = new SVGAngle(angle, this, SVGAngle::CreatedValue));
-  return NS_OK;
+  return NS_NewDOMSVGAngle(_retval);
 }
 
-/* DOMSVGPoint createSVGPoint (); */
+/* nsIDOMSVGPoint createSVGPoint (); */
 NS_IMETHODIMP
-nsSVGSVGElement::CreateSVGPoint(nsISupports **_retval)
+nsSVGSVGElement::CreateSVGPoint(nsIDOMSVGPoint **_retval)
 {
   NS_ADDREF(*_retval = new DOMSVGPoint(0, 0));
   return NS_OK;
 }
 
-/* DOMSVGMatrix createSVGMatrix (); */
+/* nsIDOMSVGMatrix createSVGMatrix (); */
 NS_IMETHODIMP
-nsSVGSVGElement::CreateSVGMatrix(nsISupports **_retval)
+nsSVGSVGElement::CreateSVGMatrix(nsIDOMSVGMatrix **_retval)
 {
   NS_ADDREF(*_retval = new DOMSVGMatrix());
   return NS_OK;
@@ -541,18 +548,18 @@ nsSVGSVGElement::CreateSVGRect(nsIDOMSVGRect **_retval)
   return NS_NewSVGRect(_retval);
 }
 
-/* DOMSVGTransform createSVGTransform (); */
+/* nsIDOMSVGTransform createSVGTransform (); */
 NS_IMETHODIMP
-nsSVGSVGElement::CreateSVGTransform(nsISupports **_retval)
+nsSVGSVGElement::CreateSVGTransform(nsIDOMSVGTransform **_retval)
 {
   NS_ADDREF(*_retval = new DOMSVGTransform());
   return NS_OK;
 }
 
-/* DOMSVGTransform createSVGTransformFromMatrix (in DOMSVGMatrix matrix); */
+/* nsIDOMSVGTransform createSVGTransformFromMatrix (in nsIDOMSVGMatrix matrix); */
 NS_IMETHODIMP
-nsSVGSVGElement::CreateSVGTransformFromMatrix(nsISupports *matrix,
-                                              nsISupports **_retval)
+nsSVGSVGElement::CreateSVGTransformFromMatrix(nsIDOMSVGMatrix *matrix, 
+                                              nsIDOMSVGTransform **_retval)
 {
   nsCOMPtr<DOMSVGMatrix> domItem = do_QueryInterface(matrix);
   if (!domItem) {
@@ -590,15 +597,95 @@ nsSVGSVGElement::GetViewBox(nsIDOMSVGAnimatedRect * *aViewBox)
   return mViewBox.ToDOMAnimatedRect(aViewBox, this);
 }
 
-/* readonly attribute SVGPreserveAspectRatio preserveAspectRatio; */
+/* readonly attribute nsIDOMSVGAnimatedPreserveAspectRatio preserveAspectRatio; */
 NS_IMETHODIMP
-nsSVGSVGElement::GetPreserveAspectRatio(nsISupports
+nsSVGSVGElement::GetPreserveAspectRatio(nsIDOMSVGAnimatedPreserveAspectRatio
                                         **aPreserveAspectRatio)
 {
-  nsRefPtr<DOMSVGAnimatedPreserveAspectRatio> ratio;
-  mPreserveAspectRatio.ToDOMAnimatedPreserveAspectRatio(getter_AddRefs(ratio), this);
-  ratio.forget(aPreserveAspectRatio);
+  return mPreserveAspectRatio.ToDOMAnimatedPreserveAspectRatio(aPreserveAspectRatio, this);
+}
+
+//----------------------------------------------------------------------
+// nsIDOMSVGLocatable methods
+
+/* readonly attribute nsIDOMSVGElement nearestViewportElement; */
+NS_IMETHODIMP
+nsSVGSVGElement::GetNearestViewportElement(nsIDOMSVGElement * *aNearestViewportElement)
+{
+  *aNearestViewportElement = SVGContentUtils::GetNearestViewportElement(this).get();
   return NS_OK;
+}
+
+/* readonly attribute nsIDOMSVGElement farthestViewportElement; */
+NS_IMETHODIMP
+nsSVGSVGElement::GetFarthestViewportElement(nsIDOMSVGElement * *aFarthestViewportElement)
+{
+  NS_IF_ADDREF(*aFarthestViewportElement = SVGContentUtils::GetOuterSVGElement(this));
+  return NS_OK;
+}
+
+/* nsIDOMSVGRect getBBox (); */
+NS_IMETHODIMP
+nsSVGSVGElement::GetBBox(nsIDOMSVGRect **_retval)
+{
+  *_retval = nullptr;
+
+  nsIFrame* frame = GetPrimaryFrame(Flush_Layout);
+
+  if (!frame || (frame->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD))
+    return NS_ERROR_FAILURE;
+
+  nsISVGChildFrame* svgframe = do_QueryFrame(frame);
+  if (svgframe) {
+    return NS_NewSVGRect(_retval, nsSVGUtils::GetBBox(frame));
+  }
+  return NS_ERROR_NOT_IMPLEMENTED; // XXX: outer svg
+}
+
+/* nsIDOMSVGMatrix getCTM (); */
+NS_IMETHODIMP
+nsSVGSVGElement::GetCTM(nsIDOMSVGMatrix * *aCTM)
+{
+  gfxMatrix m = SVGContentUtils::GetCTM(this, false);
+  *aCTM = m.IsSingular() ? nullptr : new DOMSVGMatrix(m);
+  NS_IF_ADDREF(*aCTM);
+  return NS_OK;
+}
+
+/* nsIDOMSVGMatrix getScreenCTM (); */
+NS_IMETHODIMP
+nsSVGSVGElement::GetScreenCTM(nsIDOMSVGMatrix **aCTM)
+{
+  gfxMatrix m = SVGContentUtils::GetCTM(this, true);
+  *aCTM = m.IsSingular() ? nullptr : new DOMSVGMatrix(m);
+  NS_IF_ADDREF(*aCTM);
+  return NS_OK;
+}
+
+/* nsIDOMSVGMatrix getTransformToElement (in nsIDOMSVGElement element); */
+NS_IMETHODIMP
+nsSVGSVGElement::GetTransformToElement(nsIDOMSVGElement *element,
+                                       nsIDOMSVGMatrix **_retval)
+{
+  if (!element)
+    return NS_ERROR_DOM_SVG_WRONG_TYPE_ERR;
+
+  nsresult rv;
+  *_retval = nullptr;
+  nsCOMPtr<nsIDOMSVGMatrix> ourScreenCTM;
+  nsCOMPtr<nsIDOMSVGMatrix> targetScreenCTM;
+  nsCOMPtr<nsIDOMSVGMatrix> tmp;
+  nsCOMPtr<nsIDOMSVGLocatable> target = do_QueryInterface(element, &rv);
+  if (NS_FAILED(rv)) return rv;
+
+  // the easiest way to do this (if likely to increase rounding error):
+  GetScreenCTM(getter_AddRefs(ourScreenCTM));
+  if (!ourScreenCTM) return NS_ERROR_DOM_SVG_MATRIX_NOT_INVERTABLE;
+  target->GetScreenCTM(getter_AddRefs(targetScreenCTM));
+  if (!targetScreenCTM) return NS_ERROR_DOM_SVG_MATRIX_NOT_INVERTABLE;
+  rv = targetScreenCTM->Inverse(getter_AddRefs(tmp));
+  if (NS_FAILED(rv)) return rv;
+  return tmp->Multiply(ourScreenCTM, _retval);  // addrefs, so we don't
 }
 
 //----------------------------------------------------------------------
@@ -760,8 +847,11 @@ nsSVGSVGElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   return nsSVGSVGElementBase::PreHandleEvent(aVisitor);
 }
 
+//----------------------------------------------------------------------
+// nsSVGElement overrides
+
 bool
-nsSVGSVGElement::IsEventAttributeName(nsIAtom* aName)
+nsSVGSVGElement::IsEventName(nsIAtom* aName)
 {
   /* The events in EventNameType_SVGSVG are for events that are only
      applicable to outermost 'svg' elements. We don't check if we're an outer
@@ -772,9 +862,6 @@ nsSVGSVGElement::IsEventAttributeName(nsIAtom* aName)
   return nsContentUtils::IsEventAttributeName(aName,
          (EventNameType_SVGGraphic | EventNameType_SVGSVG));
 }
-
-//----------------------------------------------------------------------
-// nsSVGElement overrides
 
 // Helper for GetViewBoxTransform on root <svg> node
 // * aLength: internal value for our <svg> width or height attribute.
@@ -1038,7 +1125,9 @@ nsSVGSVGElement::GetPreserveAspectRatioWithOverride() const
         mViewBox.IsExplicitlySet()) &&
       ShouldSynthesizeViewBox()) {
     // If we're synthesizing a viewBox, use preserveAspectRatio="none";
-    return SVGPreserveAspectRatio(SVG_PRESERVEASPECTRATIO_NONE, SVG_MEETORSLICE_SLICE);
+    return SVGPreserveAspectRatio(
+         nsIDOMSVGPreserveAspectRatio::SVG_PRESERVEASPECTRATIO_NONE,
+         nsIDOMSVGPreserveAspectRatio::SVG_MEETORSLICE_SLICE);
   }
 
   if (viewElement && viewElement->mPreserveAspectRatio.IsExplicitlySet()) {

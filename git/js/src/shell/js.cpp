@@ -16,7 +16,6 @@
 #include <string.h>
 
 #include "mozilla/DebugOnly.h"
-#include "mozilla/GuardObjects.h"
 #include "mozilla/Util.h"
 
 #include "jstypes.h"
@@ -1716,6 +1715,14 @@ UpdateSwitchTableBounds(JSContext *cx, HandleScript script, unsigned offset,
         n = high - low + 1;
         break;
 
+      case JSOP_LOOKUPSWITCH:
+        jmplen = JUMP_OFFSET_LEN;
+        pc += jmplen;
+        n = GET_UINT16(pc);
+        pc += UINT16_LEN;
+        jmplen += JUMP_OFFSET_LEN;
+        break;
+
       default:
         /* [condswitch] switch does not have any jump or lookup tables. */
         JS_ASSERT(op == JSOP_CONDSWITCH);
@@ -2522,7 +2529,7 @@ sandbox_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
         return false;
 
     JS_ValueToBoolean(cx, v, &b);
-    if (b) {
+    if (b && (flags & JSRESOLVE_ASSIGNING) == 0) {
         if (!JS_ResolveStandardClass(cx, obj, id, &resolved))
             return false;
         if (resolved) {
@@ -2743,7 +2750,7 @@ CopyProperty(JSContext *cx, HandleObject obj, HandleObject referent, HandleId id
         propFlags = shape->getFlags();
     } else if (IsProxy(referent)) {
         PropertyDescriptor desc;
-        if (!Proxy::getOwnPropertyDescriptor(cx, referent, id, &desc, 0))
+        if (!Proxy::getOwnPropertyDescriptor(cx, referent, id, false, &desc))
             return false;
         if (!desc.obj)
             return true;
@@ -2791,7 +2798,7 @@ resolver_enumerate(JSContext *cx, HandleObject obj)
     RootedObject ignore(cx);
     for (size_t i = 0; ok && i < ida.length(); i++) {
         Rooted<jsid> id(cx, ida[i]);
-        ok = CopyProperty(cx, obj, referent, id, 0, &ignore);
+        ok = CopyProperty(cx, obj, referent, id, JSRESOLVE_QUALIFIED, &ignore);
     }
     return ok;
 }
@@ -3269,17 +3276,14 @@ Parse(JSContext *cx, unsigned argc, jsval *vp)
     return true;
 }
 
-struct FreeOnReturn
-{
+struct FreeOnReturn {
     JSContext *cx;
     const char *ptr;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 
-    FreeOnReturn(JSContext *cx, const char *ptr = NULL
-                 MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : cx(cx), ptr(ptr)
-    {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+    FreeOnReturn(JSContext *cx, const char *ptr = NULL JS_GUARD_OBJECT_NOTIFIER_PARAM)
+      : cx(cx), ptr(ptr) {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
     void init(const char *ptr) {
@@ -4191,8 +4195,9 @@ its_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
 {
     if (its_noisy) {
         IdStringifier idString(cx, id);
-        fprintf(gOutFile, "resolving its property %s, flags {%s}\n",
+        fprintf(gOutFile, "resolving its property %s, flags {%s,%s}\n",
                idString.getBytes(),
+               (flags & JSRESOLVE_QUALIFIED) ? "qualified" : "",
                (flags & JSRESOLVE_ASSIGNING) ? "assigning" : "");
     }
     return true;
@@ -4441,52 +4446,54 @@ global_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
 #endif
 
 #if defined(SHELL_HACK) && defined(DEBUG) && defined(XP_UNIX)
-    /*
-     * Do this expensive hack only for unoptimized Unix builds, which are
-     * not used for benchmarking.
-     */
-    char *path, *comp, *full;
-    const char *name;
-    bool ok, found;
-    JSFunction *fun;
+    if (!(flags & JSRESOLVE_QUALIFIED)) {
+        /*
+         * Do this expensive hack only for unoptimized Unix builds, which are
+         * not used for benchmarking.
+         */
+        char *path, *comp, *full;
+        const char *name;
+        bool ok, found;
+        JSFunction *fun;
 
-    if (!JSVAL_IS_STRING(id))
-        return true;
-    path = getenv("PATH");
-    if (!path)
-        return true;
-    path = JS_strdup(cx, path);
-    if (!path)
-        return false;
-    JSAutoByteString name(cx, JSVAL_TO_STRING(id));
-    if (!name)
-        return false;
-    ok = true;
-    for (comp = strtok(path, ":"); comp; comp = strtok(NULL, ":")) {
-        if (*comp != '\0') {
-            full = JS_smprintf("%s/%s", comp, name.ptr());
-            if (!full) {
-                JS_ReportOutOfMemory(cx);
-                ok = false;
+        if (!JSVAL_IS_STRING(id))
+            return true;
+        path = getenv("PATH");
+        if (!path)
+            return true;
+        path = JS_strdup(cx, path);
+        if (!path)
+            return false;
+        JSAutoByteString name(cx, JSVAL_TO_STRING(id));
+        if (!name)
+            return false;
+        ok = true;
+        for (comp = strtok(path, ":"); comp; comp = strtok(NULL, ":")) {
+            if (*comp != '\0') {
+                full = JS_smprintf("%s/%s", comp, name.ptr());
+                if (!full) {
+                    JS_ReportOutOfMemory(cx);
+                    ok = false;
+                    break;
+                }
+            } else {
+                full = (char *)name;
+            }
+            found = (access(full, X_OK) == 0);
+            if (*comp != '\0')
+                free(full);
+            if (found) {
+                fun = JS_DefineFunction(cx, obj, name, Exec, 0,
+                                        JSPROP_ENUMERATE);
+                ok = (fun != NULL);
+                if (ok)
+                    objp.set(obj);
                 break;
             }
-        } else {
-            full = (char *)name;
         }
-        found = (access(full, X_OK) == 0);
-        if (*comp != '\0')
-            free(full);
-        if (found) {
-            fun = JS_DefineFunction(cx, obj, name, Exec, 0,
-                                    JSPROP_ENUMERATE);
-            ok = (fun != NULL);
-            if (ok)
-                objp.set(obj);
-            break;
-        }
+        JS_free(cx, path);
+        return ok;
     }
-    JS_free(cx, path);
-    return ok;
 #else
     return true;
 #endif
@@ -4578,6 +4585,9 @@ env_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
 {
     JSString *valstr;
     const char *name, *value;
+
+    if (flags & JSRESOLVE_ASSIGNING)
+        return true;
 
     IdStringifier idstr(cx, id, true);
     if (idstr.threw())
@@ -4786,13 +4796,6 @@ dom_genericMethod(JSContext* cx, unsigned argc, JS::Value *vp)
     return method(cx, obj, val.toPrivate(), argc, vp);
 }
 
-static void
-InitDOMObject(HandleObject obj)
-{
-    /* Fow now just initialize to a constant we can check. */
-    SetReservedSlot(obj, DOM_OBJECT_SLOT, PRIVATE_TO_JSVAL((void *)0x1234));
-}
-
 static JSBool
 dom_constructor(JSContext* cx, unsigned argc, JS::Value *vp)
 {
@@ -4812,7 +4815,8 @@ dom_constructor(JSContext* cx, unsigned argc, JS::Value *vp)
     if (!domObj)
         return false;
 
-    InitDOMObject(domObj);
+    /* Fow now just initialize to a constant we can check. */
+    SetReservedSlot(domObj, DOM_OBJECT_SLOT, PRIVATE_TO_JSVAL((void *)0x1234));
 
     args.rval().setObject(*domObj);
     return true;
@@ -4932,13 +4936,11 @@ NewGlobalObject(JSContext *cx)
         };
         SetDOMCallbacks(cx->runtime, &DOMcallbacks);
 
-        RootedObject domProto(cx, JS_InitClass(cx, glob, NULL, &dom_class, dom_constructor, 0,
-                                               dom_props, dom_methods, NULL, NULL));
-        if (!domProto)
+        if (!JS_InitClass(cx, glob, NULL, &dom_class, dom_constructor, 0,
+                          dom_props, dom_methods, NULL, NULL))
+        {
             return NULL;
-
-        /* Initialize FakeDOMObject.prototype */
-        InitDOMObject(domProto);
+        }
     }
 
     return glob;

@@ -835,7 +835,8 @@ typedef struct cc_feature_candidate_t_ {
 } cc_feature_candidate_t;
 
 typedef struct cc_feature_session_t_ {
-  cc_media_constraints_t    *constraints;
+  unsigned int  sessionid;
+  cc_boolean    has_constraints;
 } cc_feature_session_t;
 
 

@@ -175,7 +175,7 @@ pref("media.dash.enabled", false);
 pref("media.gstreamer.enabled", true);
 #endif
 #ifdef MOZ_WEBRTC
-pref("media.navigator.enabled", true);
+pref("media.navigator.enabled", false);
 pref("media.peerconnection.enabled", false);
 pref("media.navigator.permission.disabled", false);
 #else
@@ -772,9 +772,6 @@ pref("security.fileuri.strict_origin_policy", true);
 // telemetry is also enabled as otherwise there is no way to report
 // the results
 pref("network.allow-experiments", true);
-
-// Turn off interprocess security checks. Needed to run xpcshell tests.
-pref("network.disable.ipc.security", false);
 
 // Default action for unlisted external protocol handlers
 pref("network.protocol-handler.external-default", true);      // OK to load
@@ -1638,19 +1635,8 @@ pref("layout.css.dpi", -1);
 // of a CSS "px". This is only used for windows on the screen, not for printing.
 pref("layout.css.devPixelsPerPx", "-1.0");
 
-// Is support for CSS Masking features enabled?
-#ifdef RELEASE_BUILD
-pref("layout.css.masking.enabled", false);
-#else
-pref("layout.css.masking.enabled", true);
-#endif
-
 // Is support for the the @supports rule enabled?
-#ifdef RELEASE_BUILD
-pref("layout.css.supports-rule.enabled", false);
-#else
 pref("layout.css.supports-rule.enabled", true);
-#endif
 
 // Is support for CSS Flexbox enabled?
 pref("layout.css.flexbox.enabled", true);
@@ -1660,13 +1646,6 @@ pref("layout.css.prefixes.border-image", true);
 pref("layout.css.prefixes.transforms", true);
 pref("layout.css.prefixes.transitions", true);
 pref("layout.css.prefixes.animations", true);
-
-// Is support for the :scope selector enabled?
-#ifdef RELEASE_BUILD
-pref("layout.css.scope-pseudo.enabled", false);
-#else
-pref("layout.css.scope-pseudo.enabled", true);
-#endif
 
 // pref for which side vertical scrollbars should be on
 // 0 = end-side in UI direction
@@ -1755,29 +1734,16 @@ pref("dom.ipc.plugins.parentTimeoutSecs", 0);
 // How long a plugin launch is allowed to take before
 // we consider it failed.
 pref("dom.ipc.plugins.processLaunchTimeoutSecs", 45);
-#ifdef XP_WIN
-// How long a plugin is allowed to process a synchronous IPC message 
-// before we display the plugin hang UI
-pref("dom.ipc.plugins.hangUITimeoutSecs", 5);
-// Minimum time that the plugin hang UI will be displayed
-pref("dom.ipc.plugins.hangUIMinDisplaySecs", 10);
-#endif
 #else
 // No timeout in DEBUG builds
 pref("dom.ipc.plugins.timeoutSecs", 0);
 pref("dom.ipc.plugins.processLaunchTimeoutSecs", 0);
 pref("dom.ipc.plugins.parentTimeoutSecs", 0);
-#ifdef XP_WIN
-pref("dom.ipc.plugins.hangUITimeoutSecs", 0);
-pref("dom.ipc.plugins.hangUIMinDisplaySecs", 0);
-#endif
 #endif
 
-#ifdef XP_WIN
-// Disable oopp for java on windows. They run their own
-// process isolation which conflicts with our implementation.
+// Disable oopp for standard java. They run their own process isolation (which
+// conflicts with our implementation, at least on Windows).
 pref("dom.ipc.plugins.java.enabled", false);
-#endif
 
 pref("dom.ipc.plugins.flash.subprocess.crashreporter.enabled", true);
 
@@ -3717,7 +3683,6 @@ pref("webgl.prefer-16bpp", false);
 pref("webgl.default-no-alpha", false);
 pref("webgl.force-layers-readback", false);
 pref("webgl.lose-context-on-heap-minimize", false);
-pref("webgl.can-lose-context-in-foreground", true);
 
 // Stagefright prefs
 pref("stagefright.force-enabled", false);
@@ -3938,8 +3903,3 @@ pref("dom.placeholder.show_on_focus", true);
 pref("wap.UAProf.url", "");
 pref("wap.UAProf.tagname", "x-wap-profile");
 
-// If the user puts a finger down on an element and we think the user
-// might be executing a pan gesture, how long do we wait before
-// tentatively deciding the gesture is actually a tap and activating
-// the target element?
-pref("ui.touch_activation.delay_ms", 50);

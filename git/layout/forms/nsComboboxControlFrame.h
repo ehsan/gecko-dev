@@ -35,7 +35,7 @@
 #include "nsIDOMEventListener.h"
 #include "nsThreadUtils.h"
 
-class nsView;
+class nsIView;
 class nsStyleContext;
 class nsIListControlFrame;
 class nsComboboxDisplayFrame;

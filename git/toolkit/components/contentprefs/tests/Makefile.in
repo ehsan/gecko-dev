@@ -13,11 +13,14 @@ include $(DEPTH)/config/autoconf.mk
 
 MODULE		= test_toolkit_contentprefs
 
-XPCSHELL_TESTS = unit unit_cps2
+ifdef MOZ_PHOENIX
+XPCSHELL_TESTS = unit
 
 # FIXME/bug 575918: out-of-process xpcshell is broken on OS X
 ifneq ($(OS_ARCH),Darwin)
 XPCSHELL_TESTS += unit_ipc
+endif
+
 endif
 
 include $(topsrcdir)/config/rules.mk

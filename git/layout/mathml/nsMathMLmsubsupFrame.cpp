@@ -69,14 +69,16 @@ nsMathMLmsubsupFrame::Place(nsRenderingContext& aRenderingContext,
   // default: automatic
   //
   // We use 0 as the default value so unitless values can be ignored.
-  // As a minimum, negative values can be ignored.
+  // XXXfredw Should we forbid negative values? (bug 411227)
   //
   nsAutoString value;
   nscoord subScriptShift = 0;
   GetAttribute(mContent, mPresentationData.mstyle,
                nsGkAtoms::subscriptshift_, value);
   if (!value.IsEmpty()) {
-    ParseNumericValue(value, &subScriptShift, 0, PresContext(), mStyleContext);
+    ParseNumericValue(value, &subScriptShift,
+                      nsMathMLElement::PARSE_ALLOW_NEGATIVE,
+                      PresContext(), mStyleContext);
   }
   // superscriptshift
   //
@@ -87,13 +89,15 @@ nsMathMLmsubsupFrame::Place(nsRenderingContext& aRenderingContext,
   // default: automatic
   //
   // We use 0 as the default value so unitless values can be ignored.
-  // As a minimum, negative values can be ignored.
+  // XXXfredw Should we forbid negative values? (bug 411227)
   //
   nscoord supScriptShift = 0;
   GetAttribute(mContent, mPresentationData.mstyle,
                nsGkAtoms::superscriptshift_, value);
   if (!value.IsEmpty()) {
-    ParseNumericValue(value, &supScriptShift, 0, PresContext(), mStyleContext);
+    ParseNumericValue(value, &supScriptShift,
+                      nsMathMLElement::PARSE_ALLOW_NEGATIVE,
+                      PresContext(), mStyleContext);
   }
 
   return nsMathMLmsubsupFrame::PlaceSubSupScript(PresContext(),
@@ -139,9 +143,6 @@ nsMathMLmsubsupFrame::PlaceSubSupScript(nsPresContext*      aPresContext,
   if (!baseFrame || !subScriptFrame || !supScriptFrame ||
       supScriptFrame->GetNextSibling()) {
     // report an error, encourage people to get their markups in order
-    if (aPlaceOrigin) {
-      aFrame->ReportChildCountError();
-    }
     return aFrame->ReflowError(aRenderingContext, aDesiredSize);
   }
   GetReflowAndBoundingMetricsFor(baseFrame, baseSize, bmBase);

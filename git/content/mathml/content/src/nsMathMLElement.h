@@ -53,18 +53,15 @@ public:
 
   enum {
     PARSE_ALLOW_UNITLESS = 0x01, // unitless 0 will be turned into 0px
-    PARSE_ALLOW_NEGATIVE = 0x02,
-    PARSE_SUPPRESS_WARNINGS = 0x04,
-    CONVERT_UNITLESS_TO_PERCENT = 0x08
+    PARSE_ALLOW_NEGATIVE = 0x02
   };
   static bool ParseNamedSpaceValue(const nsString& aString,
                                    nsCSSValue&     aCSSValue,
                                    uint32_t        aFlags);
 
   static bool ParseNumericValue(const nsString& aString,
-                                nsCSSValue&     aCSSValue,
-                                uint32_t        aFlags,
-                                nsIDocument*    aDocument);
+                                  nsCSSValue&     aCSSValue,
+                                  uint32_t        aFlags);
 
   static void MapMathMLAttributesInto(const nsMappedAttributes* aAttributes, 
                                       nsRuleData* aRuleData);

@@ -290,7 +290,8 @@ SmsRequest::DispatchTrustedEvent(const nsAString& aEventName)
   nsresult rv = event->InitEvent(aEventName, false, false);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  event->SetTrusted(true);
+  rv = event->SetTrusted(true);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   bool dummy;
   return DispatchEvent(event, &dummy);

@@ -66,11 +66,9 @@ let webConsoleDefinition = {
   accesskey: l10n("webConsoleCmd.accesskey", webConsoleStrings),
   modifiers: Services.appinfo.OS == "Darwin" ? "accel,alt" : "accel,shift",
   ordinal: 0,
-  icon: "chrome://browser/skin/devtools/tool-webconsole.png",
+  icon: "chrome://browser/skin/devtools/webconsole-tool-icon.png",
   url: "chrome://browser/content/devtools/webconsole.xul",
   label: l10n("ToolboxWebconsole.label", webConsoleStrings),
-  tooltip: l10n("ToolboxWebconsole.tooltip", webConsoleStrings),
-
   isTargetSupported: function(target) {
     return true;
   },
@@ -87,10 +85,9 @@ let debuggerDefinition = {
   modifiers: osString == "Darwin" ? "accel,alt" : "accel,shift",
   ordinal: 1,
   killswitch: "devtools.debugger.enabled",
-  icon: "chrome://browser/skin/devtools/tool-debugger.png",
+  icon: "chrome://browser/skin/devtools/tools-icons-small.png",
   url: "chrome://browser/content/debugger.xul",
   label: l10n("ToolboxDebugger.label", debuggerStrings),
-  tooltip: l10n("ToolboxDebugger.tooltip", debuggerStrings),
 
   isTargetSupported: function(target) {
     return true;
@@ -108,10 +105,9 @@ let inspectorDefinition = {
   key: l10n("inspector.commandkey", inspectorStrings),
   ordinal: 2,
   modifiers: osString == "Darwin" ? "accel,alt" : "accel,shift",
-  icon: "chrome://browser/skin/devtools/tool-inspector.png",
+  icon: "chrome://browser/skin/devtools/tools-icons-small.png",
   url: "chrome://browser/content/devtools/inspector/inspector.xul",
   label: l10n("inspector.label", inspectorStrings),
-  tooltip: l10n("inspector.tooltip", inspectorStrings),
 
   isTargetSupported: function(target) {
     return !target.isRemote;
@@ -130,12 +126,10 @@ let styleEditorDefinition = {
   accesskey: l10n("open.accesskey", styleEditorStrings),
   modifiers: "shift",
   label: l10n("ToolboxStyleEditor.label", styleEditorStrings),
-  icon: "chrome://browser/skin/devtools/tool-styleeditor.png",
   url: "chrome://browser/content/styleeditor.xul",
-  tooltip: l10n("ToolboxStyleEditor.tooltip", styleEditorStrings),
 
   isTargetSupported: function(target) {
-    return target.isLocalTab;
+    return !target.isRemote && !target.isChrome;
   },
 
   build: function(iframeWindow, toolbox) {
@@ -147,13 +141,16 @@ let styleEditorDefinition = {
 let profilerDefinition = {
   id: "jsprofiler",
   killswitch: "devtools.profiler.enabled",
+  icon: "chrome://browser/skin/devtools/tools-icons-small.png",
   url: "chrome://browser/content/profiler.xul",
   label: l10n("profiler.label", profilerStrings),
-  icon: "chrome://browser/skin/devtools/tool-profiler.png",
-  tooltip: l10n("profiler.tooltip", profilerStrings),
 
   isTargetSupported: function (target) {
-    return !target.isRemote;
+    if (target.isRemote || target.isChrome) {
+      return false;
+    }
+
+    return true;
   },
 
   build: function (frame, target) {

@@ -1009,11 +1009,9 @@ XPCOMUtils.defineLazyGetter(PlacesUIUtils, "ellipsis", function() {
                                         Ci.nsIPrefLocalizedString).data;
 });
 
-#ifndef MOZ_PER_WINDOW_PRIVATE_BROWSING
 XPCOMUtils.defineLazyServiceGetter(PlacesUIUtils, "privateBrowsing",
                                    "@mozilla.org/privatebrowsing;1",
                                    "nsIPrivateBrowsingService");
-#endif
 
 XPCOMUtils.defineLazyServiceGetter(this, "URIFixup",
                                    "@mozilla.org/docshell/urifixup;1",
@@ -1153,10 +1151,10 @@ XPCOMUtils.defineLazyGetter(PlacesUIUtils, "ptm", function() {
     //// nsITransactionManager forwarders.
 
     beginBatch: function()
-      PlacesUtils.transactionManager.beginBatch(null),
+      PlacesUtils.transactionManager.beginBatch(),
 
     endBatch: function()
-      PlacesUtils.transactionManager.endBatch(false),
+      PlacesUtils.transactionManager.endBatch(),
 
     doTransaction: function(txn)
       PlacesUtils.transactionManager.doTransaction(txn),

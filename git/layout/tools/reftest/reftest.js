@@ -450,9 +450,9 @@ function StartTests()
         ReadTopManifest(uri);
         BuildUseCounts();
 
-        // Filter tests which will be skipped to get a more even distribution when chunking
-        // tURLs is a temporary array containing all active tests
-        var tURLs = new Array();
+        // We need to filter the tests which will be skipped during this test run, so when we chunk,
+        // we have a more even distribution
+        var tURL = new Array();
         for (var i = 0; i < gURLs.length; ++i) {
             if (gURLs[i].expected == EXPECTED_DEATH)
                 continue;
@@ -463,25 +463,18 @@ function StartTests()
             if (gURLs[i].slow && !gRunSlowTests)
                 continue;
 
-            tURLs.push(gURLs[i]);
+            tURL.push(gURLs[i]);
         }
 
-        gDumpLog("REFTEST INFO | Discovered " + gURLs.length + " tests, after filtering SKIP tests, we have " + tURLs.length + "\n");
+        gDumpLog("REFTEST INFO | Discovered " + gURLs.length + " tests, after filtering SKIP tests, we have " + tURL.length + "\n");
+        gURLs = tURL;
 
         if (gTotalChunks > 0 && gThisChunk > 0) {
-            // Calculate start and end indices of this chunk if tURLs array were
-            // divided evenly
-            var testsPerChunk = tURLs.length / gTotalChunks;
+            var testsPerChunk = gURLs.length / gTotalChunks;
             var start = Math.round((gThisChunk-1) * testsPerChunk);
             var end = Math.round(gThisChunk * testsPerChunk);
-
-            // Map these indices onto the gURLs array. This avoids modifying the
-            // gURLs array which prevents skipped tests from showing up in the log
-            start = gThisChunk == 1 ? 0 : gURLs.indexOf(tURLs[start]);
-            end = gThisChunk == gTotalChunks ? gURLs.length : gURLs.indexOf(tURLs[end + 1]) - 1;
             gURLs = gURLs.slice(start, end);
-
-            gDumpLog("REFTEST INFO | Running chunk " + gThisChunk + " out of " + gTotalChunks + " chunks.  ");
+            gDumpLog("REFTEST INFO | Running chunk " + gThisChunk + " out of " + gTotalChunks + " chunks.  ")
             gDumpLog("tests " + (start+1) + "-" + end + "/" + gURLs.length + "\n");
         }
         gTotalTests = gURLs.length;

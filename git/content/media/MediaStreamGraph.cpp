@@ -802,19 +802,21 @@ MediaStreamGraphImpl::UpdateCurrentTime()
     // Calculate blocked time and fire Blocked/Unblocked events
     GraphTime blockedTime = 0;
     GraphTime t = prevCurrentTime;
+    // Save current blocked status
+    bool wasBlocked = stream->mBlocked.GetAt(prevCurrentTime);
     while (t < nextCurrentTime) {
       GraphTime end;
       bool blocked = stream->mBlocked.GetAt(t, &end);
       if (blocked) {
         blockedTime += NS_MIN(end, nextCurrentTime) - t;
       }
-      if (blocked != stream->mNotifiedBlocked) {
+      if (blocked != wasBlocked) {
         for (uint32_t j = 0; j < stream->mListeners.Length(); ++j) {
           MediaStreamListener* l = stream->mListeners[j];
           l->NotifyBlockingChanged(this,
               blocked ? MediaStreamListener::BLOCKED : MediaStreamListener::UNBLOCKED);
         }
-        stream->mNotifiedBlocked = blocked;
+        wasBlocked = blocked;
       }
       t = end;
     }
@@ -1777,20 +1779,8 @@ MediaStream::FinishOnGraphThread()
 }
 
 void
-MediaStream::RemoveAllListenersImpl()
-{
-  for (int32_t i = mListeners.Length() - 1; i >= 0; --i) {
-    nsRefPtr<MediaStreamListener> listener = mListeners[i].forget();
-    listener->NotifyRemoved(GraphImpl());
-  }
-  mListeners.Clear();
-}
-
-void
 MediaStream::DestroyImpl()
 {
-  RemoveAllListenersImpl();
-
   for (int32_t i = mConsumers.Length() - 1; i >= 0; --i) {
     mConsumers[i]->Disconnect();
   }
@@ -1951,7 +1941,7 @@ MediaStream::AddListenerImpl(already_AddRefed<MediaStreamListener> aListener)
 {
   MediaStreamListener* listener = *mListeners.AppendElement() = aListener;
   listener->NotifyBlockingChanged(GraphImpl(),
-    mNotifiedBlocked ? MediaStreamListener::BLOCKED : MediaStreamListener::UNBLOCKED);
+    mBlocked.GetAt(GraphImpl()->mCurrentTime) ? MediaStreamListener::BLOCKED : MediaStreamListener::UNBLOCKED);
   if (mNotifiedFinished) {
     listener->NotifyFinished(GraphImpl());
   }
@@ -1971,15 +1961,6 @@ MediaStream::AddListener(MediaStreamListener* aListener)
     nsRefPtr<MediaStreamListener> mListener;
   };
   GraphImpl()->AppendMessage(new Message(this, aListener));
-}
-
-void
-MediaStream::RemoveListenerImpl(MediaStreamListener* aListener)
-{ 
-  // wouldn't need this if we could do it in the opposite order
-  nsRefPtr<MediaStreamListener> listener(aListener);
-  mListeners.RemoveElement(aListener);
-  listener->NotifyRemoved(GraphImpl());
 }
 
 void

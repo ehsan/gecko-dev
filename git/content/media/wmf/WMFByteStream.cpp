@@ -6,14 +6,13 @@
 
 #include "WMF.h"
 
-#include <unknwn.h>
+#include "Unknwn.h"
 #include <ole2.h>
 
 #include "WMFByteStream.h"
 #include "WMFUtils.h"
 #include "MediaResource.h"
 #include "nsISeekableStream.h"
-#include "mozilla/RefPtr.h"
 
 namespace mozilla {
 
@@ -36,9 +35,9 @@ DoGetInterface(IUnknown* aUnknown, void** aInterface)
 
 WMFByteStream::WMFByteStream(MediaResource* aResource)
   : mWorkQueueId(MFASYNC_CALLBACK_QUEUE_UNDEFINED),
-    mResource(aResource),
     mReentrantMonitor("WMFByteStream"),
-    mOffset(0)
+    mOffset(0),
+    mResource(aResource)
 {
   NS_ASSERTION(NS_IsMainThread(), "Must be on main thread.");
   NS_ASSERTION(mResource, "Must have a valid media resource");
@@ -105,11 +104,11 @@ WMFByteStream::QueryInterface(REFIID aIId, void **aInterface)
   return E_NOINTERFACE;
 }
 
-NS_IMPL_THREADSAFE_ADDREF(WMFByteStream)
-NS_IMPL_THREADSAFE_RELEASE(WMFByteStream)
+NS_IMPL_THREADSAFE_ADDREF(WMFByteStream);
+NS_IMPL_THREADSAFE_RELEASE(WMFByteStream);
 
-NS_IMPL_THREADSAFE_ADDREF(WMFByteStream::AsyncReadRequestState)
-NS_IMPL_THREADSAFE_RELEASE(WMFByteStream::AsyncReadRequestState)
+NS_IMPL_THREADSAFE_ADDREF(WMFByteStream::AsyncReadRequestState);
+NS_IMPL_THREADSAFE_RELEASE(WMFByteStream::AsyncReadRequestState);
 
 // IUnknown Methods
 STDMETHODIMP
@@ -140,15 +139,15 @@ WMFByteStream::BeginRead(BYTE *aBuffer,
       mOffset, mResource->Tell(), aLength);
 
   // Create an object to store our state.
-  RefPtr<IUnknown> requestState = new AsyncReadRequestState(mOffset, aBuffer, aLength);
+  IUnknownPtr requestState = new AsyncReadRequestState(mOffset, aBuffer, aLength);
 
   // Create an IMFAsyncResult, this is passed back to the caller as a token to
   // retrieve the number of bytes read.
-  RefPtr<IMFAsyncResult> callersResult;
+  IMFAsyncResultPtr callersResult;
   HRESULT hr = wmf::MFCreateAsyncResult(requestState,
                                         aCallback,
                                         aCallerState,
-                                        byRef(callersResult));
+                                        &callersResult);
   NS_ENSURE_TRUE(SUCCEEDED(hr), hr);
 
   // Queue a work item on our Windows Media Foundation work queue to call
@@ -174,18 +173,18 @@ WMFByteStream::Invoke(IMFAsyncResult* aResult)
   // media resoure.
 
   // Extract the caller's IMFAsyncResult object from the wrapping aResult object.
-  RefPtr<IMFAsyncResult> callerResult;
-  RefPtr<IUnknown> unknown;
-  HRESULT hr = aResult->GetState(byRef(unknown));
+  IMFAsyncResultPtr callerResult;
+  IUnknownPtr unknown;
+  HRESULT hr = aResult->GetState(&unknown);
   NS_ENSURE_TRUE(SUCCEEDED(hr), hr);
-  hr = unknown->QueryInterface(static_cast<IMFAsyncResult**>(byRef(callerResult)));
-  NS_ENSURE_TRUE(SUCCEEDED(hr), E_FAIL);
+  callerResult = unknown;
+  NS_ENSURE_TRUE(callerResult, E_FAIL);
 
   // Get the object that holds our state information for the asynchronous call.
-  hr = callerResult->GetObject(byRef(unknown));
+  hr = callerResult->GetObject(&unknown);
   NS_ENSURE_TRUE(SUCCEEDED(hr) && unknown, hr);
   AsyncReadRequestState* requestState =
-    static_cast<AsyncReadRequestState*>(unknown.get());
+    static_cast<AsyncReadRequestState*>(unknown.GetInterfacePtr());
 
   // Ensure the read head is at the correct offset in the resource. It may not
   // be if the SourceReader seeked.
@@ -257,13 +256,13 @@ WMFByteStream::EndRead(IMFAsyncResult* aResult, ULONG *aBytesRead)
   ReentrantMonitorAutoEnter mon(mReentrantMonitor);
 
   // Extract our state object.
-  RefPtr<IUnknown> unknown;
-  HRESULT hr = aResult->GetObject(byRef(unknown));
+  IUnknownPtr unknown;
+  HRESULT hr = aResult->GetObject(&unknown);
   if (FAILED(hr) || !unknown) {
     return E_INVALIDARG;
   }
   AsyncReadRequestState* requestState =
-    static_cast<AsyncReadRequestState*>(unknown.get());
+    static_cast<AsyncReadRequestState*>(unknown.GetInterfacePtr());
 
   // Important: Only advance the read cursor if the caller hasn't seeked
   // since it called BeginRead(). If it has seeked, we still must report

@@ -1483,22 +1483,18 @@ nsHTMLSelectElement::GetAttributeMappingFunction() const
   return &MapAttributesIntoRule;
 }
 
-bool
-nsHTMLSelectElement::IsDisabledForEvents(uint32_t aMessage)
+
+nsresult
+nsHTMLSelectElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
   nsIFormControlFrame* formControlFrame = GetFormControlFrame(false);
   nsIFrame* formFrame = nullptr;
   if (formControlFrame) {
     formFrame = do_QueryFrame(formControlFrame);
   }
-  return IsElementDisabledForEvents(aMessage, formFrame);
-}
 
-nsresult
-nsHTMLSelectElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
-{
   aVisitor.mCanHandle = false;
-  if (IsDisabledForEvents(aVisitor.mEvent->message)) {
+  if (IsElementDisabledForEvents(aVisitor.mEvent->message, formFrame)) {
     return NS_OK;
   }
 

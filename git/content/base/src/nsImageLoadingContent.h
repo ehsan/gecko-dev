@@ -39,27 +39,6 @@ public:
   NS_DECL_NSIIMAGELOADINGCONTENT
   NS_DECL_IMGIONLOADBLOCKER
 
-  // Web IDL binding methods.
-  // Note that the XPCOM SetLoadingEnabled, AddObserver, RemoveObserver,
-  // ForceImageState methods are OK for Web IDL bindings to use as well,
-  // since none of them throw when called via the Web IDL bindings.
-
-  bool LoadingEnabled() const { return mLoadingEnabled; }
-  int16_t ImageBlockingStatus() const
-  {
-    return mImageBlockingStatus;
-  }
-  already_AddRefed<imgIRequest>
-    GetRequest(int32_t aRequestType, mozilla::ErrorResult& aError);
-  int32_t
-    GetRequestType(imgIRequest* aRequest, mozilla::ErrorResult& aError);
-  already_AddRefed<nsIURI> GetCurrentURI(mozilla::ErrorResult& aError);
-  already_AddRefed<nsIStreamListener>
-    LoadImageWithChannel(nsIChannel* aChannel, mozilla::ErrorResult& aError);
-  void ForceReload(mozilla::ErrorResult& aError);
-
-
-
 protected:
   /**
    * LoadImage is called by subclasses when the appropriate
@@ -163,6 +142,8 @@ protected:
 
   void ClearBrokenState() { mBroken = false; }
 
+  bool LoadingEnabled() { return mLoadingEnabled; }
+
   // Sets blocking state only if the desired state is different from the
   // current one. See the comment for mBlockingOnload for more information.
   void SetBlockingOnload(bool aBlocking);
@@ -253,7 +234,6 @@ private:
    * @param aEventType "load" or "error" depending on how things went
    */
   nsresult FireEvent(const nsAString& aEventType);
-
 protected:
   /**
    * Method to create an nsIURI object from the given string (will

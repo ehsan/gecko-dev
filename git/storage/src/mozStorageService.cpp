@@ -470,8 +470,8 @@ namespace {
 // sqlite is fully and correctly accounting for all of its heap blocks via its
 // own memory accounting.
 
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_ON_ALLOC_FUN(SqliteMallocSizeOfOnAlloc)
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_ON_FREE_FUN(SqliteMallocSizeOfOnFree)
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_ON_ALLOC_FUN(sqliteMallocSizeOfOnAlloc, "sqlite")
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_ON_FREE_FUN(sqliteMallocSizeOfOnFree)
 
 #endif
 
@@ -479,7 +479,7 @@ static void *sqliteMemMalloc(int n)
 {
   void* p = ::moz_malloc(n);
 #ifdef MOZ_DMD
-  SqliteMallocSizeOfOnAlloc(p);
+  sqliteMallocSizeOfOnAlloc(p);
 #endif
   return p;
 }
@@ -487,7 +487,7 @@ static void *sqliteMemMalloc(int n)
 static void sqliteMemFree(void *p)
 {
 #ifdef MOZ_DMD
-  SqliteMallocSizeOfOnFree(p);
+  sqliteMallocSizeOfOnFree(p);
 #endif
   ::moz_free(p);
 }
@@ -495,13 +495,13 @@ static void sqliteMemFree(void *p)
 static void *sqliteMemRealloc(void *p, int n)
 {
 #ifdef MOZ_DMD
-  SqliteMallocSizeOfOnFree(p);
+  sqliteMallocSizeOfOnFree(p);
   void *pnew = ::moz_realloc(p, n);
   if (pnew) {
-    SqliteMallocSizeOfOnAlloc(pnew);
+    sqliteMallocSizeOfOnAlloc(pnew);
   } else {
-    // realloc failed;  undo the SqliteMallocSizeOfOnFree from above
-    SqliteMallocSizeOfOnAlloc(p);
+    // realloc failed;  undo the sqliteMallocSizeOfOnFree from above
+    sqliteMallocSizeOfOnAlloc(p);
   }
   return pnew;
 #else

@@ -10,7 +10,6 @@
 
 #include <cstdlib>
 #include <cstring>
-#include <limits>
 
 namespace mozilla {
 
@@ -476,17 +475,7 @@ void WebGLElementArrayCache::InvalidateTrees(size_t firstByte, size_t lastByte)
 }
 
 template<typename T>
-bool WebGLElementArrayCache::Validate(uint32_t maxAllowed, size_t firstElement, size_t countElements) {
-  // if maxAllowed is >= the max T value, then there is no way that a T index could be invalid
-  if (maxAllowed >= std::numeric_limits<T>::max())
-    return true;
-
-  T maxAllowedT(maxAllowed);
-
-  // integer overflow must have been handled earlier, so we assert that maxAllowedT
-  // is exactly the max allowed value.
-  MOZ_ASSERT(uint32_t(maxAllowedT) == maxAllowed);
-
+bool WebGLElementArrayCache::Validate(T maxAllowed, size_t firstElement, size_t countElements) {
   if (!mByteSize || !countElements)
     return true;
 
@@ -501,7 +490,7 @@ bool WebGLElementArrayCache::Validate(uint32_t maxAllowed, size_t firstElement, 
 
   // fast exit path when the global maximum for the whole element array buffer
   // falls in the allowed range
-  if (tree->GlobalMaximum() <= maxAllowedT)
+  if (tree->GlobalMaximum() <= maxAllowed)
   {
     return true;
   }
@@ -513,14 +502,14 @@ bool WebGLElementArrayCache::Validate(uint32_t maxAllowed, size_t firstElement, 
   size_t firstElementAdjustmentEnd = NS_MIN(lastElement,
                                             tree->LastElementUnderSameLeaf(firstElement));
   while (firstElement <= firstElementAdjustmentEnd) {
-    if (elements[firstElement] > maxAllowedT)
+    if (elements[firstElement] > maxAllowed)
       return false;
     firstElement++;
   }
   size_t lastElementAdjustmentEnd = NS_MAX(firstElement,
                                            tree->FirstElementUnderSameLeaf(lastElement));
   while (lastElement >= lastElementAdjustmentEnd) {
-    if (elements[lastElement] > maxAllowedT)
+    if (elements[lastElement] > maxAllowed)
       return false;
     lastElement--;
   }
@@ -530,16 +519,16 @@ bool WebGLElementArrayCache::Validate(uint32_t maxAllowed, size_t firstElement, 
     return true;
 
   // general case
-  return tree->Validate(maxAllowedT,
+  return tree->Validate(maxAllowed,
                         tree->LeafForElement(firstElement),
                         tree->LeafForElement(lastElement));
 }
 
 bool WebGLElementArrayCache::Validate(GLenum type, uint32_t maxAllowed, size_t firstElement, size_t countElements) {
   if (type == LOCAL_GL_UNSIGNED_BYTE)
-    return Validate<uint8_t>(maxAllowed, firstElement, countElements);
+    return Validate<uint8_t>(uint8_t(maxAllowed), firstElement, countElements);
   if (type == LOCAL_GL_UNSIGNED_SHORT)
-    return Validate<uint16_t>(maxAllowed, firstElement, countElements);
+    return Validate<uint16_t>(uint16_t(maxAllowed), firstElement, countElements);
   return false;
 }
 

@@ -13,6 +13,7 @@ import android.util.Log;
 
 public class testHistory extends PixelTest {
     private View mFirstChild;
+    private static final int WAIT_FOR_CHILD_TIMEOUT = 2000;
 
     @Override
     protected int getTestType() {
@@ -62,7 +63,7 @@ public class testHistory extends PixelTest {
                 }
                 return true;
             }
-        }, MAX_WAIT_MS);
+        }, WAIT_FOR_CHILD_TIMEOUT);
 
         Actions.EventExpecter contentEventExpecter = mActions.expectGeckoEvent("DOMContentLoaded");
         mAsserter.isnot(mFirstChild, null, "Got history item");

@@ -10,6 +10,7 @@ add_makefiles "
   services/crypto/component/Makefile
   services/healthreport/Makefile
   services/metrics/Makefile
+  services/notifications/Makefile
   services/sync/Makefile
   services/sync/locales/Makefile
 "
@@ -21,6 +22,7 @@ if [ "$ENABLE_TESTS" ]; then
     services/crypto/tests/Makefile
     services/healthreport/tests/Makefile
     services/metrics/tests/Makefile
+    services/notifications/tests/Makefile
     services/sync/tests/Makefile
   "
 fi

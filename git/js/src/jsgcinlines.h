@@ -22,7 +22,7 @@ using JS::AssertCanGC;
 
 namespace js {
 
-class Shape;
+struct Shape;
 
 /*
  * This auto class should be used around any code that might cause a mark bit to
@@ -485,6 +485,19 @@ class GCCompartmentGroupIter {
  * in the partially initialized thing.
  */
 
+template<typename T>
+static inline void
+UnpoisonThing(T *thing)
+{
+#ifdef DEBUG
+    /* Change the contents of memory slightly so that IsThingPoisoned returns false. */
+    JS_STATIC_ASSERT(sizeof(T) >= sizeof(FreeSpan) + sizeof(uint8_t));
+    uint8_t *p =
+        reinterpret_cast<uint8_t *>(reinterpret_cast<FreeSpan *>(thing) + 1);
+    *p = 0;
+#endif
+}
+
 template <typename T>
 inline T *
 NewGCThing(JSContext *cx, js::gc::AllocKind kind, size_t thingSize)
@@ -521,6 +534,8 @@ NewGCThing(JSContext *cx, js::gc::AllocKind kind, size_t thingSize)
         comp->gcNursery.insertPointer(t);
 #endif
 
+    if (t)
+        UnpoisonThing(t);
     return t;
 }
 
@@ -552,6 +567,8 @@ TryNewGCThing(JSContext *cx, js::gc::AllocKind kind, size_t thingSize)
         comp->gcNursery.insertPointer(t);
 #endif
 
+    if (t)
+        UnpoisonThing(t);
     return t;
 }
 

@@ -12,6 +12,7 @@
 #include "nsCOMArray.h"
 #include "nsIPluginTag.h"
 #include "nsNPAPIPluginInstance.h"
+#include "nsISupportsArray.h"
 #include "nsITimer.h"
 #include "nsIDOMMimeType.h"
 

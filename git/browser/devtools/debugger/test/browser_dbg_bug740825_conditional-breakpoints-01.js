@@ -36,8 +36,6 @@ function test()
     gDebugger.DebuggerView.togglePanes({ visible: true, animated: false });
     resumed = true;
 
-    gDebugger.addEventListener("Debugger:SourceShown", onScriptShown);
-
     gDebugger.DebuggerController.activeThread.addOneTimeListener("framesadded", function() {
       framesAdded = true;
       executeSoon(startTest);
@@ -54,10 +52,12 @@ function test()
     executeSoon(startTest);
   }
 
+  window.addEventListener("Debugger:SourceShown", onScriptShown);
+
   function startTest()
   {
     if (scriptShown && framesAdded && resumed && !testStarted) {
-      gDebugger.removeEventListener("Debugger:SourceShown", onScriptShown);
+      window.removeEventListener("Debugger:SourceShown", onScriptShown);
       testStarted = true;
       Services.tm.currentThread.dispatch({ run: addBreakpoints }, 0);
     }

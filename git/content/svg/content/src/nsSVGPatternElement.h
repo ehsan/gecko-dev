@@ -6,6 +6,7 @@
 #ifndef __NS_SVGPATTERNELEMENT_H__
 #define __NS_SVGPATTERNELEMENT_H__
 
+#include "DOMSVGTests.h"
 #include "nsIDOMSVGFitToViewBox.h"
 #include "nsIDOMSVGPatternElement.h"
 #include "nsIDOMSVGUnitTypes.h"
@@ -13,17 +14,18 @@
 #include "nsSVGEnum.h"
 #include "nsSVGLength2.h"
 #include "nsSVGString.h"
-#include "nsSVGElement.h"
+#include "nsSVGStylableElement.h"
 #include "nsSVGViewBox.h"
 #include "SVGAnimatedPreserveAspectRatio.h"
 #include "SVGAnimatedTransformList.h"
 
 //--------------------- Patterns ------------------------
 
-typedef nsSVGElement nsSVGPatternElementBase;
+typedef nsSVGStylableElement nsSVGPatternElementBase;
 
 class nsSVGPatternElement : public nsSVGPatternElementBase,
                             public nsIDOMSVGPatternElement,
+                            public DOMSVGTests,
                             public nsIDOMSVGURIReference,
                             public nsIDOMSVGFitToViewBox,
                             public nsIDOMSVGUnitTypes

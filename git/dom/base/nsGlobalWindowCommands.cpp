@@ -173,8 +173,7 @@ nsSelectionCommandsBase::GetPresShellFromWindow(nsPIDOMWindow *aWindow, nsIPresS
   nsIDocShell *docShell = aWindow->GetDocShell();
   NS_ENSURE_TRUE(docShell, NS_ERROR_FAILURE);
 
-  NS_IF_ADDREF(*aPresShell = docShell->GetPresShell());
-  return NS_OK;
+  return docShell->GetPresShell(aPresShell);
 }
 
 nsresult
@@ -363,7 +362,8 @@ nsClipboardCommand::DoCommand(const char *aCommandName, nsISupports *aContext)
   nsIDocShell *docShell = window->GetDocShell();
   NS_ENSURE_TRUE(docShell, NS_ERROR_FAILURE);
 
-  nsCOMPtr<nsIPresShell> presShell = docShell->GetPresShell();
+  nsCOMPtr<nsIPresShell> presShell;
+  docShell->GetPresShell(getter_AddRefs(presShell));
   NS_ENSURE_TRUE(presShell, NS_ERROR_FAILURE);
 
   nsCopySupport::FireClipboardEvent(NS_COPY, presShell, nullptr);

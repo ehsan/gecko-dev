@@ -25,17 +25,17 @@ WaiveXrayWrapper::~WaiveXrayWrapper()
 
 bool
 WaiveXrayWrapper::getPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id,
-                                        js::PropertyDescriptor *desc, unsigned flags)
+                                          bool set, js::PropertyDescriptor *desc)
 {
-    return CrossCompartmentWrapper::getPropertyDescriptor(cx, wrapper, id, desc, flags) &&
+    return CrossCompartmentWrapper::getPropertyDescriptor(cx, wrapper, id, set, desc) &&
            WrapperFactory::WaiveXrayAndWrap(cx, &desc->value);
 }
 
 bool
 WaiveXrayWrapper::getOwnPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id,
-                                           js::PropertyDescriptor *desc, unsigned flags)
+                                             bool set, js::PropertyDescriptor *desc)
 {
-    return CrossCompartmentWrapper::getOwnPropertyDescriptor(cx, wrapper, id, desc, flags) &&
+    return CrossCompartmentWrapper::getOwnPropertyDescriptor(cx, wrapper, id, set, desc) &&
            WrapperFactory::WaiveXrayAndWrap(cx, &desc->value);
 }
 

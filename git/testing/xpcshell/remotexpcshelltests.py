@@ -151,8 +151,15 @@ class XPCShellRemote(xpcshell.XPCShellTests, object):
             self.device.pushDir(self.testingModulesDir, self.remoteModulesDir)
 
     def setupTestDir(self):
-        print 'pushing %s' % self.xpcDir
-        self.device.pushDir(self.xpcDir, self.remoteScriptsDir, retryLimit=10)
+        push_attempts = 10
+        for retry in range(1, push_attempts+1):
+            print 'pushing', self.xpcDir, '(attempt %s of %s)' % (retry, push_attempts)
+            try:
+                self.device.pushDir(self.xpcDir, self.remoteScriptsDir)
+                break
+            except DMError:
+                if retry == push_attempts:
+                    raise
 
     def buildTestList(self):
         xpcshell.XPCShellTests.buildTestList(self)
@@ -372,11 +379,6 @@ class RemoteXPCShellOptions(xpcshell.XPCShellOptions):
                         help = "local path to bin directory")
         defaults["localBin"] = None
 
-        self.add_option("--remoteTestRoot", action = "store",
-                    type = "string", dest = "remoteTestRoot",
-                    help = "remote directory to use as test root (eg. /mnt/sdcard/tests or /data/local/tests)")
-        defaults["remoteTestRoot"] = None
-
         self.set_defaults(**defaults)
 
     def verifyRemoteOptions(self, options):
@@ -441,11 +443,11 @@ def main():
 
     if (options.dm_trans == "adb"):
       if (options.deviceIP):
-        dm = devicemanagerADB.DeviceManagerADB(options.deviceIP, options.devicePort, packageName=None, deviceRoot=options.remoteTestRoot)
+        dm = devicemanagerADB.DeviceManagerADB(options.deviceIP, options.devicePort, packageName=None)
       else:
-        dm = devicemanagerADB.DeviceManagerADB(packageName=None, deviceRoot=options.remoteTestRoot)
+        dm = devicemanagerADB.DeviceManagerADB(packageName=None)
     else:
-      dm = devicemanagerSUT.DeviceManagerSUT(options.deviceIP, options.devicePort, deviceRoot=options.remoteTestRoot)
+      dm = devicemanagerSUT.DeviceManagerSUT(options.deviceIP, options.devicePort)
       if (options.deviceIP == None):
         print "Error: you must provide a device IP to connect to via the --device option"
         sys.exit(1)

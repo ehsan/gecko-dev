@@ -6,12 +6,13 @@
 #ifndef __NS_SVGUSEELEMENT_H__
 #define __NS_SVGUSEELEMENT_H__
 
+#include "DOMSVGTests.h"
 #include "mozilla/dom/FromParser.h"
 #include "nsIDOMSVGURIReference.h"
 #include "nsIDOMSVGUseElement.h"
 #include "nsReferencedElement.h"
 #include "nsStubMutationObserver.h"
-#include "SVGGraphicsElement.h"
+#include "nsSVGGraphicElement.h"
 #include "nsSVGLength2.h"
 #include "nsSVGString.h"
 #include "nsTArray.h"
@@ -28,10 +29,11 @@ NS_NewSVGSVGElement(nsIContent **aResult,
                     already_AddRefed<nsINodeInfo> aNodeInfo,
                     mozilla::dom::FromParser aFromParser);
 
-typedef mozilla::dom::SVGGraphicsElement nsSVGUseElementBase;
+typedef nsSVGGraphicElement nsSVGUseElementBase;
 
 class nsSVGUseElement : public nsSVGUseElementBase,
                         public nsIDOMSVGUseElement,
+                        public DOMSVGTests,
                         public nsIDOMSVGURIReference,
                         public nsStubMutationObserver
 {

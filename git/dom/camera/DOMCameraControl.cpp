@@ -373,12 +373,6 @@ nsDOMCameraControl::GetPreviewStreamVideoMode(const JS::Value& aOptions, nsICame
   return mCameraControl->GetPreviewStreamVideoMode(&options, onSuccess, onError);
 }
 
-NS_IMETHODIMP
-nsDOMCameraControl::ReleaseHardware(nsICameraReleaseCallback* onSuccess, nsICameraErrorCallback* onError)
-{
-  return mCameraControl->ReleaseHardware(onSuccess, onError);
-}
-
 class GetCameraResult : public nsRunnable
 {
 public:

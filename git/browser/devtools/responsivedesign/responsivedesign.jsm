@@ -35,17 +35,8 @@ this.ResponsiveUIManager = {
     if (aTab.__responsiveUI) {
       aTab.__responsiveUI.close();
     } else {
-      new ResponsiveUI(aWindow, aTab);
+      aTab.__responsiveUI = new ResponsiveUI(aWindow, aTab);
     }
-  },
-
-  /**
-   * Returns true if responsive view is active for the provided tab.
-   *
-   * @param aTab the tab targeted.
-   */
-  isActiveForTab: function(aTab) {
-    return !!aTab.__responsiveUI;
   },
 
   /**
@@ -60,13 +51,13 @@ this.ResponsiveUIManager = {
     switch (aCommand) {
       case "resize to":
         if (!aTab.__responsiveUI) {
-          new ResponsiveUI(aWindow, aTab);
+          aTab.__responsiveUI = new ResponsiveUI(aWindow, aTab);
         }
         aTab.__responsiveUI.setSize(aArgs.width, aArgs.height);
         break;
       case "resize on":
         if (!aTab.__responsiveUI) {
-          new ResponsiveUI(aWindow, aTab);
+          aTab.__responsiveUI = new ResponsiveUI(aWindow, aTab);
         }
         break;
       case "resize off":
@@ -167,6 +158,9 @@ function ResponsiveUI(aWindow, aTab)
   this.buildUI();
   this.checkMenus();
 
+  let target = TargetFactory.forTab(this.tab);
+  this.toolboxWasOpen = !!gDevTools.getToolbox(target);
+
   try {
     if (Services.prefs.getBoolPref("devtools.responsiveUI.rotate")) {
       this.rotate();
@@ -175,8 +169,6 @@ function ResponsiveUI(aWindow, aTab)
 
   if (this._floatingScrollbars)
     switchToFloatingScrollbars(this.tab);
-
-  this.tab.__responsiveUI = this;
 
   ResponsiveUIManager.emit("on", this.tab, this);
 }
@@ -247,9 +239,17 @@ ResponsiveUI.prototype = {
     if (aEvent.keyCode == this.mainWindow.KeyEvent.DOM_VK_ESCAPE &&
         this.mainWindow.gBrowser.selectedBrowser == this.browser) {
 
-      aEvent.preventDefault();
-      aEvent.stopPropagation();
-      this.close();
+      // If the toolbox wasn't open at first but is open now,
+      // we don't want to close the Responsive Mode on Escape.
+      // We let the toolbox close first.
+
+      let target = TargetFactory.forTab(this.tab);
+      let isToolboxOpen =  !!gDevTools.getToolbox(target);
+      if (this.toolboxWasOpen || !isToolboxOpen) {
+        aEvent.preventDefault();
+        aEvent.stopPropagation();
+        this.close();
+      }
     }
   },
 

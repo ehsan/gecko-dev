@@ -1882,26 +1882,6 @@ Debugger::addDebuggee(JSContext *cx, unsigned argc, Value *vp)
 }
 
 JSBool
-Debugger::addAllGlobalsAsDebuggees(JSContext *cx, unsigned argc, Value *vp)
-{
-    THIS_DEBUGGER(cx, argc, vp, "addAllGlobalsAsDebuggees", args, dbg);
-    AutoDebugModeGC dmgc(cx->runtime);
-    for (CompartmentsIter c(cx->runtime); !c.done(); c.next()) {
-        if (c == dbg->object->compartment())
-            continue;
-        c->scheduledForDestruction = false;
-        GlobalObject *global = c->maybeGlobal();
-        if (global) {
-            Rooted<GlobalObject*> rg(cx, global);
-            dbg->addDebuggeeGlobal(cx, rg, dmgc);
-        }
-    }
-
-    args.rval().setUndefined();
-    return true;
-}
-
-JSBool
 Debugger::removeDebuggee(JSContext *cx, unsigned argc, Value *vp)
 {
     REQUIRE_ARGC("Debugger.removeDebuggee", 1);
@@ -1919,9 +1899,8 @@ JSBool
 Debugger::removeAllDebuggees(JSContext *cx, unsigned argc, Value *vp)
 {
     THIS_DEBUGGER(cx, argc, vp, "removeAllDebuggees", args, dbg);
-    AutoDebugModeGC dmgc(cx->runtime);
     for (GlobalObjectSet::Enum e(dbg->debuggees); !e.empty(); e.popFront())
-        dbg->removeDebuggeeGlobal(cx->runtime->defaultFreeOp(), e.front(), dmgc, NULL, &e);
+        dbg->removeDebuggeeGlobal(cx->runtime->defaultFreeOp(), e.front(), NULL, &e);
     args.rval().setUndefined();
     return true;
 }
@@ -2048,15 +2027,6 @@ Debugger::construct(JSContext *cx, unsigned argc, Value *vp)
 bool
 Debugger::addDebuggeeGlobal(JSContext *cx, Handle<GlobalObject*> global)
 {
-    AutoDebugModeGC dmgc(cx->runtime);
-    return addDebuggeeGlobal(cx, global, dmgc);
-}
-
-bool
-Debugger::addDebuggeeGlobal(JSContext *cx,
-                            Handle<GlobalObject*> global,
-                            AutoDebugModeGC &dmgc)
-{
     if (debuggees.has(global))
         return true;
 
@@ -2112,7 +2082,7 @@ Debugger::addDebuggeeGlobal(JSContext *cx,
         } else {
             if (global->getDebuggers()->length() > 1)
                 return true;
-            if (debuggeeCompartment->addDebuggee(cx, global, dmgc))
+            if (debuggeeCompartment->addDebuggee(cx, global))
                 return true;
 
             /* Maintain consistency on error. */
@@ -2126,16 +2096,6 @@ Debugger::addDebuggeeGlobal(JSContext *cx,
 
 void
 Debugger::removeDebuggeeGlobal(FreeOp *fop, GlobalObject *global,
-                               GlobalObjectSet::Enum *compartmentEnum,
-                               GlobalObjectSet::Enum *debugEnum)
-{
-    AutoDebugModeGC dmgc(global->compartment()->rt);
-    return removeDebuggeeGlobal(fop, global, dmgc, compartmentEnum, debugEnum);
-}
-
-void
-Debugger::removeDebuggeeGlobal(FreeOp *fop, GlobalObject *global,
-                               AutoDebugModeGC &dmgc,
                                GlobalObjectSet::Enum *compartmentEnum,
                                GlobalObjectSet::Enum *debugEnum)
 {
@@ -2191,7 +2151,7 @@ Debugger::removeDebuggeeGlobal(FreeOp *fop, GlobalObject *global,
      * global cannot be rooted on the stack without a cx.
      */
     if (v->empty())
-        global->compartment()->removeDebuggee(fop, global, dmgc, compartmentEnum);
+        global->compartment()->removeDebuggee(fop, global, compartmentEnum);
 }
 
 /*
@@ -2578,7 +2538,6 @@ JSPropertySpec Debugger::properties[] = {
 
 JSFunctionSpec Debugger::methods[] = {
     JS_FN("addDebuggee", Debugger::addDebuggee, 1, 0),
-    JS_FN("addAllGlobalsAsDebuggees", Debugger::addAllGlobalsAsDebuggees, 0, 0),
     JS_FN("removeDebuggee", Debugger::removeDebuggee, 1, 0),
     JS_FN("removeAllDebuggees", Debugger::removeAllDebuggees, 0, 0),
     JS_FN("hasDebuggee", Debugger::hasDebuggee, 1, 0),
@@ -2956,7 +2915,7 @@ class FlowGraphSummary : public Vector<size_t> {
 
             if (js_CodeSpec[op].type() == JOF_JUMP) {
                 addEdge(lineno, r.frontOffset() + GET_JUMP_OFFSET(r.frontPC()));
-            } else if (op == JSOP_TABLESWITCH) {
+            } else if (op == JSOP_TABLESWITCH || op == JSOP_LOOKUPSWITCH) {
                 jsbytecode *pc = r.frontPC();
                 size_t offset = r.frontOffset();
                 ptrdiff_t step = JUMP_OFFSET_LEN;
@@ -2964,12 +2923,21 @@ class FlowGraphSummary : public Vector<size_t> {
                 pc += step;
                 addEdge(lineno, defaultOffset);
 
-                int32_t low = GET_JUMP_OFFSET(pc);
-                pc += JUMP_OFFSET_LEN;
-                int ncases = GET_JUMP_OFFSET(pc) - low + 1;
-                pc += JUMP_OFFSET_LEN;
+                int ncases;
+                if (op == JSOP_TABLESWITCH) {
+                    int32_t low = GET_JUMP_OFFSET(pc);
+                    pc += JUMP_OFFSET_LEN;
+                    ncases = GET_JUMP_OFFSET(pc) - low + 1;
+                    pc += JUMP_OFFSET_LEN;
+                } else {
+                    ncases = GET_UINT16(pc);
+                    pc += UINT16_LEN;
+                    JS_ASSERT(ncases > 0);
+                }
 
                 for (int i = 0; i < ncases; i++) {
+                    if (op == JSOP_LOOKUPSWITCH)
+                        pc += UINT32_INDEX_LEN;
                     size_t target = offset + GET_JUMP_OFFSET(pc);
                     addEdge(lineno, target);
                     pc += step;

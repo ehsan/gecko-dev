@@ -141,13 +141,13 @@ Link::GetURI() const
   return uri.forget();
 }
 
-void
+nsresult
 Link::SetProtocol(const nsAString &aProtocol)
 {
   nsCOMPtr<nsIURI> uri(GetURIToMutate());
   if (!uri) {
     // Ignore failures to be compatible with NS4.
-    return;
+    return NS_OK;
   }
 
   nsAString::const_iterator start, end;
@@ -158,15 +158,16 @@ Link::SetProtocol(const nsAString &aProtocol)
   (void)uri->SetScheme(NS_ConvertUTF16toUTF8(Substring(start, iter)));
 
   SetHrefAttribute(uri);
+  return NS_OK;
 }
 
-void
+nsresult
 Link::SetHost(const nsAString &aHost)
 {
   nsCOMPtr<nsIURI> uri(GetURIToMutate());
   if (!uri) {
     // Ignore failures to be compatible with NS4.
-    return;
+    return NS_OK;
   }
 
   // We cannot simply call nsIURI::SetHost because that would treat the name as
@@ -196,84 +197,89 @@ Link::SetHost(const nsAString &aHost)
   };
 
   SetHrefAttribute(uri);
-  return;
+  return NS_OK;
 }
 
-void
+nsresult
 Link::SetHostname(const nsAString &aHostname)
 {
   nsCOMPtr<nsIURI> uri(GetURIToMutate());
   if (!uri) {
     // Ignore failures to be compatible with NS4.
-    return;
+    return NS_OK;
   }
 
   (void)uri->SetHost(NS_ConvertUTF16toUTF8(aHostname));
   SetHrefAttribute(uri);
+  return NS_OK;
 }
 
-void
+nsresult
 Link::SetPathname(const nsAString &aPathname)
 {
   nsCOMPtr<nsIURI> uri(GetURIToMutate());
   nsCOMPtr<nsIURL> url(do_QueryInterface(uri));
   if (!url) {
     // Ignore failures to be compatible with NS4.
-    return;
+    return NS_OK;
   }
 
   (void)url->SetFilePath(NS_ConvertUTF16toUTF8(aPathname));
   SetHrefAttribute(uri);
+  return NS_OK;
 }
 
-void
+nsresult
 Link::SetSearch(const nsAString &aSearch)
 {
   nsCOMPtr<nsIURI> uri(GetURIToMutate());
   nsCOMPtr<nsIURL> url(do_QueryInterface(uri));
   if (!url) {
     // Ignore failures to be compatible with NS4.
-    return;
+    return NS_OK;
   }
 
   (void)url->SetQuery(NS_ConvertUTF16toUTF8(aSearch));
   SetHrefAttribute(uri);
+  return NS_OK;
 }
 
-void
+nsresult
 Link::SetPort(const nsAString &aPort)
 {
   nsCOMPtr<nsIURI> uri(GetURIToMutate());
   if (!uri) {
     // Ignore failures to be compatible with NS4.
-    return;
+    return NS_OK;
   }
 
   nsresult rv;
   nsAutoString portStr(aPort);
   int32_t port = portStr.ToInteger(&rv);
   if (NS_FAILED(rv)) {
-    return;
+    return NS_OK;
   }
 
   (void)uri->SetPort(port);
   SetHrefAttribute(uri);
+  return NS_OK;
 }
 
-void
+nsresult
 Link::SetHash(const nsAString &aHash)
 {
   nsCOMPtr<nsIURI> uri(GetURIToMutate());
   if (!uri) {
     // Ignore failures to be compatible with NS4.
-    return;
+    return NS_OK;
   }
 
   (void)uri->SetRef(NS_ConvertUTF16toUTF8(aHash));
   SetHrefAttribute(uri);
+  return NS_OK;
 }
 
-void
+nsresult
 Link::GetProtocol(nsAString &_protocol)
 {
   nsCOMPtr<nsIURI> uri(GetURI());
@@ -286,10 +292,10 @@ Link::GetProtocol(nsAString &_protocol)
     CopyASCIItoUTF16(scheme, _protocol);
   }
   _protocol.Append(PRUnichar(':'));
-  return;
+  return NS_OK;
 }
 
-void
+nsresult
 Link::GetHost(nsAString &_host)
 {
   _host.Truncate();
@@ -297,7 +303,7 @@ Link::GetHost(nsAString &_host)
   nsCOMPtr<nsIURI> uri(GetURI());
   if (!uri) {
     // Do not throw!  Not having a valid URI should result in an empty string.
-    return;
+    return NS_OK;
   }
 
   nsAutoCString hostport;
@@ -305,9 +311,10 @@ Link::GetHost(nsAString &_host)
   if (NS_SUCCEEDED(rv)) {
     CopyUTF8toUTF16(hostport, _host);
   }
+  return NS_OK;
 }
 
-void
+nsresult
 Link::GetHostname(nsAString &_hostname)
 {
   _hostname.Truncate();
@@ -315,7 +322,7 @@ Link::GetHostname(nsAString &_hostname)
   nsCOMPtr<nsIURI> uri(GetURI());
   if (!uri) {
     // Do not throw!  Not having a valid URI should result in an empty string.
-    return;
+    return NS_OK;
   }
 
   nsAutoCString host;
@@ -325,9 +332,10 @@ Link::GetHostname(nsAString &_hostname)
   if (NS_SUCCEEDED(rv)) {
     CopyUTF8toUTF16(host, _hostname);
   }
+  return NS_OK;
 }
 
-void
+nsresult
 Link::GetPathname(nsAString &_pathname)
 {
   _pathname.Truncate();
@@ -337,17 +345,17 @@ Link::GetPathname(nsAString &_pathname)
   if (!url) {
     // Do not throw!  Not having a valid URI or URL should result in an empty
     // string.
-    return;
+    return NS_OK;
   }
 
   nsAutoCString file;
   nsresult rv = url->GetFilePath(file);
-  if (NS_SUCCEEDED(rv)) {
-    CopyUTF8toUTF16(file, _pathname);
-  }
+  NS_ENSURE_SUCCESS(rv, rv);
+  CopyUTF8toUTF16(file, _pathname);
+  return NS_OK;
 }
 
-void
+nsresult
 Link::GetSearch(nsAString &_search)
 {
   _search.Truncate();
@@ -357,7 +365,7 @@ Link::GetSearch(nsAString &_search)
   if (!url) {
     // Do not throw!  Not having a valid URI or URL should result in an empty
     // string.
-    return;
+    return NS_OK;
   }
 
   nsAutoCString search;
@@ -365,9 +373,10 @@ Link::GetSearch(nsAString &_search)
   if (NS_SUCCEEDED(rv) && !search.IsEmpty()) {
     CopyUTF8toUTF16(NS_LITERAL_CSTRING("?") + search, _search);
   }
+  return NS_OK;
 }
 
-void
+nsresult
 Link::GetPort(nsAString &_port)
 {
   _port.Truncate();
@@ -375,7 +384,7 @@ Link::GetPort(nsAString &_port)
   nsCOMPtr<nsIURI> uri(GetURI());
   if (!uri) {
     // Do not throw!  Not having a valid URI should result in an empty string.
-    return;
+    return NS_OK;
   }
 
   int32_t port;
@@ -387,9 +396,10 @@ Link::GetPort(nsAString &_port)
     portStr.AppendInt(port, 10);
     _port.Assign(portStr);
   }
+  return NS_OK;
 }
 
-void
+nsresult
 Link::GetHash(nsAString &_hash)
 {
   _hash.Truncate();
@@ -398,7 +408,7 @@ Link::GetHash(nsAString &_hash)
   if (!uri) {
     // Do not throw!  Not having a valid URI should result in an empty
     // string.
-    return;
+    return NS_OK;
   }
 
   nsAutoCString ref;
@@ -408,6 +418,7 @@ Link::GetHash(nsAString &_hash)
     _hash.Assign(PRUnichar('#'));
     AppendUTF8toUTF16(ref, _hash);
   }
+  return NS_OK;
 }
 
 void

@@ -81,12 +81,8 @@ var shell = {
 
   get CrashSubmit() {
     delete this.CrashSubmit;
-#ifdef MOZ_CRASHREPORTER
     Cu.import("resource://gre/modules/CrashSubmit.jsm", this);
     return this.CrashSubmit;
-#else
-    return this.CrashSubmit = null;
-#endif
   },
 
   onlineForCrashReport: function shell_onlineForCrashReport() {
@@ -107,7 +103,7 @@ var shell = {
     } catch(e) { }
 
     // Bail if there isn't a valid crashID.
-    if (!this.CrashSubmit || !crashID && !this.CrashSubmit.pendingIDs().length) {
+    if (!crashID) {
       return;
     }
 
@@ -129,20 +125,10 @@ var shell = {
     });
   },
 
-  // this function submit the pending crashes.
-  // make sure you are online.
-  submitQueuedCrashes: function shell_submitQueuedCrashes() {
-    // submit the pending queue.
-    let pending = shell.CrashSubmit.pendingIDs();
-    for (let crashid of pending) {
-      shell.CrashSubmit.submit(crashid);
-    }
-  },
-
   // This function submits a crash when we're online.
   submitCrash: function shell_submitCrash(aCrashID) {
     if (this.onlineForCrashReport()) {
-      this.submitQueuedCrashes();
+      this.CrashSubmit.submit(aCrashID);
       return;
     }
 
@@ -150,7 +136,13 @@ var shell = {
       let network = subject.QueryInterface(Ci.nsINetworkInterface);
       if (network.state == Ci.nsINetworkInterface.NETWORK_STATE_CONNECTED
           && network.type == Ci.nsINetworkInterface.NETWORK_TYPE_WIFI) {
-        shell.submitQueuedCrashes();
+        shell.CrashSubmit.submit(aCrashID);
+
+        // submit the pending queue.
+        let pending = shell.CrashSubmit.pendingIDs();
+        for (let crashid of pending) {
+          shell.CrashSubmit.submit(crashid);
+        }
 
         Services.obs.removeObserver(observer, topic);
       }
@@ -692,7 +684,7 @@ var AlertsHelper = {
           let message = messages[i];
           if (message === "notification") {
             return helper.fullLaunchPath();
-          } else if (typeof message == "object" && "notification" in message) {
+          } else if ("notification" in message) {
             return helper.resolveFromOrigin(message["notification"]);
           }
         }
@@ -749,16 +741,10 @@ var AlertsHelper = {
                           uid, name, null);
   },
 
-  receiveMessage: function alert_receiveMessage(aMessage) {
-    if (!aMessage.target.assertPermission("desktop-notification")) {
-      Cu.reportError("Desktop-notification message " + aMessage.name +
-                     " from a content process with no desktop-notification privileges.");
-      return null;
-    }
-
-    let data = aMessage.data;
+  receiveMessage: function alert_receiveMessage(message) {
+    let data = message.data;
     let listener = {
-      mm: aMessage.target,
+      mm: message.target,
       title: data.title,
       text: data.text,
       manifestURL: data.manifestURL,

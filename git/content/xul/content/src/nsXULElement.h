@@ -186,9 +186,6 @@ public:
 
     void Unlink();
 
-    // Trace all scripts held by this element and its children.
-    void TraceAllScripts(JSTracer* aTrc);
-
     nsPrototypeArray         mChildren;
 
     nsCOMPtr<nsINodeInfo>    mNodeInfo;           // [OWNER]
@@ -238,10 +235,13 @@ public:
     }
     void Set(JSScript* aObject);
 
-    JSScript *GetScriptObject()
+    struct ScriptObjectHolder
     {
-        return mScriptObject;
-    }
+        ScriptObjectHolder() : mObject(nullptr)
+        {
+        }
+        JSScript* mObject;
+    };
 
     nsCOMPtr<nsIURI>         mSrcURI;
     uint32_t                 mLineNo;
@@ -249,8 +249,7 @@ public:
     bool                     mOutOfLine;
     nsXULDocument*           mSrcLoadWaiters;   // [OWNER] but not COMPtr
     uint32_t                 mLangVersion;
-private:
-    JSScript*                mScriptObject;
+    ScriptObjectHolder       mScriptObject;
 };
 
 class nsXULPrototypeText : public nsXULPrototypeNode
@@ -420,9 +419,6 @@ public:
     virtual nsXPCClassInfo* GetClassInfo();
 
     virtual nsIDOMNode* AsDOMNode() { return this; }
-
-    virtual bool IsEventAttributeName(nsIAtom* aName) MOZ_OVERRIDE;
-
 protected:
 
     // This can be removed if EnsureContentsGenerated dies.

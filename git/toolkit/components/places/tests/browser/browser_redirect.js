@@ -16,20 +16,12 @@ function test() {
 
   // Create and add history observer.
   let historyObserver = {
-    _redirectNotified: false,
     onVisit: function (aURI, aVisitID, aTime, aSessionID, aReferringID,
                       aTransitionType) {
       info("Received onVisit: " + aURI.spec);
-
-      if (aURI.equals(REDIRECT_URI)) {
-        this._redirectNotified = true;
-        // Wait for the target page notification.
-        return;
-      }
-
       PlacesUtils.history.removeObserver(historyObserver);
 
-      ok(this._redirectNotified, "The redirect should have been notified");
+      ok(aURI.equals(TARGET_URI), "The redirect source should not be notified");
 
       fieldForUrl(REDIRECT_URI, "frecency", function (aFrecency) {
         ok(aFrecency != 0, "Frecency or the redirecting page should not be 0");

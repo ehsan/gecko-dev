@@ -1055,7 +1055,7 @@
           if (iconURL)
             this._icon.src = iconURL;
           else
-            this._icon.src = "";
+            this._icon.src = null;
 
           if (shouldShowVersionNumber(this.mAddon))
             this._version.value = this.mAddon.version;

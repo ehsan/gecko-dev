@@ -140,7 +140,7 @@ JSBool
 js_HasOwnProperty(JSContext *cx, LookupGenericOp lookup, HandleObject obj, HandleId id,
                   MutableHandleObject objp, MutableHandleShape propp)
 {
-    JSAutoResolveFlags rf(cx, 0);
+    JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED);
     if (lookup) {
         if (!lookup(cx, obj, id, objp, propp))
             return false;
@@ -257,7 +257,7 @@ js::GetOwnPropertyDescriptor(JSContext *cx, HandleObject obj, HandleId id,
 {
     // FIXME: Call TrapGetOwnProperty directly once ScriptedIndirectProxies is removed
     if (obj->isProxy())
-        return Proxy::getOwnPropertyDescriptor(cx, obj, id, desc, 0);
+        return Proxy::getOwnPropertyDescriptor(cx, obj, id, false, desc);
 
     RootedObject pobj(cx);
     RootedShape shape(cx);
@@ -328,7 +328,7 @@ js::GetFirstArgumentAsObject(JSContext *cx, unsigned argc, Value *vp, const char
 static bool
 HasProperty(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp, bool *foundp)
 {
-    if (!JSObject::hasProperty(cx, obj, id, foundp, 0))
+    if (!JSObject::hasProperty(cx, obj, id, foundp, JSRESOLVE_QUALIFIED))
         return false;
     if (!*foundp) {
         vp.setUndefined();
@@ -1520,8 +1520,11 @@ js_InferFlags(JSContext *cx, unsigned defaultFlags)
     if (!script)
         return defaultFlags;
 
-    uint32_t format = js_CodeSpec[*pc].format;
+    const JSCodeSpec *cs = &js_CodeSpec[*pc];
+    uint32_t format = cs->format;
     unsigned flags = 0;
+    if (JOF_MODE(format) != JOF_NAME)
+        flags |= JSRESOLVE_QUALIFIED;
     if (format & JOF_SET)
         flags |= JSRESOLVE_ASSIGNING;
     return flags;
@@ -2618,11 +2621,8 @@ js::SetProto(JSContext *cx, HandleObject obj, Handle<js::TaggedProto> proto, boo
         return true;
     }
 
-    if (proto.isObject()) {
-        RootedObject protoObj(cx, proto.toObject());
-        if (!JSObject::setNewTypeUnknown(cx, protoObj))
-            return false;
-    }
+    if (proto.isObject() && !proto.toObject()->setNewTypeUnknown(cx))
+        return false;
 
     TypeObject *type = cx->compartment->getNewType(cx, proto);
     if (!type)
@@ -3444,7 +3444,7 @@ baseops::GetPropertyDefault(JSContext *cx, HandleObject obj, HandleId id, Handle
 {
     RootedShape prop(cx);
     RootedObject obj2(cx);
-    if (!LookupPropertyWithFlags(cx, obj, id, 0, &obj2, &prop))
+    if (!LookupPropertyWithFlags(cx, obj, id, JSRESOLVE_QUALIFIED, &obj2, &prop))
         return false;
 
     if (!prop) {
@@ -3458,7 +3458,7 @@ baseops::GetPropertyDefault(JSContext *cx, HandleObject obj, HandleId id, Handle
 JSBool
 js::GetMethod(JSContext *cx, HandleObject obj, HandleId id, unsigned getHow, MutableHandleValue vp)
 {
-    JSAutoResolveFlags rf(cx, 0);
+    JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED);
 
     GenericIdOp op = obj->getOps()->getGeneric;
     if (!op) {
@@ -3474,8 +3474,8 @@ js::GetMethod(JSContext *cx, HandleObject obj, HandleId id, unsigned getHow, Mut
     return op(cx, obj, obj, id, vp);
 }
 
-static bool
-MaybeReportUndeclaredVarAssignment(JSContext *cx, JSString *propname)
+JS_FRIEND_API(bool)
+js::CheckUndeclaredVarAssignment(JSContext *cx, JSString *propname)
 {
     {
         UnrootedScript script = cx->stack.currentScript(NULL, ContextStack::ALLOW_CROSS_COMPARTMENT);
@@ -3492,56 +3492,6 @@ MaybeReportUndeclaredVarAssignment(JSContext *cx, JSString *propname)
            JS_ReportErrorFlagsAndNumber(cx,
                                         (JSREPORT_WARNING | JSREPORT_STRICT
                                          | JSREPORT_STRICT_MODE_ERROR),
-                                        js_GetErrorMessage, NULL,
-                                        JSMSG_UNDECLARED_VAR, bytes.ptr());
-}
-
-bool
-js::ReportIfUndeclaredVarAssignment(JSContext *cx, HandleString propname)
-{
-    {
-        jsbytecode *pc;
-        UnrootedScript script = cx->stack.currentScript(&pc, ContextStack::ALLOW_CROSS_COMPARTMENT);
-        if (!script)
-            return true;
-
-        /* If neither cx nor the code is strict, then no check is needed. */
-        if (!script->strict && !cx->hasStrictOption())
-            return true;
-
-        /*
-         * We only need to check for bare name mutations: we shouldn't be
-         * warning, or throwing, or whatever, if we're not doing a variable
-         * access.
-         *
-         * TryConvertToGname in frontend/BytecodeEmitter.cpp checks for rather
-         * more opcodes when it does, in the normal course of events, what this
-         * method does in the abnormal course of events.  Because we're called
-         * in narrower circumstances, we only need check two.  We don't need to
-         * check for the increment/decrement opcodes because they're no-ops:
-         * the actual semantics are implemented by desugaring.  And we don't
-         * need to check name-access because this method is only supposed to be
-         * called in assignment contexts.
-         */
-        MOZ_ASSERT(*pc != JSOP_INCNAME);
-        MOZ_ASSERT(*pc != JSOP_INCGNAME);
-        MOZ_ASSERT(*pc != JSOP_NAMEINC);
-        MOZ_ASSERT(*pc != JSOP_GNAMEINC);
-        MOZ_ASSERT(*pc != JSOP_DECNAME);
-        MOZ_ASSERT(*pc != JSOP_DECGNAME);
-        MOZ_ASSERT(*pc != JSOP_NAMEDEC);
-        MOZ_ASSERT(*pc != JSOP_GNAMEDEC);
-        MOZ_ASSERT(*pc != JSOP_NAME);
-        MOZ_ASSERT(*pc != JSOP_GETGNAME);
-        if (*pc != JSOP_SETNAME && *pc != JSOP_SETGNAME)
-            return true;
-    }
-
-    JSAutoByteString bytes(cx, propname);
-    return !!bytes &&
-           JS_ReportErrorFlagsAndNumber(cx,
-                                        JSREPORT_WARNING | JSREPORT_STRICT |
-                                        JSREPORT_STRICT_MODE_ERROR,
                                         js_GetErrorMessage, NULL,
                                         JSMSG_UNDECLARED_VAR, bytes.ptr());
 }
@@ -3610,7 +3560,7 @@ baseops::SetPropertyHelper(JSContext *cx, HandleObject obj, HandleObject receive
         if (!pobj->isNative()) {
             if (pobj->isProxy()) {
                 AutoPropertyDescriptorRooter pd(cx);
-                if (!Proxy::getPropertyDescriptor(cx, pobj, id, &pd, JSRESOLVE_ASSIGNING))
+                if (!Proxy::getPropertyDescriptor(cx, pobj, id, true, &pd))
                     return false;
 
                 if ((pd.attrs & (JSPROP_SHARED | JSPROP_SHADOWABLE)) == JSPROP_SHARED) {
@@ -3636,9 +3586,8 @@ baseops::SetPropertyHelper(JSContext *cx, HandleObject obj, HandleObject receive
 
         if (obj->isGlobal() &&
             (defineHow & DNP_UNQUALIFIED) &&
-            !MaybeReportUndeclaredVarAssignment(cx, JSID_TO_STRING(id)))
-        {
-            return false;
+            !js::CheckUndeclaredVarAssignment(cx, JSID_TO_STRING(id))) {
+            return JS_FALSE;
         }
     }
 

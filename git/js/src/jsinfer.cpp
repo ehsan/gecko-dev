@@ -458,13 +458,13 @@ StackTypeSet::make(JSContext *cx, const char *name)
     return res;
 }
 
-const StackTypeSet *
+const TypeSet *
 TypeSet::clone(LifoAlloc *alloc) const
 {
     unsigned objectCount = baseObjectCount();
     unsigned capacity = (objectCount >= 2) ? HashSetCapacity(objectCount) : 0;
 
-    StackTypeSet *res = alloc->new_<StackTypeSet>();
+    TypeSet *res = alloc->new_<TypeSet>();
     if (!res)
         return NULL;
 
@@ -1862,33 +1862,6 @@ StackTypeSet::knownNonStringPrimitive()
 
     if (baseFlags() == 0)
         return false;
-    return true;
-}
-
-bool
-StackTypeSet::filtersType(const StackTypeSet *other, Type filteredType) const
-{
-    if (other->unknown())
-        return unknown();
-
-    for (TypeFlags flag = 1; flag < TYPE_FLAG_ANYOBJECT; flag <<= 1) {
-        Type type = Type::PrimitiveType(TypeFlagPrimitive(flag));
-        if (type != filteredType && other->hasType(type) && !hasType(type))
-            return false;
-    }
-
-    if (other->unknownObject())
-        return unknownObject();
-
-    for (size_t i = 0; i < other->getObjectCount(); i++) {
-        TypeObjectKey *key = other->getObject(i);
-        if (key) {
-            Type type = Type::ObjectType(key);
-            if (type != filteredType && !hasType(type))
-                return false;
-        }
-    }
-
     return true;
 }
 
@@ -3765,6 +3738,7 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset, TypeInferen
       case JSOP_DEBUGGER:
       case JSOP_SETCALL:
       case JSOP_TABLESWITCH:
+      case JSOP_LOOKUPSWITCH:
       case JSOP_TRY:
       case JSOP_LABEL:
         break;
@@ -5841,10 +5815,10 @@ JSObject::hasNewType(TypeObject *type)
 }
 #endif /* DEBUG */
 
-/* static */ bool
-JSObject::setNewTypeUnknown(JSContext *cx, HandleObject obj)
+bool
+JSObject::setNewTypeUnknown(JSContext *cx)
 {
-    if (!obj->setFlag(cx, js::BaseShape::NEW_TYPE_UNKNOWN))
+    if (!setFlag(cx, js::BaseShape::NEW_TYPE_UNKNOWN))
         return false;
 
     /*
@@ -5854,7 +5828,7 @@ JSObject::setNewTypeUnknown(JSContext *cx, HandleObject obj)
      */
     TypeObjectSet &table = cx->compartment->newTypeObjects;
     if (table.initialized()) {
-        if (TypeObjectSet::Ptr p = table.lookup(obj.get()))
+        if (TypeObjectSet::Ptr p = table.lookup(this))
             MarkTypeObjectUnknownProperties(cx, *p);
     }
 

@@ -80,7 +80,6 @@
 #include "StructuredCloneUtils.h"
 #include "TabParent.h"
 #include "URIUtils.h"
-#include "nsGeolocation.h"
 
 #ifdef ANDROID
 # include "gfxAndroidPlatform.h"
@@ -163,10 +162,6 @@ MemoryReportRequestParent::~MemoryReportRequestParent()
 nsDataHashtable<nsStringHashKey, ContentParent*>* ContentParent::gAppContentParents;
 nsTArray<ContentParent*>* ContentParent::gNonAppContentParents;
 nsTArray<ContentParent*>* ContentParent::gPrivateContent;
-
-// This is true when subprocess launching is enabled.  This is the
-// case between StartUp() and ShutDown() or JoinAllSubprocesses().
-static bool sCanLaunchSubprocesses;
 
 // The first content child has ID 1, so the chrome process can have ID 0.
 static uint64_t gContentChildID = 1;
@@ -261,8 +256,6 @@ ContentParent::StartUp()
         // the main process goes idle before we preallocate a process
         MessageLoop::current()->PostIdleTask(FROM_HERE, NewRunnableFunction(FirstIdle));
     }
-
-    sCanLaunchSubprocesses = true;
 }
 
 /*static*/ void
@@ -270,55 +263,6 @@ ContentParent::ShutDown()
 {
     // No-op for now.  We rely on normal process shutdown and
     // ClearOnShutdown() to clean up our state.
-    sCanLaunchSubprocesses = false;
-}
-
-/*static*/ void
-ContentParent::JoinProcessesIOThread(const nsTArray<ContentParent*>* aProcesses,
-                                     Monitor* aMonitor, bool* aDone)
-{
-    const nsTArray<ContentParent*>& processes = *aProcesses;
-    for (uint32_t i = 0; i < processes.Length(); ++i) {
-        if (GeckoChildProcessHost* process = processes[i]->mSubprocess) {
-            process->Join();
-        }
-    }
-    {
-        MonitorAutoLock lock(*aMonitor);
-        *aDone = true;
-        lock.Notify();
-    }
-    // Don't touch any arguments to this function from now on.
-}
-
-/*static*/ void
-ContentParent::JoinAllSubprocesses()
-{
-    MOZ_ASSERT(NS_IsMainThread());
-
-    nsAutoTArray<ContentParent*, 8> processes;
-    GetAll(processes);
-    if (processes.IsEmpty()) {
-        printf_stderr("There are no live subprocesses.");
-        return;
-    }
-
-    printf_stderr("Subprocesses are still alive.  Doing emergency join.\n");
-
-    bool done = false;
-    Monitor monitor("mozilla.dom.ContentParent.JoinAllSubprocesses");
-    XRE_GetIOMessageLoop()->PostTask(FROM_HERE,
-                                     NewRunnableFunction(
-                                         &ContentParent::JoinProcessesIOThread,
-                                         &processes, &monitor, &done));
-    {
-        MonitorAutoLock lock(monitor);
-        while (!done) {
-            lock.Wait();
-        }
-    }
-
-    sCanLaunchSubprocesses = false;
 }
 
 /*static*/ ContentParent*
@@ -380,10 +324,6 @@ PrivilegesForApp(mozIApplication* aApp)
 /*static*/ TabParent*
 ContentParent::CreateBrowserOrApp(const TabContext& aContext)
 {
-    if (!sCanLaunchSubprocesses) {
-        return nullptr;
-    }
-
     if (aContext.IsBrowserElement() || !aContext.HasOwnApp()) {
         if (ContentParent* cp = GetNewOrUsed(aContext.IsBrowserElement())) {
             nsRefPtr<TabParent> tp(new TabParent(aContext));
@@ -705,20 +645,14 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
             props->SetPropertyAsBool(NS_LITERAL_STRING("abnormal"), true);
 
 #ifdef MOZ_CRASHREPORTER
-            // There's a window in which child processes can crash
-            // after IPC is established, but before a crash reporter
-            // is created.
-            if (ManagedPCrashReporterParent().Length() > 0) {
-                CrashReporterParent* crashReporter =
+            MOZ_ASSERT(ManagedPCrashReporterParent().Length() > 0);
+            CrashReporterParent* crashReporter =
                     static_cast<CrashReporterParent*>(ManagedPCrashReporterParent()[0]);
 
-                crashReporter->AnnotateCrashReport(NS_LITERAL_CSTRING("URL"),
-                                                   NS_ConvertUTF16toUTF8(mAppManifestURL));
-                crashReporter->GenerateCrashReport(this, NULL);
-
-                nsAutoString dumpID(crashReporter->ChildDumpID());
-                props->SetPropertyAsAString(NS_LITERAL_STRING("dumpID"), dumpID);
-            }
+            crashReporter->GenerateCrashReport(this, NULL);
+ 
+            nsAutoString dumpID(crashReporter->ChildDumpID());
+            props->SetPropertyAsAString(NS_LITERAL_STRING("dumpID"), dumpID);
 #endif
         }
         obs->NotifyObservers((nsIPropertyBag2*) props, "ipc:content-shutdown", nullptr);
@@ -780,7 +714,7 @@ ContentParent::ContentParent(const nsAString& aAppManifestURL,
                              ChildOSPrivileges aOSPrivileges)
     : mSubprocess(nullptr)
     , mOSPrivileges(aOSPrivileges)
-    , mChildID(CONTENT_PARENT_UNKNOWN_CHILD_ID)
+    , mChildID(-1)
     , mGeolocationWatchID(-1)
     , mRunToCompletionDepth(0)
     , mShouldCallUnblockChild(false)
@@ -1108,7 +1042,7 @@ ContentParent::RecvAudioChannelRegisterType(const AudioChannelType& aType)
     nsRefPtr<AudioChannelService> service =
         AudioChannelService::GetAudioChannelService();
     if (service) {
-        service->RegisterType(aType, mChildID);
+        service->RegisterType(aType);
     }
     return true;
 }
@@ -1119,7 +1053,7 @@ ContentParent::RecvAudioChannelUnregisterType(const AudioChannelType& aType)
     nsRefPtr<AudioChannelService> service =
         AudioChannelService::GetAudioChannelService();
     if (service) {
-        service->UnregisterType(aType, mChildID);
+        service->UnregisterType(aType);
     }
     return true;
 }
@@ -1876,9 +1810,6 @@ ContentParent::RecvShowAlertNotification(const nsString& aImageUrl, const nsStri
                                          const nsString& aText, const bool& aTextClickable,
                                          const nsString& aCookie, const nsString& aName)
 {
-    if (!AssertAppProcessPermission(this, "desktop-notification")) {
-        return false;
-    }
     nsCOMPtr<nsIAlertsService> sysAlerts(do_GetService(NS_ALERTSERVICE_CONTRACTID));
     if (sysAlerts) {
         sysAlerts->ShowAlertNotification(aImageUrl, aTitle, aText, aTextClickable,
@@ -1947,69 +1878,16 @@ ContentParent::RecvAsyncMessage(const nsString& aMsg,
 }
 
 bool
-ContentParent::RecvAddGeolocationListener(const IPC::Principal& aPrincipal)
+ContentParent::RecvAddGeolocationListener()
 {
-#ifdef MOZ_PERMISSIONS
-  if (Preferences::GetBool("geo.testing.ignore_ipc_principal", false) == false) {
-    nsIPrincipal* principal = aPrincipal;
-    if (principal == nullptr) {
-      KillHard();
+  if (mGeolocationWatchID == -1) {
+    nsCOMPtr<nsIDOMGeoGeolocation> geo = do_GetService("@mozilla.org/geolocation;1");
+    if (!geo) {
       return true;
     }
-
-    uint32_t principalAppId;
-    nsresult rv = principal->GetAppId(&principalAppId);
-    if (NS_FAILED(rv)) {
-      return true;
-    }
-
-    bool found = false;
-    const InfallibleTArray<PBrowserParent*>& browsers = ManagedPBrowserParent();
-    for (uint32_t i = 0; i < browsers.Length(); ++i) {
-      TabParent* tab = static_cast<TabParent*>(browsers[i]);
-      nsCOMPtr<mozIApplication> app = tab->GetOwnOrContainingApp();
-      uint32_t appId;
-      app->GetLocalId(&appId);
-      if (appId == principalAppId) {
-        found = true;
-        break;
-      }
-    }
-
-    if (!found) {
-      return true;
-    }
-
-    // We need to ensure that this permission has been set.
-    // If it hasn't, just noop
-    nsCOMPtr<nsIPermissionManager> pm = do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
-    if (!pm) {
-      return false;
-    }
-
-    uint32_t permission = nsIPermissionManager::UNKNOWN_ACTION;
-    rv = pm->TestPermissionFromPrincipal(principal, "geolocation", &permission);
-    if (NS_FAILED(rv) || permission != nsIPermissionManager::ALLOW_ACTION) {
-      KillHard();
-      return true;
-    }
+    jsval dummy = JSVAL_VOID;
+    geo->WatchPosition(this, nullptr, dummy, nullptr, &mGeolocationWatchID);
   }
-#endif
-
-  // To ensure no geolocation updates are skipped, we always force the
-  // creation of a new listener.
-  RecvRemoveGeolocationListener();
-
-  nsCOMPtr<nsIDOMGeoGeolocation> geo = do_GetService("@mozilla.org/geolocation;1");
-  if (!geo) {
-    return true;
-  }
-
-  nsRefPtr<nsGeolocation> geosvc = static_cast<nsGeolocation*>(geo.get());
-  nsAutoPtr<mozilla::dom::GeoPositionOptions> options(new mozilla::dom::GeoPositionOptions());
-  jsval null = JS::NullValue();
-  options->Init(nullptr, &null);
-  geosvc->WatchPosition(this, nullptr, options.forget(), &mGeolocationWatchID);
   return true;
 }
 
@@ -2025,15 +1903,6 @@ ContentParent::RecvRemoveGeolocationListener()
     mGeolocationWatchID = -1;
   }
   return true;
-}
-
-bool
-ContentParent::RecvSetGeolocationHigherAccuracy(const bool& aEnable)
-{
-    nsRefPtr<nsGeolocationService> geoSvc =
-        nsGeolocationService::GetGeolocationService();
-    geoSvc->SetHigherAccuracy(aEnable);
-    return true;
 }
 
 NS_IMETHODIMP

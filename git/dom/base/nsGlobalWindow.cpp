@@ -117,8 +117,8 @@
 #include "nsIScriptGlobalObjectOwner.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIScrollableFrame.h"
-#include "nsView.h"
-#include "nsViewManager.h"
+#include "nsIView.h"
+#include "nsIViewManager.h"
 #include "nsISelectionController.h"
 #include "nsISelection.h"
 #include "nsIPrompt.h"
@@ -226,12 +226,6 @@
 #include "TimeChangeObserver.h"
 #include "nsPISocketTransportService.h"
 #include "mozilla/dom/AudioContext.h"
-
-// Apple system headers seem to have a check() macro.  <sigh>
-#ifdef check
-#undef check
-#endif // check
-#include "AccessCheck.h"
 
 #ifdef ANDROID
 #include <android/log.h>
@@ -531,10 +525,8 @@ public:
   virtual bool isOuterWindow() {
     return true;
   }
-  virtual JSString *obj_toString(JSContext *cx, JSObject *wrapper) MOZ_OVERRIDE;
-  virtual void finalize(JSFreeOp *fop, JSObject *proxy) MOZ_OVERRIDE;
-  virtual bool get(JSContext *cx, JSObject *wrapper, JSObject *receiver,
-                   jsid id, js::Value *vp) MOZ_OVERRIDE;
+  JSString *obj_toString(JSContext *cx, JSObject *wrapper);
+  void finalize(JSFreeOp *fop, JSObject *proxy);
 
   static nsOuterWindowProxy singleton;
 };
@@ -558,19 +550,6 @@ nsOuterWindowProxy::finalize(JSFreeOp *fop, JSObject *proxy)
     CallQueryInterface(global, &cache);
     cache->ClearWrapper();
   }
-}
-
-bool
-nsOuterWindowProxy::get(JSContext *cx, JSObject *wrapper, JSObject *receiver,
-                        jsid id, js::Value *vp)
-{
-  if (id == nsDOMClassInfo::sWrappedJSObject_id &&
-      xpc::AccessCheck::isChrome(js::GetContextCompartment(cx))) {
-    *vp = JS::ObjectValue(*wrapper);
-    return true;
-  }
-
-  return js::Wrapper::get(cx, wrapper, receiver, id, vp);
 }
 
 nsOuterWindowProxy
@@ -1122,10 +1101,8 @@ nsGlobalWindow::FreeInnerObjects()
   if (mDocument) {
     NS_ASSERTION(mDoc, "Why is mDoc null?");
 
-    // Remember the document's principal and URI.
+    // Remember the document's principal.
     mDocumentPrincipal = mDoc->NodePrincipal();
-    mDocumentURI = mDoc->GetDocumentURI();
-    mDocBaseURI = mDoc->GetDocBaseURI();
   }
 
 #ifdef DEBUG
@@ -1541,7 +1518,8 @@ nsGlobalWindow::SetInitialPrincipalToSubject()
   GetDocShell()->CreateAboutBlankContentViewer(newWindowPrincipal);
   mDoc->SetIsInitialDocument(true);
 
-  nsCOMPtr<nsIPresShell> shell = GetDocShell()->GetPresShell();
+  nsCOMPtr<nsIPresShell> shell;
+  GetDocShell()->GetPresShell(getter_AddRefs(shell));
 
   if (shell && !shell->DidInitialize()) {
     // Ensure that if someone plays with this document they will get
@@ -2299,10 +2277,8 @@ nsGlobalWindow::DetachFromDocShell()
   if (currentInner) {
     NS_ASSERTION(mDoc, "Must have doc!");
     
-    // Remember the document's principal and URI.
+    // Remember the document's principal.
     mDocumentPrincipal = mDoc->NodePrincipal();
-    mDocumentURI = mDoc->GetDocumentURI();
-    mDocBaseURI = mDoc->GetDocBaseURI();
 
     // Release our document reference
     mDocument = nullptr;
@@ -2822,18 +2798,6 @@ nsGlobalWindow::GetPrincipal()
 // nsGlobalWindow::nsIDOMWindow
 //*****************************************************************************
 
-nsIURI*
-nsPIDOMWindow::GetDocumentURI() const
-{
-  return mDoc ? mDoc->GetDocumentURI() : mDocumentURI.get();
-}
-
-nsIURI*
-nsPIDOMWindow::GetDocBaseURI() const
-{
-  return mDoc ? mDoc->GetDocBaseURI() : mDocBaseURI.get();
-}
-
 void
 nsPIDOMWindow::MaybeCreateDoc()
 {
@@ -2938,23 +2902,17 @@ nsGlobalWindow::GetPerformance(nsISupports** aPerformance)
 {
   FORWARD_TO_INNER(GetPerformance, (aPerformance), NS_ERROR_NOT_INITIALIZED);
 
-  NS_IF_ADDREF(*aPerformance = nsPIDOMWindow::GetPerformance());
+  *aPerformance = nullptr;
+
+  if (nsGlobalWindow::HasPerformanceSupport()) {
+    CreatePerformanceObjectIfNeeded();
+    NS_IF_ADDREF(*aPerformance = mPerformance);
+  }
   return NS_OK;
 }
 
-nsPerformance*
-nsPIDOMWindow::GetPerformance()
-{
-  MOZ_ASSERT(IsInnerWindow());
-  if (HasPerformanceSupport()) {
-    CreatePerformanceObjectIfNeeded();
-    return mPerformance;
-  }
-  return nullptr;
-}
-
 void
-nsPIDOMWindow::CreatePerformanceObjectIfNeeded()
+nsGlobalWindow::CreatePerformanceObjectIfNeeded()
 {
   if (mPerformance || !mDoc) {
     return;
@@ -3664,7 +3622,8 @@ nsGlobalWindow::SetInnerWidth(int32_t aInnerWidth)
                     NS_ERROR_FAILURE);
 
 
-  nsRefPtr<nsIPresShell> presShell = mDocShell->GetPresShell();
+  nsRefPtr<nsIPresShell> presShell;
+  mDocShell->GetPresShell(getter_AddRefs(presShell));
 
   if (presShell && presShell->GetIsViewportOverridden())
   {
@@ -3730,7 +3689,8 @@ nsGlobalWindow::SetInnerHeight(int32_t aInnerHeight)
   NS_ENSURE_SUCCESS(CheckSecurityWidthAndHeight(nullptr, &aInnerHeight),
                     NS_ERROR_FAILURE);
 
-  nsRefPtr<nsIPresShell> presShell = mDocShell->GetPresShell();
+  nsRefPtr<nsIPresShell> presShell;
+  mDocShell->GetPresShell(getter_AddRefs(presShell));
 
   if (presShell && presShell->GetIsViewportOverridden())
   {
@@ -3884,7 +3844,8 @@ nsGlobalWindow::GetInnerScreenRect()
     rootWindow->FlushPendingNotifications(Flush_Layout);
   }
 
-  nsCOMPtr<nsIPresShell> presShell = mDocShell->GetPresShell();
+  nsCOMPtr<nsIPresShell> presShell;
+  mDocShell->GetPresShell(getter_AddRefs(presShell));
   if (!presShell)
     return nsRect();
   nsIFrame* rootFrame = presShell->GetRootFrame();
@@ -3944,7 +3905,8 @@ nsGlobalWindow::GetMozPaintCount(uint64_t* aResult)
   if (!mDocShell)
     return NS_OK;
 
-  nsCOMPtr<nsIPresShell> presShell = mDocShell->GetPresShell();
+  nsCOMPtr<nsIPresShell> presShell;
+  mDocShell->GetPresShell(getter_AddRefs(presShell));
   if (!presShell)
     return NS_OK;
 
@@ -4483,7 +4445,8 @@ nsGlobalWindow::GetNearestWidget()
 {
   nsIDocShell* docShell = GetDocShell();
   NS_ENSURE_TRUE(docShell, nullptr);
-  nsCOMPtr<nsIPresShell> presShell = docShell->GetPresShell();
+  nsCOMPtr<nsIPresShell> presShell;
+  docShell->GetPresShell(getter_AddRefs(presShell));
   NS_ENSURE_TRUE(presShell, nullptr);
   nsIFrame* rootFrame = presShell->GetRootFrame();
   NS_ENSURE_TRUE(rootFrame, nullptr);
@@ -4670,7 +4633,8 @@ nsGlobalWindow::EnsureReflowFlushAndPaint()
   if (!mDocShell)
     return;
 
-  nsCOMPtr<nsIPresShell> presShell = mDocShell->GetPresShell();
+  nsCOMPtr<nsIPresShell> presShell;
+  mDocShell->GetPresShell(getter_AddRefs(presShell));
 
   if (!presShell)
     return;
@@ -7415,7 +7379,8 @@ nsGlobalWindow::GetSelection(nsISelection** aSelection)
   if (!mDocShell)
     return NS_OK;
 
-  nsCOMPtr<nsIPresShell> presShell = mDocShell->GetPresShell();
+  nsCOMPtr<nsIPresShell> presShell;
+  mDocShell->GetPresShell(getter_AddRefs(presShell));
 
   if (!presShell)
     return NS_OK;
@@ -8138,7 +8103,8 @@ nsGlobalWindow::FireHashchange(const nsAString &aOldURL,
                                             aOldURL, aNewURL);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  domEvent->SetTrusted(true);
+  rv = domEvent->SetTrusted(true);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   bool dummy;
   return DispatchEvent(hashchangeEvent, &dummy);
@@ -8192,7 +8158,8 @@ nsGlobalWindow::DispatchSyncPopState()
                                         stateObj);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  domEvent->SetTrusted(true);
+  rv = domEvent->SetTrusted(true);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIDOMEventTarget> outerWindow =
     do_QueryInterface(GetOuterWindow());
@@ -8244,7 +8211,8 @@ nsGlobalWindow::UpdateCanvasFocus(bool aFocusChanged, nsIContent* aNewContent)
       return;
   }
 
-  nsCOMPtr<nsIPresShell> presShell = docShell->GetPresShell();
+  nsCOMPtr<nsIPresShell> presShell;
+  docShell->GetPresShell(getter_AddRefs(presShell));
   if (!presShell || !mDocument)
     return;
 
@@ -8311,7 +8279,8 @@ nsGlobalWindow::GetComputedStyleHelper(nsIDOMElement* aElt,
     return NS_OK;
   }
 
-  nsCOMPtr<nsIPresShell> presShell = mDocShell->GetPresShell();
+  nsCOMPtr<nsIPresShell> presShell;
+  mDocShell->GetPresShell(getter_AddRefs(presShell));
 
   if (!presShell) {
     // Try flushing frames on our parent in case there's a pending
@@ -8329,7 +8298,8 @@ nsGlobalWindow::GetComputedStyleHelper(nsIDOMElement* aElt,
       return NS_OK;
     }
 
-    presShell = mDocShell->GetPresShell();
+    mDocShell->GetPresShell(getter_AddRefs(presShell));
+
     if (!presShell) {
       return NS_OK;
     }
@@ -9172,7 +9142,8 @@ nsGlobalWindow::Observe(nsISupports* aSubject, const char* aTopic,
       false, false);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    event->SetTrusted(true);
+    rv = event->SetTrusted(true);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     bool dummy;
     return DispatchEvent(event, &dummy);
@@ -9555,11 +9526,11 @@ nsGlobalWindow::SetTimeoutOrInterval(nsIScriptTimeoutHandler *aHandler,
 
   // Now clamp the actual interval we will use for the timer based on
   uint32_t nestingLevel = sNestingLevel + 1;
-  uint32_t realInterval = interval;
+  int32_t realInterval = interval;
   if (aIsInterval || nestingLevel >= DOM_CLAMP_TIMEOUT_NESTING_LEVEL) {
     // Don't allow timeouts less than DOMMinTimeoutValue() from
     // now...
-    realInterval = NS_MAX(realInterval, uint32_t(DOMMinTimeoutValue()));
+    realInterval = NS_MAX(realInterval, DOMMinTimeoutValue());
   }
 
   // Get principal of currently executing code, save for execution of timeout.
@@ -9837,6 +9808,12 @@ nsGlobalWindow::RescheduleTimeout(nsTimeout* aTimeout, const TimeStamp& now,
 
   // Reschedule the OS timer. Don't bother returning any error codes if
   // this fails since the callers of this method don't care about them.
+
+  // Make sure to cast the unsigned PR_USEC_PER_MSEC to signed
+  // PRTime to make the division do the right thing on 64-bit
+  // platforms whether delay is positive or negative (which we
+  // know is always positive here, but cast anyways for
+  // consistency).
   nsresult rv = aTimeout->InitTimer(TimerCallback, delay.ToMilliseconds());
 
   if (NS_FAILED(rv)) {
@@ -10339,7 +10316,8 @@ nsGlobalWindow::GetScrollFrame()
     return nullptr;
   }
 
-  nsCOMPtr<nsIPresShell> presShell = mDocShell->GetPresShell();
+  nsCOMPtr<nsIPresShell> presShell;
+  mDocShell->GetPresShell(getter_AddRefs(presShell));
   if (presShell) {
     return presShell->GetRootScrollFrameAsScrollable();
   }
@@ -10790,7 +10768,7 @@ nsGlobalWindow::HasIndexedDBSupport()
 
 // static
 bool
-nsPIDOMWindow::HasPerformanceSupport()
+nsGlobalWindow::HasPerformanceSupport() 
 {
   return Preferences::GetBool("dom.enable_performance", false);
 }
@@ -11017,13 +10995,14 @@ nsGlobalChromeWindow::SetCursor(const nsAString& aCursor)
 
   if (presContext) {
     // Need root widget.
-    nsCOMPtr<nsIPresShell> presShell = mDocShell->GetPresShell();
+    nsCOMPtr<nsIPresShell> presShell;
+    mDocShell->GetPresShell(getter_AddRefs(presShell));
     NS_ENSURE_TRUE(presShell, NS_ERROR_FAILURE);
 
-    nsViewManager* vm = presShell->GetViewManager();
+    nsIViewManager* vm = presShell->GetViewManager();
     NS_ENSURE_TRUE(vm, NS_ERROR_FAILURE);
 
-    nsView* rootView = vm->GetRootView();
+    nsIView* rootView = vm->GetRootView();
     NS_ENSURE_TRUE(rootView, NS_ERROR_FAILURE);
 
     nsIWidget* widget = rootView->GetNearestWidget(nullptr);

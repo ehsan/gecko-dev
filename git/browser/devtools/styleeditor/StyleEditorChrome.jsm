@@ -383,10 +383,8 @@ StyleEditorChrome.prototype = {
         } else {
           // If a line or column was specified we move the caret appropriately.
           aEditor.sourceEditor.setCaretPosition(line - 1, col - 1);
-          this._styleSheetToSelect = null;
+          self._styleSheetToSelect = null;
         }
-      } else {
-        this._styleSheetToSelect = null;
       }
 
       this._view.activeSummary = summary;
@@ -402,7 +400,7 @@ StyleEditorChrome.prototype = {
         onEditorAdded: function SEC_selectSheet_onEditorAdded(aChrome, aEditor) {
           let sheet = self._styleSheetToSelect.sheet;
           if ((sheet && aEditor.styleSheet == sheet) ||
-              (aEditor.styleSheetIndex == 0 && sheet == null)) {
+              aEditor.styleSheetIndex == 0) {
             aChrome.removeChromeListener(this);
             select(aEditor);
           }

@@ -8,7 +8,6 @@
 #include "mozilla/Likely.h"
 
 #include "nsIHttpChannel.h"
-#include "nsSimpleURI.h"
 
 #include "RasterImage.h"
 #include "VectorImage.h"
@@ -81,9 +80,17 @@ ImageFactory::CreateImage(nsIRequest* aRequest,
                           bool aIsMultiPart,
                           uint32_t aInnerWindowId)
 {
+  nsresult rv;
+
   // Register our pref observers if we haven't yet.
   if (MOZ_UNLIKELY(!gInitializedPrefCaches))
     InitPrefCaches();
+
+  // Get the image's URI string.
+  nsAutoCString uriString;
+  rv = aURI ? aURI->GetSpec(uriString) : NS_ERROR_FAILURE;
+  if (NS_FAILED(rv))
+    uriString.Assign("<unknown image URI>");
 
   // Compute the image's initialization flags.
   uint32_t imageFlags = ComputeImageFlags(aURI, aIsMultiPart);
@@ -91,10 +98,10 @@ ImageFactory::CreateImage(nsIRequest* aRequest,
   // Select the type of image to create based on MIME type.
   if (aMimeType.Equals(SVG_MIMETYPE)) {
     return CreateVectorImage(aRequest, aStatusTracker, aMimeType,
-                             aURI, imageFlags, aInnerWindowId);
+                             uriString, imageFlags, aInnerWindowId);
   } else {
     return CreateRasterImage(aRequest, aStatusTracker, aMimeType,
-                             aURI, imageFlags, aInnerWindowId);
+                             uriString, imageFlags, aInnerWindowId);
   }
 }
 
@@ -116,7 +123,7 @@ ImageFactory::CreateAnonymousImage(const nsCString& aMimeType)
 
   nsRefPtr<RasterImage> newImage = new RasterImage();
 
-  rv = newImage->Init(nullptr, aMimeType.get(), Image::INIT_FLAG_NONE);
+  rv = newImage->Init(nullptr, aMimeType.get(), "<unknown>", Image::INIT_FLAG_NONE);
   NS_ENSURE_SUCCESS(rv, BadImage(newImage));
 
   return newImage.forget();
@@ -127,16 +134,16 @@ ImageFactory::CreateAnonymousImage(const nsCString& aMimeType)
 ImageFactory::CreateRasterImage(nsIRequest* aRequest,
                                 imgStatusTracker* aStatusTracker,
                                 const nsCString& aMimeType,
-                                nsIURI* aURI,
+                                const nsCString& aURIString,
                                 uint32_t aImageFlags,
                                 uint32_t aInnerWindowId)
 {
   nsresult rv;
 
-  nsRefPtr<RasterImage> newImage = new RasterImage(aStatusTracker, aURI);
+  nsRefPtr<RasterImage> newImage = new RasterImage(aStatusTracker);
 
   rv = newImage->Init(aStatusTracker->GetDecoderObserver(),
-                      aMimeType.get(), aImageFlags);
+                      aMimeType.get(), aURIString.get(), aImageFlags);
   NS_ENSURE_SUCCESS(rv, BadImage(newImage));
 
   newImage->SetInnerWindowID(aInnerWindowId);
@@ -176,16 +183,16 @@ ImageFactory::CreateRasterImage(nsIRequest* aRequest,
 ImageFactory::CreateVectorImage(nsIRequest* aRequest,
                                 imgStatusTracker* aStatusTracker,
                                 const nsCString& aMimeType,
-                                nsIURI* aURI,
+                                const nsCString& aURIString,
                                 uint32_t aImageFlags,
                                 uint32_t aInnerWindowId)
 {
   nsresult rv;
 
-  nsRefPtr<VectorImage> newImage = new VectorImage(aStatusTracker, aURI);
+  nsRefPtr<VectorImage> newImage = new VectorImage(aStatusTracker);
 
   rv = newImage->Init(aStatusTracker->GetDecoderObserver(),
-                      aMimeType.get(), aImageFlags);
+                      aMimeType.get(), aURIString.get(), aImageFlags);
   NS_ENSURE_SUCCESS(rv, BadImage(newImage));
 
   newImage->SetInnerWindowID(aInnerWindowId);

@@ -7,6 +7,9 @@ function test() {
 
   waitForExplicitFinish();
 
+  let pb = Cc["@mozilla.org/privatebrowsing;1"].
+           getService(Ci.nsIPrivateBrowsingService);
+
   // set the pref to 1 greater than it currently is so we have room for an extra
   // closed window
   let closedWindowCount = ss.getClosedWindowCount();

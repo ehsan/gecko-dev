@@ -27,8 +27,6 @@
 #ifdef MOZ_PEERCONNECTION
 #include "mtransport/runnable_utils.h"
 #endif
-
-#define DATACHANNEL_LOG(args) LOG(args)
 #include "DataChannel.h"
 #include "DataChannelProtocol.h"
 
@@ -154,12 +152,9 @@ DataChannelConnection::DataChannelConnection(DataConnectionListener *listener) :
 
 DataChannelConnection::~DataChannelConnection()
 {
-  LOG(("Deleting DataChannelConnection %p", (void *) this));
   // This may die on the MainThread, or on the STS thread
   MOZ_ASSERT(mState == CLOSED);
   MOZ_ASSERT(!mMasterSocket);
-  MOZ_ASSERT(mPending.GetSize() == 0);
-  // Already disconnected from sigslot/mTransportFlow
 }
 
 void
@@ -182,18 +177,6 @@ DataChannelConnection::Destroy()
 
   // We can't get any more new callbacks from the SCTP library
   // All existing callbacks have refs to DataChannelConnection
-
-  // nsDOMDataChannel objects have refs to DataChannels that have refs to us
-
-  if (mTransportFlow) {
-    MOZ_ASSERT(mSTS);
-    MOZ_ASSERT(NS_IsMainThread());
-    RUN_ON_THREAD(mSTS, WrapRunnable(nsRefPtr<DataChannelConnection>(this),
-                                     &DataChannelConnection::disconnect_all),
-                  NS_DISPATCH_NORMAL);
-    // safe to do now from Mainthread per ekr
-    mTransportFlow = nullptr;
-  }
 }
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(DataChannelConnection,
@@ -363,7 +346,7 @@ DataChannelConnection::StartDefer()
   if (!mTimerRunning) {
     rv = mDeferredTimer->InitWithCallback(this, mDeferTimeout,
                                           nsITimer::TYPE_ONE_SHOT);
-    NS_ENSURE_TRUE_VOID(rv == NS_OK);
+    NS_ENSURE_TRUE(rv == NS_OK, /* */);
 
     mTimerRunning = true;
   }
@@ -1075,15 +1058,15 @@ DataChannelConnection::HandleOpenResponseMessage(const struct rtcweb_datachannel
   streamOut = ntohs(rsp->reverse_stream);
   channel = FindChannelByStreamOut(streamOut);
 
-  NS_ENSURE_TRUE_VOID(channel);
-  NS_ENSURE_TRUE_VOID(channel->mState == CONNECTING);
+  NS_ENSURE_TRUE(channel, /* */);
+  NS_ENSURE_TRUE(channel->mState == CONNECTING, /* */);
 
   if (rsp->error) {
     LOG(("%s: error in response to open of channel %d (%s)",
          __FUNCTION__, streamOut, channel->mLabel.get()));
 
   } else {
-    NS_ENSURE_TRUE_VOID(!FindChannelByStreamIn(streamIn));
+    NS_ENSURE_TRUE(!FindChannelByStreamIn(streamIn), /* */);
 
     channel->mStreamIn = streamIn;
     channel->mState = OPEN;
@@ -1113,8 +1096,8 @@ DataChannelConnection::HandleOpenAckMessage(const struct rtcweb_datachannel_ack 
 
   channel = FindChannelByStreamIn(streamIn);
 
-  NS_ENSURE_TRUE_VOID(channel);
-  NS_ENSURE_TRUE_VOID(channel->mState == CONNECTING);
+  NS_ENSURE_TRUE(channel, /* */);
+  NS_ENSURE_TRUE(channel->mState == CONNECTING, /* */);
 
   channel->mState = channel->mReady ? DataChannel::OPEN : DataChannel::WAITING_TO_OPEN;
   if (channel->mState == OPEN) {
@@ -1148,11 +1131,11 @@ DataChannelConnection::HandleDataMessage(uint32_t ppid,
   channel = FindChannelByStreamIn(streamIn);
 
   // XXX A closed channel may trip this... check
-  NS_ENSURE_TRUE_VOID(channel);
-  NS_ENSURE_TRUE_VOID(channel->mState != CONNECTING);
+  NS_ENSURE_TRUE(channel, /* */);
+  NS_ENSURE_TRUE(channel->mState != CONNECTING, /* */);
 
   // XXX should this be a simple if, no warnings/debugbreaks?
-  NS_ENSURE_TRUE_VOID(channel->mState != CLOSED);
+  NS_ENSURE_TRUE(channel->mState != CLOSED, /* */);
 
   {
     nsAutoCString recvData(buffer, length);
@@ -1228,19 +1211,19 @@ DataChannelConnection::HandleMessage(const void *buffer, size_t length, uint32_t
 
   switch (ppid) {
     case DATA_CHANNEL_PPID_CONTROL:
-      NS_ENSURE_TRUE_VOID(length >= sizeof(*ack)); // Ack is the smallest
+      NS_ENSURE_TRUE(length >= sizeof(*ack), /* */); // Ack is the smallest
 
       msg = static_cast<const struct rtcweb_datachannel_ack *>(buffer);
       switch (msg->msg_type) {
         case DATA_CHANNEL_OPEN_REQUEST:
           LOG(("length %u, sizeof(*req) = %u", length, sizeof(*req)));
-          NS_ENSURE_TRUE_VOID(length >= sizeof(*req));
+          NS_ENSURE_TRUE(length >= sizeof(*req), /* */);
 
           req = static_cast<const struct rtcweb_datachannel_open_request *>(buffer);
           HandleOpenRequestMessage(req, length, streamIn);
           break;
         case DATA_CHANNEL_OPEN_RESPONSE:
-          NS_ENSURE_TRUE_VOID(length >= sizeof(*rsp));
+          NS_ENSURE_TRUE(length >= sizeof(*rsp), /* */);
 
           rsp = static_cast<const struct rtcweb_datachannel_open_response *>(buffer);
           HandleOpenResponseMessage(rsp, length, streamIn);
@@ -1524,11 +1507,8 @@ DataChannelConnection::HandleStreamResetEvent(const struct sctp_stream_reset_eve
 
           LOG(("Incoming: Channel %d outgoing/%d incoming closed, state %d",
                channel->mStreamOut, channel->mStreamIn, channel->mState));
-          MOZ_ASSERT(channel->mState == DataChannel::OPEN ||
-                     channel->mState == DataChannel::CLOSING ||
-                     channel->mState == DataChannel::WAITING_TO_OPEN);
-          if (channel->mState == DataChannel::OPEN ||
-              channel->mState == DataChannel::WAITING_TO_OPEN) {
+          MOZ_ASSERT(channel->mState == OPEN || channel->mState == CLOSING);
+          if (channel->mState == OPEN) {
             ResetOutgoingStream(channel->mStreamOut);
             NS_DispatchToMainThread(new DataChannelOnMessageAvailable(
                                       DataChannelOnMessageAvailable::ON_CHANNEL_CLOSED, this,
@@ -2030,10 +2010,6 @@ DataChannelConnection::Close(uint16_t streamOut)
   if (channel) {
     LOG(("Connection %p/Channel %p: Closing stream %d",
          (void *) channel->mConnection.get(), (void *) channel.get(), streamOut));
-    if (channel->mState == CLOSED || channel->mState == CLOSING) {
-      LOG(("Channel already closing/closed (%d)", channel->mState));
-      return;
-    }
     channel->mBufferedData.Clear();
     if (channel->mStreamOut != INVALID_STREAM)
       ResetOutgoingStream(channel->mStreamOut);
@@ -2063,10 +2039,8 @@ void DataChannelConnection::CloseAll()
 
   // Clean up any pending opens for channels
   nsRefPtr<DataChannel> channel;
-  while (nullptr != (channel = dont_AddRef(static_cast<DataChannel *>(mPending.PopFront())))) {
-    LOG(("closing pending channel %p, stream %d", channel.get(), channel->mStreamOut));
+  while (nullptr != (channel = dont_AddRef(static_cast<DataChannel *>(mPending.PopFront()))))
     channel->Close(); // also releases the ref on each iteration
-  }
 }
 
 DataChannel::~DataChannel()
@@ -2079,8 +2053,6 @@ DataChannel::~DataChannel()
 void
 DataChannel::Destroy()
 {
-  ENSURE_DATACONNECTION;
-
   LOG(("Destroying Data channel %d/%d", mStreamOut, mStreamIn));
   MOZ_ASSERT_IF(mStreamOut != INVALID_STREAM,
                 !mConnection->FindChannelByStreamOut(mStreamOut));
@@ -2100,7 +2072,6 @@ DataChannel::Close()
     return;
   }
   mState = CLOSING;
-  ENSURE_DATACONNECTION;
   mConnection->Close(mStreamOut);
 }
 
@@ -2116,8 +2087,6 @@ DataChannel::SetListener(DataChannelListener *aListener, nsISupports *aContext)
 void
 DataChannel::AppReady()
 {
-  ENSURE_DATACONNECTION;
-
   MutexAutoLock lock(mConnection->mLock);
 
   mReady = true;

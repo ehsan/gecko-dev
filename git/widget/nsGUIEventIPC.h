@@ -14,9 +14,9 @@ namespace IPC
 {
 
 template<>
-struct ParamTraits<mozilla::widget::BaseEventFlags>
+struct ParamTraits<mozilla::widget::EventFlags>
 {
-  typedef mozilla::widget::BaseEventFlags paramType;
+  typedef mozilla::widget::EventFlags paramType;
 
   static void Write(Message* aMsg, const paramType& aParam)
   {

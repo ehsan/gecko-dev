@@ -62,7 +62,7 @@ UpdateProcess.prototype = {
    */
   schedule: function UP_schedule()
   {
-    if (this.canceled) {
+    if (this.cancelled) {
       return;
     }
     this._timeout = this.win.setTimeout(this._timeoutHandler.bind(this), 0);
@@ -100,7 +100,7 @@ UpdateProcess.prototype = {
   _runBatch: function Y_runBatch()
   {
     let time = Date.now();
-    while(!this.canceled) {
+    while(!this.cancelled) {
       // Continue until iter.next() throws...
       let next = this.iter.next();
       this.onItem(next[1]);
@@ -133,7 +133,6 @@ this.CssHtmlTree = function CssHtmlTree(aStyleInspector)
   this.getRTLAttr = chromeReg.isLocaleRTL("global") ? "rtl" : "ltr";
 
   // Create bound methods.
-  this.siFocusWindow = this.focusWindow.bind(this);
   this.siBoundMenuUpdate = this.computedViewMenuUpdate.bind(this);
   this.siBoundCopy = this.computedViewCopy.bind(this);
   this.siBoundCopyDeclaration = this.computedViewCopyDeclaration.bind(this);
@@ -141,12 +140,12 @@ this.CssHtmlTree = function CssHtmlTree(aStyleInspector)
   this.siBoundCopyPropertyValue = this.computedViewCopyPropertyValue.bind(this);
 
   this.styleDocument.addEventListener("copy", this.siBoundCopy);
-  this.styleDocument.addEventListener("mousedown", this.siFocusWindow);
 
   // Nodes used in templating
   this.root = this.styleDocument.getElementById("root");
   this.templateRoot = this.styleDocument.getElementById("templateRoot");
   this.propertyContainer = this.styleDocument.getElementById("propertyContainer");
+  this.panel = aStyleInspector.panel;
 
   // No results text.
   this.noResults = this.styleDocument.getElementById("noResults");
@@ -255,13 +254,6 @@ CssHtmlTree.prototype = {
     this.viewedElement = aElement;
     this._unmatchedProperties = null;
     this._matchedProperties = null;
-
-    if (!aElement) {
-      if (this._refreshProcess) {
-        this._refreshProcess.cancel();
-      }
-      return;
-    }
 
     if (this.htmlComplete) {
       this.refreshSourceFilter();
@@ -566,17 +558,6 @@ CssHtmlTree.prototype = {
   },
 
   /**
-   * Focus the window on mousedown.
-   *
-   * @param aEvent The event object
-   */
-  focusWindow: function si_focusWindow(aEvent)
-  {
-    let win = this.styleDocument.defaultView;
-    win.focus();
-  },
-
-  /**
    * Copy selected text.
    *
    * @param aEvent The event object
@@ -723,7 +704,6 @@ CssHtmlTree.prototype = {
 
     // Remove bound listeners
     this.styleDocument.removeEventListener("copy", this.siBoundCopy);
-    this.styleDocument.removeEventListener("mousedown", this.siFocusWindow);
 
     // Nodes used in templating
     delete this.root;
@@ -1210,13 +1190,13 @@ SelectorView.prototype = {
     let result = this.selectorInfo.selector.text;
     if (this.selectorInfo.elementStyle) {
       let source = this.selectorInfo.sourceElement;
-      let inspector = this.tree.styleInspector.inspector;
-
-      if (inspector.selection.node == source) {
+      let IUI = this.tree.styleInspector.IUI;
+      if (IUI && IUI.selection == source) {
         result = "this";
       } else {
         result = CssLogic.getShortName(source);
       }
+
       result += ".style";
     }
 

@@ -884,15 +884,6 @@ JSCompartment::updateForDebugMode(FreeOp *fop, AutoDebugModeGC &dmgc)
 bool
 JSCompartment::addDebuggee(JSContext *cx, js::GlobalObject *global)
 {
-    AutoDebugModeGC dmgc(cx->runtime);
-    return addDebuggee(cx, global, dmgc);
-}
-
-bool
-JSCompartment::addDebuggee(JSContext *cx,
-                           js::GlobalObject *global,
-                           AutoDebugModeGC &dmgc)
-{
     bool wasEnabled = debugMode();
     if (!debuggees.put(global)) {
         js_ReportOutOfMemory(cx);
@@ -900,6 +891,7 @@ JSCompartment::addDebuggee(JSContext *cx,
     }
     debugModeBits |= DebugFromJS;
     if (!wasEnabled) {
+        AutoDebugModeGC dmgc(cx->runtime);
         updateForDebugMode(cx->runtime->defaultFreeOp(), dmgc);
     }
     return true;
@@ -908,16 +900,6 @@ JSCompartment::addDebuggee(JSContext *cx,
 void
 JSCompartment::removeDebuggee(FreeOp *fop,
                               js::GlobalObject *global,
-                              js::GlobalObjectSet::Enum *debuggeesEnum)
-{
-    AutoDebugModeGC dmgc(rt);
-    return removeDebuggee(fop, global, dmgc, debuggeesEnum);
-}
-
-void
-JSCompartment::removeDebuggee(FreeOp *fop,
-                              js::GlobalObject *global,
-                              AutoDebugModeGC &dmgc,
                               js::GlobalObjectSet::Enum *debuggeesEnum)
 {
     bool wasEnabled = debugMode();
@@ -930,6 +912,7 @@ JSCompartment::removeDebuggee(FreeOp *fop,
     if (debuggees.empty()) {
         debugModeBits &= ~DebugFromJS;
         if (wasEnabled && !debugMode()) {
+            AutoDebugModeGC dmgc(rt);
             DebugScopes::onCompartmentLeaveDebugMode(this);
             updateForDebugMode(fop, dmgc);
         }

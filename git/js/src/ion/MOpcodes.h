@@ -29,9 +29,7 @@ namespace ion {
     _(CheckOverRecursed)                                                    \
     _(RecompileCheck)                                                       \
     _(DefVar)                                                               \
-    _(DefFun)                                                               \
     _(CreateThis)                                                           \
-    _(CreateThisWithProto)                                                  \
     _(CreateThisWithTemplate)                                               \
     _(PrepareCall)                                                          \
     _(PassArg)                                                              \

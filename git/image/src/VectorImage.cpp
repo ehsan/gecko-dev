@@ -169,9 +169,8 @@ NS_IMPL_ISUPPORTS3(VectorImage,
 //------------------------------------------------------------------------------
 // Constructor / Destructor
 
-VectorImage::VectorImage(imgStatusTracker* aStatusTracker,
-                         nsIURI* aURI /* = nullptr */) :
-  ImageResource(aStatusTracker, aURI), // invoke superclass's constructor
+VectorImage::VectorImage(imgStatusTracker* aStatusTracker) :
+  Image(aStatusTracker), // invoke superclass's constructor
   mRestrictedRegion(0, 0, 0, 0),
   mIsInitialized(false),
   mIsFullyLoaded(false),
@@ -191,6 +190,7 @@ VectorImage::~VectorImage()
 nsresult
 VectorImage::Init(imgDecoderObserver* aObserver,
                   const char* aMimeType,
+                  const char* aURIString,
                   uint32_t aFlags)
 {
   // We don't support re-initialization
@@ -297,7 +297,7 @@ VectorImage::StopAnimation()
 bool
 VectorImage::ShouldAnimate()
 {
-  return ImageResource::ShouldAnimate() && mIsFullyLoaded && mHaveAnimations;
+  return Image::ShouldAnimate() && mIsFullyLoaded && mHaveAnimations;
 }
 
 //------------------------------------------------------------------------------

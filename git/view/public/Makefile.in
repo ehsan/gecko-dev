@@ -13,8 +13,9 @@ include $(DEPTH)/config/autoconf.mk
 MODULE		= view
 
 EXPORTS		= \
-		nsView.h \
-		nsViewManager.h \
+		nsIView.h \
+		nsIViewManager.h \
+		nsViewsCID.h \
 		nsIScrollPositionListener.h \
 		$(NULL)
 

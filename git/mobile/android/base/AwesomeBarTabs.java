@@ -20,13 +20,10 @@ import android.view.inputmethod.InputMethodManager;
 import android.widget.TabHost;
 import android.widget.TabWidget;
 
-public class AwesomeBarTabs extends TabHost
-                            implements LightweightTheme.OnChangeListener { 
+public class AwesomeBarTabs extends TabHost {
     private static final String LOGTAG = "GeckoAwesomeBarTabs";
 
     private Context mContext;
-    private GeckoActivity mActivity;
-
     private boolean mInflated;
     private LayoutInflater mInflater;
     private OnUrlOpenListener mUrlOpenListener;
@@ -44,7 +41,7 @@ public class AwesomeBarTabs extends TabHost
     private static final int MAX_RESULTS = 100;
 
     public interface OnUrlOpenListener {
-        public void onUrlOpen(String url, String title);
+        public void onUrlOpen(String url);
         public void onSearch(String engine, String text);
         public void onEditSuggestion(String suggestion);
     }
@@ -108,8 +105,6 @@ public class AwesomeBarTabs extends TabHost
         Log.d(LOGTAG, "Creating AwesomeBarTabs");
 
         mContext = context;
-        mActivity = (GeckoActivity) context;
-
         mInflated = false;
         mInflater = (LayoutInflater) mContext.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
     }
@@ -179,50 +174,20 @@ public class AwesomeBarTabs extends TabHost
         filter("");
     }
 
-    @Override
-    public void onAttachedToWindow() {
-        super.onAttachedToWindow();
-        mActivity.getLightweightTheme().addListener(this);
-    }
-
-    @Override
-    public void onDetachedFromWindow() {
-        super.onDetachedFromWindow();
-        mActivity.getLightweightTheme().removeListener(this);
-    }
-
-    @Override
-    public void onLightweightThemeChanged() {
-        styleSelectedTab();
-    }
-
-    @Override
-    public void onLightweightThemeReset() {
-        styleSelectedTab();
-    }
-
     private void styleSelectedTab() {
         int selIndex = mViewPager.getCurrentItem();
         TabWidget tabWidget = getTabWidget();
-        boolean isPrivate = false;
-
-        if (mTarget != null && mTarget.equals(AwesomeBar.Target.CURRENT_TAB.name())) {
-            Tab tab = Tabs.getInstance().getSelectedTab();
-            if (tab != null)
-                isPrivate = tab.isPrivate();
-        }
 
         for (int i = 0; i < tabWidget.getTabCount(); i++) {
             GeckoTextView view = (GeckoTextView) tabWidget.getChildTabViewAt(i);
-            if (isPrivate) {
-                view.setPrivateMode((i == selIndex) ? false : true);
-            } else {
-                if (i == selIndex)
-                    view.resetTheme();
-                else if (mActivity.getLightweightTheme().isEnabled())
-                    view.setTheme(mActivity.getLightweightTheme().isLightTheme());
-                else
-                    view.resetTheme();
+            if (mTarget != null && mTarget.equals(AwesomeBar.Target.CURRENT_TAB.name())) {
+                Tab tab = Tabs.getInstance().getSelectedTab();
+                if (tab != null && tab.isPrivate()) {
+                    if (i == selIndex)
+                        view.setPrivateMode(false);
+                    else
+                        view.setPrivateMode(true);
+                }
             }
 
             if (i == selIndex)
@@ -363,7 +328,7 @@ public class AwesomeBarTabs extends TabHost
             drawable.setAlpha(255, 0);
 
             StateListDrawable stateList = new StateListDrawable();
-            stateList.addState(new int[] { R.attr.state_private }, mActivity.getResources().getDrawable(R.drawable.abouthome_bg_pb_repeat));
+            stateList.addState(new int[] { R.attr.state_private }, mActivity.getResources().getDrawable(R.drawable.address_bar_bg_private));
             stateList.addState(new int[] {}, drawable);
 
             int[] padding =  new int[] { getPaddingLeft(),

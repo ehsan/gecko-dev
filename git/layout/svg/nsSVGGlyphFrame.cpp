@@ -1341,7 +1341,7 @@ nsSVGGlyphFrame::SetGlyphPosition(gfxPoint *aPosition, bool aForceGlobalTransfor
 
 nsresult
 nsSVGGlyphFrame::GetStartPositionOfChar(uint32_t charnum,
-                                        nsISupports **_retval)
+                                        nsIDOMSVGPoint **_retval)
 {
   *_retval = nullptr;
 
@@ -1355,7 +1355,7 @@ nsSVGGlyphFrame::GetStartPositionOfChar(uint32_t charnum,
 
 nsresult
 nsSVGGlyphFrame::GetEndPositionOfChar(uint32_t charnum,
-                                      nsISupports **_retval)
+                                      nsIDOMSVGPoint **_retval)
 {
   *_retval = nullptr;
 
@@ -1600,9 +1600,11 @@ nsSVGGlyphFrame::GetSubStringLength(uint32_t charnum, uint32_t fragmentChars)
 }
 
 int32_t
-nsSVGGlyphFrame::GetCharNumAtPosition(nsISVGPoint *point)
+nsSVGGlyphFrame::GetCharNumAtPosition(nsIDOMSVGPoint *point)
 {
-  float xPos = point->X(), yPos = point->Y();
+  float xPos, yPos;
+  point->GetX(&xPos);
+  point->GetY(&yPos);
 
   nsRefPtr<gfxContext> tmpCtx = MakeTmpCtx();
   CharacterIterator iter(this, false);

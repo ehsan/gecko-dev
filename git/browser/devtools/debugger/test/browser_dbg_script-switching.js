@@ -28,8 +28,6 @@ function test()
     gDebugger = gPane.panelWin;
     resumed = true;
 
-    gDebugger.addEventListener("Debugger:SourceShown", onScriptShown);
-
     gDebugger.DebuggerController.activeThread.addOneTimeListener("framesadded", function() {
       framesAdded = true;
       executeSoon(startTest);
@@ -46,10 +44,12 @@ function test()
     executeSoon(startTest);
   }
 
+  window.addEventListener("Debugger:SourceShown", onScriptShown);
+
   function startTest()
   {
     if (scriptShown && framesAdded && resumed && !testStarted) {
-      gDebugger.removeEventListener("Debugger:SourceShown", onScriptShown);
+      window.removeEventListener("Debugger:SourceShown", onScriptShown);
       testStarted = true;
       Services.tm.currentThread.dispatch({ run: testScriptsDisplay }, 0);
     }
@@ -87,10 +87,10 @@ function testScriptsDisplay() {
   is(gDebugger.editor.getDebugLocation(), 5,
      "editor debugger location is correct.");
 
-  gDebugger.addEventListener("Debugger:SourceShown", function _onEvent(aEvent) {
+  window.addEventListener("Debugger:SourceShown", function _onEvent(aEvent) {
     let url = aEvent.detail.url;
     if (url.indexOf("-01.js") != -1) {
-      gDebugger.removeEventListener(aEvent.type, _onEvent);
+      window.removeEventListener(aEvent.type, _onEvent);
       testSwitchPaused();
     }
   });
@@ -110,10 +110,10 @@ function testSwitchPaused()
      "editor debugger location has been cleared.");
 
   gDebugger.DebuggerController.activeThread.resume(function() {
-    gDebugger.addEventListener("Debugger:SourceShown", function _onEvent(aEvent) {
+    window.addEventListener("Debugger:SourceShown", function _onEvent(aEvent) {
       let url = aEvent.detail.url;
       if (url.indexOf("-02.js") != -1) {
-        gDebugger.removeEventListener(aEvent.type, _onEvent);
+        window.removeEventListener(aEvent.type, _onEvent);
         testSwitchRunning();
       }
     });

@@ -35,9 +35,11 @@ public:
     nsresult rv = InitEvent(aEventType, false, false);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    SetTrusted(true);
+    rv = SetTrusted(true);
+    NS_ENSURE_SUCCESS(rv, rv);
 
-    nsDOMEvent* thisEvent = this;
+    nsIDOMEvent* thisEvent =
+      static_cast<nsDOMEvent*>(const_cast<StkCommandEvent*>(this));
 
     bool dummy;
     rv = aTarget->DispatchEvent(thisEvent, &dummy);

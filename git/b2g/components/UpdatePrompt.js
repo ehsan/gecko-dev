@@ -18,9 +18,14 @@ let log =
   function log_dump(msg) { dump("UpdatePrompt: "+ msg +"\n"); } :
   function log_noop(msg) { };
 
-const PREF_APPLY_PROMPT_TIMEOUT = "b2g.update.apply-prompt-timeout";
-const PREF_APPLY_IDLE_TIMEOUT   = "b2g.update.apply-idle-timeout";
+const APPLY_PROMPT_TIMEOUT =
+      Services.prefs.getIntPref("b2g.update.apply-prompt-timeout");
+const APPLY_IDLE_TIMEOUT =
+      Services.prefs.getIntPref("b2g.update.apply-idle-timeout");
+const SELF_DESTRUCT_TIMEOUT =
+      Services.prefs.getIntPref("b2g.update.self-destruct-timeout");
 
+const APPLY_IDLE_TIMEOUT_SECONDS = APPLY_IDLE_TIMEOUT / 1000;
 const NETWORK_ERROR_OFFLINE = 111;
 
 XPCOMUtils.defineLazyServiceGetter(Services, "aus",
@@ -103,14 +108,6 @@ UpdatePrompt.prototype = {
   _waitingForIdle: false,
   _updateCheckListner: null,
 
-  get applyPromptTimeout() {
-    return Services.prefs.getIntPref(PREF_APPLY_PROMPT_TIMEOUT);
-  },
-
-  get applyIdleTimeout() {
-    return Services.prefs.getIntPref(PREF_APPLY_IDLE_TIMEOUT);
-  },
-
   // nsIUpdatePrompt
 
   // FIXME/bug 737601: we should have users opt-in to downloading
@@ -133,15 +130,14 @@ UpdatePrompt.prototype = {
     // update quietly without user intervention.
     this.sendUpdateEvent("update-downloaded", aUpdate);
 
-    if (Services.idle.idleTime >= this.applyIdleTimeout) {
+    if (Services.idle.idleTime >= APPLY_IDLE_TIMEOUT) {
       this.showApplyPrompt(aUpdate);
       return;
     }
 
-    let applyIdleTimeoutSeconds = this.applyIdleTimeout / 1000;
     // We haven't been idle long enough, so register an observer
     log("Update is ready to apply, registering idle timeout of " +
-        applyIdleTimeoutSeconds + " seconds before prompting.");
+        APPLY_IDLE_TIMEOUT_SECONDS + " seconds before prompting.");
 
     this._update = aUpdate;
     this.waitForIdle();
@@ -169,7 +165,7 @@ UpdatePrompt.prototype = {
     }
 
     this._waitingForIdle = true;
-    Services.idle.addIdleObserver(this, this.applyIdleTimeout / 1000);
+    Services.idle.addIdleObserver(this, APPLY_IDLE_TIMEOUT_SECONDS);
     Services.obs.addObserver(this, "quit-application", false);
   },
 
@@ -189,18 +185,18 @@ UpdatePrompt.prototype = {
 
     // Schedule a fallback timeout in case the UI is unable to respond or show
     // a prompt for some reason.
-    this._applyPromptTimer = this.createTimer(this.applyPromptTimeout);
+    this._applyPromptTimer = this.createTimer(APPLY_PROMPT_TIMEOUT);
   },
 
-  _copyProperties: ["appVersion", "buildID", "detailsURL", "displayVersion",
-                    "errorCode", "isOSUpdate", "platformVersion",
-                    "previousAppVersion", "state", "statusText"],
-
   sendUpdateEvent: function UP_sendUpdateEvent(aType, aUpdate) {
-    let detail = {};
-    for each (let property in this._copyProperties) {
-      detail[property] = aUpdate[property];
-    }
+    let detail = {
+      displayVersion: aUpdate.displayVersion,
+      detailsURL: aUpdate.detailsURL,
+      statusText: aUpdate.statusText,
+      state: aUpdate.state,
+      errorCode: aUpdate.errorCode,
+      isOSUpdate: aUpdate.isOSUpdate
+    };
 
     let patch = aUpdate.selectedPatch;
     if (!patch && aUpdate.patchCount > 0) {
@@ -433,7 +429,7 @@ UpdatePrompt.prototype = {
         this.showApplyPrompt(this._update);
         // Fall through
       case "quit-application":
-        Services.idle.removeIdleObserver(this, this.applyIdleTimeout / 1000);
+        Services.idle.removeIdleObserver(this, APPLY_IDLE_TIMEOUT_SECONDS);
         Services.obs.removeObserver(this, "quit-application");
         break;
       case "update-check-start":

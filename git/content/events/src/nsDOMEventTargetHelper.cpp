@@ -221,7 +221,8 @@ nsDOMEventTargetHelper::DispatchTrustedEvent(const nsAString& aEventName)
 nsresult
 nsDOMEventTargetHelper::DispatchTrustedEvent(nsIDOMEvent* event)
 {
-  event->SetTrusted(true);
+  nsresult rv = event->SetTrusted(true);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   bool dummy;
   return DispatchEvent(event, &dummy);

@@ -10,11 +10,9 @@
 #include "nsGkAtoms.h"
 #include "nsIDOMSVGTransformable.h"
 #include "nsIFrame.h"
-#include "SVGGraphicsElement.h"
+#include "nsSVGGraphicElement.h"
 #include "nsSVGIntegrationUtils.h"
 #include "nsSVGUtils.h"
-
-using namespace mozilla::dom;
 
 //----------------------------------------------------------------------
 // Implementation
@@ -77,7 +75,7 @@ nsSVGGFrame::GetCanvasTM(uint32_t aFor)
     NS_ASSERTION(mParent, "null parent");
 
     nsSVGContainerFrame *parent = static_cast<nsSVGContainerFrame*>(mParent);
-    SVGGraphicsElement *content = static_cast<SVGGraphicsElement*>(mContent);
+    nsSVGGraphicElement *content = static_cast<nsSVGGraphicElement*>(mContent);
 
     gfxMatrix tm = content->PrependLocalTransformsTo(parent->GetCanvasTM(aFor));
 

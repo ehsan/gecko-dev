@@ -974,7 +974,7 @@ void MediaDecoder::NotifyPrincipalChanged()
 
 void MediaDecoder::NotifyBytesConsumed(int64_t aBytes)
 {
-  NS_ENSURE_TRUE_VOID(mDecoderStateMachine);
+  NS_ENSURE_TRUE(mDecoderStateMachine, );
   ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
   MOZ_ASSERT(OnStateMachineThread() || mDecoderStateMachine->OnDecodeThread());
   if (!mIgnoreProgressData) {
@@ -1206,7 +1206,7 @@ void MediaDecoder::SetDuration(double aDuration)
 
 void MediaDecoder::SetMediaDuration(int64_t aDuration)
 {
-  NS_ENSURE_TRUE_VOID(GetStateMachine());
+  NS_ENSURE_TRUE(GetStateMachine(), );
   GetStateMachine()->SetDuration(aDuration);
 }
 
@@ -1274,7 +1274,7 @@ void MediaDecoder::SetFragmentEndTime(double aTime)
 
 void MediaDecoder::SetMediaEndTime(int64_t aTime)
 {
-  NS_ENSURE_TRUE_VOID(GetStateMachine());
+  NS_ENSURE_TRUE(GetStateMachine(), );
   GetStateMachine()->SetMediaEndTime(aTime);
 }
 

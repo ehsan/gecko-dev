@@ -16,7 +16,6 @@
 #include "prio.h"
 
 #include "mozilla/Scoped.h"
-#include <errno.h>
 
 namespace mozilla {
 
@@ -48,9 +47,7 @@ struct ScopedCloseFDTraits
   static type empty() { return -1; }
   static void release(type fd) {
     if (fd != -1) {
-      while ((close(fd) == -1) && (errno == EINTR)) {
-        ;
-      }
+      close(fd);
     }
   }
 };

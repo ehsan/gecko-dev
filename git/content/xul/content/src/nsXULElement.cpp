@@ -54,7 +54,7 @@
 #include "mozilla/css/StyleRule.h"
 #include "nsIStyleSheet.h"
 #include "nsIURL.h"
-#include "nsViewManager.h"
+#include "nsIViewManager.h"
 #include "nsIWidget.h"
 #include "nsIXULDocument.h"
 #include "nsIXULTemplateBuilder.h"
@@ -1126,7 +1126,6 @@ nsXULElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
             // Stop building the event target chain for the original event.
             // We don't want it to propagate to any DOM nodes.
             aVisitor.mCanHandle = false;
-            aVisitor.mAutomaticChromeDispatch = false;
 
             // XXX sXBL/XBL2 issue! Owner or current document?
             nsCOMPtr<nsIDOMDocument> domDoc(do_QueryInterface(GetCurrentDoc()));
@@ -1665,7 +1664,7 @@ nsXULElement::HideWindowChrome(bool aShouldHide)
         nsPresContext *presContext = shell->GetPresContext();
 
         if (frame && presContext && presContext->IsChrome()) {
-            nsView* view = frame->GetClosestView();
+            nsIView* view = frame->GetClosestView();
 
             if (view) {
                 nsIWidget* w = view->GetWidget();
@@ -1826,12 +1825,6 @@ nsXULElement::RecompileScriptEventListeners()
     }
 }
 
-bool
-nsXULElement::IsEventAttributeName(nsIAtom *aName)
-{
-  return nsContentUtils::IsEventAttributeName(aName, EventNameType_XUL);
-}
-
 NS_IMPL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(nsXULPrototypeNode)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXULPrototypeNode)
@@ -1865,9 +1858,8 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsXULPrototypeNode)
     if (tmp->mType == nsXULPrototypeNode::eType_Script) {
         nsXULPrototypeScript *script =
             static_cast<nsXULPrototypeScript*>(tmp);
-        NS_IMPL_CYCLE_COLLECTION_TRACE_JS_CALLBACK(script->GetScriptObject(),
-                                                   "mScriptObject")
-
+        NS_IMPL_CYCLE_COLLECTION_TRACE_JS_CALLBACK(script->mScriptObject.mObject,
+                                                   "mScriptObject.mObject")
     }
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
@@ -1983,7 +1975,7 @@ nsXULPrototypeElement::Serialize(nsIObjectOutputStream* aStream,
                   rv = tmp;
                 }
 
-                if (script->GetScriptObject()) {
+                if (script->mScriptObject.mObject) {
                     // This may return NS_OK without muxing script->mSrcURI's
                     // data into the cache file, in the case where that
                     // muxed document is already there (written by a prior
@@ -2232,22 +2224,6 @@ nsXULPrototypeElement::Unlink()
     mAttributes = nullptr;
 }
 
-void
-nsXULPrototypeElement::TraceAllScripts(JSTracer* aTrc)
-{
-    for (uint32_t i = 0; i < mChildren.Length(); ++i) {
-        nsXULPrototypeNode* child = mChildren[i];
-        if (child->mType == nsXULPrototypeNode::eType_Element) {
-            static_cast<nsXULPrototypeElement*>(child)->TraceAllScripts(aTrc);
-        } else if (child->mType == nsXULPrototypeNode::eType_Script) {
-            JSScript* script = static_cast<nsXULPrototypeScript*>(child)->GetScriptObject();
-            if (script) {
-                JS_CALL_SCRIPT_TRACER(aTrc, script, "active window XUL prototype script");
-            }
-        }
-    }
-}
-
 //----------------------------------------------------------------------
 //
 // nsXULPrototypeScript
@@ -2260,7 +2236,7 @@ nsXULPrototypeScript::nsXULPrototypeScript(uint32_t aLineNo, uint32_t aVersion)
       mOutOfLine(true),
       mSrcLoadWaiters(nullptr),
       mLangVersion(aVersion),
-      mScriptObject(nullptr)
+      mScriptObject()
 {
 }
 
@@ -2277,9 +2253,9 @@ nsXULPrototypeScript::Serialize(nsIObjectOutputStream* aStream,
 {
     nsIScriptContext *context = aGlobal->GetScriptContext();
     NS_ASSERTION(!mSrcLoading || mSrcLoadWaiters != nullptr ||
-                 !mScriptObject,
+                 !mScriptObject.mObject,
                  "script source still loading when serializing?!");
-    if (!mScriptObject)
+    if (!mScriptObject.mObject)
         return NS_ERROR_FAILURE;
 
     // Write basic prototype data
@@ -2289,7 +2265,7 @@ nsXULPrototypeScript::Serialize(nsIObjectOutputStream* aStream,
     rv = aStream->Write32(mLangVersion);
     if (NS_FAILED(rv)) return rv;
     // And delegate the writing to the nsIScriptContext
-    rv = context->Serialize(aStream, mScriptObject);
+    rv = context->Serialize(aStream, mScriptObject.mObject);
     if (NS_FAILED(rv)) return rv;
 
     return NS_OK;
@@ -2352,7 +2328,7 @@ nsXULPrototypeScript::Deserialize(nsIObjectInputStream* aStream,
     nsresult rv;
 
     NS_ASSERTION(!mSrcLoading || mSrcLoadWaiters != nullptr ||
-                 !mScriptObject,
+                 !mScriptObject.mObject,
                  "prototype script not well-initialized when deserializing?!");
 
     // Read basic prototype data
@@ -2405,7 +2381,7 @@ nsXULPrototypeScript::DeserializeOutOfLine(nsIObjectInputStream* aInput,
             }
         }
 
-        if (!mScriptObject) {
+        if (! mScriptObject.mObject) {
             if (mSrcURI) {
                 rv = cache->GetInputStream(mSrcURI, getter_AddRefs(objectInput));
             } 
@@ -2426,7 +2402,7 @@ nsXULPrototypeScript::DeserializeOutOfLine(nsIObjectInputStream* aInput,
                     bool isChrome = false;
                     mSrcURI->SchemeIs("chrome", &isChrome);
                     if (isChrome)
-                        cache->PutScript(mSrcURI, mScriptObject);
+                        cache->PutScript(mSrcURI, mScriptObject.mObject);
                 }
                 cache->FinishInputStream(mSrcURI);
             } else {
@@ -2513,8 +2489,8 @@ nsXULPrototypeScript::Compile(const PRUnichar* aText,
 void
 nsXULPrototypeScript::UnlinkJSObjects()
 {
-    if (mScriptObject) {
-        mScriptObject = nullptr;
+    if (mScriptObject.mObject) {
+        mScriptObject.mObject = nullptr;
         nsContentUtils::DropJSObjects(this);
     }
 }
@@ -2522,15 +2498,15 @@ nsXULPrototypeScript::UnlinkJSObjects()
 void
 nsXULPrototypeScript::Set(JSScript* aObject)
 {
-    MOZ_ASSERT(!mScriptObject, "Leaking script object.");
+    NS_ASSERTION(!mScriptObject.mObject, "Leaking script object.");
     if (!aObject) {
-        mScriptObject = nullptr;
+        mScriptObject.mObject = nullptr;
         return;
     }
 
     nsContentUtils::HoldJSObjects(
         this, NS_CYCLE_COLLECTION_PARTICIPANT(nsXULPrototypeNode));
-    mScriptObject = aObject;
+    mScriptObject.mObject = aObject;
 }
 
 //----------------------------------------------------------------------

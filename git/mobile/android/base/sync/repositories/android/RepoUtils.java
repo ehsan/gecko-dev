@@ -4,14 +4,11 @@
 
 package org.mozilla.gecko.sync.repositories.android;
 
-import java.io.IOException;
-
 import org.json.simple.JSONArray;
+import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.mozilla.gecko.db.BrowserContract;
-import org.mozilla.gecko.sync.ExtendedJSONObject;
 import org.mozilla.gecko.sync.Logger;
-import org.mozilla.gecko.sync.NonArrayJSONException;
 import org.mozilla.gecko.sync.repositories.NullCursorException;
 import org.mozilla.gecko.sync.repositories.domain.ClientRecord;
 import org.mozilla.gecko.sync.repositories.domain.HistoryRecord;
@@ -115,13 +112,7 @@ public class RepoUtils {
       return new JSONArray();
     }
     try {
-      return ExtendedJSONObject.parseJSONArray(getStringFromCursor(cur, colId));
-    } catch (NonArrayJSONException e) {
-      Logger.error(LOG_TAG, "JSON parsing error for " + colId, e);
-      return null;
-    } catch (IOException e) {
-      Logger.error(LOG_TAG, "JSON parsing error for " + colId, e);
-      return null;
+      return (JSONArray) new JSONParser().parse(getStringFromCursor(cur, colId));
     } catch (ParseException e) {
       Logger.error(LOG_TAG, "JSON parsing error for " + colId, e);
       return null;

@@ -44,13 +44,14 @@ static uint64_t sFontSetGeneration = 0;
 // TODO: support for unicode ranges not yet implemented
 
 gfxProxyFontEntry::gfxProxyFontEntry(const nsTArray<gfxFontFaceSrc>& aFontFaceSrcList,
+             gfxMixedFontFamily *aFamily,
              uint32_t aWeight,
              uint32_t aStretch,
              uint32_t aItalicStyle,
              const nsTArray<gfxFontFeature>& aFeatureSettings,
              uint32_t aLanguageOverride,
              gfxSparseBitSet *aUnicodeRanges)
-    : gfxFontEntry(NS_LITERAL_STRING("Proxy")),
+    : gfxFontEntry(NS_LITERAL_STRING("Proxy"), aFamily),
       mLoadingState(NOT_LOADING),
       mUnsupportedFormat(false),
       mLoader(nullptr)
@@ -119,7 +120,7 @@ gfxUserFontSet::AddFontFace(const nsAString& aFamilyName,
     uint32_t languageOverride =
         gfxFontStyle::ParseFontLanguageOverride(aLanguageOverride);
     proxyEntry =
-        new gfxProxyFontEntry(aFontFaceSrcList, aWeight, aStretch,
+        new gfxProxyFontEntry(aFontFaceSrcList, family, aWeight, aStretch,
                               aItalicStyle,
                               aFeatureSettings,
                               languageOverride,
@@ -788,33 +789,6 @@ gfxUserFontSet::GetFamily(const nsAString& aFamilyName) const
     ToLowerCase(key);
 
     return mFontFamilies.GetWeak(key);
-}
-
-struct FindFamilyCallbackData {
-    gfxFontEntry  *mFontEntry;
-    gfxFontFamily *mFamily;
-};
-
-static PLDHashOperator
-FindFamilyCallback(const nsAString&    aName,
-                   gfxMixedFontFamily* aFamily,
-                   void*               aUserArg)
-{
-    FindFamilyCallbackData *d = static_cast<FindFamilyCallbackData*>(aUserArg);
-    if (aFamily->ContainsFace(d->mFontEntry)) {
-        d->mFamily = aFamily;
-        return PL_DHASH_STOP;
-    }
-
-    return PL_DHASH_NEXT;
-}
-
-gfxFontFamily*
-gfxUserFontSet::FindFamilyFor(gfxFontEntry* aFontEntry) const
-{
-    FindFamilyCallbackData d = { aFontEntry, nullptr };
-    mFontFamilies.EnumerateRead(FindFamilyCallback, &d);
-    return d.mFamily;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

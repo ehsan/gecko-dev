@@ -12,7 +12,6 @@ EXPORTS_mozilla += \
   Assertions.h \
   Attributes.h \
   BloomFilter.h \
-  Char16.h \
   CheckedInt.h \
   Constants.h \
   DebugOnly.h \

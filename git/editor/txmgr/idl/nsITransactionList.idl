@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsISupports.idl"
-
 interface nsITransaction;
 
 /*
@@ -15,7 +14,7 @@ interface nsITransaction;
  * Undo or Redo stacks as well as any auto-aggregated children that a
  * transaction may have.
  */
-[scriptable, uuid(d007ceff-c978-486a-b697-384ca01997be)]
+[scriptable, uuid(97f863f3-f886-11d4-9d39-0060b0f8baff)]
 
 interface nsITransactionList : nsISupports
 {
@@ -43,13 +42,6 @@ interface nsITransactionList : nsISupports
    * @param aIndex The index of the item in the list.
    */
   nsITransaction getItem(in long aIndex);
-
-  /**
-   * getData() returns the data (of type nsISupports array) associated with
-   * the transaction list.
-   */
-  void getData(in long aIndex, [optional] out unsigned long aLength,
-               [array, size_is(aLength), retval] out nsISupports aData);
 
   /**
    * getNumChildrenForItem() returns the number of child (auto-aggreated)

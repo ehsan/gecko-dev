@@ -394,61 +394,47 @@ let DebuggerView = {
    *        An object containing some of the following boolean properties:
    *        - visible: true if the pane should be shown, false for hidden
    *        - animated: true to display an animation on toggle
-   *        - delayed: true to wait a few cycles before toggle
    *        - callback: a function to invoke when the panes toggle finishes
    */
   togglePanes: function DV__togglePanes(aFlags = {}) {
     // Avoid useless toggles.
     if (aFlags.visible == !this.panesHidden) {
-      if (aFlags.callback) aFlags.callback();
+      aFlags.callback && aFlags.callback();
       return;
     }
 
-    // Computes and sets the panes margins in order to hide or show them.
-    function set() {
-      if (aFlags.visible) {
-        this._stackframesAndBreakpoints.style.marginLeft = "0";
-        this._variablesAndExpressions.style.marginRight = "0";
-        this._togglePanesButton.removeAttribute("panesHidden");
-        this._togglePanesButton.setAttribute("tooltiptext", L10N.getStr("collapsePanes"));
-      } else {
-        let marginL = ~~(this._stackframesAndBreakpoints.getAttribute("width")) + 1;
-        let marginR = ~~(this._variablesAndExpressions.getAttribute("width")) + 1;
-        this._stackframesAndBreakpoints.style.marginLeft = -marginL + "px";
-        this._variablesAndExpressions.style.marginRight = -marginR + "px";
-        this._togglePanesButton.setAttribute("panesHidden", "true");
-        this._togglePanesButton.setAttribute("tooltiptext", L10N.getStr("expandPanes"));
-      }
-
-      if (aFlags.animated) {
-        // Displaying the panes may have the effect of triggering scrollbars to
-        // appear in the source editor, which would render the currently
-        // highlighted line to appear behind them in some cases.
-        window.addEventListener("transitionend", function onEvent() {
-          window.removeEventListener("transitionend", onEvent, false);
-          DebuggerView.updateEditor();
-
-          // Invoke the callback when the transition ended.
-          if (aFlags.callback) aFlags.callback();
-        }, false);
-      } else {
-        // Invoke the callback immediately since there's no transition.
-        if (aFlags.callback) aFlags.callback();
-      }
+    if (aFlags.visible) {
+      this._stackframesAndBreakpoints.style.marginLeft = "0";
+      this._variablesAndExpressions.style.marginRight = "0";
+      this._togglePanesButton.removeAttribute("panesHidden");
+      this._togglePanesButton.setAttribute("tooltiptext", L10N.getStr("collapsePanes"));
+    } else {
+      let marginL = ~~(this._stackframesAndBreakpoints.getAttribute("width")) + 1;
+      let marginR = ~~(this._variablesAndExpressions.getAttribute("width")) + 1;
+      this._stackframesAndBreakpoints.style.marginLeft = -marginL + "px";
+      this._variablesAndExpressions.style.marginRight = -marginR + "px";
+      this._togglePanesButton.setAttribute("panesHidden", "true");
+      this._togglePanesButton.setAttribute("tooltiptext", L10N.getStr("expandPanes"));
     }
 
     if (aFlags.animated) {
       this._stackframesAndBreakpoints.setAttribute("animated", "");
       this._variablesAndExpressions.setAttribute("animated", "");
+
+      // Displaying the panes may have the effect of triggering scrollbars to
+      // appear in the source editor, which would render the currently
+      // highlighted line to appear behind them in some cases.
+      let self = this;
+
+      window.addEventListener("transitionend", function onEvent() {
+        window.removeEventListener("transitionend", onEvent, false);
+        aFlags.callback && aFlags.callback();
+        self.updateEditor();
+      }, false);
     } else {
       this._stackframesAndBreakpoints.removeAttribute("animated");
       this._variablesAndExpressions.removeAttribute("animated");
-    }
-
-    if (aFlags.delayed) {
-      window.setTimeout(set.bind(this), PANES_APPEARANCE_DELAY);
-    } else {
-      set.call(this);
+      aFlags.callback && aFlags.callback();
     }
   },
 
@@ -464,7 +450,6 @@ let DebuggerView = {
       DebuggerView.togglePanes({
         visible: true,
         animated: true,
-        delayed: true,
         callback: aCallback
       });
     }, PANES_APPEARANCE_DELAY);
@@ -633,7 +618,6 @@ MenuContainer.prototype = {
    *          - unsorted: true if the items should not always remain sorted
    *          - relaxed: true if this container should allow dupes & degenerates
    *          - description: an optional description of the item
-   *          - tooltip: an optional tooltip for the item
    *          - attachment: some attached primitive/object
    * @return MenuItem
    *         The item associated with the displayed element if a forced push,
@@ -645,7 +629,7 @@ MenuContainer.prototype = {
 
     // Batch the item to be added later.
     if (!aOptions.forced) {
-      this._stagedItems.push({ item: item, options: aOptions });
+      this._stagedItems.push(item);
     }
     // Immediately insert the item at the specified index.
     else if (aOptions.forced && aOptions.forced.atIndex !== undefined) {
@@ -673,12 +657,11 @@ MenuContainer.prototype = {
 
     // By default, sort the items before adding them to this container.
     if (!aOptions.unsorted) {
-      stagedItems.sort(function(a, b) a.item.label.toLowerCase() >
-                                      b.item.label.toLowerCase());
+      stagedItems.sort(function(a, b) a.label.toLowerCase() > b.label.toLowerCase());
     }
     // Append the prepared items to this container.
-    for (let { item, options } of stagedItems) {
-      this._appendItem(item, options);
+    for (let item of stagedItems) {
+      this._appendItem(item, aOptions);
     }
     // Recreate the temporary items list for ulterior pushes.
     this._stagedItems = [];
@@ -767,7 +750,7 @@ MenuContainer.prototype = {
    */
   containsLabel: function DVMC_containsLabel(aLabel) {
     return this._itemsByLabel.has(aLabel) ||
-           this._stagedItems.some(function({item}) item.label == aLabel);
+           this._stagedItems.some(function(o) o.label == aLabel);
   },
 
   /**
@@ -781,7 +764,7 @@ MenuContainer.prototype = {
    */
   containsValue: function DVMC_containsValue(aValue) {
     return this._itemsByValue.has(aValue) ||
-           this._stagedItems.some(function({item}) item.value == aValue);
+           this._stagedItems.some(function(o) o.value == aValue);
   },
 
   /**
@@ -805,7 +788,7 @@ MenuContainer.prototype = {
         return true;
       }
     }
-    return this._stagedItems.some(function({item}) aTrim(item.value) == trimmedValue);
+    return this._stagedItems.some(function(o) aTrim(o.value) == trimmedValue);
   },
 
   /**
@@ -1063,15 +1046,8 @@ MenuContainer.prototype = {
       return null;
     }
 
-    this._entangleItem(aItem, this._container.appendItem(
+    return this._entangleItem(aItem, this._container.appendItem(
       aItem.label, aItem.value, "", aOptions.attachment));
-
-    // Handle any additional options after entangling the item.
-    if (aOptions.tooltip) {
-      aItem._target.setAttribute("tooltiptext", aOptions.tooltip);
-    }
-
-    return aItem;
   },
 
   /**
@@ -1092,15 +1068,8 @@ MenuContainer.prototype = {
       return null;
     }
 
-    this._entangleItem(aItem, this._container.insertItemAt(
+    return this._entangleItem(aItem, this._container.insertItemAt(
       aIndex, aItem.label, aItem.value, "", aOptions.attachment));
-
-    // Handle any additional options after entangling the item.
-    if (aOptions.tooltip) {
-      aItem._target.setAttribute("tooltiptext", aOptions.tooltip);
-    }
-
-    return aItem;
   },
 
   /**

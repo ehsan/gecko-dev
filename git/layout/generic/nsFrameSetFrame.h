@@ -29,7 +29,7 @@ class  nsHTMLFramesetFrame;
 
 #define NO_COLOR 0xFFFFFFFA
 
-// defined at HTMLFrameSetElement.h
+// defined at nsHTMLFrameSetElement.h
 struct nsFramesetSpec;
 
 struct nsBorderColor 

@@ -495,20 +495,12 @@ abstract public class BrowserApp extends GeckoApp
         }
     }
 
-    public void addTab() {
+    void addTab() {
         showAwesomebar(AwesomeBar.Target.NEW_TAB);
     }
 
-    public void addPrivateTab() {
-        Tabs.getInstance().loadUrl("about:home", Tabs.LOADURL_NEW_TAB | Tabs.LOADURL_PRIVATE);
-    }
-
-    public void showNormalTabs() {
-        showTabs(TabsPanel.Panel.NORMAL_TABS);
-    }
-
-    public void showPrivateTabs() {
-        showTabs(TabsPanel.Panel.PRIVATE_TABS);
+    public void showLocalTabs() {
+        showTabs(TabsPanel.Panel.LOCAL_TABS);
     }
 
     public void showRemoteTabs() {
@@ -1032,28 +1024,6 @@ abstract public class BrowserApp extends GeckoApp
     }
 
     @Override
-    public boolean onContextItemSelected(MenuItem item) {
-        switch (item.getItemId()) {
-            case R.id.abouthome_topsites_edit:
-                mAboutHomeContent.editSite();
-                return true;
-
-            case R.id.abouthome_topsites_unpin:
-                mAboutHomeContent.unpinSite();
-                return true;
-
-            case R.id.abouthome_topsites_unpinall:
-                mAboutHomeContent.unpinAllSites();
-                return true;
-
-            case R.id.abouthome_topsites_pin:
-                mAboutHomeContent.pinSite();
-                return true;
-        }
-        return super.onContextItemSelected(item);
-    }
-
-    @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         Tab tab = null;
         Intent intent = null;
@@ -1124,7 +1094,7 @@ abstract public class BrowserApp extends GeckoApp
                 addTab();
                 return true;
             case R.id.new_private_tab:
-                addPrivateTab();
+                Tabs.getInstance().loadUrl("about:home", Tabs.LOADURL_NEW_TAB | Tabs.LOADURL_PRIVATE);
                 return true;
             default:
                 return super.onOptionsItemSelected(item);

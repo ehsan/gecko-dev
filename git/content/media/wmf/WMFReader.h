@@ -50,7 +50,7 @@ private:
   void ConfigureAudioDecoder();
   void ConfigureVideoDecoder();
 
-  RefPtr<IMFSourceReader> mSourceReader;
+  IMFSourceReaderPtr mSourceReader;
   RefPtr<WMFByteStream> mByteStream;
 
   uint32_t mAudioChannels;

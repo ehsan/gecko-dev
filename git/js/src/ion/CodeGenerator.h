@@ -54,7 +54,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitStart(LStart *lir);
     bool visitReturn(LReturn *ret);
     bool visitDefVar(LDefVar *lir);
-    bool visitDefFun(LDefFun *lir);
     bool visitOsrEntry(LOsrEntry *lir);
     bool visitOsrScopeChain(LOsrScopeChain *lir);
     bool visitStackArgT(LStackArgT *lir);
@@ -99,8 +98,9 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitNewCallObject(LNewCallObject *lir);
     bool visitNewStringObject(LNewStringObject *lir);
     bool visitInitProp(LInitProp *lir);
-    bool visitCreateThis(LCreateThis *lir);
-    bool visitCreateThisWithProto(LCreateThisWithProto *lir);
+    bool emitCreateThisVM(LInstruction *lir, const LAllocation *proto, const LAllocation *callee);
+    bool visitCreateThisV(LCreateThisV *lir);
+    bool visitCreateThisO(LCreateThisO *lir);
     bool visitCreateThisWithTemplate(LCreateThisWithTemplate *lir);
     bool visitReturnFromCtor(LReturnFromCtor *lir);
     bool visitArrayLength(LArrayLength *lir);
@@ -128,7 +128,7 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitMinMaxI(LMinMaxI *lir);
     bool visitBinaryV(LBinaryV *lir);
     bool visitCompareS(LCompareS *lir);
-    bool visitCompareVM(LCompareVM *lir);
+    bool visitCompareV(LCompareV *lir);
     bool visitIsNullOrLikeUndefined(LIsNullOrLikeUndefined *lir);
     bool visitIsNullOrLikeUndefinedAndBranch(LIsNullOrLikeUndefinedAndBranch *lir);
     bool visitEmulatesUndefined(LEmulatesUndefined *lir);

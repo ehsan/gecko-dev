@@ -830,15 +830,18 @@ public:
   {
     mWorkerPrivate->AssertIsOnWorkerThread();
 
-    AutoSyncLoopHolder syncLoop(mWorkerPrivate);
-    mSyncQueueKey = syncLoop.SyncQueueKey();
+    mSyncQueueKey = mWorkerPrivate->CreateNewSyncLoop();
 
     if (NS_FAILED(NS_DispatchToMainThread(this, NS_DISPATCH_NORMAL))) {
       JS_ReportError(aCx, "Failed to dispatch to main thread!");
       return false;
     }
 
-    return syncLoop.RunAndForget(aCx);
+    if (!mWorkerPrivate->RunSyncLoop(aCx, mSyncQueueKey)) {
+      return false;
+    }
+
+    return true;
   }
 
   virtual nsresult
@@ -1704,13 +1707,10 @@ XMLHttpRequest::SendInternal(const nsAString& aStringBody,
   }
 
   AutoUnpinXHR autoUnpin(this);
-  Maybe<AutoSyncLoopHolder> autoSyncLoop;
 
   uint32_t syncQueueKey = UINT32_MAX;
-  bool isSyncXHR = mProxy->mIsSyncXHR;
-  if (isSyncXHR) {
-    autoSyncLoop.construct(mWorkerPrivate);
-    syncQueueKey = autoSyncLoop.ref().SyncQueueKey();
+  if (mProxy->mIsSyncXHR) {
+    syncQueueKey = mWorkerPrivate->CreateNewSyncLoop();
   }
 
   mProxy->mOuterChannelId++;
@@ -1724,24 +1724,16 @@ XMLHttpRequest::SendInternal(const nsAString& aStringBody,
     return;
   }
 
-  if (!isSyncXHR)  {
-    autoUnpin.Clear();
-    MOZ_ASSERT(autoSyncLoop.empty());
-    return;
-  }
+  autoUnpin.Clear();
 
-  // If our sync XHR was canceled during the send call the worker is going
-  // away.  We have no idea how far through the send call we got.  There may
-  // be a ProxyCompleteRunnable in the sync loop, but rather than run the loop
-  // to get it we just let our RAII helpers clean up.
+  // The event loop was spun above, make sure we aren't canceled already.
   if (mCanceled) {
     return;
   }
 
-  autoUnpin.Clear();
-
-  if (!autoSyncLoop.ref().RunAndForget(cx)) {
+  if (mProxy->mIsSyncXHR && !mWorkerPrivate->RunSyncLoop(cx, syncQueueKey)) {
     aRv.Throw(NS_ERROR_FAILURE);
+    return;
   }
 }
 

@@ -206,7 +206,7 @@ function test_options_pass_through() {
   let randomMixedParams = {
     loggedInUser: "juanita@mozilla.com",
     forceAuthentication: true,
-    forceIssuer: "foo.com",
+    issuer: "https://foo.com",
     someThing: {
       name: "Pertelote",
       legs: 4,

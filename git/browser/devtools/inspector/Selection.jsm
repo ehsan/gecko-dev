@@ -70,14 +70,12 @@ Selection.prototype = {
   _onMutations: function(mutations) {
     let attributeChange = false;
     let detached = false;
-    let parentNode = null;
     for (let m of mutations) {
       if (!attributeChange && m.type == "attributes") {
         attributeChange = true;
       }
       if (m.type == "childList") {
         if (!detached && !this.isConnected()) {
-          parentNode = m.target;
           detached = true;
         }
       }
@@ -86,7 +84,7 @@ Selection.prototype = {
     if (attributeChange)
       this.emit("attribute-changed");
     if (detached)
-      this.emit("detached", parentNode);
+      this.emit("detached");
   },
 
   _attachEvents: function SN__attachEvents() {

@@ -201,7 +201,6 @@ class BacktrackingAllocator : public LiveRangeAllocator<BacktrackingVirtualRegis
 
     bool resolveControlFlow();
     bool reifyAllocations();
-    bool populateSafepoints();
 
     void dumpRegisterGroups();
     void dumpLiveness();

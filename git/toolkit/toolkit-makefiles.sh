@@ -491,8 +491,6 @@ MAKEFILES_xulapp="
   toolkit/forgetaboutsite/test/browser/Makefile
   toolkit/identity/Makefile
   toolkit/locales/Makefile
-  toolkit/modules/Makefile
-  toolkit/modules/tests/Makefile
   toolkit/mozapps/downloads/Makefile
   toolkit/mozapps/extensions/Makefile
   toolkit/mozapps/handling/Makefile
@@ -765,6 +763,7 @@ if [ "$ENABLE_TESTS" ]; then
     dom/imptests/failures/webapps/DOMCore/tests/submissions/Opera/Makefile
     dom/imptests/failures/webapps/WebStorage/tests/submissions/Infraware/Makefile
     dom/imptests/failures/webapps/WebStorage/tests/submissions/Ms2ger/Makefile
+    dom/imptests/failures/webapps/XMLHttpRequest/tests/submissions/Ms2ger/Makefile
     dom/imptests/html/tests/submission/Mozilla/Makefile
     dom/imptests/html/tests/submission/Opera/microdata/Makefile
     dom/imptests/webapps/DOMCore/tests/approved/Makefile
@@ -1576,6 +1575,12 @@ fi
 if [ ! "$MOZ_NATIVE_PNG" ]; then
   add_makefiles "
     media/libpng/Makefile
+  "
+fi
+
+if [ "$MOZ_DMDV" ]; then
+  add_makefiles "
+    tools/dmdv/Makefile
   "
 fi
 

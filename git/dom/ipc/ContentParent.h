@@ -26,11 +26,8 @@
 #include "nsCOMArray.h"
 #include "nsDataHashtable.h"
 #include "nsHashKeys.h"
-#include "PermissionMessageUtils.h"
 
 #define CHILD_PROCESS_SHUTDOWN_MESSAGE NS_LITERAL_STRING("child-process-shutdown")
-
-#define CONTENT_PARENT_UNKNOWN_CHILD_ID -1
 
 class mozIApplication;
 class nsConsoleService;
@@ -74,13 +71,6 @@ public:
     static void StartUp();
     /** Shut down the content-process machinery. */
     static void ShutDown();
-    /**
-     * Ensure that all subprocesses are terminated and their OS
-     * resources have been reaped.  This is synchronous and can be
-     * very expensive in general.  It also bypasses the normal
-     * shutdown process.
-     */
-    static void JoinAllSubprocesses();
 
     static ContentParent* GetNewOrUsed(bool aForBrowserElement = false);
 
@@ -135,8 +125,6 @@ public:
      */
     void KillHard();
 
-    uint64_t ChildID() { return mChildID; }
-
 protected:
     void OnChannelConnected(int32_t pid);
     virtual void ActorDestroy(ActorDestroyReason why);
@@ -147,9 +135,6 @@ private:
     static nsDataHashtable<nsStringHashKey, ContentParent*> *gAppContentParents;
     static nsTArray<ContentParent*>* gNonAppContentParents;
     static nsTArray<ContentParent*>* gPrivateContent;
-
-    static void JoinProcessesIOThread(const nsTArray<ContentParent*>* aProcesses,
-                                      Monitor* aMonitor, bool* aDone);
 
     static void PreallocateAppProcess();
     static void DelayedPreallocateAppProcess();
@@ -301,9 +286,8 @@ private:
     virtual bool RecvAsyncMessage(const nsString& aMsg,
                                   const ClonedMessageData& aData);
 
-    virtual bool RecvAddGeolocationListener(const IPC::Principal& aPrincipal);
+    virtual bool RecvAddGeolocationListener();
     virtual bool RecvRemoveGeolocationListener();
-    virtual bool RecvSetGeolocationHigherAccuracy(const bool& aEnable);
 
     virtual bool RecvConsoleMessage(const nsString& aMessage);
     virtual bool RecvScriptError(const nsString& aMessage,

@@ -9,7 +9,6 @@
 #define ObjectImpl_h___
 
 #include "mozilla/Assertions.h"
-#include "mozilla/GuardObjects.h"
 #include "mozilla/StandardInteger.h"
 
 #include "jsfriendapi.h"
@@ -299,10 +298,10 @@ struct PropDesc {
     {
       public:
         explicit AutoRooter(JSContext *cx, PropDesc *pd_
-                            MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+                            JS_GUARD_OBJECT_NOTIFIER_PARAM)
           : AutoGCRooter(cx, PROPDESC), pd(pd_), skip(cx, pd_)
         {
-            MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+            JS_GUARD_OBJECT_NOTIFIER_INIT;
         }
 
         friend void AutoGCRooter::trace(JSTracer *trc);
@@ -310,7 +309,7 @@ struct PropDesc {
       private:
         PropDesc *pd;
         SkipRoot skip;
-        MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+        JS_DECL_USE_GUARD_OBJECT_NOTIFIER
      };
 };
 
@@ -917,7 +916,7 @@ extern HeapSlot *emptyObjectElements;
 struct Class;
 struct GCMarker;
 struct ObjectOps;
-class Shape;
+struct Shape;
 
 class NewObjectCache;
 
@@ -1061,7 +1060,7 @@ class ObjectImpl : public gc::Cell
 
   protected:
     friend struct GCMarker;
-    friend class Shape;
+    friend struct Shape;
     friend class NewObjectCache;
 
     inline void invalidateSlotRange(uint32_t start, uint32_t count);

@@ -28,6 +28,13 @@ import java.io.File;
 */
 
 public class testBookmarksTab extends BaseTest {
+    private static final int WAIT_FOR_CHILD_TIMEOUT = 2000;
+    private String[] defaultBookmarksUrls = new String[] {
+        "about:firefox",
+        "about:home",
+        "http://support.mozilla.org/en-US/mobile",
+        "https://addons.mozilla.org/en-US/android/"
+    };
     private View mFirstChild;
 
     @Override
@@ -124,7 +131,7 @@ public class testBookmarksTab extends BaseTest {
                 }
                 return true;
             }
-        }, MAX_WAIT_MS);
+        }, WAIT_FOR_CHILD_TIMEOUT);
         if (success == true && mFirstChild != null) {
             mAsserter.dumpLog("clickLongOnView: "+mFirstChild);
 
@@ -207,7 +214,7 @@ public class testBookmarksTab extends BaseTest {
                }
                return false;
             }
-        }, MAX_WAIT_MS);
+        }, WAIT_FOR_CHILD_TIMEOUT);
         return list;
     }
 

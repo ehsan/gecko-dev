@@ -212,7 +212,7 @@ DOMCameraPreview::Start()
    * This reference is removed in SetStateStopped().
    */
   NS_ADDREF_THIS();
-  DOM_CAMERA_SETSTATE(STARTING);
+  mState = STARTING;
   mCameraControl->StartPreview(this);
 }
 
@@ -221,7 +221,7 @@ DOMCameraPreview::SetStateStarted()
 {
   NS_ASSERTION(NS_IsMainThread(), "SetStateStarted() not called from main thread");
 
-  DOM_CAMERA_SETSTATE(STARTED);
+  mState = STARTED;
   DOM_CAMERA_LOGI("Preview stream started\n");
 }
 
@@ -249,7 +249,7 @@ DOMCameraPreview::StopPreview()
   }
 
   DOM_CAMERA_LOGI("Stopping preview stream\n");
-  DOM_CAMERA_SETSTATE(STOPPING);
+  mState = STOPPING;
   mCameraControl->StopPreview();
   mInput->EndTrack(TRACK_VIDEO);
   mInput->Finish();
@@ -265,7 +265,7 @@ DOMCameraPreview::SetStateStopped()
     mInput->EndTrack(TRACK_VIDEO);
     mInput->Finish();
   }
-  DOM_CAMERA_SETSTATE(STOPPED);
+  mState = STOPPED;
   DOM_CAMERA_LOGI("Preview stream stopped\n");
 
   /**

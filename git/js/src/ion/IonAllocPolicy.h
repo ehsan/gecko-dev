@@ -8,8 +8,6 @@
 #ifndef jsion_ion_alloc_policy_h__
 #define jsion_ion_alloc_policy_h__
 
-#include "mozilla/GuardObjects.h"
-
 #include "jscntxt.h"
 #include "ds/LifoAlloc.h"
 
@@ -76,10 +74,10 @@ class AutoTempAllocatorRooter : private AutoGCRooter
 {
   public:
     explicit AutoTempAllocatorRooter(JSContext *cx, TempAllocator *temp
-                                     MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+                                     JS_GUARD_OBJECT_NOTIFIER_PARAM)
       : AutoGCRooter(cx, IONALLOC), temp(temp)
     {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
     friend void AutoGCRooter::trace(JSTracer *trc);
@@ -87,7 +85,7 @@ class AutoTempAllocatorRooter : private AutoGCRooter
 
   private:
     TempAllocator *temp;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 class IonAllocPolicy

@@ -185,8 +185,7 @@ class MarionetteTestRunner(object):
                  es_server=None, rest_server=None, logger=None,
                  testgroup="marionette", noWindow=False, logcat_dir=None,
                  xml_output=None, repeat=0, perf=False, perfserv=None,
-                 gecko_path=None, testvars=None, tree=None, load_early=False,
-                 device=None):
+                 gecko_path=None, testvars=None, tree=None, load_early=False):
         self.address = address
         self.emulator = emulator
         self.emulatorBinary = emulatorBinary
@@ -212,12 +211,11 @@ class MarionetteTestRunner(object):
         self.perf = perf
         self.perfserv = perfserv
         self.gecko_path = gecko_path
-        self.testvars = {}
+        self.testvars = None
         self.tree = tree
         self.load_early = load_early
-        self.device = device
 
-        if testvars:
+        if testvars is not None:
             if not os.path.exists(testvars):
                 raise Exception('--testvars file does not exist')
 
@@ -241,7 +239,6 @@ class MarionetteTestRunner(object):
                 os.mkdir(self.logcat_dir)
 
         # for XML output
-        self.testvars['xml_output'] = self.xml_output
         self.results = []
 
     def reset_test_stats(self):
@@ -368,8 +365,6 @@ class MarionetteTestRunner(object):
                 print e
 
         if self.xml_output:
-            if not os.path.exists(os.path.dirname(self.xml_output)):
-                os.makedirs(os.path.dirname(self.xml_output))
             with open(self.xml_output, 'w') as f:
                 f.write(self.generate_xml(self.results))
 
@@ -597,8 +592,6 @@ def parse_options():
                       help='directory to store logcat dump files')
     parser.add_option('--address', dest='address', action='store',
                       help='host:port of running Gecko instance to connect to')
-    parser.add_option('--device', dest='device', action='store',
-                      help='serial ID of a device to use for adb / fastboot')
     parser.add_option('--type', dest='type', action='store',
                       default='browser+b2g',
                       help = "The type of test to run, can be a combination "
@@ -700,8 +693,7 @@ def startTestRunner(runner_class, options, tests):
                           perfserv=options.perfserv,
                           gecko_path=options.gecko_path,
                           testvars=options.testvars,
-                          load_early=options.load_early,
-                          device=options.device)
+                          load_early=options.load_early)
     runner.run_tests(tests, testtype=options.type)
     return runner
 

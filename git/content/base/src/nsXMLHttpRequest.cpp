@@ -1636,17 +1636,8 @@ nsXMLHttpRequest::IsSystemXHR()
 nsresult
 nsXMLHttpRequest::CheckChannelForCrossSiteRequest(nsIChannel* aChannel)
 {
-  // A system XHR (chrome code or a web app with the right permission) can
-  // always perform cross-site requests. In the web app case, however, we
-  // must still check for protected URIs like file:///.
+  // First check if cross-site requests are enabled...
   if (IsSystemXHR()) {
-    if (!nsContentUtils::IsSystemPrincipal(mPrincipal)) {
-      nsIScriptSecurityManager *secMan = nsContentUtils::GetSecurityManager();
-      nsCOMPtr<nsIURI> uri;
-      aChannel->GetOriginalURI(getter_AddRefs(uri));
-      return secMan->CheckLoadURIWithPrincipal(
-        mPrincipal, uri, nsIScriptSecurityManager::STANDARD);
-    }
     return NS_OK;
   }
 

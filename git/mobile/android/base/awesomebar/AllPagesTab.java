@@ -249,8 +249,7 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
                 return;
 
             String url = mCursor.getString(mCursor.getColumnIndexOrThrow(URLColumns.URL));
-            String title = mCursor.getString(mCursor.getColumnIndexOrThrow(URLColumns.TITLE));
-            listener.onUrlOpen(url, title);
+            listener.onUrlOpen(url);
         }
 
         public ContextMenuSubject getSubject() {
@@ -461,7 +460,7 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
                         // pattern, go to that URL. Otherwise, do a search for
                         // the term.
                         if (v != viewHolder.userEnteredView && !StringUtils.isSearchQuery(suggestion)) {
-                            listener.onUrlOpen(suggestion, null);
+                            listener.onUrlOpen(suggestion);
                         } else {
                             listener.onSearch(engine.name, suggestion);
                         }

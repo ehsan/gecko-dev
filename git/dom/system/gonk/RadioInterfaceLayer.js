@@ -99,8 +99,7 @@ const RIL_IPC_MOBILECONNECTION_MSG_NAMES = [
 ];
 
 const RIL_IPC_VOICEMAIL_MSG_NAMES = [
-  "RIL:RegisterVoicemailMsg",
-  "RIL:GetVoicemailInfo"
+  "RIL:RegisterVoicemailMsg"
 ];
 
 const RIL_IPC_CELLBROADCAST_MSG_NAMES = [
@@ -205,6 +204,8 @@ function RadioInterfaceLayer() {
     radioState:     RIL.GECKO_RADIOSTATE_UNAVAILABLE,
     cardState:      RIL.GECKO_CARDSTATE_UNAVAILABLE,
     icc:            null,
+    voicemail:      {number: null,
+                     displayName: null},
 
     // These objects implement the nsIDOMMozMobileConnectionInfo interface,
     // although the actual implementation lives in the content process. So are
@@ -226,11 +227,6 @@ function RadioInterfaceLayer() {
                      type: null,
                      signalStrength: null,
                      relSignalStrength: null},
-  };
-
-  this.voicemailInfo = {
-    number: null,
-    displayName: null
   };
 
   this.callWaitingStatus = null;
@@ -273,6 +269,9 @@ function RadioInterfaceLayer() {
   lock.get("ril.supl.passwd", this);
   lock.get("ril.supl.httpProxyHost", this);
   lock.get("ril.supl.httpProxyPort", this);
+
+  // Read the desired setting of call waiting from the settings DB.
+  lock.get("ril.callwaiting.enabled", this);
 
   // Read the 'time.nitz.automatic-update.enabled' setting to see if
   // we need to adjust the system clock time and time zone by NITZ.
@@ -483,9 +482,6 @@ RadioInterfaceLayer.prototype = {
       case "RIL:RegisterCellBroadcastMsg":
         this.registerMessageTarget("cellbroadcast", msg.target);
         break;
-      case "RIL:GetVoicemailInfo":
-        // This message is sync.
-        return this.voicemailInfo;
     }
   },
 
@@ -834,6 +830,12 @@ RadioInterfaceLayer.prototype = {
     // this here. (TODO GSM only for now, see bug 726098.)
     voiceInfo.type = "gsm";
 
+    // Ensure the call waiting status once the voice network connects.
+    if (voiceInfo.connected && this.callWaitingStatus == null) {
+      // The call waiting status has not been updated yet. Update that.
+      this.setCallWaitingEnabled(this._callWaitingEnabled);
+    }
+
     // Make sure we also reset the operator and signal strength information
     // if we drop off the network.
     if (newInfo.regState == RIL.NETWORK_CREG_STATE_UNKNOWN) {
@@ -1092,7 +1094,7 @@ RadioInterfaceLayer.prototype = {
     }
 
     if (value == null) {
-      // We haven't read the valid value from the settings DB yet.
+      // We haven't read the initial value from the settings DB yet.
       // Wait for that.
       return;
     }
@@ -1259,8 +1261,6 @@ RadioInterfaceLayer.prototype = {
     debug("handleEnumerateCalls: " + JSON.stringify(options));
     for (let i in options.calls) {
       options.calls[i].state = convertRILCallState(options.calls[i].state);
-      options.calls[i].isActive = this._activeCall ?
-        options.calls[i].callIndex == this._activeCall.callIndex : false;
     }
     this._sendRequestResults("RIL:EnumerateCalls", options);
   },
@@ -1448,8 +1448,6 @@ RadioInterfaceLayer.prototype = {
     if (!options.requestStatusReport) {
       // No more used if STATUS-REPORT not requested.
       delete this._sentSmsEnvelopes[message.envelopeId];
-    } else {
-      options.sms = sms;
     }
 
     options.request.notifyMessageSent(sms);
@@ -1585,12 +1583,12 @@ RadioInterfaceLayer.prototype = {
   },
 
   handleICCMbdn: function handleICCMbdn(message) {
-    let voicemailInfo = this.voicemailInfo;
+    let voicemail = this.rilContext.voicemail;
 
-    voicemailInfo.number = message.number;
-    voicemailInfo.displayName = message.alphaId;
+    voicemail.number = message.number;
+    voicemail.displayName = message.alphaId;
 
-    this._sendTargetMessage("voicemail", "RIL:VoicemailInfoChanged", voicemailInfo);
+    this._sendTargetMessage("voicemail", "RIL:VoicemailInfoChanged", voicemail);
   },
 
   handleICCInfoChange: function handleICCInfoChange(message) {
@@ -1611,22 +1609,6 @@ RadioInterfaceLayer.prototype = {
     // RIL:IccInfoChanged corresponds to a DOM event that gets fired only
     // when the MCC or MNC codes have changed.
     this._sendTargetMessage("mobileconnection", "RIL:IccInfoChanged", message);
-
-    // If spn becomes available, we should check roaming again.
-    if (!oldIcc.spn && message.spn) {
-      let voice = this.rilContext.voice;
-      let data = this.rilContext.data;
-      let voiceRoaming = voice.roaming;
-      let dataRoaming = data.roaming;
-      this.checkRoamingBetweenOperators(voice);
-      this.checkRoamingBetweenOperators(data);
-      if (voiceRoaming != voice.roaming) {
-        this._sendTargetMessage("mobileconnection", "RIL:VoiceInfoChanged", voice);
-      }
-      if (dataRoaming != data.roaming) {
-        this._sendTargetMessage("mobileconnection", "RIL:DataInfoChanged", data);
-      }
-    }
   },
 
   handleICCCardLockResult: function handleICCCardLockResult(message) {
@@ -2149,15 +2131,21 @@ RadioInterfaceLayer.prototype = {
 
       // Calculate full user data length, note the extra byte is for header len
       let headerSeptets = Math.ceil((headerLen ? headerLen + 1 : 0) * 8 / 7);
-      let segmentSeptets = RIL.PDU_MAX_USER_DATA_7BIT;
-      if ((bodySeptets + headerSeptets) > segmentSeptets) {
-        headerLen += this.segmentRef16Bit ? 6 : 5;
+      let userDataSeptets = bodySeptets + headerSeptets;
+      let segments = bodySeptets ? 1 : 0;
+      if (userDataSeptets > RIL.PDU_MAX_USER_DATA_7BIT) {
+        if (this.segmentRef16Bit) {
+          headerLen += 6;
+        } else {
+          headerLen += 5;
+        }
+
         headerSeptets = Math.ceil((headerLen + 1) * 8 / 7);
-        segmentSeptets -= headerSeptets;
+        let segmentSeptets = RIL.PDU_MAX_USER_DATA_7BIT - headerSeptets;
+        segments = Math.ceil(bodySeptets / segmentSeptets);
+        userDataSeptets = bodySeptets + headerSeptets * segments;
       }
 
-      let segments = Math.ceil(bodySeptets / segmentSeptets);
-      let userDataSeptets = bodySeptets + headerSeptets * segments;
       if (userDataSeptets >= minUserDataSeptets) {
         continue;
       }
@@ -2171,7 +2159,6 @@ RadioInterfaceLayer.prototype = {
         langIndex: langIndex,
         langShiftIndex: langShiftIndex,
         segmentMaxSeq: segments,
-        segmentChars: segmentSeptets,
       };
     }
 
@@ -2193,21 +2180,24 @@ RadioInterfaceLayer.prototype = {
     let bodyChars = message.length;
     let headerLen = 0;
     let headerChars = Math.ceil((headerLen ? headerLen + 1 : 0) / 2);
-    let segmentChars = RIL.PDU_MAX_USER_DATA_UCS2;
-    if ((bodyChars + headerChars) > segmentChars) {
-      headerLen += this.segmentRef16Bit ? 6 : 5;
-      headerChars = Math.ceil((headerLen + 1) / 2);
-      segmentChars -= headerChars;
-    }
+    let segments = bodyChars ? 1 : 0;
+    if ((bodyChars + headerChars) > RIL.PDU_MAX_USER_DATA_UCS2) {
+      if (this.segmentRef16Bit) {
+        headerLen += 6;
+      } else {
+        headerLen += 5;
+      }
 
-    let segments = Math.ceil(bodyChars / segmentChars);
+      headerChars = Math.ceil((headerLen + 1) / 2);
+      let segmentChars = RIL.PDU_MAX_USER_DATA_UCS2 - headerChars;
+      segments = Math.ceil(bodyChars / segmentChars);
+    }
 
     return {
       dcs: RIL.PDU_DCS_MSG_CODING_16BITS_ALPHABET,
       encodedFullBodyLength: bodyChars * 2,
       userDataHeaderLength: headerLen,
       segmentMaxSeq: segments,
-      segmentChars: segmentChars,
     };
   },
 
@@ -2259,15 +2249,17 @@ RadioInterfaceLayer.prototype = {
    *        locking shift table string.
    * @param langShiftTable
    *        single shift table string.
-   * @param segmentSeptets
-   *        Number of available spetets per segment.
+   * @param headerLen
+   *        Length of prepended user data header.
    * @param strict7BitEncoding
    *        Optional. Enable Latin characters replacement with corresponding
    *        ones in GSM SMS 7-bit default alphabet.
    *
    * @return an array of objects. See #_fragmentText() for detailed definition.
    */
-  _fragmentText7Bit: function _fragmentText7Bit(text, langTable, langShiftTable, segmentSeptets, strict7BitEncoding) {
+  _fragmentText7Bit: function _fragmentText7Bit(text, langTable, langShiftTable, headerLen, strict7BitEncoding) {
+    const headerSeptets = Math.ceil((headerLen ? headerLen + 1 : 0) * 8 / 7);
+    const segmentSeptets = RIL.PDU_MAX_USER_DATA_7BIT - headerSeptets;
     let ret = [];
     let body = "", len = 0;
     for (let i = 0, inc = 0; i < text.length; i++) {
@@ -2332,12 +2324,14 @@ RadioInterfaceLayer.prototype = {
    *
    * @param text
    *        text string to be fragmented.
-   * @param segmentChars
-   *        Number of available characters per segment.
+   * @param headerLen
+   *        Length of prepended user data header.
    *
    * @return an array of objects. See #_fragmentText() for detailed definition.
    */
-  _fragmentTextUCS2: function _fragmentTextUCS2(text, segmentChars) {
+  _fragmentTextUCS2: function _fragmentTextUCS2(text, headerLen) {
+    const headerChars = Math.ceil((headerLen ? headerLen + 1 : 0) / 2);
+    const segmentChars = RIL.PDU_MAX_USER_DATA_UCS2 - headerChars;
     let ret = [];
     for (let offset = 0; offset < text.length; offset += segmentChars) {
       let str = text.substr(offset, segmentChars);
@@ -2378,11 +2372,11 @@ RadioInterfaceLayer.prototype = {
       const langShiftTable = RIL.PDU_NL_SINGLE_SHIFT_TABLES[options.langShiftIndex];
       options.segments = this._fragmentText7Bit(text,
                                                 langTable, langShiftTable,
-                                                options.segmentChars,
+                                                options.userDataHeaderLength,
                                                 strict7BitEncoding);
     } else {
       options.segments = this._fragmentTextUCS2(text,
-                                                options.segmentChars);
+                                                options.userDataHeaderLength);
     }
 
     // Re-sync options.segmentMaxSeq with actual length of returning array.
@@ -2391,26 +2385,14 @@ RadioInterfaceLayer.prototype = {
     return options;
   },
 
-  getSegmentInfoForText: function getSegmentInfoForText(text) {
+  getNumberOfMessagesForText: function getNumberOfMessagesForText(text) {
     let strict7BitEncoding;
     try {
       strict7BitEncoding = Services.prefs.getBoolPref("dom.sms.strict7BitEncoding");
     } catch (e) {
       strict7BitEncoding = false;
     }
-
-    let options = this._fragmentText(text, null, strict7BitEncoding);
-    let lastSegment = options.segments[options.segmentMaxSeq - 1];
-    let charsInLastSegment = lastSegment.encodedBodyLength;
-    if (options.dcs == RIL.PDU_DCS_MSG_CODING_16BITS_ALPHABET) {
-      // In UCS2 encoding, encodedBodyLength is in octets.
-      charsInLastSegment /= 2;
-    }
-
-    let result = gSmsService.createSmsSegmentInfo(options.segmentMaxSeq,
-                                                  options.segmentChars,
-                                                  options.segmentChars - charsInLastSegment);
-    return result;
+    return this._fragmentText(text, null, strict7BitEncoding).segmentMaxSeq;
   },
 
   sendSMS: function sendSMS(number, message, request) {

@@ -33,8 +33,6 @@ function test()
     gScripts = gDebugger.DebuggerView.Sources._container;
     resumed = true;
 
-    gDebugger.addEventListener("Debugger:SourceShown", onScriptShown);
-
     gDebugger.DebuggerController.activeThread.addOneTimeListener("framesadded", function() {
       framesAdded = true;
       executeSoon(startTest);
@@ -50,10 +48,12 @@ function test()
     executeSoon(startTest);
   }
 
+  window.addEventListener("Debugger:SourceShown", onScriptShown);
+
   function startTest()
   {
     if (scriptShown && framesAdded && resumed && !testStarted) {
-      gDebugger.removeEventListener("Debugger:SourceShown", onScriptShown);
+      window.removeEventListener("Debugger:SourceShown", onScriptShown);
       testStarted = true;
       Services.tm.currentThread.dispatch({ run: testScriptsDisplay }, 0);
     }
@@ -73,10 +73,10 @@ function testScriptsDisplay() {
   ok(gDebugger.editor.getText().search(/debugger/) != -1,
     "The correct script was loaded initially.");
 
-  gDebugger.addEventListener("Debugger:SourceShown", function _onEvent(aEvent) {
+  window.addEventListener("Debugger:SourceShown", function _onEvent(aEvent) {
     let url = aEvent.detail.url;
     if (url.indexOf("switching-01.js") != -1) {
-      gDebugger.removeEventListener(aEvent.type, _onEvent);
+      window.removeEventListener(aEvent.type, _onEvent);
       testSwitchPaused1();
     }
   });
@@ -102,10 +102,10 @@ function testSwitchPaused1()
   is(gDebugger.editor.getMode(), SourceEditor.MODES.JAVASCRIPT,
      "Found the expected editor mode.");
 
-  gDebugger.addEventListener("Debugger:SourceShown", function _onEvent(aEvent) {
+  window.addEventListener("Debugger:SourceShown", function _onEvent(aEvent) {
     let url = aEvent.detail.url;
     if (url.indexOf("update-editor-mode") != -1) {
-      gDebugger.removeEventListener(aEvent.type, _onEvent);
+      window.removeEventListener(aEvent.type, _onEvent);
       testSwitchPaused2();
     }
   });

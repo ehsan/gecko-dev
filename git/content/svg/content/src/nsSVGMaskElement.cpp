@@ -44,8 +44,8 @@ NS_IMPL_RELEASE_INHERITED(nsSVGMaskElement,nsSVGMaskElementBase)
 DOMCI_NODE_DATA(SVGMaskElement, nsSVGMaskElement)
 
 NS_INTERFACE_TABLE_HEAD(nsSVGMaskElement)
-  NS_NODE_INTERFACE_TABLE5(nsSVGMaskElement, nsIDOMNode, nsIDOMElement,
-                           nsIDOMSVGElement,
+  NS_NODE_INTERFACE_TABLE6(nsSVGMaskElement, nsIDOMNode, nsIDOMElement,
+                           nsIDOMSVGElement, nsIDOMSVGTests,
                            nsIDOMSVGMaskElement, nsIDOMSVGUnitTypes)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGMaskElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGMaskElementBase)
@@ -141,7 +141,6 @@ nsSVGMaskElement::IsAttributeMapped(const nsIAtom* name) const
     sGradientStopMap,
     sGraphicsMap,
     sMarkersMap,
-    sMaskMap,
     sTextContentElementsMap,
     sViewportsMap
   };

@@ -225,13 +225,7 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
     class ScriptQuery;
 
     bool addDebuggeeGlobal(JSContext *cx, Handle<GlobalObject*> obj);
-    bool addDebuggeeGlobal(JSContext *cx, Handle<GlobalObject*> obj,
-                           AutoDebugModeGC &dmgc);
     void removeDebuggeeGlobal(FreeOp *fop, GlobalObject *global,
-                              GlobalObjectSet::Enum *compartmentEnum,
-                              GlobalObjectSet::Enum *debugEnum);
-    void removeDebuggeeGlobal(FreeOp *fop, GlobalObject *global,
-                              AutoDebugModeGC &dmgc,
                               GlobalObjectSet::Enum *compartmentEnum,
                               GlobalObjectSet::Enum *debugEnum);
 
@@ -306,7 +300,6 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
     static JSBool getUncaughtExceptionHook(JSContext *cx, unsigned argc, Value *vp);
     static JSBool setUncaughtExceptionHook(JSContext *cx, unsigned argc, Value *vp);
     static JSBool addDebuggee(JSContext *cx, unsigned argc, Value *vp);
-    static JSBool addAllGlobalsAsDebuggees(JSContext *cx, unsigned argc, Value *vp);
     static JSBool removeDebuggee(JSContext *cx, unsigned argc, Value *vp);
     static JSBool removeAllDebuggees(JSContext *cx, unsigned argc, Value *vp);
     static JSBool hasDebuggee(JSContext *cx, unsigned argc, Value *vp);
@@ -502,7 +495,7 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
 class BreakpointSite {
     friend class Breakpoint;
     friend struct ::JSCompartment;
-    friend class ::JSScript;
+    friend struct ::JSScript;
     friend class Debugger;
 
   public:

@@ -15,6 +15,7 @@
 
 class nsIContent;
 class nsIDocument;
+class nsIDOMSVGElement;
 class nsIFrame;
 class nsStyleContext;
 class nsSVGElement;
@@ -105,7 +106,7 @@ public:
    */
   static bool EstablishesViewport(nsIContent *aContent);
 
-  static nsSVGElement*
+  static already_AddRefed<nsIDOMSVGElement>
   GetNearestViewportElement(nsIContent *aContent);
 
   /* enum for specifying coordinate direction for ObjectSpace/UserSpace */

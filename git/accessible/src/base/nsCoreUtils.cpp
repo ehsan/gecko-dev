@@ -29,7 +29,7 @@
 #include "nsISelectionController.h"
 #include "nsPIDOMWindow.h"
 #include "nsGUIEvent.h"
-#include "nsView.h"
+#include "nsIView.h"
 #include "nsLayoutUtils.h"
 #include "nsGkAtoms.h"
 

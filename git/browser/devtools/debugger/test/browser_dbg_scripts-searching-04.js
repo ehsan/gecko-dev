@@ -30,21 +30,21 @@ function test()
     gDebugger = gPane.panelWin;
     gDebugger.SourceResults.prototype.alwaysExpand = false;
 
-    gDebugger.addEventListener("Debugger:SourceShown", function _onEvent(aEvent) {
-      let url = aEvent.detail.url;
-      if (url.indexOf("-02.js") != -1) {
-        scriptShown = true;
-        gDebugger.removeEventListener(aEvent.type, _onEvent);
-        runTest();
-      }
-    });
-
     gDebugger.DebuggerController.activeThread.addOneTimeListener("framesadded", function() {
       framesAdded = true;
       runTest();
     });
 
     gDebuggee.firstCall();
+  });
+
+  window.addEventListener("Debugger:SourceShown", function _onEvent(aEvent) {
+    let url = aEvent.detail.url;
+    if (url.indexOf("-02.js") != -1) {
+      scriptShown = true;
+      window.removeEventListener(aEvent.type, _onEvent);
+      runTest();
+    }
   });
 
   function runTest()
@@ -74,8 +74,8 @@ function doSearch() {
   is(gSearchView._splitter.hidden, true,
     "The global search pane splitter shouldn't be visible yet.");
 
-  gDebugger.addEventListener("Debugger:GlobalSearch:MatchFound", function _onEvent(aEvent) {
-    gDebugger.removeEventListener(aEvent.type, _onEvent);
+  window.addEventListener("Debugger:GlobalSearch:MatchFound", function _onEvent(aEvent) {
+    window.removeEventListener(aEvent.type, _onEvent);
     info("Current script url:\n" + gScripts.selectedValue + "\n");
     info("Debugger editor text:\n" + gEditor.getText() + "\n");
 
@@ -108,8 +108,8 @@ function doSearch() {
 }
 
 function doFirstJump() {
-  gDebugger.addEventListener("Debugger:SourceShown", function _onEvent(aEvent) {
-    gDebugger.removeEventListener(aEvent.type, _onEvent);
+  window.addEventListener("Debugger:SourceShown", function _onEvent(aEvent) {
+    window.removeEventListener(aEvent.type, _onEvent);
     info("Current script url:\n" + aEvent.detail.url + "\n");
     info("Debugger editor text:\n" + gEditor.getText() + "\n");
 
@@ -130,13 +130,13 @@ function doFirstJump() {
     }
   });
   executeSoon(function() {
-    EventUtils.sendKey("DOWN", gDebugger);
+    EventUtils.sendKey("DOWN");
   });
 }
 
 function doSecondJump() {
-  gDebugger.addEventListener("Debugger:SourceShown", function _onEvent(aEvent) {
-    gDebugger.removeEventListener(aEvent.type, _onEvent);
+  window.addEventListener("Debugger:SourceShown", function _onEvent(aEvent) {
+    window.removeEventListener(aEvent.type, _onEvent);
     info("Current script url:\n" + aEvent.detail.url + "\n");
     info("Debugger editor text:\n" + gEditor.getText() + "\n");
 
@@ -157,13 +157,13 @@ function doSecondJump() {
     }
   });
   executeSoon(function() {
-    EventUtils.sendKey("RETURN", gDebugger);
+    EventUtils.sendKey("RETURN");
   });
 }
 
 function doWrapAroundJump() {
-  gDebugger.addEventListener("Debugger:SourceShown", function _onEvent(aEvent) {
-    gDebugger.removeEventListener(aEvent.type, _onEvent);
+  window.addEventListener("Debugger:SourceShown", function _onEvent(aEvent) {
+    window.removeEventListener(aEvent.type, _onEvent);
     info("Current script url:\n" + aEvent.detail.url + "\n");
     info("Debugger editor text:\n" + gEditor.getText() + "\n");
 
@@ -184,13 +184,13 @@ function doWrapAroundJump() {
     }
   });
   executeSoon(function() {
-    EventUtils.sendKey("ENTER", gDebugger);
+    EventUtils.sendKey("ENTER");
   });
 }
 
 function doBackwardsWrapAroundJump() {
-  gDebugger.addEventListener("Debugger:SourceShown", function _onEvent(aEvent) {
-    gDebugger.removeEventListener(aEvent.type, _onEvent);
+  window.addEventListener("Debugger:SourceShown", function _onEvent(aEvent) {
+    window.removeEventListener(aEvent.type, _onEvent);
     info("Current script url:\n" + aEvent.detail.url + "\n");
     info("Debugger editor text:\n" + gEditor.getText() + "\n");
 
@@ -211,13 +211,13 @@ function doBackwardsWrapAroundJump() {
     }
   });
   executeSoon(function() {
-    EventUtils.sendKey("UP", gDebugger);
+    EventUtils.sendKey("UP");
   });
 }
 
 function testSearchTokenEmpty() {
-  gDebugger.addEventListener("Debugger:GlobalSearch:TokenEmpty", function _onEvent(aEvent) {
-    gDebugger.removeEventListener(aEvent.type, _onEvent);
+  window.addEventListener("Debugger:GlobalSearch:TokenEmpty", function _onEvent(aEvent) {
+    window.removeEventListener(aEvent.type, _onEvent);
     info("Current script url:\n" + gScripts.selectedValue + "\n");
     info("Debugger editor text:\n" + gEditor.getText() + "\n");
 
@@ -259,7 +259,7 @@ function write(text) {
 
 function backspace(times) {
   for (let i = 0; i < times; i++) {
-    EventUtils.sendKey("BACK_SPACE", gDebugger);
+    EventUtils.sendKey("BACK_SPACE")
   }
 }
 
@@ -267,7 +267,7 @@ function append(text) {
   gSearchBox.focus();
 
   for (let i = 0; i < text.length; i++) {
-    EventUtils.sendChar(text[i], gDebugger);
+    EventUtils.sendChar(text[i]);
   }
   info("Editor caret position: " + gEditor.getCaretPosition().toSource() + "\n");
 }

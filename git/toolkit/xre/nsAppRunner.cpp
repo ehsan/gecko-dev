@@ -3807,7 +3807,8 @@ XREMain::XRE_mainRun()
     if (!mDisableRemote)
       mRemoteService = do_GetService("@mozilla.org/toolkit/remote-service;1");
     if (mRemoteService)
-      mRemoteService->Startup(mAppData->name, mProfileName.get());
+      mRemoteService->Startup(mAppData->name,
+                              PromiseFlatCString(mProfileName).get());
 #endif /* MOZ_ENABLE_XREMOTE */
 
     mNativeApp->Enable();
@@ -4079,11 +4080,6 @@ XRE_mainMetro(int argc, char* argv[], const nsXREAppData* aAppData)
 
 void SetWindowsEnvironment(WindowsEnvironmentType aEnvID);
 #endif // MOZ_METRO || !defined(XP_WIN)
-
-void
-XRE_DisableWritePoisoning(void) {
-  mozilla::DisableWritePoisoning();
-}
 
 int
 XRE_main(int argc, char* argv[], const nsXREAppData* aAppData, uint32_t aFlags)

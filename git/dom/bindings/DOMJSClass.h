@@ -23,12 +23,6 @@ class nsCycleCollectionParticipant;
 // bindings.
 #define DOM_XRAY_EXPANDO_SLOT 1
 
-// We use slot 2 for holding either a JS::ObjectValue which points to the cached
-// SOW or JS::UndefinedValue if this class doesn't need SOWs. This is not safe
-// for globals until bug 760095 is fixed, so that bug blocks converting Window
-// to new bindings.
-#define DOM_OBJECT_SLOT_SOW 2
-
 // All DOM globals must have a slot at DOM_PROTOTYPE_SLOT.
 #define DOM_PROTOTYPE_SLOT JSCLASS_GLOBAL_SLOT_COUNT
 
@@ -50,7 +44,7 @@ namespace dom {
 
 typedef bool
 (* ResolveOwnProperty)(JSContext* cx, JSObject* wrapper, JSObject* obj, jsid id,
-                       JSPropertyDescriptor* desc, unsigned flags);
+                       bool set, JSPropertyDescriptor* desc);
 
 typedef bool
 (* EnumerateOwnProperties)(JSContext* cx, JSObject* wrapper, JSObject* obj,
@@ -135,9 +129,6 @@ enum DOMObjectType {
   eInterfacePrototype
 };
 
-typedef JSObject* (*ParentGetter)(JSContext* aCx, JSObject* aObj);
-typedef JSObject* (*ProtoGetter)(JSContext* aCx, JSObject* aGlobal);
-
 struct DOMClass
 {
   // A list of interfaces that this object implements, in order of decreasing
@@ -151,9 +142,6 @@ struct DOMClass
   const bool mDOMObjectIsISupports;
 
   const NativePropertyHooks* mNativeHooks;
-
-  ParentGetter mGetParent;
-  ProtoGetter mGetProto;
 
   // This stores the CC participant for the native, null if this class is for a
   // worker or for a native inheriting from nsISupports (we can get the CC

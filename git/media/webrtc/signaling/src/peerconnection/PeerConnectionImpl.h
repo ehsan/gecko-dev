@@ -115,17 +115,18 @@ public:
   NS_DECL_IPEERCONNECTION
 
   static PeerConnectionImpl* CreatePeerConnection();
+  static void Shutdown();
   static nsresult ConvertConstraints(
     const JS::Value& aConstraints, MediaConstraints* aObj, JSContext* aCx);
   static nsresult MakeMediaStream(uint32_t aHint, nsIDOMMediaStream** aStream);
+  static nsresult MakeRemoteSource(nsDOMMediaStream* aStream, RemoteSourceStreamInfo** aInfo);
 
   Role GetRole() const {
     PC_AUTO_ENTER_API_CALL_NO_CHECK();
     return mRole;
   }
 
-  nsresult CreateRemoteSourceStreamInfo(uint32_t aHint,
-    nsRefPtr<RemoteSourceStreamInfo>* aInfo);
+  nsresult CreateRemoteSourceStreamInfo(uint32_t aHint, RemoteSourceStreamInfo** aInfo);
 
   // Implementation of the only observer we need
   virtual void onCallEvent(
@@ -137,7 +138,7 @@ public:
   // DataConnection observers
   void NotifyConnection();
   void NotifyClosedConnection();
-  void NotifyDataChannel(already_AddRefed<mozilla::DataChannel> aChannel);
+  void NotifyDataChannel(mozilla::DataChannel *aChannel);
 
   // Get the media object
   const nsRefPtr<PeerConnectionMedia>& media() const {
@@ -216,8 +217,8 @@ private:
   void ShutdownMedia(bool isSynchronous);
 
   // ICE callbacks run on the right thread.
-  nsresult IceGatheringCompleted_m(NrIceCtx *aCtx);
-  nsresult IceCompleted_m(NrIceCtx *aCtx);
+  void IceGatheringCompleted_m(NrIceCtx *aCtx);
+  void IceCompleted_m(NrIceCtx *aCtx);
 
   // The role we are adopting
   Role mRole;

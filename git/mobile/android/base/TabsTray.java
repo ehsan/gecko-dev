@@ -8,7 +8,6 @@ package org.mozilla.gecko;
 import org.mozilla.gecko.PropertyAnimator.Property;
 
 import android.content.Context;
-import android.content.res.TypedArray;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.text.TextUtils;
@@ -32,13 +31,14 @@ import android.widget.TextView;
 import java.util.ArrayList;
 import java.util.List;
 
-public class TabsTray extends ListView 
+public class TabsTray extends LinearLayout 
                       implements TabsPanel.PanelView {
     private static final String LOGTAG = "GeckoTabsTray";
 
     private Context mContext;
     private TabsPanel mTabsPanel;
 
+    private static ListView mList;
     private TabsAdapter mTabsAdapter;
 
     private List<View> mPendingClosedTabs;
@@ -55,23 +55,22 @@ public class TabsTray extends ListView
         super(context, attrs);
         mContext = context;
 
+        LayoutInflater.from(context).inflate(R.layout.tabs_tray, this);
+
         mCloseAnimationCount = 0;
         mPendingClosedTabs = new ArrayList<View>();
 
-        setItemsCanFocus(true);
+        mList = (ListView) findViewById(R.id.list);
+        mList.setItemsCanFocus(true);
 
-        TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.TabsTray);
-        boolean isPrivate = (a.getInt(R.styleable.TabsTray_tabs, 0x0) == 1);
-        a.recycle();
+        mTabsAdapter = new TabsAdapter(mContext);
+        mList.setAdapter(mTabsAdapter);
 
-        mTabsAdapter = new TabsAdapter(mContext, isPrivate);
-        setAdapter(mTabsAdapter);
+        mSwipeListener = new TabSwipeGestureListener(mList);
+        mList.setOnTouchListener(mSwipeListener);
+        mList.setOnScrollListener(mSwipeListener.makeScrollListener());
 
-        mSwipeListener = new TabSwipeGestureListener();
-        setOnTouchListener(mSwipeListener);
-        setOnScrollListener(mSwipeListener.makeScrollListener());
-
-        setRecyclerListener(new RecyclerListener() {
+        mList.setRecyclerListener(new RecyclerListener() {
             @Override
             public void onMovedToScrapHeap(View view) {
                 TabRow row = (TabRow) view.getTag();
@@ -127,15 +126,13 @@ public class TabsTray extends ListView
     // Adapter to bind tabs into a list
     private class TabsAdapter extends BaseAdapter implements Tabs.OnTabsChangedListener {
         private Context mContext;
-        private boolean mIsPrivate;
         private ArrayList<Tab> mTabs;
         private LayoutInflater mInflater;
         private Button.OnClickListener mOnCloseClickListener;
 
-        public TabsAdapter(Context context, boolean isPrivate) {
+        public TabsAdapter(Context context) {
             mContext = context;
             mInflater = LayoutInflater.from(mContext);
-            mIsPrivate = isPrivate;
 
             mOnCloseClickListener = new Button.OnClickListener() {
                 public void onClick(View v) {
@@ -163,7 +160,7 @@ public class TabsTray extends ListView
                     // We just need to update the style for the unselected tab...
                 case THUMBNAIL:
                 case TITLE:
-                    View view = TabsTray.this.getChildAt(getPositionForTab(tab) - TabsTray.this.getFirstVisiblePosition());
+                    View view = mList.getChildAt(getPositionForTab(tab) - mList.getFirstVisiblePosition());
                     if (view == null)
                         return;
 
@@ -180,8 +177,7 @@ public class TabsTray extends ListView
 
             Iterable<Tab> tabs = Tabs.getInstance().getTabsInOrder();
             for (Tab tab : tabs) {
-                if (tab.isPrivate() == mIsPrivate)
-                    mTabs.add(tab);
+                mTabs.add(tab);
             }
 
             notifyDataSetChanged(); // Be sure to call this whenever mTabs changes.
@@ -194,7 +190,7 @@ public class TabsTray extends ListView
             if (selected == -1)
                 return;
 
-            TabsTray.this.setSelection(selected);
+            mList.setSelection(selected);
         }
 
         public void clear() {
@@ -222,10 +218,8 @@ public class TabsTray extends ListView
         }
 
         private void removeTab(Tab tab) {
-            if (tab.isPrivate() == mIsPrivate && mTabs != null) {
-                mTabs.remove(tab);
-                notifyDataSetChanged(); // Be sure to call this whenever mTabs changes.
-            }
+            mTabs.remove(tab);
+            notifyDataSetChanged(); // Be sure to call this whenever mTabs changes.
         }
 
         private void assignValues(TabRow row, Tab tab) {
@@ -357,6 +351,7 @@ public class TabsTray extends ListView
         private int mMaxFlingVelocity;
         private VelocityTracker mVelocityTracker;
 
+        private ListView mListView;
         private int mListWidth = 1;
 
         private View mSwipeView;
@@ -368,14 +363,16 @@ public class TabsTray extends ListView
         private boolean mSwiping;
         private boolean mEnabled;
 
-        public TabSwipeGestureListener() {
+        public TabSwipeGestureListener(ListView listView) {
+            mListView = listView;
+
             mSwipeView = null;
             mSwipeProxy = null;
             mSwipeViewPosition = ListView.INVALID_POSITION;
             mSwiping = false;
             mEnabled = true;
 
-            ViewConfiguration vc = ViewConfiguration.get(TabsTray.this.getContext());
+            ViewConfiguration vc = ViewConfiguration.get(listView.getContext());
             mSwipeThreshold = vc.getScaledTouchSlop();
             mMinFlingVelocity = (int) (getContext().getResources().getDisplayMetrics().density * MIN_VELOCITY);
             mMaxFlingVelocity = vc.getScaledMaximumFlingVelocity();
@@ -404,7 +401,7 @@ public class TabsTray extends ListView
                 return false;
 
             if (mListWidth < 2)
-                mListWidth = TabsTray.this.getWidth();
+                mListWidth = mListView.getWidth();
 
             switch (e.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN: {
@@ -417,7 +414,7 @@ public class TabsTray extends ListView
 
                     if (mSwipeView != null) {
                         mSwipeStart = e.getRawX();
-                        mSwipeViewPosition = TabsTray.this.getPositionForView(mSwipeView);
+                        mSwipeViewPosition = mListView.getPositionForView(mSwipeView);
 
                         mVelocityTracker = VelocityTracker.obtain();
                         mVelocityTracker.addMovement(e);
@@ -490,7 +487,7 @@ public class TabsTray extends ListView
                         cancelCheckForTap();
 
                         mSwiping = true;
-                        TabsTray.this.requestDisallowInterceptTouchEvent(true);
+                        mListView.requestDisallowInterceptTouchEvent(true);
 
                         TabRow tab = (TabRow) mSwipeView.getTag();
                         tab.close.setVisibility(View.INVISIBLE);
@@ -500,7 +497,7 @@ public class TabsTray extends ListView
                         MotionEvent cancelEvent = MotionEvent.obtain(e);
                         cancelEvent.setAction(MotionEvent.ACTION_CANCEL |
                                 (e.getActionIndex() << MotionEvent.ACTION_POINTER_INDEX_SHIFT));
-                        TabsTray.this.onTouchEvent(cancelEvent);
+                        mListView.onTouchEvent(cancelEvent);
 
                         mSwipeProxy = AnimatorProxy.create(mSwipeView);
                     }
@@ -521,16 +518,19 @@ public class TabsTray extends ListView
         }
 
         private View findViewAt(float rawX, float rawY) {
+            if (mList == null)
+                return null;
+
             Rect rect = new Rect();
 
             int[] listViewCoords = new int[2];
-            TabsTray.this.getLocationOnScreen(listViewCoords);
+            mListView.getLocationOnScreen(listViewCoords);
 
             int x = (int) rawX - listViewCoords[0];
             int y = (int) rawY - listViewCoords[1];
 
-            for (int i = 0; i < TabsTray.this.getChildCount(); i++) {
-                View child = TabsTray.this.getChildAt(i);
+            for (int i = 0; i < mListView.getChildCount(); i++) {
+                View child = mListView.getChildAt(i);
                 child.getHitRect(rect);
 
                 if (rect.contains(x, y))
@@ -544,14 +544,14 @@ public class TabsTray extends ListView
             if (mPendingCheckForTap == null)
                 mPendingCheckForTap = new CheckForTap();
 
-            TabsTray.this.postDelayed(mPendingCheckForTap, ViewConfiguration.getTapTimeout());
+            mListView.postDelayed(mPendingCheckForTap, ViewConfiguration.getTapTimeout());
         }
 
         private void cancelCheckForTap() {
             if (mPendingCheckForTap == null)
                 return;
 
-            TabsTray.this.removeCallbacks(mPendingCheckForTap);
+            mListView.removeCallbacks(mPendingCheckForTap);
         }
 
         private class CheckForTap implements Runnable {

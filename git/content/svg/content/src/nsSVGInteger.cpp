@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsError.h"
-#include "nsSVGAttrTearoffTable.h"
 #include "nsSVGInteger.h"
 #include "nsSMILValue.h"
 #include "SMILIntegerType.h"
@@ -25,9 +24,6 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGInteger::DOMAnimatedInteger)
 NS_INTERFACE_MAP_END
 
 /* Implementation */
-
-static nsSVGAttrTearoffTable<nsSVGInteger, nsSVGInteger::DOMAnimatedInteger>
-  sSVGAnimatedIntegerTearoffTable;
 
 static nsresult
 GetValueFromString(const nsAString &aValueAsString,
@@ -116,20 +112,12 @@ nsresult
 nsSVGInteger::ToDOMAnimatedInteger(nsIDOMSVGAnimatedInteger **aResult,
                                    nsSVGElement *aSVGElement)
 {
-  nsRefPtr<DOMAnimatedInteger> domAnimatedInteger =
-    sSVGAnimatedIntegerTearoffTable.GetTearoff(this);
-  if (!domAnimatedInteger) {
-    domAnimatedInteger = new DOMAnimatedInteger(this, aSVGElement);
-    sSVGAnimatedIntegerTearoffTable.AddTearoff(this, domAnimatedInteger);
-  }
+  *aResult = new DOMAnimatedInteger(this, aSVGElement);
+  if (!*aResult)
+    return NS_ERROR_OUT_OF_MEMORY;
 
-  domAnimatedInteger.forget(aResult);
+  NS_ADDREF(*aResult);
   return NS_OK;
-}
-
-nsSVGInteger::DOMAnimatedInteger::~DOMAnimatedInteger()
-{
-  sSVGAnimatedIntegerTearoffTable.RemoveTearoff(mVal);
 }
 
 nsISMILAttr*

@@ -11,6 +11,7 @@
 #include "nsAutoPtr.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsDebug.h"
+#include "nsIDOMSVGTransformList.h"
 #include "nsTArray.h"
 #include "SVGTransformList.h"
 #include "mozilla/Attributes.h"
@@ -21,7 +22,6 @@ class nsSVGElement;
 
 namespace mozilla {
 
-class DOMSVGMatrix;
 class DOMSVGTransform;
 
 /**
@@ -32,7 +32,7 @@ class DOMSVGTransform;
  *
  * See the architecture comment in DOMSVGAnimatedTransformList.h.
  */
-class DOMSVGTransformList MOZ_FINAL : public nsISupports,
+class DOMSVGTransformList MOZ_FINAL : public nsIDOMSVGTransformList,
                                       public nsWrapperCache
 {
   friend class DOMSVGTransform;
@@ -40,6 +40,7 @@ class DOMSVGTransformList MOZ_FINAL : public nsISupports,
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(DOMSVGTransformList)
+  NS_DECL_NSIDOMSVGTRANSFORMLIST
 
   DOMSVGTransformList(DOMSVGAnimatedTransformList *aAList,
                       const SVGTransformList &aInternalList)
@@ -94,34 +95,35 @@ public:
     return LengthNoFlush();
   }
   void Clear(ErrorResult& error);
-  already_AddRefed<DOMSVGTransform> Initialize(DOMSVGTransform& newItem,
-                                               ErrorResult& error);
-  DOMSVGTransform* GetItem(uint32_t index, ErrorResult& error)
+  already_AddRefed<nsIDOMSVGTransform> Initialize(nsIDOMSVGTransform *newItem,
+                                                  ErrorResult& error);
+  nsIDOMSVGTransform* GetItem(uint32_t index, ErrorResult& error)
   {
     bool found;
-    DOMSVGTransform* item = IndexedGetter(index, found, error);
+    nsIDOMSVGTransform* item = IndexedGetter(index, found, error);
     if (!found) {
       error.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
     }
     return item;
   }
-  DOMSVGTransform* IndexedGetter(uint32_t index, bool& found,
-                                 ErrorResult& error);
-  already_AddRefed<DOMSVGTransform> InsertItemBefore(DOMSVGTransform& newItem,
-                                                     uint32_t index,
-                                                     ErrorResult& error);
-  already_AddRefed<DOMSVGTransform> ReplaceItem(DOMSVGTransform& newItem,
-                                                uint32_t index,
-                                                ErrorResult& error);
-  already_AddRefed<DOMSVGTransform> RemoveItem(uint32_t index,
-                                               ErrorResult& error);
-  already_AddRefed<DOMSVGTransform> AppendItem(DOMSVGTransform& newItem,
-                                               ErrorResult& error)
+  nsIDOMSVGTransform* IndexedGetter(uint32_t index, bool& found,
+                                    ErrorResult& error);
+  already_AddRefed<nsIDOMSVGTransform> InsertItemBefore(nsIDOMSVGTransform *newItem,
+                                                        uint32_t index,
+                                                        ErrorResult& error);
+  already_AddRefed<nsIDOMSVGTransform> ReplaceItem(nsIDOMSVGTransform *newItem,
+                                                   uint32_t index,
+                                                   ErrorResult& error);
+  already_AddRefed<nsIDOMSVGTransform> RemoveItem(uint32_t index,
+                                                  ErrorResult& error);
+  already_AddRefed<nsIDOMSVGTransform> AppendItem(nsIDOMSVGTransform *newItem,
+                                                  ErrorResult& error)
   {
     return InsertItemBefore(newItem, LengthNoFlush(), error);
   }
-  already_AddRefed<DOMSVGTransform> CreateSVGTransformFromMatrix(DOMSVGMatrix& matrix);
-  already_AddRefed<DOMSVGTransform> Consolidate(ErrorResult& error);
+  already_AddRefed<nsIDOMSVGTransform>
+    CreateSVGTransformFromMatrix(nsIDOMSVGMatrix *matrix, ErrorResult& error);
+  already_AddRefed<nsIDOMSVGTransform> Consolidate(ErrorResult& error);
   uint32_t Length() const
   {
     return NumberOfItems();

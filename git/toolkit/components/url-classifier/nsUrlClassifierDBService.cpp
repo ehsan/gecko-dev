@@ -30,7 +30,6 @@
 #include "nsThreadUtils.h"
 #include "nsXPCOMStrings.h"
 #include "nsProxyRelease.h"
-#include "mozilla/DebugOnly.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/TimeStamp.h"
 #include "mozilla/Telemetry.h"
@@ -71,7 +70,7 @@ PRLogModuleInfo *gUrlClassifierDbServiceLog = nullptr;
 
 #define GETHASH_TABLES_PREF     "urlclassifier.gethashtables"
 
-#define CONFIRM_AGE_PREF        "urlclassifier.max-complete-age"
+#define CONFIRM_AGE_PREF        "urlclassifier.confirm-age"
 #define CONFIRM_AGE_DEFAULT_SEC (45 * 60)
 
 class nsUrlClassifierDBServiceWorker;
@@ -117,7 +116,7 @@ public:
   NS_DECL_NSIURLCLASSIFIERDBSERVICE
   NS_DECL_NSIURLCLASSIFIERDBSERVICEWORKER
 
-  nsresult Init(uint32_t aGethashNoise, nsCOMPtr<nsIFile> aCacheDir,
+  nsresult Init(int32_t gethashNoise, nsCOMPtr<nsIFile> aCacheDir,
                 bool aPerClientRandomize);
 
   // Queue a lookup for the worker to perform, called in the main thread.
@@ -151,7 +150,7 @@ private:
 
   nsresult AddNoise(const Prefix aPrefix,
                     const nsCString tableName,
-                    uint32_t aCount,
+                    int32_t aCount,
                     LookupResultArray& results);
 
   nsCOMPtr<nsICryptoHash> mCryptoHash;
@@ -185,7 +184,7 @@ private:
   uint32_t mHashKey;
 
   // The number of noise entries to add to the set of lookup results.
-  uint32_t mGethashNoise;
+  int32_t mGethashNoise;
 
   // Randomize clients with a key or not.
   bool mPerClientRandomize;
@@ -225,11 +224,11 @@ nsUrlClassifierDBServiceWorker::~nsUrlClassifierDBServiceWorker()
 }
 
 nsresult
-nsUrlClassifierDBServiceWorker::Init(uint32_t aGethashNoise,
+nsUrlClassifierDBServiceWorker::Init(int32_t gethashNoise,
                                      nsCOMPtr<nsIFile> aCacheDir,
                                      bool aPerClientRandomize)
 {
-  mGethashNoise = aGethashNoise;
+  mGethashNoise = gethashNoise;
   mCacheDir = aCacheDir;
   mPerClientRandomize = aPerClientRandomize;
 
@@ -358,7 +357,7 @@ nsUrlClassifierDBServiceWorker::HandlePendingLookups()
 nsresult
 nsUrlClassifierDBServiceWorker::AddNoise(const Prefix aPrefix,
                                          const nsCString tableName,
-                                         uint32_t aCount,
+                                         int32_t aCount,
                                          LookupResultArray& results)
 {
   if (aCount < 1) {
@@ -1130,7 +1129,7 @@ nsUrlClassifierDBService::Init()
   // Should we check document loads for malware URIs?
   nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
 
-  uint32_t gethashNoise = 0;
+  int32_t gethashNoise = 0;
   if (prefs) {
     bool tmpbool;
     rv = prefs->GetBoolPref(CHECK_MALWARE_PREF, &tmpbool);
@@ -1143,10 +1142,9 @@ nsUrlClassifierDBService::Init()
 
     prefs->AddObserver(CHECK_PHISHING_PREF, this, false);
 
-    int32_t tmpint;
-    rv = prefs->GetIntPref(GETHASH_NOISE_PREF, &tmpint);
-    gethashNoise = (NS_SUCCEEDED(rv) && tmpint >= 0) ?
-      static_cast<uint32_t>(tmpint) : GETHASH_NOISE_DEFAULT;
+    if (NS_FAILED(prefs->GetIntPref(GETHASH_NOISE_PREF, &gethashNoise))) {
+      gethashNoise = GETHASH_NOISE_DEFAULT;
+    }
 
     nsXPIDLCString tmpstr;
     if (NS_SUCCEEDED(prefs->GetCharPref(GETHASH_TABLES_PREF, getter_Copies(tmpstr)))) {
@@ -1155,6 +1153,7 @@ nsUrlClassifierDBService::Init()
 
     prefs->AddObserver(GETHASH_TABLES_PREF, this, false);
 
+    int32_t tmpint;
     rv = prefs->GetIntPref(CONFIRM_AGE_PREF, &tmpint);
     PR_ATOMIC_SET(&gFreshnessGuarantee, NS_SUCCEEDED(rv) ? tmpint : CONFIRM_AGE_DEFAULT_SEC);
 
@@ -1507,7 +1506,7 @@ nsUrlClassifierDBService::Shutdown()
     prefs->RemoveObserver(CONFIRM_AGE_PREF, this);
   }
 
-  DebugOnly<nsresult> rv;
+  nsresult rv;
   // First close the db connection.
   if (mWorker) {
     rv = mWorkerProxy->CancelUpdate();

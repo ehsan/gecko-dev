@@ -74,10 +74,6 @@ Sync11Service.prototype = {
 
   get serverURL() Svc.Prefs.get("serverURL"),
   set serverURL(value) {
-    if (!value.endsWith("/")) {
-      value += "/";
-    }
-
     // Only do work if it's actually changing
     if (value == this.serverURL)
       return;
@@ -120,6 +116,10 @@ Sync11Service.prototype = {
 
   get pwResetURL() {
     return this.serverURL + "weave-password-reset";
+  },
+
+  get updatedURL() {
+    return WEAVE_CHANNEL == "dev" ? UPDATED_DEV_URL : UPDATED_REL_URL;
   },
 
   get syncID() {

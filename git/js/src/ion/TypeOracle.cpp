@@ -561,7 +561,7 @@ TypeInferenceOracle::canEnterInlinedFunction(JSFunction *target)
     if (!script->hasAnalysis() || !script->analysis()->ranInference())
         return false;
 
-    if (!script->analysis()->ionInlineable())
+    if (!script->analysis()->inlineable())
         return false;
 
     if (script->analysis()->usesScopeChain())

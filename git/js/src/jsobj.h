@@ -271,7 +271,7 @@ class WithObject;
 struct JSObject : public js::ObjectImpl
 {
   private:
-    friend class js::Shape;
+    friend struct js::Shape;
     friend struct js::GCMarker;
     friend class  js::NewObjectCache;
 
@@ -476,7 +476,7 @@ struct JSObject : public js::ObjectImpl
      * Mark an object as requiring its default 'new' type to have unknown
      * properties.
      */
-    static bool setNewTypeUnknown(JSContext *cx, JS::HandleObject obj);
+    bool setNewTypeUnknown(JSContext *cx);
 
     /* Set a new prototype for an object with a singleton type. */
     bool splicePrototype(JSContext *cx, js::Handle<js::TaggedProto> proto);
@@ -657,7 +657,7 @@ struct JSObject : public js::ObjectImpl
      * Function-specific getters and setters.
      */
 
-    friend class JSFunction;
+    friend struct JSFunction;
 
     inline JSFunction *toFunction();
     inline const JSFunction *toFunction() const;

@@ -17,24 +17,13 @@ XPCOMUtils.defineLazyModuleGetter(this, "Hosts",
 XPCOMUtils.defineLazyModuleGetter(this, "CommandUtils",
                                   "resource:///modules/devtools/DeveloperToolbar.jsm");
 
-XPCOMUtils.defineLazyGetter(this, "toolboxStrings", function() {
-  let bundle = Services.strings.createBundle("chrome://browser/locale/devtools/toolbox.properties");
-  let l10n = function(name) {
-    try {
-      return bundle.GetStringFromName(name);
-    } catch (ex) {
-      Services.console.logStringMessage("Error reading '" + name + "'");
-    }
-  };
-  return l10n;
-});
+// DO NOT put Require.jsm or gcli.jsm into lazy getters as this breaks the
+// requisition import a few lines down.
+Cu.import("resource:///modules/devtools/gcli.jsm");
+Cu.import("resource://gre/modules/devtools/Require.jsm");
 
-XPCOMUtils.defineLazyGetter(this, "Requisition", function() {
-  Cu.import("resource://gre/modules/devtools/Require.jsm");
-  Cu.import("resource:///modules/devtools/gcli.jsm");
-
-  return require('gcli/cli').Requisition;
-});
+let Requisition = require('gcli/cli').Requisition;
+let CommandOutputManager = require('gcli/canon').CommandOutputManager;
 
 this.EXPORTED_SYMBOLS = [ "Toolbox" ];
 
@@ -244,14 +233,9 @@ Toolbox.prototype = {
   open: function TBOX_open() {
     let deferred = Promise.defer();
 
-    this._host.create().then(function(iframe) {
-      let domReady = function() {
-        iframe.removeEventListener("DOMContentLoaded", domReady, true);
-
-        let vbox = this.doc.getElementById("toolbox-panel-" + this._currentToolId);
-        if (vbox) {
-          this.doc.commandDispatcher.advanceFocusIntoSubtree(vbox);
-        }
+    this._host.open().then(function(iframe) {
+      let onload = function() {
+        iframe.removeEventListener("DOMContentLoaded", onload, true);
 
         this.isReady = true;
 
@@ -260,7 +244,7 @@ Toolbox.prototype = {
 
         this._buildDockButtons();
         this._buildTabs();
-        this._buildButtons();
+        this._buildButtons(this.frame);
 
         this.selectTool(this._defaultToolId).then(function(panel) {
           this.emit("ready");
@@ -268,7 +252,7 @@ Toolbox.prototype = {
         }.bind(this));
       }.bind(this);
 
-      iframe.addEventListener("DOMContentLoaded", domReady, true);
+      iframe.addEventListener("DOMContentLoaded", onload, true);
       iframe.setAttribute("src", this._URL);
     }.bind(this));
 
@@ -301,8 +285,6 @@ Toolbox.prototype = {
       let button = this.doc.createElement("toolbarbutton");
       button.id = "toolbox-dock-" + position;
       button.className = "toolbox-dock-button";
-      button.setAttribute("tooltiptext", toolboxStrings("toolboxDockButtons." +
-                                                        position + ".tooltip"));
       button.addEventListener("command", function(position) {
         this.switchHost(position);
       }.bind(this, position));
@@ -322,17 +304,21 @@ Toolbox.prototype = {
 
   /**
    * Add buttons to the UI as specified in the devtools.window.toolbarSpec pref
+   *
+   * @param {iframe} frame
+   *        The iframe to contain the buttons
    */
-  _buildButtons: function TBOX_buildButtons() {
-    if (!this.target.isLocalTab) {
+  _buildButtons: function TBOX_buildButtons(frame) {
+    if (this.target.isRemote) {
       return;
     }
 
     let toolbarSpec = CommandUtils.getCommandbarSpec("devtools.toolbox.toolbarSpec");
-    let environment = { chromeDocument: this.target.tab.ownerDocument };
+    let environment = { chromeDocument: frame.ownerDocument };
     let requisition = new Requisition(environment);
+    requisition.commandOutputManager = new CommandOutputManager();
 
-    let buttons = CommandUtils.createButtons(toolbarSpec, this._target, this.doc, requisition);
+    let buttons = CommandUtils.createButtons(toolbarSpec, this.doc, requisition);
 
     let container = this.doc.getElementById("toolbox-buttons");
     buttons.forEach(function(button) {
@@ -362,10 +348,6 @@ Toolbox.prototype = {
     radio.className = "toolbox-tab devtools-tab";
     radio.id = "toolbox-tab-" + id;
     radio.setAttribute("toolid", id);
-    radio.setAttribute("tooltiptext", toolDefinition.tooltip);
-    if (toolDefinition.icon) {
-      radio.setAttribute("src", toolDefinition.icon);
-    }
 
     let ordinal = (typeof toolDefinition.ordinal == "number") ?
                   toolDefinition.ordinal : MAX_ORDINAL;
@@ -474,10 +456,11 @@ Toolbox.prototype = {
    *        The created host object
    */
   _createHost: function TBOX_createHost(hostType) {
+    let hostTab = this._getHostTab();
     if (!Hosts[hostType]) {
       throw new Error('Unknown hostType: '+ hostType);
     }
-    let newHost = new Hosts[hostType](this.target.tab);
+    let newHost = new Hosts[hostType](hostTab);
 
     // clean up the toolbox if its window is closed
     newHost.on("window-closed", this.destroy);
@@ -502,7 +485,7 @@ Toolbox.prototype = {
     }
 
     let newHost = this._createHost(hostType);
-    return newHost.create().then(function(iframe) {
+    return newHost.open().then(function(iframe) {
       // change toolbox document's parent to the new host
       iframe.QueryInterface(Ci.nsIFrameLoaderOwner);
       iframe.swapFrameLoaders(this.frame);
@@ -518,6 +501,18 @@ Toolbox.prototype = {
 
       this.emit("host-changed");
     }.bind(this));
+  },
+
+  /**
+   * Get the most appropriate host tab, either the target or the current tab
+   */
+  _getHostTab: function TBOX_getHostTab() {
+    if (!this._target.isRemote && !this._target.isChrome) {
+      return this._target.tab;
+    } else {
+      let win = Services.wm.getMostRecentWindow("navigator:browser");
+      return win.gBrowser.selectedTab;
+    }
   },
 
   /**

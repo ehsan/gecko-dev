@@ -136,8 +136,8 @@ MobileICCInfo.prototype = {
   msisdn: null
 };
 
-function VoicemailInfo() {}
-VoicemailInfo.prototype = {
+function MobileVoicemailInfo() {}
+MobileVoicemailInfo.prototype = {
   number: null,
   displayName: null
 };
@@ -319,7 +319,7 @@ function RILContentHelper() {
   this.iccInfo = new MobileICCInfo();
   this.voiceConnectionInfo = new MobileConnectionInfo();
   this.dataConnectionInfo = new MobileConnectionInfo();
-  this.voicemailInfo = new VoicemailInfo();
+  this.voicemailInfo = new MobileVoicemailInfo();
 
   this.initRequests();
   this.initMessageListener(RIL_IPC_MSG_NAMES);
@@ -336,6 +336,7 @@ function RILContentHelper() {
   this.updateICCInfo(rilContext.icc, this.iccInfo);
   this.updateConnectionInfo(rilContext.voice, this.voiceConnectionInfo);
   this.updateConnectionInfo(rilContext.data, this.dataConnectionInfo);
+  this.updateVoicemailInfo(rilContext.voicemail, this.voicemailInfo);
 }
 
 RILContentHelper.prototype = {
@@ -650,25 +651,11 @@ RILContentHelper.prototype = {
   _enumerateTelephonyCallbacks: null,
 
   voicemailStatus: null,
-
-  getVoicemailInfo: function getVoicemailInfo() {
-    // Get voicemail infomation by IPC only on first time.
-    this.getVoicemailInfo = function getVoicemailInfo() {
-      return this.voicemailInfo;
-    };
-
-    let voicemailInfo = cpmm.sendSyncMessage("RIL:GetVoicemailInfo")[0];
-    if (voicemailInfo) {
-      this.updateVoicemailInfo(voicemailInfo, this.voicemailInfo);
-    }
-
-    return this.voicemailInfo;
-  },
   get voicemailNumber() {
-    return this.getVoicemailInfo().number;
+    return this.voicemailInfo.number;
   },
   get voicemailDisplayName() {
-    return this.getVoicemailInfo().displayName;
+    return this.voicemailInfo.displayName;
   },
 
   registerCallback: function registerCallback(callbackType, callback) {
@@ -884,9 +871,7 @@ RILContentHelper.prototype = {
       case "RIL:IccInfoChanged":
         this.updateICCInfo(msg.json, this.iccInfo);
         if (this.iccInfo.mcc) {
-          try {
-            Services.prefs.setIntPref("ril.lastKnownMcc", this.iccInfo.mcc);
-          } catch (e) {}
+          Services.prefs.setIntPref("ril.lastKnownMcc", this.iccInfo.mcc);
         }
         Services.obs.notifyObservers(null, kIccInfoChangedTopic, null);
         break;

@@ -52,13 +52,12 @@ Volume::SetMediaPresent(bool aMediaPresent)
   // The AutoMounter needs to know whether the media is present or not when
   // processing the Idle state.
 
-  if (mMediaPresent == aMediaPresent) {
-    return;
+  if (mMediaPresent != aMediaPresent) {
+    LOG("Volume: %s media %s", NameStr(), aMediaPresent ? "inserted" : "removed");
+    mMediaPresent = aMediaPresent;
+    // No need to broadcast the change. A state change will be coming right away,
+    // and that will serve the purpose.
   }
-
-  LOG("Volume: %s media %s", NameStr(), aMediaPresent ? "inserted" : "removed");
-  mMediaPresent = aMediaPresent;
-  mEventObserverList.Broadcast(this);
 }
 
 void

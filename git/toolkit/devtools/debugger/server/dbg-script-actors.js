@@ -2266,8 +2266,10 @@ update(ChromeDebuggerActor.prototype, {
    */
   globalManager: {
     findGlobals: function CDA_findGlobals() {
-      // Add every global known to the debugger as debuggee.
-      this.dbg.addAllGlobalsAsDebuggees();
+      // Fetch the list of globals from the debugger.
+      for (let g of this.dbg.findAllGlobals()) {
+        this.addDebuggee(g);
+      }
     },
 
     /**

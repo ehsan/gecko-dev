@@ -143,12 +143,6 @@ public:
    */
   virtual void NotifyFinished(MediaStreamGraph* aGraph) {}
 
-  /**
-   * Notify that your listener has been removed, either due to RemoveListener(),
-   * or due to the stream being destroyed.  You will get no further notifications.
-   */
-  virtual void NotifyRemoved(MediaStreamGraph* aGraph) {}
-
   enum {
     TRACK_EVENT_CREATED = 0x01,
     TRACK_EVENT_ENDED = 0x02
@@ -267,7 +261,6 @@ public:
     , mGraphUpdateIndices(0)
     , mFinished(false)
     , mNotifiedFinished(false)
-    , mNotifiedBlocked(false)
     , mWrapper(aWrapper)
     , mMainThreadCurrentTime(0)
     , mMainThreadFinished(false)
@@ -369,9 +362,10 @@ public:
     mExplicitBlockerCount.SetAtAndAfter(aTime, mExplicitBlockerCount.GetAt(aTime) + aDelta);
   }
   void AddListenerImpl(already_AddRefed<MediaStreamListener> aListener);
-  void RemoveListenerImpl(MediaStreamListener* aListener);
-  void RemoveAllListenersImpl();
-
+  void RemoveListenerImpl(MediaStreamListener* aListener)
+  {
+    mListeners.RemoveElement(aListener);
+  }
   void AddConsumer(MediaInputPort* aPort)
   {
     mConsumers.AppendElement(aPort);
@@ -463,11 +457,6 @@ protected:
    * and fired NotifyFinished notifications.
    */
   bool mNotifiedFinished;
-  /**
-   * When true, the last NotifyBlockingChanged delivered to the listeners
-   * indicated that the stream is blocked.
-   */
-  bool mNotifiedBlocked;
 
   // Temporary data for ordering streams by dependency graph
   bool mHasBeenOrdered;

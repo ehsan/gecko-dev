@@ -62,7 +62,6 @@
 #include "nsISimpleEnumerator.h"
 #include "nsCharTraits.h"
 
-#include "mozilla/Preferences.h"
 #include "mozilla/Telemetry.h"
 
 #include <unistd.h>
@@ -344,8 +343,9 @@ MacOSFontEntry::IsCFF()
 
 MacOSFontEntry::MacOSFontEntry(const nsAString& aPostscriptName,
                                int32_t aWeight,
+                               gfxFontFamily *aFamily,
                                bool aIsStandardFace)
-    : gfxFontEntry(aPostscriptName, aIsStandardFace),
+    : gfxFontEntry(aPostscriptName, aFamily, aIsStandardFace),
       mFontRef(NULL),
       mFontRefInitialized(false),
       mRequiresAAT(false),
@@ -360,7 +360,7 @@ MacOSFontEntry::MacOSFontEntry(const nsAString& aPostscriptName,
                                uint16_t aWeight, uint16_t aStretch,
                                uint32_t aItalicStyle,
                                bool aIsUserFont, bool aIsLocal)
-    : gfxFontEntry(aPostscriptName, false),
+    : gfxFontEntry(aPostscriptName, nullptr, false),
       mFontRef(NULL),
       mFontRefInitialized(false),
       mRequiresAAT(false),
@@ -541,7 +541,8 @@ gfxMacFontFamily::FindStyleVariations()
 
         // create a font entry
         MacOSFontEntry *fontEntry =
-            new MacOSFontEntry(postscriptFontName, cssWeight, isStandardFace);
+            new MacOSFontEntry(postscriptFontName, cssWeight, this,
+                               isStandardFace);
         if (!fontEntry) {
             break;
         }
@@ -734,7 +735,7 @@ gfxMacPlatformFontList::InitFontList()
     // start the delayed cmap loader
     StartLoader(kDelayBeforeLoadingCmaps, kIntervalBetweenLoadingCmaps);
 
-    return NS_OK;
+	return NS_OK;
 }
 
 void
@@ -825,15 +826,11 @@ gfxMacPlatformFontList::GetStandardFamilyName(const nsAString& aFontName, nsAStr
 
 void
 gfxMacPlatformFontList::ATSNotification(ATSFontNotificationInfoRef aInfo,
-                                        void* aUserArg)
+                                    void* aUserArg)
 {
     // xxx - should be carefully pruning the list of fonts, not rebuilding it from scratch
-    static_cast<gfxMacPlatformFontList*>(aUserArg)->UpdateFontList();
-
-    // modify a preference that will trigger reflow everywhere
-    static const char kPrefName[] = "font.internaluseonly.changed";
-    bool fontInternalChange = Preferences::GetBool(kPrefName, false);
-    Preferences::SetBool(kPrefName, !fontInternalChange);
+    gfxMacPlatformFontList *qfc = (gfxMacPlatformFontList*)aUserArg;
+    qfc->UpdateFontList();
 }
 
 gfxFontEntry*

@@ -396,18 +396,17 @@ nsMathMLmoFrame::ProcessOperatorData()
   // values: length
   // default: set by dictionary (thickmathspace) 
   //
-  // XXXfredw Support for negative and relative values is not implemented
-  // (bug 805926).
-  // Relative values will give a multiple of the current leading space,
-  // which is not necessarily the default one.
+  // XXXfredw Should we allow negative values? (bug 411227) They will be made
+  // positive by the rounding below.
+  // XXXfredw Should we allow relative values? They will give a multiple of the
+  // current leading space, which is not necessarily the default one.
   //
   nscoord leadingSpace = mEmbellishData.leadingSpace;
   GetAttribute(mContent, mPresentationData.mstyle, nsGkAtoms::lspace_,
                value);
   if (!value.IsEmpty()) {
     nsCSSValue cssValue;
-    if (nsMathMLElement::ParseNumericValue(value, cssValue, 0,
-                                           mContent->OwnerDoc())) {
+    if (nsMathMLElement::ParseNumericValue(value, cssValue, 0)) {
       if ((eCSSUnit_Number == cssValue.GetUnit()) && !cssValue.GetFloatValue())
         leadingSpace = 0;
       else if (cssValue.IsLengthUnit())
@@ -423,18 +422,17 @@ nsMathMLmoFrame::ProcessOperatorData()
   // values: length
   // default: set by dictionary (thickmathspace) 
   //
-  // XXXfredw Support for negative and relative values is not implemented
-  // (bug 805926).
-  // Relative values will give a multiple of the current leading space,
-  // which is not necessarily the default one.
+  // XXXfredw Should we allow negative values? (bug 411227) They will be made
+  // positive by the rounding below.
+  // XXXfredw Should we allow relative values? They will give a multiple of the
+  // current trailing space, which is not necessarily the default one.
   //
   nscoord trailingSpace = mEmbellishData.trailingSpace;
   GetAttribute(mContent, mPresentationData.mstyle, nsGkAtoms::rspace_,
                value);
   if (!value.IsEmpty()) {
     nsCSSValue cssValue;
-    if (nsMathMLElement::ParseNumericValue(value, cssValue, 0,
-                                           mContent->OwnerDoc())) {
+    if (nsMathMLElement::ParseNumericValue(value, cssValue, 0)) {
       if ((eCSSUnit_Number == cssValue.GetUnit()) && !cssValue.GetFloatValue())
         trailingSpace = 0;
       else if (cssValue.IsLengthUnit())
@@ -519,8 +517,7 @@ nsMathMLmoFrame::ProcessOperatorData()
     nsCSSValue cssValue;
     if (nsMathMLElement::ParseNumericValue(value, cssValue,
                                            nsMathMLElement::
-                                           PARSE_ALLOW_UNITLESS,
-                                           mContent->OwnerDoc())) {
+                                           PARSE_ALLOW_UNITLESS)) {
       nsCSSUnit unit = cssValue.GetUnit();
       if (eCSSUnit_Number == unit)
         mMinSize = cssValue.GetFloatValue();
@@ -552,8 +549,7 @@ nsMathMLmoFrame::ProcessOperatorData()
     nsCSSValue cssValue;
     if (nsMathMLElement::ParseNumericValue(value, cssValue,
                                            nsMathMLElement::
-                                           PARSE_ALLOW_UNITLESS,
-                                           mContent->OwnerDoc())) {
+                                           PARSE_ALLOW_UNITLESS)) {
       nsCSSUnit unit = cssValue.GetUnit();
       if (eCSSUnit_Number == unit)
         mMaxSize = cssValue.GetFloatValue();

@@ -65,14 +65,6 @@ nsDOMMediaStream::GetCurrentTime(double *aCurrentTime)
   return NS_OK;
 }
 
-nsDOMLocalMediaStream::~nsDOMLocalMediaStream()
-{
-  if (mStream) {
-    // Make sure Listeners of this stream know it's going away
-    Stop();
-  }
-}
-
 NS_IMETHODIMP
 nsDOMLocalMediaStream::Stop()
 {
@@ -86,7 +78,9 @@ already_AddRefed<nsDOMMediaStream>
 nsDOMMediaStream::CreateSourceStream(uint32_t aHintContents)
 {
   nsRefPtr<nsDOMMediaStream> stream = new nsDOMMediaStream();
-  stream->InitSourceStream(aHintContents);
+  stream->SetHintContents(aHintContents);
+  MediaStreamGraph* gm = MediaStreamGraph::GetInstance();
+  stream->mStream = gm->CreateSourceStream(stream);
   return stream.forget();
 }
 
@@ -94,7 +88,9 @@ already_AddRefed<nsDOMLocalMediaStream>
 nsDOMLocalMediaStream::CreateSourceStream(uint32_t aHintContents)
 {
   nsRefPtr<nsDOMLocalMediaStream> stream = new nsDOMLocalMediaStream();
-  stream->InitSourceStream(aHintContents);
+  stream->SetHintContents(aHintContents);
+  MediaStreamGraph* gm = MediaStreamGraph::GetInstance();
+  stream->mStream = gm->CreateSourceStream(stream);
   return stream.forget();
 }
 
@@ -102,7 +98,9 @@ already_AddRefed<nsDOMMediaStream>
 nsDOMMediaStream::CreateTrackUnionStream(uint32_t aHintContents)
 {
   nsRefPtr<nsDOMMediaStream> stream = new nsDOMMediaStream();
-  stream->InitTrackUnionStream(aHintContents);
+  stream->SetHintContents(aHintContents);
+  MediaStreamGraph* gm = MediaStreamGraph::GetInstance();
+  stream->mStream = gm->CreateTrackUnionStream(stream);
   return stream.forget();
 }
 
@@ -110,7 +108,9 @@ already_AddRefed<nsDOMLocalMediaStream>
 nsDOMLocalMediaStream::CreateTrackUnionStream(uint32_t aHintContents)
 {
   nsRefPtr<nsDOMLocalMediaStream> stream = new nsDOMLocalMediaStream();
-  stream->InitTrackUnionStream(aHintContents);
+  stream->SetHintContents(aHintContents);
+  MediaStreamGraph* gm = MediaStreamGraph::GetInstance();
+  stream->mStream = gm->CreateTrackUnionStream(stream);
   return stream.forget();
 }
 

@@ -65,8 +65,8 @@ function testFrameEval() {
 
 function testModification(aVar, aCallback, aNewValue, aNewResult) {
   function makeChangesAndExitInputMode() {
-    EventUtils.sendString(aNewValue, gDebugger);
-    EventUtils.sendKey("RETURN", gDebugger);
+    EventUtils.sendString(aNewValue);
+    EventUtils.sendKey("RETURN");
   }
 
   EventUtils.sendMouseEvent({ type: "click" },

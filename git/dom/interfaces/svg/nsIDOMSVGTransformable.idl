@@ -5,9 +5,10 @@
 
 #include "nsIDOMSVGLocatable.idl"
 
+interface nsIDOMSVGAnimatedTransformList;
+
 [scriptable, uuid(b81f6e37-1842-4534-a546-1ab86e59a3c6)]
 interface nsIDOMSVGTransformable : nsIDOMSVGLocatable
-{
-  // SVGAnimatedTransformList
-  readonly attribute nsISupports transform;
+{ 
+  readonly attribute nsIDOMSVGAnimatedTransformList transform;
 };

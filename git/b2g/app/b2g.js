@@ -283,14 +283,10 @@ pref("content.image.allow_locking", true);
 pref("image.mem.min_discard_timeout_ms", 10000);
 pref("image.mem.max_decoded_image_kb", 5120); /* 5MB */
 
-// XXX this isn't a good check for "are touch events supported", but
-// we don't really have a better one at the moment.
-#ifdef MOZ_WIDGET_GONK
 // enable touch events interfaces
 pref("dom.w3c_touch_events.enabled", 1);
 pref("dom.w3c_touch_events.safetyX", 0); // escape borders in units of 1/240"
 pref("dom.w3c_touch_events.safetyY", 120); // escape borders in units of 1/240"
-#endif
 
 #ifdef MOZ_SAFE_BROWSING
 // Safe browsing does nothing unless this pref is set
@@ -337,7 +333,7 @@ pref("urlclassifier.gethashtables", "goog-phish-shavar,goog-malware-shavar");
 // If an urlclassifier table has not been updated in this number of seconds,
 // a gethash request will be forced to check that the result is still in
 // the database.
-pref("urlclassifier.max-complete-age", 2700);
+pref("urlclassifier.confirm-age", 2700);
 
 // URL for checking the reason for a malware warning.
 pref("browser.safebrowsing.malware.reportURL", "http://safebrowsing.clients.google.com/safebrowsing/diagnostic?client=%NAME%&hl=%LOCALE%&site=");
@@ -359,6 +355,13 @@ pref("content.ime.strict_policy", true);
 // $ adb shell setprop log.redirect-stdio true
 // $ adb shell start
 pref("browser.dom.window.dump.enabled", false);
+
+
+
+// Temporarily relax file:// origin checks so that we can use <img>s
+// from other dirs as webgl textures and more.  Remove me when we have
+// installable apps or wifi support.
+pref("security.fileuri.strict_origin_policy", false);
 
 // Default Content Security Policy to apply to privileged and certified apps
 pref("security.apps.privileged.CSP.default", "default-src *; script-src 'self'; object-src 'none'; style-src 'self' 'unsafe-inline'");
@@ -458,6 +461,9 @@ pref("shutdown.watchdog.timeoutSecs", 5);
 pref("b2g.update.apply-prompt-timeout", 60000); // milliseconds
 // Amount of time to wait after the user is idle before prompting to apply an update
 pref("b2g.update.apply-idle-timeout", 600000); // milliseconds
+// Amount of time the updater waits for the process to exit cleanly before
+// forcefully exiting the process
+pref("b2g.update.self-destruct-timeout", 5000); // milliseconds
 
 pref("app.update.enabled", true);
 pref("app.update.auto", false);
@@ -499,7 +505,7 @@ pref("extensions.getAddons.cache.enabled", false);
 
 // Context Menu
 pref("ui.click_hold_context_menus", true);
-pref("ui.click_hold_context_menus.delay", 750);
+pref("ui.click_hold_context_menus.delay", 1000);
 
 // Enable device storage
 pref("device.storage.enabled", true);
@@ -548,8 +554,6 @@ pref("hal.processPriorityManager.gonk.masterOomScoreAdjust", 0);
 pref("hal.processPriorityManager.gonk.masterKillUnderMB", 1);
 pref("hal.processPriorityManager.gonk.foregroundOomScoreAdjust", 67);
 pref("hal.processPriorityManager.gonk.foregroundKillUnderMB", 4);
-pref("hal.processPriorityManager.gonk.backgroundPerceivableOomScoreAdjust", 134);
-pref("hal.processPriorityManager.gonk.backgroundPerceivebleKillUnderMB", 5);
 pref("hal.processPriorityManager.gonk.backgroundHomescreenOomScoreAdjust", 200);
 pref("hal.processPriorityManager.gonk.backgroundHomescreenKillUnderMB", 5);
 pref("hal.processPriorityManager.gonk.backgroundOomScoreAdjust", 400);
@@ -597,13 +601,6 @@ pref("browser.prompt.allowNative", false);
 // a restart is required to enable a new value.
 pref("network.activity.blipIntervalMilliseconds", 250);
 
-// By default we want the NetworkManager service to manage Gecko's offline
-// status for us according to the state of Wifi/cellular data connections.
-// In some environments, such as the emulator or hardware with other network
-// connectivity, this is not desireable, however, in which case this pref
-// can be flipped to false.
-pref("network.gonk.manage-offline-status", true);
-
 pref("jsloader.reuseGlobal", true);
 
 // Enable font inflation for browser tab content.
@@ -618,13 +615,3 @@ pref("memory.free_dirty_pages", true);
 // UAProfile settings
 pref("wap.UAProf.url", "");
 pref("wap.UAProf.tagname", "x-wap-profile");
-
-// Enable native identity (persona/browserid)
-pref("dom.identity.enabled", true);
-
-// Wait up to this much milliseconds when orientation changed
-pref("layers.orientation.sync.timeout", 1000);
-
-// Don't discard WebGL contexts for foreground apps on memory
-// pressure.
-pref("webgl.can-lose-context-in-foreground", false);

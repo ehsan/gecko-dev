@@ -600,11 +600,6 @@ CodeGenerator::visitParameter(LParameter *lir)
 bool
 CodeGenerator::visitCallee(LCallee *lir)
 {
-    // read number of actual arguments from the JS frame.
-    Register callee = ToRegister(lir->output());
-    Address ptr(StackPointer, frameSize() + IonJSFrameLayout::offsetOfCalleeToken());
-
-    masm.loadPtr(ptr, callee);
     return true;
 }
 
@@ -892,7 +887,7 @@ CodeGenerator::visitCallDOMNative(LCallDOMNative *call)
     masm.Push(ObjectValue(*target));
     masm.movePtr(StackPointer, argVp);
 
-    // GetReservedSlot(obj, DOM_OBJECT_SLOT).toPrivate()
+    // GetReservedSlot(obj, DOM_PROTO_INSTANCE_CLASS_SLOT).toPrivate()
     masm.loadPrivate(Address(obj, JSObject::getFixedSlotOffset(0)), argPrivate);
 
     // Load argc from the call instruction.
@@ -1509,31 +1504,19 @@ static const VMFunction DefVarOrConstInfo =
 bool
 CodeGenerator::visitDefVar(LDefVar *lir)
 {
-    Register scopeChain = ToRegister(lir->scopeChain());
+    Register scopeChain = ToRegister(lir->getScopeChain());
+    Register nameTemp   = ToRegister(lir->nameTemp());
+
+    masm.movePtr(ImmGCPtr(lir->mir()->name()), nameTemp);
 
     pushArg(scopeChain); // JSObject *
     pushArg(Imm32(lir->mir()->attrs())); // unsigned
-    pushArg(ImmGCPtr(lir->mir()->name())); // PropertyName *
+    pushArg(nameTemp); // PropertyName *
 
     if (!callVM(DefVarOrConstInfo, lir))
         return false;
 
     return true;
-}
-
-typedef bool (*DefFunOperationFn)(JSContext *, HandleScript, HandleObject, HandleFunction);
-static const VMFunction DefFunOperationInfo = FunctionInfo<DefFunOperationFn>(DefFunOperation);
-
-bool
-CodeGenerator::visitDefFun(LDefFun *lir)
-{
-    Register scopeChain = ToRegister(lir->scopeChain());
-
-    pushArg(ImmGCPtr(lir->mir()->fun()));
-    pushArg(scopeChain);
-    pushArg(ImmGCPtr(current->mir()->info().script()));
-
-    return callVM(DefFunOperationInfo, lir);
 }
 
 typedef bool (*ReportOverRecursedFn)(JSContext *);
@@ -2010,46 +1993,6 @@ CodeGenerator::visitInitProp(LInitProp *lir)
     return callVM(InitPropInfo, lir);
 }
 
-typedef bool (*CreateThisFn)(JSContext *cx, HandleObject callee, MutableHandleValue rval);
-static const VMFunction CreateThisInfo =
-FunctionInfo<CreateThisFn>(CreateThis);
-
-bool
-CodeGenerator::visitCreateThis(LCreateThis *lir)
-{
-    const LAllocation *callee = lir->getCallee();
-
-    if (callee->isConstant())
-        pushArg(ImmGCPtr(&callee->toConstant()->toObject()));
-    else
-        pushArg(ToRegister(callee));
-
-    return callVM(CreateThisInfo, lir);
-}
-
-typedef JSObject *(*CreateThisWithProtoFn)(JSContext *cx, HandleObject callee, JSObject *proto);
-static const VMFunction CreateThisWithProtoInfo =
-FunctionInfo<CreateThisWithProtoFn>(js_CreateThisForFunctionWithProto);
-
-bool
-CodeGenerator::visitCreateThisWithProto(LCreateThisWithProto *lir)
-{
-    const LAllocation *callee = lir->getCallee();
-    const LAllocation *proto = lir->getPrototype();
-
-    if (proto->isConstant())
-        pushArg(ImmGCPtr(&proto->toConstant()->toObject()));
-    else
-        pushArg(ToRegister(proto));
-
-    if (callee->isConstant())
-        pushArg(ImmGCPtr(&callee->toConstant()->toObject()));
-    else
-        pushArg(ToRegister(callee));
-
-    return callVM(CreateThisWithProtoInfo, lir);
-}
-
 typedef JSObject *(*NewGCThingFn)(JSContext *cx, gc::AllocKind allocKind, size_t thingSize);
 static const VMFunction NewGCThingInfo =
     FunctionInfo<NewGCThingFn>(js::ion::NewGCThing);
@@ -2076,6 +2019,59 @@ CodeGenerator::visitCreateThisWithTemplate(LCreateThisWithTemplate *lir)
     masm.initGCThing(objReg, templateObject);
 
     return true;
+}
+
+typedef JSObject *(*CreateThisFn)(JSContext *cx, HandleObject callee, JSObject *proto);
+static const VMFunction CreateThisInfo =
+    FunctionInfo<CreateThisFn>(js_CreateThisForFunctionWithProto);
+
+bool
+CodeGenerator::emitCreateThisVM(LInstruction *lir,
+                                const LAllocation *proto,
+                                const LAllocation *callee)
+{
+    if (proto->isConstant())
+        pushArg(ImmGCPtr(&proto->toConstant()->toObject()));
+    else
+        pushArg(ToRegister(proto));
+
+    if (callee->isConstant())
+        pushArg(ImmGCPtr(&callee->toConstant()->toObject()));
+    else
+        pushArg(ToRegister(callee));
+
+    return callVM(CreateThisInfo, lir);
+}
+
+bool
+CodeGenerator::visitCreateThisV(LCreateThisV *lir)
+{
+    Label done, vm;
+
+    const LAllocation *proto = lir->getPrototype();
+    const LAllocation *callee = lir->getCallee();
+
+    // When callee could be a native, put MagicValue in return operand.
+    // Use the VMCall when callee turns out to not be a native.
+    masm.branchIfInterpreted(ToRegister(callee), &vm);
+    masm.moveValue(MagicValue(JS_IS_CONSTRUCTING), GetValueOutput(lir));
+    masm.jump(&done);
+
+    masm.bind(&vm);
+    if (!emitCreateThisVM(lir, proto, callee))
+        return false;
+
+    masm.tagValue(JSVAL_TYPE_OBJECT, ReturnReg, GetValueOutput(lir));
+
+    masm.bind(&done);
+
+    return true;
+}
+
+bool
+CodeGenerator::visitCreateThisO(LCreateThisO *lir)
+{
+    return emitCreateThisVM(lir, lir->getPrototype(), lir->getCallee());
 }
 
 bool
@@ -2414,7 +2410,7 @@ static const VMFunction GtInfo = FunctionInfo<CompareFn>(ion::GreaterThan);
 static const VMFunction GeInfo = FunctionInfo<CompareFn>(ion::GreaterThanOrEqual);
 
 bool
-CodeGenerator::visitCompareVM(LCompareVM *lir)
+CodeGenerator::visitCompareV(LCompareV *lir)
 {
     pushArg(ToValue(lir, LBinaryV::RhsInput));
     pushArg(ToValue(lir, LBinaryV::LhsInput));
@@ -2454,9 +2450,8 @@ bool
 CodeGenerator::visitIsNullOrLikeUndefined(LIsNullOrLikeUndefined *lir)
 {
     JSOp op = lir->mir()->jsop();
-    MCompare::CompareType compareType = lir->mir()->compareType();
-    JS_ASSERT(compareType == MCompare::Compare_Undefined ||
-              compareType == MCompare::Compare_Null);
+    MIRType specialization = lir->mir()->specialization();
+    JS_ASSERT(IsNullOrUndefined(specialization));
 
     const ValueOperand value = ToValue(lir, LIsNullOrLikeUndefined::Value);
     Register output = ToRegister(lir->output());
@@ -2517,7 +2512,7 @@ CodeGenerator::visitIsNullOrLikeUndefined(LIsNullOrLikeUndefined *lir)
     JS_ASSERT(op == JSOP_STRICTEQ || op == JSOP_STRICTNE);
 
     Assembler::Condition cond = JSOpToCondition(op);
-    if (compareType == MCompare::Compare_Null)
+    if (specialization == MIRType_Null)
         cond = masm.testNull(cond, value);
     else
         cond = masm.testUndefined(cond, value);
@@ -2530,9 +2525,8 @@ bool
 CodeGenerator::visitIsNullOrLikeUndefinedAndBranch(LIsNullOrLikeUndefinedAndBranch *lir)
 {
     JSOp op = lir->mir()->jsop();
-    MCompare::CompareType compareType = lir->mir()->compareType();
-    JS_ASSERT(compareType == MCompare::Compare_Undefined ||
-              compareType == MCompare::Compare_Null);
+    MIRType specialization = lir->mir()->specialization();
+    JS_ASSERT(IsNullOrUndefined(specialization));
 
     const ValueOperand value = ToValue(lir, LIsNullOrLikeUndefinedAndBranch::Value);
 
@@ -2583,7 +2577,7 @@ CodeGenerator::visitIsNullOrLikeUndefinedAndBranch(LIsNullOrLikeUndefinedAndBran
     JS_ASSERT(op == JSOP_STRICTEQ || op == JSOP_STRICTNE);
 
     Assembler::Condition cond = JSOpToCondition(op);
-    if (compareType == MCompare::Compare_Null)
+    if (specialization == MIRType_Null)
         cond = masm.testNull(cond, value);
     else
         cond = masm.testUndefined(cond, value);
@@ -2598,8 +2592,7 @@ static const VMFunction ConcatStringsInfo = FunctionInfo<ConcatStringsFn>(js_Con
 bool
 CodeGenerator::visitEmulatesUndefined(LEmulatesUndefined *lir)
 {
-    MOZ_ASSERT(lir->mir()->compareType() == MCompare::Compare_Undefined ||
-               lir->mir()->compareType() == MCompare::Compare_Null);
+    MOZ_ASSERT(IsNullOrUndefined(lir->mir()->specialization()));
     MOZ_ASSERT(lir->mir()->lhs()->type() == MIRType_Object);
     MOZ_ASSERT(lir->mir()->operandMightEmulateUndefined(),
                "If the object couldn't emulate undefined, this should have been folded.");
@@ -2633,8 +2626,7 @@ CodeGenerator::visitEmulatesUndefined(LEmulatesUndefined *lir)
 bool
 CodeGenerator::visitEmulatesUndefinedAndBranch(LEmulatesUndefinedAndBranch *lir)
 {
-    MOZ_ASSERT(lir->mir()->compareType() == MCompare::Compare_Undefined ||
-               lir->mir()->compareType() == MCompare::Compare_Null);
+    MOZ_ASSERT(IsNullOrUndefined(lir->mir()->specialization()));
     MOZ_ASSERT(lir->mir()->operandMightEmulateUndefined(),
                "Operands which can't emulate undefined should have been folded");
 
@@ -4763,7 +4755,7 @@ CodeGenerator::visitGetDOMProperty(LGetDOMProperty *ins)
 
     masm.Push(ObjectReg);
 
-    // GetReservedSlot(obj, DOM_OBJECT_SLOT).toPrivate()
+    // GetReservedSlot(obj, DOM_PROTO_INSTANCE_CLASS_SLOT).toPrivate()
     masm.loadPrivate(Address(ObjectReg, JSObject::getFixedSlotOffset(0)), PrivateReg);
 
     // Rooting will happen at GC time.
@@ -4829,7 +4821,7 @@ CodeGenerator::visitSetDOMProperty(LSetDOMProperty *ins)
 
     masm.Push(ObjectReg);
 
-    // GetReservedSlot(obj, DOM_OBJECT_SLOT).toPrivate()
+    // GetReservedSlot(obj, DOM_PROTO_INSTANCE_CLASS_SLOT).toPrivate()
     masm.loadPrivate(Address(ObjectReg, JSObject::getFixedSlotOffset(0)), PrivateReg);
 
     // Rooting will happen at GC time.

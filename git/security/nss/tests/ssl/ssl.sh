@@ -630,17 +630,12 @@ load_group_crl() {
         echo "GET crl://${SERVERDIR}/root.crl_${grpBegin}-${grpEnd}${ecsuffix}"
         echo ""
         echo "RELOAD time $i"
-
-        REQF=${R_CLIENTDIR}.crlreq
-        cat > ${REQF} <<_EOF_REQUEST_
+        ${PROFTOOL} ${BINDIR}/tstclnt -p ${PORT} -h ${HOSTADDR} -f  \
+            -d ${R_CLIENTDIR} -v -V ssl3: -w nss -n TestUser${UNREVOKED_CERT_GRP_1}${ecsuffix} \
+	    >${OUTFILE_TMP}  2>&1 <<_EOF_REQUEST_
 GET crl://${SERVERDIR}/root.crl_${grpBegin}-${grpEnd}${ecsuffix}
 
 _EOF_REQUEST_
-
-        ${PROFTOOL} ${BINDIR}/tstclnt -p ${PORT} -h ${HOSTADDR} -f  \
-            -d ${R_CLIENTDIR} -v -V ssl3: -w nss -n TestUser${UNREVOKED_CERT_GRP_1}${ecsuffix} \
-            >${OUTFILE_TMP}  2>&1 < ${REQF}
-
         cat ${OUTFILE_TMP}
         grep "CRL ReCache Error" ${OUTFILE_TMP}
         if [ $? -eq 0 ]; then
