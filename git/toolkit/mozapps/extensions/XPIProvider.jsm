@@ -79,6 +79,7 @@ const URI_EXTENSION_UPDATE_DIALOG     = "chrome://mozapps/content/extensions/upd
 
 const DIR_EXTENSIONS                  = "extensions";
 const DIR_STAGE                       = "staged";
+const DIR_XPI_STAGE                   = "staged-xpis";
 
 const FILE_OLD_DATABASE               = "extensions.rdf";
 const FILE_DATABASE                   = "extensions.sqlite";
@@ -889,13 +890,44 @@ function resultRows(aStatement) {
 }
 
 /**
-  * Returns the timestamp of the most recently modified file in a directory,
-  * or simply the file's own timestamp if it is not a directory.
-  * 
-  * @param aFile
-  * A non-null nsIFile object
-  * @return Epoch time, as described above. 0 for an empty directory.
-  */
+ * Recursively removes a directory or file fixing permissions when necessary.
+ *
+ * @param  aFile
+ *         The nsIFile to remove
+ */
+function recursiveRemove(aFile) {
+  aFile.permissions = aFile.isDirectory() ? FileUtils.PERMS_DIRECTORY
+                                          : FileUtils.PERMS_FILE;
+
+  try {
+    aFile.remove(true);
+    return;
+  }
+  catch (e) {
+    if (!aFile.isDirectory())
+      throw e;
+  }
+
+  let entry;
+  let dirEntries = aFile.directoryEntries.QueryInterface(Ci.nsIDirectoryEnumerator);
+  try {
+    while (entry = dirEntries.nextFile)
+      recursiveRemove(entry);
+    aFile.remove(true);
+  }
+  finally {
+    dirEntries.close();
+  }
+}
+
+/**
+ * Returns the timestamp of the most recently modified file in a directory,
+ * or simply the file's own timestamp if it is not a directory.
+ * 
+ * @param  aFile
+ *         A non-null nsIFile object
+ * @return Epoch time, as described above. 0 for an empty directory.
+ */
 function recursiveLastModifiedTime(aFile) {
   if (aFile.isFile())
     return aFile.lastModifiedTime;
@@ -1385,7 +1417,6 @@ var XPIProvider = {
    * @return true if an add-on was installed or uninstalled
    */
   processPendingFileChanges: function XPI_processPendingFileChanges(aManifests) {
-    // TODO maybe this should be passed off to the install locations to handle?
     let changed = false;
     this.installLocations.forEach(function(aLocation) {
       aManifests[aLocation.name] = {};
@@ -1393,11 +1424,103 @@ var XPIProvider = {
       if (aLocation.locked)
         return;
 
+      let stagedXPIDir = aLocation.getXPIStagingDir();
       let stagingDir = aLocation.getStagingDir();
-      if (!stagingDir || !stagingDir.exists())
+
+      if (stagedXPIDir.exists() && stagedXPIDir.isDirectory()) {
+        let entries = stagedXPIDir.directoryEntries
+                                  .QueryInterface(Ci.nsIDirectoryEnumerator);
+        while (entries.hasMoreElements()) {
+          let stageDirEntry = entries.nextFile;
+
+          if (!stageDirEntry.isDirectory()) {
+            WARN("Ignoring file in XPI staging directory: " + stageDirEntry.path);
+            continue;
+          }
+
+          // Find the last added XPI file in the directory
+          let stagedXPI = null;
+          var xpiEntries = stageDirEntry.directoryEntries
+                                        .QueryInterface(Ci.nsIDirectoryEnumerator);
+          while (xpiEntries.hasMoreElements()) {
+            let file = xpiEntries.nextFile;
+            if (!(file instanceof Ci.nsILocalFile))
+              continue;
+            if (file.isDirectory())
+              continue;
+
+            let extension = file.leafName;
+            extension = extension.substring(extension.length - 4);
+
+            if (extension != ".xpi" && extension != ".jar")
+              continue;
+
+            stagedXPI = file;
+          }
+          xpiEntries.close();
+
+          if (!stagedXPI)
+            continue;
+
+          let addon = null;
+          try {
+            addon = loadManifestFromZipFile(stagedXPI);
+          }
+          catch (e) {
+            ERROR("Unable to read add-on manifest for " + stagedXPI.leafName +
+                  " in XPI stage of " + aLocation.name + ": " + e);
+            continue;
+          }
+
+          LOG("Migrating staged install of " + addon.id + " in " + aLocation.name);
+
+          if (addon.unpack || Prefs.getBoolPref(PREF_XPI_UNPACK, false)) {
+            let targetDir = stagingDir.clone();
+            targetDir.append(addon.id);
+            try {
+              targetDir.create(Ci.nsIFile.DIRECTORY_TYPE, FileUtils.PERMS_DIRECTORY);
+            }
+            catch (e) {
+              ERROR("Failed to create staging directory for add-on " + id + ": " + e);
+              continue;
+            }
+
+            try {
+              extractFiles(stagedXPI, targetDir);
+            }
+            catch (e) {
+              ERROR("Failed to extract staged XPI for add-on " + id + " in " +
+                    aLocation.name + ": " + e);
+            }
+          }
+          else {
+            try {
+              stagedXPI.moveTo(stagingDir, addon.id + ".xpi");
+            }
+            catch (e) {
+              ERROR("Failed to move staged XPI for add-on " + id + " in " +
+                    aLocation.name + ": " + e);
+            }
+          }
+        }
+        entries.close();
+      }
+
+      if (stagedXPIDir.exists()) {
+        try {
+          recursiveRemove(stagedXPIDir);
+        }
+        catch (e) {
+          // Non-critical, just saves some perf on startup if we clean this up.
+          LOG("Error removing XPI staging dir " + stagedXPIDir.path + ": " + e);
+        }
+      }
+
+      if (!stagingDir || !stagingDir.exists() || !stagingDir.isDirectory())
         return;
 
-      let entries = stagingDir.directoryEntries;
+      entries = stagingDir.directoryEntries
+                          .QueryInterface(Ci.nsIDirectoryEnumerator);
       while (entries.hasMoreElements()) {
         let stageDirEntry = entries.getNext().QueryInterface(Ci.nsILocalFile);
 
@@ -1475,9 +1598,10 @@ var XPIProvider = {
           }
         }
       }
+      entries.close();
 
       try {
-        stagingDir.remove(true);
+        recursiveRemove(stagingDir);
       }
       catch (e) {
         // Non-critical, just saves some perf on startup if we clean this up.
@@ -1537,6 +1661,8 @@ var XPIProvider = {
             newAddon = loadManifestFromZipFile(file);
           else
             newAddon = loadManifestFromDir(file);
+          // Carry over the userDisabled setting for add-ons that just appeared
+          newAddon.userDisabled = aOldAddon.userDisabled;
         }
 
         // The ID in the manifest that was loaded must match the ID of the old
@@ -3126,10 +3252,18 @@ var XPIDatabase = {
               let targetApp = targetApps.getNext()
                                         .QueryInterface(Ci.nsIRDFResource);
               let appInfo = {
-                id: getRDFProperty(ds, targetApp, "id"),
-                minVersion: getRDFProperty(ds, targetApp, "minVersion"),
-                maxVersion: getRDFProperty(ds, targetApp, "maxVersion"),
+                id: getRDFProperty(ds, targetApp, "id")
               };
+
+              let minVersion = getRDFProperty(ds, targetApp, "updatedMinVersion");
+              if (minVersion) {
+                appInfo.minVersion = minVersion;
+                appInfo.maxVersion = getRDFProperty(ds, targetApp, "updatedMaxVersion");
+              }
+              else {
+                appInfo.minVersion = getRDFProperty(ds, targetApp, "minVersion");
+                appInfo.maxVersion = getRDFProperty(ds, targetApp, "maxVersion");
+              }
               migrateData[location][id].targetApplications.push(appInfo);
             }
           }
@@ -3936,7 +4070,6 @@ var XPIDatabase = {
     // Any errors in here should rollback the transaction
     try {
       this.removeAddonMetadata(aOldAddon);
-      aNewAddon.userDisabled = aOldAddon.userDisabled;
       aNewAddon.installDate = aOldAddon.installDate;
       aNewAddon.applyBackgroundUpdates = aOldAddon.applyBackgroundUpdates;
       this.addAddonMetadata(aNewAddon, aDescriptor);
@@ -4218,6 +4351,8 @@ function AddonInstall(aCallback, aInstallLocation, aUrl, aHash, aName, aType,
       this.loadManifest(function() {
         XPIDatabase.getVisibleAddonForID(self.addon.id, function(aAddon) {
           self.existingAddon = aAddon;
+          if (aAddon)
+            self.addon.userDisabled = aAddon.userDisabled;
           self.addon.updateDate = Date.now();
           self.addon.installDate = aAddon ? aAddon.installDate : self.addon.updateDate;
 
@@ -4334,7 +4469,8 @@ AddonInstall.prototype = {
   cancel: function AI_cancel() {
     switch (this.state) {
     case AddonManager.STATE_DOWNLOADING:
-      this.channel.cancel(Cr.NS_BINDING_ABORTED);
+      if (this.channel)
+        this.channel.cancel(Cr.NS_BINDING_ABORTED);
     case AddonManager.STATE_AVAILABLE:
     case AddonManager.STATE_DOWNLOADED:
       LOG("Cancelling download of " + this.sourceURI.spec);
@@ -4358,7 +4494,7 @@ AddonInstall.prototype = {
       stagedAddon.append(this.addon.id);
       stagedJSON.append(this.addon.id + ".json");
       if (stagedAddon.exists()) {
-        stagedAddon.remove(true);
+        recursiveRemove(stagedAddon);
       }
       else {
         stagedAddon.leafName += ".xpi";
@@ -4558,6 +4694,25 @@ AddonInstall.prototype = {
    *         XPI is incorrectly signed
    */
   loadManifest: function AI_loadManifest(aCallback) {
+    function addRepositoryData(aAddon) {
+      // Try to load from the existing cache first
+      AddonRepository.getCachedAddonByID(aAddon.id, function(aRepoAddon) {
+        if (aRepoAddon) {
+          aAddon._repositoryAddon = aRepoAddon;
+          aCallback();
+          return;
+        }
+
+        // It wasn't there so try to re-download it
+        AddonRepository.cacheAddons([aAddon.id], function() {
+          AddonRepository.getCachedAddonByID(aAddon.id, function(aRepoAddon) {
+            aAddon._repositoryAddon = aRepoAddon;
+            aCallback();
+          });
+        });
+      });
+    }
+
     let zipreader = Cc["@mozilla.org/libjar/zip-reader;1"].
                     createInstance(Ci.nsIZipReader);
     try {
@@ -4595,7 +4750,10 @@ AddonInstall.prototype = {
     }
 
     if (this.addon.type == "multipackage") {
-      this.loadMultipackageManifests(zipreader, aCallback);
+      let self = this;
+      this.loadMultipackageManifests(zipreader, function() {
+        addRepositoryData(self.addon);
+      });
       return;
     }
 
@@ -4614,7 +4772,7 @@ AddonInstall.prototype = {
     //if (newIcon)
     //  this.iconURL = newIcon;
 
-    aCallback();
+    addRepositoryData(this.addon);
   },
 
   observe: function AI_observe(aSubject, aTopic, aData) {
@@ -4635,6 +4793,10 @@ AddonInstall.prototype = {
                                                this.listeners, this.wrapper)
       return;
     }
+
+    // If a listener changed our state then do not proceed with the download
+    if (this.state != AddonManager.STATE_DOWNLOADING)
+      return;
 
     try {
       this.file = getTemporaryFile();
@@ -4800,7 +4962,7 @@ AddonInstall.prototype = {
         let binary = this.crypto.finish(false);
         let hash = [toHexString(binary.charCodeAt(i)) for (i in binary)].join("")
         this.crypto = null;
-        if (this.hash && hash != this.hash) {
+        if (this.hash && hash.toLowerCase() != this.hash.toLowerCase()) {
           this.downloadFailed(AddonManager.ERROR_INCORRECT_HASH,
                               "Downloaded file hash (" + hash +
                               ") did not match provided hash (" + this.hash + ")");
@@ -4866,12 +5028,18 @@ AddonInstall.prototype = {
     let self = this;
     XPIDatabase.getVisibleAddonForID(this.addon.id, function(aAddon) {
       self.existingAddon = aAddon;
+      if (aAddon)
+        self.addon.userDisabled = aAddon.userDisabled;
       self.addon.updateDate = Date.now();
       self.addon.installDate = aAddon ? aAddon.installDate : self.addon.updateDate;
       self.state = AddonManager.STATE_DOWNLOADED;
       if (AddonManagerPrivate.callInstallListeners("onDownloadEnded",
                                                    self.listeners,
                                                    self.wrapper)) {
+        // If a listener changed our state then do not proceed with the install
+        if (self.state != AddonManager.STATE_DOWNLOADED)
+          return;
+
         self.install();
 
         if (self.linkedInstalls) {
@@ -4918,7 +5086,7 @@ AddonInstall.prototype = {
             "an unpacked directory");
         stagedAddon.append(this.addon.id);
         if (stagedAddon.exists())
-          stagedAddon.remove(true);
+          recursiveRemove(stagedAddon);
         stagedAddon.create(Ci.nsIFile.DIRECTORY_TYPE, FileUtils.PERMS_DIRECTORY);
         extractFiles(this.file, stagedAddon);
       }
@@ -5052,7 +5220,7 @@ AddonInstall.prototype = {
     catch (e) {
       WARN("Failed to install: " + e);
       if (stagedAddon.exists())
-        stagedAddon.remove(true);
+        recursiveRemove(stagedAddon);
       this.state = AddonManager.STATE_INSTALL_FAILED;
       this.error = AddonManager.ERROR_FILE_ACCESS;
       XPIProvider.removeActiveInstall(this);
@@ -6053,7 +6221,7 @@ DirectoryInstallLocation.prototype = {
 
       let id = entry.leafName;
 
-      if (id == DIR_STAGE)
+      if (id == DIR_STAGE || id == DIR_XPI_STAGE)
         continue;
 
       let directLoad = false;
@@ -6121,6 +6289,18 @@ DirectoryInstallLocation.prototype = {
   },
 
   /**
+   * Gets the directory used by old versions for staging XPI and JAR files ready
+   * to be installed.
+   *
+   * @return an nsIFile
+   */
+  getXPIStagingDir: function DirInstallLocation_getXPIStagingDir() {
+    let dir = this._directory.clone();
+    dir.append(DIR_XPI_STAGE);
+    return dir;
+  },
+
+  /**
    * Installs an add-on into the install location.
    *
    * @param  aId
@@ -6133,7 +6313,7 @@ DirectoryInstallLocation.prototype = {
     let file = this._directory.clone().QueryInterface(Ci.nsILocalFile);
     file.append(aId);
     if (file.exists())
-      file.remove(true);
+      recursiveRemove(file);
 
     file = this._directory.clone().QueryInterface(Ci.nsILocalFile);
     file.append(aId + ".xpi");
@@ -6184,7 +6364,7 @@ DirectoryInstallLocation.prototype = {
 
     if (file.leafName != aId)
       Services.obs.notifyObservers(file, "flush-cache-entry", null);
-    file.remove(true);
+    recursiveRemove(file);
   },
 
   /**

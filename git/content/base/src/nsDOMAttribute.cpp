@@ -263,7 +263,7 @@ nsDOMAttribute::SetValue(const nsAString& aValue)
 
     if (mChild) {
       if (mValue.IsEmpty()) {
-        doRemoveChild();
+        doRemoveChild(true);
       } else {
         mChild->SetText(mValue, PR_FALSE);
       }
@@ -661,28 +661,30 @@ nsDOMAttribute::RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationE
     return NS_OK;
   }
 
-  nsCOMPtr<nsIContent> child = mChild;
-  nsMutationGuard::DidMutate();
-  mozAutoDocUpdate updateBatch(GetOwnerDoc(), UPDATE_CONTENT_MODEL, aNotify);
-  nsMutationGuard guard;
+  {
+    nsCOMPtr<nsIContent> child = mChild;
+    nsMutationGuard::DidMutate();
+    mozAutoDocUpdate updateBatch(GetOwnerDoc(), UPDATE_CONTENT_MODEL, aNotify);
+    nsMutationGuard guard;
+  
+    mozAutoSubtreeModified subtree(nsnull, nsnull);
+    if (aNotify &&
+        nsContentUtils::HasMutationListeners(mChild,
+                                             NS_EVENT_BITS_MUTATION_NODEREMOVED,
+                                             this)) {
+      mozAutoRemovableBlockerRemover blockerRemover(GetOwnerDoc());
+      nsMutationEvent mutation(PR_TRUE, NS_MUTATION_NODEREMOVED);
+      mutation.mRelatedNode =
+        do_QueryInterface(static_cast<nsIAttribute*>(this));
+      subtree.UpdateTarget(GetOwnerDoc(), this);
+      nsEventDispatcher::Dispatch(mChild, nsnull, &mutation);
+    }
+    if (guard.Mutated(0) && mChild != child) {
+      return NS_OK;
+    }
 
-  mozAutoSubtreeModified subtree(nsnull, nsnull);
-  if (aNotify &&
-      nsContentUtils::HasMutationListeners(mChild,
-                                           NS_EVENT_BITS_MUTATION_NODEREMOVED,
-                                           this)) {
-    mozAutoRemovableBlockerRemover blockerRemover(GetOwnerDoc());
-    nsMutationEvent mutation(PR_TRUE, NS_MUTATION_NODEREMOVED);
-    mutation.mRelatedNode =
-      do_QueryInterface(static_cast<nsIAttribute*>(this));
-    subtree.UpdateTarget(GetOwnerDoc(), this);
-    nsEventDispatcher::Dispatch(mChild, nsnull, &mutation);
+    doRemoveChild(aNotify);
   }
-  if (guard.Mutated(0) && mChild != child) {
-    return NS_OK;
-  }
-
-  doRemoveChild();
 
   nsString nullString;
   SetDOMStringToNull(nullString);
@@ -789,7 +791,7 @@ nsDOMAttribute::AttributeChanged(nsIDocument* aDocument,
   
   // Just blow away our mChild and recreate it if needed
   if (mChild) {
-    doRemoveChild();
+    doRemoveChild(true);
   }
   EnsureChildState();
 }
@@ -807,8 +809,12 @@ nsDOMAttribute::Shutdown()
 }
 
 void
-nsDOMAttribute::doRemoveChild()
+nsDOMAttribute::doRemoveChild(bool aNotify)
 {
+  if (aNotify) {
+    nsNodeUtils::AttributeChildRemoved(this, mChild);
+  }
+
   static_cast<nsTextNode*>(mChild)->UnbindFromAttribute();
   NS_RELEASE(mChild);
   mFirstChild = nsnull;

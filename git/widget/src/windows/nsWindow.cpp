@@ -447,6 +447,8 @@ nsWindow::nsWindow() : nsBaseWidget()
 
     // Init titlebar button info for custom frames.
     nsUXThemeData::InitTitlebarInfo();
+    // Init theme data
+    nsUXThemeData::UpdateNativeThemeInfo();
   } // !sInstanceCount
 
   mIdleService = nsnull;
@@ -540,8 +542,7 @@ nsWindow::Create(nsIWidget *aParent,
                           nsnull : aParent;
 
   mIsTopWidgetWindow = (nsnull == baseParent);
-  mBounds.width = aRect.width;
-  mBounds.height = aRect.height;
+  mBounds = aRect;
 
   BaseCreate(baseParent, aRect, aHandleEventFunction, aContext,
              aAppShell, aToolkit, aInitData);
@@ -3719,9 +3720,10 @@ void nsWindow::DispatchPendingEvents()
     // Find the top level window.
     HWND topWnd = GetTopLevelHWND(mWnd);
 
-    // Dispatch pending paints for all topWnd's descendant windows.
+    // Dispatch pending paints for topWnd and all its descendant windows.
     // Note: EnumChildWindows enumerates all descendant windows not just
-    // it's children.
+    // the children (but not the window itself).
+    nsWindow::DispatchStarvedPaints(topWnd, 0);
 #if !defined(WINCE)
     ::EnumChildWindows(topWnd, nsWindow::DispatchStarvedPaints, 0);
 #else
@@ -4541,6 +4543,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
     {
       // Update non-client margin offsets 
       UpdateNonClientMargins();
+      nsUXThemeData::UpdateNativeThemeInfo();
 
       DispatchStandardEvent(NS_THEMECHANGED);
 
@@ -5606,15 +5609,15 @@ nsWindow::ClientMarginHitTestPoint(PRInt32 mx, PRInt32 my)
   PRBool left   = PR_FALSE;
   PRBool right  = PR_FALSE;
 
-  if (my >= winRect.top && my <=
+  if (my >= winRect.top && my <
       (winRect.top + mVertResizeMargin + (mCaptionHeight - mNonClientOffset.top)))
     top = PR_TRUE;
-  else if (my <= winRect.bottom && my >= (winRect.bottom - mVertResizeMargin))
+  else if (my < winRect.bottom && my >= (winRect.bottom - mVertResizeMargin))
     bottom = PR_TRUE;
 
-  if (mx >= winRect.left && mx <= (winRect.left + mHorResizeMargin))
+  if (mx >= winRect.left && mx < (winRect.left + mHorResizeMargin))
     left = PR_TRUE;
-  else if (mx <= winRect.right && mx >= (winRect.right - mHorResizeMargin))
+  else if (mx < winRect.right && mx >= (winRect.right - mHorResizeMargin))
     right = PR_TRUE;
 
   if (top) {

@@ -311,7 +311,7 @@ nsEditor::PostCreate()
   NotifyDocumentListeners(eDocumentCreated);
   NotifyDocumentListeners(eDocumentStateChanged);
   
-  // update nsTextStateManager if we have focus
+  // update nsTextStateManager and caret if we have focus
   if (HasFocus()) {
     nsFocusManager* fm = nsFocusManager::GetFocusManager();
     NS_ASSERTION(fm, "no focus manager?");
@@ -324,6 +324,11 @@ nsEditor::PostCreate()
 
       nsIMEStateManager::OnTextStateBlur(pc, nsnull);
       nsIMEStateManager::OnTextStateFocus(pc, focusedContent);
+
+      nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(focusedContent);
+      if (target) {
+        InitializeSelection(target);
+      }
     }
   }
   return NS_OK;
@@ -2315,8 +2320,8 @@ NS_IMETHODIMP nsEditor::InsertTextImpl(const nsAString& aStringToInsert,
       res = (*aInOutNode)->GetChildNodes(getter_AddRefs(children));
       if (NS_SUCCEEDED(res)) {
         nsCOMPtr<nsIDOMNode> possibleMozBRNode;
-        res = children->Item(*aInOutOffset, getter_AddRefs(possibleMozBRNode));
-        if (NS_SUCCEEDED(res) && nsTextEditUtils::IsMozBR(possibleMozBRNode)) {
+        children->Item(*aInOutOffset, getter_AddRefs(possibleMozBRNode));
+        if (possibleMozBRNode && nsTextEditUtils::IsMozBR(possibleMozBRNode)) {
           nsCOMPtr<nsIDOMNode> possibleTextNode;
           res = children->Item(*aInOutOffset - 1, getter_AddRefs(possibleTextNode));
           if (NS_SUCCEEDED(res)) {
