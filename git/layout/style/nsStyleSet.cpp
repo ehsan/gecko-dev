@@ -1405,13 +1405,16 @@ nsStyleSet::RuleNodeWithReplacement(Element* aElement,
                 nsCSSPseudoElements::PseudoElementSupportsUserActionState(aPseudoType))),
              "should have aPseudoElement only for certain pseudo elements");
 
-  MOZ_ASSERT(!(aReplacements & ~(eRestyle_CSSTransitions |
-                                 eRestyle_CSSAnimations |
-                                 eRestyle_SVGAttrAnimations |
-                                 eRestyle_StyleAttribute |
-                                 eRestyle_Force |
-                                 eRestyle_ForceDescendants)),
-             "unexpected replacement bits");
+  NS_ABORT_IF_FALSE(!(aReplacements & ~(eRestyle_CSSTransitions |
+                                        eRestyle_CSSAnimations |
+                                        eRestyle_SVGAttrAnimations |
+                                        eRestyle_StyleAttribute |
+                                        eRestyle_Force |
+                                        eRestyle_ForceDescendants)),
+                    // FIXME: Once bug 979133 lands we'll have a better
+                    // way to print these.
+                    nsPrintfCString("unexpected replacement bits 0x%" PRIX32,
+                                    uint32_t(aReplacements)).get());
 
   // FIXME (perf): This should probably not rebuild the whole path, but
   // only the path from the last change in the rule tree, like

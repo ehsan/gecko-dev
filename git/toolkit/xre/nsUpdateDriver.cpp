@@ -1170,6 +1170,8 @@ nsUpdateProcessor::ProcessUpdate(nsIUpdate* aUpdate)
   }
 #endif
 
+  mUpdate = aUpdate;
+
   MOZ_ASSERT(NS_IsMainThread(), "not main thread");
   return NS_NewThread(getter_AddRefs(mProcessWatcher),
                       NS_NewRunnableMethod(this, &nsUpdateProcessor::StartStagedUpdate));
@@ -1213,6 +1215,7 @@ nsUpdateProcessor::ShutdownWatcherThread()
   MOZ_ASSERT(NS_IsMainThread(), "not main thread");
   mProcessWatcher->Shutdown();
   mProcessWatcher = nullptr;
+  mUpdate = nullptr;
 }
 
 void
@@ -1230,12 +1233,8 @@ nsUpdateProcessor::UpdateDone()
 
   nsCOMPtr<nsIUpdateManager> um =
     do_GetService("@mozilla.org/updates/update-manager;1");
-  if (um) {
-    nsCOMPtr<nsIUpdate> update;
-    um->GetActiveUpdate(getter_AddRefs(update));
-    if (update) {
-      um->RefreshUpdateStatus(update);
-    }
+  if (um && mUpdate) {
+    um->RefreshUpdateStatus(mUpdate);
   }
 
   ShutdownWatcherThread();

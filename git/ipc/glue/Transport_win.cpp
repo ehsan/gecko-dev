@@ -10,9 +10,8 @@
 
 #include "mozilla/ipc/Transport.h"
 
+using namespace base;
 using namespace std;
-
-using base::ProcessHandle;
 
 namespace mozilla {
 namespace ipc {

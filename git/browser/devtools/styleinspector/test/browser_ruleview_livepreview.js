@@ -37,6 +37,7 @@ add_task(function*() {
   }
 });
 
+
 function* testLivePreviewData(data, ruleView, selector) {
   let testElement = getNode(selector);
   let idRuleEditor = getRuleViewRuleEditor(ruleView, 1);
@@ -56,13 +57,10 @@ function* testLivePreviewData(data, ruleView, selector) {
     EventUtils.synthesizeKey("VK_RETURN", {});
   }
 
-  // Wait for the modifyproperties request to complete before
-  // checking the computed style.
-  for (let rule of ruleView._elementStyle.rules) {
-    if (rule._applyingModifications) {
-      yield rule._applyingModifications;
-    }
-  }
+  // This wait is an orange waiting to happen, but it might take a few event
+  // loop spins in either the client or parent process before we see the
+  // updated value.
+  yield wait(1);
 
   // While the editor is still focused in, the display should have changed already
   is((yield getComputedStyleProperty(selector, null, "display")),

@@ -172,6 +172,7 @@
 #include "mozilla/net/NeckoMessageUtils.h"
 #include "mozilla/RemoteSpellCheckEngineChild.h"
 
+using namespace base;
 using namespace mozilla;
 using namespace mozilla::docshell;
 using namespace mozilla::dom::bluetooth;
