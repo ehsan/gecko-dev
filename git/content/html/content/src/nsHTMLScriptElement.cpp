@@ -127,8 +127,6 @@ public:
                                 const nsAttrValue* aValue, bool aNotify);
 
   virtual nsXPCClassInfo* GetClassInfo();
-
-  virtual nsIDOMNode* AsDOMNode() { return this; }
 protected:
   // nsScriptElement
   virtual bool HasScriptContent();

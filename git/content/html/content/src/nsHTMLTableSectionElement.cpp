@@ -88,8 +88,6 @@ public:
                                                      nsGenericHTMLElement)
 
   virtual nsXPCClassInfo* GetClassInfo();
-
-  virtual nsIDOMNode* AsDOMNode() { return this; }
 protected:
   nsRefPtr<nsContentList> mRows;
 };

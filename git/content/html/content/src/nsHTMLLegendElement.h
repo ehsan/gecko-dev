@@ -126,8 +126,6 @@ public:
   }
 
   virtual nsXPCClassInfo* GetClassInfo();
-
-  virtual nsIDOMNode* AsDOMNode() { return this; }
 protected:
   /**
    * Get the fieldset content element that contains this legend.
