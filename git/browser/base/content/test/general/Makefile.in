@@ -54,7 +54,6 @@ ifdef MOZ_CRASHREPORTER
 MOCHITEST_BROWSER_FILES += \
   browser_pluginCrashCommentAndURL.js \
   pluginCrashCommentAndURL.html \
-  browser_CTP_crashreporting.js \
   $(NULL)
 endif
 

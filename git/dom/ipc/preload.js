@@ -91,10 +91,9 @@ const BrowserElementIsPreloaded = true;
   } catch(e) {
   }
 
-  // Those are produc-specific files that's sometimes unavailable.
+  // This is a produc-specific file that's sometimes unavailable.
   try {
     Services.scriptloader.loadSubScript("chrome://browser/content/forms.js", global);
-    Services.scriptloader.loadSubScript("chrome://browser/content/ErrorPage.js", global);
   } catch (e) {
   }
   Services.scriptloader.loadSubScript("chrome://global/content/BrowserElementPanning.js", global);

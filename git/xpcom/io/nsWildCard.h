@@ -20,6 +20,7 @@
 #ifndef nsWildCard_h__
 #define nsWildCard_h__
 
+#include "prtypes.h"
 #include "nscore.h"
 
 /* --------------------------- Public routines ---------------------------- */

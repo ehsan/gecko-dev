@@ -9,7 +9,6 @@
 #define _NS_ACCESSIBLE_RELATION_WRAP_H
 
 #include "Accessible.h"
-#include "IUnknownImpl.h"
 #include "nsIAccessibleRelation.h"
 
 #include "nsTArray.h"
@@ -19,13 +18,16 @@
 namespace mozilla {
 namespace a11y {
 
-class ia2AccessibleRelation MOZ_FINAL : public IAccessibleRelation
+class ia2AccessibleRelation : public IAccessibleRelation
 {
 public:
-  ia2AccessibleRelation(RelationType aType, Relation* aRel);
+  ia2AccessibleRelation(uint32_t aType, Relation* aRel);
+  virtual ~ia2AccessibleRelation() { }
 
   // IUnknown
-  DECL_IUNKNOWN
+  virtual HRESULT STDMETHODCALLTYPE QueryInterface(REFIID aIID, void** aOutPtr);
+  virtual ULONG STDMETHODCALLTYPE AddRef();
+  virtual ULONG STDMETHODCALLTYPE Release();
 
   // IAccessibleRelation
   virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_relationType(
@@ -54,31 +56,32 @@ private:
   ia2AccessibleRelation(const ia2AccessibleRelation&);
   ia2AccessibleRelation& operator = (const ia2AccessibleRelation&);
 
-  RelationType mType;
+  uint32_t mType;
   nsTArray<nsRefPtr<Accessible> > mTargets;
+  ULONG mReferences;
 };
 
 
 /**
  * Relations exposed to IAccessible2.
  */
-static const RelationType sRelationTypesForIA2[] = {
-  RelationType::LABELLED_BY,
-  RelationType::LABEL_FOR,
-  RelationType::DESCRIBED_BY,
-  RelationType::DESCRIPTION_FOR,
-  RelationType::NODE_CHILD_OF,
-  RelationType::NODE_PARENT_OF,
-  RelationType::CONTROLLED_BY,
-  RelationType::CONTROLLER_FOR,
-  RelationType::FLOWS_TO,
-  RelationType::FLOWS_FROM,
-  RelationType::MEMBER_OF,
-  RelationType::SUBWINDOW_OF,
-  RelationType::EMBEDS,
-  RelationType::EMBEDDED_BY,
-  RelationType::POPUP_FOR,
-  RelationType::PARENT_WINDOW_OF
+static const uint32_t sRelationTypesForIA2[] = {
+  nsIAccessibleRelation::RELATION_LABELLED_BY,
+  nsIAccessibleRelation::RELATION_LABEL_FOR,
+  nsIAccessibleRelation::RELATION_DESCRIBED_BY,
+  nsIAccessibleRelation::RELATION_DESCRIPTION_FOR,
+  nsIAccessibleRelation::RELATION_NODE_CHILD_OF,
+  nsIAccessibleRelation::RELATION_NODE_PARENT_OF,
+  nsIAccessibleRelation::RELATION_CONTROLLED_BY,
+  nsIAccessibleRelation::RELATION_CONTROLLER_FOR,
+  nsIAccessibleRelation::RELATION_FLOWS_TO,
+  nsIAccessibleRelation::RELATION_FLOWS_FROM,
+  nsIAccessibleRelation::RELATION_MEMBER_OF,
+  nsIAccessibleRelation::RELATION_SUBWINDOW_OF,
+  nsIAccessibleRelation::RELATION_EMBEDS,
+  nsIAccessibleRelation::RELATION_EMBEDDED_BY,
+  nsIAccessibleRelation::RELATION_POPUP_FOR,
+  nsIAccessibleRelation::RELATION_PARENT_WINDOW_OF
 };
 
 } // namespace a11y

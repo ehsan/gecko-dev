@@ -17,6 +17,7 @@
 #include "nsAutoPtr.h"
 #include "nsMemory.h"
 #include "nsProcess.h"
+#include "prtypes.h"
 #include "prio.h"
 #include "prenv.h"
 #include "nsCRT.h"

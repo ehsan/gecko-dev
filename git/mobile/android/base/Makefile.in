@@ -165,6 +165,9 @@ FENNEC_JAVA_FILES = \
   WebAppAllocator.java \
   WebAppImpl.java \
   ZoomConstraints.java \
+  braille/com/googlecode/eyesfree/braille/selfbraille/ISelfBrailleService.java \
+  braille/com/googlecode/eyesfree/braille/selfbraille/SelfBrailleClient.java \
+  braille/com/googlecode/eyesfree/braille/selfbraille/WriteData.java \
   db/BrowserContract.java \
   db/BrowserProvider.java \
   db/FormHistoryProvider.java \
@@ -273,15 +276,9 @@ FENNEC_JAVA_FILES = \
   ReferrerReceiver.java \
   $(NULL)
 
-BRAILLE_JAVA_FILES := \
-  com/googlecode/eyesfree/braille/selfbraille/ISelfBrailleService.java \
-  com/googlecode/eyesfree/braille/selfbraille/SelfBrailleClient.java \
-  com/googlecode/eyesfree/braille/selfbraille/WriteData.java \
-  $(NULL)
-
 WEBSOCKETS_JAVA_FILES := \
-  com/codebutler/android_websockets/HybiParser.java \
-  com/codebutler/android_websockets/WebSocketClient.java \
+  websockets/HybiParser.java \
+  websockets/WebSocketClient.java \
   $(NULL)
 
 ifdef MOZ_WEBRTC
@@ -437,12 +434,10 @@ ifdef MOZ_WEBRTC
 ALL_JARS += jars/webrtc.jar
 endif
 
-thirdparty_source_dir = $(topsrcdir)/mobile/android/thirdparty
-
 JAVA_JAR_TARGETS += websockets
 websockets_DEST := jars/websockets.jar
 websockets_JAVAFILES := \
-  $(addprefix $(thirdparty_source_dir)/,$(WEBSOCKETS_JAVA_FILES)) \
+  $(WEBSOCKETS_JAVA_FILES) \
   $(NULL)
 websockets_JAVAC_FLAGS := -Xlint:all,-serial
 
@@ -450,7 +445,6 @@ JAVA_JAR_TARGETS += gecko-browser
 gecko-browser_DEST := jars/gecko-browser.jar
 gecko-browser_JAVAFILES := \
   $(FENNEC_JAVA_FILES) \
-  $(addprefix $(thirdparty_source_dir)/,$(BRAILLE_JAVA_FILES)) \
   $(SYNC_JAVA_FILES) \
   $(NULL)
 gecko-browser_PP_JAVAFILES := \
@@ -489,7 +483,7 @@ gecko-util_JAVAC_FLAGS := -Xlint:all,-deprecation
 JAVA_JAR_TARGETS += sync-thirdparty
 sync-thirdparty_DEST := jars/sync-thirdparty.jar
 sync-thirdparty_JAVAFILES := \
-  $(addprefix $(thirdparty_source_dir)/,$(SYNC_THIRDPARTY_JAVA_FILES)) \
+  $(SYNC_THIRDPARTY_JAVA_FILES) \
   $(NULL)
 sync-thirdparty_JAVAC_FLAGS := -Xlint:none
 

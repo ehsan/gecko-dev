@@ -274,7 +274,6 @@ struct ThreadSafeContext : ContextFriendFields,
     // Accessors for immutable runtime data.
     JSAtomState &names() { return runtime_->atomState; }
     StaticStrings &staticStrings() { return runtime_->staticStrings; }
-    const JS::AsmJSCacheOps &asmJSCacheOps() { return runtime_->asmJSCacheOps; }
     PropertyName *emptyString() { return runtime_->emptyString; }
     FreeOp *defaultFreeOp() { return runtime_->defaultFreeOp(); }
     bool useHelperThreads() { return runtime_->useHelperThreads(); }
@@ -738,16 +737,6 @@ enum ErrorArgumentsType {
     ArgumentsAreUnicode,
     ArgumentsAreASCII
 };
-
-
-/*
- * Loads and returns a self-hosted function by name. For performance, define
- * the property name in vm/CommonPropertyNames.h.
- *
- * Defined in SelfHosting.cpp.
- */
-JSFunction *
-SelfHostedFunction(JSContext *cx, HandlePropertyName propName);
 
 } /* namespace js */
 

@@ -10,7 +10,6 @@ DIRS += [
     'failures/html/dom',
     'failures/html/dom/collections',
     'failures/html/dom/errors',
-    'failures/html/dom/lists',
     'failures/html/dom/nodes',
     'failures/html/dom/ranges',
     'failures/html/html/browsers/the-window-object',

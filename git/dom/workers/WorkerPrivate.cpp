@@ -4646,8 +4646,7 @@ WorkerPrivate::SetTimeout(JSContext* aCx, unsigned aArgc, jsval* aVp,
   // See if any of the optional arguments were passed.
   if (aArgc > 1) {
     double intervalMS = 0;
-    JS::RootedValue interval(aCx, argv[1]);
-    if (!JS::ToNumber(aCx, interval, &intervalMS)) {
+    if (!JS_ValueToNumber(aCx, argv[1], &intervalMS)) {
       return false;
     }
     newInfo->mInterval = TimeDuration::FromMilliseconds(intervalMS);

@@ -17,7 +17,7 @@
  */
 
 
-// Extenstion communication object
+// Extenstion communication object... as it used in pdf.js
 var FirefoxCom = (function FirefoxComClosure() {
   return {
     /**

@@ -14,6 +14,7 @@
 #include "nsMemory.h"                   // for NS_ARRAY_LENGTH
 #include "nsUnicharUtils.h"
 #include "nscore.h"                     // for PRUnichar
+#include "prtypes.h"                    // for PR_STATIC_ASSERT
 #include "mozilla/gfx/2D.h"
 
 nsFont::nsFont(const char* aName, uint8_t aStyle, uint8_t aVariant,
@@ -254,9 +255,8 @@ const gfxFontFeature eastAsianDefaults[] = {
   { TRUETYPE_TAG('r','u','b','y'), 1 }
 };
 
-static_assert(NS_ARRAY_LENGTH(eastAsianDefaults) ==
-              eFeatureEastAsian_numFeatures,
-              "eFeatureEastAsian_numFeatures should be correct");
+PR_STATIC_ASSERT(NS_ARRAY_LENGTH(eastAsianDefaults) ==
+                 eFeatureEastAsian_numFeatures);
 
 // NS_FONT_VARIANT_LIGATURES_xxx values
 const gfxFontFeature ligDefaults[] = {
@@ -270,9 +270,8 @@ const gfxFontFeature ligDefaults[] = {
   { TRUETYPE_TAG('c','a','l','t'), 0 }
 };
 
-static_assert(NS_ARRAY_LENGTH(ligDefaults) ==
-              eFeatureLigatures_numFeatures,
-              "eFeatureLigatures_numFeatures should be correct");
+PR_STATIC_ASSERT(NS_ARRAY_LENGTH(ligDefaults) ==
+                 eFeatureLigatures_numFeatures);
 
 // NS_FONT_VARIANT_NUMERIC_xxx values
 const gfxFontFeature numericDefaults[] = {
@@ -286,9 +285,8 @@ const gfxFontFeature numericDefaults[] = {
   { TRUETYPE_TAG('o','r','d','n'), 1 }
 };
 
-static_assert(NS_ARRAY_LENGTH(numericDefaults) ==
-              eFeatureNumeric_numFeatures,
-              "eFeatureNumeric_numFeatures should be correct");
+PR_STATIC_ASSERT(NS_ARRAY_LENGTH(numericDefaults) ==
+                 eFeatureNumeric_numFeatures);
 
 static void
 AddFontFeaturesBitmask(uint32_t aValue, uint32_t aMin, uint32_t aMax,

@@ -5,6 +5,7 @@
 
 #include "mozilla/Util.h"
 
+#include "prtypes.h"
 #include "prlink.h"
 #include "gfxTypes.h"
 

@@ -19,7 +19,6 @@ EXPORTS.mozilla.a11y += [
     'DocManager.h',
     'FocusManager.h',
     'Platform.h',
-    'RelationType.h',
     'Role.h',
     'SelectionManager.h',
     'States.h',
