@@ -1438,7 +1438,6 @@ abstract public class GeckoApp
     @Override
     public void onCreate(Bundle savedInstanceState)
     {
-        ((GeckoApplication)getApplication()).initialize();
         GeckoAppShell.registerGlobalExceptionHandler();
 
         mAppContext = this;

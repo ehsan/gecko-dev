@@ -115,12 +115,7 @@
 
 /*@{*/
 
-typedef enum tag_nsresult
-#if defined(__cplusplus) && defined(_MSC_VER) && defined(_M_X64)
-  // need underlying type for workaround of Microsoft compiler (Bug 794734)
-  : uint32_t
-#endif
-{ 
+typedef enum tag_nsresult {
   /* Standard "it worked" return value */
   NS_OK = 0,
 

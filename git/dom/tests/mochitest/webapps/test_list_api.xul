@@ -36,7 +36,6 @@ for (var p in props) {
 
 var mgmtProps = {
   QueryInterface: "function",
-  applyDownload: "function",
   getAll: "function",
   getNotInstalled: "function",
   oninstall: "object",

@@ -171,13 +171,21 @@ nsNPAPIPluginInstance::nsNPAPIPluginInstance()
     mPlugin(nullptr),
     mMIMEType(nullptr),
     mOwner(nullptr),
-    mCurrentPluginEvent(nullptr)
+    mCurrentPluginEvent(nullptr),
+#if defined(MOZ_X11) || defined(XP_WIN) || defined(XP_MACOSX)
+    mUsePluginLayersPref(true)
+#else
+    mUsePluginLayersPref(false)
+#endif
 #ifdef MOZ_WIDGET_ANDROID
   , mOnScreen(true)
 #endif
 {
   mNPP.pdata = NULL;
   mNPP.ndata = this;
+
+  mUsePluginLayersPref =
+    Preferences::GetBool("plugins.use_layers", mUsePluginLayersPref);
 
   PLUGIN_LOG(PLUGIN_LOG_BASIC, ("nsNPAPIPluginInstance ctor: this=%p\n",this));
 }
@@ -1204,8 +1212,13 @@ nsNPAPIPluginInstance::NotifyPainted(void)
 }
 
 nsresult
-nsNPAPIPluginInstance::GetIsOOP(bool* aIsAsync)
+nsNPAPIPluginInstance::UseAsyncPainting(bool* aIsAsync)
 {
+  if (!mUsePluginLayersPref) {
+    *aIsAsync = mUsePluginLayersPref;
+    return NS_OK;
+  }
+
   AutoPluginLibraryCall library(this);
   if (!library)
     return NS_ERROR_FAILURE;

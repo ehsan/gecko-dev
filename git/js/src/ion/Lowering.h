@@ -81,7 +81,6 @@ class LIRGenerator : public LIRGeneratorSpecific
     bool visitNewArray(MNewArray *ins);
     bool visitNewObject(MNewObject *ins);
     bool visitNewCallObject(MNewCallObject *ins);
-    bool visitNewStringObject(MNewStringObject *ins);
     bool visitInitProp(MInitProp *ins);
     bool visitCheckOverRecursed(MCheckOverRecursed *ins);
     bool visitDefVar(MDefVar *ins);

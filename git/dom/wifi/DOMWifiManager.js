@@ -75,7 +75,6 @@ DOMWifiManager.prototype = {
     this._lastConnectionInfo = null;
 
     const messages = ["WifiManager:getNetworks:Return:OK", "WifiManager:getNetworks:Return:NO",
-                      "WifiManager:getKnownNetworks:Return:OK", "WifiManager:getKnownNetworks:Return:NO",
                       "WifiManager:associate:Return:OK", "WifiManager:associate:Return:NO",
                       "WifiManager:forget:Return:OK", "WifiManager:forget:Return:NO",
                       "WifiManager:wps:Return:OK", "WifiManager:wps:Return:NO",
@@ -97,13 +96,11 @@ DOMWifiManager.prototype = {
       this._lastConnectionInfo = state.connectionInfo;
       this._enabled = state.enabled;
       this._connectionStatus = state.status;
-      this._macAddress = state.macAddress;
     } else {
       this._currentNetwork = null;
       this._lastConnectionInfo = null;
       this._enabled = false;
       this._connectionStatus = "disconnected";
-      this._macAddress = "";
     }
   },
 
@@ -136,16 +133,6 @@ DOMWifiManager.prototype = {
       case "WifiManager:getNetworks:Return:NO":
         request = this.takeRequest(msg.rid);
         Services.DOMRequest.fireError(request, "Unable to scan for networks");
-        break;
-
-      case "WifiManager:getKnownNetworks:Return:OK":
-        request = this.takeRequest(msg.rid);
-        Services.DOMRequest.fireSuccess(request, exposeReadOnly(msg.data));
-        break;
-
-      case "WifiManager:getKnownNetworks:Return:NO":
-        request = this.takeRequest(msg.rid);
-        Services.DOMRequest.fireError(request, "Unable to get known networks");
         break;
 
       case "WifiManager:associate:Return:OK":
@@ -279,8 +266,7 @@ DOMWifiManager.prototype = {
                                                             { network: this._currentNetwork,
                                                               signalStrength: info.signalStrength,
                                                               relSignalStrength: info.relSignalStrength,
-                                                              linkSpeed: info.linkSpeed,
-                                                              ipAddress: info.ipAddress,
+                                                              linkSpeed: info.linkSpeed
                                                             });
       this._onConnectionInfoUpdate.handleEvent(evt);
     }
@@ -300,14 +286,6 @@ DOMWifiManager.prototype = {
       throw new Components.Exception("Denied", Cr.NS_ERROR_FAILURE);
     var request = this.createRequest();
     this._sendMessageForRequest("WifiManager:getNetworks", null, request);
-    return request;
-  },
-
-  getKnownNetworks: function nsIDOMWifiManager_getKnownNetworks() {
-    if (!this._hasPrivileges)
-      throw new Components.Exception("Denied", Cr.NS_ERROR_FAILURE);
-    var request = this.createRequest();
-    this._sendMessageForRequest("WifiManager:getKnownNetworks", null, request);
     return request;
   },
 
@@ -347,12 +325,6 @@ DOMWifiManager.prototype = {
     if (!this._hasPrivileges)
       throw new Components.Exception("Denied", Cr.NS_ERROR_FAILURE);
     return this._enabled;
-  },
-
-  get macAddress() {
-    if (!this._hasPrivileges)
-      throw new Components.Exception("Denied", Cr.NS_ERROR_FAILURE);
-    return this._macAddress;
   },
 
   get connection() {

@@ -348,9 +348,6 @@
       * @option {bool} noOverwrite - If set, this function will fail if
       * a file already exists at |destPath|. Otherwise, if this file exists,
       * it will be erased silently.
-      * @option {bool} noCopy - If set, this function will fail if the
-      * operation is more sophisticated than a simple renaming, i.e. if
-      * |sourcePath| and |destPath| are not situated on the same device.
       *
       * @throws {OS.File.Error} In case of any error.
       *
@@ -518,7 +515,7 @@
            if (options.noOverwrite) {
              dest = File.open(destPath, {create:true});
            } else {
-             dest = File.open(destPath, {trunc:true});
+             dest = File.open(destPath, {write:true});
            }
            result = pump(source, dest, options);
          } catch (x) {
@@ -562,11 +559,9 @@
          return;
 
        // If the error is not EXDEV ("not on the same device"),
-       // or if the error is EXDEV and we have passed an option
-       // that prevents us from crossing devices, throw the
-       // error.
-       if (ctypes.errno != Const.EXDEV || options.noCopy) {
-         throw new File.Error("move");
+       // throw it.
+       if (ctypes.errno != Const.EXDEV) {
+         throw new File.Error();
        }
 
        // Otherwise, copy and remove.
@@ -826,9 +821,6 @@
        }
        return new File.Info(gStatData);
      };
-
-     File.read = exports.OS.Shared.AbstractFile.read;
-     File.writeAtomic = exports.OS.Shared.AbstractFile.writeAtomic;
 
      /**
       * Get/set the current directory.

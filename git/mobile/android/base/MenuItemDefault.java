@@ -22,11 +22,9 @@ public class MenuItemDefault extends LinearLayout
     private ImageView mIcon;
     private TextView mTitle;
     private CheckBox mCheck;
-    private ImageView mMore;
 
     private boolean mCheckable;
     private boolean mChecked;
-    private boolean mHasSubMenu;
 
     public MenuItemDefault(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -39,11 +37,9 @@ public class MenuItemDefault extends LinearLayout
         mIcon = (ImageView) findViewById(R.id.icon);
         mTitle = (TextView) findViewById(R.id.title);
         mCheck = (CheckBox) findViewById(R.id.check);
-        mMore = (ImageView) findViewById(R.id.more);
 
         mCheckable = false;
         mChecked = false;
-        mHasSubMenu = false;
     }
 
     @Override
@@ -82,25 +78,17 @@ public class MenuItemDefault extends LinearLayout
         mTitle.setEnabled(enabled);
         mCheck.setEnabled(enabled);
         mIcon.setColorFilter(enabled ? 0 : 0xFF999999);
-        mMore.setColorFilter(enabled ? 0 : 0xFF999999);
     }
 
     @Override
     public void setCheckable(boolean checkable) {
         mCheckable = checkable;
-        mCheck.setVisibility(mCheckable && !mHasSubMenu ? VISIBLE : GONE);
+        mCheck.setVisibility(mCheckable ? VISIBLE : GONE);
     }
 
     @Override
     public void setChecked(boolean checked) {
         mChecked = checked;
         mCheck.setChecked(mChecked);
-    }
-
-    @Override
-    public void setSubMenuIndicator(boolean hasSubMenu) {
-        mHasSubMenu = hasSubMenu;
-        mMore.setVisibility(mHasSubMenu ? VISIBLE : GONE);
-        mCheck.setVisibility(mCheckable && !mHasSubMenu ? VISIBLE : GONE);
     }
 }

@@ -10,24 +10,22 @@ import java.util.ArrayList;
 
 public class GeckoApplication extends Application {
 
-    private boolean mInited;
     private boolean mInBackground;
 
-    protected void initialize() {
-        if (mInited)
-            return;
-
+    @Override
+    public void onCreate() {
         // workaround for http://code.google.com/p/android/issues/detail?id=20915
         try {
             Class.forName("android.os.AsyncTask");
         } catch (ClassNotFoundException e) {}
+
+        super.onCreate();
 
         GeckoConnectivityReceiver.getInstance().init(getApplicationContext());
         GeckoBatteryManager.getInstance().init(getApplicationContext());
         GeckoBatteryManager.getInstance().start();
         GeckoNetworkManager.getInstance().init(getApplicationContext());
         MemoryMonitor.getInstance().init(getApplicationContext());
-        mInited = true;
     }
 
     protected void onActivityPause(GeckoActivity activity) {

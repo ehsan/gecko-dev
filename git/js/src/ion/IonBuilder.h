@@ -382,7 +382,6 @@ class IonBuilder : public MIRGenerator
                                       bool constructing);
 
     // String natives.
-    InliningStatus inlineStringObject(uint32 argc, bool constructing);
     InliningStatus inlineStrCharCodeAt(uint32 argc, bool constructing);
     InliningStatus inlineStrFromCharCode(uint32 argc, bool constructing);
     InliningStatus inlineStrCharAt(uint32 argc, bool constructing);
@@ -416,10 +415,10 @@ class IonBuilder : public MIRGenerator
                            MBasicBlock *bottom,
                            Vector<MDefinition *, 8, IonAllocPolicy> &retvalDefns);
 
-    // A builder is inextricably tied to a particular script.
-    HeapPtrScript script_;
-
   public:
+    // A builder is inextricably tied to a particular script.
+    JSScript * const script;
+
     // Compilation index for this attempt.
     types::RecompileInfo const recompileInfo;
 
@@ -427,8 +426,6 @@ class IonBuilder : public MIRGenerator
     LIRGraph *lir;
 
     void clearForBackEnd();
-
-    JSScript *script() const { return script_; }
 
   private:
     JSContext *cx;

@@ -1230,11 +1230,8 @@ DocAccessible::ARIAActiveDescendantChanged(nsIContent* aElm)
         Accessible* activeDescendant = GetAccessible(activeDescendantElm);
         if (activeDescendant) {
           FocusMgr()->ActiveItemChanged(activeDescendant, false);
-#ifdef DEBUG
-          if (logging::IsEnabled(logging::eFocus))
-            logging::ActiveItemChangeCausedBy("ARIA activedescedant changed",
-                                              activeDescendant);
-#endif
+          A11YDEBUG_FOCUS_ACTIVEITEMCHANGE_CAUSE("ARIA activedescedant changed",
+                                                 activeDescendant)
         }
       }
     }
@@ -1416,10 +1413,7 @@ DocAccessible::UnbindFromDocument(Accessible* aAccessible)
   // from the tree.
   if (FocusMgr()->IsActiveItem(aAccessible)) {
     FocusMgr()->ActiveItemChanged(nullptr);
-#ifdef DEBUG
-          if (logging::IsEnabled(logging::eFocus))
-            logging::ActiveItemChangeCausedBy("tree shutdown", aAccessible);
-#endif
+    A11YDEBUG_FOCUS_ACTIVEITEMCHANGE_CAUSE("tree shutdown", aAccessible)
   }
 
   // Remove an accessible from node-to-accessible map if it exists there.

@@ -226,9 +226,9 @@ uint32_t nsEventTargetChainItem::sCurrentEtciCount = 0;
 
 nsEventTargetChainItem::nsEventTargetChainItem(nsIDOMEventTarget* aTarget,
                                                nsEventTargetChainItem* aChild)
-: mTarget(aTarget), mChild(aChild), mParent(nullptr), mFlags(0), mItemFlags(0)
+: mChild(aChild), mParent(nullptr), mFlags(0), mItemFlags(0)
 {
-  MOZ_ASSERT(!aTarget || mTarget == aTarget->GetTargetForEventTargetChain());
+  mTarget = aTarget->GetTargetForEventTargetChain();
   if (mChild) {
     mChild->mParent = this;
   }
@@ -533,8 +533,7 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
 
   // Create the event target chain item for the event target.
   nsEventTargetChainItem* targetEtci =
-    nsEventTargetChainItem::Create(pool.GetPool(),
-                                   target->GetTargetForEventTargetChain());
+    nsEventTargetChainItem::Create(pool.GetPool(), target);
   NS_ENSURE_TRUE(targetEtci, NS_ERROR_OUT_OF_MEMORY);
   if (!targetEtci->IsValid()) {
     nsEventTargetChainItem::Destroy(pool.GetPool(), targetEtci);

@@ -25,7 +25,6 @@ public class GeckoMenuItem implements MenuItem, View.OnClickListener {
         public void setCheckable(boolean checkable);
         public void setChecked(boolean checked);
         public void setOnClickListener(View.OnClickListener listener);
-        public void setSubMenuIndicator(boolean hasSubMenu);
         public void setVisibility(int visible);
         public View getLayout();
     }
@@ -317,7 +316,6 @@ public class GeckoMenuItem implements MenuItem, View.OnClickListener {
 
     public MenuItem setSubMenu(GeckoSubMenu subMenu) {
         mSubMenu = subMenu;
-        mLayout.setSubMenuIndicator(subMenu != null);
         return this;
     }
 

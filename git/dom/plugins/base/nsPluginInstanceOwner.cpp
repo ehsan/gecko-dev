@@ -263,9 +263,10 @@ nsPluginInstanceOwner::UseAsyncRendering()
   }
 #endif
 
-  bool isOOP;
+  bool useAsyncRendering;
   bool result = (mInstance &&
-          NS_SUCCEEDED(mInstance->GetIsOOP(&isOOP)) && isOOP
+          NS_SUCCEEDED(mInstance->UseAsyncPainting(&useAsyncRendering)) &&
+          useAsyncRendering
 #ifndef XP_MACOSX
           && (!mPluginWindow ||
            mPluginWindow->type == NPWindowTypeDrawable)

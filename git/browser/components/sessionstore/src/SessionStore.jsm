@@ -3651,10 +3651,8 @@ let SessionStoreInternal = {
     TelemetryStopwatch.start("FX_SESSION_RESTORE_COLLECT_DATA_MS");
 
     var oState = this._getCurrentState(aUpdateAll, pinnedOnly);
-    if (!oState) {
-      TelemetryStopwatch.cancel("FX_SESSION_RESTORE_COLLECT_DATA_MS");
+    if (!oState)
       return;
-    }
 
 #ifndef XP_MACOSX
     // We want to restore closed windows that are marked with _shouldRestore.
@@ -4431,8 +4429,7 @@ let SessionStoreInternal = {
    *        String data
    */
   _writeFile: function ssi_writeFile(aFile, aData) {
-    let refObj = {};
-    TelemetryStopwatch.start("FX_SESSION_RESTORE_WRITE_FILE_MS", refObj);
+    TelemetryStopwatch.start("FX_SESSION_RESTORE_WRITE_FILE_MS");
     // Initialize the file output stream.
     var ostream = Cc["@mozilla.org/network/safe-file-output-stream;1"].
                   createInstance(Ci.nsIFileOutputStream);
@@ -4448,7 +4445,7 @@ let SessionStoreInternal = {
     var self = this;
     NetUtil.asyncCopy(istream, ostream, function(rc) {
       if (Components.isSuccessCode(rc)) {
-        TelemetryStopwatch.finish("FX_SESSION_RESTORE_WRITE_FILE_MS", refObj);
+        TelemetryStopwatch.finish("FX_SESSION_RESTORE_WRITE_FILE_MS");
         Services.obs.notifyObservers(null,
                                      "sessionstore-state-write-complete",
                                      "");

@@ -7,7 +7,7 @@
 
   <binding id="chatbox">
     <content orient="vertical" mousethrough="never">
-      <xul:hbox class="chat-titlebar" xbl:inherits="minimized,selected,activity"
+      <xul:hbox class="chat-titlebar" xbl:inherits="minimized,selected"
                 onclick="document.getBindingParent(this).toggle();" align="baseline">
         <xul:image class="chat-status-icon" xbl:inherits="src=image"/>
         <xul:label class="chat-title" flex="1" xbl:inherits="value=label,crop"/>
@@ -78,25 +78,11 @@
       <handler event="focus" phase="capturing">
         this.parentNode.selectedChat = this;
       </handler>
-      <handler event="DOMContentLoaded"><![CDATA[
+      <handler event="load"><![CDATA[
         this.isActive = !this.minimized;
         if (this._callback) this._callback(this.iframe.contentWindow);
-        let chatbox = this;
-        function chatActivity() {
-          chatbox.setAttribute("activity", true);
-          chatbox.parentNode.updateTitlebar(chatbox);
-        };
-        let iframeWindow = this.iframe.contentWindow;
-        iframeWindow.addEventListener("socialChatActivity", chatActivity);
-        iframeWindow.addEventListener("unload", function unload() {
-          iframeWindow.removeEventListener("unload", unload);
-          iframeWindow.removeEventListener("socialChatActivity", chatActivity);
-        });
       ]]></handler>
-      <handler event="DOMTitleChanged"><![CDATA[
-        this.setAttribute('label', this.iframe.contentDocument.title);
-        this.parentNode.updateTitlebar(this);
-      ]]></handler>
+      <handler event="DOMTitleChanged" action="this.setAttribute('label', this.iframe.contentDocument.title);"/>
       <handler event="DOMLinkAdded"><![CDATA[
         // much of this logic is from DOMLinkHandler in browser.js
         // this sets the presence icon for a chat user, we simply use favicon style updating
@@ -113,7 +99,6 @@
 
         // we made it this far, use it
         this.setAttribute('image', uri.spec);
-        this.parentNode.updateTitlebar(this);
       ]]></handler>
     </handlers>
   </binding>
@@ -139,10 +124,6 @@
         document.getAnonymousElementByAttribute(this, "anonid", "nubMenu");
       </field>
 
-      <field name="nub" readonly="true">
-        document.getAnonymousElementByAttribute(this, "anonid", "nub");
-      </field>
-
       <property name="emptyWidth">
         <getter>
           return document.getAnonymousElementByAttribute(this, "anonid", "spacer").boxObject.width;
@@ -159,7 +140,6 @@
           this._selectedChat = val;
           if (val) {
             this._selectedChat.setAttribute("selected", "true");
-            this._selectedChat.removeAttribute("activity");
           }
         ]]></setter>
       </property>
@@ -216,21 +196,6 @@
         ]]></body>
       </method>
 
-      <method name="updateTitlebar">
-        <parameter name="aChatbox"/>
-        <body><![CDATA[
-          if (aChatbox.collapsed) {
-            let menuitem = this.menuitemMap.get(aChatbox);
-            if (aChatbox.getAttribute("activity")) {
-              menuitem.setAttribute("activity", true);
-              this.nub.setAttribute("activity", true);
-            }
-            menuitem.setAttribute("label", aChatbox.getAttribute("label"));
-            menuitem.setAttribute("image", aChatbox.getAttribute("image"));
-          }
-        ]]></body>
-      </method>
-
       <method name="handleEvent">
         <parameter name="aEvent"/>
         <body><![CDATA[
@@ -260,9 +225,7 @@
           aChatbox.collapsed = true;
           aChatbox.isActive = false;
           let menu = document.createElementNS("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul", "menuitem");
-          menu.setAttribute("class", "menuitem-iconic");
           menu.setAttribute("label", aChatbox.iframe.contentDocument.title);
-          menu.setAttribute("image", aChatbox.getAttribute("image"));
           menu.chat = aChatbox;
           this.menuitemMap.set(aChatbox, menu);
           this.menupopup.appendChild(menu);
@@ -333,9 +296,6 @@
 
     </implementation>
     <handlers>
-      <handler event="popupshown"><![CDATA[
-        this.nub.removeAttribute("activity");
-      ]]></handler>
       <handler event="overflow"><![CDATA[
         // make sure we're not getting an overflow from content
         if (event.originalTarget != this.innerbox)

@@ -199,15 +199,6 @@ class Bindings
     void trace(JSTracer *trc);
 };
 
-template <>
-struct RootMethods<Bindings> {
-    static Bindings initial();
-    static ThingRootKind kind() { return THING_ROOT_BINDINGS; }
-    static bool poisoned(const Bindings &bindings) {
-        return IsPoisonedPtr(bindings.callObjShape());
-    }
-};
-
 class ScriptCounts
 {
     friend struct ::JSScript;

@@ -41,11 +41,8 @@ class StringObject : public JSObject
         return size_t(getFixedSlot(LENGTH_SLOT).toInt32());
     }
 
-    static size_t offsetOfPrimitiveValue() {
+    static size_t getPrimitiveValueOffset() {
         return getFixedSlotOffset(PRIMITIVE_VALUE_SLOT);
-    }
-    static size_t offsetOfLength() {
-        return getFixedSlotOffset(LENGTH_SLOT);
     }
 
   private:

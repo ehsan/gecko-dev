@@ -11,8 +11,6 @@
 #include "ion/IonFrames.h"
 #include "ion/IonFrames-inl.h" // for GetTopIonJSScript
 
-#include "vm/StringObject-inl.h"
-
 #include "jsinterpinlines.h"
 
 using namespace js;
@@ -385,12 +383,6 @@ JSObject *
 NewCallObject(JSContext *cx, HandleShape shape, HandleTypeObject type, HeapSlot *slots)
 {
     return CallObject::create(cx, shape, type, slots);
-}
-
-JSObject *
-NewStringObject(JSContext *cx, HandleString str)
-{
-    return StringObject::create(cx, str);
 }
 
 bool SPSEnter(JSContext *cx, HandleScript script)

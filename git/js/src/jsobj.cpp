@@ -2368,10 +2368,8 @@ js_CreateThisForFunctionWithProto(JSContext *cx, HandleObject callee, JSObject *
         res = NewObjectWithClassProto(cx, &ObjectClass, proto, callee->getParent(), kind);
     }
 
-    if (res && cx->typeInferenceEnabled()) {
-        RootedScript script(cx, callee->toFunction()->script());
-        TypeScript::SetThis(cx, script, types::Type::ObjectType(res));
-    }
+    if (res && cx->typeInferenceEnabled())
+        TypeScript::SetThis(cx, callee->toFunction()->script(), types::Type::ObjectType(res));
 
     return res;
 }
@@ -2400,7 +2398,7 @@ js_CreateThisForFunction(JSContext *cx, HandleObject callee, bool newType)
         if (!JSObject::setSingletonType(cx, nobj))
             return NULL;
 
-        RootedScript calleeScript(cx, callee->toFunction()->script());
+        JSScript *calleeScript = callee->toFunction()->script();
         TypeScript::SetThis(cx, calleeScript, types::Type::ObjectType(nobj));
 
         return nobj;

@@ -152,7 +152,7 @@ let DOMContactManager = {
         mRIL.getICCContacts(
           msg.options.contactType,
           function (aErrorMsg, aType, aContacts) {
-            if (aErrorMsg !== 'undefined') {
+            if (aErrorMsg) {
               mm.sendAsyncMessage("Contacts:GetSimContacts:Return:KO",
                                   {requestID: msg.requestID,
                                    errorMsg: aErrorMsg});

@@ -233,8 +233,8 @@ class IonCache
         this->pc = pc;
     }
 
-    void getScriptedLocation(MutableHandleScript pscript, jsbytecode **ppc) {
-        pscript.set(script);
+    void getScriptedLocation(JSScript **pscript, jsbytecode **ppc) {
+        *pscript = script;
         *ppc = pc;
     }
 };

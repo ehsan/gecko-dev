@@ -36,8 +36,7 @@ public:
   ShmemYCbCrImage() : mOffset(0) {}
 
   ShmemYCbCrImage(Shmem& shm, size_t offset = 0) {
-    DebugOnly<bool> status = Open(shm,offset);
-    NS_ASSERTION(status, "Invalid data in the shmem");
+    NS_ABORT_IF_FALSE(Open(shm,offset), "Invalid data in Shmem.");
   }
 
   /**

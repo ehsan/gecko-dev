@@ -17,26 +17,18 @@ interface nsIWifi : nsISupports
     void shutdown();
 };
 
-[scriptable, uuid(caa76ee3-8ffe-4ea5-bc59-3b53a9df0d07)]
+[scriptable, uuid(e3a967e0-015e-11e2-a21f-0800200c9a66)]
 interface nsIDOMWifiManager : nsISupports
 {
     /**
-     * Returns the list of currently available networks.
+     * Returns the list of currently available networks as well as the list of
+     * currently configured networks.
      * onsuccess: We have obtained the current list of networks. request.value
      *            is an object whose property names are SSIDs and values are
      *            network objects.
      * onerror: We were unable to obtain a list of property names.
      */
     nsIDOMDOMRequest getNetworks();
-
-    /**
-     * Returns the list of networks known to the system that will be
-     * automatically connected to if they're in range.
-     * onsuccess: request.value is an object whose property names are
-     *            SSIDs and values are network objects.
-     * onerror: We were unable to obtain a list of known networks.
-     */
-    nsIDOMDOMRequest getKnownNetworks();
 
     /**
      * Takes one of the networks returned from getNetworks and tries to
@@ -88,11 +80,6 @@ interface nsIDOMWifiManager : nsISupports
      * Returns whether or not wifi is currently enabled.
      */
     readonly attribute boolean enabled;
-
-    /**
-     * Returns the MAC address of the wifi adapter.
-     */
-    readonly attribute DOMString macAddress;
 
     /**
      * An non-null object containing the following information:
@@ -167,7 +154,7 @@ interface nsIDOMMozWifiStatusChangeEvent : nsIDOMEvent
                                                  in DOMString status);
 };
 
-[scriptable, builtinclass, uuid(1717f9d9-5fd8-43d8-a098-55924c6d37de)]
+[scriptable, builtinclass, uuid(34994296-d694-4aed-953d-fc25ee25c050)]
 interface nsIDOMMozWifiConnectionInfoEvent : nsIDOMEvent
 {
     /**
@@ -190,17 +177,11 @@ interface nsIDOMMozWifiConnectionInfoEvent : nsIDOMEvent
      */
     readonly attribute long linkSpeed;
 
-    /**
-     * IP address in the dotted quad format.
-     */
-    readonly attribute DOMString ipAddress;
-
     [noscript] void initMozWifiConnectionInfoEvent(in DOMString aType,
                                                    in boolean aCanBubble,
                                                    in boolean aCancelable,
                                                    in nsIVariant aNetwork,
                                                    in short signalStrength,
                                                    in short relSignalStrength,
-                                                   in long linkSpeed,
-                                                   in DOMString ipAddress);
+                                                   in long linkSpeed);
 };

@@ -16,7 +16,6 @@ FAIL_ON_WARNINGS := 1
 
 EXTRA_COMPONENTS = \
 	TCPSocket.js \
-	TCPSocketParentIntermediary.js \
 	TCPSocket.manifest \
 	$(NULL)
 
@@ -28,8 +27,6 @@ EXPORTS_mozilla/dom/network = \
   Utils.h \
   Types.h \
   Constants.h \
-  TCPSocketChild.h \
-  TCPSocketParent.h \
   $(NULL)
 
 CPPSRCS = \
@@ -37,8 +34,6 @@ CPPSRCS = \
   Utils.cpp \
   USSDReceivedEvent.cpp \
   DataErrorEvent.cpp \
-  TCPSocketParent.cpp \
-  TCPSocketChild.cpp \
   $(NULL)
 
 ifdef MOZ_B2G_RIL

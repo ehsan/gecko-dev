@@ -301,5 +301,5 @@ interface nsIExpandedPrincipal : nsISupports
    * Note: this list is not reference counted, it is shared, so 
    * should not be changed and should only be used ephemerally.
    */
-  [noscript] readonly attribute PrincipalArray whiteList;
+  [notxpcom] readonly attribute PrincipalArray whiteList;
 };

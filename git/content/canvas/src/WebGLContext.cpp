@@ -329,19 +329,11 @@ WebGLContext::SetContextOptions(nsIPropertyBag *aOptions)
 NS_IMETHODIMP
 WebGLContext::SetDimensions(int32_t width, int32_t height)
 {
-    // Early error return cases
+    /*** early success return cases ***/
 
-    if (width < 0 || height < 0) {
-        GenerateWarning("Canvas size is too large (seems like a negative value wrapped)");
-        return NS_ERROR_OUT_OF_MEMORY;
+    if (mCanvasElement) {
+        mCanvasElement->InvalidateCanvas();
     }
-
-    if (!GetCanvas())
-        return NS_ERROR_FAILURE;
-
-    // Early success return cases
-
-    GetCanvas()->InvalidateCanvas();
 
     if (gl && mWidth == width && mHeight == height)
         return NS_OK;
@@ -369,9 +361,10 @@ WebGLContext::SetDimensions(int32_t width, int32_t height)
         return NS_OK;
     }
 
-    // End of early return cases.
-    // At this point we know that we're not just resizing an existing context,
-    // we are initializing a new context.
+    /*** End of early success return cases.
+     *** At this point we know that we're not just resizing an existing context,
+     *** we are initializing a new context.
+     ***/
 
     // if we exceeded either the global or the per-principal limit for WebGL contexts,
     // lose the oldest-used context now to free resources. Note that we can't do that

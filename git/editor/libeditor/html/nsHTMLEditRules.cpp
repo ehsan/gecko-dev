@@ -1271,10 +1271,9 @@ nsHTMLEditRules::WillInsertText(EditAction aAction,
   nsCOMPtr<nsIDOMNode> selNode;
   int32_t selOffset;
 
-  // If the selection isn't collapsed, delete it.  Don't delete existing inline
-  // tags, because we're hopefully going to insert text (bug 787432).
+  // if the selection isn't collapsed, delete it.
   if (!aSelection->Collapsed()) {
-    res = mHTMLEditor->DeleteSelection(nsIEditor::eNone, nsIEditor::eNoStrip);
+    res = mHTMLEditor->DeleteSelection(nsIEditor::eNone, nsIEditor::eStrip);
     NS_ENSURE_SUCCESS(res, res);
   }
 

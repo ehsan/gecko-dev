@@ -25,7 +25,6 @@
     _(NewObject)                    \
     _(NewSlots)                     \
     _(NewCallObject)                \
-    _(NewStringObject)              \
     _(InitProp)                     \
     _(CheckOverRecursed)            \
     _(RecompileCheck)               \
