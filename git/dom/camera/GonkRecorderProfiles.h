@@ -9,19 +9,16 @@
 #include "CameraRecorderProfiles.h"
 #include "ICameraControl.h"
 
-#ifndef CHECK_SETARG_RETURN
-#define CHECK_SETARG_RETURN(x, rv)      \
+#ifndef CHECK_SETARG
+#define CHECK_SETARG(x)                 \
   do {                                  \
     if (x) {                            \
       DOM_CAMERA_LOGE(#x " failed\n");  \
-      return rv;                        \
+      return NS_ERROR_NOT_AVAILABLE;    \
     }                                   \
   } while(0)
 #endif
 
-#ifndef CHECK_SETARG
-#define CHECK_SETARG(x) CHECK_SETARG_RETURN(x, NS_ERROR_NOT_AVAILABLE)
-#endif
 
 namespace android {
 class GonkRecorder;

@@ -18,6 +18,35 @@ namespace layers {
 using namespace mozilla::gfx;
 using namespace android;
 
+class GrallocTextureClientData : public TextureClientData {
+public:
+  GrallocTextureClientData(MaybeMagicGrallocBufferHandle aDesc)
+    : mGrallocHandle(aDesc)
+  {
+    MOZ_COUNT_CTOR(GrallocTextureClientData);
+  }
+
+  ~GrallocTextureClientData()
+  {
+    MOZ_COUNT_DTOR(GrallocTextureClientData);
+  }
+
+  virtual void DeallocateSharedData(ISurfaceAllocator* allocator) MOZ_OVERRIDE
+  {
+    allocator->DeallocGrallocBuffer(&mGrallocHandle);
+  }
+
+private:
+  MaybeMagicGrallocBufferHandle mGrallocHandle;
+};
+
+TextureClientData*
+GrallocTextureClientOGL::DropTextureData()
+{
+  TextureClientData* result = new GrallocTextureClientData(mGrallocHandle);
+  return result;
+}
+
 GrallocTextureClientOGL::GrallocTextureClientOGL(MaybeMagicGrallocBufferHandle buffer,
                                                  gfx::IntSize aSize,
                                                  gfx::BackendType aMoz2dBackend,

@@ -33,9 +33,6 @@
 
 #include "prnetdb.h"
 #include "prerr.h"
-#include "NetworkActivityMonitor.h"
-
-using namespace mozilla::net;
 
 namespace android {
 
@@ -104,8 +101,6 @@ void ARTPSession::MakeUDPSocket(PRFileDesc **s, unsigned port) {
     if (!*s) {
         TRESPASS();
     }
-
-    NetworkActivityMonitor::AttachIOLayer(*s);
 
     PRNetAddr addr;
     addr.inet.family = PR_AF_INET;

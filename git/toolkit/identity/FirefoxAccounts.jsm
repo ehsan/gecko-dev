@@ -151,10 +151,6 @@ FxAccountsService.prototype = {
       },
       error => {
         log.error("get assertion failed: " + JSON.stringify(error));
-        // Cancellation is passed through an error channel; here we reroute.
-        if (error.details && (error.details.error == "DIALOG_CLOSED_BY_USER")) {
-          return this.doCancel(aRPId);
-        }
         this.doError(aRPId, error);
       }
     );
@@ -202,7 +198,7 @@ FxAccountsService.prototype = {
   doLogin: function doLogin(aRpCallerId, aAssertion) {
     let rp = this._rpFlows.get(aRpCallerId);
     if (!rp) {
-      log.warn("doLogin found no rp to go with callerId " + aRpCallerId);
+      log.warn("doLogin found no rp to go with callerId " + aRpCallerId + "\n");
       return;
     }
 
@@ -212,7 +208,7 @@ FxAccountsService.prototype = {
   doLogout: function doLogout(aRpCallerId) {
     let rp = this._rpFlows.get(aRpCallerId);
     if (!rp) {
-      log.warn("doLogout found no rp to go with callerId " + aRpCallerId);
+      log.warn("doLogout found no rp to go with callerId " + aRpCallerId + "\n");
       return;
     }
 
@@ -222,7 +218,7 @@ FxAccountsService.prototype = {
   doReady: function doReady(aRpCallerId) {
     let rp = this._rpFlows.get(aRpCallerId);
     if (!rp) {
-      log.warn("doReady found no rp to go with callerId " + aRpCallerId);
+      log.warn("doReady found no rp to go with callerId " + aRpCallerId + "\n");
       return;
     }
 
@@ -232,7 +228,7 @@ FxAccountsService.prototype = {
   doCancel: function doCancel(aRpCallerId) {
     let rp = this._rpFlows.get(aRpCallerId);
     if (!rp) {
-      log.warn("doCancel found no rp to go with callerId " + aRpCallerId);
+      log.warn("doCancel found no rp to go with callerId " + aRpCallerId + "\n");
       return;
     }
 
@@ -242,7 +238,7 @@ FxAccountsService.prototype = {
   doError: function doError(aRpCallerId, aError) {
     let rp = this._rpFlows.get(aRpCallerId);
     if (!rp) {
-      log.warn("doError found no rp to go with callerId " + aRpCallerId);
+      log.warn("doCancel found no rp to go with callerId " + aRpCallerId + "\n");
       return;
     }
 

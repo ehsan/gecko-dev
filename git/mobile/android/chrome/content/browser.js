@@ -4233,7 +4233,7 @@ Tab.prototype = {
   restoredSessionZoom: function() {
     let cwu = this.browser.contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
 
-    if (this._restoreZoom && cwu.isResolutionSet) {
+    if (this._restoreZoom && cwu.isHistoryRestored) {
       return this._getGeckoZoom();
     }
     return null;

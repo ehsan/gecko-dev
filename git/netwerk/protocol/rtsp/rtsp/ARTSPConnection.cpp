@@ -40,9 +40,6 @@
 #include "prnetdb.h"
 #include "prerr.h"
 #include "prerror.h"
-#include "NetworkActivityMonitor.h"
-
-using namespace mozilla::net;
 
 namespace android {
 
@@ -272,11 +269,6 @@ void ARTSPConnection::onConnect(const sp<AMessage> &msg) {
     }
 
     mSocket = PR_OpenTCPSocket(PR_AF_INET);
-    if (!mSocket) {
-        TRESPASS();
-    }
-
-    NetworkActivityMonitor::AttachIOLayer(mSocket);
 
     MakeSocketBlocking(mSocket, false);
 

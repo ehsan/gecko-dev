@@ -62,8 +62,6 @@ public:
 
   GLuint GetGLTexture();
 
-  void BindEGLImage();
-
   void Lock();
 
 protected:
