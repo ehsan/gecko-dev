@@ -324,7 +324,6 @@ WebGLContext::WebGLContext()
 
 WebGLContext::~WebGLContext()
 {
-    RemovePostRefreshObserver();
     mContextObserver->Destroy();
 
     DestroyResourcesAndContext();
@@ -1739,14 +1738,6 @@ WebGLContext::GetSurfaceSnapshot(bool* aPremultAlpha)
                     DrawOptions(1.0f, CompositionOp::OP_SOURCE));
 
     return dt->Snapshot();
-}
-
-void
-WebGLContext::DidRefresh()
-{
-    if (gl) {
-        gl->FlushIfHeavyGLCallsSinceLastFlush();
-    }
 }
 
 bool WebGLContext::TexImageFromVideoElement(GLenum texImageTarget, GLint level,

@@ -4806,30 +4806,30 @@ nsEditor::InitializeSelection(nsIDOMEventTarget* aFocusEventTarget)
   return NS_OK;
 }
 
-NS_IMETHODIMP
+void
 nsEditor::FinalizeSelection()
 {
   nsCOMPtr<nsISelectionController> selCon;
   nsresult rv = GetSelectionController(getter_AddRefs(selCon));
-  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_SUCCESS_VOID(rv);
 
   nsCOMPtr<nsISelection> selection;
   rv = selCon->GetSelection(nsISelectionController::SELECTION_NORMAL,
                             getter_AddRefs(selection));
-  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_SUCCESS_VOID(rv);
 
   nsCOMPtr<nsISelectionPrivate> selectionPrivate = do_QueryInterface(selection);
-  NS_ENSURE_TRUE(selectionPrivate, rv);
+  NS_ENSURE_TRUE_VOID(selectionPrivate);
 
   selectionPrivate->SetAncestorLimiter(nullptr);
 
   nsCOMPtr<nsIPresShell> presShell = GetPresShell();
-  NS_ENSURE_TRUE(presShell, NS_ERROR_NOT_INITIALIZED);
+  NS_ENSURE_TRUE_VOID(presShell);
 
   selCon->SetCaretEnabled(false);
 
   nsFocusManager* fm = nsFocusManager::GetFocusManager();
-  NS_ENSURE_TRUE(fm, NS_ERROR_NOT_INITIALIZED);
+  NS_ENSURE_TRUE_VOID(fm);
   fm->UpdateCaretForCaretBrowsingMode();
 
   if (!HasIndependentSelection()) {
@@ -4860,7 +4860,6 @@ nsEditor::FinalizeSelection()
   }
 
   selCon->RepaintSelection(nsISelectionController::SELECTION_NORMAL);
-  return NS_OK;
 }
 
 dom::Element *

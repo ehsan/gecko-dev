@@ -781,7 +781,6 @@ protected:
   bool ParseMargin();
   bool ParseMarks(nsCSSValue& aValue);
   bool ParseTransform(bool aIsPrefixed);
-  bool ParseObjectPosition();
   bool ParseOutline();
   bool ParseOverflow();
   bool ParsePadding();
@@ -9789,8 +9788,6 @@ CSSParserImpl::ParsePropertyByFunction(nsCSSProperty aPropID)
   case eCSSProperty_margin_start:
     return ParseDirectionalBoxProperty(eCSSProperty_margin_start,
                                        NS_BOXPROP_SOURCE_LOGICAL);
-  case eCSSProperty_object_position:
-    return ParseObjectPosition();
   case eCSSProperty_outline:
     return ParseOutline();
   case eCSSProperty_overflow:
@@ -12893,18 +12890,6 @@ CSSParserImpl::ParseMarks(nsCSSValue& aValue)
     return true;
   }
   return false;
-}
-
-bool
-CSSParserImpl::ParseObjectPosition()
-{
-  nsCSSValue value;
-  if (!ParseVariant(value, VARIANT_INHERIT, nullptr) &&
-      !ParsePositionValue(value)) {
-    return false;
-  }
-  AppendValue(eCSSProperty_object_position, value);
-  return true;
 }
 
 bool

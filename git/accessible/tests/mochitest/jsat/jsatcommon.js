@@ -177,8 +177,7 @@ function AccessFuContentTest(aFuncResultPairs) {
 }
 
 AccessFuContentTest.prototype = {
-  expected: [],
-  currentAction: null,
+  currentPair: null,
 
   start: function(aFinishedCallback) {
     Logger.logLevel = Logger.DEBUG;
@@ -237,7 +236,6 @@ AccessFuContentTest.prototype = {
     }
 
     aMessageManager.addMessageListener('AccessFu:Present', this);
-    aMessageManager.addMessageListener('AccessFu:Input', this);
     aMessageManager.addMessageListener('AccessFu:CursorCleared', this);
     aMessageManager.addMessageListener('AccessFu:Ready', function () {
       aMessageManager.addMessageListener('AccessFu:ContentStarted', aCallback);
@@ -254,25 +252,17 @@ AccessFuContentTest.prototype = {
   },
 
   pump: function() {
-    this.expected.shift();
-    if (this.expected.length) {
-      return;
-    }
+    this.currentPair = this.queue.shift();
 
-    var currentPair = this.queue.shift();
-
-    if (currentPair) {
-      this.currentAction = currentPair[0];
-      if (typeof this.currentAction === 'function') {
-        this.currentAction(this.mms[0]);
-      } else if (this.currentAction) {
-        this.mms[0].sendAsyncMessage(this.currentAction.name,
-         this.currentAction.json);
+    if (this.currentPair) {
+      if (typeof this.currentPair[0] === 'function') {
+        this.currentPair[0](this.mms[0]);
+      } else if (this.currentPair[0]) {
+        this.mms[0].sendAsyncMessage(this.currentPair[0].name,
+         this.currentPair[0].json);
       }
 
-      this.expected = currentPair.slice(1, currentPair.length);
-
-      if (!this.expected[0]) {
+      if (!this.currentPair[1]) {
        this.pump();
      }
     } else {
@@ -281,11 +271,11 @@ AccessFuContentTest.prototype = {
   },
 
   receiveMessage: function(aMessage) {
-    var expected = this.expected[0];
-
-    if (!expected) {
+    if (!this.currentPair) {
       return;
     }
+
+    var expected = this.currentPair[1] || {};
 
     // |expected| can simply be a name of a message, no more further testing.
     if (aMessage.name === expected) {
@@ -294,20 +284,17 @@ AccessFuContentTest.prototype = {
       return;
     }
 
-    var editState = this.extractEditeState(aMessage);
-    var speech = this.extractUtterance(aMessage);
-    var android = this.extractAndroid(aMessage, expected.android);
-    if ((speech && expected.speak)
-        || (android && expected.android)
-        || (editState && expected.editState)) {
+    var speech = this.extractUtterance(aMessage.json);
+    var android = this.extractAndroid(aMessage.json, expected.android);
+    if ((speech && expected.speak) || (android && expected.android)) {
       if (expected.speak) {
         var checkFunc = SimpleTest[expected.speak_checkFunc] || isDeeply;
         checkFunc.apply(SimpleTest, [speech, expected.speak,
           'spoken: ' + JSON.stringify(speech) +
           ' expected: ' + JSON.stringify(expected.speak) +
-          ' after: ' + (typeof this.currentAction === 'function' ?
-            this.currentAction.toString() :
-            JSON.stringify(this.currentAction))]);
+          ' after: ' + (typeof this.currentPair[0] === 'function' ?
+            this.currentPair[0].toString() :
+            JSON.stringify(this.currentPair[0]))]);
       }
 
       if (expected.android) {
@@ -316,20 +303,10 @@ AccessFuContentTest.prototype = {
           this.lazyCompare(android, expected.android));
       }
 
-      if (expected.editState) {
-        var checkFunc = SimpleTest[expected.editState_checkFunc] || isDeeply;
-        checkFunc.apply(SimpleTest, [editState, expected.editState,
-          'editState: ' + JSON.stringify(editState) +
-          ' expected: ' + JSON.stringify(expected.editState) +
-          ' after: ' + (typeof this.currentAction === 'function' ?
-            this.currentAction.toString() :
-            JSON.stringify(this.currentAction))]);
-      }
-
       if (expected.focused) {
         var doc = currentTabDocument();
         is(doc.activeElement, doc.querySelector(expected.focused),
-          'Correct element is focused: ' + expected.focused);
+          'Correct element is focused');
       }
 
       this.pump();
@@ -360,20 +337,12 @@ AccessFuContentTest.prototype = {
     return [matches, delta.join(' ')];
   },
 
-  extractEditeState: function(aMessage) {
-    if (!aMessage || aMessage.name !== 'AccessFu:Input') {
+  extractUtterance: function(aData) {
+    if (!aData) {
       return null;
     }
 
-    return aMessage.json;
-  },
-
-  extractUtterance: function(aMessage) {
-    if (!aMessage || aMessage.name !== 'AccessFu:Present') {
-      return null;
-    }
-
-    for (var output of aMessage.json) {
+    for (var output of aData) {
       if (output && output.type === 'B2G') {
         if (output.details && output.details.data[0].string !== 'clickAction') {
           return output.details.data;
@@ -384,12 +353,12 @@ AccessFuContentTest.prototype = {
     return null;
   },
 
-  extractAndroid: function(aMessage, aExpectedEvents) {
-    if (!aMessage || aMessage.name !== 'AccessFu:Present') {
+  extractAndroid: function(aData, aExpectedEvents) {
+    if (!aData) {
       return null;
     }
 
-    for (var output of aMessage.json) {
+    for (var output of aData) {
       if (output && output.type === 'Android') {
         for (var i in output.details) {
           // Only extract if event types match expected event types.

@@ -67,7 +67,7 @@ main (int argc, const char **argv)
     JS_SetNativeStackQuota(runtime, 5000000);
 
     JSContext *cx = checkPtr(JS_NewContext(runtime, 8192));
-    JS_SetErrorReporter(runtime, reportError);
+    JS_SetErrorReporter(cx, reportError);
 
     JSAutoRequest ar(cx);
 

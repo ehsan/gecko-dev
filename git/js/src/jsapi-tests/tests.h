@@ -283,7 +283,6 @@ class JSAPITest
         JSRuntime *rt = JS_NewRuntime(8L * 1024 * 1024);
         if (!rt)
             return nullptr;
-        JS_SetErrorReporter(rt, &reportError);
         setNativeStackQuota(rt);
         JS::RuntimeOptionsRef(rt).setVarObjFix(true);
         return rt;
@@ -303,7 +302,11 @@ class JSAPITest
     }
 
     virtual JSContext * createContext() {
-        return JS_NewContext(rt, 8192);
+        JSContext *cx = JS_NewContext(rt, 8192);
+        if (!cx)
+            return nullptr;
+        JS_SetErrorReporter(cx, &reportError);
+        return cx;
     }
 
     virtual const JSClass * getGlobalClass() {

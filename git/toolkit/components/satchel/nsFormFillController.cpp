@@ -39,25 +39,13 @@
 
 using namespace mozilla::dom;
 
-NS_IMPL_CYCLE_COLLECTION(nsFormFillController,
-                         mController, mLoginManager, mFocusedPopup, mDocShells,
-                         mPopups, mLastSearchResult, mLastListener,
-                         mLastFormAutoComplete)
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsFormFillController)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIFormFillController)
-  NS_INTERFACE_MAP_ENTRY(nsIFormFillController)
-  NS_INTERFACE_MAP_ENTRY(nsIAutoCompleteInput)
-  NS_INTERFACE_MAP_ENTRY(nsIAutoCompleteSearch)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMEventListener)
-  NS_INTERFACE_MAP_ENTRY(nsIFormAutoCompleteObserver)
-  NS_INTERFACE_MAP_ENTRY(nsIMutationObserver)
-NS_INTERFACE_MAP_END
-
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsFormFillController)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsFormFillController)
-
-
+NS_IMPL_ISUPPORTS(nsFormFillController,
+                  nsIFormFillController,
+                  nsIAutoCompleteInput,
+                  nsIAutoCompleteSearch,
+                  nsIDOMEventListener,
+                  nsIFormAutoCompleteObserver,
+                  nsIMutationObserver)
 
 nsFormFillController::nsFormFillController() :
   mFocusedInput(nullptr),

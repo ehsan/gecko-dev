@@ -865,6 +865,7 @@ bool WebMReader::DecodeVideoFrame(bool &aKeyframeSkip,
   if (r == -1) {
     return false;
   }
+  mLastVideoFrameTime = tstamp;
 
   // The end time of this frame is the start time of the next frame.  Fetch
   // the timestamp of the next packet for this track.  If we've reached the
@@ -882,7 +883,6 @@ bool WebMReader::DecodeVideoFrame(bool &aKeyframeSkip,
     next_tstamp = tstamp;
     next_tstamp += tstamp - mLastVideoFrameTime;
   }
-  mLastVideoFrameTime = tstamp;
 
   int64_t tstamp_usecs = tstamp / NS_PER_USEC;
   for (uint32_t i = 0; i < count; ++i) {

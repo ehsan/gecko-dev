@@ -144,8 +144,7 @@ if use_arm_neon_gcc:
 if CONFIG['GNU_CC']:
     CFLAGS += [
         '-Wno-address',
-        '-Wno-sign-compare',
-        '-Wno-missing-field-initializers',
+        '-Wno-sign-compare'
     ]
     if CONFIG['CLANG_CXX']:
         CFLAGS += [
