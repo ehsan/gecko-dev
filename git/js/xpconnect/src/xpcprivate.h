@@ -795,9 +795,9 @@ public:
         return gNewDOMBindingsEnabled;
     }
 
-    bool ExperimentalBindingsEnabled()
+    bool ParisBindingsEnabled()
     {
-        return gExperimentalBindingsEnabled;
+        return gParisBindingsEnabled;
     }
 
     size_t SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf);
@@ -812,7 +812,7 @@ private:
     static void WatchdogMain(void *arg);
 
     static bool gNewDOMBindingsEnabled;
-    static bool gExperimentalBindingsEnabled;
+    static bool gParisBindingsEnabled;
 
     static const char* mStrings[IDX_TOTAL_COUNT];
     jsid mStrIDs[IDX_TOTAL_COUNT];
@@ -1629,9 +1629,9 @@ public:
         return mNewDOMBindingsEnabled;
     }
 
-    JSBool ExperimentalBindingsEnabled()
+    JSBool ParisBindingsEnabled()
     {
-        return mExperimentalBindingsEnabled;
+        return mParisBindingsEnabled;
     }
 
 protected:
@@ -1675,7 +1675,7 @@ private:
     nsDataHashtable<nsDepCharHashKey, JSObject*> mCachedDOMPrototypes;
 
     JSBool mNewDOMBindingsEnabled;
-    JSBool mExperimentalBindingsEnabled;
+    JSBool mParisBindingsEnabled;
 };
 
 /***************************************************************************/

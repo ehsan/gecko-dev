@@ -48,6 +48,7 @@
 #include "nsPluginHost.h"
 #include "nsPluginSafety.h"
 #include "nsPluginLogging.h"
+#include "nsIPrivateBrowsingService.h"
 #include "nsContentUtils.h"
 
 #include "nsIDocument.h"
@@ -151,7 +152,7 @@ nsresult nsNPAPIPluginInstance::Initialize(nsNPAPIPlugin *aPlugin, nsIPluginInst
       PL_strcpy(mMIMEType, aMIMEType);
     }
   }
-  
+
   return Start();
 }
 
@@ -1142,7 +1143,7 @@ nsNPAPIPluginInstance::GetPluginAPIVersion(PRUint16* version)
 }
 
 nsresult
-nsNPAPIPluginInstance::PrivateModeStateChanged(bool enabled)
+nsNPAPIPluginInstance::PrivateModeStateChanged()
 {
   if (RUNNING != mRunning)
     return NS_OK;
@@ -1154,15 +1155,23 @@ nsNPAPIPluginInstance::PrivateModeStateChanged(bool enabled)
 
   NPPluginFuncs* pluginFunctions = mPlugin->PluginFuncs();
 
-  if (!pluginFunctions->setvalue)
-    return NS_ERROR_FAILURE;
-
-  PluginDestructionGuard guard(this);
+  if (pluginFunctions->setvalue) {
+    PluginDestructionGuard guard(this);
     
-  NPError error;
-  NPBool value = static_cast<NPBool>(enabled);
-  NS_TRY_SAFE_CALL_RETURN(error, (*pluginFunctions->setvalue)(&mNPP, NPNVprivateModeBool, &value), this);
-  return (error == NPERR_NO_ERROR) ? NS_OK : NS_ERROR_FAILURE;
+    nsCOMPtr<nsIPrivateBrowsingService> pbs = do_GetService(NS_PRIVATE_BROWSING_SERVICE_CONTRACTID);
+    if (pbs) {
+      bool pme = false;
+      nsresult rv = pbs->GetPrivateBrowsingEnabled(&pme);
+      if (NS_FAILED(rv))
+        return rv;
+
+      NPError error;
+      NPBool value = static_cast<NPBool>(pme);
+      NS_TRY_SAFE_CALL_RETURN(error, (*pluginFunctions->setvalue)(&mNPP, NPNVprivateModeBool, &value), this);
+      return (error == NPERR_NO_ERROR) ? NS_OK : NS_ERROR_FAILURE;
+    }
+  }
+  return NS_ERROR_FAILURE;
 }
 
 class DelayUnscheduleEvent : public nsRunnable {

@@ -150,7 +150,7 @@ XPCWrappedNativeScope::XPCWrappedNativeScope(XPCCallContext& ccx,
         mPrototypeNoHelper(nsnull),
         mScriptObjectPrincipal(nsnull),
         mNewDOMBindingsEnabled(ccx.GetRuntime()->NewDOMBindingsEnabled()),
-        mExperimentalBindingsEnabled(ccx.GetRuntime()->ExperimentalBindingsEnabled())
+        mParisBindingsEnabled(ccx.GetRuntime()->ParisBindingsEnabled())
 {
     // add ourselves to the scopes list
     {   // scoped lock

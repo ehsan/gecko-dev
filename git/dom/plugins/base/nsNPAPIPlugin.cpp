@@ -54,6 +54,7 @@
 #include "nsNPAPIPluginStreamListener.h"
 #include "nsIServiceManager.h"
 #include "nsThreadUtils.h"
+#include "nsIPrivateBrowsingService.h"
 #include "mozilla/Preferences.h"
 
 #include "nsIPluginStreamListener.h"
@@ -104,8 +105,6 @@
 #include "nsJSNPRuntime.h"
 #include "nsIHttpAuthManager.h"
 #include "nsICookieService.h"
-#include "nsILoadContext.h"
-#include "nsIDocShell.h"
 
 #include "nsNetUtil.h"
 
@@ -2136,12 +2135,11 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
   }
 
   case NPNVprivateModeBool: {
-    nsCOMPtr<nsIDocument> doc = GetDocumentFromNPP(npp);
-    nsCOMPtr<nsPIDOMWindow> domwindow = do_QueryInterface(doc);
-    if (domwindow) {
-      nsCOMPtr<nsIDocShell> docShell = domwindow->GetDocShell();
-      nsCOMPtr<nsILoadContext> loadContext = do_QueryInterface(docShell);
-      *(NPBool*)result = (NPBool)(loadContext && loadContext->UsePrivateBrowsing());
+    nsCOMPtr<nsIPrivateBrowsingService> pbs = do_GetService(NS_PRIVATE_BROWSING_SERVICE_CONTRACTID);
+    if (pbs) {
+      bool enabled;
+      pbs->GetPrivateBrowsingEnabled(&enabled);
+      *(NPBool*)result = (NPBool)enabled;
       return NPERR_NO_ERROR;
     }
     return NPERR_GENERIC_ERROR;

@@ -86,6 +86,7 @@
 #include "nsIScriptChannel.h"
 #include "nsIBlocklistService.h"
 #include "nsVersionComparator.h"
+#include "nsIPrivateBrowsingService.h"
 #include "nsIObjectLoadingContent.h"
 #include "nsIWritablePropertyBag2.h"
 #include "nsPluginStreamListenerPeer.h"
@@ -356,6 +357,7 @@ nsPluginHost::nsPluginHost()
     mozilla::services::GetObserverService();
   if (obsService) {
     obsService->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, false);
+    obsService->AddObserver(this, NS_PRIVATE_BROWSING_SWITCH_TOPIC, false);
 #ifdef MOZ_WIDGET_ANDROID
     obsService->AddObserver(this, "application-foreground", false);
     obsService->AddObserver(this, "application-background", false);
@@ -2723,20 +2725,19 @@ nsPluginHost::ReadPluginInfo()
     return rv;
 
   // kPluginRegistryVersion
-  PRInt32 vdiff = mozilla::CompareVersions(values[1], kPluginRegistryVersion);
-  mozilla::Version version(values[1]);
+  PRInt32 vdiff = NS_CompareVersions(values[1], kPluginRegistryVersion);
   // If this is a registry from some future version then don't attempt to read it
   if (vdiff > 0)
     return rv;
   // If this is a registry from before the minimum then don't attempt to read it
-  if (version < kMinimumRegistryVersion)
+  if (NS_CompareVersions(values[1], kMinimumRegistryVersion) < 0)
     return rv;
 
   // Registry v0.10 and upwards includes the plugin version field
-  bool regHasVersion = (version >= "0.10");
+  bool regHasVersion = NS_CompareVersions(values[1], "0.10") >= 0;
 
   // Registry v0.13 and upwards includes the architecture
-  if (version >= "0.13") {
+  if (NS_CompareVersions(values[1], "0.13") >= 0) {
     char* archValues[6];
     
     if (!reader.NextLine()) {
@@ -2770,7 +2771,7 @@ nsPluginHost::ReadPluginInfo()
   }
   
   // Registry v0.13 and upwards includes the list of invalid plugins
-  bool hasInvalidPlugins = (version >= "0.13");
+  bool hasInvalidPlugins = (NS_CompareVersions(values[1], "0.13") >= 0);
 
   if (!ReadSectionHeader(reader, "PLUGINS"))
     return rv;
@@ -2778,7 +2779,7 @@ nsPluginHost::ReadPluginInfo()
 #if defined(XP_MACOSX)
   bool hasFullPathInFileNameField = false;
 #else
-  bool hasFullPathInFileNameField = (version < "0.11");
+  bool hasFullPathInFileNameField = (NS_CompareVersions(values[1], "0.11") < 0);
 #endif
 
   while (reader.NextLine()) {
@@ -3327,6 +3328,12 @@ NS_IMETHODIMP nsPluginHost::Observe(nsISupports *aSubject,
     OnShutdown();
     Destroy();
     sInst->Release();
+  }
+  if (!nsCRT::strcmp(NS_PRIVATE_BROWSING_SWITCH_TOPIC, aTopic)) {
+    // inform all active plugins of changed private mode state
+    for (PRUint32 i = 0; i < mInstances.Length(); i++) {
+      mInstances[i]->PrivateModeStateChanged();
+    }
   }
 #ifdef MOZ_WIDGET_ANDROID
   if (!nsCRT::strcmp("application-background", aTopic)) {

@@ -212,12 +212,6 @@ pref("gfx.downloadable_fonts.enabled", true);
 pref("gfx.downloadable_fonts.fallback_delay", 3000);
 pref("gfx.downloadable_fonts.sanitize", true);
 
-#ifdef ANDROID
-pref("gfx.filter.nearest.force-enabled", true);
-#else
-pref("gfx.filter.nearest.force-enabled", false);
-#endif
-
 // whether to always search all font cmaps during system font fallback
 pref("gfx.font_rendering.fallback.always_use_cmaps", false);
 
@@ -646,7 +640,7 @@ pref("dom.min_background_timeout_value", 1000);
 // Use the new DOM bindings (only affects any scopes created after the pref is
 // changed)
 pref("dom.new_bindings", true);
-pref("dom.experimental_bindings", true);
+pref("dom.paris_bindings", true);
 
 // Parsing perf prefs. For now just mimic what the old code did.
 #ifndef XP_WIN

@@ -69,8 +69,7 @@ CreateInterfacePrototypeObject(JSContext* cx, JSObject* global,
                                JSPropertySpec* properties,
                                ConstantSpec* constants)
 {
-  JSObject* ourProto = JS_NewObjectWithUniqueType(cx, protoClass, parentProto,
-                                                  global);
+  JSObject* ourProto = JS_NewObject(cx, protoClass, parentProto, global);
   if (!ourProto) {
     return NULL;
   }

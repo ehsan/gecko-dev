@@ -1229,8 +1229,9 @@ static const mozilla::Module::CategoryEntry kLayoutCategories[] = {
 static void
 LayoutModuleDtor()
 {
-  nsScriptSecurityManager::Shutdown();
   xpcModuleDtor();
+
+  nsScriptSecurityManager::Shutdown();
 }
 
 static const mozilla::Module kLayoutModule = {
