@@ -59,7 +59,6 @@ EXTRA_JS_MODULES += [
     'LogCapture.jsm',
     'LogParser.jsm',
     'LogShake.jsm',
-    'OrientationChangeHandler.jsm',
     'SignInToWebsite.jsm',
     'SystemAppProxy.jsm',
     'TelURIParser.jsm',
