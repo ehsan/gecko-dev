@@ -43,8 +43,7 @@
 #include "nsReferencedElement.h"
 #include "nsStubMutationObserver.h"
 #include "nsSVGUtils.h"
-#include "nsInterfaceHashtable.h"
-#include "nsURIHashKey.h"
+#include "nsTHashtable.h"
 
 class nsSVGClipPathFrame;
 class nsSVGFilterFrame;
@@ -62,9 +61,7 @@ class nsSVGMaskFrame;
  */
 class nsSVGRenderingObserver : public nsStubMutationObserver {
 public:
-  typedef mozilla::dom::Element Element;
-  nsSVGRenderingObserver(nsIURI* aURI, nsIFrame *aFrame,
-                         PRBool aReferenceImage);
+  nsSVGRenderingObserver(nsIURI* aURI, nsIFrame *aFrame);
   virtual ~nsSVGRenderingObserver();
 
   // nsISupports
@@ -76,9 +73,8 @@ public:
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
 
-  void InvalidateViaReferencedElement();
+  void InvalidateViaReferencedFrame();
 
-  Element* GetReferencedElement();
   nsIFrame* GetReferencedFrame();
   /**
    * @param aOK this is only for the convenience of callers. We set *aOK to false
@@ -89,17 +85,19 @@ public:
 protected:
   // This is called when the referenced resource changes.
   virtual void DoUpdate();
-  void StartListening();
-  void StopListening();
 
   class SourceReference : public nsReferencedElement {
   public:
     SourceReference(nsSVGRenderingObserver* aContainer) : mContainer(aContainer) {}
   protected:
     virtual void ElementChanged(Element* aFrom, Element* aTo) {
-      mContainer->StopListening();
+      if (aFrom) {
+        aFrom->RemoveMutationObserver(mContainer);
+      }
       nsReferencedElement::ElementChanged(aFrom, aTo);
-      mContainer->StartListening();
+      if (aTo) {
+        aTo->AddMutationObserver(mContainer);
+      }
       mContainer->DoUpdate();
     }
     /**
@@ -120,16 +118,15 @@ protected:
   // we test the presshell to see if it's destroying itself. If it is,
   // then the frame pointer is not valid and we know the frame has gone away.
   nsIPresShell *mFramePresShell;
-  // Whether we're in our referenced element's observer list at this time.
-  PRPackedBool mInObserverList;
+  nsIFrame *mReferencedFrame;
+  nsIPresShell *mReferencedFramePresShell;
 };
 
 class nsSVGFilterProperty :
   public nsSVGRenderingObserver, public nsISVGFilterProperty {
 public:
-  nsSVGFilterProperty(nsIURI *aURI, nsIFrame *aFilteredFrame,
-                      PRBool aReferenceImage)
-    : nsSVGRenderingObserver(aURI, aFilteredFrame, aReferenceImage) {}
+  nsSVGFilterProperty(nsIURI *aURI, nsIFrame *aFilteredFrame)
+    : nsSVGRenderingObserver(aURI, aFilteredFrame) {}
 
   /**
    * @return the filter frame, or null if there is no filter frame
@@ -149,8 +146,8 @@ private:
 
 class nsSVGMarkerProperty : public nsSVGRenderingObserver {
 public:
-  nsSVGMarkerProperty(nsIURI *aURI, nsIFrame *aFrame, PRBool aReferenceImage)
-    : nsSVGRenderingObserver(aURI, aFrame, aReferenceImage) {}
+  nsSVGMarkerProperty(nsIURI *aURI, nsIFrame *aFrame)
+    : nsSVGRenderingObserver(aURI, aFrame) {}
 
 protected:
   virtual void DoUpdate();
@@ -158,8 +155,8 @@ protected:
 
 class nsSVGTextPathProperty : public nsSVGRenderingObserver {
 public:
-  nsSVGTextPathProperty(nsIURI *aURI, nsIFrame *aFrame, PRBool aReferenceImage)
-    : nsSVGRenderingObserver(aURI, aFrame, aReferenceImage) {}
+  nsSVGTextPathProperty(nsIURI *aURI, nsIFrame *aFrame)
+    : nsSVGRenderingObserver(aURI, aFrame) {}
 
 protected:
   virtual void DoUpdate();
@@ -167,8 +164,8 @@ protected:
  
 class nsSVGPaintingProperty : public nsSVGRenderingObserver {
 public:
-  nsSVGPaintingProperty(nsIURI *aURI, nsIFrame *aFrame, PRBool aReferenceImage)
-    : nsSVGRenderingObserver(aURI, aFrame, aReferenceImage) {}
+  nsSVGPaintingProperty(nsIURI *aURI, nsIFrame *aFrame)
+    : nsSVGRenderingObserver(aURI, aFrame) {}
 
 protected:
   virtual void DoUpdate();
@@ -179,11 +176,11 @@ protected:
  * nsSVGRenderingObservers can be added or removed. They are not strongly
  * referenced so an observer must be removed before it dies.
  * When InvalidateAll is called, all outstanding references get
- * InvalidateViaReferencedElement()
+ * InvalidateViaReferencedFrame()
  * called on them and the list is cleared. The intent is that
  * the observer will force repainting of whatever part of the document
  * is needed, and then at paint time the observer will do a clean lookup
- * of the referenced element and [re-]add itself to the element's observer list.
+ * of the referenced frame and [re-]add itself to the frame's observer list.
  * 
  * InvalidateAll must be called before this object is destroyed, i.e.
  * before the referenced frame is destroyed. This should normally happen
@@ -206,12 +203,6 @@ public:
   { mObservers.PutEntry(aObserver); }
   void Remove(nsSVGRenderingObserver* aObserver)
   { mObservers.RemoveEntry(aObserver); }
-#ifdef DEBUG
-  PRBool Contains(nsSVGRenderingObserver* aObserver)
-  { return (mObservers.GetEntry(aObserver) != nsnull); }
-#endif
-  PRBool IsEmpty()
-  { return mObservers.Count() == 0; }
 
   /**
    * Drop all our observers, and notify them that we have changed and dropped
@@ -225,19 +216,11 @@ private:
 
 class nsSVGEffects {
 public:
-  typedef mozilla::dom::Element Element;
   typedef mozilla::FramePropertyDescriptor FramePropertyDescriptor;
-  typedef nsInterfaceHashtable<nsURIHashKey, nsIMutationObserver>
-    URIObserverHashtable;
 
   static void DestroySupports(void* aPropertyValue)
   {
     (static_cast<nsISupports*>(aPropertyValue))->Release();
-  }
-
-  static void DestroyHashtable(void* aPropertyValue)
-  {
-    delete static_cast<URIObserverHashtable*> (aPropertyValue);
   }
 
   NS_DECLARE_FRAME_PROPERTY(FilterProperty, DestroySupports)
@@ -249,7 +232,6 @@ public:
   NS_DECLARE_FRAME_PROPERTY(FillProperty, DestroySupports)
   NS_DECLARE_FRAME_PROPERTY(StrokeProperty, DestroySupports)
   NS_DECLARE_FRAME_PROPERTY(HrefProperty, DestroySupports)
-  NS_DECLARE_FRAME_PROPERTY(BackgroundImageProperty, DestroyHashtable)
 
   struct EffectProperties {
     nsSVGFilterProperty*   mFilter;
@@ -308,32 +290,31 @@ public:
   /**
    * @param aFrame must be a first-continuation.
    */
-  static void AddRenderingObserver(Element *aElement, nsSVGRenderingObserver *aObserver);
+  static void AddRenderingObserver(nsIFrame *aFrame, nsSVGRenderingObserver *aObserver);
   /**
    * @param aFrame must be a first-continuation.
    */
-  static void RemoveRenderingObserver(Element *aElement, nsSVGRenderingObserver *aObserver);
+  static void RemoveRenderingObserver(nsIFrame *aFrame, nsSVGRenderingObserver *aObserver);
   /**
-   * This can be called on any frame. We invalidate the observers of aFrame's
-   * element, if any, or else walk up to the nearest observable SVG parent
+   * This can be called on any first-continuation frame. We invalidate aFrame's
+   * observers, if any, or else walk up to the nearest observable SVG parent
    * frame with observers and invalidate them instead.
    *
    * Note that this method is very different to e.g.
-   * nsNodeUtils::AttributeChanged which walks up the content node tree all the
-   * way to the root node (not stopping if it encounters a non-container SVG
-   * node) invalidating all mutation observers (not just
-   * nsSVGRenderingObservers) on all nodes along the way (not just the first
-   * node it finds with observers). In other words, by doing all the
+   * nsNodeUtils::AttributeChanged which walks up the content node tree (not
+   * the frame tree) all the way to the root node (not stopping if it
+   * encounters a non-container SVG node) invalidating all mutation observers
+   * (not just nsSVGRenderingObservers) on all nodes along the way (not just
+   * the first node it finds with observers). In other words, by doing all the
    * things in parentheses in the preceding sentence, this method uses
    * knowledge about our implementation and what can be affected by SVG effects
    * to make invalidation relatively lightweight when an SVG effect changes.
    */
   static void InvalidateRenderingObservers(nsIFrame *aFrame);
   /**
-   * This can be called on any element or frame. Only direct observers of this
-   * (frame's) element, if any, are invalidated.
+   * This can be called on any frame. Only direct observers of this frame, if
+   * any, are invalidated.
    */
-  static void InvalidateDirectRenderingObservers(Element *aElement);
   static void InvalidateDirectRenderingObservers(nsIFrame *aFrame);
 
   /**
@@ -354,13 +335,6 @@ public:
   static nsSVGPaintingProperty *
   GetPaintingProperty(nsIURI *aURI, nsIFrame *aFrame,
                       const FramePropertyDescriptor *aProperty);
-  /**
-   * Get an nsSVGPaintingProperty for the frame for that URI, creating a fresh
-   * one if necessary
-   */
-  static nsSVGPaintingProperty *
-  GetPaintingPropertyForURI(nsIURI *aURI, nsIFrame *aFrame,
-                            const FramePropertyDescriptor *aProp);
 };
 
 #endif /*NSSVGEFFECTS_H_*/
