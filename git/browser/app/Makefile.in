@@ -72,7 +72,11 @@ GRE_BUILDID = $(shell $(PYTHON) $(topsrcdir)/config/printconfigsetting.py $(LIBX
 
 DEFINES += -DGRE_MILESTONE=$(GRE_MILESTONE) -DGRE_BUILDID=$(GRE_BUILDID)
 
-LIBS += $(JEMALLOC_LIBS)
+ifdef MOZ_MEMORY
+ifneq ($(OS_ARCH),WINNT)
+LIBS += -ljemalloc
+endif
+endif
 
 ifdef LIBXUL_SDK
 include $(topsrcdir)/config/rules.mk
