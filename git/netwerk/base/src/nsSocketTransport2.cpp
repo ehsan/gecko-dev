@@ -1594,15 +1594,8 @@ nsSocketTransport::OnSocketDetached(PRFileDesc *fd)
             // acquiring a reference to mFD.
             mFDconnected = PR_FALSE;
         }
-
-        // We must release mCallbacks and mEventSink to avoid memory leak
-        // but only when RecoverFromError() above failed. Otherwise we lose
-        // link with UI and security callbacks on next connection attempt 
-        // round. That would lead e.g. to a broken certificate exception page.
-        if (NS_FAILED(mCondition)) {
-            mCallbacks = nsnull;
-            mEventSink = nsnull;
-        }
+        mCallbacks = nsnull;
+        mEventSink = nsnull;
     }
 }
 

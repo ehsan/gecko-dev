@@ -62,6 +62,7 @@
 
 /* the headers */
 #include "npapi.h"
+#include "npupp.h"
 
 #include "nscore.h"
 #include "nsError.h"

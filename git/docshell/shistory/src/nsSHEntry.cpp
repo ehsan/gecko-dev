@@ -139,7 +139,7 @@ nsSHEntry::nsSHEntry(const nsSHEntry &other)
 {
 }
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 ClearParentPtr(nsISHEntry* aEntry, void* /* aData */)
 {
   if (aEntry) {

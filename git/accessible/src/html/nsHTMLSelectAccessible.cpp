@@ -510,33 +510,45 @@ NS_IMETHODIMP nsHTMLSelectOptionAccessible::GetRole(PRUint32 *aRole)
   return NS_OK;
 }
 
-nsresult
-nsHTMLSelectOptionAccessible::GetNameInternal(nsAString& aName)
+/**
+  * Get our Name from our Content's subtree
+  */
+NS_IMETHODIMP
+nsHTMLSelectOptionAccessible::GetName(nsAString& aName)
 {
+  aName.Truncate();
+
   // CASE #1 -- great majority of the cases
   // find the label attribute - this is what the W3C says we should use
-  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
-  content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::label, aName);
-  if (!aName.IsEmpty())
+  nsCOMPtr<nsIDOMElement> domElement(do_QueryInterface(mDOMNode));
+  if (!domElement)
+    return NS_ERROR_FAILURE;
+
+  nsresult rv = domElement->GetAttribute(NS_LITERAL_STRING("label"), aName) ;
+  if (NS_SUCCEEDED(rv) && !aName.IsEmpty()) {
     return NS_OK;
+  }
   
   // CASE #2 -- no label parameter, get the first child, 
   // use it if it is a text node
-  nsCOMPtr<nsIContent> text = content->GetChildAt(0);
-  if (!text)
-    return NS_OK;
+  nsCOMPtr<nsIDOMNode> child;
+  mDOMNode->GetFirstChild(getter_AddRefs(child));
 
-  if (text->IsNodeOfType(nsINode::eTEXT)) {
-    nsAutoString txtValue;
-    nsresult rv = AppendFlatStringFromContentNode(text, &txtValue);
-    NS_ENSURE_SUCCESS(rv, rv);
+  if (child) {
+    nsCOMPtr<nsIContent> text = do_QueryInterface(child);
+    if (text && text->IsNodeOfType(nsINode::eTEXT)) {
+      nsAutoString txtValue;
+      rv = AppendFlatStringFromContentNode(text, &txtValue);
+      NS_ENSURE_SUCCESS(rv, rv);
 
-    // Temp var (txtValue) needed until CompressWhitespace built for nsAString
-    txtValue.CompressWhitespace();
-    aName.Assign(txtValue);
-    return NS_OK;
+      // Temp var (txtValue) needed until CompressWhitespace built for nsAString
+      txtValue.CompressWhitespace();
+      aName.Assign(txtValue);
+      return NS_OK;
+    }
   }
-
+  
+  aName.Truncate();
   return NS_OK;
 }
 
@@ -1371,11 +1383,14 @@ NS_IMETHODIMP nsHTMLComboboxButtonAccessible::GetParent(nsIAccessible **aParent)
   return NS_OK;
 }
 
+/** 
+  * Gets the name from GetActionName()
+  */
 NS_IMETHODIMP
 nsHTMLComboboxButtonAccessible::GetName(nsAString& aName)
 {
-  // Native anonymous content, no way to use ARIA here.
   aName.Truncate();
+
   return GetActionName(eAction_Click, aName);
 }
 

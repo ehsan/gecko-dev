@@ -389,11 +389,17 @@ nsXULMenuitemAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
   return NS_OK;
 }
 
-nsresult
-nsXULMenuitemAccessible::GetNameInternal(nsAString& aName)
+NS_IMETHODIMP
+nsXULMenuitemAccessible::GetName(nsAString& aName)
 {
-  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
-  content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::label, aName);
+  aName.Truncate();
+
+  nsCOMPtr<nsIDOMElement> element(do_QueryInterface(mDOMNode));
+  if (!element) {
+    return NS_ERROR_FAILURE;
+  }
+  element->GetAttribute(NS_LITERAL_STRING("label"), aName); 
+
   return NS_OK;
 }
 
@@ -575,9 +581,11 @@ nsXULMenuSeparatorAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
   return NS_OK;
 }
 
-nsresult
-nsXULMenuSeparatorAccessible::GetNameInternal(nsAString& aName)
+NS_IMETHODIMP
+nsXULMenuSeparatorAccessible::GetName(nsAString& aName)
 {
+  aName.Truncate();
+
   return NS_OK;
 }
 
@@ -688,9 +696,14 @@ void nsXULMenupopupAccessible::GenerateMenu(nsIDOMNode *aNode)
   }
 }
 
-nsresult
-nsXULMenupopupAccessible::GetNameInternal(nsAString& aName)
+NS_IMETHODIMP
+nsXULMenupopupAccessible::GetName(nsAString& aName)
 {
+  aName.Truncate();
+
+  if (!mDOMNode)
+    return NS_ERROR_FAILURE;
+
   nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
   while (content && aName.IsEmpty()) {
     content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::label, aName);
@@ -744,10 +757,11 @@ nsXULMenubarAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 }
 
 
-nsresult
-nsXULMenubarAccessible::GetNameInternal(nsAString& aName)
+NS_IMETHODIMP
+nsXULMenubarAccessible::GetName(nsAString& aName)
 {
   aName.AssignLiteral("Application");
+
   return NS_OK;
 }
 

@@ -621,8 +621,9 @@ nsLayoutUtils::GetDOMEventCoordinatesRelativeTo(nsIDOMEvent* aDOMEvent, nsIFrame
   NS_ASSERTION(privateEvent, "bad implementation");
   if (!privateEvent)
     return nsPoint(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
-  nsEvent *event = privateEvent->GetInternalNSEvent();
-  if (!event)
+  nsEvent* event;
+  nsresult rv = privateEvent->GetInternalNSEvent(&event);
+  if (NS_FAILED(rv))
     return nsPoint(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
   return GetEventCoordinatesRelativeTo(event, aFrame);
 }

@@ -416,7 +416,8 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
   if (aDOMEvent) {
     nsCOMPtr<nsIPrivateDOMEvent> privEvt(do_QueryInterface(aDOMEvent));
     if (privEvt) {
-      nsEvent* innerEvent = privEvt->GetInternalNSEvent();
+      nsEvent* innerEvent = nsnull;
+      privEvt->GetInternalNSEvent(&innerEvent);
       NS_ASSERTION(innerEvent == aEvent,
                     "The inner event of aDOMEvent is not the same as aEvent!");
     }
@@ -554,7 +555,8 @@ nsEventDispatcher::DispatchDOMEvent(nsISupports* aTarget,
   if (aDOMEvent) {
     nsCOMPtr<nsIPrivateDOMEvent> privEvt(do_QueryInterface(aDOMEvent));
     if (privEvt) {
-      nsEvent* innerEvent = privEvt->GetInternalNSEvent();
+      nsEvent* innerEvent = nsnull;
+      privEvt->GetInternalNSEvent(&innerEvent);
       NS_ENSURE_TRUE(innerEvent, NS_ERROR_ILLEGAL_VALUE);
 
       PRBool dontResetTrusted = PR_FALSE;

@@ -41,7 +41,7 @@
 #include "nsString.h"
 #include "prthread.h"
 
-static void DeleteDirThreadFunc(void *arg)
+PR_STATIC_CALLBACK(void) DeleteDirThreadFunc(void *arg)
 {
   nsIFile *dir = static_cast<nsIFile *>(arg);
   dir->Remove(PR_TRUE);

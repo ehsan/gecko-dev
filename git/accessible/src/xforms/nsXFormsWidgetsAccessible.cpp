@@ -186,11 +186,10 @@ nsXFormsComboboxPopupWidgetAccessible::GetValue(nsAString& aValue)
   return NS_OK;
 }
 
-nsresult
-nsXFormsComboboxPopupWidgetAccessible::GetNameInternal(nsAString& aName)
+NS_IMETHODIMP
+nsXFormsComboboxPopupWidgetAccessible::GetName(nsAString& aName)
 {
-  // Override nsXFormsAccessible::GetName() to prevent name calculation by
-  // XForms rules.
+  aName.Truncate();
   return NS_OK;
 }
 

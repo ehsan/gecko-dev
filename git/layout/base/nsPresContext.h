@@ -60,14 +60,14 @@
 #include "nsPropertyTable.h"
 #include "nsGkAtoms.h"
 #include "nsIDocument.h"
-#include "nsRefPtrHashtable.h"
+#include "nsInterfaceHashtable.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsChangeHint.h"
 // This also pulls in gfxTypes.h, which we cannot include directly.
 #include "gfxRect.h"
 #include "nsRegion.h"
 
-class nsImageLoadNotifier;
+class nsImageLoader;
 #ifdef IBMBIDI
 class nsBidiPresUtils;
 #endif // IBMBIDI
@@ -275,8 +275,17 @@ public:
   /**
    * Get the font metrics for a given font.
    */
+  virtual NS_HIDDEN_(already_AddRefed<nsIFontMetrics>)
+   GetMetricsForExternal(const nsFont& aFont);
   NS_HIDDEN_(already_AddRefed<nsIFontMetrics>)
-  GetMetricsFor(const nsFont& aFont);
+    GetMetricsForInternal(const nsFont& aFont);
+#ifdef _IMPL_NS_LAYOUT
+  already_AddRefed<nsIFontMetrics> GetMetricsFor(const nsFont& aFont)
+  { return GetMetricsForInternal(aFont); }
+#else
+  already_AddRefed<nsIFontMetrics> GetMetricsFor(const nsFont& aFont)
+  { return GetMetricsForExternal(aFont); }
+#endif
 
   /**
    * Get the default font corresponding to the given ID.  This object is
@@ -295,7 +304,15 @@ public:
    * preferences for the given generic and the pres context's language
    * group, and its size set to the default variable font size.
    */
-  NS_HIDDEN_(const nsFont*) GetDefaultFont(PRUint8 aFontID) const;
+  virtual NS_HIDDEN_(const nsFont*) GetDefaultFontExternal(PRUint8 aFontID) const;
+  NS_HIDDEN_(const nsFont*) GetDefaultFontInternal(PRUint8 aFontID) const;
+#ifdef _IMPL_NS_LAYOUT
+  const nsFont* GetDefaultFont(PRUint8 aFontID) const
+  { return GetDefaultFontInternal(aFontID); }
+#else
+  const nsFont* GetDefaultFont(PRUint8 aFontID) const
+  { return GetDefaultFontExternal(aFontID); }
+#endif
 
   /** Get a cached boolean pref, by its type */
   // *  - initially created for bugs 31816, 20760, 22963
@@ -364,12 +381,35 @@ public:
    * aImage loads, where aImage is its background image.  Only a single
    * image will be tracked per frame.
    */
-  NS_HIDDEN_(void) SetImageNotifiers(nsIFrame* aTargetFrame,
-                                     nsImageLoadNotifier* aImageNotifiers);
+  NS_HIDDEN_(imgIRequest*) LoadImage(imgIRequest* aImage,
+                                     nsIFrame* aTargetFrame);
+  /**
+   * Set up observers so that aTargetFrame will be invalidated or
+   * reflowed (as appropriate) when aImage loads, where aImage is its
+   * *border* image.  Only a single image will be tracked per frame.
+   */
+  NS_HIDDEN_(imgIRequest*) LoadBorderImage(imgIRequest* aImage,
+                                           nsIFrame* aTargetFrame);
 
+private:
+  typedef nsInterfaceHashtable<nsVoidPtrHashKey, nsImageLoader> ImageLoaderTable;
+
+  NS_HIDDEN_(imgIRequest*) DoLoadImage(ImageLoaderTable& aTable,
+                                       imgIRequest* aImage,
+                                       nsIFrame* aTargetFrame,
+                                       PRBool aReflowOnLoad);
+
+  NS_HIDDEN_(void) DoStopImageFor(ImageLoaderTable& aTable,
+                                  nsIFrame* aTargetFrame);
+public:
+
+  NS_HIDDEN_(void) StopBackgroundImageFor(nsIFrame* aTargetFrame)
+  { DoStopImageFor(mImageLoaders, aTargetFrame); }
+  NS_HIDDEN_(void) StopBorderImageFor(nsIFrame* aTargetFrame)
+  { DoStopImageFor(mBorderImageLoaders, aTargetFrame); }
   /**
    * This method is called when a frame is being destroyed to
-   * ensure that the image loads get disassociated from the prescontext
+   * ensure that the image load gets disassociated from the prescontext
    */
   NS_HIDDEN_(void) StopImagesFor(nsIFrame* aTargetFrame);
 
@@ -499,6 +539,9 @@ public:
   { return NSAppUnitsToFloatPixels(aAppUnits,
                                    nsIDeviceContext::AppUnitsPerCSSPixel()); }
 
+  static gfxFloat AppUnitsToGfxCSSPixels(nscoord aAppUnits)
+  { return nsIDeviceContext::AppUnitsToGfxCSSPixels(aAppUnits); }
+
   nscoord DevPixelsToAppUnits(PRInt32 aPixels) const
   { return NSIntPixelsToAppUnits(aPixels,
                                  mDeviceContext->AppUnitsPerDevPixel()); }
@@ -531,12 +574,32 @@ public:
                     TwipsToAppUnits(marginInTwips.right),
                     TwipsToAppUnits(marginInTwips.bottom)); }
 
+  PRInt32 AppUnitsToTwips(nscoord aTwips) const
+  { return NS_INCHES_TO_TWIPS((float)aTwips /
+                              mDeviceContext->AppUnitsPerInch()); }
+
   nscoord PointsToAppUnits(float aPoints) const
   { return NSToCoordRound(aPoints * mDeviceContext->AppUnitsPerInch() /
                           POINTS_PER_INCH_FLOAT); }
+  float AppUnitsToPoints(nscoord aAppUnits) const
+  { return (float)aAppUnits / mDeviceContext->AppUnitsPerInch() *
+      POINTS_PER_INCH_FLOAT; }
 
   nscoord RoundAppUnitsToNearestDevPixels(nscoord aAppUnits) const
   { return DevPixelsToAppUnits(AppUnitsToDevPixels(aAppUnits)); }
+
+  /**
+   * Get the language-specific transform type for the current document.
+   * This tells us whether we need to perform special language-dependent
+   * transformations such as Unicode U+005C (backslash) to Japanese
+   * Yen Sign (Unicode U+00A5, JIS 0x5C).
+   *
+   * @param aType returns type, must be non-NULL
+   */
+  nsLanguageSpecificTransformType LanguageSpecificTransformType() const
+  {
+    return mLanguageSpecificTransformType;
+  }
 
   struct ScrollbarStyles {
     // Always one of NS_STYLE_OVERFLOW_SCROLL, NS_STYLE_OVERFLOW_HIDDEN,
@@ -734,10 +797,10 @@ protected:
   NS_HIDDEN_(void) GetDocumentColorPreferences();
 
   NS_HIDDEN_(void) PreferenceChanged(const char* aPrefName);
-  static NS_HIDDEN_(int) PrefChangedCallback(const char*, void*);
+  static NS_HIDDEN_(int) PR_CALLBACK PrefChangedCallback(const char*, void*);
 
   NS_HIDDEN_(void) UpdateAfterPreferencesChanged();
-  static NS_HIDDEN_(void) PrefChangedUpdateTimerCallback(nsITimer *aTimer, void *aClosure);
+  static NS_HIDDEN_(void) PR_CALLBACK PrefChangedUpdateTimerCallback(nsITimer *aTimer, void *aClosure);
 
   NS_HIDDEN_(void) GetUserPreferences();
   NS_HIDDEN_(void) GetFontPreferences();
@@ -764,8 +827,8 @@ protected:
   nsILinkHandler*       mLinkHandler;   // [WEAK]
   nsIAtom*              mLangGroup;     // [STRONG]
 
-  nsRefPtrHashtable<nsVoidPtrHashKey, nsImageLoadNotifier> mImageNotifiers;
-
+  ImageLoaderTable      mImageLoaders;
+  ImageLoaderTable      mBorderImageLoaders;
   nsWeakPtr             mContainer;
 
   float                 mTextZoom;      // Text zoom, defaults to 1.0
@@ -791,6 +854,7 @@ protected:
   // container for per-context fonts (downloadable, SVG, etc.)
   gfxUserFontSet* mUserFontSet;
   
+  nsLanguageSpecificTransformType mLanguageSpecificTransformType;
   PRInt32               mFontScaler;
   nscoord               mMinimumFontSize;
 
@@ -889,6 +953,11 @@ public:
 #endif
 
 };
+
+// Bit values for StartLoadImage's aImageStatus
+#define NS_LOAD_IMAGE_STATUS_ERROR      0x1
+#define NS_LOAD_IMAGE_STATUS_SIZE       0x2
+#define NS_LOAD_IMAGE_STATUS_BITS       0x4
 
 #ifdef DEBUG
 

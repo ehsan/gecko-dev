@@ -65,7 +65,7 @@ function initFeedTab()
       var type = isValidFeed(link, gDocument.nodePrincipal, rels.feed);
       if (type) {
         type = feedTypes[type] || feedTypes["application/rss+xml"];
-        addRow(link.title, type, link.href);
+        addRow(feed.title, type, feed.href);
       }
     }
   }

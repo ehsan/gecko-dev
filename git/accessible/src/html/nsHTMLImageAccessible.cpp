@@ -126,15 +126,16 @@ nsHTMLImageAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsHTMLImageAccessible::GetName(nsAString& aName)
+
+/* wstring getName (); */
+NS_IMETHODIMP nsHTMLImageAccessible::GetName(nsAString& aName)
 {
   aName.Truncate();
-
   if (IsDefunct())
     return NS_ERROR_FAILURE;
   
   nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+  NS_ASSERTION(content, "Image node always supports nsIContent");
     
   // No alt attribute means AT can repair if there is no accessible name
   // alt="" with no title or aria-labelledby means image is presentational and 
@@ -146,16 +147,8 @@ nsHTMLImageAccessible::GetName(nsAString& aName)
         content->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_labelledby)) {
       // Use HTML label or DHTML accessibility's label or labelledby attribute for name
       // GetHTMLName will also try title attribute as a last resort
-      nsresult rv = GetARIAName(aName);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      if (!aName.IsEmpty())
-        return NS_OK;
-
-      rv = GetHTMLName(aName, PR_FALSE);
-      NS_ENSURE_SUCCESS(rv, rv);
+      GetHTMLName(aName, PR_FALSE);
     }
-
     if (aName.IsEmpty()) { // No name from alt or aria-labelledby
       content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::title, aName);
       if (!hasAltAttrib && aName.IsEmpty()) { 

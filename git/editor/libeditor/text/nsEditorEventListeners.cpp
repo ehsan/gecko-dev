@@ -460,8 +460,8 @@ nsTextEditorTextListener::HandleText(nsIDOMEvent* aTextEvent)
    nsTextEventReply*                 textEventReply;
 
    textEvent->GetText(composedText);
-   textRangeList = textEvent->GetInputRange();
-   textEventReply = textEvent->GetEventReply();
+   textEvent->GetInputRange(getter_AddRefs(textRangeList));
+   textEvent->GetEventReply(&textEventReply);
    nsCOMPtr<nsIEditorIMESupport> imeEditor = do_QueryInterface(mEditor, &result);
    if (imeEditor) {
      PRUint32 flags;

@@ -1330,7 +1330,7 @@ SetupPeerInstance(PRUint32 aPeerID, DConnectSetup *aMsg, PRUint32 aMsgLen,
 
 //-----------------------------------------------------------------------------
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 DestroyDConnectInstance(const void *key,
                         DConnectInstance *wrapper,
                         void *userArg)

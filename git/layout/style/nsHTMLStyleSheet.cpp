@@ -302,7 +302,7 @@ struct MappedAttrTableEntry : public PLDHashEntryHdr {
   nsMappedAttributes *mAttributes;
 };
 
-static PLDHashNumber
+PR_STATIC_CALLBACK(PLDHashNumber)
 MappedAttrTable_HashKey(PLDHashTable *table, const void *key)
 {
   nsMappedAttributes *attributes =
@@ -311,7 +311,7 @@ MappedAttrTable_HashKey(PLDHashTable *table, const void *key)
   return attributes->HashValue();
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 MappedAttrTable_ClearEntry(PLDHashTable *table, PLDHashEntryHdr *hdr)
 {
   MappedAttrTableEntry *entry = static_cast<MappedAttrTableEntry*>(hdr);
@@ -320,7 +320,7 @@ MappedAttrTable_ClearEntry(PLDHashTable *table, PLDHashEntryHdr *hdr)
   memset(entry, 0, sizeof(MappedAttrTableEntry));
 }
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 MappedAttrTable_MatchEntry(PLDHashTable *table, const PLDHashEntryHdr *hdr,
                            const void *key)
 {

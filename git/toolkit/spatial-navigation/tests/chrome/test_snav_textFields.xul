@@ -82,8 +82,10 @@ var moveTable = [
 ["RIGHT", "textinput"],
 ["RIGHT", "textinput"],
 ["RIGHT", "textinput"],
+
 ["RIGHT", "textarea"],
 ["LEFT", "textarea"],
+
 ["RIGHT", "textarea"],
 ["RIGHT", "textarea"],
 ["RIGHT", "textarea"],
@@ -103,22 +105,14 @@ var moveTable = [
 ["RIGHT", "textarea"],
 ["RIGHT", "textarea"],
 ["RIGHT", "textarea"],
+
 ["RIGHT", "end"],
 ["UP", "textarea"],
 ["DONE", "DONE"],
 ];
 
-var prefs = [
-["enabled",           "bool", true],
-["xulContentEnabled", "bool", true],
-["keyCode.modifier",  "char", "none"],
-];
-
 function onLoad()
 {
-    prepareTest(prefs);
-
-    // starting the test itself.
     var x = document.getElementById("some-content");
     SpatialNavigation.init(x);
     

@@ -140,7 +140,7 @@ static nsModuleComponentInfo components[] =
     nsFilePickerConstructor },
 };
 
-static void
+PR_STATIC_CALLBACK(void)
 nsWidgetPhModuleDtor(nsIModule *self)
 {
 //	nsPhIMEHelper::Shutdown();

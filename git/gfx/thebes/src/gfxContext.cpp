@@ -217,12 +217,7 @@ gfxContext::Rectangle(const gfxRect& rect, PRBool snapToPixels)
     if (snapToPixels) {
         gfxRect snappedRect(rect);
 
-#ifdef MOZ_GFX_OPTIMIZE_MOBILE
-        if (UserToDevicePixelSnapped(snappedRect, PR_TRUE))
-#else
-        if (UserToDevicePixelSnapped(snappedRect))
-#endif
-        {
+        if (UserToDevicePixelSnapped(snappedRect)) {
             cairo_matrix_t mat;
             cairo_get_matrix(mCairo, &mat);
             cairo_identity_matrix(mCairo);

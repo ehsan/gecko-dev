@@ -894,7 +894,7 @@ nsFileView::ReverseArray(nsISupportsArray* aArray)
   }
 }
 
-static int
+PR_STATIC_CALLBACK(int)
 SortNameCallback(const void* aElement1, const void* aElement2, void* aContext)
 {
   nsIFile* file1 = *static_cast<nsIFile* const *>(aElement1);
@@ -907,7 +907,7 @@ SortNameCallback(const void* aElement1, const void* aElement2, void* aContext)
   return Compare(leafName1, leafName2);
 }
 
-static int
+PR_STATIC_CALLBACK(int)
 SortSizeCallback(const void* aElement1, const void* aElement2, void* aContext)
 {
   nsIFile* file1 = *static_cast<nsIFile* const *>(aElement1);
@@ -923,7 +923,7 @@ SortSizeCallback(const void* aElement1, const void* aElement2, void* aContext)
   return (LL_CMP(size1, <, size2) ? -1 : 1);
 }
 
-static int
+PR_STATIC_CALLBACK(int)
 SortDateCallback(const void* aElement1, const void* aElement2, void* aContext)
 {
   nsIFile* file1 = *static_cast<nsIFile* const *>(aElement1);

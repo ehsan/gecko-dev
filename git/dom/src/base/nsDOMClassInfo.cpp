@@ -8794,9 +8794,11 @@ nsresult
 nsHTMLFormElementSH::FindNamedItem(nsIForm *aForm, JSString *str,
                                    nsISupports **aResult)
 {
+  *aResult = nsnull;
+
   nsDependentJSString name(str);
 
-  *aResult = aForm->ResolveName(name).get();
+  aForm->ResolveName(name, aResult);
 
   if (!*aResult) {
     nsCOMPtr<nsIContent> content(do_QueryInterface(aForm));
@@ -8907,7 +8909,8 @@ nsHTMLFormElementSH::NewEnumerate(nsIXPConnectWrappedNative *wrapper,
       *statep = INT_TO_JSVAL(0);
 
       if (idp) {
-        PRUint32 count = form->GetElementCount();
+        PRUint32 count = 0;
+        form->GetElementCount(&count);
 
         *idp = INT_TO_JSVAL(count);
       }
@@ -8921,7 +8924,8 @@ nsHTMLFormElementSH::NewEnumerate(nsIXPConnectWrappedNative *wrapper,
 
       PRInt32 index = (PRInt32)JSVAL_TO_INT(*statep);
 
-      PRUint32 count = form->GetElementCount();
+      PRUint32 count = 0;
+      form->GetElementCount(&count);
 
       if ((PRUint32)index < count) {
         nsCOMPtr<nsIFormControl> controlNode;

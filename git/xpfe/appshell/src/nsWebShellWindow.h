@@ -86,7 +86,7 @@ protected:
   void                     LoadContentAreas();
   PRBool                   ExecuteCloseHandler();
 
-  static nsEventStatus HandleEvent(nsGUIEvent *aEvent);
+  static nsEventStatus PR_CALLBACK HandleEvent(nsGUIEvent *aEvent);
 
   nsCOMPtr<nsITimer>      mSPTimer;
   PRLock *                mSPTimerLock;

@@ -52,11 +52,9 @@ public:
   nsHTMLTextAccessible(nsIDOMNode* aDomNode, nsIWeakReference* aShell);
   
   // nsIAccessible
+  NS_IMETHOD GetName(nsAString& _retval);
   NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
-  NS_IMETHOD GetName(nsAString& aName);
   NS_IMETHOD GetRole(PRUint32 *aRole);
-
-  // nsAccessible
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
 };
 
@@ -71,31 +69,22 @@ class nsHTMLBRAccessible : public nsLeafAccessible
 {
 public:
   nsHTMLBRAccessible(nsIDOMNode* aDomNode, nsIWeakReference* aShell);
-
-  // nsIAccessible
   NS_IMETHOD GetRole(PRUint32 *aRole); 
   NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
-
-  // nsAccessible
-  virtual nsresult GetNameInternal(nsAString& aName);
+  NS_IMETHOD GetName(nsAString& aName);
 };
 
 class nsHTMLLabelAccessible : public nsTextAccessible 
 {
 public:
   nsHTMLLabelAccessible(nsIDOMNode* aDomNode, nsIWeakReference* aShell);
-
   NS_DECL_ISUPPORTS_INHERITED
-
-  // nsIAccessible
+  NS_IMETHOD GetName(nsAString& _retval);
   NS_IMETHOD GetRole(PRUint32 *_retval); 
   NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
   NS_IMETHOD GetFirstChild(nsIAccessible **aFirstChild);
   NS_IMETHOD GetLastChild(nsIAccessible **aLastChild);
   NS_IMETHOD GetChildCount(PRInt32 *aAccChildCount);
-
-  // nsAccessible
-  virtual nsresult GetNameInternal(nsAString& aName);
 };
 
 class nsHTMLListBulletAccessible : public nsLeafAccessible
@@ -111,8 +100,8 @@ public:
   NS_IMETHOD Shutdown();
 
   // nsIAccessible
-  NS_IMETHOD GetRole(PRUint32 *aRole);
   NS_IMETHOD GetName(nsAString& aName);
+  NS_IMETHOD GetRole(PRUint32 *aRole);
   NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
 
   // Don't cache via unique ID -- bullet accessible shares the same dom node as
@@ -149,18 +138,13 @@ class nsHTMLLIAccessible : public nsLinkableAccessible
 public:
   nsHTMLLIAccessible(nsIDOMNode *aDOMNode, nsIWeakReference* aShell, 
                      const nsAString& aBulletText);
-
-  // nsIAccessible
+  NS_IMETHOD Shutdown();
   NS_IMETHOD GetRole(PRUint32 *aRole) { *aRole = nsIAccessibleRole::ROLE_LISTITEM; return NS_OK; }
   NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
+  NS_IMETHOD GetName(nsAString& aName) { aName.SetIsVoid(PR_TRUE); return mRoleMapEntry ? nsAccessible::GetName(aName) : NS_OK; }
   NS_IMETHOD GetBounds(PRInt32 *x, PRInt32 *y, PRInt32 *width, PRInt32 *height);
-
-  // nsPIAccessNode
-  NS_IMETHOD Shutdown();
-
-protected:
   void CacheChildren();  // Include bullet accessible
-
+protected:
   nsRefPtr<nsHTMLListBulletAccessible> mBulletAccessible;
 };
 
