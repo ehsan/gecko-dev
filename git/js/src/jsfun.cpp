@@ -1586,14 +1586,8 @@ js_XDRFunctionObject(JSXDRState *xdr, JSObject **objp)
         fun->u.i.wrapper = JSPackedBool((firstword >> 1) & 1);
     }
 
-    /*
-     * Don't directly store into fun->u.i.script because we want this to happen
-     * at the same time as we set the script's owner.
-     */
-    JSScript *script = fun->u.i.script;
-    if (!js_XDRScript(xdr, &script))
+    if (!js_XDRScript(xdr, &fun->u.i.script))
         return false;
-    fun->u.i.script = script;
 
     if (xdr->mode == JSXDR_DECODE) {
         *objp = FUN_OBJECT(fun);
@@ -2480,10 +2474,9 @@ js_CloneFunctionObject(JSContext *cx, JSFunction *fun, JSObject *parent,
             JS_ASSERT(script->compartment != cx->compartment);
             JS_OPT_ASSERT(script->ownerObject == fun);
 
-            JSScript *cscript = js_CloneScript(cx, script);
-            if (!cscript)
+            cfun->u.i.script = js_CloneScript(cx, script);
+            if (!cfun->script())
                 return NULL;
-            cfun->u.i.script = cscript;
             cfun->script()->setOwnerObject(cfun);
 #ifdef CHECK_SCRIPT_OWNER
             cfun->script()->owner = NULL;

@@ -145,16 +145,9 @@ class nsNativeTheme : public nsITimerCallback
     return CheckBooleanAttr(aFrame, nsWidgetAtoms::checked);
   }
 
-  PRBool IsSelectedButton(nsIFrame* aFrame) {
-    return CheckBooleanAttr(aFrame, nsWidgetAtoms::checked) ||
-           CheckBooleanAttr(aFrame, nsWidgetAtoms::selected);
-  }
-
   PRBool IsOpenButton(nsIFrame* aFrame) {
     return CheckBooleanAttr(aFrame, nsWidgetAtoms::open);
   }
-
-  PRBool IsPressedButton(nsIFrame* aFrame);
 
   // treeheadercell:
   TreeSortDirection GetTreeSortDirection(nsIFrame* aFrame);
@@ -163,6 +156,7 @@ class nsNativeTheme : public nsITimerCallback
   // tab:
   PRBool IsBottomTab(nsIFrame* aFrame);
   PRBool IsFirstTab(nsIFrame* aFrame);
+  PRBool IsLastTab(nsIFrame* aFrame);
   
   PRBool IsHorizontal(nsIFrame* aFrame);
 
@@ -192,9 +186,6 @@ class nsNativeTheme : public nsITimerCallback
 
   PRBool QueueAnimatedContentForRefresh(nsIContent* aContent,
                                         PRUint32 aMinimumFrameRate);
-
-  nsIFrame* GetAdjacentSiblingFrameWithSameAppearance(nsIFrame* aFrame,
-                                                      PRBool aNextSibling);
 
  private:
   PRUint32 mAnimatedContentTimeout;

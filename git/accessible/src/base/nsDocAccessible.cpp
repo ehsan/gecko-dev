@@ -105,8 +105,7 @@ nsDocAccessible::
   nsDocAccessible(nsIDocument *aDocument, nsIContent *aRootContent,
                   nsIWeakReference *aShell) :
   nsHyperTextAccessibleWrap(aRootContent, aShell),
-  mDocument(aDocument), mScrollPositionChangedTicks(0),
-  mLoadState(eTreeConstructionPending), mLoadEventType(0)
+  mDocument(aDocument), mScrollPositionChangedTicks(0), mIsLoaded(PR_FALSE)
 {
   mFlags |= eDocAccessible;
 
@@ -310,16 +309,11 @@ nsDocAccessible::NativeState()
       state |= states::FOCUSED;
   }
 
-  // Expose stale state until the document is ready (DOM is loaded and tree is
-  // constructed).
-  if (!HasLoadState(eReady))
-    state |= states::STALE;
-
-  // Expose state busy until the document and all its subdocuments is completely
-  // loaded.
-  if (!HasLoadState(eCompletelyLoaded))
-    state |= states::BUSY;
-
+  // Expose state busy until the document is loaded or tree is constructed.
+  if (!mIsLoaded || !mNotificationController->IsTreeConstructed()) {
+    state |= states::BUSY | states::STALE;
+  }
+ 
   nsIFrame* frame = GetFrame();
   if (!frame || !nsCoreUtils::CheckVisibilityInParentChain(frame)) {
     state |= states::INVISIBLE | states::OFFSCREEN;
@@ -611,7 +605,7 @@ nsDocAccessible::Init()
   // this point (this can happen because a11y is started late or DOM document
   // having no container was loaded.
   if (mDocument->GetReadyStateEnum() == nsIDocument::READYSTATE_COMPLETE)
-    mLoadState |= eDOMLoaded;
+    mIsLoaded = PR_TRUE;
 
   AddEventListeners();
   return PR_TRUE;
@@ -1382,9 +1376,8 @@ nsDocAccessible::ContentInserted(nsIContent* aContainerNode,
                                  nsIContent* aStartChildNode,
                                  nsIContent* aEndChildNode)
 {
-  // Ignore content insertions until we constructed accessible tree. Otherwise
-  // schedule tree update on content insertion after layout.
-  if (mNotificationController && HasLoadState(eTreeConstructed)) {
+  /// Pend tree update on content insertion until layout.
+  if (mNotificationController) {
     // Update the whole tree of this document accessible when the container is
     // null (document element is inserted or removed).
     nsAccessible* container = aContainerNode ?
@@ -1474,36 +1467,8 @@ nsDocAccessible::CacheChildren()
 // Protected members
 
 void
-nsDocAccessible::NotifyOfLoading(bool aIsReloading)
+nsDocAccessible::NotifyOfInitialUpdate()
 {
-  // Mark the document accessible as loading, if it stays alive then we'll mark
-  // it as loaded when we receive proper notification.
-  mLoadState &= ~eDOMLoaded;
-
-  if (!IsLoadEventTarget())
-    return;
-
-  if (aIsReloading) {
-    // Fire reload and state busy events on existing document accessible while
-    // event from user input flag can be calculated properly and accessible
-    // is alive. When new document gets loaded then this one is destroyed.
-    nsRefPtr<AccEvent> reloadEvent =
-      new AccEvent(nsIAccessibleEvent::EVENT_DOCUMENT_RELOAD, this);
-    nsEventShell::FireEvent(reloadEvent);
-  }
-
-  // Fire state busy change event. Use delayed event since we don't care
-  // actually if event isn't delivered when the document goes away like a shot.
-  nsRefPtr<AccEvent> stateEvent =
-    new AccStateChangeEvent(mDocument, states::BUSY, PR_TRUE);
-  FireDelayedAccessibleEvent(stateEvent);
-}
-
-void
-nsDocAccessible::DoInitialUpdate()
-{
-  mLoadState |= eTreeConstructed;
-
   // The content element may be changed before the initial update and then we
   // miss the notification (since content tree change notifications are ignored
   // prior to initial update). Make sure the content element is valid.
@@ -1524,34 +1489,6 @@ nsDocAccessible::DoInitialUpdate()
                    AccEvent::eCoalesceFromSameSubtree);
     ParentDocument()->FireDelayedAccessibleEvent(reorderEvent);
   }
-}
-
-void
-nsDocAccessible::ProcessLoad()
-{
-  mLoadState |= eCompletelyLoaded;
-
-  // Do not fire document complete/stop events for root chrome document
-  // accessibles and for frame/iframe documents because
-  // a) screen readers start working on focus event in the case of root chrome
-  // documents
-  // b) document load event on sub documents causes screen readers to act is if
-  // entire page is reloaded.
-  if (!IsLoadEventTarget())
-    return;
-
-  // Fire complete/load stopped if the load event type is given.
-  if (mLoadEventType) {
-    nsRefPtr<AccEvent> loadEvent = new AccEvent(mLoadEventType, this);
-    nsEventShell::FireEvent(loadEvent);
-
-    mLoadEventType = 0;
-  }
-
-  // Fire busy state change event.
-  nsRefPtr<AccEvent> stateEvent =
-    new AccStateChangeEvent(this, states::BUSY, PR_FALSE);
-  nsEventShell::FireEvent(stateEvent);
 }
 
 void
@@ -2027,30 +1964,3 @@ nsDocAccessible::ShutdownChildrenInSubtree(nsAccessible* aAccessible)
 
   UnbindFromDocument(aAccessible);
 }
-
-bool
-nsDocAccessible::IsLoadEventTarget() const
-{
-  nsCOMPtr<nsISupports> container = mDocument->GetContainer();
-  nsCOMPtr<nsIDocShellTreeItem> docShellTreeItem =
-    do_QueryInterface(container);
-  NS_ASSERTION(docShellTreeItem, "No document shell for document!");
-
-  nsCOMPtr<nsIDocShellTreeItem> parentTreeItem;
-  docShellTreeItem->GetParent(getter_AddRefs(parentTreeItem));
-
-  // It's not a root document.
-  if (parentTreeItem) {
-    nsCOMPtr<nsIDocShellTreeItem> sameTypeRoot;
-    docShellTreeItem->GetSameTypeRootTreeItem(getter_AddRefs(sameTypeRoot));
-
-    // It's not a sub document, i.e. a frame or iframe.
-    return (sameTypeRoot == docShellTreeItem);
-  }
-
-  // It's not chrome root document.
-  PRInt32 contentType;
-  docShellTreeItem->GetItemType(&contentType);
-  return (contentType == nsIDocShellTreeItem::typeContent);
-}
-

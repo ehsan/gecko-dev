@@ -2688,8 +2688,6 @@ JS_GetGCParameter(JSRuntime *rt, JSGCParamKey key)
         return uint32(rt->gcMode);
       case JSGC_UNUSED_CHUNKS:
         return uint32(rt->gcChunksWaitingToExpire);
-      case JSGC_TOTAL_CHUNKS:
-        return uint32(rt->gcUserChunkSet.count() + rt->gcSystemChunkSet.count());
       default:
         JS_ASSERT(key == JSGC_NUMBER);
         return rt->gcNumber;
@@ -3240,13 +3238,9 @@ JS_LookupPropertyById(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
 }
 
 JS_PUBLIC_API(JSBool)
-JS_LookupElement(JSContext *cx, JSObject *obj, uint32 index, jsval *vp)
+JS_LookupElement(JSContext *cx, JSObject *obj, jsint index, jsval *vp)
 {
-    CHECK_REQUEST(cx);
-    jsid id;
-    if (!IndexToId(cx, index, &id))
-        return false;
-    return JS_LookupPropertyById(cx, obj, id, vp);
+    return JS_LookupPropertyById(cx, obj, INT_TO_JSID(index), vp);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -3298,13 +3292,9 @@ JS_HasPropertyById(JSContext *cx, JSObject *obj, jsid id, JSBool *foundp)
 }
 
 JS_PUBLIC_API(JSBool)
-JS_HasElement(JSContext *cx, JSObject *obj, uint32 index, JSBool *foundp)
+JS_HasElement(JSContext *cx, JSObject *obj, jsint index, JSBool *foundp)
 {
-    CHECK_REQUEST(cx);
-    jsid id;
-    if (!IndexToId(cx, index, &id))
-        return false;
-    return JS_HasPropertyById(cx, obj, id, foundp);
+    return JS_HasPropertyById(cx, obj, INT_TO_JSID(index), foundp);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -3344,13 +3334,9 @@ JS_AlreadyHasOwnPropertyById(JSContext *cx, JSObject *obj, jsid id, JSBool *foun
 }
 
 JS_PUBLIC_API(JSBool)
-JS_AlreadyHasOwnElement(JSContext *cx, JSObject *obj, uint32 index, JSBool *foundp)
+JS_AlreadyHasOwnElement(JSContext *cx, JSObject *obj, jsint index, JSBool *foundp)
 {
-    CHECK_REQUEST(cx);
-    jsid id;
-    if (!IndexToId(cx, index, &id))
-        return false;
-    return JS_AlreadyHasOwnPropertyById(cx, obj, id, foundp);
+    return JS_AlreadyHasOwnPropertyById(cx, obj, INT_TO_JSID(index), foundp);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -3399,14 +3385,10 @@ JS_DefinePropertyById(JSContext *cx, JSObject *obj, jsid id, jsval value,
 }
 
 JS_PUBLIC_API(JSBool)
-JS_DefineElement(JSContext *cx, JSObject *obj, uint32 index, jsval value,
+JS_DefineElement(JSContext *cx, JSObject *obj, jsint index, jsval value,
                  JSPropertyOp getter, JSStrictPropertyOp setter, uintN attrs)
 {
-    CHECK_REQUEST(cx);
-    jsid id;
-    if (!IndexToId(cx, index, &id))
-        return false;
-    return DefinePropertyById(cx, obj, id, Valueify(value),
+    return DefinePropertyById(cx, obj, INT_TO_JSID(index), Valueify(value),
                               Valueify(getter), Valueify(setter), attrs, 0, 0);
 }
 
@@ -3537,6 +3519,79 @@ JS_DefineProperties(JSContext *cx, JSObject *obj, JSPropertySpec *ps)
             break;
     }
     return ok;
+}
+
+JS_PUBLIC_API(JSBool)
+JS_AliasProperty(JSContext *cx, JSObject *obj, const char *name, const char *alias)
+{
+    JSObject *obj2;
+    JSProperty *prop;
+    JSBool ok;
+    Shape *shape;
+
+    CHECK_REQUEST(cx);
+    assertSameCompartment(cx, obj);
+
+    JSAtom *atom = js_Atomize(cx, name, strlen(name));
+    if (!atom)
+        return JS_FALSE;
+    if (!LookupPropertyById(cx, obj, ATOM_TO_JSID(atom), JSRESOLVE_QUALIFIED, &obj2, &prop))
+        return JS_FALSE;
+    if (!prop) {
+        js_ReportIsNotDefined(cx, name);
+        return JS_FALSE;
+    }
+    if (obj2 != obj || !obj->isNative()) {
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_CANT_ALIAS,
+                             alias, name, obj2->getClass()->name);
+        return JS_FALSE;
+    }
+    atom = js_Atomize(cx, alias, strlen(alias));
+    if (!atom) {
+        ok = JS_FALSE;
+    } else {
+        shape = (Shape *)prop;
+        ok = (js_AddNativeProperty(cx, obj, ATOM_TO_JSID(atom),
+                                   shape->getter(), shape->setter(), shape->slot,
+                                   shape->attributes(), shape->getFlags() | Shape::ALIAS,
+                                   shape->shortid)
+              != NULL);
+    }
+    return ok;
+}
+
+JS_PUBLIC_API(JSBool)
+JS_AliasElement(JSContext *cx, JSObject *obj, const char *name, jsint alias)
+{
+    JSObject *obj2;
+    JSProperty *prop;
+    Shape *shape;
+
+    CHECK_REQUEST(cx);
+    assertSameCompartment(cx, obj);
+
+    JSAtom *atom = js_Atomize(cx, name, strlen(name));
+    if (!atom)
+        return JS_FALSE;
+    if (!LookupPropertyById(cx, obj, ATOM_TO_JSID(atom), JSRESOLVE_QUALIFIED, &obj2, &prop))
+        return JS_FALSE;
+    if (!prop) {
+        js_ReportIsNotDefined(cx, name);
+        return JS_FALSE;
+    }
+    if (obj2 != obj || !obj->isNative()) {
+        char numBuf[12];
+        JS_snprintf(numBuf, sizeof numBuf, "%ld", (long)alias);
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_CANT_ALIAS,
+                             numBuf, name, obj2->getClass()->name);
+        return JS_FALSE;
+    }
+    shape = (Shape *)prop;
+    return js_AddNativeProperty(cx, obj, INT_TO_JSID(alias),
+                                shape->getter(), shape->setter(), shape->slot,
+                                shape->attributes(), shape->getFlags() | Shape::ALIAS,
+                                shape->shortid)
+           != NULL;
 }
 
 static JSBool
@@ -3714,13 +3769,9 @@ JS_GetPropertyByIdDefault(JSContext *cx, JSObject *obj, jsid id, jsval def, jsva
 }
 
 JS_PUBLIC_API(JSBool)
-JS_GetElement(JSContext *cx, JSObject *obj, uint32 index, jsval *vp)
+JS_GetElement(JSContext *cx, JSObject *obj, jsint index, jsval *vp)
 {
-    CHECK_REQUEST(cx);
-    jsid id;
-    if (!IndexToId(cx, index, &id))
-        return false;
-    return JS_GetPropertyById(cx, obj, id, vp);
+    return JS_GetPropertyById(cx, obj, INT_TO_JSID(index), vp);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -3773,12 +3824,8 @@ JS_SetPropertyById(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
 }
 
 JS_PUBLIC_API(JSBool)
-JS_SetElement(JSContext *cx, JSObject *obj, uint32 index, jsval *vp)
+JS_SetElement(JSContext *cx, JSObject *obj, jsint index, jsval *vp)
 {
-    CHECK_REQUEST(cx);
-    jsid id;
-    if (!IndexToId(cx, index, &id))
-        return false;
     return JS_SetPropertyById(cx, obj, INT_TO_JSID(index), vp);
 }
 
@@ -3806,13 +3853,9 @@ JS_DeletePropertyById2(JSContext *cx, JSObject *obj, jsid id, jsval *rval)
 }
 
 JS_PUBLIC_API(JSBool)
-JS_DeleteElement2(JSContext *cx, JSObject *obj, uint32 index, jsval *rval)
+JS_DeleteElement2(JSContext *cx, JSObject *obj, jsint index, jsval *rval)
 {
-    CHECK_REQUEST(cx);
-    jsid id;
-    if (!IndexToId(cx, index, &id))
-        return false;
-    return JS_DeletePropertyById2(cx, obj, id, rval);
+    return JS_DeletePropertyById2(cx, obj, INT_TO_JSID(index), rval);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -3837,7 +3880,7 @@ JS_DeletePropertyById(JSContext *cx, JSObject *obj, jsid id)
 }
 
 JS_PUBLIC_API(JSBool)
-JS_DeleteElement(JSContext *cx, JSObject *obj, uint32 index)
+JS_DeleteElement(JSContext *cx, JSObject *obj, jsint index)
 {
     jsval junk;
     return JS_DeleteElement2(cx, obj, index, &junk);
@@ -3999,7 +4042,7 @@ JS_NextProperty(JSContext *cx, JSObject *iterobj, jsid *idp)
         JS_ASSERT(iterobj->getParent()->isNative());
         shape = (Shape *) iterobj->getPrivate();
 
-        while (shape->previous() && !shape->enumerable())
+        while (shape->previous() && (!shape->enumerable() || shape->isAlias()))
             shape = shape->previous();
 
         if (!shape->previous()) {
@@ -4430,7 +4473,7 @@ CompileUCScriptForPrincipalsCommon(JSContext *cx, JSObject *obj, JSPrincipals *p
     if (script) {
         scriptObj = js_NewScriptObject(cx, script);
         if (!scriptObj)
-            js_DestroyScript(cx, script, 3);
+            js_DestroyScript(cx, script);
     }
     LAST_FRAME_CHECKS(cx, scriptObj);
     return scriptObj;
@@ -4617,7 +4660,7 @@ CompileFileHelper(JSContext *cx, JSObject *obj, JSPrincipals *principals,
 
     JSObject *scriptObj = js_NewScriptObject(cx, script);
     if (!scriptObj)
-        js_DestroyScript(cx, script, 4);
+        js_DestroyScript(cx, script);
 
     return scriptObj;
 }
@@ -4924,7 +4967,7 @@ EvaluateUCScriptForPrincipalsCommon(JSContext *cx, JSObject *obj,
 
     bool ok = ExternalExecute(cx, script, *obj, Valueify(rval));
     LAST_FRAME_CHECKS(cx, ok);
-    js_DestroyScript(cx, script, 5);
+    js_DestroyScript(cx, script);
     return ok;
 
 }

@@ -437,17 +437,7 @@ var NewTabPopup = {
     setTimeout((function() {
       let boxRect = this.box.getBoundingClientRect();
       this.box.top = tabRect.top + (tabRect.height / 2) - (boxRect.height / 2);
-
-      let tabs = document.getElementById("tabs");
-
-      // We don't use anchorTo() here because the tab
-      // being anchored to might be overflowing the tabs
-      // scrollbox which confuses the dynamic arrow direction
-      // calculation (see bug 662520).
-      if (tabs.getBoundingClientRect().left < 0)
-        this.box.pointLeftAt(aTab);
-      else
-        this.box.pointRightAt(aTab);
+      this.box.anchorTo(aTab);
     }).bind(this), 0);
 
     if (this._timeout)

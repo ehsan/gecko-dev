@@ -32,7 +32,6 @@ EXPORTS	= \
 	gfxPattern.h \
 	gfxPlatform.h \
 	gfxPoint.h \
-	gfxPoint3D.h \
 	gfxRect.h \
 	gfxSkipChars.h \
 	gfxTeeSurface.h \

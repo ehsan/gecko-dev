@@ -222,7 +222,6 @@ Highlighter.prototype = {
     this.highlighterContainer = null;
     this.win = null
     this.browser = null;
-    this.toolbar = null;
   },
 
   /**
@@ -759,8 +758,6 @@ var InspectorUI = {
     this.browser = gBrowser.selectedBrowser;
     this.win = this.browser.contentWindow;
     this.winID = this.getWindowID(this.win);
-    this.toolbar = document.getElementById("inspector-toolbar");
-
     if (!this.domplate) {
       Cu.import("resource:///modules/domplate.jsm", this);
       this.domplateUtils.setDOM(window);
@@ -768,7 +765,6 @@ var InspectorUI = {
 
     this.openTreePanel();
 
-    this.toolbar.hidden = false;
     this.inspectCmd.setAttribute("checked", true);
   },
 
@@ -822,7 +818,6 @@ var InspectorUI = {
     }
 
     this.closing = true;
-    this.toolbar.hidden = true;
 
     if (!aKeepStore) {
       InspectorStore.deleteStore(this.winID);
@@ -902,10 +897,8 @@ var InspectorUI = {
   /**
    * Stop inspecting webpage, detach page listeners, disable highlighter
    * event listeners.
-   * @param aPreventScroll
-   *        Prevent scroll in the HTML tree?
    */
-  stopInspecting: function IUI_stopInspecting(aPreventScroll)
+  stopInspecting: function IUI_stopInspecting()
   {
     if (!this.inspecting) {
       return;
@@ -915,7 +908,7 @@ var InspectorUI = {
     this.detachPageListeners();
     this.inspecting = false;
     if (this.highlighter.node) {
-      this.select(this.highlighter.node, true, true, !aPreventScroll);
+      this.select(this.highlighter.node, true, true);
     } else {
       this.select(null, true, true);
     }
@@ -1055,16 +1048,9 @@ var InspectorUI = {
     }
 
     if (node) {
-      if (hitTwisty) {
+      if (hitTwisty)
         this.ioBox.toggleObject(node);
-      } else {
-        if (this.inspecting) {
-          this.stopInspecting(true);
-        } else {
-          this.select(node, true, false);
-          this.highlighter.highlightNode(node);
-        }
-      }
+      this.select(node, false, false);
     }
   },
 
@@ -1291,7 +1277,7 @@ var InspectorUI = {
       this.tools[id] = aRegObj;
     }
 
-    let toolbox = document.getElementById("inspector-tools");
+    let toolbar = document.getElementById("inspector-toolbar");
     let btn = document.createElement("toolbarbutton");
     btn.setAttribute("id", aRegObj.buttonId);
     btn.setAttribute("label", aRegObj.label);
@@ -1299,7 +1285,7 @@ var InspectorUI = {
     btn.setAttribute("accesskey", aRegObj.accesskey);
     btn.setAttribute("class", "toolbarbutton-text");
     btn.setAttribute("image", aRegObj.icon || "");
-    toolbox.appendChild(btn);
+    toolbar.appendChild(btn);
 
     btn.addEventListener("click",
       function IUI_ToolButtonClick(aEvent) {

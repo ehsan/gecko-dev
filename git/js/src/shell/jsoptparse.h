@@ -49,11 +49,11 @@ namespace cli {
 
 namespace detail {
 
-struct BoolOption;
-struct MultiStringOption;
-struct ValuedOption;
-struct StringOption;
-struct IntOption;
+class BoolOption;
+class MultiStringOption;
+class ValuedOption;
+class StringOption;
+class IntOption;
 
 enum OptionKind
 {

@@ -682,20 +682,14 @@ public class GeckoAppShell
     }
 
     // "Installs" an application by creating a shortcut
-    static void createShortcut(String aTitle, String aURI, String aIconData, String aType) {
-        Log.w("GeckoAppJava", "createShortcut for " + aURI + " [" + aTitle + "]");
+    static void installWebApplication(String aURI, String aTitle, String aIconData) {
+        Log.w("GeckoAppJava", "installWebApplication for " + aURI + " [" + aTitle + "]");
 
         // the intent to be launched by the shortcut
-        Intent shortcutIntent = new Intent();
-        if (aType == "webapp") {
-            shortcutIntent.setAction("org.mozilla.gecko.WEBAPP");
-            shortcutIntent.putExtra("args", "--webapp=" + aURI);
-        } else {
-            shortcutIntent.setAction("org.mozilla.gecko.BOOKMARK");
-            shortcutIntent.putExtra("args", "--url=" + aURI);
-        }
+        Intent shortcutIntent = new Intent("org.mozilla.gecko.WEBAPP");
         shortcutIntent.setClassName(GeckoApp.mAppContext,
                                     GeckoApp.mAppContext.getPackageName() + ".App");
+        shortcutIntent.putExtra("args", "--webapp=" + aURI);
 
         Intent intent = new Intent();
         intent.putExtra(Intent.EXTRA_SHORTCUT_INTENT, shortcutIntent);
@@ -841,7 +835,7 @@ public class GeckoAppShell
         getHandler().post(new Runnable() { 
             public void run() {
                 Context context = GeckoApp.surfaceView.getContext();
-                android.text.ClipboardManager cm = (android.text.ClipboardManager)
+                ClipboardManager cm = (ClipboardManager)
                     context.getSystemService(Context.CLIPBOARD_SERVICE);
                 try {
                     sClipboardQueue.put(cm.hasText() ? cm.getText().toString() : "");
@@ -858,7 +852,7 @@ public class GeckoAppShell
         getHandler().post(new Runnable() { 
             public void run() {
                 Context context = GeckoApp.surfaceView.getContext();
-                android.text.ClipboardManager cm = (android.text.ClipboardManager)
+                ClipboardManager cm = (ClipboardManager)
                     context.getSystemService(Context.CLIPBOARD_SERVICE);
                 cm.setText(text);
             }});
@@ -1173,7 +1167,7 @@ public class GeckoAppShell
 
     public static void putChildInBackground() {
         try {
-            File cgroupFile = new File("/proc/" + android.os.Process.myPid() + "/cgroup");
+            File cgroupFile = new File("/proc" + android.os.Process.myPid() + "/cgroup");
             BufferedReader br = new BufferedReader(new FileReader(cgroupFile));
             String[] cpuLine = br.readLine().split("/");
             br.close();

@@ -77,6 +77,7 @@ NS_INTERFACE_MAP_END
 WebSocketChannelChild::WebSocketChannelChild(bool aSecure)
 : mEventQ(static_cast<nsIWebSocketChannel*>(this))
 , mIPCOpen(false)
+, mCancelled(false)
 {
   LOG(("WebSocketChannelChild::WebSocketChannelChild() %p\n", this));
   BaseWebSocketChannel::mEncrypted = aSecure;
@@ -107,43 +108,36 @@ class StartEvent : public ChannelEvent
 {
  public:
   StartEvent(WebSocketChannelChild* aChild,
-             const nsCString& aProtocol,
-             const nsCString& aExtensions)
+             const nsCString& aProtocol)
   : mChild(aChild)
   , mProtocol(aProtocol)
-  , mExtensions(aExtensions)
   {}
 
   void Run()
   {
-    mChild->OnStart(mProtocol, mExtensions);
+    mChild->OnStart(mProtocol);
   }
  private:
   WebSocketChannelChild* mChild;
   nsCString mProtocol;
-  nsCString mExtensions;
 };
 
 bool
-WebSocketChannelChild::RecvOnStart(const nsCString& aProtocol,
-                                   const nsCString& aExtensions)
+WebSocketChannelChild::RecvOnStart(const nsCString& aProtocol)
 {
   if (mEventQ.ShouldEnqueue()) {
-    mEventQ.Enqueue(new StartEvent(this, aProtocol, aExtensions));
+    mEventQ.Enqueue(new StartEvent(this, aProtocol));
   } else {
-    OnStart(aProtocol, aExtensions);
+    OnStart(aProtocol);
   }
   return true;
 }
 
 void
-WebSocketChannelChild::OnStart(const nsCString& aProtocol,
-                               const nsCString& aExtensions)
+WebSocketChannelChild::OnStart(const nsCString& aProtocol)
 {
   LOG(("WebSocketChannelChild::RecvOnStart() %p\n", this));
   SetProtocol(aProtocol);
-  mNegotiatedExtensions = aExtensions;
-
   if (mListener) {
     AutoEventEnqueuer ensureSerialDispatch(mEventQ);;
     mListener->OnStart(mContext);
@@ -298,45 +292,72 @@ WebSocketChannelChild::OnAcknowledge(const PRUint32& aSize)
 class ServerCloseEvent : public ChannelEvent
 {
  public:
-  ServerCloseEvent(WebSocketChannelChild* aChild,
-                   const PRUint16 aCode,
-                   const nsCString &aReason)
+  ServerCloseEvent(WebSocketChannelChild* aChild)
   : mChild(aChild)
-  , mCode(aCode)
-  , mReason(aReason)
   {}
 
   void Run()
   {
-    mChild->OnServerClose(mCode, mReason);
+    mChild->OnServerClose();
   }
  private:
   WebSocketChannelChild* mChild;
-  PRUint16               mCode;
-  nsCString              mReason;
 };
 
 bool
-WebSocketChannelChild::RecvOnServerClose(const PRUint16& aCode,
-                                         const nsCString& aReason)
+WebSocketChannelChild::RecvOnServerClose()
 {
   if (mEventQ.ShouldEnqueue()) {
-    mEventQ.Enqueue(new ServerCloseEvent(this, aCode, aReason));
+    mEventQ.Enqueue(new ServerCloseEvent(this));
   } else {
-    OnServerClose(aCode, aReason);
+    OnServerClose();
   }
   return true;
 }
 
 void
-WebSocketChannelChild::OnServerClose(const PRUint16& aCode,
-                                     const nsCString& aReason)
+WebSocketChannelChild::OnServerClose()
 {
   LOG(("WebSocketChannelChild::RecvOnServerClose() %p\n", this));
   if (mListener) {
     AutoEventEnqueuer ensureSerialDispatch(mEventQ);;
-    mListener->OnServerClose(mContext, aCode, aReason);
+    mListener->OnServerClose(mContext);
   }
+}
+
+class AsyncOpenFailedEvent : public ChannelEvent
+{
+ public:
+  AsyncOpenFailedEvent(WebSocketChannelChild* aChild)
+  : mChild(aChild)
+  {}
+
+  void Run()
+  {
+    mChild->AsyncOpenFailed();
+  }
+ private:
+  WebSocketChannelChild* mChild;
+};
+
+bool
+WebSocketChannelChild::RecvAsyncOpenFailed()
+{
+  if (mEventQ.ShouldEnqueue()) {
+    mEventQ.Enqueue(new AsyncOpenFailedEvent(this));
+  } else {
+    AsyncOpenFailed();
+  }
+  return true;
+}
+
+void
+WebSocketChannelChild::AsyncOpenFailed()
+{
+  LOG(("WebSocketChannelChild::RecvAsyncOpenFailed() %p\n", this));
+  mCancelled = true;
+  if (mIPCOpen)
+    SendDeleteSelf();
 }
 
 NS_IMETHODIMP
@@ -376,11 +397,14 @@ WebSocketChannelChild::AsyncOpen(nsIURI *aURI,
 }
 
 NS_IMETHODIMP
-WebSocketChannelChild::Close(PRUint16 code, const nsACString & reason)
+WebSocketChannelChild::Close()
 {
   LOG(("WebSocketChannelChild::Close() %p\n", this));
 
-  if (!mIPCOpen || !SendClose(code, nsCString(reason)))
+  if (mCancelled)
+    return NS_ERROR_UNEXPECTED;
+
+  if (!mIPCOpen || !SendClose())
     return NS_ERROR_UNEXPECTED;
   return NS_OK;
 }
@@ -389,6 +413,9 @@ NS_IMETHODIMP
 WebSocketChannelChild::SendMsg(const nsACString &aMsg)
 {
   LOG(("WebSocketChannelChild::SendMsg() %p\n", this));
+
+  if (mCancelled)
+    return NS_ERROR_UNEXPECTED;
 
   if (!mIPCOpen || !SendSendMsg(nsCString(aMsg)))
     return NS_ERROR_UNEXPECTED;
@@ -399,6 +426,9 @@ NS_IMETHODIMP
 WebSocketChannelChild::SendBinaryMsg(const nsACString &aMsg)
 {
   LOG(("WebSocketChannelChild::SendBinaryMsg() %p\n", this));
+
+  if (mCancelled)
+    return NS_ERROR_UNEXPECTED;
 
   if (!mIPCOpen || !SendSendBinaryMsg(nsCString(aMsg)))
     return NS_ERROR_UNEXPECTED;

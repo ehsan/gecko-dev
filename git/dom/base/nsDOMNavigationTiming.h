@@ -92,8 +92,6 @@ public:
   void NotifyDOMContentLoadedStart(nsIURI* aURI);
   void NotifyDOMContentLoadedEnd(nsIURI* aURI);
   nsresult TimeStampToDOM(mozilla::TimeStamp aStamp, DOMTimeMilliSec* aResult);
-  nsresult TimeStampToDOMOrFetchStart(mozilla::TimeStamp aStamp, 
-                                      DOMTimeMilliSec* aResult);
 
 private:
   nsDOMNavigationTiming(const nsDOMNavigationTiming &){};

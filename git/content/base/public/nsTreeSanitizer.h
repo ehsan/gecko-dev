@@ -137,11 +137,10 @@ class NS_STACK_CLASS nsTreeSanitizer {
      * @param aElement the element whose attribute to possibly modify
      * @param aNamespace the namespace of the URL attribute
      * @param aLocalName the local name of the URL attribute
-     * @return true if the attribute was removed and false otherwise
      */
-    PRBool SanitizeURL(mozilla::dom::Element* aElement,
-                       PRInt32 aNamespace,
-                       nsIAtom* aLocalName);
+    void SanitizeURL(mozilla::dom::Element* aElement,
+                     PRInt32 aNamespace,
+                     nsIAtom* aLocalName);
 
     /**
      * Checks a style rule for the presence of the 'binding' CSS property and

@@ -921,12 +921,16 @@ AppUnitsPerDevPixel(nsDisplayItem* aItem)
 static void
 RestrictVisibleRegionForLayer(Layer* aLayer, const nsIntRect& aItemVisible)
 {
-  gfx3DMatrix transform = aLayer->GetTransform();
+  gfxMatrix transform;
+  if (!aLayer->GetTransform().Is2D(&transform))
+    return;
 
   // if 'transform' is not invertible, then nothing will be displayed
   // for the layer, so it doesn't really matter what we do here
+  gfxMatrix inverse = transform;
+  inverse.Invert();
   gfxRect itemVisible(aItemVisible.x, aItemVisible.y, aItemVisible.width, aItemVisible.height);
-  gfxRect layerVisible = transform.Inverse().ProjectRectBounds(itemVisible);
+  gfxRect layerVisible = inverse.TransformBounds(itemVisible);
   layerVisible.RoundOut();
 
   nsIntRect visibleRect;

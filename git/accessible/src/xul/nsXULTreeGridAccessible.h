@@ -148,6 +148,7 @@ public:
   NS_IMETHOD GetBounds(PRInt32 *aX, PRInt32 *aY,
                        PRInt32 *aWidth, PRInt32 *aHeight);
 
+  NS_IMETHOD GetNumActions(PRUint8 *aCount);
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 aIndex);
 
@@ -162,12 +163,9 @@ public:
   // nsAccessible
   virtual nsAccessible* FocusedChild();
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
-  virtual PRInt32 IndexInParent() const;
   virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
-
-  // ActionAccessible
-  virtual PRUint8 ActionCount();
+  virtual PRInt32 IndexInParent() const;
 
   // nsXULTreeGridCellAccessible
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_XULTREEGRIDCELLACCESSIBLE_IMPL_CID)

@@ -53,7 +53,6 @@ EXPORTS		= \
 		nsPLDOMEvent.h \
 		nsEventDispatcher.h \
 		nsEventStates.h \
-		nsEventNameList.h \
 		$(NULL)
 
 XPIDLSRCS	= \

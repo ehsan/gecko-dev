@@ -343,8 +343,7 @@ txMozillaXMLOutput::endElement()
             }
         } else if (ns == kNameSpaceID_XHTML &&
                    (localName == nsGkAtoms::input ||
-                    localName == nsGkAtoms::button ||
-                    localName == nsGkAtoms::menuitem)) {
+                    localName == nsGkAtoms::button)) {
           element->DoneCreatingElement();
         }
     }

@@ -106,9 +106,7 @@ nsARIAGridAccessible::GetColumnCount(PRInt32 *acolumnCount)
     return NS_ERROR_FAILURE;
 
   AccIterator rowIter(this, filters::GetRow);
-  nsAccessible* row = rowIter.GetNext();
-  if (!row)
-    return NS_OK;
+  nsAccessible *row = rowIter.GetNext();
 
   AccIterator cellIter(row, filters::GetCell);
   nsAccessible *cell = nsnull;

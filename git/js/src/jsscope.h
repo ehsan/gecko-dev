@@ -489,9 +489,7 @@ struct Shape : public js::gc::Cell
         IN_DICTIONARY   = 0x02,
 
         /* Prevent unwanted mutation of shared Bindings::lastBinding nodes. */
-        FROZEN          = 0x04,
-
-        UNUSED_BITS     = 0x38
+        FROZEN          = 0x04
     };
 
     Shape(jsid id, js::PropertyOp getter, js::StrictPropertyOp setter, uint32 slot, uintN attrs,
@@ -512,12 +510,14 @@ struct Shape : public js::gc::Cell
   public:
     /* Public bits stored in shape->flags. */
     enum {
+        ALIAS           = 0x20,
         HAS_SHORTID     = 0x40,
         METHOD          = 0x80,
-        PUBLIC_FLAGS    = HAS_SHORTID | METHOD
+        PUBLIC_FLAGS    = ALIAS | HAS_SHORTID | METHOD
     };
 
     uintN getFlags() const  { return flags & PUBLIC_FLAGS; }
+    bool isAlias() const    { return (flags & ALIAS) != 0; }
     bool hasShortID() const { return (flags & HAS_SHORTID) != 0; }
     bool isMethod() const   { return (flags & METHOD) != 0; }
 

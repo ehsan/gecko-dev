@@ -141,7 +141,9 @@ LOCAL_INCLUDES += -I$(srcdir)/../wifi
 endif
 
 
+ifdef MOZ_STORAGE
 DEFINES += -DNECKO_OFFLINE_CACHE
+endif
 
 include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk

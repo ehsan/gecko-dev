@@ -191,10 +191,13 @@ nsRadioButtonAccessible::
 {
 }
 
-PRUint8
-nsRadioButtonAccessible::ActionCount()
+NS_IMETHODIMP
+nsRadioButtonAccessible::GetNumActions(PRUint8 *aNumActions)
 {
-  return 1;
+  NS_ENSURE_ARG_POINTER(aNumActions);
+  *aNumActions = 1;
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP nsRadioButtonAccessible::GetActionName(PRUint8 aIndex, nsAString& aName)

@@ -812,11 +812,9 @@ XPC_WN_Equality(JSContext *cx, JSObject *obj, const jsval *valp, JSBool *bp)
     XPCNativeScriptableInfo* si = wrapper->GetScriptableInfo();
     if(si && si->GetFlags().WantEquality())
     {
-        PRBool res;
-        nsresult rv = si->GetCallback()->Equality(wrapper, cx, obj, v, &res);
+        nsresult rv = si->GetCallback()->Equality(wrapper, cx, obj, v, bp);
         if(NS_FAILED(rv))
             return Throw(rv, cx);
-        *bp = res;
     }
     else if(!JSVAL_IS_PRIMITIVE(v))
     {
@@ -1067,10 +1065,8 @@ static JSBool
 XPC_WN_Helper_HasInstance(JSContext *cx, JSObject *obj, const jsval *valp, JSBool *bp)
 {
     SLIM_LOG_WILL_MORPH(cx, obj);
-    PRBool retval2;
     PRE_HELPER_STUB_NO_SLIM
-    HasInstance(wrapper, cx, obj, *valp, &retval2, &retval);
-    *bp = retval2;
+    HasInstance(wrapper, cx, obj, *valp, bp, &retval);
     POST_HELPER_STUB
 }
 
@@ -1108,7 +1104,7 @@ XPC_WN_Helper_NewResolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
                          JSObject **objp)
 {
     nsresult rv = NS_OK;
-    PRBool retval = JS_TRUE;
+    JSBool retval = JS_TRUE;
     JSObject* obj2FromScriptable = nsnull;
     if(IS_SLIM_WRAPPER(obj))
     {

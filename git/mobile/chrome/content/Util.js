@@ -183,9 +183,7 @@ let Util = {
   },
 
   get isKeyboardOpened() {
-    // This might get called from the child process, or from a frame script in the
-    // parent process (which does not have access to the main "window" global).
-    let isChromeWindow = this.isParentProcess() && typeof window == "object" && window["ViewableAreaObserver"];
+    let isChromeWindow = this.isParentProcess() && window["ViewableAreaObserver"];
     if (isChromeWindow)
       return ViewableAreaObserver.isKeyboardOpened;
 

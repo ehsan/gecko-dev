@@ -544,8 +544,7 @@ nsHtml5TreeBuilder::elementPopped(PRInt32 aNamespace, nsIAtom* aName, nsIContent
     return;
   }
   if (aName == nsHtml5Atoms::input ||
-      aName == nsHtml5Atoms::button ||
-      aName == nsHtml5Atoms::menuitem) {
+      aName == nsHtml5Atoms::button) {
     if (!formPointer) {
       // If form inputs don't belong to a form, their state preservation
       // won't work right without an append notification flush at this 
@@ -644,8 +643,9 @@ void
 nsHtml5TreeBuilder::SetDocumentCharset(nsACString& aCharset, 
                                        PRInt32 aCharsetSource)
 {
-  mSpeculativeLoadQueue.AppendElement()->InitSetDocumentCharset(aCharset,
-                                                                aCharsetSource);
+  nsHtml5TreeOperation* treeOp = mOpQueue.AppendElement();
+  NS_ASSERTION(treeOp, "Tree op allocation failed.");
+  treeOp->Init(eTreeOpSetDocumentCharset, aCharset, aCharsetSource);  
 }
 
 void

@@ -757,9 +757,7 @@ class TaggedPointerEntry
   public:
     TaggedPointerEntry() : bits(0) {}
     TaggedPointerEntry(const TaggedPointerEntry &other) : bits(other.bits) {}
-    TaggedPointerEntry(T *ptr, bool tagged)
-      : bits(uintptr_t(ptr) | uintptr_t(tagged))
-    {
+    TaggedPointerEntry(T *ptr, bool tagged) : bits(uintptr_t(ptr) | tagged) {
         JS_ASSERT((uintptr_t(ptr) & 0x1) == 0);
     }
 
@@ -772,7 +770,7 @@ class TaggedPointerEntry
      * the hash function doesn't consider the tag to be a portion of the key.
      */
     void setTagged(bool enabled) const {
-        const_cast<ThisT *>(this)->bits |= uintptr_t(enabled);
+        const_cast<ThisT *>(this)->bits |= enabled;
     }
 
     T *asPtr() const {

@@ -778,35 +778,39 @@ void imgFrame::SetCompositingFailed(PRBool val)
   mCompositingFailed = val;
 }
 
-PRUint32
-imgFrame::EstimateMemoryUsed(gfxASurface::MemoryLocation aLocation) const
+PRUint32 imgFrame::EstimateMemoryUsed() const
 {
   PRUint32 size = 0;
 
-  if (mSinglePixel && aLocation == gfxASurface::MEMORY_IN_PROCESS_HEAP) {
+  if (mSinglePixel) {
     size += sizeof(gfxRGBA);
   }
 
-  if (mPalettedImageData && aLocation == gfxASurface::MEMORY_IN_PROCESS_HEAP) {
+  if (mPalettedImageData) {
     size += GetImageDataLength() + PaletteDataLength();
   }
 
 #ifdef USE_WIN_SURFACE
-  if (mWinSurface && aLocation == mWinSurface->GetMemoryLocation()) {
+  if (mWinSurface) {
     size += mWinSurface->KnownMemoryUsed();
   } else
 #endif
 #ifdef XP_MACOSX
-  if (mQuartzSurface && aLocation == gfxASurface::MEMORY_IN_PROCESS_HEAP) {
+  if (mQuartzSurface) {
     size += mSize.width * mSize.height * 4;
   } else
 #endif
-  if (mImageSurface && aLocation == mImageSurface->GetMemoryLocation()) {
+  if (mImageSurface) {
     size += mImageSurface->KnownMemoryUsed();
   }
 
-  if (mOptSurface && aLocation == mOptSurface->GetMemoryLocation()) {
+  if (mOptSurface) {
     size += mOptSurface->KnownMemoryUsed();
+  }
+
+  // fall back to pessimistic/approximate size
+  if (size == 0) {
+    size = mSize.width * mSize.height * 4;
   }
 
   return size;

@@ -159,6 +159,7 @@ private:
 
   inline void SetLoadId(void *aLoadId) {
     mLoadId = aLoadId;
+    mLoadTime = PR_Now();
   }
   void Cancel(nsresult aStatus);
   void RemoveFromCache();
@@ -251,6 +252,7 @@ private:
   void *mCacheId;
 
   void *mLoadId;
+  PRTime mLoadTime;
 
   imgCacheValidator *mValidator;
   nsCategoryCache<nsIContentSniffer> mImageSniffers;

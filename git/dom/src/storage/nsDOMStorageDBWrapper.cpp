@@ -42,7 +42,6 @@
 #include "nsDOMStorage.h"
 #include "nsDOMStorageDBWrapper.h"
 #include "nsIFile.h"
-#include "nsIURL.h"
 #include "nsIVariant.h"
 #include "nsIEffectiveTLDService.h"
 #include "nsAppDirectoryServiceDefs.h"
@@ -355,21 +354,14 @@ nsDOMStorageDBWrapper::CreateDomainScopeDBKey(nsIURI* aUri, nsACString& aKey)
   if (domainScope.IsEmpty()) {
     // About pages have an empty host but a valid path.  Since they are handled
     // internally by our own redirector, we can trust them and use path as key.
-    // if file:/// protocol, let's make the exact directory the domain
-    PRBool isScheme = PR_FALSE;
-    if ((NS_SUCCEEDED(aUri->SchemeIs("about", &isScheme)) && isScheme) ||
-        (NS_SUCCEEDED(aUri->SchemeIs("moz-safe-about", &isScheme)) && isScheme)) {
+    PRBool isAboutUrl = PR_FALSE;
+    if ((NS_SUCCEEDED(aUri->SchemeIs("about", &isAboutUrl)) && isAboutUrl) ||
+        (NS_SUCCEEDED(aUri->SchemeIs("moz-safe-about", &isAboutUrl)) && isAboutUrl)) {
       rv = aUri->GetPath(domainScope);
       NS_ENSURE_SUCCESS(rv, rv);
       // While the host is always canonicalized to lowercase, the path is not,
       // thus need to force the casing.
       ToLowerCase(domainScope);
-    }
-    else if (NS_SUCCEEDED(aUri->SchemeIs("file", &isScheme)) && isScheme) {
-      nsCOMPtr<nsIURL> url = do_QueryInterface(aUri, &rv);
-      NS_ENSURE_SUCCESS(rv, rv);
-      rv = url->GetDirectory(domainScope);
-      NS_ENSURE_SUCCESS(rv, rv);
     }
   }
 

@@ -333,7 +333,6 @@ public:
   static const PRInt32 kAnimationTimingFunctionKTable[];
   static const PRInt32 kAppearanceKTable[];
   static const PRInt32 kAzimuthKTable[];
-  static const PRInt32 kBackfaceVisibilityKTable[];
   static const PRInt32 kBackgroundAttachmentKTable[];
   static const PRInt32 kBackgroundInlinePolicyKTable[];
   static const PRInt32 kBackgroundOriginKTable[];
