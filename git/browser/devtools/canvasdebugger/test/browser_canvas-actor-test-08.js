@@ -18,7 +18,9 @@ function ifTestingSupported() {
   ok(true, "Target automatically navigated when the front was set up.");
 
   let snapshotActor = yield front.recordAnimationFrame();
+
   let animationOverview = yield snapshotActor.getOverview();
+
   let functionCalls = animationOverview.calls;
 
   is(functionCalls[0].name, "clearRect",

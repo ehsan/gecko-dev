@@ -4,7 +4,6 @@
 
 package org.mozilla.gecko.db;
 
-import org.mozilla.gecko.db.BrowserContract;
 import org.mozilla.gecko.db.BrowserContract.SearchHistory;
 
 import android.content.ContentUris;
@@ -111,11 +110,10 @@ public class SearchHistoryProvider extends SharedBrowserDatabaseProvider {
     @Override
     public Cursor query(Uri uri, String[] projection, String selection,
             String[] selectionArgs, String sortOrder) {
-        final String groupBy = null;
-        final String having = null;
-        final String limit = uri.getQueryParameter(BrowserContract.PARAM_LIMIT);
+        String groupBy = null;
+        String having = null;
         final Cursor cursor = getReadableDatabase(uri).query(SearchHistory.TABLE_NAME, projection,
-                selection, selectionArgs, groupBy, having, sortOrder, limit);
+                selection, selectionArgs, groupBy, having, sortOrder);
         cursor.setNotificationUri(getContext().getContentResolver(), uri);
         return cursor;
     }
