@@ -18,7 +18,6 @@ const system = require("../system");
 const memory = require('../deprecated/memory');
 const { gc: gcPromise } = require('./memory');
 const { defer } = require('../core/promise');
-const { extend } = require('../core/heritage');
 
 // Trick manifest builder to make it think we need these modules ?
 const unit = require("../deprecated/unit-test");
@@ -454,7 +453,7 @@ var consoleListener = {
 };
 
 function TestRunnerConsole(base, options) {
-  let proto = extend(base, {
+  this.__proto__ = {
     errorsLogged: 0,
     warn: function warn() {
       this.errorsLogged++;
@@ -471,8 +470,8 @@ function TestRunnerConsole(base, options) {
         if (first == "pass:")
           print(".");
     },
-  });
-  return Object.create(proto);
+    __proto__: base
+  };
 }
 
 function stringify(arg) {

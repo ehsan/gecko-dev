@@ -67,7 +67,6 @@
 #include "GeckoProfiler.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/Atomics.h"
-#include "mozilla/LinuxSignal.h"
 #include "ProfileEntry.h"
 #include "nsThreadUtils.h"
 #include "TableTicker.h"
@@ -210,10 +209,7 @@ static void SetSampleContext(TickSample* sample, void* context)
 #else
 #define V8_HOST_ARCH_X64 1
 #endif
-
-namespace {
-
-void ProfilerSignalHandler(int signal, siginfo_t* info, void* context) {
+static void ProfilerSignalHandler(int signal, siginfo_t* info, void* context) {
   if (!Sampler::GetActiveSampler()) {
     sem_post(&sSignalHandlingDone);
     return;
@@ -239,8 +235,6 @@ void ProfilerSignalHandler(int signal, siginfo_t* info, void* context) {
   sCurrentThreadProfile = NULL;
   sem_post(&sSignalHandlingDone);
 }
-
-} // namespace
 
 static void ProfilerSignalThread(ThreadProfile *profile,
                                  bool isFirstProfiledThread)
@@ -397,7 +391,7 @@ void Sampler::Start() {
   // Request profiling signals.
   LOG("Request signal");
   struct sigaction sa;
-  sa.sa_sigaction = MOZ_SIGNAL_TRAMPOLINE(ProfilerSignalHandler);
+  sa.sa_sigaction = ProfilerSignalHandler;
   sigemptyset(&sa.sa_mask);
   sa.sa_flags = SA_RESTART | SA_SIGINFO;
   if (sigaction(SIGPROF, &sa, &old_sigprof_signal_handler_) != 0) {

@@ -181,7 +181,7 @@ class ModuleInfo:
 
 class ManifestBuilder:
     def __init__(self, target_cfg, pkg_cfg, deps, extra_modules,
-                 stderr=sys.stderr, abort_on_missing=False):
+                 stderr=sys.stderr):
         self.manifest = {} # maps (package,section,module) to ManifestEntry
         self.target_cfg = target_cfg # the entry point
         self.pkg_cfg = pkg_cfg # all known packages
@@ -193,7 +193,6 @@ class ManifestBuilder:
         self.datamaps = {} # maps package name to DataMap instance
         self.files = [] # maps manifest index to (absfn,absfn) js/docs pair
         self.test_modules = [] # for runtime
-        self.abort_on_missing = abort_on_missing # cfx eol
 
     def build(self, scan_tests, test_filter_re):
         """
@@ -417,12 +416,6 @@ class ManifestBuilder:
                         # test-securable-module.js, and the modules/red.js
                         # that it imports, both do that intentionally
                         continue
-                    if not self.abort_on_missing:
-                        # print a warning, but tolerate missing modules
-                        # unless cfx --abort-on-missing-module flag was set
-                        print >>self.stderr, "Warning: missing module: %s" % reqname
-                        me.add_requirement(reqname, reqname)
-                        continue
                     lineno = locations.get(reqname) # None means define()
                     if lineno is None:
                         reqtype = "define"
@@ -640,7 +633,7 @@ class ManifestBuilder:
         return None
 
 def build_manifest(target_cfg, pkg_cfg, deps, scan_tests,
-                   test_filter_re=None, extra_modules=[], abort_on_missing=False):
+                   test_filter_re=None, extra_modules=[]):
     """
     Perform recursive dependency analysis starting from entry_point,
     building up a manifest of modules that need to be included in the XPI.
@@ -666,8 +659,7 @@ def build_manifest(target_cfg, pkg_cfg, deps, scan_tests,
     code which does, so it knows what to copy into the XPI.
     """
 
-    mxt = ManifestBuilder(target_cfg, pkg_cfg, deps, extra_modules,
-                          abort_on_missing=abort_on_missing)
+    mxt = ManifestBuilder(target_cfg, pkg_cfg, deps, extra_modules)
     mxt.build(scan_tests, test_filter_re)
     return mxt
 

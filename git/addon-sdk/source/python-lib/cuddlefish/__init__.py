@@ -234,11 +234,6 @@ parser_groups = (
                                       help="JSON file to overload package.json properties",
                                       default=None,
                                       cmds=['xpi'])),
-        (("", "--abort-on-missing-module",), dict(dest="abort_on_missing",
-                                      help="Abort if required module is missing",
-                                      action="store_true",
-                                      default=False,
-                                      cmds=['test', 'run', 'xpi', 'testpkgs'])),
         ]
      ),
 
@@ -656,8 +651,7 @@ def run(arguments=sys.argv[1:], target_cfg=None, pkg_cfg=None,
     # a Mozilla application (which includes running tests).
 
     use_main = False
-    inherited_options = ['verbose', 'enable_e10s', 'parseable', 'check_memory',
-                         'abort_on_missing']
+    inherited_options = ['verbose', 'enable_e10s', 'parseable', 'check_memory']
     enforce_timeouts = False
 
     if command == "xpi":
@@ -752,9 +746,9 @@ def run(arguments=sys.argv[1:], target_cfg=None, pkg_cfg=None,
         if ":" in options.filter:
             test_filter_re = options.filter.split(":")[0]
     try:
-        manifest = build_manifest(target_cfg, pkg_cfg, deps, scan_tests,
-                                  test_filter_re, loader_modules,
-                                  abort_on_missing=options.abort_on_missing)
+        manifest = build_manifest(target_cfg, pkg_cfg, deps,
+                                  scan_tests, test_filter_re,
+                                  loader_modules)
     except ModuleNotFoundError, e:
         print str(e)
         sys.exit(1)
@@ -792,10 +786,6 @@ def run(arguments=sys.argv[1:], target_cfg=None, pkg_cfg=None,
     if os.getcwd() == env_root:
         options.bundle_sdk = True
         options.force_use_bundled_sdk = False
-        options.overload_modules = True
-
-    if options.pkgdir == env_root:
-        options.bundle_sdk = True
         options.overload_modules = True
 
     extra_environment = {}

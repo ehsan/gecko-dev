@@ -1595,7 +1595,6 @@ var BrowserApp = {
           type: "Search:Keyword",
           identifier: engine.identifier,
           name: engine.name,
-          query: aData
         });
         break;
 

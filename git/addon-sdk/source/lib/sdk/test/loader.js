@@ -19,7 +19,7 @@ function CustomLoader(module, globals, packaging, overrides={}) {
   options = override(options, {
     id: overrides.id || options.id,
     globals: override(defaultGlobals, globals || {}),
-    modules: override(override(options.modules || {}, overrides.modules || {}), {
+    modules: override(options.modules || {}, {
       'sdk/addon/window': addonWindow
     })
   });
@@ -31,8 +31,6 @@ function CustomLoader(module, globals, packaging, overrides={}) {
     require: Require(loader, module),
     sandbox: function(id) {
       let requirement = loader.resolve(id, module.id);
-      if (!requirement)
-        requirement = id;
       let uri = resolveURI(requirement, loader.mapping);
       return loader.sandboxes[uri];
     },
@@ -75,13 +73,13 @@ exports.LoaderWithHookedConsole = function (module, callback) {
   return {
     loader: CustomLoader(module, {
       console: new HookedPlainTextConsole(hook, null, null)
-    }, null, {
+    }, override(require("@loader/options"), {
       modules: {
         'sdk/console/plain-text': {
           PlainTextConsole: HookedPlainTextConsole.bind(null, hook)
         }
       }
-    }),
+    })),
     messages: messages
   };
 }
@@ -114,11 +112,11 @@ exports.LoaderWithFilteredConsole = function (module, callback) {
 
   return CustomLoader(module, {
     console: new HookedPlainTextConsole(hook, null, null)
-  }, null, {
+  }, override(require("@loader/options"), {
     modules: {
       'sdk/console/plain-text': {
         PlainTextConsole: HookedPlainTextConsole.bind(null, hook)
       }
     }
-  });
+  }));
 }

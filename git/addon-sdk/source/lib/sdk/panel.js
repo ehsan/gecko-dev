@@ -73,8 +73,7 @@ let panelContract = contract(merge({
   }),
   contentStyleFile: merge(Object.create(loaderContract.rules.contentScriptFile), {
     msg: 'The `contentStyleFile` option must be a local URL or an array of URLs'
-  }),
-  contextMenu: boolean
+  })
 }, displayContract.rules, loaderContract.rules));
 
 
@@ -135,7 +134,6 @@ const Panel = Class({
       defaultHeight: 240,
       focus: true,
       position: Object.freeze({}),
-      contextMenu: false
     }, panelContract(options));
     models.set(this, model);
 
@@ -153,9 +151,6 @@ const Panel = Class({
 
     // Load panel content.
     domPanel.setURL(view, model.contentURL);
-    
-    // Allow context menu
-    domPanel.allowContextMenu(view, model.contextMenu);
 
     setupAutoHide(this);
 
@@ -193,15 +188,7 @@ const Panel = Class({
 
   /* Public API: Panel.position */
   get position() modelFor(this).position,
-  
-  /* Public API: Panel.contextMenu */
-  get contextMenu() modelFor(this).contextMenu,
-  set contextMenu(allow) {
-    let model = modelFor(this);
-    model.contextMenu = panelContract({ contextMenu: allow }).contextMenu;
-    domPanel.allowContextMenu(viewFor(this), model.contextMenu);
-  },
-    
+
   get contentURL() modelFor(this).contentURL,
   set contentURL(value) {
     let model = modelFor(this);
@@ -239,8 +226,7 @@ const Panel = Class({
       height: model.height,
       defaultWidth: model.defaultWidth,
       defaultHeight: model.defaultHeight,
-      focus: model.focus,
-      contextMenu: model.contextMenu
+      focus: model.focus
     }, displayContract(options));
 
     if (!isDisposed(this))

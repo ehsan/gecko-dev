@@ -120,7 +120,8 @@ js::intrinsic_ThrowError(JSContext *cx, unsigned argc, Value *vp)
     uint32_t errorNumber = args[0].toInt32();
 
 #ifdef DEBUG
-    const JSErrorFormatString *efs = js_GetErrorMessage(nullptr, errorNumber);
+    const JSErrorFormatString *efs =
+        js_GetLocalizedErrorMessage(cx, nullptr, nullptr, errorNumber);
     JS_ASSERT(efs->argCount == args.length() - 1);
 #endif
 

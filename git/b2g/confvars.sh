@@ -68,5 +68,3 @@ MOZ_BUNDLED_FONTS=1
 
 # Enable exact rooting on b2g.
 JSGC_USE_EXACT_ROOTING=1
-
-JS_GC_SMALL_CHUNK_SIZE=1

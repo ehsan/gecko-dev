@@ -10,7 +10,7 @@
 
 #include "libyuv/cpu_id.h"
 
-#if defined(_MSC_VER) && !defined(__clang__)
+#ifdef _MSC_VER
 #include <intrin.h>  // For __cpuidex()
 #endif
 #if !defined(__pnacl__) && !defined(__CLR_VER) && \
@@ -48,7 +48,7 @@ extern "C" {
     defined(__i386__) || defined(__x86_64__))
 LIBYUV_API
 void CpuId(uint32 info_eax, uint32 info_ecx, uint32* cpu_info) {
-#if defined(_MSC_VER) && !defined(__clang__)
+#if defined(_MSC_VER)
 #if (_MSC_FULL_VER >= 160040219)
   __cpuidex((int*)(cpu_info), info_eax, info_ecx);
 #elif defined(_M_IX86)
