@@ -6,7 +6,8 @@ let toolbox;
 function test() {
   addTab("about:blank", function() {
     let target = TargetFactory.forTab(gBrowser.selectedTab);
-    gDevTools.showToolbox(target, "webconsole").then(testSelect);
+    toolbox = gDevTools.openToolbox(target, "bottom", "webconsole");
+    toolbox.once("ready", testSelect);
   });
 }
 
@@ -17,9 +18,7 @@ let called = {
   //jsdebugger: false,
 }
 
-function testSelect(aToolbox) {
-  toolbox = aToolbox;
-
+function testSelect() {
   info("Toolbox fired a `ready` event");
 
   toolbox.on("select", selectCB);

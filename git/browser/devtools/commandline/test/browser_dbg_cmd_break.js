@@ -40,8 +40,9 @@ function testBreakCommands() {
   });
 
   let target = TargetFactory.forTab(gBrowser.selectedTab);
-  gDevTools.showToolbox(target, "jsdebugger").then(function(toolbox) {
-    let dbg = toolbox.getCurrentPanel();
+  let toolbox = gDevTools.openToolboxForTab(target, "jsdebugger");
+  toolbox.once("jsdebugger-ready", function dbgReady() {
+    let dbg = gDevTools.getPanelForTarget("jsdebugger", target);
     ok(dbg, "DebuggerPanel exists");
     dbg.once("connected", function() {
       // Wait for the initial resume...

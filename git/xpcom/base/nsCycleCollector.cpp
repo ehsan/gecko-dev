@@ -2955,18 +2955,14 @@ nsCycleCollector::SuspectedCount()
 void
 nsCycleCollector::Shutdown()
 {
-#ifndef DEBUG
-#ifndef DEBUG_CC
-    if (PR_GetEnv("XPCOM_CC_RUN_DURING_SHUTDOWN"))
-#endif
-#endif
-    {
-        nsCOMPtr<nsCycleCollectorLogger> listener;
-        if (mParams.mLogGraphs) {
-            listener = new nsCycleCollectorLogger();
-        }
-        Collect(false, nullptr,  SHUTDOWN_COLLECTIONS(mParams), listener);
+    // Here we want to run a final collection and then permanently
+    // disable the collector because the program is shutting down.
+
+    nsCOMPtr<nsCycleCollectorLogger> listener;
+    if (mParams.mLogGraphs) {
+        listener = new nsCycleCollectorLogger();
     }
+    Collect(false, nullptr, SHUTDOWN_COLLECTIONS(mParams), listener);
 
 #ifdef DEBUG_CC
     GCGraphBuilder builder(mGraph, mJSRuntime, nullptr, false);

@@ -146,8 +146,9 @@ function test() {
 
   function setupTest() {
     var target = TargetFactory.forTab(gBrowser.selectedTab);
-    gDevTools.showToolbox(target, "inspector").then(function(toolbox) {
-      inspector = toolbox.getCurrentPanel();
+    let toolbox = gDevTools.openToolboxForTab(target, "inspector");
+    toolbox.once("inspector-selected", function BIMMT_selected(id, aInspector) {
+      inspector = aInspector;
       startTests();
     });
   }

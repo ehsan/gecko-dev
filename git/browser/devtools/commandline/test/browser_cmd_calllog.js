@@ -72,7 +72,6 @@ function testCallLogExec() {
       typed: "console close",
       args: {},
       blankOutput: true,
-      completed: false,
     });
   });
 

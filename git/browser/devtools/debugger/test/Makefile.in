@@ -66,7 +66,6 @@ MOCHITEST_BROWSER_TESTS = \
 	browser_dbg_scripts-searching-06.js \
 	browser_dbg_scripts-searching-07.js \
 	browser_dbg_scripts-searching-08.js \
-	browser_dbg_scripts-searching-files_ui.js \
 	browser_dbg_scripts-searching-popup.js \
 	browser_dbg_pause-resume.js \
 	browser_dbg_update-editor-mode.js \
@@ -88,7 +87,7 @@ MOCHITEST_BROWSER_TESTS = \
 	browser_dbg_breakpoint-new-script.js \
 	browser_dbg_bug737803_editor_actual_location.js \
 	browser_dbg_progress-listener-bug.js \
-	$(filter disabled-for-intermittent-crashes--bug-821701, browser_dbg_chrome-debugging.js) \
+	browser_dbg_chrome-debugging.js \
 	$(filter disabled-for-intermittent-failures--bug-753225, browser_dbg_createRemote.js) \
 	head.js \
 	$(NULL)

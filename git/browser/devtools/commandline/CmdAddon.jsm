@@ -135,13 +135,11 @@ gcli.addCommand({
       }
 
       // Map and sort the add-ons, and create an HTML list.
-      let message = header +
-                    "<ol>" +
-                    enabledAddons.sort(compareAddonNames).map(representEnabledAddon).join("") +
-                    disabledAddons.sort(compareAddonNames).map(representDisabledAddon).join("") +
-                    "</ol>";
-
-      this.resolve(context.createView({ html: message }));
+      this.resolve(header +
+        "<ol>" +
+        enabledAddons.sort(compareAddonNames).map(representEnabledAddon).join("") +
+        disabledAddons.sort(compareAddonNames).map(representDisabledAddon).join("") +
+        "</ol>");
     }
 
     // Create the promise that will be resolved when the add-on listing has
@@ -233,15 +231,16 @@ AddonManager.getAllAddons(function addonAsync(aAddons) {
         });
 
         let name = representAddon(addon);
-        let message = "";
 
         if (!addon.userDisabled) {
-          message = gcli.lookupFormat("addonAlreadyEnabled", [name]);
+          this.resolve("<![CDATA[" +
+            gcli.lookupFormat("addonAlreadyEnabled", [name]) + "]]>");
         } else {
           addon.userDisabled = false;
-          message = gcli.lookupFormat("addonEnabled", [name]);
+          // nl-nl: {$1} is ingeschakeld.
+          this.resolve("<![CDATA[" +
+            gcli.lookupFormat("addonEnabled", [name]) + "]]>");
         }
-        this.resolve(message);
       }
 
       let promise = context.createPromise();
@@ -275,15 +274,16 @@ AddonManager.getAllAddons(function addonAsync(aAddons) {
         });
 
         let name = representAddon(addon);
-        let message = "";
 
         if (addon.userDisabled) {
-          message = gcli.lookupFormat("addonAlreadyDisabled", [name]);
+          this.resolve("<![CDATA[" +
+            gcli.lookupFormat("addonAlreadyDisabled", [name]) + "]]>");
         } else {
           addon.userDisabled = true;
-          message = gcli.lookupFormat("addonDisabled", [name]);
+          // nl-nl: {$1} is uitgeschakeld.
+          this.resolve("<![CDATA[" +
+            gcli.lookupFormat("addonDisabled", [name]) + "]]>");
         }
-        this.resolve(message);
       }
 
       let promise = context.createPromise();

@@ -24,7 +24,7 @@ function test() {
     inspector.markDirty();
 
     let target = TargetFactory.forTab(gBrowser.selectedTab);
-    let toolbox = gDevTools.getToolbox(target);
+    let toolbox = gDevTools.getToolboxForTarget(target);
     notificationBox = toolbox.getNotificationBox();
     notificationBox.addEventListener("AlertActive", alertActive1, false);
 
@@ -59,7 +59,7 @@ function test() {
     is(para.textContent, "init", "paragraph content is correct");
 
     let target = TargetFactory.forTab(gBrowser.selectedTab);
-    let inspector = gDevTools.getToolbox(target).getPanel("inspector");
+    let inspector = gDevTools.getPanelForTarget("inspector", target);
     ok(inspector, "Inspector still alive");
 
     notificationBox.addEventListener("AlertActive", alertActive2, false);

@@ -44,7 +44,6 @@ gcli.addCommand({
   name: "tilt toggle",
   buttonId: "command-button-tilt",
   buttonClass: "command-button  devtools-toolbarbutton",
-  tooltipText: gcli.lookup("tiltToggleTooltip"),
   hidden: true,
   exec: function(args, context) {
     let chromeWindow = context.environment.chromeDocument.defaultView;

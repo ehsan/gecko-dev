@@ -67,8 +67,10 @@ function test() {
     ok(node, "node found");
 
     let target = TargetFactory.forTab(gBrowser.selectedTab);
-    gDevTools.showToolbox(target, "inspector").then(function(toolbox) {
-      openLayoutView(toolbox.getCurrentPanel());
+    let toolbox = gDevTools.openToolboxForTab(target, "inspector");
+    toolbox.once("inspector-ready", function(event, panel) {
+      let inspector = gDevTools.getPanelForTarget("inspector", target);
+      openLayoutView(inspector);
     });
   }
 

@@ -10,11 +10,7 @@ function test() {
   addTab(TEST_URI);
   browser.addEventListener("load", function onLoad() {
     browser.removeEventListener("load", onLoad, true);
-    openConsole(null, function(hud) {
-      executeSoon(function() {
-        testViewSource(hud);
-      });
-    });
+    openConsole(null, testViewSource);
   }, true);
 }
 

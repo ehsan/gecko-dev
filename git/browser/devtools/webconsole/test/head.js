@@ -12,8 +12,6 @@ Cu.import("resource:///modules/devtools/gDevTools.jsm", tempScope);
 let gDevTools = tempScope.gDevTools;
 Cu.import("resource:///modules/devtools/Target.jsm", tempScope);
 let TargetFactory = tempScope.TargetFactory;
-Components.utils.import("resource:///modules/devtools/Console.jsm", tempScope);
-let console = tempScope.console;
 
 const WEBCONSOLE_STRINGS_URI = "chrome://browser/locale/devtools/webconsole.properties";
 let WCU_l10n = new WebConsoleUtils.l10n(WEBCONSOLE_STRINGS_URI);
@@ -141,10 +139,22 @@ function findLogEntry(aString)
  */
 function openConsole(aTab, aCallback = function() { })
 {
+  function onWebConsoleOpen(aEvent, aPanel)
+  {
+    executeSoon(aCallback.bind(null, aPanel.hud));
+  }
+
   let target = TargetFactory.forTab(aTab || tab);
-  gDevTools.showToolbox(target, "webconsole").then(function(toolbox) {
-    aCallback(toolbox.getCurrentPanel().hud);
-  });
+  let toolbox = gDevTools.getToolboxForTarget(target);
+  if (toolbox) {
+    toolbox.once("webconsole-selected", onWebConsoleOpen);
+    toolbox.selectTool("webconsole");
+  }
+  else {
+    let target = TargetFactory.forTab(aTab || tab);
+    toolbox = gDevTools.openToolboxForTab(target, "webconsole");
+    toolbox.once("webconsole-selected", onWebConsoleOpen);
+  }
 }
 
 /**
@@ -160,18 +170,20 @@ function openConsole(aTab, aCallback = function() { })
 function closeConsole(aTab, aCallback = function() { })
 {
   let target = TargetFactory.forTab(aTab || tab);
-  let toolbox = gDevTools.getToolbox(target);
+  let toolbox = gDevTools.getToolboxForTarget(target);
   if (toolbox) {
-    let panel = toolbox.getPanel("webconsole");
+    let panel = gDevTools.getPanelForTarget("webconsole", target);
     if (panel) {
       let hudId = panel.hud.hudId;
-      toolbox.destroy().then(function() {
+      panel.once("destroyed", function() {
         executeSoon(aCallback.bind(null, hudId));
-      }).then(null, console.error);
+      });
     }
     else {
-      toolbox.destroy().then(aCallback.bind(null));
+      toolbox.once("destroyed", aCallback.bind(null, null));
     }
+
+    toolbox.destroy();
   }
   else {
     aCallback();
@@ -309,7 +321,13 @@ function waitForSuccess(aOptions)
 function openInspector(aCallback, aTab = gBrowser.selectedTab)
 {
   let target = TargetFactory.forTab(aTab);
-  gDevTools.showToolbox(target, "inspector").then(function(toolbox) {
-    aCallback(toolbox.getCurrentPanel());
-  });
+  let inspector = gDevTools.getPanelForTarget("inspector", target);
+  if (inspector && inspector.isReady) {
+    aCallback(inspector);
+  } else {
+    let toolbox = gDevTools.openToolboxForTab(target, "inspector");
+    toolbox.once("inspector-ready", function _onSelect(aEvent, aPanel) {
+      aCallback(aPanel);
+    });
+  }
 }

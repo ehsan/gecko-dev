@@ -65,7 +65,6 @@ VariablesView.prototype = {
    */
   addScope: function VV_addScope(aName = "") {
     this._removeEmptyNotice();
-    this._toggleSearch(true);
 
     let scope = new Scope(this, aName);
     this._store.set(scope.id, scope);
@@ -101,7 +100,6 @@ VariablesView.prototype = {
 
     this._store = new Map();
     this._appendEmptyNotice();
-    this._toggleSearch(false);
   },
 
   /**
@@ -135,7 +133,6 @@ VariablesView.prototype = {
 
       if (!this._store.size) {
         this._appendEmptyNotice();
-        this._toggleSearch(false);
       }
     }.bind(this), aTimeout);
   },
@@ -190,14 +187,13 @@ VariablesView.prototype = {
       return;
     }
     let document = this.document;
-    let ownerView = this._parent.parentNode;
+    let parent = this._parent;
 
     let container = this._searchboxContainer = document.createElement("hbox");
     container.className = "devtools-toolbar";
-    container.hidden = !this._store.size;
 
     let searchbox = this._searchboxNode = document.createElement("textbox");
-    searchbox.className = "variables-searchinput devtools-searchinput";
+    searchbox.className = "devtools-searchinput";
     searchbox.setAttribute("placeholder", this._searchboxPlaceholder);
     searchbox.setAttribute("type", "search");
     searchbox.setAttribute("flex", "1");
@@ -205,7 +201,7 @@ VariablesView.prototype = {
     searchbox.addEventListener("keypress", this._onSearchboxKeyPress, false);
 
     container.appendChild(searchbox);
-    ownerView.insertBefore(container, this._parent);
+    parent.insertBefore(container, parent.firstChild);
   },
 
   /**
@@ -216,26 +212,12 @@ VariablesView.prototype = {
     if (!this._searchboxContainer) {
       return;
     }
-    this._searchboxContainer.parentNode.removeChild(this._searchboxContainer);
+    this._parent.removeChild(this._searchboxContainer);
     this._searchboxNode.addEventListener("input", this._onSearchboxInput, false);
     this._searchboxNode.addEventListener("keypress", this._onSearchboxKeyPress, false);
 
     this._searchboxContainer = null;
     this._searchboxNode = null;
-  },
-
-  /**
-   * Sets the variables searchbox hidden or visible. It's hidden by default.
-   *
-   * @param boolean aVisibleFlag
-   *        Specifies the intended visibility.
-   */
-  _toggleSearch: function VV__toggleSearch(aVisibleFlag) {
-    // If searching was already disabled, there's no need to hide it.
-    if (!this._searchboxContainer) {
-      return;
-    }
-    this._searchboxContainer.hidden = !aVisibleFlag;
   },
 
   /**
@@ -677,13 +659,6 @@ Scope.prototype = {
    * @param boolean aFlag
    */
   set twisty(aFlag) aFlag ? this.showArrow() : this.hideArrow(),
-
-  /**
-   * Specifies if the configurable/enumerable/writable tooltip should be shown
-   * whenever a variable or property descriptor is available.
-   * This flag applies non-recursively to the current scope.
-   */
-  showDescriptorTooltip: true,
 
   /**
    * Specifies if editing variable or property names is allowed.
@@ -1281,27 +1256,26 @@ create({ constructor: Variable, proto: Scope.prototype }, {
     this._target.removeEventListener("mouseover", this._displayTooltip, false);
     let document = this.document;
 
-    if (this.ownerView.showDescriptorTooltip) {
-      let tooltip = document.createElement("tooltip");
-      tooltip.id = "tooltip-" + this.id;
+    let tooltip = document.createElement("tooltip");
+    tooltip.id = "tooltip-" + this.id;
 
-      let configurableLabel = document.createElement("label");
-      configurableLabel.setAttribute("value", "configurable");
+    let configurableLabel = document.createElement("label");
+    configurableLabel.setAttribute("value", "configurable");
 
-      let enumerableLabel = document.createElement("label");
-      enumerableLabel.setAttribute("value", "enumerable");
+    let enumerableLabel = document.createElement("label");
+    enumerableLabel.setAttribute("value", "enumerable");
 
-      let writableLabel = document.createElement("label");
-      writableLabel.setAttribute("value", "writable");
+    let writableLabel = document.createElement("label");
+    writableLabel.setAttribute("value", "writable");
 
-      tooltip.setAttribute("orient", "horizontal")
-      tooltip.appendChild(configurableLabel);
-      tooltip.appendChild(enumerableLabel);
-      tooltip.appendChild(writableLabel);
+    tooltip.setAttribute("orient", "horizontal")
+    tooltip.appendChild(configurableLabel);
+    tooltip.appendChild(enumerableLabel);
+    tooltip.appendChild(writableLabel);
 
-      this._target.appendChild(tooltip);
-      this._target.setAttribute("tooltip", tooltip.id);
-    }
+    this._target.appendChild(tooltip);
+    this._target.setAttribute("tooltip", tooltip.id);
+
     if (this.ownerView.allowNameInput) {
       this._name.setAttribute("tooltiptext", L10N.getStr("variablesEditableNameTooltip"));
     }

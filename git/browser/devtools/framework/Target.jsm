@@ -6,11 +6,10 @@
 
 this.EXPORTED_SYMBOLS = [ "TargetFactory" ];
 
-const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
-
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://gre/modules/commonjs/promise/core.js");
+const Cu = Components.utils;
+const Ci = Components.interfaces;
 Cu.import("resource:///modules/devtools/EventEmitter.jsm");
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 
 const targets = new WeakMap();
@@ -185,10 +184,6 @@ TabTarget.prototype = {
     return this._tab;
   },
 
-  get window() {
-    return this._tab.linkedBrowser.contentWindow;
-  },
-
   get name() {
     return this._tab.linkedBrowser.contentDocument.title;
   },
@@ -229,25 +224,24 @@ TabTarget.prototype = {
     }
   },
 
+
   /**
    * Target is not alive anymore.
    */
   destroy: function() {
-    if (!this._destroyed) {
-      this._destroyed = true;
-
-      this.tab.linkedBrowser.removeProgressListener(this._webProgressListener)
-      this._webProgressListener.target = null;
-      this._webProgressListener = null;
-      this.tab.removeEventListener("TabClose", this);
-      this.tab.parentNode.removeEventListener("TabSelect", this);
-      this.emit("close");
-
-      targets.delete(this._tab);
-      this._tab = null;
+    if (this._destroyed) {
+      return;
     }
+    this.tab.linkedBrowser.removeProgressListener(this._webProgressListener)
+    this._webProgressListener.target = null;
+    this._webProgressListener = null;
+    this.tab.removeEventListener("TabClose", this);
+    this.tab.parentNode.removeEventListener("TabSelect", this);
+    this._destroyed = true;
+    this.emit("close");
 
-    return Promise.resolve(null);
+    targets.delete(this._tab);
+    this._tab = null;
   },
 
   toString: function() {
@@ -329,22 +323,6 @@ WindowTarget.prototype = {
     return false;
   },
 
-  /**
-   * Target is not alive anymore.
-   */
-  destroy: function() {
-    if (!this._destroyed) {
-      this._destroyed = true;
-
-      this.emit("close");
-
-      targets.delete(this._window);
-      this._window = null;
-    }
-
-    return Promise.resolve(null);
-  },
-
   toString: function() {
     return 'WindowTarget:' + this.window;
   },
@@ -388,25 +366,17 @@ RemoteTarget.prototype = {
    * Target is not alive anymore.
    */
   destroy: function RT_destroy() {
-    // If several things call destroy then we give them all the same
-    // destruction promise so we're sure to destroy only once
-    if (this._destroyer) {
-      return this._destroyer.promise;
+    if (this._destroyed) {
+      return;
     }
-
-    this._destroyer = Promise.defer();
-
     this.client.removeListener("tabNavigated", this._onTabNavigated);
     this.client.removeListener("tabDetached", this.destroy);
 
     this._client.close(function onClosed() {
       this._client = null;
+      this._destroyed = true;
       this.emit("close");
-
-      this._destroyer.resolve(null);
     }.bind(this));
-
-    return this._destroyer.promise;
   },
 
   toString: function() {

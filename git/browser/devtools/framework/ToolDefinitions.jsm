@@ -18,7 +18,6 @@ const inspectorProps = "chrome://browser/locale/devtools/inspector.properties";
 const debuggerProps = "chrome://browser/locale/devtools/debugger.properties";
 const styleEditorProps = "chrome://browser/locale/devtools/styleeditor.properties";
 const webConsoleProps = "chrome://browser/locale/devtools/webconsole.properties";
-const profilerProps = "chrome://browser/locale/devtools/profiler.properties";
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
@@ -40,9 +39,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "StyleEditorPanel",
 XPCOMUtils.defineLazyModuleGetter(this, "InspectorPanel",
   "resource:///modules/devtools/InspectorPanel.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "ProfilerPanel",
-  "resource:///modules/devtools/ProfilerPanel.jsm");
-
 // Strings
 XPCOMUtils.defineLazyGetter(this, "webConsoleStrings",
   function() Services.strings.createBundle(webConsoleProps));
@@ -55,9 +51,6 @@ XPCOMUtils.defineLazyGetter(this, "styleEditorStrings",
 
 XPCOMUtils.defineLazyGetter(this, "inspectorStrings",
   function() Services.strings.createBundle(inspectorProps));
-
-XPCOMUtils.defineLazyGetter(this, "profilerStrings",
-  function() Services.strings.createBundle(profilerProps));
 
 // Definitions
 let webConsoleDefinition = {
@@ -73,8 +66,7 @@ let webConsoleDefinition = {
     return true;
   },
   build: function(iframeWindow, toolbox) {
-    let panel = new WebConsolePanel(iframeWindow, toolbox);
-    return panel.open();
+    return new WebConsolePanel(iframeWindow, toolbox);
   }
 };
 
@@ -94,8 +86,7 @@ let debuggerDefinition = {
   },
 
   build: function(iframeWindow, toolbox) {
-    let panel = new DebuggerPanel(iframeWindow, toolbox);
-    return panel.open();
+    return new DebuggerPanel(iframeWindow, toolbox);
   }
 };
 
@@ -114,8 +105,7 @@ let inspectorDefinition = {
   },
 
   build: function(iframeWindow, toolbox) {
-    let panel = new InspectorPanel(iframeWindow, toolbox);
-    return panel.open();
+    return new InspectorPanel(iframeWindow, toolbox);
   }
 };
 
@@ -133,32 +123,9 @@ let styleEditorDefinition = {
   },
 
   build: function(iframeWindow, toolbox) {
-    let panel = new StyleEditorPanel(iframeWindow, toolbox);
-    return panel.open();
+    return new StyleEditorPanel(iframeWindow, toolbox);
   }
 };
-
-let profilerDefinition = {
-  id: "jsprofiler",
-  killswitch: "devtools.profiler.enabled",
-  icon: "chrome://browser/skin/devtools/tools-icons-small.png",
-  url: "chrome://browser/content/profiler.xul",
-  label: l10n("profiler.label", profilerStrings),
-
-  isTargetSupported: function (target) {
-    if (target.isRemote || target.isChrome) {
-      return false;
-    }
-
-    return true;
-  },
-
-  build: function (frame, target) {
-    let panel = new ProfilerPanel(frame, target);
-    return panel.open();
-  }
-};
-
 
 this.defaultTools = [
   styleEditorDefinition,
@@ -166,10 +133,6 @@ this.defaultTools = [
   debuggerDefinition,
   inspectorDefinition,
 ];
-
-if (Services.prefs.getBoolPref("devtools.profiler.enabled")) {
-  defaultTools.push(profilerDefinition);
-}
 
 /**
  * Lookup l10n string from a string bundle.
