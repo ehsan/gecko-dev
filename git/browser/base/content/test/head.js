@@ -278,10 +278,10 @@ let FullZoomHelper = {
     }
     if (tab)
       gBrowser.selectedTab = tab;
-    Services.obs.addObserver(function obs() {
-      Services.obs.removeObserver(obs, "browser-fullZoom:locationChange");
+    Services.obs.addObserver(function obs(subj, topic, data) {
+      Services.obs.removeObserver(obs, topic);
       deferred.resolve();
-    }, "browser-fullZoom:locationChange", false);
+    }, "FullZoom:TESTS:location-change", false);
     return deferred.promise;
   },
 

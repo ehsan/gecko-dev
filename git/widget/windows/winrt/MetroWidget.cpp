@@ -997,16 +997,16 @@ void MetroWidget::UserActivity()
   }
 }
 
+// InitEvent assumes physical coordinates and is used by shared win32 code. Do
+// not hand winrt event coordinates to this routine.
 void
 MetroWidget::InitEvent(nsGUIEvent& event, nsIntPoint* aPoint)
 {
   if (!aPoint) {
     event.refPoint.x = event.refPoint.y = 0;
   } else {
-    CSSIntPoint cssPoint(aPoint->x, aPoint->y);
-    LayoutDeviceIntPoint layoutDeviceIntPoint = CSSIntPointToLayoutDeviceIntPoint(cssPoint);
-    event.refPoint.x = layoutDeviceIntPoint.x;
-    event.refPoint.y = layoutDeviceIntPoint.y;
+    event.refPoint.x = aPoint->x;
+    event.refPoint.y = aPoint->y;
   }
   event.time = ::GetMessageTime();
 }
@@ -1329,14 +1329,6 @@ MetroWidget::HasPendingInputEvent()
 }
 
 // GeckoContentController interface impl
-
-#include "nsIBrowserDOMWindow.h"
-#include "nsIWebNavigation.h"
-#include "nsIDocShellTreeItem.h"
-#include "nsIDOMWindow.h"
-#include "nsIDOMChromeWindow.h"
-#include "nsIWindowMediator.h"
-#include "nsIInterfaceRequestorUtils.h"
 
 class RequestContentRepaintEvent : public nsRunnable
 {
