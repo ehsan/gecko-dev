@@ -88,7 +88,7 @@ nsXBLProtoImpl::InstallImplementation(nsXBLPrototypeBinding* aPrototypeBinding,
   JSAutoCompartment ac(cx, scopeObject);
 
   // If they're different, create our safe holder object in the XBL scope.
-  JS::Rooted<JSObject*> propertyHolder(cx);
+  JS::RootedObject propertyHolder(cx);
   if (scopeObject != globalObject) {
 
     // This is just a property holder, so it doesn't need any special JSClass.
@@ -247,7 +247,7 @@ nsXBLProtoImpl::CompilePrototypeMembers(nsXBLPrototypeBinding* aBinding)
 
 bool
 nsXBLProtoImpl::LookupMember(JSContext* aCx, nsString& aName,
-                             JS::Handle<jsid> aNameAsId,
+                             JS::HandleId aNameAsId,
                              JS::MutableHandle<JSPropertyDescriptor> aDesc,
                              JSObject* aClassObject)
 {

@@ -56,7 +56,8 @@ class MacIOAutoObservation : public IOInterposeObserver::Observation
 public:
   MacIOAutoObservation(IOInterposeObserver::Operation aOp,
                        const char* aReference, int aFd)
-    : mShouldObserve(sIsEnabled && IOInterposer::IsObservedOperation(aOp) &&
+    : mFd(aFd),
+      mShouldObserve(sIsEnabled && IOInterposer::IsObservedOperation(aOp) &&
                      !IsDebugFile(aFd))
   {
     if (mShouldObserve) {
@@ -69,7 +70,8 @@ public:
   MacIOAutoObservation(IOInterposeObserver::Operation aOp,
                        const char* aReference, int aFd, const void *aBuf,
                        size_t aCount)
-    : mShouldObserve(sIsEnabled && IOInterposer::IsObservedOperation(aOp) &&
+    : mFd(aFd),
+      mShouldObserve(sIsEnabled && IOInterposer::IsObservedOperation(aOp) &&
                      !IsDebugFile(aFd))
   {
     if (mShouldObserve) {
@@ -93,6 +95,7 @@ public:
   }
 
 private:
+  int                 mFd;
   bool                mShouldObserve;
 };
 

@@ -1544,15 +1544,5 @@ bool AsyncPanZoomController::Matches(const ScrollableLayerGuid& aGuid)
   return aGuid.mLayersId == mLayersId && aGuid.mScrollId == mFrameMetrics.mScrollId;
 }
 
-void AsyncPanZoomController::GetGuid(ScrollableLayerGuid* aGuidOut)
-{
-  if (!aGuidOut) {
-    return;
-  }
-  aGuidOut->mLayersId = mLayersId;
-  aGuidOut->mScrollId = mFrameMetrics.mScrollId;
-  aGuidOut->mPresShellId = mFrameMetrics.mPresShellId;
-}
-
 }
 }

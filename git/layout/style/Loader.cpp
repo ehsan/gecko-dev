@@ -1234,7 +1234,7 @@ Loader::CreateSheet(nsIURI* aURI,
  * well as setting the enabled state based on the title and whether
  * the sheet had "alternate" in its rel.
  */
-void
+nsresult
 Loader::PrepareSheet(nsCSSStyleSheet* aSheet,
                      const nsSubstring& aTitle,
                      const nsSubstring& aMediaString,
@@ -1244,18 +1244,22 @@ Loader::PrepareSheet(nsCSSStyleSheet* aSheet,
 {
   NS_PRECONDITION(aSheet, "Must have a sheet!");
 
+  nsresult rv;
   nsRefPtr<nsMediaList> mediaList(aMediaList);
 
   if (!aMediaString.IsEmpty()) {
     NS_ASSERTION(!aMediaList,
                  "must not provide both aMediaString and aMediaList");
     mediaList = new nsMediaList();
+    NS_ENSURE_TRUE(mediaList, NS_ERROR_OUT_OF_MEMORY);
 
     nsCSSParser mediumParser(this);
 
     // We have aMediaString only when linked from link elements, style
     // elements, or PIs, so pass true.
-    mediumParser.ParseMediaList(aMediaString, nullptr, 0, mediaList, true);
+    rv = mediumParser.ParseMediaList(aMediaString, nullptr, 0, mediaList,
+                                     true);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   aSheet->SetMedia(mediaList);
@@ -1263,6 +1267,7 @@ Loader::PrepareSheet(nsCSSStyleSheet* aSheet,
   aSheet->SetTitle(aTitle);
   aSheet->SetEnabled(! isAlternate);
   aSheet->SetScopeElement(aScopeElement);
+  return NS_OK;
 }
 
 /**
@@ -1885,7 +1890,9 @@ Loader::LoadInlineStyle(nsIContent* aElement,
 
   LOG(("  Sheet is alternate: %d", *aIsAlternate));
 
-  PrepareSheet(sheet, aTitle, aMedia, nullptr, aScopeElement, *aIsAlternate);
+  rv = PrepareSheet(sheet, aTitle, aMedia, nullptr, aScopeElement,
+                    *aIsAlternate);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   rv = InsertSheetInDoc(sheet, aElement, mDocument);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -1957,7 +1964,8 @@ Loader::LoadStyleLink(nsIContent* aElement,
 
   LOG(("  Sheet is alternate: %d", *aIsAlternate));
 
-  PrepareSheet(sheet, aTitle, aMedia, nullptr, nullptr, *aIsAlternate);
+  rv = PrepareSheet(sheet, aTitle, aMedia, nullptr, nullptr, *aIsAlternate);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   rv = InsertSheetInDoc(sheet, aElement, mDocument);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -2114,7 +2122,8 @@ Loader::LoadChildSheet(nsCSSStyleSheet* aParentSheet,
                    false, empty, state, &isAlternate, getter_AddRefs(sheet));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  PrepareSheet(sheet, empty, empty, aMedia, nullptr, isAlternate);
+  rv = PrepareSheet(sheet, empty, empty, aMedia, nullptr, isAlternate);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   rv = InsertChildSheet(sheet, aParentSheet, aParentRule);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -2224,7 +2233,8 @@ Loader::InternalLoadNonDocumentSheet(nsIURI* aURL,
                    empty, state, &isAlternate, getter_AddRefs(sheet));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  PrepareSheet(sheet, empty, empty, nullptr, nullptr, isAlternate);
+  rv = PrepareSheet(sheet, empty, empty, nullptr, nullptr, isAlternate);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   if (state == eSheetComplete) {
     LOG(("  Sheet already complete"));

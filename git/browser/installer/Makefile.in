@@ -79,7 +79,7 @@ ifdef MOZ_PKG_MANIFEST_P
 MOZ_PKG_MANIFEST = package-manifest
 
 $(MOZ_PKG_MANIFEST): $(MOZ_PKG_MANIFEST_P) $(GLOBAL_DEPS)
-	$(call py_action,preprocessor,$(DEFINES) $(ACDEFINES) $< -o $@)
+	$(PYTHON) $(topsrcdir)/config/Preprocessor.py $(DEFINES) $(ACDEFINES) $< > $@
 
 GARBAGE += $(MOZ_PKG_MANIFEST)
 endif

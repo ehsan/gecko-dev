@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -168,14 +167,10 @@ nsDOMDataTransfer::SetEffectAllowed(const nsAString& aEffectAllowed)
     return NS_OK;
   }
 
-  static_assert(nsIDragService::DRAGDROP_ACTION_NONE == 0,
-                "DRAGDROP_ACTION_NONE constant is wrong");
-  static_assert(nsIDragService::DRAGDROP_ACTION_COPY == 1,
-                "DRAGDROP_ACTION_COPY constant is wrong");
-  static_assert(nsIDragService::DRAGDROP_ACTION_MOVE == 2,
-                "DRAGDROP_ACTION_MOVE constant is wrong");
-  static_assert(nsIDragService::DRAGDROP_ACTION_LINK == 4,
-                "DRAGDROP_ACTION_LINK constant is wrong");
+  PR_STATIC_ASSERT(nsIDragService::DRAGDROP_ACTION_NONE == 0);
+  PR_STATIC_ASSERT(nsIDragService::DRAGDROP_ACTION_COPY == 1);
+  PR_STATIC_ASSERT(nsIDragService::DRAGDROP_ACTION_MOVE == 2);
+  PR_STATIC_ASSERT(nsIDragService::DRAGDROP_ACTION_LINK == 4);
 
   for (uint32_t e = 0; e < ArrayLength(sEffects); e++) {
     if (aEffectAllowed.EqualsASCII(sEffects[e])) {

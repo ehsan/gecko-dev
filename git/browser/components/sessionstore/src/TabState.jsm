@@ -27,10 +27,6 @@ this.TabState = Object.freeze({
     TabStateInternal.setSyncHandler(browser, handler);
   },
 
-  onSwapDocShells: function (browser, otherBrowser) {
-    TabStateInternal.onSwapDocShells(browser, otherBrowser);
-  },
-
   collect: function (tab) {
     return TabStateInternal.collect(tab);
   },

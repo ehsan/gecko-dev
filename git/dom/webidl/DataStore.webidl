@@ -24,10 +24,10 @@ interface DataStore : EventTarget {
   Promise get(sequence<unsigned long> id);
 
   // Promise<void>
-  Promise put(any obj, unsigned long id);
+  Promise update(unsigned long id, any obj);
 
   // Promise<unsigned long>
-  Promise add(any obj, optional unsigned long id);
+  Promise add(any obj);
 
   // Promise<boolean>
   Promise remove(unsigned long id);
@@ -39,10 +39,20 @@ interface DataStore : EventTarget {
 
   attribute EventHandler onchange;
 
+  // Promise<DataStoreChanges>
+  Promise getChanges(DOMString revisionId);
+
   // Promise<unsigned long>
   Promise getLength();
 
   DataStoreCursor sync(optional DOMString revisionId = "");
+};
+
+dictionary DataStoreChanges {
+  DOMString revisionId;
+  sequence<unsigned long> addedIds;
+  sequence<unsigned long> updatedIds;
+  sequence<unsigned long> removedIds;
 };
 
 [Pref="dom.datastore.enabled",

@@ -10,7 +10,7 @@ import sys
 
 from os.path import relpath
 
-from mozbuild.preprocessor import Preprocessor
+from Preprocessor import Preprocessor
 
 from ..util import (
     ensureParentDir,

@@ -2008,7 +2008,7 @@ TypedDatum::obj_deleteElement(JSContext *cx, HandleObject obj, uint32_t index,
                                bool *succeeded)
 {
     RootedId id(cx);
-    if (!IndexToId(cx, index, id.address()))
+    if (!IndexToId(cx, index, &id))
         return false;
 
     if (IsOwnId(cx, obj, id))
@@ -2169,7 +2169,6 @@ const Class TypedObject::class_ = {
         TypedDatum::obj_deleteProperty,
         TypedDatum::obj_deleteElement,
         TypedDatum::obj_deleteSpecial,
-        nullptr, nullptr, // watch/unwatch
         TypedDatum::obj_enumerate,
         nullptr, /* thisObject */
     }
@@ -2260,7 +2259,6 @@ const Class TypedHandle::class_ = {
         TypedDatum::obj_deleteProperty,
         TypedDatum::obj_deleteElement,
         TypedDatum::obj_deleteSpecial,
-        nullptr, nullptr, // watch/unwatch
         TypedDatum::obj_enumerate,
         nullptr, /* thisObject */
     }

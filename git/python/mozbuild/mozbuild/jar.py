@@ -22,7 +22,7 @@ from mozbuild.util import (
     PushbackIter,
 )
 
-from mozbuild.preprocessor import Preprocessor
+from Preprocessor import Preprocessor
 from mozbuild.action.buildlist import addEntriesToListFile
 if sys.platform == 'win32':
     from ctypes import windll, WinError

@@ -24,12 +24,9 @@ using layers::PlanarYCbCrData;
 
 // Verify these values are sane. Once we've checked the frame sizes, we then
 // can do less integer overflow checking.
-static_assert(MAX_VIDEO_WIDTH < PlanarYCbCrImage::MAX_DIMENSION,
-              "MAX_VIDEO_WIDTH is too large");
-static_assert(MAX_VIDEO_HEIGHT < PlanarYCbCrImage::MAX_DIMENSION,
-              "MAX_VIDEO_HEIGHT is too large");
-static_assert(PlanarYCbCrImage::MAX_DIMENSION < UINT32_MAX / PlanarYCbCrImage::MAX_DIMENSION,
-              "MAX_DIMENSION*MAX_DIMENSION doesn't fit in 32 bits");
+PR_STATIC_ASSERT(MAX_VIDEO_WIDTH < PlanarYCbCrImage::MAX_DIMENSION);
+PR_STATIC_ASSERT(MAX_VIDEO_HEIGHT < PlanarYCbCrImage::MAX_DIMENSION);
+PR_STATIC_ASSERT(PlanarYCbCrImage::MAX_DIMENSION < UINT32_MAX / PlanarYCbCrImage::MAX_DIMENSION);
 
 // Un-comment to enable logging of seek bisections.
 //#define SEEK_LOGGING
