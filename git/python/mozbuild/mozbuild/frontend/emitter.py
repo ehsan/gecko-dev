@@ -668,9 +668,6 @@ class TreeMetadataEmitter(LoggingMixin):
                 shared_lib = True
                 shared_args['variant'] = SharedLibrary.FRAMEWORK
 
-            if not static_lib and not shared_lib:
-                static_lib = True
-
             if static_name:
                 if not static_lib:
                     raise SandboxValidationError(
@@ -690,6 +687,9 @@ class TreeMetadataEmitter(LoggingMixin):
                     raise SandboxValidationError(
                         'SONAME requires FORCE_SHARED_LIB', context)
                 shared_args['soname'] = soname
+
+            if not static_lib and not shared_lib:
+                static_lib = True
 
             # If both a shared and a static library are created, only the
             # shared library is meant to be a SDK library.

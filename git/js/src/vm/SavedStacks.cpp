@@ -16,7 +16,6 @@
 #include "jshashutil.h"
 #include "jsmath.h"
 #include "jsnum.h"
-#include "prmjtime.h"
 
 #include "gc/Marking.h"
 #include "js/Vector.h"
@@ -809,7 +808,7 @@ SavedStacksMetadataCallback(JSContext *cx, JSObject **pmetadata)
         return false;
     *pmetadata = frame;
 
-    return Debugger::onLogAllocationSite(cx, frame, PRMJ_Now());
+    return Debugger::onLogAllocationSite(cx, frame);
 }
 
 #ifdef JS_CRASH_DIAGNOSTICS

@@ -74,7 +74,10 @@ size_t HRTFPanner::sizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) cons
 {
     size_t amount = aMallocSizeOf(this);
 
-    // NB: m_databaseLoader can be shared, so it is not measured here
+    if (m_databaseLoader) {
+        m_databaseLoader->sizeOfIncludingThis(aMallocSizeOf);
+    }
+
     amount += m_convolverL1.sizeOfExcludingThis(aMallocSizeOf);
     amount += m_convolverR1.sizeOfExcludingThis(aMallocSizeOf);
     amount += m_convolverL2.sizeOfExcludingThis(aMallocSizeOf);

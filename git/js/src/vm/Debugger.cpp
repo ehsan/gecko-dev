@@ -1514,7 +1514,7 @@ Debugger::slowPathOnNewGlobalObject(JSContext *cx, Handle<GlobalObject *> global
 }
 
 /* static */ bool
-Debugger::slowPathOnLogAllocationSite(JSContext *cx, HandleSavedFrame frame, int64_t when,
+Debugger::slowPathOnLogAllocationSite(JSContext *cx, HandleSavedFrame frame,
                                       GlobalObject::DebuggerVector &dbgs)
 {
     MOZ_ASSERT(!dbgs.empty());
@@ -1527,7 +1527,7 @@ Debugger::slowPathOnLogAllocationSite(JSContext *cx, HandleSavedFrame frame, int
 
         if ((*dbgp)->trackingAllocationSites &&
             (*dbgp)->enabled &&
-            !(*dbgp)->appendAllocationSite(cx, frame, when))
+            !(*dbgp)->appendAllocationSite(cx, frame))
         {
             return false;
         }
@@ -1537,14 +1537,14 @@ Debugger::slowPathOnLogAllocationSite(JSContext *cx, HandleSavedFrame frame, int
 }
 
 bool
-Debugger::appendAllocationSite(JSContext *cx, HandleSavedFrame frame, int64_t when)
+Debugger::appendAllocationSite(JSContext *cx, HandleSavedFrame frame)
 {
     AutoCompartment ac(cx, object);
     RootedObject wrapped(cx, frame);
     if (!cx->compartment()->wrap(cx, &wrapped))
         return false;
 
-    AllocationSite *allocSite = cx->new_<AllocationSite>(wrapped, when);
+    AllocationSite *allocSite = cx->new_<AllocationSite>(wrapped);
     if (!allocSite)
         return false;
 
