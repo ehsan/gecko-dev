@@ -66,7 +66,7 @@ public:
 #endif
 
   // nsISVGChildFrame interface:
-  NS_IMETHOD PaintSVG(nsSVGRenderState* aContext, const nsIntRect *aDirtyRect);
+  NS_IMETHOD PaintSVG(nsSVGRenderState* aContext, nsIntRect *aDirtyRect);
   NS_IMETHODIMP_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint);
   NS_IMETHODIMP_(nsRect) GetCoveredRegion();
   NS_IMETHOD UpdateCoveredRegion();
@@ -100,8 +100,7 @@ nsSVGSwitchFrame::GetType() const
 }
 
 NS_IMETHODIMP
-nsSVGSwitchFrame::PaintSVG(nsSVGRenderState* aContext,
-                           const nsIntRect *aDirtyRect)
+nsSVGSwitchFrame::PaintSVG(nsSVGRenderState* aContext, nsIntRect *aDirtyRect)
 {
   const nsStyleDisplay *display = mStyleContext->GetStyleDisplay();
   if (display->mOpacity == 0.0)
@@ -109,7 +108,7 @@ nsSVGSwitchFrame::PaintSVG(nsSVGRenderState* aContext,
 
   nsIFrame *kid = GetActiveChildFrame();
   if (kid) {
-    nsSVGUtils::PaintFrameWithEffects(aContext, aDirtyRect, kid);
+    nsSVGUtils::PaintChildWithEffects(aContext, aDirtyRect, kid);
   }
   return NS_OK;
 }

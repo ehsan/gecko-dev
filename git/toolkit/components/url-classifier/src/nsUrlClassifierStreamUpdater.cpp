@@ -144,14 +144,6 @@ nsUrlClassifierStreamUpdater::FetchUpdate(nsIURI *aUpdateUrl,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  // Set the appropriate content type for file/data URIs, for unit testing
-  // purposes.
-  PRBool match;
-  if ((NS_SUCCEEDED(aUpdateUrl->SchemeIs("file", &match)) && match) ||
-      (NS_SUCCEEDED(aUpdateUrl->SchemeIs("data", &match)) && match)) {
-    mChannel->SetContentType(NS_LITERAL_CSTRING("application/vnd.google.safebrowsing-update"));
-  }
-
   // Make the request
   rv = mChannel->AsyncOpen(this, nsnull);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -255,9 +247,8 @@ nsUrlClassifierStreamUpdater::UpdateUrlRequested(const nsACString &aUrl,
   if (!update)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  // Allow data: and file: urls for unit testing purposes, otherwise assume http
-  if (StringBeginsWith(aUrl, NS_LITERAL_CSTRING("data:")) ||
-      StringBeginsWith(aUrl, NS_LITERAL_CSTRING("file:"))) {
+  // Allow data: urls for unit testing purposes, otherwise assume http
+  if (StringBeginsWith(aUrl, NS_LITERAL_CSTRING("data:"))) {
     update->mUrl = aUrl;
   } else {
     update->mUrl = NS_LITERAL_CSTRING("http://") + aUrl;

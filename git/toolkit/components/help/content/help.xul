@@ -182,8 +182,9 @@
         <toolbarspring flex="1"/>
         <toolbaritem id="search-box"
                      align="center" pack="center">
-          <textbox id="findText" type="search" emptytext="&search.emptytext;"
-                   oncommand="doFind();"/>
+          <label value="&searchtab.label;" accesskey="&searchtab.accesskey;" 
+                 control="findText"/>
+          <textbox id="findText" type="search" oncommand="doFind();"/>
         </toolbaritem>
       </toolbar>
     </toolbox>
@@ -233,8 +234,10 @@
         </vbox>
         <vbox id="help-search-sidebar" hidden="true" flex="1">
           <sidebarheader align="center">
-            <label id="help-search-sidebar-header" flex="1" crop="end"
-                   value="&searchHeader.label;"/>
+            <label id="help-search-sidebar-header" flex="1" crop="end" value="&searchtab.label;"/>
+            <toolbarbutton id="search-sidebar-closebutton"
+                           tooltiptext="&searchClose.tooltip;"
+                           oncommand="hideSearchSidebar();"/>
           </sidebarheader>
           <tree id="help-search-tree" class="focusring"
                 flex="1" hidecolumnpicker="true"

@@ -112,8 +112,9 @@ NS_IMPL_ADDREF(nsContentAreaDragDrop)
 NS_IMPL_RELEASE(nsContentAreaDragDrop)
 
 NS_INTERFACE_MAP_BEGIN(nsContentAreaDragDrop)
-    NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMEventListener)
-    NS_INTERFACE_MAP_ENTRY(nsIDOMEventListener)
+    NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMDragListener)
+    NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsIDOMEventListener, nsIDOMDragListener)
+    NS_INTERFACE_MAP_ENTRY(nsIDOMDragListener)
     NS_INTERFACE_MAP_ENTRY(nsIDragDropHandler)
 NS_INTERFACE_MAP_END
 
@@ -179,7 +180,7 @@ private:
 // nsContentAreaDragDrop ctor
 //
 nsContentAreaDragDrop::nsContentAreaDragDrop()
-  : mNavigator(nsnull)
+  : mListenerInstalled(PR_FALSE), mNavigator(nsnull)
 {
 } // ctor
 
@@ -199,7 +200,9 @@ nsContentAreaDragDrop::HookupTo(nsIDOMEventTarget *inAttachPoint,
                                 nsIWebNavigation* inNavigator)
 {
   NS_ASSERTION(inAttachPoint, "Can't hookup Drag Listeners to NULL receiver");
-  mEventTarget = inAttachPoint;
+  mEventTarget = do_QueryInterface(inAttachPoint);
+  NS_ASSERTION(mEventTarget,
+               "Target doesn't implement nsPIDOMEventTarget as needed");
   mNavigator = inNavigator;
 
   return AddDragListener();
@@ -221,16 +224,17 @@ nsContentAreaDragDrop::Detach()
 nsresult
 nsContentAreaDragDrop::AddDragListener()
 {
+  nsresult rv = NS_ERROR_FAILURE;
+
   if (mEventTarget) {
-    nsresult rv = mEventTarget->AddEventListener(NS_LITERAL_STRING("dragover"),
-                                                 this, PR_FALSE);
-    NS_ENSURE_SUCCESS(rv, rv);
-    rv = mEventTarget->AddEventListener(NS_LITERAL_STRING("drop"), this,
-                                        PR_FALSE);
-    NS_ENSURE_SUCCESS(rv, rv);
+    nsIDOMDragListener *pListener = static_cast<nsIDOMDragListener *>(this);
+    rv = mEventTarget->AddEventListenerByIID(pListener,
+                                             NS_GET_IID(nsIDOMDragListener));
+    if (NS_SUCCEEDED(rv))
+      mListenerInstalled = PR_TRUE;
   }
 
-  return NS_OK;
+  return rv;
 }
 
 
@@ -242,17 +246,33 @@ nsContentAreaDragDrop::AddDragListener()
 nsresult
 nsContentAreaDragDrop::RemoveDragListener()
 {
+  nsresult rv = NS_ERROR_FAILURE;
+
   if (mEventTarget) {
-    nsresult rv =
-      mEventTarget->RemoveEventListener(NS_LITERAL_STRING("dragover"), this,
-                                        PR_FALSE);
-    NS_ENSURE_SUCCESS(rv, rv);
-    rv = mEventTarget->RemoveEventListener(NS_LITERAL_STRING("drop"), this,
-                                           PR_FALSE);
-    NS_ENSURE_SUCCESS(rv, rv);
+    nsIDOMDragListener *pListener = static_cast<nsIDOMDragListener *>(this);
+    rv =
+      mEventTarget->RemoveEventListenerByIID(pListener,
+                                             NS_GET_IID(nsIDOMDragListener));
+    if (NS_SUCCEEDED(rv))
+      mListenerInstalled = PR_FALSE;
     mEventTarget = nsnull;
   }
 
+  return rv;
+}
+
+
+
+//
+// DragEnter
+//
+// Called when an OS drag is in process and the mouse enters a gecko
+// window. We don't care so much about dragEnters.
+//
+NS_IMETHODIMP
+nsContentAreaDragDrop::DragEnter(nsIDOMEvent* aMouseEvent)
+{
+  // nothing really to do here.
   return NS_OK;
 }
 
@@ -267,8 +287,8 @@ nsContentAreaDragDrop::RemoveDragListener()
 // does is show feedback, it doesn't actually cancel the drop; that
 // comes later.
 //
-nsresult
-nsContentAreaDragDrop::DragOver(nsIDOMDragEvent* inEvent)
+NS_IMETHODIMP
+nsContentAreaDragDrop::DragOver(nsIDOMEvent* inEvent)
 {
   // first check that someone hasn't already handled this event
   PRBool preventDefault = PR_TRUE;
@@ -334,6 +354,36 @@ nsContentAreaDragDrop::DragOver(nsIDOMDragEvent* inEvent)
 
 
 //
+// DragExit
+//
+// Called when an OS drag is in process and the mouse is over a gecko
+// window. We don't care so much about dragExits.
+//
+NS_IMETHODIMP
+nsContentAreaDragDrop::DragExit(nsIDOMEvent* aMouseEvent)
+{
+  // nothing really to do here.
+  return NS_OK;
+}
+
+
+NS_IMETHODIMP
+nsContentAreaDragDrop::Drag(nsIDOMEvent* aMouseEvent)
+{
+  // nothing really to do here.
+  return NS_OK;
+}
+
+
+NS_IMETHODIMP
+nsContentAreaDragDrop::DragEnd(nsIDOMEvent* aMouseEvent)
+{
+  // nothing really to do here.
+  return NS_OK;
+}
+
+
+//
 // ExtractURLFromData
 //
 // build up a url from whatever data we get from the OS. How we
@@ -390,14 +440,14 @@ nsContentAreaDragDrop::ExtractURLFromData(const nsACString & inFlavor,
 
 
 //
-// drop
+// DragDrop
 //
 // Called when an OS drag is in process and the mouse is released a
 // gecko window.  Extract the data from the OS and do something with
 // it.
 //
-nsresult
-nsContentAreaDragDrop::Drop(nsIDOMDragEvent* inDragEvent)
+NS_IMETHODIMP
+nsContentAreaDragDrop::DragDrop(nsIDOMEvent* inMouseEvent)
 {
   // if we don't have a nsIWebNavigation object to do anything with,
   // just bail. The client will have to have another way to deal with it
@@ -407,7 +457,7 @@ nsContentAreaDragDrop::Drop(nsIDOMDragEvent* inDragEvent)
 
   // check that someone hasn't already handled this event
   PRBool preventDefault = PR_TRUE;
-  nsCOMPtr<nsIDOMNSUIEvent> nsuiEvent(do_QueryInterface(inDragEvent));
+  nsCOMPtr<nsIDOMNSUIEvent> nsuiEvent(do_QueryInterface(inMouseEvent));
   if (nsuiEvent) {
     nsuiEvent->GetPreventDefault(&preventDefault);
   }
@@ -472,7 +522,7 @@ nsContentAreaDragDrop::Drop(nsIDOMDragEvent* inDragEvent)
         if (NS_FAILED(rv)) {
           // Security check failed, stop event propagation right here
           // and return the error.
-          inDragEvent->StopPropagation();
+          inMouseEvent->StopPropagation();
 
           return rv;
         }
@@ -549,6 +599,14 @@ nsContentAreaDragDrop::GetEventDocument(nsIDOMEvent* inEvent,
   }
 }
 
+//
+// DragGesture
+//
+NS_IMETHODIMP
+nsContentAreaDragDrop::DragGesture(nsIDOMEvent* inMouseEvent)
+{
+  return NS_OK;
+}
 
 nsresult
 nsContentAreaDragDrop::GetDragData(nsIDOMWindow* aWindow,
@@ -573,18 +631,8 @@ nsContentAreaDragDrop::GetDragData(nsIDOMWindow* aWindow,
 NS_IMETHODIMP
 nsContentAreaDragDrop::HandleEvent(nsIDOMEvent *event)
 {
-  // make sure it's a drag event
-  nsCOMPtr<nsIDOMDragEvent> dragEvent = do_QueryInterface(event);
-  if (dragEvent) {
-    nsAutoString eventType;
-    event->GetType(eventType);
-    if (eventType.EqualsLiteral("dragover"))
-      return DragOver(dragEvent);
-    if (eventType.EqualsLiteral("drop"))
-      return Drop(dragEvent);
-  }
-
   return NS_OK;
+
 }
 
 #if 0

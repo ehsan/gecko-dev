@@ -151,7 +151,7 @@ protected:
   nsresult HandleEventSubType(nsListenerStruct* aListenerStruct,
                               nsIDOMEventListener* aListener,
                               nsIDOMEvent* aDOMEvent,
-                              nsPIDOMEventTarget* aCurrentTarget,
+                              nsISupports* aCurrentTarget,
                               PRUint32 aPhaseFlags);
   nsresult CompileEventHandlerInternal(nsIScriptContext *aContext,
                                        void *aScopeObject,
@@ -191,10 +191,14 @@ protected:
                          nsIPresShell *aPresShell, nsPoint& aTargetPt);
   nsresult GetDOM2EventGroup(nsIDOMEventGroup** aGroup);
   PRBool ListenerCanHandle(nsListenerStruct* aLs, nsEvent* aEvent);
-  nsPIDOMWindow* GetInnerWindowForTarget();
 
   nsAutoTObserverArray<nsListenerStruct, 2> mListeners;
   nsISupports*                              mTarget;  //WEAK
+  PRUint32                                  mMayHaveMutationListeners : 1;
+  // These two member variables are used to cache the information
+  // about the last event which was handled but for which event listener manager
+  // didn't have event listeners.
+  PRUint32                                  mNoListenerForEvent : 31;
   nsCOMPtr<nsIAtom>                         mNoListenerForEventAtom;
 
   static PRUint32                           mInstanceCount;

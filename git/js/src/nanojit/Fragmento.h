@@ -54,6 +54,7 @@ namespace nanojit
     struct PageHeader
     {
         struct Page *next;
+        verbose_only (int seq;) // sequence # of page
     };
     struct Page: public PageHeader
     {
@@ -100,11 +101,11 @@ namespace nanojit
 			Page*		pageAlloc();
 			void		pageFree(Page* page);
 			
+			Fragment*   newLoop(const void* ip);
             Fragment*   getLoop(const void* ip);
-            Fragment*   getAnchor(const void* ip);
 			void        clearFrags();	// clear all fragments from the cache
             Fragment*   getMerge(GuardRecord *lr, const void* ip);
-            Fragment*   createBranch(SideExit *exit, const void* ip);
+            Fragment*   createBranch(GuardRecord *lr, const void* ip);
             Fragment*   newFrag(const void* ip);
             Fragment*   newBranch(Fragment *from, const void* ip);
 
@@ -144,13 +145,13 @@ namespace nanojit
 			DWB(Assembler*)		_assm;
 			DWB(FragmentMap*)	_frags;		/* map from ip -> Fragment ptr  */
 			Page*			_pageList;
+            uint32_t        _pageGrowth;
 
 			/* unmanaged mem */
 			AllocList	_allocList;
 			GCHeap*		_gcHeap;
 
 			const uint32_t _max_pages;
-			uint32_t _pagesGrowth;
 	};
 
 	enum TraceKind {
@@ -178,7 +179,15 @@ namespace nanojit
 			int32_t&		hits()							{ return _hits; }
             void            blacklist();
 			bool			isBlacklisted()		{ return _hits < 0; }
+			void			resetLinks();
+			void			addLink(GuardRecord* lnk);
+			void			removeLink(GuardRecord* lnk);
+			void			link(Assembler* assm);
+			void			linkBranches(Assembler* assm);
+			void			unlink(Assembler* assm);
+			void			unlinkBranches(Assembler* assm);
 			debug_only( bool hasOnlyTreeLinks(); )
+			void			removeIntraLinks();
 			void			releaseLirBuffer();
 			void			releaseCode(Fragmento* frago);
 			void			releaseTreeMem(Fragmento* frago);
@@ -209,7 +218,8 @@ namespace nanojit
 			DWB(BlockHist*) mergeCounts;
             DWB(LirBuffer*) lirbuf;
 			LIns*			lastIns;
-			SideExit*       spawnedFrom;
+			LIns*		spawnedFrom;
+			GuardRecord*	outbound;
 			
 			TraceKind kind;
 			const void* ip;
@@ -226,5 +236,18 @@ namespace nanojit
 			int32_t			_hits;
 			Page*			_pages;		// native code pages 
 	};
+	
+#ifdef NJ_VERBOSE
+	inline int nbr(LInsp x) 
+	{
+        Page *p = x->page();
+        return (p->seq * NJ_PAGE_SIZE + (intptr_t(x)-intptr_t(p))) / sizeof(LIns);
+	}
+#else
+    inline int nbr(LInsp x)
+    {
+        return (int)(intptr_t(x) & intptr_t(NJ_PAGE_SIZE-1));
+    }
+#endif
 }
 #endif // __nanojit_Fragmento__

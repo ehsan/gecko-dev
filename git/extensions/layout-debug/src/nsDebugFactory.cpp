@@ -50,6 +50,8 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsRegressionTester)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsLayoutDebuggingTools)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsLayoutDebugCLH)
 
+#ifdef MOZ_XUL_APP
+
 static NS_IMETHODIMP
 RegisterCommandLineHandlers(nsIComponentManager* compMgr, nsIFile* path,
                             const char *location, const char *type,
@@ -82,6 +84,8 @@ UnregisterCommandLineHandlers(nsIComponentManager* compMgr, nsIFile *path,
   return NS_OK;
 }
 
+#endif
+
 static const nsModuleComponentInfo components[] =
 {
   { "nsRegressionTester",
@@ -98,8 +102,13 @@ static const nsModuleComponentInfo components[] =
     NS_LAYOUTDEBUGCLH_CID,
     "@mozilla.org/commandlinehandler/general-startup;1?type=layoutdebug",
     nsLayoutDebugCLHConstructor,
+#ifdef MOZ_XUL_APP
     RegisterCommandLineHandlers,
     UnregisterCommandLineHandlers
+#else
+    nsLayoutDebugCLH::RegisterProc,
+    nsLayoutDebugCLH::UnregisterProc
+#endif
   }
 };
 

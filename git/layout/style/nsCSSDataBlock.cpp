@@ -470,10 +470,10 @@ nsCSSCompressedDataBlock::Clone() const
                         // fall through to keep gcc's uninitialized
                         // variable warning quiet
                     case eCSSType_ValueList:
-                        copy = ValueListAtCursor(cursor)->Clone();
+                        copy = new nsCSSValueList(*ValueListAtCursor(cursor));
                         break;
                     case eCSSType_ValuePairList:
-                        copy = ValuePairListAtCursor(cursor)->Clone();
+                        copy = new nsCSSValuePairList(*ValuePairListAtCursor(cursor));
                         break;
                 }
                 if (!copy) {

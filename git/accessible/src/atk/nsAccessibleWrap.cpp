@@ -371,7 +371,7 @@ NS_IMETHODIMP nsAccessibleWrap::GetNativeInterface(void **aOutAccessible)
     *aOutAccessible = nsnull;
 
     if (!mAtkObject) {
-        if (!mWeakShell || !nsAccUtils::IsEmbeddedObject(this)) {
+        if (!mWeakShell || !IsEmbeddedObject(this)) {
             // We don't create ATK objects for node which has been shutdown, or
             // nsIAccessible plain text leaves
             return NS_ERROR_FAILURE;
@@ -477,7 +477,7 @@ nsAccessibleWrap::CreateMaiInterfaces(void)
        interfacesBits |= 1 << MAI_INTERFACE_HYPERLINK_IMPL;
     }
 
-    if (!nsAccUtils::MustPrune(this)) {  // These interfaces require children
+    if (!MustPrune(this)) {  // These interfaces require children
       //nsIAccessibleHypertext
       nsCOMPtr<nsIAccessibleHyperText> accessInterfaceHypertext;
       QueryInterface(NS_GET_IID(nsIAccessibleHyperText),
@@ -770,8 +770,7 @@ getRoleCB(AtkObject *aAtkObj)
     }
 
 #ifdef DEBUG_A11Y
-    NS_ASSERTION(nsAccUtils::IsTextInterfaceSupportCorrect(accWrap),
-                 "Does not support nsIAccessibleText when it should");
+    NS_ASSERTION(nsAccessible::IsTextInterfaceSupportCorrect(accWrap), "Does not support nsIAccessibleText when it should");
 #endif
 
     if (aAtkObj->role == ATK_ROLE_INVALID) {
@@ -881,7 +880,7 @@ gint
 getChildCountCB(AtkObject *aAtkObj)
 {
     nsAccessibleWrap *accWrap = GetAccessibleWrap(aAtkObj);
-    if (!accWrap || nsAccUtils::MustPrune(accWrap)) {
+    if (!accWrap || nsAccessibleWrap::MustPrune(accWrap)) {
         return 0;
     }
 
@@ -915,7 +914,7 @@ refChildCB(AtkObject *aAtkObj, gint aChildIndex)
     // or we should cache an array of children in each nsAccessible
     // (instead of mNextSibling on the children)
     nsAccessibleWrap *accWrap = GetAccessibleWrap(aAtkObj);
-    if (!accWrap || nsAccUtils::MustPrune(accWrap)) {
+    if (!accWrap || nsAccessibleWrap::MustPrune(accWrap)) {
         return nsnull;
     }
 
@@ -981,7 +980,7 @@ getIndexInParentCB(AtkObject *aAtkObj)
       if (!sibling) {
           return -1;
       }
-      if (nsAccUtils::IsEmbeddedObject(sibling)) {
+      if (nsAccessible::IsEmbeddedObject(sibling)) {
         ++ currentIndex;
       }
 

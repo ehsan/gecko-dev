@@ -275,11 +275,23 @@ struct nsBorderColors {
   nsBorderColors* mNext;
   nscolor mColor;
 
-  nsBorderColors() : mNext(nsnull), mColor(NS_RGB(0,0,0)) {}
-  nsBorderColors(const nscolor& aColor) : mNext(nsnull), mColor(aColor) {}
-  ~nsBorderColors();
+  nsBorderColors* CopyColors() {
+    nsBorderColors* next = nsnull;
+    if (mNext)
+      next = mNext->CopyColors();
+    return new nsBorderColors(mColor, next);
+  }
 
-  nsBorderColors* Clone() const { return Clone(PR_TRUE); }
+  nsBorderColors() :mNext(nsnull) { mColor = NS_RGB(0,0,0); }
+
+  nsBorderColors(const nscolor& aColor, nsBorderColors* aNext=nsnull) {
+    mColor = aColor;
+    mNext = aNext;
+  }
+
+  ~nsBorderColors() {
+    delete mNext;
+  }
 
   static PRBool Equal(const nsBorderColors* c1,
                       const nsBorderColors* c2) {
@@ -295,9 +307,6 @@ struct nsBorderColors {
     // has more colors than another
     return !c1 && !c2;
   }
-
-private:
-  nsBorderColors* Clone(PRBool aDeep) const;
 };
 
 struct nsCSSShadowItem {
@@ -803,7 +812,7 @@ struct nsStyleText {
   }
 
   PRBool WordCanWrap() const {
-    return WhiteSpaceCanWrap() && mWordWrap == NS_STYLE_WORDWRAP_BREAK_WORD;
+    return mWordWrap == NS_STYLE_WORDWRAP_BREAK_WORD;
   }
 };
 
@@ -1232,7 +1241,6 @@ struct nsStyleUIReset {
   PRUint8   mUserSelect;      // [reset] (selection-style)
   PRUint8   mForceBrokenImageIcon; // [reset]  (0 if not forcing, otherwise forcing)
   PRUint8   mIMEMode;         // [reset]
-  PRUint8   mWindowShadow;    // [reset]
 };
 
 struct nsCursorImage {

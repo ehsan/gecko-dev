@@ -163,10 +163,12 @@ nsDOMAttributeMap::DropAttribute(PRInt32 aNamespaceID, nsIAtom* aLocalName)
 }
 
 nsresult
-nsDOMAttributeMap::RemoveAttribute(nsINodeInfo* aNodeInfo, nsIDOMNode** aReturn)
+nsDOMAttributeMap::GetAttribute(nsINodeInfo* aNodeInfo,
+                                nsIDOMNode** aReturn,
+                                PRBool aRemove)
 {
-  NS_ASSERTION(aNodeInfo, "RemoveAttribute() called with aNodeInfo == nsnull!");
-  NS_ASSERTION(aReturn, "RemoveAttribute() called with aReturn == nsnull");
+  NS_ASSERTION(aNodeInfo, "GetAttribute() called with aNodeInfo == nsnull!");
+  NS_ASSERTION(aReturn, "GetAttribute() called with aReturn == nsnull");
 
   *aReturn = nsnull;
 
@@ -174,16 +176,22 @@ nsDOMAttributeMap::RemoveAttribute(nsINodeInfo* aNodeInfo, nsIDOMNode** aReturn)
 
   if (!mAttributeCache.Get(attr, aReturn)) {
     nsAutoString value;
-    // As we are removing the attribute we need to set the current value in
-    // the attribute node.
-    mContent->GetAttr(aNodeInfo->NamespaceID(), aNodeInfo->NameAtom(), value);
-    nsCOMPtr<nsIDOMNode> newAttr = new nsDOMAttribute(nsnull, aNodeInfo, value);
+    if (aRemove) {
+      // As we are removing the attribute we need to set the current value in
+      // the attribute node.
+      mContent->GetAttr(aNodeInfo->NamespaceID(), aNodeInfo->NameAtom(), value);
+    }
+    nsCOMPtr<nsIDOMNode> newAttr = new nsDOMAttribute(aRemove ? nsnull : this,
+                                                      aNodeInfo, value);
     if (!newAttr) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+    if (!aRemove && !mAttributeCache.Put(attr, newAttr)) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
     newAttr.swap(*aReturn);
   }
-  else {
+  else if (aRemove) {
     nsCOMPtr<nsIAttribute> iAttr(do_QueryInterface(*aReturn));
     NS_ASSERTION(iAttr, "non-nsIAttribute somehow made it into the hashmap?!");
 
@@ -195,25 +203,6 @@ nsDOMAttributeMap::RemoveAttribute(nsINodeInfo* aNodeInfo, nsIDOMNode** aReturn)
   }
 
   return NS_OK;
-}
-
-nsIDOMNode*
-nsDOMAttributeMap::GetAttribute(nsINodeInfo* aNodeInfo)
-{
-  NS_ASSERTION(aNodeInfo, "GetAttribute() called with aNodeInfo == nsnull!");
-
-  nsAttrKey attr(aNodeInfo->NamespaceID(), aNodeInfo->NameAtom());
-
-  nsIDOMNode* node = mAttributeCache.GetWeak(attr);
-  if (!node) {
-    nsCOMPtr<nsIDOMNode> newAttr =
-      new nsDOMAttribute(this, aNodeInfo, EmptyString());
-    if (newAttr && mAttributeCache.Put(attr, newAttr)) {
-      node = newAttr;
-    }
-  }
-
-  return node;
 }
 
 NS_IMETHODIMP
@@ -305,7 +294,7 @@ nsDOMAttributeMap::SetNamedItemInternal(nsIDOMNode *aNode,
       ni = iAttribute->NodeInfo();
 
       if (mContent->HasAttr(ni->NamespaceID(), ni->NameAtom())) {
-        rv = RemoveAttribute(ni, getter_AddRefs(tmpReturn));
+        rv = GetAttribute(ni, getter_AddRefs(tmpReturn), PR_TRUE);
         NS_ENSURE_SUCCESS(rv, rv);
       }
     }
@@ -315,7 +304,7 @@ nsDOMAttributeMap::SetNamedItemInternal(nsIDOMNode *aNode,
       // get node-info of old attribute
       ni = mContent->GetExistingAttrNameFromQName(name);
       if (ni) {
-        rv = RemoveAttribute(ni, getter_AddRefs(tmpReturn));
+        rv = GetAttribute(ni, getter_AddRefs(tmpReturn), PR_TRUE);
         NS_ENSURE_SUCCESS(rv, rv);
       }
       else {
@@ -385,12 +374,10 @@ nsDOMAttributeMap::RemoveNamedItem(const nsAString& aName,
 }
 
 
-nsIDOMNode*
-nsDOMAttributeMap::GetItemAt(PRUint32 aIndex, nsresult *aResult)
+NS_IMETHODIMP
+nsDOMAttributeMap::Item(PRUint32 aIndex, nsIDOMNode** aReturn)
 {
-  *aResult = NS_OK;
-
-  nsIDOMNode* node = nsnull;
+  NS_ENSURE_ARG_POINTER(aReturn);
 
   const nsAttrName* name;
   if (mContent && (name = mContent->GetAttrNameAt(aIndex))) {
@@ -399,23 +386,14 @@ nsDOMAttributeMap::GetItemAt(PRUint32 aIndex, nsresult *aResult)
     nsCOMPtr<nsINodeInfo> ni;
     ni = mContent->NodeInfo()->NodeInfoManager()->
       GetNodeInfo(name->LocalName(), name->GetPrefix(), name->NamespaceID());
-    if (ni) {
-      node = GetAttribute(ni);
-    }
-    if (!node) {
-      *aResult = NS_ERROR_OUT_OF_MEMORY;
-    }
+    NS_ENSURE_TRUE(ni, NS_ERROR_OUT_OF_MEMORY);
+
+    return GetAttribute(ni, aReturn);
   }
 
-  return node;
-}
+  *aReturn = nsnull;
 
-NS_IMETHODIMP
-nsDOMAttributeMap::Item(PRUint32 aIndex, nsIDOMNode** aReturn)
-{
-  nsresult rv;
-  NS_IF_ADDREF(*aReturn = GetItemAt(aIndex, &rv));
-  return rv;
+  return NS_OK;
 }
 
 nsresult
@@ -479,7 +457,7 @@ nsDOMAttributeMap::GetNamedItemNSInternal(const nsAString& aNamespaceURI,
         GetNodeInfo(nameAtom, name->GetPrefix(), nameSpaceID);
       NS_ENSURE_TRUE(ni, NS_ERROR_OUT_OF_MEMORY);
 
-      return aRemove ? RemoveAttribute(ni, aReturn) : GetAttribute(ni, aReturn);
+      return GetAttribute(ni, aReturn, aRemove);
     }
   }
 

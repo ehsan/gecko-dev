@@ -271,8 +271,6 @@ MOZ_PKG_REMOVALS_GEN = removed-files
 
 $(MOZ_PKG_REMOVALS_GEN): $(MOZ_PKG_REMOVALS) Makefile Makefile.in
 	$(PYTHON) $(MOZILLA_DIR)/config/Preprocessor.py -Fsubstitution $(DEFINES) $(ACDEFINES) $(MOZ_PKG_REMOVALS) > $(MOZ_PKG_REMOVALS_GEN)
-
-GARBAGE += $(MOZ_PKG_REMOVALS_GEN)
 endif
 
 GARBAGE		+= $(DIST)/$(PACKAGE) $(PACKAGE)
@@ -287,7 +285,7 @@ endif
 ifeq ($(OS_ARCH),OS2)
 STRIP		= $(MOZILLA_DIR)/toolkit/mozapps/installer/os2/strip.cmd
 STRIP_FLAGS	=
-PLATFORM_EXCLUDE_LIST = ! -name "*.ico" ! -name "$(MOZ_PKG_APPNAME).exe"
+PLATFORM_EXCLUDE_LIST = ! -name "*.ico"
 endif
 
 ifneq (,$(filter WINNT OS2,$(OS_ARCH)))
@@ -339,7 +337,7 @@ endif
 	$(PERL) $(MOZILLA_DIR)/xpinstall/packager/xptlink.pl -s $(DIST) -d $(DIST)/xpt -f $(DEPTH)/installer-stage/nonlocalized/components -v -x "$(XPIDL_LINK)"
 
 stage-package: $(MOZ_PKG_MANIFEST) $(MOZ_PKG_REMOVALS_GEN)
-	@rm -rf $(DIST)/$(MOZ_PKG_APPNAME) $(DIST)/$(PKG_PATH)$(PKG_BASENAME).tar $(DIST)/$(PKG_PATH)$(PKG_BASENAME).dmg $@ $(EXCLUDE_LIST)
+	@rm -rf $(DIST)/$(MOZ_PKG_APPNAME) "$(DIST)/$(PKG_PATH)$(PKG_BASENAME).tar" "$(DIST)/$(PKG_PATH)$(PKG_BASENAME).dmg" $@ $(EXCLUDE_LIST)
 # NOTE: this must be a tar now that dist links into the tree so that we
 # do not strip the binaries actually in the tree.
 	@echo "Creating package directory..."

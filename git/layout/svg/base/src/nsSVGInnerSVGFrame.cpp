@@ -55,7 +55,7 @@ class nsSVGInnerSVGFrame : public nsSVGInnerSVGFrameBase,
   NS_NewSVGInnerSVGFrame(nsIPresShell* aPresShell, nsIContent* aContent, nsStyleContext* aContext);
 protected:
   nsSVGInnerSVGFrame(nsStyleContext* aContext) :
-    nsSVGInnerSVGFrameBase(aContext) {}
+    nsSVGInnerSVGFrameBase(aContext), mPropagateTransform(PR_TRUE) {}
   
    // nsISupports interface:
   NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
@@ -83,8 +83,10 @@ public:
 #endif
 
   // nsISVGChildFrame interface:
-  NS_IMETHOD PaintSVG(nsSVGRenderState *aContext, const nsIntRect *aDirtyRect);
+  NS_IMETHOD PaintSVG(nsSVGRenderState *aContext, nsIntRect *aDirtyRect);
   virtual void NotifySVGChanged(PRUint32 aFlags);
+  NS_IMETHOD SetOverrideCTM(nsIDOMSVGMatrix *aCTM);
+  virtual already_AddRefed<nsIDOMSVGMatrix> GetOverrideCTM();
   NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint);
 
   // nsSVGContainerFrame methods:
@@ -107,6 +109,9 @@ public:
 protected:
 
   nsCOMPtr<nsIDOMSVGMatrix> mCanvasTM;
+  nsCOMPtr<nsIDOMSVGMatrix> mOverrideCTM;
+
+  PRPackedBool mPropagateTransform;
 };
 
 //----------------------------------------------------------------------
@@ -147,8 +152,7 @@ nsSVGInnerSVGFrame::GetType() const
 // nsISVGChildFrame methods
 
 NS_IMETHODIMP
-nsSVGInnerSVGFrame::PaintSVG(nsSVGRenderState *aContext,
-                             const nsIntRect *aDirtyRect)
+nsSVGInnerSVGFrame::PaintSVG(nsSVGRenderState *aContext, nsIntRect *aDirtyRect)
 {
   gfxContextAutoSaveRestore autoSR;
 
@@ -162,7 +166,7 @@ nsSVGInnerSVGFrame::PaintSVG(nsSVGRenderState *aContext,
     }
 
     nsCOMPtr<nsIDOMSVGMatrix> clipTransform;
-    if (!GetMatrixPropagation()) {
+    if (!mPropagateTransform) {
       NS_NewSVGMatrix(getter_AddRefs(clipTransform));
     } else {
       clipTransform = static_cast<nsSVGContainerFrame*>(mParent)->GetCanvasTM();
@@ -221,6 +225,21 @@ nsSVGInnerSVGFrame::NotifySVGChanged(PRUint32 aFlags)
   }
 
   nsSVGInnerSVGFrameBase::NotifySVGChanged(aFlags);
+}
+
+NS_IMETHODIMP
+nsSVGInnerSVGFrame::SetOverrideCTM(nsIDOMSVGMatrix *aCTM)
+{
+  mOverrideCTM = aCTM;
+  return NS_OK;
+}
+
+already_AddRefed<nsIDOMSVGMatrix>
+nsSVGInnerSVGFrame::GetOverrideCTM()
+{
+  nsIDOMSVGMatrix *matrix = mOverrideCTM.get();
+  NS_IF_ADDREF(matrix);
+  return matrix;
 }
 
 NS_IMETHODIMP_(nsIFrame*)
@@ -310,9 +329,14 @@ nsSVGInnerSVGFrame::NotifyViewportChange()
 already_AddRefed<nsIDOMSVGMatrix>
 nsSVGInnerSVGFrame::GetCanvasTM()
 {
-  if (!GetMatrixPropagation()) {
+  if (!mPropagateTransform) {
     nsIDOMSVGMatrix *retval;
-    NS_NewSVGMatrix(&retval);
+    if (mOverrideCTM) {
+      retval = mOverrideCTM;
+      NS_ADDREF(retval);
+    } else {
+      NS_NewSVGMatrix(&retval);
+    }
     return retval;
   }
 

@@ -278,32 +278,32 @@ NS_IMETHODIMP nsHTMLButtonAccessible::GetRole(PRUint32 *_retval)
 nsresult
 nsHTMLButtonAccessible::GetNameInternal(nsAString& aName)
 {
-  nsresult rv = nsAccessible::GetNameInternal(aName);
-  if (!aName.IsEmpty())
-    return NS_OK;
-
-  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
-
-  // No name from HTML or ARIA
   nsAutoString name;
-  if (!content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::value,
-                        name) &&
-      !content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::alt,
-                        name)) {
-    // Use the button's (default) label if nothing else works
-    nsIFrame* frame = GetFrame();
-    if (frame) {
-      nsIFormControlFrame* fcFrame = nsnull;
-      CallQueryInterface(frame, &fcFrame);
-      if (fcFrame)
-        fcFrame->GetFormProperty(nsAccessibilityAtoms::defaultLabel, name);
-    }
-  }
+  GetHTMLName(name, PR_FALSE);
 
-  if (name.IsEmpty() &&
-      !content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::src,
-                        name)) {
-    content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::data, name);
+  if (name.IsEmpty()) {
+    // no label from HTML or ARIA
+    nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+    if (!content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::value,
+                          name) &&
+        !content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::alt,
+                          name)) {
+      // Use the button's (default) label if nothing else works
+      nsIFrame* frame = GetFrame();
+      if (frame) {
+        nsIFormControlFrame* fcFrame;
+        CallQueryInterface(frame, &fcFrame);
+        if (fcFrame)
+          fcFrame->GetFormProperty(nsAccessibilityAtoms::defaultLabel, name);
+      }
+    }
+    if (name.IsEmpty() &&
+        !content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::title,
+                          name) &&
+        !content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::src,
+                          name)) {
+      content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::data, name);
+    }
   }
 
   name.CompressWhitespace();
@@ -370,12 +370,6 @@ nsHTML4ButtonAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
   return NS_OK;
 }
 
-nsresult
-nsHTML4ButtonAccessible::GetNameInternal(nsAString& aName)
-{
-  return GetHTMLName(aName, PR_TRUE);
-}
-
 // --- textfield -----
 
 nsHTMLTextFieldAccessible::nsHTMLTextFieldAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell):
@@ -397,20 +391,26 @@ NS_IMETHODIMP nsHTMLTextFieldAccessible::GetRole(PRUint32 *aRole)
   return NS_OK;
 }
 
-nsresult
-nsHTMLTextFieldAccessible::GetNameInternal(nsAString& aName)
+NS_IMETHODIMP
+nsHTMLTextFieldAccessible::GetName(nsAString& aName)
 {
-  nsresult rv = nsAccessible::GetNameInternal(aName);
+  aName.Truncate();
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  nsresult rv = GetARIAName(aName);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (!aName.IsEmpty())
     return NS_OK;
 
   nsCOMPtr<nsIContent> content = do_QueryInterface(mDOMNode);
-  if (!content->GetBindingParent())
-    return NS_OK;
+  rv = nsAccessible::GetHTMLName(aName, PR_FALSE);
+  if (NS_FAILED(rv) || !aName.IsEmpty() || !content->GetBindingParent()) {
+    return rv;
+  }
 
-  // XXX: bug 459640
   // There's a binding parent.
   // This means we're part of another control, so use parent accessible for name.
   // This ensures that a textbox inside of a XUL widget gets
@@ -459,8 +459,9 @@ nsHTMLTextFieldAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
   else {
     nsCOMPtr<nsIAccessible> parent;
     GetParent(getter_AddRefs(parent));
-    if (nsAccUtils::Role(parent) == nsIAccessibleRole::ROLE_AUTOCOMPLETE)
+    if (parent && Role(parent) == nsIAccessibleRole::ROLE_AUTOCOMPLETE) {
       *aState |= nsIAccessibleStates::STATE_HASPOPUP;
+    }
   }
 
   if (content->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::readonly)) {
@@ -676,7 +677,8 @@ nsHTMLLegendAccessible::GetAccessibleRelated(PRUint32 aRelationType,
       return NS_ERROR_FAILURE;  // Node already shut down
     }
     nsCOMPtr<nsIAccessible> groupboxAccessible = GetParent();
-    if (nsAccUtils::Role(groupboxAccessible) == nsIAccessibleRole::ROLE_GROUPING) {
+    if (groupboxAccessible &&
+        Role(groupboxAccessible) == nsIAccessibleRole::ROLE_GROUPING) {
       nsCOMPtr<nsIAccessible> testLabelAccessible;
       groupboxAccessible->GetAccessibleRelated(nsIAccessibleRelation::RELATION_LABELLED_BY,
                                                getter_AddRefs(testLabelAccessible));

@@ -40,14 +40,10 @@
 
 #ifdef XP_WIN
 #include <windows.h>
-#else
-#include <limits.h>
 #endif
 
 #ifndef MAXPATHLEN
-#ifdef PATH_MAX
-#define MAXPATHLEN PATH_MAX
-#elif defined(_MAX_PATH)
+#ifdef _MAX_PATH
 #define MAXPATHLEN _MAX_PATH
 #elif defined(CCHMAXPATH)
 #define MAXPATHLEN CCHMAXPATH

@@ -59,14 +59,13 @@
 #include "nsDOMThreadService.h"
 
 // Macro to generate nsIClassInfo methods for these threadsafe DOM classes 
-#define NS_IMPL_THREADSAFE_DOM_CI_GETINTERFACES(_class)                       \
+#define NS_IMPL_THREADSAFE_DOM_CI(_class)                                     \
 NS_IMETHODIMP                                                                 \
 _class::GetInterfaces(PRUint32* _count, nsIID*** _array)                      \
 {                                                                             \
   return NS_CI_INTERFACE_GETTER_NAME(_class)(_count, _array);                 \
 }                                                                             \
-
-#define NS_IMPL_THREADSAFE_DOM_CI_ALL_THE_REST(_class)                        \
+                                                                              \
 NS_IMETHODIMP                                                                 \
 _class::GetHelperForLanguage(PRUint32 _language, nsISupports** _retval)       \
 {                                                                             \
@@ -114,10 +113,6 @@ _class::GetClassIDNoAlloc(nsCID* _classIDNoAlloc)                             \
 {                                                                             \
   return NS_ERROR_NOT_AVAILABLE;                                              \
 }
-
-#define NS_IMPL_THREADSAFE_DOM_CI(_class)                                     \
-NS_IMPL_THREADSAFE_DOM_CI_GETINTERFACES(_class)                               \
-NS_IMPL_THREADSAFE_DOM_CI_ALL_THE_REST(_class)
 
 class nsDOMWorkerPool;
 class nsDOMWorkerScriptLoader;

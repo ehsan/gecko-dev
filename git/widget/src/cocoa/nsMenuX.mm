@@ -157,13 +157,15 @@ nsresult nsMenuX::Create(nsMenuObjectX* aParent, nsMenuBarX* aMenuBar, nsIConten
   if (mContent->GetChildCount() == 0)
     mVisible = PR_FALSE;
 
+  SetEnabled(!mContent->AttrValueIs(kNameSpaceID_None, nsWidgetAtoms::disabled,
+                                    nsWidgetAtoms::_true, eCaseMatters));
+
   NSString *newCocoaLabelString = nsMenuUtilsX::CreateTruncatedCocoaLabel(mLabel);
   mNativeMenuItem = [[NSMenuItem alloc] initWithTitle:newCocoaLabelString action:nil keyEquivalent:@""];
   [newCocoaLabelString release];
   [mNativeMenuItem setSubmenu:mNativeMenu];
 
-  SetEnabled(!mContent->AttrValueIs(kNameSpaceID_None, nsWidgetAtoms::disabled,
-                                    nsWidgetAtoms::_true, eCaseMatters));
+  [mNativeMenuItem setEnabled:(BOOL)mIsEnabled];
 
   // We call MenuConstruct here because keyboard commands are dependent upon
   // native menu items being created. If we only call MenuConstruct when a menu
@@ -458,8 +460,8 @@ nsresult nsMenuX::SetEnabled(PRBool aIsEnabled)
 {
   if (aIsEnabled != mIsEnabled) {
     // we always want to rebuild when this changes
+    SetRebuild(PR_TRUE); 
     mIsEnabled = aIsEnabled;
-    [mNativeMenuItem setEnabled:(BOOL)mIsEnabled];
   }
   return NS_OK;
 }
@@ -763,10 +765,13 @@ void nsMenuX::ObserveAttributeChanged(nsIDocument *aDocument, nsIContent *aConte
   nsMenuObjectTypeX parentType = mParent->MenuObjectType();
 
   if (aAttribute == nsWidgetAtoms::disabled) {
+    SetRebuild(PR_TRUE);
     SetEnabled(!mContent->AttrValueIs(kNameSpaceID_None, nsWidgetAtoms::disabled,
                                       nsWidgetAtoms::_true, eCaseMatters));
   }
   else if (aAttribute == nsWidgetAtoms::label) {
+    SetRebuild(PR_TRUE);
+    
     mContent->GetAttr(kNameSpaceID_None, nsWidgetAtoms::label, mLabel);
 
     // invalidate my parent. If we're a submenu parent, we have to rebuild

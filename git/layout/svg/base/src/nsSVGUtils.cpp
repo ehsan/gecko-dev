@@ -585,6 +585,16 @@ nsSVGUtils::FindFilterInvalidation(nsIFrame *aFrame, const nsRect& aRect)
 }
 
 void
+nsSVGUtils::UpdateFilterRegion(nsIFrame *aFrame)
+{
+  nsSVGEffects::EffectProperties props =
+    nsSVGEffects::GetEffectProperties(aFrame);
+  if (props.mFilter) {
+    props.mFilter->UpdateRect();
+  }
+}
+
+void
 nsSVGUtils::UpdateGraphic(nsISVGChildFrame *aSVGFrame)
 {
   nsIFrame *frame;
@@ -917,43 +927,25 @@ class SVGPaintCallback : public nsSVGFilterPaintCallback
 {
 public:
   virtual void Paint(nsSVGRenderState *aContext, nsIFrame *aTarget,
-                     const nsIntRect* aDirtyRect)
+                     const nsIntRect* aDirtyRect, nsIDOMSVGMatrix *aTransform)
   {
     nsISVGChildFrame *svgChildFrame;
     CallQueryInterface(aTarget, &svgChildFrame);
     NS_ASSERTION(svgChildFrame, "Expected SVG frame here");
-    NS_ASSERTION(!svgChildFrame->GetMatrixPropagation(),
-                 "This should have been set to false already");
 
-    nsIntRect* dirtyRect = nsnull;
-    nsIntRect tmpDirtyRect;
-
-    // aDirtyRect is in user-space pixels, we need to convert to
-    // outer-SVG-frame-relative device pixels.
-    if (aDirtyRect) {
-      // Temporarily set SetMatrixPropagation so we can find out what
-      // the actual CTM is.
-      svgChildFrame->SetMatrixPropagation(PR_TRUE);
-      nsCOMPtr<nsIDOMSVGMatrix> ctm = nsSVGUtils::GetCanvasTM(aTarget);
-      NS_ASSERTION(ctm, "graphic source didn't specify a ctm");
-      svgChildFrame->SetMatrixPropagation(PR_FALSE);
-
-      gfxMatrix matrix = nsSVGUtils::ConvertSVGMatrixToThebes(ctm);
-      gfxRect dirtyBounds = matrix.TransformBounds(
-        gfxRect(aDirtyRect->x, aDirtyRect->y, aDirtyRect->width, aDirtyRect->height));
-      dirtyBounds.RoundOut();
-      if (NS_SUCCEEDED(nsSVGUtils::GfxRectToIntRect(dirtyBounds, &tmpDirtyRect))) {
-        dirtyRect = &tmpDirtyRect;
-      }
+    if (aTransform) {
+      svgChildFrame->SetOverrideCTM(aTransform);
+      svgChildFrame->NotifySVGChanged(nsISVGChildFrame::SUPPRESS_INVALIDATION |
+                                      nsISVGChildFrame::TRANSFORM_CHANGED);
     }
 
-    svgChildFrame->PaintSVG(aContext, dirtyRect);
+    svgChildFrame->PaintSVG(aContext, const_cast<nsIntRect*>(aDirtyRect));
   }
 };
 
 void
-nsSVGUtils::PaintFrameWithEffects(nsSVGRenderState *aContext,
-                                  const nsIntRect *aDirtyRect,
+nsSVGUtils::PaintChildWithEffects(nsSVGRenderState *aContext,
+                                  nsIntRect *aDirtyRect,
                                   nsIFrame *aFrame)
 {
   nsISVGChildFrame *svgChildFrame;

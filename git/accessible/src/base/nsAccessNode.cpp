@@ -46,6 +46,7 @@
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIDocument.h"
+#include "nsIDocumentViewer.h"
 #include "nsIDOMCSSStyleDeclaration.h"
 #include "nsIDOMCSSPrimitiveValue.h"
 #include "nsIDOMDocument.h"
@@ -54,6 +55,7 @@
 #include "nsIDOMHTMLElement.h"
 #include "nsIDOMNSDocument.h"
 #include "nsIDOMNSHTMLElement.h"
+#include "nsIDOMViewCSS.h"
 #include "nsIDOMWindow.h"
 #include "nsPIDOMWindow.h"
 #include "nsIInterfaceRequestorUtils.h"
@@ -376,7 +378,7 @@ already_AddRefed<nsIAccessibleDocument> nsAccessNode::GetDocAccessible()
 already_AddRefed<nsRootAccessible> nsAccessNode::GetRootAccessible()
 {
   nsCOMPtr<nsIDocShellTreeItem> docShellTreeItem =
-    nsCoreUtils::GetDocShellTreeItemFor(mDOMNode);
+    nsAccUtils::GetDocShellTreeItemFor(mDOMNode);
   NS_ASSERTION(docShellTreeItem, "No docshell tree item for mDOMNode");
   if (!docShellTreeItem) {
     return nsnull;
@@ -467,7 +469,7 @@ nsAccessNode::ScrollTo(PRUint32 aScrollType)
   NS_ENSURE_TRUE(content, NS_ERROR_FAILURE);
 
   PRInt16 vPercent, hPercent;
-  nsCoreUtils::ConvertScrollTypeToPercents(aScrollType, &vPercent, &hPercent);
+  nsAccUtils::ConvertScrollTypeToPercents(aScrollType, &vPercent, &hPercent);
   return shell->ScrollContentIntoView(content, vPercent, hPercent);
 }
 
@@ -485,7 +487,7 @@ nsAccessNode::ScrollToPoint(PRUint32 aCoordinateType, PRInt32 aX, PRInt32 aY)
 
   nsIFrame *parentFrame = frame;
   while ((parentFrame = parentFrame->GetParent()))
-    nsCoreUtils::ScrollFrameToPoint(parentFrame, frame, coords);
+    nsAccUtils::ScrollFrameToPoint(parentFrame, frame, coords);
 
   return NS_OK;
 }
@@ -614,8 +616,7 @@ nsAccessNode::GetComputedStyleValue(const nsAString& aPseudoElt,
     return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIDOMCSSStyleDeclaration> styleDecl;
-  nsCoreUtils::GetComputedStyleDeclaration(aPseudoElt, mDOMNode,
-                                           getter_AddRefs(styleDecl));
+  GetComputedStyleDeclaration(aPseudoElt, mDOMNode, getter_AddRefs(styleDecl));
   NS_ENSURE_TRUE(styleDecl, NS_ERROR_FAILURE);
 
   return styleDecl->GetPropertyValue(aPropertyName, aValue);
@@ -633,8 +634,8 @@ nsAccessNode::GetComputedStyleCSSValue(const nsAString& aPseudoElt,
     return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIDOMCSSStyleDeclaration> styleDecl;
-  nsCoreUtils::GetComputedStyleDeclaration(aPseudoElt, mDOMNode,
-                                           getter_AddRefs(styleDecl));
+  GetComputedStyleDeclaration(aPseudoElt, mDOMNode,
+                              getter_AddRefs(styleDecl));
   NS_ENSURE_STATE(styleDecl);
 
   nsCOMPtr<nsIDOMCSSValue> cssValue;
@@ -642,6 +643,32 @@ nsAccessNode::GetComputedStyleCSSValue(const nsAString& aPseudoElt,
   NS_ENSURE_TRUE(cssValue, NS_ERROR_FAILURE);
 
   return CallQueryInterface(cssValue, aCSSValue);
+}
+
+void
+nsAccessNode::GetComputedStyleDeclaration(const nsAString& aPseudoElt,
+                                          nsIDOMNode *aNode,
+                                          nsIDOMCSSStyleDeclaration **aCssDecl)
+{
+  *aCssDecl = nsnull;
+
+  nsCOMPtr<nsIDOMElement> domElement = nsAccUtils::GetDOMElementFor(aNode);
+  if (!domElement)
+    return;
+
+  // Returns number of items in style declaration
+  nsCOMPtr<nsIContent> content = do_QueryInterface(domElement);
+  nsCOMPtr<nsIDocument> doc = content->GetDocument();
+  if (!doc)
+    return;
+
+  nsCOMPtr<nsIDOMViewCSS> viewCSS(do_QueryInterface(doc->GetWindow()));
+  if (!viewCSS)
+    return;
+
+  nsCOMPtr<nsIDOMCSSStyleDeclaration> cssDecl;
+  viewCSS->GetComputedStyle(domElement, aPseudoElt, getter_AddRefs(cssDecl));
+  NS_IF_ADDREF(*aCssDecl = cssDecl);
 }
 
 /***************** Hashtable of nsIAccessNode's *****************/
@@ -686,7 +713,7 @@ nsAccessNode::GetDocAccessibleFor(nsIDocShellTreeItem *aContainer,
     return presShell ? GetDocAccessibleFor(presShell->GetDocument()) : nsnull;
   }
 
-  nsCOMPtr<nsIDOMNode> node = nsCoreUtils::GetDOMNodeForContainer(aContainer);
+  nsCOMPtr<nsIDOMNode> node = GetDOMNodeForContainer(aContainer);
   if (!node) {
     return nsnull;
   }
@@ -703,7 +730,7 @@ nsAccessNode::GetDocAccessibleFor(nsIDocShellTreeItem *aContainer,
 already_AddRefed<nsIAccessibleDocument>
 nsAccessNode::GetDocAccessibleFor(nsIDOMNode *aNode)
 {
-  nsCOMPtr<nsIPresShell> eventShell = nsCoreUtils::GetPresShellFor(aNode);
+  nsCOMPtr<nsIPresShell> eventShell = GetPresShellFor(aNode);
   if (eventShell) {
     return GetDocAccessibleFor(eventShell->GetDocument());
   }
@@ -714,6 +741,44 @@ nsAccessNode::GetDocAccessibleFor(nsIDOMNode *aNode)
   }
 
   return nsnull;
+}
+
+already_AddRefed<nsIPresShell>
+nsAccessNode::GetPresShellFor(nsIDOMNode *aNode)
+{
+  nsCOMPtr<nsIDOMDocument> domDocument;
+  aNode->GetOwnerDocument(getter_AddRefs(domDocument));
+  nsCOMPtr<nsIDocument> doc(do_QueryInterface(domDocument));
+  if (!doc) {   // This is necessary when the node is the document node
+    doc = do_QueryInterface(aNode);
+  }
+  nsIPresShell *presShell = nsnull;
+  if (doc) {
+    presShell = doc->GetPrimaryShell();
+    NS_IF_ADDREF(presShell);
+  }
+  return presShell;
+}
+
+already_AddRefed<nsIDOMNode>
+nsAccessNode::GetDOMNodeForContainer(nsISupports *aContainer)
+{
+  nsIDOMNode* node = nsnull;
+  nsCOMPtr<nsIDocShell> shell = do_QueryInterface(aContainer);
+  nsCOMPtr<nsIContentViewer> cv;
+  shell->GetContentViewer(getter_AddRefs(cv));
+  if (cv) {
+    nsCOMPtr<nsIDocumentViewer> docv(do_QueryInterface(cv));
+    if (docv) {
+      nsCOMPtr<nsIDocument> doc;
+      docv->GetDocument(getter_AddRefs(doc));
+      if (doc) {
+        CallQueryInterface(doc.get(), &node);
+      }
+    }
+  }
+
+  return node;
 }
 
 void
@@ -756,7 +821,7 @@ nsAccessNode::ClearCache(nsAccessNodeHashtable& aCache)
 
 already_AddRefed<nsIDOMNode> nsAccessNode::GetCurrentFocus()
 {
-  nsCOMPtr<nsIPresShell> shell = nsCoreUtils::GetPresShellFor(mDOMNode);
+  nsCOMPtr<nsIPresShell> shell = GetPresShellFor(mDOMNode);
   NS_ENSURE_TRUE(shell, nsnull);
   nsCOMPtr<nsIDocument> doc = shell->GetDocument();
   NS_ENSURE_TRUE(doc, nsnull);
@@ -821,7 +886,7 @@ nsAccessNode::GetLanguage(nsAString& aLanguage)
     }
   }
 
-  nsCoreUtils::GetLanguageFor(content, nsnull, aLanguage);
+  nsAccUtils::GetLanguageFor(content, nsnull, aLanguage);
 
   if (aLanguage.IsEmpty()) { // Nothing found, so use document's language
     nsIDocument *doc = content->GetOwnerDoc();

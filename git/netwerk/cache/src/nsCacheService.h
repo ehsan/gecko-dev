@@ -25,7 +25,6 @@
  *   Gordon Sheridan  <gordon@netscape.com>
  *   Patrick C. Beard <beard@netscape.com>
  *   Darin Fisher     <darin@netscape.com>
- *   Ehsan Akhgari    <ehsan.akhgari@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -156,8 +155,6 @@ public:
     static void      SetOfflineCacheCapacity(PRInt32  capacity);
 
     static void      SetMemoryCache();
-
-    static void      OnEnterExitPrivateBrowsing();
 
     nsresult         Init();
     void             Shutdown();

@@ -91,10 +91,38 @@
     }                                                                         \
   PR_END_MACRO
 
+#define NS_IF_DEEP_CLONE(type_, member_, args_)                               \
+  PR_BEGIN_MACRO                                                              \
+    type_ *dest = result;                                                     \
+    for (type_ *src = member_; src; src = src->member_) {                     \
+      type_ *clone = src->Clone args_;                                        \
+      if (!clone) {                                                           \
+        delete result;                                                        \
+        return nsnull;                                                        \
+      }                                                                       \
+      dest->member_ = clone;                                                  \
+      dest = clone;                                                           \
+    }                                                                         \
+  PR_END_MACRO
+
 #define NS_IF_DELETE(ptr)                                                     \
   PR_BEGIN_MACRO                                                              \
-    delete ptr;                                                               \
-    ptr = nsnull;                                                             \
+    if (ptr) {                                                                \
+      delete ptr;                                                             \
+      ptr = nsnull;                                                           \
+    }                                                                         \
+  PR_END_MACRO
+
+#define NS_IF_DEEP_DELETE(type_, member_)                                     \
+  PR_BEGIN_MACRO                                                              \
+    type_ *cur = member_;                                                     \
+    member_ = nsnull;                                                         \
+    while (cur) {                                                             \
+      type_ *next = cur->member_;                                             \
+      cur->member_ = nsnull;                                                  \
+      delete cur;                                                             \
+      cur = next;                                                             \
+    }                                                                         \
   PR_END_MACRO
 
 /* ************************************************************************** */
@@ -122,14 +150,14 @@ nsAtomList::Clone(PRBool aDeep) const
     return nsnull;
 
   if (aDeep)
-    NS_CSS_CLONE_LIST_MEMBER(nsAtomList, this, mNext, result, (PR_FALSE));
+    NS_IF_DEEP_CLONE(nsAtomList, mNext, (PR_FALSE));
   return result;
 }
 
 nsAtomList::~nsAtomList(void)
 {
   MOZ_COUNT_DTOR(nsAtomList);
-  NS_CSS_DELETE_LIST_MEMBER(nsAtomList, this, mNext);
+  NS_IF_DEEP_DELETE(nsAtomList, mNext);
 }
 
 nsPseudoClassList::nsPseudoClassList(nsIAtom* aAtom)
@@ -181,8 +209,7 @@ nsPseudoClassList::Clone(PRBool aDeep) const
   }
 
   if (aDeep)
-    NS_CSS_CLONE_LIST_MEMBER(nsPseudoClassList, this, mNext, result,
-                             (PR_FALSE));
+    NS_IF_DEEP_CLONE(nsPseudoClassList, mNext, (PR_FALSE));
 
   return result;
 }
@@ -192,7 +219,7 @@ nsPseudoClassList::~nsPseudoClassList(void)
   MOZ_COUNT_DTOR(nsPseudoClassList);
   if (u.mMemory)
     NS_Free(u.mMemory);
-  NS_CSS_DELETE_LIST_MEMBER(nsPseudoClassList, this, mNext);
+  NS_IF_DEEP_DELETE(nsPseudoClassList, mNext);
 }
 
 nsAttrSelector::nsAttrSelector(PRInt32 aNameSpace, const nsString& aAttr)
@@ -242,7 +269,7 @@ nsAttrSelector::Clone(PRBool aDeep) const
     new nsAttrSelector(mNameSpace, mAttr, mFunction, mValue, mCaseSensitive);
 
   if (aDeep)
-    NS_CSS_CLONE_LIST_MEMBER(nsAttrSelector, this, mNext, result, (PR_FALSE));
+    NS_IF_DEEP_CLONE(nsAttrSelector, mNext, (PR_FALSE));
 
   return result;
 }
@@ -251,7 +278,7 @@ nsAttrSelector::~nsAttrSelector(void)
 {
   MOZ_COUNT_DTOR(nsAttrSelector);
 
-  NS_CSS_DELETE_LIST_MEMBER(nsAttrSelector, this, mNext);
+  NS_IF_DEEP_DELETE(nsAttrSelector, mNext);
 }
 
 // -- nsCSSSelector -------------------------------
@@ -286,16 +313,12 @@ nsCSSSelector::Clone(PRBool aDeepNext, PRBool aDeepNegations) const
 
   // No need to worry about multiple levels of recursion since an
   // mNegations can't have an mNext.
-  NS_ASSERTION(!mNegations || !mNegations->mNext,
-               "mNegations can't have non-null mNext");
   if (aDeepNegations) {
-    NS_CSS_CLONE_LIST_MEMBER(nsCSSSelector, this, mNegations, result,
-                             (PR_TRUE, PR_FALSE));
+    NS_IF_DEEP_CLONE(nsCSSSelector, mNegations, (PR_TRUE, PR_FALSE));
   }
 
   if (aDeepNext) {
-    NS_CSS_CLONE_LIST_MEMBER(nsCSSSelector, this, mNext, result,
-                             (PR_FALSE, PR_TRUE));
+    NS_IF_DEEP_CLONE(nsCSSSelector, mNext, (PR_FALSE, PR_TRUE));
   }
 
   return result;
@@ -307,7 +330,7 @@ nsCSSSelector::~nsCSSSelector(void)
   Reset();
   // No need to worry about multiple levels of recursion since an
   // mNegations can't have an mNext.
-  NS_CSS_DELETE_LIST_MEMBER(nsCSSSelector, this, mNext);
+  NS_IF_DEEP_DELETE(nsCSSSelector, mNext);
 }
 
 void nsCSSSelector::Reset(void)
@@ -320,9 +343,7 @@ void nsCSSSelector::Reset(void)
   NS_IF_DELETE(mAttrList);
   // No need to worry about multiple levels of recursion since an
   // mNegations can't have an mNext.
-  NS_ASSERTION(!mNegations || !mNegations->mNext,
-               "mNegations can't have non-null mNext");
-  NS_CSS_DELETE_LIST_MEMBER(nsCSSSelector, this, mNegations);
+  NS_IF_DEEP_DELETE(nsCSSSelector, mNegations);
   mOperator = PRUnichar(0);
 }
 
@@ -717,8 +738,8 @@ nsCSSSelectorList::nsCSSSelectorList(void)
 nsCSSSelectorList::~nsCSSSelectorList()
 {
   MOZ_COUNT_DTOR(nsCSSSelectorList);
-  delete mSelectors;
-  NS_CSS_DELETE_LIST_MEMBER(nsCSSSelectorList, this, mNext);
+  NS_IF_DELETE(mSelectors);
+  NS_IF_DEEP_DELETE(nsCSSSelectorList, mNext);
 }
 
 void nsCSSSelectorList::AddSelector(nsAutoPtr<nsCSSSelector>& aSelector)
@@ -752,8 +773,7 @@ nsCSSSelectorList::Clone(PRBool aDeep) const
   NS_IF_CLONE(mSelectors);
 
   if (aDeep) {
-    NS_CSS_CLONE_LIST_MEMBER(nsCSSSelectorList, this, mNext, result,
-                             (PR_FALSE));
+    NS_IF_DEEP_CLONE(nsCSSSelectorList, mNext, (PR_FALSE));
   }
   return result;
 }
@@ -1187,7 +1207,7 @@ public:
   NS_IMETHOD GetType(PRInt32& aType) const;
   NS_IMETHOD Clone(nsICSSRule*& aClone) const;
 
-  nsIDOMCSSRule* GetDOMRuleWeak(nsresult* aResult);
+  NS_IMETHOD GetDOMRule(nsIDOMCSSRule** aDOMRule);
 
   virtual already_AddRefed<nsICSSStyleRule>
     DeclarationChanged(PRBool aHandleContainer);
@@ -1376,24 +1396,26 @@ CSSStyleRuleImpl::Clone(nsICSSRule*& aClone) const
   return CallQueryInterface(clone, &aClone);
 }
 
-nsIDOMCSSRule*
-CSSStyleRuleImpl::GetDOMRuleWeak(nsresult *aResult)
+NS_IMETHODIMP
+CSSStyleRuleImpl::GetDOMRule(nsIDOMCSSRule** aDOMRule)
 {
-  *aResult = NS_OK;
   if (!mSheet) {
     // inline style rules aren't supposed to have a DOM rule object, only
     // a declaration.
-    return nsnull;
+    *aDOMRule = nsnull;
+    return NS_OK;
   }
   if (!mDOMRule) {
     mDOMRule = new DOMCSSStyleRuleImpl(this);
     if (!mDOMRule) {
-      *aResult = NS_ERROR_OUT_OF_MEMORY;
-      return nsnull;
+      *aDOMRule = nsnull;
+      return NS_ERROR_OUT_OF_MEMORY;
     }
     NS_ADDREF(mDOMRule);
   }
-  return mDOMRule;
+  *aDOMRule = mDOMRule;
+  NS_ADDREF(*aDOMRule);
+  return NS_OK;
 }
 
 /* virtual */ already_AddRefed<nsICSSStyleRule>

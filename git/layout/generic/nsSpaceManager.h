@@ -141,19 +141,29 @@ struct nsBandData {
 
 /**
  * Class for dealing with bands of available space. The space manager
- * defines a coordinate space (relative to the frame that created the
- * space manager) with an origin at (0, 0) that grows down and to the
- * right.
+ * defines a coordinate space with an origin at (0, 0) that grows down
+ * and to the right.
  */
 class nsSpaceManager {
 public:
-  nsSpaceManager(nsIPresShell* aPresShell);
+  nsSpaceManager(nsIPresShell* aPresShell, nsIFrame* aFrame);
   ~nsSpaceManager();
 
   void* operator new(size_t aSize) CPP_THROW_NEW;
   void operator delete(void* aPtr, size_t aSize);
 
   static void Shutdown();
+
+  /*
+   * Get the frame that's associated with the space manager. This frame
+   * created the space manager, and the world coordinate space is
+   * relative to this frame.
+   *
+   * You can use QueryInterface() on this frame to get any additional
+   * interfaces.
+   */
+  nsIFrame* GetFrame() const { return mFrame; }
+
   /**
    * Translate the current origin by the specified (dx, dy). This
    * creates a new local coordinate space relative to the current
@@ -167,6 +177,15 @@ public:
    * Translate().
    */
   void GetTranslation(nscoord& aX, nscoord& aY) const { aX = mX; aY = mY; }
+
+  /**
+   * Returns the x-most rect in the space manager, or 0 if there are no
+   * rects.
+   *
+   * @return  PR_TRUE if there are bands and PR_FALSE if there are no bands
+   */
+  PRBool XMost(nscoord& aXMost) const;
+
   /**
    * Returns the y-most of the bottommost band or 0 if there are no bands.
    *
@@ -254,6 +273,11 @@ public:
     
     friend class nsSpaceManager;
   };
+
+  /**
+   * Clears the list of regions representing the unavailable space.
+   */
+  void ClearRegions();
 
   PRBool HasAnyFloats() { return mFrameInfoMap != nsnull; }
 
@@ -395,6 +419,7 @@ public:
   };
 
 protected:
+  nsIFrame* const mFrame;     // frame associated with the space manager
   nscoord         mX, mY;     // translation from local to global coordinate space
   BandList        mBandList;  // header/sentinel for circular linked list of band rects
   nscoord         mLowestTop;  // the lowest *top*
@@ -421,6 +446,7 @@ protected:
   void       DestroyFrameInfo(FrameInfo*);
 
   void       ClearFrameInfo();
+  void       ClearBandRects();
 
   BandRect*  GetNextBand(const BandRect* aBandRect) const;
   BandRect*  GetPrevBand(const BandRect* aBandRect) const;
@@ -482,7 +508,8 @@ public:
    * manager in the reflow state.
    */
   nsresult
-  CreateSpaceManager(nsPresContext *aPresContext);
+  CreateSpaceManagerFor(nsPresContext *aPresContext,
+                        nsIFrame *aFrame);
 
 #ifdef DEBUG
   /**

@@ -289,23 +289,6 @@ RegisterGenericFactory(nsIComponentRegistrar* registrar,
 static PRBool CheckUpdateFile()
 {
     nsresult rv;
-    nsCOMPtr<nsIFile> compregFile;
-    rv = nsDirectoryService::gService->Get(NS_XPCOM_COMPONENT_REGISTRY_FILE,
-                                           NS_GET_IID(nsIFile),
-                                           getter_AddRefs(compregFile));
-
-    if (NS_FAILED(rv)) {
-        NS_WARNING("Getting NS_XPCOM_COMPONENT_REGISTRY_FILE failed");
-        return PR_FALSE;
-    }
-
-    PRBool exists;
-    if (NS_FAILED(compregFile->Exists(&exists)) || !exists)
-        return PR_TRUE;
-
-    PRInt64 compregModTime;
-    compregFile->GetLastModifiedTime(&compregModTime);
-
     nsCOMPtr<nsIFile> file;
     rv = nsDirectoryService::gService->Get(NS_XPCOM_CURRENT_PROCESS_DIR, 
                                            NS_GET_IID(nsIFile), 
@@ -318,39 +301,28 @@ static PRBool CheckUpdateFile()
 
     file->AppendNative(nsDependentCString(".autoreg"));
     
+    PRBool exists;
     file->Exists(&exists);
     if (!exists)
-        goto next;
+        return PR_FALSE;
 
-    PRInt64 autoregModTime;
-    file->GetLastModifiedTime(&autoregModTime);
-
-    if (LL_CMP(autoregModTime, >, compregModTime))
-        return PR_TRUE;
-
-next:
-    nsCOMPtr<nsIFile> greFile;
-    rv = nsDirectoryService::gService->Get(NS_GRE_DIR,
+    nsCOMPtr<nsIFile> compregFile;
+    rv = nsDirectoryService::gService->Get(NS_XPCOM_COMPONENT_REGISTRY_FILE,
                                            NS_GET_IID(nsIFile),
-                                           getter_AddRefs(greFile));
+                                           getter_AddRefs(compregFile));
 
+    
     if (NS_FAILED(rv)) {
-        NS_WARNING("Getting NS_GRE_DIR failed");
+        NS_WARNING("Getting NS_XPCOM_COMPONENT_REGISTRY_FILE failed");
         return PR_FALSE;
     }
 
-    greFile->AppendNative(nsDependentCString(".autoreg"));
+    if (NS_FAILED(compregFile->Exists(&exists)) || !exists)
+        return PR_TRUE;
 
-    PRBool equals;
-    rv = greFile->Equals(file, &equals);
-    if (NS_SUCCEEDED(rv) && equals)
-        return PR_FALSE;
-
-    greFile->Exists(&exists);
-    if (!exists)
-        return PR_FALSE;
-
-    greFile->GetLastModifiedTime(&autoregModTime);
+    PRInt64 compregModTime, autoregModTime;
+    compregFile->GetLastModifiedTime(&compregModTime);
+    file->GetLastModifiedTime(&autoregModTime);
 
     return LL_CMP(autoregModTime, >, compregModTime);
 }

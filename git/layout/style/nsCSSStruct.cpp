@@ -58,6 +58,8 @@
 #include "nsReadableUtils.h"
 #include "nsPrintfCString.h"
 
+#define CSS_IF_DELETE(ptr)  if (nsnull != ptr)  { delete ptr; ptr = nsnull; }
+
 // --- nsCSSFont -----------------
 
 nsCSSFont::nsCSSFont(void)
@@ -70,23 +72,30 @@ nsCSSFont::~nsCSSFont(void)
   MOZ_COUNT_DTOR(nsCSSFont);
 }
 
-// --- nsCSSValueList -----------------
+// --- support -----------------
 
-nsCSSValueList::~nsCSSValueList()
+#define CSS_IF_COPY(val, type) \
+  if (aCopy.val) (val) = new type(*(aCopy.val));
+
+nsCSSValueList::nsCSSValueList(void)
+  : mValue(),
+    mNext(nsnull)
 {
-  MOZ_COUNT_DTOR(nsCSSValueList);
-  NS_CSS_DELETE_LIST_MEMBER(nsCSSValueList, this, mNext);
+  MOZ_COUNT_CTOR(nsCSSValueList);
 }
 
-nsCSSValueList*
-nsCSSValueList::Clone(PRBool aDeep) const
+nsCSSValueList::nsCSSValueList(const nsCSSValueList& aCopy)
+  : mValue(aCopy.mValue),
+    mNext(nsnull)
 {
-  nsCSSValueList* result = new nsCSSValueList(*this);
-  if (NS_UNLIKELY(!result))
-    return result;
-  if (aDeep)
-    NS_CSS_CLONE_LIST_MEMBER(nsCSSValueList, this, mNext, result, (PR_FALSE));
-  return result;
+  MOZ_COUNT_CTOR(nsCSSValueList);
+  CSS_IF_COPY(mNext, nsCSSValueList);
+}
+
+nsCSSValueList::~nsCSSValueList(void)
+{
+  MOZ_COUNT_DTOR(nsCSSValueList);
+  CSS_IF_DELETE(mNext);
 }
 
 /* static */ PRBool
@@ -126,7 +135,7 @@ nsCSSText::nsCSSText(void)
 nsCSSText::~nsCSSText(void)
 {
   MOZ_COUNT_DTOR(nsCSSText);
-  delete mTextShadow;
+  CSS_IF_DELETE(mTextShadow);
 }
 
 // --- nsCSSRect -----------------
@@ -199,8 +208,7 @@ nsCSSCornerSizes::SetAllCornersTo(const nsCSSValue& aValue)
 }
 
 void
-nsCSSCornerSizes::Reset()
-{
+nsCSSCornerSizes::Reset() {
   NS_FOR_CSS_FULL_CORNERS(corner) {
     this->GetFullCorner(corner).Reset();
   }
@@ -276,7 +284,7 @@ nsCSSMargin::nsCSSMargin(void)
 nsCSSMargin::~nsCSSMargin(void)
 {
   MOZ_COUNT_DTOR(nsCSSMargin);
-  delete mBoxShadow;
+  CSS_IF_DELETE(mBoxShadow);
 }
 
 // --- nsCSSPosition -----------------
@@ -341,22 +349,25 @@ nsCSSPage::~nsCSSPage(void)
 
 // --- nsCSSContent support -----------------
 
+nsCSSValuePairList::nsCSSValuePairList()
+  : mNext(nsnull)
+{
+  MOZ_COUNT_CTOR(nsCSSValuePairList);
+}
+
+nsCSSValuePairList::nsCSSValuePairList(const nsCSSValuePairList& aCopy)
+  : mXValue(aCopy.mXValue),
+    mYValue(aCopy.mYValue),
+    mNext(nsnull)
+{
+  MOZ_COUNT_CTOR(nsCSSValuePairList);
+  CSS_IF_COPY(mNext, nsCSSValuePairList);
+}
+
 nsCSSValuePairList::~nsCSSValuePairList()
 {
   MOZ_COUNT_DTOR(nsCSSValuePairList);
-  NS_CSS_DELETE_LIST_MEMBER(nsCSSValuePairList, this, mNext);
-}
-
-nsCSSValuePairList*
-nsCSSValuePairList::Clone(PRBool aDeep) const
-{
-  nsCSSValuePairList* result = new nsCSSValuePairList(*this);
-  if (NS_UNLIKELY(!result))
-    return result;
-  if (aDeep)
-    NS_CSS_CLONE_LIST_MEMBER(nsCSSValuePairList, this, mNext, result,
-                             (PR_FALSE));
-  return result;
+  CSS_IF_DELETE(mNext);
 }
 
 /* static */ PRBool
@@ -389,10 +400,10 @@ nsCSSContent::nsCSSContent(void)
 nsCSSContent::~nsCSSContent(void)
 {
   MOZ_COUNT_DTOR(nsCSSContent);
-  delete mContent;
-  delete mCounterIncrement;
-  delete mCounterReset;
-  delete mQuotes;
+  CSS_IF_DELETE(mContent);
+  CSS_IF_DELETE(mCounterIncrement);
+  CSS_IF_DELETE(mCounterReset);
+  CSS_IF_DELETE(mQuotes);
 }
 
 // --- nsCSSUserInterface -----------------
@@ -406,7 +417,7 @@ nsCSSUserInterface::nsCSSUserInterface(void)
 nsCSSUserInterface::~nsCSSUserInterface(void)
 {
   MOZ_COUNT_DTOR(nsCSSUserInterface);
-  delete mCursor;
+  CSS_IF_DELETE(mCursor);
 }
 
 // --- nsCSSAural -----------------
@@ -456,7 +467,7 @@ nsCSSSVG::nsCSSSVG(void) : mStrokeDasharray(nsnull)
 nsCSSSVG::~nsCSSSVG(void)
 {
   MOZ_COUNT_DTOR(nsCSSSVG);
-  delete mStrokeDasharray;
+  CSS_IF_DELETE(mStrokeDasharray);
 }
 
 #endif // MOZ_SVG

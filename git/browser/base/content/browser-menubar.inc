@@ -353,8 +353,7 @@
               <menupopup id="goPopup"
                          type="places"
                          onpopupshowing="HistoryMenu.onPopupShowing(this);"
-                         place="place:type=0&amp;sort=4&amp;maxResults=10"
-                         tooltip="btTooltip">
+                         place="place:type=0&amp;sort=4&amp;maxResults=10">
                 <menuitem id="historyMenuBack"
                           label="&backCmd.label;"
 #ifdef XP_MACOSX
@@ -406,8 +405,7 @@
                openInTabs="children"
                oncommand="BookmarksEventHandler.onCommand(event);"
                onclick="BookmarksEventHandler.onClick(event);"
-               onpopupshowing="BookmarksEventHandler.onPopupShowing(event);"
-               tooltip="btTooltip">
+               onpopupshowing="BookmarksEventHandler.onPopupShowing(event);">
       <menuitem label="&bookmarkThisPageCmd.label;"
                 command="Browser:AddBookmarkAs" key="addBookmarkAsKb"/>
       <menuitem id="subscribeToPageMenuitem"

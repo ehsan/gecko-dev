@@ -67,7 +67,7 @@
 #include "gfxRect.h"
 #include "nsRegion.h"
 
-class nsImageLoadNotifier;
+class nsImageLoader;
 #ifdef IBMBIDI
 class nsBidiPresUtils;
 #endif // IBMBIDI
@@ -364,8 +364,8 @@ public:
    * aImage loads, where aImage is its background image.  Only a single
    * image will be tracked per frame.
    */
-  NS_HIDDEN_(void) SetImageNotifiers(nsIFrame* aTargetFrame,
-                                     nsImageLoadNotifier* aImageNotifiers);
+  NS_HIDDEN_(void) SetImageLoaders(nsIFrame* aTargetFrame,
+                                   nsImageLoader* aImageLoaders);
 
   /**
    * This method is called when a frame is being destroyed to
@@ -489,15 +489,15 @@ public:
 
   static nscoord CSSPixelsToAppUnits(float aPixels)
   { return NSFloatPixelsToAppUnits(aPixels,
-             float(nsIDeviceContext::AppUnitsPerCSSPixel())); }
+                                   nsIDeviceContext::AppUnitsPerCSSPixel()); }
 
   static PRInt32 AppUnitsToIntCSSPixels(nscoord aAppUnits)
   { return NSAppUnitsToIntPixels(aAppUnits,
-             float(nsIDeviceContext::AppUnitsPerCSSPixel())); }
+                                 nsIDeviceContext::AppUnitsPerCSSPixel()); }
 
   static float AppUnitsToFloatCSSPixels(nscoord aAppUnits)
   { return NSAppUnitsToFloatPixels(aAppUnits,
-             float(nsIDeviceContext::AppUnitsPerCSSPixel())); }
+                                   nsIDeviceContext::AppUnitsPerCSSPixel()); }
 
   nscoord DevPixelsToAppUnits(PRInt32 aPixels) const
   { return NSIntPixelsToAppUnits(aPixels,
@@ -505,7 +505,7 @@ public:
 
   PRInt32 AppUnitsToDevPixels(nscoord aAppUnits) const
   { return NSAppUnitsToIntPixels(aAppUnits,
-             float(mDeviceContext->AppUnitsPerDevPixel())); }
+                                 mDeviceContext->AppUnitsPerDevPixel()); }
 
   // If there is a remainder, it is rounded to nearest app units.
   nscoord GfxUnitsToAppUnits(gfxFloat aGfxUnits) const
@@ -764,7 +764,7 @@ protected:
   nsILinkHandler*       mLinkHandler;   // [WEAK]
   nsIAtom*              mLangGroup;     // [STRONG]
 
-  nsRefPtrHashtable<nsVoidPtrHashKey, nsImageLoadNotifier> mImageNotifiers;
+  nsRefPtrHashtable<nsVoidPtrHashKey, nsImageLoader> mImageLoaders;
 
   nsWeakPtr             mContainer;
 
@@ -889,6 +889,11 @@ public:
 #endif
 
 };
+
+// Bit values for StartLoadImage's aImageStatus
+#define NS_LOAD_IMAGE_STATUS_ERROR      0x1
+#define NS_LOAD_IMAGE_STATUS_SIZE       0x2
+#define NS_LOAD_IMAGE_STATUS_BITS       0x4
 
 #ifdef DEBUG
 

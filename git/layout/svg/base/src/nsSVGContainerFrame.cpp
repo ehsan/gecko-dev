@@ -166,7 +166,7 @@ nsSVGDisplayContainerFrame::RemoveFrame(nsIAtom* aListName,
 
 NS_IMETHODIMP
 nsSVGDisplayContainerFrame::PaintSVG(nsSVGRenderState* aContext,
-                                     const nsIntRect *aDirtyRect)
+                                     nsIntRect *aDirtyRect)
 {
   const nsStyleDisplay *display = mStyleContext->GetStyleDisplay();
   if (display->mOpacity == 0.0)
@@ -174,7 +174,7 @@ nsSVGDisplayContainerFrame::PaintSVG(nsSVGRenderState* aContext,
 
   for (nsIFrame* kid = mFrames.FirstChild(); kid;
        kid = kid->GetNextSibling()) {
-    nsSVGUtils::PaintFrameWithEffects(aContext, aDirtyRect, kid);
+    nsSVGUtils::PaintChildWithEffects(aContext, aDirtyRect, kid);
   }
 
   return NS_OK;
@@ -237,6 +237,10 @@ nsSVGDisplayContainerFrame::NotifySVGChanged(PRUint32 aFlags)
 {
   NS_ASSERTION(aFlags & (TRANSFORM_CHANGED | COORD_CONTEXT_CHANGED),
                "Invalidation logic may need adjusting");
+
+  if (!(aFlags & SUPPRESS_INVALIDATION) &&
+      !(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD))
+    nsSVGUtils::UpdateFilterRegion(this);
 
   nsSVGUtils::NotifyChildrenOfSVGChange(this, aFlags);
 }

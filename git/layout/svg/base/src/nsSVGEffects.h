@@ -125,13 +125,13 @@ protected:
 class nsSVGFilterProperty :
   public nsSVGRenderingObserver, public nsISVGFilterProperty {
 public:
-  nsSVGFilterProperty(nsIURI *aURI, nsIFrame *aFilteredFrame)
-    : nsSVGRenderingObserver(aURI, aFilteredFrame) {}
+  nsSVGFilterProperty(nsIURI *aURI, nsIFrame *aFilteredFrame);
 
   /**
    * @return the filter frame, or null if there is no filter frame
    */
   nsSVGFilterFrame *GetFilterFrame();
+  void UpdateRect();
 
   // nsISupports
   NS_DECL_ISUPPORTS
@@ -142,6 +142,12 @@ public:
 private:
   // nsSVGRenderingObserver
   virtual void DoUpdate();
+  
+  // Tracks a bounding box for the filtered mFrame. We need this so that
+  // if the filter changes we know how much to redraw. We only need this
+  // for SVG frames since regular frames have an overflow area
+  // that includes the filtered area.
+  nsRect mFilterRect;
 };
 
 class nsSVGMarkerProperty : public nsSVGRenderingObserver {
