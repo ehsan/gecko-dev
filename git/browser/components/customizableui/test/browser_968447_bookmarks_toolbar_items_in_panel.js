@@ -27,6 +27,6 @@ add_task(function() {
   is(newWinBookmarksToolbarPlaceholder.getAttribute("wrap"), "true",
      "Button in new window should have 'wrap' attribute");
   yield newWin.PanelUI.hide();
-  yield promiseWindowClosed(newWin);
+  newWin.close();
   CustomizableUI.reset();
 });

@@ -1843,29 +1843,6 @@ AddTransformedBoundsToRegion(const nsIntRegion& aRegion,
   aDest->Or(*aDest, intRect);
 }
 
-static bool
-CanOptimizeAwayThebesLayer(ThebesLayerData* aData,
-                           FrameLayerBuilder* aLayerBuilder)
-{
-  bool isRetained = aData->mLayer->Manager()->IsWidgetLayerManager();
-  if (!isRetained) {
-    return false;
-  }
-
-  // If there's no thebes layer with valid content in it that we can reuse,
-  // always create a color or image layer (and potentially throw away an
-  // existing completely invalid thebes layer).
-  if (aData->mLayer->GetValidRegion().IsEmpty()) {
-    return true;
-  }
-
-  // There is an existing thebes layer we can reuse. Throwing it away can make
-  // compositing cheaper (see bug 946952), but it might cause us to re-allocate
-  // the thebes layer frequently due to an animation. So we only discard it if
-  // we're in tree compression mode, which is triggered at a low frequency.
-  return aLayerBuilder->CheckInLayerTreeCompressionMode();
-}
-
 void
 ContainerState::PopThebesLayerData()
 {
@@ -1881,8 +1858,9 @@ ContainerState::PopThebesLayerData()
   nsRefPtr<Layer> layer;
   nsRefPtr<ImageContainer> imageContainer = data->CanOptimizeImageLayer(mBuilder);
 
-  if ((data->mIsSolidColorInVisibleRegion || imageContainer) &&
-      CanOptimizeAwayThebesLayer(data, mLayerBuilder)) {
+  bool isRetained = data->mLayer->Manager()->IsWidgetLayerManager();
+  if (isRetained && (data->mIsSolidColorInVisibleRegion || imageContainer) &&
+      (data->mLayer->GetValidRegion().IsEmpty() || mLayerBuilder->CheckInLayerTreeCompressionMode())) {
     NS_ASSERTION(!(data->mIsSolidColorInVisibleRegion && imageContainer),
                  "Can't be a solid color as well as an image!");
     if (imageContainer) {
