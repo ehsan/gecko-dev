@@ -30,6 +30,7 @@ XPCOMUtils.defineLazyGetter(this, "DebuggerServer", function() {
 // Lazily-loaded browser scripts:
 [
   ["SelectHelper", "chrome://browser/content/SelectHelper.js"],
+  ["Readability", "chrome://browser/content/Readability.js"],
 ].forEach(function (aScript) {
   let [name, script] = aScript;
   XPCOMUtils.defineLazyGetter(window, name, function() {
@@ -154,7 +155,6 @@ var BrowserApp = {
     Services.obs.addObserver(this, "Preferences:Set", false);
     Services.obs.addObserver(this, "ScrollTo:FocusedInput", false);
     Services.obs.addObserver(this, "Sanitize:ClearAll", false);
-    Services.obs.addObserver(this, "Telemetry:Add", false);
     Services.obs.addObserver(this, "PanZoom:PanZoom", false);
     Services.obs.addObserver(this, "FullScreen:Exit", false);
     Services.obs.addObserver(this, "Viewport:Change", false);
@@ -206,6 +206,8 @@ var BrowserApp = {
     ActivityObserver.init();
     WebappsUI.init();
     RemoteDebugger.init();
+    Reader.init();
+    Telemetry.init();
 #ifdef ACCESSIBILITY
     AccessFu.attach(window);
 #endif
@@ -295,7 +297,7 @@ var BrowserApp = {
       this.addTab(url, loadParams);
 
       // show telemetry door hanger if we aren't restoring a session
-      this._showTelemetryPrompt();
+      Telemetry.prompt();
     }
 
     if (this.isAppUpdated())
@@ -337,63 +339,6 @@ var BrowserApp = {
     Services.obs.notifyObservers(null, "Passwords:Init", "");
   },
 
-  _showTelemetryPrompt: function _showTelemetryPrompt() {
-    const PREF_TELEMETRY_PROMPTED = "toolkit.telemetry.prompted";
-    const PREF_TELEMETRY_ENABLED = "toolkit.telemetry.enabled";
-    const PREF_TELEMETRY_REJECTED = "toolkit.telemetry.rejected";
-    const PREF_TELEMETRY_SERVER_OWNER = "toolkit.telemetry.server_owner";
-
-    // This is used to reprompt users when privacy message changes
-    const TELEMETRY_PROMPT_REV = 2;
-
-    let serverOwner = Services.prefs.getCharPref(PREF_TELEMETRY_SERVER_OWNER);
-    let telemetryPrompted = null;
-    try {
-      telemetryPrompted = Services.prefs.getIntPref(PREF_TELEMETRY_PROMPTED);
-    } catch (e) { /* Optional */ }
-
-    // If the user has seen the latest telemetry prompt, do not prompt again
-    // else clear old prefs and reprompt
-    if (telemetryPrompted === TELEMETRY_PROMPT_REV)
-      return;
-
-    Services.prefs.clearUserPref(PREF_TELEMETRY_PROMPTED);
-    Services.prefs.clearUserPref(PREF_TELEMETRY_ENABLED);
-  
-    let buttons = [
-      {
-        label: Strings.browser.GetStringFromName("telemetry.optin.yes"),
-        callback: function () {
-          Services.prefs.setIntPref(PREF_TELEMETRY_PROMPTED, TELEMETRY_PROMPT_REV);
-          Services.prefs.setBoolPref(PREF_TELEMETRY_ENABLED, true);
-        }
-      },
-      {
-        label: Strings.browser.GetStringFromName("telemetry.optin.no"),
-        callback: function () {
-          Services.prefs.setIntPref(PREF_TELEMETRY_PROMPTED, TELEMETRY_PROMPT_REV);
-          Services.prefs.setBoolPref(PREF_TELEMETRY_REJECTED, true);
-        }
-      }
-    ];
-
-    let brandShortName = Strings.brand.GetStringFromName("brandShortName");
-    let message = Strings.browser.formatStringFromName("telemetry.optin.message2", [serverOwner, brandShortName], 2);
-    let learnMoreLabel = Strings.browser.GetStringFromName("telemetry.optin.learnMore");
-    let learnMoreUrl = Services.urlFormatter.formatURLPref("app.support.baseURL");
-    learnMoreUrl += "how-can-i-help-submitting-performance-data";
-    let options = {
-      link: {
-        label: learnMoreLabel,
-        url: learnMoreUrl
-      },
-      // We're adding this doorhanger during startup, before the initial onLocationChange
-      // event fires, so we need to set persistence to make sure it doesn't disappear.
-      persistence: 1
-    };
-    NativeWindow.doorhanger.show(message, "telemetry-optin", buttons, this.selectedTab.id, options);
-  },
-
   shutdown: function shutdown() {
     NativeWindow.uninit();
     FormAssistant.uninit();
@@ -407,6 +352,8 @@ var BrowserApp = {
     SearchEngines.uninit();
     WebappsUI.uninit();
     RemoteDebugger.uninit();
+    Reader.uninit();
+    Telemetry.uninit();
   },
 
   // This function returns false during periods where the browser displayed document is
@@ -781,14 +728,6 @@ var BrowserApp = {
     } catch (e) {}
   },
 
-  addTelemetry: function addTelemetry(aData) {
-    let json = JSON.parse(aData);
-    var telemetry = Cc["@mozilla.org/base/telemetry;1"]
-          .getService(Ci.nsITelemetry);
-    let histogram = telemetry.getHistogramById(json.name);
-    histogram.add(json.value);
-  },
-
   setPreferences: function setPreferences(aPref) {
     let json = JSON.parse(aPref);
 
@@ -977,8 +916,6 @@ var BrowserApp = {
       } else {
         profiler.StartProfiler(100000, 25, ["stackwalk"], 1);
       }
-    } else if (aTopic == "Telemetry:Add") {
-      this.addTelemetry(aData);
     }
   },
 
@@ -2241,10 +2178,12 @@ Tab.prototype = {
     let documentURI = contentWin.document.documentURIObject.spec;
     let contentType = contentWin.document.contentType;
     
-    // XXX If fixedURI matches browser.lastURI, we assume this isn't a real location
+    // If fixedURI matches browser.lastURI, we assume this isn't a real location
     // change but rather a spurious addition like a wyciwyg URI prefix. See Bug 747883.
+    // Note that we have to ensure fixedURI is not the same as aLocationURI so we
+    // don't false-positive page reloads as spurious additions.
     let sameDocument = (aFlags & Ci.nsIWebProgressListener.LOCATION_CHANGE_SAME_DOCUMENT) != 0 ||
-                       ((this.browser.lastURI != null) && fixedURI.equals(this.browser.lastURI));
+                       ((this.browser.lastURI != null) && fixedURI.equals(this.browser.lastURI) && !fixedURI.equals(aLocationURI));
     this.browser.lastURI = fixedURI;
 
     // Reset state of click-to-play plugin notifications.
@@ -3482,6 +3421,12 @@ var FormAssistant = {
     if (!this._isAutoComplete(aElement))
       return false;
 
+    // Don't display the form auto-complete popup after the user starts typing
+    // to avoid confusing the IME. See bug 758820 and bug 632744.
+    if (aElement.value.length > 0) {
+        return false;
+    }
+
     let autoCompleteSuggestions = this._getAutoCompleteSuggestions(aElement.value, aElement);
     let listSuggestions = this._getListSuggestions(aElement);
 
@@ -3730,7 +3675,7 @@ var ViewportHandler = {
         let document = target.ownerDocument;
         let browser = BrowserApp.getBrowserForDocument(document);
         let tab = BrowserApp.getTabForBrowser(browser);
-        if (tab)
+        if (tab && tab.contentDocumentIsDisplayed)
           this.updateMetadata(tab);
         break;
 
@@ -3776,10 +3721,6 @@ var ViewportHandler = {
    *   autoScale (boolean): Adjust the viewport properties to account for display density.
    */
   getViewportMetadata: function getViewportMetadata(aWindow) {
-    let doctype = aWindow.document.doctype;
-    if (doctype && /(WAP|WML|Mobile)/.test(doctype.publicId))
-      return { defaultZoom: 1, autoSize: true, allowZoom: true, autoScale: true };
-
     if (aWindow.document instanceof XULDocument)
       return { defaultZoom: 1, autoSize: true, allowZoom: false, autoScale: false };
 
@@ -3803,13 +3744,15 @@ var ViewportHandler = {
     let allowZoomStr = windowUtils.getDocumentMetadata("viewport-user-scalable");
     let allowZoom = !/^(0|no|false)$/.test(allowZoomStr); // WebKit allows 0, "no", or "false"
 
+    if (isNaN(scale) && isNaN(minScale) && isNaN(maxScale) && allowZoomStr == "" && widthStr == "" && heightStr == "") {
+      // Only check for HandheldFriendly if we don't have a viewport meta tag
+      let handheldFriendly = windowUtils.getDocumentMetadata("HandheldFriendly");
+      if (handheldFriendly == "true")
+        return { defaultZoom: 1, autoSize: true, allowZoom: true, autoScale: true };
 
-    if (scale == NaN && minScale == NaN && maxScale == NaN && allowZoomStr == "" && widthStr == "" && heightStr == "") {
-	// Only check for HandheldFriendly if we don't have a viewport meta tag
-	let handheldFriendly = windowUtils.getDocumentMetadata("HandheldFriendly");
-
-	if (handheldFriendly == "true")
-	    return { defaultZoom: 1, autoSize: true, allowZoom: true, autoScale: true };
+      let doctype = aWindow.document.doctype;
+      if (doctype && /(WAP|WML|Mobile)/.test(doctype.publicId))
+        return { defaultZoom: 1, autoSize: true, allowZoom: true, autoScale: true };
     }
 
     scale = this.clamp(scale, kViewportMinScale, kViewportMaxScale);
@@ -5337,4 +5280,443 @@ var RemoteDebugger = {
     DebuggerServer.closeListener();
     dump("Remote debugger stopped");
   }
-}
+};
+
+var Telemetry = {
+  _PREF_TELEMETRY_PROMPTED: "toolkit.telemetry.prompted",
+  _PREF_TELEMETRY_ENABLED: "toolkit.telemetry.enabled",
+  _PREF_TELEMETRY_REJECTED: "toolkit.telemetry.rejected",
+  _PREF_TELEMETRY_SERVER_OWNER: "toolkit.telemetry.server_owner",
+
+  // This is used to reprompt users when privacy message changes
+  _TELEMETRY_PROMPT_REV: 2,
+
+  init: function init() {
+    Services.obs.addObserver(this, "Preferences:Set", false);
+    Services.obs.addObserver(this, "Telemetry:Add", false);
+  },
+
+  uninit: function uninit() {
+    Services.obs.removeObserver(this, "Preferences:Set");
+    Services.obs.removeObserver(this, "Telemetry:Add");
+  },
+
+  observe: function observe(aSubject, aTopic, aData) {
+    if (aTopic == "Preferences:Set") {
+      // if user changes telemetry pref, treat it like they have been prompted
+      let pref = JSON.parse(aData);
+      if (pref.name == this._PREF_TELEMETRY_ENABLED)
+        Services.prefs.setIntPref(this._PREF_TELEMETRY_PROMPTED, this._TELEMETRY_PROMPT_REV);
+    } else if (aTopic == "Telemetry:Add") {
+      let json = JSON.parse(aData);
+      var telemetry = Cc["@mozilla.org/base/telemetry;1"].getService(Ci.nsITelemetry);
+      let histogram = telemetry.getHistogramById(json.name);
+      histogram.add(json.value);
+    }
+  },
+
+  prompt: function prompt() {
+    let serverOwner = Services.prefs.getCharPref(this._PREF_TELEMETRY_SERVER_OWNER);
+    let telemetryPrompted = null;
+    try {
+      telemetryPrompted = Services.prefs.getIntPref(this._PREF_TELEMETRY_PROMPTED);
+    } catch (e) { /* Optional */ }
+
+    // If the user has seen the latest telemetry prompt, do not prompt again
+    // else clear old prefs and reprompt
+    if (telemetryPrompted === this._TELEMETRY_PROMPT_REV)
+      return;
+
+    Services.prefs.clearUserPref(this._PREF_TELEMETRY_PROMPTED);
+    Services.prefs.clearUserPref(this._PREF_TELEMETRY_ENABLED);
+
+    let buttons = [
+      {
+        label: Strings.browser.GetStringFromName("telemetry.optin.yes"),
+        callback: function () {
+          Services.prefs.setIntPref(this._PREF_TELEMETRY_PROMPTED, this._TELEMETRY_PROMPT_REV);
+          Services.prefs.setBoolPref(this._PREF_TELEMETRY_ENABLED, true);
+        }
+      },
+      {
+        label: Strings.browser.GetStringFromName("telemetry.optin.no"),
+        callback: function () {
+          Services.prefs.setIntPref(this._PREF_TELEMETRY_PROMPTED, this._TELEMETRY_PROMPT_REV);
+          Services.prefs.setBoolPref(this._PREF_TELEMETRY_REJECTED, true);
+        }
+      }
+    ];
+
+    let brandShortName = Strings.brand.GetStringFromName("brandShortName");
+    let message = Strings.browser.formatStringFromName("telemetry.optin.message2", [serverOwner, brandShortName], 2);
+    let learnMoreLabel = Strings.browser.GetStringFromName("telemetry.optin.learnMore");
+    let learnMoreUrl = Services.urlFormatter.formatURLPref("app.support.baseURL");
+    learnMoreUrl += "how-can-i-help-submitting-performance-data";
+    let options = {
+      link: {
+        label: learnMoreLabel,
+        url: learnMoreUrl
+      },
+      // We're adding this doorhanger during startup, before the initial onLocationChange
+      // event fires, so we need to set persistence to make sure it doesn't disappear.
+      persistence: 1
+    };
+    NativeWindow.doorhanger.show(message, "telemetry-optin", buttons, BrowserApp.selectedTab.id, options);
+  },
+};
+
+let Reader = {
+  // Version of the cache database schema
+  DB_VERSION: 1,
+
+  DEBUG: 1,
+
+  init: function Reader_init() {
+    this.log("Init()");
+    this._requests = {};
+
+    Services.obs.addObserver(this, "Reader:Add", false);
+    Services.obs.addObserver(this, "Reader:Remove", false);
+  },
+
+  observe: function(aMessage, aTopic, aData) {
+    switch(aTopic) {
+      case "Reader:Add": {
+        let tab = BrowserApp.getTabForId(aData);
+        let url = tab.browser.contentWindow.location.href;
+
+        let sendResult = function(success, title) {
+          this.log("Reader:Add success=" + success + ", url=" + url + ", title=" + title);
+
+          sendMessageToJava({
+            gecko: {
+              type: "Reader:Added",
+              success: success,
+              title: title,
+              url: url,
+            }
+          });
+        }.bind(this);
+
+        this.parseDocumentFromTab(aData, function(article) {
+          if (!article) {
+            sendResult(false, "");
+            return;
+          }
+
+          this.storeArticleInCache(article, function(success) {
+            sendResult(success, article.title);
+          });
+        }.bind(this));
+        break;
+      }
+
+      case "Reader:Remove": {
+        this.removeArticleFromCache(aData, function(success) {
+          this.log("Reader:Remove success=" + success + ", url=" + aData);
+        }.bind(this));
+        break;
+      }
+    }
+  },
+
+  parseDocumentFromURL: function Reader_parseDocumentFromURL(url, callback) {
+    // If there's an on-going request for the same URL, simply append one
+    // more callback to it to be called when the request is done.
+    if (url in this._requests) {
+      let request = this._requests[url];
+      request.callbacks.push(callback);
+      return;
+    }
+
+    let request = { url: url, callbacks: [callback] };
+    this._requests[url] = request;
+
+    try {
+      this.log("parseDocumentFromURL: " + url);
+
+      // First, try to find a cached parsed article in the DB
+      this.getArticleFromCache(url, function(article) {
+        if (article) {
+          this.log("Page found in cache, return article immediately");
+          this._runCallbacksAndFinish(request, article);
+          return;
+        }
+
+        if (!this._requests) {
+          this.log("Reader has been destroyed, abort");
+          return;
+        }
+
+        // Article hasn't been found in the cache DB, we need to
+        // download the page and parse the article out of it.
+        this._downloadAndParseDocument(url, request);
+      }.bind(this));
+    } catch (e) {
+      this.log("Error parsing document from URL: " + e);
+      this._runCallbacksAndFinish(request, null);
+    }
+  },
+
+  parseDocumentFromTab: function(tabId, callback) {
+    try {
+      this.log("parseDocumentFromTab: " + tabId);
+
+      let tab = BrowserApp.getTabForId(tabId);
+      let url = tab.browser.contentWindow.location.href;
+
+      // First, try to find a cached parsed article in the DB
+      this.getArticleFromCache(url, function(article) {
+        if (article) {
+          this.log("Page found in cache, return article immediately");
+          callback(article);
+          return;
+        }
+
+        // We need to clone the document before parsing because readability
+        // changes the document object in several ways to find the article
+        // in it.
+        let doc = tab.browser.contentWindow.document.cloneNode(true);
+        let uri = Services.io.newURI(url, null, null);
+
+        let readability = new Readability(uri, doc);
+        let article = readability.parse();
+
+        if (!article) {
+          this.log("Failed to parse page");
+          callback(null);
+          return;
+        }
+
+        // Append URL to the article data
+        article.url = url;
+
+        callback(article);
+      }.bind(this));
+    } catch (e) {
+      this.log("Error parsing document from tab: " + e);
+      callback(null);
+    }
+  },
+
+  getArticleFromCache: function Reader_getArticleFromCache(url, callback) {
+    this._getCacheDB(function(cacheDB) {
+      if (!cacheDB) {
+        callback(false);
+        return;
+      }
+
+      let transaction = cacheDB.transaction(cacheDB.objectStoreNames);
+      let articles = transaction.objectStore(cacheDB.objectStoreNames[0]);
+
+      let request = articles.get(url);
+
+      request.onerror = function(event) {
+        this.log("Error getting article from the cache DB: " + url);
+        callback(null);
+      }.bind(this);
+
+      request.onsuccess = function(event) {
+        this.log("Got article from the cache DB: " + event.target.result);
+        callback(event.target.result);
+      }.bind(this);
+    }.bind(this));
+  },
+
+  storeArticleInCache: function Reader_storeArticleInCache(article, callback) {
+    this._getCacheDB(function(cacheDB) {
+      if (!cacheDB) {
+        callback(false);
+        return;
+      }
+
+      let transaction = cacheDB.transaction(cacheDB.objectStoreNames, "readwrite");
+      let articles = transaction.objectStore(cacheDB.objectStoreNames[0]);
+
+      let request = articles.add(article);
+
+      request.onerror = function(event) {
+        this.log("Error storing article in the cache DB: " + article.url);
+        callback(false);
+      }.bind(this);
+
+      request.onsuccess = function(event) {
+        this.log("Stored article in the cache DB: " + article.url);
+        callback(true);
+      }.bind(this);
+    }.bind(this));
+  },
+
+  removeArticleFromCache: function Reader_removeArticleFromCache(url, callback) {
+    this._getCacheDB(function(cacheDB) {
+      if (!cacheDB) {
+        callback(false);
+        return;
+      }
+
+      let transaction = cacheDB.transaction(cacheDB.objectStoreNames, "readwrite");
+      let articles = transaction.objectStore(cacheDB.objectStoreNames[0]);
+
+      let request = articles.delete(url);
+
+      request.onerror = function(event) {
+        this.log("Error removing article from the cache DB: " + url);
+        callback(false);
+      }.bind(this);
+
+      request.onsuccess = function(event) {
+        this.log("Removed article from the cache DB: " + url);
+        callback(true);
+      }.bind(this);
+    }.bind(this));
+  },
+
+  uninit: function Reader_uninit() {
+    Services.obs.removeObserver(this, "Reader:Add", false);
+    Services.obs.removeObserver(this, "Reader:Remove", false);
+
+    let requests = this._requests;
+    for (let url in requests) {
+      let request = requests[url];
+      if (request.browser) {
+        let browser = request.browser;
+        browser.parentNode.removeChild(browser);
+      }
+    }
+    delete this._requests;
+
+    if (this._cacheDB) {
+      this._cacheDB.close();
+      delete this._cacheDB;
+    }
+  },
+
+  log: function(msg) {
+    if (this.DEBUG)
+      dump("Reader: " + msg);
+  },
+
+  _runCallbacksAndFinish: function Reader_runCallbacksAndFinish(request, result) {
+    delete this._requests[request.url];
+
+    request.callbacks.forEach(function(callback) {
+      callback(result);
+    });
+  },
+
+  _dowloadDocument: function Reader_downloadDocument(url, callback) {
+    // We want to parse those arbitrary pages safely, outside the privileged
+    // context of chrome. We create a hidden browser element to fetch the
+    // loaded page's document object then discard the browser element.
+
+    let browser = document.createElement("browser");
+    browser.setAttribute("type", "content");
+    browser.setAttribute("collapsed", "true");
+
+    document.documentElement.appendChild(browser);
+    browser.stop();
+
+    browser.webNavigation.allowAuth = false;
+    browser.webNavigation.allowImages = false;
+    browser.webNavigation.allowJavascript = false;
+    browser.webNavigation.allowMetaRedirects = true;
+    browser.webNavigation.allowPlugins = false;
+
+    browser.addEventListener("DOMContentLoaded", function (event) {
+      let doc = event.originalTarget;
+      this.log("Done loading: " + doc);
+      if (doc.location.href == "about:blank" || doc.defaultView.frameElement) {
+        callback(null);
+
+        // Request has finished with error, remove browser element
+        browser.parentNode.removeChild(browser);
+        return;
+      }
+
+      callback(doc);
+
+      // Request has finished, remove browser element
+      browser.parentNode.removeChild(browser);
+    }.bind(this));
+
+    browser.loadURIWithFlags(url, Ci.nsIWebNavigation.LOAD_FLAGS_NONE,
+                             null, null, null);
+
+    return browser;
+  },
+
+  _downloadAndParseDocument: function Reader_downloadAndParseDocument(url, request) {
+    try {
+      this.log("Needs to fetch page, creating request: " + url);
+
+      request.browser = this._dowloadDocument(url, function(doc) {
+        this.log("Finished loading page: " + doc);
+
+        // Delete reference to the browser element as we're
+        // now done with this request.
+        delete request.browser;
+
+        if (!doc) {
+          this.log("Error loading page");
+          this._runCallbacksAndFinish(request, null);
+        }
+
+        this.log("Parsing response with Readability");
+
+        let uri = Services.io.newURI(url, null, null);
+        let readability = new Readability(uri, doc);
+        let article = readability.parse();
+
+        if (!article) {
+          this.log("Failed to parse page");
+          this._runCallbacksAndFinish(request, null);
+          return;
+        }
+
+        this.log("Parsing has been successful");
+
+        // Append URL to the article data
+        article.url = url;
+
+        this._runCallbacksAndFinish(request, article);
+      }.bind(this));
+    } catch (e) {
+      this.log("Error downloading and parsing document: " + e);
+      this._runCallbacksAndFinish(request, null);
+    }
+  },
+
+  _getCacheDB: function Reader_getCacheDB(callback) {
+    if (this._cacheDB) {
+      callback(this._cacheDB);
+      return;
+    }
+
+    let request = window.mozIndexedDB.open("about:reader", this.DB_VERSION);
+
+    request.onerror = function(event) {
+      this.log("Error connecting to the cache DB");
+      this._cacheDB = null;
+      callback(null);
+    }.bind(this);
+
+    request.onsuccess = function(event) {
+      this.log("Successfully connected to the cache DB");
+      this._cacheDB = event.target.result;
+      callback(this._cacheDB);
+    }.bind(this);
+
+    request.onupgradeneeded = function(event) {
+      this.log("Database schema upgrade from " +
+           event.oldVersion + " to " + event.newVersion);
+
+      let cacheDB = event.target.result;
+
+      // Create the articles object store
+      this.log("Creating articles object store");
+      cacheDB.createObjectStore("articles", { keyPath: "url" });
+
+      this.log("Database upgrade done: " + this.DB_VERSION);
+    }.bind(this);
+  }
+};

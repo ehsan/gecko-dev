@@ -226,7 +226,8 @@ IndexedDatabaseManager::GetOrCreate()
       // Make a lazy thread for any IO we need (like clearing or enumerating the
       // contents of indexedDB database directories).
       instance->mIOThread = new LazyIdleThread(DEFAULT_THREAD_TIMEOUT_MS,
-                                                LazyIdleThread::ManualShutdown);
+                                               NS_LITERAL_CSTRING("IndexedDB I/O"),
+                                               LazyIdleThread::ManualShutdown);
 
       // We need one quota callback object to hand to SQLite.
       instance->mQuotaCallbackSingleton = new QuotaCallback();
@@ -1753,6 +1754,25 @@ IndexedDatabaseManager::AsyncDeleteFileRunnable::Run()
   if (rc != SQLITE_OK) {
     NS_WARNING("Failed to delete stored file!");
     return NS_ERROR_FAILURE;
+  }
+
+  // sqlite3_quota_remove won't actually remove anything if we're not tracking
+  // the quota here. Manually remove the file if it exists.
+  nsresult rv;
+  nsCOMPtr<nsIFile> file =
+    do_CreateInstance(NS_LOCAL_FILE_CONTRACTID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = file->InitWithPath(mFilePath);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  bool exists;
+  rv = file->Exists(&exists);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (exists) {
+    rv = file->Remove(false);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   return NS_OK;

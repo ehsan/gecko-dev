@@ -51,15 +51,19 @@ def enum(*names):
     return Foo()
 
 class WebIDLError(Exception):
-    def __init__(self, message, location, warning=False):
+    def __init__(self, message, location, warning=False, extraLocation=""):
         self.message = message
         self.location = location
         self.warning = warning
+        self.extraLocation = extraLocation
 
     def __str__(self):
-        return "%s: %s%s%s" % (self.warning and 'warning' or 'error',
-                               self.message, ", " if self.location else "",
-                               self.location)
+        return "%s: %s%s%s%s%s" % (self.warning and 'warning' or 'error',
+                                   self.message,
+                                   ", " if self.location else "",
+                                   self.location,
+                                   "\n" if self.extraLocation else "",
+                                   self.extraLocation)
 
 class Location(object):
     def __init__(self, lexer, lineno, lexpos, filename):
@@ -145,6 +149,9 @@ class IDLObject(object):
 
     def isType(self):
         return False
+
+    def isDictionary(self):
+        return False;
 
     def getUserData(self, key, default):
         return self.userData.get(key, default)
@@ -313,7 +320,7 @@ class IDLObjectWithScope(IDLObjectWithIdentifier, IDLScope):
         IDLObjectWithIdentifier.__init__(self, location, parentScope, identifier)
         IDLScope.__init__(self, location, parentScope, self.identifier)
 
-class IDLParentPlaceholder(IDLObjectWithIdentifier):
+class IDLIdentifierPlaceholder(IDLObjectWithIdentifier):
     def __init__(self, location, identifier):
         assert isinstance(identifier, IDLUnresolvedIdentifier)
         IDLObjectWithIdentifier.__init__(self, location, None, identifier)
@@ -324,8 +331,8 @@ class IDLParentPlaceholder(IDLObjectWithIdentifier):
         except:
             raise WebIDLError("Unresolved type '%s'." % self.identifier, self.location)
 
-        iface = self.identifier.resolve(scope, None)
-        return scope.lookupIdentifier(iface)
+        obj = self.identifier.resolve(scope, None)
+        return scope.lookupIdentifier(obj)
 
 class IDLExternalInterface(IDLObjectWithIdentifier):
     def __init__(self, location, parentScope, identifier):
@@ -354,12 +361,13 @@ class IDLInterface(IDLObjectWithScope):
     def __init__(self, location, parentScope, name, parent, members):
         assert isinstance(parentScope, IDLScope)
         assert isinstance(name, IDLUnresolvedIdentifier)
-        assert not parent or isinstance(parent, IDLParentPlaceholder)
+        assert not parent or isinstance(parent, IDLIdentifierPlaceholder)
 
         self.parent = parent
         self._callback = False
         self._finished = False
         self.members = list(members) # clone the list
+        self.implementedInterfaces = set()
 
         IDLObjectWithScope.__init__(self, location, parentScope, name)
 
@@ -398,7 +406,7 @@ class IDLInterface(IDLObjectWithScope):
 
         self._finished = True
 
-        assert not self.parent or isinstance(self.parent, IDLParentPlaceholder)
+        assert not self.parent or isinstance(self.parent, IDLIdentifierPlaceholder)
         parent = self.parent.finish(scope) if self.parent else None
         assert not parent or isinstance(parent, IDLInterface)
 
@@ -408,31 +416,57 @@ class IDLInterface(IDLObjectWithScope):
 
         if self.parent:
             self.parent.finish(scope)
-            assert iter(self.parent.members)
 
-            members = list(self.parent.members)
-            members.extend(self.members)
-        else:
-            members = list(self.members)
+            # Callbacks must not inherit from non-callbacks or inherit from
+            # anything that has consequential interfaces.
+            if self.isCallback():
+                assert(self.parent.isCallback())
+                assert(len(self.parent.getConsequentialInterfaces()) == 0)
 
-        def memberNotOnParentChain(member, iface):
-            assert iface
+        for iface in self.implementedInterfaces:
+            iface.finish(scope)
 
-            if not iface.parent:
-                return True
+        # Now resolve() and finish() our members before importing the
+        # ones from our implemented interfaces.
 
-            assert isinstance(iface.parent, IDLInterface)
-            if member in iface.parent.members:
-                return False
-            return memberNotOnParentChain(member, iface.parent)
+        # resolve() will modify self.members, so we need to iterate
+        # over a copy of the member list here.
+        for member in list(self.members):
+            member.resolve(self)
+
+        for member in self.members:
+            member.finish(scope)
+
+        ctor = self.ctor()
+        if ctor is not None:
+            ctor.finish(scope)
+
+        # Make a copy of our member list, so things tht implement us
+        # can get those without all the stuff we implement ourselves
+        # admixed.
+        self.originalMembers = list(self.members)
+
+        # Import everything from our consequential interfaces into
+        # self.members.  Sort our consequential interfaces by name
+        # just so we have a consistent order.
+        for iface in sorted(self.getConsequentialInterfaces(),
+                            cmp=cmp,
+                            key=lambda x: x.identifier.name):
+            additionalMembers = iface.originalMembers;
+            for additionalMember in additionalMembers:
+                for member in self.members:
+                    if additionalMember.identifier.name == member.identifier.name:
+                        raise WebIDLError(
+                            "Multiple definitions of %s on %s coming from 'implements' statements" %
+                            (member.identifier.name, self),
+                            additionalMember.location,
+                            extraLocation=member.location)
+            self.members.extend(additionalMembers)
 
         # Ensure that there's at most one of each {named,indexed}
         # {getter,setter,creator,deleter}.
         specialMembersSeen = set()
-        for member in members:
-            if memberNotOnParentChain(member, self):
-                member.resolve(self)
-
+        for member in self.members:
             if member.tag != IDLInterfaceMember.Tags.Method:
                 continue
 
@@ -459,13 +493,6 @@ class IDLInterface(IDLObjectWithScope):
                                    self.location)
 
             specialMembersSeen.add(memberType)
-
-        for member in self.members:
-            member.finish(scope)
-
-        ctor = self.ctor()
-        if ctor is not None:
-            ctor.finish(scope)
 
     def isInterface(self):
         return True
@@ -530,6 +557,106 @@ class IDLInterface(IDLObjectWithScope):
                 method.resolve(self)
 
             self._extendedAttrDict[identifier] = attrlist if len(attrlist) else True
+
+    def addImplementedInterface(self, implementedInterface):
+        assert(isinstance(implementedInterface, IDLInterface))
+        self.implementedInterfaces.add(implementedInterface)
+
+    def getInheritedInterfaces(self):
+        """
+        Returns a list of the interfaces this interface inherits from
+        (not including this interface itself).  The list is in order
+        from most derived to least derived.
+        """
+        assert(self._finished)
+        if not self.parent:
+            return []
+        parentInterfaces = self.parent.getInheritedInterfaces()
+        parentInterfaces.insert(0, self.parent)
+        return parentInterfaces
+
+    def getConsequentialInterfaces(self):
+        assert(self._finished)
+        # The interfaces we implement directly
+        consequentialInterfaces = set(self.implementedInterfaces)
+
+        # And their inherited interfaces
+        for iface in self.implementedInterfaces:
+            consequentialInterfaces |= set(iface.getInheritedInterfaces())
+
+        # And now collect up the consequential interfaces of all of those
+        temp = set()
+        for iface in consequentialInterfaces:
+            temp |= iface.getConsequentialInterfaces()
+
+        return consequentialInterfaces | temp
+
+class IDLDictionary(IDLObjectWithScope):
+    def __init__(self, location, parentScope, name, parent, members):
+        assert isinstance(parentScope, IDLScope)
+        assert isinstance(name, IDLUnresolvedIdentifier)
+        assert not parent or isinstance(parent, IDLIdentifierPlaceholder)
+
+        self.parent = parent
+        self._finished = False
+        self.members = list(members)
+
+        IDLObjectWithScope.__init__(self, location, parentScope, name)
+
+    def __str__(self):
+        return "Dictionary '%s'" % self.identifier.name
+
+    def isDictionary(self):
+        return True;
+
+    def finish(self, scope):
+        if self._finished:
+            return
+
+        self._finished = True
+
+        if self.parent:
+            assert isinstance(self.parent, IDLIdentifierPlaceholder)
+            oldParent = self.parent
+            self.parent = self.parent.finish(scope)
+            if not isinstance(self.parent, IDLDictionary):
+                raise WebIDLError("Dictionary %s has parent that is not a dictionary" %
+                                  self.identifier.name,
+                                  oldParent.location,
+                                  extraLocation=self.parent.location)
+
+            # Make sure the parent resolves all its members before we start
+            # looking at them.
+            self.parent.finish(scope)
+
+        for member in self.members:
+            member.resolve(self)
+
+        # Members of a dictionary are sorted in lexicographic order
+        self.members.sort(cmp=cmp, key=lambda x: x.identifier.name)
+
+        inheritedMembers = []
+        ancestor = self.parent
+        while ancestor:
+            if ancestor == self:
+                raise WebIDLError("Dictionary %s has itself as an ancestor" %
+                                  self.identifier.name,
+                                  self.identifier.location)
+            inheritedMembers.extend(ancestor.members)
+            ancestor = ancestor.parent
+
+        # Catch name duplication
+        for inheritedMember in inheritedMembers:
+            for member in self.members:
+                if member.identifier.name == inheritedMember.identifier.name:
+                    raise WebIDLError("Dictionary %s has two members with name %s" %
+                                      (self.identifier.name, member.identifier.name),
+                                      member.location,
+                                      extraLocation=inheritedMember.location)
+
+    def addExtendedAttributes(self, attrs):
+        assert len(attrs) == 0
+
 
 class IDLEnum(IDLObjectWithIdentifier):
     def __init__(self, location, parentScope, name, values):
@@ -1036,7 +1163,7 @@ class IDLWrapperType(IDLType):
         return False
 
     def isDictionary(self):
-        return False
+        return isinstance(self.inner, IDLDictionary)
 
     def isInterface(self):
         return isinstance(self.inner, IDLInterface) or \
@@ -1057,6 +1184,8 @@ class IDLWrapperType(IDLType):
             return IDLType.Tags.interface
         elif self.isEnum():
             return IDLType.Tags.enum
+        elif self.isDictionary():
+            return IDLType.Tags.dictionary
         else:
             assert False
 
@@ -1424,6 +1553,9 @@ class IDLConst(IDLInterfaceMember):
                                     IDLInterfaceMember.Tags.Const)
 
         assert isinstance(type, IDLType)
+        if type.isDictionary():
+            raise WebIDLError("A constant cannot be of a dictionary type",
+                              self.location)
         self.type = type
 
         # The value might not match the type
@@ -1461,6 +1593,9 @@ class IDLAttribute(IDLInterfaceMember):
 
             assert not isinstance(t, IDLUnresolvedType)
             assert not isinstance(t.name, IDLUnresolvedIdentifier)
+            if t.isDictionary():
+                raise WebIDLError("An attribute cannot be of a dictionary type",
+                                  self.location)
             self.type = t
 
     def handleExtendedAttribute(self, name, list):
@@ -1740,6 +1875,22 @@ class IDLMethod(IDLInterfaceMember, IDLScope):
                 assert not isinstance(type.name, IDLUnresolvedIdentifier)
                 argument.type = type
 
+class IDLImplementsStatement(IDLObject):
+    def __init__(self, location, implementor, implementee):
+        IDLObject.__init__(self, location)
+        self.implementor = implementor;
+        self.implementee = implementee
+
+    def finish(self, scope):
+        assert(isinstance(self.implementor, IDLIdentifierPlaceholder))
+        assert(isinstance(self.implementee, IDLIdentifierPlaceholder))
+        implementor = self.implementor.finish(scope)
+        implementee = self.implementee.finish(scope)
+        implementor.addImplementedInterface(implementee)
+
+    def addExtendedAttributes(self, attrs):
+        assert len(attrs) == 0
+
 # Parser
 
 class Tokenizer(object):
@@ -1968,7 +2119,7 @@ class Parser(Tokenizer):
         """
             Inheritance : COLON ScopedName
         """
-        p[0] = IDLParentPlaceholder(self.getLocation(p, 2), p[2])
+        p[0] = IDLIdentifierPlaceholder(self.getLocation(p, 2), p[2])
 
     def p_InheritanceEmpty(self, p):
         """
@@ -2004,20 +2155,37 @@ class Parser(Tokenizer):
         """
             Dictionary : DICTIONARY IDENTIFIER Inheritance LBRACE DictionaryMembers RBRACE SEMICOLON
         """
-        pass
+        location = self.getLocation(p, 1)
+        identifier = IDLUnresolvedIdentifier(self.getLocation(p, 2), p[2])
+        members = p[5]
+        p[0] = IDLDictionary(location, self.globalScope(), identifier, p[3], members)
 
     def p_DictionaryMembers(self, p):
         """
             DictionaryMembers : ExtendedAttributeList DictionaryMember DictionaryMembers
                              |
         """
-        pass
+        if len(p) == 1:
+            # We're at the end of the list
+            p[0] = []
+            return
+        # Add our extended attributes
+        p[2].addExtendedAttributes(p[1])
+        p[0] = [p[2]]
+        p[0].extend(p[3])
 
     def p_DictionaryMember(self, p):
         """
             DictionaryMember : Type IDENTIFIER DefaultValue SEMICOLON
         """
-        pass
+        # These quack a lot like optional arguments, so just treat them that way.
+        t = p[1]
+        assert isinstance(t, IDLType)
+        identifier = IDLUnresolvedIdentifier(self.getLocation(p, 2), p[2])
+        defaultValue = p[3]
+
+        p[0] = IDLArgument(self.getLocation(p, 2), identifier, t, optional=True,
+                           defaultValue=defaultValue, variadic=False)
 
     def p_DefaultValue(self, p):
         """
@@ -2093,7 +2261,11 @@ class Parser(Tokenizer):
         """
             ImplementsStatement : ScopedName IMPLEMENTS ScopedName SEMICOLON
         """
-        pass
+        assert(p[2] == "implements")
+        implementor = IDLIdentifierPlaceholder(self.getLocation(p, 1), p[1])
+        implementee = IDLIdentifierPlaceholder(self.getLocation(p, 3), p[3])
+        p[0] = IDLImplementsStatement(self.getLocation(p, 1), implementor,
+                                      implementee)
 
     def p_Const(self, p):
         """
@@ -2950,7 +3122,16 @@ class Parser(Tokenizer):
         self._filename = None
 
     def finish(self):
-        for production in self._productions:
+        # First, finish all the IDLImplementsStatements.  In particular, we
+        # have to make sure we do those before we do the IDLInterfaces.
+        # XXX khuey hates this bit and wants to nuke it from orbit.
+        implementsStatements = [ p for p in self._productions if
+                                 isinstance(p, IDLImplementsStatement)]
+        otherStatements = [ p for p in self._productions if
+                            not isinstance(p, IDLImplementsStatement)]
+        for production in implementsStatements:
+            production.finish(self.globalScope())
+        for production in otherStatements:
             production.finish(self.globalScope())
 
         # De-duplicate self._productions, without modifying its order.

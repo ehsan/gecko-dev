@@ -233,6 +233,9 @@ public:
   void PassOptionalObjectSequence(const Optional<Sequence<OwningNonNull<TestInterface> > >&,
                                   ErrorResult&);
 
+  void ReceiveStringSequence(nsTArray<nsString>&, ErrorResult&);
+  void PassStringSequence(const Sequence<nsString>&, ErrorResult&);
+
   // Typed array types
   void PassArrayBuffer(ArrayBuffer&, ErrorResult&);
   void PassNullableArrayBuffer(ArrayBuffer*, ErrorResult&);
@@ -293,6 +296,26 @@ public:
   int8_t GetAttributeGetterRenamedTo(ErrorResult&);
   int8_t GetAttributeRenamedTo(ErrorResult&);
   void SetAttributeRenamedTo(int8_t, ErrorResult&);
+
+  // Dictionary tests
+  void PassDictionary(const Dict&, ErrorResult&);
+  void PassOptionalDictionary(const Optional<Dict>&, ErrorResult&);
+  void PassNullableDictionary(const Nullable<Dict>&, ErrorResult&);
+  void PassOptionalNullableDictionary(const Optional<Nullable<Dict> >&, ErrorResult&);
+  void PassOtherDictionary(const GrandparentDict&, ErrorResult&);
+  void PassSequenceOfDictionaries(const Sequence<Dict>&, ErrorResult&);
+
+  // Methods and properties imported via "implements"
+  bool GetImplementedProperty(ErrorResult&);
+  void SetImplementedProperty(bool, ErrorResult&);
+  void ImplementedMethod(ErrorResult&);
+  bool GetImplementedParentProperty(ErrorResult&);
+  void SetImplementedParentProperty(bool, ErrorResult&);
+  void ImplementedParentMethod(ErrorResult&);
+  bool GetIndirectlyImplementedProperty(ErrorResult&);
+  void SetIndirectlyImplementedProperty(bool, ErrorResult&);
+  void IndirectlyImplementedMethod(ErrorResult&);
+  uint32_t GetDiamondImplementedProperty(ErrorResult&);
 
 private:
   // We add signatures here that _could_ start matching if the codegen

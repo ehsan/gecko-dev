@@ -119,8 +119,8 @@ ValueToIdentifier(JSContext *cx, const Value &v, jsid *idp)
  * Debugger::removeDebuggeeGlobal to make sure only current debuggers have Frame
  * objects with .live === true.
  */
-class Debugger::FrameRange {
-    JSContext *cx;
+class Debugger::FrameRange
+{
     StackFrame *fp;
 
     /* The debuggers in |fp|'s compartment, or NULL if there are none. */
@@ -150,8 +150,9 @@ class Debugger::FrameRange {
      * Similarly, if stack frames are added to or removed from frontDebugger(),
      * then the range's front is invalid until popFront is called.
      */
-    FrameRange(JSContext *cx, StackFrame *fp, GlobalObject *global = NULL)
-      : cx(cx), fp(fp) {
+    FrameRange(StackFrame *fp, GlobalObject *global = NULL)
+      : fp(fp)
+    {
         nextDebugger = 0;
 
         /* Find our global, if we were not given one. */
@@ -510,7 +511,7 @@ Debugger::slowPathOnLeaveFrame(JSContext *cx, bool frameOk)
 
     /* Build a list of the recipients. */
     AutoObjectVector frames(cx);
-    for (FrameRange r(cx, fp, global); !r.empty(); r.popFront()) {
+    for (FrameRange r(fp, global); !r.empty(); r.popFront()) {
         if (!frames.append(r.frontFrame())) {
             cx->clearPendingException();
             return false;
@@ -565,7 +566,7 @@ Debugger::slowPathOnLeaveFrame(JSContext *cx, bool frameOk)
      * debugger's onPop handler could have caused another debugger to create its
      * own Debugger.Frame instance.
      */
-    for (FrameRange r(cx, fp, global); !r.empty(); r.popFront()) {
+    for (FrameRange r(fp, global); !r.empty(); r.popFront()) {
         JSObject *frameobj = r.frontFrame();
         Debugger *dbg = r.frontDebugger();
         JS_ASSERT(dbg == Debugger::fromChildJSObject(frameobj));
@@ -642,6 +643,13 @@ Debugger::wrapEnvironment(JSContext *cx, Handle<Env*> env, Value *rval)
             js_ReportOutOfMemory(cx);
             return false;
         }
+
+        CrossCompartmentKey key(CrossCompartmentKey::DebuggerEnvironment, object, env);
+        if (!object->compartment()->crossCompartmentWrappers.put(key, ObjectValue(*envobj))) {
+            environments.remove(env);
+            js_ReportOutOfMemory(cx);
+            return false;
+        }
     }
     rval->setObject(*envobj);
     return true;
@@ -671,6 +679,16 @@ Debugger::wrapDebuggeeValue(JSContext *cx, Value *vp)
                 js_ReportOutOfMemory(cx);
                 return false;
             }
+
+            if (obj->compartment() != object->compartment()) {
+                CrossCompartmentKey key(CrossCompartmentKey::DebuggerObject, object, obj);
+                if (!object->compartment()->crossCompartmentWrappers.put(key, ObjectValue(*dobj))) {
+                    objects.remove(obj);
+                    js_ReportOutOfMemory(cx);
+                    return false;
+                }
+            }
+
             vp->setObject(*dobj);
         }
     } else if (!cx->compartment->wrap(cx, vp)) {
@@ -1157,7 +1175,7 @@ Debugger::onSingleStep(JSContext *cx, Value *vp)
      * onStep handlers.
      */
     AutoObjectVector frames(cx);
-    for (FrameRange r(cx, fp); !r.empty(); r.popFront()) {
+    for (FrameRange r(fp); !r.empty(); r.popFront()) {
         JSObject *frame = r.frontFrame();
         if (!frame->getReservedSlot(JSSLOT_DEBUGFRAME_ONSTEP_HANDLER).isUndefined() &&
             !frames.append(frame))
@@ -2399,10 +2417,21 @@ Debugger::wrapScript(JSContext *cx, HandleScript script)
     ScriptWeakMap::AddPtr p = scripts.lookupForAdd(script);
     if (!p) {
         JSObject *scriptobj = newDebuggerScript(cx, script);
+        if (!scriptobj)
+            return NULL;
 
         /* The allocation may have caused a GC, which can remove table entries. */
-        if (!scriptobj || !scripts.relookupOrAdd(p, script.value(), scriptobj))
+        if (!scripts.relookupOrAdd(p, script, scriptobj)) {
+            js_ReportOutOfMemory(cx);
             return NULL;
+        }
+
+        CrossCompartmentKey key(CrossCompartmentKey::DebuggerScript, object, script);
+        if (!object->compartment()->crossCompartmentWrappers.put(key, ObjectValue(*scriptobj))) {
+            scripts.remove(script);
+            js_ReportOutOfMemory(cx);
+            return NULL;
+        }
     }
 
     JS_ASSERT(GetScriptReferent(p->value) == script);
