@@ -136,8 +136,9 @@ function cacheSnippets(response) {
 function loadSnippetsFromCache() {
   let promise = OS.File.read(gSnippetsPath);
   promise.then(array => updateBanner(gDecoder.decode(array)), e => {
+    // If snippets.json doesn't exist, update data from the server.
     if (e instanceof OS.File.Error && e.becauseNoSuchFile) {
-      Cu.reportError("Couldn't show snippets because cache does not exist yet.");
+      update();
     } else {
       Cu.reportError("Error loading snippets from cache: " + e);
     }
@@ -177,8 +178,7 @@ function updateBanner(response) {
       text: message.text,
       icon: message.icon,
       onclick: function() {
-        let parentId = gChromeWin.BrowserApp.selectedTab.id;
-        gChromeWin.BrowserApp.addTab(message.url, { parentId: parentId });
+        gChromeWin.BrowserApp.addTab(message.url);
       },
       onshown: function() {
         // 10% of the time, record the snippet id and a timestamp

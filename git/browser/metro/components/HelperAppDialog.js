@@ -109,7 +109,7 @@ HelperAppLauncherDialog.prototype = {
     let chromeWin = this._getChromeWindow(window).wrappedJSObject;
     let notificationBox = chromeWin.Browser.getNotificationBox();
     let document = notificationBox.ownerDocument;
-    let downloadSize = this._getDownloadSize(aLauncher.contentLength);
+    downloadSize = this._getDownloadSize(aLauncher.contentLength);
 
     let msg = browserBundle.GetStringFromName("alertDownloadSave2");
 

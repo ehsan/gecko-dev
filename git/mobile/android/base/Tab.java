@@ -648,8 +648,7 @@ public class Tab {
 
     private static boolean shouldShowProgress(final String url) {
         return AboutPages.isAboutHome(url) ||
-               AboutPages.isAboutReader(url) ||
-               AboutPages.isAboutPrivateBrowsing(url);
+               AboutPages.isAboutReader(url);
     }
 
     void handleDocumentStart(boolean showProgress, String url) {
