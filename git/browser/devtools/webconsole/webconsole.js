@@ -4679,7 +4679,6 @@ var Utils = {
       case "SSL":
       case "CORS":
       case "Iframe Sandbox":
-      case "Tracking Protection":
         return CATEGORY_SECURITY;
 
       default:

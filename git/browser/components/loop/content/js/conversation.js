@@ -15,7 +15,6 @@ loop.conversation = (function(mozL10n) {
   var sharedMixins = loop.shared.mixins;
   var sharedModels = loop.shared.models;
   var OutgoingConversationView = loop.conversationViews.OutgoingConversationView;
-  var CallIdentifierView = loop.conversationViews.CallIdentifierView;
 
   var IncomingCallView = React.createClass({displayName: 'IncomingCallView',
     mixins: [sharedMixins.DropdownMenuMixin],
@@ -95,14 +94,9 @@ loop.conversation = (function(mozL10n) {
         "conversation-window-dropdown": true,
         "visually-hidden": !this.state.showMenu
       });
-
       return (
         React.DOM.div({className: "call-window"}, 
-          CallIdentifierView({video: this.props.video, 
-            peerIdentifier: this.props.model.getCallIdentifier(), 
-            urlCreationDate: this.props.model.get("urlCreationDate"), 
-            showIcons: true}), 
-
+          React.DOM.h2(null, mozL10n.get("incoming_call_title2")), 
           React.DOM.div({className: "btn-group call-action-group"}, 
 
             React.DOM.div({className: "fx-embedded-call-button-spacer"}), 
@@ -235,7 +229,8 @@ loop.conversation = (function(mozL10n) {
           );
         }
         case "connected": {
-          document.title = this.props.conversation.getCallIdentifier();
+          // XXX This should be the caller id (bug 1020449)
+          document.title = mozL10n.get("incoming_call_title2");
 
           var callType = this.props.conversation.get("selectedCallType");
 

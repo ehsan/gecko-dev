@@ -32,8 +32,3 @@ if CONFIG['OS_ARCH'] == 'WINNT':
     OS_LIBS += [
         'dbghelp',
     ]
-
-XPCSHELL_TESTS_MANIFESTS += [
-    'test/xpcshell.ini',
-]
-

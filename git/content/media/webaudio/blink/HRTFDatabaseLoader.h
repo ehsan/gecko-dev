@@ -94,16 +94,13 @@ public:
     // Called in asynchronous loading thread.
     void load();
 
-    // Sums the size of all cached database loaders.
-    static size_t sizeOfLoaders(mozilla::MallocSizeOf aMallocSizeOf);
+    size_t sizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
 
 private:
     // Both constructor and destructor must be called from the main thread.
     explicit HRTFDatabaseLoader(float sampleRate);
     ~HRTFDatabaseLoader();
-
-    size_t sizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
-
+    
     void ProxyRelease(); // any thread
     void MainThreadRelease(); // main thread only
     class ProxyReleaseEvent;
@@ -120,12 +117,6 @@ private:
             , mLoader() // so PutEntry() will zero-initialize
         {
         }
-
-        size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
-        {
-            return mLoader ? mLoader->sizeOfIncludingThis(aMallocSizeOf) : 0;
-        }
-
         HRTFDatabaseLoader* mLoader;
     };
 
