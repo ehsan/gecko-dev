@@ -1415,7 +1415,7 @@ struct JSRuntime : public JS::shadow::Runtime,
     // The atoms compartment is the only one in its zone.
     inline bool isAtomsZone(JS::Zone *zone);
 
-    bool activeGCInAtomsZone();
+    inline bool atomsZoneNeedsBarrier();
 
     union {
         /*

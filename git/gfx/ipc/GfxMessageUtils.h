@@ -39,6 +39,7 @@ typedef gfxASurface::gfxContentType gfxContentType;
 typedef gfxASurface::gfxImageFormat PixelFormat;
 typedef gfxASurface::gfxSurfaceType gfxSurfaceType;
 typedef gfxPattern::GraphicsFilter GraphicsFilterType;
+typedef layers::LayersBackend LayersBackend;
 typedef layers::ImageLayer::ScaleMode ScaleMode;
 
 } // namespace mozilla

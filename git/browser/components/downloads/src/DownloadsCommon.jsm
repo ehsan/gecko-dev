@@ -53,8 +53,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "PluralForm",
                                   "resource://gre/modules/PluralForm.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Downloads",
                                   "resource://gre/modules/Downloads.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "DownloadUIHelper",
-                                  "resource://gre/modules/DownloadUIHelper.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "DownloadUtils",
                                   "resource://gre/modules/DownloadUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "OS",
@@ -482,44 +480,65 @@ this.DownloadsCommon = {
     if (!(aOwnerWindow instanceof Ci.nsIDOMWindow))
       throw new Error("aOwnerWindow must be a dom-window object");
 
-    let promiseShouldLaunch;
+    // Confirm opening executable files if required.
     if (aFile.isExecutable()) {
-      // We get a prompter for the provided window here, even though anchoring
-      // to the most recently active window should work as well.
-      promiseShouldLaunch =
-        DownloadUIHelper.getPrompter(aOwnerWindow)
-                        .confirmLaunchExecutable(aFile.path);
-    } else {
-      promiseShouldLaunch = Promise.resolve(true);
-    }
-
-    promiseShouldLaunch.then(shouldLaunch => {
-      if (!shouldLaunch) {
-        return;
-      }
-  
-      // Actually open the file.
+      let showAlert = true;
       try {
-        if (aMimeInfo && aMimeInfo.preferredAction == aMimeInfo.useHelperApp) {
-          aMimeInfo.launchWithFile(aFile);
+        showAlert = Services.prefs.getBoolPref(kPrefBdmAlertOnExeOpen);
+      } catch (ex) { }
+
+      // On Vista and above, we rely on native security prompting for
+      // downloaded content unless it's disabled.
+      if (DownloadsCommon.isWinVistaOrHigher) {
+        try {
+          if (Services.prefs.getBoolPref(kPrefBdmScanWhenDone)) {
+            showAlert = false;
+          }
+        } catch (ex) { }
+      }
+
+      if (showAlert) {
+        let name = aFile.leafName;
+        let message =
+          DownloadsCommon.strings.fileExecutableSecurityWarning(name, name);
+        let title =
+          DownloadsCommon.strings.fileExecutableSecurityWarningTitle;
+        let dontAsk =
+          DownloadsCommon.strings.fileExecutableSecurityWarningDontAsk;
+
+        let checkbox = { value: false };
+        let open = Services.prompt.confirmCheck(aOwnerWindow, title, message,
+                                                dontAsk, checkbox);
+        if (!open) {
           return;
         }
+
+        Services.prefs.setBoolPref(kPrefBdmAlertOnExeOpen,
+                                   !checkbox.value);
       }
-      catch(ex) { }
-  
-      // If either we don't have the mime info, or the preferred action failed,
-      // attempt to launch the file directly.
-      try {
-        aFile.launch();
+    }
+
+    // Actually open the file.
+    try {
+      if (aMimeInfo && aMimeInfo.preferredAction == aMimeInfo.useHelperApp) {
+        aMimeInfo.launchWithFile(aFile);
+        return;
       }
-      catch(ex) {
-        // If launch fails, try sending it through the system's external "file:"
-        // URL handler.
-        Cc["@mozilla.org/uriloader/external-protocol-service;1"]
-          .getService(Ci.nsIExternalProtocolService)
-          .loadUrl(NetUtil.newURI(aFile));
-      }
-    }).then(null, Cu.reportError);
+    }
+    catch(ex) { }
+
+    // If either we don't have the mime info, or the preferred action failed,
+    // attempt to launch the file directly.
+    try {
+      aFile.launch();
+    }
+    catch(ex) {
+      // If launch fails, try sending it through the system's external "file:"
+      // URL handler.
+      Cc["@mozilla.org/uriloader/external-protocol-service;1"]
+        .getService(Ci.nsIExternalProtocolService)
+        .loadUrl(NetUtil.newURI(aFile));
+    }
   },
 
   /**
@@ -699,7 +718,7 @@ DownloadsDataCtor.prototype = {
       return;
     }
 
-    this._downloadToDataItemMap.delete(aDownload);
+    this._downloadToDataItemMap.remove(aDownload);
     this.dataItems[dataItem.downloadGuid] = null;
     for (let view of this._views) {
       view.onDataItemRemoved(dataItem);
@@ -1325,7 +1344,7 @@ DownloadsDataItem.prototype = {
     this.currBytes = this._download.currentBytes;
     this.maxBytes = this._download.totalBytes;
     this.resumable = this._download.hasPartialData;
-    this.speed = this._download.speed;
+    this.speed = 0;
     this.percentComplete = this._download.progress;
   },
 

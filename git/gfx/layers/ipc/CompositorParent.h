@@ -206,7 +206,7 @@ public:
   static bool IsInCompositorThread();
 protected:
   virtual PLayerTransactionParent*
-    AllocPLayerTransactionParent(const nsTArray<LayersBackend>& aBackendHints,
+    AllocPLayerTransactionParent(const LayersBackend& aBackendHint,
                                  const uint64_t& aId,
                                  TextureFactoryIdentifier* aTextureFactoryIdentifier,
                                  bool* aSuccess);
@@ -218,7 +218,6 @@ protected:
   void SetEGLSurfaceSize(int width, int height);
 
 private:
-  void InitializeLayerManager(const nsTArray<LayersBackend>& aBackendHints);
   void PauseComposition();
   void ResumeComposition();
   void ResumeCompositionAndResize(int width, int height);

@@ -115,7 +115,7 @@ class WorkerThreadState
         return asmJSFailedFunction;
     }
 
-    void finishParseTaskForScript(JSRuntime *rt, JSScript *script);
+    void finishParseTaskForScript(JSScript *script);
 
   private:
 

@@ -25,8 +25,6 @@ function TopSitesView(aGrid, aMaxSites) {
   Services.obs.addObserver(this, "Metro:RefreshTopsiteThumbnail", false);
   Services.obs.addObserver(this, "metro_viewstate_changed", false);
 
-  this._adjustDOMforViewState();
-
   NewTabUtils.allPages.register(this);
   TopSites.prepareCache().then(function(){
     this.populateGrid();
@@ -226,25 +224,6 @@ TopSitesView.prototype = Util.extend(Object.create(View.prototype), {
     return prefs.getBoolPref("browser.firstrun.show.localepicker");
   },
 
-  _adjustDOMforViewState: function _adjustDOMforViewState(aState) {
-    if (!this._set)
-      return;
-    if (!aState)
-      aState = this._set.getAttribute("viewstate");
-
-    View.prototype._adjustDOMforViewState.call(this, aState);
-
-    // propogate tiletype changes down to tile children
-    let tileType = this._set.getAttribute("tiletype");
-    for (let item of this._set.children) {
-      if (tileType) {
-        item.setAttribute("tiletype", tileType);
-      } else {
-        item.removeAttribute("tiletype");
-      }
-    }
-  },
-
   // nsIObservers
   observe: function (aSubject, aTopic, aState) {
     switch(aTopic) {
@@ -253,6 +232,13 @@ TopSitesView.prototype = Util.extend(Object.create(View.prototype), {
         break;
       case "metro_viewstate_changed":
         this.onViewStateChange(aState);
+        for (let item of this._set.children) {
+          if (aState == "snapped") {
+            item.removeAttribute("tiletype");
+          } else {
+            item.setAttribute("tiletype", "thumbnail");
+          }
+        }
         break;
     }
   },

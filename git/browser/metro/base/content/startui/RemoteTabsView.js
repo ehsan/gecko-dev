@@ -37,7 +37,6 @@ function RemoteTabsView(aSet, aSetUIAccessList) {
   else {
     this.setUIAccessVisible(false);
   }
-  this._adjustDOMforViewState();
 }
 
 RemoteTabsView.prototype = Util.extend(Object.create(View.prototype), {

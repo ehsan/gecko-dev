@@ -6558,19 +6558,18 @@ nsWindow::StartAllowingD3D9(bool aReinitialize)
   }
 }
 
-void
-nsWindow::GetPreferredCompositorBackends(nsTArray<LayersBackend>& aHints)
+mozilla::layers::LayersBackend
+nsWindow::GetPreferredCompositorBackend()
 {
   LayerManagerPrefs prefs;
   GetLayerManagerPrefs(&prefs);
-
-  if (!prefs.mDisableAcceleration) {
-    if (!prefs.mPreferD3D9) {
-      aHints.AppendElement(LAYERS_D3D11);
-    }
-    aHints.AppendElement(LAYERS_D3D9);
+  if (prefs.mDisableAcceleration) {
+    return mozilla::layers::LAYERS_BASIC;
   }
-  aHints.AppendElement(LAYERS_BASIC);
+  if (prefs.mPreferD3D9) {
+    return mozilla::layers::LAYERS_D3D9;
+  }
+  return mozilla::layers::LAYERS_D3D11;
 }
 
 void

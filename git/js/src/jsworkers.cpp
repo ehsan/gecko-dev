@@ -481,8 +481,9 @@ WorkerThreadState::canStartParseTask()
 }
 
 void
-WorkerThreadState::finishParseTaskForScript(JSRuntime *rt, JSScript *script)
+WorkerThreadState::finishParseTaskForScript(JSScript *script)
 {
+    JSRuntime *rt = script->compartment()->runtimeFromMainThread();
     ParseTask *parseTask = NULL;
 
     {

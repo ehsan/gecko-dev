@@ -45,12 +45,13 @@ function highlightNode()
   // Highlight a node.
   let div = content.document.getElementsByTagName("div")[0];
 
-  inspector.once("inspector-updated", function() {
+  inspector.selection.once("new-node", function() {
     is(inspector.selection.node, div, "selection matches the div element");
     executeSoon(checkCopySelection);
   });
-
-  inspector.selection.setNode(div);
+  executeSoon(function() {
+    inspector.selection.setNode(div);
+  });
 }
 
 function checkCopySelection()

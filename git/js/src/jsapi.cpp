@@ -4847,7 +4847,7 @@ JS::CanCompileOffThread(JSContext *cx, const CompileOptions &options)
     // atoms compartment, to avoid triggering barriers. Outside the atoms
     // compartment, the compilation will use a new zone which doesn't require
     // barriers itself.
-    if (cx->runtime()->activeGCInAtomsZone())
+    if (cx->runtime()->atomsZoneNeedsBarrier())
         return false;
 
     // Blacklist filenames which cause mysterious assertion failures in
@@ -4893,7 +4893,7 @@ JS::FinishOffThreadScript(JSRuntime *rt, JSScript *script)
 {
 #if defined(JS_THREADSAFE) && defined(JS_ION)
     JS_ASSERT(CurrentThreadCanAccessRuntime(rt));
-    rt->workerThreadState->finishParseTaskForScript(rt, script);
+    rt->workerThreadState->finishParseTaskForScript(script);
 #else
     MOZ_ASSUME_UNREACHABLE("Off thread compilation is only available with JS_ION");
 #endif

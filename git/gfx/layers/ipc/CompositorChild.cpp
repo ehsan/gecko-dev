@@ -71,7 +71,7 @@ CompositorChild::Get()
 }
 
 PLayerTransactionChild*
-CompositorChild::AllocPLayerTransactionChild(const nsTArray<LayersBackend>& aBackendHints,
+CompositorChild::AllocPLayerTransactionChild(const LayersBackend& aBackendHint,
                                              const uint64_t& aId,
                                              TextureFactoryIdentifier*,
                                              bool*)

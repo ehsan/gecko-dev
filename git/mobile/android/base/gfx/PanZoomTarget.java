@@ -8,13 +8,11 @@ package org.mozilla.gecko.gfx;
 import org.mozilla.gecko.ZoomConstraints;
 
 import android.graphics.PointF;
-import android.graphics.RectF;
 
 public interface PanZoomTarget {
     public ImmutableViewportMetrics getViewportMetrics();
     public ZoomConstraints getZoomConstraints();
     public boolean isFullScreen();
-    public RectF getMaxMargins();
 
     public void setAnimationTarget(ImmutableViewportMetrics viewport);
     public void setViewportMetrics(ImmutableViewportMetrics viewport);

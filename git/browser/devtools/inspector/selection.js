@@ -81,7 +81,7 @@ Selection.prototype = {
         attributeChange = true;
       }
       if (m.type == "childList") {
-        if (!detached && this.isNode() && !this.isConnected()) {
+        if (!detached && !this.isConnected()) {
           parentNode = m.target;
           detached = true;
         }

@@ -1056,12 +1056,6 @@ class JavaPanZoomController
         protected float getPageStart() { return getMetrics().pageRectLeft; }
         @Override
         protected float getPageLength() { return getMetrics().getPageWidthWithMargins(); }
-        @Override
-        protected boolean marginsHidden() {
-            ImmutableViewportMetrics metrics = getMetrics();
-            RectF maxMargins = mTarget.getMaxMargins();
-            return (metrics.marginLeft < maxMargins.left || metrics.marginRight < maxMargins.right);
-        }
     }
 
     private class AxisY extends Axis {
@@ -1074,12 +1068,6 @@ class JavaPanZoomController
         protected float getPageStart() { return getMetrics().pageRectTop; }
         @Override
         protected float getPageLength() { return getMetrics().getPageHeightWithMargins(); }
-        @Override
-        protected boolean marginsHidden() {
-            ImmutableViewportMetrics metrics = getMetrics();
-            RectF maxMargins = mTarget.getMaxMargins();
-            return (metrics.marginTop < maxMargins.top || metrics.marginBottom < maxMargins.bottom);
-        }
     }
 
     /*
