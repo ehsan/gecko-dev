@@ -1892,19 +1892,7 @@ SessionStoreService.prototype = {
     this._dirty = aUpdateAll;
     var oState = this._getCurrentState();
     oState.session = { state: ((this._loadState == STATE_RUNNING) ? STATE_RUNNING_STR : STATE_STOPPED_STR) };
-    
-    var stateString = Cc["@mozilla.org/supports-string;1"].
-                        createInstance(Ci.nsISupportsString);
-    stateString.data = oState.toSource();
-    
-    var observerService = Cc["@mozilla.org/observer-service;1"].
-                          getService(Ci.nsIObserverService);
-    observerService.notifyObservers(stateString, "sessionstore-state-write", "");
-    
-    // don't touch the file if an observer has deleted all state data
-    if (stateString.data)
-      this._writeFile(this._sessionFile, stateString.data);
-    
+    this._writeFile(this._sessionFile, oState.toSource());
     this._lastSaveTime = Date.now();
   },
 
@@ -2084,15 +2072,9 @@ SessionStoreService.prototype = {
       return;
     }
     try {
-      var currentURI = aWindow.getBrowser().currentURI.clone();
-      // if the current URI contains a username/password, remove it
-      try { 
-        currentURI.userPass = ""; 
-      } 
-      catch (ex) { } // ignore failures on about: URIs
-
+      var currentUrl = aWindow.getBrowser().currentURI.spec;
       var cr = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsICrashReporter);
-      cr.annotateCrashReport("URL", currentURI.spec);
+      cr.annotateCrashReport("URL", currentUrl);
     }
     catch (ex) {
       // don't make noise when crashreporter is built but not enabled
