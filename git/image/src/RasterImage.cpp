@@ -15,7 +15,6 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsAutoPtr.h"
 #include "nsStringStream.h"
-#include "prmem.h"
 #include "prenv.h"
 #include "ImageContainer.h"
 #include "Layers.h"
@@ -515,7 +514,7 @@ RasterImage::RequestRefresh(const mozilla::TimeStamp& aTime)
     #endif
 
     UpdateImageContainer();
-    observer->FrameChanged(nullptr, this, &dirtyRect);
+    observer->FrameChanged(&dirtyRect);
   }
 }
 
@@ -1501,7 +1500,7 @@ RasterImage::ResetAnimation()
   // Update display if we were animating before
   nsCOMPtr<imgIContainerObserver> observer(do_QueryReferent(mObserver));
   if (mAnimating && observer)
-    observer->FrameChanged(nullptr, this, &(mAnim->firstFrameRefreshArea));
+    observer->FrameChanged(&(mAnim->firstFrameRefreshArea));
 
   if (ShouldAnimate()) {
     StartAnimation();
@@ -2285,7 +2284,7 @@ RasterImage::Discard(bool force)
   // Notify that we discarded
   nsCOMPtr<imgIDecoderObserver> observer(do_QueryReferent(mObserver));
   if (observer)
-    observer->OnDiscard(nullptr);
+    observer->OnDiscard();
 
   if (force)
     DiscardTracker::Remove(&mDiscardTrackerNode);
@@ -2775,7 +2774,7 @@ RasterImage::DrawWorker::Run()
       imgFrame *scaledFrame = request->dstFrame.get();
       scaledFrame->ImageUpdated(scaledFrame->GetRect());
       nsIntRect frameRect = request->srcFrame->GetRect();
-      observer->FrameChanged(nullptr, request->image, &frameRect);
+      observer->FrameChanged(&frameRect);
     }
   }
 
