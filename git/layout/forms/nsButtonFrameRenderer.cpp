@@ -223,9 +223,11 @@ nsButtonFrameRenderer::PaintBorderAndBackground(nsPresContext* aPresContext,
   nsStyleContext* context = mFrame->GetStyleContext();
 
   const nsStyleBorder* border = context->GetStyleBorder();
+  const nsStylePadding* padding = context->GetStylePadding();
 
   nsCSSRendering::PaintBackground(aPresContext, aRenderingContext, mFrame,
-                                  aDirtyRect, buttonRect, PR_FALSE);
+                                  aDirtyRect, buttonRect, *border, *padding,
+                                  PR_FALSE);
   nsCSSRendering::PaintBorder(aPresContext, aRenderingContext, mFrame,
                               aDirtyRect, buttonRect, *border, context);
 }
