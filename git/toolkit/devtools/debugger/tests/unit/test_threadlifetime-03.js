@@ -31,11 +31,7 @@ function test_thread_lifetime()
     let grips = [];
 
     let handler = function(aResponse) {
-      if (aResponse.error) {
-        do_check_eq(aResponse.error, '');
-        finishClient(gClient);
-      }
-      grips.push(aResponse.from);
+      grips.push(aResponse.threadGrip);
       if (grips.length == 3) {
         test_release_many(grips);
       }
@@ -59,19 +55,19 @@ function test_release_many(grips)
 {
   // Release the first two grips, leave the third alive.
 
-  let release = [grips[0], grips[1]];
+  let release = [grips[0].actor, grips[1].actor];
 
-  gThreadClient.releaseMany(release, function(aResponse) {
+  gClient.request({ to: gThreadClient.actor, type: "releaseMany", "actors": release }, function(aResponse) {
     // First two actors should return a noSuchActor error, because
     // they're gone now.
-    gClient.request({ to: grips[0], type: "bogusRequest" }, function(aResponse) {
+    gClient.request({ to: grips[0].actor, type: "bogusRequest" }, function(aResponse) {
       do_check_eq(aResponse.error, "noSuchActor");
-      gClient.request({ to: grips[1], type: "bogusRequest" }, function(aResponse) {
+      gClient.request({ to: grips[1].actor, type: "bogusRequest" }, function(aResponse) {
         do_check_eq(aResponse.error, "noSuchActor");
 
         // Last actor should return unrecognizedPacketType, because it's still
         // alive.
-        gClient.request({ to: grips[2], type: "bogusRequest" }, function(aResponse) {
+        gClient.request({ to: grips[2].actor, type: "bogusRequest" }, function(aResponse) {
           do_check_eq(aResponse.error, "unrecognizedPacketType");
           gThreadClient.resume(function() {
             finishClient(gClient);
