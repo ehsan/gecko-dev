@@ -802,7 +802,7 @@ class DebugScopes
   public:
     void mark(JSTracer *trc);
     void sweep(JSRuntime *rt);
-#if defined(JSGC_GENERATIONAL) && defined(JS_GC_ZEAL)
+#if defined(DEBUG) && defined(JSGC_GENERATIONAL)
     void checkHashTablesAfterMovingGC(JSRuntime *rt);
 #endif
 

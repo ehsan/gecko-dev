@@ -51,7 +51,10 @@ public:
                                            const nsAString& aLanguage);
   TextTrack* GetTrackById(const nsAString& aId);
 
-  void AddTextTrack(TextTrack* aTextTrack);
+  void AddTextTrack(TextTrack* aTextTrack) {
+    mTextTracks.AppendElement(aTextTrack);
+    aTextTrack->SetTextTrackList(this);
+  }
 
   void RemoveTextTrack(TextTrack* aTrack);
   void DidSeek();

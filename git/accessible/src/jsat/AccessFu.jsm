@@ -879,6 +879,7 @@ var Input = {
               JSON.stringify({ type: 'ToggleChrome:Focus' }));
         break;
       case aEvent.DOM_VK_RETURN:
+      case aEvent.DOM_VK_ENTER:
         if (this.editState.editing)
           return;
         this.activateCurrent();

@@ -1055,18 +1055,18 @@ class InternalUIEvent : public WidgetGUIEvent
 {
 protected:
   InternalUIEvent(bool aIsTrusted, uint32_t aMessage,
-                  nsEventStructType aStructType)
-    : WidgetGUIEvent(aIsTrusted, aMessage, nullptr, aStructType)
-    , detail(0)
+                  nsEventStructType aStructType, int32_t aDetail) :
+    WidgetGUIEvent(aIsTrusted, aMessage, nullptr, aStructType),
+    detail(aDetail)
   {
   }
 
 public:
   virtual InternalUIEvent* AsUIEvent() MOZ_OVERRIDE { return this; }
 
-  InternalUIEvent(bool aIsTrusted, uint32_t aMessage)
-    : WidgetGUIEvent(aIsTrusted, aMessage, nullptr, NS_UI_EVENT)
-    , detail(0)
+  InternalUIEvent(bool aIsTrusted, uint32_t aMessage, int32_t aDetail) :
+    WidgetGUIEvent(aIsTrusted, aMessage, nullptr, NS_UI_EVENT),
+    detail(aDetail)
   {
   }
 
@@ -1075,7 +1075,7 @@ public:
     MOZ_ASSERT(eventStructType == NS_UI_EVENT ||
                  eventStructType == NS_SMIL_TIME_EVENT,
                "Duplicate() must be overridden by sub class");
-    InternalUIEvent* result = new InternalUIEvent(false, message);
+    InternalUIEvent* result = new InternalUIEvent(false, message, detail);
     result->AssignUIEventData(*this, true);
     result->mFlags = mFlags;
     return result;
@@ -1087,7 +1087,7 @@ public:
   {
     AssignGUIEventData(aEvent, aCopyTargets);
 
-    detail = aEvent.detail;
+    // detail must have been initialized with the constructor.
   }
 };
 

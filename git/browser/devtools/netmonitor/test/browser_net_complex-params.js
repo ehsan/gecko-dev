@@ -138,6 +138,8 @@ function test() {
           "The text shown in the source editor is incorrect.");
         is(aEditor.getMode(), Editor.modes[aEditorMode],
           "The mode active in the source editor is incorrect.");
+
+        teardown(aMonitor).then(finish);
       });
     }
 

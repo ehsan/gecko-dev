@@ -374,7 +374,7 @@ LayoutHelpers.prototype = {
 
     if (docShell.isBrowserOrApp) {
       let parentDocShell = docShell.getSameTypeParentIgnoreBrowserAndAppBoundaries();
-      return parentDocShell ? parentDocShell.contentViewer.DOMDocument.defaultView : null;
+      return parentDocShell.contentViewer.DOMDocument.defaultView;
     } else {
       return win.parent;
     }

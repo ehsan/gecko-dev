@@ -511,7 +511,6 @@ private:
     bool mUpdateHitRegion;
     bool mContextMenuHandled;
     bool mWaitingTouchListeners;
-    void FireSingleTapEvent(LayoutDevicePoint aPoint);
 
     DISALLOW_EVIL_CONSTRUCTORS(TabChild);
 };

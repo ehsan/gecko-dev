@@ -400,10 +400,10 @@ var gAdvancedPane = {
    */
   clearCache: function ()
   {
-    var cache = Components.classes["@mozilla.org/netwerk/cache-storage-service;1"]
-                                 .getService(Components.interfaces.nsICacheStorageService);
+    var cacheService = Components.classes["@mozilla.org/network/cache-service;1"]
+                                 .getService(Components.interfaces.nsICacheService);
     try {
-      cache.clear();
+      cacheService.evictEntries(Components.interfaces.nsICache.STORE_ANYWHERE);
     } catch(ex) {}
     this.updateActualCacheSize();
   },

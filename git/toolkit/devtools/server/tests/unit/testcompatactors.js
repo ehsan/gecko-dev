@@ -113,6 +113,5 @@ function createRootActor()
 
 DebuggerServer.addTestGlobal = function addTestGlobal(aGlobal)
 {
-  aGlobal.wrappedJSObject = aGlobal;
   gTestGlobals.push(aGlobal);
 }

@@ -58,8 +58,6 @@ public class HomeBanner extends LinearLayout
             @Override
             public void onClick(View view) {
                 HomeBanner.this.setVisibility(View.GONE);
-                // Send the current message id back to JS.
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("HomeBanner:Dismiss", (String) getTag()));
             }
         });
 

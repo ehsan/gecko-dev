@@ -118,7 +118,8 @@ function GroupItem(listOfEls, options) {
 
   var handleKeyPress = function (e) {
     if (e.keyCode == KeyEvent.DOM_VK_ESCAPE ||
-        e.keyCode == KeyEvent.DOM_VK_RETURN) {
+        e.keyCode == KeyEvent.DOM_VK_RETURN ||
+        e.keyCode == KeyEvent.DOM_VK_ENTER) {
       (self.$title)[0].blur();
       self.$title
         .addClass("transparentBorder")
