@@ -402,7 +402,7 @@ DestroyJSObjWrapperTable()
 static bool
 CreateNPObjWrapperTable()
 {
-  MOZ_ASSERT(!sNPObjWrappers.IsInitialized());
+  MOZ_ASSERT(!sNPObjWrappers.ops);
 
   if (!RegisterGCCallbacks()) {
     return false;
@@ -419,6 +419,8 @@ DestroyNPObjWrapperTable()
   MOZ_ASSERT(sNPObjWrappers.EntryCount() == 0);
 
   PL_DHashTableFinish(&sNPObjWrappers);
+
+  sNPObjWrappers.ops = nullptr;
 }
 
 static void
@@ -437,7 +439,7 @@ OnWrapperDestroyed()
       DestroyJSObjWrapperTable();
     }
 
-    if (sNPObjWrappers.IsInitialized()) {
+    if (sNPObjWrappers.ops) {
       // No more wrappers, and our hash was initialized. Finish the
       // hash to prevent leaking it.
       DestroyNPObjWrapperTable();
@@ -1747,7 +1749,7 @@ NPObjWrapper_Finalize(js::FreeOp *fop, JSObject *obj)
 {
   NPObject *npobj = (NPObject *)::JS_GetPrivate(obj);
   if (npobj) {
-    if (sNPObjWrappers.IsInitialized()) {
+    if (sNPObjWrappers.ops) {
       PL_DHashTableRemove(&sNPObjWrappers, npobj);
     }
   }
@@ -1763,7 +1765,7 @@ NPObjWrapper_ObjectMoved(JSObject *obj, const JSObject *old)
   // The wrapper JSObject has been moved, so we need to update the entry in the
   // sNPObjWrappers hash table, if present.
 
-  if (!sNPObjWrappers.IsInitialized()) {
+  if (!sNPObjWrappers.ops) {
     return;
   }
 
@@ -1822,7 +1824,7 @@ nsNPObjWrapper::OnDestroy(NPObject *npobj)
     return;
   }
 
-  if (!sNPObjWrappers.IsInitialized()) {
+  if (!sNPObjWrappers.ops) {
     // No hash yet (or any more), no used wrappers available.
 
     return;
@@ -1872,7 +1874,7 @@ nsNPObjWrapper::GetNewOrUsed(NPP npp, JSContext *cx, NPObject *npobj)
     return nullptr;
   }
 
-  if (!sNPObjWrappers.IsInitialized()) {
+  if (!sNPObjWrappers.ops) {
     // No hash yet (or any more), initialize it.
     if (!CreateNPObjWrapperTable()) {
       return nullptr;
@@ -1958,8 +1960,8 @@ NPObjWrapperPluginDestroyedCallback(PLDHashTable *table, PLDHashEntryHdr *hdr,
   if (entry->mNpp == nppcx->npp) {
     // Prevent invalidate() and deallocate() from touching the hash
     // we're enumerating.
-    const PLDHashTableOps *ops = table->Ops();
-    table->SetOps(nullptr);
+    const PLDHashTableOps *ops = table->ops;
+    table->ops = nullptr;
 
     NPObject *npobj = entry->mNPObj;
 
@@ -1987,7 +1989,7 @@ NPObjWrapperPluginDestroyedCallback(PLDHashTable *table, PLDHashEntryHdr *hdr,
 
     ::JS_SetPrivate(entry->mJSObj, nullptr);
 
-    table->SetOps(ops);
+    table->ops = ops;
 
     if (sDelayedReleases && sDelayedReleases->RemoveElement(npobj)) {
       OnWrapperDestroyed();
@@ -2028,7 +2030,7 @@ nsJSNPRuntime::OnPluginDestroy(NPP npp)
   // Use the safe JSContext here as we're not always able to find the
   // JSContext associated with the NPP any more.
   AutoSafeJSContext cx;
-  if (sNPObjWrappers.IsInitialized()) {
+  if (sNPObjWrappers.ops) {
     NppAndCx nppcx = { npp, cx };
     PL_DHashTableEnumerate(&sNPObjWrappers,
                            NPObjWrapperPluginDestroyedCallback, &nppcx);

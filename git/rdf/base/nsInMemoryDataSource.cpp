@@ -780,6 +780,8 @@ InMemoryDataSource::InMemoryDataSource(nsISupports* aOuter)
 {
     NS_INIT_AGGREGATED(aOuter);
 
+    mForwardArcs.ops = nullptr;
+    mReverseArcs.ops = nullptr;
     mPropagateChanges = true;
     MOZ_COUNT_CTOR(InMemoryDataSource);
 }
@@ -807,7 +809,7 @@ InMemoryDataSource::~InMemoryDataSource()
     fprintf(stdout, "%d - RDF: InMemoryDataSource\n", gInstanceCount);
 #endif
 
-    if (mForwardArcs.IsInitialized()) {
+    if (mForwardArcs.ops) {
         // This'll release all of the Assertion objects that are
         // associated with this data source. We only need to do this
         // for the forward arcs, because the reverse arcs table
@@ -815,7 +817,7 @@ InMemoryDataSource::~InMemoryDataSource()
         PL_DHashTableEnumerate(&mForwardArcs, DeleteForwardArcsEntry, nullptr);
         PL_DHashTableFinish(&mForwardArcs);
     }
-    if (mReverseArcs.IsInitialized())
+    if (mReverseArcs.ops)
         PL_DHashTableFinish(&mReverseArcs);
 
     PR_LOG(gLog, PR_LOG_NOTICE,

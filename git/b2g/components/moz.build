@@ -21,7 +21,6 @@ EXTRA_COMPONENTS += [
     'MobileIdentityUIGlue.js',
     'OMAContentHandler.js',
     'PaymentGlue.js',
-    'PaymentProviderStrategy.js',
     'ProcessGlobal.js',
     'SmsProtocolHandler.js',
     'SystemMessageGlue.js',

@@ -67,19 +67,9 @@ class WebSocketChannelChild : public BaseWebSocketChannel,
   void DispatchToTargetThread(ChannelEvent *aChannelEvent);
   bool IsOnTargetThread();
 
-  void MaybeReleaseIPCObject();
-
   nsRefPtr<ChannelEventQueue> mEventQ;
   nsString mEffectiveURL;
-
-  // This variable is protected by mutex.
-  enum {
-    Opened,
-    Closing,
-    Closed
-  } mIPCState;
-
-  mozilla::Mutex mMutex;
+  bool mIPCOpen;
 
   friend class StartEvent;
   friend class StopEvent;

@@ -4,7 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include <algorithm>
 #include "WMFVideoMFTManager.h"
 #include "MediaDecoderReader.h"
 #include "WMFUtils.h"
@@ -188,31 +187,21 @@ WMFVideoMFTManager::Init()
   }
 
   // Setup the input/output media types.
-  RefPtr<IMFMediaType> inputType;
-  hr = wmf::MFCreateMediaType(byRef(inputType));
+  RefPtr<IMFMediaType> type;
+  hr = wmf::MFCreateMediaType(byRef(type));
   NS_ENSURE_TRUE(SUCCEEDED(hr), nullptr);
 
-  hr = inputType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
+  hr = type->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
   NS_ENSURE_TRUE(SUCCEEDED(hr), nullptr);
 
-  hr = inputType->SetGUID(MF_MT_SUBTYPE, GetMediaSubtypeGUID());
+  hr = type->SetGUID(MF_MT_SUBTYPE, GetMediaSubtypeGUID());
   NS_ENSURE_TRUE(SUCCEEDED(hr), nullptr);
 
-  hr = inputType->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_MixedInterlaceOrProgressive);
+  hr = type->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_MixedInterlaceOrProgressive);
   NS_ENSURE_TRUE(SUCCEEDED(hr), nullptr);
 
-  RefPtr<IMFMediaType> outputType;
-  hr = wmf::MFCreateMediaType(byRef(outputType));
-  NS_ENSURE_TRUE(SUCCEEDED(hr), nullptr);
-
-  hr = outputType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
-  NS_ENSURE_TRUE(SUCCEEDED(hr), nullptr);
-
-  GUID outputSubType = mUseHwAccel ? MFVideoFormat_NV12 : MFVideoFormat_YV12;
-  hr = outputType->SetGUID(MF_MT_SUBTYPE, outputSubType);
-  NS_ENSURE_TRUE(SUCCEEDED(hr), nullptr);
-
-  hr = decoder->SetMediaTypes(inputType, outputType);
+  GUID outputType = mUseHwAccel ? MFVideoFormat_NV12 : MFVideoFormat_YV12;
+  hr = decoder->SetMediaTypes(type, outputType);
   NS_ENSURE_TRUE(SUCCEEDED(hr), nullptr);
 
   mDecoder = decoder;
@@ -373,7 +362,7 @@ WMFVideoMFTManager::CreateBasicVideoFrame(IMFSample* aSample,
   nsRefPtr<VideoData> v = VideoData::Create(mVideoInfo,
                                             mImageContainer,
                                             aStreamOffset,
-                                            std::max(0LL, pts),
+                                            pts,
                                             duration,
                                             b,
                                             false,
