@@ -271,6 +271,15 @@ CommonElementAnimationData::CanAnimatePropertyOnCompositor(const dom::Element *a
     }
     return false;
   }
+  if (aProperty == eCSSProperty_opacity) {
+    bool enabled = nsLayoutUtils::AreOpacityAnimationsEnabled();
+    if (!enabled && shouldLog) {
+      nsCString message;
+      message.AppendLiteral("Performance warning: Async animation of 'opacity' is disabled");
+      LogAsyncAnimationFailure(message);
+    }
+    return enabled;
+  }
   if (aProperty == eCSSProperty_transform) {
     if (frame->Preserves3D() &&
         frame->Preserves3DChildren()) {
@@ -297,14 +306,15 @@ CommonElementAnimationData::CanAnimatePropertyOnCompositor(const dom::Element *a
       }
       return false;
     }
+    bool enabled = nsLayoutUtils::AreTransformAnimationsEnabled();
+    if (!enabled && shouldLog) {
+      nsCString message;
+      message.AppendLiteral("Performance warning: Async animation of 'transform' is disabled");
+      LogAsyncAnimationFailure(message);
+    }
+    return enabled;
   }
-  bool enabled = nsLayoutUtils::AreAsyncAnimationsEnabled();
-  if (!enabled && shouldLog) {
-    nsCString message;
-    message.AppendLiteral("Performance warning: Async animations are disabled");
-    LogAsyncAnimationFailure(message);
-  }
-  return enabled && (aFlags & CanAnimate_AllowPartial);
+  return aFlags & CanAnimate_AllowPartial;
 }
 
 /* static */ void

@@ -261,12 +261,12 @@ FoldConstants<FullParseHandler>(JSContext *cx, ParseNode **pnp,
     // constant-folding will misrepresent the source text for the purpose
     // of type checking. (Also guard against entering a function containing
     // "use asm", see PN_FUNC case below.)
-    if (parser->pc->useAsmOrInsideUseAsm() && cx->hasOption(JSOPTION_ASMJS))
+    if (parser->pc->useAsmOrInsideUseAsm())
         return true;
 
     switch (pn->getArity()) {
       case PN_CODE:
-        if (pn->pn_funbox->useAsmOrInsideUseAsm() && cx->hasOption(JSOPTION_ASMJS))
+        if (pn->pn_funbox->useAsmOrInsideUseAsm())
             return true;
         if (pn->getKind() == PNK_MODULE) {
             if (!FoldConstants(cx, &pn->pn_body, parser))

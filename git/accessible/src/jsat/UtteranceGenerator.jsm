@@ -347,11 +347,7 @@ this.UtteranceGenerator = {
       stateUtterances.push(gStringBundle.GetStringFromName('stateUnavailable'));
     }
 
-    // Don't utter this in Jelly Bean, we let TalkBack do it for us there.
-    // This is because we expose the checked information on the node itself.
-    // XXX: this means the checked state is always appended to the end, regardless
-    // of the utterance ordering preference.
-    if (Utils.AndroidSdkVersion < 16 && aStates.base & Ci.nsIAccessibleStates.STATE_CHECKABLE) {
+    if (aStates.base & Ci.nsIAccessibleStates.STATE_CHECKABLE) {
       let stateStr = (aStates.base & Ci.nsIAccessibleStates.STATE_CHECKED) ?
         'stateChecked' : 'stateNotChecked';
       stateUtterances.push(gStringBundle.GetStringFromName(stateStr));

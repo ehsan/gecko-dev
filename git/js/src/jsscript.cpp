@@ -533,20 +533,18 @@ js::XDRScript(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enc
         options.setVersion(version_)
                .setNoScriptRval(!!(scriptBits & (1 << NoScriptRval)))
                .setSelfHostingMode(!!(scriptBits & (1 << SelfHosted)));
-        JS::RootedScriptSource sourceObject(cx);
+        ScriptSource *ss;
         if (scriptBits & (1 << OwnSource)) {
-            ScriptSource *ss = cx->new_<ScriptSource>();
+            ss = cx->new_<ScriptSource>();
             if (!ss)
-                return false;
-            sourceObject = ScriptSourceObject::create(cx, ss);
-            if (!sourceObject)
                 return false;
         } else {
             JS_ASSERT(enclosingScript);
-            sourceObject = enclosingScript->sourceObject();
+            ss = enclosingScript->scriptSource();
         }
+        ScriptSourceHolder ssh(ss);
         script = JSScript::Create(cx, enclosingScope, !!(scriptBits & (1 << SavedCallerFun)),
-                                  options, /* staticLevel = */ 0, sourceObject, 0, 0);
+                                  options, /* staticLevel = */ 0, ss, 0, 0);
         if (!script)
             return false;
     }
@@ -895,38 +893,6 @@ JSScript::destroyScriptCounts(FreeOp *fop)
     }
 }
 
-void
-ScriptSourceObject::finalize(FreeOp *fop, JSObject *obj)
-{
-    // ScriptSource::setSource automatically takes care of the refcount
-    obj->asScriptSource().setSource(NULL);
-}
-
-Class js::ScriptSourceClass = {
-    "ScriptSource",
-    JSCLASS_HAS_RESERVED_SLOTS(1) | JSCLASS_IS_ANONYMOUS,
-    JS_PropertyStub,        /* addProperty */
-    JS_DeletePropertyStub,  /* delProperty */
-    JS_PropertyStub,        /* getProperty */
-    JS_StrictPropertyStub,  /* setProperty */
-    JS_EnumerateStub,
-    JS_ResolveStub,
-    JS_ConvertStub,
-    ScriptSourceObject::finalize
-};
-
-ScriptSourceObject *
-ScriptSourceObject::create(JSContext *cx, ScriptSource *source)
-{
-    RootedObject object(cx, NewObjectWithGivenProto(cx, &ScriptSourceClass, NULL, cx->global()));
-    if (!object)
-        return NULL;
-    JS::RootedScriptSource sourceObject(cx, &object->asScriptSource());
-    sourceObject->setSlot(SOURCE_SLOT, PrivateValue(source));
-    source->incref();
-    return sourceObject;
-}
-
 #ifdef JS_THREADSAFE
 void
 SourceCompressorThread::compressorThread(void *arg)
@@ -1149,17 +1115,19 @@ ScriptSource::adjustDataSize(size_t nbytes)
 }
 
 void
-JSScript::setSourceObject(js::ScriptSourceObject *sourceObject)
+JSScript::setScriptSource(ScriptSource *ss)
 {
-    sourceObject_ = sourceObject;
+    JS_ASSERT(ss);
+    ss->incref();
+    scriptSource_ = ss;
 }
 
 /* static */ bool
 JSScript::loadSource(JSContext *cx, HandleScript script, bool *worked)
 {
-    JS_ASSERT(!script->scriptSource()->hasSourceData());
+    JS_ASSERT(!script->scriptSource_->hasSourceData());
     *worked = false;
-    if (!cx->runtime->sourceHook || !script->scriptSource()->sourceRetrievable())
+    if (!cx->runtime->sourceHook || !script->scriptSource_->sourceRetrievable())
         return true;
     jschar *src = NULL;
     uint32_t length;
@@ -1176,8 +1144,8 @@ JSScript::loadSource(JSContext *cx, HandleScript script, bool *worked)
 JSFlatString *
 JSScript::sourceData(JSContext *cx)
 {
-    JS_ASSERT(scriptSource()->hasSourceData());
-    return scriptSource()->substring(cx, sourceStart, sourceEnd);
+    JS_ASSERT(scriptSource_->hasSourceData());
+    return scriptSource_->substring(cx, sourceStart, sourceEnd);
 }
 
 JSStableString *
@@ -1665,7 +1633,7 @@ ScriptDataSize(uint32_t nbindings, uint32_t nobjects, uint32_t nregexps,
 JSScript *
 JSScript::Create(JSContext *cx, HandleObject enclosingScope, bool savedCallerFun,
                  const CompileOptions &options, unsigned staticLevel,
-                 JS::HandleScriptSource sourceObject, uint32_t bufStart, uint32_t bufEnd)
+                 ScriptSource *ss, uint32_t bufStart, uint32_t bufEnd)
 {
     RootedScript script(cx, js_NewGCScript(cx));
     if (!script)
@@ -1706,7 +1674,7 @@ JSScript::Create(JSContext *cx, HandleObject enclosingScope, bool savedCallerFun
     }
     script->staticLevel = uint16_t(staticLevel);
 
-    script->setSourceObject(sourceObject);
+    script->setScriptSource(ss);
     script->sourceStart = bufStart;
     script->sourceEnd = bufEnd;
 
@@ -2017,6 +1985,7 @@ JSScript::finalize(FreeOp *fop)
 
     destroyScriptCounts(fop);
     destroyDebugScript(fop);
+    scriptSource_->decref();
 
     if (data) {
         JS_POISON(data, 0xdb, computedSizeOfData());
@@ -2339,15 +2308,9 @@ js::CloneScript(JSContext *cx, HandleObject enclosingScope, HandleFunction fun, 
            .setSelfHostingMode(src->selfHosted)
            .setNoScriptRval(src->noScriptRval)
            .setVersion(src->getVersion());
-
-    /* Make sure we clone the script source object with the script */
-    JS::RootedScriptSource sourceObject(cx, ScriptSourceObject::create(cx, src->scriptSource()));
-    if (!sourceObject)
-        return NULL;
-
     RootedScript dst(cx, JSScript::Create(cx, enclosingScope, src->savedCallerFun,
                                           options, src->staticLevel,
-                                          sourceObject, src->sourceStart, src->sourceEnd));
+                                          src->scriptSource(), src->sourceStart, src->sourceEnd));
     if (!dst) {
         js_free(data);
         return NULL;
@@ -2705,9 +2668,6 @@ JSScript::markChildren(JSTracer *trc)
         MarkValueRange(trc, constarray->length, constarray->vector, "consts");
     }
 
-    if (sourceObject())
-        MarkObject(trc, &sourceObject_, "sourceObject");
-
     if (function())
         MarkObject(trc, &function_, "function");
 
@@ -2776,7 +2736,7 @@ js::SetFrameArgumentsObject(JSContext *cx, AbstractFramePtr frame,
         JS_ASSERT(*pc == JSOP_SETALIASEDVAR);
 
         if (frame.callObj().asScope().aliasedVar(pc).isMagic(JS_OPTIMIZED_ARGUMENTS))
-            frame.callObj().asScope().setAliasedVar(cx, pc, cx->names().arguments, ObjectValue(*argsobj));
+            frame.callObj().asScope().setAliasedVar(pc, ObjectValue(*argsobj));
     } else {
         if (frame.unaliasedLocal(var).isMagic(JS_OPTIMIZED_ARGUMENTS))
             frame.unaliasedLocal(var) = ObjectValue(*argsobj);

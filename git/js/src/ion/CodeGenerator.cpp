@@ -9,7 +9,6 @@
 #include "mozilla/DebugOnly.h"
 #include "mozilla/Util.h"
 
-#include "PerfSpewer.h"
 #include "CodeGenerator.h"
 #include "IonLinker.h"
 #include "IonSpewer.h"
@@ -21,7 +20,6 @@
 #include "ParallelFunctions.h"
 #include "ExecutionModeInlines.h"
 #include "builtin/Eval.h"
-#include "gc/Nursery.h"
 #include "vm/ForkJoin.h"
 
 #include "vm/StringObject-inl.h"
@@ -1161,138 +1159,6 @@ CodeGenerator::visitMonitorTypes(LMonitorTypes *lir)
     if (!bailoutFrom(&miss, lir->snapshot()))
         return false;
     masm.bind(&matched);
-    return true;
-}
-
-#ifdef JSGC_GENERATIONAL
-// Out-of-line path to update the store buffer.
-class OutOfLineCallPostWriteBarrier : public OutOfLineCodeBase<CodeGenerator>
-{
-    LInstruction *lir_;
-    const LAllocation *object_;
-
-  public:
-    OutOfLineCallPostWriteBarrier(LInstruction *lir, const LAllocation *object)
-      : lir_(lir), object_(object)
-    { }
-
-    bool accept(CodeGenerator *codegen) {
-        return codegen->visitOutOfLineCallPostWriteBarrier(this);
-    }
-
-    LInstruction *lir() const {
-        return lir_;
-    }
-    const LAllocation *object() const {
-        return object_;
-    }
-};
-
-bool
-CodeGenerator::visitOutOfLineCallPostWriteBarrier(OutOfLineCallPostWriteBarrier *ool)
-{
-    saveLive(ool->lir());
-
-    const LAllocation *obj = ool->object();
-
-    GeneralRegisterSet regs;
-    regs.add(CallTempReg0);
-    regs.add(CallTempReg1);
-    regs.add(CallTempReg2);
-
-    Register objreg;
-    if (obj->isConstant()) {
-        objreg = regs.takeAny();
-        masm.movePtr(ImmGCPtr(&obj->toConstant()->toObject()), objreg);
-    } else {
-        objreg = ToRegister(obj);
-        if (regs.has(objreg))
-            regs.take(objreg);
-    }
-
-    Register runtimereg = regs.takeAny();
-    masm.mov(ImmWord(GetIonContext()->compartment->rt), runtimereg);
-
-    masm.setupUnalignedABICall(2, regs.takeAny());
-    masm.passABIArg(runtimereg);
-    masm.passABIArg(objreg);
-    masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, PostWriteBarrier));
-
-    restoreLive(ool->lir());
-
-    masm.jump(ool->rejoin());
-    return true;
-}
-#endif
-
-bool
-CodeGenerator::visitPostWriteBarrierO(LPostWriteBarrierO *lir)
-{
-#ifdef JSGC_GENERATIONAL
-    OutOfLineCallPostWriteBarrier *ool = new OutOfLineCallPostWriteBarrier(lir, lir->object());
-    if (!addOutOfLineCode(ool))
-        return false;
-
-    Nursery &nursery = GetIonContext()->compartment->rt->gcNursery;
-
-    if (lir->object()->isConstant()) {
-        JSObject *obj = &lir->object()->toConstant()->toObject();
-        JS_ASSERT(!nursery.isInside(obj));
-        /*
-        if (nursery.isInside(obj))
-            return true;
-        */
-    } else {
-        Label tenured;
-        Register objreg = ToRegister(lir->object());
-        masm.branchPtr(Assembler::Below, objreg, ImmWord(nursery.start()), &tenured);
-        masm.branchPtr(Assembler::Below, objreg, ImmWord(nursery.end()), ool->rejoin());
-        masm.bind(&tenured);
-    }
-
-    Register valuereg = ToRegister(lir->value());
-    masm.branchPtr(Assembler::Below, valuereg, ImmWord(nursery.start()), ool->rejoin());
-    masm.branchPtr(Assembler::Below, valuereg, ImmWord(nursery.end()), ool->entry());
-
-    masm.bind(ool->rejoin());
-#endif
-    return true;
-}
-
-bool
-CodeGenerator::visitPostWriteBarrierV(LPostWriteBarrierV *lir)
-{
-#ifdef JSGC_GENERATIONAL
-    OutOfLineCallPostWriteBarrier *ool = new OutOfLineCallPostWriteBarrier(lir, lir->object());
-    if (!addOutOfLineCode(ool))
-        return false;
-
-    ValueOperand value = ToValue(lir, LPostWriteBarrierV::Input);
-    masm.branchTestObject(Assembler::NotEqual, value, ool->rejoin());
-
-    Nursery &nursery = GetIonContext()->compartment->rt->gcNursery;
-
-    if (lir->object()->isConstant()) {
-        JSObject *obj = &lir->object()->toConstant()->toObject();
-        JS_ASSERT(!nursery.isInside(obj));
-        /*
-        if (nursery.isInside(obj))
-            return true;
-        */
-    } else {
-        Label tenured;
-        Register objreg = ToRegister(lir->object());
-        masm.branchPtr(Assembler::Below, objreg, ImmWord(nursery.start()), &tenured);
-        masm.branchPtr(Assembler::Below, objreg, ImmWord(nursery.end()), ool->rejoin());
-        masm.bind(&tenured);
-    }
-
-    Register valuereg = masm.extractObject(value, ToRegister(lir->temp()));
-    masm.branchPtr(Assembler::Below, valuereg, ImmWord(nursery.start()), ool->rejoin());
-    masm.branchPtr(Assembler::Below, valuereg, ImmWord(nursery.end()), ool->entry());
-
-    masm.bind(ool->rejoin());
-#endif
     return true;
 }
 
@@ -2502,9 +2368,6 @@ CodeGenerator::generateBody()
                 return false;
         }
 
-        if (PerfBlockEnabled())
-            perfSpewer_.startBasicBlock(current->mir(), masm);
-
         for (; iter != current->end(); iter++) {
             IonSpew(IonSpew_Codegen, "instruction %s", iter->opName());
 
@@ -2524,9 +2387,6 @@ CodeGenerator::generateBody()
         }
         if (masm.oom())
             return false;
-
-        if (PerfBlockEnabled())
-            perfSpewer_.endBasicBlock(masm);
     }
 
     JS_ASSERT(pushedArgumentSlots_.empty());
@@ -2806,7 +2666,7 @@ CodeGenerator::visitNewDeclEnvObject(LNewDeclEnvObject *lir)
     return true;
 }
 
-typedef JSObject *(*NewCallObjectFn)(JSContext *, HandleScript, HandleShape,
+typedef JSObject *(*NewCallObjectFn)(JSContext *, HandleShape,
                                      HandleTypeObject, HeapSlot *);
 static const VMFunction NewCallObjectInfo =
     FunctionInfo<NewCallObjectFn>(NewCallObject);
@@ -2822,33 +2682,25 @@ CodeGenerator::visitNewCallObject(LNewCallObject *lir)
     OutOfLineCode *ool;
     if (lir->slots()->isRegister()) {
         ool = oolCallVM(NewCallObjectInfo, lir,
-                        (ArgList(), ImmGCPtr(lir->mir()->block()->info().script()),
-                                    ImmGCPtr(templateObj->lastProperty()),
-                                    ImmGCPtr(templateObj->hasLazyType() ? NULL : templateObj->type()),
+                        (ArgList(), ImmGCPtr(templateObj->lastProperty()),
+                                    ImmGCPtr(templateObj->type()),
                                     ToRegister(lir->slots())),
                         StoreRegisterTo(obj));
     } else {
         ool = oolCallVM(NewCallObjectInfo, lir,
-                        (ArgList(), ImmGCPtr(lir->mir()->block()->info().script()),
-                                    ImmGCPtr(templateObj->lastProperty()),
-                                    ImmGCPtr(templateObj->hasLazyType() ? NULL : templateObj->type()),
+                        (ArgList(), ImmGCPtr(templateObj->lastProperty()),
+                                    ImmGCPtr(templateObj->type()),
                                     ImmWord((void *)NULL)),
                         StoreRegisterTo(obj));
     }
     if (!ool)
         return false;
 
-    if (lir->mir()->needsSingletonType()) {
-        // Objects can only be given singleton types in VM calls.
-        masm.jump(ool->entry());
-    } else {
-        masm.newGCThing(obj, templateObj, ool->entry());
-        masm.initGCThing(obj, templateObj);
+    masm.newGCThing(obj, templateObj, ool->entry());
+    masm.initGCThing(obj, templateObj);
 
-        if (lir->slots()->isRegister())
-            masm.storePtr(ToRegister(lir->slots()), Address(obj, JSObject::offsetOfSlots()));
-    }
-
+    if (lir->slots()->isRegister())
+        masm.storePtr(ToRegister(lir->slots()), Address(obj, JSObject::offsetOfSlots()));
     masm.bind(ool->rejoin());
     return true;
 }
@@ -4828,13 +4680,6 @@ CodeGenerator::visitIteratorStart(LIteratorStart *lir)
     // Write barrier for stores to the iterator. We only need to take a write
     // barrier if NativeIterator::obj is actually going to change.
     {
-#ifdef JSGC_GENERATIONAL
-        // Bug 867815: When using a nursery, we unconditionally take this out-
-        // of-line so that we do not have to post-barrier the store to
-        // NativeIter::obj. This just needs JIT support for the Cell* buffer.
-        Address objAddr(niTemp, offsetof(NativeIterator, obj));
-        masm.branchPtr(Assembler::NotEqual, objAddr, obj, ool->entry());
-#else
         Label noBarrier;
         masm.branchTestNeedsBarrier(Assembler::Zero, temp1, &noBarrier);
 
@@ -4842,7 +4687,6 @@ CodeGenerator::visitIteratorStart(LIteratorStart *lir)
         masm.branchPtr(Assembler::NotEqual, objAddr, obj, ool->entry());
 
         masm.bind(&noBarrier);
-#endif // !JSGC_GENERATIONAL
     }
 
     // Mark iterator as active.
@@ -5013,17 +4857,6 @@ CodeGenerator::visitGetArgument(LGetArgument *lir)
         masm.loadValue(argPtr, result);
     }
     return true;
-}
-
-typedef bool (*RunOnceScriptPrologueFn)(JSContext *, HandleScript);
-static const VMFunction RunOnceScriptPrologueInfo =
-    FunctionInfo<RunOnceScriptPrologueFn>(js::RunOnceScriptPrologue);
-
-bool
-CodeGenerator::visitRunOncePrologue(LRunOncePrologue *lir)
-{
-    pushArg(ImmGCPtr(lir->mir()->block()->info().script()));
-    return callVM(RunOnceScriptPrologueInfo, lir);
 }
 
 bool
@@ -5240,10 +5073,6 @@ CodeGenerator::link()
     ionScript->setMethod(code);
     ionScript->setSkipArgCheckEntryOffset(getSkipArgCheckEntryOffset());
 
-    // If SPS is enabled, mark IonScript as having been instrumented with SPS
-    if (sps_.enabled())
-        ionScript->setHasSPSInstrumentation();
-
     SetIonScript(script, executionMode, ionScript);
 
     if (!ionScript)
@@ -5263,9 +5092,6 @@ CodeGenerator::link()
     ionScript->setInvalidationEpilogueOffset(real_invalidate);
 
     ionScript->setDeoptTable(deoptTable_);
-
-    if (PerfEnabled())
-        perfSpewer_.writeProfile(script, code, masm);
 
     // for generating inline caches during the execution.
     if (runtimeData_.length())
@@ -5703,7 +5529,7 @@ CodeGenerator::visitBindNameIC(OutOfLineUpdateCache *ool, BindNameIC *ic)
 }
 
 typedef bool (*SetPropertyFn)(JSContext *, HandleObject,
-                              HandlePropertyName, const HandleValue, bool, int);
+                              HandlePropertyName, const HandleValue, bool, bool);
 static const VMFunction SetPropertyInfo =
     FunctionInfo<SetPropertyFn>(SetProperty);
 
@@ -5713,9 +5539,10 @@ CodeGenerator::visitCallSetProperty(LCallSetProperty *ins)
     ConstantOrRegister value = TypedOrValueRegister(ToValue(ins, LCallSetProperty::Value));
 
     const Register objReg = ToRegister(ins->getOperand(0));
-    JSOp op = JSOp(*ins->mir()->resumePoint()->pc());
+    jsbytecode *pc = ins->mir()->resumePoint()->pc();
+    bool isSetName = JSOp(*pc) == JSOP_SETNAME || JSOp(*pc) == JSOP_SETGNAME;
 
-    pushArg(Imm32(op));
+    pushArg(Imm32(isSetName));
     pushArg(Imm32(ins->mir()->strict()));
 
     pushArg(value);

@@ -66,18 +66,6 @@ VARIABLES = {
         This variable contains a list of files to invoke the assembler on.
         """),
 
-    'CSRCS': (StrictOrderingOnAppendList, list, [],
-        """C code source files.
-
-        This variable contains a list of C source files to compile.
-        """),
-
-    'DEFINES': (StrictOrderingOnAppendList, list, [],
-        """Compiler defines to declare.
-
-        Command line -D flags passed to the compiler.
-        """),
-
     'DIRS': (list, list, [],
         """Child directories to descend into looking for build frontend files.
 
@@ -99,12 +87,6 @@ VARIABLES = {
         from recursive makefiles can be made. Once the build system has been
         converted to not use Makefile's for the build frontend, this will
         likely go away.
-        """),
-
-    'SIMPLE_PROGRAMS': (StrictOrderingOnAppendList, list, [],
-        """Generate a list of binaries from source.
-
-        A list of sources, one per program, to compile & link with libs into standalone programs.
         """),
 
     'TOOL_DIRS': (list, list, [],

@@ -72,7 +72,6 @@
 #include "nsAttrValueInlines.h"
 #include "mozilla/Selection.h"
 #include "nsContentUtils.h"
-#include "nsCxPusher.h"
 #include "nsTextNode.h"
 
 #define DEFAULT_COLUMN_WIDTH 20

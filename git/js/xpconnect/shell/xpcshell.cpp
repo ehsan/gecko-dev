@@ -46,7 +46,6 @@
 #include "xpcpublic.h"
 #include "nsXULAppAPI.h"
 #include "BackstagePass.h"
-#include "nsCxPusher.h"
 #ifdef XP_MACOSX
 #include "xpcshellMacUtils.h"
 #endif
@@ -1869,8 +1868,10 @@ main(int argc, char **argv, char **envp)
         xpc->SetFunctionThisTranslator(NS_GET_IID(nsITestXPCFunctionCallback), translator);
 #endif
 
-        nsCxPusher pusher;
-        pusher.Push(cx);
+        if (!xpc::danger::PushJSContext(cx)) {
+            printf("failed to push the current JSContext!\n");
+            return 1;
+        }
 
         nsRefPtr<BackstagePass> backstagePass;
         rv = NS_NewBackstagePass(getter_AddRefs(backstagePass));
@@ -1897,6 +1898,7 @@ main(int argc, char **argv, char **envp)
 
         backstagePass->SetGlobalObject(glob);
 
+        JS_BeginRequest(cx);
         {
             JSAutoCompartment ac(cx, glob);
 
@@ -1931,9 +1933,10 @@ main(int argc, char **argv, char **envp)
             JS_DropPrincipals(rt, gJSPrincipals);
             JS_SetAllNonReservedSlotsToUndefined(cx, glob);
             JS_GC(rt);
-        }
-        pusher.Pop();
-        JS_GC(rt);
+            xpc::danger::PopJSContext();
+            JS_GC(rt);
+        } //this scopes the JSAutoCrossCompartmentCall
+        JS_EndRequest(cx);
         JS_DestroyContext(cx);
     } // this scopes the nsCOMPtrs
 

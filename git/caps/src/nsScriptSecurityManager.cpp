@@ -61,7 +61,6 @@
 #include "mozilla/ClearOnShutdown.h"
 #include "mozilla/StaticPtr.h"
 #include "nsContentUtils.h"
-#include "nsCxPusher.h"
 
 // This should be probably defined on some other place... but I couldn't find it
 #define WEBAPPS_PERM_NAME "webapps-manage"
@@ -98,6 +97,7 @@ IDToString(JSContext *cx, jsid id_)
     if (JSID_IS_STRING(id))
         return JS_GetInternedStringChars(JSID_TO_STRING(id));
 
+    JSAutoRequest ar(cx);
     JS::Value idval;
     if (!JS_IdToValue(cx, id, &idval))
         return nullptr;
@@ -179,11 +179,13 @@ GetScriptContext(JSContext *cx)
 
 inline void SetPendingException(JSContext *cx, const char *aMsg)
 {
+    JSAutoRequest ar(cx);
     JS_ReportError(cx, "%s", aMsg);
 }
 
 inline void SetPendingException(JSContext *cx, const PRUnichar *aMsg)
 {
+    JSAutoRequest ar(cx);
     JS_ReportError(cx, "%hs", aMsg);
 }
 
@@ -2802,6 +2804,8 @@ nsScriptSecurityManager::InitDomainPolicy(JSContext* cx,
         end = PL_strchr(start, '.');
         if (end)
             *end = '\0';
+
+        JSAutoRequest ar(cx);
 
         JSString* propertyKey = ::JS_InternString(cx, start);
         if (!propertyKey)

@@ -711,7 +711,7 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
         byte[] b = c.getBlob(faviconIndex);
         c.close();
 
-        if (b == null || b.length == 0)
+        if (b == null)
             return null;
 
         return BitmapUtils.decodeByteArray(b);

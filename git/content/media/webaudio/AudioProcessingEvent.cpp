@@ -40,6 +40,7 @@ AudioProcessingEvent::LazilyCreateBuffer(nsRefPtr<AudioBuffer>& aBuffer,
                                          uint32_t aNumberOfChannels)
 {
   AutoPushJSContext cx(mNode->Context()->GetJSContext());
+  JSAutoRequest ar(cx);
 
   aBuffer = new AudioBuffer(mNode->Context(), mNode->BufferSize(),
                             mNode->Context()->SampleRate());

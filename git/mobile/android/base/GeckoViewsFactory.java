@@ -5,7 +5,6 @@
 package org.mozilla.gecko;
 
 import org.mozilla.gecko.gfx.LayerView;
-import org.mozilla.gecko.menu.MenuItemDefault;
 import org.mozilla.gecko.widget.AboutHomeView;
 import org.mozilla.gecko.widget.AddonsSection;
 import org.mozilla.gecko.widget.FaviconView;

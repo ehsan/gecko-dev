@@ -4123,7 +4123,6 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset, TypeInferen
       case JSOP_TABLESWITCH:
       case JSOP_TRY:
       case JSOP_LABEL:
-      case JSOP_RUNONCE:
         break;
 
         /* Bytecodes pushing values of known type. */
@@ -4305,6 +4304,9 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset, TypeInferen
              * access. Use the types from here.
              */
             poppedTypes(pc, 0)->addSubset(cx, &pushed[0]);
+        } else if (slot < TotalSlots(script)) {
+            StackTypeSet *types = TypeScript::SlotTypes(script, slot);
+            types->addSubset(cx, &pushed[0]);
         } else {
             /* Local 'let' variable. Punt on types for these, for now. */
             pushed[0].addType(cx, Type::UnknownType());
@@ -4313,7 +4315,13 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset, TypeInferen
       }
 
       case JSOP_SETARG:
-      case JSOP_SETLOCAL:
+      case JSOP_SETLOCAL: {
+        uint32_t slot = GetBytecodeSlot(script, pc);
+        if (!trackSlot(slot) && slot < TotalSlots(script)) {
+            TypeSet *types = TypeScript::SlotTypes(script, slot);
+            poppedTypes(pc, 0)->addSubset(cx, types);
+        }
+
         /*
          * For assignments to non-escaping locals/args, we don't need to update
          * the possible types of the var, as for each read of the var SSA gives
@@ -4321,6 +4329,7 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset, TypeInferen
          */
         poppedTypes(pc, 0)->addSubset(cx, &pushed[0]);
         break;
+      }
 
       case JSOP_GETALIASEDVAR:
       case JSOP_CALLALIASEDVAR:
@@ -4788,6 +4797,10 @@ ScriptAnalysis::analyzeTypes(JSContext *cx)
      */
     ranInference_ = true;
 
+    /* Make sure the initial type set of all local vars includes void. */
+    for (unsigned i = 0; i < script_->nfixed; i++)
+        TypeScript::LocalTypes(script_, i)->addType(cx, Type::UndefinedType());
+
     TypeInferenceState state(cx);
 
     /*
@@ -4817,13 +4830,6 @@ ScriptAnalysis::analyzeTypes(JSContext *cx)
         }
 #endif
     }
-
-    undefinedTypeSet = cx->analysisLifoAlloc().new_<StackTypeSet>();
-    if (!undefinedTypeSet) {
-        cx->compartment->types.setPendingNukeTypes(cx);
-        return;
-    }
-    undefinedTypeSet->addType(cx, Type::UndefinedType());
 
     unsigned offset = 0;
     while (offset < script_->length) {
@@ -5460,6 +5466,12 @@ ScriptAnalysis::printTypes(JSContext *cx)
         printf("\n    arg%u:", i);
         TypeScript::ArgTypes(script_, i)->print();
     }
+    for (unsigned i = 0; i < script_->nfixed; i++) {
+        if (!trackSlot(LocalSlot(script_, i))) {
+            printf("\n    local%u:", i);
+            TypeScript::LocalTypes(script_, i)->print();
+        }
+    }
     printf("\n");
 
     RootedScript script(cx, script_);
@@ -5522,10 +5534,12 @@ types::MarkIteratorUnknownSlow(JSContext *cx)
     if (JSOp(*pc) != JSOP_ITER)
         return;
 
-    if (!script->types)
-        return;
-
     AutoEnterAnalysis enter(cx);
+
+    if (!script->ensureHasTypes(cx)) {
+        cx->compartment->types.setPendingNukeTypes(cx);
+        return;
+    }
 
     /*
      * This script is iterating over an actual Iterator or Generator object, or
@@ -5610,9 +5624,6 @@ void
 types::TypeDynamicResult(JSContext *cx, JSScript *script, jsbytecode *pc, Type type)
 {
     JS_ASSERT(cx->typeInferenceEnabled());
-
-    if (!script->types)
-        return;
 
     AutoEnterAnalysis enter(cx);
 
@@ -5717,9 +5728,6 @@ types::TypeMonitorResult(JSContext *cx, JSScript *script, jsbytecode *pc, const 
 {
     /* Allow the non-TYPESET scenario to simplify stubs used in compound opcodes. */
     if (!(js_CodeSpec[*pc].format & JOF_TYPESET))
-        return;
-
-    if (!script->types)
         return;
 
     AutoEnterAnalysis enter(cx);
@@ -5886,6 +5894,12 @@ JSScript::makeTypes(JSContext *cx)
     for (unsigned i = 0; i < nargs; i++) {
         TypeSet *types = TypeScript::ArgTypes(this, i);
         InferSpew(ISpewOps, "typeSet: %sT%p%s arg%u #%u",
+                  InferSpewColor(types), types, InferSpewColorReset(),
+                  i, id());
+    }
+    for (unsigned i = 0; i < nfixed; i++) {
+        TypeSet *types = TypeScript::LocalTypes(this, i);
+        InferSpew(ISpewOps, "typeSet: %sT%p%s local%u #%u",
                   InferSpewColor(types), types, InferSpewColorReset(),
                   i, id());
     }

@@ -8,7 +8,6 @@
 #include "nsJSUtils.h"
 #include "nsIDOMTCPSocket.h"
 #include "nsContentUtils.h"
-#include "nsCxPusher.h"
 #include "mozilla/unused.h"
 #include "mozilla/AppProcessChecker.h"
 

@@ -159,6 +159,7 @@ nsSpeechTask::SendAudio(const JS::Value& aData, const JS::Value& aLandmarks,
     return NS_ERROR_FAILURE;
   }
 
+  JSAutoRequest ar(aCx);
   JS::Rooted<JSObject*> darray(aCx, &aData.toObject());
   JSAutoCompartment ac(aCx, darray);
 

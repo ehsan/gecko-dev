@@ -15,7 +15,6 @@
 #include "nsIURI.h"
 #include "nsXBLSerialize.h"
 #include "nsXBLPrototypeBinding.h"
-#include "nsCxPusher.h"
 #include "mozilla/dom/BindingUtils.h"
 #include "xpcpublic.h"
 #include "WrapperFactory.h"
@@ -410,6 +409,8 @@ nsXBLProtoImplField::InstallField(nsIScriptContext* aContext,
 
   // compile the literal string
   nsCOMPtr<nsIScriptContext> context = aContext;
+
+  JSAutoRequest ar(cx);
 
   // First, enter the xbl scope, wrap the node, and use that as the scope for
   // the evaluation.

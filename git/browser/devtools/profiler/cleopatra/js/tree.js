@@ -4,11 +4,16 @@
 
 var kMaxChunkDuration = 30; // ms
 
+var escape = document.createElement('textarea');
+
 function escapeHTML(html) {
-  var pre = document.createElementNS("http://www.w3.org/1999/xhtml", "pre");
-  var text = document.createTextNode(html);
-  pre.appendChild(text);
-  return pre.innerHTML;
+  escape.innerHTML = html;
+  return escape.innerHTML;
+}
+
+function unescapeHTML(html) {
+  escape.innerHTML = html;
+  return escape.value;
 }
 
 RegExp.escape = function(text) {

@@ -11,7 +11,6 @@
 #include "nsEventDispatcher.h"
 #include "nsDOMEvent.h"
 #include "nsContentUtils.h"
-#include "nsCxPusher.h"
 #include "nsThreadUtils.h"
 #include "DOMCursor.h"
 
@@ -264,6 +263,7 @@ public:
     if (!cx) {
       return NS_ERROR_FAILURE;
     }
+    JSAutoRequest ar(cx);
     JS_AddValueRoot(cx, &mResult);
     mIsSetup = true;
     return NS_OK;
@@ -307,6 +307,9 @@ public:
     AutoPushJSContext cx(sc->GetNativeContext());
     MOZ_ASSERT(cx);
 
+    // We need to build a new request, otherwise we assert since there won't be
+    // a request available yet.
+    JSAutoRequest ar(cx);
     JS_RemoveValueRoot(cx, &mResult);
   }
 private:

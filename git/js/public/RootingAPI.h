@@ -99,7 +99,6 @@
 namespace js {
 
 class Module;
-class ScriptSourceObject;
 
 template <typename T>
 struct RootMethods {};
@@ -248,14 +247,13 @@ class MOZ_STACK_CLASS Handle : public js::HandleBase<T>
     void operator=(S v) MOZ_DELETE;
 };
 
-typedef Handle<JSObject*>                   HandleObject;
-typedef Handle<js::Module*>                 HandleModule;
-typedef Handle<js::ScriptSourceObject *>    HandleScriptSource;
-typedef Handle<JSFunction*>                 HandleFunction;
-typedef Handle<JSScript*>                   HandleScript;
-typedef Handle<JSString*>                   HandleString;
-typedef Handle<jsid>                        HandleId;
-typedef Handle<Value>                       HandleValue;
+typedef Handle<JSObject*>    HandleObject;
+typedef Handle<js::Module*>  HandleModule;
+typedef Handle<JSFunction*>  HandleFunction;
+typedef Handle<JSScript*>    HandleScript;
+typedef Handle<JSString*>    HandleString;
+typedef Handle<jsid>         HandleId;
+typedef Handle<Value>        HandleValue;
 
 /*
  * Similar to a handle, but the underlying storage can be changed. This is
@@ -525,14 +523,13 @@ template <>
 class Rooted<JSStableString *>;
 #endif
 
-typedef Rooted<JSObject*>                   RootedObject;
-typedef Rooted<js::Module*>                 RootedModule;
-typedef Rooted<js::ScriptSourceObject *>    RootedScriptSource;
-typedef Rooted<JSFunction*>                 RootedFunction;
-typedef Rooted<JSScript*>                   RootedScript;
-typedef Rooted<JSString*>                   RootedString;
-typedef Rooted<jsid>                        RootedId;
-typedef Rooted<JS::Value>                   RootedValue;
+typedef Rooted<JSObject*>    RootedObject;
+typedef Rooted<js::Module*>  RootedModule;
+typedef Rooted<JSFunction*>  RootedFunction;
+typedef Rooted<JSScript*>    RootedScript;
+typedef Rooted<JSString*>    RootedString;
+typedef Rooted<jsid>         RootedId;
+typedef Rooted<JS::Value>    RootedValue;
 
 } /* namespace JS */
 

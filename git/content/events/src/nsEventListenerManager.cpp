@@ -40,7 +40,6 @@
 #include "nsFocusManager.h"
 #include "nsIDOMElement.h"
 #include "nsContentUtils.h"
-#include "nsCxPusher.h"
 #include "nsJSUtils.h"
 #include "nsContentCID.h"
 #include "nsEventDispatcher.h"
@@ -101,7 +100,7 @@ MutationBitForEventType(uint32_t aEventType)
 
 uint32_t nsEventListenerManager::sCreatedCount = 0;
 
-nsEventListenerManager::nsEventListenerManager(EventTarget* aTarget) :
+nsEventListenerManager::nsEventListenerManager(nsISupports* aTarget) :
   mMayHavePaintEventListener(false),
   mMayHaveMutationListeners(false),
   mMayHaveCapturingListeners(false),
@@ -352,9 +351,6 @@ nsEventListenerManager::AddEventListenerInternal(
     }
 #endif
   }
-  if (aTypeAtom && mTarget) {
-    mTarget->EventListenerAdded(aTypeAtom);
-  }
 }
 
 bool
@@ -467,9 +463,6 @@ nsEventListenerManager::RemoveEventListenerInternal(
         --count;
         mNoListenerForEvent = NS_EVENT_TYPE_NULL;
         mNoListenerForEventAtom = nullptr;
-        if (mTarget && aUserType) {
-          mTarget->EventListenerRemoved(aUserType);
-        }
 
         if (!deviceType
 #ifdef MOZ_B2G
@@ -754,9 +747,6 @@ nsEventListenerManager::RemoveEventHandler(nsIAtom* aName)
     mListeners.RemoveElementAt(uint32_t(ls - &mListeners.ElementAt(0)));
     mNoListenerForEvent = NS_EVENT_TYPE_NULL;
     mNoListenerForEventAtom = nullptr;
-    if (mTarget) {
-      mTarget->EventListenerRemoved(aName);
-    }
   }
 }
 
@@ -862,6 +852,7 @@ nsEventListenerManager::CompileEventHandlerInternal(nsListenerStruct *aListenerS
                                      aListenerStruct->mTypeAtom,
                                      &argCount, &argNames);
 
+    JSAutoRequest ar(cx);
     JSAutoCompartment ac(cx, context->GetNativeGlobal());
     JS::CompileOptions options(cx);
     options.setFileAndLine(url.get(), lineNo)

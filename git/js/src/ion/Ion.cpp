@@ -24,7 +24,6 @@
 #include "vm/ThreadPool.h"
 #include "vm/ForkJoin.h"
 #include "IonCompartment.h"
-#include "PerfSpewer.h"
 #include "CodeGenerator.h"
 #include "jsworkers.h"
 #include "BacktrackingAllocator.h"
@@ -159,7 +158,6 @@ ion::InitializeIon()
     }
 #endif
     CheckLogging();
-    CheckPerf();
     return true;
 }
 
@@ -358,7 +356,6 @@ FinishAllOffThreadCompilations(IonCompartment *ion)
 /* static */ void
 IonRuntime::Mark(JSTracer *trc)
 {
-    JS_ASSERT(!trc->runtime->isHeapMinorCollecting());
     Zone *zone = trc->runtime->atomsCompartment->zone();
     for (gc::CellIterUnderGC i(zone, gc::FINALIZE_IONCODE); !i.done(); i.next()) {
         IonCode *code = i.get<IonCode>();
@@ -496,11 +493,6 @@ IonCode::finalize(FreeOp *fop)
     // Buffer can be freed at any time hereafter. Catch use-after-free bugs.
     JS_POISON(code_, JS_FREE_PATTERN, bufferSize_);
 
-    // Horrible hack: if we are using perf integration, we don't
-    // want to reuse code addresses, so we just leak the memory instead.
-    if (PerfEnabled())
-        return;
-
     // Code buffers are stored inside JSC pools.
     // Pools are refcounted. Releasing the pool may free it.
     if (pool_)
@@ -567,7 +559,6 @@ IonScript::IonScript()
     invalidateEpilogueDataOffset_(0),
     numBailouts_(0),
     hasInvalidatedCallTarget_(false),
-    hasSPSInstrumentation_(false),
     runtimeData_(0),
     runtimeSize_(0),
     cacheIndex_(0),
@@ -1484,13 +1475,8 @@ CheckFrame(AbstractFramePtr fp)
 }
 
 static bool
-CheckScript(JSContext *cx, JSScript *script, bool osr)
+CheckScript(JSScript *script, bool osr)
 {
-    if (!script->analyzedArgsUsage() && !script->ensureRanAnalysis(cx)) {
-        IonSpew(IonSpew_Abort, "OOM under ensureRanAnalysis");
-        return false;
-    }
-
     if (osr && script->needsArgsObj()) {
         // OSR-ing into functions with arguments objects is not supported.
         IonSpew(IonSpew_Abort, "OSR script has argsobj");
@@ -1551,7 +1537,7 @@ SequentialCompileContext::checkScriptSize(JSContext *cx, JSScript *script)
 bool
 CanIonCompileScript(JSContext *cx, HandleScript script, bool osr)
 {
-    if (!script->canIonCompile() || !CheckScript(cx, script, osr))
+    if (!script->canIonCompile() || !CheckScript(script, osr))
         return false;
 
     SequentialCompileContext compileContext;
@@ -1581,7 +1567,7 @@ Compile(JSContext *cx, HandleScript script, AbstractFramePtr fp, jsbytecode *osr
         return Method_CantCompile;
     }
 
-    if (!CheckScript(cx, script, bool(osrPc))) {
+    if (!CheckScript(script, bool(osrPc))) {
         IonSpew(IonSpew_Abort, "Aborted compilation of %s:%d", script->filename(), script->lineno);
         return Method_CantCompile;
     }

@@ -48,7 +48,6 @@
 
 #include "gfxContext.h"
 #include "gfxQuartzSurface.h"
-#include "gfxUtils.h"
 #include "nsRegion.h"
 #include "Layers.h"
 #include "LayerManagerOGL.h"
@@ -139,20 +138,15 @@ uint32_t nsChildView::sLastInputEventCount = 0;
 
 - (void)processPendingRedraws;
 
-- (void)drawRect:(NSRect)aRect inContext:(CGContextRef)aContext;
+- (void)drawRect:(NSRect)aRect inContext:(CGContextRef)aContext alternate:(BOOL)aIsAlternate;
 
-- (BOOL)isUsingMainThreadOpenGL;
 - (BOOL)isUsingOpenGL;
 - (void)drawUsingOpenGL;
 - (void)drawUsingOpenGLCallback;
 
 - (BOOL)hasRoundedBottomCorners;
-- (CGFloat)cornerRadius;
-- (void)clearCorners;
-
-// Overlay drawing functions for traditional CGContext drawing
-- (void)drawTitlebarHighlight;
-- (void)maskTopCornersInContext:(CGContextRef)aContext;
+- (CGFloat)bottomCornerRadius;
+- (void)maybeClearBottomCorners;
 
 // Called using performSelector:withObject:afterDelay:0 to release
 // aWidgetArray (and its contents) the next time through the run loop.
@@ -251,7 +245,6 @@ nsChildView::nsChildView() : nsBaseWidget()
 , mEffectsLock("WidgetEffects")
 , mShowsResizeIndicator(false)
 , mHasRoundedBottomCorners(false)
-, mIsCoveringTitlebar(false)
 , mFailedResizerImage(false)
 , mFailedCornerMaskImage(false)
 , mBackingScaleFactor(0.0)
@@ -699,6 +692,40 @@ nsChildView::ReparentNativeWidget(nsIWidget* aNewParent)
   return NS_OK;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
+}
+
+CGContextRef
+nsChildView::GetCGContextForTitlebarDrawing(NSSize aSize)
+{
+  gfxSize titlebarSize(aSize.width, aSize.height);
+  if (!mTitlebarSurf || mTitlebarSize != titlebarSize) {
+    mTitlebarSize = titlebarSize;
+    mTitlebarSurf = new gfxQuartzSurface(titlebarSize, gfxASurface::ImageFormatARGB32);
+  }
+  return mTitlebarSurf->GetCGContext();
+}
+
+void
+nsChildView::WillPaint()
+{
+  [(ChildView*)mView maybeDrawInTitlebar];
+}
+
+void
+nsChildView::CompositeTitlebar(const gfxSize& aSize, CGContextRef aContext)
+{
+  NS_ASSERTION(mTitlebarSurf, "Must have titlebar surface");
+  if (!mTitlebarSurf) {
+    return;
+  }
+
+  CGImageRef image = CGBitmapContextCreateImage(mTitlebarSurf->GetCGContext());
+
+  CGContextDrawImage(aContext, 
+                     CGRectMake(0, 0, mTitlebarSize.width, mTitlebarSize.height), 
+                     image);
+
+  CGImageRelease(image);
 }
 
 void nsChildView::ResetParent()
@@ -1528,7 +1555,7 @@ void nsChildView::WillPaintWindow()
   }
 }
 
-bool nsChildView::PaintWindow(nsIntRegion aRegion)
+bool nsChildView::PaintWindow(nsIntRegion aRegion, bool aIsAlternate)
 {
   nsCOMPtr<nsIWidget> widget = GetWidgetForListenerEvents();
 
@@ -1539,7 +1566,11 @@ bool nsChildView::PaintWindow(nsIntRegion aRegion)
   bool returnValue = false;
   bool oldDispatchPaint = mIsDispatchPaint;
   mIsDispatchPaint = true;
-  returnValue = listener->PaintWindow(widget, aRegion);
+  uint32_t flags = 0;
+  if (aIsAlternate) {
+    flags |= nsIWidgetListener::PAINT_IS_ALTERNATE; 
+  }
+  returnValue = listener->PaintWindow(widget, aRegion, flags);
 
   listener = widget->GetWidgetListener();
   if (listener) {
@@ -1822,44 +1853,14 @@ nsChildView::GetThebesSurface()
 }
 
 void
-nsChildView::NotifyDirtyRegion(const nsIntRegion& aDirtyRegion)
-{
-  if ([(ChildView*)mView isCoveringTitlebar]) {
-    // We store the dirty region so that we know what to repaint in the titlebar.
-    mDirtyTitlebarRegion.Or(mDirtyTitlebarRegion, aDirtyRegion);
-    mDirtyTitlebarRegion.And(mDirtyTitlebarRegion, RectContainingTitlebarControls());
-  }
-}
-
-static const CGFloat kTitlebarHighlightHeight = 6;
-
-nsIntRect
-nsChildView::RectContainingTitlebarControls()
-{
-  // Start with a 6px high strip at the top of the window for the highlight line.
-  NSRect rect = NSMakeRect(0, 0, [mView bounds].size.width,
-                           kTitlebarHighlightHeight);
-
-  // Add the rects of the titlebar controls.
-  for (id view in [(BaseWindow*)[mView window] titlebarControls]) {
-    rect = NSUnionRect(rect, [mView convertRect:[view bounds] fromView:view]);
-  }
-  return CocoaPointsToDevPixels(rect);
-}
-
-void
 nsChildView::PrepareWindowEffects()
 {
   MutexAutoLock lock(mEffectsLock);
   mShowsResizeIndicator = ShowsResizeIndicator(&mResizeIndicatorRect);
-  mHasRoundedBottomCorners = [(ChildView*)mView hasRoundedBottomCorners];
-  CGFloat cornerRadius = [(ChildView*)mView cornerRadius];
+  mHasRoundedBottomCorners = [mView isKindOfClass:[ChildView class]] &&
+                             [(ChildView*)mView hasRoundedBottomCorners];
+  CGFloat cornerRadius = [(ChildView*)mView bottomCornerRadius];
   mDevPixelCornerRadius = cornerRadius * BackingScaleFactor();
-  mIsCoveringTitlebar = [(ChildView*)mView isCoveringTitlebar];
-  if (mIsCoveringTitlebar) {
-    mTitlebarRect = RectContainingTitlebarControls();
-    UpdateTitlebarImageBuffer();
-  }
 }
 
 void
@@ -1867,7 +1868,6 @@ nsChildView::CleanupWindowEffects()
 {
   mResizerImage = nullptr;
   mCornerMaskImage = nullptr;
-  mTitlebarImage = nullptr;
 }
 
 void
@@ -1889,22 +1889,8 @@ nsChildView::DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect)
     return;
   }
 
-  manager->gl()->PushScissorRect(aRect);
-
-  MaybeDrawTitlebar(manager, aRect);
   MaybeDrawResizeIndicator(manager, aRect);
-  MaybeDrawRoundedCorners(manager, aRect);
-
-  manager->gl()->PopScissorRect();
-}
-
-static void
-ClearRegion(gfxASurface* aSurface, nsIntRegion aRegion)
-{
-  nsRefPtr<gfxContext> ctx = new gfxContext(aSurface);
-  gfxUtils::ClipToRegion(ctx, aRegion);
-  ctx->SetOperator(gfxContext::OPERATOR_CLEAR);
-  ctx->Paint();
+  MaybeDrawRoundedBottomCorners(manager, aRect);
 }
 
 static void
@@ -1941,14 +1927,14 @@ DrawResizer(CGContextRef aCtx)
 }
 
 void
-nsChildView::MaybeDrawResizeIndicator(GLManager* aManager, const nsIntRect& aRect)
+nsChildView::MaybeDrawResizeIndicator(GLManager* aManager, nsIntRect aRect)
 {
-  MutexAutoLock lock(mEffectsLock);
   if (!mShowsResizeIndicator || mFailedResizerImage) {
     return;
   }
 
   if (!mResizerImage) {
+    MutexAutoLock lock(mEffectsLock);
     mResizerImage =
       aManager->gl()->CreateTextureImage(nsIntSize(mResizeIndicatorRect.width,
                                                    mResizeIndicatorRect.height),
@@ -1967,18 +1953,17 @@ nsChildView::MaybeDrawResizeIndicator(GLManager* aManager, const nsIntRect& aRec
       return;
     }
 
-    // We need a Quartz surface because DrawResizer wants a CGContext.
+    // is the CairoSurface of a non QuartzSurface usable in the gfxQuartzSurface constructor ?
+    // answer seems to be NO (see comments on bug 675410
+    // this should not work for instance: new gfxQuartzSurface(asurf->CairoSurface(), false))
     if (asurf->GetType() != gfxASurface::SurfaceTypeQuartz) {
       NS_WARN_IF_FALSE(FALSE, "mResizerImage's surface is not Quartz");
-      mResizerImage->EndUpdate();
       mResizerImage = nullptr;
       mFailedResizerImage = true;
       return;
     }
-
-    ClearRegion(asurf, update);
-
     nsRefPtr<gfxQuartzSurface> image = static_cast<gfxQuartzSurface*>(asurf);
+
     DrawResizer(image->GetCGContext());
 
     mResizerImage->EndUpdate();
@@ -1986,8 +1971,8 @@ nsChildView::MaybeDrawResizeIndicator(GLManager* aManager, const nsIntRect& aRec
 
   NS_ABORT_IF_FALSE(mResizerImage, "Must have a texture allocated by now!");
 
-  float bottomX = aRect.XMost();
-  float bottomY = aRect.YMost();
+  float bottomX = aRect.x + aRect.width;
+  float bottomY = aRect.y + aRect.height;
 
   TextureImage::ScopedBindTexture texBind(mResizerImage, LOCAL_GL_TEXTURE0);
 
@@ -2006,197 +1991,6 @@ nsChildView::MaybeDrawResizeIndicator(GLManager* aManager, const nsIntRect& aRec
   aManager->BindAndDrawQuad(program);
 }
 
-// Draw the highlight line at the top of the titlebar.
-// This function draws into the current NSGraphicsContext and assumes flippedness.
-static void
-DrawTitlebarHighlight(NSSize aWindowSize, CGFloat aRadius, CGFloat aDevicePixelWidth)
-{
-  [NSGraphicsContext saveGraphicsState];
-
-  // Set up the clip path. We start with the outer rectangle and cut out a
-  // slightly smaller inner rectangle with rounded corners.
-  // The outer corners of the resulting path will be square, but they will be
-  // masked away in a later step.
-  NSBezierPath* path = [NSBezierPath bezierPath];
-  [path setWindingRule:NSEvenOddWindingRule];
-  NSRect pathRect = NSMakeRect(0, 0, aWindowSize.width, kTitlebarHighlightHeight + 2);
-  [path appendBezierPathWithRect:pathRect];
-  pathRect = NSInsetRect(pathRect, aDevicePixelWidth, aDevicePixelWidth);
-  CGFloat innerRadius = aRadius - aDevicePixelWidth;
-  [path appendBezierPathWithRoundedRect:pathRect xRadius:innerRadius yRadius:innerRadius];
-  [path addClip];
-
-  // Now we fill the path with a subtle highlight gradient.
-  NSColor* topColor = [NSColor colorWithDeviceWhite:1.0 alpha:0.4];
-  NSColor* bottomColor = [NSColor colorWithDeviceWhite:1.0 alpha:0.0];
-  NSGradient* gradient = [[NSGradient alloc] initWithStartingColor:topColor endingColor:bottomColor];
-  [gradient drawInRect:NSMakeRect(0, 0, aWindowSize.width, kTitlebarHighlightHeight) angle:90];
-  [gradient release];
-
-  [NSGraphicsContext restoreGraphicsState];
-}
-
-// When this method is entered, mEffectsLock is already being held.
-void
-nsChildView::UpdateTitlebarImageBuffer()
-{
-  nsIntRegion dirtyTitlebarRegion = mDirtyTitlebarRegion;
-  mDirtyTitlebarRegion.SetEmpty();
-
-  if (!mTitlebarImageBuffer ||
-      mTitlebarImageBuffer->GetSize() != mTitlebarRect.Size()) {
-    dirtyTitlebarRegion = mTitlebarRect;
-
-    mTitlebarImageBuffer = new gfxQuartzSurface(mTitlebarRect.Size(),
-                                                gfxASurface::ImageFormatARGB32);
-  }
-
-  if (dirtyTitlebarRegion.IsEmpty())
-    return;
-
-  ClearRegion(mTitlebarImageBuffer, dirtyTitlebarRegion);
-
-  CGContextRef ctx = mTitlebarImageBuffer->GetCGContext();
-  CGContextSaveGState(ctx);
-
-  double scale = BackingScaleFactor();
-  CGContextScaleCTM(ctx, scale, scale);
-  NSGraphicsContext* oldContext = [NSGraphicsContext currentContext];
-  [NSGraphicsContext setCurrentContext:[NSGraphicsContext graphicsContextWithGraphicsPort:ctx flipped:YES]];
-
-  CGContextSaveGState(ctx);
-
-  BaseWindow* window = (BaseWindow*)[mView window];
-  NSView* frameView = [[window contentView] superview];
-  if (![frameView isFlipped]) {
-    CGContextTranslateCTM(ctx, 0, [frameView bounds].size.height);
-    CGContextScaleCTM(ctx, 1, -1);
-  }
-
-  // Draw the titlebar controls into the titlebar image.
-  for (id view in [window titlebarControls]) {
-    NSRect viewFrame = [view frame];
-    nsIntRect viewRect = CocoaPointsToDevPixels([mView convertRect:viewFrame fromView:frameView]);
-    nsIntRegion intersection;
-    intersection.And(dirtyTitlebarRegion, viewRect);
-    if (intersection.IsEmpty()) {
-      continue;
-    }
-    // All of the titlebar controls we're interested in are subclasses of
-    // NSButton.
-    if (![view isKindOfClass:[NSButton class]]) {
-      continue;
-    }
-    NSButton *button = (NSButton *) view;
-    id cellObject = [button cell];
-    if (![cellObject isKindOfClass:[NSCell class]]) {
-      continue;
-    }
-    NSCell *cell = (NSCell *) cellObject;
-
-    CGContextSaveGState(ctx);
-    CGContextTranslateCTM(ctx, viewFrame.origin.x, viewFrame.origin.y);
-
-    if ([view isFlipped]) {
-      CGContextTranslateCTM(ctx, 0, viewFrame.size.height);
-      CGContextScaleCTM(ctx, 1, -1);
-    }
-
-    NSRect intersectRect = DevPixelsToCocoaPoints(intersection.GetBounds());
-    [cell drawWithFrame:[view convertRect:intersectRect fromView:mView] inView:button];
-
-    CGContextRestoreGState(ctx);
-  }
-
-  CGContextRestoreGState(ctx);
-
-  DrawTitlebarHighlight([frameView bounds].size, [(ChildView*)mView cornerRadius],
-                        DevPixelsToCocoaPoints(1));
-
-  [NSGraphicsContext setCurrentContext:oldContext];
-  CGContextRestoreGState(ctx);
-
-  mUpdatedTitlebarRegion.Or(mUpdatedTitlebarRegion, dirtyTitlebarRegion);
-}
-
-// When this method is entered, mEffectsLock is already being held.
-void
-nsChildView::UpdateTitlebarImage(GLManager* aManager, const nsIntRect& aRect)
-{
-  nsIntRegion updatedTitlebarRegion;
-  updatedTitlebarRegion.And(mUpdatedTitlebarRegion, mTitlebarRect);
-  mUpdatedTitlebarRegion.SetEmpty();
-
-  if (!mTitlebarImage || mTitlebarImage->GetSize() != mTitlebarRect.Size()) {
-    updatedTitlebarRegion = mTitlebarRect;
-
-    mTitlebarImage =
-      aManager->gl()->CreateTextureImage(mTitlebarRect.Size(),
-                                         gfxASurface::CONTENT_COLOR_ALPHA,
-                                         LOCAL_GL_CLAMP_TO_EDGE,
-                                         TextureImage::UseNearestFilter);
-
-    // Creation of texture images can fail.
-    if (!mTitlebarImage)
-      return;
-  }
-
-  if (updatedTitlebarRegion.IsEmpty())
-    return;
-
-  gfxASurface *asurf = mTitlebarImage->BeginUpdate(updatedTitlebarRegion);
-  if (!asurf) {
-    mTitlebarImage = nullptr;
-    return;
-  }
-
-  nsRefPtr<gfxContext> ctx = new gfxContext(asurf);
-  ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
-  ctx->SetSource(mTitlebarImageBuffer);
-  ctx->Paint();
-
-  mTitlebarImage->EndUpdate();
-}
-
-// This method draws an overlay in the top of the window which contains the
-// titlebar controls (e.g. close, min, zoom, fullscreen) and the titlebar
-// highlight effect.
-// This is necessary because the real titlebar controls are covered by our
-// OpenGL context. Note that in terms of the NSView hierarchy, our ChildView
-// is actually below the titlebar controls - that's why hovering and clicking
-// them works as expected - but their visual representation is only drawn into
-// the normal window buffer, and the window buffer surface lies below the
-// GLContext surface. In order to make the titlebar controls visible, we have
-// to redraw them inside the OpenGL context surface.
-void
-nsChildView::MaybeDrawTitlebar(GLManager* aManager, const nsIntRect& aRect)
-{
-  MutexAutoLock lock(mEffectsLock);
-  if (!mIsCoveringTitlebar) {
-    return;
-  }
-
-  UpdateTitlebarImage(aManager, aRect);
-
-  if (!mTitlebarImage) {
-    return;
-  }
-
-  TextureImage::ScopedBindTexture texBind(mTitlebarImage, LOCAL_GL_TEXTURE0);
-
-  ShaderProgramOGL *program =
-    aManager->GetProgram(mTitlebarImage->GetShaderProgramType());
-  program->Activate();
-  program->SetLayerQuadRect(nsIntRect(nsIntPoint(0, 0),
-                                      mTitlebarImage->GetSize()));
-  program->SetLayerTransform(gfx3DMatrix());
-  program->SetLayerOpacity(1.0);
-  program->SetRenderOffset(nsIntPoint(0,0));
-  program->SetTextureUnit(0);
-
-  aManager->BindAndDrawQuad(program);
-}
-
 static void
 DrawTopLeftCornerMask(CGContextRef aCtx, int aRadius)
 {
@@ -2205,14 +1999,14 @@ DrawTopLeftCornerMask(CGContextRef aCtx, int aRadius)
 }
 
 void
-nsChildView::MaybeDrawRoundedCorners(GLManager* aManager, const nsIntRect& aRect)
+nsChildView::MaybeDrawRoundedBottomCorners(GLManager* aManager, nsIntRect aRect)
 {
+  if (!mHasRoundedBottomCorners ||
+      mFailedCornerMaskImage)
+    return;
+  
   MutexAutoLock lock(mEffectsLock);
   
-  if (mFailedCornerMaskImage) {
-    return;
-  }
-
   if (!mCornerMaskImage) {
     mCornerMaskImage =
       aManager->gl()->CreateTextureImage(nsIntSize(mDevPixelCornerRadius,
@@ -2231,20 +2025,20 @@ nsChildView::MaybeDrawRoundedCorners(GLManager* aManager, const nsIntRect& aRect
       mCornerMaskImage = nullptr;
       return;
     }
-
+    
+    // is the CairoSurface of a non QuartzSurface usable in the gfxQuartzSurface constructor ?
+    // answer seems to be NO (see comments on bug 675410
+    // this should not work for instance: new gfxQuartzSurface(asurf->CairoSurface(), false))
     if (asurf->GetType() != gfxASurface::SurfaceTypeQuartz) {
-      NS_WARNING("mCornerMaskImage's surface is not Quartz");
-      mCornerMaskImage->EndUpdate();
+      NS_WARN_IF_FALSE(FALSE, "mCornerMaskImage's surface is not Quartz");
       mCornerMaskImage = nullptr;
       mFailedCornerMaskImage = true;
       return;
     }
-
-    ClearRegion(asurf, update);
-
     nsRefPtr<gfxQuartzSurface> image = static_cast<gfxQuartzSurface*>(asurf);
+    
     DrawTopLeftCornerMask(image->GetCGContext(), mDevPixelCornerRadius);
-
+    
     mCornerMaskImage->EndUpdate();
   }
   
@@ -2254,93 +2048,50 @@ nsChildView::MaybeDrawRoundedCorners(GLManager* aManager, const nsIntRect& aRect
   
   ShaderProgramOGL *program = aManager->GetProgram(mCornerMaskImage->GetShaderProgramType());
   program->Activate();
-  program->SetLayerQuadRect(nsIntRect(nsIntPoint(0, 0),
-                                      mCornerMaskImage->GetSize()));
+  program->SetLayerQuadRect(nsIntRect(0, 0, // aRect.x, aRect.y,
+                                      mDevPixelCornerRadius,
+                                      mDevPixelCornerRadius));
   program->SetLayerOpacity(1.0);
   program->SetRenderOffset(nsIntPoint(0,0));
   program->SetTextureUnit(0);
-
+  
   // Use operator destination in: multiply all 4 channels with source alpha.
   aManager->gl()->fBlendFuncSeparate(LOCAL_GL_ZERO, LOCAL_GL_SRC_ALPHA,
                                      LOCAL_GL_ZERO, LOCAL_GL_SRC_ALPHA);
   
-  if (mIsCoveringTitlebar) {
-    // Mask the top corners.
-    program->SetLayerTransform(gfx3DMatrix::ScalingMatrix(1, 1, 1) *
-                               gfx3DMatrix::Translation(0, 0, 0));
-    aManager->BindAndDrawQuad(program);
-    program->SetLayerTransform(gfx3DMatrix::ScalingMatrix(-1, 1, 1) *
-                               gfx3DMatrix::Translation(aRect.width, 0, 0));
-    aManager->BindAndDrawQuad(program);
-  }
-
-  if (mHasRoundedBottomCorners) {
-    // Mask the bottom corners.
-    program->SetLayerTransform(gfx3DMatrix::ScalingMatrix(1, -1, 1) *
-                               gfx3DMatrix::Translation(0, aRect.height, 0));
-    aManager->BindAndDrawQuad(program);
-    program->SetLayerTransform(gfx3DMatrix::ScalingMatrix(-1, -1, 1) *
-                               gfx3DMatrix::Translation(aRect.width, aRect.height, 0));
-    aManager->BindAndDrawQuad(program);
-  }
-
+  // Draw; first bottom left, then bottom right.
+  program->SetLayerTransform(gfx3DMatrix::ScalingMatrix(1, -1, 1) *
+                             gfx3DMatrix::Translation(0, aRect.height, 0));
+  aManager->BindAndDrawQuad(program);
+  program->SetLayerTransform(gfx3DMatrix::ScalingMatrix(-1, -1, 1) *
+                             gfx3DMatrix::Translation(aRect.width, aRect.height, 0));
+  aManager->BindAndDrawQuad(program);
+  
   // Reset blend mode.
   aManager->gl()->fBlendFuncSeparate(LOCAL_GL_ONE, LOCAL_GL_ONE_MINUS_SRC_ALPHA,
                                      LOCAL_GL_ONE, LOCAL_GL_ONE);
 }
 
-static int32_t
-FindTitlebarBottom(const nsTArray<nsIWidget::ThemeGeometry>& aThemeGeometries,
-                   int32_t aWindowWidth)
-{
-  int32_t titlebarBottom = 0;
-  for (uint32_t i = 0; i < aThemeGeometries.Length(); ++i) {
-    const nsIWidget::ThemeGeometry& g = aThemeGeometries[i];
-    if ((g.mWidgetType == NS_THEME_WINDOW_TITLEBAR) &&
-        g.mRect.X() <= 0 &&
-        g.mRect.XMost() >= aWindowWidth &&
-        g.mRect.Y() <= 0) {
-      titlebarBottom = std::max(titlebarBottom, g.mRect.YMost());
-    }
-  }
-  return titlebarBottom;
-}
-
-static int32_t
-FindUnifiedToolbarBottom(const nsTArray<nsIWidget::ThemeGeometry>& aThemeGeometries,
-                         int32_t aWindowWidth, int32_t aTitlebarBottom)
-{
-  int32_t unifiedToolbarBottom = aTitlebarBottom;
-  for (uint32_t i = 0; i < aThemeGeometries.Length(); ++i) {
-    const nsIWidget::ThemeGeometry& g = aThemeGeometries[i];
-    if ((g.mWidgetType == NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR ||
-         g.mWidgetType == NS_THEME_TOOLBAR) &&
-        g.mRect.X() <= 0 &&
-        g.mRect.XMost() >= aWindowWidth &&
-        g.mRect.Y() <= aTitlebarBottom) {
-      unifiedToolbarBottom = std::max(unifiedToolbarBottom, g.mRect.YMost());
-    }
-  }
-  return unifiedToolbarBottom;
-}
-
 void
 nsChildView::UpdateThemeGeometries(const nsTArray<ThemeGeometry>& aThemeGeometries)
 {
-  if (![mView window] || ![[mView window] isKindOfClass:[ToolbarWindow class]])
+  NSWindow* win = [mView window];
+  if (!win || ![win isKindOfClass:[ToolbarWindow class]])
     return;
 
-  int32_t windowWidth = mBounds.width;
-  int32_t titlebarBottom = FindTitlebarBottom(aThemeGeometries, windowWidth);
-  int32_t unifiedToolbarBottom =
-    FindUnifiedToolbarBottom(aThemeGeometries, windowWidth, titlebarBottom);
+  float unifiedToolbarHeight = 0;
+  nsIntRect topPixelStrip(0, 0, [win frame].size.width, 1);
 
-  ToolbarWindow* win = (ToolbarWindow*)[mView window];
-  bool drawsContentsIntoWindowFrame = [win drawsContentsIntoWindowFrame];
-  int32_t titlebarHeight = CocoaPointsToDevPixels([win titlebarHeight]);
-  int32_t contentOffset = drawsContentsIntoWindowFrame ? titlebarHeight : 0;
-  int32_t devUnifiedHeight = titlebarHeight + unifiedToolbarBottom - contentOffset;
-  [win setUnifiedToolbarHeight:DevPixelsToCocoaPoints(devUnifiedHeight)];
+  for (uint32_t i = 0; i < aThemeGeometries.Length(); ++i) {
+    const ThemeGeometry& g = aThemeGeometries[i];
+    if ((g.mWidgetType == NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR ||
+         g.mWidgetType == NS_THEME_TOOLBAR) &&
+        g.mRect.Contains(topPixelStrip)) {
+      unifiedToolbarHeight = g.mRect.YMost();
+    }
+  }
+  [(ToolbarWindow*)win
+    setUnifiedToolbarHeight:DevPixelsToCocoaPoints(unifiedToolbarHeight)];
 }
 
 NS_IMETHODIMP
@@ -2489,8 +2240,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
     mCancelSwipeAnimation = nil;
     mCurrentSwipeDir = 0;
 #endif
-
-    mTopLeftCornerMask = NULL;
   }
 
   // register for things we'll take from other applications
@@ -2591,7 +2340,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
   [mPendingDirtyRects release];
   [mLastMouseDownEvent release];
   [mClickThroughMouseDownEvent release];
-  CGImageRelease(mTopLeftCornerMask);
   ChildViewMouseTracker::OnDestroyView(self);
 
   [[NSNotificationCenter defaultCenter] removeObserver:self];
@@ -2719,13 +2467,11 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
 - (void)setNeedsDisplayInRect:(NSRect)aRect
 {
-  if (![self isUsingOpenGL]) {
-    [super setNeedsDisplayInRect:aRect];
+  if (![[self window] isVisible])
     return;
-  }
 
-  if ([[self window] isVisible] && [self isUsingMainThreadOpenGL]) {
-    // Draw without calling drawRect. This prevent us from
+  if ([self isUsingOpenGL]) {
+    // Draw the frame outside of setNeedsDisplayInRect to prevent us from
     // needing to access the normal window buffer surface unnecessarily, so we
     // waste less time synchronizing the two surfaces. (These synchronizations
     // show up in a profiler as CGSDeviceLock / _CGSLockWindow /
@@ -2739,6 +2485,17 @@ NSEvent* gLastDragMouseDownEvent = nil;
                  withObject:nil
                  afterDelay:0
                     inModes:[NSArray arrayWithObject:NSRunLoopCommonModes]];
+    }
+  } else {
+    [super setNeedsDisplayInRect:aRect];
+  }
+
+  if ([[self window] isKindOfClass:[ToolbarWindow class]]) {
+    ToolbarWindow* window = (ToolbarWindow*)[self window];
+    if ([window drawsContentsIntoWindowFrame]) {
+      // Tell it to mark the rect in the titlebar as dirty.
+      NSView* borderView = [[window contentView] superview];
+      [window setTitlebarNeedsDisplayInRect:[self convertRect:aRect toView:borderView]];
     }
   }
 }
@@ -2945,11 +2702,48 @@ NSEvent* gLastDragMouseDownEvent = nil;
   }
 }
 
-- (BOOL)isCoveringTitlebar
+- (void)maybeDrawInTitlebar
 {
-  return [[self window] isKindOfClass:[BaseWindow class]] &&
-         [(BaseWindow*)[self window] mainChildView] == self &&
-         [(BaseWindow*)[self window] drawsContentsIntoWindowFrame];
+  if (!mGeckoChild) {
+    return;
+  }
+  NSWindow* win = [self window];
+  if (!win || ![win isKindOfClass:[ToolbarWindow class]]) {
+    return;
+  }
+  ToolbarWindow* toolbarWin = (ToolbarWindow*)win;
+  if (![toolbarWin drawsContentsIntoWindowFrame]) {
+    return;
+  }
+
+  // Check the parts of the frame view occupied by the titlebar to see if all
+  // or part of it is "dirty" (needs to be redrawn).  This is effectively the
+  // top 22 pixels of the frame view, and is not the same thing as the
+  // "unified toolbar".  Our ChildView ('self') is the same size as the frame
+  // view and covers it.  Our ChildView has a flipped coordinate system, but
+  // the frame view doesn't.
+  NSRect titlebarRect = [toolbarWin titlebarRect];
+  NSView* frameView = [[toolbarWin contentView] superview];
+  NSRect dirtyRect = NSIntersectionRect([frameView _dirtyRect], titlebarRect);
+  // Flip dirtyRect's coordinate system.
+  dirtyRect.origin.y = [frameView bounds].size.height -
+    dirtyRect.origin.y - dirtyRect.size.height;
+  if (NSIsEmptyRect(dirtyRect)) {
+    return;
+  }
+
+  CGContextRef context = mGeckoChild->GetCGContextForTitlebarDrawing(titlebarRect.size);
+  CGContextSaveGState(context);
+  [self drawRect:dirtyRect inTitlebarContext:context];
+  CGContextRestoreGState(context);
+}
+
+- (void)drawTitlebar:(NSRect)aRect inTitlebarContext:(CGContextRef)aContext
+{
+  if (mGeckoChild) {
+    gfxSize size(aRect.size.width, aRect.size.height);
+    mGeckoChild->CompositeTitlebar(size, aContext);
+  }
 }
 
 // The display system has told us that a portion of our view is dirty. Tell
@@ -2957,7 +2751,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
 - (void)drawRect:(NSRect)aRect
 {
   CGContextRef cgContext = (CGContextRef)[[NSGraphicsContext currentContext] graphicsPort];
-  [self drawRect:aRect inContext:cgContext];
+  [self drawRect:aRect inContext:cgContext alternate:false];
 
   // If we're a transparent window and our contents have changed, we need
   // to make sure the shadow is updated to the new contents.
@@ -2966,7 +2760,18 @@ NSEvent* gLastDragMouseDownEvent = nil;
   }
 }
 
-- (void)drawRect:(NSRect)aRect inContext:(CGContextRef)aContext
+- (void)drawRect:(NSRect)aRect inTitlebarContext:(CGContextRef)aContext
+{
+  if (!mGeckoChild)
+    return;
+
+  // Title bar drawing only works if we really draw into aContext, which only
+  // the basic layer manager will do.
+  nsBaseWidget::AutoUseBasicLayerManager setupLayerManager(mGeckoChild);
+  [self drawRect:aRect inContext:aContext alternate:true];
+}
+
+- (void)drawRect:(NSRect)aRect inContext:(CGContextRef)aContext alternate:(BOOL)aIsAlternate
 {
   if (!mGeckoChild || !mGeckoChild->IsVisible())
     return;
@@ -2988,15 +2793,32 @@ NSEvent* gLastDragMouseDownEvent = nil;
   fprintf (stderr, "  xform in: [%f %f %f %f %f %f]\n", xform.a, xform.b, xform.c, xform.d, xform.tx, xform.ty);
 #endif
 
+  if ([self isUsingOpenGL]) {
+    // We usually don't get here for Gecko-initiated repaints. Instead, those
+    // eventually call drawUsingOpenGL, and don't go through drawRect.
+    // Paints that come through here are triggered by something that Cocoa
+    // controls, for example by window resizing or window focus changes.
+
+    // Since our window is usually declared as opaque, the window's pixel
+    // buffer may now contain garbage which we need to prevent from reaching
+    // the screen. The only place where garbage can show is in the bottom
+    // corners - the rest of the window is covered by our OpenGL surface.
+    // So we need to clear the pixel buffer contents in the corners.
+    [self maybeClearBottomCorners];
+
+    // Do GL composition and return.
+    [self drawUsingOpenGL];
+    return;
+  }
+
+  PROFILER_LABEL("widget", "ChildView::drawRect");
+
   nsIntRegion region;
   nsIntRect boundingRect = mGeckoChild->CocoaPointsToDevPixels(aRect);
   const NSRect *rects;
   NSInteger count, i;
   [[NSView focusView] getRectsBeingDrawn:&rects count:&count];
-
-  CGContextClipToRects(aContext, (CGRect*)rects, count);
-
-  if (count < MAX_RECTS_IN_REGION) {
+  if (count < MAX_RECTS_IN_REGION && !aIsAlternate) {
     for (i = 0; i < count; ++i) {
       // Add the rect to the region.
       NSRect r = [self convertRect:rects[i] fromView:[NSView focusView]];
@@ -3007,52 +2829,25 @@ NSEvent* gLastDragMouseDownEvent = nil;
     region = boundingRect;
   }
 
-  if ([self isUsingOpenGL]) {
-    // For Gecko-initiated repaints in OpenGL mode, drawUsingOpenGL is
-    // directly called from a delayed perform callback - without going through
-    // drawRect.
-    // Paints that come through here are triggered by something that Cocoa
-    // controls, for example by window resizing or window focus changes.
-
-    // Since this view is usually declared as opaque, the window's pixel
-    // buffer may now contain garbage which we need to prevent from reaching
-    // the screen. The only place where garbage can show is in the window
-    // corners - the rest of the window is covered by opaque content in our
-    // OpenGL surface.
-    // So we need to clear the pixel buffer contents in the corners.
-    [self clearCorners];
-
-    // When our view covers the titlebar, we need to repaint the titlebar
-    // texture buffer when, for example, the window buttons are hovered.
-    // So we notify our nsChildView about any areas needing repainting.
-    mGeckoChild->NotifyDirtyRegion(region);
-
-    // Do GL composition and return.
-    [self drawUsingOpenGL];
-    return;
-  }
-
-  PROFILER_LABEL("widget", "ChildView::drawRect");
+  // Create Cairo objects.
 
   // The CGContext that drawRect supplies us with comes with a transform that
   // scales one user space unit to one Cocoa point, which can consist of
   // multiple dev pixels. But Gecko expects its supplied context to be scaled
   // to device pixels, so we need to reverse the scaling.
   double scale = mGeckoChild->BackingScaleFactor();
-  CGContextSaveGState(aContext);
   CGContextScaleCTM(aContext, 1.0 / scale, 1.0 / scale);
 
   NSSize viewSize = [self bounds].size;
   nsIntSize backingSize(viewSize.width * scale, viewSize.height * scale);
 
-  CGContextSaveGState(aContext);
-
-  // Create Cairo objects.
   nsRefPtr<gfxQuartzSurface> targetSurface =
     new gfxQuartzSurface(aContext, backingSize);
   targetSurface->SetAllowUseAsSource(false);
 
   nsRefPtr<gfxContext> targetContext = new gfxContext(targetSurface);
+
+  gfxContextMatrixAutoSaveRestore save(targetContext);
 
   // Set up the clip region.
   nsIntRegionRectIterator iter(region);
@@ -3070,24 +2865,26 @@ NSEvent* gLastDragMouseDownEvent = nil;
   if (mGeckoChild->GetLayerManager()->GetBackendType() == LAYERS_BASIC) {
     nsBaseWidget::AutoLayerManagerSetup
       setupLayerManager(mGeckoChild, targetContext, BUFFER_NONE);
-    painted = mGeckoChild->PaintWindow(region);
+    painted = mGeckoChild->PaintWindow(region, aIsAlternate);
   } else if (mGeckoChild->GetLayerManager()->GetBackendType() == LAYERS_CLIENT) {
     // We only need this so that we actually get DidPaintWindow fired
     if (Compositor::GetBackend() == LAYERS_BASIC) {
       ClientLayerManager *manager = static_cast<ClientLayerManager*>(mGeckoChild->GetLayerManager());
       manager->SetShadowTarget(targetContext);
     }
-    painted = mGeckoChild->PaintWindow(region);
+    painted = mGeckoChild->PaintWindow(region, aIsAlternate);
   }
 
-  targetContext = nullptr;
-  targetSurface = nullptr;
-
-  CGContextRestoreGState(aContext);
-
-  // Undo the scale transform so that from now on the context is in
-  // CocoaPoints again.
-  CGContextRestoreGState(aContext);
+  // Force OpenGL to refresh the very first time we draw. This works around a
+  // Mac OS X bug that stops windows updating on OS X when we use OpenGL.
+  LayerManager *layerManager = mGeckoChild->GetLayerManager(nullptr);
+  if (mUsingOMTCompositor && painted && !mDidForceRefreshOpenGL &&
+      layerManager->AsLayerManagerComposite()) {
+    if (!mDidForceRefreshOpenGL) {
+      [self performSelector:@selector(forceRefreshOpenGL) withObject:nil afterDelay:0];
+      mDidForceRefreshOpenGL = YES;
+    }
+  }
 
   if (!painted && [self isOpaque]) {
     // Gecko refused to draw, but we've claimed to be opaque, so we have to
@@ -3096,10 +2893,9 @@ NSEvent* gLastDragMouseDownEvent = nil;
     CGContextFillRect(aContext, NSRectToCGRect(aRect));
   }
 
-  if ([self isCoveringTitlebar]) {
-    [self drawTitlebarHighlight];
-    [self maskTopCornersInContext:aContext];
-  }
+  // note that the cairo surface *MUST* be destroyed at this point,
+  // or bad things will happen (since we can't keep the cgContext around
+  // beyond this drawRect message handler)
 
 #ifdef DEBUG_UPDATE
   fprintf (stderr, "---- update done ----\n");
@@ -3117,20 +2913,12 @@ NSEvent* gLastDragMouseDownEvent = nil;
 #endif
 }
 
-- (BOOL)isUsingMainThreadOpenGL
-{
-  if (!mGeckoChild || ![self window])
-    return NO;
-
-  return mGeckoChild->GetLayerManager(nullptr)->GetBackendType() == mozilla::layers::LAYERS_OPENGL;
-}
-
 - (BOOL)isUsingOpenGL
 {
   if (!mGeckoChild || ![self window])
     return NO;
 
-  return mGLContext || [self isUsingMainThreadOpenGL];
+  return mGeckoChild->GetLayerManager(nullptr)->GetBackendType() == mozilla::layers::LAYERS_OPENGL;
 }
 
 - (void)drawUsingOpenGL
@@ -3146,20 +2934,18 @@ NSEvent* gLastDragMouseDownEvent = nil;
   mGeckoChild->GetBounds(geckoBounds);
   nsIntRegion region(geckoBounds);
 
-  if ([self isUsingMainThreadOpenGL]) {
-    LayerManagerOGL *manager = static_cast<LayerManagerOGL*>(mGeckoChild->GetLayerManager(nullptr));
-    manager->SetClippingRegion(region);
-    NSOpenGLContext *glContext = (NSOpenGLContext *)manager->GetNSOpenGLContext();
+  LayerManagerOGL *manager = static_cast<LayerManagerOGL*>(mGeckoChild->GetLayerManager(nullptr));
+  manager->SetClippingRegion(region);
+  NSOpenGLContext *glContext = (NSOpenGLContext *)manager->GetNSOpenGLContext();
 
-    if (!mGLContext) {
-      [self setGLContext:glContext];
-    }
-
-    [glContext setView:self];
-    [glContext update];
+  if (!mGLContext) {
+    [self setGLContext:glContext];
   }
 
-  mGeckoChild->PaintWindow(region);
+  [glContext setView:self];
+  [glContext update];
+
+  mGeckoChild->PaintWindow(region, false);
 
   // Force OpenGL to refresh the very first time we draw. This works around a
   // Mac OS X bug that stops windows updating on OS X when we use OpenGL.
@@ -3184,92 +2970,39 @@ NSEvent* gLastDragMouseDownEvent = nil;
   [[self window] bottomCornerRounded];
 }
 
-- (CGFloat)cornerRadius
+- (CGFloat)bottomCornerRadius
 {
-  NSView* frameView = [[[self window] contentView] superview];
-  if (!frameView || ![frameView respondsToSelector:@selector(roundedCornerRadius)])
+  if (![self hasRoundedBottomCorners])
+    return 0.0f;
+  NSView* borderView = [[[self window] contentView] superview];
+  if (!borderView || ![borderView respondsToSelector:@selector(roundedCornerRadius)])
     return 4.0f;
-  return [frameView roundedCornerRadius];
+  return [borderView roundedCornerRadius];
 }
 
 // Accelerated windows have two NSSurfaces:
 //  (1) The window's pixel buffer in the back and
 //  (2) the OpenGL view in the front.
-// These two surfaces are composited by the window manager. Drawing into the
-// CGContext which is provided by drawRect ends up in (1).
-// When our window has rounded corners, the OpenGL view has transparent pixels
-// in the corners. In these places the contents of the window's pixel buffer
-// can show through. So we need to make sure that the pixel buffer is
+// These two surfaces are composited by the window manager. Drawing with the
+// usual CGContext functions ends up in (1).
+// When our window has rounded bottom corners, the OpenGL view has transparent
+// pixels in the corners. In these places the contents of the window's pixel
+// buffer can show through. So we need to make sure that the pixel buffer is
 // transparent in the corners so that no garbage reaches the screen.
 // The contents of the pixel buffer in the rest of the window don't matter
-// because they're covered by opaque pixels of the OpenGL context.
-// Making the corners transparent works even though our window is
+// because they're covered by the OpenGL view.
+// Making the bottom corners transparent works even though our window is
 // declared "opaque" (in the NSWindow's isOpaque method).
-- (void)clearCorners
+- (void)maybeClearBottomCorners
 {
-  CGFloat radius = [self cornerRadius];
-  CGFloat w = [self bounds].size.width, h = [self bounds].size.height;
+  if (![self hasRoundedBottomCorners])
+    return;
+  
+  int radius = [self bottomCornerRadius];
+  int w = [self bounds].size.width, h = [self bounds].size.height;
   [[NSColor clearColor] set];
-
-  if ([self isCoveringTitlebar]) {
-    NSRectFill(NSMakeRect(0, 0, radius, radius));
-    NSRectFill(NSMakeRect(w - radius, 0, radius, radius));
-  }
-
-  if ([self hasRoundedBottomCorners]) {
-    NSRectFill(NSMakeRect(0, h - radius, radius, radius));
-    NSRectFill(NSMakeRect(w - radius, h - radius, radius, radius));
-  }
-}
-
-// This is the analog of nsChildView::MaybeDrawRoundedCorners for CGContexts.
-// We only need to mask the top corners here because Cocoa does the masking
-// for the window's bottom corners automatically (starting with 10.7).
-- (void)maskTopCornersInContext:(CGContextRef)aContext
-{
-  CGFloat radius = [self cornerRadius];
-  int32_t devPixelCornerRadius = mGeckoChild->CocoaPointsToDevPixels(radius);
-
-  // First make sure that mTopLeftCornerMask is set up.
-  if (!mTopLeftCornerMask ||
-      int32_t(CGImageGetWidth(mTopLeftCornerMask)) != devPixelCornerRadius) {
-    CGImageRelease(mTopLeftCornerMask);
-    CGColorSpaceRef rgb = CGColorSpaceCreateDeviceRGB();
-    CGContextRef imgCtx = CGBitmapContextCreate(NULL,
-                                                devPixelCornerRadius,
-                                                devPixelCornerRadius,
-                                                8, devPixelCornerRadius * 4,
-                                                rgb, kCGImageAlphaPremultipliedFirst);
-    CGColorSpaceRelease(rgb);
-    DrawTopLeftCornerMask(imgCtx, devPixelCornerRadius);
-    mTopLeftCornerMask = CGBitmapContextCreateImage(imgCtx);
-    CGContextRelease(imgCtx);
-  }
-
-  // kCGBlendModeDestinationIn is the secret sauce which allows us to erase
-  // already painted pixels. It's defined as R = D * Sa: multiply all channels
-  // of the destination pixel with the alpha of the source pixel. In our case,
-  // the source is mTopLeftCornerMask.
-  CGContextSaveGState(aContext);
-  CGContextSetBlendMode(aContext, kCGBlendModeDestinationIn);
-
-  CGRect destRect = CGRectMake(0, 0, radius, radius);
-
-  // Erase the top left corner...
-  CGContextDrawImage(aContext, destRect, mTopLeftCornerMask);
-
-  // ... and the top right corner.
-  CGContextTranslateCTM(aContext, [self bounds].size.width, 0);
-  CGContextScaleCTM(aContext, -1, 1);
-  CGContextDrawImage(aContext, destRect, mTopLeftCornerMask);
-
-  CGContextRestoreGState(aContext);
-}
-
-- (void)drawTitlebarHighlight
-{
-  DrawTitlebarHighlight([self bounds].size, [self cornerRadius],
-                        mGeckoChild->DevPixelsToCocoaPoints(1));
+  NSRectFill(NSMakeRect(0, h - radius, radius, radius));
+  NSRectFill(NSMakeRect(w - radius, h - radius, radius, radius));
 }
 
 - (void)releaseWidgets:(NSArray*)aWidgetArray
@@ -5717,6 +5450,10 @@ ChildViewMouseTracker::ViewForEvent(NSEvent* aEvent)
 
   NSPoint windowEventLocation = nsCocoaUtils::EventLocationForWindow(aEvent, window);
   NSView* view = [[[window contentView] superview] hitTest:windowEventLocation];
+
+  while([view conformsToProtocol:@protocol(EventRedirection)]) {
+    view = [(id<EventRedirection>)view targetView];
+  }
 
   if (![view isKindOfClass:[ChildView class]])
     return nil;

@@ -2273,23 +2273,6 @@ class MSetArgumentsObjectArg
     }
 };
 
-class MRunOncePrologue
-  : public MNullaryInstruction
-{
-  protected:
-    MRunOncePrologue()
-    {
-        setGuard();
-    }
-
-  public:
-    INSTRUCTION_HEADER(RunOncePrologue)
-
-    static MRunOncePrologue *New() {
-        return new MRunOncePrologue();
-    }
-};
-
 // Given a MIRType_Value A and a MIRType_Object B:
 // If the Value may be safely unboxed to an Object, return Object(A).
 // Otherwise, return B.
@@ -7283,37 +7266,6 @@ class MMonitorTypes : public MUnaryInstruction, public BoxInputsPolicy
     }
 };
 
-// Given a value being written to another object, update the generational store
-// buffer if the value is in the nursery and object is in the tenured heap.
-class MPostWriteBarrier
-  : public MBinaryInstruction,
-    public ObjectPolicy<0>
-{
-    MPostWriteBarrier(MDefinition *obj, MDefinition *value)
-      : MBinaryInstruction(obj, value)
-    {
-        setGuard();
-    }
-
-  public:
-    INSTRUCTION_HEADER(PostWriteBarrier)
-
-    static MPostWriteBarrier *New(MDefinition *obj, MDefinition *value) {
-        return new MPostWriteBarrier(obj, value);
-    }
-
-    TypePolicy *typePolicy() {
-        return this;
-    }
-
-    MDefinition *object() const {
-        return getOperand(0);
-    }
-    MDefinition *value() const {
-        return getOperand(1);
-    }
-};
-
 class MNewSlots : public MNullaryInstruction
 {
     unsigned nslots_;
@@ -7367,12 +7319,10 @@ class MNewDeclEnvObject : public MNullaryInstruction
 class MNewCallObject : public MUnaryInstruction
 {
     CompilerRootObject templateObj_;
-    bool needsSingletonType_;
 
-    MNewCallObject(HandleObject templateObj, bool needsSingletonType, MDefinition *slots)
+    MNewCallObject(HandleObject templateObj, MDefinition *slots)
       : MUnaryInstruction(slots),
-        templateObj_(templateObj),
-        needsSingletonType_(needsSingletonType)
+        templateObj_(templateObj)
     {
         setResultType(MIRType_Object);
     }
@@ -7380,8 +7330,8 @@ class MNewCallObject : public MUnaryInstruction
   public:
     INSTRUCTION_HEADER(NewCallObject)
 
-    static MNewCallObject *New(HandleObject templateObj, bool needsSingletonType, MDefinition *slots) {
-        return new MNewCallObject(templateObj, needsSingletonType, slots);
+    static MNewCallObject *New(HandleObject templateObj, MDefinition *slots) {
+        return new MNewCallObject(templateObj, slots);
     }
 
     MDefinition *slots() {
@@ -7389,9 +7339,6 @@ class MNewCallObject : public MUnaryInstruction
     }
     JSObject *templateObject() {
         return templateObj_;
-    }
-    bool needsSingletonType() {
-        return needsSingletonType_;
     }
     AliasSet getAliasSet() const {
         return AliasSet::None();
@@ -8130,12 +8077,10 @@ bool ElementAccessIsPacked(JSContext *cx, MDefinition *obj);
 bool ElementAccessHasExtraIndexedProperty(JSContext *cx, MDefinition *obj);
 MIRType DenseNativeElementType(JSContext *cx, MDefinition *obj);
 bool PropertyReadNeedsTypeBarrier(JSContext *cx, types::TypeObject *object, PropertyName *name,
-                                  types::StackTypeSet *observed, bool updateObserved = true);
+                                  types::StackTypeSet *observed);
 bool PropertyReadNeedsTypeBarrier(JSContext *cx, MDefinition *obj, PropertyName *name,
                                   types::StackTypeSet *observed);
 bool PropertyReadIsIdempotent(JSContext *cx, MDefinition *obj, PropertyName *name);
-void AddObjectsForPropertyRead(JSContext *cx, MDefinition *obj, PropertyName *name,
-                               types::StackTypeSet *observed);
 bool PropertyWriteNeedsTypeBarrier(JSContext *cx, MBasicBlock *current, MDefinition **pobj,
                                    PropertyName *name, MDefinition **pvalue,
                                    bool canModify = true);

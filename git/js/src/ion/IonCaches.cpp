@@ -6,7 +6,6 @@
 
 #include "mozilla/DebugOnly.h"
 
-#include "PerfSpewer.h"
 #include "CodeGenerator.h"
 #include "Ion.h"
 #include "IonCaches.h"

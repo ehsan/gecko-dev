@@ -19,10 +19,8 @@
 #include "nsTArray.h"
 #include "nsAutoPtr.h"
 #include "nsTHashtable.h"
-#include "nsClassHashtable.h"
 #include "nsHashKeys.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/Util.h"
 
 class nsPresContext;
 class nsIPresShell;
@@ -244,16 +242,6 @@ public:
 private:
   typedef nsTObserverArray<nsARefreshObserver*> ObserverArray;
   typedef nsTHashtable<nsISupportsHashKey> RequestTable;
-  struct ImageStartData {
-    ImageStartData()
-    {
-      mEntries.Init();
-    }
-
-    mozilla::Maybe<mozilla::TimeStamp> mStartTime;
-    RequestTable mEntries;
-  };
-  typedef nsClassHashtable<nsUint32HashKey, ImageStartData> ImageStartTable;
 
   void Tick(int64_t aNowEpoch, mozilla::TimeStamp aNowTime);
 
@@ -263,15 +251,7 @@ private:
   uint32_t ObserverCount() const;
   uint32_t ImageRequestCount() const;
   static PLDHashOperator ImageRequestEnumerator(nsISupportsHashKey* aEntry,
-                                                void* aUserArg);
-  static PLDHashOperator StartTableRequestCounter(const uint32_t& aKey,
-                                                  ImageStartData* aEntry,
-                                                  void* aUserArg);
-  static PLDHashOperator StartTableRefresh(const uint32_t& aKey,
-                                           ImageStartData* aEntry,
-                                           void* aUserArg);
-  static PLDHashOperator BeginRefreshingImages(nsISupportsHashKey* aEntry,
-                                               void* aUserArg);
+                                          void* aUserArg);
   ObserverArray& ArrayFor(mozFlushType aFlushType);
   // Trigger a refresh immediately, if haven't been disconnected or frozen.
   void DoRefresh();
@@ -303,7 +283,6 @@ private:
   // separate arrays for each flush type we support
   ObserverArray mObservers[3];
   RequestTable mRequests;
-  ImageStartTable mStartTable;
 
   nsAutoTArray<nsIPresShell*, 16> mStyleFlushObservers;
   nsAutoTArray<nsIPresShell*, 16> mLayoutFlushObservers;
@@ -313,10 +292,7 @@ private:
 
   // Helper struct for processing image requests
   struct ImageRequestParameters {
-    mozilla::TimeStamp mCurrent;
-    mozilla::TimeStamp mPrevious;
-    RequestTable* mRequests;
-    mozilla::TimeStamp mDesired;
+      mozilla::TimeStamp ts;
   };
 
   friend class mozilla::RefreshDriverTimer;

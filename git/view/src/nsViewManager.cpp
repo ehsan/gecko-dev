@@ -397,6 +397,7 @@ void nsViewManager::ProcessPendingUpdatesForView(nsView* aView,
 #endif
       nsAutoScriptBlocker scriptBlocker;
       NS_ASSERTION(aView->HasWidget(), "Must have a widget!");
+      aView->GetWidget()->WillPaint();
       SetPainting(true);
       mPresShell->Paint(aView, nsRegion(),
                         nsIPresShell::PAINT_LAYERS);
@@ -638,7 +639,8 @@ void nsViewManager::WillPaintWindow(nsIWidget* aWidget)
   }
 }
 
-bool nsViewManager::PaintWindow(nsIWidget* aWidget, nsIntRegion aRegion)
+bool nsViewManager::PaintWindow(nsIWidget* aWidget, nsIntRegion aRegion,
+                                uint32_t aFlags)
 {
   if (!aWidget || !mContext)
     return false;

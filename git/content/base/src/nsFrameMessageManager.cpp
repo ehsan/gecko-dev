@@ -11,7 +11,6 @@
 #include "ContentChild.h"
 #include "ContentParent.h"
 #include "nsContentUtils.h"
-#include "nsCxPusher.h"
 #include "nsError.h"
 #include "nsIXPConnect.h"
 #include "jsapi.h"
@@ -338,6 +337,7 @@ GetParamsForMessage(JSContext* aCx,
   //    properly cases when interface is implemented in JS and used
   //    as a dictionary.
   nsAutoString json;
+  JSAutoRequest ar(aCx);
   JS::Value v = aObject;
   NS_ENSURE_TRUE(JS_Stringify(aCx, &v, nullptr, JSVAL_NULL, JSONCreator, &json), false);
   NS_ENSURE_TRUE(!json.IsEmpty(), false);
@@ -377,6 +377,7 @@ nsFrameMessageManager::SendSyncMessage(const nsAString& aMessageName,
 
   InfallibleTArray<nsString> retval;
   if (mCallback->DoSendSyncMessage(aMessageName, data, &retval)) {
+    JSAutoRequest ar(aCx);
     uint32_t len = retval.Length();
     JS::Rooted<JSObject*> dataArray(aCx, JS_NewArrayObject(aCx, len, nullptr));
     NS_ENSURE_TRUE(dataArray, NS_ERROR_OUT_OF_MEMORY);
@@ -652,6 +653,7 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
         nsCxPusher pusher;
         pusher.Push(ctx);
 
+        JSAutoRequest ar(ctx);
         JSAutoCompartment ac(ctx, object);
 
         // The parameter for the listener function.
@@ -974,6 +976,7 @@ nsFrameScriptExecutor::Shutdown()
 {
   if (sCachedScripts) {
     AutoSafeJSContext cx;
+    JSAutoRequest ar(cx);
     NS_ASSERTION(sCachedScripts != nullptr, "Need cached scripts");
     sCachedScripts->Enumerate(CachedScriptUnrooter, cx);
 
@@ -1001,9 +1004,14 @@ nsFrameScriptExecutor::LoadFrameScriptInternal(const nsAString& aURL)
   if (holder) {
     nsCxPusher pusher;
     pusher.Push(mCx);
-    JS::Rooted<JSObject*> global(mCx, mGlobal->GetJSObject());
-    if (global) {
-      (void) JS_ExecuteScript(mCx, global, holder->mScript, nullptr);
+    {
+      // Need to scope JSAutoRequest to happen after Push but before Pop,
+      // at least for now. See bug 584673.
+      JSAutoRequest ar(mCx);
+      JS::Rooted<JSObject*> global(mCx, mGlobal->GetJSObject());
+      if (global) {
+        (void) JS_ExecuteScript(mCx, global, holder->mScript, nullptr);
+      }
     }
   }
 }
@@ -1054,31 +1062,36 @@ nsFrameScriptExecutor::TryCacheLoadAndCompileScript(const nsAString& aURL,
   if (!dataString.IsEmpty()) {
     nsCxPusher pusher;
     pusher.Push(mCx);
-    JS::Rooted<JSObject*> global(mCx, mGlobal->GetJSObject());
-    if (global) {
-      JSAutoCompartment ac(mCx, global);
-      JS::CompileOptions options(mCx);
-      options.setNoScriptRval(true)
-             .setFileAndLine(url.get(), 1)
-             .setPrincipals(nsJSPrincipals::get(mPrincipal));
-      JS::RootedObject empty(mCx, nullptr);
-      JS::Rooted<JSScript*> script(mCx,
-        JS::Compile(mCx, empty, options, dataString.get(),
-                    dataString.Length()));
+    {
+      // Need to scope JSAutoRequest to happen after Push but before Pop,
+      // at least for now. See bug 584673.
+      JSAutoRequest ar(mCx);
+      JS::Rooted<JSObject*> global(mCx, mGlobal->GetJSObject());
+      if (global) {
+        JSAutoCompartment ac(mCx, global);
+        JS::CompileOptions options(mCx);
+        options.setNoScriptRval(true)
+               .setFileAndLine(url.get(), 1)
+               .setPrincipals(nsJSPrincipals::get(mPrincipal));
+        JS::RootedObject empty(mCx, nullptr);
+        JS::Rooted<JSScript*> script(mCx,
+          JS::Compile(mCx, empty, options, dataString.get(),
+                      dataString.Length()));
 
-      if (script) {
-        nsAutoCString scheme;
-        uri->GetScheme(scheme);
-        // We don't cache data: scripts!
-        if (!scheme.EqualsLiteral("data")) {
-          nsFrameJSScriptExecutorHolder* holder =
-            new nsFrameJSScriptExecutorHolder(script);
-          // Root the object also for caching.
-          JS_AddNamedScriptRoot(mCx, &(holder->mScript),
-                                "Cached message manager script");
-          sCachedScripts->Put(aURL, holder);
-        } else if (aBehavior == EXECUTE_IF_CANT_CACHE) {
-          (void) JS_ExecuteScript(mCx, global, script, nullptr);
+        if (script) {
+          nsAutoCString scheme;
+          uri->GetScheme(scheme);
+          // We don't cache data: scripts!
+          if (!scheme.EqualsLiteral("data")) {
+            nsFrameJSScriptExecutorHolder* holder =
+              new nsFrameJSScriptExecutorHolder(script);
+            // Root the object also for caching.
+            JS_AddNamedScriptRoot(mCx, &(holder->mScript),
+                                  "Cached message manager script");
+            sCachedScripts->Put(aURL, holder);
+          } else if (aBehavior == EXECUTE_IF_CANT_CACHE) {
+            (void) JS_ExecuteScript(mCx, global, script, nullptr);
+          }
         }
       }
     }
@@ -1098,9 +1111,8 @@ nsFrameScriptExecutor::InitTabChildGlobalInternal(nsISupports* aScope,
   runtimeSvc->GetRuntime(&rt);
   NS_ENSURE_TRUE(rt, false);
 
-  JSContext* cx_ = JS_NewContext(rt, 8192);
-  NS_ENSURE_TRUE(cx_, false);
-  AutoPushJSContext cx(cx_);
+  JSContext* cx = JS_NewContext(rt, 8192);
+  NS_ENSURE_TRUE(cx, false);
 
   mCx = cx;
 
@@ -1110,6 +1122,7 @@ nsFrameScriptExecutor::InitTabChildGlobalInternal(nsISupports* aScope,
   JS_SetVersion(cx, JSVERSION_LATEST);
   JS_SetErrorReporter(cx, ContentScriptErrorReporter);
 
+  JSAutoRequest ar(cx);
   nsIXPConnect* xpc = nsContentUtils::XPConnect();
   const uint32_t flags = nsIXPConnect::INIT_JS_STANDARD_CLASSES;
 
@@ -1402,12 +1415,10 @@ nsFrameMessageManager*
 nsFrameMessageManager::NewProcessMessageManager(mozilla::dom::ContentParent* aProcess)
 {
   if (!nsFrameMessageManager::sParentProcessManager) {
-     nsCOMPtr<nsIMessageBroadcaster> dummy =
-       do_GetService("@mozilla.org/parentprocessmessagemanager;1");
+     nsCOMPtr<nsIMessageBroadcaster> dummy;
+     NS_NewParentProcessMessageManager(getter_AddRefs(dummy));
   }
 
-  MOZ_ASSERT(nsFrameMessageManager::sParentProcessManager,
-             "parent process manager not created");
   nsFrameMessageManager* mm;
   if (aProcess) {
     mm = new nsFrameMessageManager(aProcess,

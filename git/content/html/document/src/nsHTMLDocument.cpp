@@ -3297,6 +3297,7 @@ nsHTMLDocument::DoClipboardSecurityCheck(bool aPaste)
   if (!cx) {
     return NS_OK;
   }
+  JSAutoRequest ar(cx);
 
   NS_NAMED_LITERAL_CSTRING(classNameStr, "Clipboard");
 

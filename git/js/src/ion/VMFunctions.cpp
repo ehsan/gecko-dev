@@ -44,6 +44,14 @@ VMFunction::addToFunctions()
     functions = this;
 }
 
+static inline bool
+ShouldMonitorReturnType(JSFunction *fun)
+{
+    return fun->isInterpreted() &&
+           (!fun->nonLazyScript()->hasAnalysis() ||
+            !fun->nonLazyScript()->analysis()->ranInference());
+}
+
 bool
 InvokeFunction(JSContext *cx, HandleFunction fun0, uint32_t argc, Value *argv, Value *rval)
 {
@@ -63,6 +71,13 @@ InvokeFunction(JSContext *cx, HandleFunction fun0, uint32_t argc, Value *argv, V
         }
     }
 
+    // TI will return false for monitorReturnTypes, meaning there is no
+    // TypeBarrier or Monitor instruction following this. However, we need to
+    // explicitly monitor if the callee has not been analyzed yet. We special
+    // case this to avoid the cost of ion::GetPcScript if we must take this
+    // path frequently.
+    bool needsMonitor = ShouldMonitorReturnType(fun);
+
     // Data in the argument vector is arranged for a JIT -> JIT call.
     Value thisv = argv[0];
     Value *argvWithoutThis = argv + 1;
@@ -70,9 +85,16 @@ InvokeFunction(JSContext *cx, HandleFunction fun0, uint32_t argc, Value *argv, V
     // For constructing functions, |this| is constructed at caller side and we can just call Invoke.
     // When creating this failed / is impossible at caller site, i.e. MagicValue(JS_IS_CONSTRUCTING),
     // we use InvokeConstructor that creates it at the callee side.
+    bool ok;
     if (thisv.isMagic(JS_IS_CONSTRUCTING))
-        return InvokeConstructor(cx, ObjectValue(*fun), argc, argvWithoutThis, rval);
-    return Invoke(cx, thisv, ObjectValue(*fun), argc, argvWithoutThis, rval);
+        ok = InvokeConstructor(cx, ObjectValue(*fun), argc, argvWithoutThis, rval);
+    else
+        ok = Invoke(cx, thisv, ObjectValue(*fun), argc, argvWithoutThis, rval);
+
+    if (ok && needsMonitor)
+        types::TypeScript::Monitor(cx, *rval);
+
+    return ok;
 }
 
 JSObject *
@@ -388,22 +410,13 @@ StringFromCharCode(JSContext *cx, int32_t code)
 
 bool
 SetProperty(JSContext *cx, HandleObject obj, HandlePropertyName name, HandleValue value,
-            bool strict, int jsop)
+            bool strict, bool isSetName)
 {
     RootedValue v(cx, value);
     RootedId id(cx, NameToId(name));
 
-    if (jsop == JSOP_SETALIASEDVAR) {
-        // Aliased var assigns ignore readonly attributes on the property, as
-        // required for initializing 'const' closure variables.
-        Shape *shape = obj->nativeLookup(cx, name);
-        JS_ASSERT(shape && shape->hasSlot());
-        JSObject::nativeSetSlotWithType(cx, obj, shape, value);
-        return true;
-    }
-
     if (JS_LIKELY(!obj->getOps()->setProperty)) {
-        unsigned defineHow = (jsop == JSOP_SETNAME || jsop == JSOP_SETGNAME) ? DNP_UNQUALIFIED : 0;
+        unsigned defineHow = isSetName ? DNP_UNQUALIFIED : 0;
         return baseops::SetPropertyHelper(cx, obj, obj, id, defineHow, &v, strict);
     }
 
@@ -434,10 +447,9 @@ NewSlots(JSRuntime *rt, unsigned nslots)
 }
 
 JSObject *
-NewCallObject(JSContext *cx, HandleScript script,
-              HandleShape shape, HandleTypeObject type, HeapSlot *slots)
+NewCallObject(JSContext *cx, HandleShape shape, HandleTypeObject type, HeapSlot *slots)
 {
-    return CallObject::create(cx, script, shape, type, slots);
+    return CallObject::create(cx, shape, type, slots);
 }
 
 JSObject *
@@ -566,15 +578,6 @@ FilterArguments(JSContext *cx, JSString *str)
     static jschar arguments[] = {'a', 'r', 'g', 'u', 'm', 'e', 'n', 't', 's'};
     return !StringHasPattern(chars, str->length(), arguments, mozilla::ArrayLength(arguments));
 }
-
-#ifdef JSGC_GENERATIONAL
-void
-PostWriteBarrier(JSRuntime *rt, JSObject *obj)
-{
-    JS_ASSERT(!IsInsideNursery(rt, obj));
-    rt->gcStoreBuffer.putWholeObject(obj);
-}
-#endif
 
 uint32_t
 GetIndexFromString(JSString *str)

@@ -65,7 +65,6 @@ struct CrossCompartmentKey
         ObjectWrapper,
         StringWrapper,
         DebuggerScript,
-        DebuggerSource,
         DebuggerObject,
         DebuggerEnvironment
     };

@@ -24,7 +24,6 @@
 #include "mozilla/dom/bluetooth/BluetoothTypes.h"
 #include "mozilla/ipc/UnixSocket.h"
 #include "nsContentUtils.h"
-#include "nsCxPusher.h"
 #include "nsIObserverService.h"
 #include "nsISettingsService.h"
 #include "nsISystemMessagesInternal.h"
@@ -754,10 +753,11 @@ BluetoothService::Notify(const BluetoothSignal& aData)
 {
   nsString type = NS_LITERAL_STRING("bluetooth-pairing-request");
 
-  AutoSafeJSContext cx;
+  JSContext* cx = nsContentUtils::GetSafeJSContext();
   NS_ASSERTION(!::JS_IsExceptionPending(cx),
                "Shouldn't get here when an exception is pending!");
 
+  JSAutoRequest jsar(cx);
   JSObject* obj = JS_NewObject(cx, NULL, NULL, NULL);
   if (!obj) {
     NS_WARNING("Failed to new JSObject for system message!");

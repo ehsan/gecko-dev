@@ -13,10 +13,9 @@
 #include "mozilla/layers/SharedPlanarYCbCrImage.h"
 #include "GLContext.h"
 #include "BasicLayers.h" // for PaintContext
-#include "mozilla/layers/YCbCrImageDataSerializer.h"
+#include "ShmemYCbCrImage.h"
 #include "gfxReusableSurfaceWrapper.h"
 #include "gfxPlatform.h"
-#include "mozilla/StandardInteger.h"
 
 using namespace mozilla::gl;
 
@@ -278,8 +277,8 @@ AutoLockYCbCrClient::Update(PlanarYCbCrImage* aImage)
 
   ipc::Shmem& shmem = mDescriptor->get_YCbCrImage().data();
 
-  YCbCrImageDataSerializer serializer(shmem.get<uint8_t>());
-  if (!serializer.CopyData(data->mYChannel, data->mCbChannel, data->mCrChannel,
+  ShmemYCbCrImage shmemImage(shmem);
+  if (!shmemImage.CopyData(data->mYChannel, data->mCbChannel, data->mCrChannel,
                            data->mYSize, data->mYStride,
                            data->mCbCrSize, data->mCbCrStride,
                            data->mYSkip, data->mCbSkip)) {
@@ -307,9 +306,9 @@ bool AutoLockYCbCrClient::EnsureTextureClient(PlanarYCbCrImage* aImage)
     needsAllocation = true;
   } else {
     ipc::Shmem& shmem = mDescriptor->get_YCbCrImage().data();
-    YCbCrImageDataSerializer serializer(shmem.get<uint8_t>());
-    if (serializer.GetYSize() != data->mYSize ||
-        serializer.GetCbCrSize() != data->mCbCrSize) {
+    ShmemYCbCrImage shmemImage(shmem);
+    if (shmemImage.GetYSize() != data->mYSize ||
+        shmemImage.GetCbCrSize() != data->mCbCrSize) {
       needsAllocation = true;
     }
   }
@@ -321,18 +320,19 @@ bool AutoLockYCbCrClient::EnsureTextureClient(PlanarYCbCrImage* aImage)
   mTextureClient->ReleaseResources();
 
   ipc::SharedMemory::SharedMemoryType shmType = OptimalShmemType();
-  size_t size = YCbCrImageDataSerializer::ComputeMinBufferSize(data->mYSize,
-                                                               data->mCbCrSize);
+  size_t size = ShmemYCbCrImage::ComputeMinBufferSize(data->mYSize,
+                                                      data->mCbCrSize);
   ipc::Shmem shmem;
   if (!mTextureClient->GetForwarder()->AllocUnsafeShmem(size, shmType, &shmem)) {
     return false;
   }
 
-  YCbCrImageDataSerializer serializer(shmem.get<uint8_t>());
-  serializer.InitializeBufferInfo(data->mYSize,
-                                  data->mCbCrSize);
+  ShmemYCbCrImage::InitializeBufferInfo(shmem.get<uint8_t>(),
+                                        data->mYSize,
+                                        data->mCbCrSize);
 
-  *mDescriptor = YCbCrImage(shmem, 0);
+
+  *mDescriptor = YCbCrImage(shmem, 0, 0);
 
   return true;
 }

@@ -40,7 +40,6 @@
 		(x)->pValue=(v); (x)->ulValueLen = (l);
 #endif
 
-static SECStatus ssl3_AuthCertificate(sslSocket *ss);
 static void      ssl3_CleanupPeerCerts(sslSocket *ss);
 static PK11SymKey *ssl3_GenerateRSAPMS(sslSocket *ss, ssl3CipherSpec *spec,
                                        PK11SlotInfo * serverKeySlot);
@@ -8521,14 +8520,7 @@ static SECStatus
 ssl3_HandleCertificateStatus(sslSocket *ss, SSL3Opaque *b, PRUint32 length)
 {
     PRInt32 status, len;
-
-    if (ss->ssl3.hs.ws != wait_certificate_status) {
-        (void)SSL3_SendAlert(ss, alert_fatal, unexpected_message);
-        PORT_SetError(SSL_ERROR_RX_UNEXPECTED_CERT_STATUS);
-        return SECFailure;
-    }
-
-    PORT_Assert(!ss->sec.isServer);
+    PORT_Assert(ss->ssl3.hs.ws == wait_certificate_status);
 
     /* Consume the CertificateStatusType enum */
     status = ssl3_ConsumeHandshakeNumber(ss, 1, &b, &length);
@@ -8561,12 +8553,13 @@ ssl3_HandleCertificateStatus(sslSocket *ss, SSL3Opaque *b, PRUint32 length)
     PORT_Memcpy(ss->sec.ci.sid->peerCertStatus.items[0].data, b, length);
     ss->sec.ci.sid->peerCertStatus.items[0].len = length;
     ss->sec.ci.sid->peerCertStatus.items[0].type = siBuffer;
-
-    return ssl3_AuthCertificate(ss);
+    return SECSuccess;
 
 format_loser:
     return ssl3_DecodeError(ss);
 }
+
+static SECStatus ssl3_AuthCertificate(sslSocket *ss);
 
 /* Called from ssl3_HandleHandshakeMessage() when it has deciphered a complete
  * ssl3 Certificate message.
@@ -9554,18 +9547,30 @@ ssl3_HandleHandshakeMessage(sslSocket *ss, SSL3Opaque *b, PRUint32 length)
 
     PORT_SetError(0);	/* each message starts with no error. */
 
-    if (ss->ssl3.hs.ws == wait_certificate_status &&
-        ss->ssl3.hs.msg_type != certificate_status) {
-        /* If we negotiated the certificate_status extension then we deferred
-         * certificate validation until we get the CertificateStatus messsage.
-         * But the CertificateStatus message is optional. If the server did
-         * not send it then we need to validate the certificate now. If the
-         * server does send the CertificateStatus message then we will
-         * authenticate the certificate in ssl3_HandleCertificateStatus.
+    /* The CertificateStatus message is optional. We process the message if we
+     * get one when it is allowed, but otherwise we just carry on.
+     */
+    if (ss->ssl3.hs.ws == wait_certificate_status) {
+        /* We must process any CertificateStatus message before we call
+         * ssl3_AuthCertificate, as ssl3_AuthCertificate needs any stapled
+         * OCSP response we get.
+         */
+        if (ss->ssl3.hs.msg_type == certificate_status) {
+            rv = ssl3_HandleCertificateStatus(ss, b, length);
+            if (rv != SECSuccess)
+                return rv;
+            if (IS_DTLS(ss)) {
+                /* Increment the expected sequence number */
+                ss->ssl3.hs.recvMessageSeq++;
+            }
+        }
+
+        /* Regardless of whether we got a CertificateStatus message, we must
+         * authenticate the cert before we handle any more handshake messages.
          */
         rv = ssl3_AuthCertificate(ss); /* sets ss->ssl3.hs.ws */
         PORT_Assert(rv != SECWouldBlock);
-        if (rv != SECSuccess) {
+        if (rv != SECSuccess || ss->ssl3.hs.msg_type == certificate_status) {
             return rv;
         }
     }
@@ -9612,8 +9617,10 @@ ssl3_HandleHandshakeMessage(sslSocket *ss, SSL3Opaque *b, PRUint32 length)
 	rv = ssl3_HandleCertificate(ss, b, length);
 	break;
     case certificate_status:
-	rv = ssl3_HandleCertificateStatus(ss, b, length);
-	break;
+	/* The good case is handled above */
+	(void)SSL3_SendAlert(ss, alert_fatal, unexpected_message);
+	PORT_SetError(SSL_ERROR_RX_UNEXPECTED_CERT_STATUS);
+	return SECFailure;
     case server_key_exchange:
 	if (ss->sec.isServer) {
 	    (void)SSL3_SendAlert(ss, alert_fatal, unexpected_message);

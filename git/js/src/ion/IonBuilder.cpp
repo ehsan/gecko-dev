@@ -53,6 +53,8 @@ IonBuilder::IonBuilder(JSContext *cx, TempAllocator *temp, MIRGraph *graph,
 {
     script_.init(info->script());
     pc = info->startPC();
+
+    types::TypeScript::AddFreezeConstraints(cx, script_);
 }
 
 void
@@ -298,8 +300,8 @@ IonBuilder::analyzeNewLoopTypes(MBasicBlock *entry, jsbytecode *start, jsbytecod
     // under-approximating the types will cause the loop body to be analyzed
     // multiple times as the correct types are deduced (see finishLoop).
 
-    jsbytecode *last = NULL, *earlier = NULL;
-    for (jsbytecode *pc = start; pc != end; earlier = last, last = pc, pc += GetBytecodeLength(pc)) {
+    jsbytecode *last = NULL;
+    for (jsbytecode *pc = start; pc != end; last = pc, pc += GetBytecodeLength(pc)) {
         uint32_t slot;
         if (*pc == JSOP_SETLOCAL)
             slot = info().localSlot(GET_SLOTNO(pc));
@@ -313,9 +315,6 @@ IonBuilder::analyzeNewLoopTypes(MBasicBlock *entry, jsbytecode *start, jsbytecod
             continue;
 
         MPhi *phi = entry->getSlot(slot)->toPhi();
-
-        if (*last == JSOP_POS)
-            last = earlier;
 
         if (js_CodeSpec[*last].format & JOF_TYPESET) {
             types::StackTypeSet *typeSet = types::TypeScript::BytecodeTypes(script(), last);
@@ -530,8 +529,6 @@ IonBuilder::build()
     if (!processIterators())
         return false;
 
-    types::TypeScript::AddFreezeConstraints(cx, script());
-
     JS_ASSERT(loopDepth_ == 0);
     abortReason_ = AbortReason_NoAbort;
     return true;
@@ -676,11 +673,7 @@ IonBuilder::buildInline(IonBuilder *callerBuilder, MResumePoint *callerResumePoi
         current->add(lazyArguments_);
     }
 
-    if (!traverseBytecode())
-        return false;
-
-    types::TypeScript::AddFreezeConstraints(cx, script());
-    return true;
+    return traverseBytecode();
 }
 
 void
@@ -1191,9 +1184,6 @@ IonBuilder::inspectOpcode(JSOp op)
       case JSOP_ARGUMENTS:
         return jsop_arguments();
 
-      case JSOP_RUNONCE:
-        return jsop_runonce();
-
       case JSOP_REST:
         return jsop_rest();
 
@@ -1305,8 +1295,7 @@ IonBuilder::inspectOpcode(JSOp op)
       case JSOP_CALLGNAME:
       {
         RootedPropertyName name(cx, info().getAtom(pc)->asPropertyName());
-        RootedObject obj(cx, &script()->global());
-        return getStaticName(obj, name);
+        return jsop_getgname(name);
       }
 
       case JSOP_BINDGNAME:
@@ -1315,8 +1304,7 @@ IonBuilder::inspectOpcode(JSOp op)
       case JSOP_SETGNAME:
       {
         RootedPropertyName name(cx, info().getAtom(pc)->asPropertyName());
-        RootedObject obj(cx, &script()->global());
-        return setStaticName(obj, name);
+        return jsop_setgname(name);
       }
 
       case JSOP_NAME:
@@ -1756,10 +1744,8 @@ IonBuilder::restartLoop(CFGState state)
 {
     spew("New types at loop header, restarting loop body");
 
-    if (js_IonOptions.limitScriptSize) {
-        if (++numLoopRestarts_ >= MAX_LOOP_RESTARTS)
-            return ControlStatus_Abort;
-    }
+    if (++numLoopRestarts_ >= MAX_LOOP_RESTARTS)
+        return ControlStatus_Abort;
 
     MBasicBlock *header = state.loop.entry;
 
@@ -4248,10 +4234,7 @@ IonBuilder::createDeclEnvObject(MDefinition *callee, MDefinition *scope)
     MInstruction *declEnvObj = MNewDeclEnvObject::New(templateObj);
     current->add(declEnvObj);
 
-    // Initialize the object's reserved slots. No post barrier is needed here:
-    // the object will be allocated in the nursery if possible, and if the
-    // tenured heap is used instead, a minor collection will have been performed
-    // that moved scope/callee to the tenured heap.
+    // Initialize the object's reserved slots.
     current->add(MStoreFixedSlot::New(declEnvObj, DeclEnvObject::enclosingScopeSlot(), scope));
     current->add(MStoreFixedSlot::New(declEnvObj, DeclEnvObject::lambdaSlot(), callee));
 
@@ -4284,13 +4267,11 @@ IonBuilder::createCallObject(MDefinition *callee, MDefinition *scope)
 
     // Allocate the actual object. It is important that no intervening
     // instructions could potentially bailout, thus leaking the dynamic slots
-    // pointer. Run-once scripts need a singleton type, so always do a VM call
-    // in such cases.
-    MInstruction *callObj = MNewCallObject::New(templateObj, script()->treatAsRunOnce, slots);
+    // pointer.
+    MInstruction *callObj = MNewCallObject::New(templateObj, slots);
     current->add(callObj);
 
-    // Initialize the object's reserved slots. No post barrier is needed here,
-    // for the same reason as in createDeclEnvObject.
+    // Initialize the object's reserved slots.
     current->add(MStoreFixedSlot::New(callObj, CallObject::enclosingScopeSlot(), scope));
     current->add(MStoreFixedSlot::New(callObj, CallObject::calleeSlot(), callee));
 
@@ -4377,7 +4358,7 @@ IonBuilder::createThisScriptedSingleton(HandleFunction target, MDefinition *call
     if (!types::TypeScript::ThisTypes(target->nonLazyScript())->hasType(types::Type::ObjectType(type)))
         return NULL;
 
-    RootedObject templateObject(cx, CreateThisForFunctionWithProto(cx, target, proto, TenuredObject));
+    RootedObject templateObject(cx, CreateThisForFunctionWithProto(cx, target, proto));
     if (!templateObject)
         return NULL;
 
@@ -4459,7 +4440,6 @@ IonBuilder::jsop_funcall(uint32_t argc)
             return false;
         return makeCall(native, callInfo, false);
     }
-    current->peek(calleeDepth)->setFolded();
 
     // Extract call target.
     types::StackTypeSet *funTypes = current->peek(funcDepth)->resultTypeSet();
@@ -4534,8 +4514,6 @@ IonBuilder::jsop_funapply(uint32_t argc)
     {
         return abort("fun.apply speculation failed");
     }
-
-    current->peek(calleeDepth)->setFolded();
 
     // Use funapply that definitely uses |arguments|
     return jsop_funapplyarguments(argc);
@@ -4639,20 +4617,6 @@ IonBuilder::jsop_funapplyarguments(uint32_t argc)
 bool
 IonBuilder::jsop_call(uint32_t argc, bool constructing)
 {
-    // If this call has never executed, try to seed the observed type set
-    // based on how the call result is used.
-    types::StackTypeSet *observed = types::TypeScript::BytecodeTypes(script(), pc);
-    if (observed->empty() && observed->noConstraints()) {
-        if (BytecodeFlowsToBitop(pc)) {
-            observed->addType(cx, types::Type::Int32Type());
-        } else if (*GetNextPc(pc) == JSOP_POS) {
-            // Note: this is lame, overspecialized on the code patterns used
-            // by asm.js and should be replaced by a more general mechanism.
-            // See bug 870847.
-            observed->addType(cx, types::Type::DoubleType());
-        }
-    }
-
     int calleeDepth = -((int)argc + 2);
 
     // Acquire known call target if existent.
@@ -5093,11 +5057,6 @@ IonBuilder::getNewArrayTemplateObject(uint32_t count)
 {
     RootedScript scriptRoot(cx, script());
     NewObjectKind newKind = types::UseNewTypeForInitializer(cx, scriptRoot, pc, JSProto_Array);
-
-    // Do not allocate template objects in the nursery.
-    if (newKind == GenericObject)
-        newKind = TenuredObject;
-
     RootedObject templateObject(cx, NewDenseUnallocatedArray(cx, count, NULL, newKind));
     if (!templateObject)
         return NULL;
@@ -5144,11 +5103,6 @@ IonBuilder::jsop_newobject(HandleObject baseObj)
 
     RootedScript scriptRoot(cx, script());
     NewObjectKind newKind = types::UseNewTypeForInitializer(cx, scriptRoot, pc, JSProto_Object);
-
-    // Do not allocate template objects in the nursery.
-    if (newKind == GenericObject)
-        newKind = TenuredObject;
-
     if (baseObj) {
         templateObject = CopyInitializerObject(cx, baseObj, newKind);
     } else {
@@ -5210,9 +5164,6 @@ IonBuilder::jsop_initelem_array()
             needStub = true;
         }
     }
-
-    if (NeedsPostBarrier(info(), value))
-        current->add(MPostWriteBarrier::New(obj, value));
 
     if (needStub) {
         MCallInitElementArray *store = MCallInitElementArray::New(obj, GET_UINT24(pc), value);
@@ -5287,9 +5238,6 @@ IonBuilder::jsop_initprop(HandlePropertyName name)
         current->add(init);
         return resumeAfter(init);
     }
-
-    if (NeedsPostBarrier(info(), value))
-        current->add(MPostWriteBarrier::New(obj, value));
 
     bool needsBarrier = true;
     if ((id == types::IdToTypeId(id)) &&
@@ -5820,10 +5768,6 @@ TestSingletonPropertyTypes(JSContext *cx, MDefinition *obj, JSObject *singleton,
 bool
 IonBuilder::pushTypeBarrier(MInstruction *ins, types::StackTypeSet *observed, bool needsBarrier)
 {
-    // Barriers are never needed for instructions whose result will not be used.
-    if (BytecodeIsPopped(pc))
-        needsBarrier = false;
-
     // If the instruction has no side effects, we'll resume the entire operation.
     // The actual type barrier will occur in the interpreter. If the
     // instruction is effectful, even if it has a singleton type, there
@@ -5906,45 +5850,44 @@ IonBuilder::pushTypeBarrier(MInstruction *ins, types::StackTypeSet *observed, bo
 }
 
 bool
-IonBuilder::getStaticName(HandleObject staticObject, HandlePropertyName name)
+IonBuilder::jsop_getgname(HandlePropertyName name)
 {
-    JS_ASSERT(staticObject->isGlobal() || staticObject->isCall());
+    // Optimize undefined, NaN, and Infinity.
+    if (name == cx->names().undefined)
+        return pushConstant(UndefinedValue());
+    if (name == cx->names().NaN)
+        return pushConstant(cx->runtime->NaNValue);
+    if (name == cx->names().Infinity)
+        return pushConstant(cx->runtime->positiveInfinityValue);
 
-    if (staticObject->isGlobal()) {
-        // Optimize undefined, NaN, and Infinity.
-        if (name == cx->names().undefined)
-            return pushConstant(UndefinedValue());
-        if (name == cx->names().NaN)
-            return pushConstant(cx->runtime->NaNValue);
-        if (name == cx->names().Infinity)
-            return pushConstant(cx->runtime->positiveInfinityValue);
-    }
+    RootedObject globalObj(cx, &script()->global());
+    JS_ASSERT(globalObj->isNative());
 
     RootedId id(cx, NameToId(name));
 
     // For the fastest path, the property must be found, and it must be found
     // as a normal data property on exactly the global object.
-    RootedShape shape(cx, staticObject->nativeLookup(cx, id));
+    RootedShape shape(cx, globalObj->nativeLookup(cx, id));
     if (!shape || !shape->hasDefaultGetter() || !shape->hasSlot())
         return jsop_getname(name);
 
-    types::TypeObject *staticType = staticObject->getType(cx);
-    if (!staticType)
+    types::TypeObject *globalType = globalObj->getType(cx);
+    if (!globalType)
         return false;
     types::HeapTypeSet *propertyTypes = NULL;
-    if (!staticType->unknownProperties()) {
-        propertyTypes = staticType->getProperty(cx, id, false);
+    if (!globalType->unknownProperties()) {
+        propertyTypes = globalType->getProperty(cx, id, false);
         if (!propertyTypes)
             return false;
     }
-    if (propertyTypes && propertyTypes->isOwnProperty(cx, staticType, true)) {
+    if (propertyTypes && propertyTypes->isOwnProperty(cx, globalType, true)) {
         // The property has been reconfigured as non-configurable, non-enumerable
         // or non-writable.
         return jsop_getname(name);
     }
 
     types::StackTypeSet *types = types::TypeScript::BytecodeTypes(script(), pc);
-    bool barrier = PropertyReadNeedsTypeBarrier(cx, staticType, name, types);
+    bool barrier = PropertyReadNeedsTypeBarrier(cx, globalType, name, types);
 
     // If the property is permanent, a shape guard isn't necessary.
 
@@ -5955,7 +5898,7 @@ IonBuilder::getStaticName(HandleObject staticObject, HandlePropertyName name)
         if (singleton) {
             // Try to inline a known constant value.
             bool isKnownConstant;
-            if (!TestSingletonProperty(cx, staticObject, singleton, id, &isKnownConstant))
+            if (!TestSingletonProperty(cx, globalObj, singleton, id, &isKnownConstant))
                 return false;
             if (isKnownConstant)
                 return pushConstant(ObjectValue(*singleton));
@@ -5966,19 +5909,27 @@ IonBuilder::getStaticName(HandleObject staticObject, HandlePropertyName name)
             return pushConstant(NullValue());
     }
 
-    MInstruction *obj = MConstant::New(ObjectValue(*staticObject));
-    current->add(obj);
+    MInstruction *global = MConstant::New(ObjectValue(*globalObj));
+    current->add(global);
 
     // If we have a property typeset, the isOwnProperty call will trigger recompilation if
     // the property is deleted or reconfigured.
     if (!propertyTypes && shape->configurable())
-        obj = addShapeGuard(obj, staticObject->lastProperty(), Bailout_ShapeGuard);
+        global = addShapeGuard(global, globalObj->lastProperty(), Bailout_ShapeGuard);
 
-    MIRType rvalType = MIRTypeFromValueType(types->getKnownTypeTag());
-    if (barrier)
-        rvalType = MIRType_Value;
+    JS_ASSERT(shape->slot() >= globalObj->numFixedSlots());
 
-    return loadSlot(obj, shape, rvalType, barrier, types);
+    MSlots *slots = MSlots::New(global);
+    current->add(slots);
+    MLoadSlot *load = MLoadSlot::New(slots, shape->slot() - globalObj->numFixedSlots());
+    current->add(load);
+
+    // Slot loads can be typed, if they have a single, known, definitive type.
+    if (knownType != JSVAL_TYPE_UNKNOWN && !barrier)
+        load->setResultType(MIRTypeFromValueType(knownType));
+
+    current->push(load);
+    return pushTypeBarrier(load, types, barrier);
 }
 
 // Whether 'types' includes all possible values represented by input/inputTypes.
@@ -6007,41 +5958,35 @@ ion::TypeSetIncludes(types::TypeSet *types, MIRType input, types::TypeSet *input
     }
 }
 
-// Whether a write of the given value may need a post-write barrier for GC purposes.
 bool
-ion::NeedsPostBarrier(CompileInfo &info, MDefinition *value)
+IonBuilder::jsop_setgname(HandlePropertyName name)
 {
-    return info.executionMode() != ParallelExecution && value->mightBeType(MIRType_Object);
-}
-
-bool
-IonBuilder::setStaticName(HandleObject staticObject, HandlePropertyName name)
-{
+    RootedObject globalObj(cx, &script()->global());
     RootedId id(cx, NameToId(name));
 
-    JS_ASSERT(staticObject->isGlobal() || staticObject->isCall());
+    JS_ASSERT(globalObj->isNative());
 
     MDefinition *value = current->peek(-1);
 
-    if (staticObject->watched())
+    if (globalObj->watched())
         return jsop_setprop(name);
 
     // For the fastest path, the property must be found, and it must be found
     // as a normal data property on exactly the global object.
-    RootedShape shape(cx, staticObject->nativeLookup(cx, id));
+    RootedShape shape(cx, globalObj->nativeLookup(cx, id));
     if (!shape || !shape->hasDefaultSetter() || !shape->writable() || !shape->hasSlot())
         return jsop_setprop(name);
 
-    types::TypeObject *staticType = staticObject->getType(cx);
-    if (!staticType)
+    types::TypeObject *globalType = globalObj->getType(cx);
+    if (!globalType)
         return false;
     types::HeapTypeSet *propertyTypes = NULL;
-    if (!staticType->unknownProperties()) {
-        propertyTypes = staticType->getProperty(cx, id, false);
+    if (!globalType->unknownProperties()) {
+        propertyTypes = globalType->getProperty(cx, id, false);
         if (!propertyTypes)
             return false;
     }
-    if (!propertyTypes || propertyTypes->isOwnProperty(cx, staticType, true)) {
+    if (!propertyTypes || propertyTypes->isOwnProperty(cx, globalType, true)) {
         // The property has been reconfigured as non-configurable, non-enumerable
         // or non-writable.
         return jsop_setprop(name);
@@ -6049,36 +5994,46 @@ IonBuilder::setStaticName(HandleObject staticObject, HandlePropertyName name)
     if (!TypeSetIncludes(propertyTypes, value->type(), value->resultTypeSet()))
         return jsop_setprop(name);
 
-    current->pop();
-
-    // Pop the bound object on the stack.
-    MDefinition *obj = current->pop();
-    JS_ASSERT(&obj->toConstant()->value().toObject() == staticObject);
+    MInstruction *global = MConstant::New(ObjectValue(*globalObj));
+    current->add(global);
 
     // If we have a property type set, the isOwnProperty call will trigger recompilation
     // if the property is deleted or reconfigured. Without TI, we always need a shape guard
     // to guard against the property being reconfigured as non-writable.
     if (!propertyTypes)
-        obj = addShapeGuard(obj, staticObject->lastProperty(), Bailout_ShapeGuard);
+        global = addShapeGuard(global, globalObj->lastProperty(), Bailout_ShapeGuard);
 
-    // Note: we do not use a post barrier when writing to the global object.
-    // Slots in the global object will be treated as roots during a minor GC.
-    if (!staticObject->isGlobal() && NeedsPostBarrier(info(), value))
-        current->add(MPostWriteBarrier::New(obj, value));
+    JS_ASSERT(shape->slot() >= globalObj->numFixedSlots());
+
+    MSlots *slots = MSlots::New(global);
+    current->add(slots);
+
+    current->pop();
+    MStoreSlot *store = MStoreSlot::New(slots, shape->slot() - globalObj->numFixedSlots(), value);
+    current->add(store);
+
+    // Determine whether write barrier is required.
+    if (!propertyTypes || propertyTypes->needsBarrier(cx))
+        store->setNeedsBarrier();
+
+    // Pop the global object pushed by bindgname.
+    DebugOnly<MDefinition *> pushedGlobal = current->pop();
+    JS_ASSERT(&pushedGlobal->toConstant()->value().toObject() == globalObj);
 
     // If the property has a known type, we may be able to optimize typed stores by not
     // storing the type tag. This only works if the property does not have its initial
     // |undefined| value; if |undefined| is assigned at a later point, it will be added
     // to the type set.
-    MIRType slotType = MIRType_None;
-    if (propertyTypes && !staticObject->getSlot(shape->slot()).isUndefined()) {
+    if (propertyTypes && !globalObj->getSlot(shape->slot()).isUndefined()) {
         JSValueType knownType = propertyTypes->getKnownTypeTag(cx);
         if (knownType != JSVAL_TYPE_UNKNOWN)
-            slotType = MIRTypeFromValueType(knownType);
+            store->setSlotType(MIRTypeFromValueType(knownType));
     }
 
-    bool needsBarrier = !propertyTypes || propertyTypes->needsBarrier(cx);
-    return storeSlot(obj, shape, value, needsBarrier, slotType);
+    JS_ASSERT_IF(store->needsBarrier(), store->slotType() != MIRType_None);
+
+    current->push(value);
+    return resumeAfter(store);
 }
 
 bool
@@ -6260,14 +6215,6 @@ IonBuilder::jsop_getelem_dense()
     MDefinition *obj = current->pop();
 
     types::StackTypeSet *types = types::TypeScript::BytecodeTypes(script(), pc);
-
-    if (JSOp(*pc) == JSOP_CALLELEM && !id->mightBeType(MIRType_String) && types->noConstraints()) {
-        // Indexed call on an element of an array. Populate the observed types
-        // with any objects that could be in the array, to avoid extraneous
-        // type barriers.
-        AddObjectsForPropertyRead(cx, obj, NULL, types);
-    }
-
     bool barrier = PropertyReadNeedsTypeBarrier(cx, obj, NULL, types);
     bool needsHoleCheck = !ElementAccessIsPacked(cx, obj);
 
@@ -6611,9 +6558,6 @@ IonBuilder::jsop_setelem_dense(types::StackTypeSet::DoubleConversion conversion,
     // Writes which are on holes in the object do not have to bail out if they
     // cannot hit another indexed property on the object or its prototypes.
     bool writeOutOfBounds = !ElementAccessHasExtraIndexedProperty(cx, obj);
-
-    if (NeedsPostBarrier(info(), value))
-        current->add(MPostWriteBarrier::New(obj, value));
 
     // Ensure id is an integer.
     MInstruction *idInt32 = MToInt32::New(id);
@@ -7005,14 +6949,6 @@ GetDefiniteSlot(JSContext *cx, types::StackTypeSet *types, JSAtom *atom)
 }
 
 bool
-IonBuilder::jsop_runonce()
-{
-    MRunOncePrologue *ins = MRunOncePrologue::New();
-    current->add(ins);
-    return resumeAfter(ins);
-}
-
-bool
 IonBuilder::jsop_not()
 {
     MDefinition *value = current->pop();
@@ -7358,8 +7294,7 @@ IonBuilder::loadSlot(MDefinition *obj, Shape *shape, MIRType rvalType,
 }
 
 bool
-IonBuilder::storeSlot(MDefinition *obj, Shape *shape, MDefinition *value, bool needsBarrier,
-                      MIRType slotType /* = MIRType_None */)
+IonBuilder::storeSlot(MDefinition *obj, Shape *shape, MDefinition *value, bool needsBarrier)
 {
     JS_ASSERT(shape->hasDefaultSetter());
     JS_ASSERT(shape->writable());
@@ -7382,8 +7317,6 @@ IonBuilder::storeSlot(MDefinition *obj, Shape *shape, MDefinition *value, bool n
     current->push(value);
     if (needsBarrier)
         store->setNeedsBarrier();
-    if (slotType != MIRType_None)
-        store->setSlotType(slotType);
     return resumeAfter(store);
 }
 
@@ -7721,9 +7654,6 @@ IonBuilder::jsop_setprop(HandlePropertyName name)
     MDefinition *obj = current->pop();
 
     types::StackTypeSet *objTypes = obj->resultTypeSet();
-
-    if (NeedsPostBarrier(info(), value))
-        current->add(MPostWriteBarrier::New(obj, value));
 
     RootedId id(cx, NameToId(name));
 
@@ -8093,69 +8023,8 @@ IonBuilder::walkScopeChain(unsigned hops)
 }
 
 bool
-IonBuilder::hasStaticScopeObject(ScopeCoordinate sc, MutableHandleObject pcall)
-{
-    JSScript *outerScript = ScopeCoordinateFunctionScript(cx, script(), pc);
-    if (!outerScript || !outerScript->treatAsRunOnce)
-        return false;
-
-    types::TypeObject *funType = outerScript->function()->getType(cx);
-    if (!funType)
-        return false;
-    if (types::HeapTypeSet::HasObjectFlags(cx, funType, types::OBJECT_FLAG_RUNONCE_INVALIDATED))
-        return false;
-
-    // The script this aliased var operation is accessing will run only once,
-    // so there will be only one call object and the aliased var access can be
-    // compiled in the same manner as a global access. We still need to find
-    // the call object though.
-
-    // Look for the call object on the current script's function's scope chain.
-    // If the current script is inner to the outer script and the function has
-    // singleton type then it should show up here.
-
-    MDefinition *scope = current->getSlot(info().scopeChainSlot());
-    scope->setFoldedUnchecked();
-
-    JSObject *environment = script()->function()->environment();
-    while (environment && !environment->isGlobal()) {
-        if (environment->isCall() &&
-            !environment->asCall().isForEval() &&
-            environment->asCall().callee().nonLazyScript() == outerScript)
-        {
-            JS_ASSERT(environment->hasSingletonType());
-            pcall.set(environment);
-            return true;
-        }
-        environment = environment->enclosingScope();
-    }
-
-    // Look for the call object on the current frame, if we are compiling the
-    // outer script itself. Don't do this if we are at entry to the outer
-    // script, as the call object we see will not be the real one --- after
-    // entering the Ion code a different call object will be created.
-
-    if (script() == outerScript && fp && info().osrPc()) {
-        JSObject *scope = fp.scopeChain();
-        if (scope->isCall() && scope->asCall().callee().nonLazyScript() == outerScript) {
-            JS_ASSERT(scope->hasSingletonType());
-            pcall.set(scope);
-            return true;
-        }
-    }
-
-    return true;
-}
-
-bool
 IonBuilder::jsop_getaliasedvar(ScopeCoordinate sc)
 {
-    RootedObject call(cx);
-    if (hasStaticScopeObject(sc, &call) && call) {
-        RootedPropertyName name(cx, ScopeCoordinateName(cx, script(), pc));
-        return getStaticName(call, name);
-    }
-
     MDefinition *obj = walkScopeChain(sc.hops);
 
     RootedShape shape(cx, ScopeCoordinateToStaticScopeShape(cx, script(), pc));
@@ -8180,41 +8049,10 @@ IonBuilder::jsop_getaliasedvar(ScopeCoordinate sc)
 bool
 IonBuilder::jsop_setaliasedvar(ScopeCoordinate sc)
 {
-    RootedObject call(cx);
-    if (hasStaticScopeObject(sc, &call)) {
-        uint32_t depth = current->stackDepth() + 1;
-        if (depth > current->nslots()) {
-            if (!current->increaseSlots(depth - current->nslots()))
-                return false;
-        }
-        MDefinition *value = current->pop();
-        RootedPropertyName name(cx, ScopeCoordinateName(cx, script(), pc));
-
-        if (call) {
-            // Push the object on the stack to match the bound object expected in
-            // the global and property set cases.
-            MInstruction *constant = MConstant::New(ObjectValue(*call));
-            current->add(constant);
-            current->push(constant);
-            current->push(value);
-            return setStaticName(call, name);
-        }
-
-        // The call object has type information we need to respect but we
-        // couldn't find it. Just do a normal property assign.
-        MDefinition *obj = walkScopeChain(sc.hops);
-        current->push(obj);
-        current->push(value);
-        return jsop_setprop(name);
-    }
-
     MDefinition *rval = current->peek(-1);
     MDefinition *obj = walkScopeChain(sc.hops);
 
     RootedShape shape(cx, ScopeCoordinateToStaticScopeShape(cx, script(), pc));
-
-    if (NeedsPostBarrier(info(), rval))
-        current->add(MPostWriteBarrier::New(obj, rval));
 
     MInstruction *store;
     if (shape->numFixedSlots() <= sc.slot) {

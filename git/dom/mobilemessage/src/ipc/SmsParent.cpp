@@ -23,7 +23,6 @@
 #include "mozilla/dom/ContentParent.h"
 #include "nsContentUtils.h"
 #include "nsTArrayHelpers.h"
-#include "nsCxPusher.h"
 
 namespace mozilla {
 namespace dom {
@@ -33,6 +32,8 @@ static JSObject*
 MmsAttachmentDataToJSObject(JSContext* aContext,
                             const MmsAttachmentData& aAttachment)
 {
+  JSAutoRequest ar(aContext);
+
   JS::Rooted<JSObject*> obj(aContext, JS_NewObject(aContext, nullptr, nullptr, nullptr));
   NS_ENSURE_TRUE(obj, nullptr);
 
@@ -76,6 +77,8 @@ GetParamsFromSendMmsMessageRequest(JSContext* aCx,
                                    const SendMmsMessageRequest& aRequest,
                                    JS::Value* aParam)
 {
+  JSAutoRequest ar(aCx);
+
   JS::Rooted<JSObject*> paramsObj(aCx, JS_NewObject(aCx, nullptr, nullptr, nullptr));
   NS_ENSURE_TRUE(paramsObj, false);
 

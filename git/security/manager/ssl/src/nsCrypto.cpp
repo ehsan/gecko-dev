@@ -35,7 +35,6 @@
 #include "nsIScriptContext.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsContentUtils.h"
-#include "nsCxPusher.h"
 #include "nsDOMJSUtils.h"
 #include "nsIXPConnect.h"
 #include "nsIRunnable.h"
@@ -1858,6 +1857,8 @@ nsCrypto::GenerateCRMFRequest(nsIDOMCRMFObject** aReturn)
   NS_ENSURE_SUCCESS(nrv, nrv);
 
   nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
+
+  JSAutoRequest ar(cx);
 
   /*
    * Get all of the parameters.

@@ -142,18 +142,6 @@ class TestRecursiveMakeBackend(BackendTester):
                 'ASFILES += bar.s',
                 'ASFILES += foo.asm',
             ],
-            'CSRCS': [
-                'CSRCS += bar.c',
-                'CSRCS += foo.c',
-            ],
-            'DEFINES': [
-                'DEFINES += -Dbar',
-                'DEFINES += -Dfoo',
-            ],
-            'SIMPLE_PROGRAMS': [
-                'SIMPLE_PROGRAMS += bar.x',
-                'SIMPLE_PROGRAMS += foo.x',
-            ],
             'XPIDL_FLAGS': [
                 'XPIDL_FLAGS += -Idir1',
                 'XPIDL_FLAGS += -Idir2',

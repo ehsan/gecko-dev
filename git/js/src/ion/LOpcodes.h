@@ -139,8 +139,6 @@
     _(ParDump)                      \
     _(TypeBarrier)                  \
     _(MonitorTypes)                 \
-    _(PostWriteBarrierO)            \
-    _(PostWriteBarrierV)            \
     _(InitializedLength)            \
     _(SetInitializedLength)         \
     _(BoundsCheck)                  \
@@ -205,7 +203,6 @@
     _(StringLength)                 \
     _(ArgumentsLength)              \
     _(GetArgument)                  \
-    _(RunOncePrologue)              \
     _(Rest)                         \
     _(ParRest)                      \
     _(TypeOfV)                      \

@@ -55,9 +55,7 @@ protected:
     }
     
     PObjectWrapperChild* AllocPObjectWrapper(const bool&) {
-        // This stuff is unused and billm has a patch to delete it.
-        JSAutoRequest ar(mContext);
-        return AllocPObjectWrapper(JS_GetGlobalForScopeChain(mContext));
+        return AllocPObjectWrapper(JS_GetGlobalObject(mContext));
     }
 
     bool DeallocPObjectWrapper(PObjectWrapperChild* actor) {
