@@ -152,7 +152,7 @@ static BitmapXferProc ChooseBitmapXferProc(const SkBitmap& bitmap,
     }
 
     SkXfermode::Mode mode;
-    if (!SkXfermode::AsMode(paint.getXfermode(), &mode)) {
+    if (!SkXfermode::IsMode(paint.getXfermode(), &mode)) {
         return NULL;
     }
 
@@ -231,7 +231,7 @@ static void CallBitmapXferProc(const SkBitmap& bitmap, const SkIRect& rect,
             shiftPerPixel = 0;
             break;
         default:
-            SkDEBUGFAIL("Can't use xferproc on this config");
+            SkASSERT(!"Can't use xferproc on this config");
             return;
     }
 
@@ -793,7 +793,7 @@ void SkDraw::drawRect(const SkRect& rect, const SkPaint& paint) const {
             }
             break;
         default:
-            SkDEBUGFAIL("bad rtype");
+            SkASSERT(!"bad rtype");
     }
 }
 
@@ -1792,7 +1792,6 @@ void SkDraw::drawPosText(const char text[], size_t byteLength,
             }
         } else {
             while (text < stop) {
-                const char* currentText = text;
                 const SkGlyph* glyph = &glyphCacheProc(cache, &text, 0, 0);
 
                 if (glyph->fWidth) {
@@ -1818,8 +1817,7 @@ void SkDraw::drawPosText(const char text[], size_t byteLength,
                     }
 
                     // have to call again, now that we've been "aligned"
-                    glyph = &glyphCacheProc(cache, &currentText,
-                                            fx & fxMask, fy & fyMask);
+                    glyph = &glyphCacheProc(cache, &text, fx & fxMask, fy & fyMask);
                     // the assumption is that the advance hasn't changed
                     SkASSERT(prevAdvX == glyph->fAdvanceX);
                     SkASSERT(prevAdvY == glyph->fAdvanceY);
@@ -1922,7 +1920,7 @@ static void morphpath(SkPath* dst, const SkPath& src, SkPathMeasure& meas,
                 dst->close();
                 break;
             default:
-                SkDEBUGFAIL("unknown verb");
+                SkASSERT(!"unknown verb");
                 break;
         }
     }
@@ -1975,7 +1973,7 @@ void SkDraw::drawTextOnPath(const char text[], size_t byteLength,
     }
 }
 
-#ifdef SK_BUILD_FOR_ANDROID
+#ifdef ANDROID
 void SkDraw::drawPosTextOnPath(const char text[], size_t byteLength,
                                const SkPoint pos[], const SkPaint& paint,
                                const SkPath& path, const SkMatrix* matrix) const {
@@ -2536,7 +2534,7 @@ static bool compute_bounds(const SkPath& devPath, const SkIRect* clipBounds,
         pathBounds.roundOut(bounds);
     }
 
-    SkIPoint margin = SkIPoint::Make(0, 0);
+    SkIPoint margin;
     if (filter) {
         SkASSERT(filterMatrix);
 

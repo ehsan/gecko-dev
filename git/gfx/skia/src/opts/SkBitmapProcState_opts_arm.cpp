@@ -7,6 +7,10 @@
  */
 
 
+#ifdef ANDROID
+    #include <machine/cpu-features.h>
+#endif
+
 #include "SkBitmapProcState.h"
 #include "SkColorPriv.h"
 #include "SkUtils.h"

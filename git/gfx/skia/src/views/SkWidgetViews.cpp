@@ -405,7 +405,7 @@ SkView* SkWidgetFactory(SkWidgetEnum sw)
 	case kText_WidgetEnum:
 		return new SkStaticTextView;
 	default:
-		SkDEBUGFAIL("unknown enum passed to SkWidgetFactory");
+		SkASSERT(!"unknown enum passed to SkWidgetFactory");
 		break;
 	}
 	return NULL;

@@ -23,53 +23,53 @@ public:
     ///////////////////////////////////////////////////////////////////////////
     // These are forwarded to the N canvases we're referencing
 
-    virtual int save(SaveFlags) SK_OVERRIDE;
-    virtual int saveLayer(const SkRect* bounds, const SkPaint*,
-                          SaveFlags) SK_OVERRIDE;
-    virtual void restore() SK_OVERRIDE;
-    virtual bool translate(SkScalar dx, SkScalar dy) SK_OVERRIDE;
-    virtual bool scale(SkScalar sx, SkScalar sy) SK_OVERRIDE;
-    virtual bool rotate(SkScalar degrees) SK_OVERRIDE;
-    virtual bool skew(SkScalar sx, SkScalar sy) SK_OVERRIDE;
-    virtual bool concat(const SkMatrix& matrix) SK_OVERRIDE;
-    virtual void setMatrix(const SkMatrix& matrix) SK_OVERRIDE;
+    virtual int save(SaveFlags flags = kMatrixClip_SaveFlag);
+    virtual int saveLayer(const SkRect* bounds, const SkPaint* paint,
+                          SaveFlags flags = kARGB_ClipLayer_SaveFlag);
+    virtual void restore();
+    virtual bool translate(SkScalar dx, SkScalar dy);
+    virtual bool scale(SkScalar sx, SkScalar sy);
+    virtual bool rotate(SkScalar degrees);
+    virtual bool skew(SkScalar sx, SkScalar sy);
+    virtual bool concat(const SkMatrix& matrix);
+    virtual void setMatrix(const SkMatrix& matrix);
     virtual bool clipRect(const SkRect&, SkRegion::Op, bool) SK_OVERRIDE;
     virtual bool clipPath(const SkPath&, SkRegion::Op, bool) SK_OVERRIDE;
     virtual bool clipRegion(const SkRegion& deviceRgn,
-                            SkRegion::Op) SK_OVERRIDE;
+                            SkRegion::Op op = SkRegion::kIntersect_Op);
 
-    virtual void drawPaint(const SkPaint& paint) SK_OVERRIDE;
+    virtual void drawPaint(const SkPaint& paint);
     virtual void drawPoints(PointMode mode, size_t count, const SkPoint pts[],
-                            const SkPaint&) SK_OVERRIDE;
-    virtual void drawRect(const SkRect& rect, const SkPaint&) SK_OVERRIDE;
-    virtual void drawPath(const SkPath& path, const SkPaint&) SK_OVERRIDE;
+                            const SkPaint& paint);
+    virtual void drawRect(const SkRect& rect, const SkPaint& paint);
+    virtual void drawPath(const SkPath& path, const SkPaint& paint);
     virtual void drawBitmap(const SkBitmap& bitmap, SkScalar left, SkScalar top,
-                            const SkPaint*) SK_OVERRIDE;
+                            const SkPaint* paint = NULL);
     virtual void drawBitmapRect(const SkBitmap& bitmap, const SkIRect* src,
-                                const SkRect& dst, const SkPaint*) SK_OVERRIDE;
+                                const SkRect& dst, const SkPaint* paint = NULL);
     virtual void drawBitmapMatrix(const SkBitmap& bitmap, const SkMatrix& m,
-                                  const SkPaint*) SK_OVERRIDE;
+                                  const SkPaint* paint = NULL);
     virtual void drawSprite(const SkBitmap& bitmap, int left, int top,
-                            const SkPaint*) SK_OVERRIDE;
+                            const SkPaint* paint = NULL);
     virtual void drawText(const void* text, size_t byteLength, SkScalar x,
-                          SkScalar y, const SkPaint&) SK_OVERRIDE;
+                          SkScalar y, const SkPaint& paint);
     virtual void drawPosText(const void* text, size_t byteLength,
-                             const SkPoint pos[], const SkPaint&) SK_OVERRIDE;
+                             const SkPoint pos[], const SkPaint& paint);
     virtual void drawPosTextH(const void* text, size_t byteLength,
                               const SkScalar xpos[], SkScalar constY,
-                              const SkPaint&) SK_OVERRIDE;
+                              const SkPaint& paint);
     virtual void drawTextOnPath(const void* text, size_t byteLength,
                                 const SkPath& path, const SkMatrix* matrix,
-                                const SkPaint&) SK_OVERRIDE;
-    virtual void drawPicture(SkPicture&) SK_OVERRIDE;
+                                const SkPaint& paint);
+    virtual void drawPicture(SkPicture&);
     virtual void drawVertices(VertexMode vmode, int vertexCount,
                               const SkPoint vertices[], const SkPoint texs[],
                               const SkColor colors[], SkXfermode* xmode,
                               const uint16_t indices[], int indexCount,
-                              const SkPaint&) SK_OVERRIDE;
+                              const SkPaint& paint);
 
-    virtual SkBounder* setBounder(SkBounder*) SK_OVERRIDE;
-    virtual SkDrawFilter* setDrawFilter(SkDrawFilter*) SK_OVERRIDE;
+    virtual SkBounder* setBounder(SkBounder* bounder);
+    virtual SkDrawFilter* setDrawFilter(SkDrawFilter* filter);
     
 private:
     SkTDArray<SkCanvas*> fList;

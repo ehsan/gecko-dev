@@ -35,9 +35,7 @@
  * ***** END LICENSE BLOCK ***** */
 /* $Id: nsslowhash.c,v 1.6 2010/09/10 00:42:36 emaldona%redhat.com Exp $ */
 
-#ifdef FREEBL_NO_DEPEND
 #include "stubs.h"
-#endif
 #include "prtypes.h"
 #include "secerr.h"
 #include "pkcs11t.h"
@@ -319,13 +317,11 @@ NSSLOW_Init(void)
 {
     SECStatus rv;
     CK_RV crv;
-#ifdef FREEBL_NO_DEPEND
     PRBool nsprAvailable = PR_FALSE;
 
 
     rv = FREEBL_InitStubs();
     nsprAvailable = (rv ==  SECSuccess ) ? PR_TRUE : PR_FALSE;
-#endif
 
     if (post_failed) {
 	return NULL;

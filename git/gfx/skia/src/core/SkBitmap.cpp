@@ -173,7 +173,7 @@ int SkBitmap::ComputeBytesPerPixel(SkBitmap::Config config) {
             bpp = 4;
             break;
         default:
-            SkDEBUGFAIL("unknown config");
+            SkASSERT(!"unknown config");
             bpp = 0;   // error
             break;
     }
@@ -211,7 +211,7 @@ int SkBitmap::ComputeRowBytes(Config c, int width) {
             rowBytes.shiftLeft(2);
             break;
         default:
-            SkDEBUGFAIL("unknown config");
+            SkASSERT(!"unknown config");
             break;
     }
     return isPos32Bits(rowBytes) ? rowBytes.get32() : 0;
@@ -409,7 +409,6 @@ uint32_t SkBitmap::getGenerationID() const {
 }
 
 void SkBitmap::notifyPixelsChanged() const {
-    SkASSERT(!this->isImmutable());
     if (fPixelRef) {
         fPixelRef->notifyPixelsChanged();
     } else {
@@ -457,8 +456,8 @@ Sk64 SkBitmap::getSafeSize64() const {
     return ComputeSafeSize64(getConfig(), fWidth, fHeight, fRowBytes);
 }
 
-bool SkBitmap::copyPixelsTo(void* const dst, size_t dstSize, 
-                            int dstRowBytes, bool preserveDstPad) const {
+bool SkBitmap::copyPixelsTo(void* const dst, size_t dstSize, int dstRowBytes)
+     const {
 
     if (dstRowBytes == -1)
         dstRowBytes = fRowBytes;
@@ -469,7 +468,7 @@ bool SkBitmap::copyPixelsTo(void* const dst, size_t dstSize,
         dst == NULL || (getPixels() == NULL && pixelRef() == NULL))
         return false;
 
-    if (!preserveDstPad && static_cast<uint32_t>(dstRowBytes) == fRowBytes) {
+    if (static_cast<uint32_t>(dstRowBytes) == fRowBytes) {
         size_t safeSize = getSafeSize();
         if (safeSize > dstSize || safeSize == 0)
             return false;
@@ -503,20 +502,42 @@ bool SkBitmap::copyPixelsTo(void* const dst, size_t dstSize,
     }
 }
 
-///////////////////////////////////////////////////////////////////////////////
+bool SkBitmap::copyPixelsFrom(const void* const src, size_t srcSize,
+                              int srcRowBytes) {
 
-bool SkBitmap::isImmutable() const { 
-    return fPixelRef ? fPixelRef->isImmutable() :
-        fFlags & kImageIsImmutable_Flag; 
-}
+    if (srcRowBytes == -1)
+        srcRowBytes = fRowBytes;
+    SkASSERT(srcRowBytes >= 0);
 
-void SkBitmap::setImmutable() {
-    if (fPixelRef) {
-        fPixelRef->setImmutable();
-    } else {
-        fFlags |= kImageIsImmutable_Flag;
+    size_t safeSize = getSafeSize();
+    uint32_t rowBytes = ComputeRowBytes(getConfig(), fWidth);
+    if (getConfig() == kRLE_Index8_Config || src == NULL ||
+        static_cast<uint32_t>(srcRowBytes) < rowBytes ||
+        safeSize == 0 ||
+        srcSize < ComputeSafeSize(getConfig(), fWidth, fHeight, srcRowBytes)) {
+        return false;
     }
+
+    SkAutoLockPixels lock(*this);
+    if (static_cast<uint32_t>(srcRowBytes) == fRowBytes) {
+        // This implementation will write bytes beyond the end of each row,
+        // excluding the last row, if the bitmap's stride is greater than
+        // strictly required by the current config.
+        memcpy(getPixels(), src, safeSize);
+    } else {
+        // Just copy the bytes we need on each line.
+        const uint8_t* srcP = reinterpret_cast<const uint8_t*>(src);
+        uint8_t* dstP = reinterpret_cast<uint8_t*>(getPixels());
+        for (uint32_t row = 0; row < fHeight;
+             row++, srcP += srcRowBytes, dstP += fRowBytes) {
+            memcpy(dstP, srcP, rowBytes);
+        }
+    }
+
+    return true;
 }
+
+///////////////////////////////////////////////////////////////////////////////
 
 bool SkBitmap::isOpaque() const {
     switch (fConfig) {
@@ -547,7 +568,7 @@ bool SkBitmap::isOpaque() const {
             return true;
 
         default:
-            SkDEBUGFAIL("unknown bitmap config pased to isOpaque");
+            SkASSERT(!"unknown bitmap config pased to isOpaque");
             return false;
     }
 }
@@ -598,11 +619,11 @@ void* SkBitmap::getAddr(int x, int y) const {
                 base += x >> 3;
                 break;
             case kRLE_Index8_Config:
-                SkDEBUGFAIL("Can't return addr for kRLE_Index8_Config");
+                SkASSERT(!"Can't return addr for kRLE_Index8_Config");
                 base = NULL;
                 break;
             default:
-                SkDEBUGFAIL("Can't return addr for config");
+                SkASSERT(!"Can't return addr for config");
                 base = NULL;
                 break;
         }
@@ -950,29 +971,6 @@ bool SkBitmap::copyTo(SkBitmap* dst, Config dstConfig, Allocator* alloc) const {
 
     dst->swap(tmpDst);
     return true;
-}
-
-bool SkBitmap::deepCopyTo(SkBitmap* dst, Config dstConfig) const {
-    if (!this->canCopyTo(dstConfig)) {
-        return false;
-    }
-
-    // If we have a PixelRef, and it supports deep copy, use it.
-    // Currently supported only by texture-backed bitmaps.
-    if (fPixelRef) {
-        SkPixelRef* pixelRef = fPixelRef->deepCopy(dstConfig);
-        if (pixelRef) {
-            dst->setConfig(dstConfig, fWidth, fHeight);
-            dst->setPixelRef(pixelRef)->unref();
-            return true;
-        }
-    }
-
-    if (this->getTexture()) {
-        return false;
-    } else {
-        return this->copyTo(dst, dstConfig, NULL);
-    }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1501,7 +1499,7 @@ void SkBitmap::unflatten(SkFlattenableReadBuffer& buffer) {
         case SERIALIZE_PIXELTYPE_NONE:
             break;
         default:
-            SkDEBUGFAIL("unrecognized pixeltype in serialized data");
+            SkASSERT(!"unrecognized pixeltype in serialized data");
             sk_throw();
     }
 }

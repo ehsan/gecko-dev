@@ -59,50 +59,52 @@ public:
      *  The canvas parameter must be a SkGpuCanvas
      */
     virtual void gainFocus(SkCanvas*, const SkMatrix&, const SkRegion&,
-                           const SkClipStack& clipStack) SK_OVERRIDE;
+                           const SkClipStack& clipStack);
 
-    virtual SkGpuRenderTarget* accessRenderTarget() SK_OVERRIDE;
+    virtual SkGpuRenderTarget* accessRenderTarget() { 
+        return (SkGpuRenderTarget*)fRenderTarget; 
+    }
 
     // overrides from SkDevice
 
-    virtual void clear(SkColor color) SK_OVERRIDE;
-    virtual void writePixels(const SkBitmap& bitmap, int x, int y,
-                             SkCanvas::Config8888 config8888) SK_OVERRIDE;
+    virtual void clear(SkColor color);
+    virtual bool readPixels(const SkIRect& srcRect, SkBitmap* bitmap);
+    virtual void writePixels(const SkBitmap& bitmap, int x, int y);
 
     virtual void setMatrixClip(const SkMatrix& matrix, const SkRegion& clip,
-                               const SkClipStack&) SK_OVERRIDE;
+                               const SkClipStack&);
 
-    virtual void drawPaint(const SkDraw&, const SkPaint& paint) SK_OVERRIDE;
+    virtual void drawPaint(const SkDraw&, const SkPaint& paint);
     virtual void drawPoints(const SkDraw&, SkCanvas::PointMode mode, size_t count,
-                            const SkPoint[], const SkPaint& paint) SK_OVERRIDE;
+                            const SkPoint[], const SkPaint& paint);
     virtual void drawRect(const SkDraw&, const SkRect& r,
-                          const SkPaint& paint) SK_OVERRIDE;
+                          const SkPaint& paint);
     virtual void drawPath(const SkDraw&, const SkPath& path,
                           const SkPaint& paint, const SkMatrix* prePathMatrix,
-                          bool pathIsMutable) SK_OVERRIDE;
+                          bool pathIsMutable);
     virtual void drawBitmap(const SkDraw&, const SkBitmap& bitmap,
                             const SkIRect* srcRectOrNull,
-                            const SkMatrix&, const SkPaint&) SK_OVERRIDE;
+                            const SkMatrix& matrix, const SkPaint& paint);
     virtual void drawSprite(const SkDraw&, const SkBitmap& bitmap,
                             int x, int y, const SkPaint& paint);
     virtual void drawText(const SkDraw&, const void* text, size_t len,
-                          SkScalar x, SkScalar y, const SkPaint&) SK_OVERRIDE;
+                          SkScalar x, SkScalar y, const SkPaint& paint);
     virtual void drawPosText(const SkDraw&, const void* text, size_t len,
                              const SkScalar pos[], SkScalar constY,
-                             int scalarsPerPos, const SkPaint&) SK_OVERRIDE;
+                             int scalarsPerPos, const SkPaint& paint);
     virtual void drawTextOnPath(const SkDraw&, const void* text, size_t len,
                                 const SkPath& path, const SkMatrix* matrix,
-                                const SkPaint&) SK_OVERRIDE;
+                                const SkPaint& paint);
     virtual void drawVertices(const SkDraw&, SkCanvas::VertexMode, int vertexCount,
                               const SkPoint verts[], const SkPoint texs[],
                               const SkColor colors[], SkXfermode* xmode,
                               const uint16_t indices[], int indexCount,
-                              const SkPaint&) SK_OVERRIDE;
+                              const SkPaint& paint);
     virtual void drawDevice(const SkDraw&, SkDevice*, int x, int y,
-                            const SkPaint&) SK_OVERRIDE;
-    virtual bool filterTextFlags(const SkPaint&, TextFlags*) SK_OVERRIDE;
+                            const SkPaint&);
+    virtual bool filterTextFlags(const SkPaint& paint, TextFlags*);
 
-    virtual void flush(); 
+    virtual void flush() { fContext->flush(false); }
 
     /**
      * Make's this device's rendertarget current in the underlying 3D API.
@@ -110,10 +112,6 @@ public:
      */
     virtual void makeRenderTargetCurrent();
 
-    virtual bool filterImage(SkImageFilter*, const SkBitmap& src,
-                             const SkMatrix& ctm,
-                             SkBitmap* result, SkIPoint* offset) SK_OVERRIDE;
-    
 protected:
     typedef GrContext::TextureCacheEntry TexCache;
     enum TexType {
@@ -122,10 +120,8 @@ protected:
         kSaveLayerDeviceRenderTarget_TexType
     };
     TexCache lockCachedTexture(const SkBitmap& bitmap,
-                               const GrSamplerState* sampler,
+                               const GrSamplerState& sampler,
                                TexType type = kBitmap_TexType);
-    bool isBitmapInTextureCache(const SkBitmap& bitmap,
-                                const GrSamplerState& sampler) const;
     void unlockCachedTexture(TexCache);
 
     class SkAutoCachedTexture {
@@ -133,23 +129,17 @@ protected:
         SkAutoCachedTexture();
         SkAutoCachedTexture(SkGpuDevice* device,
                             const SkBitmap& bitmap,
-                            const GrSamplerState* sampler,
+                            const GrSamplerState& sampler,
                             GrTexture** texture);
         ~SkAutoCachedTexture();
 
-        GrTexture* set(SkGpuDevice*, const SkBitmap&, const GrSamplerState*);
+        GrTexture* set(SkGpuDevice*, const SkBitmap&, const GrSamplerState&);
 
     private:
         SkGpuDevice*    fDevice;
         TexCache        fTex;
     };
     friend class SkAutoTexCache;
-    
-    // overrides from SkDevice
-    virtual bool onReadPixels(const SkBitmap& bitmap,
-                              int x, int y,
-                              SkCanvas::Config8888 config8888) SK_OVERRIDE;
-
 
 private:
     GrContext*      fContext;
@@ -200,10 +190,6 @@ private:
     bool bindDeviceAsTexture(GrPaint* paint);
 
     void prepareRenderTarget(const SkDraw&);
-    bool shouldTileBitmap(const SkBitmap& bitmap,
-                          const GrSamplerState& sampler,
-                          const SkIRect* srcRectPtr,
-                          int* tileSize) const;
     void internalDrawBitmap(const SkDraw&, const SkBitmap&,
                             const SkIRect&, const SkMatrix&, GrPaint* grPaint);
 

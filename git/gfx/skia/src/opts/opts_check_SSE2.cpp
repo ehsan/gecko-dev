@@ -102,14 +102,14 @@ SkBlitRow::Proc32 SkBlitRow::PlatformProcs32(unsigned flags) {
 }
 
 
-SkBlitMask::ColorProc SkBlitMask::PlatformColorProcs(SkBitmap::Config dstConfig,
-                                                     SkMask::Format maskFormat,
-                                                     SkColor color) {
+SkBlitMask::Proc SkBlitMask::PlatformProcs(SkBitmap::Config dstConfig,
+                                           SkMask::Format maskFormat,
+                                           SkColor color) {
     if (SkMask::kA8_Format != maskFormat) {
         return NULL;
     }
-    
-    ColorProc proc = NULL;
+
+    SkBlitMask::Proc proc = NULL;
     if (cachedHasSSE2()) {
         switch (dstConfig) {
             case SkBitmap::kARGB_8888_Config:
@@ -120,16 +120,10 @@ SkBlitMask::ColorProc SkBlitMask::PlatformColorProcs(SkBitmap::Config dstConfig,
                 }
                 break;
             default:
-                break;
+                 break;
         }
     }
     return proc;
-}
-
-SkBlitMask::RowProc SkBlitMask::PlatformRowProcs(SkBitmap::Config dstConfig,
-                                                 SkMask::Format maskFormat,
-                                                 RowFlags flags) {
-    return NULL;
 }
 
 SkMemset16Proc SkMemset16GetPlatformProc() {

@@ -137,20 +137,7 @@ void SkPixelRef::Register(const char name[], Factory factory) {
     gCount += 1;
 }
 
-#if !SK_ALLOW_STATIC_GLOBAL_INITIALIZERS && defined(SK_DEBUG)
-static void report_no_entries(const char* functionName) {
-    if (!gCount) {
-        SkDebugf("%s has no registered name/factory pairs."
-                 " Call SkGraphics::Init() at process initialization time.",
-                 functionName);
-    }
-}
-#endif
-
 SkPixelRef::Factory SkPixelRef::NameToFactory(const char name[]) {
-#if !SK_ALLOW_STATIC_GLOBAL_INITIALIZERS && defined(SK_DEBUG)
-    report_no_entries(__FUNCTION__);
-#endif
     const Pair* pairs = gPairs;
     for (int i = gCount - 1; i >= 0; --i) {
         if (strcmp(pairs[i].fName, name) == 0) {
@@ -161,9 +148,6 @@ SkPixelRef::Factory SkPixelRef::NameToFactory(const char name[]) {
 }
 
 const char* SkPixelRef::FactoryToName(Factory fact) {
-#if !SK_ALLOW_STATIC_GLOBAL_INITIALIZERS && defined(SK_DEBUG)
-    report_no_entries(__FUNCTION__);
-#endif
     const Pair* pairs = gPairs;
     for (int i = gCount - 1; i >= 0; --i) {
         if (pairs[i].fFactory == fact) {
@@ -175,7 +159,7 @@ const char* SkPixelRef::FactoryToName(Factory fact) {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-#ifdef SK_BUILD_FOR_ANDROID
+#ifdef ANDROID
 void SkPixelRef::globalRef(void* data) {
     this->ref();
 }

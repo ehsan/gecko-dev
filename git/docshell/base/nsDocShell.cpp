@@ -224,7 +224,6 @@
 
 #include "nsDOMNavigationTiming.h"
 #include "nsITimedChannel.h"
-#include "mozilla/StartupTimeline.h"
 
 static NS_DEFINE_CID(kDOMScriptObjectFactoryCID,
                      NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
@@ -1224,11 +1223,6 @@ nsDocShell::LoadURI(nsIURI * aURI,
     PRUint32 loadType = MAKE_LOAD_TYPE(LOAD_NORMAL, aLoadFlags);    
 
     NS_ENSURE_ARG(aURI);
-
-    if (!StartupTimeline::HasRecord(StartupTimeline::FIRST_LOAD_URI) &&
-        mItemType == typeContent && !NS_IsAboutBlank(aURI)) {
-        StartupTimeline::RecordOnce(StartupTimeline::FIRST_LOAD_URI);
-    }
 
     // Extract the info from the DocShellLoadInfo struct...
     if (aLoadInfo) {

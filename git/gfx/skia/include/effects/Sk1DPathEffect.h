@@ -57,23 +57,21 @@ public:
     SkPath1DPathEffect(const SkPath& path, SkScalar advance, SkScalar phase, Style);
 
     // override from SkPathEffect
-    virtual bool filterPath(SkPath*, const SkPath&, SkScalar* width) SK_OVERRIDE;
+    virtual bool filterPath(SkPath* dst, const SkPath& src, SkScalar* width);
 
     static SkFlattenable* CreateProc(SkFlattenableReadBuffer& buffer) {
         return SkNEW_ARGS(SkPath1DPathEffect, (buffer));
     }
 
-    SK_DECLARE_FLATTENABLE_REGISTRAR()
-
 protected:
     SkPath1DPathEffect(SkFlattenableReadBuffer& buffer);
 
     // overrides from Sk1DPathEffect
-    virtual SkScalar begin(SkScalar contourLength) SK_OVERRIDE;
-    virtual SkScalar next(SkPath*, SkScalar distance, SkPathMeasure&) SK_OVERRIDE;
+    virtual SkScalar begin(SkScalar contourLength);
+    virtual SkScalar next(SkPath* dst, SkScalar distance, SkPathMeasure&);
     // overrides from SkFlattenable
-    virtual void flatten(SkFlattenableWriteBuffer&) SK_OVERRIDE;
-    virtual Factory getFactory() SK_OVERRIDE { return CreateProc; }
+    virtual void flatten(SkFlattenableWriteBuffer& );
+    virtual Factory getFactory() { return CreateProc; }
     
 private:
     SkPath      fPath;          // copied from constructor

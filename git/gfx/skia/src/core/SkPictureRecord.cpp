@@ -139,7 +139,7 @@ static bool regionOpExpands(SkRegion::Op op) {
         case SkRegion::kDifference_Op:
             return false;
         default:
-            SkDEBUGFAIL("unknown region op");
+            SkASSERT(!"unknown region op");
             return false;
     }
 }
@@ -166,7 +166,7 @@ void SkPictureRecord::recordOffsetForRestore(SkRegion::Op op) {
 bool SkPictureRecord::clipRect(const SkRect& rect, SkRegion::Op op, bool doAA) {
     addDraw(CLIP_RECT);
     addRect(rect);
-    addInt(ClipParams_pack(op, doAA));
+    addInt(op);
 
     this->recordOffsetForRestore(op);
 
@@ -177,7 +177,7 @@ bool SkPictureRecord::clipRect(const SkRect& rect, SkRegion::Op op, bool doAA) {
 bool SkPictureRecord::clipPath(const SkPath& path, SkRegion::Op op, bool doAA) {
     addDraw(CLIP_PATH);
     addPath(path);
-    addInt(ClipParams_pack(op, doAA));
+    addInt(op);
 
     this->recordOffsetForRestore(op);
 
@@ -193,7 +193,7 @@ bool SkPictureRecord::clipPath(const SkPath& path, SkRegion::Op op, bool doAA) {
 bool SkPictureRecord::clipRegion(const SkRegion& region, SkRegion::Op op) {
     addDraw(CLIP_REGION);
     addRegion(region);
-    addInt(ClipParams_pack(op, false));
+    addInt(op);
 
     this->recordOffsetForRestore(op);
 

@@ -39,8 +39,6 @@
 #include <android/log.h>
 #include <GLES2/gl2.h>
 #include "AndroidGraphicBuffer.h"
-#include "AndroidBridge.h"
-#include "mozilla/Preferences.h"
 
 #define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "AndroidGraphicBuffer" , ## args)
 
@@ -112,12 +110,12 @@ enum {
     HAL_PIXEL_FORMAT_RGBA_4444          = 7,
 };
 
-typedef struct ARect {
+typedef struct AndroidRect {
     int32_t left;
     int32_t top;
     int32_t right;
     int32_t bottom;
-} ARect;
+} AndroidRect;
 
 static bool gTryRealloc = true;
 
@@ -156,7 +154,7 @@ public:
   typedef int (*pfnGraphicBufferLock)(void*, PRUint32 usage, unsigned char **addr);
   pfnGraphicBufferLock fGraphicBufferLock;
 
-  typedef int (*pfnGraphicBufferLockRect)(void*, PRUint32 usage, const ARect&, unsigned char **addr);
+  typedef int (*pfnGraphicBufferLockRect)(void*, PRUint32 usage, const AndroidRect&, unsigned char **addr);
   pfnGraphicBufferLockRect fGraphicBufferLockRect;
 
   typedef int (*pfnGraphicBufferUnlock)(void*);
@@ -341,7 +339,7 @@ AndroidGraphicBuffer::Lock(PRUint32 aUsage, const nsIntRect& aRect, unsigned cha
   if (!EnsureInitialized())
     return false;
 
-  ARect rect;
+  AndroidRect rect;
   rect.left = aRect.x;
   rect.top = aRect.y;
   rect.right = aRect.x + aRect.width;
@@ -453,42 +451,6 @@ AndroidGraphicBuffer::Bind()
   clearGLError();
   sGLFunctions.fImageTargetTexture2DOES(GL_TEXTURE_2D, mEGLImage);
   return ensureNoGLError("glEGLImageTargetTexture2DOES");
-}
-
-static const char* sAllowedBoards[] = {
-  "venus2", // Motorola Droid Pro
-  "tuna", // Galaxy Nexus
-  NULL
-};
-
-bool
-AndroidGraphicBuffer::IsBlacklisted()
-{
-  nsAutoString board;
-  if (!AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "BOARD", board))
-    return true;
-
-  const char* boardUtf8 = NS_ConvertUTF16toUTF8(board).get();
-
-  if (Preferences::GetBool("direct-texture.force.enabled", false)) {
-    LOG("allowing board '%s' due to prefs override", boardUtf8);
-    return false;
-  }
-
-  if (Preferences::GetBool("direct-texture.force.disabled", false)) {
-    LOG("disallowing board '%s' due to prefs override", boardUtf8);
-    return true;
-  }
-
-  for (int i = 0; sAllowedBoards[i]; i++) {
-    if (board.Find(sAllowedBoards[i]) >= 0) {
-      LOG("allowing board '%s' based on '%s'\n", boardUtf8, sAllowedBoards[i]);
-      return false;
-    }
-  }
-
-  LOG("disallowing board: %s\n", boardUtf8);
-  return true;
 }
 
 } /* mozilla */

@@ -15,17 +15,9 @@ bool SkColorFilter::asColorMode(SkColor* color, SkXfermode::Mode* mode) {
     return false;
 }
 
-bool SkColorFilter::asColorMatrix(SkScalar matrix[20]) {
-    return false;
-}
-
-bool SkColorFilter::asComponentTable(SkBitmap*) {
-    return false;
-}
-
 void SkColorFilter::filterSpan16(const uint16_t s[], int count, uint16_t d[]) {
     SkASSERT(this->getFlags() & SkColorFilter::kHasFilter16_Flag);
-    SkDEBUGFAIL("missing implementation of SkColorFilter::filterSpan16");
+    SkASSERT(!"missing implementation of SkColorFilter::filterSpan16");
 
     if (d != s) {
         memcpy(d, s, count * sizeof(uint16_t));

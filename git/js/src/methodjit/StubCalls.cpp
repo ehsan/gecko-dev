@@ -1569,7 +1569,7 @@ stubs::TableSwitch(VMFrame &f, jsbytecode *origPc)
 {
     jsbytecode * const originalPC = origPc;
 
-    DebugOnly<JSOp> op = JSOp(*originalPC);
+    JSOp op = JSOp(*originalPC);
     JS_ASSERT(op == JSOP_TABLESWITCH);
 
     uint32_t jumpOffset = GET_JUMP_OFFSET(originalPC);

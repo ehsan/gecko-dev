@@ -131,18 +131,6 @@ public:
      */
     static bool AsMode(SkXfermode*, Mode* mode);
 
-    /**
-     *  Returns true if the xfermode claims to be the specified Mode. This works
-     *  correctly even if the xfermode is NULL (which equates to kSrcOver.) Thus
-     *  you can say this without checking for a null...
-     *
-     *  If (SkXfermode::IsMode(paint.getXfermode(),
-     *                         SkXfermode::kDstOver_Mode)) {
-     *      ...
-     *  }
-     */
-    static bool IsMode(SkXfermode* xfer, Mode mode);
-
     /** Return an SkXfermode object for the specified mode.
      */
     static SkXfermode* Create(Mode mode);
@@ -172,7 +160,6 @@ public:
         return AsMode(xfer, mode);
     }
 
-    SK_DECLARE_FLATTENABLE_REGISTRAR()
 protected:
     SkXfermode(SkFlattenableReadBuffer& rb) : SkFlattenable(rb) {}
 

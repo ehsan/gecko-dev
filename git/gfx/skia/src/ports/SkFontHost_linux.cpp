@@ -18,6 +18,8 @@
 #include "SkTSearch.h"
 #include <stdio.h>
 
+#define FONT_CACHE_MEMORY_BUDGET    (1 * 1024 * 1024)
+
 #ifndef SK_FONT_FILE_PREFIX
     #define SK_FONT_FILE_PREFIX      "/usr/share/fonts/truetype/msttcorefonts/"
 #endif
@@ -99,7 +101,7 @@ static SkTypeface* find_best_face(const FamilyRec* family,
         }
     }
     // should never get here, since the faces list should not be empty
-    SkDEBUGFAIL("faces list is empty");
+    SkASSERT(!"faces list is empty");
     return NULL;
 }
 
@@ -169,7 +171,7 @@ static void detach_and_delete_family(FamilyRec* family) {
         prev = curr;
         curr = next;
     }
-    SkDEBUGFAIL("Yikes, couldn't find family in our list to remove/delete");
+    SkASSERT(!"Yikes, couldn't find family in our list to remove/delete");
 }
 
 static FamilyRec* find_familyrec(const char name[]) {
@@ -596,5 +598,14 @@ SkTypeface* SkFontHost::CreateTypefaceFromFile(const char path[]) {
     }
     stream->unref();
     return face;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+size_t SkFontHost::ShouldPurgeFontCache(size_t sizeAllocatedSoFar) {
+    if (sizeAllocatedSoFar > FONT_CACHE_MEMORY_BUDGET)
+        return sizeAllocatedSoFar - FONT_CACHE_MEMORY_BUDGET;
+    else
+        return 0;   // nothing to do
 }
 

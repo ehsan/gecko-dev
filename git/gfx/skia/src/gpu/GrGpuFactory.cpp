@@ -17,6 +17,7 @@
 #include "GrGLConfig.h"
 
 #include "GrGpu.h"
+#include "GrGpuGLFixed.h"
 #include "GrGpuGLShaders.h"
 
 GrGpu* GrGpu::Create(GrEngine engine, GrPlatform3DContext context3D) {
@@ -24,7 +25,8 @@ GrGpu* GrGpu::Create(GrEngine engine, GrPlatform3DContext context3D) {
     const GrGLInterface* glInterface = NULL;
     SkAutoTUnref<const GrGLInterface> glInterfaceUnref;
 
-    if (kOpenGL_Shaders_GrEngine == engine) {
+    if (kOpenGL_Shaders_GrEngine == engine ||
+        kOpenGL_Fixed_GrEngine == engine) {
         glInterface = reinterpret_cast<const GrGLInterface*>(context3D);
         if (NULL == glInterface) {
             glInterface = GrGLDefaultInterface();
@@ -39,15 +41,29 @@ GrGpu* GrGpu::Create(GrEngine engine, GrPlatform3DContext context3D) {
 #endif
             return NULL;
         }
-        if (!glInterface->validate()) {
+        if (!glInterface->validate(engine)) {
 #if GR_DEBUG
             GrPrintf("Failed GL interface validation!\n");
 #endif
             return NULL;
         }
-
-        return new GrGpuGLShaders(glInterface);
-    } else {
-        return NULL;
     }
+
+    GrGpu* gpu = NULL;
+
+    switch (engine) {
+        case kOpenGL_Shaders_GrEngine:
+            GrAssert(NULL != glInterface);
+            gpu = new GrGpuGLShaders(glInterface);
+            break;
+        case kOpenGL_Fixed_GrEngine:
+            GrAssert(NULL != glInterface);
+            gpu = new GrGpuGLFixed(glInterface);
+            break;
+        default:
+            GrAssert(!"unknown engine");
+            break;
+    }
+
+    return gpu;
 }

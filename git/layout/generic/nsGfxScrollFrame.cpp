@@ -1486,11 +1486,6 @@ nsGfxScrollFrameInner::~nsGfxScrollFrameInner()
     gScrollFrameActivityTracker = nsnull;
   }
   delete mAsyncScroll;
-
-  if (mScrollActivityTimer) {
-    mScrollActivityTimer->Cancel();
-    mScrollActivityTimer = nsnull;
-  }
 }
 
 static nscoord
@@ -1823,31 +1818,6 @@ nsGfxScrollFrameInner::ClampAndRestrictToDevPixels(const nsPoint& aPt,
                  NSIntPixelsToAppUnits(aPtDevPx->y, appUnitsPerDevPixel));
 }
 
-/* static */ void
-nsGfxScrollFrameInner::ScrollActivityCallback(nsITimer *aTimer, void* anInstance)
-{
-  nsGfxScrollFrameInner* self = static_cast<nsGfxScrollFrameInner*>(anInstance);
-
-  // Fire the synth mouse move.
-  self->mScrollActivityTimer->Cancel();
-  self->mScrollActivityTimer = nsnull;
-  self->mOuter->PresContext()->PresShell()->SynthesizeMouseMove(true);
-}
-
-
-void
-nsGfxScrollFrameInner::ScheduleSyntheticMouseMove()
-{
-  if (!mScrollActivityTimer) {
-    mScrollActivityTimer = do_CreateInstance("@mozilla.org/timer;1");
-    if (!mScrollActivityTimer)
-      return;
-  }
-
-  mScrollActivityTimer->InitWithFuncCallback(
-        ScrollActivityCallback, this, 100, nsITimer::TYPE_ONE_SHOT);
-}
-
 void
 nsGfxScrollFrameInner::ScrollToImpl(nsPoint aPt)
 {
@@ -1881,7 +1851,7 @@ nsGfxScrollFrameInner::ScrollToImpl(nsPoint aPt)
   // We pass in the amount to move visually
   ScrollVisual(oldScrollFramePos);
 
-  ScheduleSyntheticMouseMove();
+  presContext->PresShell()->SynthesizeMouseMove(true);
   UpdateScrollbarPosition();
   PostScrollEvent();
 

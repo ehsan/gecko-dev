@@ -103,6 +103,8 @@ static AndroidDirectTexture* sDirectTexture = new AndroidDirectTexture(2048, 204
         AndroidGraphicBuffer::UsageSoftwareWrite | AndroidGraphicBuffer::UsageTexture,
         gfxASurface::ImageFormatRGB16_565);
 
+static bool sHasDirectTexture = true;
+
 #endif
 
 
@@ -826,49 +828,36 @@ nsWindow::BindToTexture()
 bool
 nsWindow::HasDirectTexture()
 {
-  static bool sTestedDirectTexture = false;
-  static bool sHasDirectTexture = false;
-
   // If we already tested, return early
-  if (sTestedDirectTexture)
-    return sHasDirectTexture;
+  if (!sHasDirectTexture)
+    return false;
 
-  sTestedDirectTexture = true;
-
-  nsAutoString board;
-  AndroidGraphicBuffer* buffer = NULL;
-  unsigned char* bits = NULL;
-
-  if (AndroidGraphicBuffer::IsBlacklisted()) {
-    ALOG("device is blacklisted for direct texture");
-    goto cleanup;
-  }
-
-  buffer = new AndroidGraphicBuffer(512, 512,
+  AndroidGraphicBuffer* buffer = new AndroidGraphicBuffer(512, 512,
       AndroidGraphicBuffer::UsageSoftwareWrite | AndroidGraphicBuffer::UsageTexture,
       gfxASurface::ImageFormatRGB16_565);
 
+  unsigned char* bits = NULL;
   if (buffer->Lock(AndroidGraphicBuffer::UsageSoftwareWrite, &bits) != 0 || !bits) {
     ALOG("failed to lock graphic buffer");
     buffer->Unlock();
+    sHasDirectTexture = false;
     goto cleanup;
   }
 
   if (buffer->Unlock() != 0) {
     ALOG("failed to unlock graphic buffer");
+    sHasDirectTexture = false;
     goto cleanup;
   }
 
   if (!buffer->Reallocate(1024, 1024, gfxASurface::ImageFormatRGB16_565)) {
     ALOG("failed to reallocate graphic buffer");
+    sHasDirectTexture = false;
     goto cleanup;
   }
 
-  sHasDirectTexture = true;
-
 cleanup:
-  if (buffer)
-    delete buffer;
+  delete buffer;
 
   return sHasDirectTexture;
 }
@@ -1203,7 +1192,7 @@ nsWindow::OnDraw(AndroidGeckoEvent *ae)
 
     nsAutoString metadata;
     unsigned char *bits = NULL;
-    if (HasDirectTexture()) {
+    if (sHasDirectTexture) {
       if (sDirectTexture->Width() != gAndroidBounds.width ||
           sDirectTexture->Height() != gAndroidBounds.height) {
         sDirectTexture->Reallocate(gAndroidBounds.width, gAndroidBounds.height);
@@ -1253,13 +1242,13 @@ nsWindow::OnDraw(AndroidGeckoEvent *ae)
         }
     }
 
-    if (HasDirectTexture()) {
+    if (sHasDirectTexture) {
         sDirectTexture->Unlock();
     } else {
         client.UnlockBuffer();
     }
 
-    client.EndDrawing(dirtyRect, metadata, HasDirectTexture());
+    client.EndDrawing(dirtyRect, metadata);
     return;
 #endif
 

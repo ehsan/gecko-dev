@@ -33,13 +33,11 @@ public:
     GrBlendCoeff                fDstBlendCoeff;
     bool                        fAntiAlias;
     bool                        fDither;
-    bool                        fColorMatrixEnabled;
 
     GrColor                     fColor;
 
     GrColor                     fColorFilterColor;
     SkXfermode::Mode            fColorFilterXfermode;
-    float                       fColorMatrix[20];
 
     void setTexture(int i, GrTexture* texture) {
         GrAssert((unsigned)i < kMaxTextures);
@@ -53,14 +51,14 @@ public:
         return fTextures[i]; 
     }
 
-    GrSamplerState* textureSampler(int i) {
+    GrSamplerState* getTextureSampler(int i) {
         GrAssert((unsigned)i < kMaxTextures);
         return fTextureSamplers + i;
     }
 
-    const GrSamplerState& getTextureSampler(int i) const {
+    const GrSamplerState* getTextureSampler(int i) const {
         GrAssert((unsigned)i < kMaxTextures);
-        return fTextureSamplers[i];
+        return fTextureSamplers + i;
     }
 
     // The mask can be alpha-only or per channel. It is applied
@@ -79,14 +77,14 @@ public:
 
     // mask's sampler matrix is always applied to the positions
     // (i.e. no explicit texture coordinates)
-    GrSamplerState* maskSampler(int i) {
+    GrSamplerState* getMaskSampler(int i) {
         GrAssert((unsigned)i < kMaxMasks);
         return fMaskSamplers + i;
     }
 
-    const GrSamplerState& getMaskSampler(int i) const {
+    const GrSamplerState* getMaskSampler(int i) const {
         GrAssert((unsigned)i < kMaxMasks);
-        return fMaskSamplers[i];
+        return fMaskSamplers + i;
     }
 
     // pre-concats sampler matrices for non-NULL textures and masks
@@ -129,8 +127,6 @@ public:
 
         fColorFilterColor = paint.fColorFilterColor;
         fColorFilterXfermode = paint.fColorFilterXfermode;
-        memcpy(fColorMatrix, paint.fColorMatrix, sizeof(fColorMatrix));
-        fColorMatrixEnabled = paint.fColorMatrixEnabled;
 
         for (int i = 0; i < kMaxTextures; ++i) {
             GrSafeUnref(fTextures[i]);
@@ -169,8 +165,6 @@ public:
     void resetColorFilter() {
         fColorFilterXfermode = SkXfermode::kDst_Mode;
         fColorFilterColor = GrColorPackRGBA(0xff, 0xff, 0xff, 0xff);
-        memset(fColorMatrix, 0, sizeof(fColorMatrix));
-        fColorMatrixEnabled = false;
     }
 
     bool hasTexture() const {
@@ -245,14 +239,14 @@ private:
     void resetTextures() {
         for (int i = 0; i < kMaxTextures; ++i) {
             this->setTexture(i, NULL);
-            fTextureSamplers[i].reset();
+            fTextureSamplers[i].setClampNoFilter();
         }
     }
 
     void resetMasks() {
         for (int i = 0; i < kMaxMasks; ++i) {
             this->setMask(i, NULL);
-            fMaskSamplers[i].reset();
+            fMaskSamplers[i].setClampNoFilter();
         }
     }
 };

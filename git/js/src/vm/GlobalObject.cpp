@@ -44,7 +44,6 @@
 #include "jsexn.h"
 #include "jsmath.h"
 #include "json.h"
-#include "jsweakmap.h"
 
 #include "builtin/RegExp.h"
 #include "frontend/BytecodeEmitter.h"
@@ -320,7 +319,6 @@ GlobalObject::initStandardClasses(JSContext *cx)
            js_InitIteratorClasses(cx, this) &&
 #endif
            js_InitDateClass(cx, this) &&
-           js_InitWeakMapClass(cx, this) &&
            js_InitProxyClass(cx, this);
 }
 

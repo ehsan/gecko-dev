@@ -6,6 +6,10 @@
  */
 
 
+#ifdef ANDROID
+    #include <machine/cpu-features.h>
+#endif
+
 #include "SkBlitRow.h"
 #include "SkBlitMask.h"
 #include "SkColorPriv.h"
@@ -988,7 +992,7 @@ static void S32A_D565_Opaque_Dither_neon (uint16_t * SK_RESTRICT dst,
 
 	    /* calculate 'd', which will be 0..7 */
 	    /* dbase[] is 0..7; alpha is 0..256; 16 bits suffice */
-#if SK_BUILD_FOR_ANDROID
+#if ANDROID
 	    /* SkAlpha255To256() semantic a+1 vs a+a>>7 */
 	    alpha8 = vaddw_u8(vmovl_u8(sa), vdup_n_u8(1));
 #else
@@ -1305,16 +1309,10 @@ SkBlitRow::ColorProc SkBlitRow::PlatformColorProc() {
     return NULL;
 }
 
-///////////////////////////////////////////////////////////////////////////////
 
-SkBlitMask::ColorProc SkBlitMask::PlatformColorProcs(SkBitmap::Config dstConfig,
-                                                     SkMask::Format maskFormat,
-                                                     SkColor color) {
-    return NULL;
-}
-
-SkBlitMask::RowProc SkBlitMask::PlatformRowProcs(SkBitmap::Config dstConfig,
-                                                 SkMask::Format maskFormat,
-                                                 RowFlags flags) {
-    return NULL;
+SkBlitMask::Proc SkBlitMask::PlatformProcs(SkBitmap::Config dstConfig,
+                                           SkMask::Format maskFormat,
+                                           SkColor color)
+{
+   return NULL;
 }

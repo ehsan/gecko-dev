@@ -41,17 +41,10 @@
 #if defined(XP_WIN)
   // This file will get included in any file that wants to add
   // a profiler mark. In order to not bring <windows.h> together
-  // we could include windef.h and winbase.h which are sufficient
+  // we just include windef.h and winbase.h which are sufficient
   // to get the prototypes for the Tls* functions.
-  // # include <windef.h>
-  // # include <winbase.h>
-  // Unfortunately, even including these headers causes
-  // us to add a bunch of ugly to our namespace. e.g #define CreateEvent CreateEventW
-extern "C" {
-__declspec(dllimport) void * __stdcall TlsGetValue(unsigned long);
-__declspec(dllimport) int __stdcall TlsSetValue(unsigned long, void *);
-__declspec(dllimport) unsigned long __stdcall TlsAlloc();
-};
+# include <windef.h>
+# include <winbase.h>
 #else
 # include <pthread.h>
 # include <signal.h>
@@ -69,7 +62,7 @@ namespace tls {
 
 #if defined(XP_WIN)
 
-typedef unsigned long key;
+typedef DWORD key;
 
 template <typename T>
 static T* get(key mykey) {
@@ -83,7 +76,7 @@ static bool set(key mykey, const T* value) {
 
 static inline bool create(key* mykey) {
   key newkey = TlsAlloc();
-  if (newkey == (unsigned long)0xFFFFFFFF /* TLS_OUT_OF_INDEXES */) {
+  if (newkey == TLS_OUT_OF_INDEXES) {
     return false;
   }
   *mykey = newkey;

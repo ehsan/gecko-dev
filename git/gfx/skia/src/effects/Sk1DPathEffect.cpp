@@ -130,7 +130,7 @@ static void morphpath(SkPath* dst, const SkPath& src, SkPathMeasure& meas,
                 dst->close();
                 break;
             default:
-                SkDEBUGFAIL("unknown verb");
+                SkASSERT(!"unknown verb");
                 break;
         }
     }
@@ -175,7 +175,7 @@ SkScalar SkPath1DPathEffect::next(SkPath* dst, SkScalar distance,
             morphpath(dst, fPath, meas, distance);
             break;
         default:
-            SkDEBUGFAIL("unknown Style enum");
+            SkASSERT(!"unknown Style enum");
             break;
     }
     return fAdvance;
@@ -183,5 +183,6 @@ SkScalar SkPath1DPathEffect::next(SkPath* dst, SkScalar distance,
 
 ///////////////////////////////////////////////////////////////////////////////
 
-SK_DEFINE_FLATTENABLE_REGISTRAR(SkPath1DPathEffect)
+static SkFlattenable::Registrar gReg("SkPath1DPathEffect",
+                                     SkPath1DPathEffect::CreateProc);
 

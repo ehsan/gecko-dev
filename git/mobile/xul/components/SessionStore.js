@@ -731,7 +731,7 @@ SessionStore.prototype = {
 
         // Read session state file into a string and let observers modify the state before it's being used
         let state = Cc["@mozilla.org/supports-string;1"].createInstance(Ci.nsISupportsString);
-        state.data = NetUtil.readInputStreamToString(aStream, aStream.available(), { charset : "UTF-8" }) || "";
+        state.data = NetUtil.readInputStreamToString(aStream, aStream.available()) || "";
         aStream.close();
 
         Services.obs.notifyObservers(state, "sessionstore-state-read", "");

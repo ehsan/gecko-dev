@@ -237,7 +237,7 @@ static void drawFrame(SkBitmap* bm, const SavedImage* frame, const ColorMapObjec
     }
 
     if (cmap == NULL || cmap->ColorCount != (1 << cmap->BitsPerPixel)) {
-        SkDEBUGFAIL("bad colortable setup");
+        SkASSERT(!"bad colortable setup");
         return;
     }
 

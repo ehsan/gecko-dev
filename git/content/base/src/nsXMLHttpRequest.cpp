@@ -104,7 +104,6 @@
 #include "nsDOMFile.h"
 #include "nsIFileChannel.h"
 #include "mozilla/Telemetry.h"
-#include "sampler.h"
 
 using namespace mozilla;
 
@@ -2018,7 +2017,6 @@ nsXMLHttpRequest::OnStartRequest(nsIRequest *request, nsISupports *ctxt)
 NS_IMETHODIMP
 nsXMLHttpRequest::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult status)
 {
-  SAMPLE_LABEL("content", "nsXMLHttpRequest::OnStopRequest");
   if (!IsSameOrBaseChannel(request, mChannel)) {
     return NS_OK;
   }
