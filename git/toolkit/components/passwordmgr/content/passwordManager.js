@@ -97,11 +97,7 @@ var signonsTreeView = {
 
 function LoadSignons() {
   // loads signons into table
-  try {
-    signons = passwordmanager.getAllLogins({});
-  } catch (e) {
-    signons = [];
-  }
+  signons = passwordmanager.getAllLogins({});
   signonsTreeView.rowCount = signons.length;
 
   // sort and display the table
@@ -208,13 +204,8 @@ function FinalizeSignonDeletions(syncNeeded) {
   }
   // If the deletion has been performed in a filtered view, reflect the deletion in the unfiltered table.
   // See bug 405389.
-  if (syncNeeded) {
-    try {
-      signons = passwordmanager.getAllLogins({});
-    } catch (e) {
-      signons = [];
-    }
-  }
+  if (syncNeeded)
+    signons = passwordmanager.getAllLogins({});
   deletedSignons.length = 0;
 }
 

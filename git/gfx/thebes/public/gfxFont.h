@@ -521,13 +521,19 @@ public:
     /**
      * Metrics for a particular string
      */
-    struct THEBES_API RunMetrics {
+    struct RunMetrics {
         RunMetrics() {
             mAdvanceWidth = mAscent = mDescent = 0.0;
             mBoundingBox = gfxRect(0,0,0,0);
         }
 
-        void CombineWith(const RunMetrics& aOther, PRBool aOtherIsOnLeft);
+        void CombineWith(const RunMetrics& aOtherOnRight) {
+            mAscent = PR_MAX(mAscent, aOtherOnRight.mAscent);
+            mDescent = PR_MAX(mDescent, aOtherOnRight.mDescent);
+            mBoundingBox =
+                mBoundingBox.Union(aOtherOnRight.mBoundingBox + gfxPoint(mAdvanceWidth, 0));
+            mAdvanceWidth += aOtherOnRight.mAdvanceWidth;
+        }
 
         // can be negative (partly due to negative spacing).
         // Advance widths should be additive: the advance width of the

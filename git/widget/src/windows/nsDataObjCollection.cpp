@@ -40,7 +40,7 @@
 #include "nsVoidArray.h"
 #include "nsITransferable.h"
 #include "nsClipboard.h"
-#include "IEnumFE.h"
+#include "IENUMFE.H"
 
 #include <ole2.h>
 
