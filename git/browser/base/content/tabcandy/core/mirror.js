@@ -42,6 +42,13 @@
 
 (function(){
 
+// ----------
+// Function: _isIFrame
+function _isIframe(doc){
+  var win = doc.defaultView;
+  return win.parent != win;
+}
+
 // ##########
 // Class: TabCanvas
 // Takes care of the actual canvas for the tab thumbnail
@@ -75,16 +82,14 @@ TabCanvas.prototype = {
   // ----------
   // Function: attach
   attach: function() {
-    this.tab.linkedBrowser.contentWindow.
-      addEventListener("MozAfterPaint", this.paintIt, false);
+    this.tab.contentWindow.addEventListener("MozAfterPaint", this.paintIt, false);
   },
 
   // ----------
   // Function: detach
   detach: function() {
     try {
-      this.tab.linkedBrowser.contentWindow.
-        removeEventListener("MozAfterPaint", this.paintIt, false);
+      this.tab.contentWindow.removeEventListener("MozAfterPaint", this.paintIt, false);
     } catch(e) {
       // ignore
     }
@@ -100,7 +105,7 @@ TabCanvas.prototype = {
     if (!w || !h)
       return;
 
-    let fromWin = this.tab.linkedBrowser.contentWindow;
+    var fromWin = this.tab.contentWindow;
     if (fromWin == null) {
       Utils.log('null fromWin in paint');
       return;
@@ -157,9 +162,12 @@ function Mirror(tab, manager) {
   this.cachedThumbEl = iQ('img.cached-thumb', $div).get(0);
   this.okayToHideCache = false;
 
-  this.tabCanvas = new TabCanvas(this.tab, this.canvasEl);
-  this.tabCanvas.attach();
-  this.triggerPaint();
+  var doc = this.tab.contentDocument;
+  if ( !_isIframe(doc) ) {
+    this.tabCanvas = new TabCanvas(this.tab, this.canvasEl);
+    this.tabCanvas.attach();
+    this.triggerPaint();
+  }
 
 /*   Utils.log('applying mirror'); */
   this.tab.mirror = this;
@@ -302,12 +310,12 @@ TabMirror.prototype = {
         var tab = Tabs[this.heartbeatIndex];
         var mirror = tab.mirror;
         if (mirror) {
-          let iconUrl = tab.image;
+          var iconUrl = tab.raw.linkedBrowser.mIconURL;
           if ( iconUrl == null ){
             iconUrl = "chrome://mozapps/skin/places/defaultFavicon.png";
           }
 
-          let label = tab.label;
+          var label = tab.raw.label;
           var $name = iQ(mirror.nameEl);
           var $canvas = iQ(mirror.canvasEl);
 
@@ -316,12 +324,11 @@ TabMirror.prototype = {
             mirror.triggerPaint();
           }
 
-          let tabUrl = tab.linkedBrowser.currentURI.spec;
-          if (tabUrl != mirror.url) {
+          if (tab.url != mirror.url) {
             var oldURL = mirror.url;
-            mirror.url = tabUrl;
+            mirror.url = tab.url;
             mirror._sendToSubscribers(
-              'urlChanged', {oldURL: oldURL, newURL: tabUrl});
+              'urlChanged', {oldURL: oldURL, newURL: tab.url});
             mirror.triggerPaint();
           }
 

@@ -158,7 +158,7 @@ window.TabItem = function(container, tab) {
       return;
 
     if (iQ(e.target).hasClass("close"))
-      gBrowser.removeTab(tab);
+      tab.close();
     else {
       if (!Items.item(this).isDragging)
         self.zoomIn();
@@ -206,11 +206,11 @@ window.TabItem.prototype = iQ.extend(new Item(), {
     return {
       bounds: this.getBounds(),
       userSize: (Utils.isPoint(this.userSize) ? new Point(this.userSize) : null),
-      url: this.tab.linkedBrowser.currentURI.spec,
+      url: this.tab.url,
       groupID: (this.parent ? this.parent.id : 0),
       imageData: (getImageData && this.tab.mirror.tabCanvas ?
                   this.tab.mirror.tabCanvas.toImageData() : null),
-      title: getImageData && this.tab.label || null
+      title: (getImageData && this.tab.raw.label ? this.tab.raw.label : null)
     };
   },
 
@@ -222,15 +222,22 @@ window.TabItem.prototype = iQ.extend(new Item(), {
   //   saveImageData - true to include thumbnail pixels (and page title as well); default false
   save: function(saveImageData) {
     try{
-      if (!this.tab || !this.reconnected) // too soon/late to save
+      if (!this.tab || !this.tab.raw || !this.reconnected) // too soon/late to save
         return;
 
       var data = this.getStorageData(saveImageData);
       if (TabItems.storageSanity(data))
-        Storage.saveTab(this.tab, data);
+        Storage.saveTab(this.tab.raw, data);
     }catch(e){
       Utils.log("Error in saving tab value: "+e);
     }
+  },
+
+  // ----------
+  // Function: getURL
+  // Returns the URL for the page represented by this tab.
+  getURL: function() {
+    return this.tab.url;
   },
 
   // ----------
@@ -350,7 +357,7 @@ window.TabItem.prototype = iQ.extend(new Item(), {
     if (!Utils.isRect(this.bounds))
       Utils.trace('TabItem.setBounds: this.bounds is not a real rectangle!', this.bounds);
 
-    if (!this.parent && this.tab.parentNode != null)
+    if (!this.parent && !this.tab.closed)
       this.setTrenches(rect);
 
     this.save();
@@ -379,6 +386,17 @@ window.TabItem.prototype = iQ.extend(new Item(), {
   setZ: function(value) {
     this.zIndex = value;
     iQ(this.container).css({zIndex: value});
+  },
+
+  // ----------
+  // Function: close
+  // Closes this item (actually closes the tab associated with it, which automatically
+  // closes the item.
+  close: function() {
+    gBrowser.removeTab(this.tab);
+
+    // No need to explicitly delete the tab data, becasue sessionstore data
+    // associated with the tab will automatically go away
   },
 
   // ----------
@@ -472,10 +490,10 @@ window.TabItem.prototype = iQ.extend(new Item(), {
       function onZoomDone(){
         TabMirror.resumePainting();
         // If it's not focused, the onFocus lsitener would handle it.
-        if (gBrowser.selectedTab == tab) {
-          UI.tabOnFocus(tab);
+        if (tab.isFocused()) {
+          Page.tabOnFocus(tab);
         } else {
-          gBrowser.selectedTab = tab;
+          tab.focus();
         }
 
         $tabEl
@@ -695,10 +713,10 @@ window.TabItems = {
       if (item.reconnected)
         return true;
 
-      if (!item.tab)
+      if (!item.tab.raw)
         return false;
 
-      let tabData = Storage.getTabData(item.tab);
+      var tabData = Storage.getTabData(item.tab.raw);
       if (tabData && this.storageSanity(tabData)) {
         if (item.parent)
           item.parent.remove(item);
@@ -713,7 +731,7 @@ window.TabItems = {
           if (group) {
             group.add(item);
 
-            if (item.tab == gBrowser.selectedTab)
+            if (item.tab.raw == gBrowser.selectedTab)
               Groups.setActiveGroup(item.parent);
           }
         }
@@ -735,7 +753,7 @@ window.TabItems = {
         item.reconnected = true;
         found = true;
       } else
-        item.reconnected = item.tab.linkedBrowser.currentURI.spec != 'about:blank';
+        item.reconnected = (item.tab.url != 'about:blank');
 
       item.save();
     }catch(e){

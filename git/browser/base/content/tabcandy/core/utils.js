@@ -61,11 +61,11 @@ XPCOMUtils.defineLazyGetter(this, "gWindow", function() {
 
 XPCOMUtils.defineLazyGetter(this, "gBrowser", function() gWindow.gBrowser);
 
-XPCOMUtils.defineLazyGetter(this, "gTabViewDeck", function() {
+XPCOMUtils.defineLazyGetter(this, "gTabDeck", function() {
   return gWindow.document.getElementById("tab-candy-deck");
 });
 
-XPCOMUtils.defineLazyGetter(this, "gTabViewFrame", function() {
+XPCOMUtils.defineLazyGetter(this, "gTabFrame", function() {
   return gWindow.document.getElementById("tab-candy");
 });
 
