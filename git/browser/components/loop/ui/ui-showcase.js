@@ -312,12 +312,6 @@
               React.DOM.div({className: "fx-embedded"}, 
                 CallFailedView({dispatcher: dispatcher})
               )
-            ), 
-            Example({summary: "Call Failed — with call URL error", dashed: "true", 
-                     style: {width: "260px", height: "265px"}}, 
-              React.DOM.div({className: "fx-embedded"}, 
-                CallFailedView({dispatcher: dispatcher, emailLinkError: true})
-              )
             )
           ), 
 

@@ -28,6 +28,7 @@ html xul|scrollbar {
   background-image: none !important;
   border: 0px solid transparent !important;
   pointer-events: none;
+  opacity: 1;
 }
 
 xul|scrollbar[orient="vertical"] {
@@ -55,6 +56,7 @@ xul|scrollbar[orient="horizontal"] xul|thumb {
 xul|scrollbar:not([active="true"]),
 xul|scrollbar[disabled] {
   opacity: 0;
+  transition: opacity 1s ease;
 }
 
 xul|scrollbarbutton {

@@ -21,14 +21,12 @@ public class TabsLayoutAdapter extends BaseAdapter {
     public static final String LOGTAG = "Gecko" + TabsLayoutAdapter.class.getSimpleName();
 
     private final Context mContext;
-    private final int mTabLayoutId;
     private ArrayList<Tab> mTabs;
     private final LayoutInflater mInflater;
 
-    public TabsLayoutAdapter (Context context, int tabLayoutId) {
+    public TabsLayoutAdapter (Context context) {
         mContext = context;
         mInflater = LayoutInflater.from(mContext);
-        mTabLayoutId = tabLayoutId;
     }
 
     final void setTabs (ArrayList<Tab> tabs) {
@@ -85,7 +83,7 @@ public class TabsLayoutAdapter extends BaseAdapter {
     }
 
     TabsLayoutItemView newView(int position, ViewGroup parent) {
-        return (TabsLayoutItemView) mInflater.inflate(mTabLayoutId, parent, false);
+        return (TabsLayoutItemView) mInflater.inflate(R.layout.tabs_layout_item_view, parent, false);
     }
 
     void bindView(TabsLayoutItemView view, Tab tab) {

@@ -601,18 +601,15 @@ function injectLoopAPI(targetWindow) {
     /**
      * Composes an email via the external protocol service.
      *
-     * @param {String} subject   Subject of the email to send
-     * @param {String} body      Body message of the email to send
-     * @param {String} recipient Recipient email address (optional)
+     * @param {String} subject Subject of the email to send
+     * @param {String} body    Body message of the email to send
      */
     composeEmail: {
       enumerable: true,
       writable: true,
-      value: function(subject, body, recipient) {
-        recipient = recipient || "";
-        let mailtoURL = "mailto:" + encodeURIComponent(recipient) +
-                        "?subject=" + encodeURIComponent(subject) +
-                        "&body=" + encodeURIComponent(body);
+      value: function(subject, body) {
+        let mailtoURL = "mailto:?subject=" + encodeURIComponent(subject) + "&" +
+                        "body=" + encodeURIComponent(body);
         extProtocolSvc.loadURI(CommonUtils.makeURI(mailtoURL));
       }
     },
