@@ -7483,21 +7483,14 @@ let Reader = {
       sendMessageToJava({
         type: "Reader:LongClick",
       });
-
-      // Create a relative timestamp for telemetry
-      let uptime = Date.now() - Services.startup.getStartupInfo().linkerInitialized;
-      UITelemetry.addEvent("save.1", "pageaction", uptime, "reader");
     },
   },
 
   updatePageAction: function(tab) {
-    if (this.pageAction.id) {
+    if(this.pageAction.id) {
       NativeWindow.pageactions.remove(this.pageAction.id);
       delete this.pageAction.id;
     }
-
-    // Create a relative timestamp for telemetry
-    let uptime = Date.now() - Services.startup.getStartupInfo().linkerInitialized;
 
     if (tab.readerActive) {
       this.pageAction.id = NativeWindow.pageactions.add({
@@ -7506,17 +7499,7 @@ let Reader = {
         clickCallback: this.pageAction.readerModeCallback,
         important: true
       });
-
-      // Only start a reader session if the viewer is in the foreground. We do
-      // not track background reader viewers.
-      UITelemetry.startSession("reader.1", uptime);
-      return;
-    }
-
-    // Only stop a reader session if the foreground viewer is not visible.
-    UITelemetry.stopSession("reader.1", "", uptime);
-
-    if (tab.readerEnabled) {
+    } else if (tab.readerEnabled) {
       this.pageAction.id = NativeWindow.pageactions.add({
         title: Strings.browser.GetStringFromName("readerMode.enter"),
         icon: "drawable://reader",
