@@ -30,7 +30,7 @@ class BaselineFrameInspector;
 // Records information about a baseline frame for compilation that is stable
 // when later used off thread.
 BaselineFrameInspector *
-NewBaselineFrameInspector(TempAllocator *temp, BaselineFrame *frame, CompileInfo *info);
+NewBaselineFrameInspector(TempAllocator *temp, BaselineFrame *frame);
 
 class IonBuilder : public MIRGenerator
 {

@@ -269,9 +269,10 @@ mozJSSubScriptLoader::DoLoadSubScriptWithOptions(const nsAString &url,
     nsAutoCString uriStr;
     nsAutoCString scheme;
 
+    RootedScript script(cx);
+
     // Figure out who's calling us
-    JS::AutoFilename filename;
-    if (!JS::DescribeScriptedCaller(cx, &filename)) {
+    if (!JS_DescribeScriptedCaller(cx, &script, nullptr)) {
         // No scripted frame means we don't know who's calling, bail.
         return NS_ERROR_FAILURE;
     }
@@ -312,7 +313,7 @@ mozJSSubScriptLoader::DoLoadSubScriptWithOptions(const nsAString &url,
 
         // For file URIs prepend the filename with the filename of the
         // calling script, and " -> ". See bug 418356.
-        nsAutoCString tmp(filename.get());
+        nsAutoCString tmp(JS_GetScriptFilename(cx, script));
         tmp.AppendLiteral(" -> ");
         tmp.Append(uriStr);
 
@@ -326,7 +327,7 @@ mozJSSubScriptLoader::DoLoadSubScriptWithOptions(const nsAString &url,
     PathifyURI(uri, cachePath);
 
     RootedFunction function(cx);
-    RootedScript script(cx);
+    script = nullptr;
     if (cache && !options.ignoreCache)
         rv = ReadCachedScript(cache, cachePath, cx, mSystemPrincipal, &script);
     if (!script) {

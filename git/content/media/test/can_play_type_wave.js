@@ -1,6 +1,6 @@
 function check_wave(v, enabled) {
   function check(type, expected) {
-    is(v.canPlayType(type), enabled ? expected : "", type);
+    is(v.canPlayType(type), enabled ? expected : "no", type);
   }
 
   // Wave types

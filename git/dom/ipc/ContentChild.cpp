@@ -1561,7 +1561,31 @@ ContentChild::RecvMinimizeMemoryUsage()
         do_GetService("@mozilla.org/memory-reporter-manager;1");
     NS_ENSURE_TRUE(mgr, true);
 
-    mgr->MinimizeMemoryUsage(/* callback = */ nullptr);
+    nsCOMPtr<nsICancelableRunnable> runnable =
+        do_QueryReferent(mMemoryMinimizerRunnable);
+
+    // Cancel the previous task if it's still pending.
+    if (runnable) {
+        runnable->Cancel();
+        runnable = nullptr;
+    }
+
+    mgr->MinimizeMemoryUsage(/* callback = */ nullptr,
+                             getter_AddRefs(runnable));
+    mMemoryMinimizerRunnable = do_GetWeakReference(runnable);
+    return true;
+}
+
+bool
+ContentChild::RecvCancelMinimizeMemoryUsage()
+{
+    nsCOMPtr<nsICancelableRunnable> runnable =
+        do_QueryReferent(mMemoryMinimizerRunnable);
+    if (runnable) {
+        runnable->Cancel();
+        mMemoryMinimizerRunnable = nullptr;
+    }
+
     return true;
 }
 

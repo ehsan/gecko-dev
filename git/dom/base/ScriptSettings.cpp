@@ -143,7 +143,10 @@ GetIncumbentGlobal()
   // override in place, the JS engine will lie to us and pretend that
   // there's nothing on the JS stack, which will cause us to check the
   // incumbent script stack below.
-  if (JSObject *global = JS::GetScriptedCallerGlobal(cx)) {
+  JS::RootedScript script(cx);
+  if (JS_DescribeScriptedCaller(cx, &script, nullptr)) {
+    JS::RootedObject global(cx, JS_GetGlobalFromScript(script));
+    MOZ_ASSERT(global);
     return xpc::GetNativeForGlobal(global);
   }
 

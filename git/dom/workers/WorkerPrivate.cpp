@@ -3853,8 +3853,10 @@ WorkerPrivate::GetLoadInfo(JSContext* aCx, nsPIDOMWindow* aWindow,
 
       // We're being created outside of a window. Need to figure out the script
       // that is creating us in order for us to use relative URIs later on.
-      JS::AutoFilename fileName;
-      if (JS::DescribeScriptedCaller(aCx, &fileName)) {
+      JS::Rooted<JSScript*> script(aCx);
+      if (JS_DescribeScriptedCaller(aCx, &script, nullptr)) {
+        const char* fileName = JS_GetScriptFilename(aCx, script);
+
         // In most cases, fileName is URI. In a few other cases
         // (e.g. xpcshell), fileName is a file path. Ideally, we would
         // prefer testing whether fileName parses as an URI and fallback
@@ -3869,7 +3871,7 @@ WorkerPrivate::GetLoadInfo(JSContext* aCx, nsPIDOMWindow* aWindow,
           return rv;
         }
 
-        rv = scriptFile->InitWithPath(NS_ConvertUTF8toUTF16(fileName.get()));
+        rv = scriptFile->InitWithPath(NS_ConvertUTF8toUTF16(fileName));
         if (NS_SUCCEEDED(rv)) {
           rv = NS_NewFileURI(getter_AddRefs(loadInfo.mBaseURI),
                              scriptFile);
@@ -3878,7 +3880,7 @@ WorkerPrivate::GetLoadInfo(JSContext* aCx, nsPIDOMWindow* aWindow,
           // As expected, fileName is not a path, so proceed with
           // a uri.
           rv = NS_NewURI(getter_AddRefs(loadInfo.mBaseURI),
-                         fileName.get());
+                         fileName);
         }
         if (NS_FAILED(rv)) {
           return rv;
