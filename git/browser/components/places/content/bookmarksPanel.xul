@@ -61,9 +61,6 @@
   <commandset id="editMenuCommands"/>
   <popup id="placesContext"/>
 
-  <!-- Bookmarks and history tooltip -->
-  <tooltip id="bhTooltip"/>
-
   <hbox align="center">
     <label value="&search.label;" accesskey="&search.accesskey;" control="search-box"/>
     <textbox id="search-box" flex="1" type="search" class="compact"
@@ -82,7 +79,6 @@
     <treecols>
       <treecol id="title" flex="1" primary="true" hideheader="true"/>
     </treecols>
-    <treechildren id="bookmarks-view-children" view="bookmarks-view"
-                  class="sidebar-placesTreechildren" flex="1" tooltip="bhTooltip"/>
+    <treechildren id="bookmarks-view-children" view="bookmarks-view" class="sidebar-placesTreechildren" flex="1"/>
   </tree>
 </page>

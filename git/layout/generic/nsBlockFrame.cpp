@@ -5682,7 +5682,6 @@ nsBlockFrame::FindTrailingClear()
       return endLine->GetBreakTypeAfter();
     }
   }
-  return NS_STYLE_CLEAR_NONE;
 }
 
 nsresult

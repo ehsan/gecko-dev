@@ -71,8 +71,8 @@ else
 AUTOMATION_PPARGS += -DIS_DEBUG_BUILD=0
 endif
 
-$(CURDIR)/automationutils.py: $(MOZILLA_DIR)/build/automationutils.py
-	$(INSTALL) $< .
+$(CURDIR)/automationutils.py:
+	$(INSTALL) $(MOZILLA_DIR)/build/automationutils.py .
 
 automation.py: $(MOZILLA_DIR)/build/automation.py.in $(MOZILLA_DIR)/build/automation-build.mk $(CURDIR)/automationutils.py
 	$(PYTHON) $(MOZILLA_DIR)/config/Preprocessor.py \

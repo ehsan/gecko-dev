@@ -920,47 +920,26 @@ var BookmarksEventHandler = {
     }
   },
 
-  fillInBHTooltip: function(aDocument, aEvent) {
-    var node;
-    var cropped = false;
-
-    if (aDocument.tooltipNode.localName == "treechildren") {
-      var tree = aDocument.tooltipNode.parentNode;
-      var row = {}, column = {};
-      var tbo = tree.treeBoxObject;
-      tbo.getCellAt(aEvent.clientX, aEvent.clientY, row, column, {});
-
-      node = tree.view.nodeForTreeIndex(row.value);
-      cropped = tbo.isCellCropped(row.value, column.value);
-    }
-    else
-      node = aDocument.tooltipNode.node;
-
-    if (!node)
+  fillInBTTooltip: function(aTipElement) {
+    if (!aTipElement.node)
       return false;
 
-    var title = node.title;
-    var url;
-
-    // Show URL only for URI-type nodes.
-    if (PlacesUtils.nodeIsURI(node))
-      url = node.uri;
-
-    // Show tooltip for containers only if their title is cropped.
-    if (!cropped && !url)
+    //Show tooltips only for URL items
+    if (!PlacesUtils.nodeIsURI(aTipElement.node))
       return false;
 
-    var tooltipTitle = aDocument.getElementById("bhtTitleText");
-    tooltipTitle.hidden = (!title || (title == url));
+    var title = aTipElement.node.title;
+    var url = aTipElement.node.uri;
+
+    var tooltipTitle = document.getElementById("btTitleText");
+    tooltipTitle.hidden = !title || (title == url);
     if (!tooltipTitle.hidden)
       tooltipTitle.textContent = title;
 
-    var tooltipUrl = aDocument.getElementById("bhtUrlText");
-    tooltipUrl.hidden = !url;
-    if (!tooltipUrl.hidden)
-      tooltipUrl.value = url;
+    var tooltipUrl = document.getElementById("btUrlText");
+    tooltipUrl.value = url;
 
-    // Show tooltip.
+    //Show tooltip
     return true;
   }
 };

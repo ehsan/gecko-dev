@@ -567,7 +567,9 @@ PrivateBrowsingService.prototype = {
 
       // Now, for each name we got back, remove all of its prefs.
       for (let i = 0; i < names.length; i++) {
-        let uri = names[i];
+        // The service only cares about the host of the URI, so we don't need a
+        // full nsIURI object here.
+        let uri = { host: names[i]};
         let enumerator = cp.getPrefs(uri).enumerator;
         while (enumerator.hasMoreElements()) {
           let pref = enumerator.getNext().QueryInterface(Ci.nsIProperty);

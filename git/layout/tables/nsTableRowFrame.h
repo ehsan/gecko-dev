@@ -188,15 +188,13 @@ public:
                                  PRBool  aCollapseGroup,
                                  PRBool& aDidCollapse);
 
-  /**
-   * Insert a cell frame after the last cell frame that has a col index
-   * that is less than aColIndex.  If no such cell frame is found the
-   * frame to insert is prepended to the child list.
-   * @param aFrame the cell frame to insert
-   * @param aColIndex the col index
-   */
+  void InsertCellFrame(nsTableCellFrame* aFrame, 
+                       nsTableCellFrame* aPrevSibling);
+
   void InsertCellFrame(nsTableCellFrame* aFrame,
                        PRInt32           aColIndex);
+
+  void RemoveCellFrame(nsTableCellFrame* aFrame);
 
   nsresult CalculateCellActualSize(nsIFrame*       aRowFrame,
                                    nscoord&        aDesiredWidth,

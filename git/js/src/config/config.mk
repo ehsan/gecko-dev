@@ -215,12 +215,20 @@ ifeq ($(first_match), $(MODULE))
   _DEBUG_CFLAGS += $(MOZ_DEBUG_FLAGS)
   _DEBUG_LDFLAGS += $(MOZ_DEBUG_LDFLAGS)
 else
-  ifneq ($(first_match), ^$(MODULE))
+  ifeq ($(first_match), ^$(MODULE))
+    # the user specified explicitly that this module 
+    # should not be compiled with -g (nothing to do)
+  else
     ifeq ($(first_match), ALL_MODULES)
       # the user didn't mention this module explicitly, 
       # but wanted all modules to be compiled with -g
       _DEBUG_CFLAGS += $(MOZ_DEBUG_FLAGS)
       _DEBUG_LDFLAGS += $(MOZ_DEBUG_LDFLAGS)      
+    else
+      ifeq ($(first_match), ^ALL_MODULES)
+        # the user didn't mention this module explicitly, 
+        # but wanted all modules to be compiled without -g (nothing to do)
+      endif
     endif
   endif
 endif
@@ -581,8 +589,8 @@ OS_COMPILE_CMFLAGS += -fobjc-exceptions
 OS_COMPILE_CMMFLAGS += -fobjc-exceptions
 endif
 
-COMPILE_CFLAGS	= $(VISIBILITY_FLAGS) $(DEFINES) $(INCLUDES) $(PROFILER_CFLAGS) $(DSO_CFLAGS) $(DSO_PIC_CFLAGS) $(CFLAGS) $(RTL_FLAGS) $(OS_COMPILE_CFLAGS)
-COMPILE_CXXFLAGS = $(VISIBILITY_FLAGS) $(DEFINES) $(INCLUDES) $(PROFILER_CFLAGS) $(DSO_CFLAGS) $(DSO_PIC_CFLAGS) $(CXXFLAGS) $(RTL_FLAGS) $(OS_COMPILE_CXXFLAGS)
+COMPILE_CFLAGS	= $(VISIBILITY_FLAGS) $(DEFINES) $(INCLUDES) $(XCFLAGS) $(PROFILER_CFLAGS) $(DSO_CFLAGS) $(DSO_PIC_CFLAGS) $(CFLAGS) $(RTL_FLAGS) $(OS_COMPILE_CFLAGS)
+COMPILE_CXXFLAGS = $(VISIBILITY_FLAGS) $(DEFINES) $(INCLUDES) $(XCFLAGS) $(PROFILER_CFLAGS) $(DSO_CFLAGS) $(DSO_PIC_CFLAGS)  $(CXXFLAGS) $(RTL_FLAGS) $(OS_COMPILE_CXXFLAGS)
 COMPILE_CMFLAGS = $(OS_COMPILE_CMFLAGS)
 COMPILE_CMMFLAGS = $(OS_COMPILE_CMMFLAGS)
 
