@@ -267,19 +267,6 @@ GMPVideoDecoderParent::RecvResetComplete()
 }
 
 bool
-GMPVideoDecoderParent::RecvError(const GMPErr& aError)
-{
-  if (!mCallback) {
-    return false;
-  }
-
-  // Ignore any return code. It is OK for this to fail without killing the process.
-  mCallback->Error(aError);
-
-  return true;
-}
-
-bool
 GMPVideoDecoderParent::RecvParentShmemForPool(Shmem& aEncodedBuffer)
 {
   if (aEncodedBuffer.IsWritable()) {

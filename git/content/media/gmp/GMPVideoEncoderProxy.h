@@ -15,7 +15,6 @@ class GMPVideoEncoderCallbackProxy {
 public:
   virtual void Encoded(GMPVideoEncodedFrame* aEncodedFrame,
                        const nsTArray<uint8_t>& aCodecSpecificInfo) = 0;
-  virtual void Error(GMPErr aError) = 0;
 };
 
 // A proxy to GMPVideoEncoder in the child process.

@@ -36,7 +36,6 @@ public:
   virtual void InputDataExhausted() MOZ_OVERRIDE;
   virtual void DrainComplete() MOZ_OVERRIDE;
   virtual void ResetComplete() MOZ_OVERRIDE;
-  virtual void Error(GMPErr aError) MOZ_OVERRIDE;
 
   // GMPSharedMemManager
   virtual void CheckThread();

@@ -204,12 +204,12 @@ endif
 endif # WINNT
 
 ifdef MOZ_ENABLE_QT
-OS_LIBS += $(MOZ_QT_LDFLAGS) $(XEXT_LIBS)
+LIBS += $(MOZ_QT_LDFLAGS) $(XEXT_LIBS)
 endif
 
 ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 ifdef MOZ_GSTREAMER
-OS_LIBS += $(GSTREAMER_LIBS)
+LIBS += $(GSTREAMER_LIBS)
 endif
 endif
 

@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -13,20 +12,19 @@ using mozilla::BinarySearch;
 
 struct Person
 {
-  int mAge;
-  int mId;
-  Person(int aAge, int aId) : mAge(aAge), mId(aId) {}
+  int age;
+  int id;
+  Person(int age, int id) : age(age), id(id) {}
 };
 
 struct GetAge
 {
-  Vector<Person>& mV;
-  explicit GetAge(Vector<Person>& aV) : mV(aV) {}
-  int operator[](size_t index) const { return mV[index].mAge; }
+  Vector<Person> &v;
+  explicit GetAge(Vector<Person> &v) : v(v) {}
+  int operator[](size_t index) const { return v[index].age; }
 };
 
-int
-main()
+int main()
 {
   size_t m;
 
@@ -68,13 +66,11 @@ main()
   v3.append(Person(4, 13));
   v3.append(Person(6, 360));
 
-  #define A(a) MOZ_RELEASE_ASSERT(a)
-  A(!BinarySearch(GetAge(v3), 0, v3.length(), 1, &m) && m == 0);
-  A( BinarySearch(GetAge(v3), 0, v3.length(), 2, &m) && m == 0);
-  A(!BinarySearch(GetAge(v3), 0, v3.length(), 3, &m) && m == 1);
-  A( BinarySearch(GetAge(v3), 0, v3.length(), 4, &m) && m == 1);
-  A(!BinarySearch(GetAge(v3), 0, v3.length(), 5, &m) && m == 2);
-  A( BinarySearch(GetAge(v3), 0, v3.length(), 6, &m) && m == 2);
-  A(!BinarySearch(GetAge(v3), 0, v3.length(), 7, &m) && m == 3);
-  return 0;
+  MOZ_RELEASE_ASSERT(!BinarySearch(GetAge(v3), 0, v3.length(), 1, &m) && m == 0);
+  MOZ_RELEASE_ASSERT( BinarySearch(GetAge(v3), 0, v3.length(), 2, &m) && m == 0);
+  MOZ_RELEASE_ASSERT(!BinarySearch(GetAge(v3), 0, v3.length(), 3, &m) && m == 1);
+  MOZ_RELEASE_ASSERT( BinarySearch(GetAge(v3), 0, v3.length(), 4, &m) && m == 1);
+  MOZ_RELEASE_ASSERT(!BinarySearch(GetAge(v3), 0, v3.length(), 5, &m) && m == 2);
+  MOZ_RELEASE_ASSERT( BinarySearch(GetAge(v3), 0, v3.length(), 6, &m) && m == 2);
+  MOZ_RELEASE_ASSERT(!BinarySearch(GetAge(v3), 0, v3.length(), 7, &m) && m == 3);
 }

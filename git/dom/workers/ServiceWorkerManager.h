@@ -186,7 +186,6 @@ public:
  */
 class ServiceWorkerManager MOZ_FINAL : public nsIServiceWorkerManager
 {
-  friend class ActivationRunnable;
   friend class RegisterRunnable;
   friend class CallInstallRunnable;
   friend class ServiceWorkerUpdateInstance;
@@ -285,9 +284,6 @@ public:
 
   void
   FinishInstall(ServiceWorkerRegistration* aRegistration);
-
-  void
-  FinishActivate(ServiceWorkerRegistration* aRegistration);
 
   void
   HandleError(JSContext* aCx,

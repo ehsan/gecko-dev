@@ -923,13 +923,20 @@ Chunk::fetchNextFreeArena(JSRuntime *rt)
     return aheader;
 }
 
+inline void
+GCRuntime::updateBytesAllocated(ptrdiff_t size)
+{
+    JS_ASSERT_IF(size < 0, bytes >= size_t(-size));
+    bytes += size;
+}
+
 ArenaHeader *
 Chunk::allocateArena(Zone *zone, AllocKind thingKind)
 {
     JS_ASSERT(hasAvailableArenas());
 
     JSRuntime *rt = zone->runtimeFromAnyThread();
-    if (!rt->isHeapMinorCollecting() && rt->gc.usage.gcBytes() >= rt->gc.maxBytesAllocated()) {
+    if (!rt->isHeapMinorCollecting() && rt->gc.bytesAllocated() >= rt->gc.maxBytesAllocated()) {
 #ifdef JSGC_FJGENERATIONAL
         // This is an approximation to the best test, which would check that
         // this thread is currently promoting into the tenured area.  I doubt
@@ -948,9 +955,10 @@ Chunk::allocateArena(Zone *zone, AllocKind thingKind)
     if (MOZ_UNLIKELY(!hasAvailableArenas()))
         removeFromAvailableList();
 
-    zone->usage.addGCArena();
+    rt->gc.updateBytesAllocated(ArenaSize);
+    zone->gcBytes += ArenaSize;
 
-    if (zone->usage.gcBytes() >= zone->gcTriggerBytes) {
+    if (zone->gcBytes >= zone->gcTriggerBytes) {
         AutoUnlockGC unlock(rt);
         TriggerZoneGC(zone, JS::gcreason::ALLOC_TRIGGER);
     }
@@ -994,9 +1002,12 @@ Chunk::releaseArena(ArenaHeader *aheader)
     if (rt->gc.isBackgroundSweeping())
         maybeLock.lock(rt);
 
+    JS_ASSERT(rt->gc.bytesAllocated() >= ArenaSize);
+    JS_ASSERT(zone->gcBytes >= ArenaSize);
     if (rt->gc.isBackgroundSweeping())
         zone->reduceGCTriggerBytes(zone->gcHeapGrowthFactor * ArenaSize);
-    zone->usage.removeGCArena();
+    rt->gc.updateBytesAllocated(-ArenaSize);
+    zone->gcBytes -= ArenaSize;
 
     aheader->setAsNotAllocated();
     addArenaToFreeList(rt, aheader);
@@ -1115,9 +1126,9 @@ GCRuntime::GCRuntime(JSRuntime *rt) :
 #endif
     stats(rt),
     marker(rt),
-    usage(nullptr),
     systemAvailableChunkListHead(nullptr),
     userAvailableChunkListHead(nullptr),
+    bytes(0),
     maxBytes(0),
     maxMallocBytes(0),
     numArenasFreeCommitted(0),
@@ -1413,7 +1424,7 @@ GCRuntime::setParameter(JSGCParamKey key, uint32_t value)
 {
     switch (key) {
       case JSGC_MAX_BYTES: {
-        JS_ASSERT(value >= usage.gcBytes());
+        JS_ASSERT(value >= bytes);
         maxBytes = value;
         break;
       }
@@ -1488,7 +1499,7 @@ GCRuntime::getParameter(JSGCParamKey key)
       case JSGC_MAX_MALLOC_BYTES:
         return maxMallocBytes;
       case JSGC_BYTES:
-        return uint32_t(usage.gcBytes());
+        return uint32_t(bytes);
       case JSGC_MODE:
         return uint32_t(mode);
       case JSGC_UNUSED_CHUNKS:
@@ -2198,7 +2209,7 @@ ArenaLists::refillFreeList(ThreadSafeContext *cx, AllocKind thingKind)
 
     bool runGC = cx->allowGC() && allowGC &&
                  cx->asJSContext()->runtime()->gc.incrementalState != NO_INCREMENTAL &&
-                 zone->usage.gcBytes() > zone->gcTriggerBytes;
+                 zone->gcBytes > zone->gcTriggerBytes;
 
 #ifdef JS_THREADSAFE
     JS_ASSERT_IF(cx->isJSContext() && allowGC,
@@ -2452,8 +2463,8 @@ GCRuntime::maybeGC(Zone *zone)
     }
 
     double factor = highFrequencyGC ? 0.85 : 0.9;
-    if (zone->usage.gcBytes() > 1024 * 1024 &&
-        zone->usage.gcBytes() >= factor * zone->gcTriggerBytes &&
+    if (zone->gcBytes > 1024 * 1024 &&
+        zone->gcBytes >= factor * zone->gcTriggerBytes &&
         incrementalState == NO_INCREMENTAL &&
         !isBackgroundSweeping())
     {
@@ -4566,7 +4577,7 @@ GCRuntime::endSweepPhase(JSGCInvocationKind gckind, bool lastGC)
         lastGCTime + highFrequencyTimeThreshold * PRMJ_USEC_PER_MSEC > currentTime;
 
     for (ZonesIter zone(rt, WithAtoms); !zone.done(); zone.next()) {
-        zone->setGCLastBytes(zone->usage.gcBytes(), gckind);
+        zone->setGCLastBytes(zone->gcBytes, gckind);
         if (zone->isCollecting()) {
             JS_ASSERT(zone->isGCFinished());
             zone->setGCState(Zone::NoGC);
@@ -4990,7 +5001,7 @@ GCRuntime::budgetIncrementalGC(int64_t *budget)
 
     bool reset = false;
     for (ZonesIter zone(rt, WithAtoms); !zone.done(); zone.next()) {
-        if (zone->usage.gcBytes() >= zone->gcTriggerBytes) {
+        if (zone->gcBytes >= zone->gcTriggerBytes) {
             *budget = SliceBudget::Unlimited;
             stats.nonincremental("allocation trigger");
         }
@@ -5577,7 +5588,8 @@ gc::MergeCompartments(JSCompartment *source, JSCompartment *target)
 
     // Merge the allocator in source's zone into target's zone.
     target->zone()->allocator.arenas.adoptArenas(rt, &source->zone()->allocator.arenas);
-    target->zone()->usage.adopt(source->zone()->usage);
+    target->zone()->gcBytes += source->zone()->gcBytes;
+    source->zone()->gcBytes = 0;
 
     // Merge other info in source's zone into target's zone.
     target->zone()->types.typeLifoAlloc.transferFrom(&source->zone()->types.typeLifoAlloc);

@@ -10,7 +10,7 @@
 #include "mozilla/dom/FileSystemBase.h"
 #include "mozilla/dom/FileSystemUtils.h"
 #include "mozilla/dom/Promise.h"
-#include "nsDOMFile.h"
+#include "nsIDOMFile.h"
 #include "nsIFile.h"
 #include "nsStringGlue.h"
 
@@ -19,13 +19,13 @@ namespace dom {
 
 RemoveTask::RemoveTask(FileSystemBase* aFileSystem,
                        const nsAString& aDirPath,
-                       DOMFileImpl* aTargetFile,
+                       nsIDOMFile* aTargetFile,
                        const nsAString& aTargetPath,
                        bool aRecursive,
                        ErrorResult& aRv)
   : FileSystemTaskBase(aFileSystem)
   , mDirRealPath(aDirPath)
-  , mTargetFileImpl(aTargetFile)
+  , mTargetFile(aTargetFile)
   , mTargetRealPath(aTargetPath)
   , mRecursive(aRecursive)
   , mReturnValue(false)
@@ -65,8 +65,8 @@ RemoveTask::RemoveTask(FileSystemBase* aFileSystem,
 
   BlobParent* bp = static_cast<BlobParent*>(static_cast<PBlobParent*>(target));
   nsCOMPtr<nsIDOMBlob> blob = bp->GetBlob();
-  MOZ_ASSERT(blob);
-  mTargetFileImpl = static_cast<DOMFile*>(blob.get())->Impl();
+  mTargetFile = do_QueryInterface(blob);
+  MOZ_ASSERT(mTargetFile, "mTargetFile should not be null.");
 }
 
 RemoveTask::~RemoveTask()
@@ -90,10 +90,9 @@ RemoveTask::GetRequestParams(const nsString& aFileSystem) const
   param.filesystem() = aFileSystem;
   param.directory() = mDirRealPath;
   param.recursive() = mRecursive;
-  if (mTargetFileImpl) {
-    nsRefPtr<DOMFile> file = new DOMFile(mTargetFileImpl);
+  if (mTargetFile) {
     BlobChild* actor
-      = ContentChild::GetSingleton()->GetOrCreateActorForBlob(file);
+      = ContentChild::GetSingleton()->GetOrCreateActorForBlob(mTargetFile);
     if (actor) {
       param.target() = actor;
     }
@@ -130,8 +129,8 @@ RemoveTask::Work()
   }
 
   // Get the DOM path if a DOMFile is passed as the target.
-  if (mTargetFileImpl) {
-    if (!mFileSystem->GetRealPath(mTargetFileImpl, mTargetRealPath)) {
+  if (mTargetFile) {
+    if (!mFileSystem->GetRealPath(mTargetFile, mTargetRealPath)) {
       return NS_ERROR_DOM_SECURITY_ERR;
     }
     if (!FileSystemUtils::IsDescendantPath(mDirRealPath, mTargetRealPath)) {

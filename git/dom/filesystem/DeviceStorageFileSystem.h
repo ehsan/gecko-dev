@@ -37,7 +37,7 @@ public:
   GetLocalFile(const nsAString& aRealPath) const MOZ_OVERRIDE;
 
   virtual bool
-  GetRealPath(DOMFileImpl* aFile, nsAString& aRealPath) const MOZ_OVERRIDE;
+  GetRealPath(nsIDOMFile* aFile, nsAString& aRealPath) const MOZ_OVERRIDE;
 
   virtual const nsAString&
   GetRootName() const MOZ_OVERRIDE;

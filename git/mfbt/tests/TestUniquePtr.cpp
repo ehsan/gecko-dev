@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -26,46 +25,53 @@ using mozilla::Vector;
   do { \
     bool cond = (c); \
     MOZ_ASSERT(cond, "Failed assertion: " #c); \
-    if (!cond) { \
+    if (!cond) \
       return false; \
-    } \
   } while (false)
 
 typedef UniquePtr<int> NewInt;
-static_assert(sizeof(NewInt) == sizeof(int*), "stored most efficiently");
+static_assert(sizeof(NewInt) == sizeof(int*),
+              "stored most efficiently");
 
 static size_t ADestructorCalls = 0;
 
 struct A
 {
-public:
-  A() : mX(0) {}
-  virtual ~A() { ADestructorCalls++; }
+  public:
+    A() : x(0) {}
+    virtual ~A() {
+      ADestructorCalls++;
+    }
 
-  int mX;
+    int x;
 };
 
 static size_t BDestructorCalls = 0;
 
 struct B : public A
 {
-public:
-  B() : mY(1) {}
-  ~B() { BDestructorCalls++; }
+  public:
+    B() : y(1) {}
+    ~B() {
+      BDestructorCalls++;
+    }
 
-  int mY;
+    int y;
 };
 
 typedef UniquePtr<A> UniqueA;
 typedef UniquePtr<B, UniqueA::DeleterType> UniqueB; // permit interconversion
 
-static_assert(sizeof(UniqueA) == sizeof(A*), "stored most efficiently");
-static_assert(sizeof(UniqueB) == sizeof(B*), "stored most efficiently");
+static_assert(sizeof(UniqueA) == sizeof(A*),
+              "stored most efficiently");
+static_assert(sizeof(UniqueB) == sizeof(B*),
+              "stored most efficiently");
 
 struct DeleterSubclass : UniqueA::DeleterType {};
 
 typedef UniquePtr<B, DeleterSubclass> UniqueC;
-static_assert(sizeof(UniqueC) == sizeof(B*), "stored most efficiently");
+static_assert(sizeof(UniqueC) == sizeof(B*),
+              "stored most efficiently");
 
 static UniqueA
 ReturnUniqueA()
@@ -132,14 +138,14 @@ TestDefaultFreeGuts()
   CHECK(a1 == nullptr);
   a1.reset(new A);
   CHECK(ADestructorCalls == 0);
-  CHECK(a1->mX == 0);
+  CHECK(a1->x == 0);
 
   B* bp1 = new B;
-  bp1->mX = 5;
+  bp1->x = 5;
   CHECK(BDestructorCalls == 0);
   a1.reset(bp1);
   CHECK(ADestructorCalls == 1);
-  CHECK(a1->mX == 5);
+  CHECK(a1->x == 5);
   a1.reset(nullptr);
   CHECK(ADestructorCalls == 2);
   CHECK(BDestructorCalls == 1);
@@ -157,11 +163,11 @@ TestDefaultFreeGuts()
   CHECK(BDestructorCalls == 2);
 
   B* bp3 = new B;
-  bp3->mX = 42;
+  bp3->x = 42;
   UniqueB b2(bp3);
   UniqueA a4(Move(b2));
   CHECK(b2.get() == nullptr);
-  CHECK((*a4).mX == 42);
+  CHECK((*a4).x == 42);
   CHECK(ADestructorCalls == 3);
   CHECK(BDestructorCalls == 2);
 
@@ -217,14 +223,13 @@ static size_t FreeClassCounter = 0;
 
 struct FreeClass
 {
-public:
-  FreeClass() {}
+  public:
+    FreeClass() {}
 
-  void operator()(int* aPtr)
-  {
-    FreeClassCounter++;
-    delete aPtr;
-  }
+    void operator()(int* ptr) {
+      FreeClassCounter++;
+      delete ptr;
+    }
 };
 
 typedef UniquePtr<int, FreeClass> NewIntCustom;
@@ -353,26 +358,25 @@ typedef void (&FreeSignature)(void*);
 static size_t DeleteIntFunctionCallCount = 0;
 
 static void
-DeleteIntFunction(void* aPtr)
+DeleteIntFunction(void* ptr)
 {
   DeleteIntFunctionCallCount++;
-  delete static_cast<int*>(aPtr);
+  delete static_cast<int*>(ptr);
 }
 
 static void
-SetMallocedInt(UniquePtr<int, FreeSignature>& aPtr, int aI)
+SetMallocedInt(UniquePtr<int, FreeSignature>& ptr, int i)
 {
   int* newPtr = static_cast<int*>(malloc(sizeof(int)));
-  *newPtr = aI;
-  aPtr.reset(newPtr);
+  *newPtr = i;
+  ptr.reset(newPtr);
 }
 
 static UniquePtr<int, FreeSignature>
-MallocedInt(int aI)
+MallocedInt(int i)
 {
-  UniquePtr<int, FreeSignature>
-    ptr(static_cast<int*>(malloc(sizeof(int))), free);
-  *ptr = aI;
+  UniquePtr<int, FreeSignature> ptr(static_cast<int*>(malloc(sizeof(int))), free);
+  *ptr = i;
   return Move(ptr);
 }
 static bool
@@ -542,15 +546,16 @@ TestArray()
 
 struct Q
 {
-  Q() {}
-  Q(const Q&) {}
+    Q() {}
+    Q(const Q& q) {}
 
-  Q(Q&, char) {}
+    Q(Q& q, char c) {}
 
-  template<typename T>
-  Q(Q, T&&, int) {}
+    template<typename T>
+    Q(Q q, T&& t, int i)
+    {}
 
-  Q(int, long, double, void*) {}
+    Q(int i, long j, double k, void* l) {}
 };
 
 static int randomInt() { return 4; }
@@ -584,28 +589,20 @@ TestMakeUnique()
 int
 main()
 {
-  if (!TestDefaultFree()) {
+  if (!TestDefaultFree())
     return 1;
-  }
-  if (!TestFreeClass()) {
+  if (!TestFreeClass())
     return 1;
-  }
-  if (!TestReferenceDeleter()) {
+  if (!TestReferenceDeleter())
     return 1;
-  }
 #if SHOULD_TEST_FUNCTION_REFERENCE_DELETER
-  if (!TestFunctionReferenceDeleter()) {
+  if (!TestFunctionReferenceDeleter())
     return 1;
-  }
 #endif
-  if (!TestVector()) {
+  if (!TestVector())
     return 1;
-  }
-  if (!TestArray()) {
+  if (!TestArray())
     return 1;
-  }
-  if (!TestMakeUnique()) {
+  if (!TestMakeUnique())
     return 1;
-  }
-  return 0;
 }

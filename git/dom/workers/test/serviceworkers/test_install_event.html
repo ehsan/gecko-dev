@@ -16,19 +16,14 @@
 <script class="testbody" type="text/javascript">
 
   function simpleRegister() {
-    var p = navigator.serviceWorker.register("worker.js", { scope: "./*" });
+    var p = navigator.serviceWorker.register("worker.js");
     return p;
   }
 
   function nextRegister() {
-    var p = navigator.serviceWorker.register("install_event_worker.js", { scope: "./*" });
-
-    return new Promise(function(resolve, reject) {
-      navigator.serviceWorker.onupdatefound = function(e) {
-        ok(true, "Received onupdatefound");
-        resolve();
-      };
-    });
+    var p = navigator.serviceWorker.register("install_event_worker.js");
+    todo(false, "Check for onupdatefound event");
+    return p;
   }
 
   function runTest() {
