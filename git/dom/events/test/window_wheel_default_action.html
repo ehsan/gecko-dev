@@ -79,7 +79,7 @@ function hitEventLoop(aFunc, aTimes)
 }
 
 function onZoomReset(aCallback) {
-  var topic = "browser-fullZoom:zoomReset";
+  var topic = "browser-fullZoom:reset";
   SpecialPowers.addObserver(function observe() {
     SpecialPowers.removeObserver(observe, topic);
     SimpleTest.executeSoon(aCallback);

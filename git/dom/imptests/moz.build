@@ -7,7 +7,6 @@
 MOCHITEST_MANIFESTS += [
     'editing/mochitest.ini',
     'html/mochitest.ini',
-    'mochitest.ini',
     'webapps/mochitest.ini',
 ]
 

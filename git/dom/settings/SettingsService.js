@@ -181,7 +181,13 @@ SettingsServiceLock.prototype = {
   },
 
   classID : SETTINGSSERVICELOCK_CID,
-  QueryInterface : XPCOMUtils.generateQI([nsISettingsServiceLock])
+  QueryInterface : XPCOMUtils.generateQI([nsISettingsServiceLock]),
+
+  classInfo : XPCOMUtils.generateCI({ classID: SETTINGSSERVICELOCK_CID,
+                                      contractID: SETTINGSSERVICELOCK_CONTRACTID,
+                                      classDescription: "SettingsServiceLock",
+                                      interfaces: [nsISettingsServiceLock],
+                                      flags: nsIClassInfo.DOM_OBJECT })
 };
 
 const SETTINGSSERVICE_CID        = Components.ID("{f656f0c0-f776-11e1-a21f-0800200c9a66}");
@@ -215,7 +221,13 @@ SettingsService.prototype = {
   },
 
   classID : SETTINGSSERVICE_CID,
-  QueryInterface : XPCOMUtils.generateQI([Ci.nsISettingsService])
+  QueryInterface : XPCOMUtils.generateQI([Ci.nsISettingsService]),
+  classInfo: XPCOMUtils.generateCI({
+    classID: SETTINGSSERVICE_CID,
+    contractID: "@mozilla.org/settingsService;1",
+    interfaces: [Ci.nsISettingsService],
+    flags: nsIClassInfo.DOM_OBJECT
+  })
 }
 
 this.NSGetFactory = XPCOMUtils.generateNSGetFactory([SettingsService, SettingsServiceLock])

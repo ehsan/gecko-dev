@@ -75,10 +75,7 @@ nsMathMLTokenFrame::MarkTextFramesAsTokenMathML()
   }
   if (mContent->Tag() == nsGkAtoms::mi_ && childCount == 1) {
     nsAutoString data;
-    if (!nsContentUtils::GetNodeTextContent(mContent, false, data)) {
-      NS_RUNTIMEABORT("OOM");
-    }
-
+    nsContentUtils::GetNodeTextContent(mContent, false, data);
     data.CompressWhitespace();
     int32_t length = data.Length();
 
@@ -87,7 +84,6 @@ nsMathMLTokenFrame::MarkTextFramesAsTokenMathML()
 
     if (isSingleCharacter) {
       child->AddStateBits(NS_FRAME_IS_IN_SINGLE_CHAR_MI);
-      AddStateBits(NS_FRAME_IS_IN_SINGLE_CHAR_MI);
     }
   }
 }

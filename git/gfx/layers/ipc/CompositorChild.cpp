@@ -211,7 +211,7 @@ CompositorChild::SharedFrameMetricsData::GetViewID()
   MOZ_ASSERT(frame);
   // Not locking to read of mScrollId since it should not change after being
   // initially set.
-  return frame->GetScrollId();
+  return frame->mScrollId;
 }
 
 uint32_t

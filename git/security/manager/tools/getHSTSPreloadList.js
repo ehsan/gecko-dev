@@ -138,7 +138,8 @@ function processStsHeader(host, header, status) {
     }
   }
 
-  let forceInclude = (host.forceInclude || host.pins == "google");
+  let forceInclude = (host.forceInclude ||
+                      (host.pins == "google" && !host.snionly));
 
   if (error == ERROR_NONE && maxAge.value < MINIMUM_REQUIRED_MAX_AGE) {
     error = ERROR_MAX_AGE_TOO_LOW;

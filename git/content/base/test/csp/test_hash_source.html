@@ -126,7 +126,8 @@ function checkInline () {
 SimpleTest.waitForExplicitFinish();
 
 SpecialPowers.pushPrefEnv(
-  {'set':[["security.csp.speccompliant", true]]},
+  {'set':[["security.csp.speccompliant", true],
+          ["security.csp.experimentalEnabled", true]]},
   function() {
     // save this for last so that our listeners are registered.
     // ... this loads the testbed of good and bad requests.

@@ -49,12 +49,6 @@ pref("general.smoothScroll", true);
 // WebPayment
 pref("dom.mozPay.enabled", true);
 
-// System messages
-pref("dom.sysmsg.enabled", true);
-
-// Alarm API
-pref("dom.mozAlarms.enabled", true);
-
 // Disable slow script dialog for apps
 pref("dom.max_script_run_time", 0);
 pref("dom.max_chrome_script_run_time", 0);

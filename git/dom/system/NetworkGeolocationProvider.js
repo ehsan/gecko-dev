@@ -87,8 +87,6 @@ WifiGeoPositionProvider.prototype = {
   QueryInterface:   XPCOMUtils.generateQI([Ci.nsIGeolocationProvider,
                                            Ci.nsIWifiListener,
                                            Ci.nsITimerCallback]),
-  listener: null,
-
   startup:  function() {
     if (this.started)
       return;
@@ -106,7 +104,6 @@ WifiGeoPositionProvider.prototype = {
   },
 
   watch: function(c) {
-    this.listener = c;
   },
 
   shutdown: function() {
@@ -124,7 +121,6 @@ WifiGeoPositionProvider.prototype = {
       this.wifiService.stopWatching(this);
       this.wifiService = null;
     }
-    this.listener = null;
     this.started = false;
   },
 
@@ -190,18 +186,17 @@ WifiGeoPositionProvider.prototype = {
 
   notify: function (timeoutTimer) {
     let url = Services.urlFormatter.formatURLPref("geo.wifi.uri");
-    let listener = this.listener;
     LOG("Sending request: " + url + "\n");
 
     let xhr = Components.classes["@mozilla.org/xmlextras/xmlhttprequest;1"]
                         .createInstance(Ci.nsIXMLHttpRequest);
 
-    listener.locationUpdatePending();
+    getGeoService().locationUpdatePending();
 
     try {
       xhr.open("POST", url, true);
     } catch (e) {
-      listener.notifyError(POSITION_UNAVAILABLE);
+      getGeoService().notifyError(POSITION_UNAVAILABLE);
       return;
     }
     xhr.setRequestHeader("Content-Type", "application/json; charset=UTF-8");
@@ -209,13 +204,13 @@ WifiGeoPositionProvider.prototype = {
     xhr.mozBackgroundRequest = true;
     xhr.channel.loadFlags = Ci.nsIChannel.LOAD_ANONYMOUS;
     xhr.onerror = function() {
-      listener.notifyError(POSITION_UNAVAILABLE);
+      getGeoService().notifyError(POSITION_UNAVAILABLE);
     };
     xhr.onload = function() {
       LOG("gls returned status: " + xhr.status + " --> " +  JSON.stringify(xhr.response));
       if ((xhr.channel instanceof Ci.nsIHttpChannel && xhr.status != 200) ||
           !xhr.response || !xhr.response.location) {
-        listener.notifyError(POSITION_UNAVAILABLE);
+        getGeoService().notifyError(POSITION_UNAVAILABLE);
         return;
       }
 
@@ -223,7 +218,7 @@ WifiGeoPositionProvider.prototype = {
                                                   xhr.response.location.lng,
                                                   xhr.response.accuracy);
 
-      listener.update(newLocation);
+      getGeoService().update(newLocation);
     };
 
     if (gCellScanningEnabled) {
@@ -243,5 +238,9 @@ WifiGeoPositionProvider.prototype = {
     xhr.send(data);
   },
 };
+
+function getGeoService() {
+  return Cc["@mozilla.org/geolocation/service;1"].getService(Ci.nsIGeolocationUpdate);
+}
 
 this.NSGetFactory = XPCOMUtils.generateNSGetFactory([WifiGeoPositionProvider]);

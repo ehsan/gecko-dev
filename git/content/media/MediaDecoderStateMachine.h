@@ -266,16 +266,16 @@ public:
   void SetPlaybackRate(double aPlaybackRate);
   void SetPreservesPitch(bool aPreservesPitch);
 
-  size_t SizeOfVideoQueue() {
+  int64_t VideoQueueMemoryInUse() {
     if (mReader) {
-      return mReader->SizeOfVideoQueueInBytes();
+      return mReader->VideoQueueMemoryInUse();
     }
     return 0;
   }
 
   size_t SizeOfAudioQueue() {
     if (mReader) {
-      return mReader->SizeOfAudioQueueInBytes();
+      return mReader->SizeOfAudioQueue();
     }
     return 0;
   }
