@@ -172,9 +172,9 @@ MakeIOSurfaceTexture(void* aCGIOSurfaceContext, mozilla::gl::GLContext* aGL)
 void
 CanvasLayerOGL::UpdateSurface()
 {
-  if (!IsDirty())
+  if (!mDirty)
     return;
-  Painted();
+  mDirty = false;
 
   if (mDestroyed || mDelayedUpdates) {
     return;
