@@ -95,9 +95,9 @@ public:
   nsresult GetFaviconLinkForIconString(const nsCString& aIcon, nsIURI** aOutput);
   void GetFaviconSpecForIconString(const nsCString& aIcon, nsACString& aOutput);
 
-  nsresult OptimizeFaviconImage(const PRUint8* aData, PRUint32 aDataLen,
-                                const nsACString& aMimeType,
-                                nsACString& aNewData, nsACString& aNewMimeType);
+  static nsresult OptimizeFaviconImage(const PRUint8* aData, PRUint32 aDataLen,
+                                       const nsACString& aMimeType,
+                                       nsACString& aNewData, nsACString& aNewMimeType);
 
   /**
    * Obtains the favicon data asynchronously.
@@ -145,12 +145,6 @@ private:
   // Set to true during expiration, addition of new favicons won't be allowed
   // till expiration has finished.
   bool mExpirationRunning;
-
-  // The target dimension, in pixels, for favicons we optimize.
-  // If we find images that are as large or larger than an uncompressed RGBA
-  // image of this size (mOptimizedIconDimension*mOptimizedIconDimension*4),
-  // we will try to optimize it.
-  PRInt32 mOptimizedIconDimension;
 
   PRUint32 mFailedFaviconSerial;
   nsDataHashtable<nsCStringHashKey, PRUint32> mFailedFavicons;

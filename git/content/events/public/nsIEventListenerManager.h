@@ -50,14 +50,13 @@ class nsIAtom;
 class nsPIDOMEventTarget;
 class nsIEventListenerInfo;
 template<class E> class nsCOMArray;
-class nsCxPusher;
 
 /*
  * Event listener manager interface.
  */
 #define NS_IEVENTLISTENERMANAGER_IID \
-{ 0x2412fcd0, 0xd168, 0x4a1c, \
-  { 0xaa, 0x28, 0x70, 0xed, 0x58, 0xf0, 0x4c, 0xec } }
+{ 0xac49ce4e, 0xaecf, 0x45db, \
+  { 0xa1, 0xe0, 0xea, 0x1d, 0x38, 0x73, 0x39, 0xa3 } }
 
 class nsIEventListenerManager : public nsISupports {
 
@@ -66,8 +65,6 @@ public:
 
   nsIEventListenerManager() : mMayHavePaintEventListener(PR_FALSE),
     mMayHaveMutationListeners(PR_FALSE),
-    mMayHaveCapturingListeners(PR_FALSE),
-    mMayHaveSystemGroupListeners(PR_FALSE),
     mNoListenerForEvent(0)
   {}
 
@@ -150,8 +147,7 @@ public:
                          nsIDOMEvent** aDOMEvent,
                          nsPIDOMEventTarget* aCurrentTarget,
                          PRUint32 aFlags,
-                         nsEventStatus* aEventStatus,
-                         nsCxPusher* aPusher) = 0;
+                         nsEventStatus* aEventStatus) = 0;
 
   /**
   * Tells the event listener manager that its target (which owns it) is
@@ -221,9 +217,10 @@ public:
 protected:
   PRUint32 mMayHavePaintEventListener : 1;
   PRUint32 mMayHaveMutationListeners : 1;
-  PRUint32 mMayHaveCapturingListeners : 1;
-  PRUint32 mMayHaveSystemGroupListeners : 1;
-  PRUint32 mNoListenerForEvent : 28;
+  // These two member variables are used to cache the information
+  // about the last event which was handled but for which event listener manager
+  // didn't have event listeners.
+  PRUint32 mNoListenerForEvent : 30;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIEventListenerManager,

@@ -116,8 +116,7 @@ public:
                          nsIDOMEvent** aDOMEvent,
                          nsPIDOMEventTarget* aCurrentTarget,
                          PRUint32 aFlags,
-                         nsEventStatus* aEventStatus,
-                         nsCxPusher* aPusher);
+                         nsEventStatus* aEventStatus);
 
   NS_IMETHOD Disconnect();
 
@@ -155,15 +154,13 @@ protected:
                               nsIDOMEventListener* aListener,
                               nsIDOMEvent* aDOMEvent,
                               nsPIDOMEventTarget* aCurrentTarget,
-                              PRUint32 aPhaseFlags,
-                              nsCxPusher* aPusher);
+                              PRUint32 aPhaseFlags);
   nsresult CompileEventHandlerInternal(nsIScriptContext *aContext,
                                        void *aScopeObject,
                                        nsISupports *aObject,
                                        nsIAtom *aName,
                                        nsListenerStruct *aListenerStruct,
-                                       nsISupports* aCurrentTarget,
-                                       PRBool aNeedsCxPush);
+                                       nsISupports* aCurrentTarget);
   nsListenerStruct* FindJSEventListener(PRUint32 aEventType, nsIAtom* aTypeAtom);
   nsresult SetJSEventListener(nsIScriptContext *aContext,
                               void *aScopeGlobal,
