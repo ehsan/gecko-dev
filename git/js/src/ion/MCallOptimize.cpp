@@ -966,12 +966,11 @@ IonBuilder::inlineUnsafeSetElement(CallInfo &callInfo)
         MDefinition *id = callInfo.getArg(idxi);
         MDefinition *elem = callInfo.getArg(elemi);
 
-        // We can only inline setelem on dense arrays that do not need type
-        // barriers and on typed arrays.
+        if (PropertyWriteNeedsTypeBarrier(cx, current, &obj, NULL, &elem, /* canModify = */ false))
+            return InliningStatus_NotInlined;
+
         int arrayType;
-        if ((!ElementAccessIsDenseNative(obj, id) ||
-             PropertyWriteNeedsTypeBarrier(cx, current, &obj, NULL,
-                                           &elem, /* canModify = */ false)) &&
+        if (!ElementAccessIsDenseNative(obj, id) &&
             !ElementAccessIsTypedArray(obj, id, &arrayType))
         {
             return InliningStatus_NotInlined;
@@ -1013,7 +1012,8 @@ IonBuilder::inlineUnsafeSetElement(CallInfo &callInfo)
 }
 
 bool
-IonBuilder::inlineUnsafeSetDenseArrayElement(CallInfo &callInfo, uint32_t base)
+IonBuilder::inlineUnsafeSetDenseArrayElement(
+    CallInfo &callInfo, uint32_t base)
 {
     // Note: we do not check the conditions that are asserted as true
     // in intrinsic_UnsafeSetElement():

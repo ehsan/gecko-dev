@@ -43,7 +43,7 @@ class nsIDocShell;
 
 class nsIObjectInputStream;
 class nsIObjectOutputStream;
-class nsIScriptGlobalObject;
+class nsIScriptGlobalObjectOwner;
 class nsXULPrototypeNode;
 typedef nsTArray<nsRefPtr<nsXULPrototypeNode> > nsPrototypeArray;
 
@@ -231,7 +231,7 @@ public:
     nsresult Compile(const PRUnichar* aText, int32_t aTextLength,
                      nsIURI* aURI, uint32_t aLineNo,
                      nsIDocument* aDocument,
-                     nsIScriptGlobalObject* aGlobal);
+                     nsIScriptGlobalObjectOwner* aGlobalOwner);
 
     void UnlinkJSObjects();
 

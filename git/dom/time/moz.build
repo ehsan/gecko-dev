@@ -6,6 +6,7 @@
 
 XPIDL_SOURCES += [
     'nsIDOMNavigatorTime.idl',
+    'nsIDOMTimeManager.idl',
     'nsITimeService.idl',
 ]
 
@@ -16,7 +17,6 @@ MODULE = 'dom'
 EXPORTS.mozilla.dom.time += [
     'DateCacheCleaner.h',
     'TimeChangeObserver.h',
-    'TimeManager.h',
     'TimeService.h',
 ]
 

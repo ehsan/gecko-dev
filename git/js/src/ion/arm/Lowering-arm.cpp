@@ -41,7 +41,9 @@ LIRGeneratorARM::useBoxFixed(LInstruction *lir, size_t n, MDefinition *mir, Regi
 bool
 LIRGeneratorARM::lowerConstantDouble(double d, MInstruction *mir)
 {
-    return define(new LDouble(d), mir);
+    uint32_t index;
+    LDouble *lir = new LDouble(d);
+    return define(lir, mir);
 }
 
 bool

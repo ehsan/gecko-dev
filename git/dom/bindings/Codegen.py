@@ -5595,7 +5595,7 @@ MOZ_END_ENUM_CLASS(%s)
 
     def define(self):
         strings = """
-  extern const EnumEntry %s[%d] = {
+  const EnumEntry %s[%d] = {
     %s,
     { nullptr, 0 }
   };

@@ -267,33 +267,33 @@ public:
   }
   mozilla::dom::Element* GetOffsetParent()
   {
-    mozilla::CSSIntRect rcFrame;
+    nsRect rcFrame;
     return GetOffsetRect(rcFrame);
   }
   int32_t OffsetTop()
   {
-    mozilla::CSSIntRect rcFrame;
+    nsRect rcFrame;
     GetOffsetRect(rcFrame);
 
     return rcFrame.y;
   }
   int32_t OffsetLeft()
   {
-    mozilla::CSSIntRect rcFrame;
+    nsRect rcFrame;
     GetOffsetRect(rcFrame);
 
     return rcFrame.x;
   }
   int32_t OffsetWidth()
   {
-    mozilla::CSSIntRect rcFrame;
+    nsRect rcFrame;
     GetOffsetRect(rcFrame);
 
     return rcFrame.width;
   }
   int32_t OffsetHeight()
   {
-    mozilla::CSSIntRect rcFrame;
+    nsRect rcFrame;
     GetOffsetRect(rcFrame);
 
     return rcFrame.height;
@@ -976,7 +976,7 @@ protected:
    * @note This method flushes pending notifications (Flush_Layout).
    * @param aRect the offset information [OUT]
    */
-  mozilla::dom::Element* GetOffsetRect(mozilla::CSSIntRect& aRect);
+  virtual mozilla::dom::Element* GetOffsetRect(nsRect& aRect);
 
   /**
    * Returns true if this is the current document's body element

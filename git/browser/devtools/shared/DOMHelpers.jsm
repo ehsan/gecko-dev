@@ -64,7 +64,7 @@ DOMHelpers.prototype = {
       return null;
     }
 
-    if (node.getSVGDocument) {
+    if (node instanceof this.window.GetSVGDocument) {
       let svgDocument = node.getSVGDocument();
       if (svgDocument) {
         // then the node is a frame

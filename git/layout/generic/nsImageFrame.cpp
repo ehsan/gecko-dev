@@ -20,6 +20,7 @@
 #include "nsIDocument.h"
 #include "nsINodeInfo.h"
 #include "nsContentUtils.h"
+#include "nsCxPusher.h"
 #include "nsCSSAnonBoxes.h"
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
@@ -199,6 +200,12 @@ nsImageFrame::DestroyFrom(nsIFrame* aDestructRoot)
   if (mListener) {
     nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(mContent);
     if (imageLoader) {
+      // Push a null JSContext on the stack so that code that runs
+      // within the below code doesn't think it's being called by
+      // JS. See bug 604262.
+      nsCxPusher pusher;
+      pusher.PushNull();
+
       // Notify our image loading content that we are going away so it can
       // deregister with our refresh driver.
       imageLoader->FrameDestroyed(this);
@@ -234,7 +241,15 @@ nsImageFrame::Init(nsIContent*      aContent,
     NS_RUNTIMEABORT("Why do we have an nsImageFrame here at all?");
   }
 
-  imageLoader->AddObserver(mListener);
+  {
+    // Push a null JSContext on the stack so that code that runs
+    // within the below code doesn't think it's being called by
+    // JS. See bug 604262.
+    nsCxPusher pusher;
+    pusher.PushNull();
+
+    imageLoader->AddObserver(mListener);
+  }
 
   nsPresContext *aPresContext = PresContext();
   

@@ -94,14 +94,13 @@ static const uint8_t gZeroChannel[MAX_AUDIO_SAMPLE_SIZE*AUDIO_PROCESSING_FRAMES]
 void
 DownmixAndInterleave(const nsTArray<const void*>& aChannelData,
                      AudioSampleFormat aSourceFormat, int32_t aDuration,
-                     float aVolume, uint32_t aOutputChannels,
+                     float aVolume, int32_t aOutputChannels,
                      AudioDataValue* aOutput)
 {
   nsAutoTArray<const void*,GUESS_AUDIO_CHANNELS> channelData;
   nsAutoTArray<float,AUDIO_PROCESSING_FRAMES*GUESS_AUDIO_CHANNELS> downmixConversionBuffer;
   nsAutoTArray<float,AUDIO_PROCESSING_FRAMES*GUESS_AUDIO_CHANNELS> downmixOutputBuffer;
 
-  channelData.SetLength(aChannelData.Length());
   if (aSourceFormat != AUDIO_FORMAT_FLOAT32) {
     NS_ASSERTION(aSourceFormat == AUDIO_FORMAT_S16, "unknown format");
     downmixConversionBuffer.SetLength(aDuration*aChannelData.Length());
@@ -128,10 +127,8 @@ DownmixAndInterleave(const nsTArray<const void*>& aChannelData,
     outputChannelData[i] = outputChannelBuffers[i] =
         downmixOutputBuffer.Elements() + aDuration*i;
   }
-  if (channelData.Length() > aOutputChannels) {
-    AudioChannelsDownMix(channelData, outputChannelBuffers.Elements(),
-                         aOutputChannels, aDuration);
-  }
+  AudioChannelsDownMix(channelData, outputChannelBuffers.Elements(),
+                       aOutputChannels, aDuration);
   InterleaveAndConvertBuffer(outputChannelData.Elements(), AUDIO_FORMAT_FLOAT32,
                              aDuration, aVolume, aOutputChannels, aOutput);
 }

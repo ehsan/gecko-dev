@@ -158,16 +158,24 @@ HTMLImageElement::GetComplete(bool* aComplete)
   return NS_OK;
 }
 
-CSSIntPoint
+nsIntPoint
 HTMLImageElement::GetXY()
 {
+  nsIntPoint point(0, 0);
+
   nsIFrame* frame = GetPrimaryFrame(Flush_Layout);
+
   if (!frame) {
-    return CSSIntPoint(0, 0);
+    return point;
   }
 
   nsIFrame* layer = nsLayoutUtils::GetClosestLayer(frame->GetParent());
-  return CSSIntPoint::FromAppUnitsRounded(frame->GetOffsetTo(layer));
+  nsPoint origin(frame->GetOffsetTo(layer));
+  // Convert to pixels using that scale
+  point.x = nsPresContext::AppUnitsToIntCSSPixels(origin.x);
+  point.y = nsPresContext::AppUnitsToIntCSSPixels(origin.y);
+
+  return point;
 }
 
 int32_t
