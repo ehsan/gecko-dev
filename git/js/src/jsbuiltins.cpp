@@ -66,7 +66,7 @@ jsdouble FASTCALL builtin_dmod(jsdouble a, jsdouble b)
     jsdouble r;
 #ifdef XP_WIN
     /* Workaround MS fmod bug where 42 % (1/0) => NaN, not 42. */
-    if (!(JSDOUBLE_IS_FINITE(a) && JSDOUBLE_IS_INFINITE(b)))
+    if (JSDOUBLE_IS_FINITE(a) && JSDOUBLE_IS_INFINITE(b))
         r = a;
     else
 #endif
@@ -209,8 +209,8 @@ builtin_String_fromCharCode(JSContext* cx, jsint i)
 {
     jschar c = (jschar)i;
     /* XXX check for string freelist space */
-    /* XXX refactor js_GetUnitString so we can call it with a jschar */
-    /* (also in js_str_fromCharCode!) */
+    if (c < UNIT_STRING_LIMIT)
+        return js_GetUnitStringForChar(cx, c);
     return js_NewStringCopyN(cx, &c, 1);
 }
 
@@ -239,7 +239,7 @@ builtin_EqualStrings(JSString* str1, JSString* str2)
 }
 
 jsdouble FASTCALL
-builtin_StringToNumber(JSContext* cx, JSString *str)
+builtin_StringToNumber(JSContext* cx, JSString* str)
 {
     const jschar* bp;
     const jschar* end;
@@ -254,6 +254,20 @@ builtin_StringToNumber(JSContext* cx, JSString *str)
         return *cx->runtime->jsNaN;
     }
     return d;
+}
+
+jsint FASTCALL
+builtin_StringToInt32(JSContext* cx, JSString* str)
+{
+    const jschar* bp;
+    const jschar* end;
+    const jschar* ep;
+    jsdouble d;
+
+    JSSTRING_CHARS_AND_END(str, bp, end);
+    if (!js_strtod(cx, bp, end, &ep, &d) || js_SkipWhiteSpace(ep, end) != end)
+        return 0;
+    return (jsint)d;
 }
 
 #define LO ARGSIZE_LO

@@ -40,7 +40,8 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "jsstddef.h"           // always first
-#include "jsprf.h"              // low-level (NSPR-based) headers next
+#include "jsbit.h"              // low-level (NSPR-based) headers next
+#include "jsprf.h"
 #include <math.h>               // standard headers next
 #ifdef _MSC_VER
 #include <malloc.h>
@@ -372,6 +373,12 @@ public:
                 LIns* args2[] = { callArgN(s0, 0) };
                 return out->insCall(F_UnboxInt32, args2);
             }
+            if (s0->isCall() && s0->fid() == F_StringToNumber) {
+                // callArgN's ordering is that as seen by the builtin, not as stored in args here.
+                // True story!
+                LIns* args2[] = { callArgN(s0, 1), callArgN(s0, 0) };
+                return out->insCall(F_StringToInt32, args2);
+            }
             break;
           case F_BoxDouble:
             JS_ASSERT(s0->isQuad());
@@ -439,12 +446,14 @@ public:
             JSStackFrame* f = *fsp;                                           \
             jsval* vpstop;                                                    \
             if (f->callee) {                                                  \
-                SET_VPNAME("this");                                           \
-                vp = &f->argv[-1];                                            \
-                code;                                                         \
-                SET_VPNAME("argv");                                           \
-                vp = &f->argv[0]; vpstop = &f->argv[f->fun->nargs];           \
-                while (vp < vpstop) { code; ++vp; INC_VPNUM(); }              \
+                if (fsp == fstack) {                                          \
+                    SET_VPNAME("this");                                       \
+                    vp = &f->argv[-1];                                        \
+                    code;                                                     \
+                    SET_VPNAME("argv");                                       \
+                    vp = &f->argv[0]; vpstop = &f->argv[f->fun->nargs];       \
+                    while (vp < vpstop) { code; ++vp; INC_VPNUM(); }          \
+                }                                                             \
                 SET_VPNAME("vars");                                           \
                 vp = f->slots; vpstop = &f->slots[f->script->nfixed];         \
                 while (vp < vpstop) { code; ++vp; INC_VPNUM(); }              \
@@ -499,32 +508,19 @@ TraceRecorder::TraceRecorder(JSContext* cx, GuardRecord* _anchor,
     cx_ins = addName(lir->insLoadi(lirbuf->state, offsetof(InterpState, cx)), "cx");
     gp_ins = addName(lir->insLoadi(lirbuf->state, offsetof(InterpState, gp)), "gp");
 
-    jsuword* localNames = NULL;
-#ifdef DEBUG
-    void* mark = NULL;
-    if (cx->fp->fun) {
-        mark = JS_ARENA_MARK(&cx->tempPool);
-        localNames = js_GetLocalNameArray(cx, cx->fp->fun, &cx->tempPool);
-    }
-#else
-    localNames = NULL;
-#endif
     /* the first time we compile a tree this will be empty as we add entries lazily */
     uint16* gslots = treeInfo->globalSlots.data();
     uint8* m = globalTypeMap;
     FORALL_GLOBAL_SLOTS(cx, ngslots, gslots, 
-        import(gp_ins, nativeGlobalOffset(vp), vp, *m, vpname, vpnum, localNames);
+        import(gp_ins, nativeGlobalOffset(vp), vp, *m, vpname, vpnum, NULL);
         m++; 
     );
     ptrdiff_t offset = -treeInfo->nativeStackBase + 8;
     m = stackTypeMap;
     FORALL_SLOTS_IN_PENDING_FRAMES(cx, callDepth,
-        import(lirbuf->sp, offset, vp, *m, vpname, vpnum, localNames);
+        import(lirbuf->sp, offset, vp, *m, vpname, vpnum, f);
         m++; offset += sizeof(double);
     );
-#ifdef DEBUG
-    JS_ARENA_RELEASE(&cx->tempPool, mark);
-#endif
 
     recompileFlag = false;
     backEdgeCount = 0;
@@ -560,19 +556,24 @@ TraceRecorder::getCallDepth() const
 
 /* Calculate the total number of native frame slots we need from this frame
    all the way back to the entry frame, including the current stack usage. */
-static unsigned nativeStackSlots(unsigned callDepth,
-        JSStackFrame* fp, JSFrameRegs& regs)
+static unsigned
+nativeStackSlots(unsigned callDepth, JSStackFrame* fp)
 {
     unsigned slots = 0;
     for (;;) {
-        slots += (regs.sp - StackBase(fp));
+        unsigned operands = fp->regs->sp - StackBase(fp);
+        JS_ASSERT(operands <= fp->script->nslots - fp->script->nfixed);
+        slots += operands;
         if (fp->callee)
-            slots += 1/*this*/ + fp->fun->nargs + fp->script->nfixed;
-        if (callDepth-- == 0)
+            slots += fp->script->nfixed;
+        if (callDepth-- == 0) {
+            if (fp->callee)
+                slots += 1/*this*/ + fp->fun->nargs;
             return slots;
+        }
         fp = fp->down;
     }
-    JS_NOT_REACHED("nativeFrameSlots");
+    JS_NOT_REACHED("nativeStackSlots");
 }
 
 /* Determine the offset in the native global frame for a jsval we track */
@@ -603,10 +604,14 @@ TraceRecorder::nativeStackOffset(jsval* p) const
         if (vp == p) goto done;
         slow_offset += sizeof(double)
     );
-    /* if its not in a pending frame, it must be on the stack of the current frame above
-       sp but below script->depth */
-    JS_ASSERT(size_t(p - StackBase(cx->fp)) < StackDepth(cx->fp->script));
+
+    /*
+     * If it's not in a pending frame, it must be on the stack of the current frame above
+     * sp but below fp->slots + script->nslots.
+     */
+    JS_ASSERT(size_t(p - cx->fp->slots) < cx->fp->script->nslots);
     slow_offset += size_t(p - cx->fp->regs->sp) * sizeof(double);
+
 done:
 #define RETURN(offset) { JS_ASSERT((offset) == slow_offset); return offset; }
 #else
@@ -627,20 +632,27 @@ done:
     for (fsp = fstack; fsp < fspstop; ++fsp) {
         JSStackFrame* f = *fsp;
         if (f->callee) {
-            if (size_t(p - &f->argv[-1]) < (unsigned)f->fun->nargs+1)
-                RETURN(offset + size_t(p - &f->argv[-1]) * sizeof(double));
-            offset += (f->fun->nargs+1) * sizeof(double);
+            if (fsp == fstack) {
+                unsigned nargs = JS_MAX(f->fun->nargs, f->argc);
+                if (size_t(p - &f->argv[-1]) < nargs + 1)
+                    RETURN(offset + size_t(p - &f->argv[-1]) * sizeof(double));
+                offset += (nargs + 1) * sizeof(double);
+            }
             if (size_t(p - &f->slots[0]) < f->script->nfixed)
                 RETURN(offset + size_t(p - &f->slots[0]) * sizeof(double));
             offset += f->script->nfixed * sizeof(double);
         }
-        if ((p >= StackBase(f)) && (p < f->regs->sp))
-            RETURN(offset + size_t(p - StackBase(f)) * sizeof(double));
-        offset += size_t(f->regs->sp - StackBase(f)) * sizeof(double);
+        jsval* spbase = StackBase(f);
+        if (size_t(p - spbase) < size_t(f->regs->sp - spbase))
+            RETURN(offset + size_t(p - spbase) * sizeof(double));
+        offset += size_t(f->regs->sp - spbase) * sizeof(double);
     }
-    /* if its not in a pending frame, it must be on the stack of the current frame above
-       sp but below script->depth */
-    JS_ASSERT(size_t(p - StackBase(currentFrame)) < StackDepth(currentFrame->script));
+
+    /*
+     * If it's not in a pending frame, it must be on the stack of the current frame above
+     * sp but below fp->slots + script->nslots.
+     */
+    JS_ASSERT(size_t(p - currentFrame->slots) < currentFrame->script->nslots);
     offset += size_t(p - currentFrame->regs->sp) * sizeof(double);
     RETURN(offset);
 #undef RETURN
@@ -828,6 +840,12 @@ FlushNativeStackFrame(JSContext* cx, unsigned callDepth, uint8* mp, double* np)
             return false;
         ++mp; ++np
     );
+
+    // Restore thisp from the now-restored argv[-1] in each pending frame.
+    unsigned n = callDepth;
+    for (JSStackFrame* f = cx->fp; n-- != 0; f = f->down)
+        f->thisp = JSVAL_TO_OBJECT(f->argv[-1]);
+
     /* Now do this again but this time for all values (properly quicker than actually checking
        the type and excluding strings and objects). The GC might kick in when we store doubles,
        but everything is rooted now (all strings/objects and all doubles we already boxed). */
@@ -845,7 +863,7 @@ FlushNativeStackFrame(JSContext* cx, unsigned callDepth, uint8* mp, double* np)
 /* Emit load instructions onto the trace that read the initial stack state. */
 void
 TraceRecorder::import(LIns* base, ptrdiff_t offset, jsval* p, uint8& t,
-                      const char *prefix, int index, jsuword *localNames)
+                      const char *prefix, int index, JSStackFrame *fp)
 {
     LIns* ins;
     if (t == JSVAL_INT) { /* demoted */
@@ -866,17 +884,27 @@ TraceRecorder::import(LIns* base, ptrdiff_t offset, jsval* p, uint8& t,
 #ifdef DEBUG
     char name[64];
     JS_ASSERT(strlen(prefix) < 10);
+    void* mark = NULL;
+    jsuword* localNames = NULL;
+    if (*prefix == 'a' || *prefix == 'v') {
+        mark = JS_ARENA_MARK(&cx->tempPool);
+        localNames = js_GetLocalNameArray(cx, fp->fun, &cx->tempPool);
+    }
+
     if (!strcmp(prefix, "argv")) {
         JSAtom *atom = JS_LOCAL_NAME_TO_ATOM(localNames[index]);
-        JS_snprintf(name, sizeof name, "$%s.%s", js_AtomToPrintableString(cx, cx->fp->fun->atom),
+        JS_snprintf(name, sizeof name, "$%s.%s", js_AtomToPrintableString(cx, fp->fun->atom),
                     js_AtomToPrintableString(cx, atom));
     } else if (!strcmp(prefix, "vars")) {
-        JSAtom *atom = JS_LOCAL_NAME_TO_ATOM(localNames[index + cx->fp->fun->nargs]);
-        JS_snprintf(name, sizeof name, "$%s.%s", js_AtomToPrintableString(cx, cx->fp->fun->atom),
+        JSAtom *atom = JS_LOCAL_NAME_TO_ATOM(localNames[fp->fun->nargs + index]);
+        JS_snprintf(name, sizeof name, "$%s.%s", js_AtomToPrintableString(cx, fp->fun->atom),
                     js_AtomToPrintableString(cx, atom));
     } else {
         JS_snprintf(name, sizeof name, "$%s%d", prefix, index);
     }
+
+    if (mark)
+        JS_ARENA_RELEASE(&cx->tempPool, mark);
     addName(ins, name);
 
     static const char* typestr[] = {
@@ -976,13 +1004,26 @@ js_IsLoopExit(JSContext* cx, JSScript* script, jsbytecode* pc)
     return false;
 }
 
+struct FrameInfo {
+    JSObject*       callee;     // callee function object
+    jsbytecode*     callpc;     // pc of JSOP_CALL in caller script
+    union {
+        struct {
+            uint16  spdist;     // distance from fp->slots to fp->regs->sp at JSOP_CALL
+            uint16  argc;       // actual argument count, may be < fun->nargs
+        } s;
+        uint32      word;       // for spdist/argc LIR store in record_JSOP_CALL
+    };
+};
+
 SideExit*
 TraceRecorder::snapshot(ExitType exitType)
 {
-    if (exitType == BRANCH_EXIT && js_IsLoopExit(cx, cx->fp->script, cx->fp->regs->pc))
+    JSStackFrame* fp = cx->fp;
+    if (exitType == BRANCH_EXIT && js_IsLoopExit(cx, fp->script, fp->regs->pc))
         exitType = LOOP_EXIT;
     /* generate the entry map and stash it in the trace */
-    unsigned stackSlots = nativeStackSlots(callDepth, cx->fp, *cx->fp->regs);
+    unsigned stackSlots = nativeStackSlots(callDepth, fp);
     trackNativeStackUse(stackSlots);
     /* reserve space for the type map */
     unsigned ngslots = treeInfo->globalSlots.length();
@@ -990,13 +1031,12 @@ TraceRecorder::snapshot(ExitType exitType)
     /* setup side exit structure */
     memset(&exit, 0, sizeof(exit));
     exit.from = fragment;
-    exit.calldepth = getCallDepth();
+    exit.calldepth = callDepth;
     exit.numGlobalSlots = ngslots;
     exit.exitType = exitType;
-    exit.ip_adj = cx->fp->regs->pc - (jsbytecode*)fragment->root->ip;
-    exit.sp_adj = ((cx->fp->regs->sp - StackBase(cx->fp)) - treeInfo->entryStackDepth)
-                  * sizeof(double);
-    exit.rp_adj = exit.calldepth * sizeof(void*);
+    exit.ip_adj = fp->regs->pc - (jsbytecode*)fragment->root->ip;
+    exit.sp_adj = (stackSlots - treeInfo->entryNativeStackSlots) * sizeof(double);
+    exit.rp_adj = exit.calldepth * sizeof(FrameInfo);
     uint8* m = exit.typeMap = (uint8 *)data->payload();
     /* Determine the type of a store by looking at the current type of the actual value the
        interpreter is using. For numbers we have to check what kind of store we used last
@@ -1004,8 +1044,8 @@ TraceRecorder::snapshot(ExitType exitType)
     FORALL_SLOTS(cx, ngslots, treeInfo->globalSlots.data(), callDepth,
         LIns* i = get(vp);
         *m++ = isNumber(*vp)
-            ? (isPromoteInt(i) ? JSVAL_INT : JSVAL_DOUBLE)
-            : JSVAL_TAG(*vp);
+               ? (isPromoteInt(i) ? JSVAL_INT : JSVAL_DOUBLE)
+               : JSVAL_TAG(*vp);
     );
     return &exit;
 }
@@ -1135,7 +1175,7 @@ nanojit::StackFilter::getTop(LInsp guard)
     if (sp == frag->lirbuf->sp)
         return guard->exit()->sp_adj + sizeof(double);
     JS_ASSERT(sp == frag->lirbuf->rp);
-    return guard->exit()->rp_adj + sizeof(void*);
+    return guard->exit()->rp_adj + sizeof(FrameInfo);
 }
 
 #if defined NJ_VERBOSE
@@ -1209,6 +1249,83 @@ js_TrashTree(JSContext* cx, Fragment* f)
     f->releaseCode(JS_TRACE_MONITOR(cx).fragmento);
 }
 
+static JSInlineFrame*
+js_SynthesizeFrame(JSContext* cx, const FrameInfo& fi)
+{
+    JS_ASSERT(HAS_FUNCTION_CLASS(fi.callee));
+
+    JSFunction* fun = GET_FUNCTION_PRIVATE(cx, fi.callee);
+    JS_ASSERT(FUN_INTERPRETED(fun));
+
+    JSArena* a = cx->stackPool.current;
+    void* newmark = (void*) a->avail;
+    JSScript* script = fun->u.i.script;
+
+    // Assert that we have a correct sp distance from cx->fp->slots in fi.
+    JS_ASSERT(js_ReconstructStackDepth(cx, cx->fp->script, fi.callpc) ==
+              uintN(fi.s.spdist -
+                    ((fun->nargs > fi.s.argc) ? fun->nargs - fi.s.argc : 0) -
+                    cx->fp->script->nfixed));
+
+    uintN nframeslots = JS_HOWMANY(sizeof(JSInlineFrame), sizeof(jsval));
+    size_t nbytes = (nframeslots + script->nslots) * sizeof(jsval);
+
+    /* Allocate the inline frame with its vars and operands. */
+    jsval* newsp;
+    if (a->avail + nbytes <= a->limit) {
+        newsp = (jsval *) a->avail;
+        a->avail += nbytes;
+    } else {
+        JS_ARENA_ALLOCATE_CAST(newsp, jsval *, &cx->stackPool, nbytes);
+        if (!newsp) {
+            js_ReportOutOfScriptQuota(cx);
+            return NULL;
+        }
+    }
+
+    /* Claim space for the stack frame and initialize it. */
+    JSInlineFrame* newifp = (JSInlineFrame *) newsp;
+    newsp += nframeslots;
+
+    newifp->frame.callobj = NULL;
+    newifp->frame.argsobj = NULL;
+    newifp->frame.varobj = NULL;
+    newifp->frame.script = script;
+    newifp->frame.callee = fi.callee;
+    newifp->frame.fun = fun;
+
+    newifp->frame.argc = fi.s.argc;
+    newifp->callerRegs.pc = fi.callpc;
+    newifp->callerRegs.sp = cx->fp->slots + fi.s.spdist;
+    newifp->frame.argv = newifp->callerRegs.sp - JS_MAX(fun->nargs, fi.s.argc);
+    JS_ASSERT(newifp->frame.argv >= StackBase(cx->fp));
+
+    newifp->frame.rval = JSVAL_VOID;
+    newifp->frame.down = cx->fp;
+    newifp->frame.annotation = NULL;
+    newifp->frame.scopeChain = OBJ_GET_PARENT(cx, fi.callee);
+    newifp->frame.sharpDepth = 0;
+    newifp->frame.sharpArray = NULL;
+    newifp->frame.flags = 0;
+    newifp->frame.dormantNext = NULL;
+    newifp->frame.xmlNamespace = NULL;
+    newifp->frame.blockChain = NULL;
+    newifp->mark = newmark;
+    newifp->frame.thisp = NULL; // will be set by js_ExecuteTree -> FlushNativeStackFrame
+
+    newifp->frame.regs = cx->fp->regs;
+    newifp->frame.regs->pc = script->code;
+    newifp->frame.regs->sp = newsp + script->nfixed;
+    newifp->frame.slots = newsp;
+#ifdef DEBUG
+    newifp->frame.pcDisabledSave = 0;
+#endif
+
+    cx->fp->regs = &newifp->callerRegs;
+    cx->fp = &newifp->frame;
+    return newifp;
+}
+
 static GuardRecord*
 js_ExecuteTree(JSContext* cx, Fragment* f)
 {
@@ -1245,8 +1362,9 @@ js_ExecuteTree(JSContext* cx, Fragment* f)
         return NULL;
     }
     double* entry_sp = &stack[ti->nativeStackBase/sizeof(double) +
-                               (cx->fp->regs->sp - StackBase(cx->fp) - 1)];
-    JSObject** callstack = (JSObject**)alloca(ti->maxCallDepth * sizeof(JSObject*));
+                              (cx->fp->regs->sp - StackBase(cx->fp) - 1)];
+
+    FrameInfo* callstack = (FrameInfo*) alloca(ti->maxCallDepth * sizeof(FrameInfo));
     InterpState state;
     state.ip = cx->fp->regs->pc;
     state.sp = (void*)entry_sp;
@@ -1255,21 +1373,32 @@ js_ExecuteTree(JSContext* cx, Fragment* f)
     state.cx = cx;
     union { NIns *code; GuardRecord* (FASTCALL *func)(InterpState*, Fragment*); } u;
     u.code = f->code();
+
 #if defined(DEBUG) && defined(NANOJIT_IA32)
     uint64 start = rdtsc();
 #endif
+
     GuardRecord* lr = u.func(&state, NULL);
-    JS_ASSERT(lr->calldepth == 0);
+
+    for (int32 i = 0; i < lr->calldepth; i++)
+        js_SynthesizeFrame(cx, callstack[i]);
+
     SideExit* e = lr->exit;
-    cx->fp->regs->sp += (e->sp_adj / sizeof(double));
-    cx->fp->regs->pc += e->ip_adj;
+    JSStackFrame* fp = cx->fp;
+    JS_ASSERT((e->sp_adj / sizeof(double)) + ti->entryNativeStackSlots >=
+              nativeStackSlots(lr->calldepth, fp));
+    fp->regs->sp += (e->sp_adj / sizeof(double)) + ti->entryNativeStackSlots -
+                    nativeStackSlots(lr->calldepth, fp);
+    fp->regs->pc = (jsbytecode*)state.ip + e->ip_adj;
+
 #if defined(DEBUG) && defined(NANOJIT_IA32)
     printf("leaving trace at %s:%u@%u, sp=%p, ip=%p, cycles=%llu\n",
-           cx->fp->script->filename, js_PCToLineNumber(cx, cx->fp->script, cx->fp->regs->pc),
-           cx->fp->regs->pc - cx->fp->script->code,
+           fp->script->filename, js_PCToLineNumber(cx, fp->script, fp->regs->pc),
+           fp->regs->pc - fp->script->code,
            state.sp, lr->jmp,
            (rdtsc() - start));
 #endif
+
     FlushNativeGlobalFrame(cx, e->numGlobalSlots, ti->globalSlots.data(), e->typeMap, global);
     FlushNativeStackFrame(cx, e->calldepth, e->typeMap + e->numGlobalSlots, stack);
     JS_ASSERT(ti->globalSlots.length() >= e->numGlobalSlots);
@@ -1312,7 +1441,7 @@ js_AttemptToExtendTree(JSContext* cx, GuardRecord* lr, Fragment* f)
 }
 
 bool
-js_LoopEdge(JSContext* cx, jsbytecode* oldpc)
+js_LoopEdge(JSContext* cx, jsbytecode* oldpc, uintN& inlineCallCount)
 {
     JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
 
@@ -1367,9 +1496,7 @@ js_LoopEdge(JSContext* cx, jsbytecode* oldpc)
                 f->vmprivate = ti;
 
                 /* determine the native frame layout at the entry point */
-                unsigned entryNativeStackSlots = nativeStackSlots(
-                        0/*callDepth*/, cx->fp, *cx->fp->regs);
-                ti->entryStackDepth = (cx->fp->regs->sp - StackBase(cx->fp));
+                unsigned entryNativeStackSlots = nativeStackSlots(0/*callDepth*/, cx->fp);
                 ti->entryNativeStackSlots = entryNativeStackSlots;
                 ti->nativeStackBase = (entryNativeStackSlots -
                     (cx->fp->regs->sp - StackBase(cx->fp))) * sizeof(double);
@@ -1386,7 +1513,7 @@ js_LoopEdge(JSContext* cx, jsbytecode* oldpc)
                     *m++ = getCoercedType(*vp);
                 );
             }
-            JS_ASSERT(ti->entryStackDepth == unsigned(cx->fp->regs->sp - StackBase(cx->fp)));
+            JS_ASSERT(ti->entryNativeStackSlots == nativeStackSlots(0/*callDepth*/, cx->fp));
 
             /* recording primary trace */
             return js_StartRecorder(cx, NULL, f, ti->globalSlots.length(),
@@ -1400,6 +1527,7 @@ js_LoopEdge(JSContext* cx, jsbytecode* oldpc)
     if (!lr) /* did the tree actually execute? */
         return false;
 
+    inlineCallCount += lr->exit->calldepth;
     switch (lr->exit->exitType) {
     case BRANCH_EXIT:
         /* if its a branch, try to extend the tree */
@@ -1525,11 +1653,14 @@ LIns* TraceRecorder::f2i(LIns* f)
     return lir->insCall(F_doubleToInt32, &f);
 }
 
-bool TraceRecorder::ifop()
+bool
+TraceRecorder::ifop()
 {
     jsval& v = stackval(-1);
-    if (JSVAL_IS_BOOLEAN(v)) {
-        guard(!JSVAL_TO_BOOLEAN(v), lir->ins_eq0(get(&v)), BRANCH_EXIT);
+    if (JSVAL_TAG(v) == JSVAL_BOOLEAN) {
+        guard(JSVAL_TO_BOOLEAN(v) != 1,
+              lir->ins_eq0(lir->ins2(LIR_eq, get(&v), lir->insImm(1))),
+              BRANCH_EXIT);
     } else if (JSVAL_IS_OBJECT(v)) {
         guard(!JSVAL_IS_NULL(v), lir->ins_eq0(get(&v)), BRANCH_EXIT);
     } else if (isNumber(v)) {
@@ -1539,9 +1670,9 @@ bool TraceRecorder::ifop()
         /* XXX need to handle NaN! */
         guard(d == 0, lir->ins2(LIR_feq, get(&v), lir->insImmq(u.u64)), BRANCH_EXIT);
     } else if (JSVAL_IS_STRING(v)) {
-        ABORT_TRACE("strings not supported");
+        ABORT_TRACE("string condition not supported");
     } else {
-        ABORT_TRACE("unknown type, wtf");
+        JS_NOT_REACHED("ifop");
     }
     return true;
 }
@@ -2016,13 +2147,15 @@ TraceRecorder::guardClass(JSObject* obj, LIns* obj_ins, JSClass* clasp)
     return true;
 }
 
-bool TraceRecorder::guardDenseArray(JSObject* obj, LIns* obj_ins)
+bool
+TraceRecorder::guardDenseArray(JSObject* obj, LIns* obj_ins)
 {
     return guardClass(obj, obj_ins, &js_ArrayClass);
 }
 
-bool TraceRecorder::guardDenseArrayIndex(JSObject* obj, jsint idx, LIns* obj_ins,
-                                         LIns* dslots_ins, LIns* idx_ins)
+bool
+TraceRecorder::guardDenseArrayIndex(JSObject* obj, jsint idx, LIns* obj_ins,
+                                    LIns* dslots_ins, LIns* idx_ins)
 {
     jsuint length = ARRAY_DENSE_LENGTH(obj);
     if (!((jsuint)idx < length && idx < obj->fslots[JSSLOT_ARRAY_LENGTH]))
@@ -2053,7 +2186,7 @@ TraceRecorder::clearFrameSlotsFromCache()
     JSStackFrame* fp = cx->fp;
     jsval* vp;
     jsval* vpstop;
-    for (vp = &fp->argv[-1], vpstop = &fp->argv[fp->fun->nargs]; vp < vpstop; ++vp)
+    for (vp = &fp->argv[-1], vpstop = &fp->argv[JS_MAX(fp->fun->nargs,fp->argc)]; vp < vpstop; ++vp)
         nativeFrameTracker.set(vp, (LIns*)0);
     for (vp = &fp->slots[0], vpstop = &fp->slots[fp->script->nslots]; vp < vpstop; ++vp)
         nativeFrameTracker.set(vp, (LIns*)0);
@@ -2086,16 +2219,21 @@ bool TraceRecorder::record_JSOP_INTERRUPT()
 {
     return false;
 }
-bool TraceRecorder::record_JSOP_PUSH()
+
+bool
+TraceRecorder::record_JSOP_PUSH()
 {
     stack(0, lir->insImm(JSVAL_TO_BOOLEAN(JSVAL_VOID)));
     return true;
 }
-bool TraceRecorder::record_JSOP_POPV()
+
+bool
+TraceRecorder::record_JSOP_POPV()
 {
-    // If we implement this, we need to update JSOP_STOP.
+    // We should not have to implement JSOP_POPV or JSOP_STOP's rval setting.
     return false;
 }
+
 bool TraceRecorder::record_JSOP_ENTERWITH()
 {
     return false;
@@ -2104,57 +2242,80 @@ bool TraceRecorder::record_JSOP_LEAVEWITH()
 {
     return false;
 }
-bool TraceRecorder::record_JSOP_RETURN()
+
+bool
+TraceRecorder::record_JSOP_RETURN()
 {
     rval_ins = stack(-1);
     clearFrameSlotsFromCache();
     return true;
 }
-bool TraceRecorder::record_JSOP_GOTO()
+
+bool
+TraceRecorder::record_JSOP_GOTO()
 {
     return true;
 }
-bool TraceRecorder::record_JSOP_IFEQ()
+
+bool
+TraceRecorder::record_JSOP_IFEQ()
 {
     return ifop();
 }
-bool TraceRecorder::record_JSOP_IFNE()
+
+bool
+TraceRecorder::record_JSOP_IFNE()
 {
     return ifop();
 }
-bool TraceRecorder::record_JSOP_ARGUMENTS()
+
+bool
+TraceRecorder::record_JSOP_ARGUMENTS()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_DUP()
+bool
+TraceRecorder::record_JSOP_DUP()
 {
     stack(0, get(&stackval(-1)));
     return true;
 }
-bool TraceRecorder::record_JSOP_DUP2()
+
+bool
+TraceRecorder::record_JSOP_DUP2()
 {
     stack(0, get(&stackval(-2)));
     stack(1, get(&stackval(-1)));
     return true;
 }
-bool TraceRecorder::record_JSOP_SETCONST()
+
+bool
+TraceRecorder::record_JSOP_SETCONST()
 {
     return false;
 }
-bool TraceRecorder::record_JSOP_BITOR()
+
+bool
+TraceRecorder::record_JSOP_BITOR()
 {
     return binary(LIR_or);
 }
-bool TraceRecorder::record_JSOP_BITXOR()
+
+bool
+TraceRecorder::record_JSOP_BITXOR()
 {
     return binary(LIR_xor);
 }
-bool TraceRecorder::record_JSOP_BITAND()
+
+bool
+TraceRecorder::record_JSOP_BITAND()
 {
     return binary(LIR_and);
 }
-bool TraceRecorder::record_JSOP_EQ()
+
+bool
+TraceRecorder::record_JSOP_EQ()
 {
     jsval& r = stackval(-1);
     jsval& l = stackval(-2);
@@ -2177,7 +2338,9 @@ bool TraceRecorder::record_JSOP_EQ()
     }
     return cmp(LIR_feq);
 }
-bool TraceRecorder::record_JSOP_NE()
+
+bool
+TraceRecorder::record_JSOP_NE()
 {
     jsval& r = stackval(-1);
     jsval& l = stackval(-2);
@@ -2200,35 +2363,51 @@ bool TraceRecorder::record_JSOP_NE()
     }
     return cmp(LIR_feq, true);
 }
-bool TraceRecorder::record_JSOP_LT()
+
+bool
+TraceRecorder::record_JSOP_LT()
 {
     return cmp(LIR_flt);
 }
-bool TraceRecorder::record_JSOP_LE()
+
+bool
+TraceRecorder::record_JSOP_LE()
 {
     return cmp(LIR_fle);
 }
-bool TraceRecorder::record_JSOP_GT()
+
+bool
+TraceRecorder::record_JSOP_GT()
 {
     return cmp(LIR_fgt);
 }
-bool TraceRecorder::record_JSOP_GE()
+
+bool
+TraceRecorder::record_JSOP_GE()
 {
     return cmp(LIR_fge);
 }
-bool TraceRecorder::record_JSOP_LSH()
+
+bool
+TraceRecorder::record_JSOP_LSH()
 {
     return binary(LIR_lsh);
 }
-bool TraceRecorder::record_JSOP_RSH()
+
+bool
+TraceRecorder::record_JSOP_RSH()
 {
     return binary(LIR_rsh);
 }
-bool TraceRecorder::record_JSOP_URSH()
+
+bool
+TraceRecorder::record_JSOP_URSH()
 {
     return binary(LIR_ush);
 }
-bool TraceRecorder::record_JSOP_ADD()
+
+bool
+TraceRecorder::record_JSOP_ADD()
 {
     jsval& r = stackval(-1);
     jsval& l = stackval(-2);
@@ -2241,19 +2420,27 @@ bool TraceRecorder::record_JSOP_ADD()
     }
     return binary(LIR_fadd);
 }
-bool TraceRecorder::record_JSOP_SUB()
+
+bool
+TraceRecorder::record_JSOP_SUB()
 {
     return binary(LIR_fsub);
 }
-bool TraceRecorder::record_JSOP_MUL()
+
+bool
+TraceRecorder::record_JSOP_MUL()
 {
     return binary(LIR_fmul);
 }
-bool TraceRecorder::record_JSOP_DIV()
+
+bool
+TraceRecorder::record_JSOP_DIV()
 {
     return binary(LIR_fdiv);
 }
-bool TraceRecorder::record_JSOP_MOD()
+
+bool
+TraceRecorder::record_JSOP_MOD()
 {
     jsval& r = stackval(-1);
     jsval& l = stackval(-2);
@@ -2264,7 +2451,9 @@ bool TraceRecorder::record_JSOP_MOD()
     }
     return false;
 }
-bool TraceRecorder::record_JSOP_NOT()
+
+bool
+TraceRecorder::record_JSOP_NOT()
 {
     jsval& v = stackval(-1);
     if (JSVAL_IS_BOOLEAN(v)) {
@@ -2273,106 +2462,137 @@ bool TraceRecorder::record_JSOP_NOT()
     }
     return false;
 }
-bool TraceRecorder::record_JSOP_BITNOT()
+
+bool
+TraceRecorder::record_JSOP_BITNOT()
 {
     return unary(LIR_not);
 }
-bool TraceRecorder::record_JSOP_NEG()
+
+bool
+TraceRecorder::record_JSOP_NEG()
 {
     return unary(LIR_fneg);
 }
-bool TraceRecorder::record_JSOP_NEW()
+
+bool
+TraceRecorder::record_JSOP_NEW()
 {
     return false;
 }
-bool TraceRecorder::record_JSOP_DELNAME()
+
+bool
+TraceRecorder::record_JSOP_DELNAME()
 {
     return false;
 }
-bool TraceRecorder::record_JSOP_DELPROP()
+
+bool
+TraceRecorder::record_JSOP_DELPROP()
 {
     return false;
 }
-bool TraceRecorder::record_JSOP_DELELEM()
+
+bool
+TraceRecorder::record_JSOP_DELELEM()
 {
     return false;
 }
-bool TraceRecorder::record_JSOP_TYPEOF()
+
+bool
+TraceRecorder::record_JSOP_TYPEOF()
 {
     return false;
 }
-bool TraceRecorder::record_JSOP_VOID()
+
+bool
+TraceRecorder::record_JSOP_VOID()
 {
     stack(0, lir->insImm(JSVAL_TO_BOOLEAN(JSVAL_VOID)));
     return true;
 }
-bool TraceRecorder::record_JSOP_INCNAME()
+
+bool
+TraceRecorder::record_JSOP_INCNAME()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_INCPROP()
+bool
+TraceRecorder::record_JSOP_INCPROP()
 {
     return incProp(1);
 }
 
-bool TraceRecorder::record_JSOP_INCELEM()
+bool
+TraceRecorder::record_JSOP_INCELEM()
 {
     return incElem(1);
 }
 
-bool TraceRecorder::record_JSOP_DECNAME()
+bool
+TraceRecorder::record_JSOP_DECNAME()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_DECPROP()
+bool
+TraceRecorder::record_JSOP_DECPROP()
 {
     return incProp(-1);
 }
 
-bool TraceRecorder::record_JSOP_DECELEM()
+bool
+TraceRecorder::record_JSOP_DECELEM()
 {
     return incElem(-1);
 }
 
-bool TraceRecorder::record_JSOP_NAMEINC()
+bool
+TraceRecorder::record_JSOP_NAMEINC()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_PROPINC()
+bool
+TraceRecorder::record_JSOP_PROPINC()
 {
     return incProp(1, false);
 }
 
 // XXX consolidate with record_JSOP_GETELEM code...
-bool TraceRecorder::record_JSOP_ELEMINC()
+bool
+TraceRecorder::record_JSOP_ELEMINC()
 {
     return incElem(1, false);
 }
 
-bool TraceRecorder::record_JSOP_NAMEDEC()
+bool
+TraceRecorder::record_JSOP_NAMEDEC()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_PROPDEC()
+bool
+TraceRecorder::record_JSOP_PROPDEC()
 {
     return incProp(-1, false);
 }
 
-bool TraceRecorder::record_JSOP_ELEMDEC()
+bool
+TraceRecorder::record_JSOP_ELEMDEC()
 {
     return incElem(-1, false);
 }
 
-bool TraceRecorder::record_JSOP_GETPROP()
+bool
+TraceRecorder::record_JSOP_GETPROP()
 {
     return getProp(stackval(-1));
 }
 
-bool TraceRecorder::record_JSOP_SETPROP()
+bool
+TraceRecorder::record_JSOP_SETPROP()
 {
     jsval& r = stackval(-1);
     jsval& l = stackval(-2);
@@ -2425,7 +2645,8 @@ bool TraceRecorder::record_JSOP_SETPROP()
     return true;
 }
 
-bool TraceRecorder::record_JSOP_GETELEM()
+bool
+TraceRecorder::record_JSOP_GETELEM()
 {
     jsval& r = stackval(-1);
     jsval& l = stackval(-2);
@@ -2446,7 +2667,8 @@ bool TraceRecorder::record_JSOP_GETELEM()
     return true;
 }
 
-bool TraceRecorder::record_JSOP_SETELEM()
+bool
+TraceRecorder::record_JSOP_SETELEM()
 {
     jsval& v = stackval(-1);
     jsval& r = stackval(-2);
@@ -2480,7 +2702,8 @@ bool TraceRecorder::record_JSOP_SETELEM()
     return true;
 }
 
-bool TraceRecorder::record_JSOP_CALLNAME()
+bool
+TraceRecorder::record_JSOP_CALLNAME()
 {
     JSObject* obj = cx->fp->scopeChain;
     if (obj != globalObj)
@@ -2499,68 +2722,6 @@ bool TraceRecorder::record_JSOP_CALLNAME()
     stack(0, lir->insImmPtr(PCVAL_TO_OBJECT(pcval)));
     stack(1, obj_ins);
     return true;
-}
-
-JSInlineFrame*
-TraceRecorder::synthesizeFrame(JSObject* callee, JSObject* thisp, jsbytecode* pc)
-{
-    JS_ASSERT(HAS_FUNCTION_CLASS(callee));
-
-    JSFunction* fun = GET_FUNCTION_PRIVATE(cx, callee);
-    JS_ASSERT(FUN_INTERPRETED(fun));
-
-    JSArena* a = cx->stackPool.current;
-    void* newmark = (void*) a->avail;
-    JSScript* script = fun->u.i.script;
-
-    uintN nframeslots = JS_HOWMANY(sizeof(JSInlineFrame), sizeof(jsval));
-    size_t nbytes = (nframeslots + script->nslots) * sizeof(jsval);
-
-    /* Allocate the inline frame with its vars and operands. */
-    jsval* newsp;
-    if (a->avail + nbytes <= a->limit) {
-        newsp = (jsval *) a->avail;
-        a->avail += nbytes;
-    } else {
-        JS_ARENA_ALLOCATE_CAST(newsp, jsval *, &cx->stackPool, nbytes);
-        if (!newsp) {
-            js_ReportOutOfScriptQuota(cx);
-            return NULL;
-        }
-    }
-
-    /* Claim space for the stack frame and initialize it. */
-    JSInlineFrame* newifp = (JSInlineFrame *) newsp;
-    newsp += nframeslots;
-    newifp->frame.callobj = NULL;
-    newifp->frame.argsobj = NULL;
-    newifp->frame.varobj = NULL;
-    newifp->frame.script = script;
-    newifp->frame.callee = callee;
-    newifp->frame.fun = fun;
-    newifp->frame.argc = fun->nargs;
-    JS_ASSERT(cx->fp->regs->sp - fun->nargs >= StackBase(cx->fp));
-    newifp->frame.argv = cx->fp->regs->sp - fun->nargs;
-    newifp->frame.rval = JSVAL_VOID;
-    newifp->frame.down = cx->fp;
-    newifp->frame.annotation = NULL;
-    newifp->frame.scopeChain = OBJ_GET_PARENT(cx, callee);
-    newifp->frame.sharpDepth = 0;
-    newifp->frame.sharpArray = NULL;
-    newifp->frame.flags = 0;
-    newifp->frame.dormantNext = NULL;
-    newifp->frame.xmlNamespace = NULL;
-    newifp->frame.blockChain = NULL;
-    newifp->mark = newmark;
-    newifp->frame.thisp = thisp;
-    newifp->callerRegs = *cx->fp->regs;
-    newifp->frame.regs = cx->fp->regs;
-    newifp->frame.regs->pc = pc;
-    newifp->frame.regs->sp = newsp + script->nfixed + js_ReconstructStackDepth(cx, script, pc);
-    newifp->frame.slots = newsp;
-
-    cx->fp = &newifp->frame;
-    return newifp;
 }
 
 JSBool
@@ -2587,11 +2748,13 @@ js_str_charCodeAt(JSContext* cx, uintN argc, jsval* vp);
 JSBool
 js_math_random(JSContext* cx, uintN argc, jsval* vp);
 
-bool TraceRecorder::record_JSOP_CALL()
+bool
+TraceRecorder::record_JSOP_CALL()
 {
-    uintN argc = GET_ARGC(cx->fp->regs->pc);
+    JSStackFrame* fp = cx->fp;
+    uintN argc = GET_ARGC(fp->regs->pc);
     jsval& fval = stackval(0 - (argc + 2));
-    LIns* thisval_ins = stack(0 - (argc+1));
+    LIns* thisval_ins = stack(0 - (argc + 1));
 
     if (!VALUE_IS_FUNCTION(cx, fval))
         ABORT_TRACE("CALL on non-function");
@@ -2599,13 +2762,29 @@ bool TraceRecorder::record_JSOP_CALL()
     JSFunction* fun = GET_FUNCTION_PRIVATE(cx, JSVAL_TO_OBJECT(fval));
     if (FUN_INTERPRETED(fun)) {
         // TODO: make sure args are not copied, or track the copying via the tracker
-        if (fun->nargs != argc)
-            ABORT_TRACE("can't trace function calls with arity mismatch");
+        if (argc < fun->nargs &&
+            jsuword(fp->regs->sp + (fun->nargs - argc)) > cx->stackPool.current->limit) {
+            ABORT_TRACE("can't trace calls with too few args requiring argv move");
+        }
+
+        FrameInfo fi = {
+            JSVAL_TO_OBJECT(fval),
+            fp->regs->pc,
+            fp->regs->sp + (fun->nargs - argc) - fp->slots,
+            argc
+        };
+
         unsigned callDepth = getCallDepth();
-        lir->insStorei(lir->insImmPtr(JSVAL_TO_OBJECT(fval)),
-                       lirbuf->rp, callDepth * sizeof(JSObject*));
-        if (callDepth+1 > treeInfo->maxCallDepth)
-            treeInfo->maxCallDepth = callDepth+1;
+        if (callDepth >= treeInfo->maxCallDepth)
+            treeInfo->maxCallDepth = callDepth + 1;
+
+        lir->insStorei(lir->insImmPtr(fi.callee), lirbuf->rp,
+                       callDepth * sizeof(FrameInfo) + offsetof(FrameInfo, callee));
+        lir->insStorei(lir->insImmPtr(fi.callpc), lirbuf->rp,
+                       callDepth * sizeof(FrameInfo) + offsetof(FrameInfo, callpc));
+        lir->insStorei(lir->insImm(fi.word), lirbuf->rp,
+                       callDepth * sizeof(FrameInfo) + offsetof(FrameInfo, word));
+
         atoms = fun->u.i.script->atomMap.vector;
         return true;
     }
@@ -2614,7 +2793,7 @@ bool TraceRecorder::record_JSOP_CALL()
         ABORT_TRACE("slow native");
 
     enum JSTNErrType { INFALLIBLE, FAIL_NULL, FAIL_NEG };
-    struct JSTraceableNative {
+    static struct JSTraceableNative {
         JSFastNative native;
         int          builtin;
         const char  *prefix;
@@ -2812,7 +2991,8 @@ TraceRecorder::getProp(jsval& v)
     return getProp(JSVAL_TO_OBJECT(v), get(&v));
 }
 
-bool TraceRecorder::record_JSOP_NAME()
+bool
+TraceRecorder::record_JSOP_NAME()
 {
     JSObject* obj = cx->fp->scopeChain;
     if (obj != globalObj)
@@ -2833,7 +3013,8 @@ bool TraceRecorder::record_JSOP_NAME()
     return true;
 }
 
-bool TraceRecorder::record_JSOP_DOUBLE()
+bool
+TraceRecorder::record_JSOP_DOUBLE()
 {
     jsval v = jsval(atoms[GET_INDEX(cx->fp->regs->pc)]);
     jsdpun u;
@@ -2841,33 +3022,43 @@ bool TraceRecorder::record_JSOP_DOUBLE()
     stack(0, lir->insImmq(u.u64));
     return true;
 }
-bool TraceRecorder::record_JSOP_STRING()
+
+bool
+TraceRecorder::record_JSOP_STRING()
 {
     JSAtom* atom = atoms[GET_INDEX(cx->fp->regs->pc)];
     JS_ASSERT(ATOM_IS_STRING(atom));
     stack(0, lir->insImmPtr((void*)ATOM_TO_STRING(atom)));
     return true;
 }
-bool TraceRecorder::record_JSOP_ZERO()
+
+bool
+TraceRecorder::record_JSOP_ZERO()
 {
     jsdpun u;
     u.d = 0.0;
     stack(0, lir->insImmq(u.u64));
     return true;
 }
-bool TraceRecorder::record_JSOP_ONE()
+
+bool
+TraceRecorder::record_JSOP_ONE()
 {
     jsdpun u;
     u.d = 1.0;
     stack(0, lir->insImmq(u.u64));
     return true;
 }
-bool TraceRecorder::record_JSOP_NULL()
+
+bool
+TraceRecorder::record_JSOP_NULL()
 {
     stack(0, lir->insImmPtr(NULL));
     return true;
 }
-bool TraceRecorder::record_JSOP_THIS()
+
+bool
+TraceRecorder::record_JSOP_THIS()
 {
     LIns* this_ins;
     if (!getThis(this_ins))
@@ -2875,110 +3066,148 @@ bool TraceRecorder::record_JSOP_THIS()
     stack(0, this_ins);
     return true;
 }
-bool TraceRecorder::record_JSOP_FALSE()
+
+bool
+TraceRecorder::record_JSOP_FALSE()
 {
     stack(0, lir->insImm(0));
     return true;
 }
-bool TraceRecorder::record_JSOP_TRUE()
+
+bool
+TraceRecorder::record_JSOP_TRUE()
 {
     stack(0, lir->insImm(1));
     return true;
 }
-bool TraceRecorder::record_JSOP_OR()
+
+bool
+TraceRecorder::record_JSOP_OR()
 {
-    return false;
+    return ifop();
 }
-bool TraceRecorder::record_JSOP_AND()
+
+bool
+TraceRecorder::record_JSOP_AND()
 {
-    return false;
+    return ifop();
 }
-bool TraceRecorder::record_JSOP_TABLESWITCH()
-{
-    return false;
-}
-bool TraceRecorder::record_JSOP_LOOKUPSWITCH()
-{
-    return false;
-}
-bool TraceRecorder::record_JSOP_STRICTEQ()
-{
-    return false;
-}
-bool TraceRecorder::record_JSOP_STRICTNE()
-{
-    return false;
-}
-bool TraceRecorder::record_JSOP_CLOSURE()
-{
-    return false;
-}
-bool TraceRecorder::record_JSOP_EXPORTALL()
-{
-    return false;
-}
-bool TraceRecorder::record_JSOP_EXPORTNAME()
-{
-    return false;
-}
-bool TraceRecorder::record_JSOP_IMPORTALL()
-{
-    return false;
-}
-bool TraceRecorder::record_JSOP_IMPORTPROP()
-{
-    return false;
-}
-bool TraceRecorder::record_JSOP_IMPORTELEM()
-{
-    return false;
-}
-bool TraceRecorder::record_JSOP_OBJECT()
+
+bool
+TraceRecorder::record_JSOP_TABLESWITCH()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_POP()
+bool
+TraceRecorder::record_JSOP_LOOKUPSWITCH()
+{
+    return false;
+}
+
+bool
+TraceRecorder::record_JSOP_STRICTEQ()
+{
+    return false;
+}
+
+bool
+TraceRecorder::record_JSOP_STRICTNE()
+{
+    return false;
+}
+
+bool
+TraceRecorder::record_JSOP_CLOSURE()
+{
+    return false;
+}
+
+bool
+TraceRecorder::record_JSOP_EXPORTALL()
+{
+    return false;
+}
+
+bool
+TraceRecorder::record_JSOP_EXPORTNAME()
+{
+    return false;
+}
+
+bool
+TraceRecorder::record_JSOP_IMPORTALL()
+{
+    return false;
+}
+
+bool
+TraceRecorder::record_JSOP_IMPORTPROP()
+{
+    return false;
+}
+
+bool
+TraceRecorder::record_JSOP_IMPORTELEM()
+{
+    return false;
+}
+
+bool
+TraceRecorder::record_JSOP_OBJECT()
+{
+    return false;
+}
+
+bool
+TraceRecorder::record_JSOP_POP()
 {
     return true;
 }
 
-bool TraceRecorder::record_JSOP_POS()
+bool
+TraceRecorder::record_JSOP_POS()
 {
     jsval& r = stackval(-1);
     return isNumber(r);
 }
 
-bool TraceRecorder::record_JSOP_TRAP()
+bool
+TraceRecorder::record_JSOP_TRAP()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_GETARG()
+bool
+TraceRecorder::record_JSOP_GETARG()
 {
     stack(0, arg(GET_ARGNO(cx->fp->regs->pc)));
     return true;
 }
 
-bool TraceRecorder::record_JSOP_SETARG()
+bool
+TraceRecorder::record_JSOP_SETARG()
 {
     arg(GET_ARGNO(cx->fp->regs->pc), stack(-1));
     return true;
 }
 
-bool TraceRecorder::record_JSOP_GETVAR()
+bool
+TraceRecorder::record_JSOP_GETVAR()
 {
     stack(0, var(GET_SLOTNO(cx->fp->regs->pc)));
     return true;
 }
 
-bool TraceRecorder::record_JSOP_SETVAR()
+bool
+TraceRecorder::record_JSOP_SETVAR()
 {
     var(GET_SLOTNO(cx->fp->regs->pc), stack(-1));
     return true;
 }
 
-bool TraceRecorder::record_JSOP_UINT16()
+bool
+TraceRecorder::record_JSOP_UINT16()
 {
     jsdpun u;
     u.d = (jsdouble)GET_UINT16(cx->fp->regs->pc);
@@ -2986,82 +3215,98 @@ bool TraceRecorder::record_JSOP_UINT16()
     return true;
 }
 
-bool TraceRecorder::record_JSOP_NEWINIT()
+bool
+TraceRecorder::record_JSOP_NEWINIT()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_ENDINIT()
+bool
+TraceRecorder::record_JSOP_ENDINIT()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_INITPROP()
+bool
+TraceRecorder::record_JSOP_INITPROP()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_INITELEM()
+bool
+TraceRecorder::record_JSOP_INITELEM()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_DEFSHARP()
+bool
+TraceRecorder::record_JSOP_DEFSHARP()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_USESHARP()
+bool
+TraceRecorder::record_JSOP_USESHARP()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_INCARG()
+bool
+TraceRecorder::record_JSOP_INCARG()
 {
     return inc(argval(GET_ARGNO(cx->fp->regs->pc)), 1);
 }
 
-bool TraceRecorder::record_JSOP_INCVAR()
+bool
+TraceRecorder::record_JSOP_INCVAR()
 {
     return inc(varval(GET_SLOTNO(cx->fp->regs->pc)), 1);
 }
 
-bool TraceRecorder::record_JSOP_DECARG()
+bool
+TraceRecorder::record_JSOP_DECARG()
 {
     return inc(argval(GET_ARGNO(cx->fp->regs->pc)), -1);
 }
 
-bool TraceRecorder::record_JSOP_DECVAR()
+bool
+TraceRecorder::record_JSOP_DECVAR()
 {
     return inc(varval(GET_SLOTNO(cx->fp->regs->pc)), -1);
 }
 
-bool TraceRecorder::record_JSOP_ARGINC()
+bool
+TraceRecorder::record_JSOP_ARGINC()
 {
     return inc(argval(GET_ARGNO(cx->fp->regs->pc)), 1, false);
 }
 
-bool TraceRecorder::record_JSOP_VARINC()
+bool
+TraceRecorder::record_JSOP_VARINC()
 {
     return inc(varval(GET_SLOTNO(cx->fp->regs->pc)), 1, false);
 }
 
-bool TraceRecorder::record_JSOP_ARGDEC()
+bool
+TraceRecorder::record_JSOP_ARGDEC()
 {
     return inc(argval(GET_ARGNO(cx->fp->regs->pc)), -1, false);
 }
 
-bool TraceRecorder::record_JSOP_VARDEC()
+bool
+TraceRecorder::record_JSOP_VARDEC()
 {
     return inc(varval(GET_SLOTNO(cx->fp->regs->pc)), -1, false);
 }
 
-bool TraceRecorder::record_JSOP_ITER()
+bool
+TraceRecorder::record_JSOP_ITER()
 {
     return true;
 }
 
-bool TraceRecorder::forInProlog(LIns*& iterobj_ins)
+bool
+TraceRecorder::forInProlog(LIns*& iterobj_ins)
 {
     jsval& iterval = stackval(-1);
     JS_ASSERT(!JSVAL_IS_PRIMITIVE(iterval));
@@ -3098,32 +3343,38 @@ bool TraceRecorder::forInProlog(LIns*& iterobj_ins)
     return false;
 }
 
-bool TraceRecorder::record_JSOP_ENDITER()
+bool
+TraceRecorder::record_JSOP_ENDITER()
 {
     return true;
 }
 
-bool TraceRecorder::record_JSOP_FORNAME()
+bool
+TraceRecorder::record_JSOP_FORNAME()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_FORPROP()
+bool
+TraceRecorder::record_JSOP_FORPROP()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_FORELEM()
+bool
+TraceRecorder::record_JSOP_FORELEM()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_FORARG()
+bool
+TraceRecorder::record_JSOP_FORARG()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_FORVAR()
+bool
+TraceRecorder::record_JSOP_FORVAR()
 {
     LIns* iterobj_ins;
     if (!forInProlog(iterobj_ins))
@@ -3154,22 +3405,26 @@ bool TraceRecorder::record_JSOP_FORVAR()
     return true;
 }
 
-bool TraceRecorder::record_JSOP_FORLOCAL()
+bool
+TraceRecorder::record_JSOP_FORLOCAL()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_FORCONST()
+bool
+TraceRecorder::record_JSOP_FORCONST()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_POPN()
+bool
+TraceRecorder::record_JSOP_POPN()
 {
     return true;
 }
 
-bool TraceRecorder::record_JSOP_BINDNAME()
+bool
+TraceRecorder::record_JSOP_BINDNAME()
 {
     JSObject* obj = cx->fp->scopeChain;
     if (obj != globalObj)
@@ -3186,7 +3441,8 @@ bool TraceRecorder::record_JSOP_BINDNAME()
     return true;
 }
 
-bool TraceRecorder::record_JSOP_SETNAME()
+bool
+TraceRecorder::record_JSOP_SETNAME()
 {
     jsval& r = stackval(-1);
     jsval& l = stackval(-2);
@@ -3218,115 +3474,170 @@ bool TraceRecorder::record_JSOP_SETNAME()
     return true;
 }
 
-bool TraceRecorder::record_JSOP_THROW()
+bool
+TraceRecorder::record_JSOP_THROW()
 {
     return false;
 }
-bool TraceRecorder::record_JSOP_IN()
+
+bool
+TraceRecorder::record_JSOP_IN()
 {
     return false;
 }
-bool TraceRecorder::record_JSOP_INSTANCEOF()
+
+bool
+TraceRecorder::record_JSOP_INSTANCEOF()
 {
     return false;
 }
-bool TraceRecorder::record_JSOP_DEBUGGER()
+
+bool
+TraceRecorder::record_JSOP_DEBUGGER()
 {
     return false;
 }
-bool TraceRecorder::record_JSOP_GOSUB()
+
+bool
+TraceRecorder::record_JSOP_GOSUB()
 {
     return false;
 }
-bool TraceRecorder::record_JSOP_RETSUB()
+
+bool
+TraceRecorder::record_JSOP_RETSUB()
 {
     return false;
 }
-bool TraceRecorder::record_JSOP_EXCEPTION()
+
+bool
+TraceRecorder::record_JSOP_EXCEPTION()
 {
     return false;
 }
-bool TraceRecorder::record_JSOP_LINENO()
+
+bool
+TraceRecorder::record_JSOP_LINENO()
 {
     return true;
 }
-bool TraceRecorder::record_JSOP_CONDSWITCH()
+
+bool
+TraceRecorder::record_JSOP_CONDSWITCH()
 {
     return true;
 }
-bool TraceRecorder::record_JSOP_CASE()
+
+bool
+TraceRecorder::record_JSOP_CASE()
 {
     return false;
 }
-bool TraceRecorder::record_JSOP_DEFAULT()
+
+bool
+TraceRecorder::record_JSOP_DEFAULT()
 {
     return false;
 }
-bool TraceRecorder::record_JSOP_EVAL()
+
+bool
+TraceRecorder::record_JSOP_EVAL()
 {
     return false;
 }
-bool TraceRecorder::record_JSOP_ENUMELEM()
+
+bool
+TraceRecorder::record_JSOP_ENUMELEM()
 {
     return false;
 }
-bool TraceRecorder::record_JSOP_GETTER()
+
+bool
+TraceRecorder::record_JSOP_GETTER()
 {
     return false;
 }
-bool TraceRecorder::record_JSOP_SETTER()
+
+bool
+TraceRecorder::record_JSOP_SETTER()
 {
     return false;
 }
-bool TraceRecorder::record_JSOP_DEFFUN()
+
+bool
+TraceRecorder::record_JSOP_DEFFUN()
 {
     return false;
 }
-bool TraceRecorder::record_JSOP_DEFCONST()
+
+bool
+TraceRecorder::record_JSOP_DEFCONST()
 {
     return false;
 }
-bool TraceRecorder::record_JSOP_DEFVAR()
+
+bool
+TraceRecorder::record_JSOP_DEFVAR()
 {
     return false;
 }
-bool TraceRecorder::record_JSOP_ANONFUNOBJ()
+
+bool
+TraceRecorder::record_JSOP_ANONFUNOBJ()
 {
     return false;
 }
-bool TraceRecorder::record_JSOP_NAMEDFUNOBJ()
+
+bool
+TraceRecorder::record_JSOP_NAMEDFUNOBJ()
 {
     return false;
 }
-bool TraceRecorder::record_JSOP_SETLOCALPOP()
+
+bool
+TraceRecorder::record_JSOP_SETLOCALPOP()
 {
     return false;
 }
-bool TraceRecorder::record_JSOP_GROUP()
+
+bool
+TraceRecorder::record_JSOP_GROUP()
 {
     return true; // no-op
 }
-bool TraceRecorder::record_JSOP_SETCALL()
+
+bool
+TraceRecorder::record_JSOP_SETCALL()
 {
     return false;
 }
-bool TraceRecorder::record_JSOP_TRY()
+
+bool
+TraceRecorder::record_JSOP_TRY()
 {
     return true;
 }
-bool TraceRecorder::record_JSOP_FINALLY()
+
+bool
+TraceRecorder::record_JSOP_FINALLY()
 {
     return true;
 }
-bool TraceRecorder::record_JSOP_NOP()
+
+bool
+TraceRecorder::record_JSOP_NOP()
 {
     return true;
 }
-bool TraceRecorder::record_JSOP_ARGSUB()
+
+bool
+TraceRecorder::record_JSOP_ARGSUB()
 {
     return false;
 }
-bool TraceRecorder::record_JSOP_ARGCNT()
+
+bool
+TraceRecorder::record_JSOP_ARGCNT()
 {
     return false;
 }
@@ -3341,7 +3652,8 @@ bool TraceRecorder::record_JSOP_ARGCNT()
 #define LOAD_FUNCTION(PCOFF)                                                  \
     JS_GET_SCRIPT_FUNCTION(script, GET_FULL_INDEX(PCOFF), fun)
 
-bool TraceRecorder::record_JSOP_DEFLOCALFUN()
+bool
+TraceRecorder::record_JSOP_DEFLOCALFUN()
 {
     JSFunction* fun;
     JSFrameRegs& regs = *cx->fp->regs;
@@ -3356,69 +3668,99 @@ bool TraceRecorder::record_JSOP_DEFLOCALFUN()
     return true;
 }
 
-bool TraceRecorder::record_JSOP_GOTOX()
-{
-    return false;
-}
-bool TraceRecorder::record_JSOP_IFEQX()
-{
-    return record_JSOP_IFEQ();
-}
-bool TraceRecorder::record_JSOP_IFNEX()
-{
-    return record_JSOP_IFNE();
-}
-bool TraceRecorder::record_JSOP_ORX()
-{
-    return record_JSOP_OR();
-}
-bool TraceRecorder::record_JSOP_ANDX()
-{
-    return record_JSOP_AND();
-}
-bool TraceRecorder::record_JSOP_GOSUBX()
-{
-    return record_JSOP_GOSUB();
-}
-bool TraceRecorder::record_JSOP_CASEX()
-{
-    return record_JSOP_CASE();
-}
-bool TraceRecorder::record_JSOP_DEFAULTX()
-{
-    return record_JSOP_DEFAULT();
-}
-bool TraceRecorder::record_JSOP_TABLESWITCHX()
-{
-    return record_JSOP_TABLESWITCH();
-}
-bool TraceRecorder::record_JSOP_LOOKUPSWITCHX()
-{
-    return record_JSOP_LOOKUPSWITCH();
-}
-bool TraceRecorder::record_JSOP_BACKPATCH()
-{
-    return true;
-}
-bool TraceRecorder::record_JSOP_BACKPATCH_POP()
-{
-    return true;
-}
-bool TraceRecorder::record_JSOP_THROWING()
-{
-    return false;
-}
-bool TraceRecorder::record_JSOP_SETRVAL()
-{
-    // If we implement this, we need to update JSOP_STOP.
-    return false;
-}
-bool TraceRecorder::record_JSOP_RETRVAL()
+bool
+TraceRecorder::record_JSOP_GOTOX()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_GETGVAR()
+bool
+TraceRecorder::record_JSOP_IFEQX()
+{
+    return record_JSOP_IFEQ();
+}
+
+bool
+TraceRecorder::record_JSOP_IFNEX()
+{
+    return record_JSOP_IFNE();
+}
+
+bool
+TraceRecorder::record_JSOP_ORX()
+{
+    return record_JSOP_OR();
+}
+
+bool
+TraceRecorder::record_JSOP_ANDX()
+{
+    return record_JSOP_AND();
+}
+
+bool
+TraceRecorder::record_JSOP_GOSUBX()
+{
+    return record_JSOP_GOSUB();
+}
+
+bool
+TraceRecorder::record_JSOP_CASEX()
+{
+    return record_JSOP_CASE();
+}
+
+bool
+TraceRecorder::record_JSOP_DEFAULTX()
+{
+    return record_JSOP_DEFAULT();
+}
+
+bool
+TraceRecorder::record_JSOP_TABLESWITCHX()
+{
+    return record_JSOP_TABLESWITCH();
+}
+
+bool
+TraceRecorder::record_JSOP_LOOKUPSWITCHX()
+{
+    return record_JSOP_LOOKUPSWITCH();
+}
+
+bool
+TraceRecorder::record_JSOP_BACKPATCH()
+{
+    return true;
+}
+
+bool
+TraceRecorder::record_JSOP_BACKPATCH_POP()
+{
+    return true;
+}
+
+bool
+TraceRecorder::record_JSOP_THROWING()
+{
+    return false;
+}
+
+bool
+TraceRecorder::record_JSOP_SETRVAL()
+{
+    // If we implement this, we need to update JSOP_STOP.
+    return false;
+}
+
+bool
+TraceRecorder::record_JSOP_RETRVAL()
+{
+    return false;
+}
+
+bool
+TraceRecorder::record_JSOP_GETGVAR()
 {
     jsval slotval = cx->fp->slots[GET_SLOTNO(cx->fp->regs->pc)];
     if (JSVAL_IS_NULL(slotval))
@@ -3433,7 +3775,8 @@ bool TraceRecorder::record_JSOP_GETGVAR()
     return true;
 }
 
-bool TraceRecorder::record_JSOP_SETGVAR()
+bool
+TraceRecorder::record_JSOP_SETGVAR()
 {
     jsval slotval = cx->fp->slots[GET_SLOTNO(cx->fp->regs->pc)];
     if (JSVAL_IS_NULL(slotval))
@@ -3448,7 +3791,8 @@ bool TraceRecorder::record_JSOP_SETGVAR()
     return true;
 }
 
-bool TraceRecorder::record_JSOP_INCGVAR()
+bool
+TraceRecorder::record_JSOP_INCGVAR()
 {
     jsval slotval = cx->fp->slots[GET_SLOTNO(cx->fp->regs->pc)];
     if (JSVAL_IS_NULL(slotval))
@@ -3462,7 +3806,8 @@ bool TraceRecorder::record_JSOP_INCGVAR()
     return inc(STOBJ_GET_SLOT(cx->fp->scopeChain, slot), 1);
 }
 
-bool TraceRecorder::record_JSOP_DECGVAR()
+bool
+TraceRecorder::record_JSOP_DECGVAR()
 {
     jsval slotval = cx->fp->slots[GET_SLOTNO(cx->fp->regs->pc)];
     if (JSVAL_IS_NULL(slotval))
@@ -3476,7 +3821,8 @@ bool TraceRecorder::record_JSOP_DECGVAR()
     return inc(STOBJ_GET_SLOT(cx->fp->scopeChain, slot), -1);
 }
 
-bool TraceRecorder::record_JSOP_GVARINC()
+bool
+TraceRecorder::record_JSOP_GVARINC()
 {
     jsval slotval = cx->fp->slots[GET_SLOTNO(cx->fp->regs->pc)];
     if (JSVAL_IS_NULL(slotval))
@@ -3490,7 +3836,8 @@ bool TraceRecorder::record_JSOP_GVARINC()
     return inc(STOBJ_GET_SLOT(cx->fp->scopeChain, slot), 1, false);
 }
 
-bool TraceRecorder::record_JSOP_GVARDEC()
+bool
+TraceRecorder::record_JSOP_GVARDEC()
 {
     jsval slotval = cx->fp->slots[GET_SLOTNO(cx->fp->regs->pc)];
     if (JSVAL_IS_NULL(slotval))
@@ -3504,104 +3851,174 @@ bool TraceRecorder::record_JSOP_GVARDEC()
     return inc(STOBJ_GET_SLOT(cx->fp->scopeChain, slot), -1, false);
 }
 
-bool TraceRecorder::record_JSOP_REGEXP()
-{
-    return false;
-}
-bool TraceRecorder::record_JSOP_DEFXMLNS()
-{
-    return false;
-}
-bool TraceRecorder::record_JSOP_ANYNAME()
-{
-    return false;
-}
-bool TraceRecorder::record_JSOP_QNAMEPART()
-{
-    return false;
-}
-bool TraceRecorder::record_JSOP_QNAMECONST()
-{
-    return false;
-}
-bool TraceRecorder::record_JSOP_QNAME()
-{
-    return false;
-}
-bool TraceRecorder::record_JSOP_TOATTRNAME()
-{
-    return false;
-}
-bool TraceRecorder::record_JSOP_TOATTRVAL()
-{
-    return false;
-}
-bool TraceRecorder::record_JSOP_ADDATTRNAME()
-{
-    return false;
-}
-bool TraceRecorder::record_JSOP_ADDATTRVAL()
-{
-    return false;
-}
-bool TraceRecorder::record_JSOP_BINDXMLNAME()
-{
-    return false;
-}
-bool TraceRecorder::record_JSOP_SETXMLNAME()
-{
-    return false;
-}
-bool TraceRecorder::record_JSOP_XMLNAME()
-{
-    return false;
-}
-bool TraceRecorder::record_JSOP_DESCENDANTS()
-{
-    return false;
-}
-bool TraceRecorder::record_JSOP_FILTER()
-{
-    return false;
-}
-bool TraceRecorder::record_JSOP_ENDFILTER()
-{
-    return false;
-}
-bool TraceRecorder::record_JSOP_TOXML()
-{
-    return false;
-}
-bool TraceRecorder::record_JSOP_TOXMLLIST()
-{
-    return false;
-}
-bool TraceRecorder::record_JSOP_XMLTAGEXPR()
-{
-    return false;
-}
-bool TraceRecorder::record_JSOP_XMLELTEXPR()
-{
-    return false;
-}
-bool TraceRecorder::record_JSOP_XMLOBJECT()
-{
-    return false;
-}
-bool TraceRecorder::record_JSOP_XMLCDATA()
-{
-    return false;
-}
-bool TraceRecorder::record_JSOP_XMLCOMMENT()
-{
-    return false;
-}
-bool TraceRecorder::record_JSOP_XMLPI()
+bool
+TraceRecorder::record_JSOP_REGEXP()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_CALLPROP()
+// begin JS_HAS_XML_SUPPORT
+
+bool
+TraceRecorder::record_JSOP_DEFXMLNS()
+{
+    return false;
+}
+
+bool
+TraceRecorder::record_JSOP_ANYNAME()
+{
+    return false;
+}
+
+bool
+TraceRecorder::record_JSOP_QNAMEPART()
+{
+    return false;
+}
+
+bool
+TraceRecorder::record_JSOP_QNAMECONST()
+{
+    return false;
+}
+
+bool
+TraceRecorder::record_JSOP_QNAME()
+{
+    return false;
+}
+
+bool
+TraceRecorder::record_JSOP_TOATTRNAME()
+{
+    return false;
+}
+
+bool
+TraceRecorder::record_JSOP_TOATTRVAL()
+{
+    return false;
+}
+
+bool
+TraceRecorder::record_JSOP_ADDATTRNAME()
+{
+    return false;
+}
+
+bool
+TraceRecorder::record_JSOP_ADDATTRVAL()
+{
+    return false;
+}
+
+bool
+TraceRecorder::record_JSOP_BINDXMLNAME()
+{
+    return false;
+}
+
+bool
+TraceRecorder::record_JSOP_SETXMLNAME()
+{
+    return false;
+}
+
+bool
+TraceRecorder::record_JSOP_XMLNAME()
+{
+    return false;
+}
+
+bool
+TraceRecorder::record_JSOP_DESCENDANTS()
+{
+    return false;
+}
+
+bool
+TraceRecorder::record_JSOP_FILTER()
+{
+    return false;
+}
+
+bool
+TraceRecorder::record_JSOP_ENDFILTER()
+{
+    return false;
+}
+
+bool
+TraceRecorder::record_JSOP_TOXML()
+{
+    return false;
+}
+
+bool
+TraceRecorder::record_JSOP_TOXMLLIST()
+{
+    return false;
+}
+
+bool
+TraceRecorder::record_JSOP_XMLTAGEXPR()
+{
+    return false;
+}
+
+bool
+TraceRecorder::record_JSOP_XMLELTEXPR()
+{
+    return false;
+}
+
+bool
+TraceRecorder::record_JSOP_XMLOBJECT()
+{
+    return false;
+}
+
+bool
+TraceRecorder::record_JSOP_XMLCDATA()
+{
+    return false;
+}
+
+bool
+TraceRecorder::record_JSOP_XMLCOMMENT()
+{
+    return false;
+}
+
+bool
+TraceRecorder::record_JSOP_XMLPI()
+{
+    return false;
+}
+
+bool
+TraceRecorder::record_JSOP_GETFUNNS()
+{
+    return false;
+}
+
+bool
+TraceRecorder::record_JSOP_STARTXML()
+{
+    return false;
+}
+
+bool
+TraceRecorder::record_JSOP_STARTXMLEXPR()
+{
+    return false;
+}
+
+// end JS_HAS_XML_SUPPORT
+
+bool
+TraceRecorder::record_JSOP_CALLPROP()
 {
     jsval& l = stackval(-1);
     JSObject* obj;
@@ -3657,59 +4074,56 @@ bool TraceRecorder::record_JSOP_CALLPROP()
     return true;
 }
 
-bool TraceRecorder::record_JSOP_GETFUNNS()
+bool
+TraceRecorder::record_JSOP_UNUSED186()
 {
     return false;
 }
-bool TraceRecorder::record_JSOP_UNUSED186()
+
+bool
+TraceRecorder::record_JSOP_DELDESC()
 {
     return false;
 }
-bool TraceRecorder::record_JSOP_DELDESC()
-{
-    return false;
-}
-bool TraceRecorder::record_JSOP_UINT24()
+
+bool
+TraceRecorder::record_JSOP_UINT24()
 {
     jsdpun u;
     u.d = (jsdouble)GET_UINT24(cx->fp->regs->pc);
     stack(0, lir->insImmq(u.u64));
     return true;
 }
-bool TraceRecorder::record_JSOP_INDEXBASE()
+
+bool
+TraceRecorder::record_JSOP_INDEXBASE()
 {
     atoms += GET_INDEXBASE(cx->fp->regs->pc);
     return true;
 }
 
-bool TraceRecorder::record_JSOP_RESETBASE()
+bool
+TraceRecorder::record_JSOP_RESETBASE()
 {
     atoms = cx->fp->script->atomMap.vector;
     return true;
 }
 
-bool TraceRecorder::record_JSOP_RESETBASE0()
+bool
+TraceRecorder::record_JSOP_RESETBASE0()
 {
     atoms = cx->fp->script->atomMap.vector;
     return true;
 }
 
-bool TraceRecorder::record_JSOP_STARTXML()
+bool
+TraceRecorder::record_JSOP_CALLELEM()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_STARTXMLEXPR()
-{
-    return false;
-}
-
-bool TraceRecorder::record_JSOP_CALLELEM()
-{
-    return false;
-}
-
-bool TraceRecorder::record_JSOP_STOP()
+bool
+TraceRecorder::record_JSOP_STOP()
 {
     // We know falling off the end of a function returns undefined, and we do
     // not support script rval (eval, API users who want the result of the last
@@ -3719,7 +4133,8 @@ bool TraceRecorder::record_JSOP_STOP()
     return true;
 }
 
-bool TraceRecorder::record_JSOP_GETXPROP()
+bool
+TraceRecorder::record_JSOP_GETXPROP()
 {
     jsval& l = stackval(-1);
     if (JSVAL_IS_PRIMITIVE(l))
@@ -3741,87 +4156,104 @@ bool TraceRecorder::record_JSOP_GETXPROP()
     return true;
 }
 
-bool TraceRecorder::record_JSOP_CALLXMLNAME()
+bool
+TraceRecorder::record_JSOP_CALLXMLNAME()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_TYPEOFEXPR()
+bool
+TraceRecorder::record_JSOP_TYPEOFEXPR()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_ENTERBLOCK()
+bool
+TraceRecorder::record_JSOP_ENTERBLOCK()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_LEAVEBLOCK()
+bool
+TraceRecorder::record_JSOP_LEAVEBLOCK()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_GETLOCAL()
+bool
+TraceRecorder::record_JSOP_GETLOCAL()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_SETLOCAL()
+bool
+TraceRecorder::record_JSOP_SETLOCAL()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_INCLOCAL()
+bool
+TraceRecorder::record_JSOP_INCLOCAL()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_DECLOCAL()
+bool
+TraceRecorder::record_JSOP_DECLOCAL()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_LOCALINC()
+bool
+TraceRecorder::record_JSOP_LOCALINC()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_LOCALDEC()
+bool
+TraceRecorder::record_JSOP_LOCALDEC()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_GENERATOR()
+bool
+TraceRecorder::record_JSOP_GENERATOR()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_YIELD()
+bool
+TraceRecorder::record_JSOP_YIELD()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_ARRAYPUSH()
+bool
+TraceRecorder::record_JSOP_ARRAYPUSH()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_UNUSED213()
+bool
+TraceRecorder::record_JSOP_UNUSED213()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_ENUMCONSTELEM()
+bool
+TraceRecorder::record_JSOP_ENUMCONSTELEM()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_LEAVEBLOCKEXPR()
+bool
+TraceRecorder::record_JSOP_LEAVEBLOCKEXPR()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_GETTHISPROP()
+bool
+TraceRecorder::record_JSOP_GETTHISPROP()
 {
     LIns* this_ins;
 
@@ -3830,62 +4262,73 @@ bool TraceRecorder::record_JSOP_GETTHISPROP()
     return getThis(this_ins) && getProp(cx->fp->thisp, this_ins);
 }
 
-bool TraceRecorder::record_JSOP_GETARGPROP()
+bool
+TraceRecorder::record_JSOP_GETARGPROP()
 {
     return getProp(argval(GET_ARGNO(cx->fp->regs->pc)));
 }
 
-bool TraceRecorder::record_JSOP_GETVARPROP()
+bool
+TraceRecorder::record_JSOP_GETVARPROP()
 {
     return getProp(varval(GET_SLOTNO(cx->fp->regs->pc)));
 }
 
-bool TraceRecorder::record_JSOP_GETLOCALPROP()
+bool
+TraceRecorder::record_JSOP_GETLOCALPROP()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_INDEXBASE1()
+bool
+TraceRecorder::record_JSOP_INDEXBASE1()
 {
     atoms += 1 << 16;
     return true;
 }
 
-bool TraceRecorder::record_JSOP_INDEXBASE2()
+bool
+TraceRecorder::record_JSOP_INDEXBASE2()
 {
     atoms += 2 << 16;
     return true;
 }
 
-bool TraceRecorder::record_JSOP_INDEXBASE3()
+bool
+TraceRecorder::record_JSOP_INDEXBASE3()
 {
     atoms += 3 << 16;
     return true;
 }
 
-bool TraceRecorder::record_JSOP_CALLGVAR()
+bool
+TraceRecorder::record_JSOP_CALLGVAR()
 {
     return record_JSOP_GETGVAR();
 }
 
-bool TraceRecorder::record_JSOP_CALLVAR()
+bool
+TraceRecorder::record_JSOP_CALLVAR()
 {
     stack(1, lir->insImmPtr(0));
     return record_JSOP_GETVAR();
 }
 
-bool TraceRecorder::record_JSOP_CALLARG()
+bool
+TraceRecorder::record_JSOP_CALLARG()
 {
     stack(1, lir->insImmPtr(0));
     return record_JSOP_GETARG();
 }
 
-bool TraceRecorder::record_JSOP_CALLLOCAL()
+bool
+TraceRecorder::record_JSOP_CALLLOCAL()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_INT8()
+bool
+TraceRecorder::record_JSOP_INT8()
 {
     jsdpun u;
     u.d = (jsdouble)GET_INT8(cx->fp->regs->pc);
@@ -3893,7 +4336,8 @@ bool TraceRecorder::record_JSOP_INT8()
     return true;
 }
 
-bool TraceRecorder::record_JSOP_INT32()
+bool
+TraceRecorder::record_JSOP_INT32()
 {
     jsdpun u;
     u.d = (jsdouble)GET_INT32(cx->fp->regs->pc);
@@ -3901,7 +4345,8 @@ bool TraceRecorder::record_JSOP_INT32()
     return true;
 }
 
-bool TraceRecorder::record_JSOP_LENGTH()
+bool
+TraceRecorder::record_JSOP_LENGTH()
 {
     jsval& l = stackval(-1);
     if (JSVAL_IS_PRIMITIVE(l)) {
@@ -3929,12 +4374,14 @@ bool TraceRecorder::record_JSOP_LENGTH()
     return true;
 }
 
-bool TraceRecorder::record_JSOP_NEWARRAY()
+bool
+TraceRecorder::record_JSOP_NEWARRAY()
 {
     return false;
 }
 
-bool TraceRecorder::record_JSOP_HOLE()
+bool
+TraceRecorder::record_JSOP_HOLE()
 {
     stack(0, lir->insImm(JSVAL_TO_BOOLEAN(JSVAL_HOLE)));
     return true;

@@ -138,7 +138,6 @@ public:
 
 class TreeInfo {
 public:
-    unsigned                entryStackDepth;
     unsigned                entryNativeStackSlots;
     unsigned                maxNativeStackSlots;
     ptrdiff_t               nativeStackBase;
@@ -180,7 +179,7 @@ class TraceRecorder {
     ptrdiff_t nativeStackOffset(jsval* p) const;
     ptrdiff_t nativeGlobalOffset(jsval* p) const;
     void import(nanojit::LIns* base, ptrdiff_t offset, jsval* p, uint8& t, 
-            const char *prefix, int index, jsuword* localNames);
+                const char *prefix, int index, JSStackFrame *fp);
     void trackNativeStackUse(unsigned slots);
 
     bool lazilyImportGlobalSlot(unsigned slot);
@@ -253,6 +252,7 @@ class TraceRecorder {
                               nanojit::LIns* dslots_ins, nanojit::LIns* idx_ins);
     void clearFrameSlotsFromCache();
     bool forInProlog(nanojit::LIns*& iterobj_ins);
+
 public:
     int backEdgeCount;
 
@@ -267,8 +267,7 @@ public:
     
     bool record_EnterFrame();
     bool record_LeaveFrame();
-    JSInlineFrame* synthesizeFrame(JSObject* callee, JSObject *thisp, jsbytecode* pc);
-    
+
 #define OPDEF(op,val,name,token,length,nuses,ndefs,prec,format)               \
     bool record_##op();
 # include "jsopcode.tbl"
@@ -287,7 +286,7 @@ public:
     JS_END_MACRO
 
 extern bool
-js_LoopEdge(JSContext* cx, jsbytecode* oldpc);
+js_LoopEdge(JSContext* cx, jsbytecode* oldpc, uintN& inlineCallCount);
 
 extern void
 js_AbortRecording(JSContext* cx, jsbytecode* abortpc, const char* reason);
