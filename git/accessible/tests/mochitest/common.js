@@ -52,17 +52,10 @@ const nsIPropertyElement = Components.interfaces.nsIPropertyElement;
 
 ////////////////////////////////////////////////////////////////////////////////
 // OS detect
-
-const MAC = (navigator.platform.indexOf("Mac") != -1);
-const LINUX = (navigator.platform.indexOf("Linux") != -1);
-const SOLARIS = (navigator.platform.indexOf("SunOS") != -1);
-const WIN = (navigator.platform.indexOf("Win") != -1);
-
-////////////////////////////////////////////////////////////////////////////////
-// Application detect
-// Firefox is assumed by default.
-
-const SEAMONKEY = navigator.userAgent.match(/ SeaMonkey\//);
+const MAC = (navigator.platform.indexOf("Mac") != -1)? true : false;
+const LINUX = (navigator.platform.indexOf("Linux") != -1)? true : false;
+const SOLARIS = (navigator.platform.indexOf("SunOS") != -1)? true : false;
+const WIN = (navigator.platform.indexOf("Win") != -1)? true : false;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Accessible general

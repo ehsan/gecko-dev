@@ -554,9 +554,10 @@ mozSanitizingHTMLSerializer::IsAllowedAttribute(nsHTMLTag aTag,
   NS_ENSURE_TRUE(attr_bag, false);
 
   bool allowed;
-  nsCAutoString attr;
-  ToLowerCase(NS_ConvertUTF16toUTF8(anAttributeName), attr);
-  rv = attr_bag->Has(attr.get(), &allowed);
+  nsAutoString attr(anAttributeName);
+  ToLowerCase(attr);
+  rv = attr_bag->Has(NS_LossyConvertUTF16toASCII(attr).get(),
+                     &allowed);
   if (NS_FAILED(rv))
     return false;
 

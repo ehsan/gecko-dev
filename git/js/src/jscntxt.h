@@ -76,23 +76,12 @@ JS_BEGIN_EXTERN_C
 struct DtoaState;
 JS_END_EXTERN_C
 
-struct JSSharpInfo {
-    bool hasGen;
-    bool isSharp;
-
-    JSSharpInfo() : hasGen(false), isSharp(false) {}
-};
-
-typedef js::HashMap<JSObject *, JSSharpInfo> JSSharpTable;
-
 struct JSSharpObjectMap {
-    jsrefcount   depth;
-    uint32_t     sharpgen;
-    JSSharpTable table;
+    jsrefcount  depth;
+    uint32_t    sharpgen;
+    JSHashTable *table;
 
-    JSSharpObjectMap(JSContext *cx) : depth(0), sharpgen(0), table(js::TempAllocPolicy(cx)) {
-        table.init();
-    }
+    JSSharpObjectMap() : depth(0), sharpgen(0), table(NULL) {}
 };
 
 namespace js {
@@ -304,24 +293,23 @@ struct JSRuntime : js::RuntimeFriendFields
      * in MaybeGC.
      */
     volatile uint32_t   gcNumArenasFreeCommitted;
-    js::FullGCMarker    gcMarker;
+    uint32_t            gcNumber;
+    js::GCMarker        *gcIncrementalTracer;
     void                *gcVerifyData;
     bool                gcChunkAllocationSinceLastGC;
     int64_t             gcNextFullGCTime;
     int64_t             gcJitReleaseTime;
     JSGCMode            gcMode;
+    volatile uintptr_t  gcBarrierFailed;
     volatile uintptr_t  gcIsNeeded;
     js::WeakMapBase     *gcWeakMapList;
     js::gcstats::Statistics gcStats;
 
-    /* Incremented on every GC slice. */
-    uint64_t            gcNumber;
-
-    /* The gcNumber at the time of the most recent GC's first slice. */
-    uint64_t            gcStartNumber;
-
     /* The reason that an interrupt-triggered GC should be called. */
     js::gcreason::Reason gcTriggerReason;
+
+    /* Pre-allocated space for the GC mark stack. */
+    uintptr_t           gcMarkStackArray[js::MARK_STACK_LENGTH];
 
     /*
      * Compartment that triggered GC. If more than one Compatment need GC,
@@ -339,59 +327,13 @@ struct JSRuntime : js::RuntimeFriendFields
     JSCompartment       *gcCheckCompartment;
 
     /*
-     * The current incremental GC phase. During non-incremental GC, this is
-     * always NO_INCREMENTAL.
-     */
-    js::gc::State       gcIncrementalState;
-
-    /* Indicates that a new compartment was created during incremental GC. */
-    bool                gcCompartmentCreated;
-
-    /* Indicates that the last incremental slice exhausted the mark stack. */
-    bool                gcLastMarkSlice;
-
-    /*
-     * Indicates that a GC slice has taken place in the middle of an animation
-     * frame, rather than at the beginning. In this case, the next slice will be
-     * delayed so that we don't get back-to-back slices.
-     */
-    volatile uintptr_t  gcInterFrameGC;
-
-    /* Default budget for incremental GC slice. See SliceBudget in jsgc.h. */
-    int64_t             gcSliceBudget;
-
-    /*
-     * We disable incremental GC if we encounter a js::Class with a trace hook
-     * that does not implement write barriers.
-     */
-    bool                gcIncrementalEnabled;
-
-    /* Compartment that is undergoing an incremental GC. */
-    JSCompartment       *gcIncrementalCompartment;
-
-    /*
-     * We save all conservative scanned roots in this vector so that
-     * conservative scanning can be "replayed" deterministically. In DEBUG mode,
-     * this allows us to run a non-incremental GC after every incremental GC to
-     * ensure that no objects were missed.
-     */
-#ifdef DEBUG
-    struct SavedGCRoot {
-        void *thing;
-        JSGCTraceKind kind;
-
-        SavedGCRoot(void *thing, JSGCTraceKind kind) : thing(thing), kind(kind) {}
-    };
-    js::Vector<SavedGCRoot, 0, js::SystemAllocPolicy> gcSavedRoots;
-#endif
-
-    /*
      * We can pack these flags as only the GC thread writes to them. Atomic
      * updates to packed bytes are not guaranteed, so stores issued by one
      * thread may be lost due to unsynchronized read-modify-write cycles on
      * other threads.
      */
     bool                gcPoke;
+    bool                gcMarkAndSweep;
     bool                gcRunning;
 
     /*
@@ -400,7 +342,7 @@ struct JSRuntime : js::RuntimeFriendFields
      * gcNextScheduled is decremented. When it reaches zero, we do either a
      * full or a compartmental GC, based on gcDebugCompartmentGC.
      *
-     * At this point, if gcZeal_ == 2 then gcNextScheduled is reset to the
+     * At this point, if gcZeal_ >= 2 then gcNextScheduled is reset to the
      * value of gcZealFrequency. Otherwise, no additional GCs take place.
      *
      * You can control these values in several ways:
@@ -408,8 +350,9 @@ struct JSRuntime : js::RuntimeFriendFields
      *   - Call gczeal() or schedulegc() from inside shell-executed JS code
      *     (see the help for details)
      *
-     * If gzZeal_ == 1 then we perform GCs in select places (during MaybeGC and
-     * whenever a GC poke happens). This option is mainly useful to embedders.
+     * Additionally, if gzZeal_ == 1 then we perform GCs in select places
+     * (during MaybeGC and whenever a GC poke happens). This option is mainly
+     * useful to embedders.
      *
      * We use gcZeal_ == 4 to enable write barrier verification. See the comment
      * in jsgc.cpp for more information about this.
@@ -424,7 +367,7 @@ struct JSRuntime : js::RuntimeFriendFields
 
     bool needZealousGC() {
         if (gcNextScheduled > 0 && --gcNextScheduled == 0) {
-            if (gcZeal() == js::gc::ZealAllocValue)
+            if (gcZeal() >= js::gc::ZealAllocThreshold && gcZeal() < js::gc::ZealVerifierThreshold)
                 gcNextScheduled = gcZealFrequency;
             return true;
         }
@@ -436,7 +379,7 @@ struct JSRuntime : js::RuntimeFriendFields
 #endif
 
     JSGCCallback        gcCallback;
-    js::GCSliceCallback gcSliceCallback;
+    JSGCFinishedCallback gcFinishedCallback;
 
   private:
     /*
@@ -1178,8 +1121,6 @@ struct JSContext : js::ContextFriendFields
         return reinterpret_cast<JSContext *>(uintptr_t(link) - offsetof(JSContext, link));
     }
 
-    void mark(JSTracer *trc);
-
   private:
     /*
      * The allocation code calls the function to indicate either OOM failure
@@ -1617,18 +1558,18 @@ class AutoShapeVector : public AutoVectorRooter<const Shape *>
 
 class AutoValueArray : public AutoGCRooter
 {
-    js::Value *start_;
+    const js::Value *start_;
     unsigned length_;
 
   public:
-    AutoValueArray(JSContext *cx, js::Value *start, unsigned length
+    AutoValueArray(JSContext *cx, const js::Value *start, unsigned length
                    JS_GUARD_OBJECT_NOTIFIER_PARAM)
         : AutoGCRooter(cx, VALARRAY), start_(start), length_(length)
     {
         JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
-    Value *start() { return start_; }
+    const Value *start() const { return start_; }
     unsigned length() const { return length_; }
 
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER

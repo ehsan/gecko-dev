@@ -1029,7 +1029,7 @@ class AutoEnumStateRooter : private AutoGCRooter
   protected:
     void trace(JSTracer *trc);
 
-    JSObject *obj;
+    JSObject * const obj;
 
   private:
     Value stateValue;
@@ -1428,11 +1428,8 @@ typedef JSBool
 (* JSContextCallback)(JSContext *cx, uintN contextOp);
 
 typedef enum JSGCStatus {
-    /* These callbacks happen outside the GC lock. */
     JSGC_BEGIN,
     JSGC_END,
-
-    /* These callbacks happen within the GC lock. */
     JSGC_MARK_END,
     JSGC_FINALIZE_END
 } JSGCStatus;
@@ -1863,11 +1860,7 @@ INTERNED_STRING_TO_JSID(JSContext *cx, JSString *str)
     jsid id;
     JS_ASSERT(str);
     JS_ASSERT(((size_t)str & JSID_TYPE_MASK) == 0);
-#ifdef DEBUG
     JS_ASSERT(JS_StringHasBeenInterned(cx, str));
-#else
-    (void)cx;
-#endif
     JSID_BITS(id) = (size_t)str;
     return id;
 }
@@ -3105,7 +3098,7 @@ JSVAL_TRACE_KIND(jsval v)
  * wants to use the existing liveness of entries.
  */
 typedef void
-(* JSTraceCallback)(JSTracer *trc, void **thingp, JSGCTraceKind kind);
+(* JSTraceCallback)(JSTracer *trc, void *thing, JSGCTraceKind kind);
 
 struct JSTracer {
     JSRuntime           *runtime;
@@ -3293,10 +3286,7 @@ typedef enum JSGCParamKey {
     JSGC_UNUSED_CHUNKS = 7,
 
     /* Total number of allocated GC chunks. */
-    JSGC_TOTAL_CHUNKS = 8,
-
-    /* Max milliseconds to spend in an incremental GC slice. */
-    JSGC_SLICE_TIME_BUDGET = 9
+    JSGC_TOTAL_CHUNKS = 8
 } JSGCParamKey;
 
 typedef enum JSGCMode {
@@ -3304,13 +3294,7 @@ typedef enum JSGCMode {
     JSGC_MODE_GLOBAL = 0,
 
     /* Perform per-compartment GCs until too much garbage has accumulated. */
-    JSGC_MODE_COMPARTMENT = 1,
-
-    /*
-     * Collect in short time slices rather than all at once. Implies
-     * JSGC_MODE_COMPARTMENT.
-     */
-    JSGC_MODE_INCREMENTAL = 2
+    JSGC_MODE_COMPARTMENT = 1
 } JSGCMode;
 
 extern JS_PUBLIC_API(void)
@@ -3405,8 +3389,6 @@ struct JSClass {
                                                    object in prototype chain
                                                    passed in via *objp in/out
                                                    parameter */
-#define JSCLASS_IMPLEMENTS_BARRIERS     (1<<5)  /* Correctly implements GC read
-                                                   and write barriers */
 #define JSCLASS_DOCUMENT_OBSERVER       (1<<6)  /* DOM document observer */
 
 /*
@@ -5332,8 +5314,6 @@ JS_IsConstructing(JSContext *cx, const jsval *vp)
     } else {
         JS_ASSERT(JS_GetClass(callee)->construct != NULL);
     }
-#else
-    (void)cx;
 #endif
 
     return JSVAL_IS_MAGIC_IMPL(JSVAL_TO_IMPL(vp[1]));

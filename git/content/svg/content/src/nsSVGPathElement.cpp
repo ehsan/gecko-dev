@@ -440,7 +440,7 @@ nsSVGPathElement::GetPathLengthScale(PathLengthScaleForType aFor)
         // For textPath, a transform on the referenced path affects the
         // textPath layout, so when calculating the actual path length
         // we need to take that into account.
-        matrix = PrependLocalTransformsTo(matrix);
+        matrix = PrependLocalTransformTo(matrix);
       }
       nsRefPtr<gfxFlattenedPath> path = GetFlattenedPath(matrix);
       if (path) {

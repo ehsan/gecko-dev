@@ -364,7 +364,7 @@ nsSVGForeignObjectFrame::UpdateCoveredRegion()
   // GetCanvasTM includes the x,y translation
   mRect = nsLayoutUtils::RoundGfxRectToAppRect(
                            gfxRect(0.0, 0.0, w, h),
-                           PresContext()->AppUnitsPerCSSPixel());
+                           PresContext()->AppUnitsPerDevPixel());
   mCoveredRegion = ToCanvasBounds(gfxRect(0.0, 0.0, w, h), GetCanvasTM(), PresContext());
 
   return NS_OK;
@@ -495,7 +495,7 @@ nsSVGForeignObjectFrame::GetCanvasTM()
     nsSVGForeignObjectElement *content =
       static_cast<nsSVGForeignObjectElement*>(mContent);
 
-    gfxMatrix tm = content->PrependLocalTransformsTo(parent->GetCanvasTM());
+    gfxMatrix tm = content->PrependLocalTransformTo(parent->GetCanvasTM());
 
     mCanvasTM = new gfxMatrix(tm);
   }

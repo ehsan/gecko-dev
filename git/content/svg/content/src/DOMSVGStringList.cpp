@@ -109,12 +109,9 @@ NS_IMETHODIMP
 DOMSVGStringList::Clear()
 {
   if (InternalList().IsExplicitlySet()) {
-    nsAttrValue emptyOrOldValue =
-      mElement->WillChangeStringList(mIsConditionalProcessingAttribute,
-                                     mAttrEnum);
     InternalList().Clear();
     mElement->DidChangeStringList(mIsConditionalProcessingAttribute,
-                                  mAttrEnum, emptyOrOldValue);
+                                  mAttrEnum);
   }
   return NS_OK;
 }
@@ -154,13 +151,9 @@ DOMSVGStringList::InsertItemBefore(const nsAString & newItem,
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  nsAttrValue emptyOrOldValue =
-    mElement->WillChangeStringList(mIsConditionalProcessingAttribute,
-                                   mAttrEnum);
   InternalList().InsertItem(index, newItem);
 
-  mElement->DidChangeStringList(mIsConditionalProcessingAttribute, mAttrEnum,
-                                emptyOrOldValue);
+  mElement->DidChangeStringList(mIsConditionalProcessingAttribute, mAttrEnum);
   _retval = newItem;
   return NS_OK;
 }
@@ -178,13 +171,9 @@ DOMSVGStringList::ReplaceItem(const nsAString & newItem,
   }
 
   _retval = InternalList()[index];
-  nsAttrValue emptyOrOldValue =
-    mElement->WillChangeStringList(mIsConditionalProcessingAttribute,
-                                   mAttrEnum);
   InternalList().ReplaceItem(index, newItem);
 
-  mElement->DidChangeStringList(mIsConditionalProcessingAttribute, mAttrEnum,
-                                emptyOrOldValue);
+  mElement->DidChangeStringList(mIsConditionalProcessingAttribute, mAttrEnum);
   return NS_OK;
 }
 
@@ -196,13 +185,9 @@ DOMSVGStringList::RemoveItem(PRUint32 index,
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
 
-  nsAttrValue emptyOrOldValue =
-    mElement->WillChangeStringList(mIsConditionalProcessingAttribute,
-                                   mAttrEnum);
   InternalList().RemoveItem(index);
 
-  mElement->DidChangeStringList(mIsConditionalProcessingAttribute, mAttrEnum,
-                                emptyOrOldValue);
+  mElement->DidChangeStringList(mIsConditionalProcessingAttribute, mAttrEnum);
   return NS_OK;
 }
 

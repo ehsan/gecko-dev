@@ -38,7 +38,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-"use strict";
+"use strict"
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -181,8 +181,8 @@ ElementStyle.prototype = {
       let domRule = domRules.GetElementAt(i);
 
       // XXX: Optionally provide access to system sheets.
-      let contentSheet = CssLogic.isContentStylesheet(domRule.parentStyleSheet);
-      if (!contentSheet) {
+      let systemSheet = CssLogic.isSystemStyleSheet(domRule.parentStyleSheet);
+      if (systemSheet) {
         continue;
       }
 
@@ -324,7 +324,7 @@ ElementStyle.prototype = {
     aProp.overridden = overridden;
     return dirty;
   }
-};
+}
 
 /**
  * A single style rule or declaration.
@@ -358,9 +358,11 @@ Rule.prototype = {
     if (this._title) {
       return this._title;
     }
-    this._title = CssLogic.shortSource(this.sheet);
+    let sheet = this.domRule ? this.domRule.parentStyleSheet : null;
+    this._title = CssLogic.shortSource(sheet);
     if (this.domRule) {
-      this._title += ":" + this.ruleLine;
+      let line = this.elementStyle.domUtils.getRuleLine(this.domRule);
+      this._title += ":" + line;
     }
 
     if (this.inherited) {
@@ -374,26 +376,6 @@ Rule.prototype = {
     }
 
     return this._title;
-  },
-
-  /**
-   * The rule's stylesheet.
-   */
-  get sheet()
-  {
-    return this.domRule ? this.domRule.parentStyleSheet : null;
-  },
-
-  /**
-   * The rule's line within a stylesheet
-   */
-  get ruleLine()
-  {
-    if (!this.sheet) {
-      // No stylesheet, no ruleLine
-      return null;
-    }
-    return this.elementStyle.domUtils.getRuleLine(this.domRule);
   },
 
   /**
@@ -548,7 +530,7 @@ Rule.prototype = {
       this.textProps.push(textProp);
     }
   },
-};
+}
 
 /**
  * A single property in a rule's cssText.
@@ -636,7 +618,7 @@ TextProperty.prototype = {
   {
     this.rule.removeProperty(this);
   }
-};
+}
 
 
 /**
@@ -661,7 +643,7 @@ TextProperty.prototype = {
  * apply to a given element.  After construction, the 'element'
  * property will be available with the user interface.
  *
- * @param Document aDoc
+ * @param Document aDocument
  *        The document that will contain the rule view.
  * @param object aStore
  *        The CSS rule view can use this object to store metadata
@@ -673,6 +655,7 @@ function CssRuleView(aDoc, aStore)
 {
   this.doc = aDoc;
   this.store = aStore;
+
   this.element = this.doc.createElementNS(XUL_NS, "vbox");
   this.element.setAttribute("tabindex", "0");
   this.element.classList.add("ruleview");
@@ -785,14 +768,6 @@ RuleEditor.prototype = {
       class: "ruleview-rule-source",
       textContent: this.rule.title
     });
-    source.addEventListener("click", function() {
-      let rule = this.rule;
-      let evt = this.doc.createEvent("CustomEvent");
-      evt.initCustomEvent("CssRuleViewCSSLinkClicked", true, false, {
-        rule: rule,
-      });
-      this.element.dispatchEvent(evt);
-    }.bind(this));
 
     let code = createChild(this.element, "div", {
       class: "ruleview-code"
@@ -1119,6 +1094,8 @@ TextPropertyEditor.prototype = {
   _parseValue: function TextPropertyEditor_parseValue(aValue)
   {
     let pieces = aValue.split("!", 2);
+    let value = pieces[0];
+    let priority = pieces.length > 1 ? pieces[1] : "";
     return {
       value: pieces[0].trim(),
       priority: (pieces.length > 1 ? pieces[1].trim() : "")

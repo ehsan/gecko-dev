@@ -1982,7 +1982,7 @@ nsRuleNode::SetDefaultOnRoot(const nsStyleStructID aSID, nsStyleContext* aContex
     {
       nsStyleFont* fontData = new (mPresContext) nsStyleFont(mPresContext);
       if (NS_LIKELY(fontData != nsnull)) {
-        nscoord minimumFontSize = mPresContext->MinFontSize(fontData->mLanguage);
+        nscoord minimumFontSize = mPresContext->MinFontSize();
 
         if (minimumFontSize > 0 && !mPresContext->IsChrome()) {
           fontData->mFont.size = NS_MAX(fontData->mSize, minimumFontSize);
@@ -2543,7 +2543,7 @@ nsRuleNode::SetFontSize(nsPresContext* aPresContext,
 {
   bool zoom = false;
   PRInt32 baseSize = (PRInt32) aPresContext->
-    GetDefaultFont(aFont->mGenericID, aFont->mLanguage)->size;
+    GetDefaultFont(aFont->mGenericID)->size;
   const nsCSSValue* sizeValue = aRuleData->ValueForFontSize();
   if (eCSSUnit_Enumerated == sizeValue->GetUnit()) {
     PRInt32 value = sizeValue->GetIntValue();
@@ -2654,6 +2654,7 @@ static PRInt8 ClampTo8Bit(PRInt32 aValue) {
 
 /* static */ void
 nsRuleNode::SetFont(nsPresContext* aPresContext, nsStyleContext* aContext,
+                    nscoord aMinFontSize,
                     PRUint8 aGenericFontID, const nsRuleData* aRuleData,
                     const nsStyleFont* aParentFont,
                     nsStyleFont* aFont, bool aUsedStartStruct,
@@ -2661,12 +2662,12 @@ nsRuleNode::SetFont(nsPresContext* aPresContext, nsStyleContext* aContext,
 {
   bool atRoot = !aContext->GetParent();
 
-  // mLanguage must be set before before any of the CalcLengthWith calls
-  // (direct calls or calls via SetFontSize) for the cases where |aParentFont|
-  // is the same as |aFont|.
+  // mLanguage must be set before before any of the CalcLengthWith (direct
+  // calls or calls via SetFontSize) for the cases where |aParentFont| is the
+  // same as |aFont|.
   //
   // -x-lang: string, inherit
-  // This is not a real CSS property, it is an HTML attribute mapped to CSS.
+  // this is not a real CSS property, it is a html attribute mapped to CSS
   const nsCSSValue* langValue = aRuleData->ValueForLang();
   if (eCSSUnit_Ident == langValue->GetUnit()) {
     nsAutoString lang;
@@ -2677,8 +2678,7 @@ nsRuleNode::SetFont(nsPresContext* aPresContext, nsStyleContext* aContext,
   }
 
   const nsFont* defaultVariableFont =
-    aPresContext->GetDefaultFont(kPresContext_DefaultVariableFont_ID,
-                                 aFont->mLanguage);
+    aPresContext->GetDefaultFont(kPresContext_DefaultVariableFont_ID);
 
   // -moz-system-font: enum (never inherit!)
   nsFont systemFont;
@@ -2958,21 +2958,12 @@ nsRuleNode::SetFont(nsPresContext* aPresContext, nsStyleContext* aContext,
   NS_ASSERTION(aFont->mScriptUnconstrainedSize <= aFont->mSize,
                "scriptminsize should never be making things bigger");
 
-  nscoord fontSize = aFont->mSize;
-
   // enforce the user' specified minimum font-size on the value that we expose
-  // (but don't change font-size:0, since that would unhide hidden text)
-  if (fontSize > 0) {
-    nscoord minFontSize = aPresContext->MinFontSize(aFont->mLanguage);
-    if (minFontSize < 0) {
-      minFontSize = 0;
-    }
-    if (fontSize < minFontSize && !aPresContext->IsChrome()) {
-      // override the minimum font-size constraint
-      fontSize = minFontSize;
-    }
-  }
-  aFont->mFont.size = fontSize;
+  // (but don't change font-size:0)
+  if (0 < aFont->mSize && aFont->mSize < aMinFontSize)
+    aFont->mFont.size = aMinFontSize;
+  else
+    aFont->mFont.size = aFont->mSize;
 
   // font-size-adjust: number, none, inherit, initial, -moz-system-font
   const nsCSSValue* sizeAdjustValue = aRuleData->ValueForFontSizeAdjust();
@@ -2984,8 +2975,6 @@ nsRuleNode::SetFont(nsPresContext* aPresContext, nsStyleContext* aContext,
               SETFCT_NONE);
 }
 
-// This should die (bug 380915).
-//
 // SetGenericFont:
 //  - backtrack to an ancestor with the same generic font name (possibly
 //    up to the root where default values come from the presentation context)
@@ -2993,7 +2982,7 @@ nsRuleNode::SetFont(nsPresContext* aPresContext, nsStyleContext* aContext,
 /* static */ void
 nsRuleNode::SetGenericFont(nsPresContext* aPresContext,
                            nsStyleContext* aContext,
-                           PRUint8 aGenericFontID,
+                           PRUint8 aGenericFontID, nscoord aMinFontSize,
                            nsStyleFont* aFont)
 {
   // walk up the contexts until a context with the desired generic font
@@ -3014,8 +3003,7 @@ nsRuleNode::SetGenericFont(nsPresContext* aPresContext,
   // If we stopped earlier because we reached the root of the style tree,
   // we will start with the default generic font from the presentation
   // context. Otherwise we start with the higher context.
-  const nsFont* defaultFont =
-    aPresContext->GetDefaultFont(aGenericFontID, aFont->mLanguage);
+  const nsFont* defaultFont = aPresContext->GetDefaultFont(aGenericFontID);
   nsStyleFont parentFont(*defaultFont, aPresContext);
   if (higherContext) {
     const nsStyleFont* tmpFont = higherContext->GetStyleFont();
@@ -3065,7 +3053,7 @@ nsRuleNode::SetGenericFont(nsPresContext* aPresContext,
     if (i != 0)
       ruleData.ValueForFontFamily()->Reset();
 
-    nsRuleNode::SetFont(aPresContext, context,
+    nsRuleNode::SetFont(aPresContext, context, aMinFontSize,
                         aGenericFontID, &ruleData, &parentFont, aFont,
                         false, dummy);
 
@@ -3111,16 +3099,24 @@ nsRuleNode::ComputeFontData(void* aStartStruct,
   // (although there is a pretty good chance they'll fully specify it
   // using the 'font' shorthand).
 
+  // See if there is a minimum font-size constraint to honor
+  nscoord minimumFontSize = mPresContext->MinFontSize();
+
+  if (minimumFontSize < 0)
+    minimumFontSize = 0;
+
   bool useDocumentFonts =
     mPresContext->GetCachedBoolPref(kPresContext_UseDocumentFonts);
 
   // See if we are in the chrome
   // We only need to know this to determine if we have to use the
-  // document fonts (overriding the useDocumentFonts flag).
-  if (!useDocumentFonts && mPresContext->IsChrome()) {
+  // document fonts (overriding the useDocumentFonts flag), or to
+  // determine if we have to override the minimum font-size constraint.
+  if ((!useDocumentFonts || minimumFontSize > 0) && mPresContext->IsChrome()) {
     // if we are not using document fonts, but this is a XUL document,
     // then we use the document fonts anyway
     useDocumentFonts = true;
+    minimumFontSize = 0;
   }
 
   // Figure out if we are a generic font
@@ -3161,7 +3157,7 @@ nsRuleNode::ComputeFontData(void* aStartStruct,
   // Now compute our font struct
   if (generic == kGenericFont_NONE) {
     // continue the normal processing
-    nsRuleNode::SetFont(mPresContext, aContext, generic,
+    nsRuleNode::SetFont(mPresContext, aContext, minimumFontSize, generic,
                         aRuleData, parentFont, font,
                         aStartStruct != nsnull, canStoreInRuleTree);
   }
@@ -3169,7 +3165,7 @@ nsRuleNode::ComputeFontData(void* aStartStruct,
     // re-calculate the font as a generic font
     canStoreInRuleTree = false;
     nsRuleNode::SetGenericFont(mPresContext, aContext, generic,
-                               font);
+                               minimumFontSize, font);
   }
 
   COMPUTE_END_INHERITED(Font, font)
@@ -3330,12 +3326,14 @@ nsRuleNode::ComputeTextData(void* aStartStruct,
         !lineHeightValue->IsRelativeLengthUnit()) {
       nscoord lh = nsStyleFont::ZoomText(mPresContext,
                                          text->mLineHeight.GetCoordValue());
-
-      canStoreInRuleTree = false;
-      const nsStyleFont *font = aContext->GetStyleFont();
-      nscoord minimumFontSize = mPresContext->MinFontSize(font->mLanguage);
+      nscoord minimumFontSize = mPresContext->MinFontSize();
 
       if (minimumFontSize > 0 && !mPresContext->IsChrome()) {
+        // If we applied a minimum font size, scale the line height by
+        // the same ratio.  (If we *might* have applied a minimum font
+        // size, we can't cache in the rule tree.)
+        canStoreInRuleTree = false;
+        const nsStyleFont *font = aContext->GetStyleFont();
         if (font->mSize != 0) {
           lh = nscoord(float(lh) * float(font->mFont.size) / float(font->mSize));
         } else {

@@ -878,7 +878,7 @@ stubs::DebuggerStatement(VMFrame &f, jsbytecode *pc)
 void JS_FASTCALL
 stubs::Interrupt(VMFrame &f, jsbytecode *pc)
 {
-    gc::MaybeVerifyBarriers(f.cx);
+    gc::VerifyBarriers(f.cx);
 
     if (!js_HandleExecutionInterrupt(f.cx))
         THROW();
@@ -1665,15 +1665,7 @@ stubs::DelElem(VMFrame &f)
 void JS_FASTCALL
 stubs::DefVarOrConst(VMFrame &f, PropertyName *dn)
 {
-    uintN attrs = JSPROP_ENUMERATE;
-    if (!f.fp()->isEvalFrame())
-        attrs |= JSPROP_PERMANENT;
-    if (JSOp(*f.regs.pc) == JSOP_DEFCONST)
-        attrs |= JSPROP_READONLY;
-
-    JSObject &obj = f.fp()->varObj();
-
-    if (!DefVarOrConstOperation(f.cx, obj, dn, attrs))
+    if (!DefVarOrConstOperation(f.cx, JSOp(*f.regs.pc), dn, f.fp()))
         THROW();
 }
 
@@ -1963,7 +1955,7 @@ stubs::ConvertToTypedFloat(JSContext *cx, Value *vp)
 void JS_FASTCALL
 stubs::WriteBarrier(VMFrame &f, Value *addr)
 {
-    gc::MarkValueUnbarriered(f.cx->compartment->barrierTracer(), addr, "write barrier");
+    js::gc::MarkValueUnbarriered(f.cx->compartment->barrierTracer(), *addr, "write barrier");
 }
 
 void JS_FASTCALL
@@ -1971,5 +1963,5 @@ stubs::GCThingWriteBarrier(VMFrame &f, Value *addr)
 {
     gc::Cell *cell = (gc::Cell *)addr->toGCThing();
     if (cell && !cell->isMarked())
-        gc::MarkValueUnbarriered(f.cx->compartment->barrierTracer(), addr, "write barrier");
+        gc::MarkValueUnbarriered(f.cx->compartment->barrierTracer(), *addr, "write barrier");
 }

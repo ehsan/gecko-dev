@@ -45,7 +45,6 @@
 #include "nsCOMPtr.h"
 #include "nsTArray.h"
 #include "nsInterfaceHashtable.h"
-#include "nsIAndroidBridge.h"
 
 namespace mozilla {
 class AndroidGeckoEvent;
@@ -85,14 +84,6 @@ public:
     void NotifyObservers(nsISupports *aSupports, const char *aTopic, const PRUnichar *aData);
     void ResendLastResizeEvent(nsWindow* aDest);
 
-    void SetBrowserApp(nsIAndroidBrowserApp* aBrowserApp) {
-        mBrowserApp = aBrowserApp;
-    }
-
-    void GetBrowserApp(nsIAndroidBrowserApp* *aBrowserApp) {
-        *aBrowserApp = mBrowserApp;
-    }
-
 protected:
     virtual void ScheduleNativeEventCallback();
     virtual ~nsAppShell();
@@ -108,9 +99,6 @@ protected:
 
     mozilla::AndroidGeckoEvent *PopNextEvent();
     mozilla::AndroidGeckoEvent *PeekNextEvent();
-
-    nsCOMPtr<nsIAndroidBrowserApp> mBrowserApp;
-    bool mPendingOrientationEvents;
 };
 
 #endif // nsAppShell_h__

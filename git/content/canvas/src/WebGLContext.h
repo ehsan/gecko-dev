@@ -1024,7 +1024,7 @@ struct WebGLVertexAttribData {
     }
 };
 
-class WebGLBuffer MOZ_FINAL
+class WebGLBuffer
     : public nsIWebGLBuffer
     , public WebGLRefCountedObject<WebGLBuffer>
     , public WebGLContextBoundObject
@@ -1158,7 +1158,7 @@ protected:
     void* mData; // in the case of an Element Array Buffer, we keep a copy.
 };
 
-class WebGLTexture MOZ_FINAL
+class WebGLTexture
     : public nsIWebGLTexture
     , public WebGLRefCountedObject<WebGLTexture>
     , public WebGLContextBoundObject
@@ -1608,7 +1608,7 @@ public:
     }
 };
 
-class WebGLShader MOZ_FINAL
+class WebGLShader
     : public nsIWebGLShader
     , public WebGLRefCountedObject<WebGLShader>
     , public WebGLContextBoundObject
@@ -1673,7 +1673,7 @@ protected:
     WebGLMonotonicHandle mMonotonicHandle;
 };
 
-class WebGLProgram MOZ_FINAL
+class WebGLProgram
     : public nsIWebGLProgram
     , public WebGLRefCountedObject<WebGLProgram>
     , public WebGLContextBoundObject
@@ -1795,7 +1795,7 @@ protected:
     WebGLMonotonicHandle mMonotonicHandle;
 };
 
-class WebGLRenderbuffer MOZ_FINAL
+class WebGLRenderbuffer
     : public nsIWebGLRenderbuffer
     , public WebGLRefCountedObject<WebGLRenderbuffer>
     , public WebGLRectangleObject
@@ -2001,7 +2001,7 @@ public:
     }
 };
 
-class WebGLFramebuffer MOZ_FINAL
+class WebGLFramebuffer
     : public nsIWebGLFramebuffer
     , public WebGLRefCountedObject<WebGLFramebuffer>
     , public WebGLContextBoundObject
@@ -2296,7 +2296,7 @@ public:
     WebGLMonotonicHandle mMonotonicHandle;
 };
 
-class WebGLUniformLocation MOZ_FINAL
+class WebGLUniformLocation
     : public nsIWebGLUniformLocation
     , public WebGLContextBoundObject
     , public WebGLRefCountedObject<WebGLUniformLocation>
@@ -2337,7 +2337,7 @@ protected:
     friend class WebGLProgram;
 };
 
-class WebGLActiveInfo MOZ_FINAL
+class WebGLActiveInfo
     : public nsIWebGLActiveInfo
 {
 public:
@@ -2356,7 +2356,7 @@ protected:
     nsString mName;
 };
 
-class WebGLShaderPrecisionFormat MOZ_FINAL
+class WebGLShaderPrecisionFormat
     : public nsIWebGLShaderPrecisionFormat
 {
 public:

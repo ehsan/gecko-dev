@@ -102,11 +102,7 @@ const kQueryTypeFiltered = 1;
 const kTitleTagsSeparator = " \u2013 ";
 
 const kBrowserUrlbarBranch = "browser.urlbar.";
-
-// Toggle autoFill.
-const kBrowserUrlbarAutofillPref = "autoFill";
-// Whether to search only typed entries.
-const kBrowserUrlbarAutofillTypedPref = "autoFill.typed";
+const kBrowserUrlbarAutofillPref = "browser.urlbar.autoFill";
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Globals
@@ -844,6 +840,8 @@ nsPlacesAutoComplete.prototype = {
    */
   _loadPrefs: function PAC_loadPrefs(aRegisterObserver)
   {
+    let self = this;
+
     this._enabled = safePrefGetter(this._prefs, "autocomplete.enabled", true);
     this._matchBehavior = safePrefGetter(this._prefs,
                                          "matchBehavior",
@@ -1289,7 +1287,8 @@ nsPlacesAutoComplete.prototype = {
 function urlInlineComplete()
 {
   this._loadPrefs(true);
-  Services.obs.addObserver(this, kTopicShutdown, true);
+  // register observers
+  Services.obs.addObserver(this, kTopicShutdown, false);
 }
 
 urlInlineComplete.prototype = {
@@ -1302,8 +1301,10 @@ urlInlineComplete.prototype = {
   get _db()
   {
     if (!this.__db && this._autofill) {
-      this.__db = PlacesUtils.history.QueryInterface(Ci.nsPIPlacesDatabase).
-                  DBConnection.clone(true);
+      this.__db = Cc["@mozilla.org/browser/nav-history-service;1"].
+        getService(Ci.nsPIPlacesDatabase).
+        DBConnection.
+        clone(true);
     }
     return this.__db;
   },
@@ -1316,11 +1317,9 @@ urlInlineComplete.prototype = {
       // Add a trailing slash at the end of the hostname, since we always
       // want to complete up to and including a URL separator.
       this.__syncQuery = this._db.createStatement(
-          "/* do not warn (bug no): could index on (typed,frecency) but not worth it */ "
-        + "SELECT host || '/' "
+        "SELECT host || '/' "
         + "FROM moz_hosts "
         + "WHERE host BETWEEN :search_string AND :search_string || X'FFFF' "
-        + (this._autofillTyped ? "AND typed = 1 " : "")
         + "ORDER BY frecency DESC "
         + "LIMIT 1"
       );
@@ -1334,11 +1333,9 @@ urlInlineComplete.prototype = {
   {
     if (!this.__asyncQuery) {
       this.__asyncQuery = this._db.createAsyncStatement(
-          "/* do not warn (bug no): can't use an index */ "
-        + "SELECT h.url "
+        "SELECT h.url "
         + "FROM moz_places h "
         + "WHERE h.frecency <> 0 "
-        + (this._autofillTyped ? "AND h.typed = 1 " : "")
         +   "AND AUTOCOMPLETE_MATCH(:searchString, h.url, "
         +                          "h.title, '', "
         +                          "h.visit_count, h.typed, 0, 0, "
@@ -1466,15 +1463,11 @@ urlInlineComplete.prototype = {
    */
   _loadPrefs: function UIC_loadPrefs(aRegisterObserver)
   {
-    let prefBranch = Services.prefs.getBranch(kBrowserUrlbarBranch);
-    this._autofill = safePrefGetter(prefBranch,
+    this._autofill = safePrefGetter(Services.prefs,
                                     kBrowserUrlbarAutofillPref,
                                     true);
-    this._autofillTyped = safePrefGetter(prefBranch,
-                                         kBrowserUrlbarAutofillTypedPref,
-                                         true);
     if (aRegisterObserver) {
-      Services.prefs.addObserver(kBrowserUrlbarBranch, this, true);
+      Services.prefs.addObserver(kBrowserUrlbarAutofillPref, this, true);
     }
   },
 
@@ -1518,31 +1511,27 @@ urlInlineComplete.prototype = {
   //////////////////////////////////////////////////////////////////////////////
   //// nsIObserver
 
-  observe: function UIC_observe(aSubject, aTopic, aData)
+  observe: function PAC_observe(aSubject, aTopic, aData)
   {
     if (aTopic == kTopicShutdown) {
+      Services.obs.removeObserver(this, kTopicShutdown);
       this._closeDatabase();
     }
-    else if (aTopic == kPrefChanged &&
-             (aData.substr(kBrowserUrlbarBranch.length) == kBrowserUrlbarAutofillPref ||
-              aData.substr(kBrowserUrlbarBranch.length) == kBrowserUrlbarAutofillTypedPref)) {
-      let previousAutofillTyped = this._autofillTyped;
+    else if (aTopic == kPrefChanged) {
       this._loadPrefs();
       if (!this._autofill) {
         this.stopSearch();
         this._closeDatabase();
       }
-      else if (this._autofillTyped != previousAutofillTyped) {
-        // Invalidate the statements to update them for the new typed status.
-        this._invalidateStatements();
-      }
     }
   },
 
   /**
-   * Finalizes and invalidates cached statements.
-   */
-  _invalidateStatements: function UIC_invalidateStatements()
+   *
+   * Finalize and close the database safely
+   *
+   **/
+  _closeDatabase: function UIC_closeDatabase()
   {
     // Finalize the statements that we have used.
     let stmts = [
@@ -1557,14 +1546,6 @@ urlInlineComplete.prototype = {
         this[stmts[i]] = null;
       }
     }
-  },
-
-  /**
-   * Closes the database.
-   */
-  _closeDatabase: function UIC_closeDatabase()
-  {
-    this._invalidateStatements();
     if (this.__db) {
       this._db.asyncClose();
       this.__db = null;

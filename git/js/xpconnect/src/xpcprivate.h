@@ -46,7 +46,6 @@
 #ifndef xpcprivate_h___
 #define xpcprivate_h___
 
-#include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
 
 #include <string.h>
@@ -318,8 +317,7 @@ typedef nsDataHashtable<xpc::PtrAndPrincipalHashKey, JSCompartment *> XPCCompart
     return (result || !src) ? NS_OK : NS_ERROR_OUT_OF_MEMORY
 
 
-#define WRAPPER_SLOTS (JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS | \
-                       JSCLASS_HAS_RESERVED_SLOTS(1))
+#define WRAPPER_SLOTS (JSCLASS_HAS_PRIVATE | JSCLASS_HAS_RESERVED_SLOTS(1))
 
 #define INVALID_OBJECT ((JSObject *)1)
 
@@ -521,7 +519,6 @@ public:
     JSBool IsShuttingDown() const {return mShuttingDown;}
 
     void EnsureGCBeforeCC() { mNeedGCBeforeCC = true; }
-    void ClearGCBeforeCC() { mNeedGCBeforeCC = false; }
 
     nsresult GetInfoForIID(const nsIID * aIID, nsIInterfaceInfo** info);
     nsresult GetInfoForName(const char * name, nsIInterfaceInfo** info);
@@ -1353,8 +1350,7 @@ private:
 // These are the various JSClasses and callbacks whose use that required
 // visibility from more than one .cpp file.
 
-struct XPCWrappedNativeJSClass;
-extern XPCWrappedNativeJSClass XPC_WN_NoHelper_JSClass;
+extern js::Class XPC_WN_NoHelper_JSClass;
 extern js::Class XPC_WN_NoMods_WithCall_Proto_JSClass;
 extern js::Class XPC_WN_NoMods_NoCall_Proto_JSClass;
 extern js::Class XPC_WN_ModsAllowed_WithCall_Proto_JSClass;
@@ -1612,7 +1608,7 @@ public:
 
     static XPCWrappedNativeScope *GetNativeScope(JSContext *cx, JSObject *obj)
     {
-        MOZ_ASSERT(js::GetObjectClass(obj)->flags & JSCLASS_XPCONNECT_GLOBAL);
+        JS_ASSERT(js::GetObjectClass(obj)->flags & JSCLASS_XPCONNECT_GLOBAL);
 
         const js::Value &v = js::GetObjectSlot(obj, JSCLASS_GLOBAL_SLOT_COUNT);
         return v.isUndefined()
@@ -2038,10 +2034,7 @@ public:
 // was a big problem when wrappers are reparented to different scopes (and
 // thus different protos (the DOM does this).
 
-// We maintain the invariant that every JSClass for which ext.isWrappedNative
-// is true is a contained in an instance of this struct, and can thus be cast
-// to it.
-struct XPCWrappedNativeJSClass
+struct XPCNativeScriptableSharedJSClass
 {
     js::Class base;
     PRUint32 interfacesBitmap;
@@ -2083,7 +2076,7 @@ public:
 
 private:
     XPCNativeScriptableFlags mFlags;
-    XPCWrappedNativeJSClass  mJSClass;
+    XPCNativeScriptableSharedJSClass mJSClass;
     JSBool                   mCanBeSlim;
 };
 
@@ -3027,10 +3020,7 @@ public:
     JSBool IsAggregatedToNative() const {return mRoot->mOuter != nsnull;}
     nsISupports* GetAggregatedNativeObject() const {return mRoot->mOuter;}
 
-    void SetIsMainThreadOnly() {
-        MOZ_ASSERT(mMainThread);
-        mMainThreadOnly = true;
-    }
+    void SetIsMainThreadOnly() {JS_ASSERT(mMainThread); mMainThreadOnly = true;}
     bool IsMainThreadOnly() const {return mMainThreadOnly;}
 
     void TraceJS(JSTracer* trc);
@@ -3659,7 +3649,7 @@ public:
         // XPConnect off the main thread. If you're an extension developer hitting
         // this, you need to change your code. See bug 716167.
         if (!NS_LIKELY(NS_IsMainThread() || NS_IsCycleCollectorThread()))
-            MOZ_Assert("NS_IsMainThread()", __FILE__, __LINE__);
+            JS_Assert("NS_IsMainThread()", __FILE__, __LINE__);
 
         if (cx) {
             if (js::GetOwnerThread(cx) == sMainJSThread)

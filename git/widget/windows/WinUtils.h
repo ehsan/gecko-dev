@@ -52,8 +52,6 @@
 #include "nscore.h"
 #include <windows.h>
 #include <shobjidl.h>
-#include "nsAutoPtr.h"
-#include "nsString.h"
 
 class nsWindow;
 
@@ -203,6 +201,13 @@ public:
   static PRUint16 GetMouseInputSource();
 
   /**
+   * VistaCreateItemFromParsingNameInit() initializes the static pointer for
+   * SHCreateItemFromParsingName() API which is usable only on Vista and later.
+   * This returns TRUE if the API is available.  Otherwise, FALSE.
+   */
+  static bool VistaCreateItemFromParsingNameInit();
+
+  /**
    * SHCreateItemFromParsingName() calls native SHCreateItemFromParsingName()
    * API.  Note that you must call VistaCreateItemFromParsingNameInit() before
    * calling this.  And the result must be TRUE.  Otherwise, returns E_FAIL.
@@ -210,30 +215,12 @@ public:
   static HRESULT SHCreateItemFromParsingName(PCWSTR pszPath, IBindCtx *pbc,
                                              REFIID riid, void **ppv);
 
-  /**
-   * GetShellItemPath return the file or directory path of a shell item.
-   * Internally calls IShellItem's GetDisplayName.
-   *
-   * aItem  the shell item containing the path.
-   * aResultString  the resulting string path.
-   * returns  true if a path was retreived.
-   */
-  static bool GetShellItemPath(IShellItem* aItem,
-                               nsString& aResultString);
-
 private:
   typedef HRESULT (WINAPI * SHCreateItemFromParsingNamePtr)(PCWSTR pszPath,
                                                             IBindCtx *pbc,
                                                             REFIID riid,
                                                             void **ppv);
   static SHCreateItemFromParsingNamePtr sCreateItemFromParsingName;
-
-  /**
-   * VistaCreateItemFromParsingNameInit() initializes the static pointer for
-   * SHCreateItemFromParsingName() API which is usable only on Vista and later.
-   * This returns TRUE if the API is available.  Otherwise, FALSE.
-   */
-  static bool VistaCreateItemFromParsingNameInit();
 };
 
 } // namespace widget

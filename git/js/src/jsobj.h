@@ -868,7 +868,7 @@ struct JSObject : js::gc::Cell
         return type_;
     }
 
-    js::HeapPtr<js::types::TypeObject> &typeFromGC() {
+    const js::HeapPtr<js::types::TypeObject> &typeFromGC() const {
         /* Direct field access for use by GC. */
         return type_;
     }
@@ -954,7 +954,6 @@ struct JSObject : js::gc::Cell
     inline bool hasPrivate() const;
     inline void *getPrivate() const;
     inline void setPrivate(void *data);
-    inline void initPrivate(void *data);
 
     /* Access private data for an object with a known number of fixed slots. */
     inline void *getPrivate(size_t nfixed) const;
@@ -998,6 +997,22 @@ struct JSObject : js::gc::Cell
 
     bool isSealed(JSContext *cx, bool *resultp) { return isSealedOrFrozen(cx, SEAL, resultp); }
     bool isFrozen(JSContext *cx, bool *resultp) { return isSealedOrFrozen(cx, FREEZE, resultp); }
+
+    /*
+     * Primitive-specific getters and setters.
+     */
+
+  private:
+    static const uint32_t JSSLOT_PRIMITIVE_THIS = 0;
+
+  public:
+    inline const js::Value &getPrimitiveThis() const;
+    inline void setPrimitiveThis(const js::Value &pthis);
+
+    static size_t getPrimitiveThisOffset() {
+        /* All primitive objects have their value in a fixed slot. */
+        return getFixedSlotOffset(JSSLOT_PRIMITIVE_THIS);
+    }
 
     /* Accessors for elements. */
 
@@ -1350,13 +1365,14 @@ struct JSObject : js::gc::Cell
 
     static bool thisObject(JSContext *cx, const js::Value &v, js::Value *vp);
 
+    inline JSObject *getThrowTypeError() const;
+
     bool swap(JSContext *cx, JSObject *other);
 
     inline void initArrayClass();
 
     static inline void writeBarrierPre(JSObject *obj);
     static inline void writeBarrierPost(JSObject *obj, void *addr);
-    static inline void readBarrier(JSObject *obj);
     inline void privateWriteBarrierPre(void **oldval);
     inline void privateWriteBarrierPost(void **oldval);
 
@@ -1538,8 +1554,13 @@ class ValueArray {
 };
 
 /* For manipulating JSContext::sharpObjectMap. */
-extern bool
-js_EnterSharpObject(JSContext *cx, JSObject *obj, JSIdArray **idap, bool *alreadySeen, bool *isSharp);
+#define SHARP_BIT       ((jsatomid) 1)
+#define SHARP_ID_SHIFT  2
+#define IS_SHARP(he)    (uintptr_t((he)->value) & SHARP_BIT)
+#define MAKE_SHARP(he)  ((he)->value = (void *) (uintptr_t((he)->value)|SHARP_BIT))
+
+extern JSHashEntry *
+js_EnterSharpObject(JSContext *cx, JSObject *obj, JSIdArray **idap, bool *alreadySeen);
 
 extern void
 js_LeaveSharpObject(JSContext *cx, JSIdArray **idap);

@@ -4377,7 +4377,7 @@ WebGLContext::CompileShader(nsIWebGLShader *sobj)
         // ESSL backend
         compiler = ShConstructCompiler((ShShaderType) shader->ShaderType(),
                                        SH_WEBGL_SPEC,
-#ifdef ANDROID
+#ifdef MOZ_WIDGET_ANDROID
                                        SH_GLSL_OUTPUT,
 #else
                                        gl->IsGLES2() ? SH_ESSL_OUTPUT : SH_GLSL_OUTPUT,

@@ -558,9 +558,6 @@ GLContext::InitExtensions()
 {
     MakeCurrent();
     const GLubyte *extensions = fGetString(LOCAL_GL_EXTENSIONS);
-    if (!extensions)
-        return;
-
     char *exts = strdup((char *)extensions);
 
 #ifdef DEBUG
@@ -1455,8 +1452,6 @@ GLContext::ResizeOffscreenFBO(const gfxIntSize& aSize, const bool aUseReadFBO, c
 
     // We're good, and the framebuffer is already attached.
     // Now restore the GL state back to what it was before the resize took place.
-    // If the user was using fb 0, this will bind the offscreen framebuffer we
-    // just created.
     BindDrawFBO(curBoundFramebufferDraw);
     BindReadFBO(curBoundFramebufferRead);
     fBindTexture(LOCAL_GL_TEXTURE_2D, curBoundTexture);

@@ -610,6 +610,7 @@ protected:
 
   static void SetFont(nsPresContext* aPresContext,
                       nsStyleContext* aContext,
+                      nscoord aMinFontSize,
                       PRUint8 aGenericFontID,
                       const nsRuleData* aRuleData,
                       const nsStyleFont* aParentFont,
@@ -620,6 +621,7 @@ protected:
   static void SetGenericFont(nsPresContext* aPresContext,
                              nsStyleContext* aContext,
                              PRUint8 aGenericFontID,
+                             nscoord aMinFontSize,
                              nsStyleFont* aFont);
 
   void AdjustLogicalBoxProp(nsStyleContext* aContext,

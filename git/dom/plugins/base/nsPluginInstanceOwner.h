@@ -182,8 +182,9 @@ public:
   bool IsRemoteDrawingCoreAnimation();
   NPEventModel GetEventModel();
   static void CARefresh(nsITimer *aTimer, void *aClosure);
-  void AddToCARefreshTimer();
-  void RemoveFromCARefreshTimer();
+  static void AddToCARefreshTimer(nsPluginInstanceOwner *aPluginInstance);
+  static void RemoveFromCARefreshTimer(nsPluginInstanceOwner *aPluginInstance);
+  void SetupCARefresh();
   // This calls into the plugin (NPP_SetWindow) and can run script.
   void* FixUpPluginWindow(PRInt32 inPaintState);
   void HidePluginWindow();
@@ -327,14 +328,16 @@ private:
   void FixUpURLS(const nsString &name, nsAString &value);
 #ifdef MOZ_WIDGET_ANDROID
   void SendSize(int width, int height);
+  void SendOnScreenEvent(bool onScreen);
 
   bool AddPluginView(const gfxRect& aRect);
   void RemovePluginView();
 
+  bool mOnScreen;
   bool mInverted;
 
   // For kOpenGL_ANPDrawingModel
-  nsRefPtr<mozilla::AndroidMediaLayer> mLayer;
+  mozilla::AndroidMediaLayer *mLayer;
 #endif 
  
   nsPluginNativeWindow       *mPluginWindow;

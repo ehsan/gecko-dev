@@ -247,10 +247,12 @@ bool GetHiddenState(bool aIsRedirect,
  * Notifies a specified topic via the observer service.
  */
 class PlacesEvent : public nsRunnable
+                  , public mozIStorageCompletionCallback
 {
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIRUNNABLE
+  NS_DECL_MOZISTORAGECOMPLETIONCALLBACK
 
   PlacesEvent(const char* aTopic);
 protected:

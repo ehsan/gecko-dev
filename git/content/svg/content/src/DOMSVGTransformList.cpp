@@ -184,7 +184,6 @@ DOMSVGTransformList::Clear()
   }
 
   if (Length() > 0) {
-    nsAttrValue emptyOrOldValue = Element()->WillChangeTransformList();
     // Notify any existing DOM items of removal *before* truncating the lists
     // so that they can find their SVGTransform internal counterparts and copy
     // their values. This also notifies the animVal list:
@@ -192,7 +191,7 @@ DOMSVGTransformList::Clear()
 
     mItems.Clear();
     InternalList().Clear();
-    Element()->DidChangeTransformList(emptyOrOldValue);
+    Element()->DidChangeTransformList(true);
     if (mAList->IsAnimating()) {
       Element()->AnimationNeedsResample();
     }
@@ -273,7 +272,6 @@ DOMSVGTransformList::InsertItemBefore(nsIDOMSVGTransform *newItem,
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  nsAttrValue emptyOrOldValue = Element()->WillChangeTransformList();
   // Now that we know we're inserting, keep animVal list in sync as necessary.
   MaybeInsertNullInAnimValListAt(index);
 
@@ -287,7 +285,7 @@ DOMSVGTransformList::InsertItemBefore(nsIDOMSVGTransform *newItem,
 
   UpdateListIndicesFromIndex(mItems, index + 1);
 
-  Element()->DidChangeTransformList(emptyOrOldValue);
+  Element()->DidChangeTransformList(true);
   if (mAList->IsAnimating()) {
     Element()->AnimationNeedsResample();
   }
@@ -318,7 +316,6 @@ DOMSVGTransformList::ReplaceItem(nsIDOMSVGTransform *newItem,
     domItem = domItem->Clone(); // must do this before changing anything!
   }
 
-  nsAttrValue emptyOrOldValue = Element()->WillChangeTransformList();
   if (mItems[index]) {
     // Notify any existing DOM item of removal *before* modifying the lists so
     // that the DOM item can copy the *old* value at its index:
@@ -332,7 +329,7 @@ DOMSVGTransformList::ReplaceItem(nsIDOMSVGTransform *newItem,
   // would end up reading bad data from InternalList()!
   domItem->InsertingIntoList(this, index, IsAnimValList());
 
-  Element()->DidChangeTransformList(emptyOrOldValue);
+  Element()->DidChangeTransformList(true);
   if (mAList->IsAnimating()) {
     Element()->AnimationNeedsResample();
   }
@@ -353,7 +350,6 @@ DOMSVGTransformList::RemoveItem(PRUint32 index, nsIDOMSVGTransform **_retval)
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
 
-  nsAttrValue emptyOrOldValue = Element()->WillChangeTransformList();
   // Now that we know we're removing, keep animVal list in sync as necessary.
   // Do this *before* touching InternalList() so the removed item can get its
   // internal value.
@@ -372,7 +368,7 @@ DOMSVGTransformList::RemoveItem(PRUint32 index, nsIDOMSVGTransform **_retval)
 
   UpdateListIndicesFromIndex(mItems, index);
 
-  Element()->DidChangeTransformList(emptyOrOldValue);
+  Element()->DidChangeTransformList(true);
   if (mAList->IsAnimating()) {
     Element()->AnimationNeedsResample();
   }

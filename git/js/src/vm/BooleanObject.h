@@ -67,13 +67,14 @@ class BooleanObject : public JSObject
      */
     static inline BooleanObject *createWithProto(JSContext *cx, bool b, JSObject &proto);
 
-    bool unbox() const {
-        return getFixedSlot(PRIMITIVE_VALUE_SLOT).toBoolean();
+    Value unbox() const {
+        JS_ASSERT(getSlot(PRIMITIVE_VALUE_SLOT).isBoolean());
+        return getSlot(PRIMITIVE_VALUE_SLOT);
     }
 
   private:
     inline void setPrimitiveValue(bool b) {
-        setFixedSlot(PRIMITIVE_VALUE_SLOT, BooleanValue(b));
+        setSlot(PRIMITIVE_VALUE_SLOT, BooleanValue(b));
     }
 
     /* For access to init, as Boolean.prototype is special. */

@@ -147,14 +147,6 @@ public:
 #endif
 
 #ifdef MOZ_WIDGET_ANDROID
-  void NotifyForeground(bool aForeground);
-  void NotifyOnScreen(bool aOnScreen);
-  void MemoryPressure();
-
-  bool IsOnScreen() {
-    return mOnScreen;
-  }
-
   PRUint32 GetANPDrawingModel() { return mANPDrawingModel; }
   void SetANPDrawingModel(PRUint32 aModel);
 
@@ -290,7 +282,6 @@ private:
   bool mUsePluginLayersPref;
 #ifdef MOZ_WIDGET_ANDROID
   void* mSurface;
-  bool mOnScreen;
 #endif
 };
 

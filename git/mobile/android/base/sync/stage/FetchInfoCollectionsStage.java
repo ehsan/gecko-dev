@@ -47,7 +47,7 @@ import org.mozilla.gecko.sync.net.SyncStorageResponse;
 import android.util.Log;
 
 public class FetchInfoCollectionsStage implements GlobalSyncStage {
-  private static final String LOG_TAG = "FetchInfoCollStage";
+  private static final String LOG_TAG = "FetchInfoCollectionsStage";
 
   public class StageInfoCollectionsDelegate implements InfoCollectionsDelegate {
 

@@ -723,6 +723,8 @@ JSRuntime::JSRuntime()
     gcMaxBytes(0),
     gcMaxMallocBytes(0),
     gcNumArenasFreeCommitted(0),
+    gcNumber(0),
+    gcIncrementalTracer(NULL),
     gcVerifyData(NULL),
     gcChunkAllocationSinceLastGC(false),
     gcNextFullGCTime(0),
@@ -731,20 +733,12 @@ JSRuntime::JSRuntime()
     gcIsNeeded(0),
     gcWeakMapList(NULL),
     gcStats(thisFromCtor()),
-    gcNumber(0),
-    gcStartNumber(0),
     gcTriggerReason(gcreason::NO_REASON),
     gcTriggerCompartment(NULL),
     gcCurrentCompartment(NULL),
     gcCheckCompartment(NULL),
-    gcIncrementalState(gc::NO_INCREMENTAL),
-    gcCompartmentCreated(false),
-    gcLastMarkSlice(false),
-    gcInterFrameGC(0),
-    gcSliceBudget(SliceBudget::Unlimited),
-    gcIncrementalEnabled(true),
-    gcIncrementalCompartment(NULL),
     gcPoke(false),
+    gcMarkAndSweep(false),
     gcRunning(false),
 #ifdef JS_GC_ZEAL
     gcZeal_(0),
@@ -753,7 +747,7 @@ JSRuntime::JSRuntime()
     gcDebugCompartmentGC(false),
 #endif
     gcCallback(NULL),
-    gcSliceCallback(NULL),
+    gcFinishedCallback(NULL),
     gcMallocBytes(0),
     gcBlackRootsTraceOp(NULL),
     gcBlackRootsData(NULL),
@@ -818,9 +812,6 @@ JSRuntime::init(uint32_t maxbytes)
 #endif
 
     if (!js_InitGC(this, maxbytes))
-        return false;
-
-    if (!gcMarker.init())
         return false;
 
     if (!(atomsCompartment = this->new_<JSCompartment>(this)) ||
@@ -2446,7 +2437,13 @@ JS_SetExtraGCRootsTracer(JSRuntime *rt, JSTraceDataOp traceOp, void *data)
 JS_PUBLIC_API(void)
 JS_TracerInit(JSTracer *trc, JSContext *cx, JSTraceCallback callback)
 {
-    InitTracer(trc, cx->runtime, cx, callback);
+    trc->runtime = cx->runtime;
+    trc->context = cx;
+    trc->callback = callback;
+    trc->debugPrinter = NULL;
+    trc->debugPrintArg = NULL;
+    trc->debugPrintIndex = size_t(-1);
+    trc->eagerlyTraceWeakMaps = true;
 }
 
 JS_PUBLIC_API(void)
@@ -2645,9 +2642,8 @@ typedef struct JSDumpingTracer {
 } JSDumpingTracer;
 
 static void
-DumpNotify(JSTracer *trc, void **thingp, JSGCTraceKind kind)
+DumpNotify(JSTracer *trc, void *thing, JSGCTraceKind kind)
 {
-    void *thing = *thingp;
     JSDumpingTracer *dtrc;
     JSContext *cx;
     JSDHashEntryStub *entry;
@@ -2878,7 +2874,8 @@ JS_CompartmentGC(JSContext *cx, JSCompartment *comp)
     /* We cannot GC the atoms compartment alone; use a full GC instead. */
     JS_ASSERT(comp != cx->runtime->atomsCompartment);
 
-    GC(cx, comp, GC_NORMAL, gcreason::API);
+    js::gc::VerifyBarriers(cx, true);
+    js_GC(cx, comp, GC_NORMAL, gcreason::API);
 }
 
 JS_PUBLIC_API(void)
@@ -2916,6 +2913,7 @@ JS_PUBLIC_API(JSBool)
 JS_IsAboutToBeFinalized(void *thing)
 {
     gc::Cell *t = static_cast<gc::Cell *>(thing);
+    JS_ASSERT(!t->compartment()->rt->gcIncrementalTracer);
     return IsAboutToBeFinalized(t);
 }
 
@@ -2932,15 +2930,11 @@ JS_SetGCParameter(JSRuntime *rt, JSGCParamKey key, uint32_t value)
       case JSGC_MAX_MALLOC_BYTES:
         rt->setGCMaxMallocBytes(value);
         break;
-      case JSGC_SLICE_TIME_BUDGET:
-        rt->gcSliceBudget = SliceBudget::TimeBudget(value);
-        break;
       default:
         JS_ASSERT(key == JSGC_MODE);
         rt->gcMode = JSGCMode(value);
         JS_ASSERT(rt->gcMode == JSGC_MODE_GLOBAL ||
-                  rt->gcMode == JSGC_MODE_COMPARTMENT ||
-                  rt->gcMode == JSGC_MODE_INCREMENTAL);
+                  rt->gcMode == JSGC_MODE_COMPARTMENT);
         return;
     }
 }
@@ -2961,11 +2955,9 @@ JS_GetGCParameter(JSRuntime *rt, JSGCParamKey key)
         return uint32_t(rt->gcChunkPool.getEmptyCount());
       case JSGC_TOTAL_CHUNKS:
         return uint32_t(rt->gcChunkSet.count() + rt->gcChunkPool.getEmptyCount());
-      case JSGC_SLICE_TIME_BUDGET:
-        return uint32_t(rt->gcSliceBudget > 0 ? rt->gcSliceBudget / PRMJ_USEC_PER_MSEC : 0);
       default:
         JS_ASSERT(key == JSGC_NUMBER);
-        return uint32_t(rt->gcNumber);
+        return rt->gcNumber;
     }
 }
 
@@ -4422,13 +4414,20 @@ JS_ElementIteratorStub(JSContext *cx, JSObject *obj, JSBool keysonly)
 JS_PUBLIC_API(jsval)
 JS_GetReservedSlot(JSObject *obj, uint32_t index)
 {
-    return obj->getReservedSlot(index);
+    if (!obj->isNative())
+        return UndefinedValue();
+
+    return GetReservedSlot(obj, index);
 }
 
 JS_PUBLIC_API(void)
 JS_SetReservedSlot(JSObject *obj, uint32_t index, jsval v)
 {
-    obj->setReservedSlot(index, v);
+    if (!obj->isNative())
+        return;
+
+    SetReservedSlot(obj, index, v);
+    GCPoke(obj->compartment()->rt, NullValue());
 }
 
 JS_PUBLIC_API(JSObject *)
@@ -6616,16 +6615,7 @@ JS_AbortIfWrongThread(JSRuntime *rt)
 JS_PUBLIC_API(void)
 JS_SetGCZeal(JSContext *cx, uint8_t zeal, uint32_t frequency, JSBool compartment)
 {
-#ifdef JS_GC_ZEAL
-    const char *env = getenv("JS_GC_ZEAL");
-    if (env) {
-        zeal = atoi(env);
-        frequency = 1;
-        compartment = false;
-    }
-#endif
-
-    bool schedule = zeal >= js::gc::ZealAllocValue;
+    bool schedule = zeal >= js::gc::ZealAllocThreshold && zeal < js::gc::ZealVerifierThreshold;
     cx->runtime->gcZeal_ = zeal;
     cx->runtime->gcZealFrequency = frequency;
     cx->runtime->gcNextScheduled = schedule ? frequency : 0;

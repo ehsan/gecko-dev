@@ -80,28 +80,14 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
     private final String mProfile;
     private long mMobileFolderId;
 
-    private final Uri mBookmarksUriWithProfile;
-    private final Uri mParentsUriWithProfile;
-    private final Uri mHistoryUriWithProfile;
-    private final Uri mImagesUriWithProfile;
-    private final Uri mDeletedHistoryUriWithProfile;
-
     public LocalBrowserDB(String profile) {
         mProfile = profile;
         mMobileFolderId = -1;
-
-        mBookmarksUriWithProfile = appendProfile(Bookmarks.CONTENT_URI);
-        mParentsUriWithProfile = appendProfile(Bookmarks.PARENTS_CONTENT_URI);
-        mHistoryUriWithProfile = appendProfile(History.CONTENT_URI);
-        mImagesUriWithProfile = appendProfile(Images.CONTENT_URI);
-
-        mDeletedHistoryUriWithProfile = mHistoryUriWithProfile.buildUpon().
-            appendQueryParameter(BrowserContract.PARAM_SHOW_DELETED, "1").build();
     }
 
-    private Uri historyUriWithLimit(int limit) {
-        return mHistoryUriWithProfile.buildUpon().appendQueryParameter(BrowserContract.PARAM_LIMIT,
-                                                                       String.valueOf(limit)).build();
+    private Uri appendProfileAndLimit(Uri uri, int limit) {
+        return uri.buildUpon().appendQueryParameter(BrowserContract.PARAM_PROFILE, mProfile).
+                appendQueryParameter(BrowserContract.PARAM_LIMIT, String.valueOf(limit)).build();
     }
 
     private Uri appendProfile(Uri uri) {
@@ -109,7 +95,7 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
     }
 
     private Cursor filterAllSites(ContentResolver cr, String[] projection, CharSequence constraint, int limit, CharSequence urlFilter) {
-        Cursor c = cr.query(historyUriWithLimit(limit),
+        Cursor c = cr.query(appendProfileAndLimit(History.CONTENT_URI, limit),
                             projection,
                             (urlFilter != null ? "(" + History.URL + " NOT LIKE ? ) AND " : "" ) + 
                             "(" + History.URL + " LIKE ? OR " + History.TITLE + " LIKE ?)",
@@ -150,7 +136,7 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
         Cursor cursor = null;
 
         try {
-            cursor = cr.query(mHistoryUriWithProfile,
+            cursor = cr.query(appendProfile(History.CONTENT_URI),
                               new String[] { History._ID },
                               null,
                               null,
@@ -184,7 +170,7 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
                     History.VISITS, // 1
             };
 
-            cursor = cr.query(mDeletedHistoryUriWithProfile,
+            cursor = cr.query(appendProfile(History.CONTENT_URI),
                               projection,
                               History.URL + " = ?",
                               new String[] { uri },
@@ -195,9 +181,6 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
 
                 values.put(History.VISITS, cursor.getInt(1) + 1);
                 values.put(History.DATE_LAST_VISITED, now);
-
-                // Restore deleted record if possible
-                values.put(History.IS_DELETED, 0);
 
                 Uri historyUri = ContentUris.withAppendedId(History.CONTENT_URI, cursor.getLong(0));
                 cr.update(appendProfile(historyUri), values, null, null);
@@ -213,7 +196,7 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
                 values.put(History.DATE_LAST_VISITED, now);
                 values.put(History.TITLE, uri);
 
-                cr.insert(mHistoryUriWithProfile, values);
+                cr.insert(appendProfile(History.CONTENT_URI), values);
             }
         } finally {
             if (cursor != null)
@@ -225,7 +208,7 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
         ContentValues values = new ContentValues();
         values.put(History.TITLE, title);
 
-        cr.update(mHistoryUriWithProfile,
+        cr.update(appendProfile(History.CONTENT_URI),
                   values,
                   History.URL + " = ?",
                   new String[] { uri });
@@ -236,7 +219,7 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
         int oldVisits = 0;
         Cursor cursor = null;
         try {
-            cursor = cr.query(mHistoryUriWithProfile,
+            cursor = cr.query(appendProfile(History.CONTENT_URI),
                               new String[] { History.VISITS },
                               History.URL + " = ?",
                               new String[] { uri },
@@ -257,14 +240,14 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
             values.put(History.TITLE, title);
         }
 
-        cr.update(mHistoryUriWithProfile,
+        cr.update(appendProfile(History.CONTENT_URI),
                   values,
                   History.URL + " = ?",
                   new String[] { uri });
     }
 
     public Cursor getAllVisitedHistory(ContentResolver cr) {
-        Cursor c = cr.query(mHistoryUriWithProfile,
+        Cursor c = cr.query(appendProfile(History.CONTENT_URI),
                             new String[] { History.URL },
                             History.VISITS + " > 0",
                             null,
@@ -274,7 +257,7 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
     }
 
     public Cursor getRecentHistory(ContentResolver cr, int limit) {
-        Cursor c = cr.query(historyUriWithLimit(limit),
+        Cursor c = cr.query(appendProfileAndLimit(History.CONTENT_URI, limit),
                             new String[] { History._ID,
                                            History.URL,
                                            History.TITLE,
@@ -293,7 +276,21 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
     }
 
     public void clearHistory(ContentResolver cr) {
-        cr.delete(mHistoryUriWithProfile, null, null);
+        cr.delete(appendProfile(History.CONTENT_URI), null, null);
+    }
+
+    public Cursor getAllBookmarks(ContentResolver cr) {
+        Cursor c = cr.query(appendProfile(Bookmarks.CONTENT_URI),
+                            new String[] { Bookmarks._ID,
+                                           Bookmarks.URL,
+                                           Bookmarks.TITLE,
+                                           Bookmarks.FAVICON,
+                                           Bookmarks.KEYWORD },
+                            Bookmarks.IS_FOLDER + " = 0",
+                            null,
+                            Bookmarks.TITLE + " ASC");
+
+        return new LocalDBCursor(c);
     }
 
     public Cursor getMobileBookmarks(ContentResolver cr) {
@@ -307,7 +304,7 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
     private Cursor getBookmarks(ContentResolver cr, boolean mobileBookmarks) {
         String parentSelection = mobileBookmarks ? " = ?" : " != ?";
         long mobileFolderId = getMobileBookmarksFolderId(cr);
-        Cursor c = cr.query(mBookmarksUriWithProfile,
+        Cursor c = cr.query(appendProfile(Bookmarks.CONTENT_URI),
                             new String[] { Bookmarks._ID,
                                            Bookmarks.URL,
                                            Bookmarks.TITLE,
@@ -321,7 +318,7 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
     }
 
     public boolean isBookmark(ContentResolver cr, String uri) {
-        Cursor cursor = cr.query(mBookmarksUriWithProfile,
+        Cursor cursor = cr.query(appendProfile(Bookmarks.CONTENT_URI),
                                  new String[] { Bookmarks._ID },
                                  Bookmarks.URL + " = ?",
                                  new String[] { uri },
@@ -334,7 +331,7 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
     }
 
     public String getUrlForKeyword(ContentResolver cr, String keyword) {
-        Cursor cursor = cr.query(mBookmarksUriWithProfile,
+        Cursor cursor = cr.query(appendProfile(Bookmarks.CONTENT_URI),
                                  new String[] { Bookmarks.URL },
                                  Bookmarks.KEYWORD + " = ?",
                                  new String[] { keyword },
@@ -358,7 +355,7 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
         Cursor c = null;
 
         try {
-            c = cr.query(mBookmarksUriWithProfile,
+            c = cr.query(appendProfile(Bookmarks.CONTENT_URI),
                          new String[] { Bookmarks._ID },
                          Bookmarks.GUID + " = ?",
                          new String[] { Bookmarks.MOBILE_FOLDER_GUID },
@@ -382,9 +379,15 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
         ContentValues values = new ContentValues();
         values.put(Bookmarks.DATE_MODIFIED, System.currentTimeMillis());
 
+        // Inline appendProfile here to avoid building multiple Uri objects.
+        final Uri updateURI =
+            Bookmarks.CONTENT_URI.buildUpon()
+                                 .appendPath("parents")
+                                 .appendQueryParameter(BrowserContract.PARAM_PROFILE, mProfile)
+                                 .build();
         String where  = param + " = ?";
         String[] args = new String[] { value };
-        int updated  = cr.update(mParentsUriWithProfile, values, where, args);
+        int updated  = cr.update(updateURI, values, where, args);
         debug("Updated " + updated + " rows to new modified time.");
     }
 
@@ -403,7 +406,7 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
         // Restore deleted record if possible
         values.put(Bookmarks.IS_DELETED, 0);
 
-        Uri contentUri = mBookmarksUriWithProfile;
+        Uri contentUri = appendProfile(Bookmarks.CONTENT_URI);
         int updated = cr.update(contentUri,
                                 values,
                                 Bookmarks.URL + " = ?",
@@ -427,7 +430,7 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
     }
 
     public void removeBookmark(ContentResolver cr, int id) {
-        Uri contentUri = mBookmarksUriWithProfile;
+        Uri contentUri = appendProfile(Bookmarks.CONTENT_URI);
 
         // Do this now so that the item still exists!
         final String idString = String.valueOf(id);
@@ -441,7 +444,7 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
     }
 
     public void removeBookmarksWithURL(ContentResolver cr, String uri) {
-        Uri contentUri = mBookmarksUriWithProfile;
+        Uri contentUri = appendProfile(Bookmarks.CONTENT_URI);
 
         // Do this now so that the items still exist!
         bumpParents(cr, Bookmarks.URL, uri);
@@ -454,7 +457,7 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
     }
 
     public void registerBookmarkObserver(ContentResolver cr, ContentObserver observer) {
-        Uri uri = mBookmarksUriWithProfile;
+        Uri uri = appendProfile(Bookmarks.CONTENT_URI);
         cr.registerContentObserver(uri, false, observer);
     }
 
@@ -464,14 +467,14 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
         values.put(Bookmarks.URL, uri);
         values.put(Bookmarks.KEYWORD, keyword);
 
-        cr.update(mBookmarksUriWithProfile,
+        cr.update(appendProfile(Bookmarks.CONTENT_URI),
                   values,
                   Bookmarks.URL + " = ?",
                   new String[] { oldUri });
     }
 
     public BitmapDrawable getFaviconForUrl(ContentResolver cr, String uri) {
-        Cursor c = cr.query(mImagesUriWithProfile,
+        Cursor c = cr.query(appendProfile(Images.CONTENT_URI),
                             new String[] { Images.FAVICON },
                             Images.URL + " = ?",
                             new String[] { uri },
@@ -508,13 +511,13 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
         // Restore deleted record if possible
         values.put(Images.IS_DELETED, 0);
 
-        int updated = cr.update(mImagesUriWithProfile,
+        int updated = cr.update(appendProfile(Images.CONTENT_URI),
                                 values,
                                 Images.URL + " = ?",
                                 new String[] { uri });
 
         if (updated == 0)
-            cr.insert(mImagesUriWithProfile, values);
+            cr.insert(appendProfile(Images.CONTENT_URI), values);
     }
 
     public void updateThumbnailForUrl(ContentResolver cr, String uri,
@@ -531,17 +534,17 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
         // Restore deleted record if possible
         values.put(Images.IS_DELETED, 0);
 
-        int updated = cr.update(mImagesUriWithProfile,
+        int updated = cr.update(appendProfile(Images.CONTENT_URI),
                                 values,
                                 Images.URL + " = ?",
                                 new String[] { uri });
 
         if (updated == 0)
-            cr.insert(mImagesUriWithProfile, values);
+            cr.insert(appendProfile(Images.CONTENT_URI), values);
     }
 
     public byte[] getThumbnailForUrl(ContentResolver cr, String uri) {
-        Cursor c = cr.query(mImagesUriWithProfile,
+        Cursor c = cr.query(appendProfile(Images.CONTENT_URI),
                             new String[] { Images.THUMBNAIL },
                             Images.URL + " = ?",
                             new String[] { uri },

@@ -47,7 +47,7 @@ import android.content.SharedPreferences.Editor;
 import android.util.Log;
 
 public class SynchronizerConfiguration {
-  private static final String LOG_TAG = "SynczrConfiguration";
+  private static final String LOG_TAG = "SynchronizerConfiguration";
 
   public String syncID;
   public RepositorySessionBundle remoteBundle;

@@ -490,9 +490,10 @@ Number(JSContext *cx, uintN argc, Value *vp)
     if (!isConstructing)
         return true;
 
-    JSObject *obj = NumberObject::create(cx, vp[0].toNumber());
+    JSObject *obj = NewBuiltinClassInstance(cx, &NumberClass);
     if (!obj)
         return false;
+    obj->setPrimitiveThis(vp[0]);
     vp->setObject(*obj);
     return true;
 }

@@ -1438,9 +1438,6 @@ SetUserTimeAndStartupIDForActivatedWindow(GtkWidget* aWindow)
     sn_display_unref(snd);
 #endif
 
-    // If we used the startup ID, that already contains the focus timestamp;
-    // we don't want to reuse the timestamp next time we raise the window
-    GTKToolkit->SetFocusTimestamp(0);
     GTKToolkit->SetDesktopStartupID(EmptyCString());
 }
 
@@ -1504,20 +1501,11 @@ nsWindow::SetFocus(bool aRaise)
         if (gRaiseWindows && owningWindow->mIsShown && owningWindow->mShell &&
             !gtk_window_is_active(GTK_WINDOW(owningWindow->mShell))) {
 
-            PRUint32 timestamp = GDK_CURRENT_TIME;
-
-            nsGTKToolkit* GTKToolkit = nsGTKToolkit::GetToolkit();
-            if (GTKToolkit)
-                timestamp = GTKToolkit->GetFocusTimestamp();
-
             LOGFOCUS(("  requesting toplevel activation [%p]\n", (void *)this));
             NS_ASSERTION(owningWindow->mWindowType != eWindowType_popup
                          || mParent,
                          "Presenting an override-redirect window");
-            gtk_window_present_with_time(GTK_WINDOW(owningWindow->mShell), timestamp);
-
-            if (GTKToolkit)
-                GTKToolkit->SetFocusTimestamp(0);
+            gtk_window_present(GTK_WINDOW(owningWindow->mShell));
         }
 
         return NS_OK;

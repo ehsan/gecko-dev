@@ -180,9 +180,6 @@ private:
     // redirections
     void     HandleAlternateProtocol(nsHttpResponseHead *);
 
-    // Start the Spdy transaction handler when NPN indicates spdy/2
-    void     StartSpdy();
-
     // Directly Add a transaction to an active connection for SPDY
     nsresult AddTransaction(nsAHttpTransaction *, PRInt32);
 

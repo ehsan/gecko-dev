@@ -268,8 +268,7 @@ protected:
   bool mTrimTrailingWhitespace;
 
 private:
-  DrawMode SetupCairoState(gfxContext *aContext,
-                           gfxPattern **aStrokePattern);
+  DrawMode SetupCairoState(gfxContext *context, nsRefPtr<gfxPattern> *strokePattern);
 };
 
 #endif

@@ -62,9 +62,8 @@ public:
   BasicPlanarYCbCrImage(const gfxIntSize& aScaleHint, gfxImageFormat aOffscreenFormat, BufferRecycleBin *aRecycleBin)
     : PlanarYCbCrImage(aRecycleBin)
     , mScaleHint(aScaleHint)
-  {
-    SetOffscreenFormat(aOffscreenFormat);
-  }
+    , mOffscreenFormat(aOffscreenFormat)
+  {}
 
   ~BasicPlanarYCbCrImage()
   {
@@ -80,6 +79,7 @@ public:
 
 private:
   gfxIntSize mScaleHint;
+  gfxImageFormat mOffscreenFormat;
   int mStride;
   nsAutoArrayPtr<PRUint8> mDecodedBuffer;
 };

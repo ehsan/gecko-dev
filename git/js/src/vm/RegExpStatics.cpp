@@ -71,7 +71,7 @@ resc_trace(JSTracer *trc, JSObject *obj)
 
 Class js::RegExpStaticsClass = {
     "RegExpStatics",
-    JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS,
+    JSCLASS_HAS_PRIVATE,
     JS_PropertyStub,         /* addProperty */
     JS_PropertyStub,         /* delProperty */
     JS_PropertyStub,         /* getProperty */
