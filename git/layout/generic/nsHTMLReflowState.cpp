@@ -46,9 +46,7 @@
 #include "nsGkAtoms.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
-#include "nsIDeviceContext.h"
-#include "nsIRenderingContext.h"
-#include "nsIFontMetrics.h"
+#include "nsFontMetrics.h"
 #include "nsBlockFrame.h"
 #include "nsLineBox.h"
 #include "nsImageFrame.h"
@@ -87,7 +85,7 @@ static eNormalLineHeightControl sNormalLineHeightControl = eUninitialized;
 // use for measuring things.
 nsHTMLReflowState::nsHTMLReflowState(nsPresContext*       aPresContext,
                                      nsIFrame*            aFrame,
-                                     nsIRenderingContext* aRenderingContext,
+                                     nsRenderingContext* aRenderingContext,
                                      const nsSize&        aAvailableSpace)
   : nsCSSOffsetState(aFrame, aRenderingContext)
   , mBlockDelta(0)
@@ -1577,7 +1575,7 @@ nsHTMLReflowState::ComputeContainingBlockRectangle(nsPresContext*          aPres
     if (NS_FRAME_GET_TYPE(aContainingBlockRS->mFrameType) == NS_CSS_FRAME_TYPE_INLINE) {
       // Base our size on the actual size of the frame.  In cases when this is
       // completely bogus (eg initial reflow), this code shouldn't even be
-      // called, since the code in nsPositionedInlineFrame::Reflow will pass in
+      // called, since the code in nsInlineFrame::Reflow will pass in
       // the containing block dimensions to our constructor.
       // XXXbz we should be taking the in-flows into account too, but
       // that's very hard.
@@ -1880,8 +1878,7 @@ nsHTMLReflowState::InitConstraints(nsPresContext* aPresContext,
   mFlags.mBlinks = (parentReflowState && parentReflowState->mFlags.mBlinks);
   if (!mFlags.mBlinks && BlinkIsAllowed()) {
     const nsStyleTextReset* st = frame->GetStyleTextReset();
-    mFlags.mBlinks = 
-      ((st->mTextDecoration & NS_STYLE_TEXT_DECORATION_BLINK) != 0);
+    mFlags.mBlinks = (st->mTextBlink != NS_STYLE_TEXT_BLINK_NONE);
   }
 }
 
@@ -2107,16 +2104,15 @@ nsHTMLReflowState::CalculateBlockSideMargins(nscoord aAvailWidth,
 // For risk management, we use preference to control the behavior, and 
 // eNoExternalLeading is the old behavior.
 static nscoord
-GetNormalLineHeight(nsIFontMetrics* aFontMetrics)
+GetNormalLineHeight(nsFontMetrics* aFontMetrics)
 {
   NS_PRECONDITION(nsnull != aFontMetrics, "no font metrics");
 
   nscoord normalLineHeight;
 
-  nscoord externalLeading, internalLeading, emHeight;
-  aFontMetrics->GetExternalLeading(externalLeading);
-  aFontMetrics->GetInternalLeading(internalLeading);
-  aFontMetrics->GetEmHeight(emHeight);
+  nscoord externalLeading = aFontMetrics->ExternalLeading();
+  nscoord internalLeading = aFontMetrics->InternalLeading();
+  nscoord emHeight = aFontMetrics->EmHeight();
   switch (GetNormalLineHeightCalcControl()) {
   case eIncludeExternalLeading:
     normalLineHeight = emHeight+ internalLeading + externalLeading;
@@ -2161,7 +2157,7 @@ ComputeLineHeight(nsStyleContext* aStyleContext,
       return aBlockHeight;
   }
 
-  nsCOMPtr<nsIFontMetrics> fm;
+  nsRefPtr<nsFontMetrics> fm;
   nsLayoutUtils::GetFontMetricsForStyleContext(aStyleContext,
                                                getter_AddRefs(fm));
   return GetNormalLineHeight(fm);

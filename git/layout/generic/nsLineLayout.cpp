@@ -46,6 +46,7 @@
 #define PL_ARENA_CONST_ALIGN_MASK (sizeof(void*)-1)
 #include "plarena.h"
 
+#include "mozilla/Util.h"
 #include "nsCOMPtr.h"
 #include "nsLineLayout.h"
 #include "nsBlockFrame.h"
@@ -55,9 +56,7 @@
 #include "nsFloatManager.h"
 #include "nsStyleContext.h"
 #include "nsPresContext.h"
-#include "nsIFontMetrics.h"
-#include "nsIThebesFontMetrics.h"
-#include "nsIRenderingContext.h"
+#include "nsRenderingContext.h"
 #include "nsGkAtoms.h"
 #include "nsPlaceholderFrame.h"
 #include "nsIDocument.h"
@@ -68,7 +67,6 @@
 #include "nsLayoutUtils.h"
 #include "nsTextFrame.h"
 #include "nsCSSRendering.h"
-#include "jstl.h"
 
 #ifdef DEBUG
 #undef  NOISY_HORIZONTAL_ALIGN
@@ -85,6 +83,8 @@
 #undef  NOISY_TRIM
 #undef  REALLY_NOISY_TRIM
 #endif
+
+using namespace mozilla;
 
 //----------------------------------------------------------------------
 
@@ -662,8 +662,7 @@ IsPercentageAware(const nsIFrame* aFrame)
   }
 
   // Some of these things don't apply to non-replaced inline frames
-  // (that is, fType == nsGkAtoms::inlineFrame || fType ==
-  // nsGkAtoms::positionedInlineFrame), but we won't bother making
+  // (that is, fType == nsGkAtoms::inlineFrame), but we won't bother making
   // things unnecessarily complicated, since they'll probably be set
   // quite rarely.
 
@@ -788,7 +787,7 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
   nscoord availableSpaceOnLine = psd->mRightEdge - psd->mX;
 
   // Setup reflow state for reflowing the frame
-  js::LazilyConstructed<nsHTMLReflowState> reflowStateHolder;
+  Maybe<nsHTMLReflowState> reflowStateHolder;
   if (!isText) {
     reflowStateHolder.construct(mPresContext, *psd->mReflowState,
                                 aFrame, availSize);
@@ -1561,10 +1560,9 @@ nsLineLayout::VerticalAlignFrames(PerSpanData* psd)
 
   // Get the parent frame's font for all of the frames in this span
   nsStyleContext* styleContext = spanFrame->GetStyleContext();
-  nsIRenderingContext* rc = mBlockReflowState->rendContext;
+  nsRenderingContext* rc = mBlockReflowState->rendContext;
   nsLayoutUtils::SetFontFromStyle(mBlockReflowState->rendContext, styleContext);
-  nsCOMPtr<nsIFontMetrics> fm;
-  rc->GetFontMetrics(*getter_AddRefs(fm));
+  nsFontMetrics* fm = rc->FontMetrics();
 
   PRBool preMode = mStyleText->WhiteSpaceIsSignificant();
 
@@ -1813,8 +1811,7 @@ nsLineLayout::VerticalAlignFrames(PerSpanData* psd)
           // of the parent's box. This is identical to the baseline
           // alignment except for the addition of the subscript
           // offset to the baseline Y.
-          nscoord parentSubscript;
-          fm->GetSubscriptOffset(parentSubscript);
+          nscoord parentSubscript = fm->SubscriptOffset();
           nscoord revisedBaselineY = baselineY + parentSubscript;
           pfd->mBounds.y = revisedBaselineY - pfd->mAscent;
           pfd->mVerticalAlign = VALIGN_OTHER;
@@ -1827,8 +1824,7 @@ nsLineLayout::VerticalAlignFrames(PerSpanData* psd)
           // of the parent's box. This is identical to the baseline
           // alignment except for the subtraction of the superscript
           // offset to the baseline Y.
-          nscoord parentSuperscript;
-          fm->GetSuperscriptOffset(parentSuperscript);
+          nscoord parentSuperscript = fm->SuperscriptOffset();
           nscoord revisedBaselineY = baselineY - parentSuperscript;
           pfd->mBounds.y = revisedBaselineY - pfd->mAscent;
           pfd->mVerticalAlign = VALIGN_OTHER;
@@ -1869,8 +1865,7 @@ nsLineLayout::VerticalAlignFrames(PerSpanData* psd)
         {
           // Align the midpoint of the frame with 1/2 the parents
           // x-height above the baseline.
-          nscoord parentXHeight;
-          fm->GetXHeight(parentXHeight);
+          nscoord parentXHeight = fm->XHeight();
           if (frameSpan) {
             pfd->mBounds.y = baselineY -
               (parentXHeight + pfd->mBounds.height)/2;
@@ -1887,8 +1882,7 @@ nsLineLayout::VerticalAlignFrames(PerSpanData* psd)
         {
           // The top of the logical box is aligned with the top of
           // the parent element's text.
-          nscoord parentAscent;
-          fm->GetMaxAscent(parentAscent);
+          nscoord parentAscent = fm->MaxAscent();
           if (frameSpan) {
             pfd->mBounds.y = baselineY - parentAscent -
               pfd->mBorderPadding.top + frameSpan->mTopLeading;
@@ -1904,8 +1898,7 @@ nsLineLayout::VerticalAlignFrames(PerSpanData* psd)
         {
           // The bottom of the logical box is aligned with the
           // bottom of the parent elements text.
-          nscoord parentDescent;
-          fm->GetMaxDescent(parentDescent);
+          nscoord parentDescent = fm->MaxDescent();
           if (frameSpan) {
             pfd->mBounds.y = baselineY + parentDescent -
               pfd->mBounds.height + pfd->mBorderPadding.bottom -

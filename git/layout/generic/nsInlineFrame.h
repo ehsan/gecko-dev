@@ -41,7 +41,6 @@
 #define nsInlineFrame_h___
 
 #include "nsHTMLContainerFrame.h"
-#include "nsAbsoluteContainingBlock.h"
 #include "nsLineLayout.h"
 
 class nsAnonymousBlockFrame;
@@ -97,15 +96,17 @@ public:
   virtual PRBool IsEmpty();
   virtual PRBool IsSelfEmpty();
 
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+
   virtual PRBool PeekOffsetCharacter(PRBool aForward, PRInt32* aOffset,
                                      PRBool aRespectClusters = PR_TRUE);
   
   // nsIHTMLReflow overrides
-  virtual void AddInlineMinWidth(nsIRenderingContext *aRenderingContext,
+  virtual void AddInlineMinWidth(nsRenderingContext *aRenderingContext,
                                  InlineMinWidthData *aData);
-  virtual void AddInlinePrefWidth(nsIRenderingContext *aRenderingContext,
+  virtual void AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
                                   InlinePrefWidthData *aData);
-  virtual nsSize ComputeSize(nsIRenderingContext *aRenderingContext,
+  virtual nsSize ComputeSize(nsRenderingContext *aRenderingContext,
                              nsSize aCBSize, nscoord aAvailableWidth,
                              nsSize aMargin, nsSize aBorder, nsSize aPadding,
                              PRBool aShrinkWrap);
@@ -225,57 +226,6 @@ protected:
   virtual nsIFrame* PullOneFrame(nsPresContext* aPresContext,
                                  InlineReflowState& rs,
                                  PRBool* aIsComplete);
-};
-
-//----------------------------------------------------------------------
-
-// Derived class created for relatively positioned inline-level elements
-// that acts as a containing block for child absolutely positioned
-// elements
-
-class nsPositionedInlineFrame : public nsInlineFrame
-{
-public:
-  NS_DECL_FRAMEARENA_HELPERS
-
-  nsPositionedInlineFrame(nsStyleContext* aContext)
-    : nsInlineFrame(aContext)
-    , mAbsoluteContainer(nsGkAtoms::absoluteList)
-  {}
-
-  virtual ~nsPositionedInlineFrame() { } // useful for debugging
-
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
-
-  NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
-                                 nsFrameList&    aChildList);
-  NS_IMETHOD AppendFrames(nsIAtom*        aListName,
-                          nsFrameList&    aFrameList);
-  NS_IMETHOD InsertFrames(nsIAtom*        aListName,
-                          nsIFrame*       aPrevFrame,
-                          nsFrameList&    aFrameList);
-  NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
-                         nsIFrame*       aOldFrame);
-
-  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                              const nsRect&           aDirtyRect,
-                              const nsDisplayListSet& aLists);
-
-  virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
-
-  virtual nsFrameList GetChildList(nsIAtom* aListName) const;
-
-  NS_IMETHOD Reflow(nsPresContext*          aPresContext,
-                    nsHTMLReflowMetrics&     aDesiredSize,
-                    const nsHTMLReflowState& aReflowState,
-                    nsReflowStatus&          aStatus);
-  
-  virtual nsIAtom* GetType() const;
-
-  virtual PRBool NeedsView() { return PR_TRUE; }
-
-protected:
-  nsAbsoluteContainingBlock mAbsoluteContainer;
 };
 
 #endif /* nsInlineFrame_h___ */

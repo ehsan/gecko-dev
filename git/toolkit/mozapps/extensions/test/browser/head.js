@@ -326,6 +326,17 @@ function get_string(aName) {
   return bundle.formatStringFromName(aName, args, args.length);
 }
 
+function formatDate(aDate) {
+  return Cc["@mozilla.org/intl/scriptabledateformat;1"]
+           .getService(Ci.nsIScriptableDateFormat)
+           .FormatDate("",
+                       Ci.nsIScriptableDateFormat.dateFormatLong,
+                       aDate.getFullYear(),
+                       aDate.getMonth() + 1,
+                       aDate.getDate()
+                       );
+}
+
 function is_hidden(aElement) {
   var style = aElement.ownerDocument.defaultView.getComputedStyle(aElement, "");
   if (style.display == "none")
@@ -371,7 +382,7 @@ CategoryUtilities.prototype = {
     return (view.type == "list") ? view.param : view.type;
   },
 
-  get: function(aCategoryType) {
+  get: function(aCategoryType, aAllowMissing) {
     isnot(this.window, null, "Should not get category when manager window is not loaded");
     var categories = this.window.document.getElementById("categories");
 
@@ -385,7 +396,8 @@ CategoryUtilities.prototype = {
     if (items.length)
       return items[0];
 
-    ok(false, "Should have found a category with type " + aCategoryType);
+    if (!aAllowMissing)
+      ok(false, "Should have found a category with type " + aCategoryType);
     return null;
   },
 
@@ -469,11 +481,17 @@ function addCertOverride(host, bits) {
 
 /***** Mock Provider *****/
 
-function MockProvider(aUseAsyncCallbacks) {
+function MockProvider(aUseAsyncCallbacks, aTypes) {
   this.addons = [];
   this.installs = [];
   this.callbackTimers = [];
   this.useAsyncCallbacks = (aUseAsyncCallbacks === undefined) ? true : aUseAsyncCallbacks;
+  this.types = (aTypes === undefined) ? [{
+    id: "extension",
+    name: "Extensions",
+    uiPriority: 4000,
+    flags: AddonManager.TYPE_UI_VIEW_LIST
+  }] : aTypes;
 
   var self = this;
   registerCleanupFunction(function() {
@@ -491,6 +509,7 @@ MockProvider.prototype = {
   apiDelay: 10,
   callbackTimers: null,
   useAsyncCallbacks: null,
+  types: null,
 
   /***** Utility functions *****/
 
@@ -498,7 +517,7 @@ MockProvider.prototype = {
    * Register this provider with the AddonManager
    */
   register: function MP_register() {
-    AddonManagerPrivate.registerProvider(this);
+    AddonManagerPrivate.registerProvider(this, this.types);
   },
 
   /**

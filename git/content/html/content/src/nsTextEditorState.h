@@ -140,6 +140,8 @@ struct SelectionState;
  *     frame is bound to the text editor state object.
  */
 
+class RestoreSelectionState;
+
 class nsTextEditorState {
 public:
   explicit nsTextEditorState(nsITextControlElement* aOwningElement);
@@ -210,7 +212,11 @@ public:
 
   void ClearValueCache() { mCachedValue.Truncate(); }
 
+  void HideSelectionIfBlurred();
+
 private:
+  friend class RestoreSelectionState;
+
   // not copy constructible
   nsTextEditorState(const nsTextEditorState&);
   // not assignable
@@ -222,6 +228,8 @@ private:
 
   void DestroyEditor();
   void Clear();
+
+  void FinishedRestoringSelection() { mRestoringSelection = nsnull; }
 
   class InitializationGuard {
   public:
@@ -251,6 +259,7 @@ private:
   nsITextControlElement* const mTextCtrlElement;
   nsRefPtr<nsTextInputSelectionImpl> mSelCon;
   nsAutoPtr<SelectionState> mSelState;
+  RestoreSelectionState* mRestoringSelection;
   nsCOMPtr<nsIEditor> mEditor;
   nsCOMPtr<nsIContent> mRootNode;
   nsCOMPtr<nsIContent> mPlaceholderDiv;

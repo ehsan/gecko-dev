@@ -40,6 +40,7 @@
 #include "nsObjCExceptions.h"
 #include "nsIServiceManager.h"
 #include "nsNativeThemeColors.h"
+#include "nsStyleConsts.h"
 
 #import <Cocoa/Cocoa.h>
 
@@ -342,22 +343,25 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
       aMetric = 4;
       break;
     case eMetric_ScrollArrowStyle:
-    {
-      NSString *buttonPlacement = [[NSUserDefaults standardUserDefaults] objectForKey:@"AppleScrollBarVariant"];
-      if ([buttonPlacement isEqualToString:@"Single"]) {
-        aMetric = eMetric_ScrollArrowStyleSingle;
-      } else if ([buttonPlacement isEqualToString:@"DoubleMin"]) {
-        aMetric = eMetric_ScrollArrowStyleBothAtTop;
-      } else if ([buttonPlacement isEqualToString:@"DoubleBoth"]) {
-        aMetric = eMetric_ScrollArrowStyleBothAtEachEnd;
+      if (nsToolkit::OnLionOrLater()) {
+        // OS X Lion's scrollbars have no arrows
+        aMetric = eMetric_ScrollArrowNone;
       } else {
-        aMetric = eMetric_ScrollArrowStyleBothAtBottom; // The default is BothAtBottom.
+        NSString *buttonPlacement = [[NSUserDefaults standardUserDefaults] objectForKey:@"AppleScrollBarVariant"];
+        if ([buttonPlacement isEqualToString:@"Single"]) {
+          aMetric = eMetric_ScrollArrowStyleSingle;
+        } else if ([buttonPlacement isEqualToString:@"DoubleMin"]) {
+          aMetric = eMetric_ScrollArrowStyleBothAtTop;
+        } else if ([buttonPlacement isEqualToString:@"DoubleBoth"]) {
+          aMetric = eMetric_ScrollArrowStyleBothAtEachEnd;
+        } else {
+          aMetric = eMetric_ScrollArrowStyleBothAtBottom; // The default is BothAtBottom.
+        }
       }
-    }
-        break;
+      break;
     case eMetric_ScrollSliderStyle:
-        aMetric = eMetric_ScrollThumbStyleProportional;
-        break;
+      aMetric = eMetric_ScrollThumbStyleProportional;
+      break;
     case eMetric_TreeOpenDelay:
       aMetric = 1000;
       break;
@@ -417,10 +421,10 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
     case eMetric_IMEConvertedTextUnderlineStyle:
     case eMetric_IMESelectedRawTextUnderlineStyle:
     case eMetric_IMESelectedConvertedTextUnderline:
-      aMetric = NS_UNDERLINE_STYLE_SOLID;
+      aMetric = NS_STYLE_TEXT_DECORATION_STYLE_SOLID;
       break;
     case eMetric_SpellCheckerUnderlineStyle:
-      aMetric = NS_UNDERLINE_STYLE_DOTTED;
+      aMetric = NS_STYLE_TEXT_DECORATION_STYLE_DOTTED;
       break;
     default:
       aMetric = 0;

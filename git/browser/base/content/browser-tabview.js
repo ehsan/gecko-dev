@@ -38,9 +38,15 @@
 
 let TabView = {
   _deck: null,
+  _iframe: null,
   _window: null,
-  _firstUseExperienced: false,
   _browserKeyHandlerInitialized: false,
+  _isFrameLoading: false,
+  _initFrameCallbacks: [],
+  PREF_BRANCH: "browser.panorama.",
+  PREF_FIRST_RUN: "browser.panorama.experienced_first_run",
+  PREF_STARTUP_PAGE: "browser.startup.page",
+  PREF_RESTORE_ENABLED_ONCE: "browser.panorama.session_restore_enabled_once",
   VISIBILITY_IDENTIFIER: "tabview-visibility",
 
   // ----------
@@ -54,24 +60,35 @@ let TabView = {
 
   // ----------
   get firstUseExperienced() {
-    return this._firstUseExperienced;
+    let pref = this.PREF_FIRST_RUN;
+    if (Services.prefs.prefHasUserValue(pref))
+      return Services.prefs.getBoolPref(pref);
+
+    return false;
   },
 
   // ----------
   set firstUseExperienced(val) {
-    if (val != this._firstUseExperienced)
-      Services.prefs.setBoolPref("browser.panorama.experienced_first_run", val);
+    Services.prefs.setBoolPref(this.PREF_FIRST_RUN, val);
+  },
+
+  // ----------
+  get sessionRestoreEnabledOnce() {
+    let pref = this.PREF_RESTORE_ENABLED_ONCE;
+    if (Services.prefs.prefHasUserValue(pref))
+      return Services.prefs.getBoolPref(pref);
+
+    return false;
+  },
+
+  // ----------
+  set sessionRestoreEnabledOnce(val) {
+    Services.prefs.setBoolPref(this.PREF_RESTORE_ENABLED_ONCE, val);
   },
 
   // ----------
   init: function TabView_init() {
-    if (!Services.prefs.prefHasUserValue("browser.panorama.experienced_first_run") ||
-        !Services.prefs.getBoolPref("browser.panorama.experienced_first_run")) {
-      Services.prefs.addObserver(
-        "browser.panorama.experienced_first_run", this, false);
-    } else {
-      this._firstUseExperienced = true;
-
+    if (this.firstUseExperienced) {
       if ((gBrowser.tabs.length - gBrowser.visibleTabs.length) > 0)
         this._setBrowserKeyHandlers();
 
@@ -97,26 +114,24 @@ let TabView = {
           "TabShow", this._tabShowEventListener, true);
       }
     }
+
+    Services.prefs.addObserver(this.PREF_BRANCH, this, false);
   },
 
   // ----------
   // Observes topic changes.
   observe: function TabView_observe(subject, topic, data) {
-    if (topic == "nsPref:changed") {
-      Services.prefs.removeObserver(
-        "browser.panorama.experienced_first_run", this);
-      this._firstUseExperienced = true;
+    if (data == this.PREF_FIRST_RUN && this.firstUseExperienced) {
       this._addToolbarButton();
+      this.enableSessionRestore();
     }
   },
 
   // ----------
   // Uninitializes TabView.
   uninit: function TabView_uninit() {
-    if (!this._firstUseExperienced) {
-      Services.prefs.removeObserver(
-        "browser.panorama.experienced_first_run", this);
-    }
+    Services.prefs.removeObserver(this.PREF_BRANCH, this);
+
     if (this._tabShowEventListener) {
       gBrowser.tabContainer.removeEventListener(
         "TabShow", this._tabShowEventListener, true);
@@ -127,34 +142,52 @@ let TabView = {
   // Creates the frame and calls the callback once it's loaded. 
   // If the frame already exists, calls the callback immediately. 
   _initFrame: function TabView__initFrame(callback) {
+    let hasCallback = typeof callback == "function";
+
     if (this._window) {
-      if (typeof callback == "function")
+      if (hasCallback)
         callback();
-    } else {
-      // ___ find the deck
-      this._deck = document.getElementById("tab-view-deck");
+      return;
+    }
 
-      // ___ create the frame
-      let iframe = document.createElement("iframe");
-      iframe.id = "tab-view";
-      iframe.setAttribute("transparent", "true");
-      iframe.flex = 1;
+    if (hasCallback)
+      this._initFrameCallbacks.push(callback);
 
-      if (typeof callback == "function")
-        window.addEventListener("tabviewframeinitialized", callback, false);
+    if (this._isFrameLoading)
+      return;
 
-      iframe.setAttribute("src", "chrome://browser/content/tabview.html");
-      this._deck.appendChild(iframe);
-      this._window = iframe.contentWindow;
+    this._isFrameLoading = true;
 
-      if (this._tabShowEventListener) {
+    // ___ find the deck
+    this._deck = document.getElementById("tab-view-deck");
+
+    // ___ create the frame
+    this._iframe = document.createElement("iframe");
+    this._iframe.id = "tab-view";
+    this._iframe.setAttribute("transparent", "true");
+    this._iframe.flex = 1;
+
+    let self = this;
+
+    window.addEventListener("tabviewframeinitialized", function onInit() {
+      window.removeEventListener("tabviewframeinitialized", onInit, false);
+
+      self._isFrameLoading = false;
+      self._window = self._iframe.contentWindow;
+      self._setBrowserKeyHandlers();
+
+      if (self._tabShowEventListener) {
         gBrowser.tabContainer.removeEventListener(
-          "TabShow", this._tabShowEventListener, true);
-        this._tabShowEventListener = null;
+          "TabShow", self._tabShowEventListener, true);
+        self._tabShowEventListener = null;
       }
 
-      this._setBrowserKeyHandlers();
-    }
+      self._initFrameCallbacks.forEach(function (cb) cb());
+      self._initFrameCallbacks = [];
+    }, false);
+
+    this._iframe.setAttribute("src", "chrome://browser/content/tabview.html");
+    this._deck.appendChild(this._iframe);
   },
 
   // ----------
@@ -163,19 +196,18 @@ let TabView = {
   },
 
   // ----------
-  isVisible: function() {
-    return (this._deck ? this._deck.selectedIndex == 1 : false);
+  isVisible: function TabView_isVisible() {
+    return (this._deck ? this._deck.selectedPanel == this._iframe : false);
   },
 
   // ----------
   show: function() {
     if (this.isVisible())
       return;
-    
+
+    let self = this;
     this._initFrame(function() {
-      let event = document.createEvent("Events");
-      event.initEvent("tabviewshow", false, false);
-      dispatchEvent(event);
+      self._window.UI.showTabView(true);
     });
   },
 
@@ -184,9 +216,7 @@ let TabView = {
     if (!this.isVisible())
       return;
 
-    let event = document.createEvent("Events");
-    event.initEvent("tabviewhide", false, false);
-    dispatchEvent(event);
+    this._window.UI.exit();
   },
 
   // ----------
@@ -348,5 +378,23 @@ let TabView = {
     toolbar.currentSet = currentSet;
     toolbar.setAttribute("currentset", currentSet);
     document.persist(toolbar.id, "currentset");
+  },
+
+  // ----------
+  // Function: enableSessionRestore
+  // Enables automatic session restore when the browser is started. Does
+  // nothing if we already did that once in the past.
+  enableSessionRestore: function UI_enableSessionRestore() {
+    if (!this._window || !this.firstUseExperienced)
+      return;
+
+    // do nothing if we already enabled session restore once
+    if (this.sessionRestoreEnabledOnce)
+      return;
+
+    this.sessionRestoreEnabledOnce = true;
+
+    // enable session restore
+    Services.prefs.setIntPref(this.PREF_STARTUP_PAGE, 3);
   }
 };

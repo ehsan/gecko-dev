@@ -57,7 +57,6 @@
 #include "nsITextScroll.h"
 #include "nsIDocShellTreeOwner.h"
 #include "nsIContentViewerContainer.h"
-#include "nsIDeviceContext.h"
 
 #include "nsDocLoader.h"
 #include "nsIURILoader.h"
@@ -333,12 +332,12 @@ protected:
                                    nsIURILoader * aURILoader,
                                    PRBool aBypassClassifier);
 
-    nsresult ScrollIfAnchor(nsIURI * aURI, PRBool * aWasAnchor,
-                            PRUint32 aLoadType, PRBool * aDoHashchange);
+    nsresult ScrollToAnchor(nsACString & curHash, nsACString & newHash,
+                            PRUint32 aLoadType);
 
-    // Tries to stringify a given variant by converting it to JSON.  This only
+    // Tries to serialize a given variant using structured clone.  This only
     // works if the variant is backed by a JSVal.
-    nsresult StringifyJSValVariant(JSContext *aCx, nsIVariant *aData,
+    nsresult SerializeJSValVariant(JSContext *aCx, nsIVariant *aData,
                                    nsAString &aResult);
 
     // Returns PR_TRUE if would have called FireOnLocationChange,

@@ -50,9 +50,7 @@
  * Child list name indices
  * @see #GetAdditionalChildListName()
  */
-#define NS_CONTAINER_LIST_COUNT_SANS_OC 1
-  // for frames that don't use overflow containers
-#define NS_CONTAINER_LIST_COUNT_INCL_OC 3
+#define NS_CONTAINER_LIST_COUNT_INCL_OC 4
   // for frames that support overflow containers
 
 // Option flags for ReflowChild() and FinishReflowChild()
@@ -117,8 +115,25 @@ public:
                                      nsIFrame*      aNextInFlow,
                                      PRBool         aDeletingEmptyFrames);
 
+  /**
+   * Helper method to wrap views around frames. Used by containers
+   * under special circumstances (can be used by leaf frames as well)
+   */
+  static nsresult CreateViewForFrame(nsIFrame* aFrame,
+                                     PRBool aForce);
+
   // Positions the frame's view based on the frame's origin
   static void PositionFrameView(nsIFrame* aKidFrame);
+
+  static nsresult ReparentFrameView(nsPresContext* aPresContext,
+                                    nsIFrame*       aChildFrame,
+                                    nsIFrame*       aOldParentFrame,
+                                    nsIFrame*       aNewParentFrame);
+
+  static nsresult ReparentFrameViewList(nsPresContext*     aPresContext,
+                                        const nsFrameList& aChildFrameList,
+                                        nsIFrame*          aOldParentFrame,
+                                        nsIFrame*          aNewParentFrame);
 
   // Set the view's size and position after its frame has been reflowed.
   //
@@ -151,7 +166,7 @@ public:
                                       PRUint32         aFlags = 0);
 
   // Used by both nsInlineFrame and nsFirstLetterFrame.
-  void DoInlineIntrinsicWidth(nsIRenderingContext *aRenderingContext,
+  void DoInlineIntrinsicWidth(nsRenderingContext *aRenderingContext,
                               InlineIntrinsicWidthData *aData,
                               nsLayoutUtils::IntrinsicWidthType aType);
 
@@ -159,7 +174,7 @@ public:
    * This is the CSS block concept of computing 'auto' widths, which most
    * classes derived from nsContainerFrame want.
    */
-  virtual nsSize ComputeAutoSize(nsIRenderingContext *aRenderingContext,
+  virtual nsSize ComputeAutoSize(nsRenderingContext *aRenderingContext,
                                  nsSize aCBSize, nscoord aAvailableWidth,
                                  nsSize aMargin, nsSize aBorder,
                                  nsSize aPadding, PRBool aShrinkWrap);

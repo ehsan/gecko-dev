@@ -46,9 +46,7 @@
 #include "nsStyleContext.h"
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
-#include "nsIRenderingContext.h"
-#include "nsIFontMetrics.h"
-#include "nsAbsoluteContainingBlock.h"
+#include "nsRenderingContext.h"
 #include "nsCSSAnonBoxes.h"
 #include "nsAutoPtr.h"
 #include "nsFrameManager.h"
@@ -204,21 +202,21 @@ nsInlineFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 // Reflow methods
 
 /* virtual */ void
-nsInlineFrame::AddInlineMinWidth(nsIRenderingContext *aRenderingContext,
+nsInlineFrame::AddInlineMinWidth(nsRenderingContext *aRenderingContext,
                                  nsIFrame::InlineMinWidthData *aData)
 {
   DoInlineIntrinsicWidth(aRenderingContext, aData, nsLayoutUtils::MIN_WIDTH);
 }
 
 /* virtual */ void
-nsInlineFrame::AddInlinePrefWidth(nsIRenderingContext *aRenderingContext,
+nsInlineFrame::AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
                                   nsIFrame::InlinePrefWidthData *aData)
 {
   DoInlineIntrinsicWidth(aRenderingContext, aData, nsLayoutUtils::PREF_WIDTH);
 }
 
 /* virtual */ nsSize
-nsInlineFrame::ComputeSize(nsIRenderingContext *aRenderingContext,
+nsInlineFrame::ComputeSize(nsRenderingContext *aRenderingContext,
                            nsSize aCBSize, nscoord aAvailableWidth,
                            nsSize aMargin, nsSize aBorder, nsSize aPadding,
                            PRBool aShrinkWrap)
@@ -231,8 +229,9 @@ nsRect
 nsInlineFrame::ComputeTightBounds(gfxContext* aContext) const
 {
   // be conservative
-  if (GetStyleContext()->HasTextDecorations())
+  if (GetStyleContext()->HasTextDecorationLines()) {
     return GetVisualOverflowRect();
+  }
   return ComputeSimpleTightBounds(aContext);
 }
 
@@ -329,9 +328,9 @@ nsInlineFrame::Reflow(nsPresContext*          aPresContext,
     if (prevOverflowFrames) {
       // When pushing and pulling frames we need to check for whether any
       // views need to be reparented.
-      nsHTMLContainerFrame::ReparentFrameViewList(aPresContext,
-                                                  *prevOverflowFrames,
-                                                  prevInFlow, this);
+      nsContainerFrame::ReparentFrameViewList(aPresContext,
+                                              *prevOverflowFrames,
+                                              prevInFlow, this);
 
       // Check if we should do the lazilySetParentPointer optimization.
       // Only do it in simple cases where we're being reflowed for the
@@ -414,7 +413,9 @@ nsInlineFrame::Reflow(nsPresContext*          aPresContext,
   }
 
   rv = ReflowFrames(aPresContext, aReflowState, irs, aMetrics, aStatus);
-  
+
+  ReflowAbsoluteFrames(aPresContext, aMetrics, aReflowState, aStatus);
+
   // Note: the line layout code will properly compute our
   // overflow-rect state for us.
 
@@ -437,9 +438,9 @@ nsInlineFrame::PullOverflowsFromPrevInFlow()
     nsAutoPtr<nsFrameList> prevOverflowFrames(prevInFlow->StealOverflowFrames());
     if (prevOverflowFrames) {
       // Assume that our prev-in-flow has the same line container that we do.
-      nsHTMLContainerFrame::ReparentFrameViewList(PresContext(),
-                                                  *prevOverflowFrames,
-                                                  prevInFlow, this);
+      nsContainerFrame::ReparentFrameViewList(PresContext(),
+                                              *prevOverflowFrames,
+                                              prevInFlow, this);
       mFrames.InsertFrames(this, nsnull, *prevOverflowFrames);
     }
   }
@@ -644,8 +645,7 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
   }
 
   nsLayoutUtils::SetFontFromStyle(aReflowState.rendContext, mStyleContext);
-  nsCOMPtr<nsIFontMetrics> fm;
-  aReflowState.rendContext->GetFontMetrics(*getter_AddRefs(fm));
+  nsFontMetrics* fm = aReflowState.rendContext->FontMetrics();
 
   if (fm) {
     // Compute final height of the frame.
@@ -658,8 +658,8 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
     // The height of our box is the sum of our font size plus the top
     // and bottom border and padding. The height of children do not
     // affect our height.
-    fm->GetMaxAscent(aMetrics.ascent);
-    fm->GetHeight(aMetrics.height);
+    aMetrics.ascent = fm->MaxAscent();
+    aMetrics.height = fm->MaxHeight();
   } else {
     NS_WARNING("Cannot get font metrics - defaulting sizes to 0");
     aMetrics.ascent = aMetrics.height = 0;
@@ -818,7 +818,7 @@ nsInlineFrame::PullOneFrame(nsPresContext* aPresContext,
       if (irs.mLineLayout) {
         irs.mLineLayout->SetDirtyNextLine();
       }
-      nsHTMLContainerFrame::ReparentFrameView(aPresContext, frame, nextInFlow, this);
+      nsContainerFrame::ReparentFrameView(aPresContext, frame, nextInFlow, this);
       break;
     }
     nextInFlow = (nsInlineFrame*) nextInFlow->GetNextInFlow();
@@ -915,11 +915,19 @@ nscoord
 nsInlineFrame::GetBaseline() const
 {
   nscoord ascent = 0;
-  nsCOMPtr<nsIFontMetrics> fm;
-  if (NS_SUCCEEDED(nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm)))) {
-    fm->GetMaxAscent(ascent);
+  nsRefPtr<nsFontMetrics> fm;
+  nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
+  if (fm) {
+    ascent = fm->MaxAscent();
   }
   return NS_MIN(mRect.height, ascent + GetUsedBorderAndPadding().top);
+}
+
+void
+nsInlineFrame::DestroyFrom(nsIFrame* aDestructRoot)
+{
+  DestroyAbsoluteFrames(aDestructRoot);
+  nsInlineFrameSuper::DestroyFrom(aDestructRoot);
 }
 
 #ifdef ACCESSIBILITY
@@ -1101,6 +1109,8 @@ nsFirstLineFrame::Reflow(nsPresContext* aPresContext,
   rv = ReflowFrames(aPresContext, aReflowState, irs, aMetrics, aStatus);
   aReflowState.mLineLayout->SetInFirstLine(PR_FALSE);
 
+  ReflowAbsoluteFrames(aPresContext, aMetrics, aReflowState, aStatus);
+
   // Note: the line layout code will properly compute our overflow state for us
 
   return rv;
@@ -1121,162 +1131,3 @@ nsFirstLineFrame::PullOverflowsFromPrevInFlow()
   }
 }
 
-//////////////////////////////////////////////////////////////////////
-
-nsIFrame*
-NS_NewPositionedInlineFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
-{
-  return new (aPresShell) nsPositionedInlineFrame(aContext);
-}
-
-NS_IMPL_FRAMEARENA_HELPERS(nsPositionedInlineFrame)
-
-void
-nsPositionedInlineFrame::DestroyFrom(nsIFrame* aDestructRoot)
-{
-  mAbsoluteContainer.DestroyFrames(this, aDestructRoot);
-  nsInlineFrame::DestroyFrom(aDestructRoot);
-}
-
-NS_IMETHODIMP
-nsPositionedInlineFrame::SetInitialChildList(nsIAtom*        aListName,
-                                             nsFrameList&    aChildList)
-{
-  nsresult  rv;
-
-  if (nsGkAtoms::absoluteList == aListName) {
-    rv = mAbsoluteContainer.SetInitialChildList(this, aListName, aChildList);
-  } else {
-    rv = nsInlineFrame::SetInitialChildList(aListName, aChildList);
-  }
-
-  return rv;
-}
-
-NS_IMETHODIMP
-nsPositionedInlineFrame::AppendFrames(nsIAtom*        aListName,
-                                      nsFrameList&    aFrameList)
-{
-  nsresult  rv;
-  
-  if (nsGkAtoms::absoluteList == aListName) {
-    rv = mAbsoluteContainer.AppendFrames(this, aListName, aFrameList);
-  } else {
-    rv = nsInlineFrame::AppendFrames(aListName, aFrameList);
-  }
-
-  return rv;
-}
-  
-NS_IMETHODIMP
-nsPositionedInlineFrame::InsertFrames(nsIAtom*        aListName,
-                                      nsIFrame*       aPrevFrame,
-                                      nsFrameList&    aFrameList)
-{
-  nsresult  rv;
-
-  if (nsGkAtoms::absoluteList == aListName) {
-    rv = mAbsoluteContainer.InsertFrames(this, aListName, aPrevFrame,
-                                         aFrameList);
-  } else {
-    rv = nsInlineFrame::InsertFrames(aListName, aPrevFrame, aFrameList);
-  }
-
-  return rv;
-}
-  
-NS_IMETHODIMP
-nsPositionedInlineFrame::RemoveFrame(nsIAtom*        aListName,
-                                     nsIFrame*       aOldFrame)
-{
-  nsresult  rv;
-
-  if (nsGkAtoms::absoluteList == aListName) {
-    mAbsoluteContainer.RemoveFrame(this, aListName, aOldFrame);
-    rv = NS_OK;
-  } else {
-    rv = nsInlineFrame::RemoveFrame(aListName, aOldFrame);
-  }
-
-  return rv;
-}
-
-NS_IMETHODIMP
-nsPositionedInlineFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                          const nsRect&           aDirtyRect,
-                                          const nsDisplayListSet& aLists)
-{
-  aBuilder->MarkFramesForDisplayList(this, mAbsoluteContainer.GetChildList(),
-				     aDirtyRect);
-  return nsHTMLContainerFrame::BuildDisplayList(aBuilder, aDirtyRect, aLists);
-}
-
-nsIAtom*
-nsPositionedInlineFrame::GetAdditionalChildListName(PRInt32 aIndex) const
-{
-  if (0 == aIndex) {
-    return nsGkAtoms::absoluteList;
-  }
-  return nsnull;
-}
-
-nsFrameList
-nsPositionedInlineFrame::GetChildList(nsIAtom* aListName) const
-{
-  if (nsGkAtoms::absoluteList == aListName)
-    return mAbsoluteContainer.GetChildList();
-
-  return nsInlineFrame::GetChildList(aListName);
-}
-
-nsIAtom*
-nsPositionedInlineFrame::GetType() const
-{
-  return nsGkAtoms::positionedInlineFrame;
-}
-
-NS_IMETHODIMP
-nsPositionedInlineFrame::Reflow(nsPresContext*          aPresContext,
-                                nsHTMLReflowMetrics&     aDesiredSize,
-                                const nsHTMLReflowState& aReflowState,
-                                nsReflowStatus&          aStatus)
-{
-  nsresult  rv = NS_OK;
-
-  // Don't bother optimizing for fast incremental reflow of absolute
-  // children of an inline
-
-  // Let the inline frame do its reflow first
-  rv = nsInlineFrame::Reflow(aPresContext, aDesiredSize, aReflowState, aStatus);
-
-  // Let the absolutely positioned container reflow any absolutely positioned
-  // child frames that need to be reflowed
-  // We want to do this under either of two conditions:
-  //  1. If we didn't do the incremental reflow above.
-  //  2. If our size changed.
-  // Even though it's the padding edge that's the containing block, we
-  // can use our rect (the border edge) since if the border style
-  // changed, the reflow would have been targeted at us so we'd satisfy
-  // condition 1.
-  if (NS_SUCCEEDED(rv) &&
-      mAbsoluteContainer.HasAbsoluteFrames()) {
-    // The containing block for the abs pos kids is formed by our padding edge.
-    nsMargin computedBorder =
-      aReflowState.mComputedBorderPadding - aReflowState.mComputedPadding;
-    nscoord containingBlockWidth =
-      aDesiredSize.width - computedBorder.LeftRight();
-    nscoord containingBlockHeight =
-      aDesiredSize.height - computedBorder.TopBottom();
-
-    // Factor the absolutely positioned child bounds into the overflow area
-    // Don't include this frame's bounds, nor its inline descendants' bounds,
-    // and don't store the overflow property.
-    // That will all be done by nsLineLayout::RelativePositionFrames.
-    rv = mAbsoluteContainer.Reflow(this, aPresContext, aReflowState, aStatus,
-                                   containingBlockWidth, containingBlockHeight,
-                                   PR_TRUE, PR_TRUE, PR_TRUE, // XXX could be optimized
-                                   &aDesiredSize.mOverflowAreas);
-  }
-
-  return rv;
-}

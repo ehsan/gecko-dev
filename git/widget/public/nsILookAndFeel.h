@@ -43,10 +43,10 @@
   // for |#ifdef NS_DEBUG|
 struct nsSize;
 
-// 2e89c566-0a31-4c93-bdff-222651df45a0
+// 89401022-94b3-413e-a6b8-2203dab824f3
 #define NS_ILOOKANDFEEL_IID \
-{ 0x2e89c566, 0x0a31, 0x4c93, \
-  { 0xbd, 0xff, 0x22, 0x26, 0x51, 0xdf, 0x45, 0xa0 } }
+{ 0x89401022, 0x94b3, 0x413e, \
+  { 0xa6, 0xb8, 0x22, 0x03, 0xda, 0xb8, 0x24, 0xf3 } }
 
 class nsILookAndFeel: public nsISupports {
 public:
@@ -326,6 +326,7 @@ public:
   };
 
   enum {
+    eMetric_ScrollArrowNone = 0,
     eMetric_ScrollArrowStartBackward = 0x1000,
     eMetric_ScrollArrowStartForward = 0x0100,
     eMetric_ScrollArrowEndBackward = 0x0010,
@@ -425,20 +426,6 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsILookAndFeel, NS_ILOOKANDFEEL_IID)
 #define NS_IS_SELECTION_SPECIAL_COLOR(c) ((c) == NS_TRANSPARENT || \
                                           (c) == NS_SAME_AS_FOREGROUND_COLOR || \
                                           (c) == NS_40PERCENT_FOREGROUND_COLOR)
-
-// -------------------------------------------------
-//  Underline styles for eMetric_IME*UnderlineStyle
-// -------------------------------------------------
-
-#define NS_UNDERLINE_STYLE_NONE   0
-#define NS_UNDERLINE_STYLE_DOTTED 1
-#define NS_UNDERLINE_STYLE_DASHED 2
-#define NS_UNDERLINE_STYLE_SOLID  3
-#define NS_UNDERLINE_STYLE_DOUBLE 4
-#define NS_UNDERLINE_STYLE_WAVY   5
-
-#define NS_IS_VALID_UNDERLINE_STYLE(s) \
-  (NS_UNDERLINE_STYLE_NONE <= (s) && (s) <= NS_UNDERLINE_STYLE_WAVY)
 
 // ------------------------------------------
 //  Bits for eMetric_AlertNotificationOrigin

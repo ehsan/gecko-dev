@@ -79,8 +79,8 @@ public:
     return do_QueryFrame(GetFirstChild(nsnull));
   }
 
-  virtual nscoord GetMinWidth(nsIRenderingContext* aRenderingContext);
-  virtual nsSize ComputeAutoSize(nsIRenderingContext *aRenderingContext,
+  virtual nscoord GetMinWidth(nsRenderingContext* aRenderingContext);
+  virtual nsSize ComputeAutoSize(nsRenderingContext *aRenderingContext,
                                  nsSize aCBSize, nscoord aAvailableWidth,
                                  nsSize aMargin, nsSize aBorder,
                                  nsSize aPadding, PRBool aShrinkWrap);
@@ -121,7 +121,7 @@ public:
   }
 
   // nsIAnonymousContentCreator
-  virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
+  virtual nsresult CreateAnonymousContent(nsTArray<ContentInfo>& aElements);
   virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
                                         PRUint32 aFilter);
 
@@ -180,6 +180,11 @@ public:
 
   NS_DECL_QUERYFRAME
 
+  // Temp reference to scriptrunner
+  // We could make these auto-Revoking via the "delete" entry for safety
+  NS_DECLARE_FRAME_PROPERTY(TextControlInitializer, nsnull)
+
+
 public: //for methods who access nsTextControlFrame directly
   void FireOnInput(PRBool aTrusted);
   void SetValueChanged(PRBool aValueChanged);
@@ -205,16 +210,16 @@ public: //for methods who access nsTextControlFrame directly
     ValueSetter(nsTextControlFrame* aFrame,
                 PRBool aHasFocusValue)
       : mFrame(aFrame)
-      , mInited(PR_FALSE)
-    {
-      NS_ASSERTION(aFrame, "Should pass a valid frame");
-
       // This method isn't used for user-generated changes, except for calls
       // from nsFileControlFrame which sets mFireChangeEventState==true and
       // restores it afterwards (ie. we want 'change' events for those changes).
       // Focused value must be updated to prevent incorrect 'change' events,
       // but only if user hasn't changed the value.
-      mFocusValueInit = !mFrame->mFireChangeEventState && aHasFocusValue;
+      , mFocusValueInit(!mFrame->mFireChangeEventState && aHasFocusValue)
+      , mOuterTransaction(false)
+      , mInited(false)
+    {
+      NS_ASSERTION(aFrame, "Should pass a valid frame");
     }
     void Cancel() {
       mInited = PR_FALSE;
@@ -286,23 +291,27 @@ protected:
   class EditorInitializer : public nsRunnable {
   public:
     EditorInitializer(nsTextControlFrame* aFrame) :
-      mWeakFrame(aFrame),
       mFrame(aFrame) {}
 
     NS_IMETHOD Run() {
-      if (mWeakFrame) {
+      if (mFrame) {
         nsCOMPtr<nsIPresShell> shell =
-          mWeakFrame.GetFrame()->PresContext()->GetPresShell();
+          mFrame->PresContext()->GetPresShell();
         PRBool observes = shell->ObservesNativeAnonMutationsForPrint();
         shell->ObserveNativeAnonMutationsForPrint(PR_TRUE);
         mFrame->EnsureEditorInitialized();
         shell->ObserveNativeAnonMutationsForPrint(observes);
+        mFrame->FinishedInitializer();
       }
       return NS_OK;
     }
 
+    // avoids use of nsWeakFrame
+    void Revoke() {
+      mFrame = nsnull;
+    }
+
   private:
-    nsWeakFrame mWeakFrame;
     nsTextControlFrame* mFrame;
   };
 
@@ -367,7 +376,7 @@ protected:
   // Compute our intrinsic size.  This does not include any borders, paddings,
   // etc.  Just the size of our actual area for the text (and the scrollbars,
   // for <textarea>).
-  nsresult CalcIntrinsicSize(nsIRenderingContext* aRenderingContext,
+  nsresult CalcIntrinsicSize(nsRenderingContext* aRenderingContext,
                              nsSize&              aIntrinsicSize);
 
   nsresult ScrollSelectionIntoView();
@@ -387,6 +396,10 @@ private:
    * Return the root DOM element, and implicitly initialize the editor if needed.
    */
   nsresult GetRootNodeAndInitializeEditor(nsIDOMElement **aRootElement);
+
+  void FinishedInitializer() {
+    Properties().Delete(TextControlInitializer());
+  }
 
 private:
   // these packed bools could instead use the high order bits on mState, saving 4 bytes 

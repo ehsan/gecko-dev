@@ -44,16 +44,14 @@
 #include "nsCSSRendering.h"
 #include "nsPresContext.h"
 #include "nsStyleContext.h"
-#include "nsIRenderingContext.h"
+#include "nsRenderingContext.h"
 #include "nsGUIEvent.h"
 #include "nsStyleConsts.h"
 #include "nsGkAtoms.h"
-#include "nsIEventStateManager.h"
-#include "nsIDeviceContext.h"
+#include "nsEventStateManager.h"
 #include "nsIPresShell.h"
 #include "nsIScrollPositionListener.h"
 #include "nsDisplayList.h"
-#include "nsAbsoluteContainingBlock.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsFrameManager.h"
 
@@ -65,8 +63,6 @@
 #ifdef DEBUG_rods
 //#define DEBUG_CANVAS_FOCUS
 #endif
-
-#define CANVAS_ABS_POS_CHILD_LIST NS_CONTAINER_LIST_COUNT_INCL_OC
 
 
 nsIFrame*
@@ -84,8 +80,7 @@ NS_QUERYFRAME_TAIL_INHERITING(nsHTMLContainerFrame)
 void
 nsCanvasFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
-  mAbsoluteContainer.DestroyFrames(this, aDestructRoot);
-
+  DestroyAbsoluteFrames(aDestructRoot);
   nsIScrollableFrame* sf =
     PresContext()->GetPresShell()->GetRootScrollFrameAsScrollable();
   if (sf) {
@@ -127,9 +122,6 @@ NS_IMETHODIMP
 nsCanvasFrame::SetInitialChildList(nsIAtom*        aListName,
                                    nsFrameList&    aChildList)
 {
-  if (nsGkAtoms::absoluteList == aListName)
-    return mAbsoluteContainer.SetInitialChildList(this, aListName, aChildList);
-
   NS_ASSERTION(aListName || aChildList.IsEmpty() || aChildList.OnlyChild(),
                "Primary child list can have at most one frame in it");
   return nsHTMLContainerFrame::SetInitialChildList(aListName, aChildList);
@@ -139,9 +131,6 @@ NS_IMETHODIMP
 nsCanvasFrame::AppendFrames(nsIAtom*        aListName,
                             nsFrameList&    aFrameList)
 {
-  if (nsGkAtoms::absoluteList == aListName)
-    return mAbsoluteContainer.AppendFrames(this, aListName, aFrameList);
-
   NS_ASSERTION(!aListName, "unexpected child list name");
   NS_PRECONDITION(mFrames.IsEmpty(), "already have a child frame");
   if (aListName) {
@@ -174,9 +163,6 @@ nsCanvasFrame::InsertFrames(nsIAtom*        aListName,
                             nsIFrame*       aPrevFrame,
                             nsFrameList&    aFrameList)
 {
-  if (nsGkAtoms::absoluteList == aListName)
-    return mAbsoluteContainer.InsertFrames(this, aListName, aPrevFrame, aFrameList);
-
   // Because we only support a single child frame inserting is the same
   // as appending
   NS_PRECONDITION(!aPrevFrame, "unexpected previous sibling frame");
@@ -190,11 +176,6 @@ NS_IMETHODIMP
 nsCanvasFrame::RemoveFrame(nsIAtom*        aListName,
                            nsIFrame*       aOldFrame)
 {
-  if (nsGkAtoms::absoluteList == aListName) {
-    mAbsoluteContainer.RemoveFrame(this, aListName, aOldFrame);
-    return NS_OK;
-  }
-
   NS_ASSERTION(!aListName, "unexpected child list name");
   if (aListName) {
     // We only support the unnamed principal child list
@@ -219,24 +200,6 @@ nsCanvasFrame::RemoveFrame(nsIAtom*        aListName,
   return NS_OK;
 }
 
-nsIAtom*
-nsCanvasFrame::GetAdditionalChildListName(PRInt32 aIndex) const
-{
-  if (CANVAS_ABS_POS_CHILD_LIST == aIndex)
-    return nsGkAtoms::absoluteList;
-
-  return nsHTMLContainerFrame::GetAdditionalChildListName(aIndex);
-}
-
-nsFrameList
-nsCanvasFrame::GetChildList(nsIAtom* aListName) const
-{
-  if (nsGkAtoms::absoluteList == aListName)
-    return mAbsoluteContainer.GetChildList();
-
-  return nsHTMLContainerFrame::GetChildList(aListName);
-}
-
 nsRect nsCanvasFrame::CanvasArea() const
 {
   // Not clear which overflow rect we want here, but it probably doesn't
@@ -253,7 +216,7 @@ nsRect nsCanvasFrame::CanvasArea() const
 
 void
 nsDisplayCanvasBackground::Paint(nsDisplayListBuilder* aBuilder,
-                                 nsIRenderingContext* aCtx)
+                                 nsRenderingContext* aCtx)
 {
   nsCanvasFrame* frame = static_cast<nsCanvasFrame*>(mFrame);
   nsPoint offset = ToReferenceFrame();
@@ -295,7 +258,7 @@ public:
   }
 
   virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsIRenderingContext* aCtx)
+                     nsRenderingContext* aCtx)
   {
     nsCanvasFrame* frame = static_cast<nsCanvasFrame*>(mFrame);
     frame->PaintFocus(*aCtx, ToReferenceFrame());
@@ -315,9 +278,6 @@ nsCanvasFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     DisplayOverflowContainers(aBuilder, aDirtyRect, aLists);
   }
 
-  aBuilder->MarkFramesForDisplayList(this, mAbsoluteContainer.GetChildList(),
-                                     aDirtyRect);
-  
   // Force a background to be shown. We may have a background propagated to us,
   // in which case GetStyleBackground wouldn't have the right background
   // and the code in nsFrame::DisplayBorderBackgroundOutline might not give us
@@ -368,7 +328,7 @@ nsCanvasFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 }
 
 void
-nsCanvasFrame::PaintFocus(nsIRenderingContext& aRenderingContext, nsPoint aPt)
+nsCanvasFrame::PaintFocus(nsRenderingContext& aRenderingContext, nsPoint aPt)
 {
   nsRect focusRect(aPt, GetSize());
 
@@ -396,7 +356,7 @@ nsCanvasFrame::PaintFocus(nsIRenderingContext& aRenderingContext, nsPoint aPt)
 }
 
 /* virtual */ nscoord
-nsCanvasFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
+nsCanvasFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 {
   nscoord result;
   DISPLAY_MIN_WIDTH(this, result);
@@ -408,7 +368,7 @@ nsCanvasFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
 }
 
 /* virtual */ nscoord
-nsCanvasFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
+nsCanvasFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
 {
   nscoord result;
   DISPLAY_PREF_WIDTH(this, result);
@@ -439,8 +399,8 @@ nsCanvasFrame::Reflow(nsPresContext*           aPresContext,
     if (overflow) {
       NS_ASSERTION(overflow->OnlyChild(),
                    "must have doc root as canvas frame's only child");
-      nsHTMLContainerFrame::ReparentFrameViewList(aPresContext, *overflow,
-                                                  prevCanvasFrame, this);
+      nsContainerFrame::ReparentFrameViewList(aPresContext, *overflow,
+                                              prevCanvasFrame, this);
       // Prepend overflow to the our child list. There may already be
       // children placeholders for fixed-pos elements, which don't get
       // reflowed but must not be lost until the canvas frame is destroyed.
@@ -554,15 +514,6 @@ nsCanvasFrame::Reflow(nsPresContext*           aPresContext,
     aDesiredSize.mOverflowAreas.UnionWith(
       kidDesiredSize.mOverflowAreas + kidPt);
 
-    if (mAbsoluteContainer.HasAbsoluteFrames()) {
-      PRBool widthChanged = aDesiredSize.width != mRect.width;
-      PRBool heightChanged = aDesiredSize.height != mRect.height;
-      mAbsoluteContainer.Reflow(this, aPresContext, aReflowState, aStatus,
-                                aDesiredSize.width, aDesiredSize.height,
-                                PR_TRUE, widthChanged, heightChanged,
-                                &aDesiredSize.mOverflowAreas);
-    }
-
     // Handle invalidating fixed-attachment backgrounds propagated to the
     // canvas when the canvas size (and therefore the background positioning
     // area's size) changes.  Such backgrounds are not invalidated in the
@@ -603,7 +554,7 @@ nsCanvasFrame::Reflow(nsPresContext*           aPresContext,
                                     aStatus);
   }
 
-  FinishAndStoreOverflow(&aDesiredSize);
+  FinishReflowWithAbsoluteFrames(aPresContext, aDesiredSize, aReflowState, aStatus);
 
   NS_FRAME_TRACE_REFLOW_OUT("nsCanvasFrame::Reflow", aStatus);
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize);

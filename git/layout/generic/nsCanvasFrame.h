@@ -40,17 +40,14 @@
 #ifndef nsCanvasFrame_h___
 #define nsCanvasFrame_h___
 
-
 #include "nsHTMLContainerFrame.h"
-#include "nsStyleContext.h"
-#include "nsIRenderingContext.h"
-#include "nsGUIEvent.h"
-#include "nsGkAtoms.h"
 #include "nsIScrollPositionListener.h"
 #include "nsDisplayList.h"
-#include "nsAbsoluteContainingBlock.h"
+#include "nsGkAtoms.h"
 
 class nsPresContext;
+class nsRenderingContext;
+class nsEvent;
 
 /**
  * Root frame class.
@@ -59,15 +56,14 @@ class nsPresContext;
  * It only supports having a single child frame which must be an area
  * frame
  */
-class nsCanvasFrame : public nsHTMLContainerFrame, 
+class nsCanvasFrame : public nsHTMLContainerFrame,
                       public nsIScrollPositionListener
 {
 public:
   nsCanvasFrame(nsStyleContext* aContext)
   : nsHTMLContainerFrame(aContext),
     mDoPaintFocus(PR_FALSE),
-    mAddedScrollPositionListener(PR_FALSE),
-    mAbsoluteContainer(nsGkAtoms::absoluteList) {}
+    mAddedScrollPositionListener(PR_FALSE) {}
 
   NS_DECL_QUERYFRAME_TARGET(nsCanvasFrame)
   NS_DECL_QUERYFRAME
@@ -86,11 +82,8 @@ public:
   NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame);
 
-  virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
-  virtual nsFrameList GetChildList(nsIAtom* aListName) const;
-
-  virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
-  virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
+  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
@@ -111,7 +104,7 @@ public:
                               const nsRect&           aDirtyRect,
                               const nsDisplayListSet& aLists);
 
-  void PaintFocus(nsIRenderingContext& aRenderingContext, nsPoint aPt);
+  void PaintFocus(nsRenderingContext& aRenderingContext, nsPoint aPt);
 
   // nsIScrollPositionListener
   virtual void ScrollPositionWillChange(nscoord aX, nscoord aY);
@@ -154,7 +147,6 @@ protected:
   // Data members
   PRPackedBool              mDoPaintFocus;
   PRPackedBool              mAddedScrollPositionListener;
-  nsAbsoluteContainingBlock mAbsoluteContainer;
 };
 
 /**
@@ -173,17 +165,11 @@ public:
 
   virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                    nsRegion* aVisibleRegion,
-                                   const nsRect& aAllowVisibleRegionExpansion,
-                                   PRBool& aContainsRootContentDocBG)
+                                   const nsRect& aAllowVisibleRegionExpansion)
   {
-    PRBool retval = NS_GET_A(mExtraBackgroundColor) > 0 ||
-           nsDisplayBackground::ComputeVisibility(aBuilder, aVisibleRegion,
-                                                  aAllowVisibleRegionExpansion,
-                                                  aContainsRootContentDocBG);
-    if (retval && mFrame->PresContext()->IsRootContentDocument()) {
-      aContainsRootContentDocBG = PR_TRUE;
-    }
-    return retval;
+    return NS_GET_A(mExtraBackgroundColor) > 0 ||
+      nsDisplayBackground::ComputeVisibility(aBuilder, aVisibleRegion,
+                                             aAllowVisibleRegionExpansion);
   }
   virtual nsRegion GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
                                    PRBool* aForceTransparentSurface = nsnull)
@@ -224,7 +210,7 @@ public:
   }
 
   virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsIRenderingContext* aCtx);
+                     nsRenderingContext* aCtx);
 
   void SetExtraBackgroundColor(nscolor aColor)
   {

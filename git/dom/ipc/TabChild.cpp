@@ -356,6 +356,7 @@ TabChild::ProvideWindow(nsIDOMWindow* aParent, PRUint32 aChromeFlags,
         return NS_ERROR_NOT_AVAILABLE;
     }
 
+    *aWindowIsNew = PR_TRUE;
     nsCOMPtr<nsIDOMWindow> win =
         do_GetInterface(static_cast<TabChild*>(newChild)->mWebNav);
     win.forget(aReturn);
@@ -847,6 +848,7 @@ TabChild::InitTabChildGlobal()
 
   JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_JIT | JSOPTION_ANONFUNFIX | JSOPTION_PRIVATE_IS_NSISUPPORTS);
   JS_SetVersion(cx, JSVERSION_LATEST);
+  JS_SetErrorReporter(cx, ContentScriptErrorReporter);
 
   xpc_LocalizeContext(cx);
 
@@ -899,7 +901,7 @@ TabChild::InitWidget(const nsIntSize& size)
         nsnull, 0,              // no parents
         nsIntRect(nsIntPoint(0, 0), size),
         nsnull,                 // HandleWidgetEvent
-        nsnull                  // nsIDeviceContext
+        nsnull                  // nsDeviceContext
         );
 
     RenderFrameChild* remoteFrame =

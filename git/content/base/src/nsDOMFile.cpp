@@ -49,7 +49,6 @@
 #include "nsIConverterInputStream.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
-#include "nsIFile.h"
 #include "nsIFileStreams.h"
 #include "nsIInputStream.h"
 #include "nsIIPCSerializable.h"
@@ -64,6 +63,7 @@
 #include "nsFileDataProtocolHandler.h"
 #include "nsStringStream.h"
 #include "CheckedInt.h"
+#include "nsJSUtils.h"
 
 #include "plbase64.h"
 #include "prmem.h"
@@ -139,10 +139,10 @@ DOMCI_DATA(Blob, nsDOMFile)
 NS_INTERFACE_MAP_BEGIN(nsDOMFile)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMFile)
   NS_INTERFACE_MAP_ENTRY(nsIDOMBlob)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMBlob_MOZILLA_2_0_BRANCH)
   NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsIDOMFile, mIsFullFile)
   NS_INTERFACE_MAP_ENTRY(nsIXHRSendable)
   NS_INTERFACE_MAP_ENTRY(nsICharsetDetectionObserver)
+  NS_INTERFACE_MAP_ENTRY(nsIJSNativeInitializer)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_CONDITIONAL(File, mIsFullFile)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_CONDITIONAL(Blob, !mIsFullFile)
 NS_INTERFACE_MAP_END
@@ -162,6 +162,14 @@ DOMFileResult(nsresult rv)
   }
 
   return rv;
+}
+
+/* static */ nsresult
+nsDOMFile::NewFile(nsISupports* *aNewObject)
+{
+  nsCOMPtr<nsISupports> file = do_QueryObject(new nsDOMFile(nsnull));
+  file.forget(aNewObject);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -284,20 +292,13 @@ ParseSize(PRInt64 aSize, PRInt64& aStart, PRInt64& aEnd)
 }
 
 NS_IMETHODIMP
-nsDOMFile::Slice(PRUint64 aStart, PRUint64 aLength,
-                 const nsAString& aContentType, nsIDOMBlob **aBlob)
-{
-  return MozSlice(aStart, aStart + aLength, aContentType, 2, aBlob);
-}
-
-NS_IMETHODIMP
 nsDOMFile::MozSlice(PRInt64 aStart, PRInt64 aEnd,
                     const nsAString& aContentType, PRUint8 optional_argc,
                     nsIDOMBlob **aBlob)
 {
   *aBlob = nsnull;
 
-  // Truncate aLength and aStart so that we stay within this file.
+  // Truncate aStart and aEnd so that we stay within this file.
   PRUint64 thisLength;
   nsresult rv = GetSize(&thisLength);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -314,17 +315,18 @@ nsDOMFile::MozSlice(PRInt64 aStart, PRInt64 aEnd,
   return NS_OK;
 }
 
+const PRUint32 sFileStreamFlags =
+  nsIFileInputStream::CLOSE_ON_EOF |
+  nsIFileInputStream::REOPEN_ON_REWIND |
+  nsIFileInputStream::DEFER_OPEN;
+
 NS_IMETHODIMP
 nsDOMFile::GetInternalStream(nsIInputStream **aStream)
 {
   return mIsFullFile ?
-    NS_NewLocalFileInputStream(aStream, mFile, -1, -1,
-                               nsIFileInputStream::CLOSE_ON_EOF |
-                               nsIFileInputStream::REOPEN_ON_REWIND) :
+    NS_NewLocalFileInputStream(aStream, mFile, -1, -1, sFileStreamFlags) :
     NS_NewPartialLocalFileInputStream(aStream, mFile, mStart, mLength,
-                                      -1, -1,
-                                      nsIFileInputStream::CLOSE_ON_EOF |
-                                      nsIFileInputStream::REOPEN_ON_REWIND);
+                                      -1, -1, sFileStreamFlags);
 }
 
 NS_IMETHODIMP
@@ -608,6 +610,66 @@ nsDOMFile::Notify(const char* aCharset, nsDetectionConfident aConf)
 {
   mCharset.Assign(aCharset);
 
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDOMFile::Initialize(nsISupports* aOwner,
+                      JSContext* aCx,
+                      JSObject* aObj,
+                      PRUint32 aArgc,
+                      jsval* aArgv)
+{
+  nsresult rv;
+
+  if (!nsContentUtils::IsCallerChrome()) {
+    return NS_ERROR_DOM_SECURITY_ERR; // Real short trip
+  }
+
+  NS_ENSURE_TRUE(aArgc > 0, NS_ERROR_UNEXPECTED);
+
+  // We expect to get a path to represent as a File object,
+  // or an nsIFile
+  nsCOMPtr<nsIFile> file;
+  if (!JSVAL_IS_STRING(aArgv[0])) {
+    // Lets see if it's an nsIFile
+    if (!JSVAL_IS_OBJECT(aArgv[0])) {
+      return NS_ERROR_UNEXPECTED; // We're not interested
+    }
+
+    JSObject* obj = JSVAL_TO_OBJECT(aArgv[0]);
+    NS_ASSERTION(obj, "This is a bit odd");
+
+    // Is it an nsIFile
+    file = do_QueryInterface(
+      nsContentUtils::XPConnect()->
+        GetNativeOfWrapper(aCx, obj));
+    if (!file)
+      return NS_ERROR_UNEXPECTED;
+  } else {
+    // It's a string
+    JSString* str = JS_ValueToString(aCx, aArgv[0]);
+    NS_ENSURE_TRUE(str, NS_ERROR_XPC_BAD_CONVERT_JS);
+
+    nsDependentJSString xpcomStr;
+    if (!xpcomStr.init(aCx, str)) {
+      return NS_ERROR_XPC_BAD_CONVERT_JS;
+    }
+
+    nsCOMPtr<nsILocalFile> localFile;
+    rv = NS_NewLocalFile(xpcomStr, PR_FALSE, getter_AddRefs(localFile));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    file = do_QueryInterface(localFile);
+    NS_ASSERTION(file, "This should never happen");
+  }
+
+  PRBool exists;
+  rv = file->Exists(&exists);
+  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_TRUE(exists, NS_ERROR_FILE_NOT_FOUND);
+
+  mFile = file;
   return NS_OK;
 }
 

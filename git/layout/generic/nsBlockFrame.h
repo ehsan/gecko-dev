@@ -84,7 +84,7 @@ class nsIntervalSet;
  * Child list name indices
  * @see #GetAdditionalChildListName()
  */
-#define NS_BLOCK_LIST_COUNT  (NS_CONTAINER_LIST_COUNT_INCL_OC + 5)
+#define NS_BLOCK_LIST_COUNT  (NS_CONTAINER_LIST_COUNT_INCL_OC + 4)
 
 /**
  * Some invariants:
@@ -262,8 +262,8 @@ public:
   virtual bool HasBullet() const;
 
   virtual void MarkIntrinsicWidthsDirty();
-  virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
-  virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
+  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
 
   virtual nsRect ComputeTightBounds(gfxContext* aContext) const;
   
@@ -341,7 +341,6 @@ protected:
     : nsHTMLContainerFrame(aContext)
     , mMinWidth(NS_INTRINSIC_WIDTH_UNKNOWN)
     , mPrefWidth(NS_INTRINSIC_WIDTH_UNKNOWN)
-    , mAbsoluteContainer(nsGkAtoms::absoluteList)
   {
 #ifdef DEBUG
   InitDebugFlags();
@@ -369,6 +368,7 @@ protected:
                                        const nsPoint& aPt,
                                        nsLineBox* aLine,
                                        nscolor aColor,
+                                       PRUint8 aStyle,
                                        gfxFloat aOffset,
                                        gfxFloat aAscent,
                                        gfxFloat aSize,
@@ -774,10 +774,6 @@ protected:
 
   friend class nsBlockReflowState;
   friend class nsBlockInFlowLineIterator;
-
-private:
-  nsAbsoluteContainingBlock mAbsoluteContainer;
-
 
 #ifdef DEBUG
 public:
