@@ -306,7 +306,7 @@ class GCZonesIter
     ZonesIter zone;
 
   public:
-    GCZonesIter(JSRuntime *rt) : zone(rt, WithAtoms) {
+    GCZonesIter(JSRuntime *rt) : zone(rt) {
         if (!zone->isCollecting())
             next();
     }

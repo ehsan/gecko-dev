@@ -1293,7 +1293,6 @@ abstract public class GeckoApp
         });
 
         GeckoAppShell.setNotificationClient(makeNotificationClient());
-        NotificationHelper.init(getApplicationContext());
     }
 
     protected void initializeChrome() {

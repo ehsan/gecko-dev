@@ -33,7 +33,6 @@
 
 #include "nsHZToUnicode.h"
 #include "gbku.h"
-#include "mozilla/Telemetry.h"
 
 //----------------------------------------------------------------------
 // Class nsHZToUnicode [implementation]
@@ -50,14 +49,11 @@
 #define HZ_ODD_BYTE_STATE (mHZState & (HZ_STATE_ODD_BYTE_FLAG))
 #define HZ_ENCODING_STATE (mHZState & ~(HZ_STATE_ODD_BYTE_FLAG))
 
-using namespace mozilla;
-
 nsHZToUnicode::nsHZToUnicode() : nsBufferDecoderSupport(1)
 {
   mHZState = HZ_STATE_ASCII;    // per HZ spec, default to ASCII state 
   mRunLength = 0;
   mOddByte = 0;
-  Telemetry::Accumulate(Telemetry::DECODER_INSTANTIATED_HZ, true);
 }
 
 //Overwriting the ConvertNoBuff() in nsUCvCnSupport.cpp.

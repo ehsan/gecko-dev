@@ -19,9 +19,6 @@
 
 #include "nsUCConstructors.h"
 #include "nsCP857ToUnicode.h"
-#include "mozilla/Telemetry.h"
-
-using namespace mozilla;
 
 //----------------------------------------------------------------------
 // Global functions and data [declaration]
@@ -34,7 +31,6 @@ nsCP857ToUnicodeConstructor(nsISupports *aOuter, REFNSIID aIID,
 #include "cp857.ut"
   };
 
-  Telemetry::Accumulate(Telemetry::DECODER_INSTANTIATED_IBM857, true);
   return CreateOneByteDecoder((uMappingTable*) &g_utMappingTable,
                               aOuter, aIID, aResult);
 }

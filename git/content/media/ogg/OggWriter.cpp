@@ -4,6 +4,7 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 #include "OggWriter.h"
 #include "prtime.h"
+#include "OpusTrackEncoder.h"
 
 #undef LOG
 #ifdef MOZ_WIDGET_GONK
@@ -167,23 +168,24 @@ OggWriter::GetContainerData(nsTArray<nsTArray<uint8_t> >* aOutputBufs,
 }
 
 nsresult
-OggWriter::SetMetadata(TrackMetadataBase* aMetadata)
+OggWriter::SetMetadata(nsRefPtr<TrackMetadataBase> aMetadata)
 {
   if (aMetadata->GetKind() != TrackMetadataBase::METADATA_OPUS) {
     LOG("wrong meta data type!");
     return NS_ERROR_FAILURE;
   }
   // Validate each field of METADATA
-  mMetadata = static_cast<OpusMetadata*>(aMetadata);
-  if (mMetadata->mIdHeader.Length() == 0) {
+  OpusMetadata* meta = static_cast<OpusMetadata*>(aMetadata.get());
+  if (meta->mIdHeader.Length() == 0) {
     LOG("miss mIdHeader!");
     return NS_ERROR_FAILURE;
   }
-  if (mMetadata->mCommentHeader.Length() == 0) {
+  if (meta->mCommentHeader.Length() == 0) {
     LOG("miss mCommentHeader!");
     return NS_ERROR_FAILURE;
   }
 
+  mMetadata = aMetadata;
   return NS_OK;
 }
 

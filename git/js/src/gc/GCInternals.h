@@ -26,10 +26,9 @@ BufferGrayRoots(GCMarker *gcmarker);
 class AutoCopyFreeListToArenas
 {
     JSRuntime *runtime;
-    ZoneSelector selector;
 
   public:
-    AutoCopyFreeListToArenas(JSRuntime *rt, ZoneSelector selector);
+    AutoCopyFreeListToArenas(JSRuntime *rt);
     ~AutoCopyFreeListToArenas();
 };
 
@@ -65,7 +64,7 @@ struct AutoPrepareForTracing
     AutoTraceSession session;
     AutoCopyFreeListToArenas copy;
 
-    AutoPrepareForTracing(JSRuntime *rt, ZoneSelector selector);
+    AutoPrepareForTracing(JSRuntime *rt);
 };
 
 class IncrementalSafety

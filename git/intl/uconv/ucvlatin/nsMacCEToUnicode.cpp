@@ -5,9 +5,6 @@
 
 #include "nsUCConstructors.h"
 #include "nsMacCEToUnicode.h"
-#include "mozilla/Telemetry.h"
-
-using namespace mozilla;
 
 //----------------------------------------------------------------------
 // Global functions and data [declaration]
@@ -20,7 +17,6 @@ nsMacCEToUnicodeConstructor(nsISupports *aOuter, REFNSIID aIID,
 #include "macce.ut"
   };
 
-  Telemetry::Accumulate(Telemetry::DECODER_INSTANTIATED_MACCE, true);
   return CreateOneByteDecoder((uMappingTable*) &g_MacCEMappingTable,
                             aOuter, aIID, aResult);
 }

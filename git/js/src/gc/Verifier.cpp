@@ -16,7 +16,6 @@
 #include "gc/Zone.h"
 #include "js/HashTable.h"
 
-#include "jscntxtinlines.h"
 #include "jsgcinlines.h"
 
 using namespace js;
@@ -236,13 +235,13 @@ JS::CheckStackRoots(JSContext *cx)
 
     // Can switch to the atoms compartment during analysis.
     if (IsAtomsCompartment(cx->compartment())) {
-        for (CompartmentsIter c(rt, SkipAtoms); !c.done(); c.next()) {
+        for (CompartmentsIter c(rt); !c.done(); c.next()) {
             if (c.get()->activeAnalysis)
                 return;
         }
     }
 
-    AutoCopyFreeListToArenas copy(rt, WithAtoms);
+    AutoCopyFreeListToArenas copy(rt);
 
     ConservativeGCData *cgcd = &rt->conservativeGC;
     cgcd->recordStackTop();
@@ -448,8 +447,7 @@ gc::StartVerifyPreBarriers(JSRuntime *rt)
 
     MinorGC(rt, JS::gcreason::API);
 
-    AutoLockForExclusiveAccess lock(rt);
-    AutoPrepareForTracing prep(rt, WithAtoms);
+    AutoPrepareForTracing prep(rt);
 
     if (!IsIncrementalGCSafe(rt))
         return;
@@ -512,7 +510,7 @@ gc::StartVerifyPreBarriers(JSRuntime *rt)
     rt->gcMarker.start();
 
     rt->setNeedsBarrier(true);
-    for (ZonesIter zone(rt, WithAtoms); !zone.done(); zone.next()) {
+    for (ZonesIter zone(rt); !zone.done(); zone.next()) {
         PurgeJITCaches(zone);
         zone->setNeedsBarrier(true, Zone::UpdateIon);
         zone->allocator.arenas.purge();
@@ -577,7 +575,7 @@ AssertMarkedOrAllocated(const EdgeValue &edge)
 void
 gc::EndVerifyPreBarriers(JSRuntime *rt)
 {
-    AutoPrepareForTracing prep(rt, SkipAtoms);
+    AutoPrepareForTracing prep(rt);
 
     VerifyPreTracer *trc = (VerifyPreTracer *)rt->gcVerifyPreData;
 
@@ -587,7 +585,7 @@ gc::EndVerifyPreBarriers(JSRuntime *rt)
     bool compartmentCreated = false;
 
     /* We need to disable barriers before tracing, which may invoke barriers. */
-    for (ZonesIter zone(rt, WithAtoms); !zone.done(); zone.next()) {
+    for (ZonesIter zone(rt); !zone.done(); zone.next()) {
         if (!zone->needsBarrier())
             compartmentCreated = true;
 
@@ -742,7 +740,7 @@ js::gc::EndVerifyPostBarriers(JSRuntime *rt)
 {
 #ifdef JSGC_GENERATIONAL
     VerifyPostTracer::EdgeSet edges;
-    AutoPrepareForTracing prep(rt, SkipAtoms);
+    AutoPrepareForTracing prep(rt);
 
     VerifyPostTracer *trc = (VerifyPostTracer *)rt->gcVerifyPostData;
 

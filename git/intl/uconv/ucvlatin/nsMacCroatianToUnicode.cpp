@@ -5,9 +5,6 @@
 
 #include "nsUCConstructors.h"
 #include "nsMacCroatianToUnicode.h"
-#include "mozilla/Telemetry.h"
-
-using namespace mozilla;
 
 //----------------------------------------------------------------------
 // Global functions and data [declaration]
@@ -20,7 +17,6 @@ nsMacCroatianToUnicodeConstructor(nsISupports *aOuter, REFNSIID aIID,
 #include "maccroat.ut"
   };
 
-  Telemetry::Accumulate(Telemetry::DECODER_INSTANTIATED_MACCROATIAN, true);
   return CreateOneByteDecoder((uMappingTable*) &g_utMappingTable,
                               aOuter, aIID, aResult);
 }

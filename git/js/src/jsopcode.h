@@ -351,17 +351,14 @@ StackUses(JSScript *script, jsbytecode *pc);
 extern unsigned
 StackDefs(JSScript *script, jsbytecode *pc);
 
-#ifdef DEBUG
-/*
- * Given bytecode address pc in script's main program code, compute the operand
- * stack depth just before (JSOp) *pc executes.  If *pc is not reachable, return
- * false.
- */
-extern bool
-ReconstructStackDepth(JSContext *cx, JSScript *script, jsbytecode *pc, uint32_t *depth);
-#endif
-
 }  /* namespace js */
+
+/*
+ * Given bytecode address pc in script's main program code, return the operand
+ * stack depth just before (JSOp) *pc executes.
+ */
+extern unsigned
+js_ReconstructStackDepth(JSContext *cx, JSScript *script, jsbytecode *pc);
 
 #ifdef _MSC_VER
 #pragma warning(pop)

@@ -1937,8 +1937,7 @@ function screenShot(msg) {
 
   // Return the Base64 String back to the client bindings and they can manage
   // saving the file to disk if it is required
-  var data_url = canvas.toDataURL("image/png","");
-  sendResponse({value: data_url.substring(data_url.indexOf(",") + 1)}, msg.json.command_id);
+  sendResponse({value:canvas.toDataURL("image/png","")}, msg.json.command_id);
 }
 
 //call register self when we get loaded

@@ -446,9 +446,6 @@ nsLookAndFeel::GetIntImpl(IntID aID, int32_t &aResult)
         aResult = [NSEvent isSwipeTrackingFromScrollEventsEnabled] ? 1 : 0;
       }
       break;
-    case eIntID_ColorPickerAvailable:
-      aResult = 1;
-      break;
     default:
       aResult = 0;
       res = NS_ERROR_FAILURE;

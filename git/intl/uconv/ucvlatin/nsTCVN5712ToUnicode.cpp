@@ -5,9 +5,6 @@
 
 #include "nsUCConstructors.h"
 #include "nsTCVN5712ToUnicode.h"
-#include "mozilla/Telemetry.h"
-
-using namespace mozilla;
 
 //----------------------------------------------------------------------
 // Global functions and data [declaration]
@@ -20,7 +17,6 @@ nsTCVN5712ToUnicodeConstructor(nsISupports *aOuter, REFNSIID aIID,
 #include "tcvn5712.ut"
   };
 
-  Telemetry::Accumulate(Telemetry::DECODER_INSTANTIATED_VIETTCVN5712, true);
   return CreateOneByteDecoder((uMappingTable*) &g_utMappingTable,
                               aOuter, aIID, aResult);
 }
