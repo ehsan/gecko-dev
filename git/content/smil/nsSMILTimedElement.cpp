@@ -2121,11 +2121,7 @@ nsSMILTimedElement::SampleFillValue()
     if (repeatDuration.IsDefinite()) {
       activeTime = std::min(repeatDuration.GetMillis(), activeTime);
     }
-  } else {
-    MOZ_ASSERT(mElementState == STATE_ACTIVE,
-        "Attempting to sample fill value when we're in an unexpected state "
-        "(probably STATE_STARTUP)");
-
+  } else if (mElementState == STATE_ACTIVE) {
     // If we are being asked to sample the fill value while active we *must*
     // have a repeat duration shorter than the active duration so use that.
     MOZ_ASSERT(GetRepeatDuration().IsDefinite(),
