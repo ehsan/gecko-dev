@@ -1307,9 +1307,6 @@ pref("devtools.profiler.enabled", true);
 // The default Profiler UI settings
 pref("devtools.profiler.ui.show-platform-data", false);
 
-// The default cache UI setting
-pref("devtools.cache.disabled", false);
-
 // Enable the Network Monitor
 pref("devtools.netmonitor.enabled", true);
 
@@ -1610,6 +1607,3 @@ pref("experiments.manifest.certs.1.commonName", "*.cdn.mozilla.net");
 pref("experiments.manifest.certs.1.issuerName", "CN=Cybertrust Public SureServer SV CA,O=Cybertrust Inc");
 // Whether experiments are supported by the current application profile.
 pref("experiments.supported", true);
-
-// Enable the OpenH264 plugin support in the addon manager.
-pref("media.openh264.providerEnabled", true);

@@ -45,8 +45,8 @@ function test() {
 
   gDevTools.registerTool(toolDefinition);
 
-  addTab("about:blank").then(function(aTab) {
-    let target = TargetFactory.forTab(aTab);
+  addTab("about:blank", function(aBrowser, aTab) {
+    let target = TargetFactory.forTab(gBrowser.selectedTab);
     gDevTools.showToolbox(target, toolDefinition.id).then(function(toolbox) {
       let panel = toolbox.getPanel(toolDefinition.id);
       ok(true, "Tool open");
@@ -142,9 +142,8 @@ function test() {
     panel.sidebar.destroy();
     gDevTools.unregisterTool(toolDefinition.id);
 
-    gBrowser.removeCurrentTab();
-
     executeSoon(function() {
+      gBrowser.removeCurrentTab();
       finish();
     });
   }

@@ -25,21 +25,22 @@ let test = asyncTest(function*() {
   info("Click on the 'show all nodes' button in the UL's list of children");
   yield showAllNodes(inspector);
 
-  yield assertAllNodesAreVisible(inspector);
+  assertAllNodesAreVisible(inspector);
 });
 
-function* showAllNodes(inspector) {
-  let container = yield getContainerForSelector("ul", inspector);
+function showAllNodes(inspector) {
+  let container = getContainerForRawNode("ul", inspector);
   let button = container.elt.querySelector("button");
   ok(button, "All nodes button is here");
   let win = button.ownerDocument.defaultView;
 
   EventUtils.sendMouseEvent({type: "click"}, button, win);
-  yield inspector.markup._waitForChildren();
+  return inspector.markup._waitForChildren();
 }
 
-function* assertAllNodesAreVisible(inspector) {
-  let container = yield getContainerForSelector("ul", inspector);
+function assertAllNodesAreVisible(inspector) {
+  let ul = getNode("ul");
+  let container = getContainerForRawNode(ul, inspector);
   ok(!container.elt.querySelector("button"), "All nodes button isn't here anymore");
-  is(container.children.childNodes.length, getNode("ul").children.length);
+  is(container.children.childNodes.length, ul.children.length);
 }

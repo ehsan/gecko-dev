@@ -7,7 +7,7 @@
 // Test that the computed view properties can be expanded and collapsed with
 // either the twisty or by dbl-clicking on the container
 
-const TEST_URL = "data:text/html;charset=utf-8," + encodeURIComponent([
+const TEST_URL = "data:text/html," + encodeURIComponent([
   '<html>' +
   '<head>' +
   '  <title>Computed view toggling test</title>',

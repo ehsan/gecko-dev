@@ -69,16 +69,15 @@ let test = asyncTest(function*() {
 
   yield inspector.markup.expandAll();
 
-  let nodeFront = yield getNodeFront("#node14", inspector);
-  let container = getContainerForNodeFront(nodeFront, inspector);
-  let attr = container.editor.newAttr;
+  let node = getContainerForRawNode("#node14", inspector).editor;
+  let attr = node.newAttr;
   attr.focus();
   EventUtils.sendKey("return", inspector.panelWin);
   let editor = inplaceEditor(attr);
 
   for (let i = 0; i < TEST_DATA.length; i ++) {
     yield enterData(i, editor, inspector);
-    yield checkData(i, editor, inspector);
+    checkData(i, editor, inspector);
   }
 
   while (inspector.markup.undo.canUndo()) {
@@ -123,7 +122,7 @@ function enterData(index, editor, inspector) {
   return def.promise;
 }
 
-function* checkData(index, editor, inspector) {
+function checkData(index, editor, inspector) {
   let [key, completion, selStart, selEnd, popupOpen] = TEST_DATA[index];
   info("Test data " + index + " entered. Checking state.");
 
@@ -138,8 +137,7 @@ function* checkData(index, editor, inspector) {
         "Popup is closed");
     }
   } else {
-    let nodeFront = yield getNodeFront("#node14", inspector);
-    let editor = getContainerForNodeFront(nodeFront, inspector).editor;
+    let editor = getContainerForRawNode("#node14", inspector).editor;
     let attr = editor.attrs["style"].querySelector(".editable");
     is(attr.textContent, completion, "Correct value is persisted after pressing Enter");
   }

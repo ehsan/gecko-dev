@@ -15,6 +15,8 @@ let toolbox, target;
 
 function test()
 {
+  waitForExplicitFinish();
+
   gBrowser.selectedTab = gBrowser.addTab();
   target = TargetFactory.forTab(gBrowser.selectedTab);
 

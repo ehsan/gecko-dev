@@ -13,8 +13,7 @@ const Cc = Components.classes;
 //   Services.prefs.clearUserPref("devtools.debugger.log");
 // });
 
-// Uncomment this pref to dump all devtools emitted events to the console.
-// Services.prefs.setBoolPref("devtools.dump.emit", true);
+//Services.prefs.setBoolPref("devtools.dump.emit", true);
 
 const TEST_URL_ROOT = "http://example.com/browser/browser/devtools/inspector/test/";
 const { Promise: promise } = Cu.import("resource://gre/modules/Promise.jsm", {});

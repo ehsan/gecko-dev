@@ -12,8 +12,7 @@ let {getInplaceEditorForSpan: inplaceEditor} = devtools.require("devtools/shared
 // All test are asynchronous
 waitForExplicitFinish();
 
-// Uncomment this pref to dump all devtools emitted events to the console.
-// Services.prefs.setBoolPref("devtools.dump.emit", true);
+//Services.prefs.setBoolPref("devtools.dump.emit", true);
 
 // Set the testing flag on gDevTools and reset it when the test ends
 gDevTools.testing = true;
@@ -29,17 +28,19 @@ registerCleanupFunction(() => {
 });
 
 // Auto close the toolbox and close the test tabs when the test ends
-registerCleanupFunction(function*() {
-  let target = TargetFactory.forTab(gBrowser.selectedTab);
-  yield gDevTools.closeToolbox(target);
-
+registerCleanupFunction(() => {
+  try {
+    let target = TargetFactory.forTab(gBrowser.selectedTab);
+    gDevTools.closeToolbox(target);
+  } catch (ex) {
+    dump(ex);
+  }
   while (gBrowser.tabs.length > 1) {
     gBrowser.removeCurrentTab();
   }
 });
 
 const TEST_URL_ROOT = "http://mochi.test:8888/browser/browser/devtools/markupview/test/";
-const CHROME_BASE = "chrome://mochitests/content/browser/browser/devtools/markupview/test/";
 
 /**
  * Define an async test based on a generator function
@@ -57,19 +58,15 @@ function addTab(url) {
   info("Adding a new tab with URL: '" + url + "'");
   let def = promise.defer();
 
-  // Bug 921935 should bring waitForFocus() support to e10s, which would
-  // probably cover the case of the test losing focus when the page is loading.
-  // For now, we just make sure the window is focused.
-  window.focus();
-
-  let tab = window.gBrowser.selectedTab = window.gBrowser.addTab(url);
-  let linkedBrowser = tab.linkedBrowser;
-
-  linkedBrowser.addEventListener("load", function onload() {
-    linkedBrowser.removeEventListener("load", onload, true);
+  let tab = gBrowser.selectedTab = gBrowser.addTab();
+  gBrowser.selectedBrowser.addEventListener("load", function onload() {
+    gBrowser.selectedBrowser.removeEventListener("load", onload, true);
     info("URL '" + url + "' loading complete");
-    def.resolve(tab);
+    waitForFocus(() => {
+      def.resolve(tab);
+    }, content);
   }, true);
+  content.location = url;
 
   return def.promise;
 }
@@ -127,25 +124,13 @@ function openInspector() {
  * Simple DOM node accesor function that takes either a node or a string css
  * selector as argument and returns the corresponding node
  * @param {String|DOMNode} nodeOrSelector
- * @return {DOMNode|CPOW} Note that in e10s mode a CPOW object is returned which
- * doesn't implement *all* of the DOMNode's properties
+ * @return {DOMNode}
  */
 function getNode(nodeOrSelector) {
   info("Getting the node for '" + nodeOrSelector + "'");
   return typeof nodeOrSelector === "string" ?
     content.document.querySelector(nodeOrSelector) :
     nodeOrSelector;
-}
-
-/**
- * Get the NodeFront for a given css selector, via the protocol
- * @param {String} selector
- * @param {InspectorPanel} inspector The instance of InspectorPanel currently
- * loaded in the toolbox
- * @return {Promise} Resolves to the NodeFront instance
- */
-function getNodeFront(selector, {walker}) {
-  return walker.querySelector(walker.rootNode, selector);
 }
 
 /**
@@ -164,53 +149,45 @@ function selectAndHighlightNode(nodeOrSelector, inspector) {
   let updated = inspector.toolbox.once("highlighter-ready");
   inspector.selection.setNode(node, "test-highlight");
   return updated;
+
 }
 
 /**
- * Set the inspector's current selection to the first match of the given css
- * selector
- * @param {String} selector
- * @param {InspectorPanel} inspector The instance of InspectorPanel currently
- * loaded in the toolbox
- * @param {String} reason Defaults to "test" which instructs the inspector not
- * to highlight the node upon selection
- * @return {Promise} Resolves when the inspector is updated with the new node
+ * Set the inspector's current selection to a node or to the first match of the
+ * given css selector.
+ * @param {String|DOMNode} nodeOrSelector
+ * @param {InspectorPanel} inspector
+ *        The instance of InspectorPanel currently loaded in the toolbox
+ * @param {String} reason
+ *        Defaults to "test" which instructs the inspector not to highlight the
+ *        node upon selection
+ * @return a promise that resolves when the inspector is updated with the new
+ * node
  */
-let selectNode = Task.async(function*(selector, inspector, reason="test") {
-  info("Selecting the node for '" + selector + "'");
-  let nodeFront = yield getNodeFront(selector, inspector);
+function selectNode(nodeOrSelector, inspector, reason="test") {
+  info("Selecting the node " + nodeOrSelector);
+
+  let node = getNode(nodeOrSelector);
   let updated = inspector.once("inspector-updated");
-  inspector.selection.setNodeFront(nodeFront, reason);
-  yield updated;
-});
-
-/**
- * Get the MarkupContainer object instance that corresponds to the given
- * NodeFront
- * @param {NodeFront} nodeFront
- * @param {InspectorPanel} inspector The instance of InspectorPanel currently
- * loaded in the toolbox
- * @return {MarkupContainer}
- */
-function getContainerForNodeFront(nodeFront, {markup}) {
-  return markup.getContainer(nodeFront);
+  inspector.selection.setNode(node, reason);
+  return updated;
 }
 
 /**
  * Get the MarkupContainer object instance that corresponds to the given
- * selector
- * @param {String} selector
+ * HTML node
+ * @param {DOMNode|String} nodeOrSelector The DOM node for which the
+ * container is required
  * @param {InspectorPanel} inspector The instance of InspectorPanel currently
  * loaded in the toolbox
  * @return {MarkupContainer}
  */
-let getContainerForSelector = Task.async(function*(selector, inspector) {
-  info("Getting the markup-container for node " + selector);
-  let nodeFront = yield getNodeFront(selector, inspector);
-  let container = getContainerForNodeFront(nodeFront, inspector);
-  info("Found markup-container " + container);
+function getContainerForRawNode(nodeOrSelector, {markup}) {
+  let front = markup.walker.frontForRawNode(getNode(nodeOrSelector));
+  let container = markup.getContainer(front);
+  info("Markup-container object for " + nodeOrSelector + " " + container);
   return container;
-});
+}
 
 /**
  * Using the markupview's _waitForChildren function, wait for all queued
@@ -231,46 +208,38 @@ function waitForChildrenUpdated({markup}) {
 
 /**
  * Simulate a mouse-over on the markup-container (a line in the markup-view)
- * that corresponds to the selector passed.
- * @param {String} selector
- * @param {InspectorPanel} inspector The instance of InspectorPanel currently
- * loaded in the toolbox
- * @return {Promise} Resolves when the container is hovered and the higlighter
+ * that corresponds to the node or selector passed.
+ * @param {String|DOMNode} nodeOrSelector
+ * @param {InspectorPanel} inspector The instance of InspectorPanel currently loaded in the toolbox
+ * @return a promise that resolves when the container is hovered and the higlighter
  * is shown on the corresponding node
  */
-let hoverContainer = Task.async(function*(selector, inspector) {
-  info("Hovering over the markup-container for node " + selector);
-
-  let nodeFront = yield getNodeFront(selector, inspector);
-  let container = getContainerForNodeFront(nodeFront, inspector);
-
+function hoverContainer(nodeOrSelector, inspector) {
+  info("Hovering over the markup-container for node " + nodeOrSelector);
   let highlit = inspector.toolbox.once("node-highlight");
+  let container = getContainerForRawNode(getNode(nodeOrSelector), inspector);
   EventUtils.synthesizeMouseAtCenter(container.tagLine, {type: "mousemove"},
     inspector.markup.doc.defaultView);
   return highlit;
-});
+}
 
 /**
  * Simulate a click on the markup-container (a line in the markup-view)
- * that corresponds to the selector passed.
- * @param {String} selector
- * @param {InspectorPanel} inspector The instance of InspectorPanel currently
- * loaded in the toolbox
- * @return {Promise} Resolves when the node has been selected.
+ * that corresponds to the node or selector passed.
+ * @param {String|DOMNode} nodeOrSelector
+ * @param {InspectorPanel} inspector The instance of InspectorPanel currently loaded in the toolbox
+ * @return a promise that resolves when the node has been selected.
  */
-let clickContainer = Task.async(function*(selector, inspector) {
-  info("Clicking on the markup-container for node " + selector);
-
-  let nodeFront = yield getNodeFront(selector, inspector);
-  let container = getContainerForNodeFront(nodeFront, inspector);
-
+function clickContainer(nodeOrSelector, inspector) {
+  info("Clicking on the markup-container for node " + nodeOrSelector);
   let updated = inspector.once("inspector-updated");
+  let container = getContainerForRawNode(getNode(nodeOrSelector), inspector);
   EventUtils.synthesizeMouseAtCenter(container.tagLine, {type: "mousedown"},
     inspector.markup.doc.defaultView);
   EventUtils.synthesizeMouseAtCenter(container.tagLine, {type: "mouseup"},
     inspector.markup.doc.defaultView);
   return updated;
-});
+}
 
 /**
  * Checks if the highlighter is visible currently
@@ -319,39 +288,39 @@ function setEditableFieldValue(field, value, inspector) {
 }
 
 /**
- * Focus the new-attribute inplace-editor field of a node's markup container
- * and enters the given text, then wait for it to be applied and the for the
- * node to mutates (when new attribute(s) is(are) created)
- * @param {String} selector The selector for the node to edit.
+ * Focus the new-attribute inplace-editor field of the nodeOrSelector's markup
+ * container, and enters the given text, then wait for it to be applied and the
+ * for the node to mutates (when new attribute(s) is(are) created)
+ * @param {DOMNode|String} nodeOrSelector The node or node selector to edit.
  * @param {String} text The new attribute text to be entered (e.g. "id='test'")
  * @param {InspectorPanel} inspector The instance of InspectorPanel currently
  * loaded in the toolbox
  * @return a promise that resolves when the node has mutated
  */
-let addNewAttributes = Task.async(function*(selector, text, inspector) {
-  info("Entering text '" + text + "' in node '" + selector + "''s new attribute field");
+function addNewAttributes(nodeOrSelector, text, inspector) {
+  info("Entering text '" + text + "' in node '" + nodeOrSelector + "''s new attribute field");
 
-  let container = yield getContainerForSelector(selector, inspector);
-  ok(container, "The container for '" + selector + "' was found");
+  let container = getContainerForRawNode(nodeOrSelector, inspector);
+  ok(container, "The container for '" + nodeOrSelector + "' was found");
 
   info("Listening for the markupmutation event");
   let nodeMutated = inspector.once("markupmutation");
   setEditableFieldValue(container.editor.newAttr, text, inspector);
-  yield nodeMutated;
-});
+  return nodeMutated;
+}
 
 /**
  * Checks that a node has the given attributes
  *
- * @param {String} selector The node or node selector to check.
+ * @param {DOMNode|String} nodeOrSelector The node or node selector to check.
  * @param {Object} attrs An object containing the attributes to check.
  *        e.g. {id: "id1", class: "someclass"}
  *
  * Note that node.getAttribute() returns attribute values provided by the HTML
  * parser. The parser only provides unescaped entities so &amp; will return &.
  */
-function assertAttributes(selector, attrs) {
-  let node = getNode(selector);
+function assertAttributes(nodeOrSelector, attrs) {
+  let node = getNode(nodeOrSelector);
 
   is(node.attributes.length, Object.keys(attrs).length,
     "Node has the correct number of attributes.");

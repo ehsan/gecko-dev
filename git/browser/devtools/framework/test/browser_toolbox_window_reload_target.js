@@ -1,16 +1,17 @@
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
-const TEST_URL = "data:text/html;charset=utf-8,"+
-                 "<html><head><title>Test reload</title></head>"+
-                 "<body><h1>Testing reload from devtools</h1></body></html>";
-
 let Toolbox = devtools.Toolbox;
 
 let target, toolbox, description, reloadsSent, toolIDs;
 
 function test() {
-  addTab(TEST_URL).then(() => {
+  waitForExplicitFinish();
+
+  addTab("data:text/html;charset=utf-8,"+
+         "<html><head><title>Test reload</title></head>"+
+         "<body><h1>Testing reload from devtools</h1></body></html>",
+         () => {
     target = TargetFactory.forTab(gBrowser.selectedTab);
 
     target.makeRemote().then(() => {

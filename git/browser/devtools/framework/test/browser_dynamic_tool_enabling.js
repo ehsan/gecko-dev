@@ -37,5 +37,4 @@ function test() {
       checkItem(el, prefs);
     }
   }
-  finish();
 }
