@@ -77,8 +77,6 @@
 #endif
 #endif
 
-using namespace mozilla;
-
 #ifdef CAIRO_HAS_D2D_SURFACE
 #include "gfxD2DSurface.h"
 
@@ -86,6 +84,8 @@ using namespace mozilla;
 
 #include "nsIMemoryReporter.h"
 #include "nsMemory.h"
+
+using namespace mozilla;
 
 class D2DCacheReporter :
     public nsIMemoryReporter

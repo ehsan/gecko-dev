@@ -86,6 +86,10 @@ function GroupItem(listOfEls, options) {
   this.keepProportional = false;
   this._frozenItemSizeData = {};
 
+  // Double click tracker
+  this._lastClick = 0;
+  this._lastClickPositions = null;
+
   // Variable: _activeTab
   // The <TabItem> for the groupItem's active tab.
   this._activeTab = null;
@@ -782,7 +786,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         return (groupItem != self && !groupItem.getChildren().length);
       });
       let group = (emptyGroups.length ? emptyGroups[0] : GroupItems.newGroup());
-      group.newTab(null, { closedLastTab: true });
+      group.newTab();
     }
 
     this.destroy();
@@ -1647,6 +1651,28 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   _addHandlers: function GroupItem__addHandlers(container) {
     let self = this;
 
+    // Create new tab and zoom in on it after a double click
+    container.mousedown(function(e) {
+      if (!Utils.isLeftClick(e) || self.$titlebar[0] == e.target || 
+          self.$titlebar.contains(e.target)) {
+        self._lastClick = 0;
+        self._lastClickPositions = null;
+        return;
+      }
+      if (Date.now() - self._lastClick <= UI.DBLCLICK_INTERVAL &&
+          (self._lastClickPositions.x - UI.DBLCLICK_OFFSET) <= e.clientX &&
+          (self._lastClickPositions.x + UI.DBLCLICK_OFFSET) >= e.clientX &&
+          (self._lastClickPositions.y - UI.DBLCLICK_OFFSET) <= e.clientY &&
+          (self._lastClickPositions.y + UI.DBLCLICK_OFFSET) >= e.clientY) {
+        self.newTab();
+        self._lastClick = 0;
+        self._lastClickPositions = null;
+      } else {
+        self._lastClick = Date.now();
+        self._lastClickPositions = new Point(e.clientX, e.clientY);
+      }
+    });
+
     var dropIndex = false;
     var dropSpaceTimer = null;
 
@@ -1765,16 +1791,14 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // ----------
   // Function: newTab
   // Creates a new tab within this groupItem.
-  // Parameters:
-  //  url - the new tab should open this url as well
-  //  options - the options object
-  //    closedLastTab - boolean indicates the last tab has just been closed
-  newTab: function GroupItem_newTab(url, options) {
-    if (options && options.closedLastTab)
-      UI.closedLastTabInTabView = true;
-
+  newTab: function GroupItem_newTab(url) {
     UI.setActive(this, { dontSetActiveTabInGroup: true });
-    gBrowser.loadOneTab(url || "about:blank", { inBackground: false });
+    let newTab = gBrowser.loadOneTab(url || "about:blank", {inBackground: true});
+
+    // TabItems will have handled the new tab and added the tabItem property.
+    // We don't have to check if it's an app tab (and therefore wouldn't have a
+    // TabItem), since we've just created it.
+    newTab._tabViewTabItem.zoomIn(!url);
   },
 
   // ----------
