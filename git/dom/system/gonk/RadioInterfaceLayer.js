@@ -810,8 +810,12 @@ XPCOMUtils.defineLazyGetter(this, "gDataConnectionManager", function () {
       let connHandler = this._connectionHandlers[this._currentDataClientId];
       if (connHandler.allDataDisconnected() &&
           typeof this._pendingDataCallRequest === "function") {
+        if (RILQUIRKS_DATA_REGISTRATION_ON_DEMAND) {
+          let radioInterface = connHandler.radioInterface;
+          radioInterface.setDataRegistration(false);
+        }
         if (DEBUG) {
-          this.debug("All data calls disconnected, process pending data settings.");
+          this.debug("All data calls disconnected, setup pending data call.");
         }
         this._pendingDataCallRequest();
         this._pendingDataCallRequest = null;
@@ -824,8 +828,8 @@ XPCOMUtils.defineLazyGetter(this, "gDataConnectionManager", function () {
       }
       this._dataDefaultClientId = newDefault;
 
-      // This is to handle boot up stage.
       if (this._currentDataClientId == -1) {
+        // This is to handle boot up stage.
         this._currentDataClientId = this._dataDefaultClientId;
         let connHandler = this._connectionHandlers[this._currentDataClientId];
         let radioInterface = connHandler.radioInterface;
@@ -849,37 +853,35 @@ XPCOMUtils.defineLazyGetter(this, "gDataConnectionManager", function () {
       let newIface = newConnHandler.radioInterface;
       let newSettings = newConnHandler.dataCallSettings;
 
-      let applyPendingDataSettings = (function() {
+      if (!this._dataEnabled) {
         if (RILQUIRKS_DATA_REGISTRATION_ON_DEMAND ||
             RILQUIRKS_SUBSCRIPTION_CONTROL) {
-          oldIface.setDataRegistration(false)
-            .then(() => {
-              if (this._dataEnabled) {
-                newSettings.oldEnabled = newSettings.enabled;
-                newSettings.enabled = true;
-              }
-              this._currentDataClientId = this._dataDefaultClientId;
-              return newIface.setDataRegistration(true);
-            })
-            .then(() => newConnHandler.updateRILNetworkInterface());
-          return;
-        }
-
-        if (this._dataEnabled) {
-          newSettings.oldEnabled = newSettings.enabled;
-          newSettings.enabled = true;
+          oldIface.setDataRegistration(false);
+          newIface.setDataRegistration(true);
         }
         this._currentDataClientId = this._dataDefaultClientId;
-        newConnHandler.updateRILNetworkInterface();
-      }).bind(this);
-
-      if (this._dataEnabled) {
-        oldSettings.oldEnabled = oldSettings.enabled;
-        oldSettings.enabled = false;
+        return;
       }
 
+      oldSettings.oldEnabled = oldSettings.enabled;
+      oldSettings.enabled = false;
+
       if (oldConnHandler.anyDataConnected()) {
-        this._pendingDataCallRequest = applyPendingDataSettings;
+        this._pendingDataCallRequest = function () {
+          if (DEBUG) {
+            this.debug("Executing pending data call request.");
+          }
+          if (RILQUIRKS_DATA_REGISTRATION_ON_DEMAND ||
+              RILQUIRKS_SUBSCRIPTION_CONTROL) {
+            newIface.setDataRegistration(true);
+          }
+          newSettings.oldEnabled = newSettings.enabled;
+          newSettings.enabled = this._dataEnabled;
+
+          this._currentDataClientId = this._dataDefaultClientId;
+          newConnHandler.updateRILNetworkInterface();
+        };
+
         if (DEBUG) {
           this.debug("_handleDataClientIdChange: existing data call(s) active" +
                      ", wait for them to get disconnected.");
@@ -888,7 +890,16 @@ XPCOMUtils.defineLazyGetter(this, "gDataConnectionManager", function () {
         return;
       }
 
-      applyPendingDataSettings();
+      newSettings.oldEnabled = newSettings.enabled;
+      newSettings.enabled = true;
+
+      this._currentDataClientId = this._dataDefaultClientId;
+      if (RILQUIRKS_DATA_REGISTRATION_ON_DEMAND ||
+          RILQUIRKS_SUBSCRIPTION_CONTROL) {
+        oldIface.setDataRegistration(false);
+        newIface.setDataRegistration(true);
+      }
+      newConnHandler.updateRILNetworkInterface();
     },
 
     _shutdown: function() {
@@ -2810,15 +2821,7 @@ RadioInterface.prototype = {
   },
 
   setDataRegistration: function(attach) {
-    let deferred = Promise.defer();
-    this.workerMessenger.send("setDataRegistration",
-                              {attach: attach},
-                              (function(response) {
-      // Always resolve to proceed with the following steps.
-      deferred.resolve(response.errorMsg ? response.errorMsg : null);
-    }).bind(this));
-
-    return deferred.promise;
+    this.workerMessenger.send("setDataRegistration", {attach: attach});
   },
 
   /**
