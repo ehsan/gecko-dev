@@ -619,8 +619,10 @@ namespace nanojit
             asm_spilli(i, resv, pop);
             _allocator.retire(rr);    // free any register associated with entry
         }
-        if (index)
+        if (index) {
+            NanoAssert(_activation.entry[index] == i);
             arFree(index);            // free any stack stack space associated with entry
+        }
         i->resv()->clear();
     }
 
@@ -632,6 +634,8 @@ namespace nanojit
 
     void Assembler::patch(GuardRecord *lr)
     {
+        if (!lr->jmp) // the guard might have been eliminated as redundant
+            return;
         Fragment *frag = lr->exit->target;
         NanoAssert(frag->fragEntry != 0);
         NIns* was = nPatchBranch((NIns*)lr->jmp, frag->fragEntry);
@@ -1388,7 +1392,7 @@ namespace nanojit
                     if (label && label->addr) {
                         // forward jump to known label.  need to merge with label's register state.
                         unionRegisterState(label->regs);
-                        asm_branch(op == LIR_jf, cond, label->addr, false);
+                        asm_branch(op == LIR_jf, cond, label->addr);
                     }
                     else {
                         // back edge.
@@ -1403,7 +1407,7 @@ namespace nanojit
                             // evict all registers, most conservative approach.
                             intersectRegisterState(label->regs);
                         }
-                        NIns *branch = asm_branch(op == LIR_jf, cond, 0, false);
+                        NIns *branch = asm_branch(op == LIR_jf, cond, 0);
                         patches.put(branch,to);
                     }
                     break;
@@ -1448,7 +1452,7 @@ namespace nanojit
                     // we only support cmp with guard right now, also assume it is 'close' and only emit the branch
                     NIns* exit = asm_exit(ins); // does intersectRegisterState()
                     LIns* cond = ins->oprnd1();
-                    asm_branch(op == LIR_xf, cond, exit, false);
+                    asm_branch(op == LIR_xf, cond, exit);
                     break;
                 }
                 case LIR_x:
@@ -1602,7 +1606,6 @@ namespace nanojit
     {
         AR &ar = _activation;
         LIns *i = ar.entry[idx];
-        NanoAssert(i != 0);
         do {
             ar.entry[idx] = 0;
             idx--;

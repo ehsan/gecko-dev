@@ -927,16 +927,12 @@ JS_PUBLIC_API(void)
 JS_BeginRequest(JSContext *cx)
 {
 #ifdef JS_THREADSAFE
-    JSRuntime *rt;
-
     JS_ASSERT(CURRENT_THREAD_IS_ME(cx->thread));
     if (!cx->requestDepth) {
-        JS_ASSERT(cx->gcLocalFreeLists == &js_GCEmptyFreeListSet);
-
-        /* Wait until the GC is finished. */
-        rt = cx->runtime;
+        JSRuntime *rt = cx->runtime;
         JS_LOCK_GC(rt);
 
+        /* Wait until the GC is finished. */
         if (rt->gcThread != cx->thread) {
             while (rt->gcLevel > 0)
                 JS_AWAIT_GC_DONE(rt);
@@ -974,7 +970,6 @@ JS_EndRequest(JSContext *cx)
         cx->outstandingRequests--;
 
         js_ShareWaitingTitles(cx);
-        js_RevokeGCLocalFreeLists(cx);
 
         /* Give the GC a chance to run if this was the last request running. */
         JS_ASSERT(rt->requestCount > 0);
@@ -3412,7 +3407,7 @@ AlreadyHasOwnPropertyHelper(JSContext *cx, JSObject *obj, jsid id,
 
     JS_LOCK_OBJ(cx, obj);
     scope = OBJ_SCOPE(obj);
-    *foundp = (scope->object == obj && scope->lookup(id));
+    *foundp = (scope->lookup(id) != NULL);
     JS_UNLOCK_SCOPE(cx, scope);
     return JS_TRUE;
 }
@@ -4115,7 +4110,7 @@ JS_NewPropertyIterator(JSContext *cx, JSObject *obj)
     if (OBJ_IS_NATIVE(obj)) {
         /* Native case: start with the last property in obj's own scope. */
         scope = OBJ_SCOPE(obj);
-        pdata = (scope->object == obj) ? scope->lastProp : NULL;
+        pdata = scope->lastProp;
         index = -1;
     } else {
         JSTempValueRooter tvr;
@@ -4161,7 +4156,6 @@ JS_NextProperty(JSContext *cx, JSObject *iterobj, jsid *idp)
         obj = OBJ_GET_PARENT(cx, iterobj);
         JS_ASSERT(OBJ_IS_NATIVE(obj));
         scope = OBJ_SCOPE(obj);
-        JS_ASSERT(scope->object == obj);
         sprop = (JSScopeProperty *) JS_GetPrivate(cx, iterobj);
 
         /*
@@ -4355,13 +4349,10 @@ JS_CloneFunctionObject(JSContext *cx, JSObject *funobj, JSObject *parent)
      */
     if (FUN_FLAT_CLOSURE(fun)) {
         JS_ASSERT(funobj->dslots);
-        JS_ASSERT(JSSLOT_FREE(&js_FunctionClass) == JS_INITIAL_NSLOTS);
-
-        uint32 nslots = JSSLOT_FREE(&js_FunctionClass);
-        JS_ASSERT(nslots == JS_INITIAL_NSLOTS);
-        nslots += js_FunctionClass.reserveSlots(cx, clone);
-        if (!js_AllocSlots(cx, clone, nslots))
+        if (!js_EnsureReservedSlots(cx, clone,
+                                    fun->countInterpretedReservedSlots())) {
             return NULL;
+        }
 
         JSUpvarArray *uva = JS_SCRIPT_UPVARS(fun->u.i.script);
         JS_ASSERT(uva->length <= size_t(clone->dslots[-1]));

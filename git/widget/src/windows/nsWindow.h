@@ -154,8 +154,6 @@ public:
   NS_IMETHOD              SetTitle(const nsAString& aTitle);
   NS_IMETHOD              SetIcon(const nsAString& aIconSpec);
   virtual nsIntPoint      WidgetToScreenOffset();
-  NS_IMETHOD              BeginResizingChildren(void);
-  NS_IMETHOD              EndResizingChildren(void);
   NS_IMETHOD              DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus);
   NS_IMETHOD              EnableDragDrop(PRBool aEnable);
   NS_IMETHOD              CaptureMouse(PRBool aCapture);
@@ -431,10 +429,7 @@ protected:
   char                  mLeadByte;
   PRUint32              mBlurSuppressLevel;
   nsContentType         mContentType;
-  PRInt32               mPreferredWidth;
-  PRInt32               mPreferredHeight;
   PRInt32               mMenuCmdId;
-  HDWP                  mDeferredPositioner;
   DWORD_PTR             mOldStyle;
   DWORD_PTR             mOldExStyle;
   HIMC                  mOldIMC;

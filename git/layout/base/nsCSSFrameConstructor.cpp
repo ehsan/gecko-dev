@@ -1269,7 +1269,7 @@ nsFrameConstructorState::ProcessFrameInsertions(nsAbsoluteItems& aFrameItems,
                "Child list without containing block?");
   
   // Insert the frames hanging out in aItems.  We can use SetInitialChildList()
-  // if the containing block hasn't been reflown yet (so NS_FRAME_FIRST_REFLOW
+  // if the containing block hasn't been reflowed yet (so NS_FRAME_FIRST_REFLOW
   // is set) and doesn't have any frames in the aChildListName child list yet.
   nsIFrame* firstChild = containingBlock->GetFirstChild(aChildListName);
   nsresult rv = NS_OK;
@@ -2481,6 +2481,11 @@ nsCSSFrameConstructor::ConstructDocElementFrame(nsIContent*              aDocEle
 
   *aNewFrame = nsnull;
 
+  // Make sure to call PropagateScrollToViewport before
+  // SetUpDocElementContainingBlock, since it sets up our scrollbar state
+  // properly.
+  nsIContent* propagatedScrollFrom = PropagateScrollToViewport();
+
   SetUpDocElementContainingBlock(aDocElement);
 
   NS_ASSERTION(mDocElementContainingBlock, "Should have parent by now");
@@ -2531,12 +2536,9 @@ nsCSSFrameConstructor::ConstructDocElementFrame(nsIContent*              aDocEle
   // --------- IF SCROLLABLE WRAP IN SCROLLFRAME --------
 
 #ifdef DEBUG
-  PRBool propagatedScrollToViewport =
-    PropagateScrollToViewport() == aDocElement;
-
   NS_ASSERTION(!display->IsScrollableOverflow() || 
                state.mPresContext->IsPaginated() ||
-               propagatedScrollToViewport,
+               propagatedScrollFrom == aDocElement,
                "Scrollbars should have been propagated to the viewport");
 #endif
 
@@ -5587,7 +5589,6 @@ IsRootBoxFrame(nsIFrame *aFrame)
 nsresult
 nsCSSFrameConstructor::ReconstructDocElementHierarchy()
 {
-  AUTO_LAYOUT_PHASE_ENTRY_POINT(mPresShell->GetPresContext(), FrameC);
   return RecreateFramesForContent(mPresShell->GetDocument()->GetRootContent());
 }
 
@@ -5723,13 +5724,13 @@ AdjustAppendParentForAfterContent(nsPresContext* aPresContext,
 static nsIFrame*
 FindAppendPrevSibling(nsIFrame* aParentFrame, nsIFrame* aAfterFrame)
 {
-  nsFrameList childList(aParentFrame->GetFirstChild(nsnull));
   if (aAfterFrame) {
+    nsFrameList childList(aParentFrame->GetFirstChild(nsnull));
     NS_ASSERTION(aAfterFrame->GetParent() == aParentFrame, "Wrong parent");
     return childList.GetPrevSiblingFor(aAfterFrame);
   }
 
-  return childList.LastChild();
+  return aParentFrame->GetLastChild(nsnull);
 }
 
 /**
@@ -6296,7 +6297,10 @@ nsCSSFrameConstructor::ContentAppended(nsIContent*     aContainer,
     for (PRUint32 i = aNewIndexInContainer; i < count; ++i) {
       if (IsSpecialFramesetChild(aContainer->GetChildAt(i))) {
         // Just reframe the parent, since framesets are weird like that.
-        return RecreateFramesForContent(parentFrame->GetContent());
+        LAYOUT_PHASE_TEMP_EXIT();
+        nsresult rv = RecreateFramesForContent(parentFrame->GetContent());
+        LAYOUT_PHASE_TEMP_REENTER();
+        return rv;
       }
     }
   }
@@ -6307,8 +6311,12 @@ nsCSSFrameConstructor::ContentAppended(nsIContent*     aContainer,
   }
   
 #ifdef MOZ_MATHML
-  if (parentFrame->IsFrameOfType(nsIFrame::eMathML))
-    return RecreateFramesForContent(parentFrame->GetContent());
+  if (parentFrame->IsFrameOfType(nsIFrame::eMathML)) {
+    LAYOUT_PHASE_TEMP_EXIT();
+    nsresult rv = RecreateFramesForContent(parentFrame->GetContent());
+    LAYOUT_PHASE_TEMP_REENTER();
+    return rv;
+  }
 #endif
 
   // If the frame we are manipulating is a ``special'' frame (that is, one
@@ -6636,7 +6644,10 @@ nsCSSFrameConstructor::ContentInserted(nsIContent*            aContainer,
   if (frameType == nsGkAtoms::frameSetFrame &&
       IsSpecialFramesetChild(aChild)) {
     // Just reframe the parent, since framesets are weird like that.
-    return RecreateFramesForContent(parentFrame->GetContent());
+    LAYOUT_PHASE_TEMP_EXIT();
+    nsresult rv = RecreateFramesForContent(parentFrame->GetContent());
+    LAYOUT_PHASE_TEMP_REENTER();
+    return rv;
   }
 
   if (frameType == nsGkAtoms::fieldSetFrame &&
@@ -6647,7 +6658,10 @@ nsCSSFrameConstructor::ContentInserted(nsIContent*            aContainer,
     // has a legend which occurs earlier in its child list than this node,
     // and if so, proceed. But we'd have to extend nsFieldSetFrame
     // to locate this legend in the inserted frames and extract it.
-    return RecreateFramesForContent(parentFrame->GetContent());
+    LAYOUT_PHASE_TEMP_EXIT();
+    nsresult rv = RecreateFramesForContent(parentFrame->GetContent());
+    LAYOUT_PHASE_TEMP_REENTER();
+    return rv;
   }
 
   // Don't construct kids of leaves
@@ -6656,8 +6670,12 @@ nsCSSFrameConstructor::ContentInserted(nsIContent*            aContainer,
   }
 
 #ifdef MOZ_MATHML
-  if (parentFrame->IsFrameOfType(nsIFrame::eMathML))
-    return RecreateFramesForContent(parentFrame->GetContent());
+  if (parentFrame->IsFrameOfType(nsIFrame::eMathML)) {
+    LAYOUT_PHASE_TEMP_EXIT();
+    nsresult rv = RecreateFramesForContent(parentFrame->GetContent());
+    LAYOUT_PHASE_TEMP_REENTER();
+    return rv;
+  }
 #endif
 
   nsFrameConstructorState state(mPresShell, mFixedContainingBlock,
@@ -7198,10 +7216,13 @@ nsCSSFrameConstructor::ContentRemoved(nsIContent* aContainer,
     InvalidateCanvasIfNeeded(mPresShell, aChild);
     
     // See whether we need to remove more than just childFrame
+    LAYOUT_PHASE_TEMP_EXIT();
     if (MaybeRecreateContainerForFrameRemoval(childFrame, &rv)) {
+      LAYOUT_PHASE_TEMP_REENTER();
       *aDidReconstruct = PR_TRUE;
       return rv;
     }
+    LAYOUT_PHASE_TEMP_REENTER();
 
     // Get the childFrame's parent frame
     nsIFrame* parentFrame = childFrame->GetParent();
@@ -7211,7 +7232,10 @@ nsCSSFrameConstructor::ContentRemoved(nsIContent* aContainer,
         IsSpecialFramesetChild(aChild)) {
       // Just reframe the parent, since framesets are weird like that.
       *aDidReconstruct = PR_TRUE;
-      return RecreateFramesForContent(parentFrame->GetContent());
+      LAYOUT_PHASE_TEMP_EXIT();
+      nsresult rv = RecreateFramesForContent(parentFrame->GetContent());
+      LAYOUT_PHASE_TEMP_REENTER();
+      return rv;
     }
 
 #ifdef MOZ_MATHML
@@ -7222,7 +7246,10 @@ nsCSSFrameConstructor::ContentRemoved(nsIContent* aContainer,
          parentFrame->GetParent() : parentFrame;
     if (possibleMathMLAncestor->IsFrameOfType(nsIFrame::eMathML)) {
       *aDidReconstruct = PR_TRUE;
-      return RecreateFramesForContent(possibleMathMLAncestor->GetContent());
+      LAYOUT_PHASE_TEMP_EXIT();
+      nsresult rv = RecreateFramesForContent(possibleMathMLAncestor->GetContent());
+      LAYOUT_PHASE_TEMP_REENTER();
+      return rv;
     }
 #endif
 
@@ -7236,7 +7263,10 @@ nsCSSFrameConstructor::ContentRemoved(nsIContent* aContainer,
         aChild == AnyKidsNeedBlockParent(parentFrame->GetFirstChild(nsnull)) &&
         !AnyKidsNeedBlockParent(childFrame->GetNextSibling())) {
       *aDidReconstruct = PR_TRUE;
-      return RecreateFramesForContent(grandparentFrame->GetContent());
+      LAYOUT_PHASE_TEMP_EXIT();
+      nsresult rv = RecreateFramesForContent(grandparentFrame->GetContent());
+      LAYOUT_PHASE_TEMP_REENTER();
+      return rv;
     }
     
     // Examine the containing-block for the removed content and see if
@@ -7373,12 +7403,16 @@ nsCSSFrameConstructor::ContentRemoved(nsIContent* aContainer,
       // and hence it's adjacent to a block end.
       PRInt32 prevSiblingIndex = aIndexInContainer - 1;
       if (prevSiblingIndex > 0 && prevSiblingIndex < childCount - 1) {
+        LAYOUT_PHASE_TEMP_EXIT();
         ReframeTextIfNeeded(aContainer, prevSiblingIndex);
+        LAYOUT_PHASE_TEMP_REENTER();
       }
       // Reframe any text node just after the node being removed, if there is
       // one, and if it's not the last child or the first child.
       if (aIndexInContainer > 0 && aIndexInContainer < childCount - 1) {
+        LAYOUT_PHASE_TEMP_EXIT();
         ReframeTextIfNeeded(aContainer, aIndexInContainer);
+        LAYOUT_PHASE_TEMP_REENTER();
       }
     }
 
@@ -7642,7 +7676,10 @@ nsCSSFrameConstructor::CharacterDataChanged(nsIContent* aContent,
     NS_ASSERTION(!frame || !frame->IsGeneratedContentFrame(),
                  "Bit should never be set on generated content");
 #endif
-    return RecreateFramesForContent(aContent);
+    LAYOUT_PHASE_TEMP_EXIT();
+    nsresult rv = RecreateFramesForContent(aContent);
+    LAYOUT_PHASE_TEMP_REENTER();
+    return rv;
   }
 
   // Find the child frame

@@ -1833,12 +1833,8 @@ Assembler::asm_prep_fcall(Reservation*, LInsp)
 }
 
 NIns*
-Assembler::asm_branch(bool branchOnFalse, LInsp cond, NIns* targ, bool isfar)
+Assembler::asm_branch(bool branchOnFalse, LInsp cond, NIns* targ)
 {
-    // ignore isfar -- we figure this out on our own.
-    // XXX noone actually uses the far param in nj anyway... (always false)
-    (void)isfar;
-
     LOpcode condop = cond->opcode();
     NanoAssert(cond->isCond());
 
@@ -2219,14 +2215,10 @@ Assembler::asm_cmov(LInsp ins)
 {
     NanoAssert(ins->opcode() == LIR_cmov);
     LIns* condval = ins->oprnd1();
+    LIns* iftrue  = ins->oprnd2();
+    LIns* iffalse = ins->oprnd3();
+
     NanoAssert(condval->isCmp());
-
-    LIns* values = ins->oprnd2();
-
-    NanoAssert(values->opcode() == LIR_2);
-    LIns* iftrue = values->oprnd1();
-    LIns* iffalse = values->oprnd2();
-
     NanoAssert(!iftrue->isQuad() && !iffalse->isQuad());
 
     const Register rr = prepResultReg(ins, GpRegs);

@@ -154,8 +154,6 @@ class nsWindow : public nsBaseWidget,
 
    NS_IMETHOD CaptureMouse(PRBool aCapture);
 
-   NS_IMETHOD BeginResizingChildren();
-   NS_IMETHOD EndResizingChildren();
    virtual nsIntPoint WidgetToScreenOffset();
    NS_IMETHOD DispatchEvent( struct nsGUIEvent *event, nsEventStatus &aStatus);
    NS_IMETHOD CaptureRollupEvents(nsIRollupListener * aListener, PRBool aDoCapture, PRBool aConsumeRollupEvent);
@@ -172,7 +170,9 @@ class nsWindow : public nsBaseWidget,
    NS_IMETHOD              Invalidate( PRBool aIsSynchronous);
    NS_IMETHOD              Invalidate( const nsIntRect & aRect, PRBool aIsSynchronous);
    NS_IMETHOD              Update();
-   NS_IMETHOD              Scroll( PRInt32 aDx, PRInt32 aDy, nsIntRect *aClipRect);
+   virtual nsresult        ConfigureChildren(const nsTArray<Configuration>& aConfigurations);
+   virtual void            Scroll(const nsIntPoint& aDelta, const nsIntRect& aSource,
+                                  const nsTArray<Configuration>& aConfigurations);
    NS_IMETHOD              GetToggledKeyState(PRUint32 aKeyCode, PRBool* aLEDState);
 
    // Get a HWND or a HPS.
@@ -266,8 +266,6 @@ protected:
    PFNWP     GetPrevWP() const { return mPrevWndProc; }
 
    // nglayout data members
-   PRInt32        mPreferredHeight;
-   PRInt32        mPreferredWidth;
    nsToolkit     *mOS2Toolkit;
    PRInt32        mWindowState;
    nsRefPtr<gfxOS2Surface> mThebesSurface;
@@ -315,9 +313,6 @@ protected:
    HBITMAP CreateBitmapRGB(PRUint8* aImageData, PRUint32 aWidth, PRUint32 aHeight);
    HBITMAP CreateTransparencyMask(gfxASurface::gfxImageFormat format,
                                   PRUint8* aImageData, PRUint32 aWidth, PRUint32 aHeight);
-
-   BOOL NotifyForeignChildWindows(HWND aWnd);
-   void ScrollChildWindows(PRInt32 aX, PRInt32 aY);
 
    // Enumeration of the methods which are accessible on the PM thread
    enum {

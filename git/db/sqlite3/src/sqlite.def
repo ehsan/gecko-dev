@@ -83,7 +83,6 @@ EXPORTS
         sqlite3_create_module
         sqlite3_data_count
         sqlite3_db_handle
-        sqlite3_db_mutex
         sqlite3_declare_vtab
         sqlite3_enable_load_extension
         sqlite3_enable_shared_cache
@@ -136,6 +135,7 @@ EXPORTS
         sqlite3_result_double
         sqlite3_result_error
         sqlite3_result_error16
+        sqlite3_result_error_nomem
         sqlite3_result_int
         sqlite3_result_int64
         sqlite3_result_null
