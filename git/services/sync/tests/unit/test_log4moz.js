@@ -1,10 +1,8 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-Cu.import("resource://gre/modules/FileUtils.jsm");
-Cu.import("resource://gre/modules/NetUtil.jsm");
-
-Cu.import("resource://services-common/log4moz.js");
+Components.utils.import("resource://services-sync/log4moz.js");
+Components.utils.import("resource://gre/modules/FileUtils.jsm");
 
 let testFormatter = {
   format: function format(message) {

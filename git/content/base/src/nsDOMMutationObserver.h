@@ -320,8 +320,6 @@ protected:
   nsMutationReceiver* GetReceiverFor(nsINode* aNode, bool aMayCreate);
   void RemoveReceiver(nsMutationReceiver* aReceiver);
 
-  already_AddRefed<nsIVariant> TakeRecords();
-
   void GetAllSubtreeObserversFor(nsINode* aNode,
                                  nsTArray<nsMutationReceiver*>& aObservers);
   void ScheduleForRun();

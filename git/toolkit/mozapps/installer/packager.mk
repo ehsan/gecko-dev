@@ -1060,5 +1060,5 @@ hg-bundle:
 	$(CREATE_HG_BUNDLE_CMD)
 	$(SIGN_HG_BUNDLE_CMD)
 
-source-upload:
+upload-source:
 	$(MAKE) upload UPLOAD_FILES="$(SOURCE_UPLOAD_FILES)" CHECKSUM_FILE="$(SOURCE_CHECKSUM_FILE)"

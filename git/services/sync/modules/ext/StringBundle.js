@@ -34,9 +34,12 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-const EXPORTED_SYMBOLS = ["StringBundle"];
+let EXPORTED_SYMBOLS = ["StringBundle"];
 
-const {classes: Cc, interfaces: Ci, results: Cr, utils: Cu} = Components;
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cr = Components.results;
+const Cu = Components.utils;
 
 /**
  * A string bundle.
