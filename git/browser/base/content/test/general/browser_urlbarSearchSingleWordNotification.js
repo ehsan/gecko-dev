@@ -65,15 +65,7 @@ add_task(function* test_navigate_full_domain() {
 function get_test_function_for_localhost_with_hostname(hostName, isPrivate) {
   return function* test_navigate_single_host() {
     const pref = "browser.fixup.domainwhitelist.localhost";
-    let win;
-    if (isPrivate) {
-      win = yield promiseOpenAndLoadWindow({private: true}, true);
-      let deferredOpenFocus = Promise.defer();
-      waitForFocus(deferredOpenFocus.resolve, win);
-      yield deferredOpenFocus.promise;
-    } else {
-      win = window;
-    }
+    let win = isPrivate ? yield promiseOpenAndLoadWindow({private: true}, true) : window;
     let browser = win.gBrowser;
     let tab = browser.selectedTab = browser.addTab();
 
@@ -98,10 +90,8 @@ function get_test_function_for_localhost_with_hostname(hostName, isPrivate) {
     yield* runURLBarSearchTest(hostName, isPrivate, isPrivate, win);
     browser.removeTab(tab);
     if (isPrivate) {
-      info("Waiting for private window to close");
       yield promiseWindowClosed(win);
       let deferredFocus = Promise.defer();
-      info("Waiting for focus");
       waitForFocus(deferredFocus.resolve, window);
       yield deferredFocus.promise;
     }
