@@ -4695,14 +4695,7 @@ nsIFrame::AreLayersMarkedActive(nsChangeHint aChangeHint)
 {
   LayerActivity* layerActivity =
     static_cast<LayerActivity*>(Properties().Get(LayerActivityProperty()));
-  if (layerActivity && (layerActivity->mChangeHint & aChangeHint)) {
-    return true;
-  }
-  if (aChangeHint & nsChangeHint_UpdateTransformLayer &&
-      Preserves3D()) {
-    return GetParent()->AreLayersMarkedActive(nsChangeHint_UpdateTransformLayer);
-  }
-  return false;
+  return layerActivity && (layerActivity->mChangeHint & aChangeHint);
 }
 
 /* static */ void
