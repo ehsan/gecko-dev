@@ -709,7 +709,7 @@ nsBoxFrame::Reflow(nsPresContext*          aPresContext,
 
   aDesiredSize.Width() = mRect.width;
   aDesiredSize.Height() = mRect.height;
-  aDesiredSize.SetBlockStartAscent(ascent);
+  aDesiredSize.SetTopAscent(ascent);
 
   aDesiredSize.mOverflowAreas = GetOverflowAreas();
 
@@ -922,7 +922,7 @@ nsBoxFrame::DoLayout(nsBoxLayoutState& aState)
     if (!(mState & NS_STATE_IS_ROOT)) {
       ascent = GetBoxAscent(aState);
     }
-    desiredSize.SetBlockStartAscent(ascent);
+    desiredSize.SetTopAscent(ascent);
     desiredSize.mOverflowAreas = GetOverflowAreas();
 
     AddStateBits(NS_FRAME_IN_REFLOW);

@@ -3632,7 +3632,12 @@ nsDisplaySubDocument::BuildLayer(nsDisplayListBuilder* aBuilder,
         usingDisplayport = nsLayoutUtils::GetDisplayPort(content, &displayport);
         usingCriticalDisplayport =
           nsLayoutUtils::GetCriticalDisplayPort(content, &criticalDisplayport);
-        scrollId = nsLayoutUtils::FindOrCreateIDFor(content);
+
+        if (isRootContentDocument) {
+          scrollId = nsLayoutUtils::FindOrCreateIDFor(content);
+        } else {
+          nsLayoutUtils::FindIDFor(content, &scrollId);
+        }
       }
     }
 

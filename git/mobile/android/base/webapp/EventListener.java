@@ -31,7 +31,6 @@ import android.content.IntentFilter;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.net.Uri;
-import android.os.Build;
 import android.util.Log;
 
 public class EventListener implements NativeEventListener  {
@@ -42,7 +41,6 @@ public class EventListener implements NativeEventListener  {
         EventDispatcher.getInstance().registerGeckoThreadListener(this,
             "Webapps:Preinstall",
             "Webapps:InstallApk",
-            "Webapps:UninstallApk",
             "Webapps:Postinstall",
             "Webapps:Open",
             "Webapps:Uninstall",
@@ -53,7 +51,6 @@ public class EventListener implements NativeEventListener  {
         EventDispatcher.getInstance().unregisterGeckoThreadListener(this,
             "Webapps:Preinstall",
             "Webapps:InstallApk",
-            "Webapps:UninstallApk",
             "Webapps:Postinstall",
             "Webapps:Open",
             "Webapps:Uninstall",
@@ -65,8 +62,6 @@ public class EventListener implements NativeEventListener  {
         try {
             if (event.equals("Webapps:InstallApk")) {
                 installApk(GeckoAppShell.getGeckoInterface().getActivity(), message, callback);
-            } else if (event.equals("Webapps:UninstallApk")) {
-                uninstallApk(GeckoAppShell.getGeckoInterface().getActivity(), message);
             } else if (event.equals("Webapps:Postinstall")) {
                 postInstallWebapp(message.getString("apkPackageName"), message.getString("origin"));
             } else if (event.equals("Webapps:Open")) {
@@ -196,20 +191,6 @@ public class EventListener implements NativeEventListener  {
                 }
             }
         });
-    }
-
-    public static void uninstallApk(final Activity context, NativeJSObject message) {
-        String packageName = message.getString("apkPackageName");
-        Uri packageUri = Uri.parse("package:" + packageName);
-
-        Intent intent;
-        if (Build.VERSION.SDK_INT < 14) {
-            intent = new Intent(Intent.ACTION_DELETE, packageUri);
-        } else {
-            intent = new Intent(Intent.ACTION_UNINSTALL_PACKAGE, packageUri);
-        }
-
-        context.startActivity(intent);
     }
 
     private static final int DEFAULT_VERSION_CODE = -1;

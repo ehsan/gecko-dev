@@ -203,8 +203,8 @@ TranslationUI.prototype = {
     switch (msg.name) {
       case "Translation:Finished":
         if (msg.data.success) {
-          this.originalShown = false;
           this.state = Translation.STATE_TRANSLATED;
+          this.originalShown = false;
           this.showURLBarIcon();
         } else {
           this.state = Translation.STATE_ERROR;

@@ -452,7 +452,6 @@ gfxPlatform::Shutdown()
     gfxFontCache::Shutdown();
     gfxFontGroup::Shutdown();
     gfxGradientCache::Shutdown();
-    gfxAlphaBoxBlur::ShutdownBlurCache();
     gfxGraphiteShaper::Shutdown();
 #if defined(XP_MACOSX) || defined(XP_WIN) // temporary, until this is implemented on others
     gfxPlatformFontList::Shutdown();

@@ -182,10 +182,8 @@ nsNumberControlFrame::Reflow(nsPresContext* aPresContext,
     FinishReflowChild(outerWrapperFrame, aPresContext, wrappersDesiredSize,
                       &wrapperReflowState, xoffset, yoffset, 0);
 
-    aDesiredSize.SetBlockStartAscent(
-       wrappersDesiredSize.BlockStartAscent() +
-       outerWrapperFrame->BStart(aReflowState.GetWritingMode(),
-                                 contentBoxWidth));
+    aDesiredSize.SetTopAscent(wrappersDesiredSize.TopAscent() +
+                              outerWrapperFrame->GetPosition().y);
   }
 
   aDesiredSize.Width() = contentBoxWidth +

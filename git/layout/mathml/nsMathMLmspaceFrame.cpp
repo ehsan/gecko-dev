@@ -106,9 +106,9 @@ nsMathMLmspaceFrame::Reflow(nsPresContext*          aPresContext,
   mBoundingMetrics.leftBearing = 0;
   mBoundingMetrics.rightBearing = mBoundingMetrics.width;
 
-  aDesiredSize.SetBlockStartAscent(mHeight);
+  aDesiredSize.SetTopAscent(mHeight);
   aDesiredSize.Width() = std::max(0, mBoundingMetrics.width);
-  aDesiredSize.Height() = aDesiredSize.BlockStartAscent() + mDepth;
+  aDesiredSize.Height() = aDesiredSize.TopAscent() + mDepth;
   // Also return our bounding metrics
   aDesiredSize.mBoundingMetrics = mBoundingMetrics;
 

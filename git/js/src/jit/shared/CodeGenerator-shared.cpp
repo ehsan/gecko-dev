@@ -85,7 +85,6 @@ CodeGeneratorShared::CodeGeneratorShared(MIRGenerator *gen, LIRGraph *graph, Mac
 bool
 CodeGeneratorShared::generateOutOfLineCode()
 {
-    JSScript *topScript = sps_.getPushed();
     for (size_t i = 0; i < outOfLineCode_.length(); i++) {
         if (!gen->alloc().ensureBallast())
             return false;
@@ -104,7 +103,6 @@ CodeGeneratorShared::generateOutOfLineCode()
             return false;
         sps_.finishOOL();
     }
-    sps_.setPushed(topScript);
     oolIns = nullptr;
 
     return true;

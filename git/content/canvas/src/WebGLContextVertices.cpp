@@ -244,18 +244,22 @@ WebGLContext::GetVertexAttrib(JSContext* cx, GLuint index, GLenum pname,
 
         case LOCAL_GL_VERTEX_ATTRIB_ARRAY_SIZE:
         {
+            if (!ValidateAttribIndex(index, "getVertexAttrib"))
+                return JS::NullValue();
+
             if (!mBoundVertexArray->mAttribs[index].enabled)
                 return JS::Int32Value(4);
 
-            return JS::Int32Value(mBoundVertexArray->mAttribs[index].size);
+            // Don't break; fall through.
         }
-
         case LOCAL_GL_VERTEX_ATTRIB_ARRAY_TYPE:
         {
-            if (!mBoundVertexArray->mAttribs[index].enabled)
-                return JS::NumberValue(uint32_t(LOCAL_GL_FLOAT));
-
-            return JS::NumberValue(uint32_t(mBoundVertexArray->mAttribs[index].type));
+            GLint i = 0;
+            gl->fGetVertexAttribiv(index, pname, &i);
+            if (pname == LOCAL_GL_VERTEX_ATTRIB_ARRAY_SIZE)
+                return JS::Int32Value(i);
+            MOZ_ASSERT(pname == LOCAL_GL_VERTEX_ATTRIB_ARRAY_TYPE);
+            return JS::NumberValue(uint32_t(i));
         }
 
         case LOCAL_GL_VERTEX_ATTRIB_ARRAY_DIVISOR:
