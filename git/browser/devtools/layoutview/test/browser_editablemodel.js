@@ -22,8 +22,7 @@ let test = asyncTest(function*() {
   inspector.sidebar.select("layoutview");
   yield inspector.sidebar.once("layoutview-ready");
   yield runTests();
-  // TODO: Closing the toolbox in this test leaks - bug 994314
-  // yield gDevTools.closeToolbox(target);
+  yield gDevTools.closeToolbox(toolbox);
 });
 
 addTest("Test that editing margin dynamically updates the document, pressing escape cancels the changes",

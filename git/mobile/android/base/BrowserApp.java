@@ -1632,7 +1632,7 @@ abstract public class BrowserApp extends GeckoApp
             message.put("type", BrowserHealthRecorder.EVENT_SEARCH);
             message.put("location", where);
             message.put("identifier", identifier);
-            GeckoAppShell.getEventDispatcher().dispatchEvent(message, null);
+            GeckoAppShell.getEventDispatcher().dispatchEvent(message);
         } catch (Exception e) {
             Log.w(LOGTAG, "Error recording search.", e);
         }

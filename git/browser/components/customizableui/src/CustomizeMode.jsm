@@ -1603,7 +1603,6 @@ CustomizeMode.prototype = {
     }
     this._updateToolbarCustomizationOutline(this.window);
     this._showPanelCustomizationPlaceholders();
-    DragPositionManager.stop();
   },
 
   _isUnwantedDragDrop: function(aEvent) {

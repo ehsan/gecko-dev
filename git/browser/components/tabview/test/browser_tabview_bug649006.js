@@ -81,11 +81,6 @@ function test4() {
 
   hideTabView(function() {
     is(gBrowser.tabs.length, 1, "Total number of tabs is 1 after all tests");
-
-    contentWindow = null;
-    contentElement = null;
-    groupItem = null;
-
     finish();
   });
 }

@@ -147,7 +147,8 @@ let gUpdater = {
       });
     });
 
-    Promise.all(batch).then(aCallback);
+    let wait = Promise.promised(aCallback);
+    wait.apply(null, batch);
   },
 
   /**
@@ -179,6 +180,7 @@ let gUpdater = {
       gTransformation.showSite(site, function () deferred.resolve());
     });
 
-    Promise.all(batch).then(aCallback);
+    let wait = Promise.promised(aCallback);
+    wait.apply(null, batch);
   }
 };
