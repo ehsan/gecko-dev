@@ -234,7 +234,7 @@ IsPhiObservable(MPhi *phi, Observability observe)
 // Handles cases like:
 //    x is phi(a, x) --> a
 //    x is phi(a, a) --> a
-static inline MDefinition *
+inline MDefinition *
 IsPhiRedundant(MPhi *phi)
 {
     MDefinition *first = phi->operandIfRedundant();
@@ -1916,7 +1916,7 @@ AnalyzePoppedThis(JSContext *cx, types::TypeObject *type,
     if (ins->isCallSetProperty()) {
         MCallSetProperty *setprop = ins->toCallSetProperty();
 
-        if (setprop->object() != thisValue)
+        if (setprop->obj() != thisValue)
             return true;
 
         // Don't use GetAtomId here, we need to watch for SETPROP on

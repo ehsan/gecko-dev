@@ -188,7 +188,7 @@ nsWindow::~nsWindow()
     if (mLayerManager == sLayerManager) {
         // If this window was the one that created the global OMTC layer manager
         // and compositor, then we should null those out.
-        SetCompositor(nullptr, nullptr, nullptr);
+        SetCompositor(NULL, NULL, NULL);
     }
 }
 
@@ -1154,9 +1154,9 @@ void *
 nsWindow::GetNativeData(uint32_t aDataType)
 {
     switch (aDataType) {
-        // used by GLContextProviderEGL, nullptr is EGL_DEFAULT_DISPLAY
+        // used by GLContextProviderEGL, NULL is EGL_DEFAULT_DISPLAY
         case NS_NATIVE_DISPLAY:
-            return nullptr;
+            return NULL;
 
         case NS_NATIVE_WIDGET:
             return (void *) this;
@@ -1619,7 +1619,7 @@ nsWindow::InitKeyEvent(WidgetKeyboardEvent& event, AndroidGeckoEvent& key,
         event.isChar = (charCode >= ' ');
         event.charCode = event.isChar ? charCode : 0;
         event.keyCode = (event.charCode > 0) ? 0 : domKeyCode;
-        event.pluginEvent = nullptr;
+        event.pluginEvent = NULL;
     } else {
 #ifdef DEBUG
         if (event.message != NS_KEY_DOWN && event.message != NS_KEY_UP) {

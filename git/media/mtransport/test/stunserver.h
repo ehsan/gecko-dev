@@ -16,7 +16,6 @@
 
 typedef struct nr_stun_server_ctx_ nr_stun_server_ctx;
 typedef struct nr_socket_ nr_socket;
-typedef struct nr_local_addr_ nr_local_addr;
 
 namespace mozilla {
 
@@ -59,7 +58,6 @@ class TestStunServer {
         listen_port_(0) {}
 
   void Process(const uint8_t *msg, size_t len, nr_transport_addr *addr_in);
-  int TryOpenListenSocket(nr_local_addr* addr, uint16_t port);
 
   static void readable_cb(NR_SOCKET sock, int how, void *cb_arg);
   static void process_cb(NR_SOCKET sock, int how, void *cb_arg);

@@ -18,7 +18,6 @@ Important Concepts
    build-overview
    Mozconfig Files <mozconfigs>
    mozbuild-files
-   mozbuild-symbols
    Profile Guided Optimization <pgo>
    slow
    environment-variables
@@ -40,18 +39,6 @@ Mozilla build system.
 
    mozbuild/index
    mozbuild/dumbmake
-
-Python Packages
-===============
-
-.. toctree::
-   :maxdepth: 2
-
-   python/codegen
-   python/makeutils
-   python/mozbuild
-   python/mozpack
-   python/mozversioncontrol
 
 
 Indices and tables

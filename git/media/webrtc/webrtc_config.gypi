@@ -41,7 +41,7 @@
 #    'aec_debug_dump': 1,
 
     # codec enable/disables:
-    # Note: if you change one here, you must modify layout/media/webrtc/Makefile.in!
+    # Note: if you change one here, you must modify shared_libs.mk!
     'include_g711': 1,
     'include_opus': 1,
     'include_g722': 0,

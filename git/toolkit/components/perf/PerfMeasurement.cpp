@@ -101,13 +101,13 @@ Module::Call(nsIXPConnectWrappedNative* wrapper,
 NS_DEFINE_NAMED_CID(JSPERF_CID);
 
 static const mozilla::Module::CIDEntry kPerfCIDs[] = {
-  { &kJSPERF_CID, false, nullptr, mozilla::jsperf::ModuleConstructor },
-  { nullptr }
+  { &kJSPERF_CID, false, NULL, mozilla::jsperf::ModuleConstructor },
+  { NULL }
 };
 
 static const mozilla::Module::ContractIDEntry kPerfContracts[] = {
   { JSPERF_CONTRACTID, &kJSPERF_CID },
-  { nullptr }
+  { NULL }
 };
 
 static const mozilla::Module kPerfModule = {

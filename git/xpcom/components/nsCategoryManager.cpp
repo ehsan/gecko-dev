@@ -252,7 +252,7 @@ CategoryNode::AddLeaf(const char* aEntryName,
                       PLArenaPool* aArena)
 {
   if (_retval)
-    *_retval = nullptr;
+    *_retval = NULL;
 
   MutexAutoLock lock(mLock);
   CategoryLeaf* leaf = 
@@ -637,7 +637,7 @@ nsCategoryManager::AddCategoryEntry(const char *aCategoryName,
                                     char** aOldValue)
 {
   if (aOldValue)
-    *aOldValue = nullptr;
+    *aOldValue = NULL;
 
   // Before we can insert a new entry, we'll need to
   //  find the |CategoryNode| to put it in...

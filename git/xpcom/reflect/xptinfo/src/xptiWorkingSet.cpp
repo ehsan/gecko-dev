@@ -37,7 +37,7 @@ void
 XPTInterfaceInfoManager::xptiWorkingSet::InvalidateInterfaceInfos()
 {
     ReentrantMonitorAutoEnter monitor(mTableReentrantMonitor);
-    mNameTable.EnumerateRead(xpti_Invalidator, nullptr);
+    mNameTable.EnumerateRead(xpti_Invalidator, NULL);
 }        
 
 XPTInterfaceInfoManager::xptiWorkingSet::~xptiWorkingSet()

@@ -50,7 +50,7 @@ public:
   /**
    * Creates a new file location relative to another one.
    */
-  FileLocation(const FileLocation &file, const char *path = nullptr);
+  FileLocation(const FileLocation &file, const char *path = NULL);
 
   /**
    * Initialization functions corresponding to constructors

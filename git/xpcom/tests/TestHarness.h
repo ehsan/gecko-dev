@@ -101,17 +101,17 @@ class ScopedXPCOM : public nsIDirectoryServiceProvider2
     NS_DECL_ISUPPORTS
 
     ScopedXPCOM(const char* testName,
-                nsIDirectoryServiceProvider *dirSvcProvider = nullptr)
+                nsIDirectoryServiceProvider *dirSvcProvider = NULL)
     : mDirSvcProvider(dirSvcProvider)
     {
       mTestName = testName;
       printf("Running %s tests...\n", mTestName);
 
-      nsresult rv = NS_InitXPCOM2(&mServMgr, nullptr, this);
+      nsresult rv = NS_InitXPCOM2(&mServMgr, NULL, this);
       if (NS_FAILED(rv))
       {
         fail("NS_InitXPCOM2 returned failure code 0x%x", rv);
-        mServMgr = nullptr;
+        mServMgr = NULL;
         return;
       }
     }
@@ -140,7 +140,7 @@ class ScopedXPCOM : public nsIDirectoryServiceProvider2
       if (mServMgr)
       {
         NS_RELEASE(mServMgr);
-        nsresult rv = NS_ShutdownXPCOM(nullptr);
+        nsresult rv = NS_ShutdownXPCOM(NULL);
         if (NS_FAILED(rv))
         {
           fail("XPCOM shutdown failed with code 0x%x", rv);
@@ -153,7 +153,7 @@ class ScopedXPCOM : public nsIDirectoryServiceProvider2
 
     bool failed()
     {
-      return mServMgr == nullptr;
+      return mServMgr == NULL;
     }
 
     already_AddRefed<nsIFile> GetProfileDirectory()

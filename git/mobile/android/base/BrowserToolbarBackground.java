@@ -4,8 +4,6 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.widget.GeckoLinearLayout;
-
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.graphics.Canvas;

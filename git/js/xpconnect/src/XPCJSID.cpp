@@ -266,7 +266,7 @@ NS_IMPL_CLASSINFO(nsJSIID, GetSharedScriptableHelperForJSIID,
                   nsIClassInfo::THREADSAFE, NULL_CID)
 
 NS_DECL_CI_INTERFACE_GETTER(nsJSCID)
-NS_IMPL_CLASSINFO(nsJSCID, nullptr, nsIClassInfo::THREADSAFE, NULL_CID)
+NS_IMPL_CLASSINFO(nsJSCID, NULL, nsIClassInfo::THREADSAFE, NULL_CID)
 
 void xpc_DestroyJSxIDClassObjects()
 {
@@ -707,9 +707,9 @@ GetIIDArg(uint32_t argc, const JS::Value& val, JSContext* cx)
 static void
 GetWrapperObject(MutableHandleObject obj)
 {
-    obj.set(nullptr);
+    obj.set(NULL);
     nsXPConnect* xpc = nsXPConnect::XPConnect();
-    nsAXPCNativeCallContext *ccxp = nullptr;
+    nsAXPCNativeCallContext *ccxp = NULL;
     xpc->GetCurrentNativeCallContext(&ccxp);
     if (!ccxp)
         return;

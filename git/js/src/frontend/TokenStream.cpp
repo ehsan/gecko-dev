@@ -914,7 +914,7 @@ TokenStream::atomize(ExclusiveContext *cx, CharBuffer &cb)
 }
 
 #ifdef DEBUG
-static bool
+bool
 IsTokenSane(Token *tp)
 {
     // Nb: TOK_EOL should never be used in an actual Token;  it should only be

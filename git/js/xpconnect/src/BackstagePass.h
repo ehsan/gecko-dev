@@ -32,7 +32,7 @@ public:
   }
 
   virtual void ForgetGlobalObject() {
-    mGlobal = nullptr;
+    mGlobal = NULL;
   }
 
   virtual void SetGlobalObject(JSObject* global) {

@@ -440,10 +440,8 @@ public:
 
     // Use the regular nsScriptLoader for this grunt work! Should be just fine
     // because we're running on the main thread.
-    // Unlike <script> tags, Worker scripts are always decoded as UTF-8,
-    // per spec. So we explicitly pass in the charset hint.
     rv = nsScriptLoader::ConvertToUTF16(aLoadInfo.mChannel, aString, aStringLen,
-                                        NS_LITERAL_STRING("UTF-8"), parentDoc,
+                                        EmptyString(), parentDoc,
                                         aLoadInfo.mScriptText);
     if (NS_FAILED(rv)) {
       return rv;

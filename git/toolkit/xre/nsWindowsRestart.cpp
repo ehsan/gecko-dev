@@ -28,9 +28,9 @@ static int ArgStrLen(const PRUnichar *s)
 {
   int backslashes = 0;
   int i = wcslen(s);
-  BOOL hasDoubleQuote = wcschr(s, L'"') != nullptr;
+  BOOL hasDoubleQuote = wcschr(s, L'"') != NULL;
   // Only add doublequotes if the string contains a space or a tab
-  BOOL addDoubleQuotes = wcspbrk(s, L" \t") != nullptr;
+  BOOL addDoubleQuotes = wcspbrk(s, L" \t") != NULL;
 
   if (addDoubleQuotes) {
     i += 2; // initial and final duoblequote
@@ -68,9 +68,9 @@ static int ArgStrLen(const PRUnichar *s)
 static PRUnichar* ArgToString(PRUnichar *d, const PRUnichar *s)
 {
   int backslashes = 0;
-  BOOL hasDoubleQuote = wcschr(s, L'"') != nullptr;
+  BOOL hasDoubleQuote = wcschr(s, L'"') != NULL;
   // Only add doublequotes if the string contains a space or a tab
-  BOOL addDoubleQuotes = wcspbrk(s, L" \t") != nullptr;
+  BOOL addDoubleQuotes = wcspbrk(s, L" \t") != NULL;
 
   if (addDoubleQuotes) {
     *d = '"'; // initial doublequote
@@ -132,7 +132,7 @@ MakeCommandLine(int argc, PRUnichar **argv)
 
   PRUnichar *s = (PRUnichar*) malloc(len * sizeof(PRUnichar));
   if (!s)
-    return nullptr;
+    return NULL;
 
   PRUnichar *c = s;
   for (i = 0; i < argc; ++i) {
@@ -159,7 +159,7 @@ AllocConvertUTF8toUTF16(const char *arg)
   int len = strlen(arg);
   PRUnichar *s = new PRUnichar[(len + 1) * sizeof(PRUnichar)];
   if (!s)
-    return nullptr;
+    return NULL;
 
   ConvertUTF8toUTF16 convert(s);
   convert.write(arg, len);
@@ -189,8 +189,8 @@ FreeAllocStrings(int argc, PRUnichar **argv)
 BOOL
 WinLaunchChild(const PRUnichar *exePath, 
                int argc, PRUnichar **argv, 
-               HANDLE userToken = nullptr,
-               HANDLE *hProcess = nullptr);
+               HANDLE userToken = NULL,
+               HANDLE *hProcess = NULL);
 
 BOOL
 WinLaunchChild(const PRUnichar *exePath, 
@@ -235,34 +235,34 @@ WinLaunchChild(const PRUnichar *exePath,
   si.lpDesktop = L"winsta0\\Default";
   PROCESS_INFORMATION pi = {0};
 
-  if (userToken == nullptr) {
+  if (userToken == NULL) {
     ok = CreateProcessW(exePath,
                         cl,
-                        nullptr,  // no special security attributes
-                        nullptr,  // no special thread attributes
+                        NULL,  // no special security attributes
+                        NULL,  // no special thread attributes
                         FALSE, // don't inherit filehandles
                         0,     // creation flags
-                        nullptr,  // inherit my environment
-                        nullptr,  // use my current directory
+                        NULL,  // inherit my environment
+                        NULL,  // use my current directory
                         &si,
                         &pi);
   } else {
     // Create an environment block for the process we're about to start using
     // the user's token.
-    LPVOID environmentBlock = nullptr;
+    LPVOID environmentBlock = NULL;
     if (!CreateEnvironmentBlock(&environmentBlock, userToken, TRUE)) {
-      environmentBlock = nullptr;
+      environmentBlock = NULL;
     }
 
     ok = CreateProcessAsUserW(userToken, 
                               exePath,
                               cl,
-                              nullptr,  // no special security attributes
-                              nullptr,  // no special thread attributes
-                              FALSE,    // don't inherit filehandles
-                              0,        // creation flags
+                              NULL,  // no special security attributes
+                              NULL,  // no special thread attributes
+                              FALSE, // don't inherit filehandles
+                              0,     // creation flags
                               environmentBlock,
-                              nullptr,  // use my current directory
+                              NULL,  // use my current directory
                               &si,
                               &pi);
 
@@ -279,16 +279,16 @@ WinLaunchChild(const PRUnichar *exePath,
     }
     CloseHandle(pi.hThread);
   } else {
-    LPVOID lpMsgBuf = nullptr;
+    LPVOID lpMsgBuf = NULL;
     FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
                   FORMAT_MESSAGE_FROM_SYSTEM |
                   FORMAT_MESSAGE_IGNORE_INSERTS,
-                  nullptr,
+                  NULL,
                   GetLastError(),
                   MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
                   (LPTSTR) &lpMsgBuf,
                   0,
-                  nullptr);
+                  NULL);
     wprintf(L"Error restarting: %s\n", lpMsgBuf ? lpMsgBuf : L"(null)");
     if (lpMsgBuf)
       LocalFree(lpMsgBuf);

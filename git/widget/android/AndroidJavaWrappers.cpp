@@ -137,7 +137,7 @@ jfieldID AndroidProgressiveUpdateData::jShouldAbortField = 0;
 RefCountedJavaObject::~RefCountedJavaObject() {
     if (mObject)
         GetJNIForThread()->DeleteGlobalRef(mObject);
-    mObject = nullptr;
+    mObject = NULL;
 }
 
 void
@@ -233,19 +233,19 @@ AndroidLocation::CreateGeoPosition(JNIEnv *jenv, jobject jobj)
     AutoLocalJNIFrame jniFrame(jenv);
 
     double latitude  = jenv->CallDoubleMethod(jobj, jGetLatitudeMethod);
-    if (jniFrame.CheckForException()) return nullptr;
+    if (jniFrame.CheckForException()) return NULL;
     double longitude = jenv->CallDoubleMethod(jobj, jGetLongitudeMethod);
-    if (jniFrame.CheckForException()) return nullptr;
+    if (jniFrame.CheckForException()) return NULL;
     double altitude  = jenv->CallDoubleMethod(jobj, jGetAltitudeMethod);
-    if (jniFrame.CheckForException()) return nullptr;
+    if (jniFrame.CheckForException()) return NULL;
     float  accuracy  = jenv->CallFloatMethod (jobj, jGetAccuracyMethod);
-    if (jniFrame.CheckForException()) return nullptr;
+    if (jniFrame.CheckForException()) return NULL;
     float  bearing   = jenv->CallFloatMethod (jobj, jGetBearingMethod);
-    if (jniFrame.CheckForException()) return nullptr;
+    if (jniFrame.CheckForException()) return NULL;
     float  speed     = jenv->CallFloatMethod (jobj, jGetSpeedMethod);
-    if (jniFrame.CheckForException()) return nullptr;
+    if (jniFrame.CheckForException()) return NULL;
     long long time   = jenv->CallLongMethod  (jobj, jGetTimeMethod);
-    if (jniFrame.CheckForException()) return nullptr;
+    if (jniFrame.CheckForException()) return NULL;
 
     return new nsGeoPosition(latitude, longitude,
                              altitude, accuracy,
@@ -394,7 +394,7 @@ AndroidGeckoEvent::ReadIntArray(nsTArray<int> &aVals,
                                 int32_t count)
 {
     jintArray jIntArray = (jintArray)jenv->GetObjectField(wrapped_obj, field);
-    jint *vals = jenv->GetIntArrayElements(jIntArray, nullptr);
+    jint *vals = jenv->GetIntArrayElements(jIntArray, NULL);
     for (int32_t i = 0; i < count; i++) {
         aVals.AppendElement(vals[i]);
     }
@@ -408,7 +408,7 @@ AndroidGeckoEvent::ReadFloatArray(nsTArray<float> &aVals,
                                   int32_t count)
 {
     jfloatArray jFloatArray = (jfloatArray)jenv->GetObjectField(wrapped_obj, field);
-    jfloat *vals = jenv->GetFloatArrayElements(jFloatArray, nullptr);
+    jfloat *vals = jenv->GetFloatArrayElements(jFloatArray, NULL);
     for (int32_t i = 0; i < count; i++) {
         aVals.AppendElement(vals[i]);
     }
@@ -1354,7 +1354,7 @@ nsJNIString::nsJNIString(jstring jstr, JNIEnv *jenv)
             return;
         }
     }
-    const jchar* jCharPtr = jni->GetStringChars(jstr, nullptr);
+    const jchar* jCharPtr = jni->GetStringChars(jstr, NULL);
 
     if (!jCharPtr) {
         SetIsVoid(true);

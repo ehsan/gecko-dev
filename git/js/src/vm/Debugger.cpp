@@ -85,7 +85,7 @@ enum {
 
 /*** Utils ***************************************************************************************/
 
-static bool
+bool
 ReportMoreArgsNeeded(JSContext *cx, const char *name, unsigned required)
 {
     JS_ASSERT(required > 0);
@@ -104,14 +104,14 @@ ReportMoreArgsNeeded(JSContext *cx, const char *name, unsigned required)
             return ReportMoreArgsNeeded(cx, name, n);                         \
     JS_END_MACRO
 
-static bool
+bool
 ReportObjectRequired(JSContext *cx)
 {
     JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_NOT_NONNULL_OBJECT);
     return false;
 }
 
-static bool
+bool
 ValueToIdentifier(JSContext *cx, HandleValue v, MutableHandleId id)
 {
     if (!ValueToId<CanGC>(cx, v, id))

@@ -136,7 +136,7 @@ MaybeCheckEvalFreeVariables(ExclusiveContext *cxArg, HandleScript evalCaller, Ha
     return true;
 }
 
-static inline bool
+inline bool
 CanLazilyParse(ExclusiveContext *cx, const CompileOptions &options)
 {
     return options.canLazilyParse &&

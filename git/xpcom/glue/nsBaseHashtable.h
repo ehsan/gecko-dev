@@ -265,8 +265,7 @@ public:
       return PL_DHashTableSizeOfExcludingThis(&this->mTable, s_SizeOfStub,
                                               mallocSizeOf, &args);
     }
-    return PL_DHashTableSizeOfExcludingThis(&this->mTable, nullptr,
-                                            mallocSizeOf);
+    return PL_DHashTableSizeOfExcludingThis(&this->mTable, NULL, mallocSizeOf);
   }
 
 protected:

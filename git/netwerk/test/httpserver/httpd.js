@@ -582,7 +582,7 @@ nsHttpServer.prototype =
     }
     catch (e)
     {
-      dump("\n!!! could not start server on port " + port + ": " + e + "\n\n");
+      dumpn("!!! could not start server on port " + port + ": " + e);
       throw Cr.NS_ERROR_NOT_AVAILABLE;
     }
   },

@@ -148,10 +148,10 @@ nsINIParser::InitFromFILE(FILE *fd)
                                    0,
                                    reinterpret_cast<LPWSTR>(buffer),
                                    -1,
-                                   nullptr,
+                                   NULL,
                                    0,
-                                   nullptr,
-                                   nullptr);
+                                   NULL,
+                                   NULL);
         if (0 == flen) {
             return NS_ERROR_FAILURE;
         }
@@ -163,8 +163,8 @@ nsINIParser::InitFromFILE(FILE *fd)
                                      -1,
                                      utf8Buffer,
                                      flen,
-                                     nullptr,
-                                     nullptr)) {
+                                     NULL,
+                                     NULL)) {
             return NS_ERROR_FAILURE;
         }
         mFileContents = utf8Buffer.forget();

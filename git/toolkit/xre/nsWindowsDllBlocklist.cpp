@@ -135,7 +135,7 @@ static DllBlockInfo sWindowsDllBlocklist[] = {
   // shutdown, bug 831285 and 918399.
   { "beid35cardlayer.dll", MAKE_VERSION(3, 5, 6, 6968) },
 
-  { nullptr, 0 }
+  { NULL, 0 }
 };
 
 #ifndef STATUS_DLL_NOT_FOUND
@@ -188,11 +188,10 @@ CheckASLR(const wchar_t* path)
   bool retval = false;
 
   HANDLE file = ::CreateFileW(path, GENERIC_READ, FILE_SHARE_READ,
-                              nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL,
-                              nullptr);
+                              NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL,
+                              NULL);
   if (file != INVALID_HANDLE_VALUE) {
-    HANDLE map = ::CreateFileMappingW(file, nullptr, PAGE_READONLY, 0, 0,
-                                      nullptr);
+    HANDLE map = ::CreateFileMappingW(file, NULL, PAGE_READONLY, 0, 0, NULL);
     if (map) {
       RVAMap<IMAGE_DOS_HEADER> peHeader(map, 0);
       if (peHeader) {
@@ -279,12 +278,11 @@ wchar_t* getFullPath (PWCHAR filePath, wchar_t* fname)
   // In Windows 8, the first parameter seems to be used for more than just the
   // path name.  For example, its numerical value can be 1.  Passing a non-valid
   // pointer to SearchPathW will cause a crash, so we need to check to see if we
-  // are handed a valid pointer, and otherwise just pass nullptr to SearchPathW.
-  PWCHAR sanitizedFilePath = (intptr_t(filePath) < 1024) ? nullptr : filePath;
+  // are handed a valid pointer, and otherwise just pass NULL to SearchPathW.
+  PWCHAR sanitizedFilePath = (intptr_t(filePath) < 1024) ? NULL : filePath;
 
   // figure out the length of the string that we need
-  DWORD pathlen = SearchPathW(sanitizedFilePath, fname, L".dll", 0, nullptr,
-                              nullptr);
+  DWORD pathlen = SearchPathW(sanitizedFilePath, fname, L".dll", 0, NULL, NULL);
   if (pathlen == 0) {
     return nullptr;
   }
@@ -296,8 +294,7 @@ wchar_t* getFullPath (PWCHAR filePath, wchar_t* fname)
   }
 
   // now actually grab it
-  SearchPathW(sanitizedFilePath, fname, L".dll", pathlen + 1, full_fname,
-              nullptr);
+  SearchPathW(sanitizedFilePath, fname, L".dll", pathlen+1, full_fname, NULL);
   return full_fname;
 }
 

@@ -770,7 +770,7 @@ XPCConvert::JSData2Native(void* d, HandleValue s,
     return true;
 }
 
-static inline bool
+inline bool
 CreateHolderIfNeeded(HandleObject obj, jsval* d,
                      nsIXPConnectJSObjectHolder** dest)
 {

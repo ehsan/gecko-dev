@@ -411,7 +411,7 @@ RecreateBloatView()
                                PL_HashString,
                                PL_CompareStrings,
                                PL_CompareValues,
-                               &bloatViewHashAllocOps, nullptr);
+                               &bloatViewHashAllocOps, NULL);
 }
 
 static BloatEntry*
@@ -420,16 +420,16 @@ GetBloatEntry(const char* aTypeName, uint32_t aInstanceSize)
   if (!gBloatView) {
     RecreateBloatView();
   }
-  BloatEntry* entry = nullptr;
+  BloatEntry* entry = NULL;
   if (gBloatView) {
     entry = (BloatEntry*)PL_HashTableLookup(gBloatView, aTypeName);
-    if (entry == nullptr && aInstanceSize > 0) {
+    if (entry == NULL && aInstanceSize > 0) {
 
       entry = new BloatEntry(aTypeName, aInstanceSize);
       PLHashEntry* e = PL_HashTableAdd(gBloatView, aTypeName, entry);
-      if (e == nullptr) {
+      if (e == NULL) {
         delete entry;
-        entry = nullptr;
+        entry = NULL;
       }
     } else {
       NS_ASSERTION(aInstanceSize == 0 ||
@@ -646,7 +646,7 @@ static bool InitLog(const char* envVar, const char* msg, FILE* *result)
           fname.AppendLiteral(".log");
       }
       stream = ::fopen(fname.get(), "w" FOPEN_NO_INHERIT);
-      if (stream != nullptr) {
+      if (stream != NULL) {
         MozillaRegisterDebugFD(fileno(stream));
         *result = stream;
         fprintf(stdout, "### %s defined -- logging %s to %s\n",
@@ -656,7 +656,7 @@ static bool InitLog(const char* envVar, const char* msg, FILE* *result)
         fprintf(stdout, "### %s defined -- unable to log %s to %s\n",
                 envVar, msg, fname.get());
       }
-      return stream != nullptr;
+      return stream != NULL;
     }
   }
   return false;
@@ -743,7 +743,7 @@ static void InitTraceLog(void)
                                   PL_HashString,
                                   PL_CompareStrings,
                                   PL_CompareValues,
-                                  &typesToLogHashAllocOps, nullptr);
+                                  &typesToLogHashAllocOps, NULL);
     if (!gTypesToLog) {
       NS_WARNING("out of memory");
       fprintf(stdout, "### XPCOM_MEM_LOG_CLASSES defined -- unable to log specific classes\n");
@@ -769,7 +769,7 @@ static void InitTraceLog(void)
                                      HashNumber,
                                      PL_CompareValues,
                                      PL_CompareValues,
-                                     &serialNumberHashAllocOps, nullptr);
+                                     &serialNumberHashAllocOps, NULL);
 
 
   }
@@ -780,7 +780,7 @@ static void InitTraceLog(void)
                                     HashNumber,
                                     PL_CompareValues,
                                     PL_CompareValues,
-                                    nullptr, nullptr);
+                                    NULL, NULL);
 
     if (!gObjectsToLog) {
       NS_WARNING("out of memory");
