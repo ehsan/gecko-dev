@@ -410,8 +410,6 @@ NS_IMPL_RELEASE(CanvasPattern)
 
 NS_INTERFACE_MAP_BEGIN(CanvasPattern)
   NS_INTERFACE_MAP_ENTRY(mozilla::dom::CanvasPattern)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMCanvasPattern)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CanvasPattern)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
@@ -1363,7 +1361,7 @@ CanvasRenderingContext2D::CreateRadialGradient(double x0, double y0, double r0,
   return grad.forget();
 }
 
-already_AddRefed<nsIDOMCanvasPattern>
+already_AddRefed<CanvasPattern>
 CanvasRenderingContext2D::CreatePattern(const HTMLImageOrCanvasOrVideoElement& element,
                                         const nsAString& repeat,
                                         ErrorResult& error)
@@ -3790,6 +3788,5 @@ CanvasRenderingContext2D::ShouldForceInactiveLayer(LayerManager *aManager)
 }
 
 DOMCI_DATA(CanvasGradient, mozilla::dom::CanvasGradient)
-DOMCI_DATA(CanvasPattern, mozilla::dom::CanvasPattern)
 DOMCI_DATA(CanvasRenderingContext2D, mozilla::dom::CanvasRenderingContext2D)
 

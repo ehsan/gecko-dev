@@ -78,7 +78,16 @@ public:
   virtual ~AudioNode();
 
   // This should be idempotent (safe to call multiple times).
-  virtual void DestroyMediaStream();
+  // This should be called in the destructor of every class that overrides
+  // this method.
+  virtual void DestroyMediaStream()
+  {
+    if (mStream) {
+      UnbindFromEngine();
+      mStream->Destroy();
+      mStream = nullptr;
+    }
+  }
 
   // This method should be overridden to return true in nodes
   // which support being hooked up to the Media Stream graph.
@@ -143,6 +152,8 @@ public:
 private:
   // This could possibly delete 'this'.
   void DisconnectFromGraph();
+
+  void UnbindFromEngine();
 
 protected:
   static void Callback(AudioNode* aNode) { /* not implemented */ }

@@ -32,7 +32,6 @@ class TableTicker: public Sampler {
     , mPrimaryThreadProfile(nullptr)
     , mStartTime(TimeStamp::Now())
     , mSaveRequested(false)
-    , mUnwinderThread(false)
   {
     mUseStackWalk = hasFeature(aFeatures, aFeatureCount, "stackwalk");
 
@@ -40,7 +39,6 @@ class TableTicker: public Sampler {
     mJankOnly = hasFeature(aFeatures, aFeatureCount, "jank");
     mProfileJS = hasFeature(aFeatures, aFeatureCount, "js");
     mProfileThreads = true || hasFeature(aFeatures, aFeatureCount, "threads");
-    mUnwinderThread = hasFeature(aFeatures, aFeatureCount, "unwinder") || sps_version2();
     mAddLeafAddresses = hasFeature(aFeatures, aFeatureCount, "leaf");
 
     {
@@ -121,17 +119,12 @@ class TableTicker: public Sampler {
   virtual JSObject *ToJSObject(JSContext *aCx);
   JSCustomObject *GetMetaJSCustomObject(JSAObjectBuilder& b);
 
-  bool HasUnwinderThread() const { return mUnwinderThread; }
   bool ProfileJS() const { return mProfileJS; }
   bool ProfileThreads() const { return mProfileThreads; }
 
+  virtual BreakpadSampler* AsBreakpadSampler() { return nullptr; }
+
 protected:
-  // Called within a signal. This function must be reentrant
-  virtual void UnwinderTick(TickSample* sample);
-
-  // Called within a signal. This function must be reentrant
-  virtual void InplaceTick(TickSample* sample);
-
   // Not implemented on platforms which do not support backtracing
   void doNativeBacktrace(ThreadProfile &aProfile, TickSample* aSample);
 
@@ -146,6 +139,18 @@ protected:
   bool mJankOnly;
   bool mProfileJS;
   bool mProfileThreads;
-  bool mUnwinderThread;
+};
+
+class BreakpadSampler: public TableTicker {
+ public:
+  BreakpadSampler(int aInterval, int aEntrySize,
+              const char** aFeatures, uint32_t aFeatureCount)
+    : TableTicker(aInterval, aEntrySize, aFeatures, aFeatureCount)
+  {}
+
+  // Called within a signal. This function must be reentrant
+  virtual void Tick(TickSample* sample);
+
+  virtual BreakpadSampler* AsBreakpadSampler() { return this; }
 };
 

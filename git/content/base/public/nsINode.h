@@ -276,7 +276,7 @@ public:
   // measurement of the following members may be added later if DMD finds it is
   // worthwhile:
   // - nsGenericHTMLElement:  mForm, mFieldSet
-  // - nsGenericHTMLFrameElement: mFrameLoader (bug 672539)
+  // - nsGenericHTMLFrameElement: mFrameLoader (bug 672539), mTitleChangedListener
   // - HTMLBodyElement:       mContentStyleRule
   // - HTMLDataListElement:   mOptions
   // - HTMLFieldSetElement:   mElements, mDependentElements, mFirstLegend

@@ -65,7 +65,12 @@ public:
     return mWindow;
   }
 
-  void Shutdown();
+  void Shutdown()
+  {
+    Suspend();
+    mDecoder.Shutdown();
+  }
+
   void Suspend();
   void Resume();
 

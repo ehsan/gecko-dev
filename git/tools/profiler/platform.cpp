@@ -268,10 +268,27 @@ void mozilla_sampler_init()
 
   Sampler::RegisterCurrentThread("Gecko", stack, true);
 
-  // Read mode settings from MOZ_PROFILER_MODE and interval
-  // settings from MOZ_PROFILER_INTERVAL and stack-scan threshhold
-  // from MOZ_PROFILER_STACK_SCAN.
-  read_profiler_env_vars();
+  if (sps_version2()) {
+    // Read mode settings from MOZ_PROFILER_MODE and interval
+    // settings from MOZ_PROFILER_INTERVAL and stack-scan threshhold
+    // from MOZ_PROFILER_STACK_SCAN.
+    read_profiler_env_vars();
+
+    // Create the unwinder thread.  ATM there is only one.
+    uwt__init();
+
+# if defined(SPS_PLAT_amd64_linux) || defined(SPS_PLAT_arm_android) \
+     || defined(SPS_PLAT_x86_linux) || defined(SPS_PLAT_x86_android) \
+     || defined(SPS_PLAT_x86_windows) || defined(SPS_PLAT_amd64_windows) /* no idea if windows is correct */
+    // On Linuxes, register this thread (temporarily) for profiling
+    int aLocal;
+    uwt__register_thread_for_profiling( &aLocal );
+# elif defined(SPS_PLAT_amd64_darwin) || defined(SPS_PLAT_x86_darwin)
+    // Registration is done in platform-macos.cc
+# else
+#   error "Unknown plat"
+# endif
+  }
 
   // Allow the profiler to be started using signals
   OS::RegisterStartHandler();
@@ -314,6 +331,14 @@ void mozilla_sampler_shutdown()
         stream.close();
       }
     }
+  }
+
+  // Shut down and reap the unwinder thread.  We have to do this
+  // before stopping the sampler, so as to guarantee that the unwinder
+  // thread doesn't try to access memory that the subsequent call to
+  // mozilla_sampler_stop causes to be freed.
+  if (sps_version2()) {
+    uwt__deinit();
   }
 
   profiler_stop();
@@ -371,24 +396,13 @@ const char** mozilla_sampler_get_features()
 {
   static const char* features[] = {
 #if defined(MOZ_PROFILING) && defined(HAVE_NATIVE_UNWIND)
-    // Walk the C++ stack.
     "stackwalk",
 #endif
 #if defined(ENABLE_SPS_LEAF_DATA)
-    // Include the C++ leaf node if not stackwalking. DevTools
-    // profiler doesn't want the native addresses.
     "leaf",
 #endif
-#if !defined(SPS_OS_windows)
-    // Use a seperate thread of walking the stack.
-    "unwinder",
-#endif
-    // Only record samples during periods of bad responsiveness
     "jank",
-    // Tell the JS engine to emmit pseudostack entries in the
-    // pro/epilogue.
     "js",
-    // Profile the registered secondary threads.
     "threads",
     NULL
   };
@@ -418,17 +432,15 @@ void mozilla_sampler_start(int aProfileEntries, int aInterval,
   profiler_stop();
 
   TableTicker* t;
-  t = new TableTicker(aInterval ? aInterval : PROFILE_DEFAULT_INTERVAL,
-                      aProfileEntries ? aProfileEntries : PROFILE_DEFAULT_ENTRY,
-                      aFeatures, aFeatureCount);
-  if (t->HasUnwinderThread()) {
-    int aLocal;
-    uwt__register_thread_for_profiling( &aLocal );
-
-    // Create the unwinder thread.  ATM there is only one.
-    uwt__init();
+  if (sps_version2()) {
+    t = new BreakpadSampler(aInterval ? aInterval : PROFILE_DEFAULT_INTERVAL,
+                           aProfileEntries ? aProfileEntries : PROFILE_DEFAULT_ENTRY,
+                           aFeatures, aFeatureCount);
+  } else {
+    t = new TableTicker(aInterval ? aInterval : PROFILE_DEFAULT_INTERVAL,
+                        aProfileEntries ? aProfileEntries : PROFILE_DEFAULT_ENTRY,
+                        aFeatures, aFeatureCount);
   }
-
   tlsTicker.set(t);
   t->Start();
   if (t->ProfileJS()) {
@@ -463,15 +475,6 @@ void mozilla_sampler_stop()
   }
 
   bool disableJS = t->ProfileJS();
-  bool unwinderThreader = t->HasUnwinderThread();
-
-  // Shut down and reap the unwinder thread.  We have to do this
-  // before stopping the sampler, so as to guarantee that the unwinder
-  // thread doesn't try to access memory that the subsequent call to
-  // mozilla_sampler_stop causes to be freed.
-  if (unwinderThreader) {
-    uwt__stop();
-  }
 
   t->Stop();
   delete t;
@@ -481,10 +484,6 @@ void mozilla_sampler_stop()
 
   if (disableJS)
     stack->disableJSSampling();
-
-  if (unwinderThreader) {
-    uwt__deinit();
-  }
 
   sIsProfiling = false;
 

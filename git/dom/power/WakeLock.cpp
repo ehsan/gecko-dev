@@ -12,6 +12,7 @@
 #include "nsIDOMWindow.h"
 #include "nsIDOMEvent.h"
 #include "nsIDOMDocument.h"
+#include "nsIDOMEventTarget.h"
 #include "nsPIDOMWindow.h"
 #include "PowerManager.h"
 

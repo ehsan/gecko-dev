@@ -17,6 +17,7 @@
 #include "nsVariant.h"
 #include "nsIDOMBeforeUnloadEvent.h"
 #include "nsGkAtoms.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIJSContextStack.h"
 #include "xpcpublic.h"
 #include "nsJSEnvironment.h"

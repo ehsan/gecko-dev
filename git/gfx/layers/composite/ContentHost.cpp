@@ -31,10 +31,7 @@ ContentHostBase::DestroyFrontHost()
 {
   MOZ_ASSERT(!mTextureHost || mTextureHost->GetDeAllocator(),
              "We won't be able to destroy our SurfaceDescriptor");
-  MOZ_ASSERT(!mTextureHostOnWhite || mTextureHostOnWhite->GetDeAllocator(),
-             "We won't be able to destroy our SurfaceDescriptor");
   mTextureHost = nullptr;
-  mTextureHostOnWhite = nullptr;
 }
 
 void
@@ -49,17 +46,12 @@ ContentHostBase::Composite(EffectChain& aEffectChain,
 {
   NS_ASSERTION(aVisibleRegion, "Requires a visible region");
 
-  AutoLockTextureHost lock(mTextureHost);
-  AutoLockTextureHost lockOnWhite(mTextureHostOnWhite);
-
-  if (!mTextureHost ||
-      !lock.IsValid() ||
-      !lockOnWhite.IsValid()) {
+  if (!mTextureHost || !mTextureHost->Lock()) {
     return;
   }
 
   RefPtr<TexturedEffect> effect =
-    CreateTexturedEffect(mTextureHost, mTextureHostOnWhite, aFilter);
+    CreateTexturedEffect(mTextureHost, aFilter);
 
   aEffectChain.mPrimaryEffect = effect;
 
@@ -89,6 +81,7 @@ ContentHostBase::Composite(EffectChain& aEffectChain,
   subregion.And(region, textureRect);
   if (subregion.IsEmpty()) {
     // Region is empty, nothing to draw
+    mTextureHost->Unlock();
     return;
   }
 
@@ -189,6 +182,8 @@ ContentHostBase::Composite(EffectChain& aEffectChain,
   if (iterOnWhite) {
     iterOnWhite->EndTileIteration();
   }
+
+  mTextureHost->Unlock();
 }
 
 void
@@ -215,19 +210,15 @@ ContentHostSingleBuffered::EnsureTextureHost(TextureIdentifier aTextureId,
                                              ISurfaceAllocator* aAllocator,
                                              const TextureInfo& aTextureInfo)
 {
-  MOZ_ASSERT(aTextureId == TextureFront ||
-             aTextureId == TextureOnWhiteFront);
-  RefPtr<TextureHost> *newHost =
-    (aTextureId == TextureFront) ? &mNewFrontHost : &mNewFrontHostOnWhite;
+  MOZ_ASSERT(aTextureId == TextureFront);
+  mNewFrontHost = TextureHost::CreateTextureHost(aSurface.type(),
+                                                 aTextureInfo.mTextureHostFlags,
+                                                 aTextureInfo.mTextureFlags);
 
-  *newHost = TextureHost::CreateTextureHost(aSurface.type(),
-                                            aTextureInfo.mTextureHostFlags,
-                                            aTextureInfo.mTextureFlags);
-
-  (*newHost)->SetBuffer(new SurfaceDescriptor(aSurface), aAllocator);
+  mNewFrontHost->SetBuffer(new SurfaceDescriptor(aSurface), aAllocator);
   Compositor* compositor = GetCompositor();
   if (compositor) {
-    (*newHost)->SetCompositor(compositor);
+    mNewFrontHost->SetCompositor(compositor);
   }
 
   return true;
@@ -238,10 +229,7 @@ ContentHostSingleBuffered::DestroyTextures()
 {
   MOZ_ASSERT(!mNewFrontHost || mNewFrontHost->GetDeAllocator(),
              "We won't be able to destroy our SurfaceDescriptor");
-  MOZ_ASSERT(!mNewFrontHostOnWhite || mNewFrontHostOnWhite->GetDeAllocator(),
-             "We won't be able to destroy our SurfaceDescriptor");
   mNewFrontHost = nullptr;
-  mNewFrontHostOnWhite = nullptr;
 
   // don't touch mTextureHost, we might need it for compositing
 }
@@ -263,14 +251,9 @@ ContentHostSingleBuffered::UpdateThebes(const ThebesBufferData& aData,
     DestroyFrontHost();
     mTextureHost = mNewFrontHost;
     mNewFrontHost = nullptr;
-    if (mNewFrontHostOnWhite) {
-      mTextureHostOnWhite = mNewFrontHostOnWhite;
-      mNewFrontHostOnWhite = nullptr;
-    }
   }
 
   MOZ_ASSERT(mTextureHost);
-  MOZ_ASSERT(!mNewFrontHostOnWhite, "New white host without a new black?");
 
   // updated is in screen coordinates. Convert it to buffer coordinates.
   nsIntRegion destRegion(aUpdated);
@@ -292,9 +275,6 @@ ContentHostSingleBuffered::UpdateThebes(const ThebesBufferData& aData,
                "updated region lies across rotation boundaries!");
 
   mTextureHost->Update(*mTextureHost->GetBuffer(), &destRegion);
-  if (mTextureHostOnWhite) {
-    mTextureHostOnWhite->Update(*mTextureHostOnWhite->GetBuffer(), &destRegion);
-  }
   mInitialised = true;
 
   mBufferRect = aData.rect();
@@ -328,18 +308,11 @@ ContentHostDoubleBuffered::EnsureTextureHost(TextureIdentifier aTextureId,
     mNewFrontHost = newHost;
     return true;
   }
-  if (aTextureId == TextureOnWhiteFront) {
-    mNewFrontHostOnWhite = newHost;
-    return true;
-  }
   if (aTextureId == TextureBack) {
     mBackHost = newHost;
     mBufferRect = nsIntRect();
     mBufferRotation = nsIntPoint();
     return true;
-  }
-  if (aTextureId == TextureOnWhiteBack) {
-    mBackHostOnWhite = newHost;
   }
 
   NS_ERROR("Bad texture identifier");
@@ -355,22 +328,10 @@ ContentHostDoubleBuffered::DestroyTextures()
     mNewFrontHost = nullptr;
   }
 
-  if (mNewFrontHostOnWhite) {
-    MOZ_ASSERT(mNewFrontHostOnWhite->GetDeAllocator(),
-               "We won't be able to destroy our SurfaceDescriptor");
-    mNewFrontHostOnWhite = nullptr;
-  }
-
   if (mBackHost) {
     MOZ_ASSERT(mBackHost->GetDeAllocator(),
                "We won't be able to destroy our SurfaceDescriptor");
     mBackHost = nullptr;
-  }
-
-  if (mBackHostOnWhite) {
-    MOZ_ASSERT(mBackHostOnWhite->GetDeAllocator(),
-               "We won't be able to destroy our SurfaceDescriptor");
-    mBackHostOnWhite = nullptr;
   }
 
   // don't touch mTextureHost, we might need it for compositing
@@ -393,28 +354,16 @@ ContentHostDoubleBuffered::UpdateThebes(const ThebesBufferData& aData,
     DestroyFrontHost();
     mTextureHost = mNewFrontHost;
     mNewFrontHost = nullptr;
-    if (mNewFrontHostOnWhite) {
-      mTextureHostOnWhite = mNewFrontHostOnWhite;
-      mNewFrontHostOnWhite = nullptr;
-    }
   }
 
   MOZ_ASSERT(mTextureHost);
-  MOZ_ASSERT(!mNewFrontHostOnWhite, "New white host without a new black?");
   MOZ_ASSERT(mBackHost);
 
   RefPtr<TextureHost> oldFront = mTextureHost;
   mTextureHost = mBackHost;
   mBackHost = oldFront;
 
-  oldFront = mTextureHostOnWhite;
-  mTextureHostOnWhite = mBackHostOnWhite;
-  mBackHostOnWhite = oldFront;
-
   mTextureHost->Update(*mTextureHost->GetBuffer());
-  if (mTextureHostOnWhite) {
-    mTextureHostOnWhite->Update(*mTextureHostOnWhite->GetBuffer());
-  }
   mInitialised = true;
 
   mBufferRect = aData.rect();

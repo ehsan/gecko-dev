@@ -18,6 +18,7 @@ struct ANPEvent;
 
 namespace mozilla {
     class AndroidGeckoEvent;
+    class AndroidKeyEvent;
 
     namespace layers {
         class CompositorParent;

@@ -70,6 +70,7 @@
 #include "nsISecureBrowserUI.h"
 #include "nsIObserver.h"
 #include "nsDocShellLoadTypes.h"
+#include "nsIDOMEventTarget.h"
 #include "nsILoadContext.h"
 #include "nsIWidget.h"
 #include "nsIWebShellServices.h"
@@ -77,12 +78,6 @@
 #include "nsIClipboardCommands.h"
 #include "nsICommandManager.h"
 #include "nsCRT.h"
-
-namespace mozilla {
-namespace dom {
-class EventTarget;
-}
-}
 
 class nsDocShell;
 class nsDOMNavigationTiming;

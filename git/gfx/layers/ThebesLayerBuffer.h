@@ -11,7 +11,6 @@
 #include "nsRegion.h"
 #include "mozilla/layers/TextureClient.h"
 #include "mozilla/gfx/2D.h"
-#include "Layers.h"
 
 namespace mozilla {
 namespace layers {
@@ -38,39 +37,25 @@ class RotatedBuffer {
 public:
   typedef gfxASurface::gfxContentType ContentType;
 
-  RotatedBuffer(gfxASurface* aBuffer, gfxASurface* aBufferOnWhite,
-                const nsIntRect& aBufferRect,
+  RotatedBuffer(gfxASurface* aBuffer, const nsIntRect& aBufferRect,
                 const nsIntPoint& aBufferRotation)
     : mBuffer(aBuffer)
-    , mBufferOnWhite(aBufferOnWhite)
     , mBufferRect(aBufferRect)
     , mBufferRotation(aBufferRotation)
   { }
-  RotatedBuffer(gfx::DrawTarget* aDTBuffer, gfx::DrawTarget* aDTBufferOnWhite,
-                const nsIntRect& aBufferRect,
+  RotatedBuffer(gfx::DrawTarget* aDTBuffer, const nsIntRect& aBufferRect,
                 const nsIntPoint& aBufferRotation)
     : mDTBuffer(aDTBuffer)
-    , mDTBufferOnWhite(aDTBufferOnWhite)
     , mBufferRect(aBufferRect)
     , mBufferRotation(aBufferRotation)
   { }
   RotatedBuffer() { }
 
-  /*
-   * Which buffer should be drawn to/read from.
-   */
-  enum ContextSource {
-    BUFFER_BLACK, // The normal buffer, or buffer with black background when using component alpha.
-    BUFFER_WHITE, // The buffer with white background, only valid with component alpha.
-    BUFFER_BOTH // The combined black/white buffers, only valid for writing operations, not reading.
-  };
-  void DrawBufferWithRotation(gfxContext* aTarget, ContextSource aSource,
-                              float aOpacity = 1.0,
+  void DrawBufferWithRotation(gfxContext* aTarget, float aOpacity = 1.0,
                               gfxASurface* aMask = nullptr,
                               const gfxMatrix* aMaskTransform = nullptr) const;
 
-  void DrawBufferWithRotation(gfx::DrawTarget* aTarget, ContextSource aSource,
-                              float aOpacity = 1.0,
+  void DrawBufferWithRotation(gfx::DrawTarget* aTarget, float aOpacity = 1.0,
                               gfx::SourceSurface* aMask = nullptr,
                               const gfx::Matrix* aMaskTransform = nullptr) const;
 
@@ -81,9 +66,6 @@ public:
    */
   const nsIntRect& BufferRect() const { return mBufferRect; }
   const nsIntPoint& BufferRotation() const { return mBufferRotation; }
-
-  virtual bool HaveBuffer() const { return mBuffer || mDTBuffer; }
-  virtual bool HaveBufferOnWhite() const { return mBufferOnWhite || mDTBufferOnWhite; }
 
 protected:
 
@@ -101,20 +83,16 @@ protected:
    * to adjust the coordinate space of the mask.
    */
   void DrawBufferQuadrant(gfxContext* aTarget, XSide aXSide, YSide aYSide,
-                          ContextSource aSource,
                           float aOpacity,
                           gfxASurface* aMask,
                           const gfxMatrix* aMaskTransform) const;
   void DrawBufferQuadrant(gfx::DrawTarget* aTarget, XSide aXSide, YSide aYSide,
-                          ContextSource aSource,
                           float aOpacity,
                           gfx::SourceSurface* aMask,
                           const gfx::Matrix* aMaskTransform) const;
 
   nsRefPtr<gfxASurface> mBuffer;
-  nsRefPtr<gfxASurface> mBufferOnWhite;
   RefPtr<gfx::DrawTarget> mDTBuffer;
-  RefPtr<gfx::DrawTarget> mDTBufferOnWhite;
   /** The area of the ThebesLayer that is covered by the buffer as a whole */
   nsIntRect             mBufferRect;
   /**
@@ -152,7 +130,7 @@ public:
 
   ThebesLayerBuffer(BufferSizePolicy aBufferSizePolicy)
     : mBufferProvider(nullptr)
-    , mBufferProviderOnWhite(nullptr)
+    , mTextureClientForBuffer(nullptr)
     , mBufferSizePolicy(aBufferSizePolicy)
   {
     MOZ_COUNT_CTOR(ThebesLayerBuffer);
@@ -169,11 +147,9 @@ public:
   void Clear()
   {
     mBuffer = nullptr;
-    mBufferOnWhite = nullptr;
     mDTBuffer = nullptr;
-    mDTBufferOnWhite = nullptr;
     mBufferProvider = nullptr;
-    mBufferProviderOnWhite = nullptr;
+    mTextureClientForBuffer = nullptr;
     mBufferRect.SetEmpty();
   }
 
@@ -221,9 +197,7 @@ public:
                         uint32_t aFlags);
 
   enum {
-    ALLOW_REPEAT = 0x01,
-    BUFFER_COMPONENT_ALPHA = 0x02 // Dual buffers should be created for drawing with
-                                  // component alpha.
+    ALLOW_REPEAT = 0x01
   };
   /**
    * Return a new surface of |aSize| and |aType|.
@@ -231,7 +205,7 @@ public:
    * to allow repeat-mode, otherwise it should be in pad (clamp) mode
    */
   virtual already_AddRefed<gfxASurface>
-  CreateBuffer(ContentType aType, const nsIntRect& aRect, uint32_t aFlags, gfxASurface** aWhiteSurface) = 0;
+  CreateBuffer(ContentType aType, const nsIntRect& aRect, uint32_t aFlags) = 0;
   virtual TemporaryRef<gfx::DrawTarget>
   CreateDTBuffer(ContentType aType, const nsIntRect& aRect, uint32_t aFlags)
   { NS_RUNTIMEABORT("CreateDTBuffer not implemented on this platform!"); return nullptr; }
@@ -244,7 +218,6 @@ public:
    * Don't use it for anything else!
    */
   gfxASurface* GetBuffer() { return mBuffer; }
-  gfxASurface* GetBufferOnWhite() { return mBufferOnWhite; }
 
   /**
    * Complete the drawing operation. The region to draw must have been
@@ -267,49 +240,43 @@ protected:
     return tmp.forget();
   }
 
-  already_AddRefed<gfxASurface>
-  SetBufferOnWhite(gfxASurface* aBuffer)
-  {
-    nsRefPtr<gfxASurface> tmp = mBufferOnWhite.forget();
-    mBufferOnWhite = aBuffer;
-    return tmp.forget();
-  }
-
   /**
-   * Set the texture client only.  This is used with surfaces that
-   * require explicit lock/unlock, which |aClient| is used to do on
+   * Set the buffer provider only.  This is used with surfaces that
+   * require explicit map/unmap, which |aProvider| is used to do on
    * demand in this code.
    *
-   * It's the caller's responsibility to ensure |aClient| is valid
+   * It's the caller's responsibility to ensure |aProvider| is valid
    * for the duration of operations it requests of this
    * ThebesLayerBuffer.  It's also the caller's responsibility to
    * unset the provider when inactive, by calling
    * SetBufferProvider(nullptr).
    */
-  void SetBufferProvider(TextureClient* aClient)
+  void SetBufferProvider(AutoOpenSurface* aProvider)
   {
-    // Only this buffer provider can give us a buffer.  If we
-    // already have one, something has gone wrong.
-    MOZ_ASSERT(!aClient || (!mBuffer && !mDTBuffer));
-
-    mBufferProvider = aClient;
+    NS_ASSERTION(!mTextureClientForBuffer, "Can't have a TextureClient and a buffer provider");
+    mBufferProvider = aProvider;
     if (!mBufferProvider) {
       mBuffer = nullptr;
-      mDTBuffer = nullptr;
-    } 
+    } else {
+      // Only this buffer provider can give us a buffer.  If we
+      // already have one, something has gone wrong.
+      MOZ_ASSERT(!mBuffer);
+    }
   }
-  
-  void SetBufferProviderOnWhite(TextureClient* aClient)
-  {
-    // Only this buffer provider can give us a buffer.  If we
-    // already have one, something has gone wrong.
-    MOZ_ASSERT(!aClient || (!mBufferOnWhite && !mDTBufferOnWhite));
 
-    mBufferProviderOnWhite = aClient;
-    if (!mBufferProviderOnWhite) {
-      mBufferOnWhite = nullptr;
-      mDTBufferOnWhite = nullptr;
-    } 
+  // As SetBufferProvider, but using a texture client as the provider
+  void SetTextureClientForBuffer(TextureClient* aClient)
+  {
+    NS_ASSERTION(!mBufferProvider, "Can't have a TextureClient and a buffer provider");
+    mTextureClientForBuffer = aClient;
+    if (!mTextureClientForBuffer) {
+      mBuffer = nullptr;
+      mDTBuffer = nullptr;
+    } else {
+      // Only this buffer provider can give us a buffer.  If we
+      // already have one, something has gone wrong.
+      MOZ_ASSERT(!mBuffer && !mDTBuffer);
+    }
   }
 
   /**
@@ -317,7 +284,7 @@ protected:
    * which must be contained within a single quadrant.
    */
   already_AddRefed<gfxContext>
-  GetContextForQuadrantUpdate(const nsIntRect& aBounds, ContextSource aSource);
+  GetContextForQuadrantUpdate(const nsIntRect& aBounds);
 
   static bool IsClippingCheap(gfxContext* aTarget, const nsIntRegion& aRegion);
 
@@ -335,21 +302,19 @@ protected:
    * If the buffer hasn't been mapped, map it.
    */
   void EnsureBuffer();
-  void EnsureBufferOnWhite();
   /**
    * True if we have a buffer where we can get it (but not necessarily
    * mapped currently).
    */
-  virtual bool HaveBuffer() const;
-  virtual bool HaveBufferOnWhite() const;
+  bool HaveBuffer();
 
   /**
    * These members are only set transiently.  They're used to map mBuffer
    * when we're using surfaces that require explicit map/unmap. Only one
    * may be used at a time.
    */
-  TextureClient* mBufferProvider;
-  TextureClient* mBufferProviderOnWhite;
+  AutoOpenSurface* mBufferProvider;
+  TextureClient* mTextureClientForBuffer;
 
   BufferSizePolicy      mBufferSizePolicy;
 };

@@ -26,6 +26,7 @@
 #include "nsIDOMEventListener.h"
 #include "nsIDOMWindow.h"
 #include "nsIDOMEvent.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIDOMDocument.h"
 #include "nsPIDOMWindow.h"
 #include "StaticPtr.h"

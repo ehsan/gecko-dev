@@ -683,8 +683,7 @@ ShadowLayerForwarder::Connect(CompositableClient* aCompositable)
 void
 ShadowLayerForwarder::CreatedSingleBuffer(CompositableClient* aCompositable,
                                           const SurfaceDescriptor& aDescriptor,
-                                          const TextureInfo& aTextureInfo,
-                                          const SurfaceDescriptor* aDescriptorOnWhite)
+                                          const TextureInfo& aTextureInfo)
 {
   MOZ_ASSERT(aDescriptor.type() != SurfaceDescriptor::T__None &&
              aDescriptor.type() != SurfaceDescriptor::Tnull_t);
@@ -692,21 +691,13 @@ ShadowLayerForwarder::CreatedSingleBuffer(CompositableClient* aCompositable,
                                  TextureFront,
                                  aDescriptor,
                                  aTextureInfo));
-  if (aDescriptorOnWhite) {
-    mTxn->AddEdit(OpCreatedTexture(nullptr, aCompositable->GetIPDLActor(),
-                                   TextureOnWhiteFront,
-                                   *aDescriptorOnWhite,
-                                   aTextureInfo));
-  }
 }
 
 void
 ShadowLayerForwarder::CreatedDoubleBuffer(CompositableClient* aCompositable,
                                           const SurfaceDescriptor& aFrontDescriptor,
                                           const SurfaceDescriptor& aBackDescriptor,
-                                          const TextureInfo& aTextureInfo,
-                                          const SurfaceDescriptor* aFrontDescriptorOnWhite,
-                                          const SurfaceDescriptor* aBackDescriptorOnWhite)
+                                          const TextureInfo& aTextureInfo)
 {
   MOZ_ASSERT(aFrontDescriptor.type() != SurfaceDescriptor::T__None &&
              aBackDescriptor.type() != SurfaceDescriptor::T__None &&
@@ -720,17 +711,6 @@ ShadowLayerForwarder::CreatedDoubleBuffer(CompositableClient* aCompositable,
                                  TextureBack,
                                  aBackDescriptor,
                                  aTextureInfo));
-  if (aFrontDescriptorOnWhite) {
-    MOZ_ASSERT(aBackDescriptorOnWhite);
-    mTxn->AddEdit(OpCreatedTexture(nullptr, aCompositable->GetIPDLActor(),
-                                   TextureOnWhiteFront,
-                                   *aFrontDescriptorOnWhite,
-                                   aTextureInfo));
-    mTxn->AddEdit(OpCreatedTexture(nullptr, aCompositable->GetIPDLActor(),
-                                   TextureOnWhiteBack,
-                                   *aBackDescriptorOnWhite,
-                                   aTextureInfo));
-  }
 }
 
 void

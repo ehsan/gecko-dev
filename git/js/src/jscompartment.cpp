@@ -213,7 +213,15 @@ JSCompartment::wrap(JSContext *cx, MutableHandleValue vp, HandleObject existingA
 
     JS_CHECK_CHROME_RECURSION(cx, return false);
 
-    AutoDisableProxyCheck adpc(rt);
+#ifdef DEBUG
+    struct AutoDisableProxyCheck {
+        JSRuntime *runtime;
+        AutoDisableProxyCheck(JSRuntime *rt) : runtime(rt) {
+            runtime->gcDisableStrictProxyCheckingCount++;
+        }
+        ~AutoDisableProxyCheck() { runtime->gcDisableStrictProxyCheckingCount--; }
+    } adpc(rt);
+#endif
 
     /* Only GC things have to be wrapped or copied. */
     if (!vp.isMarkable())
@@ -814,7 +822,7 @@ void
 JSCompartment::sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf, size_t *compartmentObject,
                                    JS::TypeInferenceSizes *tiSizes, size_t *shapesCompartmentTables,
                                    size_t *crossCompartmentWrappersArg, size_t *regexpCompartment,
-                                   size_t *debuggeesSet, size_t *baselineStubsOptimized)
+                                   size_t *debuggeesSet, size_t *baselineOptimizedStubs)
 {
     *compartmentObject = mallocSizeOf(this);
     sizeOfTypeInferenceData(tiSizes, mallocSizeOf);
@@ -826,11 +834,11 @@ JSCompartment::sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf, size_t *compa
     *regexpCompartment = regExps.sizeOfExcludingThis(mallocSizeOf);
     *debuggeesSet = debuggees.sizeOfExcludingThis(mallocSizeOf);
 #ifdef JS_ION
-    *baselineStubsOptimized = ionCompartment()
+    *baselineOptimizedStubs = ionCompartment()
         ? ionCompartment()->optimizedStubSpace()->sizeOfExcludingThis(mallocSizeOf)
         : 0;
 #else
-    *baselineStubsOptimized = 0;
+    *baselineOptimizedStubs = 0;
 #endif
 }
 

@@ -202,18 +202,12 @@ AudioNode::Disconnect(uint32_t aOutput, ErrorResult& aRv)
 }
 
 void
-AudioNode::DestroyMediaStream()
+AudioNode::UnbindFromEngine()
 {
-  if (mStream) {
-    // Remove the node reference on the engine
-    AudioNodeStream* ns = static_cast<AudioNodeStream*>(mStream.get());
-    MOZ_ASSERT(ns, "How come we don't have a stream here?");
-    MOZ_ASSERT(ns->Engine()->mNode == this, "Invalid node reference");
-    ns->Engine()->mNode = nullptr;
-
-    mStream->Destroy();
-    mStream = nullptr;
-  }
+  AudioNodeStream* ns = static_cast<AudioNodeStream*>(mStream.get());
+  MOZ_ASSERT(ns, "How come we don't have a stream here?");
+  MOZ_ASSERT(ns->Engine()->mNode == this, "Invalid node reference");
+  ns->Engine()->mNode = nullptr;
 }
 
 }
