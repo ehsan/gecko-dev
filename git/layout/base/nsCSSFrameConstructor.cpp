@@ -7683,20 +7683,27 @@ nsCSSFrameConstructor::ReconstructDocElementHierarchyInternal()
             return rv;
           }
         }
-        
-        mInitialContainingBlock = nsnull;
-        mRootElementStyleFrame = nsnull;
+      }
+    }
+    
+    if (rootContent && NS_SUCCEEDED(rv)) {
+      mInitialContainingBlock = nsnull;
+      mRootElementStyleFrame = nsnull;
 
-        // Create the new document element hierarchy
-        nsIFrame* newChild;
-        rv = ConstructDocElementFrame(state, rootContent,
-                                      mDocElementContainingBlock, &newChild);
+      // We don't reuse the old frame constructor state because,
+      // for example, its mPopupItems may be stale
+      nsFrameConstructorState state(mPresShell, mFixedContainingBlock,
+                                    nsnull, nsnull, mTempFrameTreeState);
 
-        // newChild could be null even if |rv| is success, thanks to XBL.
-        if (NS_SUCCEEDED(rv) && newChild) {
-          rv = state.mFrameManager->InsertFrames(mDocElementContainingBlock,
-                                                 nsnull, nsnull, newChild);
-        }
+      // Create the new document element hierarchy
+      nsIFrame* newChild;
+      rv = ConstructDocElementFrame(state, rootContent,
+                                    mDocElementContainingBlock, &newChild);
+
+      // newChild could be null even if |rv| is success, thanks to XBL.
+      if (NS_SUCCEEDED(rv) && newChild) {
+        rv = state.mFrameManager->InsertFrames(mDocElementContainingBlock,
+                                               nsnull, nsnull, newChild);
       }
     }
   }
@@ -9328,7 +9335,9 @@ nsCSSFrameConstructor::ContentRemoved(nsIContent* aContainer,
   nsIFrame* childFrame =
     mPresShell->FrameManager()->GetPrimaryFrameFor(aChild, aIndexInContainer);
 
-  if (! childFrame) {
+  if (!childFrame || childFrame->GetContent() != aChild) {
+    // XXXbz the GetContent() != aChild check is needed due to bug 135040.
+    // Remove it once that's fixed.
     frameManager->ClearUndisplayedContentIn(aChild, aContainer);
   }
 
@@ -9413,7 +9422,9 @@ nsCSSFrameConstructor::ContentRemoved(nsIContent* aContainer,
 
       // Recover childFrame and parentFrame
       childFrame = mPresShell->GetPrimaryFrameFor(aChild);
-      if (!childFrame) {
+      if (!childFrame || childFrame->GetContent() != aChild) {
+        // XXXbz the GetContent() != aChild check is needed due to bug 135040.
+        // Remove it once that's fixed.
         frameManager->ClearUndisplayedContentIn(aChild, aContainer);
         return NS_OK;
       }
@@ -9834,6 +9845,14 @@ nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
     nsIContent* content;
     nsChangeHint hint;
     aChangeList.ChangeAt(index, frame, content, hint);
+    if (frame && frame->GetContent() != content) {
+      // XXXbz this is due to image maps messing with the primary frame map.
+      // See bug 135040.  Remove this block once that's fixed.
+      frame = nsnull;
+      if (!(hint & nsChangeHint_ReconstructFrame)) {
+        continue;
+      }
+    }
 
     // skip any frame that has been destroyed due to a ripple effect
     if (frame) {
@@ -9906,6 +9925,11 @@ nsCSSFrameConstructor::RestyleElement(nsIContent     *aContent,
 {
   NS_ASSERTION(aPrimaryFrame == mPresShell->GetPrimaryFrameFor(aContent),
                "frame/content mismatch");
+  if (aPrimaryFrame && aPrimaryFrame->GetContent() != aContent) {
+    // XXXbz this is due to image maps messing with the primary frame mapping.
+    // See bug 135040.  We can remove this block once that's fixed.
+    aPrimaryFrame = nsnull;
+  }
   NS_ASSERTION(!aPrimaryFrame || aPrimaryFrame->GetContent() == aContent,
                "frame/content mismatch");
 
@@ -11082,6 +11106,13 @@ nsCSSFrameConstructor::RecreateFramesForContent(nsIContent* aContent)
         break;
       aContent = parentContent;
       frame = parentContentFrame;
+    }
+  }
+
+  if (frame) {
+    nsIFrame* nonGeneratedAncestor = nsLayoutUtils::GetNonGeneratedAncestor(frame);
+    if (nonGeneratedAncestor->GetContent() != aContent) {
+      return RecreateFramesForContent(nonGeneratedAncestor->GetContent());
     }
   }
 
