@@ -412,12 +412,7 @@ nsWinMetroUtils::GetHandPreference(int32_t *aHandPreference)
 NS_IMETHODIMP
 nsWinMetroUtils::GetActivationURI(nsAString &aActivationURI)
 {
-  FrameworkView *view = MetroApp::GetView();
-  if (!view) {
-    NS_WARNING("GetActivationURI used before view is created!");
-    return NS_OK;
-  }
-  view->GetActivationURI(aActivationURI);
+  MetroApp::GetView()->GetActivationURI(aActivationURI);
   return NS_OK;
 }
 

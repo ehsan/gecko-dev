@@ -2713,16 +2713,18 @@ PluginInstanceChild::RecvAsyncSetWindow(const gfxSurfaceType& aSurfaceType,
         mCurrentAsyncSetWindowTask = nullptr;
     }
 
-    // We shouldn't process this now because it may be received within a nested
-    // RPC call, and both Flash and Java don't expect to receive setwindow calls
-    // at arbitrary times.
-    mCurrentAsyncSetWindowTask =
-        NewRunnableMethod<PluginInstanceChild,
-                          void (PluginInstanceChild::*)(const gfxSurfaceType&, const NPRemoteWindow&, bool),
-                          gfxSurfaceType, NPRemoteWindow, bool>
-        (this, &PluginInstanceChild::DoAsyncSetWindow,
-         aSurfaceType, aWindow, true);
-    MessageLoop::current()->PostTask(FROM_HERE, mCurrentAsyncSetWindowTask);
+    if (mPendingPluginCall) {
+        // We shouldn't process this now. Run it later.
+        mCurrentAsyncSetWindowTask =
+            NewRunnableMethod<PluginInstanceChild,
+                              void (PluginInstanceChild::*)(const gfxSurfaceType&, const NPRemoteWindow&, bool),
+                              gfxSurfaceType, NPRemoteWindow, bool>
+                (this, &PluginInstanceChild::DoAsyncSetWindow,
+                 aSurfaceType, aWindow, true);
+        MessageLoop::current()->PostTask(FROM_HERE, mCurrentAsyncSetWindowTask);
+    } else {
+        DoAsyncSetWindow(aSurfaceType, aWindow, false);
+    }
 
     return true;
 }
