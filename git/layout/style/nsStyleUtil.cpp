@@ -298,7 +298,6 @@ nscoord nsStyleUtil::FindNextLargerFontSize(nscoord aFontSize, PRInt32 aBasePoin
   PRInt32 indexMin;
   PRInt32 indexMax;
   float relativePosition;
-  nscoord adjustment;
   nscoord largerSize;
   nscoord indexFontSize = aFontSize; // XXX initialize to quell a spurious gcc3.2 warning
   nscoord smallestIndexFontSize;
@@ -332,7 +331,7 @@ nscoord nsStyleUtil::FindNextLargerFontSize(nscoord aFontSize, PRInt32 aBasePoin
         largerIndexFontSize = CalcFontPointSize(index+1, aBasePointSize, aScalingFactor, aPresContext, aFontSizeType);
       } else if (indexFontSize == largestIndexFontSize) {
         smallerIndexFontSize = CalcFontPointSize(index-1, aBasePointSize, aScalingFactor, aPresContext, aFontSizeType);
-        largerIndexFontSize = NSCoordSaturatingMultiply(largestIndexFontSize, 1.5);
+        largerIndexFontSize = NSToCoordRound(float(largestIndexFontSize) * 1.5);
       } else {
         smallerIndexFontSize = CalcFontPointSize(index-1, aBasePointSize, aScalingFactor, aPresContext, aFontSizeType);
         largerIndexFontSize = CalcFontPointSize(index+1, aBasePointSize, aScalingFactor, aPresContext, aFontSizeType);
@@ -340,15 +339,14 @@ nscoord nsStyleUtil::FindNextLargerFontSize(nscoord aFontSize, PRInt32 aBasePoin
       // compute the relative position of the parent size between the two closest indexed sizes
       relativePosition = float(aFontSize - smallerIndexFontSize) / float(indexFontSize - smallerIndexFontSize);
       // set the new size to have the same relative position between the next largest two indexed sizes
-      adjustment = NSCoordSaturatingNonnegativeMultiply(largerIndexFontSize - indexFontSize, relativePosition);
-      largerSize = NSCoordSaturatingAdd(indexFontSize, adjustment);
+      largerSize = indexFontSize + NSToCoordRound(relativePosition * (largerIndexFontSize - indexFontSize));      
     }
     else {  // larger than HTML table, increase by 50%
-      largerSize = NSCoordSaturatingMultiply(aFontSize, 1.5);
+      largerSize = NSToCoordRound(float(aFontSize) * 1.5);
     }
   }
   else { // smaller than HTML table, increase by 1px
-    largerSize = NSCoordSaturatingAdd(aFontSize, onePx);
+    largerSize = aFontSize + onePx; 
   }
   return largerSize;
 }

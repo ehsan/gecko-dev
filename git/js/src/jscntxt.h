@@ -376,7 +376,6 @@ struct JSRuntime {
 
     /* Garbage collector state, used by jsgc.c. */
     js::GCChunkSet      gcChunkSet;
-    js::GCChunkSet      gcSystemChunkSet;
 
     js::RootedValueMap  gcRootsHash;
     js::GCLocks         gcLocksHash;
