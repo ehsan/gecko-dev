@@ -257,13 +257,13 @@ toolbar {
   -moz-binding: url("chrome://global/content/bindings/toolbar.xml#toolbar");
 }
 
-toolbox[customizing="true"] > toolbar[customizable="true"][collapsed="true"] {
+toolbar[customizing="true"][collapsed="true"] {
   /* Some apps, e.g. Firefox, use 'collapsed' to hide toolbars.
      Override it while customizing. */
   visibility: visible;
 }
 
-toolbox[customizing="true"] > toolbar[customizable="true"][hidden="true"] {
+toolbar[customizing="true"][hidden="true"] {
   /* Some apps, e.g. SeaMonkey, use 'hidden' to hide toolbars.
      Override it while customizing. */
   display: -moz-box;
@@ -274,16 +274,13 @@ toolbar[type="menubar"] {
   min-height: 0 !important;
   border: 0 !important;
 }
-%endif
-
-%ifdef XP_WIN
+%else
 toolbar[type="menubar"][autohide="true"] {
   -moz-binding: url("chrome://global/content/bindings/toolbar.xml#toolbar-menubar-autohide");
   overflow: hidden;
 }
 
-toolbar[type="menubar"][autohide="true"][inactive="true"]:not([customizable="true"]),
-toolbox:not([customizing="true"]) > toolbar[type="menubar"][autohide="true"][inactive="true"][customizable="true"] {
+toolbar[type="menubar"][autohide="true"][inactive="true"]:not([customizing="true"]) {
   min-height: 0 !important;
   height: 0 !important;
   -moz-appearance: none !important;
@@ -792,6 +789,8 @@ panel[type="autocomplete-richlistbox"] {
   -moz-binding: url("chrome://global/content/bindings/autocomplete.xml#autocomplete-rich-result-popup");
 }
 
+/* FIXME: bug 616258 */
+
 .autocomplete-tree {
   -moz-binding: url("chrome://global/content/bindings/autocomplete.xml#autocomplete-tree");
   -moz-user-focus: ignore;
@@ -827,6 +826,15 @@ panel[type="autocomplete-richlistbox"] {
 .autocomplete-history-dropmarker[enablehistory="true"] {
   display: -moz-box;
   -moz-binding: url("chrome://global/content/bindings/autocomplete.xml#history-dropmarker");
+}
+
+.ac-ellipsis-after {
+  visibility: hidden;
+}
+
+.ac-url-text[type~="action"],
+.ac-action-text:not([type~="action"]) {
+  visibility: collapse;
 }
 
 %endif
@@ -1178,4 +1186,10 @@ findbar {
 /*********** filefield ************/
 filefield {
   -moz-binding: url("chrome://global/content/bindings/filefield.xml#filefield");
+}
+
+/*********** tabmodalprompt ************/
+tabmodalprompt {
+  -moz-binding: url("chrome://global/content/tabprompts.xml#tabmodalprompt");
+  text-shadow: none;
 }

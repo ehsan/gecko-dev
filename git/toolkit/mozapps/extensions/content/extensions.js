@@ -72,9 +72,7 @@ const UPDATES_RELEASENOTES_TRANSFORMFILE = "chrome://mozapps/content/extensions/
 
 const XMLURI_PARSE_ERROR = "http://www.mozilla.org/newlayout/xml/parsererror.xml"
 
-const VIEW_DEFAULT = "addons://list/extension";
-
-const INTEGER_FIELDS = ["dateUpdated", "size", "relevancescore"];
+const VIEW_DEFAULT = "addons://discover/";
 
 var gStrings = {};
 XPCOMUtils.defineLazyServiceGetter(gStrings, "bundleSvc",
@@ -1163,34 +1161,92 @@ function createItem(aObj, aIsInstall, aIsRemote) {
   // the binding handles the rest
   item.setAttribute("value", aObj.id);
 
-  // The XUL sort service only supports 32 bit integers so we strip the
-  // milliseconds to make this small enough
-  if (aObj.updateDate)
-    item.setAttribute("dateUpdated", aObj.updateDate.getTime() / 1000);
-
-  if (aObj.size)
-    item.setAttribute("size", aObj.size);
   return item;
 }
 
-function getAddonsAndInstalls(aType, aCallback) {
-  var addonTypes = null, installTypes = null;
-  if (aType != null) {
-    addonTypes = [aType];
-    installTypes = [aType];
-    if (aType == "extension")
-      installTypes = addonTypes.concat("");
+function sortElements(aElements, aSortBy, aAscending) {
+  const DATE_FIELDS = ["updateDate"];
+  const INTEGER_FIELDS = ["size", "relevancescore"];
+
+  function dateCompare(a, b) {
+    var aTime = a.getTime();
+    var bTime = b.getTime();
+    if (aTime < bTime)
+      return -1;
+    if (aTime > bTime)
+      return 1;
+    return 0;
   }
 
-  var addons = null, installs = null;
+  function intCompare(a, b) {
+    return a - b;
+  }
 
-  AddonManager.getAddonsByTypes(addonTypes, function(aAddonsList) {
+  function stringCompare(a, b) {
+    return a.localeCompare(b);
+  }
+
+  function getValue(aObj) {
+    if (!aObj)
+      return null;
+
+    if (aObj.hasAttribute(aSortBy))
+      return aObj.getAttribute(aSortBy);
+
+    addon = aObj.mAddon || aObj.mInstall;
+    if (!addon)
+      return null;
+
+    return addon[aSortBy];
+  }
+
+  var sortFunc = stringCompare;
+  if (DATE_FIELDS.indexOf(aSortBy) != -1)
+    sortFunc = dateCompare;
+  else if (INTEGER_FIELDS.indexOf(aSortBy) != -1)
+    sortFunc = intCompare;
+
+  aElements.sort(function(a, b) {
+    if (!aAscending)
+      [a, b] = [b, a];
+
+    var aValue = getValue(a);
+    var bValue = getValue(b);
+
+    if (!aValue && !bValue)
+      return 0;
+    if (!aValue)
+      return -1;
+    if (!bValue)
+      return 1;
+
+    return sortFunc(aValue, bValue);
+  });
+}
+
+function sortList(aList, aSortBy, aAscending) {
+  var elements = Array.slice(aList.childNodes, 0);
+  sortElements(elements, aSortBy, aAscending);
+
+  while (aList.listChild)
+    aList.removeChild(aList.lastChild);
+
+  elements.forEach(function(aElement) {
+    aList.appendChild(aElement);
+  });
+}
+
+function getAddonsAndInstalls(aType, aCallback) {
+  let addons = null, installs = null;
+  let types = (aType != null) ? [aType] : null;
+
+  AddonManager.getAddonsByTypes(types, function(aAddonsList) {
     addons = aAddonsList;
     if (installs != null)
       aCallback(addons, installs);
   });
 
-  AddonManager.getInstallsByTypes(installTypes, function(aInstallsList) {
+  AddonManager.getInstallsByTypes(types, function(aInstallsList) {
     // skip over upgrade installs and non-active installs
     installs = aInstallsList.filter(function(aInstall) {
       return !(aInstall.existingAddon ||
@@ -1200,10 +1256,22 @@ function getAddonsAndInstalls(aType, aCallback) {
     if (addons != null)
       aCallback(addons, installs)
   });
-
-  return {addon: addonTypes, install: installTypes};
 }
 
+function doPendingUninstalls(aListBox) {
+  // Uninstalling add-ons can mutate the list so find the add-ons first then
+  // uninstall them
+  var items = [];
+  var listitem = aListBox.firstChild;
+  while (listitem) {
+    if (listitem.getAttribute("pending") == "uninstall" &&
+        !listitem.isPending("uninstall"))
+      items.push(listitem.mAddon);
+    listitem = listitem.nextSibling;
+  }
+
+  items.forEach(function(aAddon) { aAddon.uninstall(); });
+}
 
 var gCategories = {
   node: null,
@@ -1349,12 +1417,10 @@ var gCategories = {
 
 var gHeader = {
   _search: null,
-  _searching: null,
   _dest: "",
 
   initialize: function() {
     this._search = document.getElementById("header-search");
-    this._searching = document.getElementById("header-searching");
 
     this._search.addEventListener("command", function(aEvent) {
       var query = aEvent.target.value;
@@ -1408,17 +1474,6 @@ var gHeader = {
   set searchQuery(aQuery) {
     this._search.value = aQuery;
   },
-
-  get isSearching() {
-    return this._searching.hasAttribute("active");
-  },
-
-  set isSearching(aIsSearching) {
-    if (aIsSearching)
-      this._searching.setAttribute("active", true);
-    else
-      this._searching.removeAttribute("active");
-  }
 };
 
 
@@ -1508,6 +1563,7 @@ var gSearchView = {
   node: null,
   _filter: null,
   _sorters: null,
+  _loading: null,
   _listBox: null,
   _emptyNotice: null,
   _allResultsLink: null,
@@ -1520,6 +1576,7 @@ var gSearchView = {
     this._filter = document.getElementById("search-filter-radiogroup");
     this._sorters = document.getElementById("search-sorters");
     this._sorters.handler = this;
+    this._loading = document.getElementById("search-loading");
     this._listBox = document.getElementById("search-list");
     this._emptyNotice = document.getElementById("search-list-empty");
     this._allResultsLink = document.getElementById("search-allresults-link");
@@ -1549,9 +1606,9 @@ var gSearchView = {
   show: function(aQuery, aRequest) {
     gEventManager.registerInstallListener(this);
 
-    gHeader.isSearching = true;
     this.showEmptyNotice(false);
     this.showAllResultsLink(0);
+    this.showLoading(true);
 
     gHeader.searchQuery = aQuery;
     aQuery = aQuery.trim().toLocaleLowerCase();
@@ -1573,8 +1630,9 @@ var gSearchView = {
     this._pendingSearches = 2;
     this._sorters.setSort("relevancescore", false);
 
+    var elements = [];
+
     function createSearchResults(aObjsList, aIsInstall, aIsRemote) {
-      var createdCount = 0;
       aObjsList.forEach(function(aObj) {
         let score = 0;
         if (aQuery.length > 0) {
@@ -1588,16 +1646,18 @@ var gSearchView = {
         if (aIsRemote)
           gCachedAddons[aObj.id] = aObj;
 
-        self._listBox.insertBefore(item, self._listBox.lastChild);
-        createdCount++;
+        elements.push(item);
       });
-
-      return createdCount;
     }
 
     function finishSearch(createdCount) {
-      if (createdCount > 0)
-        self.onSortChanged(self._sorters.sortBy, self._sorters.ascending);
+      if (elements.length > 0) {
+        sortElements(elements, self._sorters.sortBy, self._sorters.ascending);
+        elements.forEach(function(aElement) {
+          self._listBox.insertBefore(aElement, self._listBox.lastChild);
+        });
+        self.updateListAttributes();
+      }
 
       self._pendingSearches--;
       self.updateView();
@@ -1610,9 +1670,9 @@ var gSearchView = {
       if (gViewController && aRequest != gViewController.currentViewRequest)
         return;
 
-      var createdCount = createSearchResults(aAddons, false, false);
-      createdCount += createSearchResults(aInstalls, true, false);
-      finishSearch(createdCount);
+      createSearchResults(aAddons, false, false);
+      createSearchResults(aInstalls, true, false);
+      finishSearch();
     });
 
     var maxRemoteResults = 0;
@@ -1650,13 +1710,18 @@ var gSearchView = {
       }
     });
   },
+  
+  showLoading: function(aLoading) {
+    this._loading.hidden = !aLoading;
+    this._listBox.hidden = aLoading;
+  },
 
   updateView: function() {
     var showLocal = this._filter.value == "local";
     this._listBox.setAttribute("local", showLocal);
     this._listBox.setAttribute("remote", !showLocal);
 
-    gHeader.isSearching = this.isSearching;
+    this.showLoading(this.isSearching && !showLocal);
     if (!this.isSearching) {
       var isEmpty = true;
       var results = this._listBox.getElementsByTagName("richlistitem");
@@ -1677,19 +1742,7 @@ var gSearchView = {
 
   hide: function() {
     gEventManager.unregisterInstallListener(this);
-
-    // Uninstalling add-ons can mutate the list so find the add-ons first then
-    // uninstall them
-    var items = [];
-    var listitem = this._listBox.firstChild;
-    while (listitem) {
-      if (listitem.getAttribute("pending") == "uninstall" &&
-          !listitem.isPending("uninstall"))
-        items.push(listitem.mAddon);
-      listitem = listitem.nextSibling;
-    }
-
-    items.forEach(function(aAddon) { aAddon.uninstall(); });
+    doPendingUninstalls(this._listBox);
   },
 
   getMatchScore: function(aObj, aQuery) {
@@ -1735,6 +1788,7 @@ var gSearchView = {
 
   showEmptyNotice: function(aShow) {
     this._emptyNotice.hidden = !aShow;
+    this._listBox.hidden = aShow;
   },
 
   showAllResultsLink: function(aTotalResults) {
@@ -1746,23 +1800,46 @@ var gSearchView = {
     var linkStr = gStrings.ext.GetStringFromName("showAllSearchResults");
     linkStr = PluralForm.get(aTotalResults, linkStr);
     linkStr = linkStr.replace("#1", aTotalResults);
-    this._allResultsLink.value = linkStr;
+    this._allResultsLink.setAttribute("value", linkStr);
 
-    this._allResultsLink.href = AddonRepository.getSearchURL(this._lastQuery);
+    this._allResultsLink.setAttribute("href",
+                                      AddonRepository.getSearchURL(this._lastQuery));
     this._allResultsLink.hidden = false;
  },
+
+  updateListAttributes: function() {
+    var item = this._listBox.querySelector("richlistitem[remote='true'][first]");
+    if (item)
+      item.removeAttribute("first");
+    item = this._listBox.querySelector("richlistitem[remote='true'][last]");
+    if (item)
+      item.removeAttribute("last");
+    var items = this._listBox.querySelectorAll("richlistitem[remote='true']");
+    if (items.length > 0) {
+      items[0].setAttribute("first", true);
+      items[items.length - 1].setAttribute("last", true);
+    }
+
+    item = this._listBox.querySelector("richlistitem:not([remote='true'])[first]");
+    if (item)
+      item.removeAttribute("first");
+    item = this._listBox.querySelector("richlistitem:not([remote='true'])[last]");
+    if (item)
+      item.removeAttribute("last");
+    items = this._listBox.querySelectorAll("richlistitem:not([remote='true'])");
+    if (items.length > 0) {
+      items[0].setAttribute("first", true);
+      items[items.length - 1].setAttribute("last", true);
+    }
+
+  },
 
   onSortChanged: function(aSortBy, aAscending) {
     var footer = this._listBox.lastChild;
     this._listBox.removeChild(footer);
 
-    var hints = aAscending ? "ascending" : "descending";
-    if (INTEGER_FIELDS.indexOf(aSortBy) >= 0)
-      hints += " integer";
-
-    var sortService = Cc["@mozilla.org/xul/xul-sort-service;1"].
-                      getService(Ci.nsIXULSortService);
-    sortService.sort(this._listBox, aSortBy, hints);
+    sortList(this._listBox, aSortBy, aAscending);
+    this.updateListAttributes();
 
     this._listBox.appendChild(footer);
   },
@@ -1808,8 +1885,7 @@ var gListView = {
   _listBox: null,
   _emptyNotice: null,
   _sorters: null,
-  _types: [],
-  _installTypes: [],
+  _type: null,
 
   initialize: function() {
     this.node = document.getElementById("list-view");
@@ -1830,55 +1906,43 @@ var gListView = {
   },
 
   show: function(aType, aRequest) {
+    this._type = aType;
+    this.node.setAttribute("type", aType);
     this.showEmptyNotice(false);
 
     while (this._listBox.itemCount > 0)
       this._listBox.removeItemAt(0);
 
     var self = this;
-    var types = getAddonsAndInstalls(aType, function(aAddonsList, aInstallsList) {
+    getAddonsAndInstalls(aType, function(aAddonsList, aInstallsList) {
       if (gViewController && aRequest != gViewController.currentViewRequest)
         return;
 
-      for (let i = 0; i < aAddonsList.length; i++) {
-        let item = createItem(aAddonsList[i]);
-        self._listBox.appendChild(item);
-      }
+      var elements = [];
 
-      for (let i = 0; i < aInstallsList.length; i++) {
-        let item = createItem(aInstallsList[i], true);
-        self._listBox.appendChild(item);
-      }
+      for (let i = 0; i < aAddonsList.length; i++)
+        elements.push(createItem(aAddonsList[i]));
 
-      if (self._listBox.childElementCount > 0)
-        self.onSortChanged(self._sorters.sortBy, self._sorters.ascending);
-      else
-        self.showEmptyNotice(true);
+      for (let i = 0; i < aInstallsList.length; i++)
+        elements.push(createItem(aInstallsList[i], true));
+
+      self.showEmptyNotice(elements.length == 0);
+      if (elements.length > 0) {
+        sortElements(elements, self._sorters.sortBy, self._sorters.ascending);
+        elements.forEach(function(aElement) {
+          self._listBox.appendChild(aElement);
+        });
+      }
 
       gEventManager.registerInstallListener(self);
       gViewController.updateCommands();
       gViewController.notifyViewChanged();
     });
-
-    this._types = types.addon;
-    this._installTypes = types.install;
   },
 
   hide: function() {
     gEventManager.unregisterInstallListener(this);
-
-    // Uninstalling add-ons can mutate the list so find the add-ons first then
-    // uninstall them
-    var items = [];
-    var listitem = this._listBox.firstChild;
-    while (listitem) {
-      if (listitem.getAttribute("pending") == "uninstall" &&
-          !listitem.isPending("uninstall"))
-        items.push(listitem.mAddon);
-      listitem = listitem.nextSibling;
-    }
-
-    items.forEach(function(aAddon) { aAddon.uninstall(); });
+    doPendingUninstalls(this._listBox);
   },
 
   showEmptyNotice: function(aShow) {
@@ -1886,56 +1950,64 @@ var gListView = {
   },
 
   onSortChanged: function(aSortBy, aAscending) {
-    var hints = aAscending ? "ascending" : "descending";
-    if (INTEGER_FIELDS.indexOf(aSortBy) >= 0)
-      hints += " integer";
-
-    var sortService = Cc["@mozilla.org/xul/xul-sort-service;1"].
-                      getService(Ci.nsIXULSortService);
-    sortService.sort(this._listBox, aSortBy, hints);
-  },
-
-  onNewInstall: function(aInstall) {
-    // Ignore any upgrade installs
-    if (aInstall.existingAddon)
-      return;
-
-    var item = createItem(aInstall, true);
-    this._listBox.insertBefore(item, this._listBox.firstChild);
+    sortList(this._listBox, aSortBy, aAscending);
   },
 
   onExternalInstall: function(aAddon, aExistingAddon, aRequiresRestart) {
-    if (this._types.indexOf(aAddon.type) == -1)
-      return;
-
     // The existing list item will take care of upgrade installs
     if (aExistingAddon)
       return;
 
-    var item = createItem(aAddon, false);
-    this._listBox.insertBefore(item, this._listBox.firstChild);
+    this.addItem(aAddon);
+  },
+
+  onDownloadStarted: function(aInstall) {
+    this.addItem(aInstall, true);
+  },
+
+  onInstallStarted: function(aInstall) {
+    this.addItem(aInstall, true);
   },
 
   onDownloadCancelled: function(aInstall) {
-    this.removeInstall(aInstall);
+    this.removeItem(aInstall, true);
   },
 
   onInstallCancelled: function(aInstall) {
-    this.removeInstall(aInstall);
+    this.removeItem(aInstall, true);
   },
 
   onInstallEnded: function(aInstall) {
     // Remove any install entries for upgrades, their status will appear against
     // the existing item
     if (aInstall.existingAddon)
-      this.removeInstall(aInstall);
+      this.removeItem(aInstall, true);
   },
 
-  removeInstall: function(aInstall) {
-    for (let i = 0; i < this._listBox.childNodes.length; i++) {
+  addItem: function(aObj, aIsInstall) {
+    if (aObj.type != this._type)
+      return;
+
+    let prop = aIsInstall ? "mInstall" : "mAddon";
+    for (let i = 0; i < this._listBox.itemCount; i++) {
       let item = this._listBox.childNodes[i];
-      if (item.mInstall == aInstall) {
+      if (item[prop] == aObj)
+        return;
+    }
+
+    let item = createItem(aObj, aIsInstall);
+    this._listBox.insertBefore(item, this._listBox.firstChild);
+    this.showEmptyNotice(false);
+  },
+
+  removeItem: function(aObj, aIsInstall) {
+    let prop = aIsInstall ? "mInstall" : "mAddon";
+
+    for (let i = 0; i < this._listBox.itemCount; i++) {
+      let item = this._listBox.childNodes[i];
+      if (item[prop] == aObj) {
         this._listBox.removeChild(item);
+        this.showEmptyNotice(this._listBox.itemCount == 0);
         return;
       }
     }
@@ -2033,7 +2105,7 @@ var gDetailView = {
     if ("contributionURL" in aAddon && aAddon.contributionURL) {
       contributions.hidden = false;
       var amount = document.getElementById("detail-contrib-suggested");
-      amount.value = gStrings.ext.formatStringFromName("contributionAmount",
+      amount.value = gStrings.ext.formatStringFromName("contributionAmount2",
                                                        [aAddon.contributionAmount],
                                                        1);
     } else {
@@ -2324,7 +2396,6 @@ var gUpdatesView = {
   _updateSelected: null,
   _updatePrefs: null,
   _categoryItem: null,
-  _numManualUpdaters: 0,
 
   initialize: function() {
     this.node = document.getElementById("updates-view");
@@ -2343,7 +2414,6 @@ var gUpdatesView = {
     this._updatePrefs = Services.prefs.getBranch("extensions.update.");
     this._updatePrefs.QueryInterface(Ci.nsIPrefBranch2);
     this._updatePrefs.addObserver("", this, false);
-    this.updateManualUpdatersCount(true);
     this.updateAvailableCount(true);
 
     AddonManager.addAddonListener(this);
@@ -2374,6 +2444,8 @@ var gUpdatesView = {
 
   hide: function() {
     this._updateSelected.hidden = true;
+    this._categoryItem.disabled = this._categoryItem.badgeCount == 0;
+    doPendingUninstalls(this._listBox);
   },
 
   _showRecentUpdates: function(aRequest) {
@@ -2382,19 +2454,22 @@ var gUpdatesView = {
       if (gViewController && aRequest != gViewController.currentViewRequest)
         return;
 
+      var elements = [];
       let threshold = Date.now() - UPDATES_RECENT_TIMESPAN;
       aAddonsList.forEach(function(aAddon) {
         if (!aAddon.updateDate || aAddon.updateDate.getTime() < threshold)
           return;
 
-        let item = createItem(aAddon);
-        self._listBox.appendChild(item);
+        elements.push(createItem(aAddon));
       });
 
-      if (self._listBox.itemCount > 0)
-        self.onSortChanged(self._sorters.sortBy, self._sorters.ascending);
-      else
-        self.showEmptyNotice(true);
+      self.showEmptyNotice(elements.length == 0);
+      if (elements.length > 0) {
+        sortElements(elements, self._sorters.sortBy, self._sorters.ascending);
+        elements.forEach(function(aElement) {
+          self._listBox.appendChild(aElement);
+        });
+      }
 
       gViewController.notifyViewChanged();
     });
@@ -2420,6 +2495,8 @@ var gUpdatesView = {
           self._listBox.removeItemAt(0);
       }
 
+      var elements = [];
+
       aInstallsList.forEach(function(aInstall) {
         if (!self.isManualUpdate(aInstall))
           return;
@@ -2429,14 +2506,16 @@ var gUpdatesView = {
         item.addEventListener("IncludeUpdateChanged", function() {
           self.maybeDisableUpdateSelected();
         }, false);
-        self._listBox.appendChild(item);
+        elements.push(item);
       });
 
-      if (self._listBox.itemCount > 0) {
+      self.showEmptyNotice(elements.length == 0);
+      if (elements.length > 0) {
         self._updateSelected.hidden = false;
-        self.onSortChanged(self._sorters.sortBy, self._sorters.ascending);
-      } else {
-        self.showEmptyNotice(true);
+        sortElements(elements, self._sorters.sortBy, self._sorters.ascending);
+        elements.forEach(function(aElement) {
+          self._listBox.appendChild(aElement);
+        });
       }
 
       // ensure badge count is in sync
@@ -2461,45 +2540,12 @@ var gUpdatesView = {
   observe: function(aSubject, aTopic, aData) {
     if (aTopic != "nsPref:changed")
       return;
-    if (aData == "autoUpdateDefault")
-      this.updateManualUpdatersCount();
   },
 
   maybeRefresh: function() {
-    if (gViewController.currentViewId == "addons://updates/available") {
+    if (gViewController.currentViewId == "addons://updates/available")
       this._showAvailableUpdates(true);
-    } else {
-      this.updateManualUpdatersCount();
-      this.updateAvailableCount();
-    }
-  },
-
-  maybeShowCategory: function() {
-    var hide = this._numManualUpdaters == 0;
-    if (this._categoryItem.disabled != hide) {
-      this._categoryItem.disabled = hide;
-      var event = document.createEvent("Events");
-      event.initEvent("CategoryVisible", true, true);
-      this._categoryItem.dispatchEvent(event);
-    }
-  },
-
-  updateManualUpdatersCount: function(aInitializing) {
-    if (aInitializing)
-      gPendingInitializations++;
-    var self = this;
-    var autoUpdateDefault = AddonManager.autoUpdateDefault;
-    AddonManager.getAllAddons(function(aAddonList) {
-      var manualUpdaters = aAddonList.filter(function(aAddon) {
-        if (!("applyBackgroundUpdates" in aAddon))
-          return false;
-        return !shouldAutoUpdate(aAddon, autoUpdateDefault);
-      });
-      self._numManualUpdaters = manualUpdaters.length;
-      self.maybeShowCategory();
-      if (aInitializing)
-        notifyInitialized();
-    });
+    this.updateAvailableCount();
   },
 
   updateAvailableCount: function(aInitializing) {
@@ -2510,6 +2556,8 @@ var gUpdatesView = {
       var count = aInstallsList.filter(function(aInstall) {
         return self.isManualUpdate(aInstall, true);
       }).length;
+      self._categoryItem.disabled = gViewController.currentViewObj != self &&
+                                    count == 0;
       self._categoryItem.badgeCount = count;
       if (aInitializing)
         notifyInitialized();
@@ -2555,13 +2603,7 @@ var gUpdatesView = {
   },
 
   onSortChanged: function(aSortBy, aAscending) {
-    var hints = aAscending ? "ascending" : "descending";
-    if (INTEGER_FIELDS.indexOf(aSortBy) >= 0)
-      hints += " integer";
-
-    var sortService = Cc["@mozilla.org/xul/xul-sort-service;1"].
-                      getService(Ci.nsIXULSortService);
-    sortService.sort(this._listBox, aSortBy, hints);
+    sortList(this._listBox, aSortBy, aAscending);
   },
 
   onNewInstall: function(aInstall) {
@@ -2570,18 +2612,8 @@ var gUpdatesView = {
     this.maybeRefresh();
   },
 
-  onExternalInstall: function(aAddon) {
-    if (!shouldAutoUpdate(aAddon)) {
-      this._numManualUpdaters++;
-      this.maybeShowCategory();
-    }
-  },
-
-  onInstallEnded: function(aAddon) {
-    if (!shouldAutoUpdate(aAddon)) {
-      this._numManualUpdaters++;
-      this.maybeShowCategory();
-    }
+  onInstallStarted: function(aInstall) {
+    this.updateAvailableCount();
   },
 
   onInstallCancelled: function(aInstall) {
@@ -2592,7 +2624,7 @@ var gUpdatesView = {
 
   onPropertyChanged: function(aAddon, aProperties) {
     if (aProperties.indexOf("applyBackgroundUpdates") != -1)
-      this.updateManualUpdatersCount();
+      this.updateAvailableCount();
   }
 };
 

@@ -61,6 +61,7 @@ CPPSRCS += dlldeps-zlib.cpp
 endif
 
 LOCAL_INCLUDES += -I$(topsrcdir)/widget/src/windows
+LOCAL_INCLUDES += -I$(topsrcdir)/xpcom/base
 endif
 
 ifneq (,$(filter WINNT OS2,$(OS_ARCH)))
@@ -86,6 +87,7 @@ RCFLAGS += -i $(topsrcdir)/widget/src/os2
 endif
 
 LOCAL_INCLUDES += -I$(topsrcdir)/widget/src/os2
+LOCAL_INCLUDES += -I$(topsrcdir)/xpcom/base
 endif
 
 # dependent libraries
@@ -304,8 +306,12 @@ endif
 
 STATIC_LIBS += thebes ycbcr
 
-ifneq ($(OS_ARCH)_$(OS_TEST),Linux_x86_64)
+ifneq ($(OS_ARCH),Linux)
 STATIC_LIBS += angle
+else
+ifdef FORCE_BUILD_ANGLE
+STATIC_LIBS += angle
+endif
 endif
 
 COMPONENT_LIBS += gkgfxthebes
@@ -342,6 +348,10 @@ endif
 ifdef MOZ_ZIPWRITER
 DEFINES += -DMOZ_ZIPWRITER
 COMPONENT_LIBS += zipwriter
+endif
+
+ifdef MOZ_SERVICES_SYNC
+COMPONENT_LIBS += services-crypto
 endif
 
 ifdef MOZ_DEBUG

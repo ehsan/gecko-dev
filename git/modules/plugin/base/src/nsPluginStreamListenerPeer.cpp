@@ -53,6 +53,10 @@
 #include "nsIByteRangeRequest.h"
 #include "nsIInputStreamTee.h"
 #include "nsPrintfCString.h"
+#include "nsIContentUtils.h"
+#include "nsIScriptGlobalObject.h"
+#include "nsIDocument.h"
+#include "nsIWebNavigation.h"
 
 #define MAGIC_REQUEST_CONTEXT 0x01020304
 
@@ -241,13 +245,15 @@ public:
 
 // nsPluginStreamListenerPeer
 
-NS_IMPL_ISUPPORTS6(nsPluginStreamListenerPeer,
+NS_IMPL_ISUPPORTS8(nsPluginStreamListenerPeer,
                    nsIStreamListener,
                    nsIRequestObserver,
                    nsIHttpHeaderVisitor,
                    nsISupportsWeakReference,
                    nsIPluginStreamInfo,
-                   nsINPAPIPluginStreamInfo)
+                   nsINPAPIPluginStreamInfo,
+                   nsIInterfaceRequestor,
+                   nsIChannelEventSink)
 
 nsPluginStreamListenerPeer::nsPluginStreamListenerPeer()
 {
@@ -602,15 +608,9 @@ nsPluginStreamListenerPeer::OnStartRequest(nsIRequest *request,
           mPluginInstance->Start();
           mOwner->CreateWidget();
           // If we've got a native window, the let the plugin know about it.
-          if (window->window) {
-            ((nsPluginNativeWindow*)window)->CallSetWindow(pluginInstCOMPtr);
-          } else {
-            PRBool useAsyncPainting = PR_FALSE;
-            mPluginInstance->UseAsyncPainting(&useAsyncPainting);
-            if (useAsyncPainting) {
-              mPluginInstance->AsyncSetWindow(window);
-            }
-          }
+          nsCOMPtr<nsIPluginInstanceOwner_MOZILLA_2_0_BRANCH> owner = do_QueryInterface(mOwner);
+          if (owner)
+            owner->SetWindow();
         }
       }
     }
@@ -809,10 +809,9 @@ nsresult nsPluginStreamListenerPeer::ServeStreamAsFile(nsIRequest *request,
       window->window = widget->GetNativeData(NS_NATIVE_PLUGIN_PORT);
     }
 #endif
-    if (window->window) {
-      nsCOMPtr<nsIPluginInstance> pluginInstCOMPtr = mPluginInstance.get();
-      ((nsPluginNativeWindow*)window)->CallSetWindow(pluginInstCOMPtr);
-    }
+    nsCOMPtr<nsIPluginInstanceOwner_MOZILLA_2_0_BRANCH> owner = do_QueryInterface(mOwner);
+    if (owner)
+      owner->SetWindow();
   }
   
   mSeekable = PR_FALSE;
@@ -1240,4 +1239,80 @@ nsPluginStreamListenerPeer::VisitHeader(const nsACString &header, const nsACStri
   
   return listener->NewResponseHeader(PromiseFlatCString(header).get(),
                                      PromiseFlatCString(value).get());
+}
+
+nsresult
+nsPluginStreamListenerPeer::GetInterfaceGlobal(const nsIID& aIID, void** result)
+{
+  if (!mPluginInstance) {
+    return NS_ERROR_FAILURE;
+  }
+
+  nsCOMPtr<nsIPluginInstanceOwner> owner;
+  mPluginInstance->GetOwner(getter_AddRefs(owner));
+  if (owner) {
+    nsCOMPtr<nsIDocument> doc;
+    nsresult rv = owner->GetDocument(getter_AddRefs(doc));
+    if (NS_SUCCEEDED(rv) && doc) {
+      nsPIDOMWindow *window = doc->GetWindow();
+      if (window) {
+        nsCOMPtr<nsIWebNavigation> webNav = do_GetInterface(window);
+        nsCOMPtr<nsIInterfaceRequestor> ir = do_QueryInterface(webNav);
+        return ir->GetInterface(aIID, result);
+      }
+    }
+  }
+
+  return NS_ERROR_FAILURE;
+}
+
+NS_IMETHODIMP
+nsPluginStreamListenerPeer::GetInterface(const nsIID& aIID, void** result)
+{
+  // Provide nsIChannelEventSink ourselves, otherwise let our document's
+  // script global object owner provide the interface.
+  if (aIID.Equals(NS_GET_IID(nsIChannelEventSink))) {
+    return QueryInterface(aIID, result);
+  }
+
+  return GetInterfaceGlobal(aIID, result);
+}
+
+NS_IMETHODIMP
+nsPluginStreamListenerPeer::AsyncOnChannelRedirect(nsIChannel *oldChannel, nsIChannel *newChannel,
+                                                   PRUint32 flags, nsIAsyncVerifyRedirectCallback* callback)
+{
+  // Don't allow cross-origin 307 POST redirects. Fall back to channel event sink for window.
+
+  nsCOMPtr<nsIHttpChannel> oldHttpChannel(do_QueryInterface(oldChannel));
+  if (oldHttpChannel) {
+    PRUint32 responseStatus;
+    nsresult rv = oldHttpChannel->GetResponseStatus(&responseStatus);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+    if (responseStatus == 307) {
+      nsCAutoString method;
+      rv = oldHttpChannel->GetRequestMethod(method);
+      if (NS_FAILED(rv)) {
+        return rv;
+      }
+      if (method.EqualsLiteral("POST")) {
+        nsCOMPtr<nsIContentUtils2> contentUtils2 = do_GetService("@mozilla.org/content/contentutils2;1");
+        NS_ENSURE_TRUE(contentUtils2, NS_ERROR_FAILURE);
+        rv = contentUtils2->CheckSameOrigin(oldChannel, newChannel);
+        if (NS_FAILED(rv)) {
+          return rv;
+        }
+      }
+    }
+  }
+
+  nsCOMPtr<nsIChannelEventSink> channelEventSink;
+  nsresult rv = GetInterfaceGlobal(NS_GET_IID(nsIChannelEventSink), getter_AddRefs(channelEventSink));
+  if (NS_FAILED(rv)) {
+    return NS_ERROR_FAILURE;
+  }
+
+  return channelEventSink->AsyncOnChannelRedirect(oldChannel, newChannel, flags, callback);
 }

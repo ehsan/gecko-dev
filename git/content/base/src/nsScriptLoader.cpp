@@ -546,10 +546,13 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
 
   // Step 9. in the HTML5 spec
 
-  nsCOMPtr<nsIURI> scriptURI = aElement->GetScriptURI();
   nsRefPtr<nsScriptLoadRequest> request;
-  if (scriptURI) {
+  if (aElement->GetScriptExternal()) {
     // external script
+    nsCOMPtr<nsIURI> scriptURI = aElement->GetScriptURI();
+    if (!scriptURI) {
+      return NS_ERROR_NOT_AVAILABLE;
+    }
     nsTArray<PreloadInfo>::index_type i =
       mPreloads.IndexOf(scriptURI.get(), 0, PreloadURIComparator());
     if (i != nsTArray<PreloadInfo>::NoIndex) {
@@ -557,13 +560,24 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
       // note that a script-inserted script can steal a preload!
       request = mPreloads[i].mRequest;
       request->mElement = aElement;
-      // XXX what if the charset attribute of the element and the charset
-      // of the preload don't match?
+      nsString preloadCharset(mPreloads[i].mCharset);
       mPreloads.RemoveElementAt(i);
-      rv = CheckContentPolicy(mDocument, aElement, request->mURI, type);
-      NS_ENSURE_SUCCESS(rv, rv);
-    } else {
-      // not preloaded
+
+      // Double-check that the charset the preload used is the same as
+      // the charset we have now.
+      nsAutoString elementCharset;
+      aElement->GetScriptCharset(elementCharset);
+      if (elementCharset.Equals(preloadCharset)) {
+        rv = CheckContentPolicy(mDocument, aElement, request->mURI, type);
+        NS_ENSURE_SUCCESS(rv, rv);
+      } else {
+        // Drop the preload
+        request = nsnull;
+      }
+    }
+
+    if (!request) {
+      // no usable preload
       request = new nsScriptLoadRequest(aElement, version);
       NS_ENSURE_TRUE(request, NS_ERROR_OUT_OF_MEMORY);
       request->mURI = scriptURI;
@@ -825,6 +839,13 @@ nsScriptLoader::EvaluateScript(nsScriptLoadRequest* aRequest,
     return NS_ERROR_FAILURE;
   }
 
+  nsCOMPtr<nsIContent> scriptContent(do_QueryInterface(aRequest->mElement));
+  nsIDocument* ownerDoc = scriptContent->GetOwnerDoc();
+  if (ownerDoc != mDocument) {
+    // Willful violation of HTML5 as of 2010-12-01
+    return NS_ERROR_FAILURE;
+  }
+
   nsPIDOMWindow *pwin = mDocument->GetInnerWindow();
   if (!pwin || !pwin->IsInnerWindow()) {
     return NS_ERROR_FAILURE;
@@ -833,7 +854,6 @@ nsScriptLoader::EvaluateScript(nsScriptLoadRequest* aRequest,
   NS_ASSERTION(globalObject, "windows must be global objects");
 
   // Get the script-type to be used by this element.
-  nsCOMPtr<nsIContent> scriptContent(do_QueryInterface(aRequest->mElement));
   NS_ASSERTION(scriptContent, "no content - what is default script-type?");
   PRUint32 stid = scriptContent ? scriptContent->GetScriptTypeID() :
                                   nsIProgrammingLanguage::JAVASCRIPT;

@@ -1964,13 +1964,14 @@ NS_IMETHODIMP nsChildView::GetIMEOpenState(PRBool* aState)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsChildView::SetIMEEnabled(PRUint32 aState)
+NS_IMETHODIMP nsChildView::SetInputMode(const IMEContext& aContext)
 {
 #ifdef DEBUG_IME
-  NSLog(@"**** SetIMEEnabled aState = %d", aState);
+  NSLog(@"**** SetInputMode mStatus = %d", aContext.mStatus);
 #endif
 
-  switch (aState) {
+  mIMEContext = aContext;
+  switch (aContext.mStatus) {
     case nsIWidget::IME_STATUS_ENABLED:
     case nsIWidget::IME_STATUS_PLUGIN:
       mTextInputHandler.SetASCIICapableOnly(PR_FALSE);
@@ -1990,19 +1991,13 @@ NS_IMETHODIMP nsChildView::SetIMEEnabled(PRUint32 aState)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsChildView::GetIMEEnabled(PRUint32* aState)
+NS_IMETHODIMP nsChildView::GetInputMode(IMEContext& aContext)
 {
 #ifdef DEBUG_IME
-  NSLog(@"**** GetIMEEnabled");
+  NSLog(@"**** GetInputMode");
 #endif
 
-  if (mTextInputHandler.IsIMEEnabled()) {
-    *aState = nsIWidget::IME_STATUS_ENABLED;
-  } else if (mTextInputHandler.IsASCIICapableOnly()) {
-    *aState = nsIWidget::IME_STATUS_PASSWORD;
-  } else {
-    *aState = nsIWidget::IME_STATUS_DISABLED;
-  }
+  aContext = mIMEContext;
   return NS_OK;
 }
 
@@ -2647,6 +2642,9 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
 - (void)drawRect:(NSRect)aRect inTitlebarContext:(CGContextRef)aContext
 {
+  if (!mGeckoChild)
+    return;
+
   // Title bar drawing only works if we really draw into aContext, which only
   // the basic layer manager will do.
   nsBaseWidget::AutoUseBasicLayerManager setupLayerManager(mGeckoChild);
@@ -2720,8 +2718,8 @@ NSEvent* gLastDragMouseDownEvent = nil;
   }
 #endif
 
-  if (mGeckoChild->GetLayerManager()->GetBackendType() == LayerManager::LAYERS_OPENGL) {
-    LayerManagerOGL *manager = static_cast<LayerManagerOGL*>(mGeckoChild->GetLayerManager());
+  if (mGeckoChild->GetLayerManager(nsnull)->GetBackendType() == LayerManager::LAYERS_OPENGL) {
+    LayerManagerOGL *manager = static_cast<LayerManagerOGL*>(mGeckoChild->GetLayerManager(nsnull));
     manager->SetClippingRegion(paintEvent.region); 
     if (!mGLContext) {
       mGLContext = (NSOpenGLContext *)manager->gl()->GetNativeData(mozilla::gl::GLContext::NativeGLContext);
@@ -5367,9 +5365,15 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
       mGeckoChild->DispatchWindowEvent(pluginEvent);
       if (!mGeckoChild)
         return;
-      
+
       if (!mPluginComplexTextInputRequested) {
-        // Ideally we'd cancel any TSM composition here.
+#ifdef NP_NO_CARBON
+        [[ComplexTextInputPanel sharedComplexTextInputPanel] cancelComposition];
+#else
+        if (mPluginTSMDoc) {
+          ::FixTSMDocument(mPluginTSMDoc);
+        }
+#endif
         return;
       }
 

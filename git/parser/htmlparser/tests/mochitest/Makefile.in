@@ -63,6 +63,8 @@ _TEST_FILES =	parser_datreader.js \
 		test_bug460437.xhtml \
 		test_bug502091.html \
 		bug_502091_iframe.html \
+		test_bug543062.html \
+		file_bug543062.sjs \
 		test_bug552938.html \
 		test_bug552938-2.html \
 		test_bug566879.html \
@@ -70,6 +72,15 @@ _TEST_FILES =	parser_datreader.js \
 		invalidchar.xml \
 		file_bug534293.sjs \
 		file_bug534293-slow.sjs \
+		test_bug594730.html \
+		file_bug594730-1.html \
+		file_bug594730-2.html \
+		file_bug594730-3.html \
+		file_bug594730-4.html \
+		file_bug594730-5.html \
+		file_bug594730-6.html \
+		file_bug594730-7.html \
+		file_bug594730-8.html \
 		test_bug599584.html \
 		iframe_bug599584.html \
 		$(NULL)

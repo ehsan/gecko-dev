@@ -69,10 +69,6 @@
 #include "gfxQPainterSurface.h"
 #endif
 
-#ifdef CAIRO_HAS_DDRAW_SURFACE
-#include "gfxDDrawSurface.h"
-#endif
-
 #include <stdio.h>
 #include <limits.h>
 
@@ -196,11 +192,6 @@ gfxASurface::Wrap (cairo_surface_t *csurf)
         result = new gfxQPainterSurface(csurf);
     }
 #endif
-#ifdef CAIRO_HAS_DDRAW_SURFACE
-    else if (stype == CAIRO_SURFACE_TYPE_DDRAW) {
-        result = new gfxDDrawSurface(csurf);
-    }
-#endif
     else {
         result = new gfxUnknownSurface(csurf);
     }
@@ -310,10 +301,6 @@ already_AddRefed<gfxASurface>
 gfxASurface::CreateSimilarSurface(gfxContentType aContent,
                                   const gfxIntSize& aSize)
 {
-    if (!mSurface || !mSurfaceValid) {
-      return nsnull;
-    }
-    
     cairo_surface_t *surface =
         cairo_surface_create_similar(mSurface, cairo_content_t(aContent),
                                      aSize.width, aSize.height);
@@ -481,15 +468,14 @@ static const char *sSurfaceNamesForSurfaceType[] = {
     "gfx/surface/tee",
     "gfx/surface/xml",
     "gfx/surface/skia",
-    "gfx/surface/ddraw",
     "gfx/surface/d2d"
 };
 
 PR_STATIC_ASSERT(NS_ARRAY_LENGTH(sSurfaceNamesForSurfaceType) == gfxASurface::SurfaceTypeMax);
 #ifdef CAIRO_HAS_D2D_SURFACE
-PR_STATIC_ASSERT(CAIRO_SURFACE_TYPE_D2D == gfxASurface::SurfaceTypeD2D);
+PR_STATIC_ASSERT(PRUint32(CAIRO_SURFACE_TYPE_D2D) == PRUint32(gfxASurface::SurfaceTypeD2D));
 #endif
-PR_STATIC_ASSERT(CAIRO_SURFACE_TYPE_SKIA == gfxASurface::SurfaceTypeSkia);
+PR_STATIC_ASSERT(PRUint32(CAIRO_SURFACE_TYPE_SKIA) == PRUint32(gfxASurface::SurfaceTypeSkia));
 
 static const char *
 SurfaceMemoryReporterPathForType(gfxASurface::gfxSurfaceType aType)

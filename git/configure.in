@@ -301,8 +301,8 @@ if test "$target" = "arm-android-eabi" ; then
     STRIP="$android_toolchain"/bin/arm-eabi-strip
 
     CPPFLAGS="-I$android_platform/usr/include $CPPFLAGS"
-    CFLAGS="-mandroid -I$android_platform/usr/include -msoft-float -fno-short-enums -fno-exceptions -march=armv5te -mthumb-interwork $CFLAGS"
-    CXXFLAGS="-mandroid -I$android_platform/usr/include -msoft-float -fno-short-enums -fno-exceptions -march=armv5te -mthumb-interwork $CXXFLAGS"
+    CFLAGS="-mandroid -I$android_platform/usr/include -msoft-float -fno-short-enums -fno-exceptions $CFLAGS"
+    CXXFLAGS="-mandroid -I$android_platform/usr/include -msoft-float -fno-short-enums -fno-exceptions $CXXFLAGS"
 
     dnl Add -llog by default, since we use it all over the place.
     dnl Add --allow-shlib-undefined, because libGLESv2 links to an
@@ -330,6 +330,9 @@ if test "$target" = "arm-android-eabi" ; then
     ANDROID_SDK="${android_sdk}"
     ANDROID_TOOLS="${android_tools}"
     ANDROID_VERSION="${android_version}"
+    if test -z "$ANDROID_PACKAGE_NAME" ; then
+        ANDROID_PACKAGE_NAME='org.mozilla.$(MOZ_APP_NAME)'
+    fi
 
     AC_DEFINE(ANDROID)
     AC_DEFINE_UNQUOTED(ANDROID_VERSION, $android_version)
@@ -344,6 +347,7 @@ AC_SUBST(ANDROID_TOOLCHAIN)
 AC_SUBST(ANDROID_PLATFORM)
 AC_SUBST(ANDROID_SDK)
 AC_SUBST(ANDROID_TOOLS)
+AC_SUBST(ANDROID_PACKAGE_NAME)
 
 dnl ========================================================
 dnl Checks for compilers.
@@ -652,35 +656,31 @@ case "$target" in
         if test "$_CC_MAJOR_VERSION" != "$_CXX_MAJOR_VERSION"; then
             AC_MSG_ERROR([The major versions of \$CC and \$CXX do not match.])
         fi
-        if test "$_CC_MAJOR_VERSION" = "13"; then
-            _CC_SUITE=7
-        elif test "$_CC_MAJOR_VERSION" = "14"; then
+
+        if test "$_CC_MAJOR_VERSION" = "14"; then
+            dnl Require VC8SP1 or newer.
+            dnl VC8 is 14.00.50727.42, VC8SP1 is 14.00.50727.762.
+            if test "$_CC_RELEASE" -lt 50727 -o \
+                    \( "$_CC_RELEASE" -eq 50727 -a "$_CC_BUILD" -lt 762 \); then
+              AC_MSG_ERROR([This version ($CC_VERSION) of the MSVC compiler is unsupported. You probably need to install Service Pack 1 of Visual Studio 2005. See https://developer.mozilla.org/en/Windows_Build_Prerequisites.])
+            fi
+
             _CC_SUITE=8
             CXXFLAGS="$CXXFLAGS -Zc:wchar_t-"
-            dnl -DYNAMICBASE is only supported on VC8SP1 or newer,
-            dnl so be very specific here!
-            dnl VC8 is 14.00.50727.42, VC8SP1 is 14.00.50727.762
-            if test $_CC_RELEASE -gt 50727; then
-               _USE_DYNAMICBASE=1
-            elif test $_CC_BUILD -ge 762; then
-               _USE_DYNAMICBASE=1
-            fi
             AC_DEFINE(_CRT_SECURE_NO_DEPRECATE)
             AC_DEFINE(_CRT_NONSTDC_NO_DEPRECATE)
         elif test "$_CC_MAJOR_VERSION" = "15"; then
             _CC_SUITE=9
             CXXFLAGS="$CXXFLAGS -Zc:wchar_t-"
-            _USE_DYNAMICBASE=1
             AC_DEFINE(_CRT_SECURE_NO_WARNINGS)
             AC_DEFINE(_CRT_NONSTDC_NO_WARNINGS)
         elif test "$_CC_MAJOR_VERSION" = "16"; then
             _CC_SUITE=10
             CXXFLAGS="$CXXFLAGS -Zc:wchar_t-"
-            _USE_DYNAMICBASE=1
             AC_DEFINE(_CRT_SECURE_NO_WARNINGS)
             AC_DEFINE(_CRT_NONSTDC_NO_WARNINGS)
         else
-            AC_MSG_ERROR([This version of the MSVC compiler, $CC_VERSION , is unsupported.])
+            AC_MSG_ERROR([This version ($CC_VERSION) of the MSVC compiler is unsupported. See https://developer.mozilla.org/en/Windows_Build_Prerequisites.])
         fi
 
         _MOZ_RTTI_FLAGS_ON='-GR'
@@ -691,26 +691,24 @@ case "$target" in
         if test -n "$WIN32_REDIST_DIR"; then
             WIN32_REDIST_DIR=`cd "$WIN32_REDIST_DIR" && pwd`
         fi
-	
-        # bug #249782
-        # ensure that mt.exe is Microsoft (R) Manifest Tool and not magnetic tape manipulation utility (or something else)
-        if test "$_CC_SUITE" -ge "8"; then
-                changequote(,)
-                _MSMT_VER_FILTER='s|.* \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*|\1|p'
-                changequote([,])
 
-                MSMT_TOOL=`mt 2>&1|grep 'Microsoft (R) Manifest Tool'`
-                if test -n "$MSMT_TOOL"; then
-                        MSMANIFEST_TOOL_VERSION=`echo ${MSMT_TOOL}|sed -ne "$_MSMT_VER_FILTER"`
-                        if test -z "$MSMANIFEST_TOOL_VERSION"; then
-                                AC_MSG_WARN([Unknown version of the Microsoft (R) Manifest Tool.])
-                        fi
-                        MSMANIFEST_TOOL=1
-                        unset MSMT_TOOL
-                else
-                        AC_MSG_ERROR([Microsoft (R) Manifest Tool must be in your \$PATH.])
-                fi
+        dnl Ensure that mt.exe is 'Microsoft (R) Manifest Tool',
+        dnl not something else like "magnetic tape manipulation utility".
+        MSMT_TOOL=`mt 2>&1|grep 'Microsoft (R) Manifest Tool'`
+        if test -z "$MSMT_TOOL"; then
+          AC_MSG_ERROR([Microsoft (R) Manifest Tool must be in your \$PATH.])
         fi
+
+        changequote(,)
+        _MSMT_VER_FILTER='s|.* \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*|\1|p'
+        changequote([,])
+        MSMANIFEST_TOOL_VERSION=`echo ${MSMT_TOOL}|sed -ne "$_MSMT_VER_FILTER"`
+        if test -z "$MSMANIFEST_TOOL_VERSION"; then
+          AC_MSG_WARN([Unknown version of the Microsoft (R) Manifest Tool.])
+        fi
+
+        MSMANIFEST_TOOL=1
+        unset MSMT_TOOL
 
         # Check linker version
         _LD_FULL_VERSION=`"${LD}" -v 2>&1 | sed -nre "$_MSVC_VER_FILTER"`
@@ -718,6 +716,7 @@ case "$target" in
         if test "$_LD_MAJOR_VERSION" != "$_CC_SUITE"; then
             AC_MSG_ERROR([The linker major version, $_LD_FULL_VERSION,  does not match the compiler suite version, $_CC_SUITE.])
         fi
+
         INCREMENTAL_LINKER=1
 
         # Check midl version
@@ -801,7 +800,7 @@ EOF
                 AC_LANG_RESTORE
             ])
 
-        if test "$ac_cv_have_std__Throw" == "yes"; then
+        if test "$ac_cv_have_std__Throw" = "yes"; then
             AC_CACHE_CHECK(for |class __declspec(dllimport) exception| bug,
                            ac_cv_have_dllimport_exception_bug,
                 [
@@ -1054,7 +1053,7 @@ from building Mozilla. Upgrade to Xcode 2.1 or later.])
         changequote(,)
         XCODEBUILD_VERSION=`$PBBUILD -version 2>/dev/null | xargs | sed -e 's/.*DevToolsCore-\([0-9]*\).*/\1/'`
         changequote([,])
-        if test -n "$XCODEBUILD_VERSION" -a "$XCODEBUILD_VERSION" -ge 620 ; then
+        if test -n "$XCODEBUILD_VERSION" && test "$XCODEBUILD_VERSION" -ge 620 ; then
           HAS_XCODE_2_1=1;
         fi
       ;;
@@ -2415,7 +2414,7 @@ ia64*-hpux*)
         LIBXUL_LIBS='$(LIBXUL_DIST)/lib/xpcom.lib $(LIBXUL_DIST)/lib/xul.lib $(LIBXUL_DIST)/lib/mozalloc.lib'
         MOZ_COMPONENT_NSPR_LIBS='$(NSPR_LIBS)'
         if test $_MSC_VER -ge 1400; then
-            LDFLAGS="$LDFLAGS -NXCOMPAT"
+            LDFLAGS="$LDFLAGS -LARGEADDRESSAWARE -NXCOMPAT"
             dnl For profile-guided optimization
             PROFILE_GEN_CFLAGS="-GL"
             PROFILE_GEN_LDFLAGS="-LTCG:PGINSTRUMENT"
@@ -2430,9 +2429,7 @@ ia64*-hpux*)
             dnl XXX: should be -LTCG:PGOPTIMIZE, but that fails on libxul.
             dnl Probably also a compiler bug, but what can you do?
             PROFILE_USE_LDFLAGS="-LTCG:PGUPDATE"
-            if test -n "$_USE_DYNAMICBASE"; then
-               LDFLAGS="$LDFLAGS -DYNAMICBASE"
-            fi
+            LDFLAGS="$LDFLAGS -DYNAMICBASE"
         fi
     fi
     MOZ_JPEG_LIBS='$(call EXPAND_LIBNAME_PATH,jpeg32$(VERSION_NUMBER),$(DEPTH)/jpeg)'
@@ -2493,7 +2490,7 @@ ia64*-hpux*)
 
     case "$host_os" in
     cygwin*|msvc*|mks*)
-        AC_MSG_WARN([Using a cygwin build environment is unsupported. Configure cannot check for the presence of necessary headers. Please upgrade to MozillaBuild; see http://developer.mozilla.org/en/docs/Windows_Build_Prerequisites])
+        AC_MSG_WARN([Using a cygwin build environment is unsupported. Configure cannot check for the presence of necessary headers. Please upgrade to MozillaBuild; see https://developer.mozilla.org/en/Windows_Build_Prerequisites.])
         ;;
 
     *)
@@ -2893,11 +2890,13 @@ esac
 AC_SUBST(NO_LD_ARCHIVE_FLAGS)
 
 dnl ========================================================
-dnl = Flags to strip unused symbols from .so components
+dnl = Flags to strip unused symbols from .so components and
+dnl = to export jemalloc symbols when linking a program
 dnl ========================================================
 case "$target" in
     *-linux*|*-kfreebsd*-gnu|*-gnu*)
         MOZ_COMPONENTS_VERSION_SCRIPT_LDFLAGS='-Wl,--version-script -Wl,$(BUILD_TOOLS)/gnu-ld-scripts/components-version-script'
+        MOZ_JEMALLOC_STANDALONE_GLUE_LDOPTS='-rdynamic -Wl,--version-script -Wl,$(BUILD_TOOLS)/gnu-ld-scripts/jemalloc-standalone-linkage-version-script'
         ;;
     *-solaris*)
         if test -z "$GNU_CC"; then
@@ -3817,7 +3816,7 @@ fi
 
 dnl check for wcrtomb/mbrtowc
 dnl =======================================================================
-if test -z "$MACOS_DEPLOYMENT_TARGET" -o "$MACOS_DEPLOYMENT_TARGET" -ge "100300"; then
+if test -z "$MACOS_DEPLOYMENT_TARGET" || test "$MACOS_DEPLOYMENT_TARGET" -ge "100300"; then
 AC_LANG_SAVE
 AC_LANG_CPLUSPLUS
 AC_CACHE_CHECK(for wcrtomb,
@@ -4609,7 +4608,7 @@ MOZ_ARG_WITH_BOOL(system-nspr,
     _USE_SYSTEM_NSPR=1 )
 
 if test -n "$_USE_SYSTEM_NSPR"; then
-    AM_PATH_NSPR(4.8.6, [MOZ_NATIVE_NSPR=1], [MOZ_NATIVE_NSPR=])
+    AM_PATH_NSPR(4.8.7, [MOZ_NATIVE_NSPR=1], [MOZ_NATIVE_NSPR=])
 fi
 
 if test -n "$MOZ_NATIVE_NSPR"; then
@@ -4686,7 +4685,7 @@ MOZ_ARG_WITH_BOOL(system-nss,
     _USE_SYSTEM_NSS=1 )
 
 if test -n "$_USE_SYSTEM_NSS"; then
-    AM_PATH_NSS(3.12.8, [MOZ_NATIVE_NSS=1], [MOZ_NATIVE_NSS=])
+    AM_PATH_NSS(3.12.9, [MOZ_NATIVE_NSS=1], [MOZ_NATIVE_NSS=])
 fi
 
 if test -n "$MOZ_NATIVE_NSS"; then
@@ -4992,6 +4991,7 @@ MOZ_XTF=1
 MOZ_XUL=1
 MOZ_ZIPWRITER=1
 NS_PRINTING=1
+MOZ_PDF_PRINTING=
 MOZ_DISABLE_DOMCRYPTO=
 NSS_DISABLE_DBM=
 NECKO_WIFI=1
@@ -5031,7 +5031,6 @@ case "${target}" in
         NSS_DISABLE_DBM=1
         USE_ARM_KUSER=1
         MOZ_INSTALLER=
-        NS_PRINTING=
         NECKO_WIFI=
         MOZ_THUMB2=1
         MOZ_THEME_FASTSTRIPE=1
@@ -5187,6 +5186,7 @@ cairo-windows)
         NS_PRINTING=
         ;;
     esac
+    MOZ_PDF_PRINTING=1
     ;;
 
 cairo-gtk2|cairo-gtk2-x11)
@@ -5203,6 +5203,7 @@ cairo-gtk2|cairo-gtk2-x11)
     TK_CFLAGS='$(MOZ_GTK2_CFLAGS)'
     TK_LIBS='$(MOZ_GTK2_LIBS)'
     AC_DEFINE(MOZ_WIDGET_GTK2)
+    MOZ_PDF_PRINTING=1
     ;;
 
 cairo-gtk2-dfb)
@@ -5220,6 +5221,7 @@ cairo-gtk2-dfb)
         AC_MSG_WARN([Disabling X when DirectFB is specified.])
         no_x=yes
     fi
+    MOZ_PDF_PRINTING=1
     ;;
 
 cairo-qt)
@@ -5237,6 +5239,7 @@ cairo-qt)
     TK_CFLAGS='$(MOZ_QT_CFLAGS)'
     TK_LIBS='$(MOZ_QT_LIBS)'
     AC_DEFINE(MOZ_WIDGET_QT)
+    MOZ_PDF_PRINTING=1
     ;;
 
 cairo-beos)
@@ -5251,6 +5254,7 @@ cairo-os2)
     USE_FC_FREETYPE=1
     TK_CFLAGS='$(MOZ_CAIRO_CFLAGS)'
     TK_LIBS='$(MOZ_CAIRO_LIBS)'
+    MOZ_PDF_PRINTING=1
     ;;
 
 cairo-cocoa)
@@ -5271,10 +5275,19 @@ cairo-cocoa)
 cairo-android)
     AC_DEFINE(MOZ_WIDGET_ANDROID)
     MOZ_WIDGET_TOOLKIT=android
+    TK_CFLAGS='$(MOZ_CAIRO_CFLAGS)'
+    TK_LIBS='$(MOZ_CAIRO_LIBS)'
     MOZ_WEBGL=1
+    MOZ_PDF_PRINTING=1
     ;;
 
 esac
+
+AC_SUBST(MOZ_PDF_PRINTING)
+if test "$MOZ_PDF_PRINTING"; then
+   PDF_SURFACE_FEATURE="#define CAIRO_HAS_PDF_SURFACE 1"
+   AC_DEFINE(MOZ_PDF_PRINTING)
+fi
 
 if test "$MOZ_ENABLE_XREMOTE"; then
     AC_DEFINE(MOZ_ENABLE_XREMOTE)
@@ -6306,6 +6319,51 @@ if test -n "${MOZ_JAVAXPCOM}"; then
 fi
 
 dnl ========================================================
+dnl = ANGLE OpenGL->D3D translator for WebGL
+dnl = * only applies to win32
+dnl = * enabled by default (shipping build); requires explicit --disable to disable
+dnl ========================================================
+MOZ_ANGLE=
+MOZ_DIRECTX_SDK_PATH=
+case "$target_os" in
+    *msvc*|*mks*|*cygwin*|*mingw*)
+        MOZ_ANGLE=1
+        ;;
+esac
+
+if test -n "$MOZ_ANGLE"; then
+MOZ_ARG_DISABLE_BOOL(angle,
+[  --disable-angle     Disable building of ANGLE for WebGL->D3D translation],
+    MOZ_ANGLE=,
+    MOZ_ANGLE=1)
+
+if test -n "$MOZ_ANGLE"; then
+  if test -z "$_WIN32_MSVC"; then
+    AC_MSG_ERROR([Building ANGLE requires MSVC.  To build without ANGLE, reconfigure with --disable-angle.])
+  fi
+
+  AC_CHECK_HEADER(d3dx9.h, [], [MOZ_ANGLE=])
+
+  if test -z "$MOZ_ANGLE"; then
+    # Try again, but try to get the SDK path from the registry.  We're going to hardcode
+    # the February 2010 SDK, since that's the one that's installed on the tinderboxen.
+    MOZ_DIRECTX_SDK_PATH=`reg query 'HKLM\Software\Microsoft\DirectX\Microsoft DirectX SDK (February 2010)' //v InstallPath | grep REG_SZ | sed 's,  *, ,g' | cut -d' ' -f4`
+    if test -n "$MOZ_DIRECTX_SDK_PATH" ; then
+      if test -f "$MOZ_DIRECTX_SDK_PATH"/include/d3dx9.h && test -f "$MOZ_DIRECTX_SDK_PATH"/lib/x86/dxguid.lib ; then
+        AC_MSG_WARN([Found DirectX SDK in registry, using $MOZ_DIRECTX_SDK])
+        MOZ_ANGLE=1
+      fi
+    fi
+  fi
+
+  if test -z "$MOZ_ANGLE"; then
+    AC_MSG_WARN([Couldn't find d3dx9.h in your INCLUDE path, needed for ANGLE.  Please install the February 2010 DirectX SDK, or make another version available in your LIB and INCLUDE path env variables.  To explicitly build without ANGLE, reconfigure with --disable-angle.])
+    AC_MSG_WARN([This will become an error in the future.])
+  fi
+fi
+fi
+
+dnl ========================================================
 dnl = Breakpad crash reporting (on by default on supported platforms)
 dnl ========================================================
 
@@ -6480,15 +6538,9 @@ if test "$MOZ_MATHML"; then
 fi
 
 dnl ========================================================
-dnl SVG
+dnl Keeping AC_DEFINE(MOZ_SVG) for the moment in case of something needs it.
 dnl ========================================================
-MOZ_ARG_DISABLE_BOOL(svg,
-[  --disable-svg           Disable SVG support],
-    MOZ_SVG=,
-    MOZ_SVG=1 )
-if test -n "$MOZ_SVG"; then
-  AC_DEFINE(MOZ_SVG)
-fi
+AC_DEFINE(MOZ_SVG)
 
 dnl ========================================================
 dnl SMIL
@@ -6498,10 +6550,6 @@ MOZ_ARG_DISABLE_BOOL(smil,
 [  --disable-smil          Disable SMIL animation support],
     MOZ_SMIL=,
     MOZ_SMIL=1 )
-# Automatically disable SMIL if SVG is disabled
-if test -z "$MOZ_SVG"; then
-  MOZ_SMIL=
-fi
 if test -n "$MOZ_SMIL"; then
   AC_DEFINE(MOZ_SMIL)
 fi
@@ -6558,14 +6606,14 @@ if test -n "$MOZ_INSTALLER" -a "$OS_ARCH" = "WINNT"; then
     changequote(,)
     MAKENSISU_VER=`"$MAKENSISU" -version 2>/dev/null | sed -e '/-Unicode/!s/.*//g' -e 's/^v\([0-9]\+\.[0-9]\+\)\-Unicode$/\1/g'`
     changequote([,])
-    if test ! "$MAKENSISU_VER" == ""; then
+    if test ! "$MAKENSISU_VER" = ""; then
         MAKENSISU_MAJOR_VER=`echo $MAKENSISU_VER | $AWK -F\. '{ print $1 }'`
         MAKENSISU_MINOR_VER=`echo $MAKENSISU_VER | $AWK -F\. '{ print $2 }'`
     fi
     AC_MSG_CHECKING([for Unicode NSIS with major version == $REQ_NSIS_MAJOR_VER and minor version >= $MIN_NSIS_MINOR_VER])
-    if test "$MAKENSISU_VER" == "" -o \
-       ! "$MAKENSISU_MAJOR_VER" == "$REQ_NSIS_MAJOR_VER" -o \
-       ! "$MAKENSISU_MINOR_VER" -ge $MIN_NSIS_MINOR_VER; then
+    if test "$MAKENSISU_VER" = "" ||
+       test ! "$MAKENSISU_MAJOR_VER" = "$REQ_NSIS_MAJOR_VER" -o \
+            ! "$MAKENSISU_MINOR_VER" -ge $MIN_NSIS_MINOR_VER; then
         AC_MSG_RESULT([no])
         AC_MSG_ERROR([To build the installer you must have the latest MozillaBuild or Unicode NSIS with a major version of $REQ_NSIS_MAJOR_VER and a minimum minor version of $MIN_NSIS_MINOR_VER in your path. To build without the installer reconfigure using --disable-installer.])
     fi
@@ -7098,6 +7146,16 @@ if test -n "$MOZ_THUMB2"; then
       AC_MSG_ERROR([--enable-thumb2 is not supported for non-ARM CPU architectures])
     ;;
   esac
+else
+  case "$target_cpu" in
+    arm*)
+      if test "$GNU_CC"; then
+       CFLAGS="$CFLAGS -march=armv5te -mthumb-interwork -Wa, -march=armv5te -Wa, -mthumb-interwork"
+        CXXFLAGS="$CXXFLAGS -march=armv5te -mthumb-interwork -Wa, -march=armv5te -Wa, -mthumb-interwork"
+        ASFLAGS="$ASFLAGS -march=armv5te -mthumb-interwork"
+      fi
+      ;;
+  esac
 fi
 
 AC_SUBST(MOZ_THUMB2)
@@ -7463,6 +7521,7 @@ if test -n "$_WRAP_MALLOC"; then
     if test "$GNU_CC"; then
     WRAP_MALLOC_CFLAGS="${LDFLAGS} ${WRAP_MALLOC_CFLAGS} -Wl,--wrap -Wl,malloc -Wl,--wrap -Wl,calloc -Wl,--wrap -Wl,valloc -Wl,--wrap -Wl,free -Wl,--wrap -Wl,realloc -Wl,--wrap -Wl,memalign -Wl,--wrap -Wl,__builtin_new -Wl,--wrap -Wl,__builtin_vec_new -Wl,--wrap -Wl,__builtin_delete -Wl,--wrap -Wl,__builtin_vec_delete -Wl,--wrap -Wl,PR_Free -Wl,--wrap -Wl,PR_Malloc -Wl,--wrap -Wl,PR_Calloc -Wl,--wrap -Wl,PR_Realloc -Wl,--wrap -Wl,strdup -Wl,--wrap -Wl,strndup -Wl,--wrap -Wl,posix_memalign"
     MKSHLIB='$(CXX) $(DSO_LDOPTS) $(WRAP_MALLOC_CFLAGS) $(WRAP_MALLOC_LIB) -o $@'
+    MKCSHLIB='$(CC) $(DSO_LDOPTS) $(WRAP_MALLOC_CFLAGS) $(WRAP_MALLOC_LIB) -o $@'
     fi
 fi
 
@@ -8499,7 +8558,6 @@ if test "$MOZ_TREE_CAIRO"; then
         XLIB_SURFACE_FEATURE="#define CAIRO_HAS_XLIB_SURFACE 1"
         XLIB_XRENDER_SURFACE_FEATURE="#define CAIRO_HAS_XLIB_XRENDER_SURFACE 1"
         PS_SURFACE_FEATURE="#define CAIRO_HAS_PS_SURFACE 1"
-        PDF_SURFACE_FEATURE="#define CAIRO_HAS_PDF_SURFACE 1"
         FT_FONT_FEATURE="#define CAIRO_HAS_FT_FONT 1"
         MOZ_ENABLE_CAIRO_FT=1
         CAIRO_FT_CFLAGS="$FT2_CFLAGS"
@@ -8538,12 +8596,10 @@ if test "$MOZ_TREE_CAIRO"; then
           AC_CHECK_HEADER(d3d10.h, MOZ_ENABLE_D3D10_LAYER=1)
         fi
 
-        PDF_SURFACE_FEATURE="#define CAIRO_HAS_PDF_SURFACE 1"
     fi
     if test "$MOZ_WIDGET_TOOLKIT" = "os2"; then
         OS2_SURFACE_FEATURE="#define CAIRO_HAS_OS2_SURFACE 1"
         FT_FONT_FEATURE="#define CAIRO_HAS_FT_FONT 1"
-        PDF_SURFACE_FEATURE="#define CAIRO_HAS_PDF_SURFACE 1"
         MOZ_ENABLE_CAIRO_FT=1
         CAIRO_FT_CFLAGS="-I${MZFTCFGFT2}/include"
         CAIRO_FT_LIBS="-L${MZFTCFGFT2}/lib -lmozft -lmzfntcfg"
@@ -8597,6 +8653,7 @@ if test "$MOZ_TREE_CAIRO"; then
     MOZ_CAIRO_LIBS='$(call EXPAND_LIBNAME_PATH,mozcairo,$(DEPTH)/gfx/cairo/cairo/src)'" $CAIRO_FT_LIBS"
 
     if test "$MOZ_TREE_PIXMAN"; then
+        AC_DEFINE(MOZ_TREE_PIXMAN)
         MOZ_CAIRO_LIBS="$MOZ_CAIRO_LIBS"' $(call EXPAND_LIBNAME_PATH,mozlibpixman,$(DEPTH)/gfx/cairo/libpixman/src)'
     else
         PKG_CHECK_MODULES(PIXMAN, pixman-1 >= 0.19.2)
@@ -8918,12 +8975,15 @@ AC_SUBST(MOZ_SPELLCHECK)
 AC_SUBST(MOZ_USER_DIR)
 AC_SUBST(MOZ_CRASHREPORTER)
 AC_SUBST(MOZ_UPDATER)
+AC_SUBST(MOZ_ANGLE)
+AC_SUBST(MOZ_DIRECTX_SDK_PATH)
 
 AC_SUBST(ENABLE_STRIP)
 AC_SUBST(PKG_SKIP_STRIP)
 AC_SUBST(USE_ELF_DYNSTR_GC)
 AC_SUBST(INCREMENTAL_LINKER)
 AC_SUBST(MOZ_COMPONENTS_VERSION_SCRIPT_LDFLAGS)
+AC_SUBST(MOZ_JEMALLOC_STANDALONE_GLUE_LDOPTS)
 AC_SUBST(MOZ_COMPONENT_NSPR_LIBS)
 
 AC_SUBST(MOZ_FIX_LINK_PATHS)

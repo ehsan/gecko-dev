@@ -62,7 +62,7 @@ class gfxContext;
  * class, but it gives them a head start.)
  */
 
-class nsBaseWidget : public nsIWidget
+class nsBaseWidget : public nsIWidget_MOZILLA_2_0_BRANCH
 {
   friend class nsAutoRollup;
 
@@ -115,7 +115,9 @@ public:
   NS_IMETHOD              MakeFullScreen(PRBool aFullScreen);
   virtual nsIDeviceContext* GetDeviceContext();
   virtual nsIToolkit*     GetToolkit();
-  virtual LayerManager*   GetLayerManager(bool* aAllowRetaining = nsnull);
+  virtual LayerManager*   GetLayerManager(bool *aAllowRetaining = nsnull);
+  virtual LayerManager*   GetLayerManager(LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
+                                          bool* aAllowRetaining = nsnull);
   virtual gfxASurface*    GetThebesSurface();
   NS_IMETHOD              SetModal(PRBool aModal); 
   NS_IMETHOD              SetWindowClass(const nsAString& xulWinType);
@@ -141,8 +143,10 @@ public:
   NS_IMETHOD              ResetInputState() { return NS_OK; }
   NS_IMETHOD              SetIMEOpenState(PRBool aState) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              GetIMEOpenState(PRBool* aState) { return NS_ERROR_NOT_IMPLEMENTED; }
-  NS_IMETHOD              SetIMEEnabled(PRUint32 aState) { return NS_ERROR_NOT_IMPLEMENTED; }
-  NS_IMETHOD              GetIMEEnabled(PRUint32* aState) { return NS_ERROR_NOT_IMPLEMENTED; }
+  NS_IMETHOD              SetInputMode(const IMEContext& aContext) { return NS_ERROR_NOT_IMPLEMENTED; }
+  NS_IMETHOD              GetInputMode(IMEContext& aContext) { return NS_ERROR_NOT_IMPLEMENTED; }
+  NS_IMETHOD              SetIMEEnabled(PRUint32 aState);
+  NS_IMETHOD              GetIMEEnabled(PRUint32* aState);
   NS_IMETHOD              CancelIMEComposition() { return NS_OK; }
   NS_IMETHOD              SetAcceleratedRendering(PRBool aEnabled);
   virtual PRBool          GetAcceleratedRendering();

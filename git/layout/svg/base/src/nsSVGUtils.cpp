@@ -57,8 +57,6 @@
 #include "nsContentUtils.h"
 #include "nsSVGFilterFrame.h"
 #include "nsINameSpaceManager.h"
-#include "nsIDOMSVGPoint.h"
-#include "nsSVGPoint.h"
 #include "nsDOMError.h"
 #include "nsSVGOuterSVGFrame.h"
 #include "nsSVGInnerSVGFrame.h"
@@ -91,7 +89,7 @@
 #include "nsSVGPathGeometryFrame.h"
 #include "prdtoa.h"
 #include "mozilla/dom/Element.h"
-#include "nsIDOMSVGNumberList.h"
+#include "gfxUtils.h"
 
 using namespace mozilla::dom;
 
@@ -171,40 +169,10 @@ static const PRUint8 gsRGBToLinearRGBMap[256] = {
 239, 242, 244, 246, 248, 250, 253, 255
 };
 
-static PRBool gSVGEnabled;
-static const char SVG_PREF_STR[] = "svg.enabled";
-
 #ifdef MOZ_SMIL
 static PRBool gSMILEnabled;
 static const char SMIL_PREF_STR[] = "svg.smil.enabled";
 #endif // MOZ_SMIL
-
-static int
-SVGPrefChanged(const char *aPref, void *aClosure)
-{
-  PRBool prefVal = nsContentUtils::GetBoolPref(SVG_PREF_STR);
-  if (prefVal == gSVGEnabled)
-    return 0;
-
-  gSVGEnabled = prefVal;
-  return 0;
-}
-
-PRBool
-NS_SVGEnabled()
-{
-  static PRBool sInitialized = PR_FALSE;
-  
-  if (!sInitialized) {
-    /* check and register ourselves with the pref */
-    gSVGEnabled = nsContentUtils::GetBoolPref(SVG_PREF_STR);
-    nsContentUtils::RegisterPrefCallback(SVG_PREF_STR, SVGPrefChanged, nsnull);
-
-    sInitialized = PR_TRUE;
-  }
-
-  return gSVGEnabled;
-}
 
 #ifdef MOZ_SMIL
 static int
@@ -637,7 +605,7 @@ nsSVGUtils::FindFilterInvalidation(nsIFrame *aFrame, const nsRect& aRect)
                          TransformBounds(gfxRect(x, y, width, height));
       bounds.RoundOut();
       nsIntRect r;
-      if (NS_SUCCEEDED(nsLayoutUtils::GfxRectToIntRect(bounds, &r))) {
+      if (gfxUtils::GfxRectToIntRect(bounds, &r)) {
         rect = r;
       } else {
         NS_NOTREACHED("Not going to invalidate the correct area");
@@ -956,7 +924,7 @@ public:
       gfxRect dirtyBounds = userToDeviceSpace.TransformBounds(
         gfxRect(aDirtyRect->x, aDirtyRect->y, aDirtyRect->width, aDirtyRect->height));
       dirtyBounds.RoundOut();
-      if (NS_SUCCEEDED(nsLayoutUtils::GfxRectToIntRect(dirtyBounds, &tmpDirtyRect))) {
+      if (gfxUtils::GfxRectToIntRect(dirtyBounds, &tmpDirtyRect)) {
         dirtyRect = &tmpDirtyRect;
       }
     }
@@ -1493,44 +1461,6 @@ nsSVGUtils::IsInnerSVG(nsIContent* aContent)
   nsIContent *ancestor = GetParentElement(aContent);
   return ancestor && ancestor->GetNameSpaceID() == kNameSpaceID_SVG &&
                      ancestor->Tag() != nsGkAtoms::foreignObject;
-}
-
-/* static */ PRBool
-nsSVGUtils::NumberFromString(const nsAString& aString, float* aValue,
-                             PRBool aAllowPercentages)
-{
-  NS_ConvertUTF16toUTF8 s(aString);
-  const char *str = s.get();
-
-  char *rest;
-  float value = float(PR_strtod(str, &rest));
-  if (str != rest && NS_FloatIsFinite(value)) {
-    if (aAllowPercentages && *rest == '%') {
-      value /= 100;
-      ++rest;
-    }
-    // XXX should allow trailing whitespace
-    if (*rest == '\0') {
-      *aValue = value;
-      return PR_TRUE;
-    }
-  }
-  return PR_FALSE;
-}
-
-/* static */ float
-nsSVGUtils::GetNumberListValue(nsIDOMSVGNumberList *aList, PRUint32 aIndex)
-{
-  if (!aList) {
-    return 0.0f;
-  }
-  nsCOMPtr<nsIDOMSVGNumber> number;
-  nsresult rv = aList->GetItem(aIndex, getter_AddRefs(number));
-  float value = 0.0f;
-  if (NS_SUCCEEDED(rv)) {
-    number->GetValue(&value);
-  }
-  return value;
 }
 
 // ----------------------------------------------------------------------

@@ -223,7 +223,7 @@ protected:
     NS_ASSERTION(IsAutoArray(), "Should be an auto array to call this");
 
     return reinterpret_cast<Header*>(&(reinterpret_cast<AutoArray*>(&mHdr))->aligned);
-    }
+  }
 
   // Returns true if this is an nsAutoTArray and it currently uses the
   // built-in buffer to store its elements.
@@ -525,7 +525,7 @@ public:
     const elem_type* iter = Elements() + start, *end = Elements() + Length();
     for (; iter != end; ++iter) {
       if (comp.Equals(*iter, item))
-        return iter - Elements();
+        return index_type(iter - Elements());
     }
     return NoIndex;
   }

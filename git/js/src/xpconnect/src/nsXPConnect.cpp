@@ -457,15 +457,15 @@ nsresult
 nsXPConnect::BeginCycleCollection(nsCycleCollectionTraversalCallback &cb,
                                   bool explainLiveExpectedGarbage)
 {
-    NS_ASSERTION(!mCycleCollectionContext, "Didn't call FinishCollection?");
+    NS_ASSERTION(!mCycleCollectionContext, "Didn't call FinishTraverse?");
     mCycleCollectionContext = new XPCCallContext(NATIVE_CALLER);
     if (!mCycleCollectionContext->IsValid()) {
         mCycleCollectionContext = nsnull;
-        return PR_FALSE;
+        return NS_ERROR_FAILURE;
     }
 
 #ifdef DEBUG_CC
-    NS_ASSERTION(!mJSRoots.ops, "Didn't call FinishCollection?");
+    NS_ASSERTION(!mJSRoots.ops, "Didn't call FinishCycleCollection?");
 
     if(explainLiveExpectedGarbage)
     {
@@ -496,11 +496,16 @@ nsXPConnect::BeginCycleCollection(nsCycleCollectionTraversalCallback &cb,
 }
 
 nsresult 
-nsXPConnect::FinishCycleCollection()
+nsXPConnect::FinishTraverse()
 {
     if (mCycleCollectionContext)
         mCycleCollectionContext = nsnull;
+    return NS_OK;
+}
 
+nsresult 
+nsXPConnect::FinishCycleCollection()
+{
 #ifdef DEBUG_CC
     if(mJSRoots.ops)
     {
@@ -1177,6 +1182,20 @@ nsXPConnect::InitClassesWithNewWrappedGlobal(JSContext * aJSContext,
     return NS_OK;
 }
 
+nsresult
+xpc_MorphSlimWrapper(JSContext *cx, nsISupports *tomorph)
+{
+    nsWrapperCache *cache;
+    CallQueryInterface(tomorph, &cache);
+    if(!cache)
+        return NS_OK;
+
+    JSObject *obj = cache->GetWrapper();
+    if(!obj || !IS_SLIM_WRAPPER(obj))
+        return NS_OK;
+    return MorphSlimWrapper(cx, obj);
+}
+
 static nsresult
 NativeInterface2JSObject(XPCLazyCallContext & lccx,
                          JSObject * aScope,
@@ -1478,10 +1497,14 @@ static JSDHashOperator
 MoveableWrapperFinder(JSDHashTable *table, JSDHashEntryHdr *hdr,
                       uint32 number, void *arg)
 {
-    // Every element counts.
     nsTArray<nsRefPtr<XPCWrappedNative> > *array =
         static_cast<nsTArray<nsRefPtr<XPCWrappedNative> > *>(arg);
-    array->AppendElement(((Native2WrappedNativeMap::Entry*)hdr)->value);
+    XPCWrappedNative *wn = ((Native2WrappedNativeMap::Entry*)hdr)->value;
+
+    // If a wrapper is expired, then there are no references to it from JS, so
+    // we don't have to move it.
+    if(!wn->IsWrapperExpired())
+        array->AppendElement(wn);
     return JS_DHASH_NEXT;
 }
 
@@ -2755,9 +2778,9 @@ JS_EXPORT_API(void) DumpJSValue(jsval val)
     }
     else if(JSVAL_IS_STRING(val)) {
         printf("Value is a string: ");
-        JSString* string = JSVAL_TO_STRING(val);
-        char* bytes = JS_GetStringBytes(string);
-        printf("<%s>\n", bytes);
+        putc('<', stdout);
+        JS_FileEscapedString(stdout, JSVAL_TO_STRING(val), 0);
+        fputs(">\n", stdout);
     }
     else if(JSVAL_IS_BOOLEAN(val)) {
         printf("Value is boolean: ");

@@ -64,6 +64,11 @@ include event/reftest.list
 == anim-discrete-to-3.svg          anim-standard-ref.svg
 == anim-discrete-to-4.svg          anim-standard-ref.svg
 
+== anim-indefinite-to-1.svg        anim-standard-ref.svg
+== anim-indefinite-to-2.svg        anim-standard-ref.svg
+== anim-indefinite-to-3.svg        anim-standard-ref.svg
+== anim-indefinite-to-4.svg        anim-standard-ref.svg
+
 fails == anim-fillcolor-1.svg      anim-standard-ref.svg # bug 436296
 == anim-fillopacity-1none.svg anim-standard-ref.svg
 == anim-fillopacity-1css.svg  anim-standard-ref.svg
@@ -83,7 +88,10 @@ fails == anim-fillcolor-1.svg      anim-standard-ref.svg # bug 436296
 == anim-filter-size-01.svg lime.svg
 
 # animate some <number> attributes:
+== anim-feComponentTransfer-01.svg lime.svg
+== anim-feDistantLight-01.svg anim-feDistantLight-01-ref.svg
 == anim-feOffset-01.svg lime.svg
+== anim-feSpotLight-01.svg anim-feSpotLight-01-ref.svg
 == anim-offset-01.svg lime.svg
 == anim-pathLength-01.svg anim-pathLength-01-ref.svg
 
@@ -92,6 +100,10 @@ fails == anim-fillcolor-1.svg      anim-standard-ref.svg # bug 436296
 
 # animate some <angle> attributes:
 == anim-marker-orient-01.svg lime.svg
+
+#animate points list:
+== anim-polygon-points-01.svg anim-polygon-points-01-ref.svg
+== anim-polyline-points-01.svg anim-polyline-points-01-ref.svg
 
 # animate path data:
 == anim-path-d-01.svg anim-path-d-01-ref.svg
@@ -153,6 +165,9 @@ fails == anim-strokecolor-1.svg anim-standard-ref.svg # bug 436296
 == anim-targethref-8.svg anim-standard-ref.svg
 == anim-targethref-9.svg anim-standard-ref.svg
 
+== anim-text-rotate-01.svg anim-text-rotate-01-ref.svg
+== anim-feFuncR-tableValues-01.svg anim-feFuncR-tableValues-01-ref.svg
+
 random == anim-text-x-y-dx-dy-01.svg anim-text-x-y-dx-dy-01-ref.svg # bug 579588
 
 == anim-width-done-1a.svg anim-standard-ref.svg
@@ -175,6 +190,8 @@ random == anim-text-x-y-dx-dy-01.svg anim-text-x-y-dx-dy-01-ref.svg # bug 579588
 == anim-y-interp-4.svg anim-y-interp-4-ref.svg
 == anim-y-interp-5.svg anim-y-interp-5-ref.svg
 == anim-y-interp-6.svg anim-y-interp-6-ref.svg
+
+== anim-rect-rxry-1.svg anim-rect-rxry-1-ref.svg
 
 == api-sanity-1.svg lime.svg
 

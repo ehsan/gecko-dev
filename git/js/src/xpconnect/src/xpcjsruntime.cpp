@@ -47,6 +47,7 @@
 #include "jsgcchunk.h"
 #include "nsIMemoryReporter.h"
 #include "mozilla/FunctionTimer.h"
+#include "prsystem.h"
 
 /***************************************************************************/
 
@@ -120,8 +121,9 @@ NativeInterfaceSweeper(JSDHashTable *table, JSDHashEntryHdr *hdr,
     }
 
 #ifdef XPC_REPORT_NATIVE_INTERFACE_AND_SET_FLUSHING
-    printf("- Destroying XPCNativeInterface for %s\n",
-            JS_GetStringBytes(JSVAL_TO_STRING(iface->GetName())));
+    fputs("- Destroying XPCNativeInterface for ", stdout);
+    JS_PutString(JSVAL_TO_STRING(iface->GetName()), stdout);
+    putc('\n', stdout);
 #endif
 
     XPCNativeInterface::DestroyInstance(iface);
@@ -160,7 +162,9 @@ NativeSetSweeper(JSDHashTable *table, JSDHashEntryHdr *hdr,
     for(PRUint16 k = 0; k < count; k++)
     {
         XPCNativeInterface* iface = set->GetInterfaceAt(k);
-        printf("    %s\n",JS_GetStringBytes(JSVAL_TO_STRING(iface->GetName())));
+        fputs("    ", stdout);
+        JS_PutString(JSVAL_TO_STRING(iface->GetName()), stdout);
+        putc('\n', stdout);
     }
 #endif
 
@@ -234,6 +238,12 @@ ContextCallback(JSContext *cx, uintN operation)
         }
     }
     return JS_TRUE;
+}
+
+xpc::CompartmentPrivate::~CompartmentPrivate()
+{
+    if (waiverWrapperMap)
+        delete waiverWrapperMap;
 }
 
 static JSBool
@@ -342,10 +352,15 @@ void XPCJSRuntime::TraceJS(JSTracer* trc, void* data)
         }
     }
 
-    // XPCJSObjectHolders don't participate in cycle collection, so always trace
-    // them here.
-    for(XPCRootSetElem *e = self->mObjectHolderRoots; e ; e = e->GetNextRoot())
-        static_cast<XPCJSObjectHolder*>(e)->TraceJS(trc);
+    {
+        XPCAutoLock lock(self->mMapLock);
+
+        // XPCJSObjectHolders don't participate in cycle collection, so always
+        // trace them here.
+        XPCRootSetElem *e;
+        for(e = self->mObjectHolderRoots; e; e = e->GetNextRoot())
+            static_cast<XPCJSObjectHolder*>(e)->TraceJS(trc);
+    }
 
     // Mark these roots as gray so the CC can walk them later.
     js::GCMarker *gcmarker = NULL;
@@ -395,6 +410,8 @@ void XPCJSRuntime::TraceXPConnectRoots(JSTracer *trc)
         if (acx->globalObject)
             JS_CALL_OBJECT_TRACER(trc, acx->globalObject, "global object");
     }
+
+    XPCAutoLock lock(mMapLock);
 
     XPCWrappedNativeScope::TraceJS(trc, this);
 
@@ -534,6 +551,27 @@ DoDeferredRelease(nsTArray<T> &array)
     }
 }
 
+static JSDHashOperator
+SweepWaiverWrappers(JSDHashTable *table, JSDHashEntryHdr *hdr,
+                    uint32 number, void *arg)
+{
+    JSObject *key = ((JSObject2JSObjectMap::Entry *)hdr)->key;
+    JSObject *value = ((JSObject2JSObjectMap::Entry *)hdr)->value;
+    if(IsAboutToBeFinalized(key) || IsAboutToBeFinalized(value))
+        return JS_DHASH_REMOVE;
+    return JS_DHASH_NEXT;
+}
+
+static PLDHashOperator
+SweepCompartment(nsCStringHashKey& aKey, JSCompartment *compartment, void *aClosure)
+{
+    xpc::CompartmentPrivate *priv = (xpc::CompartmentPrivate *)
+        JS_GetCompartmentPrivate((JSContext *)aClosure, compartment);
+    if (priv->waiverWrapperMap)
+        priv->waiverWrapperMap->Enumerate(SweepWaiverWrappers, nsnull);
+    return PL_DHASH_NEXT;
+}
+
 // static
 JSBool XPCJSRuntime::GCCallback(JSContext *cx, JSGCStatus status)
 {
@@ -586,8 +624,13 @@ JSBool XPCJSRuntime::GCCallback(JSContext *cx, JSGCStatus status)
                         Enumerate(WrappedJSDyingJSObjectFinder, &data);
                 }
 
-                // Find dying scopes...
+                // Find dying scopes.
                 XPCWrappedNativeScope::FinishedMarkPhaseOfGC(cx, self);
+
+                // Sweep compartments.
+                self->GetCompartmentMap().EnumerateRead(
+                    (XPCCompartmentMap::EnumReadFunction)
+                    SweepCompartment, cx);
 
                 self->mDoingFinalization = JS_TRUE;
                 break;
@@ -1303,7 +1346,9 @@ XPCJSRuntime::OnJSContextNew(JSContext *cx)
         return JS_FALSE;
 
     JS_SetNativeStackQuota(cx, 128 * sizeof(size_t) * 1024);
-    JS_SetScriptStackQuota(cx, 25 * sizeof(size_t) * 1024 * 1024);
+    PRInt64 totalMemory = PR_GetPhysicalMemorySize();
+    JS_SetScriptStackQuota(cx, PR_MAX(25 * sizeof(size_t) * 1024 * 1024,
+                                      totalMemory / 4));
 
     // we want to mark the global object ourselves since we use a different color
     JS_ToggleOptions(cx, JSOPTION_UNROOTED_GLOBAL);
@@ -1434,11 +1479,12 @@ XPCJSRuntime::DebugDump(PRInt16 depth)
 /***************************************************************************/
 
 void
-XPCRootSetElem::AddToRootSet(JSRuntime* rt, XPCRootSetElem** listHead)
+XPCRootSetElem::AddToRootSet(XPCLock *lock, XPCRootSetElem **listHead)
 {
     NS_ASSERTION(!mSelfp, "Must be not linked");
 
-    AutoLockJSGC lock(rt);
+    XPCAutoLock autoLock(lock);
+
     mSelfp = listHead;
     mNext = *listHead;
     if(mNext)
@@ -1450,11 +1496,12 @@ XPCRootSetElem::AddToRootSet(JSRuntime* rt, XPCRootSetElem** listHead)
 }
 
 void
-XPCRootSetElem::RemoveFromRootSet(JSRuntime* rt)
+XPCRootSetElem::RemoveFromRootSet(XPCLock *lock)
 {
     NS_ASSERTION(mSelfp, "Must be linked");
 
-    AutoLockJSGC lock(rt);
+    XPCAutoLock autoLock(lock);
+
     NS_ASSERTION(*mSelfp == this, "Link invariant");
     *mSelfp = mNext;
     if(mNext)

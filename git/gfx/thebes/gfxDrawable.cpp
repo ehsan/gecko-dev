@@ -156,12 +156,21 @@ gfxSurfaceDrawable::Draw(gfxContext* aContext,
         pattern->SetExtend(gfxPattern::EXTEND_REPEAT);
         pattern->SetFilter(aFilter);
     } else {
+        gfxPattern::GraphicsFilter filter = aFilter;
+        if (aContext->CurrentMatrix().HasOnlyIntegerTranslation() &&
+            aTransform.HasOnlyIntegerTranslation())
+        {
+          // If we only have integer translation, no special filtering needs to
+          // happen and we explicitly use FILTER_FAST. This is fast for some
+          // backends.
+          filter = gfxPattern::FILTER_FAST;
+        }
         nsRefPtr<gfxASurface> currentTarget = aContext->CurrentSurface();
         gfxASurface::gfxSurfaceType surfaceType = currentTarget->GetType();
         gfxMatrix deviceSpaceToImageSpace =
             DeviceToImageTransform(aContext, aTransform);
         PreparePatternForUntiledDrawing(pattern, deviceSpaceToImageSpace,
-                                        surfaceType, currentTarget, aFilter);
+                                        surfaceType, currentTarget, filter);
     }
 #ifdef MOZ_GFX_OPTIMIZE_MOBILE
     pattern->SetFilter(gfxPattern::FILTER_FAST); 

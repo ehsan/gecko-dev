@@ -233,10 +233,16 @@ SafeMoveOperation.prototype = {
   },
 
   _moveDirEntry: function(aDirEntry, aTargetDirectory) {
-    if (aDirEntry.isDirectory())
-      this._moveDirectory(aDirEntry, aTargetDirectory);
-    else
-      this._moveFile(aDirEntry, aTargetDirectory);
+    try {
+      if (aDirEntry.isDirectory())
+        this._moveDirectory(aDirEntry, aTargetDirectory);
+      else
+        this._moveFile(aDirEntry, aTargetDirectory);
+    }
+    catch (e) {
+      ERROR("Failure moving " + aDirEntry.path + " to " + aTargetDirectory.path);
+      throw e;
+    }
   },
 
   /**
@@ -254,7 +260,6 @@ SafeMoveOperation.prototype = {
       this._moveDirEntry(aFile, aTargetDirectory);
     }
     catch (e) {
-      ERROR("Failure moving " + aFile.path + " to " + aTargetDirectory.path);
       this.rollback();
       throw e;
     }
@@ -1064,8 +1069,10 @@ function recursiveRemove(aFile) {
     return;
   }
   catch (e) {
-    if (!aFile.isDirectory())
+    if (!aFile.isDirectory()) {
+      ERROR("Failed to remove file " + aFile.path, e);
       throw e;
+    }
   }
 
   let entry;
@@ -1666,7 +1673,7 @@ var XPIProvider = {
         }
         catch (e) {
           // Non-critical, just saves some perf on startup if we clean this up.
-          LOG("Error removing XPI staging dir " + stagedXPIDir.path + ": " + e);
+          LOG("Error removing XPI staging dir " + stagedXPIDir.path, e);
         }
       }
 
@@ -1719,17 +1726,8 @@ var XPIProvider = {
           }
         }
 
-        LOG("Processing install of " + id + " in " + aLocation.name);
-        try {
-          var addonInstallLocation = aLocation.installAddon(id, stageDirEntry);
-        }
-        catch (e) {
-          ERROR("Failed to install staged add-on " + id + " in " + aLocation.name,
-                e);
-          continue;
-        }
-
         aManifests[aLocation.name][id] = null;
+        let existingAddonID = null;
 
         // Check for a cached AddonInternal for this add-on, it may contain
         // updated compatibility information
@@ -1746,7 +1744,7 @@ var XPIProvider = {
             fis.init(jsonfile, -1, 0, 0);
             aManifests[aLocation.name][id] = json.decodeFromStream(fis,
                                                                    jsonfile.fileSize);
-            aManifests[aLocation.name][id]._sourceBundle = addonInstallLocation;
+            existingAddonID = aManifests[aLocation.name][id].existingAddonID;
           }
           catch (e) {
             ERROR("Unable to read add-on manifest for " + id + " in " +
@@ -1756,6 +1754,20 @@ var XPIProvider = {
             fis.close();
           }
         }
+
+        LOG("Processing install of " + id + " in " + aLocation.name);
+        try {
+          var addonInstallLocation = aLocation.installAddon(id, stageDirEntry,
+                                                            existingAddonID);
+          if (id in aManifests[aLocation.name])
+            aManifests[aLocation.name][id]._sourceBundle = addonInstallLocation;
+        }
+        catch (e) {
+          ERROR("Failed to install staged add-on " + id + " in " + aLocation.name,
+                e);
+          delete aManifests[aLocation.name][id];
+          continue;
+        }
       }
       entries.close();
 
@@ -1764,7 +1776,7 @@ var XPIProvider = {
       }
       catch (e) {
         // Non-critical, just saves some perf on startup if we clean this up.
-        LOG("Error removing staging dir " + stagingDir.path + ": " + e);
+        LOG("Error removing staging dir " + stagingDir.path, e);
       }
     });
     return changed;
@@ -4931,6 +4943,9 @@ AddonInstall.prototype = {
       break;
     case AddonManager.STATE_INSTALLED:
       LOG("Cancelling install of " + this.addon.id);
+      let xpi = this.installLocation.getStagingDir();
+      xpi.append(this.addon.id + ".xpi");
+      Services.obs.notifyObservers(xpi, "flush-cache-entry", null);
       cleanStagingDir(this.installLocation.getStagingDir(),
                       [this.addon.id, this.addon.id + ".xpi",
                        this.addon.id + ".json"]);
@@ -5464,12 +5479,21 @@ AddonInstall.prototype = {
   downloadCompleted: function() {
     let self = this;
     XPIDatabase.getVisibleAddonForID(this.addon.id, function(aAddon) {
-      self.existingAddon = aAddon;
       if (aAddon)
-        self.addon.userDisabled = aAddon.userDisabled;
-      self.addon.updateDate = Date.now();
-      self.addon.installDate = aAddon ? aAddon.installDate : self.addon.updateDate;
+        self.existingAddon = aAddon;
+
       self.state = AddonManager.STATE_DOWNLOADED;
+      self.addon.updateDate = Date.now();
+
+      if (self.existingAddon) {
+        self.addon.existingAddonID = self.existingAddon.id;
+        self.addon.userDisabled = self.existingAddon.userDisabled;
+        self.addon.installDate = self.existingAddon.installDate;
+      }
+      else {
+        self.addon.installDate = self.addon.updateDate;
+      }
+
       if (AddonManagerPrivate.callInstallListeners("onDownloadEnded",
                                                    self.listeners,
                                                    self.wrapper)) {
@@ -5618,7 +5642,9 @@ AddonInstall.prototype = {
         }
 
         // Install the new add-on into its final location
-        let file = this.installLocation.installAddon(this.addon.id, stagedAddon);
+        let existingAddonID = this.existingAddon ? this.existingAddon.id : null;
+        let file = this.installLocation.installAddon(this.addon.id, stagedAddon,
+                                                     existingAddonID);
         cleanStagingDir(stagedAddon.parent, []);
 
         // Update the metadata in the database
@@ -6322,6 +6348,7 @@ function AddonWrapper(aAddon) {
                    aProp.substring(0, aProp.length - 1);
         let list = Services.prefs.getChildList(pref, {});
         if (list.length > 0) {
+          list.sort();
           results = [];
           list.forEach(function(aPref) {
             let value = Services.prefs.getComplexValue(aPref,
@@ -6662,7 +6689,7 @@ DirectoryInstallLocation.prototype = {
     let entry;
     while (entry = entries.nextFile) {
       // Should never happen really
-      if (!entry instanceof Ci.nsILocalFile)
+      if (!(entry instanceof Ci.nsILocalFile))
         continue;
 
       let id = entry.leafName;
@@ -6770,28 +6797,37 @@ DirectoryInstallLocation.prototype = {
    *         The ID of the add-on to install
    * @param  aSource
    *         The source nsIFile to install from
+   * @param  aExistingAddonID
+   *         The ID of an existing add-on to uninstall at the same time
    * @return an nsIFile indicating where the add-on was installed to
    */
-  installAddon: function DirInstallLocation_installAddon(aId, aSource) {
+  installAddon: function DirInstallLocation_installAddon(aId, aSource, aExistingAddonID) {
     let trashDir = this.getTrashDir();
 
     let transaction = new SafeMoveOperation();
 
-    let file = this._directory.clone().QueryInterface(Ci.nsILocalFile);
-    file.append(aId);
+    let self = this;
+    function moveOldAddon(aId) {
+      let file = self._directory.clone().QueryInterface(Ci.nsILocalFile);
+      file.append(aId);
 
-    // If any of these operations fails the finally block will clean up the
-    // temporary directory
-    try {
       if (file.exists())
         transaction.move(file, trashDir);
 
-      file = this._directory.clone().QueryInterface(Ci.nsILocalFile);
+      file = self._directory.clone().QueryInterface(Ci.nsILocalFile);
       file.append(aId + ".xpi");
       if (file.exists()) {
         Services.obs.notifyObservers(file, "flush-cache-entry", null);
         transaction.move(file, trashDir);
       }
+    }
+
+    // If any of these operations fails the finally block will clean up the
+    // temporary directory
+    try {
+      moveOldAddon(aId);
+      if (aExistingAddonID && aExistingAddonID != aId)
+        moveOldAddon(aExistingAddonID);
 
       if (aSource.isFile())
         Services.obs.notifyObservers(aSource, "flush-cache-entry", null);
@@ -6814,6 +6850,12 @@ DirectoryInstallLocation.prototype = {
     newFile.lastModifiedTime = Date.now();
     this._FileToIDMap[newFile.path] = aId;
     this._IDToFileMap[aId] = newFile;
+
+    if (aExistingAddonID && aExistingAddonID != aId &&
+        aExistingAddonID in this._IDToFileMap) {
+      delete this._FileToIDMap[this._IDToFileMap[aExistingAddonID]];
+      delete this._IDToFileMap[aExistingAddonID];
+    }
 
     return newFile;
   },

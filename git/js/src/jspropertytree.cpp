@@ -140,7 +140,7 @@ KidsChunk::destroy(JSContext *cx, KidsChunk *chunk)
 
 /*
  * NB: Called with cx->runtime->gcLock held, always.
- * On failure, return null after unlocking the GC and reporting out of memory.
+ * On failure, return false after unlocking the GC and reporting out of memory.
  */
 bool
 PropertyTree::insertChild(JSContext *cx, Shape *parent, Shape *child)
@@ -219,8 +219,11 @@ PropertyTree::insertChild(JSContext *cx, Shape *parent, Shape *child)
     KidsHash *hash = kidp->toHash();
     KidsHash::AddPtr addPtr = hash->lookupForAdd(child);
     if (!addPtr) {
-        if (!hash->add(addPtr, child))
+        if (!hash->add(addPtr, child)) {
+            JS_UNLOCK_GC(cx->runtime);
+            JS_ReportOutOfMemory(cx);
             return false;
+        }
     } else {
         // FIXME ignore duplicate child case here, going thread-local soon!
     }
@@ -488,7 +491,7 @@ Shape::dump(JSContext *cx, FILE *fp) const
         if (!str)
             fputs("<error>", fp);
         else
-            js_FileEscapedString(fp, str, '"');
+            FileEscapedString(fp, str, '"');
     }
 
     fprintf(fp, " g/s %p/%p slot %u attrs %x ",

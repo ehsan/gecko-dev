@@ -31,7 +31,6 @@ script regress-311161.js
 script regress-311583.js
 script regress-311792-01.js
 script regress-311792-02.js
-script regress-313500.js
 script regress-313763.js
 script regress-313803.js
 script regress-313938.js
@@ -39,7 +38,6 @@ script regress-314874.js
 script regress-315509-02.js
 script regress-319683.js
 script regress-322957.js
-script regress-325269.js
 script regress-327608.js
 script regress-328443.js
 script regress-328556.js
@@ -47,9 +45,9 @@ skip script regress-330569.js # Yarr doesn't bail on complex regexps.
 script regress-333541.js
 skip script regress-335700.js # bug xxx - reftest hang, BigO
 skip-if(!xulRuntime.shell) script regress-336409-1.js # no results reported.
-skip-if(!xulRuntime.shell&&xulRuntime.XPCOMABI.match(/x86_64/)) script regress-336409-2.js # fails on 64 bit systems for some reason
-skip-if(!xulRuntime.shell) script regress-336410-1.js # slow
-skip-if(!xulRuntime.shell&&(xulRuntime.XPCOMABI.match(/x86_64/)||xulRuntime.OS=="WINNT")) script regress-336410-2.js # fails in browser on 64 bit systems or Windows.
+skip-if(!xulRuntime.shell&&xulRuntime.XPCOMABI.match(/x86_64/)) silentfail script regress-336409-2.js # can fail silently due to out of memory
+skip-if(!xulRuntime.shell) silentfail script regress-336410-1.js # can fail silently due to out of memory
+skip-if(!xulRuntime.shell&&(xulRuntime.XPCOMABI.match(/x86_64/)||xulRuntime.OS=="WINNT")) silentfail script regress-336410-2.js # can fail silently due to out of memory
 script regress-338804-01.js
 script regress-338804-02.js
 script regress-338804-03.js

@@ -214,6 +214,10 @@ nsAccDocManager::OnStateChange(nsIWebProgress *aWebProgress,
     nsEventShell::FireEvent(reloadEvent);
   }
 
+  // Mark the document accessible as loading, if it stays alive then we'll mark
+  // it as loaded when we receive proper notification.
+  docAcc->MarkAsLoading();
+
   // Fire state busy change event. Use delayed event since we don't care
   // actually if event isn't delivered when the document goes away like a shot.
   nsRefPtr<AccEvent> stateEvent =
@@ -310,8 +314,7 @@ nsAccDocManager::HandleEvent(nsIDOMEvent *aEvent)
       nsCoreUtils::IsErrorPage(document)) {
     NS_LOG_ACCDOCLOAD2("handled 'DOMContentLoaded' event", document)
     HandleDOMDocumentLoad(document,
-                          nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_COMPLETE,
-                          PR_TRUE);
+                          nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_COMPLETE);
   }
 
   return NS_OK;
@@ -322,8 +325,7 @@ nsAccDocManager::HandleEvent(nsIDOMEvent *aEvent)
 
 void
 nsAccDocManager::HandleDOMDocumentLoad(nsIDocument *aDocument,
-                                       PRUint32 aLoadEventType,
-                                       PRBool aMarkAsLoaded)
+                                       PRUint32 aLoadEventType)
 {
   // Document accessible can be created before we were notified the DOM document
   // was loaded completely. However if it's not created yet then create it.
@@ -335,8 +337,8 @@ nsAccDocManager::HandleDOMDocumentLoad(nsIDocument *aDocument,
       return;
   }
 
-  if (aMarkAsLoaded)
-    docAcc->MarkAsLoaded();
+  // Mark the document as loaded to drop off the busy state flag on it.
+  docAcc->MarkAsLoaded();
 
   // Do not fire document complete/stop events for root chrome document
   // accessibles and for frame/iframe documents because
@@ -489,17 +491,25 @@ nsAccDocManager::CreateDocOrRootAccessible(nsIDocument *aDocument)
 // nsAccDocManager static
 
 PLDHashOperator
-nsAccDocManager::ClearDocCacheEntry(const nsIDocument* aKey,
-                                    nsRefPtr<nsDocAccessible>& aDocAccessible,
-                                    void* aUserArg)
+nsAccDocManager::GetFirstEntryInDocCache(const nsIDocument* aKey,
+                                         nsDocAccessible* aDocAccessible,
+                                         void* aUserArg)
 {
   NS_ASSERTION(aDocAccessible,
-               "Calling ClearDocCacheEntry with a NULL pointer!");
+               "No doc accessible for the object in doc accessible cache!");
+  *reinterpret_cast<nsDocAccessible**>(aUserArg) = aDocAccessible;
 
-  if (aDocAccessible)
-    aDocAccessible->Shutdown();
+  return PL_DHASH_STOP;
+}
 
-  return PL_DHASH_REMOVE;
+void
+nsAccDocManager::ClearDocCache()
+{
+  nsDocAccessible* docAcc = nsnull;
+  while (mDocAccessibleCache.EnumerateRead(GetFirstEntryInDocCache, static_cast<void*>(&docAcc))) {
+    if (docAcc)
+      docAcc->Shutdown();
+  }
 }
 
 PLDHashOperator

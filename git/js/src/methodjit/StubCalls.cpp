@@ -289,7 +289,7 @@ template void JS_FASTCALL stubs::SetPropNoCache<false>(VMFrame &f, JSAtom *origA
 
 template<JSBool strict>
 void JS_FASTCALL
-stubs::SetGlobalNameDumb(VMFrame &f, JSAtom *atom)
+stubs::SetGlobalNameNoCache(VMFrame &f, JSAtom *atom)
 {
     JSContext *cx = f.cx;
 
@@ -305,8 +305,8 @@ stubs::SetGlobalNameDumb(VMFrame &f, JSAtom *atom)
     f.regs.sp[-2] = f.regs.sp[-1];
 }
 
-template void JS_FASTCALL stubs::SetGlobalNameDumb<true>(VMFrame &f, JSAtom *atom);
-template void JS_FASTCALL stubs::SetGlobalNameDumb<false>(VMFrame &f, JSAtom *atom);
+template void JS_FASTCALL stubs::SetGlobalNameNoCache<true>(VMFrame &f, JSAtom *atom);
+template void JS_FASTCALL stubs::SetGlobalNameNoCache<false>(VMFrame &f, JSAtom *atom);
 
 template<JSBool strict>
 void JS_FASTCALL
@@ -487,9 +487,14 @@ stubs::GetElem(VMFrame &f)
             goto intern_big_int;
 
     } else {
-      intern_big_int:
-        if (!js_InternNonIntElementId(cx, obj, rref, &id))
-            THROW();
+        int32_t i;
+        if (ValueFitsInInt32(rref, &i) && INT_FITS_IN_JSID(i)) {
+            id = INT_TO_JSID(i);
+        } else {
+          intern_big_int:
+            if (!js_InternNonIntElementId(cx, obj, rref, &id))
+                THROW();
+        }
     }
 
     if (!obj->getProperty(cx, id, &rval))
@@ -1023,6 +1028,7 @@ StubEqualityOp(VMFrame &f)
                 cond = JSDOUBLE_COMPARE(l, !=, r, IFNAN);
         } else if (lval.isObject()) {
             JSObject *l = &lval.toObject(), *r = &rval.toObject();
+            l->assertSpecialEqualitySynced();
             if (EqualityOp eq = l->getClass()->ext.equality) {
                 if (!eq(cx, l, &rval, &cond))
                     return false;
@@ -1267,15 +1273,6 @@ stubs::Mod(VMFrame &f)
     }
 }
 
-JSObject *JS_FASTCALL
-stubs::NewArray(VMFrame &f, uint32 len)
-{
-    JSObject *obj = js_NewArrayObject(f.cx, len, f.regs.sp - len);
-    if (!obj)
-        THROWV(NULL);
-    return obj;
-}
-
 void JS_FASTCALL
 stubs::Debugger(VMFrame &f, jsbytecode *pc)
 {
@@ -1377,19 +1374,28 @@ stubs::NewInitArray(VMFrame &f, uint32 count)
     JSObject *obj = NewArrayWithKind(cx, kind);
     if (!obj || !obj->ensureSlots(cx, count))
         THROWV(NULL);
+
+    obj->setArrayLength(count);
     return obj;
 }
 
 JSObject * JS_FASTCALL
-stubs::NewInitObject(VMFrame &f, uint32 count)
+stubs::NewInitObject(VMFrame &f, JSObject *baseobj)
 {
     JSContext *cx = f.cx;
-    gc::FinalizeKind kind = GuessObjectGCKind(count, false);
 
-    JSObject *obj = NewBuiltinClassInstance(cx, &js_ObjectClass, kind);
-    if (!obj || !obj->ensureSlots(cx, count))
+    if (!baseobj) {
+        gc::FinalizeKind kind = GuessObjectGCKind(0, false);
+        JSObject *obj = NewBuiltinClassInstance(cx, &js_ObjectClass, kind);
+        if (!obj)
+            THROWV(NULL);
+        return obj;
+    }
+
+    JSObject *obj = CopyInitializerObject(cx, baseobj);
+
+    if (!obj)
         THROWV(NULL);
-
     return obj;
 }
 
@@ -2444,15 +2450,15 @@ stubs::LookupSwitch(VMFrame &f, jsbytecode *pc)
 {
     jsbytecode *jpc = pc;
     JSScript *script = f.fp()->script();
-    void **nmap = script->nativeMap(f.fp()->isConstructing());
+    bool ctor = f.fp()->isConstructing();
 
     /* This is correct because the compiler adjusts the stack beforehand. */
     Value lval = f.regs.sp[-1];
 
     if (!lval.isPrimitive()) {
-        ptrdiff_t offs = (pc + GET_JUMP_OFFSET(pc)) - script->code;
-        JS_ASSERT(nmap[offs]);
-        return nmap[offs];
+        void* native = script->nativeCodeForPC(ctor, pc + GET_JUMP_OFFSET(pc));
+        JS_ASSERT(native);
+        return native;
     }
 
     JS_ASSERT(pc[0] == JSOP_LOOKUPSWITCH);
@@ -2471,9 +2477,10 @@ stubs::LookupSwitch(VMFrame &f, jsbytecode *pc)
             if (rval.isString()) {
                 JSString *rhs = rval.toString();
                 if (rhs == str || js_EqualStrings(str, rhs)) {
-                    ptrdiff_t offs = (jpc + GET_JUMP_OFFSET(pc)) - script->code;
-                    JS_ASSERT(nmap[offs]);
-                    return nmap[offs];
+                    void* native = script->nativeCodeForPC(ctor,
+                                                           jpc + GET_JUMP_OFFSET(pc));
+                    JS_ASSERT(native);
+                    return native;
                 }
             }
             pc += JUMP_OFFSET_LEN;
@@ -2484,9 +2491,10 @@ stubs::LookupSwitch(VMFrame &f, jsbytecode *pc)
             Value rval = script->getConst(GET_INDEX(pc));
             pc += INDEX_LEN;
             if (rval.isNumber() && d == rval.toNumber()) {
-                ptrdiff_t offs = (jpc + GET_JUMP_OFFSET(pc)) - script->code;
-                JS_ASSERT(nmap[offs]);
-                return nmap[offs];
+                void* native = script->nativeCodeForPC(ctor,
+                                                       jpc + GET_JUMP_OFFSET(pc));
+                JS_ASSERT(native);
+                return native;
             }
             pc += JUMP_OFFSET_LEN;
         }
@@ -2495,17 +2503,18 @@ stubs::LookupSwitch(VMFrame &f, jsbytecode *pc)
             Value rval = script->getConst(GET_INDEX(pc));
             pc += INDEX_LEN;
             if (lval == rval) {
-                ptrdiff_t offs = (jpc + GET_JUMP_OFFSET(pc)) - script->code;
-                JS_ASSERT(nmap[offs]);
-                return nmap[offs];
+                void* native = script->nativeCodeForPC(ctor,
+                                                       jpc + GET_JUMP_OFFSET(pc));
+                JS_ASSERT(native);
+                return native;
             }
             pc += JUMP_OFFSET_LEN;
         }
     }
 
-    ptrdiff_t offs = (jpc + GET_JUMP_OFFSET(jpc)) - script->code;
-    JS_ASSERT(nmap[offs]);
-    return nmap[offs];
+    void* native = script->nativeCodeForPC(ctor, jpc + GET_JUMP_OFFSET(jpc));
+    JS_ASSERT(native);
+    return native;
 }
 
 void * JS_FASTCALL
@@ -2550,13 +2559,12 @@ stubs::TableSwitch(VMFrame &f, jsbytecode *origPc)
     }
 
 finally:
-    JSScript *script = f.fp()->script();
-    void **nmap = script->nativeMap(f.fp()->isConstructing());
-
     /* Provide the native address. */
-    ptrdiff_t offset = (originalPC + jumpOffset) - script->code;
-    JS_ASSERT(nmap[offset]);
-    return nmap[offset];
+    JSScript* script = f.fp()->script();
+    void* native = script->nativeCodeForPC(f.fp()->isConstructing(),
+                                           originalPC + jumpOffset);
+    JS_ASSERT(native);
+    return native;
 }
 
 void JS_FASTCALL
@@ -2647,7 +2655,7 @@ stubs::DelElem(VMFrame &f)
 }
 
 void JS_FASTCALL
-stubs::DefVar(VMFrame &f, JSAtom *atom)
+stubs::DefVarOrConst(VMFrame &f, JSAtom *atom)
 {
     JSContext *cx = f.cx;
     JSStackFrame *fp = f.fp();
@@ -2657,18 +2665,25 @@ stubs::DefVar(VMFrame &f, JSAtom *atom)
     uintN attrs = JSPROP_ENUMERATE;
     if (!fp->isEvalFrame())
         attrs |= JSPROP_PERMANENT;
+    if (JSOp(*f.regs.pc) == JSOP_DEFCONST)
+        attrs |= JSPROP_READONLY;
 
     /* Lookup id in order to check for redeclaration problems. */
     jsid id = ATOM_TO_JSID(atom);
     JSProperty *prop = NULL;
     JSObject *obj2;
 
-    /*
-     * Redundant declaration of a |var|, even one for a non-writable
-     * property like |undefined| in ES5, does nothing.
-     */
-    if (!obj->lookupProperty(cx, id, &obj2, &prop))
-        THROW();
+    if (JSOp(*f.regs.pc) == JSOP_DEFVAR) {
+        /*
+         * Redundant declaration of a |var|, even one for a non-writable
+         * property like |undefined| in ES5, does nothing.
+         */
+        if (!obj->lookupProperty(cx, id, &obj2, &prop))
+            THROW();
+    } else {
+        if (!CheckRedeclaration(cx, obj, id, attrs, &obj2, &prop))
+            THROW();
+    }
 
     /* Bind a variable only if it's not yet defined. */
     if (!prop) {
@@ -2678,6 +2693,21 @@ stubs::DefVar(VMFrame &f, JSAtom *atom)
         }
         JS_ASSERT(prop);
         obj2 = obj;
+    }
+}
+
+void JS_FASTCALL
+stubs::SetConst(VMFrame &f, JSAtom *atom)
+{
+    JSContext *cx = f.cx;
+    JSStackFrame *fp = f.fp();
+
+    JSObject *obj = &fp->varobj(cx);
+    const Value &ref = f.regs.sp[-1];
+    if (!obj->defineProperty(cx, ATOM_TO_JSID(atom), ref,
+                             PropertyStub, PropertyStub,
+                             JSPROP_ENUMERATE | JSPROP_PERMANENT | JSPROP_READONLY)) {
+        THROW();
     }
 }
 

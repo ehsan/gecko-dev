@@ -3176,7 +3176,7 @@ nsDocument::doCreateShell(nsPresContext* aContext,
 
   NS_ASSERTION(!mPresShell, "We have a presshell already!");
 
-  NS_ENSURE_FALSE(mShellIsHidden, NS_ERROR_FAILURE);
+  NS_ENSURE_FALSE(GetBFCacheEntry(), NS_ERROR_FAILURE);
 
   FillStyleSet(aStyleSet);
   
@@ -3878,19 +3878,7 @@ nsDocument::ScriptLoader()
 PRBool
 nsDocument::InternalAllowXULXBL()
 {
-  if (nsContentUtils::IsSystemPrincipal(NodePrincipal())) {
-    mAllowXULXBL = eTriTrue;
-    return PR_TRUE;
-  }
-  
-  nsCOMPtr<nsIURI> princURI;
-  NodePrincipal()->GetURI(getter_AddRefs(princURI));
-  if (!princURI) {
-    mAllowXULXBL = eTriFalse;
-    return PR_FALSE;
-  }
-
-  if (nsContentUtils::IsSitePermAllow(princURI, "allowXULXBL")) {
+  if (nsContentUtils::AllowXULXBLForPrincipal(NodePrincipal())) {
     mAllowXULXBL = eTriTrue;
     return PR_TRUE;
   }
@@ -4363,7 +4351,18 @@ nsDocument::CreateElementNS(const nsAString& aNamespaceURI,
                             nsIDOMElement** aReturn)
 {
   *aReturn = nsnull;
+  nsCOMPtr<nsIContent> content;
+  nsresult rv = CreateElementNS(aNamespaceURI, aQualifiedName,
+                                getter_AddRefs(content));
+  NS_ENSURE_SUCCESS(rv, rv);
+  return CallQueryInterface(content, aReturn);
+}
 
+nsresult
+nsDocument::CreateElementNS(const nsAString& aNamespaceURI,
+                            const nsAString& aQualifiedName,
+                            nsIContent** aReturn)
+{
   nsCOMPtr<nsINodeInfo> nodeInfo;
   nsresult rv = nsContentUtils::GetNodeInfoFromQName(aNamespaceURI,
                                                      aQualifiedName,
@@ -4371,13 +4370,9 @@ nsDocument::CreateElementNS(const nsAString& aNamespaceURI,
                                                      getter_AddRefs(nodeInfo));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIContent> content;
   PRInt32 ns = nodeInfo->NamespaceID();
-  rv = NS_NewElement(getter_AddRefs(content), ns, nodeInfo.forget(),
-                     NOT_FROM_PARSER);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return CallQueryInterface(content, aReturn);
+  return NS_NewElement(aReturn, ns,
+                       nodeInfo.forget(), NOT_FROM_PARSER);
 }
 
 NS_IMETHODIMP
@@ -5783,7 +5778,7 @@ nsDocument::AppendChild(nsIDOMNode* aNewChild, nsIDOMNode** aReturn)
 NS_IMETHODIMP
 nsDocument::CloneNode(PRBool aDeep, nsIDOMNode** aReturn)
 {
-  return nsNodeUtils::CloneNodeImpl(this, aDeep, aReturn);
+  return nsNodeUtils::CloneNodeImpl(this, aDeep, !mCreatingStaticClone, aReturn);
 }
 
 NS_IMETHODIMP

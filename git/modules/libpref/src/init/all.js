@@ -199,7 +199,7 @@ pref("gfx.downloadable_fonts.sanitize.preserve_otl_tables", false);
 pref("gfx.downloadable_fonts.sanitize.preserve_otl_tables", true);
 #endif
 
-pref("gfx.font_rendering.harfbuzz.level", 1);
+pref("gfx.font_rendering.harfbuzz.level", 2);
 
 #ifdef XP_WIN
 #ifndef WINCE
@@ -737,6 +737,12 @@ pref("network.http.prompt-temp-redirect", true);
 // Section 4.8 "High-Throughput Data Service Class"
 pref("network.http.qos", 0);
 
+// The number of milliseconds after sending a SYN for an HTTP connection,
+// to wait before trying a different connection. 0 means do not use a second
+// connection.
+// Temporarily Disabled for 4.0 Beta 8 - bug 614677
+pref("network.http.connection-retry-timeout", 0);
+
 // default values for FTP
 // in a DSCP environment this should be 40 (0x28, or AF11), per RFC-4594,
 // Section 4.8 "High-Throughput Data Service Class", and 80 (0x50, or AF22)
@@ -747,6 +753,11 @@ pref("network.ftp.control.qos", 0);
 // </http>
 
 // <ws>: WebSocket
+// The -76 websocket network protocol may be subject to HTTP cache poisoning
+// attacks. Until there is a secure open standard available and implemented
+// in necko the override-security-block preference must be set to true before
+// the normal enabled preference is considered. Bug 616733
+pref("network.websocket.override-security-block", false);
 pref("network.websocket.enabled", true);
 // </ws>
 
@@ -1341,7 +1352,6 @@ pref("dom.ipc.plugins.enabled.nppdf.so", false);
 #endif
 #endif
 
-pref("svg.enabled", true);
 pref("svg.smil.enabled", true);
 
 pref("font.minimum-size.ar", 0);
@@ -3195,14 +3205,11 @@ pref("image.mem.max_ms_before_yield", 400);
 pref("image.mem.max_bytes_for_sync_decode", 150000);
 
 // WebGL prefs
-// keep disabled on linux-x64 until bug 578877 is fixed
-#ifdef _AMD64_
-#ifdef MOZ_X11
-// MOZ_X11 && AMD64
+// keep disabled on linux until bug 578877 is fixed
+// This is not an ideal define, but it gets the right set of
+// build machines.
+#ifdef MOZ_WIDGET_GTK2
 pref("webgl.enabled_for_all_sites", false);
-#else
-pref("webgl.enabled_for_all_sites", true);
-#endif
 #else
 pref("webgl.enabled_for_all_sites", true);
 #endif

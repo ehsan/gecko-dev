@@ -46,6 +46,7 @@
 #include <stdlib.h>
 #include <string.h>
 #ifdef ANDROID
+# include <android/log.h>
 # include <fstream>
 # include <string>
 #endif  // ANDROID
@@ -397,7 +398,7 @@ StackSpace::pushGeneratorFrame(JSContext *cx, JSFrameRegs *regs, GeneratorFrameG
 bool
 StackSpace::bumpCommitAndLimit(JSStackFrame *base, Value *sp, uintN nvals, Value **limit) const
 {
-    JS_ASSERT(sp == firstUnused());
+    JS_ASSERT(sp >= firstUnused());
     JS_ASSERT(sp + nvals >= *limit);
 #ifdef XP_WIN
     if (commitEnd <= *limit) {
@@ -494,7 +495,10 @@ JSThreadData::init()
     if (!stackSpace.init())
         return false;
 #ifdef JS_TRACER
-    InitJIT(&traceMonitor);
+    if (!InitJIT(&traceMonitor)) {
+        finish();
+        return false;
+    }
 #endif
     dtoaState = js_NewDtoaState();
     if (!dtoaState) {
@@ -642,7 +646,15 @@ js_CurrentThread(JSRuntime *rt)
         JS_ASSERT(p->value == thread);
     }
     JS_ASSERT(thread->id == id);
-    JS_ASSERT(thread->data.nativeStackBase == GetNativeStackBase());
+
+#ifdef DEBUG
+    char* gnsb = (char*) GetNativeStackBase();
+    JS_ASSERT(gnsb + 0      == (char*) thread->data.nativeStackBase ||
+              /* Work around apparent glibc bug; see bug 608526. */
+              gnsb + 0x1000 == (char*) thread->data.nativeStackBase ||
+              gnsb + 0x2000 == (char*) thread->data.nativeStackBase ||
+              gnsb + 0x3000 == (char*) thread->data.nativeStackBase);
+#endif
 
     return thread;
 }
@@ -735,22 +747,6 @@ js_PurgeThreads(JSContext *cx)
 #else
     cx->runtime->threadData.purge(cx);
 #endif
-}
-
-bool
-js::SyncOptionsToVersion(JSContext* cx)
-{
-    JSVersion version = cx->findVersion();
-    uint32 options = cx->options;
-    if (OptionsHasXML(options) == VersionHasXML(version) &&
-        OptionsHasAnonFunFix(options) == VersionHasAnonFunFix(version)) {
-        /* No need to override. */
-        return false;
-    }
-    VersionSetXML(&version, OptionsHasXML(options));
-    VersionSetAnonFunFix(&version, OptionsHasAnonFunFix(options));
-    cx->maybeOverrideVersion(version);
-    return true;
 }
 
 JSContext *
@@ -1849,9 +1845,9 @@ js_InvokeOperationCallback(JSContext *cx)
     JS_ASSERT(td->interruptFlags != 0);
 
     /*
-     * Reset the callback counter first, then yield. If another thread is racing
-     * us here we will accumulate another callback request which will be
-     * serviced at the next opportunity.
+     * Reset the callback counter first, then run GC and yield. If another
+     * thread is racing us here we will accumulate another callback request
+     * which will be serviced at the next opportunity.
      */
     JS_LOCK_GC(rt);
     td->interruptFlags = 0;
@@ -1860,13 +1856,6 @@ js_InvokeOperationCallback(JSContext *cx)
 #endif
     JS_UNLOCK_GC(rt);
 
-    /*
-     * Unless we are going to run the GC, we automatically yield the current
-     * context every time the operation callback is hit since we might be
-     * called as a result of an impending GC, which would deadlock if we do
-     * not yield. Operation callbacks are supposed to happen rarely (seconds,
-     * not milliseconds) so it is acceptable to yield at every callback.
-     */
     if (rt->gcIsNeeded) {
         js_GC(cx, GC_NORMAL);
 
@@ -1883,10 +1872,19 @@ js_InvokeOperationCallback(JSContext *cx)
             return false;
         }
     }
+    
 #ifdef JS_THREADSAFE
-    else {
-        JS_YieldRequest(cx);
-    }
+    /*
+     * We automatically yield the current context every time the operation
+     * callback is hit since we might be called as a result of an impending
+     * GC on another thread, which would deadlock if we do not yield.
+     * Operation callbacks are supposed to happen rarely (seconds, not
+     * milliseconds) so it is acceptable to yield at every callback.
+     *
+     * As the GC can be canceled before it does any request checks we yield
+     * even if rt->gcIsNeeded was true above. See bug 590533.
+     */
+    JS_YieldRequest(cx);
 #endif
 
     JSOperationCallback cb = cx->operationCallback;
@@ -2232,8 +2230,23 @@ ComputeIsJITBroken()
         return false;
     }
 
-    bool broken = false;
     std::string line;
+
+    // Check for the known-bad kernel version (2.6.29).
+    std::ifstream osrelease("/proc/sys/kernel/osrelease");
+    std::getline(osrelease, line);
+    __android_log_print(ANDROID_LOG_INFO, "Gecko", "Detected osrelease `%s'",
+                        line.c_str());
+
+    if (line.npos == line.find("2.6.29")) {
+        // We're using something other than 2.6.29, so the JITs should work.
+        __android_log_print(ANDROID_LOG_INFO, "Gecko", "JITs are not broken");
+        return false;
+    }
+
+    // We're using 2.6.29, and this causes trouble with the JITs on i9000.
+    line = "";
+    bool broken = false;
     std::ifstream cpuinfo("/proc/cpuinfo");
     do {
         if (0 == line.find("Hardware")) {
@@ -2247,6 +2260,8 @@ ComputeIsJITBroken()
             };
             for (const char** hw = &blacklist[0]; *hw; ++hw) {
                 if (line.npos != line.find(*hw)) {
+                    __android_log_print(ANDROID_LOG_INFO, "Gecko",
+                                        "Blacklisted device `%s'", *hw);
                     broken = true;
                     break;
                 }
@@ -2255,6 +2270,10 @@ ComputeIsJITBroken()
         }
         std::getline(cpuinfo, line);
     } while(!cpuinfo.fail() && !cpuinfo.eof());
+
+    __android_log_print(ANDROID_LOG_INFO, "Gecko", "JITs are %sbroken",
+                        broken ? "" : "not ");
+
     return broken;
 #endif  // ifndef ANDROID
 }

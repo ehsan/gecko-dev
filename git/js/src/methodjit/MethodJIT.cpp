@@ -41,6 +41,7 @@
 #include "assembler/jit/ExecutableAllocator.h"
 #include "jstracer.h"
 #include "BaseAssembler.h"
+#include "Compiler.h"
 #include "MonoIC.h"
 #include "PolyIC.h"
 #include "TrampolineCompiler.h"
@@ -54,6 +55,11 @@ using namespace js;
 using namespace js::mjit;
 
 
+js::mjit::CompilerAllocPolicy::CompilerAllocPolicy(JSContext *cx, Compiler &compiler)
+: ContextAllocPolicy(cx),
+  oomFlag(&compiler.oomInVector)
+{
+}
 void
 JSStackFrame::methodjitStaticAsserts()
 {
@@ -132,7 +138,7 @@ SetVMFrameRegs(VMFrame &f)
     f.cx->setCurrentRegs(&f.regs);
 }
 
-#if defined(__APPLE__) || defined(XP_WIN)
+#if defined(__APPLE__) || defined(XP_WIN) || defined(XP_OS2)
 # define SYMBOL_STRING(name) "_" #name
 #else
 # define SYMBOL_STRING(name) #name
@@ -146,7 +152,7 @@ JS_STATIC_ASSERT(offsetof(JSFrameRegs, sp) == 0);
 # define SYMBOL_STRING_RELOC(name) SYMBOL_STRING(name)
 #endif
 
-#if defined(XP_WIN) && defined(JS_CPU_X86)
+#if (defined(XP_WIN) || defined(XP_OS2)) && defined(JS_CPU_X86)
 # define SYMBOL_STRING_VMFRAME(name) "@" #name "@4"
 #else
 # define SYMBOL_STRING_VMFRAME(name) SYMBOL_STRING_RELOC(name)
@@ -797,8 +803,7 @@ static inline void Destroy(T &t)
     t.~T();
 }
 
-void
-mjit::JITScript::release()
+mjit::JITScript::~JITScript()
 {
 #if defined DEBUG && (defined JS_CPU_X86 || defined JS_CPU_X64) 
     void *addr = code.m_code.executableAddress();
@@ -809,9 +814,11 @@ mjit::JITScript::release()
 
 #if defined JS_POLYIC
     for (uint32 i = 0; i < nPICs; i++)
-        pics[i].finish();
+        Destroy(pics[i]);
     for (uint32 i = 0; i < nGetElems; i++)
-        getElems[i].finish();
+        Destroy(getElems[i]);
+    for (uint32 i = 0; i < nSetElems; i++)
+        Destroy(setElems[i]);
 #endif
 
 #if defined JS_MONOIC
@@ -835,17 +842,17 @@ mjit::ReleaseScriptCode(JSContext *cx, JSScript *script)
     // must protect against calling ReleaseScriptCode twice.
 
     if (script->jitNormal) {
-        script->jitNormal->release();
-        script->jitArityCheckNormal = NULL;
+        script->jitNormal->~JITScript();
         cx->free(script->jitNormal);
         script->jitNormal = NULL;
+        script->jitArityCheckNormal = NULL;
     }
 
     if (script->jitCtor) {
-        script->jitCtor->release();
-        script->jitArityCheckCtor = NULL;
+        script->jitCtor->~JITScript();
         cx->free(script->jitCtor);
         script->jitCtor = NULL;
+        script->jitArityCheckCtor = NULL;
     }
 }
 

@@ -130,24 +130,11 @@
           if (!pasteAndGo)
             return;
           var controller = document.commandDispatcher.getControllerForCommand("cmd_paste");
-          var couldBeURL = controller.isCommandEnabled("cmd_paste");
-          if (couldBeURL) {
-            let cbSvc = Cc["@mozilla.org/widget/clipboard;1"].
-                          getService(Ci.nsIClipboard);
-            let xferable = Cc["@mozilla.org/widget/transferable;1"].
-                            createInstance(Ci.nsITransferable);
-            xferable.addDataFlavor("text/unicode");
-            cbSvc.getData(xferable, cbSvc.kGlobalClipboard);
-            let data = {};
-            xferable.getTransferData("text/unicode", data, {});
-            data = data.value.QueryInterface(Ci.nsISupportsString).data;
-            try {
-              makeURI(data);
-            } catch (ex) { // clipboard data is not a URL
-              couldBeURL = false;
-            }
-          }
-          pasteAndGo.hidden = !couldBeURL;
+          var enabled = controller.isCommandEnabled("cmd_paste");
+          if (enabled)
+            pasteAndGo.removeAttribute("disabled");
+          else
+            pasteAndGo.setAttribute("disabled", "true");
         }, false);
 
         var insertLocation = cxmenu.firstChild;
@@ -200,6 +187,7 @@
       <method name="onBeforeValueSet">
         <parameter name="aValue"/>
         <body><![CDATA[
+          this._hideOverLink();
           this._value = aValue;
           var returnValue = aValue;
           var action = this._parseActionUrl(aValue);
@@ -247,7 +235,7 @@
           var action = this._parseActionUrl(url);
           if (action) {
             url = action.param;
-            if (!(aTriggeringEvent && aTriggeringEvent.altKey)) {
+            if (this.hasAttribute("actiontype")) {
               if (action.type == "switchtab") {
                 this.handleRevert();
                 let prevTab = gBrowser.selectedTab;
@@ -287,7 +275,9 @@
             return;
           }
 
-          if (aTriggeringEvent && aTriggeringEvent.altKey) {
+          if (aTriggeringEvent &&
+              aTriggeringEvent.altKey &&
+              !isTabEmpty(gBrowser.selectedTab)) {
             this.handleRevert();
             content.focus();
             gBrowser.loadOneTab(url, {
@@ -627,56 +617,120 @@
                                                 "textbox-container");
       ]]></field>
 
-      <field name="_overLinkInDelay" readonly="true"><![CDATA[
+      <field name="_overLinkIntervalDelay" readonly="true"><![CDATA[
         100
       ]]></field>
 
-      <field name="_overLinkOutDelay" readonly="true"><![CDATA[
-        100
-      ]]></field>
-
-      <field name="_overLinkDelayTimer"><![CDATA[
+      <field name="_overLinkInterval"><![CDATA[
         null
       ]]></field>
 
       <method name="setOverLink">
         <parameter name="aURL"/>
         <body><![CDATA[
-          // If the over-link is already scheduled to appear or hide, cancel it.
-          if (this._overLinkDelayTimer) {
-            clearTimeout(this._overLinkDelayTimer);
-            this._overLinkDelayTimer = null;
-          }
+          // NOTE: This method is called many times in a row very quickly when
+          // the user mouses over a bookmarks menu, tabs menu, or long list of
+          // links in a page, or leaves the cursor over a page with many links
+          // while scrolling.  Therefore it's important that it be fast.  Don't
+          // regress performance when you modify it!
 
-          // Hide the over-link if aURL is falsey or if the URL bar is focused.
-          if (!aURL || this.focused) {
-            this._overLinkDelayTimer = setTimeout(function overLinkOut(self) {
-              self._overLinkDelayTimer = null;
-              let style = window.getComputedStyle(self._overLinkBox, null);
-              self._overLinkTransitioning = style.opacity != 0;
-              self.removeAttribute("overlinkstate");
-            }, this._overLinkOutDelay, this);
+          // Hide the over-link immediately if necessary.
+          if ((!aURL && (XULBrowserWindow.hideOverLinkImmediately ||
+                         this._hideOverLinkImmediately)) ||
+              this.focused) {
+            this._clearOverLinkInterval();
+            this._setOverLinkState(null);
             return;
           }
 
-          // If it's in transition, update and show it immediately.
-          if (this._overLinkTransitioning) {
+          // Update and show it immediately if it's in transition.
+          if (aURL && this._overLinkTransitioning) {
+            this._clearOverLinkInterval();
             this._updateOverLink(aURL);
-            this._overLinkTransitioning = false;
-            this.setAttribute("overlinkstate", "showing");
+            this._setOverLinkState("showing");
             return;
           }
 
-          // Delay the update if it's hidden or shown.  We delay when shown in
-          // part for performance reasons: otherwise mousing over the bookmarks
-          // menu for example is very laggy.
-          this._overLinkDelayTimer = setTimeout(function overLinkIn(self) {
-            self._overLinkDelayTimer = null;
-            self._updateOverLink(aURL);
-            let style = window.getComputedStyle(self._overLinkBox, null);
-            self._overLinkTransitioning = style.opacity != 1;
-            self.setAttribute("overlinkstate", "fade-in");
-          }, this._overLinkInDelay, this);
+          this._overLinkURL = aURL;
+          this._seenNewOverLink = true;
+
+          // If the user is continually mousing over links, make this method
+          // basically a no-op.
+          if (this._overLinkInterval)
+            return;
+
+          // Otherwise, the user has just moused over or focused a single link.
+          // Start the interval and signal that we should potentially show the
+          // over-link the first time it fires by unsetting _seenNewOverLink.
+          this._seenNewOverLink = false;
+          this._overLinkInterval = setInterval(this._overLinkIntervalCallback,
+                                               this._overLinkIntervalDelay,
+                                               this);
+        ]]></body>
+      </method>
+
+      <method name="_overLinkIntervalCallback">
+        <parameter name="self"/>
+        <body><![CDATA[
+          // If the user is still mousing over links, bail out early.
+          if (self._seenNewOverLink) {
+            self._seenNewOverLink = false;
+            return;
+          }
+
+          // Otherwise, the user has stopped over a link.  Clear the interval
+          // and update the over-link.
+          self._clearOverLinkInterval();
+          if (self._overLinkURL) {
+            self._updateOverLink(self._overLinkURL);
+            self._setOverLinkState("fade-in");
+          }
+          else {
+            self._setOverLinkState("fade-out");
+          }
+        ]]></body>
+      </method>
+
+      <method name="_hideOverLink">
+        <body><![CDATA[
+          this._hideOverLinkImmediately = true;
+          this.setOverLink("");
+          this._hideOverLinkImmediately = false;
+        ]]></body>
+      </method>
+
+      <method name="_clearOverLinkInterval">
+        <body><![CDATA[
+          if (this._overLinkInterval) {
+            clearInterval(this._overLinkInterval);
+            this._overLinkInterval = null;
+          }
+        ]]></body>
+      </method>
+
+      <method name="_setOverLinkState">
+        <parameter name="aVal"/>
+        <body><![CDATA[
+          switch (aVal) {
+          case "fade-in":
+            var style = window.getComputedStyle(this._overLinkBox);
+            this._overLinkTransitioning = style.opacity != 1;
+            this.setAttribute("overlinkstate", aVal);
+            break;
+          case "fade-out":
+            style = window.getComputedStyle(this._overLinkBox);
+            this._overLinkTransitioning = style.opacity != 0;
+            this.setAttribute("overlinkstate", aVal);
+            break;
+          case "showing":
+            this._overLinkTransitioning = false;
+            this.setAttribute("overlinkstate", aVal);
+            break;
+          default:
+            this._overLinkTransitioning = false;
+            this.removeAttribute("overlinkstate");
+            break;
+          }
         ]]></body>
       </method>
 
@@ -727,9 +781,48 @@
           this._originLabel.value = this.value;
         ]]></body>
       </method>
+
+      <field name="_numNoActionsKeys"><![CDATA[
+        0
+      ]]></field>
+
+      <method name="_clearNoActions">
+        <parameter name="aURL"/>
+        <body><![CDATA[
+          this._numNoActionsKeys = 0;
+          this.popup.removeAttribute("noactions");
+          let action = this._parseActionUrl(this._value);
+          if (action)
+            this.setAttribute("actiontype", action.type);
+        ]]></body>
+      </method>
     </implementation>
 
     <handlers>
+      <handler event="keydown"><![CDATA[
+        if ((event.keyCode === KeyEvent.DOM_VK_ALT ||
+             event.keyCode === KeyEvent.DOM_VK_SHIFT) &&
+            this.popup.selectedIndex >= 0) {
+          this._numNoActionsKeys++;
+          this.popup.setAttribute("noactions", "true");
+          this.removeAttribute("actiontype");
+        }
+      ]]></handler>
+
+      <handler event="keyup"><![CDATA[
+        if ((event.keyCode === KeyEvent.DOM_VK_ALT ||
+             event.keyCode === KeyEvent.DOM_VK_SHIFT) &&
+            this._numNoActionsKeys > 0) {
+          this._numNoActionsKeys--;
+          if (this._numNoActionsKeys == 0)
+            this._clearNoActions();
+        }
+      ]]></handler>
+
+      <handler event="blur"><![CDATA[
+        this._clearNoActions();
+      ]]></handler>
+
       <handler event="draggesture" phase="capturing"><![CDATA[
         // TODO: This should use dragstart but editor code is still using
         //       the old drag & drop APIs, so we have to handle draggesture.
@@ -761,8 +854,8 @@
       ]]></handler>
 
       <handler event="focus" phase="capturing"><![CDATA[
+        this._hideOverLink();
         this._hideURLTooltip();
-        this.setOverLink(null);
       ]]></handler>
 
       <handler event="dragover" phase="capturing" action="this.onDragOver(event, this);"/>
@@ -941,12 +1034,12 @@
   </binding>
 
   <binding id="geolocation-notification" extends="chrome://global/content/bindings/notification.xml#popup-notification">
-    <content>
+    <content align="start">
       <xul:image class="popup-notification-icon"
                  xbl:inherits="popupid"/>
-      <xul:vbox>
+      <xul:vbox flex="1">
         <xul:description class="popup-notification-description"
-                         xbl:inherits="value=label"/>
+                         xbl:inherits="xbl:text=label"/>
         <xul:spacer flex="1"/>
         <xul:hbox pack="end">
           <xul:label anonid="learnmore" class="text-link geolocation-text-link"/>
@@ -970,6 +1063,31 @@
         let formatter = Cc["@mozilla.org/toolkit/URLFormatterService;1"].getService(Ci.nsIURLFormatter);
         link.href = formatter.formatURLPref("browser.geolocation.warning.infoURL");
       ]]></constructor>
+    </implementation>
+  </binding>
+
+  <binding id="splitmenu">
+    <content>
+      <xul:menuitem anonid="item" flex="1"
+                    class="menuitem-tooltip split-menuitem-item"
+                    xbl:inherits="label,key"/>
+      <xul:menu anonid="menu" class="split-menuitem-menu"
+                oncommand="event.stopPropagation();">
+        <children includes="menupopup"/>
+      </xul:menu>
+    </content>
+
+    <implementation>
+      <constructor><![CDATA[
+        if (this.getAttribute("iconic") == "true") {
+          this.item.classList.remove("menuitem-tooltip");
+          this.item.classList.add("menuitem-iconic-tooltip");
+          this.item.classList.add("menuitem-iconic");
+        }
+      ]]></constructor>
+      <field name="item" readonly="true">
+        document.getAnonymousElementByAttribute(this, "anonid", "item");
+      </field>
     </implementation>
   </binding>
 

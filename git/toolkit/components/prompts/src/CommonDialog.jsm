@@ -179,24 +179,22 @@ CommonDialog.prototype = {
         this.args.buttonNumClicked = 1;
 
 
-        // If there are no input fields on the dialog, select the default button.
-        // Otherwise, select the appropriate input field.
-        // XXX shouldn't we set an unfocused default even when a textbox is focused?
+        // Set the default button
+        let b = (this.args.defaultButtonNum || 0)
+        let button = this.ui["button" + b];
+
+        if (xulDialog)
+            xulDialog.defaultButton = ['accept', 'cancel', 'extra1', 'extra2'][b];
+        else
+            button.setAttribute("default", "true");
+
+        // Set default focus / selection.
         if (!this.hasInputField) {
-            // Set the default button (and focus it on non-OS X systems)
-            let b = 0;
-            if (this.args.defaultButtonNum)
-                b = this.args.defaultButtonNum;
-            let button = this.ui["button" + b];
-            if (xulDialog) {
-                xulDialog.defaultButton = ['accept', 'cancel', 'extra1', 'extra2'][b];
-                let isOSX = ("nsILocalFileMac" in Components.interfaces);
-                if (!isOSX)
-                    button.focus();
-            }
-            // TODO:
-            // else
-            //     (tabmodal prompts need to set a default button for Enter to act upon)
+            let isOSX = ("nsILocalFileMac" in Components.interfaces);
+            if (isOSX)
+                this.ui.infoBody.focus();
+            else
+                button.focus();
         } else {
             if (this.args.promptType == "promptPassword")
                 this.ui.password1Textbox.select();
@@ -214,20 +212,21 @@ CommonDialog.prototype = {
             this.ui.focusTarget.addEventListener("focus", function(e) { self.onFocus(e); }, false);
         }
 
-        // play sound
+        // Play a sound (unless we're tab-modal -- don't want those to feel like OS prompts).
         try {
-            if (this.soundID) {
+            if (xulDialog && this.soundID) {
                 Cc["@mozilla.org/sound;1"].
                 createInstance(Ci.nsISound).
-                playEventSound(soundID);
+                playEventSound(this.soundID);
             }
-        } catch (e) { }
+        } catch (e) {
+            Cu.reportError("Couldn't play common dialog event sound: " + e);
+        }
 
-        if (xulDialog)
-            Services.obs.notifyObservers(xulDialog.ownerDocument.defaultView, "common-dialog-loaded", null);
-        // TODO:
-        // else
-        //    (notify using what as the subject?)
+        let topic = "common-dialog-loaded";
+        if (!xulDialog)
+            topic = "tabmodal-dialog-loaded";
+        Services.obs.notifyObservers(this.ui.prompt, topic, null);
     },
 
     setLabelForNode: function(aNode, aLabel) {
@@ -315,6 +314,7 @@ CommonDialog.prototype = {
     },
 
     onButton0 : function() {
+        this.args.promptActive = false;
         this.args.ok = true;
         this.args.buttonNumClicked = 0;
 
@@ -337,14 +337,23 @@ CommonDialog.prototype = {
     },
 
     onButton1 : function() {
+        this.args.promptActive = false;
         this.args.buttonNumClicked = 1;
     },
 
     onButton2 : function() {
+        this.args.promptActive = false;
         this.args.buttonNumClicked = 2;
     },
 
     onButton3 : function() {
+        this.args.promptActive = false;
         this.args.buttonNumClicked = 3;
     },
+
+    abortPrompt : function() {
+        this.args.promptActive = false;
+        this.args.promptAborted = true;
+    },
+
 };

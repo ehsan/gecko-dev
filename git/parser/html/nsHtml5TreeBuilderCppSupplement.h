@@ -604,11 +604,16 @@ nsHtml5TreeBuilder::Flush()
 {
   flushCharacters();
   FlushLoads();
-  PRBool hasOps = !mOpQueue.IsEmpty();
-  if (hasOps) {
-    mOpSink->MoveOpsFrom(mOpQueue);
+  if (mOpSink) {
+    PRBool hasOps = !mOpQueue.IsEmpty();
+    if (hasOps) {
+      mOpSink->MoveOpsFrom(mOpQueue);
+    }
+    return hasOps;
   }
-  return hasOps;
+  // no op sink: throw away ops
+  mOpQueue.Clear();
+  return PR_FALSE;
 }
 
 void
@@ -664,7 +669,14 @@ nsHtml5TreeBuilder::IsDiscretionaryFlushSafe()
 {
   return !(charBufferLen && 
            currentPtr >= 0 && 
-           stack[currentPtr]->fosterParenting);
+           stack[currentPtr]->isFosterParenting());
+}
+
+void
+nsHtml5TreeBuilder::DropHandles()
+{
+  mOldHandles.Clear();
+  mHandlesUsed = 0;
 }
 
 // DocumentModeHandler

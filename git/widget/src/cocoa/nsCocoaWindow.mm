@@ -139,7 +139,6 @@ nsCocoaWindow::nsCocoaWindow()
 , mPopupContentView(nil)
 , mShadowStyle(NS_STYLE_WINDOW_SHADOW_DEFAULT)
 , mWindowFilter(0)
-, mIsResizing(PR_FALSE)
 , mWindowMadeHere(PR_FALSE)
 , mSheetNeedsShow(PR_FALSE)
 , mFullScreen(PR_FALSE)
@@ -933,7 +932,7 @@ nsCocoaWindow::ConfigureChildren(const nsTArray<Configuration>& aConfigurations)
 }
 
 LayerManager*
-nsCocoaWindow::GetLayerManager(bool* aAllowRetaining)
+nsCocoaWindow::GetLayerManager(LayerManagerPersistence, bool* aAllowRetaining)
 {
   if (mPopupContentView) {
     return mPopupContentView->GetLayerManager(aAllowRetaining);
@@ -1134,35 +1133,16 @@ NS_IMETHODIMP nsCocoaWindow::Resize(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRIn
   BOOL isMoving = (windowBounds.x != newBounds.x || windowBounds.y != newBounds.y);
   BOOL isResizing = (windowBounds.width != newBounds.width || windowBounds.height != newBounds.height);
 
-  if (IsResizing() || !mWindow || (!isMoving && !isResizing))
+  if (!mWindow || (!isMoving && !isResizing))
     return NS_OK;
   
   mBounds = newBounds;
   NSRect newFrame = nsCocoaUtils::GeckoRectToCocoaRect(mBounds);
 
-  // We have to report the size event -first-, to make sure that content
-  // repositions itself.  Cocoa views are anchored at the bottom left,
-  // so if we don't do this our child view will end up being stuck in the
-  // wrong place during a resize.
-  if (isResizing)
-    ReportSizeEvent(&newFrame);
-
-  StartResizing();
   // We ignore aRepaint -- we have to call display:YES, otherwise the
   // title bar doesn't immediately get repainted and is displayed in
   // the wrong place, leading to a visual jump.
   [mWindow setFrame:newFrame display:YES];
-  StopResizing();
-
-  // now, check whether we got the frame that we wanted
-  NSRect actualFrame = [mWindow frame];
-  if (newFrame.size.width != actualFrame.size.width || newFrame.size.height != actualFrame.size.height) {
-    // We didn't; the window must have been too big or otherwise invalid.
-    // Report -another- resize in this case, to make sure things are in
-    // the right place.  This will cause some visual jitter, but
-    // shouldn't happen often.
-    ReportSizeEvent();
-  }
 
   return NS_OK;
 
@@ -1788,7 +1768,7 @@ PRBool nsCocoaWindow::ShouldFocusPlugin()
 
 - (void)windowDidResize:(NSNotification *)aNotification
 {
-  if (!mGeckoWindow || mGeckoWindow->IsResizing())
+  if (!mGeckoWindow)
     return;
 
   // Resizing might have changed our zoom state.
@@ -2282,8 +2262,9 @@ static const NSString* kStateShowsToolbarButton = @"showsToolbarButton";
 {
   BOOL stateChanged = ([self drawsContentsIntoWindowFrame] != aState);
   [super setDrawsContentsIntoWindowFrame:aState];
-  if (stateChanged) {
-    nsCocoaWindow *geckoWindow = [[self delegate] geckoWidget];
+  if (stateChanged && [[self delegate] isKindOfClass:[WindowDelegate class]]) {
+    WindowDelegate *windowDelegate = (WindowDelegate *)[self delegate];
+    nsCocoaWindow *geckoWindow = [windowDelegate geckoWidget];
     if (geckoWindow) {
       // Re-layout our contents.
       geckoWindow->ReportSizeEvent();
@@ -2306,13 +2287,16 @@ static const NSString* kStateShowsToolbarButton = @"showsToolbarButton";
 
   RollUpPopups();
 
-  nsCocoaWindow *geckoWindow = [[self delegate] geckoWidget];
-  if (!geckoWindow)
-    return;
-  nsEventStatus status = nsEventStatus_eIgnore;
-  nsGUIEvent guiEvent(PR_TRUE, NS_OS_TOOLBAR, geckoWindow);
-  guiEvent.time = PR_IntervalNow();
-  geckoWindow->DispatchEvent(&guiEvent, status);
+  if ([[self delegate] isKindOfClass:[WindowDelegate class]]) {
+    WindowDelegate *windowDelegate = (WindowDelegate *)[self delegate];
+    nsCocoaWindow *geckoWindow = [windowDelegate geckoWidget];
+    if (!geckoWindow)
+      return;
+    nsEventStatus status = nsEventStatus_eIgnore;
+    nsGUIEvent guiEvent(PR_TRUE, NS_OS_TOOLBAR, geckoWindow);
+    guiEvent.time = PR_IntervalNow();
+    geckoWindow->DispatchEvent(&guiEvent, status);
+  }
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }

@@ -90,9 +90,9 @@ JS_STATIC_ASSERT((1 + 2) * sizeof(JSAtom *) ==
                  offsetof(JSAtomState, typeAtoms) - ATOM_OFFSET_START);
 
 const char *
-js_AtomToPrintableString(JSContext *cx, JSAtom *atom)
+js_AtomToPrintableString(JSContext *cx, JSAtom *atom, JSAutoByteString *bytes)
 {
-    return js_ValueToPrintableString(cx, StringValue(ATOM_TO_STRING(atom)));
+    return js_ValueToPrintable(cx, StringValue(ATOM_TO_STRING(atom)), bytes);
 }
 
 #define JS_PROTO(name,code,init) const char js_##name##_str[] = #name;
@@ -181,6 +181,8 @@ const char *const js_common_atom_names[] = {
     "use strict",               /* useStrictAtom                */
     "loc",                      /* locAtom                      */
     "line",                     /* lineAtom                     */
+    "Infinity",                 /* InfinityAtom                 */
+    "NaN",                      /* NaNAtom                      */
 
 #if JS_HAS_XML_SUPPORT
     js_etago_str,               /* etagoAtom                    */
@@ -498,7 +500,7 @@ js_AtomizeString(JSContext *cx, JSString *str, uintN flags)
          * compartment lock.
          */
         if (!needNewString && str->isFlat()) {
-            str->flatClearMutable();
+            str->flatClearExtensible();
             key = str;
             atoms.add(p, StringToInitialAtomEntry(key));
         } else {
@@ -585,7 +587,7 @@ js_AtomizeChars(JSContext *cx, const jschar *chars, size_t length, uintN flags)
     JSString str;
 
     CHECK_REQUEST(cx);
-    str.initFlat((jschar *)chars, length);
+    str.initFlatNotTerminated((jschar *)chars, length);
     return js_AtomizeString(cx, &str, ATOM_TMPSTR | flags);
 }
 
@@ -601,7 +603,7 @@ js_GetExistingStringAtom(JSContext *cx, const jschar *chars, size_t length)
             return STRING_TO_ATOM(JSString::unitString(c));
     }
 
-    str.initFlat((jschar *)chars, length);
+    str.initFlatNotTerminated((jschar *)chars, length);
     state = &cx->runtime->atomState;
 
     JS_LOCK(cx, &state->lock);
@@ -627,7 +629,7 @@ js_DumpAtoms(JSContext *cx, FILE *fp)
             fputs("<uninitialized>", fp);
         } else {
             JSString *key = AtomEntryToKey(entry);
-            js_FileEscapedString(fp, key, '"');
+            FileEscapedString(fp, key, '"');
             uintN flags = AtomEntryFlags(entry);
             if (flags != 0) {
                 fputs((flags & (ATOM_PINNED | ATOM_INTERNED))

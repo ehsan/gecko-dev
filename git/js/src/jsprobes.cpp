@@ -82,7 +82,7 @@ Probes::FunctionLineNumber(JSContext *cx, const JSFunction *fun)
  *
  *      jsval      returned
  *      -------------------
- *      STRING  -> char *
+ *      STRING  -> void *
  *      INT     -> int
  *      DOUBLE  -> double *
  *      BOOLEAN -> int
@@ -109,9 +109,6 @@ jsprobes_jsvaltovoid(JSContext *cx, const js::Value &argval)
     if (argval.isBoolean())
         return (void *)argval.toBoolean();
 
-    if (argval.isString())
-        return (void *)js_GetStringBytes(cx, argval.toString());
-
     if (argval.isNumber()) {
         if (argval.isInt32())
             return (void *)argval.toInt32();
@@ -124,7 +121,7 @@ jsprobes_jsvaltovoid(JSContext *cx, const js::Value &argval)
 #endif
 
 const char *
-Probes::FunctionName(JSContext *cx, const JSFunction *fun)
+Probes::FunctionName(JSContext *cx, const JSFunction *fun, JSAutoByteString *bytes)
 {
     if (!fun)
         return nullName;
@@ -139,8 +136,7 @@ Probes::FunctionName(JSContext *cx, const JSFunction *fun)
         return nullName;
     }
 
-    char *name = (char *)js_GetStringBytes(cx, ATOM_TO_STRING(atom));
-    return name ? name : nullName;
+    return bytes->encode(cx, ATOM_TO_STRING(atom)) ? bytes->ptr() : nullName;
 }
 
 #ifdef INCLUDE_MOZILLA_DTRACE
@@ -152,17 +148,19 @@ Probes::FunctionName(JSContext *cx, const JSFunction *fun)
  * a number of usually unused lines of code would cause.
  */
 void
-Probes::enterJSFunImpl(JSContext *cx, const JSFunction *fun)
+Probes::enterJSFunImpl(JSContext *cx, JSFunction *fun, JSScript *script)
 {
-    JAVASCRIPT_FUNCTION_ENTRY(ScriptFilename(FUN_SCRIPT(fun)), FunctionClassname(fun),
-                              FunctionName(cx, fun));
+    JSAutoByteString funNameBytes;
+    JAVASCRIPT_FUNCTION_ENTRY(ScriptFilename(script), FunctionClassname(fun),
+                              FunctionName(cx, fun, &funNameBytes));
 }
 
 void
-Probes::handleFunctionReturn(JSContext *cx, JSFunction *fun)
+Probes::handleFunctionReturn(JSContext *cx, JSFunction *fun, JSScript *script)
 {
-    JAVASCRIPT_FUNCTION_RETURN(ScriptFilename(FUN_SCRIPT(fun)), FunctionClassname(fun),
-                               FunctionName(cx, fun));
+    JSAutoByteString funNameBytes;
+    JAVASCRIPT_FUNCTION_RETURN(ScriptFilename(script), FunctionClassname(fun),
+                               FunctionName(cx, fun, &funNameBytes));
 }
 
 #endif

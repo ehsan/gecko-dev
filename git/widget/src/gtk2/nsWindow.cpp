@@ -825,6 +825,29 @@ nsWindow::GetParent(void)
 float
 nsWindow::GetDPI()
 {
+
+#ifdef MOZ_PLATFORM_MAEMO
+    static float sDPI = 0;
+
+    if (!sDPI) {
+        // X on Maemo does not report true DPI: https://bugs.maemo.org/show_bug.cgi?id=4825
+        nsCOMPtr<nsIPropertyBag2> infoService = do_GetService("@mozilla.org/system-info;1");
+        NS_ASSERTION(infoService, "Could not find a system info service");
+
+        nsCString deviceType;
+        infoService->GetPropertyAsACString(NS_LITERAL_STRING("device"), deviceType);
+        if (deviceType.EqualsLiteral("Nokia N900")) {
+            sDPI = 265.0f;
+        } else if (deviceType.EqualsLiteral("Nokia N8xx")) {
+            sDPI = 225.0f;
+        } else {
+            // Fall back to something sane.
+            NS_WARNING("Unknown device - using default DPI");
+            sDPI = 96.0f;
+        }
+    }
+    return sDPI;
+#else
     Display *dpy = GDK_DISPLAY();
     int defaultScreen = DefaultScreen(dpy);
     double heightInches = DisplayHeightMM(dpy, defaultScreen)/MM_PER_INCH_FLOAT;
@@ -833,6 +856,7 @@ nsWindow::GetDPI()
         return 96.0f;
     }
     return float(DisplayHeight(dpy, defaultScreen)/heightInches);
+#endif
 }
 
 NS_IMETHODIMP
@@ -2130,9 +2154,9 @@ nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
         return TRUE;
     }
 
-    if (GetLayerManager()->GetBackendType() == LayerManager::LAYERS_OPENGL)
+    if (GetLayerManager(nsnull)->GetBackendType() == LayerManager::LAYERS_OPENGL)
     {
-        LayerManagerOGL *manager = static_cast<LayerManagerOGL*>(GetLayerManager());
+        LayerManagerOGL *manager = static_cast<LayerManagerOGL*>(GetLayerManager(nsnull));
         manager->SetClippingRegion(event.region);
 
         nsEventStatus status;
@@ -4573,8 +4597,12 @@ nsWindow::SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
         pixman_region32_intersect(&intersectRegion,
                                   &newRegion, &existingRegion);
 
-        if (pixman_region32_equal(&intersectRegion, &existingRegion))
+        // If mClipRects is null we haven't set a clip rect yet, so we
+        // need to set the clip even if it is equal.
+        if (mClipRects &&
+            pixman_region32_equal(&intersectRegion, &existingRegion)) {
             return;
+        }
 
         if (!pixman_region32_equal(&intersectRegion, &newRegion)) {
             GetIntRects(intersectRegion, &intersectRects);
@@ -6417,20 +6445,19 @@ nsWindow::ResetInputState()
 }
 
 NS_IMETHODIMP
-nsWindow::SetIMEEnabled(PRUint32 aState)
+nsWindow::SetInputMode(const IMEContext& aContext)
 {
-    return mIMModule ? mIMModule->SetIMEEnabled(this, aState) : NS_OK;
+    return mIMModule ? mIMModule->SetInputMode(this, &aContext) : NS_OK;
 }
 
 NS_IMETHODIMP
-nsWindow::GetIMEEnabled(PRUint32* aState)
+nsWindow::GetInputMode(IMEContext& aContext)
 {
-  NS_ENSURE_ARG_POINTER(aState);
   if (!mIMModule) {
-      *aState = nsIWidget::IME_STATUS_DISABLED;
+      aContext.mStatus = nsIWidget::IME_STATUS_DISABLED;
       return NS_OK;
   }
-  return mIMModule->GetIMEEnabled(aState);
+  return mIMModule->GetInputMode(&aContext);
 }
 
 NS_IMETHODIMP

@@ -137,6 +137,10 @@ nsBaseWidget::~nsBaseWidget()
     static_cast<BasicLayerManager*>(mLayerManager.get())->ClearRetainerWidget();
   }
 
+  if (mLayerManager) {
+    mLayerManager->Destroy();
+  }
+
 #ifdef NOISY_WIDGET_LEAKS
   gNumWidgets--;
   printf("WIDGETS- = %d\n", gNumWidgets);
@@ -743,7 +747,7 @@ nsBaseWidget::AutoLayerManagerSetup::AutoLayerManagerSetup(
   : mWidget(aWidget)
 {
   BasicLayerManager* manager =
-    static_cast<BasicLayerManager*>(mWidget->GetLayerManager());
+    static_cast<BasicLayerManager*>(mWidget->GetLayerManager(nsnull));
   if (manager) {
     NS_ASSERTION(manager->GetBackendType() == LayerManager::LAYERS_BASIC,
       "AutoLayerManagerSetup instantiated for non-basic layer backend!");
@@ -754,7 +758,7 @@ nsBaseWidget::AutoLayerManagerSetup::AutoLayerManagerSetup(
 nsBaseWidget::AutoLayerManagerSetup::~AutoLayerManagerSetup()
 {
   BasicLayerManager* manager =
-    static_cast<BasicLayerManager*>(mWidget->GetLayerManager());
+    static_cast<BasicLayerManager*>(mWidget->GetLayerManager(nsnull));
   if (manager) {
     NS_ASSERTION(manager->GetBackendType() == LayerManager::LAYERS_BASIC,
       "AutoLayerManagerSetup instantiated for non-basic layer backend!");
@@ -807,6 +811,12 @@ nsBaseWidget::GetShouldAccelerate()
 }
 
 LayerManager* nsBaseWidget::GetLayerManager(bool* aAllowRetaining)
+{
+  return GetLayerManager(LAYER_MANAGER_CURRENT, aAllowRetaining);
+}
+
+LayerManager* nsBaseWidget::GetLayerManager(LayerManagerPersistence,
+                                            bool* aAllowRetaining)
 {
   if (!mLayerManager) {
     nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
@@ -1027,6 +1037,9 @@ nsBaseWidget::SetAcceleratedRendering(PRBool aEnabled)
     return NS_OK;
   }
   mUseAcceleratedRendering = aEnabled;
+  if (mLayerManager) {
+    mLayerManager->Destroy();
+  }
   mLayerManager = NULL;
   return NS_OK;
 }
@@ -1168,6 +1181,26 @@ NS_IMETHODIMP
 nsBaseWidget::BeginMoveDrag(nsMouseEvent* aEvent)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+// For backwards compatibility only
+NS_IMETHODIMP
+nsBaseWidget::SetIMEEnabled(PRUint32 aState)
+{
+  IMEContext context;
+  context.mStatus = aState;
+  return SetInputMode(context);
+}
+ 
+NS_IMETHODIMP
+nsBaseWidget::GetIMEEnabled(PRUint32* aState)
+{
+  IMEContext context;
+  nsresult rv = GetInputMode(context);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  *aState = context.mStatus;
+  return NS_OK;
 }
  
 #ifdef DEBUG

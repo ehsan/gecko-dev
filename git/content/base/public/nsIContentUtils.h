@@ -42,6 +42,8 @@
 #include "nsAString.h"
 #include "nsMargin.h"
 
+class nsIInterfaceRequestor;
+
 // {3682DD99-8560-44f4-9B8F-CCCE9D7B96FB}
 #define NS_ICONTENTUTILS_IID \
 { 0x3682dd99, 0x8560, 0x44f4, \
@@ -70,5 +72,23 @@ public:
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIContentUtils, NS_ICONTENTUTILS_IID)
+
+// {c7193287-3e3d-467f-b6da-47b914eb4c83}
+#define NS_ICONTENTUTILS2_IID \
+{ 0xc7193287, 0x3e3d, 0x467f, \
+{ 0xb6, 0xda, 0x47, 0xb9, 0x14, 0xeb, 0x4c, 0x83 } }
+
+class nsIContentUtils2 : public nsISupports
+{
+public:
+  NS_DECLARE_STATIC_IID_ACCESSOR(NS_ICONTENTUTILS2_IID)
+  NS_DECL_ISUPPORTS
+
+  virtual nsIInterfaceRequestor* GetSameOriginChecker();
+  // Returns NS_OK for same origin, error (NS_ERROR_DOM_BAD_URI) if not.
+  virtual nsresult CheckSameOrigin(nsIChannel *aOldChannel, nsIChannel *aNewChannel);
+};
+
+NS_DEFINE_STATIC_IID_ACCESSOR(nsIContentUtils2, NS_ICONTENTUTILS2_IID)
 
 #endif /* nsIContentUtils_h__ */

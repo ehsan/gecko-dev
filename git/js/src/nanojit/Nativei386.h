@@ -193,14 +193,18 @@ namespace nanojit
         void nativePageReset();\
         void nativePageSetup();\
         void underrunProtect(int);\
+        bool hardenNopInsertion(const Config& c) { return c.harden_nop_insertion; } \
         void asm_immi(Register r, int32_t val, bool canClobberCCs);\
         void asm_stkarg(LIns* p, int32_t& stkd);\
         void asm_farg(LIns*, int32_t& stkd);\
         void asm_arg(ArgType ty, LIns* p, Register r, int32_t& stkd);\
         void asm_pusharg(LIns*);\
-        void asm_cmpd(LIns *cond);\
-        NIns* asm_branchd(bool, LIns*, NIns*);\
         void asm_cmp(LIns *cond); \
+        void asm_cmpi(LIns *cond); \
+        void asm_cmpd(LIns *cond);\
+        NIns* asm_branch_helper(bool, LIns* cond, NIns*);\
+        NIns* asm_branchi_helper(bool, LIns* cond, NIns*);\
+        NIns* asm_branchd_helper(bool, LIns* cond, NIns*);\
         void asm_div_mod(LIns *cond); \
         void asm_load(int d, Register r); \
         void asm_immd(Register r, uint64_t q, double d, bool canClobberCCs); \
@@ -400,6 +404,7 @@ namespace nanojit
         void SSE_STQsib(int32_t d, Register rb, Register ri, int32_t scale, Register rv); \
         void SSE_CVTSI2SD(Register xr, Register gr); \
         void SSE_CVTSD2SI(Register gr, Register xr); \
+        void SSE_CVTTSD2SI(Register gr, Register xr); \
         void SSE_CVTSD2SS(Register xr, Register gr); \
         void SSE_CVTSS2SD(Register xr, Register gr); \
         void SSE_CVTDQ2PD(Register d, Register r); \
@@ -427,7 +432,6 @@ namespace nanojit
         void FCHS(); \
         void FLD1(); \
         void FLDZ(); \
-        void FFREE(Register r); \
         void FST32(bool p, int32_t d, Register b); \
         void FSTQ(bool p, int32_t d, Register b); \
         void FSTPQ(int32_t d, Register b); \
@@ -449,7 +453,6 @@ namespace nanojit
         void FSUBRdm(const double* dm); \
         void FMULdm( const double* dm); \
         void FDIVRdm(const double* dm); \
-        void FINCSTP(); \
         void FSTP(Register r) { \
             count_fpu(); \
             FPU(0xddd8, r); \

@@ -164,20 +164,27 @@ public:
   //
 
 //NS_IMETHOD              CaptureMouse(PRBool aCapture);
-  virtual LayerManager*     GetLayerManager(bool* aAllowRetaining = nsnull);
+  virtual LayerManager*     GetLayerManager(LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
+                                            bool* aAllowRetaining = nsnull);
 //  virtual nsIDeviceContext* GetDeviceContext();
   virtual gfxASurface*      GetThebesSurface();
 
   NS_IMETHOD ResetInputState();
   NS_IMETHOD SetIMEOpenState(PRBool aState);
   NS_IMETHOD GetIMEOpenState(PRBool *aState);
-  NS_IMETHOD SetIMEEnabled(PRUint32 aState);
-  NS_IMETHOD GetIMEEnabled(PRUint32 *aState);
+  NS_IMETHOD SetInputMode(const IMEContext& aContext);
+  NS_IMETHOD GetInputMode(IMEContext& aContext);
   NS_IMETHOD CancelComposition();
   NS_IMETHOD OnIMEFocusChange(PRBool aFocus);
   NS_IMETHOD OnIMETextChange(PRUint32 aOffset, PRUint32 aEnd,
                              PRUint32 aNewEnd);
   NS_IMETHOD OnIMESelectionChange(void);
+
+  // Gets the DPI of the screen corresponding to this widget.
+  // Contacts the parent process which gets the DPI from the
+  // proper widget there. TODO: Handle DPI changes that happen
+  // later on.
+  virtual float GetDPI();
 
 private:
   nsresult DispatchPaintEvent();
@@ -223,6 +230,9 @@ private:
   // Note that if seqno overflows (~50 days at 1 ms increment rate),
   // events will be discarded until new focus/blur occurs
   PRUint32 mIMELastBlurSeqno;
+
+  // The DPI of the screen corresponding to this widget
+  float mDPI;
 };
 
 }  // namespace widget

@@ -69,6 +69,7 @@
 #include "nsIPromptFactory.h"
 #include "nsIContent.h"
 #include "mozilla/unused.h"
+#include "nsDebug.h"
 
 using namespace mozilla::dom;
 using namespace mozilla::ipc;
@@ -83,17 +84,30 @@ namespace dom {
 
 TabParent *TabParent::mIMETabParent = nsnull;
 
-NS_IMPL_ISUPPORTS4(TabParent, nsITabParent, nsIAuthPromptProvider, nsISSLStatusProvider, nsISecureBrowserUI)
+NS_IMPL_ISUPPORTS3(TabParent, nsITabParent, nsIAuthPromptProvider, nsISecureBrowserUI)
 
 TabParent::TabParent()
-  : mSecurityState(0)
+  : mIMEComposing(PR_FALSE)
   , mIMECompositionEnding(PR_FALSE)
-  , mIMEComposing(PR_FALSE)
+  , mDPI(0)
 {
 }
 
 TabParent::~TabParent()
 {
+}
+
+void
+TabParent::SetOwnerElement(nsIDOMElement* aElement)
+{
+  mFrameElement = aElement;
+
+  // Cache the DPI of the screen, since we may lose the element/widget later
+  if (aElement) {
+    nsCOMPtr<nsIWidget> widget = GetWidget();
+    NS_ABORT_IF_FALSE(widget, "Non-null OwnerElement must provide a widget!");
+    mDPI = widget->GetDPI();
+  }
 }
 
 void
@@ -199,24 +213,16 @@ TabParent::GetState(PRUint32 *aState)
 {
   NS_ENSURE_ARG(aState);
   NS_WARNING("SecurityState not valid here");
-  *aState = mSecurityState;
+  *aState = 0;
   return NS_OK;
 }
 
 NS_IMETHODIMP
 TabParent::GetTooltipText(nsAString & aTooltipText)
 {
-  aTooltipText = mSecurityTooltipText;
+  aTooltipText.Truncate();
   return NS_OK;
 }
-
-NS_IMETHODIMP
-TabParent::GetSSLStatus(nsISupports ** aStatus)
-{
-  NS_IF_ADDREF(*aStatus = mSecurityStatusObject);
-  return NS_OK;
-}
-
 
 PDocumentRendererParent*
 TabParent::AllocPDocumentRenderer(const nsRect& documentRect,
@@ -491,25 +497,40 @@ bool
 TabParent::RecvGetIMEEnabled(PRUint32* aValue)
 {
   nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (widget)
-    widget->GetIMEEnabled(aValue);
+  if (!widget)
+    return true;
+
+  nsIWidget_MOZILLA_2_0_BRANCH* widget2 = static_cast<nsIWidget_MOZILLA_2_0_BRANCH*>(widget.get());
+  IMEContext context;
+  if (widget2) {
+    widget2->GetInputMode(context);
+    *aValue = context.mStatus;
+  }
   return true;
 }
 
 bool
-TabParent::RecvSetIMEEnabled(const PRUint32& aValue)
+TabParent::RecvSetInputMode(const PRUint32& aValue, const nsString& aType, const nsString& aAction)
 {
   nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (widget && AllowContentIME()) {
-    widget->SetIMEEnabled(aValue);
+  if (!widget || !AllowContentIME())
+    return true;
 
-    nsCOMPtr<nsIObserverService> observerService = mozilla::services::GetObserverService();
-    if (observerService) {
-      nsAutoString state;
-      state.AppendInt(aValue);
-      observerService->NotifyObservers(nsnull, "ime-enabled-state-changed", state.get());
-    }
-  }
+  nsIWidget_MOZILLA_2_0_BRANCH* widget2 = static_cast<nsIWidget_MOZILLA_2_0_BRANCH*>(widget.get());
+
+  IMEContext context;
+  context.mStatus = aValue;
+  context.mHTMLInputType.Assign(aType);
+  context.mActionHint.Assign(aAction);
+  widget2->SetInputMode(context);
+
+  nsCOMPtr<nsIObserverService> observerService = mozilla::services::GetObserverService();
+  if (!observerService)
+    return true;
+
+  nsAutoString state;
+  state.AppendInt(aValue);
+  observerService->NotifyObservers(nsnull, "ime-enabled-state-changed", state.get());
 
   return true;
 }
@@ -529,6 +550,15 @@ TabParent::RecvSetIMEOpenState(const PRBool& aValue)
   nsCOMPtr<nsIWidget> widget = GetWidget();
   if (widget && AllowContentIME())
     widget->SetIMEOpenState(aValue);
+  return true;
+}
+
+bool
+TabParent::RecvGetDPI(float* aValue)
+{
+  NS_ABORT_IF_FALSE(mDPI > 0, 
+                    "Must not ask for DPI before OwnerElement is received!");
+  *aValue = mDPI;
   return true;
 }
 

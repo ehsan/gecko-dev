@@ -61,14 +61,9 @@ import android.net.Uri;
 
 class GeckoAppShell
 {
-    static {
-        sGeckoRunning = false;
-    }
-
     // static members only
     private GeckoAppShell() { }
 
-    static boolean sGeckoRunning;
     static private GeckoEvent gPendingResize = null;
 
     static private boolean gRestartScheduled = false;
@@ -79,9 +74,8 @@ class GeckoAppShell
 
     static private final int NOTIFY_IME_RESETINPUTSTATE = 0;
     static private final int NOTIFY_IME_SETOPENSTATE = 1;
-    static private final int NOTIFY_IME_SETENABLED = 2;
-    static private final int NOTIFY_IME_CANCELCOMPOSITION = 3;
-    static private final int NOTIFY_IME_FOCUSCHANGE = 4;
+    static private final int NOTIFY_IME_CANCELCOMPOSITION = 2;
+    static private final int NOTIFY_IME_FOCUSCHANGE = 3;
 
     /* The Android-side API: API methods that Android calls */
 
@@ -115,8 +109,8 @@ class GeckoAppShell
             Log.i("GeckoApp", "env"+ c +": "+ env);
         }
 
-        File f = new File("/data/data/org.mozilla." + 
-                          GeckoApp.mAppContext.getAppName() +"/tmp");
+        File f = new File("/data/data/" + 
+                          GeckoApp.mAppContext.getPackageName() + "/tmp");
         if (!f.exists())
             f.mkdirs();
 
@@ -124,6 +118,8 @@ class GeckoAppShell
 
         f = Environment.getDownloadCacheDirectory();
         GeckoAppShell.putenv("EXTERNAL_STORAGE" + f.getPath());
+
+        GeckoAppShell.putenv("LANG=" + Locale.getDefault().toString());
 
         loadLibs(apkName);
     }
@@ -148,7 +144,7 @@ class GeckoAppShell
     private static GeckoEvent mLastDrawEvent;
 
     public static void sendEventToGecko(GeckoEvent e) {
-        if (sGeckoRunning) {
+        if (GeckoApp.checkLaunchState(GeckoApp.LaunchState.GeckoRunning)) {
             if (gPendingResize != null) {
                 notifyGeckoOfEvent(gPendingResize);
                 gPendingResize = null;
@@ -244,13 +240,6 @@ class GeckoAppShell
             IMEStateUpdater.enableIME();
             break;
 
-        case NOTIFY_IME_SETENABLED:
-            /* When IME is 'disabled', IME processing is disabled.
-                In addition, the IME UI is hidden */
-            GeckoApp.surfaceView.mIMEState = state;
-            IMEStateUpdater.enableIME();
-            break;
-
         case NOTIFY_IME_CANCELCOMPOSITION:
             IMEStateUpdater.resetIME();
             break;
@@ -259,8 +248,20 @@ class GeckoAppShell
             GeckoApp.surfaceView.mIMEFocus = state != 0;
             IMEStateUpdater.resetIME();
             break;
-
         }
+    }
+
+    public static void notifyIMEEnabled(int state, String typeHint, 
+                                        String actionHint) {
+        if (GeckoApp.surfaceView == null)
+            return;
+
+        /* When IME is 'disabled', IME processing is disabled.
+            In addition, the IME UI is hidden */
+        GeckoApp.surfaceView.mIMEState = state;
+        GeckoApp.surfaceView.mIMETypeHint = typeHint;
+        GeckoApp.surfaceView.mIMEActionHint = actionHint;
+        IMEStateUpdater.enableIME();
     }
 
     public static void notifyIMEChange(String text, int start, int end, int newEnd) {
@@ -332,7 +333,8 @@ class GeckoAppShell
 
     static void onAppShellReady()
     {
-        sGeckoRunning = true;
+        // mLaunchState can only be Launched at this point
+        GeckoApp.setLaunchState(GeckoApp.LaunchState.GeckoRunning);
         if (gPendingResize != null) {
             notifyGeckoOfEvent(gPendingResize);
             gPendingResize = null;
@@ -340,7 +342,8 @@ class GeckoAppShell
     }
 
     static void onXreExit() {
-        sGeckoRunning = false;
+        // mLaunchState can only be Launched or GeckoRunning at this point
+        GeckoApp.setLaunchState(GeckoApp.LaunchState.GeckoExiting);
         Log.i("GeckoAppJava", "XRE exited");
         if (gRestartScheduled) {
             GeckoApp.mAppContext.doRestart();
@@ -363,7 +366,7 @@ class GeckoAppShell
         // the intent to be launched by the shortcut
         Intent shortcutIntent = new Intent("org.mozilla.fennec.WEBAPP");
         shortcutIntent.setClassName(GeckoApp.mAppContext,
-                                    "org.mozilla." + GeckoApp.mAppContext.getAppName() + ".App");
+                                    GeckoApp.mAppContext.getPackageName() + ".App");
         shortcutIntent.putExtra("args", "--webapp=" + aURI);
         
         Intent intent = new Intent();
@@ -518,7 +521,7 @@ class GeckoAppShell
         // The intent to launch when the user clicks the expanded notification
         Intent notificationIntent = new Intent(GeckoApp.ACTION_ALERT_CLICK);
         notificationIntent.setClassName(GeckoApp.mAppContext,
-            "org.mozilla." + GeckoApp.mAppContext.getAppName() + ".NotificationHandler");
+            GeckoApp.mAppContext.getPackageName() + ".NotificationHandler");
 
         // Put the strings into the intent as an URI "alert:<name>#<cookie>"
         Uri dataUri = Uri.fromParts("alert", aAlertName, aAlertCookie);
@@ -530,7 +533,7 @@ class GeckoAppShell
         // The intent to execute when the status entry is deleted by the user with the "Clear All Notifications" button
         Intent clearNotificationIntent = new Intent(GeckoApp.ACTION_ALERT_CLEAR);
         clearNotificationIntent.setClassName(GeckoApp.mAppContext,
-            "org.mozilla." + GeckoApp.mAppContext.getAppName() + ".NotificationHandler");
+            GeckoApp.mAppContext.getPackageName() + ".NotificationHandler");
         clearNotificationIntent.setData(dataUri);
 
         PendingIntent pendingClearIntent = PendingIntent.getActivity(GeckoApp.mAppContext, 0, clearNotificationIntent, 0);
@@ -552,6 +555,12 @@ class GeckoAppShell
         AlertNotification notification = mAlertNotifications.get(notificationID);
         if (notification != null)
             notification.updateProgress(aAlertText, aProgress, aProgressMax);
+
+        if (aProgress == aProgressMax) {
+            // Hide the notification at 100%
+            removeObserver(aAlertName);
+            removeNotification(notificationID);
+        }
     }
 
     public static void alertsProgressListener_OnCancel(String aAlertName) {
@@ -610,6 +619,13 @@ class GeckoAppShell
     public static String showFilePicker(String aFilters) {
         return GeckoApp.mAppContext.
             showFilePicker(getMimeTypeFromExtensions(aFilters));
+    }
+
+    public static void performHapticFeedback(boolean aIsLongPress) {
+        GeckoApp.surfaceView.
+            performHapticFeedback(aIsLongPress ?
+                                  HapticFeedbackConstants.LONG_PRESS :
+                                  HapticFeedbackConstants.VIRTUAL_KEY);
     }
 
     public static void showInputMethodPicker() {

@@ -71,6 +71,9 @@ static Qt::GestureType gSwipeGestureId = Qt::CustomGesture;
 // multitouch.
 static const float GESTURES_BLOCK_MOUSE_FOR = 200;
 #endif // QT version check
+#ifdef MOZ_ENABLE_MEEGOTOUCH
+#include <MApplication>
+#endif
 
 #ifdef MOZ_X11
 #include <QX11Info>
@@ -1011,12 +1014,12 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, Q
     nsEventStatus status;
     nsIntRect rect(r.x(), r.y(), r.width(), r.height());
 
-    if (GetLayerManager()->GetBackendType() == LayerManager::LAYERS_OPENGL) {
+    if (GetLayerManager(nsnull)->GetBackendType() == LayerManager::LAYERS_OPENGL) {
         nsPaintEvent event(PR_TRUE, NS_PAINT, this);
         event.refPoint.x = r.x();
         event.refPoint.y = r.y();
         event.region = nsIntRegion(rect);
-        static_cast<mozilla::layers::LayerManagerOGL*>(GetLayerManager())->
+        static_cast<mozilla::layers::LayerManagerOGL*>(GetLayerManager(nsnull))->
             SetClippingRegion(event.region);
         return DispatchEvent(&event);
     }
@@ -1054,14 +1057,17 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, Q
     }
 #ifdef MOZ_ENABLE_MEEGOTOUCH
     else if (renderMode == gfxQtPlatform::RENDER_DIRECT) {
-        // This is needed for rotate transformation on Meego
+      MWindow* window = MApplication::activeWindow();
+      if (window) {
+        // This is needed for rotate transformation on MeeGo
         // This will work very slow if pixman does not handle rotation very well
         gfxMatrix matr;
-        M::OrientationAngle angle = MApplication::activeWindow()->orientationAngle();
+        M::OrientationAngle angle = window->orientationAngle();
         matr.Translate(gfxPoint(aPainter->transform().dx(), aPainter->transform().dy()));
         matr.Rotate((M_PI/180)*angle);
         ctx->SetMatrix(matr);
-        NS_ASSERTION(PIXMAN_VERSION < PIXMAN_VERSION_ENCODE(0, 21, 2) && angle, "Old pixman and rotate transform, it is going to be slow");
+        NS_ASSERTION(PIXMAN_VERSION > PIXMAN_VERSION_ENCODE(0, 21, 2) || !angle, "Old pixman and rotate transform, it is going to be slow");
+      }
     }
 #endif
 
@@ -1476,8 +1482,15 @@ nsWindow::OnKeyPressEvent(QKeyEvent *aEvent)
     int x_min_keycode = 0, x_max_keycode = 0, xkeysyms_per_keycode;
     XDisplayKeycodes(display, &x_min_keycode, &x_max_keycode);
     XModifierKeymap *xmodmap = XGetModifierMapping(display);
+    if (!xmodmap)
+        return nsEventStatus_eIgnore;
+
     KeySym *xkeymap = XGetKeyboardMapping(display, x_min_keycode, x_max_keycode - x_min_keycode,
                                           &xkeysyms_per_keycode);
+    if (!xkeymap) {
+        XFreeModifiermap(xmodmap);
+        return nsEventStatus_eIgnore;
+    }
 
     // create modifier masks
     qint32 shift_mask = 0, shift_lock_mask = 0, caps_lock_mask = 0, num_lock_mask = 0;
@@ -2659,20 +2672,18 @@ nsWindow::contextMenuEvent(QGraphicsSceneContextMenuEvent *)
 }
 
 nsEventStatus
-nsWindow::imStartEvent(QEvent *)
+nsWindow::imComposeEvent(QInputMethodEvent *event, PRBool &handled)
 {
-    return nsEventStatus_eIgnore;
-}
+    nsCompositionEvent start(PR_TRUE, NS_COMPOSITION_START, this);
+    DispatchEvent(&start);
 
-nsEventStatus
-nsWindow::imComposeEvent(QEvent *)
-{
-    return nsEventStatus_eIgnore;
-}
+    nsTextEvent text(PR_TRUE, NS_TEXT_TEXT, this);
+    text.theText.Assign(event->commitString().utf16());
+    DispatchEvent(&text);
 
-nsEventStatus
-nsWindow::imEndEvent(QEvent * )
-{
+    nsCompositionEvent end(PR_TRUE, NS_COMPOSITION_END, this);
+    DispatchEvent(&end);
+
     return nsEventStatus_eIgnore;
 }
 
@@ -2954,11 +2965,12 @@ nsWindow::AreBoundsSane(void)
 }
 
 NS_IMETHODIMP
-nsWindow::SetIMEEnabled(PRUint32 aState)
+nsWindow::SetInputMode(const IMEContext& aContext)
 {
     NS_ENSURE_TRUE(mWidget, NS_ERROR_FAILURE);
 
-    switch (aState) {
+    mIMEContext = aContext;
+    switch (aContext.mStatus) {
         case nsIWidget::IME_STATUS_ENABLED:
         case nsIWidget::IME_STATUS_PASSWORD:
             {
@@ -2979,12 +2991,9 @@ nsWindow::SetIMEEnabled(PRUint32 aState)
 }
 
 NS_IMETHODIMP
-nsWindow::GetIMEEnabled(PRUint32* aState)
+nsWindow::GetInputMode(IMEContext& aContext)
 {
-    NS_ENSURE_ARG_POINTER(aState);
-    NS_ENSURE_TRUE(mWidget, NS_ERROR_FAILURE);
-
-    *aState = mWidget->isVKBOpen() ? IME_STATUS_ENABLED : IME_STATUS_DISABLED;
+    aContext = mIMEContext;
     return NS_OK;
 }
 

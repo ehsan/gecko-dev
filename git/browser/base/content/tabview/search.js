@@ -129,10 +129,20 @@ var TabUtils = {
   },
   
   // ---------
+  // Function: URLOf
+  // Given a <TabItem> or a <xul:tab> returns the URL of tab
+  URLOf: function TabUtils_URLOf(tab) {
+    // Convert a <TabItem> to <xul:tab>
+    if(tab.tab != undefined)
+      tab = tab.tab;
+    return tab.linkedBrowser.currentURI.spec;
+  },
+
+  // ---------
   // Function: favURLOf
   // Given a <TabItem> or a <xul:tab> returns the URL of tab's favicon.
   faviconURLOf: function TabUtils_faviconURLOf(tab) {
-    return tab.image != undefined ? tab.image : tab.favEl.src;
+    return tab.image != undefined ? tab.image : tab.favImgEl.src;
   },
   
   // ---------
@@ -165,8 +175,9 @@ TabMatcher.prototype = {
   _filterAndSortForMatches: function TabMatcher__filterAndSortForMatches(tabs) {
     var self = this;
     tabs = tabs.filter(function(tab){
-      var name = TabUtils.nameOf(tab);
-      return name.match(self.term, "i");
+      let name = TabUtils.nameOf(tab);
+      let url = TabUtils.URLOf(tab);
+      return name.match(self.term, "i") || url.match(self.term, "i");
     });
 
     tabs.sort(function sorter(x, y){
@@ -186,7 +197,8 @@ TabMatcher.prototype = {
     var self = this;
     return tabs.filter(function(tab) {
       var name = tab.nameEl.innerHTML;
-      return !name.match(self.term, "i");
+      let url = TabUtils.URLOf(tab);
+      return !name.match(self.term, "i") && !url.match(self.term, "i");
     });
   },
   
@@ -259,7 +271,7 @@ TabMatcher.prototype = {
   // Returns all of <TabItem>s that .matched() doesn't return.
   unmatched: function TabMatcher_unmatched() {
     var tabs = TabItems.getItems();
-    if ( this.term.length < 2 )
+    if (this.term.length < 2)
       return tabs;
       
     return this._filterForUnmatches(tabs);
@@ -284,7 +296,7 @@ TabMatcher.prototype = {
       matchFunc(tab, i);
     });
 
-    otherMatches.forEach(function(tab,i){
+    otherMatches.forEach(function(tab,i) {
       otherFunc(tab, i+matches.length);      
     });
     
@@ -312,7 +324,8 @@ SearchEventHandlerClass.prototype = {
   init: function () {
     var self = this;
     iQ("#searchbox")[0].focus(); 
-    iQ("#search").hide().click(function(event) {
+    iQ("#search").hide();
+    iQ("#searchshade").hide().click(function(event) {
       if ( event.target.id != "searchbox")
         hideSearch();
     });
@@ -335,9 +348,9 @@ SearchEventHandlerClass.prototype = {
   // Handles all keypresses before the search interface is brought up.
   beforeSearchKeyHandler: function (event) {
     // Only match reasonable text-like characters for quick search.
-    var key = String.fromCharCode(event.which);
     // TODO: Also include funky chars. Bug 593904
-    if (!key.match(/[A-Z0-9]/) || event.altKey || event.ctrlKey || event.metaKey)
+    if (!String.fromCharCode(event.which).match(/[a-zA-Z0-9]/) || event.altKey || 
+        event.ctrlKey || event.metaKey)
       return;
 
     // If we are already in an input field, allow typing as normal.
@@ -352,17 +365,19 @@ SearchEventHandlerClass.prototype = {
   // Function: inSearchKeyHandler
   // Handles all keypresses while search mode.
   inSearchKeyHandler: function (event) {
-    var term = iQ("#searchbox").val();
-    
-    if (event.which == event.DOM_VK_ESCAPE) 
+    let term = iQ("#searchbox").val();
+    if ((event.keyCode == event.DOM_VK_ESCAPE) || 
+        (event.keyCode == event.DOM_VK_BACK_SPACE && term.length <= 1)) {
       hideSearch(event);
-    if (event.which == event.DOM_VK_BACK_SPACE && term.length <= 1) 
-      hideSearch(event);
+      return;
+    }
 
-    var matcher = new TabMatcher(term);
-    var matches = matcher.matched();
-    var others =  matcher.matchedTabsFromOtherWindows();
-    if (event.which == event.DOM_VK_RETURN && (matches.length > 0 || others.length > 0)) {
+    let matcher = createSearchTabMacher();
+    let matches = matcher.matched();
+    let others =  matcher.matchedTabsFromOtherWindows();
+    if ((event.keyCode == event.DOM_VK_RETURN || 
+         event.keyCode == event.DOM_VK_ENTER) && 
+         (matches.length > 0 || others.length > 0)) {
       hideSearch(event);
       if (matches.length > 0) 
         matches[0].zoomIn();
@@ -376,11 +391,11 @@ SearchEventHandlerClass.prototype = {
   // Make sure the event handlers are appropriate for
   // the before-search mode. 
   switchToBeforeMode: function switchToBeforeMode() {
-    var self = this;
+    let self = this;
     if (this.currentHandler)
-      iQ(document).unbind("keydown", this.currentHandler);
+      iQ(window).unbind("keypress", this.currentHandler);
     this.currentHandler = function(event) self.beforeSearchKeyHandler(event);
-    iQ(document).keydown(self.currentHandler);
+    iQ(window).keypress(this.currentHandler);
   },
   
   // ----------
@@ -388,11 +403,11 @@ SearchEventHandlerClass.prototype = {
   // Make sure the event handlers are appropriate for
   // the in-search mode.   
   switchToInMode: function switchToInMode() {
-    var self = this;
+    let self = this;
     if (this.currentHandler)
-      iQ(document).unbind("keydown", this.currentHandler);
+      iQ(window).unbind("keypress", this.currentHandler);
     this.currentHandler = function(event) self.inSearchKeyHandler(event);
-    iQ(document).keydown(self.currentHandler);
+    iQ(window).keypress(this.currentHandler);
   }
 };
 
@@ -427,7 +442,7 @@ var TabHandlers = {
     // either be a <TabItem> or a <xul:tab>. In other functions
     // it is always a <TabItem>. Also note that index is offset
     // by the number of matches within the window.
-    var item = iQ("<div/>")
+    let item = iQ("<div/>")
       .addClass("inlineMatch")
       .click(function(event){
         hideSearch(event);
@@ -449,6 +464,7 @@ var TabHandlers = {
   
   _hideHandler: function(event){
     iQ("#search").fadeOut();
+    iQ("#searchshade").fadeOut();
     TabHandlers._mouseDownLocation = {x:event.clientX, y:event.clientY};
   },
   
@@ -458,10 +474,11 @@ var TabHandlers = {
     // mode.
     if (TabHandlers._mouseDownLocation.x == event.clientX &&
         TabHandlers._mouseDownLocation.y == event.clientY){
-        hideSearch();
-        return;
+      hideSearch();
+      return;
     }
-    
+
+    iQ("#searchshade").show();    
     iQ("#search").show();
     iQ("#searchbox")[0].focus();
     // Marshal the search.
@@ -471,13 +488,18 @@ var TabHandlers = {
   _mouseDownLocation: null
 };
 
+function createSearchTabMacher() {
+  return new TabMatcher(iQ("#searchbox").val());
+}
+
 function hideSearch(event){
   iQ("#searchbox").val("");
+  iQ("#searchshade").hide();
   iQ("#search").hide();
-  
+
   iQ("#searchbutton").css({ opacity:.8 });
-  
-  var mainWindow = gWindow.document.getElementById("main-window");    
+
+  let mainWindow = gWindow.document.getElementById("main-window");
   mainWindow.setAttribute("activetitlebarcolor", "#C4C4C4");
 
   performSearch();
@@ -488,17 +510,17 @@ function hideSearch(event){
     event.stopPropagation();
   }
 
-  let newEvent = document.createEvent("Events");
-  newEvent.initEvent("tabviewsearchdisabled", false, false);
-  dispatchEvent(newEvent);
-
   // Return focus to the tab window
   UI.blurAll();
   gTabViewFrame.contentWindow.focus();
+
+  let newEvent = document.createEvent("Events");
+  newEvent.initEvent("tabviewsearchdisabled", false, false);
+  dispatchEvent(newEvent);
 }
 
 function performSearch() {
-  var matcher = new TabMatcher(iQ("#searchbox").val());
+  let matcher = new TabMatcher(iQ("#searchbox").val());
 
   // Remove any previous other-window search results and
   // hide the display area.
@@ -511,15 +533,16 @@ function performSearch() {
 
 function ensureSearchShown(event){
   var $search = iQ("#search");
+  var $searchShade = iQ("#searchshade");
   var $searchbox = iQ("#searchbox");
   iQ("#searchbutton").css({ opacity: 1 });
-  
-  
-  if ($search.css("display") == "none") {
+
+  if (!isSearchEnabled()) {
+    $searchShade.show();
     $search.show();
     var mainWindow = gWindow.document.getElementById("main-window");
     mainWindow.setAttribute("activetitlebarcolor", "#717171");       
-        
+
     // Marshal the focusing, otherwise you end up with
     // a race condition where only sometimes would the
     // first keystroke be registered by the search box.
@@ -528,22 +551,22 @@ function ensureSearchShown(event){
     setTimeout(function focusSearch() {
       $searchbox[0].focus();
       $searchbox[0].val = '0';
-      $searchbox.css({"z-index":"1015"});
-      if (event != null){
-        var keyCode = event.which + (event.shiftKey ? 0 : 32);
-        $searchbox.val(String.fromCharCode(keyCode));        
-      }
-    }, 0);
+      if (event != null)
+        $searchbox.val(String.fromCharCode(event.charCode));        
 
-    let newEvent = document.createEvent("Events");
-    newEvent.initEvent("tabviewsearchenabled", false, false);
-    dispatchEvent(newEvent);
+      let newEvent = document.createEvent("Events");
+      newEvent.initEvent("tabviewsearchenabled", false, false);
+      dispatchEvent(newEvent);
+    }, 0);
   }
+}
+
+function isSearchEnabled() {
+  return iQ("#search").css("display") != "none";
 }
 
 var SearchEventHandler = new SearchEventHandlerClass();
 
 // Features to add:
 // (1) Make sure this looks good on Windows. Bug 594429
-// (2) Make sure that we don't put the matched tab over the search box. Bug 594433
-// (3) Group all of the highlighted tabs into a group? Bug 594434
+// (2) Group all of the highlighted tabs into a group? Bug 594434

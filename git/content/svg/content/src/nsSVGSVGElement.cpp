@@ -39,6 +39,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsGkAtoms.h"
+#include "DOMSVGNumber.h"
 #include "DOMSVGLength.h"
 #include "nsSVGAngle.h"
 #include "nsCOMPtr.h"
@@ -47,12 +48,11 @@
 #include "nsIDocument.h"
 #include "nsPresContext.h"
 #include "nsSVGMatrix.h"
-#include "nsSVGPoint.h"
+#include "DOMSVGPoint.h"
 #include "nsSVGTransform.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIFrame.h"
 #include "nsISVGSVGFrame.h" //XXX
-#include "nsSVGNumber.h"
 #include "nsSVGRect.h"
 #include "nsISVGValueUtils.h"
 #include "nsDOMError.h"
@@ -60,6 +60,7 @@
 #include "nsGUIEvent.h"
 #include "nsSVGUtils.h"
 #include "nsSVGSVGElement.h"
+#include "nsSVGEffects.h" // For nsSVGEffects::RemoveAllRenderingObservers
 
 #ifdef MOZ_SMIL
 #include "nsEventDispatcher.h"
@@ -129,8 +130,9 @@ nsSVGTranslatePoint::DOMVal::MatrixTransform(nsIDOMSVGMatrix *matrix,
 
   float x = mVal->GetX();
   float y = mVal->GetY();
-  
-  return NS_NewSVGPoint(_retval, a*x + c*y + e, b*x + d*y + f);
+
+  NS_ADDREF(*_retval = new DOMSVGPoint(a*x + c*y + e, b*x + d*y + f));
+  return NS_OK;
 }
 
 nsSVGElement::LengthInfo nsSVGSVGElement::sLengthInfo[4] =
@@ -631,7 +633,8 @@ nsSVGSVGElement::DeSelectAll()
 NS_IMETHODIMP
 nsSVGSVGElement::CreateSVGNumber(nsIDOMSVGNumber **_retval)
 {
-  return NS_NewSVGNumber(_retval);
+  NS_ADDREF(*_retval = new DOMSVGNumber());
+  return NS_OK;
 }
 
 /* nsIDOMSVGLength createSVGLength (); */
@@ -653,7 +656,8 @@ nsSVGSVGElement::CreateSVGAngle(nsIDOMSVGAngle **_retval)
 NS_IMETHODIMP
 nsSVGSVGElement::CreateSVGPoint(nsIDOMSVGPoint **_retval)
 {
-  return NS_NewSVGPoint(_retval);
+  NS_ADDREF(*_retval = new DOMSVGPoint(0, 0));
+  return NS_OK;
 }
 
 /* nsIDOMSVGMatrix createSVGMatrix (); */
@@ -1229,3 +1233,12 @@ nsSVGSVGElement::GetPreserveAspectRatio()
 {
   return &mPreserveAspectRatio;
 }
+
+#ifndef MOZ_ENABLE_LIBXUL
+// XXXdholbert HACK -- see comment w/ this method's declaration in header file.
+void
+nsSVGSVGElement::RemoveAllRenderingObservers()
+{
+  nsSVGEffects::RemoveAllRenderingObservers(this);
+}
+#endif // !MOZ_LIBXUL

@@ -482,10 +482,8 @@ static nsresult GetDownloadDirectory(nsIFile **_directory)
   else {
     return NS_ERROR_FAILURE;
   }
-#elif defined(MAEMO)
-  nsresult rv = dirService->Get(NS_UNIX_XDG_DOCUMENTS_DIR,
-                       NS_GET_IID(nsILocalFile),
-                       getter_AddRefs(downloadDir));
+#elif defined(MOZ_PLATFORM_MAEMO)
+  nsresult rv = NS_GetSpecialDirectory(NS_UNIX_XDG_DOCUMENTS_DIR, getter_AddRefs(dir));
   NS_ENSURE_SUCCESS(rv, rv);
 #else
   // On all other platforms, we default to the systems temporary directory.
@@ -569,6 +567,9 @@ static nsExtraMimeTypeEntry extraMimeEntries [] =
   { APPLICATION_XPINSTALL, "xpi", "XPInstall Install" },
   { APPLICATION_POSTSCRIPT, "ps,eps,ai", "Postscript File" },
   { APPLICATION_XJAVASCRIPT, "js", "Javascript Source File" },
+#ifdef ANDROID
+  { "application/vnd.android.package-archive", "apk", "Android Package" },
+#endif
   { IMAGE_ART, "art", "ART Image" },
   { IMAGE_BMP, "bmp", "BMP Image" },
   { IMAGE_GIF, "gif", "GIF Image" },
@@ -715,6 +716,9 @@ NS_IMETHODIMP nsExternalHelperAppService::DoContent(const nsACString& aMimeConte
     if (channel)
       ExtractDisposition(channel, disp);
 
+    nsCOMPtr<nsIURI> referrer;
+    rv = NS_GetReferrerFromChannel(channel, getter_AddRefs(referrer));
+
     // Now we build a protocol for forwarding our data to the parent.  The
     // protocol will act as a listener on the child-side and create a "real"
     // helperAppService listener on the parent-side, via another call to
@@ -723,7 +727,8 @@ NS_IMETHODIMP nsExternalHelperAppService::DoContent(const nsACString& aMimeConte
     pc = child->SendPExternalHelperAppConstructor(IPC::URI(uri),
                                                   nsCString(aMimeContentType),
                                                   disp,
-                                                  aForceSave, contentLength);
+                                                  aForceSave, contentLength,
+                                                  IPC::URI(referrer));
     ExternalHelperAppChild *childListener = static_cast<ExternalHelperAppChild *>(pc);
 
     NS_ADDREF(*aStreamListener = childListener);
@@ -2350,7 +2355,7 @@ nsresult nsExternalAppHandler::OpenWithApplication()
     if (deleteTempFileOnExit || gExtProtSvc->InPrivateBrowsing())
       mFinalFileDestination->SetPermissions(0400);
 
-    rv = mMimeInfo->LaunchWithFile(mFinalFileDestination);        
+    rv = mMimeInfo->LaunchWithFile(mFinalFileDestination);
     if (NS_FAILED(rv))
     {
       // Send error notification.
@@ -2479,6 +2484,13 @@ NS_IMETHODIMP nsExternalAppHandler::Cancel(nsresult aReason)
   {
     mTempFile->Remove(PR_FALSE);
     mTempFile = nsnull;
+  }
+
+  // If we have already created a final destination file, we remove it as well
+  if (mFinalFileDestination)
+  {
+    mFinalFileDestination->Remove(PR_FALSE);
+    mFinalFileDestination = nsnull;
   }
 
   // Release the listener, to break the reference cycle with it (we are the

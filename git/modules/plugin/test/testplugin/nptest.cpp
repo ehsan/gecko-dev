@@ -36,6 +36,8 @@
 #include "nptest_utils.h"
 #include "nptest_platform.h"
 
+#include "mozilla/IntentionalCrash.h"
+
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -53,7 +55,7 @@
 #include <pthread.h>
 #endif
 
- using namespace std;
+using namespace std;
 
 #define PLUGIN_NAME        "Test Plug-in"
 #define PLUGIN_DESCRIPTION "Plug-in for testing purposes."
@@ -73,26 +75,6 @@ static char sPluginVersion[] = PLUGIN_VERSION;
 
 int gCrashCount = 0;
 
-void
-NoteIntentionalCrash()
-{
-  char* bloatLog = getenv("XPCOM_MEM_BLOAT_LOG");
-  if (bloatLog) {
-    char* logExt = strstr(bloatLog, ".log");
-    if (logExt) {
-      bloatLog[strlen(bloatLog) - strlen(logExt)] = '\0';
-    }
-    ostringstream bloatName;
-    bloatName << bloatLog << "_plugin_pid" << getpid();
-    if (logExt) {
-      bloatName << ".log";
-    }
-    FILE* processfd = fopen(bloatName.str().c_str(), "a");
-    fprintf(processfd, "==> process %d will purposefully crash\n", getpid());
-    fclose(processfd);
-  }
-}
-
 static void Crash()
 {
   int *pi = NULL;
@@ -103,7 +85,7 @@ static void Crash()
 static void
 IntentionalCrash()
 {
-  NoteIntentionalCrash();
+  mozilla::NoteIntentionalCrash("plugin");
   Crash();
 }
 
@@ -587,10 +569,13 @@ NP_GetValue(void* future, NPPVariable aVariable, void* aValue) {
 }
 #endif
 
-static void fillPluginFunctionTable(NPPluginFuncs* pFuncs)
+static bool fillPluginFunctionTable(NPPluginFuncs* pFuncs)
 {
-  pFuncs->version = 11;
-  pFuncs->size = sizeof(*pFuncs);
+  // Check the size of the provided structure based on the offset of the
+  // last member we need.
+  if (pFuncs->size < (offsetof(NPPluginFuncs, setvalue) + sizeof(void*)))
+    return false;
+
   pFuncs->newp = NPP_New;
   pFuncs->destroy = NPP_Destroy;
   pFuncs->setwindow = NPP_SetWindow;
@@ -604,6 +589,8 @@ static void fillPluginFunctionTable(NPPluginFuncs* pFuncs)
   pFuncs->urlnotify = testplugin_URLNotify;
   pFuncs->getvalue = NPP_GetValue;
   pFuncs->setvalue = NPP_SetValue;
+
+  return true;
 }
 
 #if defined(XP_MACOSX)
@@ -638,7 +625,9 @@ NP_EXPORT(NPError) NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* pFuncs)
   sNPClass.construct =      (NPConstructFunctionPtr)scriptableConstruct;
 
 #if defined(XP_UNIX) && !defined(XP_MACOSX)
-  fillPluginFunctionTable(pFuncs);
+  if (!fillPluginFunctionTable(pFuncs)) {
+    return NPERR_INVALID_FUNCTABLE_ERROR;
+  }
 #endif
 
   return NPERR_NO_ERROR;
@@ -651,7 +640,10 @@ NPError OSCALL NP_GetEntryPoints(NPPluginFuncs* pFuncs)
 #endif
 #if defined(XP_MACOSX) || defined(XP_WIN) || defined(XP_OS2)
 {
-  fillPluginFunctionTable(pFuncs);
+  if (!fillPluginFunctionTable(pFuncs)) {
+    return NPERR_INVALID_FUNCTABLE_ERROR;
+  }
+
   return NPERR_NO_ERROR;
 }
 #endif
@@ -2843,7 +2835,7 @@ bool
 hangPlugin(NPObject* npobj, const NPVariant* args, uint32_t argCount,
            NPVariant* result)
 {
-  NoteIntentionalCrash();
+  mozilla::NoteIntentionalCrash("plugin");
 
 #ifdef XP_WIN
   Sleep(100000000);

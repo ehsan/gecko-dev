@@ -401,15 +401,15 @@ DEFINE_STATIC_GETTER(static_lastParen_getter,    return res->createLastParen(cx,
 DEFINE_STATIC_GETTER(static_leftContext_getter,  return res->createLeftContext(cx, Valueify(vp)))
 DEFINE_STATIC_GETTER(static_rightContext_getter, return res->createRightContext(cx, Valueify(vp)))
 
-DEFINE_STATIC_GETTER(static_paren1_getter,       return res->createParen(cx, 0, Valueify(vp)))
-DEFINE_STATIC_GETTER(static_paren2_getter,       return res->createParen(cx, 1, Valueify(vp)))
-DEFINE_STATIC_GETTER(static_paren3_getter,       return res->createParen(cx, 2, Valueify(vp)))
-DEFINE_STATIC_GETTER(static_paren4_getter,       return res->createParen(cx, 3, Valueify(vp)))
-DEFINE_STATIC_GETTER(static_paren5_getter,       return res->createParen(cx, 4, Valueify(vp)))
-DEFINE_STATIC_GETTER(static_paren6_getter,       return res->createParen(cx, 5, Valueify(vp)))
-DEFINE_STATIC_GETTER(static_paren7_getter,       return res->createParen(cx, 6, Valueify(vp)))
-DEFINE_STATIC_GETTER(static_paren8_getter,       return res->createParen(cx, 7, Valueify(vp)))
-DEFINE_STATIC_GETTER(static_paren9_getter,       return res->createParen(cx, 8, Valueify(vp)))
+DEFINE_STATIC_GETTER(static_paren1_getter,       return res->createParen(cx, 1, Valueify(vp)))
+DEFINE_STATIC_GETTER(static_paren2_getter,       return res->createParen(cx, 2, Valueify(vp)))
+DEFINE_STATIC_GETTER(static_paren3_getter,       return res->createParen(cx, 3, Valueify(vp)))
+DEFINE_STATIC_GETTER(static_paren4_getter,       return res->createParen(cx, 4, Valueify(vp)))
+DEFINE_STATIC_GETTER(static_paren5_getter,       return res->createParen(cx, 5, Valueify(vp)))
+DEFINE_STATIC_GETTER(static_paren6_getter,       return res->createParen(cx, 6, Valueify(vp)))
+DEFINE_STATIC_GETTER(static_paren7_getter,       return res->createParen(cx, 7, Valueify(vp)))
+DEFINE_STATIC_GETTER(static_paren8_getter,       return res->createParen(cx, 8, Valueify(vp)))
+DEFINE_STATIC_GETTER(static_paren9_getter,       return res->createParen(cx, 9, Valueify(vp)))
 
 #define DEFINE_STATIC_SETTER(name, code)                                        \
     static JSBool                                                               \
@@ -652,9 +652,9 @@ EscapeNakedForwardSlashes(JSContext *cx, JSString *unescaped)
 
     if (newChars.length()) {
         size_t len = newChars.length();
-        jschar *chars = newChars.extractRawBuffer();
-        if (!chars)
+        if (!newChars.append('\0'))
             return NULL;
+        jschar *chars = newChars.extractRawBuffer();
         JSString *escaped = js_NewString(cx, chars, len);
         if (!escaped)
             cx->free(chars);
@@ -785,9 +785,10 @@ regexp_exec_sub(JSContext *cx, JSObject *obj, uintN argc, Value *argv, JSBool te
         /* Need to grab input from statics. */
         str = res->getPendingInput();
         if (!str) {
-            const char *sourceBytes = js_GetStringBytes(cx, re->getSource());
-            if (sourceBytes) {
-                JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_NO_INPUT, sourceBytes,
+            JSAutoByteString sourceBytes(cx, re->getSource());
+            if (!!sourceBytes) {
+                JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_NO_INPUT,
+                                     sourceBytes.ptr(),
                                      re->global() ? "g" : "",
                                      re->ignoreCase() ? "i" : "",
                                      re->multiline() ? "m" : "",
@@ -884,7 +885,7 @@ InitRegExpClassCompile(JSContext *cx, JSObject *obj)
 JSObject *
 js_InitRegExpClass(JSContext *cx, JSObject *obj)
 {
-    JSObject *proto = js_InitClass(cx, obj, NULL, &js_RegExpClass, regexp_construct, 1,
+    JSObject *proto = js_InitClass(cx, obj, NULL, &js_RegExpClass, regexp_construct, 2,
                                    NULL, regexp_methods, regexp_static_props, NULL);
     if (!proto)
         return NULL;

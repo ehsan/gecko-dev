@@ -116,13 +116,9 @@ private:
    * @param  aDocument       [in] loaded DOM document
    * @param  aLoadEventType  [in] specifies the event type to fire load event,
    *                           if 0 then no event is fired
-   * @param  aMarkAsLoaded   [in] indicates whether we should mark forcedly
-   *                           an accessible document as loaded (used for error
-   *                           pages only which do not get 'pageshow' event)
    */
   void HandleDOMDocumentLoad(nsIDocument *aDocument,
-                             PRUint32 aLoadEventType,
-                             PRBool aMarkAsLoaded = PR_FALSE);
+                             PRUint32 aLoadEventType);
 
   /**
    * Return true if accessibility events accompanying document accessible
@@ -156,20 +152,17 @@ private:
     nsDocAccessibleHashtable;
 
   /**
-   * Shutdown and remove the document accessible from cache.
+   * Get first entry of the document accessible from cache.
    */
   static PLDHashOperator
-    ClearDocCacheEntry(const nsIDocument* aKey,
-                       nsRefPtr<nsDocAccessible>& aDocAccessible,
-                       void* aUserArg);
+    GetFirstEntryInDocCache(const nsIDocument* aKey,
+                            nsDocAccessible* aDocAccessible,
+                            void* aUserArg);
 
   /**
    * Clear the cache and shutdown the document accessibles.
    */
-  void ClearDocCache()
-  {
-    mDocAccessibleCache.Enumerate(ClearDocCacheEntry, static_cast<void*>(this));
-  }
+  void ClearDocCache();
 
   struct nsSearchAccessibleInCacheArg
   {

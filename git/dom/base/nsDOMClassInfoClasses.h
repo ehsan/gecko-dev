@@ -405,6 +405,7 @@ DOMCI_CLASS(File)
 DOMCI_CLASS(FileException)
 DOMCI_CLASS(FileError)
 DOMCI_CLASS(FileReader)
+DOMCI_CLASS(MozURLProperty)
 
 // DOM modal content window class, almost identical to Window
 DOMCI_CLASS(ModalContentWindow)
@@ -461,7 +462,7 @@ DOMCI_CLASS(Worker)
 DOMCI_CLASS(ChromeWorker)
 
 // WebGL
-DOMCI_CLASS(CanvasRenderingContextWebGL)
+DOMCI_CLASS(WebGLRenderingContext)
 DOMCI_CLASS(WebGLBuffer)
 DOMCI_CLASS(WebGLTexture)
 DOMCI_CLASS(WebGLProgram)

@@ -36,6 +36,8 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "ContainerLayerD3D9.h"
+#include "gfxUtils.h"
+#include "nsRect.h"
 
 namespace mozilla {
 namespace layers {
@@ -65,6 +67,8 @@ ContainerLayerD3D9::InsertAfter(Layer* aChild, Layer* aAfter)
     aChild->SetPrevSibling(nsnull);
     if (oldFirstChild) {
       oldFirstChild->SetPrevSibling(aChild);
+    } else {
+      mLastChild = aChild;
     }
     NS_ADDREF(aChild);
     return;
@@ -77,6 +81,8 @@ ContainerLayerD3D9::InsertAfter(Layer* aChild, Layer* aAfter)
       aChild->SetNextSibling(oldNextSibling);
       if (oldNextSibling) {
         oldNextSibling->SetPrevSibling(aChild);
+      } else {
+        mLastChild = aChild;
       }
       aChild->SetPrevSibling(child);
       NS_ADDREF(aChild);
@@ -93,6 +99,8 @@ ContainerLayerD3D9::RemoveChild(Layer *aChild)
     mFirstChild = GetFirstChild()->GetNextSibling();
     if (mFirstChild) {
       mFirstChild->SetPrevSibling(nsnull);
+    } else {
+      mLastChild = nsnull;
     }
     aChild->SetNextSibling(nsnull);
     aChild->SetPrevSibling(nsnull);
@@ -108,6 +116,8 @@ ContainerLayerD3D9::RemoveChild(Layer *aChild)
       lastChild->SetNextSibling(child->GetNextSibling());
       if (child->GetNextSibling()) {
         child->GetNextSibling()->SetPrevSibling(lastChild);
+      } else {
+        mLastChild = lastChild;
       }
       child->SetNextSibling(nsnull);
       child->SetPrevSibling(nsnull);
@@ -132,6 +142,15 @@ ContainerLayerD3D9::GetFirstChildD3D9()
     return nsnull;
   }
   return static_cast<LayerD3D9*>(mFirstChild->ImplData());
+}
+
+static inline LayerD3D9*
+GetNextSiblingD3D9(LayerD3D9* aLayer)
+{
+   Layer* layer = aLayer->GetLayer()->GetNextSibling();
+   return layer ? static_cast<LayerD3D9*>(layer->
+                                          ImplData())
+                 : nsnull;
 }
 
 void
@@ -179,9 +198,16 @@ ContainerLayerD3D9::RenderLayer()
   /*
    * Render this container's contents.
    */
-  LayerD3D9 *layerToRender = GetFirstChildD3D9();
-  while (layerToRender) {
-    const nsIntRect *clipRect = layerToRender->GetLayer()->GetClipRect();
+  for (LayerD3D9* layerToRender = GetFirstChildD3D9();
+       layerToRender != nsnull;
+       layerToRender = GetNextSiblingD3D9(layerToRender)) {
+
+    const nsIntRect* clipRect = layerToRender->GetLayer()->GetClipRect();
+    if ((clipRect && clipRect->IsEmpty()) ||
+        layerToRender->GetLayer()->GetEffectiveVisibleRegion().IsEmpty()) {
+      continue;
+    }
+
     if (clipRect || useIntermediate) {
       RECT r;
       device()->GetScissorRect(&oldClipRect);
@@ -225,11 +251,6 @@ ContainerLayerD3D9::RenderLayer()
     if (clipRect || useIntermediate) {
       device()->SetScissorRect(&oldClipRect);
     }
-
-    Layer *nextSibling = layerToRender->GetLayer()->GetNextSibling();
-    layerToRender = nextSibling ? static_cast<LayerD3D9*>(nextSibling->
-                                                          ImplData())
-                                : nsnull;
   }
 
   if (useIntermediate) {

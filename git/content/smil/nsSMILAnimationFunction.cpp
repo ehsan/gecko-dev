@@ -84,16 +84,17 @@ nsAttrValue::EnumTable nsSMILAnimationFunction::sCalcModeTable[] = {
 // Constructors etc.
 
 nsSMILAnimationFunction::nsSMILAnimationFunction()
-  : mIsActive(PR_FALSE),
-    mIsFrozen(PR_FALSE),
-    mSampleTime(-1),
+  : mSampleTime(-1),
     mRepeatIteration(0),
+    mBeginTime(LL_MININT),
+    mAnimationElement(nsnull),
+    mErrorFlags(0),
+    mIsActive(PR_FALSE),
+    mIsFrozen(PR_FALSE),
     mLastValue(PR_FALSE),
     mHasChanged(PR_TRUE),
     mValueNeedsReparsingEverySample(PR_FALSE),
-    mBeginTime(LL_MININT),
-    mAnimationElement(nsnull),
-    mErrorFlags(0)
+    mPrevSampleWasSingleValueAnimation(PR_FALSE)
 {
 }
 
@@ -176,11 +177,17 @@ nsSMILAnimationFunction::SampleAt(nsSMILTime aSampleTime,
                                   const nsSMILTimeValue& aSimpleDuration,
                                   PRUint32 aRepeatIteration)
 {
-  if (mHasChanged || mLastValue || mSampleTime != aSampleTime ||
-      mSimpleDuration != aSimpleDuration ||
-      mRepeatIteration != aRepeatIteration) {
-    mHasChanged = PR_TRUE;
-  }
+  // * Update mHasChanged ("Might this sample be different from prev one?")
+  // Were we previously sampling a fill="freeze" final val? (We're not anymore.)
+  mHasChanged |= mLastValue;
+
+  // Are we sampling at a new point in simple duration? And does that matter?
+  mHasChanged |=
+    (mSampleTime != aSampleTime || mSimpleDuration != aSimpleDuration) &&
+    !IsValueFixedForSimpleDuration();
+
+  // Are we on a new repeat and accumulating across repeats?
+  mHasChanged |= (mRepeatIteration != aRepeatIteration) && GetAccumulate();
 
   mSampleTime       = aSampleTime;
   mSimpleDuration   = aSimpleDuration;
@@ -223,6 +230,7 @@ nsSMILAnimationFunction::ComposeResult(const nsISMILAttr& aSMILAttr,
                                        nsSMILValue& aResult)
 {
   mHasChanged = PR_FALSE;
+  mPrevSampleWasSingleValueAnimation = PR_FALSE;
 
   // Skip animations that are inactive or in error
   if (!IsActiveOrFrozen() || mErrorFlags != 0)
@@ -246,12 +254,21 @@ nsSMILAnimationFunction::ComposeResult(const nsISMILAttr& aSMILAttr,
       mSimpleDuration.IsIndefinite() || mLastValue,
       "Unresolved simple duration for active or frozen animation");
 
+  // If we want to add but don't have a base value then just fail outright.
+  // This can happen when we skipped getting the base value because there's an
+  // animation function in the sandwich that should replace it but that function
+  // failed unexpectedly.
+  PRBool isAdditive = IsAdditive();
+  if (isAdditive && aResult.IsNull())
+    return;
+
   nsSMILValue result;
 
-  if (mSimpleDuration.IsIndefinite() ||
-      (values.Length() == 1 && TreatSingleValueAsStatic())) {
-    // Indefinite duration or only one value set: Always set the first value
+  if (values.Length() == 1 && !IsToAnimation()) {
+
+    // Single-valued animation
     result = values[0];
+    mPrevSampleWasSingleValueAnimation = PR_TRUE;
 
   } else if (mLastValue) {
 
@@ -286,7 +303,7 @@ nsSMILAnimationFunction::ComposeResult(const nsISMILAttr& aSMILAttr,
   }
 
   // If additive animation isn't required or isn't supported, set the value.
-  if (!IsAdditive() || NS_FAILED(aResult.SandwichAdd(result))) {
+  if (!isAdditive || NS_FAILED(aResult.SandwichAdd(result))) {
     aResult.Swap(result);
     // Note: The old value of aResult is now in |result|, and it will get
     // cleaned up when |result| goes out of scope, when this function returns.
@@ -371,28 +388,37 @@ nsSMILAnimationFunction::InterpolateResult(const nsSMILValueArray& aValues,
                                            nsSMILValue& aResult,
                                            nsSMILValue& aBaseValue)
 {
-  nsresult rv = NS_OK;
-  const nsSMILTime& dur = mSimpleDuration.GetMillis();
-
-  // Sanity Checks
-  NS_ABORT_IF_FALSE(mSampleTime >= 0.0f, "Sample time should not be negative");
-  NS_ABORT_IF_FALSE(dur >= 0.0f, "Simple duration should not be negative");
-
-  if (mSampleTime >= dur || mSampleTime < 0.0f) {
-    NS_ERROR("Animation sampled outside interval");
-    return NS_ERROR_FAILURE;
-  }
-
+  // Sanity check animation values
   if ((!IsToAnimation() && aValues.Length() < 2) ||
       (IsToAnimation()  && aValues.Length() != 1)) {
     NS_ERROR("Unexpected number of values");
     return NS_ERROR_FAILURE;
   }
-  // End Sanity Checks
 
-  // Get the normalised progress through the simple duration
-  const double simpleProgress = dur > 0.0 ? (double)mSampleTime / dur : 0.0;
+  // Get the normalised progress through the simple duration.
+  //
+  // If we have an indefinite simple duration, just set the progress to be
+  // 0 which will give us the expected behaviour of the animation being fixed at
+  // its starting point.
+  double simpleProgress = 0.0;
 
+  if (mSimpleDuration.IsResolved()) {
+    nsSMILTime dur = mSimpleDuration.GetMillis();
+
+    NS_ABORT_IF_FALSE(dur >= 0, "Simple duration should not be negative");
+    NS_ABORT_IF_FALSE(mSampleTime >= 0, "Sample time should not be negative");
+
+    if (mSampleTime >= dur || mSampleTime < 0) {
+      NS_ERROR("Animation sampled outside interval");
+      return NS_ERROR_FAILURE;
+    }
+
+    if (dur > 0) {
+      simpleProgress = (double)mSampleTime / dur;
+    } // else leave simpleProgress at 0.0 (e.g. if mSampleTime == dur == 0)
+  }
+
+  nsresult rv = NS_OK;
   nsSMILCalcMode calcMode = GetCalcMode();
   if (calcMode != CALC_DISCRETE) {
     // Get the normalised progress between adjacent values
@@ -416,26 +442,25 @@ nsSMILAnimationFunction::InterpolateResult(const nsSMILValueArray& aValues,
           intervalProgress = ScaleIntervalProgress(scaledSimpleProgress, 0);
         }
       }
-    } else {
-      if (calcMode == CALC_PACED) {
-        rv = ComputePacedPosition(aValues, simpleProgress,
-                                  intervalProgress, from, to);
-        // Note: If the above call fails, we'll skip the "from->Interpolate"
-        // call below, and we'll drop into the CALC_DISCRETE section
-        // instead. (as the spec says we should, because our failure was
-        // presumably due to the values being non-additive)
-      } else { // calcMode == CALC_LINEAR or calcMode == CALC_SPLINE
-        double scaledSimpleProgress =
-          ScaleSimpleProgress(simpleProgress, calcMode);
-        PRUint32 index = (PRUint32)floor(scaledSimpleProgress *
-                                         (aValues.Length() - 1));
-        from = &aValues[index];
-        to = &aValues[index + 1];
-        intervalProgress =
-          scaledSimpleProgress * (aValues.Length() - 1) - index;
-        intervalProgress = ScaleIntervalProgress(intervalProgress, index);
-      }
+    } else if (calcMode == CALC_PACED) {
+      rv = ComputePacedPosition(aValues, simpleProgress,
+                                intervalProgress, from, to);
+      // Note: If the above call fails, we'll skip the "from->Interpolate"
+      // call below, and we'll drop into the CALC_DISCRETE section
+      // instead. (as the spec says we should, because our failure was
+      // presumably due to the values being non-additive)
+    } else { // calcMode == CALC_LINEAR or calcMode == CALC_SPLINE
+      double scaledSimpleProgress =
+        ScaleSimpleProgress(simpleProgress, calcMode);
+      PRUint32 index = (PRUint32)floor(scaledSimpleProgress *
+                                       (aValues.Length() - 1));
+      from = &aValues[index];
+      to = &aValues[index + 1];
+      intervalProgress =
+        scaledSimpleProgress * (aValues.Length() - 1) - index;
+      intervalProgress = ScaleIntervalProgress(intervalProgress, index);
     }
+
     if (NS_SUCCEEDED(rv)) {
       NS_ABORT_IF_FALSE(from, "NULL from-value during interpolation");
       NS_ABORT_IF_FALSE(to, "NULL to-value during interpolation");
@@ -535,7 +560,11 @@ nsSMILAnimationFunction::ComputePacedPosition(const nsSMILValueArray& aValues,
     NS_ASSERTION(remainingDist >= 0, "distance values must be non-negative");
 
     double curIntervalDist;
-    nsresult rv = aValues[i].ComputeDistance(aValues[i+1], curIntervalDist);
+
+#ifdef DEBUG
+    nsresult rv =
+#endif
+      aValues[i].ComputeDistance(aValues[i+1], curIntervalDist);
     NS_ABORT_IF_FALSE(NS_SUCCEEDED(rv),
                       "If we got through ComputePacedTotalDistance, we should "
                       "be able to recompute each sub-distance without errors");
@@ -898,6 +927,13 @@ nsSMILAnimationFunction::CheckKeySplines(PRUint32 aNumValues)
   }
 
   SetKeySplinesErrorFlag(PR_FALSE);
+}
+
+PRBool
+nsSMILAnimationFunction::IsValueFixedForSimpleDuration() const
+{
+  return mSimpleDuration.IsIndefinite() ||
+    (!mHasChanged && mPrevSampleWasSingleValueAnimation);
 }
 
 //----------------------------------------------------------------------

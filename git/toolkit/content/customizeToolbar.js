@@ -66,12 +66,15 @@ function InitWithToolbox(aToolbox)
   dispatchCustomizationEvent("beforecustomization");
   gToolboxDocument = gToolbox.ownerDocument;
   gToolbox.customizing = true;
+  forEachCustomizableToolbar(function (toolbar) {
+    toolbar.setAttribute("customizing", "true");
+  });
 
   var elts = getRootElements();
   for (let i=0; i < elts.length; i++) {
     elts[i].addEventListener("dragstart", onToolbarDragStart, true);
     elts[i].addEventListener("dragover", onToolbarDragOver, true);
-    elts[i].addEventListener("dragleave", onToolbarDragLeave, true);
+    elts[i].addEventListener("dragexit", onToolbarDragExit, true);
     elts[i].addEventListener("drop", onToolbarDrop, true);
   }
 
@@ -98,6 +101,9 @@ function finishToolbarCustomization()
   unwrapToolbarItems();
   persistCurrentSets();
   gToolbox.customizing = false;
+  forEachCustomizableToolbar(function (toolbar) {
+    toolbar.removeAttribute("customizing");
+  });
 
   notifyParentComplete();
 }
@@ -145,7 +151,7 @@ function removeToolboxListeners()
   for (let i=0; i < elts.length; i++) {
     elts[i].removeEventListener("dragstart", onToolbarDragStart, true);
     elts[i].removeEventListener("dragover", onToolbarDragOver, true);
-    elts[i].removeEventListener("dragleave", onToolbarDragLeave, true);
+    elts[i].removeEventListener("dragexit", onToolbarDragExit, true);
     elts[i].removeEventListener("drop", onToolbarDrop, true);
   }
 }
@@ -723,7 +729,7 @@ function isToolbarItem(aElt)
 ///////////////////////////////////////////////////////////////////////////
 //// Drag and Drop observers
 
-function onToolbarDragLeave(aEvent)
+function onToolbarDragExit(aEvent)
 {
   if (gCurrentDragOverItem)
     setDragActive(gCurrentDragOverItem, false);

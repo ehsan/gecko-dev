@@ -55,6 +55,8 @@
 
 namespace js {
 
+namespace mjit { struct JITScript; }
+
 struct VMFrame
 {
     union Arguments {
@@ -63,6 +65,10 @@ struct VMFrame
             void *ptr2;
             void *ptr3;
         } x;
+        struct {
+            uint32 lazyArgsObj;
+            uint32 dynamicArgc;
+        } call;
     } u;
 
     VMFrame      *previous;
@@ -81,7 +87,7 @@ struct VMFrame
 
 # ifdef JS_NO_FASTCALL
     inline void** returnAddressLocation() {
-        return reinterpret_cast<void**>(this) - 3;
+        return reinterpret_cast<void**>(this) - 5;
     }
 # else
     inline void** returnAddressLocation() {
@@ -132,6 +138,7 @@ struct VMFrame
     JSRuntime *runtime() { return cx->runtime; }
 
     JSStackFrame *&fp() { return regs.fp; }
+    mjit::JITScript *jit() { return fp()->jit(); }
 };
 
 #ifdef JS_CPU_ARM
@@ -204,10 +211,39 @@ class JaegerCompartment {
 #endif
 };
 
+/*
+ * Allocation policy for compiler jstl objects. The goal is to free the
+ * compiler from having to check and propagate OOM after every time we
+ * append to a vector. We do this by reporting OOM to the engine and
+ * setting a flag on the compiler when OOM occurs. The compiler is required
+ * to check for OOM only before trying to use the contents of the list.
+ */
+class CompilerAllocPolicy : public ContextAllocPolicy
+{
+    bool *oomFlag;
+
+    void *checkAlloc(void *p) {
+        if (!p)
+            *oomFlag = true;
+        return p;
+    }
+
+  public:
+    CompilerAllocPolicy(JSContext *cx, bool *oomFlag)
+    : ContextAllocPolicy(cx), oomFlag(oomFlag) {}
+    CompilerAllocPolicy(JSContext *cx, Compiler &compiler);
+
+    void *malloc(size_t bytes) { return checkAlloc(ContextAllocPolicy::malloc(bytes)); }
+    void *realloc(void *p, size_t bytes) {
+        return checkAlloc(ContextAllocPolicy::realloc(p, bytes));
+    }
+};
+
 namespace ic {
 # if defined JS_POLYIC
     struct PICInfo;
     struct GetElementIC;
+    struct SetElementIC;
 # endif
 # if defined JS_MONOIC
     struct MICInfo;
@@ -248,16 +284,25 @@ typedef void * (JS_FASTCALL *VoidPtrStubTraceIC)(VMFrame &, js::mjit::ic::TraceI
 #ifdef JS_POLYIC
 typedef void (JS_FASTCALL *VoidStubPIC)(VMFrame &, js::mjit::ic::PICInfo *);
 typedef void (JS_FASTCALL *VoidStubGetElemIC)(VMFrame &, js::mjit::ic::GetElementIC *);
+typedef void (JS_FASTCALL *VoidStubSetElemIC)(VMFrame &f, js::mjit::ic::SetElementIC *);
 #endif
 
 namespace mjit {
 
 struct CallSite;
 
+struct NativeMapEntry {
+    size_t          bcOff;  /* bytecode offset in script */
+    void            *ncode; /* pointer to native code */
+};
+
 struct JITScript {
     typedef JSC::MacroAssemblerCodeRef CodeRef;
     CodeRef         code;       /* pool & code addresses */
-    void            **nmap;     /* pc -> JIT code map, sparse */
+
+    NativeMapEntry  *nmap;      /* array of NativeMapEntrys, sorted by .bcOff.
+                                   .ncode values may not be NULL. */
+    size_t          nNmapPairs; /* number of entries in nmap */
 
     js::mjit::CallSite *callSites;
     uint32          nCallSites;
@@ -280,10 +325,14 @@ struct JITScript {
     uint32          nPICs;      /* number of PolyICs */
     ic::GetElementIC *getElems;
     uint32           nGetElems;
+    ic::SetElementIC *setElems;
+    uint32           nSetElems;
 #endif
     void            *invokeEntry;       /* invoke address */
     void            *fastEntry;         /* cached entry, fastest */
     void            *arityCheckEntry;   /* arity check address */
+
+    ~JITScript();
 
     bool isValidCode(void *ptr) {
         char *jitcode = (char *)code.m_code.executableAddress();
@@ -291,10 +340,10 @@ struct JITScript {
         return jcheck >= jitcode && jcheck < jitcode + code.m_size;
     }
 
+    void nukeScriptDependentICs();
     void sweepCallICs();
     void purgeMICs();
     void purgePICs();
-    void release();
 };
 
 /*
@@ -343,6 +392,22 @@ struct CallSite
     uint32 codeOffset;
     uint32 pcOffset;
     uint32 id;
+
+    // Normally, callsite ID is the __LINE__ in the program that added the
+    // callsite. Since traps can be removed, we make sure they carry over
+    // from each compilation, and identify them with a single, canonical
+    // ID. Hopefully a SpiderMonkey file won't have two billion source lines.
+    static const uint32 MAGIC_TRAP_ID = 0xFEDCBABC;
+
+    void initialize(uint32 codeOffset, uint32 pcOffset, uint32 id) {
+        this->codeOffset = codeOffset;
+        this->pcOffset = pcOffset;
+        this->id = id;
+    }
+
+    bool isTrap() const {
+        return id == MAGIC_TRAP_ID;
+    }
 };
 
 /* Re-enables a tracepoint in the method JIT. */
@@ -351,6 +416,27 @@ EnableTraceHint(JSScript *script, jsbytecode *pc, uint16_t index);
 
 uintN
 GetCallTargetCount(JSScript *script, jsbytecode *pc);
+
+inline void * bsearch_nmap(NativeMapEntry *nmap, size_t nPairs, size_t bcOff)
+{
+    size_t lo = 1, hi = nPairs;
+    while (1) {
+        /* current unsearched space is from lo-1 to hi-1, inclusive. */
+        if (lo > hi)
+            return NULL; /* not found */
+        size_t mid       = (lo + hi) / 2;
+        size_t bcOff_mid = nmap[mid-1].bcOff;
+        if (bcOff < bcOff_mid) {
+            hi = mid-1;
+            continue;
+        } 
+        if (bcOff > bcOff_mid) {
+            lo = mid+1;
+            continue;
+        }
+        return nmap[mid-1].ncode;
+    }
+}
 
 } /* namespace mjit */
 
@@ -363,22 +449,17 @@ JSScript::maybeNativeCodeForPC(bool constructing, jsbytecode *pc)
     if (!jit)
         return NULL;
     JS_ASSERT(pc >= code && pc < code + length);
-    return jit->nmap[pc - code];
-}
-
-inline void **
-JSScript::nativeMap(bool constructing)
-{
-    return getJIT(constructing)->nmap;
+    return bsearch_nmap(jit->nmap, jit->nNmapPairs, (size_t)(pc - code));
 }
 
 inline void *
 JSScript::nativeCodeForPC(bool constructing, jsbytecode *pc)
 {
-    void **nmap = nativeMap(constructing);
+    js::mjit::JITScript *jit = getJIT(constructing);
     JS_ASSERT(pc >= code && pc < code + length);
-    JS_ASSERT(nmap[pc - code]);
-    return nmap[pc - code];
+    void* native = bsearch_nmap(jit->nmap, jit->nNmapPairs, (size_t)(pc - code));
+    JS_ASSERT(native);
+    return native;
 }
 
 #ifdef _MSC_VER

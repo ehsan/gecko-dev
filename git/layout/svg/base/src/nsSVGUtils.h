@@ -60,7 +60,6 @@ class nsIFrame;
 struct nsStyleSVGPaint;
 class nsIDOMSVGElement;
 class nsIDOMSVGLength;
-class nsIDOMSVGNumberList;
 class nsIURI;
 class nsSVGOuterSVGFrame;
 class nsSVGPreserveAspectRatio;
@@ -92,14 +91,17 @@ class Element;
 #endif
 
 // SVG Frame state bits
-#define NS_STATE_IS_OUTER_SVG         NS_FRAME_STATE_BIT(20)
+#define NS_STATE_IS_OUTER_SVG                    NS_FRAME_STATE_BIT(20)
 
-#define NS_STATE_SVG_DIRTY            NS_FRAME_STATE_BIT(21)
+#define NS_STATE_SVG_DIRTY                       NS_FRAME_STATE_BIT(21)
 
 /* are we the child of a non-display container? */
-#define NS_STATE_SVG_NONDISPLAY_CHILD NS_FRAME_STATE_BIT(22)
+#define NS_STATE_SVG_NONDISPLAY_CHILD            NS_FRAME_STATE_BIT(22)
 
-#define NS_STATE_SVG_PROPAGATE_TRANSFORM NS_FRAME_STATE_BIT(23)
+#define NS_STATE_SVG_PROPAGATE_TRANSFORM         NS_FRAME_STATE_BIT(23)
+
+// If this bit is set, we are a <clipPath> element or descendant.
+#define NS_STATE_SVG_CLIPPATH_CHILD              NS_FRAME_STATE_BIT(24)
 
 /**
  * Byte offsets of channels in a native packed gfxColor or cairo image surface.
@@ -132,13 +134,12 @@ IsSVGWhitespace(char aChar)
          aChar == '\xD'  || aChar == '\xA';
 }
 
-/*
- * Checks the svg enable preference and if a renderer could
- * successfully be created.  Declared as a function instead of a
- * nsSVGUtil method so that files that can't pull in nsSVGUtils.h (due
- * to cairo.h usage) can still query this information.
- */
-PRBool NS_SVGEnabled();
+inline PRBool
+IsSVGWhitespace(PRUnichar aChar)
+{
+  return aChar == PRUnichar('\x20') || aChar == PRUnichar('\x9') ||
+         aChar == PRUnichar('\xD')  || aChar == PRUnichar('\xA');
+}
 
 #ifdef MOZ_SMIL
 /*
@@ -581,17 +582,6 @@ public:
   static PRBool IsInnerSVG(nsIContent* aContent);
 
   /**
-   * Parse a string that may contain either a CSS <number> or, if
-   * aAllowPercentages is set to true, a CSS <percentage>, and return the
-   * number as a float.
-   *
-   * This helper returns PR_TRUE if a number was successfully parsed from the
-   * string and no characters were left, else it returns PR_FALSE.
-   */
-  static PRBool NumberFromString(const nsAString& aString, float* aValue,
-                                 PRBool aAllowPercentages = PR_FALSE);
-
-  /**
    * Convert a floating-point value to a 32-bit integer value, clamping to
    * the range of valid integers.
    */
@@ -600,11 +590,6 @@ public:
     return NS_lround(NS_MAX(double(PR_INT32_MIN),
                             NS_MIN(double(PR_INT32_MAX), aVal)));
   }
-
-  /**
-   * Returns aIndex-th item of nsIDOMSVGNumberList
-   */
-  static float GetNumberListValue(nsIDOMSVGNumberList *aList, PRUint32 aIndex);
 
   /**
    * Given a nsIContent* that is actually an nsSVGSVGElement*, this method

@@ -199,15 +199,17 @@ private:
     PRUint16 mMaxRequestDelay; // in seconds
     PRUint16 mMaxPipelinedRequests;
 
+    PRPackedBool mIsShuttingDown;
+
     //-------------------------------------------------------------------------
     // NOTE: these members are only accessed on the socket transport thread
     //-------------------------------------------------------------------------
 
     static PRIntn ProcessOneTransactionCB(nsHashKey *, void *, void *);
-    static PRIntn PurgeOneIdleConnectionCB(nsHashKey *, void *, void *);
+
     static PRIntn PruneDeadConnectionsCB(nsHashKey *, void *, void *);
     static PRIntn ShutdownPassCB(nsHashKey *, void *, void *);
-
+    static PRIntn PurgeExcessIdleConnectionsCB(nsHashKey *, void *, void *);
     PRBool   ProcessPendingQForEntry(nsConnectionEntry *);
     PRBool   AtActiveConnectionLimit(nsConnectionEntry *, PRUint8 caps);
     void     GetConnection(nsConnectionEntry *, PRUint8 caps, nsHttpConnection **);
@@ -215,6 +217,7 @@ private:
                                  PRUint8 caps, nsHttpConnection *);
     PRBool   BuildPipeline(nsConnectionEntry *, nsAHttpTransaction *, nsHttpPipeline **);
     nsresult ProcessNewTransaction(nsHttpTransaction *);
+    nsresult EnsureSocketThreadTargetIfOnline();
 
     // message handlers have this signature
     typedef void (nsHttpConnectionMgr:: *nsConnEventHandler)(PRInt32, void *);

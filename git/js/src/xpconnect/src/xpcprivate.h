@@ -50,6 +50,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <math.h>
+#include "xpcpublic.h"
 #include "jsapi.h"
 #include "jsdhash.h"
 #include "jsprf.h"
@@ -178,8 +179,8 @@ static FARPROC GetProcAddressA(HMODULE hMod, wchar_t *procName);
 
 #ifdef DEBUG
 #define XPC_DETECT_LEADING_UPPERCASE_ACCESS_ERRORS
-#define XPC_CHECK_WRAPPER_THREADSAFETY
 #endif
+#define XPC_CHECK_WRAPPER_THREADSAFETY
 
 #if defined(DEBUG_xpc_hacker)
 #define XPC_DUMP_AT_SHUTDOWN
@@ -239,6 +240,7 @@ void DEBUG_CheckWrapperThreadSafety(const XPCWrappedNative* wrapper);
 #define XPC_NATIVE_JSCLASS_MAP_SIZE         32
 #define XPC_THIS_TRANSLATOR_MAP_SIZE         8
 #define XPC_NATIVE_WRAPPER_MAP_SIZE         16
+#define XPC_WRAPPER_MAP_SIZE                16
 
 /***************************************************************************/
 // data declarations...
@@ -322,7 +324,7 @@ typedef nsDataHashtableMT<nsISupportsHashKey, JSCompartment *> XPCMTCompartmentM
 typedef nsDataHashtable<xpc::PtrAndPrincipalHashKey, JSCompartment *> XPCCompartmentMap;
 
 /***************************************************************************/
-// useful macros...
+// Useful macros...
 
 #define XPC_STRING_GETTER_BODY(dest, src) \
     NS_ENSURE_ARG_POINTER(dest); \
@@ -584,6 +586,7 @@ public:
     // nsCycleCollectionLanguageRuntime
     virtual nsresult BeginCycleCollection(nsCycleCollectionTraversalCallback &cb,
                                           bool explainExpectedLiveGarbage);
+    virtual nsresult FinishTraverse();
     virtual nsresult FinishCycleCollection();
     virtual nsCycleCollectionParticipant *ToParticipant(void *p);
     virtual void Collect();
@@ -672,8 +675,8 @@ public:
     }
 
     inline XPCRootSetElem* GetNextRoot() { return mNext; }
-    void AddToRootSet(JSRuntime* rt, XPCRootSetElem** listHead);
-    void RemoveFromRootSet(JSRuntime* rt);
+    void AddToRootSet(XPCLock *lock, XPCRootSetElem **listHead);
+    void RemoveFromRootSet(XPCLock *lock);
 
 private:
     XPCRootSetElem *mNext;
@@ -1124,7 +1127,8 @@ public:
 
     operator JSContext*() const {return GetJSContext();}
 
-    XPCReadableJSStringWrapper *NewStringWrapper(PRUnichar *str, PRUint32 len);
+    XPCReadableJSStringWrapper *NewStringWrapper(const PRUnichar *str,
+                                                 PRUint32 len);
     void DeleteString(nsAString *string);
 
 #ifdef XPC_IDISPATCH_SUPPORT
@@ -1453,46 +1457,6 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JSObject *obj);
      (clazz) == &XPC_WN_ModsAllowed_WithCall_Proto_JSClass ||                 \
      (clazz) == &XPC_WN_ModsAllowed_NoCall_Proto_JSClass)
 
-// NOTE!!!
-//
-// If this ever changes,
-// nsScriptSecurityManager::doGetObjectPrincipal() *must* be updated
-// also!
-//
-// NOTE!!!
-#define IS_WRAPPER_CLASS(clazz)                                               \
-    (clazz->ext.equality == js::Valueify(XPC_WN_Equality))
-
-inline JSBool
-DebugCheckWrapperClass(JSObject* obj)
-{
-    NS_ASSERTION(IS_WRAPPER_CLASS(obj->getClass()),
-                 "Forgot to check if this is a wrapper?");
-    return JS_TRUE;
-}
-
-// If IS_WRAPPER_CLASS for the JSClass of an object is true, the object can be
-// a slim wrapper, holding a native in its private slot, or a wrappednative
-// wrapper, holding the XPCWrappedNative in its private slot. A slim wrapper
-// also holds a pointer to its XPCWrappedNativeProto in a reserved slot, we can
-// check that slot for a non-void value to distinguish between the two.
-
-// Only use these macros if IS_WRAPPER_CLASS(obj->getClass()) is true.
-#define IS_WN_WRAPPER_OBJECT(obj)                                             \
-    (DebugCheckWrapperClass(obj) &&                                           \
-     obj->getSlot(0).isUndefined())
-#define IS_SLIM_WRAPPER_OBJECT(obj)                                           \
-    (DebugCheckWrapperClass(obj) &&                                           \
-     !obj->getSlot(0).isUndefined())
-
-// Use these macros if IS_WRAPPER_CLASS(obj->getClass()) might be false.
-// Avoid calling them if IS_WRAPPER_CLASS(obj->getClass()) can only be
-// true, as we'd do a redundant call to IS_WRAPPER_CLASS.
-#define IS_WN_WRAPPER(obj)                                                    \
-    (IS_WRAPPER_CLASS(obj->getClass()) && IS_WN_WRAPPER_OBJECT(obj))
-#define IS_SLIM_WRAPPER(obj)                                                  \
-    (IS_WRAPPER_CLASS(obj->getClass()) && IS_SLIM_WRAPPER_OBJECT(obj))
-
 // Comes from xpcwrappednativeops.cpp
 extern void
 xpc_TraceForValidWrapper(JSTracer *trc, XPCWrappedNative* wrapper);
@@ -1778,9 +1742,6 @@ public:
     inline XPCNativeMember* FindMember(jsid name) const;
 
     inline JSBool HasAncestor(const nsIID* iid) const;
-
-    const char* GetMemberName(XPCCallContext& ccx,
-                              const XPCNativeMember* member) const;
 
     PRUint16 GetMemberCount() const
         {NS_ASSERTION(!IsMarked(), "bad"); return mMemberCount;}
@@ -2465,7 +2426,6 @@ private:
 };
 
 void *xpc_GetJSPrivate(JSObject *obj);
-inline JSObject *xpc_GetGlobalForObject(JSObject *obj);
 
 /***************************************************************************/
 // XPCWrappedNative the wrapper around one instance of a native xpcom object
@@ -2550,7 +2510,13 @@ public:
     GetIdentityObject() const {return mIdentity;}
 
     JSObject*
-    GetFlatJSObject() const {return mFlatJSObject;}
+    GetFlatJSObjectAndMark() const
+        {if(mFlatJSObject && mFlatJSObject != INVALID_OBJECT)
+             mFlatJSObject->markIfUnmarked();
+         return mFlatJSObject;}
+
+    JSObject*
+    GetFlatJSObjectNoMark() const {return mFlatJSObject;}
 
     XPCLock*
     GetLock() const {return IsValid() && HasProto() ?
@@ -2733,7 +2699,6 @@ public:
     void SetNeedsSOW() { mWrapperWord |= NEEDS_SOW; }
     JSBool NeedsCOW() { return !!(mWrapperWord & NEEDS_COW); }
     void SetNeedsCOW() { mWrapperWord |= NEEDS_COW; }
-    JSBool NeedsXOW() { return !!(mWrapperWord & NEEDS_XOW); }
 
     JSObject* GetWrapper()
     {
@@ -2743,11 +2708,9 @@ public:
     {
         PRWord needsSOW = NeedsSOW() ? NEEDS_SOW : 0;
         PRWord needsCOW = NeedsCOW() ? NEEDS_COW : 0;
-        PRWord needsXOW = NeedsXOW() ? NEEDS_XOW : 0;
         mWrapperWord = PRWord(obj) |
                          needsSOW |
-                         needsCOW |
-                         needsXOW;
+                         needsCOW;
     }
 
     void NoteTearoffs(nsCycleCollectionTraversalCallback& cb);
@@ -2786,18 +2749,11 @@ private:
     enum {
         NEEDS_SOW = JS_BIT(0),
         NEEDS_COW = JS_BIT(1),
-        NEEDS_XOW = JS_BIT(2),
 
-        LAST_FLAG = NEEDS_XOW,
+        LAST_FLAG = NEEDS_COW,
 
         FLAG_MASK = 0x7
     };
-
-protected:
-    void SetNeedsXOW() {
-        NS_ASSERTION(mWrapperWord == 0, "It's too late to call this");
-        mWrapperWord = NEEDS_XOW;
-    }
 
 private:
 
@@ -2839,39 +2795,6 @@ private:
 public:
     nsCOMPtr<nsIThread>          mThread; // Don't want to overload _mOwningThread
 #endif
-};
-
-class XPCWrappedNativeWithXOW : public XPCWrappedNative
-{
-public:
-    XPCWrappedNativeWithXOW(already_AddRefed<nsISupports> aIdentity,
-                            XPCWrappedNativeProto* aProto)
-        : XPCWrappedNative(aIdentity, aProto),
-          mXOW(nsnull)
-    {
-        SetNeedsXOW();
-    }
-    XPCWrappedNativeWithXOW(already_AddRefed<nsISupports> aIdentity,
-                            XPCWrappedNativeScope* aScope,
-                            XPCNativeSet* aSet)
-        : XPCWrappedNative(aIdentity, aScope, aSet),
-          mXOW(nsnull)
-    {
-        SetNeedsXOW();
-    }
-
-    JSObject *GetXOW()
-    {
-        return mXOW;
-    }
-
-    void SetXOW(JSObject *xow)
-    {
-        mXOW = xow;
-    }
-
-private:
-    JSObject *mXOW;
 };
 
 /***************************************************************************
@@ -4453,13 +4376,6 @@ xpc_GetJSPrivate(JSObject *obj)
 {
     return obj->getPrivate();
 }
-inline JSObject *
-xpc_GetGlobalForObject(JSObject *obj)
-{
-    while(JSObject *parent = obj->getParent())
-        obj = parent;
-    return obj;
-}
 
 
 #ifndef XPCONNECT_STANDALONE
@@ -4527,22 +4443,28 @@ struct CompartmentPrivate
     : key(key),
       ptr(nsnull),
       wantXrays(wantXrays),
-      cycleCollectionEnabled(cycleCollectionEnabled)
+      cycleCollectionEnabled(cycleCollectionEnabled),
+      waiverWrapperMap(nsnull)
   {
   }
+
   CompartmentPrivate(nsISupports *ptr, bool wantXrays, bool cycleCollectionEnabled)
     : key(nsnull),
       ptr(ptr),
       wantXrays(wantXrays),
-      cycleCollectionEnabled(cycleCollectionEnabled)
+      cycleCollectionEnabled(cycleCollectionEnabled),
+      waiverWrapperMap(nsnull)
   {
   }
+
+  ~CompartmentPrivate();
 
   // NB: key and ptr are mutually exclusive.
   nsAutoPtr<PtrAndPrincipalHashKey> key;
   nsCOMPtr<nsISupports> ptr;
   bool wantXrays;
   bool cycleCollectionEnabled;
+  JSObject2JSObjectMap *waiverWrapperMap;
 };
 
 inline bool
