@@ -33,7 +33,6 @@ extern "C" {
 #include "nsIStringBundle.h"
 
 #include "nsNetUtil.h"
-#include "nsNullPrincipal.h"
 #include "nsIURL.h"
 #include "prlink.h"
 
@@ -138,17 +137,9 @@ moz_gdk_pixbuf_to_channel(GdkPixbuf* aPixbuf, nsIURI *aURI,
   MOZ_ASSERT(NS_SUCCEEDED(rv));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIPrincipal> nullPrincipal =
-    do_CreateInstance("@mozilla.org/nullprincipal;1", &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_NewInputStreamChannel(aChannel,
-                                  aURI,
-                                  stream,
-                                  nullPrincipal,
-                                  nsILoadInfo::SEC_NORMAL,
-                                  nsIContentPolicy::TYPE_OTHER,
-                                  NS_LITERAL_CSTRING(IMAGE_ICON_MS));
+  rv = NS_NewInputStreamChannel(aChannel, aURI, stream,
+                                NS_LITERAL_CSTRING(IMAGE_ICON_MS));
+  return rv;
 }
 
 static GtkWidget *gProtoWindow = nullptr;

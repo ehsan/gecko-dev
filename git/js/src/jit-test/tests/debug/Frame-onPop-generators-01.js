@@ -1,6 +1,5 @@
-// |jit-test| error: StopIteration
 // Returning {throw:} from an onPop handler when yielding works and
-// does closes the generator-iterator.
+// does not close the generator-iterator.
 
 load(libdir + "asserts.js");
 
@@ -18,4 +17,4 @@ var rv = gw.evalInGlobal("it.next();");
 assertEq(rv.throw, "fit");
 
 dbg.enabled = false;
-g.it.next();
+assertEq(g.it.next(), 1);

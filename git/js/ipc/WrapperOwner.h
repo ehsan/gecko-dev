@@ -31,8 +31,11 @@ class WrapperOwner : public virtual JavaScriptShared
     explicit WrapperOwner(JSRuntime *rt);
     bool init();
 
-    // Standard internal methods.
+    // Fundamental proxy traps. These are required.
     // (The traps should be in the same order like js/src/jsproxy.h)
+    bool preventExtensions(JSContext *cx, JS::HandleObject proxy);
+    bool getPropertyDescriptor(JSContext *cx, JS::HandleObject proxy, JS::HandleId id,
+                               JS::MutableHandle<JSPropertyDescriptor> desc);
     bool getOwnPropertyDescriptor(JSContext *cx, JS::HandleObject proxy, JS::HandleId id,
                                   JS::MutableHandle<JSPropertyDescriptor> desc);
     bool defineProperty(JSContext *cx, JS::HandleObject proxy, JS::HandleId id,
@@ -40,27 +43,25 @@ class WrapperOwner : public virtual JavaScriptShared
     bool ownPropertyKeys(JSContext *cx, JS::HandleObject proxy, JS::AutoIdVector &props);
     bool delete_(JSContext *cx, JS::HandleObject proxy, JS::HandleId id, bool *bp);
     bool enumerate(JSContext *cx, JS::HandleObject proxy, JS::AutoIdVector &props);
-    bool isExtensible(JSContext *cx, JS::HandleObject proxy, bool *extensible);
-    bool preventExtensions(JSContext *cx, JS::HandleObject proxy);
+
+    // Derived proxy traps. Implementing these is useful for perfomance.
     bool has(JSContext *cx, JS::HandleObject proxy, JS::HandleId id, bool *bp);
+    bool hasOwn(JSContext *cx, JS::HandleObject proxy, JS::HandleId id, bool *bp);
     bool get(JSContext *cx, JS::HandleObject proxy, JS::HandleObject receiver,
              JS::HandleId id, JS::MutableHandleValue vp);
     bool set(JSContext *cx, JS::HandleObject proxy, JS::HandleObject receiver,
              JS::HandleId id, bool strict, JS::MutableHandleValue vp);
+    bool keys(JSContext *cx, JS::HandleObject proxy, JS::AutoIdVector &props);
+    // We use "iterate" provided by the base class here.
+
+    // SpiderMonkey Extensions.
+    bool isExtensible(JSContext *cx, JS::HandleObject proxy, bool *extensible);
+    bool regexp_toShared(JSContext *cx, JS::HandleObject proxy, js::RegExpGuard *g);
     bool callOrConstruct(JSContext *cx, JS::HandleObject proxy, const JS::CallArgs &args,
                          bool construct);
-
-    // SpiderMonkey extensions.
-    bool getPropertyDescriptor(JSContext *cx, JS::HandleObject proxy, JS::HandleId id,
-                               JS::MutableHandle<JSPropertyDescriptor> desc);
-    bool hasOwn(JSContext *cx, JS::HandleObject proxy, JS::HandleId id, bool *bp);
-    bool getOwnEnumerablePropertyKeys(JSContext *cx, JS::HandleObject proxy,
-                                      JS::AutoIdVector &props);
-    // We use "iterate" provided by the base class here.
     bool hasInstance(JSContext *cx, JS::HandleObject proxy, JS::MutableHandleValue v, bool *bp);
     bool objectClassIs(JSContext *cx, JS::HandleObject obj, js::ESClassValue classValue);
     const char* className(JSContext *cx, JS::HandleObject proxy);
-    bool regexp_toShared(JSContext *cx, JS::HandleObject proxy, js::RegExpGuard *g);
     bool isCallable(JSObject *obj);
     bool isConstructor(JSObject *obj);
 
@@ -145,7 +146,7 @@ class WrapperOwner : public virtual JavaScriptShared
                                     uint32_t *flags) = 0;
 
     virtual bool SendGetPropertyKeys(const ObjectId &objId, const uint32_t &flags,
-                                     ReturnStatus *rs, nsTArray<JSIDVariant> *ids) = 0;
+                                     ReturnStatus *rs, nsTArray<nsString> *names) = 0;
     virtual bool SendInstanceOf(const ObjectId &objId, const JSIID &iid,
                                 ReturnStatus *rs, bool *instanceof) = 0;
     virtual bool SendDOMInstanceOf(const ObjectId &objId, const int &prototypeID, const int &depth,

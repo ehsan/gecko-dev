@@ -49,9 +49,7 @@ jit::Bailout(BailoutStack *sp, BaselineBailoutInfo **bailoutInfo)
     MOZ_ASSERT(IsBaselineEnabled(cx));
 
     *bailoutInfo = nullptr;
-    bool poppedLastSPSFrame = false;
-    uint32_t retval = BailoutIonToBaseline(cx, bailoutData.activation(), iter, false, bailoutInfo,
-                                           /* excInfo = */ nullptr, &poppedLastSPSFrame);
+    uint32_t retval = BailoutIonToBaseline(cx, bailoutData.activation(), iter, false, bailoutInfo);
     MOZ_ASSERT(retval == BAILOUT_RETURN_OK ||
                retval == BAILOUT_RETURN_FATAL_ERROR ||
                retval == BAILOUT_RETURN_OVERRECURSED);
@@ -70,8 +68,7 @@ jit::Bailout(BailoutStack *sp, BaselineBailoutInfo **bailoutInfo)
         // pseudostack frame would not have been pushed in the first
         // place, so don't pop anything in that case.
         bool popSPSFrame = iter.ionScript()->hasSPSInstrumentation() &&
-                           (SnapshotIterator(iter).bailoutKind() != Bailout_ArgumentCheck) &&
-                           !poppedLastSPSFrame;
+                           (SnapshotIterator(iter).bailoutKind() != Bailout_ArgumentCheck);
         JSScript *script = iter.script();
         probes::ExitScript(cx, script, script->functionNonDelazifying(), popSPSFrame);
 
@@ -108,9 +105,7 @@ jit::InvalidationBailout(InvalidationBailoutStack *sp, size_t *frameSizeOut,
     MOZ_ASSERT(IsBaselineEnabled(cx));
 
     *bailoutInfo = nullptr;
-    bool poppedLastSPSFrame = false;
-    uint32_t retval = BailoutIonToBaseline(cx, bailoutData.activation(), iter, true, bailoutInfo,
-                                           /* excInfo = */ nullptr, &poppedLastSPSFrame);
+    uint32_t retval = BailoutIonToBaseline(cx, bailoutData.activation(), iter, true, bailoutInfo);
     MOZ_ASSERT(retval == BAILOUT_RETURN_OK ||
                retval == BAILOUT_RETURN_FATAL_ERROR ||
                retval == BAILOUT_RETURN_OVERRECURSED);
@@ -129,8 +124,7 @@ jit::InvalidationBailout(InvalidationBailoutStack *sp, size_t *frameSizeOut,
         // pseudostack frame would not have been pushed in the first
         // place, so don't pop anything in that case.
         bool popSPSFrame = iter.ionScript()->hasSPSInstrumentation() &&
-                           (SnapshotIterator(iter).bailoutKind() != Bailout_ArgumentCheck) &&
-                           !poppedLastSPSFrame;
+                           (SnapshotIterator(iter).bailoutKind() != Bailout_ArgumentCheck);
         JSScript *script = iter.script();
         probes::ExitScript(cx, script, script->functionNonDelazifying(), popSPSFrame);
 
@@ -186,9 +180,7 @@ jit::ExceptionHandlerBailout(JSContext *cx, const InlineFrameIterator &frame,
     JitFrameIterator iter(jitActivations);
 
     BaselineBailoutInfo *bailoutInfo = nullptr;
-    bool poppedLastSPSFrame = false;
-    uint32_t retval = BailoutIonToBaseline(cx, bailoutData.activation(), iter, true,
-                                           &bailoutInfo, &excInfo, &poppedLastSPSFrame);
+    uint32_t retval = BailoutIonToBaseline(cx, bailoutData.activation(), iter, true, &bailoutInfo, &excInfo);
 
     if (retval == BAILOUT_RETURN_OK) {
         MOZ_ASSERT(bailoutInfo);

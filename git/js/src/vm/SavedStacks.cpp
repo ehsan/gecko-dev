@@ -748,6 +748,8 @@ SavedStacks::FrameState::FrameState(const FrameIter &iter)
       name(iter.isNonEvalFunctionFrame() ? iter.functionDisplayAtom() : nullptr),
       location()
 {
+    if (principals)
+        JS_HoldPrincipals(principals);
 }
 
 SavedStacks::FrameState::FrameState(const FrameState &fs)
@@ -755,10 +757,13 @@ SavedStacks::FrameState::FrameState(const FrameState &fs)
       name(fs.name),
       location(fs.location)
 {
+    if (principals)
+        JS_HoldPrincipals(principals);
 }
 
-SavedStacks::FrameState::~FrameState()
-{
+SavedStacks::FrameState::~FrameState() {
+    if (principals)
+        JS_DropPrincipals(TlsPerThreadData.get()->runtimeFromMainThread(), principals);
 }
 
 void

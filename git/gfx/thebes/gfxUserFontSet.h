@@ -467,10 +467,6 @@ public:
         mLocalRulesUsed = true;
     }
 
-#ifdef PR_LOGGING
-    static PRLogModuleInfo* GetUserFontsLog();
-#endif
-
 protected:
     // Protected destructor, to discourage deletion outside of Release():
     virtual ~gfxUserFontSet();
@@ -516,6 +512,8 @@ protected:
 
     // true when local names have been looked up, false otherwise
     bool mLocalRulesUsed;
+
+    static PRLogModuleInfo* GetUserFontsLog();
 };
 
 // acts a placeholder until the real font is downloaded

@@ -277,7 +277,7 @@ BaseDOMProxyHandler::enumerate(JSContext* cx, JS::Handle<JSObject*> proxy,
   if (!JS_GetPrototype(cx, proxy, &proto))  {
     return false;
   }
-  return getOwnEnumerablePropertyKeys(cx, proxy, props) &&
+  return keys(cx, proxy, props) &&
          (!proto || js::GetPropertyKeys(cx, proto, 0, &props));
 }
 
@@ -299,13 +299,13 @@ BaseDOMProxyHandler::ownPropertyKeys(JSContext* cx,
                                      JS::Handle<JSObject*> proxy,
                                      JS::AutoIdVector& props) const
 {
-  return ownPropNames(cx, proxy, JSITER_OWNONLY | JSITER_HIDDEN | JSITER_SYMBOLS, props);
+  return ownPropNames(cx, proxy, JSITER_OWNONLY | JSITER_HIDDEN, props);
 }
 
 bool
-BaseDOMProxyHandler::getOwnEnumerablePropertyKeys(JSContext* cx,
-                                                  JS::Handle<JSObject*> proxy,
-                                                  JS::AutoIdVector& props) const
+BaseDOMProxyHandler::keys(JSContext* cx,
+                          JS::Handle<JSObject*> proxy,
+                          JS::AutoIdVector& props) const
 {
   return ownPropNames(cx, proxy, JSITER_OWNONLY, props);
 }
@@ -345,8 +345,7 @@ IdToInt32(JSContext* cx, JS::Handle<jsid> id)
   JS::Rooted<JS::Value> idval(cx);
   double array_index;
   int32_t i;
-  if (JSID_IS_SYMBOL(id) ||
-      !::JS_IdToValue(cx, id, &idval) ||
+  if (!::JS_IdToValue(cx, id, &idval) ||
       !JS::ToNumber(cx, idval, &array_index) ||
       !::JS_DoubleIsInt32(array_index, &i)) {
     return -1;

@@ -18,7 +18,6 @@
 #include "mozilla/dom/Nullable.h"
 #include "nsStyleStruct.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/Assertions.h"
 #include "mozilla/FloatingPoint.h"
 #include "nsCSSPseudoElements.h"
 #include "nsCycleCollectionParticipant.h"
@@ -252,17 +251,15 @@ struct AnimationPlayerCollection : public PRCList
            mElementProperty == nsGkAtoms::animationsOfAfterProperty;
   }
 
-  nsString PseudoElement() const
+  nsString PseudoElement()
   {
     if (IsForElement()) {
       return EmptyString();
-    }
-    if (IsForBeforePseudo()) {
+    } else if (IsForBeforePseudo()) {
       return NS_LITERAL_STRING("::before");
+    } else {
+      return NS_LITERAL_STRING("::after");
     }
-    MOZ_ASSERT(IsForAfterPseudo(),
-               "::before & ::after should be the only pseudo-elements here");
-    return NS_LITERAL_STRING("::after");
   }
 
   mozilla::dom::Element* GetElementToRestyle() const;
