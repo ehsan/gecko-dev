@@ -811,8 +811,13 @@ nsHTMLEditRules::GetAlignment(bool *aMixed, nsIHTMLEditor::EAlignment *aAlign)
   NS_ENSURE_SUCCESS(res, res);
 
   // is the selection collapsed?
+  bool bCollapsed;
+  res = selection->GetIsCollapsed(&bCollapsed);
+  NS_ENSURE_SUCCESS(res, res);
   nsCOMPtr<nsIDOMNode> nodeToExamine;
-  if (selection->Collapsed()) {
+  nsCOMPtr<nsISupports> isupports;
+  if (bCollapsed)
+  {
     // if it is, we want to look at 'parent' and its ancestors
     // for divs with alignment on them
     nodeToExamine = parent;
@@ -1150,43 +1155,42 @@ nsHTMLEditRules::GetParagraphState(bool *aMixed, nsAString &outFormat)
   return res;
 }
 
-nsresult
+nsresult 
 nsHTMLEditRules::AppendInnerFormatNodes(nsCOMArray<nsIDOMNode>& aArray,
                                         nsIDOMNode *aNode)
 {
-  nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
-  NS_ENSURE_TRUE(node, NS_ERROR_NULL_POINTER);
+  NS_ENSURE_TRUE(aNode, NS_ERROR_NULL_POINTER);
 
-  return AppendInnerFormatNodes(aArray, node);
-}
+  nsCOMPtr<nsIDOMNodeList> childList;
+  nsCOMPtr<nsIDOMNode> child;
 
-nsresult
-nsHTMLEditRules::AppendInnerFormatNodes(nsCOMArray<nsIDOMNode>& aArray,
-                                        nsINode* aNode)
-{
-  MOZ_ASSERT(aNode);
+  aNode->GetChildNodes(getter_AddRefs(childList));
+  NS_ENSURE_TRUE(childList, NS_OK);
+  PRUint32 len, j=0;
+  childList->GetLength(&len);
 
   // we only need to place any one inline inside this node onto 
   // the list.  They are all the same for purposes of determining
   // paragraph style.  We use foundInline to track this as we are 
   // going through the children in the loop below.
   bool foundInline = false;
-  for (nsIContent* child = aNode->GetFirstChild();
-       child;
-       child = child->GetNextSibling()) {
-    bool isBlock = IsBlockNode(child->AsDOMNode());
-    bool isFormat = child->IsElement() &&
-                    nsHTMLEditUtils::IsFormatNode(child->AsElement());
-    if (isBlock && !isFormat) {
-      // if it's a div, etc, recurse
+  while (j < len)
+  {
+    childList->Item(j, getter_AddRefs(child));
+    bool isBlock = IsBlockNode(child);
+    bool isFormat = nsHTMLEditUtils::IsFormatNode(child);
+    if (isBlock && !isFormat)  // if it's a div, etc, recurse
       AppendInnerFormatNodes(aArray, child);
-    } else if (isFormat) {
-      aArray.AppendObject(child->AsDOMNode());
-    } else if (!foundInline) {
-      // if this is the first inline we've found, use it
-      foundInline = true;      
-      aArray.AppendObject(child->AsDOMNode());
+    else if (isFormat)
+    {
+      aArray.AppendObject(child);
     }
+    else if (!foundInline)  // if this is the first inline we've found, use it
+    {
+      foundInline = true;      
+      aArray.AppendObject(child);
+    }
+    j++;
   }
   return NS_OK;
 }
@@ -1222,7 +1226,10 @@ nsHTMLEditRules::WillInsert(nsISelection *aSelection, bool *aCancel)
   // because selection is a pain to work with when not collapsed.
   // (no good way to extend start or end of selection), so we ignore
   // those types of selections.
-  if (!aSelection->Collapsed()) {
+  bool bCollapsed;
+  res = aSelection->GetIsCollapsed(&bCollapsed);
+  NS_ENSURE_SUCCESS(res, res);
+  if (!bCollapsed) {
     return NS_OK;
   }
 
@@ -1302,7 +1309,11 @@ nsHTMLEditRules::WillInsertText(nsEditor::OperationID aAction,
   PRInt32 selOffset;
 
   // if the selection isn't collapsed, delete it.
-  if (!aSelection->Collapsed()) {
+  bool bCollapsed;
+  res = aSelection->GetIsCollapsed(&bCollapsed);
+  NS_ENSURE_SUCCESS(res, res);
+  if (!bCollapsed)
+  {
     res = mHTMLEditor->DeleteSelection(nsIEditor::eNone);
     NS_ENSURE_SUCCESS(res, res);
   }
@@ -1507,8 +1518,10 @@ nsHTMLEditRules::WillInsertBreak(nsISelection* aSelection,
   *aHandled = false;
 
   // if the selection isn't collapsed, delete it.
-  nsresult res = NS_OK;
-  if (!aSelection->Collapsed()) {
+  bool bCollapsed;
+  nsresult res = aSelection->GetIsCollapsed(&bCollapsed);
+  NS_ENSURE_SUCCESS(res, res);
+  if (!bCollapsed) {
     res = mHTMLEditor->DeleteSelection(nsIEditor::eNone);
     NS_ENSURE_SUCCESS(res, res);
   }
@@ -1835,7 +1848,10 @@ nsHTMLEditRules::WillDeleteSelection(nsISelection *aSelection,
     return NS_OK;
   }
 
-  bool bCollapsed = aSelection->Collapsed(), join = false;
+  nsresult res = NS_OK;
+  bool bCollapsed, join = false;
+  res = aSelection->GetIsCollapsed(&bCollapsed);
+  NS_ENSURE_SUCCESS(res, res);
 
   // origCollapsed is used later to determine whether we should join 
   // blocks. We don't really care about bCollapsed because it will be 
@@ -1849,14 +1865,16 @@ nsHTMLEditRules::WillDeleteSelection(nsISelection *aSelection,
   
   // first check for table selection mode.  If so,
   // hand off to table editor.
-  nsCOMPtr<nsIDOMElement> cell;
-  nsresult res = mHTMLEditor->GetFirstSelectedCell(nsnull, getter_AddRefs(cell));
-  if (NS_SUCCEEDED(res) && cell) {
-    res = mHTMLEditor->DeleteTableCellContents();
-    *aHandled = true;
-    return res;
+  {
+    nsCOMPtr<nsIDOMElement> cell;
+    res = mHTMLEditor->GetFirstSelectedCell(nsnull, getter_AddRefs(cell));
+    if (NS_SUCCEEDED(res) && cell)
+    {
+      res = mHTMLEditor->DeleteTableCellContents();
+      *aHandled = true;
+      return res;
+    }
   }
-  cell = NULL;
 
   res = mHTMLEditor->GetStartNodeAndOffset(aSelection, getter_AddRefs(startNode), &startOffset);
   NS_ENSURE_SUCCESS(res, res);
@@ -1889,7 +1907,8 @@ nsHTMLEditRules::WillDeleteSelection(nsISelection *aSelection,
     NS_ENSURE_SUCCESS(res, res);
     NS_ENSURE_TRUE(startNode, NS_ERROR_FAILURE);
     
-    bCollapsed = aSelection->Collapsed();
+    res = aSelection->GetIsCollapsed(&bCollapsed);
+    NS_ENSURE_SUCCESS(res, res);
   }
 
   if (bCollapsed)
@@ -2403,9 +2422,8 @@ nsHTMLEditRules::WillDeleteSelection(nsISelection *aSelection,
           // now that we have the list, delete non table elements
           PRInt32 listCount = arrayOfNodes.Count();
           for (PRInt32 j = 0; j < listCount; j++) {
-            nsCOMPtr<nsINode> somenode = do_QueryInterface(arrayOfNodes[0]);
-            NS_ENSURE_STATE(somenode);
-            DeleteNonTableElements(somenode);
+            nsIDOMNode* somenode = arrayOfNodes[0];
+            res = DeleteNonTableElements(somenode);
             arrayOfNodes.RemoveObjectAt(0);
             // If something visible is deleted, no need to join.
             // Visible means all nodes except non-visible textnodes and breaks.
@@ -2417,7 +2435,7 @@ nsHTMLEditRules::WillDeleteSelection(nsISelection *aSelection,
                 mHTMLEditor->IsVisTextNode(content, &join, true);
               } else {
                 join = content->IsHTML(nsGkAtoms::br) &&
-                       !mHTMLEditor->IsVisBreak(somenode->AsDOMNode());
+                       !mHTMLEditor->IsVisBreak(somenode);
               }
             }
           }
@@ -2851,21 +2869,36 @@ nsHTMLEditRules::MoveContents(nsIDOMNode *aSource, nsIDOMNode *aDest, PRInt32 *a
 
 
 nsresult
-nsHTMLEditRules::DeleteNonTableElements(nsINode* aNode)
+nsHTMLEditRules::DeleteNonTableElements(nsIDOMNode *aNode)
 {
-  MOZ_ASSERT(aNode);
-  if (!aNode->IsElement() ||
-      !nsHTMLEditUtils::IsTableElementButNotTable(aNode->AsElement())) {
-    return mHTMLEditor->DeleteNode(aNode->AsDOMNode());
-  }
+  NS_ENSURE_TRUE(aNode, NS_ERROR_NULL_POINTER);
+  nsresult res = NS_OK;
+  if (nsHTMLEditUtils::IsTableElementButNotTable(aNode))
+  {
+    nsCOMPtr<nsIDOMNodeList> children;
+    aNode->GetChildNodes(getter_AddRefs(children));
+    if (children)
+    {
+      PRUint32 len;
+      children->GetLength(&len);
+      NS_ENSURE_TRUE(len, NS_OK);
+      PRInt32 j;
+      for (j=len-1; j>=0; j--)
+      {
+        nsCOMPtr<nsIDOMNode> node;
+        children->Item(j,getter_AddRefs(node));
+        res = DeleteNonTableElements(node);
+        NS_ENSURE_SUCCESS(res, res);
 
-  for (nsIContent* child = aNode->GetLastChild();
-       child;
-       child = child->GetPreviousSibling()) {
-    nsresult rv = DeleteNonTableElements(child);
-    NS_ENSURE_SUCCESS(rv, rv);
+      }
+    }
   }
-  return NS_OK;
+  else
+  {
+    res = mHTMLEditor->DeleteNode(aNode);
+    NS_ENSURE_SUCCESS(res, res);
+  }
+  return res;
 }
 
 nsresult
@@ -3455,13 +3488,16 @@ nsHTMLEditRules::DidMakeBasicBlock(nsISelection *aSelection,
 {
   NS_ENSURE_TRUE(aSelection, NS_ERROR_NULL_POINTER);
   // check for empty block.  if so, put a moz br in it.
-  if (!aSelection->Collapsed()) {
+  bool isCollapsed;
+  nsresult res = aSelection->GetIsCollapsed(&isCollapsed);
+  NS_ENSURE_SUCCESS(res, res);
+  if (!isCollapsed) {
     return NS_OK;
   }
 
   nsCOMPtr<nsIDOMNode> parent;
   PRInt32 offset;
-  nsresult res = nsEditor::GetStartNodeAndOffset(aSelection, getter_AddRefs(parent), &offset);
+  res = nsEditor::GetStartNodeAndOffset(aSelection, getter_AddRefs(parent), &offset);
   NS_ENSURE_SUCCESS(res, res);
   res = InsertMozBRIfNeeded(parent);
   return res;
@@ -3502,8 +3538,12 @@ nsHTMLEditRules::WillCSSIndent(nsISelection *aSelection, bool *aCancel, bool * a
   // short circuit: detect case of collapsed selection inside an <li>.
   // just sublist that <li>.  This prevents bug 97797.
   
+  bool bCollapsed;
   nsCOMPtr<nsIDOMNode> liNode;
-  if (aSelection->Collapsed()) {
+  res = aSelection->GetIsCollapsed(&bCollapsed);
+  NS_ENSURE_SUCCESS(res, res);
+  if (bCollapsed) 
+  {
     nsCOMPtr<nsIDOMNode> node, block;
     PRInt32 offset;
     nsresult res = mHTMLEditor->GetStartNodeAndOffset(aSelection, getter_AddRefs(node), &offset);
@@ -4155,8 +4195,12 @@ nsHTMLEditRules::WillOutdent(nsISelection *aSelection, bool *aCancel, bool *aHan
   }
   // make sure selection didn't stick to last piece of content in old bq
   // (only a problem for collapsed selections)
-  if (rememberedLeftBQ || rememberedRightBQ) {
-    if (aSelection->Collapsed()) {
+  if (rememberedLeftBQ || rememberedRightBQ)
+  {
+    bool bCollapsed;
+    res = aSelection->GetIsCollapsed(&bCollapsed);
+    if (bCollapsed)
+    {
       // push selection past end of rememberedLeftBQ
       nsCOMPtr<nsIDOMNode> sNode;
       PRInt32 sOffset;
@@ -4179,7 +4223,6 @@ nsHTMLEditRules::WillOutdent(nsISelection *aSelection, bool *aCancel, bool *aHan
         aSelection->Collapse(sNode, sOffset);
       }
     }
-    return NS_OK;
   }
   return res;
 }
@@ -5040,12 +5083,13 @@ nsHTMLEditRules::ExpandSelectionForDeletion(nsISelection *aSelection)
   NS_ENSURE_TRUE(aSelection, NS_ERROR_NULL_POINTER);
   
   // don't need to touch collapsed selections
-  if (aSelection->Collapsed()) {
-    return NS_OK;
-  }
+  bool bCollapsed;
+  nsresult res = aSelection->GetIsCollapsed(&bCollapsed);
+  NS_ENSURE_SUCCESS(res, res);
+  if (bCollapsed) return res;
 
   PRInt32 rangeCount;
-  nsresult res = aSelection->GetRangeCount(&rangeCount);
+  res = aSelection->GetRangeCount(&rangeCount);
   NS_ENSURE_SUCCESS(res, res);
   
   // we don't need to mess with cell selections, and we assume multirange selections are those.
@@ -5281,12 +5325,13 @@ nsHTMLEditRules::NormalizeSelection(nsISelection *inSelection)
   NS_ENSURE_TRUE(inSelection, NS_ERROR_NULL_POINTER);
 
   // don't need to touch collapsed selections
-  if (inSelection->Collapsed()) {
-    return NS_OK;
-  }
+  bool bCollapsed;
+  nsresult res = inSelection->GetIsCollapsed(&bCollapsed);
+  NS_ENSURE_SUCCESS(res, res);
+  if (bCollapsed) return res;
 
   PRInt32 rangeCount;
-  nsresult res = inSelection->GetRangeCount(&rangeCount);
+  res = inSelection->GetRangeCount(&rangeCount);
   NS_ENSURE_SUCCESS(res, res);
   
   // we don't need to mess with cell selections, and we assume multirange selections are those.
@@ -5944,18 +5989,26 @@ nsresult
 nsHTMLEditRules::GetChildNodesForOperation(nsIDOMNode *inNode, 
                                            nsCOMArray<nsIDOMNode>& outArrayOfNodes)
 {
-  nsCOMPtr<nsINode> node = do_QueryInterface(inNode);
-  NS_ENSURE_TRUE(node, NS_ERROR_NULL_POINTER);
-
-  for (nsIContent* child = node->GetFirstChild();
-       child;
-       child = child->GetNextSibling()) {
-    nsIDOMNode* childNode = child->AsDOMNode();
-    if (!outArrayOfNodes.AppendObject(childNode)) {
+  NS_ENSURE_TRUE(inNode, NS_ERROR_NULL_POINTER);
+  
+  nsCOMPtr<nsIDOMNodeList> childNodes;
+  nsresult res = inNode->GetChildNodes(getter_AddRefs(childNodes));
+  NS_ENSURE_SUCCESS(res, res);
+  NS_ENSURE_TRUE(childNodes, NS_ERROR_NULL_POINTER);
+  PRUint32 childCount;
+  res = childNodes->GetLength(&childCount);
+  NS_ENSURE_SUCCESS(res, res);
+  
+  PRUint32 i;
+  nsCOMPtr<nsIDOMNode> node;
+  for (i = 0; i < childCount; i++)
+  {
+    res = childNodes->Item( i, getter_AddRefs(node));
+    NS_ENSURE_TRUE(node, NS_ERROR_FAILURE);
+    if (!outArrayOfNodes.AppendObject(node))
       return NS_ERROR_FAILURE;
-    }
   }
-  return NS_OK;
+  return res;
 }
 
 
@@ -7521,14 +7574,17 @@ nsresult
 nsHTMLEditRules::PinSelectionToNewBlock(nsISelection *aSelection)
 {
   NS_ENSURE_TRUE(aSelection, NS_ERROR_NULL_POINTER);
-  if (!aSelection->Collapsed()) {
+  bool bCollapsed;
+  nsresult res = aSelection->GetIsCollapsed(&bCollapsed);
+  NS_ENSURE_SUCCESS(res, res);
+  if (!bCollapsed) {
     return NS_OK;
   }
 
   // get the (collapsed) selection location
   nsCOMPtr<nsIDOMNode> selNode, temp;
   PRInt32 selOffset;
-  nsresult res = mHTMLEditor->GetStartNodeAndOffset(aSelection, getter_AddRefs(selNode), &selOffset);
+  res = mHTMLEditor->GetStartNodeAndOffset(aSelection, getter_AddRefs(selNode), &selOffset);
   NS_ENSURE_SUCCESS(res, res);
   temp = selNode;
   
@@ -7592,14 +7648,17 @@ nsHTMLEditRules::CheckInterlinePosition(nsISelection *aSelection)
   nsCOMPtr<nsISelectionPrivate> selPriv(do_QueryInterface(selection));
 
   // if the selection isn't collapsed, do nothing.
-  if (!aSelection->Collapsed()) {
+  bool bCollapsed;
+  nsresult res = aSelection->GetIsCollapsed(&bCollapsed);
+  NS_ENSURE_SUCCESS(res, res);
+  if (!bCollapsed) {
     return NS_OK;
   }
 
   // get the (collapsed) selection location
   nsCOMPtr<nsIDOMNode> selNode, node;
   PRInt32 selOffset;
-  nsresult res = mHTMLEditor->GetStartNodeAndOffset(aSelection, getter_AddRefs(selNode), &selOffset);
+  res = mHTMLEditor->GetStartNodeAndOffset(aSelection, getter_AddRefs(selNode), &selOffset);
   NS_ENSURE_SUCCESS(res, res);
 
   // First, let's check to see if we are after a <br>.  We take care of this
@@ -7637,14 +7696,17 @@ nsHTMLEditRules::AdjustSelection(nsISelection *aSelection, nsIEditor::EDirection
   // if the selection isn't collapsed, do nothing.
   // moose: one thing to do instead is check for the case of
   // only a single break selected, and collapse it.  Good thing?  Beats me.
-  if (!aSelection->Collapsed()) {
+  bool bCollapsed;
+  nsresult res = aSelection->GetIsCollapsed(&bCollapsed);
+  NS_ENSURE_SUCCESS(res, res);
+  if (!bCollapsed) {
     return NS_OK;
   }
 
   // get the (collapsed) selection location
   nsCOMPtr<nsIDOMNode> selNode, temp;
   PRInt32 selOffset;
-  nsresult res = mHTMLEditor->GetStartNodeAndOffset(aSelection, getter_AddRefs(selNode), &selOffset);
+  res = mHTMLEditor->GetStartNodeAndOffset(aSelection, getter_AddRefs(selNode), &selOffset);
   NS_ENSURE_SUCCESS(res, res);
   temp = selNode;
   
@@ -8708,13 +8770,19 @@ nsHTMLEditRules::MakeSureElemStartsOrEndsOnCR(nsIDOMNode *aNode, bool aStarts)
   }
   if (!foundCR)
   {
-    PRInt32 offset = 0;
-    if (!aStarts) {
-      nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
-      NS_ENSURE_STATE(node);
-      offset = node->GetChildCount();
-    }
     nsCOMPtr<nsIDOMNode> brNode;
+    PRInt32 offset = 0;
+    if (!aStarts)
+    {
+      nsCOMPtr<nsIDOMNodeList> childNodes;
+      res = aNode->GetChildNodes(getter_AddRefs(childNodes));
+      NS_ENSURE_SUCCESS(res, res);
+      NS_ENSURE_TRUE(childNodes, NS_ERROR_NULL_POINTER);
+      PRUint32 childCount;
+      res = childNodes->GetLength(&childCount);
+      NS_ENSURE_SUCCESS(res, res);
+      offset = childCount;
+    }
     res = mHTMLEditor->CreateBR(aNode, offset, address_of(brNode));
     NS_ENSURE_SUCCESS(res, res);
   }

@@ -10312,20 +10312,24 @@ nsStorage2SH::GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
   nsCOMPtr<nsIDOMStorage> storage(do_QueryWrappedNative(wrapper));
   NS_ENSURE_TRUE(storage, NS_ERROR_UNEXPECTED);
 
-  JSString* key = IdToString(cx, id);
-  NS_ENSURE_TRUE(key, NS_ERROR_UNEXPECTED);
-
-  nsDependentJSString keyStr;
-  NS_ENSURE_TRUE(keyStr.init(cx, key), NS_ERROR_UNEXPECTED);
-
-  // For native wrappers, do not get random names on storage objects.
-  if (ObjectIsNativeWrapper(cx, obj)) {
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-
   nsAutoString val;
-  nsresult rv = storage->GetItem(keyStr, val);
-  NS_ENSURE_SUCCESS(rv, rv);
+  nsresult rv = NS_OK;
+
+  if (JSID_IS_STRING(id)) {
+    // For native wrappers, do not get random names on storage objects.
+    if (ObjectIsNativeWrapper(cx, obj)) {
+      return NS_ERROR_NOT_AVAILABLE;
+    }
+
+    rv = storage->GetItem(nsDependentJSString(id), val);
+    NS_ENSURE_SUCCESS(rv, rv);
+  } else {
+    PRInt32 n = GetArrayIndexFromId(cx, id);
+    NS_ENSURE_TRUE(n >= 0, NS_ERROR_NOT_AVAILABLE);
+
+    rv = storage->Key(n, val);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
 
   JSAutoRequest ar(cx);
 

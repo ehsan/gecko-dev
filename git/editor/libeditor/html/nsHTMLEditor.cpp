@@ -2027,11 +2027,17 @@ nsHTMLEditor::GetCSSBackgroundColorState(bool *aMixed, nsAString &aOutColor, boo
   NS_ENSURE_TRUE(parent, NS_ERROR_NULL_POINTER);
 
   // is the selection collapsed?
+  bool bCollapsed;
+  res = selection->GetIsCollapsed(&bCollapsed);
+  NS_ENSURE_SUCCESS(res, res);
   nsCOMPtr<nsIDOMNode> nodeToExamine;
-  if (selection->Collapsed() || IsTextNode(parent)) {
+  if (bCollapsed || IsTextNode(parent))
+  {
     // we want to look at the parent and ancestors
     nodeToExamine = parent;
-  } else {
+  }
+  else
+  {
     // otherwise we want to look at the first editable node after
     // {parent,offset} and its ancestors for divs with alignment on them
     nodeToExamine = GetChildAt(parent, offset);
@@ -2232,10 +2238,13 @@ nsHTMLEditor::MakeOrChangeList(const nsAString& aListType, bool entireList, cons
   if (!handled)
   {
     // Find out if the selection is collapsed:
-    bool isCollapsed = selection->Collapsed();
+    bool isCollapsed;
+    res = selection->GetIsCollapsed(&isCollapsed);
+    NS_ENSURE_SUCCESS(res, res);
 
     nsCOMPtr<nsIDOMNode> node;
     PRInt32 offset;
+  
     res = GetStartNodeAndOffset(selection, getter_AddRefs(node), &offset);
     if (!node) res = NS_ERROR_FAILURE;
     NS_ENSURE_SUCCESS(res, res);
@@ -2373,10 +2382,13 @@ nsHTMLEditor::InsertBasicBlock(const nsAString& aBlockType)
   if (!handled)
   {
     // Find out if the selection is collapsed:
-    bool isCollapsed = selection->Collapsed();
+    bool isCollapsed;
+    res = selection->GetIsCollapsed(&isCollapsed);
+    NS_ENSURE_SUCCESS(res, res);
 
     nsCOMPtr<nsIDOMNode> node;
     PRInt32 offset;
+  
     res = GetStartNodeAndOffset(selection, getter_AddRefs(node), &offset);
     if (!node) res = NS_ERROR_FAILURE;
     NS_ENSURE_SUCCESS(res, res);
@@ -2451,7 +2463,9 @@ nsHTMLEditor::Indent(const nsAString& aIndent)
     // Do default - insert a blockquote node if selection collapsed
     nsCOMPtr<nsIDOMNode> node;
     PRInt32 offset;
-    bool isCollapsed = selection->Collapsed();
+    bool isCollapsed;
+    res = selection->GetIsCollapsed(&isCollapsed);
+    NS_ENSURE_SUCCESS(res, res);
 
     res = GetStartNodeAndOffset(selection, getter_AddRefs(node), &offset);
     if (!node) res = NS_ERROR_FAILURE;
@@ -2666,7 +2680,9 @@ nsHTMLEditor::GetSelectedElement(const nsAString& aTagName, nsIDOMElement** aRet
   nsCOMPtr<nsISelectionPrivate> selPriv(do_QueryInterface(selection));
 
   bool bNodeFound = false;
-  bool isCollapsed = selection->Collapsed();
+  res=NS_ERROR_NOT_INITIALIZED;
+  bool isCollapsed;
+  selection->GetIsCollapsed(&isCollapsed);
 
   nsAutoString domTagName;
   nsAutoString TagName(aTagName);
@@ -2946,11 +2962,14 @@ nsHTMLEditor::CreateElementWithDefaults(const nsAString& aTagName, nsIDOMElement
 NS_IMETHODIMP
 nsHTMLEditor::InsertLinkAroundSelection(nsIDOMElement* aAnchorElement)
 {
-  NS_ENSURE_TRUE(aAnchorElement, NS_ERROR_NULL_POINTER);
+  nsresult res=NS_ERROR_NULL_POINTER;
+  nsCOMPtr<nsISelection> selection;
+
+  NS_ENSURE_TRUE(aAnchorElement, NS_ERROR_NULL_POINTER); 
+
 
   // We must have a real selection
-  nsCOMPtr<nsISelection> selection;
-  nsresult res = GetSelection(getter_AddRefs(selection));
+  res = GetSelection(getter_AddRefs(selection));
   if (!selection)
   {
     res = NS_ERROR_NULL_POINTER;
@@ -2958,58 +2977,67 @@ nsHTMLEditor::InsertLinkAroundSelection(nsIDOMElement* aAnchorElement)
   NS_ENSURE_SUCCESS(res, res);
   NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
 
-  if (selection->Collapsed()) {
-    NS_WARNING("InsertLinkAroundSelection called but there is no selection!!!");
-    return NS_OK;
-  }
-
-  // Be sure we were given an anchor element
-  nsCOMPtr<nsIDOMHTMLAnchorElement> anchor = do_QueryInterface(aAnchorElement);
-  if (!anchor) {
-    return NS_OK;
-  }
-
-  nsAutoString href;
-  res = anchor->GetHref(href);
-  NS_ENSURE_SUCCESS(res, res);
-  if (href.IsEmpty()) {
-    return NS_OK;
-  }
-
-  nsAutoEditBatch beginBatching(this);
-
-  // Set all attributes found on the supplied anchor element
-  nsCOMPtr<nsIDOMNamedNodeMap> attrMap;
-  aAnchorElement->GetAttributes(getter_AddRefs(attrMap));
-  NS_ENSURE_TRUE(attrMap, NS_ERROR_FAILURE);
-
-  PRUint32 count;
-  attrMap->GetLength(&count);
-  nsAutoString name, value;
-
-  for (PRUint32 i = 0; i < count; ++i) {
-    nsCOMPtr<nsIDOMNode> attrNode;
-    res = attrMap->Item(i, getter_AddRefs(attrNode));
-    NS_ENSURE_SUCCESS(res, res);
-
-    nsCOMPtr<nsIDOMAttr> attribute = do_QueryInterface(attrNode);
-    if (attribute) {
-      // We must clear the string buffers
-      //   because GetName, GetValue appends to previous string!
-      name.Truncate();
-      value.Truncate();
-
-      res = attribute->GetName(name);
+  bool isCollapsed;
+  res = selection->GetIsCollapsed(&isCollapsed);
+  if (NS_FAILED(res))
+    isCollapsed = true;
+  
+  if (isCollapsed)
+  {
+    printf("InsertLinkAroundSelection called but there is no selection!!!\n");     
+    res = NS_OK;
+  } else {
+    // Be sure we were given an anchor element
+    nsCOMPtr<nsIDOMHTMLAnchorElement> anchor = do_QueryInterface(aAnchorElement);
+    if (anchor)
+    {
+      nsAutoString href;
+      res = anchor->GetHref(href);
       NS_ENSURE_SUCCESS(res, res);
+      if (!href.IsEmpty())      
+      {
+        nsAutoEditBatch beginBatching(this);
 
-      res = attribute->GetValue(value);
-      NS_ENSURE_SUCCESS(res, res);
+        // Set all attributes found on the supplied anchor element
+        nsCOMPtr<nsIDOMNamedNodeMap> attrMap;
+        aAnchorElement->GetAttributes(getter_AddRefs(attrMap));
+        NS_ENSURE_TRUE(attrMap, NS_ERROR_FAILURE);
 
-      res = SetInlineProperty(nsEditProperty::a, name, value);
-      NS_ENSURE_SUCCESS(res, res);
+        PRUint32 count, i;
+        attrMap->GetLength(&count);
+        nsAutoString name, value;
+
+        for (i = 0; i < count; i++)
+        {
+          nsCOMPtr<nsIDOMNode> attrNode;
+          res = attrMap->Item(i, getter_AddRefs(attrNode));
+          NS_ENSURE_SUCCESS(res, res);
+
+          if (attrNode)
+          {
+            nsCOMPtr<nsIDOMAttr> attribute = do_QueryInterface(attrNode);
+            if (attribute)
+            {
+              // We must clear the string buffers
+              //   because GetName, GetValue appends to previous string!
+              name.Truncate();
+              value.Truncate();
+
+              res = attribute->GetName(name);
+              NS_ENSURE_SUCCESS(res, res);
+
+              res = attribute->GetValue(value);
+              NS_ENSURE_SUCCESS(res, res);
+
+              res = SetInlineProperty(nsEditProperty::a, name, value);
+              NS_ENSURE_SUCCESS(res, res);
+            }
+          }
+        }
+      }
     }
   }
-  return NS_OK;
+  return res;
 }
 
 NS_IMETHODIMP
@@ -3584,24 +3612,40 @@ nsHTMLEditor::IsModifiableNode(nsINode *aNode)
   return !aNode || aNode->IsEditable();
 }
 
-static nsresult
-SetSelectionAroundHeadChildren(nsISelection* aSelection,
-                               nsIWeakReference* aDocWeak)
+static nsresult SetSelectionAroundHeadChildren(nsCOMPtr<nsISelection> aSelection, nsWeakPtr aDocWeak)
 {
+  nsresult res = NS_OK;
   // Set selection around <head> node
-  nsCOMPtr<nsIDocument> doc = do_QueryReferent(aDocWeak);
+  nsCOMPtr<nsIDOMDocument> doc = do_QueryReferent(aDocWeak);
   NS_ENSURE_TRUE(doc, NS_ERROR_NOT_INITIALIZED);
 
-  dom::Element* headNode = doc->GetHeadElement();
-  NS_ENSURE_STATE(headNode);
+  nsCOMPtr<nsIDOMNodeList>nodeList; 
+  res = doc->GetElementsByTagName(NS_LITERAL_STRING("head"), getter_AddRefs(nodeList));
+  NS_ENSURE_SUCCESS(res, res);
+  NS_ENSURE_TRUE(nodeList, NS_ERROR_NULL_POINTER);
+
+  PRUint32 count; 
+  nodeList->GetLength(&count);
+  if (count < 1) return NS_ERROR_FAILURE;
+
+  nsCOMPtr<nsIDOMNode> headNode;
+  res = nodeList->Item(0, getter_AddRefs(headNode)); 
+  NS_ENSURE_SUCCESS(res, res);
+  NS_ENSURE_TRUE(headNode, NS_ERROR_NULL_POINTER);
 
   // Collapse selection to before first child of the head,
-  nsresult rv = aSelection->CollapseNative(headNode, 0);
-  NS_ENSURE_SUCCESS(rv, rv);
+  res = aSelection->Collapse(headNode, 0);
+  NS_ENSURE_SUCCESS(res, res);
 
-  // Then extend it to just after.
-  PRUint32 childCount = headNode->GetChildCount();
-  return aSelection->ExtendNative(headNode, childCount + 1);
+  //  then extend it to just after
+  nsCOMPtr<nsIDOMNodeList> childNodes;
+  res = headNode->GetChildNodes(getter_AddRefs(childNodes));
+  NS_ENSURE_SUCCESS(res, res);
+  NS_ENSURE_TRUE(childNodes, NS_ERROR_NULL_POINTER);
+  PRUint32 childCount;
+  childNodes->GetLength(&childCount);
+
+  return aSelection->Extend(headNode, childCount+1);
 }
 
 NS_IMETHODIMP
@@ -4876,7 +4920,8 @@ nsHTMLEditor::SetCSSBackgroundColor(const nsAString& aColor)
   NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
   nsCOMPtr<nsISelectionPrivate> selPriv(do_QueryInterface(selection));
 
-  bool isCollapsed = selection->Collapsed();
+  bool isCollapsed;
+  selection->GetIsCollapsed(&isCollapsed);
 
   nsAutoEditBatch batchIt(this);
   nsAutoRules beginRulesSniffing(this, kOpInsertElement, nsIEditor::eNext);
@@ -5097,24 +5142,28 @@ nsHTMLEditor::SetBackgroundColor(const nsAString& aColor)
 ///////////////////////////////////////////////////////////////////////////
 // NodesSameType: do these nodes have the same tag?
 //                    
-/* virtual */
-bool
-nsHTMLEditor::AreNodesSameType(nsIContent* aNode1, nsIContent* aNode2)
+bool 
+nsHTMLEditor::NodesSameType(nsIDOMNode *aNode1, nsIDOMNode *aNode2)
 {
-  MOZ_ASSERT(aNode1);
-  MOZ_ASSERT(aNode2);
-
-  if (aNode1->Tag() != aNode2->Tag()) {
+  if (!aNode1 || !aNode2) 
+  {
+    NS_NOTREACHED("null node passed to nsEditor::NodesSameType()");
     return false;
   }
 
-  if (!IsCSSEnabled() || !aNode1->IsHTML(nsGkAtoms::span)) {
-    return true;
-  }
+  nsIAtom *tag1 = GetTag(aNode1);
 
-  // If CSS is enabled, we are stricter about span nodes.
-  return mHTMLCSSUtils->ElementsSameStyle(aNode1->AsDOMNode(),
-                                          aNode2->AsDOMNode());
+  if (tag1 == GetTag(aNode2)) {
+    if (IsCSSEnabled() && tag1 == nsEditProperty::span) {
+      if (mHTMLCSSUtils->ElementsSameStyle(aNode1, aNode2)) {
+        return true;
+      }
+    }
+    else {
+      return true;
+    }
+  }
+  return false;
 }
 
 NS_IMETHODIMP
@@ -5235,12 +5284,17 @@ nsHTMLEditor::GetSelectionContainer(nsIDOMElement ** aReturn)
   // if we don't get the selection, just skip this
   if (NS_FAILED(res) || !selection) return res;
 
+  bool bCollapsed;
+  res = selection->GetIsCollapsed(&bCollapsed);
+  NS_ENSURE_SUCCESS(res, res);
+
   nsCOMPtr<nsIDOMNode> focusNode;
 
-  if (selection->Collapsed()) {
+  if (bCollapsed) {
     res = selection->GetFocusNode(getter_AddRefs(focusNode));
     NS_ENSURE_SUCCESS(res, res);
-  } else {
+  }
+  else {
 
     PRInt32 rangeCount;
     res = selection->GetRangeCount(&rangeCount);

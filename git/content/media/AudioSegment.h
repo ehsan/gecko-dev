@@ -123,7 +123,6 @@ public:
    */
   void WriteTo(nsAudioStream* aOutput);
 
-  using MediaSegmentBase<AudioSegment, AudioChunk>::AppendFrom;
   void AppendFrom(AudioSegment* aSource)
   {
     NS_ASSERTION(aSource->mChannels == mChannels, "Non-matching channels");

@@ -77,11 +77,16 @@ nsresult TypeInState::UpdateSelState(nsISelection *aSelection)
 {
   NS_ENSURE_TRUE(aSelection, NS_ERROR_NULL_POINTER);
   
-  if (!aSelection->Collapsed()) {
-    return NS_OK;
-  }
+  bool isCollapsed = false;
+  nsresult result = aSelection->GetIsCollapsed(&isCollapsed);
 
-  return nsEditor::GetStartNodeAndOffset(aSelection, getter_AddRefs(mLastSelectionContainer), &mLastSelectionOffset);
+  NS_ENSURE_SUCCESS(result, result);
+
+  if (isCollapsed)
+  {
+    result = nsEditor::GetStartNodeAndOffset(aSelection, getter_AddRefs(mLastSelectionContainer), &mLastSelectionOffset);
+  }
+  return result;
 }
 
 
@@ -97,12 +102,18 @@ NS_IMETHODIMP TypeInState::NotifySelectionChanged(nsIDOMDocument *, nsISelection
   // XXX: This code temporarily fixes the problem where clicking the mouse in
   // XXX: the same location clears the type-in-state.
 
-  if (aSelection) {
-    PRInt32 rangeCount = 0;
-    nsresult result = aSelection->GetRangeCount(&rangeCount);
+  if (aSelection)
+  {
+    bool isCollapsed = false;
+    nsresult result = aSelection->GetIsCollapsed(&isCollapsed);
     NS_ENSURE_SUCCESS(result, result);
 
-    if (aSelection->Collapsed() && rangeCount) {
+    PRInt32 rangeCount = 0;
+    result = aSelection->GetRangeCount(&rangeCount);
+    NS_ENSURE_SUCCESS(result, result);
+
+    if (isCollapsed && rangeCount)
+    {
       nsCOMPtr<nsIDOMNode> selNode;
       PRInt32 selOffset = 0;
 

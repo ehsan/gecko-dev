@@ -6,9 +6,6 @@
 
 #include "BindingUtils.h"
 
-#include "xpcprivate.h"
-#include "XPCQuickStubs.h"
-
 namespace mozilla {
 namespace dom {
 

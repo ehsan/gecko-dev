@@ -153,7 +153,7 @@
 #include "nsWrapperCacheInlines.h"
 #include "nsCycleCollector.h"
 #include "xpcpublic.h"
-#include "nsIScriptError.h"
+#include "xpcprivate.h"
 #include "nsLayoutStatics.h"
 #include "mozilla/Telemetry.h"
 

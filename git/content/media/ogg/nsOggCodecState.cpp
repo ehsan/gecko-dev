@@ -45,9 +45,6 @@
 #include "nsBuiltinDecoderReader.h"
 
 #include "mozilla/StandardInteger.h"
-#include "mozilla/Util.h" // DebugOnly
-
-using namespace mozilla;
 
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gBuiltinDecoderLog;
@@ -924,7 +921,7 @@ nsresult nsOpusState::PageIn(ogg_page* aPage)
 void nsOpusState::ReconstructGranulepos(void)
 {
   NS_ASSERTION(mUnstamped.Length() > 0, "Must have unstamped packets");
-  DebugOnly<ogg_packet*> last = mUnstamped[mUnstamped.Length()-1];
+  ogg_packet* last = mUnstamped[mUnstamped.Length()-1];
   NS_ASSERTION(last->e_o_s || last->granulepos > 0,
       "Must know last granulepos!");
 

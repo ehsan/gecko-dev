@@ -118,10 +118,9 @@ AttachNewConstructorObject(XPCCallContext &ccx, JSObject *aGlobalObject)
   return JS_DefineFunction(ccx, JS_GetFunctionObject(xpcnativewrapper), "unwrap", UnwrapNW, 1,
                            JSPROP_READONLY | JSPROP_PERMANENT) != nsnull;
 }
+}
 
-} // namespace XPCNativeWrapper
-
-namespace xpc {
+namespace XPCWrapper {
 
 JSObject *
 Unwrap(JSContext *cx, JSObject *wrapper, bool stopAtOuter)
@@ -135,10 +134,6 @@ Unwrap(JSContext *cx, JSObject *wrapper, bool stopAtOuter)
   return nsnull;
 }
 
-} // namespace xpc
-
-namespace XPCWrapper {
-
 JSObject *
 UnsafeUnwrapSecurityWrapper(JSObject *obj)
 {
@@ -149,4 +144,4 @@ UnsafeUnwrapSecurityWrapper(JSObject *obj)
   return obj;
 }
 
-} // namespace XPCWrapper
+}

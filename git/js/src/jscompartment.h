@@ -408,6 +408,8 @@ class js::AutoDebugModeGC
     }
 };
 
+#define JS_PROPERTY_TREE(cx)    ((cx)->compartment->propertyTree)
+
 inline void
 JSContext::setCompartment(JSCompartment *compartment)
 {

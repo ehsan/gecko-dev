@@ -44,7 +44,6 @@
 #define XPC_WRAPPER_H 1
 
 #include "xpcprivate.h"
-#include "xpcpublic.h"
 
 namespace XPCNativeWrapper {
 
@@ -83,11 +82,18 @@ IsSecurityWrapper(JSObject *wrapper)
   return js::IsWrapper(wrapper);
 }
 
-inline JSObject *
-Unwrap(JSContext *cx, JSObject *wrapper, bool stopAtOuter = true)
-{
-  return xpc::Unwrap(cx, wrapper, stopAtOuter);
-}
+/**
+ * Given an arbitrary object, Unwrap will return the wrapped object if the
+ * passed-in object is a wrapper that Unwrap knows about *and* the
+ * currently running code has permission to access both the wrapper and
+ * wrapped object.
+ *
+ * Since this is meant to be called from functions like
+ * XPCWrappedNative::GetWrappedNativeOfJSObject, it does not set an
+ * exception on |cx|.
+ */
+JSObject *
+Unwrap(JSContext *cx, JSObject *wrapper, bool stopAtOuter = true);
 
 JSObject *
 UnsafeUnwrapSecurityWrapper(JSObject *obj);

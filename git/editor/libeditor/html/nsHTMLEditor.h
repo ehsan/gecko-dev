@@ -73,7 +73,6 @@
 #include "nsAutoPtr.h"
 #include "nsAttrName.h"
 
-#include "mozilla/Attributes.h"
 #include "mozilla/dom/Element.h"
 
 class nsIDOMKeyEvent;
@@ -323,11 +322,10 @@ public:
                                          const nsAString & aAttribute,
                                          bool aSuppressTransaction);
 
-  /** join together any adjacent editable text nodes in the range */
+  /** join together any afjacent editable text nodes in the range */
   NS_IMETHOD CollapseAdjacentTextNodes(nsIDOMRange *aInRange);
 
-  virtual bool AreNodesSameType(nsIContent* aNode1, nsIContent* aNode2)
-    MOZ_OVERRIDE;
+  virtual bool NodesSameType(nsIDOMNode *aNode1, nsIDOMNode *aNode2);
 
   NS_IMETHODIMP DeleteNode(nsIDOMNode * aNode);
   NS_IMETHODIMP DeleteText(nsIDOMCharacterData *aTextNode,
@@ -663,8 +661,10 @@ protected:
                                          nsIDOMCharacterData *aTextNode, 
                                          PRInt32 aStartOffset,
                                          PRInt32 aEndOffset);
-  nsresult RelativeFontChangeOnNode(PRInt32 aSizeChange, nsINode* aNode);
-  nsresult RelativeFontChangeHelper(PRInt32 aSizeChange, nsINode* aNode);
+  nsresult RelativeFontChangeOnNode( PRInt32 aSizeChange, 
+                                     nsIDOMNode *aNode);
+  nsresult RelativeFontChangeHelper( PRInt32 aSizeChange, 
+                                     nsIDOMNode *aNode);
 
   /* helper routines for inline style */
   nsresult SetInlinePropertyOnTextNode( nsIDOMCharacterData *aTextNode, 
