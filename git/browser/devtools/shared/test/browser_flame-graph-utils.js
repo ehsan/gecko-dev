@@ -111,7 +111,7 @@ let EXPECTED_OUTPUT = [{
     x: 50,
     y: 0,
     width: 410,
-    height: 11,
+    height: 12,
     text: "A"
   }]
 }, {
@@ -121,9 +121,9 @@ let EXPECTED_OUTPUT = [{
       rawLocation: "B"
     },
     x: 50,
-    y: 11,
+    y: 12,
     width: 160,
-    height: 11,
+    height: 12,
     text: "B"
   }, {
     srcData: {
@@ -131,9 +131,9 @@ let EXPECTED_OUTPUT = [{
       rawLocation: "B"
     },
     x: 330,
-    y: 11,
+    y: 12,
     width: 130,
-    height: 11,
+    height: 12,
     text: "B"
   }]
 }, {
@@ -145,7 +145,7 @@ let EXPECTED_OUTPUT = [{
     x: 0,
     y: 0,
     width: 50,
-    height: 11,
+    height: 12,
     text: "M"
   }, {
     srcData: {
@@ -153,9 +153,9 @@ let EXPECTED_OUTPUT = [{
       rawLocation: "C"
     },
     x: 50,
-    y: 22,
+    y: 24,
     width: 50,
-    height: 11,
+    height: 12,
     text: "C"
   }, {
     srcData: {
@@ -163,9 +163,9 @@ let EXPECTED_OUTPUT = [{
       rawLocation: "C"
     },
     x: 330,
-    y: 22,
+    y: 24,
     width: 130,
-    height: 11,
+    height: 12,
     text: "C"
   }]
 }, {
@@ -175,9 +175,9 @@ let EXPECTED_OUTPUT = [{
       rawLocation: "N"
     },
     x: 0,
-    y: 11,
+    y: 12,
     width: 50,
-    height: 11,
+    height: 12,
     text: "N"
   }, {
     srcData: {
@@ -185,9 +185,9 @@ let EXPECTED_OUTPUT = [{
       rawLocation: "D"
     },
     x: 100,
-    y: 22,
+    y: 24,
     width: 110,
-    height: 11,
+    height: 12,
     text: "D"
   }, {
     srcData: {
@@ -197,7 +197,7 @@ let EXPECTED_OUTPUT = [{
     x: 460,
     y: 0,
     width: 40,
-    height: 11,
+    height: 12,
     text: "X"
   }]
 }, {
@@ -207,9 +207,9 @@ let EXPECTED_OUTPUT = [{
       rawLocation: "E"
     },
     x: 210,
-    y: 11,
+    y: 12,
     width: 120,
-    height: 11,
+    height: 12,
     text: "E"
   }, {
     srcData: {
@@ -217,9 +217,9 @@ let EXPECTED_OUTPUT = [{
       rawLocation: "Y"
     },
     x: 460,
-    y: 11,
+    y: 12,
     width: 40,
-    height: 11,
+    height: 12,
     text: "Y"
   }]
 }, {
@@ -229,9 +229,9 @@ let EXPECTED_OUTPUT = [{
       rawLocation: "P"
     },
     x: 0,
-    y: 22,
+    y: 24,
     width: 50,
-    height: 11,
+    height: 12,
     text: "P"
   }, {
     srcData: {
@@ -239,9 +239,9 @@ let EXPECTED_OUTPUT = [{
       rawLocation: "F"
     },
     x: 210,
-    y: 22,
+    y: 24,
     width: 120,
-    height: 11,
+    height: 12,
     text: "F"
   }, {
     srcData: {
@@ -249,9 +249,9 @@ let EXPECTED_OUTPUT = [{
       rawLocation: "Z"
     },
     x: 460,
-    y: 22,
+    y: 24,
     width: 40,
-    height: 11,
+    height: 12,
     text: "Z"
   }]
 }, {

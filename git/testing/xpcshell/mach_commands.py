@@ -213,16 +213,16 @@ class XPCShellRunner(MozbuildObject):
 class AndroidXPCShellRunner(MozbuildObject):
     """Get specified DeviceManager"""
     def get_devicemanager(self, devicemanager, ip, port, remote_test_root):
-        import mozdevice
+        from mozdevice import devicemanagerADB, devicemanagerSUT
         dm = None
         if devicemanager == "adb":
             if ip:
-                dm = mozdevice.DroidADB(ip, port, packageName=None, deviceRoot=remote_test_root)
+                dm = devicemanagerADB.DeviceManagerADB(ip, port, packageName=None, deviceRoot=remote_test_root)
             else:
-                dm = mozdevice.DroidADB(packageName=None, deviceRoot=remote_test_root)
+                dm = devicemanagerADB.DeviceManagerADB(packageName=None, deviceRoot=remote_test_root)
         else:
             if ip:
-                dm = mozdevice.DroidSUT(ip, port, deviceRoot=remote_test_root)
+                dm = devicemanagerSUT.DeviceManagerSUT(ip, port, deviceRoot=remote_test_root)
             else:
                 raise Exception("You must provide a device IP to connect to via the --ip option")
         return dm
