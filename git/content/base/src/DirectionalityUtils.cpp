@@ -320,15 +320,12 @@ GetDirectionFromText(const char16_t* aText, const uint32_t aLength,
       current++;
     }
 
-    // Just ignore lone surrogates
-    if (!IS_SURROGATE(ch)) {
-      Directionality dir = GetDirectionFromChar(ch);
-      if (dir != eDir_NotSet) {
-        if (aFirstStrong) {
-          *aFirstStrong = current;
-        }
-        return dir;
+    Directionality dir = GetDirectionFromChar(ch);
+    if (dir != eDir_NotSet) {
+      if (aFirstStrong) {
+        *aFirstStrong = current;
       }
+      return dir;
     }
   }
 

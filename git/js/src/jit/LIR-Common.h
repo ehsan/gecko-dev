@@ -143,80 +143,42 @@ class LSimdSplatX4 : public LInstructionHelper<1, 1, 0>
     }
 };
 
-class LSimdExtractElementBase : public LInstructionHelper<1, 1, 0>
+// Extracts an element from a given SIMD int32x4 lane.
+class LSimdExtractElementI : public LInstructionHelper<1, 1, 0>
 {
-  protected:
-    LSimdExtractElementBase(const LAllocation &base) {
-        setOperand(0, base);
-    }
+    SimdLane lane_;
 
   public:
+    LIR_HEADER(SimdExtractElementI);
+
+    LSimdExtractElementI(const LAllocation &base, SimdLane lane) : lane_(lane) {
+        setOperand(0, base);
+    }
     const LAllocation *getBase() {
         return getOperand(0);
     }
     SimdLane lane() const {
-        return mir_->toSimdExtractElement()->lane();
+        return lane_;
     }
 };
 
-// Extracts an element from a given SIMD int32x4 lane.
-class LSimdExtractElementI : public LSimdExtractElementBase
-{
-  public:
-    LIR_HEADER(SimdExtractElementI);
-    LSimdExtractElementI(const LAllocation &base)
-      : LSimdExtractElementBase(base)
-    {}
-};
 // Extracts an element from a given SIMD float32x4 lane.
-class LSimdExtractElementF : public LSimdExtractElementBase
+class LSimdExtractElementF : public LInstructionHelper<1, 1, 0>
 {
+    SimdLane lane_;
+
   public:
     LIR_HEADER(SimdExtractElementF);
-    LSimdExtractElementF(const LAllocation &base)
-      : LSimdExtractElementBase(base)
-    {}
-};
 
-class LSimdInsertElementBase : public LInstructionHelper<1, 2, 0>
-{
-  protected:
-    LSimdInsertElementBase(const LAllocation &vec, const LAllocation &val)
-    {
-        setOperand(0, vec);
-        setOperand(1, val);
+    LSimdExtractElementF(const LAllocation &base, SimdLane lane) : lane_(lane) {
+        setOperand(0, base);
     }
-
-  public:
-    const LAllocation *vector() {
+    const LAllocation *getBase() {
         return getOperand(0);
     }
-    const LAllocation *value() {
-        return getOperand(1);
+    SimdLane lane() const {
+        return lane_;
     }
-    const SimdLane lane() const {
-        return mir_->toSimdInsertElement()->lane();
-    }
-};
-
-// Replace an element from a given SIMD int32x4 lane with a given value.
-class LSimdInsertElementI : public LSimdInsertElementBase
-{
-  public:
-    LIR_HEADER(SimdInsertElementI);
-    LSimdInsertElementI(const LAllocation &vec, const LAllocation &val)
-      : LSimdInsertElementBase(vec, val)
-    {}
-};
-
-// Replace an element from a given SIMD float32x4 lane with a given value.
-class LSimdInsertElementF : public LSimdInsertElementBase
-{
-  public:
-    LIR_HEADER(SimdInsertElementF);
-    LSimdInsertElementF(const LAllocation &vec, const LAllocation &val)
-      : LSimdInsertElementBase(vec, val)
-    {}
 };
 
 class LSimdSignMaskX4 : public LInstructionHelper<1, 1, 0>
@@ -2694,16 +2656,16 @@ class LThrow : public LCallInstructionHelper<0, BOX_PIECES, 0>
     static const size_t Value = 0;
 };
 
-class LMinMaxBase : public LInstructionHelper<1, 2, 0>
+class LMinMaxI : public LInstructionHelper<1, 2, 0>
 {
-  protected:
-    LMinMaxBase(const LAllocation &first, const LAllocation &second)
+  public:
+    LIR_HEADER(MinMaxI)
+    LMinMaxI(const LAllocation &first, const LAllocation &second)
     {
         setOperand(0, first);
         setOperand(1, second);
     }
 
-  public:
     const LAllocation *first() {
         return this->getOperand(0);
     }
@@ -2721,28 +2683,31 @@ class LMinMaxBase : public LInstructionHelper<1, 2, 0>
     }
 };
 
-class LMinMaxI : public LMinMaxBase
-{
-  public:
-    LIR_HEADER(MinMaxI)
-    LMinMaxI(const LAllocation &first, const LAllocation &second) : LMinMaxBase(first, second)
-    {}
-};
-
-class LMinMaxD : public LMinMaxBase
+class LMinMaxD : public LInstructionHelper<1, 2, 0>
 {
   public:
     LIR_HEADER(MinMaxD)
-    LMinMaxD(const LAllocation &first, const LAllocation &second) : LMinMaxBase(first, second)
-    {}
-};
+    LMinMaxD(const LAllocation &first, const LAllocation &second)
+    {
+        setOperand(0, first);
+        setOperand(1, second);
+    }
 
-class LMinMaxF : public LMinMaxBase
-{
-  public:
-    LIR_HEADER(MinMaxF)
-    LMinMaxF(const LAllocation &first, const LAllocation &second) : LMinMaxBase(first, second)
-    {}
+    const LAllocation *first() {
+        return this->getOperand(0);
+    }
+    const LAllocation *second() {
+        return this->getOperand(1);
+    }
+    const LDefinition *output() {
+        return this->getDef(0);
+    }
+    MMinMax *mir() const {
+        return mir_->toMinMax();
+    }
+    const char *extraName() const {
+        return mir()->isMax() ? "Max" : "Min";
+    }
 };
 
 // Negative of an integer

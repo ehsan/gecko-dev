@@ -58,7 +58,7 @@ private:
     virtual ~nsJARChannel();
 
     nsresult CreateJarInput(nsIZipReaderCache *, nsJARInputThunk **);
-    nsresult LookupFile(bool aAllowAsync);
+    nsresult LookupFile();
     nsresult OpenLocalFile();
     void NotifyError(nsresult aError);
     void FireOnProgress(uint64_t aProgress);

@@ -1343,10 +1343,9 @@ PlacesTreeView.prototype = {
     if (PlacesControllerDragHelper.disallowInsertion(container))
       return null;
 
-    let tagName = PlacesUtils.nodeIsTagQuery(container) ? container.title : null;
     return new InsertionPoint(PlacesUtils.getConcreteItemId(container),
                               index, orientation,
-                              tagName,
+                              PlacesUtils.nodeIsTagQuery(container),
                               dropNearItemId);
   },
 
@@ -1355,10 +1354,8 @@ PlacesTreeView.prototype = {
     // parameters into a container id and index within the container,
     // since this information is specific to the tree view.
     let ip = this._getInsertionPoint(aRow, aOrientation);
-    if (ip) {
-      PlacesControllerDragHelper.onDrop(ip, aDataTransfer)
-                                .then(null, Components.utils.reportError);
-    }
+    if (ip)
+      PlacesControllerDragHelper.onDrop(ip, aDataTransfer);
 
     PlacesControllerDragHelper.currentDropTarget = null;
   },

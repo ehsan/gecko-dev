@@ -168,10 +168,6 @@ public:
    */
   static void DeInterleaveTrackData(AudioDataValue* aInput, int32_t aDuration,
                                     int32_t aChannels, AudioDataValue* aOutput);
-  /**
-  * Measure size of mRawSegment
-  */
-  size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
 
 protected:
   /**
@@ -245,10 +241,6 @@ public:
                                 TrackTicks aTrackOffset,
                                 uint32_t aTrackEvents,
                                 const MediaSegment& aQueuedMedia) MOZ_OVERRIDE;
-  /**
-  * Measure size of mRawSegment
-  */
-  size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
 
 protected:
   /**

@@ -1115,9 +1115,7 @@ this.PlacesUtils = {
     function addGenericProperties(aPlacesNode, aJSNode) {
       aJSNode.title = aPlacesNode.title;
       aJSNode.id = aPlacesNode.itemId;
-      let guid = aPlacesNode.bookmarkGuid;
-      if (guid) {
-        aJSNode.itemGuid = guid;
+      if (aJSNode.id != -1) {
         var parent = aPlacesNode.parent;
         if (parent) {
           aJSNode.parent = parent.itemId;
