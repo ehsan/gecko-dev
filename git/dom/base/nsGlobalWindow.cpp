@@ -4587,12 +4587,32 @@ nsGlobalWindow::MakeScriptDialogTitle(nsAString &aOutTitle)
   }
 }
 
-// static
 PRBool
 nsGlobalWindow::CanMoveResizeWindows()
 {
-  if (!CanSetProperty("dom.disable_window_move_resize"))
-    return PR_FALSE;
+  // When called from chrome, we can avoid the following checks.
+  if (!nsContentUtils::IsCallerTrustedForWrite()) {
+    // Don't allow scripts to move or resize windows that were not opened by a
+    // script.
+    if (!mHadOriginalOpener) {
+      return PR_FALSE;
+    }
+
+    if (!CanSetProperty("dom.disable_window_move_resize")) {
+      return PR_FALSE;
+    }
+
+    // Ignore the request if we have more than one tab in the window.
+    nsCOMPtr<nsIDocShellTreeOwner> treeOwner;
+    GetTreeOwner(getter_AddRefs(treeOwner));
+    if (treeOwner) {
+      PRUint32 itemCount;
+      if (NS_SUCCEEDED(treeOwner->GetTargetableShellCount(&itemCount)) &&
+          itemCount > 1) {
+        return PR_FALSE;
+      }
+    }
+  }
 
   if (gMouseDown && !gDragServiceDisabled) {
     nsCOMPtr<nsIDragService> ds =
@@ -7633,6 +7653,8 @@ nsGlobalWindow::SetKeyboardIndicators(UIStateChangeType aShowAccelerators,
 {
   FORWARD_TO_INNER_VOID(SetKeyboardIndicators, (aShowAccelerators, aShowFocusRings));
 
+  PRBool oldShouldShowFocusRing = ShouldShowFocusRing();
+
   // only change the flags that have been modified
   if (aShowAccelerators != UIStateChangeType_NoChange)
     mShowAccelerators = aShowAccelerators == UIStateChangeType_Set;
@@ -7655,11 +7677,15 @@ nsGlobalWindow::SetKeyboardIndicators(UIStateChangeType aShowAccelerators,
     }
   }
 
-  if (mHasFocus && mFocusedNode) { // send content state notifications
-    nsIDocument *doc = mFocusedNode->GetCurrentDoc();
-    if (doc) {
-      MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
-      doc->ContentStateChanged(mFocusedNode, NS_EVENT_STATE_FOCUSRING);
+  PRBool newShouldShowFocusRing = ShouldShowFocusRing();
+  if (mHasFocus && mFocusedNode &&
+      oldShouldShowFocusRing != newShouldShowFocusRing &&
+      mFocusedNode->IsElement()) {
+    // Update mFocusedNode's state.
+    if (newShouldShowFocusRing) {
+      mFocusedNode->AsElement()->AddStates(NS_EVENT_STATE_FOCUSRING);
+    } else {
+      mFocusedNode->AsElement()->RemoveStates(NS_EVENT_STATE_FOCUSRING);
     }
   }
 }
