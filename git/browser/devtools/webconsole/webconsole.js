@@ -2319,7 +2319,6 @@ WebConsoleFrame.prototype = {
     let bodyNode = this.document.createElementNS(XUL_NS, "description");
     bodyNode.flex = 1;
     bodyNode.classList.add("webconsole-msg-body");
-    bodyNode.classList.add("devtools-monospace");
 
     // Store the body text, since it is needed later for the variables view.
     let body = aBody;
@@ -2366,8 +2365,6 @@ WebConsoleFrame.prototype = {
     // Create the timestamp.
     let timestampNode = this.document.createElementNS(XUL_NS, "label");
     timestampNode.classList.add("webconsole-timestamp");
-    timestampNode.classList.add("devtools-monospace");
-
     let timestamp = aTimeStamp || Date.now();
     let timestampString = l10n.timestampString(timestamp);
     timestampNode.setAttribute("value", timestampString);
@@ -2592,7 +2589,6 @@ WebConsoleFrame.prototype = {
     locationNode.setAttribute("tooltiptext", aSourceURL);
     locationNode.classList.add("webconsole-location");
     locationNode.classList.add("text-link");
-    locationNode.classList.add("devtools-monospace");
 
     // Make the location clickable.
     locationNode.addEventListener("click", () => {

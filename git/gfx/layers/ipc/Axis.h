@@ -142,7 +142,7 @@ public:
    * scroll offset in such a way that it remains in the same place on the page
    * relative.
    */
-  Overscroll ScaleWillOverscroll(ScreenToScreenScale aScale, float aFocus);
+  Overscroll ScaleWillOverscroll(float aScale, float aFocus);
 
   /**
    * If a scale will overscroll the axis, this returns the amount and in what
@@ -152,7 +152,7 @@ public:
    * scroll offset in such a way that it remains in the same place on the page
    * relative.
    */
-  float ScaleWillOverscrollAmount(ScreenToScreenScale aScale, float aFocus);
+  float ScaleWillOverscrollAmount(float aScale, float aFocus);
 
   /**
    * Checks if an axis will overscroll in both directions by computing the
@@ -161,7 +161,7 @@ public:
    *
    * This gets called by ScaleWillOverscroll().
    */
-  bool ScaleWillOverscrollBothSides(ScreenToScreenScale aScale);
+  bool ScaleWillOverscrollBothSides(float aScale);
 
   float GetOrigin();
   float GetCompositionLength();

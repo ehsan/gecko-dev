@@ -1360,7 +1360,7 @@ public:
         // This event shuts down the worker thread and so must be main thread.
         MOZ_ASSERT(NS_IsMainThread());
 
-        CSSToScreenScale resolution = mFrameMetrics.mZoom;
+        CSSToScreenScale resolution = mFrameMetrics.CalculateResolution();
         CSSRect compositedRect = mFrameMetrics.CalculateCompositedRectInCssPixels();
 
         NS_ConvertASCIItoUTF16 data(nsPrintfCString("{ " \
