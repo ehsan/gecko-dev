@@ -91,22 +91,6 @@ nsFileDataProtocolHandler::RemoveFileDataEntry(nsACString& aUri)
   }
 }
 
-nsIPrincipal*
-nsFileDataProtocolHandler::GetFileDataEntryPrincipal(nsACString& aUri)
-{
-  if (!gFileDataTable) {
-    return nsnull;
-  }
-  
-  FileDataInfo* res;
-  gFileDataTable->Get(aUri, &res);
-  if (!res) {
-    return nsnull;
-  }
-
-  return res->mPrincipal;
-}
-
 static FileDataInfo*
 GetFileDataInfo(const nsACString& aUri)
 {

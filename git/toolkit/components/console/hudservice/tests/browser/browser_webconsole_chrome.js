@@ -52,7 +52,7 @@ function testChrome() {
   openConsole();
 
   hudId = HUDService.displaysIndex()[0];
-  hud = HUDService.hudReferences[hudId];
+  hud = HUDService.hudWeakReferences[hudId].get();
   ok(hud, "we have a console");
   
   hudBox = HUDService.getHeadsUpDisplay(hudId);

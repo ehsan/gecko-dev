@@ -781,12 +781,12 @@ protected:
 
   nsCOMArray<nsIContentFilter> mContentFilters;
 
-  nsRefPtr<TypeInState>        mTypeInState;
+  TypeInState*         mTypeInState;
 
   PRPackedBool mCRInParagraphCreatesParagraph;
 
   PRPackedBool mCSSAware;
-  nsAutoPtr<nsHTMLCSSUtils> mHTMLCSSUtils;
+  nsHTMLCSSUtils *mHTMLCSSUtils;
 
   // Used by GetFirstSelectedCell and GetNextSelectedCell
   PRInt32  mSelectedCellIndex;

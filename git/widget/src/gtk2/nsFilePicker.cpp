@@ -194,7 +194,6 @@ NS_IMPL_ISUPPORTS1(nsFilePicker, nsIFilePicker)
 
 nsFilePicker::nsFilePicker()
   : mMode(nsIFilePicker::modeOpen),
-    mAllowURLs(PR_FALSE),
     mSelectedType(0)
 {
 }

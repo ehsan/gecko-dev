@@ -83,11 +83,6 @@ public:
     virtual bool DeallocPTestShell(PTestShellChild*);
     virtual bool RecvPTestShellConstructor(PTestShellChild*);
 
-    virtual PAudioChild* AllocPAudio(const PRInt32&,
-                                     const PRInt32&,
-                                     const PRInt32&);
-    virtual bool DeallocPAudio(PAudioChild*);
-
     virtual PNeckoChild* AllocPNecko();
     virtual bool DeallocPNecko(PNeckoChild*);
 
@@ -96,8 +91,7 @@ public:
             const nsCString& aMimeContentType,
             const nsCString& aContentDisposition,
             const bool& aForceSave,
-            const PRInt64& aContentLength,
-            const IPC::URI& aReferrer);
+            const PRInt64& aContentLength);
     virtual bool DeallocPExternalHelperApp(PExternalHelperAppChild *aService);
 
     virtual bool RecvRegisterChrome(const InfallibleTArray<ChromePackage>& packages,

@@ -47,8 +47,6 @@
 #include "nsNPAPIPluginStreamListener.h"
 #include "nsHashtable.h"
 #include "nsNPAPIPluginInstance.h"
-#include "nsIInterfaceRequestor.h"
-#include "nsIChannelEventSink.h"
 
 class nsIChannel;
 
@@ -78,9 +76,7 @@ class nsPluginStreamListenerPeer : public nsIStreamListener,
 public nsIProgressEventSink,
 public nsIHttpHeaderVisitor,
 public nsSupportsWeakReference,
-public nsINPAPIPluginStreamInfo,
-public nsIInterfaceRequestor,
-public nsIChannelEventSink
+public nsINPAPIPluginStreamInfo
 {
 public:
   nsPluginStreamListenerPeer();
@@ -91,9 +87,7 @@ public:
   NS_DECL_NSIREQUESTOBSERVER
   NS_DECL_NSISTREAMLISTENER
   NS_DECL_NSIHTTPHEADERVISITOR
-  NS_DECL_NSIINTERFACEREQUESTOR
-  NS_DECL_NSICHANNELEVENTSINK
-
+  
   // nsINPAPIPluginStreamInfo interface
   NS_DECL_NSIPLUGINSTREAMINFO
   
@@ -124,8 +118,7 @@ public:
 private:
   nsresult SetUpStreamListener(nsIRequest* request, nsIURI* aURL);
   nsresult SetupPluginCacheFile(nsIChannel* channel);
-  nsresult GetInterfaceGlobal(const nsIID& aIID, void** result);
-
+  
   nsCOMPtr<nsIURI> mURL;
   nsCString mURLSpec; // Have to keep this member because GetURL hands out char*
   nsCOMPtr<nsIPluginInstanceOwner> mOwner;

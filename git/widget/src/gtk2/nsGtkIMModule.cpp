@@ -108,7 +108,7 @@ nsGtkIMModule::nsGtkIMModule(nsWindow* aOwnerWindow) :
 #ifndef NS_IME_ENABLED_ON_PASSWORD_FIELD
     mSimpleContext(nsnull),
 #endif
-    mDummyContext(nsnull),
+    mDummyContext(nsnull), mEnabled(nsIWidget::IME_STATUS_ENABLED),
     mCompositionStart(PR_UINT32_MAX), mProcessingKeyEvent(nsnull),
     mIsComposing(PR_FALSE), mIsIMFocused(PR_FALSE),
     mIgnoreNativeCompositionEvent(PR_FALSE)
@@ -118,7 +118,6 @@ nsGtkIMModule::nsGtkIMModule(nsWindow* aOwnerWindow) :
         gGtkIMLog = PR_NewLogModule("nsGtkIMModuleWidgets");
     }
 #endif
-    mIMEContext.mStatus = nsIWidget::IME_STATUS_ENABLED;
     Init();
 }
 
@@ -254,7 +253,7 @@ nsGtkIMModule::OnDestroyWindow(nsWindow* aWindow)
 
     mOwnerWindow = nsnull;
     mLastFocusedWindow = nsnull;
-    mIMEContext.mStatus = nsIWidget::IME_STATUS_DISABLED;
+    mEnabled = nsIWidget::IME_STATUS_DISABLED;
 
     PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
         ("    SUCCEEDED, Completely destroyed"));
@@ -513,15 +512,15 @@ nsGtkIMModule::CancelIMEComposition(nsWindow* aCaller)
 }
 
 nsresult
-nsGtkIMModule::SetInputMode(nsWindow* aCaller, const IMEContext* aContext)
+nsGtkIMModule::SetIMEEnabled(nsWindow* aCaller, PRUint32 aState)
 {
-    if (aContext->mStatus == mIMEContext.mStatus || NS_UNLIKELY(IsDestroyed())) {
+    if (aState == mEnabled || NS_UNLIKELY(IsDestroyed())) {
         return NS_OK;
     }
 
     PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
-        ("GtkIMModule(%p): SetInputMode, aCaller=%p, aState=%s mHTMLInputType=%s",
-         this, aCaller, GetEnabledStateName(aContext->mStatus), aContext->mHTMLInputType.get()));
+        ("GtkIMModule(%p): SetIMEEnabled, aCaller=%p, aState=%s",
+         this, aCaller, GetEnabledStateName(aState)));
 
     if (aCaller != mLastFocusedWindow) {
         PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
@@ -538,7 +537,7 @@ nsGtkIMModule::SetInputMode(nsWindow* aCaller, const IMEContext* aContext)
 
 
     if (sLastFocusedModule != this) {
-        mIMEContext = *aContext;
+        mEnabled = aState;
         PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
             ("    SUCCEEDED, but we're not active"));
         return NS_OK;
@@ -550,7 +549,7 @@ nsGtkIMModule::SetInputMode(nsWindow* aCaller, const IMEContext* aContext)
         Blur();
     }
 
-    mIMEContext = *aContext;
+    mEnabled = aState;
 
     // Even when aState is not enabled state, we need to set IME focus.
     // Because some IMs are updating the status bar of them at this time.
@@ -568,10 +567,10 @@ nsGtkIMModule::SetInputMode(nsWindow* aCaller, const IMEContext* aContext)
             int mode;
             g_object_get(G_OBJECT(im), "hildon-input-mode", &mode, NULL);
 
-            if (mIMEContext.mStatus == nsIWidget::IME_STATUS_ENABLED ||
-                mIMEContext.mStatus == nsIWidget::IME_STATUS_PLUGIN) {
+            if (mEnabled == nsIWidget::IME_STATUS_ENABLED ||
+                mEnabled == nsIWidget::IME_STATUS_PLUGIN) {
                 mode &= ~HILDON_GTK_INPUT_MODE_INVISIBLE;
-            } else if (mIMEContext.mStatus == nsIWidget::IME_STATUS_PASSWORD) {
+            } else if (mEnabled == nsIWidget::IME_STATUS_PASSWORD) {
                mode |= HILDON_GTK_INPUT_MODE_INVISIBLE;
             }
 
@@ -600,7 +599,7 @@ nsGtkIMModule::SetInputMode(nsWindow* aCaller, const IMEContext* aContext)
         gdk_window_get_size(aCaller->GetGdkWindow(), &w, &h);
         rectBuf.Assign(NS_LITERAL_STRING("{\"left\": "));
         rectBuf.AppendInt(x);
-        rectBuf.Append(NS_LITERAL_STRING(", \"top\": "));
+        rectBuf.Append(NS_LITERAL_STRING(" \"top\": "));
         rectBuf.AppendInt(y);
         rectBuf.Append(NS_LITERAL_STRING(", \"right\": "));
         rectBuf.AppendInt(w);
@@ -616,10 +615,10 @@ nsGtkIMModule::SetInputMode(nsWindow* aCaller, const IMEContext* aContext)
 }
 
 nsresult
-nsGtkIMModule::GetInputMode(IMEContext* aContext)
+nsGtkIMModule::GetIMEEnabled(PRUint32* aState)
 {
-    NS_ENSURE_ARG_POINTER(aContext);
-    *aContext = mIMEContext;
+    NS_ENSURE_ARG_POINTER(aState);
+    *aState = mEnabled;
     return NS_OK;
 }
 
@@ -642,7 +641,7 @@ nsGtkIMModule::GetContext()
     }
 
 #ifndef NS_IME_ENABLED_ON_PASSWORD_FIELD
-    if (mIMEContext.mStatus == nsIWidget::IME_STATUS_PASSWORD) {
+    if (mEnabled == nsIWidget::IME_STATUS_PASSWORD) {
         return mSimpleContext;
     }
 #endif // NS_IME_ENABLED_ON_PASSWORD_FIELD
@@ -653,19 +652,19 @@ nsGtkIMModule::GetContext()
 PRBool
 nsGtkIMModule::IsEnabled()
 {
-    return mIMEContext.mStatus == nsIWidget::IME_STATUS_ENABLED ||
+    return mEnabled == nsIWidget::IME_STATUS_ENABLED ||
 #ifdef NS_IME_ENABLED_ON_PASSWORD_FIELD
-           mIMEContext.mStatus == nsIWidget::IME_STATUS_PASSWORD ||
+           mEnabled == nsIWidget::IME_STATUS_PASSWORD ||
 #endif // NS_IME_ENABLED_ON_PASSWORD_FIELD
-           mIMEContext.mStatus == nsIWidget::IME_STATUS_PLUGIN;
+           mEnabled == nsIWidget::IME_STATUS_PLUGIN;
 }
 
 PRBool
 nsGtkIMModule::IsEditable()
 {
-    return mIMEContext.mStatus == nsIWidget::IME_STATUS_ENABLED ||
-           mIMEContext.mStatus == nsIWidget::IME_STATUS_PLUGIN ||
-           mIMEContext.mStatus == nsIWidget::IME_STATUS_PASSWORD;
+    return mEnabled == nsIWidget::IME_STATUS_ENABLED ||
+           mEnabled == nsIWidget::IME_STATUS_PLUGIN ||
+           mEnabled == nsIWidget::IME_STATUS_PASSWORD;
 }
 
 void

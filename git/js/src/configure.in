@@ -355,7 +355,7 @@ if test "$COMPILE_ENVIRONMENT"; then
 
 if test "$target" != "$host"; then
     echo "cross compiling from $host to $target"
-    CROSS_COMPILE=1
+    cross_compiling=yes
 
     _SAVE_CC="$CC"
     _SAVE_CFLAGS="$CFLAGS"
@@ -914,6 +914,12 @@ if test -n "$_WIN32_MSVC"; then
 fi
 
 fi # COMPILE_ENVIRONMENT
+
+if test "$cross_compiling"  = "yes"; then
+    CROSS_COMPILE=1
+else
+    CROSS_COMPILE=
+fi
 
 # Check to see if we are running in a broken QEMU scratchbox.
 # We know that anything below 1.0.16 is broken.
@@ -2389,7 +2395,7 @@ ia64*-hpux*)
         LIBXUL_LIBS='$(LIBXUL_DIST)/lib/xpcom.lib $(LIBXUL_DIST)/lib/xul.lib $(LIBXUL_DIST)/lib/mozalloc.lib'
         MOZ_COMPONENT_NSPR_LIBS='$(NSPR_LIBS)'
         if test $_MSC_VER -ge 1400; then
-            LDFLAGS="$LDFLAGS -LARGEADDRESSAWARE -NXCOMPAT"
+            LDFLAGS="$LDFLAGS -NXCOMPAT"
             dnl For profile-guided optimization
             PROFILE_GEN_CFLAGS="-GL"
             PROFILE_GEN_LDFLAGS="-LTCG:PGINSTRUMENT"
@@ -4643,16 +4649,6 @@ if test -n "$MOZ_THUMB2"; then
       AC_MSG_ERROR([--enable-thumb2 is not supported for non-ARM CPU architectures])
     ;;
   esac
-else
-  case "$target_cpu" in
-    arm*)
-      if test "$GNU_CC"; then
-       CFLAGS="$CFLAGS -march=armv5te -mthumb-interwork -Wa, -march=armv5te -Wa, -mthumb-interwork"
-        CXXFLAGS="$CXXFLAGS -march=armv5te -mthumb-interwork -Wa, -march=armv5te -Wa, -mthumb-interwork"
-        ASFLAGS="$ASFLAGS -march=armv5te -mthumb-interwork"
-      fi
-      ;;
-  esac
 fi
 
 AC_SUBST(MOZ_THUMB2)
@@ -5482,7 +5478,10 @@ else
     fi
     AC_SUBST(CL_INCLUDES_PREFIX)
     rm -f dummy-hello.c
+    _topsrcdirwin=`cd \`dirname $0\`; pwd -W`
     dnl cl.py provides dependency generation for MSVC
+    CC_WRAPPER="$PYTHON -O $_topsrcdirwin/build/cl.py"
+    CXX_WRAPPER="$PYTHON -O $_topsrcdirwin/build/cl.py"
     COMPILER_DEPEND=1
   fi
 fi
@@ -5491,6 +5490,9 @@ MDDEPDIR='.deps'
 AC_SUBST(MOZ_AUTO_DEPS)
 AC_SUBST(COMPILER_DEPEND)
 AC_SUBST(MDDEPDIR)
+AC_SUBST(CC_WRAPPER)
+AC_SUBST(CXX_WRAPPER)
+
 
 dnl ========================================================
 dnl =

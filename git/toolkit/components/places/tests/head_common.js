@@ -77,8 +77,6 @@ function LOG(aMsg) {
 
 let gTestDir = do_get_cwd();
 
-// Ensure history is enabled.
-Services.prefs.setBoolPref("places.history.enabled", true);
 
 // Initialize profile.
 let gProfD = do_get_profile();

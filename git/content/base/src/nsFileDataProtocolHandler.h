@@ -61,7 +61,6 @@ public:
 			       nsIDOMBlob* aFile,
                                nsIPrincipal* aPrincipal);
   static void RemoveFileDataEntry(nsACString& aUri);
-  static nsIPrincipal* GetFileDataEntryPrincipal(nsACString& aUri);
   
 };
 

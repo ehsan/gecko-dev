@@ -264,7 +264,6 @@ nsIJSRuntimeService *nsAutoGCRoot::sJSRuntimeService;
 JSRuntime *nsAutoGCRoot::sJSScriptRuntime;
 
 PRBool nsContentUtils::sIsHandlingKeyBoardEvent = PR_FALSE;
-PRBool nsContentUtils::sAllowXULXBL_for_file = PR_FALSE;
 
 PRBool nsContentUtils::sInitialized = PR_FALSE;
 
@@ -507,9 +506,6 @@ nsContentUtils::Init()
   sBlockedScriptRunners = new nsCOMArray<nsIRunnable>;
   NS_ENSURE_TRUE(sBlockedScriptRunners, NS_ERROR_OUT_OF_MEMORY);
 
-  nsContentUtils::AddBoolPrefVarCache("dom.allow_XUL_XBL_for_file",
-                                      &sAllowXULXBL_for_file);
-
   sInitialized = PR_TRUE;
 
   return NS_OK;
@@ -596,7 +592,6 @@ nsContentUtils::InitializeEventTable() {
                                                 
     { nsGkAtoms::onpageshow,                    NS_PAGE_SHOW, EventNameType_HTML, NS_EVENT },
     { nsGkAtoms::onpagehide,                    NS_PAGE_HIDE, EventNameType_HTML, NS_EVENT },
-    { nsGkAtoms::onMozBeforeResize,             NS_BEFORERESIZE_EVENT, EventNameType_None, NS_EVENT },
     { nsGkAtoms::onresize,                      NS_RESIZE_EVENT,
                                                 (EventNameType_HTMLXUL | EventNameType_SVGSVG), NS_EVENT },
     { nsGkAtoms::onscroll,                      NS_SCROLL_EVENT,
@@ -5541,11 +5536,6 @@ nsContentUtils::WrapNative(JSContext *cx, JSObject *scope, nsISupports *native,
     return NS_OK;
   }
 
-  JSObject *wrapper = xpc_GetCachedSlimWrapper(cache, scope, vp);
-  if (wrapper) {
-    return NS_OK;
-  }
-
   NS_ENSURE_TRUE(sXPConnect && sThreadJSContextStack, NS_ERROR_UNEXPECTED);
 
   // Keep sXPConnect and sThreadJSContextStack alive. If we're on the main
@@ -6420,20 +6410,6 @@ nsContentUtils::LayerManagerForDocument(nsIDocument *aDoc)
   return manager.forget();
 }
 
-bool
-nsContentUtils::AllowXULXBLForPrincipal(nsIPrincipal* aPrincipal)
-{
-  if (IsSystemPrincipal(aPrincipal)) {
-    return true;
-  }
-  
-  nsCOMPtr<nsIURI> princURI;
-  aPrincipal->GetURI(getter_AddRefs(princURI));
-  
-  return princURI &&
-         ((sAllowXULXBL_for_file && SchemeIs(princURI, "file")) ||
-          IsSitePermAllow(princURI, "allowXULXBL"));
-}
 
 NS_IMPL_ISUPPORTS1(nsIContentUtils, nsIContentUtils)
 
@@ -6512,12 +6488,4 @@ nsIContentUtils::FindInternalContentViewer(const char* aType,
 #endif // MOZ_MEDIA
 
   return NULL;
-}
-
-NS_IMPL_ISUPPORTS1(nsIContentUtils2, nsIContentUtils2)
-
-nsIInterfaceRequestor*
-nsIContentUtils2::GetSameOriginChecker()
-{
-  return nsContentUtils::GetSameOriginChecker();
 }

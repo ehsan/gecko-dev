@@ -83,10 +83,11 @@ namespace dom {
 
 TabParent *TabParent::mIMETabParent = nsnull;
 
-NS_IMPL_ISUPPORTS3(TabParent, nsITabParent, nsIAuthPromptProvider, nsISecureBrowserUI)
+NS_IMPL_ISUPPORTS4(TabParent, nsITabParent, nsIAuthPromptProvider, nsISSLStatusProvider, nsISecureBrowserUI)
 
 TabParent::TabParent()
-  : mIMECompositionEnding(PR_FALSE)
+  : mSecurityState(0)
+  , mIMECompositionEnding(PR_FALSE)
   , mIMEComposing(PR_FALSE)
 {
 }
@@ -198,16 +199,24 @@ TabParent::GetState(PRUint32 *aState)
 {
   NS_ENSURE_ARG(aState);
   NS_WARNING("SecurityState not valid here");
-  *aState = 0;
+  *aState = mSecurityState;
   return NS_OK;
 }
 
 NS_IMETHODIMP
 TabParent::GetTooltipText(nsAString & aTooltipText)
 {
-  aTooltipText.Truncate();
+  aTooltipText = mSecurityTooltipText;
   return NS_OK;
 }
+
+NS_IMETHODIMP
+TabParent::GetSSLStatus(nsISupports ** aStatus)
+{
+  NS_IF_ADDREF(*aStatus = mSecurityStatusObject);
+  return NS_OK;
+}
+
 
 PDocumentRendererParent*
 TabParent::AllocPDocumentRenderer(const nsRect& documentRect,
@@ -482,39 +491,25 @@ bool
 TabParent::RecvGetIMEEnabled(PRUint32* aValue)
 {
   nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (!widget)
-    return true;
-
-  nsIWidget_MOZILLA_2_0_BRANCH* widget2 = static_cast<nsIWidget_MOZILLA_2_0_BRANCH*>(widget.get());
-  IMEContext context;
-  if (widget2) {
-    widget2->GetInputMode(context);
-    *aValue = context.mStatus;
-  }
+  if (widget)
+    widget->GetIMEEnabled(aValue);
   return true;
 }
 
 bool
-TabParent::RecvSetInputMode(const PRUint32& aValue, const nsString& aType)
+TabParent::RecvSetIMEEnabled(const PRUint32& aValue)
 {
   nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (!widget || !AllowContentIME())
-    return true;
+  if (widget && AllowContentIME()) {
+    widget->SetIMEEnabled(aValue);
 
-  nsIWidget_MOZILLA_2_0_BRANCH* widget2 = static_cast<nsIWidget_MOZILLA_2_0_BRANCH*>(widget.get());
-
-  IMEContext context;
-  context.mStatus = aValue;
-  context.mHTMLInputType.Assign(aType);
-  widget2->SetInputMode(context);
-
-  nsCOMPtr<nsIObserverService> observerService = mozilla::services::GetObserverService();
-  if (!observerService)
-    return true;
-
-  nsAutoString state;
-  state.AppendInt(aValue);
-  observerService->NotifyObservers(nsnull, "ime-enabled-state-changed", state.get());
+    nsCOMPtr<nsIObserverService> observerService = mozilla::services::GetObserverService();
+    if (observerService) {
+      nsAutoString state;
+      state.AppendInt(aValue);
+      observerService->NotifyObservers(nsnull, "ime-enabled-state-changed", state.get());
+    }
+  }
 
   return true;
 }

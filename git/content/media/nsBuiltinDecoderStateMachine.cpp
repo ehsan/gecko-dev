@@ -611,7 +611,7 @@ void nsBuiltinDecoderStateMachine::StartPlayback()
     } else {
       // No audiostream, create one.
       const nsVideoInfo& info = mReader->GetInfo();
-      mAudioStream = nsAudioStream::AllocateStream();
+      mAudioStream = new nsAudioStream();
       mAudioStream->Init(info.mAudioChannels,
                          info.mAudioRate,
                          MOZ_SOUND_DATA_FORMAT);

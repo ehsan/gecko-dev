@@ -96,12 +96,13 @@ var consoleObserver = {
     const errMsg = "Could not get the error message after page reload";
 
     hudId = HUDService.displaysIndex()[0];
-    hud = HUDService.hudReferences[hudId];
+    hud = HUDService.hudWeakReferences[hudId].get();
     outputNode = hud.outputNode;
 
     executeSoon(function() {
       testLogEntry(outputNode, "fooBazBaz",
                    { success: successMsg, err: errMsg });
+
       finishTest();
     });
   }

@@ -92,14 +92,26 @@ nsTextEquivUtils::GetTextEquivFromIDRefs(nsAccessible *aAccessible,
   if (!content)
     return NS_OK;
 
-  nsIContent* refContent = nsnull;
-  IDRefsIterator iter(content, aIDRefsAttr);
-  while ((refContent = iter.NextElem())) {
+  nsCOMPtr<nsIArray> refElms;
+  nsCoreUtils::GetElementsByIDRefsAttr(content, aIDRefsAttr,
+                                       getter_AddRefs(refElms));
+
+  if (!refElms)
+    return NS_OK;
+
+  PRUint32 count = 0;
+  nsresult rv = refElms->GetLength(&count);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsIContent> refContent;
+  for (PRUint32 idx = 0; idx < count; idx++) {
+    refContent = do_QueryElementAt(refElms, idx, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+
     if (!aTextEquiv.IsEmpty())
       aTextEquiv += ' ';
 
-    nsresult rv = AppendTextEquivFromContent(aAccessible, refContent,
-                                             &aTextEquiv);
+    rv = AppendTextEquivFromContent(aAccessible, refContent, &aTextEquiv);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -416,7 +428,7 @@ nsTextEquivUtils::IsWhitespace(PRUnichar aChar)
 
 PRUint32 nsTextEquivUtils::gRoleToNameRulesMap[] =
 {
-  eFromSubtreeIfRec, // ROLE_NOTHING
+  eNoRule,           // ROLE_NOTHING
   eNoRule,           // ROLE_TITLEBAR
   eNoRule,           // ROLE_MENUBAR
   eNoRule,           // ROLE_SCROLLBAR

@@ -112,7 +112,6 @@ var resultObserver = {
   },
   inBatchMode: false,
   batching: function(aToggleMode) {
-    do_check_neq(this.inBatchMode, aToggleMode);
     this.inBatchMode = aToggleMode;
   },
   result: null,
@@ -130,18 +129,10 @@ var resultObserver = {
   }
 };
 
-var testURI = uri("http://mozilla.com");
-
 // main
 function run_test() {
-  check_history_query();
-  resultObserver.reset();
-  check_bookmarks_query();
-  resultObserver.reset();
-  check_mixed_query();
-}
 
-function check_history_query() {
+  // history query
   var options = histsvc.getNewQueryOptions();
   options.sortingMode = options.SORT_BY_DATE_DESCENDING;
   options.resultType = options.RESULTS_AS_VISIT;
@@ -156,6 +147,7 @@ function check_history_query() {
 
   // nsINavHistoryResultObserver.nodeInserted
   // add a visit
+  var testURI = uri("http://mozilla.com");
   add_visit(testURI);
   do_check_eq(testURI.spec, resultObserver.insertedNode.uri);
 
@@ -205,9 +197,12 @@ function check_history_query() {
   root.containerOpen = false;
   do_check_eq(resultObserver.closedContainer, resultObserver.openedContainer);
   result.removeObserver(resultObserver);
-}
 
-function check_bookmarks_query() {
+  // bookmarks query
+  
+  // Reset the result observer.
+  resultObserver.reset();
+
   var options = histsvc.getNewQueryOptions();
   var query = histsvc.getNewQuery();
   query.setFolders([bmsvc.bookmarksMenuFolder], 1);
@@ -252,39 +247,6 @@ function check_bookmarks_query() {
   result.sortingMode = options.SORT_BY_TITLE_ASCENDING;
   do_check_eq(resultObserver.sortingMode, options.SORT_BY_TITLE_ASCENDING);
   do_check_eq(resultObserver.invalidatedContainer, result.root);
-
-  // nsINavHistoryResultObserver.batching
-  do_check_false(resultObserver.inBatchMode);
-  histsvc.runInBatchMode({
-    runBatched: function (aUserData) {
-      do_check_true(resultObserver.inBatchMode);
-    }
-  }, null);
-  do_check_false(resultObserver.inBatchMode);
-  bmsvc.runInBatchMode({
-    runBatched: function (aUserData) {
-      do_check_true(resultObserver.inBatchMode);
-    }
-  }, null);
-  do_check_false(resultObserver.inBatchMode);
-
-  // nsINavHistoryResultObserver.containerClosed
-  root.containerOpen = false;
-  do_check_eq(resultObserver.closedContainer, resultObserver.openedContainer);
-  result.removeObserver(resultObserver);
-}
-
-function check_mixed_query() {
-  var options = histsvc.getNewQueryOptions();
-  var query = histsvc.getNewQuery();
-  query.onlyBookmarked = true;
-  var result = histsvc.executeQuery(query, options);
-  result.addObserver(resultObserver, false);
-  var root = result.root;
-  root.containerOpen = true;
-
-  // nsINavHistoryResultObserver.containerOpened
-  do_check_neq(resultObserver.openedContainer, null);
 
   // nsINavHistoryResultObserver.batching
   do_check_false(resultObserver.inBatchMode);

@@ -54,7 +54,7 @@ function testCompletion() {
 
   hudId = HUDService.displaysIndex()[0];
 
-  var HUD = HUDService.hudReferences[hudId];
+  var HUD = HUDService.hudWeakReferences[hudId].get();
   var jsterm = HUD.jsterm;
   var input = jsterm.inputNode;
 

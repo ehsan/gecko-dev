@@ -117,11 +117,6 @@ private:
     virtual PTestShellParent* AllocPTestShell();
     virtual bool DeallocPTestShell(PTestShellParent* shell);
 
-    virtual PAudioParent* AllocPAudio(const PRInt32&,
-                                     const PRInt32&,
-                                     const PRInt32&);
-    virtual bool DeallocPAudio(PAudioParent*);
-
     virtual PNeckoParent* AllocPNecko();
     virtual bool DeallocPNecko(PNeckoParent* necko);
 
@@ -130,8 +125,7 @@ private:
             const nsCString& aMimeContentType,
             const nsCString& aContentDisposition,
             const bool& aForceSave,
-            const PRInt64& aContentLength,
-            const IPC::URI& aReferrer);
+            const PRInt64& aContentLength);
     virtual bool DeallocPExternalHelperApp(PExternalHelperAppParent* aService);
 
     virtual bool RecvReadPrefsArray(InfallibleTArray<PrefTuple> *retValue);

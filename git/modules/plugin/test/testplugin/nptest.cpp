@@ -36,8 +36,6 @@
 #include "nptest_utils.h"
 #include "nptest_platform.h"
 
-#include "mozilla/IntentionalCrash.h"
-
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -55,7 +53,7 @@
 #include <pthread.h>
 #endif
 
-using namespace std;
+ using namespace std;
 
 #define PLUGIN_NAME        "Test Plug-in"
 #define PLUGIN_DESCRIPTION "Plug-in for testing purposes."
@@ -75,6 +73,26 @@ static char sPluginVersion[] = PLUGIN_VERSION;
 
 int gCrashCount = 0;
 
+void
+NoteIntentionalCrash()
+{
+  char* bloatLog = getenv("XPCOM_MEM_BLOAT_LOG");
+  if (bloatLog) {
+    char* logExt = strstr(bloatLog, ".log");
+    if (logExt) {
+      bloatLog[strlen(bloatLog) - strlen(logExt)] = '\0';
+    }
+    ostringstream bloatName;
+    bloatName << bloatLog << "_plugin_pid" << getpid();
+    if (logExt) {
+      bloatName << ".log";
+    }
+    FILE* processfd = fopen(bloatName.str().c_str(), "a");
+    fprintf(processfd, "==> process %d will purposefully crash\n", getpid());
+    fclose(processfd);
+  }
+}
+
 static void Crash()
 {
   int *pi = NULL;
@@ -85,7 +103,7 @@ static void Crash()
 static void
 IntentionalCrash()
 {
-  mozilla::NoteIntentionalCrash("plugin");
+  NoteIntentionalCrash();
   Crash();
 }
 
@@ -2825,7 +2843,7 @@ bool
 hangPlugin(NPObject* npobj, const NPVariant* args, uint32_t argCount,
            NPVariant* result)
 {
-  mozilla::NoteIntentionalCrash("plugin");
+  NoteIntentionalCrash();
 
 #ifdef XP_WIN
   Sleep(100000000);

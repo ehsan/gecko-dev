@@ -99,7 +99,7 @@ nsTextStore::Create(nsWindow* aWindow,
                                      static_cast<ITextStoreACP*>(this),
                                      getter_AddRefs(mContext), &mEditCookie);
     if (SUCCEEDED(hr)) {
-      SetInputModeInternal(aIMEState);
+      SetIMEEnabledInternal(aIMEState);
       hr = mDocumentMgr->Push(mContext);
     }
     if (SUCCEEDED(hr)) {
@@ -1592,10 +1592,10 @@ nsTextStore::GetIMEOpenState(void)
 }
 
 void
-nsTextStore::SetInputModeInternal(PRUint32 aState)
+nsTextStore::SetIMEEnabledInternal(PRUint32 aState)
 {
   PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
-         ("TSF: SetInputMode, state=%lu\n", aState));
+         ("TSF: SetIMEEnabled, state=%lu\n", aState));
 
   VARIANT variant;
   variant.vt = VT_I4;

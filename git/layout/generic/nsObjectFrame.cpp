@@ -52,7 +52,6 @@
 #ifdef MOZ_X11
 #include <QX11Info>
 #endif
-#undef slots
 #endif
 
 #ifdef MOZ_IPC
@@ -3141,7 +3140,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::InvalidateRect(NPRect *invalidRect)
               presContext->DevPixelsToAppUnits(invalidRect->top),
               presContext->DevPixelsToAppUnits(invalidRect->right - invalidRect->left),
               presContext->DevPixelsToAppUnits(invalidRect->bottom - invalidRect->top));
-  mObjectFrame->InvalidateLayer(rect + mObjectFrame->GetUsedBorderAndPadding().TopLeft(), nsDisplayItem::TYPE_PLUGIN);
+  mObjectFrame->Invalidate(rect + mObjectFrame->GetUsedBorderAndPadding().TopLeft());
   return NS_OK;
 }
 

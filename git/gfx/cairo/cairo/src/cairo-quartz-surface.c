@@ -3157,18 +3157,7 @@ cairo_quartz_surface_create (cairo_format_t format,
     }
 
     surf->imageData = imageData;
-
-    cairo_surface_t* tmpImageSurfaceEquiv =
-      cairo_image_surface_create_for_data (imageData, format,
-                                           width, height, stride);
-
-    if (cairo_surface_status (tmpImageSurfaceEquiv)) {
-        // Tried & failed to create an imageSurfaceEquiv!
-        cairo_surface_destroy (tmpImageSurfaceEquiv);
-        surf->imageSurfaceEquiv = NULL;
-    } else {
-        surf->imageSurfaceEquiv = tmpImageSurfaceEquiv;
-    }
+    surf->imageSurfaceEquiv = cairo_image_surface_create_for_data (imageData, format, width, height, stride);
 
     return (cairo_surface_t *) surf;
 }

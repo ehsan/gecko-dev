@@ -2143,10 +2143,8 @@ nsresult nsPluginHost::ScanPluginsDirectory(nsIFile * pluginsDir,
 
     // do it if we still want it
     if (bAddIt) {
-      if (!seenBefore) {
-        // We have a valid new plugin so report that plugins have changed.
-        *aPluginsChanged = PR_TRUE;
-      }
+      // We have a valid new plugin so report that plugins have changed.
+      *aPluginsChanged = PR_TRUE;
 
       // If we're not creating a plugin list, simply looking for changes,
       // then we're done.
@@ -2893,12 +2891,24 @@ nsresult nsPluginHost::NewPluginURLStream(const nsString& aURL,
   if (NS_FAILED(rv))
     return rv;
 
+  nsCOMPtr<nsIInterfaceRequestor> callbacks;
+  if (doc) {
+    // Get the script global object owner and use that as the
+    // notification callback.
+    nsIScriptGlobalObject* global = doc->GetScriptGlobalObject();
+    if (global) {
+      nsCOMPtr<nsIWebNavigation> webNav = do_GetInterface(global);
+      callbacks = do_QueryInterface(webNav);
+    }
+  }
+
   nsCOMPtr<nsIChannel> channel;
+
   rv = NS_NewChannel(getter_AddRefs(channel), url, nsnull,
     nsnull, /* do not add this internal plugin's channel
             on the load group otherwise this channel could be canceled
             form |nsDocShell::OnLinkClickSync| bug 166613 */
-    listenerPeer);
+    callbacks);
   if (NS_FAILED(rv))
     return rv;
 

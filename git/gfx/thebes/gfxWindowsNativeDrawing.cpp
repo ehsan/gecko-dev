@@ -307,7 +307,6 @@ gfxWindowsNativeDrawing::PaintToContext()
         if (mNativeDrawFlags & DO_NEAREST_NEIGHBOR_FILTERING)
             pat->SetFilter(gfxPattern::FILTER_FAST);
 
-        pat->SetExtend(gfxPattern::EXTEND_PAD);
         mContext->SetPattern(pat);
         mContext->Fill();
         mContext->Restore();

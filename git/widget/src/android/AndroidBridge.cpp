@@ -98,7 +98,6 @@ AndroidBridge::Init(JNIEnv *jEnv,
     mGeckoAppShellClass = (jclass) jEnv->NewGlobalRef(jGeckoAppShellClass);
 
     jNotifyIME = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "notifyIME", "(II)V");
-    jNotifyIMEEnabled = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "notifyIMEEnabled", "(ILjava/lang/String;)V");
     jNotifyIMEChange = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "notifyIMEChange", "(Ljava/lang/String;III)V");
     jEnableAccelerometer = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "enableAccelerometer", "(Z)V");
     jEnableLocation = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "enableLocation", "(Z)V");
@@ -121,7 +120,6 @@ AndroidBridge::Init(JNIEnv *jEnv,
     jSetFullScreen = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "setFullScreen", "(Z)V");
     jShowInputMethodPicker = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "showInputMethodPicker", "()V");
     jHideProgressDialog = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "hideProgressDialog", "()V");
-    jPerformHapticFeedback = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "performHapticFeedback", "(Z)V");
 
     jEGLContextClass = (jclass) jEnv->NewGlobalRef(jEnv->FindClass("javax/microedition/khronos/egl/EGLContext"));
     jEGL10Class = (jclass) jEnv->NewGlobalRef(jEnv->FindClass("javax/microedition/khronos/egl/EGL10"));
@@ -208,22 +206,6 @@ AndroidBridge::NotifyIME(int aType, int aState)
     if (sBridge)
         JNI()->CallStaticVoidMethod(sBridge->mGeckoAppShellClass, 
                                     sBridge->jNotifyIME,  aType, aState);
-}
-
-void
-AndroidBridge::NotifyIMEEnabled(int aState, const nsAString& aHint)
-{
-    if (!sBridge)
-        return;
-
-    nsPromiseFlatString hint(aHint);
-
-    jvalue args[2];
-    AutoLocalJNIFrame jniFrame(1);
-    args[0].i = aState;
-    args[1].l = JNI()->NewString(hint.get(), hint.Length());
-    JNI()->CallStaticVoidMethodA(sBridge->mGeckoAppShellClass,
-                                 sBridge->jNotifyIMEEnabled, args);
 }
 
 void
@@ -540,7 +522,7 @@ AndroidBridge::ShowFilePicker(nsAString& aFilePath, nsAString& aFilters)
 void
 AndroidBridge::SetFullScreen(PRBool aFullScreen)
 {
-    mJNIEnv->CallStaticVoidMethod(mGeckoAppShellClass, jSetFullScreen, aFullScreen);
+    mJNIEnv->CallStaticIntMethod(mGeckoAppShellClass, jSetFullScreen, aFullScreen);
 }
 
 void
@@ -551,13 +533,6 @@ AndroidBridge::HideProgressDialogOnce()
         mJNIEnv->CallStaticVoidMethod(mGeckoAppShellClass, jHideProgressDialog);
         once = true;
     }
-}
-
-void
-AndroidBridge::PerformHapticFeedback(PRBool aIsLongPress)
-{
-    mJNIEnv->CallStaticVoidMethod(mGeckoAppShellClass,
-                                    jPerformHapticFeedback, aIsLongPress);
 }
 
 void

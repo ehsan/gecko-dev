@@ -2468,8 +2468,7 @@ JS_CompileFileHandleForPrincipals(JSContext *cx, JSObject *obj,
 extern JS_PUBLIC_API(JSScript *)
 JS_CompileFileHandleForPrincipalsVersion(JSContext *cx, JSObject *obj,
                                          const char *filename, FILE *fh,
-                                         JSPrincipals *principals,
-                                         JSVersion version);
+                                         JSPrincipals *principals);
 
 /*
  * NB: you must use JS_NewScriptObject and root a pointer to its return value

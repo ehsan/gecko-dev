@@ -162,12 +162,9 @@ public:
    * if there is no encoder).
    * @param aStr the string to encode
    * @param aResult the encoded string [OUT]
-   * @param aHeaderEncode If true, turns all linebreaks into spaces and escapes
-   *                      all quotes
    * @throws an error if UnicodeToNewBytes fails
    */
-  nsresult EncodeVal(const nsAString& aStr, nsCString& aResult,
-                     bool aHeaderEncode);
+  nsresult EncodeVal(const nsAString& aStr, nsACString& aResult);
 
 private:
   // The encoder that will encode Unicode names and values

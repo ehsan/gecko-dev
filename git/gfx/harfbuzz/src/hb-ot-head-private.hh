@@ -29,9 +29,6 @@
 
 #include "hb-open-type-private.hh"
 
-HB_BEGIN_DECLS
-
-
 /*
  * head
  */
@@ -42,19 +39,14 @@ struct head
 {
   static const hb_tag_t Tag	= HB_OT_TAG_head;
 
-  inline unsigned int get_upem (void) const {
-    unsigned int upem = unitsPerEm;
-    /* If no valid head table found, assume 1000, which matches typicaly Type1 usage. */
-    return 16 <= upem && upem <= 16384 ? upem : 1000;
-  }
-
   inline bool sanitize (hb_sanitize_context_t *c) {
     TRACE_SANITIZE ();
     /* Shall we check for magicNumber here?  Who cares? */
-    return c->check_struct (this) && likely (version.major == 1);
+    return c->check_struct (this) &&
+      likely (version.major == 1) &&
+      likely (unitsPerEm >= 16 && unitsPerEm <= 16384);
   }
 
-  private:
   FixedVersion	version;		/* Version of the head table--currently
 					 * 0x00010000 for version 1.0. */
   FixedVersion	fontRevision;		/* Set by font manufacturer. */
@@ -134,7 +126,5 @@ struct head
   DEFINE_SIZE_STATIC (54);
 };
 
-
-HB_END_DECLS
 
 #endif /* HB_OT_HEAD_PRIVATE_HH */

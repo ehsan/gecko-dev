@@ -1328,13 +1328,8 @@ function DocumentLoaded()
 
             var result = "REFTEST " + output.s + " | " +
                          gURLs[0].prettyPath + " | "; // the URL being tested
-            switch (gURLs[0].type) {
-                case TYPE_REFTEST_NOTEQUAL:
-                    result += "image comparison (!=) ";
-                    break;
-                case TYPE_REFTEST_EQUAL:
-                    result += "image comparison (==) ";
-                    break;
+            if (gURLs[0].type == TYPE_REFTEST_NOTEQUAL) {
+                result += "(!=) ";
             }
             gDumpLog(result + "\n");
 

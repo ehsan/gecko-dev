@@ -646,8 +646,7 @@
                       Components.classes["@mozilla.org/browser/shistory;1"]
                                 .createInstance(Components.interfaces.nsISHistory);
               // enable global history
-              if (this.docShell)
-                this.docShell.QueryInterface(Components.interfaces.nsIDocShellHistory).useGlobalHistory = true;
+              this.docShell.QueryInterface(Components.interfaces.nsIDocShellHistory).useGlobalHistory = true;
             }
           }
           catch (e) {

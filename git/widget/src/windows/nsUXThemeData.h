@@ -232,20 +232,13 @@ public:
   static DwmDefWindowProcProc dwmDwmDefWindowProcPtr;
 #endif // MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
 
-  // This method returns the cached compositor state. Most
-  // callers should call without the argument. The cache
-  // should be modified only when the application receives
-  // WM_DWMCOMPOSITIONCHANGED. This rule prevents inconsistent
-  // results for two or more calls which check the state during
-  // composition transition.
-  static PRBool CheckForCompositor(PRBool aUpdateCache = PR_FALSE) {
-    static BOOL sCachedValue = FALSE;
+  static PRBool CheckForCompositor() {
+    BOOL compositionIsEnabled = FALSE;
 #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-    if(aUpdateCache && dwmIsCompositionEnabledPtr) {
-      dwmIsCompositionEnabledPtr(&sCachedValue);
-    }
+    if(dwmIsCompositionEnabledPtr)
+      dwmIsCompositionEnabledPtr(&compositionIsEnabled);
 #endif // MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-    return (sCachedValue != FALSE);
+    return (compositionIsEnabled != FALSE);
   }
 };
 #endif // __UXThemeData_h__

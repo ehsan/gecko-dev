@@ -173,10 +173,6 @@ function getDownloadListener()
   };
 }
 
-XPCOMUtils.defineLazyGetter(this, "Services", function() {
-  Cu.import("resource://gre/modules/Services.jsm");
-  return Services;
-});
-
 // Disable alert service notifications
-Services.prefs.setBoolPref("browser.download.manager.showAlertOnComplete", false);
+let ps = Cc['@mozilla.org/preferences-service;1'].getService(Ci.nsIPrefBranch);
+ps.setBoolPref("browser.download.manager.showAlertOnComplete", false);

@@ -366,21 +366,13 @@ nsHttpConnectionMgr::ProcessOneTransactionCB(nsHashKey *key, void *data, void *c
     return kHashEnumerateNext;
 }
 
-// If the global number of idle connections is preventing the opening of
-// new connections to a host without idle connections, then
-// close them regardless of their TTL
 PRIntn
-nsHttpConnectionMgr::PurgeExcessIdleConnectionsCB(nsHashKey *key,
-                                                  void *data, void *closure)
+nsHttpConnectionMgr::PurgeOneIdleConnectionCB(nsHashKey *key, void *data, void *closure)
 {
     nsHttpConnectionMgr *self = (nsHttpConnectionMgr *) closure;
     nsConnectionEntry *ent = (nsConnectionEntry *) data;
 
-    while (self->mNumIdleConns + self->mNumActiveConns + 1 >= self->mMaxConns) {
-        if (!ent->mIdleConns.Length()) {
-            // There are no idle conns left in this connection entry
-            return kHashEnumerateNext;
-        }
+    if (ent->mIdleConns.Length() > 0) {
         nsHttpConnection *conn = ent->mIdleConns[0];
         ent->mIdleConns.RemoveElementAt(0);
         conn->Close(NS_ERROR_ABORT);
@@ -388,8 +380,10 @@ nsHttpConnectionMgr::PurgeExcessIdleConnectionsCB(nsHashKey *key,
         self->mNumIdleConns--;
         if (0 == self->mNumIdleConns)
             self->StopPruneDeadConnectionsTimer();
+        return kHashEnumerateStop;
     }
-    return kHashEnumerateStop;
+
+    return kHashEnumerateNext;
 }
 
 PRIntn
@@ -609,19 +603,12 @@ nsHttpConnectionMgr::GetConnection(nsConnectionEntry *ent, PRUint8 caps,
     LOG(("nsHttpConnectionMgr::GetConnection [ci=%s caps=%x]\n",
         ent->mConnInfo->HashKey().get(), PRUint32(caps)));
 
-    // First, see if an idle persistent connection may be reused instead of
-    // establishing a new socket. We do not need to check the connection limits
-    // yet as they govern the maximum number of open connections and reusing
-    // an old connection never increases that.
-
     *result = nsnull;
 
     nsHttpConnection *conn = nsnull;
 
     if (caps & NS_HTTP_ALLOW_KEEPALIVE) {
-        // search the idle connection list. Each element in the list
-        // has a reference, so if we remove it from the list into a local
-        // ptr, that ptr now owns the reference
+        // search the idle connection list
         while (!conn && (ent->mIdleConns.Length() > 0)) {
             conn = ent->mIdleConns[0];
             // we check if the connection can be reused before even checking if
@@ -651,7 +638,7 @@ nsHttpConnectionMgr::GetConnection(nsConnectionEntry *ent, PRUint8 caps,
         // XXX this just purges a random idle connection.  we should instead
         // enumerate the entire hash table to find the eldest idle connection.
         if (mNumIdleConns && mNumIdleConns + mNumActiveConns + 1 >= mMaxConns)
-            mCT.Enumerate(PurgeExcessIdleConnectionsCB, this);
+            mCT.Enumerate(PurgeOneIdleConnectionCB, this);
 
         // Need to make a new TCP connection. First, we check if we've hit
         // either the maximum connection limit globally or for this particular
@@ -662,7 +649,10 @@ nsHttpConnectionMgr::GetConnection(nsConnectionEntry *ent, PRUint8 caps,
         }
 
         conn = new nsHttpConnection();
+        if (!conn)
+            return;
         NS_ADDREF(conn);
+
         nsresult rv = conn->Init(ent->mConnInfo, mMaxRequestDelay);
         if (NS_FAILED(rv)) {
             NS_RELEASE(conn);
@@ -974,22 +964,13 @@ nsHttpConnectionMgr::OnMsgReclaimConnection(PRInt32, void *param)
 
     NS_ASSERTION(ent, "no connection entry");
     if (ent) {
-        // If the connection is in the active list, remove that entry
-        // and the reference held by the mActiveConns list.
-        // This is never the final reference on conn as the event context
-        // is also holding one that is released at the end of this function.
-        if (ent->mActiveConns.RemoveElement(conn)) {
-            nsHttpConnection *temp = conn;
-            NS_RELEASE(temp);
-            mNumActiveConns--;
-        }
-
+        ent->mActiveConns.RemoveElement(conn);
+        mNumActiveConns--;
         if (conn->CanReuse()) {
             LOG(("  adding connection to idle list\n"));
             // hold onto this connection in the idle list.  we push it to
             // the end of the list so as to ensure that we'll visit older
             // connections first before getting to this one.
-            NS_ADDREF(conn);
             ent->mIdleConns.AppendElement(conn);
             mNumIdleConns++;
             // If the added connection was first idle connection or has shortest
@@ -1003,6 +984,8 @@ nsHttpConnectionMgr::OnMsgReclaimConnection(PRInt32, void *param)
             LOG(("  connection cannot be reused; closing connection\n"));
             // make sure the connection is closed and release our reference.
             conn->Close(NS_ERROR_ABORT);
+            nsHttpConnection *temp = conn;
+            NS_RELEASE(temp);
         }
     }
  

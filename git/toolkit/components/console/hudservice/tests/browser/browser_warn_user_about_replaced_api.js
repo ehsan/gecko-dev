@@ -66,9 +66,8 @@ function testWarning()
   const successMsg = "Found the warning message";
   const errMsg = "Could not find the warning message about the replaced API";
 
-  testLogEntry(hud, "disabled",
-               { success: "Found disabled console error message",
-                 err: "disable msg not found"});
+  outputNode = HUDService.hudWeakReferences[hudId].get().outputNode;
+  testLogEntry(outputNode, "disabled", { success: successMsg, err: errMsg });
 
   finishTest();
 }

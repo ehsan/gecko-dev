@@ -912,8 +912,7 @@ nsHTMLTextAreaElement::SubmitNamesValues(nsFormSubmission* aFormSubmission)
   // Get the name (if no name, no submit)
   //
   nsAutoString name;
-  GetAttr(kNameSpaceID_None, nsGkAtoms::name, name);
-  if (name.IsEmpty()) {
+  if (!GetAttr(kNameSpaceID_None, nsGkAtoms::name, name)) {
     return NS_OK;
   }
 
@@ -1224,10 +1223,7 @@ nsHTMLTextAreaElement::IsValueMissing() const
 void
 nsHTMLTextAreaElement::UpdateTooLongValidityState()
 {
-  // TODO: this code will be re-enabled with bug 613016 and bug 613019.
-#if 0
   SetValidityState(VALIDITY_STATE_TOO_LONG, IsTooLong());
-#endif
 }
 
 void

@@ -482,8 +482,10 @@ static nsresult GetDownloadDirectory(nsIFile **_directory)
   else {
     return NS_ERROR_FAILURE;
   }
-#elif defined(MOZ_PLATFORM_MAEMO)
-  nsresult rv = NS_GetSpecialDirectory(NS_UNIX_XDG_DOCUMENTS_DIR, getter_AddRefs(dir));
+#elif defined(MAEMO)
+  nsresult rv = dirService->Get(NS_UNIX_XDG_DOCUMENTS_DIR,
+                       NS_GET_IID(nsILocalFile),
+                       getter_AddRefs(downloadDir));
   NS_ENSURE_SUCCESS(rv, rv);
 #else
   // On all other platforms, we default to the systems temporary directory.
@@ -713,9 +715,6 @@ NS_IMETHODIMP nsExternalHelperAppService::DoContent(const nsACString& aMimeConte
     if (channel)
       ExtractDisposition(channel, disp);
 
-    nsCOMPtr<nsIURI> referrer;
-    rv = NS_GetReferrerFromChannel(channel, getter_AddRefs(referrer));
-
     // Now we build a protocol for forwarding our data to the parent.  The
     // protocol will act as a listener on the child-side and create a "real"
     // helperAppService listener on the parent-side, via another call to
@@ -724,8 +723,7 @@ NS_IMETHODIMP nsExternalHelperAppService::DoContent(const nsACString& aMimeConte
     pc = child->SendPExternalHelperAppConstructor(IPC::URI(uri),
                                                   nsCString(aMimeContentType),
                                                   disp,
-                                                  aForceSave, contentLength,
-                                                  IPC::URI(referrer));
+                                                  aForceSave, contentLength);
     ExternalHelperAppChild *childListener = static_cast<ExternalHelperAppChild *>(pc);
 
     NS_ADDREF(*aStreamListener = childListener);

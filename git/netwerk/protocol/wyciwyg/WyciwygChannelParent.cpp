@@ -90,21 +90,21 @@ WyciwygChannelParent::RecvInit(const IPC::URI& aURI)
 
   nsCString uriSpec;
   uri->GetSpec(uriSpec);
-  LOG(("WyciwygChannelParent RecvInit [this=%x uri=%s]\n",
+  LOG(("WyciwygChannelParent RecvAsyncOpen [this=%x uri=%s]\n",
        this, uriSpec.get()));
 
   nsCOMPtr<nsIIOService> ios(do_GetIOService(&rv));
   if (NS_FAILED(rv))
-    return SendCancelEarly(rv);
+    return false;       // TODO: send fail msg to child, return true
 
   nsCOMPtr<nsIChannel> chan;
   rv = NS_NewChannel(getter_AddRefs(chan), uri, ios);
   if (NS_FAILED(rv))
-    return SendCancelEarly(rv);
+    return false;       // TODO: send fail msg to child, return true
 
   mChannel = do_QueryInterface(chan, &rv);
   if (NS_FAILED(rv))
-    return SendCancelEarly(rv);
+    return false;       // TODO: send fail msg to child, return true
 
   return true;
 }
@@ -115,21 +115,19 @@ WyciwygChannelParent::RecvAsyncOpen(const IPC::URI& aOriginal,
 {
   nsCOMPtr<nsIURI> original(aOriginal);
 
-  LOG(("WyciwygChannelParent RecvAsyncOpen [this=%x]\n", this));
-
   nsresult rv;
 
   rv = mChannel->SetOriginalURI(original);
   if (NS_FAILED(rv))
-    return SendCancelEarly(rv);
+    return false;       // TODO: send fail msg to child, return true
 
   rv = mChannel->SetLoadFlags(aLoadFlags);
   if (NS_FAILED(rv))
-    return SendCancelEarly(rv);
+    return false;       // TODO: send fail msg to child, return true
 
   rv = mChannel->AsyncOpen(this, nsnull);
   if (NS_FAILED(rv))
-    return SendCancelEarly(rv);
+    return false;       // TODO: send fail msg to child, return true
 
   return true;
 }
@@ -162,14 +160,6 @@ WyciwygChannelParent::RecvSetSecurityInfo(const nsCString& aSecurityInfo)
   nsCOMPtr<nsISupports> securityInfo;
   NS_DeserializeObject(aSecurityInfo, getter_AddRefs(securityInfo));
   mChannel->SetSecurityInfo(securityInfo);
-  return true;
-}
-
-bool
-WyciwygChannelParent::RecvCancel(const nsresult& aStatusCode)
-{
-  if (mChannel)
-    mChannel->Cancel(aStatusCode);
   return true;
 }
 

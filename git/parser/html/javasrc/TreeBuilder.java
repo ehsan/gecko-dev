@@ -1224,7 +1224,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
     /**
      * @see nu.validator.htmlparser.common.TokenHandler#zeroOriginatingReplacementCharacter()
      */
-    public void zeroOriginatingReplacementCharacter()
+    @Override public void zeroOriginatingReplacementCharacter()
             throws SAXException {
         if (inForeign || mode == TEXT) {
             characters(REPLACEMENT_CHARACTER, 0, 1);
@@ -1802,10 +1802,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                         case XMP:
                         case IFRAME:
                         case SELECT:
-                            if (mode == FRAMESET_OK
-                                    && !(group == INPUT && Portability.lowerCaseLiteralEqualsIgnoreAsciiCaseString(
-                                            "hidden",
-                                            attributes.getValue(AttributeName.TYPE)))) {
+                            if (mode == FRAMESET_OK) {
                                 framesetOk = false;
                                 mode = IN_BODY;
                             }
@@ -5241,7 +5238,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
     /**
      * @see nu.validator.htmlparser.common.TokenHandler#cdataSectionAllowed()
      */
-    public boolean cdataSectionAllowed() throws SAXException {
+    @Override public boolean cdataSectionAllowed() throws SAXException {
         return inForeign && currentPtr >= 0
                 && stack[currentPtr].ns != "http://www.w3.org/1999/xhtml";
     }

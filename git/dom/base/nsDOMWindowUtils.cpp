@@ -97,7 +97,6 @@ DOMCI_DATA(WindowUtils, nsDOMWindowUtils)
 NS_INTERFACE_MAP_BEGIN(nsDOMWindowUtils)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMWindowUtils)
   NS_INTERFACE_MAP_ENTRY(nsIDOMWindowUtils)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMWindowUtils_MOZILLA_2_0_BRANCH)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(WindowUtils)
 NS_INTERFACE_MAP_END
@@ -945,11 +944,10 @@ nsDOMWindowUtils::GetIMEIsOpen(PRBool *aState)
     return NS_ERROR_FAILURE;
 
   // Open state should not be available when IME is not enabled.
-  nsIWidget_MOZILLA_2_0_BRANCH* widget2 = static_cast<nsIWidget_MOZILLA_2_0_BRANCH*>(widget.get());
-  IMEContext context;
-  nsresult rv = widget2->GetInputMode(context);
+  PRUint32 enabled;
+  nsresult rv = widget->GetIMEEnabled(&enabled);
   NS_ENSURE_SUCCESS(rv, rv);
-  if (context.mStatus != nsIWidget::IME_STATUS_ENABLED)
+  if (enabled != nsIWidget::IME_STATUS_ENABLED)
     return NS_ERROR_NOT_AVAILABLE;
 
   return widget->GetIMEOpenState(aState);
@@ -964,32 +962,7 @@ nsDOMWindowUtils::GetIMEStatus(PRUint32 *aState)
   if (!widget)
     return NS_ERROR_FAILURE;
 
-  nsIWidget_MOZILLA_2_0_BRANCH* widget2 = static_cast<nsIWidget_MOZILLA_2_0_BRANCH*>(widget.get());
-  IMEContext context;
-  nsresult rv = widget2->GetInputMode(context);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  *aState = context.mStatus;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::GetFocusedInputType(char** aType)
-{
-  NS_ENSURE_ARG_POINTER(aType);
-
-  nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (!widget) {
-    return NS_ERROR_FAILURE;
-  }
-
-  nsIWidget_MOZILLA_2_0_BRANCH* widget2 = static_cast<nsIWidget_MOZILLA_2_0_BRANCH*>(widget.get());
-  IMEContext context;
-  nsresult rv = widget2->GetInputMode(context);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  *aType = ToNewCString(context.mHTMLInputType);
-  return NS_OK;
+  return widget->GetIMEEnabled(aState);
 }
 
 NS_IMETHODIMP

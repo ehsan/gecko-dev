@@ -2115,7 +2115,7 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, void *aScope, void *aHandler
 #ifdef NS_FUNCTION_TIMER
   {
     JSObject *obj = static_cast<JSObject *>(aHandler);
-    JSString *id = JS_GetFunctionId(static_cast<JSFunction *>(JS_GetPrivate(mContext, obj)));
+    JSString *id = JS_GetFunctionId(static_cast<JSFunction *>(JS_GetPrivate(mContext, obj));
     JSAutoByteString bytes;
     const char *name = !id ? "anonymous" : bytes.encode(mContext, id) ? bytes.ptr() : "<error>";
     NS_TIME_FUNCTION_FMT(1.0, "%s (line %d) (function: %s)", MOZ_FUNCTION_NAME, __LINE__, name);
@@ -4183,7 +4183,7 @@ nsJSRuntime::GetNameSpaceManager()
 
   if (!gNameSpaceManager) {
     gNameSpaceManager = new nsScriptNameSpaceManager;
-    NS_ADDREF(gNameSpaceManager);
+    NS_ENSURE_TRUE(gNameSpaceManager, nsnull);
 
     nsresult rv = gNameSpaceManager->Init();
     NS_ENSURE_SUCCESS(rv, nsnull);
@@ -4207,7 +4207,8 @@ nsJSRuntime::Shutdown()
     sLoadInProgressGCTimer = PR_FALSE;
   }
 
-  NS_IF_RELEASE(gNameSpaceManager);
+  delete gNameSpaceManager;
+  gNameSpaceManager = nsnull;
 
   if (!sContextCount) {
     // We're being shutdown, and there are no more contexts
