@@ -635,7 +635,7 @@ private: // data
 
   // Discard members
   PRUint32                   mLockCount;
-  DiscardTracker::Node       mDiscardTrackerNode;
+  DiscardTrackerNode         mDiscardTrackerNode;
 
   // Source data members
   FallibleTArray<char>       mSourceData;

@@ -52,7 +52,7 @@
  *  - Computed values (e.g. 50 * 1024) don't work.
  */
 
-pref("keyword.URL", "https://www.google.com/search?ie=UTF-8&oe=utf-8&q=");
+pref("keyword.URL", "http://www.google.com/search?ie=UTF-8&oe=utf-8&q=");
 pref("keyword.enabled", false);
 pref("general.useragent.locale", "chrome://global/locale/intl.properties");
 pref("general.useragent.compatMode.firefox", false);
@@ -3374,10 +3374,6 @@ pref("image.mem.max_ms_before_yield", 5);
 
 // The maximum source data size for which we auto sync decode
 pref("image.mem.max_bytes_for_sync_decode", 150000);
-
-// The maximum amount of decoded image data we'll willingly keep around (we
-// might keep around more than this, but we'll try to get down to this value).
-pref("image.mem.max_decoded_image_kb", 51200);
 
 // WebGL prefs
 pref("webgl.force-enabled", false);
