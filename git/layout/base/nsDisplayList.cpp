@@ -60,6 +60,7 @@
 #include <algorithm>
 
 using namespace mozilla;
+using namespace mozilla::css;
 using namespace mozilla::layers;
 using namespace mozilla::dom;
 using namespace mozilla::layout;
@@ -415,12 +416,12 @@ nsDisplayListBuilder::AddAnimationsAndTransitionsToLayer(Layer* aLayer,
   if (!content) {
     return;
   }
-  ElementAnimationCollection* transitions =
+  CommonElementAnimationData* et =
     nsTransitionManager::GetAnimationsForCompositor(content, aProperty);
-  ElementAnimationCollection* animations =
+  CommonElementAnimationData* ea =
     nsAnimationManager::GetAnimationsForCompositor(content, aProperty);
 
-  if (!animations && !transitions) {
+  if (!ea && !et) {
     return;
   }
 
@@ -475,16 +476,16 @@ nsDisplayListBuilder::AddAnimationsAndTransitionsToLayer(Layer* aLayer,
     data = null_t();
   }
 
-  if (transitions) {
-    AddAnimationsForProperty(aFrame, aProperty, transitions->mAnimations,
+  if (et) {
+    AddAnimationsForProperty(aFrame, aProperty, et->mAnimations,
                              aLayer, data, pending);
-    aLayer->SetAnimationGeneration(transitions->mAnimationGeneration);
+    aLayer->SetAnimationGeneration(et->mAnimationGeneration);
   }
 
-  if (animations) {
-    AddAnimationsForProperty(aFrame, aProperty, animations->mAnimations,
+  if (ea) {
+    AddAnimationsForProperty(aFrame, aProperty, ea->mAnimations,
                              aLayer, data, pending);
-    aLayer->SetAnimationGeneration(animations->mAnimationGeneration);
+    aLayer->SetAnimationGeneration(ea->mAnimationGeneration);
   }
 }
 
@@ -4701,7 +4702,7 @@ nsDisplayOpacity::CanUseAsyncAnimations(nsDisplayListBuilder* aBuilder)
   if (nsLayoutUtils::IsAnimationLoggingEnabled()) {
     nsCString message;
     message.AppendLiteral("Performance warning: Async animation disabled because frame was not marked active for opacity animation");
-    ElementAnimationCollection::LogAsyncAnimationFailure(message,
+    CommonElementAnimationData::LogAsyncAnimationFailure(message,
                                                          Frame()->GetContent());
   }
   return false;
@@ -4731,7 +4732,7 @@ nsDisplayTransform::ShouldPrerenderTransformedContent(nsDisplayListBuilder* aBui
     if (aLogAnimations) {
       nsCString message;
       message.AppendLiteral("Performance warning: Async animation disabled because frame was not marked active for transform animation");
-      ElementAnimationCollection::LogAsyncAnimationFailure(message,
+      CommonElementAnimationData::LogAsyncAnimationFailure(message,
                                                            aFrame->GetContent());
     }
     return false;
@@ -4763,7 +4764,7 @@ nsDisplayTransform::ShouldPrerenderTransformedContent(nsDisplayListBuilder* aBui
     message.AppendLiteral(", ");
     message.AppendInt(nsPresContext::AppUnitsToIntCSSPixels(refSize.height));
     message.Append(')');
-    ElementAnimationCollection::LogAsyncAnimationFailure(message,
+    CommonElementAnimationData::LogAsyncAnimationFailure(message,
                                                          aFrame->GetContent());
   }
   return false;

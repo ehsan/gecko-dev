@@ -2396,11 +2396,11 @@ private:
 class WriteFileEvent : public nsRunnable
 {
 public:
-  WriteFileEvent(DOMFileImpl* aBlobImpl,
+  WriteFileEvent(nsIDOMBlob* aBlob,
                  DeviceStorageFile *aFile,
                  already_AddRefed<DOMRequest> aRequest,
                  int32_t aRequestType)
-    : mBlobImpl(aBlobImpl)
+    : mBlob(aBlob)
     , mFile(aFile)
     , mRequest(aRequest)
     , mRequestType(aRequestType)
@@ -2417,7 +2417,7 @@ public:
     MOZ_ASSERT(!NS_IsMainThread());
 
     nsCOMPtr<nsIInputStream> stream;
-    mBlobImpl->GetInternalStream(getter_AddRefs(stream));
+    mBlob->GetInternalStream(getter_AddRefs(stream));
 
     bool check = false;
     mFile->mFile->Exists(&check);
@@ -2461,7 +2461,7 @@ public:
   }
 
 private:
-  nsRefPtr<DOMFileImpl> mBlobImpl;
+  nsCOMPtr<nsIDOMBlob> mBlob;
   nsRefPtr<DeviceStorageFile> mFile;
   nsRefPtr<DOMRequest> mRequest;
   int32_t mRequestType;
@@ -2887,10 +2887,7 @@ public:
             ->SendPDeviceStorageRequestConstructor(child, params);
           return NS_OK;
         }
-
-        DOMFile* blob = static_cast<DOMFile*>(mBlob.get());
-        r = new WriteFileEvent(blob->Impl(), mFile, mRequest.forget(),
-                               mRequestType);
+        r = new WriteFileEvent(mBlob, mFile, mRequest.forget(), mRequestType);
         break;
       }
 
@@ -2932,10 +2929,7 @@ public:
             ->SendPDeviceStorageRequestConstructor(child, params);
           return NS_OK;
         }
-
-        DOMFile* blob = static_cast<DOMFile*>(mBlob.get());
-        r = new WriteFileEvent(blob->Impl(), mFile, mRequest.forget(),
-                               mRequestType);
+        r = new WriteFileEvent(mBlob, mFile, mRequest.forget(), mRequestType);
         break;
       }
 
@@ -4234,9 +4228,9 @@ nsDOMDeviceStorage::Observe(nsISupports *aSubject,
     // these notifications are specific for apps storage.
     nsRefPtr<DeviceStorageFile> file =
       new DeviceStorageFile(mStorageType, mStorageName);
-    if (!NS_strcmp(aData, MOZ_UTF16("full"))) {
+    if (!strcmp(NS_ConvertUTF16toUTF8(aData).get(), "full")) {
       Notify("low-disk-space", file);
-    } else if (!NS_strcmp(aData, MOZ_UTF16("free"))) {
+    } else if (!strcmp(NS_ConvertUTF16toUTF8(aData).get(), "free")) {
       Notify("available-disk-space", file);
     }
     return NS_OK;

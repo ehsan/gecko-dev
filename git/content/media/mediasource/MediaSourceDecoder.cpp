@@ -466,8 +466,7 @@ nsresult
 MediaSourceReader::Seek(int64_t aTime, int64_t aStartTime, int64_t aEndTime,
                         int64_t aCurrentTime)
 {
-  double target = static_cast<double>(aTime) / USECS_PER_S;
-  if (!mMediaSource->ActiveSourceBuffers()->AllContainsTime(target)) {
+  if (!mMediaSource->ActiveSourceBuffers()->AllContainsTime (aTime / USECS_PER_S)) {
     NS_DispatchToMainThread(new ChangeToHaveMetadata(mDecoder));
   }
 
@@ -475,7 +474,7 @@ MediaSourceReader::Seek(int64_t aTime, int64_t aStartTime, int64_t aEndTime,
   // This is a workaround for our lack of async functionality in the
   // MediaDecoderStateMachine. Bug 979104 implements what we need and
   // we'll remove this for an async approach based on that in bug XXXXXXX.
-  while (!mMediaSource->ActiveSourceBuffers()->AllContainsTime(target)
+  while (!mMediaSource->ActiveSourceBuffers()->AllContainsTime (aTime / USECS_PER_S)
          && !IsShutdown()) {
     mMediaSource->WaitForData();
     MaybeSwitchVideoReaders();

@@ -39,18 +39,6 @@ class nsIFile;
 class nsIInputStream;
 class nsIClassInfo;
 
-#define PIDOMFILEIMPL_IID \
-  { 0x218ee173, 0xf44f, 0x4d30, \
-    { 0xab, 0x0c, 0xd6, 0x66, 0xea, 0xc2, 0x84, 0x47 } }
-
-class PIDOMFileImpl : public nsISupports
-{
-public:
-  NS_DECLARE_STATIC_IID_ACCESSOR(PIDOMFILEIMPL_IID)
-};
-
-NS_DEFINE_STATIC_IID_ACCESSOR(PIDOMFileImpl, PIDOMFILEIMPL_IID)
-
 namespace mozilla {
 namespace dom {
 
@@ -60,19 +48,67 @@ class FileInfo;
 
 class DOMFileImpl;
 
-class DOMFile MOZ_FINAL : public nsIDOMFile
-                        , public nsIXHRSendable
-                        , public nsIMutable
-                        , public nsIJSNativeInitializer
+// XXX bug 827823 will get rid of DOMFileBase
+class DOMFileBase : public nsIDOMFile
+                  , public nsIXHRSendable
+                  , public nsIMutable
+                  , public nsIJSNativeInitializer
 {
+  // XXX bug 827823 will get rid of DOMFileCC
+  friend class DOMFileCC;
+
 public:
   NS_DECL_NSIDOMBLOB
   NS_DECL_NSIDOMFILE
   NS_DECL_NSIXHRSENDABLE
   NS_DECL_NSIMUTABLE
 
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(DOMFile, nsIDOMFile)
+  DOMFileBase(DOMFileImpl* aImpl)
+    : mImpl(aImpl)
+  {
+    MOZ_ASSERT(mImpl);
+  }
+
+  DOMFileImpl* Impl() const
+  {
+    return mImpl;
+  }
+
+  const nsTArray<nsCOMPtr<nsIDOMBlob>>* GetSubBlobs() const;
+
+  bool IsSizeUnknown() const;
+
+  bool IsDateUnknown() const;
+
+  bool IsFile() const;
+
+  void SetLazyData(const nsAString& aName, const nsAString& aContentType,
+                   uint64_t aLength, uint64_t aLastModifiedDate);
+
+  already_AddRefed<nsIDOMBlob>
+  CreateSlice(uint64_t aStart, uint64_t aLength,
+              const nsAString& aContentType);
+
+  // nsIJSNativeInitializer
+  NS_IMETHOD Initialize(nsISupports* aOwner, JSContext* aCx, JSObject* aObj,
+                        const JS::CallArgs& aArgs) MOZ_OVERRIDE;
+
+protected:
+  virtual ~DOMFileBase() {};
+
+private:
+  // The member is the real backend implementation of this DOMFile/DOMBlob.
+  // It's thread-safe and not CC-able and it's the only element that is moved
+  // between threads.
+  const nsRefPtr<DOMFileImpl> mImpl;
+};
+
+// XXX bug 827823 - this class should be MOZ_FINAL
+class DOMFile : public DOMFileBase
+{
+public:
+  // XXX bug 827823 will make this class CC and not thread-safe
+  NS_DECL_THREADSAFE_ISUPPORTS
 
   static already_AddRefed<DOMFile>
   Create(const nsAString& aName, const nsAString& aContentType,
@@ -123,53 +159,36 @@ public:
                  const nsAString& aContentType);
 
   explicit DOMFile(DOMFileImpl* aImpl)
-    : mImpl(aImpl)
-  {
-    MOZ_ASSERT(mImpl);
-  }
+    : DOMFileBase(aImpl)
+  {}
 
-  DOMFileImpl* Impl() const
-  {
-    return mImpl;
-  }
-
-  const nsTArray<nsRefPtr<DOMFileImpl>>* GetSubBlobImpls() const;
-
-  bool IsSizeUnknown() const;
-
-  bool IsDateUnknown() const;
-
-  bool IsFile() const;
-
-  void SetLazyData(const nsAString& aName, const nsAString& aContentType,
-                   uint64_t aLength, uint64_t aLastModifiedDate);
-
-  already_AddRefed<nsIDOMBlob>
-  CreateSlice(uint64_t aStart, uint64_t aLength,
-              const nsAString& aContentType);
-
-  // nsIJSNativeInitializer
-  NS_IMETHOD Initialize(nsISupports* aOwner, JSContext* aCx, JSObject* aObj,
-                        const JS::CallArgs& aArgs) MOZ_OVERRIDE;
-
-private:
-  ~DOMFile() {};
-
-  // The member is the real backend implementation of this DOMFile/DOMBlob.
-  // It's thread-safe and not CC-able and it's the only element that is moved
-  // between threads.
-  // Note: we should not store any other state in this class!
-  const nsRefPtr<DOMFileImpl> mImpl;
+protected:
+  virtual ~DOMFile() {};
 };
 
-// This is the abstract class for any DOMFile backend. It must be nsISupports
-// because this class must be ref-counted and it has to work with IPC.
-class DOMFileImpl : public PIDOMFileImpl
+// XXX bug 827823 will get rid of this class
+class DOMFileCC MOZ_FINAL : public DOMFileBase
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  DOMFileCC(DOMFileImpl* aImpl)
+    : DOMFileBase(aImpl)
+  {}
 
-  DOMFileImpl() {}
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(DOMFileCC, nsIDOMFile)
+
+protected:
+  virtual ~DOMFileCC() {};
+};
+
+// This is the virtual class for any DOMFile backend. It must be nsISupports
+// because this class must be ref-counted and it has to work with IPC.
+class DOMFileImpl : public nsISupports
+{
+public:
+  DOMFileImpl()
+  {
+  }
 
   virtual nsresult GetName(nsAString& aName) = 0;
 
@@ -196,8 +215,8 @@ public:
   CreateSlice(uint64_t aStart, uint64_t aLength,
               const nsAString& aContentType) = 0;
 
-  virtual const nsTArray<nsRefPtr<DOMFileImpl>>*
-  GetSubBlobImpls() const = 0;
+  virtual const nsTArray<nsCOMPtr<nsIDOMBlob>>*
+  GetSubBlobs() const = 0;
 
   virtual nsresult GetInternalStream(nsIInputStream** aStream) = 0;
 
@@ -240,11 +259,6 @@ public:
   virtual void Unlink() = 0;
   virtual void Traverse(nsCycleCollectionTraversalCallback &aCb) = 0;
 
-  virtual bool IsCCed() const
-  {
-    return false;
-  }
-
 protected:
   virtual ~DOMFileImpl() {}
 };
@@ -252,6 +266,8 @@ protected:
 class DOMFileImplBase : public DOMFileImpl
 {
 public:
+  NS_DECL_THREADSAFE_ISUPPORTS
+
   DOMFileImplBase(const nsAString& aName, const nsAString& aContentType,
                   uint64_t aLength, uint64_t aLastModifiedDate)
     : mIsFile(true)
@@ -328,8 +344,8 @@ public:
   CreateSlice(uint64_t aStart, uint64_t aLength,
               const nsAString& aContentType) MOZ_OVERRIDE;
 
-  virtual const nsTArray<nsRefPtr<DOMFileImpl>>*
-  GetSubBlobImpls() const MOZ_OVERRIDE
+  virtual const nsTArray<nsCOMPtr<nsIDOMBlob>>*
+  GetSubBlobs() const MOZ_OVERRIDE
   {
     return nullptr;
   }
@@ -446,8 +462,6 @@ protected:
 class DOMFileImplMemory MOZ_FINAL : public DOMFileImplBase
 {
 public:
-  NS_DECL_ISUPPORTS_INHERITED
-
   DOMFileImplMemory(void* aMemoryBuffer, uint64_t aLength,
                     const nsAString& aName,
                     const nsAString& aContentType,
@@ -542,8 +556,6 @@ private:
 class DOMFileImplTemporaryFileBlob MOZ_FINAL : public DOMFileImplBase
 {
 public:
-  NS_DECL_ISUPPORTS_INHERITED
-
   DOMFileImplTemporaryFileBlob(PRFileDesc* aFD, uint64_t aStartPos,
                                uint64_t aLength, const nsAString& aContentType)
     : DOMFileImplBase(aContentType, aLength)
@@ -581,8 +593,6 @@ private:
 class DOMFileImplFile MOZ_FINAL : public DOMFileImplBase
 {
 public:
-  NS_DECL_ISUPPORTS_INHERITED
-
   // Create as a file
   explicit DOMFileImplFile(nsIFile* aFile)
     : DOMFileImplBase(EmptyString(), EmptyString(), UINT64_MAX, UINT64_MAX)

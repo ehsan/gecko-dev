@@ -4824,7 +4824,7 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
 
   // Fill in the transitions we just allocated with the appropriate values.
   for (uint32_t i = 0; i < numTransitions; ++i) {
-    StyleTransition *transition = &display->mTransitions[i];
+    nsTransition *transition = &display->mTransitions[i];
 
     if (i >= delay.num) {
       transition->SetDelay(display->mTransitions[i % delay.num].GetDelay());
@@ -4981,7 +4981,7 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
 
   // Fill in the animations we just allocated with the appropriate values.
   for (uint32_t i = 0; i < numAnimations; ++i) {
-    StyleAnimation *animation = &display->mAnimations[i];
+    nsAnimation *animation = &display->mAnimations[i];
 
     if (i >= animDelay.num) {
       animation->SetDelay(display->mAnimations[i % animDelay.num].GetDelay());

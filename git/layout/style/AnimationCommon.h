@@ -23,17 +23,18 @@
 class nsIFrame;
 class nsPresContext;
 class nsStyleChangeList;
+struct ElementPropertyTransition;
 
 
 namespace mozilla {
 
 class StyleAnimationValue;
-struct ElementPropertyTransition;
-struct ElementAnimationCollection;
 
 namespace css {
 
 bool IsGeometricProperty(nsCSSProperty aProperty);
+
+struct CommonElementAnimationData;
 
 class CommonAnimationManager : public nsIStyleRuleProcessor,
                                public nsARefreshObserver {
@@ -72,17 +73,15 @@ public:
 protected:
   virtual ~CommonAnimationManager();
 
-  // For ElementCollectionRemoved
-  friend struct mozilla::ElementAnimationCollection;
+  friend struct CommonElementAnimationData; // for ElementDataRemoved
 
-  virtual void
-  AddElementCollection(ElementAnimationCollection* aCollection) = 0;
-  virtual void ElementCollectionRemoved() = 0;
-  void RemoveAllElementCollections();
+  virtual void AddElementData(CommonElementAnimationData* aData) = 0;
+  virtual void ElementDataRemoved() = 0;
+  void RemoveAllElementData();
 
   // When this returns a value other than nullptr, it also,
   // as a side-effect, notifies the ActiveLayerTracker.
-  static ElementAnimationCollection*
+  static CommonElementAnimationData*
   GetAnimationsForCompositor(nsIContent* aContent,
                              nsIAtom* aElementProperty,
                              nsCSSProperty aProperty);
@@ -102,7 +101,7 @@ protected:
                                      nsStyleContext* aNewStyle,
                                      nsStyleSet* aStyleSet);
 
-  PRCList mElementCollections;
+  PRCList mElementData;
   nsPresContext *mPresContext; // weak (non-null from ctor to Disconnect)
 };
 
@@ -119,13 +118,13 @@ class_::UpdateAllThrottledStylesInternal()                                     \
   /* update each transitioning element by finding its root-most ancestor
      with a transition, and flushing the style on that ancestor and all
      its descendants*/                                                         \
-  PRCList *next = PR_LIST_HEAD(&mElementCollections);                          \
-  while (next != &mElementCollections) {                                       \
-    ElementAnimationCollection* collection =                                   \
-      static_cast<ElementAnimationCollection*>(next);                          \
+  PRCList *next = PR_LIST_HEAD(&mElementData);                                 \
+  while (next != &mElementData) {                                              \
+    CommonElementAnimationData* ea =                                           \
+      static_cast<CommonElementAnimationData*>(next);                          \
     next = PR_NEXT_LINK(next);                                                 \
                                                                                \
-    if (collection->mFlushGeneration == now) {                                 \
+    if (ea->mFlushGeneration == now) {                                         \
       /* this element has been ticked already */                               \
       continue;                                                                \
     }                                                                          \
@@ -133,7 +132,7 @@ class_::UpdateAllThrottledStylesInternal()                                     \
     /* element is initialised to the starting element (i.e., one we know has
        an animation) and ends up with the root-most animated ancestor,
        that is, the element where we begin updates. */                         \
-    dom::Element* element = collection->mElement;                              \
+    dom::Element* element = ea->mElement;                                      \
     /* make a list of ancestors */                                             \
     nsTArray<dom::Element*> ancestors;                                         \
     do {                                                                       \
@@ -405,11 +404,12 @@ enum EnsureStyleRuleFlags {
   EnsureStyleRule_IsNotThrottled
 };
 
-struct ElementAnimationCollection : public PRCList
+namespace css {
+
+struct CommonElementAnimationData : public PRCList
 {
-  ElementAnimationCollection(dom::Element *aElement, nsIAtom *aElementProperty,
-                             mozilla::css::CommonAnimationManager *aManager,
-                             TimeStamp aNow)
+  CommonElementAnimationData(dom::Element *aElement, nsIAtom *aElementProperty,
+                             CommonAnimationManager *aManager, TimeStamp aNow)
     : mElement(aElement)
     , mElementProperty(aElementProperty)
     , mManager(aManager)
@@ -420,16 +420,16 @@ struct ElementAnimationCollection : public PRCList
     , mCalledPropertyDtor(false)
 #endif
   {
-    MOZ_COUNT_CTOR(ElementAnimationCollection);
+    MOZ_COUNT_CTOR(CommonElementAnimationData);
     PR_INIT_CLIST(this);
   }
-  ~ElementAnimationCollection()
+  ~CommonElementAnimationData()
   {
     NS_ABORT_IF_FALSE(mCalledPropertyDtor,
                       "must call destructor through element property dtor");
-    MOZ_COUNT_DTOR(ElementAnimationCollection);
+    MOZ_COUNT_DTOR(CommonElementAnimationData);
     PR_REMOVE_LINK(this);
-    mManager->ElementCollectionRemoved();
+    mManager->ElementDataRemoved();
   }
 
   void Destroy()
@@ -513,7 +513,7 @@ struct ElementAnimationCollection : public PRCList
   // i.e., in an atom list)
   nsIAtom *mElementProperty;
 
-  mozilla::css::CommonAnimationManager *mManager;
+  CommonAnimationManager *mManager;
 
   mozilla::ElementAnimationPtrArray mAnimations;
 
@@ -558,6 +558,7 @@ struct ElementAnimationCollection : public PRCList
 #endif
 };
 
+}
 }
 
 #endif /* !defined(mozilla_css_AnimationCommon_h) */

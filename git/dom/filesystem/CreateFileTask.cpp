@@ -119,8 +119,7 @@ FileSystemResponseValue
 CreateFileTask::GetSuccessRequestResult() const
 {
   MOZ_ASSERT(NS_IsMainThread(), "Only call on main thread!");
-  nsRefPtr<DOMFile> file = new DOMFile(mTargetFileImpl);
-  BlobParent* actor = GetBlobParent(file);
+  BlobParent* actor = GetBlobParent(mTargetFile);
   if (!actor) {
     return FileSystemErrorResponse(NS_ERROR_DOM_FILESYSTEM_UNKNOWN_ERR);
   }
@@ -136,7 +135,7 @@ CreateFileTask::SetSuccessRequestResult(const FileSystemResponseValue& aValue)
   FileSystemFileResponse r = aValue;
   BlobChild* actor = static_cast<BlobChild*>(r.blobChild());
   nsCOMPtr<nsIDOMBlob> blob = actor->GetBlob();
-  mTargetFileImpl = static_cast<DOMFile*>(blob.get())->Impl();
+  mTargetFile = do_QueryInterface(blob);
 }
 
 nsresult
@@ -253,7 +252,7 @@ CreateFileTask::Work()
       return NS_ERROR_FAILURE;
     }
 
-    mTargetFileImpl = new DOMFileImplFile(file);
+    mTargetFile = DOMFile::CreateFromFile(file);
     return NS_OK;
   }
 
@@ -272,7 +271,7 @@ CreateFileTask::Work()
     return NS_ERROR_DOM_FILESYSTEM_UNKNOWN_ERR;
   }
 
-  mTargetFileImpl = new DOMFileImplFile(file);
+  mTargetFile = DOMFile::CreateFromFile(file);
   return NS_OK;
 }
 
@@ -293,8 +292,7 @@ CreateFileTask::HandlerCallback()
     return;
   }
 
-  nsCOMPtr<nsIDOMFile> file = new DOMFile(mTargetFileImpl);
-  mPromise->MaybeResolve(file);
+  mPromise->MaybeResolve(mTargetFile);
   mPromise = nullptr;
 }
 

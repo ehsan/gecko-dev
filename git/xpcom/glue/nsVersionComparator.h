@@ -41,17 +41,19 @@
 
 namespace mozilla {
 
-int32_t NS_COM_GLUE CompareVersions(const char* aStrA, const char* aStrB);
+int32_t NS_COM_GLUE
+CompareVersions(const char *A, const char *B);
 
 #ifdef XP_WIN
-int32_t NS_COM_GLUE CompareVersions(const char16_t* aStrA, const char16_t* aStrB);
+int32_t NS_COM_GLUE
+CompareVersions(const char16_t *A, const char16_t *B);
 #endif
 
 struct NS_COM_GLUE Version
 {
-  Version(const char* aVersionString)
+  Version(const char* versionString)
   {
-    versionContent = strdup(aVersionString);
+    versionContent = strdup(versionString);
   }
 
   const char* ReadContent() const
@@ -64,42 +66,41 @@ struct NS_COM_GLUE Version
     free(versionContent);
   }
 
-  bool operator<(const Version& aRhs) const
+  bool operator< (const Version& rhs) const
   {
-    return CompareVersions(versionContent, aRhs.ReadContent()) == -1;
+    return CompareVersions(versionContent, rhs.ReadContent()) == -1;
   }
-  bool operator<=(const Version& aRhs) const
+  bool operator<= (const Version& rhs) const
   {
-    return CompareVersions(versionContent, aRhs.ReadContent()) < 1;
+    return CompareVersions(versionContent, rhs.ReadContent()) < 1;
   }
-  bool operator>(const Version& aRhs) const
+  bool operator> (const Version& rhs) const
   {
-    return CompareVersions(versionContent, aRhs.ReadContent()) == 1;
+    return CompareVersions(versionContent, rhs.ReadContent()) == 1;
   }
-  bool operator>=(const Version& aRhs) const
+  bool operator>= (const Version& rhs) const
   {
-    return CompareVersions(versionContent, aRhs.ReadContent()) > -1;
+    return CompareVersions(versionContent, rhs.ReadContent()) > -1;
   }
-  bool operator==(const Version& aRhs) const
+  bool operator== (const Version& rhs) const
   {
-    return CompareVersions(versionContent, aRhs.ReadContent()) == 0;
+    return CompareVersions(versionContent, rhs.ReadContent()) == 0;
   }
-  bool operator!=(const Version& aRhs) const
+  bool operator!= (const Version& rhs) const
   {
-    return CompareVersions(versionContent, aRhs.ReadContent()) != 0;
+    return CompareVersions(versionContent, rhs.ReadContent()) != 0;
   }
 
-private:
+ private:
   char* versionContent;
 };
 
 #ifdef XP_WIN
 struct NS_COM_GLUE VersionW
 {
-  VersionW(const char16_t* aVersionStringW)
+  VersionW(const char16_t *versionStringW)
   {
-    versionContentW =
-      reinterpret_cast<char16_t*>(wcsdup(char16ptr_t(aVersionStringW)));
+    versionContentW = reinterpret_cast<char16_t*>(wcsdup(char16ptr_t(versionStringW)));
   }
 
   const char16_t* ReadContentW() const
@@ -112,32 +113,32 @@ struct NS_COM_GLUE VersionW
     free(versionContentW);
   }
 
-  bool operator<(const VersionW& aRhs) const
+  bool operator< (const VersionW& rhs) const
   {
-    return CompareVersions(versionContentW, aRhs.ReadContentW()) == -1;
+    return CompareVersions(versionContentW, rhs.ReadContentW()) == -1;
   }
-  bool operator<=(const VersionW& aRhs) const
+  bool operator<= (const VersionW& rhs) const
   {
-    return CompareVersions(versionContentW, aRhs.ReadContentW()) < 1;
+    return CompareVersions(versionContentW, rhs.ReadContentW()) < 1;
   }
-  bool operator>(const VersionW& aRhs) const
+  bool operator> (const VersionW& rhs) const
   {
-    return CompareVersions(versionContentW, aRhs.ReadContentW()) == 1;
+    return CompareVersions(versionContentW, rhs.ReadContentW()) == 1;
   }
-  bool operator>=(const VersionW& aRhs) const
+  bool operator>= (const VersionW& rhs) const
   {
-    return CompareVersions(versionContentW, aRhs.ReadContentW()) > -1;
+    return CompareVersions(versionContentW, rhs.ReadContentW()) > -1;
   }
-  bool operator==(const VersionW& aRhs) const
+  bool operator== (const VersionW& rhs) const
   {
-    return CompareVersions(versionContentW, aRhs.ReadContentW()) == 0;
+    return CompareVersions(versionContentW, rhs.ReadContentW()) == 0;
   }
-  bool operator!=(const VersionW& aRhs) const
+  bool operator!= (const VersionW& rhs) const
   {
-    return CompareVersions(versionContentW, aRhs.ReadContentW()) != 0;
+    return CompareVersions(versionContentW, rhs.ReadContentW()) != 0;
   }
 
-private:
+ private:
   char16_t* versionContentW;
 };
 #endif

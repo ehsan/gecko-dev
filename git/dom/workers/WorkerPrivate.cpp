@@ -304,21 +304,23 @@ struct WorkerStructuredCloneCallbacks
     if (aTag == DOMWORKER_SCTAG_FILE) {
       MOZ_ASSERT(!aData);
 
-      DOMFileImpl* fileImpl;
-      if (JS_ReadBytes(aReader, &fileImpl, sizeof(fileImpl))) {
-        MOZ_ASSERT(fileImpl);
+      nsIDOMFile* file;
+      if (JS_ReadBytes(aReader, &file, sizeof(file))) {
+        MOZ_ASSERT(file);
 
 #ifdef DEBUG
         {
           // File should not be mutable.
+          nsCOMPtr<nsIMutable> mutableFile = do_QueryInterface(file);
           bool isMutable;
-          NS_ASSERTION(NS_SUCCEEDED(fileImpl->GetMutable(&isMutable)) &&
+          NS_ASSERTION(NS_SUCCEEDED(mutableFile->GetMutable(&isMutable)) &&
                        !isMutable,
                        "Only immutable file should be passed to worker");
         }
 #endif
 
-        nsRefPtr<DOMFile> file = new DOMFile(fileImpl);
+        // nsIDOMFiles should be threadsafe, thus we will use the same instance
+        // in the worker.
         JSObject* jsFile = file::CreateFile(aCx, file);
         return jsFile;
       }
@@ -327,21 +329,23 @@ struct WorkerStructuredCloneCallbacks
     else if (aTag == DOMWORKER_SCTAG_BLOB) {
       MOZ_ASSERT(!aData);
 
-      DOMFileImpl* blobImpl;
-      if (JS_ReadBytes(aReader, &blobImpl, sizeof(blobImpl))) {
-        MOZ_ASSERT(blobImpl);
+      nsIDOMBlob* blob;
+      if (JS_ReadBytes(aReader, &blob, sizeof(blob))) {
+        MOZ_ASSERT(blob);
 
 #ifdef DEBUG
         {
           // Blob should not be mutable.
+          nsCOMPtr<nsIMutable> mutableBlob = do_QueryInterface(blob);
           bool isMutable;
-          NS_ASSERTION(NS_SUCCEEDED(blobImpl->GetMutable(&isMutable)) &&
+          NS_ASSERTION(NS_SUCCEEDED(mutableBlob->GetMutable(&isMutable)) &&
                        !isMutable,
                        "Only immutable blob should be passed to worker");
         }
 #endif
 
-        nsRefPtr<DOMFile> blob = new DOMFile(blobImpl);
+        // nsIDOMBlob should be threadsafe, thus we will use the same instance
+        // in the worker.
         JSObject* jsBlob = file::CreateBlob(aCx, blob);
         return jsBlob;
       }
@@ -385,10 +389,9 @@ struct WorkerStructuredCloneCallbacks
     {
       nsIDOMFile* file = file::GetDOMFileFromJSObject(aObj);
       if (file) {
-        DOMFileImpl* fileImpl = static_cast<DOMFile*>(file)->Impl();
         if (JS_WriteUint32Pair(aWriter, DOMWORKER_SCTAG_FILE, 0) &&
-            JS_WriteBytes(aWriter, &fileImpl, sizeof(fileImpl))) {
-          clonedObjects->AppendElement(fileImpl);
+            JS_WriteBytes(aWriter, &file, sizeof(file))) {
+          clonedObjects->AppendElement(file);
           return true;
         }
       }
@@ -398,11 +401,11 @@ struct WorkerStructuredCloneCallbacks
     {
       nsIDOMBlob* blob = file::GetDOMBlobFromJSObject(aObj);
       if (blob) {
-        DOMFileImpl* blobImpl = static_cast<DOMFile*>(blob)->Impl();
-        if (blobImpl && NS_SUCCEEDED(blobImpl->SetMutable(false)) &&
+        nsCOMPtr<nsIMutable> mutableBlob = do_QueryInterface(blob);
+        if (mutableBlob && NS_SUCCEEDED(mutableBlob->SetMutable(false)) &&
             JS_WriteUint32Pair(aWriter, DOMWORKER_SCTAG_BLOB, 0) &&
-            JS_WriteBytes(aWriter, &blobImpl, sizeof(blobImpl))) {
-          clonedObjects->AppendElement(blobImpl);
+            JS_WriteBytes(aWriter, &blob, sizeof(blob))) {
+          clonedObjects->AppendElement(blob);
           return true;
         }
       }
@@ -458,21 +461,20 @@ struct MainThreadWorkerStructuredCloneCallbacks
     if (aTag == DOMWORKER_SCTAG_FILE) {
       MOZ_ASSERT(!aData);
 
-      DOMFileImpl* fileImpl;
-      if (JS_ReadBytes(aReader, &fileImpl, sizeof(fileImpl))) {
-        MOZ_ASSERT(fileImpl);
+      nsIDOMFile* file;
+      if (JS_ReadBytes(aReader, &file, sizeof(file))) {
+        MOZ_ASSERT(file);
 
 #ifdef DEBUG
         {
           // File should not be mutable.
+          nsCOMPtr<nsIMutable> mutableFile = do_QueryInterface(file);
           bool isMutable;
-          NS_ASSERTION(NS_SUCCEEDED(fileImpl->GetMutable(&isMutable)) &&
+          NS_ASSERTION(NS_SUCCEEDED(mutableFile->GetMutable(&isMutable)) &&
                        !isMutable,
                        "Only immutable file should be passed to worker");
         }
 #endif
-
-        nsCOMPtr<nsIDOMFile> file = new DOMFile(fileImpl);
 
         // nsIDOMFiles should be threadsafe, thus we will use the same instance
         // on the main thread.
@@ -492,21 +494,20 @@ struct MainThreadWorkerStructuredCloneCallbacks
     else if (aTag == DOMWORKER_SCTAG_BLOB) {
       MOZ_ASSERT(!aData);
 
-      DOMFileImpl* blobImpl;
-      if (JS_ReadBytes(aReader, &blobImpl, sizeof(blobImpl))) {
-        MOZ_ASSERT(blobImpl);
+      nsIDOMBlob* blob;
+      if (JS_ReadBytes(aReader, &blob, sizeof(blob))) {
+        MOZ_ASSERT(blob);
 
 #ifdef DEBUG
         {
           // Blob should not be mutable.
+          nsCOMPtr<nsIMutable> mutableBlob = do_QueryInterface(blob);
           bool isMutable;
-          NS_ASSERTION(NS_SUCCEEDED(blobImpl->GetMutable(&isMutable)) &&
+          NS_ASSERTION(NS_SUCCEEDED(mutableBlob->GetMutable(&isMutable)) &&
                        !isMutable,
                        "Only immutable blob should be passed to worker");
         }
 #endif
-
-        nsCOMPtr<nsIDOMBlob> blob = new DOMFile(blobImpl);
 
         // nsIDOMBlobs should be threadsafe, thus we will use the same instance
         // on the main thread.
@@ -549,40 +550,36 @@ struct MainThreadWorkerStructuredCloneCallbacks
       nsISupports* wrappedObject = wrappedNative->Native();
       NS_ASSERTION(wrappedObject, "Null pointer?!");
 
-      // See if the wrapped native is a nsIDOMFile.
-      nsCOMPtr<nsIDOMFile> file = do_QueryInterface(wrappedObject);
-      if (file) {
-        nsRefPtr<DOMFileImpl> fileImpl =
-          static_cast<DOMFile*>(file.get())->Impl();
-
-        if (fileImpl->IsCCed()) {
-          NS_WARNING("Cycle collected file objects are not supported!");
-        } else {
-          if (NS_SUCCEEDED(fileImpl->SetMutable(false))) {
-            DOMFileImpl* fileImplPtr = fileImpl;
+      nsISupports* ccISupports = nullptr;
+      wrappedObject->QueryInterface(NS_GET_IID(nsCycleCollectionISupports),
+                                    reinterpret_cast<void**>(&ccISupports));
+      if (ccISupports) {
+        NS_WARNING("Cycle collected objects are not supported!");
+      }
+      else {
+        // See if the wrapped native is a nsIDOMFile.
+        nsCOMPtr<nsIDOMFile> file = do_QueryInterface(wrappedObject);
+        if (file) {
+          nsCOMPtr<nsIMutable> mutableFile = do_QueryInterface(file);
+          if (mutableFile && NS_SUCCEEDED(mutableFile->SetMutable(false))) {
+            nsIDOMFile* filePtr = file;
             if (JS_WriteUint32Pair(aWriter, DOMWORKER_SCTAG_FILE, 0) &&
-                JS_WriteBytes(aWriter, &fileImplPtr, sizeof(fileImplPtr))) {
-              clonedObjects->AppendElement(fileImpl);
+                JS_WriteBytes(aWriter, &filePtr, sizeof(filePtr))) {
+              clonedObjects->AppendElement(file);
               return true;
             }
           }
         }
-      }
 
-      // See if the wrapped native is a nsIDOMBlob.
-      nsCOMPtr<nsIDOMBlob> blob = do_QueryInterface(wrappedObject);
-      if (blob) {
-        nsRefPtr<DOMFileImpl> blobImpl =
-          static_cast<DOMFile*>(blob.get())->Impl();
-
-        if (blobImpl->IsCCed()) {
-          NS_WARNING("Cycle collected blob objects are not supported!");
-        } else {
-          if (NS_SUCCEEDED(blobImpl->SetMutable(false))) {
-            DOMFileImpl* blobImplPtr = blobImpl;
+        // See if the wrapped native is a nsIDOMBlob.
+        nsCOMPtr<nsIDOMBlob> blob = do_QueryInterface(wrappedObject);
+        if (blob) {
+          nsCOMPtr<nsIMutable> mutableBlob = do_QueryInterface(blob);
+          if (mutableBlob && NS_SUCCEEDED(mutableBlob->SetMutable(false))) {
+            nsIDOMBlob* blobPtr = blob;
             if (JS_WriteUint32Pair(aWriter, DOMWORKER_SCTAG_BLOB, 0) &&
-                JS_WriteBytes(aWriter, &blobImplPtr, sizeof(blobImplPtr))) {
-              clonedObjects->AppendElement(blobImpl);
+                JS_WriteBytes(aWriter, &blobPtr, sizeof(blobPtr))) {
+              clonedObjects->AppendElement(blob);
               return true;
             }
           }

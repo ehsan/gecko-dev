@@ -13,8 +13,7 @@
 nsTArrayHeader nsTArrayHeader::sEmptyHdr = { 0, 0, 0 };
 
 bool
-IsTwiceTheRequiredBytesRepresentableAsUint32(size_t aCapacity, size_t aElemSize)
-{
+IsTwiceTheRequiredBytesRepresentableAsUint32(size_t capacity, size_t elemSize) {
   using mozilla::CheckedUint32;
-  return ((CheckedUint32(aCapacity) * aElemSize) * 2).isValid();
+  return ((CheckedUint32(capacity) * elemSize) * 2).isValid();
 }

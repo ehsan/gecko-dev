@@ -941,6 +941,14 @@ MBasicBlock::assertUsesAreNotWithin(MUseIterator use, MUseIterator end)
 #endif
 }
 
+bool
+MBasicBlock::dominates(const MBasicBlock *other) const
+{
+    uint32_t high = domIndex() + numDominated();
+    uint32_t low  = domIndex();
+    return other->domIndex() >= low && other->domIndex() < high;
+}
+
 AbortReason
 MBasicBlock::setBackedge(MBasicBlock *pred)
 {
