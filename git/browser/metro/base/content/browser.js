@@ -453,7 +453,7 @@ var Browser = {
 
   closeTab: function closeTab(aTab, aOptions) {
     let tab = aTab instanceof XULElement ? this.getTabFromChrome(aTab) : aTab;
-    if (!tab || !this.getNextTab(tab))
+    if (!tab || !this._getNextTab(tab))
       return;
 
     if (aOptions && "forceClose" in aOptions && aOptions.forceClose) {
@@ -469,7 +469,7 @@ var Browser = {
   },
 
   _doCloseTab: function _doCloseTab(aTab) {
-    let nextTab = this.getNextTab(aTab);
+    let nextTab = this._getNextTab(aTab);
     if (!nextTab)
        return;
 
@@ -495,28 +495,14 @@ var Browser = {
     container.dispatchEvent(event);
   },
 
-  getNextTab: function getNextTab(aTab) {
+  _getNextTab: function _getNextTab(aTab) {
     let tabIndex = this._tabs.indexOf(aTab);
     if (tabIndex == -1)
       return null;
 
-    if (this._selectedTab == aTab || this._selectedTab.chromeTab.hasAttribute("closing")) {
-      let nextTabIndex = tabIndex + 1;
-      let nextTab = null;
-
-      while (nextTabIndex < this._tabs.length && (!nextTab || nextTab.chromeTab.hasAttribute("closing"))) {
-        nextTab = this.getTabAtIndex(nextTabIndex);
-        nextTabIndex++;
-      }
-
-      nextTabIndex = tabIndex - 1;
-      while (nextTabIndex >= 0 && (!nextTab || nextTab.chromeTab.hasAttribute("closing"))) {
-        nextTab = this.getTabAtIndex(nextTabIndex);
-        nextTabIndex--;
-      }
-
-      if (!nextTab || nextTab.chromeTab.hasAttribute("closing"))
-        return null;
+    let nextTab = this._selectedTab;
+    if (nextTab == aTab) {
+      nextTab = this.getTabAtIndex(tabIndex + 1) || this.getTabAtIndex(tabIndex - 1);
 
       // If the next tab is not a sibling, switch back to the parent.
       if (aTab.owner && nextTab.owner != aTab.owner)
@@ -524,11 +510,9 @@ var Browser = {
 
       if (!nextTab)
         return null;
-
-      return nextTab;
     }
 
-    return this._selectedTab;
+    return nextTab;
   },
 
   get selectedTab() {
@@ -551,6 +535,7 @@ var Browser = {
 
     let isFirstTab = this._selectedTab == null;
     let lastTab = this._selectedTab;
+    let oldBrowser = lastTab ? lastTab._browser : null;
     let browser = tab.browser;
 
     this._selectedTab = tab;

@@ -175,7 +175,9 @@ gTests.push({
     ok(ContextMenuUI._menuPopup._visible, "is visible");
 
     checkContextUIMenuItemVisibility(["context-cut",
-                                      "context-copy"]);
+                                      "context-copy",
+                                      "context-select",
+                                      "context-select-all"]);
 
     let menuItem = document.getElementById("context-copy");
     let popupPromise = waitForEvent(document, "popuphidden");
@@ -228,9 +230,7 @@ gTests.push({
     // selected text context:
     checkContextUIMenuItemVisibility(["context-cut",
                                       "context-copy",
-                                      "context-paste",
-                                      "context-select",
-                                      "context-select-all"]);
+                                      "context-paste"]);
 
     promise = waitForEvent(document, "popuphidden");
     ContextMenuUI.hide();
@@ -254,7 +254,9 @@ gTests.push({
     ok(ContextMenuUI._menuPopup._visible, "is visible");
 
     checkContextUIMenuItemVisibility(["context-cut",
-                                      "context-copy"]);
+                                      "context-copy",
+                                      "context-select",
+                                      "context-select-all"]);
 
     let menuItem = document.getElementById("context-cut");
     let popupPromise = waitForEvent(document, "popuphidden");

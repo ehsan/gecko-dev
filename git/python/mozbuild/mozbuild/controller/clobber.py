@@ -9,7 +9,10 @@ r'''This module contains code for managing clobbering of the tree.'''
 import os
 import sys
 
-from mozfile.mozfile import rmtree
+try:
+    from mozfile.mozfile import rmtree
+except ImportError:
+    from shutil import rmtree
 
 
 CLOBBER_MESSAGE = '''

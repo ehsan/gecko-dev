@@ -217,11 +217,7 @@ class RecursiveMakeBackend(BuildBackend):
             bf = self._backend_files[srcdir]
 
             if not os.path.exists(bf.objdir):
-                try:
-                    os.makedirs(bf.objdir)
-                except OSError as error:
-                    if error.errno != errno.EEXIST:
-                        raise
+                os.makedirs(bf.objdir)
 
             makefile_in = os.path.join(srcdir, 'Makefile.in')
             makefile = os.path.join(bf.objdir, 'Makefile')

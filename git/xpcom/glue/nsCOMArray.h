@@ -153,8 +153,10 @@ public:
 
     // Ensures there is enough space to store a total of aCapacity objects.
     // This method never deletes any objects.
-    void SetCapacity(uint32_t aCapacity) {
+    bool SetCapacity(uint32_t aCapacity) {
         mArray.SetCapacity(aCapacity);
+        // TODO: Make this method return void
+        return true;
     }
     uint32_t Capacity() {
         return mArray.Capacity();

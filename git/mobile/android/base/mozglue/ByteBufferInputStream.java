@@ -5,6 +5,8 @@
 
 package org.mozilla.gecko.mozglue;
 
+import org.mozilla.gecko.mozglue.NativeReference;
+
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 

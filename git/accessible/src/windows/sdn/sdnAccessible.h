@@ -18,12 +18,7 @@ namespace a11y {
 class sdnAccessible MOZ_FINAL : public ISimpleDOMNode
 {
 public:
-  sdnAccessible(nsINode* aNode) :
-    mNode(aNode)
-  {
-    if (!mNode)
-      MOZ_CRASH();
-  }
+  sdnAccessible(nsINode* aNode) : mNode(aNode) { }
   ~sdnAccessible() { }
 
   /**

@@ -2381,7 +2381,7 @@ this.DOMApplicationRegistry = {
                 // Apps with installState 'pending' does not produce any
                 // notification, so we are safe with its current
                 // downladAvailable state.
-                if (app.installState !== "pending") {
+                if (app.installState === "installed") {
                   app.downloadAvailable = false;
                 }
                 if (typeof e == 'object') {

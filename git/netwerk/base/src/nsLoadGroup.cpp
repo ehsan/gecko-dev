@@ -707,7 +707,9 @@ NS_IMETHODIMP
 nsLoadGroup::GetRequests(nsISimpleEnumerator * *aRequests)
 {
     nsCOMArray<nsIRequest> requests;
-    requests.SetCapacity(mRequests.entryCount);
+    if (!requests.SetCapacity(mRequests.entryCount)) {
+        return NS_ERROR_OUT_OF_MEMORY;
+    }
 
     PL_DHashTableEnumerate(&mRequests, AppendRequestsToCOMArray, &requests);
 

@@ -53,7 +53,9 @@
 #include "gfxPlatform.h"
 #include "nsClientRect.h"
 #include <algorithm>
+#ifdef MOZ_MEDIA
 #include "mozilla/dom/HTMLVideoElement.h"
+#endif
 #include "mozilla/dom/HTMLImageElement.h"
 #include "imgIRequest.h"
 #include "nsIImageLoadingContent.h"
@@ -4742,11 +4744,13 @@ nsLayoutUtils::SurfaceFromElement(dom::Element* aElement,
     return SurfaceFromElement(canvas, aSurfaceFlags);
   }
 
+#ifdef MOZ_MEDIA
   // Maybe it's <video>?
   if (HTMLVideoElement* video =
         HTMLVideoElement::FromContentOrNull(aElement)) {
     return SurfaceFromElement(video, aSurfaceFlags);
   }
+#endif
 
   // Finally, check if it's a normal image
   nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(aElement);

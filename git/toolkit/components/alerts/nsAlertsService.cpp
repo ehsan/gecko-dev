@@ -95,9 +95,10 @@ NS_IMETHODIMP nsAlertsService::ShowAlertNotification(const nsAString & aImageUrl
   nsCOMPtr<nsIAlertsService> sysAlerts(do_GetService(NS_SYSTEMALERTSERVICE_CONTRACTID));
   nsresult rv;
   if (sysAlerts) {
-    return sysAlerts->ShowAlertNotification(aImageUrl, aAlertTitle, aAlertText, aAlertTextClickable,
-                                            aAlertCookie, aAlertListener, aAlertName,
-                                            aBidi, aLang);
+    rv = sysAlerts->ShowAlertNotification(aImageUrl, aAlertTitle, aAlertText, aAlertTextClickable,
+                                          aAlertCookie, aAlertListener, aAlertName,
+                                          aBidi, aLang);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   if (!ShouldShowAlert()) {
@@ -131,7 +132,8 @@ NS_IMETHODIMP nsAlertsService::CloseAlert(const nsAString& aAlertName)
   // Try the system notification service.
   nsCOMPtr<nsIAlertsService> sysAlerts(do_GetService(NS_SYSTEMALERTSERVICE_CONTRACTID));
   if (sysAlerts) {
-    return sysAlerts->CloseAlert(aAlertName);
+    nsresult rv = sysAlerts->CloseAlert(aAlertName);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   return mXULAlerts.CloseAlert(aAlertName);

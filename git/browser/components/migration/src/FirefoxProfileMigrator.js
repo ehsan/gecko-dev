@@ -77,10 +77,9 @@ FirefoxProfileMigrator.prototype.getResources = function() {
   let formData = getFileResource(types.FORMDATA, ["formhistory.sqlite"]);
   let bookmarksBackups = getFileResource(types.OTHERDATA,
     [PlacesUtils.backups.profileRelativeFolderPath]);
-  let dictionary = getFileResource(types.OTHERDATA, ["persdict.dat"]);
 
   return [r for each (r in [places, cookies, passwords, formData,
-                            dictionary, bookmarksBackups]) if (r)];
+                            bookmarksBackups]) if (r)];
 }
 
 Object.defineProperty(FirefoxProfileMigrator.prototype, "startupOnlyMigrator", {

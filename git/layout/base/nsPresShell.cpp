@@ -115,7 +115,9 @@
 #include "nsStyleSheetService.h"
 #include "gfxImageSurface.h"
 #include "gfxContext.h"
+#ifdef MOZ_MEDIA
 #include "mozilla/dom/HTMLMediaElement.h"
+#endif
 #include "nsSMILAnimationController.h"
 #include "SVGContentUtils.h"
 #include "nsSVGUtils.h"
@@ -684,6 +686,20 @@ nsIPresShell::FrameSelection()
 
 //----------------------------------------------------------------------
 
+nsresult
+NS_NewPresShell(nsIPresShell** aInstancePtrResult)
+{
+  NS_PRECONDITION(nullptr != aInstancePtrResult, "null ptr");
+
+  if (!aInstancePtrResult)
+    return NS_ERROR_NULL_POINTER;
+
+  *aInstancePtrResult = new PresShell();
+
+  NS_ADDREF(*aInstancePtrResult);
+  return NS_OK;
+}
+
 static bool sSynthMouseMove = true;
 
 PresShell::PresShell()
@@ -779,6 +795,7 @@ PresShell::Init(nsIDocument* aDocument,
   NS_PRECONDITION(nullptr != aDocument, "null ptr");
   NS_PRECONDITION(nullptr != aPresContext, "null ptr");
   NS_PRECONDITION(nullptr != aViewManager, "null ptr");
+  nsresult result;
 
   if ((nullptr == aDocument) || (nullptr == aPresContext) ||
       (nullptr == aViewManager)) {
@@ -796,7 +813,7 @@ PresShell::Init(nsIDocument* aDocument,
   mViewManager = aViewManager;
 
   // Create our frame constructor.
-  mFrameConstructor = new nsCSSFrameConstructor(mDocument, this, aStyleSet);
+  mFrameConstructor = new nsCSSFrameConstructor(mDocument, this);
 
   mFrameManager = mFrameConstructor;
 
@@ -809,7 +826,8 @@ PresShell::Init(nsIDocument* aDocument,
   aPresContext->SetShell(this);
 
   // Now we can initialize the style set.
-  aStyleSet->Init(aPresContext);
+  result = aStyleSet->Init(aPresContext);
+  NS_ENSURE_SUCCESS(result, result);
 
   // From this point on, any time we return an error we need to make
   // sure to null out mStyleSet first, since an error return from this
@@ -827,6 +845,17 @@ PresShell::Init(nsIDocument* aDocument,
   SetPreferenceStyleRules(false);
 
   NS_ADDREF(mSelection = new nsFrameSelection());
+
+  // Create and initialize the frame manager
+  // XXXjwatt it would be better if we did this right after creating
+  // mFrameConstructor, since the frame constructor and frame manager
+  // are now the same object.
+  result =  mFrameConstructor->Init(mStyleSet);
+  if (NS_FAILED(result)) {
+    NS_WARNING("Frame manager initialization failed");
+    mStyleSet = nullptr;
+    return result;
+  }
 
   mSelection->Init(this, nullptr);
 

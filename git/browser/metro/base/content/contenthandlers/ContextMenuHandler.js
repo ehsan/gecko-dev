@@ -291,13 +291,12 @@ var ContextMenuHandler = {
 
           // Don't include "copy" for password fields.
           if (!(elem instanceof Ci.nsIDOMHTMLInputElement) || elem.mozIsTextField(true)) {
-            // If there is a selection add cut and copy
             if (selectionStart != selectionEnd) {
               state.types.push("cut");
               state.types.push("copy");
               state.string = elem.value.slice(selectionStart, selectionEnd);
-            } else if (elem.value && elem.textLength) {
-              // There is text and it is not selected so add selectable items
+            }
+            if (elem.value && (selectionStart > 0 || selectionEnd < elem.textLength)) {
               state.types.push("selectable");
               state.string = elem.value;
             }

@@ -32,8 +32,10 @@ EXTRA_PP_JS_MODULES = \
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
 EXTRA_JS_MODULES += \
-	WindowsJumpLists.jsm \
 	WindowsPreviewPerTab.jsm \
+	$(NULL)
+EXTRA_PP_JS_MODULES += \
+	WindowsJumpLists.jsm \
 	$(NULL)
 endif
 

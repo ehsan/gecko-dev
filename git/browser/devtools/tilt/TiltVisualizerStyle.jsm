@@ -18,7 +18,7 @@ let rgba = TiltMath.hex2rgba;
 this.TiltVisualizerStyle = {
 
   canvas: {
-    background: "linear-gradient(#454545 0%, #000 100%)",
+    background: "-moz-linear-gradient(top, #454545 0%, #000 100%)",
   },
 
   nodes: {

@@ -643,9 +643,6 @@ protected:
     nsIChannel* GetCurrentDocChannel();
 
     bool ShouldBlockLoadingForBackButton();
-
-    // Convenience method for getting our parent docshell.  Can return null
-    already_AddRefed<nsDocShell> GetParentDocshell();
 protected:
     // Override the parent setter from nsDocLoader
     virtual nsresult SetDocLoaderParent(nsDocLoader * aLoader);

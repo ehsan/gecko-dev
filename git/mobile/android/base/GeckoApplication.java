@@ -4,13 +4,12 @@
 
 package org.mozilla.gecko;
 
+import android.app.Application;
 import org.mozilla.gecko.db.BrowserContract;
 import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.mozglue.GeckoLoader;
 import org.mozilla.gecko.util.HardwareUtils;
 import org.mozilla.gecko.util.ThreadUtils;
-
-import android.app.Application;
 
 public class GeckoApplication extends Application {
 

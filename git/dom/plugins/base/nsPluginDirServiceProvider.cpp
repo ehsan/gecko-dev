@@ -375,9 +375,7 @@ nsPluginDirServiceProvider::GetPLIDDirectoriesWithRootKey(uint32_t aKey, nsCOMAr
   nsresult rv = regKey->Open(aKey,
                              NS_LITERAL_STRING("Software\\MozillaPlugins"),
                              nsIWindowsRegKey::ACCESS_READ);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
+  NS_ENSURE_SUCCESS(rv, rv);
 
   uint32_t childCount = 0;
   regKey->GetChildCount(&childCount);

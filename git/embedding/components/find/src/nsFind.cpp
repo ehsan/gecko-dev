@@ -7,6 +7,7 @@
 
 #include "nsFind.h"
 #include "nsContentCID.h"
+#include "nsIEnumerator.h"
 #include "nsIDOMNode.h"
 #include "nsIDOMNodeList.h"
 #include "nsISelection.h"

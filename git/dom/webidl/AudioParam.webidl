@@ -14,6 +14,9 @@
 interface AudioParam {
 
     attribute float value;
+    // readonly attribute float computedValue;
+    readonly attribute float minValue;
+    readonly attribute float maxValue;
     readonly attribute float defaultValue;
 
     // Parameter automation. 

@@ -206,19 +206,7 @@ struct Runtime
     /* Restrict zone access during Minor GC. */
     bool needsBarrier_;
 
-#ifdef JSGC_GENERATIONAL
-    /* Allow inlining of Nursery::isInside. */
-    uintptr_t gcNurseryStart_;
-    uintptr_t gcNurseryEnd_;
-#endif
-
-    Runtime()
-      : needsBarrier_(false)
-#ifdef JSGC_GENERATIONAL
-      , gcNurseryStart_(0)
-      , gcNurseryEnd_(0)
-#endif
-    {}
+    Runtime() : needsBarrier_(false) {}
 };
 
 } /* namespace shadow */

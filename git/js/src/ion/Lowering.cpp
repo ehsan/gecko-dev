@@ -875,12 +875,14 @@ LIRGenerator::visitTypeOf(MTypeOf *ins)
 bool
 LIRGenerator::visitToId(MToId *ins)
 {
-    LToIdV *lir = new LToIdV(tempFloat());
-    if (!useBox(lir, LToIdV::Object, ins->lhs()))
+    LToIdV *lir = new LToIdV();
+    if (!useBoxAtStart(lir, LToIdV::Object, ins->lhs()))
         return false;
-    if (!useBox(lir, LToIdV::Index, ins->rhs()))
+    if (!useBoxAtStart(lir, LToIdV::Index, ins->rhs()))
         return false;
-    return defineBox(lir, ins) && assignSafepoint(lir, ins);
+    if (!defineReturn(lir, ins))
+        return false;
+    return assignSafepoint(lir, ins);
 }
 
 bool

@@ -5,6 +5,7 @@
 
 
 #include "nsIAppShellService.h"
+#include "nsISupportsArray.h"
 #include "nsIComponentManager.h"
 #include "nsIURL.h"
 #include "nsNetUtil.h"
@@ -21,8 +22,9 @@
 #include "nsPIDOMWindow.h"
 #include "nsWebShellWindow.h"
 
+#include "nsIEnumerator.h"
 #include "nsCRT.h"
-#include "prprf.h"
+#include "prprf.h"    
 
 #include "nsWidgetsCID.h"
 #include "nsIRequestObserver.h"

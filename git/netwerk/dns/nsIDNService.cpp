@@ -752,10 +752,7 @@ bool nsIDNService::isLabelSafe(const nsAString &label)
   int32_t lastScript = MOZ_SCRIPT_INVALID;
   uint32_t previousChar = 0;
   uint32_t savedNumberingSystem = 0;
-// Simplified/Traditional Chinese check temporarily disabled -- bug 857481
-#if 0
   HanVariantType savedHanVariant = HVT_NotHan;
-#endif
 
   int32_t savedScript = -1;
 
@@ -767,21 +764,17 @@ bool nsIDNService::isLabelSafe(const nsAString &label)
       ch = SURROGATE_TO_UCS4(ch, *current++);
     }
 
+    // Check for restricted characters; aspirational scripts are permitted
+    XidmodType xm = GetIdentifierModification(ch);
     int32_t script = GetScriptCode(ch);
-
-    // Special case U+30FB KATAKANA MIDDLE DOT, see bug 857490
-    if (ch != 0x30fb) {
-      // Check for restricted characters; aspirational scripts are permitted
-      XidmodType xm = GetIdentifierModification(ch);
-      if (xm > XIDMOD_RECOMMENDED &&
-          !(xm == XIDMOD_LIMITED_USE &&
-            (script == MOZ_SCRIPT_CANADIAN_ABORIGINAL ||
-             script == MOZ_SCRIPT_MIAO ||
-             script == MOZ_SCRIPT_MONGOLIAN ||
-             script == MOZ_SCRIPT_TIFINAGH ||
-             script == MOZ_SCRIPT_YI))) {
-        return false;
-      }
+    if (xm > XIDMOD_RECOMMENDED &&
+        !(xm == XIDMOD_LIMITED_USE &&
+          (script == MOZ_SCRIPT_CANADIAN_ABORIGINAL ||
+           script == MOZ_SCRIPT_MIAO ||
+           script == MOZ_SCRIPT_MONGOLIAN ||
+           script == MOZ_SCRIPT_TIFINAGH ||
+           script == MOZ_SCRIPT_YI))) {
+      return false;
     }
 
     // Check for mixed script
@@ -814,9 +807,6 @@ bool nsIDNService::isLabelSafe(const nsAString &label)
       return false;
     }
 
-    // Simplified/Traditional Chinese check temporarily disabled -- bug 857481
-#if 0
-
     // Check for both simplified-only and traditional-only Chinese characters
     HanVariantType hanVariant = GetHanVariant(ch);
     if (hanVariant == HVT_SimplifiedOnly || hanVariant == HVT_TraditionalOnly) {
@@ -826,7 +816,6 @@ bool nsIDNService::isLabelSafe(const nsAString &label)
         return false;
       }
     }
-#endif
 
     previousChar = ch;
   }
