@@ -27,6 +27,7 @@ function run_test()
   MonitorClient.prototype.destroy = function () {
     client.unregisterClient(this);
   }
+  MonitorClient.prototype.detach = function () {}
   MonitorClient.prototype.start = function (callback) {
     this.client.request({
       to: this.actor,

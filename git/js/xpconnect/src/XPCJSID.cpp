@@ -21,12 +21,10 @@ using namespace JS;
 NS_IMPL_CLASSINFO(nsJSID, nullptr, 0, NS_JS_ID_CID)
 NS_IMPL_ISUPPORTS_CI(nsJSID, nsIJSID)
 
-const char nsJSID::gNoString[] = "";
+char nsJSID::gNoString[] = "";
 
 nsJSID::nsJSID()
-    : mID(GetInvalidIID()),
-      mNumber(const_cast<char *>(gNoString)),
-      mName(const_cast<char *>(gNoString))
+    : mID(GetInvalidIID()), mNumber(gNoString), mName(gNoString)
 {
 }
 
@@ -80,7 +78,7 @@ nsJSID::GetNumber(char * *aNumber)
 
     if (!mNumber) {
         if (!(mNumber = mID.ToString()))
-            mNumber = const_cast<char *>(gNoString);
+            mNumber = gNoString;
     }
 
     *aNumber = NS_strdup(mNumber);

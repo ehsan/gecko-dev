@@ -243,7 +243,7 @@ Http2BaseCompressor::DumpState()
 
 nsresult
 Http2Decompressor::DecodeHeaderBlock(const uint8_t *data, uint32_t datalen,
-                                     nsACString &output, bool isPush)
+                                     nsACString &output)
 {
   mOffset = 0;
   mData = data;
@@ -256,7 +256,6 @@ Http2Decompressor::DecodeHeaderBlock(const uint8_t *data, uint32_t datalen,
   mHeaderPath.Truncate();
   mHeaderMethod.Truncate();
   mSeenNonColonHeader = false;
-  mIsPush = isPush;
 
   nsresult rv = NS_OK;
   while (NS_SUCCEEDED(rv) && (mOffset < datalen)) {
@@ -337,19 +336,18 @@ nsresult
 Http2Decompressor::OutputHeader(const nsACString &name, const nsACString &value)
 {
     // exclusions
-  if (!mIsPush &&
-      (name.EqualsLiteral("connection") ||
-       name.EqualsLiteral("host") ||
-       name.EqualsLiteral("keep-alive") ||
-       name.EqualsLiteral("proxy-connection") ||
-       name.EqualsLiteral("te") ||
-       name.EqualsLiteral("transfer-encoding") ||
-       name.EqualsLiteral("upgrade") ||
-       name.Equals(("accept-encoding")))) {
+  if (name.EqualsLiteral("connection") ||
+      name.EqualsLiteral("host") ||
+      name.EqualsLiteral("keep-alive") ||
+      name.EqualsLiteral("proxy-connection") ||
+      name.EqualsLiteral("te") ||
+      name.EqualsLiteral("transfer-encoding") ||
+      name.EqualsLiteral("upgrade") ||
+      name.Equals(("accept-encoding"))) {
     nsCString toLog(name);
-    LOG(("HTTP Decompressor illegal response header found, not gatewaying: %s",
+    LOG(("HTTP Decompressor illegal response header found : %s",
          toLog.get()));
-    return NS_OK;
+    return NS_ERROR_ILLEGAL_VALUE;
   }
 
   // Look for upper case characters in the name.

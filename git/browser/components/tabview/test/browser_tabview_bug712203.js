@@ -9,13 +9,13 @@ function test() {
   let newState = {
     windows: [{
       tabs: [{
-        entries: [{ url: "about:mozilla" }],
+        entries: [{ url: "http://www.google.com" }],
         hidden: true,
         attributes: {},
         extData: {
           "tabview-tab":
             '{"bounds":{"left":21,"top":29,"width":204,"height":153},' +
-            '"userSize":null,"url":"about:mozilla","groupID":1,' +
+            '"userSize":null,"url":"http://www.google.com","groupID":1,' +
             '"imageData":null,"title":null}'
         }
       },{
