@@ -18,6 +18,7 @@
 const {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
 
 Cu.import("resource://gre/modules/DOMRequestHelper.jsm");
+Cu.import("resource://gre/modules/ObjectWrapper.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
@@ -1767,7 +1768,8 @@ RILContentHelper.prototype = {
       return contact;
     });
 
-    this.fireRequestSuccess(message.requestId, result);
+    this.fireRequestSuccess(message.requestId,
+                            ObjectWrapper.wrap(result, window));
   },
 
   handleVoicemailNotification: function handleVoicemailNotification(message) {

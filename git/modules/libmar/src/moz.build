@@ -26,4 +26,3 @@ SOURCES += [
     'mar_read.c',
 ]
 
-FORCE_STATIC_LIB = True

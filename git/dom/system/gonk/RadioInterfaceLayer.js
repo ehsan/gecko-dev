@@ -3237,10 +3237,8 @@ RILNetworkInterface.prototype = {
   classInfo: XPCOMUtils.generateCI({classID: RILNETWORKINTERFACE_CID,
                                     classDescription: "RILNetworkInterface",
                                     interfaces: [Ci.nsINetworkInterface,
-                                                 Ci.nsIRilNetworkInterface,
                                                  Ci.nsIRILDataCallback]}),
   QueryInterface: XPCOMUtils.generateQI([Ci.nsINetworkInterface,
-                                         Ci.nsIRilNetworkInterface,
                                          Ci.nsIRILDataCallback]),
 
   // nsINetworkInterface
@@ -3304,15 +3302,6 @@ RILNetworkInterface.prototype = {
 
   get httpProxyPort() {
     return this.apnSetting.port || '';
-  },
-
-  get serviceId() {
-    return this.radioInterface.clientId;
-  },
-
-  get iccId() {
-    let iccInfo = this.radioInterface.rilContext.iccInfo;
-    return iccInfo && iccInfo.iccid;
   },
 
   debug: function debug(s) {

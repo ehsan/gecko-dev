@@ -26,5 +26,3 @@ SOURCES += [
 
 LIBRARY_NAME = 'breakpad_mac_common_s'
 
-# need static lib
-FORCE_STATIC_LIB = True

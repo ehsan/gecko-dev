@@ -266,7 +266,7 @@ IonBuilder::canEnterInlinedFunction(JSFunction *target)
 }
 
 bool
-IonBuilder::canInlineTarget(JSFunction *target, CallInfo &callInfo)
+IonBuilder::canInlineTarget(JSFunction *target, bool constructing)
 {
     if (!target->isInterpreted()) {
         IonSpew(IonSpew_Inlining, "Cannot inline due to non-interpreted");
@@ -297,7 +297,7 @@ IonBuilder::canInlineTarget(JSFunction *target, CallInfo &callInfo)
         return false;
     }
 
-    if (callInfo.constructing() && !target->isInterpretedConstructor()) {
+    if (constructing && !target->isInterpretedConstructor()) {
         IonSpew(IonSpew_Inlining, "Cannot inline because callee is not a constructor");
         return false;
     }
@@ -313,18 +313,6 @@ IonBuilder::canInlineTarget(JSFunction *target, CallInfo &callInfo)
     // Don't inline functions which don't have baseline scripts.
     if (!inlineScript->hasBaselineScript()) {
         IonSpew(IonSpew_Inlining, "%s:%d Cannot inline target with no baseline jitcode",
-                                  inlineScript->filename(), inlineScript->lineno);
-        return false;
-    }
-
-    if (TooManyArguments(target->nargs)) {
-        IonSpew(IonSpew_Inlining, "%s:%d Cannot inline too many args",
-                                  inlineScript->filename(), inlineScript->lineno);
-        return false;
-    }
-
-    if (TooManyArguments(callInfo.argc())) {
-        IonSpew(IonSpew_Inlining, "%s:%d Cannot inline too many args",
                                   inlineScript->filename(), inlineScript->lineno);
         return false;
     }
@@ -3959,7 +3947,7 @@ IonBuilder::makeInliningDecision(JSFunction *target, CallInfo &callInfo)
         return true;
 
     // Determine whether inlining is possible at callee site
-    if (!canInlineTarget(target, callInfo))
+    if (!canInlineTarget(target, callInfo.constructing()))
         return false;
 
     // Heuristics!

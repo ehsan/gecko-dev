@@ -86,9 +86,6 @@ let RILQUIRKS_EXTRA_UINT32_2ND_CALL = libcutils.property_get("ro.moz.ril.extra_i
 // On the emulator we support querying the number of lock retries
 let RILQUIRKS_HAVE_QUERY_ICC_LOCK_RETRY_COUNT = libcutils.property_get("ro.moz.ril.query_icc_count", "false") == "true";
 
-// Ril quirk to Send STK Profile Download
-let RILQUIRKS_SEND_STK_PROFILE_DOWNLOAD = libcutils.property_get("ro.moz.ril.send_stk_profile_dl", "false") == "true";
-
 // Marker object.
 let PENDING_NETWORK_TYPE = {};
 
@@ -3017,14 +3014,10 @@ let RIL = {
         ICCRecordHelper.readICCPhase();
         ICCRecordHelper.fetchICCRecords();
       } else if (this.appType == CARD_APPTYPE_USIM) {
-        if (RILQUIRKS_SEND_STK_PROFILE_DOWNLOAD) {
-          this.sendStkTerminalProfile(STK_SUPPORTED_TERMINAL_PROFILE);
-        }
+        this.sendStkTerminalProfile(STK_SUPPORTED_TERMINAL_PROFILE);
         ICCRecordHelper.fetchICCRecords();
       } else if (this.appType == CARD_APPTYPE_RUIM) {
-        if (RILQUIRKS_SEND_STK_PROFILE_DOWNLOAD) {
-          this.sendStkTerminalProfile(STK_SUPPORTED_TERMINAL_PROFILE);
-        }
+        this.sendStkTerminalProfile(STK_SUPPORTED_TERMINAL_PROFILE);
         RuimRecordHelper.fetchRuimRecords();
       }
       this.reportStkServiceIsRunning();
@@ -10389,7 +10382,7 @@ let ComprehensionTlvHelper = {
     } else {
       RIL.sendStkTerminalResponse({
         resultCode: STK_RESULT_CMD_DATA_NOT_UNDERSTOOD});
-      throw new Error("Invalid octet in Comprehension TLV :" + temp);
+      throw new Error("Invalid octet in Comprehension TLV :" + length);
     }
 
     let ctlv = {
@@ -11033,8 +11026,7 @@ let ICCRecordHelper = {
       let phase = GsmPDUHelper.readHexOctet();
       // If EF_phase is coded '03' or greater, an ME supporting STK shall
       // perform the PROFILE DOWNLOAD procedure.
-      if (RILQUIRKS_SEND_STK_PROFILE_DOWNLOAD &&
-          phase >= ICC_PHASE_2_PROFILE_DOWNLOAD_REQUIRED) {
+      if (phase >= ICC_PHASE_2_PROFILE_DOWNLOAD_REQUIRED) {
         RIL.sendStkTerminalProfile(STK_SUPPORTED_TERMINAL_PROFILE);
       }
 

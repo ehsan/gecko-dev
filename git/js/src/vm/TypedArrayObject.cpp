@@ -538,7 +538,7 @@ ArrayBufferObject::prepareForAsmJS(JSContext *cx, Handle<ArrayBufferObject*> buf
     if (buffer->isAsmJSArrayBuffer())
         return true;
 
-    if (!buffer->ensureNonInline(cx))
+    if (!buffer->copyData(cx))
         return false;
     JS_ASSERT(buffer->hasDynamicElements());
 

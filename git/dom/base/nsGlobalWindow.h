@@ -765,7 +765,7 @@ public:
   mozilla::dom::SpeechSynthesis* GetSpeechSynthesisInternal();
 #endif
 
-  mozilla::dom::BarProp* GetScrollbars();
+  mozilla::dom::BarProp* Scrollbars();
 
 protected:
   // Array of idle observers that are notified of idle events.

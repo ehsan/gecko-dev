@@ -30,14 +30,12 @@ public:
                                            const nsAString& aLabel,
                                            const nsAString& aLanguage);
   void AddTextTrack(TextTrack* aTextTrack);
-  void RemoveTextTrack(TextTrack* aTextTrack, bool aPendingListOnly);
+  void RemoveTextTrack(TextTrack* aTextTrack);
   void DidSeek();
 
   // Update the display of cues on the video as per the current play back time
   // of aTime.
   void Update(double aTime);
-
-  void PopulatePendingList();
 
 private:
   // The HTMLMediaElement that this TextTrackManager manages the TextTracks of.
@@ -47,8 +45,6 @@ private:
   HTMLMediaElement* mMediaElement;
   // List of the TextTrackManager's owning HTMLMediaElement's TextTracks.
   nsRefPtr<TextTrackList> mTextTracks;
-  // List of text track objects awaiting loading.
-  nsRefPtr<TextTrackList> mPendingTextTracks;
 };
 
 } // namespace dom

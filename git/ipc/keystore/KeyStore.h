@@ -80,7 +80,6 @@ public:
                           sockaddr_any& aAddr,
                           const char* aAddress);
   virtual bool SetUp(int aFd);
-  virtual bool SetUpListenSocket(int aFd);
   virtual void GetSocketAddr(const sockaddr_any& aAddr,
                              nsAString& aAddrStr);
 };
