@@ -1543,7 +1543,6 @@ IDBObjectStore::~IDBObjectStore()
   }
 
   if (mRooted) {
-    mCachedKeyPath = JSVAL_VOID;
     NS_DROP_JS_OBJECTS(this, IDBObjectStore);
   }
 }

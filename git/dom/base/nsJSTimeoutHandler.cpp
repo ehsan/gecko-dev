@@ -141,12 +141,17 @@ nsJSScriptTimeoutHandler::~nsJSScriptTimeoutHandler()
 void
 nsJSScriptTimeoutHandler::ReleaseJSObjects()
 {
-  if (mExpr) {
-    mExpr = nullptr;
-  } else {
-    mFunObj = nullptr;
+  if (mExpr || mFunObj) {
+    if (mExpr) {
+      NS_DROP_JS_OBJECTS(this, nsJSScriptTimeoutHandler);
+      mExpr = nullptr;
+    } else if (mFunObj) {
+      NS_DROP_JS_OBJECTS(this, nsJSScriptTimeoutHandler);
+      mFunObj = nullptr;
+    } else {
+      NS_WARNING("No func and no expr - roots may not have been removed");
+    }
   }
-  NS_DROP_JS_OBJECTS(this, nsJSScriptTimeoutHandler);
 }
 
 nsresult

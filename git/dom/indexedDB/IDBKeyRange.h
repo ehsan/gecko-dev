@@ -150,8 +150,6 @@ public:
   template <class T>
   void ToSerializedKeyRange(T& aKeyRange);
 
-  void DropJSObjects();
-
 private:
   ~IDBKeyRange();
 

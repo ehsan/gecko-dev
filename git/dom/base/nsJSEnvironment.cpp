@@ -4144,13 +4144,12 @@ nsJSArgArray::~nsJSArgArray()
 void
 nsJSArgArray::ReleaseJSObjects()
 {
+  if (mArgc > 0)
+    NS_DROP_JS_OBJECTS(this, nsJSArgArray);
   if (mArgv) {
     PR_DELETE(mArgv);
   }
-  if (mArgc > 0) {
-    mArgc = 0;
-    NS_DROP_JS_OBJECTS(this, nsJSArgArray);
-  }
+  mArgc = 0;
 }
 
 // QueryInterface implementation for nsJSArgArray
