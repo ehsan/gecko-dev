@@ -195,7 +195,6 @@ function setDataApnSettings(aApnSettings, aAllowError) {
   return setSettings1(SETTINGS_KEY_DATA_APN_SETTINGS, aApnSettings, aAllowError);
 }
 
-let workingFrame;
 let mobileConnection;
 
 /**
@@ -235,12 +234,12 @@ function ensureMobileConnection(aAdditionalPermissions, aServiceId) {
 
     // Permission changes can't change existing Navigator.prototype
     // objects, so grab our objects from a new Navigator.
-    workingFrame = document.createElement("iframe");
-    workingFrame.addEventListener("load", function load() {
-      workingFrame.removeEventListener("load", load);
+    let ifr = document.createElement("iframe");
+    ifr.addEventListener("load", function load() {
+      ifr.removeEventListener("load", load);
 
       mobileConnection =
-        workingFrame.contentWindow.navigator.mozMobileConnections[aServiceId];
+        ifr.contentWindow.navigator.mozMobileConnections[aServiceId];
 
       if (mobileConnection) {
         log("navigator.mozMobileConnections[" + aServiceId + "] is instance of " +
@@ -256,7 +255,7 @@ function ensureMobileConnection(aAdditionalPermissions, aServiceId) {
       }
     });
 
-    document.body.appendChild(workingFrame);
+    document.body.appendChild(ifr);
   });
 
   return deferred.promise;

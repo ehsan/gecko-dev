@@ -293,15 +293,6 @@ GrallocImage::GetAsSourceSurface()
   return surface;
 }
 
-android::sp<android::GraphicBuffer>
-GrallocImage::GetGraphicBuffer() const
-{
-  if (!mTextureClient) {
-    return nullptr;
-  }
-  return mTextureClient->GetGraphicBuffer();
-}
-
 void*
 GrallocImage::GetNativeBuffer()
 {
@@ -314,6 +305,16 @@ GrallocImage::GetNativeBuffer()
     return nullptr;
   }
   return graphicBuffer->getNativeBuffer();
+}
+
+SurfaceDescriptor
+GrallocImage::GetSurfaceDescriptor()
+{
+  SurfaceDescriptor desc;
+  if (mTextureClient && mTextureClient->ToSurfaceDescriptor(desc)) {
+    return desc;
+  }
+  return SurfaceDescriptor();
 }
 
 TextureClient*

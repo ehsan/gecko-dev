@@ -586,10 +586,6 @@ Experiments.Experiments.prototype = {
     do {
       this._log.trace("_main iteration");
       yield this._loadTask;
-      if (!gExperimentsEnabled) {
-        this._refresh = false;
-      }
-
       if (this._refresh) {
         yield this._loadManifest();
       }
@@ -883,11 +879,7 @@ Experiments.Experiments.prototype = {
     // Make sure we keep experiments that are or were running.
     // We remove them after KEEP_HISTORY_N_DAYS.
     for (let [id, entry] of this._experiments) {
-      if (experiments.has(id)) {
-        continue;
-      }
-
-      if (!entry.startDate || entry.shouldDiscard()) {
+      if (experiments.has(id) || !entry.startDate || entry.shouldDiscard()) {
         this._log.trace("updateExperiments() - discarding entry for " + id);
         continue;
       }
@@ -991,8 +983,6 @@ Experiments.Experiments.prototype = {
                         + activeExperiment.id);
           activeExperiment = null;
           activeChanged = true;
-        } else if (!gExperimentsEnabled) {
-          // No further actions if the feature is disabled.
         } else if (activeExperiment.needsUpdate) {
           this._log.debug("evaluateExperiments() - updating experiment "
                         + activeExperiment.id);
@@ -1015,7 +1005,7 @@ Experiments.Experiments.prototype = {
     }
     this._terminateReason = null;
 
-    if (!activeExperiment && gExperimentsEnabled) {
+    if (!activeExperiment) {
       for (let [id, experiment] of this._experiments) {
         let applicable;
         let reason = null;
@@ -1708,13 +1698,8 @@ Experiments.ExperimentEntry.prototype = {
    */
   maybeStop: function () {
     this._log.trace("maybeStop()");
-    return Task.spawn(function* ExperimentEntry_maybeStop_task() {
-      if (!gExperimentsEnabled) {
-        this._log.warn("maybeStop() - should not get here");
-        yield this.stop(TELEMETRY_LOG.TERMINATION.FROM_API);
-        return true;
-      }
 
+    return Task.spawn(function ExperimentEntry_maybeStop_task() {
       let result = yield this._shouldStop();
       if (result.shouldStop) {
         let expireReasons = ["endTime", "maxActiveSeconds"];
@@ -1725,7 +1710,7 @@ Experiments.ExperimentEntry.prototype = {
         }
       }
 
-      return result.shouldStop;
+      throw new Task.Result(result.shouldStop);
     }.bind(this));
   },
 

@@ -19,8 +19,6 @@ using namespace mozilla::ipc;
 
 namespace mozilla {
 
-nsCOMPtr<nsIThread> gWorkerThread;
-
 // The singleton network worker, to be used on the main thread.
 StaticRefPtr<NetworkWorker> gNetworkWorker;
 
@@ -58,7 +56,6 @@ public:
   NS_IMETHOD Run()
   {
     MOZ_ASSERT(NS_IsMainThread());
-
     if (gNetworkWorker) {
       gNetworkWorker->DispatchNetworkResult(mResult);
     }
@@ -80,8 +77,6 @@ public:
 
   NS_IMETHOD Run()
   {
-    MOZ_ASSERT(!NS_IsMainThread());
-
     if (gNetworkUtils) {
       gNetworkUtils->ExecuteCommand(mParams);
     }
@@ -97,14 +92,10 @@ class NetdEventRunnable : public nsRunnable
 public:
   NetdEventRunnable(NetdCommand* aCommand)
     : mCommand(aCommand)
-  {
-    MOZ_ASSERT(!NS_IsMainThread());
-  }
+  { }
 
   NS_IMETHOD Run()
   {
-    MOZ_ASSERT(!NS_IsMainThread());
-
     if (gNetworkUtils) {
       gNetworkUtils->onNetdMessage(mCommand);
     }
@@ -113,25 +104,6 @@ public:
 
 private:
   nsAutoPtr<NetdCommand> mCommand;
-};
-
-class NetdMessageConsumer : public NetdConsumer
-{
-public:
-  NetdMessageConsumer()
-  {
-    MOZ_ASSERT(NS_IsMainThread());
-  }
-
-  void MessageReceived(NetdCommand* aCommand)
-  {
-    MOZ_ASSERT(!NS_IsMainThread());
-
-    nsCOMPtr<nsIRunnable> runnable = new NetdEventRunnable(aCommand);
-    if (gWorkerThread) {
-      gWorkerThread->Dispatch(runnable, nsIEventTarget::DISPATCH_NORMAL);
-    }
-  }
 };
 
 NS_IMPL_ISUPPORTS1(NetworkWorker, nsINetworkWorker)
@@ -145,7 +117,6 @@ NetworkWorker::NetworkWorker()
 NetworkWorker::~NetworkWorker()
 {
   MOZ_ASSERT(!gNetworkWorker);
-  MOZ_ASSERT(!mListener);
 }
 
 already_AddRefed<NetworkWorker>
@@ -175,19 +146,19 @@ NetworkWorker::Start(nsINetworkEventListener* aListener)
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aListener);
 
-  if (mListener) {
-    return NS_OK;
-  }
-
   nsresult rv;
 
-  rv = NS_NewNamedThread("NetworkWorker", getter_AddRefs(gWorkerThread));
+  if (gNetworkWorker) {
+    StartNetd(gNetworkWorker);
+  }
+
+  rv = NS_NewThread(getter_AddRefs(mWorkerThread));
   if (NS_FAILED(rv)) {
     NS_WARNING("Can't create network control thread");
+    Shutdown();
     return NS_ERROR_FAILURE;
   }
 
-  StartNetd(new NetdMessageConsumer());
   mListener = aListener;
 
   return NS_OK;
@@ -198,15 +169,12 @@ NetworkWorker::Shutdown()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  if (!mListener) {
-    return NS_OK;
-  }
-
   StopNetd();
 
-  gWorkerThread->Shutdown();
-  gWorkerThread = nullptr;
-
+  if (mWorkerThread) {
+    mWorkerThread->Shutdown();
+    mWorkerThread = nullptr;
+  }
   mListener = nullptr;
   return NS_OK;
 }
@@ -226,8 +194,8 @@ NetworkWorker::PostMessage(JS::Handle<JS::Value> aOptions, JSContext* aCx)
   // Dispatch the command to the control thread.
   NetworkParams NetworkParams(options);
   nsCOMPtr<nsIRunnable> runnable = new NetworkCommandDispatcher(NetworkParams);
-  if (gWorkerThread) {
-    gWorkerThread->Dispatch(runnable, nsIEventTarget::DISPATCH_NORMAL);
+  if (mWorkerThread) {
+    mWorkerThread->Dispatch(runnable, nsIEventTarget::DISPATCH_NORMAL);
   }
   return NS_OK;
 }
@@ -250,12 +218,20 @@ NetworkWorker::DispatchNetworkResult(const NetworkResultOptions& aOptions)
   }
 }
 
+// Callback function from Netd, dispatch result to network worker thread.
+void
+NetworkWorker::MessageReceived(NetdCommand* aCommand)
+{
+  nsCOMPtr<nsIRunnable> runnable = new NetdEventRunnable(aCommand);
+  if (mWorkerThread) {
+    mWorkerThread->Dispatch(runnable, nsIEventTarget::DISPATCH_NORMAL);
+  }
+}
+
 // Callback function from network worker thread to update result on main thread.
 void
 NetworkWorker::NotifyResult(NetworkResultOptions& aResult)
 {
-  MOZ_ASSERT(!NS_IsMainThread());
-
   nsCOMPtr<nsIRunnable> runnable = new NetworkResultDispatcher(aResult);
   NS_DispatchToMainThread(runnable);
 }

@@ -74,9 +74,9 @@ public:
 
   gfx::IntSize GetSize() const MOZ_OVERRIDE { return mSize; }
 
-  android::sp<android::GraphicBuffer> GetGraphicBuffer()
+  android::GraphicBuffer* GetGraphicBuffer()
   {
-    return mGraphicBuffer;
+    return mGraphicBuffer.get();
   }
 
   android::PixelFormat GetPixelFormat()
