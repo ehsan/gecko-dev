@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-'use strict';
+// define(function(require, exports, module) {
+
 // <INJECTED SOURCE:START>
 
 // THIS FILE IS GENERATED FROM SOURCE IN THE GCLI PROJECT
@@ -22,25 +23,29 @@
 
 var exports = {};
 
-var TEST_URI = "data:text/html;charset=utf-8,<p id='gcli-input'>gcli-testShort.js</p>";
+const TEST_URI = "data:text/html;charset=utf-8,<p id='gcli-input'>gcli-testShort.js</p>";
 
 function test() {
-  return Task.spawn(function() {
-    let options = yield helpers.openTab(TEST_URI);
-    yield helpers.openToolbar(options);
-    gcli.addItems(mockCommands.items);
-
-    yield helpers.runTests(options, exports);
-
-    gcli.removeItems(mockCommands.items);
-    yield helpers.closeToolbar(options);
-    yield helpers.closeTab(options);
-  }).then(finish, helpers.handleError);
+  helpers.addTabWithToolbar(TEST_URI, function(options) {
+    return helpers.runTests(options, exports);
+  }).then(finish);
 }
 
 // <INJECTED SOURCE:END>
 
-// var helpers = require('./helpers');
+'use strict';
+
+// var assert = require('test/assert');
+// var helpers = require('gclitest/helpers');
+// var mockCommands = require('gclitest/mockCommands');
+
+exports.setup = function(options) {
+  mockCommands.setup();
+};
+
+exports.shutdown = function(options) {
+  mockCommands.shutdown();
+};
 
 exports.testBasic = function(options) {
   return helpers.audit(options, [
@@ -62,7 +67,8 @@ exports.testBasic = function(options) {
           visible: {
             value: undefined,
             arg: ' -v',
-            status: 'INCOMPLETE'
+            status: 'INCOMPLETE',
+            message: ''
           },
           invisiblestring: {
             value: undefined,
@@ -261,3 +267,6 @@ exports.testBasic = function(options) {
     }
   ]);
 };
+
+
+// });

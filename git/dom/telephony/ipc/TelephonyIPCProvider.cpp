@@ -258,14 +258,12 @@ TelephonyIPCProvider::CallStateChanged(uint32_t aClientId,
                                        bool aIsActive,
                                        bool aIsOutgoing,
                                        bool aIsEmergency,
-                                       bool aIsConference,
-                                       bool aIsSwitchable,
-                                       bool aIsMergeable)
+                                       bool aIsConference)
 {
   for (uint32_t i = 0; i < mListeners.Length(); i++) {
     mListeners[i]->CallStateChanged(aClientId, aCallIndex, aCallState, aNumber,
                                     aIsActive, aIsOutgoing, aIsEmergency,
-                                    aIsConference, aIsSwitchable, aIsMergeable);
+                                    aIsConference);
   }
   return NS_OK;
 }
@@ -293,9 +291,7 @@ TelephonyIPCProvider::EnumerateCallState(uint32_t aClientId,
                                          bool aIsActive,
                                          bool aIsOutgoing,
                                          bool aIsEmergency,
-                                         bool aIsConference,
-                                         bool aIsSwitchable,
-                                         bool aIsMergeable)
+                                         bool aIsConference)
 {
   MOZ_CRASH("Not a EnumerateCalls request!");
 }

@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-'use strict';
+// define(function(require, exports, module) {
+
 // <INJECTED SOURCE:START>
 
 // THIS FILE IS GENERATED FROM SOURCE IN THE GCLI PROJECT
@@ -22,25 +23,277 @@
 
 var exports = {};
 
-var TEST_URI = "data:text/html;charset=utf-8,<p id='gcli-input'>gcli-testCompletion2.js</p>";
+const TEST_URI = "data:text/html;charset=utf-8,<p id='gcli-input'>gcli-testCompletion.js</p>";
 
 function test() {
-  return Task.spawn(function() {
-    let options = yield helpers.openTab(TEST_URI);
-    yield helpers.openToolbar(options);
-    gcli.addItems(mockCommands.items);
-
-    yield helpers.runTests(options, exports);
-
-    gcli.removeItems(mockCommands.items);
-    yield helpers.closeToolbar(options);
-    yield helpers.closeTab(options);
-  }).then(finish, helpers.handleError);
+  helpers.addTabWithToolbar(TEST_URI, function(options) {
+    return helpers.runTests(options, exports);
+  }).then(finish);
 }
 
 // <INJECTED SOURCE:END>
 
-// var helpers = require('./helpers');
+'use strict';
+
+// var helpers = require('gclitest/helpers');
+// var mockCommands = require('gclitest/mockCommands');
+
+exports.setup = function(options) {
+  mockCommands.setup();
+};
+
+exports.shutdown = function(options) {
+  mockCommands.shutdown();
+};
+
+exports.testActivate = function(options) {
+  return helpers.audit(options, [
+    {
+      setup: '',
+      check: {
+        hints: ''
+      }
+    },
+    {
+      setup: ' ',
+      check: {
+        hints: ''
+      }
+    },
+    {
+      setup: 'tsr',
+      check: {
+        hints: ' <text>'
+      }
+    },
+    {
+      setup: 'tsr ',
+      check: {
+        hints: '<text>'
+      }
+    },
+    {
+      setup: 'tsr b',
+      check: {
+        hints: ''
+      }
+    },
+    {
+      setup: 'tsb',
+      check: {
+        hints: ' [toggle]'
+      }
+    },
+    {
+      setup: 'tsm',
+      check: {
+        hints: ' <abc> <txt> <num>'
+      }
+    },
+    {
+      setup: 'tsm ',
+      check: {
+        hints: 'a <txt> <num>'
+      }
+    },
+    {
+      setup: 'tsm a',
+      check: {
+        hints: ' <txt> <num>'
+      }
+    },
+    {
+      setup: 'tsm a ',
+      check: {
+        hints: '<txt> <num>'
+      }
+    },
+    {
+      setup: 'tsm a  ',
+      check: {
+        hints: '<txt> <num>'
+      }
+    },
+    {
+      setup: 'tsm a  d',
+      check: {
+        hints: ' <num>'
+      }
+    },
+    {
+      setup: 'tsm a "d d"',
+      check: {
+        hints: ' <num>'
+      }
+    },
+    {
+      setup: 'tsm a "d ',
+      check: {
+        hints: ' <num>'
+      }
+    },
+    {
+      setup: 'tsm a "d d" ',
+      check: {
+        hints: '<num>'
+      }
+    },
+    {
+      setup: 'tsm a "d d ',
+      check: {
+        hints: ' <num>'
+      }
+    },
+    {
+      setup: 'tsm d r',
+      check: {
+        hints: ' <num>'
+      }
+    },
+    {
+      setup: 'tsm a d ',
+      check: {
+        hints: '<num>'
+      }
+    },
+    {
+      setup: 'tsm a d 4',
+      check: {
+        hints: ''
+      }
+    },
+    {
+      setup: 'tsg',
+      check: {
+        hints: ' <solo> [options]'
+      }
+    },
+    {
+      setup: 'tsg ',
+      check: {
+        hints: 'aaa [options]'
+      }
+    },
+    {
+      setup: 'tsg a',
+      check: {
+        hints: 'aa [options]'
+      }
+    },
+    {
+      setup: 'tsg b',
+      check: {
+        hints: 'bb [options]'
+      }
+    },
+    {
+      skipIf: options.isPhantomjs,
+      setup: 'tsg d',
+      check: {
+        hints: ' [options] -> ccc'
+      }
+    },
+    {
+      setup: 'tsg aa',
+      check: {
+        hints: 'a [options]'
+      }
+    },
+    {
+      setup: 'tsg aaa',
+      check: {
+        hints: ' [options]'
+      }
+    },
+    {
+      setup: 'tsg aaa ',
+      check: {
+        hints: '[options]'
+      }
+    },
+    {
+      setup: 'tsg aaa d',
+      check: {
+        hints: ' [options]'
+      }
+    },
+    {
+      setup: 'tsg aaa dddddd',
+      check: {
+        hints: ' [options]'
+      }
+    },
+    {
+      setup: 'tsg aaa dddddd ',
+      check: {
+        hints: '[options]'
+      }
+    },
+    {
+      setup: 'tsg aaa "d',
+      check: {
+        hints: ' [options]'
+      }
+    },
+    {
+      setup: 'tsg aaa "d d',
+      check: {
+        hints: ' [options]'
+      }
+    },
+    {
+      setup: 'tsg aaa "d d"',
+      check: {
+        hints: ' [options]'
+      }
+    },
+    {
+      setup: 'tsn ex ',
+      check: {
+        hints: ''
+      }
+    },
+    {
+      setup: 'selarr',
+      check: {
+        hints: ' -> tselarr'
+      }
+    },
+    {
+      setup: 'tselar 1',
+      check: {
+        hints: ''
+      }
+    },
+    {
+      name: 'tselar |1',
+      setup: function() {
+        helpers.setInput(options, 'tselar 1', 7);
+      },
+      check: {
+        hints: ''
+      }
+    },
+    {
+      name: 'tselar| 1',
+      setup: function() {
+        helpers.setInput(options, 'tselar 1', 6);
+      },
+      check: {
+        hints: ' -> tselarr'
+      }
+    },
+    {
+      name: 'tsela|r 1',
+      setup: function() {
+        helpers.setInput(options, 'tselar 1', 5);
+      },
+      check: {
+        hints: ' -> tselarr'
+      }
+    },
+  ]);
+};
 
 exports.testLong = function(options) {
   return helpers.audit(options, [
@@ -109,6 +362,7 @@ exports.testLong = function(options) {
       }
     },
     {
+      skipIf: options.isJsdom,
       setup:    'tslong --num 42 --se<TAB>',
       check: {
         input:  'tslong --num 42 --sel ',
@@ -117,6 +371,7 @@ exports.testLong = function(options) {
       }
     },
     {
+      skipIf: options.isJsdom,
       setup:    'tslong --num 42 --se<TAB><TAB>',
       check: {
         input:  'tslong --num 42 --sel space ',
@@ -170,7 +425,6 @@ exports.testNoTab = function(options) {
       }
     },
     {
-      skipIf: options.isNoDom,
       name: '<TAB>',
       setup: function() {
         // Doing it this way avoids clearing the input buffer
@@ -239,7 +493,7 @@ exports.testSpaceComplete = function(options) {
         tooltipState: 'true:importantFieldFlag',
         args: {
           command: { name: 'tslong' },
-          msg: { status: 'INCOMPLETE' },
+          msg: { status: 'INCOMPLETE', message: '' },
           num: { status: 'VALID' },
           sel: { status: 'VALID' },
           bool: { value: false, status: 'VALID' },
@@ -250,6 +504,7 @@ exports.testSpaceComplete = function(options) {
       }
     },
     {
+      skipIf: options.isJsdom,
       setup:    'tslong --sel2 wit<TAB>',
       check: {
         input:  'tslong --sel2 \'with space\' ',
@@ -261,7 +516,7 @@ exports.testSpaceComplete = function(options) {
         tooltipState: 'true:importantFieldFlag',
         args: {
           command: { name: 'tslong' },
-          msg: { status: 'INCOMPLETE' },
+          msg: { status: 'INCOMPLETE', message: '' },
           num: { status: 'VALID' },
           sel: { status: 'VALID' },
           bool: { value: false, status: 'VALID' },
@@ -277,3 +532,6 @@ exports.testSpaceComplete = function(options) {
     }
   ]);
 };
+
+
+// });

@@ -13,7 +13,6 @@ import org.mozilla.gecko.mozglue.generatorannotations.WrapElementForJNI;
 
 import android.graphics.Bitmap;
 import android.util.Log;
-import android.content.res.Resources;
 
 import java.nio.ByteBuffer;
 import java.util.LinkedList;
@@ -54,9 +53,7 @@ public final class ThumbnailHelper {
 
     private ThumbnailHelper() {
         mPendingThumbnails = new LinkedList<Tab>();
-        try {
-            mPendingWidth = new AtomicInteger((int)GeckoAppShell.getContext().getResources().getDimension(R.dimen.tab_thumbnail_width));
-        } catch (Resources.NotFoundException nfe) { mPendingWidth = new AtomicInteger(0); }
+        mPendingWidth = new AtomicInteger((int)GeckoAppShell.getContext().getResources().getDimension(R.dimen.tab_thumbnail_width));
         mWidth = -1;
         mHeight = -1;
     }

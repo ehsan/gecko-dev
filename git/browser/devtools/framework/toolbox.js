@@ -42,6 +42,8 @@ loader.lazyGetter(this, "toolboxStrings", () => {
 });
 
 loader.lazyGetter(this, "Requisition", () => {
+  let {require} = Cu.import("resource://gre/modules/devtools/Require.jsm", {});
+  Cu.import("resource://gre/modules/devtools/gcli.jsm", {});
   return require("gcli/cli").Requisition;
 });
 
@@ -537,10 +539,10 @@ Toolbox.prototype = {
     }
 
     let spec = CommandUtils.getCommandbarSpec("devtools.toolbox.toolbarSpec");
-    let environment = CommandUtils.createEnvironment(this, '_target');
-    this._requisition = new Requisition({ environment: environment });
-    let buttons = CommandUtils.createButtons(spec, this._target,
-                                             this.doc, this._requisition);
+    let env = CommandUtils.createEnvironment(this.target.tab.ownerDocument,
+                                             this.target.window.document);
+    let req = new Requisition(env);
+    let buttons = CommandUtils.createButtons(spec, this._target, this.doc, req);
     let container = this.doc.getElementById("toolbox-buttons");
     buttons.forEach(container.appendChild.bind(container));
   },
@@ -713,7 +715,7 @@ Toolbox.prototype = {
         this.emit(id + "-ready", panel);
         gDevTools.emit(id + "-ready", this, panel);
         deferred.resolve(panel);
-      }, console.error);
+      });
     };
 
     iframe.setAttribute("src", definition.url);
@@ -1159,9 +1161,6 @@ Toolbox.prototype = {
     // Remove the host UI
     outstanding.push(this.destroyHost());
 
-    if (this.target.isLocalTab) {
-      this._requisition.destroy();
-    }
     this._telemetry.destroy();
 
     return this._destroyer = promise.all(outstanding).then(() => {

@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-'use strict';
+// define(function(require, exports, module) {
+
 // <INJECTED SOURCE:START>
 
 // THIS FILE IS GENERATED FROM SOURCE IN THE GCLI PROJECT
@@ -22,36 +23,504 @@
 
 var exports = {};
 
-var TEST_URI = "data:text/html;charset=utf-8,<p id='gcli-input'>gcli-testCli2.js</p>";
+const TEST_URI = "data:text/html;charset=utf-8,<p id='gcli-input'>gcli-testCli.js</p>";
 
 function test() {
-  return Task.spawn(function() {
-    let options = yield helpers.openTab(TEST_URI);
-    yield helpers.openToolbar(options);
-    gcli.addItems(mockCommands.items);
-
-    yield helpers.runTests(options, exports);
-
-    gcli.removeItems(mockCommands.items);
-    yield helpers.closeToolbar(options);
-    yield helpers.closeTab(options);
-  }).then(finish, helpers.handleError);
+  helpers.addTabWithToolbar(TEST_URI, function(options) {
+    return helpers.runTests(options, exports);
+  }).then(finish);
 }
 
 // <INJECTED SOURCE:END>
 
-// var helpers = require('./helpers');
+'use strict';
 
+// var helpers = require('gclitest/helpers');
+// var mockCommands = require('gclitest/mockCommands');
 var nodetype = require('gcli/types/node');
 
+// var assert = require('test/assert');
+
 exports.setup = function(options) {
-  if (options.window) {
-    nodetype.setDocument(options.window.document);
-  }
+  mockCommands.setup();
+  nodetype.setDocument(options.window.document);
 };
 
 exports.shutdown = function(options) {
+  mockCommands.shutdown();
   nodetype.unsetDocument();
+};
+
+exports.testBlank = function(options) {
+  var requisition = options.display.requisition;
+
+  return helpers.audit(options, [
+    {
+      setup:    '',
+      check: {
+        input:  '',
+        hints:  '',
+        markup: '',
+        cursor: 0,
+        current: '__command',
+        status: 'ERROR'
+      },
+      post: function() {
+        assert.is(requisition.commandAssignment.value, undefined);
+      }
+    },
+    {
+      setup:    ' ',
+      check: {
+        input:  ' ',
+        hints:   '',
+        markup: 'V',
+        cursor: 1,
+        current: '__command',
+        status: 'ERROR'
+      },
+      post: function() {
+        assert.is(requisition.commandAssignment.value, undefined);
+      }
+    },
+    {
+      name: '| ',
+      setup: function() {
+        helpers.setInput(options, ' ', 0);
+      },
+      check: {
+        input:  ' ',
+        hints:   '',
+        markup: 'V',
+        cursor: 0,
+        current: '__command',
+        status: 'ERROR'
+      },
+      post: function() {
+        assert.is(requisition.commandAssignment.value, undefined);
+      }
+    }
+  ]);
+};
+
+exports.testIncompleteMultiMatch = function(options) {
+  return helpers.audit(options, [
+    {
+      setup:    't',
+      skipIf: options.isFirefox, // 't' hints at 'tilt' in firefox
+      check: {
+        input:  't',
+        hints:   'est',
+        markup: 'I',
+        cursor: 1,
+        current: '__command',
+        status: 'ERROR',
+        predictionsContains: [ 'tsb' ]
+      }
+    },
+    {
+      setup:    'tsn ex',
+      check: {
+        input:  'tsn ex',
+        hints:        't',
+        markup: 'IIIVII',
+        cursor: 6,
+        current: '__command',
+        status: 'ERROR',
+        predictionsContains: [
+          'tsn ext', 'tsn exte', 'tsn exten', 'tsn extend'
+        ]
+      }
+    }
+  ]);
+};
+
+exports.testIncompleteSingleMatch = function(options) {
+  return helpers.audit(options, [
+    {
+      setup:    'tselar',
+      check: {
+        input:  'tselar',
+        hints:        'r',
+        markup: 'IIIIII',
+        cursor: 6,
+        current: '__command',
+        status: 'ERROR',
+        predictions: [ 'tselarr' ],
+        unassigned: [ ]
+      }
+    }
+  ]);
+};
+
+exports.testTsv = function(options) {
+  return helpers.audit(options, [
+    {
+      setup:    'tsv',
+      check: {
+        input:  'tsv',
+        hints:     ' <optionType> <optionValue>',
+        markup: 'VVV',
+        cursor: 3,
+        current: '__command',
+        status: 'ERROR',
+        predictions: [ ],
+        unassigned: [ ],
+        args: {
+          command: { name: 'tsv' },
+          optionType: { arg: '', status: 'INCOMPLETE', message: '' },
+          optionValue: { arg: '', status: 'INCOMPLETE', message: '' }
+        }
+      }
+    },
+    {
+      setup:    'tsv ',
+      check: {
+        input:  'tsv ',
+        hints:      'option1 <optionValue>',
+        markup: 'VVVV',
+        cursor: 4,
+        current: 'optionType',
+        status: 'ERROR',
+        predictions: [ 'option1', 'option2', 'option3' ],
+        unassigned: [ ],
+        tooltipState: 'true:importantFieldFlag',
+        args: {
+          command: { name: 'tsv' },
+          optionType: { arg: '', status: 'INCOMPLETE', message: '' },
+          optionValue: { arg: '', status: 'INCOMPLETE', message: '' }
+        }
+      }
+    },
+    {
+      name: 'ts|v',
+      setup: function() {
+        helpers.setInput(options, 'tsv ', 2);
+      },
+      check: {
+        input:  'tsv ',
+        hints:      '<optionType> <optionValue>',
+        markup: 'VVVV',
+        cursor: 2,
+        current: '__command',
+        status: 'ERROR',
+        predictions: [ ],
+        unassigned: [ ],
+        args: {
+          command: { name: 'tsv' },
+          optionType: { arg: '', status: 'INCOMPLETE', message: '' },
+          optionValue: { arg: '', status: 'INCOMPLETE', message: '' }
+        }
+      }
+    },
+    {
+      setup:    'tsv o',
+      check: {
+        input:  'tsv o',
+        hints:       'ption1 <optionValue>',
+        markup: 'VVVVI',
+        cursor: 5,
+        current: 'optionType',
+        status: 'ERROR',
+        predictions: [ 'option1', 'option2', 'option3' ],
+        unassigned: [ ],
+        tooltipState: 'true:importantFieldFlag',
+        args: {
+          command: { name: 'tsv' },
+          optionType: {
+            value: undefined,
+            arg: ' o',
+            status: 'INCOMPLETE',
+            message: ''
+          },
+          optionValue: {
+            value: undefined,
+            arg: '',
+            status: 'INCOMPLETE',
+            message: ''
+          }
+        }
+      }
+    },
+    {
+      setup:    'tsv option',
+      check: {
+        input:  'tsv option',
+        hints:            '1 <optionValue>',
+        markup: 'VVVVIIIIII',
+        cursor: 10,
+        current: 'optionType',
+        status: 'ERROR',
+        predictions: [ 'option1', 'option2', 'option3' ],
+        unassigned: [ ],
+        tooltipState: 'true:importantFieldFlag',
+        args: {
+          command: { name: 'tsv' },
+          optionType: {
+            value: undefined,
+            arg: ' option',
+            status: 'INCOMPLETE',
+            message: ''
+          },
+          optionValue: {
+            value: undefined,
+            arg: '',
+            status: 'INCOMPLETE',
+            message: ''
+          }
+        }
+      }
+    },
+    {
+      name: '|tsv option',
+      setup: function() {
+        return helpers.setInput(options, 'tsv option', 0);
+      },
+      check: {
+        input:  'tsv option',
+        hints:            ' <optionValue>',
+        markup: 'VVVVEEEEEE',
+        cursor: 0,
+        current: '__command',
+        status: 'ERROR',
+        predictions: [ ],
+        unassigned: [ ],
+        args: {
+          command: { name: 'tsv' },
+          optionType: {
+            value: undefined,
+            arg: ' option',
+            status: 'INCOMPLETE',
+            message: ''
+          },
+          optionValue: {
+            value: undefined,
+            arg: '',
+            status: 'INCOMPLETE',
+            message: ''
+          }
+        }
+      }
+    },
+    {
+      setup:    'tsv option ',
+      check: {
+        input:  'tsv option ',
+        hints:             '<optionValue>',
+        markup: 'VVVVEEEEEEV',
+        cursor: 11,
+        current: 'optionValue',
+        status: 'ERROR',
+        predictions: [ ],
+        unassigned: [ ],
+        tooltipState: 'false:default',
+        args: {
+          command: { name: 'tsv' },
+          optionType: {
+            value: undefined,
+            arg: ' option ',
+            status: 'ERROR',
+            message: 'Can\'t use \'option\'.'
+          },
+          optionValue: {
+            value: undefined,
+            arg: '',
+            status: 'INCOMPLETE',
+            message: ''
+          }
+        }
+      }
+    },
+    {
+      setup:    'tsv option1',
+      check: {
+        input:  'tsv option1',
+        hints:             ' <optionValue>',
+        markup: 'VVVVVVVVVVV',
+        cursor: 11,
+        current: 'optionType',
+        status: 'ERROR',
+        predictions: [ 'option1' ],
+        unassigned: [ ],
+        tooltipState: 'true:importantFieldFlag',
+        args: {
+          command: { name: 'tsv' },
+          optionType: {
+            value: mockCommands.option1,
+            arg: ' option1',
+            status: 'VALID',
+            message: ''
+          },
+          optionValue: {
+            value: undefined,
+            arg: '',
+            status: 'INCOMPLETE',
+            message: ''
+          }
+        }
+      }
+    },
+    {
+      setup:    'tsv option1 ',
+      check: {
+        input:  'tsv option1 ',
+        hints:              '<optionValue>',
+        markup: 'VVVVVVVVVVVV',
+        cursor: 12,
+        current: 'optionValue',
+        status: 'ERROR',
+        predictions: [ ],
+        unassigned: [ ],
+        args: {
+          command: { name: 'tsv' },
+          optionType: {
+            value: mockCommands.option1,
+            arg: ' option1 ',
+            status: 'VALID',
+            message: ''
+          },
+          optionValue: {
+            value: undefined,
+            arg: '',
+            status: 'INCOMPLETE',
+            message: ''
+          }
+        }
+      }
+    },
+    {
+      setup:    'tsv option2',
+      check: {
+        input:  'tsv option2',
+        hints:             ' <optionValue>',
+        markup: 'VVVVVVVVVVV',
+        cursor: 11,
+        current: 'optionType',
+        status: 'ERROR',
+        predictions: [ 'option2' ],
+        unassigned: [ ],
+        tooltipState: 'true:importantFieldFlag',
+        args: {
+          command: { name: 'tsv' },
+          optionType: {
+            value: mockCommands.option2,
+            arg: ' option2',
+            status: 'VALID',
+            message: ''
+          },
+          optionValue: {
+            value: undefined,
+            arg: '',
+            status: 'INCOMPLETE',
+            message: ''
+          }
+        }
+      }
+    },
+    {
+      setup:    'tsv option1 6',
+      check: {
+        input:  'tsv option1 6',
+        hints:               '',
+        markup: 'VVVVVVVVVVVVV',
+        cursor: 13,
+        current: 'optionValue',
+        status: 'VALID',
+        predictions: [ ],
+        unassigned: [ ],
+        args: {
+          command: { name: 'tsv' },
+          optionType: {
+            value: mockCommands.option1,
+            arg: ' option1',
+            status: 'VALID',
+            message: ''
+          },
+          optionValue: {
+            value: '6',
+            arg: ' 6',
+            status: 'VALID',
+            message: ''
+          }
+        }
+      }
+    },
+    {
+      setup:    'tsv option2 6',
+      check: {
+        input:  'tsv option2 6',
+        hints:               '',
+        markup: 'VVVVVVVVVVVVV',
+        cursor: 13,
+        current: 'optionValue',
+        status: 'VALID',
+        predictions: [ ],
+        unassigned: [ ],
+        args: {
+          command: { name: 'tsv' },
+          optionType: {
+            value: mockCommands.option2,
+            arg: ' option2',
+            status: 'VALID',
+            message: ''
+          },
+          optionValue: {
+            value: 6,
+            arg: ' 6',
+            status: 'VALID',
+            message: ''
+          }
+        }
+      }
+    }
+  ]);
+};
+
+exports.testInvalid = function(options) {
+  return helpers.audit(options, [
+    {
+      setup:    'zxjq',
+      check: {
+        input:  'zxjq',
+        hints:      '',
+        markup: 'EEEE',
+        cursor: 4,
+        current: '__command',
+        status: 'ERROR',
+        predictions: [ ],
+        unassigned: [ ],
+        tooltipState: 'true:isError'
+      }
+    },
+    {
+      setup:    'zxjq ',
+      check: {
+        input:  'zxjq ',
+        hints:       '',
+        markup: 'EEEEV',
+        cursor: 5,
+        current: '__command',
+        status: 'ERROR',
+        predictions: [ ],
+        unassigned: [ ],
+        tooltipState: 'true:isError'
+      }
+    },
+    {
+      setup:    'zxjq one',
+      check: {
+        input:  'zxjq one',
+        hints:          '',
+        markup: 'EEEEVEEE',
+        cursor: 8,
+        current: '__unassigned',
+        status: 'ERROR',
+        predictions: [ ],
+        unassigned: [ ' one' ],
+        tooltipState: 'true:isError'
+      }
+    }
+  ]);
 };
 
 exports.testSingleString = function(options) {
@@ -72,7 +541,7 @@ exports.testSingleString = function(options) {
             value: undefined,
             arg: '',
             status: 'INCOMPLETE',
-            message: 'Value required for \'text\'.'
+            message: ''
           }
         }
       }
@@ -94,7 +563,7 @@ exports.testSingleString = function(options) {
             value: undefined,
             arg: '',
             status: 'INCOMPLETE',
-            message: 'Value required for \'text\'.'
+            message: ''
           }
         }
       }
@@ -187,7 +656,7 @@ exports.testSingleNumber = function(options) {
             value: undefined,
             arg: '',
             status: 'INCOMPLETE',
-            message: 'Value required for \'num\'.'
+            message: ''
           }
         }
       }
@@ -209,7 +678,7 @@ exports.testSingleNumber = function(options) {
             value: undefined,
             arg: '',
             status: 'INCOMPLETE',
-            message: 'Value required for \'num\'.'
+            message: ''
           }
         }
       }
@@ -298,7 +767,7 @@ exports.testSingleFloat = function(options) {
             value: undefined,
             arg: '',
             status: 'INCOMPLETE',
-            message: 'Value required for \'num\'.'
+            message: ''
           }
         }
       }
@@ -376,7 +845,6 @@ exports.testSingleFloat = function(options) {
       }
     },
     {
-      skipRemainingIf: options.isNoDom,
       name: 'tsf x (cursor=4)',
       setup: function() {
         return helpers.setInput(options, 'tsf x', 4);
@@ -405,15 +873,43 @@ exports.testSingleFloat = function(options) {
   ]);
 };
 
+exports.testElementDom = function(options) {
+  return helpers.audit(options, [
+    {
+      skipIf: options.isJsdom,
+      setup:    'tse :root',
+      check: {
+        input:  'tse :root',
+        hints:           ' [options]',
+        markup: 'VVVVVVVVV',
+        cursor: 9,
+        current: 'node',
+        status: 'VALID',
+        predictions: [ ],
+        unassigned: [ ],
+        args: {
+          command: { name: 'tse' },
+          node: {
+            value: options.window.document.documentElement,
+            arg: ' :root',
+            status: 'VALID',
+            message: ''
+          },
+          nodes: { arg: '', status: 'VALID', message: '' },
+          nodes2: { arg: '', status: 'VALID', message: '' },
+        }
+      }
+    }
+  ]);
+};
+
 exports.testElementWeb = function(options) {
-  var inputElement = options.isNoDom ?
-      null :
-      options.window.document.getElementById('gcli-input');
+  var inputElement = options.window.document.getElementById('gcli-input');
 
   return helpers.audit(options, [
     {
       skipIf: function gcliInputElementExists() {
-        return inputElement == null;
+        return inputElement == null || options.isJsdom;
       },
       setup:    'tse #gcli-input',
       check: {
@@ -444,7 +940,6 @@ exports.testElementWeb = function(options) {
 exports.testElement = function(options) {
   return helpers.audit(options, [
     {
-      skipRemainingIf: options.isNoDom,
       setup:    'tse',
       check: {
         input:  'tse',
@@ -457,13 +952,14 @@ exports.testElement = function(options) {
         unassigned: [ ],
         args: {
           command: { name: 'tse' },
-          node: { value: undefined, arg: '', status: 'INCOMPLETE' },
+          node: { value: undefined, arg: '', status: 'INCOMPLETE', message: '' },
           nodes: { arg: '', status: 'VALID', message: '' },
           nodes2: { arg: '', status: 'VALID', message: '' },
         }
       }
     },
     {
+      skipIf: options.isJsdom,
       setup:    'tse #gcli-nomatch',
       check: {
         input:  'tse #gcli-nomatch',
@@ -544,6 +1040,7 @@ exports.testElement = function(options) {
       }
     },
     {
+      skipIf: options.isJsdom,
       setup:    'tse *',
       check: {
         input:  'tse *',
@@ -635,7 +1132,7 @@ exports.testNestedCommand = function(options) {
             value: undefined,
             arg: '',
             status: 'INCOMPLETE',
-            message: 'Value required for \'text\'.'
+            message: ''
           }
         }
       }
@@ -657,7 +1154,7 @@ exports.testNestedCommand = function(options) {
             value: undefined,
             arg: '',
             status: 'INCOMPLETE',
-            message: 'Value required for \'text\'.'
+            message: ''
           }
         }
       }
@@ -696,7 +1193,7 @@ exports.testNestedCommand = function(options) {
             value: undefined,
             arg: '',
             status: 'INCOMPLETE',
-            message: 'Value required for \'text\'.'
+            message: ''
           }
         }
       }
@@ -718,7 +1215,7 @@ exports.testNestedCommand = function(options) {
             value: undefined,
             arg: '',
             status: 'INCOMPLETE',
-            message: 'Value required for \'text\'.'
+            message: ''
           }
         }
       }
@@ -740,7 +1237,7 @@ exports.testNestedCommand = function(options) {
             value: undefined,
             arg: '',
             status: 'INCOMPLETE',
-            message: 'Value required for \'text\'.'
+            message: ''
           }
         }
       }
@@ -762,7 +1259,7 @@ exports.testNestedCommand = function(options) {
             value: undefined,
             arg: '',
             status: 'INCOMPLETE',
-            message: 'Value required for \'text\'.'
+            message: ''
           }
         }
       }
@@ -823,3 +1320,6 @@ exports.testDeeplyNested = function(options) {
     }
   ]);
 };
+
+
+// });

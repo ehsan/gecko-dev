@@ -10,7 +10,7 @@ let tests = {};
 function test() {
   helpers.addTabWithToolbar("about:blank", function(options) {
     return helpers.runTests(options, tests);
-  }).then(finish, helpers.handleError);
+  }).then(finish);
 }
 
 tests.gatTest = function(options) {
@@ -133,7 +133,9 @@ tests.gatTest = function(options) {
       }
     ]);
 
-    auditDone.then(deferred.resolve, deferred.reject);
+    auditDone.then(function() {
+      deferred.resolve();
+    });
   };
 
   Services.obs.addObserver(onGatReady, "gcli_addon_commands_ready", false);

@@ -221,7 +221,7 @@
 <panel id="widget-overflow"
        role="group"
        type="arrow"
-       noautofocus="true"
+       level="top"
        context="toolbar-context-menu"
        hidden="true">
   <vbox id="widget-overflow-scroller">
