@@ -6673,6 +6673,7 @@ if test "$MOZ_MEMORY"; then
     _objdir_win=`pwd -W`
     WIN32_CUSTOM_CRT_DIR="$_objdir_win/memory/jemalloc/crtsrc/build/intel"
     dnl Statically link the C++ stdlib.  We only use this for Breakpad anyway.
+    AC_DEFINE(_STATIC_CPPLIB)
     MOZ_MEMORY_LDFLAGS="-MANIFEST:NO -LIBPATH:\"$WIN32_CUSTOM_CRT_DIR\" -NODEFAULTLIB:msvcrt -NODEFAULTLIB:msvcrtd -DEFAULTLIB:mozcrt19"
     dnl Also pass this to NSPR/NSS
     DLLFLAGS="$DLLFLAGS $MOZ_MEMORY_LDFLAGS"
@@ -7960,10 +7961,6 @@ MOZ_ARG_DISABLE_BOOL(necko-wifi,
     NECKO_WIFI=,
     NECKO_WIFI=1
 )
-
-dnl XXXbent remove this once bsmedberg updates his linux system
-NECKO_WIFI=
-
 if test "$NECKO_WIFI"; then
   NECKO_WIFI=
   if test "$OS_ARCH" = "Linux"; then

@@ -70,10 +70,7 @@ PluginThreadChild::Init()
     
     std::vector<std::wstring> values =
         CommandLine::ForCurrentProcess()->GetLooseValues();
-
-    // XXX need to handle plugin args!
-    DCHECK(values.size() >= 1);
-
+    DCHECK(1 == values.size());
     std::string pluginFilename = WideToUTF8(values[0]);
 
     // FIXME owner_loop() is bad here
