@@ -79,9 +79,11 @@
 #include "nsCSSFrameConstructor.h"
 #include "nsCSSProps.h"
 #include "nsContentUtils.h"
+#ifdef MOZ_SVG
 #include "nsSVGEffects.h"
 #include "nsSVGIntegrationUtils.h"
 #include "gfxDrawable.h"
+#endif
 
 #include "nsCSSRenderingBorders.h"
 
@@ -128,8 +130,10 @@ private:
   nsStyleImageType          mType;
   nsCOMPtr<imgIContainer>   mImageContainer;
   nsRefPtr<nsStyleGradient> mGradientData;
+#ifdef MOZ_SVG
   nsIFrame*                 mPaintServerFrame;
   nsLayoutUtils::SurfaceFromElementResult mImageElementSurface;
+#endif
   PRBool                    mIsReady;
   nsSize                    mSize;
   PRUint32                  mFlags;
@@ -3742,7 +3746,9 @@ ImageRenderer::ImageRenderer(nsIFrame* aForFrame,
   , mType(aImage->GetType())
   , mImageContainer(nsnull)
   , mGradientData(nsnull)
+#ifdef MOZ_SVG
   , mPaintServerFrame(nsnull)
+#endif
   , mIsReady(PR_FALSE)
   , mSize(0, 0)
   , mFlags(aFlags)
@@ -3817,6 +3823,7 @@ ImageRenderer::PrepareImage()
       mGradientData = mImage->GetGradientData();
       mIsReady = PR_TRUE;
       break;
+#ifdef MOZ_SVG
     case eStyleImageType_Element:
     {
       nsAutoString elementId =
@@ -3844,6 +3851,7 @@ ImageRenderer::PrepareImage()
       mIsReady = PR_TRUE;
       break;
     }
+#endif
     case eStyleImageType_Null:
     default:
       break;
@@ -3879,6 +3887,7 @@ ImageRenderer::ComputeSize(const nsSize& aDefault)
     case eStyleImageType_Gradient:
       mSize = aDefault;
       break;
+#ifdef MOZ_SVG
     case eStyleImageType_Element:
     {
       if (mPaintServerFrame) {
@@ -3903,6 +3912,7 @@ ImageRenderer::ComputeSize(const nsSize& aDefault)
       }
       break;
     }
+#endif
     case eStyleImageType_Null:
     default:
       mSize.SizeTo(0, 0);
@@ -3947,6 +3957,7 @@ ImageRenderer::Draw(nsPresContext*       aPresContext,
       nsCSSRendering::PaintGradient(aPresContext, aRenderingContext,
           mGradientData, aDirty, aDest, aFill);
       break;
+#ifdef MOZ_SVG
     case eStyleImageType_Element:
       if (mPaintServerFrame) {
         nsSVGIntegrationUtils::DrawPaintServer(
@@ -3962,6 +3973,7 @@ ImageRenderer::Draw(nsPresContext*       aPresContext,
             aDest, aFill, aAnchor, aDirty);
       }
       break;
+#endif
     case eStyleImageType_Null:
     default:
       break;

@@ -650,7 +650,7 @@ let Content = {
   },
 
   _setMinFontSize: function _setMinFontSize(aSize) {
-    let viewer = docShell.contentViewer.QueryInterface(Ci.nsIMarkupDocumentViewer);
+    let viewer = docShell.contentViewer.QueryInterface(Ci.nsIMarkupDocumentViewer_MOZILLA_2_0_BRANCH);
     if (viewer)
       viewer.minFontSize = aSize;
   }

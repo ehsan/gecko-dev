@@ -508,6 +508,8 @@ nsOfflineCacheUpdateItem::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
     if (NS_FAILED(rv))
         return rv;
 
+    nsCOMPtr<nsICachingChannel> oldCachingChannel =
+        do_QueryInterface(aOldChannel);
     nsCOMPtr<nsICachingChannel> newCachingChannel =
         do_QueryInterface(aNewChannel);
     if (newCachingChannel) {

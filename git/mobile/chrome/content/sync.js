@@ -124,7 +124,6 @@ let WeaveGlue = {
       },
 
       onComplete: function onComplete(aCredentials) {
-        self.jpake = null;
         self.close();
         self.setupData = aCredentials;
         self.connect();
@@ -133,10 +132,8 @@ let WeaveGlue = {
       onAbort: function onAbort(aError) {
         self.jpake = null;
 
-        if (aError == "jpake.error.userabort" || container.hidden) {
-          Services.obs.notifyObservers(null, "browser:sync:setup:userabort", "");
+        if (aError == "jpake.error.userabort" || container.hidden)
           return;
-        }
 
         // Automatically go to manual setup if we couldn't acquire a channel.
         let brandShortName = Strings.brand.GetStringFromName("brandShortName");

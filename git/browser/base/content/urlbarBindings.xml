@@ -192,7 +192,7 @@
 
           let textNode = this.editor.rootElement.firstChild;
           let value = textNode.textContent;
-          let matchedURL = value.match(/^((?:http|https|ftp):\/\/(?:[^\/]+@)?)(.+?)(?::\d+)?(?:\/|$)/);
+          let matchedURL = value.match(/^((?:http|https|ftp):\/\/(?:[^\/]+@)?)([^\/:]+)/);
           if (!matchedURL)
             return;
 

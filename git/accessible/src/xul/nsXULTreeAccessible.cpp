@@ -156,8 +156,8 @@ nsXULTreeAccessible::GetValue(nsAString& aValue)
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeAccessible: nsAccessNode implementation
 
-bool
-nsXULTreeAccessible::IsDefunct() const
+PRBool
+nsXULTreeAccessible::IsDefunct()
 {
   return nsAccessibleWrap::IsDefunct() || !mTree || !mTreeView;
 }
@@ -834,8 +834,8 @@ nsXULTreeItemAccessibleBase::DoAction(PRUint8 aIndex)
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeItemAccessibleBase: nsAccessNode implementation
 
-bool
-nsXULTreeItemAccessibleBase::IsDefunct() const
+PRBool
+nsXULTreeItemAccessibleBase::IsDefunct()
 {
   if (nsAccessibleWrap::IsDefunct() || !mTree || !mTreeView || mRow < 0)
     return PR_TRUE;
@@ -1091,8 +1091,8 @@ nsXULTreeItemAccessible::GetName(nsAString& aName)
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeItemAccessible: nsAccessNode implementation
 
-bool
-nsXULTreeItemAccessible::IsDefunct() const
+PRBool
+nsXULTreeItemAccessible::IsDefunct()
 {
   return nsXULTreeItemAccessibleBase::IsDefunct() || !mColumn;
 }

@@ -37,8 +37,8 @@
 
 /* code for HTML client-side image maps */
 
-#ifndef nsImageMap_h
-#define nsImageMap_h
+#ifndef nsImageMap_h___
+#define nsImageMap_h___
 
 #include "nsISupports.h"
 #include "nsCoord.h"
@@ -47,16 +47,20 @@
 #include "nsIDOMFocusListener.h"
 #include "nsIFrame.h"
 
-class Area;
-class nsIDOMEvent;
+class nsIDOMHTMLAreaElement;
+class nsIDOMHTMLMapElement;
 class nsRenderingContext;
+class nsIURI;
+class nsString;
+class nsIDOMEvent;
+class Area;
 
 class nsImageMap : public nsStubMutationObserver, public nsIDOMFocusListener
 {
 public:
   nsImageMap();
 
-  nsresult Init(nsIPresShell* aPresShell, nsIFrame* aImageFrame, nsIContent* aMap);
+  nsresult Init(nsIPresShell* aPresShell, nsIFrame* aImageFrame, nsIDOMHTMLMapElement* aMap);
 
   /**
    * See if the given aX,aY <b>pixel</b> coordinates are in the image
@@ -73,7 +77,7 @@ public:
    * Called just before the nsImageFrame releases us. 
    * Used to break the cycle caused by the DOM listener.
    */
-  void Destroy();
+  void Destroy(void);
   
   // nsISupports
   NS_DECL_ISUPPORTS
@@ -99,7 +103,7 @@ protected:
 
   nsresult UpdateAreas();
   nsresult SearchForAreas(nsIContent* aParent, PRBool& aFoundArea,
-                          PRBool& aFoundAnchor);
+                         PRBool& aFoundAnchor);
 
   nsresult AddArea(nsIContent* aArea);
  
@@ -114,4 +118,4 @@ protected:
   PRBool mContainsBlockContents;
 };
 
-#endif /* nsImageMap_h */
+#endif /* nsImageMap_h___ */

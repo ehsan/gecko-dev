@@ -962,8 +962,10 @@ NS_IMPL_ISUPPORTS1(nsCSSRuleProcessor, nsIStyleRuleProcessor)
 /* static */ nsresult
 nsCSSRuleProcessor::Startup()
 {
-  Preferences::AddBoolVarCache(&gSupportVisitedPseudo, VISITED_PSEUDO_PREF,
-                               PR_TRUE);
+  nsContentUtils::AddBoolPrefVarCache(VISITED_PSEUDO_PREF,
+                                      &gSupportVisitedPseudo);
+  // We want to default to true, not false as AddBoolPrefVarCache does.
+  gSupportVisitedPseudo = Preferences::GetBool(VISITED_PSEUDO_PREF, PR_TRUE);
 
   gPrivateBrowsingObserver = new nsPrivateBrowsingObserver();
   NS_ENSURE_TRUE(gPrivateBrowsingObserver, NS_ERROR_OUT_OF_MEMORY);
@@ -1149,9 +1151,14 @@ static void GetLang(nsIContent* aContent, nsString& aLang)
 nsEventStates
 nsCSSRuleProcessor::GetContentState(Element* aElement)
 {
-  // FIXME: RequestLinkStateUpdate is a hack; see bug 660959.
-  aElement->RequestLinkStateUpdate();
-  nsEventStates state = aElement->State();
+  nsIPresShell* shell = aElement->GetOwnerDoc()->GetShell();
+  nsPresContext* presContext;
+  nsEventStates state;
+  if (shell && (presContext = shell->GetPresContext())) {
+    state = presContext->EventStateManager()->GetContentState(aElement);
+  } else {
+    state = aElement->IntrinsicState();
+  }
 
   // If we are not supposed to mark visited links as such, be sure to
   // flip the bits appropriately.  We want to do this here, rather
@@ -1170,9 +1177,7 @@ nsCSSRuleProcessor::GetContentState(Element* aElement)
 PRBool
 nsCSSRuleProcessor::IsLink(Element* aElement)
 {
-  // FIXME: RequestLinkStateUpdate is a hack; see bug 660959.
-  aElement->RequestLinkStateUpdate();
-  nsEventStates state = aElement->State();
+  nsEventStates state = aElement->IntrinsicState();
   return state.HasAtLeastOneOfStates(NS_EVENT_STATE_VISITED | NS_EVENT_STATE_UNVISITED);
 }
 

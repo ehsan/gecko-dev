@@ -54,6 +54,7 @@
 #include "nsTableCellFrame.h"
 #include "nsIServiceManager.h"
 #include "nsIPercentHeightObserver.h"
+#include "nsContentUtils.h"
 #include "nsLayoutUtils.h"
 #include "mozilla/Preferences.h"
 #ifdef IBMBIDI
@@ -1625,7 +1626,8 @@ static PRBool BlinkIsAllowed(void)
 {
   if (!sPrefIsLoaded) {
     // Set up a listener and check the initial value
-    Preferences::RegisterCallback(PrefsChanged, "browser.blink_allowed");
+    nsContentUtils::RegisterPrefCallback("browser.blink_allowed", PrefsChanged,
+                                         nsnull);
     PrefsChanged(nsnull, nsnull);
     sPrefIsLoaded = PR_TRUE;
   }

@@ -268,7 +268,9 @@ NameSpaceManagerImpl::HasElementCreator(PRInt32 aNameSpaceID)
 #ifdef MOZ_MATHML
          aNameSpaceID == kNameSpaceID_MathML ||
 #endif
+#ifdef MOZ_SVG
          aNameSpaceID == kNameSpaceID_SVG ||
+#endif
          aNameSpaceID == kNameSpaceID_XMLEvents ||
          PR_FALSE;
 }

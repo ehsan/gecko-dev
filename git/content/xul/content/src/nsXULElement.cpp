@@ -245,12 +245,6 @@ nsXULElement::nsXULElement(already_AddRefed<nsINodeInfo> aNodeInfo)
       mBindingParent(nsnull)
 {
     XUL_PROTOTYPE_ATTRIBUTE_METER(gNumElements);
-
-    // We may be READWRITE by default; check.
-    if (IsReadWriteTextElement()) {
-        AddStatesSilently(NS_EVENT_STATE_MOZ_READWRITE);
-        RemoveStatesSilently(NS_EVENT_STATE_MOZ_READONLY);
-    }
 }
 
 nsXULElement::nsXULSlots::nsXULSlots()
@@ -898,16 +892,6 @@ nsXULElement::MaybeAddPopupListener(nsIAtom* aLocalName)
 //
 // nsIContent interface
 //
-void
-nsXULElement::UpdateEditableState(PRBool aNotify)
-{
-    // Don't call through to nsGenericElement here because the things
-    // it does don't work for cases when we're an editable control.
-    nsIContent *parent = GetParent();
-
-    SetEditableFlag(parent && parent->HasFlag(NODE_IS_EDITABLE));
-    UpdateState(aNotify);
-}
 
 nsresult
 nsXULElement::BindToTree(nsIDocument* aDocument,
@@ -962,8 +946,9 @@ nsXULElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 }
 
 nsresult
-nsXULElement::RemoveChildAt(PRUint32 aIndex, PRBool aNotify)
+nsXULElement::RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent)
 {
+    NS_ASSERTION(aMutationEvent, "Someone tried to inhibit mutations on XUL child removal.");
     nsresult rv;
     nsCOMPtr<nsIContent> oldKid = mAttrsAndChildren.GetSafeChildAt(aIndex);
     if (!oldKid) {
@@ -1030,7 +1015,7 @@ nsXULElement::RemoveChildAt(PRUint32 aIndex, PRBool aNotify)
       }
     }
 
-    rv = nsStyledElement::RemoveChildAt(aIndex, aNotify);
+    rv = nsStyledElement::RemoveChildAt(aIndex, aNotify, aMutationEvent);
     
     if (newCurrentIndex == -2)
         controlElement->SetCurrentItem(nsnull);
@@ -1378,7 +1363,12 @@ nsXULElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, PRBool aNotify)
     nsAutoString oldValue;
     GetAttr(aNameSpaceID, aName, oldValue);
 
+    // When notifying, make sure to keep track of states whose value
+    // depends solely on the value of an attribute.
+    nsEventStates stateMask;
     if (aNotify) {
+        stateMask = IntrinsicState();
+ 
         nsNodeUtils::AttributeWillChange(this, aNameSpaceID, aName,
                                          nsIDOMMutationEvent::REMOVAL);
     }
@@ -1478,9 +1468,12 @@ nsXULElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, PRBool aNotify)
 
     }
 
-    UpdateState(aNotify);
-
     if (aNotify) {
+        stateMask ^= IntrinsicState();
+        if (doc && !stateMask.IsEmpty()) {
+            MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, aNotify);
+            doc->ContentStateChanged(this, stateMask);
+        }
         nsNodeUtils::AttributeChanged(this, aNameSpaceID, aName,
                                       nsIDOMMutationEvent::REMOVAL);
     }
@@ -2257,7 +2250,10 @@ nsXULElement::IntrinsicState() const
 {
     nsEventStates state = nsStyledElement::IntrinsicState();
 
-    if (IsReadWriteTextElement()) {
+    const nsIAtom* tag = Tag();
+    if (GetNameSpaceID() == kNameSpaceID_XUL &&
+        (tag == nsGkAtoms::textbox || tag == nsGkAtoms::textarea) &&
+        !HasAttr(kNameSpaceID_None, nsGkAtoms::readonly)) {
         state |= NS_EVENT_STATE_MOZ_READWRITE;
         state &= ~NS_EVENT_STATE_MOZ_READONLY;
     }

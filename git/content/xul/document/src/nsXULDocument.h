@@ -168,9 +168,6 @@ public:
     // nsIDOMNode interface overrides
     NS_IMETHOD CloneNode(PRBool deep, nsIDOMNode **_retval);
 
-    // nsIDOMDocument
-    NS_IMETHOD GetContentType(nsAString& aContentType);
-
     // nsDocument interface overrides
     NS_IMETHOD GetElementById(const nsAString& aId, nsIDOMElement** aReturn)
     {
@@ -180,6 +177,9 @@ public:
 
     // nsIDOMXULDocument interface
     NS_DECL_NSIDOMXULDOCUMENT
+
+    // nsIDOMNSDocument
+    NS_IMETHOD GetContentType(nsAString& aContentType);
 
     // nsICSSLoaderObserver
     NS_IMETHOD StyleSheetLoaded(nsCSSStyleSheet* aSheet,

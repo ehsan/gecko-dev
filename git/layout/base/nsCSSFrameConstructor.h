@@ -1328,6 +1328,7 @@ private:
                        nsStyleContext* aStyleContext);
 
 // SVG - rods
+#ifdef MOZ_SVG
   static const FrameConstructionData* FindSVGData(Element* aElement,
                                                   nsIAtom* aTag,
                                                   PRInt32 aNameSpaceID,
@@ -1340,6 +1341,7 @@ private:
                                           const nsStyleDisplay* aStyleDisplay,
                                           nsFrameItems& aFrameItems,
                                           nsIFrame** aNewFrame);
+#endif
 
   /* Not static because it does PropagateScrollToViewport.  If this
      changes, make this static */

@@ -42,6 +42,7 @@
 
 #include "nsXULPrototypeCache.h"
 
+#include "nsContentUtils.h"
 #include "plstr.h"
 #include "nsXULPrototypeDocument.h"
 #include "nsCSSStyleSheet.h"
@@ -136,8 +137,9 @@ NS_NewXULPrototypeCache(nsISupports* aOuter, REFNSIID aIID, void** aResult)
     // XXX Ignore return values.
     gDisableXULCache =
         Preferences::GetBool(kDisableXULCachePref, gDisableXULCache);
-    Preferences::RegisterCallback(DisableXULCacheChangedCallback,
-                                  kDisableXULCachePref);
+    nsContentUtils::RegisterPrefCallback(kDisableXULCachePref,
+                                         DisableXULCacheChangedCallback,
+                                         nsnull);
 
     nsresult rv = result->QueryInterface(aIID, aResult);
 
@@ -730,10 +732,12 @@ nsXULPrototypeCache::StartFastLoad(nsIURI* aURI)
     gChecksumXULFastLoadFile =
         Preferences::GetBool(kChecksumXULFastLoadFilePref,
                              gChecksumXULFastLoadFile);
-    Preferences::RegisterCallback(FastLoadPrefChangedCallback,
-                                  kDisableXULFastLoadPref);
-    Preferences::RegisterCallback(FastLoadPrefChangedCallback,
-                                  kChecksumXULFastLoadFilePref);
+    nsContentUtils::RegisterPrefCallback(kDisableXULFastLoadPref,
+                                         FastLoadPrefChangedCallback,
+                                         nsnull);
+    nsContentUtils::RegisterPrefCallback(kChecksumXULFastLoadFilePref,
+                                         FastLoadPrefChangedCallback,
+                                         nsnull);
 
     if (gDisableXULFastLoad)
         return NS_ERROR_NOT_AVAILABLE;

@@ -108,7 +108,7 @@ public:
   virtual PRBool Init();
   virtual void Shutdown();
   virtual nsIFrame* GetFrame() const;
-  virtual bool IsDefunct() const;
+  virtual PRBool IsDefunct();
   virtual nsINode* GetNode() const { return mDocument; }
   virtual nsIDocument* GetDocumentNode() const { return mDocument; }
 

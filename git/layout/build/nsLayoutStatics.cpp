@@ -88,7 +88,9 @@
 #include "nsFrameList.h"
 #include "nsListControlFrame.h"
 #include "nsHTMLInputElement.h"
+#ifdef MOZ_SVG
 #include "nsSVGUtils.h"
+#endif
 
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
@@ -337,6 +339,8 @@ nsLayoutStatics::Shutdown()
   nsImageFrame::ReleaseGlobals();
 
   nsCSSScanner::ReleaseGlobals();
+
+  NS_IF_RELEASE(nsRuleNode::gLangService);
 
   nsTextFragment::Shutdown();
 

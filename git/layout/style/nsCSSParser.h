@@ -88,8 +88,10 @@ public:
   // Set whether or not to emulate Nav quirks
   nsresult SetQuirkMode(PRBool aQuirkMode);
 
+#ifdef  MOZ_SVG
   // Set whether or not we are in an SVG element
   nsresult SetSVGMode(PRBool aSVGMode);
+#endif
 
   // Set loader to use for child sheets
   nsresult SetChildLoader(mozilla::css::Loader* aChildLoader);

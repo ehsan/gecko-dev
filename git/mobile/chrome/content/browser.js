@@ -3020,15 +3020,12 @@ var ViewableAreaObserver = {
     return (this._height || window.innerHeight);
   },
 
-  _isKeyboardOpened: true,
+  _isKeyboardOpened: false,
   get isKeyboardOpened() {
     return this._isKeyboardOpened;
   },
 
   set isKeyboardOpened(aValue) {
-    if (!this.hasVirtualKeyboard())
-      return this._isKeyboardOpened;
-
     let oldValue = this._isKeyboardOpened;
 
     if (oldValue != aValue) {
@@ -3039,17 +3036,6 @@ var ViewableAreaObserver = {
       window.dispatchEvent(event);
     }
   },
-
-  hasVirtualKeyboard: function va_hasVirtualKeyboard() {
-#ifndef ANDROID
-#ifndef MOZ_PLATFORM_MAEMO
-    return false;
-#endif
-#endif
-
-    return true;
-  },
-
 
   observe: function va_observe(aSubject, aTopic, aData) {
 #if MOZ_PLATFORM_MAEMO == 6
