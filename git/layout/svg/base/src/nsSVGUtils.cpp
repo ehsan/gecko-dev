@@ -406,10 +406,10 @@ nsSVGUtils::ReportToConsole(nsIDocument* doc,
   return nsContentUtils::ReportToConsole(nsContentUtils::eSVG_PROPERTIES,
                                          aWarning,
                                          aParams, aParamsLength,
-                                         nsnull,
+                                         doc ? doc->GetDocumentURI() : nsnull,
                                          EmptyString(), 0, 0,
                                          nsIScriptError::warningFlag,
-                                         "SVG", doc);
+                                         "SVG");
 }
 
 float
@@ -1013,7 +1013,7 @@ nsSVGUtils::PaintFrameWithEffects(nsSVGRenderState *aContext,
   PRBool isTrivialClip = clipPathFrame ? clipPathFrame->IsTrivial() : PR_TRUE;
 
   if (!isOK) {
-    // Some resource is invalid. We shouldn't paint anything.
+    // Some resource is missing. We shouldn't paint anything.
     return;
   }
   

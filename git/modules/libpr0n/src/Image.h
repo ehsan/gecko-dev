@@ -123,11 +123,6 @@ public:
   PRUint32 GetAnimationConsumers() { return mAnimationConsumers; }
 #endif
 
-  void SetWindowID(PRUint64 aWindowId) {
-    mWindowId = aWindowId;
-  }
-  PRUint64 WindowID() const { return mWindowId; }
-
 protected:
   Image(imgStatusTracker* aStatusTracker);
 
@@ -139,8 +134,6 @@ protected:
 
   virtual nsresult StartAnimation() = 0;
   virtual nsresult StopAnimation() = 0;
-
-  PRUint64 mWindowId;
 
   // Member data shared by all implementations of this abstract class
   nsAutoPtr<imgStatusTracker> mStatusTracker;

@@ -1403,7 +1403,7 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CHROME_ONLY_CLASSINFO_DATA(ChromeWorker, nsDOMGenericSH,
                                        DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
-  NS_DEFINE_CLASSINFO_DATA(WebGLRenderingContext, nsWebGLViewportHandlerSH,
+  NS_DEFINE_CLASSINFO_DATA(WebGLRenderingContext, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(WebGLBuffer, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
@@ -1566,8 +1566,6 @@ jsid nsDOMClassInfo::sOnblur_id          = JSID_VOID;
 jsid nsDOMClassInfo::sOnsubmit_id        = JSID_VOID;
 jsid nsDOMClassInfo::sOnreset_id         = JSID_VOID;
 jsid nsDOMClassInfo::sOnchange_id        = JSID_VOID;
-jsid nsDOMClassInfo::sOninput_id         = JSID_VOID;
-jsid nsDOMClassInfo::sOninvalid_id       = JSID_VOID;
 jsid nsDOMClassInfo::sOnselect_id        = JSID_VOID;
 jsid nsDOMClassInfo::sOnload_id          = JSID_VOID;
 jsid nsDOMClassInfo::sOnpopstate_id      = JSID_VOID;
@@ -1638,9 +1636,6 @@ jsid nsDOMClassInfo::sOnbeforescriptexecute_id = JSID_VOID;
 jsid nsDOMClassInfo::sOnafterscriptexecute_id = JSID_VOID;
 jsid nsDOMClassInfo::sWrappedJSObject_id = JSID_VOID;
 jsid nsDOMClassInfo::sURL_id             = JSID_VOID;
-jsid nsDOMClassInfo::sKeyPath_id         = JSID_VOID;
-jsid nsDOMClassInfo::sAutoIncrement_id   = JSID_VOID;
-jsid nsDOMClassInfo::sUnique_id          = JSID_VOID;
 
 static const JSClass *sObjectClass = nsnull;
 
@@ -1686,12 +1681,12 @@ PrintWarningOnConsole(JSContext *cx, const char *stringBundleProperty)
   }
 
   nsCOMPtr<nsIConsoleService> consoleService
-    (do_GetService(NS_CONSOLESERVICE_CONTRACTID));
+    (do_GetService("@mozilla.org/consoleservice;1"));
   if (!consoleService) {
     return;
   }
 
-  nsCOMPtr<nsIScriptError2> scriptError =
+  nsCOMPtr<nsIScriptError> scriptError =
     do_CreateInstance(NS_SCRIPTERROR_CONTRACTID);
   if (!scriptError) {
     return;
@@ -1714,19 +1709,15 @@ PrintWarningOnConsole(JSContext *cx, const char *stringBundleProperty)
       }
     }
   }
-
-  nsresult rv = scriptError->InitWithWindowID(msg.get(),
-                                              sourcefile.get(),
-                                              EmptyString().get(),
-                                              lineno,
-                                              0, // column for error is not available
-                                              nsIScriptError::warningFlag,
-                                              "DOM:HTML",
-                                              nsJSUtils::GetCurrentlyRunningCodeWindowID(cx));
-
+  nsresult rv = scriptError->Init(msg.get(),
+                                  sourcefile.get(),
+                                  EmptyString().get(),
+                                  lineno,
+                                  0, // column for error is not available
+                                  nsIScriptError::warningFlag,
+                                  "DOM:HTML");
   if (NS_SUCCEEDED(rv)){
-    nsCOMPtr<nsIScriptError> logError = do_QueryInterface(scriptError);
-    consoleService->LogMessage(logError);
+    consoleService->LogMessage(scriptError);
   }
 }
 
@@ -1799,8 +1790,6 @@ nsDOMClassInfo::DefineStaticJSVals(JSContext *cx)
   SET_JSID_TO_STRING(sOnsubmit_id,        cx, "onsubmit");
   SET_JSID_TO_STRING(sOnreset_id,         cx, "onreset");
   SET_JSID_TO_STRING(sOnchange_id,        cx, "onchange");
-  SET_JSID_TO_STRING(sOninput_id,         cx, "oninput");
-  SET_JSID_TO_STRING(sOninvalid_id,       cx, "oninvalid");
   SET_JSID_TO_STRING(sOnselect_id,        cx, "onselect");
   SET_JSID_TO_STRING(sOnload_id,          cx, "onload");
   SET_JSID_TO_STRING(sOnpopstate_id,      cx, "onpopstate");
@@ -1873,9 +1862,6 @@ nsDOMClassInfo::DefineStaticJSVals(JSContext *cx)
 #endif // MOZ_MEDIA
   SET_JSID_TO_STRING(sWrappedJSObject_id, cx, "wrappedJSObject");
   SET_JSID_TO_STRING(sURL_id,             cx, "URL");
-  SET_JSID_TO_STRING(sKeyPath_id,         cx, "keyPath");
-  SET_JSID_TO_STRING(sAutoIncrement_id,   cx, "autoIncrement");
-  SET_JSID_TO_STRING(sUnique_id,          cx, "unique");
 
   return NS_OK;
 }
@@ -4870,8 +4856,6 @@ nsDOMClassInfo::ShutDown()
   sOnsubmit_id        = JSID_VOID;
   sOnreset_id         = JSID_VOID;
   sOnchange_id        = JSID_VOID;
-  sOninput_id         = JSID_VOID;
-  sOninvalid_id       = JSID_VOID;
   sOnselect_id        = JSID_VOID;
   sOnload_id          = JSID_VOID;
   sOnbeforeunload_id  = JSID_VOID;
@@ -4939,9 +4923,6 @@ nsDOMClassInfo::ShutDown()
   sOnbeforescriptexecute_id = JSID_VOID;
   sOnafterscriptexecute_id = JSID_VOID;
   sWrappedJSObject_id = JSID_VOID;
-  sKeyPath_id         = JSID_VOID;
-  sAutoIncrement_id   = JSID_VOID;
-  sUnique_id          = JSID_VOID;
 
   NS_IF_RELEASE(sXPConnect);
   NS_IF_RELEASE(sSecMan);
@@ -7509,9 +7490,6 @@ nsEventReceiverSH::ReallyIsEventName(jsid id, jschar aFirstChar)
     return id == sOnfocus_id;
   case 'h' :
     return id == sOnhashchange_id;
-  case 'i' :
-    return (id == sOninput_id ||
-            id == sOninvalid_id);
   case 'k' :
     return (id == sOnkeydown_id      ||
             id == sOnkeypress_id     ||

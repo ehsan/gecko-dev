@@ -133,7 +133,8 @@ private:
                            nsCOMPtr<StatementType>& aStatement,
                            void*)
   {
-    (void)aStatement->Finalize();
+    nsresult rv = aStatement->Finalize();
+    NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Finalizing statement failed!");
     return PL_DHASH_NEXT;
   }
 

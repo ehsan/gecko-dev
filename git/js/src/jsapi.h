@@ -3220,31 +3220,25 @@ JS_StructuredClone(JSContext *cx, jsval v, jsval *vp);
 #ifdef __cplusplus
 /* RAII sugar for JS_WriteStructuredClone. */
 class JSAutoStructuredCloneBuffer {
-    JSContext *cx_;
+    JSContext *cx;
     uint64 *data_;
     size_t nbytes_;
     uint32 version_;
 
   public:
-    JSAutoStructuredCloneBuffer()
-        : cx_(NULL), data_(NULL), nbytes_(0), version_(JS_STRUCTURED_CLONE_VERSION) {}
+    explicit JSAutoStructuredCloneBuffer(JSContext *cx)
+        : cx(cx), data_(NULL), nbytes_(0), version_(JS_STRUCTURED_CLONE_VERSION) {}
 
     ~JSAutoStructuredCloneBuffer() { clear(); }
 
-    JSContext *cx() const { return cx_; }
     uint64 *data() const { return data_; }
     size_t nbytes() const { return nbytes_; }
 
-    void clear(JSContext *cx=NULL) {
+    void clear() {
         if (data_) {
-            if (!cx)
-                cx = cx_;
-            JS_ASSERT(cx);
             JS_free(cx, data_);
-            cx_ = NULL;
             data_ = NULL;
             nbytes_ = 0;
-            version_ = 0;
         }
     }
 
@@ -3252,10 +3246,8 @@ class JSAutoStructuredCloneBuffer {
      * Adopt some memory. It will be automatically freed by the destructor.
      * data must have been allocated using JS_malloc.
      */
-    void adopt(JSContext *cx, uint64 *data, size_t nbytes,
-               uint32 version=JS_STRUCTURED_CLONE_VERSION) {
-        clear(cx);
-        cx_ = cx;
+    void adopt(uint64 *data, size_t nbytes, uint32 version=JS_STRUCTURED_CLONE_VERSION) {
+        clear();
         data_ = data;
         nbytes_ = nbytes;
         version_ = version;
@@ -3265,65 +3257,27 @@ class JSAutoStructuredCloneBuffer {
      * Remove the buffer so that it will not be automatically freed.
      * After this, the caller is responsible for calling JS_free(*datap).
      */
-    void steal(uint64 **datap, size_t *nbytesp, JSContext **cxp=NULL,
-               uint32 *versionp=NULL) {
+    void steal(uint64 **datap, size_t *nbytesp) {
         *datap = data_;
         *nbytesp = nbytes_;
-        if (cxp)
-            *cxp = cx_;
-        if (versionp)
-            *versionp = version_;
-
-        cx_ = NULL;
         data_ = NULL;
         nbytes_ = 0;
-        version_ = 0;
     }
 
-    bool read(jsval *vp, JSContext *cx=NULL) const {
-        if (!cx)
-            cx = cx_;
-        JS_ASSERT(cx);
+    bool read(jsval *vp) const {
         JS_ASSERT(data_);
         return !!JS_ReadStructuredClone(cx, data_, nbytes_, version_, vp);
     }
 
-    bool write(JSContext *cx, jsval v) {
-        clear(cx);
-        cx_ = cx;
+    bool write(jsval v) {
+        clear();
         bool ok = !!JS_WriteStructuredClone(cx, v, &data_, &nbytes_);
         if (!ok) {
             data_ = NULL;
             nbytes_ = 0;
-            version_ = JS_STRUCTURED_CLONE_VERSION;
         }
         return ok;
     }
-
-    /**
-     * Swap ownership with another JSAutoStructuredCloneBuffer.
-     */
-    void swap(JSAutoStructuredCloneBuffer &other) {
-        JSContext *cx = other.cx_;
-        uint64 *data = other.data_;
-        size_t nbytes = other.nbytes_;
-        uint32 version = other.version_;
-
-        other.cx_ = this->cx_;
-        other.data_ = this->data_;
-        other.nbytes_ = this->nbytes_;
-        other.version_ = this->version_;
-
-        this->cx_ = cx;
-        this->data_ = data;
-        this->nbytes_ = nbytes;
-        this->version_ = version;
-    }
-
-  private:
-    /* Copy and assignment are not supported. */
-    JSAutoStructuredCloneBuffer(const JSAutoStructuredCloneBuffer &other);
-    JSAutoStructuredCloneBuffer &operator=(const JSAutoStructuredCloneBuffer &other);
 };
 #endif
 

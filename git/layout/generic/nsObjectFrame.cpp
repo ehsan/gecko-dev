@@ -1093,7 +1093,7 @@ nsObjectFrame::FixupWindow(const nsSize& aSize)
 }
 
 nsresult
-nsObjectFrame::CallSetWindow(PRBool aCheckIsHidden)
+nsObjectFrame::CallSetWindow()
 {
   NPWindow *win = nsnull;
  
@@ -1111,7 +1111,7 @@ nsObjectFrame::CallSetWindow(PRBool aCheckIsHidden)
   mInstanceOwner->FixUpPluginWindow(ePluginPaintDisable);
 #endif
 
-  if (aCheckIsHidden && IsHidden())
+  if (IsHidden())
     return NS_ERROR_FAILURE;
 
   // refresh the plugin port as well
@@ -1251,22 +1251,14 @@ nsDisplayPlugin::GetBounds(nsDisplayListBuilder* aBuilder)
 {
   nsRect r = mFrame->GetContentRect() - mFrame->GetPosition() +
     ToReferenceFrame();
-  if (aBuilder->IsForPluginGeometry()) {
-    // Return the geometry we want, not the geometry we have (which is based
-    // on the surface the plugin last gave us)
-    return r;
-  }
-
   nsObjectFrame* f = static_cast<nsObjectFrame*>(mFrame);
   if (mozilla::LAYER_ACTIVE == f->GetLayerState(aBuilder, nsnull)) {
     ImageContainer* c = f->GetImageContainer();
     if (c) {
       gfxIntSize size = c->GetCurrentSize();
       PRInt32 appUnitsPerDevPixel = f->PresContext()->AppUnitsPerDevPixel();
-      nsSize sizeAppUnits(size.width*appUnitsPerDevPixel, size.height*appUnitsPerDevPixel);
-      r += nsPoint((r.width - sizeAppUnits.width) / 2,
-                   (r.height - sizeAppUnits.height) / 2);
-      r.SizeTo(sizeAppUnits);
+      r -= nsPoint((r.width - size.width * appUnitsPerDevPixel) / 2,
+                   (r.height - size.height * appUnitsPerDevPixel) / 2);
     }
   }
   return r;
@@ -1466,24 +1458,6 @@ nsObjectFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 #endif
 
   nsDisplayList replacedContent;
-
-  if (mInstanceOwner && mInstanceOwner->UseLayers()) {
-    NPWindow* window = nsnull;
-    mInstanceOwner->GetWindow(window);
-    PRBool isVisible = window && window->width > 0 && window->height > 0;
-    if (isVisible) {
-  #ifndef XP_MACOSX
-      mInstanceOwner->UpdateWindowVisibility(PR_TRUE);
-  #endif
-    }
-
-    ImageContainer* container = GetImageContainer();
-    nsRefPtr<Image> currentImage = container ? container->GetCurrentImage() : nsnull;
-    if (!currentImage || !isVisible ||
-        container->GetCurrentSize() != gfxIntSize(window->width, window->height)) {
-      mInstanceOwner->NotifyPaintWaiter(aBuilder);
-    }
-  }
 
   // determine if we are printing
   if (type == nsPresContext::eContext_Print) {
@@ -1813,6 +1787,10 @@ nsObjectFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
   if (window->width <= 0 || window->height <= 0)
     return nsnull;
 
+#ifndef XP_MACOSX
+  mInstanceOwner->UpdateWindowVisibility(PR_TRUE);
+#endif
+
   nsRect area = GetContentRect() + aBuilder->ToReferenceFrame(GetParent());
   gfxRect r = nsLayoutUtils::RectToGfxRect(area, PresContext()->AppUnitsPerDevPixel());
   // to provide crisper and faster drawing.
@@ -1844,6 +1822,10 @@ nsObjectFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
   imglayer->SetFilter(nsLayoutUtils::GetGraphicsFilterForFrame(this));
 
   layer->SetContentFlags(IsOpaque() ? Layer::CONTENT_OPAQUE : 0);
+
+  if (container->GetCurrentSize() != gfxIntSize(window->width, window->height)) {
+    mInstanceOwner->NotifyPaintWaiter(aBuilder);
+  }
 
   // Set a transform on the layer to draw the plugin in the right place
   gfxMatrix transform;
@@ -3335,7 +3317,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::SetEventModel(PRInt32 eventModel)
 NS_IMETHODIMP nsPluginInstanceOwner::SetWindow()
 {
   NS_ENSURE_TRUE(mObjectFrame, NS_ERROR_NULL_POINTER);
-  return mObjectFrame->CallSetWindow(PR_FALSE);
+  return mObjectFrame->CallSetWindow();
 }
 
 NPError nsPluginInstanceOwner::ShowNativeContextMenu(NPMenu* menu, void* event)

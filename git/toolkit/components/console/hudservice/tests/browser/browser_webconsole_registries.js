@@ -57,10 +57,12 @@ function testRegistries() {
   ok(displaysIdx.length == 1, "one display id found");
 
   var display = displaysIdx[0];
-  ok(HUDService.hudReferences[display], "we have a HUD");
+  var registry = HUDService.displayRegistry;
+  var uri = registry[display];
+  ok(registry[display], "we have a URI: " + registry[display]);
 
-  let windowID = HUDService.getWindowId(content);
-  is(HUDService.windowIds[windowID], display, "windowIds is working");
+  var uriRegistry = HUDService.uriRegistry;
+  ok(uriRegistry[uri].length == 1, "uri registry is working");
 
   finishTest();
 }

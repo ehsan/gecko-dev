@@ -38,11 +38,8 @@
 
 #include "nsScreenManagerAndroid.h"
 #include "nsWindow.h"
-#include "AndroidBridge.h"
 
-using namespace mozilla;
-
-NS_IMPL_ISUPPORTS2(nsScreenAndroid, nsIScreen, nsIScreen_MOZILLA_2_0_BRANCH)
+NS_IMPL_ISUPPORTS1(nsScreenAndroid, nsIScreen)
 
 nsScreenAndroid::nsScreenAndroid(void *nativeScreen)
 {
@@ -89,12 +86,6 @@ NS_IMETHODIMP
 nsScreenAndroid::GetColorDepth(PRInt32 *aColorDepth)
 {
     return GetPixelDepth(aColorDepth);
-}
-
-void
-nsScreenAndroid::ApplyMinimumBrightness(PRUint32 aBrightness)
-{
-  AndroidBridge::Bridge()->SetKeepScreenOn(aBrightness == BRIGHTNESS_FULL);
 }
 
 NS_IMPL_ISUPPORTS1(nsScreenManagerAndroid, nsIScreenManager)

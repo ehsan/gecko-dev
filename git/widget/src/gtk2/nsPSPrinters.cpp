@@ -45,7 +45,6 @@
 #include "nsPrintfCString.h"
 #include "nsPSPrinters.h"
 #include "nsReadableUtils.h"        // StringBeginsWith()
-#include "nsCUPSShim.h"
 
 #include "prlink.h"
 #include "prenv.h"
@@ -56,8 +55,6 @@
 
 /* dummy printer name for the gfx/src/ps driver */
 #define NS_POSTSCRIPT_DRIVER_NAME "PostScript/"
-
-nsCUPSShim gCupsShim;
 
 /* Initialize the printer manager object */
 nsresult
@@ -73,8 +70,8 @@ nsPSPrinterList::Init()
     // Should we try cups?
     PRBool useCups = PR_TRUE;
     rv = mPref->GetBoolPref("postscript.cups.enabled", &useCups);
-    if (useCups && !gCupsShim.IsInitialized())
-        gCupsShim.Init();
+    if (useCups)
+        mCups.Init();
     return NS_OK;
 }
 
@@ -102,10 +99,10 @@ nsPSPrinterList::GetPrinterList(nsTArray<nsCString>& aList)
 
     // Query CUPS for a printer list. The default printer goes to the
     // head of the output list; others are appended.
-    if (gCupsShim.IsInitialized()) {
+    if (mCups.IsInitialized()) {
         cups_dest_t *dests;
 
-        int num_dests = (gCupsShim.mCupsGetDests)(&dests);
+        int num_dests = (mCups.mCupsGetDests)(&dests);
         if (num_dests) {
             for (int i = 0; i < num_dests; i++) {
                 nsCAutoString fullName(NS_CUPS_PRINTER);
@@ -120,7 +117,7 @@ nsPSPrinterList::GetPrinterList(nsTArray<nsCString>& aList)
                     aList.AppendElement(fullName);
             }
         }
-        (gCupsShim.mCupsFreeDests)(num_dests, dests);
+        (mCups.mCupsFreeDests)(num_dests, dests);
     }
 
     // Build the "classic" list of printers -- those accessed by running

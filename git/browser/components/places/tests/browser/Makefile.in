@@ -70,7 +70,6 @@ _BROWSER_TEST_FILES = \
 	framedPage.html \
 	frameLeft.html \
 	frameRight.html \
-	browser_toolbar_migration.js \
 	$(NULL)
 
 libs:: $(_BROWSER_TEST_FILES)

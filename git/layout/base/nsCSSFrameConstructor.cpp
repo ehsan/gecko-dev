@@ -9667,10 +9667,10 @@ nsCSSFrameConstructor::ProcessChildren(nsFrameConstructorState& aState,
     nsContentUtils::ReportToConsole(nsContentUtils::eXUL_PROPERTIES,
                                     message,
                                     params, NS_ARRAY_LENGTH(params),
-                                    nsnull,
+                                    mDocument->GetDocumentURI(),
                                     EmptyString(), 0, 0, // not useful
                                     nsIScriptError::warningFlag,
-                                    "FrameConstructor", mDocument);
+                                    "FrameConstructor");
 
     nsRefPtr<nsStyleContext> blockSC = mPresShell->StyleSet()->
       ResolveAnonymousBoxStyle(nsCSSAnonBoxes::mozXULAnonymousBlock,

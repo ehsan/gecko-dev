@@ -13,7 +13,7 @@ const TESTS = [
   { // #0
     file: "test-bug-595934-css-loader.html",
     category: "CSS Loader",
-    matchString: "text/css",
+    matchString: "CSS Loader",
   },
   { // #1
     file: "test-bug-595934-dom-events.html",
@@ -28,7 +28,7 @@ const TESTS = [
   { // #3
     file: "test-bug-595934-imagemap.html",
     category: "ImageMap",
-    matchString: "shape=\"rect\"",
+    matchString: "ImageMap",
   },
   { // #4
     file: "test-bug-595934-html.html",
@@ -42,67 +42,12 @@ const TESTS = [
   { // #5
     file: "test-bug-595934-malformedxml.xhtml",
     category: "malformed-xml",
-    matchString: "no element found",
+    matchString: "malformed-xml",
   },
   { // #6
     file: "test-bug-595934-svg.xhtml",
     category: "SVG",
     matchString: "fooBarSVG",
-  },
-  { // #7
-    file: "test-bug-595934-workers.html",
-    category: "DOM Worker javascript",
-    matchString: "fooBarWorker",
-  },
-  { // #8
-    file: "test-bug-595934-dom-html-external.html",
-    category: "DOM:HTML",
-    matchString: "document.all",
-  },
-  { // #9
-    file: "test-bug-595934-dom-events-external.html",
-    category: "DOM Events",
-    matchString: "clientWidth",
-  },
-  { // #10
-    file: "test-bug-595934-dom-events-external2.html",
-    category: "DOM Events",
-    matchString: "preventBubble()",
-  },
-  { // #11
-    file: "test-bug-595934-canvas.html",
-    category: "Canvas",
-    matchString: "strokeStyle",
-  },
-  { // #12
-    file: "test-bug-595934-css-parser.html",
-    category: "CSS Parser",
-    matchString: "foobarCssParser",
-  },
-  { // #13
-    file: "test-bug-595934-malformedxml-external.html",
-    category: "malformed-xml",
-    matchString: "</html>",
-  },
-  { // #14
-    file: "test-bug-595934-empty-getelementbyid.html",
-    category: "DOM",
-    matchString: "getElementById",
-  },
-  { // #15
-    file: "test-bug-595934-canvas-css.html",
-    category: "CSS Parser",
-    matchString: "foobarCanvasCssParser",
-  },
-  { // #17
-    file: "test-bug-595934-getselection.html",
-    category: "content javascript",
-    matchString: "getSelection",
-  },
-  { // #18
-    file: "test-bug-595934-image.html",
-    category: "Image",
-    matchString: "corrupt",
   },
 ];
 
@@ -118,7 +63,7 @@ let TestObserver = {
     }
 
     is(aSubject.category, TESTS[pos].category,
-      "test #" + pos + ": error category '" + TESTS[pos].category + "'");
+      "test #" + pos + ": error category");
 
     if (aSubject.category == TESTS[pos].category) {
       executeSoon(performTest);
@@ -169,13 +114,13 @@ function testEnd() {
 function performTest() {
   let textContent = hud.outputNode.textContent;
   isnot(textContent.indexOf(TESTS[pos].matchString), -1,
-    "test #" + pos + ": message found '" + TESTS[pos].matchString + "'");
+    "test #" + pos + ": message found");
 
   testNext();
 }
 
 function test() {
-  addTab("data:text/html,Web Console test for bug 595934 - message categories coverage.");
+  addTab("data:text/html,Web Console test for bug 595934.");
   browser.addEventListener("load", tabLoad, true);
 }
 

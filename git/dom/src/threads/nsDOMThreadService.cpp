@@ -597,8 +597,6 @@ DOMWorkerErrorReporter(JSContext* aCx,
     return;
   }
 
-  nsCOMPtr<nsIScriptError2> scriptError2(do_QueryInterface(scriptError));
-
   nsAutoString message, filename, line;
   PRUint32 lineNumber, columnNumber, flags, errorNumber;
 
@@ -622,11 +620,8 @@ DOMWorkerErrorReporter(JSContext* aCx,
     message.AssignWithConversion(aMessage);
   }
 
-  rv = scriptError2->InitWithWindowID(message.get(), filename.get(), line.get(),
-                                      lineNumber, columnNumber, flags,
-                                      "DOM Worker javascript",
-                                      worker->Pool()->WindowID());
-
+  rv = scriptError->Init(message.get(), filename.get(), line.get(), lineNumber,
+                         columnNumber, flags, "DOM Worker javascript");
   if (NS_FAILED(rv)) {
     return;
   }

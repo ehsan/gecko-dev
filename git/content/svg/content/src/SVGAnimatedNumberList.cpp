@@ -70,7 +70,7 @@ SVGAnimatedNumberList::SetBaseValueString(const nsAString& aValue)
   // which takes care of notifying.
 
   rv = mBaseVal.CopyFrom(newBaseValue);
-  if (NS_FAILED(rv) && domWrapper) {
+  if (NS_FAILED(rv)) {
     // Attempting to increase mBaseVal's length failed - reduce domWrapper
     // back to the same length:
     domWrapper->InternalBaseValListWillChangeTo(mBaseVal);

@@ -1046,10 +1046,7 @@ nsHTMLParanoidFragmentSink::AddAttributes(const nsIParserNode& aNode,
       if (!baseURI) {
         baseURI = aContent->GetBaseURI();
       }
-
-      // Pass the CSS Loader object to the parser, to allow parser error reports
-      // to include the outer window ID.
-      nsCSSParser parser(mTargetDocument->CSSLoader());
+      nsCSSParser parser;
       nsCOMPtr<nsICSSStyleRule> rule;
       rv = parser.ParseStyleAttribute(aNode.GetValueAt(i),
                                       mTargetDocument->GetDocumentURI(),

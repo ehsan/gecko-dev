@@ -5967,6 +5967,18 @@ nsNavHistory::ResultsAsList(mozIStorageStatement* statement,
   return NS_OK;
 }
 
+static PRInt64
+GetAgeInDays(PRTime aNormalizedNow, PRTime aDate)
+{
+  PRTime dateMidnight = NormalizeTimeRelativeToday(aDate);
+  // if the visit time is in the future
+  // treat as "today" see bug #385867
+  if (dateMidnight > aNormalizedNow)
+    return 0;
+  else
+    return ((aNormalizedNow - dateMidnight) / USECS_PER_DAY);
+}
+
 const PRInt64 UNDEFINED_URN_VALUE = -1;
 
 // Create a urn (like
@@ -6647,51 +6659,53 @@ nsNavHistory::GetAgeInDaysString(PRInt32 aInt, const PRUnichar *aName,
                                  nsACString& aResult)
 {
   nsIStringBundle *bundle = GetBundle();
-  if (bundle) {
+  if (!bundle)
+    aResult.Truncate(0);
+  else {
     nsAutoString intString;
     intString.AppendInt(aInt);
     const PRUnichar* strings[1] = { intString.get() };
     nsXPIDLString value;
     nsresult rv = bundle->FormatStringFromName(aName, strings,
                                                1, getter_Copies(value));
-    if (NS_SUCCEEDED(rv)) {
+    if (NS_SUCCEEDED(rv))
       CopyUTF16toUTF8(value, aResult);
-      return;
-    }
+    else
+      aResult.Truncate(0);
   }
-  CopyUTF16toUTF8(nsDependentString(aName), aResult);
 }
 
 void
 nsNavHistory::GetStringFromName(const PRUnichar *aName, nsACString& aResult)
 {
   nsIStringBundle *bundle = GetBundle();
-  if (bundle) {
-    nsXPIDLString value;
-    nsresult rv = bundle->GetStringFromName(aName, getter_Copies(value));
-    if (NS_SUCCEEDED(rv)) {
-      CopyUTF16toUTF8(value, aResult);
-      return;
-    }
-  }
-  CopyUTF16toUTF8(nsDependentString(aName), aResult);
+  if (!bundle)
+    aResult.Truncate(0);
+
+  nsXPIDLString value;
+  nsresult rv = bundle->GetStringFromName(aName, getter_Copies(value));
+  if (NS_SUCCEEDED(rv))
+    CopyUTF16toUTF8(value, aResult);
+  else
+    aResult.Truncate(0);
 }
 
 void
 nsNavHistory::GetMonthName(PRInt32 aIndex, nsACString& aResult)
 {
   nsIStringBundle *bundle = GetDateFormatBundle();
-  if (bundle) {
+  if (!bundle)
+    aResult.Truncate(0);
+  else {
     nsCString name = nsPrintfCString("month.%d.name", aIndex);
     nsXPIDLString value;
     nsresult rv = bundle->GetStringFromName(NS_ConvertUTF8toUTF16(name).get(),
                                             getter_Copies(value));
-    if (NS_SUCCEEDED(rv)) {
+    if (NS_SUCCEEDED(rv))
       CopyUTF16toUTF8(value, aResult);
-      return;
-    }
+    else
+      aResult.Truncate(0);
   }
-  aResult = nsPrintfCString("[%d]", aIndex);
 }
 
 // nsNavHistory::SetPageTitleInternal

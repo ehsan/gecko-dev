@@ -701,15 +701,6 @@ public:
   }
 
   /**
-   * Return the outer window ID.
-   */
-  PRUint64 OuterWindowID()
-  {
-    nsPIDOMWindow *window = GetWindow();
-    return window ? window->WindowID() : 0;
-  }
-
-  /**
    * Get the script loader for this document
    */ 
   virtual nsScriptLoader* ScriptLoader() = 0;

@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sw=4 et tw=78:
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -47,7 +46,6 @@
 #include "nsWrapperCache.h"
 #include "XPCWrapper.h"
 #include "AccessCheck.h"
-#include "nsJSUtils.h"
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsXPCWrappedJSClass, nsIXPCWrappedJSClass)
 
@@ -1214,14 +1212,11 @@ nsXPCWrappedJSClass::CheckForException(XPCCallContext & ccx,
                                     rv = location->GetFilename(getter_Copies(sourceName));
                                 }
 
-                                nsCOMPtr<nsIScriptError2> scriptError2 =
-                                    do_QueryInterface(scriptError);
-                                rv = scriptError2->InitWithWindowID(newMessage.get(),
-                                                                    NS_ConvertASCIItoUTF16(sourceName).get(),
-                                                                    nsnull,
-                                                                    lineNumber, 0, 0,
-                                                                    "XPConnect JavaScript",
-                                                                    nsJSUtils::GetCurrentlyRunningCodeWindowID(cx));
+                                rv = scriptError->Init(newMessage.get(),
+                                                       NS_ConvertASCIItoUTF16(sourceName).get(),
+                                                       nsnull,
+                                                       lineNumber, 0, 0,
+                                                       "XPConnect JavaScript");
                                 if(NS_FAILED(rv))
                                     scriptError = nsnull;
                             }

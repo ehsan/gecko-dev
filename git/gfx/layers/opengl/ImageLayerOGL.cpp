@@ -660,7 +660,7 @@ PlanarYCbCrImageOGL::UpdateTextures(GLContext *gl)
 }
 
 CairoImageOGL::CairoImageOGL(LayerManagerOGL *aManager)
-  : CairoImage(nsnull), mSize(0, 0)
+  : CairoImage(nsnull)
 {
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread to create a cairo image");
 

@@ -1646,7 +1646,6 @@ function BrowserShutdown()
     Components.utils.reportError(ex);
   }
 
-  TabView.uninit();
   BrowserOffline.uninit();
   OfflineApps.uninit();
   gPrivateBrowsingUI.uninit();

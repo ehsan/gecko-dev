@@ -103,7 +103,6 @@ var SelectBookmarkDialog = {
           names.push(node.title);
         }
       }
-      contents.containerOpen = false;
     }
     else {
       urls.push(selectedNode.uri);
