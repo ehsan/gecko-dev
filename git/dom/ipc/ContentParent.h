@@ -145,7 +145,6 @@ private:
     void EnsurePrefService();
     void EnsurePermissionService();
 
-    virtual bool RecvStartVisitedQuery(const IPC::URI& uri);
 
     mozilla::Monitor mMonitor;
 
