@@ -2110,7 +2110,7 @@ js_ResumeVtune(JSContext *cx, JSObject *obj,
  *
  */
 #if defined(XP_WIN)
-#include "jswin.h"
+#include <windows.h>
 #else
 #include <sys/time.h>
 #endif
