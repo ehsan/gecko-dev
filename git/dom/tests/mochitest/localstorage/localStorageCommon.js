@@ -36,7 +36,8 @@ function localStorageClearDomain(domain)
 
 function os()
 {
-  return SpecialPowers.Services.obs;
+  return SpecialPowers.Cc["@mozilla.org/observer-service;1"]
+                      .getService(SpecialPowers.Ci.nsIObserverService);
 }
 
 function notify(top)

@@ -341,8 +341,7 @@ Call::IsActive()
 /**
  *  BluetoothHfpManager
  */
-BluetoothHfpManager::BluetoothHfpManager() : mPhoneType(PhoneType::NONE)
-                                           , mController(nullptr)
+BluetoothHfpManager::BluetoothHfpManager() : mController(nullptr)
 {
   Reset();
 }
