@@ -22,12 +22,23 @@ function test() {
               getService(Ci.nsIHandlerService);
   hserv.store(info);
 
-  openPreferencesViaOpenPreferencesAPI("applications", null, {leaveOpen: true}).then(
-      () => runTest(gBrowser.selectedBrowser.contentWindow)
-  );
+  function observer(win, topic, data) {
+    if (topic != "app-handler-pane-loaded")
+      return;
+
+    Services.obs.removeObserver(observer, "app-handler-pane-loaded");
+    runTest(win);
+  }
+  Services.obs.addObserver(observer, "app-handler-pane-loaded", false);
+
+  gBrowser.selectedTab = gBrowser.addTab("about:preferences");
 }
 
 function runTest(win) {
+  win.gotoPref("applications");
+  var sel = win.history.state;
+  is(sel, "paneApplications", "Specified pane was opened");
+
   var rbox = win.document.getElementById("handlersView");
   ok(rbox, "handlersView is present");
 
@@ -42,5 +53,6 @@ function runTest(win) {
   ok(handlerAdded, "apppanetest protocol handler was successfully added");
 
   gBrowser.removeCurrentTab();
+  win.close();
   finish();
 }

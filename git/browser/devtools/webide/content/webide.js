@@ -677,7 +677,7 @@ let UI = {
     }
 
     // Ignore unselection of project on runtime disconnection
-    if (!AppManager.connected) {
+    if (AppManager.connection.status != Connection.Status.CONNECTED) {
       return;
     }
 
@@ -729,7 +729,7 @@ let UI = {
     }
 
     // For other project types, we need to be connected to the runtime
-    if (!AppManager.connected) {
+    if (AppManager.connection.status != Connection.Status.CONNECTED) {
       return;
     }
 
@@ -806,7 +806,6 @@ let UI = {
       document.querySelector("#cmd_stop").setAttribute("disabled", "true");
       document.querySelector("#cmd_toggleToolbox").setAttribute("disabled", "true");
       document.querySelector("#cmd_showDevicePrefs").setAttribute("disabled", "true");
-      document.querySelector("#cmd_showSettings").setAttribute("disabled", "true");
       return;
     }
 
@@ -822,7 +821,7 @@ let UI = {
     let debugCmd = document.querySelector("#cmd_toggleToolbox");
     let playButton = document.querySelector('#action-button-play');
 
-    if (!AppManager.selectedProject || !AppManager.connected) {
+    if (!AppManager.selectedProject || AppManager.connection.status != Connection.Status.CONNECTED) {
       playCmd.setAttribute("disabled", "true");
       stopCmd.setAttribute("disabled", "true");
       debugCmd.setAttribute("disabled", "true");
@@ -871,12 +870,11 @@ let UI = {
     let detailsCmd = document.querySelector("#cmd_showRuntimeDetails");
     let disconnectCmd = document.querySelector("#cmd_disconnectRuntime");
     let devicePrefsCmd = document.querySelector("#cmd_showDevicePrefs");
-    let settingsCmd = document.querySelector("#cmd_showSettings");
 
     let box = document.querySelector("#runtime-actions");
 
     let runtimePanelButton = document.querySelector("#runtime-panel-button");
-    if (AppManager.connected) {
+    if (AppManager.connection.status == Connection.Status.CONNECTED) {
       if (AppManager.deviceFront) {
         detailsCmd.removeAttribute("disabled");
         permissionsCmd.removeAttribute("disabled");
@@ -884,9 +882,6 @@ let UI = {
       }
       if (AppManager.preferenceFront) {
         devicePrefsCmd.removeAttribute("disabled");
-      }
-      if (AppManager.settingsFront) {
-        settingsCmd.removeAttribute("disabled");
       }
       disconnectCmd.removeAttribute("disabled");
       runtimePanelButton.setAttribute("active", "true");
@@ -896,7 +891,6 @@ let UI = {
       screenshotCmd.setAttribute("disabled", "true");
       disconnectCmd.setAttribute("disabled", "true");
       devicePrefsCmd.setAttribute("disabled", "true");
-      settingsCmd.setAttribute("disabled", "true");
       runtimePanelButton.removeAttribute("active");
     }
 
@@ -1109,7 +1103,8 @@ let Cmds = {
       return a.manifest.name > b.manifest.name;
     });
     let mainProcess = AppManager.isMainProcessDebuggable();
-    if (AppManager.connected && (sortedApps.length > 0 || mainProcess)) {
+    if (AppManager.connection.status == Connection.Status.CONNECTED &&
+        (sortedApps.length > 0 || mainProcess)) {
       runtimeappsHeaderNode.removeAttribute("hidden");
     } else {
       runtimeappsHeaderNode.setAttribute("hidden", "true");
@@ -1159,11 +1154,9 @@ let Cmds = {
 
     // But re-list them and rebuild, in case any tabs navigated since the last
     // time they were listed.
-    if (AppManager.connected) {
-      AppManager.listTabs().then(() => {
-        this._buildProjectPanelTabs();
-      }).catch(console.error);
-    }
+    AppManager.listTabs().then(() => {
+      this._buildProjectPanelTabs();
+    });
 
     return deferred.promise;
   },
@@ -1171,7 +1164,8 @@ let Cmds = {
   _buildProjectPanelTabs: function() {
     let tabs = AppManager.tabStore.tabs;
     let tabsHeaderNode = document.querySelector("#panel-header-tabs");
-    if (AppManager.connected && tabs.length > 0) {
+    if (AppManager.connection.status == Connection.Status.CONNECTED &&
+        tabs.length > 0) {
       tabsHeaderNode.removeAttribute("hidden");
     } else {
       tabsHeaderNode.setAttribute("hidden", "true");
@@ -1252,10 +1246,6 @@ let Cmds = {
 
   showDevicePrefs: function() {
     UI.selectDeckPanel("devicepreferences");
-  },
-
-  showSettings: function() {
-    UI.selectDeckPanel("devicesettings");
   },
 
   showMonitor: function() {

@@ -26,7 +26,6 @@ describe("loop.standaloneRoomViews", function() {
     feedbackStore = new loop.store.FeedbackStore(dispatcher, {
       feedbackClient: {}
     });
-    loop.store.StoreMixin.register({feedbackStore: feedbackStore});
 
     sandbox.useFakeTimers();
 
@@ -45,6 +44,7 @@ describe("loop.standaloneRoomViews", function() {
           loop.standaloneRoomViews.StandaloneRoomView, {
             dispatcher: dispatcher,
             activeRoomStore: activeRoomStore,
+            feedbackStore: feedbackStore,
             helper: new loop.shared.utils.Helper()
           }));
     }

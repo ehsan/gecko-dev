@@ -7,7 +7,7 @@
 <script type="application/javascript"
         src="chrome://browser/content/preferences/in-content/applications.js"/>
 
-<preferences id="feedsPreferences" hidden="true" data-category="paneApplications">
+<preferences id="feedsPreferences">
   <preference id="browser.feeds.handler"
               name="browser.feeds.handler"
               type="string"/>

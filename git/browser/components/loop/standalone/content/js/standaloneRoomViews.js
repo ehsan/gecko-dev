@@ -23,7 +23,9 @@ loop.standaloneRoomViews = (function(mozL10n) {
       activeRoomStore: React.PropTypes.oneOfType([
         React.PropTypes.instanceOf(loop.store.ActiveRoomStore),
         React.PropTypes.instanceOf(loop.store.FxOSActiveRoomStore)
-      ]).isRequired
+      ]).isRequired,
+      feedbackStore:
+        React.PropTypes.instanceOf(loop.store.FeedbackStore).isRequired
     },
 
     onFeedbackSent: function() {
@@ -118,6 +120,7 @@ loop.standaloneRoomViews = (function(mozL10n) {
             return (
               React.createElement("div", {className: "ended-conversation"}, 
                 React.createElement(sharedViews.FeedbackView, {
+                  feedbackStore: this.props.feedbackStore, 
                   onAfterFeedbackReceived: this.onFeedbackSent}
                 )
               )
@@ -200,6 +203,8 @@ loop.standaloneRoomViews = (function(mozL10n) {
         React.PropTypes.instanceOf(loop.store.ActiveRoomStore),
         React.PropTypes.instanceOf(loop.store.FxOSActiveRoomStore)
       ]).isRequired,
+      feedbackStore:
+        React.PropTypes.instanceOf(loop.store.FeedbackStore).isRequired,
       dispatcher: React.PropTypes.instanceOf(loop.Dispatcher).isRequired,
       helper: React.PropTypes.instanceOf(loop.shared.utils.Helper).isRequired
     },
@@ -311,6 +316,7 @@ loop.standaloneRoomViews = (function(mozL10n) {
                                   joinRoom: this.joinRoom, 
                                   helper: this.props.helper, 
                                   activeRoomStore: this.props.activeRoomStore, 
+                                  feedbackStore: this.props.feedbackStore, 
                                   roomUsed: this.state.used}), 
           React.createElement("div", {className: "video-layout-wrapper"}, 
             React.createElement("div", {className: "conversation room-conversation"}, 

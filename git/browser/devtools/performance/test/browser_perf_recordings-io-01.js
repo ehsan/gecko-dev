@@ -44,17 +44,18 @@ let test = Task.async(function*() {
 
   let importedData = PerformanceController.getCurrentRecording().getAllData();
 
-  is(importedData.label, originalData.label,
+  is(importedData.startTime, originalData.startTime,
     "The impored data is identical to the original data (1).");
-  is(importedData.duration, originalData.duration,
+  is(importedData.endTime, originalData.endTime,
     "The impored data is identical to the original data (2).");
+
   is(importedData.markers.toSource(), originalData.markers.toSource(),
     "The impored data is identical to the original data (3).");
   is(importedData.memory.toSource(), originalData.memory.toSource(),
     "The impored data is identical to the original data (4).");
   is(importedData.ticks.toSource(), originalData.ticks.toSource(),
     "The impored data is identical to the original data (5).");
-  is(importedData.profile.toSource(), originalData.profile.toSource(),
+  is(importedData.profilerData.toSource(), originalData.profilerData.toSource(),
     "The impored data is identical to the original data (6).");
 
   yield teardown(panel);

@@ -231,7 +231,7 @@ add_task(function test_revived_history_from_remote() {
   // Browse to a new site that will cause the browser to
   // become remote again.
   browser.loadURI(PAGE_2);
-  yield promiseTabRestored(newTab);
+  yield promiseBrowserLoaded(browser);
   ok(browser.isRemoteBrowser, "Should be a remote browser");
   TabState.flush(browser);
 

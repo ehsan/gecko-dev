@@ -1185,57 +1185,6 @@ void NetworkUtils::setDefaultNetwork(CommandChain* aChain,
   doCommand(command, aChain, aCallback);
 }
 
-void NetworkUtils::addRouteToSecondaryTable(CommandChain* aChain,
-                                            CommandCallback aCallback,
-                                            NetworkResultOptions& aResult) {
-
-  char command[MAX_COMMAND_SIZE];
-
-  if (SDK_VERSION >= 20) {
-    snprintf(command, MAX_COMMAND_SIZE - 1,
-             "network route add %d %s %s/%s %s",
-             GET_FIELD(mNetId),
-             GET_CHAR(mIfname),
-             GET_CHAR(mIp),
-             GET_CHAR(mPrefix),
-             GET_CHAR(mGateway));
-  } else {
-    snprintf(command, MAX_COMMAND_SIZE - 1,
-             "interface route add %s secondary %s %s %s",
-             GET_CHAR(mIfname),
-             GET_CHAR(mIp),
-             GET_CHAR(mPrefix),
-             GET_CHAR(mGateway));
-  }
-
-  doCommand(command, aChain, aCallback);
-}
-
-void NetworkUtils::removeRouteFromSecondaryTable(CommandChain* aChain,
-                                                 CommandCallback aCallback,
-                                                 NetworkResultOptions& aResult) {
-  char command[MAX_COMMAND_SIZE];
-
-  if (SDK_VERSION >= 20) {
-    snprintf(command, MAX_COMMAND_SIZE - 1,
-             "network route remove %d %s %s/%s %s",
-             GET_FIELD(mNetId),
-             GET_CHAR(mIfname),
-             GET_CHAR(mIp),
-             GET_CHAR(mPrefix),
-             GET_CHAR(mGateway));
-  } else {
-    snprintf(command, MAX_COMMAND_SIZE - 1,
-             "interface route remove %s secondary %s %s %s",
-             GET_CHAR(mIfname),
-             GET_CHAR(mIp),
-             GET_CHAR(mPrefix),
-             GET_CHAR(mGateway));
-  }
-
-  doCommand(command, aChain, aCallback);
-}
-
 void NetworkUtils::setIpv6Enabled(CommandChain* aChain,
                                   CommandCallback aCallback,
                                   NetworkResultOptions& aResult,
@@ -2170,40 +2119,30 @@ CommandResult NetworkUtils::removeNetworkRouteLegacy(NetworkParams& aOptions)
 
 CommandResult NetworkUtils::addSecondaryRoute(NetworkParams& aOptions)
 {
-  static CommandFunc COMMAND_CHAIN[] = {
-    addRouteToSecondaryTable,
-    defaultAsyncSuccessHandler
-  };
+  char command[MAX_COMMAND_SIZE];
+  snprintf(command, MAX_COMMAND_SIZE - 1,
+           "interface route add %s secondary %s %s %s",
+           GET_CHAR(mIfname),
+           GET_CHAR(mIp),
+           GET_CHAR(mPrefix),
+           GET_CHAR(mGateway));
 
-  if (SDK_VERSION >= 20) {
-    NetIdManager::NetIdInfo netIdInfo;
-    if (!mNetIdManager.lookup(aOptions.mIfname, &netIdInfo)) {
-      return -1;
-    }
-    aOptions.mNetId = netIdInfo.mNetId;
-  }
-
-  runChain(aOptions, COMMAND_CHAIN, defaultAsyncFailureHandler);
-  return CommandResult::Pending();
+  doCommand(command, nullptr, nullptr);
+  return SUCCESS;
 }
 
 CommandResult NetworkUtils::removeSecondaryRoute(NetworkParams& aOptions)
 {
-  static CommandFunc COMMAND_CHAIN[] = {
-    removeRouteFromSecondaryTable,
-    defaultAsyncSuccessHandler
-  };
+  char command[MAX_COMMAND_SIZE];
+  snprintf(command, MAX_COMMAND_SIZE - 1,
+           "interface route remove %s secondary %s %s %s",
+           GET_CHAR(mIfname),
+           GET_CHAR(mIp),
+           GET_CHAR(mPrefix),
+           GET_CHAR(mGateway));
 
-  if (SDK_VERSION >= 20) {
-    NetIdManager::NetIdInfo netIdInfo;
-    if (!mNetIdManager.lookup(aOptions.mIfname, &netIdInfo)) {
-      return -1;
-    }
-    aOptions.mNetId = netIdInfo.mNetId;
-  }
-
-  runChain(aOptions, COMMAND_CHAIN, defaultAsyncFailureHandler);
-  return CommandResult::Pending();
+  doCommand(command, nullptr, nullptr);
+  return SUCCESS;
 }
 
 CommandResult NetworkUtils::setNetworkInterfaceAlarm(NetworkParams& aOptions)

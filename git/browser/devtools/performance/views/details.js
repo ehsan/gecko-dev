@@ -13,10 +13,10 @@ let DetailsView = {
   /**
    * Name to index mapping of subviews, used by selecting view.
    */
-  components: {
-    waterfall: { index: 0, view: WaterfallView },
-    calltree: { index: 1, view: CallTreeView },
-    flamegraph: { index: 2, view: FlameGraphView }
+  viewIndexes: {
+    waterfall: 0,
+    calltree: 1,
+    flamegraph: 2
   },
 
   /**
@@ -32,8 +32,8 @@ let DetailsView = {
       button.addEventListener("command", this._onViewToggle);
     }
 
-    yield WaterfallView.initialize();
     yield CallTreeView.initialize();
+    yield WaterfallView.initialize();
     yield FlameGraphView.initialize();
 
     this.selectView(DEFAULT_DETAILS_SUBVIEW);
@@ -47,8 +47,8 @@ let DetailsView = {
       button.removeEventListener("command", this._onViewToggle);
     }
 
-    yield WaterfallView.destroy();
     yield CallTreeView.destroy();
+    yield WaterfallView.destroy();
     yield FlameGraphView.destroy();
   }),
 
@@ -56,55 +56,22 @@ let DetailsView = {
    * Select one of the DetailView's subviews to be rendered,
    * hiding the others.
    *
-   * @param String viewName
-   *        Name of the view to be shown.
+   * @params {String} selectedView
+   *         Name of the view to be shown.
    */
-  selectView: function (viewName) {
-    this.el.selectedIndex = this.components[viewName].index;
+  selectView: function (selectedView) {
+    this.el.selectedIndex = this.viewIndexes[selectedView];
 
     for (let button of $$("toolbarbutton[data-view]", this.toolbar)) {
-      if (button.getAttribute("data-view") === viewName) {
+      if (button.getAttribute("data-view") === selectedView) {
         button.setAttribute("checked", true);
       } else {
         button.removeAttribute("checked");
       }
     }
 
-    this.emit(EVENTS.DETAILS_VIEW_SELECTED, viewName);
+    this.emit(EVENTS.DETAILS_VIEW_SELECTED, selectedView);
   },
-
-  /**
-   * Checks if the provided view is currently selected.
-   *
-   * @param object viewObject
-   * @return boolean
-   */
-  isViewSelected: function(viewObject) {
-    let selectedIndex = this.el.selectedIndex;
-
-    for (let [, { index, view }] of Iterator(this.components)) {
-      if (index == selectedIndex && view == viewObject) {
-        return true;
-      }
-    }
-
-    return false;
-  },
-
-  /**
-   * Resolves when the provided view is selected. If already selected,
-   * the returned promise resolves immediately.
-   *
-   * @param object viewObject
-   * @return object
-   */
-  whenViewSelected: Task.async(function*(viewObject) {
-    if (this.isViewSelected(viewObject)) {
-      return promise.resolve();
-    }
-    yield this.once(EVENTS.DETAILS_VIEW_SELECTED);
-    return this.whenViewSelected(viewObject);
-  }),
 
   /**
    * Called when a view button is clicked.

@@ -20,9 +20,9 @@ let test = Task.async(function*() {
   // Different name for `ticks`, different way of storing time,
   // and no memory, markers data.
   let oldProfilerData = {
-    profilerData: { profile: data.profile },
+    recordingDuration: data.interval.endTime - data.interval.startTime,
     ticksData: data.ticks,
-    recordingDuration: data.duration,
+    profilerData: data.profilerData,
     fileType: "Recorded Performance Data",
     version: 1
   };
@@ -48,20 +48,18 @@ let test = Task.async(function*() {
 
   let importedData = PerformanceController.getCurrentRecording().getAllData();
 
-  is(importedData.label, data.label,
+  is(importedData.startTime, data.startTime,
     "The imported legacy data was successfully converted for the current tool (1).");
-  is(importedData.duration, data.duration,
+  is(importedData.endTime, data.endTime,
     "The imported legacy data was successfully converted for the current tool (2).");
   is(importedData.markers.toSource(), [].toSource(),
     "The imported legacy data was successfully converted for the current tool (3).");
-  is(importedData.frames.toSource(), [].toSource(),
-    "The imported legacy data was successfully converted for the current tool (4).");
   is(importedData.memory.toSource(), [].toSource(),
-    "The imported legacy data was successfully converted for the current tool (5).");
+    "The imported legacy data was successfully converted for the current tool (4).");
   is(importedData.ticks.toSource(), data.ticks.toSource(),
+    "The imported legacy data was successfully converted for the current tool (5).");
+  is(importedData.profilerData.toSource(), data.profilerData.toSource(),
     "The imported legacy data was successfully converted for the current tool (6).");
-  is(importedData.profile.toSource(), data.profile.toSource(),
-    "The imported legacy data was successfully converted for the current tool (7).");
 
   yield teardown(panel);
   finish();

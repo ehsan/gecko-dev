@@ -128,13 +128,22 @@ public class TopSitesPanel extends HomeFragment {
         }
     }
 
+    public interface BrowserTilesRecorderProvider {
+        public TilesRecorder getTilesRecorder();
+    }
+
     @Override
     public void onAttach(Activity activity) {
         super.onAttach(activity);
 
         mMaxGridEntries = activity.getResources().getInteger(R.integer.number_of_top_sites);
 
-        mTilesRecorder = new TilesRecorder();
+        try {
+            mTilesRecorder = ((BrowserTilesRecorderProvider) activity).getTilesRecorder();
+        } catch (ClassCastException e) {
+            throw new ClassCastException(activity.toString()
+                    + " must implement TopSitesPanel.BrowserTilesRecorderProvider");
+        }
     }
 
     @Override

@@ -43,13 +43,6 @@ body {
   }
 }
 
-/* Disabled playerWidget when the animation has ended */
-
-.finished {
-  pointer-events: none;
-  opacity: .5;
-}
-
 /* Animation title gutter, contains the name, duration, iteration */
 
 .animation-title {
@@ -98,8 +91,7 @@ body {
   background-image: url(debugger-pause.png);
 }
 
-.paused .timeline .toggle::before,
-.finished .timeline .toggle::before {
+.paused .timeline .toggle::before {
   background-image: url(debugger-play.png);
 }
 
@@ -108,8 +100,7 @@ body {
     background-image: url(debugger-pause@2x.png);
   }
 
-  .paused .timeline .toggle::before,
-  .finished .timeline .toggle::before {
+  .paused .timeline .toggle::before {
     background-image: url(debugger-play@2x.png);
   }
 }
