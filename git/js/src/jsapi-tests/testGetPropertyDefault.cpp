@@ -1,11 +1,8 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=99:
  */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jsapi-tests/tests.h"
+#include "tests.h"
 
 #define JSVAL_IS_FALSE(x) ((JSVAL_IS_BOOLEAN(x)) && !(JSVAL_TO_BOOLEAN(x)))
 #define JSVAL_IS_TRUE(x)  ((JSVAL_IS_BOOLEAN(x)) && (JSVAL_TO_BOOLEAN(x)))
@@ -25,17 +22,17 @@ BEGIN_TEST(testGetPropertyDefault_bug594060)
     {
         // Check JS_GetPropertyDefault
 
-        JS::RootedObject obj(cx, JS_NewObject(cx, NULL, NULL, NULL));
+        JSObject *obj = JS_NewObject(cx, NULL, NULL, NULL);
         CHECK(obj);
 
-        JS::RootedValue v0(cx, JSVAL_TRUE);
-        CHECK(JS_SetProperty(cx, obj, "here", v0));
+        jsval v0 = JSVAL_TRUE;
+        CHECK(JS_SetProperty(cx, obj, "here", &v0));
 
-        JS::RootedValue v1(cx);
+        jsval v1;
         CHECK(JS_GetPropertyDefault(cx, obj, "here", JSVAL_FALSE, &v1));
         CHECK(JSVAL_IS_TRUE(v1));
 
-        JS::RootedValue v2(cx);
+        jsval v2;
         CHECK(JS_GetPropertyDefault(cx, obj, "nothere", JSVAL_FALSE, &v2));
         CHECK(JSVAL_IS_FALSE(v2));
     }
@@ -43,23 +40,23 @@ BEGIN_TEST(testGetPropertyDefault_bug594060)
     {
         // Check JS_GetPropertyByIdDefault
 
-        JS::RootedObject obj(cx, JS_NewObject(cx, NULL, NULL, NULL));
+        JSObject *obj = JS_NewObject(cx, NULL, NULL, NULL);
         CHECK(obj);
 
-        JS::RootedId hereid(cx);
-        CHECK(stringToId(cx, "here", hereid.address()));
+        jsid hereid;
+        CHECK(stringToId(cx, "here", &hereid));
 
-        JS::RootedId nothereid(cx);
-        CHECK(stringToId(cx, "nothere", nothereid.address()));
+        jsid nothereid;
+        CHECK(stringToId(cx, "nothere", &nothereid));
 
-        JS::RootedValue v0(cx, JSVAL_TRUE);
-        CHECK(JS_SetPropertyById(cx, obj, hereid, v0));
+        jsval v0 = JSVAL_TRUE;
+        CHECK(JS_SetPropertyById(cx, obj, hereid, &v0));
 
-        JS::RootedValue v1(cx);
+        jsval v1;
         CHECK(JS_GetPropertyByIdDefault(cx, obj, hereid, JSVAL_FALSE, &v1));
         CHECK(JSVAL_IS_TRUE(v1));
 
-        JS::RootedValue v2(cx);
+        jsval v2;
         CHECK(JS_GetPropertyByIdDefault(cx, obj, nothereid, JSVAL_FALSE, &v2));
         CHECK(JSVAL_IS_FALSE(v2));
     }

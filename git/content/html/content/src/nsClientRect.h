@@ -1,111 +1,84 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* -*- Mode: IDL; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Novell code.
+ *
+ * The Initial Developer of the Original Code is
+ * Novell Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2006
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Robert O'Callahan <robert@ocallahan.org>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef NSCLIENTRECT_H_
 #define NSCLIENTRECT_H_
 
 #include "nsIDOMClientRect.h"
 #include "nsIDOMClientRectList.h"
-#include "nsTArray.h"
+#include "nsCOMArray.h"
 #include "nsRect.h"
 #include "nsCOMPtr.h"
-#include "nsAutoPtr.h"
-#include "nsWrapperCache.h"
-#include "nsCycleCollectionParticipant.h"
-#include "mozilla/Attributes.h"
 
-class nsClientRect MOZ_FINAL : public nsIDOMClientRect
-                             , public nsWrapperCache
+class nsClientRect : public nsIDOMClientRect
 {
 public:
-  nsClientRect(nsISupports* aParent)
-    : mParent(aParent), mX(0.0), mY(0.0), mWidth(0.0), mHeight(0.0)
-  {
-    SetIsDOMBinding();
-  }
-  virtual ~nsClientRect() {}
+  NS_DECL_ISUPPORTS
 
-  
+  nsClientRect();
   void SetRect(float aX, float aY, float aWidth, float aHeight) {
     mX = aX; mY = aY; mWidth = aWidth; mHeight = aHeight;
   }
-  void SetLayoutRect(const nsRect& aLayoutRect);
-
-
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsClientRect)
+  virtual ~nsClientRect() {}
+  
   NS_DECL_NSIDOMCLIENTRECT
 
-
-  nsISupports* GetParentObject() const
-  {
-    MOZ_ASSERT(mParent);
-    return mParent;
-  }
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
-
-
-  float Left() const
-  {
-    return mX;
-  }
-
-  float Top() const
-  {
-    return mY;
-  }
-
-  float Right() const
-  {
-    return mX + mWidth;
-  }
-
-  float Bottom() const
-  {
-    return mY + mHeight;
-  }
-
-  float Width() const
-  {
-    return mWidth;
-  }
-
-  float Height() const
-  {
-    return mHeight;
-  }
+  void SetLayoutRect(const nsRect& aLayoutRect);
 
 protected:
-  nsCOMPtr<nsISupports> mParent;
   float mX, mY, mWidth, mHeight;
 };
 
-class nsClientRectList MOZ_FINAL : public nsIDOMClientRectList,
-                                   public nsWrapperCache
+class nsClientRectList : public nsIDOMClientRectList
 {
 public:
-  nsClientRectList(nsISupports *aParent) : mParent(aParent)
-  {
-    SetIsDOMBinding();
-  }
+  nsClientRectList() {}
 
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsClientRectList)
+  NS_DECL_ISUPPORTS
 
   NS_DECL_NSIDOMCLIENTRECTLIST
   
-  virtual JSObject* WrapObject(JSContext *cx,
-                               JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
+  void Append(nsIDOMClientRect* aElement) { mArray.AppendObject(aElement); }
 
-  nsISupports* GetParentObject()
+  nsIDOMClientRect* GetItemAt(PRUint32 aIndex)
   {
-    return mParent;
+    return mArray.SafeObjectAt(aIndex);
   }
-
-  void Append(nsClientRect* aElement) { mArray.AppendElement(aElement); }
 
   static nsClientRectList* FromSupports(nsISupports* aSupports)
   {
@@ -124,28 +97,10 @@ public:
     return static_cast<nsClientRectList*>(aSupports);
   }
 
-  uint32_t Length()
-  {
-    return mArray.Length();
-  }
-  nsClientRect* Item(uint32_t aIndex)
-  {
-    return mArray.SafeElementAt(aIndex);
-  }
-  nsClientRect* IndexedGetter(uint32_t aIndex, bool& aFound)
-  {
-    aFound = aIndex < mArray.Length();
-    if (!aFound) {
-      return nullptr;
-    }
-    return mArray[aIndex];
-  }
-
 protected:
   virtual ~nsClientRectList() {}
 
-  nsTArray< nsRefPtr<nsClientRect> > mArray;
-  nsCOMPtr<nsISupports> mParent;
+  nsCOMArray<nsIDOMClientRect> mArray;
 };
 
 #endif /*NSCLIENTRECT_H_*/

@@ -1,8 +1,41 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  *
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * IBM Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   IBM Corporation
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifdef IBMBIDI
 
@@ -10,6 +43,7 @@
 #define nsBidiPresUtils_h___
 
 #include "nsTArray.h"
+#include "nsIFrame.h"
 #include "nsBidi.h"
 #include "nsBidiUtils.h"
 #include "nsCOMPtr.h"
@@ -23,7 +57,6 @@
 
 struct BidiParagraphData;
 struct BidiLineData;
-class nsIFrame;
 
 /**
  * A structure representing some continuation state for each frame on the line,
@@ -36,7 +69,7 @@ struct nsFrameContinuationState : public nsVoidPtrHashKey
 
   /**
    * The first visual frame in the continuation chain containing this frame, or
-   * nullptr if this frame is the first visual frame in the chain.
+   * nsnull if this frame is the first visual frame in the chain.
    */
   nsIFrame* mFirstVisualFrame;
 
@@ -44,19 +77,19 @@ struct nsFrameContinuationState : public nsVoidPtrHashKey
    * The number of frames in the continuation chain containing this frame, if
    * this frame is the first visual frame of the chain, or 0 otherwise.
    */
-  uint32_t mFrameCount;
+  PRUint32 mFrameCount;
 
   /**
    * TRUE if this frame is the first visual frame of its continuation chain on
    * this line and the chain has some frames on the previous lines.
    */
-  bool mHasContOnPrevLines;
+  PRPackedBool mHasContOnPrevLines;
 
   /**
    * TRUE if this frame is the first visual frame of its continuation chain on
    * this line and the chain has some frames left for next lines.
    */
-  bool mHasContOnNextLines;
+  PRPackedBool mHasContOnNextLines;
 };
 
 /*
@@ -71,17 +104,17 @@ typedef nsTHashtable<nsFrameContinuationState> nsContinuationStates;
 struct nsBidiPositionResolve
 {
   // [in] Logical index within string.
-  int32_t logicalIndex;
+  PRInt32 logicalIndex;
   // [out] Visual index within string.
   // If the logical position was not found, set to kNotFound.
-  int32_t visualIndex;
+  PRInt32 visualIndex;
   // [out] Visual position of the character, from the left (on the X axis), in twips.
   // Eessentially, this is the X position (relative to the rendering context) where the text was drawn + the font metric of the visual string to the left of the given logical position.
   // If the logical position was not found, set to kNotFound.
-  int32_t visualLeftTwips;
+  PRInt32 visualLeftTwips;
   // [out] Visual width of the character, in twips.
   // If the logical position was not found, set to kNotFound.
-  int32_t visualWidth;
+  PRInt32 visualWidth;
 };
 
 class nsBidiPresUtils {
@@ -111,7 +144,7 @@ public:
      *  mixed direction.
      */
     virtual void SetText(const PRUnichar*   aText,
-                         int32_t            aLength,
+                         PRInt32            aLength,
                          nsBidiDirection    aDirection) = 0;
 
     /**
@@ -156,7 +189,7 @@ public:
    * @lina 05/02/2000
    */
   static void ReorderFrames(nsIFrame*            aFirstFrameOnLine,
-                            int32_t              aNumFramesOnLine);
+                            PRInt32              aNumFramesOnLine);
 
   /**
    * Format Unicode text, taking into account bidi capabilities
@@ -167,9 +200,9 @@ public:
    */
   static nsresult FormatUnicodeText(nsPresContext* aPresContext,
                                     PRUnichar*      aText,
-                                    int32_t&        aTextLength,
+                                    PRInt32&        aTextLength,
                                     nsCharType      aCharType,
-                                    bool            aIsOddLevel);
+                                    PRBool          aIsOddLevel);
 
   /**
    * Reorder plain text using the Unicode Bidi algorithm and send it to
@@ -185,26 +218,26 @@ public:
    * @param aTextRunConstructionContext the rendering context to be used to construct the textrun (affects font hinting)
    * @param aX the x-coordinate to render the string
    * @param aY the y-coordinate to render the string
-   * @param[in,out] aPosResolve array of logical positions to resolve into visual positions; can be nullptr if this functionality is not required
+   * @param[in,out] aPosResolve array of logical positions to resolve into visual positions; can be nsnull if this functionality is not required
    * @param aPosResolveCount number of items in the aPosResolve array
    */
   static nsresult RenderText(const PRUnichar*       aText,
-                             int32_t                aLength,
+                             PRInt32                aLength,
                              nsBidiDirection        aBaseDirection,
                              nsPresContext*         aPresContext,
                              nsRenderingContext&    aRenderingContext,
                              nsRenderingContext&    aTextRunConstructionContext,
                              nscoord                aX,
                              nscoord                aY,
-                             nsBidiPositionResolve* aPosResolve = nullptr,
-                             int32_t                aPosResolveCount = 0)
+                             nsBidiPositionResolve* aPosResolve = nsnull,
+                             PRInt32                aPosResolveCount = 0)
   {
     return ProcessTextForRenderingContext(aText, aLength, aBaseDirection, aPresContext, aRenderingContext,
-                                          aTextRunConstructionContext, MODE_DRAW, aX, aY, aPosResolve, aPosResolveCount, nullptr);
+                                          aTextRunConstructionContext, MODE_DRAW, aX, aY, aPosResolve, aPosResolveCount, nsnull);
   }
   
   static nscoord MeasureTextWidth(const PRUnichar*     aText,
-                                  int32_t              aLength,
+                                  PRInt32              aLength,
                                   nsBidiDirection      aBaseDirection,
                                   nsPresContext*       aPresContext,
                                   nsRenderingContext&  aRenderingContext)
@@ -212,7 +245,7 @@ public:
     nscoord length;
     nsresult rv = ProcessTextForRenderingContext(aText, aLength, aBaseDirection, aPresContext,
                                                  aRenderingContext, aRenderingContext,
-                                                 MODE_MEASURE, 0, 0, nullptr, 0, &length);
+                                                 MODE_MEASURE, 0, 0, nsnull, 0, &length);
     return NS_SUCCEEDED(rv) ? length : 0;
   }
 
@@ -224,8 +257,8 @@ public:
    * @param[out] aLeftMost : leftmost frame on this line
    * @param[out] aRightMost : rightmost frame on this line
    */
-  static bool CheckLineOrder(nsIFrame*  aFirstFrameOnLine,
-                               int32_t    aNumFramesOnLine,
+  static PRBool CheckLineOrder(nsIFrame*  aFirstFrameOnLine,
+                               PRInt32    aNumFramesOnLine,
                                nsIFrame** aLeftmost,
                                nsIFrame** aRightmost);
 
@@ -238,7 +271,7 @@ public:
    */
   static nsIFrame* GetFrameToRightOf(const nsIFrame*  aFrame,
                                      nsIFrame*        aFirstFrameOnLine,
-                                     int32_t          aNumFramesOnLine);
+                                     PRInt32          aNumFramesOnLine);
     
   /**
    * Get the frame to the left of the given frame, on the same line.
@@ -249,19 +282,12 @@ public:
    */
   static nsIFrame* GetFrameToLeftOf(const nsIFrame*  aFrame,
                                     nsIFrame*        aFirstFrameOnLine,
-                                    int32_t          aNumFramesOnLine);
-
-  static nsIFrame* GetFirstLeaf(nsIFrame* aFrame);
+                                    PRInt32          aNumFramesOnLine);
     
   /**
    * Get the bidi embedding level of the given (inline) frame.
    */
   static nsBidiLevel GetFrameEmbeddingLevel(nsIFrame* aFrame);
-    
-  /**
-   * Get the paragraph depth of the given (inline) frame.
-   */
-  static uint8_t GetParagraphDepth(nsIFrame* aFrame);
 
   /**
    * Get the bidi base level of the given (inline) frame.
@@ -286,18 +312,18 @@ public:
    *  MODE_MEASURE - does not invoke DrawText on the processor
    *  Note that the string is always measured, regardless of mode
    * @param[in,out] aPosResolve array of logical positions to resolve into
-   *  visual positions; can be nullptr if this functionality is not required
+   *  visual positions; can be nsnull if this functionality is not required
    * @param aPosResolveCount number of items in the aPosResolve array
    * @param[out] aWidth Pointer to where the width will be stored (may be null)
    */
   static nsresult ProcessText(const PRUnichar*       aText,
-                              int32_t                aLength,
+                              PRInt32                aLength,
                               nsBidiDirection        aBaseDirection,
                               nsPresContext*         aPresContext,
                               BidiProcessor&         aprocessor,
                               Mode                   aMode,
                               nsBidiPositionResolve* aPosResolve,
-                              int32_t                aPosResolveCount,
+                              PRInt32                aPosResolveCount,
                               nscoord*               aWidth,
                               nsBidi*                aBidiEngine);
 
@@ -317,12 +343,12 @@ public:
   static void CopyLogicalToVisual(const nsAString& aSource,
                                   nsAString& aDest,
                                   nsBidiLevel aBaseDirection,
-                                  bool aOverride);
+                                  PRBool aOverride);
 
 private:
   static nsresult
   ProcessTextForRenderingContext(const PRUnichar*       aText,
-                                 int32_t                aLength,
+                                 PRInt32                aLength,
                                  nsBidiDirection        aBaseDirection,
                                  nsPresContext*         aPresContext,
                                  nsRenderingContext&    aRenderingContext,
@@ -331,7 +357,7 @@ private:
                                  nscoord                aX, // DRAW only
                                  nscoord                aY, // DRAW only
                                  nsBidiPositionResolve* aPosResolve,  /* may be null */
-                                 int32_t                aPosResolveCount,
+                                 PRInt32                aPosResolveCount,
                                  nscoord*               aWidth /* may be null */);
 
   /**
@@ -361,13 +387,13 @@ private:
    * @param aContinuationStates  A map from nsIFrame* to nsFrameContinuationState
    */
   static void RepositionFrame(nsIFrame*              aFrame,
-                              bool                   aIsOddLevel,
+                              PRBool                 aIsOddLevel,
                               nscoord&               aLeft,
                               nsContinuationStates*  aContinuationStates);
 
   /*
    * Initialize the continuation state(nsFrameContinuationState) to
-   * (nullptr, 0) for aFrame and its descendants.
+   * (nsnull, 0) for aFrame and its descendants.
    *
    * @param aFrame               The frame which itself and its descendants will
    *                             be initialized
@@ -393,8 +419,8 @@ private:
    */
    static void IsLeftOrRightMost(nsIFrame*              aFrame,
                                  nsContinuationStates*  aContinuationStates,
-                                 bool&                aIsLeftMost /* out */,
-                                 bool&                aIsRightMost /* out */);
+                                 PRBool&                aIsLeftMost /* out */,
+                                 PRBool&                aIsRightMost /* out */);
 
   /**
    *  Adjust frame positions following their visual order
@@ -424,9 +450,9 @@ private:
   static inline
   nsresult EnsureBidiContinuation(nsIFrame*       aFrame,
                                   nsIFrame**      aNewFrame,
-                                  int32_t&        aFrameIndex,
-                                  int32_t         aStart,
-                                  int32_t         aEnd);
+                                  PRInt32&        aFrameIndex,
+                                  PRInt32         aStart,
+                                  PRInt32         aEnd);
 
   /**
    * Helper method for Resolve()
@@ -446,30 +472,30 @@ private:
    */
   static void RemoveBidiContinuation(BidiParagraphData* aBpd,
                                      nsIFrame*          aFrame,
-                                     int32_t            aFirstIndex,
-                                     int32_t            aLastIndex,
-                                     int32_t&           aOffset);
+                                     PRInt32            aFirstIndex,
+                                     PRInt32            aLastIndex,
+                                     PRInt32&           aOffset);
   static void CalculateCharType(nsBidi*          aBidiEngine,
                                 const PRUnichar* aText,
-                                int32_t&         aOffset,
-                                int32_t          aCharTypeLimit,
-                                int32_t&         aRunLimit,
-                                int32_t&         aRunLength,
-                                int32_t&         aRunCount,
-                                uint8_t&         aCharType,
-                                uint8_t&         aPrevCharType);
+                                PRInt32&         aOffset,
+                                PRInt32          aCharTypeLimit,
+                                PRInt32&         aRunLimit,
+                                PRInt32&         aRunLength,
+                                PRInt32&         aRunCount,
+                                PRUint8&         aCharType,
+                                PRUint8&         aPrevCharType);
   
   static void StripBidiControlCharacters(PRUnichar* aText,
-                                         int32_t&   aTextLength);
+                                         PRInt32&   aTextLength);
 
-  static bool WriteLogicalToVisual(const PRUnichar* aSrc,
-                                     uint32_t aSrcLength,
+  static PRBool WriteLogicalToVisual(const PRUnichar* aSrc,
+                                     PRUint32 aSrcLength,
                                      PRUnichar* aDest,
                                      nsBidiLevel aBaseDirection,
                                      nsBidi* aBidiEngine);
 
   static void WriteReverse(const PRUnichar* aSrc,
-                           uint32_t aSrcLength,
+                           PRUint32 aSrcLength,
                            PRUnichar* aDest);
 };
 

@@ -1,10 +1,8 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * vim: set ts=8 sw=4 et tw=99:
+ */
 
-#include "jsapi-tests/tests.h"
+#include "tests.h"
 
 BEGIN_TEST(testContexts_IsRunning)
     {
@@ -13,7 +11,7 @@ BEGIN_TEST(testContexts_IsRunning)
         return true;
     }
 
-    static JSBool chk(JSContext *cx, unsigned argc, jsval *vp)
+    static JSBool chk(JSContext *cx, uintN argc, jsval *vp)
     {
         JSRuntime *rt = JS_GetRuntime(cx);
         JSContext *acx = JS_NewContext(rt, 8192);
@@ -39,9 +37,10 @@ BEGIN_TEST(testContexts_bug563735)
     JSBool ok;
     {
         JSAutoRequest req(cx2);
-        JSAutoCompartment ac(cx2, global);
-        JS::RootedValue v(cx2);
-        ok = JS_SetProperty(cx2, global, "x", v);
+        JSAutoEnterCompartment ac;
+        CHECK(ac.enter(cx2, global));
+        jsval v = JSVAL_NULL;
+        ok = JS_SetProperty(cx2, global, "x", &v);
     }
     CHECK(ok);
 

@@ -1,6 +1,6 @@
 // The same object gets the same Debugger.Object wrapper at different times, if the difference would be observable.
 
-var N = 12;
+var N = HOTLOOP + 4;
 
 var g = newGlobal('new-compartment');
 var dbg = Debugger(g);

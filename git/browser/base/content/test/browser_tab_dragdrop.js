@@ -61,7 +61,9 @@ function test()
 
       executeSoon(function () {
         var win = gBrowser.replaceTabWithWindow(t);
-        whenDelayedStartupFinished(win, function () {
+        win.addEventListener("load", function () {
+          win.removeEventListener("load", arguments.callee, true);
+
           // Verify that the original window now only has the initial tab left in it.
           is(gBrowser.tabs[0], tabs[0], "tab0");
           is(gBrowser.getBrowserForTab(gBrowser.tabs[0]).contentWindow.location, "about:blank", "tab0 uri");
@@ -80,7 +82,7 @@ function test()
             }, false);
             win.gBrowser.goBack();
           });
-        });
+        }, true);
       });
     }, true);
     b.loadURI("about:blank");
@@ -88,12 +90,8 @@ function test()
   }
 
   var loads = 0;
-  function waitForLoad(event, tab, listenerContainer) {
-    var b = gBrowser.getBrowserForTab(gBrowser.tabs[tab]);
-    if (b.contentDocument != event.target) {
-      return;
-    }
-    gBrowser.getBrowserForTab(gBrowser.tabs[tab]).removeEventListener("load", listenerContainer.listener, true);
+  function waitForLoad(tab) {
+    gBrowser.getBrowserForTab(gBrowser.tabs[tab]).removeEventListener("load", arguments.callee, true);
     ++loads;
     if (loads == tabs.length - 1) {
       executeSoon(test1);
@@ -101,18 +99,16 @@ function test()
   }
 
   function fn(f, arg) {
-    var listenerContainer = { listener: null }
-    listenerContainer.listener = function (event) { return f(event, arg, listenerContainer); };
-    return listenerContainer.listener;
+    return function () { return f(arg); };
   }
   for (var i = 1; i < tabs.length; ++i) {
     gBrowser.getBrowserForTab(tabs[i]).addEventListener("load", fn(waitForLoad,i), true);
   }
 
-  setLocation(1, "data:text/html;charset=utf-8,<title>tab1</title><body>tab1<iframe>");
-  setLocation(2, "data:text/plain;charset=utf-8,tab2");
-  setLocation(3, "data:text/html;charset=utf-8,<title>tab3</title><body>tab3<iframe>");
-  setLocation(4, "data:text/html;charset=utf-8,<body onload='clicks=0' onclick='++clicks'>"+embed);
+  setLocation(1, "data:text/html,<title>tab1</title><body>tab1<iframe>");
+  setLocation(2, "data:text/plain,tab2");
+  setLocation(3, "data:text/html,<title>tab3</title><body>tab3<iframe>");
+  setLocation(4, "data:text/html,<body onload='clicks=0' onclick='++clicks'>"+embed);
   gBrowser.selectedTab = tabs[3];
 
 }

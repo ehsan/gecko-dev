@@ -12,8 +12,6 @@
   <script type="application/javascript"
           src="../common.js"></script>
   <script type="application/javascript"
-          src="../role.js"></script>
-  <script type="application/javascript"
           src="../states.js"></script>
   <script type="application/javascript"
           src="../events.js"></script>
@@ -52,17 +50,15 @@
       }
     }
 
-    gA11yEventDumpToConsole = true;
+    //gA11yEventDumpToConsole = true;
     var gQueue = null;
 
     function doTest()
     {
-      enableLogging("focus,doclifecycle");
       gQueue = new eventQueue();
 
       gQueue.push(new openWnd());
 
-      gQueue.onFinish = function() { disableLogging(); }
       gQueue.invoke(); // Will call SimpleTest.finish();
     }
 

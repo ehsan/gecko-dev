@@ -1,11 +1,43 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla code.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *    Ted Mielczarek <ted.mielczarek@gmail.com> (original author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 Components.utils.import("resource://gre/modules/Services.jsm");
-Components.utils.import("resource://gre/modules/KeyValueParser.jsm");
 
-this.EXPORTED_SYMBOLS = [
+let EXPORTED_SYMBOLS = [
   "CrashSubmit"
 ];
 
@@ -21,6 +53,42 @@ const SUBMITTING = "submitting";
 let reportURL = null;
 let strings = null;
 let myListener = null;
+
+function parseKeyValuePairs(text) {
+  var lines = text.split('\n');
+  var data = {};
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i] == '')
+      continue;
+
+    // can't just .split() because the value might contain = characters
+    let eq = lines[i].indexOf('=');
+    if (eq != -1) {
+      let [key, value] = [lines[i].substring(0, eq),
+                          lines[i].substring(eq + 1)];
+      if (key && value)
+        data[key] = value.replace("\\n", "\n", "g").replace("\\\\", "\\", "g");
+    }
+  }
+  return data;
+}
+
+function parseKeyValuePairsFromFile(file) {
+  var fstream = Cc["@mozilla.org/network/file-input-stream;1"].
+                createInstance(Ci.nsIFileInputStream);
+  fstream.init(file, -1, 0, 0);
+  var is = Cc["@mozilla.org/intl/converter-input-stream;1"].
+           createInstance(Ci.nsIConverterInputStream);
+  is.init(fstream, "UTF-8", 1024, Ci.nsIConverterInputStream.DEFAULT_REPLACEMENT_CHARACTER);
+  var str = {};
+  var contents = '';
+  while (is.readString(4096, str) != 0) {
+    contents += str.value;
+  }
+  is.close();
+  fstream.close();
+  return parseKeyValuePairs(contents);
+}
 
 function parseINIStrings(file) {
   var factory = Cc["@mozilla.org/xpcom/ini-parser-factory;1"].
@@ -71,84 +139,17 @@ function getL10nStrings() {
   }
 }
 
-function getPendingDir() {
+function getPendingMinidump(id) {
   let directoryService = Cc["@mozilla.org/file/directory_service;1"].
                          getService(Ci.nsIProperties);
   let pendingDir = directoryService.get("UAppData", Ci.nsIFile);
   pendingDir.append("Crash Reports");
   pendingDir.append("pending");
-  return pendingDir;
-}
-
-function getPendingMinidump(id) {
-  let pendingDir = getPendingDir();
   let dump = pendingDir.clone();
   let extra = pendingDir.clone();
   dump.append(id + ".dmp");
   extra.append(id + ".extra");
   return [dump, extra];
-}
-
-function getAllPendingMinidumpsIDs() {
-  let minidumps = [];
-  let pendingDir = getPendingDir();
-
-  if (!(pendingDir.exists() && pendingDir.isDirectory()))
-    return [];
-  let entries = pendingDir.directoryEntries;
-
-  while (entries.hasMoreElements()) {
-    let entry = entries.getNext().QueryInterface(Ci.nsIFile);
-    if (entry.isFile()) {
-      let matches = entry.leafName.match(/(.+)\.extra$/);
-      if (matches)
-        minidumps.push(matches[1]);
-    }
-  }
-
-  return minidumps;
-}
-
-function pruneSavedDumps() {
-  const KEEP = 10;
-
-  let pendingDir = getPendingDir();
-  if (!(pendingDir.exists() && pendingDir.isDirectory()))
-    return;
-  let entries = pendingDir.directoryEntries;
-  let entriesArray = [];
-
-  while (entries.hasMoreElements()) {
-    let entry = entries.getNext().QueryInterface(Ci.nsIFile);
-    if (entry.isFile()) {
-      let matches = entry.leafName.match(/(.+)\.extra$/);
-      if (matches)
-	entriesArray.push(entry);
-    }
-  }
-
-  entriesArray.sort(function(a,b) {
-    let dateA = a.lastModifiedTime;
-    let dateB = b.lastModifiedTime;
-    if (dateA < dateB)
-      return -1;
-    if (dateB < dateA)
-      return 1;
-    return 0;
-  });
-
-  if (entriesArray.length > KEEP) {
-    for (let i = 0; i < entriesArray.length - KEEP; ++i) {
-      let extra = entriesArray[i];
-      let matches = extra.leafName.match(/(.+)\.extra$/);
-      if (matches) {
-        let dump = extra.clone();
-        dump.leafName = matches[1] + '.dmp';
-        dump.remove(false);
-        extra.remove(false);
-      }
-    }
-  }
 }
 
 function addFormEntry(doc, form, name, value) {
@@ -186,14 +187,11 @@ function writeSubmittedReport(crashID, viewURL) {
 }
 
 // the Submitter class represents an individual submission.
-function Submitter(id, submitSuccess, submitError, noThrottle,
-                   extraExtraKeyVals) {
+function Submitter(id, submitSuccess, submitError, noThrottle) {
   this.id = id;
   this.successCallback = submitSuccess;
   this.errorCallback = submitError;
   this.noThrottle = noThrottle;
-  this.additionalDumps = [];
-  this.extraKeyVals = extraExtraKeyVals || {};
 }
 
 Submitter.prototype = {
@@ -212,9 +210,6 @@ Submitter.prototype = {
     try {
       this.dump.remove(false);
       this.extra.remove(false);
-      for (let i of this.additionalDumps) {
-        i.dump.remove(false);
-      }
     }
     catch (ex) {
       // report an error? not much the user can do here.
@@ -231,7 +226,6 @@ Submitter.prototype = {
     this.iframe = null;
     this.dump = null;
     this.extra = null;
-    this.additionalDumps = null;
     // remove this object from the list of active submissions
     let idx = CrashSubmit._activeSubmissions.indexOf(this);
     if (idx != -1)
@@ -240,54 +234,30 @@ Submitter.prototype = {
 
   submitForm: function Submitter_submitForm()
   {
-    if (!('ServerURL' in this.extraKeyVals)) {
+    let reportData = parseKeyValuePairsFromFile(this.extra);
+    if (!('ServerURL' in reportData)) {
       return false;
-    }
-    let serverURL = this.extraKeyVals.ServerURL;
-
-    // Override the submission URL from the environment or prefs.
-
-    var envOverride = Cc['@mozilla.org/process/environment;1'].
-      getService(Ci.nsIEnvironment).get("MOZ_CRASHREPORTER_URL");
-    if (envOverride != '') {
-      serverURL = envOverride;
-    }
-    else if ('PluginHang' in this.extraKeyVals) {
-      try {
-        serverURL = Services.prefs.
-          getCharPref("toolkit.crashreporter.pluginHangSubmitURL");
-      } catch(e) { }
     }
 
     let xhr = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"]
               .createInstance(Ci.nsIXMLHttpRequest);
-    xhr.open("POST", serverURL, true);
+    xhr.open("POST", reportData.ServerURL, true);
+    delete reportData.ServerURL;
 
     let formData = Cc["@mozilla.org/files/formdata;1"]
                    .createInstance(Ci.nsIDOMFormData);
-    // add the data
-    for (let [name, value] in Iterator(this.extraKeyVals)) {
-      if (name != "ServerURL") {
-        formData.append(name, value);
-      }
+    // add the other data
+    for (let [name, value] in Iterator(reportData)) {
+      formData.append(name, value);
     }
     if (this.noThrottle) {
       // tell the server not to throttle this, since it was manually submitted
       formData.append("Throttleable", "0");
     }
-    // add the minidumps
+    // add the minidump
     formData.append("upload_file_minidump", File(this.dump.path));
-    if (this.additionalDumps.length > 0) {
-      let names = [];
-      for (let i of this.additionalDumps) {
-        names.push(i.name);
-        formData.append("upload_file_minidump_"+i.name,
-                        File(i.dump.path));
-      }
-    }
-
     let self = this;
-    xhr.addEventListener("readystatechange", function (aEvt) {
+    xhr.onreadystatechange = function (aEvt) {
       if (xhr.readyState == 4) {
         if (xhr.status != 200) {
           self.notifyStatus(FAILED);
@@ -297,7 +267,7 @@ Submitter.prototype = {
           self.submitSuccess(ret);
         }
       }
-    }, false);
+    };
 
     xhr.send(formData);
     return true;
@@ -311,13 +281,6 @@ Submitter.prototype = {
     if (status == SUCCESS) {
       propBag.setPropertyAsAString("serverCrashID", ret.CrashID);
     }
-
-    let extraKeyValsBag = Cc["@mozilla.org/hash-property-bag;1"].
-                          createInstance(Ci.nsIWritablePropertyBag2);
-    for (let key in this.extraKeyVals) {
-      extraKeyValsBag.setPropertyAsAString(key, this.extraKeyVals[key]);
-    }
-    propBag.setPropertyAsInterface("extra", extraKeyValsBag);
 
     Services.obs.notifyObservers(propBag, "crash-report-status", status);
 
@@ -344,32 +307,10 @@ Submitter.prototype = {
       return false;
     }
 
-    let extraKeyVals = parseKeyValuePairsFromFile(extra);
-    for (let key in extraKeyVals) {
-      if (!(key in this.extraKeyVals)) {
-        this.extraKeyVals[key] = extraKeyVals[key];
-      }
-    }
-
-    let additionalDumps = [];
-    if ("additional_minidumps" in this.extraKeyVals) {
-      let names = this.extraKeyVals.additional_minidumps.split(',');
-      for (let name of names) {
-        let [dump, extra] = getPendingMinidump(this.id + "-" + name);
-        if (!dump.exists()) {
-          this.notifyStatus(FAILED);
-          this.cleanup();
-          return false;
-        }
-        additionalDumps.push({'name': name, 'dump': dump});
-      }
-    }
-
     this.notifyStatus(SUBMITTING);
 
     this.dump = dump;
     this.extra = extra;
-    this.additionalDumps = additionalDumps;
 
     if (!this.submitForm()) {
        this.notifyStatus(FAILED);
@@ -382,7 +323,7 @@ Submitter.prototype = {
 
 //===================================
 // External API goes here
-this.CrashSubmit = {
+let CrashSubmit = {
   /**
    * Submit the crash report named id.dmp from the "pending" directory.
    *
@@ -405,11 +346,6 @@ this.CrashSubmit = {
    *          it should be processed right away. This should be set
    *          when the report is being submitted and the user expects
    *          to see the results immediately. Defaults to false.
-   *        - extraExtraKeyVals
-   *          An object whose key-value pairs will be merged with the data from
-   *          the ".extra" file submitted with the report.  The properties of
-   *          this object will override properties of the same name in the
-   *          .extra file.
    *
    * @return true if the submission began successfully, or false if
    *         it failed for some reason. (If the dump file does not
@@ -421,7 +357,6 @@ this.CrashSubmit = {
     let submitSuccess = null;
     let submitError = null;
     let noThrottle = false;
-    let extraExtraKeyVals = null;
 
     if ('submitSuccess' in params)
       submitSuccess = params.submitSuccess;
@@ -429,45 +364,13 @@ this.CrashSubmit = {
       submitError = params.submitError;
     if ('noThrottle' in params)
       noThrottle = params.noThrottle;
-    if ('extraExtraKeyVals' in params)
-      extraExtraKeyVals = params.extraExtraKeyVals;
 
     let submitter = new Submitter(id,
                                   submitSuccess,
                                   submitError,
-                                  noThrottle,
-                                  extraExtraKeyVals);
+                                  noThrottle);
     CrashSubmit._activeSubmissions.push(submitter);
     return submitter.submit();
-  },
-
-  /**
-   * Delete the minidup from the "pending" directory.
-   *
-   * @param id
-   *        Filename (minus .dmp extension) of the minidump to delete.
-   */
-  delete: function CrashSubmit_delete(id) {
-    let [dump, extra] = getPendingMinidump(id);
-    dump.QueryInterface(Ci.nsIFile).remove(false);
-    extra.QueryInterface(Ci.nsIFile).remove(false);
-  },
-
-  /**
-   * Get the list of pending crash IDs.
-   *
-   * @return an array of string, each being an ID as
-   *         expected to be passed to submit()
-   */
-  pendingIDs: function CrashSubmit_pendingIDs() {
-    return getAllPendingMinidumpsIDs();
-  },
-
-  /**
-   * Prune the saved dumps.
-   */
-  pruneSavedDumps: function CrashSubmit_pruneSavedDumps() {
-    pruneSavedDumps();
   },
 
   // List of currently active submit objects

@@ -1,7 +1,43 @@
 /* vim:set ts=4 sw=4 sts=4 et cindent: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Negotiateauth
+ *
+ * The Initial Developer of the Original Code is Daniel Kouril.
+ * Portions created by the Initial Developer are Copyright (C) 2003
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Daniel Kouril <kouril@ics.muni.cz> (original author)
+ *   Wyllys Ingersoll <wyllys.ingersoll@sun.com>
+ *   Christopher Nebergall <cneberg@sandia.gov>
+ *   Darin Fisher <darin@meer.net>
+ *   Mark Mentovai <mark@moxienet.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 //
 // GSSAPI Authentication Support Module
@@ -14,15 +50,12 @@
 //
 //
 
-#include "mozilla/Util.h"
-
 #include "prlink.h"
 #include "nsCOMPtr.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
 #include "nsIServiceManager.h"
 #include "nsNativeCharsetUtils.h"
-#include "mozilla/Telemetry.h"
 
 #include "nsAuthGSSAPI.h"
 
@@ -43,8 +76,6 @@ typedef KLStatus (*KLCacheHasValidTickets_type)(
 #include <resolv.h>
 #endif
 
-using namespace mozilla;
-
 //-----------------------------------------------------------------------------
 
 // We define GSS_C_NT_HOSTBASED_SERVICE explicitly since it may be referenced
@@ -59,35 +90,35 @@ static const char kNegotiateAuthGssLib[] =
 static const char kNegotiateAuthNativeImp[] = 
    "network.negotiate-auth.using-native-gsslib";
 
-static struct GSSFunction {
-    const char *str;
-    PRFuncPtr func;
-} gssFuncs[] = {
-    { "gss_display_status", nullptr },
-    { "gss_init_sec_context", nullptr },
-    { "gss_indicate_mechs", nullptr },
-    { "gss_release_oid_set", nullptr },
-    { "gss_delete_sec_context", nullptr },
-    { "gss_import_name", nullptr },
-    { "gss_release_buffer", nullptr },
-    { "gss_release_name", nullptr },
-    { "gss_wrap", nullptr },
-    { "gss_unwrap", nullptr }
+static const char *gssFuncStr[] = {
+    "gss_display_status", 
+    "gss_init_sec_context", 
+    "gss_indicate_mechs",
+    "gss_release_oid_set",
+    "gss_delete_sec_context",
+    "gss_import_name",
+    "gss_release_buffer",
+    "gss_release_name",
+    "gss_wrap",
+    "gss_unwrap"
 };
 
-static bool      gssNativeImp = true;
-static PRLibrary* gssLibrary = nullptr;
+#define gssFuncItems NS_ARRAY_LENGTH(gssFuncStr)
 
-#define gss_display_status_ptr      ((gss_display_status_type)*gssFuncs[0].func)
-#define gss_init_sec_context_ptr    ((gss_init_sec_context_type)*gssFuncs[1].func)
-#define gss_indicate_mechs_ptr      ((gss_indicate_mechs_type)*gssFuncs[2].func)
-#define gss_release_oid_set_ptr     ((gss_release_oid_set_type)*gssFuncs[3].func)
-#define gss_delete_sec_context_ptr  ((gss_delete_sec_context_type)*gssFuncs[4].func)
-#define gss_import_name_ptr         ((gss_import_name_type)*gssFuncs[5].func)
-#define gss_release_buffer_ptr      ((gss_release_buffer_type)*gssFuncs[6].func)
-#define gss_release_name_ptr        ((gss_release_name_type)*gssFuncs[7].func)
-#define gss_wrap_ptr                ((gss_wrap_type)*gssFuncs[8].func)
-#define gss_unwrap_ptr              ((gss_unwrap_type)*gssFuncs[9].func)
+static PRFuncPtr gssFunPtr[gssFuncItems]; 
+static PRBool    gssNativeImp = PR_TRUE;
+static PRLibrary* gssLibrary = nsnull;
+
+#define gss_display_status_ptr      ((gss_display_status_type)*gssFunPtr[0])
+#define gss_init_sec_context_ptr    ((gss_init_sec_context_type)*gssFunPtr[1])
+#define gss_indicate_mechs_ptr      ((gss_indicate_mechs_type)*gssFunPtr[2])
+#define gss_release_oid_set_ptr     ((gss_release_oid_set_type)*gssFunPtr[3])
+#define gss_delete_sec_context_ptr  ((gss_delete_sec_context_type)*gssFunPtr[4])
+#define gss_import_name_ptr         ((gss_import_name_type)*gssFunPtr[5])
+#define gss_release_buffer_ptr      ((gss_release_buffer_type)*gssFunPtr[6])
+#define gss_release_name_ptr        ((gss_release_name_type)*gssFunPtr[7])
+#define gss_wrap_ptr                ((gss_wrap_type)*gssFunPtr[8])
+#define gss_unwrap_ptr              ((gss_unwrap_type)*gssFunPtr[9])
 
 #ifdef XP_MACOSX
 static PRFuncPtr KLCacheHasValidTicketsPtr;
@@ -105,16 +136,16 @@ gssInit()
         prefs->GetBoolPref(kNegotiateAuthNativeImp, &gssNativeImp); 
     }
 
-    PRLibrary *lib = nullptr;
+    PRLibrary *lib = NULL;
 
     if (!libPath.IsEmpty()) {
         LOG(("Attempting to load user specified library [%s]\n", libPath.get()));
-        gssNativeImp = false;
+        gssNativeImp = PR_FALSE;
         lib = PR_LoadLibrary(libPath.get());
     }
     else {
 #ifdef XP_WIN
-        char *libName = PR_GetLibraryName(nullptr, "gssapi32");
+        char *libName = PR_GetLibraryName(NULL, "gssapi32");
         if (libName) {
             lib = PR_LoadLibrary("gssapi32");
             PR_FreeLibraryName(libName);
@@ -130,11 +161,10 @@ gssInit()
         const char *const verLibNames[] = {
             "libgssapi_krb5.so.2", /* MIT - FC, Suse10, Debian */
             "libgssapi.so.4",      /* Heimdal - Suse10, MDK */
-            "libgssapi.so.1",      /* Heimdal - Suse9, CITI - FC, MDK, Suse10*/
-            "libgssapi.so"         /* OpenBSD */
+            "libgssapi.so.1"       /* Heimdal - Suse9, CITI - FC, MDK, Suse10*/
         };
 
-        for (size_t i = 0; i < ArrayLength(verLibNames) && !lib; ++i) {
+        for (size_t i = 0; i < NS_ARRAY_LENGTH(verLibNames) && !lib; ++i) {
             lib = PR_LoadLibrary(verLibNames[i]);
  
             /* The CITI libgssapi library calls exit() during
@@ -149,12 +179,12 @@ gssInit()
                 PR_FindFunctionSymbol(lib, "gssd_pname_to_uid")) {
                 LOG(("CITI libgssapi found, which calls exit(). Skipping\n"));
                 PR_UnloadLibrary(lib);
-                lib = nullptr;
+                lib = NULL;
             }
         }
 
-        for (size_t i = 0; i < ArrayLength(libNames) && !lib; ++i) {
-            char *libName = PR_GetLibraryName(nullptr, libNames[i]);
+        for (size_t i = 0; i < NS_ARRAY_LENGTH(libNames) && !lib; ++i) {
+            char *libName = PR_GetLibraryName(NULL, libNames[i]);
             if (libName) {
                 lib = PR_LoadLibrary(libName);
                 PR_FreeLibraryName(libName);
@@ -165,7 +195,7 @@ gssInit()
                     PR_FindFunctionSymbol(lib, "gssd_pname_to_uid")) {
                     LOG(("CITI libgssapi found, which calls exit(). Skipping\n"));
                     PR_UnloadLibrary(lib);
-                    lib = nullptr;
+                    lib = NULL;
                 } 
             }
         }
@@ -179,10 +209,10 @@ gssInit()
 
     LOG(("Attempting to load gss functions\n"));
 
-    for (size_t i = 0; i < ArrayLength(gssFuncs); ++i) {
-        gssFuncs[i].func = PR_FindFunctionSymbol(lib, gssFuncs[i].str);
-        if (!gssFuncs[i].func) {
-            LOG(("Fail to load %s function from gssapi library\n", gssFuncs[i].str));
+    for (size_t i = 0; i < gssFuncItems; ++i) {
+        gssFunPtr[i] = PR_FindFunctionSymbol(lib, gssFuncStr[i]);
+        if (!gssFunPtr[i]) {
+            LOG(("Fail to load %s function from gssapi library\n", gssFuncStr[i]));
             PR_UnloadLibrary(lib);
             return NS_ERROR_FAILURE;
         }
@@ -213,7 +243,7 @@ LogGssError(OM_uint32 maj_stat, OM_uint32 min_stat, const char *prefix)
     gss_buffer_desc status1_string;
     gss_buffer_desc status2_string;
     OM_uint32 ret;
-    nsAutoCString errorStr;
+    nsCAutoString errorStr;
     errorStr.Assign(prefix);
 
     if (!gssLibrary)
@@ -268,7 +298,7 @@ nsAuthGSSAPI::nsAuthGSSAPI(pType package)
 
     LOG(("entering nsAuthGSSAPI::nsAuthGSSAPI()\n"));
 
-    mComplete = false;
+    mComplete = PR_FALSE;
 
     if (!gssLibrary && NS_FAILED(gssInit()))
         return;
@@ -319,7 +349,7 @@ nsAuthGSSAPI::Reset()
         gss_delete_sec_context_ptr(&minor_status, &mCtx, GSS_C_NO_BUFFER);
     }
     mCtx = GSS_C_NO_CONTEXT;
-    mComplete = false;
+    mComplete = PR_FALSE;
 }
 
 /* static */ void
@@ -327,16 +357,16 @@ nsAuthGSSAPI::Shutdown()
 {
     if (gssLibrary) {
         PR_UnloadLibrary(gssLibrary);
-        gssLibrary = nullptr;
+        gssLibrary = nsnull;
     }
 }
 
 /* Limitations apply to this class's thread safety. See the header file */
-NS_IMPL_ISUPPORTS1(nsAuthGSSAPI, nsIAuthModule)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsAuthGSSAPI, nsIAuthModule)
 
 NS_IMETHODIMP
 nsAuthGSSAPI::Init(const char *serviceName,
-                   uint32_t    serviceFlags,
+                   PRUint32    serviceFlags,
                    const PRUnichar *domain,
                    const PRUnichar *username,
                    const PRUnichar *password)
@@ -354,25 +384,14 @@ nsAuthGSSAPI::Init(const char *serviceName,
 
     mServiceName = serviceName;
     mServiceFlags = serviceFlags;
-
-    static bool sTelemetrySent = false;
-    if (!sTelemetrySent) {
-        mozilla::Telemetry::Accumulate(
-            mozilla::Telemetry::NTLM_MODULE_USED,
-            serviceFlags | nsIAuthModule::REQ_PROXY_AUTH
-                ? NTLM_MODULE_KERBEROS_PROXY
-                : NTLM_MODULE_KERBEROS_DIRECT);
-        sTelemetrySent = true;
-    }
-
     return NS_OK;
 }
 
 NS_IMETHODIMP
 nsAuthGSSAPI::GetNextToken(const void *inToken,
-                           uint32_t    inTokenLen,
+                           PRUint32    inTokenLen,
                            void      **outToken,
-                           uint32_t   *outTokenLen)
+                           PRUint32   *outTokenLen)
 {
     OM_uint32 major_status, minor_status;
     OM_uint32 req_flags = 0;
@@ -380,7 +399,7 @@ nsAuthGSSAPI::GetNextToken(const void *inToken,
     gss_buffer_desc output_token = GSS_C_EMPTY_BUFFER;
     gss_buffer_t  in_token_ptr = GSS_C_NO_BUFFER;
     gss_name_t server;
-    nsAutoCString userbuf;
+    nsCAutoString userbuf;
     nsresult rv;
 
     LOG(("entering nsAuthGSSAPI::GetNextToken()\n"));
@@ -408,7 +427,7 @@ nsAuthGSSAPI::GetNextToken(const void *inToken,
                                    &input_token,
                                    &gss_c_nt_hostbased_service,
                                    &server);
-    input_token.value = nullptr;
+    input_token.value = NULL;
     input_token.length = 0;
     if (GSS_ERROR(major_status)) {
         LogGssError(major_status, minor_status, "gss_import_name() failed");
@@ -435,13 +454,13 @@ nsAuthGSSAPI::GetNextToken(const void *inToken,
     // We can only use Mac OS X specific kerb functions if we are using 
     // the native lib
     KLBoolean found;    
-    bool doingMailTask = mServiceName.Find("imap@") ||
+    PRBool doingMailTask = mServiceName.Find("imap@") ||
                            mServiceName.Find("pop@") ||
                            mServiceName.Find("smtp@") ||
                            mServiceName.Find("ldap@");
     
     if (!doingMailTask && (gssNativeImp &&
-         (KLCacheHasValidTickets_ptr(nullptr, kerberosVersion_V5, &found, nullptr, nullptr) != klNoErr || !found)))
+         (KLCacheHasValidTickets_ptr(NULL, kerberosVersion_V5, &found, NULL, NULL) != klNoErr || !found)))
     {
         major_status = GSS_S_FAILURE;
         minor_status = 0;
@@ -457,10 +476,10 @@ nsAuthGSSAPI::GetNextToken(const void *inToken,
                                             GSS_C_INDEFINITE,
                                             GSS_C_NO_CHANNEL_BINDINGS,
                                             in_token_ptr,
-                                            nullptr,
+                                            nsnull,
                                             &output_token,
-                                            nullptr,
-                                            nullptr);
+                                            nsnull,
+                                            nsnull);
 
     if (GSS_ERROR(major_status)) {
         LogGssError(major_status, minor_status, "gss_init_sec_context() failed");
@@ -471,7 +490,7 @@ nsAuthGSSAPI::GetNextToken(const void *inToken,
     if (major_status == GSS_S_COMPLETE) {
         // Mark ourselves as being complete, so that if we're called again
         // we know to start afresh.
-        mComplete = true;
+        mComplete = PR_TRUE;
     }
     else if (major_status == GSS_S_CONTINUE_NEEDED) {
         //
@@ -485,7 +504,7 @@ nsAuthGSSAPI::GetNextToken(const void *inToken,
     if (output_token.length != 0)
         *outToken = nsMemory::Clone(output_token.value, output_token.length);
     else
-        *outToken = nullptr;
+        *outToken = NULL;
     
     gss_release_buffer_ptr(&minor_status, &output_token);
 
@@ -503,9 +522,9 @@ end:
 
 NS_IMETHODIMP
 nsAuthGSSAPI::Unwrap(const void *inToken,
-                     uint32_t    inTokenLen,
+                     PRUint32    inTokenLen,
                      void      **outToken,
-                     uint32_t   *outTokenLen)
+                     PRUint32   *outTokenLen)
 {
     OM_uint32 major_status, minor_status;
 
@@ -519,8 +538,8 @@ nsAuthGSSAPI::Unwrap(const void *inToken,
                                   mCtx,
                                   &input_token,
                                   &output_token,
-                                  nullptr,
-                                  nullptr);
+                                  NULL,
+                                  NULL);
     if (GSS_ERROR(major_status)) {
         LogGssError(major_status, minor_status, "gss_unwrap() failed");
         Reset();
@@ -533,7 +552,7 @@ nsAuthGSSAPI::Unwrap(const void *inToken,
     if (output_token.length)
         *outToken = nsMemory::Clone(output_token.value, output_token.length);
     else
-        *outToken = nullptr;
+        *outToken = NULL;
 
     gss_release_buffer_ptr(&minor_status, &output_token);
 
@@ -542,10 +561,10 @@ nsAuthGSSAPI::Unwrap(const void *inToken,
  
 NS_IMETHODIMP
 nsAuthGSSAPI::Wrap(const void *inToken,
-                   uint32_t    inTokenLen,
-                   bool        confidential,
+                   PRUint32    inTokenLen,
+                   PRBool      confidential,
                    void      **outToken,
-                   uint32_t   *outTokenLen)
+                   PRUint32   *outTokenLen)
 {
     OM_uint32 major_status, minor_status;
 
@@ -560,7 +579,7 @@ nsAuthGSSAPI::Wrap(const void *inToken,
                                 confidential,
                                 GSS_C_QOP_DEFAULT,
                                 &input_token,
-                                nullptr,
+                                NULL,
                                 &output_token);
     
     if (GSS_ERROR(major_status)) {

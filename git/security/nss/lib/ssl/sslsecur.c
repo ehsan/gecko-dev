@@ -1,9 +1,43 @@
 /*
  * Various SSL functions.
  *
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape security libraries.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1994-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Dr Vipul Gupta <vipul.gupta@sun.com>, Sun Microsystems Laboratories
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
+/* $Id: sslsecur.c,v 1.49 2011/04/08 05:37:44 wtc%google.com Exp $ */
 #include "cert.h"
 #include "secitem.h"
 #include "keyhi.h"
@@ -139,7 +173,7 @@ ssl_Do1stHandshake(sslSocket *ss)
  * retry on a connection on the next read/write.
  */
 static SECStatus
-ssl3_AlwaysBlock(sslSocket *ss)
+AlwaysBlock(sslSocket *ss)
 {
     PORT_SetError(PR_WOULD_BLOCK_ERROR);	/* perhaps redundant. */
     return SECWouldBlock;
@@ -149,10 +183,10 @@ ssl3_AlwaysBlock(sslSocket *ss)
  * set the initial handshake state machine to block
  */
 void
-ssl3_SetAlwaysBlock(sslSocket *ss)
+ssl_SetAlwaysBlock(sslSocket *ss)
 {
     if (!ss->firstHsDone) {
-	ss->handshake = ssl3_AlwaysBlock;
+	ss->handshake = AlwaysBlock;
 	ss->nextHandshake = 0;
     }
 }
@@ -357,18 +391,6 @@ SSL_ForceHandshake(PRFileDesc *fd)
     /* Don't waste my time */
     if (!ss->opt.useSecurity) 
     	return SECSuccess;
-
-    if (!ssl_SocketIsBlocking(ss)) {
-	ssl_GetXmitBufLock(ss);
-	if (ss->pendingBuf.len != 0) {
-	    int sent = ssl_SendSavedWriteData(ss);
-	    if ((sent < 0) && (PORT_GetError() != PR_WOULD_BLOCK_ERROR)) {
-		ssl_ReleaseXmitBufLock(ss);
-		return SECFailure;
-	    }
-	}
-	ssl_ReleaseXmitBufLock(ss);
-    }
 
     ssl_Get1stHandshakeLock(ss);
 
@@ -581,7 +603,6 @@ DoRecv(sslSocket *ss, unsigned char *out, int len, int flags)
     if (!(flags & PR_MSG_PEEK)) {
 	ss->gs.readOffset += amount;
     }
-    PORT_Assert(ss->gs.readOffset <= ss->gs.writeOffset);
     rv = amount;
 
     SSL_TRC(30, ("%d: SSL[%d]: amount=%d available=%d",
@@ -595,11 +616,8 @@ done:
 
 /************************************************************************/
 
-/*
-** Return SSLKEAType derived from cert's Public Key algorithm info.
-*/
 SSLKEAType
-NSS_FindCertKEAType(CERTCertificate * cert)
+ssl_FindCertKEAType(CERTCertificate * cert)
 {
   SSLKEAType keaType = kt_null; 
   int tag;
@@ -613,6 +631,7 @@ NSS_FindCertKEAType(CERTCertificate * cert)
   case SEC_OID_PKCS1_RSA_ENCRYPTION:
     keaType = kt_rsa;
     break;
+
   case SEC_OID_X942_DIFFIE_HELMAN_KEY:
     keaType = kt_dh;
     break;
@@ -628,6 +647,7 @@ NSS_FindCertKEAType(CERTCertificate * cert)
  loser:
   
   return keaType;
+
 }
 
 static const PRCallOnceType pristineCallOnce;
@@ -769,7 +789,7 @@ SSL_ConfigSecureServerWithCertChain(PRFileDesc *fd, CERTCertificate *cert,
 	return SECFailure;
     }
 
-    if (kea != NSS_FindCertKEAType(cert)) {
+    if (kea != ssl_FindCertKEAType(cert)) {
     	PORT_SetError(SSL_ERROR_CERT_KEA_MISMATCH);
 	return SECFailure;
     }
@@ -1121,6 +1141,7 @@ ssl_SecureRecv(sslSocket *ss, unsigned char *buf, int len, int flags)
 		ssl_ReleaseXmitBufLock(ss);
 		return SECFailure;
 	    }
+	    /* XXX short write? */
 	}
 	ssl_ReleaseXmitBufLock(ss);
     }
@@ -1371,7 +1392,7 @@ SSL_InvalidateSession(PRFileDesc *fd)
 	ssl_Get1stHandshakeLock(ss);
 	ssl_GetSSL3HandshakeLock(ss);
 
-	if (ss->sec.ci.sid && ss->sec.uncache) {
+	if (ss->sec.ci.sid) {
 	    ss->sec.uncache(ss->sec.ci.sid);
 	    rv = SECSuccess;
 	}
@@ -1431,8 +1452,29 @@ SSL_CertDBHandleSet(PRFileDesc *fd, CERTCertDBHandle *dbHandle)
     return SECSuccess;
 }
 
-/* DO NOT USE. This function was exported in ssl.def with the wrong signature;
- * this implementation exists to maintain link-time compatibility.
+/*
+ * attempt to restart the handshake after asynchronously handling
+ * a request for the client's certificate.
+ *
+ * inputs:  
+ *	cert	Client cert chosen by application.
+ *		Note: ssl takes this reference, and does not bump the 
+ *		reference count.  The caller should drop its reference
+ *		without calling CERT_DestroyCert after calling this function.
+ *
+ *	key	Private key associated with cert.  This function makes a 
+ *		copy of the private key, so the caller remains responsible 
+ *		for destroying its copy after this function returns.
+ *
+ *	certChain  Chain of signers for cert.  
+ *		Note: ssl takes this reference, and does not copy the chain.
+ *		The caller should drop its reference without destroying the 
+ *		chain.  SSL will free the chain when it is done with it.
+ *
+ * Return value: XXX
+ *
+ * XXX This code only works on the initial handshake on a connection, XXX
+ *     It does not work on a subsequent handshake (redo).
  */
 int
 SSL_RestartHandshakeAfterCertReq(sslSocket *         ss,
@@ -1440,47 +1482,44 @@ SSL_RestartHandshakeAfterCertReq(sslSocket *         ss,
 				SECKEYPrivateKey *   key,
 				CERTCertificateList *certChain)
 {
-    PORT_SetError(PR_NOT_IMPLEMENTED_ERROR);
-    return -1;
-}
+    int              ret;
 
-/* DO NOT USE. This function was exported in ssl.def with the wrong signature;
- * this implementation exists to maintain link-time compatibility.
- */
-int
-SSL_RestartHandshakeAfterServerCert(sslSocket * ss)
-{
-    PORT_SetError(PR_NOT_IMPLEMENTED_ERROR);
-    return -1;
-}
+    ssl_Get1stHandshakeLock(ss);   /************************************/
 
-/* See documentation in ssl.h */
-SECStatus
-SSL_AuthCertificateComplete(PRFileDesc *fd, PRErrorCode error)
-{
-    SECStatus rv;
-    sslSocket *ss = ssl_FindSocket(fd);
-
-    if (!ss) {
-	SSL_DBG(("%d: SSL[%d]: bad socket in SSL_AuthCertificateComplete",
-		 SSL_GETPID(), fd));
-	return SECFailure;
+    if (ss->version >= SSL_LIBRARY_VERSION_3_0) {
+	ret = ssl3_RestartHandshakeAfterCertReq(ss, cert, key, certChain);
+    } else {
+    	ret = ssl2_RestartHandshakeAfterCertReq(ss, cert, key);
     }
 
-    ssl_Get1stHandshakeLock(ss);
+    ssl_Release1stHandshakeLock(ss);  /************************************/
+    return ret;
+}
 
-    if (!ss->ssl3.initialized) {
-	PORT_SetError(SEC_ERROR_INVALID_ARGS);
-	rv = SECFailure;
-    } else if (ss->version < SSL_LIBRARY_VERSION_3_0) {
-	PORT_SetError(SSL_ERROR_FEATURE_NOT_SUPPORTED_FOR_SSL2);
-	rv = SECFailure;
+
+/* restart an SSL connection that we stopped to run certificate dialogs 
+** XXX	Need to document here how an application marks a cert to show that
+**	the application has accepted it (overridden CERT_VerifyCert).
+ *
+ * XXX This code only works on the initial handshake on a connection, XXX
+ *     It does not work on a subsequent handshake (redo).
+ *
+ * Return value: XXX
+*/
+int
+SSL_RestartHandshakeAfterServerCert(sslSocket *ss)
+{
+    int rv	= SECSuccess;
+
+    ssl_Get1stHandshakeLock(ss); 
+
+    if (ss->version >= SSL_LIBRARY_VERSION_3_0) {
+	rv = ssl3_RestartHandshakeAfterServerCert(ss);
     } else {
-	rv = ssl3_AuthCertificateComplete(ss, error);
+	rv = ssl2_RestartHandshakeAfterServerCert(ss);
     }
 
     ssl_Release1stHandshakeLock(ss);
-
     return rv;
 }
 

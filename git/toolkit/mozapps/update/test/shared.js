@@ -1,6 +1,39 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Robert Strong <robert.bugzilla@gmail.com> (Original Author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /* Shared code for xpcshell and mochitests-chrome */
 
@@ -10,7 +43,6 @@ const AUS_Cc = Components.classes;
 const AUS_Ci = Components.interfaces;
 const AUS_Cr = Components.results;
 const AUS_Cu = Components.utils;
-const AUS_Cm = Components.manager;
 
 const PREF_APP_UPDATE_AUTO                = "app.update.auto";
 const PREF_APP_UPDATE_BACKGROUNDERRORS    = "app.update.backgroundErrors";
@@ -21,22 +53,17 @@ const PREF_APP_UPDATE_CERT_ERRORS         = "app.update.cert.errors";
 const PREF_APP_UPDATE_CERT_MAXERRORS      = "app.update.cert.maxErrors";
 const PREF_APP_UPDATE_CERT_REQUIREBUILTIN = "app.update.cert.requireBuiltIn";
 const PREF_APP_UPDATE_CHANNEL             = "app.update.channel";
+const PREF_APP_UPDATE_DESIREDCHANNEL      = "app.update.desiredChannel";
 const PREF_APP_UPDATE_ENABLED             = "app.update.enabled";
-const PREF_APP_UPDATE_METRO_ENABLED       = "app.update.metro.enabled";
 const PREF_APP_UPDATE_IDLETIME            = "app.update.idletime";
 const PREF_APP_UPDATE_LOG                 = "app.update.log";
 const PREF_APP_UPDATE_NEVER_BRANCH        = "app.update.never.";
-const PREF_APP_UPDATE_NOTIFIEDUNSUPPORTED = "app.update.notifiedUnsupported";
 const PREF_APP_UPDATE_PROMPTWAITTIME      = "app.update.promptWaitTime";
-const PREF_APP_UPDATE_SERVICE_ENABLED     = "app.update.service.enabled";
 const PREF_APP_UPDATE_SHOW_INSTALLED_UI   = "app.update.showInstalledUI";
 const PREF_APP_UPDATE_SILENT              = "app.update.silent";
-const PREF_APP_UPDATE_STAGING_ENABLED     = "app.update.staging.enabled";
 const PREF_APP_UPDATE_URL                 = "app.update.url";
 const PREF_APP_UPDATE_URL_DETAILS         = "app.update.url.details";
 const PREF_APP_UPDATE_URL_OVERRIDE        = "app.update.url.override";
-const PREF_APP_UPDATE_SOCKET_ERRORS       = "app.update.socket.maxErrors";
-const PREF_APP_UPDATE_RETRY_TIMEOUT       = "app.update.socket.retryTimeout";
 
 const PREF_APP_UPDATE_CERT_INVALID_ATTR_NAME = PREF_APP_UPDATE_CERTS_BRANCH +
                                                "1.invalidName";
@@ -46,33 +73,31 @@ const PREF_DISTRIBUTION_ID                = "distribution.id";
 const PREF_DISTRIBUTION_VERSION           = "distribution.version";
 
 const PREF_EXTENSIONS_UPDATE_URL          = "extensions.update.url";
-const PREF_EXTENSIONS_STRICT_COMPAT       = "extensions.strictCompatibility";
 
 const NS_APP_PROFILE_DIR_STARTUP   = "ProfDS";
 const NS_APP_USER_PROFILE_50_DIR   = "ProfD";
 const NS_GRE_DIR                   = "GreD";
 const NS_XPCOM_CURRENT_PROCESS_DIR = "XCurProcD";
-const XRE_EXECUTABLE_FILE          = "XREExeF";
 const XRE_UPDATE_ROOT_DIR          = "UpdRootD";
 
 const CRC_ERROR   = 4;
 const WRITE_ERROR = 7;
 
-const DIR_UPDATED                    = "updated";
-const FILE_BACKUP_LOG                = "backup-update.log";
-const FILE_LAST_LOG                  = "last-update.log";
-const FILE_UPDATE_ACTIVE             = "active-update.xml";
-const FILE_UPDATE_ARCHIVE            = "update.mar";
-const FILE_UPDATE_LOG                = "update.log";
-const FILE_UPDATE_SETTINGS_INI       = "update-settings.ini";
-const FILE_UPDATE_SETTINGS_INI_BAK   = "update-settings.ini.bak";
-const FILE_UPDATE_STATUS             = "update.status";
-const FILE_UPDATE_VERSION            = "update.version";
-const FILE_UPDATER_INI               = "updater.ini";
-const FILE_UPDATES_DB                = "updates.xml";
+const FILE_BACKUP_LOG     = "backup-update.log";
+const FILE_LAST_LOG       = "last-update.log";
+const FILE_UPDATER_INI    = "updater.ini";
+const FILE_UPDATES_DB     = "updates.xml";
+const FILE_UPDATE_ACTIVE  = "active-update.xml";
+const FILE_UPDATE_ARCHIVE = "update.mar";
+const FILE_UPDATE_LOG     = "update.log";
+const FILE_UPDATE_STATUS  = "update.status";
+const FILE_UPDATE_VERSION = "update.version";
 
-const UPDATE_SETTINGS_CONTENTS = "[Settings]\n" +
-                                 "ACCEPTED_MAR_CHANNEL_IDS=xpcshell-test\n"
+const MODE_RDONLY   = 0x01;
+const MODE_WRONLY   = 0x02;
+const MODE_CREATE   = 0x08;
+const MODE_APPEND   = 0x10;
+const MODE_TRUNCATE = 0x20;
 
 const PR_RDWR        = 0x04;
 const PR_CREATE_FILE = 0x08;
@@ -81,25 +106,13 @@ const PR_TRUNCATE    = 0x20;
 const PR_SYNC        = 0x40;
 const PR_EXCL        = 0x80;
 
-const DEFAULT_UPDATE_VERSION = "999999.0";
-
-var gChannel;
+const PERMS_FILE      = 0644;
+const PERMS_DIRECTORY = 0755;
 
 #include sharedUpdateXML.js
 
-AUS_Cu.import("resource://gre/modules/FileUtils.jsm");
 AUS_Cu.import("resource://gre/modules/Services.jsm");
 AUS_Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-
-const PERMS_FILE      = FileUtils.PERMS_FILE;
-const PERMS_DIRECTORY = FileUtils.PERMS_DIRECTORY;
-
-const MODE_RDONLY   = FileUtils.MODE_RDONLY;
-const MODE_WRONLY   = FileUtils.MODE_WRONLY;
-const MODE_RDWR     = FileUtils.MODE_RDWR;
-const MODE_CREATE   = FileUtils.MODE_CREATE;
-const MODE_APPEND   = FileUtils.MODE_APPEND;
-const MODE_TRUNCATE = FileUtils.MODE_TRUNCATE;
 
 const URI_UPDATES_PROPERTIES = "chrome://mozapps/locale/update/updates.properties";
 const gUpdateBundle = Services.strings.createBundle(URI_UPDATES_PROPERTIES);
@@ -108,8 +121,7 @@ XPCOMUtils.defineLazyGetter(this, "gAUS", function test_gAUS() {
   return AUS_Cc["@mozilla.org/updates/update-service;1"].
          getService(AUS_Ci.nsIApplicationUpdateService).
          QueryInterface(AUS_Ci.nsITimerCallback).
-         QueryInterface(AUS_Ci.nsIObserver).
-         QueryInterface(AUS_Ci.nsIUpdateCheckListener);
+         QueryInterface(AUS_Ci.nsIObserver);
 });
 
 XPCOMUtils.defineLazyServiceGetter(this, "gUpdateManager",
@@ -128,10 +140,6 @@ XPCOMUtils.defineLazyGetter(this, "gUP", function test_gUP() {
 
 XPCOMUtils.defineLazyGetter(this, "gDefaultPrefBranch", function test_gDPB() {
   return Services.prefs.getDefaultBranch(null);
-});
-
-XPCOMUtils.defineLazyGetter(this, "gPrefRoot", function test_gPR() {
-  return Services.prefs.getBranch(null);
 });
 
 XPCOMUtils.defineLazyGetter(this, "gZipW", function test_gZipW() {
@@ -155,27 +163,13 @@ function reloadUpdateManagerData() {
  * Sets the app.update.channel preference.
  *
  * @param  aChannel
- *         The update channel.
+ *         The update channel. If not specified 'test_channel' will be used.
  */
 function setUpdateChannel(aChannel) {
-  gChannel = aChannel;
-  debugDump("setting default pref " + PREF_APP_UPDATE_CHANNEL + " to " + gChannel);
-  gDefaultPrefBranch.setCharPref(PREF_APP_UPDATE_CHANNEL, gChannel);
-  gPrefRoot.addObserver(PREF_APP_UPDATE_CHANNEL, observer, false);
+  let channel = aChannel ? aChannel : "test_channel";
+  debugDump("setting default pref " + PREF_APP_UPDATE_CHANNEL + " to " + channel);
+  gDefaultPrefBranch.setCharPref(PREF_APP_UPDATE_CHANNEL, channel);
 }
-
-var observer = {
-  observe: function(aSubject, aTopic, aData) {
-    if (aTopic == "nsPref:changed" && aData == PREF_APP_UPDATE_CHANNEL) {
-      var channel = gDefaultPrefBranch.getCharPref(PREF_APP_UPDATE_CHANNEL);
-      if (channel != gChannel) {
-        debugDump("Changing channel from " + channel + " to " + gChannel);
-        gDefaultPrefBranch.setCharPref(PREF_APP_UPDATE_CHANNEL, gChannel);
-      }
-    }
-  },
-  QueryInterface: XPCOMUtils.generateQI([AUS_Ci.nsIObserver])
-};
 
 /**
  * Sets the app.update.url.override preference.
@@ -191,19 +185,6 @@ function setUpdateURLOverride(aURL) {
 }
 
 /**
- * Returns either the active or regular update database XML file.
- *
- * @param  isActiveUpdate
- *         If true this will return the active-update.xml otherwise it will
- *         return the updates.xml file.
- */
-function getUpdatesXMLFile(aIsActiveUpdate) {
-  var file = getUpdatesRootDir();
-  file.append(aIsActiveUpdate ? FILE_UPDATE_ACTIVE : FILE_UPDATES_DB);
-  return file;
-}
-
-/**
  * Writes the updates specified to either the active-update.xml or the
  * updates.xml.
  *
@@ -214,7 +195,9 @@ function getUpdatesXMLFile(aIsActiveUpdate) {
  *         write to the updates.xml file.
  */
 function writeUpdatesToXMLFile(aContent, aIsActiveUpdate) {
-  writeFile(getUpdatesXMLFile(aIsActiveUpdate), aContent);
+  var file = getCurrentProcessDir();
+  file.append(aIsActiveUpdate ? FILE_UPDATE_ACTIVE : FILE_UPDATES_DB);
+  writeFile(file, aContent);
 }
 
 /**
@@ -249,26 +232,12 @@ function writeVersionFile(aVersion) {
 }
 
 /**
- * Gets the updates root directory.
- *
- * @return nsIFile for the updates root directory.
- */
-function getUpdatesRootDir() {
-  try {
-    return Services.dirsvc.get(XRE_UPDATE_ROOT_DIR, AUS_Ci.nsIFile);
-  } catch (e) {
-    // Fall back on the current process directory
-    return getCurrentProcessDir();
-  }
-}
-
-/**
  * Gets the updates directory.
  *
  * @return nsIFile for the updates directory.
  */
 function getUpdatesDir() {
-  var dir = getUpdatesRootDir();
+  var dir = getCurrentProcessDir();
   dir.append("updates");
   return dir;
 }
@@ -399,7 +368,9 @@ function getFileExtension(aFile) {
  * tests are interrupted.
  */
 function removeUpdateDirsAndFiles() {
-  var file = getUpdatesXMLFile(true);
+  var appDir = getCurrentProcessDir();
+  var file = appDir.clone();
+  file.append(FILE_UPDATE_ACTIVE);
   try {
     if (file.exists())
       file.remove(false);
@@ -409,7 +380,8 @@ function removeUpdateDirsAndFiles() {
          "\nException: " + e + "\n");
   }
 
-  file = getUpdatesXMLFile(false);
+  file = appDir.clone();
+  file.append(FILE_UPDATES_DB);
   try {
     if (file.exists())
       file.remove(false);
@@ -420,7 +392,8 @@ function removeUpdateDirsAndFiles() {
   }
 
   // This fails sporadically on Mac OS X so wrap it in a try catch
-  var updatesDir = getUpdatesDir();
+  var updatesDir = appDir.clone();
+  updatesDir.append("updates");
   try {
     cleanUpdatesDir(updatesDir);
   }
@@ -459,26 +432,12 @@ function cleanUpdatesDir(aDir) {
         }
         cleanUpdatesDir(entry);
         entry.permissions = PERMS_DIRECTORY;
-        try {
-          entry.remove(true);
-        }
-        catch (e) {
-          dump("cleanUpdatesDir: unable to remove directory\npath: " +
-               entry.path + "\nException: " + e + "\n");
-          throw(e);
-        }
+        entry.remove(true);
       }
     }
     else {
       entry.permissions = PERMS_FILE;
-      try {
-        entry.remove(false);
-      }
-      catch (e) {
-        dump("cleanUpdatesDir: unable to remove file\npath: " + entry.path +
-             "\nException: " + e + "\n");
-        throw(e);
-      }
+      entry.remove(false);
     }
   }
 }
@@ -510,26 +469,11 @@ function removeDirRecursive(aDir) {
     }
     else {
       entry.permissions = PERMS_FILE;
-      try {
-        entry.remove(false);
-      }
-      catch (e) {
-        dump("removeDirRecursive: unable to remove file\npath: " + entry.path +
-             "\nException: " + e + "\n");
-        throw(e);
-      }
+      entry.remove(false);
     }
   }
-
   aDir.permissions = PERMS_DIRECTORY;
-  try {
-    aDir.remove(true);
-  }
-  catch (e) {
-    dump("removeDirRecursive: unable to remove directory\npath: " + entry.path +
-         "\nException: " + e + "\n");
-    throw(e);
-  }
+  aDir.remove(true);
 }
 
 /**
@@ -544,15 +488,6 @@ function getCurrentProcessDir() {
 }
 
 /**
- * Gets the application base directory.
- *
- * @return  nsIFile object for the application base directory.
- */
-function getAppBaseDir() {
-  return Services.dirsvc.get(XRE_EXECUTABLE_FILE, AUS_Ci.nsIFile).parent;
-}
-
-/**
  * Returns the Gecko Runtime Engine directory. This is used to locate the the
  * updater binary (Windows and Linux) or updater package (Mac OS X). For
  * XULRunner applications this is different than the currently running process
@@ -562,21 +497,6 @@ function getAppBaseDir() {
  */
 function getGREDir() {
   return Services.dirsvc.get(NS_GRE_DIR, AUS_Ci.nsIFile);
-}
-
-/**
- * Get the "updated" directory inside the directory where we apply the
- * background updates.
- * @return The active updates directory inside the updated directory, as a
- *         nsIFile object.
- */
-function getUpdatedDir() {
-  let dir = getAppBaseDir();
-#ifdef XP_MACOSX
-  dir = dir.parent.parent; // the bundle directory
-#endif
-  dir.append(DIR_UPDATED);
-  return dir;
 }
 
 /**

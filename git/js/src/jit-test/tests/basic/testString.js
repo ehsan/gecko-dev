@@ -1,6 +1,6 @@
 function testString() {
     var q;
-    for (var i = 0; i <= 9; ++i) {
+    for (var i = 0; i <= RUNLOOP; ++i) {
         q = [];
         q.push(String(void 0));
         q.push(String(true));
@@ -12,3 +12,7 @@ function testString() {
     return q.join(",");
 }
 assertEq(testString(), "undefined,true,5,5.5,5,5");
+checkStats({
+    recorderStarted: 1,
+    sideExitIntoInterpreter: 1
+});

@@ -5,8 +5,8 @@
 const fakeEventType = "foo";
 
 function testEventTarget(event) {
-  if (event.target !== self || event.currentTarget !== self) {
-    throw new Error("Event has a bad target!");
+  if (event.target !== null || event.currentTarget !== null) {
+    throw new Error("Event has a non-null target!");
   }
   postMessage(event.data);
 }
@@ -22,12 +22,7 @@ addEventListener(fakeEventType, function(event) {
   if (event.isTrusted) {
     throw new Error("Event should be untrusted!");
   }
-  event.stopImmediatePropagation();
   postMessage(event.data);
-}, false, true);
-
-addEventListener(fakeEventType, function(event) {
-  throw new Error("This shouldn't get called because of stopImmediatePropagation.");
 }, false, true);
 
 var count = 0;

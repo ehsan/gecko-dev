@@ -46,11 +46,11 @@ function onWindowLoad()
 {
   var req = new XMLHttpRequest();
   var certListener = new badCertListener();
-  certListener = SpecialPowers.wrapCallbackObject(certListener);
   try
   {
     req.open("GET", "https://www.bank2.com/", false);
-    SpecialPowers.wrap(req).channel.notificationCallbacks = certListener;
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+    req.channel.notificationCallbacks = certListener;
     req.send(null);
   }
   catch(ex)

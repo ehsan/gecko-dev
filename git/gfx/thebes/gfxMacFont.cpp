@@ -1,36 +1,67 @@
 /* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Corporation code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2006-2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Vladimir Vukicevic <vladimir@pobox.com>
+ *   Masayuki Nakano <masayuki@d-toybox.com>
+ *   John Daggett <jdaggett@mozilla.com>
+ *   Jonathan Kew <jfkthame@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "gfxMacFont.h"
-
-#include "mozilla/MemoryReporting.h"
-
 #include "gfxCoreTextShaper.h"
 #include "gfxHarfBuzzShaper.h"
-#include <algorithm>
-#include "gfxGraphiteShaper.h"
 #include "gfxPlatformMac.h"
 #include "gfxContext.h"
+#include "gfxUnicodeProperties.h"
 #include "gfxFontUtils.h"
 
 #include "cairo-quartz.h"
 
 using namespace mozilla;
-using namespace mozilla::gfx;
 
 gfxMacFont::gfxMacFont(MacOSFontEntry *aFontEntry, const gfxFontStyle *aFontStyle,
-                       bool aNeedsBold)
+                       PRBool aNeedsBold)
     : gfxFont(aFontEntry, aFontStyle),
-      mCGFont(nullptr),
-      mFontFace(nullptr)
+      mCGFont(nsnull),
+      mFontFace(nsnull),
+      mScaledFont(nsnull)
 {
     mApplySyntheticBold = aNeedsBold;
 
     mCGFont = aFontEntry->GetFontRef();
     if (!mCGFont) {
-        mIsValid = false;
+        mIsValid = PR_FALSE;
         return;
     }
 
@@ -44,7 +75,7 @@ gfxMacFont::gfxMacFont(MacOSFontEntry *aFontEntry, const gfxFontStyle *aFontStyl
 
     cairo_status_t cairoerr = cairo_font_face_status(mFontFace);
     if (cairoerr != CAIRO_STATUS_SUCCESS) {
-        mIsValid = false;
+        mIsValid = PR_FALSE;
 #ifdef DEBUG
         char warnBuf[1024];
         sprintf(warnBuf, "Failed to create Cairo font face: %s status: %d",
@@ -59,10 +90,10 @@ gfxMacFont::gfxMacFont(MacOSFontEntry *aFontEntry, const gfxFontStyle *aFontStyl
     cairo_matrix_init_scale(&sizeMatrix, mAdjustedSize, mAdjustedSize);
 
     // synthetic oblique by skewing via the font matrix
-    bool needsOblique =
-        (mFontEntry != nullptr) &&
+    PRBool needsOblique =
+        (mFontEntry != NULL) &&
         (!mFontEntry->IsItalic() &&
-         (mStyle.style & (NS_FONT_STYLE_ITALIC | NS_FONT_STYLE_OBLIQUE)));
+         (mStyle.style & (FONT_STYLE_ITALIC | FONT_STYLE_OBLIQUE)));
 
     if (needsOblique) {
         double skewfactor = (needsOblique ? Fix2X(kATSItalicQDSkew) : 0);
@@ -84,10 +115,6 @@ gfxMacFont::gfxMacFont(MacOSFontEntry *aFontEntry, const gfxFontStyle *aFontStyl
     if (mAdjustedSize <=
         (gfxFloat)gfxPlatformMac::GetPlatform()->GetAntiAliasingThreshold()) {
         cairo_font_options_set_antialias(fontOptions, CAIRO_ANTIALIAS_NONE);
-        mAntialiasOption = kAntialiasNone;
-    } else if (mStyle.useGrayscaleAntialiasing) {
-        cairo_font_options_set_antialias(fontOptions, CAIRO_ANTIALIAS_GRAY);
-        mAntialiasOption = kAntialiasGrayscale;
     }
 
     mScaledFont = cairo_scaled_font_create(mFontFace, &sizeMatrix, &ctm,
@@ -96,7 +123,7 @@ gfxMacFont::gfxMacFont(MacOSFontEntry *aFontEntry, const gfxFontStyle *aFontStyl
 
     cairoerr = cairo_scaled_font_status(mScaledFont);
     if (cairoerr != CAIRO_STATUS_SUCCESS) {
-        mIsValid = false;
+        mIsValid = PR_FALSE;
 #ifdef DEBUG
         char warnBuf[1024];
         sprintf(warnBuf, "Failed to create scaled font: %s status: %d",
@@ -105,9 +132,6 @@ gfxMacFont::gfxMacFont(MacOSFontEntry *aFontEntry, const gfxFontStyle *aFontStyl
 #endif
     }
 
-    if (FontCanSupportGraphite()) {
-        mGraphiteShaper = new gfxGraphiteShaper(this);
-    }
     if (FontCanSupportHarfBuzz()) {
         mHarfBuzzShaper = new gfxHarfBuzzShaper(this);
     }
@@ -123,24 +147,27 @@ gfxMacFont::~gfxMacFont()
     }
 }
 
-bool
-gfxMacFont::ShapeText(gfxContext      *aContext,
-                      const PRUnichar *aText,
-                      uint32_t         aOffset,
-                      uint32_t         aLength,
-                      int32_t          aScript,
-                      gfxShapedText   *aShapedText,
-                      bool             aPreferPlatformShaping)
+PRBool
+gfxMacFont::InitTextRun(gfxContext *aContext,
+                        gfxTextRun *aTextRun,
+                        const PRUnichar *aString,
+                        PRUint32 aRunStart,
+                        PRUint32 aRunLength,
+                        PRInt32 aRunScript,
+                        PRBool aPreferPlatformShaping)
 {
     if (!mIsValid) {
         NS_WARNING("invalid font! expect incorrect text rendering");
-        return false;
+        return PR_FALSE;
     }
 
-    bool requiresAAT =
-        static_cast<MacOSFontEntry*>(GetFontEntry())->RequiresAATLayout();
-    return gfxFont::ShapeText(aContext, aText, aOffset, aLength,
-                              aScript, aShapedText, requiresAAT);
+    PRBool ok = gfxFont::InitTextRun(aContext, aTextRun, aString,
+                                     aRunStart, aRunLength, aRunScript,
+        static_cast<MacOSFontEntry*>(GetFontEntry())->RequiresAATLayout());
+
+    aTextRun->AdjustAdvancesForSyntheticBold(aContext, aRunStart, aRunLength);
+
+    return ok;
 }
 
 void
@@ -149,21 +176,21 @@ gfxMacFont::CreatePlatformShaper()
     mPlatformShaper = new gfxCoreTextShaper(this);
 }
 
-bool
+PRBool
 gfxMacFont::SetupCairoFont(gfxContext *aContext)
 {
     if (cairo_scaled_font_status(mScaledFont) != CAIRO_STATUS_SUCCESS) {
         // Don't cairo_set_scaled_font as that would propagate the error to
         // the cairo_t, precluding any further drawing.
-        return false;
+        return PR_FALSE;
     }
     cairo_set_scaled_font(aContext->GetCairo(), mScaledFont);
-    return true;
+    return PR_TRUE;
 }
 
 gfxFont::RunMetrics
 gfxMacFont::Measure(gfxTextRun *aTextRun,
-                    uint32_t aStart, uint32_t aEnd,
+                    PRUint32 aStart, PRUint32 aEnd,
                     BoundingBoxType aBoundingBoxType,
                     gfxContext *aRefContext,
                     Spacing *aSpacing)
@@ -186,27 +213,23 @@ gfxMacFont::Measure(gfxTextRun *aTextRun,
 void
 gfxMacFont::InitMetrics()
 {
-    mIsValid = false;
+    mIsValid = PR_FALSE;
     ::memset(&mMetrics, 0, sizeof(mMetrics));
 
-    uint32_t upem = 0;
+    PRUint32 upem = 0;
 
     // try to get unitsPerEm from sfnt head table, to avoid calling CGFont
     // if possible (bug 574368) and because CGFontGetUnitsPerEm does not
     // return the true value for OpenType/CFF fonts (it normalizes to 1000,
     // which then leads to metrics errors when we read the 'hmtx' table to
     // get glyph advances for HarfBuzz, see bug 580863)
-    CFDataRef headData =
-        ::CGFontCopyTableForTag(mCGFont, TRUETYPE_TAG('h','e','a','d'));
-    if (headData) {
-        if (size_t(::CFDataGetLength(headData)) >= sizeof(HeadTable)) {
-            const HeadTable *head =
-                reinterpret_cast<const HeadTable*>(::CFDataGetBytePtr(headData));
-            upem = head->unitsPerEm;
-        }
-        ::CFRelease(headData);
-    }
-    if (!upem) {
+    const PRUint32 kHeadTableTag = TRUETYPE_TAG('h','e','a','d');
+    AutoFallibleTArray<PRUint8,sizeof(HeadTable)> headData;
+    if (NS_SUCCEEDED(mFontEntry->GetFontTable(kHeadTableTag, headData)) &&
+        headData.Length() >= sizeof(HeadTable)) {
+        HeadTable *head = reinterpret_cast<HeadTable*>(headData.Elements());
+        upem = head->unitsPerEm;
+    } else {
         upem = ::CGFontGetUnitsPerEm(mCGFont);
     }
 
@@ -221,7 +244,7 @@ gfxMacFont::InitMetrics()
         return;
     }
 
-    mAdjustedSize = std::max(mStyle.size, 1.0);
+    mAdjustedSize = NS_MAX(mStyle.size, 1.0);
     mFUnitsConvFactor = mAdjustedSize / upem;
 
     // For CFF fonts, when scaling values read from CGFont* APIs, we need to
@@ -286,7 +309,7 @@ gfxMacFont::InitMetrics()
     CFDataRef cmap =
         ::CGFontCopyTableForTag(mCGFont, TRUETYPE_TAG('c','m','a','p'));
 
-    uint32_t glyphID;
+    PRUint32 glyphID;
     if (mMetrics.aveCharWidth <= 0) {
         mMetrics.aveCharWidth = GetCharWidth(cmap, 'x', &glyphID,
                                              cgConvFactor);
@@ -335,7 +358,7 @@ gfxMacFont::InitMetrics()
 
 gfxFloat
 gfxMacFont::GetCharWidth(CFDataRef aCmap, PRUnichar aUniChar,
-                         uint32_t *aGlyphID, gfxFloat aConvFactor)
+                         PRUint32 *aGlyphID, gfxFloat aConvFactor)
 {
     CGGlyph glyph = 0;
     
@@ -359,6 +382,35 @@ gfxMacFont::GetCharWidth(CFDataRef aCmap, PRUnichar aUniChar,
     return 0;
 }
 
+/*static*/ void
+gfxMacFont::DestroyBlobFunc(void* aUserData)
+{
+    ::CFRelease((CFDataRef)aUserData);
+}
+
+hb_blob_t *
+gfxMacFont::GetFontTable(PRUint32 aTag)
+{
+    CFDataRef dataRef = ::CGFontCopyTableForTag(mCGFont, aTag);
+    if (dataRef) {
+        return hb_blob_create((const char*)::CFDataGetBytePtr(dataRef),
+                              ::CFDataGetLength(dataRef),
+                              HB_MEMORY_MODE_READONLY,
+                              DestroyBlobFunc, (void*)dataRef);
+    }
+
+    if (mFontEntry->IsUserFont() && !mFontEntry->IsLocalUserFont()) {
+        // for downloaded fonts, there may be layout tables cached in the entry
+        // even though they're absent from the sanitized platform font
+        hb_blob_t *blob;
+        if (mFontEntry->GetExistingFontTable(aTag, &blob)) {
+            return blob;
+        }
+    }
+
+    return nsnull;
+}
+
 // Try to initialize font metrics via platform APIs (CG/CT),
 // and set mIsValid = TRUE on success.
 // We ONLY call this for local (platform) fonts that are not sfnt format;
@@ -367,9 +419,15 @@ gfxMacFont::GetCharWidth(CFDataRef aCmap, PRUnichar aUniChar,
 void
 gfxMacFont::InitMetricsFromPlatform()
 {
+    if (gfxMacPlatformFontList::UseATSFontEntry()) {
+        ATSFontEntry *fe = static_cast<ATSFontEntry*>(GetFontEntry());
+        InitMetricsFromATSMetrics(fe->GetATSFontRef());
+        return;
+    }
+
     CTFontRef ctFont = ::CTFontCreateWithGraphicsFont(mCGFont,
                                                       mAdjustedSize,
-                                                      nullptr, nullptr);
+                                                      NULL, NULL);
     if (!ctFont) {
         return;
     }
@@ -400,35 +458,40 @@ gfxMacFont::InitMetricsFromPlatform()
 
     ::CFRelease(ctFont);
 
-    mIsValid = true;
+    mIsValid = PR_TRUE;
 }
 
-TemporaryRef<ScaledFont>
-gfxMacFont::GetScaledFont(DrawTarget *aTarget)
-{
-  if (!mAzureScaledFont) {
-    NativeFont nativeFont;
-    nativeFont.mType = NATIVE_FONT_MAC_FONT_FACE;
-    nativeFont.mFont = GetCGFontRef();
-    mAzureScaledFont = mozilla::gfx::Factory::CreateScaledFontWithCairo(nativeFont, GetAdjustedSize(), mScaledFont);
-  }
-
-  return mAzureScaledFont;
-}
-
+// For OS X 10.5, try to initialize font metrics via ATS font metrics APIs,
+// and set mIsValid = TRUE on success.
 void
-gfxMacFont::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
-                                FontCacheSizes*   aSizes) const
+gfxMacFont::InitMetricsFromATSMetrics(ATSFontRef aFontRef)
 {
-    gfxFont::SizeOfExcludingThis(aMallocSizeOf, aSizes);
-    // mCGFont is shared with the font entry, so not counted here;
-    // and we don't have APIs to measure the cairo mFontFace object
-}
+    ATSFontMetrics atsMetrics;
+    OSStatus err;
 
-void
-gfxMacFont::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
-                                FontCacheSizes*   aSizes) const
-{
-    aSizes->mFontInstances += aMallocSizeOf(this);
-    SizeOfExcludingThis(aMallocSizeOf, aSizes);
+    err = ::ATSFontGetHorizontalMetrics(aFontRef, kATSOptionFlagsDefault,
+                                        &atsMetrics);
+    if (err != noErr) {
+#ifdef DEBUG
+        char warnBuf[1024];
+        sprintf(warnBuf, "Bad font metrics for: %s err: %8.8x",
+                NS_ConvertUTF16toUTF8(mFontEntry->Name()).get(), PRUint32(err));
+        NS_WARNING(warnBuf);
+#endif
+        return;
+    }
+
+    mMetrics.underlineOffset = atsMetrics.underlinePosition * mAdjustedSize;
+    mMetrics.underlineSize = atsMetrics.underlineThickness * mAdjustedSize;
+
+    mMetrics.externalLeading = atsMetrics.leading * mAdjustedSize;
+
+    mMetrics.maxAscent = atsMetrics.ascent * mAdjustedSize;
+    mMetrics.maxDescent = -atsMetrics.descent * mAdjustedSize;
+
+    mMetrics.maxAdvance = atsMetrics.maxAdvanceWidth * mAdjustedSize;
+    mMetrics.aveCharWidth = atsMetrics.avgAdvanceWidth * mAdjustedSize;
+    mMetrics.xHeight = atsMetrics.xHeight * mAdjustedSize;
+
+    mIsValid = PR_TRUE;
 }

@@ -1,17 +1,48 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 // vim:cindent:tabstop=2:expandtab:shiftwidth=2:
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   L. David Baron <dbaron@dbaron.org>
+ *   Pierre Phaneuf <pp@ludusdesign.com>
+ *   Daniel Glazman <glazman@netscape.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /* representation of a CSS style sheet */
 
 #ifndef nsCSSStyleSheet_h_
 #define nsCSSStyleSheet_h_
-
-#include "mozilla/Attributes.h"
-#include "mozilla/MemoryReporting.h"
-#include "mozilla/dom/Element.h"
 
 #include "nscore.h"
 #include "nsCOMPtr.h"
@@ -20,20 +51,17 @@
 #include "nsIDOMCSSStyleSheet.h"
 #include "nsICSSLoaderObserver.h"
 #include "nsCOMArray.h"
-#include "nsTArray.h"
-#include "nsString.h"
-#include "mozilla/CORSMode.h"
-#include "nsCycleCollectionParticipant.h"
-#include "nsWrapperCache.h"
 
 class nsXMLNameSpaceMap;
 class nsCSSRuleProcessor;
+class nsMediaList;
 class nsIPrincipal;
 class nsIURI;
 class nsMediaList;
 class nsMediaQueryResultCacheKey;
 class nsCSSStyleSheet;
 class nsPresContext;
+template<class E, class A> class nsTArray;
 
 namespace mozilla {
 namespace css {
@@ -51,9 +79,9 @@ class nsCSSStyleSheetInner {
 public:
   friend class nsCSSStyleSheet;
   friend class nsCSSRuleProcessor;
+  friend nsresult NS_NewCSSStyleSheet(nsCSSStyleSheet** aInstancePtrResult);
 private:
-  nsCSSStyleSheetInner(nsCSSStyleSheet* aPrimarySheet,
-                       mozilla::CORSMode aCORSMode);
+  nsCSSStyleSheetInner(nsCSSStyleSheet* aPrimarySheet);
   nsCSSStyleSheetInner(nsCSSStyleSheetInner& aCopy,
                        nsCSSStyleSheet* aPrimarySheet);
   ~nsCSSStyleSheetInner();
@@ -66,8 +94,6 @@ private:
 
   // Create a new namespace map
   nsresult CreateNamespaceMap();
-
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
 
   nsAutoTArray<nsCSSStyleSheet*, 8> mSheets;
   nsCOMPtr<nsIURI>       mSheetURI; // for error reports, etc.
@@ -82,11 +108,10 @@ private:
   // child sheet that means we've already ensured unique inners throughout its
   // parent chain and things are good.
   nsRefPtr<nsCSSStyleSheet> mFirstChild;
-  mozilla::CORSMode      mCORSMode;
-  bool                   mComplete;
+  PRBool                 mComplete;
 
 #ifdef DEBUG
-  bool                   mPrincipalSet;
+  PRBool                 mPrincipalSet;
 #endif
 };
 
@@ -96,6 +121,7 @@ private:
 //
 
 class CSSRuleListImpl;
+struct ChildSheetListBuilder;
 
 // CID for the nsCSSStyleSheet class
 // ca926f30-2a7e-477e-8467-803fb32af20a
@@ -104,56 +130,53 @@ class CSSRuleListImpl;
  { 0x84, 0x67, 0x80, 0x3f, 0xb3, 0x2a, 0xf2, 0x0a } }
 
 
-class nsCSSStyleSheet MOZ_FINAL : public nsIStyleSheet,
-                                  public nsIDOMCSSStyleSheet,
-                                  public nsICSSLoaderObserver,
-                                  public nsWrapperCache
+class NS_FINAL_CLASS nsCSSStyleSheet : public nsIStyleSheet,
+                                       public nsIDOMCSSStyleSheet,
+                                       public nsICSSLoaderObserver
 {
 public:
-  nsCSSStyleSheet(mozilla::CORSMode aCORSMode);
+  nsCSSStyleSheet();
 
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(nsCSSStyleSheet,
-                                                         nsIStyleSheet)
+  NS_DECL_ISUPPORTS
 
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_CSS_STYLE_SHEET_IMPL_CID)
 
   // nsIStyleSheet interface
-  virtual nsIURI* GetSheetURI() const MOZ_OVERRIDE;
-  virtual nsIURI* GetBaseURI() const MOZ_OVERRIDE;
-  virtual void GetTitle(nsString& aTitle) const MOZ_OVERRIDE;
-  virtual void GetType(nsString& aType) const MOZ_OVERRIDE;
-  virtual bool HasRules() const MOZ_OVERRIDE;
-  virtual bool IsApplicable() const MOZ_OVERRIDE;
-  virtual void SetEnabled(bool aEnabled) MOZ_OVERRIDE;
-  virtual bool IsComplete() const MOZ_OVERRIDE;
-  virtual void SetComplete() MOZ_OVERRIDE;
-  virtual nsIStyleSheet* GetParentSheet() const MOZ_OVERRIDE;  // may be null
-  virtual nsIDocument* GetOwningDocument() const MOZ_OVERRIDE;  // may be null
-  virtual void SetOwningDocument(nsIDocument* aDocument) MOZ_OVERRIDE;
+  virtual nsIURI* GetSheetURI() const;
+  virtual nsIURI* GetBaseURI() const;
+  virtual void GetTitle(nsString& aTitle) const;
+  virtual void GetType(nsString& aType) const;
+  virtual PRBool HasRules() const;
+  virtual PRBool IsApplicable() const;
+  virtual void SetEnabled(PRBool aEnabled);
+  virtual PRBool IsComplete() const;
+  virtual void SetComplete();
+  virtual nsIStyleSheet* GetParentSheet() const;  // may be null
+  virtual nsIDocument* GetOwningDocument() const;  // may be null
+  virtual void SetOwningDocument(nsIDocument* aDocument);
 
   // Find the ID of the owner inner window.
-  uint64_t FindOwningWindowInnerID() const;
+  PRUint64 FindOwningWindowInnerID() const;
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const MOZ_OVERRIDE;
+  virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
 #endif
 
   void AppendStyleSheet(nsCSSStyleSheet* aSheet);
-  void InsertStyleSheetAt(nsCSSStyleSheet* aSheet, int32_t aIndex);
+  void InsertStyleSheetAt(nsCSSStyleSheet* aSheet, PRInt32 aIndex);
 
   // XXX do these belong here or are they generic?
   void PrependStyleRule(mozilla::css::Rule* aRule);
   void AppendStyleRule(mozilla::css::Rule* aRule);
   void ReplaceStyleRule(mozilla::css::Rule* aOld, mozilla::css::Rule* aNew);
 
-  int32_t StyleRuleCount() const;
-  mozilla::css::Rule* GetStyleRuleAt(int32_t aIndex) const;
+  PRInt32 StyleRuleCount() const;
+  nsresult GetStyleRuleAt(PRInt32 aIndex, mozilla::css::Rule*& aRule) const;
 
-  nsresult DeleteRuleFromGroup(mozilla::css::GroupRule* aGroup, uint32_t aIndex);
-  nsresult InsertRuleIntoGroup(const nsAString& aRule, mozilla::css::GroupRule* aGroup, uint32_t aIndex, uint32_t* _retval);
+  nsresult DeleteRuleFromGroup(mozilla::css::GroupRule* aGroup, PRUint32 aIndex);
+  nsresult InsertRuleIntoGroup(const nsAString& aRule, mozilla::css::GroupRule* aGroup, PRUint32 aIndex, PRUint32* _retval);
   nsresult ReplaceRuleInGroup(mozilla::css::GroupRule* aGroup, mozilla::css::Rule* aOld, mozilla::css::Rule* aNew);
 
-  int32_t StyleSheetCount() const;
+  PRInt32 StyleSheetCount() const;
 
   /**
    * SetURIs must be called on all sheets before parsing into them.
@@ -172,12 +195,9 @@ public:
   // Principal() never returns a null pointer.
   nsIPrincipal* Principal() const { return mInner->mPrincipal; }
 
-  // The document this style sheet is associated with.  May be null
-  nsIDocument* GetDocument() const { return mDocument; }
-
   void SetTitle(const nsAString& aTitle) { mTitle = aTitle; }
   void SetMedia(nsMediaList* aMedia);
-  void SetOwningNode(nsINode* aOwningNode) { mOwningNode = aOwningNode; /* Not ref counted */ }
+  void SetOwningNode(nsIDOMNode* aOwningNode) { mOwningNode = aOwningNode; /* Not ref counted */ }
 
   void SetOwnerRule(mozilla::css::ImportRule* aOwnerRule) { mOwnerRule = aOwnerRule; /* Not ref counted */ }
   mozilla::css::ImportRule* GetOwnerRule() const { return mOwnerRule; }
@@ -187,9 +207,9 @@ public:
   already_AddRefed<nsCSSStyleSheet> Clone(nsCSSStyleSheet* aCloneParent,
                                           mozilla::css::ImportRule* aCloneOwnerRule,
                                           nsIDocument* aCloneDocument,
-                                          nsINode* aCloneOwningNode) const;
+                                          nsIDOMNode* aCloneOwningNode) const;
 
-  bool IsModified() const { return mDirty; }
+  PRBool IsModified() const { return mDirty; }
 
   void SetModifiedByChildRule() {
     NS_ASSERTION(mDirty,
@@ -204,15 +224,15 @@ public:
    * Like the DOM insertRule() method, but doesn't do any security checks
    */
   nsresult InsertRuleInternal(const nsAString& aRule,
-                              uint32_t aIndex, uint32_t* aReturn);
+                              PRUint32 aIndex, PRUint32* aReturn);
 
   /* Get the URI this sheet was originally loaded from, if any.  Can
      return null */
   virtual nsIURI* GetOriginalURI() const;
 
   // nsICSSLoaderObserver interface
-  NS_IMETHOD StyleSheetLoaded(nsCSSStyleSheet* aSheet, bool aWasAlternate,
-                              nsresult aStatus) MOZ_OVERRIDE;
+  NS_IMETHOD StyleSheetLoaded(nsCSSStyleSheet* aSheet, PRBool aWasAlternate,
+                              nsresult aStatus);
 
   enum EnsureUniqueInnerResult {
     // No work was needed to ensure a unique inner.
@@ -225,14 +245,12 @@ public:
   };
   EnsureUniqueInnerResult EnsureUniqueInner();
 
-  // Append all of this sheet's child sheets to aArray.  Return true
-  // on success and false on allocation failure.
-  bool AppendAllChildSheets(nsTArray<nsCSSStyleSheet*>& aArray);
+  // Append all of this sheet's child sheets to aArray.  Return PR_TRUE
+  // on success and PR_FALSE on allocation failure.
+  PRBool AppendAllChildSheets(nsTArray<nsCSSStyleSheet*>& aArray);
 
-  bool UseForPresentation(nsPresContext* aPresContext,
+  PRBool UseForPresentation(nsPresContext* aPresContext,
                             nsMediaQueryResultCacheKey& aKey) const;
-
-  nsresult ParseSheet(const nsAString& aInput);
 
   // nsIDOMStyleSheet interface
   NS_DECL_NSIDOMSTYLESHEET
@@ -242,74 +260,18 @@ public:
 
   // Function used as a callback to rebuild our inner's child sheet
   // list after we clone a unique inner for ourselves.
-  static bool RebuildChildList(mozilla::css::Rule* aRule, void* aBuilder);
-
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const MOZ_OVERRIDE;
-
-  // Get this style sheet's CORS mode
-  mozilla::CORSMode GetCORSMode() const { return mInner->mCORSMode; }
-
-  mozilla::dom::Element* GetScopeElement() const { return mScopeElement; }
-  void SetScopeElement(mozilla::dom::Element* aScopeElement)
-  {
-    mScopeElement = aScopeElement;
-  }
-
-  // WebIDL StyleSheet API
-  // Our nsIStyleSheet::GetType is a const method, so it ends up
-  // ambiguous with with the XPCOM version.  Just disambiguate.
-  void GetType(nsString& aType) {
-    const_cast<const nsCSSStyleSheet*>(this)->GetType(aType);
-  }
-  // Our XPCOM GetHref is fine for WebIDL
-  nsINode* GetOwnerNode() const { return mOwningNode; }
-  nsCSSStyleSheet* GetParentStyleSheet() const { return mParent; }
-  // Our nsIStyleSheet::GetTitle is a const method, so it ends up
-  // ambiguous with with the XPCOM version.  Just disambiguate.
-  void GetTitle(nsString& aTitle) {
-    const_cast<const nsCSSStyleSheet*>(this)->GetTitle(aTitle);
-  }
-  nsIDOMMediaList* Media();
-  bool Disabled() const { return mDisabled; }
-  // The XPCOM SetDisabled is fine for WebIDL
-
-  // WebIDL CSSStyleSheet API
-  // Can't be inline because we can't include ImportRule here.  And can't be
-  // called GetOwnerRule because that would be ambiguous with the ImportRule
-  // version.
-  nsIDOMCSSRule* GetDOMOwnerRule() const;
-  nsIDOMCSSRuleList* GetCssRules(mozilla::ErrorResult& aRv);
-  uint32_t InsertRule(const nsAString& aRule, uint32_t aIndex,
-                      mozilla::ErrorResult& aRv) {
-    uint32_t retval;
-    aRv = InsertRule(aRule, aIndex, &retval);
-    return retval;
-  }
-  void DeleteRule(uint32_t aIndex, mozilla::ErrorResult& aRv) {
-    aRv = DeleteRule(aIndex);
-  }
-
-  // WebIDL miscellaneous bits
-  mozilla::dom::ParentObject GetParentObject() const {
-    if (mOwningNode) {
-      return mozilla::dom::ParentObject(mOwningNode);
-    }
-
-    return mozilla::dom::ParentObject(static_cast<nsIStyleSheet*>(mParent),
-                                      mParent);
-  }
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  static PRBool RebuildChildList(mozilla::css::Rule* aRule, void* aBuilder);
 
 private:
   nsCSSStyleSheet(const nsCSSStyleSheet& aCopy,
                   nsCSSStyleSheet* aParentToUse,
                   mozilla::css::ImportRule* aOwnerRuleToUse,
                   nsIDocument* aDocumentToUse,
-                  nsINode* aOwningNodeToUse);
+                  nsIDOMNode* aOwningNodeToUse);
 
-  nsCSSStyleSheet(const nsCSSStyleSheet& aCopy) MOZ_DELETE;
-  nsCSSStyleSheet& operator=(const nsCSSStyleSheet& aCopy) MOZ_DELETE;
+  // These are not supported and are not implemented! 
+  nsCSSStyleSheet(const nsCSSStyleSheet& aCopy); 
+  nsCSSStyleSheet& operator=(const nsCSSStyleSheet& aCopy); 
 
 protected:
   virtual ~nsCSSStyleSheet();
@@ -321,23 +283,11 @@ protected:
 
   // Return success if the subject principal subsumes the principal of our
   // inner, error otherwise.  This will also succeed if the subject has
-  // UniversalXPConnect or if access is allowed by CORS.  In the latter case,
-  // it will set the principal of the inner to the subject principal.
-  nsresult SubjectSubsumesInnerPrincipal();
+  // UniversalBrowserWrite.
+  nsresult SubjectSubsumesInnerPrincipal() const;
 
   // Add the namespace mapping from this @namespace rule to our namespace map
   nsresult RegisterNamespaceRule(mozilla::css::Rule* aRule);
-
-  // Drop our reference to mRuleCollection
-  void DropRuleCollection();
-
-  // Drop our reference to mMedia
-  void DropMedia();
-
-  // Unlink our inner, if needed, for cycle collection
-  void UnlinkInner();
-  // Traverse our inner, if needed, for cycle collection
-  void TraverseInner(nsCycleCollectionTraversalCallback &);
 
 protected:
   nsString              mTitle;
@@ -346,12 +296,11 @@ protected:
   nsCSSStyleSheet*      mParent;    // weak ref
   mozilla::css::ImportRule* mOwnerRule; // weak ref
 
-  nsRefPtr<CSSRuleListImpl> mRuleCollection;
+  CSSRuleListImpl*      mRuleCollection;
   nsIDocument*          mDocument; // weak ref; parents maintain this for their children
-  nsINode*              mOwningNode; // weak ref
-  bool                  mDisabled;
-  bool                  mDirty; // has been modified 
-  nsRefPtr<mozilla::dom::Element> mScopeElement;
+  nsIDOMNode*           mOwningNode; // weak ref
+  PRPackedBool          mDisabled;
+  PRPackedBool          mDirty; // has been modified 
 
   nsCSSStyleSheetInner* mInner;
 
@@ -359,9 +308,12 @@ protected:
 
   friend class nsMediaList;
   friend class nsCSSRuleProcessor;
+  friend nsresult NS_NewCSSStyleSheet(nsCSSStyleSheet** aInstancePtrResult);
   friend struct ChildSheetListBuilder;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsCSSStyleSheet, NS_CSS_STYLE_SHEET_IMPL_CID)
+
+nsresult NS_NewCSSStyleSheet(nsCSSStyleSheet** aInstancePtrResult);
 
 #endif /* !defined(nsCSSStyleSheet_h_) */

@@ -1,8 +1,4 @@
-/* Any copyright is dedicated to the Public Domain.
-   http://creativecommons.org/publicdomain/zero/1.0/ */
-
-Cu.import("resource://gre/modules/Preferences.jsm");
-Cu.import("resource://services-sync/util.js");
+Cu.import("resource://services-sync/ext/Preferences.js");
 
 function test_migrate_logging() {
   _("Testing log pref migration.");
@@ -11,7 +7,7 @@ function test_migrate_logging() {
   do_check_true(Svc.Prefs.get("log.appender.debugLog.enabled"));
   do_check_eq(Svc.Prefs.get("log.appender.file.level"), "Trace");
   do_check_eq(Svc.Prefs.get("log.appender.file.logOnSuccess"), false);
-
+  
   Service._migratePrefs();
 
   do_check_eq("Warn", Svc.Prefs.get("log.appender.file.level"));

@@ -1,20 +1,51 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1999
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Boris Zbarsky <bzbarsky@mit.edu>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /* rules in a CSS stylesheet other than style rules (e.g., @import rules) */
 
-#include "mozilla/Attributes.h"
-
 #include "nsCSSRules.h"
 #include "nsCSSValue.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/css/ImportRule.h"
 #include "mozilla/css/NameSpaceRule.h"
 
 #include "nsString.h"
 #include "nsIAtom.h"
+#include "nsIURL.h"
 
 #include "nsCSSProps.h"
 #include "nsCSSStyleSheet.h"
@@ -27,26 +58,21 @@
 #include "nsPresContext.h"
 
 #include "nsContentUtils.h"
-#include "nsError.h"
+#include "nsStyleConsts.h"
+#include "nsDOMError.h"
 #include "nsStyleUtil.h"
 #include "mozilla/css/Declaration.h"
 #include "nsCSSParser.h"
 #include "nsPrintfCString.h"
-#include "nsDOMClassInfoID.h"
-#include "mozilla/dom/CSSStyleDeclarationBinding.h"
-#include "StyleRule.h"
-#include "nsFont.h"
 
-using namespace mozilla;
+namespace css = mozilla::css;
 
 #define IMPL_STYLE_RULE_INHERIT_GET_DOM_RULE_WEAK(class_, super_) \
-  /* virtual */ nsIDOMCSSRule* class_::GetDOMRule()               \
-  { return this; }                                                \
-  /* virtual */ nsIDOMCSSRule* class_::GetExistingDOMRule()       \
+/* virtual */ nsIDOMCSSRule* class_::GetDOMRule() \
   { return this; }
 #define IMPL_STYLE_RULE_INHERIT_MAP_RULE_INFO_INTO(class_, super_) \
 /* virtual */ void class_::MapRuleInfoInto(nsRuleData* aRuleData) \
-  { NS_ABORT_IF_FALSE(false, "should not be called"); }
+  { NS_ABORT_IF_FALSE(PR_FALSE, "should not be called"); }
 
 #define IMPL_STYLE_RULE_INHERIT(class_, super_) \
 IMPL_STYLE_RULE_INHERIT_GET_DOM_RULE_WEAK(class_, super_) \
@@ -57,25 +83,8 @@ IMPL_STYLE_RULE_INHERIT_MAP_RULE_INFO_INTO(class_, super_)
 namespace mozilla {
 namespace css {
 
-nsCSSStyleSheet*
-Rule::GetStyleSheet() const
-{
-  if (!(mSheet & 0x1)) {
-    return reinterpret_cast<nsCSSStyleSheet*>(mSheet);
-  }
-
-  return nullptr;
-}
-
-nsHTMLCSSStyleSheet*
-Rule::GetHTMLCSSStyleSheet() const
-{
-  if (mSheet & 0x1) {
-    return reinterpret_cast<nsHTMLCSSStyleSheet*>(mSheet & ~uintptr_t(0x1));
-  }
-
-  return nullptr;
-}
+NS_IMPL_ADDREF(Rule)
+NS_IMPL_RELEASE(Rule)
 
 /* virtual */ void
 Rule::SetStyleSheet(nsCSSStyleSheet* aSheet)
@@ -83,17 +92,7 @@ Rule::SetStyleSheet(nsCSSStyleSheet* aSheet)
   // We don't reference count this up reference. The style sheet
   // will tell us when it's going away or when we're detached from
   // it.
-  mSheet = reinterpret_cast<uintptr_t>(aSheet);
-}
-
-void
-Rule::SetHTMLCSSStyleSheet(nsHTMLCSSStyleSheet* aSheet)
-{
-  // We don't reference count this up reference. The style sheet
-  // will tell us when it's going away or when we're detached from
-  // it.
-  mSheet = reinterpret_cast<uintptr_t>(aSheet);
-  mSheet |= 0x1;
+  mSheet = aSheet;
 }
 
 nsresult
@@ -102,7 +101,7 @@ Rule::GetParentRule(nsIDOMCSSRule** aParentRule)
   if (mParentRule) {
     NS_IF_ADDREF(*aParentRule = mParentRule->GetDOMRule());
   } else {
-    *aParentRule = nullptr;
+    *aParentRule = nsnull;
   }
   return NS_OK;
 }
@@ -112,35 +111,27 @@ Rule::GetParentStyleSheet(nsIDOMCSSStyleSheet** aSheet)
 {
   NS_ENSURE_ARG_POINTER(aSheet);
 
-  NS_IF_ADDREF(*aSheet = GetStyleSheet());
+  NS_IF_ADDREF(*aSheet = mSheet);
   return NS_OK;
 }
 
-size_t
-Rule::SizeOfCOMArrayElementIncludingThis(css::Rule* aElement,
-                                         MallocSizeOf aMallocSizeOf,
-                                         void* aData)
-{
-  return aElement->SizeOfIncludingThis(aMallocSizeOf);
-}
 
 // -------------------------------
 // Style Rule List for group rules
 //
 
-class GroupRuleRuleList MOZ_FINAL : public nsICSSRuleList
+class NS_FINAL_CLASS GroupRuleRuleList : public nsICSSRuleList
 {
 public:
   GroupRuleRuleList(GroupRule *aGroupRule);
 
   NS_DECL_ISUPPORTS
 
-  virtual nsIDOMCSSRule*
-  IndexedGetter(uint32_t aIndex, bool& aFound) MOZ_OVERRIDE;
-  virtual uint32_t
-  Length() MOZ_OVERRIDE;
+  NS_DECL_NSIDOMCSSRULELIST
 
-  void DropReference() { mGroupRule = nullptr; }
+  virtual nsIDOMCSSRule* GetItemAt(PRUint32 aIndex, nsresult* aResult);
+
+  void DropReference() { mGroupRule = nsnull; }
 
 private:
   ~GroupRuleRuleList();
@@ -172,30 +163,45 @@ NS_INTERFACE_MAP_END
 NS_IMPL_ADDREF(GroupRuleRuleList)
 NS_IMPL_RELEASE(GroupRuleRuleList)
 
-uint32_t
-GroupRuleRuleList::Length()
+NS_IMETHODIMP
+GroupRuleRuleList::GetLength(PRUint32* aLength)
 {
-  if (!mGroupRule) {
-    return 0;
+  if (mGroupRule) {
+    *aLength = (PRUint32)mGroupRule->StyleRuleCount();
+  } else {
+    *aLength = 0;
   }
 
-  return SafeCast<uint32_t>(mGroupRule->StyleRuleCount());
+  return NS_OK;
 }
 
 nsIDOMCSSRule*
-GroupRuleRuleList::IndexedGetter(uint32_t aIndex, bool& aFound)
+GroupRuleRuleList::GetItemAt(PRUint32 aIndex, nsresult* aResult)
 {
-  aFound = false;
+  *aResult = NS_OK;
 
   if (mGroupRule) {
     nsRefPtr<Rule> rule = mGroupRule->GetStyleRuleAt(aIndex);
     if (rule) {
-      aFound = true;
       return rule->GetDOMRule();
     }
   }
 
-  return nullptr;
+  return nsnull;
+}
+
+NS_IMETHODIMP
+GroupRuleRuleList::Item(PRUint32 aIndex, nsIDOMCSSRule** aReturn)
+{
+  nsresult rv;
+  nsIDOMCSSRule* rule = GetItemAt(aIndex, &rv);
+  if (!rule) {
+    *aReturn = nsnull;
+    return rv;
+  }
+
+  NS_ADDREF(*aReturn = rule);
+  return NS_OK;
 }
 
 } // namespace css
@@ -226,8 +232,8 @@ CharsetRule::CharsetRule(const CharsetRule& aCopy)
 {
 }
 
-NS_IMPL_ADDREF(CharsetRule)
-NS_IMPL_RELEASE(CharsetRule)
+NS_IMPL_ADDREF_INHERITED(CharsetRule, Rule)
+NS_IMPL_RELEASE_INHERITED(CharsetRule, Rule)
 
 // QueryInterface implementation for CharsetRule
 NS_INTERFACE_MAP_BEGIN(CharsetRule)
@@ -242,10 +248,10 @@ IMPL_STYLE_RULE_INHERIT(CharsetRule, Rule)
 
 #ifdef DEBUG
 /* virtual */ void
-CharsetRule::List(FILE* out, int32_t aIndent) const
+CharsetRule::List(FILE* out, PRInt32 aIndent) const
 {
   // Indent
-  for (int32_t indent = aIndent; --indent >= 0; ) fputs("  ", out);
+  for (PRInt32 indent = aIndent; --indent >= 0; ) fputs("  ", out);
 
   fputs("@charset \"", out);
   fputs(NS_LossyConvertUTF16toASCII(mEncoding).get(), out);
@@ -253,7 +259,7 @@ CharsetRule::List(FILE* out, int32_t aIndent) const
 }
 #endif
 
-/* virtual */ int32_t
+/* virtual */ PRInt32
 CharsetRule::GetType() const
 {
   return Rule::CHARSET_RULE;
@@ -281,7 +287,7 @@ CharsetRule::SetEncoding(const nsAString& aEncoding)
 }
 
 NS_IMETHODIMP
-CharsetRule::GetType(uint16_t* aType)
+CharsetRule::GetType(PRUint16* aType)
 {
   *aType = nsIDOMCSSRule::CHARSET_RULE;
   return NS_OK;
@@ -314,15 +320,7 @@ CharsetRule::GetParentRule(nsIDOMCSSRule** aParentRule)
   return Rule::GetParentRule(aParentRule);
 }
 
-/* virtual */ size_t
-CharsetRule::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
-{
-  return aMallocSizeOf(this);
 
-  // Measurement of the following members may be added later if DMD finds it is
-  // worthwhile:
-  // - mEncoding
-}
 
 // -------------------------------------------
 // ImportRule
@@ -347,7 +345,7 @@ ImportRule::ImportRule(const ImportRule& aCopy)
   // sheet failed security checks.
   if (aCopy.mChildSheet) {
     nsRefPtr<nsCSSStyleSheet> sheet =
-      aCopy.mChildSheet->Clone(nullptr, this, nullptr, nullptr);
+      aCopy.mChildSheet->Clone(nsnull, this, nsnull, nsnull);
     SetSheet(sheet);
     // SetSheet sets mMedia appropriately
   }
@@ -356,12 +354,12 @@ ImportRule::ImportRule(const ImportRule& aCopy)
 ImportRule::~ImportRule()
 {
   if (mChildSheet) {
-    mChildSheet->SetOwnerRule(nullptr);
+    mChildSheet->SetOwnerRule(nsnull);
   }
 }
 
-NS_IMPL_ADDREF(ImportRule)
-NS_IMPL_RELEASE(ImportRule)
+NS_IMPL_ADDREF_INHERITED(ImportRule, Rule)
+NS_IMPL_RELEASE_INHERITED(ImportRule, Rule)
 
 // QueryInterface implementation for ImportRule
 NS_INTERFACE_MAP_BEGIN(ImportRule)
@@ -376,10 +374,10 @@ IMPL_STYLE_RULE_INHERIT(ImportRule, Rule)
 
 #ifdef DEBUG
 /* virtual */ void
-ImportRule::List(FILE* out, int32_t aIndent) const
+ImportRule::List(FILE* out, PRInt32 aIndent) const
 {
   // Indent
-  for (int32_t indent = aIndent; --indent >= 0; ) fputs("  ", out);
+  for (PRInt32 indent = aIndent; --indent >= 0; ) fputs("  ", out);
 
   fputs("@import \"", out);
   fputs(NS_LossyConvertUTF16toASCII(mURLSpec).get(), out);
@@ -392,7 +390,7 @@ ImportRule::List(FILE* out, int32_t aIndent) const
 }
 #endif
 
-/* virtual */ int32_t
+/* virtual */ PRInt32
 ImportRule::GetType() const
 {
   return Rule::IMPORT_RULE;
@@ -422,7 +420,7 @@ ImportRule::SetSheet(nsCSSStyleSheet* aSheet)
 }
 
 NS_IMETHODIMP
-ImportRule::GetType(uint16_t* aType)
+ImportRule::GetType(PRUint16* aType)
 {
   NS_ENSURE_ARG_POINTER(aType);
   *aType = nsIDOMCSSRule::IMPORT_RULE;
@@ -490,32 +488,18 @@ ImportRule::GetStyleSheet(nsIDOMCSSStyleSheet * *aStyleSheet)
   return NS_OK;
 }
 
-/* virtual */ size_t
-ImportRule::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
-{
-  return aMallocSizeOf(this);
-
-  // Measurement of the following members may be added later if DMD finds it is
-  // worthwhile:
-  // - mURLSpec
-  //
-  // The following members are not measured:
-  // - mMedia, because it is measured via nsCSSStyleSheet::mMedia
-  // - mChildSheet, because it is measured via nsCSSStyleSheetInner::mSheets
-}
-
 } // namespace css
 } // namespace mozilla
 
 // must be outside the namespace
 DOMCI_DATA(CSSImportRule, css::ImportRule)
 
-static bool
+static PRBool
 CloneRuleInto(css::Rule* aRule, void* aArray)
 {
   nsRefPtr<css::Rule> clone = aRule->Clone();
   static_cast<nsCOMArray<css::Rule>*>(aArray)->AppendObject(clone);
-  return true;
+  return PR_TRUE;
 }
 
 namespace mozilla {
@@ -526,12 +510,12 @@ GroupRule::GroupRule()
 {
 }
 
-static bool
+static PRBool
 SetParentRuleReference(Rule* aRule, void* aParentRule)
 {
   GroupRule* parentRule = static_cast<GroupRule*>(aParentRule);
   aRule->SetParentRule(parentRule);
-  return true;
+  return PR_TRUE;
 }
 
 GroupRule::GroupRule(const GroupRule& aCopy)
@@ -544,81 +528,38 @@ GroupRule::GroupRule(const GroupRule& aCopy)
 GroupRule::~GroupRule()
 {
   NS_ABORT_IF_FALSE(!mSheet, "SetStyleSheet should have been called");
-  mRules.EnumerateForwards(SetParentRuleReference, nullptr);
+  mRules.EnumerateForwards(SetParentRuleReference, nsnull);
   if (mRuleCollection) {
     mRuleCollection->DropReference();
   }
 }
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(GroupRule)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(GroupRule)
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(GroupRule)
-NS_INTERFACE_MAP_END
-
 IMPL_STYLE_RULE_INHERIT_MAP_RULE_INFO_INTO(GroupRule, Rule)
 
-static bool
+static PRBool
 SetStyleSheetReference(Rule* aRule, void* aSheet)
 {
   nsCSSStyleSheet* sheet = (nsCSSStyleSheet*)aSheet;
   aRule->SetStyleSheet(sheet);
-  return true;
+  return PR_TRUE;
 }
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(GroupRule)
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(GroupRule)
-  tmp->mRules.EnumerateForwards(SetParentRuleReference, nullptr);
-  // If tmp does not have a stylesheet, neither do its descendants.  In that
-  // case, don't try to null out their stylesheet, to avoid O(N^2) behavior in
-  // depth of group rule nesting.  But if tmp _does_ have a stylesheet (which
-  // can happen if it gets unlinked earlier than its owning stylesheet), then we
-  // need to null out the stylesheet pointer on descendants now, before we clear
-  // tmp->mRules.
-  if (tmp->GetStyleSheet()) {
-    tmp->mRules.EnumerateForwards(SetStyleSheetReference, nullptr);
-  }
-  tmp->mRules.Clear();
-  if (tmp->mRuleCollection) {
-    tmp->mRuleCollection->DropReference();
-    tmp->mRuleCollection = nullptr;
-  }
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(GroupRule)
-  const nsCOMArray<Rule>& rules = tmp->mRules;
-  for (int32_t i = 0, count = rules.Count(); i < count; ++i) {
-    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mRules[i]");
-    cb.NoteXPCOMChild(rules[i]->GetExistingDOMRule());
-  }
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mRuleCollection)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 /* virtual */ void
 GroupRule::SetStyleSheet(nsCSSStyleSheet* aSheet)
 {
-  // Don't set the sheet on the kids if it's already the same as the sheet we
-  // already have.  This is needed to avoid O(N^2) behavior in group nesting
-  // depth when seting the sheet to null during unlink, if we happen to unlin in
-  // order from most nested rule up to least nested rule.
-  if (aSheet != GetStyleSheet()) {
-    mRules.EnumerateForwards(SetStyleSheetReference, aSheet);
-    Rule::SetStyleSheet(aSheet);
-  }
+  mRules.EnumerateForwards(SetStyleSheetReference, aSheet);
+  Rule::SetStyleSheet(aSheet);
 }
 
 #ifdef DEBUG
 /* virtual */ void
-GroupRule::List(FILE* out, int32_t aIndent) const
+GroupRule::List(FILE* out, PRInt32 aIndent) const
 {
   fputs(" {\n", out);
 
-  for (int32_t index = 0, count = mRules.Count(); index < count; ++index) {
+  for (PRInt32 index = 0, count = mRules.Count(); index < count; ++index) {
     mRules.ObjectAt(index)->List(out, aIndent + 1);
   }
-
-  for (int32_t indent = aIndent; --indent >= 0; ) fputs("  ", out);
   fputs("}\n", out);
 }
 #endif
@@ -627,21 +568,20 @@ void
 GroupRule::AppendStyleRule(Rule* aRule)
 {
   mRules.AppendObject(aRule);
-  nsCSSStyleSheet* sheet = GetStyleSheet();
-  aRule->SetStyleSheet(sheet);
+  aRule->SetStyleSheet(mSheet);
   aRule->SetParentRule(this);
-  if (sheet) {
-    sheet->SetModifiedByChildRule();
+  if (mSheet) {
+    mSheet->SetModifiedByChildRule();
   }
 }
 
 Rule*
-GroupRule::GetStyleRuleAt(int32_t aIndex) const
+GroupRule::GetStyleRuleAt(PRInt32 aIndex) const
 {
   return mRules.SafeObjectAt(aIndex);
 }
 
-bool
+PRBool
 GroupRule::EnumerateRulesForwards(RuleEnumFunc aFunc, void * aData) const
 {
   return
@@ -649,28 +589,29 @@ GroupRule::EnumerateRulesForwards(RuleEnumFunc aFunc, void * aData) const
 }
 
 /*
- * The next two methods (DeleteStyleRuleAt and InsertStyleRuleAt)
+ * The next two methods (DeleteStyleRuleAt and InsertStyleRulesAt)
  * should never be called unless you have first called WillDirty() on
- * the parents stylesheet.  After they are called, DidDirty() needs to
+ * the parents tylesheet.  After they are called, DidDirty() needs to
  * be called on the sheet
  */
 nsresult
-GroupRule::DeleteStyleRuleAt(uint32_t aIndex)
+GroupRule::DeleteStyleRuleAt(PRUint32 aIndex)
 {
   Rule* rule = mRules.SafeObjectAt(aIndex);
   if (rule) {
-    rule->SetStyleSheet(nullptr);
-    rule->SetParentRule(nullptr);
+    rule->SetStyleSheet(nsnull);
+    rule->SetParentRule(nsnull);
   }
   return mRules.RemoveObjectAt(aIndex) ? NS_OK : NS_ERROR_ILLEGAL_VALUE;
 }
 
 nsresult
-GroupRule::InsertStyleRuleAt(uint32_t aIndex, Rule* aRule)
+GroupRule::InsertStyleRulesAt(PRUint32 aIndex,
+                              nsCOMArray<Rule>& aRules)
 {
-  aRule->SetStyleSheet(GetStyleSheet());
-  aRule->SetParentRule(this);
-  if (! mRules.InsertObjectAt(aRule, aIndex)) {
+  aRules.EnumerateForwards(SetStyleSheetReference, mSheet);
+  aRules.EnumerateForwards(SetParentRuleReference, this);
+  if (! mRules.InsertObjectsAt(aRules, aIndex)) {
     return NS_ERROR_FAILURE;
   }
   return NS_OK;
@@ -679,23 +620,23 @@ GroupRule::InsertStyleRuleAt(uint32_t aIndex, Rule* aRule)
 nsresult
 GroupRule::ReplaceStyleRule(Rule* aOld, Rule* aNew)
 {
-  int32_t index = mRules.IndexOf(aOld);
+  PRInt32 index = mRules.IndexOf(aOld);
   NS_ENSURE_TRUE(index != -1, NS_ERROR_UNEXPECTED);
   mRules.ReplaceObjectAt(aNew, index);
-  aNew->SetStyleSheet(GetStyleSheet());
+  aNew->SetStyleSheet(mSheet);
   aNew->SetParentRule(this);
-  aOld->SetStyleSheet(nullptr);
-  aOld->SetParentRule(nullptr);
+  aOld->SetStyleSheet(nsnull);
+  aOld->SetParentRule(nsnull);
   return NS_OK;
 }
 
-void
+nsresult
 GroupRule::AppendRulesToCssText(nsAString& aCssText)
 {
   aCssText.AppendLiteral(" {\n");
 
   // get all the rules
-  for (int32_t index = 0, count = mRules.Count(); index < count; ++index) {
+  for (PRInt32 index = 0, count = mRules.Count(); index < count; ++index) {
     Rule* rule = mRules.ObjectAt(index);
     nsIDOMCSSRule* domRule = rule->GetDOMRule();
     if (domRule) {
@@ -708,6 +649,8 @@ GroupRule::AppendRulesToCssText(nsAString& aCssText)
   }
 
   aCssText.AppendLiteral("}");
+  
+  return NS_OK;
 }
 
 // nsIDOMCSSMediaRule or nsIDOMCSSMozDocumentRule methods
@@ -723,44 +666,31 @@ GroupRule::GetCssRules(nsIDOMCSSRuleList* *aRuleList)
 }
 
 nsresult
-GroupRule::InsertRule(const nsAString & aRule, uint32_t aIndex, uint32_t* _retval)
+GroupRule::InsertRule(const nsAString & aRule, PRUint32 aIndex, PRUint32* _retval)
 {
-  nsCSSStyleSheet* sheet = GetStyleSheet();
-  NS_ENSURE_TRUE(sheet, NS_ERROR_FAILURE);
+  NS_ENSURE_TRUE(mSheet, NS_ERROR_FAILURE);
   
-  if (aIndex > uint32_t(mRules.Count()))
+  if (aIndex > PRUint32(mRules.Count()))
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
 
-  NS_ASSERTION(uint32_t(mRules.Count()) <= INT32_MAX,
+  NS_ASSERTION(PRUint32(mRules.Count()) <= PR_INT32_MAX,
                "Too many style rules!");
 
-  return sheet->InsertRuleIntoGroup(aRule, this, aIndex, _retval);
+  return mSheet->InsertRuleIntoGroup(aRule, this, aIndex, _retval);
 }
 
 nsresult
-GroupRule::DeleteRule(uint32_t aIndex)
+GroupRule::DeleteRule(PRUint32 aIndex)
 {
-  nsCSSStyleSheet* sheet = GetStyleSheet();
-  NS_ENSURE_TRUE(sheet, NS_ERROR_FAILURE);
+  NS_ENSURE_TRUE(mSheet, NS_ERROR_FAILURE);
 
-  if (aIndex >= uint32_t(mRules.Count()))
+  if (aIndex >= PRUint32(mRules.Count()))
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
 
-  NS_ASSERTION(uint32_t(mRules.Count()) <= INT32_MAX,
+  NS_ASSERTION(PRUint32(mRules.Count()) <= PR_INT32_MAX,
                "Too many style rules!");
 
-  return sheet->DeleteRuleFromGroup(this, aIndex);
-}
-
-/* virtual */ size_t
-GroupRule::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
-{
-  return mRules.SizeOfExcludingThis(Rule::SizeOfCOMArrayElementIncludingThis,
-                                    aMallocSizeOf);
-
-  // Measurement of the following members may be added later if DMD finds it is
-  // worthwhile:
-  // - mRuleCollection
+  return mSheet->DeleteRuleFromGroup(this, aIndex);
 }
 
 
@@ -778,7 +708,7 @@ MediaRule::MediaRule(const MediaRule& aCopy)
     aCopy.mMedia->Clone(getter_AddRefs(mMedia));
     if (mMedia) {
       // XXXldb This doesn't really make sense.
-      mMedia->SetStyleSheet(aCopy.GetStyleSheet());
+      mMedia->SetStyleSheet(aCopy.mSheet);
     }
   }
 }
@@ -786,7 +716,7 @@ MediaRule::MediaRule(const MediaRule& aCopy)
 MediaRule::~MediaRule()
 {
   if (mMedia) {
-    mMedia->SetStyleSheet(nullptr);
+    mMedia->SetStyleSheet(nsnull);
   }
 }
 
@@ -797,19 +727,17 @@ NS_IMPL_RELEASE_INHERITED(MediaRule, GroupRule)
 NS_INTERFACE_MAP_BEGIN(MediaRule)
   NS_INTERFACE_MAP_ENTRY(nsIStyleRule)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSRule)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMCSSGroupingRule)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMCSSConditionRule)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSMediaRule)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIStyleRule)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CSSMediaRule)
-NS_INTERFACE_MAP_END_INHERITING(GroupRule)
+NS_INTERFACE_MAP_END
 
 /* virtual */ void
 MediaRule::SetStyleSheet(nsCSSStyleSheet* aSheet)
 {
   if (mMedia) {
     // Set to null so it knows it's leaving one sheet and joining another.
-    mMedia->SetStyleSheet(nullptr);
+    mMedia->SetStyleSheet(nsnull);
     mMedia->SetStyleSheet(aSheet);
   }
 
@@ -818,9 +746,9 @@ MediaRule::SetStyleSheet(nsCSSStyleSheet* aSheet)
 
 #ifdef DEBUG
 /* virtual */ void
-MediaRule::List(FILE* out, int32_t aIndent) const
+MediaRule::List(FILE* out, PRInt32 aIndent) const
 {
-  for (int32_t indent = aIndent; --indent >= 0; ) fputs("  ", out);
+  for (PRInt32 indent = aIndent; --indent >= 0; ) fputs("  ", out);
 
   nsAutoString  buffer;
 
@@ -836,7 +764,7 @@ MediaRule::List(FILE* out, int32_t aIndent) const
 }
 #endif
 
-/* virtual */ int32_t
+/* virtual */ PRInt32
 MediaRule::GetType() const
 {
   return Rule::MEDIA_RULE;
@@ -854,13 +782,13 @@ MediaRule::SetMedia(nsMediaList* aMedia)
 {
   mMedia = aMedia;
   if (aMedia)
-    mMedia->SetStyleSheet(GetStyleSheet());
+    mMedia->SetStyleSheet(mSheet);
   return NS_OK;
 }
 
 // nsIDOMCSSRule methods
 NS_IMETHODIMP
-MediaRule::GetType(uint16_t* aType)
+MediaRule::GetType(PRUint16* aType)
 {
   *aType = nsIDOMCSSRule::MEDIA_RULE;
   return NS_OK;
@@ -870,9 +798,14 @@ NS_IMETHODIMP
 MediaRule::GetCssText(nsAString& aCssText)
 {
   aCssText.AssignLiteral("@media ");
-  AppendConditionText(aCssText);
-  GroupRule::AppendRulesToCssText(aCssText);
-  return NS_OK;
+  // get all the media
+  if (mMedia) {
+    nsAutoString mediaText;
+    mMedia->GetText(mediaText);
+    aCssText.Append(mediaText);
+  }
+
+  return GroupRule::AppendRulesToCssText(aCssText);
 }
 
 NS_IMETHODIMP
@@ -893,50 +826,6 @@ MediaRule::GetParentRule(nsIDOMCSSRule** aParentRule)
   return GroupRule::GetParentRule(aParentRule);
 }
 
-// nsIDOMCSSGroupingRule methods
-NS_IMETHODIMP
-MediaRule::GetCssRules(nsIDOMCSSRuleList* *aRuleList)
-{
-  return GroupRule::GetCssRules(aRuleList);
-}
-
-NS_IMETHODIMP
-MediaRule::InsertRule(const nsAString & aRule, uint32_t aIndex, uint32_t* _retval)
-{
-  return GroupRule::InsertRule(aRule, aIndex, _retval);
-}
-
-NS_IMETHODIMP
-MediaRule::DeleteRule(uint32_t aIndex)
-{
-  return GroupRule::DeleteRule(aIndex);
-}
-
-// nsIDOMCSSConditionRule methods
-NS_IMETHODIMP
-MediaRule::GetConditionText(nsAString& aConditionText)
-{
-  aConditionText.Truncate(0);
-  AppendConditionText(aConditionText);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-MediaRule::SetConditionText(const nsAString& aConditionText)
-{
-  if (!mMedia) {
-    nsRefPtr<nsMediaList> media = new nsMediaList();
-    media->SetStyleSheet(GetStyleSheet());
-    nsresult rv = media->SetMediaText(aConditionText);
-    if (NS_SUCCEEDED(rv)) {
-      mMedia = media;
-    }
-    return rv;
-  }
-
-  return mMedia->SetMediaText(aConditionText);
-}
-
 // nsIDOMCSSMediaRule methods
 NS_IMETHODIMP
 MediaRule::GetMedia(nsIDOMMediaList* *aMedia)
@@ -946,38 +835,33 @@ MediaRule::GetMedia(nsIDOMMediaList* *aMedia)
   return NS_OK;
 }
 
+NS_IMETHODIMP
+MediaRule::GetCssRules(nsIDOMCSSRuleList* *aRuleList)
+{
+  return GroupRule::GetCssRules(aRuleList);
+}
+
+NS_IMETHODIMP
+MediaRule::InsertRule(const nsAString & aRule, PRUint32 aIndex, PRUint32* _retval)
+{
+  return GroupRule::InsertRule(aRule, aIndex, _retval);
+}
+
+NS_IMETHODIMP
+MediaRule::DeleteRule(PRUint32 aIndex)
+{
+  return GroupRule::DeleteRule(aIndex);
+}
+
 // GroupRule interface
-/* virtual */ bool
+/* virtual */ PRBool
 MediaRule::UseForPresentation(nsPresContext* aPresContext,
                                    nsMediaQueryResultCacheKey& aKey)
 {
   if (mMedia) {
     return mMedia->Matches(aPresContext, &aKey);
   }
-  return true;
-}
-
-/* virtual */ size_t
-MediaRule::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
-{
-  size_t n = aMallocSizeOf(this);
-  n += GroupRule::SizeOfExcludingThis(aMallocSizeOf);
-
-  // Measurement of the following members may be added later if DMD finds it is
-  // worthwhile:
-  // - mMedia
-
-  return n;
-}
-
-void
-MediaRule::AppendConditionText(nsAString& aOutput)
-{
-  if (mMedia) {
-    nsAutoString mediaText;
-    mMedia->GetText(mediaText);
-    aOutput.Append(mediaText);
-  }
+  return PR_TRUE;
 }
 
 } // namespace css
@@ -1010,20 +894,18 @@ NS_IMPL_RELEASE_INHERITED(DocumentRule, GroupRule)
 NS_INTERFACE_MAP_BEGIN(DocumentRule)
   NS_INTERFACE_MAP_ENTRY(nsIStyleRule)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSRule)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMCSSGroupingRule)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMCSSConditionRule)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSMozDocumentRule)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIStyleRule)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CSSMozDocumentRule)
-NS_INTERFACE_MAP_END_INHERITING(GroupRule)
+NS_INTERFACE_MAP_END
 
 #ifdef DEBUG
 /* virtual */ void
-DocumentRule::List(FILE* out, int32_t aIndent) const
+DocumentRule::List(FILE* out, PRInt32 aIndent) const
 {
-  for (int32_t indent = aIndent; --indent >= 0; ) fputs("  ", out);
+  for (PRInt32 indent = aIndent; --indent >= 0; ) fputs("  ", out);
 
-  nsAutoCString str;
+  nsCAutoString str;
   str.AssignLiteral("@-moz-document ");
   for (URL *url = mURLs; url; url = url->next) {
     switch (url->func) {
@@ -1040,7 +922,7 @@ DocumentRule::List(FILE* out, int32_t aIndent) const
         str.AppendLiteral("regexp(\"");
         break;
     }
-    nsAutoCString escapedURL(url->url);
+    nsCAutoString escapedURL(url->url);
     escapedURL.ReplaceSubstring("\"", "\\\""); // escape quotes
     str.Append(escapedURL);
     str.AppendLiteral("\"), ");
@@ -1052,7 +934,7 @@ DocumentRule::List(FILE* out, int32_t aIndent) const
 }
 #endif
 
-/* virtual */ int32_t
+/* virtual */ PRInt32
 DocumentRule::GetType() const
 {
   return Rule::DOCUMENT_RULE;
@@ -1067,7 +949,7 @@ DocumentRule::Clone() const
 
 // nsIDOMCSSRule methods
 NS_IMETHODIMP
-DocumentRule::GetType(uint16_t* aType)
+DocumentRule::GetType(PRUint16* aType)
 {
   // XXX What should really happen here?
   *aType = nsIDOMCSSRule::UNKNOWN_RULE;
@@ -1078,9 +960,28 @@ NS_IMETHODIMP
 DocumentRule::GetCssText(nsAString& aCssText)
 {
   aCssText.AssignLiteral("@-moz-document ");
-  AppendConditionText(aCssText);
-  GroupRule::AppendRulesToCssText(aCssText);
-  return NS_OK;
+  for (URL *url = mURLs; url; url = url->next) {
+    switch (url->func) {
+      case eURL:
+        aCssText.AppendLiteral("url(");
+        break;
+      case eURLPrefix:
+        aCssText.AppendLiteral("url-prefix(");
+        break;
+      case eDomain:
+        aCssText.AppendLiteral("domain(");
+        break;
+      case eRegExp:
+        aCssText.AppendLiteral("regexp(");
+        break;
+    }
+    nsStyleUtil::AppendEscapedCSSString(NS_ConvertUTF8toUTF16(url->url),
+                                        aCssText);
+    aCssText.AppendLiteral("), ");
+  }
+  aCssText.Cut(aCssText.Length() - 2, 1); // remove last ,
+
+  return GroupRule::AppendRulesToCssText(aCssText);
 }
 
 NS_IMETHODIMP
@@ -1101,7 +1002,6 @@ DocumentRule::GetParentRule(nsIDOMCSSRule** aParentRule)
   return GroupRule::GetParentRule(aParentRule);
 }
 
-// nsIDOMCSSGroupingRule methods
 NS_IMETHODIMP
 DocumentRule::GetCssRules(nsIDOMCSSRuleList* *aRuleList)
 {
@@ -1109,40 +1009,25 @@ DocumentRule::GetCssRules(nsIDOMCSSRuleList* *aRuleList)
 }
 
 NS_IMETHODIMP
-DocumentRule::InsertRule(const nsAString & aRule, uint32_t aIndex, uint32_t* _retval)
+DocumentRule::InsertRule(const nsAString & aRule, PRUint32 aIndex, PRUint32* _retval)
 {
   return GroupRule::InsertRule(aRule, aIndex, _retval);
 }
 
 NS_IMETHODIMP
-DocumentRule::DeleteRule(uint32_t aIndex)
+DocumentRule::DeleteRule(PRUint32 aIndex)
 {
   return GroupRule::DeleteRule(aIndex);
 }
 
-// nsIDOMCSSConditionRule methods
-NS_IMETHODIMP
-DocumentRule::GetConditionText(nsAString& aConditionText)
-{
-  aConditionText.Truncate(0);
-  AppendConditionText(aConditionText);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-DocumentRule::SetConditionText(const nsAString& aConditionText)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
 // GroupRule interface
-/* virtual */ bool
+/* virtual */ PRBool
 DocumentRule::UseForPresentation(nsPresContext* aPresContext,
                                  nsMediaQueryResultCacheKey& aKey)
 {
   nsIDocument *doc = aPresContext->Document();
   nsIURI *docURI = doc->GetDocumentURI();
-  nsAutoCString docURISpec;
+  nsCAutoString docURISpec;
   if (docURI)
     docURI->GetSpec(docURISpec);
 
@@ -1150,80 +1035,42 @@ DocumentRule::UseForPresentation(nsPresContext* aPresContext,
     switch (url->func) {
       case eURL: {
         if (docURISpec == url->url)
-          return true;
+          return PR_TRUE;
       } break;
       case eURLPrefix: {
         if (StringBeginsWith(docURISpec, url->url))
-          return true;
+          return PR_TRUE;
       } break;
       case eDomain: {
-        nsAutoCString host;
+        nsCAutoString host;
         if (docURI)
           docURI->GetHost(host);
-        int32_t lenDiff = host.Length() - url->url.Length();
+        PRInt32 lenDiff = host.Length() - url->url.Length();
         if (lenDiff == 0) {
           if (host == url->url)
-            return true;
+            return PR_TRUE;
         } else {
           if (StringEndsWith(host, url->url) &&
               host.CharAt(lenDiff - 1) == '.')
-            return true;
+            return PR_TRUE;
         }
       } break;
       case eRegExp: {
         NS_ConvertUTF8toUTF16 spec(docURISpec);
         NS_ConvertUTF8toUTF16 regex(url->url);
         if (nsContentUtils::IsPatternMatching(spec, regex, doc)) {
-          return true;
+          return PR_TRUE;
         }
       } break;
     }
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 DocumentRule::URL::~URL()
 {
   NS_CSS_DELETE_LIST_MEMBER(DocumentRule::URL, this, next);
-}
-
-/* virtual */ size_t
-DocumentRule::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
-{
-  size_t n = aMallocSizeOf(this);
-  n += GroupRule::SizeOfExcludingThis(aMallocSizeOf);
-
-  // Measurement of the following members may be added later if DMD finds it is
-  // worthwhile:
-  // - mURLs
-
-  return n;
-}
-
-void
-DocumentRule::AppendConditionText(nsAString& aCssText)
-{
-  for (URL *url = mURLs; url; url = url->next) {
-    switch (url->func) {
-      case eURL:
-        aCssText.AppendLiteral("url(");
-        break;
-      case eURLPrefix:
-        aCssText.AppendLiteral("url-prefix(");
-        break;
-      case eDomain:
-        aCssText.AppendLiteral("domain(");
-        break;
-      case eRegExp:
-        aCssText.AppendLiteral("regexp(");
-        break;
-    }
-    nsStyleUtil::AppendEscapedCSSString(NS_ConvertUTF8toUTF16(url->url),
-                                        aCssText);
-    aCssText.AppendLiteral("), ");
-  }
-  aCssText.Truncate(aCssText.Length() - 2); // remove last ", "
 }
 
 } // namespace css
@@ -1257,8 +1104,8 @@ NameSpaceRule::~NameSpaceRule()
 {
 }
 
-NS_IMPL_ADDREF(NameSpaceRule)
-NS_IMPL_RELEASE(NameSpaceRule)
+NS_IMPL_ADDREF_INHERITED(NameSpaceRule, Rule)
+NS_IMPL_RELEASE_INHERITED(NameSpaceRule, Rule)
 
 // QueryInterface implementation for NameSpaceRule
 NS_INTERFACE_MAP_BEGIN(NameSpaceRule)
@@ -1278,9 +1125,9 @@ IMPL_STYLE_RULE_INHERIT(NameSpaceRule, Rule)
 
 #ifdef DEBUG
 /* virtual */ void
-NameSpaceRule::List(FILE* out, int32_t aIndent) const
+NameSpaceRule::List(FILE* out, PRInt32 aIndent) const
 {
-  for (int32_t indent = aIndent; --indent >= 0; ) fputs("  ", out);
+  for (PRInt32 indent = aIndent; --indent >= 0; ) fputs("  ", out);
 
   nsAutoString  buffer;
 
@@ -1298,7 +1145,7 @@ NameSpaceRule::List(FILE* out, int32_t aIndent) const
 }
 #endif
 
-/* virtual */ int32_t
+/* virtual */ PRInt32
 NameSpaceRule::GetType() const
 {
   return Rule::NAMESPACE_RULE;
@@ -1312,9 +1159,10 @@ NameSpaceRule::Clone() const
 }
 
 NS_IMETHODIMP
-NameSpaceRule::GetType(uint16_t* aType)
+NameSpaceRule::GetType(PRUint16* aType)
 {
-  *aType = nsIDOMCSSRule::NAMESPACE_RULE;
+  // XXX What should really happen here?
+  *aType = nsIDOMCSSRule::UNKNOWN_RULE;
   return NS_OK;
 }
 
@@ -1349,18 +1197,6 @@ NameSpaceRule::GetParentRule(nsIDOMCSSRule** aParentRule)
   return Rule::GetParentRule(aParentRule);
 }
 
-/* virtual */ size_t
-NameSpaceRule::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
-{
-  return aMallocSizeOf(this);
-
-  // Measurement of the following members may be added later if DMD finds it is
-  // worthwhile:
-  // - mPrefix
-  // - mURLSpec
-}
-
-
 } // namespace css
 } // namespace mozilla
 
@@ -1377,7 +1213,7 @@ DOMCI_DATA(CSSNameSpaceRule, css::NameSpaceRule)
 // only after one of the first two.  (css3-fonts only contemplates
 // annotating URLs with formats, but we handle the general case.)
 static void
-AppendSerializedFontSrc(const nsCSSValue& src, nsAString & aResult)
+AppendSerializedFontSrc(const nsCSSValue& src, nsAString & aResult NS_OUTPARAM)
 {
   NS_PRECONDITION(src.GetUnit() == eCSSUnit_Array,
                   "improper value unit for src:");
@@ -1426,7 +1262,7 @@ AppendSerializedFontSrc(const nsCSSValue& src, nsAString & aResult)
 
 // print all characters with at least four hex digits
 static void
-AppendSerializedUnicodePoint(uint32_t aCode, nsACString &aBuf)
+AppendSerializedUnicodePoint(PRUint32 aCode, nsACString &aBuf NS_OUTPARAM)
 {
   aBuf.Append(nsPrintfCString("%04X", aCode));
 }
@@ -1437,7 +1273,7 @@ AppendSerializedUnicodePoint(uint32_t aCode, nsACString &aBuf)
 // consolidated, but right now we don't do that.)
 static void
 AppendSerializedUnicodeRange(nsCSSValue const & aValue,
-                             nsAString & aResult)
+                             nsAString & aResult NS_OUTPARAM)
 {
   NS_PRECONDITION(aValue.GetUnit() == eCSSUnit_Null ||
                   aValue.GetUnit() == eCSSUnit_Array,
@@ -1447,14 +1283,14 @@ AppendSerializedUnicodeRange(nsCSSValue const & aValue,
     return;
 
   nsCSSValue::Array const & sources = *aValue.GetArrayValue();
-  nsAutoCString buf;
+  nsCAutoString buf;
 
   NS_ABORT_IF_FALSE(sources.Count() % 2 == 0,
                     "odd number of entries in a unicode-range: array");
 
-  for (uint32_t i = 0; i < sources.Count(); i += 2) {
-    uint32_t min = sources[i].GetIntValue();
-    uint32_t max = sources[i+1].GetIntValue();
+  for (PRUint32 i = 0; i < sources.Count(); i += 2) {
+    PRUint32 min = sources[i].GetIntValue();
+    PRUint32 max = sources[i+1].GetIntValue();
 
     // We don't try to replicate the U+XX?? notation.
     buf.AppendLiteral("U+");
@@ -1471,26 +1307,26 @@ AppendSerializedUnicodeRange(nsCSSValue const & aValue,
 }
 
 // Mapping from nsCSSFontDesc codes to nsCSSFontFaceStyleDecl fields.
+// Keep this in sync with enum nsCSSFontDesc in nsCSSProperty.h.
 nsCSSValue nsCSSFontFaceStyleDecl::* const
 nsCSSFontFaceStyleDecl::Fields[] = {
-#define CSS_FONT_DESC(name_, method_) &nsCSSFontFaceStyleDecl::m##method_,
-#include "nsCSSFontDescList.h"
-#undef CSS_FONT_DESC
+    &nsCSSFontFaceStyleDecl::mFamily,
+    &nsCSSFontFaceStyleDecl::mStyle,
+    &nsCSSFontFaceStyleDecl::mWeight,
+    &nsCSSFontFaceStyleDecl::mStretch,
+    &nsCSSFontFaceStyleDecl::mSrc,
+    &nsCSSFontFaceStyleDecl::mUnicodeRange,
+    &nsCSSFontFaceStyleDecl::mFontFeatureSettings,
+    &nsCSSFontFaceStyleDecl::mFontLanguageOverride
 };
+
+DOMCI_DATA(CSSFontFaceStyleDecl, nsCSSFontFaceStyleDecl)
 
 // QueryInterface implementation for nsCSSFontFaceStyleDecl
 NS_INTERFACE_MAP_BEGIN(nsCSSFontFaceStyleDecl)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSStyleDeclaration)
-  NS_INTERFACE_MAP_ENTRY(nsICSSDeclaration)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  // We forward the cycle collection interfaces to ContainingRule(), which is
-  // never null (in fact, we're part of that object!)
-  if (aIID.Equals(NS_GET_IID(nsCycleCollectionISupports)) ||
-      aIID.Equals(NS_GET_IID(nsXPCOMCycleCollectionParticipant))) {
-    return ContainingRule()->QueryInterface(aIID, aInstancePtr);
-  }
-  else
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CSSFontFaceStyleDecl)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_ADDREF_USING_AGGREGATOR(nsCSSFontFaceStyleDecl, ContainingRule())
@@ -1499,7 +1335,7 @@ NS_IMPL_RELEASE_USING_AGGREGATOR(nsCSSFontFaceStyleDecl, ContainingRule())
 // helper for string GetPropertyValue and RemovePropertyValue
 nsresult
 nsCSSFontFaceStyleDecl::GetPropertyValue(nsCSSFontDesc aFontDescID,
-                                         nsAString & aResult) const
+                                         nsAString & aResult NS_OUTPARAM) const
 {
   NS_ENSURE_ARG_RANGE(aFontDescID, eCSSFontDesc_UNKNOWN,
                       eCSSFontDesc_COUNT - 1);
@@ -1539,7 +1375,7 @@ nsCSSFontFaceStyleDecl::GetPropertyValue(nsCSSFontDesc aFontDescID,
     return NS_OK;
 
   case eCSSFontDesc_FontFeatureSettings:
-    nsStyleUtil::AppendFontFeatureSettings(val, aResult);
+    val.AppendToString(eCSSProperty_font_feature_settings, aResult);
     return NS_OK;
 
   case eCSSFontDesc_FontLanguageOverride:
@@ -1598,25 +1434,24 @@ nsCSSFontFaceStyleDecl::SetCssText(const nsAString & aCssText)
 // DOMString getPropertyValue (in DOMString propertyName);
 NS_IMETHODIMP
 nsCSSFontFaceStyleDecl::GetPropertyValue(const nsAString & propertyName,
-                                         nsAString & aResult)
+                                         nsAString & aResult NS_OUTPARAM)
 {
   return GetPropertyValue(nsCSSProps::LookupFontDesc(propertyName), aResult);
 }
 
 // nsIDOMCSSValue getPropertyCSSValue (in DOMString propertyName);
-already_AddRefed<dom::CSSValue>
+NS_IMETHODIMP
 nsCSSFontFaceStyleDecl::GetPropertyCSSValue(const nsAString & propertyName,
-                                            ErrorResult& aRv)
+                                            nsIDOMCSSValue **aResult NS_OUTPARAM)
 {
   // ??? nsDOMCSSDeclaration returns null/NS_OK, but that seems wrong.
-  aRv.Throw(NS_ERROR_NOT_IMPLEMENTED);
-  return nullptr;
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 // DOMString removeProperty (in DOMString propertyName) raises (DOMException);
 NS_IMETHODIMP
 nsCSSFontFaceStyleDecl::RemoveProperty(const nsAString & propertyName,
-                                       nsAString & aResult)
+                                       nsAString & aResult NS_OUTPARAM)
 {
   nsCSSFontDesc descID = nsCSSProps::LookupFontDesc(propertyName);
   NS_ASSERTION(descID >= eCSSFontDesc_UNKNOWN &&
@@ -1636,7 +1471,7 @@ nsCSSFontFaceStyleDecl::RemoveProperty(const nsAString & propertyName,
 // DOMString getPropertyPriority (in DOMString propertyName);
 NS_IMETHODIMP
 nsCSSFontFaceStyleDecl::GetPropertyPriority(const nsAString & propertyName,
-                                            nsAString & aResult)
+                                            nsAString & aResult NS_OUTPARAM)
 {
   // font descriptors do not have priorities at present
   aResult.Truncate();
@@ -1655,9 +1490,9 @@ nsCSSFontFaceStyleDecl::SetProperty(const nsAString & propertyName,
 
 // readonly attribute unsigned long length;
 NS_IMETHODIMP
-nsCSSFontFaceStyleDecl::GetLength(uint32_t *aLength)
+nsCSSFontFaceStyleDecl::GetLength(PRUint32 *aLength)
 {
-  uint32_t len = 0;
+  PRUint32 len = 0;
   for (nsCSSFontDesc id = nsCSSFontDesc(eCSSFontDesc_UNKNOWN + 1);
        id < eCSSFontDesc_COUNT;
        id = nsCSSFontDesc(id + 1))
@@ -1670,34 +1505,23 @@ nsCSSFontFaceStyleDecl::GetLength(uint32_t *aLength)
 
 // DOMString item (in unsigned long index);
 NS_IMETHODIMP
-nsCSSFontFaceStyleDecl::Item(uint32_t aIndex, nsAString& aReturn)
-{
-  bool found;
-  IndexedGetter(aIndex, found, aReturn);
-  if (!found) {
-    aReturn.Truncate();
-  }
-  return NS_OK;
-}
-
-void
-nsCSSFontFaceStyleDecl::IndexedGetter(uint32_t index, bool& aFound, nsAString & aResult)
-{
-  int32_t nset = -1;
+nsCSSFontFaceStyleDecl::Item(PRUint32 index, nsAString & aResult NS_OUTPARAM)
+ {
+  PRInt32 nset = -1;
   for (nsCSSFontDesc id = nsCSSFontDesc(eCSSFontDesc_UNKNOWN + 1);
        id < eCSSFontDesc_COUNT;
        id = nsCSSFontDesc(id + 1)) {
     if ((this->*nsCSSFontFaceStyleDecl::Fields[id]).GetUnit()
         != eCSSUnit_Null) {
       nset++;
-      if (nset == int32_t(index)) {
-        aFound = true;
+      if (nset == PRInt32(index)) {
         aResult.AssignASCII(nsCSSProps::GetStringValue(id).get());
-        return;
+        return NS_OK;
       }
     }
   }
-  aFound = false;
+  aResult.Truncate();
+  return NS_OK;
 }
 
 // readonly attribute nsIDOMCSSRule parentRule;
@@ -1708,34 +1532,6 @@ nsCSSFontFaceStyleDecl::GetParentRule(nsIDOMCSSRule** aParentRule)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsCSSFontFaceStyleDecl::GetPropertyValue(const nsCSSProperty aPropID,
-                                         nsAString& aValue)
-{
-  return
-    GetPropertyValue(NS_ConvertUTF8toUTF16(nsCSSProps::GetStringValue(aPropID)),
-                     aValue);
-}
-
-NS_IMETHODIMP
-nsCSSFontFaceStyleDecl::SetPropertyValue(const nsCSSProperty aPropID,
-                                         const nsAString& aValue)
-{
-  return SetProperty(NS_ConvertUTF8toUTF16(nsCSSProps::GetStringValue(aPropID)),
-                     aValue, EmptyString());
-}
-
-nsINode*
-nsCSSFontFaceStyleDecl::GetParentObject()
-{
-  return ContainingRule()->GetDocument();
-}
-
-JSObject*
-nsCSSFontFaceStyleDecl::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope)
-{
-  return mozilla::dom::CSSStyleDeclarationBinding::Wrap(cx, scope, this);
-}
 
 // -------------------------------------------
 // nsCSSFontFaceRule
@@ -1748,36 +1544,13 @@ nsCSSFontFaceRule::Clone() const
   return clone.forget();
 }
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsCSSFontFaceRule)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsCSSFontFaceRule)
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsCSSFontFaceRule)
-
-NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsCSSFontFaceRule)
-  // Trace the wrapper for our declaration.  This just expands out
-  // NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER which we can't use
-  // directly because the wrapper is on the declaration, not on us.
-  tmp->mDecl.TraceWrapper(aCallbacks, aClosure);
-NS_IMPL_CYCLE_COLLECTION_TRACE_END
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsCSSFontFaceRule)
-  // Unlink the wrapper for our declaraton.  This just expands out
-  // NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER which we can't use
-  // directly because the wrapper is on the declaration, not on us.
-  tmp->mDecl.ReleaseWrapper(static_cast<nsISupports*>(p));
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsCSSFontFaceRule)
-  // Just NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS here: that will call
-  // into our Trace hook, where we do the right thing with declarations
-  // already.
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+NS_IMPL_ADDREF_INHERITED(nsCSSFontFaceRule, Rule)
+NS_IMPL_RELEASE_INHERITED(nsCSSFontFaceRule, Rule)
 
 DOMCI_DATA(CSSFontFaceRule, nsCSSFontFaceRule)
 
 // QueryInterface implementation for nsCSSFontFaceRule
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsCSSFontFaceRule)
+NS_INTERFACE_MAP_BEGIN(nsCSSFontFaceRule)
   NS_INTERFACE_MAP_ENTRY(nsIStyleRule)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSFontFaceRule)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSRule)
@@ -1789,10 +1562,10 @@ IMPL_STYLE_RULE_INHERIT(nsCSSFontFaceRule, Rule)
 
 #ifdef DEBUG
 void
-nsCSSFontFaceRule::List(FILE* out, int32_t aIndent) const
+nsCSSFontFaceRule::List(FILE* out, PRInt32 aIndent) const
 {
   nsCString baseInd, descInd;
-  for (int32_t indent = aIndent; --indent >= 0; ) {
+  for (PRInt32 indent = aIndent; --indent >= 0; ) {
     baseInd.AppendLiteral("  ");
     descInd.AppendLiteral("  ");
   }
@@ -1818,14 +1591,14 @@ nsCSSFontFaceRule::List(FILE* out, int32_t aIndent) const
 }
 #endif
 
-/* virtual */ int32_t
+/* virtual */ PRInt32
 nsCSSFontFaceRule::GetType() const
 {
   return Rule::FONT_FACE_RULE;
 }
 
 NS_IMETHODIMP
-nsCSSFontFaceRule::GetType(uint16_t* aType)
+nsCSSFontFaceRule::GetType(PRUint16* aType)
 {
   *aType = nsIDOMCSSRule::FONT_FACE_RULE;
   return NS_OK;
@@ -1891,266 +1664,6 @@ nsCSSFontFaceRule::GetDesc(nsCSSFontDesc aDescID, nsCSSValue & aValue)
   aValue = mDecl.*nsCSSFontFaceStyleDecl::Fields[aDescID];
 }
 
-/* virtual */ size_t
-nsCSSFontFaceRule::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
-{
-  return aMallocSizeOf(this);
-
-  // Measurement of the following members may be added later if DMD finds it is
-  // worthwhile:
-  // - mDecl
-}
-
-
-// -----------------------------------
-// nsCSSFontFeatureValuesRule
-//
-
-/* virtual */ already_AddRefed<css::Rule>
-nsCSSFontFeatureValuesRule::Clone() const
-{
-  nsRefPtr<css::Rule> clone = new nsCSSFontFeatureValuesRule(*this);
-  return clone.forget();
-}
-
-NS_IMPL_ADDREF(nsCSSFontFeatureValuesRule)
-NS_IMPL_RELEASE(nsCSSFontFeatureValuesRule)
-
-DOMCI_DATA(CSSFontFeatureValuesRule, nsCSSFontFeatureValuesRule)
-
-// QueryInterface implementation for nsCSSFontFeatureValuesRule
-NS_INTERFACE_MAP_BEGIN(nsCSSFontFeatureValuesRule)
-  NS_INTERFACE_MAP_ENTRY(nsIStyleRule)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMCSSFontFeatureValuesRule)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMCSSRule)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIStyleRule)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CSSFontFeatureValuesRule)
-NS_INTERFACE_MAP_END
-
-IMPL_STYLE_RULE_INHERIT(nsCSSFontFeatureValuesRule, Rule)
-
-static void
-FamilyListToString(const nsTArray<nsString>& aFamilyList, nsAString& aOutStr)
-{
-  uint32_t i, n = aFamilyList.Length();
-
-  for (i = 0; i < n; i++) {
-    nsStyleUtil::AppendEscapedCSSString(aFamilyList[i], aOutStr);
-    if (i != n - 1) {
-      aOutStr.AppendLiteral(", ");
-    }
-  }
-}
-
-static void
-FeatureValuesToString(
-  const nsTArray<gfxFontFeatureValueSet::FeatureValues>& aFeatureValues,
-  nsAString& aOutStr)
-{
-  uint32_t i, n;
-
-  // append values
-  n = aFeatureValues.Length();
-  for (i = 0; i < n; i++) {
-    const gfxFontFeatureValueSet::FeatureValues& fv = aFeatureValues[i];
-
-    // @alternate
-    aOutStr.AppendLiteral("  @");
-    nsAutoString functAlt;
-    nsStyleUtil::GetFunctionalAlternatesName(fv.alternate, functAlt);
-    aOutStr.Append(functAlt);
-    aOutStr.AppendLiteral(" {");
-
-    // for each ident-values tuple
-    uint32_t j, numValues = fv.valuelist.Length();
-    for (j = 0; j < numValues; j++) {
-      aOutStr.AppendLiteral(" ");
-      const gfxFontFeatureValueSet::ValueList& vlist = fv.valuelist[j];
-      nsStyleUtil::AppendEscapedCSSIdent(vlist.name, aOutStr);
-      aOutStr.AppendLiteral(":");
-
-      uint32_t k, numSelectors = vlist.featureSelectors.Length();
-      for (k = 0; k < numSelectors; k++) {
-        aOutStr.AppendLiteral(" ");
-        aOutStr.AppendInt(vlist.featureSelectors[k]);
-      }
-
-      aOutStr.AppendLiteral(";");
-    }
-    aOutStr.AppendLiteral(" }\n");
-  }
-}
-
-static void
-FontFeatureValuesRuleToString(
-  const nsTArray<nsString>& aFamilyList,
-  const nsTArray<gfxFontFeatureValueSet::FeatureValues>& aFeatureValues,
-  nsAString& aOutStr)
-{
-  aOutStr.AssignLiteral("@font-feature-values ");
-  nsAutoString familyListStr, valueTextStr;
-  FamilyListToString(aFamilyList, familyListStr);
-  aOutStr.Append(familyListStr);
-  aOutStr.AppendLiteral(" {\n");
-  FeatureValuesToString(aFeatureValues, valueTextStr);
-  aOutStr.Append(valueTextStr);
-  aOutStr.AppendLiteral("}");
-}
-
-#ifdef DEBUG
-void
-nsCSSFontFeatureValuesRule::List(FILE* out, int32_t aIndent) const
-{
-  nsAutoString text;
-  FontFeatureValuesRuleToString(mFamilyList, mFeatureValues, text);
-  NS_ConvertUTF16toUTF8 utf8(text);
-
-  // replace newlines with newlines plus indent spaces
-  char* indent = new char[(aIndent + 1) * 2];
-  int32_t i;
-  for (i = 1; i < (aIndent + 1) * 2 - 1; i++) {
-    indent[i] = 0x20;
-  }
-  indent[0] = 0xa;
-  indent[aIndent * 2 + 1] = 0;
-  utf8.ReplaceSubstring("\n", indent);
-  delete [] indent;
-
-  for (i = aIndent; --i >= 0; ) fputs("  ", out);
-  fprintf(out, "%s\n", utf8.get());
-}
-#endif
-
-/* virtual */ int32_t
-nsCSSFontFeatureValuesRule::GetType() const
-{
-  return Rule::FONT_FEATURE_VALUES_RULE;
-}
-
-NS_IMETHODIMP
-nsCSSFontFeatureValuesRule::GetType(uint16_t* aType)
-{
-  *aType = nsIDOMCSSRule::FONT_FEATURE_VALUES_RULE;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsCSSFontFeatureValuesRule::GetCssText(nsAString& aCssText)
-{
-  FontFeatureValuesRuleToString(mFamilyList, mFeatureValues, aCssText);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsCSSFontFeatureValuesRule::SetCssText(const nsAString& aCssText)
-{
-  // FIXME: implement???
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-nsCSSFontFeatureValuesRule::GetParentStyleSheet(nsIDOMCSSStyleSheet** aSheet)
-{
-  return Rule::GetParentStyleSheet(aSheet);
-}
-
-NS_IMETHODIMP
-nsCSSFontFeatureValuesRule::GetParentRule(nsIDOMCSSRule** aParentRule)
-{
-  return Rule::GetParentRule(aParentRule);
-}
-
-NS_IMETHODIMP
-nsCSSFontFeatureValuesRule::GetFontFamily(nsAString& aFontFamily)
-{
-  FamilyListToString(mFamilyList, aFontFamily);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsCSSFontFeatureValuesRule::SetFontFamily(const nsAString& aFontFamily)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-nsCSSFontFeatureValuesRule::GetValueText(nsAString& aValueText)
-{
-  FeatureValuesToString(mFeatureValues, aValueText);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsCSSFontFeatureValuesRule::SetValueText(const nsAString& aValueText)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-struct MakeFamilyArray {
-  MakeFamilyArray(nsTArray<nsString>& aFamilyArray)
-    : familyArray(aFamilyArray), hasGeneric(false)
-  {}
-
-  static bool
-  AddFamily(const nsString& aFamily, bool aGeneric, void* aData)
-  {
-    MakeFamilyArray *familyArr = reinterpret_cast<MakeFamilyArray*> (aData);
-    if (!aGeneric && !aFamily.IsEmpty()) {
-      familyArr->familyArray.AppendElement(aFamily);
-    }
-    if (aGeneric) {
-      familyArr->hasGeneric = true;
-    }
-    return true;
-  }
-
-  nsTArray<nsString>& familyArray;
-  bool hasGeneric;
-};
-
-void
-nsCSSFontFeatureValuesRule::SetFamilyList(const nsAString& aFamilyList,
-                                          bool& aContainsGeneric)
-{
-  nsFont font(aFamilyList, 0, 0, 0, 0, 0, 0);
-  MakeFamilyArray families(mFamilyList);
-  font.EnumerateFamilies(MakeFamilyArray::AddFamily, (void*) &families);
-  aContainsGeneric = families.hasGeneric;
-}
-
-void
-nsCSSFontFeatureValuesRule::AddValueList(int32_t aVariantAlternate,
-                     nsTArray<gfxFontFeatureValueSet::ValueList>& aValueList)
-{
-  uint32_t i, len = mFeatureValues.Length();
-  bool foundAlternate = false;
-
-  // add to an existing list for a given property value
-  for (i = 0; i < len; i++) {
-    gfxFontFeatureValueSet::FeatureValues& f = mFeatureValues.ElementAt(i);
-
-    if (f.alternate == uint32_t(aVariantAlternate)) {
-      f.valuelist.AppendElements(aValueList);
-      foundAlternate = true;
-      break;
-    }
-  }
-
-  // create a new list for a given property value
-  if (!foundAlternate) {
-    gfxFontFeatureValueSet::FeatureValues &f = *mFeatureValues.AppendElement();
-    f.alternate = aVariantAlternate;
-    f.valuelist.AppendElements(aValueList);
-  }
-}
-
-size_t
-nsCSSFontFeatureValuesRule::SizeOfIncludingThis(
-  MallocSizeOf aMallocSizeOf) const
-{
-  return aMallocSizeOf(this);
-}
-
 // -------------------------------------------
 // nsCSSKeyframeStyleDeclaration
 //
@@ -2165,22 +1678,16 @@ nsCSSKeyframeStyleDeclaration::~nsCSSKeyframeStyleDeclaration()
   NS_ASSERTION(!mRule, "DropReference not called.");
 }
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsCSSKeyframeStyleDeclaration)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsCSSKeyframeStyleDeclaration)
-
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_0(nsCSSKeyframeStyleDeclaration)
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsCSSKeyframeStyleDeclaration)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
-NS_INTERFACE_MAP_END_INHERITING(nsDOMCSSDeclaration)
+NS_IMPL_ADDREF(nsCSSKeyframeStyleDeclaration)
+NS_IMPL_RELEASE(nsCSSKeyframeStyleDeclaration)
 
 css::Declaration*
-nsCSSKeyframeStyleDeclaration::GetCSSDeclaration(bool aAllocate)
+nsCSSKeyframeStyleDeclaration::GetCSSDeclaration(PRBool aAllocate)
 {
   if (mRule) {
     return mRule->Declaration();
   } else {
-    return nullptr;
+    return nsnull;
   }
 }
 
@@ -2210,13 +1717,7 @@ nsCSSKeyframeStyleDeclaration::SetCSSDeclaration(css::Declaration* aDecl)
 nsIDocument*
 nsCSSKeyframeStyleDeclaration::DocToUpdate()
 {
-  return nullptr;
-}
-
-nsINode*
-nsCSSKeyframeStyleDeclaration::GetParentObject()
-{
-  return mRule ? mRule->GetDocument() : nullptr;
+  return nsnull;
 }
 
 // -------------------------------------------
@@ -2245,25 +1746,13 @@ nsCSSKeyframeRule::Clone() const
   return clone.forget();
 }
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsCSSKeyframeRule)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsCSSKeyframeRule)
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsCSSKeyframeRule)
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsCSSKeyframeRule)
-  if (tmp->mDOMDeclaration) {
-    tmp->mDOMDeclaration->DropReference();
-    tmp->mDOMDeclaration = nullptr;
-  }
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsCSSKeyframeRule)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mDOMDeclaration)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+NS_IMPL_ADDREF_INHERITED(nsCSSKeyframeRule, Rule)
+NS_IMPL_RELEASE_INHERITED(nsCSSKeyframeRule, Rule)
 
 DOMCI_DATA(MozCSSKeyframeRule, nsCSSKeyframeRule)
 
 // QueryInterface implementation for nsCSSKeyframeRule
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsCSSKeyframeRule)
+NS_INTERFACE_MAP_BEGIN(nsCSSKeyframeRule)
   NS_INTERFACE_MAP_ENTRY(nsIStyleRule)
   NS_INTERFACE_MAP_ENTRY(nsIDOMMozCSSKeyframeRule)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSRule)
@@ -2280,45 +1769,39 @@ nsCSSKeyframeRule::MapRuleInfoInto(nsRuleData* aRuleData)
   // constructs a rule node pointing to us in order to compute the
   // styles it needs to animate.
 
-  // The spec says that !important declarations should just be ignored
-  NS_ASSERTION(!mDeclaration->HasImportantData(),
-               "Keyframe rules has !important data");
-
+  // FIXME (spec): The spec doesn't say what to do with !important.
+  // We'll just map them.
+  if (mDeclaration->HasImportantData()) {
+    mDeclaration->MapImportantRuleInfoInto(aRuleData);
+  }
   mDeclaration->MapNormalRuleInfoInto(aRuleData);
 }
 
 #ifdef DEBUG
 void
-nsCSSKeyframeRule::List(FILE* out, int32_t aIndent) const
+nsCSSKeyframeRule::List(FILE* out, PRInt32 aIndent) const
 {
-  for (int32_t index = aIndent; --index >= 0; ) fputs("  ", out);
-
-  nsAutoString tmp;
-  DoGetKeyText(tmp);
-  fputs(NS_ConvertUTF16toUTF8(tmp).get(), out);
-  fputs(" ", out);
-  mDeclaration->List(out, aIndent);
-  fputs("\n", out);
+  // FIXME: WRITE ME
 }
 #endif
 
-/* virtual */ int32_t
+/* virtual */ PRInt32
 nsCSSKeyframeRule::GetType() const
 {
   return Rule::KEYFRAME_RULE;
 }
 
 NS_IMETHODIMP
-nsCSSKeyframeRule::GetType(uint16_t* aType)
+nsCSSKeyframeRule::GetType(PRUint16* aType)
 {
-  *aType = nsIDOMCSSRule::KEYFRAME_RULE;
+  *aType = nsIDOMCSSRule::MOZ_KEYFRAME_RULE;
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsCSSKeyframeRule::GetCssText(nsAString& aCssText)
 {
-  DoGetKeyText(aCssText);
+  nsCSSKeyframeRule::GetKeyText(aCssText);
   aCssText.AppendLiteral(" { ");
   nsAutoString tmp;
   mDeclaration->ToString(tmp);
@@ -2349,15 +1832,8 @@ nsCSSKeyframeRule::GetParentRule(nsIDOMCSSRule** aParentRule)
 NS_IMETHODIMP
 nsCSSKeyframeRule::GetKeyText(nsAString& aKeyText)
 {
-  DoGetKeyText(aKeyText);
-  return NS_OK;
-}
-
-void
-nsCSSKeyframeRule::DoGetKeyText(nsAString& aKeyText) const
-{
   aKeyText.Truncate();
-  uint32_t i = 0, i_end = mKeys.Length();
+  PRUint32 i = 0, i_end = mKeys.Length();
   NS_ABORT_IF_FALSE(i_end != 0, "must have some keys");
   for (;;) {
     aKeyText.AppendFloat(mKeys[i] * 100.0f);
@@ -2367,6 +1843,7 @@ nsCSSKeyframeRule::DoGetKeyText(nsAString& aKeyText) const
     }
     aKeyText.AppendLiteral(", ");
   }
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -2374,17 +1851,16 @@ nsCSSKeyframeRule::SetKeyText(const nsAString& aKeyText)
 {
   nsCSSParser parser;
 
-  InfallibleTArray<float> newSelectors;
+  nsTArray<float> newSelectors;
   // FIXME: pass filename and line number
-  if (parser.ParseKeyframeSelectorString(aKeyText, nullptr, 0, newSelectors)) {
+  if (parser.ParseKeyframeSelectorString(aKeyText, nsnull, 0, newSelectors)) {
     newSelectors.SwapElements(mKeys);
   } else {
     // for now, we don't do anything if the parse fails
   }
 
-  nsCSSStyleSheet* sheet = GetStyleSheet();
-  if (sheet) {
-    sheet->SetModifiedByChildRule();
+  if (mSheet) {
+    mSheet->SetModifiedByChildRule();
   }
 
   return NS_OK;
@@ -2403,30 +1879,12 @@ nsCSSKeyframeRule::GetStyle(nsIDOMCSSStyleDeclaration** aStyle)
 void
 nsCSSKeyframeRule::ChangeDeclaration(css::Declaration* aDeclaration)
 {
-  // Be careful to not assign to an nsAutoPtr if we would be assigning
-  // the thing it already holds.
-  if (aDeclaration != mDeclaration) {
-    mDeclaration = aDeclaration;
-  }
+  mDeclaration = aDeclaration;
 
-  nsCSSStyleSheet* sheet = GetStyleSheet();
-  if (sheet) {
-    sheet->SetModifiedByChildRule();
+  if (mSheet) {
+    mSheet->SetModifiedByChildRule();
   }
 }
-
-/* virtual */ size_t
-nsCSSKeyframeRule::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
-{
-  return aMallocSizeOf(this);
-
-  // Measurement of the following members may be added later if DMD finds it is
-  // worthwhile:
-  // - mKeys
-  // - mDeclaration
-  // - mDOMDeclaration
-}
-
 
 // -------------------------------------------
 // nsCSSKeyframesRule
@@ -2464,40 +1922,37 @@ NS_INTERFACE_MAP_BEGIN(nsCSSKeyframesRule)
   NS_INTERFACE_MAP_ENTRY(nsIDOMMozCSSKeyframesRule)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIStyleRule)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(MozCSSKeyframesRule)
-NS_INTERFACE_MAP_END_INHERITING(GroupRule)
+NS_INTERFACE_MAP_END
 
 #ifdef DEBUG
 void
-nsCSSKeyframesRule::List(FILE* out, int32_t aIndent) const
+nsCSSKeyframesRule::List(FILE* out, PRInt32 aIndent) const
 {
-  for (int32_t indent = aIndent; --indent >= 0; ) fputs("  ", out);
-
-  fprintf(out, "@keyframes %s", NS_ConvertUTF16toUTF8(mName).get());
-  GroupRule::List(out, aIndent);
+  // FIXME: WRITE ME
 }
 #endif
 
-/* virtual */ int32_t
+/* virtual */ PRInt32
 nsCSSKeyframesRule::GetType() const
 {
   return Rule::KEYFRAMES_RULE;
 }
 
 NS_IMETHODIMP
-nsCSSKeyframesRule::GetType(uint16_t* aType)
+nsCSSKeyframesRule::GetType(PRUint16* aType)
 {
-  *aType = nsIDOMCSSRule::KEYFRAMES_RULE;
+  *aType = nsIDOMCSSRule::MOZ_KEYFRAMES_RULE;
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsCSSKeyframesRule::GetCssText(nsAString& aCssText)
 {
-  aCssText.AssignLiteral("@keyframes ");
+  aCssText.AssignLiteral("@-moz-keyframes ");
   aCssText.Append(mName);
   aCssText.AppendLiteral(" {\n");
   nsAutoString tmp;
-  for (uint32_t i = 0, i_end = mRules.Count(); i != i_end; ++i) {
+  for (PRUint32 i = 0, i_end = mRules.Count(); i != i_end; ++i) {
     static_cast<nsCSSKeyframeRule*>(mRules[i])->GetCssText(tmp);
     aCssText.Append(tmp);
     aCssText.AppendLiteral("\n");
@@ -2537,9 +1992,8 @@ nsCSSKeyframesRule::SetName(const nsAString& aName)
 {
   mName = aName;
 
-  nsCSSStyleSheet* sheet = GetStyleSheet();
-  if (sheet) {
-    sheet->SetModifiedByChildRule();
+  if (mSheet) {
+    mSheet->SetModifiedByChildRule();
   }
 
   return NS_OK;
@@ -2552,7 +2006,7 @@ nsCSSKeyframesRule::GetCssRules(nsIDOMCSSRuleList* *aRuleList)
 }
 
 NS_IMETHODIMP
-nsCSSKeyframesRule::AppendRule(const nsAString& aRule)
+nsCSSKeyframesRule::InsertRule(const nsAString& aRule)
 {
   // The spec is confusing, and I think we should just append the rule,
   // which also turns out to match WebKit:
@@ -2561,30 +2015,33 @@ nsCSSKeyframesRule::AppendRule(const nsAString& aRule)
 
   // FIXME: pass filename and line number
   nsRefPtr<nsCSSKeyframeRule> rule =
-    parser.ParseKeyframeRule(aRule, nullptr, 0);
+    parser.ParseKeyframeRule(aRule, nsnull, 0);
   if (rule) {
-    AppendStyleRule(rule);
+    mRules.AppendObject(rule);
+    if (mSheet) {
+      mSheet->SetModifiedByChildRule();
+    }
   }
 
   return NS_OK;
 }
 
-static const uint32_t RULE_NOT_FOUND = uint32_t(-1);
+static const PRUint32 RULE_NOT_FOUND = PRUint32(-1);
 
-uint32_t
+PRUint32
 nsCSSKeyframesRule::FindRuleIndexForKey(const nsAString& aKey)
 {
   nsCSSParser parser;
 
-  InfallibleTArray<float> keys;
+  nsTArray<float> keys;
   // FIXME: pass filename and line number
-  if (parser.ParseKeyframeSelectorString(aKey, nullptr, 0, keys)) {
+  if (parser.ParseKeyframeSelectorString(aKey, nsnull, 0, keys)) {
     // The spec isn't clear, but we'll match on the key list, which
     // mostly matches what WebKit does, except we'll do last-match
     // instead of first-match, and handling parsing differences better.
     // http://lists.w3.org/Archives/Public/www-style/2011Apr/0036.html
     // http://lists.w3.org/Archives/Public/www-style/2011Apr/0037.html
-    for (uint32_t i = mRules.Count(); i-- != 0; ) {
+    for (PRUint32 i = mRules.Count(); i-- != 0; ) {
       if (static_cast<nsCSSKeyframeRule*>(mRules[i])->GetKeys() == keys) {
         return i;
       }
@@ -2597,12 +2054,11 @@ nsCSSKeyframesRule::FindRuleIndexForKey(const nsAString& aKey)
 NS_IMETHODIMP
 nsCSSKeyframesRule::DeleteRule(const nsAString& aKey)
 {
-  uint32_t index = FindRuleIndexForKey(aKey);
+  PRUint32 index = FindRuleIndexForKey(aKey);
   if (index != RULE_NOT_FOUND) {
     mRules.RemoveObjectAt(index);
-    nsCSSStyleSheet* sheet = GetStyleSheet();
-    if (sheet) {
-      sheet->SetModifiedByChildRule();
+    if (mSheet) {
+      mSheet->SetModifiedByChildRule();
     }
   }
   return NS_OK;
@@ -2612,9 +2068,9 @@ NS_IMETHODIMP
 nsCSSKeyframesRule::FindRule(const nsAString& aKey,
                              nsIDOMMozCSSKeyframeRule** aResult)
 {
-  uint32_t index = FindRuleIndexForKey(aKey);
+  PRUint32 index = FindRuleIndexForKey(aKey);
   if (index == RULE_NOT_FOUND) {
-    *aResult = nullptr;
+    *aResult = nsnull;
   } else {
     NS_ADDREF(*aResult = static_cast<nsCSSKeyframeRule*>(mRules[index]));
   }
@@ -2622,393 +2078,11 @@ nsCSSKeyframesRule::FindRule(const nsAString& aKey,
 }
 
 // GroupRule interface
-/* virtual */ bool
+/* virtual */ PRBool
 nsCSSKeyframesRule::UseForPresentation(nsPresContext* aPresContext,
                                        nsMediaQueryResultCacheKey& aKey)
 {
-  NS_ABORT_IF_FALSE(false, "should not be called");
-  return false;
+  NS_ABORT_IF_FALSE(PR_FALSE, "should not be called");
+  return PR_FALSE;
 }
 
-/* virtual */ size_t
-nsCSSKeyframesRule::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
-{
-  size_t n = aMallocSizeOf(this);
-  n += GroupRule::SizeOfExcludingThis(aMallocSizeOf);
-
-  // Measurement of the following members may be added later if DMD finds it is
-  // worthwhile:
-  // - mName
-
-  return n;
-}
-
-// -------------------------------------------
-// nsCSSPageStyleDeclaration
-//
-
-nsCSSPageStyleDeclaration::nsCSSPageStyleDeclaration(nsCSSPageRule* aRule)
-  : mRule(aRule)
-{
-}
-
-nsCSSPageStyleDeclaration::~nsCSSPageStyleDeclaration()
-{
-  NS_ASSERTION(!mRule, "DropReference not called.");
-}
-
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsCSSPageStyleDeclaration)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsCSSPageStyleDeclaration)
-
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_0(nsCSSPageStyleDeclaration)
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsCSSPageStyleDeclaration)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
-NS_INTERFACE_MAP_END_INHERITING(nsDOMCSSDeclaration)
-
-css::Declaration*
-nsCSSPageStyleDeclaration::GetCSSDeclaration(bool aAllocate)
-{
-  if (mRule) {
-    return mRule->Declaration();
-  } else {
-    return nullptr;
-  }
-}
-
-void
-nsCSSPageStyleDeclaration::GetCSSParsingEnvironment(CSSParsingEnvironment& aCSSParseEnv)
-{
-  GetCSSParsingEnvironmentForRule(mRule, aCSSParseEnv);
-}
-
-NS_IMETHODIMP
-nsCSSPageStyleDeclaration::GetParentRule(nsIDOMCSSRule** aParent)
-{
-  NS_ENSURE_ARG_POINTER(aParent);
-
-  NS_IF_ADDREF(*aParent = mRule);
-  return NS_OK;
-}
-
-nsresult
-nsCSSPageStyleDeclaration::SetCSSDeclaration(css::Declaration* aDecl)
-{
-  NS_ABORT_IF_FALSE(aDecl, "must be non-null");
-  mRule->ChangeDeclaration(aDecl);
-  return NS_OK;
-}
-
-nsIDocument*
-nsCSSPageStyleDeclaration::DocToUpdate()
-{
-  return nullptr;
-}
-
-nsINode*
-nsCSSPageStyleDeclaration::GetParentObject()
-{
-  return mRule ? mRule->GetDocument() : nullptr;
-}
-
-// -------------------------------------------
-// nsCSSPageRule
-//
-
-nsCSSPageRule::nsCSSPageRule(const nsCSSPageRule& aCopy)
-  // copy everything except our reference count and mDOMDeclaration
-  : Rule(aCopy)
-  , mDeclaration(new css::Declaration(*aCopy.mDeclaration))
-{
-}
-
-nsCSSPageRule::~nsCSSPageRule()
-{
-  if (mDOMDeclaration) {
-    mDOMDeclaration->DropReference();
-  }
-}
-
-/* virtual */ already_AddRefed<css::Rule>
-nsCSSPageRule::Clone() const
-{
-  nsRefPtr<css::Rule> clone = new nsCSSPageRule(*this);
-  return clone.forget();
-}
-
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsCSSPageRule)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsCSSPageRule)
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsCSSPageRule)
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsCSSPageRule)
-  if (tmp->mDOMDeclaration) {
-    tmp->mDOMDeclaration->DropReference();
-    tmp->mDOMDeclaration = nullptr;
-  }
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsCSSPageRule)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mDOMDeclaration)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-DOMCI_DATA(CSSPageRule, nsCSSPageRule)
-
-// QueryInterface implementation for nsCSSPageRule
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsCSSPageRule)
-  NS_INTERFACE_MAP_ENTRY(nsIStyleRule)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMCSSPageRule)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMCSSRule)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIStyleRule)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CSSPageRule)
-NS_INTERFACE_MAP_END
-
-IMPL_STYLE_RULE_INHERIT_GET_DOM_RULE_WEAK(nsCSSPageRule, Rule)
-
-#ifdef DEBUG
-void
-nsCSSPageRule::List(FILE* out, int32_t aIndent) const
-{
-  for (int32_t indent = aIndent; --indent >= 0; ) fputs("  ", out);
-
-  fputs("@page ", out);
-  mDeclaration->List(out, aIndent);
-  fputs("\n", out);
-}
-#endif
-
-/* virtual */ int32_t
-nsCSSPageRule::GetType() const
-{
-  return Rule::PAGE_RULE;
-}
-
-NS_IMETHODIMP
-nsCSSPageRule::GetType(uint16_t* aType)
-{
-  *aType = nsIDOMCSSRule::PAGE_RULE;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsCSSPageRule::GetCssText(nsAString& aCssText)
-{
-  aCssText.AppendLiteral("@page { ");
-  nsAutoString tmp;
-  mDeclaration->ToString(tmp);
-  aCssText.Append(tmp);
-  aCssText.AppendLiteral(" }");
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsCSSPageRule::SetCssText(const nsAString& aCssText)
-{
-  // FIXME: implement???
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-nsCSSPageRule::GetParentStyleSheet(nsIDOMCSSStyleSheet** aSheet)
-{
-  return Rule::GetParentStyleSheet(aSheet);
-}
-
-NS_IMETHODIMP
-nsCSSPageRule::GetParentRule(nsIDOMCSSRule** aParentRule)
-{
-  return Rule::GetParentRule(aParentRule);
-}
-
-css::ImportantRule*
-nsCSSPageRule::GetImportantRule()
-{
-  if (!mDeclaration->HasImportantData()) {
-    return nullptr;
-  }
-  if (!mImportantRule) {
-    mImportantRule = new css::ImportantRule(mDeclaration);
-  }
-  return mImportantRule;
-}
-
-/* virtual */ void
-nsCSSPageRule::MapRuleInfoInto(nsRuleData* aRuleData)
-{
-  mDeclaration->MapNormalRuleInfoInto(aRuleData);
-}
-
-NS_IMETHODIMP
-nsCSSPageRule::GetStyle(nsIDOMCSSStyleDeclaration** aStyle)
-{
-  if (!mDOMDeclaration) {
-    mDOMDeclaration = new nsCSSPageStyleDeclaration(this);
-  }
-  NS_ADDREF(*aStyle = mDOMDeclaration);
-  return NS_OK;
-}
-
-void
-nsCSSPageRule::ChangeDeclaration(css::Declaration* aDeclaration)
-{
-  mImportantRule = nullptr;
-  // Be careful to not assign to an nsAutoPtr if we would be assigning
-  // the thing it already holds.
-  if (aDeclaration != mDeclaration) {
-    mDeclaration = aDeclaration;
-  }
-
-  nsCSSStyleSheet* sheet = GetStyleSheet();
-  if (sheet) {
-    sheet->SetModifiedByChildRule();
-  }
-}
-
-/* virtual */ size_t
-nsCSSPageRule::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
-{
-  return aMallocSizeOf(this);
-}
-
-namespace mozilla {
-
-CSSSupportsRule::CSSSupportsRule(bool aConditionMet,
-                                 const nsString& aCondition)
-  : mUseGroup(aConditionMet),
-    mCondition(aCondition)
-{
-}
-
-CSSSupportsRule::CSSSupportsRule(const CSSSupportsRule& aCopy)
-  : css::GroupRule(aCopy),
-    mUseGroup(aCopy.mUseGroup),
-    mCondition(aCopy.mCondition)
-{
-}
-
-#ifdef DEBUG
-/* virtual */ void
-CSSSupportsRule::List(FILE* out, int32_t aIndent) const
-{
-  for (int32_t indent = aIndent; --indent >= 0; ) fputs("  ", out);
-
-  fputs("@supports ", out);
-  fputs(NS_ConvertUTF16toUTF8(mCondition).get(), out);
-  css::GroupRule::List(out, aIndent);
-}
-#endif
-
-/* virtual */ int32_t
-CSSSupportsRule::GetType() const
-{
-  return Rule::SUPPORTS_RULE;
-}
-
-/* virtual */ already_AddRefed<mozilla::css::Rule>
-CSSSupportsRule::Clone() const
-{
-  nsRefPtr<css::Rule> clone = new CSSSupportsRule(*this);
-  return clone.forget();
-}
-
-/* virtual */ bool
-CSSSupportsRule::UseForPresentation(nsPresContext* aPresContext,
-                                   nsMediaQueryResultCacheKey& aKey)
-{
-  return mUseGroup;
-}
-
-NS_IMPL_ADDREF_INHERITED(CSSSupportsRule, css::GroupRule)
-NS_IMPL_RELEASE_INHERITED(CSSSupportsRule, css::GroupRule)
-
-// QueryInterface implementation for CSSSupportsRule
-NS_INTERFACE_MAP_BEGIN(CSSSupportsRule)
-  NS_INTERFACE_MAP_ENTRY(nsIStyleRule)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMCSSRule)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMCSSGroupingRule)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMCSSConditionRule)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMCSSSupportsRule)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIStyleRule)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CSSSupportsRule)
-NS_INTERFACE_MAP_END_INHERITING(GroupRule)
-
-// nsIDOMCSSRule methods
-NS_IMETHODIMP
-CSSSupportsRule::GetType(uint16_t* aType)
-{
-  *aType = nsIDOMCSSRule::SUPPORTS_RULE;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-CSSSupportsRule::GetCssText(nsAString& aCssText)
-{
-  aCssText.AssignLiteral("@supports ");
-  aCssText.Append(mCondition);
-  css::GroupRule::AppendRulesToCssText(aCssText);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-CSSSupportsRule::SetCssText(const nsAString& aCssText)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-CSSSupportsRule::GetParentStyleSheet(nsIDOMCSSStyleSheet** aSheet)
-{
-  return css::GroupRule::GetParentStyleSheet(aSheet);
-}
-
-NS_IMETHODIMP
-CSSSupportsRule::GetParentRule(nsIDOMCSSRule** aParentRule)
-{
-  return css::GroupRule::GetParentRule(aParentRule);
-}
-
-// nsIDOMCSSGroupingRule methods
-NS_IMETHODIMP
-CSSSupportsRule::GetCssRules(nsIDOMCSSRuleList* *aRuleList)
-{
-  return css::GroupRule::GetCssRules(aRuleList);
-}
-
-NS_IMETHODIMP
-CSSSupportsRule::InsertRule(const nsAString & aRule, uint32_t aIndex, uint32_t* _retval)
-{
-  return css::GroupRule::InsertRule(aRule, aIndex, _retval);
-}
-
-NS_IMETHODIMP
-CSSSupportsRule::DeleteRule(uint32_t aIndex)
-{
-  return css::GroupRule::DeleteRule(aIndex);
-}
-
-// nsIDOMCSSConditionRule methods
-NS_IMETHODIMP
-CSSSupportsRule::GetConditionText(nsAString& aConditionText)
-{
-  aConditionText.Assign(mCondition);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-CSSSupportsRule::SetConditionText(const nsAString& aConditionText)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-/* virtual */ size_t
-CSSSupportsRule::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
-{
-  size_t n = aMallocSizeOf(this);
-  n += css::GroupRule::SizeOfExcludingThis(aMallocSizeOf);
-  n += mCondition.SizeOfExcludingThisIfUnshared(aMallocSizeOf);
-  return n;
-}
-
-} // namespace mozilla
-
-// Must be outside namespace
-DOMCI_DATA(CSSSupportsRule, mozilla::CSSSupportsRule)

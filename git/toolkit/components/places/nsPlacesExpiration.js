@@ -1,8 +1,41 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  * vim: sw=2 ts=2 sts=2 expandtab
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Marco Bonardo <mak77@bonardo.net> (Original Author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /**
  * This component handles history and orphans expiration through asynchronous
@@ -26,6 +59,23 @@ const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
+
+////////////////////////////////////////////////////////////////////////////////
+//// nsIFactory
+
+const nsPlacesExpirationFactory = {
+  _instance: null,
+  createInstance: function(aOuter, aIID) {
+    if (aOuter != null)
+      throw Components.results.NS_ERROR_NO_AGGREGATION;
+    return this._instance === null ? this._instance = new nsPlacesExpiration() :
+                                     this._instance;
+  },
+  lockFactory: function (aDoLock) {},
+  QueryInterface: XPCOMUtils.generateQI([
+    Ci.nsIFactory
+  ]),
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Constants
@@ -60,20 +110,10 @@ const PREF_READONLY_CALCULATED_MAX_URIS = "transient_current_max_pages";
 const PREF_INTERVAL_SECONDS = "interval_seconds";
 const PREF_INTERVAL_SECONDS_NOTSET = 3 * 60;
 
-// We calculate an optimal database size, based on hardware specs.
-// This percentage of memory size is used to protect against calculating a too
-// large database size on systems with small memory.
-const DATABASE_TO_MEMORY_PERC = 4;
-// This percentage of disk size is used to protect against calculating a too
-// large database size on disks with tiny quota or available space.
-const DATABASE_TO_DISK_PERC = 2;
-// Maximum size of the optimal database.  High-end hardware has plenty of
-// memory and disk space, but performances don't grow linearly.
-const DATABASE_MAX_SIZE = 167772160; // 160MiB
-// If the physical memory size is bogus, fallback to this.
-const MEMSIZE_FALLBACK_BYTES = 268435456; // 256 MiB
-// If the disk available space is bogus, fallback to this.
-const DISKSIZE_FALLBACK_BYTES = 268435456; // 256 MiB
+// An optimal database size calculated by history.  Used to evaluate a limit
+// to the number of pages we may retain before hitting performance issues.
+const PREF_OPTIMAL_DATABASE_SIZE = "transient_optimal_database_size";
+const PREF_OPTIMAL_DATABASE_SIZE_NOTSET = 167772160; // 160MiB
 
 // Max number of entries to expire at each expiration step.
 // This value is globally used for different kind of data we expire, can be
@@ -115,10 +155,6 @@ const SHUTDOWN_WITH_RECENT_CLEARHISTORY_TIMEOUT_SECONDS = 10;
 // should be analyzed again.
 const ANALYZE_PAGES_THRESHOLD = 100;
 
-// If the number of pages over history limit is greater than this threshold,
-// expiration will be more aggressive, to bring back history to a saner size.
-const OVERLIMIT_PAGES_THRESHOLD = 1000;
-
 const USECS_PER_DAY = 86400000000;
 const ANNOS_EXPIRE_POLICIES = [
   { bind: "expire_days",
@@ -158,9 +194,10 @@ const ACTION = {
   TIMED_ANALYZE:   1 << 2, // happens when ANALYZE statistics should be updated
   CLEAR_HISTORY:   1 << 3, // happens when history is cleared
   SHUTDOWN_DIRTY:  1 << 4, // happens at shutdown for DIRTY state
-  IDLE_DIRTY:      1 << 5, // happens on idle for DIRTY state
-  IDLE_DAILY:      1 << 6, // happens once a day on idle
-  DEBUG:           1 << 7, // happens on TOPIC_DEBUG_START_EXPIRATION
+  SHUTDOWN_CLEAN:  1 << 5, // happens at shutdown for CLEAN or UNKNOWN states
+  IDLE_DIRTY:      1 << 6, // happens on idle for DIRTY state
+  IDLE_DAILY:      1 << 7, // happens once a day on idle
+  DEBUG:           1 << 8, // happens on TOPIC_DEBUG_START_EXPIRATION
 };
 
 // The queries we use to expire.
@@ -207,8 +244,7 @@ const EXPIRATION_QUERIES = {
        + "FROM moz_places h "
        + "LEFT JOIN moz_historyvisits v ON h.id = v.place_id "
        + "LEFT JOIN moz_bookmarks b ON h.id = b.fk "
-       + "WHERE h.last_visit_date IS NULL "
-       +   "AND v.id IS NULL "
+       + "WHERE v.id IS NULL "
        +   "AND b.id IS NULL "
        +   "AND frecency <> -1 "
        + "LIMIT :limit_uris",
@@ -232,8 +268,7 @@ const EXPIRATION_QUERIES = {
        +   "FROM moz_places h "
        +   "LEFT JOIN moz_historyvisits v ON h.id = v.place_id "
        +   "LEFT JOIN moz_bookmarks b ON h.id = b.fk "
-       +   "WHERE h.last_visit_date IS NULL "
-       +     "AND v.id IS NULL "
+       +   "WHERE v.id IS NULL "
        +     "AND b.id IS NULL "
        +   "LIMIT :limit_uris "
        + ")",
@@ -258,7 +293,9 @@ const EXPIRATION_QUERIES = {
     sql: "DELETE FROM moz_annos WHERE id in ( "
        +   "SELECT a.id FROM moz_annos a "
        +   "LEFT JOIN moz_places h ON a.place_id = h.id "
+       +   "LEFT JOIN moz_historyvisits v ON a.place_id = v.place_id "
        +   "WHERE h.id IS NULL "
+       +      "OR (v.id IS NULL AND a.expiration <> :expire_never) "
        +   "LIMIT :limit_annos "
        + ")",
     actions: ACTION.TIMED | ACTION.TIMED_OVERLIMIT | ACTION.CLEAR_HISTORY |
@@ -346,13 +383,15 @@ const EXPIRATION_QUERIES = {
   // Expire all session annotations.  Should only be called at shutdown.
   QUERY_EXPIRE_ANNOS_SESSION: {
     sql: "DELETE FROM moz_annos WHERE expiration = :expire_session",
-    actions: ACTION.CLEAR_HISTORY | ACTION.DEBUG
+    actions: ACTION.CLEAR_HISTORY | ACTION.SHUTDOWN_DIRTY |
+             ACTION.SHUTDOWN_CLEAN | ACTION.DEBUG
   },
 
   // Expire all session item annotations.  Should only be called at shutdown.
   QUERY_EXPIRE_ITEMS_ANNOS_SESSION: {
     sql: "DELETE FROM moz_items_annos WHERE expiration = :expire_session",
-    actions: ACTION.CLEAR_HISTORY | ACTION.DEBUG
+    actions: ACTION.CLEAR_HISTORY | ACTION.SHUTDOWN_DIRTY |
+             ACTION.SHUTDOWN_CLEAN | ACTION.DEBUG
   },
 
   // Select entries for notifications.
@@ -444,7 +483,8 @@ function nsPlacesExpiration()
 
   this._prefBranch = Cc["@mozilla.org/preferences-service;1"].
                      getService(Ci.nsIPrefService).
-                     getBranch(PREF_BRANCH);
+                     getBranch(PREF_BRANCH).
+                     QueryInterface(Ci.nsIPrefBranch2);
   this._loadPrefs();
 
   // Observe our preferences branch for changes.
@@ -481,15 +521,15 @@ nsPlacesExpiration.prototype = {
         this._timer = null;
       }
 
-      // If we didn't ran a clearHistory recently and database is dirty, we
-      // want to expire some entries, to speed up the expiration process.
+      // If we ran a clearHistory recently, or database id not dirty, we don't want to spend
+      // time expiring on shutdown.  In such a case just expire session annotations.
       let hasRecentClearHistory =
         Date.now() - this._lastClearHistoryTime <
           SHUTDOWN_WITH_RECENT_CLEARHISTORY_TIMEOUT_SECONDS * 1000;
-      if (!hasRecentClearHistory && this.status == STATUS.DIRTY) {
-        this._expireWithActionAndLimit(ACTION.SHUTDOWN_DIRTY, LIMIT.LARGE);
-      }
-
+      let action = hasRecentClearHistory ||
+                   this.status != STATUS.DIRTY ? ACTION.SHUTDOWN_CLEAN
+                                               : ACTION.SHUTDOWN_DIRTY;
+      this._expireWithActionAndLimit(action, LIMIT.LARGE);
       this._finalizeInternalStatements();
     }
     else if (aTopic == TOPIC_PREF_CHANGED) {
@@ -579,6 +619,7 @@ nsPlacesExpiration.prototype = {
 
   onVisit: function() {},
   onTitleChanged: function() {},
+  onBeforeDeleteURI: function() {},
   onDeleteURI: function() {},
   onPageChanged: function() {},
   onDeleteVisits: function() {},
@@ -590,21 +631,16 @@ nsPlacesExpiration.prototype = {
   {
     // Check if we are over history capacity, if so visits must be expired.
     this._getPagesStats((function onPagesCount(aPagesCount, aStatsCount) {
-      let overLimitPages = aPagesCount - this._urisLimit;
-      this._overLimit = overLimitPages > 0;
-
+      this._overLimit = aPagesCount > this._urisLimit;
       let action = this._overLimit ? ACTION.TIMED_OVERLIMIT : ACTION.TIMED;
+
       // If the number of pages changed significantly from the last ANALYZE
       // update SQLite statistics.
       if (Math.abs(aPagesCount - aStatsCount) >= ANALYZE_PAGES_THRESHOLD) {
         action = action | ACTION.TIMED_ANALYZE;
       }
 
-      // Adapt expiration aggressivity to the number of pages over the limit.
-      let limit = overLimitPages > OVERLIMIT_PAGES_THRESHOLD ? LIMIT.LARGE
-                                                             : LIMIT.SMALL;
-
-      this._expireWithActionAndLimit(action, limit);
+      this._expireWithActionAndLimit(action, LIMIT.SMALL);
     }).bind(this));
   },
 
@@ -618,7 +654,7 @@ nsPlacesExpiration.prototype = {
       return;
 
     let row;
-    while ((row = aResultSet.getNextRow())) {
+    while (row = aResultSet.getNextRow()) {
       if (!("_expectedResultsCount" in this))
         this._expectedResultsCount = row.getResultByName("expected_results");
       if (this._expectedResultsCount > 0)
@@ -630,7 +666,7 @@ nsPlacesExpiration.prototype = {
       let wholeEntry = row.getResultByName("whole_entry");
       // Dispatch expiration notifications to history.
       this._hsn.notifyOnPageExpired(uri, visitDate, wholeEntry, guid,
-                                    Ci.nsINavHistoryObserver.REASON_EXPIRED, 0);
+                                    Ci.nsINavHistoryObserver.REASON_EXPIRED);
     }
   },
 
@@ -663,7 +699,7 @@ nsPlacesExpiration.prototype = {
           if (oldStatus == STATUS.DIRTY) {
             try {
               Services.telemetry
-                      .getHistogramById("PLACES_EXPIRATION_STEPS_TO_CLEAN2")
+                      .getHistogramById("PLACES_EXPIRATION_STEPS_TO_CLEAN")
                       .add(this._telemetrySteps);
             } catch (ex) {
               Components.utils.reportError("Unable to report telemetry.");
@@ -740,36 +776,12 @@ nsPlacesExpiration.prototype = {
       // Calculate the number of unique places that may fit an optimal database
       // size on this hardware.  If there are more than these unique pages,
       // some will be expired.
-
-      let memSizeBytes = MEMSIZE_FALLBACK_BYTES;
+      let optimalDatabaseSize = PREF_OPTIMAL_DATABASE_SIZE_NOTSET;
       try {
-        // Limit the size on systems with small memory.
-         memSizeBytes = this._sys.getProperty("memsize");
+        optimalDatabaseSize = this._prefBranch.getIntPref(PREF_OPTIMAL_DATABASE_SIZE);
       } catch (ex) {}
-      if (memSizeBytes <= 0) {
-        memsize = MEMSIZE_FALLBACK_BYTES;
-      }
-
-      let diskAvailableBytes = DISKSIZE_FALLBACK_BYTES;
-      try {
-        // Protect against a full disk or tiny quota.
-        let dbFile = this._db.databaseFile;
-        dbFile.QueryInterface(Ci.nsILocalFile);
-        diskAvailableBytes = dbFile.diskSpaceAvailable;
-      } catch (ex) {}
-      if (diskAvailableBytes <= 0) {
-        diskAvailableBytes = DISKSIZE_FALLBACK_BYTES;
-      }
-
-      let optimalDatabaseSize = Math.min(
-        memSizeBytes * DATABASE_TO_MEMORY_PERC / 100,
-        diskAvailableBytes * DATABASE_TO_DISK_PERC / 100,
-        DATABASE_MAX_SIZE
-      );
-
       this._urisLimit = Math.ceil(optimalDatabaseSize / URIENTRY_AVG_SIZE);
     }
-
     // Expose the calculated limit to other components.
     this._prefBranch.setIntPref(PREF_READONLY_CALCULATED_MAX_URIS,
                                 this._urisLimit);
@@ -836,7 +848,8 @@ nsPlacesExpiration.prototype = {
     if (this._inBatchMode)
       return;
     // Don't try to further expire after shutdown.
-    if (this._shuttingDown && aAction != ACTION.SHUTDOWN_DIRTY) {
+    if (this._shuttingDown &&
+        aAction != ACTION.SHUTDOWN_DIRTY && aAction != ACTION.SHUTDOWN_CLEAN) {
       return;
     }
 
@@ -922,8 +935,8 @@ nsPlacesExpiration.prototype = {
         params.limit_favicons = baseLimit;
         break;
       case "QUERY_EXPIRE_ANNOS":
-        // Each page may have multiple annos.
-        params.limit_annos = baseLimit * EXPIRE_AGGRESSIVITY_MULTIPLIER;
+        params.expire_never = Ci.nsIAnnotationService.EXPIRE_NEVER;
+        params.limit_annos = baseLimit;
         break;
       case "QUERY_EXPIRE_ANNOS_WITH_POLICY":
       case "QUERY_EXPIRE_ITEMS_ANNOS_WITH_POLICY":
@@ -979,13 +992,13 @@ nsPlacesExpiration.prototype = {
 
   classID: Components.ID("705a423f-2f69-42f3-b9fe-1517e0dee56f"),
 
-  _xpcom_factory: XPCOMUtils.generateSingletonFactory(nsPlacesExpiration),
+  _xpcom_factory: nsPlacesExpirationFactory,
 
   QueryInterface: XPCOMUtils.generateQI([
-    Ci.nsIObserver
-  , Ci.nsINavHistoryObserver
-  , Ci.nsITimerCallback
-  , Ci.mozIStorageStatementCallback
+    Ci.nsIObserver,
+    Ci.nsINavHistoryObserver,
+    Ci.nsITimerCallback,
+    Ci.mozIStorageStatementCallback,
   ])
 };
 
@@ -993,4 +1006,4 @@ nsPlacesExpiration.prototype = {
 //// Module Registration
 
 let components = [nsPlacesExpiration];
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory(components);
+var NSGetFactory = XPCOMUtils.generateNSGetFactory(components);

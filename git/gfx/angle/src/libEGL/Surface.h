@@ -30,7 +30,7 @@ class Config;
 class Surface
 {
   public:
-    Surface(Display *display, const egl::Config *config, HWND window, EGLint postSubBufferSupported);
+    Surface(Display *display, const egl::Config *config, HWND window);
     Surface(Display *display, const egl::Config *config, HANDLE shareHandle, EGLint width, EGLint height, EGLenum textureFormat, EGLenum textureTarget);
 
     ~Surface();
@@ -41,12 +41,9 @@ class Surface
 
     HWND getWindowHandle();
     bool swap();
-    bool postSubBuffer(EGLint x, EGLint y, EGLint width, EGLint height);
 
     virtual EGLint getWidth() const;
     virtual EGLint getHeight() const;
-
-    virtual EGLint isPostSubBufferSupported() const;
 
     virtual IDirect3DSurface9 *getRenderTarget();
     virtual IDirect3DSurface9 *getDepthStencil();
@@ -64,14 +61,11 @@ class Surface
     virtual void setBoundTexture(gl::Texture2D *texture);
     virtual gl::Texture2D *getBoundTexture() const;
 
-    void recreateAdditionalSwapChain();
-
 private:
     DISALLOW_COPY_AND_ASSIGN(Surface);
 
     Display *const mDisplay;
     IDirect3DSwapChain9 *mSwapChain;
-    IDirect3DSurface9 *mBackBuffer;
     IDirect3DSurface9 *mDepthStencil;
     IDirect3DSurface9* mRenderTarget;
     IDirect3DTexture9* mOffscreenTexture;
@@ -81,7 +75,6 @@ private:
     void subclassWindow();
     void unsubclassWindow();
     bool resetSwapChain(int backbufferWidth, int backbufferHeight);
-    bool swapRect(EGLint x, EGLint y, EGLint width, EGLint height);
     static DWORD convertInterval(EGLint interval);
 
     const HWND mWindow;            // Window that the surface is created for.
@@ -103,8 +96,6 @@ private:
 //  EGLenum vgAlphaFormat;         // Alpha format for OpenVG
 //  EGLenum vgColorSpace;          // Color space for OpenVG
     EGLint mSwapInterval;
-    EGLint mPostSubBufferSupported;
-    
     DWORD mPresentInterval;
     bool mPresentIntervalDirty;
     gl::Texture2D *mTexture;

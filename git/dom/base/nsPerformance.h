@@ -1,224 +1,98 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is implementation of Web Timing draft specification
+ * http://dev.w3.org/2006/webapi/WebTiming/
+ *
+ * The Initial Developer of the Original Code is Google Inc.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Sergey Novikov <sergeyn@google.com> (original author)
+ *   Igor Bazarny <igor.bazarny@gmail.com> (update to match bearly-final spec)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 #ifndef nsPerformance_h___
 #define nsPerformance_h___
 
+#include "nsIDOMPerformance.h"
+#include "nsIDOMPerformanceTiming.h"
+#include "nsIDOMPerformanceNavigation.h"
 #include "nscore.h"
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
-#include "mozilla/Attributes.h"
-#include "nsWrapperCache.h"
-#include "nsDOMNavigationTiming.h"
-#include "nsContentUtils.h"
 
+class nsIDocument;
 class nsIURI;
+class nsDOMNavigationTiming;
 class nsITimedChannel;
-class nsIDOMWindow;
-class nsPerformance;
-class JSObject;
-struct JSContext;
 
 // Script "performance.timing" object
-class nsPerformanceTiming MOZ_FINAL : public nsWrapperCache
+class nsPerformanceTiming : public nsIDOMPerformanceTiming
 {
 public:
-  nsPerformanceTiming(nsPerformance* aPerformance,
-                      nsITimedChannel* aChannel);
-  NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(nsPerformanceTiming)
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(nsPerformanceTiming)
-
-  nsDOMNavigationTiming* GetDOMTiming() const;
-
-  nsPerformance* GetParentObject() const
-  {
-    return mPerformance;
-  }
-
-  virtual JSObject* WrapObject(JSContext *cx,
-                               JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
-
-  // PerformanceNavigation WebIDL methods
-  DOMTimeMilliSec NavigationStart() const {
-    if (!nsContentUtils::IsPerformanceTimingEnabled()) {
-      return 0;
-    }
-    return GetDOMTiming()->GetNavigationStart();
-  }
-  DOMTimeMilliSec UnloadEventStart() {
-    if (!nsContentUtils::IsPerformanceTimingEnabled()) {
-      return 0;
-    }
-    return GetDOMTiming()->GetUnloadEventStart();
-  }
-  DOMTimeMilliSec UnloadEventEnd() {
-    if (!nsContentUtils::IsPerformanceTimingEnabled()) {
-      return 0;
-    }
-    return GetDOMTiming()->GetUnloadEventEnd();
-  }
-  DOMTimeMilliSec RedirectStart() {
-    if (!nsContentUtils::IsPerformanceTimingEnabled()) {
-      return 0;
-    }
-    return GetDOMTiming()->GetRedirectStart();
-  }
-  DOMTimeMilliSec RedirectEnd() {
-    if (!nsContentUtils::IsPerformanceTimingEnabled()) {
-      return 0;
-    }
-    return GetDOMTiming()->GetRedirectEnd();
-  }
-  DOMTimeMilliSec FetchStart() const {
-    if (!nsContentUtils::IsPerformanceTimingEnabled()) {
-      return 0;
-    }
-    return GetDOMTiming()->GetFetchStart();
-  }
-  DOMTimeMilliSec DomainLookupStart() const;
-  DOMTimeMilliSec DomainLookupEnd() const;
-  DOMTimeMilliSec ConnectStart() const;
-  DOMTimeMilliSec ConnectEnd() const;
-  DOMTimeMilliSec RequestStart() const;
-  DOMTimeMilliSec ResponseStart() const;
-  DOMTimeMilliSec ResponseEnd() const;
-  DOMTimeMilliSec DomLoading() const {
-    if (!nsContentUtils::IsPerformanceTimingEnabled()) {
-      return 0;
-    }
-    return GetDOMTiming()->GetDomLoading();
-  }
-  DOMTimeMilliSec DomInteractive() const {
-    if (!nsContentUtils::IsPerformanceTimingEnabled()) {
-      return 0;
-    }
-    return GetDOMTiming()->GetDomInteractive();
-  }
-  DOMTimeMilliSec DomContentLoadedEventStart() const {
-    if (!nsContentUtils::IsPerformanceTimingEnabled()) {
-      return 0;
-    }
-    return GetDOMTiming()->GetDomContentLoadedEventStart();
-  }
-  DOMTimeMilliSec DomContentLoadedEventEnd() const {
-    if (!nsContentUtils::IsPerformanceTimingEnabled()) {
-      return 0;
-    }
-    return GetDOMTiming()->GetDomContentLoadedEventEnd();
-  }
-  DOMTimeMilliSec DomComplete() const {
-    if (!nsContentUtils::IsPerformanceTimingEnabled()) {
-      return 0;
-    }
-    return GetDOMTiming()->GetDomComplete();
-  }
-  DOMTimeMilliSec LoadEventStart() const {
-    if (!nsContentUtils::IsPerformanceTimingEnabled()) {
-      return 0;
-    }
-    return GetDOMTiming()->GetLoadEventStart();
-  }
-  DOMTimeMilliSec LoadEventEnd() const {
-    if (!nsContentUtils::IsPerformanceTimingEnabled()) {
-      return 0;
-    }
-    return GetDOMTiming()->GetLoadEventEnd();
-  }
-
+  nsPerformanceTiming(nsDOMNavigationTiming* aDOMTiming, nsITimedChannel* aChannel);
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIDOMPERFORMANCETIMING
 private:
   ~nsPerformanceTiming();
-  nsRefPtr<nsPerformance> mPerformance;
+  nsRefPtr<nsDOMNavigationTiming> mDOMTiming;
   nsCOMPtr<nsITimedChannel> mChannel;
 };
 
 // Script "performance.navigation" object
-class nsPerformanceNavigation MOZ_FINAL : public nsWrapperCache
+class nsPerformanceNavigation : public nsIDOMPerformanceNavigation
 {
 public:
-  explicit nsPerformanceNavigation(nsPerformance* aPerformance);
-  NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(nsPerformanceNavigation)
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(nsPerformanceNavigation)
-
-  nsDOMNavigationTiming* GetDOMTiming() const;
-
-  nsPerformance* GetParentObject() const
-  {
-    return mPerformance;
-  }
-
-  virtual JSObject* WrapObject(JSContext *cx,
-                               JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
-
-  // PerformanceNavigation WebIDL methods
-  uint16_t Type() const {
-    return GetDOMTiming()->GetType();
-  }
-  uint16_t RedirectCount() const {
-    return GetDOMTiming()->GetRedirectCount();
-  }
-
+  nsPerformanceNavigation(nsDOMNavigationTiming* data);
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIDOMPERFORMANCENAVIGATION
 private:
   ~nsPerformanceNavigation();
-  nsRefPtr<nsPerformance> mPerformance;
+  nsRefPtr<nsDOMNavigationTiming> mData;
 };
 
 // Script "performance" object
-class nsPerformance MOZ_FINAL : public nsISupports,
-                                public nsWrapperCache
+class nsPerformance : public nsIDOMPerformance
 {
 public:
-  nsPerformance(nsIDOMWindow* aWindow,
-                nsDOMNavigationTiming* aDOMTiming,
-                nsITimedChannel* aChannel);
+  nsPerformance(nsDOMNavigationTiming* aDOMTiming, nsITimedChannel* aChannel);
 
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsPerformance)
-
-  nsDOMNavigationTiming* GetDOMTiming() const
-  {
-    return mDOMTiming;
-  }
-
-  nsITimedChannel* GetChannel() const
-  {
-    return mChannel;
-  }
-
-  nsIDOMWindow* GetParentObject() const
-  {
-    return mWindow.get();
-  }
-
-  virtual JSObject* WrapObject(JSContext *cx,
-                               JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
-
-  // Performance WebIDL methods
-  DOMHighResTimeStamp Now();
-  nsPerformanceTiming* Timing();
-  nsPerformanceNavigation* Navigation();
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIDOMPERFORMANCE
 
 private:
   ~nsPerformance();
 
-  nsCOMPtr<nsIDOMWindow> mWindow;
   nsRefPtr<nsDOMNavigationTiming> mDOMTiming;
   nsCOMPtr<nsITimedChannel> mChannel;
-  nsRefPtr<nsPerformanceTiming> mTiming;
-  nsRefPtr<nsPerformanceNavigation> mNavigation;
+  nsCOMPtr<nsIDOMPerformanceTiming> mTiming;
+  nsCOMPtr<nsIDOMPerformanceNavigation> mNavigation;
 };
-
-inline nsDOMNavigationTiming*
-nsPerformanceNavigation::GetDOMTiming() const
-{
-  return mPerformance->GetDOMTiming();
-}
-
-inline nsDOMNavigationTiming*
-nsPerformanceTiming::GetDOMTiming() const
-{
-  return mPerformance->GetDOMTiming();
-}
 
 #endif /* nsPerformance_h___ */
 

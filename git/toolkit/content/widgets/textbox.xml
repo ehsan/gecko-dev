@@ -1,8 +1,4 @@
 <?xml version="1.0"?>
-<!-- This Source Code Form is subject to the terms of the Mozilla Public
-   - License, v. 2.0. If a copy of the MPL was not distributed with this
-   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
-
 
 <!DOCTYPE bindings [
   <!ENTITY % textcontextDTD SYSTEM "chrome://global/locale/textcontext.dtd" >
@@ -25,7 +21,7 @@
       <children/>
       <xul:hbox class="textbox-input-box" flex="1" xbl:inherits="context,spellcheck">
         <html:input class="textbox-input" anonid="input"
-                    xbl:inherits="value,type,maxlength,disabled,size,readonly,placeholder,tabindex,accesskey,noinitialfocus,mozactionhint,spellcheck"/>
+                    xbl:inherits="onfocus,onblur,value,type,maxlength,disabled,size,readonly,placeholder,tabindex,accesskey,noinitialfocus,mozactionhint,spellcheck"/>
       </xul:hbox>
     </content>
 
@@ -47,7 +43,6 @@
       <field name="mInputField">null</field>
       <field name="mIgnoreClick">false</field>
       <field name="mIgnoreFocus">false</field>
-      <field name="mEditor">null</field>
 
       <property name="inputField" readonly="true">
         <getter><![CDATA[
@@ -95,11 +90,8 @@
 
       <property name="editor" readonly="true">
         <getter><![CDATA[
-          if (!this.mEditor) {
-            const nsIDOMNSEditableElement = Components.interfaces.nsIDOMNSEditableElement;
-            this.mEditor = this.inputField.QueryInterface(nsIDOMNSEditableElement).editor;
-          }
-          return this.mEditor;
+          const nsIDOMNSEditableElement = Components.interfaces.nsIDOMNSEditableElement;
+          return this.inputField.QueryInterface(nsIDOMNSEditableElement).editor;
         ]]></getter>
       </property>
 
@@ -152,15 +144,6 @@
               }
             }
           }
-        ]]></body>
-      </method>
-
-      <method name="_maybeSelectAll">
-        <body><![CDATA[
-          if (!this.mIgnoreClick && this.clickSelectsAll &&
-              document.activeElement == this.inputField &&
-              this.inputField.selectionStart == this.inputField.selectionEnd)
-            this.editor.selectAll();
         ]]></body>
       </method>
 
@@ -221,7 +204,7 @@
 
       <handler event="blur" phase="capturing">
         <![CDATA[
-          this.removeAttribute("focused");
+          this.removeAttribute('focused');
 
           // don't trigger clickSelectsAll when switching application windows
           if (window == window.top &&
@@ -245,19 +228,22 @@
         ]]>
       </handler>
 
-      <handler event="click" action="this._maybeSelectAll();"/>
-
+      <handler event="click">
+        <![CDATA[
+          if (!this.mIgnoreClick && this.clickSelectsAll &&
+              document.activeElement == this.inputField &&
+              this.inputField.selectionStart == this.inputField.selectionEnd) {
+            this.editor.selectAll();
 #ifndef XP_WIN
-      <handler event="contextmenu">
-        if (!event.button) // context menu opened via keyboard shortcut
-          return;
-        this._maybeSelectAll();
-        // see bug 576135 comment 4
-        let box = this.inputField.parentNode;
-        let menu = document.getAnonymousElementByAttribute(box, "anonid", "input-box-contextmenu");
-        box._doPopupItemEnabling(menu);
-      </handler>
+            // see bug 576135 comment 4
+            let box = this.inputField.parentNode;
+            let menu = document.getAnonymousElementByAttribute(box, "anonid", "input-box-contextmenu");
+            if ((menu.state == "open" || menu.state == "showing") && box._doPopupItemEnabling)
+              box._doPopupItemEnabling(menu);
 #endif
+          }
+        ]]>
+      </handler>
     </handlers>
   </binding>
 
@@ -322,7 +308,7 @@
       <children/>
       <xul:hbox class="textbox-input-box" flex="1" xbl:inherits="context,spellcheck" align="center">
         <html:input class="textbox-input" anonid="input" mozactionhint="search"
-                    xbl:inherits="value,type,maxlength,disabled,size,readonly,placeholder,tabindex,accesskey,mozactionhint,spellcheck"/>
+                    xbl:inherits="onfocus,onblur,value,type,maxlength,disabled,size,readonly,placeholder,tabindex,accesskey,mozactionhint,spellcheck"/>
         <xul:deck class="textbox-search-icons" anonid="search-icons">
           <xul:image class="textbox-search-icon"
                      onclick="document.getBindingParent(this)._iconClick();"
@@ -449,7 +435,7 @@
     <content>
       <xul:hbox class="textbox-input-box" flex="1" xbl:inherits="context,spellcheck">
         <html:textarea class="textbox-textarea" anonid="input"
-                       xbl:inherits="xbl:text=value,disabled,tabindex,rows,cols,readonly,wrap,placeholder,mozactionhint,spellcheck"><children/></html:textarea>
+                       xbl:inherits="onfocus,onblur,xbl:text=value,disabled,tabindex,rows,cols,readonly,wrap,placeholder,mozactionhint,spellcheck"><children/></html:textarea>
       </xul:hbox>
     </content>
   </binding>
@@ -459,10 +445,8 @@
       <children/>
       <xul:menupopup anonid="input-box-contextmenu"
                      class="textbox-contextmenu"
-                     onpopupshowing="var input =
-                                       this.parentNode.getElementsByAttribute('anonid', 'input')[0];
-                                     if (document.commandDispatcher.focusedElement != input)
-                                       input.focus();
+                     onpopupshowing="if (document.commandDispatcher.focusedElement != this.parentNode.firstChild)
+                                       this.parentNode.firstChild.focus();
                                      this.parentNode._doPopupItemEnabling(this);"
                      oncommand="var cmd = event.originalTarget.getAttribute('cmd'); if(cmd) { this.parentNode.doCommand(cmd); event.stopPropagation(); }">
         <xul:menuitem label="&undoCmd.label;" accesskey="&undoCmd.accesskey;" cmd="cmd_undo"/>
@@ -523,18 +507,14 @@
       <children/>
       <xul:menupopup anonid="input-box-contextmenu"
                      class="textbox-contextmenu"
-                     onpopupshowing="var input =
-                                       this.parentNode.getElementsByAttribute('anonid', 'input')[0];
-                                     if (document.commandDispatcher.focusedElement != input)
-                                       input.focus();
+                     onpopupshowing="if (document.commandDispatcher.focusedElement != this.parentNode.firstChild)
+                                       this.parentNode.firstChild.focus();
                                      this.parentNode._doPopupItemEnablingSpell(this);"
                      onpopuphiding="this.parentNode._doPopupItemDisabling(this);"
                      oncommand="var cmd = event.originalTarget.getAttribute('cmd'); if(cmd) { this.parentNode.doCommand(cmd); event.stopPropagation(); }">
         <xul:menuitem label="&spellNoSuggestions.label;" anonid="spell-no-suggestions" disabled="true"/>
         <xul:menuitem label="&spellAddToDictionary.label;" accesskey="&spellAddToDictionary.accesskey;" anonid="spell-add-to-dictionary"
                       oncommand="this.parentNode.parentNode.spellCheckerUI.addToDictionary();"/>
-        <xul:menuitem label="&spellUndoAddToDictionary.label;" accesskey="&spellUndoAddToDictionary.accesskey;" anonid="spell-undo-add-to-dictionary"
-                      oncommand="this.parentNode.parentNode.spellCheckerUI.undoAddToDictionary();"/>
         <xul:menuseparator anonid="spell-suggestions-separator"/>
         <xul:menuitem label="&undoCmd.label;" accesskey="&undoCmd.accesskey;" cmd="cmd_undo"/>
         <xul:menuseparator/>
@@ -545,7 +525,7 @@
         <xul:menuseparator/>
         <xul:menuitem label="&selectAllCmd.label;" accesskey="&selectAllCmd.accesskey;" cmd="cmd_selectAll"/>
         <xul:menuseparator anonid="spell-check-separator"/>
-        <xul:menuitem label="&spellCheckToggle.label;" type="checkbox" accesskey="&spellCheckToggle.accesskey;" anonid="spell-check-enabled"
+        <xul:menuitem label="&spellCheckEnable.label;" type="checkbox" accesskey="&spellCheckEnable.accesskey;" anonid="spell-check-enabled"
                       oncommand="this.parentNode.parentNode.spellCheckerUI.toggleEnabled();"/>
         <xul:menu label="&spellDictionaries.label;" accesskey="&spellDictionaries.accesskey;" anonid="spell-dictionaries">
           <xul:menupopup anonid="spell-dictionaries-menu"
@@ -600,7 +580,6 @@
               this._setMenuItemVisibility("spell-check-enabled", false);
               this._setMenuItemVisibility("spell-check-separator", false);
               this._setMenuItemVisibility("spell-add-to-dictionary", false);
-              this._setMenuItemVisibility("spell-undo-add-to-dictionary", false);
               this._setMenuItemVisibility("spell-suggestions-separator", false);
               this._setMenuItemVisibility("spell-dictionaries", false);
               return;
@@ -610,13 +589,11 @@
                                   document.popupRangeOffset);
 
             var enabled = spellui.enabled;
-            var showUndo = spellui.canSpellCheck && spellui.canUndo();
             this._enabledCheckbox.setAttribute("checked", enabled);
 
             var overMisspelling = spellui.overMisspelling;
             this._setMenuItemVisibility("spell-add-to-dictionary", overMisspelling);
-            this._setMenuItemVisibility("spell-undo-add-to-dictionary", showUndo);
-            this._setMenuItemVisibility("spell-suggestions-separator", overMisspelling || showUndo);
+            this._setMenuItemVisibility("spell-suggestions-separator", overMisspelling);
 
             // suggestion list
             var numsug = spellui.addSuggestionsToMenu(popupNode, this._suggestionsSeparator, 5);

@@ -12,45 +12,46 @@
 
 <iframe style="width:200px;height:200px;" id='cspframe'></iframe>
 <script class="testbody" type="text/javascript">
+
 // This is used to watch requests go out so we can see if the report is
 // sent correctly
 function examiner() {
-  SpecialPowers.addObserver(this, "http-on-opening-request", false);
+  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+  var obsvc = Components.classes['@mozilla.org/observer-service;1']
+                        .getService(Components.interfaces.nsIObserverService);
+  obsvc.addObserver(this, "http-on-modify-request", false);
 }
 examiner.prototype  = {
   observe: function(subject, topic, data) {
+    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
     // subject should be an nsURI
-    if (!SpecialPowers.can_QI(subject))
+    if(!subject.QueryInterface)
       return;
 
     const reportURI = "http://mochi.test:8888/csp-report.cgi";
 
-    if (topic === "http-on-opening-request") {
-      var asciiSpec = SpecialPowers.getPrivilegedProps(SpecialPowers.do_QueryInterface(subject, "nsIHttpChannel"), "URI.asciiSpec");
-      if (asciiSpec !== reportURI) return;
+    if (topic === "http-on-modify-request") {
+      var uri = subject.QueryInterface(Components.interfaces.nsIHttpChannel).URI;
+      if (uri.asciiSpec !== reportURI) return;
 
       // Verify that the report was properly formatted.
       // We'll parse the report text as JSON and verify that the properties
       // have expected values.
       var reportText = "{}";
       try {
-        var uploadStream = SpecialPowers.wrap(SpecialPowers.do_QueryInterface(subject, "nsIUploadChannel")).uploadStream;
+        var uploadStream = subject.QueryInterface(Components.interfaces.nsIUploadChannel).uploadStream;
 
         if (uploadStream) {
           // get the bytes from the request body
-          var binstream = SpecialPowers.Cc["@mozilla.org/binaryinputstream;1"]
-                                          .createInstance(SpecialPowers.Ci.nsIBinaryInputStream);
+          var binstream = Components.classes["@mozilla.org/binaryinputstream;1"]
+                                    .createInstance(Components.interfaces.nsIBinaryInputStream);
           binstream.setInputStream(uploadStream);
 
           var segments = [];
-          for (var count = uploadStream.available(); count; count = uploadStream.available()) {
-            var data = binstream.readBytes(count);
-            segments.push(data);
-          }
+          for (var count = uploadStream.available(); count; count = uploadStream.available())
+            segments.push(binstream.readBytes(count));
 
           var reportText = segments.join("");
-          // rewind stream as we are supposed to - there will be an assertion later if we don't.
-          SpecialPowers.do_QueryInterface(uploadStream, "nsISeekableStream").seek(SpecialPowers.Ci.nsISeekableStream.NS_SEEK_SET, 0);
         }
       }
       catch(e) {}
@@ -68,7 +69,10 @@ examiner.prototype  = {
 
   // remove the listener
   remove: function() {
-    SpecialPowers.removeObserver(this, "http-on-opening-request");
+    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+    var obsvc = Components.classes['@mozilla.org/observer-service;1']
+                          .getService(Components.interfaces.nsIObserverService);
+    obsvc.removeObserver(this, "http-on-modify-request");
   }
 }
 
@@ -78,8 +82,8 @@ var testFile = "file_bug548193.sjs";
 window.checkResults = function(reportObj) {
   var cspReport = reportObj["csp-report"];
   // correct violating request
-  is(cspReport["document-uri"],
-     "http://mochi.test:8888/tests/content/base/test/" + testFile,
+  is(cspReport["request"],
+     "GET http://mochi.test:8888/tests/content/base/test/" + testFile + " HTTP/1.1",
      "Incorrect violating request");
   // correct blocked-uri
   is(cspReport["blocked-uri"],

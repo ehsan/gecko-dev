@@ -1,23 +1,8 @@
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
-Cu.import("resource://testing-common/httpd.js");
-
-XPCOMUtils.defineLazyGetter(this, "URL", function() {
-  return "http://localhost:" + httpserver.identity.primaryPort;
-});
-
-XPCOMUtils.defineLazyGetter(this, "uri", function() {
-  return URL + "/redirect";
-});
-
-XPCOMUtils.defineLazyGetter(this, "noRedirectURI", function() {
-  return URL + "/content";
-});
+do_load_httpd_js();
 
 var httpserver = null;
+var uri = "http://localhost:4444/redirect";
+var noRedirectURI = "http://localhost:4444/content";
 
 function make_channel(url) {
   var ios = Cc["@mozilla.org/network/io-service;1"].
@@ -76,15 +61,15 @@ function headerStreamObserver(request, buffer)
 
 function run_test()
 {
-  httpserver = new HttpServer();
+  httpserver = new nsHttpServer();
   httpserver.registerPathHandler("/redirect", redirectHandler);
   httpserver.registerPathHandler("/content", contentHandler);
-  httpserver.start(-1);
+  httpserver.start(4444);
 
   var prefs = Cc["@mozilla.org/preferences-service;1"]
                 .getService(Components.interfaces.nsIPrefBranch);
   prefs.setBoolPref("network.http.prompt-temp-redirect", false);
-
+  
   var chan = make_channel(noRedirectURI);
   var uploadStream = Cc["@mozilla.org/io/string-input-stream;1"]
                        .createInstance(Ci.nsIStringInputStream);

@@ -1,15 +1,44 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et cindent: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla.
+ *
+ * The Initial Developer of the Original Code is IBM Corporation.
+ * Portions created by IBM Corporation are Copyright (C) 2003
+ * IBM Corporation. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Darin Fisher <darin@meer.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsStringBuffer_h__
 #define nsStringBuffer_h__
 
-#include "mozilla/MemoryReporting.h"
-
-template<class T> struct already_AddRefed;
 
 /**
  * This structure precedes the string buffers "we" allocate.  It may be the
@@ -25,8 +54,8 @@ class nsStringBuffer
     private:
       friend class CheckStaticAtomSizes;
 
-      int32_t  mRefCount;
-      uint32_t mStorageSize;
+      PRInt32  mRefCount;
+      PRUint32 mStorageSize;
 
     public:
       
@@ -44,7 +73,7 @@ class nsStringBuffer
        *
        * @return new string buffer or null if out of memory.
        */
-      static already_AddRefed<nsStringBuffer> Alloc(size_t storageSize);
+      static nsStringBuffer* Alloc(size_t storageSize);
 
       /**
        * Resizes the given string buffer to the specified storage size.  This
@@ -93,7 +122,7 @@ class nsStringBuffer
        * This value is the same value that was originally passed to Alloc (or
        * Realloc).
        */
-      uint32_t StorageSize() const
+      PRUint32 StorageSize() const
         {
           return mStorageSize;
         }
@@ -106,7 +135,7 @@ class nsStringBuffer
        * consumers may rely on the data in this buffer being immutable and
        * other threads may access this buffer simultaneously.
        */
-      bool IsReadonly() const
+      PRBool IsReadonly() const
         {
           return mRefCount > 1;
         }
@@ -136,32 +165,10 @@ class nsStringBuffer
        *       however, string length is always measured in storage units
        *       (2-byte units for wide strings).
        */
-      void ToString(uint32_t len, nsAString &str,
-                           bool aMoveOwnership = false);
-      void ToString(uint32_t len, nsACString &str,
-                           bool aMoveOwnership = false);
-
-      /**
-       * This measures the size.  It should only be used if the StringBuffer is
-       * unshared.  This is checked.
-       */
-      size_t SizeOfIncludingThisMustBeUnshared(mozilla::MallocSizeOf aMallocSizeOf) const;
-
-      /**
-       * This measures the size only if the StringBuffer is unshared.
-       */
-      size_t SizeOfIncludingThisIfUnshared(mozilla::MallocSizeOf aMallocSizeOf) const;
-
-      /**
-       * This measures the size regardless of whether the StringBuffer is
-       * unshared.
-       *
-       * WARNING: Only use this if you really know what you are doing, because
-       * it can easily lead to double-counting strings.  If you do use them,
-       * please explain clearly in a comment why it's safe and won't lead to
-       * double-counting.
-       */
-      size_t SizeOfIncludingThisEvenIfShared(mozilla::MallocSizeOf aMallocSizeOf) const;
+      void ToString(PRUint32 len, nsAString &str,
+                           PRBool aMoveOwnership = PR_FALSE);
+      void ToString(PRUint32 len, nsACString &str,
+                           PRBool aMoveOwnership = PR_FALSE);
   };
 
 #endif /* !defined(nsStringBuffer_h__ */

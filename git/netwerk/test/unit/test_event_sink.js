@@ -1,20 +1,13 @@
 // This file tests channel event sinks (bug 315598 et al)
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
-Cu.import("resource://testing-common/httpd.js");
-
-XPCOMUtils.defineLazyGetter(this, "URL", function() {
-  return "http://localhost:" + httpserv.identity.primaryPort;
-});
+do_load_httpd_js();
 
 const sinkCID = Components.ID("{14aa4b81-e266-45cb-88f8-89595dece114}");
 const sinkContract = "@mozilla.org/network/unittest/channeleventsink;1";
 
 const categoryName = "net-channel-event-sinks";
+
+const NS_BINDING_ABORTED = 0x804b0002;
 
 /**
  * This object is both a factory and an nsIChannelEventSink implementation (so, it
@@ -41,7 +34,7 @@ var eventsink = {
   asyncOnChannelRedirect: function eventsink_onredir(oldChan, newChan, flags, callback) {
     // veto
     this.called = true;
-    throw Components.results.NS_BINDING_ABORTED;
+    throw NS_BINDING_ABORTED;
   },
 
   getInterface: function eventsink_gi(iid) {
@@ -112,16 +105,16 @@ function makeChan(url) {
 var httpserv = null;
 
 function run_test() {
-  httpserv = new HttpServer();
+  httpserv = new nsHttpServer();
   httpserv.registerPathHandler("/redirect", redirect);
   httpserv.registerPathHandler("/redirectfile", redirectfile);
-  httpserv.start(-1);
+  httpserv.start(4444);
 
   Components.manager.nsIComponentRegistrar.registerFactory(sinkCID,
     "Unit test Event sink", sinkContract, eventsink);
 
   // Step 1: Set the callbacks on the listener itself
-  var chan = makeChan(URL + "/redirect");
+  var chan = makeChan("http://localhost:4444/redirect");
   chan.notificationCallbacks = eventsink;
 
   chan.asyncOpen(listener, null);
@@ -140,13 +133,13 @@ function run_test_continued() {
     // Step 2: Category entry
     catMan.nsICategoryManager.addCategoryEntry(categoryName, "unit test",
                                                sinkContract, false, true);
-    chan = makeChan(URL + "/redirect")
+    chan = makeChan("http://localhost:4444/redirect")
   } else {
     // Step 3: Global contract id
     catMan.nsICategoryManager.deleteCategoryEntry(categoryName, "unit test",
                                                   false);
     listener.expectSinkCall = false;
-    chan = makeChan(URL + "/redirectfile");
+    chan = makeChan("http://localhost:4444/redirectfile");
   }
 
   listener._iteration++;

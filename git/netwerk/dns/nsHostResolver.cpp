@@ -1,7 +1,39 @@
 /* vim:set ts=4 sw=4 sts=4 et cin: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla.
+ *
+ * The Initial Developer of the Original Code is IBM Corporation.
+ * Portions created by IBM Corporation are Copyright (C) 2003
+ * IBM Corporation. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   IBM Corp.
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #if defined(MOZ_LOGGING)
 #define FORCE_PR_LOG
@@ -18,26 +50,23 @@
 
 #include <stdlib.h>
 #include "nsHostResolver.h"
-#include "nsError.h"
+#include "nsNetError.h"
 #include "nsISupportsBase.h"
 #include "nsISupportsUtils.h"
 #include "nsAutoPtr.h"
+#include "pratom.h"
 #include "prthread.h"
 #include "prerror.h"
 #include "prtime.h"
+#include "prlong.h"
 #include "prlog.h"
 #include "pldhash.h"
 #include "plstr.h"
 #include "nsURLHelper.h"
-#include "nsThreadUtils.h"
 
-#include "mozilla/HashFunctions.h"
-#include "mozilla/TimeStamp.h"
-#include "mozilla/Telemetry.h"
-#include "mozilla/VisualEventTracer.h"
+#include "mozilla/FunctionTimer.h"
 
 using namespace mozilla;
-using namespace mozilla::net;
 
 //----------------------------------------------------------------------------
 
@@ -65,7 +94,7 @@ PR_STATIC_ASSERT (HighThreadThreshold <= MAX_RESOLVER_THREADS);
 //----------------------------------------------------------------------------
 
 #if defined(PR_LOGGING)
-static PRLogModuleInfo *gHostResolverLog = nullptr;
+static PRLogModuleInfo *gHostResolverLog = nsnull;
 #define LOG(args) PR_LOG(gHostResolverLog, PR_LOG_DEBUG, args)
 #else
 #define LOG(args)
@@ -83,6 +112,17 @@ MoveCList(PRCList &from, PRCList &to)
         to.prev->next = &to;
         PR_INIT_CLIST(&from);
     }             
+}
+
+static PRUint32
+NowInMinutes()
+{
+    PRTime now = PR_Now(), minutes, factor;
+    LL_I2L(factor, 60 * PR_USEC_PER_SEC);
+    LL_DIV(minutes, now, factor);
+    PRUint32 result;
+    LL_L2UI(result, minutes);
+    return result;
 }
 
 //----------------------------------------------------------------------------
@@ -111,13 +151,13 @@ public:
     {
     }
 
-    bool Reset()
+    PRBool Reset()
     {
         // reset no more than once per second
         if (PR_IntervalToSeconds(PR_IntervalNow() - mLastReset) < 1)
-            return false;
+            return PR_FALSE;
 
-        LOG(("Calling 'res_ninit'.\n"));
+        LOG(("calling res_ninit\n"));
 
         mLastReset = PR_IntervalNow();
         return (res_ninit(&_res) == 0);
@@ -131,48 +171,29 @@ private:
 
 //----------------------------------------------------------------------------
 
-static inline bool
-IsHighPriority(uint16_t flags)
-{
-    return !(flags & (nsHostResolver::RES_PRIORITY_LOW | nsHostResolver::RES_PRIORITY_MEDIUM));
-}
-
-static inline bool
-IsMediumPriority(uint16_t flags)
-{
-    return flags & nsHostResolver::RES_PRIORITY_MEDIUM;
-}
-
-static inline bool
-IsLowPriority(uint16_t flags)
-{
-    return flags & nsHostResolver::RES_PRIORITY_LOW;
-}
-
-//----------------------------------------------------------------------------
-
 // this macro filters out any flags that are not used when constructing the
 // host key.  the significant flags are those that would affect the resulting
 // host record (i.e., the flags that are passed down to PR_GetAddrInfoByName).
 #define RES_KEY_FLAGS(_f) ((_f) & nsHostResolver::RES_CANON_NAME)
 
 nsHostRecord::nsHostRecord(const nsHostKey *key)
-    : addr_info_lock("nsHostRecord.addr_info_lock")
+    : _refc(1)
+    , addr_info_lock("nsHostRecord.addr_info_lock")
     , addr_info_gencnt(0)
-    , addr_info(nullptr)
-    , addr(nullptr)
-    , negative(false)
-    , resolving(false)
-    , onQueue(false)
-    , usingAnyThread(false)
-    , mDoomed(false)
+    , addr_info(nsnull)
+    , addr(nsnull)
+    , negative(PR_FALSE)
+    , resolving(PR_FALSE)
+    , onQueue(PR_FALSE)
+    , usingAnyThread(PR_FALSE)
 {
     host = ((char *) this) + sizeof(nsHostRecord);
     memcpy((char *) host, key->host, strlen(key->host) + 1);
     flags = key->flags;
     af = key->af;
 
-    expiration = TimeStamp::NowLoRes();
+    NS_LOG_ADDREF(this, 1, "nsHostRecord", sizeof(nsHostRecord));
+    expiration = NowInMinutes();
 
     PR_INIT_CLIST(this);
     PR_INIT_CLIST(&callbacks);
@@ -188,58 +209,50 @@ nsHostRecord::Create(const nsHostKey *key, nsHostRecord **result)
     // allocated after it.
     void *place = ::operator new(size);
     *result = new(place) nsHostRecord(key);
-    NS_ADDREF(*result);
-
-    MOZ_EVENT_TRACER_NAME_OBJECT(*result, key->host);
-
     return NS_OK;
 }
 
 nsHostRecord::~nsHostRecord()
 {
-    delete addr_info;
-    delete addr;
+    if (addr)
+        free(addr);
 }
 
-bool
-nsHostRecord::Blacklisted(NetAddr *aQuery)
+PRBool
+nsHostRecord::Blacklisted(PRNetAddr *aQuery)
 {
     // must call locked
-    LOG(("Checking blacklist for host [%s], host record [%p].\n", host, this));
+    LOG(("nsHostRecord::Blacklisted() %p %s\n", this, host));
 
     // skip the string conversion for the common case of no blacklist
-    if (!mBlacklistedItems.Length()) {
-        return false;
-    }
+    if (!mBlacklistedItems.Length())
+        return PR_FALSE;
+    
+    char buf[64];
+    if (PR_NetAddrToString(aQuery, buf, sizeof(buf)) != PR_SUCCESS)
+        return PR_FALSE;
 
-    char buf[kIPv6CStrBufSize];
-    if (!NetAddrToString(aQuery, buf, sizeof(buf))) {
-        return false;
-    }
     nsDependentCString strQuery(buf);
-
-    for (uint32_t i = 0; i < mBlacklistedItems.Length(); i++) {
+    LOG(("nsHostRecord::Blacklisted() query %s\n", buf));
+    
+    for (PRUint32 i = 0; i < mBlacklistedItems.Length(); i++)
         if (mBlacklistedItems.ElementAt(i).Equals(strQuery)) {
-            LOG(("Address [%s] is blacklisted for host [%s].\n", buf, host));
-            return true;
+            LOG(("nsHostRecord::Blacklisted() %s blacklist confirmed\n", buf));
+            return PR_TRUE;
         }
-    }
 
-    return false;
+    return PR_FALSE;
 }
 
 void
-nsHostRecord::ReportUnusable(NetAddr *aAddress)
+nsHostRecord::ReportUnusable(PRNetAddr *aAddress)
 {
     // must call locked
-    LOG(("Adding address to blacklist for host [%s], host record [%p].\n", host, this));
+    LOG(("nsHostRecord::ReportUnusable() %p %s\n", this, host));
 
-    if (negative)
-        mDoomed = true;
-
-    char buf[kIPv6CStrBufSize];
-    if (NetAddrToString(aAddress, buf, sizeof(buf))) {
-        LOG(("Successfully adding address [%s] to blacklist for host [%s].\n", buf, host));
+    char buf[64];
+    if (PR_NetAddrToString(aAddress, buf, sizeof(buf)) == PR_SUCCESS) {
+        LOG(("nsHostrecord::ReportUnusable addr %s\n",buf));
         mBlacklistedItems.AppendElement(nsCString(buf));
     }
 }
@@ -248,21 +261,8 @@ void
 nsHostRecord::ResetBlacklist()
 {
     // must call locked
-    LOG(("Resetting blacklist for host [%s], host record [%p].\n", host, this));
+    LOG(("nsHostRecord::ResetBlacklist() %p %s\n", this, host));
     mBlacklistedItems.Clear();
-}
-
-bool
-nsHostRecord::HasUsableResult(uint16_t queryFlags) const
-{
-    if (mDoomed)
-        return false;
-
-    // don't use cached negative results for high priority queries.
-    if (negative && IsHighPriority(queryFlags))
-        return false;
-
-    return addr_info || addr || negative;
 }
 
 //----------------------------------------------------------------------------
@@ -276,10 +276,10 @@ static PLDHashNumber
 HostDB_HashKey(PLDHashTable *table, const void *key)
 {
     const nsHostKey *hk = static_cast<const nsHostKey *>(key);
-    return AddToHash(HashString(hk->host), RES_KEY_FLAGS(hk->flags), hk->af);
+    return PL_DHashStringKey(table, hk->host) ^ RES_KEY_FLAGS(hk->flags) ^ hk->af;
 }
 
-static bool
+static PRBool
 HostDB_MatchEntry(PLDHashTable *table,
                   const PLDHashEntryHdr *entry,
                   const void *key)
@@ -305,51 +305,40 @@ static void
 HostDB_ClearEntry(PLDHashTable *table,
                   PLDHashEntryHdr *entry)
 {
-    nsHostDBEnt *he = static_cast<nsHostDBEnt*>(entry);
-    MOZ_ASSERT(he, "nsHostDBEnt is null!");
-
-    nsHostRecord *hr = he->rec;
-    MOZ_ASSERT(hr, "nsHostDBEnt has null host record!");
-
-    LOG(("Clearing cache db entry for host [%s].\n", hr->host));
+    LOG(("evicting record\n"));
+    nsHostDBEnt *he = static_cast<nsHostDBEnt *>(entry);
 #if defined(DEBUG) && defined(PR_LOGGING)
-    {
-        MutexAutoLock lock(hr->addr_info_lock);
-        if (!hr->addr_info) {
-            LOG(("No address info for host [%s].\n", hr->host));
-        } else {
-            TimeDuration diff = hr->expiration - TimeStamp::NowLoRes();
-            LOG(("Record for [%s] expires in %f seconds.\n", hr->host, diff.ToSeconds()));
-
-            NetAddrElement *addrElement = nullptr;
-            char buf[kIPv6CStrBufSize];
-            do {
-                if (!addrElement) {
-                    addrElement = hr->addr_info->mAddresses.getFirst();
-                } else {
-                    addrElement = addrElement->getNext();
-                }
-
-                if (addrElement) {
-                    NetAddrToString(&addrElement->mAddress, buf, sizeof(buf));
-                    LOG(("  [%s]\n", buf));
-                }
-            }
-            while (addrElement);
+    if (!he->rec->addr_info)
+        LOG(("%s: => no addr_info\n", he->rec->host));
+    else {
+        PRInt32 now = (PRInt32) NowInMinutes();
+        PRInt32 diff = (PRInt32) he->rec->expiration - now;
+        LOG(("%s: exp=%d => %s\n",
+            he->rec->host, diff,
+            PR_GetCanonNameFromAddrInfo(he->rec->addr_info)));
+        void *iter = nsnull;
+        PRNetAddr addr;
+        char buf[64];
+        for (;;) {
+            iter = PR_EnumerateAddrInfo(iter, he->rec->addr_info, 0, &addr);
+            if (!iter)
+                break;
+            PR_NetAddrToString(&addr, buf, sizeof(buf));
+            LOG(("  %s\n", buf));
         }
     }
 #endif
     NS_RELEASE(he->rec);
 }
 
-static bool
+static PRBool
 HostDB_InitEntry(PLDHashTable *table,
                  PLDHashEntryHdr *entry,
                  const void *key)
 {
     nsHostDBEnt *he = static_cast<nsHostDBEnt *>(entry);
     nsHostRecord::Create(static_cast<const nsHostKey *>(key), &he->rec);
-    return true;
+    return PR_TRUE;
 }
 
 static PLDHashTableOps gHostDB_ops =
@@ -367,7 +356,7 @@ static PLDHashTableOps gHostDB_ops =
 static PLDHashOperator
 HostDB_RemoveEntry(PLDHashTable *table,
                    PLDHashEntryHdr *hdr,
-                   uint32_t number,
+                   PRUint32 number,
                    void *arg)
 {
     return PL_DHASH_REMOVE;
@@ -375,12 +364,10 @@ HostDB_RemoveEntry(PLDHashTable *table,
 
 //----------------------------------------------------------------------------
 
-nsHostResolver::nsHostResolver(uint32_t maxCacheEntries,
-                               uint32_t maxCacheLifetime,
-                               uint32_t lifetimeGracePeriod)
+nsHostResolver::nsHostResolver(PRUint32 maxCacheEntries,
+                               PRUint32 maxCacheLifetime)
     : mMaxCacheEntries(maxCacheEntries)
-    , mMaxCacheLifetime(TimeDuration::FromSeconds(maxCacheLifetime * 60))
-    , mGracePeriod(lifetimeGracePeriod)
+    , mMaxCacheLifetime(maxCacheLifetime)
     , mLock("nsHostResolver.mLock")
     , mIdleThreadCV(mLock, "nsHostResolver.mIdleThreadCV")
     , mNumIdleThreads(0)
@@ -388,7 +375,7 @@ nsHostResolver::nsHostResolver(uint32_t maxCacheEntries,
     , mActiveAnyThreadCount(0)
     , mEvictionQSize(0)
     , mPendingCount(0)
-    , mShutdown(true)
+    , mShutdown(PR_TRUE)
 {
     mCreationTime = PR_Now();
     PR_INIT_CLIST(&mHighQ);
@@ -408,9 +395,11 @@ nsHostResolver::~nsHostResolver()
 nsresult
 nsHostResolver::Init()
 {
-    PL_DHashTableInit(&mDB, &gHostDB_ops, nullptr, sizeof(nsHostDBEnt), 0);
+    NS_TIME_FUNCTION;
 
-    mShutdown = false;
+    PL_DHashTableInit(&mDB, &gHostDB_ops, nsnull, sizeof(nsHostDBEnt), 0);
+
+    mShutdown = PR_FALSE;
 
 #if defined(HAVE_RES_NINIT)
     // We want to make sure the system is using the correct resolver settings,
@@ -420,7 +409,7 @@ nsHostResolver::Init()
     // during application startup.
     static int initCount = 0;
     if (initCount++ > 0) {
-        LOG(("Calling 'res_ninit'.\n"));
+        LOG(("calling res_ninit\n"));
         res_ninit(&_res);
     }
 #endif
@@ -436,7 +425,7 @@ nsHostResolver::ClearPendingQueue(PRCList *aPendingQ)
         while (node != aPendingQ) {
             nsHostRecord *rec = static_cast<nsHostRecord *>(node);
             node = node->next;
-            OnLookupComplete(rec, NS_ERROR_ABORT, nullptr);
+            OnLookupComplete(rec, NS_ERROR_ABORT, nsnull);
         }
     }
 }
@@ -444,7 +433,7 @@ nsHostResolver::ClearPendingQueue(PRCList *aPendingQ)
 void
 nsHostResolver::Shutdown()
 {
-    LOG(("Shutting down host resolver.\n"));
+    LOG(("nsHostResolver::Shutdown\n"));
 
     PRCList pendingQHigh, pendingQMed, pendingQLow, evictionQ;
     PR_INIT_CLIST(&pendingQHigh);
@@ -455,7 +444,7 @@ nsHostResolver::Shutdown()
     {
         MutexAutoLock lock(mLock);
         
-        mShutdown = true;
+        mShutdown = PR_TRUE;
 
         MoveCList(mHighQ, pendingQHigh);
         MoveCList(mMediumQ, pendingQMed);
@@ -468,7 +457,7 @@ nsHostResolver::Shutdown()
             mIdleThreadCV.NotifyAll();
         
         // empty host database
-        PL_DHashTableEnumerate(&mDB, HostDB_RemoveEntry, nullptr);
+        PL_DHashTableEnumerate(&mDB, HostDB_RemoveEntry, nsnull);
     }
     
     ClearPendingQueue(&pendingQHigh);
@@ -500,6 +489,24 @@ nsHostResolver::Shutdown()
 #endif
 }
 
+static inline PRBool
+IsHighPriority(PRUint16 flags)
+{
+    return !(flags & (nsHostResolver::RES_PRIORITY_LOW | nsHostResolver::RES_PRIORITY_MEDIUM));
+}
+
+static inline PRBool
+IsMediumPriority(PRUint16 flags)
+{
+    return flags & nsHostResolver::RES_PRIORITY_MEDIUM;
+}
+
+static inline PRBool
+IsLowPriority(PRUint16 flags)
+{
+    return flags & nsHostResolver::RES_PRIORITY_LOW;
+}
+
 void 
 nsHostResolver::MoveQueue(nsHostRecord *aRec, PRCList &aDestQ)
 {
@@ -511,13 +518,13 @@ nsHostResolver::MoveQueue(nsHostRecord *aRec, PRCList &aDestQ)
 
 nsresult
 nsHostResolver::ResolveHost(const char            *host,
-                            uint16_t               flags,
-                            uint16_t               af,
+                            PRUint16               flags,
+                            PRUint16               af,
                             nsResolveHostCallback *callback)
 {
     NS_ENSURE_TRUE(host && *host, NS_ERROR_UNEXPECTED);
 
-    LOG(("Resolving host [%s].\n", host));
+    LOG(("nsHostResolver::ResolveHost [host=%s]\n", host));
 
     // ensure that we are working with a valid hostname before proceeding.  see
     // bug 304904 for details.
@@ -534,10 +541,10 @@ nsHostResolver::ResolveHost(const char            *host,
         if (mShutdown)
             rv = NS_ERROR_NOT_INITIALIZED;
         else {
-            // Used to try to parse to an IP address literal.
             PRNetAddr tempAddr;
-            // Unfortunately, PR_StringToNetAddr does not properly initialize
-            // the output buffer in the case of IPv6 input. See bug 223145.
+
+            // unfortunately, PR_StringToNetAddr does not properly initialize
+            // the output buffer in the case of IPv6 input.  see bug 223145.
             memset(&tempAddr, 0, sizeof(PRNetAddr));
             
             // check to see if there is already an entry for this |host|
@@ -556,42 +563,22 @@ nsHostResolver::ResolveHost(const char            *host,
                 rv = NS_ERROR_OUT_OF_MEMORY;
             // do we have a cached result that we can reuse?
             else if (!(flags & RES_BYPASS_CACHE) &&
-                     he->rec->HasUsableResult(flags) &&
-                     TimeStamp::NowLoRes() <= (he->rec->expiration + TimeDuration::FromSeconds(mGracePeriod * 60))) {
-                LOG(("Using cached record for host [%s].\n", host));
+                     he->rec->HasResult() &&
+                     NowInMinutes() <= he->rec->expiration) {
+                LOG(("using cached record\n"));
                 // put reference to host record on stack...
                 result = he->rec;
-                Telemetry::Accumulate(Telemetry::DNS_LOOKUP_METHOD2, METHOD_HIT);
-
-                // For entries that are in the grace period with a failed connect,
-                // or all cached negative entries, use the cache but start a new lookup in
-                // the background
-                if ((((TimeStamp::NowLoRes() > he->rec->expiration) &&
-                      he->rec->mBlacklistedItems.Length()) ||
-                     he->rec->negative) && !he->rec->resolving) {
-                    LOG(("Using %s cache entry for host [%s] but starting async renewal.",
-                         he->rec->negative ? "negative" :"positive", host));
-                    IssueLookup(he->rec);
-
-                    if (!he->rec->negative) {
-                        // negative entries are constantly being refreshed, only
-                        // track positive grace period induced renewals
-                        Telemetry::Accumulate(Telemetry::DNS_LOOKUP_METHOD2,
-                                              METHOD_RENEWAL);
-                    }
-                }
-                
                 if (he->rec->negative) {
-                    Telemetry::Accumulate(Telemetry::DNS_LOOKUP_METHOD2,
-                                          METHOD_NEGATIVE_HIT);
                     status = NS_ERROR_UNKNOWN_HOST;
+                    if (!he->rec->resolving) 
+                        // return the cached failure to the caller, but try and refresh
+                        // the record in the background
+                        IssueLookup(he->rec);
                 }
             }
             // if the host name is an IP address literal and has been parsed,
             // go ahead and use it.
             else if (he->rec->addr) {
-                Telemetry::Accumulate(Telemetry::DNS_LOOKUP_METHOD2,
-                                      METHOD_LITERAL);
                 result = he->rec;
             }
             // try parsing the host name as an IP address literal to short
@@ -600,25 +587,20 @@ nsHostResolver::ResolveHost(const char            *host,
             else if (PR_StringToNetAddr(host, &tempAddr) == PR_SUCCESS) {
                 // ok, just copy the result into the host record, and be done
                 // with it! ;-)
-                he->rec->addr = new NetAddr();
-                PRNetAddrToNetAddr(&tempAddr, he->rec->addr);
+                he->rec->addr = (PRNetAddr *) malloc(sizeof(PRNetAddr));
+                if (!he->rec->addr)
+                    status = NS_ERROR_OUT_OF_MEMORY;
+                else
+                    memcpy(he->rec->addr, &tempAddr, sizeof(PRNetAddr));
                 // put reference to host record on stack...
-                Telemetry::Accumulate(Telemetry::DNS_LOOKUP_METHOD2,
-                                      METHOD_LITERAL);
                 result = he->rec;
             }
             else if (mPendingCount >= MAX_NON_PRIORITY_REQUESTS &&
                      !IsHighPriority(flags) &&
                      !he->rec->resolving) {
-                Telemetry::Accumulate(Telemetry::DNS_LOOKUP_METHOD2,
-                                      METHOD_OVERFLOW);
                 // This is a lower priority request and we are swamped, so refuse it.
                 rv = NS_ERROR_DNS_LOOKUP_QUEUE_FULL;
             }
-            else if (flags & RES_OFFLINE) {
-                rv = NS_ERROR_OFFLINE;
-            }
-
             // otherwise, hit the resolver...
             else {
                 // Add callback to the list of pending callbacks.
@@ -627,17 +609,10 @@ nsHostResolver::ResolveHost(const char            *host,
                 if (!he->rec->resolving) {
                     he->rec->flags = flags;
                     rv = IssueLookup(he->rec);
-                    Telemetry::Accumulate(Telemetry::DNS_LOOKUP_METHOD2,
-                                          METHOD_NETWORK_FIRST);
                     if (NS_FAILED(rv))
                         PR_REMOVE_AND_INIT_LINK(callback);
-                    else
-                        LOG(("DNS lookup for host [%s] blocking pending 'getaddrinfo' query.", host));
                 }
                 else if (he->rec->onQueue) {
-                    Telemetry::Accumulate(Telemetry::DNS_LOOKUP_METHOD2,
-                                          METHOD_NETWORK_SHARED);
-
                     // Consider the case where we are on a pending queue of 
                     // lower priority than the request is being made at.
                     // In that case we should upgrade to the higher queue.
@@ -664,8 +639,8 @@ nsHostResolver::ResolveHost(const char            *host,
 
 void
 nsHostResolver::DetachCallback(const char            *host,
-                               uint16_t               flags,
-                               uint16_t               af,
+                               PRUint16               flags,
+                               PRUint16               af,
                                nsResolveHostCallback *callback,
                                nsresult               status)
 {
@@ -725,7 +700,7 @@ nsHostResolver::ConditionallyCreateThread(nsHostRecord *rec)
     }
 #if defined(PR_LOGGING)
     else
-      LOG(("Unable to find a thread for looking up host [%s].\n", rec->host));
+      LOG(("lookup waiting for thread - %s ...\n", rec->host));
 #endif
     return NS_OK;
 }
@@ -733,10 +708,8 @@ nsHostResolver::ConditionallyCreateThread(nsHostRecord *rec)
 nsresult
 nsHostResolver::IssueLookup(nsHostRecord *rec)
 {
-    MOZ_EVENT_TRACER_WAIT(rec, "net::dns::resolve");
-
     nsresult rv = NS_OK;
-    NS_ASSERTION(!rec->resolving, "record is already being resolved");
+    NS_ASSERTION(!rec->resolving, "record is already being resolved"); 
 
     // Add rec to one of the pending queues, possibly removing it from mEvictionQ.
     // If rec is on mEvictionQ, then we can just move the owning
@@ -756,12 +729,12 @@ nsHostResolver::IssueLookup(nsHostRecord *rec)
         PR_APPEND_LINK(rec, &mLowQ);
     mPendingCount++;
     
-    rec->resolving = true;
-    rec->onQueue = true;
+    rec->resolving = PR_TRUE;
+    rec->onQueue = PR_TRUE;
 
     rv = ConditionallyCreateThread(rec);
     
-    LOG (("DNS thread counters: total=%d any-live=%d idle=%d pending=%d\n",
+    LOG (("DNS Thread Counters: total=%d any-live=%d idle=%d pending=%d\n",
           mThreadCount,
           mActiveAnyThreadCount,
           mNumIdleThreads,
@@ -776,13 +749,13 @@ nsHostResolver::DeQueue(PRCList &aQ, nsHostRecord **aResult)
     *aResult = static_cast<nsHostRecord *>(aQ.next);
     PR_REMOVE_AND_INIT_LINK(*aResult);
     mPendingCount--;
-    (*aResult)->onQueue = false;
+    (*aResult)->onQueue = PR_FALSE;
 }
 
-bool
+PRBool
 nsHostResolver::GetHostToLookup(nsHostRecord **result)
 {
-    bool timedOut = false;
+    PRBool timedOut = PR_FALSE;
     PRIntervalTime epoch, now, timeout;
     
     MutexAutoLock lock(mLock);
@@ -795,22 +768,22 @@ nsHostResolver::GetHostToLookup(nsHostRecord **result)
         
         if (!PR_CLIST_IS_EMPTY(&mHighQ)) {
             DeQueue (mHighQ, result);
-            return true;
+            return PR_TRUE;
         }
 
         if (mActiveAnyThreadCount < HighThreadThreshold) {
             if (!PR_CLIST_IS_EMPTY(&mMediumQ)) {
                 DeQueue (mMediumQ, result);
                 mActiveAnyThreadCount++;
-                (*result)->usingAnyThread = true;
-                return true;
+                (*result)->usingAnyThread = PR_TRUE;
+                return PR_TRUE;
             }
             
             if (!PR_CLIST_IS_EMPTY(&mLowQ)) {
                 DeQueue (mLowQ, result);
                 mActiveAnyThreadCount++;
-                (*result)->usingAnyThread = true;
-                return true;
+                (*result)->usingAnyThread = PR_TRUE;
+                return PR_TRUE;
             }
         }
         
@@ -831,7 +804,7 @@ nsHostResolver::GetHostToLookup(nsHostRecord **result)
         now = PR_IntervalNow();
         
         if ((PRIntervalTime)(now - epoch) >= timeout)
-            timedOut = true;
+            timedOut = PR_TRUE;
         else {
             // It is possible that PR_WaitCondVar() was interrupted and returned early,
             // in which case we will loop back and re-enter it. In that case we want to
@@ -843,11 +816,11 @@ nsHostResolver::GetHostToLookup(nsHostRecord **result)
     
     // tell thread to exit...
     mThreadCount--;
-    return false;
+    return PR_FALSE;
 }
 
 void
-nsHostResolver::OnLookupComplete(nsHostRecord *rec, nsresult status, AddrInfo *result)
+nsHostResolver::OnLookupComplete(nsHostRecord *rec, nsresult status, PRAddrInfo *result)
 {
     // get the list of pending callbacks for this lookup, and notify
     // them that the lookup is complete.
@@ -861,29 +834,29 @@ nsHostResolver::OnLookupComplete(nsHostRecord *rec, nsresult status, AddrInfo *r
 
         // update record fields.  We might have a rec->addr_info already if a
         // previous lookup result expired and we're reresolving it..
-        AddrInfo  *old_addr_info;
+        PRAddrInfo  *old_addr_info;
         {
             MutexAutoLock lock(rec->addr_info_lock);
             old_addr_info = rec->addr_info;
             rec->addr_info = result;
             rec->addr_info_gencnt++;
         }
-        delete old_addr_info;
-
-        rec->expiration = TimeStamp::NowLoRes();
+        if (old_addr_info)
+            PR_FreeAddrInfo(old_addr_info);
+        rec->expiration = NowInMinutes();
         if (result) {
             rec->expiration += mMaxCacheLifetime;
-            rec->negative = false;
+            rec->negative = PR_FALSE;
         }
         else {
-            rec->expiration += TimeDuration::FromSeconds(60); /* one minute for negative cache */
-            rec->negative = true;
+            rec->expiration += 1;                 /* one minute for negative cache */
+            rec->negative = PR_TRUE;
         }
-        rec->resolving = false;
+        rec->resolving = PR_FALSE;
         
         if (rec->usingAnyThread) {
             mActiveAnyThreadCount--;
-            rec->usingAnyThread = false;
+            rec->usingAnyThread = PR_FALSE;
         }
 
         if (rec->addr_info && !mShutdown) {
@@ -898,22 +871,11 @@ nsHostResolver::OnLookupComplete(nsHostRecord *rec, nsresult status, AddrInfo *r
                     static_cast<nsHostRecord *>(PR_LIST_HEAD(&mEvictionQ));
                 PR_REMOVE_AND_INIT_LINK(head);
                 PL_DHashTableOperate(&mDB, (nsHostKey *) head, PL_DHASH_REMOVE);
-
-                if (!head->negative) {
-                    // record the age of the entry upon eviction.
-                    TimeDuration age = TimeStamp::NowLoRes() -
-                                         (head->expiration - mMaxCacheLifetime);
-                    Telemetry::Accumulate(Telemetry::DNS_CLEANUP_AGE,
-                                          static_cast<uint32_t>(age.ToSeconds() / 60));
-                }
-
                 // release reference to rec owned by mEvictionQ
                 NS_RELEASE(head);
             }
         }
     }
-
-    MOZ_EVENT_TRACER_DONE(rec, "net::dns::resolve");
 
     if (!PR_CLIST_IS_EMPTY(&cbs)) {
         PRCList *node = cbs.next;
@@ -929,126 +891,45 @@ nsHostResolver::OnLookupComplete(nsHostRecord *rec, nsresult status, AddrInfo *r
     NS_RELEASE(rec);
 }
 
-void
-nsHostResolver::CancelAsyncRequest(const char            *host,
-                                   uint16_t               flags,
-                                   uint16_t               af,
-                                   nsIDNSListener        *aListener,
-                                   nsresult               status)
-
-{
-    MutexAutoLock lock(mLock);
-
-    // Lookup the host record associated with host, flags & address family
-    nsHostKey key = { host, flags, af };
-    nsHostDBEnt *he = static_cast<nsHostDBEnt *>
-                      (PL_DHashTableOperate(&mDB, &key, PL_DHASH_LOOKUP));
-    if (he && he->rec) {
-        nsHostRecord* recPtr = NULL;
-        PRCList *node = he->rec->callbacks.next;
-        // Remove the first nsDNSAsyncRequest callback which matches the
-        // supplied listener object
-        while (node != &he->rec->callbacks) {
-            nsResolveHostCallback *callback
-                = static_cast<nsResolveHostCallback *>(node);
-            if (callback && (callback->EqualsAsyncListener(aListener))) {
-                // Remove from the list of callbacks
-                PR_REMOVE_LINK(callback);
-                recPtr = he->rec;
-                callback->OnLookupComplete(this, recPtr, status);
-                break;
-            }
-            node = node->next;
-        }
-
-        // If there are no more callbacks, remove the hash table entry
-        if (recPtr && PR_CLIST_IS_EMPTY(&recPtr->callbacks)) {
-            PL_DHashTableOperate(&mDB, (nsHostKey *)recPtr, PL_DHASH_REMOVE);
-            // If record is on a Queue, remove it and then deref it
-            if (recPtr->next != recPtr) {
-                PR_REMOVE_LINK(recPtr);
-                NS_RELEASE(recPtr);
-            }
-        }
-    }
-}
+//----------------------------------------------------------------------------
 
 void
 nsHostResolver::ThreadFunc(void *arg)
 {
-    LOG(("DNS lookup thread starting execution.\n"));
-
-    static nsThreadPoolNaming naming;
-    naming.SetThreadPoolName(NS_LITERAL_CSTRING("DNS Resolver"));
-
+    LOG(("nsHostResolver::ThreadFunc entering\n"));
 #if defined(RES_RETRY_ON_FAILURE)
     nsResState rs;
 #endif
     nsHostResolver *resolver = (nsHostResolver *)arg;
     nsHostRecord *rec;
-    PRAddrInfo *prai = nullptr;
+    PRAddrInfo *ai;
     while (resolver->GetHostToLookup(&rec)) {
-        LOG(("Calling getaddrinfo for host [%s].\n", rec->host));
+        LOG(("resolving %s ...\n", rec->host));
 
-        int flags = PR_AI_ADDRCONFIG;
+        PRIntn flags = PR_AI_ADDRCONFIG;
         if (!(rec->flags & RES_CANON_NAME))
             flags |= PR_AI_NOCANONNAME;
 
-        TimeStamp startTime = TimeStamp::Now();
-        MOZ_EVENT_TRACER_EXEC(rec, "net::dns::resolve");
-
-        // We need to remove IPv4 records manually
-        // because PR_GetAddrInfoByName doesn't support PR_AF_INET6.
-        bool disableIPv4 = rec->af == PR_AF_INET6;
-        uint16_t af = disableIPv4 ? PR_AF_UNSPEC : rec->af;
-        prai = PR_GetAddrInfoByName(rec->host, af, flags);
+        ai = PR_GetAddrInfoByName(rec->host, rec->af, flags);
 #if defined(RES_RETRY_ON_FAILURE)
-        if (!prai && rs.Reset())
-            prai = PR_GetAddrInfoByName(rec->host, af, flags);
+        if (!ai && rs.Reset())
+            ai = PR_GetAddrInfoByName(rec->host, rec->af, flags);
 #endif
 
-        TimeDuration elapsed = TimeStamp::Now() - startTime;
-        uint32_t millis = static_cast<uint32_t>(elapsed.ToMilliseconds());
-
-        // convert error code to nsresult
-        nsresult status;
-        AddrInfo *ai = nullptr;
-        if (prai) {
-            const char *cname = nullptr;
-            if (rec->flags & RES_CANON_NAME)
-                cname = PR_GetCanonNameFromAddrInfo(prai);
-            ai = new AddrInfo(rec->host, prai, disableIPv4, cname);
-            PR_FreeAddrInfo(prai);
-            if (ai->mAddresses.isEmpty()) {
-                delete ai;
-                ai = nullptr;
-            }
-        }
-        if (ai) {
-            status = NS_OK;
-
-            Telemetry::Accumulate(!rec->addr_info_gencnt ?
-                                    Telemetry::DNS_LOOKUP_TIME :
-                                    Telemetry::DNS_RENEWAL_TIME,
-                                  millis);
-        }
-        else {
-            status = NS_ERROR_UNKNOWN_HOST;
-            Telemetry::Accumulate(Telemetry::DNS_FAILED_LOOKUP_TIME, millis);
-        }
-
-        // OnLookupComplete may release "rec", log before we lose it.
-        LOG(("Lookup completed for host [%s].\n", rec->host));
+        // convert error code to nsresult.
+        nsresult status = ai ? NS_OK : NS_ERROR_UNKNOWN_HOST;
         resolver->OnLookupComplete(rec, status, ai);
+        LOG(("lookup complete for %s ...\n", rec->host));
     }
     NS_RELEASE(resolver);
-    LOG(("DNS lookup thread ending execution.\n"));
+    LOG(("nsHostResolver::ThreadFunc exiting\n"));
 }
 
+//----------------------------------------------------------------------------
+
 nsresult
-nsHostResolver::Create(uint32_t         maxCacheEntries,
-                       uint32_t         maxCacheLifetime,
-                       uint32_t         lifetimeGracePeriod,
+nsHostResolver::Create(PRUint32         maxCacheEntries,
+                       PRUint32         maxCacheLifetime,
                        nsHostResolver **result)
 {
 #if defined(PR_LOGGING)
@@ -1057,8 +938,7 @@ nsHostResolver::Create(uint32_t         maxCacheEntries,
 #endif
 
     nsHostResolver *res = new nsHostResolver(maxCacheEntries,
-                                             maxCacheLifetime,
-                                             lifetimeGracePeriod);
+                                             maxCacheLifetime);
     if (!res)
         return NS_ERROR_OUT_OF_MEMORY;
     NS_ADDREF(res);
@@ -1069,57 +949,4 @@ nsHostResolver::Create(uint32_t         maxCacheEntries,
 
     *result = res;
     return rv;
-}
-
-PLDHashOperator
-CacheEntryEnumerator(PLDHashTable *table, PLDHashEntryHdr *entry,
-                     uint32_t number, void *arg)
-{
-    // We don't pay attention to address literals, only resolved domains.
-    // Also require a host.
-    nsHostRecord *rec = static_cast<nsHostDBEnt*>(entry)->rec;
-    if (!rec->addr_info || !rec->host) {
-        return PL_DHASH_NEXT;
-    }
-
-    DNSCacheEntries info;
-    info.hostname = rec->host;
-    info.family = rec->af;
-    info.expiration = (int64_t)(rec->expiration - TimeStamp::NowLoRes()).ToSeconds();
-    if (info.expiration <= 0) {
-        // We only need valid DNS cache entries
-        return PL_DHASH_NEXT;
-    }
-
-    {
-        MutexAutoLock lock(rec->addr_info_lock);
-
-        NetAddr *addr = nullptr;
-        NetAddrElement *addrElement = rec->addr_info->mAddresses.getFirst();
-        if (addrElement) {
-            addr = &addrElement->mAddress;
-        }
-        while (addr) {
-            char buf[kIPv6CStrBufSize];
-            if (NetAddrToString(addr, buf, sizeof(buf))) {
-                info.hostaddr.AppendElement(buf);
-            }
-            addr = nullptr;
-            addrElement = addrElement->getNext();
-            if (addrElement) {
-                addr = &addrElement->mAddress;
-            }
-        }
-    }
-
-    nsTArray<DNSCacheEntries> *args = static_cast<nsTArray<DNSCacheEntries> *>(arg);
-    args->AppendElement(info);
-
-    return PL_DHASH_NEXT;
-}
-
-void
-nsHostResolver::GetDNSCacheEntries(nsTArray<DNSCacheEntries> *args)
-{
-    PL_DHashTableEnumerate(&mDB, CacheEntryEnumerator, args);
 }

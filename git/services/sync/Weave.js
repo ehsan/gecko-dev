@@ -1,6 +1,39 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Weave.
+ *
+ * The Initial Developer of the Original Code is Mozilla.
+ * Portions created by the Initial Developer are Copyright (C) 2008
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Dan Mills <thunder@mozilla.com>
+ *  Philipp von Weitershausen <philipp@weitershausen.de>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -10,46 +43,8 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/FileUtils.jsm");
 
-const SYNC_PREFS_BRANCH = "services.sync.";
-
-
-/**
- * Sync's XPCOM service.
- *
- * It is named "Weave" for historical reasons.
- *
- * It's worth noting how Sync is lazily loaded. We register a timer that
- * loads Sync a few seconds after app startup. This is so Sync does not
- * adversely affect application start time.
- *
- * If Sync is not configured, no extra Sync code is loaded. If an
- * external component (say the UI) needs to interact with Sync, it
- * should do something like the following:
- *
- * // 1. Grab a handle to the Sync XPCOM service.
- * let service = Cc["@mozilla.org/weave/service;1"]
- *                 .getService(Components.interfaces.nsISupports)
- *                 .wrappedJSObject;
- *
- * // 2. Check if the service has been initialized.
- * if (service.ready) {
- *   // You are free to interact with "Weave." objects.
- *   return;
- * }
- *
- * // 3. Install "ready" listener.
- * Services.obs.addObserver(function onReady() {
- *   Services.obs.removeObserver(onReady, "weave:service:ready");
- *
- *   // You are free to interact with "Weave." objects.
- * }, "weave:service:ready", false);
- *
- * // 4. Trigger loading of Sync.
- * service.ensureLoaded();
- */
 function WeaveService() {
   this.wrappedJSObject = this;
-  this.ready = false;
 }
 WeaveService.prototype = {
   classID: Components.ID("{74b89fb0-f200-4ae8-a3ec-dd164117f6de}"),
@@ -57,14 +52,7 @@ WeaveService.prototype = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver,
                                          Ci.nsISupportsWeakReference]),
 
-  ensureLoaded: function () {
-    Components.utils.import("resource://services-sync/main.js");
-
-    // Side-effect of accessing the service is that it is instantiated.
-    Weave.Service;
-  },
-
-  observe: function (subject, topic, data) {
+  observe: function BSS__observe(subject, topic, data) {
     switch (topic) {
     case "app-startup":
       let os = Cc["@mozilla.org/observer-service;1"].
@@ -77,23 +65,10 @@ WeaveService.prototype = {
       this.timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
       this.timer.initWithCallback({
         notify: function() {
-          // We only load more if it looks like Sync is configured.
-          let prefs = Services.prefs.getBranch(SYNC_PREFS_BRANCH);
-
-          if (!prefs.prefHasUserValue("username")) {
-            return;
-          }
-
-          // We have a username. So, do a more thorough check. This will
-          // import a number of modules and thus increase memory
-          // accordingly. We could potentially copy code performed by
-          // this check into this file if our above code is yielding too
-          // many false positives.
-          Components.utils.import("resource://services-sync/main.js");
-          if (Weave.Status.checkSetup() != Weave.CLIENT_NOT_CONFIGURED) {
-            this.ensureLoaded();
-          }
-        }.bind(this)
+          Cu.import("resource://services-sync/main.js");
+          if (Weave.Status.checkSetup() != Weave.CLIENT_NOT_CONFIGURED)
+            Weave.Service;
+        }
       }, 10000, Ci.nsITimer.TYPE_ONE_SHOT);
       break;
     }
@@ -121,11 +96,11 @@ AboutWeaveLog.prototype = {
     // view. That way links to files can be opened.
     let ssm = Cc["@mozilla.org/scriptsecuritymanager;1"]
                 .getService(Ci.nsIScriptSecurityManager);
-    let principal = ssm.getNoAppCodebasePrincipal(uri);
+    let principal = ssm.getCodebasePrincipal(uri);
     channel.owner = principal;
     return channel;
   }
 };
 
 const components = [WeaveService, AboutWeaveLog];
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory(components);
+const NSGetFactory = XPCOMUtils.generateNSGetFactory(components);

@@ -19,11 +19,13 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=534149
 
 /** Test for Bug 534149 **/
 function getIDs(iframe) {
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
   var win = iframe.contentWindow;
   // Force inner creation
   win.document;
 
-  var util = SpecialPowers.getDOMWindowUtils(win);
+  var util = win.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                .getInterface(Components.interfaces.nsIDOMWindowUtils);
   return [util.outerWindowID, util.currentInnerWindowID];
 }
 
@@ -43,22 +45,23 @@ is(i2outer, i1inner + 1, "Frame 2 comes right after frame 1");
 var innerWindowDestroyID;
 var outerWindowDestroyID;
 
-var outerObserver = {
-  observe: function(id) {
-    outerWindowDestroyID =
-      SpecialPowers.wrap(id).QueryInterface(SpecialPowers.Ci.nsISupportsPRUint64).data;
-  }
-};
-var innerObserver = {
-  observe: function(id) {
+function outerObserver(id) {
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  outerWindowDestroyID =
+    id.QueryInterface(Components.interfaces.nsISupportsPRUint64).data;
+}
+function innerObserver(id) {
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
   innerWindowDestroyID =
-   SpecialPowers.wrap(id).QueryInterface(SpecialPowers.Ci.nsISupportsPRUint64).data;
-  }
-};
+   id.QueryInterface(Components.interfaces.nsISupportsPRUint64).data;
+}
 
 function removeFrame(iframe) {
-  SpecialPowers.addObserver(outerObserver, "outer-window-destroyed", false);
-  SpecialPowers.addObserver(innerObserver, "inner-window-destroyed", false);
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  var obsSvc = Components.classes["@mozilla.org/observer-service;1"]
+                         .getService(Components.interfaces.nsIObserverService);
+  obsSvc.addObserver(outerObserver, "outer-window-destroyed", false);
+  obsSvc.addObserver(innerObserver, "inner-window-destroyed", false);
 
   iframe.parentNode.removeChild(iframe);
 }
@@ -68,8 +71,11 @@ SimpleTest.waitForExplicitFinish();
 SimpleTest.executeSoon(function() {
   is(innerWindowDestroyID, i1inner, "inner window of frame 1 should be destroyed");
   is(outerWindowDestroyID, i1outer, "outer window of frame 1 should be destroyed");
-  SpecialPowers.removeObserver(outerObserver, "outer-window-destroyed");
-  SpecialPowers.removeObserver(innerObserver, "inner-window-destroyed");
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  var obsSvc = Components.classes["@mozilla.org/observer-service;1"]
+                         .getService(Components.interfaces.nsIObserverService);
+  obsSvc.removeObserver(outerObserver, "outer-window-destroyed");
+  obsSvc.removeObserver(innerObserver, "inner-window-destroyed");
   SimpleTest.finish();
 });
   

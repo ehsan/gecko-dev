@@ -1,8 +1,42 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Bookmarks Sync.
+ *
+ * The Initial Developer of the Original Code is Mozilla.
+ * Portions created by the Initial Developer are Copyright (C) 2008
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Myk Melez <myk@mozilla.org>
+ *  Jono DiCarlo <jdicarlo@mozilla.com>
+ *  Philipp von Weitershausen <philipp@weitershausen.de>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-this.EXPORTED_SYMBOLS = ['TabEngine', 'TabSetRecord'];
+const EXPORTED_SYMBOLS = ['TabEngine', 'TabSetRecord'];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -10,18 +44,24 @@ const Cu = Components.utils;
 
 const TABS_TTL = 604800; // 7 days
 
-Cu.import("resource://gre/modules/Preferences.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/engines/clients.js");
 Cu.import("resource://services-sync/record.js");
+Cu.import("resource://services-sync/resource.js");
 Cu.import("resource://services-sync/util.js");
 Cu.import("resource://services-sync/constants.js");
+Cu.import("resource://services-sync/ext/Preferences.js");
 
-XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
-  "resource://gre/modules/PrivateBrowsingUtils.jsm");
+// It is safer to inspect the private browsing preferences rather than
+// the flags of nsIPrivateBrowsingService.  The user may have turned on
+// "Never remember history" in the same session, or Firefox was started
+// with the -private command line argument.  In both cases, the
+// "autoStarted" flag of nsIPrivateBrowsingService will be wrong.
+const PBPrefs = new Preferences("browser.privatebrowsing.");
 
-this.TabSetRecord = function TabSetRecord(collection, id) {
+
+function TabSetRecord(collection, id) {
   CryptoWrapper.call(this, collection, id);
 }
 TabSetRecord.prototype = {
@@ -33,8 +73,8 @@ TabSetRecord.prototype = {
 Utils.deferGetSet(TabSetRecord, "cleartext", ["clientName", "tabs"]);
 
 
-this.TabEngine = function TabEngine(service) {
-  SyncEngine.call(this, "Tabs", service);
+function TabEngine() {
+  SyncEngine.call(this, "Tabs");
 
   // Reset the client on every startup so that we fetch recent tabs
   this._resetClient();
@@ -49,7 +89,7 @@ TabEngine.prototype = {
     // No need for a proper timestamp (no conflict resolution needed).
     let changedIDs = {};
     if (this._tracker.modified)
-      changedIDs[this.service.clientsEngine.localID] = 0;
+      changedIDs[Clients.localID] = 0;
     return changedIDs;
   },
 
@@ -69,8 +109,7 @@ TabEngine.prototype = {
   },
 
   removeClientData: function removeClientData() {
-    let url = this.engineURL + "/" + this.service.clientsEngine.localID;
-    this.service.resource(url).delete();
+    new Resource(this.engineURL + "/" + Clients.localID).delete();
   },
 
   /* The intent is not to show tabs in the menu if they're already
@@ -90,29 +129,14 @@ TabEngine.prototype = {
 };
 
 
-function TabStore(name, engine) {
-  Store.call(this, name, engine);
+function TabStore(name) {
+  Store.call(this, name);
 }
 TabStore.prototype = {
   __proto__: Store.prototype,
 
   itemExists: function TabStore_itemExists(id) {
-    return id == this.engine.service.clientsEngine.localID;
-  },
-
-  /**
-   * Return the recorded last used time of the provided tab, or
-   * 0 if none is present.
-   * The result will always be an integer value.
-   */
-  tabLastUsed: function tabLastUsed(tab) {
-    // weaveLastUsed will only be set if the tab was ever selected (or
-    // opened after Sync was running).
-    let weaveLastUsed = tab.extData && tab.extData.weaveLastUsed;
-    if (!weaveLastUsed) {
-      return 0;
-    }
-    return parseInt(weaveLastUsed, 10) || 0;
+    return id == Clients.localID;
   },
 
   getAllTabs: function getAllTabs(filter) {
@@ -121,11 +145,7 @@ TabStore.prototype = {
     let allTabs = [];
 
     let currentState = JSON.parse(Svc.Session.getBrowserState());
-    let tabLastUsed = this.tabLastUsed;
     currentState.windows.forEach(function(window) {
-      if (window.isPrivate) {
-        return;
-      }
       window.tabs.forEach(function(tab) {
         // Make sure there are history entries to look at.
         if (!tab.entries.length)
@@ -139,13 +159,15 @@ TabStore.prototype = {
         if (!entry.url || filter && filteredUrls.test(entry.url))
           return;
 
+        // weaveLastUsed will only be set if the tab was ever selected (or
+        // opened after Weave was running). So it might not ever be set.
         // I think it's also possible that attributes[.image] might not be set
         // so handle that as well.
         allTabs.push({
           title: entry.title || "",
           urlHistory: [entry.url],
           icon: tab.attributes && tab.attributes.image || "",
-          lastUsed: tabLastUsed(tab)
+          lastUsed: tab.extData && tab.extData.weaveLastUsed || 0
         });
       });
     });
@@ -155,7 +177,13 @@ TabStore.prototype = {
 
   createRecord: function createRecord(id, collection) {
     let record = new TabSetRecord(collection, id);
-    record.clientName = this.engine.service.clientsEngine.localName;
+    record.clientName = Clients.localName;
+
+    // Don't provide any tabs to compare against and ignore the update later.
+    if (Svc.Private && Svc.Private.privateBrowsingEnabled && !PBPrefs.get("autostart")) {
+      record.tabs = [];
+      return record;
+    }
 
     // Sort tabs in descending-used order to grab the most recently used
     let tabs = this.getAllTabs(true).sort(function(a, b) {
@@ -187,28 +215,12 @@ TabStore.prototype = {
   },
 
   getAllIDs: function TabStore_getAllIds() {
-    // Don't report any tabs if all windows are in private browsing for
-    // first syncs.
+    // Don't report any tabs if we're in private browsing for first syncs.
     let ids = {};
-    let allWindowsArePrivate = false;
-    let wins = Services.wm.getEnumerator("navigator:browser");
-    while (wins.hasMoreElements()) {
-      if (PrivateBrowsingUtils.isWindowPrivate(wins.getNext())) {
-        // Ensure that at least there is a private window.
-        allWindowsArePrivate = true;
-      } else {
-        // If there is a not private windown then finish and continue.
-        allWindowsArePrivate = false;
-        break;
-      }
-    }
-
-    if (allWindowsArePrivate &&
-        !PrivateBrowsingUtils.permanentPrivateBrowsing) {
+    if (Svc.Private && Svc.Private.privateBrowsingEnabled && !PBPrefs.get("autostart"))
       return ids;
-    }
 
-    ids[this.engine.service.clientsEngine.localID] = true;
+    ids[Clients.localID] = true;
     return ids;
   },
 
@@ -240,8 +252,8 @@ TabStore.prototype = {
 };
 
 
-function TabTracker(name, engine) {
-  Tracker.call(this, name, engine);
+function TabTracker(name) {
+  Tracker.call(this, name);
   Svc.Obs.add("weave:engine:start-tracking", this);
   Svc.Obs.add("weave:engine:stop-tracking", this);
 
@@ -288,6 +300,7 @@ TabTracker.prototype = {
     switch (aTopic) {
       case "weave:engine:start-tracking":
         if (!this._enabled) {
+          Svc.Obs.add("private-browsing", this);
           Svc.Obs.add("domwindowopened", this);
           let wins = Services.wm.getEnumerator("navigator:browser");
           while (wins.hasMoreElements())
@@ -297,6 +310,7 @@ TabTracker.prototype = {
         break;
       case "weave:engine:stop-tracking":
         if (this._enabled) {
+          Svc.Obs.remove("private-browsing", this);
           Svc.Obs.remove("domwindowopened", this);
           let wins = Services.wm.getEnumerator("navigator:browser");
           while (wins.hasMoreElements())
@@ -313,17 +327,16 @@ TabTracker.prototype = {
           self._registerListenersForWindow(aSubject);
         }, false);
         break;
+      case "private-browsing":
+        if (aData == "enter" && !PBPrefs.get("autostart"))
+          this.modified = false;
     }
   },
 
   onTab: function onTab(event) {
-    if (event.originalTarget.linkedBrowser) {
-      let win = event.originalTarget.linkedBrowser.contentWindow;
-      if (PrivateBrowsingUtils.isWindowPrivate(win) &&
-          !PrivateBrowsingUtils.permanentPrivateBrowsing) {
-        this._log.trace("Ignoring tab event from private browsing.");
-        return;
-      }
+    if (Svc.Private && Svc.Private.privateBrowsingEnabled && !PBPrefs.get("autostart")) {
+      this._log.trace("Ignoring tab event from private browsing.");
+      return;
     }
 
     this._log.trace("onTab event: " + event.type);

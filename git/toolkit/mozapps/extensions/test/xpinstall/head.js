@@ -154,8 +154,7 @@ var Harness = {
       self.installsCompletedCallback = null;
       self.runningInstalls = null;
 
-      if (callback)
-        callback(count);
+      callback(count);
     });
   },
 
@@ -170,6 +169,7 @@ var Harness = {
       // to install the items or not. If not the test is over.
       if (this.installConfirmCallback && !this.installConfirmCallback(window)) {
         window.document.documentElement.cancelDialog();
+        this.endTest();
       }
       else {
         // Initially the accept button is disabled on a countdown timer

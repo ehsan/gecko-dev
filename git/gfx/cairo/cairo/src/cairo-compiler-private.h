@@ -210,10 +210,8 @@
 #endif
 
 #ifdef _MSC_VER
-#ifndef __cplusplus
 #undef inline
 #define inline __inline
-#endif
 
 /* there are currently linkage problems that arise when trying to include intrin.h in c++:
  * D:\sdks\v7.0\include\winnt.h(3674) : error C2733: second C linkage of overloaded function '_interlockedbittestandset' not allowed
@@ -233,10 +231,6 @@ ffs (int x)
     return 0;
 }
 #endif
-
-#elif defined(__WIN32__) && defined(__GNUC__)
-
-#define ffs(x) __builtin_ffs(x)
 
 #endif
 

@@ -1,6 +1,39 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape security libraries.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1994-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Dr Vipul Gupta <vipul.gupta@sun.com>, Sun Microsystems Laboratories
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 /*
  * Deal with PKCS #11 Slots.
  */
@@ -17,7 +50,6 @@
 #include "dev.h" 
 #include "dev3hack.h" 
 #include "pkim.h"
-#include "utilpars.h"
 
 
 /*************************************************************
@@ -27,7 +59,7 @@
 /*
  * This array helps parsing between names, mechanisms, and flags.
  * to make the config files understand more entries, add them
- * to this table.
+ * to this table. (NOTE: we need function to export this table and its size)
  */
 PK11DefaultArrayEntry PK11_DefaultArray[] = {
 	{ "RSA", SECMOD_RSA_FLAG, CKM_RSA_PKCS },
@@ -171,16 +203,11 @@ PK11_FreeSlotList(PK11SlotList *list)
 
 /*
  * add a slot to a list
- * "slot" is the slot to be added. Ownership is not transferred.
- * "sorted" indicates whether or not the slot should be inserted according to
- *   cipherOrder of the associated module. PR_FALSE indicates that the slot
- *   should be inserted to the head of the list.
  */
 SECStatus
-PK11_AddSlotToList(PK11SlotList *list,PK11SlotInfo *slot, PRBool sorted)
+PK11_AddSlotToList(PK11SlotList *list,PK11SlotInfo *slot)
 {
     PK11SlotListElement *le;
-    PK11SlotListElement *element;
 
     le = (PK11SlotListElement *) PORT_Alloc(sizeof(PK11SlotListElement));
     if (le == NULL) return SECFailure;
@@ -189,23 +216,9 @@ PK11_AddSlotToList(PK11SlotList *list,PK11SlotInfo *slot, PRBool sorted)
     le->prev = NULL;
     le->refCount = 1;
     PZ_Lock(list->lock);
-    element = list->head;
-    /* Insertion sort, with higher cipherOrders are sorted first in the list */
-    while (element && sorted && (element->slot->module->cipherOrder >
-                                 le->slot->module->cipherOrder)) {
-        element = element->next;
-    }
-    if (element) {
-        le->prev = element->prev;
-        element->prev = le;
-        le->next = element;
-    } else {
-        le->prev = list->tail;
-        le->next = NULL;
-        list->tail = le;
-    }
-    if (le->prev) le->prev->next = le;
-    if (list->head == element) list->head = le;
+    if (list->head) list->head->prev = le; else list->tail = le;
+    le->next = list->head;
+    list->head = le;
     PZ_Unlock(list->lock);
 
     return SECSuccess;
@@ -227,12 +240,11 @@ PK11_DeleteSlotFromList(PK11SlotList *list,PK11SlotListElement *le)
 }
 
 /*
- * Move a list to the end of the target list.
- * NOTE: There is no locking here... This assumes BOTH lists are private copy
- * lists. It also does not re-sort the target list.
+ * Move a list to the end of the target list. NOTE: There is no locking
+ * here... This assumes BOTH lists are private copy lists.
  */
 SECStatus
-pk11_MoveListToList(PK11SlotList *target,PK11SlotList *src)
+PK11_MoveListToList(PK11SlotList *target,PK11SlotList *src)
 {
     if (src->head == NULL) return SECSuccess;
 
@@ -531,7 +543,7 @@ PK11_FindSlotsByNames(const char *dllName, const char* slotName,
         ((NULL == slotName) || (0 == *slotName)) &&
         ((NULL == tokenName) || (0 == *tokenName)) ) {
         /* default to softoken */
-        PK11_AddSlotToList(slotList, PK11_GetInternalKeySlot(), PR_TRUE);
+        PK11_AddSlotToList(slotList, PK11_GetInternalKeySlot());
         return slotList;
     }
 
@@ -559,7 +571,7 @@ PK11_FindSlotsByNames(const char *dllName, const char* slotName,
                     ( (!slotName) || (tmpSlot->slot_name &&
                     (0==PORT_Strcmp(tmpSlot->slot_name, slotName)))) ) {
                     if (tmpSlot) {
-                        PK11_AddSlotToList(slotList, tmpSlot, PR_TRUE);
+                        PK11_AddSlotToList(slotList, tmpSlot);
                         slotcount++;
                     }
                 }
@@ -833,10 +845,6 @@ PK11_GetSlotList(CK_MECHANISM_TYPE type)
     case CKM_CAMELLIA_ECB:
 	return &pk11_camelliaSlotList;
     case CKM_AES_CBC:
-    case CKM_AES_CCM:
-    case CKM_AES_CTR:
-    case CKM_AES_CTS:
-    case CKM_AES_GCM:
     case CKM_AES_ECB:
 	return &pk11_aesSlotList;
     case CKM_DES_CBC:
@@ -884,7 +892,6 @@ PK11_GetSlotList(CK_MECHANISM_TYPE type)
 	return &pk11_sslSlotList;
     case CKM_TLS_MASTER_KEY_DERIVE:
     case CKM_TLS_KEY_AND_MAC_DERIVE:
-    case CKM_NSS_TLS_KEY_AND_MAC_DERIVE_SHA256:
 	return &pk11_tlsSlotList;
     case CKM_IDEA_CBC:
     case CKM_IDEA_ECB:
@@ -935,7 +942,7 @@ PK11_LoadSlotList(PK11SlotInfo *slot, PK11PreSlotInfo *psi, int count)
 	    CK_MECHANISM_TYPE mechanism = PK11_DefaultArray[i].mechanism;
 	    PK11SlotList *slotList = PK11_GetSlotList(mechanism);
 
-	    if (slotList) PK11_AddSlotToList(slotList,slot,PR_FALSE);
+	    if (slotList) PK11_AddSlotToList(slotList,slot);
 	}
     }
 
@@ -962,7 +969,7 @@ PK11_UpdateSlotAttribute(PK11SlotInfo *slot, PK11DefaultArrayEntry *entry,
         
         /* add this slot to the list */
         if (slotList!=NULL)
-            result = PK11_AddSlotToList(slotList, slot, PR_FALSE);
+            result = PK11_AddSlotToList(slotList, slot);
         
     } else { /* trying to turn off */
             
@@ -1016,7 +1023,7 @@ PK11_ClearSlotList(PK11SlotInfo *slot)
  * turn a PKCS11 Static Label into a string
  */
 char *
-PK11_MakeString(PLArenaPool *arena,char *space,
+PK11_MakeString(PRArenaPool *arena,char *space,
 					char *staticString,int stringLen)
 {
 	int i;
@@ -1935,12 +1942,12 @@ PK11_GetAllTokens(CK_MECHANISM_TYPE type, PRBool needRW, PRBool loadCerts,
 					|| PK11_DoesMechanism(slot, type)) {
 		    if (pk11_LoginStillRequired(slot,wincx)) {
 			if (PK11_IsFriendly(slot)) {
-			    PK11_AddSlotToList(friendlyList, slot, PR_TRUE);
+			    PK11_AddSlotToList(friendlyList, slot);
 			} else {
-			    PK11_AddSlotToList(loginList, slot, PR_TRUE);
+			    PK11_AddSlotToList(loginList, slot);
 			}
 		    } else {
-			PK11_AddSlotToList(list, slot, PR_TRUE);
+			PK11_AddSlotToList(list, slot);
 		    }
 		}
 	    }
@@ -1948,9 +1955,9 @@ PK11_GetAllTokens(CK_MECHANISM_TYPE type, PRBool needRW, PRBool loadCerts,
     }
     SECMOD_ReleaseReadLock(moduleLock);
 
-    pk11_MoveListToList(list,friendlyList);
+    PK11_MoveListToList(list,friendlyList);
     PK11_FreeSlotList(friendlyList);
-    pk11_MoveListToList(list,loginList);
+    PK11_MoveListToList(list,loginList);
     PK11_FreeSlotList(loginList);
 
     return list;
@@ -1981,63 +1988,14 @@ PK11_GetPrivateKeyTokens(CK_MECHANISM_TYPE type,PRBool needRW,void *wincx)
     return list;
 }
 
-/*
- * returns true if the slot doesn't conform to the requested attributes
- */
-PRBool
-pk11_filterSlot(PK11SlotInfo *slot, CK_MECHANISM_TYPE mechanism, 
-	CK_FLAGS mechanismInfoFlags, unsigned int keySize) 
-{
-    CK_MECHANISM_INFO mechanism_info;
-    CK_RV crv = CKR_OK;
-
-    /* handle the only case where we don't actually fetch the mechanisms
-     * on the fly */
-    if ((keySize == 0) && (mechanism == CKM_RSA_PKCS) && (slot->hasRSAInfo)) {
-	mechanism_info.flags = slot->RSAInfoFlags;
-    } else {
-	if (!slot->isThreadSafe) PK11_EnterSlotMonitor(slot);
-    	crv = PK11_GETTAB(slot)->C_GetMechanismInfo(slot->slotID, mechanism, 
-							&mechanism_info);
-	if (!slot->isThreadSafe) PK11_ExitSlotMonitor(slot);
-	/* if we were getting the RSA flags, save them */
-	if ((crv == CKR_OK) && (mechanism == CKM_RSA_PKCS) 
-						&& (!slot->hasRSAInfo)) {
-	    slot->RSAInfoFlags = mechanism_info.flags;
-	    slot->hasRSAInfo = PR_TRUE;
-	}
-    }
-    /* couldn't get the mechanism info */
-    if (crv != CKR_OK ) {
-	return PR_TRUE;
-    }
-    if (keySize && ((mechanism_info.ulMinKeySize > keySize)
-			|| (mechanism_info.ulMaxKeySize < keySize)) ) {
-	/* Token can do mechanism, but not at the key size we
-	 * want */
-	return PR_TRUE;
-    }
-    if (mechanismInfoFlags && ((mechanism_info.flags & mechanismInfoFlags) !=
-				mechanismInfoFlags) ) {
-	return PR_TRUE;
-    }
-    return PR_FALSE;
-}
-
 
 /*
- * Find the best slot which supports the given set of mechanisms and key sizes.
- * In normal cases this should grab the first slot on the list with no fuss.
- * The size array is presumed to match one for one with the mechanism type 
- * array, which allows you to specify the required key size for each
- * mechanism in the list. Whether key size is in bits or bytes is mechanism
- * dependent. Typically asymetric keys are in bits and symetric keys are in 
- * bytes.
+ * find the best slot which supports the given
+ * Mechanism. In normal cases this should grab the first slot on the list
+ * with no fuss.
  */
 PK11SlotInfo *
-PK11_GetBestSlotMultipleWithAttributes(CK_MECHANISM_TYPE *type, 
-		CK_FLAGS *mechanismInfoFlags, unsigned int *keySize, 
-		unsigned int mech_count, void *wincx)
+PK11_GetBestSlotMultiple(CK_MECHANISM_TYPE *type, int mech_count, void *wincx)
 {
     PK11SlotList *list = NULL;
     PK11SlotListElement *le ;
@@ -2088,17 +2046,7 @@ PK11_GetBestSlotMultipleWithAttributes(CK_MECHANISM_TYPE *type,
 		    doExit = PR_TRUE;
 		    break;
 		}
-		if ((mechanismInfoFlags && mechanismInfoFlags[i]) ||
-			(keySize && keySize[i])) {
-		    if (pk11_filterSlot(le->slot, type[i], 
-			    mechanismInfoFlags ?  mechanismInfoFlags[i] : 0,
-			    keySize ? keySize[i] : 0)) {
-			doExit = PR_TRUE;
-			break;
-		    }
-		}
 	    }
-    
 	    if (doExit) continue;
 	      
 	    if (listNeedLogin && le->slot->needLogin) {
@@ -2119,27 +2067,11 @@ PK11_GetBestSlotMultipleWithAttributes(CK_MECHANISM_TYPE *type,
     return NULL;
 }
 
-PK11SlotInfo *
-PK11_GetBestSlotMultiple(CK_MECHANISM_TYPE *type, 
-			 unsigned int mech_count, void *wincx)
-{
-    return PK11_GetBestSlotMultipleWithAttributes(type, NULL, NULL, 
-						mech_count, wincx);
-}
-
 /* original get best slot now calls the multiple version with only one type */
 PK11SlotInfo *
 PK11_GetBestSlot(CK_MECHANISM_TYPE type, void *wincx)
 {
-    return PK11_GetBestSlotMultipleWithAttributes(&type, NULL, NULL, 1, wincx);
-}
-
-PK11SlotInfo *
-PK11_GetBestSlotWithAttributes(CK_MECHANISM_TYPE type, CK_FLAGS mechanismFlags,
-		unsigned int keySize, void *wincx)
-{
-    return PK11_GetBestSlotMultipleWithAttributes(&type, &mechanismFlags,
-						 &keySize, 1, wincx);
+    return PK11_GetBestSlotMultiple(&type, 1, wincx);
 }
 
 int

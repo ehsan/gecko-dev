@@ -1,20 +1,57 @@
 /* -*- Mode: C; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  *
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-Components.utils.import("resource://gre/modules/Services.jsm");
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code, released
+ * March 31, 1998.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998-1999
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Ben Goodger (03/01/00)
+ *   Seth Spitzer (28/10/99)
+ *   Dan Veditz <dveditz@netscape.com>
+ *   Benjamin Smedberg <bsmedberg@covad.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 const C = Components.classes;
 const I = Components.interfaces;
 
 const ToolkitProfileService = "@mozilla.org/toolkit/profile-service;1";
+const PromptService = "@mozilla.org/embedcomp/prompt-service;1";
 
 var gDialogParams;
 var gProfileManagerBundle;
 var gBrandBundle;
 var gProfileService;
+var gPromptService;
 
 function startup()
 {
@@ -26,6 +63,8 @@ function startup()
 
     gProfileManagerBundle = document.getElementById("bundle_profileManager");
     gBrandBundle = document.getElementById("bundle_brand");
+
+    gPromptService = C[PromptService].getService(I.nsIPromptService);
 
     document.documentElement.centerWindowOnScreen();
 
@@ -73,7 +112,7 @@ function acceptDialog()
     var pleaseSelectTitle = gProfileManagerBundle.getString("pleaseSelectTitle");
     var pleaseSelect =
       gProfileManagerBundle.getFormattedString("pleaseSelect", [appName]);
-    Services.prompt.alert(window, pleaseSelectTitle, pleaseSelect);
+    gPromptService.alert(window, pleaseSelectTitle, pleaseSelect);
 
     return false;
   }
@@ -84,18 +123,10 @@ function acceptDialog()
     profileLock = selectedProfile.profile.lock({ value: null });
   }
   catch (e) {
-    if (!selectedProfile.profile.rootDir.exists()) {
-      var missingTitle = gProfileManagerBundle.getString("profileMissingTitle");
-      var missing =
-        gProfileManagerBundle.getFormattedString("profileMissing", [appName]);
-      Services.prompt.alert(window, missingTitle, missing);
-      return false;
-    }
-
     var lockedTitle = gProfileManagerBundle.getString("profileLockedTitle");
     var locked =
       gProfileManagerBundle.getFormattedString("profileLocked2", [appName, selectedProfile.profile.name, appName]);
-    Services.prompt.alert(window, lockedTitle, locked);
+    gPromptService.alert(window, lockedTitle, locked);
 
     return false;
   }
@@ -191,7 +222,7 @@ function RenameProfile()
   var msg =
     gProfileManagerBundle.getFormattedString("renameProfilePrompt", [oldName]);
 
-  if (Services.prompt.prompt(window, dialogTitle, msg, newName, null, {value:0})) {
+  if (gPromptService.prompt(window, dialogTitle, msg, newName, null, {value:0})) {
     newName = newName.value;
 
     // User hasn't changed the profile name. Treat as if cancel was pressed.
@@ -204,7 +235,7 @@ function RenameProfile()
     catch (e) {
       var alTitle = gProfileManagerBundle.getString("profileNameInvalidTitle");
       var alMsg = gProfileManagerBundle.getFormattedString("profileNameInvalid", [newName]);
-      Services.prompt.alert(window, alTitle, alMsg);
+      gPromptService.alert(window, alTitle, alMsg);
       return false;
     }
 
@@ -239,10 +270,10 @@ function ConfirmDelete()
       gProfileManagerBundle.getFormattedString("deleteProfileConfirm",
                                                [selectedProfile.rootDir.path]);
 
-    var buttonPressed = Services.prompt.confirmEx(window, dialogTitle, dialogText,
-                          (Services.prompt.BUTTON_TITLE_IS_STRING * Services.prompt.BUTTON_POS_0) +
-                          (Services.prompt.BUTTON_TITLE_CANCEL * Services.prompt.BUTTON_POS_1) +
-                          (Services.prompt.BUTTON_TITLE_IS_STRING * Services.prompt.BUTTON_POS_2),
+    var buttonPressed = gPromptService.confirmEx(window, dialogTitle, dialogText,
+                          (gPromptService.BUTTON_TITLE_IS_STRING * gPromptService.BUTTON_POS_0) +
+                          (gPromptService.BUTTON_TITLE_CANCEL * gPromptService.BUTTON_POS_1) +
+                          (gPromptService.BUTTON_TITLE_IS_STRING * gPromptService.BUTTON_POS_2),
                           gProfileManagerBundle.getString("dontDeleteFiles"),
                           null,
                           gProfileManagerBundle.getString("deleteFiles"),

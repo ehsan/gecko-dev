@@ -1,28 +1,61 @@
 /* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   jeroen.dobbelaere@acunia.com
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 /* #include "PRIntlpriv.h" */
 #include "unicpriv.h" 
 
 
-typedef uint16_t (* MapFormatFunc)(uint16_t in,const uTable *uT,const uMapCell *cell);
-typedef PRBool (* HitFormateFunc)(uint16_t in,const uMapCell *cell);
-typedef void (* FillInfoFormateFunc)(const uTable *uT, const uMapCell *cell, uint32_t* info);
+typedef PRUint16 (* MapFormatFunc)(PRUint16 in,const uTable *uT,const uMapCell *cell);
+typedef PRBool (* HitFormateFunc)(PRUint16 in,const uMapCell *cell);
+typedef void (* FillInfoFormateFunc)(const uTable *uT, const uMapCell *cell, PRUint32* info);
 
 
-PRIVATE PRBool uHitFormate0(uint16_t in,const uMapCell *cell);
-PRIVATE PRBool uHitFormate2(uint16_t in,const uMapCell *cell);
-PRIVATE uint16_t uMapFormate0(uint16_t in,const uTable *uT,const uMapCell *cell);
-PRIVATE uint16_t uMapFormate1(uint16_t in,const uTable *uT,const uMapCell *cell);
-PRIVATE uint16_t uMapFormate2(uint16_t in,const uTable *uT,const uMapCell *cell);
-PRIVATE void uFillInfoFormate0(const uTable *uT,const uMapCell *cell,uint32_t* aInfo);
-PRIVATE void uFillInfoFormate1(const uTable *uT,const uMapCell *cell,uint32_t* aInfo);
-PRIVATE void uFillInfoFormate2(const uTable *uT,const uMapCell *cell,uint32_t* aInfo);
+PRIVATE PRBool uHitFormate0(PRUint16 in,const uMapCell *cell);
+PRIVATE PRBool uHitFormate2(PRUint16 in,const uMapCell *cell);
+PRIVATE PRUint16 uMapFormate0(PRUint16 in,const uTable *uT,const uMapCell *cell);
+PRIVATE PRUint16 uMapFormate1(PRUint16 in,const uTable *uT,const uMapCell *cell);
+PRIVATE PRUint16 uMapFormate2(PRUint16 in,const uTable *uT,const uMapCell *cell);
+PRIVATE void uFillInfoFormate0(const uTable *uT,const uMapCell *cell,PRUint32* aInfo);
+PRIVATE void uFillInfoFormate1(const uTable *uT,const uMapCell *cell,PRUint32* aInfo);
+PRIVATE void uFillInfoFormate2(const uTable *uT,const uMapCell *cell,PRUint32* aInfo);
 
 
-PRIVATE const uMapCell *uGetMapCell(const uTable *uT, int16_t item);
-PRIVATE char uGetFormat(const uTable *uT, int16_t item);
+PRIVATE const uMapCell *uGetMapCell(const uTable *uT, PRInt16 item);
+PRIVATE char uGetFormat(const uTable *uT, PRInt16 item);
 
 
 /*=================================================================================
@@ -57,22 +90,22 @@ PRIVATE const HitFormateFunc m_hit[uNumFormatTag] =
 
 #define uHit(format,in,cell)   (* m_hit[(format)])((in),(cell))
 #define uMap(format,in,uT,cell)  (* m_map[(format)])((in),(uT),(cell))
-#define uGetMapCell(uT, item) ((uMapCell *)(((uint16_t *)uT) + (uT)->offsetToMapCellArray + (item)*(UMAPCELL_SIZE/sizeof(uint16_t))))
-#define uGetFormat(uT, item) (((((uint16_t *)uT) + (uT)->offsetToFormatArray)[(item)>> 2 ] >> (((item)% 4 ) << 2)) & 0x0f)
+#define uGetMapCell(uT, item) ((uMapCell *)(((PRUint16 *)uT) + (uT)->offsetToMapCellArray + (item)*(UMAPCELL_SIZE/sizeof(PRUint16))))
+#define uGetFormat(uT, item) (((((PRUint16 *)uT) + (uT)->offsetToFormatArray)[(item)>> 2 ] >> (((item)% 4 ) << 2)) & 0x0f)
 
 /*=================================================================================
 
 =================================================================================*/
-MODULE_PRIVATE PRBool uMapCode(const uTable *uT, uint16_t in, uint16_t* out)
+MODULE_PRIVATE PRBool uMapCode(const uTable *uT, PRUint16 in, PRUint16* out)
 {
   PRBool done = PR_FALSE;
-  uint16_t itemOfList = uT->itemOfList;
-  uint16_t i;
+  PRUint16 itemOfList = uT->itemOfList;
+  PRUint16 i;
   *out = NOMAPPING;
   for(i=0;i<itemOfList;i++)
   {
     const uMapCell* uCell;
-    int8_t format = uGetFormat(uT,i);
+    PRInt8 format = uGetFormat(uT,i);
     uCell = uGetMapCell(uT,i);
     if(uHit(format, in, uCell))
     {
@@ -91,7 +124,7 @@ member function
 /*=================================================================================
 
 =================================================================================*/
-PRIVATE PRBool uHitFormate0(uint16_t in,const uMapCell *cell)
+PRIVATE PRBool uHitFormate0(PRUint16 in,const uMapCell *cell)
 {
   return ( (in >= cell->fmt.format0.srcBegin) &&
     (in <= cell->fmt.format0.srcEnd) ) ;
@@ -99,29 +132,29 @@ PRIVATE PRBool uHitFormate0(uint16_t in,const uMapCell *cell)
 /*=================================================================================
 
 =================================================================================*/
-PRIVATE PRBool uHitFormate2(uint16_t in,const uMapCell *cell)
+PRIVATE PRBool uHitFormate2(PRUint16 in,const uMapCell *cell)
 {
   return (in == cell->fmt.format2.srcBegin);
 }
 /*=================================================================================
 
 =================================================================================*/
-PRIVATE uint16_t uMapFormate0(uint16_t in,const uTable *uT,const uMapCell *cell)
+PRIVATE PRUint16 uMapFormate0(PRUint16 in,const uTable *uT,const uMapCell *cell)
 {
   return ((in - cell->fmt.format0.srcBegin) + cell->fmt.format0.destBegin);
 }
 /*=================================================================================
 
 =================================================================================*/
-PRIVATE uint16_t uMapFormate1(uint16_t in,const uTable *uT,const uMapCell *cell)
+PRIVATE PRUint16 uMapFormate1(PRUint16 in,const uTable *uT,const uMapCell *cell)
 {
-  return (*(((uint16_t *)uT) + uT->offsetToMappingTable
+  return (*(((PRUint16 *)uT) + uT->offsetToMappingTable
     + cell->fmt.format1.mappingOffset + in - cell->fmt.format1.srcBegin));
 }
 /*=================================================================================
 
 =================================================================================*/
-PRIVATE uint16_t uMapFormate2(uint16_t in,const uTable *uT,const uMapCell *cell)
+PRIVATE PRUint16 uMapFormate2(PRUint16 in,const uTable *uT,const uMapCell *cell)
 {
   return (cell->fmt.format2.destBegin);
 }
@@ -130,9 +163,9 @@ PRIVATE uint16_t uMapFormate2(uint16_t in,const uTable *uT,const uMapCell *cell)
 /*=================================================================================
 
 =================================================================================*/
-PRIVATE void uFillInfoFormate0(const uTable *uT,const uMapCell *cell,uint32_t* info)
+PRIVATE void uFillInfoFormate0(const uTable *uT,const uMapCell *cell,PRUint32* info)
 {
-  uint16_t begin, end, i;
+  PRUint16 begin, end, i;
   begin = cell->fmt.format0.srcBegin;
   end = cell->fmt.format0.srcEnd;
   if( (begin >> 5) == (end >> 5)) /* High 17 bits are the same */
@@ -141,8 +174,8 @@ PRIVATE void uFillInfoFormate0(const uTable *uT,const uMapCell *cell,uint32_t* i
       SET_REPRESENTABLE(info, i);
   } 
   else {
-    uint32_t b = begin >> 5;
-    uint32_t e = end >> 5;
+    PRUint32 b = begin >> 5;
+    PRUint32 e = end >> 5;
     info[ b ] |= (0xFFFFFFFFL << ((begin) & 0x1f)); 
     info[ e ] |= (0xFFFFFFFFL >> (31 - ((end) & 0x1f)));
     for(b++ ; b < e ; b++)
@@ -152,13 +185,13 @@ PRIVATE void uFillInfoFormate0(const uTable *uT,const uMapCell *cell,uint32_t* i
 /*=================================================================================
 
 =================================================================================*/
-PRIVATE void uFillInfoFormate1(const uTable *uT,const uMapCell *cell,uint32_t* info)
+PRIVATE void uFillInfoFormate1(const uTable *uT,const uMapCell *cell,PRUint32* info)
 {
-  uint16_t begin, end, i;
-  uint16_t *base;
+  PRUint16 begin, end, i;
+  PRUint16 *base;
   begin = cell->fmt.format0.srcBegin;
   end = cell->fmt.format0.srcEnd;
-  base = (((uint16_t *)uT) + uT->offsetToMappingTable + cell->fmt.format1.mappingOffset);
+  base = (((PRUint16 *)uT) + uT->offsetToMappingTable + cell->fmt.format1.mappingOffset);
   for(i = begin; i <= end; i++) 
   {
     if(0xFFFD != base[i - begin])  /* check every item */
@@ -168,7 +201,7 @@ PRIVATE void uFillInfoFormate1(const uTable *uT,const uMapCell *cell,uint32_t* i
 /*=================================================================================
 
 =================================================================================*/
-PRIVATE void uFillInfoFormate2(const uTable *uT,const uMapCell *cell,uint32_t* info)
+PRIVATE void uFillInfoFormate2(const uTable *uT,const uMapCell *cell,PRUint32* info)
 {
   SET_REPRESENTABLE(info, cell->fmt.format2.srcBegin);
 }

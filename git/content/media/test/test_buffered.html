@@ -8,6 +8,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=462957
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
   <script type="text/javascript" src="manifest.js"></script>
+  <script type="application/javascript" src="use_large_cache.js"></script>
 </head>
 <body>
 <a target="_blank" href="https://bugzilla.mozilla.org/show_bug.cgi?id=462957">Mozilla Bug 462957</a>
@@ -37,7 +38,7 @@ function ended(e) {
   try {
     b.start(-1);
   } catch (e) {
-    caught = e.name == "IndexSizeError" && e.code == DOMException.INDEX_SIZE_ERR;
+    caught = e.code == DOMException.INDEX_SIZE_ERR;
   }
   is(caught, true, v._name + ": Should throw INDEX_SIZE_ERR on under start bounds range");
   
@@ -45,7 +46,7 @@ function ended(e) {
   try {
     b.end(-1);
   } catch (e) {
-    caught = e.name == "IndexSizeError" && e.code == DOMException.INDEX_SIZE_ERR;
+    caught = e.code == DOMException.INDEX_SIZE_ERR;
   }
   is(caught, true, v._name + ": Should throw INDEX_SIZE_ERR on under end bounds range");
 
@@ -53,7 +54,7 @@ function ended(e) {
   try {
     b.start(b.length);
   } catch (e) {
-    caught = e.name == "IndexSizeError" && e.code == DOMException.INDEX_SIZE_ERR;
+    caught = e.code == DOMException.INDEX_SIZE_ERR;
   }
   is(caught, true, v._name + ": Should throw INDEX_SIZE_ERR on over start bounds range");
   
@@ -61,18 +62,19 @@ function ended(e) {
   try {
     b.end(b.length);
   } catch (e) {
-    caught = e.name == "IndexSizeError" && e.code == DOMException.INDEX_SIZE_ERR;
+    caught = e.code == DOMException.INDEX_SIZE_ERR;
   }
   is(caught, true, v._name + ": Should throw INDEX_SIZE_ERR on over end bounds range");
 
   v.src = "";
   v.parentNode.removeChild(v);
   manager.finished(v.token);
+
+  return false;
 }
 
 function startTest(test, token) {
   var v = document.createElement('video');
-  v.preload = "metadata";
   v.token = token;
   manager.started(token);
 
@@ -85,11 +87,8 @@ function startTest(test, token) {
   document.body.appendChild(v);
 }
 
-SimpleTest.waitForExplicitFinish();
-SpecialPowers.pushPrefEnv({"set": [["media.cache_size", 40000]]}, beginTest);
-function beginTest() {
-  manager.runTests(gSeekTests, startTest);
-}
+manager.runTests(gSeekTests, startTest);
+
 </script>
 </pre>
 </body>

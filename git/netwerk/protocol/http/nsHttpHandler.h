@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications.
+ * Portions created by the Initial Developer are Copyright (C) 2001
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Darin Fisher <darin@netscape.com> (original author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsHttpHandler_h__
 #define nsHttpHandler_h__
@@ -10,7 +43,6 @@
 #include "nsHttpAuthCache.h"
 #include "nsHttpConnection.h"
 #include "nsHttpConnectionMgr.h"
-#include "ASpdySession.h"
 
 #include "nsXPIDLString.h"
 #include "nsString.h"
@@ -22,12 +54,13 @@
 #include "nsIIOService.h"
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
+#include "nsIPrivateBrowsingService.h"
 #include "nsIStreamConverterService.h"
 #include "nsICacheSession.h"
 #include "nsICookieService.h"
+#include "nsIIDNService.h"
 #include "nsITimer.h"
 #include "nsIStrictTransportSecurityService.h"
-#include "nsISpeculativeConnect.h"
 
 class nsHttpConnectionInfo;
 class nsHttpHeaderArray;
@@ -35,15 +68,6 @@ class nsHttpTransaction;
 class nsAHttpTransaction;
 class nsIHttpChannel;
 class nsIPrefBranch;
-class nsICancelable;
-
-namespace mozilla {
-namespace net {
-class ATokenBucketEvent;
-class EventTokenBucket;
-class Tickler;
-}
-}
 
 //-----------------------------------------------------------------------------
 // nsHttpHandler - protocol handler for HTTP and HTTPS
@@ -52,80 +76,50 @@ class Tickler;
 class nsHttpHandler : public nsIHttpProtocolHandler
                     , public nsIObserver
                     , public nsSupportsWeakReference
-                    , public nsISpeculativeConnect
 {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIPROTOCOLHANDLER
     NS_DECL_NSIPROXIEDPROTOCOLHANDLER
     NS_DECL_NSIHTTPPROTOCOLHANDLER
     NS_DECL_NSIOBSERVER
-    NS_DECL_NSISPECULATIVECONNECT
 
     nsHttpHandler();
     virtual ~nsHttpHandler();
 
     nsresult Init();
-    nsresult AddStandardRequestHeaders(nsHttpHeaderArray *);
-    nsresult AddConnectionHeader(nsHttpHeaderArray *,
-                                 uint32_t capabilities);
-    bool     IsAcceptableEncoding(const char *encoding);
+    nsresult AddStandardRequestHeaders(nsHttpHeaderArray *,
+                                       PRUint8 capabilities,
+                                       PRBool useProxy);
+    PRBool   IsAcceptableEncoding(const char *encoding);
 
     const nsAFlatCString &UserAgent();
 
     nsHttpVersion  HttpVersion()             { return mHttpVersion; }
     nsHttpVersion  ProxyHttpVersion()        { return mProxyHttpVersion; }
-    uint8_t        ReferrerLevel()           { return mReferrerLevel; }
-    bool           SendSecureXSiteReferrer() { return mSendSecureXSiteReferrer; }
-    uint8_t        RedirectionLimit()        { return mRedirectionLimit; }
-    PRIntervalTime IdleTimeout()             { return mIdleTimeout; }
-    PRIntervalTime SpdyTimeout()             { return mSpdyTimeout; }
-    uint16_t       MaxRequestAttempts()      { return mMaxRequestAttempts; }
+    PRUint8        ReferrerLevel()           { return mReferrerLevel; }
+    PRBool         SendSecureXSiteReferrer() { return mSendSecureXSiteReferrer; }
+    PRUint8        RedirectionLimit()        { return mRedirectionLimit; }
+    PRUint16       IdleTimeout()             { return mIdleTimeout; }
+    PRUint16       MaxRequestAttempts()      { return mMaxRequestAttempts; }
     const char    *DefaultSocketType()       { return mDefaultSocketType.get(); /* ok to return null */ }
-    uint32_t       PhishyUserPassLength()    { return mPhishyUserPassLength; }
-    uint8_t        GetQoSBits()              { return mQoSBits; }
-    uint16_t       GetIdleSynTimeout()       { return mIdleSynTimeout; }
-    bool           FastFallbackToIPv4()      { return mFastFallbackToIPv4; }
-    bool           ProxyPipelining()         { return mProxyPipelining; }
-    uint32_t       MaxSocketCount();
-    bool           EnforceAssocReq()         { return mEnforceAssocReq; }
+    nsIIDNService *IDNConverter()            { return mIDNConverter; }
+    PRUint32       PhishyUserPassLength()    { return mPhishyUserPassLength; }
+    PRUint8        GetQoSBits()              { return mQoSBits; }
+    PRUint16       GetIdleSynTimeout()       { return mIdleSynTimeout; }
+    PRBool         FastFallbackToIPv4()      { return mFastFallbackToIPv4; }
 
-    bool           IsPersistentHttpsCachingEnabled() { return mEnablePersistentHttpsCaching; }
-    bool           IsTelemetryEnabled() { return mTelemetryEnabled; }
-    bool           AllowExperiments() { return mTelemetryEnabled && mAllowExperiments; }
+    PRBool         IsPersistentHttpsCachingEnabled() { return mEnablePersistentHttpsCaching; }
 
-    bool           IsSpdyEnabled() { return mEnableSpdy; }
-    bool           IsSpdyV2Enabled() { return mSpdyV2; }
-    bool           IsSpdyV3Enabled() { return mSpdyV3; }
-    bool           CoalesceSpdy() { return mCoalesceSpdy; }
-    bool           UseSpdyPersistentSettings() { return mSpdyPersistentSettings; }
-    uint32_t       SpdySendingChunkSize() { return mSpdySendingChunkSize; }
-    uint32_t       SpdySendBufferSize()      { return mSpdySendBufferSize; }
-    uint32_t       SpdyPushAllowance()       { return mSpdyPushAllowance; }
-    PRIntervalTime SpdyPingThreshold() { return mSpdyPingThreshold; }
-    PRIntervalTime SpdyPingTimeout() { return mSpdyPingTimeout; }
-    bool           AllowSpdyPush()   { return mAllowSpdyPush; }
-    uint32_t       ConnectTimeout()  { return mConnectTimeout; }
-    uint32_t       ParallelSpeculativeConnectLimit() { return mParallelSpeculativeConnectLimit; }
-    bool           CritialRequestPrioritization() { return mCritialRequestPrioritization; }
-    double         BypassCacheLockThreshold() { return mBypassCacheLockThreshold; }
+    PRBool         PromptTempRedirect()      { return mPromptTempRedirect; }
 
-    bool           UseRequestTokenBucket() { return mRequestTokenBucketEnabled; }
-    uint16_t       RequestTokenBucketMinParallelism() { return mRequestTokenBucketMinParallelism; }
-    uint32_t       RequestTokenBucketHz() { return mRequestTokenBucketHz; }
-    uint32_t       RequestTokenBucketBurst() {return mRequestTokenBucketBurst; }
-
-    bool           PromptTempRedirect()      { return mPromptTempRedirect; }
-
-    nsHttpAuthCache     *AuthCache(bool aPrivate) {
-        return aPrivate ? &mPrivateAuthCache : &mAuthCache;
-    }
+    nsHttpAuthCache     *AuthCache() { return &mAuthCache; }
     nsHttpConnectionMgr *ConnMgr()   { return mConnMgr; }
 
     // cache support
-    bool UseCache() const { return mUseCache; }
-    uint32_t GenerateUniqueID() { return ++mLastUniqueID; }
-    uint32_t SessionStartTime() { return mSessionStartTime; }
+    nsresult GetCacheSession(nsCacheStoragePolicy, nsICacheSession **);
+    PRUint32 GenerateUniqueID() { return ++mLastUniqueID; }
+    PRUint32 SessionStartTime() { return mSessionStartTime; }
 
     //
     // Connection management methods:
@@ -135,19 +129,19 @@ public:
     //
     // - the handler keeps a count of active connections to enforce the
     //   steady-state max-connections pref.
-    //
+    // 
 
     // Called to kick-off a new transaction, by default the transaction
-    // will be put on the pending transaction queue if it cannot be
+    // will be put on the pending transaction queue if it cannot be 
     // initiated at this time.  Callable from any thread.
-    nsresult InitiateTransaction(nsHttpTransaction *trans, int32_t priority)
+    nsresult InitiateTransaction(nsHttpTransaction *trans, PRInt32 priority)
     {
         return mConnMgr->AddTransaction(trans, priority);
     }
 
     // Called to change the priority of an existing transaction that has
     // already been initiated.
-    nsresult RescheduleTransaction(nsHttpTransaction *trans, int32_t priority)
+    nsresult RescheduleTransaction(nsHttpTransaction *trans, PRInt32 priority)
     {
         return mConnMgr->RescheduleTransaction(trans, priority);
     }
@@ -171,23 +165,13 @@ public:
         return mConnMgr->ProcessPendingQ(cinfo);
     }
 
-    nsresult ProcessPendingQ()
-    {
-        return mConnMgr->ProcessPendingQ();
-    }
-
     nsresult GetSocketThreadTarget(nsIEventTarget **target)
     {
         return mConnMgr->GetSocketThreadTarget(target);
     }
 
-    nsresult SpeculativeConnect(nsHttpConnectionInfo *ci,
-                                nsIInterfaceRequestor *callbacks,
-                                uint32_t caps = 0)
-    {
-        TickleWifi(callbacks);
-        return mConnMgr->SpeculativeConnect(ci, callbacks, caps);
-    }
+    // for anything that wants to know if we're in private browsing mode.
+    PRBool InPrivateBrowsingMode();
 
     //
     // The HTTP handler caches pointers to specific XPCOM services, and
@@ -197,15 +181,6 @@ public:
     nsresult GetIOService(nsIIOService** service);
     nsICookieService * GetCookieService(); // not addrefed
     nsIStrictTransportSecurityService * GetSTSService();
-
-    // callable from socket thread only
-    uint32_t Get32BitsOfPseudoRandom();
-
-    // Called by the channel synchronously during asyncOpen
-    void OnOpeningRequest(nsIHttpChannel *chan)
-    {
-        NotifyObservers(chan, NS_HTTP_ON_OPENING_REQUEST_TOPIC);
-    }
 
     // Called by the channel before writing a request
     void OnModifyRequest(nsIHttpChannel *chan)
@@ -228,7 +203,7 @@ public:
     // Called by channels before a redirect happens. This notifies both the
     // channel's and the global redirect observers.
     nsresult AsyncOnChannelRedirect(nsIChannel* oldChan, nsIChannel* newChan,
-                               uint32_t flags);
+                               PRUint32 flags);
 
     // Called by the channel when the response is read from the cache without
     // communicating with the server.
@@ -239,49 +214,8 @@ public:
 
     // Generates the host:port string for use in the Host: header as well as the
     // CONNECT line for proxies. This handles IPv6 literals correctly.
-    static nsresult GenerateHostPort(const nsCString& host, int32_t port,
+    static nsresult GenerateHostPort(const nsCString& host, PRInt32 port,
                                      nsCString& hostLine);
-
-    bool GetPipelineAggressive()     { return mPipelineAggressive; }
-    void GetMaxPipelineObjectSize(int64_t *outVal)
-    {
-        *outVal = mMaxPipelineObjectSize;
-    }
-
-    bool GetPipelineEnabled()
-    {
-        return mCapabilities & NS_HTTP_ALLOW_PIPELINING;
-    }
-
-    bool GetPipelineRescheduleOnTimeout()
-    {
-        return mPipelineRescheduleOnTimeout;
-    }
-
-    PRIntervalTime GetPipelineRescheduleTimeout()
-    {
-        return mPipelineRescheduleTimeout;
-    }
-
-    PRIntervalTime GetPipelineTimeout()   { return mPipelineReadTimeout; }
-
-    mozilla::net::SpdyInformation *SpdyInfo() { return &mSpdyInfo; }
-
-    // returns true in between Init and Shutdown states
-    bool Active() { return mHandlerActive; }
-
-    static void GetCacheSessionNameForStoragePolicy(
-            nsCacheStoragePolicy storagePolicy,
-            bool isPrivate,
-            uint32_t appId,
-            bool inBrowser,
-            nsACString& sessionName);
-
-    // When the disk cache is responding slowly its use is suppressed
-    // for 1 minute for most requests. Callable from main thread only.
-    mozilla::TimeStamp GetCacheSkippedUntil() { return mCacheSkippedUntil; }
-    void SetCacheSkippedUntil(mozilla::TimeStamp arg) { mCacheSkippedUntil = arg; }
-    void ClearCacheSkippedUntil() { mCacheSkippedUntil = mozilla::TimeStamp(); }
 
 private:
 
@@ -300,19 +234,18 @@ private:
 
     void     NotifyObservers(nsIHttpChannel *chan, const char *event);
 
-    static void TimerCallback(nsITimer * aTimer, void * aClosure);
 private:
 
     // cached services
-    nsMainThreadPtrHandle<nsIIOService>              mIOService;
-    nsMainThreadPtrHandle<nsIStreamConverterService> mStreamConvSvc;
-    nsMainThreadPtrHandle<nsIObserverService>        mObserverService;
-    nsMainThreadPtrHandle<nsICookieService>          mCookieService;
-    nsMainThreadPtrHandle<nsIStrictTransportSecurityService> mSTSService;
+    nsCOMPtr<nsIIOService>              mIOService;
+    nsCOMPtr<nsIStreamConverterService> mStreamConvSvc;
+    nsCOMPtr<nsIObserverService>        mObserverService;
+    nsCOMPtr<nsICookieService>          mCookieService;
+    nsCOMPtr<nsIIDNService>             mIDNConverter;
+    nsCOMPtr<nsIStrictTransportSecurityService> mSTSService;
 
     // the authentication credentials cache
     nsHttpAuthCache mAuthCache;
-    nsHttpAuthCache mPrivateAuthCache;
 
     // the connection manager
     nsHttpConnectionMgr *mConnMgr;
@@ -321,45 +254,43 @@ private:
     // prefs
     //
 
-    uint8_t  mHttpVersion;
-    uint8_t  mProxyHttpVersion;
-    uint32_t mCapabilities;
-    uint8_t  mReferrerLevel;
+    PRUint8  mHttpVersion;
+    PRUint8  mProxyHttpVersion;
+    PRUint8  mCapabilities;
+    PRUint8  mProxyCapabilities;
+    PRUint8  mReferrerLevel;
 
-    bool mFastFallbackToIPv4;
-    bool mProxyPipelining;
-    PRIntervalTime mIdleTimeout;
-    PRIntervalTime mSpdyTimeout;
+    PRPackedBool mFastFallbackToIPv4;
 
-    uint16_t mMaxRequestAttempts;
-    uint16_t mMaxRequestDelay;
-    uint16_t mIdleSynTimeout;
+    PRUint16 mIdleTimeout;
+    PRUint16 mMaxRequestAttempts;
+    PRUint16 mMaxRequestDelay;
+    PRUint16 mIdleSynTimeout;
 
-    bool     mPipeliningEnabled;
-    uint16_t mMaxConnections;
-    uint8_t  mMaxPersistentConnectionsPerServer;
-    uint8_t  mMaxPersistentConnectionsPerProxy;
-    uint16_t mMaxPipelinedRequests;
-    uint16_t mMaxOptimisticPipelinedRequests;
-    bool     mPipelineAggressive;
-    int64_t  mMaxPipelineObjectSize;
-    bool     mPipelineRescheduleOnTimeout;
-    PRIntervalTime mPipelineRescheduleTimeout;
-    PRIntervalTime mPipelineReadTimeout;
-    nsCOMPtr<nsITimer> mPipelineTestTimer;
+    PRUint16 mMaxConnections;
+    PRUint8  mMaxConnectionsPerServer;
+    PRUint8  mMaxPersistentConnectionsPerServer;
+    PRUint8  mMaxPersistentConnectionsPerProxy;
+    PRUint8  mMaxPipelinedRequests;
 
-    uint8_t  mRedirectionLimit;
+    PRUint8  mRedirectionLimit;
 
     // we'll warn the user if we load an URL containing a userpass field
     // unless its length is less than this threshold.  this warning is
     // intended to protect the user against spoofing attempts that use
     // the userpass field of the URL to obscure the actual origin server.
-    uint8_t  mPhishyUserPassLength;
+    PRUint8  mPhishyUserPassLength;
 
-    uint8_t  mQoSBits;
+    PRUint8  mQoSBits;
 
-    bool mPipeliningOverSSL;
-    bool mEnforceAssocReq;
+    PRPackedBool mPipeliningOverSSL;
+
+    // cached value of whether or not the browser is in private browsing mode.
+    enum {
+        PRIVATE_BROWSING_OFF = PR_FALSE,
+        PRIVATE_BROWSING_ON = PR_TRUE,
+        PRIVATE_BROWSING_UNKNOWN = 2
+    } mInPrivateBrowsingMode;
 
     nsCString mAccept;
     nsCString mAcceptLanguages;
@@ -368,8 +299,8 @@ private:
     nsXPIDLCString mDefaultSocketType;
 
     // cache support
-    uint32_t                  mLastUniqueID;
-    uint32_t                  mSessionStartTime;
+    PRUint32                  mLastUniqueID;
+    PRUint32                  mSessionStartTime;
 
     // useragent components
     nsCString      mLegacyAppName;
@@ -382,103 +313,26 @@ private:
     nsXPIDLCString mAppName;
     nsXPIDLCString mAppVersion;
     nsCString      mCompatFirefox;
-    bool           mCompatFirefoxEnabled;
-    nsXPIDLCString mCompatDevice;
 
     nsCString      mUserAgent;
     nsXPIDLCString mUserAgentOverride;
-    bool           mUserAgentIsDirty; // true if mUserAgent should be rebuilt
+    PRPackedBool   mUserAgentIsDirty; // true if mUserAgent should be rebuilt
 
-    bool           mUseCache;
+    PRPackedBool   mUseCache;
 
-    bool           mPromptTempRedirect;
-    // mSendSecureXSiteReferrer: default is false,
+    PRPackedBool   mPromptTempRedirect;
+    // mSendSecureXSiteReferrer: default is false, 
     // if true allow referrer headers between secure non-matching hosts
-    bool           mSendSecureXSiteReferrer;
+    PRPackedBool   mSendSecureXSiteReferrer;
 
     // Persistent HTTPS caching flag
-    bool           mEnablePersistentHttpsCaching;
+    PRPackedBool   mEnablePersistentHttpsCaching;
 
-    // For broadcasting tracking preference
-    bool           mDoNotTrackEnabled;
-    uint8_t        mDoNotTrackValue;
-
-    // Whether telemetry is reported or not
-    bool           mTelemetryEnabled;
-
-    // The value of network.allow-experiments
-    bool           mAllowExperiments;
-
-    // true in between init and shutdown states
-    bool           mHandlerActive;
-
-    // Try to use SPDY features instead of HTTP/1.1 over SSL
-    mozilla::net::SpdyInformation mSpdyInfo;
-    bool           mEnableSpdy;
-    bool           mSpdyV2;
-    bool           mSpdyV3;
-    bool           mCoalesceSpdy;
-    bool           mSpdyPersistentSettings;
-    bool           mAllowSpdyPush;
-    uint32_t       mSpdySendingChunkSize;
-    uint32_t       mSpdySendBufferSize;
-    uint32_t       mSpdyPushAllowance;
-    PRIntervalTime mSpdyPingThreshold;
-    PRIntervalTime mSpdyPingTimeout;
-
-    // The maximum amount of time to wait for socket transport to be
-    // established. In milliseconds.
-    uint32_t       mConnectTimeout;
-
-    // The maximum amount of time the nsICacheSession lock can be held
-    // before a new transaction bypasses the cache. In milliseconds.
-    double         mBypassCacheLockThreshold;
-
-    // The maximum number of current global half open sockets allowable
-    // when starting a new speculative connection.
-    uint32_t       mParallelSpeculativeConnectLimit;
-
-    // For Rate Pacing of HTTP/1 requests through a netwerk/base/src/EventTokenBucket
-    // Active requests <= *MinParallelism are not subject to the rate pacing
-    bool           mRequestTokenBucketEnabled;
-    uint16_t       mRequestTokenBucketMinParallelism;
-    uint32_t       mRequestTokenBucketHz;  // EventTokenBucket HZ
-    uint32_t       mRequestTokenBucketBurst; // EventTokenBucket Burst
-
-    // Whether or not to block requests for non head js/css items (e.g. media)
-    // while those elements load.
-    bool           mCritialRequestPrioritization;
-
-    // When the disk cache is responding slowly its use is suppressed
-    // for 1 minute for most requests.
-    mozilla::TimeStamp                mCacheSkippedUntil;
-
-private:
-    // For Rate Pacing Certain Network Events. Only assign this pointer on
-    // socket thread.
-    void MakeNewRequestTokenBucket();
-    nsRefPtr<mozilla::net::EventTokenBucket> mRequestTokenBucket;
-
-public:
-    // Socket thread only
-    nsresult SubmitPacedRequest(mozilla::net::ATokenBucketEvent *event,
-                                nsICancelable **cancel)
-    {
-        if (!mRequestTokenBucket)
-            return NS_ERROR_UNEXPECTED;
-        return mRequestTokenBucket->SubmitEvent(event, cancel);
-    }
-
-    // Socket thread only
-    void SetRequestTokenBucket(mozilla::net::EventTokenBucket *aTokenBucket)
-    {
-        mRequestTokenBucket = aTokenBucket;
-    }
-
-private:
-    nsRefPtr<mozilla::net::Tickler> mWifiTickler;
-    void TickleWifi(nsIInterfaceRequestor *cb);
+    // For broadcasting the preference to not be tracked
+    PRPackedBool   mDoNotTrackEnabled;
 };
+
+//-----------------------------------------------------------------------------
 
 extern nsHttpHandler *gHttpHandler;
 
@@ -489,17 +343,15 @@ extern nsHttpHandler *gHttpHandler;
 
 class nsHttpsHandler : public nsIHttpProtocolHandler
                      , public nsSupportsWeakReference
-                     , public nsISpeculativeConnect
 {
 public:
     // we basically just want to override GetScheme and GetDefaultPort...
     // all other methods should be forwarded to the nsHttpHandler instance.
-
-    NS_DECL_THREADSAFE_ISUPPORTS
+    
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIPROTOCOLHANDLER
     NS_FORWARD_NSIPROXIEDPROTOCOLHANDLER (gHttpHandler->)
     NS_FORWARD_NSIHTTPPROTOCOLHANDLER    (gHttpHandler->)
-    NS_FORWARD_NSISPECULATIVECONNECT     (gHttpHandler->)
 
     nsHttpsHandler() { }
     virtual ~nsHttpsHandler() { }

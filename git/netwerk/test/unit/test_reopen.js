@@ -1,12 +1,7 @@
 // This testcase verifies that channels can't be reopened
 // See https://bugzilla.mozilla.org/show_bug.cgi?id=372486
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
-Cu.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 
 const NS_ERROR_IN_PROGRESS = 0x804b000f;
 const NS_ERROR_ALREADY_OPENED = 0x804b0049;
@@ -113,7 +108,7 @@ function test_data_channel() {
 
 function test_http_channel() {
   test_channel(function() {
-    return makeChan("http://localhost:" + httpserv.identity.primaryPort + "/");
+    return makeChan("http://localhost:4444/");
   });
 }
 
@@ -137,8 +132,8 @@ function end() {
 
 function run_test() {
   // start server
-  httpserv = new HttpServer();
-  httpserv.start(-1);
-
+  httpserv = new nsHttpServer();
+  httpserv.start(4444);
+  
   run_next_test();
 }

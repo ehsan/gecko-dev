@@ -1,17 +1,3 @@
-function parseQuery(request, key) {
-  var params = request.queryString.split('&');
-  for (var j = 0; j < params.length; ++j) {
-    var p = params[j];
-	if (p == key)
-	  return true;
-    if (p.indexOf(key + "=") == 0)
-	  return p.substring(key.length + 1);
-	if (p.indexOf("=") < 0 && key == "")
-	  return p;
-  }
-  return false;
-}
-
 function push32BE(array, input) {
   array.push(String.fromCharCode((input >> 24) & 0xff));
   array.push(String.fromCharCode((input >> 16) & 0xff));
@@ -74,7 +60,7 @@ function poll(f) {
 
 function handleRequest(request, response)
 {
-  var cancel = parseQuery(request, "cancelkey");
+  var cancel = request.queryString.match(/^cancelkey=(.*)$/);
   if (cancel) {
     setState(cancel[1], "cancelled");
     response.setStatusLine(request.httpVersion, 200, "OK");
@@ -88,7 +74,7 @@ function handleRequest(request, response)
   }
   var bytes = buildWave(samples, 44100).join("");
 
-  var key = parseQuery(request, "key");
+  var key = request.queryString.match(/^key=(.*)$/);
   response.setHeader("Content-Type", "audio/x-wav");
   response.setHeader("Content-Length", ""+bytes.length, false);
 

@@ -44,14 +44,12 @@ var gInputTestData = [
   ['image',    false],
   ['radio',    false],
   ['submit',   false],
+  // TODO: the next states are not yet implemented but we can't use a todo for
+  // them as the check will success so the test will fail (todo _has_ to fail).
+  // The tests are not failing because the unvalid states fallback to 'text'.
   ['search',   true],
   ['email',    true],
   ['url',      true],
-  ['number',   false],
-  ['range',    false],
-  ['date',     false],
-  ['time',     false],
-  ['color',    false],
 ];
 
 /**
@@ -60,9 +58,14 @@ var gInputTestData = [
  */
 var gInputTodoData = [
 /* type        expected result */
+  ['number',   false],
+  ['range',    false],
+  ['color',    false],
+  ['date',     false],
   ['datetime', false],
   ['month',    false],
   ['week',     false],
+  ['time',     false],
   ['datetime-local', false],
 ];
 
@@ -103,19 +106,19 @@ function checkMozIsTextFieldValueTodo(aInput, aResult)
 }
 
 // Check if the method is defined for the correct elements.
-for (data of gElementTestData) {
+for each (data in gElementTestData) {
   checkMozIsTextFieldDefined(data[0], data[1]);
 }
 
 // Check if the method returns the correct value.
 var input = document.createElement('input');
-for (data of gInputTestData) {
+for each (data in gInputTestData) {
   input.type = data[0];
   checkMozIsTextFieldValue(input, data[1]);
 }
 
 // Check for the todo's.
-for (data of gInputTodoData) {
+for each (data in gInputTodoData) {
   input.type = data[0];
   checkMozIsTextFieldValueTodo(input, data[1]);
 }

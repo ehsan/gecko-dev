@@ -1,10 +1,42 @@
 /* -*- Mode: JavaScript; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  * vim: sw=2 ts=2 sts=2 et filetype=javascript
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Windows Download Taskbar Progress.
+ *
+ * The Initial Developer of the Original Code is
+ * Siddharth Agarwal <sid.bugzilla@gmail.com>
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-this.EXPORTED_SYMBOLS = [
+let EXPORTED_SYMBOLS = [
   "DownloadTaskbarProgress",
 ];
 
@@ -14,21 +46,13 @@ this.EXPORTED_SYMBOLS = [
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 
-const kTaskbarIDWin = "@mozilla.org/windows-taskbar;1";
-const kTaskbarIDMac = "@mozilla.org/widget/macdocksupport;1";
+const kTaskbarID = "@mozilla.org/windows-taskbar;1";
 
 ////////////////////////////////////////////////////////////////////////////////
 //// DownloadTaskbarProgress Object
 
-this.DownloadTaskbarProgress =
+const DownloadTaskbarProgress =
 {
-  init: function DTP_init()
-  {
-    if (DownloadTaskbarProgressUpdater) {
-      DownloadTaskbarProgressUpdater._init();
-    }
-  },
-
   /**
    * Called when a browser window appears. This has an effect only when we
    * don't already have an active window.
@@ -39,7 +63,6 @@ this.DownloadTaskbarProgress =
    */
   onBrowserWindowLoad: function DTP_onBrowserWindowLoad(aWindow)
   {
-    this.init();
     if (!DownloadTaskbarProgressUpdater) {
       return;
     }
@@ -92,9 +115,6 @@ this.DownloadTaskbarProgress =
 
 var DownloadTaskbarProgressUpdater =
 {
-  /// Whether the taskbar is initialized.
-  _initialized: false,
-
   /// Reference to the taskbar.
   _taskbar: null,
 
@@ -106,31 +126,22 @@ var DownloadTaskbarProgressUpdater =
    */
   _init: function DTPU_init()
   {
-    if (this._initialized) {
-      return; // Already initialized
-    }
-    this._initialized = true;
-
-    if (kTaskbarIDWin in Cc) {
-      this._taskbar = Cc[kTaskbarIDWin].getService(Ci.nsIWinTaskbar);
-      if (!this._taskbar.available) {
-        // The Windows version is probably too old
-        DownloadTaskbarProgressUpdater = null;
-        return;
-      }
-    } else if (kTaskbarIDMac in Cc) {
-      this._activeTaskbarProgress = Cc[kTaskbarIDMac].
-                                      getService(Ci.nsITaskbarProgress);
-    } else {
+    if (!(kTaskbarID in Cc)) {
+      // This means that the component isn't available
       DownloadTaskbarProgressUpdater = null;
       return;
     }
 
-    this._taskbarState = Ci.nsITaskbarProgress.STATE_NO_PROGRESS;
+    this._taskbar = Cc[kTaskbarID].getService(Ci.nsIWinTaskbar);
+    if (!this._taskbar.available) {
+      // The Windows version is probably too old
+      DownloadTaskbarProgressUpdater = null;
+      return;
+    }
 
     this._dm = Cc["@mozilla.org/download-manager;1"].
                getService(Ci.nsIDownloadManager);
-    this._dm.addPrivacyAwareListener(this);
+    this._dm.addListener(this);
 
     this._os = Cc["@mozilla.org/observer-service;1"].
                getService(Ci.nsIObserverService);
@@ -147,8 +158,6 @@ var DownloadTaskbarProgressUpdater =
   _uninit: function DTPU_uninit() {
     this._dm.removeListener(this);
     this._os.removeObserver(this, "quit-application-granted");
-    this._activeTaskbarProgress = null;
-    this._initialized = false;
   },
 
   /**
@@ -173,7 +182,6 @@ var DownloadTaskbarProgressUpdater =
    */
   _setActiveWindow: function DTPU_setActiveWindow(aWindow, aIsDownloadWindow)
   {
-#ifdef XP_WIN
     // Clear out the taskbar for the old active window. (If there was no active
     // window, this is a no-op.)
     this._clearTaskbar();
@@ -199,26 +207,12 @@ var DownloadTaskbarProgressUpdater =
     else {
       this._activeTaskbarProgress = null;
     }
-#endif
   },
 
   /// Current state displayed on the active window's taskbar item
-  _taskbarState: null,
+  _taskbarState: Ci.nsITaskbarProgress.STATE_NO_PROGRESS,
   _totalSize: 0,
   _totalTransferred: 0,
-
-  _shouldSetState: function DTPU_shouldSetState()
-  {
-#ifdef XP_WIN
-    // If the active window is not the download manager window, set the state
-    // only if it is normal or indeterminate.
-    return this._activeWindowIsDownloadWindow ||
-           (this._taskbarState == Ci.nsITaskbarProgress.STATE_NORMAL ||
-            this._taskbarState == Ci.nsITaskbarProgress.STATE_INDETERMINATE);
-#else
-    return true;
-#endif
-  },
 
   /**
    * Update the active window's taskbar indicator with the current state. There
@@ -226,9 +220,8 @@ var DownloadTaskbarProgressUpdater =
    * 1. If the active window is the download window, then we always update
    *    the taskbar indicator.
    * 2. If the active window isn't the download window, then we update only if
-   *    the status is normal or indeterminate. i.e. one or more downloads are
-   *    currently progressing or in scan mode. If we aren't, then we clear the
-   *    indicator.
+   *    the status is Normal, i.e. one or more downloads are currently
+   *    progressing. If we aren't, then we clear the indicator.
    */
   _updateTaskbar: function DTPU_updateTaskbar()
   {
@@ -236,7 +229,10 @@ var DownloadTaskbarProgressUpdater =
       return;
     }
 
-    if (this._shouldSetState()) {
+    // If the active window is not the download manager window, set the state
+    // only if it is Normal
+    if (this._activeWindowIsDownloadWindow ||
+        (this._taskbarState == Ci.nsITaskbarProgress.STATE_NORMAL)) {
       this._activeTaskbarProgress.setProgressState(this._taskbarState,
                                                    this._totalTransferred,
                                                    this._totalSize);
@@ -280,7 +276,7 @@ var DownloadTaskbarProgressUpdater =
    */
   _updateStatus: function DTPU_updateStatus()
   {
-    let numActive = this._dm.activeDownloadCount + this._dm.activePrivateDownloadCount;
+    let numActive = this._dm.activeDownloadCount;
     let totalSize = 0, totalTransferred = 0;
 
     if (numActive == 0) {
@@ -290,22 +286,21 @@ var DownloadTaskbarProgressUpdater =
       let numPaused = 0, numScanning = 0;
 
       // Enumerate all active downloads
-      [this._dm.activeDownloads, this._dm.activePrivateDownloads].forEach(function(downloads) {
-        while (downloads.hasMoreElements()) {
-          let download = downloads.getNext().QueryInterface(Ci.nsIDownload);
-          // Only set values if we actually know the download size
-          if (download.percentComplete != -1) {
-            totalSize += download.size;
-            totalTransferred += download.amountTransferred;
-          }
-          // We might need to display a paused state, so track this
-          if (download.state == this._dm.DOWNLOAD_PAUSED) {
-            numPaused++;
-          } else if (download.state == this._dm.DOWNLOAD_SCANNING) {
-            numScanning++;
-          }
+      let downloads = this._dm.activeDownloads;
+      while (downloads.hasMoreElements()) {
+        let download = downloads.getNext().QueryInterface(Ci.nsIDownload);
+        // Only set values if we actually know the download size
+        if (download.percentComplete != -1) {
+          totalSize += download.size;
+          totalTransferred += download.amountTransferred;
         }
-      }.bind(this));
+        // We might need to display a paused state, so track this
+        if (download.state == this._dm.DOWNLOAD_PAUSED) {
+          numPaused++;
+        } else if (download.state == this._dm.DOWNLOAD_SCANNING) {
+          numScanning++;
+        }
+      }
 
       // If all downloads are paused, show the progress as paused, unless we
       // don't have any information about sizes, in which case we don't
@@ -395,3 +390,8 @@ var DownloadTaskbarProgressUpdater =
     }
   }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+//// Initialization
+
+DownloadTaskbarProgressUpdater._init();

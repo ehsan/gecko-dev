@@ -1,17 +1,61 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Corporation code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Robert O'Callahan <robert@ocallahan.org>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef MOZILLA_GFX_BASERECT_H_
 #define MOZILLA_GFX_BASERECT_H_
 
 #include <cmath>
-#include <mozilla/Assertions.h>
-#include <algorithm>
 
 namespace mozilla {
 namespace gfx {
+
+// XXX - <algorithm> conflicts with exceptions on 10.6. Define our own gfx_min/gfx_max
+// functions here. Avoid min/max to avoid conflicts with existing #defines on windows.
+template<typename T>
+T gfx_min(T aVal1, T aVal2)
+{
+  return (aVal1 < aVal2) ? aVal1 : aVal2;
+}
+
+template<typename T>
+T gfx_max(T aVal1, T aVal2)
+{
+  return (aVal1 > aVal2) ? aVal1 : aVal2;
+}
 
 /**
  * Rectangles have two interpretations: a set of (zero-size) points,
@@ -56,15 +100,6 @@ struct BaseRect {
   bool IsEmpty() const { return height <= 0 || width <= 0; }
   void SetEmpty() { width = height = 0; }
 
-  // "Finite" means not inf and not NaN
-  bool IsFinite() const
-  {
-    return (std::isfinite(x) &&
-            std::isfinite(y) &&
-            std::isfinite(width) &&
-            std::isfinite(height));
-  }
-
   // Returns true if this rectangle contains the interior of aRect. Always
   // returns true if aRect is empty, and always returns false is aRect is
   // nonempty but this rect is empty.
@@ -93,15 +128,15 @@ struct BaseRect {
   }
   // Returns the rectangle containing the intersection of the points
   // (including edges) of *this and aRect. If there are no points in that
-  // intersection, returns an empty rectangle with x/y set to the std::max of the x/y
+  // intersection, returns an empty rectangle with x/y set to the gfx_max of the x/y
   // of *this and aRect.
   Sub Intersect(const Sub& aRect) const
   {
     Sub result;
-    result.x = std::max<T>(x, aRect.x);
-    result.y = std::max<T>(y, aRect.y);
-    result.width = std::min<T>(XMost(), aRect.XMost()) - result.x;
-    result.height = std::min<T>(YMost(), aRect.YMost()) - result.y;
+    result.x = gfx_max(x, aRect.x);
+    result.y = gfx_max(y, aRect.y);
+    result.width = gfx_min(XMost(), aRect.XMost()) - result.x;
+    result.height = gfx_min(YMost(), aRect.YMost()) - result.y;
     if (result.width < 0 || result.height < 0) {
       result.SizeTo(0, 0);
     }
@@ -109,7 +144,7 @@ struct BaseRect {
   }
   // Sets *this to be the rectangle containing the intersection of the points
   // (including edges) of *this and aRect. If there are no points in that
-  // intersection, sets *this to be an empty rectangle with x/y set to the std::max
+  // intersection, sets *this to be an empty rectangle with x/y set to the gfx_max
   // of the x/y of *this and aRect.
   //
   // 'this' can be the same object as either aRect1 or aRect2
@@ -139,10 +174,10 @@ struct BaseRect {
   Sub UnionEdges(const Sub& aRect) const
   {
     Sub result;
-    result.x = std::min(x, aRect.x);
-    result.y = std::min(y, aRect.y);
-    result.width = std::max(XMost(), aRect.XMost()) - result.x;
-    result.height = std::max(YMost(), aRect.YMost()) - result.y;
+    result.x = gfx_min(x, aRect.x);
+    result.y = gfx_min(y, aRect.y);
+    result.width = gfx_max(XMost(), aRect.XMost()) - result.x;
+    result.height = gfx_max(YMost(), aRect.YMost()) - result.y;
     return result;
   }
   // Computes the smallest rectangle that contains both the area of both
@@ -203,15 +238,15 @@ struct BaseRect {
   {
     x += aDx;
     y += aDy;
-    width = std::max(T(0), width - 2 * aDx);
-    height = std::max(T(0), height - 2 * aDy);
+    width = gfx_max(T(0), width - 2 * aDx);
+    height = gfx_max(T(0), height - 2 * aDy);
   }
   void Deflate(const Margin& aMargin)
   {
     x += aMargin.left;
     y += aMargin.top;
-    width = std::max(T(0), width - aMargin.LeftRight());
-    height = std::max(T(0), height - aMargin.TopBottom());
+    width = gfx_max(T(0), width - aMargin.LeftRight());
+    height = gfx_max(T(0), height - aMargin.TopBottom());
   }
   void Deflate(const SizeT& aSize) { Deflate(aSize.width, aSize.height); }
 
@@ -253,10 +288,8 @@ struct BaseRect {
   // Find difference as a Margin
   Margin operator-(const Sub& aRect) const
   {
-    return Margin(aRect.y - y,
-                  XMost() - aRect.XMost(),
-                  YMost() - aRect.YMost(),
-                  aRect.x - x);
+    return Margin(aRect.x - x, aRect.y - y,
+                  XMost() - aRect.XMost(), YMost() - aRect.YMost());
   }
 
   // Helpers for accessing the vertices
@@ -275,95 +308,6 @@ struct BaseRect {
   T XMost() const { return x + width; }
   T YMost() const { return y + height; }
 
-  // Moves one edge of the rect without moving the opposite edge.
-  void SetLeftEdge(T aX) {
-    MOZ_ASSERT(aX <= XMost());
-    width = XMost() - aX;
-    x = aX;
-  }
-  void SetRightEdge(T aXMost) { 
-    MOZ_ASSERT(aXMost >= x);
-    width = aXMost - x; 
-  }
-  void SetTopEdge(T aY) {
-    MOZ_ASSERT(aY <= YMost());
-    height = YMost() - aY;
-    y = aY;
-  }
-  void SetBottomEdge(T aYMost) { 
-    MOZ_ASSERT(aYMost >= y);
-    height = aYMost - y; 
-  }
-
-  // Round the rectangle edges to integer coordinates, such that the rounded
-  // rectangle has the same set of pixel centers as the original rectangle.
-  // Edges at offset 0.5 round up.
-  // Suitable for most places where integral device coordinates
-  // are needed, but note that any translation should be applied first to
-  // avoid pixel rounding errors.
-  // Note that this is *not* rounding to nearest integer if the values are negative.
-  // They are always rounding as floor(n + 0.5).
-  // See https://bugzilla.mozilla.org/show_bug.cgi?id=410748#c14
-  // If you need similar method which is using NS_round(), you should create
-  // new |RoundAwayFromZero()| method.
-  void Round()
-  {
-    T x0 = static_cast<T>(floor(T(X()) + 0.5));
-    T y0 = static_cast<T>(floor(T(Y()) + 0.5));
-    T x1 = static_cast<T>(floor(T(XMost()) + 0.5));
-    T y1 = static_cast<T>(floor(T(YMost()) + 0.5));
-
-    x = x0;
-    y = y0;
-
-    width = x1 - x0;
-    height = y1 - y0;
-  }
-
-  // Snap the rectangle edges to integer coordinates, such that the
-  // original rectangle contains the resulting rectangle.
-  void RoundIn()
-  {
-    T x0 = static_cast<T>(ceil(T(X())));
-    T y0 = static_cast<T>(ceil(T(Y())));
-    T x1 = static_cast<T>(floor(T(XMost())));
-    T y1 = static_cast<T>(floor(T(YMost())));
-
-    x = x0;
-    y = y0;
-
-    width = x1 - x0;
-    height = y1 - y0;
-  }
-
-  // Snap the rectangle edges to integer coordinates, such that the
-  // resulting rectangle contains the original rectangle.
-  void RoundOut()
-  {
-    T x0 = static_cast<T>(floor(T(X())));
-    T y0 = static_cast<T>(floor(T(Y())));
-    T x1 = static_cast<T>(ceil(T(XMost())));
-    T y1 = static_cast<T>(ceil(T(YMost())));
-
-    x = x0;
-    y = y0;
-
-    width = x1 - x0;
-    height = y1 - y0;
-  }
-
-  // Scale 'this' by aScale without doing any rounding.
-  void Scale(T aScale) { Scale(aScale, aScale); }
-  // Scale 'this' by aXScale and aYScale, without doing any rounding.
-  void Scale(T aXScale, T aYScale)
-  {
-    T right = XMost() * aXScale;
-    T bottom = YMost() * aYScale;
-    x = x * aXScale;
-    y = y * aYScale;
-    width = right - x;
-    height = bottom - y;
-  }
   // Scale 'this' by aScale, converting coordinates to integers so that the result is
   // the smallest integer-coordinate rectangle containing the unrounded result.
   // Note: this can turn an empty rectangle into a non-empty rectangle
@@ -393,8 +337,8 @@ struct BaseRect {
     T bottom = static_cast<T>(floor(double(YMost()) * aYScale));
     x = static_cast<T>(ceil(double(x) * aXScale));
     y = static_cast<T>(ceil(double(y) * aYScale));
-    width = std::max<T>(0, right - x);
-    height = std::max<T>(0, bottom - y);
+    width = gfx_max<T>(0, right - x);
+    height = gfx_max<T>(0, bottom - y);
   }
   // Scale 'this' by 1/aScale, converting coordinates to integers so that the result is
   // the smallest integer-coordinate rectangle containing the unrounded result.
@@ -412,47 +356,6 @@ struct BaseRect {
     y = static_cast<T>(floor(double(y) / aYScale));
     width = right - x;
     height = bottom - y;
-  }
-  // Scale 'this' by 1/aScale, converting coordinates to integers so that the result is
-  // the largest integer-coordinate rectangle contained by the unrounded result.
-  void ScaleInverseRoundIn(double aScale) { ScaleInverseRoundIn(aScale, aScale); }
-  // Scale 'this' by 1/aXScale and 1/aYScale, converting coordinates to integers so
-  // that the result is the largest integer-coordinate rectangle contained by the
-  // unrounded result.
-  void ScaleInverseRoundIn(double aXScale, double aYScale)
-  {
-    T right = static_cast<T>(floor(double(XMost()) / aXScale));
-    T bottom = static_cast<T>(floor(double(YMost()) / aYScale));
-    x = static_cast<T>(ceil(double(x) / aXScale));
-    y = static_cast<T>(ceil(double(y) / aYScale));
-    width = std::max<T>(0, right - x);
-    height = std::max<T>(0, bottom - y);
-  }
-
-  /**
-   * Clamp aPoint to this rectangle. It is allowed to end up on any
-   * edge of the rectangle.
-   */
-  Point ClampPoint(const Point& aPoint) const
-  {
-    return Point(std::max(x, std::min(XMost(), aPoint.x)),
-                 std::max(y, std::min(YMost(), aPoint.y)));
-  }
-
-  /**
-   * Clamp aRect to this rectangle. This returns aRect after it is forced
-   * inside the bounds of this rectangle. It will attempt to retain the size
-   * but will shrink the dimensions that don't fit.
-   */
-  Sub ClampRect(const Sub& aRect) const
-  {
-    Sub rect(std::max(aRect.x, x),
-             std::max(aRect.y, y),
-             std::min(aRect.width, width),
-             std::min(aRect.height, height));
-    rect.x = std::min(rect.XMost(), XMost()) - rect.width;
-    rect.y = std::min(rect.YMost(), YMost()) - rect.height;
-    return rect;
   }
 
 private:

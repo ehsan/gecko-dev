@@ -1,6 +1,38 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape security libraries.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1994-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include <stdio.h>
 #include <string.h>
@@ -33,7 +65,7 @@ size_t RNG_FileUpdate(const char *fileName, size_t limit);
 static size_t CopyLowBits(void *dst, size_t dstlen, void *src, size_t srclen)
 {
     union endianness {
-	PRInt32 i;
+	int32 i;
 	char c[4];
     } u;
 
@@ -193,6 +225,11 @@ GiveSystemInfo(void)
 #if defined(__sun)
 #if defined(__svr4) || defined(SVR4)
 #include <sys/systeminfo.h>
+#include <sys/times.h>
+#include <wait.h>
+
+int gettimeofday(struct timeval *);
+int gethostname(char *, int);
 
 #define getdtablesize() sysconf(_SC_OPEN_MAX)
 
@@ -358,12 +395,10 @@ GetHighResClock(void *buf, size_t maxbytes)
 static void
 GiveSystemInfo(void)
 {
-#ifndef NO_SYSINFO
     struct sysinfo si;
     if (sysinfo(&si) == 0) {
 	RNG_RandomUpdate(&si, sizeof(si));
     }
-#endif
 }
 #endif /* LINUX */
 
@@ -601,7 +636,7 @@ GiveSystemInfo(void)
 static size_t
 GetHighResClock(void *buf, size_t maxbytes)
 {
-    bigtime_t bigtime; /* Actually a int64 */
+    bigtime_t bigtime; /* Actually an int64 */
 
     bigtime = real_time_clock_usecs();
     return CopyLowBits(buf, maxbytes, &bigtime, sizeof(bigtime));
@@ -611,7 +646,7 @@ static void
 GiveSystemInfo(void)
 {
     system_info *info = NULL;
-    PRInt32 val;
+    int32 val;                     
     get_system_info(info);
     if (info) {
         val = info->boot_time;
@@ -669,7 +704,11 @@ size_t RNG_GetNoise(void *buf, size_t maxbytes)
     n = GetHighResClock(buf, maxbytes);
     maxbytes -= n;
 
+#if defined(__sun) && (defined(_svr4) || defined(SVR4)) || defined(sony)
+    (void)gettimeofday(&tv);
+#else
     (void)gettimeofday(&tv, 0);
+#endif
     c = CopyLowBits((char*)buf+n, maxbytes, &tv.tv_usec, sizeof(tv.tv_usec));
     n += c;
     maxbytes -= c;

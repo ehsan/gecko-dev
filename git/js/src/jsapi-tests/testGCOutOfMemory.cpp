@@ -1,14 +1,14 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=99:
  *
  * Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/licenses/publicdomain/
  * Contributor: Igor Bukanov
  */
 
+#include "tests.h"
+#include "jsgcchunk.h"
 #include "jscntxt.h"
-
-#include "jsapi-tests/tests.h"
 
 static unsigned errorCount = 0;
 
@@ -22,7 +22,13 @@ BEGIN_TEST(testGCOutOfMemory)
 {
     JS_SetErrorReporter(cx, ErrorCounter);
 
-    JS::RootedValue root(cx);
+    jsvalRoot root(cx);
+
+    /*
+     * We loop until we get out-of-memory. We have to disable the jit since it
+     * ignores the runtime allocation limits during execution.
+     */
+    JS_ToggleOptions(cx, JSOPTION_JIT);
 
     static const char source[] =
         "var max = 0; (function() {"
@@ -32,30 +38,27 @@ BEGIN_TEST(testGCOutOfMemory)
         "    array = []; array.push(0);"
         "})();";
     JSBool ok = JS_EvaluateScript(cx, global, source, strlen(source), "", 1,
-                                  root.address());
+                                  root.addr());
 
     /* Check that we get OOM. */
     CHECK(!ok);
     CHECK(!JS_IsExceptionPending(cx));
     CHECK_EQUAL(errorCount, 1);
-    JS_GC(rt);
-
-    // Temporarily disabled to reopen the tree. Bug 847579.
-    return true;
-
+    JS_GC(cx);
+    JS_ToggleOptions(cx, JSOPTION_JIT);
     EVAL("(function() {"
          "    var array = [];"
          "    for (var i = max >> 2; i != 0;) {"
          "        --i;"
          "        array.push({});"
          "    }"
-         "})();", root.address());
+         "})();", root.addr());
     CHECK_EQUAL(errorCount, 1);
     return true;
 }
 
 virtual JSRuntime * createRuntime() {
-    return JS_NewRuntime(768 * 1024, JS_USE_HELPER_THREADS);
+    return JS_NewRuntime(512 * 1024);
 }
 
 virtual void destroyRuntime() {

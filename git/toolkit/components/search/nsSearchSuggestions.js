@@ -1,12 +1,48 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Google Suggest Autocomplete Implementation for Firefox.
+ *
+ * The Initial Developer of the Original Code is Google Inc.
+ * Portions created by the Initial Developer are Copyright (C) 2006
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Ben Goodger <beng@google.com>
+ *   Mike Connor <mconnor@mozilla.com>
+ *   Joe Hughes  <joe@retrovirus.com>
+ *   Pamela Greene <pamg.bugs@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 const SEARCH_RESPONSE_SUGGESTION_JSON = "application/x-suggestions+json";
 
 const BROWSER_SUGGEST_PREF = "browser.search.suggest.enabled";
 const XPCOM_SHUTDOWN_TOPIC              = "xpcom-shutdown";
 const NS_PREFBRANCH_PREFCHANGE_TOPIC_ID = "nsPref:changed";
+const SEARCH_BUNDLE = "chrome://global/locale/search/search.properties";
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -20,7 +56,6 @@ const HTTP_SERVICE_UNAVAILABLE   = 503;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/nsFormAutoCompleteResult.jsm");
-Cu.import("resource://gre/modules/Services.jsm");
 
 /**
  * SuggestAutoComplete is a base class that implements nsIAutoCompleteSearch
@@ -37,18 +72,31 @@ SuggestAutoComplete.prototype = {
 
   _init: function() {
     this._addObservers();
-    this._suggestEnabled = Services.prefs.getBoolPref(BROWSER_SUGGEST_PREF);
+    this._loadSuggestPref();
   },
 
-  get _suggestionLabel() {
-    delete this._suggestionLabel;
-    let bundle = Services.strings.createBundle("chrome://global/locale/search/search.properties");
-    return this._suggestionLabel = bundle.GetStringFromName("suggestion_label");
+  /**
+   * this._strings is the string bundle for message internationalization.
+   */
+  get _strings() {
+    if (!this.__strings) {
+      var sbs = Cc["@mozilla.org/intl/stringbundle;1"].
+                getService(Ci.nsIStringBundleService);
+
+      this.__strings = sbs.createBundle(SEARCH_BUNDLE);
+    }
+    return this.__strings;
   },
+  __strings: null,
 
   /**
    * Search suggestions will be shown if this._suggestEnabled is true.
    */
+  _loadSuggestPref: function SAC_loadSuggestPref() {
+    var prefService = Cc["@mozilla.org/preferences-service;1"].
+                      getService(Ci.nsIPrefBranch);
+    this._suggestEnabled = prefService.getBoolPref(BROWSER_SUGGEST_PREF);
+  },
   _suggestEnabled: null,
 
   /*************************************************************************
@@ -338,7 +386,7 @@ SuggestAutoComplete.prototype = {
 
     // if we have any suggestions, put a label at the top
     if (comments.length > 0)
-      comments[0] = this._suggestionLabel;
+      comments[0] = this._strings.GetStringFromName("suggestion_label");
 
     // now put the history results above the suggestions
     var finalResults = historyResults.concat(results);
@@ -399,37 +447,9 @@ SuggestAutoComplete.prototype = {
     if (!previousResult)
       this._formHistoryResult = null;
 
-    var formHistorySearchParam = searchParam.split("|")[0];
+    var searchService = Cc["@mozilla.org/browser/search-service;1"].
+                        getService(Ci.nsIBrowserSearchService);
 
-    // Receive the information about the privacy mode of the window to which
-    // this search box belongs.  The front-end's search.xml bindings passes this
-    // information in the searchParam parameter.  The alternative would have
-    // been to modify nsIAutoCompleteSearch to add an argument to startSearch
-    // and patch all of autocomplete to be aware of this, but the searchParam
-    // argument is already an opaque argument, so this solution is hopefully
-    // less hackish (although still gross.)
-    var privacyMode = (searchParam.split("|")[1] == "private");
-
-    // Start search immediately if possible, otherwise once the search
-    // service is initialized
-    if (Services.search.isInitialized) {
-      this._triggerSearch(searchString, formHistorySearchParam, listener, privacyMode);
-      return;
-    }
-
-    Services.search.init((function startSearch_cb(aResult) {
-      if (!Components.isSuccessCode(aResult)) {
-        Cu.reportError("Could not initialize search service, bailing out: " + aResult);
-        return;
-      }
-      this._triggerSearch(searchString, formHistorySearchParam, listener, privacyMode);
-    }).bind(this));
-  },
-
-  /**
-   * Actual implementation of search.
-   */
-  _triggerSearch: function(searchString, searchParam, listener, privacyMode) {
     // If there's an existing request, stop it. There is no smart filtering
     // here as there is when looking through history/form data because the
     // result set returned by the server is different for every typed value -
@@ -439,7 +459,7 @@ SuggestAutoComplete.prototype = {
 
     this._listener = listener;
 
-    var engine = Services.search.currentEngine;
+    var engine = searchService.currentEngine;
 
     this._checkForEngineSwitch(engine);
 
@@ -464,10 +484,7 @@ SuggestAutoComplete.prototype = {
     this._suggestURI = submission.uri;
     var method = (submission.postData ? "POST" : "GET");
     this._request.open(method, this._suggestURI.spec, true);
-    this._request.channel.notificationCallbacks = new AuthPromptOverride();
-    if (this._request.channel instanceof Ci.nsIPrivateBrowsingChannel) {
-      this._request.channel.setPrivate(privacyMode);
-    }
+    this._request.channel.notificationCallbacks = new SearchSuggestLoadListener();
 
     var self = this;
     function onReadyStateChange() {
@@ -499,7 +516,7 @@ SuggestAutoComplete.prototype = {
   observe: function SAC_observe(aSubject, aTopic, aData) {
     switch (aTopic) {
       case NS_PREFBRANCH_PREFCHANGE_TOPIC_ID:
-        this._suggestEnabled = Services.prefs.getBoolPref(BROWSER_SUGGEST_PREF);
+        this._loadSuggestPref();
         break;
       case XPCOM_SHUTDOWN_TOPIC:
         this._removeObservers();
@@ -508,15 +525,23 @@ SuggestAutoComplete.prototype = {
   },
 
   _addObservers: function SAC_addObservers() {
-    Services.prefs.addObserver(BROWSER_SUGGEST_PREF, this, false);
+    var prefService2 = Cc["@mozilla.org/preferences-service;1"].
+                       getService(Ci.nsIPrefBranch2);
+    prefService2.addObserver(BROWSER_SUGGEST_PREF, this, false);
 
-    Services.obs.addObserver(this, XPCOM_SHUTDOWN_TOPIC, false);
+    var os = Cc["@mozilla.org/observer-service;1"].
+             getService(Ci.nsIObserverService);
+    os.addObserver(this, XPCOM_SHUTDOWN_TOPIC, false);
   },
 
   _removeObservers: function SAC_removeObservers() {
-    Services.prefs.removeObserver(BROWSER_SUGGEST_PREF, this);
+    var prefService2 = Cc["@mozilla.org/preferences-service;1"].
+                       getService(Ci.nsIPrefBranch2);
+    prefService2.removeObserver(BROWSER_SUGGEST_PREF, this);
 
-    Services.obs.removeObserver(this, XPCOM_SHUTDOWN_TOPIC);
+    var os = Cc["@mozilla.org/observer-service;1"].
+             getService(Ci.nsIObserverService);
+    os.removeObserver(this, XPCOM_SHUTDOWN_TOPIC);
   },
 
   // nsISupports
@@ -524,20 +549,17 @@ SuggestAutoComplete.prototype = {
                                          Ci.nsIAutoCompleteObserver])
 };
 
-function AuthPromptOverride() {
+function SearchSuggestLoadListener() {
 }
-AuthPromptOverride.prototype = {
-  // nsIAuthPromptProvider
-  getAuthPrompt: function (reason, iid) {
-    // Return a no-op nsIAuthPrompt2 implementation.
-    return {
-      promptAuth: function () {
-        throw Cr.NS_ERROR_NOT_IMPLEMENTED;
-      },
-      asyncPromptAuth: function () {
-        throw Cr.NS_ERROR_NOT_IMPLEMENTED;
-      }
-    };
+SearchSuggestLoadListener.prototype = {
+  // nsIBadCertListener2
+  notifyCertProblem: function SSLL_certProblem(socketInfo, status, targetSite) {
+    return true;
+  },
+
+  // nsISSLErrorListener
+  notifySSLError: function SSLL_SSLError(socketInfo, error, targetSite) {
+    return true;
   },
 
   // nsIInterfaceRequestor
@@ -546,9 +568,11 @@ AuthPromptOverride.prototype = {
   },
 
   // nsISupports
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIAuthPromptProvider,
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIBadCertListener2,
+                                         Ci.nsISSLErrorListener,
                                          Ci.nsIInterfaceRequestor])
 };
+
 /**
  * SearchSuggestAutoComplete is a service implementation that handles suggest
  * results specific to web searches.
@@ -566,4 +590,4 @@ SearchSuggestAutoComplete.prototype = {
 };
 
 var component = [SearchSuggestAutoComplete];
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory(component);
+var NSGetFactory = XPCOMUtils.generateNSGetFactory(component);

@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is Robert Sayre.
+ *
+ * Portions created by the Initial Developer are Copyright (C) 2005
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsSAXAttributes.h"
 
@@ -10,10 +42,10 @@ NS_IMPL_ISUPPORTS2(nsSAXAttributes, nsISAXAttributes, nsISAXMutableAttributes)
 NS_IMETHODIMP
 nsSAXAttributes::GetIndexFromName(const nsAString &aURI,
                                   const nsAString &aLocalName,
-                                  int32_t *aResult)
+                                  PRInt32 *aResult)
 {
-  int32_t len = mAttrs.Length();
-  int32_t i;
+  PRInt32 len = mAttrs.Length();
+  PRInt32 i;
   for (i = 0; i < len; ++i) {
     const SAXAttr &att = mAttrs[i];
     if (att.localName.Equals(aLocalName) && att.uri.Equals(aURI)) {
@@ -27,10 +59,10 @@ nsSAXAttributes::GetIndexFromName(const nsAString &aURI,
 }
 
 NS_IMETHODIMP
-nsSAXAttributes::GetIndexFromQName(const nsAString &aQName, int32_t *aResult)
+nsSAXAttributes::GetIndexFromQName(const nsAString &aQName, PRInt32 *aResult)
 {
-  int32_t len = mAttrs.Length();
-  int32_t i;
+  PRInt32 len = mAttrs.Length();
+  PRInt32 i;
   for (i = 0; i < len; ++i) {
     const SAXAttr &att = mAttrs[i];
     if (att.qName.Equals(aQName)) {
@@ -44,18 +76,18 @@ nsSAXAttributes::GetIndexFromQName(const nsAString &aQName, int32_t *aResult)
 }
 
 NS_IMETHODIMP
-nsSAXAttributes::GetLength(int32_t *aResult)
+nsSAXAttributes::GetLength(PRInt32 *aResult)
 {
   *aResult = mAttrs.Length();
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsSAXAttributes::GetLocalName(uint32_t aIndex, nsAString &aResult)
+nsSAXAttributes::GetLocalName(PRUint32 aIndex, nsAString &aResult)
 {
-  uint32_t len = mAttrs.Length();
+  PRUint32 len = mAttrs.Length();
   if (aIndex >= len) {
-    aResult.SetIsVoid(true);
+    aResult.SetIsVoid(PR_TRUE);
   } else {
     const SAXAttr &att = mAttrs[aIndex];
     aResult = att.localName;
@@ -65,11 +97,11 @@ nsSAXAttributes::GetLocalName(uint32_t aIndex, nsAString &aResult)
 }
 
 NS_IMETHODIMP
-nsSAXAttributes::GetQName(uint32_t aIndex, nsAString &aResult)
+nsSAXAttributes::GetQName(PRUint32 aIndex, nsAString &aResult)
 {
-  uint32_t len = mAttrs.Length();
+  PRUint32 len = mAttrs.Length();
   if (aIndex >= len) {
-    aResult.SetIsVoid(true);
+    aResult.SetIsVoid(PR_TRUE);
   } else {
     const SAXAttr &att = mAttrs[aIndex];
     aResult = att.qName;
@@ -79,11 +111,11 @@ nsSAXAttributes::GetQName(uint32_t aIndex, nsAString &aResult)
 }
 
 NS_IMETHODIMP
-nsSAXAttributes::GetType(uint32_t aIndex, nsAString &aResult)
+nsSAXAttributes::GetType(PRUint32 aIndex, nsAString &aResult)
 {
-  uint32_t len = mAttrs.Length();
+  PRUint32 len = mAttrs.Length();
   if (aIndex >= len) {
-    aResult.SetIsVoid(true);
+    aResult.SetIsVoid(PR_TRUE);
   } else {
     const SAXAttr &att = mAttrs[aIndex];
     aResult = att.type;
@@ -97,12 +129,12 @@ nsSAXAttributes::GetTypeFromName(const nsAString &aURI,
                                  const nsAString &aLocalName,
                                  nsAString &aResult)
 {
-  int32_t index = -1;
+  PRInt32 index = -1;
   GetIndexFromName(aURI, aLocalName, &index);
   if (index >= 0) {
     aResult = mAttrs[index].type;
   } else {
-    aResult.SetIsVoid(true);
+    aResult.SetIsVoid(PR_TRUE);
   }
 
   return NS_OK;
@@ -111,23 +143,23 @@ nsSAXAttributes::GetTypeFromName(const nsAString &aURI,
 NS_IMETHODIMP
 nsSAXAttributes::GetTypeFromQName(const nsAString &aQName, nsAString &aResult)
 {
-  int32_t index = -1;
+  PRInt32 index = -1;
   GetIndexFromQName(aQName, &index);
   if (index >= 0) {
     aResult = mAttrs[index].type;
   } else {
-    aResult.SetIsVoid(true);
+    aResult.SetIsVoid(PR_TRUE);
   }
 
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsSAXAttributes::GetURI(uint32_t aIndex, nsAString &aResult)
+nsSAXAttributes::GetURI(PRUint32 aIndex, nsAString &aResult)
 {
-  uint32_t len = mAttrs.Length();
+  PRUint32 len = mAttrs.Length();
   if (aIndex >= len) {
-    aResult.SetIsVoid(true);
+    aResult.SetIsVoid(PR_TRUE);
   } else {
     const SAXAttr &att = mAttrs[aIndex];
     aResult = att.uri;
@@ -137,11 +169,11 @@ nsSAXAttributes::GetURI(uint32_t aIndex, nsAString &aResult)
 }
 
 NS_IMETHODIMP
-nsSAXAttributes::GetValue(uint32_t aIndex, nsAString &aResult)
+nsSAXAttributes::GetValue(PRUint32 aIndex, nsAString &aResult)
 {
-  uint32_t len = mAttrs.Length();
+  PRUint32 len = mAttrs.Length();
   if (aIndex >= len) {
-    aResult.SetIsVoid(true);
+    aResult.SetIsVoid(PR_TRUE);
   } else {
     const SAXAttr &att = mAttrs[aIndex];
     aResult = att.value;
@@ -155,12 +187,12 @@ nsSAXAttributes::GetValueFromName(const nsAString &aURI,
                                   const nsAString &aLocalName,
                                   nsAString &aResult)
 {
-  int32_t index = -1;
+  PRInt32 index = -1;
   GetIndexFromName(aURI, aLocalName, &index);
   if (index >= 0) {
     aResult = mAttrs[index].value;
   } else {
-    aResult.SetIsVoid(true);
+    aResult.SetIsVoid(PR_TRUE);
   }
 
   return NS_OK;
@@ -170,12 +202,12 @@ NS_IMETHODIMP
 nsSAXAttributes::GetValueFromQName(const nsAString &aQName,
                                    nsAString &aResult)
 {
-  int32_t index = -1;
+  PRInt32 index = -1;
   GetIndexFromQName(aQName, &index);
   if (index >= 0) {
     aResult = mAttrs[index].value;
   } else {
-    aResult.SetIsVoid(true);
+    aResult.SetIsVoid(PR_TRUE);
   }
 
   return NS_OK;
@@ -211,7 +243,7 @@ nsSAXAttributes::Clear()
 }
 
 NS_IMETHODIMP
-nsSAXAttributes::RemoveAttribute(uint32_t aIndex)
+nsSAXAttributes::RemoveAttribute(PRUint32 aIndex)
 {
   if (aIndex >= mAttrs.Length()) {
     return NS_ERROR_FAILURE;
@@ -227,13 +259,13 @@ nsSAXAttributes::SetAttributes(nsISAXAttributes *aAttributes)
   NS_ENSURE_ARG(aAttributes);
 
   nsresult rv;
-  int32_t len;
+  PRInt32 len;
   rv = aAttributes->GetLength(&len);
   NS_ENSURE_SUCCESS(rv, rv);
 
   mAttrs.Clear();
   SAXAttr *att;
-  int32_t i;
+  PRInt32 i;
   for (i = 0; i < len; ++i) {
     att = mAttrs.AppendElement();
     if (!att) {
@@ -255,7 +287,7 @@ nsSAXAttributes::SetAttributes(nsISAXAttributes *aAttributes)
 }
 
 NS_IMETHODIMP
-nsSAXAttributes::SetAttribute(uint32_t aIndex,
+nsSAXAttributes::SetAttribute(PRUint32 aIndex,
                               const nsAString &aURI,
                               const nsAString &aLocalName,
                               const nsAString &aQName,
@@ -277,7 +309,7 @@ nsSAXAttributes::SetAttribute(uint32_t aIndex,
 }
 
 NS_IMETHODIMP
-nsSAXAttributes::SetLocalName(uint32_t aIndex, const nsAString &aLocalName)
+nsSAXAttributes::SetLocalName(PRUint32 aIndex, const nsAString &aLocalName)
 {
   if (aIndex >= mAttrs.Length()) {
     return NS_ERROR_FAILURE;
@@ -288,7 +320,7 @@ nsSAXAttributes::SetLocalName(uint32_t aIndex, const nsAString &aLocalName)
 }
 
 NS_IMETHODIMP
-nsSAXAttributes::SetQName(uint32_t aIndex, const nsAString &aQName)
+nsSAXAttributes::SetQName(PRUint32 aIndex, const nsAString &aQName)
 {
   if (aIndex >= mAttrs.Length()) {
     return NS_ERROR_FAILURE;
@@ -299,7 +331,7 @@ nsSAXAttributes::SetQName(uint32_t aIndex, const nsAString &aQName)
 }
 
 NS_IMETHODIMP
-nsSAXAttributes::SetType(uint32_t aIndex, const nsAString &aType)
+nsSAXAttributes::SetType(PRUint32 aIndex, const nsAString &aType)
 {
   if (aIndex >= mAttrs.Length()) {
     return NS_ERROR_FAILURE;
@@ -310,7 +342,7 @@ nsSAXAttributes::SetType(uint32_t aIndex, const nsAString &aType)
 }
 
 NS_IMETHODIMP
-nsSAXAttributes::SetURI(uint32_t aIndex, const nsAString &aURI)
+nsSAXAttributes::SetURI(PRUint32 aIndex, const nsAString &aURI)
 {
   if (aIndex >= mAttrs.Length()) {
     return NS_ERROR_FAILURE;
@@ -321,7 +353,7 @@ nsSAXAttributes::SetURI(uint32_t aIndex, const nsAString &aURI)
 }
 
 NS_IMETHODIMP
-nsSAXAttributes::SetValue(uint32_t aIndex, const nsAString &aValue)
+nsSAXAttributes::SetValue(PRUint32 aIndex, const nsAString &aValue)
 {
   if (aIndex >= mAttrs.Length()) {
     return NS_ERROR_FAILURE;

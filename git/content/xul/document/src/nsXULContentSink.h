@@ -1,12 +1,47 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Chris Waterson <waterson@netscape.com>
+ *   David Hyatt <hyatt@netscape.com>
+ *   Brendan Eich <brendan@mozilla.org>
+ *   Mark Hammond <mhammond@skippinet.com.au>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsXULContentSink_h__
 #define nsXULContentSink_h__
 
-#include "mozilla/Attributes.h"
 #include "nsIExpatSink.h"
 #include "nsIXMLContentSink.h"
 #include "nsAutoPtr.h"
@@ -30,21 +65,19 @@ public:
     virtual ~XULContentSinkImpl();
 
     // nsISupports
-    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIEXPATSINK
 
-    NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(XULContentSinkImpl, nsIXMLContentSink)
-
     // nsIContentSink
-    NS_IMETHOD WillParse(void) MOZ_OVERRIDE { return NS_OK; }
-    NS_IMETHOD WillBuildModel(nsDTDMode aDTDMode) MOZ_OVERRIDE;
-    NS_IMETHOD DidBuildModel(bool aTerminated) MOZ_OVERRIDE;
-    NS_IMETHOD WillInterrupt(void) MOZ_OVERRIDE;
-    NS_IMETHOD WillResume(void) MOZ_OVERRIDE;
-    NS_IMETHOD SetParser(nsParserBase* aParser) MOZ_OVERRIDE;
-    virtual void FlushPendingNotifications(mozFlushType aType) MOZ_OVERRIDE { }
-    NS_IMETHOD SetDocumentCharset(nsACString& aCharset) MOZ_OVERRIDE;
-    virtual nsISupports *GetTarget() MOZ_OVERRIDE;
+    NS_IMETHOD WillParse(void) { return NS_OK; }
+    NS_IMETHOD WillBuildModel(nsDTDMode aDTDMode);
+    NS_IMETHOD DidBuildModel(PRBool aTerminated);
+    NS_IMETHOD WillInterrupt(void);
+    NS_IMETHOD WillResume(void);
+    NS_IMETHOD SetParser(nsIParser* aParser);
+    virtual void FlushPendingNotifications(mozFlushType aType) { }
+    NS_IMETHOD SetDocumentCharset(nsACString& aCharset);
+    virtual nsISupports *GetTarget();
 
     /**
      * Initialize the content sink, giving it an nsIDocument object
@@ -56,21 +89,21 @@ public:
 protected:
     // pseudo-constants
     PRUnichar* mText;
-    int32_t mTextLength;
-    int32_t mTextSize;
-    bool mConstrainSize;
+    PRInt32 mTextLength;
+    PRInt32 mTextSize;
+    PRBool mConstrainSize;
 
     nsresult AddAttributes(const PRUnichar** aAttributes,
-                           const uint32_t aAttrLen,
+                           const PRUint32 aAttrLen,
                            nsXULPrototypeElement* aElement);
 
     nsresult OpenRoot(const PRUnichar** aAttributes,
-                      const uint32_t aAttrLen,
+                      const PRUint32 aAttrLen,
                       nsINodeInfo *aNodeInfo);
 
     nsresult OpenTag(const PRUnichar** aAttributes,
-                     const uint32_t aAttrLen,
-                     const uint32_t aLineNumber,
+                     const PRUint32 aAttrLen,
+                     const PRUint32 aLineNumber,
                      nsINodeInfo *aNodeInfo);
 
     // If OpenScript returns NS_OK and after it returns our state is eInScript,
@@ -80,13 +113,17 @@ protected:
     // script had an unknown type), and the caller should create a prototype
     // element.
     nsresult OpenScript(const PRUnichar** aAttributes,
-                        const uint32_t aLineNumber);
+                        const PRUint32 aLineNumber);
 
-    static bool IsDataInBuffer(PRUnichar* aBuffer, int32_t aLength);
+    static PRBool IsDataInBuffer(PRUnichar* aBuffer, PRInt32 aLength);
+
+    nsresult SetElementScriptType(nsXULPrototypeElement* element,
+                                  const PRUnichar** aAttributes,
+                                  const PRUint32 aAttrLen);
 
     // Text management
-    nsresult FlushText(bool aCreateTextNode = true);
-    nsresult AddText(const PRUnichar* aText, int32_t aLength);
+    nsresult FlushText(PRBool aCreateTextNode = PR_TRUE);
+    nsresult AddText(const PRUnichar* aText, PRInt32 aLength);
 
 
     nsRefPtr<nsNodeInfoManager> mNodeInfoManager;
@@ -116,23 +153,22 @@ protected:
         };
 
         Entry* mTop;
-        int32_t mDepth;
+        PRInt32 mDepth;
 
     public:
         ContextStack();
         ~ContextStack();
 
-        int32_t Depth() { return mDepth; }
+        PRInt32 Depth() { return mDepth; }
 
         nsresult Push(nsXULPrototypeNode* aNode, State aState);
         nsresult Pop(State* aState);
 
         nsresult GetTopNode(nsRefPtr<nsXULPrototypeNode>& aNode);
         nsresult GetTopChildren(nsPrototypeArray** aChildren);
+        nsresult GetTopNodeScriptType(PRUint32 *aScriptType);
 
         void Clear();
-
-        void Traverse(nsCycleCollectionTraversalCallback& aCallback);
     };
 
     friend class ContextStack;
@@ -144,7 +180,7 @@ protected:
     nsRefPtr<nsXULPrototypeDocument> mPrototype;  // [OWNER]
 
     // We use regular pointer b/c of funky exports on nsIParser:
-    nsParserBase*         mParser;               // [OWNER]
+    nsIParser*             mParser;               // [OWNER]
     nsCOMPtr<nsIScriptSecurityManager> mSecMan;
 };
 

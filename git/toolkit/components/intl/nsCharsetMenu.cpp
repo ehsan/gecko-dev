@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Pierre Phaneuf <pp@ludusdesign.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsIServiceManager.h"
 #include "nsIComponentManager.h" 
@@ -19,6 +52,7 @@
 #include "nsILocaleService.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
+#include "nsIPrefBranch2.h"
 #include "nsIPrefLocalizedString.h"
 #include "nsICurrentCharsetListener.h"
 #include "nsQuickSort.h"
@@ -48,12 +82,14 @@ static const char kURINC_BrowserMore2CharsetMenuRoot[] = "NC:BrowserMore2Charset
 static const char kURINC_BrowserMore3CharsetMenuRoot[] = "NC:BrowserMore3CharsetMenuRoot";
 static const char kURINC_BrowserMore4CharsetMenuRoot[] = "NC:BrowserMore4CharsetMenuRoot";
 static const char kURINC_BrowserMore5CharsetMenuRoot[] = "NC:BrowserMore5CharsetMenuRoot";
+static const char kURINC_BrowserUnicodeCharsetMenuRoot[] = "NC:BrowserUnicodeCharsetMenuRoot";
 static const char kURINC_MaileditCharsetMenuRoot[] = "NC:MaileditCharsetMenuRoot";
 static const char kURINC_MailviewCharsetMenuRoot[] = "NC:MailviewCharsetMenuRoot";
 static const char kURINC_ComposerCharsetMenuRoot[] = "NC:ComposerCharsetMenuRoot";
 static const char kURINC_DecodersRoot[] = "NC:DecodersRoot";
 static const char kURINC_EncodersRoot[] = "NC:EncodersRoot";
 DEFINE_RDF_VOCAB(NC_NAMESPACE_URI, NC, Name);
+DEFINE_RDF_VOCAB(NC_NAMESPACE_URI, NC, Checked);
 DEFINE_RDF_VOCAB(NC_NAMESPACE_URI, NC, BookmarkSeparator);
 DEFINE_RDF_VOCAB(NC_NAMESPACE_URI, NC, CharsetDetector);
 DEFINE_RDF_VOCAB(RDF_NAMESPACE_URI, NC, type);
@@ -91,7 +127,7 @@ public:
   nsMenuEntry() { MOZ_COUNT_CTOR(nsMenuEntry); }
   ~nsMenuEntry() { MOZ_COUNT_DTOR(nsMenuEntry); }
 
-  nsAutoCString mCharset;
+  nsCAutoString mCharset;
   nsAutoString      mTitle;
 };
 
@@ -120,41 +156,43 @@ private:
   static nsIRDFResource * kNC_BrowserMore3CharsetMenuRoot;
   static nsIRDFResource * kNC_BrowserMore4CharsetMenuRoot;
   static nsIRDFResource * kNC_BrowserMore5CharsetMenuRoot;
+  static nsIRDFResource * kNC_BrowserUnicodeCharsetMenuRoot;
   static nsIRDFResource * kNC_MaileditCharsetMenuRoot;
   static nsIRDFResource * kNC_MailviewCharsetMenuRoot;
   static nsIRDFResource * kNC_ComposerCharsetMenuRoot;
   static nsIRDFResource * kNC_DecodersRoot;
   static nsIRDFResource * kNC_EncodersRoot;
   static nsIRDFResource * kNC_Name;
+  static nsIRDFResource * kNC_Checked;
   static nsIRDFResource * kNC_CharsetDetector;
   static nsIRDFResource * kNC_BookmarkSeparator;
   static nsIRDFResource * kRDF_type;
 
   static nsIRDFDataSource * mInner;
 
-  bool mInitialized;
-  bool mBrowserMenuInitialized;
-  bool mMailviewMenuInitialized;
-  bool mComposerMenuInitialized;
-  bool mMaileditMenuInitialized;
-  bool mSecondaryTiersInitialized;
-  bool mAutoDetectInitialized;
-  bool mOthersInitialized;
+  PRPackedBool mInitialized;
+  PRPackedBool mBrowserMenuInitialized;
+  PRPackedBool mMailviewMenuInitialized;
+  PRPackedBool mComposerMenuInitialized;
+  PRPackedBool mMaileditMenuInitialized;
+  PRPackedBool mSecondaryTiersInitialized;
+  PRPackedBool mAutoDetectInitialized;
+  PRPackedBool mOthersInitialized;
 
   nsTArray<nsMenuEntry*> mBrowserMenu;
-  int32_t                mBrowserCacheStart;
-  int32_t                mBrowserCacheSize;
-  int32_t                mBrowserMenuRDFPosition;
+  PRInt32                mBrowserCacheStart;
+  PRInt32                mBrowserCacheSize;
+  PRInt32                mBrowserMenuRDFPosition;
 
   nsTArray<nsMenuEntry*> mMailviewMenu;
-  int32_t                mMailviewCacheStart;
-  int32_t                mMailviewCacheSize;
-  int32_t                mMailviewMenuRDFPosition;
+  PRInt32                mMailviewCacheStart;
+  PRInt32                mMailviewCacheSize;
+  PRInt32                mMailviewMenuRDFPosition;
 
   nsTArray<nsMenuEntry*> mComposerMenu;
-  int32_t                mComposerCacheStart;
-  int32_t                mComposerCacheSize;
-  int32_t                mComposerMenuRDFPosition;
+  PRInt32                mComposerCacheStart;
+  PRInt32                mComposerCacheSize;
+  PRInt32                mComposerMenuRDFPosition;
 
   nsCOMPtr<nsIRDFService>               mRDFService;
   nsCOMPtr<nsICharsetConverterManager> mCCManager;
@@ -163,6 +201,7 @@ private:
   nsTArray<nsCString>                   mDecoderList;
 
   nsresult Done();
+  nsresult SetCharsetCheckmark(nsString * aCharset, PRBool aValue);
 
   nsresult FreeResources();
 
@@ -187,19 +226,19 @@ private:
   nsresult AddCharsetToItemArray(nsTArray<nsMenuEntry*>* aArray,
                                  const nsAFlatCString& aCharset,
                                  nsMenuEntry ** aResult,
-                                 int32_t aPlace);
+                                 PRInt32 aPlace);
   nsresult AddCharsetArrayToItemArray(nsTArray<nsMenuEntry*> &aArray,
                                       const nsTArray<nsCString>& aCharsets);
   nsresult AddMenuItemToContainer(nsIRDFContainer * aContainer,
     nsMenuEntry * aItem, nsIRDFResource * aType, const char * aIDPrefix,
-    int32_t aPlace);
+    PRInt32 aPlace);
   nsresult AddMenuItemArrayToContainer(nsIRDFContainer * aContainer,
     nsTArray<nsMenuEntry*> * aArray, nsIRDFResource * aType);
   nsresult AddCharsetToContainer(nsTArray<nsMenuEntry*> * aArray,
                                  nsIRDFContainer * aContainer,
                                  const nsAFlatCString& aCharset,
                                  const char * aIDPrefix,
-    int32_t aPlace, int32_t aRDFPlace);
+    PRInt32 aPlace, PRInt32 aRDFPlace);
 
   nsresult AddFromPrefsToMenu(nsTArray<nsMenuEntry*> * aArray,
                               nsIRDFContainer * aContainer,
@@ -221,10 +260,10 @@ private:
   nsresult AddCharsetToCache(const nsAFlatCString& aCharset,
                              nsTArray<nsMenuEntry*> * aArray,
                              nsIRDFResource * aRDFResource,
-                             uint32_t aCacheStart, uint32_t aCacheSize,
-                             int32_t aRDFPlace);
+                             PRUint32 aCacheStart, PRUint32 aCacheSize,
+                             PRInt32 aRDFPlace);
 
-  nsresult WriteCacheToPrefs(nsTArray<nsMenuEntry*> * aArray, int32_t aCacheStart,
+  nsresult WriteCacheToPrefs(nsTArray<nsMenuEntry*> * aArray, PRInt32 aCacheStart,
     const char * aKey);
   nsresult UpdateCachePrefs(const char * aCacheKey, const char * aCacheSizeKey,
     const char * aStaticKey, const PRUnichar * aCharset);
@@ -237,7 +276,7 @@ private:
   nsresult NewRDFContainer(nsIRDFDataSource * aDataSource,
     nsIRDFResource * aResource, nsIRDFContainer ** aResult);
   void FreeMenuItemArray(nsTArray<nsMenuEntry*> * aArray);
-  int32_t FindMenuItemInArray(const nsTArray<nsMenuEntry*>* aArray,
+  PRInt32 FindMenuItemInArray(const nsTArray<nsMenuEntry*>* aArray,
                               const nsAFlatCString& aCharset,
                               nsMenuEntry ** aResult);
   nsresult ReorderMenuItemArray(nsTArray<nsMenuEntry*> * aArray);
@@ -284,17 +323,17 @@ NS_NewCharsetMenu(nsISupports * aOuter, const nsIID & aIID,
     return NS_ERROR_NULL_POINTER;
   }
   if (aOuter) {
-    *aResult = nullptr;
+    *aResult = nsnull;
     return NS_ERROR_NO_AGGREGATION;
   }
   nsCharsetMenu* inst = new nsCharsetMenu();
   if (!inst) {
-    *aResult = nullptr;
+    *aResult = nsnull;
     return NS_ERROR_OUT_OF_MEMORY;
   }
   nsresult res = inst->QueryInterface(aIID, aResult);
   if (NS_FAILED(res)) {
-    *aResult = nullptr;
+    *aResult = nsnull;
     delete inst;
   }
   return res;
@@ -302,14 +341,14 @@ NS_NewCharsetMenu(nsISupports * aOuter, const nsIID & aIID,
 
 struct charsetMenuSortRecord {
   nsMenuEntry* item;
-  uint8_t*     key;
-  uint32_t     len;
+  PRUint8*     key;
+  PRUint32     len;
 
 };
 
 static int CompareMenuItems(const void* aArg1, const void* aArg2, void *data)
 {
-  int32_t res; 
+  PRInt32 res; 
   nsICollation * collation = (nsICollation *) data;
   charsetMenuSortRecord *rec1 = (charsetMenuSortRecord *) aArg1;
   charsetMenuSortRecord *rec2 = (charsetMenuSortRecord *) aArg2;
@@ -325,10 +364,10 @@ nsCharsetMenu::SetArrayFromEnumerator(nsIUTF8StringEnumerator* aEnumerator,
 {
   nsresult rv;
   
-  bool hasMore;
+  PRBool hasMore;
   rv = aEnumerator->HasMore(&hasMore);
   
-  nsAutoCString value;
+  nsCAutoString value;
   while (NS_SUCCEEDED(rv) && hasMore) {
     rv = aEnumerator->GetNext(value);
     if (NS_SUCCEEDED(rv))
@@ -344,12 +383,12 @@ nsCharsetMenu::SetArrayFromEnumerator(nsIUTF8StringEnumerator* aEnumerator,
 class nsIgnoreCaseCStringComparator
 {
   public:
-    bool Equals(const nsACString& a, const nsACString& b) const
+    PRBool Equals(const nsACString& a, const nsACString& b) const
     {
       return nsCString(a).Equals(b, nsCaseInsensitiveCStringComparator());
     }
 
-    bool LessThan(const nsACString& a, const nsACString& b) const
+    PRBool LessThan(const nsACString& a, const nsACString& b) const
     { 
       return a < b;
     }
@@ -432,7 +471,6 @@ NS_IMETHODIMP nsCharsetMenuObserver::Observe(nsISupports *aSubject, const char *
 // Class nsCharsetMenu [implementation]
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsCharsetMenu)
-
 NS_IMPL_CYCLE_COLLECTION_UNLINK_0(nsCharsetMenu)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsCharsetMenu)
   cb.NoteXPCOMChild(nsCharsetMenu::mInner);
@@ -455,25 +493,27 @@ nsIRDFResource * nsCharsetMenu::kNC_BrowserMore2CharsetMenuRoot = NULL;
 nsIRDFResource * nsCharsetMenu::kNC_BrowserMore3CharsetMenuRoot = NULL;
 nsIRDFResource * nsCharsetMenu::kNC_BrowserMore4CharsetMenuRoot = NULL;
 nsIRDFResource * nsCharsetMenu::kNC_BrowserMore5CharsetMenuRoot = NULL;
+nsIRDFResource * nsCharsetMenu::kNC_BrowserUnicodeCharsetMenuRoot = NULL;
 nsIRDFResource * nsCharsetMenu::kNC_MaileditCharsetMenuRoot = NULL;
 nsIRDFResource * nsCharsetMenu::kNC_MailviewCharsetMenuRoot = NULL;
 nsIRDFResource * nsCharsetMenu::kNC_ComposerCharsetMenuRoot = NULL;
 nsIRDFResource * nsCharsetMenu::kNC_DecodersRoot = NULL;
 nsIRDFResource * nsCharsetMenu::kNC_EncodersRoot = NULL;
 nsIRDFResource * nsCharsetMenu::kNC_Name = NULL;
+nsIRDFResource * nsCharsetMenu::kNC_Checked = NULL;
 nsIRDFResource * nsCharsetMenu::kNC_CharsetDetector = NULL;
 nsIRDFResource * nsCharsetMenu::kNC_BookmarkSeparator = NULL;
 nsIRDFResource * nsCharsetMenu::kRDF_type = NULL;
 
 nsCharsetMenu::nsCharsetMenu() 
-: mInitialized(false), 
-  mBrowserMenuInitialized(false),
-  mMailviewMenuInitialized(false),
-  mComposerMenuInitialized(false),
-  mMaileditMenuInitialized(false),
-  mSecondaryTiersInitialized(false),
-  mAutoDetectInitialized(false),
-  mOthersInitialized(false)
+: mInitialized(PR_FALSE), 
+  mBrowserMenuInitialized(PR_FALSE),
+  mMailviewMenuInitialized(PR_FALSE),
+  mComposerMenuInitialized(PR_FALSE),
+  mMaileditMenuInitialized(PR_FALSE),
+  mSecondaryTiersInitialized(PR_FALSE),
+  mAutoDetectInitialized(PR_FALSE),
+  mOthersInitialized(PR_FALSE)
 {
   nsresult res = NS_OK;
 
@@ -484,7 +524,7 @@ nsCharsetMenu::nsCharsetMenu()
   mRDFService = do_GetService(kRDFServiceCID, &res);
 
   if (NS_SUCCEEDED(res))  {
-    mRDFService->RegisterDataSource(this, false);
+    mRDFService->RegisterDataSource(this, PR_FALSE);
   
     CallCreateInstance(kRDFInMemoryDataSourceCID, &mInner);
 
@@ -495,7 +535,7 @@ nsCharsetMenu::nsCharsetMenu()
   //get pref service
   nsCOMPtr<nsIPrefService> PrefService = do_GetService(NS_PREFSERVICE_CONTRACTID, &res);
   if (NS_SUCCEEDED(res))
-    res = PrefService->GetBranch(nullptr, getter_AddRefs(mPrefs));
+    res = PrefService->GetBranch(nsnull, getter_AddRefs(mPrefs));
 
   //register event listener
   mCharsetMenuObserver = new nsCharsetMenuObserver(this);
@@ -507,7 +547,7 @@ nsCharsetMenu::nsCharsetMenu()
     if (NS_SUCCEEDED(res))
       res = observerService->AddObserver(mCharsetMenuObserver, 
                                          "charsetmenu-selected", 
-                                         false);
+                                         PR_FALSE);
   }
 
   NS_ASSERTION(NS_SUCCEEDED(res), "Failed to initialize nsCharsetMenu");
@@ -616,7 +656,7 @@ nsresult nsCharsetMenu::RefreshMaileditMenu()
     res = mInner->Unassert(kNC_MaileditCharsetMenuRoot, kNC_Name, node);
     NS_ENSURE_SUCCESS(res, res);
 
-    res = container->RemoveElement(node, false);
+    res = container->RemoveElement(node, PR_FALSE);
     NS_ENSURE_SUCCESS(res, res);
   }
 
@@ -696,6 +736,8 @@ nsresult nsCharsetMenu::Init()
                              &kNC_BrowserMore4CharsetMenuRoot);
     mRDFService->GetResource(NS_LITERAL_CSTRING(kURINC_BrowserMore5CharsetMenuRoot),
                              &kNC_BrowserMore5CharsetMenuRoot);
+    mRDFService->GetResource(NS_LITERAL_CSTRING(kURINC_BrowserUnicodeCharsetMenuRoot),
+                             &kNC_BrowserUnicodeCharsetMenuRoot);
     mRDFService->GetResource(NS_LITERAL_CSTRING(kURINC_MaileditCharsetMenuRoot),
                              &kNC_MaileditCharsetMenuRoot);
     mRDFService->GetResource(NS_LITERAL_CSTRING(kURINC_MailviewCharsetMenuRoot),
@@ -708,6 +750,8 @@ nsresult nsCharsetMenu::Init()
                              &kNC_EncodersRoot);
     mRDFService->GetResource(NS_LITERAL_CSTRING(kURINC_Name),
                              &kNC_Name);
+    mRDFService->GetResource(NS_LITERAL_CSTRING(kURINC_Checked),
+                             &kNC_Checked);
     mRDFService->GetResource(NS_LITERAL_CSTRING(kURINC_CharsetDetector),
                              &kNC_CharsetDetector);
     mRDFService->GetResource(NS_LITERAL_CSTRING(kURINC_BookmarkSeparator),
@@ -733,6 +777,8 @@ nsresult nsCharsetMenu::Init()
     res = rdfUtil->MakeSeq(mInner, kNC_BrowserMore4CharsetMenuRoot, NULL);
     if (NS_FAILED(res)) goto done;
     res = rdfUtil->MakeSeq(mInner, kNC_BrowserMore5CharsetMenuRoot, NULL);
+    if (NS_FAILED(res)) goto done;
+    res = rdfUtil->MakeSeq(mInner, kNC_BrowserUnicodeCharsetMenuRoot, NULL);
     if (NS_FAILED(res)) goto done;
     res = rdfUtil->MakeSeq(mInner, kNC_MaileditCharsetMenuRoot, NULL);
     if (NS_FAILED(res)) goto done;
@@ -766,16 +812,43 @@ nsresult nsCharsetMenu::Done()
   NS_IF_RELEASE(kNC_BrowserMore3CharsetMenuRoot);
   NS_IF_RELEASE(kNC_BrowserMore4CharsetMenuRoot);
   NS_IF_RELEASE(kNC_BrowserMore5CharsetMenuRoot);
+  NS_IF_RELEASE(kNC_BrowserUnicodeCharsetMenuRoot);
   NS_IF_RELEASE(kNC_MaileditCharsetMenuRoot);
   NS_IF_RELEASE(kNC_MailviewCharsetMenuRoot);
   NS_IF_RELEASE(kNC_ComposerCharsetMenuRoot);
   NS_IF_RELEASE(kNC_DecodersRoot);
   NS_IF_RELEASE(kNC_EncodersRoot);
   NS_IF_RELEASE(kNC_Name);
+  NS_IF_RELEASE(kNC_Checked);
   NS_IF_RELEASE(kNC_CharsetDetector);
   NS_IF_RELEASE(kNC_BookmarkSeparator);
   NS_IF_RELEASE(kRDF_type);
   NS_IF_RELEASE(mInner);
+
+  return res;
+}
+
+nsresult nsCharsetMenu::SetCharsetCheckmark(nsString * aCharset, 
+                                            PRBool aValue)
+{
+  nsresult res = NS_OK;
+  nsCOMPtr<nsIRDFContainer> container;
+  nsCOMPtr<nsIRDFResource> node;
+
+  res = NewRDFContainer(mInner, kNC_BrowserCharsetMenuRoot, getter_AddRefs(container));
+  if (NS_FAILED(res)) return res;
+
+  // find RDF node for given charset
+  res = mRDFService->GetUnicodeResource(*aCharset, getter_AddRefs(node));
+  if (NS_FAILED(res)) return res;
+
+  // set checkmark value
+  nsCOMPtr<nsIRDFLiteral> checkedLiteral;
+  nsAutoString checked; checked.AssignWithConversion((aValue == PR_TRUE) ? "true" : "false");
+  res = mRDFService->GetLiteral(checked.get(), getter_AddRefs(checkedLiteral));
+  if (NS_FAILED(res)) return res;
+  res = Assert(node, kNC_Checked, checkedLiteral, PR_TRUE);
+  if (NS_FAILED(res)) return res;
 
   return res;
 }
@@ -788,8 +861,11 @@ nsresult nsCharsetMenu::FreeResources()
   nsresult res = NS_OK;
 
   if (mCharsetMenuObserver) {
-    mPrefs->RemoveObserver(kBrowserStaticPrefKey, mCharsetMenuObserver);
-    mPrefs->RemoveObserver(kMaileditPrefKey, mCharsetMenuObserver);
+    nsCOMPtr<nsIPrefBranch2> pbi = do_QueryInterface(mPrefs);
+    if (pbi) {
+      pbi->RemoveObserver(kBrowserStaticPrefKey, mCharsetMenuObserver);
+      pbi->RemoveObserver(kMaileditPrefKey, mCharsetMenuObserver);
+    }
     /* nsIObserverService has to have released nsCharsetMenu already */
   }
 
@@ -809,7 +885,9 @@ nsresult nsCharsetMenu::InitBrowserMenu()
     res = NewRDFContainer(mInner, kNC_BrowserCharsetMenuRoot, getter_AddRefs(container));
     if (NS_FAILED(res)) return res;
 
-    nsTArray<nsCString> browserDecoderList(mDecoderList);
+
+    // how to clone mDecoderList??
+    nsTArray<nsCString> browserDecoderList = mDecoderList;
 
     res = InitStaticMenu(browserDecoderList, kNC_BrowserCharsetMenuRoot, 
                          kBrowserStaticPrefKey, &mBrowserMenu);
@@ -835,7 +913,9 @@ nsresult nsCharsetMenu::InitBrowserMenu()
     NS_ASSERTION(NS_SUCCEEDED(res), "error initializing browser cache charset menu");
 
     // register prefs callback
-    mPrefs->AddObserver(kBrowserStaticPrefKey, mCharsetMenuObserver, false);
+    nsCOMPtr<nsIPrefBranch2> pbi = do_QueryInterface(mPrefs);
+    if (pbi)
+      res = pbi->AddObserver(kBrowserStaticPrefKey, mCharsetMenuObserver, PR_FALSE);
   }
 
   mBrowserMenuInitialized = NS_SUCCEEDED(res);
@@ -868,7 +948,9 @@ nsresult nsCharsetMenu::InitMaileditMenu()
     NS_ASSERTION(NS_SUCCEEDED(res), "error initializing mailedit charset menu from prefs");
 
     // register prefs callback
-    mPrefs->AddObserver(kMaileditPrefKey, mCharsetMenuObserver, false);
+    nsCOMPtr<nsIPrefBranch2> pbi = do_QueryInterface(mPrefs);
+    if (pbi)
+      res = pbi->AddObserver(kMaileditPrefKey, mCharsetMenuObserver, PR_FALSE);
   }
 
   mMaileditMenuInitialized = NS_SUCCEEDED(res);
@@ -885,7 +967,7 @@ nsresult nsCharsetMenu::InitMailviewMenu()
     res = NewRDFContainer(mInner, kNC_MailviewCharsetMenuRoot, getter_AddRefs(container));
     if (NS_FAILED(res)) return res;
 
-    nsTArray<nsCString> mailviewDecoderList(mDecoderList);
+    nsTArray<nsCString> mailviewDecoderList = mDecoderList;
 
     res = InitStaticMenu(mailviewDecoderList, kNC_MailviewCharsetMenuRoot, 
                          kMailviewStaticPrefKey, &mMailviewMenu);
@@ -921,7 +1003,7 @@ nsresult nsCharsetMenu::InitComposerMenu()
     res = NewRDFContainer(mInner, kNC_ComposerCharsetMenuRoot, getter_AddRefs(container));
     if (NS_FAILED(res)) return res;
 
-    nsTArray<nsCString> composerDecoderList(mDecoderList);
+    nsTArray<nsCString> composerDecoderList = mDecoderList;
 
     // even if we fail, the show must go on
     res = InitStaticMenu(composerDecoderList, kNC_ComposerCharsetMenuRoot, 
@@ -954,7 +1036,7 @@ nsresult nsCharsetMenu::InitOthers()
   nsresult res = NS_OK;
 
   if (!mOthersInitialized) {
-    nsTArray<nsCString> othersDecoderList(mDecoderList);
+    nsTArray<nsCString> othersDecoderList = mDecoderList;
 
     res = InitMoreMenu(othersDecoderList, kNC_DecodersRoot, ".notForBrowser");                 
     if (NS_FAILED(res))  return res;
@@ -962,7 +1044,7 @@ nsresult nsCharsetMenu::InitOthers()
     // Using mDecoderList instead of GetEncoderList(), we can avoid having to
     // tag a whole bunch of 'font encoders' with '.notForOutgoing' in 
     // charsetData.properties file. 
-    nsTArray<nsCString> othersEncoderList(mDecoderList);
+    nsTArray<nsCString> othersEncoderList = mDecoderList;
 
     res = InitMoreMenu(othersEncoderList, kNC_EncodersRoot, ".notForOutgoing");                 
     if (NS_FAILED(res)) return res;
@@ -983,7 +1065,7 @@ nsresult nsCharsetMenu::InitSecondaryTiers()
   nsresult res = NS_OK;
 
   if (!mSecondaryTiersInitialized)  {
-    nsTArray<nsCString> secondaryTiersDecoderList(mDecoderList);
+    nsTArray<nsCString> secondaryTiersDecoderList = mDecoderList;
 
     res = InitMoreSubmenus(secondaryTiersDecoderList);
     NS_ASSERTION(NS_SUCCEEDED(res), "err init browser charset more submenus");
@@ -1118,11 +1200,13 @@ nsresult nsCharsetMenu::InitMoreSubmenus(nsTArray<nsCString>& aDecs)
   nsCOMPtr<nsIRDFContainer> container3;
   nsCOMPtr<nsIRDFContainer> container4;
   nsCOMPtr<nsIRDFContainer> container5;
+  nsCOMPtr<nsIRDFContainer> containerU;
   const char key1[] = "intl.charsetmenu.browser.more1";
   const char key2[] = "intl.charsetmenu.browser.more2";
   const char key3[] = "intl.charsetmenu.browser.more3";
   const char key4[] = "intl.charsetmenu.browser.more4";
   const char key5[] = "intl.charsetmenu.browser.more5";
+  const char keyU[] = "intl.charsetmenu.browser.unicode";
 
   res = NewRDFContainer(mInner, kNC_BrowserMore1CharsetMenuRoot, 
     getter_AddRefs(container1));
@@ -1149,13 +1233,18 @@ nsresult nsCharsetMenu::InitMoreSubmenus(nsTArray<nsCString>& aDecs)
   if (NS_FAILED(res)) return res;
   AddFromNolocPrefsToMenu(NULL, container5, key5, aDecs, NULL);
 
+  res = NewRDFContainer(mInner, kNC_BrowserUnicodeCharsetMenuRoot, 
+    getter_AddRefs(containerU));
+  if (NS_FAILED(res)) return res;
+  AddFromNolocPrefsToMenu(NULL, containerU, keyU, aDecs, NULL);
+
   return res;
 }
 
 nsresult nsCharsetMenu::AddCharsetToItemArray(nsTArray<nsMenuEntry*> *aArray,
                                               const nsAFlatCString& aCharset,
                                               nsMenuEntry ** aResult,
-                                              int32_t aPlace)
+                                              PRInt32 aPlace)
 {
   nsresult res = NS_OK;
   nsMenuEntry * item = NULL; 
@@ -1170,15 +1259,18 @@ nsresult nsCharsetMenu::AddCharsetToItemArray(nsTArray<nsMenuEntry*> *aArray,
 
   item->mCharset = aCharset;
 
-  if (NS_FAILED(mCCManager->GetCharsetTitle(aCharset.get(), item->mTitle))) {
+  res = mCCManager->GetCharsetTitle(aCharset.get(), item->mTitle);
+  if (NS_FAILED(res)) {
     item->mTitle.AssignWithConversion(aCharset.get());
   }
 
   if (aArray != NULL) {
     if (aPlace < 0) {
-      aArray->AppendElement(item);
+      res = aArray->AppendElement(item) != nsnull;
+      if (NS_FAILED(res)) goto done;
     } else {
-      aArray->InsertElementsAt(aPlace, 1, item);
+      res = aArray->InsertElementsAt(aPlace, 1, item) != nsnull;
+      if (NS_FAILED(res)) goto done;
     }
   }
 
@@ -1197,9 +1289,9 @@ nsresult
 nsCharsetMenu::AddCharsetArrayToItemArray(nsTArray<nsMenuEntry*>& aArray,
                                           const nsTArray<nsCString>& aCharsets)
 {
-  uint32_t count = aCharsets.Length();
+  PRUint32 count = aCharsets.Length();
 
-  for (uint32_t i = 0; i < count; i++) {
+  for (PRUint32 i = 0; i < count; i++) {
 
     const nsCString& str = aCharsets[i];
     nsresult res = AddCharsetToItemArray(&aArray, str, NULL, -1);
@@ -1218,12 +1310,12 @@ nsresult nsCharsetMenu::AddMenuItemToContainer(
                         nsMenuEntry * aItem,
                         nsIRDFResource * aType,
                         const char * aIDPrefix,
-                        int32_t aPlace) 
+                        PRInt32 aPlace) 
 {
   nsresult res = NS_OK;
   nsCOMPtr<nsIRDFResource> node;
 
-  nsAutoCString id;
+  nsCAutoString id;
   if (aIDPrefix != NULL) id.Assign(aIDPrefix);
   id.Append(aItem->mCharset);
 
@@ -1242,7 +1334,7 @@ nsresult nsCharsetMenu::AddMenuItemToContainer(
     res = Unassert(node, kNC_Name, titleLiteral);
     if (NS_FAILED(res)) return res;
   } else {
-    res = Assert(node, kNC_Name, titleLiteral, true);
+    res = Assert(node, kNC_Name, titleLiteral, PR_TRUE);
     if (NS_FAILED(res)) return res;
   }
 
@@ -1251,20 +1343,20 @@ nsresult nsCharsetMenu::AddMenuItemToContainer(
       res = Unassert(node, kRDF_type, aType);
       if (NS_FAILED(res)) return res;
     } else {
-      res = Assert(node, kRDF_type, aType, true);
+      res = Assert(node, kRDF_type, aType, PR_TRUE);
       if (NS_FAILED(res)) return res;
     }
   }
 
   // Add the element to the container
   if (aPlace < -1) {
-    res = aContainer->RemoveElement(node, true);
+    res = aContainer->RemoveElement(node, PR_TRUE);
     if (NS_FAILED(res)) return res;
   } else if (aPlace < 0) {
     res = aContainer->AppendElement(node);
     if (NS_FAILED(res)) return res;
   } else {
-    res = aContainer->InsertElementAt(node, aPlace, true);
+    res = aContainer->InsertElementAt(node, aPlace, PR_TRUE);
     if (NS_FAILED(res)) return res;
   } 
 
@@ -1276,10 +1368,10 @@ nsresult nsCharsetMenu::AddMenuItemArrayToContainer(
                         nsTArray<nsMenuEntry*> * aArray,
                         nsIRDFResource * aType) 
 {
-  uint32_t count = aArray->Length();
+  PRUint32 count = aArray->Length();
   nsresult res = NS_OK;
 
-  for (uint32_t i = 0; i < count; i++) {
+  for (PRUint32 i = 0; i < count; i++) {
     nsMenuEntry * item = aArray->ElementAt(i);
     if (item == NULL) return NS_ERROR_UNEXPECTED;
 
@@ -1294,8 +1386,8 @@ nsresult nsCharsetMenu::AddCharsetToContainer(nsTArray<nsMenuEntry*> *aArray,
                                               nsIRDFContainer * aContainer,
                                               const nsAFlatCString& aCharset,
                                               const char * aIDPrefix,
-                                              int32_t aPlace,
-                                              int32_t aRDFPlace)
+                                              PRInt32 aPlace,
+                                              PRInt32 aRDFPlace)
 {
   nsresult res = NS_OK;
   nsMenuEntry * item = NULL; 
@@ -1378,8 +1470,8 @@ nsresult nsCharsetMenu::AddFromStringToMenu(
     *q = 0;
 
     // if this charset is not on the accepted list of charsets, ignore it
-    int32_t index;
-    index = aDecs.IndexOf(nsAutoCString(p), 0, nsIgnoreCaseCStringComparator());
+    PRInt32 index;
+    index = aDecs.IndexOf(nsCAutoString(p), 0, nsIgnoreCaseCStringComparator());
     if (index >= 0) {
 
       // else, add it to the menu
@@ -1401,11 +1493,11 @@ nsresult nsCharsetMenu::AddFromStringToMenu(
 
 nsresult nsCharsetMenu::AddSeparatorToContainer(nsIRDFContainer * aContainer)
 {
-  nsAutoCString str;
+  nsCAutoString str;
   str.AssignLiteral("----");
 
   // hack to generate unique id's for separators
-  static int32_t u = 0;
+  static PRInt32 u = 0;
   u++;
   str.AppendInt(u);
 
@@ -1421,11 +1513,11 @@ nsresult
 nsCharsetMenu::AddCharsetToCache(const nsAFlatCString& aCharset,
                                  nsTArray<nsMenuEntry*> * aArray,
                                  nsIRDFResource * aRDFResource,
-                                 uint32_t aCacheStart,
-                                 uint32_t aCacheSize,
-                                 int32_t aRDFPlace)
+                                 PRUint32 aCacheStart,
+                                 PRUint32 aCacheSize,
+                                 PRInt32 aRDFPlace)
 {
-  int32_t i;
+  PRInt32 i;
   nsresult res = NS_OK;
 
   i = FindMenuItemInArray(aArray, aCharset, NULL);
@@ -1448,17 +1540,17 @@ nsCharsetMenu::AddCharsetToCache(const nsAFlatCString& aCharset,
 }
 
 nsresult nsCharsetMenu::WriteCacheToPrefs(nsTArray<nsMenuEntry*> * aArray,
-                                          int32_t aCacheStart,
+                                          PRInt32 aCacheStart,
                                           const char * aKey)
 {
   nsresult res = NS_OK;
 
   // create together the cache string
-  nsAutoCString cache;
-  nsAutoCString sep(NS_LITERAL_CSTRING(", "));
-  uint32_t count = aArray->Length();
+  nsCAutoString cache;
+  nsCAutoString sep(NS_LITERAL_CSTRING(", "));
+  PRUint32 count = aArray->Length();
 
-  for (uint32_t i = aCacheStart; i < count; i++) {
+  for (PRUint32 i = aCacheStart; i < count; i++) {
     nsMenuEntry * item = aArray->ElementAt(i);
     if (item != NULL) {    
       cache.Append(item->mCharset);
@@ -1483,7 +1575,7 @@ nsresult nsCharsetMenu::UpdateCachePrefs(const char * aCacheKey,
   nsXPIDLCString cachePrefValue;
   nsXPIDLCString staticPrefValue;
   NS_LossyConvertUTF16toASCII currentCharset(aCharset);
-  int32_t cacheSize = 0;
+  PRInt32 cacheSize = 0;
 
   mPrefs->GetCharPref(aCacheKey, getter_Copies(cachePrefValue));
   mPrefs->GetCharPref(aStaticKey, getter_Copies(staticPrefValue));
@@ -1499,7 +1591,7 @@ nsresult nsCharsetMenu::UpdateCachePrefs(const char * aCacheKey,
       cachePrefValue.Insert(", ", 0);
 
     cachePrefValue.Insert(currentCharset, 0);
-    if (cacheSize < (int32_t) cachePrefValue.CountChar(',') + 1)
+    if (cacheSize < (PRInt32) cachePrefValue.CountChar(',') + 1)
       cachePrefValue.Truncate(cachePrefValue.RFindChar(','));
 
     rv = mPrefs->SetCharPref(aCacheKey, cachePrefValue);
@@ -1514,8 +1606,8 @@ nsresult nsCharsetMenu::ClearMenu(nsIRDFContainer        * aContainer,
   nsresult res = NS_OK;
 
   // clean the RDF data source
-  uint32_t count = aArray->Length();
-  for (uint32_t i = 0; i < count; i++) {
+  PRUint32 count = aArray->Length();
+  for (PRUint32 i = 0; i < count; i++) {
     nsMenuEntry * item = aArray->ElementAt(i);
     if (item != NULL) {    
       res = AddMenuItemToContainer(aContainer, item, NULL, "charset.", -2);
@@ -1534,7 +1626,7 @@ nsresult nsCharsetMenu::RemoveLastMenuItem(nsIRDFContainer * aContainer,
 {
   nsresult res = NS_OK;
 
-  int32_t last = aArray->Length() - 1;
+  PRInt32 last = aArray->Length() - 1;
   if (last >= 0) {
     nsMenuEntry * item = aArray->ElementAt(last);
     if (item != NULL) {    
@@ -1552,13 +1644,13 @@ nsresult nsCharsetMenu::RemoveFlaggedCharsets(nsTArray<nsCString>& aList,
                                               const nsString& aProp)
 {
   nsresult res = NS_OK;
-  uint32_t count;
+  PRUint32 count;
 
   count = aList.Length();
   if (NS_FAILED(res)) return res;
 
   nsAutoString str;
-  for (uint32_t i = 0; i < count; i++) {
+  for (PRUint32 i = 0; i < count; i++) {
 
     res = mCCManager->GetCharsetData(aList[i].get(), aProp.get(), str);
     if (NS_FAILED(res)) continue;
@@ -1587,8 +1679,8 @@ nsresult nsCharsetMenu::NewRDFContainer(nsIRDFDataSource * aDataSource,
 
 void nsCharsetMenu::FreeMenuItemArray(nsTArray<nsMenuEntry*> * aArray)
 {
-  uint32_t count = aArray->Length();
-  for (uint32_t i = 0; i < count; i++) {
+  PRUint32 count = aArray->Length();
+  for (PRUint32 i = 0; i < count; i++) {
     nsMenuEntry * item = aArray->ElementAt(i);
     if (item != NULL) {
       delete item;
@@ -1597,13 +1689,13 @@ void nsCharsetMenu::FreeMenuItemArray(nsTArray<nsMenuEntry*> * aArray)
   aArray->Clear();
 }
 
-int32_t nsCharsetMenu::FindMenuItemInArray(const nsTArray<nsMenuEntry*>* aArray,
+PRInt32 nsCharsetMenu::FindMenuItemInArray(const nsTArray<nsMenuEntry*>* aArray,
                                            const nsAFlatCString& aCharset,
                                            nsMenuEntry ** aResult)
 {
-  uint32_t count = aArray->Length();
+  PRUint32 count = aArray->Length();
 
-  for (uint32_t i=0; i < count; i++) {
+  for (PRUint32 i=0; i < count; i++) {
     nsMenuEntry * item = aArray->ElementAt(i);
     if (item->mCharset == aCharset) {
       if (aResult != NULL) *aResult = item;
@@ -1619,14 +1711,14 @@ nsresult nsCharsetMenu::ReorderMenuItemArray(nsTArray<nsMenuEntry*> * aArray)
 {
   nsresult res = NS_OK;
   nsCOMPtr<nsICollation> collation;
-  uint32_t count = aArray->Length();
-  uint32_t i;
+  PRUint32 count = aArray->Length();
+  PRUint32 i;
 
   // we need to use a temporary array
   charsetMenuSortRecord *array = new charsetMenuSortRecord [count];
   NS_ENSURE_TRUE(array, NS_ERROR_OUT_OF_MEMORY);
   for (i = 0; i < count; i++)
-    array[i].key = nullptr;
+    array[i].key = nsnull;
 
   res = GetCollation(getter_AddRefs(collation));
   if (NS_FAILED(res))
@@ -1661,8 +1753,8 @@ done:
 nsresult nsCharsetMenu::GetCollation(nsICollation ** aCollation)
 {
   nsresult res = NS_OK;
-  nsCOMPtr<nsILocale> locale = nullptr;
-  nsICollationFactory * collationFactory = nullptr;
+  nsCOMPtr<nsILocale> locale = nsnull;
+  nsICollationFactory * collationFactory = nsnull;
   
   nsCOMPtr<nsILocaleService> localeServ = 
            do_GetService(NS_LOCALESERVICE_CONTRACTID, &res);
@@ -1767,7 +1859,7 @@ NS_IMETHODIMP nsCharsetMenu::GetURI(char ** uri)
 
 NS_IMETHODIMP nsCharsetMenu::GetSource(nsIRDFResource* property,
                                        nsIRDFNode* target,
-                                       bool tv,
+                                       PRBool tv,
                                        nsIRDFResource** source)
 {
   return mInner->GetSource(property, target, tv, source);
@@ -1775,7 +1867,7 @@ NS_IMETHODIMP nsCharsetMenu::GetSource(nsIRDFResource* property,
 
 NS_IMETHODIMP nsCharsetMenu::GetSources(nsIRDFResource* property,
                                         nsIRDFNode* target,
-                                        bool tv,
+                                        PRBool tv,
                                         nsISimpleEnumerator** sources)
 {
   return mInner->GetSources(property, target, tv, sources);
@@ -1783,7 +1875,7 @@ NS_IMETHODIMP nsCharsetMenu::GetSources(nsIRDFResource* property,
 
 NS_IMETHODIMP nsCharsetMenu::GetTarget(nsIRDFResource* source,
                                        nsIRDFResource* property,
-                                       bool tv,
+                                       PRBool tv,
                                        nsIRDFNode** target)
 {
   return mInner->GetTarget(source, property, tv, target);
@@ -1791,7 +1883,7 @@ NS_IMETHODIMP nsCharsetMenu::GetTarget(nsIRDFResource* source,
 
 NS_IMETHODIMP nsCharsetMenu::GetTargets(nsIRDFResource* source,
                                         nsIRDFResource* property,
-                                        bool tv,
+                                        PRBool tv,
                                         nsISimpleEnumerator** targets)
 {
   return mInner->GetTargets(source, property, tv, targets);
@@ -1800,7 +1892,7 @@ NS_IMETHODIMP nsCharsetMenu::GetTargets(nsIRDFResource* source,
 NS_IMETHODIMP nsCharsetMenu::Assert(nsIRDFResource* aSource,
                                     nsIRDFResource* aProperty,
                                     nsIRDFNode* aTarget,
-                                    bool aTruthValue)
+                                    PRBool aTruthValue)
 {
   // TODO: filter out asserts we don't care about
   return mInner->Assert(aSource, aProperty, aTarget, aTruthValue);
@@ -1836,8 +1928,8 @@ NS_IMETHODIMP nsCharsetMenu::Move(nsIRDFResource* aOldSource,
 
 NS_IMETHODIMP nsCharsetMenu::HasAssertion(nsIRDFResource* source, 
                                           nsIRDFResource* property, 
-                                          nsIRDFNode* target, bool tv, 
-                                          bool* hasAssertion)
+                                          nsIRDFNode* target, PRBool tv, 
+                                          PRBool* hasAssertion)
 {
   return mInner->HasAssertion(source, property, target, tv, hasAssertion);
 }
@@ -1853,13 +1945,13 @@ NS_IMETHODIMP nsCharsetMenu::RemoveObserver(nsIRDFObserver* n)
 }
 
 NS_IMETHODIMP 
-nsCharsetMenu::HasArcIn(nsIRDFNode *aNode, nsIRDFResource *aArc, bool *result)
+nsCharsetMenu::HasArcIn(nsIRDFNode *aNode, nsIRDFResource *aArc, PRBool *result)
 {
   return mInner->HasArcIn(aNode, aArc, result);
 }
 
 NS_IMETHODIMP 
-nsCharsetMenu::HasArcOut(nsIRDFResource *source, nsIRDFResource *aArc, bool *result)
+nsCharsetMenu::HasArcOut(nsIRDFResource *source, nsIRDFResource *aArc, PRBool *result)
 {
   return mInner->HasArcOut(source, aArc, result);
 }
@@ -1885,7 +1977,7 @@ NS_IMETHODIMP nsCharsetMenu::GetAllCmds(
                              nsIRDFResource* source,
                              nsISimpleEnumerator/*<nsIRDFResource>*/** commands)
 {
-  NS_NOTYETIMPLEMENTED("nsCharsetMenu::GetAllCmds");
+  NS_NOTYETIMPLEMENTED("write me!");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
@@ -1893,9 +1985,9 @@ NS_IMETHODIMP nsCharsetMenu::IsCommandEnabled(
                              nsISupportsArray/*<nsIRDFResource>*/* aSources,
                              nsIRDFResource*   aCommand,
                              nsISupportsArray/*<nsIRDFResource>*/* aArguments,
-                             bool* aResult)
+                             PRBool* aResult)
 {
-  NS_NOTYETIMPLEMENTED("nsCharsetMenu::IsCommandEnabled");
+  NS_NOTYETIMPLEMENTED("write me!");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
@@ -1903,7 +1995,7 @@ NS_IMETHODIMP nsCharsetMenu::DoCommand(nsISupportsArray* aSources,
                                        nsIRDFResource*   aCommand,
                                        nsISupportsArray* aArguments)
 {
-  NS_NOTYETIMPLEMENTED("nsCharsetMenu::DoCommand");
+  NS_NOTYETIMPLEMENTED("write me!");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 

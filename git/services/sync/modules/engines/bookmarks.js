@@ -1,28 +1,57 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Bookmarks Sync.
+ *
+ * The Initial Developer of the Original Code is
+ * the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2007
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Dan Mills <thunder@mozilla.com>
+ *   Jono DiCarlo <jdicarlo@mozilla.org>
+ *   Anant Narayanan <anant@kix.in>
+ *   Philipp von Weitershausen <philipp@weitershausen.de>
+ *   Richard Newman <rnewman@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-this.EXPORTED_SYMBOLS = ['BookmarksEngine', "PlacesItem", "Bookmark",
-                         "BookmarkFolder", "BookmarkQuery",
-                         "Livemark", "BookmarkSeparator"];
+const EXPORTED_SYMBOLS = ['BookmarksEngine', "PlacesItem", "Bookmark",
+                          "BookmarkFolder", "BookmarkQuery",
+                          "Livemark", "BookmarkSeparator"];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
 
-Cu.import("resource://gre/modules/PlacesUtils.jsm");
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://services-common/async.js");
-Cu.import("resource://services-sync/constants.js");
-Cu.import("resource://services-sync/engines.js");
-Cu.import("resource://services-sync/record.js");
-Cu.import("resource://services-sync/util.js");
-Cu.import("resource://gre/modules/Task.jsm");
-Cu.import("resource://gre/modules/PlacesBackups.jsm");
-
 const ALLBOOKMARKS_ANNO    = "AllBookmarks";
 const DESCRIPTION_ANNO     = "bookmarkProperties/description";
 const SIDEBAR_ANNO         = "bookmarkProperties/loadInSidebar";
+const FEEDURI_ANNO         = "livemark/feedURI";
+const SITEURI_ANNO         = "livemark/siteURI";
 const MOBILEROOT_ANNO      = "mobile/bookmarksRoot";
 const MOBILE_ANNO          = "MobileBookmarks";
 const EXCLUDEBACKUP_ANNO   = "places/excludeFromBackup";
@@ -30,12 +59,22 @@ const SMART_BOOKMARKS_ANNO = "Places/SmartBookmark";
 const PARENT_ANNO          = "sync/parent";
 const ORGANIZERQUERY_ANNO  = "PlacesOrganizer/OrganizerQuery";
 const ANNOS_TO_TRACK = [DESCRIPTION_ANNO, SIDEBAR_ANNO,
-                        PlacesUtils.LMANNO_FEEDURI, PlacesUtils.LMANNO_SITEURI];
+                        FEEDURI_ANNO, SITEURI_ANNO];
 
 const SERVICE_NOT_SUPPORTED = "Service not supported on this platform";
 const FOLDER_SORTINDEX = 1000000;
 
-this.PlacesItem = function PlacesItem(collection, id, type) {
+Cu.import("resource://gre/modules/PlacesUtils.jsm");
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://services-sync/engines.js");
+Cu.import("resource://services-sync/record.js");
+Cu.import("resource://services-sync/async.js");
+Cu.import("resource://services-sync/util.js");
+Cu.import("resource://services-sync/constants.js");
+
+Cu.import("resource://services-sync/main.js");      // For access to Service.
+
+function PlacesItem(collection, id, type) {
   CryptoWrapper.call(this, collection, id);
   this.type = type || "item";
 }
@@ -78,7 +117,7 @@ Utils.deferGetSet(PlacesItem,
                   "cleartext",
                   ["hasDupe", "parentid", "parentName", "type"]);
 
-this.Bookmark = function Bookmark(collection, id, type) {
+function Bookmark(collection, id, type) {
   PlacesItem.call(this, collection, id, type || "bookmark");
 }
 Bookmark.prototype = {
@@ -91,7 +130,7 @@ Utils.deferGetSet(Bookmark,
                   ["title", "bmkUri", "description",
                    "loadInSidebar", "tags", "keyword"]);
 
-this.BookmarkQuery = function BookmarkQuery(collection, id) {
+function BookmarkQuery(collection, id) {
   Bookmark.call(this, collection, id, "query");
 }
 BookmarkQuery.prototype = {
@@ -103,7 +142,7 @@ Utils.deferGetSet(BookmarkQuery,
                   "cleartext",
                   ["folderName", "queryId"]);
 
-this.BookmarkFolder = function BookmarkFolder(collection, id, type) {
+function BookmarkFolder(collection, id, type) {
   PlacesItem.call(this, collection, id, type || "folder");
 }
 BookmarkFolder.prototype = {
@@ -114,7 +153,7 @@ BookmarkFolder.prototype = {
 Utils.deferGetSet(BookmarkFolder, "cleartext", ["description", "title",
                                                 "children"]);
 
-this.Livemark = function Livemark(collection, id) {
+function Livemark(collection, id) {
   BookmarkFolder.call(this, collection, id, "livemark");
 }
 Livemark.prototype = {
@@ -124,7 +163,7 @@ Livemark.prototype = {
 
 Utils.deferGetSet(Livemark, "cleartext", ["siteUri", "feedUri"]);
 
-this.BookmarkSeparator = function BookmarkSeparator(collection, id) {
+function BookmarkSeparator(collection, id) {
   PlacesItem.call(this, collection, id, "separator");
 }
 BookmarkSeparator.prototype = {
@@ -193,8 +232,8 @@ let kSpecialIds = {
   get mobile()  this.findMobileRoot(true),
 };
 
-this.BookmarksEngine = function BookmarksEngine(service) {
-  SyncEngine.call(this, "Bookmarks", service);
+function BookmarksEngine() {
+  SyncEngine.call(this, "Bookmarks");
 }
 BookmarksEngine.prototype = {
   __proto__: SyncEngine.prototype,
@@ -345,40 +384,35 @@ BookmarksEngine.prototype = {
   _syncStartup: function _syncStart() {
     SyncEngine.prototype._syncStartup.call(this);
 
-    let cb = Async.makeSpinningCallback();
-    Task.spawn(function() {
-      // For first-syncs, make a backup for the user to restore
-      if (this.lastSync == 0) {
-        yield PlacesBackups.create(null, true);
+    // For first-syncs, make a backup for the user to restore
+    if (this.lastSync == 0) {
+      PlacesUtils.archiveBookmarksFile(null, true);
+    }
+
+    this.__defineGetter__("_guidMap", function() {
+      // Create a mapping of folder titles and separator positions to GUID.
+      // We do this lazily so that we don't do any work unless we reconcile
+      // incoming items.
+      let guidMap;
+      try {
+        guidMap = this._buildGUIDMap();
+      } catch (ex) {
+        this._log.warn("Got exception \"" + Utils.exceptionStr(ex) +
+                       "\" building GUID map." +
+                       " Skipping all other incoming items.");
+        throw {code: Engine.prototype.eEngineAbortApplyIncoming,
+               cause: ex};
       }
+      delete this._guidMap;
+      return this._guidMap = guidMap;
+    });
 
-      this.__defineGetter__("_guidMap", function() {
-        // Create a mapping of folder titles and separator positions to GUID.
-        // We do this lazily so that we don't do any work unless we reconcile
-        // incoming items.
-        let guidMap;
-        try {
-          guidMap = this._buildGUIDMap();
-        } catch (ex) {
-          this._log.warn("Got exception \"" + Utils.exceptionStr(ex) +
-                         "\" building GUID map." +
-                         " Skipping all other incoming items.");
-          throw {code: Engine.prototype.eEngineAbortApplyIncoming,
-                 cause: ex};
-        }
-        delete this._guidMap;
-        return this._guidMap = guidMap;
-      });
-
-      this._store._childrenToOrder = {};
-      cb();
-    }.bind(this));
-    cb.wait();
+    this._store._childrenToOrder = {};
   },
 
-  _processIncoming: function (newitems) {
+  _processIncoming: function _processIncoming() {
     try {
-      SyncEngine.prototype._processIncoming.call(this, newitems);
+      SyncEngine.prototype._processIncoming.call(this);
     } finally {
       // Reorder children.
       this._tracker.ignoreAll = true;
@@ -399,32 +433,34 @@ BookmarksEngine.prototype = {
   },
 
   _createRecord: function _createRecord(id) {
-    // Create the record as usual, but mark it as having dupes if necessary.
+    // Create the record like normal but mark it as having dupes if necessary
     let record = SyncEngine.prototype._createRecord.call(this, id);
     let entry = this._mapDupe(record);
-    if (entry != null && entry.hasDupe) {
+    if (entry != null && entry.hasDupe)
       record.hasDupe = true;
-    }
     return record;
   },
 
   _findDupe: function _findDupe(item) {
-    this._log.trace("Finding dupe for " + item.id +
-                    " (already duped: " + item.hasDupe + ").");
-
-    // Don't bother finding a dupe if the incoming item has duplicates.
-    if (item.hasDupe) {
-      this._log.trace(item.id + " already a dupe: not finding one.");
+    // Don't bother finding a dupe if the incoming item has duplicates
+    if (item.hasDupe)
       return;
+    return this._mapDupe(item);
+  },
+
+  _handleDupe: function _handleDupe(item, dupeId) {
+    // Always change the local GUID to the incoming one.
+    this._store.changeItemID(dupeId, item.id);
+    this._deleteId(dupeId);
+    this._tracker.addChangedID(item.id, 0);
+    if (item.parentid) {
+      this._tracker.addChangedID(item.parentid, 0);
     }
-    let mapped = this._mapDupe(item);
-    this._log.debug(item.id + " mapped to " + mapped);
-    return mapped;
   }
 };
 
-function BookmarksStore(name, engine) {
-  Store.call(this, name, engine);
+function BookmarksStore(name) {
+  Store.call(this, name);
 
   // Explicitly nullify our references to our cached services so we don't leak
   Svc.Obs.add("places-shutdown", function() {
@@ -449,7 +485,7 @@ BookmarksStore.prototype = {
   preprocessTagQuery: function preprocessTagQuery(record) {
     if (record.type != "query" ||
         record.bmkUri == null ||
-        !record.folderName)
+        record.folderName == null)
       return;
     
     // Yes, this works without chopping off the "place:" prefix.
@@ -500,32 +536,17 @@ BookmarksStore.prototype = {
   },
   
   applyIncoming: function BStore_applyIncoming(record) {
-    this._log.debug("Applying record " + record.id);
-    let isSpecial = record.id in kSpecialIds;
-
+    // Don't bother with pre and post-processing for deletions.
     if (record.deleted) {
-      if (isSpecial) {
-        this._log.warn("Ignoring deletion for special record " + record.id);
-        return;
-      }
-
-      // Don't bother with pre and post-processing for deletions.
       Store.prototype.applyIncoming.call(this, record);
       return;
     }
 
     // For special folders we're only interested in child ordering.
-    if (isSpecial && record.children) {
+    if ((record.id in kSpecialIds) && record.children) {
       this._log.debug("Processing special node: " + record.id);
       // Reorder children later
       this._childrenToOrder[record.id] = record.children;
-      return;
-    }
-
-    // Skip malformed records. (Bug 806460.)
-    if (record.type == "query" &&
-        !record.bmkUri) {
-      this._log.warn("Skipping malformed query bookmark: " + record.id);
       return;
     }
 
@@ -537,14 +558,12 @@ BookmarksStore.prototype = {
     if (!parentGUID) {
       throw "Record " + record.id + " has invalid parentid: " + parentGUID;
     }
-    this._log.debug("Local parent is " + parentGUID);
 
     let parentId = this.idForGUID(parentGUID);
     if (parentId > 0) {
       // Save the parent id for modifying the bookmark later
       record._parent = parentId;
       record._orphan = false;
-      this._log.debug("Record " + record.id + " is not an orphan.");
     } else {
       this._log.trace("Record " + record.id +
                       " is an orphan: could not find parent " + parentGUID);
@@ -624,17 +643,14 @@ BookmarksStore.prototype = {
 
     switch (type) {
       case bms.TYPE_FOLDER:
-        if (PlacesUtils.annotations
-                       .itemHasAnnotation(itemId, PlacesUtils.LMANNO_FEEDURI)) {
+        if (PlacesUtils.itemIsLivemark(itemId))
           return "livemark";
-        }
         return "folder";
 
       case bms.TYPE_BOOKMARK:
         let bmkUri = bms.getBookmarkURI(itemId).spec;
-        if (bmkUri.indexOf("place:") == 0) {
+        if (bmkUri.search(/^place:/) == 0)
           return "query";
-        }
         return "bookmark";
 
       case bms.TYPE_SEPARATOR:
@@ -712,8 +728,7 @@ BookmarksStore.prototype = {
         this._log.debug("No feed URI: skipping livemark record " + record.id);
         return;
       }
-      if (PlacesUtils.annotations
-                     .itemHasAnnotation(record._parent, PlacesUtils.LMANNO_FEEDURI)) {
+      if (PlacesUtils.itemIsLivemark(record._parent)) {
         this._log.debug("Invalid parent: skipping livemark record " + record.id);
         return;
       }
@@ -721,31 +736,14 @@ BookmarksStore.prototype = {
       if (record.siteUri != null)
         siteURI = Utils.makeURI(record.siteUri);
 
-      // Until this engine can handle asynchronous error reporting, we need to
-      // detect errors on creation synchronously.
-      let spinningCb = Async.makeSpinningCallback();
-
-      let livemarkObj = {title: record.title,
-                         parentId: record._parent,
-                         index: PlacesUtils.bookmarks.DEFAULT_INDEX,
-                         feedURI: Utils.makeURI(record.feedUri),
-                         siteURI: siteURI,
-                         guid: record.id};
-      PlacesUtils.livemarks.addLivemark(livemarkObj,
-        function (aStatus, aLivemark) {
-          spinningCb(null, [aStatus, aLivemark]);
-        });
-
-      let [status, livemark] = spinningCb.wait();
-      if (!Components.isSuccessCode(status)) {
-        throw status;
-      }
-
-      this._log.debug("Created livemark " + livemark.id + " under " +
-                      livemark.parentId + " as " + livemark.title +
-                      ", " + livemark.siteURI.spec + ", " +
-                      livemark.feedURI.spec + ", GUID " +
-                      livemark.guid);
+      // Use createLivemarkFolderOnly, not createLivemark, to avoid it
+      // automatically updating during a sync.
+      newId = PlacesUtils.livemarks.createLivemarkFolderOnly(
+        record._parent, record.title, siteURI, Utils.makeURI(record.feedUri),
+        PlacesUtils.bookmarks.DEFAULT_INDEX);
+      this._log.debug("Created livemark " + newId + " under " + record._parent +
+                      " as " + record.title + ", " + record.siteUri + ", " + 
+                      record.feedUri + ", GUID " + record.id);
       break;
     case "separator":
       newId = PlacesUtils.bookmarks.insertSeparator(
@@ -760,12 +758,8 @@ BookmarksStore.prototype = {
       return;
     }
 
-    if (newId) {
-      // Livemarks can set the GUID through the API, so there's no need to
-      // do that here.
-      this._log.trace("Setting GUID of new item " + newId + " to " + record.id);
-      this._setGUID(newId, record.id);
-    }
+    this._log.trace("Setting GUID of new item " + newId + " to " + record.id);
+    this._setGUID(newId, record.id);
   },
 
   // Factored out of `remove` to avoid redundant DB queries when the Places ID
@@ -793,22 +787,12 @@ BookmarksStore.prototype = {
   },
 
   remove: function BStore_remove(record) {
-    if (kSpecialIds.isSpecialGUID(record.id)) {
-      this._log.warn("Refusing to remove special folder " + record.id);
-      return;
-    }
-
     let itemId = this.idForGUID(record.id);
     if (itemId <= 0) {
       this._log.debug("Item " + record.id + " already removed");
       return;
     }
     this.removeById(itemId, record.id);
-  },
-
-  _taggableTypes: ["bookmark", "microsummary", "query"],
-  isTaggable: function isTaggable(recordType) {
-    return this._taggableTypes.indexOf(recordType) != -1;
   },
 
   update: function BStore_update(record) {
@@ -856,11 +840,7 @@ BookmarksStore.prototype = {
         break;
       case "tags":
         if (Array.isArray(val)) {
-          if (this.isTaggable(remoteRecordType)) {
-            this._tagID(itemId, val);
-          } else {
-            this._log.debug("Remote record type is invalid for tags: " + remoteRecordType);
-          }
+          this._tagURI(PlacesUtils.bookmarks.getBookmarkURI(itemId), val);
         }
         break;
       case "keyword":
@@ -888,6 +868,12 @@ BookmarksStore.prototype = {
         PlacesUtils.annotations.setItemAnnotation(
           itemId, SMART_BOOKMARKS_ANNO, val, 0,
           PlacesUtils.annotations.EXPIRE_NEVER);
+        break;
+      case "siteUri":
+        PlacesUtils.livemarks.setSiteURI(itemId, Utils.makeURI(val));
+        break;
+      case "feedUri":
+        PlacesUtils.livemarks.setFeedURI(itemId, Utils.makeURI(val));
         break;
       }
     }
@@ -997,7 +983,7 @@ BookmarksStore.prototype = {
     switch (PlacesUtils.bookmarks.getItemType(placeId)) {
     case PlacesUtils.bookmarks.TYPE_BOOKMARK:
       let bmkUri = PlacesUtils.bookmarks.getBookmarkURI(placeId).spec;
-      if (bmkUri.indexOf("place:") == 0) {
+      if (bmkUri.search(/^place:/) == 0) {
         record = new BookmarkQuery(collection, id);
 
         // Get the actual tag name instead of the local itemId
@@ -1037,14 +1023,14 @@ BookmarksStore.prototype = {
       break;
 
     case PlacesUtils.bookmarks.TYPE_FOLDER:
-      if (PlacesUtils.annotations
-                     .itemHasAnnotation(placeId, PlacesUtils.LMANNO_FEEDURI)) {
+      if (PlacesUtils.itemIsLivemark(placeId)) {
         record = new Livemark(collection, id);
-        let as = PlacesUtils.annotations;
-        record.feedUri = as.getItemAnnotation(placeId, PlacesUtils.LMANNO_FEEDURI);
-        try {
-          record.siteUri = as.getItemAnnotation(placeId, PlacesUtils.LMANNO_SITEURI);
-        } catch (ex) {}
+
+        let siteURI = PlacesUtils.livemarks.getSiteURI(placeId);
+        if (siteURI != null)
+          record.siteUri = siteURI.spec;
+        record.feedUri = PlacesUtils.livemarks.getFeedURI(placeId).spec;
+
       } else {
         record = new BookmarkFolder(collection, id);
       }
@@ -1062,6 +1048,11 @@ BookmarksStore.prototype = {
         record.parentName = PlacesUtils.bookmarks.getItemTitle(parent);
       // Create a positioning identifier for the separator, used by _mapDupe
       record.pos = PlacesUtils.bookmarks.getItemIndex(placeId);
+      break;
+
+    case PlacesUtils.bookmarks.TYPE_DYNAMIC_CONTAINER:
+      record = new PlacesItem(collection, id);
+      this._log.warn("Don't know how to serialize dynamic containers yet");
       break;
 
     default:
@@ -1205,7 +1196,8 @@ BookmarksStore.prototype = {
       node = this._getNode(nodeID);
     }
     
-    if (node.type == node.RESULT_TYPE_FOLDER) {
+    if (node.type == node.RESULT_TYPE_FOLDER &&
+        !PlacesUtils.itemIsLivemark(node.itemId)) {
       node.QueryInterface(Ci.nsINavHistoryQueryResultNode);
       node.containerOpen = true;
       try {
@@ -1224,46 +1216,15 @@ BookmarksStore.prototype = {
     return items;
   },
 
-  /**
-   * Associates the URI of the item with the provided ID with the
-   * provided array of tags.
-   * If the provided ID does not identify an item with a URI,
-   * returns immediately.
-   */
-  _tagID: function _tagID(itemID, tags) {
-    if (!itemID || !tags) {
-      return;
-    }
-
-    try {
-      let u = PlacesUtils.bookmarks.getBookmarkURI(itemID);
-      this._tagURI(u, tags);
-    } catch (e) {
-      this._log.warn("Got exception fetching URI for " + itemID + ": not tagging. " +
-                     Utils.exceptionStr(e));
-
-      // I guess it doesn't have a URI. Don't try to tag it.
-      return;
-    }
-  },
-
-  /**
-   * Associate the provided URI with the provided array of tags.
-   * If the provided URI is falsy, returns immediately.
-   */
-  _tagURI: function _tagURI(bookmarkURI, tags) {
-    if (!bookmarkURI || !tags) {
-      return;
-    }
-
+  _tagURI: function BStore_tagURI(bmkURI, tags) {
     // Filter out any null/undefined/empty tags.
     tags = tags.filter(function(t) t);
 
     // Temporarily tag a dummy URI to preserve tag ids when untagging.
     let dummyURI = Utils.makeURI("about:weave#BStore_tagURI");
     PlacesUtils.tagging.tagURI(dummyURI, tags);
-    PlacesUtils.tagging.untagURI(bookmarkURI, null);
-    PlacesUtils.tagging.tagURI(bookmarkURI, tags);
+    PlacesUtils.tagging.untagURI(bmkURI, null);
+    PlacesUtils.tagging.tagURI(bmkURI, tags);
     PlacesUtils.tagging.untagURI(dummyURI, null);
   },
 
@@ -1278,24 +1239,20 @@ BookmarksStore.prototype = {
   },
 
   wipe: function BStore_wipe() {
-    let cb = Async.makeSpinningCallback();
-    Task.spawn(function() {
-      // Save a backup before clearing out all bookmarks.
-      yield PlacesBackups.create(null, true);
-      for each (let guid in kSpecialIds.guids)
-        if (guid != "places") {
-          let id = kSpecialIds.specialIdForGUID(guid);
-          if (id)
-            PlacesUtils.bookmarks.removeFolderChildren(id);
-        }
-      cb();
-    });
-    cb.wait();
+    // Save a backup before clearing out all bookmarks.
+    PlacesUtils.archiveBookmarksFile(null, true);
+
+    for each (let guid in kSpecialIds.guids)
+      if (guid != "places") {
+        let id = kSpecialIds.specialIdForGUID(guid);
+        if (id)
+          PlacesUtils.bookmarks.removeFolderChildren(id);
+      }
   }
 };
 
-function BookmarksTracker(name, engine) {
-  Tracker.call(this, name, engine);
+function BookmarksTracker(name) {
+  Tracker.call(this, name);
 
   Svc.Obs.add("places-shutdown", this);
   Svc.Obs.add("weave:engine:start-tracking", this);
@@ -1325,7 +1282,7 @@ BookmarksTracker.prototype = {
           this._enabled = false;
         }
         break;
-
+        
       case "bookmarks-restore-begin":
         this._log.debug("Ignoring changes from importing bookmarks.");
         this.ignoreAll = true;
@@ -1333,11 +1290,11 @@ BookmarksTracker.prototype = {
       case "bookmarks-restore-success":
         this._log.debug("Tracking all items on successful import.");
         this.ignoreAll = false;
-
+        
         this._log.debug("Restore succeeded: wiping server and other clients.");
-        this.engine.service.resetClient([this.name]);
-        this.engine.service.wipeServer([this.name]);
-        this.engine.service.clientsEngine.sendCommand("wipeEngine", [this.name]);
+        Weave.Service.resetClient([this.name]);
+        Weave.Service.wipeServer([this.name]);
+        Clients.sendCommand("wipeEngine", [this.name]);
         break;
       case "bookmarks-restore-failed":
         this._log.debug("Tracking all items on failed import.");
@@ -1370,7 +1327,8 @@ BookmarksTracker.prototype = {
   },
 
   /**
-   * Determine if a change should be ignored.
+   * Determine if a change should be ignored: we're ignoring everything or the
+   * folder is for livemarks.
    *
    * @param itemId
    *        Item under consideration to ignore
@@ -1395,6 +1353,10 @@ BookmarksTracker.prototype = {
         folder = PlacesUtils.bookmarks.getFolderIdForItem(itemId);
       }
     }
+
+    // Ignore livemark children.
+    if (PlacesUtils.itemIsLivemark(folder))
+      return true;
 
     // Ignore changes to tags (folders under the tags folder).
     let tags = kSpecialIds.tags;
@@ -1425,13 +1387,12 @@ BookmarksTracker.prototype = {
     this._add(folder, parentGuid);
   },
 
-  onItemRemoved: function (itemId, parentId, index, type, uri,
-                           guid, parentGuid) {
-    if (this._ignore(itemId, parentId, guid)) {
+  onItemRemoved: function BMT_onItemRemoved(itemId, parentId, index, type, uri,
+                                            guid, parentGuid) {
+    if (this._ignore(itemId, parentId, guid))
       return;
-    }
 
-    this._log.trace("onItemRemoved: " + itemId);
+    this._log.trace("onBeforeItemRemoved: " + itemId);
     this._add(itemId, guid);
     this._add(parentId, parentGuid);
   },
@@ -1477,7 +1438,8 @@ BookmarksTracker.prototype = {
 
   // This method is oddly structured, but the idea is to return as quickly as
   // possible -- this handler gets called *every time* a bookmark changes, for
-  // *each change*.
+  // *each change*. That's particularly bad when a bunch of livemarks are
+  // updated.
   onItemChanged: function BMT_onItemChanged(itemId, property, isAnno, value,
                                             lastModified, itemType, parentId,
                                             guid, parentGuid) {
@@ -1521,5 +1483,6 @@ BookmarksTracker.prototype = {
 
   onBeginUpdateBatch: function () {},
   onEndUpdateBatch: function () {},
+  onBeforeItemRemoved: function () {},
   onItemVisited: function () {}
 };

@@ -1,385 +1,372 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: c++; c-basic-offset: 2; indent-tabs-mode: nil; tab-width: 40 -*- */
 /* vim: set ts=2 et sw=2 tw=80: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Web Workers.
+ *
+ * The Initial Developer of the Original Code is
+ *   The Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   William Chen <wchen@mozilla.com> (Original Author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "FileReaderSync.h"
 
-#include "nsCExternalHandlerService.h"
-#include "nsComponentManagerUtils.h"
-#include "nsCOMPtr.h"
-#include "nsDOMClassInfoID.h"
-#include "nsError.h"
 #include "nsIDOMFile.h"
-#include "nsICharsetDetector.h"
-#include "nsIConverterInputStream.h"
-#include "nsIInputStream.h"
-#include "nsIPlatformCharset.h"
-#include "nsISeekableStream.h"
-#include "nsISupportsImpl.h"
-#include "nsISupportsImpl.h"
-#include "nsNetUtil.h"
-#include "nsServiceManagerUtils.h"
-#include "File.h"
-#include "RuntimeService.h"
-#include "DOMBindingInlines.h"
 
-#include "mozilla/Base64.h"
-#include "mozilla/dom/EncodingUtils.h"
+#include "jsapi.h"
+#include "jsatom.h"
+#include "jscntxt.h"
+#include "jstypedarray.h"
+#include "nsJSUtils.h"
+#include "xpcprivate.h"
+
+#include "Exceptions.h"
+#include "File.h"
+#include "FileReaderSyncPrivate.h"
+#include "WorkerInlines.h"
+
+#define FUNCTION_FLAGS \
+  JSPROP_ENUMERATE
 
 USING_WORKERS_NAMESPACE
-using namespace mozilla;
-using mozilla::dom::Optional;
-using mozilla::dom::WorkerGlobalObject;
 
-NS_IMPL_ADDREF_INHERITED(FileReaderSync, DOMBindingBase)
-NS_IMPL_RELEASE_INHERITED(FileReaderSync, DOMBindingBase)
-NS_INTERFACE_MAP_BEGIN(FileReaderSync)
-  NS_INTERFACE_MAP_ENTRY(nsICharsetDetectionObserver)
-NS_INTERFACE_MAP_END_INHERITING(DOMBindingBase)
+using mozilla::dom::workers::exceptions::ThrowFileExceptionForCode;
+using js::ArrayBuffer;
 
-FileReaderSync::FileReaderSync(JSContext* aCx)
-  : DOMBindingBase(aCx)
+namespace {
+
+inline bool
+EnsureSucceededOrThrow(JSContext* aCx, nsresult rv)
 {
+  if (NS_SUCCEEDED(rv)) {
+    return true;
+  }
+
+  intN code = rv == NS_ERROR_FILE_NOT_FOUND ?
+              FILE_NOT_FOUND_ERR :
+              FILE_NOT_READABLE_ERR;
+  ThrowFileExceptionForCode(aCx, code);
+  return false;
 }
 
-void
-FileReaderSync::_trace(JSTracer* aTrc)
-{
-  DOMBindingBase::_trace(aTrc);
-}
+inline nsIDOMBlob*
+GetDOMBlobFromJSObject(JSContext* aCx, JSObject* aObj) {
+  JSClass* classPtr = NULL;
 
-void
-FileReaderSync::_finalize(JSFreeOp* aFop)
-{
-  DOMBindingBase::_finalize(aFop);
-}
-
-// static
-FileReaderSync*
-FileReaderSync::Constructor(const WorkerGlobalObject& aGlobal, ErrorResult& aRv)
-{
-  nsRefPtr<FileReaderSync> frs = new FileReaderSync(aGlobal.GetContext());
-
-  if (!Wrap(aGlobal.GetContext(), aGlobal.Get(), frs)) {
-    aRv.Throw(NS_ERROR_FAILURE);
-    return nullptr;
-  }
-
-  return frs;
-}
-
-JSObject*
-FileReaderSync::ReadAsArrayBuffer(JSContext* aCx, JS::Handle<JSObject*> aBlob,
-                                  ErrorResult& aRv)
-{
-  nsIDOMBlob* blob = file::GetDOMBlobFromJSObject(aBlob);
-  if (!blob) {
-    aRv.Throw(NS_ERROR_INVALID_ARG);
-    return nullptr;
-  }
-
-  uint64_t blobSize;
-  nsresult rv = blob->GetSize(&blobSize);
-  if (NS_FAILED(rv)) {
-    aRv.Throw(rv);
-    return nullptr;
-  }
-
-  JS::Rooted<JSObject*> jsArrayBuffer(aCx, JS_NewArrayBuffer(aCx, blobSize));
-  if (!jsArrayBuffer) {
-    // XXXkhuey we need a way to indicate to the bindings that the call failed
-    // but there's already a pending exception that we should not clobber.
-    aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
-    return nullptr;
-  }
-
-  uint32_t bufferLength = JS_GetArrayBufferByteLength(jsArrayBuffer);
-  uint8_t* arrayBuffer = JS_GetArrayBufferData(jsArrayBuffer);
-
-  nsCOMPtr<nsIInputStream> stream;
-  rv = blob->GetInternalStream(getter_AddRefs(stream));
-  if (NS_FAILED(rv)) {
-    aRv.Throw(rv);
-    return nullptr;
-  }
-
-  uint32_t numRead;
-  rv = stream->Read((char*)arrayBuffer, bufferLength, &numRead);
-  if (NS_FAILED(rv)) {
-    aRv.Throw(rv);
-    return nullptr;
-  }
-  NS_ASSERTION(numRead == bufferLength, "failed to read data");
-
-  return jsArrayBuffer;
-}
-
-void
-FileReaderSync::ReadAsBinaryString(JS::Handle<JSObject*> aBlob,
-                                   nsAString& aResult,
-                                   ErrorResult& aRv)
-{
-  nsIDOMBlob* blob = file::GetDOMBlobFromJSObject(aBlob);
-  if (!blob) {
-    aRv.Throw(NS_ERROR_INVALID_ARG);
-    return;
-  }
-
-  nsCOMPtr<nsIInputStream> stream;
-  nsresult rv = blob->GetInternalStream(getter_AddRefs(stream));
-  if (NS_FAILED(rv)) {
-    aRv.Throw(rv);
-    return;
-  }
-
-  uint32_t numRead;
-  do {
-    char readBuf[4096];
-    rv = stream->Read(readBuf, sizeof(readBuf), &numRead);
-    if (NS_FAILED(rv)) {
-      aRv.Throw(rv);
-      return;
+  if (aObj) {
+    nsIDOMBlob* blob = file::GetDOMBlobFromJSObject(aCx, aObj);
+    if (blob) {
+      return blob;
     }
 
-    uint32_t oldLength = aResult.Length();
-    AppendASCIItoUTF16(Substring(readBuf, readBuf + numRead), aResult);
-    if (aResult.Length() - oldLength != numRead) {
-      aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
-      return;
-    }
-  } while (numRead > 0);
+    classPtr = JS_GET_CLASS(aCx, aObj);
+  }
+
+  JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL, JSMSG_UNEXPECTED_TYPE,
+                       classPtr ? classPtr->name : "Object", "not a Blob.");
+  return NULL;
 }
 
-void
-FileReaderSync::ReadAsText(JS::Handle<JSObject*> aBlob,
-                           const Optional<nsAString>& aEncoding,
-                           nsAString& aResult,
-                           ErrorResult& aRv)
+class FileReaderSync
 {
-  nsIDOMBlob* blob = file::GetDOMBlobFromJSObject(aBlob);
-  if (!blob) {
-    aRv.Throw(NS_ERROR_INVALID_ARG);
-    return;
+  // FileReaderSync should not be instantiated.
+  FileReaderSync();
+  ~FileReaderSync();
+
+  static JSClass sClass;
+  static JSFunctionSpec sFunctions[];
+
+public:
+  static JSObject*
+  InitClass(JSContext* aCx, JSObject* aObj)
+  {
+    return JS_InitClass(aCx, aObj, NULL, &sClass, Construct, 0,
+                        NULL, sFunctions, NULL, NULL);
   }
 
-  nsCOMPtr<nsIInputStream> stream;
-  nsresult rv = blob->GetInternalStream(getter_AddRefs(stream));
-  if (NS_FAILED(rv)) {
-    aRv.Throw(rv);
-    return;
-  }
-
-  nsCString charsetGuess;
-  if (!aEncoding.WasPassed() || aEncoding.Value().IsEmpty()) {
-    rv = GuessCharset(stream, charsetGuess);
-    if (NS_FAILED(rv)) {
-      aRv.Throw(rv);
-      return;
-    }
-
-    nsCOMPtr<nsISeekableStream> seekable = do_QueryInterface(stream);
-    if (!seekable) {
-      aRv.Throw(NS_ERROR_FAILURE);
-      return;
-    }
-
-    // Seek to 0 because guessing the charset advances the stream.
-    rv = seekable->Seek(nsISeekableStream::NS_SEEK_SET, 0);
-    if (NS_FAILED(rv)) {
-      aRv.Throw(rv);
-      return;
-    }
-  } else {
-    CopyUTF16toUTF8(aEncoding.Value(), charsetGuess);
-  }
-
-  nsCString charset;
-  if (!EncodingUtils::FindEncodingForLabel(charsetGuess, charset)) {
-    aRv.Throw(NS_ERROR_DOM_ENCODING_NOT_SUPPORTED_ERR);
-    return;
-  }
-
-  rv = ConvertStream(stream, charset.get(), aResult);
-  if (NS_FAILED(rv)) {
-    aRv.Throw(rv);
-    return;
-  }
-}
-
-void
-FileReaderSync::ReadAsDataURL(JS::Handle<JSObject*> aBlob, nsAString& aResult,
-                              ErrorResult& aRv)
-{
-  nsIDOMBlob* blob = file::GetDOMBlobFromJSObject(aBlob);
-  if (!blob) {
-    aRv.Throw(NS_ERROR_INVALID_ARG);
-    return;
-  }
-
-  nsAutoString scratchResult;
-  scratchResult.AssignLiteral("data:");
-
-  nsString contentType;
-  blob->GetType(contentType);
-
-  if (contentType.IsEmpty()) {
-    scratchResult.AppendLiteral("application/octet-stream");
-  } else {
-    scratchResult.Append(contentType);
-  }
-  scratchResult.AppendLiteral(";base64,");
-
-  nsCOMPtr<nsIInputStream> stream;
-  nsresult rv = blob->GetInternalStream(getter_AddRefs(stream));
-  if (NS_FAILED(rv)) {
-    aRv.Throw(rv);
-    return;
-  }
-
-  uint64_t size;
-  rv = blob->GetSize(&size);
-  if (NS_FAILED(rv)) {
-    aRv.Throw(rv);
-    return;
-  }
-
-  nsCOMPtr<nsIInputStream> bufferedStream;
-  rv = NS_NewBufferedInputStream(getter_AddRefs(bufferedStream), stream, size);
-  if (NS_FAILED(rv)) {
-    aRv.Throw(rv);
-    return;
-  }
-
-  nsAutoString encodedData;
-  rv = Base64EncodeInputStream(bufferedStream, encodedData, size);
-  if (NS_FAILED(rv)) {
-    aRv.Throw(rv);
-    return;
-  }
-
-  scratchResult.Append(encodedData);
-
-  aResult = scratchResult;
-}
-
-nsresult
-FileReaderSync::ConvertStream(nsIInputStream *aStream,
-                              const char *aCharset,
-                              nsAString &aResult)
-{
-  nsCOMPtr<nsIConverterInputStream> converterStream =
-    do_CreateInstance("@mozilla.org/intl/converter-input-stream;1");
-  NS_ENSURE_TRUE(converterStream, NS_ERROR_FAILURE);
-
-  nsresult rv = converterStream->Init(aStream, aCharset, 8192,
-                  nsIConverterInputStream::DEFAULT_REPLACEMENT_CHARACTER);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIUnicharInputStream> unicharStream =
-    do_QueryInterface(converterStream);
-  NS_ENSURE_TRUE(unicharStream, NS_ERROR_FAILURE);
-
-  uint32_t numChars;
-  nsString result;
-  while (NS_SUCCEEDED(unicharStream->ReadString(8192, result, &numChars)) &&
-         numChars > 0) {
-    uint32_t oldLength = aResult.Length();
-    aResult.Append(result);
-    if (aResult.Length() - oldLength != result.Length()) {
-      return NS_ERROR_OUT_OF_MEMORY;
-    }
-  }
-
-  return rv;
-}
-
-nsresult
-FileReaderSync::GuessCharset(nsIInputStream *aStream, nsACString &aCharset)
-{
-  // First try the universal charset detector
-  nsCOMPtr<nsICharsetDetector> detector
-    = do_CreateInstance(NS_CHARSET_DETECTOR_CONTRACTID_BASE
-                        "universal_charset_detector");
-  if (!detector) {
-    RuntimeService* runtime = RuntimeService::GetService();
-    NS_ASSERTION(runtime, "This should never be null!");
-
-    // No universal charset detector, try the default charset detector
-    const nsACString& detectorName = runtime->GetDetectorName();
-
-    if (!detectorName.IsEmpty()) {
-      nsAutoCString detectorContractID;
-      detectorContractID.AssignLiteral(NS_CHARSET_DETECTOR_CONTRACTID_BASE);
-      detectorContractID += detectorName;
-      detector = do_CreateInstance(detectorContractID.get());
-    }
-  }
-
-  nsresult rv;
-  if (detector) {
-    detector->Init(this);
-
-    bool done;
-    uint32_t numRead;
-    do {
-      char readBuf[4096];
-      rv = aStream->Read(readBuf, sizeof(readBuf), &numRead);
-      NS_ENSURE_SUCCESS(rv, rv);
-      if (numRead <= 0) {
-        break;
+  static FileReaderSyncPrivate*
+  GetPrivate(JSContext* aCx, JSObject* aObj)
+  {
+    if (aObj) {
+      JSClass* classPtr = JS_GET_CLASS(aCx, aObj);
+      if (classPtr == &sClass) {
+        FileReaderSyncPrivate* fileReader =
+          GetJSPrivateSafeish<FileReaderSyncPrivate>(aCx, aObj);
+        return fileReader;
       }
-      rv = detector->DoIt(readBuf, numRead, &done);
-      NS_ENSURE_SUCCESS(rv, rv);
-    } while (!done);
-
-    rv = detector->Done();
-    NS_ENSURE_SUCCESS(rv, rv);
-  } else {
-    // no charset detector available, check the BOM
-    unsigned char sniffBuf[4];
-    uint32_t numRead;
-    rv = aStream->Read(reinterpret_cast<char*>(sniffBuf),
-                       sizeof(sniffBuf), &numRead);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    if (numRead >= 2 &&
-        sniffBuf[0] == 0xfe &&
-        sniffBuf[1] == 0xff) {
-      mCharset = "UTF-16BE";
-    } else if (numRead >= 2 &&
-               sniffBuf[0] == 0xff &&
-               sniffBuf[1] == 0xfe) {
-      mCharset = "UTF-16LE";
-    } else if (numRead >= 3 &&
-               sniffBuf[0] == 0xef &&
-               sniffBuf[1] == 0xbb &&
-               sniffBuf[2] == 0xbf) {
-      mCharset = "UTF-8";
     }
+    return NULL;
   }
 
-  if (mCharset.IsEmpty()) {
-    RuntimeService* runtime = RuntimeService::GetService();
-    mCharset = runtime->GetSystemCharset();
+private:
+  static FileReaderSyncPrivate*
+  GetInstancePrivate(JSContext* aCx, JSObject* aObj, const char* aFunctionName)
+  {
+    JSClass* classPtr = NULL;
+
+    if (aObj) {
+      FileReaderSyncPrivate* fileReader = GetPrivate(aCx, aObj);
+      if (fileReader) {
+        return fileReader;
+      }
+
+      classPtr = JS_GET_CLASS(aCx, aObj);
+    }
+
+    JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL,
+                         JSMSG_INCOMPATIBLE_PROTO, sClass.name, aFunctionName,
+                         classPtr ? classPtr->name : "Object");
+    return NULL;
   }
 
-  if (mCharset.IsEmpty()) {
-    // no sniffed or default charset, try UTF-8
-    mCharset.AssignLiteral("UTF-8");
+  static JSBool
+  Construct(JSContext* aCx, uintN aArgc, jsval* aVp)
+  {
+    JSObject* obj = JS_NewObject(aCx, &sClass, NULL, NULL);
+    if (!obj) {
+      return false;
+    }
+
+    FileReaderSyncPrivate* fileReader = new FileReaderSyncPrivate();
+    NS_ADDREF(fileReader);
+
+    if (!SetJSPrivateSafeish(aCx, obj, fileReader)) {
+      NS_RELEASE(fileReader);
+      return false;
+    }
+
+    JS_SET_RVAL(aCx, aVp, OBJECT_TO_JSVAL(obj));
+    return true;
   }
 
-  aCharset = mCharset;
-  mCharset.Truncate();
+  static void
+  Finalize(JSContext* aCx, JSObject* aObj)
+  {
+    JS_ASSERT(JS_GET_CLASS(aCx, aObj) == &sClass);
+    FileReaderSyncPrivate* fileReader =
+      GetJSPrivateSafeish<FileReaderSyncPrivate>(aCx, aObj);
+    NS_IF_RELEASE(fileReader);
+  }
 
-  return NS_OK;
-}
+  static JSBool
+  ReadAsArrayBuffer(JSContext* aCx, uintN aArgc, jsval* aVp)
+  {
+    JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
 
-NS_IMETHODIMP
-FileReaderSync::Notify(const char* aCharset, nsDetectionConfident aConf)
+    FileReaderSyncPrivate* fileReader =
+      GetInstancePrivate(aCx, obj, "readAsArrayBuffer");
+    if (!fileReader) {
+      return false;
+    }
+
+    JSObject* jsBlob;
+    if (!JS_ConvertArguments(aCx, aArgc, JS_ARGV(aCx, aVp), "o", &jsBlob)) {
+      return false;
+    }
+
+    nsIDOMBlob* blob = GetDOMBlobFromJSObject(aCx, jsBlob);
+    if (!blob) {
+      return false;
+    }
+
+    PRUint64 blobSize;
+    nsresult rv = blob->GetSize(&blobSize);
+    if (!EnsureSucceededOrThrow(aCx, rv)) {
+      return false;
+    }
+
+    JSObject* jsArrayBuffer = js_CreateArrayBuffer(aCx, blobSize);
+    if (!jsArrayBuffer) {
+      return false;
+    }
+
+    JSUint32 bufferLength = JS_GetArrayBufferByteLength(jsArrayBuffer);
+    uint8* arrayBuffer = JS_GetArrayBufferData(jsArrayBuffer);
+
+    rv = fileReader->ReadAsArrayBuffer(blob, bufferLength, arrayBuffer);
+    if (!EnsureSucceededOrThrow(aCx, rv)) {
+      return false;
+    }
+
+    JS_SET_RVAL(aCx, aVp, OBJECT_TO_JSVAL(jsArrayBuffer));
+    return true;
+  }
+
+  static JSBool
+  ReadAsDataURL(JSContext* aCx, uintN aArgc, jsval* aVp)
+  {
+    JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
+
+    FileReaderSyncPrivate* fileReader =
+      GetInstancePrivate(aCx, obj, "readAsDataURL");
+    if (!fileReader) {
+      return false;
+    }
+
+    JSObject* jsBlob;
+    if (!JS_ConvertArguments(aCx, aArgc, JS_ARGV(aCx, aVp), "o", &jsBlob)) {
+      return false;
+    }
+
+    nsIDOMBlob* blob = GetDOMBlobFromJSObject(aCx, jsBlob);
+    if (!blob) {
+      return false;
+    }
+
+    nsString blobText;
+    nsresult rv = fileReader->ReadAsDataURL(blob, blobText);
+    if (!EnsureSucceededOrThrow(aCx, rv)) {
+      return false;
+    }
+
+    JSString* jsBlobText = JS_NewUCStringCopyN(aCx, blobText.get(),
+                                               blobText.Length());
+    if (!jsBlobText) {
+      return false;
+    }
+
+    JS_SET_RVAL(aCx, aVp, STRING_TO_JSVAL(jsBlobText));
+    return true;
+  }
+
+  static JSBool
+  ReadAsBinaryString(JSContext* aCx, uintN aArgc, jsval* aVp)
+  {
+    JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
+
+    FileReaderSyncPrivate* fileReader =
+      GetInstancePrivate(aCx, obj, "readAsBinaryString");
+    if (!fileReader) {
+      return false;
+    }
+
+    JSObject* jsBlob;
+    if (!JS_ConvertArguments(aCx, aArgc, JS_ARGV(aCx, aVp), "o", &jsBlob)) {
+      return false;
+    }
+
+    nsIDOMBlob* blob = GetDOMBlobFromJSObject(aCx, jsBlob);
+    if (!blob) {
+      return false;
+    }
+
+    nsString blobText;
+    nsresult rv = fileReader->ReadAsBinaryString(blob, blobText);
+    if (!EnsureSucceededOrThrow(aCx, rv)) {
+      return false;
+    }
+
+    JSString* jsBlobText = JS_NewUCStringCopyN(aCx, blobText.get(),
+                                               blobText.Length());
+    if (!jsBlobText) {
+      return false;
+    }
+
+    JS_SET_RVAL(aCx, aVp, STRING_TO_JSVAL(jsBlobText));
+    return true;
+  }
+
+  static JSBool
+  ReadAsText(JSContext* aCx, uintN aArgc, jsval* aVp)
+  {
+    JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
+
+    FileReaderSyncPrivate* fileReader =
+      GetInstancePrivate(aCx, obj, "readAsText");
+    if (!fileReader) {
+      return false;
+    }
+
+    JSObject* jsBlob;
+    JSString* jsEncoding = JS_GetEmptyString(JS_GetRuntime(aCx));
+    if (!JS_ConvertArguments(aCx, aArgc, JS_ARGV(aCx, aVp), "o/S", &jsBlob,
+                             &jsEncoding)) {
+      return false;
+    }
+
+    nsDependentJSString encoding;
+    if (!encoding.init(aCx, jsEncoding)) {
+      return false;
+    }
+
+    nsIDOMBlob* blob = GetDOMBlobFromJSObject(aCx, jsBlob);
+    if (!blob) {
+      return false;
+    }
+
+    nsString blobText;
+    nsresult rv = fileReader->ReadAsText(blob, encoding, blobText);
+    if (!EnsureSucceededOrThrow(aCx, rv)) {
+      return false;
+    }
+
+    JSString* jsBlobText = JS_NewUCStringCopyN(aCx, blobText.get(),
+                                               blobText.Length());
+    if (!jsBlobText) {
+      return false;
+    }
+
+    JS_SET_RVAL(aCx, aVp, STRING_TO_JSVAL(jsBlobText));
+    return true;
+  }
+};
+
+JSClass FileReaderSync::sClass = {
+  "FileReaderSync",
+  JSCLASS_HAS_PRIVATE,
+  JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
+  JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Finalize,
+  JSCLASS_NO_OPTIONAL_MEMBERS
+};
+
+JSFunctionSpec FileReaderSync::sFunctions[] = {
+  JS_FN("readAsArrayBuffer", ReadAsArrayBuffer, 1, FUNCTION_FLAGS),
+  JS_FN("readAsBinaryString", ReadAsBinaryString, 1, FUNCTION_FLAGS),
+  JS_FN("readAsText", ReadAsText, 1, FUNCTION_FLAGS),
+  JS_FN("readAsDataURL", ReadAsDataURL, 1, FUNCTION_FLAGS),
+  JS_FS_END
+};
+
+} // anonymous namespace
+
+BEGIN_WORKERS_NAMESPACE
+
+namespace filereadersync {
+
+bool
+InitClass(JSContext* aCx, JSObject* aGlobal)
 {
-  mCharset.Assign(aCharset);
-
-  return NS_OK;
+  return !!FileReaderSync::InitClass(aCx, aGlobal);
 }
+
+} // namespace filereadersync
+
+END_WORKERS_NAMESPACE

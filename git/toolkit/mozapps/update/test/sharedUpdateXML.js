@@ -11,41 +11,25 @@
  * features greater than JavaScript 1.7.
  */
 
-const FILE_SIMPLE_NO_PIB_MAR = "simple_no_pib.mar";
-const SIZE_SIMPLE_NO_PIB_MAR = "351";
-const MD5_HASH_SIMPLE_NO_PIB_MAR    = "d0a7f84dacc55a252ab916668a7cb216";
-const SHA1_HASH_SIMPLE_NO_PIB_MAR   = "f5053f9552d087c6c6ed83f9b19405eccf1436" +
-                                      "fc";
-const SHA256_HASH_SIMPLE_NO_PIB_MAR = "663c7cbd11fe45b0a71438387db924d205997a" +
-                                      "b85ccf5b40aebbdaef179796ab";
-const SHA384_HASH_SIMPLE_NO_PIB_MAR = "a57250554755a9f42b91932993599bb6b05e06" +
-                                      "3dcbd71846e350232945dbad2b0c83208a0781" +
-                                      "0cf798b3d1139399c453";
-const SHA512_HASH_SIMPLE_NO_PIB_MAR = "55d3e2a86acaeb0abb7a444c13bba748846fcb" +
-                                      "ac7ff058f8ee9c9260ba01e6aef86fa4a6c46a" +
-                                      "3016b675ef94e77e63fbe912f64d155bed9b1c" +
-                                      "341dd56e575a26";
-
 const FILE_SIMPLE_MAR = "simple.mar";
-const SIZE_SIMPLE_MAR = "735";
-const MD5_HASH_SIMPLE_MAR    = "025228705a76117b5499a22d9eed9271";
-const SHA1_HASH_SIMPLE_MAR   = "87a9b1f57b3ff9bb20b677c5c0924b46b6f6781e";
-const SHA256_HASH_SIMPLE_MAR = "443ef6a8ddcd2af88f9b72b1732d335454a483127766a" +
-                               "30ca3a5647d2ae159da";
-const SHA384_HASH_SIMPLE_MAR = "c8a493e50569c190a1c67793be80f0f9d13b08d839d79" +
-                               "dd8d7be2859cfd2f75b242f272a8fbbcbe4419d399259" +
-                               "35d732";
-const SHA512_HASH_SIMPLE_MAR = "9f9afbb5a6fa70e71fa28c73c5b1968cf8831ae02ebd4" +
-                               "28839ed2acf0b257c08c76c1f286c94c029dd3a4ad708" +
-                               "f9703f61e6bf5f30982e9deee7d6838c1dbe14";
+
+const SIZE_SIMPLE_MAR = "351";
+
+const MD5_HASH_SIMPLE_MAR    = "d0a7f84dacc55a252ab916668a7cb216";
+const SHA1_HASH_SIMPLE_MAR   = "f5053f9552d087c6c6ed83f9b19405eccf1436fc";
+const SHA256_HASH_SIMPLE_MAR = "663c7cbd11fe45b0a71438387db924d205997ab85ccf5" +
+                               "b40aebbdaef179796ab";
+const SHA384_HASH_SIMPLE_MAR = "a57250554755a9f42b91932993599bb6b05e063dcbd71" +
+                               "846e350232945dbad2b0c83208a07810cf798b3d11393" +
+                               "99c453";
+const SHA512_HASH_SIMPLE_MAR = "55d3e2a86acaeb0abb7a444c13bba748846fcbac7ff05" +
+                               "8f8ee9c9260ba01e6aef86fa4a6c46a3016b675ef94e7" +
+                               "7e63fbe912f64d155bed9b1c341dd56e575a26";
 
 const STATE_NONE            = "null";
 const STATE_DOWNLOADING     = "downloading";
 const STATE_PENDING         = "pending";
-const STATE_PENDING_SVC     = "pending-service";
 const STATE_APPLYING        = "applying";
-const STATE_APPLIED         = "applied";
-const STATE_APPLIED_SVC     = "applied-service";
 const STATE_SUCCEEDED       = "succeeded";
 const STATE_DOWNLOAD_FAILED = "download-failed";
 const STATE_FAILED          = "failed";
@@ -75,14 +59,14 @@ function getRemoteUpdatesXMLString(aUpdates) {
 function getRemoteUpdateString(aPatches, aType, aName, aDisplayVersion,
                                aAppVersion, aPlatformVersion, aBuildID,
                                aDetailsURL, aBillboardURL, aLicenseURL,
-                               aShowPrompt, aShowNeverForVersion, aPromptWaitTime,
-                               aShowSurvey, aVersion, aExtensionVersion, aCustom1,
+                               aShowPrompt, aShowNeverForVersion, aShowSurvey,
+                               aVersion, aExtensionVersion, aCustom1,
                                aCustom2) {
   return getUpdateString(aType, aName, aDisplayVersion, aAppVersion,
                          aPlatformVersion, aBuildID, aDetailsURL,
                          aBillboardURL, aLicenseURL, aShowPrompt,
-                         aShowNeverForVersion, aPromptWaitTime, aShowSurvey,
-                         aVersion, aExtensionVersion, aCustom1, aCustom2) + ">\n" +
+                         aShowNeverForVersion, aShowSurvey, aVersion,
+                         aExtensionVersion, aCustom1, aCustom2) + ">\n" +
               aPatches +
          "  </update>\n";
 }
@@ -128,8 +112,7 @@ function getLocalUpdatesXMLString(aUpdates) {
  *         If not specified it will default to 'true'.
  * @param  aChannel (optional)
  *         The update channel name.
- *         If not specified it will default to the default preference value of
- *         app.update.channel.
+ *         If not specified it will default to 'test_channel'.
  * @param  aForegroundDownload (optional)
  *         The string 'true' if this update was manually downloaded or the
  *         string 'false' if this update was automatically downloaded.
@@ -144,16 +127,15 @@ function getLocalUpdateString(aPatches, aType, aName, aDisplayVersion,
                               aDetailsURL, aBillboardURL, aLicenseURL,
                               aServiceURL, aInstallDate, aStatusText,
                               aIsCompleteUpdate, aChannel, aForegroundDownload,
-                              aShowPrompt, aShowNeverForVersion, aPromptWaitTime,
-                              aShowSurvey, aVersion, aExtensionVersion,
-                              aPreviousAppVersion, aCustom1, aCustom2) {
+                              aShowPrompt, aShowNeverForVersion, aShowSurvey,
+                              aVersion, aExtensionVersion, aPreviousAppVersion,
+                              aCustom1, aCustom2) {
   let serviceURL = aServiceURL ? aServiceURL : "http://test_service/";
   let installDate = aInstallDate ? aInstallDate : "1238441400314";
   let statusText = aStatusText ? aStatusText : "Install Pending";
   let isCompleteUpdate =
     typeof(aIsCompleteUpdate) == "string" ? aIsCompleteUpdate : "true";
-  let channel = aChannel ? aChannel
-                         : gDefaultPrefBranch.getCharPref(PREF_APP_UPDATE_CHANNEL);
+  let channel = aChannel ? aChannel : "test_channel";
   let foregroundDownload =
     typeof(aForegroundDownload) == "string" ? aForegroundDownload : "true";
   let previousAppVersion = aPreviousAppVersion ? "previousAppVersion=\"" +
@@ -162,8 +144,8 @@ function getLocalUpdateString(aPatches, aType, aName, aDisplayVersion,
   return getUpdateString(aType, aName, aDisplayVersion, aAppVersion,
                          aPlatformVersion, aBuildID, aDetailsURL, aBillboardURL,
                          aLicenseURL, aShowPrompt, aShowNeverForVersion,
-                         aPromptWaitTime, aShowSurvey, aVersion, aExtensionVersion,
-                         aCustom1, aCustom2) +
+                         aShowSurvey, aVersion, aExtensionVersion, aCustom1,
+                         aCustom2) +
                    " " +
                    previousAppVersion +
                    "serviceURL=\"" + serviceURL + "\" " +
@@ -210,16 +192,13 @@ function getLocalPatchString(aType, aURL, aHashFunction, aHashValue, aSize,
  *         If not specified it will default to 'App Update Test'.
  * @param  aDisplayVersion (optional)
  *         The update's display version.
- *         If not specified it will default to 'version #' where # is the value
- *         of DEFAULT_UPDATE_VERSION.
+ *         If not specified it will default to 'version 99.0'.
  * @param  aAppVersion (optional)
  *         The update's application version.
- *         If not specified it will default to the value of
- *         DEFAULT_UPDATE_VERSION.
+ *         If not specified it will default to '99.0'.
  * @param  aPlatformVersion (optional)
  *         The update's platform version.
- *         If not specified it will default to the value of
- *         DEFAULT_UPDATE_VERSION.
+ *         If not specified it will default to '99.0'.
  * @param  aBuildID (optional)
  *         The update's build id.
  *         If not specified it will default to '20080811053724'.
@@ -242,8 +221,6 @@ function getLocalPatchString(aType, aURL, aHashFunction, aHashValue, aSize,
  *         Whether to show the 'No Thanks' button in the update prompt.
  *         If not specified it will not be present and the update service will
  *         default to false.
- * @param  aPromptWaitTime (optional)
- *         Override for the app.update.promptWaitTime preference.
  * @param  aShowSurvey (optional)
  *         Whether to show the 'No Thanks' button in the update prompt.
  *         If not specified it will not be present and the update service will
@@ -267,25 +244,22 @@ function getLocalPatchString(aType, aURL, aHashFunction, aHashValue, aSize,
 function getUpdateString(aType, aName, aDisplayVersion, aAppVersion,
                          aPlatformVersion, aBuildID, aDetailsURL, aBillboardURL,
                          aLicenseURL, aShowPrompt, aShowNeverForVersion,
-                         aPromptWaitTime, aShowSurvey, aVersion, aExtensionVersion,
-                         aCustom1, aCustom2) {
+                         aShowSurvey, aVersion, aExtensionVersion, aCustom1,
+                         aCustom2) {
   let type = aType ? aType : "major";
   let name = aName ? aName : "App Update Test";
   let displayVersion = "";
   if (aDisplayVersion || !aVersion) {
     displayVersion = "displayVersion=\"" +
                      (aDisplayVersion ? aDisplayVersion
-                                      : "version " + DEFAULT_UPDATE_VERSION) +
-                     "\" ";
+                                      : "version 99.0") + "\" ";
   }
   // version has been deprecated in favor of displayVersion but it still needs
   // to be tested for forward compatibility.
   let version = aVersion ? "version=\"" + aVersion + "\" " : "";
   let appVersion = "";
   if (aAppVersion || !aExtensionVersion) {
-    appVersion = "appVersion=\"" +
-                 (aAppVersion ? aAppVersion : DEFAULT_UPDATE_VERSION) +
-                 "\" ";
+    appVersion = "appVersion=\"" + (aAppVersion ? aAppVersion : "99.0") + "\" ";
   }
   // extensionVersion has been deprecated in favor of appVersion but it still
   // needs to be tested for forward compatibility.
@@ -295,8 +269,7 @@ function getUpdateString(aType, aName, aDisplayVersion, aAppVersion,
   let platformVersion = "";
   if (aPlatformVersion) {
     platformVersion = "platformVersion=\"" +
-                      (aPlatformVersion ? aPlatformVersion
-                                        : DEFAULT_UPDATE_VERSION) + "\" ";
+                      (aPlatformVersion ? aPlatformVersion : "99.0") + "\" ";
   }
   let buildID = aBuildID ? aBuildID : "20080811053724";
   // XXXrstrong - not specifying a detailsURL will cause a leak due to bug 470244
@@ -312,9 +285,7 @@ function getUpdateString(aType, aName, aDisplayVersion, aAppVersion,
   let showNeverForVersion = aShowNeverForVersion ? "showNeverForVersion=\"" +
                                                    aShowNeverForVersion + "\" "
                                                  : "";
-  let promptWaitTime = aPromptWaitTime ? "promptWaitTime=\"" + aPromptWaitTime +
-                                         "\" "
-                                       : "";
+  let showSurvey = aShowSurvey ? "showSurvey=\"" + aShowSurvey + "\" " : "";
   let custom1 = aCustom1 ? aCustom1 + " " : "";
   let custom2 = aCustom2 ? aCustom2 + " " : "";
   return "  <update type=\"" + type + "\" " +
@@ -329,7 +300,7 @@ function getUpdateString(aType, aName, aDisplayVersion, aAppVersion,
                     licenseURL +
                     showPrompt +
                     showNeverForVersion +
-                    promptWaitTime +
+                    showSurvey +
                     custom1 +
                     custom2 +
                    "buildID=\"" + buildID + "\"";

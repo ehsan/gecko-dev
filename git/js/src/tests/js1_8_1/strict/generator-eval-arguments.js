@@ -1,4 +1,3 @@
-// |reftest| skip-if(Android)
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 
 /*
@@ -23,15 +22,15 @@ assertEq(testLenientAndStrict('(1 for ({x:eval} in []))',
                               parseRaisesException(SyntaxError)),
          true);
 assertEq(testLenientAndStrict('(1 for (arguments in []))',
-                              parsesSuccessfully,
+                              parseRaisesException(SyntaxError),
                               parseRaisesException(SyntaxError)),
          true);
 assertEq(testLenientAndStrict('(1 for ([arguments] in []))',
-                              parsesSuccessfully,
+                              parseRaisesException(SyntaxError),
                               parseRaisesException(SyntaxError)),
          true);
 assertEq(testLenientAndStrict('(1 for ({x:arguments} in []))',
-                              parsesSuccessfully,
+                              parseRaisesException(SyntaxError),
                               parseRaisesException(SyntaxError)),
          true);
 

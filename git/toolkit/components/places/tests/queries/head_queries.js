@@ -1,8 +1,40 @@
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Places Test Code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation
+ * Portions created by the Initial Developer are Copyright (C) 2008
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Clint Talbert <ctalbert@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 const Ci = Components.interfaces;
 const Cc = Components.classes;
@@ -34,80 +66,10 @@ const olderthansixmonths = today - (DAY_MICROSEC * 31 * 7);
 
 /**
  * Generalized function to pull in an array of objects of data and push it into
- * the database.  It does NOT do any checking to see that the input is
- * appropriate.  This function is an asynchronous task, it can be called using
- * "Task.spawn" or using the "yield" function inside another task.
+ * the database. It does NOT do any checking to see that the input is
+ * appropriate.
  */
-function task_populateDB(aArray)
-{
-  // Iterate over aArray and execute all the instructions that can be done with
-  // asynchronous APIs, excluding those that will be done in batch mode later.
-  for ([, data] in Iterator(aArray)) {
-    try {
-      // make the data object into a query data object in order to create proper
-      // default values for anything left unspecified
-      var qdata = new queryData(data);
-      if (qdata.isVisit) {
-        // Then we should add a visit for this node
-        yield promiseAddVisits({
-          uri: uri(qdata.uri),
-          transition: qdata.transType,
-          visitDate: qdata.lastVisit,
-          referrer: qdata.referrer ? uri(qdata.referrer) : null,
-          title: qdata.title
-        });
-        if (qdata.visitCount && !qdata.isDetails) {
-          // Set a fake visit_count, this is not a real count but can be used
-          // to test sorting by visit_count.
-          let stmt = DBConn().createAsyncStatement(
-            "UPDATE moz_places SET visit_count = :vc WHERE url = :url");
-          stmt.params.vc = qdata.visitCount;
-          stmt.params.url = qdata.uri;
-          try {
-            stmt.executeAsync();
-          }
-          catch (ex) {
-            print("Error while setting visit_count.");
-          }
-          finally {
-            stmt.finalize();
-          }
-        }
-      }
-
-      if (qdata.isRedirect) {
-        // This must be async to properly enqueue after the updateFrecency call
-        // done by the visit addition.
-        let stmt = DBConn().createAsyncStatement(
-          "UPDATE moz_places SET hidden = 1 WHERE url = :url");
-        stmt.params.url = qdata.uri;
-        try {
-          stmt.executeAsync();
-        }
-        catch (ex) {
-          print("Error while setting hidden.");
-        }
-        finally {
-          stmt.finalize();
-        }
-      }
-
-      if (qdata.isDetails) {
-        // Then we add extraneous page details for testing
-        yield promiseAddVisits({
-          uri: uri(qdata.uri),
-          visitDate: qdata.lastVisit,
-          title: qdata.title
-        });
-      }
-    } catch (ex) {
-      // use the data object here in case instantiation of qdata failed
-      LOG("Problem with this URI: " + data.uri);
-      do_throw("Error creating database: " + ex + "\n");
-    }
-  }
-
-  // Now execute the part of the instructions made with synchronous APIs.
+function populateDB(aArray) {
   PlacesUtils.history.runInBatchMode({
     runBatched: function (aUserData)
     {
@@ -117,13 +79,50 @@ function task_populateDB(aArray)
           // make the data object into a query data object in order to create proper
           // default values for anything left unspecified
           var qdata = new queryData(data);
+          if (qdata.isVisit) {
+            // Then we should add a visit for this node
+            var referrer = qdata.referrer ? uri(qdata.referrer) : null;
+            var visitId = PlacesUtils.history.addVisit(uri(qdata.uri), qdata.lastVisit,
+                                                       referrer, qdata.transType,
+                                                       qdata.isRedirect, qdata.sessionID);
+            if (qdata.title && !qdata.isDetails) {
+              PlacesUtils.history.setPageTitle(uri(qdata.uri), qdata.title);
+            }
+            if (qdata.visitCount && !qdata.isDetails) {
+              // Set a fake visit_count, this is not a real count but can be used
+              // to test sorting by visit_count.
+              let stmt = DBConn().createStatement(
+                "UPDATE moz_places SET visit_count = :vc WHERE url = :url");
+              stmt.params.vc = qdata.visitCount;
+              stmt.params.url = qdata.uri;
+              try {
+                stmt.execute();
+              }
+              catch (ex) {
+                print("Error while setting visit_count.");
+              }
+              finally {
+                stmt.finalize();
+              }
+            }
+          }
 
-          if (qdata.markPageAsTyped) {
-            PlacesUtils.history.markPageAsTyped(uri(qdata.uri));
+          if (qdata.isDetails) {
+            // Then we add extraneous page details for testing
+            PlacesUtils.history.addPageWithDetails(uri(qdata.uri),
+                                                   qdata.title, qdata.lastVisit);
+          }
+
+          if (qdata.markPageAsTyped){
+            PlacesUtils.bhistory.markPageAsTyped(uri(qdata.uri));
+          }
+
+          if (qdata.hidePage){
+            PlacesUtils.bhistory.hidePage(uri(qdata.uri));
           }
 
           if (qdata.isPageAnnotation) {
-            if (qdata.removeAnnotation)
+            if (qdata.removeAnnotation) 
               PlacesUtils.annotations.removePageAnnotation(uri(qdata.uri),
                                                            qdata.annoName);
             else {
@@ -148,6 +147,50 @@ function task_populateDB(aArray)
             }
           }
 
+          if (qdata.isPageBinaryAnnotation) {
+            if (qdata.removeAnnotation)
+              PlacesUtils.annotations.removePageAnnotation(uri(qdata.uri),
+                                                           qdata.annoName);
+            else {
+              PlacesUtils.annotations.setPageAnnotationBinary(uri(qdata.uri),
+                                                              qdata.annoName,
+                                                              qdata.binarydata,
+                                                              qdata.binaryDataLength,
+                                                              qdata.annoMimeType,
+                                                              qdata.annoFlags,
+                                                              qdata.annoExpiration);
+            }
+          }
+
+          if (qdata.isItemBinaryAnnotation) {
+            if (qdata.removeAnnotation)
+              PlacesUtils.annotations.removeItemAnnotation(qdata.itemId,
+                                                           qdata.annoName);
+            else {
+              PlacesUtils.annotations.setItemAnnotationBinary(qdata.itemId,
+                                                              qdata.annoName,
+                                                              qdata.binaryData,
+                                                              qdata.binaryDataLength,
+                                                              qdata.annoMimeType,
+                                                              qdata.annoFlags,
+                                                              qdata.annoExpiration);
+            }
+          }
+
+          if (qdata.isFavicon) {
+            // Not planning on doing deep testing of favIcon service so these two
+            // calls should be sufficient to get favicons into the database
+            try {
+              PlacesUtils.favicons.setFaviconData(uri(qdata.faviconURI),
+                                                  qdata.favicon,
+                                                  qdata.faviconLen,
+                                                  qdata.faviconMimeType,
+                                                  qdata.faviconExpiration);
+            } catch (ex) {}
+            PlacesUtils.favicons.setFaviconUrlForPage(uri(qdata.uri),
+                                                      uri(qdata.faviconURI));
+          }
+
           if (qdata.isFolder) {
             let folderId = PlacesUtils.bookmarks.createFolder(qdata.parentFolder,
                                                               qdata.title,
@@ -157,12 +200,11 @@ function task_populateDB(aArray)
           }
 
           if (qdata.isLivemark) {
-            PlacesUtils.livemarks.addLivemark({ title: qdata.title
-                                              , parentId: qdata.parentFolder
-                                              , index: qdata.index
-                                              , feedURI: uri(qdata.feedURI)
-                                              , siteURI: uri(qdata.uri)
-                                              });
+            PlacesUtils.livemarks.createLivemark(qdata.parentFolder,
+                                                 qdata.title,
+                                                 uri(qdata.uri),
+                                                 uri(qdata.feedURI),
+                                                 qdata.index);
           }
 
           if (qdata.isBookmark) {
@@ -221,9 +263,11 @@ function queryData(obj) {
   this.referrer = obj.referrer ? obj.referrer : null;
   this.transType = obj.transType ? obj.transType : Ci.nsINavHistoryService.TRANSITION_TYPED;
   this.isRedirect = obj.isRedirect ? obj.isRedirect : false;
+  this.sessionID = obj.sessionID ? obj.sessionID : 0;
   this.isDetails = obj.isDetails ? obj.isDetails : false;
   this.title = obj.title ? obj.title : "";
   this.markPageAsTyped = obj.markPageAsTyped ? obj.markPageAsTyped : false;
+  this.hidePage = obj.hidePage ? obj.hidePage : false;
   this.isPageAnnotation = obj.isPageAnnotation ? obj.isPageAnnotation : false;
   this.removeAnnotation= obj.removeAnnotation ? true : false;
   this.annoName = obj.annoName ? obj.annoName : "";
@@ -232,9 +276,21 @@ function queryData(obj) {
   this.annoExpiration = obj.annoExpiration ? obj.annoExpiration : 0;
   this.isItemAnnotation = obj.isItemAnnotation ? obj.isItemAnnotation : false;
   this.itemId = obj.itemId ? obj.itemId : 0;
+  this.isPageBinaryAnnotation = obj.isPageBinaryAnnotation ?
+                                obj.isPageBinaryAnnotation : false;
+  this.isItemBinaryAnnotation = obj.isItemBinaryAnnotation ?
+                                obj.isItemBinaryAnnotation : false;
+  this.binaryData = obj.binaryData ? obj.binaryData : null;
+  this.binaryDataLength = obj.binaryDataLength ? obj.binaryDataLength : 0;
   this.annoMimeType = obj.annoMimeType ? obj.annoMimeType : "";
   this.isTag = obj.isTag ? obj.isTag : false;
   this.tagArray = obj.tagArray ? obj.tagArray : null;
+  this.isFavicon = obj.isFavicon ? obj.isFavicon : false;
+  this.faviconURI = obj.faviconURI ? obj.faviconURI : "";
+  this.faviconLen = obj.faviconLen ? obj.faviconLen : 0;
+  this.faviconMimeType = obj.faviconMimeType ? obj.faviconMimeType : "";
+  this.faviconExpiration = obj.faviconExpiration ?
+                           obj.faviconExpiration : futureday;
   this.isLivemark = obj.isLivemark ? obj.isLivemark : false;
   this.parentFolder = obj.parentFolder ? obj.parentFolder
                                        : PlacesUtils.placesRootId;

@@ -1,7 +1,40 @@
 
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape security libraries.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2003
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
+/* $Id: shvfy.c,v 1.15 2010/12/06 17:22:49 kaie%kuix.de Exp $ */
 
 #ifdef FREEBL_NO_DEPEND
 #include "stubs.h"
@@ -14,8 +47,6 @@
 #include "seccomon.h"
 #include "stdio.h"
 #include "prmem.h"
-#include "hasht.h"
-#include "pqg.h"
 
 /*
  * Most modern version of Linux support a speed optimization scheme where an
@@ -299,8 +330,7 @@ BLAPI_SHVerifyFile(const char *shName)
     char *checkName = NULL;
     PRFileDesc *checkFD = NULL;
     PRFileDesc *shFD = NULL;
-    void  *hashcx = NULL;
-    const SECHashObject *hashObj = NULL;
+    SHA1Context *hashcx = NULL;
     SECItem signature = { 0, NULL, 0 };
     SECItem hash;
     int bytesRead, offset;
@@ -314,7 +344,7 @@ BLAPI_SHVerifyFile(const char *shName)
     PRBool result = PR_FALSE; /* if anything goes wrong,
 			       * the signature does not verify */
     unsigned char buf[4096];
-    unsigned char hashBuf[HASH_LENGTH_MAX];
+    unsigned char hashBuf[SHA1_LENGTH];
 
     PORT_Memset(&key,0,sizeof(key));
     hash.data = hashBuf;
@@ -389,11 +419,6 @@ BLAPI_SHVerifyFile(const char *shName)
     PR_Close(checkFD);
     checkFD = NULL;
 
-    hashObj = HASH_GetRawHashObject(PQG_GetHashType(&key.params));
-    if (hashObj == NULL) {
-	goto loser;
-    }
-
     /* open our library file */
 #ifdef FREEBL_USE_PRELINK
     shFD = bl_OpenUnPrelink(shName,&pid);
@@ -409,15 +434,15 @@ BLAPI_SHVerifyFile(const char *shName)
     }
 
     /* hash our library file with SHA1 */
-    hashcx = hashObj->create();
+    hashcx = SHA1_NewContext();
     if (hashcx == NULL) {
 	goto loser;
     }
-    hashObj->begin(hashcx);
+    SHA1_Begin(hashcx);
 
     count = 0;
     while ((bytesRead = PR_Read(shFD, buf, sizeof(buf))) > 0) {
-	hashObj->update(hashcx, buf, bytesRead);
+	SHA1_Update(hashcx, buf, bytesRead);
 	count += bytesRead;
     }
 #ifdef FREEBL_USE_PRELINK
@@ -427,7 +452,7 @@ BLAPI_SHVerifyFile(const char *shName)
 #endif
     shFD = NULL;
 
-    hashObj->end(hashcx, hash.data, &hash.len, hash.len);
+    SHA1_End(hashcx, hash.data, &hash.len, hash.len);
 
 
     /* verify the hash against the check file */
@@ -471,9 +496,7 @@ loser:
 	PR_Close(shFD);
     }
     if (hashcx != NULL) {
-	if (hashObj) {
-	    hashObj->destroy(hashcx,PR_TRUE);
-	}
+	SHA1_DestroyContext(hashcx,PR_TRUE);
     }
     if (signature.data != NULL) {
 	PORT_Free(signature.data);

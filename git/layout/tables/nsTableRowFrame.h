@@ -1,13 +1,44 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 #ifndef nsTableRowFrame_h__
 #define nsTableRowFrame_h__
 
-#include "mozilla/Attributes.h"
 #include "nscore.h"
-#include "nsContainerFrame.h"
+#include "nsHTMLContainerFrame.h"
 #include "nsTablePainter.h"
 
 class  nsTableFrame;
@@ -33,7 +64,7 @@ struct nsTableCellReflowState;
  * @see nsTableRowGroupFrame
  * @see nsTableCellFrame
  */
-class nsTableRowFrame : public nsContainerFrame
+class nsTableRowFrame : public nsHTMLContainerFrame
 {
 public:
   NS_DECL_QUERYFRAME_TARGET(nsTableRowFrame)
@@ -42,19 +73,19 @@ public:
 
   virtual ~nsTableRowFrame();
 
-  virtual void Init(nsIContent*      aContent,
-                    nsIFrame*        aParent,
-                    nsIFrame*        aPrevInFlow) MOZ_OVERRIDE;
+  NS_IMETHOD Init(nsIContent*      aContent,
+                  nsIFrame*        aParent,
+                  nsIFrame*        aPrevInFlow);
   /** @see nsIFrame::DidSetStyleContext */
-  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext) MOZ_OVERRIDE;
+  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
   
   NS_IMETHOD AppendFrames(ChildListID     aListID,
-                          nsFrameList&    aFrameList) MOZ_OVERRIDE;
+                          nsFrameList&    aFrameList);
   NS_IMETHOD InsertFrames(ChildListID     aListID,
                           nsIFrame*       aPrevFrame,
-                          nsFrameList&    aFrameList) MOZ_OVERRIDE;
+                          nsFrameList&    aFrameList);
   NS_IMETHOD RemoveFrame(ChildListID     aListID,
-                         nsIFrame*       aOldFrame) MOZ_OVERRIDE;
+                         nsIFrame*       aOldFrame);
 
   /** instantiate a new instance of nsTableRowFrame.
     * @param aPresShell the pres shell for this frame
@@ -63,13 +94,13 @@ public:
     */
   friend nsIFrame* NS_NewTableRowFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
-  virtual nsMargin GetUsedMargin() const MOZ_OVERRIDE;
-  virtual nsMargin GetUsedBorder() const MOZ_OVERRIDE;
-  virtual nsMargin GetUsedPadding() const MOZ_OVERRIDE;
+  virtual nsMargin GetUsedMargin() const;
+  virtual nsMargin GetUsedBorder() const;
+  virtual nsMargin GetUsedPadding() const;
 
-  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                              const nsRect&           aDirtyRect,
+                              const nsDisplayListSet& aLists);
 
   nsTableCellFrame* GetFirstCell() ;
 
@@ -89,7 +120,7 @@ public:
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
-                    nsReflowStatus&          aStatus) MOZ_OVERRIDE;
+                    nsReflowStatus&          aStatus);
 
   void DidResize();
 
@@ -98,17 +129,17 @@ public:
    *
    * @see nsGkAtoms::tableRowFrame
    */
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const;
 
 #ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+  NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
  
   void UpdateHeight(nscoord           aHeight,
                     nscoord           aAscent,
                     nscoord           aDescent,
-                    nsTableFrame*     aTableFrame = nullptr,
-                    nsTableCellFrame* aCellFrame  = nullptr);
+                    nsTableFrame*     aTableFrame = nsnull,
+                    nsTableCellFrame* aCellFrame  = nsnull);
 
   void ResetHeight(nscoord aRowStyleHeight);
 
@@ -130,7 +161,7 @@ public:
   nscoord GetRowBaseline();
  
   /** returns the ordinal position of this row in its table */
-  virtual int32_t GetRowIndex() const;
+  virtual PRInt32 GetRowIndex() const;
 
   /** set this row's starting row index */
   void SetRowIndex (int aRowIndex);
@@ -138,7 +169,7 @@ public:
   /** used by row group frame code */
   nscoord ReflowCellFrame(nsPresContext*          aPresContext,
                           const nsHTMLReflowState& aReflowState,
-                          bool                     aIsTopOfPage,
+                          PRBool                   aIsTopOfPage,
                           nsTableCellFrame*        aCellFrame,
                           nscoord                  aAvailableHeight,
                           nsReflowStatus&          aStatus);
@@ -154,8 +185,8 @@ public:
     */
   nscoord CollapseRowIfNecessary(nscoord aRowOffset,
                                  nscoord aWidth,
-                                 bool    aCollapseGroup,
-                                 bool& aDidCollapse);
+                                 PRBool  aCollapseGroup,
+                                 PRBool& aDidCollapse);
 
   /**
    * Insert a cell frame after the last cell frame that has a col index
@@ -165,38 +196,38 @@ public:
    * @param aColIndex the col index
    */
   void InsertCellFrame(nsTableCellFrame* aFrame,
-                       int32_t           aColIndex);
+                       PRInt32           aColIndex);
 
   nsresult CalculateCellActualHeight(nsTableCellFrame* aCellFrame,
                                      nscoord&          aDesiredHeight);
 
-  bool IsFirstInserted() const;
-  void   SetFirstInserted(bool aValue);
+  PRBool IsFirstInserted() const;
+  void   SetFirstInserted(PRBool aValue);
 
   nscoord GetContentHeight() const;
   void    SetContentHeight(nscoord aTwipValue);
 
-  bool HasStyleHeight() const;
+  PRBool HasStyleHeight() const;
 
-  bool HasFixedHeight() const;
-  void   SetHasFixedHeight(bool aValue);
+  PRBool HasFixedHeight() const;
+  void   SetHasFixedHeight(PRBool aValue);
 
-  bool HasPctHeight() const;
-  void   SetHasPctHeight(bool aValue);
+  PRBool HasPctHeight() const;
+  void   SetHasPctHeight(PRBool aValue);
 
   nscoord GetFixedHeight() const;
   void    SetFixedHeight(nscoord aValue);
 
   float   GetPctHeight() const;
   void    SetPctHeight(float  aPctValue,
-                       bool aForce = false);
+                       PRBool aForce = PR_FALSE);
 
   nscoord GetHeight(nscoord aBasis = 0) const;
 
   nsTableRowFrame* GetNextRow() const;
 
-  bool    HasUnpaginatedHeight();
-  void    SetHasUnpaginatedHeight(bool aValue);
+  PRBool  HasUnpaginatedHeight();
+  void    SetHasUnpaginatedHeight(PRBool aValue);
   nscoord GetUnpaginatedHeight(nsPresContext* aPresContext);
   void    SetUnpaginatedHeight(nsPresContext* aPresContext, nscoord aValue);
 
@@ -221,21 +252,8 @@ public:
    * Sets full border widths before collapsing with cell borders
    * @param aForSide - side to set; only accepts right, left, and top
    */
-  void SetContinuousBCBorderWidth(uint8_t     aForSide,
+  void SetContinuousBCBorderWidth(PRUint8     aForSide,
                                   BCPixelSize aPixelValue);
-
-  virtual bool IsFrameOfType(uint32_t aFlags) const MOZ_OVERRIDE
-  {
-    return nsContainerFrame::IsFrameOfType(aFlags & ~(nsIFrame::eTablePart));
-  }
-
-  virtual void InvalidateFrame(uint32_t aDisplayItemKey = 0) MOZ_OVERRIDE;
-  virtual void InvalidateFrameWithRect(const nsRect& aRect, uint32_t aDisplayItemKey = 0) MOZ_OVERRIDE;
-  virtual void InvalidateFrameForRemoval() MOZ_OVERRIDE { InvalidateFrameSubtree(); }
-
-#ifdef ACCESSIBILITY
-  virtual mozilla::a11y::AccType AccessibleType() MOZ_OVERRIDE;
-#endif
 
 protected:
 
@@ -246,10 +264,11 @@ protected:
 
   void InitChildReflowState(nsPresContext&         aPresContext,
                             const nsSize&           aAvailSize,
-                            bool                    aBorderCollapse,
+                            PRBool                  aBorderCollapse,
                             nsTableCellReflowState& aReflowState);
   
-  virtual int GetSkipSides(const nsHTMLReflowState* aReflowState = nullptr) const MOZ_OVERRIDE;
+  /** implement abstract method on nsHTMLContainerFrame */
+  virtual PRIntn GetSkipSides() const;
 
   // row-specific methods
 
@@ -304,9 +323,9 @@ private:
 
 };
 
-inline int32_t nsTableRowFrame::GetRowIndex() const
+inline PRInt32 nsTableRowFrame::GetRowIndex() const
 {
-  return int32_t(mBits.mRowIndex);
+  return PRInt32(mBits.mRowIndex);
 }
 
 inline void nsTableRowFrame::SetRowIndex (int aRowIndex)
@@ -314,37 +333,37 @@ inline void nsTableRowFrame::SetRowIndex (int aRowIndex)
   mBits.mRowIndex = aRowIndex;
 }
 
-inline bool nsTableRowFrame::IsFirstInserted() const
+inline PRBool nsTableRowFrame::IsFirstInserted() const
 {
-  return bool(mBits.mFirstInserted);
+  return PRBool(mBits.mFirstInserted);
 }
 
-inline void nsTableRowFrame::SetFirstInserted(bool aValue)
+inline void nsTableRowFrame::SetFirstInserted(PRBool aValue)
 {
   mBits.mFirstInserted = aValue;
 }
 
-inline bool nsTableRowFrame::HasStyleHeight() const
+inline PRBool nsTableRowFrame::HasStyleHeight() const
 {
-  return (bool)mBits.mHasFixedHeight || (bool)mBits.mHasPctHeight;
+  return (PRBool)mBits.mHasFixedHeight || (PRBool)mBits.mHasPctHeight;
 }
 
-inline bool nsTableRowFrame::HasFixedHeight() const
+inline PRBool nsTableRowFrame::HasFixedHeight() const
 {
-  return (bool)mBits.mHasFixedHeight;
+  return (PRBool)mBits.mHasFixedHeight;
 }
 
-inline void nsTableRowFrame::SetHasFixedHeight(bool aValue)
+inline void nsTableRowFrame::SetHasFixedHeight(PRBool aValue)
 {
   mBits.mHasFixedHeight = aValue;
 }
 
-inline bool nsTableRowFrame::HasPctHeight() const
+inline PRBool nsTableRowFrame::HasPctHeight() const
 {
-  return (bool)mBits.mHasPctHeight;
+  return (PRBool)mBits.mHasPctHeight;
 }
 
-inline void nsTableRowFrame::SetHasPctHeight(bool aValue)
+inline void nsTableRowFrame::SetHasPctHeight(PRBool aValue)
 {
   mBits.mHasPctHeight = aValue;
 }
@@ -375,13 +394,13 @@ inline float nsTableRowFrame::GetPctHeight() const
     return 0.0f;
 }
 
-inline bool nsTableRowFrame::HasUnpaginatedHeight()
+inline PRBool nsTableRowFrame::HasUnpaginatedHeight()
 {
   return (mState & NS_TABLE_ROW_HAS_UNPAGINATED_HEIGHT) ==
          NS_TABLE_ROW_HAS_UNPAGINATED_HEIGHT;
 }
 
-inline void nsTableRowFrame::SetHasUnpaginatedHeight(bool aValue)
+inline void nsTableRowFrame::SetHasUnpaginatedHeight(PRBool aValue)
 {
   if (aValue) {
     mState |= NS_TABLE_ROW_HAS_UNPAGINATED_HEIGHT;
@@ -423,7 +442,7 @@ inline nsMargin* nsTableRowFrame::GetBCBorderWidth(nsMargin& aBorder)
 inline void
 nsTableRowFrame::GetContinuousBCBorderWidth(nsMargin& aBorder)
 {
-  int32_t aPixelsToTwips = nsPresContext::AppUnitsPerCSSPixel();
+  PRInt32 aPixelsToTwips = nsPresContext::AppUnitsPerCSSPixel();
   aBorder.right = BC_BORDER_LEFT_HALF_COORD(aPixelsToTwips,
                                             mLeftContBorderWidth);
   aBorder.top = BC_BORDER_BOTTOM_HALF_COORD(aPixelsToTwips,
@@ -434,7 +453,7 @@ nsTableRowFrame::GetContinuousBCBorderWidth(nsMargin& aBorder)
 
 inline nscoord nsTableRowFrame::GetOuterTopContBCBorderWidth()
 {
-  int32_t aPixelsToTwips = nsPresContext::AppUnitsPerCSSPixel();
+  PRInt32 aPixelsToTwips = nsPresContext::AppUnitsPerCSSPixel();
   return BC_BORDER_TOP_HALF_COORD(aPixelsToTwips, mTopContBorderWidth);
 }
 

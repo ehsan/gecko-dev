@@ -1,8 +1,44 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  * vim: sw=2 ts=2 et lcs=trail\:.,tab\:>~ :
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Oracle Corporation code.
+ *
+ * The Initial Developer of the Original Code is
+ *  Oracle Corporation
+ * Portions created by the Initial Developer are Copyright (C) 2004
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Vladimir Vukicevic <vladimir.vukicevic@oracle.com>
+ *   Brett Wilson <brettw@gmail.com>
+ *   Shawn Wilsher <me@shawnwilsher.com>
+ *   Drew Willcoxon <adw@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef MOZSTORAGESERVICE_H
 #define MOZSTORAGESERVICE_H
@@ -11,22 +47,20 @@
 #include "nsICollation.h"
 #include "nsIFile.h"
 #include "nsIObserver.h"
-#include "nsTArray.h"
 #include "mozilla/Mutex.h"
 
 #include "mozIStorageService.h"
+#include "mozIStorageServiceQuotaManagement.h"
 
-class nsIMemoryReporter;
-class nsIMemoryMultiReporter;
 class nsIXPConnect;
 struct sqlite3_vfs;
 
 namespace mozilla {
 namespace storage {
 
-class Connection;
 class Service : public mozIStorageService
               , public nsIObserver
+              , public mozIStorageServiceQuotaManagement
 {
 public:
   /**
@@ -49,13 +83,14 @@ public:
    */
   int localeCompareStrings(const nsAString &aStr1,
                            const nsAString &aStr2,
-                           int32_t aComparisonStrength);
+                           PRInt32 aComparisonStrength);
 
   static Service *getSingleton();
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_MOZISTORAGESERVICE
   NS_DECL_NSIOBSERVER
+  NS_DECL_MOZISTORAGESERVICEQUOTAMANAGEMENT
 
   /**
    * Obtains an already AddRefed pointer to XPConnect.  This is used by
@@ -66,63 +101,7 @@ public:
   /**
    * Obtains the cached data for the toolkit.storage.synchronous preference.
    */
-  static int32_t getSynchronousPref();
-
-  /**
-   * Obtains the default page size for this platform. The default value is
-   * specified in the SQLite makefile (SQLITE_DEFAULT_PAGE_SIZE) but it may be
-   * overriden with the PREF_TS_PAGESIZE hidden preference.
-   */
-  static int32_t getDefaultPageSize()
-  {
-    return sDefaultPageSize;
-  }
-
-  /**
-   * Returns a boolean value indicating whether or not the given page size is
-   * valid (currently understood as a power of 2 between 512 and 65536).
-   */
-  static bool pageSizeIsValid(int32_t aPageSize)
-  {
-    return aPageSize == 512 || aPageSize == 1024 || aPageSize == 2048 ||
-           aPageSize == 4096 || aPageSize == 8192 || aPageSize == 16384 ||
-           aPageSize == 32768 || aPageSize == 65536;
-  }
-
-  /**
-   * Registers the connection with the storage service.  Connections are
-   * registered so they can be iterated over.
-   *
-   * @pre mRegistrationMutex is not held
-   *
-   * @param  aConnection
-   *         The connection to register.
-   */
-  void registerConnection(Connection *aConnection);
-
-  /**
-   * Unregisters the connection with the storage service.
-   *
-   * @pre mRegistrationMutex is not held
-   *
-   * @param  aConnection
-   *         The connection to unregister.
-   */
-  void unregisterConnection(Connection *aConnection);
-
-  /**
-   * Gets the list of open connections.  Note that you must test each
-   * connection with mozIStorageConnection::connectionReady before doing
-   * anything with it, and skip it if it's not ready.
-   *
-   * @pre mRegistrationMutex is not held
-   *
-   * @param  aConnections
-   *         An inout param;  it is cleared and the connections are appended to
-   *         it.
-   * @return The open connections.
-   */
-  void getConnections(nsTArray<nsRefPtr<Connection> >& aConnections);
+  static PRInt32 getSynchronousPref();
 
 private:
   Service();
@@ -136,17 +115,6 @@ private:
   Mutex mMutex;
   
   sqlite3_vfs *mSqliteVFS;
-
-  /**
-   * Protects mConnections.
-   */
-  Mutex mRegistrationMutex;
-
-  /**
-   * The list of connections we have created.  Modifications to it are
-   * protected by |mRegistrationMutex|.
-   */
-  nsTArray<nsRefPtr<Connection> > mConnections;
 
   /**
    * Shuts down the storage service, freeing all of the acquired resources.
@@ -173,15 +141,11 @@ private:
 
   nsCOMPtr<nsIFile> mProfileStorageFile;
 
-  nsCOMPtr<nsIMemoryReporter> mStorageSQLiteReporter;
-  nsCOMPtr<nsIMemoryMultiReporter> mStorageSQLiteMultiReporter;
-
   static Service *gService;
 
   static nsIXPConnect *sXPConnect;
 
-  static int32_t sSynchronousPref;
-  static int32_t sDefaultPageSize;
+  static PRInt32 sSynchronousPref;
 };
 
 } // namespace storage

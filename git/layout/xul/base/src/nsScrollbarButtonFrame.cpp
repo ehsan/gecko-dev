@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 //
 // Eric Vaughan
@@ -52,85 +84,75 @@ nsScrollbarButtonFrame::HandleEvent(nsPresContext* aPresContext,
     return NS_OK;
   }
 
-  switch (aEvent->message) {
-    case NS_MOUSE_BUTTON_DOWN:
-      mCursorOnThis = true;
-      // if we didn't handle the press ourselves, pass it on to the superclass
-      if (HandleButtonPress(aPresContext, aEvent, aEventStatus)) {
-        return NS_OK;
-      }
-      break;
-    case NS_MOUSE_BUTTON_UP:
-      HandleRelease(aPresContext, aEvent, aEventStatus);
-      break;
-    case NS_MOUSE_EXIT_SYNTH:
-      mCursorOnThis = false;
-      break;
-    case NS_MOUSE_MOVE: {
-      nsPoint cursor =
-        nsLayoutUtils::GetEventCoordinatesRelativeTo(aEvent, this);
-      nsRect frameRect(nsPoint(0, 0), GetSize());
-      mCursorOnThis = frameRect.Contains(cursor);
-      break;
-    }
-  }
-
-  return nsButtonBoxFrame::HandleEvent(aPresContext, aEvent, aEventStatus);
+  // XXX hack until handle release is actually called in nsframe.
+  if (aEvent->message == NS_MOUSE_EXIT_SYNTH ||
+      aEvent->message == NS_MOUSE_BUTTON_UP)
+     HandleRelease(aPresContext, aEvent, aEventStatus);
+  
+  // if we didn't handle the press ourselves, pass it on to the superclass
+  if (!HandleButtonPress(aPresContext, aEvent, aEventStatus))
+    return nsButtonBoxFrame::HandleEvent(aPresContext, aEvent, aEventStatus);
+  return NS_OK;
 }
 
 
-bool
+PRBool
 nsScrollbarButtonFrame::HandleButtonPress(nsPresContext* aPresContext, 
                                           nsGUIEvent*     aEvent,
                                           nsEventStatus*  aEventStatus)
 {
   // Get the desired action for the scrollbar button.
   LookAndFeel::IntID tmpAction;
-  uint16_t button = static_cast<nsMouseEvent*>(aEvent)->button;
-  if (button == nsMouseEvent::eLeftButton) {
-    tmpAction = LookAndFeel::eIntID_ScrollButtonLeftMouseButtonAction;
-  } else if (button == nsMouseEvent::eMiddleButton) {
-    tmpAction = LookAndFeel::eIntID_ScrollButtonMiddleMouseButtonAction;
-  } else if (button == nsMouseEvent::eRightButton) {
-    tmpAction = LookAndFeel::eIntID_ScrollButtonRightMouseButtonAction;
+  if (aEvent->eventStructType == NS_MOUSE_EVENT &&
+      aEvent->message == NS_MOUSE_BUTTON_DOWN) {
+    PRUint16 button = static_cast<nsMouseEvent*>(aEvent)->button;
+    if (button == nsMouseEvent::eLeftButton) {
+      tmpAction = LookAndFeel::eIntID_ScrollButtonLeftMouseButtonAction;
+    } else if (button == nsMouseEvent::eMiddleButton) {
+      tmpAction = LookAndFeel::eIntID_ScrollButtonMiddleMouseButtonAction;
+    } else if (button == nsMouseEvent::eRightButton) {
+      tmpAction = LookAndFeel::eIntID_ScrollButtonRightMouseButtonAction;
+    } else {
+      return PR_FALSE;
+    }
   } else {
-    return false;
+    return PR_FALSE;
   }
 
   // Get the button action metric from the pres. shell.
-  int32_t pressedButtonAction;
+  PRInt32 pressedButtonAction;
   if (NS_FAILED(LookAndFeel::GetInt(tmpAction, &pressedButtonAction))) {
-    return false;
+    return PR_FALSE;
   }
 
   // get the scrollbar control
   nsIFrame* scrollbar;
   GetParentWithTag(nsGkAtoms::scrollbar, this, scrollbar);
 
-  if (scrollbar == nullptr)
-    return false;
+  if (scrollbar == nsnull)
+    return PR_FALSE;
 
   // get the scrollbars content node
   nsIContent* content = scrollbar->GetContent();
 
   static nsIContent::AttrValuesArray strings[] = { &nsGkAtoms::increment,
                                                    &nsGkAtoms::decrement,
-                                                   nullptr };
-  int32_t index = mContent->FindAttrValueIn(kNameSpaceID_None,
+                                                   nsnull };
+  PRInt32 index = mContent->FindAttrValueIn(kNameSpaceID_None,
                                             nsGkAtoms::type,
                                             strings, eCaseMatters);
-  int32_t direction;
+  PRInt32 direction;
   if (index == 0) 
     direction = 1;
   else if (index == 1)
     direction = -1;
   else
-    return false;
+    return PR_FALSE;
 
   // Whether or not to repeat the click action.
-  bool repeat = true;
+  PRBool repeat = PR_TRUE;
   // Use smooth scrolling by default.
-  bool smoothScroll = true;
+  PRBool smoothScroll = PR_TRUE;
   switch (pressedButtonAction) {
     case 0:
       mIncrement = direction * nsSliderFrame::GetIncrement(content);
@@ -146,26 +168,24 @@ nsScrollbarButtonFrame::HandleButtonPress(nsPresContext* aPresContext,
                      nsSliderFrame::GetCurrentPosition(content);
       // Don't repeat or use smooth scrolling if scrolling to beginning or end
       // of a page.
-      repeat = smoothScroll = false;
+      repeat = smoothScroll = PR_FALSE;
       break;
     case 3:
     default:
       // We were told to ignore this click, or someone assigned a non-standard
       // value to the button's action.
-      return false;
+      return PR_FALSE;
   }
   // set this attribute so we can style it later
   nsWeakFrame weakFrame(this);
-  mContent->SetAttr(kNameSpaceID_None, nsGkAtoms::active, NS_LITERAL_STRING("true"), true);
-
-  nsIPresShell::SetCapturingContent(mContent, CAPTURE_IGNOREALLOWED);
+  mContent->SetAttr(kNameSpaceID_None, nsGkAtoms::active, NS_LITERAL_STRING("true"), PR_TRUE);
 
   if (weakFrame.IsAlive()) {
     DoButtonAction(smoothScroll);
   }
   if (repeat)
     StartRepeat();
-  return true;
+  return PR_TRUE;
 }
 
 NS_IMETHODIMP 
@@ -173,9 +193,8 @@ nsScrollbarButtonFrame::HandleRelease(nsPresContext* aPresContext,
                                       nsGUIEvent*     aEvent,
                                       nsEventStatus*  aEventStatus)
 {
-  nsIPresShell::SetCapturingContent(nullptr, 0);
   // we're not active anymore
-  mContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::active, true);
+  mContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::active, PR_TRUE);
   StopRepeat();
   return NS_OK;
 }
@@ -184,11 +203,7 @@ void nsScrollbarButtonFrame::Notify()
 {
   // Since this is only going to get called if we're scrolling a page length
   // or a line increment, we will always use smooth scrolling.
-  if (mCursorOnThis ||
-      LookAndFeel::GetInt(
-        LookAndFeel::eIntID_ScrollbarButtonAutoRepeatBehavior, 0)) {
-    DoButtonAction(true);
-  }
+  DoButtonAction(PR_TRUE);
 }
 
 void
@@ -199,24 +214,24 @@ nsScrollbarButtonFrame::MouseClicked(nsPresContext* aPresContext, nsGUIEvent* aE
 }
 
 void
-nsScrollbarButtonFrame::DoButtonAction(bool aSmoothScroll) 
+nsScrollbarButtonFrame::DoButtonAction(PRBool aSmoothScroll) 
 {
   // get the scrollbar control
   nsIFrame* scrollbar;
   GetParentWithTag(nsGkAtoms::scrollbar, this, scrollbar);
 
-  if (scrollbar == nullptr)
+  if (scrollbar == nsnull)
     return;
 
   // get the scrollbars content node
   nsCOMPtr<nsIContent> content = scrollbar->GetContent();
 
   // get the current pos
-  int32_t curpos = nsSliderFrame::GetCurrentPosition(content);
-  int32_t oldpos = curpos;
+  PRInt32 curpos = nsSliderFrame::GetCurrentPosition(content);
+  PRInt32 oldpos = curpos;
 
   // get the max pos
-  int32_t maxpos = nsSliderFrame::GetMaxPosition(content);
+  PRInt32 maxpos = nsSliderFrame::GetMaxPosition(content);
 
   // increment the given amount
   if (mIncrement)
@@ -242,10 +257,10 @@ nsScrollbarButtonFrame::DoButtonAction(bool aSmoothScroll)
   curposStr.AppendInt(curpos);
 
   if (aSmoothScroll)
-    content->SetAttr(kNameSpaceID_None, nsGkAtoms::smooth, NS_LITERAL_STRING("true"), false);
-  content->SetAttr(kNameSpaceID_None, nsGkAtoms::curpos, curposStr, true);
+    content->SetAttr(kNameSpaceID_None, nsGkAtoms::smooth, NS_LITERAL_STRING("true"), PR_FALSE);
+  content->SetAttr(kNameSpaceID_None, nsGkAtoms::curpos, curposStr, PR_TRUE);
   if (aSmoothScroll)
-    content->UnsetAttr(kNameSpaceID_None, nsGkAtoms::smooth, false);
+    content->UnsetAttr(kNameSpaceID_None, nsGkAtoms::smooth, PR_FALSE);
 }
 
 nsresult
@@ -255,7 +270,7 @@ nsScrollbarButtonFrame::GetChildWithTag(nsPresContext* aPresContext,
 {
   // recursively search our children
   nsIFrame* childFrame = start->GetFirstPrincipalChild();
-  while (nullptr != childFrame) 
+  while (nsnull != childFrame) 
   {    
     // get the content node
     nsIContent* child = childFrame->GetContent();
@@ -272,13 +287,13 @@ nsScrollbarButtonFrame::GetChildWithTag(nsPresContext* aPresContext,
 
      // recursive search the child
      GetChildWithTag(aPresContext, atom, childFrame, result);
-     if (result != nullptr) 
+     if (result != nsnull) 
        return NS_OK;
 
     childFrame = childFrame->GetNextSibling();
   }
 
-  result = nullptr;
+  result = nsnull;
   return NS_OK;
 }
 
@@ -301,7 +316,7 @@ nsScrollbarButtonFrame::GetParentWithTag(nsIAtom* toFind, nsIFrame* start,
       }
    }
 
-   result = nullptr;
+   result = nsnull;
    return NS_OK;
 }
 

@@ -1,99 +1,81 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsFormData_h__
 #define nsFormData_h__
 
-#include "mozilla/Attributes.h"
 #include "nsIDOMFormData.h"
 #include "nsIXMLHttpRequest.h"
 #include "nsFormSubmission.h"
-#include "nsWrapperCache.h"
+#include "nsIJSNativeInitializer.h"
 #include "nsTArray.h"
-#include "mozilla/ErrorResult.h"
-#include "mozilla/dom/BindingDeclarations.h"
 
 class nsIDOMFile;
 
-namespace mozilla {
-class ErrorResult;
-
-namespace dom {
-class HTMLFormElement;
-class GlobalObject;
-} // namespace dom
-} // namespace mozilla
-
 class nsFormData : public nsIDOMFormData,
                    public nsIXHRSendable,
-                   public nsFormSubmission,
-                   public nsWrapperCache
+                   public nsIJSNativeInitializer,
+                   public nsFormSubmission
 {
 public:
-  nsFormData(nsISupports* aOwner = nullptr);
+  nsFormData();
 
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(nsFormData,
-                                                         nsIDOMFormData)
-
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMFORMDATA
   NS_DECL_NSIXHRSENDABLE
 
-  // nsWrapperCache
-  virtual JSObject* WrapObject(JSContext* aCx,
-			       JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
-
-  // WebIDL
-  nsISupports*
-  GetParentObject() const
-  {
-    return mOwner;
-  }
-  static already_AddRefed<nsFormData>
-  Constructor(const mozilla::dom::GlobalObject& aGlobal,
-              const mozilla::dom::Optional<mozilla::dom::NonNull<mozilla::dom::HTMLFormElement> >& aFormElement,
-              mozilla::ErrorResult& aRv);
-  void Append(const nsAString& aName, const nsAString& aValue);
-  void Append(const nsAString& aName, nsIDOMBlob* aBlob,
-              const mozilla::dom::Optional<nsAString>& aFilename);
-
   // nsFormSubmission
   virtual nsresult GetEncodedSubmission(nsIURI* aURI,
-                                        nsIInputStream** aPostDataStream) MOZ_OVERRIDE;
+                                        nsIInputStream** aPostDataStream);
   virtual nsresult AddNameValuePair(const nsAString& aName,
-                                    const nsAString& aValue) MOZ_OVERRIDE
-  {
-    FormDataTuple* data = mFormData.AppendElement();
-    data->name = aName;
-    data->stringValue = aValue;
-    data->valueIsFile = false;
-    return NS_OK;
-  }
+                                    const nsAString& aValue);
   virtual nsresult AddNameFilePair(const nsAString& aName,
-                                   nsIDOMBlob* aBlob,
-                                   const nsString& aFilename) MOZ_OVERRIDE
-  {
-    FormDataTuple* data = mFormData.AppendElement();
-    data->name = aName;
-    data->fileValue = aBlob;
-    data->filename = aFilename;
-    data->valueIsFile = true;
-    return NS_OK;
-  }
+                                   nsIDOMBlob* aBlob);
 
+  NS_IMETHOD Initialize(nsISupports* aOwner, JSContext* aCx, JSObject* aObj,
+                        PRUint32 aArgc, jsval* aArgv);
 private:
-  nsCOMPtr<nsISupports> mOwner;
-
   struct FormDataTuple
   {
     nsString name;
     nsString stringValue;
     nsCOMPtr<nsIDOMBlob> fileValue;
-    nsString filename;
-    bool valueIsFile;
+    PRBool valueIsFile;
   };
-
+  
   nsTArray<FormDataTuple> mFormData;
 };
 

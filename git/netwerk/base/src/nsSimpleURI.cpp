@@ -1,9 +1,42 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-#include "mozilla/DebugOnly.h"
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Pierre Phaneuf <pp@ludusdesign.com>
+ *   Gagan Saksena <gagan@netscape.com>
+ *   Darin Fisher <darin@netscape.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "IPCMessageUtils.h"
 
@@ -12,19 +45,16 @@
 #include "nsCRT.h"
 #include "nsString.h"
 #include "nsReadableUtils.h"
+#include "prmem.h"
 #include "prprf.h"
 #include "nsURLHelper.h"
 #include "nsNetCID.h"
 #include "nsIObjectInputStream.h"
 #include "nsIObjectOutputStream.h"
 #include "nsEscape.h"
-#include "nsError.h"
+#include "nsNetError.h"
 #include "nsIProgrammingLanguage.h"
-#include "nsIIPCSerializableURI.h"
-#include "mozilla/MemoryReporting.h"
-#include "mozilla/ipc/URIUtils.h"
-
-using namespace mozilla::ipc;
+#include "mozilla/Util.h" // for DebugOnly
 
 static NS_DEFINE_CID(kThisSimpleURIImplementationCID,
                      NS_THIS_SIMPLEURI_IMPLEMENTATION_CID);
@@ -34,8 +64,8 @@ static NS_DEFINE_CID(kSimpleURICID, NS_SIMPLEURI_CID);
 // nsSimpleURI methods:
 
 nsSimpleURI::nsSimpleURI()
-    : mMutable(true),
-      mIsRefValid(false)
+    : mMutable(PR_TRUE),
+      mIsRefValid(PR_FALSE)
 {
 }
 
@@ -46,13 +76,11 @@ nsSimpleURI::~nsSimpleURI()
 NS_IMPL_ADDREF(nsSimpleURI)
 NS_IMPL_RELEASE(nsSimpleURI)
 NS_INTERFACE_TABLE_HEAD(nsSimpleURI)
-NS_INTERFACE_TABLE5(nsSimpleURI, nsIURI, nsISerializable, nsIClassInfo,
-                    nsIMutable, nsIIPCSerializableURI)
+NS_INTERFACE_TABLE5(nsSimpleURI, nsIURI, nsISerializable, nsIIPCSerializable, nsIClassInfo, nsIMutable)
 NS_INTERFACE_TABLE_TO_MAP_SEGUE
   if (aIID.Equals(kThisSimpleURIImplementationCID))
     foundInterface = static_cast<nsIURI*>(this);
   else
-  NS_INTERFACE_MAP_ENTRY(nsISizeOf)
 NS_INTERFACE_MAP_END
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -63,9 +91,13 @@ nsSimpleURI::Read(nsIObjectInputStream* aStream)
 {
     nsresult rv;
 
-    bool isMutable;
+    PRBool isMutable; // (because ReadBoolean doesn't support PRPackedBool*)
     rv = aStream->ReadBoolean(&isMutable);
     if (NS_FAILED(rv)) return rv;
+    if (isMutable != PR_TRUE && isMutable != PR_FALSE) {
+        NS_WARNING("Unexpected boolean value");
+        return NS_ERROR_UNEXPECTED;
+    }
     mMutable = isMutable;
 
     rv = aStream->ReadCString(mScheme);
@@ -74,9 +106,13 @@ nsSimpleURI::Read(nsIObjectInputStream* aStream)
     rv = aStream->ReadCString(mPath);
     if (NS_FAILED(rv)) return rv;
 
-    bool isRefValid;
+    PRBool isRefValid;
     rv = aStream->ReadBoolean(&isRefValid);
     if (NS_FAILED(rv)) return rv;
+    if (isRefValid != PR_TRUE && isRefValid != PR_FALSE) {
+        NS_WARNING("Unexpected boolean value");
+        return NS_ERROR_UNEXPECTED;
+    }
     mIsRefValid = isRefValid;
 
     if (isRefValid) {
@@ -115,49 +151,39 @@ nsSimpleURI::Write(nsIObjectOutputStream* aStream)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// nsIIPCSerializableURI methods:
+// nsIIPCSerializable methods:
 
-void
-nsSimpleURI::Serialize(URIParams& aParams)
+PRBool
+nsSimpleURI::Read(const IPC::Message *aMsg, void **aIter)
 {
-    SimpleURIParams params;
+    bool isMutable, isRefValid;
+    if (!ReadParam(aMsg, aIter, &isMutable) ||
+        !ReadParam(aMsg, aIter, &mScheme) ||
+        !ReadParam(aMsg, aIter, &mPath) ||
+        !ReadParam(aMsg, aIter, &isRefValid))
+        return PR_FALSE;
 
-    params.scheme() = mScheme;
-    params.path() = mPath;
+    mMutable = isMutable;
+    mIsRefValid = isRefValid;
+
     if (mIsRefValid) {
-      params.ref() = mRef;
+        return ReadParam(aMsg, aIter, &mRef);
     }
-    else {
-      params.ref().SetIsVoid(true);
-    }
-    params.isMutable() = mMutable;
+    mRef.Truncate(); // invariant: mRef should be empty when it's not valid
 
-    aParams = params;
+    return PR_TRUE;
 }
 
-bool
-nsSimpleURI::Deserialize(const URIParams& aParams)
+void
+nsSimpleURI::Write(IPC::Message *aMsg)
 {
-    if (aParams.type() != URIParams::TSimpleURIParams) {
-        NS_ERROR("Received unknown parameters from the other process!");
-        return false;
+    WriteParam(aMsg, bool(mMutable));
+    WriteParam(aMsg, mScheme);
+    WriteParam(aMsg, mPath);
+    WriteParam(aMsg, mIsRefValid);
+    if (mIsRefValid) {
+        WriteParam(aMsg, mRef);
     }
-
-    const SimpleURIParams& params = aParams.get_SimpleURIParams();
-
-    mScheme = params.scheme();
-    mPath = params.path();
-    if (params.ref().IsVoid()) {
-        mRef.Truncate();
-        mIsRefValid = false;
-    }
-    else {
-        mRef = params.ref();
-        mIsRefValid = true;
-    }
-    mMutable = params.isMutable();
-
-    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -184,7 +210,7 @@ nsSimpleURI::GetSpecIgnoringRef(nsACString &result)
 }
 
 NS_IMETHODIMP
-nsSimpleURI::GetHasRef(bool *result)
+nsSimpleURI::GetHasRef(PRBool *result)
 {
     *result = mIsRefValid;
     return NS_OK;
@@ -199,8 +225,8 @@ nsSimpleURI::SetSpec(const nsACString &aSpec)
     const char* specPtr = flat.get();
 
     // filter out unexpected chars "\r\n\t" if necessary
-    nsAutoCString filteredSpec;
-    int32_t specLen;
+    nsCAutoString filteredSpec;
+    PRInt32 specLen;
     if (net_FilterURIString(specPtr, filteredSpec)) {
         specPtr = filteredSpec.get();
         specLen = filteredSpec.Length();
@@ -208,15 +234,15 @@ nsSimpleURI::SetSpec(const nsACString &aSpec)
         specLen = flat.Length();
 
     // nsSimpleURI currently restricts the charset to US-ASCII
-    nsAutoCString spec;
+    nsCAutoString spec;
     NS_EscapeURL(specPtr, specLen, esc_OnlyNonASCII|esc_AlwaysCopy, spec);
 
-    int32_t colonPos = spec.FindChar(':');
+    PRInt32 colonPos = spec.FindChar(':');
     if (colonPos < 0 || !net_IsValidScheme(spec.get(), colonPos))
         return NS_ERROR_MALFORMED_URI;
 
     mScheme.Truncate();
-    mozilla::DebugOnly<int32_t> n = spec.Left(mScheme, colonPos);
+    mozilla::DebugOnly<PRInt32> n = spec.Left(mScheme, colonPos);
     NS_ASSERTION(n == colonPos, "Left failed");
     ToLowerCase(mScheme);
 
@@ -329,7 +355,7 @@ nsSimpleURI::SetHost(const nsACString &host)
 }
 
 NS_IMETHODIMP
-nsSimpleURI::GetPort(int32_t *result)
+nsSimpleURI::GetPort(PRInt32 *result)
 {
     // Note: Audit all callers before changing this to return an empty
     // string -- CAPS and UI code may depend on this throwing.
@@ -337,7 +363,7 @@ nsSimpleURI::GetPort(int32_t *result)
 }
 
 NS_IMETHODIMP
-nsSimpleURI::SetPort(int32_t port)
+nsSimpleURI::SetPort(PRInt32 port)
 {
     NS_ENSURE_STATE(mMutable);
     
@@ -360,16 +386,16 @@ nsSimpleURI::SetPath(const nsACString &path)
 {
     NS_ENSURE_STATE(mMutable);
     
-    int32_t hashPos = path.FindChar('#');
+    PRInt32 hashPos = path.FindChar('#');
     if (hashPos < 0) {
-        mIsRefValid = false;
+        mIsRefValid = PR_FALSE;
         mRef.Truncate(); // invariant: mRef should be empty when it's not valid
         mPath = path;
         return NS_OK;
     }
 
     mPath = StringHead(path, hashPos);
-    return SetRef(Substring(path, uint32_t(hashPos)));
+    return SetRef(Substring(path, PRUint32(hashPos)));
 }
 
 NS_IMETHODIMP
@@ -394,12 +420,12 @@ nsSimpleURI::SetRef(const nsACString &aRef)
 
     if (aRef.IsEmpty()) {
       // Empty string means to remove ref completely.
-      mIsRefValid = false;
+      mIsRefValid = PR_FALSE;
       mRef.Truncate(); // invariant: mRef should be empty when it's not valid
       return NS_OK;
     }
 
-    mIsRefValid = true;
+    mIsRefValid = PR_TRUE;
 
     // Gracefully skip initial hash
     if (aRef[0] == '#') {
@@ -412,13 +438,13 @@ nsSimpleURI::SetRef(const nsACString &aRef)
 }
 
 NS_IMETHODIMP
-nsSimpleURI::Equals(nsIURI* other, bool *result)
+nsSimpleURI::Equals(nsIURI* other, PRBool *result)
 {
     return EqualsInternal(other, eHonorRef, result);
 }
 
 NS_IMETHODIMP
-nsSimpleURI::EqualsExceptRef(nsIURI* other, bool *result)
+nsSimpleURI::EqualsExceptRef(nsIURI* other, PRBool *result)
 {
     return EqualsInternal(other, eIgnoreRef, result);
 }
@@ -426,7 +452,7 @@ nsSimpleURI::EqualsExceptRef(nsIURI* other, bool *result)
 /* virtual */ nsresult
 nsSimpleURI::EqualsInternal(nsIURI* other,
                             nsSimpleURI::RefHandlingEnum refHandlingMode,
-                            bool* result)
+                            PRBool* result)
 {
     NS_ENSURE_ARG_POINTER(other);
     NS_PRECONDITION(result, "null pointer");
@@ -435,7 +461,7 @@ nsSimpleURI::EqualsInternal(nsIURI* other,
     nsresult rv = other->QueryInterface(kThisSimpleURIImplementationCID,
                                         getter_AddRefs(otherUri));
     if (NS_FAILED(rv)) {
-        *result = false;
+        *result = PR_FALSE;
         return NS_OK;
     }
 
@@ -458,7 +484,7 @@ nsSimpleURI::EqualsInternal(nsSimpleURI* otherUri, RefHandlingEnum refHandlingMo
 }
 
 NS_IMETHODIMP
-nsSimpleURI::SchemeIs(const char *i_Scheme, bool *o_Equals)
+nsSimpleURI::SchemeIs(const char *i_Scheme, PRBool *o_Equals)
 {
     NS_ENSURE_ARG_POINTER(o_Equals);
     if (!i_Scheme) return NS_ERROR_NULL_POINTER;
@@ -467,9 +493,9 @@ nsSimpleURI::SchemeIs(const char *i_Scheme, bool *o_Equals)
 
     // mScheme is guaranteed to be lower case.
     if (*i_Scheme == *this_scheme || *i_Scheme == (*this_scheme - ('a' - 'A')) ) {
-        *o_Equals = PL_strcasecmp(this_scheme, i_Scheme) ? false : true;
+        *o_Equals = PL_strcasecmp(this_scheme, i_Scheme) ? PR_FALSE : PR_TRUE;
     } else {
-        *o_Equals = false;
+        *o_Equals = PR_FALSE;
     }
 
     return NS_OK;
@@ -524,7 +550,7 @@ nsSimpleURI::Resolve(const nsACString &relativePath, nsACString &result)
 NS_IMETHODIMP
 nsSimpleURI::GetAsciiSpec(nsACString &result)
 {
-    nsAutoCString buf;
+    nsCAutoString buf;
     nsresult rv = GetSpec(buf);
     if (NS_FAILED(rv)) return rv;
     NS_EscapeURL(buf, esc_OnlyNonASCII|esc_AlwaysCopy, result);
@@ -550,17 +576,17 @@ nsSimpleURI::GetOriginCharset(nsACString &result)
 //----------------------------------------------------------------------------
 
 NS_IMETHODIMP 
-nsSimpleURI::GetInterfaces(uint32_t *count, nsIID * **array)
+nsSimpleURI::GetInterfaces(PRUint32 *count, nsIID * **array)
 {
     *count = 0;
-    *array = nullptr;
+    *array = nsnull;
     return NS_OK;
 }
 
 NS_IMETHODIMP 
-nsSimpleURI::GetHelperForLanguage(uint32_t language, nsISupports **_retval)
+nsSimpleURI::GetHelperForLanguage(PRUint32 language, nsISupports **_retval)
 {
-    *_retval = nullptr;
+    *_retval = nsnull;
     return NS_OK;
 }
 
@@ -569,14 +595,14 @@ nsSimpleURI::GetContractID(char * *aContractID)
 {
     // Make sure to modify any subclasses as needed if this ever
     // changes.
-    *aContractID = nullptr;
+    *aContractID = nsnull;
     return NS_OK;
 }
 
 NS_IMETHODIMP 
 nsSimpleURI::GetClassDescription(char * *aClassDescription)
 {
-    *aClassDescription = nullptr;
+    *aClassDescription = nsnull;
     return NS_OK;
 }
 
@@ -592,14 +618,14 @@ nsSimpleURI::GetClassID(nsCID * *aClassID)
 }
 
 NS_IMETHODIMP 
-nsSimpleURI::GetImplementationLanguage(uint32_t *aImplementationLanguage)
+nsSimpleURI::GetImplementationLanguage(PRUint32 *aImplementationLanguage)
 {
     *aImplementationLanguage = nsIProgrammingLanguage::CPLUSPLUS;
     return NS_OK;
 }
 
 NS_IMETHODIMP 
-nsSimpleURI::GetFlags(uint32_t *aFlags)
+nsSimpleURI::GetFlags(PRUint32 *aFlags)
 {
     *aFlags = nsIClassInfo::MAIN_THREAD_ONLY;
     return NS_OK;
@@ -616,35 +642,17 @@ nsSimpleURI::GetClassIDNoAlloc(nsCID *aClassIDNoAlloc)
 // nsSimpleURI::nsISimpleURI
 //----------------------------------------------------------------------------
 NS_IMETHODIMP
-nsSimpleURI::GetMutable(bool *value)
+nsSimpleURI::GetMutable(PRBool *value)
 {
     *value = mMutable;
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsSimpleURI::SetMutable(bool value)
+nsSimpleURI::SetMutable(PRBool value)
 {
     NS_ENSURE_ARG(mMutable || !value);
 
     mMutable = value;
     return NS_OK;
 }
-
-//----------------------------------------------------------------------------
-// nsSimpleURI::nsISizeOf
-//----------------------------------------------------------------------------
-
-size_t 
-nsSimpleURI::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
-{
-  return mScheme.SizeOfExcludingThisIfUnshared(aMallocSizeOf) +
-         mPath.SizeOfExcludingThisIfUnshared(aMallocSizeOf) +
-         mRef.SizeOfExcludingThisIfUnshared(aMallocSizeOf);
-}
-
-size_t
-nsSimpleURI::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const {
-  return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
-}
-

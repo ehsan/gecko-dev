@@ -1,8 +1,41 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  * vim: sw=2 ts=2 et lcs=trail\:.,tab\:>~ :
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is places test code.
+ *
+ * The Initial Developer of the Original Code is
+ * the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Shawn Wilsher <me@shawnwilsher.com> (Original Author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "TestHarness.h"
 #include "nsMemory.h"
@@ -16,16 +49,14 @@
 #include "mozilla/IHistory.h"
 #include "mozIStorageConnection.h"
 #include "mozIStorageStatement.h"
-#include "mozIStorageAsyncStatement.h"
-#include "mozIStorageStatementCallback.h"
-#include "mozIStoragePendingStatement.h"
 #include "nsPIPlacesDatabase.h"
 #include "nsIObserver.h"
 #include "prinrval.h"
-#include "mozilla/Attributes.h"
 
+#define TOPIC_FRECENCY_UPDATED "places-frecency-updated"
 #define WAITFORTOPIC_TIMEOUT_SECONDS 5
 
+using namespace mozilla;
 
 static size_t gTotalTests = 0;
 static size_t gPassedTests = 0;
@@ -97,29 +128,34 @@ void do_test_finished();
 /**
  * Spins current thread until a topic is received.
  */
-class WaitForTopicSpinner MOZ_FINAL : public nsIObserver
+class WaitForTopicSpinner : public nsIObserver
 {
 public:
   NS_DECL_ISUPPORTS
 
   WaitForTopicSpinner(const char* const aTopic)
-  : mTopicReceived(false)
+  : mTopic(aTopic)
+  , mTopicReceived(false)
   , mStartTime(PR_IntervalNow())
   {
-    nsCOMPtr<nsIObserverService> observerService =
-      do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
-    do_check_true(observerService);
-    (void)observerService->AddObserver(this, aTopic, false);
   }
 
   void Spin() {
-    while (!mTopicReceived) {
-      if ((PR_IntervalNow() - mStartTime) > (WAITFORTOPIC_TIMEOUT_SECONDS * PR_USEC_PER_SEC)) {
-        // Timed out waiting for the topic.
-        do_check_true(false);
-        break;
+    nsCOMPtr<nsIObserverService> observerService =
+      do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
+    if (observerService) {
+      (void)observerService->AddObserver(this, mTopic, PR_FALSE);
+
+      while (!mTopicReceived) {
+        if (PR_IntervalNow() - mStartTime > WAITFORTOPIC_TIMEOUT_SECONDS * PR_USEC_PER_SEC) {
+          // Timed out waiting for the topic.
+          do_check_true(false);
+          break;
+        }
+        (void)NS_ProcessNextEvent();
       }
-      (void)NS_ProcessNextEvent();
+
+      (void)observerService->RemoveObserver(this, mTopic);
     }
   }
 
@@ -127,15 +163,13 @@ public:
                      const char* aTopic,
                      const PRUnichar* aData)
   {
+    do_check_false(strcmp(aTopic, mTopic));
     mTopicReceived = true;
-    nsCOMPtr<nsIObserverService> observerService =
-      do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
-    do_check_true(observerService);
-    (void)observerService->RemoveObserver(this, aTopic);
     return NS_OK;
   }
 
 private:
+  const char* const mTopic;
   bool mTopicReceived;
   PRIntervalTime mStartTime;
 };
@@ -145,81 +179,49 @@ NS_IMPL_ISUPPORTS1(
 )
 
 /**
- * Spins current thread until an async statement is executed.
+ * Adds a URI to the database.
+ *
+ * @param aURI
+ *        The URI to add to the database.
  */
-class AsyncStatementSpinner MOZ_FINAL : public mozIStorageStatementCallback
+void
+addURI(nsIURI* aURI)
 {
-public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_MOZISTORAGESTATEMENTCALLBACK
+  nsCOMPtr<nsINavHistoryService> hist =
+    do_GetService(NS_NAVHISTORYSERVICE_CONTRACTID);
 
-  AsyncStatementSpinner();
-  void SpinUntilCompleted();
-  uint16_t completionReason;
+  PRInt64 id;
+  nsresult rv = hist->AddVisit(aURI, PR_Now(), nsnull,
+                               nsINavHistoryService::TRANSITION_LINK, PR_FALSE,
+                               0, &id);
+  do_check_success(rv);
 
-protected:
-  volatile bool mCompleted;
-};
-
-NS_IMPL_ISUPPORTS1(AsyncStatementSpinner,
-                   mozIStorageStatementCallback)
-
-AsyncStatementSpinner::AsyncStatementSpinner()
-: completionReason(0)
-, mCompleted(false)
-{
-}
-
-NS_IMETHODIMP
-AsyncStatementSpinner::HandleResult(mozIStorageResultSet *aResultSet)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-AsyncStatementSpinner::HandleError(mozIStorageError *aError)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-AsyncStatementSpinner::HandleCompletion(uint16_t aReason)
-{
-  completionReason = aReason;
-  mCompleted = true;
-  return NS_OK;
-}
-
-void AsyncStatementSpinner::SpinUntilCompleted()
-{
-  nsCOMPtr<nsIThread> thread(::do_GetCurrentThread());
-  nsresult rv = NS_OK;
-  bool processed = true;
-  while (!mCompleted && NS_SUCCEEDED(rv)) {
-    rv = thread->ProcessNextEvent(true, &processed);
-  }
+  // Wait for frecency update.
+  nsRefPtr<WaitForTopicSpinner> spinner =
+    new WaitForTopicSpinner(TOPIC_FRECENCY_UPDATED);
+  spinner->Spin();
 }
 
 struct PlaceRecord
 {
-  int64_t id;
-  int32_t hidden;
-  int32_t typed;
-  int32_t visitCount;
+  PRInt64 id;
+  PRInt32 hidden;
+  PRInt32 typed;
+  PRInt32 visitCount;
   nsCString guid;
 };
 
 struct VisitRecord
 {
-  int64_t id;
-  int64_t lastVisitId;
-  int32_t transitionType;
+  PRInt64 id;
+  PRInt64 lastVisitId;
+  PRInt32 transitionType;
 };
 
-already_AddRefed<mozilla::IHistory>
+already_AddRefed<IHistory>
 do_get_IHistory()
 {
-  nsCOMPtr<mozilla::IHistory> history = do_GetService(NS_IHISTORY_CONTRACTID);
+  nsCOMPtr<IHistory> history = do_GetService(NS_IHISTORY_CONTRACTID);
   do_check_true(history);
   return history.forget();
 }
@@ -240,10 +242,10 @@ do_get_db()
   nsCOMPtr<nsPIPlacesDatabase> database = do_QueryInterface(history);
   do_check_true(database);
 
-  nsCOMPtr<mozIStorageConnection> dbConn;
-  nsresult rv = database->GetDBConnection(getter_AddRefs(dbConn));
+  mozIStorageConnection* dbConn;
+  nsresult rv = database->GetDBConnection(&dbConn);
   do_check_success(rv);
-  return dbConn.forget();
+  return dbConn;
 }
 
 /**
@@ -271,7 +273,7 @@ do_get_place(nsIURI* aURI, PlaceRecord& result)
   rv = stmt->BindUTF8StringByIndex(0, spec);
   do_check_success(rv);
 
-  bool hasResults;
+  PRBool hasResults;
   rv = stmt->ExecuteStep(&hasResults);
   do_check_success(rv);
   if (!hasResults) {
@@ -298,7 +300,7 @@ do_get_place(nsIURI* aURI, PlaceRecord& result)
  * @param result Out parameter where visit is stored
  */
 void
-do_get_lastVisit(int64_t placeId, VisitRecord& result)
+do_get_lastVisit(PRInt64 placeId, VisitRecord& result)
 {
   nsCOMPtr<mozIStorageConnection> dbConn = do_get_db();
   nsCOMPtr<mozIStorageStatement> stmt;
@@ -313,7 +315,7 @@ do_get_lastVisit(int64_t placeId, VisitRecord& result)
   rv = stmt->BindInt64ByIndex(0, placeId);
   do_check_success(rv);
 
-  bool hasResults;
+  PRBool hasResults;
   rv = stmt->ExecuteStep(&hasResults);
   do_check_success(rv);
 
@@ -330,76 +332,38 @@ do_get_lastVisit(int64_t placeId, VisitRecord& result)
   do_check_success(rv);
 }
 
-void
-do_wait_async_updates() {
-  nsCOMPtr<mozIStorageConnection> db = do_get_db();
-  nsCOMPtr<mozIStorageAsyncStatement> stmt;
-
-  db->CreateAsyncStatement(NS_LITERAL_CSTRING("BEGIN EXCLUSIVE"),
-                           getter_AddRefs(stmt));
-  nsCOMPtr<mozIStoragePendingStatement> pending;
-  (void)stmt->ExecuteAsync(nullptr, getter_AddRefs(pending));
-
-  db->CreateAsyncStatement(NS_LITERAL_CSTRING("COMMIT"),
-                           getter_AddRefs(stmt));
-  nsRefPtr<AsyncStatementSpinner> spinner = new AsyncStatementSpinner();
-  (void)stmt->ExecuteAsync(spinner, getter_AddRefs(pending));
-
-  spinner->SpinUntilCompleted();
-}
-
-/**
- * Adds a URI to the database.
- *
- * @param aURI
- *        The URI to add to the database.
- */
-void
-addURI(nsIURI* aURI)
-{
-  nsCOMPtr<mozilla::IHistory> history = do_GetService(NS_IHISTORY_CONTRACTID);
-  do_check_true(history);
-  nsresult rv = history->VisitURI(aURI, nullptr, mozilla::IHistory::TOP_LEVEL);
-  do_check_success(rv);
-
-  do_wait_async_updates();
-}
-
+static const char TOPIC_PROFILE_TEARDOWN[] = "profile-change-teardown";
 static const char TOPIC_PROFILE_CHANGE[] = "profile-before-change";
-static const char TOPIC_PLACES_CONNECTION_CLOSED[] = "places-connection-closed";
 
-class WaitForConnectionClosed MOZ_FINAL : public nsIObserver
+class ShutdownObserver : public nsIObserver
 {
-  nsRefPtr<WaitForTopicSpinner> mSpinner;
 public:
   NS_DECL_ISUPPORTS
 
-  WaitForConnectionClosed()
+  ShutdownObserver()
   {
-    nsCOMPtr<nsIObserverService> os =
+    nsCOMPtr<nsIObserverService> observerService =
       do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
-    MOZ_ASSERT(os);
-    if (os) {
-      MOZ_ALWAYS_TRUE(NS_SUCCEEDED(os->AddObserver(this, TOPIC_PROFILE_CHANGE, false)));
-    }
-    mSpinner = new WaitForTopicSpinner(TOPIC_PLACES_CONNECTION_CLOSED);
+    do_check_true(observerService);
+    observerService->AddObserver(this,
+                                 NS_XPCOM_WILL_SHUTDOWN_OBSERVER_ID,
+                                 PR_FALSE);
   }
 
   NS_IMETHOD Observe(nsISupports* aSubject,
                      const char* aTopic,
                      const PRUnichar* aData)
   {
-    nsCOMPtr<nsIObserverService> os =
-      do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
-    MOZ_ASSERT(os);
-    if (os) {
-      MOZ_ALWAYS_TRUE(NS_SUCCEEDED(os->RemoveObserver(this, aTopic)));
+    if (strcmp(aTopic, NS_XPCOM_WILL_SHUTDOWN_OBSERVER_ID) == 0) {
+      nsCOMPtr<nsIObserverService> os =
+        do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
+      (void)os->NotifyObservers(nsnull, TOPIC_PROFILE_TEARDOWN, nsnull);
+      (void)os->NotifyObservers(nsnull, TOPIC_PROFILE_CHANGE, nsnull);
     }
-
-    mSpinner->Spin();
-
-    return NS_OK;
+      return NS_OK;
   }
 };
-
-NS_IMPL_ISUPPORTS1(WaitForConnectionClosed, nsIObserver)
+NS_IMPL_ISUPPORTS1(
+  ShutdownObserver,
+  nsIObserver
+)

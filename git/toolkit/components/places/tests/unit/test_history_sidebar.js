@@ -1,8 +1,41 @@
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is Google Inc.
+ * Portions created by the Initial Developer are Copyright (C) 2005
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Ondrej Brablc <ondrej@allpeers.com>
+ *  Marco Bonardo <mak77@bonardo.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 // Get history service
 var hs = Cc["@mozilla.org/browser/nav-history-service;1"].
@@ -14,7 +47,7 @@ var ps = Cc["@mozilla.org/preferences-service;1"].
          getService(Ci.nsIPrefBranch);
 
 /**
- * Adds a test URI visit to the database.
+ * Adds a test URI visit to the database, and checks for a valid place ID.
  *
  * @param aURI
  *        The URI to add a visit for.
@@ -22,8 +55,9 @@ var ps = Cc["@mozilla.org/preferences-service;1"].
  *        Reference "now" time.
  * @param aDayOffset
  *        number of days to add, pass a negative value to subtract them.
+ * @returns visit id for aURI.
  */
-function task_add_normalized_visit(aURI, aTime, aDayOffset) {
+function add_normalized_visit(aURI, aTime, aDayOffset) {
   var dateObj = new Date(aTime);
   // Normalize to midnight
   dateObj.setHours(0);
@@ -38,10 +72,14 @@ function task_add_normalized_visit(aURI, aTime, aDayOffset) {
   var PRTimeWithOffset = (previousDateObj.getTime() - DSTCorrection) * 1000;
   var timeInMs = new Date(PRTimeWithOffset/1000);
   print("Adding visit to " + aURI.spec + " at " + timeInMs);
-  yield promiseAddVisits({
-    uri: aURI,
-    visitDate: PRTimeWithOffset
-  });
+  var visitId = hs.addVisit(aURI,
+                            PRTimeWithOffset,
+                            null,
+                            hs.TRANSITION_TYPED, // user typed in URL bar
+                            false, // not redirect
+                            0);
+  do_check_true(visitId > 0);
+  return visitId;
 }
 
 function days_for_x_months_ago(aNowObj, aMonths) {
@@ -77,22 +115,22 @@ var visibleContainers = containers.filter(
   function(aContainer) {return aContainer.visible});
 
 /**
- * Asynchronous task that fills history and checks containers' labels.
+ * Fills history and checks containers' labels.
  */
-function task_fill_history() {
+function fill_history() {
   print("\n\n*** TEST Fill History\n");
   // We can't use "now" because our hardcoded offsets would be invalid for some
   // date.  So we hardcode a date.
   for (var i = 0; i < containers.length; i++) {
     var container = containers[i];
     var testURI = uri("http://mirror"+i+".mozilla.com/b");
-    yield task_add_normalized_visit(testURI, nowObj.getTime(), container.offset);
+    add_normalized_visit(testURI, nowObj.getTime(), container.offset);
     var testURI = uri("http://mirror"+i+".mozilla.com/a");
-    yield task_add_normalized_visit(testURI, nowObj.getTime(), container.offset);
+    add_normalized_visit(testURI, nowObj.getTime(), container.offset);
     var testURI = uri("http://mirror"+i+".google.com/b");
-    yield task_add_normalized_visit(testURI, nowObj.getTime(), container.offset);
+    add_normalized_visit(testURI, nowObj.getTime(), container.offset);
     var testURI = uri("http://mirror"+i+".google.com/a");
-    yield task_add_normalized_visit(testURI, nowObj.getTime(), container.offset);
+    add_normalized_visit(testURI, nowObj.getTime(), container.offset);
     // Bug 485703 - Hide date containers not containing additional entries
     //              compared to previous ones.
     // Check after every new container is added.
@@ -352,7 +390,7 @@ function test_RESULTS_AS_SITE_QUERY() {
 /**
  * Checks that queries grouped by date do liveupdate correctly.
  */
-function task_test_date_liveupdate(aResultType) {
+function test_date_liveupdate(aResultType) {
   var midnight = nowObj;
   midnight.setHours(0);
   midnight.setMinutes(0);
@@ -380,7 +418,7 @@ function task_test_date_liveupdate(aResultType) {
 
   // Add a visit for "Today".  This should add back the missing "Today"
   // container.
-  yield task_add_normalized_visit(uri("http://www.mozilla.org/"), nowObj.getTime(), 0);
+  add_normalized_visit(uri("http://www.mozilla.org/"), nowObj.getTime(), 0);
   do_check_eq(root.childCount, visibleContainers.length);
 
   last7Days.containerOpen = false;
@@ -407,7 +445,7 @@ function task_test_date_liveupdate(aResultType) {
   hs.removePagesByTimeframe(midnight.getTime() * 1000, Date.now() * 1000);
   do_check_eq(dateContainer.childCount, visibleContainers.length - 1);
   // Add a visit for "Today".
-  yield task_add_normalized_visit(uri("http://www.mozilla.org/"), nowObj.getTime(), 0);
+  add_normalized_visit(uri("http://www.mozilla.org/"), nowObj.getTime(), 0);
   do_check_eq(dateContainer.childCount, visibleContainers.length);
 
   dateContainer.containerOpen = false;
@@ -417,29 +455,23 @@ function task_test_date_liveupdate(aResultType) {
   bs.removeItem(itemId);
 }
 
-function run_test()
-{
-  run_next_test();
-}
-
-add_task(function test_history_sidebar()
-{
+function run_test() {
   // If we're dangerously close to a date change, just bail out.
   if (nowObj.getHours() == 23 && nowObj.getMinutes() >= 50) {
     return;
   }
 
-  yield task_fill_history();
+  fill_history();
   test_RESULTS_AS_DATE_SITE_QUERY();
   test_RESULTS_AS_DATE_QUERY();
   test_RESULTS_AS_SITE_QUERY();
 
-  yield task_test_date_liveupdate(Ci.nsINavHistoryQueryOptions.RESULTS_AS_DATE_SITE_QUERY);
-  yield task_test_date_liveupdate(Ci.nsINavHistoryQueryOptions.RESULTS_AS_DATE_QUERY);
+  test_date_liveupdate(Ci.nsINavHistoryQueryOptions.RESULTS_AS_DATE_SITE_QUERY);
+  test_date_liveupdate(Ci.nsINavHistoryQueryOptions.RESULTS_AS_DATE_QUERY);
 
   // The remaining views are
   //   RESULTS_AS_URI + SORT_BY_VISITCOUNT_DESCENDING 
   //   ->  test_399266.js
   //   RESULTS_AS_URI + SORT_BY_DATE_DESCENDING
   //   ->  test_385397.js
-});
+}

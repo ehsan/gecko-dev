@@ -1,6 +1,39 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ *  The Mozilla Foundation
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Michal Novotny <michal.novotny@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsWyciwyg.h"
 
@@ -8,20 +41,15 @@
 #include "nsWyciwygChannel.h"
 #include "nsNetUtil.h"
 #include "nsISupportsPriority.h"
-#include "nsCharsetSource.h"
+#include "nsIParser.h"
 #include "nsISerializable.h"
 #include "nsSerializationHelper.h"
-#include "mozilla/ipc/URIUtils.h"
-#include "mozilla/net/NeckoParent.h"
-
-using namespace mozilla::ipc;
 
 namespace mozilla {
 namespace net {
 
 WyciwygChannelParent::WyciwygChannelParent()
  : mIPCClosed(false)
- , mReceivedAppData(false)
 {
 #if defined(PR_LOGGING)
   if (!gWyciwygLog)
@@ -39,36 +67,30 @@ WyciwygChannelParent::ActorDestroy(ActorDestroyReason why)
   // We may still have refcount>0 if the channel hasn't called OnStopRequest
   // yet, but we must not send any more msgs to child.
   mIPCClosed = true;
-
-  // We need to force the cycle to break here
-  mChannel->SetNotificationCallbacks(nullptr);
 }
 
 //-----------------------------------------------------------------------------
 // WyciwygChannelParent::nsISupports
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS3(WyciwygChannelParent,
+NS_IMPL_ISUPPORTS2(WyciwygChannelParent,
                    nsIStreamListener,
-                   nsIInterfaceRequestor,
-                   nsIRequestObserver)
+                   nsIRequestObserver);
 
 //-----------------------------------------------------------------------------
 // WyciwygChannelParent::PWyciwygChannelParent
 //-----------------------------------------------------------------------------
 
 bool
-WyciwygChannelParent::RecvInit(const URIParams& aURI)
+WyciwygChannelParent::RecvInit(const IPC::URI& aURI)
 {
   nsresult rv;
 
-  nsCOMPtr<nsIURI> uri = DeserializeURI(aURI);
-  if (!uri)
-    return false;
+  nsCOMPtr<nsIURI> uri(aURI);
 
   nsCString uriSpec;
   uri->GetSpec(uriSpec);
-  LOG(("WyciwygChannelParent RecvInit [this=%p uri=%s]\n",
+  LOG(("WyciwygChannelParent RecvInit [this=%x uri=%s]\n",
        this, uriSpec.get()));
 
   nsCOMPtr<nsIIOService> ios(do_GetIOService(&rv));
@@ -88,54 +110,12 @@ WyciwygChannelParent::RecvInit(const URIParams& aURI)
 }
 
 bool
-WyciwygChannelParent::RecvAppData(const IPC::SerializedLoadContext& loadContext,
-                                  PBrowserParent* parent)
+WyciwygChannelParent::RecvAsyncOpen(const IPC::URI& aOriginal,
+                                    const PRUint32& aLoadFlags)
 {
-  LOG(("WyciwygChannelParent RecvAppData [this=%p]\n", this));
+  nsCOMPtr<nsIURI> original(aOriginal);
 
-  if (!SetupAppData(loadContext, parent))
-    return false;
-
-  mChannel->SetNotificationCallbacks(this);
-  return true;
-}
-
-bool
-WyciwygChannelParent::SetupAppData(const IPC::SerializedLoadContext& loadContext,
-                                   PBrowserParent* aParent)
-{
-  if (!mChannel)
-    return true;
-
-  const char* error = NeckoParent::CreateChannelLoadContext(aParent, loadContext,
-                                                            mLoadContext);
-  if (error) {
-    printf_stderr(nsPrintfCString("WyciwygChannelParent::SetupAppData: FATAL ERROR: %s\n",
-                                  error).get());
-    return false;
-  }
-
-  if (!mLoadContext && loadContext.IsPrivateBitValid()) {
-    nsCOMPtr<nsIPrivateBrowsingChannel> pbChannel = do_QueryInterface(mChannel);
-    if (pbChannel)
-      pbChannel->SetPrivate(loadContext.mUsePrivateBrowsing);
-  }
-
-  mReceivedAppData = true;
-  return true;
-}
-
-bool
-WyciwygChannelParent::RecvAsyncOpen(const URIParams& aOriginal,
-                                    const uint32_t& aLoadFlags,
-                                    const IPC::SerializedLoadContext& loadContext,
-                                    PBrowserParent* aParent)
-{
-  nsCOMPtr<nsIURI> original = DeserializeURI(aOriginal);
-  if (!original)
-    return false;
-
-  LOG(("WyciwygChannelParent RecvAsyncOpen [this=%p]\n", this));
+  LOG(("WyciwygChannelParent RecvAsyncOpen [this=%x]\n", this));
 
   if (!mChannel)
     return true;
@@ -150,15 +130,7 @@ WyciwygChannelParent::RecvAsyncOpen(const URIParams& aOriginal,
   if (NS_FAILED(rv))
     return SendCancelEarly(rv);
 
-  if (!mReceivedAppData && !SetupAppData(loadContext, aParent)) {
-    return false;
-  }
-
-  rv = mChannel->SetNotificationCallbacks(this);
-  if (NS_FAILED(rv))
-    return SendCancelEarly(rv);
-
-  rv = mChannel->AsyncOpen(this, nullptr);
+  rv = mChannel->AsyncOpen(this, nsnull);
   if (NS_FAILED(rv))
     return SendCancelEarly(rv);
 
@@ -168,11 +140,6 @@ WyciwygChannelParent::RecvAsyncOpen(const URIParams& aOriginal,
 bool
 WyciwygChannelParent::RecvWriteToCacheEntry(const nsString& data)
 {
-  if (!mReceivedAppData) {
-    printf_stderr("WyciwygChannelParent::RecvWriteToCacheEntry: FATAL ERROR: didn't receive app data\n");
-    return false;
-  }
-
   if (mChannel)
     mChannel->WriteToCacheEntry(data);
 
@@ -182,15 +149,14 @@ WyciwygChannelParent::RecvWriteToCacheEntry(const nsString& data)
 bool
 WyciwygChannelParent::RecvCloseCacheEntry(const nsresult& reason)
 {
-  if (mChannel) {
+  if (mChannel)
     mChannel->CloseCacheEntry(reason);
-  }
 
   return true;
 }
 
 bool
-WyciwygChannelParent::RecvSetCharsetAndSource(const int32_t& aCharsetSource,
+WyciwygChannelParent::RecvSetCharsetAndSource(const PRInt32& aCharsetSource,
                                               const nsCString& aCharset)
 {
   if (mChannel)
@@ -226,7 +192,7 @@ WyciwygChannelParent::RecvCancel(const nsresult& aStatusCode)
 NS_IMETHODIMP
 WyciwygChannelParent::OnStartRequest(nsIRequest *aRequest, nsISupports *aContext)
 {
-  LOG(("WyciwygChannelParent::OnStartRequest [this=%p]\n", this));
+  LOG(("WyciwygChannelParent::OnStartRequest [this=%x]\n", this));
 
   nsresult rv;
 
@@ -236,11 +202,11 @@ WyciwygChannelParent::OnStartRequest(nsIRequest *aRequest, nsISupports *aContext
   nsresult status;
   chan->GetStatus(&status);
 
-  int64_t contentLength = -1;
+  PRInt32 contentLength = -1;
   chan->GetContentLength(&contentLength);
 
-  int32_t charsetSource = kCharsetUninitialized;
-  nsAutoCString charset;
+  PRInt32 charsetSource = kCharsetUninitialized;
+  nsCAutoString charset;
   chan->GetCharsetAndSource(&charsetSource, charset);
 
   nsCOMPtr<nsISupports> securityInfo;
@@ -250,10 +216,8 @@ WyciwygChannelParent::OnStartRequest(nsIRequest *aRequest, nsISupports *aContext
     nsCOMPtr<nsISerializable> serializable = do_QueryInterface(securityInfo);
     if (serializable)
       NS_SerializeToString(serializable, secInfoStr);
-    else {
-      NS_ERROR("Can't serialize security info");
-      return NS_ERROR_UNEXPECTED;
-    }
+    else
+      NS_WARNING("Can't serialize security info");
   }
 
   if (mIPCClosed ||
@@ -269,7 +233,7 @@ WyciwygChannelParent::OnStopRequest(nsIRequest *aRequest,
                                     nsISupports *aContext,
                                     nsresult aStatusCode)
 {
-  LOG(("WyciwygChannelParent::OnStopRequest: [this=%p status=%ul]\n",
+  LOG(("WyciwygChannelParent::OnStopRequest: [this=%x status=%ul]\n",
        this, aStatusCode));
 
   if (mIPCClosed || !SendOnStopRequest(aStatusCode)) {
@@ -287,10 +251,10 @@ NS_IMETHODIMP
 WyciwygChannelParent::OnDataAvailable(nsIRequest *aRequest,
                                       nsISupports *aContext,
                                       nsIInputStream *aInputStream,
-                                      uint64_t aOffset,
-                                      uint32_t aCount)
+                                      PRUint32 aOffset,
+                                      PRUint32 aCount)
 {
-  LOG(("WyciwygChannelParent::OnDataAvailable [this=%p]\n", this));
+  LOG(("WyciwygChannelParent::OnDataAvailable [this=%x]\n", this));
 
   nsCString data;
   nsresult rv = NS_ReadInputStreamToString(aInputStream, data, aCount);
@@ -303,23 +267,5 @@ WyciwygChannelParent::OnDataAvailable(nsIRequest *aRequest,
 
   return NS_OK;
 }
-
-//-----------------------------------------------------------------------------
-// WyciwygChannelParent::nsIInterfaceRequestor
-//-----------------------------------------------------------------------------
-
-NS_IMETHODIMP
-WyciwygChannelParent::GetInterface(const nsIID& uuid, void** result)
-{
-  // Only support nsILoadContext if child channel's callbacks did too
-  if (uuid.Equals(NS_GET_IID(nsILoadContext)) && mLoadContext) {
-    NS_ADDREF(mLoadContext);
-    *result = static_cast<nsILoadContext*>(mLoadContext);
-    return NS_OK;
-  }
-
-  return QueryInterface(uuid, result);
-}
-
 
 }} // mozilla::net

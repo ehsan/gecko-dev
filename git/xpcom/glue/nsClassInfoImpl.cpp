@@ -1,7 +1,3 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
 #include "nsIClassInfoImpl.h"
 #include "nsIProgrammingLanguage.h"
 
@@ -20,13 +16,13 @@ GenericClassInfo::Release()
 NS_IMPL_QUERY_INTERFACE1(GenericClassInfo, nsIClassInfo)
 
 NS_IMETHODIMP
-GenericClassInfo::GetInterfaces(uint32_t* countp, nsIID*** array)
+GenericClassInfo::GetInterfaces(PRUint32* countp, nsIID*** array)
 {
   return mData->getinterfaces(countp, array);
 }
 
 NS_IMETHODIMP
-GenericClassInfo::GetHelperForLanguage(uint32_t language, nsISupports** helper)
+GenericClassInfo::GetHelperForLanguage(PRUint32 language, nsISupports** helper)
 {
   if (mData->getlanguagehelper)
     return mData->getlanguagehelper(language, helper);
@@ -57,14 +53,14 @@ GenericClassInfo::GetClassID(nsCID** classid)
 }
 
 NS_IMETHODIMP
-GenericClassInfo::GetImplementationLanguage(uint32_t* language)
+GenericClassInfo::GetImplementationLanguage(PRUint32* language)
 {
   *language = nsIProgrammingLanguage::CPLUSPLUS;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-GenericClassInfo::GetFlags(uint32_t* flags)
+GenericClassInfo::GetFlags(PRUint32* flags)
 {
   *flags = mData->flags;
   return NS_OK;

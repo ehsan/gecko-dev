@@ -1,7 +1,39 @@
 /* -*- Mode: C; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Mozilla Text to HTML converter code.
+ *
+ * The Initial Developer of the Original Code is
+ * Ben Bucksch <http://www.bucksch.org>.
+ * Portions created by the Initial Developer are Copyright (C) 1999, 2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /**
   Description: Currently only functions to enhance plain text with HTML tags. See mozITXTToHTMLConv. Stream conversion is defunct.
@@ -36,17 +68,17 @@ public:
 /**
   see mozITXTToHTMLConv::ScanTXT
  */
-  void ScanTXT(const PRUnichar * aInString, int32_t aInStringLength, uint32_t whattodo, nsString& aOutString);
+  void ScanTXT(const PRUnichar * aInString, PRInt32 aInStringLength, PRUint32 whattodo, nsString& aOutString);
 
 /**
   see mozITXTToHTMLConv::ScanHTML. We will modify aInString potentially...
  */
-  void ScanHTML(nsString& aInString, uint32_t whattodo, nsString &aOutString);
+  void ScanHTML(nsString& aInString, PRUint32 whattodo, nsString &aOutString);
 
 /**
   see mozITXTToHTMLConv::CiteLevelTXT
  */
-  int32_t CiteLevelTXT(const PRUnichar * line,uint32_t& logLineStart);
+  PRInt32 CiteLevelTXT(const PRUnichar * line,PRUint32& logLineStart);
 
 
 //////////////////////////////////////////////////////////
@@ -64,8 +96,8 @@ protected:
   @param pos (in): position of "@" (case 1) or first "." (case 2 and 3)
   @return Completed URL at success and empty string at failure
  */
-  void CompleteAbbreviatedURL(const PRUnichar * aInString, int32_t aInLength, 
-                              const uint32_t pos, nsString& aOutString);
+  void CompleteAbbreviatedURL(const PRUnichar * aInString, PRInt32 aInLength, 
+                              const PRUint32 pos, nsString& aOutString);
 
 
 //////////////////////////////////////////////////////////
@@ -92,15 +124,15 @@ private:
   @param after (in): limitation after rep
   @return true, if rep is found and limitation spec is met or rep is empty
 */
-  bool ItMatchesDelimited(const PRUnichar * aInString, int32_t aInLength,
-      const PRUnichar * rep, int32_t aRepLen, LIMTYPE before, LIMTYPE after);
+  PRBool ItMatchesDelimited(const PRUnichar * aInString, PRInt32 aInLength,
+      const PRUnichar * rep, PRInt32 aRepLen, LIMTYPE before, LIMTYPE after);
 
 /**
   @param see ItMatchesDelimited
   @return Number of ItMatchesDelimited in text
 */
-  uint32_t NumberOfMatches(const PRUnichar * aInString, int32_t aInStringLength,
-      const PRUnichar* rep, int32_t aRepLen, LIMTYPE before, LIMTYPE after);
+  PRUint32 NumberOfMatches(const PRUnichar * aInString, PRInt32 aInStringLength,
+      const PRUnichar* rep, PRInt32 aRepLen, LIMTYPE before, LIMTYPE after);
 
 /**
   Currently only changes "<", ">" and "&". All others stay as they are.<p>
@@ -113,12 +145,12 @@ private:
                             only needed for attribute values)
 */
   void EscapeChar(const PRUnichar ch, nsString& aStringToAppendto,
-                  bool inAttribute);
+                  PRBool inAttribute);
 
 /**
   See EscapeChar. Escapes the string in place.
 */
-  void EscapeStr(nsString& aInString, bool inAttribute);
+  void EscapeStr(nsString& aInString, PRBool inAttribute);
 
 /**
   Currently only reverts "<", ">" and "&". All others stay as they are.<p>
@@ -127,8 +159,8 @@ private:
   @param aLength (in) length of the buffer
   @param aOutString (out) unescaped buffer
 */
-  void UnescapeStr(const PRUnichar * aInString, int32_t aStartPos,
-                   int32_t aLength, nsString& aOutString);
+  void UnescapeStr(const PRUnichar * aInString, PRInt32 aStartPos,
+                   PRInt32 aLength, nsString& aOutString);
 
 /**
   <em>Note</em>: I use different strategies to pass context between the
@@ -153,9 +185,9 @@ private:
   @param replaceAfter (out): Number of chars of URL after pos
   @return URL found
 */
-  bool FindURL(const PRUnichar * aInString, int32_t aInLength, const uint32_t pos,
-          const uint32_t whathasbeendone,
-          nsString& outputHTML, int32_t& replaceBefore, int32_t& replaceAfter);
+  PRBool FindURL(const PRUnichar * aInString, PRInt32 aInLength, const PRUint32 pos,
+          const PRUint32 whathasbeendone,
+          nsString& outputHTML, PRInt32& replaceBefore, PRInt32& replaceAfter);
 
   enum modetype {
          unknown,
@@ -187,8 +219,8 @@ private:
  *             similar) starts
  * @return |check|-conform start has been found
  */
-  bool FindURLStart(const PRUnichar * aInString, int32_t aInLength, const uint32_t pos,
-            	               const modetype check, uint32_t& start);
+  PRBool FindURLStart(const PRUnichar * aInString, PRInt32 aInLength, const PRUint32 pos,
+            	               const modetype check, PRUint32& start);
 
 /**
  * @param text (in), pos (in): see FindURL
@@ -197,8 +229,8 @@ private:
  * @param end (out): Similar to |start| param of FindURLStart
  * @return |check|-conform end has been found
  */
-  bool FindURLEnd(const PRUnichar * aInString, int32_t aInStringLength, const uint32_t pos,
-           const modetype check, const uint32_t start, uint32_t& end);
+  PRBool FindURLEnd(const PRUnichar * aInString, PRInt32 aInStringLength, const PRUint32 pos,
+           const modetype check, const PRUint32 start, PRUint32& end);
 
 /**
  * @param text (in), pos (in), whathasbeendone (in): see FindURL
@@ -210,18 +242,18 @@ private:
  *             Should be placed between the <a> and </a> tags.
  * @param replaceBefore(out), replaceAfter (out): see FindURL
  */
-  void CalculateURLBoundaries(const PRUnichar * aInString, int32_t aInStringLength, 
-     const uint32_t pos, const uint32_t whathasbeendone,
-     const modetype check, const uint32_t start, const uint32_t end,
+  void CalculateURLBoundaries(const PRUnichar * aInString, PRInt32 aInStringLength, 
+     const PRUint32 pos, const PRUint32 whathasbeendone,
+     const modetype check, const PRUint32 start, const PRUint32 end,
      nsString& txtURL, nsString& desc,
-     int32_t& replaceBefore, int32_t& replaceAfter);
+     PRInt32& replaceBefore, PRInt32& replaceAfter);
 
 /**
  * @param txtURL (in), desc (in): see CalculateURLBoundaries
  * @param outputHTML (out): see FindURL
  * @return A valid URL could be found (and creation of HTML successful)
  */
-  bool CheckURLAndCreateHTML(
+  PRBool CheckURLAndCreateHTML(
        const nsString& txtURL, const nsString& desc, const modetype mode,
        nsString& outputHTML);
 
@@ -243,11 +275,11 @@ private:
   @param open (in/out): Number of currently open tags of type tagHTML
   @return Conversion succeeded
 */
-  bool StructPhraseHit(const PRUnichar * aInString, int32_t aInStringLength, bool col0,
+  PRBool StructPhraseHit(const PRUnichar * aInString, PRInt32 aInStringLength, PRBool col0,
      const PRUnichar* tagTXT,
-     int32_t aTagTxtLen, 
+     PRInt32 aTagTxtLen, 
      const char* tagHTML, const char* attributeHTML,
-     nsString& aOutputString, uint32_t& openTags);
+     nsString& aOutputString, PRUint32& openTags);
 
 /**
   @param text (in), col0 (in): see GlyphHit
@@ -256,10 +288,10 @@ private:
   @param outputHTML (out): new string containing the html for the smily
   @param glyphTextLen (out): see GlyphHit
 */
-  bool
-         SmilyHit(const PRUnichar * aInString, int32_t aLength, bool col0,
+  PRBool
+         SmilyHit(const PRUnichar * aInString, PRInt32 aLength, PRBool col0,
          const char* tagTXT, const char* imageName,
-         nsString& outputHTML, int32_t& glyphTextLen);
+         nsString& outputHTML, PRInt32& glyphTextLen);
 
 /**
   Checks, if we can replace some chars at the start of line with prettier HTML
@@ -276,19 +308,19 @@ private:
   @param glyphTextLen (out): Length of original text to replace
   @return see StructPhraseHit
 */
-  bool GlyphHit(const PRUnichar * aInString, int32_t aInLength, bool col0,
-       nsString& aOutString, int32_t& glyphTextLen);
+  PRBool GlyphHit(const PRUnichar * aInString, PRInt32 aInLength, PRBool col0,
+       nsString& aOutString, PRInt32& glyphTextLen);
 
 /**
   Check if a given url should be linkified.
   @param aURL (in): url to be checked on.
 */
-  bool ShouldLinkify(const nsCString& aURL);
+  PRBool ShouldLinkify(const nsCString& aURL);
 };
 
 // It's said, that Win32 and Mac don't like static const members
-const int32_t mozTXTToHTMLConv_lastMode = 4;
+const PRInt32 mozTXTToHTMLConv_lastMode = 4;
 	                        // Needed (only) by mozTXTToHTMLConv::FindURL
-const int32_t mozTXTToHTMLConv_numberOfModes = 4;  // dito; unknown not counted
+const PRInt32 mozTXTToHTMLConv_numberOfModes = 4;  // dito; unknown not counted
 
 #endif

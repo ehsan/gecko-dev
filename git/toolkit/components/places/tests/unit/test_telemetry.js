@@ -14,28 +14,43 @@ let histograms = {
   PLACES_SORTED_BOOKMARKS_PERC: function (val) do_check_eq(val, 100),
   PLACES_TAGGED_BOOKMARKS_PERC: function (val) do_check_eq(val, 100),
   PLACES_DATABASE_FILESIZE_MB: function (val) do_check_true(val > 0),
-  // The journal may have been truncated.
-  PLACES_DATABASE_JOURNALSIZE_MB: function (val) do_check_true(val >= 0),
+  PLACES_DATABASE_JOURNALSIZE_MB: function (val) do_check_true(val > 0),
   PLACES_DATABASE_PAGESIZE_B: function (val) do_check_eq(val, 32768),
   PLACES_DATABASE_SIZE_PER_PAGE_B: function (val) do_check_true(val > 0),
-  PLACES_EXPIRATION_STEPS_TO_CLEAN2: function (val) do_check_true(val > 1),
+  PLACES_EXPIRATION_STEPS_TO_CLEAN: function (val) do_check_true(val > 1),
   //PLACES_AUTOCOMPLETE_1ST_RESULT_TIME_MS:  function (val) do_check_true(val > 1),
-  PLACES_IDLE_FRECENCY_DECAY_TIME_MS: function (val) do_check_true(val > 0),
-  PLACES_IDLE_MAINTENANCE_TIME_MS: function (val) do_check_true(val > 0),
-  PLACES_ANNOS_BOOKMARKS_COUNT: function (val) do_check_eq(val, 1),
-  PLACES_ANNOS_BOOKMARKS_SIZE_KB: function (val) do_check_eq(val, 1),
-  PLACES_ANNOS_PAGES_COUNT: function (val) do_check_eq(val, 1),
-  PLACES_ANNOS_PAGES_SIZE_KB: function (val) do_check_eq(val, 1),
-  PLACES_FRECENCY_CALC_TIME_MS: function (val) do_check_true(val >= 0),
 }
 
-function run_test()
-{
-  run_next_test();
-}
+// This sucks, but due to nsITelemetry using [implicit_jscontext], it's
+// impossible to implement it in js, so no fancy service factory replacements.
+// This mock implements only the telemetry methods used by Places.
+XPCOMUtils.defineLazyGetter(Services, "telemetry", function () {
+  return {
+    getHistogramById: function FT_getHistogramById(id) {
+      if (id in histograms) {
+        return {
+          add: function FH_add(val) {
+            do_log_info("Testing probe " + id);
+            histograms[id](val);
+            delete histograms[id];
+            if (Object.keys(histograms).length == 0)
+              do_test_finished();
+          }
+        };
+      }
 
-add_task(function test_execute()
-{
+      return {
+        add: function FH_add(val) {
+          do_log_info("Unknown probe " + id);
+        }
+      };
+    },
+  };
+});
+
+function run_test() {
+  do_test_pending();
+
   // Put some trash in the database.
   const URI = NetUtil.newURI("http://moz.org/");
 
@@ -49,29 +64,18 @@ add_task(function test_execute()
   PlacesUtils.tagging.tagURI(uri, ["tag"]);
   PlacesUtils.bookmarks.setKeywordForBookmark(itemId, "keyword");
 
-  // Set a large annotation.
-  let content = "";
-  while (content.length < 1024) {
-    content += "0";
-  }
-  PlacesUtils.annotations.setItemAnnotation(itemId, "test-anno", content, 0,
-                                            PlacesUtils.annotations.EXPIRE_NEVER);
-  PlacesUtils.annotations.setPageAnnotation(uri, "test-anno", content, 0,
-                                            PlacesUtils.annotations.EXPIRE_NEVER);
+  // Test generic database probes.
+  PlacesDBUtils._telemetry();
 
-  // Request to gather telemetry data.
-  Cc["@mozilla.org/places/categoriesStarter;1"]
-    .getService(Ci.nsIObserver)
-    .observe(null, "gather-telemetry", null);
+  waitForAsyncUpdates(continue_test);
+}
 
-  yield promiseAsyncUpdates();
-
+function continue_test() {
   // Test expiration probes.
   for (let i = 0; i < 2; i++) {
-    yield promiseAddVisits({
-      uri: uri("http://" +  i + ".moz.org/"),
-      visitDate: Date.now() // [sic]
-    });
+    PlacesUtils.history.addVisit(NetUtil.newURI("http://" +  i + ".moz.org/"),
+                                 Date.now(), null,
+                                 PlacesUtils.history.TRANSITION_TYPED, false, 0);
   }
   Services.prefs.setIntPref("places.history.expiration.max_pages", 0);
   let expire = Cc["@mozilla.org/places/expiration;1"].getService(Ci.nsIObserver);
@@ -113,32 +117,4 @@ add_task(function test_execute()
   controller.input = new AutoCompleteInput(["history"]);
   controller.startSearch("moz");
   */
-
-  // Test idle probes.
-  PlacesUtils.history.QueryInterface(Ci.nsIObserver)
-                     .observe(null, "idle-daily", null);
-  PlacesDBUtils.maintenanceOnIdle();
-
-  yield promiseTopicObserved("places-maintenance-finished");
-
-  for (let histogramId in histograms) {
-    do_log_info("checking histogram " + histogramId);
-    let validate = histograms[histogramId];
-    let snapshot = Services.telemetry.getHistogramById(histogramId).snapshot();
-    validate(snapshot.sum);
-    do_check_true(snapshot.counts.reduce(function(a, b) a + b) > 0);
-  }
-});
-
-add_test(function test_healthreport_callback() {
-  PlacesDBUtils.telemetry(null, function onResult(data) {
-    do_check_neq(data, null);
-
-    do_check_eq(Object.keys(data).length, 2);
-    do_check_eq(data.PLACES_PAGES_COUNT, 1);
-    do_check_eq(data.PLACES_BOOKMARKS_COUNT, 1);
-
-    run_next_test();
-  });
-});
-
+}

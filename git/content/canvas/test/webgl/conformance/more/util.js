@@ -1045,17 +1045,18 @@ function assertThrowNoGLError(gl, name, f) {
   try { f(); } catch(e) { r=true; glErr = e.glError; exp = e;}
   if (!r) {
     testFailed(
-      "assertThrowNoGLError: should have thrown exception", name, f);
+      "assertThrowNoGError: should have thrown exception", name, f);
     return false;
   } else {
     if (glErr !== undefined) {
       testFailed(
-        "assertThrowNoGLError: should be no GL error but generated: " +
+        "assertThrowNoGError: should be no GL error but generated: " +
         getGLErrorAsString(gl, glErr), name, f);
       return false;
+    } else {
+      // console.log("threw:" + exp);
     }
   }
-  testPassed("assertThrowNoGLError", name, f);
   return true;
 }
 
@@ -1237,8 +1238,7 @@ initGL_CONTEXT_ID = function(){
         GL_CONTEXT_ID = contextNames[i];
         break;
       }
-    } catch (e) {
-    }
+    } catch (e) {}
   }
   if (!GL_CONTEXT_ID) {
     log("No WebGL context found. Unable to run tests.");

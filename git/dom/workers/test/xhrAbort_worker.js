@@ -39,8 +39,7 @@ function runTest() {
 
     var str = event.type + "(" + readyState + ", '" + responseText + "', " +
               status + ", '" + statusText + "'";
-    if ((("ProgressEvent" in this) && event instanceof ProgressEvent) ||
-        (("WorkerProgressEvent" in this) && event instanceof WorkerProgressEvent)) {
+    if (event instanceof ProgressEvent) {
       str += ", progressEvent";
     }
     str += ")";
@@ -67,9 +66,10 @@ function runTest() {
     postMessage(events);
   };
 
+  var count = 0;
   xhr.onreadystatechange = function(event) {
     pushEvent(event);
-    if (xhr.readyState == xhr.HEADERS_RECEIVED) {
+    if (++count == 3) {
       xhr.abort();
     }
   };

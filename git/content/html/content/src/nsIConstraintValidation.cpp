@@ -1,46 +1,75 @@
 /* -*- Mode: IDL; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Mounir Lamouri <mounir.lamouri@mozilla.com> (original author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsIConstraintValidation.h"
 
 #include "nsAString.h"
 #include "nsGenericHTMLElement.h"
-#include "mozilla/dom/HTMLFormElement.h"
-#include "mozilla/dom/ValidityState.h"
+#include "nsHTMLFormElement.h"
+#include "nsDOMValidityState.h"
 #include "nsIFormControl.h"
+#include "nsHTMLFormElement.h"
 #include "nsContentUtils.h"
 
-const uint16_t nsIConstraintValidation::sContentSpecifiedMaxLengthMessage = 256;
+const PRUint16 nsIConstraintValidation::sContentSpecifiedMaxLengthMessage = 256;
 
 nsIConstraintValidation::nsIConstraintValidation()
   : mValidityBitField(0)
+  , mValidity(nsnull)
   // By default, all elements are subjects to constraint validation.
-  , mBarredFromConstraintValidation(false)
+  , mBarredFromConstraintValidation(PR_FALSE)
 {
 }
 
 nsIConstraintValidation::~nsIConstraintValidation()
 {
-}
-
-mozilla::dom::ValidityState*
-nsIConstraintValidation::Validity()
-{
-  if (!mValidity) {
-    mValidity = new mozilla::dom::ValidityState(this);
+  if (mValidity) {
+    mValidity->Disconnect();
   }
-
-  return mValidity;
 }
 
 nsresult
 nsIConstraintValidation::GetValidity(nsIDOMValidityState** aValidity)
 {
-  NS_ENSURE_ARG_POINTER(aValidity);
+  if (!mValidity) {
+    mValidity = new nsDOMValidityState(this);
+  }
 
-  NS_ADDREF(*aValidity = Validity());
+  NS_ADDREF(*aValidity = mValidity);
 
   return NS_OK;
 }
@@ -76,14 +105,10 @@ nsIConstraintValidation::GetValidationMessage(nsAString& aValidationMessage)
       GetValidationMessage(aValidationMessage, VALIDITY_STATE_TYPE_MISMATCH);
     } else if (GetValidityState(VALIDITY_STATE_PATTERN_MISMATCH)) {
       GetValidationMessage(aValidationMessage, VALIDITY_STATE_PATTERN_MISMATCH);
-    } else if (GetValidityState(VALIDITY_STATE_RANGE_OVERFLOW)) {
-      GetValidationMessage(aValidationMessage, VALIDITY_STATE_RANGE_OVERFLOW);
-    } else if (GetValidityState(VALIDITY_STATE_RANGE_UNDERFLOW)) {
-      GetValidationMessage(aValidationMessage, VALIDITY_STATE_RANGE_UNDERFLOW);
-    } else if (GetValidityState(VALIDITY_STATE_STEP_MISMATCH)) {
-      GetValidationMessage(aValidationMessage, VALIDITY_STATE_STEP_MISMATCH);
     } else {
-      // There should not be other validity states.
+      // TODO: The other messages have not been written
+      // because related constraint validation are not implemented yet.
+      // We should not be here.
       return NS_ERROR_UNEXPECTED;
     }
   } else {
@@ -93,37 +118,29 @@ nsIConstraintValidation::GetValidationMessage(nsAString& aValidationMessage)
   return NS_OK;
 }
 
-bool
-nsIConstraintValidation::CheckValidity()
+nsresult
+nsIConstraintValidation::CheckValidity(PRBool* aValidity)
 {
   if (!IsCandidateForConstraintValidation() || IsValid()) {
-    return true;
+    *aValidity = PR_TRUE;
+    return NS_OK;
   }
+
+  *aValidity = PR_FALSE;
 
   nsCOMPtr<nsIContent> content = do_QueryInterface(this);
   NS_ASSERTION(content, "This class should be inherited by HTML elements only!");
 
-  nsContentUtils::DispatchTrustedEvent(content->OwnerDoc(), content,
-                                       NS_LITERAL_STRING("invalid"),
-                                       false, true);
-  return false;
-}
-
-nsresult
-nsIConstraintValidation::CheckValidity(bool* aValidity)
-{
-  NS_ENSURE_ARG_POINTER(aValidity);
-
-  *aValidity = CheckValidity();
-
-  return NS_OK;
+  return nsContentUtils::DispatchTrustedEvent(content->GetOwnerDoc(), content,
+                                              NS_LITERAL_STRING("invalid"),
+                                              PR_FALSE, PR_TRUE);
 }
 
 void
 nsIConstraintValidation::SetValidityState(ValidityStateType aState,
-                                          bool aValue)
+                                          PRBool aValue)
 {
-  bool previousValidity = IsValid();
+  PRBool previousValidity = IsValid();
 
   if (aValue) {
     mValidityBitField |= aState;
@@ -136,8 +153,8 @@ nsIConstraintValidation::SetValidityState(ValidityStateType aState,
     nsCOMPtr<nsIFormControl> formCtrl = do_QueryInterface(this);
     NS_ASSERTION(formCtrl, "This interface should be used by form elements!");
 
-    mozilla::dom::HTMLFormElement* form =
-      static_cast<mozilla::dom::HTMLFormElement*>(formCtrl->GetFormElement());
+    nsHTMLFormElement* form =
+      static_cast<nsHTMLFormElement*>(formCtrl->GetFormElement());
     if (form) {
       form->UpdateValidity(IsValid());
     }
@@ -152,9 +169,9 @@ nsIConstraintValidation::SetCustomValidity(const nsAString& aError)
 }
 
 void
-nsIConstraintValidation::SetBarredFromConstraintValidation(bool aBarred)
+nsIConstraintValidation::SetBarredFromConstraintValidation(PRBool aBarred)
 {
-  bool previousBarred = mBarredFromConstraintValidation;
+  PRBool previousBarred = mBarredFromConstraintValidation;
 
   mBarredFromConstraintValidation = aBarred;
 
@@ -164,8 +181,8 @@ nsIConstraintValidation::SetBarredFromConstraintValidation(bool aBarred)
     nsCOMPtr<nsIFormControl> formCtrl = do_QueryInterface(this);
     NS_ASSERTION(formCtrl, "This interface should be used by form elements!");
 
-    mozilla::dom::HTMLFormElement* form =
-      static_cast<mozilla::dom::HTMLFormElement*>(formCtrl->GetFormElement());
+    nsHTMLFormElement* form =
+      static_cast<nsHTMLFormElement*>(formCtrl->GetFormElement());
     if (form) {
       // If the element is going to be barred from constraint validation,
       // we can inform the form that we are now valid.

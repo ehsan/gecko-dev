@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Camera.
+ *
+ * The Initial Developer of the Original Code is Mozilla Corporation
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Fabrice Desré <fabrice@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "base/basictypes.h"
 #include "AndroidCaptureProvider.h"
@@ -10,20 +42,20 @@
 #include "nsStreamUtils.h"
 #include "nsThreadUtils.h"
 #include "nsMemory.h"
-#include "RawStructs.h"
+#include "nsRawStructs.h"
 
 // The maximum number of frames we keep in our queue. Don't live in the past.
 #define MAX_FRAMES_QUEUED 10
 
 using namespace mozilla::net;
 
-NS_IMPL_ISUPPORTS2(AndroidCameraInputStream, nsIInputStream, nsIAsyncInputStream)
+NS_IMPL_THREADSAFE_ISUPPORTS2(AndroidCameraInputStream, nsIInputStream, nsIAsyncInputStream)
 
 AndroidCameraInputStream::AndroidCameraInputStream() :
   mWidth(0), mHeight(0), mCamera(0), mHeaderSent(false), mClosed(true), mFrameSize(0),
   mMonitor("AndroidCamera.Monitor")
 {
-  mAvailable = sizeof(RawVideoHeader);
+  mAvailable = sizeof(nsRawVideoHeader);
   mFrameQueue = new nsDeque();
 }
 
@@ -57,7 +89,7 @@ AndroidCameraInputStream::Init(nsACString& aContentType, nsCaptureParams* aParam
   return NS_OK;
 }
 
-void AndroidCameraInputStream::ReceiveFrame(char* frame, uint32_t length) {
+void AndroidCameraInputStream::ReceiveFrame(char* frame, PRUint32 length) {
   {
     mozilla::ReentrantMonitorAutoEnter autoMonitor(mMonitor);
     if (mFrameQueue->GetSize() > MAX_FRAMES_QUEUED) {
@@ -66,28 +98,28 @@ void AndroidCameraInputStream::ReceiveFrame(char* frame, uint32_t length) {
     }
   }
   
-  mFrameSize = sizeof(RawPacketHeader) + length;
+  mFrameSize = sizeof(nsRawPacketHeader) + length;
   
   char* fullFrame = (char*)nsMemory::Alloc(mFrameSize);
 
   if (!fullFrame)
     return;
   
-  RawPacketHeader* header = (RawPacketHeader*) fullFrame;
+  nsRawPacketHeader* header = (nsRawPacketHeader*) fullFrame;
   header->packetID = 0xFF;
   header->codecID = 0x595556; // "YUV"
   
   // we copy the Y plane, and de-interlace the CrCb
   
-  uint32_t yFrameSize = mWidth * mHeight;
-  uint32_t uvFrameSize = yFrameSize / 4;
+  PRUint32 yFrameSize = mWidth * mHeight;
+  PRUint32 uvFrameSize = yFrameSize / 4;
 
-  memcpy(fullFrame + sizeof(RawPacketHeader), frame, yFrameSize);
+  memcpy(fullFrame + sizeof(nsRawPacketHeader), frame, yFrameSize);
   
   char* uFrame = fullFrame + yFrameSize;
   char* vFrame = fullFrame + yFrameSize + uvFrameSize;
   char* yFrame = frame + yFrameSize;
-  for (uint32_t i = 0; i < uvFrameSize; i++) {
+  for (PRUint32 i = 0; i < uvFrameSize; i++) {
     uFrame[i] = yFrame[2 * i + 1];
     vFrame[i] = yFrame[2 * i];
   }
@@ -102,7 +134,7 @@ void AndroidCameraInputStream::ReceiveFrame(char* frame, uint32_t length) {
 }
 
 NS_IMETHODIMP
-AndroidCameraInputStream::Available(uint64_t *aAvailable)
+AndroidCameraInputStream::Available(PRUint32 *aAvailable)
 {
   mozilla::ReentrantMonitorAutoEnter autoMonitor(mMonitor);
 
@@ -111,16 +143,16 @@ AndroidCameraInputStream::Available(uint64_t *aAvailable)
   return NS_OK;
 }
 
-NS_IMETHODIMP AndroidCameraInputStream::IsNonBlocking(bool *aNonBlock) {
-  *aNonBlock = true;
+NS_IMETHODIMP AndroidCameraInputStream::IsNonBlocking(PRBool *aNonBlock) {
+  *aNonBlock = PR_TRUE;
   return NS_OK;
 }
 
-NS_IMETHODIMP AndroidCameraInputStream::Read(char *aBuffer, uint32_t aCount, uint32_t *aRead) {
+NS_IMETHODIMP AndroidCameraInputStream::Read(char *aBuffer, PRUint32 aCount, PRUint32 *aRead NS_OUTPARAM) {
   return ReadSegments(NS_CopySegmentToBuffer, aBuffer, aCount, aRead);
 }
 
-NS_IMETHODIMP AndroidCameraInputStream::ReadSegments(nsWriteSegmentFun aWriter, void *aClosure, uint32_t aCount, uint32_t *aRead) {
+NS_IMETHODIMP AndroidCameraInputStream::ReadSegments(nsWriteSegmentFun aWriter, void *aClosure, PRUint32 aCount, PRUint32 *aRead NS_OUTPARAM) {
   *aRead = 0;
   
   nsresult rv;
@@ -133,7 +165,7 @@ NS_IMETHODIMP AndroidCameraInputStream::ReadSegments(nsWriteSegmentFun aWriter, 
 
   if (!mHeaderSent) {
     CameraStreamImpl *impl = CameraStreamImpl::GetInstance(0);
-    RawVideoHeader header;
+    nsRawVideoHeader header;
     header.headerPacketID = 0;
     header.codecID = 0x595556; // "YUV"
     header.majorVersion = 0;
@@ -153,20 +185,20 @@ NS_IMETHODIMP AndroidCameraInputStream::ReadSegments(nsWriteSegmentFun aWriter, 
     header.framerateNumerator = impl->GetFps();
     header.framerateDenominator = 1;
 
-    rv = aWriter(this, aClosure, (const char*)&header, 0, sizeof(RawVideoHeader), aRead);
+    rv = aWriter(this, aClosure, (const char*)&header, 0, sizeof(nsRawVideoHeader), aRead);
    
     if (NS_FAILED(rv))
       return NS_OK;
     
     mHeaderSent = true;
-    aCount -= sizeof(RawVideoHeader);
-    mAvailable -= sizeof(RawVideoHeader);
+    aCount -= sizeof(nsRawVideoHeader);
+    mAvailable -= sizeof(nsRawVideoHeader);
   }
   
   {
     mozilla::ReentrantMonitorAutoEnter autoMonitor(mMonitor);
     while ((mAvailable > 0) && (aCount >= mFrameSize)) {
-      uint32_t readThisTime = 0;
+      PRUint32 readThisTime = 0;
 
       char* frame = (char*)mFrameQueue->PopFront();
       rv = aWriter(this, aClosure, (const char*)frame, *aRead, mFrameSize, &readThisTime);
@@ -176,7 +208,7 @@ NS_IMETHODIMP AndroidCameraInputStream::ReadSegments(nsWriteSegmentFun aWriter, 
         return NS_OK;
       }
   
-      // RawReader does a copy when calling VideoData::Create()
+      // nsRawReader does a copy when calling VideoData::Create()
       nsMemory::Free(frame);
   
       if (NS_FAILED(rv))
@@ -210,10 +242,10 @@ void AndroidCameraInputStream::doClose() {
 void AndroidCameraInputStream::NotifyListeners() {
   mozilla::ReentrantMonitorAutoEnter autoMonitor(mMonitor);
   
-  if (mCallback && (mAvailable > sizeof(RawVideoHeader))) {
+  if (mCallback && (mAvailable > sizeof(nsRawVideoHeader))) {
     nsCOMPtr<nsIInputStreamCallback> callback;
     if (mCallbackTarget) {
-      callback = NS_NewInputStreamReadyEvent(mCallback, mCallbackTarget);
+      NS_NewInputStreamReadyEvent(getter_AddRefs(callback), mCallback, mCallbackTarget);
     } else {
       callback = mCallback;
     }
@@ -221,14 +253,14 @@ void AndroidCameraInputStream::NotifyListeners() {
     NS_ASSERTION(callback, "Shouldn't fail to make the callback!");
 
     // Null the callback first because OnInputStreamReady may reenter AsyncWait
-    mCallback = nullptr;
-    mCallbackTarget = nullptr;
+    mCallback = nsnull;
+    mCallbackTarget = nsnull;
 
     callback->OnInputStreamReady(this);
   }
 }
 
-NS_IMETHODIMP AndroidCameraInputStream::AsyncWait(nsIInputStreamCallback *aCallback, uint32_t aFlags, uint32_t aRequestedCount, nsIEventTarget *aTarget)
+NS_IMETHODIMP AndroidCameraInputStream::AsyncWait(nsIInputStreamCallback *aCallback, PRUint32 aFlags, PRUint32 aRequestedCount, nsIEventTarget *aTarget)
 {
   if (aFlags != 0)
     return NS_ERROR_NOT_IMPLEMENTED;
@@ -245,7 +277,7 @@ NS_IMETHODIMP AndroidCameraInputStream::AsyncWait(nsIInputStreamCallback *aCallb
 }
 
 
-NS_IMETHODIMP AndroidCameraInputStream::CloseWithStatus(nsresult status)
+NS_IMETHODIMP AndroidCameraInputStream::CloseWithStatus(PRUint32 status)
 {
   AndroidCameraInputStream::doClose();
   return NS_OK;
@@ -255,7 +287,7 @@ NS_IMETHODIMP AndroidCameraInputStream::CloseWithStatus(nsresult status)
  * AndroidCaptureProvider implementation
  */
 
-NS_IMPL_ISUPPORTS0(AndroidCaptureProvider)
+NS_IMPL_THREADSAFE_ISUPPORTS0(AndroidCaptureProvider)
 
 AndroidCaptureProvider* AndroidCaptureProvider::sInstance = NULL;
 
@@ -296,6 +328,6 @@ already_AddRefed<AndroidCaptureProvider> GetAndroidCaptureProvider() {
   if (!AndroidCaptureProvider::sInstance) {
     AndroidCaptureProvider::sInstance = new AndroidCaptureProvider();
   }
-  nsRefPtr<AndroidCaptureProvider> ret = AndroidCaptureProvider::sInstance;
-  return ret.forget();
+  AndroidCaptureProvider::sInstance->AddRef();
+  return AndroidCaptureProvider::sInstance;
 }

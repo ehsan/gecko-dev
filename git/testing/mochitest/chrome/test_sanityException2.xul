@@ -17,7 +17,7 @@ SimpleTest.waitForExplicitFinish();
 ok(true, "a call to ok");
 SimpleTest.executeSoon(function() {
   SimpleTest.expectUncaughtException();
-  throw "this is a deliberately thrown exception";
+  throw "an uncaught exception";
 });
 SimpleTest.executeSoon(function() {
   SimpleTest.finish();

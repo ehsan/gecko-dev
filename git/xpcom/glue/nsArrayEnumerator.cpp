@@ -1,9 +1,40 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-#include "mozilla/Attributes.h"
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is XPCOM Array implementation.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corp.
+ * Portions created by the Initial Developer are Copyright (C) 2002
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Alec Flett <alecf@netscape.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsArrayEnumerator.h"
 
@@ -13,7 +44,7 @@
 #include "nsCOMArray.h"
 #include "nsCOMPtr.h"
 
-class nsSimpleArrayEnumerator MOZ_FINAL : public nsISimpleEnumerator
+class nsSimpleArrayEnumerator : public nsISimpleEnumerator
 {
 public:
     // nsISupports interface
@@ -32,24 +63,24 @@ private:
 
 protected:
     nsCOMPtr<nsIArray> mValueArray;
-    uint32_t mIndex;
+    PRUint32 mIndex;
 };
 
 NS_IMPL_ISUPPORTS1(nsSimpleArrayEnumerator, nsISimpleEnumerator)
 
 NS_IMETHODIMP
-nsSimpleArrayEnumerator::HasMoreElements(bool* aResult)
+nsSimpleArrayEnumerator::HasMoreElements(PRBool* aResult)
 {
     NS_PRECONDITION(aResult != 0, "null ptr");
     if (! aResult)
         return NS_ERROR_NULL_POINTER;
 
     if (!mValueArray) {
-        *aResult = false;
+        *aResult = PR_FALSE;
         return NS_OK;
     }
 
-    uint32_t cnt;
+    PRUint32 cnt;
     nsresult rv = mValueArray->GetLength(&cnt);
     if (NS_FAILED(rv)) return rv;
     *aResult = (mIndex < cnt);
@@ -64,11 +95,11 @@ nsSimpleArrayEnumerator::GetNext(nsISupports** aResult)
         return NS_ERROR_NULL_POINTER;
 
     if (!mValueArray) {
-        *aResult = nullptr;
+        *aResult = nsnull;
         return NS_OK;
     }
 
-    uint32_t cnt;
+    PRUint32 cnt;
     nsresult rv = mValueArray->GetLength(&cnt);
     if (NS_FAILED(rv)) return rv;
     if (mIndex >= cnt)
@@ -82,7 +113,7 @@ NS_NewArrayEnumerator(nsISimpleEnumerator* *result,
                       nsIArray* array)
 {
     nsSimpleArrayEnumerator* enumer = new nsSimpleArrayEnumerator(array);
-    if (enumer == nullptr)
+    if (enumer == nsnull)
         return NS_ERROR_OUT_OF_MEMORY;
 
     NS_ADDREF(*result = enumer);
@@ -95,7 +126,7 @@ NS_NewArrayEnumerator(nsISimpleEnumerator* *result,
 // creates a snapshot of the array in question
 // you MUST use NS_NewArrayEnumerator to create this, so that
 // allocation is done correctly
-class nsCOMArrayEnumerator MOZ_FINAL : public nsISimpleEnumerator
+class nsCOMArrayEnumerator : public nsISimpleEnumerator
 {
 public:
     // nsISupports interface
@@ -118,8 +149,8 @@ private:
     ~nsCOMArrayEnumerator(void);
 
 protected:
-    uint32_t mIndex;            // current position
-    uint32_t mArraySize;        // size of the array
+    PRUint32 mIndex;            // current position
+    PRUint32 mArraySize;        // size of the array
     
     // this is actually bigger
     nsISupports* mValueArray[1];
@@ -136,7 +167,7 @@ nsCOMArrayEnumerator::~nsCOMArrayEnumerator()
 }
 
 NS_IMETHODIMP
-nsCOMArrayEnumerator::HasMoreElements(bool* aResult)
+nsCOMArrayEnumerator::HasMoreElements(PRBool* aResult)
 {
     NS_PRECONDITION(aResult != 0, "null ptr");
     if (! aResult)
@@ -163,7 +194,7 @@ nsCOMArrayEnumerator::GetNext(nsISupports** aResult)
 
     // this really isn't necessary. just pretend this happens, since
     // we'll never visit this value again!
-    // mValueArray[(mIndex-1)] = nullptr;
+    // mValueArray[(mIndex-1)] = nsnull;
     
     return NS_OK;
 }
@@ -180,14 +211,14 @@ nsCOMArrayEnumerator::operator new (size_t size, const nsCOMArray_base& aArray)
     // do the actual allocation
     nsCOMArrayEnumerator * result =
         static_cast<nsCOMArrayEnumerator*>(::operator new(size));
-    NS_ENSURE_TRUE(result, nullptr);
+    NS_ENSURE_TRUE(result, nsnull);
 
     // now need to copy over the values, and addref each one
     // now this might seem like a lot of work, but we're actually just
     // doing all our AddRef's ahead of time since GetNext() doesn't
     // need to AddRef() on the way out
-    uint32_t i;
-    uint32_t max = result->mArraySize = aArray.Count();
+    PRUint32 i;
+    PRUint32 max = result->mArraySize = aArray.Count();
     for (i = 0; i<max; i++) {
         result->mValueArray[i] = aArray[i];
         NS_IF_ADDREF(result->mValueArray[i]);

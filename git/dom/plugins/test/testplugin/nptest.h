@@ -39,7 +39,7 @@
 #include "npapi.h"
 #include "npfunctions.h"
 #include "npruntime.h"
-#include <stdint.h>
+#include "prtypes.h"
 #include <string>
 #include <sstream>
 
@@ -62,12 +62,6 @@ typedef enum {
 } TestFunction;
 
 typedef enum {
-  AD_NONE,
-  AD_BITMAP,
-  AD_DXGI
-} AsyncDrawing;
-
-typedef enum {
   ACTIVATION_STATE_UNKNOWN,
   ACTIVATION_STATE_ACTIVATED,
   ACTIVATION_STATE_DEACTIVATED
@@ -86,7 +80,7 @@ typedef enum {
 typedef struct TestNPObject : NPObject {
   NPP npp;
   DrawMode drawMode;
-  uint32_t drawColor; // 0xAARRGGBB
+  PRUint32 drawColor; // 0xAARRGGBB
 } TestNPObject;
 
 typedef struct _PlatformData PlatformData;
@@ -110,7 +104,6 @@ typedef struct InstanceData {
   bool timerTestResult;
   bool asyncCallbackResult;
   bool invalidateDuringPaint;
-  bool slowPaint;
   int32_t winX;
   int32_t winY;
   int32_t lastMouseX;
@@ -147,11 +140,6 @@ typedef struct InstanceData {
   bool closeStream;
   std::string lastKeyText;
   bool wantsAllStreams;
-  AsyncDrawing asyncDrawing;
-  NPAsyncSurface *frontBuffer;
-  NPAsyncSurface *backBuffer;
-  int32_t mouseUpEventCount;
-  int32_t bugMode;
 } InstanceData;
 
 void notifyDidPaint(InstanceData* instanceData);

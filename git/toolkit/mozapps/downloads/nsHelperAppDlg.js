@@ -1,9 +1,49 @@
-/* -*- Mode: javascript; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set ts=2 et sw=2 tw=80: */
 /*
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is Mozilla.org Code.
+#
+# The Initial Developer of the Original Code is
+# Doron Rosenberg.
+# Portions created by the Initial Developer are Copyright (C) 2001
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Bill Law <law@netscape.com>
+#   Scott MacGregor <mscott@netscape.com>
+#   Ben Goodger <ben@bengoodger.com> (2.0)
+#   Fredrik Holmqvist <thesuckiestemail@yahoo.se>
+#   Dan Mosedale <dmose@mozilla.org>
+#   Jim Mathies <jmathies@mozilla.com>
+#   Ehsan Akhgari <ehsan.akhgari@gmail.com>
+#   Kailas Patil <patilkr24@gmail.com>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 */
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -14,7 +54,7 @@
  *
  * @param aDirectory
  *        The directory to check.
- * @return true if we can use the directory, false otherwise.
+ * @returns true if we can use the directory, false otherwise.
  */
 function isUsableDirectory(aDirectory)
 {
@@ -24,11 +64,11 @@ function isUsableDirectory(aDirectory)
 
 // Web progress listener so we can detect errors while mLauncher is
 // streaming the data to a temporary file.
-function nsUnknownContentTypeDialogProgressListener(aHelperAppDialog) {
+function nsUnkownContentTypeDialogProgressListener(aHelperAppDialog) {
   this.helperAppDlg = aHelperAppDialog;
 }
 
-nsUnknownContentTypeDialogProgressListener.prototype = {
+nsUnkownContentTypeDialogProgressListener.prototype = {
   // nsIWebProgressListener methods.
   // Look for error notifications and display alert to user.
   onStatusChange: function( aWebProgress, aRequest, aStatus, aMessage ) {
@@ -69,7 +109,7 @@ nsUnknownContentTypeDialogProgressListener.prototype = {
   onStateChange: function( aWebProgress, aRequest, aStateFlags, aStatus ) {
   },
 
-  onLocationChange: function( aWebProgress, aRequest, aLocation, aFlags ) {
+  onLocationChange: function( aWebProgress, aRequest, aLocation ) {
   },
 
   onSecurityChange: function( aWebProgress, aRequest, state ) {
@@ -81,7 +121,7 @@ nsUnknownContentTypeDialogProgressListener.prototype = {
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-//// nsUnknownContentTypeDialog
+//// nsUnkownContentTypeDialog
 
 /* This file implements the nsIHelperAppLauncherDialog interface.
  *
@@ -97,9 +137,8 @@ nsUnknownContentTypeDialogProgressListener.prototype = {
 const PREF_BD_USEDOWNLOADDIR = "browser.download.useDownloadDir";
 const nsITimer = Components.interfaces.nsITimer;
 
-let downloadModule = {};
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
-Components.utils.import("resource://gre/modules/DownloadLastDir.jsm", downloadModule);
+Components.utils.import("resource://gre/modules/DownloadLastDir.jsm");
 Components.utils.import("resource://gre/modules/DownloadPaths.jsm");
 Components.utils.import("resource://gre/modules/DownloadUtils.jsm");
 
@@ -109,6 +148,7 @@ function nsUnknownContentTypeDialog() {
   // Initialize data properties.
   this.mLauncher = null;
   this.mContext  = null;
+  this.mSourcePath = null;
   this.chosenApp = null;
   this.givenDefaultApp = false;
   this.updateSelf = true;
@@ -162,7 +202,8 @@ nsUnknownContentTypeDialog.prototype = {
     } catch (ex) {
       // The containing window may have gone away.  Break reference
       // cycles and stop doing the download.
-      this.mLauncher.cancel(Components.results.NS_BINDING_ABORTED);
+      const NS_BINDING_ABORTED = 0x804b0002;
+      this.mLauncher.cancel(NS_BINDING_ABORTED);
       return;
     }
 
@@ -173,7 +214,7 @@ nsUnknownContentTypeDialog.prototype = {
     this.getSpecialFolderKey = this.mDialog.getSpecialFolderKey;
 
     // Watch for error notifications.
-    var progressListener = new nsUnknownContentTypeDialogProgressListener(this);
+    var progressListener = new nsUnkownContentTypeDialogProgressListener(this);
     this.mLauncher.setWebProgressListener(progressListener);
   },
 
@@ -189,10 +230,6 @@ nsUnknownContentTypeDialog.prototype = {
   // Note - this function is called without a dialog, so it cannot access any part
   // of the dialog XUL as other functions on this object do.
   promptForSaveToFile: function(aLauncher, aContext, aDefaultFile, aSuggestedFileExtension, aForcePrompt) {
-    throw new Components.Exception("Async version must be used", Components.results.NS_ERROR_NOT_AVAILABLE);
-  },
-
-  promptForSaveToFileAsync: function(aLauncher, aContext, aDefaultFile, aSuggestedFileExtension, aForcePrompt) {
     var result = null;
 
     this.mLauncher = aLauncher;
@@ -230,16 +267,13 @@ nsUnknownContentTypeDialog.prototype = {
                            bundle.GetStringFromName("badPermissions.title"),
                            bundle.GetStringFromName("badPermissions"));
 
-            aLauncher.saveDestinationAvailable(null);
             return;
           }
         }
 
         // Check to make sure we have a valid directory, otherwise, prompt
-        if (result) {
-          aLauncher.saveDestinationAvailable(result);
-          return;
-        }
+        if (result)
+          return result;
       }
     }
 
@@ -250,8 +284,6 @@ nsUnknownContentTypeDialog.prototype = {
     var parent = aContext.QueryInterface(Components.interfaces.nsIInterfaceRequestor).getInterface(Components.interfaces.nsIDOMWindow);
     picker.init(parent, windowTitle, nsIFilePicker.modeSave);
     picker.defaultString = aDefaultFile;
-
-    let gDownloadLastDir = new downloadModule.DownloadLastDir(parent);
 
     if (aSuggestedFileExtension) {
       // aSuggestedFileExtension includes the period, so strip it
@@ -279,39 +311,46 @@ nsUnknownContentTypeDialog.prototype = {
                             .getService(Components.interfaces.nsIDownloadManager);
     picker.displayDirectory = dnldMgr.userDownloadsDirectory;
 
-    gDownloadLastDir.getFileAsync(aLauncher.source, function LastDirCallback(lastDir) {
-      if (lastDir && isUsableDirectory(lastDir))
+    var relatedURI = null;
+    if (aContext.document)
+      relatedURI = aContext.document.documentURIObject;
+
+    // The last directory preference may not exist, which will throw.
+    try {
+      var lastDir = gDownloadLastDir.getFile(relatedURI);
+      if (isUsableDirectory(lastDir))
         picker.displayDirectory = lastDir;
+    }
+    catch (ex) {
+    }
 
-      if (picker.show() == nsIFilePicker.returnCancel) {
-        // null result means user cancelled.
-        aLauncher.saveDestinationAvailable(null);
-        return;
+    if (picker.show() == nsIFilePicker.returnCancel) {
+      // null result means user cancelled.
+      return null;
+    }
+
+    // Be sure to save the directory the user chose through the Save As...
+    // dialog  as the new browser.download.dir since the old one
+    // didn't exist.
+    result = picker.file;
+
+    if (result) {
+      try {
+        // Remove the file so that it's not there when we ensure non-existence later;
+        // this is safe because for the file to exist, the user would have had to
+        // confirm that he wanted the file overwritten.
+        if (result.exists())
+          result.remove(false);
       }
+      catch (e) { }
+      var newDir = result.parent.QueryInterface(Components.interfaces.nsILocalFile);
 
-      // Be sure to save the directory the user chose through the Save As...
-      // dialog  as the new browser.download.dir since the old one
-      // didn't exist.
-      result = picker.file;
+      // Do not store the last save directory as a pref inside the private browsing mode
+      gDownloadLastDir.setFile(relatedURI, newDir);
 
-      if (result) {
-        try {
-          // Remove the file so that it's not there when we ensure non-existence later;
-          // this is safe because for the file to exist, the user would have had to
-          // confirm that he wanted the file overwritten.
-          if (result.exists())
-            result.remove(false);
-        }
-        catch (e) { }
-        var newDir = result.parent.QueryInterface(Components.interfaces.nsILocalFile);
-
-        // Do not store the last save directory as a pref inside the private browsing mode
-        gDownloadLastDir.setFile(aLauncher.source, newDir);
-
-        result = this.validateLeafName(newDir, result.leafName, null);
-      }
-      aLauncher.saveDestinationAvailable(result);
-    }.bind(this));
+      result = this.validateLeafName(newDir, result.leafName, null);
+    }
+    return result;
   },
 
   /**
@@ -319,7 +358,7 @@ nsUnknownContentTypeDialog.prototype = {
    * the file system (or finds such a combination with a reasonably similar
    * leaf name), creates the corresponding file, and returns it.
    *
-   * @param   aLocalFolder
+   * @param   aLocalFile
    *          the folder where the file resides
    * @param   aLeafName
    *          the string name of the file (may be empty if no name is known,
@@ -327,12 +366,12 @@ nsUnknownContentTypeDialog.prototype = {
    * @param   aFileExt
    *          the extension of the file, if one is known; this will be ignored
    *          if aLeafName is non-empty
-   * @return  nsILocalFile
+   * @returns nsILocalFile
    *          the created file
    */
-  validateLeafName: function (aLocalFolder, aLeafName, aFileExt)
+  validateLeafName: function (aLocalFile, aLeafName, aFileExt)
   {
-    if (!(aLocalFolder && isUsableDirectory(aLocalFolder)))
+    if (!(aLocalFile && isUsableDirectory(aLocalFile)))
       return null;
 
     // Remove any leading periods, since we don't want to save hidden files
@@ -341,9 +380,9 @@ nsUnknownContentTypeDialog.prototype = {
 
     if (aLeafName == "")
       aLeafName = "unnamed" + (aFileExt ? "." + aFileExt : "");
-    aLocalFolder.append(aLeafName);
+    aLocalFile.append(aLeafName);
 
-    var createdFile = DownloadPaths.createNiceUniqueFile(aLocalFolder);
+    var createdFile = DownloadPaths.createNiceUniqueFile(aLocalFile);
 
 #ifdef XP_WIN
     let ext;
@@ -357,8 +396,8 @@ nsUnknownContentTypeDialog.prototype = {
     let leaf = createdFile.leafName;
     if (ext && leaf.slice(-ext.length) != ext && createdFile.isExecutable()) {
       createdFile.remove(false);
-      aLocalFolder.leafName = leaf + ext;
-      createdFile = DownloadPaths.createNiceUniqueFile(aLocalFolder);
+      aLocalFile.leafName = leaf + ext;
+      createdFile = DownloadPaths.createNiceUniqueFile(aLocalFile);
     }
 #endif
 
@@ -373,10 +412,7 @@ nsUnknownContentTypeDialog.prototype = {
     var suggestedFileName = this.mLauncher.suggestedFileName;
 
     // Some URIs do not implement nsIURL, so we can't just QI.
-    var url = this.mLauncher.source;
-    if (url instanceof Components.interfaces.nsINestedURI)
-      url = url.innermostURI;
-
+    var url   = this.mLauncher.source;
     var fname = "";
     var iconPath = "goat";
     this.mSourcePath = url.prePath;
@@ -463,8 +499,7 @@ nsUnknownContentTypeDialog.prototype = {
         rememberChoice.disabled = true;
       }
       else {
-        rememberChoice.checked = !this.mLauncher.MIMEInfo.alwaysAskBeforeHandling &&
-                                 this.mLauncher.MIMEInfo.preferredAction != this.nsIMIMEInfo.handleInternally;
+        rememberChoice.checked = !this.mLauncher.MIMEInfo.alwaysAskBeforeHandling;
       }
       this.toggleRememberChoice(rememberChoice);
 
@@ -520,17 +555,28 @@ nsUnknownContentTypeDialog.prototype = {
     this.dialogElement( "location" ).setAttribute("realname", filename);
     this.dialogElement( "location" ).setAttribute("tooltiptext", displayname);
 
-    // if mSourcePath is a local file, then let's use the pretty path name
-    // instead of an ugly url...
-    var pathString;
-    if (url instanceof Components.interfaces.nsIFileURL) {
-      try {
-        // Getting .file might throw, or .parent could be null
-        pathString = url.file.parent.path;
-      } catch (ex) {}
-    }
+    // if mSourcePath is a local file, then let's use the pretty path name instead of an ugly
+    // url...
+    var pathString = this.mSourcePath;
+    try
+    {
+      var fileURL = url.QueryInterface(Components.interfaces.nsIFileURL);
+      if (fileURL)
+      {
+        var fileObject = fileURL.file;
+        if (fileObject)
+        {
+          var parentObject = fileObject.parent;
+          if (parentObject)
+          {
+            pathString = parentObject.path;
+          }
+        }
+      }
+    } catch(ex) {}
 
-    if (!pathString) {
+    if (pathString == this.mSourcePath)
+    {
       // wasn't a fileURL
       var tmpurl = url.clone(); // don't want to change the real url
       try {
@@ -776,12 +822,6 @@ nsUnknownContentTypeDialog.prototype = {
   },
 
   updateMIMEInfo: function() {
-    // Don't update mime type preferences when the preferred action is set to
-    // the internal handler -- this dialog is the result of the handler fallback
-    // (e.g. Content-Disposition was set as attachment)
-    var discardUpdate = this.mLauncher.MIMEInfo.preferredAction == this.nsIMIMEInfo.handleInternally &&
-                        !this.dialogElement("rememberChoice").checked;
-
     var needUpdate = false;
     // If current selection differs from what's in the mime info object,
     // then we need to update.
@@ -820,7 +860,7 @@ nsUnknownContentTypeDialog.prototype = {
     // Make sure mime info has updated setting for the "always ask" flag.
     this.mLauncher.MIMEInfo.alwaysAskBeforeHandling = !this.dialogElement("rememberChoice").checked;
 
-    return needUpdate && !discardUpdate;
+    return needUpdate;
   },
 
   // See if the user changed things, and if so, update the
@@ -920,7 +960,8 @@ nsUnknownContentTypeDialog.prototype = {
 
     // Cancel app launcher.
     try {
-      this.mLauncher.cancel(Components.results.NS_BINDING_ABORTED);
+      const NS_BINDING_ABORTED = 0x804b0002;
+      this.mLauncher.cancel(NS_BINDING_ABORTED);
     } catch(exception) {
     }
 
@@ -1076,4 +1117,4 @@ nsUnknownContentTypeDialog.prototype = {
   }
 }
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([nsUnknownContentTypeDialog]);
+var NSGetFactory = XPCOMUtils.generateNSGetFactory([nsUnknownContentTypeDialog]);

@@ -7,7 +7,6 @@
 from __future__ import with_statement
 import sys, os, unittest, tempfile, shutil
 from StringIO import StringIO
-from xml.etree.ElementTree import ElementTree
 
 from runxpcshelltests import XPCShellTests
 
@@ -18,71 +17,6 @@ if sys.platform == "win32":
 
 SIMPLE_PASSING_TEST = "function run_test() { do_check_true(true); }"
 SIMPLE_FAILING_TEST = "function run_test() { do_check_true(false); }"
-
-ADD_TEST_SIMPLE = '''
-function run_test() { run_next_test(); }
-
-add_test(function test_simple() {
-  do_check_true(true);
-  run_next_test();
-});
-'''
-
-ADD_TEST_FAILING = '''
-function run_test() { run_next_test(); }
-
-add_test(function test_failing() {
-  do_check_true(false);
-  run_next_test();
-});
-'''
-
-ADD_TASK_SINGLE = '''
-Components.utils.import("resource://gre/modules/commonjs/sdk/core/promise.js");
-
-function run_test() { run_next_test(); }
-
-add_task(function test_task() {
-  yield Promise.resolve(true);
-  yield Promise.resolve(false);
-});
-'''
-
-ADD_TASK_MULTIPLE = '''
-Components.utils.import("resource://gre/modules/commonjs/sdk/core/promise.js");
-
-function run_test() { run_next_test(); }
-
-add_task(function test_task() {
-  yield Promise.resolve(true);
-});
-
-add_task(function test_2() {
-  yield Promise.resolve(true);
-});
-'''
-
-ADD_TASK_REJECTED = '''
-Components.utils.import("resource://gre/modules/commonjs/sdk/core/promise.js");
-
-function run_test() { run_next_test(); }
-
-add_task(function test_failing() {
-  yield Promise.reject(new Error("I fail."));
-});
-'''
-
-ADD_TASK_FAILURE_INSIDE = '''
-Components.utils.import("resource://gre/modules/commonjs/sdk/core/promise.js");
-
-function run_test() { run_next_test(); }
-
-add_task(function test() {
-  let result = yield Promise.resolve(false);
-
-  do_check_true(result);
-});
-'''
 
 class XPCShellTestsTests(unittest.TestCase):
     """
@@ -127,7 +61,7 @@ tail =
 
 """ + "\n".join(testlines))
 
-    def assertTestResult(self, expected, shuffle=False, xunitFilename=None):
+    def assertTestResult(self, expected, mozInfo={}):
         """
         Assert that self.x.runTests with manifest=self.manifest
         returns |expected|.
@@ -135,10 +69,7 @@ tail =
         self.assertEquals(expected,
                           self.x.runTests(xpcshellBin,
                                           manifest=self.manifest,
-                                          mozInfo={},
-                                          shuffle=shuffle,
-                                          testsRootDir=self.tempdir,
-                                          xunitFilename=xunitFilename),
+                                          mozInfo=mozInfo),
                           msg="""Tests should have %s, log:
 ========
 %s
@@ -276,175 +207,6 @@ tail =
         self.assertEquals(0, self.x.todoCount)
         self.assertInLog("TEST-UNEXPECTED-FAIL")
         self.assertNotInLog("TEST-PASS")
-
-    def testAddTestSimple(self):
-        """
-        Ensure simple add_test() works.
-        """
-        self.writeFile("test_add_test_simple.js", ADD_TEST_SIMPLE)
-        self.writeManifest(["test_add_test_simple.js"])
-
-        self.assertTestResult(True)
-        self.assertEquals(1, self.x.testCount)
-        self.assertEquals(1, self.x.passCount)
-        self.assertEquals(0, self.x.failCount)
-
-    def testAddTestFailing(self):
-        """
-        Ensure add_test() with a failing test is reported.
-        """
-        self.writeFile("test_add_test_failing.js", ADD_TEST_FAILING)
-        self.writeManifest(["test_add_test_failing.js"])
-
-        self.assertTestResult(False)
-        self.assertEquals(1, self.x.testCount)
-        self.assertEquals(0, self.x.passCount)
-        self.assertEquals(1, self.x.failCount)
-
-    def testAddTaskTestSingle(self):
-        """
-        Ensure add_test_task() with a single passing test works.
-        """
-        self.writeFile("test_add_task_simple.js", ADD_TASK_SINGLE)
-        self.writeManifest(["test_add_task_simple.js"])
-
-        self.assertTestResult(True)
-        self.assertEquals(1, self.x.testCount)
-        self.assertEquals(1, self.x.passCount)
-        self.assertEquals(0, self.x.failCount)
-
-    def testAddTaskTestMultiple(self):
-        """
-        Ensure multiple calls to add_test_task() work as expected.
-        """
-        self.writeFile("test_add_task_multiple.js",
-            ADD_TASK_MULTIPLE)
-        self.writeManifest(["test_add_task_multiple.js"])
-
-        self.assertTestResult(True)
-        self.assertEquals(1, self.x.testCount)
-        self.assertEquals(1, self.x.passCount)
-        self.assertEquals(0, self.x.failCount)
-
-    def testAddTaskTestRejected(self):
-        """
-        Ensure rejected task reports as failure.
-        """
-        self.writeFile("test_add_task_rejected.js",
-            ADD_TASK_REJECTED)
-        self.writeManifest(["test_add_task_rejected.js"])
-
-        self.assertTestResult(False)
-        self.assertEquals(1, self.x.testCount)
-        self.assertEquals(0, self.x.passCount)
-        self.assertEquals(1, self.x.failCount)
-
-    def testAddTaskTestFailureInside(self):
-        """
-        Ensure tests inside task are reported as failures.
-        """
-        self.writeFile("test_add_task_failure_inside.js",
-            ADD_TASK_FAILURE_INSIDE)
-        self.writeManifest(["test_add_task_failure_inside.js"])
-
-        self.assertTestResult(False)
-        self.assertEquals(1, self.x.testCount)
-        self.assertEquals(0, self.x.passCount)
-        self.assertEquals(1, self.x.failCount)
-
-    def testMissingHeadFile(self):
-        """
-        Ensure that missing head file results in fatal error.
-        """
-        self.writeFile("test_basic.js", SIMPLE_PASSING_TEST)
-        self.writeManifest([("test_basic.js", "head = missing.js")])
-
-        raised = False
-
-        try:
-            # The actual return value is never checked because we raise.
-            self.assertTestResult(True)
-        except Exception, ex:
-            raised = True
-            self.assertEquals(ex.message[0:9], "head file")
-
-        self.assertTrue(raised)
-
-    def testMissingTailFile(self):
-        """
-        Ensure that missing tail file results in fatal error.
-        """
-        self.writeFile("test_basic.js", SIMPLE_PASSING_TEST)
-        self.writeManifest([("test_basic.js", "tail = missing.js")])
-
-        raised = False
-
-        try:
-            self.assertTestResult(True)
-        except Exception, ex:
-            raised = True
-            self.assertEquals(ex.message[0:9], "tail file")
-
-        self.assertTrue(raised)
-
-    def testRandomExecution(self):
-        """
-        Check that random execution doesn't break.
-        """
-        manifest = []
-        for i in range(0, 10):
-            filename = "test_pass_%d.js" % i
-            self.writeFile(filename, SIMPLE_PASSING_TEST)
-            manifest.append(filename)
-
-        self.writeManifest(manifest)
-        self.assertTestResult(True, shuffle=True)
-        self.assertEquals(10, self.x.testCount)
-        self.assertEquals(10, self.x.passCount)
-
-    def testXunitOutput(self):
-        """
-        Check that Xunit XML files are written.
-        """
-        self.writeFile("test_00.js", SIMPLE_PASSING_TEST)
-        self.writeFile("test_01.js", SIMPLE_FAILING_TEST)
-        self.writeFile("test_02.js", SIMPLE_PASSING_TEST)
-
-        manifest = [
-            "test_00.js",
-            "test_01.js",
-            ("test_02.js", "skip-if = true")
-        ]
-
-        self.writeManifest(manifest)
-
-        filename = os.path.join(self.tempdir, "xunit.xml")
-
-        self.assertTestResult(False, xunitFilename=filename)
-
-        self.assertTrue(os.path.exists(filename))
-        self.assertTrue(os.path.getsize(filename) > 0)
-
-        tree = ElementTree()
-        tree.parse(filename)
-        suite = tree.getroot()
-
-        self.assertTrue(suite is not None)
-        self.assertEqual(suite.get("tests"), "3")
-        self.assertEqual(suite.get("failures"), "1")
-        self.assertEqual(suite.get("skip"), "1")
-
-        testcases = suite.findall("testcase")
-        self.assertEqual(len(testcases), 3)
-
-        for testcase in testcases:
-            attributes = testcase.keys()
-            self.assertTrue("classname" in attributes)
-            self.assertTrue("name" in attributes)
-            self.assertTrue("time" in attributes)
-
-        self.assertTrue(testcases[1].find("failure") is not None)
-        self.assertTrue(testcases[2].find("skipped") is not None)
 
 if __name__ == "__main__":
     unittest.main()

@@ -20,9 +20,9 @@ function tryBadScripts() {
     // Throws an exception
     "importScripts_worker_imported4.js",
     // Shouldn't exist!
-    "http://example.com/non-existing/importScripts_worker_foo.js",
+    "http://flippety.com/floppety/foo.js",
     // Not a valid url
-    "http://notadomain::notafile aword"
+    "http://flippety::foo_js ftw"
   ];
 
   for (var i = 0; i < badScripts.length; i++) {
@@ -40,16 +40,13 @@ function tryBadScripts() {
   }
 }
 
-const url = "data:text/plain,const startResponse = 'started';";
-importScripts(url);
-
 onmessage = function(event) {
   switch (event.data) {
     case 'start':
       importScripts("importScripts_worker_imported2.js");
       importedScriptFunction2();
       tryBadScripts();
-      postMessage(startResponse);
+      postMessage('started');
       break;
     case 'stop':
       tryBadScripts();

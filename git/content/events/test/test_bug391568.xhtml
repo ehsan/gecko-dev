@@ -20,12 +20,11 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=391568
   
       <xbl:implementation>
         <xbl:constructor>
-          var win = XPCNativeWrapper.unwrap(window);
-          ++win.constructorFired;
+          ++window.constructorFired;
           document.getAnonymousNodes(this)[0].addEventListener(
             "DOMCharacterDataModified", 
             function(evt) {
-              ++win.characterdatamodified;
+              ++window.characterdatamodified;
             },
             true);
         </xbl:constructor>

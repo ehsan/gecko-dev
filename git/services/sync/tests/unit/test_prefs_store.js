@@ -1,18 +1,10 @@
-/* Any copyright is dedicated to the Public Domain.
-   http://creativecommons.org/publicdomain/zero/1.0/ */
-
-Cu.import("resource://gre/modules/LightweightThemeManager.jsm");
-Cu.import("resource://gre/modules/Preferences.jsm");
-Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://services-common/utils.js");
 Cu.import("resource://services-sync/engines/prefs.js");
-Cu.import("resource://services-sync/service.js");
 Cu.import("resource://services-sync/util.js");
+Cu.import("resource://services-sync/ext/Preferences.js");
+Cu.import("resource://gre/modules/LightweightThemeManager.jsm");
+Cu.import("resource://gre/modules/Services.jsm");
 
-const PREFS_GUID = CommonUtils.encodeBase64URL(Services.appinfo.ID);
-
-loadAddonTestFunctions();
-startupManager();
+const PREFS_GUID = Utils.encodeBase64url(Services.appinfo.ID);
 
 function makePersona(id) {
   return {
@@ -23,7 +15,7 @@ function makePersona(id) {
 }
 
 function run_test() {
-  let store = Service.engineManager.get("prefs")._store;
+  let store = new PrefsEngine()._store;
   let prefs = new Preferences();
   try {
 
@@ -74,7 +66,7 @@ function run_test() {
     do_check_eq(record.value["services.sync.prefs.sync.testing.nonexistent"], true);
 
     _("Update some prefs, including one that's to be reset/deleted.");
-    Svc.Prefs.set("testing.deleteme", "I'm going to be deleted!");
+    Svc.Prefs.set("testing.deleteme", "I'm going to be deleted!"); 
     record = new PrefRec("prefs", PREFS_GUID);
     record.value = {
       "testing.int": 42,

@@ -10,6 +10,7 @@
 #include "base/basictypes.h"
 #include "base/logging.h"
 #include "base/string16.h"
+#include "testing/gtest/include/gtest/gtest_prod.h"
 
 // This class provides facilities for basic binary value packing and unpacking.
 //
@@ -64,17 +65,17 @@ class Pickle {
   // true.  Otherwise, false is returned to indicate that the result could not
   // be extracted.
   bool ReadBool(void** iter, bool* result) const;
-  bool ReadInt16(void** iter, int16_t* result) const;
-  bool ReadUInt16(void** iter, uint16_t* result) const;
+  bool ReadInt16(void** iter, int16* result) const;
+  bool ReadUInt16(void** iter, uint16* result) const;
   bool ReadShort(void** iter, short* result) const;
   bool ReadInt(void** iter, int* result) const;
   bool ReadLong(void** iter, long* result) const;
   bool ReadULong(void** iter, unsigned long* result) const;
   bool ReadSize(void** iter, size_t* result) const;
-  bool ReadInt32(void** iter, int32_t* result) const;
-  bool ReadUInt32(void** iter, uint32_t* result) const;
-  bool ReadInt64(void** iter, int64_t* result) const;
-  bool ReadUInt64(void** iter, uint64_t* result) const;
+  bool ReadInt32(void** iter, int32* result) const;
+  bool ReadUInt32(void** iter, uint32* result) const;
+  bool ReadInt64(void** iter, int64* result) const;
+  bool ReadUInt64(void** iter, uint64* result) const;
   bool ReadDouble(void** iter, double* result) const;
   bool ReadIntPtr(void** iter, intptr_t* result) const;
   bool ReadUnsignedChar(void** iter, unsigned char* result) const;
@@ -82,8 +83,7 @@ class Pickle {
   bool ReadWString(void** iter, std::wstring* result) const;
   bool ReadString16(void** iter, string16* result) const;
   bool ReadData(void** iter, const char** data, int* length) const;
-  bool ReadBytes(void** iter, const char** data, int length,
-                 uint32_t alignment = sizeof(memberAlignmentType)) const;
+  bool ReadBytes(void** iter, const char** data, int length) const;
 
   // Safer version of ReadInt() checks for the result not being negative.
   // Use it for reading the object sizes.
@@ -96,10 +96,10 @@ class Pickle {
   bool WriteBool(bool value) {
     return WriteInt(value ? 1 : 0);
   }
-  bool WriteInt16(int16_t value) {
+  bool WriteInt16(int16 value) {
     return WriteBytes(&value, sizeof(value));
   }
-  bool WriteUInt16(uint16_t value) {
+  bool WriteUInt16(uint16 value) {
     return WriteBytes(&value, sizeof(value));
   }
   bool WriteInt(int value) {
@@ -108,28 +108,28 @@ class Pickle {
   bool WriteLong(long value) {
     // Always written as a 64-bit value since the size for this type can
     // differ between architectures.
-    return WriteInt64(int64_t(value));
+    return WriteInt64(int64(value));
   }
   bool WriteULong(unsigned long value) {
     // Always written as a 64-bit value since the size for this type can
     // differ between architectures.
-    return WriteUInt64(uint64_t(value));
+    return WriteUInt64(uint64(value));
   }
   bool WriteSize(size_t value) {
     // Always written as a 64-bit value since the size for this type can
     // differ between architectures.
-    return WriteUInt64(uint64_t(value));
+    return WriteUInt64(uint64(value));
   }
-  bool WriteInt32(int32_t value) {
+  bool WriteInt32(int32 value) {
     return WriteBytes(&value, sizeof(value));
   }
-  bool WriteUInt32(uint32_t value) {
+  bool WriteUInt32(uint32 value) {
     return WriteBytes(&value, sizeof(value));
   }
-  bool WriteInt64(int64_t value) {
+  bool WriteInt64(int64 value) {
     return WriteBytes(&value, sizeof(value));
   }
-  bool WriteUInt64(uint64_t value) {
+  bool WriteUInt64(uint64 value) {
     return WriteBytes(&value, sizeof(value));
   }
   bool WriteDouble(double value) {
@@ -138,7 +138,7 @@ class Pickle {
   bool WriteIntPtr(intptr_t value) {
     // Always written as a 64-bit value since the size for this type can
     // differ between architectures.
-    return WriteInt64(int64_t(value));
+    return WriteInt64(int64(value));
   }
   bool WriteUnsignedChar(unsigned char value) {
     return WriteBytes(&value, sizeof(value));
@@ -147,8 +147,7 @@ class Pickle {
   bool WriteWString(const std::wstring& value);
   bool WriteString16(const string16& value);
   bool WriteData(const char* data, int length);
-  bool WriteBytes(const void* data, int data_len,
-                  uint32_t alignment = sizeof(memberAlignmentType));
+  bool WriteBytes(const void* data, int data_len);
 
   // Same as WriteData, but allows the caller to write directly into the
   // Pickle. This saves a copy in cases where the data is not already
@@ -177,7 +176,7 @@ class Pickle {
 
   // Payload follows after allocation of Header (header size is customizable).
   struct Header {
-    uint32_t payload_size;  // Specifies the size of the payload.
+    uint32 payload_size;  // Specifies the size of the payload.
   };
 
   // Returns the header, cast to a user-specified type T.  The type T must be a
@@ -205,10 +204,8 @@ class Pickle {
     return (iter <= end_of_region) && (end_of_region <= end_of_payload());
   }
 
-  typedef uint32_t memberAlignmentType;
-
  protected:
-  uint32_t payload_size() const { return header_->payload_size; }
+  uint32 payload_size() const { return header_->payload_size; }
 
   char* payload() {
     return reinterpret_cast<char*>(header_) + header_size_;
@@ -226,7 +223,7 @@ class Pickle {
     return payload() + payload_size();
   }
 
-  uint32_t capacity() const {
+  uint32 capacity() const {
     return capacity_;
   }
 
@@ -234,7 +231,7 @@ class Pickle {
   // location that the data should be written at is returned, or NULL if there
   // was an error. Call EndWrite with the returned offset and the given length
   // to pad out for the next write.
-  char* BeginWrite(uint32_t length, uint32_t alignment);
+  char* BeginWrite(uint32 length);
 
   // Completes the write operation by padding the data with NULL bytes until it
   // is padded. Should be paired with BeginWrite, but it does not necessarily
@@ -245,32 +242,23 @@ class Pickle {
   // the header: new_capacity = sizeof(Header) + desired_payload_capacity.
   // A realloc() failure will cause a Resize failure... and caller should check
   // the return result for true (i.e., successful resizing).
-  bool Resize(uint32_t new_capacity);
+  bool Resize(uint32 new_capacity);
 
-  // Round 'bytes' up to the next multiple of 'alignment'.  'alignment' must be
-  // a power of 2.
-  template<uint32_t alignment> struct ConstantAligner {
-    static uint32_t align(int bytes) {
-      static_assert((alignment & (alignment - 1)) == 0,
-			"alignment must be a power of two");
-      return (bytes + (alignment - 1)) & ~static_cast<uint32_t>(alignment - 1);
-    }
-  };
-
-  static uint32_t AlignInt(int bytes) {
-    return ConstantAligner<sizeof(memberAlignmentType)>::align(bytes);
+  // Aligns 'i' by rounding it up to the next multiple of 'alignment'
+  static uint32 AlignInt(uint32 i, int alignment) {
+    return i + (alignment - (i % alignment)) % alignment;
   }
 
   // Moves the iterator by the given number of bytes, making sure it is aligned.
   // Pointer (iterator) is NOT aligned, but the change in the pointer
-  // is guaranteed to be a multiple of sizeof(memberAlignmentType).
+  // is guaranteed to be a multiple of sizeof(uint32).
   static void UpdateIter(void** iter, int bytes) {
-    *iter = static_cast<char*>(*iter) + AlignInt(bytes);
+    *iter = static_cast<char*>(*iter) + AlignInt(bytes, sizeof(uint32));
   }
 
   // Find the end of the pickled data that starts at range_start.  Returns NULL
   // if the entire Pickle is not found in the given data range.
-  static const char* FindNext(uint32_t header_size,
+  static const char* FindNext(uint32 header_size,
                               const char* range_start,
                               const char* range_end);
 
@@ -279,9 +267,12 @@ class Pickle {
 
  private:
   Header* header_;
-  uint32_t header_size_;
-  uint32_t capacity_;
-  uint32_t variable_buffer_offset_;
+  uint32 header_size_;
+  uint32 capacity_;
+  uint32 variable_buffer_offset_;
+  FRIEND_TEST(PickleTest, Resize);
+  FRIEND_TEST(PickleTest, FindNext);
+  FRIEND_TEST(PickleTest, IteratorHasRoom);
 };
 
 #endif  // BASE_PICKLE_H__

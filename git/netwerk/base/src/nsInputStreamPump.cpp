@@ -1,10 +1,41 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* vim:set ts=4 sts=4 sw=4 et cin: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/DebugOnly.h"
 #include "nsIOService.h"
 #include "nsInputStreamPump.h"
 #include "nsIServiceManager.h"
@@ -12,15 +43,10 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsISeekableStream.h"
 #include "nsITransport.h"
-#include "nsIThreadRetargetableStreamListener.h"
-#include "nsStreamUtils.h"
 #include "nsNetUtil.h"
 #include "nsThreadUtils.h"
 #include "nsCOMPtr.h"
 #include "prlog.h"
-#include "nsPrintfCString.h"
-#include "GeckoProfiler.h"
-#include <algorithm>
 
 static NS_DEFINE_CID(kStreamTransportServiceCID, NS_STREAMTRANSPORTSERVICE_CID);
 
@@ -28,7 +54,7 @@ static NS_DEFINE_CID(kStreamTransportServiceCID, NS_STREAMTRANSPORTSERVICE_CID);
 //
 // NSPR_LOG_MODULES=nsStreamPump:5
 //
-static PRLogModuleInfo *gStreamPumpLog = nullptr;
+static PRLogModuleInfo *gStreamPumpLog = nsnull;
 #endif
 #define LOG(args) PR_LOG(gStreamPumpLog, PR_LOG_DEBUG, args)
 
@@ -39,13 +65,12 @@ static PRLogModuleInfo *gStreamPumpLog = nullptr;
 nsInputStreamPump::nsInputStreamPump()
     : mState(STATE_IDLE)
     , mStreamOffset(0)
-    , mStreamLength(UINT64_MAX)
+    , mStreamLength(LL_MaxUint())
     , mStatus(NS_OK)
     , mSuspendCount(0)
     , mLoadFlags(LOAD_NORMAL)
-    , mWaiting(false)
-    , mCloseWhenDone(false)
-    , mRetargeting(false)
+    , mWaiting(PR_FALSE)
+    , mCloseWhenDone(PR_FALSE)
 {
 #if defined(PR_LOGGING)
     if (!gStreamPumpLog)
@@ -60,11 +85,11 @@ nsInputStreamPump::~nsInputStreamPump()
 nsresult
 nsInputStreamPump::Create(nsInputStreamPump  **result,
                           nsIInputStream      *stream,
-                          int64_t              streamPos,
-                          int64_t              streamLen,
-                          uint32_t             segsize,
-                          uint32_t             segcount,
-                          bool                 closeWhenDone)
+                          PRInt64              streamPos,
+                          PRInt64              streamLen,
+                          PRUint32             segsize,
+                          PRUint32             segcount,
+                          PRBool               closeWhenDone)
 {
     nsresult rv = NS_ERROR_OUT_OF_MEMORY;
     nsRefPtr<nsInputStreamPump> pump = new nsInputStreamPump();
@@ -72,7 +97,7 @@ nsInputStreamPump::Create(nsInputStreamPump  **result,
         rv = pump->Init(stream, streamPos, streamLen,
                         segsize, segcount, closeWhenDone);
         if (NS_SUCCEEDED(rv)) {
-            *result = nullptr;
+            *result = nsnull;
             pump.swap(*result);
         }
     }
@@ -89,15 +114,15 @@ struct PeekData {
 
 static NS_METHOD
 CallPeekFunc(nsIInputStream *aInStream, void *aClosure,
-             const char *aFromSegment, uint32_t aToOffset, uint32_t aCount,
-             uint32_t *aWriteCount)
+             const char *aFromSegment, PRUint32 aToOffset, PRUint32 aCount,
+             PRUint32 *aWriteCount)
 {
   NS_ASSERTION(aToOffset == 0, "Called more than once?");
   NS_ASSERTION(aCount > 0, "Called without data?");
 
   PeekData* data = static_cast<PeekData*>(aClosure);
   data->mFunc(data->mClosure,
-              reinterpret_cast<const uint8_t*>(aFromSegment), aCount);
+              reinterpret_cast<const PRUint8*>(aFromSegment), aCount);
   return NS_BINDING_ABORTED;
 }
 
@@ -107,11 +132,10 @@ nsInputStreamPump::PeekStream(PeekSegmentFun callback, void* closure)
   NS_ASSERTION(mAsyncStream, "PeekStream called without stream");
 
   // See if the pipe is closed by checking the return of Available.
-  uint64_t dummy64;
-  nsresult rv = mAsyncStream->Available(&dummy64);
+  PRUint32 dummy;
+  nsresult rv = mAsyncStream->Available(&dummy);
   if (NS_FAILED(rv))
     return rv;
-  uint32_t dummy = (uint32_t)std::min(dummy64, (uint64_t)UINT32_MAX);
 
   PeekData data(callback, closure);
   return mAsyncStream->ReadSegments(CallPeekFunc,
@@ -124,26 +148,15 @@ nsresult
 nsInputStreamPump::EnsureWaiting()
 {
     // no need to worry about multiple threads... an input stream pump lives
-    // on only one thread at a time.
-    MOZ_ASSERT(mAsyncStream);
+    // on only one thread.
+
     if (!mWaiting) {
-        // Ensure OnStateStop is called on the main thread.
-        if (mState == STATE_STOP) {
-            nsCOMPtr<nsIThread> mainThread = do_GetMainThread();
-            if (mTargetThread != mainThread) {
-                mTargetThread = do_QueryInterface(mainThread);
-            }
-        }
-        MOZ_ASSERT(mTargetThread);
         nsresult rv = mAsyncStream->AsyncWait(this, 0, 0, mTargetThread);
         if (NS_FAILED(rv)) {
             NS_ERROR("AsyncWait failed");
             return rv;
         }
-        // Any retargeting during STATE_START or START_TRANSFER is complete
-        // after the call to AsyncWait; next callback wil be on mTargetThread.
-        mRetargeting = false;
-        mWaiting = true;
+        mWaiting = PR_TRUE;
     }
     return NS_OK;
 }
@@ -155,11 +168,10 @@ nsInputStreamPump::EnsureWaiting()
 // although this class can only be accessed from one thread at a time, we do
 // allow its ownership to move from thread to thread, assuming the consumer
 // understands the limitations of this.
-NS_IMPL_ISUPPORTS4(nsInputStreamPump,
-                   nsIRequest,
-                   nsIThreadRetargetableRequest,
-                   nsIInputStreamCallback,
-                   nsIInputStreamPump)
+NS_IMPL_THREADSAFE_ISUPPORTS3(nsInputStreamPump,
+                              nsIRequest,
+                              nsIInputStreamCallback,
+                              nsIInputStreamPump)
 
 //-----------------------------------------------------------------------------
 // nsInputStreamPump::nsIRequest
@@ -173,7 +185,7 @@ nsInputStreamPump::GetName(nsACString &result)
 }
 
 NS_IMETHODIMP
-nsInputStreamPump::IsPending(bool *result)
+nsInputStreamPump::IsPending(PRBool *result)
 {
     *result = (mState != STATE_IDLE);
     return NS_OK;
@@ -189,7 +201,7 @@ nsInputStreamPump::GetStatus(nsresult *status)
 NS_IMETHODIMP
 nsInputStreamPump::Cancel(nsresult status)
 {
-    LOG(("nsInputStreamPump::Cancel [this=%p status=%x]\n",
+    LOG(("nsInputStreamPump::Cancel [this=%x status=%x]\n",
         this, status));
 
     if (NS_FAILED(mStatus)) {
@@ -216,7 +228,7 @@ nsInputStreamPump::Cancel(nsresult status)
 NS_IMETHODIMP
 nsInputStreamPump::Suspend()
 {
-    LOG(("nsInputStreamPump::Suspend [this=%p]\n", this));
+    LOG(("nsInputStreamPump::Suspend [this=%x]\n", this));
     NS_ENSURE_TRUE(mState != STATE_IDLE, NS_ERROR_UNEXPECTED);
     ++mSuspendCount;
     return NS_OK;
@@ -225,7 +237,7 @@ nsInputStreamPump::Suspend()
 NS_IMETHODIMP
 nsInputStreamPump::Resume()
 {
-    LOG(("nsInputStreamPump::Resume [this=%p]\n", this));
+    LOG(("nsInputStreamPump::Resume [this=%x]\n", this));
     NS_ENSURE_TRUE(mSuspendCount > 0, NS_ERROR_UNEXPECTED);
     NS_ENSURE_TRUE(mState != STATE_IDLE, NS_ERROR_UNEXPECTED);
 
@@ -268,15 +280,15 @@ nsInputStreamPump::SetLoadGroup(nsILoadGroup *aLoadGroup)
 
 NS_IMETHODIMP
 nsInputStreamPump::Init(nsIInputStream *stream,
-                        int64_t streamPos, int64_t streamLen,
-                        uint32_t segsize, uint32_t segcount,
-                        bool closeWhenDone)
+                        PRInt64 streamPos, PRInt64 streamLen,
+                        PRUint32 segsize, PRUint32 segcount,
+                        PRBool closeWhenDone)
 {
     NS_ENSURE_TRUE(mState == STATE_IDLE, NS_ERROR_IN_PROGRESS);
 
-    mStreamOffset = uint64_t(streamPos);
-    if (int64_t(streamLen) >= int64_t(0))
-        mStreamLength = uint64_t(streamLen);
+    mStreamOffset = PRUint64(streamPos);
+    if (PRInt64(streamLen) >= PRInt64(0))
+        mStreamLength = PRUint64(streamLen);
     mStream = stream;
     mSegSize = segsize;
     mSegCount = segcount;
@@ -290,8 +302,6 @@ nsInputStreamPump::AsyncRead(nsIStreamListener *listener, nsISupports *ctxt)
 {
     NS_ENSURE_TRUE(mState == STATE_IDLE, NS_ERROR_IN_PROGRESS);
     NS_ENSURE_ARG_POINTER(listener);
-    MOZ_ASSERT(NS_IsMainThread(), "nsInputStreamPump should be read from the "
-                                  "main thread only.");
 
     //
     // OK, we need to use the stream transport service if
@@ -300,7 +310,7 @@ nsInputStreamPump::AsyncRead(nsIStreamListener *listener, nsISupports *ctxt)
     // (2) the stream does not support nsIAsyncInputStream
     //
 
-    bool nonBlocking;
+    PRBool nonBlocking;
     nsresult rv = mStream->IsNonBlocking(&nonBlocking);
     if (NS_FAILED(rv)) return rv;
 
@@ -312,7 +322,7 @@ nsInputStreamPump::AsyncRead(nsIStreamListener *listener, nsISupports *ctxt)
         // stream case, the stream transport service will take care of seeking
         // for us.
         // 
-        if (mAsyncStream && (mStreamOffset != UINT64_MAX)) {
+        if (mAsyncStream && (mStreamOffset != LL_MAXUINT)) {
             nsCOMPtr<nsISeekableStream> seekable = do_QueryInterface(mStream);
             if (seekable)
                 seekable->Seek(nsISeekableStream::NS_SEEK_SET, mStreamOffset);
@@ -355,7 +365,7 @@ nsInputStreamPump::AsyncRead(nsIStreamListener *listener, nsISupports *ctxt)
     if (NS_FAILED(rv)) return rv;
 
     if (mLoadGroup)
-        mLoadGroup->AddRequest(this, nullptr);
+        mLoadGroup->AddRequest(this, nsnull);
 
     mState = STATE_START;
     mListener = listener;
@@ -370,19 +380,18 @@ nsInputStreamPump::AsyncRead(nsIStreamListener *listener, nsISupports *ctxt)
 NS_IMETHODIMP
 nsInputStreamPump::OnInputStreamReady(nsIAsyncInputStream *stream)
 {
-    LOG(("nsInputStreamPump::OnInputStreamReady [this=%p]\n", this));
+    LOG(("nsInputStreamPump::OnInputStreamReady [this=%x]\n", this));
 
-    PROFILER_LABEL("Input", "nsInputStreamPump::OnInputStreamReady");
     // this function has been called from a PLEvent, so we can safely call
     // any listener or progress sink methods directly from here.
 
     for (;;) {
         if (mSuspendCount || mState == STATE_IDLE) {
-            mWaiting = false;
+            mWaiting = PR_FALSE;
             break;
         }
 
-        uint32_t nextState;
+        PRUint32 nextState;
         switch (mState) {
         case STATE_START:
             nextState = OnStateStart();
@@ -391,49 +400,19 @@ nsInputStreamPump::OnInputStreamReady(nsIAsyncInputStream *stream)
             nextState = OnStateTransfer();
             break;
         case STATE_STOP:
-            mRetargeting = false;
             nextState = OnStateStop();
             break;
-        default:
-            nextState = 0;
-            NS_NOTREACHED("Unknown enum value.");
-            return NS_ERROR_UNEXPECTED;
         }
 
-        bool stillTransferring = (mState == STATE_TRANSFER &&
-                                  nextState == STATE_TRANSFER);
-        if (stillTransferring) {
-            NS_ASSERTION(NS_SUCCEEDED(mStatus),
-                         "Should not have failed status for ongoing transfer");
-        } else {
-            NS_ASSERTION(mState != nextState,
-                         "Only OnStateTransfer can be called more than once.");
-        }
-        if (mRetargeting) {
-            NS_ASSERTION(mState != STATE_STOP,
-                         "Retargeting should not happen during OnStateStop.");
-        }
+        if (mState == nextState && !mSuspendCount) {
+            NS_ASSERTION(mState == STATE_TRANSFER, "unexpected state");
+            NS_ASSERTION(NS_SUCCEEDED(mStatus), "unexpected status");
 
-        // Set mRetargeting so EnsureWaiting will be called. It ensures that
-        // OnStateStop is called on the main thread. 
-        if (nextState == STATE_STOP && !NS_IsMainThread()) {
-            mRetargeting = true;
-        }
-
-        // Wait asynchronously if there is still data to transfer, or we're
-        // switching event delivery to another thread.
-        if (!mSuspendCount && (stillTransferring || mRetargeting)) {
-            mState = nextState;
-            mWaiting = false;
-            nsresult rv = EnsureWaiting();
-            if (NS_SUCCEEDED(rv))
+            mWaiting = PR_FALSE;
+            mStatus = EnsureWaiting();
+            if (NS_SUCCEEDED(mStatus))
                 break;
             
-            // Failure to start asynchronous wait: stop transfer.
-            // Do not set mStatus if it was previously set to report a failure.
-            if (NS_SUCCEEDED(mStatus)) {
-                mStatus = rv;
-            }
             nextState = STATE_STOP;
         }
 
@@ -442,11 +421,10 @@ nsInputStreamPump::OnInputStreamReady(nsIAsyncInputStream *stream)
     return NS_OK;
 }
 
-uint32_t
+PRUint32
 nsInputStreamPump::OnStateStart()
 {
-    PROFILER_LABEL("nsInputStreamPump", "OnStateStart");
-    LOG(("  OnStateStart [this=%p]\n", this));
+    LOG(("  OnStateStart [this=%x]\n", this));
 
     nsresult rv;
 
@@ -454,7 +432,7 @@ nsInputStreamPump::OnStateStart()
     // so our listener can check our status from OnStartRequest.
     // XXX async streams should have a GetStatus method!
     if (NS_SUCCEEDED(mStatus)) {
-        uint64_t avail;
+        PRUint32 avail;
         rv = mAsyncStream->Available(&avail);
         if (NS_FAILED(rv) && rv != NS_BASE_STREAM_CLOSED)
             mStatus = rv;
@@ -470,11 +448,10 @@ nsInputStreamPump::OnStateStart()
     return NS_SUCCEEDED(mStatus) ? STATE_TRANSFER : STATE_STOP;
 }
 
-uint32_t
+PRUint32
 nsInputStreamPump::OnStateTransfer()
 {
-    PROFILER_LABEL("Input", "nsInputStreamPump::OnStateTransfer");
-    LOG(("  OnStateTransfer [this=%p]\n", this));
+    LOG(("  OnStateTransfer [this=%x]\n", this));
 
     // if canceled, go directly to STATE_STOP...
     if (NS_FAILED(mStatus))
@@ -482,9 +459,9 @@ nsInputStreamPump::OnStateTransfer()
 
     nsresult rv;
 
-    uint64_t avail;
+    PRUint32 avail;
     rv = mAsyncStream->Available(&avail);
-    LOG(("  Available returned [stream=%x rv=%x avail=%llu]\n", mAsyncStream.get(), rv, avail));
+    LOG(("  Available returned [stream=%x rv=%x avail=%u]\n", mAsyncStream.get(), rv, avail));
 
     if (rv == NS_BASE_STREAM_CLOSED) {
         rv = NS_OK;
@@ -492,8 +469,8 @@ nsInputStreamPump::OnStateTransfer()
     }
     else if (NS_SUCCEEDED(rv) && avail) {
         // figure out how much data to report (XXX detect overflow??)
-        if (avail > mStreamLength - mStreamOffset)
-            avail = mStreamLength - mStreamOffset;
+        if (PRUint64(avail) + mStreamOffset > mStreamLength)
+            avail = PRUint32(mStreamLength - mStreamOffset);
 
         if (avail) {
             // we used to limit avail to 16K - we were afraid some ODA handlers
@@ -511,22 +488,26 @@ nsInputStreamPump::OnStateTransfer()
 
             // in most cases this QI will succeed (mAsyncStream is almost always
             // a nsPipeInputStream, which implements nsISeekableStream::Tell).
-            int64_t offsetBefore;
+            PRInt64 offsetBefore;
             nsCOMPtr<nsISeekableStream> seekable = do_QueryInterface(mAsyncStream);
             if (seekable && NS_FAILED(seekable->Tell(&offsetBefore))) {
                 NS_NOTREACHED("Tell failed on readable stream");
                 offsetBefore = 0;
             }
 
-            uint32_t odaAvail =
-                avail > UINT32_MAX ?
-                UINT32_MAX : uint32_t(avail);
+            // report the current stream offset to our listener... if we've
+            // streamed more than PR_UINT32_MAX, then avoid overflowing the
+            // stream offset.  it's the best we can do without a 64-bit stream
+            // listener API.
+            PRUint32 odaOffset =
+                mStreamOffset > PR_UINT32_MAX ?
+                PR_UINT32_MAX : PRUint32(mStreamOffset);
 
-            LOG(("  calling OnDataAvailable [offset=%llu count=%llu(%u)]\n",
-                mStreamOffset, avail, odaAvail));
+            LOG(("  calling OnDataAvailable [offset=%lld(%u) count=%u]\n",
+                mStreamOffset, odaOffset, avail));
 
             rv = mListener->OnDataAvailable(this, mListenerContext, mAsyncStream,
-                                            mStreamOffset, odaAvail);
+                                            odaOffset, avail);
 
             // don't enter this code if ODA failed or called Cancel
             if (NS_SUCCEEDED(rv) && NS_SUCCEEDED(mStatus)) {
@@ -534,9 +515,9 @@ nsInputStreamPump::OnStateTransfer()
                 if (seekable) {
                     // NOTE: if Tell fails, which can happen if the stream is
                     // now closed, then we assume that everything was read.
-                    int64_t offsetAfter;
+                    PRInt64 offsetAfter;
                     if (NS_FAILED(seekable->Tell(&offsetAfter)))
-                        offsetAfter = offsetBefore + odaAvail;
+                        offsetAfter = offsetBefore + avail;
                     if (offsetAfter > offsetBefore)
                         mStreamOffset += (offsetAfter - offsetBefore);
                     else if (mSuspendCount == 0) {
@@ -552,7 +533,7 @@ nsInputStreamPump::OnStateTransfer()
                     }
                 }
                 else
-                    mStreamOffset += odaAvail; // assume ODA behaved well
+                    mStreamOffset += avail; // assume ODA behaved well
             }
         }
     }
@@ -571,51 +552,19 @@ nsInputStreamPump::OnStateTransfer()
             rv = mAsyncStream->Available(&avail);
             if (NS_SUCCEEDED(rv))
                 return STATE_TRANSFER;
-            if (rv != NS_BASE_STREAM_CLOSED)
-                mStatus = rv;
         }
     }
     return STATE_STOP;
 }
 
-nsresult
-nsInputStreamPump::CallOnStateStop()
-{
-    MOZ_ASSERT(NS_IsMainThread(),
-               "CallOnStateStop should only be called on the main thread.");
-
-    mState = OnStateStop();
-    return NS_OK;
-}
-
-uint32_t
+PRUint32
 nsInputStreamPump::OnStateStop()
 {
-    if (!NS_IsMainThread()) {
-        // Hopefully temporary hack: OnStateStop should only run on the main
-        // thread, but we're seeing some rare off-main-thread calls. For now
-        // just redispatch to the main thread in release builds, and crash in
-        // debug builds.
-        MOZ_ASSERT(NS_IsMainThread(),
-                   "OnStateStop should only be called on the main thread.");
-        nsresult rv = NS_DispatchToMainThread(
-            NS_NewRunnableMethod(this, &nsInputStreamPump::CallOnStateStop));
-        NS_ENSURE_SUCCESS(rv, STATE_IDLE);
-        return STATE_IDLE;
-    }
-
-    PROFILER_LABEL("Input", "nsInputStreamPump::OnStateTransfer");
-    LOG(("  OnStateStop [this=%p status=%x]\n", this, mStatus));
+    LOG(("  OnStateStop [this=%x status=%x]\n", this, mStatus));
 
     // if an error occurred, we must be sure to pass the error onto the async
     // stream.  in some cases, this is redundant, but since close is idempotent,
     // this is OK.  otherwise, be sure to honor the "close-when-done" option.
-
-    if (!mAsyncStream || !mListener) {
-        MOZ_ASSERT(mAsyncStream, "null mAsyncStream: OnStateStop called twice?");
-        MOZ_ASSERT(mListener, "null mListener: OnStateStop called twice?");
-        return STATE_IDLE;
-    }
 
     if (NS_FAILED(mStatus))
         mAsyncStream->CloseWithStatus(mStatus);
@@ -624,53 +573,14 @@ nsInputStreamPump::OnStateStop()
 
     mAsyncStream = 0;
     mTargetThread = 0;
-    mIsPending = false;
+    mIsPending = PR_FALSE;
+
     mListener->OnStopRequest(this, mListenerContext, mStatus);
     mListener = 0;
     mListenerContext = 0;
 
     if (mLoadGroup)
-        mLoadGroup->RemoveRequest(this, nullptr, mStatus);
+        mLoadGroup->RemoveRequest(this, nsnull, mStatus);
 
     return STATE_IDLE;
-}
-
-//-----------------------------------------------------------------------------
-// nsIThreadRetargetableRequest
-//-----------------------------------------------------------------------------
-
-NS_IMETHODIMP
-nsInputStreamPump::RetargetDeliveryTo(nsIEventTarget* aNewTarget)
-{
-    NS_ENSURE_ARG(aNewTarget);
-    NS_ENSURE_TRUE(mState == STATE_START || mState == STATE_TRANSFER,
-                   NS_ERROR_UNEXPECTED);
-
-    // If canceled, do not retarget. Return with canceled status.
-    if (NS_FAILED(mStatus)) {
-        return mStatus;
-    }
-
-    if (aNewTarget == mTargetThread) {
-        NS_WARNING("Retargeting delivery to same thread");
-        return NS_OK;
-    }
-
-    // Ensure that |mListener| and any subsequent listeners can be retargeted
-    // to another thread.
-    nsresult rv = NS_OK;
-    nsCOMPtr<nsIThreadRetargetableStreamListener> retargetableListener =
-        do_QueryInterface(mListener, &rv);
-    if (NS_SUCCEEDED(rv) && retargetableListener) {
-        rv = retargetableListener->CheckListenerChain();
-        if (NS_SUCCEEDED(rv)) {
-            mTargetThread = aNewTarget;
-            mRetargeting = true;
-        }
-    }
-    LOG(("nsInputStreamPump::RetargetDeliveryTo [this=%x aNewTarget=%p] "
-         "%s listener [%p] rv[%x]",
-         this, aNewTarget, (mTargetThread == aNewTarget ? "success" : "failure"),
-         (nsIStreamListener*)mListener, rv));
-    return rv;
 }

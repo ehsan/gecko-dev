@@ -1,23 +1,17 @@
-/* Any copyright is dedicated to the Public Domain.
-   http://creativecommons.org/publicdomain/zero/1.0/ */
-
-Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/engines.js");
-Cu.import("resource://services-sync/policies.js");
-Cu.import("resource://services-sync/record.js");
-Cu.import("resource://services-sync/service.js");
 Cu.import("resource://services-sync/status.js");
+Cu.import("resource://services-sync/constants.js");
+Cu.import("resource://services-sync/policies.js");
+
 Cu.import("resource://services-sync/util.js");
-Cu.import("resource://testing-common/services/sync/fakeservices.js");
-Cu.import("resource://testing-common/services/sync/utils.js");
+Svc.DefaultPrefs.set("registerEngines", "");
+Cu.import("resource://services-sync/service.js");
+Cu.import("resource://services-sync/record.js");
 
-initTestLogging("Trace");
-
-let engineManager = Service.engineManager;
-engineManager.clear();
+initTestLogging();
 
 function CatapultEngine() {
-  SyncEngine.call(this, "Catapult", Service);
+  SyncEngine.call(this, "Catapult");
 }
 CatapultEngine.prototype = {
   __proto__: SyncEngine.prototype,
@@ -32,7 +26,7 @@ function sync_httpd_setup() {
   let upd = collectionsHelper.with_updated_collection;
   let collections = collectionsHelper.collections;
 
-  let catapultEngine = engineManager.get("catapult");
+  let catapultEngine = Engines.get("catapult");
   let engines        = {catapult: {version: catapultEngine.version,
                                    syncID:  catapultEngine.syncID}};
 
@@ -53,28 +47,28 @@ function sync_httpd_setup() {
   return httpd_setup(handlers);
 }
 
-function setUp(server) {
-  setBasicCredentials("johndoe", "ilovejane", "aabcdeabcdeabcdeabcdeabcde");
-  Service.serverURL = server.baseURI + "/";
-  Service.clusterURL = server.baseURI + "/";
+function setUp() {
+  Service.username = "johndoe";
+  Service.password = "ilovejane";
+  Service.passphrase = "aabcdeabcdeabcdeabcdeabcde";
+  Service.clusterURL = "http://localhost:8080/";
   new FakeCryptoService();
 }
 
-function generateAndUploadKeys(server) {
-  generateNewKeys(Service.collectionKeys);
-  let serverKeys = Service.collectionKeys.asWBO("crypto", "keys");
-  serverKeys.encrypt(Service.identity.syncKeyBundle);
-  let res = Service.resource(server.baseURI + "/1.1/johndoe/storage/crypto/keys");
-  return serverKeys.upload(res).success;
+function generateAndUploadKeys() {
+  generateNewKeys();
+  let serverKeys = CollectionKeys.asWBO("crypto", "keys");
+  serverKeys.encrypt(Weave.Service.syncKeyBundle);
+  return serverKeys.upload("http://localhost:8080/1.1/johndoe/storage/crypto/keys").success;
 }
 
 
 add_test(function test_backoff500() {
   _("Test: HTTP 500 sets backoff status.");
+  setUp();
   let server = sync_httpd_setup();
-  setUp(server);
 
-  let engine = engineManager.get("catapult");
+  let engine = Engines.get("catapult");
   engine.enabled = true;
   engine.exception = {status: 500};
 
@@ -82,7 +76,7 @@ add_test(function test_backoff500() {
     do_check_false(Status.enforceBackoff);
 
     // Forcibly create and upload keys here -- otherwise we don't get to the 500!
-    do_check_true(generateAndUploadKeys(server));
+    do_check_true(generateAndUploadKeys());
 
     Service.login();
     Service.sync();
@@ -98,11 +92,11 @@ add_test(function test_backoff500() {
 
 add_test(function test_backoff503() {
   _("Test: HTTP 503 with Retry-After header leads to backoff notification and sets backoff status.");
+  setUp();
   let server = sync_httpd_setup();
-  setUp(server);
 
   const BACKOFF = 42;
-  let engine = engineManager.get("catapult");
+  let engine = Engines.get("catapult");
   engine.enabled = true;
   engine.exception = {status: 503,
                       headers: {"retry-after": BACKOFF}};
@@ -115,7 +109,7 @@ add_test(function test_backoff503() {
   try {
     do_check_false(Status.enforceBackoff);
 
-    do_check_true(generateAndUploadKeys(server));
+    do_check_true(generateAndUploadKeys());
 
     Service.login();
     Service.sync();
@@ -134,10 +128,10 @@ add_test(function test_backoff503() {
 
 add_test(function test_overQuota() {
   _("Test: HTTP 400 with body error code 14 means over quota.");
+  setUp();
   let server = sync_httpd_setup();
-  setUp(server);
 
-  let engine = engineManager.get("catapult");
+  let engine = Engines.get("catapult");
   engine.enabled = true;
   engine.exception = {status: 400,
                       toString: function() "14"};
@@ -145,7 +139,7 @@ add_test(function test_overQuota() {
   try {
     do_check_eq(Status.sync, SYNC_SUCCEEDED);
 
-    do_check_true(generateAndUploadKeys(server));
+    do_check_true(generateAndUploadKeys());
 
     Service.login();
     Service.sync();
@@ -161,58 +155,52 @@ add_test(function test_overQuota() {
 
 add_test(function test_service_networkError() {
   _("Test: Connection refused error from Service.sync() leads to the right status code.");
-  let server = sync_httpd_setup();
-  setUp(server);
-  server.stop(() => {
-    // Provoke connection refused.
-    Service.clusterURL = "http://localhost:12345/";
+  setUp();
+  // Provoke connection refused.
+  Service.clusterURL = "http://localhost:12345/";
 
-    try {
-      do_check_eq(Status.sync, SYNC_SUCCEEDED);
+  try {
+    do_check_eq(Status.sync, SYNC_SUCCEEDED);
 
-      Service._loggedIn = true;
-      Service.sync();
+    Service._loggedIn = true;
+    Service.sync();
 
-      do_check_eq(Status.sync, LOGIN_FAILED_NETWORK_ERROR);
-      do_check_eq(Status.service, SYNC_FAILED);
-    } finally {
-      Status.resetSync();
-      Service.startOver();
-    }
-    run_next_test();
-  });
+    do_check_eq(Status.sync, LOGIN_FAILED_NETWORK_ERROR);
+    do_check_eq(Status.service, SYNC_FAILED);
+  } finally {
+    Status.resetSync();
+    Service.startOver();
+  }
+  run_next_test();
 });
 
 add_test(function test_service_offline() {
   _("Test: Wanting to sync in offline mode leads to the right status code but does not increment the ignorable error count.");
-  let server = sync_httpd_setup();
-  setUp(server);
-  server.stop(() => {
-    Services.io.offline = true;
+  setUp();
+  Services.io.offline = true;
 
-    try {
-      do_check_eq(Status.sync, SYNC_SUCCEEDED);
+  try {
+    do_check_eq(Status.sync, SYNC_SUCCEEDED);
 
-      Service._loggedIn = true;
-      Service.sync();
+    Service._loggedIn = true;
+    Service.sync();
 
-      do_check_eq(Status.sync, LOGIN_FAILED_NETWORK_ERROR);
-      do_check_eq(Status.service, SYNC_FAILED);
-    } finally {
-      Status.resetSync();
-      Service.startOver();
-    }
-    Services.io.offline = false;
-    run_next_test();
-  });
+    do_check_eq(Status.sync, LOGIN_FAILED_NETWORK_ERROR);
+    do_check_eq(Status.service, SYNC_FAILED);
+  } finally {
+    Status.resetSync();
+    Service.startOver();
+  }
+  Services.io.offline = false;
+  run_next_test();
 });
 
 add_test(function test_engine_networkError() {
   _("Test: Network related exceptions from engine.sync() lead to the right status code.");
+  setUp();
   let server = sync_httpd_setup();
-  setUp(server);
 
-  let engine = engineManager.get("catapult");
+  let engine = Engines.get("catapult");
   engine.enabled = true;
   engine.exception = Components.Exception("NS_ERROR_UNKNOWN_HOST",
                                           Cr.NS_ERROR_UNKNOWN_HOST);
@@ -220,7 +208,7 @@ add_test(function test_engine_networkError() {
   try {
     do_check_eq(Status.sync, SYNC_SUCCEEDED);
 
-    do_check_true(generateAndUploadKeys(server));
+    do_check_true(generateAndUploadKeys());
 
     Service.login();
     Service.sync();
@@ -235,10 +223,10 @@ add_test(function test_engine_networkError() {
 });
 
 add_test(function test_resource_timeout() {
+  setUp();
   let server = sync_httpd_setup();
-  setUp(server);
 
-  let engine = engineManager.get("catapult");
+  let engine = Engines.get("catapult");
   engine.enabled = true;
   // Resource throws this when it encounters a timeout.
   engine.exception = Components.Exception("Aborting due to channel inactivity.",
@@ -247,7 +235,7 @@ add_test(function test_resource_timeout() {
   try {
     do_check_eq(Status.sync, SYNC_SUCCEEDED);
 
-    do_check_true(generateAndUploadKeys(server));
+    do_check_true(generateAndUploadKeys());
 
     Service.login();
     Service.sync();
@@ -262,6 +250,6 @@ add_test(function test_resource_timeout() {
 });
 
 function run_test() {
-  engineManager.register(CatapultEngine);
+  Engines.register(CatapultEngine);
   run_next_test();
 }

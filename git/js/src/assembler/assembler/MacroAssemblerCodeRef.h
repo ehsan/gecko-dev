@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=79:
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Copyright (C) 2009 Apple Inc. All rights reserved.
@@ -27,8 +27,8 @@
  * 
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef assembler_assembler_MacroAssemblerCodeRef_h
-#define assembler_assembler_MacroAssemblerCodeRef_h
+#ifndef MacroAssemblerCodeRef_h
+#define MacroAssemblerCodeRef_h
 
 #include "assembler/wtf/Platform.h"
 #include "assembler/jit/ExecutableAllocator.h"
@@ -156,7 +156,7 @@ public:
     void* dataLocation() const { ASSERT_VALID_CODE_POINTER(m_value); return m_value; }
 #endif
 
-    bool operator!() const
+    bool operator!()
     {
         return !m_value;
     }
@@ -164,8 +164,8 @@ public:
     ptrdiff_t operator -(const MacroAssemblerCodePtr &other) const
     {
         JS_ASSERT(m_value);
-        return reinterpret_cast<uint8_t *>(m_value) -
-               reinterpret_cast<uint8_t *>(other.m_value);
+        return reinterpret_cast<uint8 *>(m_value) -
+               reinterpret_cast<uint8 *>(other.m_value);
     }
 
 private:
@@ -206,13 +206,6 @@ public:
         m_executablePool = NULL;
     }
 
-    MacroAssemblerCodePtr code() const {
-        return m_code;
-    }
-    size_t size() const {
-        return m_size;
-    }
-
     MacroAssemblerCodePtr m_code;
     ExecutablePool* m_executablePool;
     size_t m_size;
@@ -222,4 +215,4 @@ public:
 
 #endif // ENABLE(ASSEMBLER)
 
-#endif /* assembler_assembler_MacroAssemblerCodeRef_h */
+#endif // MacroAssemblerCodeRef_h

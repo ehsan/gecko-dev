@@ -1,23 +1,47 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-#include "mozilla/DebugOnly.h"
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2002
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *    Boris Zbarsky <bzbarsky@mit.edu>  (original author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsUnicharStreamLoader.h"
 #include "nsIInputStream.h"
 #include "nsICharsetConverterManager.h"
 #include "nsIServiceManager.h"
-#include <algorithm>
 
-// 1024 bytes is specified in
-// http://www.whatwg.org/specs/web-apps/current-work/#charset for HTML; for
-// other resource types (e.g. CSS) typically fewer bytes are fine too, since
-// they only look at things right at the beginning of the data.
-#define SNIFFING_BUFFER_SIZE 1024
-
-using namespace mozilla;
+#define SNIFFING_BUFFER_SIZE 512 // specified in draft-abarth-mime-sniff-06
 
 NS_IMETHODIMP
 nsUnicharStreamLoader::Init(nsIUnicharStreamLoaderObserver *aObserver)
@@ -26,7 +50,7 @@ nsUnicharStreamLoader::Init(nsIUnicharStreamLoaderObserver *aObserver)
 
   mObserver = aObserver;
 
-  if (!mRawData.SetCapacity(SNIFFING_BUFFER_SIZE, fallible_t()))
+  if (!mRawData.SetCapacity(SNIFFING_BUFFER_SIZE))
     return NS_ERROR_OUT_OF_MEMORY;
 
   return NS_OK;
@@ -99,10 +123,10 @@ nsUnicharStreamLoader::OnStopRequest(nsIRequest *aRequest,
     mObserver->OnStreamComplete(this, mContext, aStatus, mBuffer);
   }
 
-  mObserver = nullptr;
-  mDecoder = nullptr;
-  mContext = nullptr;
-  mChannel = nullptr;
+  mObserver = nsnull;
+  mDecoder = nsnull;
+  mContext = nsnull;
+  mChannel = nsnull;
   mCharset.Truncate();
   mBuffer.Truncate();
   return rv;
@@ -113,8 +137,8 @@ NS_IMETHODIMP
 nsUnicharStreamLoader::OnDataAvailable(nsIRequest *aRequest,
                                        nsISupports *aContext,
                                        nsIInputStream *aInputStream,
-                                       uint64_t aSourceOffset,
-                                       uint32_t aCount)
+                                       PRUint32 aSourceOffset,
+                                       PRUint32 aCount)
 {
   if (!mObserver) {
     NS_ERROR("nsUnicharStreamLoader::OnDataAvailable called before ::Init");
@@ -127,7 +151,7 @@ nsUnicharStreamLoader::OnDataAvailable(nsIRequest *aRequest,
   nsresult rv = NS_OK;
   if (mDecoder) {
     // process everything we've got
-    uint32_t dummy;
+    PRUint32 dummy;
     aInputStream->ReadSegments(WriteSegmentFun, this, aCount, &dummy);
   } else {
     // no decoder yet.  Read up to SNIFFING_BUFFER_SIZE octets into
@@ -136,9 +160,9 @@ nsUnicharStreamLoader::OnDataAvailable(nsIRequest *aRequest,
     // ahead and fire charset detection and read the rest.  Otherwise
     // wait for more data.
 
-    uint32_t haveRead = mRawData.Length();
-    uint32_t toRead = std::min(SNIFFING_BUFFER_SIZE - haveRead, aCount);
-    uint32_t n;
+    PRUint32 haveRead = mRawData.Length();
+    PRUint32 toRead = NS_MIN(SNIFFING_BUFFER_SIZE - haveRead, aCount);
+    PRUint32 n;
     char *here = mRawData.BeginWriting() + haveRead;
 
     rv = aInputStream->Read(here, toRead, &n);
@@ -148,7 +172,7 @@ nsUnicharStreamLoader::OnDataAvailable(nsIRequest *aRequest,
         rv = DetermineCharset();
         if (NS_SUCCEEDED(rv)) {
           // process what's left
-          uint32_t dummy;
+          PRUint32 dummy;
           aInputStream->ReadSegments(WriteSegmentFun, this, aCount - n, &dummy);
         }
       } else {
@@ -157,8 +181,8 @@ nsUnicharStreamLoader::OnDataAvailable(nsIRequest *aRequest,
     }
   }
 
-  mContext = nullptr;
-  mChannel = nullptr;
+  mContext = nsnull;
+  mChannel = nsnull;
   return rv;
 }
 
@@ -185,8 +209,8 @@ nsUnicharStreamLoader::DetermineCharset()
   if (NS_FAILED(rv)) return rv;
 
   // Process the data into mBuffer
-  uint32_t dummy;
-  rv = WriteSegmentFun(nullptr, this,
+  PRUint32 dummy;
+  rv = WriteSegmentFun(nsnull, this,
                        mRawData.BeginReading(),
                        0, mRawData.Length(),
                        &dummy);
@@ -198,30 +222,46 @@ NS_METHOD
 nsUnicharStreamLoader::WriteSegmentFun(nsIInputStream *,
                                        void *aClosure,
                                        const char *aSegment,
-                                       uint32_t,
-                                       uint32_t aCount,
-                                       uint32_t *aWriteCount)
+                                       PRUint32,
+                                       PRUint32 aCount,
+                                       PRUint32 *aWriteCount)
 {
   nsUnicharStreamLoader* self = static_cast<nsUnicharStreamLoader*>(aClosure);
 
-  uint32_t haveRead = self->mBuffer.Length();
-  int32_t srcLen = aCount;
-  int32_t dstLen;
-  self->mDecoder->GetMaxLength(aSegment, srcLen, &dstLen);
+  PRUint32 haveRead = self->mBuffer.Length();
+  PRUint32 consumed = 0;
+  nsresult rv;
+  do {
+    PRInt32 srcLen = aCount - consumed;
+    PRInt32 dstLen;
+    self->mDecoder->GetMaxLength(aSegment + consumed, srcLen, &dstLen);
 
-  uint32_t capacity = haveRead + dstLen;
-  if (!self->mBuffer.SetCapacity(capacity, fallible_t())) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
+    PRUint32 capacity = haveRead + dstLen;
+    if (!self->mBuffer.SetCapacity(capacity)) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
 
-  DebugOnly<nsresult> rv =
-    self->mDecoder->Convert(aSegment,
-                            &srcLen,
-                            self->mBuffer.BeginWriting() + haveRead,
-                            &dstLen);
-  MOZ_ASSERT(NS_SUCCEEDED(rv));
-  MOZ_ASSERT(srcLen == static_cast<int32_t>(aCount));
-  haveRead += dstLen;
+    rv = self->mDecoder->Convert(aSegment + consumed,
+                                 &srcLen,
+                                 self->mBuffer.BeginWriting() + haveRead,
+                                 &dstLen);
+    haveRead += dstLen;
+    // XXX if srcLen is negative, we want to drop the _first_ byte in
+    // the erroneous byte sequence and try again.  This is not quite
+    // possible right now -- see bug 160784
+    consumed += srcLen;
+    if (NS_FAILED(rv)) {
+      NS_ASSERTION(0 < capacity - haveRead,
+                   "Decoder returned an error but filled the output buffer! "
+                   "Should not happen.");
+      self->mBuffer.BeginWriting()[haveRead++] = 0xFFFD;
+      ++consumed;
+      // XXX this is needed to make sure we don't underrun our buffer;
+      // bug 160784 again
+      consumed = NS_MAX<PRUint32>(consumed, 0);
+      self->mDecoder->Reset();
+    }
+  } while (consumed < aCount);
 
   self->mBuffer.SetLength(haveRead);
   *aWriteCount = aCount;

@@ -1,7 +1,39 @@
 /* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
 // <pre>
@@ -12,15 +44,13 @@
 #include "nscore.h"
 #include "pldhash.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+PR_BEGIN_EXTERN_C
 
 typedef union
 {
     char*       stringVal;
-    int32_t     intVal;
-    bool        boolVal;
+    PRInt32     intVal;
+    PRBool      boolVal;
 } PrefValue;
 
 struct PrefHashEntry : PLDHashEntryHdr
@@ -28,7 +58,7 @@ struct PrefHashEntry : PLDHashEntryHdr
     const char *key;
     PrefValue defaultPref;
     PrefValue userPref;
-    uint16_t  flags;
+    PRUint16  flags;
 };
 
 /*
@@ -67,7 +97,7 @@ typedef enum { PREF_INVALID = 0,
 // it is different from the default.  In other words, these are used
 // to set the _user_ preferences.
 //
-// If set_default is set to true however, it sets the default value.
+// If set_default is set to PR_TRUE however, it sets the default value.
 // This will only affect the program behavior if the user does not have a value
 // saved over it for the particular preference.  In addition, these will never
 // be saved out to disk.
@@ -76,11 +106,11 @@ typedef enum { PREF_INVALID = 0,
 // (triggering a callback), or PREF_NOERROR if the value was unchanged.
 // </font>
 */
-nsresult PREF_SetCharPref(const char *pref,const char* value, bool set_default = false);
-nsresult PREF_SetIntPref(const char *pref,int32_t value, bool set_default = false);
-nsresult PREF_SetBoolPref(const char *pref,bool value, bool set_default = false);
+nsresult PREF_SetCharPref(const char *pref,const char* value, PRBool set_default = PR_FALSE);
+nsresult PREF_SetIntPref(const char *pref,PRInt32 value, PRBool set_default = PR_FALSE);
+nsresult PREF_SetBoolPref(const char *pref,PRBool value, PRBool set_default = PR_FALSE);
 
-bool     PREF_HasUserPref(const char* pref_name);
+PRBool   PREF_HasUserPref(const char* pref_name);
 
 /*
 // <font color=blue>
@@ -96,8 +126,8 @@ bool     PREF_HasUserPref(const char* pref_name);
 // </font>
 */
 nsresult PREF_GetIntPref(const char *pref,
-                           int32_t * return_int, bool get_default);	
-nsresult PREF_GetBoolPref(const char *pref, bool * return_val, bool get_default);	
+                           PRInt32 * return_int, PRBool get_default);	
+nsresult PREF_GetBoolPref(const char *pref, PRBool * return_val, PRBool get_default);	
 /*
 // <font color=blue>
 // These functions are similar to the above "Get" version with the significant
@@ -105,14 +135,14 @@ nsresult PREF_GetBoolPref(const char *pref, bool * return_val, bool get_default)
 // the caller will need to be responsible for freeing it...
 // </font>
 */
-nsresult PREF_CopyCharPref(const char *pref, char ** return_buf, bool get_default);
+nsresult PREF_CopyCharPref(const char *pref, char ** return_buf, PRBool get_default);
 /*
 // <font color=blue>
-// bool function that returns whether or not the preference is locked and therefore
+// PRBool function that returns whether or not the preference is locked and therefore
 // cannot be changed.
 // </font>
 */
-bool PREF_PrefIsLocked(const char *pref_name);
+PRBool PREF_PrefIsLocked(const char *pref_name);
 
 /*
 // <font color=blue>
@@ -120,7 +150,7 @@ bool PREF_PrefIsLocked(const char *pref_name);
 // cannot be changed.
 // </font>
 */
-nsresult PREF_LockPref(const char *key, bool lockIt);
+nsresult PREF_LockPref(const char *key, PRBool lockIt);
 
 PrefType PREF_GetPrefType(const char *pref_name);
 
@@ -178,9 +208,7 @@ void PREF_ReaderCallback( void *closure,
                           const char *pref,
                           PrefValue   value,
                           PrefType    type,
-                          bool        isDefault);
+                          PRBool      isDefault);
 
-#ifdef __cplusplus
-}
-#endif
+PR_END_EXTERN_C
 #endif

@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Corporation code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Bas Schouten <bschouten@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef GFX_DEVICEMANAGERD3D9_H
 #define GFX_DEVICEMANAGERD3D9_H
@@ -11,7 +43,6 @@
 #include "nsAutoPtr.h"
 #include "d3d9.h"
 #include "nsTArray.h"
-#include "mozilla/layers/CompositorTypes.h"
 
 namespace mozilla {
 namespace layers {
@@ -19,7 +50,6 @@ namespace layers {
 class DeviceManagerD3D9;
 class LayerD3D9;
 class Nv3DVUtils;
-class Layer;
 
 // Shader Constant locations
 const int CBmLayerTransform = 0;
@@ -27,45 +57,13 @@ const int CBmProjection = 4;
 const int CBvRenderTargetOffset = 8;
 const int CBvTextureCoords = 9;
 const int CBvLayerQuad = 10;
-// we don't use opacity with solid color shaders
 const int CBfLayerOpacity = 0;
-const int CBvColor = 0;
-
-/**
- * This structure is used to pass rectangles to our shader constant. We can use
- * this for passing rectangular areas to SetVertexShaderConstant. In the format
- * of a 4 component float(x,y,width,height). Our vertex shader can then use
- * this to construct rectangular positions from the 0,0-1,1 quad that we source
- * it with.
- */
-struct ShaderConstantRect
-{
-  float mX, mY, mWidth, mHeight;
-
-  // Provide all the commonly used argument types to prevent all the local
-  // casts in the code.
-  ShaderConstantRect(float aX, float aY, float aWidth, float aHeight)
-    : mX(aX), mY(aY), mWidth(aWidth), mHeight(aHeight)
-  { }
-
-  ShaderConstantRect(int32_t aX, int32_t aY, int32_t aWidth, int32_t aHeight)
-    : mX((float)aX), mY((float)aY)
-    , mWidth((float)aWidth), mHeight((float)aHeight)
-  { }
-
-  ShaderConstantRect(int32_t aX, int32_t aY, float aWidth, float aHeight)
-    : mX((float)aX), mY((float)aY), mWidth(aWidth), mHeight(aHeight)
-  { }
-
-  // For easy passing to SetVertexShaderConstantF.
-  operator float* () { return &mX; }
-};
 
 /**
  * SwapChain class, this class manages the swap chain belonging to a
  * LayerManagerD3D9.
  */
-class SwapChainD3D9
+class THEBES_API SwapChainD3D9
 {
   NS_INLINE_DECL_REFCOUNTING(SwapChainD3D9)
 public:
@@ -83,14 +81,11 @@ public:
    */
   bool PrepareForRendering();
 
-  already_AddRefed<IDirect3DSurface9> GetBackBuffer();
-
   /**
    * This function will present the selected rectangle of the swap chain to
    * its associated window.
    */
   void Present(const nsIntRect &aRect);
-  void Present();
 
 private:
   friend class DeviceManagerD3D9;
@@ -115,12 +110,17 @@ private:
  * device and create swap chains for the individual windows the layer managers
  * belong to.
  */
-class DeviceManagerD3D9 MOZ_FINAL
+class THEBES_API DeviceManagerD3D9
 {
 public:
   DeviceManagerD3D9();
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(DeviceManagerD3D9)
+  NS_IMETHOD_(nsrefcnt) AddRef(void);
+  NS_IMETHOD_(nsrefcnt) Release(void);
+protected:
+  nsAutoRefCnt mRefCnt;
+  NS_DECL_OWNINGTHREAD
 
+public:
   bool Init();
 
   /**
@@ -148,9 +148,7 @@ public:
     SOLIDCOLORLAYER
   };
 
-  void SetShaderMode(ShaderMode aMode, Layer* aMask, bool aIs2D);
-  // returns the register to be used for the mask texture, if appropriate
-  uint32_t SetShaderMode(ShaderMode aMode, MaskType aMaskType);
+  void SetShaderMode(ShaderMode aMode);
 
   /** 
    * Return pointer to the Nv3DVUtils instance 
@@ -162,7 +160,7 @@ public:
    */
   bool DeviceWasRemoved() { return mDeviceWasRemoved; }
 
-  uint32_t GetDeviceResetCount() { return mDeviceResetCount; }
+  PRUint32 GetDeviceResetCount() { return mDeviceResetCount; }
 
   /**
    * We keep a list of all layers here that may have hardware resource allocated
@@ -170,9 +168,7 @@ public:
    */
   nsTArray<LayerD3D9*> mLayersWithResources;
 
-  int32_t GetMaxTextureSize() { return mMaxTextureSize; }
-
-  static uint32_t sMaskQuadRegister;
+  PRInt32 GetMaxTextureSize() { return mMaxTextureSize; }
 
 private:
   friend class SwapChainD3D9;
@@ -228,17 +224,6 @@ private:
   /* Pixel shader used for solid colors */
   nsRefPtr<IDirect3DPixelShader9> mSolidColorPS;
 
-  /* As above, but using a mask layer */
-  nsRefPtr<IDirect3DVertexShader9> mLayerVSMask;
-  nsRefPtr<IDirect3DVertexShader9> mLayerVSMask3D;
-  nsRefPtr<IDirect3DPixelShader9> mRGBPSMask;
-  nsRefPtr<IDirect3DPixelShader9> mRGBAPSMask;
-  nsRefPtr<IDirect3DPixelShader9> mRGBAPSMask3D;
-  nsRefPtr<IDirect3DPixelShader9> mComponentPass1PSMask;
-  nsRefPtr<IDirect3DPixelShader9> mComponentPass2PSMask;
-  nsRefPtr<IDirect3DPixelShader9> mYCbCrPSMask;
-  nsRefPtr<IDirect3DPixelShader9> mSolidColorPSMask;
-
   /* Vertex buffer containing our basic vertex structure */
   nsRefPtr<IDirect3DVertexBuffer9> mVB;
 
@@ -253,15 +238,9 @@ private:
   /* we use this to help track if our device temporarily or permanently lost */
   HMONITOR mDeviceMonitor;
 
-  uint32_t mDeviceResetCount;
+  PRUint32 mDeviceResetCount;
 
-  uint32_t mMaxTextureSize;
-
-  /**
-   * Wrap (repeat) or clamp textures. We prefer the former so we can do buffer
-   * rotation, but some older hardware doesn't support it.
-   */
-  D3DTEXTUREADDRESS mTextureAddressingMode;
+  PRUint32 mMaxTextureSize;
 
   /* If this device supports dynamic textures */
   bool mHasDynamicTextures;

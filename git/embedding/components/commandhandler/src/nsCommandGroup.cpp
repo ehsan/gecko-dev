@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsString.h"
 #include "nsReadableUtils.h"
@@ -27,16 +59,16 @@ public:
 
 protected:
 
-  static bool HashEnum(nsHashKey *aKey, void *aData, void* aClosure);
+  static PRBool HashEnum(nsHashKey *aKey, void *aData, void* aClosure);
 
   nsresult      Initialize();
 
 protected:
 
   nsHashtable&  mHashTable;
-  int32_t       mIndex;
+  PRInt32       mIndex;
   char **       mGroupNames;        // array of pointers to PRUnichar* in the hash table
-  bool          mInitted;
+  PRBool        mInitted;
   
 };
 
@@ -46,8 +78,8 @@ NS_IMPL_ISUPPORTS1(nsGroupsEnumerator, nsISimpleEnumerator)
 nsGroupsEnumerator::nsGroupsEnumerator(nsHashtable& inHashTable)
 : mHashTable(inHashTable)
 , mIndex(-1)
-, mGroupNames(nullptr)
-, mInitted(false)
+, mGroupNames(nsnull)
+, mInitted(PR_FALSE)
 {
   /* member initializers and constructor code */
 }
@@ -59,7 +91,7 @@ nsGroupsEnumerator::~nsGroupsEnumerator()
 
 /* boolean hasMoreElements (); */
 NS_IMETHODIMP
-nsGroupsEnumerator::HasMoreElements(bool *_retval)
+nsGroupsEnumerator::HasMoreElements(PRBool *_retval)
 {
   nsresult  rv = NS_OK;
   
@@ -102,7 +134,7 @@ nsGroupsEnumerator::GetNext(nsISupports **_retval)
 
 /* static */
 /* return false to stop */
-bool
+PRBool
 nsGroupsEnumerator::HashEnum(nsHashKey *aKey, void *aData, void* aClosure)
 {
   nsGroupsEnumerator*   groupsEnum = reinterpret_cast<nsGroupsEnumerator *>(aClosure);
@@ -110,7 +142,7 @@ nsGroupsEnumerator::HashEnum(nsHashKey *aKey, void *aData, void* aClosure)
   
   groupsEnum->mGroupNames[groupsEnum->mIndex] = (char*)stringKey->GetString();
   groupsEnum->mIndex ++;
-  return true;
+  return PR_TRUE;
 }
 
 nsresult
@@ -125,7 +157,7 @@ nsGroupsEnumerator::Initialize()
   mHashTable.Enumerate(HashEnum, (void*)this);
 
   mIndex = -1;
-  mInitted = true;
+  mInitted = PR_TRUE;
   return NS_OK;
 }
 
@@ -145,7 +177,7 @@ public:
 protected:
 
   nsTArray<char*>* mGroupArray;
-  int32_t          mIndex;
+  PRInt32          mIndex;
   
 };
 
@@ -163,11 +195,11 @@ NS_IMPL_ISUPPORTS1(nsNamedGroupEnumerator, nsISimpleEnumerator)
 
 /* boolean hasMoreElements (); */
 NS_IMETHODIMP
-nsNamedGroupEnumerator::HasMoreElements(bool *_retval)
+nsNamedGroupEnumerator::HasMoreElements(PRBool *_retval)
 {
   NS_ENSURE_ARG_POINTER(_retval);
   
-  int32_t arrayLen = mGroupArray ? mGroupArray->Length() : 0;
+  PRInt32 arrayLen = mGroupArray ? mGroupArray->Length() : 0;
   *_retval = (mIndex < arrayLen - 1); 
   return NS_OK;
 }
@@ -182,7 +214,7 @@ nsNamedGroupEnumerator::GetNext(nsISupports **_retval)
     return NS_ERROR_FAILURE;
 
   mIndex ++;
-  if (mIndex >= int32_t(mGroupArray->Length()))
+  if (mIndex >= PRInt32(mGroupArray->Length()))
     return NS_ERROR_FAILURE;
     
   PRUnichar   *thisGroupName = (PRUnichar*)mGroupArray->ElementAt(mIndex);
@@ -229,7 +261,7 @@ nsControllerCommandGroup::AddCommandToGroup(const char * aCommand, const char *a
 {
   nsCStringKey   groupKey(aGroup);  
   nsTArray<char*>* commandList;
-  if ((commandList = (nsTArray<char*> *)mGroupsHash.Get(&groupKey)) == nullptr)
+  if ((commandList = (nsTArray<char*> *)mGroupsHash.Get(&groupKey)) == nsnull)
   {
     // make this list
     commandList = new nsAutoTArray<char*, 8>;
@@ -256,8 +288,8 @@ nsControllerCommandGroup::RemoveCommandFromGroup(const char * aCommand, const ch
   nsTArray<char*>* commandList = (nsTArray<char*> *)mGroupsHash.Get(&groupKey);
   if (!commandList) return NS_OK;     // no group
 
-  uint32_t numEntries = commandList->Length();
-  for (uint32_t i = 0; i < numEntries; i ++)
+  PRUint32 numEntries = commandList->Length();
+  for (PRUint32 i = 0; i < numEntries; i ++)
   {
     char*  commandString = commandList->ElementAt(i);
     if (!nsCRT::strcmp(aCommand,commandString))
@@ -273,22 +305,22 @@ nsControllerCommandGroup::RemoveCommandFromGroup(const char * aCommand, const ch
 
 /* boolean isCommandInGroup (in DOMString aCommand, in DOMString aGroup); */
 NS_IMETHODIMP
-nsControllerCommandGroup::IsCommandInGroup(const char * aCommand, const char * aGroup, bool *_retval)
+nsControllerCommandGroup::IsCommandInGroup(const char * aCommand, const char * aGroup, PRBool *_retval)
 {
   NS_ENSURE_ARG_POINTER(_retval);
-  *_retval = false;
+  *_retval = PR_FALSE;
   
   nsCStringKey   groupKey(aGroup);
   nsTArray<char*>* commandList = (nsTArray<char*> *)mGroupsHash.Get(&groupKey);
   if (!commandList) return NS_OK;     // no group
   
-  uint32_t numEntries = commandList->Length();
-  for (uint32_t i = 0; i < numEntries; i ++)
+  PRUint32 numEntries = commandList->Length();
+  for (PRUint32 i = 0; i < numEntries; i ++)
   {
     char*  commandString = commandList->ElementAt(i);
     if (!nsCRT::strcmp(aCommand,commandString))
     {
-      *_retval = true;
+      *_retval = PR_TRUE;
       break;
     }
   }
@@ -322,13 +354,13 @@ nsControllerCommandGroup::GetEnumeratorForGroup(const char * aGroup, nsISimpleEn
 #pragma mark -
 #endif
  
-bool nsControllerCommandGroup::ClearEnumerator(nsHashKey *aKey, void *aData, void* closure)
+PRBool nsControllerCommandGroup::ClearEnumerator(nsHashKey *aKey, void *aData, void* closure)
 {
   nsTArray<char*>* commandList = (nsTArray<char*> *)aData;
   if (commandList)
   {  
-    uint32_t numEntries = commandList->Length();
-    for (uint32_t i = 0; i < numEntries; i ++)
+    PRUint32 numEntries = commandList->Length();
+    for (PRUint32 i = 0; i < numEntries; i ++)
     {
       char* commandString = commandList->ElementAt(i);
       nsMemory::Free(commandString);
@@ -337,5 +369,5 @@ bool nsControllerCommandGroup::ClearEnumerator(nsHashKey *aKey, void *aData, voi
     delete commandList;
   }
 
-  return true;
+  return PR_TRUE;
 }

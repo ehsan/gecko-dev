@@ -1,7 +1,3 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
 
 // A short test program with which to experiment with the assembler.
 
@@ -17,12 +13,12 @@
 #define USE_SYSTEM_MALLOC 1
 // leads to FORCE_SYSTEM_MALLOC in wtf/FastMalloc.cpp
 
-#include "assembler/jit/ExecutableAllocator.h"
-#include "assembler/assembler/LinkBuffer.h"
-#include "assembler/assembler/CodeLocation.h"
-#include "assembler/assembler/RepatchBuffer.h"
+#include <jit/ExecutableAllocator.h>
+#include <assembler/LinkBuffer.h>
+#include <assembler/CodeLocation.h>
+#include <assembler/RepatchBuffer.h>
 
-#include "assembler/assembler/MacroAssembler.h"
+#include <assembler/MacroAssembler.h>
 
 #include <stdio.h>
 

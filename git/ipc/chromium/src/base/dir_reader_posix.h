@@ -20,8 +20,6 @@
 
 #if defined(OS_LINUX)
 #include "base/dir_reader_linux.h"
-#elif defined(OS_BSD) && !defined(__GLIBC__)
-#include "base/dir_reader_bsd.h"
 #else
 #include "base/dir_reader_fallback.h"
 #endif
@@ -30,8 +28,6 @@ namespace base {
 
 #if defined(OS_LINUX)
 typedef DirReaderLinux DirReaderPosix;
-#elif defined(OS_BSD) && !defined(__GLIBC__)
-typedef DirReaderBSD DirReaderPosix;
 #else
 typedef DirReaderFallback DirReaderPosix;
 #endif

@@ -1,19 +1,47 @@
 /* -*- Mode: C++; tab-width: 50; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 ci et: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-#include "mozilla/Util.h"
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is the Mozilla Foundation.
+ *
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Justin Lebar <justin.lebar@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "mozilla/MapsMemoryReporter.h"
 #include "nsIMemoryReporter.h"
 #include "nsString.h"
 #include "nsCOMPtr.h"
-#include "nsTHashtable.h"
-#include "nsHashKeys.h"
-#include "mozilla/Attributes.h"
-#include "mozilla/unused.h"
+#include "nsHashSets.h"
 #include <stdio.h>
 
 namespace mozilla {
@@ -51,7 +79,7 @@ namespace {
 
 bool EndsWithLiteral(const nsCString &aHaystack, const char *aNeedle)
 {
-  int32_t idx = aHaystack.RFind(aNeedle);
+  PRInt32 idx = aHaystack.RFind(aNeedle);
   if (idx == -1) {
     return false;
   }
@@ -61,7 +89,7 @@ bool EndsWithLiteral(const nsCString &aHaystack, const char *aNeedle)
 
 void GetDirname(const nsCString &aPath, nsACString &aOut)
 {
-  int32_t idx = aPath.RFind("/");
+  PRInt32 idx = aPath.RFind("/");
   if (idx == -1) {
     aOut.Truncate();
   }
@@ -72,60 +100,43 @@ void GetDirname(const nsCString &aPath, nsACString &aOut)
 
 void GetBasename(const nsCString &aPath, nsACString &aOut)
 {
-  nsCString out;
-  int32_t idx = aPath.RFind("/");
+  PRInt32 idx = aPath.RFind("/");
   if (idx == -1) {
-    out.Assign(aPath);
+    aOut.Assign(aPath);
   }
   else {
-    out.Assign(Substring(aPath, idx + 1));
+    aOut.Assign(Substring(aPath, idx + 1));
   }
-
-  // On Android, some entries in /dev/ashmem end with "(deleted)" (e.g.
-  // "/dev/ashmem/libxul.so(deleted)").  We don't care about this modifier, so
-  // cut it off when getting the entry's basename.
-  if (EndsWithLiteral(out, "(deleted)")) {
-    out.Assign(Substring(out, 0, out.RFind("(deleted)")));
-  }
-  out.StripChars(" ");
-
-  aOut.Assign(out);
 }
 
 // MapsReporter::CollectReports uses this stuct to keep track of whether it's
-// seen a mapping under 'rss', 'pss', 'size', and 'swap'.
+// seen a mapping under 'map/resident', 'map/vsize', and 'map/swap'.
 struct CategoriesSeen {
   CategoriesSeen() :
-    mSeenRss(false),
+    mSeenResident(false),
     mSeenPss(false),
-    mSeenSize(false),
+    mSeenVsize(false),
     mSeenSwap(false)
   {
   }
 
-  bool mSeenRss;
+  bool mSeenResident;
   bool mSeenPss;
-  bool mSeenSize;
+  bool mSeenVsize;
   bool mSeenSwap;
 };
 
 } // anonymous namespace
 
-class MapsReporter MOZ_FINAL : public nsIMemoryMultiReporter
+class MapsReporter : public nsIMemoryMultiReporter
 {
 public:
   MapsReporter();
 
-  NS_DECL_THREADSAFE_ISUPPORTS
-
-  NS_IMETHOD GetName(nsACString &aName)
-  {
-      aName.AssignLiteral("smaps");
-      return NS_OK;
-  }
+  NS_DECL_ISUPPORTS
 
   NS_IMETHOD
-  CollectReports(nsIMemoryMultiReporterCallback *aCb,
+  CollectReports(nsIMemoryMultiReporterCallback *aCallback,
                  nsISupports *aClosure);
 
 private:
@@ -135,7 +146,7 @@ private:
 
   nsresult
   ParseMapping(FILE *aFile,
-               nsIMemoryMultiReporterCallback *aCb,
+               nsIMemoryMultiReporterCallback *aCallback,
                nsISupports *aClosure,
                CategoriesSeen *aCategoriesSeen);
 
@@ -149,31 +160,29 @@ private:
   ParseMapBody(FILE *aFile,
                const nsACString &aName,
                const nsACString &aDescription,
-               nsIMemoryMultiReporterCallback *aCb,
+               nsIMemoryMultiReporterCallback *aCallback,
                nsISupports *aClosure,
                CategoriesSeen *aCategoriesSeen);
 
-  bool mSearchedForLibxul;
   nsCString mLibxulDir;
-  nsTHashtable<nsCStringHashKey> mMozillaLibraries;
+  nsCStringHashSet mMozillaLibraries;
 };
 
-NS_IMPL_ISUPPORTS1(MapsReporter, nsIMemoryMultiReporter)
+NS_IMPL_THREADSAFE_ISUPPORTS1(MapsReporter, nsIMemoryMultiReporter)
 
 MapsReporter::MapsReporter()
-  : mSearchedForLibxul(false)
 {
-  const uint32_t len = ArrayLength(mozillaLibraries);
+  const PRUint32 len = NS_ARRAY_LENGTH(mozillaLibraries);
   mMozillaLibraries.Init(len);
-  for (uint32_t i = 0; i < len; i++) {
-    nsAutoCString str;
+  for (PRUint32 i = 0; i < len; i++) {
+    nsCAutoString str;
     str.Assign(mozillaLibraries[i]);
-    mMozillaLibraries.PutEntry(str);
+    mMozillaLibraries.Put(str);
   }
 }
 
 NS_IMETHODIMP
-MapsReporter::CollectReports(nsIMemoryMultiReporterCallback *aCb,
+MapsReporter::CollectReports(nsIMemoryMultiReporterCallback *aCallback,
                              nsISupports *aClosure)
 {
   CategoriesSeen categoriesSeen;
@@ -183,32 +192,28 @@ MapsReporter::CollectReports(nsIMemoryMultiReporterCallback *aCb,
     return NS_ERROR_FAILURE;
 
   while (true) {
-    nsresult rv = ParseMapping(f, aCb, aClosure, &categoriesSeen);
+    nsresult rv = ParseMapping(f, aCallback, aClosure, &categoriesSeen);
     if (NS_FAILED(rv))
       break;
   }
 
   fclose(f);
 
-  // For sure we should have created some node under 'rss' and
-  // 'size'; otherwise we're probably not reading smaps correctly.  If we
-  // didn't create a node under 'swap', create one here so about:memory
-  // knows to create an empty 'swap' tree;  it needs a 'total' child because
-  // about:memory expects at least one report whose path begins with 'swap/'.
+  // For sure we should have created some node under 'map/resident' and
+  // 'map/vsize'; otherwise we're probably not reading smaps correctly.  If we
+  // didn't create a node under 'map/swap', create one here so about:memory
+  // knows to create an empty 'map/swap' tree.  See also bug 682735.
 
-  NS_ASSERTION(categoriesSeen.mSeenSize, "Didn't create a size node?");
-  NS_ASSERTION(categoriesSeen.mSeenRss, "Didn't create a rss node?");
-  NS_ASSERTION(categoriesSeen.mSeenPss, "Didn't create a pss node?");
+  NS_ASSERTION(categoriesSeen.mSeenVsize, "Didn't create a vsize node?");
+  NS_ASSERTION(categoriesSeen.mSeenVsize, "Didn't create a resident node?");
   if (!categoriesSeen.mSeenSwap) {
-    nsresult rv;
-    rv = aCb->Callback(NS_LITERAL_CSTRING(""),
-                       NS_LITERAL_CSTRING("swap/total"),
-                       nsIMemoryReporter::KIND_NONHEAP,
-                       nsIMemoryReporter::UNITS_BYTES,
-                       0,
-                       NS_LITERAL_CSTRING("This process uses no swap space."),
-                       aClosure);
-    NS_ENSURE_SUCCESS(rv, rv);
+    aCallback->Callback(NS_LITERAL_CSTRING(""),
+                        NS_LITERAL_CSTRING("map/swap"),
+                        nsIMemoryReporter::KIND_NONHEAP,
+                        nsIMemoryReporter::UNITS_BYTES,
+                        0,
+                        NS_LITERAL_CSTRING("This process uses no swap space."),
+                        aClosure);
   }
 
   return NS_OK;
@@ -217,18 +222,12 @@ MapsReporter::CollectReports(nsIMemoryMultiReporterCallback *aCb,
 nsresult
 MapsReporter::FindLibxul()
 {
-  if (mSearchedForLibxul)
-    return NS_OK;
-
-  mSearchedForLibxul = true;
-
   mLibxulDir.Truncate();
 
   // Note that we're scanning /proc/self/*maps*, not smaps, here.
   FILE *f = fopen("/proc/self/maps", "r");
-  if (!f) {
+  if (!f)
     return NS_ERROR_FAILURE;
-  }
 
   while (true) {
     // Skip any number of non-slash characters, then capture starting with the
@@ -239,10 +238,10 @@ MapsReporter::FindLibxul()
       break;
     }
 
-    nsAutoCString pathStr;
+    nsCAutoString pathStr;
     pathStr.Append(path);
 
-    nsAutoCString basename;
+    nsCAutoString basename;
     GetBasename(pathStr, basename);
 
     if (basename.EqualsLiteral("libxul.so")) {
@@ -258,20 +257,18 @@ MapsReporter::FindLibxul()
 nsresult
 MapsReporter::ParseMapping(
   FILE *aFile,
-  nsIMemoryMultiReporterCallback *aCb,
+  nsIMemoryMultiReporterCallback *aCallback,
   nsISupports *aClosure,
   CategoriesSeen *aCategoriesSeen)
 {
   // We need to use native types in order to get good warnings from fscanf, so
   // let's make sure that the native types have the sizes we expect.
-  static_assert(sizeof(long long) == sizeof(int64_t),
-                "size of (long long) is expected to match (int64_t)");
-  static_assert(sizeof(int) == sizeof(int32_t),
-                "size of (int) is expected to match (int32_t)");
+  PR_STATIC_ASSERT(sizeof(long long) == sizeof(PRInt64));
+  PR_STATIC_ASSERT(sizeof(int) == sizeof(PRInt32));
 
-  // Don't bail if FindLibxul fails.  We can still gather meaningful stats
-  // here.
-  FindLibxul();
+  if (mLibxulDir.IsEmpty()) {
+    NS_ENSURE_SUCCESS(FindLibxul(), NS_ERROR_FAILURE);
+  }
 
   // The first line of an entry in /proc/self/smaps looks just like an entry
   // in /proc/maps:
@@ -284,11 +281,8 @@ MapsReporter::ParseMapping(
   unsigned long long addrStart, addrEnd;
   char perms[5];
   unsigned long long offset;
-  // The 2.6 and 3.0 kernels allocate 12 bits for the major device number and
-  // 20 bits for the minor device number.  Future kernels might allocate more.
-  // 64 bits ought to be enough for anybody.
-  char devMajor[17];
-  char devMinor[17];
+  char devMajor[3];
+  char devMinor[3];
   unsigned int inode;
   char path[1025];
 
@@ -300,14 +294,12 @@ MapsReporter::ParseMapping(
   // with or without a path, but we don't want to look to a new line for the
   // path.  Thus we have %u%1024[^\n] at the end of the pattern.  This will
   // capture into the path some leading whitespace, which we'll later trim off.
-  int numRead = fscanf(aFile,
-                       "%llx-%llx %4s %llx "
-                       "%16[0-9a-fA-F]:%16[0-9a-fA-F] %u%1024[^\n]",
+  int numRead = fscanf(aFile, "%llx-%llx %4s %llx %2s:%2s %u%1024[^\n]",
                        &addrStart, &addrEnd, perms, &offset, devMajor,
                        devMinor, &inode, path);
 
   // Eat up any whitespace at the end of this line, including the newline.
-  unused << fscanf(aFile, " ");
+  fscanf(aFile, " ");
 
   // We might or might not have a path, but the rest of the arguments should be
   // there.
@@ -315,30 +307,17 @@ MapsReporter::ParseMapping(
     return NS_ERROR_FAILURE;
   }
 
-  nsAutoCString name, description;
+  nsCAutoString name, description;
   GetReporterNameAndDescription(path, perms, name, description);
 
   while (true) {
-    nsresult rv = ParseMapBody(aFile, name, description, aCb,
+    nsresult rv = ParseMapBody(aFile, name, description, aCallback,
                                aClosure, aCategoriesSeen);
     if (NS_FAILED(rv))
       break;
   }
 
   return NS_OK;
-}
-
-static bool
-IsAnonymous(const nsACString &aName)
-{
-  // Recent kernels (e.g. 3.5) have multiple [stack:nnnn] entries, where |nnnn|
-  // is a thread ID.  However, [stack:nnnn] entries count both stack memory
-  // *and* anonymous memory because the kernel only knows about the start of
-  // each thread stack, not its end.  So we treat such entries as anonymous
-  // memory instead of stack.  This is consistent with older kernels that don't
-  // even show [stack:nnnn] entries.
-  return aName.IsEmpty() ||
-         StringBeginsWith(aName, NS_LITERAL_CSTRING("[stack:"));
 }
 
 void
@@ -354,11 +333,11 @@ MapsReporter::GetReporterNameAndDescription(
   // If aPath points to a file, we have its absolute path, plus some
   // whitespace.  Truncate this to its basename, and put the absolute path in
   // the description.
-  nsAutoCString absPath;
+  nsCAutoString absPath;
   absPath.Append(aPath);
   absPath.StripChars(" ");
 
-  nsAutoCString basename;
+  nsCAutoString basename;
   GetBasename(absPath, basename);
 
   if (basename.EqualsLiteral("[heap]")) {
@@ -382,8 +361,10 @@ MapsReporter::GetReporterNameAndDescription(
                  "perform some privileged actions without the overhead of a "
                  "syscall.");
   }
-  else if (!IsAnonymous(basename)) {
-    nsAutoCString dirname;
+  else if (!basename.IsEmpty()) {
+    NS_ASSERTION(!mLibxulDir.IsEmpty(), "mLibxulDir should not be empty.");
+
+    nsCAutoString dirname;
     GetDirname(absPath, dirname);
 
     // Hack: A file is a shared library if the basename contains ".so" and its
@@ -391,8 +372,7 @@ MapsReporter::GetReporterNameAndDescription(
     if (EndsWithLiteral(basename, ".so") ||
         (basename.Find(".so") != -1 && dirname.Find("/lib") != -1)) {
       aName.Append("shared-libraries/");
-      if ((!mLibxulDir.IsEmpty() && dirname.Equals(mLibxulDir)) ||
-          mMozillaLibraries.Contains(basename)) {
+      if (dirname.Equals(mLibxulDir) || mMozillaLibraries.Contains(basename)) {
         aName.Append("shared-libraries-mozilla/");
       }
       else {
@@ -418,7 +398,7 @@ MapsReporter::GetReporterNameAndDescription(
                  "by brk() / sbrk().");
   }
 
-  aName.Append("/[");
+  aName.Append(" [");
   aName.Append(aPerms);
   aName.Append("]");
 
@@ -461,12 +441,11 @@ MapsReporter::ParseMapBody(
   FILE *aFile,
   const nsACString &aName,
   const nsACString &aDescription,
-  nsIMemoryMultiReporterCallback *aCb,
+  nsIMemoryMultiReporterCallback *aCallback,
   nsISupports *aClosure,
   CategoriesSeen *aCategoriesSeen)
 {
-  static_assert(sizeof(long long) == sizeof(int64_t),
-                "size of (long long) is expected to match (int64_t)");
+  PR_STATIC_ASSERT(sizeof(long long) == sizeof(PRInt64));
 
   const int argCount = 2;
 
@@ -483,92 +462,46 @@ MapsReporter::ParseMapBody(
 
   const char* category;
   if (strcmp(desc, "Size") == 0) {
-    category = "size";
-    aCategoriesSeen->mSeenSize = true;
+    category = "vsize";
+    aCategoriesSeen->mSeenVsize = PR_TRUE;
   }
   else if (strcmp(desc, "Rss") == 0) {
-    category = "rss";
-    aCategoriesSeen->mSeenRss = true;
+    category = "resident";
+    aCategoriesSeen->mSeenResident = PR_TRUE;
   }
   else if (strcmp(desc, "Pss") == 0) {
     category = "pss";
-    aCategoriesSeen->mSeenPss = true;
+    aCategoriesSeen->mSeenPss = PR_TRUE;
   }
   else if (strcmp(desc, "Swap") == 0) {
     category = "swap";
-    aCategoriesSeen->mSeenSwap = true;
+    aCategoriesSeen->mSeenSwap = PR_TRUE;
   }
   else {
     // Don't report this category.
     return NS_OK;
   }
 
-  nsAutoCString path;
+  nsCAutoString path;
+  path.Append("map/");
   path.Append(category);
   path.Append("/");
   path.Append(aName);
 
-  nsresult rv;
-  rv = aCb->Callback(NS_LITERAL_CSTRING(""),
-                     path,
-                     nsIMemoryReporter::KIND_NONHEAP,
-                     nsIMemoryReporter::UNITS_BYTES,
-                     int64_t(size) * 1024, // convert from kB to bytes
-                     aDescription, aClosure);
-  NS_ENSURE_SUCCESS(rv, rv);
+  aCallback->Callback(NS_LITERAL_CSTRING(""),
+                      path,
+                      nsIMemoryReporter::KIND_NONHEAP,
+                      nsIMemoryReporter::UNITS_BYTES,
+                      PRInt64(size) * 1024, // convert from kB to bytes
+                      aDescription, aClosure);
 
   return NS_OK;
 }
-
-static nsresult GetUSS(int64_t *n)
-{
-    // You might be tempted to calculate USS by subtracting the "shared" value
-    // from the "resident" value in /proc/<pid>/statm.  But at least on Linux,
-    // statm's "shared" value actually counts pages backed by files, which has
-    // little to do with whether the pages are actually shared.  smaps on the
-    // other hand appears to give us the correct information.
-    //
-    // We could calculate this data during the smaps multi-reporter, but the
-    // overhead of the smaps reporter is considerable (we don't even run the
-    // smaps reporter in normal about:memory operation).  Hopefully this
-    // implementation is fast enough not to matter.
-
-    *n = 0;
-
-    FILE *f = fopen("/proc/self/smaps", "r");
-    NS_ENSURE_STATE(f);
-
-    int64_t total = 0;
-    char line[256];
-    while(fgets(line, sizeof(line), f)) {
-        long long val = 0;
-        if(sscanf(line, "Private_Dirty: %lld kB", &val) == 1 ||
-           sscanf(line, "Private_Clean: %lld kB", &val) == 1) {
-            total += val * 1024; // convert from kB to bytes
-        }
-    }
-    *n = total;
-
-    fclose(f);
-    return NS_OK;
-}
-
-NS_FALLIBLE_MEMORY_REPORTER_IMPLEMENT(USS,
-    "resident-unique",
-    KIND_OTHER,
-    UNITS_BYTES,
-    GetUSS,
-    "Memory mapped by the process that is present in physical memory and not "
-    "shared with any other processes.  This is also known as the process's "
-    "unique set size (USS).  This is the amount of RAM we'd expect to be freed "
-    "if we closed this process.")
 
 void Init()
 {
   nsCOMPtr<nsIMemoryMultiReporter> reporter = new MapsReporter();
   NS_RegisterMemoryMultiReporter(reporter);
-
-  NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(USS));
 }
 
 } // namespace MapsMemoryReporter

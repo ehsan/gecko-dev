@@ -12,11 +12,7 @@
 class TOutputGLSL : public TOutputGLSLBase
 {
 public:
-    TOutputGLSL(TInfoSinkBase& objSink,
-                ShArrayIndexClampingStrategy clampingStrategy,
-                ShHashFunction64 hashFunction,
-                NameMap& nameMap,
-                TSymbolTable& symbolTable);
+    TOutputGLSL(TInfoSinkBase& objSink);
 
 protected:
     virtual bool writeVariablePrecision(TPrecision);

@@ -1,9 +1,6 @@
-/* Any copyright is dedicated to the Public Domain.
- * http://creativecommons.org/publicdomain/zero/1.0/ */
-
 Cu.import("resource://services-sync/constants.js");
-Cu.import("resource://services-sync/service.js");
-Cu.import("resource://services-sync/util.js");
+Cu.import("resource://services-sync/main.js");
+var btoa = Cu.import("resource://services-sync/util.js").btoa;
 
 // Test upgrade of a dashed old-style sync key.
 function run_test() {
@@ -24,21 +21,20 @@ function run_test() {
   do_check_eq(normalized, "abcdeabcdeabcdeabcde");
 
   // Now run through the upgrade.
-  Service.identity.account = "johndoe";
-  Service.syncID = "1234567890";
-  Service.identity.syncKey = normalized; // UI normalizes.
-  do_check_false(Utils.isPassphrase(Service.identity.syncKey));
-  Service.upgradeSyncKey(Service.syncID);
-  let upgraded = Service.identity.syncKey;
+  Weave.Service.syncID = "1234567890";
+  Weave.Service.passphrase = normalized;     // UI normalizes.
+  do_check_false(Utils.isPassphrase(Weave.Service.passphrase));
+  Weave.Service.upgradeSyncKey(Weave.Service.syncID);
+  let upgraded = Weave.Service.passphrase;
   _("Upgraded: " + upgraded);
   do_check_true(Utils.isPassphrase(upgraded));
 
   // Now let's verify that it's been derived correctly, from the normalized
   // version, and the encoded sync ID.
-  _("Sync ID: " + Service.syncID);
+  _("Sync ID: " + Weave.Service.syncID);
   let derivedKeyStr =
     Utils.derivePresentableKeyFromPassphrase(normalized,
-                                             btoa(Service.syncID),
+                                             btoa(Weave.Service.syncID),
                                              PBKDF2_KEY_BYTES, true);
   _("Derived: " + derivedKeyStr);
 

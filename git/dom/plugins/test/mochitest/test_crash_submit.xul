@@ -16,7 +16,6 @@
 <script class="testbody" type="application/javascript">
 <![CDATA[
 SimpleTest.waitForExplicitFinish();
-SimpleTest.ignoreAllUncaughtExceptions();
 
 Components.utils.import("resource://gre/modules/NetUtil.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
@@ -86,14 +85,19 @@ function onPluginCrashed(aEvent) {
   ok(true, "Plugin crashed notification received");
   is(aEvent.type, "PluginCrashed", "event is correct type");
 
-  let submitButton = document.getAnonymousElementByAttribute(aEvent.target,
-                                                             "class",
-                                                             "submitButton");
+  let pleaseLink = document.getAnonymousElementByAttribute(
+                            aEvent.target, "class", "pleaseSubmitLink");
   // try to submit this report
-  sendMouseEvent({type:'click'}, submitButton, window);
+  sendMouseEvent({type:'click'}, pleaseLink, window);
 }
 
 function runTests() {
+  if (navigator.userAgent.match(/ SeaMonkey\//)) {
+    todo(false, "Skipping this test on Seamonkey ftb. (Bug 604129)");
+    SimpleTest.finish();
+    return;
+  }
+
   if (!SimpleTest.testPluginIsOOP()) {
     todo(false, "Skipping this test when test plugin is not OOP.");
     SimpleTest.finish();
@@ -125,3 +129,4 @@ function runTests() {
 ]]>
 </script>
 </window>
+

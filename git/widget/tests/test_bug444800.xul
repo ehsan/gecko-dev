@@ -39,13 +39,6 @@ function copyImageToClipboard()
   document.popupNode = tmpNode;
 }
 
-function getLoadContext() {
-  const Ci = Components.interfaces;
-  return window.QueryInterface(Ci.nsIInterfaceRequestor)
-               .getInterface(Ci.nsIWebNavigation)
-               .QueryInterface(Ci.nsILoadContext);
-}
-
 function runImageClipboardTests(aCBSvc, aImageType)
 {
   // Verify that hasDataMatchingFlavors() is working correctly.
@@ -57,7 +50,6 @@ function runImageClipboardTests(aCBSvc, aImageType)
   // Verify that getData() is working correctly.
   var xfer = Components.classes["@mozilla.org/widget/transferable;1"]
                        .createInstance(Components.interfaces.nsITransferable);
-  xfer.init(getLoadContext());
   xfer.addDataFlavor(aImageType);
   aCBSvc.getData(xfer, knsIClipboard.kGlobalClipboard);
 
@@ -92,7 +84,6 @@ function runTests(aCBSvc)
 {
   runImageClipboardTests(aCBSvc, "image/png");
   runImageClipboardTests(aCBSvc, "image/jpg");
-  runImageClipboardTests(aCBSvc, "image/jpeg");
 
   SimpleTest.finish();
 }

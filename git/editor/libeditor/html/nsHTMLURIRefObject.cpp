@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /* Here is the list, from beppe and glazman:
     href >> A, AREA, BASE, LINK
@@ -48,7 +80,7 @@
   rv = NS_NewURI(getter_AddRefs(theURI), theSpec);
   if (!theURI)
     error;
-  rv = NS_OpenURI(getter_AddRefs(theChannel), theURI, nullptr, theLoadGroup);
+  rv = NS_OpenURI(getter_AddRefs(theChannel), theURI, nsnull, theLoadGroup);
   if (!theChannel)
     error;
   nsCOMPtr<nsILoadGroup> theLoadGroup(do_CreateInstance(NS_LOADGROUP_CONTRACTID));
@@ -59,24 +91,18 @@
 		//qaWebBrowser->AddWebBrowserListener(thisListener, NS_GET_IID(nsIStreamListener));
 
 		// this calls nsIStreamListener::OnDataAvailable()
-		rv = theChannel->AsyncOpen(listener, nullptr);
+		rv = theChannel->AsyncOpen(listener, nsnull);
 
 		nsCOMPtr<nsIRequest> theRequest = do_QueryInterface(theChannel);
     // Now we can do things on nsIRequest (like what?)
  */
 
-#include "mozilla/mozalloc.h"
-#include "nsAString.h"
-#include "nsDebug.h"
-#include "nsError.h"
 #include "nsHTMLURIRefObject.h"
-#include "nsID.h"
+
+#include "nsAString.h"
+#include "nsString.h"
 #include "nsIDOMAttr.h"
 #include "nsIDOMElement.h"
-#include "nsIDOMMozNamedAttrMap.h"
-#include "nsIDOMNode.h"
-#include "nsISupportsUtils.h"
-#include "nsString.h"
 
 // String classes change too often and I can't keep up.
 // Set this macro to this week's approved case-insensitive compare routine.
@@ -117,7 +143,7 @@ nsHTMLURIRefObject::GetNextURI(nsAString & aURI)
     NS_ENSURE_TRUE(element, NS_ERROR_INVALID_ARG);
 
     mCurAttrIndex = 0;
-    element->GetAttributes(getter_AddRefs(mAttributes));
+    mNode->GetAttributes(getter_AddRefs(mAttributes));
     NS_ENSURE_TRUE(mAttributes, NS_ERROR_NOT_INITIALIZED);
 
     rv = mAttributes->GetLength(&mAttributeCnt);
@@ -131,12 +157,16 @@ nsHTMLURIRefObject::GetNextURI(nsAString & aURI)
 #endif
   while (mCurAttrIndex < mAttributeCnt)
   {
-    nsCOMPtr<nsIDOMAttr> attrNode;
+    nsCOMPtr<nsIDOMNode> attrNode;
     rv = mAttributes->Item(mCurAttrIndex++, getter_AddRefs(attrNode));
+      // XXX Does Item() addref, or not?
+      // The comparable code in nsEditor assumes it doesn't.
     NS_ENSURE_SUCCESS(rv, rv);
     NS_ENSURE_ARG_POINTER(attrNode);
+    nsCOMPtr<nsIDOMAttr> curAttrNode (do_QueryInterface(attrNode));
+    NS_ENSURE_ARG_POINTER(curAttrNode);
     nsString curAttr;
-    rv = attrNode->GetName(curAttr);
+    rv = curAttrNode->GetName(curAttr);
     NS_ENSURE_SUCCESS(rv, rv);
 
     // href >> A, AREA, BASE, LINK
@@ -149,7 +179,7 @@ nsHTMLURIRefObject::GetNextURI(nsAString & aURI)
       if (!MATCHES(tagName, "a") && !MATCHES(tagName, "area")
           && !MATCHES(tagName, "base") && !MATCHES(tagName, "link"))
         continue;
-      rv = attrNode->GetValue(aURI);
+      rv = curAttrNode->GetValue(aURI);
       NS_ENSURE_SUCCESS(rv, rv);
       nsString uri (aURI);
       // href pointing to a named anchor doesn't count
@@ -165,7 +195,7 @@ nsHTMLURIRefObject::GetNextURI(nsAString & aURI)
           && !MATCHES(tagName, "frame") && !MATCHES(tagName, "iframe")
           && !MATCHES(tagName, "input") && !MATCHES(tagName, "script"))
         continue;
-      return attrNode->GetValue(aURI);
+      return curAttrNode->GetValue(aURI);
     }
     //<META http-equiv="refresh" content="3,http://www.acme.com/intro.html">
     else if (MATCHES(curAttr, "content"))
@@ -245,7 +275,7 @@ nsHTMLURIRefObject::GetNextURI(nsAString & aURI)
 NS_IMETHODIMP
 nsHTMLURIRefObject::RewriteAllURIs(const nsAString & aOldPat,
                             const nsAString & aNewPat,
-                            bool aMakeRel)
+                            PRBool aMakeRel)
 {
 #ifdef DEBUG_akkana
   printf("Can't rewrite URIs yet\n");
@@ -283,6 +313,7 @@ nsHTMLURIRefObject::SetNode(nsIDOMNode *aNode)
 nsresult NS_NewHTMLURIRefObject(nsIURIRefObject** aResult, nsIDOMNode* aNode)
 {
   nsHTMLURIRefObject* refObject = new nsHTMLURIRefObject();
+  NS_ENSURE_TRUE(refObject, NS_ERROR_OUT_OF_MEMORY);
   nsresult rv = refObject->SetNode(aNode);
   if (NS_FAILED(rv)) {
     *aResult = 0;

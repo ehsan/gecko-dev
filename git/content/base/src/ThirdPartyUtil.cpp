@@ -1,6 +1,39 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is third party utility code.
+ *
+ * The Initial Developer of the Original Code is
+ * the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Daniel Witte (dwitte@mozilla.com)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "ThirdPartyUtil.h"
 #include "nsNetUtil.h"
@@ -12,7 +45,8 @@
 #include "nsIScriptObjectPrincipal.h"
 #include "nsThreadUtils.h"
 
-NS_IMPL_ISUPPORTS1(ThirdPartyUtil, mozIThirdPartyUtil)
+NS_IMPL_ISUPPORTS2(ThirdPartyUtil, mozIThirdPartyUtil,
+                                   mozIThirdPartyUtil_BRANCH)
 
 nsresult
 ThirdPartyUtil::Init()
@@ -30,7 +64,7 @@ ThirdPartyUtil::Init()
 nsresult
 ThirdPartyUtil::IsThirdPartyInternal(const nsCString& aFirstDomain,
                                      nsIURI* aSecondURI,
-                                     bool* aResult)
+                                     PRBool* aResult)
 {
   NS_ASSERTION(aSecondURI, "null URI!");
 
@@ -50,10 +84,10 @@ already_AddRefed<nsIURI>
 ThirdPartyUtil::GetURIFromWindow(nsIDOMWindow* aWin)
 {
   nsCOMPtr<nsIScriptObjectPrincipal> scriptObjPrin = do_QueryInterface(aWin);
-  NS_ENSURE_TRUE(scriptObjPrin, nullptr);
+  NS_ENSURE_TRUE(scriptObjPrin, NULL);
 
   nsIPrincipal* prin = scriptObjPrin->GetPrincipal();
-  NS_ENSURE_TRUE(prin, nullptr);
+  NS_ENSURE_TRUE(prin, NULL);
 
   nsCOMPtr<nsIURI> result;
   prin->GetURI(getter_AddRefs(result));
@@ -65,7 +99,7 @@ ThirdPartyUtil::GetURIFromWindow(nsIDOMWindow* aWin)
 NS_IMETHODIMP
 ThirdPartyUtil::IsThirdPartyURI(nsIURI* aFirstURI,
                                 nsIURI* aSecondURI,
-                                bool* aResult)
+                                PRBool* aResult)
 {
   NS_ENSURE_ARG(aFirstURI);
   NS_ENSURE_ARG(aSecondURI);
@@ -84,12 +118,12 @@ ThirdPartyUtil::IsThirdPartyURI(nsIURI* aFirstURI,
 NS_IMETHODIMP
 ThirdPartyUtil::IsThirdPartyWindow(nsIDOMWindow* aWindow,
                                    nsIURI* aURI,
-                                   bool* aResult)
+                                   PRBool* aResult)
 {
   NS_ENSURE_ARG(aWindow);
   NS_ASSERTION(aResult, "null outparam pointer");
 
-  bool result;
+  PRBool result;
 
   // Get the URI of the window, and its base domain.
   nsCOMPtr<nsIURI> currentURI = GetURIFromWindow(aWindow);
@@ -115,9 +149,7 @@ ThirdPartyUtil::IsThirdPartyWindow(nsIDOMWindow* aWindow,
   nsCOMPtr<nsIDOMWindow> current = aWindow, parent;
   nsCOMPtr<nsIURI> parentURI;
   do {
-    // We use GetScriptableParent rather than GetParent because we consider
-    // <iframe mozbrowser/mozapp> to be a top-level frame.
-    rv = current->GetScriptableParent(getter_AddRefs(parent));
+    rv = current->GetParent(getter_AddRefs(parent));
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (SameCOMIdentity(parent, current)) {
@@ -152,13 +184,13 @@ ThirdPartyUtil::IsThirdPartyWindow(nsIDOMWindow* aWindow,
 NS_IMETHODIMP 
 ThirdPartyUtil::IsThirdPartyChannel(nsIChannel* aChannel,
                                     nsIURI* aURI,
-                                    bool* aResult)
+                                    PRBool* aResult)
 {
   NS_ENSURE_ARG(aChannel);
   NS_ASSERTION(aResult, "null outparam pointer");
 
   nsresult rv;
-  bool doForce = false;
+  PRBool doForce = false;
   nsCOMPtr<nsIHttpChannelInternal> httpChannelInternal =
     do_QueryInterface(aChannel);
   if (httpChannelInternal) {
@@ -187,7 +219,7 @@ ThirdPartyUtil::IsThirdPartyChannel(nsIChannel* aChannel,
 
   if (aURI) {
     // Determine whether aURI is foreign with respect to channelURI.
-    bool result;
+    PRBool result;
     rv = IsThirdPartyInternal(channelDomain, aURI, &result);
     if (NS_FAILED(rv))
      return rv;
@@ -212,9 +244,7 @@ ThirdPartyUtil::IsThirdPartyChannel(nsIChannel* aChannel,
   ctx->GetAssociatedWindow(getter_AddRefs(ourWin));
   if (!ourWin) return NS_ERROR_INVALID_ARG;
 
-  // We use GetScriptableParent rather than GetParent because we consider
-  // <iframe mozbrowser/mozapp> to be a top-level frame.
-  ourWin->GetScriptableParent(getter_AddRefs(parentWin));
+  ourWin->GetParent(getter_AddRefs(parentWin));
   NS_ENSURE_TRUE(parentWin, NS_ERROR_INVALID_ARG);
 
   // Check whether this is the document channel for this window (representing a
@@ -279,7 +309,7 @@ ThirdPartyUtil::GetBaseDomain(nsIURI* aHostURI,
   // means we can safely perform foreign tests on such URIs where "not foreign"
   // means "the involved URIs are all file://".
   if (aBaseDomain.IsEmpty()) {
-    bool isFileURI = false;
+    PRBool isFileURI = false;
     aHostURI->SchemeIs("file", &isFileURI);
     NS_ENSURE_TRUE(isFileURI, NS_ERROR_INVALID_ARG);
   }

@@ -1,9 +1,43 @@
 /*
  * loader.c - load platform dependent DSO containing freebl implementation.
  *
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape security libraries.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Dr Vipul Gupta <vipul.gupta@sun.com>, Sun Microsystems Laboratories
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
+/* $Id: loader.c,v 1.54 2011/10/04 22:05:53 wtc%google.com Exp $ */
 
 #include "loader.h"
 #include "prmem.h"
@@ -35,8 +69,7 @@ const static char fpu_hybrid_isa[] = "sparcv9+vis";
 
 const static char fpu_hybrid_shared_lib[] = "libfreebl_32fpu_3.so";
 const static char int_hybrid_shared_lib[] = "libfreebl_32int64_3.so";
-/* This was for SPARC V8, now obsolete. */
-const static char *const non_hybrid_shared_lib = NULL;
+const static char non_hybrid_shared_lib[] = "libfreebl_32int_3.so";
 
 const static char int_hybrid_isa[] = "sparcv8plus";
 const static char fpu_hybrid_isa[] = "sparcv8plus+vis";
@@ -557,7 +590,7 @@ MD5_Hash(unsigned char *dest, const char *src)
 }
 
 SECStatus 
-MD5_HashBuf(unsigned char *dest, const unsigned char *src, PRUint32 src_length)
+MD5_HashBuf(unsigned char *dest, const unsigned char *src, uint32 src_length)
 {
   if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
       return SECFailure;
@@ -720,7 +753,7 @@ SHA1_Hash(unsigned char *dest, const char *src)
 }
 
 SECStatus 
-SHA1_HashBuf(unsigned char *dest, const unsigned char *src, PRUint32 src_length)
+SHA1_HashBuf(unsigned char *dest, const unsigned char *src, uint32 src_length)
 {
   if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
       return SECFailure;
@@ -850,7 +883,6 @@ PQG_ParamGenSeedLen( unsigned int j, unsigned int seedBytes,
   return (vector->p_PQG_ParamGenSeedLen)(j, seedBytes, pParams, pVfy);
 }
 
-
 SECStatus   
 PQG_VerifyParams(const PQGParams *params, const PQGVerify *vfy, 
 		 SECStatus *result)
@@ -918,7 +950,7 @@ SHA256_Hash(unsigned char *dest, const char *src)
 }
 
 SECStatus 
-SHA256_HashBuf(unsigned char *dest, const unsigned char *src, PRUint32 src_length)
+SHA256_HashBuf(unsigned char *dest, const unsigned char *src, uint32 src_length)
 {
   if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
       return SECFailure;
@@ -1008,7 +1040,7 @@ SHA512_Hash(unsigned char *dest, const char *src)
 }
 
 SECStatus 
-SHA512_HashBuf(unsigned char *dest, const unsigned char *src, PRUint32 src_length)
+SHA512_HashBuf(unsigned char *dest, const unsigned char *src, uint32 src_length)
 {
   if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
       return SECFailure;
@@ -1099,7 +1131,7 @@ SHA384_Hash(unsigned char *dest, const char *src)
 }
 
 SECStatus 
-SHA384_HashBuf(unsigned char *dest, const unsigned char *src, PRUint32 src_length)
+SHA384_HashBuf(unsigned char *dest, const unsigned char *src, uint32 src_length)
 {
   if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
       return SECFailure;
@@ -1744,7 +1776,7 @@ SHA224_Hash(unsigned char *dest, const char *src)
 }
 
 SECStatus
-SHA224_HashBuf(unsigned char *dest, const unsigned char *src, PRUint32 src_length)
+SHA224_HashBuf(unsigned char *dest, const unsigned char *src, uint32 src_length)
 {
   if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
       return SECFailure;
@@ -1839,70 +1871,4 @@ BLAPI_SHVerifyFile(const char *name)
   if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
       return PR_FALSE;
   return vector->p_BLAPI_SHVerifyFile(name);
-}
-
-/* === new for DSA-2 === */
-SECStatus
-PQG_ParamGenV2( unsigned int L, unsigned int N, unsigned int seedBytes, 
-               PQGParams **pParams, PQGVerify **pVfy)
-{
-  if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
-      return SECFailure;
-  return (vector->p_PQG_ParamGenV2)(L, N, seedBytes, pParams, pVfy); 
-}
-
-SECStatus
-PRNGTEST_RunHealthTests(void)
-{
-  if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
-      return SECFailure;
-  return vector->p_PRNGTEST_RunHealthTests();
-}
-
-SECStatus
-SSLv3_MAC_ConstantTime(
-    unsigned char *result,
-    unsigned int *resultLen,
-    unsigned int maxResultLen,
-    const SECHashObject *hashObj,
-    const unsigned char *secret,
-    unsigned int secretLen,
-    const unsigned char *header,
-    unsigned int headerLen,
-    const unsigned char *body,
-    unsigned int bodyLen,
-    unsigned int bodyTotalLen)
-{
-  if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
-      return SECFailure;
-  return (vector->p_SSLv3_MAC_ConstantTime)(
-      result, resultLen, maxResultLen,
-      hashObj,
-      secret, secretLen,
-      header, headerLen,
-      body, bodyLen, bodyTotalLen);
-}
-
-SECStatus
-HMAC_ConstantTime(
-    unsigned char *result,
-    unsigned int *resultLen,
-    unsigned int maxResultLen,
-    const SECHashObject *hashObj,
-    const unsigned char *secret,
-    unsigned int secretLen,
-    const unsigned char *header,
-    unsigned int headerLen,
-    const unsigned char *body,
-    unsigned int bodyLen,
-    unsigned int bodyTotalLen)
-{
-  if (!vector && PR_SUCCESS != freebl_RunLoaderOnce())
-      return SECFailure;
-  return (vector->p_HMAC_ConstantTime)(
-      result, resultLen, maxResultLen,
-      hashObj,
-      secret, secretLen,
-      header, headerLen,
-      body, bodyLen, bodyTotalLen);
 }

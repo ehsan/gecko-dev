@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=79:
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Copyright (C) 2009 University of Szeged
@@ -25,14 +25,14 @@
  * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
+ * 
  * ***** END LICENSE BLOCK ***** */
 
 #include "assembler/wtf/Platform.h"
 
 #if ENABLE_ASSEMBLER && WTF_CPU_ARM_TRADITIONAL
 
-#include "assembler/assembler/ARMAssembler.h"
+#include "ARMAssembler.h"
 
 namespace JSC {
 
@@ -104,7 +104,7 @@ ARMWord ARMAssembler::getOp2RegScale(RegisterID reg, ARMWord scale)
     ARMWord lz;     // Leading zeroes.
 
     // Calculate shift=log2(scale).
-#if WTF_ARM_ARCH_AT_LEAST_5
+#if WTF_ARM_ARCH_AT_LEAST(5)
     asm (
     "   clz     %[lz], %[scale]\n"
     : [lz]      "=r"  (lz)
@@ -112,10 +112,10 @@ ARMWord ARMAssembler::getOp2RegScale(RegisterID reg, ARMWord scale)
     : // No clobbers.
     );
 #else
-    lz = 0; // Accumulate leading zeroes.
+    ARMWord lz = 0; // Accumulate leading zeroes.
     for (ARMWord s = 16; s > 0; s /= 2) {
         ARMWord mask = 0xffffffff << (32-lz-s);
-        if ((scale & mask) == 0) {
+        if ((x & mask) == 0) {
             lz += s;
         }
     }
@@ -125,7 +125,7 @@ ARMWord ARMAssembler::getOp2RegScale(RegisterID reg, ARMWord scale)
     }
     shift = 31-lz;
     // Check that scale was a power of 2.
-    if ((1u<<shift) != scale) {
+    if ((1<<shift) != scale) {
         return INVALID_IMM;
     }
 
@@ -316,7 +316,7 @@ void ARMAssembler::dataTransferN(bool isLoad, bool isSigned, int size, RegisterI
     bool posOffset = true;
 
     // There may be more elegant ways of handling this, but this one works.
-    if (offset == int32_t(0x80000000)) {
+    if (offset == 0x80000000) {
         // For even bigger offsets, load the entire offset into a register, then do an
         // indexed load using the base register and the index register.
         moveImm(offset, ARMRegisters::S0);
@@ -327,28 +327,19 @@ void ARMAssembler::dataTransferN(bool isLoad, bool isSigned, int size, RegisterI
         offset = - offset;
         posOffset = false;
     }
-
-    // max_ldr is also a mask.
-    int max_ldr = 0xfff;
-    int ldr_bits = 12;
-    if (size == 16 || (size == 8 && isSigned)) {
-        max_ldr = 0xff;
-        ldr_bits = 8;
-    }
-
-    if (offset <= max_ldr) {
+    if (offset <= 0xfff) {
         // LDR rd, [rb, #+offset]
         mem_imm_off(isLoad, isSigned, size, posOffset, rt, base, offset);
-    } else if (offset <= ((max_ldr << 8) | 0xff)) {
+    } else if (offset <= 0xfffff) {
         // Add upper bits of offset to the base, and store the result into the temp register.
         if (posOffset) {
-            add_r(ARMRegisters::S0, base, OP2_IMM | (offset >> ldr_bits) | getOp2RotLSL(ldr_bits));
+            add_r(ARMRegisters::S0, base, OP2_IMM | (offset >> 12) | getOp2RotLSL(12));
         } else {
-            sub_r(ARMRegisters::S0, base, OP2_IMM | (offset >> ldr_bits) | getOp2RotLSL(ldr_bits));
+            sub_r(ARMRegisters::S0, base, OP2_IMM | (offset >> 12) | getOp2RotLSL(12));
         }
-        // Load using the lower bits of the offset, using max_ldr as a mask.
+        // Load using the lower bits of the offset.
         mem_imm_off(isLoad, isSigned, size, posOffset, rt,
-                    ARMRegisters::S0, (offset & max_ldr));
+                    ARMRegisters::S0, (offset & 0xfff));
     } else {
         // For even bigger offsets, load the entire offset into a register, then do an
         // indexed load using the base register and the index register.
@@ -360,10 +351,10 @@ void ARMAssembler::dataTransferN(bool isLoad, bool isSigned, int size, RegisterI
 void ARMAssembler::dataTransfer32(bool isLoad, RegisterID srcDst, RegisterID base, int32_t offset)
 {
     if (offset >= 0) {
-        if (offset <= 0xfff) {
+        if (offset <= 0xfff)
             // LDR rd, [rb, +offset]
             dtr_u(isLoad, srcDst, base, offset);
-        } else if (offset <= 0xfffff) {
+        else if (offset <= 0xfffff) {
             // Add upper bits of offset to the base, and store the result into the temp register.
             add_r(ARMRegisters::S0, base, OP2_IMM | (offset >> 12) | getOp2RotLSL(12));
             // Load using the lower bits of the register.
@@ -376,14 +367,15 @@ void ARMAssembler::dataTransfer32(bool isLoad, RegisterID srcDst, RegisterID bas
         }
     } else {
         // Negative offsets.
-        if (offset >= -0xfff) {
-            dtr_d(isLoad, srcDst, base, -offset);
-        } else if (offset >= -0xfffff) {
-            sub_r(ARMRegisters::S0, base, OP2_IMM | (-offset >> 12) | getOp2RotLSL(12));
-            dtr_d(isLoad, srcDst, ARMRegisters::S0, (-offset & 0xfff));
+        offset = -offset;
+        if (offset <= 0xfff)
+            dtr_d(isLoad, srcDst, base, offset);
+        else if (offset <= 0xfffff) {
+            sub_r(ARMRegisters::S0, base, OP2_IMM | (offset >> 12) | getOp2RotLSL(12));
+            dtr_d(isLoad, srcDst, ARMRegisters::S0, (offset & 0xfff));
         } else {
             moveImm(offset, ARMRegisters::S0);
-            dtr_ur(isLoad, srcDst, base, ARMRegisters::S0);
+            dtr_dr(isLoad, srcDst, base, ARMRegisters::S0);
         }
     }
 }
@@ -410,24 +402,26 @@ void ARMAssembler::dataTransfer8(bool isLoad, RegisterID srcDst, RegisterID base
                 dtrb_ur(isLoad, srcDst, base, ARMRegisters::S0);
         }
     } else {
-        if (offset >= -0xfff) {
+        offset = -offset;
+        if (offset <= 0xfff) {
             if (isSigned)
-                mem_imm_off(isLoad, true, 8, false, srcDst, base, -offset);
+                mem_imm_off(isLoad, true, 8, false, srcDst, base, offset);
             else
-                dtrb_d(isLoad, srcDst, base, -offset);
-        } else if (offset >= -0xfffff) {
-            sub_r(ARMRegisters::S0, base, OP2_IMM | (-offset >> 12) | getOp2RotLSL(12));
+                dtrb_d(isLoad, srcDst, base, offset);
+        }
+        else if (offset <= 0xfffff) {
+            sub_r(ARMRegisters::S0, base, OP2_IMM | (offset >> 12) | getOp2RotLSL(12));
             if (isSigned)
-                mem_imm_off(isLoad, true, 8, false, srcDst, ARMRegisters::S0, (-offset & 0xfff));
+                mem_imm_off(isLoad, true, 8, false, srcDst, ARMRegisters::S0, (offset & 0xfff));
             else
-                dtrb_d(isLoad, srcDst, ARMRegisters::S0, (-offset & 0xfff));
+                dtrb_d(isLoad, srcDst, ARMRegisters::S0, (offset & 0xfff));
 
         } else {
             moveImm(offset, ARMRegisters::S0);
             if (isSigned)
-                mem_reg_off(isLoad, true, 8, true, srcDst, base, ARMRegisters::S0);
+                mem_reg_off(isLoad, true, 8, false, srcDst, base, ARMRegisters::S0);
             else
-                dtrb_ur(isLoad, srcDst, base, ARMRegisters::S0);
+                dtrb_dr(isLoad, srcDst, base, ARMRegisters::S0);
                 
         }
     }

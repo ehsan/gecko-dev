@@ -8,12 +8,21 @@
 ////////////////////////////////////////////////////////////////////////////////
 //// Globals
 
+XPCOMUtils.defineLazyServiceGetter(this, "gHistory",
+                                   "@mozilla.org/browser/history;1",
+                                   "mozIAsyncHistory");
+
+XPCOMUtils.defineLazyServiceGetter(this, "gGlobalHistory",
+                                   "@mozilla.org/browser/nav-history-service;1",
+                                   "nsIGlobalHistory2");
+
 const TEST_DOMAIN = "http://mozilla.org/";
 const URI_VISIT_SAVED = "uri-visit-saved";
 const RECENT_EVENT_THRESHOLD = 15 * 60 * 1000000;
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Helpers
+
 /**
  * Object that represents a mozIVisitInfo object.
  *
@@ -31,24 +40,28 @@ function VisitInfo(aTransitionType,
   this.visitDate = aVisitTime || Date.now() * 1000;
 }
 
-function promiseUpdatePlaces(aPlaces) {
-  let deferred = Promise.defer();
-  PlacesUtils.asyncHistory.updatePlaces(aPlaces, {
-    _errors: [],
-    _results: [],
-    handleError: function handleError(aResultCode, aPlace) {
-      this._errors.push({ resultCode: aResultCode, info: aPlace});
-    },
-    handleResult: function handleResult(aPlace) {
-      this._results.push(aPlace);
-    },
-    handleCompletion: function handleCompletion() {
-      deferred.resolve({ errors: this._errors, results: this._results });
-    }
-  });
-
-  return deferred.promise;
+/**
+ * Generic nsINavHistoryObserver that doesn't implement anything, but provides
+ * dummy methods to prevent errors about an object not having a certain method.
+ */
+function NavHistoryObserver()
+{
 }
+NavHistoryObserver.prototype =
+{
+  onBeginUpdateBatch: function() { },
+  onEndUpdateBatch: function() { },
+  onVisit: function() { },
+  onTitleChanged: function() { },
+  onBeforeDeleteURI: function() { },
+  onDeleteURI: function() { },
+  onClearHistory: function() { },
+  onPageChanged: function() { },
+  onDeleteVisits: function() { },
+  QueryInterface: XPCOMUtils.generateQI([
+    Ci.nsINavHistoryObserver,
+  ]),
+};
 
 /**
  * Listens for a title change notification, and calls aCallback when it gets it.
@@ -145,6 +158,38 @@ function do_check_title_for_uri(aURI,
   stmt.finalize();
 }
 
+/**
+ * Default callback handler throws when success is unexpected.
+ *
+ * @param handleErrorFunc
+ *        The error handling function
+ */
+function expectHandleError(handleErrorFunc)
+{
+  return {
+    handleError: handleErrorFunc,
+    handleResult: function handleResult(aPlaceInfo) {
+      do_throw("Unexpected success.");
+    }
+  };
+}
+/**
+ * Default callback handler throws when failure is unexpected.
+ *
+ * @param handleResultFunc
+ *        The success handling function
+ */
+
+function expectHandleResult(handleResultFunc)
+{
+  return {
+    handleError: function handleError(aResultCode, aPlacesInfo) {
+      do_throw("Unexpected error: " + aResultCode);
+    },
+    handleResult: handleResultFunc
+  };
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 //// Test Functions
 
@@ -152,6 +197,7 @@ function test_interface_exists()
 {
   let history = Cc["@mozilla.org/browser/history;1"].getService(Ci.nsISupports);
   do_check_true(history instanceof Ci.mozIAsyncHistory);
+  run_next_test();
 }
 
 function test_invalid_uri_throws()
@@ -163,7 +209,7 @@ function test_invalid_uri_throws()
     ],
   };
   try {
-    yield promiseUpdatePlaces(place);
+    gHistory.updatePlaces(place);
     do_throw("Should have thrown!");
   }
   catch (e) {
@@ -181,20 +227,21 @@ function test_invalid_uri_throws()
   for (let i = 0; i < TEST_VALUES.length; i++) {
     place.uri = TEST_VALUES[i];
     try {
-      yield promiseUpdatePlaces(place);
+      gHistory.updatePlaces(place);
       do_throw("Should have thrown!");
     }
     catch (e) {
       do_check_eq(e.result, Cr.NS_ERROR_INVALID_ARG);
     }
   }
+  run_next_test();
 }
 
 function test_invalid_places_throws()
 {
   // First, test passing in nothing.
   try {
-    PlacesUtils.asyncHistory.updatePlaces();
+    gHistory.updatePlaces();
     do_throw("Should have thrown!");
   }
   catch (e) {
@@ -212,13 +259,15 @@ function test_invalid_places_throws()
   for (let i = 0; i < TEST_VALUES.length; i++) {
     let value = TEST_VALUES[i];
     try {
-      yield promiseUpdatePlaces(value);
+      gHistory.updatePlaces(value);
       do_throw("Should have thrown!");
     }
     catch (e) {
       do_check_eq(e.result, Cr.NS_ERROR_INVALID_ARG);
     }
   }
+
+  run_next_test();
 }
 
 function test_invalid_guid_throws()
@@ -232,7 +281,7 @@ function test_invalid_guid_throws()
     ],
   };
   try {
-    yield promiseUpdatePlaces(place);
+    gHistory.updatePlaces(place);
     do_throw("Should have thrown!");
   }
   catch (e) {
@@ -243,12 +292,14 @@ function test_invalid_guid_throws()
   place.guid = "__BADGUID+__";
   do_check_eq(place.guid.length, 12);
   try {
-    yield promiseUpdatePlaces(place);
+    gHistory.updatePlaces(place);
     do_throw("Should have thrown!");
   }
   catch (e) {
     do_check_eq(e.result, Cr.NS_ERROR_INVALID_ARG);
   }
+
+  run_next_test();
 }
 
 function test_no_visits_throws()
@@ -281,7 +332,7 @@ function test_no_visits_throws()
 
         log_test_conditions(place);
         try {
-          yield promiseUpdatePlaces(place);
+          gHistory.updatePlaces(place);
           do_throw("Should have thrown!");
         }
         catch (e) {
@@ -290,6 +341,8 @@ function test_no_visits_throws()
       }
     }
   }
+
+  run_next_test();
 }
 
 function test_add_visit_no_date_throws()
@@ -302,12 +355,14 @@ function test_add_visit_no_date_throws()
   };
   delete place.visits[0].visitDate;
   try {
-    yield promiseUpdatePlaces(place);
+    gHistory.updatePlaces(place);
     do_throw("Should have thrown!");
   }
   catch (e) {
     do_check_eq(e.result, Cr.NS_ERROR_INVALID_ARG);
   }
+
+  run_next_test();
 }
 
 function test_add_visit_no_transitionType_throws()
@@ -320,12 +375,14 @@ function test_add_visit_no_transitionType_throws()
   };
   delete place.visits[0].transitionType;
   try {
-    yield promiseUpdatePlaces(place);
+    gHistory.updatePlaces(place);
     do_throw("Should have thrown!");
   }
   catch (e) {
     do_check_eq(e.result, Cr.NS_ERROR_INVALID_ARG);
   }
+
+  run_next_test();
 }
 
 function test_add_visit_invalid_transitionType_throws()
@@ -339,7 +396,7 @@ function test_add_visit_invalid_transitionType_throws()
     ],
   };
   try {
-    yield promiseUpdatePlaces(place);
+    gHistory.updatePlaces(place);
     do_throw("Should have thrown!");
   }
   catch (e) {
@@ -349,12 +406,14 @@ function test_add_visit_invalid_transitionType_throws()
   // Now, test something that has a transition type greater than the last one.
   place.visits[0] = new VisitInfo(TRANSITION_FRAMED_LINK + 1);
   try {
-    yield promiseUpdatePlaces(place);
+    gHistory.updatePlaces(place);
     do_throw("Should have thrown!");
   }
   catch (e) {
     do_check_eq(e.result, Cr.NS_ERROR_INVALID_ARG);
   }
+
+  run_next_test();
 }
 
 function test_non_addable_uri_errors()
@@ -372,7 +431,6 @@ function test_non_addable_uri_errors()
     "data:,Hello%2C%20World!",
     "wyciwyg:/0/http://mozilla.org",
     "javascript:alert('hello wolrd!');",
-    "blob:foo",
   ];
   let places = [];
   URLS.forEach(function(url) {
@@ -394,16 +452,17 @@ function test_non_addable_uri_errors()
     }
   });
 
-  let placesResult = yield promiseUpdatePlaces(places);
-  if (placesResult.results.length > 0) {
-    do_throw("Unexpected success.");
-  }
-  for (let place of placesResult.errors) {
-    do_log_info("Checking '" + place.info.uri.spec + "'");
-    do_check_eq(place.resultCode, Cr.NS_ERROR_INVALID_ARG);
-    do_check_false(yield promiseIsURIVisited(place.info.uri));
-  }
-  yield promiseAsyncUpdates();
+  let callbackCount = 0;
+  gHistory.updatePlaces(places, expectHandleError(function(aResultCode, aPlaceInfo) {
+    do_log_info("Checking '" + aPlaceInfo.uri.spec + "'");
+    do_check_eq(aResultCode, Cr.NS_ERROR_INVALID_ARG);
+    do_check_false(gGlobalHistory.isVisited(aPlaceInfo.uri));
+
+    // If we have had all of our callbacks, continue running tests.
+    if (++callbackCount == places.length) {
+      waitForAsyncUpdates(run_next_test);
+    }
+  }));
 }
 
 function test_duplicate_guid_errors()
@@ -417,32 +476,26 @@ function test_duplicate_guid_errors()
     ],
   };
 
-  do_check_false(yield promiseIsURIVisited(place.uri));
-  let placesResult = yield promiseUpdatePlaces(place);
-  if (placesResult.errors.length > 0) {
-    do_throw("Unexpected error.");
-  }
-  let placeInfo = placesResult.results[0];
-  do_check_true(yield promiseIsURIVisited(placeInfo.uri));
+  do_check_false(gGlobalHistory.isVisited(place.uri));
+  gHistory.updatePlaces(place, expectHandleResult(function(aPlaceInfo) {
+    do_check_true(gGlobalHistory.isVisited(place.uri));
 
-  let badPlace = {
-    uri: NetUtil.newURI(TEST_DOMAIN + "test_duplicate_guid_fails_second"),
-    visits: [
-      new VisitInfo(),
-    ],
-    guid: placeInfo.guid,
-  };
+    let badPlace = {
+      uri: NetUtil.newURI(TEST_DOMAIN + "test_duplicate_guid_fails_second"),
+      visits: [
+        new VisitInfo(),
+      ],
+      guid: aPlaceInfo.guid,
+    };
 
-  do_check_false(yield promiseIsURIVisited(badPlace.uri));
-  placesResult = yield promiseUpdatePlaces(badPlace);
-  if (placesResult.results.length > 0) {
-    do_throw("Unexpected success.");
-  }
-  let badPlaceInfo = placesResult.errors[0];
-  do_check_eq(badPlaceInfo.resultCode, Cr.NS_ERROR_STORAGE_CONSTRAINT);
-  do_check_false(yield promiseIsURIVisited(badPlaceInfo.info.uri));
+    do_check_false(gGlobalHistory.isVisited(badPlace.uri));
+    gHistory.updatePlaces(badPlace, expectHandleError(function(aResultCode, aPlaceInfo) {
+      do_check_eq(aResultCode, Cr.NS_ERROR_STORAGE_CONSTRAINT);
+      do_check_false(gGlobalHistory.isVisited(badPlace.uri));
 
-  yield promiseAsyncUpdates();
+      waitForAsyncUpdates(run_next_test);
+    }));
+  }));
 }
 
 function test_invalid_referrerURI_ignored()
@@ -455,31 +508,29 @@ function test_invalid_referrerURI_ignored()
     ],
   };
   place.visits[0].referrerURI = NetUtil.newURI(place.uri.spec + "_unvisistedURI");
-  do_check_false(yield promiseIsURIVisited(place.uri));
-  do_check_false(yield promiseIsURIVisited(place.visits[0].referrerURI));
+  do_check_false(gGlobalHistory.isVisited(place.uri));
+  do_check_false(gGlobalHistory.isVisited(place.visits[0].referrerURI));
 
-  let placesResult = yield promiseUpdatePlaces(place);
-  if (placesResult.errors.length > 0) {
-    do_throw("Unexpected error.");
-  }
-  let placeInfo = placesResult.results[0];
-  do_check_true(yield promiseIsURIVisited(placeInfo.uri));
+  gHistory.updatePlaces(place, expectHandleResult(function(aPlaceInfo) {
+    let uri = aPlaceInfo.uri;
+    do_check_true(gGlobalHistory.isVisited(uri));
 
-  // Check to make sure we do not visit the invalid referrer.
-  do_check_false(yield promiseIsURIVisited(place.visits[0].referrerURI));
+    // Check to make sure we do not visit the invalid referrer.
+    do_check_false(gGlobalHistory.isVisited(place.visits[0].referrerURI));
 
-  // Check to make sure from_visit is zero in database.
-  let stmt = DBConn().createStatement(
-    "SELECT from_visit " +
-    "FROM moz_historyvisits " +
-    "WHERE id = :visit_id"
-  );
-  stmt.params.visit_id = placeInfo.visits[0].visitId;
-  do_check_true(stmt.executeStep());
-  do_check_eq(stmt.row.from_visit, 0);
-  stmt.finalize();
+    // Check to make sure from_visit is zero in database.
+    let stmt = DBConn().createStatement(
+      "SELECT from_visit " +
+      "FROM moz_historyvisits " +
+      "WHERE id = :visit_id"
+    );
+    stmt.params.visit_id = aPlaceInfo.visits[0].visitId;
+    do_check_true(stmt.executeStep());
+    do_check_eq(stmt.row.from_visit, 0);
+    stmt.finalize();
 
-  yield promiseAsyncUpdates();
+    waitForAsyncUpdates(run_next_test);
+  }));
 }
 
 function test_nonnsIURI_referrerURI_ignored()
@@ -492,28 +543,110 @@ function test_nonnsIURI_referrerURI_ignored()
     ],
   };
   place.visits[0].referrerURI = place.uri.spec + "_nonnsIURI";
-  do_check_false(yield promiseIsURIVisited(place.uri));
+  do_check_false(gGlobalHistory.isVisited(place.uri));
 
-  let placesResult = yield promiseUpdatePlaces(place);
-  if (placesResult.errors.length > 0) {
-    do_throw("Unexpected error.");
-  }
-  let placeInfo = placesResult.results[0];
-  do_check_true(yield promiseIsURIVisited(placeInfo.uri));
+  gHistory.updatePlaces(place, expectHandleResult(function(aPlaceInfo) {
+    let uri = aPlaceInfo.uri;
+    do_check_true(gGlobalHistory.isVisited(uri));
 
-  // Check to make sure from_visit is zero in database.
+    // Check to make sure from_visit is zero in database.
+    let stmt = DBConn().createStatement(
+      "SELECT from_visit " +
+      "FROM moz_historyvisits " +
+      "WHERE id = :visit_id"
+    );
+    stmt.params.visit_id = aPlaceInfo.visits[0].visitId;
+    do_check_true(stmt.executeStep());
+    do_check_eq(stmt.row.from_visit, 0);
+    stmt.finalize();
+
+    waitForAsyncUpdates(run_next_test);
+  }));
+}
+
+function test_invalid_sessionId_ignored()
+{
+  let place = {
+    uri: NetUtil.newURI(TEST_DOMAIN +
+                        "test_invalid_sessionId_ignored"),
+    visits: [
+      new VisitInfo(),
+    ],
+  };
+  place.visits[0].sessionId = -1;
+  do_check_false(gGlobalHistory.isVisited(place.uri));
+
+  gHistory.updatePlaces(place, expectHandleResult(function(aPlaceInfo) {
+    let uri = aPlaceInfo.uri;
+    do_check_true(gGlobalHistory.isVisited(uri));
+
+    // Check to make sure we do not persist bogus sessionId with the visit.
+    let visit = aPlaceInfo.visits[0];
+    do_check_neq(visit.sessionId, place.visits[0].sessionId);
+
+    // Check to make sure we do not persist bogus sessionId in database.
+    let stmt = DBConn().createStatement(
+      "SELECT session " +
+      "FROM moz_historyvisits " +
+      "WHERE id = :visit_id"
+    );
+    stmt.params.visit_id = visit.visitId;
+    do_check_true(stmt.executeStep());
+    do_check_neq(stmt.row.session, place.visits[0].sessionId);
+    stmt.finalize();
+
+    waitForAsyncUpdates(run_next_test);
+  }));
+}
+
+function test_unstored_sessionId_ignored()
+{
+  let place = {
+    uri: NetUtil.newURI(TEST_DOMAIN +
+                        "test_unstored_sessionId_ignored"),
+    visits: [
+      new VisitInfo(),
+    ],
+  };
+
+  // Find max session id in database.
   let stmt = DBConn().createStatement(
-    "SELECT from_visit " +
-    "FROM moz_historyvisits " +
-    "WHERE id = :visit_id"
+    "SELECT MAX(session) as max_session " +
+    "FROM moz_historyvisits"
   );
-  stmt.params.visit_id = placeInfo.visits[0].visitId;
   do_check_true(stmt.executeStep());
-  do_check_eq(stmt.row.from_visit, 0);
+  let maxSessionId = stmt.row.max_session;
   stmt.finalize();
 
-  yield promiseAsyncUpdates();
+  // Create bogus sessionId that is not in database.
+  place.visits[0].sessionId = maxSessionId + 10;
+  do_check_false(gGlobalHistory.isVisited(place.uri));
+
+  gHistory.updatePlaces(place, expectHandleResult(function(aPlaceInfo) {
+    let uri = aPlaceInfo.uri;
+    do_check_true(gGlobalHistory.isVisited(uri));
+
+    // Check to make sure we do not persist bogus sessionId with the visit.
+    let visit = aPlaceInfo.visits[0];
+    do_check_neq(visit.sessionId, place.visits[0].sessionId);
+
+    // Check to make sure we do not persist bogus sessionId in the database.
+    let stmt = DBConn().createStatement(
+      "SELECT MAX(session) as max_session " +
+      "FROM moz_historyvisits"
+    );
+    do_check_true(stmt.executeStep());
+
+    // Max sessionId should increase by 1 because we will generate a new
+    // non-bogus sessionId.
+    let newMaxSessionId = stmt.row.max_session;
+    do_check_eq(maxSessionId + 1, newMaxSessionId);
+    stmt.finalize();
+
+    waitForAsyncUpdates(run_next_test);
+  }));
 }
+
 
 function test_old_referrer_ignored()
 {
@@ -530,49 +663,43 @@ function test_old_referrer_ignored()
 
   // First we must add our referrer to the history so that it is not ignored
   // as being invalid.
-  do_check_false(yield promiseIsURIVisited(referrerPlace.uri));
-  let placesResult = yield promiseUpdatePlaces(referrerPlace);
-  if (placesResult.errors.length > 0) {
-    do_throw("Unexpected error.");
-  }
+  do_check_false(gGlobalHistory.isVisited(referrerPlace.uri));
+  gHistory.updatePlaces(referrerPlace, expectHandleResult(function(aPlaceInfo) {
+    // Now that the referrer is added, we can add a page with a valid
+    // referrer to determine if the recency of the referrer is taken into
+    // account.
+    do_check_true(gGlobalHistory.isVisited(referrerPlace.uri));
 
-  // Now that the referrer is added, we can add a page with a valid
-  // referrer to determine if the recency of the referrer is taken into
-  // account.
-  do_check_true(yield promiseIsURIVisited(referrerPlace.uri));
+    let visitInfo = new VisitInfo();
+    visitInfo.referrerURI = referrerPlace.uri;
+    let place = {
+      uri: NetUtil.newURI(TEST_DOMAIN + "test_old_referrer_ignored_page"),
+      visits: [
+        visitInfo,
+      ],
+    };
 
-  let visitInfo = new VisitInfo();
-  visitInfo.referrerURI = referrerPlace.uri;
-  let place = {
-    uri: NetUtil.newURI(TEST_DOMAIN + "test_old_referrer_ignored_page"),
-    visits: [
-      visitInfo,
-    ],
-  };
+    do_check_false(gGlobalHistory.isVisited(place.uri));
+    gHistory.updatePlaces(place, expectHandleResult (function(aPlaceInfo) {
+      do_check_true(gGlobalHistory.isVisited(place.uri));
 
-  do_check_false(yield promiseIsURIVisited(place.uri));
-  placesResult = yield promiseUpdatePlaces(place);
-  if (placesResult.errors.length > 0) {
-    do_throw("Unexpected error.");
-  }
-  let placeInfo = placesResult.results[0];
-  do_check_true(yield promiseIsURIVisited(place.uri));
+      // Though the visit will not contain the referrer, we must examine the
+      // database to be sure.
+      do_check_eq(aPlaceInfo.visits[0].referrerURI, null);
+      let stmt = DBConn().createStatement(
+        "SELECT COUNT(1) AS count " +
+        "FROM moz_historyvisits " +
+        "WHERE place_id = (SELECT id FROM moz_places WHERE url = :page_url) " +
+        "AND from_visit = 0 "
+      );
+      stmt.params.page_url = place.uri.spec;
+      do_check_true(stmt.executeStep());
+      do_check_eq(stmt.row.count, 1);
+      stmt.finalize();
 
-  // Though the visit will not contain the referrer, we must examine the
-  // database to be sure.
-  do_check_eq(placeInfo.visits[0].referrerURI, null);
-  let stmt = DBConn().createStatement(
-    "SELECT COUNT(1) AS count " +
-    "FROM moz_historyvisits " +
-    "WHERE place_id = (SELECT id FROM moz_places WHERE url = :page_url) " +
-    "AND from_visit = 0 "
-  );
-  stmt.params.page_url = place.uri.spec;
-  do_check_true(stmt.executeStep());
-  do_check_eq(stmt.row.count, 1);
-  stmt.finalize();
-
-  yield promiseAsyncUpdates();
+      waitForAsyncUpdates(run_next_test);
+    }));
+  }));
 }
 
 function test_place_id_ignored()
@@ -584,36 +711,34 @@ function test_place_id_ignored()
     ],
   };
 
-  do_check_false(yield promiseIsURIVisited(place.uri));
-  let placesResult = yield promiseUpdatePlaces(place);
-  if (placesResult.errors.length > 0) {
-    do_throw("Unexpected error.");
-  }
-  let placeInfo = placesResult.results[0];
-  do_check_true(yield promiseIsURIVisited(place.uri));
+  do_check_false(gGlobalHistory.isVisited(place.uri));
+  gHistory.updatePlaces(place, expectHandleResult(function(aPlaceInfo) {
+    do_check_true(gGlobalHistory.isVisited(place.uri));
 
-  let placeId = placeInfo.placeId;
-  do_check_neq(placeId, 0);
+    let placeId = aPlaceInfo.placeId;
+    do_check_neq(placeId, 0);
 
-  let badPlace = {
-    uri: NetUtil.newURI(TEST_DOMAIN + "test_place_id_ignored_second"),
-    visits: [
-      new VisitInfo(),
-    ],
-    placeId: placeId,
-  };
+    let badPlace = {
+      uri: NetUtil.newURI(TEST_DOMAIN + "test_place_id_ignored_second"),
+      visits: [
+        new VisitInfo(),
+      ],
+      placeId: placeId,
+    };
 
-  do_check_false(yield promiseIsURIVisited(badPlace.uri));
-  placesResult = yield promiseUpdatePlaces(badPlace);
-  if (placesResult.errors.length > 0) {
-    do_throw("Unexpected error.");
-  }
-  placeInfo = placesResult.results[0];
+    do_check_false(gGlobalHistory.isVisited(badPlace.uri));
+    gHistory.updatePlaces(badPlace, {
+      handleResult: function handleResult(aPlaceInfo) {
+        do_check_neq(aPlaceInfo.placeId, placeId);
+        do_check_true(gGlobalHistory.isVisited(badPlace.uri));
 
-  do_check_neq(placeInfo.placeId, placeId);
-  do_check_true(yield promiseIsURIVisited(badPlace.uri));
-
-  yield promiseAsyncUpdates();
+        waitForAsyncUpdates(run_next_test);
+      },
+      handleError: function handleError(aResultCode) {
+        do_throw("Unexpected error: " + aResultCode);
+      }
+    });
+  }));
 }
 
 function test_handleCompletion_called_when_complete()
@@ -635,27 +760,29 @@ function test_handleCompletion_called_when_complete()
       ],
     },
   ];
-  do_check_false(yield promiseIsURIVisited(places[0].uri));
-  do_check_false(yield promiseIsURIVisited(places[1].uri));
+  do_check_false(gGlobalHistory.isVisited(places[0].uri));
+  do_check_false(gGlobalHistory.isVisited(places[1].uri));
 
   const EXPECTED_COUNT_SUCCESS = 2;
   const EXPECTED_COUNT_FAILURE = 1;
   let callbackCountSuccess = 0;
   let callbackCountFailure = 0;
 
-  let placesResult = yield promiseUpdatePlaces(places);
-  for (let place of placesResult.results) {
-    let checker = PlacesUtils.history.canAddURI(place.uri) ?
-      do_check_true : do_check_false;
-    callbackCountSuccess++;
-  }
-  for (let error of placesResult.errors) {
-    callbackCountFailure++;
-  }
-
-  do_check_eq(callbackCountSuccess, EXPECTED_COUNT_SUCCESS);
-  do_check_eq(callbackCountFailure, EXPECTED_COUNT_FAILURE);
-  yield promiseAsyncUpdates();
+  gHistory.updatePlaces(places, {
+    handleResult: function handleResult(aPlaceInfo) {
+      let checker = PlacesUtils.history.canAddURI(aPlaceInfo.uri) ?
+        do_check_true : do_check_false;
+      callbackCountSuccess++;
+    },
+    handleError: function handleError(aResultCode, aPlaceInfo) {
+      callbackCountFailure++;
+    },
+    handleCompletion: function handleCompletion() {
+      do_check_eq(callbackCountSuccess, EXPECTED_COUNT_SUCCESS);
+      do_check_eq(callbackCountFailure, EXPECTED_COUNT_FAILURE);
+      waitForAsyncUpdates(run_next_test);
+    },
+  });
 }
 
 function test_add_visit()
@@ -671,23 +798,19 @@ function test_add_visit()
        transitionType++) {
     place.visits.push(new VisitInfo(transitionType, VISIT_TIME));
   }
-  do_check_false(yield promiseIsURIVisited(place.uri));
+  do_check_false(gGlobalHistory.isVisited(place.uri));
 
   let callbackCount = 0;
-  let placesResult = yield promiseUpdatePlaces(place);
-  if (placesResult.errors.length > 0) {
-    do_throw("Unexpected error.");
-  }
-  for (let placeInfo of placesResult.results) {
-    do_check_true(yield promiseIsURIVisited(place.uri));
+  gHistory.updatePlaces(place, expectHandleResult(function(aPlaceInfo) {
+    do_check_true(gGlobalHistory.isVisited(place.uri));
 
     // Check mozIPlaceInfo properties.
-    do_check_true(place.uri.equals(placeInfo.uri));
-    do_check_eq(placeInfo.frecency, -1); // We don't pass frecency here!
-    do_check_eq(placeInfo.title, place.title);
+    do_check_true(place.uri.equals(aPlaceInfo.uri));
+    do_check_eq(aPlaceInfo.frecency, -1); // We don't pass frecency here!
+    do_check_eq(aPlaceInfo.title, place.title);
 
     // Check mozIVisitInfo properties.
-    let visits = placeInfo.visits;
+    let visits = aPlaceInfo.visits;
     do_check_eq(visits.length, 1);
     let visit = visits[0];
     do_check_eq(visit.visitDate, VISIT_TIME);
@@ -699,27 +822,29 @@ function test_add_visit()
     // undefined.
     if (visit.transitionType == TRANSITION_EMBED) {
       // Check mozIPlaceInfo properties.
-      do_check_eq(placeInfo.placeId, 0, '//');
-      do_check_eq(placeInfo.guid, null);
+      do_check_eq(aPlaceInfo.placeId, 0, '//');
+      do_check_eq(aPlaceInfo.guid, null);
 
       // Check mozIVisitInfo properties.
       do_check_eq(visit.visitId, 0);
+      do_check_eq(visit.sessionId, 0);
     }
     // But they should be valid for non-embed visits.
     else {
       // Check mozIPlaceInfo properties.
-      do_check_true(placeInfo.placeId > 0);
-      do_check_valid_places_guid(placeInfo.guid);
+      do_check_true(aPlaceInfo.placeId > 0);
+      do_check_valid_places_guid(aPlaceInfo.guid);
 
       // Check mozIVisitInfo properties.
       do_check_true(visit.visitId > 0);
+      do_check_true(visit.sessionId > 0);
     }
 
     // If we have had all of our callbacks, continue running tests.
     if (++callbackCount == place.visits.length) {
-      yield promiseAsyncUpdates();
+      waitForAsyncUpdates(run_next_test);
     }
-  }
+  }));
 }
 
 function test_properties_saved()
@@ -737,19 +862,15 @@ function test_properties_saved()
         new VisitInfo(transitionType),
       ],
     };
-    do_check_false(yield promiseIsURIVisited(place.uri));
+    do_check_false(gGlobalHistory.isVisited(place.uri));
     places.push(place);
   }
 
   let callbackCount = 0;
-  let placesResult = yield promiseUpdatePlaces(places);
-  if (placesResult.errors.length > 0) {
-    do_throw("Unexpected error.");
-  }
-  for (let placeInfo of placesResult.results) {
-    let uri = placeInfo.uri;
-    do_check_true(yield promiseIsURIVisited(uri));
-    let visit = placeInfo.visits[0];
+  gHistory.updatePlaces(places, expectHandleResult(function(aPlaceInfo) {
+    let uri = aPlaceInfo.uri;
+    do_check_true(gGlobalHistory.isVisited(uri));
+    let visit = aPlaceInfo.visits[0];
     print("TEST-INFO | test_properties_saved | updatePlaces callback for " +
           "transition type " + visit.transitionType);
 
@@ -786,6 +907,21 @@ function test_properties_saved()
     do_check_eq(stmt.row.count, EXPECTED_COUNT);
     stmt.finalize();
 
+    // mozIVisitInfo::sessionId
+    stmt = DBConn().createStatement(
+      "SELECT COUNT(1) AS count " +
+      "FROM moz_places h " +
+      "JOIN moz_historyvisits v " +
+      "ON h.id = v.place_id " +
+      "WHERE h.url = :page_url " +
+      "AND v.session = :session_id "
+    );
+    stmt.params.page_url = uri.spec;
+    stmt.params.session_id = visit.sessionId;
+    do_check_true(stmt.executeStep());
+    do_check_eq(stmt.row.count, EXPECTED_COUNT);
+    stmt.finalize();
+
     // mozIPlaceInfo::title
     stmt = DBConn().createStatement(
       "SELECT COUNT(1) AS count " +
@@ -794,16 +930,16 @@ function test_properties_saved()
       "AND h.title = :title "
     );
     stmt.params.page_url = uri.spec;
-    stmt.params.title = placeInfo.title;
+    stmt.params.title = aPlaceInfo.title;
     do_check_true(stmt.executeStep());
     do_check_eq(stmt.row.count, EXPECTED_COUNT);
     stmt.finalize();
 
     // If we have had all of our callbacks, continue running tests.
     if (++callbackCount == places.length) {
-      yield promiseAsyncUpdates();
+      waitForAsyncUpdates(run_next_test);
     }
-  }
+  }));
 }
 
 function test_guid_saved()
@@ -816,18 +952,15 @@ function test_guid_saved()
     ],
   };
   do_check_valid_places_guid(place.guid);
-  do_check_false(yield promiseIsURIVisited(place.uri));
+  do_check_false(gGlobalHistory.isVisited(place.uri));
 
-  let placesResult = yield promiseUpdatePlaces(place);
-  if (placesResult.errors.length > 0) {
-    do_throw("Unexpected error.");
-  }
-  let placeInfo = placesResult.results[0];
-  let uri = placeInfo.uri;
-  do_check_true(yield promiseIsURIVisited(uri));
-  do_check_eq(placeInfo.guid, place.guid);
-  do_check_guid_for_uri(uri, place.guid);
-  yield promiseAsyncUpdates();
+  gHistory.updatePlaces(place, expectHandleResult(function(aPlaceInfo) {
+    let uri = aPlaceInfo.uri;
+    do_check_true(gGlobalHistory.isVisited(uri));
+    do_check_eq(aPlaceInfo.guid, place.guid);
+    do_check_guid_for_uri(uri, place.guid);
+    waitForAsyncUpdates(run_next_test);
+  }));
 }
 
 function test_referrer_saved()
@@ -845,42 +978,77 @@ function test_referrer_saved()
     },
   ];
   places[1].visits[0].referrerURI = places[0].uri;
-  do_check_false(yield promiseIsURIVisited(places[0].uri));
-  do_check_false(yield promiseIsURIVisited(places[1].uri));
+  do_check_false(gGlobalHistory.isVisited(places[0].uri));
+  do_check_false(gGlobalHistory.isVisited(places[1].uri));
 
-  let resultCount = 0;
-  let placesResult = yield promiseUpdatePlaces(places);
-  if (placesResult.errors.length > 0) {
-    do_throw("Unexpected error.");
-  }
-  for (let placeInfo of placesResult.results) {
-    let uri = placeInfo.uri;
-    do_check_true(yield promiseIsURIVisited(uri));
-    let visit = placeInfo.visits[0];
+  let callbackCount = 0;
+  let referrerSessionId;
+  gHistory.updatePlaces(places, expectHandleResult(function(aPlaceInfo) {
+    let uri = aPlaceInfo.uri;
+    do_check_true(gGlobalHistory.isVisited(uri));
+    let visit = aPlaceInfo.visits[0];
 
     // We need to insert all of our visits before we can test conditions.
-    if (++resultCount == places.length) {
-      do_check_true(places[0].uri.equals(visit.referrerURI));
-
-      let stmt = DBConn().createStatement(
-        "SELECT COUNT(1) AS count " +
-        "FROM moz_historyvisits " +
-        "WHERE place_id = (SELECT id FROM moz_places WHERE url = :page_url) " +
-        "AND from_visit = ( " +
-          "SELECT id " +
-          "FROM moz_historyvisits " +
-          "WHERE place_id = (SELECT id FROM moz_places WHERE url = :referrer) " +
-        ") "
-      );
-      stmt.params.page_url = uri.spec;
-      stmt.params.referrer = visit.referrerURI.spec;
-      do_check_true(stmt.executeStep());
-      do_check_eq(stmt.row.count, 1);
-      stmt.finalize();
-
-      yield promiseAsyncUpdates();
+    if (++callbackCount != places.length) {
+      referrerSessionId = visit.sessionId;
+      return;
     }
-  }
+
+    do_check_true(places[0].uri.equals(visit.referrerURI));
+    do_check_eq(visit.sessionId, referrerSessionId);
+
+    let stmt = DBConn().createStatement(
+      "SELECT COUNT(1) AS count " +
+      "FROM moz_historyvisits " +
+      "WHERE place_id = (SELECT id FROM moz_places WHERE url = :page_url) " +
+      "AND from_visit = ( " +
+        "SELECT id " +
+        "FROM moz_historyvisits " +
+        "WHERE place_id = (SELECT id FROM moz_places WHERE url = :referrer) " +
+      ") "
+    );
+    stmt.params.page_url = uri.spec;
+    stmt.params.referrer = visit.referrerURI.spec;
+    do_check_true(stmt.executeStep());
+    do_check_eq(stmt.row.count, 1);
+    stmt.finalize();
+
+    waitForAsyncUpdates(run_next_test);
+  }));
+}
+
+function test_sessionId_saved()
+{
+  let place = {
+    uri: NetUtil.newURI(TEST_DOMAIN + "test_sessionId_saved"),
+    visits: [
+      new VisitInfo(),
+    ],
+  };
+  place.visits[0].sessionId = 3;
+  do_check_false(gGlobalHistory.isVisited(place.uri));
+
+  gHistory.updatePlaces(place, expectHandleResult(function(aPlaceInfo) {
+    let uri = aPlaceInfo.uri;
+    do_check_true(gGlobalHistory.isVisited(uri));
+
+    let visit = aPlaceInfo.visits[0];
+    do_check_eq(visit.sessionId, place.visits[0].sessionId);
+
+    let stmt = DBConn().createStatement(
+      "SELECT COUNT(1) AS count " +
+      "FROM moz_historyvisits " +
+      "WHERE place_id = (SELECT id FROM moz_places WHERE url = :page_url) " +
+      "AND session = :session_id "
+    );
+    stmt.params.page_url = uri.spec;
+    stmt.params.session_id = visit.sessionId;
+    do_check_true(stmt.executeStep());
+    do_check_eq(stmt.row.count, 1);
+    stmt.finalize();
+
+    waitForAsyncUpdates(run_next_test);
+  }));
 }
 
 function test_guid_change_saved()
@@ -892,22 +1060,19 @@ function test_guid_change_saved()
       new VisitInfo(),
     ],
   };
-  do_check_false(yield promiseIsURIVisited(place.uri));
+  do_check_false(gGlobalHistory.isVisited(place.uri));
 
-  let placesResult = yield promiseUpdatePlaces(place);
-  if (placesResult.errors.length > 0) {
-    do_throw("Unexpected error.");
-  }
-  // Then, change the guid with visits.
-  place.guid = "_GUIDCHANGE_";
-  place.visits = [new VisitInfo()];
-  placesResult = yield promiseUpdatePlaces(place);
-  if (placesResult.errors.length > 0) {
-    do_throw("Unexpected error.");
-  }
-  do_check_guid_for_uri(place.uri, place.guid);
+  gHistory.updatePlaces(place, expectHandleResult(function(aPlaceInfo) {
 
-  yield promiseAsyncUpdates();
+    // Then, change the guid with visits.
+    place.guid = "_GUIDCHANGE_";
+    place.visits = [new VisitInfo()];
+    gHistory.updatePlaces(place, expectHandleResult(function(aPlaceInfo) {
+      do_check_guid_for_uri(place.uri, place.guid);
+
+      waitForAsyncUpdates(run_next_test);
+    }));
+  }));
 }
 
 function test_title_change_saved()
@@ -920,41 +1085,33 @@ function test_title_change_saved()
       new VisitInfo(),
     ],
   };
-  do_check_false(yield promiseIsURIVisited(place.uri));
+  do_check_false(gGlobalHistory.isVisited(place.uri));
 
-  let placesResult = yield promiseUpdatePlaces(place);
-  if (placesResult.errors.length > 0) {
-    do_throw("Unexpected error.");
-  }
+  gHistory.updatePlaces(place, expectHandleResult(function(aPlaceInfo) {
 
-  // Now, make sure the empty string clears the title.
-  place.title = "";
-  place.visits = [new VisitInfo()];
-  placesResult = yield promiseUpdatePlaces(place);
-  if (placesResult.errors.length > 0) {
-    do_throw("Unexpected error.");
-  }
-  do_check_title_for_uri(place.uri, null);
+    // Now, make sure the empty string clears the title.
+    place.title = "";
+    place.visits = [new VisitInfo()];
+    gHistory.updatePlaces(place, expectHandleResult(function(aPlaceInfo) {
+      do_check_title_for_uri(place.uri, null);
 
-  // Then, change the title with visits.
-  place.title = "title change";
-  place.visits = [new VisitInfo()];
-  placesResult = yield promiseUpdatePlaces(place);
-  if (placesResult.errors.length > 0) {
-    do_throw("Unexpected error.");
-  }
-  do_check_title_for_uri(place.uri, place.title);
+      // Then, change the title with visits.
+      place.title = "title change";
+      place.visits = [new VisitInfo()];
+      gHistory.updatePlaces(place, expectHandleResult(function(aPlaceInfo) {
+        do_check_title_for_uri(place.uri, place.title);
 
-  // Lastly, check that the title is cleared if we set it to null.
-  place.title = null;
-  place.visits = [new VisitInfo()];
-  placesResult = yield promiseUpdatePlaces(place);
-  if (placesResult.errors.length > 0) {
-    do_throw("Unexpected error.");
-  }
-  do_check_title_for_uri(place.uri, place.title);
+        // Lastly, check that the title is cleared if we set it to null.
+        place.title = null;
+        place.visits = [new VisitInfo()];
+        gHistory.updatePlaces(place, expectHandleResult(function(aPlaceInfo) {
+          do_check_title_for_uri(place.uri, place.title);
 
-  yield promiseAsyncUpdates();
+          waitForAsyncUpdates(run_next_test);
+        }));
+      }));
+    }));
+  }));
 }
 
 function test_no_title_does_not_clear_title()
@@ -968,22 +1125,18 @@ function test_no_title_does_not_clear_title()
       new VisitInfo(),
     ],
   };
-  do_check_false(yield promiseIsURIVisited(place.uri));
+  do_check_false(gGlobalHistory.isVisited(place.uri));
 
-  let placesResult = yield promiseUpdatePlaces(place);
-  if (placesResult.errors.length > 0) {
-    do_throw("Unexpected error.");
-  }
-  // Now, make sure that not specifying a title does not clear it.
-  delete place.title;
-  place.visits = [new VisitInfo()];
-  placesResult = yield promiseUpdatePlaces(place);
-  if (placesResult.errors.length > 0) {
-    do_throw("Unexpected error.");
-  }
-  do_check_title_for_uri(place.uri, TITLE);
+  gHistory.updatePlaces(place, expectHandleResult(function(aPlaceInfo) {
+    // Now, make sure that not specifying a title does not clear it.
+    delete place.title;
+    place.visits = [new VisitInfo()];
+    gHistory.updatePlaces(place, expectHandleResult(function(aPlaceInfo) {
+      do_check_title_for_uri(place.uri, TITLE);
 
-  yield promiseAsyncUpdates();
+      waitForAsyncUpdates(run_next_test);
+    }));
+  }));
 }
 
 function test_title_change_notifies()
@@ -996,7 +1149,7 @@ function test_title_change_notifies()
       new VisitInfo(),
     ],
   };
-  do_check_false(yield promiseIsURIVisited(place.uri));
+  do_check_false(gGlobalHistory.isVisited(place.uri));
 
   let silentObserver =
     new TitleChangedObserver(place.uri, "DO NOT WANT", function() {
@@ -1004,43 +1157,31 @@ function test_title_change_notifies()
     });
 
   PlacesUtils.history.addObserver(silentObserver, false);
-  let placesResult = yield promiseUpdatePlaces(place);
-  if (placesResult.errors.length > 0) {
-    do_throw("Unexpected error.");
-  }
+  gHistory.updatePlaces(place);
 
   // The second case to test is that we get the notification when we add
   // it for the first time.  The first case will fail before our callback if it
   // is busted, so we can do this now.
   place.uri = NetUtil.newURI(place.uri.spec + "/new-visit-with-title");
   place.title = "title 1";
-  function promiseTitleChangedObserver(aPlace) {
-    let deferred = Promise.defer();
-    let callbackCount = 0;
-    let observer = new TitleChangedObserver(aPlace.uri, aPlace.title, function() {
-      switch (++callbackCount) {
-        case 1:
-          // The third case to test is to make sure we get a notification when
-          // we change an existing place.
-          observer.expectedTitle = place.title = "title 2";
-          place.visits = [new VisitInfo()];
-          PlacesUtils.asyncHistory.updatePlaces(place);
-          break;
-        case 2:
-          PlacesUtils.history.removeObserver(silentObserver);
-          PlacesUtils.history.removeObserver(observer);
-          deferred.resolve();
-          break;
-      };
-    });
-
-    PlacesUtils.history.addObserver(observer, false);
-    PlacesUtils.asyncHistory.updatePlaces(aPlace);
-    return deferred.promise;
-  }
-
-  yield promiseTitleChangedObserver(place);
-  yield promiseAsyncUpdates();
+  let callbackCount = 0;
+  let observer = new TitleChangedObserver(place.uri, place.title, function() {
+    switch (++callbackCount) {
+      case 1:
+        // The third case to test is to make sure we get a notification when we
+        // change an existing place.
+        observer.expectedTitle = place.title = "title 2";
+        place.visits = [new VisitInfo()];
+        gHistory.updatePlaces(place);
+        break;
+      case 2:
+        PlacesUtils.history.removeObserver(silentObserver);
+        PlacesUtils.history.removeObserver(observer);
+        waitForAsyncUpdates(run_next_test);
+    };
+  });
+  PlacesUtils.history.addObserver(observer, false);
+  gHistory.updatePlaces(place);
 }
 
 function test_visit_notifies()
@@ -1054,42 +1195,74 @@ function test_visit_notifies()
       new VisitInfo(),
     ],
   };
-  do_check_false(yield promiseIsURIVisited(place.uri));
+  do_check_false(gGlobalHistory.isVisited(place.uri));
 
-  function promiseVisitObserver(aPlace) {
-    let deferred = Promise.defer();
-    let callbackCount = 0;
-    let finisher = function() {
-      if (++callbackCount == 2) {
-        deferred.resolve();
-      }
+  let callbackCount = 0;
+  let finisher = function() {
+    if (++callbackCount == 2) {
+      waitForAsyncUpdates(run_next_test);
     }
-    let visitObserver = new VisitObserver(place.uri, place.guid,
-                                          function(aVisitDate,
-                                                   aTransitionType) {
-      let visit = place.visits[0];
-      do_check_eq(visit.visitDate, aVisitDate);
-      do_check_eq(visit.transitionType, aTransitionType);
-
-      PlacesUtils.history.removeObserver(visitObserver);
-      finisher();
-    });
-    PlacesUtils.history.addObserver(visitObserver, false);
-    let observer = function(aSubject, aTopic, aData) {
-      do_log_info("observe(" + aSubject + ", " + aTopic + ", " + aData + ")");
-      do_check_true(aSubject instanceof Ci.nsIURI);
-      do_check_true(aSubject.equals(place.uri));
-
-      Services.obs.removeObserver(observer, URI_VISIT_SAVED);
-      finisher();
-    };
-    Services.obs.addObserver(observer, URI_VISIT_SAVED, false);
-    PlacesUtils.asyncHistory.updatePlaces(place);
-    return deferred.promise;
   }
+  let visitObserver = new VisitObserver(place.uri, place.guid,
+                                        function(aVisitDate,
+                                                 aTransitionType) {
+    let visit = place.visits[0];
+    do_check_eq(visit.visitDate, aVisitDate);
+    do_check_eq(visit.transitionType, aTransitionType);
 
-  yield promiseVisitObserver(place);
-  yield promiseAsyncUpdates();
+    PlacesUtils.history.removeObserver(visitObserver);
+    finisher();
+  });
+  PlacesUtils.history.addObserver(visitObserver, false);
+  let observer = function(aSubject, aTopic, aData) {
+    do_log_info("observe(" + aSubject + ", " + aTopic + ", " + aData + ")");
+    do_check_true(aSubject instanceof Ci.nsIURI);
+    do_check_true(aSubject.equals(place.uri));
+
+    Services.obs.removeObserver(observer, URI_VISIT_SAVED);
+    finisher();
+  };
+  Services.obs.addObserver(observer, URI_VISIT_SAVED, false);
+  gHistory.updatePlaces(place);
+}
+
+function test_referrer_sessionId_persists()
+{
+  // This test ensures that a visit that has a valid referrer also gets
+  // the sessionId of the referrer.
+  let referrerPlace = {
+    uri: NetUtil.newURI(TEST_DOMAIN + "test_referrer_sessionId_persists_ref"),
+    visits: [
+      new VisitInfo(),
+    ],
+  };
+
+  // First we add the referrer visit, and then the main visit with referrer
+  // attached. We ensure that the sessionId is maintained across the updates.
+  do_check_false(gGlobalHistory.isVisited(referrerPlace.uri));
+  gHistory.updatePlaces(referrerPlace, expectHandleResult(function(aPlaceInfo) {
+    do_check_true(gGlobalHistory.isVisited(referrerPlace.uri));
+
+    let sessionId = aPlaceInfo.visits[0].sessionId;
+    do_check_neq(sessionId, null);
+
+    let place = {
+      uri: NetUtil.newURI(TEST_DOMAIN + "test_referrer_sessionId_persists"),
+      visits: [
+        new VisitInfo(),
+      ],
+    };
+    place.visits[0].referrerURI = referrerPlace.uri;
+
+    do_check_false(gGlobalHistory.isVisited(place.uri));
+    gHistory.updatePlaces(place, expectHandleResult(function(aPlaceInfo) {
+      do_check_true(gGlobalHistory.isVisited(place.uri));
+
+      do_check_eq(aPlaceInfo.visits[0].sessionId, sessionId);
+
+      waitForAsyncUpdates(run_next_test);
+    }));
+  }));
 }
 
 // test with empty mozIVisitInfoCallback object
@@ -1118,9 +1291,9 @@ function test_callbacks_not_supplied()
       do_log_info("Could not construct URI for '" + url + "'; ignoring");
     }
   });
-
-  PlacesUtils.asyncHistory.updatePlaces(places, {});
-  yield promiseAsyncUpdates();
+  
+  gHistory.updatePlaces(places, {});
+  waitForAsyncUpdates(run_next_test);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1135,12 +1308,14 @@ function test_callbacks_not_supplied()
   test_add_visit_no_date_throws,
   test_add_visit_no_transitionType_throws,
   test_add_visit_invalid_transitionType_throws,
-  // Note: all asynchronous tests (every test below this point) should wait for
-  // async updates before calling run_next_test.
+  // Note: all asynchronous tests (every test below this point) should
+  // waitForAsyncUpdates before calling run_next_test.
   test_non_addable_uri_errors,
   test_duplicate_guid_errors,
   test_invalid_referrerURI_ignored,
   test_nonnsIURI_referrerURI_ignored,
+  test_invalid_sessionId_ignored,
+  test_unstored_sessionId_ignored,
   test_old_referrer_ignored,
   test_place_id_ignored,
   test_handleCompletion_called_when_complete,
@@ -1148,13 +1323,15 @@ function test_callbacks_not_supplied()
   test_properties_saved,
   test_guid_saved,
   test_referrer_saved,
+  test_sessionId_saved,
   test_guid_change_saved,
   test_title_change_saved,
   test_no_title_does_not_clear_title,
   test_title_change_notifies,
   test_visit_notifies,
+  test_referrer_sessionId_persists,
   test_callbacks_not_supplied,
-].forEach(add_task);
+].forEach(add_test);
 
 function run_test()
 {

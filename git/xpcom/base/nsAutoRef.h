@@ -1,15 +1,46 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * vim: set shiftwidth=4 tabstop=8 autoindent cindent expandtab: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * The Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2008
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Karl Tomlinson <karlt+@karlt.net>, Mozilla Corporation
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsAutoRef_h_
 #define nsAutoRef_h_
 
-#include "mozilla/Attributes.h"
-
-#include "nscore.h" // for nullptr, bool
+#include "nscore.h" // for nsnull, PRBool
 
 template <class T> class nsSimpleRef;
 template <class T> class nsAutoRefBase;
@@ -54,7 +85,7 @@ template <class T> class nsReturningRef;
  * // Specializing nsAutoRefTraits<nsRawFD> describes how to manage file
  * // descriptors, so that nsAutoRef<nsRawFD> provides automatic closing of
  * // its file descriptor on destruction.
- * template <>
+ * NS_SPECIALIZE_TEMPLATE
  * class nsAutoRefTraits<nsRawFD> {
  * public:
  *     // The file descriptor is held in an int.
@@ -186,7 +217,7 @@ public:
     void swap(ThisClass& aOther)
     {
         LocalSimpleRef temp;
-        temp.SimpleRef::operator=(*this);
+        temp.SimpleRef::operator=(this);
         SimpleRef::operator=(aOther);
         aOther.SimpleRef::operator=(temp);
     }
@@ -398,7 +429,7 @@ public:
  * // integral typedefs, a new unique possibly-incomplete class may need to be
  * // declared.
  *
- * template <>
+ * NS_SPECIALIZE_TEMPLATE
  * class nsAutoRefTraits<T>
  * {
  *     // Specializations must provide a typedef for RawRef, describing the
@@ -444,14 +475,14 @@ template <class T> class nsAutoRefTraits;
  *
  * Examples of use:
  *
- * template <>
+ * NS_SPECIALIZE_TEMPLATE
  * class nsAutoRefTraits<PRFileDesc> : public nsPointerRefTraits<PRFileDesc>
  * {
  * public:
  *     static void Release(PRFileDesc *ptr) { PR_Close(ptr); }
  * };
  *
- * template <>
+ * NS_SPECIALIZE_TEMPLATE
  * class nsAutoRefTraits<FcPattern> : public nsPointerRefTraits<FcPattern>
  * {
  * public:
@@ -467,7 +498,7 @@ public:
     // The handle is a pointer to T.
     typedef T* RawRef;
     // A NULL pointer does not have a resource.
-    static RawRef Void() { return nullptr; }
+    static RawRef Void() { return nsnull; };
 };
 
 /**
@@ -517,7 +548,7 @@ protected:
     // provide this.  The function is permitted to always return true if the
     // default constructor is not accessible, or if Release (and AddRef) can
     // deal with void handles.
-    bool HaveResource() const
+    PRBool HaveResource() const
     {
         return mRawRef != Traits::Void();
     }
@@ -611,7 +642,7 @@ protected:
     };
 
 private:
-    ThisClass& operator=(const ThisClass& aSmartRef) MOZ_DELETE;
+    ThisClass& operator=(const ThisClass& aSmartRef);
     
 public:
     RawRef operator->() const

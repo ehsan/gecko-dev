@@ -1,6 +1,42 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is the Bookmarks Sync.
+#
+# The Initial Developer of the Original Code is the Mozilla Foundation.
+# Portions created by the Initial Developer are Copyright (C) 2007
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#  Dan Mills <thunder@mozilla.com>
+#  Chris Beard <cbeard@mozilla.com>
+#  Dan Mosedale <dmose@mozilla.org>
+#  Paul O’Shannessy <paul@oshannessy.com>
+#  Philipp von Weitershausen <philipp@weitershausen.de>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 
 // gSyncUI handles updating the tools menu
 let gSyncUI = {
@@ -15,19 +51,14 @@ let gSyncUI = {
          "weave:ui:login:error",
          "weave:ui:sync:error",
          "weave:ui:sync:finish",
-         "weave:ui:clear-error",
-         "weave:eol",
-  ],
+         "weave:ui:clear-error"],
 
   _unloaded: false,
 
   init: function SUI_init() {
     // Proceed to set up the UI if Sync has already started up.
     // Otherwise we'll do it when Sync is firing up.
-    let xps = Components.classes["@mozilla.org/weave/service;1"]
-                                .getService(Components.interfaces.nsISupports)
-                                .wrappedJSObject;
-    if (xps.ready) {
+    if (Weave.Status.ready) {
       this.initUI();
       return;
     }
@@ -59,8 +90,16 @@ let gSyncUI = {
       Services.obs.addObserver(this, topic, true);
     }, this);
 
-    if (gBrowser && Weave.Notifications.notifications.length) {
-      this.initNotifications();
+    // Find the alltabs-popup, only if there is a gBrowser
+    if (gBrowser) {
+      let popup = document.getElementById("alltabs-popup");
+      if (popup) {
+        popup.addEventListener(
+          "popupshowing", this.alltabsPopupShowing.bind(this), true);
+      }
+
+      if (Weave.Notifications.notifications.length)
+        this.initNotifications();
     }
     this.updateUI();
   },
@@ -110,6 +149,34 @@ let gSyncUI = {
       button.removeAttribute("tooltiptext");
   },
 
+  alltabsPopupShowing: function(event) {
+    // Should we show the menu item?
+    //XXXphilikon We should remove the check for isLoggedIn here and have
+    //            about:sync-tabs auto-login (bug 583344)
+    if (!Weave.Service.isLoggedIn || !Weave.Engines.get("tabs").enabled)
+      return;
+
+    let label = this._stringBundle.GetStringFromName("tabs.fromOtherComputers.label");
+
+    let popup = document.getElementById("alltabs-popup");
+    if (!popup)
+      return;
+
+    let menuitem = document.createElement("menuitem");
+    menuitem.setAttribute("id", "sync-tabs-menuitem");
+    menuitem.setAttribute("label", label);
+    menuitem.setAttribute("class", "alltabs-item");
+    menuitem.setAttribute("oncommand", "BrowserOpenSyncTabs();");
+
+    // Fake the tab object on the menu entries, so that we don't have to worry
+    // about removing them ourselves. They will just get cleaned up by popup
+    // binding.
+    menuitem.tab = { "linkedBrowser": { "currentURI": { "spec": label } } };
+
+    let sep = document.getElementById("alltabs-popup-separator");
+    popup.insertBefore(menuitem, sep);
+  },
+
 
   // Functions called by observers
   onActivityStart: function SUI_onActivityStart() {
@@ -142,10 +209,6 @@ let gSyncUI = {
     // Clear out any login failure notifications
     let title = this._stringBundle.GetStringFromName("error.login.title");
     this.clearError(title);
-  },
-
-  onSetupComplete: function SUI_onSetupComplete() {
-    this.onLoginFinish();
   },
 
   onLoginError: function SUI_onLoginError() {
@@ -209,36 +272,6 @@ let gSyncUI = {
     Weave.Notifications.replaceTitle(notification);
   },
 
-  onEOLNotice: function (data) {
-    let code = data.code;
-    let kind = (code == "hard-eol") ? "error" : "warning";
-    let url = data.url || "https://www.mozilla.org/firefox/?utm_source=synceol";
-
-    let title = this._stringBundle.GetStringFromName("error.sync.needUpdate.label");
-    let description = this._stringBundle.GetStringFromName("error.sync.needUpdate.description");
-  
-    // Hack for uplift.
-    let browserStrings = Cc["@mozilla.org/intl/stringbundle;1"].
-                           getService(Ci.nsIStringBundleService).
-                           createBundle("chrome://browser/locale/browser.properties");
-    let learnMore = browserStrings.GetStringFromName("syncPromoNotification.learnMoreLinkText");
-
-    let buttons = [];
-    buttons.push(new Weave.NotificationButton(
-      learnMore,
-      null,          // No accesskey.
-      function() {
-        window.openUILinkIn(url, "tab");
-        return true;
-      }
-    ));
-
-    let priority = (kind == "error") ? Weave.Notifications.PRIORITY_WARNING :
-                                       Weave.Notifications.PRIORITY_INFO;
-    let notification = new Weave.Notification(title, description, null, priority, buttons);
-    Weave.Notifications.replaceTitle(notification);
-  },
-
   openServerStatus: function () {
     let statusURL = Services.prefs.getCharPref("services.sync.statusURL");
     window.openUILinkIn(statusURL, "tab");
@@ -246,7 +279,7 @@ let gSyncUI = {
 
   // Commands
   doSync: function SUI_doSync() {
-    setTimeout(function() Weave.Service.errorHandler.syncAndReportErrors(), 0);
+    setTimeout(function() Weave.ErrorHandler.syncAndReportErrors(), 0);
   },
 
   handleToolbarButton: function SUI_handleStatusbarButton() {
@@ -258,38 +291,14 @@ let gSyncUI = {
 
   //XXXzpao should be part of syncCommon.js - which we might want to make a module...
   //        To be fixed in a followup (bug 583366)
-
-  /**
-   * Invoke the Sync setup wizard.
-   *
-   * @param wizardType
-   *        Indicates type of wizard to launch:
-   *          null    -- regular set up wizard
-   *          "pair"  -- pair a device first
-   *          "reset" -- reset sync
-   */
-
-  openSetup: function SUI_openSetup(wizardType) {
+  openSetup: function SUI_openSetup() {
     let win = Services.wm.getMostRecentWindow("Weave:AccountSetup");
     if (win)
       win.focus();
     else {
-      window.openDialog("chrome://browser/content/sync/setup.xul",
-                        "weaveSetup", "centerscreen,chrome,resizable=no",
-                        wizardType);
+      window.openDialog("chrome://browser/content/syncSetup.xul",
+                        "weaveSetup", "centerscreen,chrome,resizable=no");
     }
-  },
-
-  openAddDevice: function () {
-    if (!Weave.Utils.ensureMPUnlocked())
-      return;
-
-    let win = Services.wm.getMostRecentWindow("Sync:AddDevice");
-    if (win)
-      win.focus();
-    else
-      window.openDialog("chrome://browser/content/sync/addDevice.xul",
-                        "syncAddDevice", "centerscreen,chrome,resizable=no");
   },
 
   openQuotaDialog: function SUI_openQuotaDialog() {
@@ -298,7 +307,7 @@ let gSyncUI = {
       win.focus();
     else
       Services.ww.activeWindow.openDialog(
-        "chrome://browser/content/sync/quota.xul", "",
+        "chrome://browser/content/syncQuota.xul", "",
         "centerscreen,chrome,dialog,modal");
   },
 
@@ -436,13 +445,6 @@ let gSyncUI = {
       return;
     }
 
-    // Unwrap, just like Svc.Obs, but without pulling in that dependency.
-    if (subject && typeof subject == "object" &&
-        ("wrappedJSObject" in subject) &&
-        ("observersModuleSubjectWrapper" in subject.wrappedJSObject)) {
-      subject = subject.wrappedJSObject.object;
-    }
-
     switch (topic) {
       case "weave:service:sync:start":
         this.onActivityStart();
@@ -460,7 +462,7 @@ let gSyncUI = {
         this.onQuotaNotice();
         break;
       case "weave:service:setup-complete":
-        this.onSetupComplete();
+        this.onLoginFinish();
         break;
       case "weave:service:login:start":
         this.onActivityStart();
@@ -485,9 +487,6 @@ let gSyncUI = {
         break;
       case "weave:ui:clear-error":
         this.clearError();
-        break;
-      case "weave:eol":
-        this.onEOLNotice(subject);
         break;
     }
   },

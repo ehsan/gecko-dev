@@ -5,41 +5,9 @@
 {
   'variables': {
     'component%': 'static_library',
-    # angle_code is set to 1 for the core ANGLE targets defined in src/build_angle.gyp.
-    # angle_code is set to 0 for test code, sample code, and third party code.
-    # When angle_code is 1, we build with additional warning flags on Mac and Linux.
-    'angle_code%': 0,
-    'gcc_or_clang_warnings': [
-      '-Wall',
-      '-Wchar-subscripts',
-      '-Werror',
-      '-Wextra',
-      '-Wformat=2',
-      '-Winit-self',
-      '-Wno-sign-compare',
-      '-Wno-unused-function',
-      '-Wno-unused-parameter',
-      '-Wno-unknown-pragmas',
-      '-Wpacked',
-      '-Wpointer-arith',
-      '-Wundef',
-      '-Wwrite-strings',
-    ],
   },
   'target_defaults': {
     'default_configuration': 'Debug',
-    'variables': {
-      'warn_as_error%': 1,
-    },
-    'target_conditions': [
-      ['warn_as_error == 1', {
-        'msvs_settings': {
-          'VCCLCompilerTool': {
-            'WarnAsError': 'true',
-          },
-        },
-      }],
-    ],
     'configurations': {
       'Common': {
         'abstract': 1,
@@ -60,6 +28,7 @@
             'PreprocessorDefinitions': [
               '_CRT_SECURE_NO_DEPRECATE',
               '_HAS_EXCEPTIONS=0',
+              '_HAS_TR1=0',
               '_WIN32_WINNT=0x0600',
               '_WINDOWS',
               'NOMINMAX',
@@ -68,8 +37,7 @@
               'WINVER=0x0600',
             ],
             'RuntimeTypeInfo': 'false',
-            'WarningLevel': '4',
-            'DisableSpecificWarnings': [4100, 4127, 4189, 4239, 4244, 4245, 4512, 4702],
+            'WarningLevel': '3',
           },
           'VCLinkerTool': {
             'FixedBaseAddress': '1',
@@ -79,23 +47,11 @@
             # Most of the executables we'll ever create are tests
             # and utilities with console output.
             'SubSystem': '1',  # /SUBSYSTEM:CONSOLE
-            'AdditionalLibraryDirectories': [
-              '$(ProgramFiles)/Windows Kits/8.0/Lib/win8/um/x86',
-            ],
-          },
-          'VCLibrarianTool': {
-            'AdditionalLibraryDirectories': [
-              '$(ProgramFiles)/Windows Kits/8.0/Lib/win8/um/x86',
-            ],
           },
           'VCResourceCompilerTool': {
             'Culture': '1033',
           },
         },
-        'msvs_system_include_dirs': [
-          '$(ProgramFiles)/Windows Kits/8.0/Include/shared',
-          '$(ProgramFiles)/Windows Kits/8.0/Include/um',
-        ],
       },  # Common
       'Debug': {
         'inherit_from': ['Common'],
@@ -161,20 +117,6 @@
           }
         },
       },
-    }],
-    ['angle_code==1', {
-      'target_defaults': {
-        'conditions': [
-          ['OS=="mac"', {
-            'xcode_settings': {
-              'WARNING_CFLAGS': ['<@(gcc_or_clang_warnings)']
-            },
-          }],
-          ['OS!="win" and OS!="mac"', {
-            'cflags': ['<@(gcc_or_clang_warnings)']
-          }],
-        ]
-      }
     }],
   ],
 }

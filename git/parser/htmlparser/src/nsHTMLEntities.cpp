@@ -1,9 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-#include "mozilla/Util.h"
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsHTMLEntities.h"
 
@@ -14,11 +44,9 @@
 #include "prtypes.h"
 #include "pldhash.h"
 
-using namespace mozilla;
-
 struct EntityNode {
   const char* mStr; // never owns buffer
-  int32_t       mUnicode;
+  PRInt32       mUnicode;
 };
 
 struct EntityNodeEntry : public PLDHashEntryHdr
@@ -26,7 +54,7 @@ struct EntityNodeEntry : public PLDHashEntryHdr
   const EntityNode* node;
 }; 
 
-static bool
+static PRBool
   matchNodeString(PLDHashTable*, const PLDHashEntryHdr* aHdr,
                   const void* key)
 {
@@ -35,12 +63,12 @@ static bool
   return (nsCRT::strcmp(entry->node->mStr, str) == 0);
 }
 
-static bool
+static PRBool
   matchNodeUnicode(PLDHashTable*, const PLDHashEntryHdr* aHdr,
                    const void* key)
 {
   const EntityNodeEntry* entry = static_cast<const EntityNodeEntry*>(aHdr);
-  const int32_t ucode = NS_PTR_TO_INT32(key);
+  const PRInt32 ucode = NS_PTR_TO_INT32(key);
   return (entry->node->mUnicode == ucode);
 }
 
@@ -60,7 +88,7 @@ static const PLDHashTableOps EntityToUnicodeOps = {
   PL_DHashMoveEntryStub,
   PL_DHashClearEntryStub,
   PL_DHashFinalizeStub,
-  nullptr,
+  nsnull,
 }; 
 
 static const PLDHashTableOps UnicodeToEntityOps = {
@@ -71,7 +99,7 @@ static const PLDHashTableOps UnicodeToEntityOps = {
   PL_DHashMoveEntryStub,
   PL_DHashClearEntryStub,
   PL_DHashFinalizeStub,
-  nullptr,
+  nsnull,
 };
 
 static PLDHashTable gEntityToUnicode = { 0 };
@@ -84,27 +112,27 @@ static const EntityNode gEntityArray[] = {
 };
 #undef HTML_ENTITY
 
-#define NS_HTML_ENTITY_COUNT ((int32_t)ArrayLength(gEntityArray))
+#define NS_HTML_ENTITY_COUNT ((PRInt32)NS_ARRAY_LENGTH(gEntityArray))
 
 nsresult
 nsHTMLEntities::AddRefTable(void) 
 {
   if (!gTableRefCnt) {
     if (!PL_DHashTableInit(&gEntityToUnicode, &EntityToUnicodeOps,
-                           nullptr, sizeof(EntityNodeEntry),
-                           uint32_t(NS_HTML_ENTITY_COUNT / 0.75))) {
-      gEntityToUnicode.ops = nullptr;
+                           nsnull, sizeof(EntityNodeEntry),
+                           PRUint32(NS_HTML_ENTITY_COUNT / 0.75))) {
+      gEntityToUnicode.ops = nsnull;
       return NS_ERROR_OUT_OF_MEMORY;
     }
     if (!PL_DHashTableInit(&gUnicodeToEntity, &UnicodeToEntityOps,
-                           nullptr, sizeof(EntityNodeEntry),
-                           uint32_t(NS_HTML_ENTITY_COUNT / 0.75))) {
+                           nsnull, sizeof(EntityNodeEntry),
+                           PRUint32(NS_HTML_ENTITY_COUNT / 0.75))) {
       PL_DHashTableFinish(&gEntityToUnicode);
-      gEntityToUnicode.ops = gUnicodeToEntity.ops = nullptr;
+      gEntityToUnicode.ops = gUnicodeToEntity.ops = nsnull;
       return NS_ERROR_OUT_OF_MEMORY;
     }
     for (const EntityNode *node = gEntityArray,
-                 *node_end = ArrayEnd(gEntityArray);
+                 *node_end = gEntityArray + NS_ARRAY_LENGTH(gEntityArray);
          node < node_end; ++node) {
 
       // add to Entity->Unicode table
@@ -145,16 +173,16 @@ nsHTMLEntities::ReleaseTable(void)
 
   if (gEntityToUnicode.ops) {
     PL_DHashTableFinish(&gEntityToUnicode);
-    gEntityToUnicode.ops = nullptr;
+    gEntityToUnicode.ops = nsnull;
   }
   if (gUnicodeToEntity.ops) {
     PL_DHashTableFinish(&gUnicodeToEntity);
-    gUnicodeToEntity.ops = nullptr;
+    gUnicodeToEntity.ops = nsnull;
   }
 
 }
 
-int32_t 
+PRInt32 
 nsHTMLEntities::EntityToUnicode(const nsCString& aEntity)
 {
   NS_ASSERTION(gEntityToUnicode.ops, "no lookup table, needs addref");
@@ -165,7 +193,7 @@ nsHTMLEntities::EntityToUnicode(const nsCString& aEntity)
     //if we see it, strip if off for this test...
 
     if(';'==aEntity.Last()) {
-      nsAutoCString temp(aEntity);
+      nsCAutoString temp(aEntity);
       temp.Truncate(aEntity.Length()-1);
       return EntityToUnicode(temp);
     }
@@ -181,9 +209,9 @@ nsHTMLEntities::EntityToUnicode(const nsCString& aEntity)
 }
 
 
-int32_t 
+PRInt32 
 nsHTMLEntities::EntityToUnicode(const nsAString& aEntity) {
-  nsAutoCString theEntity; theEntity.AssignWithConversion(aEntity);
+  nsCAutoString theEntity; theEntity.AssignWithConversion(aEntity);
   if(';'==theEntity.Last()) {
     theEntity.Truncate(theEntity.Length()-1);
   }
@@ -193,7 +221,7 @@ nsHTMLEntities::EntityToUnicode(const nsAString& aEntity) {
 
 
 const char*
-nsHTMLEntities::UnicodeToEntity(int32_t aUnicode)
+nsHTMLEntities::UnicodeToEntity(PRInt32 aUnicode)
 {
   NS_ASSERTION(gUnicodeToEntity.ops, "no lookup table, needs addref");
   EntityNodeEntry* entry =
@@ -201,18 +229,18 @@ nsHTMLEntities::UnicodeToEntity(int32_t aUnicode)
                (PL_DHashTableOperate(&gUnicodeToEntity, NS_INT32_TO_PTR(aUnicode), PL_DHASH_LOOKUP));
                    
   if (!entry || PL_DHASH_ENTRY_IS_FREE(entry))
-  return nullptr;
+  return nsnull;
     
   return entry->node->mStr;
 }
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
 #include <stdio.h>
 
 class nsTestEntityTable {
 public:
    nsTestEntityTable() {
-     int32_t value;
+     PRInt32 value;
      nsHTMLEntities::AddRefTable();
 
      // Make sure we can find everything we are supposed to
@@ -228,9 +256,9 @@ public:
      }
 
      // Make sure we don't find things that aren't there
-     value = nsHTMLEntities::EntityToUnicode(nsAutoCString("@"));
+     value = nsHTMLEntities::EntityToUnicode(nsCAutoString("@"));
      NS_ASSERTION(value == -1, "found @");
-     value = nsHTMLEntities::EntityToUnicode(nsAutoCString("zzzzz"));
+     value = nsHTMLEntities::EntityToUnicode(nsCAutoString("zzzzz"));
      NS_ASSERTION(value == -1, "found zzzzz");
      nsHTMLEntities::ReleaseTable();
    }

@@ -1,30 +1,59 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et cindent: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla code.
+ *
+ * The Initial Developer of the Original Code is the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  David Humphrey <david.humphrey@senecac.on.ca>
+ *  Yury Delendik
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-#include "nsError.h"
 #include "nsDOMNotifyAudioAvailableEvent.h"
+#include "nsDOMClassInfoID.h" // DOMCI_DATA, NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO
 #include "nsContentUtils.h" // NS_DROP_JS_OBJECTS
-#include "jsfriendapi.h"
+#include "jstypedarray.h"
 
-using namespace mozilla;
-using namespace mozilla::dom;
-
-nsDOMNotifyAudioAvailableEvent::nsDOMNotifyAudioAvailableEvent(EventTarget* aOwner,
-                                                               nsPresContext* aPresContext,
+nsDOMNotifyAudioAvailableEvent::nsDOMNotifyAudioAvailableEvent(nsPresContext* aPresContext,
                                                                nsEvent* aEvent,
-                                                               uint32_t aEventType,
+                                                               PRUint32 aEventType,
                                                                float* aFrameBuffer,
-                                                               uint32_t aFrameBufferLength,
+                                                               PRUint32 aFrameBufferLength,
                                                                float aTime)
-  : nsDOMEvent(aOwner, aPresContext, aEvent),
+  : nsDOMEvent(aPresContext, aEvent),
     mFrameBuffer(aFrameBuffer),
     mFrameBufferLength(aFrameBufferLength),
     mTime(aTime),
-    mCachedArray(nullptr),
-    mAllowAudioData(false)
+    mCachedArray(nsnull),
+    mAllowAudioData(PR_FALSE)
 {
   MOZ_COUNT_CTOR(nsDOMNotifyAudioAvailableEvent);
   if (mEvent) {
@@ -32,40 +61,44 @@ nsDOMNotifyAudioAvailableEvent::nsDOMNotifyAudioAvailableEvent(EventTarget* aOwn
   }
 }
 
-NS_IMPL_ADDREF_INHERITED(nsDOMNotifyAudioAvailableEvent, nsDOMEvent)
-NS_IMPL_RELEASE_INHERITED(nsDOMNotifyAudioAvailableEvent, nsDOMEvent)
+DOMCI_DATA(NotifyAudioAvailableEvent, nsDOMNotifyAudioAvailableEvent)
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMNotifyAudioAvailableEvent)
 
+NS_IMPL_ADDREF_INHERITED(nsDOMNotifyAudioAvailableEvent, nsDOMEvent)
+NS_IMPL_RELEASE_INHERITED(nsDOMNotifyAudioAvailableEvent, nsDOMEvent)
+
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDOMNotifyAudioAvailableEvent, nsDOMEvent)
   if (tmp->mCachedArray) {
-    tmp->mCachedArray = nullptr;
     NS_DROP_JS_OBJECTS(tmp, nsDOMNotifyAudioAvailableEvent);
+    tmp->mCachedArray = nsnull;
   }
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsDOMNotifyAudioAvailableEvent, nsDOMEvent)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN_INHERITED(nsDOMNotifyAudioAvailableEvent, nsDOMEvent)
+NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsDOMNotifyAudioAvailableEvent)
   NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mCachedArray)
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsDOMNotifyAudioAvailableEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMNotifyAudioAvailableEvent)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(NotifyAudioAvailableEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEvent)
 
 nsDOMNotifyAudioAvailableEvent::~nsDOMNotifyAudioAvailableEvent()
 {
   MOZ_COUNT_DTOR(nsDOMNotifyAudioAvailableEvent);
   if (mCachedArray) {
-    mCachedArray = nullptr;
     NS_DROP_JS_OBJECTS(this, nsDOMNotifyAudioAvailableEvent);
+    mCachedArray = nsnull;
   }
 }
 
 NS_IMETHODIMP
-nsDOMNotifyAudioAvailableEvent::GetFrameBuffer(JSContext* aCx, JS::Value* aResult)
+nsDOMNotifyAudioAvailableEvent::GetFrameBuffer(JSContext* aCx, jsval* aResult)
 {
   if (!mAllowAudioData) {
     // Media is not same-origin, don't allow the data out.
@@ -80,12 +113,15 @@ nsDOMNotifyAudioAvailableEvent::GetFrameBuffer(JSContext* aCx, JS::Value* aResul
   // Cache this array so we don't recreate on next call.
   NS_HOLD_JS_OBJECTS(this, nsDOMNotifyAudioAvailableEvent);
 
-  mCachedArray = JS_NewFloat32Array(aCx, mFrameBufferLength);
+  mCachedArray = js_CreateTypedArray(aCx, js::TypedArray::TYPE_FLOAT32, mFrameBufferLength);
   if (!mCachedArray) {
     NS_DROP_JS_OBJECTS(this, nsDOMNotifyAudioAvailableEvent);
+    NS_ERROR("Failed to get audio signal!");
     return NS_ERROR_FAILURE;
   }
-  memcpy(JS_GetFloat32ArrayData(mCachedArray), mFrameBuffer.get(), mFrameBufferLength * sizeof(float));
+
+  JSObject *tdest = js::TypedArray::getTypedArray(mCachedArray);
+  memcpy(JS_GetTypedArrayData(tdest), mFrameBuffer.get(), mFrameBufferLength * sizeof(float));
 
   *aResult = OBJECT_TO_JSVAL(mCachedArray);
   return NS_OK;
@@ -94,18 +130,18 @@ nsDOMNotifyAudioAvailableEvent::GetFrameBuffer(JSContext* aCx, JS::Value* aResul
 NS_IMETHODIMP
 nsDOMNotifyAudioAvailableEvent::GetTime(float *aRetVal)
 {
-  *aRetVal = Time();
+  *aRetVal = mTime;
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMNotifyAudioAvailableEvent::InitAudioAvailableEvent(const nsAString& aType,
-                                                        bool aCanBubble,
-                                                        bool aCancelable,
+                                                        PRBool aCanBubble,
+                                                        PRBool aCancelable,
                                                         float* aFrameBuffer,
-                                                        uint32_t aFrameBufferLength,
+                                                        PRUint32 aFrameBufferLength,
                                                         float aTime,
-                                                        bool aAllowAudioData)
+                                                        PRBool aAllowAudioData)
 {
   // Auto manage the memory which stores the frame buffer. This ensures
   // that if we exit due to some error, the memory will be freed. Otherwise,
@@ -118,51 +154,19 @@ nsDOMNotifyAudioAvailableEvent::InitAudioAvailableEvent(const nsAString& aType,
   mFrameBufferLength = aFrameBufferLength;
   mTime = aTime;
   mAllowAudioData = aAllowAudioData;
-  mCachedArray = nullptr;
   return NS_OK;
 }
 
-void
-nsDOMNotifyAudioAvailableEvent::InitAudioAvailableEvent(const nsAString& aType,
-                                                        bool aCanBubble,
-                                                        bool aCancelable,
-                                                        const Nullable<Sequence<float> >& aFrameBuffer,
-                                                        uint32_t aFrameBufferLength,
-                                                        float aTime,
-                                                        bool aAllowAudioData,
-                                                        ErrorResult& aRv)
-{
-  if ((aFrameBuffer.IsNull() && aFrameBufferLength > 0) ||
-      (!aFrameBuffer.IsNull() &&
-       aFrameBuffer.Value().Length() < aFrameBufferLength)) {
-    aRv = NS_ERROR_UNEXPECTED;
-    return;
-  }
-
-  nsAutoArrayPtr<float> buffer;
-  if (!aFrameBuffer.IsNull()) {
-    buffer = new float[aFrameBufferLength];
-    memcpy(buffer.get(), aFrameBuffer.Value().Elements(),
-           aFrameBufferLength * sizeof(float));
-  }
-
-  aRv = InitAudioAvailableEvent(aType, aCanBubble, aCancelable,
-                                buffer.forget(),
-                                aFrameBufferLength,
-                                aTime, aAllowAudioData);
-}
-
 nsresult NS_NewDOMAudioAvailableEvent(nsIDOMEvent** aInstancePtrResult,
-                                      EventTarget* aOwner,
                                       nsPresContext* aPresContext,
                                       nsEvent *aEvent,
-                                      uint32_t aEventType,
+                                      PRUint32 aEventType,
                                       float* aFrameBuffer,
-                                      uint32_t aFrameBufferLength,
+                                      PRUint32 aFrameBufferLength,
                                       float aTime)
 {
   nsDOMNotifyAudioAvailableEvent* it =
-    new nsDOMNotifyAudioAvailableEvent(aOwner, aPresContext, aEvent, aEventType,
+    new nsDOMNotifyAudioAvailableEvent(aPresContext, aEvent, aEventType,
                                        aFrameBuffer, aFrameBufferLength, aTime);
   return CallQueryInterface(it, aInstancePtrResult);
 }

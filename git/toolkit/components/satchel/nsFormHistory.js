@@ -1,6 +1,39 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Justin Dolske <dolske@mozilla.com> (original authors)
+ *  Paul O’Shannessy <paul@oshannessy.com> (original authors)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 
 const Cc = Components.classes;
@@ -10,16 +43,10 @@ const Cr = Components.results;
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "Deprecated",
-                                  "resource://gre/modules/Deprecated.jsm");
-
-const DB_VERSION = 4;
+const DB_VERSION = 3;
 const DAY_IN_MS  = 86400000; // 1 day in milliseconds
 
 function FormHistory() {
-    Deprecated.warning(
-        "nsIFormHistory2 is deprecated and will be removed in a future version",
-        "https://bugzilla.mozilla.org/show_bug.cgi?id=879118");
     this.init();
 }
 
@@ -27,12 +54,12 @@ FormHistory.prototype = {
     classID          : Components.ID("{0c1bb408-71a2-403f-854a-3a0659829ded}"),
     QueryInterface   : XPCOMUtils.generateQI([Ci.nsIFormHistory2,
                                               Ci.nsIObserver,
-                                              Ci.nsIMessageListener,
-                                              Ci.nsISupportsWeakReference,
+                                              Ci.nsIFrameMessageListener,
                                               ]),
 
     debug          : true,
     enabled        : true,
+    saveHttpsForms : true,
 
     // The current database schema.
     dbSchema : {
@@ -46,11 +73,6 @@ FormHistory.prototype = {
                 "lastUsed"  : "INTEGER",
                 "guid"      : "TEXT"
             },
-            moz_deleted_formhistory: {
-                "id"          : "INTEGER PRIMARY KEY",
-                "timeDeleted" : "INTEGER",
-                "guid"        : "TEXT"
-            }
         },
         indices : {
             moz_formhistory_index : {
@@ -67,6 +89,7 @@ FormHistory.prototype = {
             },
         }
     },
+    dbConnection : null,  // The database connection
     dbStmts      : null,  // Database statements for memoization
     dbFile       : null,
 
@@ -78,7 +101,22 @@ FormHistory.prototype = {
         return this._uuidService;
     },
 
-    log : function log(message) {
+    // Private Browsing Service
+    // If the service is not available, null will be returned.
+    _privBrowsingSvc : undefined,
+    get privBrowsingSvc() {
+        if (this._privBrowsingSvc == undefined) {
+            if ("@mozilla.org/privatebrowsing;1" in Cc)
+                this._privBrowsingSvc = Cc["@mozilla.org/privatebrowsing;1"].
+                                        getService(Ci.nsIPrivateBrowsingService);
+            else
+                this._privBrowsingSvc = null;
+        }
+        return this._privBrowsingSvc;
+    },
+
+
+    log : function (message) {
         if (!this.debug)
             return;
         dump("FormHistory: " + message + "\n");
@@ -86,14 +124,62 @@ FormHistory.prototype = {
     },
 
 
-    init : function init() {
+    init : function() {
+        let self = this;
+
+        Services.prefs.addObserver("browser.formfill.", this, false);
+
         this.updatePrefs();
 
         this.dbStmts = {};
 
-        // Add observer
-        Services.obs.addObserver(this, "profile-before-change", true);
+        this.messageManager = Cc["@mozilla.org/globalmessagemanager;1"].
+                              getService(Ci.nsIChromeFrameMessageManager);
+        this.messageManager.loadFrameScript("chrome://satchel/content/formSubmitListener.js", true);
+        this.messageManager.addMessageListener("FormHistory:FormSubmitEntries", this);
+
+        // Add observers
+        Services.obs.addObserver(function() { self.expireOldEntries() }, "idle-daily", false);
+        Services.obs.addObserver(function() { self.expireOldEntries() }, "formhistory-expire-now", false);
+
+        try {
+            this.dbFile = Services.dirsvc.get("ProfD", Ci.nsIFile).clone();
+            this.dbFile.append("formhistory.sqlite");
+            this.log("Opening database at " + this.dbFile.path);
+
+            this.dbInit();
+        } catch (e) {
+            this.log("Initialization failed: " + e);
+            // If dbInit fails...
+            if (e.result == Cr.NS_ERROR_FILE_CORRUPTED) {
+                this.dbCleanup(true);
+                this.dbInit();
+            } else {
+                throw "Initialization failed";
+            }
+        }
     },
+
+
+    /* ---- message listener ---- */
+
+
+    receiveMessage: function receiveMessage(message) {
+        // Open a transaction so multiple adds happen in one commit
+        this.dbConnection.beginTransaction();
+
+        try {
+            let entries = message.json;
+            for (let i = 0; i < entries.length; i++) {
+                this.addEntry(entries[i].name, entries[i].value);
+            }
+        } finally {
+            // Don't need it to be atomic if there was an error.  Commit what
+            // we managed to put in the table.
+            this.dbConnection.commitTransaction();
+        }
+    },
+
 
     /* ---- nsIFormHistory2 interfaces ---- */
 
@@ -103,8 +189,9 @@ FormHistory.prototype = {
     },
 
 
-    addEntry : function addEntry(name, value) {
-        if (!this.enabled)
+    addEntry : function (name, value) {
+        if (!this.enabled ||
+            this.privBrowsingSvc && this.privBrowsingSvc.privateBrowsingEnabled)
             return;
 
         this.log("addEntry for " + name + "=" + value);
@@ -115,7 +202,7 @@ FormHistory.prototype = {
         let stmt;
 
         if (id != -1) {
-            // Update existing entry.
+            // Update existing entry
             let query = "UPDATE moz_formhistory SET timesUsed = timesUsed + 1, lastUsed = :lastUsed WHERE id = :id";
             let params = {
                             lastUsed : now,
@@ -136,7 +223,7 @@ FormHistory.prototype = {
             }
 
         } else {
-            // Add new entry.
+            // Add new entry
             guid = this.generateGUID();
 
             let query = "INSERT INTO moz_formhistory (fieldname, value, timesUsed, firstUsed, lastUsed, guid) " +
@@ -166,7 +253,7 @@ FormHistory.prototype = {
     },
 
 
-    removeEntry : function removeEntry(name, value) {
+    removeEntry : function (name, value) {
         this.log("removeEntry for " + name + "=" + value);
 
         let [id, guid] = this.getExistingEntryID(name, value);
@@ -175,25 +262,12 @@ FormHistory.prototype = {
         let stmt;
         let query = "DELETE FROM moz_formhistory WHERE id = :id";
         let params = { id : id };
-        let existingTransactionInProgress;
 
         try {
-            // Don't start a transaction if one is already in progress since we can't nest them.
-            existingTransactionInProgress = this.dbConnection.transactionInProgress;
-            if (!existingTransactionInProgress)
-                this.dbConnection.beginTransaction();
-            this.moveToDeletedTable("VALUES (:guid, :timeDeleted)", {
-              guid: guid,
-              timeDeleted: Date.now()
-            });
-
-            // remove from the formhistory database
             stmt = this.dbCreateStatement(query, params);
             stmt.execute();
             this.sendStringNotification("removeEntry", name, value, guid);
         } catch (e) {
-            if (!existingTransactionInProgress)
-                this.dbConnection.rollbackTransaction();
             this.log("removeEntry failed: " + e);
             throw e;
         } finally {
@@ -201,12 +275,10 @@ FormHistory.prototype = {
                 stmt.reset();
             }
         }
-        if (!existingTransactionInProgress)
-            this.dbConnection.commitTransaction();
     },
 
 
-    removeEntriesForName : function removeEntriesForName(name) {
+    removeEntriesForName : function (name) {
         this.log("removeEntriesForName with name=" + name);
 
         this.sendStringNotification("before-removeEntriesForName", name);
@@ -214,26 +286,12 @@ FormHistory.prototype = {
         let stmt;
         let query = "DELETE FROM moz_formhistory WHERE fieldname = :fieldname";
         let params = { fieldname : name };
-        let existingTransactionInProgress;
 
         try {
-            // Don't start a transaction if one is already in progress since we can't nest them.
-            existingTransactionInProgress = this.dbConnection.transactionInProgress;
-            if (!existingTransactionInProgress)
-                this.dbConnection.beginTransaction();
-            this.moveToDeletedTable(
-              "SELECT guid, :timeDeleted FROM moz_formhistory " +
-              "WHERE fieldname = :fieldname", {
-                fieldname: name,
-                timeDeleted: Date.now()
-            });
-
             stmt = this.dbCreateStatement(query, params);
             stmt.execute();
             this.sendStringNotification("removeEntriesForName", name);
         } catch (e) {
-            if (!existingTransactionInProgress)
-                this.dbConnection.rollbackTransaction();
             this.log("removeEntriesForName failed: " + e);
             throw e;
         } finally {
@@ -241,46 +299,33 @@ FormHistory.prototype = {
                 stmt.reset();
             }
         }
-        if (!existingTransactionInProgress)
-            this.dbConnection.commitTransaction();
     },
 
 
-    removeAllEntries : function removeAllEntries() {
+    removeAllEntries : function () {
         this.log("removeAllEntries");
 
         this.sendNotification("before-removeAllEntries", null);
 
         let stmt;
         let query = "DELETE FROM moz_formhistory";
-        let existingTransactionInProgress;
 
         try {
-            // Don't start a transaction if one is already in progress since we can't nest them.
-            existingTransactionInProgress = this.dbConnection.transactionInProgress;
-            if (!existingTransactionInProgress)
-                this.dbConnection.beginTransaction();
-            // TODO: Add these items to the deleted items table once we've sorted
-            //       out the issues from bug 756701
             stmt = this.dbCreateStatement(query);
             stmt.execute();
             this.sendNotification("removeAllEntries", null);
         } catch (e) {
-            if (!existingTransactionInProgress)
-                this.dbConnection.rollbackTransaction();
-            this.log("removeAllEntries failed: " + e);
+            this.log("removeEntriesForName failed: " + e);
             throw e;
         } finally {
             if (stmt) {
                 stmt.reset();
             }
         }
-        if (!existingTransactionInProgress)
-            this.dbConnection.commitTransaction();
     },
 
 
-    nameExists : function nameExists(name) {
+    nameExists : function (name) {
         this.log("nameExists for name=" + name);
         let stmt;
         let query = "SELECT COUNT(1) AS numEntries FROM moz_formhistory WHERE fieldname = :fieldname";
@@ -299,14 +344,14 @@ FormHistory.prototype = {
         }
     },
 
-    entryExists : function entryExists(name, value) {
+    entryExists : function (name, value) {
         this.log("entryExists for " + name + "=" + value);
         let [id, guid] = this.getExistingEntryID(name, value);
         this.log("entryExists: id=" + id);
         return (id != -1);
     },
 
-    removeEntriesByTimeframe : function removeEntriesByTimeframe(beginTime, endTime) {
+    removeEntriesByTimeframe : function (beginTime, endTime) {
         this.log("removeEntriesByTimeframe for " + beginTime + " to " + endTime);
 
         this.sendIntNotification("before-removeEntriesByTimeframe", beginTime, endTime);
@@ -317,26 +362,11 @@ FormHistory.prototype = {
                         beginTime : beginTime,
                         endTime   : endTime
                      };
-        let existingTransactionInProgress;
-
         try {
-            // Don't start a transaction if one is already in progress since we can't nest them.
-            existingTransactionInProgress = this.dbConnection.transactionInProgress;
-            if (!existingTransactionInProgress)
-                this.dbConnection.beginTransaction();
-            this.moveToDeletedTable(
-                  "SELECT guid, :timeDeleted FROM moz_formhistory " +
-                  "WHERE firstUsed >= :beginTime AND firstUsed <= :endTime", {
-              beginTime: beginTime,
-              endTime: endTime
-            });
-
             stmt = this.dbCreateStatement(query, params);
             stmt.executeStep();
             this.sendIntNotification("removeEntriesByTimeframe", beginTime, endTime);
         } catch (e) {
-            if (!existingTransactionInProgress)
-                this.dbConnection.rollbackTransaction();
             this.log("removeEntriesByTimeframe failed: " + e);
             throw e;
         } finally {
@@ -344,58 +374,9 @@ FormHistory.prototype = {
                 stmt.reset();
             }
         }
-        if (!existingTransactionInProgress)
-            this.dbConnection.commitTransaction();
+
     },
 
-    moveToDeletedTable : function moveToDeletedTable(values, params) {
-#ifdef ANDROID
-        this.log("Moving entries to deleted table.");
-
-        let stmt;
-
-        try {
-            // Move the entries to the deleted items table.
-            let query = "INSERT INTO moz_deleted_formhistory (guid, timeDeleted) ";
-            if (values) query += values;
-            stmt = this.dbCreateStatement(query, params);
-            stmt.execute();
-        } catch (e) {
-            this.log("Moving deleted entries failed: " + e);
-            throw e;
-        } finally {
-            if (stmt) {
-                stmt.reset();
-            }
-        }
-#endif
-    },
-
-    get dbConnection() {
-        // Make sure dbConnection can't be called from now to prevent infinite loops.
-        delete FormHistory.prototype.dbConnection;
-
-        try {
-            this.dbFile = Services.dirsvc.get("ProfD", Ci.nsIFile).clone();
-            this.dbFile.append("formhistory.sqlite");
-            this.log("Opening database at " + this.dbFile.path);
-
-            FormHistory.prototype.dbConnection = this.dbOpen();
-            this.dbInit();
-        } catch (e) {
-            this.log("Initialization failed: " + e);
-            // If dbInit fails...
-            if (e.result == Cr.NS_ERROR_FILE_CORRUPTED) {
-                this.dbCleanup();
-                FormHistory.prototype.dbConnection = this.dbOpen();
-                this.dbInit();
-            } else {
-                throw "Initialization failed";
-            }
-        }
-
-        return FormHistory.prototype.dbConnection;
-    },
 
     get DBConnection() {
         return this.dbConnection;
@@ -405,18 +386,11 @@ FormHistory.prototype = {
     /* ---- nsIObserver interface ---- */
 
 
-    observe : function observe(subject, topic, data) {
-        switch(topic) {
-        case "nsPref:changed":
+    observe : function (subject, topic, data) {
+        if (topic == "nsPref:changed")
             this.updatePrefs();
-            break;
-        case "profile-before-change":
-            this._dbClose(false);
-            break;
-        default:
+        else
             this.log("Oops! Unexpected notification: " + topic);
-            break;
-        }
     },
 
 
@@ -541,9 +515,56 @@ FormHistory.prototype = {
     },
 
 
+    expireOldEntries : function () {
+        this.log("expireOldEntries");
+
+        // Determine how many days of history we're supposed to keep.
+        let expireDays = 180;
+        try {
+            expireDays = Services.prefs.getIntPref("browser.formfill.expire_days");
+        } catch (e) { /* ignore */ }
+
+        let expireTime = Date.now() - expireDays * DAY_IN_MS;
+        expireTime *= 1000; // switch to microseconds
+
+        this.sendIntNotification("before-expireOldEntries", expireTime);
+
+        let beginningCount = this.countAllEntries();
+
+        // Purge the form history...
+        let stmt;
+        let query = "DELETE FROM moz_formhistory WHERE lastUsed <= :expireTime";
+        let params = { expireTime : expireTime };
+
+        try {
+            stmt = this.dbCreateStatement(query, params);
+            stmt.execute();
+        } catch (e) {
+            this.log("expireOldEntries failed: " + e);
+            throw e;
+        } finally {
+            if (stmt) {
+                stmt.reset();
+            }
+        }
+
+        let endingCount = this.countAllEntries();
+
+        // If we expired a large batch of entries, shrink the DB to reclaim wasted
+        // space. This is expected to happen when entries predating timestamps
+        // (added in the v.1 schema) expire in mass, 180 days after the DB was
+        // upgraded -- entries not used since then expire all at once.
+        if (beginningCount - endingCount > 500)
+            this.dbConnection.executeSimpleSQL("VACUUM");
+
+        this.sendIntNotification("expireOldEntries", expireTime);
+    },
+
+
     updatePrefs : function () {
         this.debug          = Services.prefs.getBoolPref("browser.formfill.debug");
         this.enabled        = Services.prefs.getBoolPref("browser.formfill.enable");
+        this.saveHttpsForms = Services.prefs.getBoolPref("browser.formfill.saveHttpsForms");
     },
 
 //**************************************************************************//
@@ -570,20 +591,6 @@ FormHistory.prototype = {
         return stmt;
     },
 
-    /*
-     * dbOpen
-     *
-     * Open a connection with the database and returns it.
-     *
-     * @returns a db connection object.
-     */
-    dbOpen : function () {
-        this.log("Open Database");
-
-        let storage = Cc["@mozilla.org/storage/service;1"].
-                      getService(Ci.mozIStorageService);
-        return storage.openDatabase(this.dbFile);
-    },
 
     /*
      * dbInit
@@ -594,6 +601,9 @@ FormHistory.prototype = {
     dbInit : function () {
         this.log("Initializing Database");
 
+        let storage = Cc["@mozilla.org/storage/service;1"].
+                      getService(Ci.mozIStorageService);
+        this.dbConnection = storage.openDatabase(this.dbFile);
         let version = this.dbConnection.schemaVersion;
 
         // Note: Firefox 3 didn't set a schema value, so it started from 0.
@@ -609,7 +619,8 @@ FormHistory.prototype = {
         this.log("Creating DB -- tables");
         for (let name in this.dbSchema.tables) {
             let table = this.dbSchema.tables[name];
-            this.dbCreateTable(name, table);
+            let tSQL = [[col, table[col]].join(" ") for (col in table)].join(", ");
+            this.dbConnection.createTable(name, tSQL);
         }
 
         this.log("Creating DB -- indices");
@@ -623,11 +634,6 @@ FormHistory.prototype = {
         this.dbConnection.schemaVersion = DB_VERSION;
     },
 
-    dbCreateTable: function(name, table) {
-        let tSQL = [[col, table[col]].join(" ") for (col in table)].join(", ");
-        this.log("Creating table " + name + " with " + tSQL);
-        this.dbConnection.createTable(name, tSQL);
-    },
 
     dbMigrate : function (oldVersion) {
         this.log("Attempting to migrate from version " + oldVersion);
@@ -786,11 +792,6 @@ FormHistory.prototype = {
         }
     },
 
-    dbMigrateToVersion4 : function () {
-        if (!this.dbConnection.tableExists("moz_deleted_formhistory")) {
-            this.dbCreateTable("moz_deleted_formhistory", this.dbSchema.tables.moz_deleted_formhistory);
-        }
-    },
 
     /*
      * dbAreExpectedColumnsPresent
@@ -835,38 +836,6 @@ FormHistory.prototype = {
         }
     },
 
-    /**
-     * _dbClose
-     *
-     * Finalize all statements and close the connection.
-     *
-      * @param aBlocking - Should we spin the loop waiting for the db to be
-      *                    closed.
-     */
-    _dbClose : function FH__dbClose(aBlocking) {
-        for each (let stmt in this.dbStmts) {
-            stmt.finalize();
-        }
-        this.dbStmts = {};
-
-        let connectionDescriptor = Object.getOwnPropertyDescriptor(FormHistory.prototype, "dbConnection");
-        // Return if the database hasn't been opened.
-        if (!connectionDescriptor || connectionDescriptor.value === undefined)
-            return;
-
-        let completed = false;
-        try {
-            this.dbConnection.asyncClose(function () { completed = true; });
-        } catch (e) {
-            completed = true;
-            Components.utils.reportError(e);
-        }
-
-        let thread = Services.tm.currentThread;
-        while (aBlocking && !completed) {
-            thread.processNextEvent(true);
-        }
-    },
 
     /*
      * dbCleanup
@@ -874,19 +843,28 @@ FormHistory.prototype = {
      * Called when database creation fails. Finalizes database statements,
      * closes the database connection, deletes the database file.
      */
-    dbCleanup : function () {
-        this.log("Cleaning up DB file - close & remove & backup")
+    dbCleanup : function (backup) {
+        this.log("Cleaning up DB file - close & remove & backup=" + backup)
 
         // Create backup file
-        let storage = Cc["@mozilla.org/storage/service;1"].
-                      getService(Ci.mozIStorageService);
-        let backupFile = this.dbFile.leafName + ".corrupt";
-        storage.backupDatabaseFile(this.dbFile, backupFile);
+        if (backup) {
+            let storage = Cc["@mozilla.org/storage/service;1"].
+                          getService(Ci.mozIStorageService);
 
-        this._dbClose(true);
+            let backupFile = this.dbFile.leafName + ".corrupt";
+            storage.backupDatabaseFile(this.dbFile, backupFile);
+        }
+
+        // Finalize all statements to free memory, avoid errors later
+        for each (let stmt in this.dbStmts)
+            stmt.finalize();
+        this.dbStmts = [];
+
+        // Close the connection, ignore 'already closed' error
+        try { this.dbConnection.close() } catch(e) {}
         this.dbFile.remove(false);
     }
 };
 
 let component = [FormHistory];
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory(component);
+var NSGetFactory = XPCOMUtils.generateNSGetFactory(component);

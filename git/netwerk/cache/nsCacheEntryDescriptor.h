@@ -1,8 +1,42 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  *
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is nsCacheEntryDescriptor.h, released
+ * February 22, 2001.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2001
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Gordon Sheridan, 22-February-2001
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 
 #ifndef _nsCacheEntryDescriptor_h_
@@ -13,9 +47,7 @@
 #include "nsIInputStream.h"
 #include "nsIOutputStream.h"
 #include "nsCacheService.h"
-#include "zlib.h"
-#include "mozilla/Mutex.h"
-#include "nsVoidArray.h"
+#include "nsIDiskCacheStreamInternal.h"
 
 /******************************************************************************
 * nsCacheEntryDescriptor
@@ -25,47 +57,43 @@ class nsCacheEntryDescriptor :
     public nsICacheEntryDescriptor
 {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSICACHEENTRYDESCRIPTOR
     NS_DECL_NSICACHEENTRYINFO
-
-    friend class nsAsyncDoomEvent;
-    friend class nsCacheService;
-
+    
     nsCacheEntryDescriptor(nsCacheEntry * entry, nsCacheAccessMode  mode);
     virtual ~nsCacheEntryDescriptor();
     
     /**
      * utility method to attempt changing data size of associated entry
      */
-    nsresult  RequestDataSizeChange(int32_t deltaSize);
+    nsresult  RequestDataSizeChange(PRInt32 deltaSize);
     
     /**
      * methods callbacks for nsCacheService
      */
     nsCacheEntry * CacheEntry(void)      { return mCacheEntry; }
-    bool           ClearCacheEntry(void)
+    void           ClearCacheEntry(void) { mCacheEntry = nsnull; }
+
+    void           CloseOutput(void)
     {
-      NS_ASSERTION(mInputWrappers.Count() == 0, "Bad state");
-      NS_ASSERTION(!mOutputWrapper, "Bad state");
-
-      bool doomEntry = false;
-      bool asyncDoomPending;
-      {
-        mozilla::MutexAutoLock lock(mLock);
-        asyncDoomPending = mAsyncDoomPending;
-      }
-
-      if (asyncDoomPending && mCacheEntry) {
-        doomEntry = true;
-        mDoomedOnClose = true;
-      }
-      mCacheEntry = nullptr;
-
-      return doomEntry;
+      InternalCleanup(mOutput);
+      mOutput = nsnull;
     }
 
 private:
+    void           InternalCleanup(nsIOutputStream *stream)
+    {
+      if (stream) {
+        nsCOMPtr<nsIDiskCacheStreamInternal> tmp (do_QueryInterface(stream));
+        if (tmp)
+          tmp->CloseInternal();
+        else
+          stream->Close();
+      }
+    }
+
+
      /*************************************************************************
       * input stream wrapper class -
       *
@@ -73,69 +101,32 @@ private:
       * doesn't need any references to the stream wrapper.
       *************************************************************************/
      class nsInputStreamWrapper : public nsIInputStream {
-         friend class nsCacheEntryDescriptor;
-
      private:
          nsCacheEntryDescriptor    * mDescriptor;
          nsCOMPtr<nsIInputStream>    mInput;
-         uint32_t                    mStartOffset;
-         bool                        mInitialized;
-         mozilla::Mutex              mLock;
+         PRUint32                    mStartOffset;
+         PRBool                      mInitialized;
      public:
-         NS_DECL_THREADSAFE_ISUPPORTS
+         NS_DECL_ISUPPORTS
          NS_DECL_NSIINPUTSTREAM
 
-         nsInputStreamWrapper(nsCacheEntryDescriptor * desc, uint32_t off)
+         nsInputStreamWrapper(nsCacheEntryDescriptor * desc, PRUint32 off)
              : mDescriptor(desc)
              , mStartOffset(off)
-             , mInitialized(false)
-             , mLock("nsInputStreamWrapper.mLock")
+             , mInitialized(PR_FALSE)
          {
              NS_ADDREF(mDescriptor);
          }
          virtual ~nsInputStreamWrapper()
          {
-             NS_IF_RELEASE(mDescriptor);
+             NS_RELEASE(mDescriptor);
          }
 
      private:
          nsresult LazyInit();
-         nsresult EnsureInit();
-         nsresult Read_Locked(char *buf, uint32_t count, uint32_t *countRead);
-         nsresult Close_Locked();
-         void CloseInternal();
+         nsresult EnsureInit() { return mInitialized ? NS_OK : LazyInit(); }
      };
-
-
-     class nsDecompressInputStreamWrapper : public nsInputStreamWrapper {
-     private:
-         unsigned char* mReadBuffer;
-         uint32_t mReadBufferLen;
-         z_stream mZstream;
-         bool mStreamInitialized;
-         bool mStreamEnded;
-     public:
-         NS_DECL_THREADSAFE_ISUPPORTS
-
-         nsDecompressInputStreamWrapper(nsCacheEntryDescriptor * desc,
-                                      uint32_t off)
-          : nsInputStreamWrapper(desc, off)
-          , mReadBuffer(0)
-          , mReadBufferLen(0)
-          , mStreamInitialized(false)
-          , mStreamEnded(false)
-         {
-         }
-         virtual ~nsDecompressInputStreamWrapper()
-         {
-             Close();
-         }
-         NS_IMETHOD Read(char* buf, uint32_t count, uint32_t * result);
-         NS_IMETHOD Close();
-     private:
-         nsresult InitZstream();
-         nsresult EndZstream();
-     };
+     friend class nsInputStreamWrapper;
 
 
      /*************************************************************************
@@ -145,77 +136,39 @@ private:
       * doesn't need any references to the stream wrapper.
       *************************************************************************/
      class nsOutputStreamWrapper : public nsIOutputStream {
-         friend class nsCacheEntryDescriptor;
-
-     protected:
+     private:
          nsCacheEntryDescriptor *    mDescriptor;
          nsCOMPtr<nsIOutputStream>   mOutput;
-         uint32_t                    mStartOffset;
-         bool                        mInitialized;
-         mozilla::Mutex              mLock;
+         PRUint32                    mStartOffset;
+         PRBool                      mInitialized;
      public:
-         NS_DECL_THREADSAFE_ISUPPORTS
+         NS_DECL_ISUPPORTS
          NS_DECL_NSIOUTPUTSTREAM
 
-         nsOutputStreamWrapper(nsCacheEntryDescriptor * desc, uint32_t off)
+         nsOutputStreamWrapper(nsCacheEntryDescriptor * desc, PRUint32 off)
              : mDescriptor(desc)
              , mStartOffset(off)
-             , mInitialized(false)
-             , mLock("nsOutputStreamWrapper.mLock")
+             , mInitialized(PR_FALSE)
          {
              NS_ADDREF(mDescriptor); // owning ref
          }
          virtual ~nsOutputStreamWrapper()
-         {
+         { 
+             // XXX _HACK_ the storage stream needs this!
              Close();
-
-             NS_ASSERTION(!mOutput, "Bad state");
-             NS_ASSERTION(!mDescriptor, "Bad state");
+             {
+             nsCacheServiceAutoLock lock;
+             mDescriptor->mOutput = nsnull;
+             }
+             NS_RELEASE(mDescriptor);
          }
 
      private:
          nsresult LazyInit();
-         nsresult EnsureInit();
-         nsresult OnWrite(uint32_t count);
-         nsresult Write_Locked(const char * buf,
-                               uint32_t count,
-                               uint32_t * result);
-         nsresult Close_Locked();
-         void CloseInternal();
+         nsresult EnsureInit() { return mInitialized ? NS_OK : LazyInit(); }
+         nsresult OnWrite(PRUint32 count);
      };
-
-
-     class nsCompressOutputStreamWrapper : public nsOutputStreamWrapper {
-     private:
-         unsigned char* mWriteBuffer;
-         uint32_t mWriteBufferLen;
-         z_stream mZstream;
-         bool mStreamInitialized;
-         bool mStreamEnded;
-         uint32_t mUncompressedCount;
-     public:
-         NS_DECL_THREADSAFE_ISUPPORTS
-
-         nsCompressOutputStreamWrapper(nsCacheEntryDescriptor * desc, 
-                                       uint32_t off)
-          : nsOutputStreamWrapper(desc, off)
-          , mWriteBuffer(0)
-          , mWriteBufferLen(0)
-          , mStreamInitialized(false)
-          , mStreamEnded(false)
-          , mUncompressedCount(0)
-         {
-         }
-         virtual ~nsCompressOutputStreamWrapper()
-         { 
-             Close();
-         }
-         NS_IMETHOD Write(const char* buf, uint32_t count, uint32_t * result);
-         NS_IMETHOD Close();
-     private:
-         nsresult InitZstream();
-         nsresult WriteBuffer();
-     };
+     friend class nsOutputStreamWrapper;
 
  private:
      /**
@@ -223,12 +176,7 @@ private:
       */
      nsCacheEntry          * mCacheEntry; // we are a child of the entry
      nsCacheAccessMode       mAccessGranted;
-     nsVoidArray             mInputWrappers;
-     nsOutputStreamWrapper * mOutputWrapper;
-     mozilla::Mutex          mLock;
-     bool                    mAsyncDoomPending;
-     bool                    mDoomedOnClose;
-     bool                    mClosingDescriptor;
+     nsIOutputStream       * mOutput;
 };
 
 

@@ -1,7 +1,45 @@
-/* -*- Mode: Java; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/*
+# -*- Mode: Java; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is the Firefox Preferences System.
+#
+# The Initial Developer of the Original Code is
+# Ben Goodger.
+# Portions created by the Initial Developer are Copyright (C) 2005
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Ben Goodger <ben@mozilla.org>
+#   Jeff Walden <jwalden+code@mit.edu>
+#   Ehsan Akhgari <ehsan.akhgari@gmail.com>
+#   Roberto Estrada <roberto.estrada@yahoo.es>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
+*/
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 
@@ -13,11 +51,6 @@ var gPrivacyPane = {
   _autoStartPrivateBrowsing: false,
 
   /**
-   * Whether the prompt to restart Firefox should appear when changing the autostart pref.
-   */
-  _shouldPromptForRestart: true,
-
-  /**
    * Sets up the UI for the number of days of history to keep, and updates the
    * label of the "Clear Now..." button.
    */
@@ -27,7 +60,9 @@ var gPrivacyPane = {
     this.initializeHistoryMode();
     this.updateHistoryModePane();
     this.updatePrivacyMicroControls();
-    this.initAutoStartPrivateBrowsingReverter();
+    this.initAutoStartPrivateBrowsingObserver();
+
+    window.addEventListener("unload", this.removeASPBObserver.bind(this), false);
   },
 
   // HISTORY MODE
@@ -45,6 +80,7 @@ var gPrivacyPane = {
    */
   prefsForDefault: [
     "places.history.enabled",
+    "browser.download.manager.retention",
     "browser.formfill.enable",
     "network.cookie.cookieBehavior",
     "network.cookie.lifetimePolicy",
@@ -60,6 +96,7 @@ var gPrivacyPane = {
    */
   dependentControls: [
     "rememberHistory",
+    "rememberDownloads",
     "rememberForms",
     "keepUntil",
     "keepCookiesUntil",
@@ -125,42 +162,6 @@ var gPrivacyPane = {
   },
 
   /**
-   * Update the Tracking preferences based on controls.
-   */
-  setTrackingPrefs: function PPP_setTrackingPrefs()
-  {
-    let dntRadioGroup = document.getElementById("doNotTrackSelection"),
-        dntValuePref = document.getElementById("privacy.donottrackheader.value"),
-        dntEnabledPref = document.getElementById("privacy.donottrackheader.enabled");
-
-    // if the selected radio button says "no preference", set on/off pref to
-    // false and don't change the value pref.
-    if (dntRadioGroup.selectedItem.value == -1) {
-      dntEnabledPref.value = false;
-      return dntValuePref.value;
-    }
-
-    dntEnabledPref.value = true;
-    return dntRadioGroup.selectedItem.value;
-  },
-
-  /**
-   * Obtain the tracking preference value and reflect it in the UI.
-   */
-  getTrackingPrefs: function PPP_getTrackingPrefs()
-  {
-    let dntValuePref = document.getElementById("privacy.donottrackheader.value"),
-        dntEnabledPref = document.getElementById("privacy.donottrackheader.enabled");
-
-    // if DNT is enbaled, select the value from the selected radio
-    // button, otherwise choose the "no preference" radio button
-    if (dntEnabledPref.value)
-      return dntValuePref.value;
-
-    return document.getElementById("dntnopref").value;
-  },
-
-  /**
    * Update the private browsing auto-start pref and the history mode
    * micro-management prefs based on the history mode menulist
    */
@@ -169,24 +170,22 @@ var gPrivacyPane = {
     let pref = document.getElementById("browser.privatebrowsing.autostart");
     switch (document.getElementById("historyMode").value) {
     case "remember":
-      if (pref.value)
-        pref.value = false;
+      pref.value = false;
 
       // select the remember history option if needed
       let rememberHistoryCheckbox = document.getElementById("rememberHistory");
       if (!rememberHistoryCheckbox.checked)
         rememberHistoryCheckbox.checked = true;
 
+      // select the remember downloads option if needed
+      if (!document.getElementById("rememberDownloads").checked)
+        document.getElementById("browser.download.manager.retention").value = 2;
+
       // select the remember forms history option
       document.getElementById("browser.formfill.enable").value = true;
 
-#ifdef RELEASE_BUILD
       // select the accept cookies option
       document.getElementById("network.cookie.cookieBehavior").value = 0;
-#else
-      // select the limit cookies option
-      document.getElementById("network.cookie.cookieBehavior").value = 3;
-#endif
       // select the cookie lifetime policy option
       document.getElementById("network.cookie.lifetimePolicy").value = 0;
 
@@ -194,8 +193,7 @@ var gPrivacyPane = {
       document.getElementById("privacy.sanitize.sanitizeOnShutdown").value = false;
       break;
     case "dontremember":
-      if (!pref.value)
-        pref.value = true;
+      pref.value = true;
       break;
     }
   },
@@ -225,6 +223,8 @@ var gPrivacyPane = {
       // adjust the checked state of the remember history checkboxes
       document.getElementById("rememberHistory").checked = disabled ? false :
         document.getElementById("places.history.enabled").value;
+      document.getElementById("rememberDownloads").checked = disabled ? false :
+        this.readDownloadRetention();
       document.getElementById("rememberForms").checked = disabled ? false :
         document.getElementById("browser.formfill.enable").value;
 
@@ -238,73 +238,50 @@ var gPrivacyPane = {
   // PRIVATE BROWSING
 
   /**
-   * Initialize the starting state for the auto-start private browsing mode pref reverter.
+   * Install the observer for the auto-start private browsing mode pref.
    */
-  initAutoStartPrivateBrowsingReverter: function PPP_initAutoStartPrivateBrowsingReverter()
+  initAutoStartPrivateBrowsingObserver: function PPP_initAutoStartPrivateBrowsingObserver()
   {
-    let mode = document.getElementById("historyMode");
-    let autoStart = document.getElementById("privateBrowsingAutoStart");
-    this._lastMode = mode.selectedIndex;
-    this._lastCheckState = autoStart.hasAttribute('checked');
+    let prefService = document.getElementById("privacyPreferences")
+                              .service
+                              .QueryInterface(Components.interfaces.nsIPrefBranch2);
+    prefService.addObserver("browser.privatebrowsing.autostart",
+                            this.autoStartPrivateBrowsingObserver,
+                            false);
   },
 
-  _lastMode: null,
-  _lasCheckState: null,
-  updateAutostart: function PPP_updateAutostart() {
-      let mode = document.getElementById("historyMode");
-      let autoStart = document.getElementById("privateBrowsingAutoStart");
-      let pref = document.getElementById("browser.privatebrowsing.autostart");
-      if ((mode.value == "custom" && this._lastCheckState == autoStart.checked) ||
-          (mode.value == "remember" && !this._lastCheckState) ||
-          (mode.value == "dontremember" && this._lastCheckState)) {
-          // These are all no-op changes, so we don't need to prompt.
-          this._lastMode = mode.selectedIndex;
-          this._lastCheckState = autoStart.hasAttribute('checked');
-          return;
-      }
+  /**
+   * Install the observer for the auto-start private browsing mode pref.
+   */
+  removeASPBObserver: function PPP_removeASPBObserver()
+  {
+    let prefService = document.getElementById("privacyPreferences")
+                              .service
+                              .QueryInterface(Components.interfaces.nsIPrefBranch2);
+    prefService.removeObserver("browser.privatebrowsing.autostart",
+                               this.autoStartPrivateBrowsingObserver);
+  },
 
-      if (!this._shouldPromptForRestart) {
-        // We're performing a revert. Just let it happen.
-        return;
-      }
+  autoStartPrivateBrowsingObserver:
+  {
+    QueryInterface: XPCOMUtils.generateQI([Components.interfaces.nsIObserver]),
 
-      const Cc = Components.classes, Ci = Components.interfaces;
-      let brandName = document.getElementById("bundleBrand").getString("brandShortName");
-      let bundle = document.getElementById("bundlePreferences");
-      let msg = bundle.getFormattedString(autoStart.checked ?
-                                          "featureEnableRequiresRestart" : "featureDisableRequiresRestart",
-                                          [brandName]);
-      let title = bundle.getFormattedString("shouldRestartTitle", [brandName]);
-      let prompts = Cc["@mozilla.org/embedcomp/prompt-service;1"].getService(Ci.nsIPromptService);
-      let shouldProceed = prompts.confirm(window, title, msg)
-      if (shouldProceed) {
-        let cancelQuit = Cc["@mozilla.org/supports-PRBool;1"]
-                           .createInstance(Ci.nsISupportsPRBool);
-        Services.obs.notifyObservers(cancelQuit, "quit-application-requested",
-                                     "restart");
-        shouldProceed = !cancelQuit.data;
+    observe: function PPP_observe(aSubject, aTopic, aData)
+    {
+      let privateBrowsingService = Components.classes["@mozilla.org/privatebrowsing;1"].
+        getService(Components.interfaces.nsIPrivateBrowsingService);
 
-        if (shouldProceed) {
-          pref.value = autoStart.hasAttribute('checked');
-          document.documentElement.acceptDialog();
-          let appStartup = Cc["@mozilla.org/toolkit/app-startup;1"]
-                             .getService(Ci.nsIAppStartup);
-          appStartup.quit(Ci.nsIAppStartup.eAttemptQuit |  Ci.nsIAppStartup.eRestart);
-          return;
-        }
-      }
-
-      this._shouldPromptForRestart = false;
-
-      if (this._lastCheckState) {
-        autoStart.checked = "checked";
-      } else {
-        autoStart.removeAttribute('checked');
-      }
-      mode.selectedIndex = this._lastMode;
-      mode.doCommand();
-
-      this._shouldPromptForRestart = true;
+      // Toggle the private browsing mode without switching the session
+      let prefValue = document.getElementById("browser.privatebrowsing.autostart").value;
+      let keepCurrentSession = document.getElementById("browser.privatebrowsing.keep_current_session");
+      keepCurrentSession.value = true;
+      // If activating from within the private browsing mode, reset the
+      // private session
+      if (prefValue && privateBrowsingService.privateBrowsingEnabled)
+        privateBrowsingService.privateBrowsingEnabled = false;
+      privateBrowsingService.privateBrowsingEnabled = prefValue;
+      keepCurrentSession.reset();
+    }
   },
 
   // HISTORY
@@ -354,7 +331,35 @@ var gPrivacyPane = {
    * browser.formfill.enable
    * - true if entries in forms and the search bar should be saved, false
    *   otherwise
+   * browser.download.manager.retention
+   * - determines when downloads are automatically removed from the download
+   *   manager:
+   *
+   *     0 means remove downloads when they finish downloading
+   *     1 means downloads will be removed when the browser quits
+   *     2 means never remove downloads
    */
+
+  /**
+   * Converts the value of the browser.download.manager.retention preference
+   * into a Boolean value.  "remove on close" and "don't remember" both map
+   * to an unchecked checkbox, while "remember" maps to a checked checkbox.
+   */
+  readDownloadRetention: function ()
+  {
+    var pref = document.getElementById("browser.download.manager.retention");
+    return (pref.value == 2);
+  },
+
+  /**
+   * Returns the appropriate value of the browser.download.manager.retention
+   * preference for the current UI.
+   */
+  writeDownloadRetention: function ()
+  {
+    var checkbox = document.getElementById("rememberDownloads");
+    return checkbox.checked ? 2 : 0;
+  },
 
   // COOKIES
 
@@ -364,10 +369,9 @@ var gPrivacyPane = {
    * network.cookie.cookieBehavior
    * - determines how the browser should handle cookies:
    *     0   means enable all cookies
-   *     1   means reject all third party cookies
+   *     1   means reject third party cookies; see
+   *         netwerk/cookie/src/nsCookieService.cpp for a hairier definition
    *     2   means disable all cookies
-   *     3   means reject third party cookies unless at least one is already set for the eTLD
-   *         see netwerk/cookie/src/nsCookieService.cpp for details
    * network.cookie.lifetimePolicy
    * - determines how long cookies are stored:
    *     0   means keep cookies until they expire
@@ -383,18 +387,23 @@ var gPrivacyPane = {
   readAcceptCookies: function ()
   {
     var pref = document.getElementById("network.cookie.cookieBehavior");
-    var acceptThirdPartyLabel = document.getElementById("acceptThirdPartyLabel");
-    var acceptThirdPartyMenu = document.getElementById("acceptThirdPartyMenu");
+    var acceptThirdParty = document.getElementById("acceptThirdParty");
     var keepUntil = document.getElementById("keepUntil");
     var menu = document.getElementById("keepCookiesUntil");
 
     // enable the rest of the UI for anything other than "disable all cookies"
     var acceptCookies = (pref.value != 2);
 
-    acceptThirdPartyLabel.disabled = acceptThirdPartyMenu.disabled = !acceptCookies;
+    acceptThirdParty.disabled = !acceptCookies;
     keepUntil.disabled = menu.disabled = this._autoStartPrivateBrowsing || !acceptCookies;
     
     return acceptCookies;
+  },
+
+  readAcceptThirdPartyCookies: function ()
+  {
+    var pref = document.getElementById("network.cookie.cookieBehavior");
+    return pref.value == 0;
   },
 
   /**
@@ -404,58 +413,20 @@ var gPrivacyPane = {
   writeAcceptCookies: function ()
   {
     var accept = document.getElementById("acceptCookies");
-    var acceptThirdPartyMenu = document.getElementById("acceptThirdPartyMenu");
+    var acceptThirdParty = document.getElementById("acceptThirdParty");
 
-#ifdef RELEASE_BUILD
-    // if we're enabling cookies, automatically select 'accept third party always'
+    // if we're enabling cookies, automatically check 'accept third party'
     if (accept.checked)
-      acceptThirdPartyMenu.selectedIndex = 0;
+      acceptThirdParty.checked = true;
 
-    return accept.checked ? 0 : 2;
-#else
-    // if we're enabling cookies, automatically select 'accept third party from visited'
-    if (accept.checked)
-      acceptThirdPartyMenu.selectedIndex = 1;
-
-    return accept.checked ? 3 : 2;
-#endif
+    return accept.checked ? (acceptThirdParty.checked ? 0 : 1) : 2;
   },
 
-  /**
-   * Converts between network.cookie.cookieBehavior and the third-party cookie UI
-   */
-  readAcceptThirdPartyCookies: function ()
-  {
-    var pref = document.getElementById("network.cookie.cookieBehavior");
-    switch (pref.value)
-    {
-      case 0:
-        return "always";
-      case 1:
-        return "never";
-      case 2:
-        return "never";
-      case 3:
-        return "visited";
-      default:
-        return undefined;
-    }
-  },
-  
   writeAcceptThirdPartyCookies: function ()
   {
-    var accept = document.getElementById("acceptThirdPartyMenu").selectedItem;
-    switch (accept.value)
-    {
-      case "always":
-        return 0;
-      case "visited":
-        return 3;
-      case "never":
-        return 1;
-      default:
-        return undefined;
-    }
+    var accept = document.getElementById("acceptCookies");
+    var acceptThirdParty = document.getElementById("acceptThirdParty");
+    return accept.checked ? (acceptThirdParty.checked ? 0 : 1) : 2;
   },
 
   /**
@@ -535,7 +506,7 @@ var gPrivacyPane = {
     var settingsButton = document.getElementById("clearDataSettings");
     var sanitizeOnShutdownPref = document.getElementById("privacy.sanitize.sanitizeOnShutdown");
     
-    settingsButton.disabled = !sanitizeOnShutdownPref.value;
+    settingsButton.disabled = !sanitizeOnShutdownPref.value;  	
    }
 
 };

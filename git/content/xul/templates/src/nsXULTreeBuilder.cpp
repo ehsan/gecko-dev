@@ -1,10 +1,45 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Chris Waterson <waterson@netscape.com>
+ *   Ben Goodger <ben@netscape.com>
+ *   Jan Varga <varga@ku.sk>
+ *   Neil Deakin <enndeakin@sympatico.ca>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nscore.h"
-#include "nsError.h"
 #include "nsIContent.h"
 #include "nsINodeInfo.h"
 #include "nsIDOMElement.h"
@@ -28,7 +63,7 @@
 #include "nsTArray.h"
 #include "nsUnicharUtils.h"
 #include "nsINameSpaceManager.h"
-#include "nsDOMClassInfoID.h"
+#include "nsIDOMClassInfo.h"
 #include "nsWhitespaceTokenizer.h"
 #include "nsTreeContentView.h"
 
@@ -68,7 +103,7 @@ protected:
     /**
      * Uninitialize the template builder
      */
-    virtual void Uninit(bool aIsFinal);
+    virtual void Uninit(PRBool aIsFinal);
 
     /**
      * Get sort variables from the active <treecol>
@@ -84,27 +119,27 @@ protected:
      * <treerow> in the rule's <action>.
      */
     nsresult
-    GetTemplateActionRowFor(int32_t aRow, nsIContent** aResult);
+    GetTemplateActionRowFor(PRInt32 aRow, nsIContent** aResult);
 
     /**
      * Given a row and a column ID, use the row's match to figure out
      * the appropriate <treecell> in the rule's <action>.
      */
     nsresult
-    GetTemplateActionCellFor(int32_t aRow, nsITreeColumn* aCol, nsIContent** aResult);
+    GetTemplateActionCellFor(PRInt32 aRow, nsITreeColumn* aCol, nsIContent** aResult);
 
     /**
      * Return the resource corresponding to a row in the tree.
      */
     nsresult
-    GetResourceFor(int32_t aRow, nsIRDFResource** aResource);
+    GetResourceFor(PRInt32 aRow, nsIRDFResource** aResource);
 
     /**
      * Open a container row, inserting the container's children into
      * the view.
      */
     nsresult
-    OpenContainer(int32_t aIndex, nsIXULTemplateResult* aResult);
+    OpenContainer(PRInt32 aIndex, nsIXULTemplateResult* aResult);
 
     /**
      * Helper for OpenContainer, recursively open subtrees, remembering
@@ -112,24 +147,24 @@ protected:
      */
     nsresult
     OpenSubtreeOf(nsTreeRows::Subtree* aSubtree,
-                  int32_t aIndex,
+                  PRInt32 aIndex,
                   nsIXULTemplateResult *aResult,
-                  int32_t* aDelta);
+                  PRInt32* aDelta);
 
     nsresult
     OpenSubtreeForQuerySet(nsTreeRows::Subtree* aSubtree,
-                           int32_t aIndex,
+                           PRInt32 aIndex,
                            nsIXULTemplateResult *aResult,
                            nsTemplateQuerySet* aQuerySet,
-                           int32_t* aDelta,
-                           nsTArray<int32_t>& open);
+                           PRInt32* aDelta,
+                           nsTArray<PRInt32>& open);
 
     /**
      * Close a container row, removing the container's childrem from
      * the view.
      */
     nsresult
-    CloseContainer(int32_t aIndex);
+    CloseContainer(PRInt32 aIndex);
 
     /**
      * Remove the matches for the rows in a subtree
@@ -141,10 +176,10 @@ protected:
      * Helper methods that determine if the specified container is open.
      */
     nsresult
-    IsContainerOpen(nsIXULTemplateResult *aResult, bool* aOpen);
+    IsContainerOpen(nsIXULTemplateResult *aResult, PRBool* aOpen);
 
     nsresult
-    IsContainerOpen(nsIRDFResource* aResource, bool* aOpen);
+    IsContainerOpen(nsIRDFResource* aResource, PRBool* aOpen);
 
     /**
      * A sorting callback for NS_QuickSort().
@@ -155,7 +190,7 @@ protected:
     /**
      * The real sort routine
      */
-    int32_t
+    PRInt32
     CompareResults(nsIXULTemplateResult* aLeft, nsIXULTemplateResult* aRight);
 
     /**
@@ -168,7 +203,7 @@ protected:
     NS_IMETHOD
     HasGeneratedContent(nsIRDFResource* aResource,
                         nsIAtom* aTag,
-                        bool* aGenerated);
+                        PRBool* aGenerated);
 
     // GetInsertionLocations, ReplaceMatch and SynchronizeResult are inherited
     // from nsXULTemplateBuilder
@@ -177,7 +212,7 @@ protected:
      * Return true if the result can be inserted into the template as a new
      * row.
      */
-    bool
+    PRBool
     GetInsertionLocations(nsIXULTemplateResult* aResult,
                           nsCOMArray<nsIContent>** aLocations);
 
@@ -235,12 +270,12 @@ protected:
     /*
      * Sort hints (compare case, etc)
      */
-    uint32_t mSortHints;
+    PRUint32 mSortHints;
 
     /** 
      * The builder observers.
      */
-    nsCOMArray<nsIXULTreeBuilderObserver> mObservers;
+    nsCOMPtr<nsISupportsArray> mObservers;
 };
 
 //----------------------------------------------------------------------
@@ -248,9 +283,9 @@ protected:
 nsresult
 NS_NewXULTreeBuilder(nsISupports* aOuter, REFNSIID aIID, void** aResult)
 {
-    *aResult = nullptr;
+    *aResult = nsnull;
 
-    NS_PRECONDITION(aOuter == nullptr, "no aggregation");
+    NS_PRECONDITION(aOuter == nsnull, "no aggregation");
     if (aOuter)
         return NS_ERROR_NO_AGGREGATION;
 
@@ -270,14 +305,35 @@ NS_NewXULTreeBuilder(nsISupports* aOuter, REFNSIID aIID, void** aResult)
     return rv;
 }
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsXULTreeBuilder)
+
 NS_IMPL_ADDREF_INHERITED(nsXULTreeBuilder, nsXULTemplateBuilder)
 NS_IMPL_RELEASE_INHERITED(nsXULTreeBuilder, nsXULTemplateBuilder)
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED_4(nsXULTreeBuilder, nsXULTemplateBuilder,
-                                     mBoxObject,
-                                     mSelection,
-                                     mPersistStateStore,
-                                     mObservers)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsXULTreeBuilder, nsXULTemplateBuilder)
+    NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mBoxObject)
+    NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mSelection)
+    NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mPersistStateStore)
+    NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mObservers)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+
+static PRBool TraverseObservers(nsISupports* aElement, void *aData)
+{
+    nsCycleCollectionTraversalCallback *cb =
+        static_cast<nsCycleCollectionTraversalCallback*>(aData);
+    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb, "mObservers[i]");
+    cb->NoteXPCOMChild(aElement);
+    return PR_TRUE;
+}
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXULTreeBuilder, nsXULTemplateBuilder)
+    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mBoxObject)
+    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mSelection)
+    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mPersistStateStore)
+    if (tmp->mObservers) {
+        tmp->mObservers->EnumerateForwards(TraverseObservers, &cb);
+    }
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 DOMCI_DATA(XULTreeBuilder, nsXULTreeBuilder)
 
@@ -294,9 +350,9 @@ nsXULTreeBuilder::nsXULTreeBuilder()
 }
 
 void
-nsXULTreeBuilder::Uninit(bool aIsFinal)
+nsXULTreeBuilder::Uninit(PRBool aIsFinal)
 {
-    int32_t count = mRows.Count();
+    PRInt32 count = mRows.Count();
     mRows.Clear();
 
     if (mBoxObject) {
@@ -317,7 +373,7 @@ nsXULTreeBuilder::Uninit(bool aIsFinal)
 //
 
 NS_IMETHODIMP
-nsXULTreeBuilder::GetResourceAtIndex(int32_t aRowIndex, nsIRDFResource** aResult)
+nsXULTreeBuilder::GetResourceAtIndex(PRInt32 aRowIndex, nsIRDFResource** aResult)
 {
     if (aRowIndex < 0 || aRowIndex >= mRows.Count())
         return NS_ERROR_INVALID_ARG;
@@ -326,7 +382,7 @@ nsXULTreeBuilder::GetResourceAtIndex(int32_t aRowIndex, nsIRDFResource** aResult
 }
 
 NS_IMETHODIMP
-nsXULTreeBuilder::GetIndexOfResource(nsIRDFResource* aResource, int32_t* aResult)
+nsXULTreeBuilder::GetIndexOfResource(nsIRDFResource* aResource, PRInt32* aResult)
 {
     NS_ENSURE_ARG_POINTER(aResource);
     nsTreeRows::iterator iter = mRows.FindByResource(aResource);
@@ -340,13 +396,20 @@ nsXULTreeBuilder::GetIndexOfResource(nsIRDFResource* aResource, int32_t* aResult
 NS_IMETHODIMP
 nsXULTreeBuilder::AddObserver(nsIXULTreeBuilderObserver* aObserver)
 {
-    return mObservers.AppendObject(aObserver) ? NS_OK : NS_ERROR_FAILURE;
+    nsresult rv;  
+    if (!mObservers) {
+        rv = NS_NewISupportsArray(getter_AddRefs(mObservers));
+        if (NS_FAILED(rv))
+            return rv;
+    }
+
+    return mObservers->AppendElement(aObserver);
 }
 
 NS_IMETHODIMP
 nsXULTreeBuilder::RemoveObserver(nsIXULTreeBuilderObserver* aObserver)
 {
-    return mObservers.RemoveObject(aObserver) ? NS_OK : NS_ERROR_FAILURE;
+    return mObservers ? mObservers->RemoveElement(aObserver) : NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP
@@ -372,7 +435,7 @@ nsXULTreeBuilder::Sort(nsIDOMElement* aElement)
     nsAutoString hints;
     header->GetAttr(kNameSpaceID_None, nsGkAtoms::sorthints, hints);
 
-    bool hasNaturalState = true;
+    PRBool hasNaturalState = PR_TRUE;
     nsWhitespaceTokenizer tokenizer(hints);
     while (tokenizer.hasMoreTokens()) {
       const nsDependentSubstring& token(tokenizer.nextToken());
@@ -381,7 +444,7 @@ nsXULTreeBuilder::Sort(nsIDOMElement* aElement)
       else if (token.EqualsLiteral("integer"))
         mSortHints |= nsIXULSortService::SORT_INTEGER;
       else if (token.EqualsLiteral("twostate"))
-        hasNaturalState = false;
+        hasNaturalState = PR_FALSE;
     }
 
     // Cycle the sort direction
@@ -418,7 +481,7 @@ nsXULTreeBuilder::Sort(nsIDOMElement* aElement)
 //
 
 NS_IMETHODIMP
-nsXULTreeBuilder::GetRowCount(int32_t* aRowCount)
+nsXULTreeBuilder::GetRowCount(PRInt32* aRowCount)
 {
     *aRowCount = mRows.Count();
     return NS_OK;
@@ -442,8 +505,9 @@ nsXULTreeBuilder::SetSelection(nsITreeSelection* aSelection)
 }
 
 NS_IMETHODIMP
-nsXULTreeBuilder::GetRowProperties(int32_t aIndex, nsAString& aProps)
+nsXULTreeBuilder::GetRowProperties(PRInt32 aIndex, nsISupportsArray* aProperties)
 {
+    NS_ENSURE_ARG_POINTER(aProperties);
     NS_PRECONDITION(aIndex >= 0 && aIndex < mRows.Count(), "bad row");
     if (aIndex < 0 || aIndex >= mRows.Count())
         return NS_ERROR_INVALID_ARG;
@@ -455,7 +519,10 @@ nsXULTreeBuilder::GetRowProperties(int32_t aIndex, nsAString& aProps)
         row->GetAttr(kNameSpaceID_None, nsGkAtoms::properties, raw);
 
         if (!raw.IsEmpty()) {
-            SubstituteText(mRows[aIndex]->mMatch->mResult, raw, aProps);
+            nsAutoString cooked;
+            SubstituteText(mRows[aIndex]->mMatch->mResult, raw, cooked);
+
+            nsTreeUtils::TokenizeProperties(cooked, aProperties);
         }
     }
 
@@ -463,10 +530,10 @@ nsXULTreeBuilder::GetRowProperties(int32_t aIndex, nsAString& aProps)
 }
 
 NS_IMETHODIMP
-nsXULTreeBuilder::GetCellProperties(int32_t aRow, nsITreeColumn* aCol,
-                                    nsAString& aProps)
+nsXULTreeBuilder::GetCellProperties(PRInt32 aRow, nsITreeColumn* aCol, nsISupportsArray* aProperties)
 {
     NS_ENSURE_ARG_POINTER(aCol);
+    NS_ENSURE_ARG_POINTER(aProperties);
     NS_PRECONDITION(aRow >= 0 && aRow < mRows.Count(), "bad row");
     if (aRow < 0 || aRow >= mRows.Count())
         return NS_ERROR_INVALID_ARG;
@@ -478,7 +545,10 @@ nsXULTreeBuilder::GetCellProperties(int32_t aRow, nsITreeColumn* aCol,
         cell->GetAttr(kNameSpaceID_None, nsGkAtoms::properties, raw);
 
         if (!raw.IsEmpty()) {
-            SubstituteText(mRows[aRow]->mMatch->mResult, raw, aProps);
+            nsAutoString cooked;
+            SubstituteText(mRows[aRow]->mMatch->mResult, raw, cooked);
+
+            nsTreeUtils::TokenizeProperties(cooked, aProperties);
         }
     }
 
@@ -486,15 +556,17 @@ nsXULTreeBuilder::GetCellProperties(int32_t aRow, nsITreeColumn* aCol,
 }
 
 NS_IMETHODIMP
-nsXULTreeBuilder::GetColumnProperties(nsITreeColumn* aCol, nsAString& aProps)
+nsXULTreeBuilder::GetColumnProperties(nsITreeColumn* aCol,
+                                      nsISupportsArray* aProperties)
 {
     NS_ENSURE_ARG_POINTER(aCol);
+    NS_ENSURE_ARG_POINTER(aProperties);
     // XXX sortactive fu
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsXULTreeBuilder::IsContainer(int32_t aIndex, bool* aResult)
+nsXULTreeBuilder::IsContainer(PRInt32 aIndex, PRBool* aResult)
 {
     NS_PRECONDITION(aIndex >= 0 && aIndex < mRows.Count(), "bad row");
     if (aIndex < 0 || aIndex >= mRows.Count())
@@ -502,7 +574,7 @@ nsXULTreeBuilder::IsContainer(int32_t aIndex, bool* aResult)
 
     nsTreeRows::iterator iter = mRows[aIndex];
 
-    bool isContainer;
+    PRBool isContainer;
     iter->mMatch->mResult->GetIsContainer(&isContainer);
 
     iter->mContainerType = isContainer
@@ -514,7 +586,7 @@ nsXULTreeBuilder::IsContainer(int32_t aIndex, bool* aResult)
 }
 
 NS_IMETHODIMP
-nsXULTreeBuilder::IsContainerOpen(int32_t aIndex, bool* aOpen)
+nsXULTreeBuilder::IsContainerOpen(PRInt32 aIndex, PRBool* aOpen)
 {
     NS_PRECONDITION(aIndex >= 0 && aIndex < mRows.Count(), "bad row");
     if (aIndex < 0 || aIndex >= mRows.Count())
@@ -523,7 +595,7 @@ nsXULTreeBuilder::IsContainerOpen(int32_t aIndex, bool* aOpen)
     nsTreeRows::iterator iter = mRows[aIndex];
 
     if (iter->mContainerState == nsTreeRows::eContainerState_Unknown) {
-        bool isOpen;
+        PRBool isOpen;
         IsContainerOpen(iter->mMatch->mResult, &isOpen);
 
         iter->mContainerState = isOpen
@@ -536,7 +608,7 @@ nsXULTreeBuilder::IsContainerOpen(int32_t aIndex, bool* aOpen)
 }
 
 NS_IMETHODIMP
-nsXULTreeBuilder::IsContainerEmpty(int32_t aIndex, bool* aResult)
+nsXULTreeBuilder::IsContainerEmpty(PRInt32 aIndex, PRBool* aResult)
 {
     NS_PRECONDITION(aIndex >= 0 && aIndex < mRows.Count(), "bad row");
     if (aIndex < 0 || aIndex >= mRows.Count())
@@ -550,12 +622,12 @@ nsXULTreeBuilder::IsContainerEmpty(int32_t aIndex, bool* aResult)
     // ensures that folders are still displayed as such, yet won't display
     // their children
     if ((mFlags & eDontRecurse) && (iter->mMatch->mResult != mRootResult)) {
-        *aResult = true;
+        *aResult = PR_TRUE;
         return NS_OK;
     }
 
     if (iter->mContainerFill == nsTreeRows::eContainerFill_Unknown) {
-        bool isEmpty;
+        PRBool isEmpty;
         iter->mMatch->mResult->GetIsEmpty(&isEmpty);
 
         iter->mContainerFill = isEmpty
@@ -568,7 +640,7 @@ nsXULTreeBuilder::IsContainerEmpty(int32_t aIndex, bool* aResult)
 }
 
 NS_IMETHODIMP
-nsXULTreeBuilder::IsSeparator(int32_t aIndex, bool* aResult)
+nsXULTreeBuilder::IsSeparator(PRInt32 aIndex, PRBool* aResult)
 {
     NS_PRECONDITION(aIndex >= 0 && aIndex < mRows.Count(), "bad row");
     if (aIndex < 0 || aIndex >= mRows.Count())
@@ -584,7 +656,7 @@ nsXULTreeBuilder::IsSeparator(int32_t aIndex, bool* aResult)
 }
 
 NS_IMETHODIMP
-nsXULTreeBuilder::GetParentIndex(int32_t aRowIndex, int32_t* aResult)
+nsXULTreeBuilder::GetParentIndex(PRInt32 aRowIndex, PRInt32* aResult)
 {
     NS_PRECONDITION(aRowIndex >= 0 && aRowIndex < mRows.Count(), "bad row");
     if (aRowIndex < 0 || aRowIndex >= mRows.Count())
@@ -598,7 +670,7 @@ nsXULTreeBuilder::GetParentIndex(int32_t aRowIndex, int32_t* aResult)
 
     // Now walk through our previous siblings, subtracting off each
     // one's subtree size
-    int32_t index = iter.GetChildIndex();
+    PRInt32 index = iter.GetChildIndex();
     while (--index >= 0)
         aRowIndex -= mRows.GetSubtreeSizeFor(parent, index) + 1;
 
@@ -608,7 +680,7 @@ nsXULTreeBuilder::GetParentIndex(int32_t aRowIndex, int32_t* aResult)
 }
 
 NS_IMETHODIMP
-nsXULTreeBuilder::HasNextSibling(int32_t aRowIndex, int32_t aAfterIndex, bool* aResult)
+nsXULTreeBuilder::HasNextSibling(PRInt32 aRowIndex, PRInt32 aAfterIndex, PRBool* aResult)
 {
     NS_PRECONDITION(aRowIndex >= 0 && aRowIndex < mRows.Count(), "bad row");
     if (aRowIndex < 0 || aRowIndex >= mRows.Count())
@@ -627,7 +699,7 @@ nsXULTreeBuilder::HasNextSibling(int32_t aRowIndex, int32_t aAfterIndex, bool* a
 }
 
 NS_IMETHODIMP
-nsXULTreeBuilder::GetLevel(int32_t aRowIndex, int32_t* aResult)
+nsXULTreeBuilder::GetLevel(PRInt32 aRowIndex, PRInt32* aResult)
 {
     NS_PRECONDITION(aRowIndex >= 0 && aRowIndex < mRows.Count(), "bad row");
     if (aRowIndex < 0 || aRowIndex >= mRows.Count())
@@ -641,7 +713,7 @@ nsXULTreeBuilder::GetLevel(int32_t aRowIndex, int32_t* aResult)
 }
 
 NS_IMETHODIMP
-nsXULTreeBuilder::GetImageSrc(int32_t aRow, nsITreeColumn* aCol, nsAString& aResult)
+nsXULTreeBuilder::GetImageSrc(PRInt32 aRow, nsITreeColumn* aCol, nsAString& aResult)
 {
     NS_ENSURE_ARG_POINTER(aCol);
     NS_PRECONDITION(aRow >= 0 && aRow < mRows.Count(), "bad index");
@@ -665,7 +737,7 @@ nsXULTreeBuilder::GetImageSrc(int32_t aRow, nsITreeColumn* aCol, nsAString& aRes
 
 
 NS_IMETHODIMP
-nsXULTreeBuilder::GetProgressMode(int32_t aRow, nsITreeColumn* aCol, int32_t* aResult)
+nsXULTreeBuilder::GetProgressMode(PRInt32 aRow, nsITreeColumn* aCol, PRInt32* aResult)
 {
     NS_ENSURE_ARG_POINTER(aCol);
     NS_PRECONDITION(aRow >= 0 && aRow < mRows.Count(), "bad index");
@@ -694,7 +766,7 @@ nsXULTreeBuilder::GetProgressMode(int32_t aRow, nsITreeColumn* aCol, int32_t* aR
 }
 
 NS_IMETHODIMP
-nsXULTreeBuilder::GetCellValue(int32_t aRow, nsITreeColumn* aCol, nsAString& aResult)
+nsXULTreeBuilder::GetCellValue(PRInt32 aRow, nsITreeColumn* aCol, nsAString& aResult)
 {
     NS_ENSURE_ARG_POINTER(aCol);
     NS_PRECONDITION(aRow >= 0 && aRow < mRows.Count(), "bad index");
@@ -717,7 +789,7 @@ nsXULTreeBuilder::GetCellValue(int32_t aRow, nsITreeColumn* aCol, nsAString& aRe
 }
 
 NS_IMETHODIMP
-nsXULTreeBuilder::GetCellText(int32_t aRow, nsITreeColumn* aCol, nsAString& aResult)
+nsXULTreeBuilder::GetCellText(PRInt32 aRow, nsITreeColumn* aCol, nsAString& aResult)
 {
     NS_ENSURE_ARG_POINTER(aCol);
     NS_PRECONDITION(aRow >= 0 && aRow < mRows.Count(), "bad index");
@@ -747,13 +819,13 @@ nsXULTreeBuilder::SetTree(nsITreeBoxObject* aTree)
 
     // If this is teardown time, then we're done.
     if (!mBoxObject) {
-        Uninit(false);
+        Uninit(PR_FALSE);
         return NS_OK;
     }
     NS_ENSURE_TRUE(mRoot, NS_ERROR_NOT_INITIALIZED);
 
     // Is our root's principal trusted?
-    bool isTrusted = false;
+    PRBool isTrusted = PR_FALSE;
     nsresult rv = IsSystemPrincipal(mRoot->NodePrincipal(), &isTrusted);
     if (NS_SUCCEEDED(rv) && isTrusted) {
         // Get the datasource we intend to use to remember open state.
@@ -798,7 +870,7 @@ nsXULTreeBuilder::SetTree(nsITreeBoxObject* aTree)
 }
 
 NS_IMETHODIMP
-nsXULTreeBuilder::ToggleOpenState(int32_t aIndex)
+nsXULTreeBuilder::ToggleOpenState(PRInt32 aIndex)
 {
     if (aIndex < 0 || aIndex >= mRows.Count())
         return NS_ERROR_INVALID_ARG;
@@ -812,21 +884,24 @@ nsXULTreeBuilder::ToggleOpenState(int32_t aIndex)
 
     if (result && result != mRootResult) {
         // don't open containers if child processing isn't allowed
-        bool mayProcessChildren;
+        PRBool mayProcessChildren;
         nsresult rv = result->GetMayProcessChildren(&mayProcessChildren);
         if (NS_FAILED(rv) || !mayProcessChildren)
             return rv;
     }
 
-    uint32_t count = mObservers.Count();
-    for (uint32_t i = 0; i < count; ++i) {
-        nsCOMPtr<nsIXULTreeBuilderObserver> observer = mObservers.SafeObjectAt(i);
-        if (observer)
-            observer->OnToggleOpenState(aIndex);
+    if (mObservers) {
+        PRUint32 count;
+        mObservers->Count(&count);
+        for (PRUint32 i = 0; i < count; ++i) {
+            nsCOMPtr<nsIXULTreeBuilderObserver> observer = do_QueryElementAt(mObservers, i);
+            if (observer)
+                observer->OnToggleOpenState(aIndex);
+        }
     }
 
     if (mPersistStateStore) {
-        bool isOpen;
+        PRBool isOpen;
         IsContainerOpen(aIndex, &isOpen);
 
         nsCOMPtr<nsIRDFResource> container;
@@ -834,7 +909,7 @@ nsXULTreeBuilder::ToggleOpenState(int32_t aIndex)
         if (! container)
             return NS_ERROR_FAILURE;
 
-        bool hasProperty;
+        PRBool hasProperty;
         IsContainerOpen(container, &hasProperty);
 
         if (isOpen) {
@@ -851,7 +926,7 @@ nsXULTreeBuilder::ToggleOpenState(int32_t aIndex)
                 mPersistStateStore->Assert(container,
                                            nsXULContentUtils::NC_open,
                                            nsXULContentUtils::true_,
-                                           true);
+                                           PR_TRUE);
             }
 
             OpenContainer(aIndex, result);
@@ -868,14 +943,17 @@ nsXULTreeBuilder::CycleHeader(nsITreeColumn* aCol)
     nsCOMPtr<nsIDOMElement> element;
     aCol->GetElement(getter_AddRefs(element));
 
-    nsAutoString id;
-    aCol->GetId(id);
+    if (mObservers) {
+        nsAutoString id;
+        aCol->GetId(id);
 
-    uint32_t count = mObservers.Count();
-    for (uint32_t i = 0; i < count; ++i) {
-        nsCOMPtr<nsIXULTreeBuilderObserver> observer = mObservers.SafeObjectAt(i);
-        if (observer)
-            observer->OnCycleHeader(id.get(), element);
+        PRUint32 count;
+        mObservers->Count(&count);
+        for (PRUint32 i = 0; i < count; ++i) {
+            nsCOMPtr<nsIXULTreeBuilderObserver> observer = do_QueryElementAt(mObservers, i);
+            if (observer)
+                observer->OnCycleHeader(id.get(), element);
+        }
     }
 
     return Sort(element);
@@ -884,38 +962,43 @@ nsXULTreeBuilder::CycleHeader(nsITreeColumn* aCol)
 NS_IMETHODIMP
 nsXULTreeBuilder::SelectionChanged()
 {
-    uint32_t count = mObservers.Count();
-    for (uint32_t i = 0; i < count; ++i) {
-        nsCOMPtr<nsIXULTreeBuilderObserver> observer = mObservers.SafeObjectAt(i);
-        if (observer)
-            observer->OnSelectionChanged();
+    if (mObservers) {
+        PRUint32 count;
+        mObservers->Count(&count);
+        for (PRUint32 i = 0; i < count; ++i) {
+            nsCOMPtr<nsIXULTreeBuilderObserver> observer = do_QueryElementAt(mObservers, i);
+            if (observer)
+                observer->OnSelectionChanged();
+        }
     }
 
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsXULTreeBuilder::CycleCell(int32_t aRow, nsITreeColumn* aCol)
+nsXULTreeBuilder::CycleCell(PRInt32 aRow, nsITreeColumn* aCol)
 {
     NS_ENSURE_ARG_POINTER(aCol);
+    if (mObservers) {
+        nsAutoString id;
+        aCol->GetId(id);
 
-    nsAutoString id;
-    aCol->GetId(id);
-
-    uint32_t count = mObservers.Count();
-    for (uint32_t i = 0; i < count; ++i) {
-        nsCOMPtr<nsIXULTreeBuilderObserver> observer = mObservers.SafeObjectAt(i);
-        if (observer)
-            observer->OnCycleCell(aRow, id.get());
+        PRUint32 count;
+        mObservers->Count(&count);
+        for (PRUint32 i = 0; i < count; ++i) {
+            nsCOMPtr<nsIXULTreeBuilderObserver> observer = do_QueryElementAt(mObservers, i);
+            if (observer)
+                observer->OnCycleCell(aRow, id.get());
+        }
     }
 
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsXULTreeBuilder::IsEditable(int32_t aRow, nsITreeColumn* aCol, bool* _retval)
+nsXULTreeBuilder::IsEditable(PRInt32 aRow, nsITreeColumn* aCol, PRBool* _retval)
 {
-    *_retval = true;
+    *_retval = PR_TRUE;
     NS_ENSURE_ARG_POINTER(aCol);
     NS_PRECONDITION(aRow >= 0 && aRow < mRows.Count(), "bad index");
     if (aRow < 0 || aRow >= mRows.Count())
@@ -932,20 +1015,20 @@ nsXULTreeBuilder::IsEditable(int32_t aRow, nsITreeColumn* aCol, bool* _retval)
         SubstituteText(mRows[aRow]->mMatch->mResult, raw, editable);
 
         if (editable.EqualsLiteral("false"))
-            *_retval = false;
+            *_retval = PR_FALSE;
     }
 
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsXULTreeBuilder::IsSelectable(int32_t aRow, nsITreeColumn* aCol, bool* _retval)
+nsXULTreeBuilder::IsSelectable(PRInt32 aRow, nsITreeColumn* aCol, PRBool* _retval)
 {
     NS_PRECONDITION(aRow >= 0 && aRow < mRows.Count(), "bad index");
     if (aRow < 0 || aRow >= mRows.Count())
         return NS_ERROR_INVALID_ARG;
 
-    *_retval = true;
+    *_retval = PR_TRUE;
 
     // Find the <cell> that corresponds to the column we want.
     nsCOMPtr<nsIContent> cell;
@@ -958,21 +1041,21 @@ nsXULTreeBuilder::IsSelectable(int32_t aRow, nsITreeColumn* aCol, bool* _retval)
         SubstituteText(mRows[aRow]->mMatch->mResult, raw, selectable);
 
         if (selectable.EqualsLiteral("false"))
-            *_retval = false;
+            *_retval = PR_FALSE;
     }
 
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsXULTreeBuilder::SetCellValue(int32_t aRow, nsITreeColumn* aCol, const nsAString& aValue)
+nsXULTreeBuilder::SetCellValue(PRInt32 aRow, nsITreeColumn* aCol, const nsAString& aValue)
 {
     NS_ENSURE_ARG_POINTER(aCol);
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsXULTreeBuilder::SetCellText(int32_t aRow, nsITreeColumn* aCol, const nsAString& aValue)
+nsXULTreeBuilder::SetCellText(PRInt32 aRow, nsITreeColumn* aCol, const nsAString& aValue)
 {
     NS_ENSURE_ARG_POINTER(aCol);
     return NS_OK;
@@ -981,41 +1064,50 @@ nsXULTreeBuilder::SetCellText(int32_t aRow, nsITreeColumn* aCol, const nsAString
 NS_IMETHODIMP
 nsXULTreeBuilder::PerformAction(const PRUnichar* aAction)
 {
-    uint32_t count = mObservers.Count();
-    for (uint32_t i = 0; i < count; ++i) {
-        nsCOMPtr<nsIXULTreeBuilderObserver> observer = mObservers.SafeObjectAt(i);
-        if (observer)
-            observer->OnPerformAction(aAction);
+    if (mObservers) {  
+        PRUint32 count;
+        mObservers->Count(&count);
+        for (PRUint32 i = 0; i < count; ++i) {
+            nsCOMPtr<nsIXULTreeBuilderObserver> observer = do_QueryElementAt(mObservers, i);
+            if (observer)
+                observer->OnPerformAction(aAction);
+        }
     }
 
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsXULTreeBuilder::PerformActionOnRow(const PRUnichar* aAction, int32_t aRow)
+nsXULTreeBuilder::PerformActionOnRow(const PRUnichar* aAction, PRInt32 aRow)
 {
-    uint32_t count = mObservers.Count();
-    for (uint32_t i = 0; i < count; ++i) {
-        nsCOMPtr<nsIXULTreeBuilderObserver> observer = mObservers.SafeObjectAt(i);
-        if (observer)
-            observer->OnPerformActionOnRow(aAction, aRow);
+    if (mObservers) {  
+        PRUint32 count;
+        mObservers->Count(&count);
+        for (PRUint32 i = 0; i < count; ++i) {
+            nsCOMPtr<nsIXULTreeBuilderObserver> observer = do_QueryElementAt(mObservers, i);
+            if (observer)
+                observer->OnPerformActionOnRow(aAction, aRow);
+        }
     }
 
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsXULTreeBuilder::PerformActionOnCell(const PRUnichar* aAction, int32_t aRow, nsITreeColumn* aCol)
+nsXULTreeBuilder::PerformActionOnCell(const PRUnichar* aAction, PRInt32 aRow, nsITreeColumn* aCol)
 {
     NS_ENSURE_ARG_POINTER(aCol);
-    nsAutoString id;
-    aCol->GetId(id);
+    if (mObservers) {  
+        nsAutoString id;
+        aCol->GetId(id);
 
-    uint32_t count = mObservers.Count();
-    for (uint32_t i = 0; i < count; ++i) {
-        nsCOMPtr<nsIXULTreeBuilderObserver> observer = mObservers.SafeObjectAt(i);
-        if (observer)
-            observer->OnPerformActionOnCell(aAction, aRow, id.get());
+        PRUint32 count;
+        mObservers->Count(&count);
+        for (PRUint32 i = 0; i < count; ++i) {
+            nsCOMPtr<nsIXULTreeBuilderObserver> observer = do_QueryElementAt(mObservers, i);
+            if (observer)
+                observer->OnPerformActionOnCell(aAction, aRow, id.get());
+        }
     }
 
     return NS_OK;
@@ -1026,7 +1118,8 @@ void
 nsXULTreeBuilder::NodeWillBeDestroyed(const nsINode* aNode)
 {
     nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
-    mObservers.Clear();
+    if (mObservers)
+        mObservers->Clear();
 
     nsXULTemplateBuilder::NodeWillBeDestroyed(aNode);
 }
@@ -1034,9 +1127,9 @@ nsXULTreeBuilder::NodeWillBeDestroyed(const nsINode* aNode)
 NS_IMETHODIMP
 nsXULTreeBuilder::HasGeneratedContent(nsIRDFResource* aResource,
                                       nsIAtom* aTag,
-                                      bool* aGenerated)
+                                      PRBool* aGenerated)
 {
-    *aGenerated = false;
+    *aGenerated = PR_FALSE;
     NS_ENSURE_ARG_POINTER(aResource);
 
     if (!mRootResult)
@@ -1049,16 +1142,16 @@ nsXULTreeBuilder::HasGeneratedContent(nsIRDFResource* aResource,
 
     if (aResource == rootresource ||
         mRows.FindByResource(aResource) != mRows.Last())
-        *aGenerated = true;
+        *aGenerated = PR_TRUE;
 
     return NS_OK;
 }
 
-bool
+PRBool
 nsXULTreeBuilder::GetInsertionLocations(nsIXULTemplateResult* aResult,
                                         nsCOMArray<nsIContent>** aLocations)
 {
-    *aLocations = nullptr;
+    *aLocations = nsnull;
 
     // Get the reference point and check if it is an open container. Rows
     // should not be generated otherwise.
@@ -1066,20 +1159,20 @@ nsXULTreeBuilder::GetInsertionLocations(nsIXULTemplateResult* aResult,
     nsAutoString ref;
     nsresult rv = aResult->GetBindingFor(mRefVariable, ref);
     if (NS_FAILED(rv) || ref.IsEmpty())
-        return false;
+        return PR_FALSE;
 
     nsCOMPtr<nsIRDFResource> container;
     rv = gRDFService->GetUnicodeResource(ref, getter_AddRefs(container));
     if (NS_FAILED(rv))
-        return false;
+        return PR_FALSE;
 
     // Can always insert into the root resource
     if (container == mRows.GetRootResource())
-        return true;
+        return PR_TRUE;
 
     nsTreeRows::iterator iter = mRows.FindByResource(container);
     if (iter == mRows.Last())
-        return false;
+        return PR_FALSE;
 
     return (iter->mContainerState == nsTreeRows::eContainerState_Open);
 }
@@ -1102,12 +1195,12 @@ nsXULTreeBuilder::ReplaceMatch(nsIXULTemplateResult* aOldResult,
             return NS_ERROR_FAILURE;
 
         // Remove the rows from the view
-        int32_t row = iter.GetRowIndex();
+        PRInt32 row = iter.GetRowIndex();
 
         // If the row contains children, remove the matches from the
         // children so that they can be regenerated again if the element
         // gets added back.
-        int32_t delta = mRows.GetSubtreeSizeFor(iter);
+        PRInt32 delta = mRows.GetSubtreeSizeFor(iter);
         if (delta)
             RemoveMatchesFor(*(iter->mSubtree));
 
@@ -1133,8 +1226,8 @@ nsXULTreeBuilder::ReplaceMatch(nsIXULTemplateResult* aOldResult,
 
     if (aNewMatch && aNewMatch->mResult) {
         // Insertion.
-        int32_t row = -1;
-        nsTreeRows::Subtree* parent = nullptr;
+        PRInt32 row = -1;
+        nsTreeRows::Subtree* parent = nsnull;
         nsIXULTemplateResult* result = aNewMatch->mResult;
 
         nsAutoString ref;
@@ -1157,7 +1250,7 @@ nsXULTreeBuilder::ReplaceMatch(nsIXULTemplateResult* aOldResult,
 
             // Use the persist store to remember if the container
             // is open or closed.
-            bool open = false;
+            PRBool open = PR_FALSE;
             IsContainerOpen(row, &open);
 
             // If it's open, make sure that we've got a subtree structure ready.
@@ -1182,17 +1275,17 @@ nsXULTreeBuilder::ReplaceMatch(nsIXULTemplateResult* aOldResult,
             // If we get here, then we're inserting into an open
             // container. By default, place the new element at the
             // end of the container
-            int32_t index = parent->Count();
+            PRInt32 index = parent->Count();
 
             if (mSortVariable) {
                 // Figure out where to put the new element by doing an
                 // insertion sort.
-                int32_t left = 0;
-                int32_t right = index;
+                PRInt32 left = 0;
+                PRInt32 right = index;
 
                 while (left < right) {
                     index = (left + right) / 2;
-                    int32_t cmp = CompareResults((*parent)[index].mMatch->mResult, result);
+                    PRInt32 cmp = CompareResults((*parent)[index].mMatch->mResult, result);
                     if (cmp < 0)
                         left = ++index;
                     else if (cmp > 0)
@@ -1215,12 +1308,12 @@ nsXULTreeBuilder::ReplaceMatch(nsIXULTemplateResult* aOldResult,
 
             if (result != mRootResult) {
                 // don't open containers if child processing isn't allowed
-                bool mayProcessChildren;
+                PRBool mayProcessChildren;
                 nsresult rv = result->GetMayProcessChildren(&mayProcessChildren);
                 if (NS_FAILED(rv) || ! mayProcessChildren) return NS_OK;
             }
 
-            bool open;
+            PRBool open;
             IsContainerOpen(result, &open);
             if (open)
                 OpenContainer(iter.GetRowIndex(), result);
@@ -1243,7 +1336,7 @@ nsXULTreeBuilder::SynchronizeResult(nsIXULTemplateResult* aResult)
         if (iter == mRows.Last())
             return NS_ERROR_FAILURE;
 
-        int32_t row = iter.GetRowIndex();
+        PRInt32 row = iter.GetRowIndex();
         if (row >= 0)
             mBoxObject->InvalidateRow(row);
 
@@ -1284,7 +1377,7 @@ nsXULTreeBuilder::EnsureSortVariables()
                     mSortVariable = do_GetAtom(sort);
 
                     static nsIContent::AttrValuesArray strings[] =
-                      {&nsGkAtoms::ascending, &nsGkAtoms::descending, nullptr};
+                      {&nsGkAtoms::ascending, &nsGkAtoms::descending, nsnull};
                     switch (child->FindAttrValueIn(kNameSpaceID_None,
                                                    nsGkAtoms::sortDirection,
                                                    strings, eCaseMatters)) {
@@ -1320,10 +1413,10 @@ nsXULTreeBuilder::RebuildAll()
     }
 
     if (mQueriesCompiled) {
-        Uninit(false);
+        Uninit(PR_FALSE);
     }
     else if (mBoxObject) {
-        int32_t count = mRows.Count();
+        PRInt32 count = mRows.Count();
         mRows.Clear();
         mBoxObject->RowCountChanged(0, -count);
     }
@@ -1355,7 +1448,7 @@ nsXULTreeBuilder::RebuildAll()
 }
 
 nsresult
-nsXULTreeBuilder::GetTemplateActionRowFor(int32_t aRow, nsIContent** aResult)
+nsXULTreeBuilder::GetTemplateActionRowFor(PRInt32 aRow, nsIContent** aResult)
 {
     // Get the template in the DOM from which we're supposed to
     // generate text
@@ -1364,7 +1457,7 @@ nsXULTreeBuilder::GetTemplateActionRowFor(int32_t aRow, nsIContent** aResult)
     // The match stores the indices of the rule and query to use. Use these
     // to look up the right nsTemplateRule and use that rule's action to get
     // the treerow in the template.
-    int16_t ruleindex = row.mMatch->RuleIndex();
+    PRInt16 ruleindex = row.mMatch->RuleIndex();
     if (ruleindex >= 0) {
         nsTemplateQuerySet* qs = mQuerySets[row.mMatch->QuerySetPriority()];
         nsTemplateRule* rule = qs->GetRuleAt(ruleindex);
@@ -1387,16 +1480,16 @@ nsXULTreeBuilder::GetTemplateActionRowFor(int32_t aRow, nsIContent** aResult)
         }
     }
 
-    *aResult = nullptr;
+    *aResult = nsnull;
     return NS_OK;
 }
 
 nsresult
-nsXULTreeBuilder::GetTemplateActionCellFor(int32_t aRow,
+nsXULTreeBuilder::GetTemplateActionCellFor(PRInt32 aRow,
                                            nsITreeColumn* aCol,
                                            nsIContent** aResult)
 {
-    *aResult = nullptr;
+    *aResult = nsnull;
 
     if (!aCol) return NS_ERROR_INVALID_ARG;
 
@@ -1404,11 +1497,11 @@ nsXULTreeBuilder::GetTemplateActionCellFor(int32_t aRow,
     GetTemplateActionRowFor(aRow, getter_AddRefs(row));
     if (row) {
         nsCOMPtr<nsIAtom> colAtom;
-        int32_t colIndex;
+        PRInt32 colIndex;
         aCol->GetAtom(getter_AddRefs(colAtom));
         aCol->GetIndex(&colIndex);
 
-        uint32_t j = 0;
+        PRUint32 j = 0;
         for (nsIContent* child = row->GetFirstChild();
              child;
              child = child->GetNextSibling()) {
@@ -1421,7 +1514,7 @@ nsXULTreeBuilder::GetTemplateActionCellFor(int32_t aRow,
                     *aResult = child;
                     break;
                 }
-                else if (j == (uint32_t)colIndex)
+                else if (j == (PRUint32)colIndex)
                     *aResult = child;
                 j++;
             }
@@ -1433,14 +1526,14 @@ nsXULTreeBuilder::GetTemplateActionCellFor(int32_t aRow,
 }
 
 nsresult
-nsXULTreeBuilder::GetResourceFor(int32_t aRow, nsIRDFResource** aResource)
+nsXULTreeBuilder::GetResourceFor(PRInt32 aRow, nsIRDFResource** aResource)
 {
     nsTreeRows::Row& row = *(mRows[aRow]);
     return GetResultResource(row.mMatch->mResult, aResource);
 }
 
 nsresult
-nsXULTreeBuilder::OpenContainer(int32_t aIndex, nsIXULTemplateResult* aResult)
+nsXULTreeBuilder::OpenContainer(PRInt32 aIndex, nsIXULTemplateResult* aResult)
 {
     // A row index of -1 in this case means ``open tree body''
     NS_ASSERTION(aIndex >= -1 && aIndex < mRows.Count(), "bad row");
@@ -1462,7 +1555,7 @@ nsXULTreeBuilder::OpenContainer(int32_t aIndex, nsIXULTemplateResult* aResult)
     if (! container)
         return NS_ERROR_OUT_OF_MEMORY;
 
-    int32_t count;
+    PRInt32 count;
     OpenSubtreeOf(container, aIndex, aResult, &count);
 
     // Notify the box object
@@ -1479,31 +1572,31 @@ nsXULTreeBuilder::OpenContainer(int32_t aIndex, nsIXULTemplateResult* aResult)
 
 nsresult
 nsXULTreeBuilder::OpenSubtreeOf(nsTreeRows::Subtree* aSubtree,
-                                int32_t aIndex,
+                                PRInt32 aIndex,
                                 nsIXULTemplateResult *aResult,
-                                int32_t* aDelta)
+                                PRInt32* aDelta)
 {
-    nsAutoTArray<int32_t, 8> open;
-    int32_t count = 0;
+    nsAutoTArray<PRInt32, 8> open;
+    PRInt32 count = 0;
 
-    int32_t rulecount = mQuerySets.Length();
+    PRInt32 rulecount = mQuerySets.Length();
 
-    for (int32_t r = 0; r < rulecount; r++) {
+    for (PRInt32 r = 0; r < rulecount; r++) {
         nsTemplateQuerySet* queryset = mQuerySets[r];
         OpenSubtreeForQuerySet(aSubtree, aIndex, aResult, queryset, &count, open);
     }
 
     // Now recursively deal with any open sub-containers that just got
     // inserted. We need to do this back-to-front to avoid skewing offsets.
-    for (int32_t i = open.Length() - 1; i >= 0; --i) {
-        int32_t index = open[i];
+    for (PRInt32 i = open.Length() - 1; i >= 0; --i) {
+        PRInt32 index = open[i];
 
         nsTreeRows::Subtree* child =
             mRows.EnsureSubtreeFor(aSubtree, index);
 
         nsIXULTemplateResult* result = (*aSubtree)[index].mMatch->mResult;
 
-        int32_t delta;
+        PRInt32 delta;
         OpenSubtreeOf(child, aIndex + index, result, &delta);
         count += delta;
     }
@@ -1523,13 +1616,13 @@ nsXULTreeBuilder::OpenSubtreeOf(nsTreeRows::Subtree* aSubtree,
 
 nsresult
 nsXULTreeBuilder::OpenSubtreeForQuerySet(nsTreeRows::Subtree* aSubtree,
-                                         int32_t aIndex,
+                                         PRInt32 aIndex,
                                          nsIXULTemplateResult* aResult,
                                          nsTemplateQuerySet* aQuerySet,
-                                         int32_t* aDelta,
-                                         nsTArray<int32_t>& open)
+                                         PRInt32* aDelta,
+                                         nsTArray<PRInt32>& open)
 {
-    int32_t count = *aDelta;
+    PRInt32 count = *aDelta;
     
     nsCOMPtr<nsISimpleEnumerator> results;
     nsresult rv = mQueryProcessor->GenerateResults(mDataSource, aResult,
@@ -1538,7 +1631,7 @@ nsXULTreeBuilder::OpenSubtreeForQuerySet(nsTreeRows::Subtree* aSubtree,
     if (NS_FAILED(rv))
         return rv;
 
-    bool hasMoreResults;
+    PRBool hasMoreResults;
     rv = results->HasMoreElements(&hasMoreResults);
 
     for (; NS_SUCCEEDED(rv) && hasMoreResults;
@@ -1564,40 +1657,41 @@ nsXULTreeBuilder::OpenSubtreeForQuerySet(nsTreeRows::Subtree* aSubtree,
         // query already generated content so the match is just added to the
         // end of the set of matches.
 
-        bool generateContent = true;
+        PRBool generateContent = PR_TRUE;
 
-        nsTemplateMatch* prevmatch = nullptr;
-        nsTemplateMatch* existingmatch = nullptr;
+        nsTemplateMatch* prevmatch = nsnull;
+        nsTemplateMatch* existingmatch = nsnull;
         if (mMatchMap.Get(resultid, &existingmatch)){
             // check if there is an existing match that matched a rule
             while (existingmatch) {
                 if (existingmatch->IsActive())
-                    generateContent = false;
+                    generateContent = PR_FALSE;
                 prevmatch = existingmatch;
                 existingmatch = existingmatch->mNext;
             }
         }
 
         nsTemplateMatch *newmatch =
-            nsTemplateMatch::Create(aQuerySet->Priority(), nextresult, nullptr);
+            nsTemplateMatch::Create(mPool, aQuerySet->Priority(),
+                                    nextresult, nsnull);
         if (!newmatch)
             return NS_ERROR_OUT_OF_MEMORY;
 
         if (generateContent) {
             // Don't allow cyclic graphs to get our knickers in a knot.
-            bool cyclic = false;
+            PRBool cyclic = PR_FALSE;
 
             if (aIndex >= 0) {
                 for (nsTreeRows::iterator iter = mRows[aIndex]; iter.GetDepth() > 0; iter.Pop()) {
                     nsCOMPtr<nsIRDFResource> parentid;
                     rv = GetResultResource(iter->mMatch->mResult, getter_AddRefs(parentid));
                     if (NS_FAILED(rv)) {
-                        nsTemplateMatch::Destroy(newmatch, false);
+                        nsTemplateMatch::Destroy(mPool, newmatch, PR_FALSE);
                         return rv;
                     }
 
                     if (resultid == parentid) {
-                        cyclic = true;
+                        cyclic = PR_TRUE;
                         break;
                     }
                 }
@@ -1605,16 +1699,16 @@ nsXULTreeBuilder::OpenSubtreeForQuerySet(nsTreeRows::Subtree* aSubtree,
 
             if (cyclic) {
                 NS_WARNING("tree cannot handle cyclic graphs");
-                nsTemplateMatch::Destroy(newmatch, false);
+                nsTemplateMatch::Destroy(mPool, newmatch, PR_FALSE);
                 continue;
             }
 
-            int16_t ruleindex;
-            nsTemplateRule* matchedrule = nullptr;
-            rv = DetermineMatchedRule(nullptr, nextresult, aQuerySet,
+            PRInt16 ruleindex;
+            nsTemplateRule* matchedrule = nsnull;
+            rv = DetermineMatchedRule(nsnull, nextresult, aQuerySet,
                                       &matchedrule, &ruleindex);
             if (NS_FAILED(rv)) {
-                nsTemplateMatch::Destroy(newmatch, false);
+                nsTemplateMatch::Destroy(mPool, newmatch, PR_FALSE);
                 return rv;
             }
 
@@ -1622,7 +1716,7 @@ nsXULTreeBuilder::OpenSubtreeForQuerySet(nsTreeRows::Subtree* aSubtree,
                 rv = newmatch->RuleMatched(aQuerySet, matchedrule, ruleindex,
                                            nextresult);
                 if (NS_FAILED(rv)) {
-                    nsTemplateMatch::Destroy(newmatch, false);
+                    nsTemplateMatch::Destroy(mPool, newmatch, PR_FALSE);
                     return rv;
                 }
 
@@ -1631,10 +1725,10 @@ nsXULTreeBuilder::OpenSubtreeForQuerySet(nsTreeRows::Subtree* aSubtree,
 
                 // If this is open, then remember it so we can recursively add
                 // *its* rows to the tree.
-                bool isOpen = false;
+                PRBool isOpen = PR_FALSE;
                 IsContainerOpen(nextresult, &isOpen);
                 if (isOpen) {
-                    if (open.AppendElement(count) == nullptr)
+                    if (open.AppendElement(count) == nsnull)
                         return NS_ERROR_OUT_OF_MEMORY;
                 }
 
@@ -1642,15 +1736,16 @@ nsXULTreeBuilder::OpenSubtreeForQuerySet(nsTreeRows::Subtree* aSubtree,
             }
 
             if (mFlags & eLoggingEnabled)
-                OutputMatchToLog(resultid, newmatch, true);
+                OutputMatchToLog(resultid, newmatch, PR_TRUE);
 
         }
 
         if (prevmatch) {
             prevmatch->mNext = newmatch;
         }
-        else {
-            mMatchMap.Put(resultid, newmatch);
+        else if (!mMatchMap.Put(resultid, newmatch)) {
+            nsTemplateMatch::Destroy(mPool, newmatch, PR_TRUE);
+            return NS_ERROR_OUT_OF_MEMORY;
         }
     }
 
@@ -1659,7 +1754,7 @@ nsXULTreeBuilder::OpenSubtreeForQuerySet(nsTreeRows::Subtree* aSubtree,
 }
 
 nsresult
-nsXULTreeBuilder::CloseContainer(int32_t aIndex)
+nsXULTreeBuilder::CloseContainer(PRInt32 aIndex)
 {
     NS_ASSERTION(aIndex >= 0 && aIndex < mRows.Count(), "bad row");
     if (aIndex < 0 || aIndex >= mRows.Count())
@@ -1671,7 +1766,7 @@ nsXULTreeBuilder::CloseContainer(int32_t aIndex)
         RemoveMatchesFor(*iter->mSubtree);
 
 
-    int32_t count = mRows.GetSubtreeSizeFor(iter);
+    PRInt32 count = mRows.GetSubtreeSizeFor(iter);
     mRows.RemoveSubtreeFor(iter);
 
     iter->mContainerState = nsTreeRows::eContainerState_Closed;
@@ -1689,7 +1784,7 @@ nsXULTreeBuilder::CloseContainer(int32_t aIndex)
 nsresult
 nsXULTreeBuilder::RemoveMatchesFor(nsTreeRows::Subtree& subtree)
 {
-    for (int32_t i = subtree.Count() - 1; i >= 0; --i) {
+    for (PRInt32 i = subtree.Count() - 1; i >= 0; --i) {
         nsTreeRows::Row& row = subtree[i];
 
         nsTemplateMatch* match = row.mMatch;
@@ -1703,7 +1798,7 @@ nsXULTreeBuilder::RemoveMatchesFor(nsTreeRows::Subtree& subtree)
         if (mMatchMap.Get(id, &existingmatch)) {
             while (existingmatch) {
                 nsTemplateMatch* nextmatch = existingmatch->mNext;
-                nsTemplateMatch::Destroy(existingmatch, true);
+                nsTemplateMatch::Destroy(mPool, existingmatch, PR_TRUE);
                 existingmatch = nextmatch;
             }
 
@@ -1718,11 +1813,11 @@ nsXULTreeBuilder::RemoveMatchesFor(nsTreeRows::Subtree& subtree)
 }
 
 nsresult
-nsXULTreeBuilder::IsContainerOpen(nsIXULTemplateResult *aResult, bool* aOpen)
+nsXULTreeBuilder::IsContainerOpen(nsIXULTemplateResult *aResult, PRBool* aOpen)
 {
     // items are never open if recursion is disabled
     if ((mFlags & eDontRecurse) && aResult != mRootResult) {
-        *aOpen = false;
+        *aOpen = PR_FALSE;
         return NS_OK;
     }
 
@@ -1735,16 +1830,16 @@ nsXULTreeBuilder::IsContainerOpen(nsIXULTemplateResult *aResult, bool* aOpen)
 }
 
 nsresult
-nsXULTreeBuilder::IsContainerOpen(nsIRDFResource* aResource, bool* aOpen)
+nsXULTreeBuilder::IsContainerOpen(nsIRDFResource* aResource, PRBool* aOpen)
 {
     if (mPersistStateStore)
         mPersistStateStore->HasAssertion(aResource,
                                          nsXULContentUtils::NC_open,
                                          nsXULContentUtils::true_,
-                                         true,
+                                         PR_TRUE,
                                          aOpen);
     else
-        *aOpen = false;
+        *aOpen = PR_FALSE;
 
     return NS_OK;
 }
@@ -1763,7 +1858,7 @@ nsXULTreeBuilder::Compare(const void* aLeft, const void* aRight, void* aClosure)
     return self->CompareResults(left->mMatch->mResult, right->mMatch->mResult);
 }
 
-int32_t
+PRInt32
 nsXULTreeBuilder::CompareResults(nsIXULTemplateResult* aLeft, nsIXULTemplateResult* aRight)
 {
     // this is an extra check done for RDF queries such that results appear in
@@ -1791,16 +1886,16 @@ nsXULTreeBuilder::CompareResults(nsIXULTemplateResult* aLeft, nsIXULTemplateResu
         nsCOMPtr<nsISupports> ref;
         nsresult rv = aLeft->GetBindingObjectFor(mRefVariable, getter_AddRefs(ref));
         if (NS_FAILED(rv))
-            return 0;
+            return rv;
 
         nsCOMPtr<nsIRDFResource> container = do_QueryInterface(ref);
         if (container) {
-            bool isSequence = false;
+            PRBool isSequence = PR_FALSE;
             gRDFContainerUtils->IsSeq(mDB, container, &isSequence);
             if (isSequence) {
                 // Determine the indices of the left and right elements
                 // in the container.
-                int32_t lindex = 0, rindex = 0;
+                PRInt32 lindex = 0, rindex = 0;
 
                 nsCOMPtr<nsIRDFResource> leftitem;
                 aLeft->GetResource(getter_AddRefs(leftitem));
@@ -1823,10 +1918,7 @@ nsXULTreeBuilder::CompareResults(nsIXULTemplateResult* aLeft, nsIXULTemplateResu
         }
     }
 
-    int32_t sortorder;
-    if (!mQueryProcessor)
-        return 0;
-
+    PRInt32 sortorder;
     mQueryProcessor->CompareResults(aLeft, aRight, mSortVariable, mSortHints, &sortorder);
 
     if (sortorder)
@@ -1843,7 +1935,7 @@ nsXULTreeBuilder::SortSubtree(nsTreeRows::Subtree* aSubtree)
                  Compare,
                  this);
 
-    for (int32_t i = aSubtree->Count() - 1; i >= 0; --i) {
+    for (PRInt32 i = aSubtree->Count() - 1; i >= 0; --i) {
         nsTreeRows::Subtree* child = (*aSubtree)[i].mSubtree;
         if (child)
             SortSubtree(child);
@@ -1855,17 +1947,20 @@ nsXULTreeBuilder::SortSubtree(nsTreeRows::Subtree* aSubtree)
 
 /* boolean canDrop (in long index, in long orientation); */
 NS_IMETHODIMP
-nsXULTreeBuilder::CanDrop(int32_t index, int32_t orientation,
-                          nsIDOMDataTransfer* dataTransfer, bool *_retval)
+nsXULTreeBuilder::CanDrop(PRInt32 index, PRInt32 orientation,
+                          nsIDOMDataTransfer* dataTransfer, PRBool *_retval)
 {
-    *_retval = false;
-    uint32_t count = mObservers.Count();
-    for (uint32_t i = 0; i < count; ++i) {
-        nsCOMPtr<nsIXULTreeBuilderObserver> observer = mObservers.SafeObjectAt(i);
-        if (observer) {
-            observer->CanDrop(index, orientation, dataTransfer, _retval);
-            if (*_retval)
-                break;
+    *_retval = PR_FALSE;
+    if (mObservers) {
+        PRUint32 count;
+        mObservers->Count(&count);
+        for (PRUint32 i = 0; i < count; ++i) {
+            nsCOMPtr<nsIXULTreeBuilderObserver> observer = do_QueryElementAt(mObservers, i);
+            if (observer) {
+                observer->CanDrop(index, orientation, dataTransfer, _retval);
+                if (*_retval)
+                    break;
+            }
         }
     }
 
@@ -1873,16 +1968,19 @@ nsXULTreeBuilder::CanDrop(int32_t index, int32_t orientation,
 }
 
 NS_IMETHODIMP
-nsXULTreeBuilder::Drop(int32_t row, int32_t orient, nsIDOMDataTransfer* dataTransfer)
+nsXULTreeBuilder::Drop(PRInt32 row, PRInt32 orient, nsIDOMDataTransfer* dataTransfer)
 {
-    uint32_t count = mObservers.Count();
-    for (uint32_t i = 0; i < count; ++i) {
-        nsCOMPtr<nsIXULTreeBuilderObserver> observer = mObservers.SafeObjectAt(i);
-        if (observer) {
-            bool canDrop = false;
-            observer->CanDrop(row, orient, dataTransfer, &canDrop);
-            if (canDrop)
-                observer->OnDrop(row, orient, dataTransfer);
+    if (mObservers) {
+        PRUint32 count;
+        mObservers->Count(&count);
+        for (PRUint32 i = 0; i < count; ++i) {
+            nsCOMPtr<nsIXULTreeBuilderObserver> observer = do_QueryElementAt(mObservers, i);
+            if (observer) {
+                PRBool canDrop = PR_FALSE;
+                observer->CanDrop(row, orient, dataTransfer, &canDrop);
+                if (canDrop)
+                    observer->OnDrop(row, orient, dataTransfer);
+            }
         }
     }
 
@@ -1890,9 +1988,9 @@ nsXULTreeBuilder::Drop(int32_t row, int32_t orient, nsIDOMDataTransfer* dataTran
 }
 
 NS_IMETHODIMP
-nsXULTreeBuilder::IsSorted(bool *_retval)
+nsXULTreeBuilder::IsSorted(PRBool *_retval)
 {
-  *_retval = (mSortVariable != nullptr);
+  *_retval = (mSortVariable != nsnull);
   return NS_OK;
 }
 

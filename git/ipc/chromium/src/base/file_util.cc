@@ -8,7 +8,7 @@
 #include <io.h>
 #endif
 #include <stdio.h>
-#if defined(ANDROID) || defined(OS_POSIX)
+#if defined(ANDROID)
 #include <unistd.h>
 #endif
 
@@ -194,12 +194,12 @@ bool ReadFileToString(const FilePath& path, std::string* contents) {
 FILE* CreateAndOpenTemporaryFile(FilePath* path) {
   FilePath directory;
   if (!GetTempDir(&directory))
-    return NULL;
+    return false;
 
   return CreateAndOpenTemporaryFileInDir(directory, path);
 }
 
-bool GetFileSize(const FilePath& file_path, int64_t* file_size) {
+bool GetFileSize(const FilePath& file_path, int64* file_size) {
   FileInfo info;
   if (!GetFileInfo(file_path, &info))
     return false;
@@ -379,7 +379,7 @@ std::wstring GetFilenameFromPath(const std::wstring& path) {
 
   return FilePath::FromWStringHack(path).BaseName().ToWStringHack();
 }
-bool GetFileSize(const std::wstring& file_path, int64_t* file_size) {
+bool GetFileSize(const std::wstring& file_path, int64* file_size) {
   return GetFileSize(FilePath::FromWStringHack(file_path), file_size);
 }
 bool GetTempDir(std::wstring* path_str) {

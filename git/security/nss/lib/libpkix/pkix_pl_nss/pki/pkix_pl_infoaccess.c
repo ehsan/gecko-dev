@@ -1,6 +1,39 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the PKIX-C library.
+ *
+ * The Initial Developer of the Original Code is
+ * Sun Microsystems, Inc.
+ * Portions created by the Initial Developer are
+ * Copyright 2004-2007 Sun Microsystems, Inc.  All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Sun Microsystems, Inc.
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 /*
  * pkix_pl_infoaccess.c
  *
@@ -511,7 +544,7 @@ cleanup:
  *
  * PARAMETERS
  *  "arena"
- *      Address of a PLArenaPool to be used in populating the LDAPLocation.
+ *      Address of a PRArenaPool to be used in populating the LDAPLocation.
  *      Must be non-NULL.
  *  "startPos"
  *      The address of char string that contains a subset of ldap location.
@@ -533,7 +566,7 @@ cleanup:
  */
 static PKIX_Error *
 pkix_pl_InfoAccess_ParseTokens(
-        PLArenaPool *arena,
+        PRArenaPool *arena,
         char **startPos, /* return update */
         char ***tokens,
         char separator,
@@ -662,7 +695,7 @@ pkix_pl_UnescapeURL(
  *
  *  This function parses the GeneralName pointed to by "generalName" into the
  *  fields of the LDAPRequestParams pointed to by "request" and a domainName
- *  pointed to by "pDomainName", using the PLArenaPool pointed to by "arena" to
+ *  pointed to by "pDomainName", using the PRArenaPool pointed to by "arena" to
  *  allocate storage for the request components and for the domainName string.
  *
  *  The expected GeneralName string should be in the format described by the
@@ -679,7 +712,7 @@ pkix_pl_UnescapeURL(
  *      Address of the GeneralName whose LDAPLocation is to be parsed. Must be
  *      non-NULL.
  *  "arena"
- *      Address of PLArenaPool to be used for the domainName and for components
+ *      Address of PRArenaPool to be used for the domainName and for components
  *      of the LDAPRequest. Must be non-NULL.
  *  "request"
  *      Address of the LDAPRequestParams into which request components are
@@ -698,7 +731,7 @@ pkix_pl_UnescapeURL(
 PKIX_Error *
 pkix_pl_InfoAccess_ParseLocation(
         PKIX_PL_GeneralName *generalName,
-        PLArenaPool *arena,
+        PRArenaPool *arena,
         LDAPRequestParams *request,
         char **pDomainName,
         void *plContext)
@@ -823,7 +856,7 @@ pkix_pl_InfoAccess_ParseLocation(
                 nameComponent->attrType = (unsigned char *)avaPtr;
                 while ((*avaPtr != '=') && (*avaPtr != '\0')) {
                         avaPtr++;
-                        if (*avaPtr == '\0') {
+                        if (avaPtr == '\0') {
                                 PKIX_ERROR(PKIX_NAMECOMPONENTWITHNOEQ);
                         }
                 }

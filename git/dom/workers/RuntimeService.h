@@ -1,8 +1,41 @@
 /* -*- Mode: c++; c-basic-offset: 2; indent-tabs-mode: nil; tab-width: 40 -*- */
 /* vim: set ts=2 et sw=2 tw=80: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Web Workers.
+ *
+ * The Initial Developer of the Original Code is
+ *   The Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Ben Turner <bent.mozilla@gmail.com> (Original Author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef mozilla_dom_workers_runtimeservice_h__
 #define mozilla_dom_workers_runtimeservice_h__
@@ -12,7 +45,6 @@
 #include "nsIObserver.h"
 
 #include "jsapi.h"
-#include "mozilla/Attributes.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/TimeStamp.h"
 #include "nsAutoPtr.h"
@@ -30,18 +62,18 @@ BEGIN_WORKERS_NAMESPACE
 
 class WorkerPrivate;
 
-class RuntimeService MOZ_FINAL : public nsIObserver
+class RuntimeService : public nsIObserver
 {
   struct WorkerDomainInfo
   {
     nsCString mDomain;
     nsTArray<WorkerPrivate*> mActiveWorkers;
     nsTArray<WorkerPrivate*> mQueuedWorkers;
-    uint32_t mChildWorkerCount;
+    PRUint32 mChildWorkerCount;
 
     WorkerDomainInfo() : mActiveWorkers(1), mChildWorkerCount(0) { }
 
-    uint32_t
+    PRUint32
     ActiveWorkerCount() const
     {
       return mActiveWorkers.Length() + mChildWorkerCount;
@@ -63,7 +95,7 @@ class RuntimeService MOZ_FINAL : public nsIObserver
   nsTArray<IdleThreadInfo> mIdleThreadArray;
 
   // *Not* protected by mMutex.
-  nsClassHashtable<nsPtrHashKey<nsPIDOMWindow>, nsTArray<WorkerPrivate*> > mWindowMap;
+  nsClassHashtable<nsVoidPtrHashKey, nsTArray<WorkerPrivate*> > mWindowMap;
 
   // Only used on the main thread.
   nsCOMPtr<nsITimer> mIdleThreadTimer;
@@ -71,7 +103,12 @@ class RuntimeService MOZ_FINAL : public nsIObserver
   nsCString mDetectorName;
   nsCString mSystemCharset;
 
-  static JSSettings sDefaultJSSettings;
+  static PRUint32 sDefaultJSContextOptions;
+  static PRInt32 sCloseHandlerTimeoutSeconds;
+
+#ifdef JS_GC_ZEAL
+  static PRUint8 sDefaultGCZeal;
+#endif
 
 public:
   struct NavigatorStrings
@@ -113,7 +150,7 @@ public:
   SuspendWorkersForWindow(JSContext* aCx, nsPIDOMWindow* aWindow);
 
   void
-  ResumeWorkersForWindow(nsIScriptContext* aCx, nsPIDOMWindow* aWindow);
+  ResumeWorkersForWindow(JSContext* aCx, nsPIDOMWindow* aWindow);
 
   const nsACString&
   GetDetectorName() const
@@ -136,71 +173,64 @@ public:
   void
   NoteIdleThread(nsIThread* aThread);
 
-  static void
-  GetDefaultJSSettings(JSSettings& aSettings)
+  static PRUint32
+  GetDefaultJSContextOptions()
   {
     AssertIsOnMainThread();
-    aSettings = sDefaultJSSettings;
+    return sDefaultJSContextOptions;
   }
 
   static void
-  SetDefaultJSContextOptions(uint32_t aContentOptions, uint32_t aChromeOptions)
+  SetDefaultJSContextOptions(PRUint32 aOptions)
   {
     AssertIsOnMainThread();
-    sDefaultJSSettings.content.options = aContentOptions;
-    sDefaultJSSettings.chrome.options = aChromeOptions;
+    sDefaultJSContextOptions = aOptions;
   }
 
   void
   UpdateAllWorkerJSContextOptions();
 
-  static void
-  SetDefaultJSGCSettings(JSGCParamKey aKey, uint32_t aValue)
+  static PRUint32
+  GetCloseHandlerTimeoutSeconds()
   {
-    AssertIsOnMainThread();
-    sDefaultJSSettings.ApplyGCSetting(aKey, aValue);
-  }
-
-  void
-  UpdateAllWorkerMemoryParameter(JSGCParamKey aKey, uint32_t aValue);
-
-  static uint32_t
-  GetContentCloseHandlerTimeoutSeconds()
-  {
-    return sDefaultJSSettings.content.maxScriptRuntime;
-  }
-
-  static uint32_t
-  GetChromeCloseHandlerTimeoutSeconds()
-  {
-    return sDefaultJSSettings.chrome.maxScriptRuntime;
+    return sCloseHandlerTimeoutSeconds > 0 ? sCloseHandlerTimeoutSeconds : 0;
   }
 
 #ifdef JS_GC_ZEAL
-  static void
-  SetDefaultGCZeal(uint8_t aGCZeal, uint32_t aFrequency)
+  static PRUint8
+  GetDefaultGCZeal()
   {
     AssertIsOnMainThread();
-    sDefaultJSSettings.gcZeal = aGCZeal;
-    sDefaultJSSettings.gcZealFrequency = aFrequency;
+    return sDefaultGCZeal;
+  }
+
+  static void
+  SetDefaultGCZeal(PRUint8 aGCZeal)
+  {
+    AssertIsOnMainThread();
+    sDefaultGCZeal = aGCZeal;
   }
 
   void
   UpdateAllWorkerGCZeal();
 #endif
 
-  static void
-  SetDefaultJITHardening(bool aJITHardening)
+  class AutoSafeJSContext
   {
-    AssertIsOnMainThread();
-    sDefaultJSSettings.jitHardening = aJITHardening;
-  }
+    JSContext* mContext;
 
-  void
-  UpdateAllWorkerJITHardening(bool aJITHardening);
+  public:
+    AutoSafeJSContext(JSContext* aCx = nsnull);
+    ~AutoSafeJSContext();
 
-  void
-  GarbageCollectAllWorkers(bool aShrinking);
+    operator JSContext*() const
+    {
+      return mContext;
+    }
+
+    static JSContext*
+    GetSafeContext();
+  };
 
 private:
   RuntimeService();

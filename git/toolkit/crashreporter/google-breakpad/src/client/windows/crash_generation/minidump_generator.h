@@ -32,7 +32,6 @@
 
 #include <windows.h>
 #include <dbghelp.h>
-#include <rpc.h>
 #include <list>
 #include "google_breakpad/common/minidump_format.h"
 

@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nspr.h"
 #include "nsDataChannel.h"
@@ -14,7 +46,7 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIProgressEventSink.h"
 #include "nsNetCID.h"
-#include "nsError.h"
+#include "nsNetError.h"
 
 static NS_DEFINE_CID(kSimpleURICID, NS_SIMPLEURI_CID);
 
@@ -32,7 +64,7 @@ nsresult
 nsDataHandler::Create(nsISupports* aOuter, const nsIID& aIID, void* *aResult) {
 
     nsDataHandler* ph = new nsDataHandler();
-    if (ph == nullptr)
+    if (ph == nsnull)
         return NS_ERROR_OUT_OF_MEMORY;
     NS_ADDREF(ph);
     nsresult rv = ph->QueryInterface(aIID, aResult);
@@ -50,17 +82,16 @@ nsDataHandler::GetScheme(nsACString &result) {
 }
 
 NS_IMETHODIMP
-nsDataHandler::GetDefaultPort(int32_t *result) {
+nsDataHandler::GetDefaultPort(PRInt32 *result) {
     // no ports for data protocol
     *result = -1;
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDataHandler::GetProtocolFlags(uint32_t *result) {
+nsDataHandler::GetProtocolFlags(PRUint32 *result) {
     *result = URI_NORELATIVE | URI_NOAUTH | URI_INHERITS_SECURITY_CONTEXT |
-        URI_LOADABLE_BY_ANYONE | URI_NON_PERSISTABLE | URI_IS_LOCAL_RESOURCE |
-        URI_SYNC_LOAD_IS_OK;
+        URI_LOADABLE_BY_ANYONE | URI_NON_PERSISTABLE | URI_IS_LOCAL_RESOURCE;
     return NS_OK;
 }
 
@@ -83,8 +114,8 @@ nsDataHandler::NewURI(const nsACString &aSpec,
         rv = uri->SetRef(spec);
     } else {
         // Otherwise, we'll assume |spec| is a fully-specified data URI
-        nsAutoCString contentType, contentCharset, dataBuffer, hashRef;
-        bool base64;
+        nsCAutoString contentType, contentCharset, dataBuffer, hashRef;
+        PRBool base64;
         rv = ParseURI(spec, contentType, contentCharset, base64, dataBuffer, hashRef);
         if (NS_FAILED(rv))
             return rv;
@@ -129,22 +160,20 @@ nsDataHandler::NewChannel(nsIURI* uri, nsIChannel* *result) {
 }
 
 NS_IMETHODIMP 
-nsDataHandler::AllowPort(int32_t port, const char *scheme, bool *_retval) {
+nsDataHandler::AllowPort(PRInt32 port, const char *scheme, PRBool *_retval) {
     // don't override anything.  
-    *_retval = false;
+    *_retval = PR_FALSE;
     return NS_OK;
 }
-
-#define BASE64_EXTENSION ";base64"
 
 nsresult
 nsDataHandler::ParseURI(nsCString& spec,
                         nsCString& contentType,
                         nsCString& contentCharset,
-                        bool&    isBase64,
+                        PRBool&    isBase64,
                         nsCString& dataBuffer,
                         nsCString& hashRef) {
-    isBase64 = false;
+    isBase64 = PR_FALSE;
 
     // move past "data:"
     char *buffer = (char *) PL_strcasestr(spec.BeginWriting(), "data:");
@@ -162,17 +191,10 @@ nsDataHandler::ParseURI(nsCString& spec,
     *comma = '\0';
 
     // determine if the data is base64 encoded.
-    char *base64 = PL_strcasestr(buffer, BASE64_EXTENSION);
+    char *base64 = PL_strcasestr(buffer, ";base64");
     if (base64) {
-        char *beyond = base64 + strlen(BASE64_EXTENSION);
-        // per the RFC 2397 grammar, "base64" MUST be followed by a comma
-        // previously substituted by '\0', but we also allow it in between
-        // parameters so a subsequent ";" is ok as well (this deals with
-        // *broken* data URIs, see bug 781693 for an example)
-        if (*beyond == '\0' || *beyond == ';') {
-            isBase64 = true;
-            *base64 = '\0';
-        }
+        isBase64 = PR_TRUE;
+        *base64 = '\0';
     }
 
     if (comma == buffer) {

@@ -26,16 +26,19 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=607464
 function scrollDown15PxWithPixelScrolling(scrollbox) {
   var win = scrollbox.ownerDocument.defaultView;
   let event = {
-    deltaMode: WheelEvent.DOM_DELTA_PIXEL,
-    deltaY: 3.0,
-    lineOrPageDeltaY: 1
+    'type': "DOMMouseScroll",
+    'axis': "vertical",
+    'delta': 1,
+    'hasPixels': true,
   };
-  // A pixel scroll with lineOrPageDeltaY.
-  synthesizeWheel(scrollbox, 10, 10, event, win);
-  // then 4 pixel scrolls without lineOrPageDeltaY.
-  event.lineOrPageDeltaY = 0;
-  for (let i = 0; i < 4; ++i) {
-    synthesizeWheel(scrollbox, 10, 10, event, win);
+  // first a line scroll
+  synthesizeMouseScroll(scrollbox, 10, 10, event, win);
+  // then 5 pixel scrolls with 3px each
+  event.delta *= 3;
+  event.type = "MozMousePixelScroll";
+  event.hasPixels = false;
+  for (let i = 0; i < 5; ++i) {
+    synthesizeMouseScroll(scrollbox, 10, 10, event, win);
   }
 
   // Note: the line scroll shouldn't have any effect because it has
@@ -54,37 +57,40 @@ function runTest() {
 
     scrollDown15PxWithPixelScrolling(scrollbox);
 
-    // wait for the next refresh driver run
-    window.mozRequestAnimationFrame(function() {
-      // actually, wait for the next one before checking results, since
-      // scrolling might not be flushed until after this code has run
-      window.mozRequestAnimationFrame(function() {
-        is(scrollbox.scrollTop, scrollTopBefore + 15,
-           "Pixel scrolling should have finished after one refresh driver iteration. " +
-           "We shouldn't be scrolling smoothly, even though the pref is set.");
-        win.close();
-        clearPrefs();
-        SimpleTest.finish();
-      });
-    });
+    setTimeout(function checkThatScrollIsFinishedAlmostInstantly() {
+      is(scrollbox.scrollTop, scrollTopBefore + 15, "Pixel scrolling should have finished after waiting for one 0-interval timer. We shouldn't be scrolling smoothly, even though the pref is set.")
+      win.close();
+      clearPrefs();
+      SimpleTest.finish();
+    }, 0);
   }, win);
 }
 
 function initPrefs()
 {
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  var prefSvc = Components.classes["@mozilla.org/preferences-service;1"].
+                  getService(Components.interfaces.nsIPrefBranch2);
   // Disables the app level scroll acceleration
-  SpecialPowers.setIntPref("mousewheel.acceleration.start", -1);
-  SpecialPowers.setBoolPref("mousewheel.system_scroll_override_on_root_content.enabled", false);
+  prefSvc.setIntPref("mousewheel.acceleration.start", -1);
+  prefSvc.setBoolPref("mousewheel.system_scroll_override_on_root_content.enabled", false);
 
   // Enables smooth scrolling
-  SpecialPowers.setBoolPref("general.smoothScroll", true);
+  prefSvc.setBoolPref("general.smoothScroll", true);
 }
 
 function clearPrefs()
 {
-  SpecialPowers.clearUserPref("mousewheel.acceleration.start");
-  SpecialPowers.clearUserPref("mousewheel.system_scroll_override_on_root_content.enabled");
-  SpecialPowers.clearUserPref("general.smoothScroll");
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  var prefSvc = Components.classes["@mozilla.org/preferences-service;1"].
+                  getService(Components.interfaces.nsIPrefBranch2);
+
+  if (prefSvc.prefHasUserValue("mousewheel.acceleration.start"))
+    prefSvc.clearUserPref("mousewheel.acceleration.start");
+  if (prefSvc.prefHasUserValue("mousewheel.system_scroll_override_on_root_content.enabled"))
+    prefSvc.clearUserPref("mousewheel.system_scroll_override_on_root_content.enabled");
+  if (prefSvc.prefHasUserValue("general.smoothScroll"))
+    prefSvc.clearUserPref("general.smoothScroll");
 }
 
 window.onload = function () {

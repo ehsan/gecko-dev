@@ -29,7 +29,9 @@ add_test(function() {
 // Also test that opening directly to an add-on that does exist doesn't break
 // and selects the right category
 add_test(function() {
-  new MockProvider().createAddons([{
+  gProvider = new MockProvider();
+
+  gProvider.createAddons([{
     id: "addon1@tests.mozilla.org",
     name: "addon 1",
     version: "1.0"

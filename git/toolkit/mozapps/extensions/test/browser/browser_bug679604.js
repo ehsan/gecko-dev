@@ -21,8 +21,8 @@ function test() {
       Services.prefs.clearUserPref(PREF_UI_LASTCATEGORY);
 
       open_manager(null, function(aWindow) {
-        is(new CategoryUtilities(aWindow).selectedCategory, "discover",
-           "Should have loaded the right view");
+        gCategoryUtilities = new CategoryUtilities(aWindow);
+        is(gCategoryUtilities.selectedCategory, "discover", "Should have loaded the right view");
 
         close_manager(aWindow, finish);
       });

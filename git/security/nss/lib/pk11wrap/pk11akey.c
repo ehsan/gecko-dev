@@ -1,6 +1,41 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape security libraries.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1994-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Dr Stephen Henson <stephen.henson@gemplus.com>
+ *   Dr Vipul Gupta <vipul.gupta@sun.com>, and
+ *   Douglas Stebila <douglas@stebila.ca>, Sun Microsystems Laboratories
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 /*
  * This file contains functions to manage asymetric keys, (public and
  * private keys).
@@ -22,7 +57,7 @@
 #include "sechash.h"
 
 #include "secpkcs5.h"  
-#include "blapit.h"
+#include "ec.h"
 
 static SECItem *
 pk11_MakeIDFromPublicKey(SECKEYPublicKey *pubKey)
@@ -224,7 +259,7 @@ PK11_ImportPublicKey(PK11SlotInfo *slot, SECKEYPublicKey *pubKey,
  * take an attribute and copy it into a secitem
  */
 static CK_RV
-pk11_Attr2SecItem(PLArenaPool *arena, const CK_ATTRIBUTE *attr, SECItem *item)
+pk11_Attr2SecItem(PRArenaPool *arena, const CK_ATTRIBUTE *attr, SECItem *item) 
 {
     item->data = NULL;
 
@@ -254,7 +289,7 @@ pk11_Attr2SecItem(PLArenaPool *arena, const CK_ATTRIBUTE *attr, SECItem *item)
  * Point length = (Roundup(curveLenInBits/8)*2+1)
  */
 static int
-pk11_get_EC_PointLenInBytes(PLArenaPool *arena, const SECItem *ecParams)
+pk11_get_EC_PointLenInBytes(PRArenaPool *arena, const SECItem *ecParams)
 {
    SECItem oid;
    SECOidTag tag;
@@ -366,7 +401,7 @@ pk11_get_EC_PointLenInBytes(PLArenaPool *arena, const SECItem *ecParams)
  * the passed in arena.
  */
 static CK_RV
-pk11_get_Decoded_ECPoint(PLArenaPool *arena, const SECItem *ecParams,
+pk11_get_Decoded_ECPoint(PRArenaPool *arena, const SECItem *ecParams, 
 	const CK_ATTRIBUTE *ecPoint, SECItem *publicKeyValue)
 {
     SECItem encodedPublicValue;
@@ -546,8 +581,8 @@ SECKEYPublicKey *
 PK11_ExtractPublicKey(PK11SlotInfo *slot,KeyType keyType,CK_OBJECT_HANDLE id)
 {
     CK_OBJECT_CLASS keyClass = CKO_PUBLIC_KEY;
-    PLArenaPool *arena;
-    PLArenaPool *tmp_arena;
+    PRArenaPool *arena;
+    PRArenaPool *tmp_arena;
     SECKEYPublicKey *pubKey;
     int templateCount = 0;
     CK_KEY_TYPE pk11KeyType;
@@ -730,7 +765,7 @@ SECKEYPrivateKey *
 PK11_MakePrivKey(PK11SlotInfo *slot, KeyType keyType, 
 			PRBool isTemp, CK_OBJECT_HANDLE privID, void *wincx)
 {
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     SECKEYPrivateKey *privKey;
     PRBool isPrivate;
     SECStatus rv;
@@ -740,7 +775,7 @@ PK11_MakePrivKey(PK11SlotInfo *slot, KeyType keyType,
 	CK_KEY_TYPE pk11Type = CKK_RSA;
 
 	pk11Type = PK11_ReadULongAttribute(slot,privID,CKA_KEY_TYPE);
-	isTemp = (PRBool)!PK11_HasAttributeSet(slot,privID,CKA_TOKEN,PR_FALSE);
+	isTemp = (PRBool)!PK11_HasAttributeSet(slot,privID,CKA_TOKEN);
 	switch (pk11Type) {
 	case CKK_RSA: keyType = rsaKey; break;
 	case CKK_DSA: keyType = dsaKey; break;
@@ -754,7 +789,7 @@ PK11_MakePrivKey(PK11SlotInfo *slot, KeyType keyType,
 
     /* if the key is private, make sure we are authenticated to the
      * token before we try to use it */
-    isPrivate = (PRBool)PK11_HasAttributeSet(slot,privID,CKA_PRIVATE,PR_FALSE);
+    isPrivate = (PRBool)PK11_HasAttributeSet(slot,privID,CKA_PRIVATE);
     if (isPrivate) {
 	rv = PK11_Authenticate(slot, PR_TRUE, wincx);
  	if (rv != SECSuccess) {
@@ -876,7 +911,7 @@ pk11_loadPrivKeyWithFlags(PK11SlotInfo *slot,SECKEYPrivateKey *privKey,
     CK_BBOOL ckfalse = CK_FALSE;
     CK_ATTRIBUTE *attrs = NULL, *ap;
     const int templateSize = sizeof(privTemplate)/sizeof(privTemplate[0]);
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     CK_OBJECT_HANDLE objectID;
     int i, count = 0;
     int extra_count = 0;
@@ -1432,7 +1467,7 @@ PK11_GenerateKeyPairWithOpFlags(PK11SlotInfo *slot,CK_MECHANISM_TYPE type,
 
     /* set the ID to the public key so we can find it again */
     cka_id = pk11_MakeIDFromPublicKey(*pubKey);
-    pubIsToken = (PRBool)PK11_HasAttributeSet(slot,pubID, CKA_TOKEN,PR_FALSE);
+    pubIsToken = (PRBool)PK11_HasAttributeSet(slot,pubID, CKA_TOKEN);
 
     PK11_SETATTRS(&setTemplate, CKA_ID, cka_id->data, cka_id->len);
 
@@ -1512,7 +1547,7 @@ PK11_MakeKEAPubKey(unsigned char *keyData,int length)
     SECKEYPublicKey *pubk;
     SECItem pkData;
     SECStatus rv;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
 
     pkData.data = keyData;
     pkData.len = length;
@@ -1539,35 +1574,12 @@ PK11_MakeKEAPubKey(unsigned char *keyData,int length)
     return pubk;
 }
 
-/*
- * NOTE: This function doesn't return a SECKEYPrivateKey struct to represent
- * the new private key object.  If it were to create a session object that
- * could later be looked up by its nickname, it would leak a SECKEYPrivateKey.
- * So isPerm must be true.
- */
 SECStatus 
 PK11_ImportEncryptedPrivateKeyInfo(PK11SlotInfo *slot,
 			SECKEYEncryptedPrivateKeyInfo *epki, SECItem *pwitem,
 			SECItem *nickname, SECItem *publicValue, PRBool isPerm,
 			PRBool isPrivate, KeyType keyType, 
 			unsigned int keyUsage, void *wincx)
-{
-    if (!isPerm) {
-	PORT_SetError(SEC_ERROR_INVALID_ARGS);
-	return SECFailure;
-    }
-    return PK11_ImportEncryptedPrivateKeyInfoAndReturnKey(slot, epki,
-		pwitem, nickname, publicValue, isPerm, isPrivate, keyType,
-		keyUsage, NULL, wincx);
-}
-
-SECStatus
-PK11_ImportEncryptedPrivateKeyInfoAndReturnKey(PK11SlotInfo *slot,
-			SECKEYEncryptedPrivateKeyInfo *epki, SECItem *pwitem,
-			SECItem *nickname, SECItem *publicValue, PRBool isPerm,
-			PRBool isPrivate, KeyType keyType,
-			unsigned int keyUsage, SECKEYPrivateKey **privk,
-			void *wincx)
 {
     CK_MECHANISM_TYPE pbeMechType;
     SECItem *crypto_param = NULL;
@@ -1664,11 +1676,7 @@ try_faulty_3des:
 				 nickname, publicValue, isPerm, isPrivate,
 				 key_type, usage, usageCount, wincx);
     if(privKey) {
-	if (privk) {
-	    *privk = privKey;
-	} else {
-	    SECKEY_DestroyPrivateKey(privKey);
-	}
+	SECKEY_DestroyPrivateKey(privKey);
 	privKey = NULL;
 	rv = SECSuccess;
 	goto done;
@@ -1726,7 +1734,7 @@ PK11_ExportEncryptedPrivKeyInfo(
    void             *wincx)     /* context for password callback ? */
 {
     SECKEYEncryptedPrivateKeyInfo *epki      = NULL;
-    PLArenaPool                   *arena     = NULL;
+    PRArenaPool                   *arena     = NULL;
     SECAlgorithmID                *algid;
     SECOidTag			  pbeAlgTag = SEC_OID_UNKNOWN;
     SECItem                       *crypto_param = NULL;
@@ -1932,7 +1940,7 @@ PK11_GetPQGParamsFromPrivateKey(SECKEYPrivateKey *privKey)
 	{ CKA_BASE, NULL, 0 },
     };
     int pTemplateLen = sizeof(pTemplate)/sizeof(pTemplate[0]);
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
     SECKEYPQGParams *params;
     CK_RV crv;
 

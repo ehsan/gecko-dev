@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape Portable Runtime (NSPR).
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /* Win95 Sockets module
  *
@@ -21,6 +53,60 @@ static PRInt32 socket_io_wait(
 
 /* --- SOCKET IO --------------------------------------------------------- */
 
+/*
+ * we only want to call WSAIoctl() on Vista and later
+ * so don't pay for it at build time (and avoid including winsock2.h)
+ */
+
+/* from ws2def.h */
+#define IOC_IN                      0x80000000      /* copy in parameters */
+#define IOC_VENDOR                  0x18000000
+#define _WSAIOW(x,y)                (IOC_IN|(x)|(y))
+/* from MSWSockDef.h */
+#define SIO_SET_COMPATIBILITY_MODE  _WSAIOW(IOC_VENDOR,300)
+
+typedef enum _WSA_COMPATIBILITY_BEHAVIOR_ID {
+    WsaBehaviorAll = 0,
+    WsaBehaviorReceiveBuffering,
+    WsaBehaviorAutoTuning
+} WSA_COMPATIBILITY_BEHAVIOR_ID, *PWSA_COMPATIBILITY_BEHAVIOR_ID;
+
+/* from sdkddkver.h */
+#define NTDDI_WIN6              0x06000000  /* Windows Vista */
+
+/* from winsock2.h */
+#define WSAEVENT                HANDLE
+
+#define WSAOVERLAPPED           OVERLAPPED
+typedef struct _OVERLAPPED *    LPWSAOVERLAPPED;
+
+typedef void (CALLBACK * LPWSAOVERLAPPED_COMPLETION_ROUTINE)(
+    IN DWORD dwError,
+    IN DWORD cbTransferred,
+    IN LPWSAOVERLAPPED lpOverlapped,
+    IN DWORD dwFlags
+);
+
+typedef int (__stdcall * WSAIOCTLPROC) (
+    SOCKET s,
+    DWORD dwIoControlCode,
+    LPVOID lpvInBuffer,
+    DWORD cbInBuffer,
+    LPVOID lpvOutBuffer,
+    DWORD cbOutBuffer,
+    LPDWORD lpcbBytesReturned,
+    LPWSAOVERLAPPED lpOverlapped,
+    LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine
+);
+
+typedef struct _WSA_COMPATIBILITY_MODE {
+    WSA_COMPATIBILITY_BEHAVIOR_ID BehaviorId;
+    ULONG TargetOsVersion;
+} WSA_COMPATIBILITY_MODE, *PWSA_COMPATIBILITY_MODE;
+
+static HMODULE libWinsock2 = NULL;
+static WSAIOCTLPROC wsaioctlProc = NULL;
+static PRBool socketSetCompatMode = PR_FALSE;
 static PRBool socketFixInet6RcvBuf = PR_FALSE;
 
 void _PR_MD_InitSockets(void)
@@ -31,7 +117,21 @@ void _PR_MD_InitSockets(void)
     osvi.dwOSVersionInfoSize = sizeof(osvi);
     GetVersionEx(&osvi);
 
-    if (osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 1)
+    /* if Vista or later... */
+    if (osvi.dwMajorVersion >= 6)
+    {
+        libWinsock2 = LoadLibraryW(L"Ws2_32.dll");
+        if (libWinsock2)
+        {
+            wsaioctlProc = (WSAIOCTLPROC)GetProcAddress(libWinsock2, 
+                                                        "WSAIoctl");
+            if (wsaioctlProc)
+            {
+                socketSetCompatMode = PR_TRUE;
+            }
+        }
+    }
+    else if (osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 1)
     {
         /* if Windows XP (32-bit) */
         socketFixInet6RcvBuf = PR_TRUE;
@@ -40,7 +140,13 @@ void _PR_MD_InitSockets(void)
 
 void _PR_MD_CleanupSockets(void)
 {
-    socketFixInet6RcvBuf = PR_FALSE;
+    socketSetCompatMode = PR_FALSE;
+    wsaioctlProc = NULL;
+    if (libWinsock2)
+    {
+        FreeLibrary(libWinsock2);
+        libWinsock2 = NULL;
+    }
 }
 
 PROsfd
@@ -65,6 +171,29 @@ _PR_MD_SOCKET(int af, int type, int flags)
         PR_SetError(PR_UNKNOWN_ERROR, WSAGetLastError());
         closesocket(sock);
         return -1;
+    }
+
+    if ((af == AF_INET || af == AF_INET6) && 
+        type == SOCK_STREAM && socketSetCompatMode)
+    {
+        WSA_COMPATIBILITY_MODE mode;
+        char dummy[4];
+        int ret_dummy;
+
+        mode.BehaviorId = WsaBehaviorAutoTuning;
+        mode.TargetOsVersion = NTDDI_WIN6;
+        if (wsaioctlProc(sock, SIO_SET_COMPATIBILITY_MODE,  
+                         (char *)&mode, sizeof(mode),
+                         dummy, 4, &ret_dummy, 0, NULL) == SOCKET_ERROR)
+        {
+            int err = WSAGetLastError();
+            PR_LOG(_pr_io_lm, PR_LOG_DEBUG, ("WSAIoctl() failed with %d", err));
+
+            /* SIO_SET_COMPATIBILITY_MODE may not be supported.
+            ** If the call to WSAIoctl() fails with WSAEOPNOTSUPP,
+            ** don't close the socket.
+            */ 
+        }
     }
 
     if (af == AF_INET6 && socketFixInet6RcvBuf)

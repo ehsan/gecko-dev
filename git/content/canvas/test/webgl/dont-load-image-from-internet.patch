@@ -1,6 +1,5 @@
 # HG changeset patch
-# Parent 7840bd30b599390361d5afb91d40b4635b3a6f34
-
+# Parent 1b98fb9a1e88ae0fba1453489fb12aa2cda47481
 diff --git a/content/canvas/test/webgl/conformance/more/functions/readPixelsBadArgs.html b/content/canvas/test/webgl/conformance/more/functions/readPixelsBadArgs.html
 --- a/content/canvas/test/webgl/conformance/more/functions/readPixelsBadArgs.html
 +++ b/content/canvas/test/webgl/conformance/more/functions/readPixelsBadArgs.html
@@ -48,9 +47,9 @@ diff --git a/content/canvas/test/webgl/conformance/more/functions/texSubImage2DH
 +<img id="i2" src="http://example.com/tests/content/canvas/test/webgl/resources/thunderbird-logo-64x64.png">
  
  </body></html>
-diff --git a/content/canvas/test/webgl/conformance/textures/origin-clean-conformance.html b/content/canvas/test/webgl/conformance/textures/origin-clean-conformance.html
---- a/content/canvas/test/webgl/conformance/textures/origin-clean-conformance.html
-+++ b/content/canvas/test/webgl/conformance/textures/origin-clean-conformance.html
+diff --git a/content/canvas/test/webgl/conformance/origin-clean-conformance.html b/content/canvas/test/webgl/conformance/origin-clean-conformance.html
+--- a/content/canvas/test/webgl/conformance/origin-clean-conformance.html
++++ b/content/canvas/test/webgl/conformance/origin-clean-conformance.html
 @@ -118,11 +118,11 @@ window.onload = function() {
  }
  </script>

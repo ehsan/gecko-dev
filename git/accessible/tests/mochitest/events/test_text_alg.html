@@ -43,7 +43,7 @@
                                             offset + str.length, str,
                                             isInserted);
 
-        if (event[3] == kUnexpected)
+        if (eventItem[3] == kUnexpected)
           this.unexpectedEventSeq.push(checker);
         else
           this.eventSeq.push(checker);
@@ -56,9 +56,8 @@
 
       this.getID = function changeText_getID()
       {
-        return "change text '" + shortenString(this.textData) + "' -> '" +
-          shortenString(this.textNode.data) + "' for " +
-          prettyName(this.containerNode);
+        return "change text '" + this.textData + "' -> " + this.textNode.data +
+          "for " + prettyName(this.containerNode);
       }
     }
 

@@ -1,9 +1,41 @@
 #
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is mozilla.org code.
+#
+# The Initial Developer of the Original Code is
+# Netscape Communications Corporation.
+# Portions created by the Initial Developer are Copyright (C) 1998
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 
-DEPTH		= @DEPTH@
+DEPTH		= .
 topsrcdir	= @top_srcdir@
 srcdir		= @srcdir@
 VPATH		= @srcdir@
@@ -17,11 +49,28 @@ $(error GNU Make 3.80 or higher is required)
 endif
 endif
 
-export TOPLEVEL_BUILD := 1
-
 include $(DEPTH)/config/autoconf.mk
 
 default::
+
+TIERS += base
+
+#
+# tier "base" - basic setup
+#
+tier_base_dirs = \
+	config \
+	build \
+	probes \
+	$(NULL)
+
+ifndef LIBXUL_SDK
+ifeq ($(OS_TARGET),Android)
+tier_base_dirs += other-licenses/android
+endif
+
+tier_base_dirs += memory
+endif
 
 ifdef COMPILE_ENVIRONMENT
 include $(topsrcdir)/$(MOZ_BUILD_APP)/build.mk
@@ -31,43 +80,19 @@ endif
 include $(topsrcdir)/config/config.mk
 
 GARBAGE_DIRS += dist _javagen _profile _tests staticlib
-DIST_GARBAGE = config.cache config.log config.status* config-defs.h \
+DIST_GARBAGE = config.cache config.log config.status config-defs.h \
    config/autoconf.mk \
    unallmakefiles mozilla-config.h \
    netwerk/necko-config.h xpcom/xpcom-config.h xpcom/xpcom-private.h \
    $(topsrcdir)/.mozconfig.mk $(topsrcdir)/.mozconfig.out
 
-ifndef MOZ_PROFILE_USE
-# One of the first things we do in the build is purge "unknown" files
-# from the object directory. This serves two purposes:
-#
-#   1) Remove files from a previous build no longer accounted for in
-#      this build configuration.
-#
-#   2) Work around poor build system dependencies by forcing some
-#      rebuilds.
-#
-# Ideally #2 does not exist. Our reliance on this aspect should diminish
-# over time.
-#
-# moz.build backend generation simply installs a set of "manifests" into
-# a common directory. Each manifest is responsible for defining files in
-# a specific subdirectory of the object directory. The invoked Python
-# script simply iterates over all the manifests, purging files as
-# necessary. To manage new directories or add files to the manifests,
-# modify the backend generator.
-#
-# We need to explicitly put backend.RecursiveMakeBackend.built here
-# otherwise the rule in rules.mk doesn't run early enough.
-default alldep all:: CLOBBER $(topsrcdir)/configure config.status backend.RecursiveMakeBackend.built
-	$(call py_action,purge_manifests,-d _build_manifests/purge .)
-endif
-
-CLOBBER: $(topsrcdir)/CLOBBER
-	@echo "STOP!  The CLOBBER file has changed."
-	@echo "Please run the build through a sanctioned build wrapper, such as"
-	@echo "'mach build' or client.mk."
-	@exit 1
+default alldep all:: $(topsrcdir)/configure config.status
+	$(RM) -r $(DIST)/sdk
+	$(RM) -r $(DIST)/include
+	$(RM) -r $(DIST)/private
+	$(RM) -r $(DIST)/public
+	$(RM) -r $(DIST)/bin/components
+	$(RM) -r _tests
 
 $(topsrcdir)/configure: $(topsrcdir)/configure.in
 	@echo "STOP!  configure.in has changed, and your configure is out of date."
@@ -136,10 +161,13 @@ EXTRA_BUILDID := -$(MOZ_SYMBOLS_EXTRA_BUILDID)
 endif
 
 SYMBOL_INDEX_NAME = \
-  $(MOZ_APP_NAME)-$(MOZ_APP_VERSION)-$(OS_TARGET)-$(BUILDID)-$(CPU_ARCH)$(EXTRA_BUILDID)-symbols.txt
+  $(MOZ_APP_NAME)-$(MOZ_APP_VERSION)-$(OS_TARGET)-$(BUILDID)$(EXTRA_BUILDID)-symbols.txt
 
 buildsymbols:
 ifdef MOZ_CRASHREPORTER
+ifdef USE_ELF_HACK
+	$(MAKE) -C $(MOZ_BUILD_APP)/installer elfhack
+endif
 	echo building symbol store
 	$(RM) -r $(DIST)/crashreporter-symbols
 	$(RM) "$(DIST)/$(SYMBOL_ARCHIVE_BASENAME).zip"
@@ -150,17 +178,17 @@ ifdef MOZ_CRASHREPORTER
 	  $(foreach dir,$(SYM_STORE_SOURCE_DIRS),-s $(dir))               \
 	  $(DUMP_SYMS_BIN)                                                \
 	  $(DIST)/crashreporter-symbols                                   \
-	  $(MAKE_SYM_STORE_PATH) | grep -iv test >                        \
+	  $(MAKE_SYM_STORE_PATH) >                                        \
 	  $(DIST)/crashreporter-symbols/$(SYMBOL_INDEX_NAME)
 	echo packing symbols
 	$(NSINSTALL) -D $(DIST)/$(PKG_PATH)
 	cd $(DIST)/crashreporter-symbols && \
-          zip -r9D "../$(PKG_PATH)$(SYMBOL_FULL_ARCHIVE_BASENAME).zip" . -x "*test*" -x "*Test*"
+          zip -r9D "../$(PKG_PATH)$(SYMBOL_FULL_ARCHIVE_BASENAME).zip" .
 	cd $(DIST)/crashreporter-symbols && \
 	grep "sym" $(SYMBOL_INDEX_NAME) > $(SYMBOL_INDEX_NAME).tmp && \
 	  mv $(SYMBOL_INDEX_NAME).tmp $(SYMBOL_INDEX_NAME)
 	cd $(DIST)/crashreporter-symbols && \
-          zip -r9D "../$(PKG_PATH)$(SYMBOL_ARCHIVE_BASENAME).zip" . -i "*.sym" -i "*.txt"  -x "*test*" -x "*Test*"
+          zip -r9D "../$(PKG_PATH)$(SYMBOL_ARCHIVE_BASENAME).zip" . -i "*.sym" -i "*.txt"
 endif # MOZ_CRASHREPORTER
 
 uploadsymbols:
@@ -185,8 +213,6 @@ maybe_clobber_profiledbuild:
 endif
 else
 maybe_clobber_profiledbuild:
-	$(RM) $(DIST)/bin/*.pgc
-	find $(DIST)/$(MOZ_APP_NAME) -name "*.pgc" -exec mv {} $(DIST)/bin \;
 endif
 
 .PHONY: maybe_clobber_profiledbuild
@@ -196,13 +222,4 @@ endif
 ifeq ($(OS_TARGET)_$(TARGET_XPCOM_ABI),Linux_x86-gcc3)
 scheck::
 	@relcount=`find $(DIST)/bin -name "*.so" | xargs objdump -R | grep R_386_PC32 | wc -l` && if test $$relcount -gt 0; then echo "FAILED: R_386_PC32 relocations detected in a shared library.  Did you use a system header without adding it to config/system-headers?"; exit 1; else echo "PASSED"; fi
-endif
-
-js/src/Makefile: subsrcdir := js/src
-
-ifdef ENABLE_TESTS
-# Incorporate static tier directories into tests. This should be incorporated
-# into moz.build files someday.
-check::
-	$(call SUBMAKE,$@,js/src)
 endif

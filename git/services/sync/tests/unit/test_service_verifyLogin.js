@@ -1,11 +1,8 @@
-/* Any copyright is dedicated to the Public Domain.
-   http://creativecommons.org/publicdomain/zero/1.0/ */
-
-Cu.import("resource://services-common/log4moz.js");
 Cu.import("resource://services-sync/constants.js");
+Cu.import("resource://services-sync/log4moz.js");
 Cu.import("resource://services-sync/service.js");
+Cu.import("resource://services-sync/status.js");
 Cu.import("resource://services-sync/util.js");
-Cu.import("resource://testing-common/services/sync/utils.js");
 
 function login_handling(handler) {
   return function (request, response) {
@@ -35,84 +32,76 @@ function run_test() {
   let johnHelper = track_collections_helper();
   let johnU      = johnHelper.with_updated_collection;
   let johnColls  = johnHelper.collections;
-
+  
   do_test_pending();
-
-  let server;
-  function weaveHandler (request, response) {
-    response.setStatusLine(request.httpVersion, 200, "OK");
-    let body = server.baseURI + "/api/";
-    response.bodyOutputStream.write(body, body.length);
-  }
-
-  server = httpd_setup({
+  let server = httpd_setup({
     "/api/1.1/johndoe/info/collections": login_handling(johnHelper.handler),
     "/api/1.1/janedoe/info/collections": service_unavailable,
-
+      
     "/api/1.1/johndoe/storage/crypto/keys": johnU("crypto", new ServerWBO("keys").handler()),
     "/api/1.1/johndoe/storage/meta/global": johnU("meta",   new ServerWBO("global").handler()),
-    "/user/1.0/johndoe/node/weave": weaveHandler,
+    "/user/1.0/johndoe/node/weave": httpd_handler(200, "OK", "http://localhost:8080/api/")
   });
 
   try {
-    Service.serverURL = server.baseURI;
+    Service.serverURL = "http://localhost:8080/";
 
     _("Force the initial state.");
-    Service.status.service = STATUS_OK;
-    do_check_eq(Service.status.service, STATUS_OK);
+    Status.service = STATUS_OK;
+    do_check_eq(Status.service, STATUS_OK);
 
     _("Credentials won't check out because we're not configured yet.");
-    Service.status.resetSync();
+    Status.resetSync();
     do_check_false(Service.verifyLogin());
-    do_check_eq(Service.status.service, CLIENT_NOT_CONFIGURED);
-    do_check_eq(Service.status.login, LOGIN_FAILED_NO_USERNAME);
+    do_check_eq(Status.service, CLIENT_NOT_CONFIGURED);
+    do_check_eq(Status.login, LOGIN_FAILED_NO_USERNAME);
 
     _("Try again with username and password set.");
-    Service.status.resetSync();
-    setBasicCredentials("johndoe", "ilovejane", null);
+    Status.resetSync();
+    Service.username = "johndoe";
+    Service.password = "ilovejane";
     do_check_false(Service.verifyLogin());
-    do_check_eq(Service.status.service, CLIENT_NOT_CONFIGURED);
-    do_check_eq(Service.status.login, LOGIN_FAILED_NO_PASSPHRASE);
+    do_check_eq(Status.service, CLIENT_NOT_CONFIGURED);
+    do_check_eq(Status.login, LOGIN_FAILED_NO_PASSPHRASE);
 
     _("verifyLogin() has found out the user's cluster URL, though.");
-    do_check_eq(Service.clusterURL, server.baseURI + "/api/");
+    do_check_eq(Service.clusterURL, "http://localhost:8080/api/");
 
     _("Success if passphrase is set.");
-    Service.status.resetSync();
-    Service.identity.syncKey = "foo";
+    Status.resetSync();
+    Service.passphrase = "foo";
     do_check_true(Service.verifyLogin());
-    do_check_eq(Service.status.service, STATUS_OK);
-    do_check_eq(Service.status.login, LOGIN_SUCCEEDED);
+    do_check_eq(Status.service, STATUS_OK);
+    do_check_eq(Status.login, LOGIN_SUCCEEDED);
 
     _("If verifyLogin() encounters a server error, it flips on the backoff flag and notifies observers on a 503 with Retry-After.");
-    Service.status.resetSync();
-    Service.identity.account = "janedoe";
-    Service._updateCachedURLs();
-    do_check_false(Service.status.enforceBackoff);
-    let backoffInterval;
+    Status.resetSync();
+    Service.username = "janedoe";
+    do_check_false(Status.enforceBackoff);
+    let backoffInterval;    
     Svc.Obs.add("weave:service:backoff:interval", function observe(subject, data) {
       Svc.Obs.remove("weave:service:backoff:interval", observe);
       backoffInterval = subject;
     });
     do_check_false(Service.verifyLogin());
-    do_check_true(Service.status.enforceBackoff);
+    do_check_true(Status.enforceBackoff);
     do_check_eq(backoffInterval, 42);
-    do_check_eq(Service.status.service, LOGIN_FAILED);
-    do_check_eq(Service.status.login, SERVER_MAINTENANCE);
+    do_check_eq(Status.service, LOGIN_FAILED);
+    do_check_eq(Status.login, SERVER_MAINTENANCE);
 
     _("Ensure a network error when finding the cluster sets the right Status bits.");
-    Service.status.resetSync();
+    Status.resetSync();
     Service.serverURL = "http://localhost:12345/";
     do_check_false(Service.verifyLogin());
-    do_check_eq(Service.status.service, LOGIN_FAILED);
-    do_check_eq(Service.status.login, LOGIN_FAILED_NETWORK_ERROR);
+    do_check_eq(Status.service, LOGIN_FAILED);
+    do_check_eq(Status.login, LOGIN_FAILED_NETWORK_ERROR);
 
     _("Ensure a network error when getting the collection info sets the right Status bits.");
-    Service.status.resetSync();
+    Status.resetSync();
     Service.clusterURL = "http://localhost:12345/";
     do_check_false(Service.verifyLogin());
-    do_check_eq(Service.status.service, LOGIN_FAILED);
-    do_check_eq(Service.status.login, LOGIN_FAILED_NETWORK_ERROR);
+    do_check_eq(Status.service, LOGIN_FAILED);
+    do_check_eq(Status.login, LOGIN_FAILED_NETWORK_ERROR);
 
   } finally {
     Svc.Prefs.resetBranch("");

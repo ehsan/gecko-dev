@@ -1,12 +1,45 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set ts=2 sw=2 et tw=80: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Travis Bogard <travis@netscape.com>
+ *   Pierre Phaneuf <pp@ludusdesign.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsLocation.h"
 #include "nsIScriptSecurityManager.h"
-#include "nsIScriptObjectPrincipal.h"
 #include "nsIScriptContext.h"
 #include "nsIDocShell.h"
 #include "nsIDocShellLoadInfo.h"
@@ -18,6 +51,9 @@
 #include "nsIIOService.h"
 #include "nsIServiceManager.h"
 #include "nsNetUtil.h"
+#include "plstr.h"
+#include "prprf.h"
+#include "prmem.h"
 #include "nsCOMPtr.h"
 #include "nsEscape.h"
 #include "nsIDOMWindow.h"
@@ -25,31 +61,75 @@
 #include "nsIDocument.h"
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
+#include "nsIJSContextStack.h"
 #include "nsXPIDLString.h"
-#include "nsError.h"
-#include "nsDOMClassInfoID.h"
+#include "nsDOMError.h"
+#include "nsDOMClassInfo.h"
 #include "nsCRT.h"
 #include "nsIProtocolHandler.h"
 #include "nsReadableUtils.h"
 #include "nsITextToSubURI.h"
-#include "nsJSUtils.h"
-#include "jsfriendapi.h"
 #include "nsContentUtils.h"
-#include "mozilla/Likely.h"
-#include "nsCycleCollectionParticipant.h"
+#include "nsJSUtils.h"
+#include "jsdbgapi.h"
+
+static nsresult
+GetContextFromStack(nsIJSContextStack *aStack, JSContext **aContext)
+{
+  nsCOMPtr<nsIJSContextStackIterator>
+    iterator(do_CreateInstance("@mozilla.org/js/xpc/ContextStackIterator;1"));
+  NS_ENSURE_TRUE(iterator, NS_ERROR_FAILURE);
+
+  nsresult rv = iterator->Reset(aStack);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  PRBool done;
+  while (NS_SUCCEEDED(iterator->Done(&done)) && !done) {
+    rv = iterator->Prev(aContext);
+    NS_ASSERTION(NS_SUCCEEDED(rv), "Broken iterator implementation");
+
+    // Consider a null context the end of the line.
+    if (!*aContext) {
+      break;
+    }
+
+    if (nsJSUtils::GetDynamicScriptContext(*aContext)) {
+      return NS_OK;
+    }
+  }
+
+  *aContext = nsnull;
+
+  return NS_OK;
+}
 
 static nsresult
 GetDocumentCharacterSetForURI(const nsAString& aHref, nsACString& aCharset)
 {
   aCharset.Truncate();
 
-  JSContext *cx = nsContentUtils::GetCurrentJSContext();
+  nsresult rv;
+
+  nsCOMPtr<nsIJSContextStack> stack(do_GetService("@mozilla.org/js/xpc/ContextStack;1", &rv));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  JSContext *cx;
+
+  rv = GetContextFromStack(stack, &cx);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   if (cx) {
-    nsCOMPtr<nsPIDOMWindow> window =
+    nsCOMPtr<nsIDOMWindow> window =
       do_QueryInterface(nsJSUtils::GetDynamicScriptGlobal(cx));
     NS_ENSURE_TRUE(window, NS_ERROR_FAILURE);
 
-    if (nsIDocument* doc = window->GetDoc()) {
+    nsCOMPtr<nsIDOMDocument> domDoc;
+    rv = window->GetDocument(getter_AddRefs(domDoc));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    nsCOMPtr<nsIDocument> doc(do_QueryInterface(domDoc));
+
+    if (doc) {
       aCharset = doc->GetDocumentCharacterSet();
     }
   }
@@ -60,8 +140,6 @@ GetDocumentCharacterSetForURI(const nsAString& aHref, nsACString& aCharset)
 nsLocation::nsLocation(nsIDocShell *aDocShell)
 {
   mDocShell = do_GetWeakReference(aDocShell);
-  nsCOMPtr<nsIDOMWindow> outer = do_GetInterface(aDocShell);
-  mOuter = do_GetWeakReference(outer);
 }
 
 nsLocation::~nsLocation()
@@ -71,16 +149,15 @@ nsLocation::~nsLocation()
 DOMCI_DATA(Location, nsLocation)
 
 // QueryInterface implementation for nsLocation
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsLocation)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
+NS_INTERFACE_MAP_BEGIN(nsLocation)
   NS_INTERFACE_MAP_ENTRY(nsIDOMLocation)
-  NS_INTERFACE_MAP_ENTRY(nsISupports)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMLocation)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(Location)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_0(nsLocation)
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsLocation)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsLocation)
+
+NS_IMPL_ADDREF(nsLocation)
+NS_IMPL_RELEASE(nsLocation)
 
 void
 nsLocation::SetDocShell(nsIDocShell *aDocShell)
@@ -95,18 +172,55 @@ nsLocation::GetDocShell()
   return docshell;
 }
 
+// Try to get the the document corresponding to the given JSStackFrame.
+static already_AddRefed<nsIDocument>
+GetFrameDocument(JSContext *cx, JSStackFrame *fp)
+{
+  if (!cx || !fp)
+    return nsnull;
+
+  JSObject* scope = JS_GetFrameScopeChain(cx, fp);
+  if (!scope)
+    return nsnull;
+
+  JSAutoEnterCompartment ac;
+  if (!ac.enter(cx, scope))
+     return nsnull;
+
+  nsCOMPtr<nsIDOMWindow> window =
+    do_QueryInterface(nsJSUtils::GetStaticScriptGlobal(cx, scope));
+  if (!window)
+    return nsnull;
+
+  // If it's a window, get its document.
+  nsCOMPtr<nsIDOMDocument> domDoc;
+  window->GetDocument(getter_AddRefs(domDoc));
+  nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
+  return doc.forget();
+}
+
 nsresult
 nsLocation::CheckURL(nsIURI* aURI, nsIDocShellLoadInfo** aLoadInfo)
 {
-  *aLoadInfo = nullptr;
+  *aLoadInfo = nsnull;
 
   nsCOMPtr<nsIDocShell> docShell(do_QueryReferent(mDocShell));
   NS_ENSURE_TRUE(docShell, NS_ERROR_NOT_AVAILABLE);
 
+  nsresult rv;
+  // Get JSContext from stack.
+  nsCOMPtr<nsIJSContextStack>
+    stack(do_GetService("@mozilla.org/js/xpc/ContextStack;1", &rv));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  JSContext *cx;
+
+  NS_ENSURE_SUCCESS(GetContextFromStack(stack, &cx), NS_ERROR_FAILURE);
+
   nsCOMPtr<nsISupports> owner;
   nsCOMPtr<nsIURI> sourceURI;
 
-  if (JSContext *cx = nsContentUtils::GetCurrentJSContext()) {
+  if (cx) {
     // No cx means that there's no JS running, or at least no JS that
     // was run through code that properly pushed a context onto the
     // context stack (as all code that runs JS off of web pages
@@ -114,12 +228,22 @@ nsLocation::CheckURL(nsIURI* aURI, nsIDocShellLoadInfo** aLoadInfo)
     // we need to create the loadinfo etc.
 
     // Get security manager.
-    nsIScriptSecurityManager* ssm = nsContentUtils::GetSecurityManager();
-    NS_ENSURE_STATE(ssm);
+    nsCOMPtr<nsIScriptSecurityManager>
+      secMan(do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID, &rv));
+    NS_ENSURE_SUCCESS(rv, rv);
 
     // Check to see if URI is allowed.
-    nsresult rv = ssm->CheckLoadURIFromScript(cx, aURI);
+    rv = secMan->CheckLoadURIFromScript(cx, aURI);
     NS_ENSURE_SUCCESS(rv, rv);
+
+    // Now get the principal to use when loading the URI
+    // First, get the principal and frame.
+    JSStackFrame *fp;
+    nsIPrincipal* principal = secMan->GetCxSubjectPrincipalAndFrame(cx, &fp);
+    NS_ENSURE_TRUE(principal, NS_ERROR_FAILURE);
+
+    nsCOMPtr<nsIURI> principalURI;
+    principal->GetURI(getter_AddRefs(principalURI));
 
     // Make the load's referrer reflect changes to the document's URI caused by
     // push/replaceState, if possible.  First, get the document corresponding to
@@ -128,21 +252,14 @@ nsLocation::CheckURL(nsIURI* aURI, nsIDocShellLoadInfo** aLoadInfo)
     // current URI as the referrer.  If they don't match, use the principal's
     // URI.
 
-    nsCOMPtr<nsIDocument> doc;
-    nsCOMPtr<nsIURI> docOriginalURI, docCurrentURI, principalURI;
-    nsCOMPtr<nsPIDOMWindow> entryPoint =
-      do_QueryInterface(nsJSUtils::GetDynamicScriptGlobal(cx));
-    if (entryPoint) {
-      doc = entryPoint->GetDoc();
-    }
-    if (doc) {
-      docOriginalURI = doc->GetOriginalURI();
-      docCurrentURI = doc->GetDocumentURI();
-      rv = doc->NodePrincipal()->GetURI(getter_AddRefs(principalURI));
-      NS_ENSURE_SUCCESS(rv, rv);
+    nsCOMPtr<nsIDocument> frameDoc = GetFrameDocument(cx, fp);
+    nsCOMPtr<nsIURI> docOriginalURI, docCurrentURI;
+    if (frameDoc) {
+      docOriginalURI = frameDoc->GetOriginalURI();
+      docCurrentURI = frameDoc->GetDocumentURI();
     }
 
-    bool urisEqual = false;
+    PRBool urisEqual = PR_FALSE;
     if (docOriginalURI && docCurrentURI && principalURI) {
       principalURI->Equals(docOriginalURI, &urisEqual);
     }
@@ -154,7 +271,7 @@ nsLocation::CheckURL(nsIURI* aURI, nsIDocShellLoadInfo** aLoadInfo)
       sourceURI = principalURI;
     }
 
-    owner = do_QueryInterface(ssm->GetCxSubjectPrincipal(cx));
+    owner = do_QueryInterface(principal);
   }
 
   // Create load info
@@ -174,9 +291,9 @@ nsLocation::CheckURL(nsIURI* aURI, nsIDocShellLoadInfo** aLoadInfo)
 }
 
 nsresult
-nsLocation::GetURI(nsIURI** aURI, bool aGetInnermostURI)
+nsLocation::GetURI(nsIURI** aURI, PRBool aGetInnermostURI)
 {
-  *aURI = nullptr;
+  *aURI = nsnull;
 
   nsresult rv;
   nsCOMPtr<nsIDocShell> docShell(do_QueryReferent(mDocShell));
@@ -214,7 +331,7 @@ nsLocation::GetURI(nsIURI** aURI, bool aGetInnermostURI)
 nsresult
 nsLocation::GetWritableURI(nsIURI** aURI)
 {
-  *aURI = nullptr;
+  *aURI = nsnull;
 
   nsCOMPtr<nsIURI> uri;
 
@@ -227,7 +344,7 @@ nsLocation::GetWritableURI(nsIURI** aURI)
 }
 
 nsresult
-nsLocation::SetURI(nsIURI* aURI, bool aReplace)
+nsLocation::SetURI(nsIURI* aURI, PRBool aReplace)
 {
   nsCOMPtr<nsIDocShell> docShell(do_QueryReferent(mDocShell));
   if (docShell) {
@@ -244,7 +361,7 @@ nsLocation::SetURI(nsIURI* aURI, bool aReplace)
     }
 
     return docShell->LoadURI(aURI, loadInfo,
-                             nsIWebNavigation::LOAD_FLAGS_NONE, true);
+                             nsIWebNavigation::LOAD_FLAGS_NONE, PR_TRUE);
   }
 
   return NS_OK;
@@ -253,9 +370,6 @@ nsLocation::SetURI(nsIURI* aURI, bool aReplace)
 NS_IMETHODIMP
 nsLocation::GetHash(nsAString& aHash)
 {
-  if (!CallerSubsumes())
-    return NS_ERROR_DOM_SECURITY_ERR;
-
   aHash.SetLength(0);
 
   nsCOMPtr<nsIURI> uri;
@@ -264,7 +378,7 @@ nsLocation::GetHash(nsAString& aHash)
     return rv;
   }
 
-  nsAutoCString ref;
+  nsCAutoString ref;
   nsAutoString unicodeRef;
 
   rv = uri->GetRef(ref);
@@ -273,7 +387,7 @@ nsLocation::GetHash(nsAString& aHash)
         do_GetService(NS_ITEXTTOSUBURI_CONTRACTID, &rv));
 
     if (NS_SUCCEEDED(rv)) {
-      nsAutoCString charset;
+      nsCAutoString charset;
       uri->GetOriginCharset(charset);
         
       rv = textToSubURI->UnEscapeURIForUI(charset, ref, unicodeRef);
@@ -328,18 +442,15 @@ nsLocation::SetHash(const nsAString& aHash)
 NS_IMETHODIMP
 nsLocation::GetHost(nsAString& aHost)
 {
-  if (!CallerSubsumes())
-    return NS_ERROR_DOM_SECURITY_ERR;
-
   aHost.Truncate();
 
   nsCOMPtr<nsIURI> uri;
   nsresult result;
 
-  result = GetURI(getter_AddRefs(uri), true);
+  result = GetURI(getter_AddRefs(uri), PR_TRUE);
 
   if (uri) {
-    nsAutoCString hostport;
+    nsCAutoString hostport;
 
     result = uri->GetHostPort(hostport);
 
@@ -354,9 +465,6 @@ nsLocation::GetHost(nsAString& aHost)
 NS_IMETHODIMP
 nsLocation::SetHost(const nsAString& aHost)
 {
-  if (!CallerSubsumes())
-    return NS_ERROR_DOM_SECURITY_ERR;
-
   nsCOMPtr<nsIURI> uri;
   nsresult rv = GetWritableURI(getter_AddRefs(uri));
 
@@ -373,18 +481,15 @@ nsLocation::SetHost(const nsAString& aHost)
 NS_IMETHODIMP
 nsLocation::GetHostname(nsAString& aHostname)
 {
-  if (!CallerSubsumes())
-    return NS_ERROR_DOM_SECURITY_ERR;
-
   aHostname.Truncate();
 
   nsCOMPtr<nsIURI> uri;
   nsresult result;
 
-  result = GetURI(getter_AddRefs(uri), true);
+  result = GetURI(getter_AddRefs(uri), PR_TRUE);
 
   if (uri) {
-    nsAutoCString host;
+    nsCAutoString host;
 
     result = uri->GetHost(host);
 
@@ -399,9 +504,6 @@ nsLocation::GetHostname(nsAString& aHostname)
 NS_IMETHODIMP
 nsLocation::SetHostname(const nsAString& aHostname)
 {
-  if (!CallerSubsumes())
-    return NS_ERROR_DOM_SECURITY_ERR;
-
   nsCOMPtr<nsIURI> uri;
   nsresult rv = GetWritableURI(getter_AddRefs(uri));
 
@@ -418,9 +520,6 @@ nsLocation::SetHostname(const nsAString& aHostname)
 NS_IMETHODIMP
 nsLocation::GetHref(nsAString& aHref)
 {
-  if (!CallerSubsumes())
-    return NS_ERROR_DOM_SECURITY_ERR;
-
   aHref.Truncate();
 
   nsCOMPtr<nsIURI> uri;
@@ -429,7 +528,7 @@ nsLocation::GetHref(nsAString& aHref)
   result = GetURI(getter_AddRefs(uri));
 
   if (uri) {
-    nsAutoCString uriString;
+    nsCAutoString uriString;
 
     result = uri->GetSpec(uriString);
 
@@ -447,9 +546,20 @@ nsLocation::SetHref(const nsAString& aHref)
   nsAutoString oldHref;
   nsresult rv = NS_OK;
 
-  JSContext *cx = nsContentUtils::GetCurrentJSContext();
+  // Get JSContext from stack.
+  nsCOMPtr<nsIJSContextStack>
+    stack(do_GetService("@mozilla.org/js/xpc/ContextStack;1", &rv));
+
+  if (NS_FAILED(rv))
+    return NS_ERROR_FAILURE;
+
+  JSContext *cx;
+
+  if (NS_FAILED(GetContextFromStack(stack, &cx)))
+    return NS_ERROR_FAILURE;
+
   if (cx) {
-    rv = SetHrefWithContext(cx, aHref, false);
+    rv = SetHrefWithContext(cx, aHref, PR_FALSE);
   } else {
     rv = GetHref(oldHref);
 
@@ -459,7 +569,7 @@ nsLocation::SetHref(const nsAString& aHref)
       rv = NS_NewURI(getter_AddRefs(oldUri), oldHref);
 
       if (oldUri) {
-        rv = SetHrefWithBase(aHref, oldUri, false);
+        rv = SetHrefWithBase(aHref, oldUri, PR_FALSE);
       }
     }
   }
@@ -469,7 +579,7 @@ nsLocation::SetHref(const nsAString& aHref)
 
 nsresult
 nsLocation::SetHrefWithContext(JSContext* cx, const nsAString& aHref,
-                               bool aReplace)
+                               PRBool aReplace)
 {
   nsCOMPtr<nsIURI> base;
 
@@ -485,18 +595,18 @@ nsLocation::SetHrefWithContext(JSContext* cx, const nsAString& aHref,
 
 nsresult
 nsLocation::SetHrefWithBase(const nsAString& aHref, nsIURI* aBase,
-                            bool aReplace)
+                            PRBool aReplace)
 {
   nsresult result;
   nsCOMPtr<nsIURI> newUri;
 
   nsCOMPtr<nsIDocShell> docShell(do_QueryReferent(mDocShell));
 
-  nsAutoCString docCharset;
+  nsCAutoString docCharset;
   if (NS_SUCCEEDED(GetDocumentCharacterSetForURI(aHref, docCharset)))
     result = NS_NewURI(getter_AddRefs(newUri), aHref, docCharset.get(), aBase);
   else
-    result = NS_NewURI(getter_AddRefs(newUri), aHref, nullptr, aBase);
+    result = NS_NewURI(getter_AddRefs(newUri), aHref, nsnull, aBase);
 
   if (newUri) {
     /* Check with the scriptContext if it is currently processing a script tag.
@@ -509,22 +619,29 @@ nsLocation::SetHrefWithBase(const nsAString& aHref, nsIURI* aBase,
      * anywhere else. This is part of solution for bug # 39938, 72197
      * 
      */
-    bool inScriptTag=false;
-    JSContext *cx = nsContentUtils::GetCurrentJSContext();
-    if (cx) {
-      nsIScriptContext *scriptContext =
-        nsJSUtils::GetDynamicScriptContext(cx);
+    PRBool inScriptTag=PR_FALSE;
+    // Get JSContext from stack.
+    nsCOMPtr<nsIJSContextStack> stack(do_GetService("@mozilla.org/js/xpc/ContextStack;1", &result));
 
-      if (scriptContext) {
-        if (scriptContext->GetProcessingScriptTag()) {
-          // Now check to make sure that the script is running in our window,
-          // since we only want to replace if the location is set by a
-          // <script> tag in the same window.  See bug 178729.
-          nsCOMPtr<nsIScriptGlobalObject> ourGlobal(do_GetInterface(docShell));
-          inScriptTag = (ourGlobal == scriptContext->GetGlobalObject());
-        }
-      }  
-    } //cx
+    if (stack) {
+      JSContext *cx;
+
+      result = GetContextFromStack(stack, &cx);
+      if (cx) {
+        nsIScriptContext *scriptContext =
+          nsJSUtils::GetDynamicScriptContext(cx);
+
+        if (scriptContext) {
+          if (scriptContext->GetProcessingScriptTag()) {
+            // Now check to make sure that the script is running in our window,
+            // since we only want to replace if the location is set by a
+            // <script> tag in the same window.  See bug 178729.
+            nsCOMPtr<nsIScriptGlobalObject> ourGlobal(do_GetInterface(docShell));
+            inScriptTag = (ourGlobal == scriptContext->GetGlobalObject());
+          }
+        }  
+      } //cx
+    }  // stack
 
     return SetURI(newUri, aReplace || inScriptTag);
   }
@@ -533,31 +650,8 @@ nsLocation::SetHrefWithBase(const nsAString& aHref, nsIURI* aBase,
 }
 
 NS_IMETHODIMP
-nsLocation::GetOrigin(nsAString& aOrigin)
-{
-  if (!CallerSubsumes())
-    return NS_ERROR_DOM_SECURITY_ERR;
-
-  aOrigin.Truncate();
-
-  nsCOMPtr<nsIURI> uri;
-  nsresult rv = GetURI(getter_AddRefs(uri), true);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsAutoString origin;
-  rv = nsContentUtils::GetUTFOrigin(uri, origin);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  aOrigin = origin;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsLocation::GetPathname(nsAString& aPathname)
 {
-  if (!CallerSubsumes())
-    return NS_ERROR_DOM_SECURITY_ERR;
-
   aPathname.Truncate();
 
   nsCOMPtr<nsIURI> uri;
@@ -567,7 +661,7 @@ nsLocation::GetPathname(nsAString& aPathname)
 
   nsCOMPtr<nsIURL> url(do_QueryInterface(uri));
   if (url) {
-    nsAutoCString file;
+    nsCAutoString file;
 
     result = url->GetFilePath(file);
 
@@ -582,9 +676,6 @@ nsLocation::GetPathname(nsAString& aPathname)
 NS_IMETHODIMP
 nsLocation::SetPathname(const nsAString& aPathname)
 {
-  if (!CallerSubsumes())
-    return NS_ERROR_DOM_SECURITY_ERR;
-
   nsCOMPtr<nsIURI> uri;
   nsresult rv = GetWritableURI(getter_AddRefs(uri));
 
@@ -601,18 +692,15 @@ nsLocation::SetPathname(const nsAString& aPathname)
 NS_IMETHODIMP
 nsLocation::GetPort(nsAString& aPort)
 {
-  if (!CallerSubsumes())
-    return NS_ERROR_DOM_SECURITY_ERR;
-
   aPort.SetLength(0);
 
   nsCOMPtr<nsIURI> uri;
   nsresult result = NS_OK;
 
-  result = GetURI(getter_AddRefs(uri), true);
+  result = GetURI(getter_AddRefs(uri), PR_TRUE);
 
   if (uri) {
-    int32_t port;
+    PRInt32 port;
     result = uri->GetPort(&port);
 
     if (NS_SUCCEEDED(result) && -1 != port) {
@@ -631,9 +719,6 @@ nsLocation::GetPort(nsAString& aPort)
 NS_IMETHODIMP
 nsLocation::SetPort(const nsAString& aPort)
 {
-  if (!CallerSubsumes())
-    return NS_ERROR_DOM_SECURITY_ERR;
-
   nsCOMPtr<nsIURI> uri;
   nsresult rv = GetWritableURI(getter_AddRefs(uri));
 
@@ -641,7 +726,7 @@ nsLocation::SetPort(const nsAString& aPort)
     // perhaps use nsReadingIterators at some point?
     NS_ConvertUTF16toUTF8 portStr(aPort);
     const char *buf = portStr.get();
-    int32_t port = -1;
+    PRInt32 port = -1;
 
     if (buf) {
       if (*buf == ':') {
@@ -664,9 +749,6 @@ nsLocation::SetPort(const nsAString& aPort)
 NS_IMETHODIMP
 nsLocation::GetProtocol(nsAString& aProtocol)
 {
-  if (!CallerSubsumes())
-    return NS_ERROR_DOM_SECURITY_ERR;
-
   aProtocol.SetLength(0);
 
   nsCOMPtr<nsIURI> uri;
@@ -675,7 +757,7 @@ nsLocation::GetProtocol(nsAString& aProtocol)
   result = GetURI(getter_AddRefs(uri));
 
   if (uri) {
-    nsAutoCString protocol;
+    nsCAutoString protocol;
 
     result = uri->GetScheme(protocol);
 
@@ -691,9 +773,6 @@ nsLocation::GetProtocol(nsAString& aProtocol)
 NS_IMETHODIMP
 nsLocation::SetProtocol(const nsAString& aProtocol)
 {
-  if (!CallerSubsumes())
-    return NS_ERROR_DOM_SECURITY_ERR;
-
   nsCOMPtr<nsIURI> uri;
   nsresult rv = GetWritableURI(getter_AddRefs(uri));
 
@@ -710,9 +789,6 @@ nsLocation::SetProtocol(const nsAString& aProtocol)
 NS_IMETHODIMP
 nsLocation::GetSearch(nsAString& aSearch)
 {
-  if (!CallerSubsumes())
-    return NS_ERROR_DOM_SECURITY_ERR;
-
   aSearch.SetLength(0);
 
   nsCOMPtr<nsIURI> uri;
@@ -723,7 +799,7 @@ nsLocation::GetSearch(nsAString& aSearch)
   nsCOMPtr<nsIURL> url(do_QueryInterface(uri));
 
   if (url) {
-    nsAutoCString search;
+    nsCAutoString search;
 
     result = url->GetQuery(search);
 
@@ -739,9 +815,6 @@ nsLocation::GetSearch(nsAString& aSearch)
 NS_IMETHODIMP
 nsLocation::SetSearch(const nsAString& aSearch)
 {
-  if (!CallerSubsumes())
-    return NS_ERROR_DOM_SECURITY_ERR;
-
   nsCOMPtr<nsIURI> uri;
   nsresult rv = GetWritableURI(getter_AddRefs(uri));
 
@@ -757,11 +830,8 @@ nsLocation::SetSearch(const nsAString& aSearch)
 }
 
 NS_IMETHODIMP
-nsLocation::Reload(bool aForceget)
+nsLocation::Reload(PRBool aForceget)
 {
-  if (!CallerSubsumes())
-    return NS_ERROR_DOM_SECURITY_ERR;
-
   nsresult rv;
   nsCOMPtr<nsIDocShell> docShell(do_QueryReferent(mDocShell));
   nsCOMPtr<nsIWebNavigation> webNav(do_QueryInterface(docShell));
@@ -775,7 +845,7 @@ nsLocation::Reload(bool aForceget)
     // page since some sites may use this trick to work around gecko
     // reflow bugs, and this should have the same effect.
 
-    nsCOMPtr<nsIDocument> doc = window->GetExtantDoc();
+    nsCOMPtr<nsIDocument> doc(do_QueryInterface(window->GetExtantDocument()));
 
     nsIPresShell *shell;
     nsPresContext *pcx;
@@ -787,7 +857,7 @@ nsLocation::Reload(bool aForceget)
   }
 
   if (webNav) {
-    uint32_t reloadFlags = nsIWebNavigation::LOAD_FLAGS_NONE;
+    PRUint32 reloadFlags = nsIWebNavigation::LOAD_FLAGS_NONE;
 
     if (aForceget) {
       reloadFlags = nsIWebNavigation::LOAD_FLAGS_BYPASS_CACHE | 
@@ -811,8 +881,19 @@ NS_IMETHODIMP
 nsLocation::Replace(const nsAString& aUrl)
 {
   nsresult rv = NS_OK;
-  if (JSContext *cx = nsContentUtils::GetCurrentJSContext()) {
-    return SetHrefWithContext(cx, aUrl, true);
+
+  // Get JSContext from stack.
+  nsCOMPtr<nsIJSContextStack>
+  stack(do_GetService("@mozilla.org/js/xpc/ContextStack;1"));
+
+  if (stack) {
+    JSContext *cx;
+
+    rv = GetContextFromStack(stack, &cx);
+    NS_ENSURE_SUCCESS(rv, rv);
+    if (cx) {
+      return SetHrefWithContext(cx, aUrl, PR_TRUE);
+    }
   }
 
   nsAutoString oldHref;
@@ -825,15 +906,12 @@ nsLocation::Replace(const nsAString& aUrl)
   rv = NS_NewURI(getter_AddRefs(oldUri), oldHref);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return SetHrefWithBase(aUrl, oldUri, true);
+  return SetHrefWithBase(aUrl, oldUri, PR_TRUE);
 }
 
 NS_IMETHODIMP
 nsLocation::Assign(const nsAString& aUrl)
 {
-  if (!CallerSubsumes())
-    return NS_ERROR_DOM_SECURITY_ERR;
-
   nsAutoString oldHref;
   nsresult result = NS_OK;
 
@@ -845,7 +923,7 @@ nsLocation::Assign(const nsAString& aUrl)
     result = NS_NewURI(getter_AddRefs(oldUri), oldHref);
 
     if (oldUri) {
-      result = SetHrefWithBase(aUrl, oldUri, false);
+      result = SetHrefWithBase(aUrl, oldUri, PR_FALSE);
     }
   }
 
@@ -855,52 +933,52 @@ nsLocation::Assign(const nsAString& aUrl)
 NS_IMETHODIMP
 nsLocation::ToString(nsAString& aReturn)
 {
-  // NB: GetHref checks CallerSubsumes().
   return GetHref(aReturn);
 }
 
-NS_IMETHODIMP
-nsLocation::ValueOf(nsIDOMLocation** aReturn)
+nsresult
+nsLocation::GetSourceDocument(JSContext* cx, nsIDocument** aDocument)
 {
-  nsCOMPtr<nsIDOMLocation> loc(this);
-  loc.forget(aReturn);
-  return NS_OK;
+  // XXX Code duplicated from nsHTMLDocument
+  // XXX Tom said this reminded him of the "Six Degrees of
+  // Kevin Bacon" game. We try to get from here to there using
+  // whatever connections possible. The problem is that this
+  // could break if any of the connections along the way change.
+  // I wish there were a better way.
+
+  nsresult rv = NS_ERROR_FAILURE;
+
+  // We need to use the dynamically scoped global and assume that the
+  // current JSContext is a DOM context with a nsIScriptGlobalObject so
+  // that we can get the url of the caller.
+  // XXX This will fail on non-DOM contexts :(
+
+  nsCOMPtr<nsIDOMWindow> window =
+    do_QueryInterface(nsJSUtils::GetDynamicScriptGlobal(cx), &rv);
+
+  if (window) {
+    nsCOMPtr<nsIDOMDocument> domDoc;
+    rv = window->GetDocument(getter_AddRefs(domDoc));
+    if (domDoc) {
+      return CallQueryInterface(domDoc, aDocument);
+    }
+  } else {
+    *aDocument = nsnull;
+  }
+
+  return rv;
 }
 
 nsresult
 nsLocation::GetSourceBaseURL(JSContext* cx, nsIURI** sourceURL)
 {
-
-  *sourceURL = nullptr;
-  nsCOMPtr<nsIScriptGlobalObject> sgo = nsJSUtils::GetDynamicScriptGlobal(cx);
-  // If this JS context doesn't have an associated DOM window, we effectively
-  // have no script entry point stack. This doesn't generally happen with the DOM,
-  // but can sometimes happen with extension code in certain IPC configurations.
-  // If this happens, try falling back on the current document associated with
-  // the docshell. If that fails, just return null and hope that the caller passed
-  // an absolute URI.
-  if (!sgo && GetDocShell()) {
-    sgo = do_GetInterface(GetDocShell());
+  nsCOMPtr<nsIDocument> doc;
+  nsresult rv = GetSourceDocument(cx, getter_AddRefs(doc));
+  if (doc) {
+    *sourceURL = doc->GetBaseURI().get();
+  } else {
+    *sourceURL = nsnull;
   }
-  NS_ENSURE_TRUE(sgo, NS_OK);
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(sgo);
-  NS_ENSURE_TRUE(window, NS_ERROR_UNEXPECTED);
-  nsIDocument* doc = window->GetDoc();
-  NS_ENSURE_TRUE(doc, NS_OK);
-  *sourceURL = doc->GetBaseURI().get();
-  return NS_OK;
-}
 
-bool
-nsLocation::CallerSubsumes()
-{
-  // Get the principal associated with the location object.
-  nsCOMPtr<nsIDOMWindow> outer = do_QueryReferent(mOuter);
-  if (MOZ_UNLIKELY(!outer))
-    return false;
-  nsCOMPtr<nsIScriptObjectPrincipal> sop = do_QueryInterface(outer);
-  bool subsumes = false;
-  nsresult rv = nsContentUtils::GetSubjectPrincipal()->Subsumes(sop->GetPrincipal(), &subsumes);
-  NS_ENSURE_SUCCESS(rv, false);
-  return subsumes;
+  return rv;
 }

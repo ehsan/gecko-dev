@@ -6,25 +6,16 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Test infrastructure
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
+do_load_httpd_js();
 
-Cu.import("resource://testing-common/httpd.js");
-
-XPCOMUtils.defineLazyGetter(this, "URL", function() {
-  return "http://localhost:" + httpserver.identity.primaryPort;
-});
-
-var httpserver = new HttpServer();
+var httpserver = new nsHttpServer();
 var index = 0;
 var test_flags = new Array();
 var testPathBase = "/dupe_hdrs";
 
 function run_test()
 {
-  httpserver.start(-1);
+  httpserver.start(4444);
 
   do_test_pending();
   run_test_number(1);
@@ -45,7 +36,7 @@ function setupChannel(url)
 {
   var ios = Components.classes["@mozilla.org/network/io-service;1"].
                        getService(Ci.nsIIOService);
-  var chan = ios.newChannel(URL + url, "", null);
+  var chan = ios.newChannel("http://localhost:4444" + url, "", null);
   var httpChan = chan.QueryInterface(Components.interfaces.nsIHttpChannel);
   return httpChan;
 }
@@ -201,9 +192,9 @@ function handler6(metadata, response)
   response.write("HTTP/1.0 301 Moved\r\n");
   response.write("Content-Type: text/plain\r\n");
   response.write("Content-Length: 30\r\n");
-  response.write("Location: " + URL + "/content\r\n");
+  response.write("Location: http://localhost:4444/content\r\n");
   response.write("Location: http://www.microsoft.com/\r\n");
-  response.write("Connection: close\r\n");
+  response.write("Connection: close/\r\n");
   response.write("\r\n");
   response.write(body);
   response.finish();
@@ -228,9 +219,9 @@ function handler7(metadata, response)
   response.write("Content-Type: text/plain\r\n");
   response.write("Content-Length: 30\r\n");
   // redirect to previous test handler that completes OK: test 5
-  response.write("Location: " + URL + testPathBase + "5\r\n");
-  response.write("Location: " + URL + testPathBase + "5\r\n");
-  response.write("Connection: close\r\n");
+  response.write("Location: http://localhost:4444" + testPathBase + "5\r\n");
+  response.write("Location: http://localhost:4444" + testPathBase + "5\r\n");
+  response.write("Connection: close/\r\n");
   response.write("\r\n");
   response.write(body);
   response.finish();
@@ -263,9 +254,9 @@ function handler8(metadata, response)
   response.write("Content-Type: text/plain\r\n");
   response.write("Content-Length: 30\r\n");
   // redirect to previous test handler that completes OK: test 4
-  response.write("Location: " + URL + testPathBase + "4\r\n");
+  response.write("Location: http://localhost:4444" + testPathBase + "4\r\n");
   response.write("Location:\r\n");
-  response.write("Connection: close\r\n");
+  response.write("Connection: close/\r\n");
   response.write("\r\n");
   response.write(body);
   response.finish();
@@ -291,11 +282,11 @@ function handler9(metadata, response)
   response.write("Content-Type: text/plain\r\n");
   response.write("Content-Length: 30\r\n");
   // redirect to previous test handler that completes OK: test 2 
-  response.write("Location: " + URL + testPathBase + "2\r\n");
+  response.write("Location: http://localhost:4444" + testPathBase + "2\r\n");
   response.write("Location:\r\n");
   // redirect to previous test handler that completes OK: test 4
-  response.write("Location: " + URL + testPathBase + "4\r\n");
-  response.write("Connection: close\r\n");
+  response.write("Location: http://localhost:4444" + testPathBase + "4\r\n");
+  response.write("Connection: close/\r\n");
   response.write("\r\n");
   response.write(body);
   response.finish();
@@ -366,243 +357,7 @@ function completeTest11(request, data, ctx)
     do_throw("error parsing Content-Disposition: " + ex);
   }
 
-  run_test_number(12);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Bug 716801 OK for Location: header to be blank
-
-function handler12(metadata, response)
-{
-  var body = "012345678901234567890123456789";
-  response.seizePower();
-  response.write("HTTP/1.0 200 OK\r\n");
-  response.write("Content-Type: text/plain\r\n");
-  response.write("Content-Length: 30\r\n");
-  response.write("Location:\r\n");
-  response.write("Connection: close\r\n");
-  response.write("\r\n");
-  response.write(body);
-  response.finish();
-}
-
-function completeTest12(request, data, ctx)
-{
-  do_check_eq(request.status, Components.results.NS_OK);
-  do_check_eq(30, data.length);
-
-  run_test_number(13);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Negative content length is ok
-test_flags[13] = CL_ALLOW_UNKNOWN_CL;
-
-function handler13(metadata, response)
-{
-  var body = "012345678901234567890123456789";
-  response.seizePower();
-  response.write("HTTP/1.0 200 OK\r\n");
-  response.write("Content-Type: text/plain\r\n");
-  response.write("Content-Length: -1\r\n");
-  response.write("Connection: close\r\n");
-  response.write("\r\n");
-  response.write(body);
-  response.finish();
-}
-
-function completeTest13(request, data, ctx)
-{
-  do_check_eq(request.status, Components.results.NS_OK);
-  do_check_eq(30, data.length);
-
-  run_test_number(14);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// leading negative content length is not ok if paired with positive one
-
-test_flags[14] = CL_EXPECT_FAILURE | CL_ALLOW_UNKNOWN_CL;
-
-function handler14(metadata, response)
-{
-  var body = "012345678901234567890123456789";
-  response.seizePower();
-  response.write("HTTP/1.0 200 OK\r\n");
-  response.write("Content-Type: text/plain\r\n");
-  response.write("Content-Length: -1\r\n");
-  response.write("Content-Length: 30\r\n");
-  response.write("Connection: close\r\n");
-  response.write("\r\n");
-  response.write(body);
-  response.finish();
-}
-
-function completeTest14(request, data, ctx)
-{
-  do_check_eq(request.status, Components.results.NS_ERROR_CORRUPTED_CONTENT);
-
-  run_test_number(15);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// trailing negative content length is not ok if paired with positive one
-
-test_flags[15] = CL_EXPECT_FAILURE | CL_ALLOW_UNKNOWN_CL;
-
-function handler15(metadata, response)
-{
-  var body = "012345678901234567890123456789";
-  response.seizePower();
-  response.write("HTTP/1.0 200 OK\r\n");
-  response.write("Content-Type: text/plain\r\n");
-  response.write("Content-Length: 30\r\n");
-  response.write("Content-Length: -1\r\n");
-  response.write("Connection: close\r\n");
-  response.write("\r\n");
-  response.write(body);
-  response.finish();
-}
-
-function completeTest15(request, data, ctx)
-{
-  do_check_eq(request.status, Components.results.NS_ERROR_CORRUPTED_CONTENT);
-
-  run_test_number(16);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// empty content length is ok
-test_flags[16] = CL_ALLOW_UNKNOWN_CL;
-reran16 = false;
-
-function handler16(metadata, response)
-{
-  var body = "012345678901234567890123456789";
-  response.seizePower();
-  response.write("HTTP/1.0 200 OK\r\n");
-  response.write("Content-Type: text/plain\r\n");
-  response.write("Content-Length: \r\n");
-  response.write("Cache-Control: max-age=600\r\n");
-  response.write("Connection: close\r\n");
-  response.write("\r\n");
-  response.write(body);
-  response.finish();
-}
-
-function completeTest16(request, data, ctx)
-{
-  do_check_eq(request.status, Components.results.NS_OK);
-  do_check_eq(30, data.length);
-
-  if (!reran16) {
-    reran16 = true;
-    run_test_number(16);
-  }
- else {
-   run_test_number(17);
- }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// empty content length paired with non empty is not ok
-test_flags[17] = CL_EXPECT_FAILURE | CL_ALLOW_UNKNOWN_CL;
-
-function handler17(metadata, response)
-{
-  var body = "012345678901234567890123456789";
-  response.seizePower();
-  response.write("HTTP/1.0 200 OK\r\n");
-  response.write("Content-Type: text/plain\r\n");
-  response.write("Content-Length: \r\n");
-  response.write("Content-Length: 30\r\n");
-  response.write("Connection: close\r\n");
-  response.write("\r\n");
-  response.write(body);
-  response.finish();
-}
-
-function completeTest17(request, data, ctx)
-{
-  do_check_eq(request.status, Components.results.NS_ERROR_CORRUPTED_CONTENT);
-
-  run_test_number(18);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// alpha content-length is just like -1
-test_flags[18] = CL_ALLOW_UNKNOWN_CL;
-
-function handler18(metadata, response)
-{
-  var body = "012345678901234567890123456789";
-  response.seizePower();
-  response.write("HTTP/1.0 200 OK\r\n");
-  response.write("Content-Type: text/plain\r\n");
-  response.write("Content-Length: seventeen\r\n");
-  response.write("Connection: close\r\n");
-  response.write("\r\n");
-  response.write(body);
-  response.finish();
-}
-
-function completeTest18(request, data, ctx)
-{
-  do_check_eq(request.status, Components.results.NS_OK);
-  do_check_eq(30, data.length);
-
-  run_test_number(19);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// semi-colons are ok too in the content-length
-test_flags[19] = CL_ALLOW_UNKNOWN_CL;
-
-function handler19(metadata, response)
-{
-  var body = "012345678901234567890123456789";
-  response.seizePower();
-  response.write("HTTP/1.0 200 OK\r\n");
-  response.write("Content-Type: text/plain\r\n");
-  response.write("Content-Length: 30;\r\n");
-  response.write("Connection: close\r\n");
-  response.write("\r\n");
-  response.write(body);
-  response.finish();
-}
-
-function completeTest19(request, data, ctx)
-{
-  do_check_eq(request.status, Components.results.NS_OK);
-  do_check_eq(30, data.length);
-
-  run_test_number(20);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// FAIL if 1st Location: header is blank, followed by non-blank
-test_flags[20] = CL_EXPECT_FAILURE;
-
-function handler20(metadata, response)
-{
-  var body = "012345678901234567890123456789";
-  response.seizePower();
-  response.write("HTTP/1.0 301 Moved\r\n");
-  response.write("Content-Type: text/plain\r\n");
-  response.write("Content-Length: 30\r\n");
-  // redirect to previous test handler that completes OK: test 4
-  response.write("Location:\r\n");
-  response.write("Location: " + URL + testPathBase + "4\r\n");
-  response.write("Connection: close\r\n");
-  response.write("\r\n");
-  response.write(body);
-  response.finish();
-}
-
-function completeTest20(request, data, ctx)
-{
-  do_check_eq(request.status, Components.results.NS_ERROR_CORRUPTED_CONTENT);
-
   endTests();
 }
+
 

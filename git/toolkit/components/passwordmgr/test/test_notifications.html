@@ -18,8 +18,6 @@ Login Manager test: notifications
 <pre id="test">
 <script class="testbody" type="text/javascript">
 
-SimpleTest.expectAssertions(23);
-
 /** Test for Login Manager: notifications. **/
 
 // Set testpath to the directory where we live. Used to load tests from
@@ -87,8 +85,8 @@ function checkTest() {
 
     // The document generated from formsubmit.sjs contains the user/pass it
     // received inside <span id="blah">value</span>
-    var gotUser = SpecialPowers.wrap(iframe).contentDocument.getElementById("user").textContent;
-    var gotPass = SpecialPowers.wrap(iframe).contentDocument.getElementById("pass").textContent;
+    var gotUser = iframe.contentDocument.getElementById("user").textContent;
+    var gotPass = iframe.contentDocument.getElementById("pass").textContent;
 
 
     switch(testNum) {
@@ -348,7 +346,7 @@ function checkTest() {
         ok(popup, "got notification popup");
         // Check the text, which comes from the localized saveLoginText string.
         notificationText = popup.message;
-        expectedText = /^Would you like to remember the password for \"notifyu1\" on example.org\?$/;
+        expectedText = /^Remember password for \"notifyu1\" on example.org\?$/;
         ok(expectedText.test(notificationText), "Checking text: " + notificationText);
         popup.remove();
         break;
@@ -361,7 +359,7 @@ function checkTest() {
         ok(popup, "got notification popup");
         // Check the text, which comes from the localized saveLoginText string.
         notificationText = popup.message;
-        expectedText = /^Would you like to remember the password for \"nowisthetimeforallgoodmentocom[^e]\" on example.org\?$/;
+        expectedText = /^Remember password for \"nowisthetimeforallgoodmentocom[^e]\" on example.org\?$/;
         ok(expectedText.test(notificationText), "Checking text: " + notificationText);
         popup.remove();
         break;
@@ -374,7 +372,7 @@ function checkTest() {
         ok(popup, "got notification popup");
         // Check the text, which comes from the localized saveLoginTextNoUser string.
         notificationText = popup.message;
-        expectedText = /^Would you like to remember the password on example.org\?$/;
+        expectedText = /^Remember password on example.org\?$/;
         ok(expectedText.test(notificationText), "Checking text: " + notificationText);
         popup.remove();
         break;

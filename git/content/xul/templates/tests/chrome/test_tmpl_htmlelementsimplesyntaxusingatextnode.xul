@@ -14,15 +14,6 @@
 
   <body xmlns="http://www.w3.org/1999/xhtml" style="height: 300px; overflow: auto;"/>
 
-  <data id="output" xmlns:html="http://www.w3.org/1999/xhtml">
-    <html:p step="3" id="http://www.some-fictitious-zoo.com/birds/wren">Wren</html:p>
-    <html:p id="http://www.some-fictitious-zoo.com/birds/emu">Emu</html:p>
-    <html:p step="-4" id="http://www.some-fictitious-zoo.com/birds/barnowl">Barn Owl</html:p>
-    <html:p id="http://www.some-fictitious-zoo.com/birds/raven">Raven</html:p>
-    <html:p step="2" id="http://www.some-fictitious-zoo.com/birds/archaeopteryx">Archaeopteryx</html:p>
-    <html:p step="1" id="http://www.some-fictitious-zoo.com/birds/emperorpenguin">Emperor Penguin</html:p>
-  </data>
-
 <script src="templates_shared.js"/>
 
 <script>
@@ -35,7 +26,15 @@ var isTreeBuilder = false;
 var needsOpen = false;
 var notWorkingYet = false;
 var notWorkingYetDynamic = false;
-var expectedOutput = document.getElementById("output");
+var expectedOutput =
+<output xmlns:html="http://www.w3.org/1999/xhtml">
+  <html:p step="3" id="http://www.some-fictitious-zoo.com/birds/wren">Wren</html:p>
+  <html:p id="http://www.some-fictitious-zoo.com/birds/emu">Emu</html:p>
+  <html:p step="-4" id="http://www.some-fictitious-zoo.com/birds/barnowl">Barn Owl</html:p>
+  <html:p id="http://www.some-fictitious-zoo.com/birds/raven">Raven</html:p>
+  <html:p step="2" id="http://www.some-fictitious-zoo.com/birds/archaeopteryx">Archaeopteryx</html:p>
+  <html:p step="1" id="http://www.some-fictitious-zoo.com/birds/emperorpenguin">Emperor Penguin</html:p>
+</output>;
 
 var changes = [
   // step 1

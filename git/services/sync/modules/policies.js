@@ -1,32 +1,58 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Firefox Sync.
+ *
+ * The Initial Developer of the Original Code is
+ * the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Marina Samuel <msamuel@mozilla.com>
+ *  Philipp von Weitershausen <philipp@weitershausen.de>
+ *  Chenxia Liu <liuche@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-this.EXPORTED_SYMBOLS = [
-  "ErrorHandler",
-  "SyncScheduler",
-];
+
+const EXPORTED_SYMBOLS = ["SyncScheduler", "ErrorHandler"];
 
 const {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
 
-Cu.import("resource://services-common/log4moz.js");
 Cu.import("resource://services-sync/constants.js");
-Cu.import("resource://services-sync/engines.js");
-Cu.import("resource://services-sync/status.js");
+Cu.import("resource://services-sync/log4moz.js");
 Cu.import("resource://services-sync/util.js");
+Cu.import("resource://services-sync/engines.js");
+Cu.import("resource://services-sync/engines/clients.js");
+Cu.import("resource://services-sync/status.js");
 
-this.SyncScheduler = function SyncScheduler(service) {
-  this.service = service;
-  this.init();
-}
-SyncScheduler.prototype = {
+Cu.import("resource://services-sync/main.js");    // So we can get to Service for callbacks.
+
+let SyncScheduler = {
   _log: Log4Moz.repository.getLogger("Sync.SyncScheduler"),
-
-  _fatalLoginStatus: [LOGIN_FAILED_NO_USERNAME,
-                      LOGIN_FAILED_NO_PASSWORD,
-                      LOGIN_FAILED_NO_PASSPHRASE,
-                      LOGIN_FAILED_INVALID_PASSPHRASE,
-                      LOGIN_FAILED_LOGIN_REJECTED],
 
   /**
    * The nsITimer object that schedules the next sync. See scheduleNextSync().
@@ -40,7 +66,6 @@ SyncScheduler.prototype = {
     this.idleInterval         = Svc.Prefs.get("scheduler.idleInterval")         * 1000;
     this.activeInterval       = Svc.Prefs.get("scheduler.activeInterval")       * 1000;
     this.immediateInterval    = Svc.Prefs.get("scheduler.immediateInterval")    * 1000;
-    this.eolInterval          = Svc.Prefs.get("scheduler.eolInterval")          * 1000;
 
     // A user is non-idle on startup by default.
     this.idle = false;
@@ -90,7 +115,6 @@ SyncScheduler.prototype = {
   },
 
   observe: function observe(subject, topic, data) {
-    this._log.trace("Handling " + topic);
     switch(topic) {
       case "weave:engine:score:updated":
         if (Status.login == LOGIN_SUCCEEDED) {
@@ -138,7 +162,7 @@ SyncScheduler.prototype = {
         }
         break;
       case "weave:engine:sync:error":
-        // `subject` is the exception thrown by an engine's sync() method.
+        // subject is the exception thrown by an engine's sync() method
         let exception = subject;
         if (exception.status >= 500 && exception.status <= 504) {
           this.requiresBackoff = true;
@@ -147,16 +171,12 @@ SyncScheduler.prototype = {
       case "weave:service:login:error":
         this.clearSyncTriggers();
 
+        // Try again later, just as if we threw an error... only without the
+        // error count.
         if (Status.login == MASTER_PASSWORD_LOCKED) {
-          // Try again later, just as if we threw an error... only without the
-          // error count.
           this._log.debug("Couldn't log in: master password is locked.");
           this._log.trace("Scheduling a sync at MASTER_PASSWORD_LOCKED_RETRY_INTERVAL");
           this.scheduleAtInterval(MASTER_PASSWORD_LOCKED_RETRY_INTERVAL);
-        } else if (this._fatalLoginStatus.indexOf(Status.login) == -1) {
-          // Not a fatal login error, just an intermittent network or server
-          // issue. Keep on syncin'.
-          this.checkSyncStatus();
         }
         break;
       case "weave:service:logout:finish":
@@ -174,12 +194,10 @@ SyncScheduler.prototype = {
         break;
       case "weave:service:backoff:interval":
         let requested_interval = subject * 1000;
-        this._log.debug("Got backoff notification: " + requested_interval + "ms");
         // Leave up to 25% more time for the back off.
         let interval = requested_interval * (1 + Math.random() * 0.25);
         Status.backoffInterval = interval;
         Status.minimumNextSync = Date.now() + requested_interval;
-        this._log.debug("Fuzzed minimum next sync: " + Status.minimumNextSync);
         break;
       case "weave:service:ready":
         // Applications can specify this preference if they want autoconnect
@@ -190,25 +208,17 @@ SyncScheduler.prototype = {
         }
         break;
       case "weave:engine:sync:applied":
-        let numItems = subject.succeeded;
-        this._log.trace("Engine " + data + " successfully applied " + numItems +
-                        " items.");
-        if (numItems) {
+        let numItems = subject.applied;
+        this._log.trace("Engine " + data + " applied " + numItems + " items.");
+        if (numItems)
           this.hasIncomingItems = true;
-        }
         break;
       case "weave:service:setup-complete":
-         Services.prefs.savePrefFile(null);
          Svc.Idle.addIdleObserver(this, Svc.Prefs.get("scheduler.idleTime"));
          break;
       case "weave:service:start-over":
-         this.setDefaults();
-         try {
-           Svc.Idle.removeIdleObserver(this, Svc.Prefs.get("scheduler.idleTime"));
-         } catch (ex if (ex.result == Cr.NS_ERROR_FAILURE)) {
-           // In all likelihood we didn't have an idle observer registered yet.
-           // It's all good.
-         }
+         Svc.Idle.removeIdleObserver(this, Svc.Prefs.get("scheduler.idleTime"));
+         SyncScheduler.setDefaults();
          break;
       case "idle":
         this._log.trace("We're idle.");
@@ -239,18 +249,11 @@ SyncScheduler.prototype = {
   },
 
   adjustSyncInterval: function adjustSyncInterval() {
-    if (Status.eol) {
-      this._log.debug("Server status is EOL; using eolInterval.");
-      this.syncInterval = this.eolInterval;
-      return;
-    }
-
     if (this.numClients <= 1) {
       this._log.trace("Adjusting syncInterval to singleDeviceInterval.");
       this.syncInterval = this.singleDeviceInterval;
       return;
     }
-
     // Only MULTI_DEVICE clients will enter this if statement
     // since SINGLE_USER clients will be handled above.
     if (this.idle) {
@@ -270,7 +273,7 @@ SyncScheduler.prototype = {
   },
 
   calculateScore: function calculateScore() {
-    let engines = [this.service.clientsEngine].concat(this.service.engineManager.getEnabled());
+    let engines = [Clients].concat(Engines.getEnabled());
     for (let i = 0;i < engines.length;i++) {
       this._log.trace(engines[i].name + ": score: " + engines[i].score);
       this.globalScore += engines[i].score;
@@ -286,7 +289,7 @@ SyncScheduler.prototype = {
    */
   updateClientMode: function updateClientMode() {
     // Nothing to do if it's the same amount
-    let numClients = this.service.clientsEngine.stats.numClients;
+    let numClients = Clients.stats.numClients;
     if (this.numClients == numClients)
       return;
 
@@ -310,7 +313,7 @@ SyncScheduler.prototype = {
     // Should we be syncing now, if not, cancel any sync timers and return
     // if we're in backoff, we'll schedule the next sync.
     let ignore = [kSyncBackoffNotMet, kSyncMasterPasswordLocked];
-    let skip = this.service._checkSync(ignore);
+    let skip = Weave.Service._checkSync(ignore);
     this._log.trace("_checkSync returned \"" + skip + "\".");
     if (skip) {
       this.clearSyncTriggers();
@@ -343,7 +346,7 @@ SyncScheduler.prototype = {
       return;
     }
 
-    Utils.nextTick(this.service.sync, this.service);
+    Utils.nextTick(Weave.Service.sync, Weave.Service);
   },
 
   /**
@@ -358,7 +361,7 @@ SyncScheduler.prototype = {
     // Ensure the interval is set to no less than the backoff.
     if (Status.backoffInterval && interval < Status.backoffInterval) {
       this._log.trace("Requested interval " + interval +
-                      " ms is smaller than the backoff interval. " +
+                      " ms is smaller than the backoff interval. " + 
                       "Using backoff interval " +
                       Status.backoffInterval + " ms instead.");
       interval = Status.backoffInterval;
@@ -397,9 +400,7 @@ SyncScheduler.prototype = {
    * non-syncing.
    */
   scheduleAtInterval: function scheduleAtInterval(minimumInterval) {
-    let interval = Utils.calculateBackoff(this._syncErrors,
-                                          MINIMUM_BACKOFF_INTERVAL,
-                                          Status.backoffInterval);
+    let interval = Utils.calculateBackoff(this._syncErrors, MINIMUM_BACKOFF_INTERVAL);
     if (minimumInterval) {
       interval = Math.max(minimumInterval, interval);
     }
@@ -418,13 +419,13 @@ SyncScheduler.prototype = {
   * Sync should first start to sync.
   */
   delayedAutoConnect: function delayedAutoConnect(delay) {
-    if (this.service._checkSetup() == STATUS_OK) {
+    if (Weave.Service._checkSetup() == STATUS_OK) {
       Utils.namedTimer(this.autoConnect, delay * 1000, this, "_autoTimer");
     }
   },
 
   autoConnect: function autoConnect() {
-    if (this.service._checkSetup() == STATUS_OK && !this.service._checkSync()) {
+    if (Weave.Service._checkSetup() == STATUS_OK && !Weave.Service._checkSync()) {
       // Schedule a sync based on when a previous sync was scheduled.
       // scheduleNextSync() will do the right thing if that time lies in
       // the past.
@@ -442,7 +443,6 @@ SyncScheduler.prototype = {
    * Deal with sync errors appropriately
    */
   handleSyncError: function handleSyncError() {
-    this._log.trace("In handleSyncError. Error count: " + this._syncErrors);
     this._syncErrors++;
 
     // Do nothing on the first couple of failures, if we're not in
@@ -452,8 +452,6 @@ SyncScheduler.prototype = {
         this.scheduleNextSync();
         return;
       }
-      this._log.debug("Sync error count has exceeded " +
-                      MAX_ERROR_COUNT_BEFORE_BACKOFF + "; enforcing backoff.");
       Status.enforceBackoff = true;
     }
 
@@ -465,24 +463,19 @@ SyncScheduler.prototype = {
    * Remove any timers/observers that might trigger a sync
    */
   clearSyncTriggers: function clearSyncTriggers() {
-    this._log.debug("Clearing sync triggers and the global score.");
-    this.globalScore = this.nextSync = 0;
+    this._log.debug("Clearing sync triggers.");
 
     // Clear out any scheduled syncs
     if (this.syncTimer)
       this.syncTimer.clear();
-  },
+  }
+
 };
 
 const LOG_PREFIX_SUCCESS = "success-";
 const LOG_PREFIX_ERROR   = "error-";
 
-this.ErrorHandler = function ErrorHandler(service) {
-  this.service = service;
-  this.init();
-}
-ErrorHandler.prototype = {
-  MINIMUM_ALERT_INTERVAL_MSEC: 604800000,   // One week.
+let ErrorHandler = {
 
   /**
    * Flag that turns on error reporting for all errors, incl. network errors.
@@ -522,7 +515,6 @@ ErrorHandler.prototype = {
   },
 
   observe: function observe(subject, topic, data) {
-    this._log.trace("Handling " + topic);
     switch(topic) {
       case "weave:engine:sync:applied":
         if (subject.newFailed) {
@@ -556,7 +548,7 @@ ErrorHandler.prototype = {
         break;
       case "weave:service:sync:error":
         if (Status.sync == CREDENTIALS_CHANGED) {
-          this.service.logout();
+          Weave.Service.logout();
         }
 
         this.resetFileLog(Svc.Prefs.get("log.appender.file.logOnError"),
@@ -571,19 +563,6 @@ ErrorHandler.prototype = {
         this.dontIgnoreErrors = false;
         break;
       case "weave:service:sync:finish":
-        this._log.trace("Status.service is " + Status.service);
-
-        // Check both of these status codes: in the event of a failure in one
-        // engine, Status.service will be SYNC_FAILED_PARTIAL despite
-        // Status.sync being SYNC_SUCCEEDED.
-        // *facepalm*
-        if (Status.sync    == SYNC_SUCCEEDED &&
-            Status.service == STATUS_OK) {
-          // Great. Let's clear our mid-sync 401 note.
-          this._log.trace("Clearing lastSyncReassigned.");
-          Svc.Prefs.reset("lastSyncReassigned");
-        }
-
         if (Status.service == SYNC_FAILED_PARTIAL) {
           this._log.debug("Some engines did not sync correctly.");
           this.resetFileLog(Svc.Prefs.get("log.appender.file.logOnError"),
@@ -605,12 +584,7 @@ ErrorHandler.prototype = {
   },
 
   notifyOnNextTick: function notifyOnNextTick(topic) {
-    Utils.nextTick(function() {
-      this._log.trace("Notifying " + topic +
-                      ". Status.login is " + Status.login +
-                      ". Status.sync is " + Status.sync);
-      Svc.Obs.notify(topic);
-    }, this);
+    Utils.nextTick(function() Svc.Obs.notify(topic));
   },
 
   /**
@@ -620,7 +594,7 @@ ErrorHandler.prototype = {
     this._log.debug("Beginning user-triggered sync.");
 
     this.dontIgnoreErrors = true;
-    Utils.nextTick(this.service.sync, this.service);
+    Utils.nextTick(Weave.Service.sync, Weave.Service);
   },
 
   /**
@@ -632,31 +606,24 @@ ErrorHandler.prototype = {
     let index = 0;
     let threshold = Date.now() - 1000 * Svc.Prefs.get("log.appender.file.maxErrorAge");
 
-    this._log.debug("Log cleanup threshold time: " + threshold);
     while (direntries.hasMoreElements()) {
       let logFile = direntries.getNext().QueryInterface(Ci.nsIFile);
       if (logFile.lastModifiedTime < threshold) {
-        this._log.trace(" > Noting " + logFile.leafName +
-                        " for cleanup (" + logFile.lastModifiedTime + ")");
         oldLogs.push(logFile);
       }
     }
 
     // Deletes a file from oldLogs each tick until there are none left.
-    let errorHandler = this;
     function deleteFile() {
       if (index >= oldLogs.length) {
-        errorHandler._log.debug("Done deleting files.");
-        errorHandler._cleaningUpFileLogs = false;
+        ErrorHandler._cleaningUpFileLogs = false;
         Svc.Obs.notify("weave:service:cleanup-logs");
         return;
       }
       try {
-        let file = oldLogs[index];
-        file.remove(false);
-        errorHandler._log.trace("Deleted " + file.leafName + ".");
+        oldLogs[index].remove(false);
       } catch (ex) {
-        errorHandler._log._debug("Encountered error trying to clean up old log file '"
+        ErrorHandler._log._debug("Encountered error trying to clean up old log file '"
                                  + oldLogs[index].leafName + "':"
                                  + Utils.exceptionStr(ex));
       }
@@ -665,10 +632,8 @@ ErrorHandler.prototype = {
     }
 
     if (oldLogs.length > 0) {
-      this._cleaningUpFileLogs = true;
+      ErrorHandler._cleaningUpFileLogs = true;
       Utils.nextTick(deleteFile);
-    } else {
-      this._log.debug("No logs to clean up.");
     }
   },
 
@@ -687,25 +652,17 @@ ErrorHandler.prototype = {
     let inStream = this._logAppender.getInputStream();
     this._logAppender.reset();
     if (flushToFile && inStream) {
-      this._log.debug("Flushing file log.");
       try {
         let filename = filenamePrefix + Date.now() + ".txt";
         let file = FileUtils.getFile("ProfD", ["weave", "logs", filename]);
         let outStream = FileUtils.openFileOutputStream(file);
-
-        this._log.trace("Beginning stream copy to " + file.leafName + ": " +
-                        Date.now());
-        NetUtil.asyncCopy(inStream, outStream, function onCopyComplete() {
-          this._log.trace("onCopyComplete: " + Date.now());
-          this._log.trace("Output file timestamp: " + file.lastModifiedTime);
+        NetUtil.asyncCopy(inStream, outStream, function () {
           Svc.Obs.notify("weave:service:reset-file-log");
-          this._log.trace("Notified: " + Date.now());
-          if (filenamePrefix == LOG_PREFIX_ERROR &&
-              !this._cleaningUpFileLogs) {
-            this._log.trace("Scheduling cleanup.");
-            Utils.nextTick(this.cleanupLogs, this);
+          if (filenamePrefix == LOG_PREFIX_ERROR
+              && !ErrorHandler._cleaningUpFileLogs) {
+            Utils.nextTick(ErrorHandler.cleanupLogs, ErrorHandler);
           }
-        }.bind(this));
+        });
       } catch (ex) {
         Svc.Obs.notify("weave:service:reset-file-log");
       }
@@ -747,7 +704,6 @@ ErrorHandler.prototype = {
 
   shouldReportError: function shouldReportError() {
     if (Status.login == MASTER_PASSWORD_LOCKED) {
-      this._log.trace("shouldReportError: false (master password locked).");
       return false;
     }
 
@@ -759,114 +715,19 @@ ErrorHandler.prototype = {
     if (lastSync && ((Date.now() - Date.parse(lastSync)) >
         Svc.Prefs.get("errorhandler.networkFailureReportTimeout") * 1000)) {
       Status.sync = PROLONGED_SYNC_FAILURE;
-      this._log.trace("shouldReportError: true (prolonged sync failure).");
       return true;
-    }
-
-    // We got a 401 mid-sync. Wait for the next sync before actually handling
-    // an error. This assumes that we'll get a 401 again on a login fetch in
-    // order to report the error.
-    if (!this.service.clusterURL) {
-      this._log.trace("shouldReportError: false (no cluster URL; " +
-                      "possible node reassignment).");
-      return false;
     }
 
     return ([Status.login, Status.sync].indexOf(SERVER_MAINTENANCE) == -1 &&
             [Status.login, Status.sync].indexOf(LOGIN_FAILED_NETWORK_ERROR) == -1);
   },
 
-  get currentAlertMode() {
-    return Svc.Prefs.get("errorhandler.alert.mode");
-  },
-
-  set currentAlertMode(str) {
-    return Svc.Prefs.set("errorhandler.alert.mode", str);
-  },
-
-  get earliestNextAlert() {
-    return Svc.Prefs.get("errorhandler.alert.earliestNext", 0) * 1000;
-  },
-
-  set earliestNextAlert(msec) {
-    return Svc.Prefs.set("errorhandler.alert.earliestNext", msec / 1000);
-  },
-
-  clearServerAlerts: function () {
-    // If we have any outstanding alerts, apparently they're no longer relevant.
-    Svc.Prefs.resetBranch("errorhandler.alert");
-  },
-
-  /**
-   * X-Weave-Alert headers can include a JSON object:
-   *
-   *   {
-   *    "code":    // One of "hard-eol", "soft-eol".
-   *    "url":     // For "Learn more" link.
-   *    "message": // Logged in Sync logs.
-   *   }
-   */
-  handleServerAlert: function (xwa) {
-    if (!xwa.code) {
-      this._log.warn("Got structured X-Weave-Alert, but no alert code.");
-      return;
-    }
-
-    switch (xwa.code) {
-      // Gently and occasionally notify the user that this service will be
-      // shutting down.
-      case "soft-eol":
-        // Fall through.
-
-      // Tell the user that this service has shut down, and drop our syncing
-      // frequency dramatically.
-      case "hard-eol":
-        // Note that both of these alerts should be subservient to future "sign
-        // in with your Firefox Account" storage alerts.
-        if ((this.currentAlertMode != xwa.code) ||
-            (this.earliestNextAlert < Date.now())) {
-          Utils.nextTick(function() {
-            Svc.Obs.notify("weave:eol", xwa);
-          }, this);
-          this._log.error("X-Weave-Alert: " + xwa.code + ": " + xwa.message);
-          this.earliestNextAlert = Date.now() + this.MINIMUM_ALERT_INTERVAL_MSEC;
-          this.currentAlertMode = xwa.code;
-        }
-        break;
-      default:
-        this._log.debug("Got unexpected X-Weave-Alert code: " + xwa.code);
-    }
-  },
-
   /**
    * Handle HTTP response results or exceptions and set the appropriate
    * Status.* bits.
-   *
-   * This method also looks for "side-channel" warnings.
    */
-  checkServerError: function (resp) {
+  checkServerError: function checkServerError(resp) {
     switch (resp.status) {
-      case 200:
-      case 404:
-      case 513:
-        let xwa = resp.headers['x-weave-alert'];
-
-        // Only process machine-readable alerts.
-        if (!xwa || !xwa.startsWith("{")) {
-          this.clearServerAlerts();
-          return;
-        }
-
-        try {
-          xwa = JSON.parse(xwa);
-        } catch (ex) {
-          this._log.warn("Malformed X-Weave-Alert from server: " + xwa);
-          return;
-        }
-
-        this.handleServerAlert(xwa);
-        break;
-        
       case 400:
         if (resp == RESPONSE_OVER_QUOTA) {
           Status.sync = OVER_QUOTA;
@@ -874,25 +735,8 @@ ErrorHandler.prototype = {
         break;
 
       case 401:
-        this.service.logout();
-        this._log.info("Got 401 response; resetting clusterURL.");
-        Svc.Prefs.reset("clusterURL");
-
-        let delay = 0;
-        if (Svc.Prefs.get("lastSyncReassigned")) {
-          // We got a 401 in the middle of the previous sync, and we just got
-          // another. Login must have succeeded in order for us to get here, so
-          // the password should be correct.
-          // This is likely to be an intermittent server issue, so back off and
-          // give it time to recover.
-          this._log.warn("Last sync also failed for 401. Delaying next sync.");
-          delay = MINIMUM_BACKOFF_INTERVAL;
-        } else {
-          this._log.debug("New mid-sync 401 failure. Making a note.");
-          Svc.Prefs.set("lastSyncReassigned", true);
-        }
-        this._log.info("Attempting to schedule another sync.");
-        this.service.scheduler.scheduleNextSync(delay);
+        Weave.Service.logout();
+        Status.login = LOGIN_FAILED_LOGIN_REJECTED;
         break;
 
       case 500:
@@ -901,15 +745,13 @@ ErrorHandler.prototype = {
       case 504:
         Status.enforceBackoff = true;
         if (resp.status == 503 && resp.headers["retry-after"]) {
-          let retryAfter = resp.headers["retry-after"];
-          this._log.debug("Got Retry-After: " + retryAfter);
-          if (this.service.isLoggedIn) {
+          if (Weave.Service.isLoggedIn) {
             Status.sync = SERVER_MAINTENANCE;
           } else {
             Status.login = SERVER_MAINTENANCE;
           }
           Svc.Obs.notify("weave:service:backoff:interval",
-                         parseInt(retryAfter, 10));
+                         parseInt(resp.headers["retry-after"], 10));
         }
         break;
     }
@@ -923,7 +765,7 @@ ErrorHandler.prototype = {
       case Cr.NS_ERROR_PROXY_CONNECTION_REFUSED:
         // The constant says it's about login, but in fact it just
         // indicates general network error.
-        if (this.service.isLoggedIn) {
+        if (Weave.Service.isLoggedIn) {
           Status.sync = LOGIN_FAILED_NETWORK_ERROR;
         } else {
           Status.login = LOGIN_FAILED_NETWORK_ERROR;

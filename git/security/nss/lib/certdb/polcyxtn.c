@@ -1,9 +1,43 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape security libraries.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1994-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * Support for various policy related extensions
+ *
+ * $Id: polcyxtn.c,v 1.11 2008/02/13 04:03:19 julien.pierre.boogz%sun.com Exp $
  */
 
 #include "seccomon.h"
@@ -146,9 +180,9 @@ breakLines(char *string)
 }
 
 CERTCertificatePolicies *
-CERT_DecodeCertificatePoliciesExtension(const SECItem *extnValue)
+CERT_DecodeCertificatePoliciesExtension(SECItem *extnValue)
 {
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
     SECStatus rv;
     CERTCertificatePolicies *policies;
     CERTPolicyInfo **policyInfos, *policyInfo;
@@ -224,7 +258,7 @@ CERT_DestroyCertificatePoliciesExtension(CERTCertificatePolicies *policies)
 CERTCertificatePolicyMappings *
 CERT_DecodePolicyMappingsExtension(SECItem *extnValue)
 {
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
     SECStatus rv;
     CERTCertificatePolicyMappings *mappings;
     SECItem newExtnValue;
@@ -279,10 +313,10 @@ CERT_DestroyPolicyMappingsExtension(CERTCertificatePolicyMappings *mappings)
 SECStatus
 CERT_DecodePolicyConstraintsExtension
                              (CERTCertificatePolicyConstraints *decodedValue,
-                              const SECItem *encodedValue)
+                              SECItem *encodedValue)
 {
     CERTCertificatePolicyConstraints decodeContext;
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
     SECStatus rv = SECSuccess;
 
     /* initialize so we can tell when an optional component is omitted */
@@ -338,7 +372,7 @@ SECStatus CERT_DecodeInhibitAnyExtension
         (CERTCertificateInhibitAny *decodedValue, SECItem *encodedValue)
 {
     CERTCertificateInhibitAny decodeContext;
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
     SECStatus rv = SECSuccess;
 
     /* make a new arena */
@@ -370,7 +404,7 @@ SECStatus CERT_DecodeInhibitAnyExtension
 CERTUserNotice *
 CERT_DecodeUserNotice(SECItem *noticeItem)
 {
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
     SECStatus rv;
     CERTUserNotice *userNotice;
     SECItem newNoticeItem;
@@ -602,9 +636,9 @@ const SEC_ASN1Template CERT_OidSeqTemplate[] = {
 };
 
 CERTOidSequence *
-CERT_DecodeOidSequence(const SECItem *seqItem)
+CERT_DecodeOidSequence(SECItem *seqItem)
 {
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
     SECStatus rv;
     CERTOidSequence *oidSeq;
     SECItem newSeqItem;
@@ -708,7 +742,7 @@ done:
 
 
 SECStatus
-CERT_EncodePolicyConstraintsExtension(PLArenaPool *arena,
+CERT_EncodePolicyConstraintsExtension(PRArenaPool *arena,
                                       CERTCertificatePolicyConstraints *constr,
                                       SECItem *dest)
 {
@@ -727,7 +761,7 @@ CERT_EncodePolicyConstraintsExtension(PLArenaPool *arena,
 }
 
 SECStatus
-CERT_EncodePolicyMappingExtension(PLArenaPool *arena,
+CERT_EncodePolicyMappingExtension(PRArenaPool *arena,
                                   CERTCertificatePolicyMappings *mapping,
                                   SECItem *dest)
 {
@@ -748,7 +782,7 @@ CERT_EncodePolicyMappingExtension(PLArenaPool *arena,
 
 
 SECStatus
-CERT_EncodeCertPoliciesExtension(PLArenaPool *arena,
+CERT_EncodeCertPoliciesExtension(PRArenaPool *arena,
                                  CERTPolicyInfo **info,
                                  SECItem *dest)
 {
@@ -767,7 +801,7 @@ CERT_EncodeCertPoliciesExtension(PLArenaPool *arena,
 }
 
 SECStatus
-CERT_EncodeUserNotice(PLArenaPool *arena,
+CERT_EncodeUserNotice(PRArenaPool *arena,
                       CERTUserNotice *notice,
                       SECItem *dest)
 {
@@ -787,7 +821,7 @@ CERT_EncodeUserNotice(PLArenaPool *arena,
 }
 
 SECStatus
-CERT_EncodeNoticeReference(PLArenaPool *arena,
+CERT_EncodeNoticeReference(PRArenaPool *arena,
                            CERTNoticeReference *reference,
                            SECItem *dest)
 {
@@ -807,7 +841,7 @@ CERT_EncodeNoticeReference(PLArenaPool *arena,
 }
 
 SECStatus
-CERT_EncodeInhibitAnyExtension(PLArenaPool *arena,
+CERT_EncodeInhibitAnyExtension(PRArenaPool *arena,
                                CERTCertificateInhibitAny *certInhibitAny,
                                SECItem *dest)
 {

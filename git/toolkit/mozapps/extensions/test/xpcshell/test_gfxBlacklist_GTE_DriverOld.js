@@ -6,22 +6,12 @@
 // blacklist entry is allowed.
 // Uses test_gfxBlacklist.xml
 
-Components.utils.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 
-var gTestserver = new HttpServer();
-gTestserver.start(-1);
-gPort = gTestserver.identity.primaryPort;
-mapFile("/data/test_gfxBlacklist.xml", gTestserver);
-
-function get_platform() {
-  var xulRuntime = Components.classes["@mozilla.org/xre/app-info;1"]
-                             .getService(Components.interfaces.nsIXULRuntime);
-  return xulRuntime.OS;
-}
+var gTestserver = null;
 
 function load_blocklist(file) {
-  Services.prefs.setCharPref("extensions.blocklist.url", "http://localhost:" +
-                             gPort + "/data/" + file);
+  Services.prefs.setCharPref("extensions.blocklist.url", "http://localhost:4444/data/" + file);
   var blocklist = Cc["@mozilla.org/extensions/blocklist;1"].
                   getService(Ci.nsITimerCallback);
   blocklist.notify(null);
@@ -45,31 +35,18 @@ function run_test() {
   gfxInfo.QueryInterface(Ci.nsIGfxInfoDebug);
 
   // Set the vendor/device ID, etc, to match the test file.
-  switch (get_platform()) {
-    case "WINNT":
-      gfxInfo.spoofVendorID("0xabab");
-      gfxInfo.spoofDeviceID("0x1234");
-      gfxInfo.spoofDriverVersion("8.52.322.2201");
-      // Windows 7
-      gfxInfo.spoofOSVersion(0x60001);
-      break;
-    case "Linux":
-      // We don't support driver versions on Linux.
-      do_test_finished();
-      return;
-    case "Darwin":
-      // We don't support driver versions on Darwin.
-      do_test_finished();
-      return;
-    case "Android":
-      gfxInfo.spoofVendorID("abab");
-      gfxInfo.spoofDeviceID("ghjk");
-      gfxInfo.spoofDriverVersion("6");
-      break;
-  }
+  gfxInfo.spoofVendorID(0xabab);
+  gfxInfo.spoofDeviceID(0x1234);
+  gfxInfo.spoofDriverVersion("8.52.322.2201");
+  // Windows 7
+  gfxInfo.spoofOSVersion(0x60001);
 
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "3", "8");
   startupManager();
+
+  gTestserver = new nsHttpServer();
+  gTestserver.registerDirectory("/data/", do_get_file("data"));
+  gTestserver.start(4444);
 
   do_test_pending();
 

@@ -90,14 +90,14 @@ static nsresult StartupProfile();
 
 // Global variables
 static UINT gDialogCount = 0;
-static HINSTANCE ghInstanceApp = nullptr;
+static HINSTANCE ghInstanceApp = NULL;
 static char gFirstURL[1024];
 
 // like strpbrk but finds the *last* char, not the first
 static char*
 ns_strrpbrk(char *string, const char *strCharSet)
 {
-    char *found = nullptr;
+    char *found = NULL;
     for (; *string; ++string) {
         for (const char *search = strCharSet; *search; ++search) {
             if (*search == *string) {
@@ -159,7 +159,7 @@ int main(int argc, char *argv[])
     }
     strncpy(gFirstURL, szFirstURL, sizeof(gFirstURL) - 1);
 
-    ghInstanceApp = GetModuleHandle(nullptr);
+    ghInstanceApp = GetModuleHandle(NULL);
 
     // Initialize global strings
     TCHAR szTitle[MAX_LOADSTRING];
@@ -180,7 +180,7 @@ int main(int argc, char *argv[])
 
     strcpy(lastslash, "\\xulrunner\\xul.dll");
 
-    HINSTANCE xulModule = LoadLibraryEx(path, nullptr, 0);
+    HINSTANCE xulModule = LoadLibraryEx(path, NULL, 0);
     if (!xulModule)
         return 4;
 
@@ -198,30 +198,29 @@ int main(int argc, char *argv[])
         return 5;
     }
 
-    int result = 0;
-
     // Scope all the XPCOM stuff
     {
         strcpy(lastslash, "\\xulrunner");
 
-        nsCOMPtr<nsIFile> xuldir;
-        rv = NS_NewNativeLocalFile(nsCString(path), false,
+        nsCOMPtr<nsILocalFile> xuldir;
+        rv = NS_NewNativeLocalFile(nsCString(path), PR_FALSE,
                                    getter_AddRefs(xuldir));
         if (NS_FAILED(rv))
             return 6;
 
         *lastslash = '\0';
 
-        nsCOMPtr<nsIFile> appdir;
-        rv = NS_NewNativeLocalFile(nsCString(path), false,
+        nsCOMPtr<nsILocalFile> appdir;
+        rv = NS_NewNativeLocalFile(nsCString(path), PR_FALSE,
                                    getter_AddRefs(appdir));
         if (NS_FAILED(rv))
             return 8;
 
-        rv = XRE_InitEmbedding2(xuldir, appdir, nullptr);
+        rv = XRE_InitEmbedding2(xuldir, appdir, nsnull);
         if (NS_FAILED(rv))
             return 9;
 
+        int result = 0;
         if (NS_FAILED(StartupProfile())) {
             result = 8;
         }
@@ -234,14 +233,14 @@ int main(int argc, char *argv[])
             // Main message loop.
             // NOTE: We use a fake event and a timeout in order to process idle stuff for
             //       Mozilla every 1/10th of a second.
-            bool runCondition = true;
+            PRBool runCondition = PR_TRUE;
 
-            result = AppCallbacks::RunEventLoop(runCondition);
+            rv = AppCallbacks::RunEventLoop(runCondition);
         }
     }
     XRE_TermEmbedding();
 
-    return result;
+    return rv;
 }
 
 /* InitializeWindowCreator creates and hands off an object with a callback
@@ -280,7 +279,7 @@ nsresult OpenWebPage(const char *url)
 
     nsCOMPtr<nsIWebBrowserChrome> chrome;
     rv = AppCallbacks::CreateBrowserWindow(nsIWebBrowserChrome::CHROME_ALL,
-           nullptr, getter_AddRefs(chrome));
+           nsnull, getter_AddRefs(chrome));
     if (NS_SUCCEEDED(rv))
     {
         // Start loading a page
@@ -290,9 +289,9 @@ nsresult OpenWebPage(const char *url)
 
         return webNav->LoadURI(NS_ConvertASCIItoUTF16(url).get(),
                                nsIWebNavigation::LOAD_FLAGS_NONE,
-                               nullptr,
-                               nullptr,
-                               nullptr);
+                               nsnull,
+                               nsnull,
+                               nsnull);
     }
 
     return rv;
@@ -308,10 +307,10 @@ HWND GetBrowserFromChrome(nsIWebBrowserChrome *aChrome)
 {
     if (!aChrome)
     {
-        return nullptr;
+        return NULL;
     }
     nsCOMPtr<nsIEmbeddingSiteWindow> baseWindow = do_QueryInterface(aChrome);
-    HWND hwnd = nullptr;
+    HWND hwnd = NULL;
     baseWindow->GetSiteWindow((void **) & hwnd);
     return hwnd;
 }
@@ -359,8 +358,8 @@ nsresult ResizeEmbedding(nsIWebBrowserChrome* chrome)
                                    rect.top, 
                                    rect.right - rect.left, 
                                    rect.bottom - rect.top,
-                                   true);
-        webBrowserAsWin->SetVisibility(true);
+                                   PR_TRUE);
+        webBrowserAsWin->SetVisibility(PR_TRUE);
     }
 
     return NS_OK;
@@ -393,7 +392,7 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
     wcex.cbWndExtra        = 0;
     wcex.hInstance        = hInstance;
     wcex.hIcon            = LoadIcon(ghInstanceApp, (LPCTSTR)IDI_WINEMBED);
-    wcex.hCursor        = LoadCursor(nullptr, IDC_ARROW);
+    wcex.hCursor        = LoadCursor(NULL, IDC_ARROW);
     wcex.hbrBackground    = (HBRUSH)(COLOR_WINDOW+1);
     wcex.lpszClassName    = szWindowClass;
     wcex.hIconSm        = LoadIcon(ghInstanceApp, (LPCTSTR)IDI_SMALL);
@@ -415,17 +414,17 @@ void UpdateUI(nsIWebBrowserChrome *aChrome)
     aChrome->GetWebBrowser(getter_AddRefs(webBrowser));
     webNavigation = do_QueryInterface(webBrowser);
 
-    bool canGoBack = false;
-    bool canGoForward = false;
+    PRBool canGoBack = PR_FALSE;
+    PRBool canGoForward = PR_FALSE;
     if (webNavigation)
     {
         webNavigation->GetCanGoBack(&canGoBack);
         webNavigation->GetCanGoForward(&canGoForward);
     }
 
-    bool canCutSelection = false;
-    bool canCopySelection = false;
-    bool canPaste = false;
+    PRBool canCutSelection = PR_FALSE;
+    PRBool canCopySelection = PR_FALSE;
+    PRBool canPaste = PR_FALSE;
 
     nsCOMPtr<nsIClipboardCommands> clipCmds = do_GetInterface(webBrowser);
     if (clipCmds)
@@ -474,7 +473,7 @@ INT_PTR CALLBACK BrowserDlgProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM l
 {
     // Get the browser and other pointers since they are used a lot below
     HWND hwndBrowser = GetDlgItem(hwndDlg, IDC_BROWSER);
-    nsIWebBrowserChrome *chrome = nullptr ;
+    nsIWebBrowserChrome *chrome = nsnull ;
     if (hwndBrowser)
     {
         chrome = (nsIWebBrowserChrome *) GetWindowLongPtr(hwndBrowser, GWLP_USERDATA);
@@ -534,9 +533,9 @@ INT_PTR CALLBACK BrowserDlgProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM l
                 webNavigation->LoadURI(
                     NS_ConvertASCIItoUTF16(szURL).get(),
                     nsIWebNavigation::LOAD_FLAGS_NONE,
-                    nullptr,
-                    nullptr,
-                    nullptr);
+                    nsnull,
+                    nsnull,
+                    nsnull);
             }
             break;
 
@@ -616,7 +615,7 @@ INT_PTR CALLBACK BrowserDlgProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM l
                 TCHAR szAbout[MAX_LOADSTRING];
                 LoadString(ghInstanceApp, IDS_ABOUT_TITLE, szAboutTitle, MAX_LOADSTRING);
                 LoadString(ghInstanceApp, IDS_ABOUT, szAbout, MAX_LOADSTRING);
-                MessageBox(nullptr, szAbout, szAboutTitle, MB_OK);
+                MessageBox(NULL, szAbout, szAboutTitle, MB_OK);
             }
             break;
         }
@@ -747,9 +746,10 @@ nsresult StartupProfile()
       return rv;
 
 	appDataDir->AppendNative(nsCString("winembed"));
+	nsCOMPtr<nsILocalFile> localAppDataDir(do_QueryInterface(appDataDir));
 
 	nsCOMPtr<nsProfileDirServiceProvider> locProvider;
-    NS_NewProfileDirServiceProvider(true, getter_AddRefs(locProvider));
+    NS_NewProfileDirServiceProvider(PR_TRUE, getter_AddRefs(locProvider));
     if (!locProvider)
       return NS_ERROR_FAILURE;
     
@@ -757,7 +757,7 @@ nsresult StartupProfile()
     if (NS_FAILED(rv))
       return rv;
     
-	return locProvider->SetProfileDir(appDataDir);
+	return locProvider->SetProfileDir(localAppDataDir);
 
 }
 
@@ -780,21 +780,21 @@ HWND WebBrowserChromeUI::CreateNativeWindow(nsIWebBrowserChrome* chrome)
 {
   // Load the browser dialog from resource
   HWND hwndDialog;
-  uint32_t chromeFlags;
+  PRUint32 chromeFlags;
 
   chrome->GetChromeFlags(&chromeFlags);
   if ((chromeFlags & nsIWebBrowserChrome::CHROME_ALL) == nsIWebBrowserChrome::CHROME_ALL)
     hwndDialog = CreateDialog(ghInstanceApp,
                               MAKEINTRESOURCE(IDD_BROWSER),
-                              nullptr,
+                              NULL,
                               BrowserDlgProc);
   else
     hwndDialog = CreateDialog(ghInstanceApp,
                               MAKEINTRESOURCE(IDD_BROWSER_NC),
-                              nullptr,
+                              NULL,
                               BrowserDlgProc);
   if (!hwndDialog)
-    return nullptr;
+    return NULL;
 
   // Stick a menu onto it
   if (chromeFlags & nsIWebBrowserChrome::CHROME_MENUBAR) {
@@ -844,20 +844,20 @@ void WebBrowserChromeUI::Destroy(nsIWebBrowserChrome* chrome)
   chrome->ExitModalEventLoop(NS_OK);
 
   HWND hwndDlg = GetBrowserDlgFromChrome(chrome);
-  if (hwndDlg == nullptr)
+  if (hwndDlg == NULL)
     return;
 
   // Explicitly destroy the embedded browser and then the chrome
 
   // First the browser
-  nsCOMPtr<nsIWebBrowser> browser = nullptr;
+  nsCOMPtr<nsIWebBrowser> browser = nsnull;
   chrome->GetWebBrowser(getter_AddRefs(browser));
   nsCOMPtr<nsIBaseWindow> browserAsWin = do_QueryInterface(browser);
   if (browserAsWin)
     browserAsWin->Destroy();
 
       // Now the chrome
-  chrome->SetWebBrowser(nullptr);
+  chrome->SetWebBrowser(nsnull);
   NS_RELEASE(chrome);
 }
 
@@ -868,14 +868,14 @@ void WebBrowserChromeUI::Destroy(nsIWebBrowserChrome* chrome)
 void WebBrowserChromeUI::Destroyed(nsIWebBrowserChrome* chrome)
 {
     HWND hwndDlg = GetBrowserDlgFromChrome(chrome);
-    if (hwndDlg == nullptr)
+    if (hwndDlg == NULL)
     {
         return;
     }
 
     // Clear the window user data
     HWND hwndBrowser = GetDlgItem(hwndDlg, IDC_BROWSER);
-    SetWindowLongPtr(hwndBrowser, GWLP_USERDATA, 0);
+    SetWindowLongPtr(hwndBrowser, GWLP_USERDATA, nsnull);
     DestroyWindow(hwndBrowser);
     DestroyWindow(hwndDlg);
 
@@ -894,7 +894,7 @@ void WebBrowserChromeUI::Destroyed(nsIWebBrowserChrome* chrome)
 void WebBrowserChromeUI::SetFocus(nsIWebBrowserChrome *chrome)
 {
     HWND hwndDlg = GetBrowserDlgFromChrome(chrome);
-    if (hwndDlg == nullptr)
+    if (hwndDlg == NULL)
     {
         return;
     }
@@ -951,7 +951,7 @@ void WebBrowserChromeUI::UpdateCurrentURI(nsIWebBrowserChrome *aChrome)
 //
 //  PURPOSE: Refreshes the stop/go buttons in the browser dialog
 //
-void WebBrowserChromeUI::UpdateBusyState(nsIWebBrowserChrome *aChrome, bool aBusy)
+void WebBrowserChromeUI::UpdateBusyState(nsIWebBrowserChrome *aChrome, PRBool aBusy)
 {
     HWND hwndDlg = GetBrowserDlgFromChrome(aChrome);
     HWND button;
@@ -970,7 +970,7 @@ void WebBrowserChromeUI::UpdateBusyState(nsIWebBrowserChrome *aChrome, bool aBus
 //
 //  PURPOSE: Refreshes the progress bar in the browser dialog
 //
-void WebBrowserChromeUI::UpdateProgress(nsIWebBrowserChrome *aChrome, int32_t aCurrent, int32_t aMax)
+void WebBrowserChromeUI::UpdateProgress(nsIWebBrowserChrome *aChrome, PRInt32 aCurrent, PRInt32 aMax)
 {
     HWND hwndDlg = GetBrowserDlgFromChrome(aChrome);
     HWND hwndProgress = GetDlgItem(hwndDlg, IDC_PROGRESS);
@@ -994,7 +994,7 @@ void WebBrowserChromeUI::UpdateProgress(nsIWebBrowserChrome *aChrome, int32_t aC
 //
 //  PURPOSE: Display a context menu for the given node
 //
-void WebBrowserChromeUI::ShowContextMenu(nsIWebBrowserChrome *aChrome, uint32_t aContextFlags, nsIDOMEvent *aEvent, nsIDOMNode *aNode)
+void WebBrowserChromeUI::ShowContextMenu(nsIWebBrowserChrome *aChrome, PRUint32 aContextFlags, nsIDOMEvent *aEvent, nsIDOMNode *aNode)
 {
     // TODO code to test context flags and display a popup menu should go here
 }
@@ -1004,7 +1004,7 @@ void WebBrowserChromeUI::ShowContextMenu(nsIWebBrowserChrome *aChrome, uint32_t 
 //
 //  PURPOSE: Show a tooltip
 //
-void WebBrowserChromeUI::ShowTooltip(nsIWebBrowserChrome *aChrome, int32_t aXCoords, int32_t aYCoords, const PRUnichar *aTipText)
+void WebBrowserChromeUI::ShowTooltip(nsIWebBrowserChrome *aChrome, PRInt32 aXCoords, PRInt32 aYCoords, const PRUnichar *aTipText)
 {
     // TODO code to show a tooltip should go here
 }
@@ -1019,13 +1019,13 @@ void WebBrowserChromeUI::HideTooltip(nsIWebBrowserChrome *aChrome)
     // TODO code to hide a tooltip should go here
 }
 
-void WebBrowserChromeUI::ShowWindow(nsIWebBrowserChrome *aChrome, bool aShow)
+void WebBrowserChromeUI::ShowWindow(nsIWebBrowserChrome *aChrome, PRBool aShow)
 {
   HWND win = GetBrowserDlgFromChrome(aChrome);
   ::ShowWindow(win, aShow ? SW_RESTORE : SW_HIDE);
 }
 
-void WebBrowserChromeUI::SizeTo(nsIWebBrowserChrome *aChrome, int32_t aWidth, int32_t aHeight)
+void WebBrowserChromeUI::SizeTo(nsIWebBrowserChrome *aChrome, PRInt32 aWidth, PRInt32 aHeight)
 {
   HWND hchrome = GetBrowserDlgFromChrome(aChrome);
   HWND hbrowser = GetBrowserFromChrome(aChrome);
@@ -1034,9 +1034,9 @@ void WebBrowserChromeUI::SizeTo(nsIWebBrowserChrome *aChrome, int32_t aWidth, in
   ::GetWindowRect(hchrome,  &chromeRect);
   ::GetWindowRect(hbrowser, &browserRect);
 
-  int32_t decoration_x = (browserRect.left - chromeRect.left) + 
+  PRInt32 decoration_x = (browserRect.left - chromeRect.left) + 
                          (chromeRect.right - browserRect.right);
-  int32_t decoration_y = (browserRect.top - chromeRect.top) + 
+  PRInt32 decoration_y = (browserRect.top - chromeRect.top) + 
                          (chromeRect.bottom - browserRect.bottom);
 
   ::MoveWindow(hchrome, chromeRect.left, chromeRect.top,
@@ -1049,7 +1049,7 @@ void WebBrowserChromeUI::SizeTo(nsIWebBrowserChrome *aChrome, int32_t aWidth, in
 //
 //  PURPOSE: Get the resource string for the ID
 //
-void WebBrowserChromeUI::GetResourceStringById(int32_t aID, char ** aReturn)
+void WebBrowserChromeUI::GetResourceStringById(PRInt32 aID, char ** aReturn)
 {
     char resBuf[MAX_LOADSTRING];
     int retval = LoadString( ghInstanceApp, aID, (LPTSTR)resBuf, sizeof(resBuf) );
@@ -1067,7 +1067,7 @@ void WebBrowserChromeUI::GetResourceStringById(int32_t aID, char ** aReturn)
 // AppCallbacks
 //-----------------------------------------------------------------------------
 
-nsresult AppCallbacks::CreateBrowserWindow(uint32_t aChromeFlags,
+nsresult AppCallbacks::CreateBrowserWindow(PRUint32 aChromeFlags,
            nsIWebBrowserChrome *aParent,
            nsIWebBrowserChrome **aNewWindow)
 {
@@ -1097,29 +1097,29 @@ nsresult AppCallbacks::CreateBrowserWindow(uint32_t aChromeFlags,
   // if opened as chrome, it'll be made visible after the chrome has loaded.
   // otherwise, go ahead and show it now.
   if (!(aChromeFlags & nsIWebBrowserChrome::CHROME_OPENAS_CHROME))
-    WebBrowserChromeUI::ShowWindow(*aNewWindow, true);
+    WebBrowserChromeUI::ShowWindow(*aNewWindow, PR_TRUE);
 
   return NS_OK;
 }
 
 void AppCallbacks::EnableChromeWindow(nsIWebBrowserChrome *aWindow,
-                      bool aEnabled)
+                      PRBool aEnabled)
 {
   HWND hwnd = GetBrowserDlgFromChrome(aWindow);
   ::EnableWindow(hwnd, aEnabled ? TRUE : FALSE);
 }
 
-uint32_t AppCallbacks::RunEventLoop(bool &aRunCondition)
+PRUint32 AppCallbacks::RunEventLoop(PRBool &aRunCondition)
 {
   MSG msg;
-  HANDLE hFakeEvent = ::CreateEvent(nullptr, TRUE, FALSE, nullptr);
+  HANDLE hFakeEvent = ::CreateEvent(NULL, TRUE, FALSE, NULL);
 
   while (aRunCondition ) {
     // Process pending messages
-    while (::PeekMessage(&msg, nullptr, 0, 0, PM_NOREMOVE)) {
-      if (!::GetMessage(&msg, nullptr, 0, 0)) {
+    while (::PeekMessage(&msg, NULL, 0, 0, PM_NOREMOVE)) {
+      if (!::GetMessage(&msg, NULL, 0, 0)) {
         // WM_QUIT
-        aRunCondition = false;
+        aRunCondition = PR_FALSE;
         break;
       }
 
@@ -1131,5 +1131,5 @@ uint32_t AppCallbacks::RunEventLoop(bool &aRunCondition)
     ::MsgWaitForMultipleObjects(1, &hFakeEvent, FALSE, 100, QS_ALLEVENTS);
   }
   ::CloseHandle(hFakeEvent);
-  return (uint32_t)msg.wParam;
+  return (PRUint32)msg.wParam;
 }

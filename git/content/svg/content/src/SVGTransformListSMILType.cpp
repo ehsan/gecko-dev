@@ -1,18 +1,52 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Mozilla SVG project.
+ *
+ * The Initial Developer of the Original Code is Brian Birtles.
+ * Portions created by the Initial Developer are Copyright (C) 2006
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Brian Birtles <birtles@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "SVGTransformListSMILType.h"
+#include "SVGTransform.h"
 #include "SVGTransformList.h"
-#include "nsSVGTransform.h"
 #include "nsSMILValue.h"
 #include "nsCRT.h"
 #include <math.h>
 
 using namespace mozilla;
 
-typedef FallibleTArray<SVGTransformSMILData> TransformArray;
+/*static*/ SVGTransformListSMILType SVGTransformListSMILType::sSingleton;
+
+typedef nsTArray<SVGTransformSMILData> TransformArray;
 
 //----------------------------------------------------------------------
 // nsISMILType implementation
@@ -33,8 +67,8 @@ SVGTransformListSMILType::Destroy(nsSMILValue& aValue) const
   NS_PRECONDITION(aValue.mType == this, "Unexpected SMIL value type");
   TransformArray* params = static_cast<TransformArray*>(aValue.mU.mPtr);
   delete params;
-  aValue.mU.mPtr = nullptr;
-  aValue.mType = nsSMILNullType::Singleton();
+  aValue.mU.mPtr = nsnull;
+  aValue.mType = &nsSMILNullType::sSingleton;
 }
 
 nsresult
@@ -49,7 +83,7 @@ SVGTransformListSMILType::Assign(nsSMILValue& aDest,
   TransformArray* dstTransforms = static_cast<TransformArray*>(aDest.mU.mPtr);
 
   // Before we assign, ensure we have sufficient memory
-  bool result = dstTransforms->SetCapacity(srcTransforms->Length());
+  PRBool result = dstTransforms->SetCapacity(srcTransforms->Length());
   NS_ENSURE_TRUE(result,NS_ERROR_OUT_OF_MEMORY);
 
   *dstTransforms = *srcTransforms;
@@ -57,7 +91,7 @@ SVGTransformListSMILType::Assign(nsSMILValue& aDest,
   return NS_OK;
 }
 
-bool
+PRBool
 SVGTransformListSMILType::IsEqual(const nsSMILValue& aLeft,
                                   const nsSMILValue& aRight) const
 {
@@ -71,25 +105,25 @@ SVGTransformListSMILType::IsEqual(const nsSMILValue& aLeft,
 
   // If array-lengths don't match, we're trivially non-equal.
   if (leftArr.Length() != rightArr.Length()) {
-    return false;
+    return PR_FALSE;
   }
 
   // Array-lengths match -- check each array-entry for equality.
-  uint32_t length = leftArr.Length(); // == rightArr->Length(), if we get here
-  for (uint32_t i = 0; i < length; ++i) {
+  PRUint32 length = leftArr.Length(); // == rightArr->Length(), if we get here
+  for (PRUint32 i = 0; i < length; ++i) {
     if (leftArr[i] != rightArr[i]) {
-      return false;
+      return PR_FALSE;
     }
   }
 
   // Found no differences.
-  return true;
+  return PR_TRUE;
 }
 
 nsresult
 SVGTransformListSMILType::Add(nsSMILValue& aDest,
                               const nsSMILValue& aValueToAdd,
-                              uint32_t aCount) const
+                              PRUint32 aCount) const
 {
   NS_PRECONDITION(aDest.mType == this, "Unexpected SMIL type");
   NS_PRECONDITION(aDest.mType == aValueToAdd.mType, "Incompatible SMIL types");
@@ -128,7 +162,7 @@ SVGTransformListSMILType::Add(nsSMILValue& aDest,
 
   // And it should be impossible that one of them is of matrix type
   NS_ASSERTION(
-    srcTransform.mTransformType != SVG_TRANSFORM_MATRIX,
+    srcTransform.mTransformType != nsIDOMSVGTransform::SVG_TRANSFORM_MATRIX,
     "Trying to perform simple add with matrix transform");
 
   // Add the parameters
@@ -209,8 +243,8 @@ SVGTransformListSMILType::ComputeDistance(const nsSMILValue& aFrom,
     // We adopt the SVGT1.2 notions of distance here
     // See: http://www.w3.org/TR/SVGTiny12/animate.html#complexDistances
     // (As discussed in bug #469040)
-    case SVG_TRANSFORM_TRANSLATE:
-    case SVG_TRANSFORM_SCALE:
+    case nsIDOMSVGTransform::SVG_TRANSFORM_TRANSLATE:
+    case nsIDOMSVGTransform::SVG_TRANSFORM_SCALE:
       {
         const float& a_tx = fromTransform.mParams[0];
         const float& a_ty = fromTransform.mParams[1];
@@ -220,9 +254,9 @@ SVGTransformListSMILType::ComputeDistance(const nsSMILValue& aFrom,
       }
       break;
 
-    case SVG_TRANSFORM_ROTATE:
-    case SVG_TRANSFORM_SKEWX:
-    case SVG_TRANSFORM_SKEWY:
+    case nsIDOMSVGTransform::SVG_TRANSFORM_ROTATE:
+    case nsIDOMSVGTransform::SVG_TRANSFORM_SKEWX:
+    case nsIDOMSVGTransform::SVG_TRANSFORM_SKEWY:
       {
         const float& a = fromTransform.mParams[0];
         const float& b = toTransform.mParams[0];
@@ -264,7 +298,7 @@ SVGTransformListSMILType::Interpolate(const nsSMILValue& aStartVal,
   // The end point should never be a matrix transform
   const SVGTransformSMILData& endTransform = endTransforms[0];
   NS_ASSERTION(
-    endTransform.mTransformType != SVG_TRANSFORM_MATRIX,
+    endTransform.mTransformType != nsIDOMSVGTransform::SVG_TRANSFORM_MATRIX,
     "End point for interpolation should not be a matrix transform");
 
   // If we have 0 or more than 1 transform in the start transform array then we
@@ -273,7 +307,7 @@ SVGTransformListSMILType::Interpolate(const nsSMILValue& aStartVal,
   // then if the type of the start transform doesn't match the end then we
   // can't interpolate and should just use 0, 0, 0
   static float identityParams[3] = { 0.f };
-  const float* startParams = nullptr;
+  const float* startParams = nsnull;
   if (startTransforms.Length() == 1) {
     const SVGTransformSMILData& startTransform = startTransforms[0];
     if (startTransform.mTransformType == endTransform.mTransformType) {
@@ -319,7 +353,7 @@ SVGTransformListSMILType::AppendTransform(
   const SVGTransformSMILData& aTransform,
   nsSMILValue& aValue)
 {
-  NS_PRECONDITION(aValue.mType == Singleton(), "Unexpected SMIL value type");
+  NS_PRECONDITION(aValue.mType == &sSingleton, "Unexpected SMIL value type");
 
   TransformArray& transforms = *static_cast<TransformArray*>(aValue.mU.mPtr);
   return transforms.AppendElement(aTransform) ?
@@ -327,43 +361,43 @@ SVGTransformListSMILType::AppendTransform(
 }
 
 // static
-bool
+PRBool
 SVGTransformListSMILType::AppendTransforms(const SVGTransformList& aList,
                                            nsSMILValue& aValue)
 {
-  NS_PRECONDITION(aValue.mType == Singleton(), "Unexpected SMIL value type");
+  NS_PRECONDITION(aValue.mType == &sSingleton, "Unexpected SMIL value type");
 
   TransformArray& transforms = *static_cast<TransformArray*>(aValue.mU.mPtr);
 
   if (!transforms.SetCapacity(transforms.Length() + aList.Length()))
-    return false;
+    return PR_FALSE;
 
-  for (uint32_t i = 0; i < aList.Length(); ++i) {
+  for (PRUint32 i = 0; i < aList.Length(); ++i) {
     // No need to check the return value below since we have already allocated
     // the necessary space
     transforms.AppendElement(SVGTransformSMILData(aList[i]));
   }
-  return true;
+  return PR_TRUE;
 }
 
 // static
-bool
+PRBool
 SVGTransformListSMILType::GetTransforms(const nsSMILValue& aValue,
-                                        FallibleTArray<nsSVGTransform>& aTransforms)
+                                        nsTArray<SVGTransform>& aTransforms)
 {
-  NS_PRECONDITION(aValue.mType == Singleton(), "Unexpected SMIL value type");
+  NS_PRECONDITION(aValue.mType == &sSingleton, "Unexpected SMIL value type");
 
   const TransformArray& smilTransforms =
     *static_cast<const TransformArray*>(aValue.mU.mPtr);
 
   aTransforms.Clear();
   if (!aTransforms.SetCapacity(smilTransforms.Length()))
-      return false;
+      return PR_FALSE;
 
-  for (uint32_t i = 0; i < smilTransforms.Length(); ++i) {
+  for (PRUint32 i = 0; i < smilTransforms.Length(); ++i) {
     // No need to check the return value below since we have already allocated
     // the necessary space
     aTransforms.AppendElement(smilTransforms[i].ToSVGTransform());
   }
-  return true;
+  return PR_TRUE;
 }

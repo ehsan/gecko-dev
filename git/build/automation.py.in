@@ -1,12 +1,45 @@
 #
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is mozilla.org code.
+#
+# The Initial Developer of the Original Code is
+# Mozilla Foundation.
+# Portions created by the Initial Developer are Copyright (C) 2008
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Robert Sayre <sayrer@gmail.com>
+#   Jeff Walden <jwalden+bmo@mit.edu>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 
-from __future__ import with_statement
 import codecs
+from datetime import datetime, timedelta
 import itertools
-import json
 import logging
 import os
 import re
@@ -17,45 +50,17 @@ import subprocess
 import sys
 import threading
 import tempfile
+import zipfile
 import sqlite3
-from datetime import datetime, timedelta
-from string import Template
 
 SCRIPT_DIR = os.path.abspath(os.path.realpath(os.path.dirname(sys.argv[0])))
 sys.path.insert(0, SCRIPT_DIR)
 import automationutils
 
-# --------------------------------------------------------------
-# TODO: this is a hack for mozbase without virtualenv, remove with bug 849900
-# These paths refer to relative locations to test.zip, not the OBJDIR or SRCDIR
-here = os.path.dirname(os.path.realpath(__file__))
-mozbase = os.path.realpath(os.path.join(os.path.dirname(here), 'mozbase'))
-
-if os.path.isdir(mozbase):
-    for package in os.listdir(mozbase):
-        package_path = os.path.join(mozbase, package)
-        if package_path not in sys.path:
-            sys.path.append(package_path)
-
-import mozcrash
-from mozprofile import Profile, Preferences
-from mozprofile.permissions import ServerLocations
-
-# ---------------------------------------------------------------
-
-_DEFAULT_PREFERENCE_FILE = os.path.join(SCRIPT_DIR, 'prefs_general.js')
-_DEFAULT_APPS_FILE = os.path.join(SCRIPT_DIR, 'webapps_mochitest.json')
-
 _DEFAULT_WEB_SERVER = "127.0.0.1"
 _DEFAULT_HTTP_PORT = 8888
 _DEFAULT_SSL_PORT = 4443
 _DEFAULT_WEBSOCKET_PORT = 9988
-
-# from nsIPrincipal.idl
-_APP_STATUS_NOT_INSTALLED = 0
-_APP_STATUS_INSTALLED     = 1
-_APP_STATUS_PRIVILEGED    = 2
-_APP_STATUS_CERTIFIED     = 3
 
 #expand _DIST_BIN = __XPC_BIN_PATH__
 #expand _IS_WIN32 = len("__WIN32__") != 0
@@ -75,7 +80,6 @@ _IS_CYGWIN = False
 #expand _IS_TEST_BUILD = __IS_TEST_BUILD__
 #expand _IS_DEBUG_BUILD = __IS_DEBUG_BUILD__
 #expand _CRASHREPORTER = __CRASHREPORTER__ == 1
-#expand _IS_ASAN = __IS_ASAN__ == 1
 
 
 if _IS_WIN32:
@@ -84,21 +88,13 @@ else:
   import errno
 
 
-def getGlobalLog():
-  return _log
-
-def resetGlobalLog(log):
-  while _log.handlers:
-    _log.removeHandler(_log.handlers[0])
-  handler = logging.StreamHandler(log)
-  _log.setLevel(logging.INFO)
-  _log.addHandler(handler)
-
 # We use the logging system here primarily because it'll handle multiple
 # threads, which is needed to process the output of the server and application
 # processes simultaneously.
 _log = logging.getLogger()
-resetGlobalLog(sys.stdout)
+handler = logging.StreamHandler(sys.stdout)
+_log.setLevel(logging.INFO)
+_log.addHandler(handler)
 
 
 #################
@@ -152,7 +148,6 @@ class Automation(object):
   IS_TEST_BUILD = _IS_TEST_BUILD
   IS_DEBUG_BUILD = _IS_DEBUG_BUILD
   CRASHREPORTER = _CRASHREPORTER
-  IS_ASAN = _IS_ASAN
 
   # timeout, in seconds
   DEFAULT_TIMEOUT = 60.0
@@ -299,95 +294,202 @@ class Automation(object):
     return locations
 
   def setupPermissionsDatabase(self, profileDir, permissions):
-    # Included for reftest compatibility;
-    # see https://bugzilla.mozilla.org/show_bug.cgi?id=688667
-
     # Open database and create table
     permDB = sqlite3.connect(os.path.join(profileDir, "permissions.sqlite"))
     cursor = permDB.cursor();
-
-    cursor.execute("PRAGMA user_version=3");
-
     # SQL copied from nsPermissionManager.cpp
-    cursor.execute("""CREATE TABLE IF NOT EXISTS moz_hosts (
-      id INTEGER PRIMARY KEY,
-      host TEXT,
-      type TEXT,
-      permission INTEGER,
-      expireType INTEGER,
-      expireTime INTEGER,
-      appId INTEGER,
-      isInBrowserElement INTEGER)""")
+    cursor.execute("""CREATE TABLE moz_hosts (
+       id INTEGER PRIMARY KEY,
+       host TEXT,
+       type TEXT,
+       permission INTEGER,
+       expireType INTEGER,
+       expireTime INTEGER)""")
 
     # Insert desired permissions
+    c = 0
     for perm in permissions.keys():
       for host,allow in permissions[perm]:
-        cursor.execute("INSERT INTO moz_hosts values(NULL, ?, ?, ?, 0, 0, 0, 0)",
-                       (host, perm, 1 if allow else 2))
+        c += 1
+        cursor.execute("INSERT INTO moz_hosts values(?, ?, ?, ?, 0, 0)",
+                       (c, host, perm, 1 if allow else 2))
 
     # Commit and close
     permDB.commit()
     cursor.close()
 
-  def initializeProfile(self, profileDir,
-                              extraPrefs=None,
-                              useServerLocations=False,
-                              prefsPath=_DEFAULT_PREFERENCE_FILE,
-                              appsPath=_DEFAULT_APPS_FILE,
-                              addons=None):
+  def initializeProfile(self, profileDir, extraPrefs = [], useServerLocations = False):
     " Sets up the standard testing profile."
 
-    extraPrefs = extraPrefs or []
+    prefs = []
+    # Start with a clean slate.
+    shutil.rmtree(profileDir, True)
+    os.mkdir(profileDir)
 
-    # create the profile
-    prefs = {}
-    locations = None
-    if useServerLocations:
-        locations = ServerLocations()
-        locations.read(os.path.abspath('server-locations.txt'), True)
+    # Set up permissions database
+    locations = self.readLocations()
+    self.setupPermissionsDatabase(profileDir,
+      {'allowXULXBL':[(l.host, 'noxul' not in l.options) for l in locations]});
+
+    part = """\
+user_pref("browser.console.showInPanel", true);
+user_pref("browser.dom.window.dump.enabled", true);
+user_pref("browser.firstrun.show.localepicker", false);
+user_pref("browser.firstrun.show.uidiscovery", false);
+user_pref("browser.ui.layout.tablet", 0); // force tablet UI off
+user_pref("dom.allow_scripts_to_close_windows", true);
+user_pref("dom.disable_open_during_load", false);
+user_pref("dom.max_script_run_time", 0); // no slow script dialogs
+user_pref("dom.max_chrome_script_run_time", 0);
+user_pref("dom.popup_maximum", -1);
+user_pref("dom.send_after_paint_to_content", true);
+user_pref("dom.successive_dialog_time_limit", 0);
+user_pref("signed.applets.codebase_principal_support", true);
+user_pref("security.warn_submit_insecure", false);
+user_pref("browser.shell.checkDefaultBrowser", false);
+user_pref("shell.checkDefaultClient", false);
+user_pref("browser.warnOnQuit", false);
+user_pref("accessibility.typeaheadfind.autostart", false);
+user_pref("javascript.options.showInConsole", true);
+user_pref("devtools.errorconsole.enabled", true);
+user_pref("layout.debug.enable_data_xbl", true);
+user_pref("browser.EULA.override", true);
+user_pref("javascript.options.tracejit.content", true);
+user_pref("javascript.options.methodjit.content", true);
+user_pref("javascript.options.jitprofiling.content", true);
+user_pref("javascript.options.methodjit_always", false);
+user_pref("gfx.color_management.force_srgb", true);
+user_pref("network.manage-offline-status", false);
+user_pref("test.mousescroll", true);
+user_pref("security.default_personal_cert", "Select Automatically"); // Need to client auth test be w/o any dialogs
+user_pref("network.http.prompt-temp-redirect", false);
+user_pref("media.cache_size", 100);
+user_pref("security.warn_viewing_mixed", false);
+user_pref("app.update.enabled", false);
+user_pref("browser.panorama.experienced_first_run", true); // Assume experienced
+user_pref("dom.w3c_touch_events.enabled", true);
+user_pref("toolkit.telemetry.prompted", 2);
+
+// Only load extensions from the application and user profile
+// AddonManager.SCOPE_PROFILE + AddonManager.SCOPE_APPLICATION
+user_pref("extensions.enabledScopes", 5);
+// Disable metadata caching for installed add-ons by default
+user_pref("extensions.getAddons.cache.enabled", false);
+// Disable intalling any distribution add-ons
+user_pref("extensions.installDistroAddons", false);
+
+user_pref("extensions.testpilot.runStudies", false);
+
+user_pref("geo.wifi.uri", "http://%(server)s/tests/dom/tests/mochitest/geolocation/network_geolocation.sjs");
+user_pref("geo.wifi.testing", true);
+user_pref("geo.ignore.location_filter", true);
+
+user_pref("camino.warn_when_closing", false); // Camino-only, harmless to others
+
+// Make url-classifier updates so rare that they won't affect tests
+user_pref("urlclassifier.updateinterval", 172800);
+// Point the url-classifier to the local testing server for fast failures
+user_pref("browser.safebrowsing.provider.0.gethashURL", "http://%(server)s/safebrowsing-dummy/gethash");
+user_pref("browser.safebrowsing.provider.0.keyURL", "http://%(server)s/safebrowsing-dummy/newkey");
+user_pref("browser.safebrowsing.provider.0.updateURL", "http://%(server)s/safebrowsing-dummy/update");
+// Point update checks to the local testing server for fast failures
+user_pref("extensions.update.url", "http://%(server)s/extensions-dummy/updateURL");
+user_pref("extensions.blocklist.url", "http://%(server)s/extensions-dummy/blocklistURL");
+// Make sure opening about:addons won't hit the network
+user_pref("extensions.webservice.discoverURL", "http://%(server)s/extensions-dummy/discoveryURL");
+""" % { "server" : self.webServer + ":" + str(self.httpPort) }
+    prefs.append(part)
+
+    if useServerLocations == False:
+      part = """
+user_pref("capability.principal.codebase.p1.granted",
+          "UniversalXPConnect UniversalBrowserRead UniversalBrowserWrite \
+           UniversalPreferencesRead UniversalPreferencesWrite \
+           UniversalFileRead");
+user_pref("capability.principal.codebase.p1.id", "%(origin)s");
+user_pref("capability.principal.codebase.p1.subjectName", "");
+"""  % { "origin": "http://" + self.webServer + ":" + str(self.httpPort) }
+      prefs.append(part)
     else:
-      prefs['network.proxy.type'] = 0
+      # Grant God-power to all the privileged servers on which tests run.
+      privileged = filter(lambda loc: "privileged" in loc.options, locations)
+      for (i, l) in itertools.izip(itertools.count(1), privileged):
+        part = """
+user_pref("capability.principal.codebase.p%(i)d.granted",
+          "UniversalXPConnect UniversalBrowserRead UniversalBrowserWrite \
+           UniversalPreferencesRead UniversalPreferencesWrite \
+           UniversalFileRead");
+user_pref("capability.principal.codebase.p%(i)d.id", "%(origin)s");
+user_pref("capability.principal.codebase.p%(i)d.subjectName", "");
+"""  % { "i": i,
+         "origin": (l.scheme + "://" + l.host + ":" + str(l.port)) }
+        prefs.append(part)
 
-    prefs.update(Preferences.read_prefs(prefsPath))
+      # We need to proxy every server but the primary one.
+      origins = ["'%s://%s:%s'" % (l.scheme, l.host, l.port)
+                for l in filter(lambda l: "primary" not in l.options, locations)]
+      origins = ", ".join(origins)
+
+      pacURL = """data:text/plain,
+function FindProxyForURL(url, host)
+{
+  var origins = [%(origins)s];
+  var regex = new RegExp('^([a-z][-a-z0-9+.]*)' +
+                         '://' +
+                         '(?:[^/@]*@)?' +
+                         '(.*?)' +
+                         '(?::(\\\\\\\\d+))?/');
+  var matches = regex.exec(url);
+  if (!matches)
+    return 'DIRECT';
+  var isHttp = matches[1] == 'http';
+  var isHttps = matches[1] == 'https';
+  var isWebSocket = matches[1] == 'ws';
+  var isWebSocketSSL = matches[1] == 'wss';
+  if (!matches[3])
+  {
+    if (isHttp | isWebSocket) matches[3] = '80';
+    if (isHttps | isWebSocketSSL) matches[3] = '443';
+  }
+  if (isWebSocket)
+    matches[1] = 'http';
+  if (isWebSocketSSL)
+    matches[1] = 'https';
+
+  var origin = matches[1] + '://' + matches[2] + ':' + matches[3];
+  if (origins.indexOf(origin) < 0)
+    return 'DIRECT';
+  if (isHttp)
+    return 'PROXY %(remote)s:%(httpport)s';
+  if (isHttps || isWebSocket || isWebSocketSSL)
+    return 'PROXY %(remote)s:%(sslport)s';
+  return 'DIRECT';
+}""" % { "origins": origins,
+         "remote":  self.webServer,
+         "httpport":self.httpPort,
+         "sslport": self.sslPort }
+      pacURL = "".join(pacURL.splitlines())
+
+      part += """
+user_pref("network.proxy.type", 2);
+user_pref("network.proxy.autoconfig_url", "%(pacURL)s");
+
+user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless to others
+""" % {"pacURL": pacURL}
+      prefs.append(part)
 
     for v in extraPrefs:
-      thispref = v.split("=", 1)
+      thispref = v.split("=")
       if len(thispref) < 2:
         print "Error: syntax error in --setpref=" + v
         sys.exit(1)
-      prefs[thispref[0]] = thispref[1]
+      part = 'user_pref("%s", %s);\n' % (thispref[0], thispref[1])
+      prefs.append(part)
 
-
-    interpolation = {"server": "%s:%s" % (self.webServer, self.httpPort)}
-    prefs = json.loads(json.dumps(prefs) % interpolation)
-    for pref in prefs:
-        prefs[pref] = Preferences.cast(prefs[pref])
-
-    # load apps
-    apps = None
-    if appsPath and os.path.exists(appsPath):
-        with open(appsPath, 'r') as apps_file:
-            apps = json.load(apps_file)
-
-    proxy = {'remote': str(self.webServer),
-             'http': str(self.httpPort),
-             'https': str(self.sslPort),
-    # use SSL port for legacy compatibility; see
-    # - https://bugzilla.mozilla.org/show_bug.cgi?id=688667#c66
-    # - https://bugzilla.mozilla.org/show_bug.cgi?id=899221
-    #             'ws': str(self.webSocketPort)
-             'ws': str(self.sslPort)
-             }
-
-    # return profile object
-    profile = Profile(profile=profileDir,
-                      addons=addons,
-                      locations=locations,
-                      preferences=prefs,
-                      restore=False,
-                      apps=apps,
-                      proxy=proxy)
-    return profile
+    # write the preferences
+    prefsFile = open(profileDir + "/" + "user.js", "a")
+    prefsFile.write("".join(prefs))
+    prefsFile.close()
 
   def addCommonOptions(self, parser):
     "Adds command-line options which are common to mochitest and reftest."
@@ -396,10 +498,11 @@ class Automation(object):
                       action = "append", type = "string",
                       default = [],
                       dest = "extraPrefs", metavar = "PREF=VALUE",
-                      help = "defines an extra user preference")
+                      help = "defines an extra user preference")  
 
   def fillCertificateDB(self, profileDir, certPath, utilityPath, xrePath):
     pwfilePath = os.path.join(profileDir, ".crtdbpw")
+  
     pwfile = open(pwfilePath, "w")
     pwfile.write("\n")
     pwfile.close()
@@ -421,7 +524,6 @@ class Automation(object):
       if loc.scheme == "https" and "nocert" not in loc.options:
         customCertRE = re.compile("^cert=(?P<nickname>[0-9a-zA-Z_ ]+)")
         clientAuthRE = re.compile("^clientauth=(?P<clientauth>[a-z]+)")
-        redirRE      = re.compile("^redir=(?P<redirhost>[0-9a-zA-Z_ .]+)")
         for option in loc.options:
           match = customCertRE.match(option)
           if match:
@@ -434,12 +536,6 @@ class Automation(object):
             clientauth = match.group("clientauth");
             sslTunnelConfig.write("clientauth:%s:%s:%s:%s\n" %
                       (loc.host, loc.port, self.sslPort, clientauth))
-
-          match = redirRE.match(option)
-          if match:
-            redirhost = match.group("redirhost")
-            sslTunnelConfig.write("redirhost:%s:%s:%s:%s\n" %
-                      (loc.host, loc.port, self.sslPort, redirhost))
 
     sslTunnelConfig.close()
 
@@ -488,7 +584,7 @@ class Automation(object):
         ldLibraryPath = ldLibraryPath + ":" + env[envVar]
       env[envVar] = ldLibraryPath
     elif self.IS_WIN32:
-      env["PATH"] = env["PATH"] + ";" + str(ldLibraryPath)
+      env["PATH"] = env["PATH"] + ";" + ldLibraryPath
 
     if crashreporter:
       env['MOZ_CRASHREPORTER_NO_REPORT'] = '1'
@@ -498,34 +594,12 @@ class Automation(object):
 
     env['GNOME_DISABLE_CRASH_DIALOG'] = '1'
     env['XRE_NO_WINDOWS_CRASH_DIALOG'] = '1'
-    env['NS_TRACE_MALLOC_DISABLE_STACKS'] = '1'
 
-    # Additional temporary logging while we try to debug some intermittent
-    # WebRTC conditions. This is necessary to troubleshoot bugs 841496,
-    # 841150, and 839677 (at least)
-    # Also (temporary) bug 870002 (mediastreamgraph)
-    if 'NSPR_LOG_MODULES' not in env:
-      env['NSPR_LOG_MODULES'] = 'signaling:5,mtransport:3'
-    env['R_LOG_LEVEL'] = '5'
-    env['R_LOG_DESTINATION'] = 'stderr'
-    env['R_LOG_VERBOSE'] = '1'
-
-    # ASan specific environment stuff
-    if self.IS_ASAN and (self.IS_LINUX or self.IS_MAC):
-      try:
-        totalMemory = int(os.popen("free").readlines()[1].split()[1])
-
-        # Only 2 GB RAM or less available? Use custom ASan options to reduce
-        # the amount of resources required to do the tests. Standard options 
-        # will otherwise lead to OOM conditions on the current test slaves.
-        if totalMemory <= 1024 * 1024 * 2:
-          self.log.info("INFO | automation.py | ASan running in low-memory configuration")
-          env["ASAN_OPTIONS"] = "quarantine_size=50331648:redzone=64"
-      except OSError,err:
-        self.log.info("Failed determine available memory, disabling ASan low-memory configuration: %s", err.strerror)
-      except:
-        self.log.info("Failed determine available memory, disabling ASan low-memory configuration")
-
+    # Don't do this for Mac since it makes the Mac OS X 10.5 (32-bit)
+    # trace-malloc leak test hang.  (It doesn't make the 10.6 (64-bit)
+    # leak test hang, though.)
+    if not self.IS_MAC:
+      env['NS_TRACE_MALLOC_DISABLE_STACKS'] = '1'
     return env
 
   if IS_WIN32:
@@ -551,7 +625,7 @@ class Automation(object):
           if err == 38 or err == 109: # ERROR_HANDLE_EOF || ERROR_BROKEN_PIPE
             return ('', False)
           else:
-            self.log.error("readWithTimeout got error: %d", err)
+            log.error("readWithTimeout got error: %d", err)
         if l.value > 0:
           # we're assuming that the output is line-buffered,
           # which is not unreasonable
@@ -575,7 +649,7 @@ class Automation(object):
       pHandle = ctypes.windll.kernel32.OpenProcess(PROCESS_TERMINATE, 0, pid)
       if not pHandle:
         return
-      ctypes.windll.kernel32.TerminateProcess(pHandle, 1)
+      success = ctypes.windll.kernel32.TerminateProcess(pHandle, 1)
       ctypes.windll.kernel32.CloseHandle(pHandle)
 
   else:
@@ -610,79 +684,47 @@ class Automation(object):
     def killPid(self, pid):
       os.kill(pid, signal.SIGKILL)
 
-  def dumpScreen(self, utilityPath):
-    if self.haveDumpedScreen:
-      self.log.info("Not taking screenshot here: see the one that was previously logged")
-      return
+  if UNIXISH:
+    def dumpScreen(self, utilityPath):
+      self.haveDumpedScreen = True;
 
-    self.haveDumpedScreen = True;
-
-    # Need to figure out what tool and whether it write to a file or stdout
-    if self.UNIXISH:
-      utility = [os.path.join(utilityPath, "screentopng")]
-      imgoutput = 'stdout'
-    elif self.IS_MAC:
-      utility = ['/usr/sbin/screencapture', '-C', '-x', '-t', 'png']
-      imgoutput = 'file'
-    elif self.IS_WIN32:
-      utility = [os.path.join(utilityPath, "screenshot.exe")]
-      imgoutput = 'file'
-
-    # Run the capture correctly for the type of capture
-    try:
-      if imgoutput == 'file':
-        tmpfd, imgfilename = tempfile.mkstemp(prefix='mozilla-test-fail_')
-        os.close(tmpfd)
-        dumper = self.Process(utility + [imgfilename])
-      elif imgoutput == 'stdout':
-        dumper = self.Process(utility, bufsize=-1,
+      screentopng = os.path.join(utilityPath, "screentopng")
+      try:
+        dumper = self.Process([screentopng], bufsize=-1,
                               stdout=subprocess.PIPE, close_fds=True)
-    except OSError, err:
-      self.log.info("Failed to start %s for screenshot: %s",
-                    utility[0], err.strerror)
-      return
+      except OSError, err:
+        self.log.info("Failed to start %s for screenshot: %s",
+                      screentopng, err.strerror)
+        return
 
-    # Check whether the capture utility ran successfully
-    dumper_out, dumper_err = dumper.communicate()
-    if dumper.returncode != 0:
-      self.log.info("%s exited with code %d", utility, dumper.returncode)
-      return
+      image = dumper.stdout.read()
+      status = dumper.wait()
+      if status != 0:
+        self.log.info("screentopng exited with code %d", status)
+        return
 
-    try:
-      if imgoutput == 'stdout':
-        image = dumper_out
-      elif imgoutput == 'file':
-        with open(imgfilename, 'rb') as imgfile:
-          image = imgfile.read()
-    except IOError, err:
-        self.log.info("Failed to read image from %s", imgoutput)
+      import base64
+      encoded = base64.b64encode(image)
+      self.log.info("SCREENSHOT: data:image/png;base64,%s", encoded)
 
-    import base64
-    encoded = base64.b64encode(image)
-    self.log.info("SCREENSHOT: data:image/png;base64,%s", encoded)
-
-  def killAndGetStack(self, processPID, utilityPath, debuggerInfo):
-    """Kill the process, preferrably in a way that gets us a stack trace.
-       Also attempts to obtain a screenshot before killing the process."""
-    if not debuggerInfo:
-      self.dumpScreen(utilityPath)
-    self.killAndGetStackNoScreenshot(processPID, utilityPath, debuggerInfo)
-
-  def killAndGetStackNoScreenshot(self, processPID, utilityPath, debuggerInfo):
+  def killAndGetStack(self, proc, utilityPath, debuggerInfo):
     """Kill the process, preferrably in a way that gets us a stack trace."""
+    if self.UNIXISH and not debuggerInfo and not self.haveDumpedScreen:
+      self.dumpScreen(utilityPath)
+
     if self.CRASHREPORTER and not debuggerInfo:
       if self.UNIXISH:
         # ABRT will get picked up by Breakpad's signal handler
-        os.kill(processPID, signal.SIGABRT)
+        os.kill(proc.pid, signal.SIGABRT)
         return
       elif self.IS_WIN32:
         # We should have a "crashinject" program in our utility path
         crashinject = os.path.normpath(os.path.join(utilityPath, "crashinject.exe"))
-        if os.path.exists(crashinject) and subprocess.Popen([crashinject, str(processPID)]).wait() == 0:
+        if os.path.exists(crashinject) and subprocess.Popen([crashinject, str(proc.pid)]).wait() == 0:
           return
       #TODO: kill the process such that it triggers Breakpad on OS X (bug 525296)
     self.log.info("Can't trigger Breakpad, just killing process")
-    self.killPid(processPID)
+    proc.kill()
 
   def waitForFinish(self, proc, utilityPath, timeout, maxTime, startTime, debuggerInfo, symbolsPath):
     """ Look for timeout or crashes and return the status after the process terminates """
@@ -695,7 +737,7 @@ class Automation(object):
     else:
       logsource = proc.stdout
 
-      if self.IS_DEBUG_BUILD and symbolsPath and os.path.exists(symbolsPath):
+      if self.IS_DEBUG_BUILD and (self.IS_MAC or self.IS_LINUX) and symbolsPath and os.path.exists(symbolsPath):
         # Run each line through a function in fix_stack_using_bpsyms.py (uses breakpad symbol files)
         # This method is preferred for Tinderbox builds, since native symbols may have been stripped.
         sys.path.insert(0, utilityPath)
@@ -718,12 +760,12 @@ class Automation(object):
 
       (line, didTimeout) = self.readWithTimeout(logsource, timeout)
       while line != "" and not didTimeout:
+        if "TEST-START" in line and "|" in line:
+          self.lastTestSeen = line.split("|")[1].strip()
         if stackFixerFunction:
           line = stackFixerFunction(line)
         self.log.info(line.rstrip().decode("UTF-8", "ignore"))
-        if "TEST-START" in line and "|" in line:
-          self.lastTestSeen = line.split("|")[1].strip()
-        if not debuggerInfo and "TEST-UNEXPECTED-FAIL" in line and "Test timed out" in line:
+        if self.UNIXISH and not debuggerInfo and not self.haveDumpedScreen and "TEST-UNEXPECTED-FAIL" in line and "Test timed out" in line:
           self.dumpScreen(utilityPath)
 
         (line, didTimeout) = self.readWithTimeout(logsource, timeout)
@@ -731,10 +773,10 @@ class Automation(object):
           # Kill the application, but continue reading from stack fixer so as not to deadlock on stackFixerProcess.wait().
           hitMaxTime = True
           self.log.info("TEST-UNEXPECTED-FAIL | %s | application ran for longer than allowed maximum time of %d seconds", self.lastTestSeen, int(maxTime))
-          self.killAndGetStack(proc.pid, utilityPath, debuggerInfo)
+          self.killAndGetStack(proc, utilityPath, debuggerInfo)
       if didTimeout:
         self.log.info("TEST-UNEXPECTED-FAIL | %s | application timed out after %d seconds with no output", self.lastTestSeen, int(timeout))
-        self.killAndGetStack(proc.pid, utilityPath, debuggerInfo)
+        self.killAndGetStack(proc, utilityPath, debuggerInfo)
 
     status = proc.wait()
     if status == 0:
@@ -780,41 +822,36 @@ class Automation(object):
     args.extend(extraArgs)
     return cmd, args
 
-  def checkForZombies(self, processLog, utilityPath, debuggerInfo):
+  def checkForZombies(self, processLog):
     """ Look for hung processes """
     if not os.path.exists(processLog):
-      self.log.info('Automation Error: PID log not found: %s', processLog)
-      # Whilst no hung process was found, the run should still display as a failure
-      return True
+      self.log.info('INFO | automation.py | PID log not found: %s', processLog)
+    else:
+      self.log.info('INFO | automation.py | Reading PID log: %s', processLog)
+      processList = []
+      pidRE = re.compile(r'launched child process (\d+)$')
+      processLogFD = open(processLog)
+      for line in processLogFD:
+        self.log.info(line.rstrip())
+        m = pidRE.search(line)
+        if m:
+          processList.append(int(m.group(1)))
+      processLogFD.close()
 
-    foundZombie = False
-    self.log.info('INFO | zombiecheck | Reading PID log: %s', processLog)
-    processList = []
-    pidRE = re.compile(r'launched child process (\d+)$')
-    processLogFD = open(processLog)
-    for line in processLogFD:
-      self.log.info(line.rstrip())
-      m = pidRE.search(line)
-      if m:
-        processList.append(int(m.group(1)))
-    processLogFD.close()
+      for processPID in processList:
+        self.log.info("INFO | automation.py | Checking for orphan process with PID: %d", processPID)
+        if self.isPidAlive(processPID):
+          self.log.info("TEST-UNEXPECTED-FAIL | automation.py | child process %d still alive after shutdown", processPID)
+          self.killPid(processPID)
 
-    for processPID in processList:
-      self.log.info("INFO | zombiecheck | Checking for orphan process with PID: %d", processPID)
-      if self.isPidAlive(processPID):
-        foundZombie = True
-        self.log.info("TEST-UNEXPECTED-FAIL | zombiecheck | child process %d still alive after shutdown", processPID)
-        self.killAndGetStack(processPID, utilityPath, debuggerInfo)
-    return foundZombie
-
-  def checkForCrashes(self, minidumpDir, symbolsPath):
-    return mozcrash.check_for_crashes(minidumpDir, symbolsPath, test_name=self.lastTestSeen)
+  def checkForCrashes(self, profileDir, symbolsPath):
+    automationutils.checkForCrashes(os.path.join(profileDir, "minidumps"), symbolsPath, self.lastTestSeen)
 
   def runApp(self, testURL, env, app, profileDir, extraArgs,
              runSSLTunnel = False, utilityPath = None,
              xrePath = None, certPath = None,
              debuggerInfo = None, symbolsPath = None,
-             timeout = -1, maxTime = None, onLaunch = None):
+             timeout = -1, maxTime = None):
     """
     Run the app, log the duration it took to execute, return the status code.
     Kills the app if it runs for longer than |maxTime| seconds, or outputs nothing for |timeout| seconds.
@@ -871,21 +908,12 @@ class Automation(object):
                  stderr = subprocess.STDOUT)
     self.log.info("INFO | automation.py | Application pid: %d", proc.pid)
 
-    if onLaunch is not None:
-      # Allow callers to specify an onLaunch callback to be fired after the
-      # app is launched.
-      onLaunch()
-
     status = self.waitForFinish(proc, utilityPath, timeout, maxTime, startTime, debuggerInfo, symbolsPath)
     self.log.info("INFO | automation.py | Application ran for: %s", str(datetime.now() - startTime))
 
     # Do a final check for zombie child processes.
-    zombieProcesses = self.checkForZombies(processLog, utilityPath, debuggerInfo)
-
-    crashed = self.checkForCrashes(os.path.join(profileDir, "minidumps"), symbolsPath)
-
-    if crashed or zombieProcesses:
-      status = 1
+    self.checkForZombies(processLog)
+    self.checkForCrashes(profileDir, symbolsPath)
 
     if os.path.exists(processLog):
       os.unlink(processLog)
@@ -895,92 +923,35 @@ class Automation(object):
 
     return status
 
-  def getExtensionIDFromRDF(self, rdfSource):
-    """
-    Retrieves the extension id from an install.rdf file (or string).
-    """
-    from xml.dom.minidom import parse, parseString, Node
-
-    if isinstance(rdfSource, file):
-      document = parse(rdfSource)
-    else:
-      document = parseString(rdfSource)
-
-    # Find the <em:id> element. There can be multiple <em:id> tags
-    # within <em:targetApplication> tags, so we have to check this way.
-    for rdfChild in document.documentElement.childNodes:
-      if rdfChild.nodeType == Node.ELEMENT_NODE and rdfChild.tagName == "Description":
-        for descChild in rdfChild.childNodes:
-          if descChild.nodeType == Node.ELEMENT_NODE and descChild.tagName == "em:id":
-            return descChild.childNodes[0].data
-
-    return None
-
+  """
+   Copies an extension into the extensions directory of the given profile.
+   extensionSource - the source location of the extension files.  This can be either
+                     a directory or a path to an xpi file.
+   profileDir      - the profile directory we are copying into.  We will create the
+                     "extensions" directory there if it doesn't exist.
+   extensionID     - the id of the extension to be used as the containing directory for the
+                     extension, if extensionSource is a directory, i.e.
+                 this is the name of the folder in the <profileDir>/extensions/<extensionID>
+  """
   def installExtension(self, extensionSource, profileDir, extensionID = None):
-    """
-    Copies an extension into the extensions directory of the given profile.
-    extensionSource - the source location of the extension files.  This can be either
-                      a directory or a path to an xpi file.
-    profileDir      - the profile directory we are copying into.  We will create the
-                      "extensions" directory there if it doesn't exist.
-    extensionID     - the id of the extension to be used as the containing directory for the
-                      extension, if extensionSource is a directory, i.e.
-                  this is the name of the folder in the <profileDir>/extensions/<extensionID>
-    """
     if not os.path.isdir(profileDir):
       self.log.info("INFO | automation.py | Cannot install extension, invalid profileDir at: %s", profileDir)
       return
 
-    installRDFFilename = "install.rdf"
-
-    extensionsRootDir = os.path.join(profileDir, "extensions", "staged")
-    if not os.path.isdir(extensionsRootDir):
-      os.makedirs(extensionsRootDir)
+    extnsdir = os.path.join(profileDir, "extensions", "staged")
 
     if os.path.isfile(extensionSource):
-      reader = automationutils.ZipFileReader(extensionSource)
-
-      for filename in reader.namelist():
-        # Sanity check the zip file.
-        if os.path.isabs(filename):
-          self.log.info("INFO | automation.py | Cannot install extension, bad files in xpi")
-          return
-
-        # We may need to dig the extensionID out of the zip file...
-        if extensionID is None and filename == installRDFFilename:
-          extensionID = self.getExtensionIDFromRDF(reader.read(filename))
-
-      # We must know the extensionID now.
-      if extensionID is None:
+      # Copy extension xpi directly.
+      # "destination file is created or overwritten".
+      shutil.copy2(extensionSource, extnsdir)
+    elif os.path.isdir(extensionSource):
+      if extensionID == None:
         self.log.info("INFO | automation.py | Cannot install extension, missing extensionID")
         return
 
-      # Make the extension directory.
-      extensionDir = os.path.join(extensionsRootDir, extensionID)
-      os.mkdir(extensionDir)
-
-      # Extract all files.
-      reader.extractall(extensionDir)
-
-    elif os.path.isdir(extensionSource):
-      if extensionID is None:
-        filename = os.path.join(extensionSource, installRDFFilename)
-        if os.path.isfile(filename):
-          with open(filename, "r") as installRDF:
-            extensionID = self.getExtensionIDFromRDF(installRDF)
-
-        if extensionID is None:
-          self.log.info("INFO | automation.py | Cannot install extension, missing extensionID")
-          return
-
       # Copy extension tree into its own directory.
       # "destination directory must not already exist".
-      shutil.copytree(extensionSource, os.path.join(extensionsRootDir, extensionID))
-
+      shutil.copytree(extensionSource, os.path.join(extnsdir, extensionID))
     else:
       self.log.info("INFO | automation.py | Cannot install extension, invalid extensionSource at: %s", extensionSource)
-
-  def elf_arm(self, filename):
-    data = open(filename, 'rb').read(20)
-    return data[:4] == "\x7fELF" and ord(data[18]) == 40 # EM_ARM
-
+      return

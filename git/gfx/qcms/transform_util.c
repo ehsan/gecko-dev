@@ -15,18 +15,16 @@
 
 /* value must be a value between 0 and 1 */
 //XXX: is the above a good restriction to have?
-// the output range of this functions is 0..1
-float lut_interp_linear(double input_value, uint16_t *table, int length)
+float lut_interp_linear(double value, uint16_t *table, int length)
 {
 	int upper, lower;
-	float value;
-	input_value = input_value * (length - 1); // scale to length of the array
-	upper = ceil(input_value);
-	lower = floor(input_value);
+	value = value * (length - 1); // scale to length of the array
+	upper = ceil(value);
+	lower = floor(value);
 	//XXX: can we be more performant here?
-	value = table[upper]*(1. - (upper - input_value)) + table[lower]*(upper - input_value);
+	value = table[upper]*(1. - (upper - value)) + table[lower]*(upper - value);
 	/* scale the value */
-	return value * (1.f/65535.f);
+	return value * (1./65535.);
 }
 
 /* same as above but takes and returns a uint16_t value representing a range from 0..1 */
@@ -76,8 +74,8 @@ float lut_interp_linear_float(float value, float *table, int length)
 {
         int upper, lower;
         value = value * (length - 1);
-        upper = ceilf(value);
-        lower = floorf(value);
+        upper = ceil(value);
+        lower = floor(value);
         //XXX: can we be more performant here?
         value = table[upper]*(1. - (upper - value)) + table[lower]*(upper - value);
         /* scale the value */
@@ -101,13 +99,11 @@ uint16_t lut_interp_linear16(uint16_t input_value, uint16_t *table, int length)
 }
 #endif
 
-void compute_curve_gamma_table_type1(float gamma_table[256], uint16_t gamma)
+void compute_curve_gamma_table_type1(float gamma_table[256], double gamma)
 {
 	unsigned int i;
-	float gamma_float = u8Fixed8Number_to_float(gamma);
 	for (i = 0; i < 256; i++) {
-                // 0..1^(0..255 + 255/256) will always be between 0 and 1
-		gamma_table[i] = pow(i/255., gamma_float);
+		gamma_table[i] = pow(i/255., gamma);
 	}
 }
 
@@ -174,9 +170,9 @@ void compute_curve_gamma_table_type_parametric(float gamma_table[256], float par
                         // XXX The equations are not exactly as definied in the spec but are
                         //     algebraic equivilent.
                         // TODO Should division by 255 be for the whole expression.
-                        gamma_table[X] = clamp_float(pow(a * X / 255. + b, y) + c + e);
+                        gamma_table[X] = pow(a * X / 255. + b, y) + c + e;
                 } else {
-                        gamma_table[X] = clamp_float(c * X / 255. + f);
+                        gamma_table[X] = c * X / 255. + f;
                 }
         }
 }
@@ -187,6 +183,35 @@ void compute_curve_gamma_table_type0(float gamma_table[256])
 	for (i = 0; i < 256; i++) {
 		gamma_table[i] = i/255.;
 	}
+}
+
+
+float clamp_float(float a)
+{
+        if (a > 1.)
+                return 1.;
+        else if (a < 0)
+                return 0;
+        else
+                return a;
+}
+
+unsigned char clamp_u8(float v)
+{
+	if (v > 255.)
+		return 255;
+	else if (v < 0)
+		return 0;
+	else
+		return floor(v+.5);
+}
+
+float u8Fixed8Number_to_float(uint16_t x)
+{
+	// 0x0000 = 0.
+	// 0x0100 = 1.
+	// 0xffff = 255  + 255/256
+	return x/256.;
 }
 
 float *build_input_gamma_table(struct curveType *TRC)
@@ -202,7 +227,7 @@ float *build_input_gamma_table(struct curveType *TRC)
 			if (TRC->count == 0) {
 				compute_curve_gamma_table_type0(gamma_table);
 			} else if (TRC->count == 1) {
-				compute_curve_gamma_table_type1(gamma_table, TRC->data[0]);
+				compute_curve_gamma_table_type1(gamma_table, u8Fixed8Number_to_float(TRC->data[0]));
 			} else {
 				compute_curve_gamma_table_type2(gamma_table, TRC->data, TRC->count);
 			}

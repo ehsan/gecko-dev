@@ -1,7 +1,42 @@
 # -*- Mode: HTML -*-
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is Firefox Application Menu.
+#
+# The Initial Developer of the Original Code is
+# The Mozilla Foundation.
+# Portions created by the Initial Developer are Copyright (C) 2010
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Dão Gottwald <dao@mozilla.com>
+#   Joshua M. <soapyhamhocks@gmail.com>
+#   Margaret Leibovic <margaret.leibovic@gmail.com>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 
 <menupopup id="appmenu-popup"
            onpopupshowing="if (event.target == this) {
@@ -11,7 +46,6 @@
 #endif
                              return;
                            }
-                           updateCharacterEncodingMenuState();
                            if (event.target.parentNode.parentNode.parentNode.parentNode == this)
                              this._currentPopup = event.target;">
   <hbox>
@@ -35,9 +69,11 @@
                       key="openFileKb"/>
           </menupopup>
       </splitmenu>
-      <menuitem id="appmenu_newPrivateWindow"
+      <menuitem id="appmenu_privateBrowsing"
                 class="menuitem-iconic menuitem-iconic-tooltip"
-                label="&newPrivateWindow.label;"
+                label="&privateBrowsingCmd.start.label;"
+                startlabel="&privateBrowsingCmd.start.label;"
+                stoplabel="&privateBrowsingCmd.stop.label;"
                 command="Tools:PrivateBrowsing"
                 key="key_privatebrowsing"/>
       <menuitem label="&goOfflineCmd.label;"
@@ -117,7 +153,7 @@
                 command="Browser:SavePage"
                 key="key_savePage"/>
       <menuitem id="appmenu_sendLink"
-                label="&emailPageCmd.label;"
+                label="&sendPageCmd.label;"
                 command="Browser:SendLink"/>
       <splitmenu id="appmenu_print"
                  iconic="true"
@@ -138,32 +174,37 @@
           </menupopup>
       </splitmenu>
       <menuseparator class="appmenu-menuseparator"/>
-      <splitmenu id="appmenu_webDeveloper"
-                 command="Tools:DevToolbox"
-                 label="&appMenuWebDeveloper.label;">
+      <menu id="appmenu_webDeveloper"
+            label="&appMenuWebDeveloper.label;">
         <menupopup id="appmenu_webDeveloper_popup">
-          <menuitem id="appmenu_devToolbox"
-                    observes="devtoolsMenuBroadcaster_DevToolbox"/>
-          <menuseparator id="appmenu_devtools_separator"/>
-          <menuitem id="appmenu_devToolbar"
-                    observes="devtoolsMenuBroadcaster_DevToolbar"/>
-          <menuitem id="appmenu_chromeDebugger"
-                    observes="devtoolsMenuBroadcaster_ChromeDebugger"/>
-          <menuitem id="appmenu_browserConsole"
-                    observes="devtoolsMenuBroadcaster_BrowserConsole"/>
-          <menuitem id="appmenu_responsiveUI"
-                    observes="devtoolsMenuBroadcaster_ResponsiveUI"/>
+          <menuitem id="appmenu_webConsole"
+                    label="&webConsoleCmd.label;"
+                    oncommand="HUDConsoleUI.toggleHUD();"
+                    key="key_webConsole"/>
+          <menuitem id="appmenu_pageInspect"
+                    hidden="true"
+                    label="&inspectMenu.label;"
+                    type="checkbox"
+                    command="Tools:Inspect"
+                    key="key_inspect"/>
           <menuitem id="appmenu_scratchpad"
-                    observes="devtoolsMenuBroadcaster_Scratchpad"/>
+                    hidden="true"
+                    label="&scratchpad.label;"
+                    key="key_scratchpad"
+                    command="Tools:Scratchpad"/>
           <menuitem id="appmenu_pageSource"
-                    observes="devtoolsMenuBroadcaster_PageSource"/>
+                    label="&viewPageSourceCmd.label;"
+                    command="View:PageSource"
+                    key="key_viewSource"/>
           <menuitem id="appmenu_errorConsole"
-                    observes="devtoolsMenuBroadcaster_ErrorConsole"/>
-          <menuitem id="appmenu_devtools_connect"
-                    observes="devtoolsMenuBroadcaster_connect"/>
+                    hidden="true"
+                    label="&errorConsoleCmd.label;"
+                    key="key_errorConsole"
+                    oncommand="toJavaScriptConsole();"/>
           <menuseparator id="appmenu_devToolsEndSeparator"/>
           <menuitem id="appmenu_getMoreDevtools"
-                    observes="devtoolsMenuBroadcaster_GetMoreTools"/>
+                    label="&getMoreDevtoolsCmd.label;"
+                    oncommand="openUILinkIn('https://addons.mozilla.org/firefox/collections/mozilla/webdeveloper/', 'tab');"/>
           <menuseparator/>
 #define ID_PREFIX appmenu_developer_
 #define OMIT_ACCESSKEYS
@@ -175,7 +216,7 @@
                     observes="workOfflineMenuitemState"
                     oncommand="BrowserOffline.toggleOfflineStatus();"/>
         </menupopup>
-      </splitmenu>
+      </menu>
       <menuseparator class="appmenu-menuseparator"/>
 #define ID_PREFIX appmenu_
 #define OMIT_ACCESSKEYS
@@ -217,9 +258,9 @@
                      placespopup="true"
                      context="placesContext"
                      openInTabs="children"
-                     oncommand="BookmarksEventHandler.onCommand(event, this.parentNode._placesView);"
-                     onclick="BookmarksEventHandler.onClick(event, this.parentNode._placesView);"
-                     onpopupshowing="BookmarkingUI.onPopupShowing(event);
+                     oncommand="BookmarksEventHandler.onCommand(event);"
+                     onclick="BookmarksEventHandler.onClick(event);"
+                     onpopupshowing="BookmarksMenuButton.onPopupShowing(event);
                                      if (!this.parentNode._placesView)
                                        new PlacesMenu(event, 'place:folder=BOOKMARKS_MENU');"
                      tooltip="bhTooltip"
@@ -294,16 +335,11 @@
                       key="key_sanitize"
                       command="Tools:Sanitize"/>
             <menuseparator class="hide-if-empty-places-result"/>
-#ifdef MOZ_SERVICES_SYNC
-            <menuitem id="appmenu_sync-tabs"
-                      class="syncTabsMenuItem"
-                      label="&syncTabsMenu2.label;"
-                      oncommand="BrowserOpenSyncTabs();"
-                      disabled="true"/>
-#endif
             <menuitem id="appmenu_restoreLastSession"
+                      class="restoreLastSession"
                       label="&historyRestoreLastSession.label;"
-                      command="Browser:RestoreLastSession"/>
+                      oncommand="restoreLastSession();"
+                      disabled="true"/>
             <menu id="appmenu_recentlyClosedTabsMenu"
                   class="recentlyClosedTabsMenu"
                   label="&historyUndoMenu.label;"
@@ -340,7 +376,7 @@
 #endif
                  oncommand="openPreferences();">
           <menupopup id="appmenu_customizeMenu"
-                     onpopupshowing="onViewToolbarsPopupShowing(event, document.getElementById('appmenu_toggleToolbarsSeparator'));">
+                     onpopupshowing="onViewToolbarsPopupShowing(event, document.getElementById('appmenu_toggleTabsOnTop').previousSibling);">
             <menuitem id="appmenu_preferences"
 #ifdef XP_UNIX
                       label="&preferencesCmdUnix.label;"
@@ -349,7 +385,7 @@
 #endif
                       oncommand="openPreferences();"/>
             <menuseparator/>
-            <menuseparator id="appmenu_toggleToolbarsSeparator"/>
+            <menuseparator/>
             <menuitem id="appmenu_toggleTabsOnTop"
                       label="&viewTabsOnTop.label;"
                       type="checkbox"
@@ -369,18 +405,8 @@
                       onclick="checkForMiddleClick(this, event);"/>
             <menuitem id="appmenu_gettingStarted"
                       label="&appMenuGettingStarted.label;"
-                      oncommand="gBrowser.loadOneTab('https://www.mozilla.org/firefox/central/', {inBackground: false});"
+                      oncommand="gBrowser.loadOneTab('http://www.mozilla.com/firefox/central/', {inBackground: false});"
                       onclick="checkForMiddleClick(this, event);"/>
-            <menuitem id="appmenu_keyboardShortcuts"
-                      label="&helpKeyboardShortcuts.label;"
-                      oncommand="openHelpLink('keyboard-shortcuts')"
-                      onclick="checkForMiddleClick(this, event);"/>
-#ifdef MOZ_SERVICES_HEALTHREPORT
-            <menuitem id="appmenu_healthReport"
-                      label="&healthReport.label;"
-                      oncommand="openHealthReport()"
-                      onclick="checkForMiddleClick(this, event);"/>
-#endif
             <menuitem id="appmenu_troubleshootingInfo"
                       label="&helpTroubleshootingInfo.label;"
                       oncommand="openTroubleshootingPage()"

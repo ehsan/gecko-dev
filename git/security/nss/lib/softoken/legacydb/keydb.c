@@ -1,6 +1,40 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape security libraries.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1994-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Dr Vipul Gupta <vipul.gupta@sun.com>, Sun Microsystems Laboratories
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
+/* $Id: keydb.c,v 1.12 2010/07/20 01:26:04 wtc%google.com Exp $ */
 
 #include "lowkeyi.h"
 #include "secasn1.h"
@@ -1756,35 +1790,6 @@ seckey_decrypt_private_key(SECItem*epki,
 		rv = SEC_QuickDERDecodeItem(permarena, pk,
 					lg_nsslowkey_RSAPrivateKeyTemplate,
 					&newPrivateKey);
-		if (rv == SECSuccess) {
-		    break;
-		}
-		/* Try decoding with the alternative template, but only allow
-		 * a zero-length modulus for a secret key object.
-		 * See bug 715073.
-		 */
-		rv = SEC_QuickDERDecodeItem(permarena, pk,
-					lg_nsslowkey_RSAPrivateKeyTemplate2,
-					&newPrivateKey);
-		/* A publicExponent of 0 is the defining property of a secret
-		 * key disguised as an RSA key. When decoding with the
-		 * alternative template, only accept a secret key with an
-		 * improperly encoded modulus and a publicExponent of 0.
-		 */
-		if (rv == SECSuccess) {
-		    if (pk->u.rsa.modulus.len == 2 &&
-			pk->u.rsa.modulus.data[0] == SEC_ASN1_INTEGER &&
-			pk->u.rsa.modulus.data[1] == 0 &&
-			pk->u.rsa.publicExponent.len == 1 &&
-			pk->u.rsa.publicExponent.data[0] == 0) {
-			/* Fix the zero-length integer by setting it to 0. */
-			pk->u.rsa.modulus.data = pk->u.rsa.publicExponent.data;
-			pk->u.rsa.modulus.len = pk->u.rsa.publicExponent.len;
-		    } else {
-			PORT_SetError(SEC_ERROR_BAD_DER);
-			rv = SECFailure;
-		    }
-		}
 		break;
 	      case SEC_OID_ANSIX9_DSA_SIGNATURE:
 		pk->keyType = NSSLOWKEYDSAKey;

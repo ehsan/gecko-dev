@@ -108,7 +108,7 @@ var prefs1 = [
   { name: "browser.urlbar.maxRichResults",
     value: 20
   },
-  { name: "security.OCSP.require",
+  { name: "browser.tabs.autoHide",
     value: true
   }
 ];
@@ -120,7 +120,7 @@ var prefs2 = [
   { name: "browser.urlbar.maxRichResults",
     value: 18
   },
-  { name: "security.OCSP.require",
+  { name: "browser.tabs.autoHide",
     value: false
   }
 ];
@@ -135,7 +135,7 @@ Phase('phase1', [
   [Bookmarks.add, bookmarks_initial],
   [Prefs.modify, prefs1],
   [Prefs.verify, prefs1],
-  [Sync]
+  [Sync, SYNC_WIPE_SERVER]
 ]);
 
 // Sync profile2 and verify same prefs,passwords and bookmarks are present.

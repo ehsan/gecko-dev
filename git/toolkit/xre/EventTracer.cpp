@@ -1,6 +1,39 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * The Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Ted Mielczarek <ted.mielczarek@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * Event loop instrumentation. This code attempts to measure the
@@ -48,8 +81,6 @@
  * it took for the event to be serviced.
  */
 
-#include "GeckoProfiler.h"
-
 #include "EventTracer.h"
 
 #include <stdio.h>
@@ -71,10 +102,6 @@ namespace {
 PRThread* sTracerThread = NULL;
 bool sExit = false;
 
-struct TracerStartClosure {
-  bool mLogTracing;
-};
-
 /*
  * The tracer thread fires events at the native event loop roughly
  * every kMeasureInterval. It will sleep to attempt not to send them
@@ -87,10 +114,6 @@ struct TracerStartClosure {
  */
 void TracerThread(void *arg)
 {
-  PR_SetCurrentThreadName("Event Tracer");
-
-  TracerStartClosure* threadArgs = static_cast<TracerStartClosure*>(arg);
-
   // These are the defaults. They can be overridden by environment vars.
   // This should be set to the maximum latency we'd like to allow
   // for responsiveness.
@@ -98,7 +121,6 @@ void TracerThread(void *arg)
   // This is the sampling interval.
   PRIntervalTime interval = PR_MillisecondsToInterval(10);
 
-  sExit = false;
   FILE* log = NULL;
   char* envfile = PR_GetEnv("MOZ_INSTRUMENT_EVENT_LOOP_OUTPUT");
   if (envfile) {
@@ -123,13 +145,10 @@ void TracerThread(void *arg)
     }
   }
 
-  if (threadArgs->mLogTracing) {
-    fprintf(log, "MOZ_EVENT_TRACE start %llu\n", PR_Now() / PR_USEC_PER_MSEC);
-  }
+  fprintf(log, "MOZ_EVENT_TRACE start %llu\n", PR_Now() / PR_USEC_PER_MSEC);
 
   while (!sExit) {
     TimeStamp start(TimeStamp::Now());
-    profiler_responsiveness(start);
     PRIntervalTime next_sleep = interval;
 
     //TODO: only wait up to a maximum of interval; return
@@ -138,7 +157,7 @@ void TracerThread(void *arg)
     if (FireAndWaitForTracerEvent()) {
       TimeDuration duration = TimeStamp::Now() - start;
       // Only report samples that exceed our measurement threshold.
-      if (threadArgs->mLogTracing && duration.ToMilliseconds() > threshold) {
+      if (duration.ToMilliseconds() > threshold) {
         fprintf(log, "MOZ_EVENT_TRACE sample %llu %d\n",
                 PR_Now() / PR_USEC_PER_MSEC,
                 int(duration.ToSecondsSigDigits() * 1000));
@@ -159,39 +178,28 @@ void TracerThread(void *arg)
     }
   }
 
-  if (threadArgs->mLogTracing) {
-    fprintf(log, "MOZ_EVENT_TRACE stop %llu\n", PR_Now() / PR_USEC_PER_MSEC);
-  }
+  fprintf(log, "MOZ_EVENT_TRACE stop %llu\n", PR_Now() / PR_USEC_PER_MSEC);
 
   if (log != stdout)
     fclose(log);
-
-  delete threadArgs;
 }
 
 } // namespace
 
 namespace mozilla {
 
-bool InitEventTracing(bool aLog)
+bool InitEventTracing()
 {
-  if (sTracerThread)
-    return true;
-
   // Initialize the widget backend.
   if (!InitWidgetTracing())
     return false;
-
-  // The tracer thread owns the object and will delete it.
-  TracerStartClosure* args = new TracerStartClosure();
-  args->mLogTracing = aLog;
 
   // Create a thread that will fire events back at the
   // main thread to measure responsiveness.
   NS_ABORT_IF_FALSE(!sTracerThread, "Event tracing already initialized!");
   sTracerThread = PR_CreateThread(PR_USER_THREAD,
                                   TracerThread,
-                                  args,
+                                  NULL,
                                   PR_PRIORITY_NORMAL,
                                   PR_GLOBAL_THREAD,
                                   PR_JOINABLE_THREAD,
@@ -201,13 +209,7 @@ bool InitEventTracing(bool aLog)
 
 void ShutdownEventTracing()
 {
-  if (!sTracerThread)
-    return;
-
   sExit = true;
-  // Ensure that the tracer thread doesn't hang.
-  SignalTracerThread();
-
   if (sTracerThread)
     PR_JoinThread(sTracerThread);
   sTracerThread = NULL;

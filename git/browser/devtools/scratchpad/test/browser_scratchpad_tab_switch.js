@@ -2,6 +2,8 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
+// Reference to the Scratchpad chrome window object.
+let gScratchpadWindow;
 let tab1;
 let tab2;
 let sp;
@@ -12,14 +14,15 @@ function test()
 
   tab1 = gBrowser.addTab();
   gBrowser.selectedTab = tab1;
-  gBrowser.selectedBrowser.addEventListener("load", function onLoad1() {
-    gBrowser.selectedBrowser.removeEventListener("load", onLoad1, true);
+  gBrowser.selectedBrowser.addEventListener("load", function() {
+    gBrowser.selectedBrowser.removeEventListener("load", arguments.callee, true);
 
     tab2 = gBrowser.addTab();
     gBrowser.selectedTab = tab2;
-    gBrowser.selectedBrowser.addEventListener("load", function onLoad2() {
-      gBrowser.selectedBrowser.removeEventListener("load", onLoad2, true);
-      openScratchpad(runTests);
+    gBrowser.selectedBrowser.addEventListener("load", function() {
+      gBrowser.selectedBrowser.removeEventListener("load", arguments.callee, true);
+      gScratchpadWindow = Scratchpad.openScratchpad();
+      gScratchpadWindow.addEventListener("load", runTests, false);
     }, true);
     content.location = "data:text/html,test context switch in Scratchpad tab 2";
   }, true);
@@ -29,15 +32,17 @@ function test()
 
 function runTests()
 {
+  gScratchpadWindow.removeEventListener("load", runTests, true);
+
   sp = gScratchpadWindow.Scratchpad;
 
   let contentMenu = gScratchpadWindow.document.getElementById("sp-menu-content");
   let browserMenu = gScratchpadWindow.document.getElementById("sp-menu-browser");
-  let notificationBox = sp.notificationBox;
+  let statusbar = sp.statusbarStatus;
 
   ok(contentMenu, "found #sp-menu-content");
   ok(browserMenu, "found #sp-menu-browser");
-  ok(notificationBox, "found Scratchpad.notificationBox");
+  ok(statusbar, "found Scratchpad.statusbarStatus");
 
   sp.setContentContext();
 
@@ -47,24 +52,24 @@ function runTests()
   is(contentMenu.getAttribute("checked"), "true",
      "content menuitem is checked");
 
-  isnot(browserMenu.getAttribute("checked"), "true",
+  ok(!browserMenu.hasAttribute("checked"),
      "chrome menuitem is not checked");
 
-  is(notificationBox.currentNotification, null,
-     "there is no notification currently shown for content context");
+  is(statusbar.getAttribute("label"), contentMenu.getAttribute("label"),
+     "statusbar label is correct");
 
   sp.setText("window.foosbug653108 = 'aloha';");
 
   ok(!content.wrappedJSObject.foosbug653108,
      "no content.foosbug653108");
 
-  sp.run().then(function() {
-    is(content.wrappedJSObject.foosbug653108, "aloha",
-       "content.foosbug653108 has been set");
+  sp.run();
 
-    gBrowser.tabContainer.addEventListener("TabSelect", runTests2, true);
-    gBrowser.selectedTab = tab1;
-  });
+  is(content.wrappedJSObject.foosbug653108, "aloha",
+     "content.foosbug653108 has been set");
+
+  gBrowser.tabContainer.addEventListener("TabSelect", runTests2, true);
+  gBrowser.selectedTab = tab1;
 }
 
 function runTests2() {
@@ -73,18 +78,18 @@ function runTests2() {
   ok(!window.foosbug653108, "no window.foosbug653108");
 
   sp.setText("window.foosbug653108");
-  sp.run().then(function([, , result]) {
-    isnot(result, "aloha", "window.foosbug653108 is not aloha");
+  let result = sp.run();
 
-    sp.setText("window.foosbug653108 = 'ahoyhoy';");
-    sp.run().then(function() {
-      is(content.wrappedJSObject.foosbug653108, "ahoyhoy",
-         "content.foosbug653108 has been set 2");
+  isnot(result, "aloha", "window.foosbug653108 is not aloha");
 
-      gBrowser.selectedBrowser.addEventListener("load", runTests3, true);
-      content.location = "data:text/html,test context switch in Scratchpad location 2";
-    });
-  });
+  sp.setText("window.foosbug653108 = 'ahoyhoy';");
+  sp.run();
+
+  is(content.wrappedJSObject.foosbug653108, "ahoyhoy",
+     "content.foosbug653108 has been set 2");
+
+  gBrowser.selectedBrowser.addEventListener("load", runTests3, true);
+  content.location = "data:text/html,test context switch in Scratchpad location 2";
 }
 
 function runTests3() {
@@ -92,12 +97,14 @@ function runTests3() {
   // Check that the sandbox is not cached.
 
   sp.setText("typeof foosbug653108;");
-  sp.run().then(function([, , result]) {
-    is(result, "undefined", "global variable does not exist");
+  is(sp.run()[1], "undefined", "global variable does not exist");
 
-    tab1 = null;
-    tab2 = null;
-    sp = null;
-    finish();
-  });
+  gScratchpadWindow.close();
+  gScratchpadWindow = null;
+  tab1 = null;
+  tab2 = null;
+  sp = null;
+  gBrowser.removeCurrentTab();
+  gBrowser.removeCurrentTab();
+  finish();
 }

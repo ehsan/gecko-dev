@@ -1,8 +1,40 @@
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Places test code.
+ *
+ * The Initial Developer of the Original Code is the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Marco Bonardo <mak77@bonardo.net> (Original Author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by devaring the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not devare
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /**
  *  Test enabled commands in the left pane folder of the Library.
@@ -18,57 +50,53 @@ var gLibrary;
 gTests.push({
   desc: "Bug 489351 - Date containers under History in Library cannot be deleted/cut",
   run: function() {
-    function addVisitsCallback() {
-      // Select and open the left pane "History" query.
-      var PO = gLibrary.PlacesOrganizer;
-      PO.selectLeftPaneQuery('History');
-      isnot(PO._places.selectedNode, null, "We correctly selected History");
+    var bhist = PlacesUtils.history.QueryInterface(Ci.nsIBrowserHistory);
+    // Add a visit.
+    PlacesUtils.history.addVisit(PlacesUtils._uri(TEST_URI), Date.now() * 1000,
+                                 null, PlacesUtils.history.TRANSITION_TYPED,
+                                 false, 0);
+    ok(bhist.isVisited(PlacesUtils._uri(TEST_URI)), "Visit has been added");
 
-      // Check that both delete and cut commands are disabled.
-      ok(!PO._places.controller.isCommandEnabled("cmd_cut"),
-         "Cut command is disabled");
-      ok(!PO._places.controller.isCommandEnabled("cmd_delete"),
-         "Delete command is disabled");
-      var historyNode = PO._places.selectedNode
-                          .QueryInterface(Ci.nsINavHistoryContainerResultNode);
-      historyNode.containerOpen = true;
+    // Select and open the left pane "History" query.
+    var PO = gLibrary.PlacesOrganizer;
+    PO.selectLeftPaneQuery('History');
+    isnot(PO._places.selectedNode, null, "We correctly selected History");
 
-      // Check that we have a child container. It is "Today" container.
-      is(historyNode.childCount, 1, "History node has one child");
-      var todayNode = historyNode.getChild(0);
-      var todayNodeExpectedTitle = PlacesUtils.getString("finduri-AgeInDays-is-0");
-      is(todayNode.title, todayNodeExpectedTitle,
-         "History child is the expected container");
+    // Check that both delete and cut commands are disabled.
+    ok(!PO._places.controller.isCommandEnabled("cmd_cut"),
+       "Cut command is disabled");
+    ok(!PO._places.controller.isCommandEnabled("cmd_delete"),
+       "Delete command is disabled");
+    var historyNode = PO._places.selectedNode
+                        .QueryInterface(Ci.nsINavHistoryContainerResultNode);
+    historyNode.containerOpen = true;
 
-      // Select "Today" container.
-      PO._places.selectNode(todayNode);
-      is(PO._places.selectedNode, todayNode,
-         "We correctly selected Today container");
-      // Check that delete command is enabled but cut command is disabled.
-      ok(!PO._places.controller.isCommandEnabled("cmd_cut"),
-         "Cut command is disabled");
-      ok(PO._places.controller.isCommandEnabled("cmd_delete"),
-         "Delete command is enabled");
+    // Check that we have a child container. It is "Today" container.
+    is(historyNode.childCount, 1, "History node has one child");
+    var todayNode = historyNode.getChild(0);
+    var todayNodeExpectedTitle = PlacesUtils.getString("finduri-AgeInDays-is-0");
+    is(todayNode.title, todayNodeExpectedTitle,
+       "History child is the expected container");
 
-      // Execute the delete command and check visit has been removed.
-      PO._places.controller.doCommand("cmd_delete");
+    // Select "Today" container.
+    PO._places.selectNode(todayNode);
+    is(PO._places.selectedNode, todayNode,
+       "We correctly selected Today container");
+    // Check that delete command is enabled but cut command is disabled.
+    ok(!PO._places.controller.isCommandEnabled("cmd_cut"),
+       "Cut command is disabled");
+    ok(PO._places.controller.isCommandEnabled("cmd_delete"),
+       "Delete command is enabled");
 
-      // Test live update of "History" query.
-      is(historyNode.childCount, 0, "History node has no more children");
+    // Execute the delete command and check visit has been removed.
+    PO._places.controller.doCommand("cmd_delete");
+    ok(!bhist.isVisited(PlacesUtils._uri(TEST_URI)), "Visit has been removed");
 
-      historyNode.containerOpen = false;
+    // Test live update of "History" query.
+    is(historyNode.childCount, 0, "History node has no more children");
 
-      let testURI = NetUtil.newURI(TEST_URI);
-      PlacesUtils.asyncHistory.isURIVisited(testURI, function(aURI, aIsVisited) {
-        ok(!aIsVisited, "Visit has been removed");
-        nextTest();
-      });
-    }
-    addVisits(
-      {uri: NetUtil.newURI(TEST_URI), visitDate: Date.now() * 1000,
-        transition: PlacesUtils.history.TRANSITION_TYPED},
-      window,
-      addVisitsCallback);
+    historyNode.containerOpen = false;
+    nextTest();
   }
 });
 
@@ -97,7 +125,7 @@ gTests.push({
 
     // Add an History query to the toolbar.
     PlacesUtils.bookmarks.insertBookmark(PlacesUtils.toolbarFolderId,
-                                         NetUtil.newURI("place:sort=4"),
+                                         PlacesUtils._uri("place:sort=4"),
                                          0, // Insert at start.
                                          "special_query");
     // Get first child and check it is the "Most Visited" smart bookmark.

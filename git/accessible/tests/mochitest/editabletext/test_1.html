@@ -19,23 +19,22 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=452161
           src="editabletext.js"></script>
 
   <script type="application/javascript">
-
     function addTestEditable(aID, aTestRun, aTrailChar)
     {
       var et = new editableTextTest(aID);
 
       //////////////////////////////////////////////////////////////////////////
       // setTextContents
-      et.scheduleTest(et.setTextContents, "hello");
-      et.scheduleTest(et.setTextContents, "olleh", aTrailChar); // due to some reason this reports '\n' in the end
-      et.scheduleTest(et.setTextContents, "");
+      et.setTextContents("hello");
+      et.setTextContents("olleh", aTrailChar); // due to some reason this reports '\n' in the end
+      et.setTextContents("");
 
       //////////////////////////////////////////////////////////////////////////
       // insertText
-      et.scheduleTest(et.insertText, "hello", 0, "hello");
-      et.scheduleTest(et.insertText, "ma ", 0, "ma hello");
-      et.scheduleTest(et.insertText, "ma", 2, "mama hello");
-      et.scheduleTest(et.insertText, " hello", 10, "mama hello hello");
+      et.insertText("hello", 0, "hello");
+      et.insertText("ma ", 0, "ma hello");
+      et.insertText("ma", 2, "mama hello");
+      et.insertText(" hello", 10, "mama hello hello");
 
       // XXX: bug 452584
 
@@ -70,7 +69,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=452161
       var testRun = new editableTextTestRun();
 
       addTestEditable("input", testRun);
-      addTestEditable("div", testRun);
+      addTestEditable("div", testRun, '\n');
       addTestEditable(getNode("frame").contentDocument, testRun, '\n');
 
       testRun.run(); // Will call SimpleTest.finish();

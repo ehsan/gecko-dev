@@ -1,14 +1,46 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /* rendering object that goes directly inside the document's scrollbars */
 
 #include "nsCanvasFrame.h"
 #include "nsIServiceManager.h"
 #include "nsHTMLParts.h"
-#include "nsContainerFrame.h"
+#include "nsHTMLContainerFrame.h"
 #include "nsCSSRendering.h"
 #include "nsPresContext.h"
 #include "nsStyleContext.h"
@@ -20,6 +52,7 @@
 #include "nsIPresShell.h"
 #include "nsIScrollPositionListener.h"
 #include "nsDisplayList.h"
+#include "nsAbsoluteContainingBlock.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsFrameManager.h"
 
@@ -27,9 +60,12 @@
 #include "nsIScrollableFrame.h"
 #include "nsIDocShell.h"
 
+#ifdef DEBUG_rods
 //#define DEBUG_CANVAS_FOCUS
+#endif
 
-using namespace mozilla::layout;
+#define CANVAS_ABS_POS_CHILD_LIST NS_CONTAINER_LIST_COUNT_INCL_OC
+
 
 nsIFrame*
 NS_NewCanvasFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
@@ -41,31 +77,33 @@ NS_IMPL_FRAMEARENA_HELPERS(nsCanvasFrame)
 
 NS_QUERYFRAME_HEAD(nsCanvasFrame)
   NS_QUERYFRAME_ENTRY(nsCanvasFrame)
-NS_QUERYFRAME_TAIL_INHERITING(nsContainerFrame)
+NS_QUERYFRAME_TAIL_INHERITING(nsHTMLContainerFrame)
 
 void
 nsCanvasFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
+  mAbsoluteContainer.DestroyFrames(this, aDestructRoot);
+
   nsIScrollableFrame* sf =
     PresContext()->GetPresShell()->GetRootScrollFrameAsScrollable();
   if (sf) {
     sf->RemoveScrollPositionListener(this);
   }
 
-  nsContainerFrame::DestroyFrom(aDestructRoot);
+  nsHTMLContainerFrame::DestroyFrom(aDestructRoot);
 }
 
 void
 nsCanvasFrame::ScrollPositionWillChange(nscoord aX, nscoord aY)
 {
   if (mDoPaintFocus) {
-    mDoPaintFocus = false;
+    mDoPaintFocus = PR_FALSE;
     PresContext()->FrameManager()->GetRootFrame()->InvalidateFrameSubtree();
   }
 }
 
 NS_IMETHODIMP
-nsCanvasFrame::SetHasFocus(bool aHasFocus)
+nsCanvasFrame::SetHasFocus(PRBool aHasFocus)
 {
   if (mDoPaintFocus != aHasFocus) {
     mDoPaintFocus = aHasFocus;
@@ -76,7 +114,7 @@ nsCanvasFrame::SetHasFocus(bool aHasFocus)
         PresContext()->GetPresShell()->GetRootScrollFrameAsScrollable();
       if (sf) {
         sf->AddScrollPositionListener(this);
-        mAddedScrollPositionListener = true;
+        mAddedScrollPositionListener = PR_TRUE;
       }
     }
   }
@@ -87,20 +125,24 @@ NS_IMETHODIMP
 nsCanvasFrame::SetInitialChildList(ChildListID     aListID,
                                    nsFrameList&    aChildList)
 {
+  if (kAbsoluteList == aListID)
+    return mAbsoluteContainer.SetInitialChildList(this, aListID, aChildList);
+
   NS_ASSERTION(aListID != kPrincipalList ||
                aChildList.IsEmpty() || aChildList.OnlyChild(),
                "Primary child list can have at most one frame in it");
-  return nsContainerFrame::SetInitialChildList(aListID, aChildList);
+  return nsHTMLContainerFrame::SetInitialChildList(aListID, aChildList);
 }
 
 NS_IMETHODIMP
 nsCanvasFrame::AppendFrames(ChildListID     aListID,
                             nsFrameList&    aFrameList)
 {
-  NS_ASSERTION(aListID == kPrincipalList ||
-               aListID == kAbsoluteList, "unexpected child list ID");
-  NS_PRECONDITION(aListID != kAbsoluteList ||
-                  mFrames.IsEmpty(), "already have a child frame");
+  if (kAbsoluteList == aListID)
+    return mAbsoluteContainer.AppendFrames(this, aListID, aFrameList);
+
+  NS_ASSERTION(aListID == kPrincipalList, "unexpected child list ID");
+  NS_PRECONDITION(mFrames.IsEmpty(), "already have a child frame");
   if (aListID != kPrincipalList) {
     // We only support the Principal and Absolute child lists.
     return NS_ERROR_INVALID_ARG;
@@ -114,10 +156,10 @@ nsCanvasFrame::AppendFrames(ChildListID     aListID,
   // Insert the new frames
   NS_ASSERTION(aFrameList.FirstChild() == aFrameList.LastChild(),
                "Only one principal child frame allowed");
-#ifdef DEBUG
+#ifdef NS_DEBUG
   nsFrame::VerifyDirtyBitSet(aFrameList);
 #endif
-  mFrames.AppendFrames(nullptr, aFrameList);
+  mFrames.AppendFrames(nsnull, aFrameList);
 
   PresContext()->PresShell()->
     FrameNeedsReflow(this, nsIPresShell::eTreeChange,
@@ -131,6 +173,9 @@ nsCanvasFrame::InsertFrames(ChildListID     aListID,
                             nsIFrame*       aPrevFrame,
                             nsFrameList&    aFrameList)
 {
+  if (kAbsoluteList == aListID)
+    return mAbsoluteContainer.InsertFrames(this, aListID, aPrevFrame, aFrameList);
+
   // Because we only support a single child frame inserting is the same
   // as appending
   NS_PRECONDITION(!aPrevFrame, "unexpected previous sibling frame");
@@ -144,15 +189,25 @@ NS_IMETHODIMP
 nsCanvasFrame::RemoveFrame(ChildListID     aListID,
                            nsIFrame*       aOldFrame)
 {
-  NS_ASSERTION(aListID == kPrincipalList ||
-               aListID == kAbsoluteList, "unexpected child list ID");
-  if (aListID != kPrincipalList && aListID != kAbsoluteList) {
+  if (kAbsoluteList == aListID) {
+    mAbsoluteContainer.RemoveFrame(this, aListID, aOldFrame);
+    return NS_OK;
+  }
+
+  NS_ASSERTION(aListID == kPrincipalList, "unexpected child list ID");
+  if (aListID != kPrincipalList) {
     // We only support the Principal and Absolute child lists.
     return NS_ERROR_INVALID_ARG;
   }
 
   if (aOldFrame != mFrames.FirstChild())
     return NS_ERROR_FAILURE;
+
+  // It's our one and only child frame
+  // Damage the area occupied by the deleted frame
+  // The child of the canvas probably can't have an outline, but why bother
+  // thinking about that?
+  Invalidate(aOldFrame->GetVisualOverflowRect() + aOldFrame->GetPosition());
 
   // Remove the frame and destroy it
   mFrames.DestroyFrame(aOldFrame);
@@ -161,6 +216,22 @@ nsCanvasFrame::RemoveFrame(ChildListID     aListID,
     FrameNeedsReflow(this, nsIPresShell::eTreeChange,
                      NS_FRAME_HAS_DIRTY_CHILDREN);
   return NS_OK;
+}
+
+nsFrameList
+nsCanvasFrame::GetChildList(ChildListID aListID) const
+{
+  if (kAbsoluteList == aListID)
+    return mAbsoluteContainer.GetChildList();
+
+  return nsHTMLContainerFrame::GetChildList(aListID);
+}
+
+void
+nsCanvasFrame::GetChildLists(nsTArray<ChildList>* aLists) const
+{
+  nsHTMLContainerFrame::GetChildLists(aLists);
+  mAbsoluteContainer.AppendChildList(aLists, kAbsoluteList);
 }
 
 nsRect nsCanvasFrame::CanvasArea() const
@@ -178,84 +249,23 @@ nsRect nsCanvasFrame::CanvasArea() const
 }
 
 void
-nsDisplayCanvasBackgroundColor::Paint(nsDisplayListBuilder* aBuilder,
-                                      nsRenderingContext* aCtx)
+nsDisplayCanvasBackground::Paint(nsDisplayListBuilder* aBuilder,
+                                 nsRenderingContext* aCtx)
 {
   nsCanvasFrame* frame = static_cast<nsCanvasFrame*>(mFrame);
   nsPoint offset = ToReferenceFrame();
   nsRect bgClipRect = frame->CanvasArea() + offset;
-  if (NS_GET_A(mColor) > 0) {
-    aCtx->SetColor(mColor);
+
+  if (NS_GET_A(mExtraBackgroundColor) > 0) {
+    aCtx->SetColor(mExtraBackgroundColor);
     aCtx->FillRect(bgClipRect);
   }
-}
 
-static void BlitSurface(gfxContext* aDest, const gfxRect& aRect, gfxASurface* aSource)
-{
-  aDest->Translate(gfxPoint(aRect.x, aRect.y));
-  aDest->SetSource(aSource);
-  aDest->NewPath();
-  aDest->Rectangle(gfxRect(0, 0, aRect.width, aRect.height));
-  aDest->Fill();
-  aDest->Translate(-gfxPoint(aRect.x, aRect.y));
-}
-
-void
-nsDisplayCanvasBackgroundImage::Paint(nsDisplayListBuilder* aBuilder,
-                                      nsRenderingContext* aCtx)
-{
-  nsCanvasFrame* frame = static_cast<nsCanvasFrame*>(mFrame);
-  nsPoint offset = ToReferenceFrame();
-  nsRect bgClipRect = frame->CanvasArea() + offset;
-
-  nsRenderingContext context;
-  nsRefPtr<gfxContext> dest = aCtx->ThebesContext();
-  nsRefPtr<gfxASurface> surf;
-  nsRefPtr<gfxContext> ctx;
-  gfxRect destRect;
-#ifndef MOZ_GFX_OPTIMIZE_MOBILE
-  if (IsSingleFixedPositionImage(aBuilder, bgClipRect, &destRect) &&
-      aBuilder->IsPaintingToWindow() && !aBuilder->IsCompositingCheap() &&
-      !dest->CurrentMatrix().HasNonIntegerTranslation()) {
-    // Snap image rectangle to nearest pixel boundaries. This is the right way
-    // to snap for this context, because we checked HasNonIntegerTranslation above.
-    destRect.Round();
-    surf = static_cast<gfxASurface*>(Frame()->Properties().Get(nsIFrame::CachedBackgroundImage()));
-    nsRefPtr<gfxASurface> destSurf = dest->CurrentSurface();
-    if (surf && surf->GetType() == destSurf->GetType()) {
-      BlitSurface(dest, destRect, surf);
-      return;
-    }
-    surf = destSurf->CreateSimilarSurface(gfxASurface::CONTENT_COLOR_ALPHA,
-        gfxIntSize(destRect.width, destRect.height));
-    if (surf) {
-      ctx = new gfxContext(surf);
-      ctx->Translate(-gfxPoint(destRect.x, destRect.y));
-      context.Init(aCtx->DeviceContext(), ctx);
-    }
-  }
-#endif
-
-  PaintInternal(aBuilder,
-                surf ? &context : aCtx,
-                surf ? bgClipRect: mVisibleRect,
-                &bgClipRect);
-
-  if (surf) {
-    BlitSurface(dest, destRect, surf);
-    frame->Properties().Set(nsIFrame::CachedBackgroundImage(), surf.forget().get());
-  }
-}
-
-void
-nsDisplayCanvasThemedBackground::Paint(nsDisplayListBuilder* aBuilder,
-                                       nsRenderingContext* aCtx)
-{
-  nsCanvasFrame* frame = static_cast<nsCanvasFrame*>(mFrame);
-  nsPoint offset = ToReferenceFrame();
-  nsRect bgClipRect = frame->CanvasArea() + offset;
-
-  PaintInternal(aBuilder, aCtx, mVisibleRect, &bgClipRect);
+  nsCSSRendering::PaintBackground(mFrame->PresContext(), *aCtx, mFrame,
+                                  mVisibleRect,
+                                  nsRect(offset, mFrame->GetSize()),
+                                  aBuilder->GetBackgroundPaintFlags(),
+                                  &bgClipRect);
 }
 
 /**
@@ -274,9 +284,8 @@ public:
     MOZ_COUNT_DTOR(nsDisplayCanvasFocus);
   }
 
-  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap)
+  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder)
   {
-    *aSnap = false;
     // This is an overestimate, but that's not a problem.
     nsCanvasFrame* frame = static_cast<nsCanvasFrame*>(mFrame);
     return frame->CanvasArea() + ToReferenceFrame();
@@ -292,56 +301,38 @@ public:
   NS_DISPLAY_DECL_NAME("CanvasFocus", TYPE_CANVAS_FOCUS)
 };
 
-void
+NS_IMETHODIMP
 nsCanvasFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                 const nsRect&           aDirtyRect,
                                 const nsDisplayListSet& aLists)
 {
+  nsresult rv;
+
   if (GetPrevInFlow()) {
     DisplayOverflowContainers(aBuilder, aDirtyRect, aLists);
   }
 
+  aBuilder->MarkFramesForDisplayList(this, mAbsoluteContainer.GetChildList(),
+                                     aDirtyRect);
+  
   // Force a background to be shown. We may have a background propagated to us,
-  // in which case StyleBackground wouldn't have the right background
+  // in which case GetStyleBackground wouldn't have the right background
   // and the code in nsFrame::DisplayBorderBackgroundOutline might not give us
   // a background.
   // We don't have any border or outline, and our background draws over
   // the overflow area, so just add nsDisplayCanvasBackground instead of
   // calling DisplayBorderBackgroundOutline.
-  if (IsVisibleForPainting(aBuilder)) {
-    nsStyleContext* bgSC;
-    const nsStyleBackground* bg = nullptr;
-    bool isThemed = IsThemed();
-    if (!isThemed && nsCSSRendering::FindBackground(this, &bgSC)) {
-      bg = bgSC->StyleBackground();
-    }
-    aLists.BorderBackground()->AppendNewToTop(
-        new (aBuilder) nsDisplayCanvasBackgroundColor(aBuilder, this));
-  
-    if (isThemed) {
-      aLists.BorderBackground()->AppendNewToTop(
-        new (aBuilder) nsDisplayCanvasThemedBackground(aBuilder, this));
-      return;
-    }
-
-    if (!bg) {
-      return;
-    }
-
-    // Create separate items for each background layer.
-    NS_FOR_VISIBLE_BACKGROUND_LAYERS_BACK_TO_FRONT(i, bg) {
-      if (bg->mLayers[i].mImage.IsEmpty()) {
-        continue;
-      }
-      aLists.BorderBackground()->AppendNewToTop(
-        new (aBuilder) nsDisplayCanvasBackgroundImage(aBuilder, this, i, bg));
-    }
+  if (IsVisibleForPainting(aBuilder)) { 
+    rv = aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
+           nsDisplayCanvasBackground(aBuilder, this));
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   nsIFrame* kid;
   for (kid = GetFirstPrincipalChild(); kid; kid = kid->GetNextSibling()) {
     // Put our child into its own pseudo-stack.
-    BuildDisplayListForChild(aBuilder, kid, aDirtyRect, aLists);
+    rv = BuildDisplayListForChild(aBuilder, kid, aDirtyRect, aLists);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
 #ifdef DEBUG_CANVAS_FOCUS
@@ -349,7 +340,7 @@ nsCanvasFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   aPresContext->EventStateManager()->
     GetFocusedContent(getter_AddRefs(focusContent));
 
-  bool hasFocus = false;
+  PRBool hasFocus = PR_FALSE;
   nsCOMPtr<nsISupports> container;
   aPresContext->GetContainer(getter_AddRefs(container));
   nsCOMPtr<nsIDocShell> docShell(do_QueryInterface(container));
@@ -364,13 +355,13 @@ nsCanvasFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 #endif
 
   if (!mDoPaintFocus)
-    return;
+    return NS_OK;
   // Only paint the focus if we're visible
-  if (!StyleVisibility()->IsVisible())
-    return;
+  if (!GetStyleVisibility()->IsVisible())
+    return NS_OK;
   
-  aLists.Outlines()->AppendNewToTop(new (aBuilder)
-    nsDisplayCanvasFocus(aBuilder, this));
+  return aLists.Outlines()->AppendNewToTop(new (aBuilder)
+      nsDisplayCanvasFocus(aBuilder, this));
 }
 
 void
@@ -389,7 +380,9 @@ nsCanvasFrame::PaintFocus(nsRenderingContext& aRenderingContext, nsPoint aPt)
  // XXX use the root frame foreground color, but should we find BODY frame
  // for HTML documents?
   nsIFrame* root = mFrames.FirstChild();
-  const nsStyleColor* color = root ? root->StyleColor() : StyleColor();
+  const nsStyleColor* color =
+    root ? root->GetStyleContext()->GetStyleColor() :
+           mStyleContext->GetStyleColor();
   if (!color) {
     NS_ERROR("current color cannot be found");
     return;
@@ -425,9 +418,9 @@ nsCanvasFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
 
 NS_IMETHODIMP
 nsCanvasFrame::Reflow(nsPresContext*           aPresContext,
-                      nsHTMLReflowMetrics&     aDesiredSize,
-                      const nsHTMLReflowState& aReflowState,
-                      nsReflowStatus&          aStatus)
+                    nsHTMLReflowMetrics&     aDesiredSize,
+                    const nsHTMLReflowState& aReflowState,
+                    nsReflowStatus&          aStatus)
 {
   DO_GLOBAL_REFLOW_COUNT("nsCanvasFrame");
   DISPLAY_REFLOW(aPresContext, this, aReflowState, aDesiredSize, aStatus);
@@ -439,8 +432,7 @@ nsCanvasFrame::Reflow(nsPresContext*           aPresContext,
   nsCanvasFrame* prevCanvasFrame = static_cast<nsCanvasFrame*>
                                                (GetPrevInFlow());
   if (prevCanvasFrame) {
-    AutoFrameListPtr overflow(aPresContext,
-                              prevCanvasFrame->StealOverflowFrames());
+    nsAutoPtr<nsFrameList> overflow(prevCanvasFrame->StealOverflowFrames());
     if (overflow) {
       NS_ASSERTION(overflow->OnlyChild(),
                    "must have doc root as canvas frame's only child");
@@ -449,7 +441,7 @@ nsCanvasFrame::Reflow(nsPresContext*           aPresContext,
       // Prepend overflow to the our child list. There may already be
       // children placeholders for fixed-pos elements, which don't get
       // reflowed but must not be lost until the canvas frame is destroyed.
-      mFrames.InsertFrames(this, nullptr, *overflow);
+      mFrames.InsertFrames(this, nsnull, *overflow);
     }
   }
 
@@ -471,7 +463,8 @@ nsCanvasFrame::Reflow(nsPresContext*           aPresContext,
     aDesiredSize.width = aDesiredSize.height = 0;
   } else {
     nsIFrame* kidFrame = mFrames.FirstChild();
-    bool kidDirty = (kidFrame->GetStateBits() & NS_FRAME_IS_DIRTY) != 0;
+    nsRect oldKidRect = kidFrame->GetRect();
+    PRBool kidDirty = (kidFrame->GetStateBits() & NS_FRAME_IS_DIRTY) != 0;
 
     nsHTMLReflowState kidReflowState(aPresContext, aReflowState, kidFrame,
                                      nsSize(aReflowState.availableWidth,
@@ -481,13 +474,17 @@ nsCanvasFrame::Reflow(nsPresContext*           aPresContext,
         (kidFrame->GetStateBits() & NS_FRAME_CONTAINS_RELATIVE_HEIGHT)) {
       // Tell our kid it's being vertically resized too.  Bit of a
       // hack for framesets.
-      kidReflowState.mFlags.mVResize = true;
+      kidReflowState.mFlags.mVResize = PR_TRUE;
     }
 
     nsPoint kidPt(kidReflowState.mComputedMargin.left,
                   kidReflowState.mComputedMargin.top);
-
-    kidReflowState.ApplyRelativePositioning(&kidPt);
+    // Apply CSS relative positioning
+    const nsStyleDisplay* styleDisp = kidFrame->GetStyleDisplay();
+    if (NS_STYLE_POSITION_RELATIVE == styleDisp->mPosition) {
+      kidPt += nsPoint(kidReflowState.mComputedOffsets.left,
+                       kidReflowState.mComputedOffsets.top);
+    }
 
     // Reflow the frame
     ReflowChild(kidFrame, aPresContext, kidDesiredSize, kidReflowState,
@@ -502,8 +499,9 @@ nsCanvasFrame::Reflow(nsPresContext*           aPresContext,
       NS_ASSERTION(nextFrame || aStatus & NS_FRAME_REFLOW_NEXTINFLOW,
         "If it's incomplete and has no nif yet, it must flag a nif reflow.");
       if (!nextFrame) {
-        nextFrame = aPresContext->PresShell()->FrameConstructor()->
-          CreateContinuingFrame(aPresContext, kidFrame, this);
+        nsresult rv = aPresContext->PresShell()->FrameConstructor()->
+          CreateContinuingFrame(aPresContext, kidFrame, this, &nextFrame);
+        NS_ENSURE_SUCCESS(rv, rv);
         SetOverflowFrames(aPresContext, nsFrameList(nextFrame, nextFrame));
         // Root overflow containers will be normal children of
         // the canvas frame, but that's ok because there
@@ -527,7 +525,15 @@ nsCanvasFrame::Reflow(nsPresContext*           aPresContext,
       // could also include overflow to our top and left (out of the viewport)
       // which doesn't need to be painted.
       nsIFrame* viewport = PresContext()->GetPresShell()->GetRootFrame();
-      viewport->InvalidateFrame();
+      viewport->Invalidate(nsRect(nsPoint(0, 0), viewport->GetSize()));
+    } else {
+      nsRect newKidRect = kidFrame->GetRect();
+      if (newKidRect.TopLeft() == oldKidRect.TopLeft()) {
+        InvalidateRectDifference(oldKidRect, kidFrame->GetRect());
+      } else {
+        Invalidate(oldKidRect);
+        Invalidate(newKidRect);
+      }
     }
     
     // Return our desired size. Normally it's what we're told, but
@@ -544,6 +550,48 @@ nsCanvasFrame::Reflow(nsPresContext*           aPresContext,
     aDesiredSize.SetOverflowAreasToDesiredBounds();
     aDesiredSize.mOverflowAreas.UnionWith(
       kidDesiredSize.mOverflowAreas + kidPt);
+
+    if (mAbsoluteContainer.HasAbsoluteFrames()) {
+      PRBool widthChanged = aDesiredSize.width != mRect.width;
+      PRBool heightChanged = aDesiredSize.height != mRect.height;
+      mAbsoluteContainer.Reflow(this, aPresContext, aReflowState, aStatus,
+                                aDesiredSize.width, aDesiredSize.height,
+                                PR_TRUE, widthChanged, heightChanged,
+                                &aDesiredSize.mOverflowAreas);
+    }
+
+    // Handle invalidating fixed-attachment backgrounds propagated to the
+    // canvas when the canvas size (and therefore the background positioning
+    // area's size) changes.  Such backgrounds are not invalidated in the
+    // normal manner because the size of the original frame for that background
+    // may not have changed.
+    //
+    // This isn't the right fix for this issue, taken more generally.  In
+    // particular, this doesn't handle fixed-attachment backgrounds that are *not*
+    // propagated.  If a layer with the characteristics tested for below exists
+    // in a non-propagated background, we should invalidate the "corresponding"
+    // frame (which subsumes this special case if defined broadly).  For now,
+    // however, this addresses the most common case.  Given that this behavior has
+    // long been broken (non-zero percent background-size may be a new instance,
+    // but non-zero percent background-position is longstanding), we defer a
+    // fully correct fix until later.
+    if (nsSize(aDesiredSize.width, aDesiredSize.height) != GetSize()) {
+      nsIFrame* rootElementFrame =
+        aPresContext->PresShell()->FrameConstructor()->GetRootElementStyleFrame();
+      nsStyleContext* bgSC =
+        nsCSSRendering::FindCanvasBackground(this, rootElementFrame);
+      const nsStyleBackground* bg = bgSC->GetStyleBackground();
+      if (!bg->IsTransparent()) {
+        NS_FOR_VISIBLE_BACKGROUND_LAYERS_BACK_TO_FRONT(i, bg) {
+          const nsStyleBackground::Layer& layer = bg->mLayers[i];
+          if (layer.mAttachment == NS_STYLE_BG_ATTACHMENT_FIXED &&
+              layer.RenderingMightDependOnFrameSize()) {
+            Invalidate(nsRect(nsPoint(0, 0), GetSize()));
+            break;
+          }
+        }
+      }
+    }
   }
 
   if (prevCanvasFrame) {
@@ -552,11 +600,17 @@ nsCanvasFrame::Reflow(nsPresContext*           aPresContext,
                                     aStatus);
   }
 
-  FinishReflowWithAbsoluteFrames(aPresContext, aDesiredSize, aReflowState, aStatus);
+  FinishAndStoreOverflow(&aDesiredSize);
 
   NS_FRAME_TRACE_REFLOW_OUT("nsCanvasFrame::Reflow", aStatus);
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize);
   return NS_OK;
+}
+
+PRIntn
+nsCanvasFrame::GetSkipSides() const
+{
+  return 0;
 }
 
 nsIAtom*
@@ -566,16 +620,19 @@ nsCanvasFrame::GetType() const
 }
 
 NS_IMETHODIMP 
-nsCanvasFrame::GetContentForEvent(nsEvent* aEvent,
-                                  nsIContent** aContent)
+nsCanvasFrame::GetContentForEvent(nsPresContext* aPresContext,
+                                nsEvent* aEvent,
+                                nsIContent** aContent)
 {
   NS_ENSURE_ARG_POINTER(aContent);
-  nsresult rv = nsFrame::GetContentForEvent(aEvent,
+  nsresult rv = nsFrame::GetContentForEvent(aPresContext,
+                                            aEvent,
                                             aContent);
   if (NS_FAILED(rv) || !*aContent) {
     nsIFrame* kid = mFrames.FirstChild();
     if (kid) {
-      rv = kid->GetContentForEvent(aEvent,
+      rv = kid->GetContentForEvent(aPresContext,
+                                   aEvent,
                                    aContent);
     }
   }

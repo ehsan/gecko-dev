@@ -10,17 +10,12 @@
 //   3) the cached entry does not have a "no-store" Cache-Control header
 //   4) the cached entry does not have a Content-Encoding (see bug #613159)
 //   5) the request does not have a conditional-request header set by client
-//   6) nsHttpResponseHead::IsResumable() is true for the cached entry
+//   6) nsHttpResponseHead::IsResumable() is true for the cached entry 
 //
 //  The test has one handler for each case and run_tests() fires one request
 //  for each. None of the handlers should see a Range-header.
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
-Cu.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 
 var httpserver = null;
 
@@ -33,7 +28,13 @@ const decodedBody = [0x54, 0x68, 0x69, 0x73, 0x20, 0x69, 0x73, 0x20, 0x61, 0x20,
                      0x6c, 0x79, 0x20, 0x6c, 0x6f, 0x6e, 0x67, 0x65, 0x72, 0x20, 0x74, 0x65, 0x73, 0x74, 0x0a, 0x0a];
 
 const partial_data_length = 4;
-var port = null; // set in run_test
+
+function getCacheService()
+{
+    var nsCacheService = Components.classes["@mozilla.org/network/cache-service;1"];
+    var service = nsCacheService.getService(Components.interfaces.nsICacheService);
+    return service;
+}
 
 function make_channel(url, callback, ctx) {
   var ios = Cc["@mozilla.org/network/io-service;1"].
@@ -108,7 +109,7 @@ function handler_2(metadata, response) {
 }
 function received_partial_2(request, data) {
   do_check_eq(data, undefined);
-  var chan = make_channel("http://localhost:" + port + "/test_2");
+  var chan = make_channel("http://localhost:4444/test_2");
   chan.asyncOpen(new ChannelListener(received_cleartext, null), null);
 }
 
@@ -136,7 +137,7 @@ function handler_3(metadata, response) {
 }
 function received_partial_3(request, data) {
   do_check_eq(partial_data_length, data.length);
-  var chan = make_channel("http://localhost:" + port + "/test_3");
+  var chan = make_channel("http://localhost:4444/test_3");
   chan.asyncOpen(new ChannelListener(received_cleartext, null), null);
 }
 
@@ -169,7 +170,7 @@ function handler_4(metadata, response) {
 function received_partial_4(request, data) {
 // checking length does not work with encoded data
 //  do_check_eq(partial_data_length, data.length);
-  var chan = make_channel("http://localhost:" + port + "/test_4");
+  var chan = make_channel("http://localhost:4444/test_4");
   chan.asyncOpen(new MyListener(received_cleartext), null);
 }
 
@@ -196,7 +197,7 @@ function handler_5(metadata, response) {
 }
 function received_partial_5(request, data) {
   do_check_eq(partial_data_length, data.length);
-  var chan = make_channel("http://localhost:" + port + "/test_5");
+  var chan = make_channel("http://localhost:4444/test_5");
   chan.setRequestHeader("If-Match", "Some eTag", false);
   chan.asyncOpen(new ChannelListener(received_cleartext, null), null);
 }
@@ -227,11 +228,11 @@ function handler_6(metadata, response) {
 function received_partial_6(request, data) {
 // would like to verify that the response does not have Accept-Ranges
   do_check_eq(partial_data_length, data.length);
-  var chan = make_channel("http://localhost:" + port + "/test_6");
+  var chan = make_channel("http://localhost:4444/test_6");
   chan.asyncOpen(new ChannelListener(received_cleartext, null), null);
 }
 
-// Simple mechanism to keep track of tests and stop the server
+// Simple mechanism to keep track of tests and stop the server 
 var numTestsFinished = 0;
 function testFinished() {
   if (++numTestsFinished == 5)
@@ -239,37 +240,35 @@ function testFinished() {
 }
 
 function run_test() {
-  httpserver = new HttpServer();
+  httpserver = new nsHttpServer();
   httpserver.registerPathHandler("/test_2", handler_2);
   httpserver.registerPathHandler("/test_3", handler_3);
   httpserver.registerPathHandler("/test_4", handler_4);
   httpserver.registerPathHandler("/test_5", handler_5);
   httpserver.registerPathHandler("/test_6", handler_6);
-  httpserver.start(-1);
-
-  port = httpserver.identity.primaryPort;
+  httpserver.start(4444);
 
   // wipe out cached content
-  evict_cache_entries();
+  getCacheService().evictEntries(Components.interfaces.nsICache.STORE_ANYWHERE);
 
   // Case 2: zero-length partial entry must not trigger range-request
-  var chan = make_channel("http://localhost:" + port + "/test_2");
+  var chan = make_channel("http://localhost:4444/test_2");
   chan.asyncOpen(new Canceler(received_partial_2), null);
 
   // Case 3: no-store response must not trigger range-request
-  var chan = make_channel("http://localhost:" + port + "/test_3");
+  var chan = make_channel("http://localhost:4444/test_3");
   chan.asyncOpen(new MyListener(received_partial_3), null);
 
   // Case 4: response with content-encoding must not trigger range-request
-  var chan = make_channel("http://localhost:" + port + "/test_4");
+  var chan = make_channel("http://localhost:4444/test_4");
   chan.asyncOpen(new MyListener(received_partial_4), null);
 
   // Case 5: conditional request-header set by client
-  var chan = make_channel("http://localhost:" + port + "/test_5");
+  var chan = make_channel("http://localhost:4444/test_5");
   chan.asyncOpen(new MyListener(received_partial_5), null);
 
   // Case 6: response is not resumable (drop the Accept-Ranges header)
-  var chan = make_channel("http://localhost:" + port + "/test_6");
+  var chan = make_channel("http://localhost:4444/test_6");
   chan.asyncOpen(new MyListener(received_partial_6), null);
 
   do_test_pending();

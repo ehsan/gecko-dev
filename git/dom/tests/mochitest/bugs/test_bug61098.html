@@ -6,8 +6,9 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=61098
 <head>
   <title>Test for Bug 61098</title>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+  <script type="text/javascript" src="/mozprefs.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
-  <script type="application/javascript" src="/tests/SimpleTest/MockObjects.js"></script>
+  <script type="application/javascript" src="/tests/SimpleTest/mockObjects.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
 <body onload="runtests();">
@@ -21,7 +22,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=61098
 <script class="testbody" type="text/javascript">
 /** Test for Bug 61098 **/
 
-SimpleTest.expectAssertions(8);
 SimpleTest.waitForExplicitFinish();
 
 var mockPromptServiceRegisterer, mockPromptFactoryRegisterer;
@@ -52,7 +52,9 @@ function registerMockPromptService()
       // leave the modal state -- this is done to trigger the necessary
       // accounting for triggering the "stop showing more prompts" code for
       // abusive pages.
-      var winUtils = SpecialPowers.getDOMWindowUtils(this.domWindow);
+      var winUtils = this.domWindow
+                         .QueryInterface(Ci.nsIInterfaceRequestor)
+                         .getInterface(Ci.nsIDOMWindowUtils);
       var w = winUtils.enterModalStateWithWindow();
       winUtils.leaveModalStateWithWindow(w);
     },
@@ -78,7 +80,7 @@ function registerMockPromptService()
                      checkState: aCheckState
       };
 
-      SpecialPowers.wrap(aCheckState).value = true;
+      aCheckState.value = true;
     },
 
     confirm: function(aDialogTitle, aText)
@@ -104,7 +106,7 @@ function registerMockPromptService()
                      checkState: aCheckState
       };
 
-      SpecialPowers.wrap(aCheckState).value = true;
+      aCheckState.value = true;
 
       return true;
     },
@@ -123,7 +125,7 @@ function registerMockPromptService()
       };
 
       if (aCheckMsg != null)
-        SpecialPowers.wrap(aCheckState).value = true;
+        aCheckState.value = true;
 
       return 0;
     },
@@ -141,7 +143,7 @@ function registerMockPromptService()
       };
 
       if (aCheckMsg != null)
-        SpecialPowers.wrap(aCheckState).value = true;
+        aCheckState.value = true;
 
       return true;
     },

@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2002-2012 The ANGLE Project Authors. All rights reserved.
+// Copyright (c) 2002-2011 The ANGLE Project Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -13,7 +13,6 @@
 
 #include "libGLESv2/Buffer.h"
 #include "libGLESv2/Program.h"
-#include "libGLESv2/ProgramBinary.h"
 #include "libGLESv2/main.h"
 
 #include "libGLESv2/vertexconversion.h"
@@ -29,12 +28,6 @@ namespace
 namespace gl
 {
 unsigned int VertexBuffer::mCurrentSerial = 1;
-
-int elementsInBuffer(const VertexAttribute &attribute, int size)
-{
-    int stride = attribute.stride();
-    return (size - attribute.mOffset % stride + (stride - attribute.typeSize())) / stride;
-}
 
 VertexDataManager::VertexDataManager(Context *context, IDirect3DDevice9 *device) : mContext(context), mDevice(device)
 {
@@ -66,7 +59,7 @@ VertexDataManager::~VertexDataManager()
     }
 }
 
-std::size_t VertexDataManager::writeAttributeData(ArrayVertexBuffer *vertexBuffer, GLint start, GLsizei count, const VertexAttribute &attribute, GLsizei instances)
+std::size_t VertexDataManager::writeAttributeData(ArrayVertexBuffer *vertexBuffer, GLint start, GLsizei count, const VertexAttribute &attribute)
 {
     Buffer *buffer = attribute.mBoundBuffer.get();
 
@@ -79,7 +72,7 @@ std::size_t VertexDataManager::writeAttributeData(ArrayVertexBuffer *vertexBuffe
     
     if (vertexBuffer)
     {
-        output = vertexBuffer->map(attribute, spaceRequired(attribute, count, instances), &streamOffset);
+        output = vertexBuffer->map(attribute, spaceRequired(attribute, count), &streamOffset);
     }
 
     if (output == NULL)
@@ -101,10 +94,7 @@ std::size_t VertexDataManager::writeAttributeData(ArrayVertexBuffer *vertexBuffe
         input = static_cast<const char*>(attribute.mPointer);
     }
 
-    if (instances == 0 || attribute.mDivisor == 0)
-    {
-        input += inputStride * start;
-    }
+    input += inputStride * start;
 
     if (converter.identity && inputStride == elementSize)
     {
@@ -120,7 +110,7 @@ std::size_t VertexDataManager::writeAttributeData(ArrayVertexBuffer *vertexBuffe
     return streamOffset;
 }
 
-GLenum VertexDataManager::prepareVertexData(GLint start, GLsizei count, TranslatedAttribute *translated, GLsizei instances)
+GLenum VertexDataManager::prepareVertexData(GLint start, GLsizei count, TranslatedAttribute *translated)
 {
     if (!mStreamingBuffer)
     {
@@ -128,11 +118,11 @@ GLenum VertexDataManager::prepareVertexData(GLint start, GLsizei count, Translat
     }
 
     const VertexAttributeArray &attribs = mContext->getVertexAttributes();
-    ProgramBinary *programBinary = mContext->getCurrentProgramBinary();
+    Program *program = mContext->getCurrentProgram();
 
     for (int attributeIndex = 0; attributeIndex < MAX_VERTEX_ATTRIBS; attributeIndex++)
     {
-        translated[attributeIndex].active = (programBinary->getSemanticIndex(attributeIndex) != -1);
+        translated[attributeIndex].active = (program->getSemanticIndex(attributeIndex) != -1);
     }
 
     // Determine the required storage size per used buffer, and invalidate static buffers that don't contain matching attributes
@@ -147,8 +137,8 @@ GLenum VertexDataManager::prepareVertexData(GLint start, GLsizei count, Translat
             {
                 if (staticBuffer->size() == 0)
                 {
-                    int totalCount = elementsInBuffer(attribs[i], buffer->size());
-                    staticBuffer->addRequiredSpace(spaceRequired(attribs[i], totalCount, 0));
+                    int totalCount = buffer->size() / attribs[i].stride();
+                    staticBuffer->addRequiredSpace(spaceRequired(attribs[i], totalCount));
                 }
                 else if (staticBuffer->lookupAttribute(attribs[i]) == -1)
                 {
@@ -163,19 +153,19 @@ GLenum VertexDataManager::prepareVertexData(GLint start, GLsizei count, Translat
 
                             if (staticBuffer == previousStaticBuffer)
                             {
-                                mStreamingBuffer->addRequiredSpace(spaceRequired(attribs[previous], count, instances));
+                                mStreamingBuffer->addRequiredSpace(spaceRequired(attribs[previous], count));
                             }
                         }
                     }
 
-                    mStreamingBuffer->addRequiredSpace(spaceRequired(attribs[i], count, instances));
+                    mStreamingBuffer->addRequiredSpace(spaceRequired(attribs[i], count));
 
                     buffer->invalidateStaticData();
                 }    
             }
             else
             {
-                mStreamingBuffer->addRequiredSpace(spaceRequired(attribs[i], count, instances));
+                mStreamingBuffer->addRequiredSpace(spaceRequired(attribs[i], count));
             }
         }
     }
@@ -226,25 +216,20 @@ GLenum VertexDataManager::prepareVertexData(GLint start, GLsizei count, Translat
                     if (streamOffset == -1)
                     {
                         // Convert the entire buffer
-                        int totalCount = elementsInBuffer(attribs[i], buffer->size());
+                        int totalCount = buffer->size() / attribs[i].stride();
                         int startIndex = attribs[i].mOffset / attribs[i].stride();
 
-                        streamOffset = writeAttributeData(staticBuffer, -startIndex, totalCount, attribs[i], 0);
+                        streamOffset = writeAttributeData(staticBuffer, -startIndex, totalCount, attribs[i]);
                     }
 
                     if (streamOffset != -1)
                     {
-                        streamOffset += (attribs[i].mOffset / attribs[i].stride()) * converter.outputElementSize;
-
-                        if (instances == 0 || attribs[i].mDivisor == 0)
-                        {
-                            streamOffset += start * converter.outputElementSize;
-                        }
+                        streamOffset += (start + attribs[i].mOffset / attribs[i].stride()) * converter.outputElementSize;
                     }
                 }
                 else
                 {
-                    streamOffset = writeAttributeData(mStreamingBuffer, start, count, attribs[i], instances);
+                    streamOffset = writeAttributeData(mStreamingBuffer, start, count, attribs[i]);
                 }
 
                 if (streamOffset == -1)
@@ -254,8 +239,6 @@ GLenum VertexDataManager::prepareVertexData(GLint start, GLsizei count, Translat
 
                 translated[i].vertexBuffer = vertexBuffer->getBuffer();
                 translated[i].serial = vertexBuffer->getSerial();
-                translated[i].divisor = attribs[i].mDivisor;
-
                 translated[i].type = converter.d3dDeclType;
                 translated[i].stride = converter.outputElementSize;
                 translated[i].offset = streamOffset;
@@ -288,7 +271,6 @@ GLenum VertexDataManager::prepareVertexData(GLint start, GLsizei count, Translat
 
                 translated[i].vertexBuffer = mCurrentValueBuffer[i]->getBuffer();
                 translated[i].serial = mCurrentValueBuffer[i]->getSerial();
-                translated[i].divisor = 0;
 
                 translated[i].type = D3DDECLTYPE_FLOAT4;
                 translated[i].stride = 0;
@@ -313,18 +295,9 @@ GLenum VertexDataManager::prepareVertexData(GLint start, GLsizei count, Translat
     return GL_NO_ERROR;
 }
 
-std::size_t VertexDataManager::spaceRequired(const VertexAttribute &attrib, std::size_t count, GLsizei instances) const
+std::size_t VertexDataManager::spaceRequired(const VertexAttribute &attrib, std::size_t count) const
 {
-    size_t elementSize = formatConverter(attrib).outputElementSize;
-
-    if (instances == 0 || attrib.mDivisor == 0)
-    {
-        return elementSize * count;
-    }
-    else
-    {
-        return elementSize * ((instances + attrib.mDivisor - 1) / attrib.mDivisor);
-    }
+    return formatConverter(attrib).outputElementSize * count;
 }
 
 // Mapping from OpenGL-ES vertex attrib type to D3D decl type:
@@ -390,11 +363,11 @@ struct VertexTypeFlags
 {
 };
 
-template <unsigned int _capflag, unsigned int _declflag>
+template <unsigned int capflag, unsigned int declflag>
 struct VertexTypeFlagsHelper
 {
-    enum { capflag = _capflag };
-    enum { declflag = _declflag };
+    enum { capflag = capflag };
+    enum { declflag = declflag };
 };
 
 template <> struct VertexTypeFlags<D3DVT_FLOAT, 1> : VertexTypeFlagsHelper<0, D3DDECLTYPE_FLOAT1> { };
@@ -449,8 +422,8 @@ struct ConversionRule : gl::Cast<typename GLToCType<fromType>::type, typename D3
 template <GLenum fromType> struct ConversionRule<fromType, true, D3DVT_FLOAT> : gl::Normalize<typename GLToCType<fromType>::type> { };
 
 // Use a full specialisation for this so that it preferentially matches ahead of the generic normalize-to-float rules.
-template <> struct ConversionRule<GL_FIXED, true, D3DVT_FLOAT> : gl::FixedToFloat<GLint, 16> { };
-template <> struct ConversionRule<GL_FIXED, false, D3DVT_FLOAT> : gl::FixedToFloat<GLint, 16> { };
+template <> struct ConversionRule<GL_FIXED, true, D3DVT_FLOAT> : gl::FixedToFloat<GLuint, 16> { };
+template <> struct ConversionRule<GL_FIXED, false, D3DVT_FLOAT> : gl::FixedToFloat<GLuint, 16> { };
 
 // A 2-stage construction is used for DefaultVertexValues because float must use SimpleDefaultValues (i.e. 0/1)
 // whether it is normalized or not.
@@ -518,20 +491,14 @@ public:
         { TRANSLATION_FOR_TYPE_NORM_SIZE(type, true, 1), TRANSLATION_FOR_TYPE_NORM_SIZE(type, true, 2), TRANSLATION_FOR_TYPE_NORM_SIZE(type, true, 3), TRANSLATION_FOR_TYPE_NORM_SIZE(type, true, 4) },     \
     }
 
-#define TRANSLATIONS_FOR_TYPE_NO_NORM(type)                                                                                                                                                                 \
-    {                                                                                                                                                                                                       \
-        { TRANSLATION_FOR_TYPE_NORM_SIZE(type, false, 1), TRANSLATION_FOR_TYPE_NORM_SIZE(type, false, 2), TRANSLATION_FOR_TYPE_NORM_SIZE(type, false, 3), TRANSLATION_FOR_TYPE_NORM_SIZE(type, false, 4) }, \
-        { TRANSLATION_FOR_TYPE_NORM_SIZE(type, false, 1), TRANSLATION_FOR_TYPE_NORM_SIZE(type, false, 2), TRANSLATION_FOR_TYPE_NORM_SIZE(type, false, 3), TRANSLATION_FOR_TYPE_NORM_SIZE(type, false, 4) }, \
-    }
-
 const VertexDataManager::TranslationDescription VertexDataManager::mPossibleTranslations[NUM_GL_VERTEX_ATTRIB_TYPES][2][4] = // [GL types as enumerated by typeIndex()][normalized][size-1]
 {
     TRANSLATIONS_FOR_TYPE(GL_BYTE),
     TRANSLATIONS_FOR_TYPE(GL_UNSIGNED_BYTE),
     TRANSLATIONS_FOR_TYPE(GL_SHORT),
     TRANSLATIONS_FOR_TYPE(GL_UNSIGNED_SHORT),
-    TRANSLATIONS_FOR_TYPE_NO_NORM(GL_FIXED),
-    TRANSLATIONS_FOR_TYPE_NO_NORM(GL_FLOAT)
+    TRANSLATIONS_FOR_TYPE(GL_FIXED),
+    TRANSLATIONS_FOR_TYPE(GL_FLOAT)
 };
 
 void VertexDataManager::checkVertexCaps(DWORD declTypes)

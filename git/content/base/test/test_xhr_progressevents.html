@@ -14,11 +14,7 @@ SimpleTest.waitForExplicitFinish();
 var gen = runTests();
 
 function log(s) {
-  // Uncomment these to get debugging information
-  /*
-  document.getElementById("l").textContent += s + "\n";
-  dump(s + "\n");
-  */
+  //document.getElementById("l").textContent += s + "\n";
 }
 
 function getEvent(e) {
@@ -43,21 +39,13 @@ function updateProgress(e, data, testName) {
     is(typeof e.target.response, "string", "response should be a string" + test);
     response = e.target.response;
   }
-  else if (data.blob) {
-    ok(e.target.response instanceof Blob, "response should be a Blob" + test);
-    response = e.target.response;
-  }
   else {
-    ok(e.target.response instanceof ArrayBuffer, "response should be an ArrayBuffer" + test);
+    ok(e.target.response instanceof ArrayBuffer, "response should be a ArrayBuffer" + test);
     response = bufferToString(e.target.response);
   }
-  is(e.target.response, e.target.response, "reflexivity should hold" + test);
 
   if (!data.nodata && !data.encoded) {
-    if (data.blob) {
-      is(e.loaded, response.size, "event.loaded matches response size" + test);
-    }
-    else if (!data.chunked) {
+    if (!data.chunked) {
       is(e.loaded, response.length, "event.loaded matches response size" + test);
     }
     else {
@@ -69,7 +57,7 @@ function updateProgress(e, data, testName) {
   ok(e.loaded - data.receivedBytes <= data.pendingBytes,
      "event.loaded didn't increase too much" + test);
 
-  if (!data.nodata && !data.blob) {
+  if (!data.nodata) {
     var newData;
     ok(startsWith(response, data.receivedResult),
        "response strictly grew" + test);
@@ -86,7 +74,7 @@ function updateProgress(e, data, testName) {
     is(e.total, data.total, "total" + test);
   }
 
-  if (!data.nodata && !data.blob) {
+  if (!data.nodata) {
     data.pendingResult = data.pendingResult.substr(newData.length);
   }
   data.pendingBytes -= e.loaded - data.receivedBytes;
@@ -105,7 +93,6 @@ function closeConn() {
   var xhr = new XMLHttpRequest();
   xhr.open("POST", "progressserver.sjs?close");
   xhr.send();
-  return xhr;
 }
 
 var longString = "long";
@@ -126,19 +113,14 @@ function runTests() {
 
   var responseTypes = [{ type: "text", text: true },
                        { type: "arraybuffer", text: false, nodata: true },
-                       { type: "blob", text: false, nodata: true, blob: true },
-                       { type: "moz-blob", text: false, nodata: false, blob: true },
+                       { type: "blob", text: false, nodata: true },
                        { type: "document", text: true, nodata: true },
-                       { type: "json", text: true, nodata: true },
+                       { type: "moz-json", text: true, nodata: true },
                        { type: "", text: true },
                        { type: "moz-chunked-text", text: true, chunked: true },
                        { type: "moz-chunked-arraybuffer", text: false, chunked: true },
                       ];
   var responseType;
-  var fileExpectedResult = "";
-  for (var i = 0; i < 65536; i++) {
-    fileExpectedResult += String.fromCharCode(i & 255);
-  }
   while (responseType = responseTypes.shift()) {
     let tests = [{ open: "Content-Type=text/plain", name: "simple test" },
                  { data: "hello world" },
@@ -151,7 +133,7 @@ function runTests() {
                  { data: "abcde" },
                  { data: "0123456789" },
                  { close: true },
-                 { open: "Content-Type=application/xml", name: "without length, as xml" },
+                 { open: "Content-Type=application/xml", data: "ready", name: "without length, as xml" },
                  { data: "<out>" },
                  { data: "text" },
                  { data: "</foo>invalid" },
@@ -167,18 +149,12 @@ function runTests() {
                  { data: utf8encode("a\u867Eb").substr(4), utf16: "b" },
                  { close: true },
                  ];
-    if (responseType.blob) {
-      tests.push({ file: "file_XHR_binary2.bin", name: "cacheable data", total: 65536 },
-                 { close: true },
-                 { file: "file_XHR_binary2.bin", name: "cached data", total: 65536 },
-                 { close: true });
-    }
     let testState = { index: 0 };
-
+  
     for (let i = 0; i < tests.length; ++i) {
       let test = tests[i];
       testState.index++;
-      if ("open" in test || "file" in test) {
+      if ("open" in test) {
         log("opening " + testState.name);
         testState = { name: test.name + " for " + responseType.type,
                       index: 0,
@@ -190,40 +166,29 @@ function runTests() {
                       encoded: test.encoded,
                       nodata: responseType.nodata,
                       chunked: responseType.chunked,
-                      text: responseType.text,
-                      blob: responseType.blob,
-                      file: test.file };
+                      text: responseType.text };
   
         xhr.onreadystatechange = null;
-        if (testState.file)
-          xhr.open("GET", test.file);
-        else
-          xhr.open("POST", "progressserver.sjs?open&" + test.open);
+        xhr.open("POST", "progressserver.sjs?open&" + test.open);
         xhr.responseType = responseType.type;
         xhr.send("ready");
         xhr.onreadystatechange = getEvent;
 
-        let e = yield undefined;
+        let e = yield;
         is(e.type, "readystatechange", "should readystate to headers-received starting " + testState.name);
         is(xhr.readyState, xhr.HEADERS_RECEIVED, "should be in state HEADERS_RECEIVED starting " + testState.name);
   
-        e = yield undefined;
+        e = yield;
         is(e.type, "readystatechange", "should readystate to loading starting " + testState.name);
         is(xhr.readyState, xhr.LOADING, "should be in state LOADING starting " + testState.name);
         if (typeof testState.total == "undefined")
           delete testState.total;
       }
-      if ("file" in test) {
-        testState.pendingBytes = testState.total;
-        testState.pendingResult = fileExpectedResult;
-      }
-      if ("close" in test) {
+      else if ("close" in test) {
         log("closing");
-        let xhrClose;
-        if (!testState.file)
-          xhrClose = closeConn();
+        closeConn();
 
-        e = yield undefined;
+        e = yield;
         is(e.type, "readystatechange", "should readystate to done closing " + testState.name);
         is(xhr.readyState, xhr.DONE, "should be in state DONE closing " + testState.name);
         log("readystate to 4");
@@ -233,7 +198,7 @@ function runTests() {
           is(xhr.response, null, "chunked data has null response for " + testState.name);
         }
       
-        e = yield undefined;
+        e = yield;
         is(e.type, "load", "should fire load closing " + testState.name);
         is(e.lengthComputable, true, "length should be computable during load closing " + testState.name);
         log("got load");
@@ -242,26 +207,16 @@ function runTests() {
           is(xhr.response, null, "chunked data has null response for " + testState.name);
         }
       
-        e = yield undefined;
+        e = yield;
         is(e.type, "loadend", "should fire loadend closing " + testState.name);
         is(e.lengthComputable, true, "length should be computable during loadend closing " + testState.name);
         log("got loadend");
-
-        // if we closed the connection using an explicit request, make sure that goes through before
-        // running the next test in order to avoid reordered requests from closing the wrong
-        // connection.
-        if (xhrClose && xhrClose.readyState != xhrClose.DONE) {
-          log("wait for closeConn to finish");
-          xhrClose.onloadend = getEvent;
-          yield undefined;
-          is(xhrClose.readyState, xhrClose.DONE, "closeConn finished");
-        }
 
         if (responseType.chunked) {
           is(xhr.response, null, "chunked data has null response for " + testState.name);
         }
 
-        if (!testState.nodata && !responseType.blob || responseType.chunked) {
+        if (!testState.nodata || responseType.chunked) {
           // This branch intentionally left blank
           // Under these conditions we check the response during updateProgress
         }
@@ -269,11 +224,11 @@ function runTests() {
           is(bufferToString(xhr.response), testState.pendingResult,
              "full response for " + testState.name);
         }
-        else if (responseType.blob) {
+        else if (responseType.type === "blob") {
           let reader = new FileReader;
           reader.readAsBinaryString(xhr.response);
           reader.onloadend = getEvent;
-          yield undefined;
+          yield;
 
           is(reader.result, testState.pendingResult,
              "full response in blob for " + testState.name);
@@ -281,7 +236,7 @@ function runTests() {
 
         testState.name = "";
       }
-      if ("data" in test) {
+      else {
         log("sending");
         if (responseType.text) {
           testState.pendingResult += "utf16" in test ? test.utf16 : test.data;
@@ -295,7 +250,7 @@ function runTests() {
   
       while(testState.pendingBytes) {
         log("waiting for more bytes: " + testState.pendingBytes);
-        e = yield undefined;
+        e = yield;
         // Readystate can fire several times between each progress event.
         if (e.type === "readystatechange")
           continue;
@@ -306,7 +261,7 @@ function runTests() {
         }
       }
 
-      if (!testState.nodata && !testState.blob) {
+      if (!testState.nodata) {
         is(testState.pendingResult, "",
            "should have consumed the expected result");
       }
@@ -318,7 +273,7 @@ function runTests() {
   }
 
   SimpleTest.finish();
-  yield undefined;
+  yield;
 }
 
 </script>

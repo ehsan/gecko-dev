@@ -1,105 +1,213 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Mozilla SVG project.
+ *
+ * The Initial Developer of the Original Code is IBM Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2004
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef __NS_SVGANGLE_H__
 #define __NS_SVGANGLE_H__
 
-#include "nsCOMPtr.h"
-#include "nsError.h"
-#include "nsISMILAttr.h"
-#include "mozilla/Attributes.h"
+#include "nsIDOMSVGAngle.h"
+#include "nsIDOMSVGAnimatedAngle.h"
+#include "nsSVGElement.h"
+#include "nsDOMError.h"
 
-class nsISupports;
-class nsSMILValue;
-class nsSVGElement;
-
-namespace mozilla {
-
-// Angle Unit Types
-static const unsigned short SVG_ANGLETYPE_UNKNOWN     = 0;
-static const unsigned short SVG_ANGLETYPE_UNSPECIFIED = 1;
-static const unsigned short SVG_ANGLETYPE_DEG         = 2;
-static const unsigned short SVG_ANGLETYPE_RAD         = 3;
-static const unsigned short SVG_ANGLETYPE_GRAD        = 4;
-
-namespace dom {
 class nsSVGOrientType;
-class SVGAngle;
-class SVGAnimatedAngle;
-class SVGAnimationElement;
-}
-}
 
 class nsSVGAngle
 {
-  friend class mozilla::dom::SVGAngle;
-  friend class mozilla::dom::SVGAnimatedAngle;
+  friend class DOMSVGAngle;
 
 public:
-  void Init(uint8_t aAttrEnum = 0xff,
+  void Init(PRUint8 aAttrEnum = 0xff,
             float aValue = 0,
-            uint8_t aUnitType = mozilla::SVG_ANGLETYPE_UNSPECIFIED) {
+            PRUint8 aUnitType = nsIDOMSVGAngle::SVG_ANGLETYPE_UNSPECIFIED) {
     mAnimVal = mBaseVal = aValue;
     mAnimValUnit = mBaseValUnit = aUnitType;
     mAttrEnum = aAttrEnum;
-    mIsAnimated = false;
+    mIsAnimated = PR_FALSE;
   }
 
   nsresult SetBaseValueString(const nsAString& aValue,
                               nsSVGElement *aSVGElement,
-                              bool aDoSetAttr);
-  void GetBaseValueString(nsAString& aValue) const;
-  void GetAnimValueString(nsAString& aValue) const;
+                              PRBool aDoSetAttr);
+  void GetBaseValueString(nsAString& aValue);
+  void GetAnimValueString(nsAString& aValue);
 
   float GetBaseValue() const
     { return mBaseVal * GetDegreesPerUnit(mBaseValUnit); }
   float GetAnimValue() const
     { return mAnimVal * GetDegreesPerUnit(mAnimValUnit); }
 
-  void SetBaseValue(float aValue, nsSVGElement *aSVGElement, bool aDoSetAttr);
-  void SetAnimValue(float aValue, uint8_t aUnit, nsSVGElement *aSVGElement);
+  void SetBaseValue(float aValue, nsSVGElement *aSVGElement);
+  void SetAnimValue(float aValue, PRUint8 aUnit, nsSVGElement *aSVGElement);
 
-  uint8_t GetBaseValueUnit() const { return mBaseValUnit; }
-  uint8_t GetAnimValueUnit() const { return mAnimValUnit; }
+  PRUint8 GetBaseValueUnit() const { return mBaseValUnit; }
+  PRUint8 GetAnimValueUnit() const { return mAnimValUnit; }
   float GetBaseValInSpecifiedUnits() const { return mBaseVal; }
   float GetAnimValInSpecifiedUnits() const { return mAnimVal; }
 
-  static nsresult ToDOMSVGAngle(nsISupports **aResult);
-  already_AddRefed<mozilla::dom::SVGAnimatedAngle>
-    ToDOMAnimatedAngle(nsSVGElement* aSVGElement);
+  static nsresult ToDOMSVGAngle(nsIDOMSVGAngle **aResult);
+  nsresult ToDOMAnimatedAngle(nsIDOMSVGAnimatedAngle **aResult,
+                              nsSVGElement* aSVGElement);
+#ifdef MOZ_SMIL
   // Returns a new nsISMILAttr object that the caller must delete
   nsISMILAttr* ToSMILAttr(nsSVGElement* aSVGElement);
+#endif // MOZ_SMIL
 
-  static float GetDegreesPerUnit(uint8_t aUnit);
+  static float GetDegreesPerUnit(PRUint8 aUnit);
 
 private:
-
+  
   float mAnimVal;
   float mBaseVal;
-  uint8_t mAnimValUnit;
-  uint8_t mBaseValUnit;
-  uint8_t mAttrEnum; // element specified tracking for attribute
-  bool mIsAnimated;
-
+  PRUint8 mAnimValUnit;
+  PRUint8 mBaseValUnit;
+  PRUint8 mAttrEnum; // element specified tracking for attribute
+  PRPackedBool mIsAnimated;
+  
   void SetBaseValueInSpecifiedUnits(float aValue, nsSVGElement *aSVGElement);
-  nsresult NewValueSpecifiedUnits(uint16_t aUnitType, float aValue,
+  nsresult NewValueSpecifiedUnits(PRUint16 aUnitType, float aValue,
                                   nsSVGElement *aSVGElement);
-  nsresult ConvertToSpecifiedUnits(uint16_t aUnitType, nsSVGElement *aSVGElement);
-  already_AddRefed<mozilla::dom::SVGAngle> ToDOMBaseVal(nsSVGElement* aSVGElement);
-  already_AddRefed<mozilla::dom::SVGAngle> ToDOMAnimVal(nsSVGElement* aSVGElement);
+  nsresult ConvertToSpecifiedUnits(PRUint16 aUnitType, nsSVGElement *aSVGElement);
+  nsresult ToDOMBaseVal(nsIDOMSVGAngle **aResult, nsSVGElement* aSVGElement);
+  nsresult ToDOMAnimVal(nsIDOMSVGAngle **aResult, nsSVGElement* aSVGElement);
 
 public:
+  struct DOMBaseVal : public nsIDOMSVGAngle
+  {
+    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+    NS_DECL_CYCLE_COLLECTION_CLASS(DOMBaseVal)
+
+    DOMBaseVal(nsSVGAngle* aVal, nsSVGElement *aSVGElement)
+      : mVal(aVal), mSVGElement(aSVGElement) {}
+    
+    nsSVGAngle* mVal; // kept alive because it belongs to mSVGElement
+    nsRefPtr<nsSVGElement> mSVGElement;
+    
+    NS_IMETHOD GetUnitType(PRUint16* aResult)
+      { *aResult = mVal->mBaseValUnit; return NS_OK; }
+
+    NS_IMETHOD GetValue(float* aResult)
+      { *aResult = mVal->GetBaseValue(); return NS_OK; }
+    NS_IMETHOD SetValue(float aValue)
+      { mVal->SetBaseValue(aValue, mSVGElement); return NS_OK; }
+
+    NS_IMETHOD GetValueInSpecifiedUnits(float* aResult)
+      { *aResult = mVal->mBaseVal; return NS_OK; }
+    NS_IMETHOD SetValueInSpecifiedUnits(float aValue)
+      { mVal->SetBaseValueInSpecifiedUnits(aValue, mSVGElement);
+        return NS_OK; }
+
+    NS_IMETHOD SetValueAsString(const nsAString& aValue)
+      { return mVal->SetBaseValueString(aValue, mSVGElement, PR_TRUE); }
+    NS_IMETHOD GetValueAsString(nsAString& aValue)
+      { mVal->GetBaseValueString(aValue); return NS_OK; }
+
+    NS_IMETHOD NewValueSpecifiedUnits(PRUint16 unitType,
+                                      float valueInSpecifiedUnits)
+      { return mVal->NewValueSpecifiedUnits(unitType, valueInSpecifiedUnits,
+                                     mSVGElement); }
+
+    NS_IMETHOD ConvertToSpecifiedUnits(PRUint16 unitType)
+      { return mVal->ConvertToSpecifiedUnits(unitType, mSVGElement); }
+  };
+
+  struct DOMAnimVal : public nsIDOMSVGAngle
+  {
+    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+    NS_DECL_CYCLE_COLLECTION_CLASS(DOMAnimVal)
+
+    DOMAnimVal(nsSVGAngle* aVal, nsSVGElement *aSVGElement)
+      : mVal(aVal), mSVGElement(aSVGElement) {}
+    
+    nsSVGAngle* mVal; // kept alive because it belongs to mSVGElement
+    nsRefPtr<nsSVGElement> mSVGElement;
+    
+    NS_IMETHOD GetUnitType(PRUint16* aResult)
+      { *aResult = mVal->mAnimValUnit; return NS_OK; }
+
+    NS_IMETHOD GetValue(float* aResult)
+      { *aResult = mVal->GetAnimValue(); return NS_OK; }
+    NS_IMETHOD SetValue(float aValue)
+      { return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR; }
+
+    NS_IMETHOD GetValueInSpecifiedUnits(float* aResult)
+      { *aResult = mVal->mAnimVal; return NS_OK; }
+    NS_IMETHOD SetValueInSpecifiedUnits(float aValue)
+      { return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR; }
+
+    NS_IMETHOD SetValueAsString(const nsAString& aValue)
+      { return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR; }
+    NS_IMETHOD GetValueAsString(nsAString& aValue)
+      { mVal->GetAnimValueString(aValue); return NS_OK; }
+
+    NS_IMETHOD NewValueSpecifiedUnits(PRUint16 unitType,
+                                      float valueInSpecifiedUnits)
+      { return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR; }
+
+    NS_IMETHOD ConvertToSpecifiedUnits(PRUint16 unitType)
+      { return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR; }
+  };
+
+  struct DOMAnimatedAngle : public nsIDOMSVGAnimatedAngle
+  {
+    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+    NS_DECL_CYCLE_COLLECTION_CLASS(DOMAnimatedAngle)
+
+    DOMAnimatedAngle(nsSVGAngle* aVal, nsSVGElement *aSVGElement)
+      : mVal(aVal), mSVGElement(aSVGElement) {}
+    
+    nsSVGAngle* mVal; // kept alive because it belongs to content
+    nsRefPtr<nsSVGElement> mSVGElement;
+
+    NS_IMETHOD GetBaseVal(nsIDOMSVGAngle **aBaseVal)
+      { return mVal->ToDOMBaseVal(aBaseVal, mSVGElement); }
+
+    NS_IMETHOD GetAnimVal(nsIDOMSVGAngle **aAnimVal)
+      { return mVal->ToDOMAnimVal(aAnimVal, mSVGElement); }
+  };
+
+#ifdef MOZ_SMIL
   // We do not currently implemente a SMILAngle struct because in SVG 1.1 the
   // only *animatable* attribute that takes an <angle> is 'orient', on the
   // 'marker' element, and 'orient' must be special cased since it can also
   // take the value 'auto', making it a more complex type.
 
-  struct SMILOrient MOZ_FINAL : public nsISMILAttr
+  struct SMILOrient : public nsISMILAttr
   {
   public:
-    SMILOrient(mozilla::dom::nsSVGOrientType* aOrientType,
+    SMILOrient(nsSVGOrientType* aOrientType,
                nsSVGAngle* aAngle,
                nsSVGElement* aSVGElement)
       : mOrientType(aOrientType)
@@ -110,19 +218,23 @@ public:
     // These will stay alive because a nsISMILAttr only lives as long
     // as the Compositing step, and DOM elements don't get a chance to
     // die during that.
-    mozilla::dom::nsSVGOrientType* mOrientType;
+    nsSVGOrientType* mOrientType;
     nsSVGAngle* mAngle;
     nsSVGElement* mSVGElement;
 
     // nsISMILAttr methods
     virtual nsresult ValueFromString(const nsAString& aStr,
-                                     const mozilla::dom::SVGAnimationElement* aSrcElement,
+                                     const nsISMILAnimationElement* aSrcElement,
                                      nsSMILValue& aValue,
-                                     bool& aPreventCachingOfSandwich) const MOZ_OVERRIDE;
-    virtual nsSMILValue GetBaseValue() const MOZ_OVERRIDE;
-    virtual void ClearAnimValue() MOZ_OVERRIDE;
-    virtual nsresult SetAnimValue(const nsSMILValue& aValue) MOZ_OVERRIDE;
+                                     PRBool& aPreventCachingOfSandwich) const;
+    virtual nsSMILValue GetBaseValue() const;
+    virtual void ClearAnimValue();
+    virtual nsresult SetAnimValue(const nsSMILValue& aValue);
   };
+#endif // MOZ_SMIL
 };
+
+nsresult
+NS_NewDOMSVGAngle(nsIDOMSVGAngle** result);
 
 #endif //__NS_SVGANGLE_H__

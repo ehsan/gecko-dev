@@ -1,24 +1,52 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is mozilla.org code.
+#
+# The Initial Developer of the Original Code is Joel Maher.
+#
+# Portions created by the Initial Developer are Copyright (C) 2010
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+# Joel Maher <joel.maher@gmail.com> (Original Developer)
+# Clint Talbert <cmtalbert@gmail.com>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 
 import time
-import re
+import sys
 import os
-import tempfile
-import shutil
-import subprocess
+import socket
 
 from automation import Automation
-from devicemanager import NetworkTools, DMError
-
-# signatures for logcat messages that we don't care about much
-fennecLogcatFilters = [ "The character encoding of the HTML document was not declared",
-                           "Use of Mutation Events is deprecated. Use MutationObserver instead." ]
+from devicemanager import DeviceManager, NetworkTools
 
 class RemoteAutomation(Automation):
     _devicemanager = None
-
+    
     def __init__(self, deviceManager, appName = '', remoteLog = None):
         self._devicemanager = deviceManager
         self._appName = appName
@@ -27,12 +55,11 @@ class RemoteAutomation(Automation):
 
         # Default our product to fennec
         self._product = "fennec"
-        self.lastTestSeen = "remoteautomation.py"
         Automation.__init__(self)
 
     def setDeviceManager(self, deviceManager):
         self._devicemanager = deviceManager
-
+        
     def setAppName(self, appName):
         self._appName = appName
 
@@ -41,7 +68,7 @@ class RemoteAutomation(Automation):
 
     def setProduct(self, product):
         self._product = product
-
+        
     def setRemoteLog(self, logfile):
         self._remoteLog = logfile
 
@@ -66,123 +93,22 @@ class RemoteAutomation(Automation):
 
         return env
 
-    def waitForFinish(self, proc, utilityPath, timeout, maxTime, startTime, debuggerInfo, symbolsPath):
-        """ Wait for tests to finish (as evidenced by the process exiting),
-            or for maxTime elapse, in which case kill the process regardless.
-        """
+    def waitForFinish(self, proc, utilityPath, timeout, maxTime, startTime, debuggerInfo, symbolsDir):
         # maxTime is used to override the default timeout, we should honor that
         status = proc.wait(timeout = maxTime)
-        self.lastTestSeen = proc.getLastTestSeen
 
-        if (status == 1 and self._devicemanager.getTopActivity() == proc.procName):
+        print proc.stdout
+
+        if (status == 1 and self._devicemanager.processExist(proc.procName)):
             # Then we timed out, make sure Fennec is dead
-            if maxTime:
-                print "TEST-UNEXPECTED-FAIL | %s | application ran for longer than " \
-                      "allowed maximum time of %s seconds" % (self.lastTestSeen, maxTime)
-            else:
-                print "TEST-UNEXPECTED-FAIL | %s | application ran for longer than " \
-                      "allowed maximum time" % (self.lastTestSeen)
             proc.kill()
 
         return status
-
-    def checkForJavaException(self, logcat):
-        found_exception = False
-        for i, line in enumerate(logcat):
-            if "REPORTING UNCAUGHT EXCEPTION" in line or "FATAL EXCEPTION" in line:
-                # Strip away the date, time, logcat tag and pid from the next two lines and
-                # concatenate the remainder to form a concise summary of the exception. 
-                #
-                # For example:
-                #
-                # 01-30 20:15:41.937 E/GeckoAppShell( 1703): >>> REPORTING UNCAUGHT EXCEPTION FROM THREAD 9 ("GeckoBackgroundThread")
-                # 01-30 20:15:41.937 E/GeckoAppShell( 1703): java.lang.NullPointerException
-                # 01-30 20:15:41.937 E/GeckoAppShell( 1703): 	at org.mozilla.gecko.GeckoApp$21.run(GeckoApp.java:1833)
-                # 01-30 20:15:41.937 E/GeckoAppShell( 1703): 	at android.os.Handler.handleCallback(Handler.java:587)
-                # 01-30 20:15:41.937 E/GeckoAppShell( 1703): 	at android.os.Handler.dispatchMessage(Handler.java:92)
-                # 01-30 20:15:41.937 E/GeckoAppShell( 1703): 	at android.os.Looper.loop(Looper.java:123)
-                # 01-30 20:15:41.937 E/GeckoAppShell( 1703): 	at org.mozilla.gecko.util.GeckoBackgroundThread.run(GeckoBackgroundThread.java:31)
-                #
-                #   -> java.lang.NullPointerException at org.mozilla.gecko.GeckoApp$21.run(GeckoApp.java:1833)
-                found_exception = True
-                logre = re.compile(r".*\): \t?(.*)")
-                m = logre.search(logcat[i+1])
-                if m and m.group(1):
-                    top_frame = m.group(1)
-                m = logre.search(logcat[i+2])
-                if m and m.group(1):
-                    top_frame = top_frame + m.group(1)
-                print "PROCESS-CRASH | java-exception | %s" % top_frame
-                break
-        return found_exception
-
-    def deleteANRs(self):
-        # delete ANR traces.txt file; usually need root permissions
-        traces = "/data/anr/traces.txt"
-        try:
-            self._devicemanager.shellCheckOutput(['rm', traces], root=True)
-        except DMError:
-            print "Error deleting %s" % traces
-            pass
-
-    def checkForANRs(self):
-        traces = "/data/anr/traces.txt"
-        if self._devicemanager.fileExists(traces):
-            try:
-                t = self._devicemanager.pullFile(traces)
-                print "Contents of %s:" % traces
-                print t
-                # Once reported, delete traces
-                self.deleteANRs()
-            except DMError:
-                print "Error pulling %s" % traces
-                pass
-        else:
-            print "%s not found" % traces
-
-    def checkForCrashes(self, directory, symbolsPath):
-        self.checkForANRs()
-
-        logcat = self._devicemanager.getLogcat(filterOutRegexps=fennecLogcatFilters)
-        javaException = self.checkForJavaException(logcat)
-        if javaException:
-            return True
-
-        # If crash reporting is disabled (MOZ_CRASHREPORTER!=1), we can't say
-        # anything.
-        if not self.CRASHREPORTER:
-            return False
-
-        try:
-            dumpDir = tempfile.mkdtemp()
-            remoteCrashDir = self._remoteProfile + '/minidumps/'
-            if not self._devicemanager.dirExists(remoteCrashDir):
-                # If crash reporting is enabled (MOZ_CRASHREPORTER=1), the
-                # minidumps directory is automatically created when Fennec
-                # (first) starts, so its lack of presence is a hint that
-                # something went wrong.
-                print "Automation Error: No crash directory (%s) found on remote device" % remoteCrashDir
-                # Whilst no crash was found, the run should still display as a failure
-                return True
-            self._devicemanager.getDirectory(remoteCrashDir, dumpDir)
-            crashed = Automation.checkForCrashes(self, dumpDir, symbolsPath)
-
-        finally:
-            try:
-                shutil.rmtree(dumpDir)
-            except:
-                print "WARNING: unable to remove directory: %s" % dumpDir
-        return crashed
 
     def buildCommandLine(self, app, debuggerInfo, profileDir, testURL, extraArgs):
         # If remote profile is specified, use that instead
         if (self._remoteProfile):
             profileDir = self._remoteProfile
-
-        # Hack for robocop, if app & testURL == None and extraArgs contains the rest of the stuff, lets
-        # assume extraArgs is all we need
-        if app == "am" and extraArgs[0] == "instrument":
-            return app, extraArgs
 
         cmd, args = Automation.buildCommandLine(self, app, debuggerInfo, profileDir, testURL, extraArgs)
         # Remove -foreground if it exists, if it doesn't this just returns
@@ -198,120 +124,64 @@ class RemoteAutomation(Automation):
         nettools = NetworkTools()
         return nettools.getLanIp()
 
-    def Process(self, cmd, stdout = None, stderr = None, env = None, cwd = None):
+    def Process(self, cmd, stdout = None, stderr = None, env = None, cwd = '.'):
         if stdout == None or stdout == -1 or stdout == subprocess.PIPE:
           stdout = self._remoteLog
 
         return self.RProcess(self._devicemanager, cmd, stdout, stderr, env, cwd)
 
-    # be careful here as this inner class doesn't have access to outer class members
+    # be careful here as this inner class doesn't have access to outer class members    
     class RProcess(object):
         # device manager process
         dm = None
-        def __init__(self, dm, cmd, stdout = None, stderr = None, env = None, cwd = None):
+        def __init__(self, dm, cmd, stdout = None, stderr = None, env = None, cwd = '.'):
             self.dm = dm
             self.stdoutlen = 0
-            self.lastTestSeen = "remoteautomation.py"
             self.proc = dm.launchProcess(cmd, stdout, cwd, env, True)
             if (self.proc is None):
-              if cmd[0] == 'am':
-                self.proc = stdout
-              else:
-                raise Exception("unable to launch process")
+              raise Exception("unable to launch process")
             exepath = cmd[0]
             name = exepath.split('/')[-1]
             self.procName = name
-            # Hack for Robocop: Derive the actual process name from the command line.
-            # We expect something like:
-            #  ['am', 'instrument', '-w', '-e', 'class', 'org.mozilla.fennec.tests.testBookmark', 'org.mozilla.roboexample.test/android.test.InstrumentationTestRunner']
-            # and want to derive 'org.mozilla.fennec'.
-            if cmd[0] == 'am' and cmd[1] == "instrument":
-              try:
-                i = cmd.index("class")
-              except ValueError:
-                # no "class" argument -- maybe this isn't robocop?
-                i = -1
-              if (i > 0):
-                classname = cmd[i+1]
-                parts = classname.split('.')
-                try:
-                  i = parts.index("tests")
-                except ValueError:
-                  # no "tests" component -- maybe this isn't robocop?
-                  i = -1
-                if (i > 0):
-                  self.procName = '.'.join(parts[0:i])
-                  print "Robocop derived process name: "+self.procName
 
             # Setting timeout at 1 hour since on a remote device this takes much longer
             self.timeout = 3600
-            # The benefit of the following sleep is unclear; it was formerly 15 seconds
-            time.sleep(1)
+            time.sleep(15)
 
         @property
         def pid(self):
-            pid = self.dm.processExist(self.procName)
-            # HACK: we should probably be more sophisticated about monitoring
-            # running processes for the remote case, but for now we'll assume
-            # that this method can be called when nothing exists and it is not
-            # an error
-            if pid is None:
-                return 0
-            return pid
-
+            hexpid = self.dm.processExist(self.procName)
+            if (hexpid == None):
+                hexpid = "0x0"
+            return int(hexpid, 0)
+    
         @property
         def stdout(self):
-            """ Fetch the full remote log file using devicemanager and return just
-                the new log entries since the last call (as a multi-line string).
-            """
-            if self.dm.fileExists(self.proc):
-                try:
-                    newLogContent = self.dm.pullFile(self.proc, self.stdoutlen)
-                except DMError:
-                    # we currently don't retry properly in the pullFile
-                    # function in dmSUT, so an error here is not necessarily
-                    # the end of the world
-                    return ''
-                self.stdoutlen += len(newLogContent)
-                # Match the test filepath from the last TEST-START line found in the new
-                # log content. These lines are in the form:
-                # 1234 INFO TEST-START | /filepath/we/wish/to/capture.html\n
-                testStartFilenames = re.findall(r"TEST-START \| ([^\s]*)", newLogContent)
-                if testStartFilenames:
-                    self.lastTestSeen = testStartFilenames[-1]
-                return newLogContent.strip('\n').strip()
-            else:
-                return ''
-
-        @property
-        def getLastTestSeen(self):
-            return self.lastTestSeen
-
+            t = self.dm.getFile(self.proc)
+            if t == None: return ''
+            tlen = len(t)
+            retVal = t[self.stdoutlen:]
+            self.stdoutlen = tlen
+            return retVal.strip('\n').strip()
+ 
         def wait(self, timeout = None):
             timer = 0
-            interval = 20 
+            interval = 5
 
             if timeout == None:
                 timeout = self.timeout
 
-            while (self.dm.getTopActivity() == self.procName):
-                # retrieve log updates every 60 seconds
-                if timer % 60 == 0: 
-                    t = self.stdout
-                    if t != '':
-                        print t
-
+            while (self.dm.processExist(self.procName)):
+                t = self.stdout
+                if t != '': print t
                 time.sleep(interval)
                 timer += interval
                 if (timer > timeout):
                     break
 
-            # Flush anything added to stdout during the sleep
-            print self.stdout
-
             if (timer >= timeout):
                 return 1
             return 0
-
+ 
         def kill(self):
             self.dm.killProcess(self.procName)

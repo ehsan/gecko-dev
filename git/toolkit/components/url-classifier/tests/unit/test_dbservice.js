@@ -95,8 +95,7 @@ function checkNoHost()
   // Looking up a no-host uri such as a data: uri should throw an exception.
   var exception;
   try {
-    var principal = secMan.getNoAppCodebasePrincipal(iosvc.newURI("data:text/html,<b>test</b>", null, null));
-    dbservice.lookup(principal);
+    dbservice.lookup("data:text/html,<b>test</b>");
 
     exception = false;
   } catch(e) {
@@ -185,22 +184,18 @@ function malwareExists(result) {
 function checkState()
 {
   numExpecting = 0;
-
   for (var key in phishExpected) {
-    var principal = secMan.getNoAppCodebasePrincipal(iosvc.newURI("http://" + key, null, null));
-    dbservice.lookup(principal, phishExists, true);
+    dbservice.lookup("http://" + key, phishExists, true);
     numExpecting++;
   }
 
   for (var key in phishUnexpected) {
-    var principal = secMan.getNoAppCodebasePrincipal(iosvc.newURI("http://" + key, null, null));
-    dbservice.lookup(principal, phishDoesntExist, true);
+    dbservice.lookup("http://" + key, phishDoesntExist, true);
     numExpecting++;
   }
 
   for (var key in malwareExpected) {
-    var principal = secMan.getNoAppCodebasePrincipal(iosvc.newURI("http://" + key, null, null));
-    dbservice.lookup(principal, malwareExists, true);
+    dbservice.lookup("http://" + key, malwareExists, true);
     numExpecting++;
   }
 }

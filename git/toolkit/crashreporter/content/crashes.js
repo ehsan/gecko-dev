@@ -1,17 +1,48 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla code.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *    Dave Townsend <dtownsend@oxymoronical> (original author)
+ *    Ted Mielczarek <ted.mielczarek@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 
-var reportsDir, submittedDir, pendingDir;
+var reportsDir, pendingDir;
 var reportURL;
 
 Components.utils.import("resource://gre/modules/CrashSubmit.jsm");
-Components.utils.import("resource://gre/modules/Services.jsm");
-
-const buildID = Services.appinfo.appBuildID;
 
 function submitSuccess(dumpid, ret) {
   let link = document.getElementById(dumpid);
@@ -97,14 +128,11 @@ function populateReportList() {
 
   reportsDir = directoryService.get("UAppData", Ci.nsIFile);
   reportsDir.append("Crash Reports");
-
-  submittedDir = directoryService.get("UAppData", Ci.nsIFile);
-  submittedDir.append("Crash Reports");
-  submittedDir.append("submitted");
+  reportsDir.append("submitted");
 
   var reports = [];
-  if (submittedDir.exists() && submittedDir.isDirectory()) {
-    var entries = submittedDir.directoryEntries;
+  if (reportsDir.exists() && reportsDir.isDirectory()) {
+    var entries = reportsDir.directoryEntries;
     while (entries.hasMoreElements()) {
       var file = entries.getNext().QueryInterface(Ci.nsIFile);
       var leaf = file.leafName;
@@ -126,15 +154,13 @@ function populateReportList() {
   pendingDir.append("pending");
 
   if (pendingDir.exists() && pendingDir.isDirectory()) {
-    var uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     var entries = pendingDir.directoryEntries;
     while (entries.hasMoreElements()) {
       var file = entries.getNext().QueryInterface(Ci.nsIFile);
       var leaf = file.leafName;
-      var id = leaf.slice(0, -4);
-      if (leaf.substr(-4) == ".dmp" && uuidRegex.test(id)) {
+      if (leaf.substr(-4) == ".dmp") {
         var entry = {
-          id: id,
+          id: leaf.slice(0, -4),
           date: file.lastModifiedTime,
           pending: true
         };
@@ -208,7 +234,7 @@ function clearReports() {
                        bundle.GetStringFromName("deleteconfirm.description")))
     return;
 
-  var entries = submittedDir.directoryEntries;
+  var entries = reportsDir.directoryEntries;
   while (entries.hasMoreElements()) {
     var file = entries.getNext().QueryInterface(Ci.nsIFile);
     var leaf = file.leafName;
@@ -216,21 +242,6 @@ function clearReports() {
         leaf.substr(-4) == ".txt") {
       file.remove(false);
     }
-  }
-  entries = reportsDir.directoryEntries;
-  var oneYearAgo = Date.now() - 31586000000;
-  while (entries.hasMoreElements()) {
-    var file = entries.getNext().QueryInterface(Ci.nsIFile);
-    var leaf = file.leafName;
-    if (leaf.substr(0, 11) == "InstallTime" &&
-        file.lastModifiedTime < oneYearAgo &&
-        leaf != "InstallTime" + buildID) {
-      file.remove(false);
-    }
-  }
-  entries = pendingDir.directoryEntries;
-  while (entries.hasMoreElements()) {
-    entries.getNext().QueryInterface(Ci.nsIFile).remove(false);
   }
   document.getElementById("clear-reports").style.display = "none";
   document.getElementById("reportList").style.display = "none";

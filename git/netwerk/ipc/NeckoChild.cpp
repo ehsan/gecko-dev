@@ -1,9 +1,43 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set sw=2 ts=8 et tw=80 : */
 
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ *  The Mozilla Foundation
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Jason Duell <jduell.mcbugs@gmail.com>
+ *   Honza Bambas <honzab@firemni.cz>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsHttp.h"
 #include "mozilla/net/NeckoChild.h"
@@ -13,17 +47,11 @@
 #include "mozilla/net/WyciwygChannelChild.h"
 #include "mozilla/net/FTPChannelChild.h"
 #include "mozilla/net/WebSocketChannelChild.h"
-#include "mozilla/net/RemoteOpenFileChild.h"
-#include "mozilla/dom/network/TCPSocketChild.h"
-#include "mozilla/dom/network/TCPServerSocketChild.h"
-
-using mozilla::dom::TCPSocketChild;
-using mozilla::dom::TCPServerSocketChild;
 
 namespace mozilla {
 namespace net {
 
-PNeckoChild *gNeckoChild = nullptr;
+PNeckoChild *gNeckoChild = nsnull;
 
 // C++ file contents
 NeckoChild::NeckoChild()
@@ -57,26 +85,29 @@ void NeckoChild::DestroyNeckoChild()
 
   if (!alreadyDestroyed) {
     Send__delete__(gNeckoChild); 
-    gNeckoChild = nullptr;
+    gNeckoChild = nsnull;
     alreadyDestroyed = true;
   }
 }
 
-PHttpChannelChild*
-NeckoChild::AllocPHttpChannelChild(PBrowserChild* browser,
-                                   const SerializedLoadContext& loadContext,
-                                   const HttpChannelCreationArgs& aOpenArgs)
+PHttpChannelChild* 
+NeckoChild::AllocPHttpChannel(PBrowserChild* browser)
 {
-  // We don't allocate here: instead we always use IPDL constructor that takes
-  // an existing HttpChildChannel
-  NS_NOTREACHED("AllocPHttpChannelChild should not be called on child");
-  return nullptr;
+  // This constructor is only used when PHttpChannel is constructed by
+  // the parent process, e.g. during a redirect.  (Normally HttpChannelChild is
+  // created by nsHttpHandler::NewProxiedChannel(), and then creates the
+  // PHttpChannel in HttpChannelChild::AsyncOpen().)
+
+  // No need to store PBrowser. It is only needed by the parent.
+  HttpChannelChild* httpChannel = new HttpChannelChild();
+  httpChannel->AddIPDLReference();
+  return httpChannel;
 }
 
 bool 
-NeckoChild::DeallocPHttpChannelChild(PHttpChannelChild* channel)
+NeckoChild::DeallocPHttpChannel(PHttpChannelChild* channel)
 {
-  NS_ABORT_IF_FALSE(IsNeckoChild(), "DeallocPHttpChannelChild called by non-child!");
+  NS_ABORT_IF_FALSE(IsNeckoChild(), "DeallocPHttpChannel called by non-child!");
 
   HttpChannelChild* child = static_cast<HttpChannelChild*>(channel);
   child->ReleaseIPDLReference();
@@ -84,37 +115,35 @@ NeckoChild::DeallocPHttpChannelChild(PHttpChannelChild* channel)
 }
 
 PFTPChannelChild*
-NeckoChild::AllocPFTPChannelChild(PBrowserChild* aBrowser,
-                                  const SerializedLoadContext& aSerialized,
-                                  const FTPChannelCreationArgs& aOpenArgs)
+NeckoChild::AllocPFTPChannel()
 {
   // We don't allocate here: see FTPChannelChild::AsyncOpen()
-  NS_RUNTIMEABORT("AllocPFTPChannelChild should not be called");
-  return nullptr;
+  NS_RUNTIMEABORT("AllocPFTPChannel should not be called");
+  return nsnull;
 }
 
 bool
-NeckoChild::DeallocPFTPChannelChild(PFTPChannelChild* channel)
+NeckoChild::DeallocPFTPChannel(PFTPChannelChild* channel)
 {
-  NS_ABORT_IF_FALSE(IsNeckoChild(), "DeallocPFTPChannelChild called by non-child!");
+  NS_ABORT_IF_FALSE(IsNeckoChild(), "DeallocPFTPChannel called by non-child!");
 
   FTPChannelChild* child = static_cast<FTPChannelChild*>(channel);
   child->ReleaseIPDLReference();
   return true;
 }
 
-PCookieServiceChild*
-NeckoChild::AllocPCookieServiceChild()
+PCookieServiceChild* 
+NeckoChild::AllocPCookieService()
 {
   // We don't allocate here: see nsCookieService::GetSingleton()
-  NS_NOTREACHED("AllocPCookieServiceChild should not be called");
-  return nullptr;
+  NS_NOTREACHED("AllocPCookieService should not be called");
+  return nsnull;
 }
 
-bool
-NeckoChild::DeallocPCookieServiceChild(PCookieServiceChild* cs)
+bool 
+NeckoChild::DeallocPCookieService(PCookieServiceChild* cs)
 {
-  NS_ASSERTION(IsNeckoChild(), "DeallocPCookieServiceChild called by non-child!");
+  NS_ASSERTION(IsNeckoChild(), "DeallocPCookieService called by non-child!");
 
   CookieServiceChild *p = static_cast<CookieServiceChild*>(cs);
   p->Release();
@@ -122,7 +151,7 @@ NeckoChild::DeallocPCookieServiceChild(PCookieServiceChild* cs)
 }
 
 PWyciwygChannelChild*
-NeckoChild::AllocPWyciwygChannelChild()
+NeckoChild::AllocPWyciwygChannel()
 {
   WyciwygChannelChild *p = new WyciwygChannelChild();
   p->AddIPDLReference();
@@ -130,9 +159,9 @@ NeckoChild::AllocPWyciwygChannelChild()
 }
 
 bool
-NeckoChild::DeallocPWyciwygChannelChild(PWyciwygChannelChild* channel)
+NeckoChild::DeallocPWyciwygChannel(PWyciwygChannelChild* channel)
 {
-  NS_ABORT_IF_FALSE(IsNeckoChild(), "DeallocPWyciwygChannelChild called by non-child!");
+  NS_ABORT_IF_FALSE(IsNeckoChild(), "DeallocPWyciwygChannel called by non-child!");
 
   WyciwygChannelChild *p = static_cast<WyciwygChannelChild*>(channel);
   p->ReleaseIPDLReference();
@@ -140,67 +169,16 @@ NeckoChild::DeallocPWyciwygChannelChild(PWyciwygChannelChild* channel)
 }
 
 PWebSocketChild*
-NeckoChild::AllocPWebSocketChild(PBrowserChild* browser,
-                                 const SerializedLoadContext& aSerialized)
+NeckoChild::AllocPWebSocket(PBrowserChild* browser)
 {
-  NS_NOTREACHED("AllocPWebSocketChild should not be called");
-  return nullptr;
+  NS_NOTREACHED("AllocPWebSocket should not be called");
+  return nsnull;
 }
 
 bool
-NeckoChild::DeallocPWebSocketChild(PWebSocketChild* child)
+NeckoChild::DeallocPWebSocket(PWebSocketChild* child)
 {
   WebSocketChannelChild* p = static_cast<WebSocketChannelChild*>(child);
-  p->ReleaseIPDLReference();
-  return true;
-}
-
-PTCPSocketChild*
-NeckoChild::AllocPTCPSocketChild()
-{
-  TCPSocketChild* p = new TCPSocketChild();
-  p->AddIPDLReference();
-  return p;
-}
-
-bool
-NeckoChild::DeallocPTCPSocketChild(PTCPSocketChild* child)
-{
-  TCPSocketChild* p = static_cast<TCPSocketChild*>(child);
-  p->ReleaseIPDLReference();
-  return true;
-}
-
-PTCPServerSocketChild*
-NeckoChild::AllocPTCPServerSocketChild(const uint16_t& aLocalPort,
-                                  const uint16_t& aBacklog,
-                                  const nsString& aBinaryType)
-{
-  NS_NOTREACHED("AllocPTCPServerSocket should not be called");
-  return nullptr;
-}
-
-bool
-NeckoChild::DeallocPTCPServerSocketChild(PTCPServerSocketChild* child)
-{
-  TCPServerSocketChild* p = static_cast<TCPServerSocketChild*>(child);
-  p->ReleaseIPDLReference();
-  return true;
-}
-
-PRemoteOpenFileChild*
-NeckoChild::AllocPRemoteOpenFileChild(const URIParams&, PBrowserChild*)
-{
-  // We don't allocate here: instead we always use IPDL constructor that takes
-  // an existing RemoteOpenFileChild
-  NS_NOTREACHED("AllocPRemoteOpenFileChild should not be called on child");
-  return nullptr;
-}
-
-bool
-NeckoChild::DeallocPRemoteOpenFileChild(PRemoteOpenFileChild* aChild)
-{
-  RemoteOpenFileChild *p = static_cast<RemoteOpenFileChild*>(aChild);
   p->ReleaseIPDLReference();
   return true;
 }

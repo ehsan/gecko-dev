@@ -52,7 +52,7 @@ must be one of the following:
 
 2. A test item
 
-   [ <failure-type> | <preference> ]* [<http>] <type> <url> <url_ref>
+   <failure-type>* [<http>] <type> <url> <url_ref>
 
    where
 
@@ -106,17 +106,6 @@ must be one of the following:
                          fast on a 32-bit system but inordinately slow on a
                          64-bit system).
 
-      fuzzy(maxDiff, diffCount)
-          This allows a test to pass if the pixel value differences are <=
-          maxDiff and the total number of different pixels is <= diffCount.
-          It can also be used with '!=' to ensure that the difference is
-          greater than maxDiff.
-
-      fuzzy-if(condition, maxDiff, diffCount)
-          If the condition is met, the test is treated as if 'fuzzy' had been
-          specified. This is useful if there are differences on particular
-          platforms.
-
       require-or(cond1&&cond2&&...,fallback)
           Require some particular setup be performed or environmental
           condition(s) made true (eg setting debug mode) before the test
@@ -157,26 +146,7 @@ must be one of the following:
           fails-if(winWidget) == test reference
           asserts-if(cocoaWidget,2) load crashtest
 
-   b. <preference> (optional) is a string of the form
-
-          pref(<name>,<value>)
-          test-pref(<name>,<value>)
-          ref-pref(<name>,<value>)
-
-      where <name> is the name of a preference setting, as seen in
-      about:config, and <value> is the value to which this preference should
-      be set. <value> may be a boolean (true/false), an integer, or a
-      quoted string *without spaces*, according to the type of the preference.
-
-      The preference will be set to the specified value prior to
-      rendering the test and/or reference canvases (pref() applies to
-      both, test-pref() only to the test, and ref-pref() only to the
-      reference), and will be restored afterwards so that following
-      tests are not affected. Note that this feature is only useful for
-      "live" preferences that take effect immediately, without requiring
-      a browser restart.
-
-   c. <http>, if present, is one of the strings (sans quotes) "HTTP" or
+   b. <http>, if present, is one of the strings (sans quotes) "HTTP" or
       "HTTP(..)" or "HTTP(../..)" or "HTTP(../../..)", etc. , indicating that
       the test should be run over an HTTP server because it requires certain
       HTTP headers or a particular HTTP status.  (Don't use this if your test
@@ -235,7 +205,7 @@ must be one of the following:
       on request/response in handleRequest, see the nsIHttpRe(quest|sponse)
       definitions in <netwerk/test/httpserver/nsIHttpServer.idl>.
 
-   d. <type> is one of the following:
+   c. <type> is one of the following:
 
       ==     The test passes if the images of the two renderings are the
              SAME.
@@ -263,10 +233,10 @@ must be one of the following:
              url_ref must be omitted. The test may be marked as fails or
              random. (Used to test the JavaScript Engine.)
 
-   e. <url> is either a relative file path or an absolute URL for the
+   d. <url> is either a relative file path or an absolute URL for the
       test page
 
-   f. <url_ref> is either a relative file path or an absolute URL for
+   e. <url_ref> is either a relative file path or an absolute URL for
       the reference page
 
    The only difference between <url> and <url_ref> is that results of
@@ -289,28 +259,6 @@ must be one of the following:
    While the typical use of url-prefix is expected to be as the first line of
    a manifest, it is legal to use it anywhere in a manifest. Subsequent uses
    of url-prefix overwrite any existing values.
-
-4. Specification of default preferences
-
-   default-preferences <preference>*
-
-   where <preference> is defined above.
-
-   The <preference> settings will be used for all following test items in the
-   manifest.
-
-   If a test item includes its own preference settings, then they will override
-   any settings for preferences of the same names that are set using
-   default-preferences, just as later items within a line override earlier ones.
-
-   A default-preferences line with no <preference> settings following it will
-   reset the set of default preferences to be empty.
-
-   As with url-prefix, default-preferences will often be used at the start of a
-   manifest file so that it applies to all test items, but it is legal for
-   default-preferences to appear anywhere in the manifest. A subsequent
-   default-preferences will reset any previous default preference values and
-   overwrite them with the specified <preference> values.
 
 This test manifest format could be used by other harnesses, such as ones
 that do not depend on XUL, or even ones testing other layout engines.
@@ -441,14 +389,6 @@ function doTest() {
   document.documentElement.removeAttribute('class');
 }
 document.addEventListener("MozReftestInvalidate", doTest, false);
-
-Painting Tests
-==============
-
-If an element shouldn't be painted, set the class "reftest-no-paint" on it
-when doing an invalidation test. Causing a repaint in your
-MozReftestInvalidate handler (for example, by changing the body's background
-colour) will accurately test whether the element is painted.
 
 Zoom Tests
 ==========

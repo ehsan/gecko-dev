@@ -87,14 +87,6 @@ function handleRequest(aRequest, aResponse) {
     return;
   }
 
-  if (params.unsupported) {
-    aResponse.write(getRemoteUpdatesXMLString("  <update type=\"major\" " +
-                                              "unsupported=\"true\" " +
-                                              "detailsURL=\"" + URL_HOST +
-                                              "\"></update>\n"));
-    return;
-  }
-
   var hash;
   var patches = "";
   if (!params.partialPatchOnly) {
@@ -131,7 +123,6 @@ function handleRequest(aRequest, aResponse) {
     licenseURL = URL_HOST + URL_PATH + "missing.html";
   var showPrompt = params.showPrompt ? "true" : null;
   var showNever = params.showNever ? "true" : null;
-  var promptWaitTime = params.promptWaitTime ? params.promptWaitTime : null;
   var showSurvey = params.showSurvey ? "true" : null;
 
   // For testing the deprecated update xml format
@@ -154,8 +145,8 @@ function handleRequest(aRequest, aResponse) {
                                       displayVersion, appVersion,
                                       platformVersion, buildID, detailsURL,
                                       billboardURL, licenseURL, showPrompt,
-                                      showNever, promptWaitTime, showSurvey,
-                                      version, extensionVersion);
+                                      showNever, showSurvey, version,
+                                      extensionVersion);
 
   aResponse.write(getRemoteUpdatesXMLString(updates));
 }

@@ -4,15 +4,12 @@
 
 /* General Update Directory Cleanup Tests - Bug 601701 */
 
-const TEST_ID = "0073";
-
 function run_test() {
   do_test_pending();
   do_register_cleanup(end_test);
 
-  adjustGeneralPaths();
-
   removeUpdateDirsAndFiles();
+  setUpdateChannel();
 
   writeUpdatesToXMLFile(getLocalUpdatesXMLString(""), false);
   var patches = getLocalPatchString(null, null, null, null, null, null,

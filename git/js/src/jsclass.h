@@ -1,78 +1,106 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=79 ft=cpp:
+ *
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is SpiderMonkey JavaScript engine.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-#ifndef jsclass_h
-#define jsclass_h
+#ifndef jsclass_h__
+#define jsclass_h__
 /*
  * A JSClass acts as a vtable for JS objects that allows JSAPI clients to
  * control various aspects of the behavior of an object like property lookup.
  * js::Class is an engine-private extension that allows more control over
  * object behavior and, e.g., allows custom slow layout.
  */
-
 #include "jsapi.h"
 #include "jsprvtd.h"
 
 namespace js {
 
+class AutoIdVector;
 class PropertyName;
 class SpecialId;
-class PropertyId;
-
-// This is equal to JSFunction::class_.  Use it in places where you don't want
-// to #include jsfun.h.
-extern JS_FRIEND_DATA(js::Class* const) FunctionClassPtr;
 
 static JS_ALWAYS_INLINE jsid
 SPECIALID_TO_JSID(const SpecialId &sid);
 
 /*
  * We partition the ways to refer to a property into three: by an index
- * (uint32_t); by a string whose characters do not represent an index
+ * (uint32); by a string whose characters do not represent an index
  * (PropertyName, see vm/String.h); and by various special values.
  *
  * Special values are encoded using SpecialId, which is layout-compatible but
- * non-interconvertible with jsid.  A SpecialId is used for JSID_VOID, which
+ * non-interconvertible with jsid.  A SpecialId may be: an object (used by E4X
+ * and perhaps eventually by Harmony-proposed private names); JSID_VOID, which
  * does not occur in JS scripts but may be used to indicate the absence of a
- * valid identifier.  In the future, a SpecialId may also be an object used by
- * Harmony-proposed private names.
+ * valid identifier; or JS_DEFAULT_XML_NAMESPACE_ID, if E4X is enabled.
  */
-class SpecialId
-{
-    uintptr_t bits_;
+
+class SpecialId {
+    uintptr_t bits;
 
     /* Needs access to raw bits. */
     friend JS_ALWAYS_INLINE jsid SPECIALID_TO_JSID(const SpecialId &sid);
-    friend class PropertyId;
 
     static const uintptr_t TYPE_VOID = JSID_TYPE_VOID;
     static const uintptr_t TYPE_OBJECT = JSID_TYPE_OBJECT;
+    static const uintptr_t TYPE_DEFAULT_XML_NAMESPACE = JSID_TYPE_DEFAULT_XML_NAMESPACE;
     static const uintptr_t TYPE_MASK = JSID_TYPE_MASK;
 
-    SpecialId(uintptr_t bits) : bits_(bits) { }
+    SpecialId(uintptr_t bits) : bits(bits) { }
 
   public:
-    SpecialId() : bits_(TYPE_VOID) { }
+    SpecialId() : bits(TYPE_VOID) { }
 
     /* Object-valued */
 
     SpecialId(JSObject &obj)
-      : bits_(uintptr_t(&obj) | TYPE_OBJECT)
+      : bits(uintptr_t(&obj) | TYPE_OBJECT)
     {
         JS_ASSERT(&obj != NULL);
         JS_ASSERT((uintptr_t(&obj) & TYPE_MASK) == 0);
     }
 
     bool isObject() const {
-        return (bits_ & TYPE_MASK) == TYPE_OBJECT && bits_ != TYPE_OBJECT;
+        return (bits & TYPE_MASK) == TYPE_OBJECT && bits != TYPE_OBJECT;
     }
 
     JSObject *toObject() const {
         JS_ASSERT(isObject());
-        return reinterpret_cast<JSObject *>(bits_ & ~TYPE_MASK);
+        return reinterpret_cast<JSObject *>(bits & ~TYPE_MASK);
     }
 
     /* Empty */
@@ -84,7 +112,7 @@ class SpecialId
     }
 
     bool isEmpty() const {
-        return bits_ == TYPE_OBJECT;
+        return bits == TYPE_OBJECT;
     }
 
     /* Void */
@@ -96,7 +124,19 @@ class SpecialId
     }
 
     bool isVoid() const {
-        return bits_ == TYPE_VOID;
+        return bits == TYPE_VOID;
+    }
+
+    /* Default XML namespace */
+
+    static SpecialId defaultXMLNamespace() {
+        SpecialId sid(TYPE_DEFAULT_XML_NAMESPACE);
+        JS_ASSERT(sid.isDefaultXMLNamespace());
+        return sid;
+    }
+
+    bool isDefaultXMLNamespace() const {
+        return bits == TYPE_DEFAULT_XML_NAMESPACE;
     }
 };
 
@@ -104,17 +144,19 @@ static JS_ALWAYS_INLINE jsid
 SPECIALID_TO_JSID(const SpecialId &sid)
 {
     jsid id;
-    JSID_BITS(id) = sid.bits_;
+    JSID_BITS(id) = sid.bits;
     JS_ASSERT_IF(sid.isObject(), JSID_IS_OBJECT(id) && JSID_TO_OBJECT(id) == sid.toObject());
     JS_ASSERT_IF(sid.isVoid(), JSID_IS_VOID(id));
     JS_ASSERT_IF(sid.isEmpty(), JSID_IS_EMPTY(id));
+    JS_ASSERT_IF(sid.isDefaultXMLNamespace(), JSID_IS_DEFAULT_XML_NAMESPACE(id));
     return id;
 }
 
 static JS_ALWAYS_INLINE bool
 JSID_IS_SPECIAL(jsid id)
 {
-    return JSID_IS_OBJECT(id) || JSID_IS_EMPTY(id) || JSID_IS_VOID(id);
+    return JSID_IS_OBJECT(id) || JSID_IS_EMPTY(id) || JSID_IS_VOID(id) ||
+           JSID_IS_DEFAULT_XML_NAMESPACE(id);
 }
 
 static JS_ALWAYS_INLINE SpecialId
@@ -125,101 +167,114 @@ JSID_TO_SPECIALID(jsid id)
         return SpecialId(*JSID_TO_OBJECT(id));
     if (JSID_IS_EMPTY(id))
         return SpecialId::empty();
-    JS_ASSERT(JSID_IS_VOID(id));
-    return SpecialId::voidId();
+    if (JSID_IS_VOID(id))
+        return SpecialId::voidId();
+    JS_ASSERT(JSID_IS_DEFAULT_XML_NAMESPACE(id));
+    return SpecialId::defaultXMLNamespace();
 }
-
-typedef JS::Handle<SpecialId> HandleSpecialId;
 
 /* js::Class operation signatures. */
 
 typedef JSBool
-(* LookupGenericOp)(JSContext *cx, HandleObject obj, HandleId id,
-                    MutableHandleObject objp, MutableHandleShape propp);
+(* LookupGenericOp)(JSContext *cx, JSObject *obj, jsid id, JSObject **objp,
+                    JSProperty **propp);
 typedef JSBool
-(* LookupPropOp)(JSContext *cx, HandleObject obj, HandlePropertyName name,
-                 MutableHandleObject objp, MutableHandleShape propp);
+(* LookupPropOp)(JSContext *cx, JSObject *obj, jsid id, JSObject **objp,
+                 JSProperty **propp);
 typedef JSBool
-(* LookupElementOp)(JSContext *cx, HandleObject obj, uint32_t index,
-                    MutableHandleObject objp, MutableHandleShape propp);
+(* LookupElementOp)(JSContext *cx, JSObject *obj, uint32 index, JSObject **objp,
+                    JSProperty **propp);
 typedef JSBool
-(* LookupSpecialOp)(JSContext *cx, HandleObject obj, HandleSpecialId sid,
-                    MutableHandleObject objp, MutableHandleShape propp);
+(* LookupSpecialOp)(JSContext *cx, JSObject *obj, SpecialId sid, JSObject **objp,
+                    JSProperty **propp);
 typedef JSBool
-(* DefineGenericOp)(JSContext *cx, HandleObject obj, HandleId id, HandleValue value,
-                    PropertyOp getter, StrictPropertyOp setter, unsigned attrs);
+(* DefineGenericOp)(JSContext *cx, JSObject *obj, jsid id, const Value *value,
+                    PropertyOp getter, StrictPropertyOp setter, uintN attrs);
 typedef JSBool
-(* DefinePropOp)(JSContext *cx, HandleObject obj, HandlePropertyName name, HandleValue value,
-                 PropertyOp getter, StrictPropertyOp setter, unsigned attrs);
+(* DefinePropOp)(JSContext *cx, JSObject *obj, jsid id, const Value *value,
+                 PropertyOp getter, StrictPropertyOp setter, uintN attrs);
 typedef JSBool
-(* DefineElementOp)(JSContext *cx, HandleObject obj, uint32_t index, HandleValue value,
-                    PropertyOp getter, StrictPropertyOp setter, unsigned attrs);
+(* DefineElementOp)(JSContext *cx, JSObject *obj, uint32 index, const Value *value,
+                    PropertyOp getter, StrictPropertyOp setter, uintN attrs);
 typedef JSBool
-(* DefineSpecialOp)(JSContext *cx, HandleObject obj, HandleSpecialId sid, HandleValue value,
-                    PropertyOp getter, StrictPropertyOp setter, unsigned attrs);
+(* DefineSpecialOp)(JSContext *cx, JSObject *obj, SpecialId sid, const Value *value,
+                    PropertyOp getter, StrictPropertyOp setter, uintN attrs);
 typedef JSBool
-(* GenericIdOp)(JSContext *cx, HandleObject obj, HandleObject receiver, HandleId id, MutableHandleValue vp);
+(* GenericIdOp)(JSContext *cx, JSObject *obj, JSObject *receiver, jsid id, Value *vp);
 typedef JSBool
-(* PropertyIdOp)(JSContext *cx, HandleObject obj, HandleObject receiver, HandlePropertyName name, MutableHandleValue vp);
+(* PropertyIdOp)(JSContext *cx, JSObject *obj, JSObject *receiver, PropertyName *name, Value *vp);
 typedef JSBool
-(* ElementIdOp)(JSContext *cx, HandleObject obj, HandleObject receiver, uint32_t index, MutableHandleValue vp);
+(* ElementIdOp)(JSContext *cx, JSObject *obj, JSObject *receiver, uint32 index, Value *vp);
 typedef JSBool
-(* ElementIfPresentOp)(JSContext *cx, HandleObject obj, HandleObject receiver, uint32_t index, MutableHandleValue vp, bool* present);
+(* SpecialIdOp)(JSContext *cx, JSObject *obj, JSObject *receiver, SpecialId sid, Value *vp);
 typedef JSBool
-(* SpecialIdOp)(JSContext *cx, HandleObject obj, HandleObject receiver, HandleSpecialId sid, MutableHandleValue vp);
+(* StrictGenericIdOp)(JSContext *cx, JSObject *obj, jsid id, Value *vp, JSBool strict);
 typedef JSBool
-(* StrictGenericIdOp)(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp, JSBool strict);
+(* StrictPropertyIdOp)(JSContext *cx, JSObject *obj, jsid id, Value *vp, JSBool strict);
 typedef JSBool
-(* StrictPropertyIdOp)(JSContext *cx, HandleObject obj, HandlePropertyName name, MutableHandleValue vp, JSBool strict);
+(* StrictElementIdOp)(JSContext *cx, JSObject *obj, uint32 index, Value *vp, JSBool strict);
 typedef JSBool
-(* StrictElementIdOp)(JSContext *cx, HandleObject obj, uint32_t index, MutableHandleValue vp, JSBool strict);
+(* StrictSpecialIdOp)(JSContext *cx, JSObject *obj, SpecialId sid, Value *vp, JSBool strict);
 typedef JSBool
-(* StrictSpecialIdOp)(JSContext *cx, HandleObject obj, HandleSpecialId sid, MutableHandleValue vp, JSBool strict);
+(* GenericAttributesOp)(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp);
 typedef JSBool
-(* GenericAttributesOp)(JSContext *cx, HandleObject obj, HandleId id, unsigned *attrsp);
+(* AttributesOp)(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp);
 typedef JSBool
-(* PropertyAttributesOp)(JSContext *cx, HandleObject obj, HandlePropertyName name, unsigned *attrsp);
+(* ElementAttributesOp)(JSContext *cx, JSObject *obj, uint32 index, uintN *attrsp);
 typedef JSBool
-(* ElementAttributesOp)(JSContext *cx, HandleObject obj, uint32_t index, unsigned *attrsp);
+(* SpecialAttributesOp)(JSContext *cx, JSObject *obj, SpecialId sid, uintN *attrsp);
 typedef JSBool
-(* SpecialAttributesOp)(JSContext *cx, HandleObject obj, HandleSpecialId sid, unsigned *attrsp);
+(* DeleteGenericOp)(JSContext *cx, JSObject *obj, jsid id, Value *vp, JSBool strict);
 typedef JSBool
-(* DeletePropertyOp)(JSContext *cx, HandleObject obj, HandlePropertyName name, JSBool *succeeded);
+(* DeleteIdOp)(JSContext *cx, JSObject *obj, jsid id, Value *vp, JSBool strict);
 typedef JSBool
-(* DeleteElementOp)(JSContext *cx, HandleObject obj, uint32_t index, JSBool *succeeded);
+(* DeleteElementOp)(JSContext *cx, JSObject *obj, uint32 index, Value *vp, JSBool strict);
 typedef JSBool
-(* DeleteSpecialOp)(JSContext *cx, HandleObject obj, HandleSpecialId sid, JSBool *succeeded);
+(* DeleteSpecialOp)(JSContext *cx, JSObject *obj, SpecialId sid, Value *vp, JSBool strict);
+typedef JSType
+(* TypeOfOp)(JSContext *cx, JSObject *obj);
 
+/*
+ * Prepare to make |obj| non-extensible; in particular, fully resolve its properties.
+ * On error, return false.
+ * If |obj| is now ready to become non-extensible, set |*fixed| to true and return true.
+ * If |obj| refuses to become non-extensible, set |*fixed| to false and return true; the
+ * caller will throw an appropriate error.
+ */
+typedef JSBool
+(* FixOp)(JSContext *cx, JSObject *obj, bool *fixed, AutoIdVector *props);
 
 typedef JSObject *
-(* ObjectOp)(JSContext *cx, HandleObject obj);
+(* ObjectOp)(JSContext *cx, JSObject *obj);
 typedef void
-(* FinalizeOp)(FreeOp *fop, JSObject *obj);
+(* FinalizeOp)(JSContext *cx, JSObject *obj);
 
 #define JS_CLASS_MEMBERS                                                      \
     const char          *name;                                                \
-    uint32_t            flags;                                                \
+    uint32              flags;                                                \
                                                                               \
-    /* Mandatory function pointer members. */                                 \
+    /* Mandatory non-null function pointer members. */                        \
     JSPropertyOp        addProperty;                                          \
-    JSDeletePropertyOp  delProperty;                                          \
+    JSPropertyOp        delProperty;                                          \
     JSPropertyOp        getProperty;                                          \
     JSStrictPropertyOp  setProperty;                                          \
     JSEnumerateOp       enumerate;                                            \
     JSResolveOp         resolve;                                              \
     JSConvertOp         convert;                                              \
+    JSFinalizeOp        finalize;                                             \
                                                                               \
-    /* Optional members (may be null). */                                     \
-    FinalizeOp          finalize;                                             \
+    /* Optionally non-null members start here. */                             \
+    JSClassInternal     reserved0;                                            \
     JSCheckAccessOp     checkAccess;                                          \
     JSNative            call;                                                 \
-    JSHasInstanceOp     hasInstance;                                          \
     JSNative            construct;                                            \
+    JSXDRObjectOp       xdrObject;                                            \
+    JSHasInstanceOp     hasInstance;                                          \
     JSTraceOp           trace
 
 /*
  * The helper struct to measure the size of JS_CLASS_MEMBERS to know how much
- * we have to pad js::Class to match the size of JSClass.
+ * we have to padd js::Class to match the size of JSClass;
  */
 struct ClassSizeMeasurement
 {
@@ -228,31 +283,20 @@ struct ClassSizeMeasurement
 
 struct ClassExtension
 {
+    JSEqualityOp        equality;
     JSObjectOp          outerObject;
     JSObjectOp          innerObject;
     JSIteratorOp        iteratorObject;
+    void               *unused;
 
     /*
      * isWrappedNative is true only if the class is an XPCWrappedNative.
      * WeakMaps use this to override the wrapper disposal optimization.
      */
     bool                isWrappedNative;
-
-    /*
-     * If an object is used as a key in a weakmap, it may be desirable for the
-     * garbage collector to keep that object around longer than it otherwise
-     * would. A common case is when the key is a wrapper around an object in
-     * another compartment, and we want to avoid collecting the wrapper (and
-     * removing the weakmap entry) as long as the wrapped object is alive. In
-     * that case, the wrapped object is returned by the wrapper's
-     * weakmapKeyDelegateOp hook. As long as the wrapper is used as a weakmap
-     * key, it will not be collected (and remain in the weakmap) until the
-     * wrapped object is collected.
-     */
-    JSWeakmapKeyDelegateOp weakmapKeyDelegateOp;
 };
 
-#define JS_NULL_CLASS_EXT   {NULL,NULL,NULL,false,NULL}
+#define JS_NULL_CLASS_EXT   {NULL,NULL,NULL,NULL,NULL,false}
 
 struct ObjectOps
 {
@@ -267,61 +311,50 @@ struct ObjectOps
     GenericIdOp         getGeneric;
     PropertyIdOp        getProperty;
     ElementIdOp         getElement;
-    ElementIfPresentOp  getElementIfPresent; /* can be null */
     SpecialIdOp         getSpecial;
     StrictGenericIdOp   setGeneric;
     StrictPropertyIdOp  setProperty;
     StrictElementIdOp   setElement;
     StrictSpecialIdOp   setSpecial;
     GenericAttributesOp getGenericAttributes;
-    PropertyAttributesOp getPropertyAttributes;
+    AttributesOp        getAttributes;
     ElementAttributesOp getElementAttributes;
     SpecialAttributesOp getSpecialAttributes;
     GenericAttributesOp setGenericAttributes;
-    PropertyAttributesOp setPropertyAttributes;
+    AttributesOp        setAttributes;
     ElementAttributesOp setElementAttributes;
     SpecialAttributesOp setSpecialAttributes;
-    DeletePropertyOp    deleteProperty;
+    DeleteGenericOp     deleteGeneric;
+    DeleteIdOp          deleteProperty;
     DeleteElementOp     deleteElement;
     DeleteSpecialOp     deleteSpecial;
 
     JSNewEnumerateOp    enumerate;
+    TypeOfOp            typeOf;
+    FixOp               fix;
     ObjectOp            thisObject;
+    FinalizeOp          clear;
 };
 
 #define JS_NULL_OBJECT_OPS                                                    \
     {NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,   \
-     NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,        \
-     NULL,NULL,NULL}
+     NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,   \
+     NULL,NULL,NULL,NULL,NULL}
 
 struct Class
 {
     JS_CLASS_MEMBERS;
     ClassExtension      ext;
     ObjectOps           ops;
-    uint8_t             pad[sizeof(JSClass) - sizeof(ClassSizeMeasurement) -
+    uint8               pad[sizeof(JSClass) - sizeof(ClassSizeMeasurement) -
                             sizeof(ClassExtension) - sizeof(ObjectOps)];
 
     /* Class is not native and its map is not a scope. */
-    static const uint32_t NON_NATIVE = JSCLASS_INTERNAL_FLAG2;
+    static const uint32 NON_NATIVE = JSCLASS_INTERNAL_FLAG2;
 
     bool isNative() const {
         return !(flags & NON_NATIVE);
     }
-
-    bool hasPrivate() const {
-        return !!(flags & JSCLASS_HAS_PRIVATE);
-    }
-
-    bool emulatesUndefined() const {
-        return flags & JSCLASS_EMULATES_UNDEFINED;
-    }
-
-    bool isCallable() const {
-        return this == js::FunctionClassPtr || call;
-    }
-
-    static size_t offsetOfFlags() { return offsetof(Class, flags); }
 };
 
 JS_STATIC_ASSERT(offsetof(JSClass, name) == offsetof(Class, name));
@@ -334,9 +367,11 @@ JS_STATIC_ASSERT(offsetof(JSClass, enumerate) == offsetof(Class, enumerate));
 JS_STATIC_ASSERT(offsetof(JSClass, resolve) == offsetof(Class, resolve));
 JS_STATIC_ASSERT(offsetof(JSClass, convert) == offsetof(Class, convert));
 JS_STATIC_ASSERT(offsetof(JSClass, finalize) == offsetof(Class, finalize));
+JS_STATIC_ASSERT(offsetof(JSClass, reserved0) == offsetof(Class, reserved0));
 JS_STATIC_ASSERT(offsetof(JSClass, checkAccess) == offsetof(Class, checkAccess));
 JS_STATIC_ASSERT(offsetof(JSClass, call) == offsetof(Class, call));
 JS_STATIC_ASSERT(offsetof(JSClass, construct) == offsetof(Class, construct));
+JS_STATIC_ASSERT(offsetof(JSClass, xdrObject) == offsetof(Class, xdrObject));
 JS_STATIC_ASSERT(offsetof(JSClass, hasInstance) == offsetof(Class, hasInstance));
 JS_STATIC_ASSERT(offsetof(JSClass, trace) == offsetof(Class, trace));
 JS_STATIC_ASSERT(sizeof(JSClass) == sizeof(Class));
@@ -346,60 +381,12 @@ Jsvalify(Class *c)
 {
     return (JSClass *)c;
 }
-static JS_ALWAYS_INLINE const JSClass *
-Jsvalify(const Class *c)
-{
-    return (const JSClass *)c;
-}
 
 static JS_ALWAYS_INLINE Class *
 Valueify(JSClass *c)
 {
     return (Class *)c;
 }
-static JS_ALWAYS_INLINE const Class *
-Valueify(const JSClass *c)
-{
-    return (const Class *)c;
-}
-
-/*
- * Enumeration describing possible values of the [[Class]] internal property
- * value of objects.
- */
-enum ESClassValue {
-    ESClass_Array, ESClass_Number, ESClass_String, ESClass_Boolean,
-    ESClass_RegExp, ESClass_ArrayBuffer, ESClass_Date
-};
-
-/*
- * Return whether the given object has the given [[Class]] internal property
- * value. Beware, this query says nothing about the js::Class of the JSObject
- * so the caller must not assume anything about obj's representation (e.g., obj
- * may be a proxy).
- */
-inline bool
-ObjectClassIs(JSObject &obj, ESClassValue classValue, JSContext *cx);
-
-/* Just a helper that checks v.isObject before calling ObjectClassIs. */
-inline bool
-IsObjectWithClass(const Value &v, ESClassValue classValue, JSContext *cx);
-
-inline bool
-IsPoisonedSpecialId(js::SpecialId iden)
-{
-    if (iden.isObject())
-        return IsPoisonedPtr(iden.toObject());
-    return false;
-}
-
-template <> struct GCMethods<SpecialId>
-{
-    static SpecialId initial() { return SpecialId(); }
-    static ThingRootKind kind() { return THING_ROOT_ID; }
-    static bool poisoned(SpecialId id) { return IsPoisonedSpecialId(id); }
-};
 
 }  /* namespace js */
-
-#endif  /* jsclass_h */
+#endif  /* jsclass_h__ */

@@ -1,7 +1,41 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Scott Collins <scc@mozilla.org> (original author)
+ *   Johnny Stenbeck <jst@netscape.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsReadableUtils_h___
 #define nsReadableUtils_h___
@@ -14,8 +48,7 @@
 #ifndef nsAString_h___
 #include "nsAString.h"
 #endif
-
-template<class E> class nsTArray;
+#include "nsTArray.h"
 
 inline size_t Distance( const nsReadingIterator<PRUnichar>& start, const nsReadingIterator<PRUnichar>& end )
   {
@@ -26,17 +59,17 @@ inline size_t Distance( const nsReadingIterator<char>& start, const nsReadingIte
     return end.get() - start.get();
   }
 
-void LossyCopyUTF16toASCII( const nsAString& aSource, nsACString& aDest );
-void CopyASCIItoUTF16( const nsACString& aSource, nsAString& aDest );
+void LossyCopyUTF16toASCII( const nsAString& aSource, nsACString& aDest NS_OUTPARAM );
+void CopyASCIItoUTF16( const nsACString& aSource, nsAString& aDest NS_OUTPARAM );
 
-void LossyCopyUTF16toASCII( const PRUnichar* aSource, nsACString& aDest );
-void CopyASCIItoUTF16( const char* aSource, nsAString& aDest );
+void LossyCopyUTF16toASCII( const PRUnichar* aSource, nsACString& aDest NS_OUTPARAM );
+void CopyASCIItoUTF16( const char* aSource, nsAString& aDest NS_OUTPARAM );
 
-void CopyUTF16toUTF8( const nsAString& aSource, nsACString& aDest );
-void CopyUTF8toUTF16( const nsACString& aSource, nsAString& aDest );
+void CopyUTF16toUTF8( const nsAString& aSource, nsACString& aDest NS_OUTPARAM );
+void CopyUTF8toUTF16( const nsACString& aSource, nsAString& aDest NS_OUTPARAM );
 
-void CopyUTF16toUTF8( const PRUnichar* aSource, nsACString& aDest );
-void CopyUTF8toUTF16( const char* aSource, nsAString& aDest );
+void CopyUTF16toUTF8( const PRUnichar* aSource, nsACString& aDest NS_OUTPARAM );
+void CopyUTF8toUTF16( const char* aSource, nsAString& aDest NS_OUTPARAM );
 
 void LossyAppendUTF16toASCII( const nsAString& aSource, nsACString& aDest );
 void AppendASCIItoUTF16( const nsACString& aSource, nsAString& aDest );
@@ -46,8 +79,6 @@ void AppendASCIItoUTF16( const char* aSource, nsAString& aDest );
 
 void AppendUTF16toUTF8( const nsAString& aSource, nsACString& aDest );
 void AppendUTF8toUTF16( const nsACString& aSource, nsAString& aDest );
-bool AppendUTF8toUTF16( const nsACString& aSource, nsAString& aDest,
-                        const mozilla::fallible_t& ) NS_WARN_UNUSED_RESULT;
 
 void AppendUTF16toUTF8( const PRUnichar* aSource, nsACString& aDest );
 void AppendUTF8toUTF16( const char* aSource, nsAString& aDest );
@@ -92,7 +123,7 @@ char* ToNewCString( const nsACString& aSource );
    * @return a new |char| buffer you must free with |nsMemory::Free|.
    */
 
-char* ToNewUTF8String( const nsAString& aSource, uint32_t *aUTF8Count = nullptr );
+char* ToNewUTF8String( const nsAString& aSource, PRUint32 *aUTF8Count = nsnull );
 
 
   /**
@@ -124,38 +155,6 @@ PRUnichar* ToNewUnicode( const nsAString& aSource );
 PRUnichar* ToNewUnicode( const nsACString& aSource );
 
   /**
-   * Returns the required length for a PRUnichar buffer holding
-   * a copy of aSource, using UTF-8 to UTF-16 conversion.
-   * The length does NOT include any space for zero-termination.
-   *
-   * @param aSource an 8-bit wide string, UTF-8 encoded
-   * @return length of UTF-16 encoded string copy, not zero-terminated
-   */
-uint32_t CalcUTF8ToUnicodeLength( const nsACString& aSource );
-
-  /**
-   * Copies the source string into the specified buffer, converting UTF-8 to
-   * UTF-16 in the process. The conversion is well defined for valid UTF-8
-   * strings.
-   * The copied string will be zero-terminated! Any embedded nulls will be
-   * copied nonetheless. It is the caller's responsiblity to ensure the buffer
-   * is large enough to hold the string copy plus one PRUnichar for
-   * zero-termination!
-   *
-   * @see CalcUTF8ToUnicodeLength( const nsACString& )
-   * @see UTF8ToNewUnicode( const nsACString&, uint32_t* )
-   *
-   * @param aSource an 8-bit wide string, UTF-8 encoded
-   * @param aBuffer the buffer holding the converted string copy
-   * @param aUTF16Count receiving optionally the number of 16-bit units that
-   *                    were copied
-   * @return aBuffer pointer, for convenience 
-   */
-PRUnichar* UTF8ToUnicodeBuffer( const nsACString& aSource,
-                                PRUnichar *aBuffer,
-                                uint32_t *aUTF16Count = nullptr );
-
-  /**
    * Returns a new |PRUnichar| buffer containing a zero-terminated copy
    * of |aSource|.
    *
@@ -170,7 +169,7 @@ PRUnichar* UTF8ToUnicodeBuffer( const nsACString& aSource,
    * @return a new |PRUnichar| buffer you must free with |nsMemory::Free|.
    *         (UTF-16 encoded)
    */
-PRUnichar* UTF8ToNewUnicode( const nsACString& aSource, uint32_t *aUTF16Count = nullptr );
+PRUnichar* UTF8ToNewUnicode( const nsACString& aSource, PRUint32 *aUTF16Count = nsnull );
 
   /**
    * Copies |aLength| 16-bit code units from the start of |aSource| to the
@@ -185,9 +184,9 @@ PRUnichar* UTF8ToNewUnicode( const nsACString& aSource, uint32_t *aUTF16Count = 
    * @return pointer to destination buffer - identical to |aDest|
    */
 PRUnichar* CopyUnicodeTo( const nsAString& aSource,
-                                 uint32_t aSrcOffset,
+                                 PRUint32 aSrcOffset,
                                  PRUnichar* aDest,
-                                 uint32_t aLength );
+                                 PRUint32 aLength );
 
 
   /**
@@ -220,21 +219,21 @@ void AppendUnicodeTo( const nsAString::const_iterator& aSrcStart,
                              nsAString& aDest );
 
   /**
-   * Returns |true| if |aString| contains only ASCII characters, that is, characters in the range (0x00, 0x7F).
+   * Returns |PR_TRUE| if |aString| contains only ASCII characters, that is, characters in the range (0x00, 0x7F).
    *
    * @param aString a 16-bit wide string to scan
    */
-bool IsASCII( const nsAString& aString );
+PRBool IsASCII( const nsAString& aString );
 
   /**
-   * Returns |true| if |aString| contains only ASCII characters, that is, characters in the range (0x00, 0x7F).
+   * Returns |PR_TRUE| if |aString| contains only ASCII characters, that is, characters in the range (0x00, 0x7F).
    *
    * @param aString a 8-bit wide string to scan
    */
-bool IsASCII( const nsACString& aString );
+PRBool IsASCII( const nsACString& aString );
 
   /**
-   * Returns |true| if |aString| is a valid UTF-8 string.
+   * Returns |PR_TRUE| if |aString| is a valid UTF-8 string.
    * XXX This is not bullet-proof and nor an all-purpose UTF-8 validator. 
    * It is mainly written to replace and roughly equivalent to
    *
@@ -264,9 +263,9 @@ bool IsASCII( const nsACString& aString );
    * @param aRejectNonChar a boolean to control the rejection of utf-8
    *        non characters
    */
-bool IsUTF8( const nsACString& aString, bool aRejectNonChar = true );
+PRBool IsUTF8( const nsACString& aString, PRBool aRejectNonChar = PR_TRUE );
 
-bool ParseString(const nsACString& aAstring, char aDelimiter, 
+PRBool ParseString(const nsACString& aAstring, char aDelimiter, 
                           nsTArray<nsCString>& aArray);
 
   /**
@@ -290,19 +289,19 @@ void ToLowerCase( const nsACString& aSource, nsACString& aDest );
   /**
    * Finds the leftmost occurrence of |aPattern|, if any in the range |aSearchStart|..|aSearchEnd|.
    *
-   * Returns |true| if a match was found, and adjusts |aSearchStart| and |aSearchEnd| to
-   * point to the match.  If no match was found, returns |false| and makes |aSearchStart == aSearchEnd|.
+   * Returns |PR_TRUE| if a match was found, and adjusts |aSearchStart| and |aSearchEnd| to
+   * point to the match.  If no match was found, returns |PR_FALSE| and makes |aSearchStart == aSearchEnd|.
    *
    * Currently, this is equivalent to the O(m*n) implementation previously on |ns[C]String|.
    * If we need something faster, then we can implement that later.
    */
 
-bool FindInReadable( const nsAString& aPattern, nsAString::const_iterator&, nsAString::const_iterator&, const nsStringComparator& = nsDefaultStringComparator() );
-bool FindInReadable( const nsACString& aPattern, nsACString::const_iterator&, nsACString::const_iterator&, const nsCStringComparator& = nsDefaultCStringComparator() );
+PRBool FindInReadable( const nsAString& aPattern, nsAString::const_iterator&, nsAString::const_iterator&, const nsStringComparator& = nsDefaultStringComparator() );
+PRBool FindInReadable( const nsACString& aPattern, nsACString::const_iterator&, nsACString::const_iterator&, const nsCStringComparator& = nsDefaultCStringComparator() );
 
 /* sometimes we don't care about where the string was, just that we
  * found it or not */
-inline bool FindInReadable( const nsAString& aPattern, const nsAString& aSource, const nsStringComparator& compare = nsDefaultStringComparator() )
+inline PRBool FindInReadable( const nsAString& aPattern, const nsAString& aSource, const nsStringComparator& compare = nsDefaultStringComparator() )
 {
   nsAString::const_iterator start, end;
   aSource.BeginReading(start);
@@ -310,7 +309,7 @@ inline bool FindInReadable( const nsAString& aPattern, const nsAString& aSource,
   return FindInReadable(aPattern, start, end, compare);
 }
 
-inline bool FindInReadable( const nsACString& aPattern, const nsACString& aSource, const nsCStringComparator& compare = nsDefaultCStringComparator() )
+inline PRBool FindInReadable( const nsACString& aPattern, const nsACString& aSource, const nsCStringComparator& compare = nsDefaultCStringComparator() )
 {
   nsACString::const_iterator start, end;
   aSource.BeginReading(start);
@@ -319,49 +318,49 @@ inline bool FindInReadable( const nsACString& aPattern, const nsACString& aSourc
 }
 
 
-bool CaseInsensitiveFindInReadable( const nsACString& aPattern, nsACString::const_iterator&, nsACString::const_iterator& );
+PRBool CaseInsensitiveFindInReadable( const nsACString& aPattern, nsACString::const_iterator&, nsACString::const_iterator& );
 
   /**
    * Finds the rightmost occurrence of |aPattern| 
-   * Returns |true| if a match was found, and adjusts |aSearchStart| and |aSearchEnd| to
-   * point to the match.  If no match was found, returns |false| and makes |aSearchStart == aSearchEnd|.
+   * Returns |PR_TRUE| if a match was found, and adjusts |aSearchStart| and |aSearchEnd| to
+   * point to the match.  If no match was found, returns |PR_FALSE| and makes |aSearchStart == aSearchEnd|.
    *
    */
-bool RFindInReadable( const nsAString& aPattern, nsAString::const_iterator&, nsAString::const_iterator&, const nsStringComparator& = nsDefaultStringComparator() );
-bool RFindInReadable( const nsACString& aPattern, nsACString::const_iterator&, nsACString::const_iterator&, const nsCStringComparator& = nsDefaultCStringComparator() );
+PRBool RFindInReadable( const nsAString& aPattern, nsAString::const_iterator&, nsAString::const_iterator&, const nsStringComparator& = nsDefaultStringComparator() );
+PRBool RFindInReadable( const nsACString& aPattern, nsACString::const_iterator&, nsACString::const_iterator&, const nsCStringComparator& = nsDefaultCStringComparator() );
 
    /**
    * Finds the leftmost occurrence of |aChar|, if any in the range 
    * |aSearchStart|..|aSearchEnd|.
    *
-   * Returns |true| if a match was found, and adjusts |aSearchStart| to
-   * point to the match.  If no match was found, returns |false| and 
+   * Returns |PR_TRUE| if a match was found, and adjusts |aSearchStart| to
+   * point to the match.  If no match was found, returns |PR_FALSE| and 
    * makes |aSearchStart == aSearchEnd|.
    */
-bool FindCharInReadable( PRUnichar aChar, nsAString::const_iterator& aSearchStart, const nsAString::const_iterator& aSearchEnd );
-bool FindCharInReadable( char aChar, nsACString::const_iterator& aSearchStart, const nsACString::const_iterator& aSearchEnd );
+PRBool FindCharInReadable( PRUnichar aChar, nsAString::const_iterator& aSearchStart, const nsAString::const_iterator& aSearchEnd );
+PRBool FindCharInReadable( char aChar, nsACString::const_iterator& aSearchStart, const nsACString::const_iterator& aSearchEnd );
 
     /**
     * Finds the number of occurences of |aChar| in the string |aStr|
     */
-uint32_t CountCharInReadable( const nsAString& aStr,
+PRUint32 CountCharInReadable( const nsAString& aStr,
                                      PRUnichar aChar );
-uint32_t CountCharInReadable( const nsACString& aStr,
+PRUint32 CountCharInReadable( const nsACString& aStr,
                                      char aChar );
 
-bool
+PRBool
 StringBeginsWith( const nsAString& aSource, const nsAString& aSubstring,
                   const nsStringComparator& aComparator =
                                               nsDefaultStringComparator() );
-bool
+PRBool
 StringBeginsWith( const nsACString& aSource, const nsACString& aSubstring,
                   const nsCStringComparator& aComparator =
                                                nsDefaultCStringComparator() );
-bool
+PRBool
 StringEndsWith( const nsAString& aSource, const nsAString& aSubstring,
                 const nsStringComparator& aComparator =
                                             nsDefaultStringComparator() );
-bool
+PRBool
 StringEndsWith( const nsACString& aSource, const nsACString& aSubstring,
                 const nsCStringComparator& aComparator =
                                              nsDefaultCStringComparator() );
@@ -369,26 +368,23 @@ StringEndsWith( const nsACString& aSource, const nsACString& aSubstring,
 const nsAFlatString& EmptyString();
 const nsAFlatCString& EmptyCString();
 
-const nsAFlatString& NullString();
-const nsAFlatCString& NullCString();
-
    /**
    * Compare a UTF-8 string to an UTF-16 string.
    *
    * Returns 0 if the strings are equal, -1 if aUTF8String is less
    * than aUTF16Count, and 1 in the reverse case.  In case of fatal
    * error (eg the strings are not valid UTF8 and UTF16 respectively),
-   * this method will return INT32_MIN.
+   * this method will return PR_INT32_MIN.
    */
-int32_t
+PRInt32
 CompareUTF8toUTF16(const nsASingleFragmentCString& aUTF8String,
                    const nsASingleFragmentString& aUTF16String);
 
 void
-AppendUCS4ToUTF16(const uint32_t aSource, nsAString& aDest);
+AppendUCS4ToUTF16(const PRUint32 aSource, nsAString& aDest);
 
 template<class T>
-inline bool EnsureStringLength(T& aStr, uint32_t aLen)
+inline PRBool EnsureStringLength(T& aStr, PRUint32 aLen)
 {
     aStr.SetLength(aLen);
     return (aStr.Length() == aLen);

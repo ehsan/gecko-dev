@@ -14,11 +14,6 @@
 
   <body xmlns="http://www.w3.org/1999/xhtml" style="height: 300px; overflow: auto;"/>
 
-  <data id="output" unordered="true">
-    <label id="http://www.some-fictitious-zoo.com/reptiles/chameleon" value="Chameleon"/>
-    <label id="http://www.some-fictitious-zoo.com/arachnids/tarantula" value="Tarantula"/>
-  </data>
-
 <script src="templates_shared.js"/>
 
 <script>
@@ -31,7 +26,11 @@ var isTreeBuilder = false;
 var needsOpen = false;
 var notWorkingYet = false;
 var notWorkingYetDynamic = false;
-var expectedOutput = document.getElementById("output");
+var expectedOutput =
+<output unordered="true">
+  <label id="http://www.some-fictitious-zoo.com/reptiles/chameleon" value="Chameleon"/>
+  <label id="http://www.some-fictitious-zoo.com/arachnids/tarantula" value="Tarantula"/>
+</output>;
 
 var changes = [];
 ]]>

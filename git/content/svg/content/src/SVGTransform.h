@@ -1,201 +1,203 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  * vim: sw=2 ts=2 et lcs=trail\:.,tab\:>~ :
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla SVG Project code.
+ *
+ * The Initial Developer of the Original Code is the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Brian Birtles <birtles@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-#ifndef mozilla_dom_SVGTransform_h
-#define mozilla_dom_SVGTransform_h
+#ifndef MOZILLA_SVGTRANSFORM_H__
+#define MOZILLA_SVGTRANSFORM_H__
 
-#include "DOMSVGTransformList.h"
-#include "nsAutoPtr.h"
-#include "nsCycleCollectionParticipant.h"
-#include "nsDebug.h"
-#include "nsID.h"
-#include "nsSVGTransform.h"
-#include "nsWrapperCache.h"
-#include "mozilla/Attributes.h"
-
-class nsSVGElement;
-
-struct gfxMatrix;
-
-#define MOZ_SVG_LIST_INDEX_BIT_COUNT 31 // supports > 2 billion list items
+#include "gfxMatrix.h"
+#include "nsIDOMSVGTransform.h"
 
 namespace mozilla {
-namespace dom {
 
-class SVGMatrix;
-
-/**
- * DOM wrapper for an SVG transform. See DOMSVGLength.h.
+/*
+ * The DOM wrapper class for this class is DOMSVGTransformMatrix.
  */
-class SVGTransform MOZ_FINAL : public nsWrapperCache
+class SVGTransform
 {
 public:
-  NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(SVGTransform)
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(SVGTransform)
+  // Default ctor initialises to matrix type with identity matrix
+  SVGTransform()
+    : mMatrix() // Initialises to identity
+    , mAngle(0.f)
+    , mOriginX(0.f)
+    , mOriginY(0.f)
+    , mType(nsIDOMSVGTransform::SVG_TRANSFORM_MATRIX)
+  { }
 
-  /**
-   * Generic ctor for SVGTransform objects that are created for an attribute.
-   */
-  SVGTransform(DOMSVGTransformList *aList,
-               uint32_t aListIndex,
-               bool aIsAnimValItem);
+  SVGTransform(const gfxMatrix& aMatrix)
+    : mMatrix(aMatrix)
+    , mAngle(0.f)
+    , mOriginX(0.f)
+    , mOriginY(0.f)
+    , mType(nsIDOMSVGTransform::SVG_TRANSFORM_MATRIX)
+  { }
 
-  /**
-   * Ctors for creating the objects returned by:
-   *   SVGSVGElement.createSVGTransform(),
-   *   SVGSVGElement.createSVGTransformFromMatrix(in SVGMatrix matrix),
-   *   SVGTransformList.createSVGTransformFromMatrix(in SVGMatrix matrix)
-   * which do not initially belong to an attribute.
-   */
-  explicit SVGTransform();
-  explicit SVGTransform(const gfxMatrix &aMatrix);
-
-  /**
-   * Ctor for creating an unowned copy. Used with Clone().
-   */
-  explicit SVGTransform(const nsSVGTransform &aMatrix);
-
-  ~SVGTransform();
-
-  /**
-   * Create an unowned copy of an owned transform. The caller is responsible for
-   * the first AddRef().
-   */
-  SVGTransform* Clone() {
-    NS_ASSERTION(mList, "unexpected caller");
-    return new SVGTransform(InternalItem());
+  PRBool operator==(const SVGTransform& rhs) const {
+    return mType == rhs.mType &&
+      MatricesEqual(mMatrix, rhs.mMatrix) &&
+      mAngle == rhs.mAngle &&
+      mOriginX == rhs.mOriginX &&
+      mOriginY == rhs.mOriginY;
   }
 
-  bool IsInList() const {
-    return !!mList;
+  void GetValueAsString(nsAString& aValue) const;
+
+  float Angle() const {
+    return mAngle;
+  }
+  void GetRotationOrigin(float& aOriginX, float& aOriginY) const {
+    aOriginX = mOriginX;
+    aOriginY = mOriginY;
+  }
+  PRUint16 Type() const {
+    return mType;
   }
 
-  /**
-   * In future, if this class is used for non-list transforms, this will be
-   * different to IsInList().
-   */
-  bool HasOwner() const {
-    return !!mList;
-  }
-
-  /**
-   * This method is called to notify this DOM object that it is being inserted
-   * into a list, and give it the information it needs as a result.
-   *
-   * This object MUST NOT already belong to a list when this method is called.
-   * That's not to say that script can't move these DOM objects between
-   * lists - it can - it's just that the logic to handle that (and send out
-   * the necessary notifications) is located elsewhere (in
-   * DOMSVGTransformList).)
-   */
-  void InsertingIntoList(DOMSVGTransformList *aList,
-                         uint32_t aListIndex,
-                         bool aIsAnimValItem);
-
-  static uint32_t MaxListIndex() {
-    return (1U << MOZ_SVG_LIST_INDEX_BIT_COUNT) - 1;
-  }
-
-  /// This method is called to notify this object that its list index changed.
-  void UpdateListIndex(uint32_t aListIndex) {
-    mListIndex = aListIndex;
-  }
-
-  /**
-   * This method is called to notify this DOM object that it is about to be
-   * removed from its current DOM list so that it can first make a copy of its
-   * internal counterpart's values. (If it didn't do this, then it would
-   * "lose" its value on being removed.)
-   */
-  void RemovingFromList();
-
-  nsSVGTransform ToSVGTransform() const {
-    return Transform();
-  }
-
-  // WebIDL
-  DOMSVGTransformList* GetParentObject() const { return mList; }
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
-  uint16_t Type() const;
-  dom::SVGMatrix* Matrix();
-  float Angle() const;
-  void SetMatrix(dom::SVGMatrix& matrix, ErrorResult& rv);
-  void SetTranslate(float tx, float ty, ErrorResult& rv);
-  void SetScale(float sx, float sy, ErrorResult& rv);
-  void SetRotate(float angle, float cx, float cy, ErrorResult& rv);
-  void SetSkewX(float angle, ErrorResult& rv);
-  void SetSkewY(float angle, ErrorResult& rv);
+  const gfxMatrix& Matrix() const { return mMatrix; }
+  void SetMatrix(const gfxMatrix& aMatrix);
+  void SetTranslate(float aTx, float aTy);
+  void SetScale(float aSx, float aSy);
+  void SetRotate(float aAngle, float aCx, float aCy);
+  nsresult SetSkewX(float aAngle);
+  nsresult SetSkewY(float aAngle);
 
 protected:
-  // Interface for SVGMatrix's use
-  friend class dom::SVGMatrix;
-  const bool IsAnimVal() const {
-    return mIsAnimValItem;
-  }
-  const gfxMatrix& Matrixgfx() const {
-    return Transform().Matrix();
-  }
-  void SetMatrix(const gfxMatrix& aMatrix);
-
-private:
-  nsSVGElement* Element() {
-    return mList->Element();
+  static PRBool MatricesEqual(const gfxMatrix& a, const gfxMatrix& b)
+  {
+    return a.xx == b.xx &&
+           a.yx == b.yx &&
+           a.xy == b.xy &&
+           a.yy == b.yy &&
+           a.x0 == b.x0 &&
+           a.y0 == b.y0;
   }
 
-  /**
-   * Get a reference to the internal nsSVGTransform list item that this DOM
-   * wrapper object currently wraps.
-   */
-  nsSVGTransform& InternalItem();
-  const nsSVGTransform& InternalItem() const;
-
-#ifdef DEBUG
-  bool IndexIsValid();
-#endif
-
-  const nsSVGTransform& Transform() const {
-    return HasOwner() ? InternalItem() : *mTransform;
-  }
-  nsSVGTransform& Transform() {
-    return HasOwner() ? InternalItem() : *mTransform;
-  }
-  inline nsAttrValue NotifyElementWillChange();
-  void NotifyElementDidChange(const nsAttrValue& aEmptyOrOldValue);
-
-  nsRefPtr<DOMSVGTransformList> mList;
-
-  // Bounds for the following are checked in the ctor, so be sure to update
-  // that if you change the capacity of any of the following.
-
-  uint32_t mListIndex:MOZ_SVG_LIST_INDEX_BIT_COUNT;
-  uint32_t mIsAnimValItem:1;
-
-  // Usually this class acts as a wrapper for an nsSVGTransform object which is
-  // part of a list and is accessed by going via the owning Element.
-  //
-  // However, in some circumstances, objects of this class may not be associated
-  // with any particular list and thus, no internal nsSVGTransform object. In
-  // that case we allocate an nsSVGTransform object on the heap to store the data.
-  nsAutoPtr<nsSVGTransform> mTransform;
+  gfxMatrix mMatrix;
+  float mAngle, mOriginX, mOriginY;
+  PRUint16 mType;
 };
 
-nsAttrValue
-SVGTransform::NotifyElementWillChange()
+/*
+ * A slightly more light-weight version of SVGTransform for SMIL animation.
+ *
+ * Storing the parameters in an array (rather than a matrix) also allows simpler
+ * (transform type-agnostic) interpolation and addition.
+ *
+ * The meaning of the mParams array depends on the transform type as follows:
+ *
+ * Type                | mParams[0], mParams[1], mParams[2], ...
+ * --------------------+-----------------------------------------
+ * translate           | tx, ty
+ * scale               | sx, sy
+ * rotate              | rotation-angle (in degrees), cx, cy
+ * skewX               | skew-angle (in degrees)
+ * skewY               | skew-angle (in degrees)
+ * matrix              | a, b, c, d, e, f
+ *
+ * The matrix type is never generated by animation code (it is only produced
+ * when the user inserts one via the DOM) and often requires special handling
+ * when we do encounter it. Therefore many users of this class are only
+ * interested in the first three parameters and so we provide a special
+ * constructor for setting those parameters only.
+ */
+class SVGTransformSMILData
 {
-  nsAttrValue result;
-  if (HasOwner()) {
-    result = Element()->WillChangeTransformList();
-  }
-  return result;
-}
+public:
+  // Number of float-params required in constructor, if constructing one of the
+  // 'simple' transform types (all but matrix type)
+  static const PRUint32 NUM_SIMPLE_PARAMS = 3;
 
-} // namespace dom
+  // Number of float-params required in constructor for matrix type.
+  // This is also the number of params we actually store, regardless of type.
+  static const PRUint32 NUM_STORED_PARAMS = 6;
+
+  explicit SVGTransformSMILData(PRUint16 aType)
+  : mTransformType(aType)
+  {
+    NS_ABORT_IF_FALSE(aType >= nsIDOMSVGTransform::SVG_TRANSFORM_MATRIX &&
+                      aType <= nsIDOMSVGTransform::SVG_TRANSFORM_SKEWY,
+                      "Unexpected transform type");
+    for (PRUint32 i = 0; i < NUM_STORED_PARAMS; ++i) {
+      mParams[i] = 0.f;
+    }
+  }
+
+  SVGTransformSMILData(PRUint16 aType, float (&aParams)[NUM_SIMPLE_PARAMS])
+  : mTransformType(aType)
+  {
+    NS_ABORT_IF_FALSE(aType >= nsIDOMSVGTransform::SVG_TRANSFORM_TRANSLATE &&
+                      aType <= nsIDOMSVGTransform::SVG_TRANSFORM_SKEWY,
+                      "Expected 'simple' transform type");
+    for (PRUint32 i = 0; i < NUM_SIMPLE_PARAMS; ++i) {
+      mParams[i] = aParams[i];
+    }
+    for (PRUint32 i = NUM_SIMPLE_PARAMS; i < NUM_STORED_PARAMS; ++i) {
+      mParams[i] = 0.f;
+    }
+  }
+
+  // Conversion to/from a fully-fledged SVGTransform
+  SVGTransformSMILData(const SVGTransform& aTransform);
+  SVGTransform ToSVGTransform() const;
+
+  PRBool operator==(const SVGTransformSMILData& aOther) const
+  {
+    if (mTransformType != aOther.mTransformType)
+      return PR_FALSE;
+
+    for (PRUint32 i = 0; i < NUM_STORED_PARAMS; ++i) {
+      if (mParams[i] != aOther.mParams[i]) {
+        return PR_FALSE;
+      }
+    }
+
+    return PR_TRUE;
+  }
+
+  PRBool operator!=(const SVGTransformSMILData& aOther) const
+  {
+    return !(*this == aOther);
+  }
+
+  PRUint16 mTransformType;
+  float    mParams[NUM_STORED_PARAMS];
+};
+
 } // namespace mozilla
 
-#undef MOZ_SVG_LIST_INDEX_BIT_COUNT
-
-#endif // mozilla_dom_SVGTransform_h
+#endif // MOZILLA_SVGTRANSFORM_H__

@@ -1,8 +1,4 @@
 <?xml version="1.0"?>
-<!-- This Source Code Form is subject to the terms of the Mozilla Public
-   - License, v. 2.0. If a copy of the MPL was not distributed with this
-   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
-
 
 <bindings id="arrowscrollboxBindings"
    xmlns="http://www.mozilla.org/xbl"
@@ -63,7 +59,7 @@
         <getter><![CDATA[
           if (this.__prefBranch === null) {
             this.__prefBranch = Components.classes['@mozilla.org/preferences-service;1']
-                                          .getService(Components.interfaces.nsIPrefBranch);
+                                          .getService(Components.interfaces.nsIPrefBranch2);
           }
           return this.__prefBranch;
         ]]></getter>
@@ -194,7 +190,7 @@
       <method name="_canScrollToElement">
         <parameter name="element"/>
         <body>
-          return !element.hidden;
+          return true;
         </body>
       </method>
 
@@ -276,22 +272,20 @@
 
       <field name="_scrollAnim"><![CDATA[({
         scrollbox: this,
-        requestHandle: 0, /* 0 indicates there is no pending request */
         start: function scrollAnim_start(distance) {
           this.distance = distance;
           this.startPos = this.scrollbox.scrollPosition;
           this.duration = Math.min(1000, Math.round(50 * Math.sqrt(Math.abs(distance))));
           this.startTime = window.mozAnimationStartTime;
 
-          if (!this.requestHandle)
-            this.requestHandle = window.mozRequestAnimationFrame(this);
+          window.addEventListener("MozBeforePaint", this, false);
+          window.mozRequestAnimationFrame();
         },
         stop: function scrollAnim_stop() {
-          window.mozCancelAnimationFrame(this.requestHandle);
-          this.requestHandle = 0;
+          window.removeEventListener("MozBeforePaint", this, false);
         },
-        sample: function scrollAnim_handleEvent(timeStamp) {
-          const timePassed = timeStamp - this.startTime;
+        handleEvent: function scrollAnim_handleEvent(event) {
+          const timePassed = event.timeStamp - this.startTime;
           const pos = timePassed >= this.duration ? 1 :
                       1 - Math.pow(1 - timePassed / this.duration, 4);
 
@@ -300,7 +294,7 @@
           if (pos == 1)
             this.scrollbox._stopSmoothScroll();
           else
-            this.requestHandle = window.mozRequestAnimationFrame(this);
+            window.mozRequestAnimationFrame();
         }
       })]]></field>
 
@@ -352,13 +346,8 @@
 
       <method name="_getScrollableElements">
         <body><![CDATA[
-          var nodes = this.childNodes;
-          if (nodes.length == 1 &&
-              nodes[0].localName == "children" &&
-              nodes[0].namespaceURI == "http://www.mozilla.org/xbl") {
-            nodes = document.getBindingParent(this).childNodes;
-          }
-
+          var nodes = this.hasChildNodes() ?
+                        this.childNodes : document.getBindingParent(this).childNodes;
           return Array.filter(nodes, this._canScrollToElement, this);
         ]]></body>
       </method>
@@ -493,8 +482,7 @@
           let isVertical = event.axis == event.VERTICAL_AXIS;
 
           if (this._prevMouseScrolls.every(function(prev) prev == isVertical))
-            this.scrollByIndex(isVertical && this._isRTLScrollbox ? -event.detail :
-                                                                    event.detail);
+            this.scrollByIndex(this._isRTLScrollbox ? -event.detail : event.detail);
 
           if (this._prevMouseScrolls.length > 1)
             this._prevMouseScrolls.shift();
@@ -650,25 +638,23 @@
 
       <field name="_arrowScrollAnim"><![CDATA[({
         scrollbox: this,
-        requestHandle: 0, /* 0 indicates there is no pending request */
         start: function arrowSmoothScroll_start() {
           this.lastFrameTime = window.mozAnimationStartTime;
-          if (!this.requestHandle)
-            this.requestHandle = window.mozRequestAnimationFrame(this);
+          window.addEventListener("MozBeforePaint", this, false);
+          window.mozRequestAnimationFrame();
         },
         stop: function arrowSmoothScroll_stop() {
-          window.mozCancelAnimationFrame(this.requestHandle);
-          this.requestHandle = 0;
+          window.removeEventListener("MozBeforePaint", this, false);
         },
-        sample: function arrowSmoothScroll_handleEvent(timeStamp) {
+        handleEvent: function arrowSmoothScroll_handleEvent(event) {
           const scrollIndex = this.scrollbox._scrollIndex;
-          const timePassed = timeStamp - this.lastFrameTime;
-          this.lastFrameTime = timeStamp;
+          const timePassed = event.timeStamp - this.lastFrameTime;
+          this.lastFrameTime = event.timeStamp;
           
           const scrollDelta = 0.5 * timePassed * scrollIndex;
           this.scrollbox.scrollPosition += scrollDelta;
 
-          this.requestHandle = window.mozRequestAnimationFrame(this);
+          window.mozRequestAnimationFrame();
         }
       })]]></field>
 

@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * nsBaseContentList is a basic list of content nodes; nsContentList
@@ -12,11 +44,9 @@
 #ifndef nsContentList_h___
 #define nsContentList_h___
 
-#include "mozilla/Attributes.h"
-#include "nsContentListDeclarations.h"
 #include "nsISupports.h"
-#include "nsTArray.h"
-#include "nsStringGlue.h"
+#include "nsCOMArray.h"
+#include "nsString.h"
 #include "nsIHTMLCollection.h"
 #include "nsIDOMNodeList.h"
 #include "nsINodeList.h"
@@ -25,9 +55,25 @@
 #include "nsINameSpaceManager.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsWrapperCache.h"
+#include "nsCRT.h"
 #include "nsHashKeys.h"
-#include "mozilla/HashFunctions.h"
 
+// Magic namespace id that means "match all namespaces".  This is
+// negative so it won't collide with actual namespace constants.
+#define kNameSpaceID_Wildcard PR_INT32_MIN
+
+// This is a callback function type that can be used to implement an
+// arbitrary matching algorithm.  aContent is the content that may
+// match the list, while aNamespaceID, aAtom, and aData are whatever
+// was passed to the list's constructor.
+typedef PRBool (*nsContentListMatchFunc)(nsIContent* aContent,
+                                         PRInt32 aNamespaceID,
+                                         nsIAtom* aAtom,
+                                         void* aData);
+
+typedef void (*nsContentListDestroyFunc)(void* aData);
+
+class nsIDocument;
 namespace mozilla {
 namespace dom {
 class Element;
@@ -38,10 +84,6 @@ class Element;
 class nsBaseContentList : public nsINodeList
 {
 public:
-  nsBaseContentList()
-  {
-    SetIsDOMBinding();
-  }
   virtual ~nsBaseContentList();
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -50,19 +92,16 @@ public:
   NS_DECL_NSIDOMNODELIST
 
   // nsINodeList
-  virtual int32_t IndexOf(nsIContent* aContent) MOZ_OVERRIDE;
-  virtual nsIContent* Item(uint32_t aIndex) MOZ_OVERRIDE;
-
-  uint32_t Length() const { 
-    return mElements.Length();
+  virtual nsIContent* GetNodeAt(PRUint32 aIndex);
+  virtual PRInt32 IndexOf(nsIContent* aContent);
+  
+  PRUint32 Length() const { 
+    return mElements.Count();
   }
 
-  NS_DECL_CYCLE_COLLECTION_SKIPPABLE_SCRIPT_HOLDER_CLASS(nsBaseContentList)
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsBaseContentList, nsINodeList)
 
-  void AppendElement(nsIContent *aContent)
-  {
-    mElements.AppendElement(aContent);
-  }
+  void AppendElement(nsIContent *aContent);
   void MaybeAppendElement(nsIContent* aContent)
   {
     if (aContent)
@@ -75,36 +114,19 @@ public:
    * @param aContent Element to insert, must not be null
    * @param aIndex Index to insert the element at.
    */
-  void InsertElementAt(nsIContent* aContent, int32_t aIndex)
-  {
-    NS_ASSERTION(aContent, "Element to insert must not be null");
-    mElements.InsertElementAt(aIndex, aContent);
-  }
+  void InsertElementAt(nsIContent* aContent, PRInt32 aIndex);
 
-  void RemoveElement(nsIContent *aContent)
-  {
-    mElements.RemoveElement(aContent);
-  }
+  void RemoveElement(nsIContent *aContent); 
 
   void Reset() {
     mElements.Clear();
   }
 
-  virtual int32_t IndexOf(nsIContent *aContent, bool aDoFlush);
 
-  virtual JSObject* WrapObject(JSContext *cx, JS::Handle<JSObject*> scope)
-    MOZ_OVERRIDE = 0;
+  virtual PRInt32 IndexOf(nsIContent *aContent, PRBool aDoFlush);
 
 protected:
-  /**
-   * To be called from non-destructor locations (e.g. unlink) that want to
-   * remove from caches.  Cacheable subclasses should override.
-   */
-  virtual void RemoveFromCaches()
-  {
-  }
-
-  nsTArray< nsCOMPtr<nsIContent> > mElements;
+  nsCOMArray<nsIContent> mElements;
 };
 
 
@@ -120,16 +142,24 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsSimpleContentList,
                                            nsBaseContentList)
 
-  virtual nsINode* GetParentObject() MOZ_OVERRIDE
+  virtual nsINode* GetParentObject()
   {
     return mRoot;
   }
-  virtual JSObject* WrapObject(JSContext *cx,
-                               JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
 
 private:
   // This has to be a strong reference, the root might go away before the list.
   nsCOMPtr<nsINode> mRoot;
+};
+
+// This class is used only by form element code and this is a static
+// list of elements. NOTE! This list holds strong references to
+// the elements in the list.
+class nsFormContentList : public nsSimpleContentList
+{
+public:
+  nsFormContentList(nsIContent *aForm,
+                    nsBaseContentList& aContentList);
 };
 
 /**
@@ -139,7 +169,7 @@ private:
 struct nsContentListKey
 {
   nsContentListKey(nsINode* aRootNode,
-                   int32_t aMatchNameSpaceId,
+                   PRInt32 aMatchNameSpaceId,
                    const nsAString& aTagname)
     : mRootNode(aRootNode),
       mMatchNameSpaceId(aMatchNameSpaceId),
@@ -154,14 +184,16 @@ struct nsContentListKey
   {
   }
 
-  inline uint32_t GetHash(void) const
+  inline PRUint32 GetHash(void) const
   {
-    uint32_t hash = mozilla::HashString(mTagname);
-    return mozilla::AddToHash(hash, mRootNode, mMatchNameSpaceId);
+    return
+      HashString(mTagname) ^
+      (NS_PTR_TO_INT32(mRootNode) << 12) ^
+      (mMatchNameSpaceId << 24);
   }
   
   nsINode* const mRootNode; // Weak ref
-  const int32_t mMatchNameSpaceId;
+  const PRInt32 mMatchNameSpaceId;
   const nsAString& mTagname;
 };
 
@@ -213,10 +245,10 @@ public:
    *              our root.
    */  
   nsContentList(nsINode* aRootNode,
-                int32_t aMatchNameSpaceId,
+                PRInt32 aMatchNameSpaceId,
                 nsIAtom* aHTMLMatchAtom,
                 nsIAtom* aXMLMatchAtom,
-                bool aDeep = true);
+                PRBool aDeep = PR_TRUE);
 
   /**
    * @param aRootNode The node under which to limit our search.
@@ -238,38 +270,33 @@ public:
                 nsContentListMatchFunc aFunc,
                 nsContentListDestroyFunc aDestroyFunc,
                 void* aData,
-                bool aDeep = true,
-                nsIAtom* aMatchAtom = nullptr,
-                int32_t aMatchNameSpaceId = kNameSpaceID_None,
-                bool aFuncMayDependOnAttr = true);
+                PRBool aDeep = PR_TRUE,
+                nsIAtom* aMatchAtom = nsnull,
+                PRInt32 aMatchNameSpaceId = kNameSpaceID_None,
+                PRBool aFuncMayDependOnAttr = PR_TRUE);
   virtual ~nsContentList();
-
-  // nsWrapperCache
-  using nsWrapperCache::GetWrapperPreserveColor;
-  virtual JSObject* WrapObject(JSContext *cx,
-                               JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
 
   // nsIDOMHTMLCollection
   NS_DECL_NSIDOMHTMLCOLLECTION
 
   // nsBaseContentList overrides
-  virtual int32_t IndexOf(nsIContent *aContent, bool aDoFlush) MOZ_OVERRIDE;
-  virtual int32_t IndexOf(nsIContent* aContent) MOZ_OVERRIDE;
-  virtual nsINode* GetParentObject() MOZ_OVERRIDE
+  virtual PRInt32 IndexOf(nsIContent *aContent, PRBool aDoFlush);
+  virtual nsIContent* GetNodeAt(PRUint32 aIndex);
+  virtual PRInt32 IndexOf(nsIContent* aContent);
+  virtual nsINode* GetParentObject()
   {
     return mRootNode;
   }
 
-  virtual nsIContent* Item(uint32_t aIndex) MOZ_OVERRIDE;
-  virtual mozilla::dom::Element* GetElementAt(uint32_t index) MOZ_OVERRIDE;
-  virtual JSObject* NamedItem(JSContext* cx, const nsAString& name,
-                              mozilla::ErrorResult& error) MOZ_OVERRIDE;
-  virtual void GetSupportedNames(nsTArray<nsString>& aNames) MOZ_OVERRIDE;
+  // nsIHTMLCollection
+  // GetNodeAt already declared as part of nsINodeList
+  virtual nsISupports* GetNamedItem(const nsAString& aName,
+                                    nsWrapperCache** aCache);
 
   // nsContentList public methods
-  NS_HIDDEN_(uint32_t) Length(bool aDoFlush);
-  NS_HIDDEN_(nsIContent*) Item(uint32_t aIndex, bool aDoFlush);
-  NS_HIDDEN_(nsIContent*) NamedItem(const nsAString& aName, bool aDoFlush);
+  NS_HIDDEN_(PRUint32) Length(PRBool aDoFlush);
+  NS_HIDDEN_(nsIContent*) Item(PRUint32 aIndex, PRBool aDoFlush);
+  NS_HIDDEN_(nsIContent*) NamedItem(const nsAString& aName, PRBool aDoFlush);
 
   // nsIMutationObserver
   NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTECHANGED
@@ -294,7 +321,7 @@ public:
     return static_cast<nsContentList*>(list);
   }
 
-  bool MatchesKey(const nsContentListKey& aKey) const
+  PRBool MatchesKey(const nsContentListKey& aKey) const
   {
     // The root node is most commonly the same: the document.  And the
     // most common namespace id is kNameSpaceID_Unknown.  So check the
@@ -314,7 +341,7 @@ protected:
    * @param  aElement the element to attempt to match
    * @return whether we match
    */
-  bool Match(mozilla::dom::Element *aElement);
+  PRBool Match(mozilla::dom::Element *aElement);
   /**
    * See if anything in the subtree rooted at aContent, including
    * aContent itself, matches our criterion.
@@ -322,7 +349,7 @@ protected:
    * @param  aContent the root of the subtree to match against
    * @return whether we match something in the tree rooted at aContent
    */
-  bool MatchSelf(nsIContent *aContent);
+  PRBool MatchSelf(nsIContent *aContent);
 
   /**
    * Populate our list.  Stop once we have at least aNeededLength
@@ -333,16 +360,16 @@ protected:
    * @param aNeededLength the length the list should have when we are
    *        done (unless it exhausts the document)   
    */
-  void PopulateSelf(uint32_t aNeededLength);
+  void PopulateSelf(PRUint32 aNeededLength);
 
   /**
    * @param  aContainer a content node which must be a descendant of
    *         mRootNode
-   * @return true if children or descendants of aContainer could match our
+   * @return PR_TRUE if children or descendants of aContainer could match our
    *                 criterion.
-   *         false otherwise.
+   *         PR_FALSE otherwise.
    */
-  bool MayContainRelevantNodes(nsINode* aContainer)
+  PRBool MayContainRelevantNodes(nsINode* aContainer)
   {
     return mDeep || aContainer == mRootNode;
   }
@@ -356,7 +383,7 @@ protected:
    * If state is not LIST_UP_TO_DATE, fully populate ourselves with
    * all the nodes we can find.
    */
-  inline void BringSelfUpToDate(bool aDoFlush);
+  inline void BringSelfUpToDate(PRBool aDoFlush);
 
   /**
    * Sets the state to LIST_DIRTY and clears mElements array.
@@ -373,13 +400,12 @@ protected:
    * Needed because if subclasses want to have cache behavior they can't just
    * override RemoveFromHashtable(), since we call that in our destructor.
    */
-  virtual void RemoveFromCaches() MOZ_OVERRIDE
-  {
+  virtual void RemoveFromCaches() {
     RemoveFromHashtable();
   }
 
   nsINode* mRootNode; // Weak ref
-  int32_t mMatchNameSpaceId;
+  PRInt32 mMatchNameSpaceId;
   nsCOMPtr<nsIAtom> mHTMLMatchAtom;
   nsCOMPtr<nsIAtom> mXMLMatchAtom;
 
@@ -400,31 +426,31 @@ protected:
    * The current state of the list (possible values are:
    * LIST_UP_TO_DATE, LIST_LAZY, LIST_DIRTY
    */
-  uint8_t mState;
+  PRUint8 mState;
 
-  // The booleans have to use uint8_t to pack with mState, because MSVC won't
+  // The booleans have to use PRUint8 to pack with mState, because MSVC won't
   // pack different typedefs together.  Once we no longer have to worry about
-  // flushes in XML documents, we can go back to using bool for the
+  // flushes in XML documents, we can go back to using PRPackedBool for the
   // booleans.
   
   /**
    * True if we are looking for elements named "*"
    */
-  uint8_t mMatchAll : 1;
+  PRUint8 mMatchAll : 1;
   /**
    * Whether to actually descend the tree.  If this is false, we won't
    * consider grandkids of mRootNode.
    */
-  uint8_t mDeep : 1;
+  PRUint8 mDeep : 1;
   /**
    * Whether the return value of mFunc could depend on the values of
    * attributes.
    */
-  uint8_t mFuncMayDependOnAttr : 1;
+  PRUint8 mFuncMayDependOnAttr : 1;
   /**
    * Whether we actually need to flush to get our state correct.
    */
-  uint8_t mFlushesNeeded : 1;
+  PRUint8 mFlushesNeeded : 1;
 
 #ifdef DEBUG_CONTENT_LIST
   void AssertInSync();
@@ -436,7 +462,7 @@ protected:
  */
 class nsCacheableFuncStringContentList;
 
-class MOZ_STACK_CLASS nsFuncStringCacheKey {
+class NS_STACK_CLASS nsFuncStringCacheKey {
 public:
   nsFuncStringCacheKey(nsINode* aRootNode,
                        nsContentListMatchFunc aFunc,
@@ -446,10 +472,10 @@ public:
     mString(aString)
     {}
 
-  uint32_t GetHash(void) const
+  PRUint32 GetHash(void) const
   {
-    uint32_t hash = mozilla::HashString(mString);
-    return mozilla::AddToHash(hash, mRootNode, mFunc);
+    return NS_PTR_TO_INT32(mRootNode) ^ (NS_PTR_TO_INT32(mFunc) << 12) ^
+      nsCRT::HashCode(mString.BeginReading(), mString.Length());
   }
 
 private:
@@ -460,39 +486,38 @@ private:
   const nsAString& mString;
 };
 
+/**
+ * A function that allocates the matching data for this
+ * FuncStringContentList.  Returning aString is perfectly fine; in
+ * that case the destructor function should be a no-op.
+ */
+typedef void* (*nsFuncStringContentListDataAllocator)(nsINode* aRootNode,
+                                                      const nsString* aString);
+
 // aDestroyFunc is allowed to be null
-// aDataAllocator must always return a non-null pointer
 class nsCacheableFuncStringContentList : public nsContentList {
 public:
-  virtual ~nsCacheableFuncStringContentList();
-
-  bool Equals(const nsFuncStringCacheKey* aKey) {
-    return mRootNode == aKey->mRootNode && mFunc == aKey->mFunc &&
-      mString == aKey->mString;
-  }
-
-#ifdef DEBUG
-  enum ContentListType {
-    eNodeList,
-    eHTMLCollection
-  };
-  ContentListType mType;
-#endif
-
-protected:
   nsCacheableFuncStringContentList(nsINode* aRootNode,
                                    nsContentListMatchFunc aFunc,
                                    nsContentListDestroyFunc aDestroyFunc,
                                    nsFuncStringContentListDataAllocator aDataAllocator,
                                    const nsAString& aString) :
-    nsContentList(aRootNode, aFunc, aDestroyFunc, nullptr),
+    nsContentList(aRootNode, aFunc, aDestroyFunc, nsnull),
     mString(aString)
   {
     mData = (*aDataAllocator)(aRootNode, &mString);
-    MOZ_ASSERT(mData);
   }
 
-  virtual void RemoveFromCaches() MOZ_OVERRIDE {
+  virtual ~nsCacheableFuncStringContentList();
+
+  PRBool Equals(const nsFuncStringCacheKey* aKey) {
+    return mRootNode == aKey->mRootNode && mFunc == aKey->mFunc &&
+      mString == aKey->mString;
+  }
+
+  PRBool AllocatedData() const { return !!mData; }
+protected:
+  virtual void RemoveFromCaches() {
     RemoveFromFuncStringHashtable();
   }
   void RemoveFromFuncStringHashtable();
@@ -500,54 +525,20 @@ protected:
   nsString mString;
 };
 
-class nsCacheableFuncStringNodeList
-  : public nsCacheableFuncStringContentList
-{
-public:
-  nsCacheableFuncStringNodeList(nsINode* aRootNode,
-                                nsContentListMatchFunc aFunc,
-                                nsContentListDestroyFunc aDestroyFunc,
-                                nsFuncStringContentListDataAllocator aDataAllocator,
-                                const nsAString& aString)
-    : nsCacheableFuncStringContentList(aRootNode, aFunc, aDestroyFunc,
-                                       aDataAllocator, aString)
-  {
-#ifdef DEBUG
-    mType = eNodeList;
-#endif
-  }
+// If aMatchNameSpaceId is kNameSpaceID_Unknown, this will return a
+// content list which matches ASCIIToLower(aTagname) against HTML
+// elements in HTML documents and aTagname against everything else.
+// For any other value of aMatchNameSpaceId, the list will match
+// aTagname against all elements.
+already_AddRefed<nsContentList>
+NS_GetContentList(nsINode* aRootNode,
+                  PRInt32 aMatchNameSpaceId,
+                  const nsAString& aTagname);
 
-  virtual JSObject* WrapObject(JSContext *cx,
-                               JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
-
-#ifdef DEBUG
-  static const ContentListType sType;
-#endif
-};
-
-class nsCacheableFuncStringHTMLCollection
-  : public nsCacheableFuncStringContentList
-{
-public:
-  nsCacheableFuncStringHTMLCollection(nsINode* aRootNode,
-                                      nsContentListMatchFunc aFunc,
-                                      nsContentListDestroyFunc aDestroyFunc,
-                                      nsFuncStringContentListDataAllocator aDataAllocator,
-                                      const nsAString& aString)
-    : nsCacheableFuncStringContentList(aRootNode, aFunc, aDestroyFunc,
-                                       aDataAllocator, aString)
-  {
-#ifdef DEBUG
-    mType = eHTMLCollection;
-#endif
-  }
-
-  virtual JSObject* WrapObject(JSContext *cx,
-                               JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
-
-#ifdef DEBUG
-  static const ContentListType sType;
-#endif
-};
-
+already_AddRefed<nsContentList>
+NS_GetFuncStringContentList(nsINode* aRootNode,
+                            nsContentListMatchFunc aFunc,
+                            nsContentListDestroyFunc aDestroyFunc,
+                            nsFuncStringContentListDataAllocator aDataAllocator,
+                            const nsAString& aString);
 #endif // nsContentList_h___

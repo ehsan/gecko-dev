@@ -41,13 +41,9 @@ let DownloadListener = {
       // pause the download if requested
       if (this.set.doPause) {
         let dl = aSubject.QueryInterface(Ci.nsIDownload);
-        // Don't pause immediately, otherwise the external helper app handler
-        // won't be able to assign a permanent file name.
-        do_execute_soon(function() {
-          downloadUtils.downloadManager.pauseDownload(dl.id);
-          do_timeout(1000, function() {
-            downloadUtils.downloadManager.resumeDownload(dl.id);
-          });
+        downloadUtils.downloadManager.pauseDownload(dl.id);
+        do_timeout(1000, function() {
+          downloadUtils.downloadManager.resumeDownload(dl.id);
         });
       }
     } else if (aTopic == "dl-done") {
@@ -94,26 +90,13 @@ let DownloadListener = {
 function runNextTest()
 {
   if (currentTest == tests.length) {
-    for each (var file in DownloadListener.prevFiles) {
-      try {
-        file.remove(false);
-      } catch (ex) {
-        try {
-          do_report_unexpected_exception(ex, "while removing " + file.path);
-        } catch (ex if ex == Components.results.NS_ERROR_ABORT) {
-          /* swallow */
-        }
-      }
-    }
     httpserver.stop(do_test_finished);
     return;
   }
   let set = DownloadListener.set = tests[currentTest];
   currentTest++;
 
-  let channel = NetUtil.newChannel("http://localhost:" +
-                                   httpserver.identity.primaryPort +
-                                   set.serverURL);
+  let channel = NetUtil.newChannel("http://localhost:4444" + set.serverURL);
   let uriloader = Cc["@mozilla.org/uriloader;1"].getService(Ci.nsIURILoader);
   uriloader.openURI(channel, true, new WindowContext());
 }
@@ -149,8 +132,8 @@ function run_test() {
   DownloadListener.init();
   Services.prefs.setBoolPref("browser.download.manager.showWhenStarting", false);
 
-  httpserver = new HttpServer();
-  httpserver.start(-1);
+  httpserver = new nsHttpServer();
+  httpserver.start(4444);
   do_test_pending();
 
   // setup files to be download, each with the same suggested filename

@@ -1,8 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 // vim: ft=cpp tw=78 sw=2 et ts=2
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Boris Zbarsky <bzbarsky@mit.edu>.
+ * Portions created by the Initial Developer are Copyright (C) 2003
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * A base class which implements nsIImageLoadingContent and can be
@@ -13,56 +45,49 @@
 #ifndef nsImageLoadingContent_h__
 #define nsImageLoadingContent_h__
 
-#include "imgINotificationObserver.h"
-#include "imgIOnloadBlocker.h"
-#include "mozilla/CORSMode.h"
-#include "nsCOMPtr.h"
-#include "nsEventStates.h"
 #include "nsIImageLoadingContent.h"
-#include "nsIRequest.h"
-#include "mozilla/ErrorResult.h"
-#include "nsAutoPtr.h"
+#include "nsINode.h"
+#include "imgIRequest.h"
+#include "prtypes.h"
+#include "nsCOMPtr.h"
+#include "nsContentUtils.h" // NS_CONTENT_DELETE_LIST_MEMBER
+#include "nsString.h"
+#include "nsEventStates.h"
 
 class nsIURI;
 class nsIDocument;
 class imgILoader;
 class nsIIOService;
-class nsPresContext;
-class nsIContent;
-class imgRequestProxy;
 
-class nsImageLoadingContent : public nsIImageLoadingContent,
-                              public imgIOnloadBlocker
+class nsImageLoadingContent : public nsIImageLoadingContent
 {
   /* METHODS */
 public:
   nsImageLoadingContent();
   virtual ~nsImageLoadingContent();
 
-  NS_DECL_IMGINOTIFICATIONOBSERVER
+  NS_DECL_IMGICONTAINEROBSERVER
+  NS_DECL_IMGIDECODEROBSERVER
   NS_DECL_NSIIMAGELOADINGCONTENT
-  NS_DECL_IMGIONLOADBLOCKER
 
-  // Web IDL binding methods.
-  // Note that the XPCOM SetLoadingEnabled, AddObserver, RemoveObserver,
-  // ForceImageState methods are OK for Web IDL bindings to use as well,
-  // since none of them throw when called via the Web IDL bindings.
+  enum CORSMode {
+    /**
+     * The default of not using CORS to validate cross-origin loads.
+     */
+    CORS_NONE,
 
-  bool LoadingEnabled() const { return mLoadingEnabled; }
-  int16_t ImageBlockingStatus() const
-  {
-    return mImageBlockingStatus;
-  }
-  already_AddRefed<imgIRequest>
-    GetRequest(int32_t aRequestType, mozilla::ErrorResult& aError);
-  int32_t
-    GetRequestType(imgIRequest* aRequest, mozilla::ErrorResult& aError);
-  already_AddRefed<nsIURI> GetCurrentURI(mozilla::ErrorResult& aError);
-  already_AddRefed<nsIStreamListener>
-    LoadImageWithChannel(nsIChannel* aChannel, mozilla::ErrorResult& aError);
-  void ForceReload(mozilla::ErrorResult& aError);
+    /**
+     * Validate cross-site loads using CORS, but do not send any credentials
+     * (cookies, HTTP auth logins, etc) along with the request.
+     */
+    CORS_ANONYMOUS,
 
-
+    /**
+     * Validate cross-site loads using CORS, and send credentials such as cookies
+     * and HTTP auth logins along with the request.
+     */
+    CORS_USE_CREDENTIALS
+  };
 
 protected:
   /**
@@ -78,8 +103,8 @@ protected:
    * @param aNotify If true, nsIDocumentObserver state change notifications
    *                will be sent as needed.
    */
-  nsresult LoadImage(const nsAString& aNewURI, bool aForce,
-                     bool aNotify);
+  nsresult LoadImage(const nsAString& aNewURI, PRBool aForce,
+                     PRBool aNotify);
 
   /**
    * ImageState is called by subclasses that are computing their content state.
@@ -108,52 +133,33 @@ protected:
    * @param aLoadFlags Optional parameter specifying load flags to use for
    *        the image load
    */
-  nsresult LoadImage(nsIURI* aNewURI, bool aForce, bool aNotify,
-                     nsIDocument* aDocument = nullptr,
+  nsresult LoadImage(nsIURI* aNewURI, PRBool aForce, PRBool aNotify,
+                     nsIDocument* aDocument = nsnull,
                      nsLoadFlags aLoadFlags = nsIRequest::LOAD_NORMAL);
 
   /**
-   * helpers to get the document for this content (from the nodeinfo
-   * and such).  Not named GetOwnerDoc/GetCurrentDoc to prevent ambiguous
-   * method names in subclasses
+   * helper to get the document for this content (from the nodeinfo
+   * and such).  Not named GetDocument to prevent ambiguous method
+   * names in subclasses
    *
    * @return the document we belong to
    */
-  nsIDocument* GetOurOwnerDoc();
-  nsIDocument* GetOurCurrentDoc();
-
-  /**
-   * Helper function to get the frame associated with this content. Not named
-   * GetPrimaryFrame to prevent ambiguous method names in subclasses.
-   *
-   * @return The frame which we belong to, or nullptr if it doesn't exist.
-   */
-  nsIFrame* GetOurPrimaryFrame();
-
-  /**
-   * Helper function to get the PresContext associated with this content's
-   * frame. Not named GetPresContext to prevent ambiguous method names in
-   * subclasses.
-   *
-   * @return The nsPresContext associated with our frame, or nullptr if either
-   *         the frame doesn't exist, or the frame's prescontext doesn't exist.
-   */
-  nsPresContext* GetFramePresContext();
+  nsIDocument* GetOurDocument();
 
   /**
    * CancelImageRequests is called by subclasses when they want to
    * cancel all image requests (for example when the subclass is
    * somehow not an image anymore).
    */
-  void CancelImageRequests(bool aNotify);
+  void CancelImageRequests(PRBool aNotify);
 
   /**
    * UseAsPrimaryRequest is called by subclasses when they have an existing
-   * imgRequestProxy that they want this nsImageLoadingContent to use.  This may
+   * imgIRequest that they want this nsImageLoadingContent to use.  This may
    * effectively be called instead of LoadImage or LoadImageWithChannel.
    * If aNotify is true, this method will notify on state changes.
    */
-  nsresult UseAsPrimaryRequest(imgRequestProxy* aRequest, bool aNotify);
+  nsresult UseAsPrimaryRequest(imgIRequest* aRequest, PRBool aNotify);
 
   /**
    * Derived classes of nsImageLoadingContent MUST call
@@ -165,36 +171,38 @@ protected:
    */
   void DestroyImageLoadingContent();
 
-  void ClearBrokenState() { mBroken = false; }
+  void ClearBrokenState() { mBroken = PR_FALSE; }
+
+  PRBool LoadingEnabled() { return mLoadingEnabled; }
 
   // Sets blocking state only if the desired state is different from the
   // current one. See the comment for mBlockingOnload for more information.
-  void SetBlockingOnload(bool aBlocking);
+  void SetBlockingOnload(PRBool aBlocking);
 
   /**
    * Returns the CORS mode that will be used for all future image loads. The
    * default implementation returns CORS_NONE unconditionally.
    */
-  virtual mozilla::CORSMode GetCORSMode();
-
-  // Subclasses are *required* to call BindToTree/UnbindFromTree.
-  void BindToTree(nsIDocument* aDocument, nsIContent* aParent,
-                  nsIContent* aBindingParent, bool aCompileEventHandlers);
-  void UnbindFromTree(bool aDeep, bool aNullParent);
-
-  nsresult OnStopRequest(imgIRequest* aRequest, nsresult aStatus);
-  void OnUnlockedDraw();
-  nsresult OnImageIsAnimated(imgIRequest *aRequest);
+  virtual CORSMode GetCORSMode();
 
 private:
   /**
    * Struct used to manage the image observers.
    */
   struct ImageObserver {
-    ImageObserver(imgINotificationObserver* aObserver);
-    ~ImageObserver();
+    ImageObserver(imgIDecoderObserver* aObserver) :
+      mObserver(aObserver),
+      mNext(nsnull)
+    {
+      MOZ_COUNT_CTOR(ImageObserver);
+    }
+    ~ImageObserver()
+    {
+      MOZ_COUNT_DTOR(ImageObserver);
+      NS_CONTENT_DELETE_LIST_MEMBER(ImageObserver, this, mNext);
+    }
 
-    nsCOMPtr<imgINotificationObserver> mObserver;
+    nsCOMPtr<imgIDecoderObserver> mObserver;
     ImageObserver* mNext;
   };
 
@@ -203,7 +211,7 @@ private:
    */
   struct AutoStateChanger {
     AutoStateChanger(nsImageLoadingContent* aImageContent,
-                     bool aNotify) :
+                     PRBool aNotify) :
       mImageContent(aImageContent),
       mNotify(aNotify)
     {
@@ -216,7 +224,7 @@ private:
     }
 
     nsImageLoadingContent* mImageContent;
-    bool mNotify;
+    PRBool mNotify;
   };
 
   friend struct AutoStateChanger;
@@ -226,7 +234,7 @@ private:
    * content and updates what ImageState() returns accordingly.  It will also
    * fire a ContentStatesChanged() notification as needed if aNotify is true.
    */
-  void UpdateImageState(bool aNotify);
+  void UpdateImageState(PRBool aNotify);
 
   /**
    * CancelImageRequests can be called when we want to cancel the
@@ -240,8 +248,8 @@ private:
    *                             available
    * @param aNewImageStatus the nsIContentPolicy status of the new image load
    */
-  void CancelImageRequests(nsresult aReason, bool aEvenIfSizeAvailable,
-                           int16_t aNewImageStatus);
+  void CancelImageRequests(nsresult aReason, PRBool aEvenIfSizeAvailable,
+                           PRInt16 aNewImageStatus);
 
   /**
    * Method to fire an event once we know what's going on with the image load.
@@ -249,7 +257,6 @@ private:
    * @param aEventType "load" or "error" depending on how things went
    */
   nsresult FireEvent(const nsAString& aEventType);
-
 protected:
   /**
    * Method to create an nsIURI object from the given string (will
@@ -271,13 +278,13 @@ protected:
    * "pending" until it becomes usable. Otherwise, this becomes the current
    * request.
    */
-   nsRefPtr<imgRequestProxy>& PrepareNextRequest();
+   nsCOMPtr<imgIRequest>& PrepareNextRequest();
 
   /**
    * Called when we would normally call PrepareNextRequest(), but the request was
    * blocked.
    */
-  void SetBlockedRequest(nsIURI* aURI, int16_t aContentDecision);
+  void SetBlockedRequest(nsIURI* aURI, PRInt16 aContentDecision);
 
   /**
    * Returns a COMPtr reference to the current/pending image requests, cleaning
@@ -286,36 +293,14 @@ protected:
    * Clear*Request(NS_BINDING_ABORTED) instead, since it passes a more appropriate
    * aReason than Prepare*Request() does (NS_ERROR_IMAGE_SRC_CHANGED).
    */
-  nsRefPtr<imgRequestProxy>& PrepareCurrentRequest();
-  nsRefPtr<imgRequestProxy>& PreparePendingRequest();
-
-  /**
-   * Switch our pending request to be our current request.
-   * mPendingRequest must be non-null!
-   */
-  void MakePendingRequestCurrent();
+  nsCOMPtr<imgIRequest>& PrepareCurrentRequest();
+  nsCOMPtr<imgIRequest>& PreparePendingRequest();
 
   /**
    * Cancels and nulls-out the "current" and "pending" requests if they exist.
    */
-  void ClearCurrentRequest(nsresult aReason, uint32_t aFlags);
-  void ClearPendingRequest(nsresult aReason, uint32_t aFlags);
-
-  /**
-   * Retrieve a pointer to the 'registered with the refresh driver' flag for
-   * which a particular image request corresponds.
-   *
-   * @returns A pointer to the boolean flag for a given image request, or
-   *          |nullptr| if the request is not either |mPendingRequest| or
-   *          |mCurrentRequest|.
-   */
-  bool* GetRegisteredFlagForRequest(imgIRequest* aRequest);
-
-  /**
-   * Reset animation of the current request if |mNewRequestsWillNeedAnimationReset|
-   * was true when the request was prepared.
-   */
-  void ResetAnimationIfNeeded();
+  void ClearCurrentRequest(nsresult aReason);
+  void ClearPendingRequest(nsresult aReason);
 
   /**
    * Static helper method to tell us if we have the size of a request. The
@@ -327,36 +312,13 @@ protected:
    * Adds/Removes a given imgIRequest from our document's tracker.
    *
    * No-op if aImage is null.
-   *
-   * SKIP_FRAME_CHECK passed to TrackImage means we skip the check if we have a
-   * frame, there is only one valid use of this: when calling from FrameCreated.
-   *
-   * REQUEST_DISCARD passed to UntrackImage means we request the discard of the
-   * decoded data of the image.
    */
-  enum {
-    SKIP_FRAME_CHECK = 0x1
-  };
-  void TrackImage(imgIRequest* aImage, uint32_t aFlags = 0);
-  enum {
-    REQUEST_DISCARD = 0x1
-  };
-  void UntrackImage(imgIRequest* aImage, uint32_t aFlags = 0);
+  nsresult TrackImage(imgIRequest* aImage);
+  nsresult UntrackImage(imgIRequest* aImage);
 
   /* MEMBERS */
-  nsRefPtr<imgRequestProxy> mCurrentRequest;
-  nsRefPtr<imgRequestProxy> mPendingRequest;
-  uint32_t mCurrentRequestFlags;
-  uint32_t mPendingRequestFlags;
-
-  enum {
-    // Set if the request needs ResetAnimation called on it.
-    REQUEST_NEEDS_ANIMATION_RESET = 0x00000001U,
-    // Set if the request is blocking onload.
-    REQUEST_BLOCKS_ONLOAD = 0x00000002U,
-    // Set if the request is currently tracked with the document.
-    REQUEST_IS_TRACKED = 0x00000004U
-  };
+  nsCOMPtr<imgIRequest> mCurrentRequest;
+  nsCOMPtr<imgIRequest> mPendingRequest;
 
   // If the image was blocked or if there was an error loading, it's nice to
   // still keep track of what the URI was despite not having an imgIRequest.
@@ -381,23 +343,27 @@ private:
    */
   nsEventStates mForcedImageState;
 
-  int16_t mImageBlockingStatus;
-  bool mLoadingEnabled : 1;
+  PRInt16 mImageBlockingStatus;
+  PRPackedBool mLoadingEnabled : 1;
 
   /**
    * When true, we return mForcedImageState from ImageState().
    */
-  bool mIsImageStateForced : 1;
+  PRPackedBool mIsImageStateForced : 1;
 
   /**
    * The state we had the last time we checked whether we needed to notify the
    * document of a state change.  These are maintained by UpdateImageState.
    */
-  bool mLoading : 1;
-  bool mBroken : 1;
-  bool mUserDisabled : 1;
-  bool mSuppressed : 1;
-  bool mFireEventsOnDecode : 1;
+  PRPackedBool mLoading : 1;
+  PRPackedBool mBroken : 1;
+  PRPackedBool mUserDisabled : 1;
+  PRPackedBool mSuppressed : 1;
+
+  /**
+   * Whether we're currently blocking document load.
+   */
+  PRPackedBool mBlockingOnload : 1;
 
 protected:
   /**
@@ -408,18 +374,14 @@ protected:
    * interface), and the other two booleans store which of the current
    * and pending requests are of the sort that need their animation restarted.
    */
-  bool mNewRequestsWillNeedAnimationReset : 1;
+  PRPackedBool mNewRequestsWillNeedAnimationReset : 1;
 
 private:
+  PRPackedBool mPendingRequestNeedsResetAnimation : 1;
+  PRPackedBool mCurrentRequestNeedsResetAnimation : 1;
+
   /* The number of nested AutoStateChangers currently tracking our state. */
-  uint8_t mStateChangerDepth;
-
-  // Flags to indicate whether each of the current and pending requests are
-  // registered with the refresh driver.
-  bool mCurrentRequestRegistered;
-  bool mPendingRequestRegistered;
-
-  uint32_t mVisibleCount;
+  PRUint8 mStateChangerDepth;
 };
 
 #endif // nsImageLoadingContent_h__

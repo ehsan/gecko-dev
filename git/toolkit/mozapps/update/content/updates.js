@@ -1,7 +1,42 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Update Service.
+ *
+ * The Initial Developer of the Original Code is Google Inc.
+ * Portions created by the Initial Developer are Copyright (C) 2005
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Ben Goodger <ben@mozilla.org> (Original Author)
+ *  Asaf Romano <mozilla.mano@sent.com>
+ *  Jeff Walden <jwalden+code@mit.edu>
+ *  Robert Strong <robert.bugzilla@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 Components.utils.import("resource://gre/modules/DownloadUtils.jsm");
 Components.utils.import("resource://gre/modules/AddonManager.jsm");
@@ -13,20 +48,17 @@ const CoC = Components.classes;
 const CoI = Components.interfaces;
 const CoR = Components.results;
 
-const XMLNS_XUL = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
+const XMLNS_XUL               = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 
-const PREF_APP_UPDATE_BACKGROUNDERRORS    = "app.update.backgroundErrors";
-const PREF_APP_UPDATE_BILLBOARD_TEST_URL  = "app.update.billboard.test_url";
-const PREF_APP_UPDATE_CERT_ERRORS         = "app.update.cert.errors";
-const PREF_APP_UPDATE_ENABLED             = "app.update.enabled";
-const PREF_APP_UPDATE_LOG                 = "app.update.log";
-const PREF_APP_UPDATE_MANUAL_URL          = "app.update.url.manual";
-const PREF_APP_UPDATE_NEVER_BRANCH        = "app.update.never.";
-const PREF_APP_UPDATE_NOTIFIEDUNSUPPORTED = "app.update.notifiedUnsupported";
-const PREF_APP_UPDATE_TEST_LOOP           = "app.update.test.loop";
-const PREF_PLUGINS_UPDATEURL              = "plugins.update.url";
-
-const PREF_EM_HOTFIX_ID                   = "extensions.hotfix.id";
+const PREF_APP_UPDATE_BACKGROUNDERRORS   = "app.update.backgroundErrors";
+const PREF_APP_UPDATE_BILLBOARD_TEST_URL = "app.update.billboard.test_url";
+const PREF_APP_UPDATE_CERT_ERRORS        = "app.update.cert.errors";
+const PREF_APP_UPDATE_ENABLED            = "app.update.enabled";
+const PREF_APP_UPDATE_LOG                = "app.update.log";
+const PREF_APP_UPDATE_MANUAL_URL         = "app.update.url.manual";
+const PREF_APP_UPDATE_NEVER_BRANCH       = "app.update.never.";
+const PREF_APP_UPDATE_TEST_LOOP          = "app.update.test.loop";
+const PREF_PLUGINS_UPDATEURL             = "plugins.update.url";
 
 const UPDATE_TEST_LOOP_INTERVAL     = 2000;
 
@@ -34,10 +66,7 @@ const URI_UPDATES_PROPERTIES  = "chrome://mozapps/locale/update/updates.properti
 
 const STATE_DOWNLOADING       = "downloading";
 const STATE_PENDING           = "pending";
-const STATE_PENDING_SVC       = "pending-service";
 const STATE_APPLYING          = "applying";
-const STATE_APPLIED           = "applied";
-const STATE_APPLIED_SVC       = "applied-service";
 const STATE_SUCCEEDED         = "succeeded";
 const STATE_DOWNLOAD_FAILED   = "download-failed";
 const STATE_FAILED            = "failed";
@@ -141,41 +170,6 @@ var gUpdates = {
    * exits the wizard via onWizardCancel or onWizardFinish.
    */
   _runUnload: true,
-
-  /**
-   * Submit the last page code when the wizard exited. The pageid is used to map
-   * to an integer instead of using the pageindex since pages can be added and
-   * removed which would change the page's pageindex.
-   * @param   pageID
-   */
-  _sendLastPageCodePing: function(pageID) {
-    var pageMap = { invalid: 0,
-                    dummy: 1,
-                    checking: 2,
-                    pluginupdatesfound: 3,
-                    noupdatesfound: 4,
-                    manualUpdate: 5,
-                    unsupported: 6,
-                    incompatibleCheck: 7,
-                    updatesfoundbasic: 8,
-                    updatesfoundbillboard: 9,
-                    license: 10,
-                    incompatibleList: 11,
-                    downloading: 12,
-                    errors: 13,
-                    errorextra: 14,
-                    errorpatching: 15,
-                    finished: 16,
-                    finishedBackground: 17,
-                    installed: 18 };
-    try {
-      Services.telemetry.getHistogramById("UPDATER_WIZ_LAST_PAGE_CODE").
-        add(pageMap[pageID] || pageMap.invalid);
-    }
-    catch (e) {
-      Components.utils.reportError(e);
-    }
-  },
 
   /**
    * Helper function for setButtons
@@ -286,7 +280,6 @@ var gUpdates = {
     var pageid = document.documentElement.currentPage.pageid;
     if ("onWizardFinish" in this._pages[pageid])
       this._pages[pageid].onWizardFinish();
-    this._sendLastPageCodePing(pageid);
   },
 
   /**
@@ -298,7 +291,6 @@ var gUpdates = {
     var pageid = document.documentElement.currentPage.pageid;
     if ("onWizardCancel" in this._pages[pageid])
       this._pages[pageid].onWizardCancel();
-    this._sendLastPageCodePing(pageid);
   },
 
   /**
@@ -420,11 +412,6 @@ var gUpdates = {
           return;
         }
 
-        if (this.update.unsupported) {
-          aCallback("unsupported");
-          return;
-        }
-
         var p = this.update.selectedPatch;
         if (p) {
           var state = p.state;
@@ -454,9 +441,6 @@ var gUpdates = {
           // the Update.
           switch (state) {
           case STATE_PENDING:
-          case STATE_PENDING_SVC:
-          case STATE_APPLIED:
-          case STATE_APPLIED_SVC:
             this.sourceEvent = SRCEVT_BACKGROUND;
             aCallback("finishedBackground");
             return;
@@ -537,11 +521,6 @@ var gUpdates = {
       return;
     }
 
-    try {
-      var hotfixID = Services.prefs.getCharPref(PREF_EM_HOTFIX_ID);
-    }
-    catch (e) { }
-
     var self = this;
     AddonManager.getAllAddons(function(addons) {
       self.addons = [];
@@ -565,10 +544,9 @@ var gUpdates = {
         // incompatible. If an addon's type equals plugin it is skipped since
         // checking plugins compatibility information isn't supported and
         // getting the scope property of a plugin breaks in some environments
-        // (see bug 566787). The hotfix add-on is also ignored as it shouldn't
-        // block the user from upgrading.
+        // (see bug 566787).
         try {
-          if (addon.type != "plugin" && addon.id != hotfixID &&
+          if (addon.type != "plugin" &&
               !addon.appDisabled && !addon.userDisabled &&
               addon.scope != AddonManager.SCOPE_APPLICATION &&
               addon.isCompatible &&
@@ -637,11 +615,6 @@ var gCheckingPage = {
     if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_BACKGROUNDERRORS))
       Services.prefs.clearUserPref(PREF_APP_UPDATE_BACKGROUNDERRORS);
 
-    // The preference will be set back to true if the system is still
-    // unsupported.
-    if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_NOTIFIEDUNSUPPORTED))
-      Services.prefs.clearUserPref(PREF_APP_UPDATE_NOTIFIEDUNSUPPORTED);
-
     this._checker = CoC["@mozilla.org/updates/update-checker;1"].
                     createInstance(CoI.nsIUpdateChecker);
     this._checker.checkForUpdates(this.updateListener, true);
@@ -663,17 +636,21 @@ var gCheckingPage = {
     /**
      * See nsIUpdateCheckListener
      */
+    onProgress: function(request, position, totalSize) {
+      var pm = document.getElementById("checkingProgress");
+      pm.mode = "normal";
+      pm.value = Math.floor(100 * (position / totalSize));
+    },
+
+    /**
+     * See nsIUpdateCheckListener
+     */
     onCheckComplete: function(request, updates, updateCount) {
       var aus = CoC["@mozilla.org/updates/update-service;1"].
                 getService(CoI.nsIApplicationUpdateService);
       gUpdates.setUpdate(aus.selectUpdate(updates, updates.length));
       if (gUpdates.update) {
         LOG("gCheckingPage", "onCheckComplete - update found");
-        if (gUpdates.update.unsupported) {
-          gUpdates.wiz.goTo("unsupported");
-          return;
-        }
-
         if (!aus.canApplyUpdates) {
           // Prevent multiple notifications for the same update when the user is
           // unable to apply updates.
@@ -922,23 +899,6 @@ var gManualUpdatePage = {
 };
 
 /**
- * The "System Unsupported" page. Provides the user with information about their
- * system no longer being supported and an url for more information.
- */
-var gUnsupportedPage = {
-  onPageShow: function() {
-    Services.prefs.setBoolPref(PREF_APP_UPDATE_NOTIFIEDUNSUPPORTED, true);
-    if (gUpdates.update.detailsURL) {
-      let unsupportedLinkLabel = document.getElementById("unsupportedLinkLabel");
-      unsupportedLinkLabel.setAttribute("url", gUpdates.update.detailsURL);
-    }
-
-    gUpdates.setButtons(null, null, "okButton", true);
-    gUpdates.wiz.getButton("finish").focus();
-  }
-};
-
-/**
  * The "Updates Are Available" page. Provides the user information about the
  * available update.
  */
@@ -1048,7 +1008,7 @@ var gUpdatesFoundBillboardPage = {
     var remoteContent = document.getElementById("updateMoreInfoContent");
     // Note: may be called multiple times due to multiple onLoad events.
     var state = remoteContent.getAttribute("state");
-    if (state == "loading" || aEvent.originalTarget != remoteContent)
+    if (state == "loading" || !aEvent.originalTarget.isSameNode(remoteContent))
       return;
 
     remoteContent.removeEventListener("load", gUpdatesFoundBillboardPage.onBillboardLoad, false);
@@ -1136,7 +1096,7 @@ var gLicensePage = {
     // licenseContent.
     // Note: may be called multiple times due to multiple onLoad events.
     var state = licenseContent.getAttribute("state");
-    if (state == "loading" || aEvent.originalTarget != licenseContent)
+    if (state == "loading" || !aEvent.originalTarget.isSameNode(licenseContent))
       return;
 
     licenseContent.removeEventListener("load", gLicensePage.onLicenseLoad, false);
@@ -1279,11 +1239,6 @@ var gDownloadingPage = {
   _hiding: false,
 
   /**
-   * Have we registered an observer for a background update being staged
-   */
-  _updateApplyingObserver: false,
-
-  /**
    * Initialize
    */
   onPageShow: function() {
@@ -1330,7 +1285,7 @@ var gDownloadingPage = {
         // we fell back from a partial patch to a complete patch and even
         // then we couldn't validate. Show a validation error with instructions
         // on how to manually update.
-        this.cleanUp();
+        this.removeDownloadListener();
         gUpdates.wiz.goTo("errors");
         return;
       }
@@ -1418,30 +1373,12 @@ var gDownloadingPage = {
   },
 
   /**
-   * Wait for an update being staged in the background.
+   * Removes the download listener.
    */
-  _setUpdateApplying: function() {
-    this._downloadProgress.mode = "undetermined";
-    this._pauseButton.hidden = true;
-    let applyingStatus = gUpdates.getAUSString("applyingUpdate");
-    this._setStatus(applyingStatus);
-
-    Services.obs.addObserver(this, "update-staged", false);
-    this._updateApplyingObserver = true;
-  },
-
-  /**
-   * Clean up the listener and observer registered for the wizard.
-   */
-  cleanUp: function() {
+  removeDownloadListener: function() {
     var aus = CoC["@mozilla.org/updates/update-service;1"].
               getService(CoI.nsIApplicationUpdateService);
     aus.removeDownloadListener(this);
-
-    if (this._updateApplyingObserver) {
-      Services.obs.removeObserver(this, "update-staged");
-      this._updateApplyingObserver = false;
-    }
   },
 
   /**
@@ -1472,7 +1409,7 @@ var gDownloadingPage = {
     if (this._hiding)
       return;
 
-    this.cleanUp();
+    this.removeDownloadListener();
   },
 
   /**
@@ -1486,7 +1423,7 @@ var gDownloadingPage = {
     // Remove ourself as a download listener so that we don't continue to be
     // fed progress and state notifications after the UI we're updating has
     // gone away.
-    this.cleanUp();
+    this.removeDownloadListener();
 
     var aus = CoC["@mozilla.org/updates/update-service;1"].
               getService(CoI.nsIApplicationUpdateService);
@@ -1615,13 +1552,12 @@ var gDownloadingPage = {
 
     var u = gUpdates.update;
     switch (status) {
-    case CoR.NS_ERROR_CORRUPTED_CONTENT:
     case CoR.NS_ERROR_UNEXPECTED:
       if (u.selectedPatch.state == STATE_DOWNLOAD_FAILED &&
           (u.isCompleteUpdate || u.patchCount != 2)) {
         // Verification error of complete patch, informational text is held in
         // the update object.
-        this.cleanUp();
+        this.removeDownloadListener();
         gUpdates.wiz.goTo("errors");
         break;
       }
@@ -1640,48 +1576,15 @@ var gDownloadingPage = {
       break;
     case CoR.NS_OK:
       LOG("gDownloadingPage", "onStopRequest - patch verification succeeded");
-      // If the background update pref is set, we should wait until the update
-      // is actually staged in the background.
-      var aus = CoC["@mozilla.org/updates/update-service;1"].
-                getService(CoI.nsIApplicationUpdateService);
-      if (aus.canStageUpdates) {
-        this._setUpdateApplying();
-      } else {
-        this.cleanUp();
-        gUpdates.wiz.goTo("finished");
-      }
+      this.removeDownloadListener();
+      gUpdates.wiz.goTo("finished");
       break;
     default:
       LOG("gDownloadingPage", "onStopRequest - transfer failed");
       // Some kind of transfer error, die.
-      this.cleanUp();
+      this.removeDownloadListener();
       gUpdates.wiz.goTo("errors");
       break;
-    }
-  },
-
-  /**
-   * See nsIObserver.idl
-   */
-  observe: function(aSubject, aTopic, aData) {
-    if (aTopic == "update-staged") {
-      if (aData == STATE_DOWNLOADING) {
-        // We've fallen back to downloding the full update because the
-        // partial update failed to get staged in the background.
-        this._setStatus("downloading");
-        return;
-      }
-      this.cleanUp();
-      if (aData == STATE_APPLIED ||
-          aData == STATE_APPLIED_SVC ||
-          aData == STATE_PENDING ||
-          aData == STATE_PENDING_SVC) {
-        // If the update is successfully applied, or if the updater has
-        // fallen back to non-staged updates, go to the finish page.
-        gUpdates.wiz.goTo("finished");
-      } else {
-        gUpdates.wiz.goTo("errors");
-      }
     }
   },
 
@@ -1691,7 +1594,6 @@ var gDownloadingPage = {
   QueryInterface: function(iid) {
     if (!iid.equals(CoI.nsIRequestObserver) &&
         !iid.equals(CoI.nsIProgressEventSink) &&
-        !iid.equals(CoI.nsIObserver) &&
         !iid.equals(CoI.nsISupports))
       throw CoR.NS_ERROR_NO_INTERFACE;
     return this;
@@ -1732,9 +1634,6 @@ var gErrorExtraPage = {
   onPageShow: function() {
     gUpdates.setButtons(null, null, "okButton", true);
     gUpdates.wiz.getButton("finish").focus();
-    let secHistogram = CoC["@mozilla.org/base/telemetry;1"].
-                                  getService(CoI.nsITelemetry).
-                                  getHistogramById("SECURITY_UI");
 
     if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_CERT_ERRORS))
       Services.prefs.clearUserPref(PREF_APP_UPDATE_CERT_ERRORS);
@@ -1744,13 +1643,10 @@ var gErrorExtraPage = {
 
     if (gUpdates.update.errorCode == CERT_ATTR_CHECK_FAILED_HAS_UPDATE) {
       document.getElementById("errorCertAttrHasUpdateLabel").hidden = false;
-      secHistogram.add(CoI.nsISecurityUITelemetry.WARNING_INSECURE_UPDATE);
     }
     else {
-      if (gUpdates.update.errorCode == CERT_ATTR_CHECK_FAILED_NO_UPDATE){
+      if (gUpdates.update.errorCode == CERT_ATTR_CHECK_FAILED_NO_UPDATE)
         document.getElementById("errorCertCheckNoUpdateLabel").hidden = false;
-        secHistogram.add(CoI.nsISecurityUITelemetry.WARNING_NO_SECURE_UPDATE);
-      }
       else
         document.getElementById("genericBackgroundErrorLabel").hidden = false;
       var manualURL = Services.urlFormatter.formatURLPref(PREF_APP_UPDATE_MANUAL_URL);
@@ -1776,7 +1672,6 @@ var gErrorPatchingPage = {
   onWizardNext: function() {
     switch (gUpdates.update.selectedPatch.state) {
     case STATE_PENDING:
-    case STATE_PENDING_SVC: 
       gUpdates.wiz.goTo("finished");
       break;
     case STATE_DOWNLOADING:
@@ -1875,6 +1770,7 @@ var gFinishedPage = {
    * in the wizard after an update has been downloaded.
    */
   onExtra1: function() {
+    // XXXrstrong - reminding the user to restart is broken (see bug 464835)
     gUpdates.wiz.cancel();
   }
 };

@@ -9,7 +9,7 @@ function test() {
 
   ctrlTabTest([2]      , 1, 0);
   ctrlTabTest([2, 3, 1], 2, 2);
-  ctrlTabTest([]       , 4, 2);
+  ctrlTabTest([]       , 5, 2);
 
   {
     let selectedIndex = gBrowser.tabContainer.selectedIndex;
@@ -39,7 +39,7 @@ function test() {
 
   gBrowser.addTab();
   checkTabs(3);
-  ctrlTabTest([2, 1, 0], 7, 1);
+  ctrlTabTest([2, 1, 0], 9, 1);
 
   gBrowser.addTab();
   checkTabs(4);
@@ -59,7 +59,7 @@ function test() {
     pressCtrlTab(true);
     pressCtrlTab(true);
     releaseCtrl();
-    ok(selectedTab.selected,
+    ok(gBrowser.selectedTab == selectedTab,
        "Ctrl+Tab*2 -> Ctrl+W -> Ctrl+Shift+Tab*2 keeps the selected tab");
   }
   gBrowser.removeTab(gBrowser.tabContainer.lastChild);
@@ -74,7 +74,7 @@ function test() {
     let focusedWindow = document.commandDispatcher.focusedWindow;
     let eventConsumed = true;
     let detectKeyEvent = function (event) {
-      eventConsumed = event.defaultPrevented;
+      eventConsumed = event.getPreventDefault();
     };
     document.addEventListener("keypress", detectKeyEvent, false);
     pressCtrlTab();

@@ -1,7 +1,43 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ *
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code, released
+ * March 31, 1998.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Rob Ginda rginda@netscape.com
+ *   Bob Clary bob@bclary.com
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 // Explicitly set the default version.
 // See https://bugzilla.mozilla.org/show_bug.cgi?id=522760#c11
@@ -42,17 +78,6 @@ var DEBUG = false;
 
 var DESCRIPTION;
 var EXPECTED;
-
-/*
- * Signals to results.py that the current test case should be considered to
- * have passed if it doesn't throw an exception.
- *
- * When the test suite is run in the browser, this function gets overridden by
- * the same-named function in browser.js.
- */
-function testPassesUnlessItThrows() {
-  print(PASSED);
-}
 
 /*
  * wrapper for test case constructor that doesn't require the SECTION
@@ -142,7 +167,7 @@ function reportFailure (msg)
   var l;
   var funcName = currentFunc();
   var prefix = (funcName) ? "[reported from " + funcName + "] ": "";
-
+   
   for (var i=0; i<lines.length; i++)
     print (FAILED + prefix + lines[i]);
 }
@@ -175,7 +200,14 @@ function printBugNumber (num)
 
 function toPrinted(value)
 {
-  value = String(value);
+  if (typeof value == "xml") 
+  {
+    value = value.toXMLString();
+  } 
+  else 
+  {
+    value = String(value);
+  }
   value = value.replace(/\\n/g, 'NL')
                .replace(/\n/g, 'NL')
                .replace(/\\r/g, 'CR')
@@ -386,7 +418,7 @@ function enterFunc (funcName)
 function exitFunc (funcName)
 {
   var lastFunc = callStack.pop();
-
+   
   if (funcName)
   {
     if (!funcName.match(/\(\)$/))
@@ -496,7 +528,7 @@ function BigO(data)
     {
       var Ydiff = Y[i] - this.Yavg;
       var Xdiff = X[i] - this.Xavg;
-
+       
       SUM_Ydiff2 += Ydiff * Ydiff;
       SUM_Xdiff2 += Xdiff * Xdiff;
       SUM_XdiffYdiff += Xdiff * Ydiff;
@@ -532,7 +564,7 @@ function BigO(data)
     {
       deriv.X[i] = (X[i] + X[i+1])/2;
       deriv.Y[i] = (Y[i+1] - Y[i])/(X[i+1] - X[i]);
-    }
+    } 
     return deriv;
   }
 
@@ -608,7 +640,7 @@ function optionsInit() {
 }
 
 function optionsClear() {
-
+       
   // turn off current settings
   // except jit.
   var optionNames = options().split(',');
@@ -617,8 +649,9 @@ function optionsClear() {
     var optionName = optionNames[i];
     if (optionName &&
         optionName != "methodjit" &&
-        optionName != "methodjit_always" &&
-        optionName != "ion")
+        optionName != "tracejit" &&
+        optionName != "jitprofiling" &&
+        optionName != "methodjit_always")
     {
       options(optionName);
     }
@@ -800,6 +833,18 @@ function getFailedCases() {
   }
 }
 
+var JSTest = {
+  waitForExplicitFinish: function () {
+    gDelayTestDriverEnd = true;
+  },
+
+  testFinished: function () {
+    gDelayTestDriverEnd = false;
+    jsTestDriverEnd();
+    quit();
+  }
+};
+
 function jsTestDriverEnd()
 {
   // gDelayTestDriverEnd is used to
@@ -833,6 +878,14 @@ function jsTestDriverEnd()
 
 function jit(on)
 {
+  if (on && !options().match(/tracejit/))
+  {
+    options('tracejit');
+  }
+  else if (!on && options().match(/tracejit/))
+  {
+    options('tracejit');
+  }
 }
 
 /*
@@ -854,3 +907,5 @@ function OptLevel( i ) {
   cx.setOptimizationLevel(i);
 }
 /* end of Rhino functions */
+
+

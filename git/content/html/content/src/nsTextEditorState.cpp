@@ -1,20 +1,51 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set sw=2 ts=2 et tw=80: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla.org client code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Ehsan Akhgari <ehsan@mozilla.com> (Original Author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsTextEditorState.h"
 
 #include "nsCOMPtr.h"
 #include "nsIPresShell.h"
-#include "nsView.h"
+#include "nsIView.h"
 #include "nsCaret.h"
 #include "nsEditorCID.h"
 #include "nsLayoutCID.h"
 #include "nsITextControlFrame.h" 
 #include "nsIPlaintextEditor.h"
-#include "nsIDOMCharacterData.h"
 #include "nsIDOMDocument.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsTextControlFrame.h"
@@ -24,7 +55,6 @@
 #include "nsITransactionManager.h"
 #include "nsIControllerContext.h"
 #include "nsAttrValue.h"
-#include "nsAttrValueInlines.h"
 #include "nsGenericHTMLElement.h"
 #include "nsIDOMEventListener.h"
 #include "nsIEditorObserver.h"
@@ -35,20 +65,15 @@
 #include "nsServiceManagerUtils.h"
 #include "nsIEditor.h"
 #include "nsTextEditRules.h"
-#include "mozilla/Selection.h"
 #include "nsEventListenerManager.h"
 #include "nsContentUtils.h"
-#include "nsCxPusher.h"
-#include "mozilla/Preferences.h"
-#include "nsTextNode.h"
 
-using namespace mozilla;
 using namespace mozilla::dom;
 
 static NS_DEFINE_CID(kTextEditorCID, NS_TEXTEDITOR_CID);
 
-static nsINativeKeyBindings *sNativeInputBindings = nullptr;
-static nsINativeKeyBindings *sNativeTextAreaBindings = nullptr;
+static nsINativeKeyBindings *sNativeInputBindings = nsnull;
+static nsINativeKeyBindings *sNativeTextAreaBindings = nsnull;
 
 class RestoreSelectionState : public nsRunnable {
 public:
@@ -59,10 +84,6 @@ public:
   }
 
   NS_IMETHOD Run() {
-    if (!mTextEditorState) {
-      return NS_OK;
-    }
-
     if (mFrame) {
       // SetSelectionRange leads to Selection::AddRange which flushes Layout -
       // need to block script to avoid nested PrepareEditor calls (bug 642800).
@@ -75,7 +96,7 @@ public:
       if (!mTextEditorState->mSelectionRestoreEagerInit) {
         mTextEditorState->HideSelectionIfBlurred();
       }
-      mTextEditorState->mSelectionRestoreEagerInit = false;
+      mTextEditorState->mSelectionRestoreEagerInit = PR_FALSE;
     }
     mTextEditorState->FinishedRestoringSelection();
     return NS_OK;
@@ -83,8 +104,7 @@ public:
 
   // Let the text editor tell us we're no longer relevant - avoids use of nsWeakFrame
   void Revoke() {
-    mFrame = nullptr;
-    mTextEditorState = nullptr;
+    mFrame = nsnull;
   }
 
 private:
@@ -93,7 +113,7 @@ private:
 };
 
 /*static*/
-bool
+PRBool
 nsITextControlElement::GetWrapPropertyEnum(nsIContent* aContent,
   nsITextControlElement::nsHTMLTextWrap& aWrapProp)
 {
@@ -106,7 +126,7 @@ nsITextControlElement::GetWrapPropertyEnum(nsIContent* aContent,
   nsAutoString wrap;
   if (aContent->IsHTML()) {
     static nsIContent::AttrValuesArray strings[] =
-      {&nsGkAtoms::HARD, &nsGkAtoms::OFF, nullptr};
+      {&nsGkAtoms::HARD, &nsGkAtoms::OFF, nsnull};
 
     switch (aContent->FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::wrap,
                                       strings, eIgnoreCase)) {
@@ -114,30 +134,16 @@ nsITextControlElement::GetWrapPropertyEnum(nsIContent* aContent,
       case 1: aWrapProp = eHTMLTextWrap_Off; break;
     }
 
-    return true;
+    return PR_TRUE;
   }
 
-  return false;
+  return PR_FALSE;
 }
 
-/*static*/
-already_AddRefed<nsITextControlElement>
-nsITextControlElement::GetTextControlElementFromEditingHost(nsIContent* aHost)
-{
-  if (!aHost) {
-    return nullptr;
-  }
-
-  nsCOMPtr<nsITextControlElement> parent =
-    do_QueryInterface(aHost->GetParent());
-
-  return parent.forget();
-}
-
-static bool
+static PRBool
 SuppressEventHandlers(nsPresContext* aPresContext)
 {
-  bool suppressHandlers = false;
+  PRBool suppressHandlers = PR_FALSE;
 
   if (aPresContext)
   {
@@ -153,7 +159,7 @@ SuppressEventHandlers(nsPresContext* aPresContext)
   return suppressHandlers;
 }
 
-class nsAnonDivObserver MOZ_FINAL : public nsStubMutationObserver
+class nsAnonDivObserver : public nsStubMutationObserver
 {
 public:
   nsAnonDivObserver(nsTextEditorState* aTextEditorState)
@@ -168,8 +174,8 @@ private:
   nsTextEditorState* mTextEditorState;
 };
 
-class nsTextInputSelectionImpl MOZ_FINAL : public nsSupportsWeakReference
-                                         , public nsISelectionController
+class nsTextInputSelectionImpl : public nsSupportsWeakReference
+                               , public nsISelectionController
 {
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -183,35 +189,34 @@ public:
     { return mFrameSelection; }
 
   //NSISELECTIONCONTROLLER INTERFACES
-  NS_IMETHOD SetDisplaySelection(int16_t toggle);
-  NS_IMETHOD GetDisplaySelection(int16_t *_retval);
-  NS_IMETHOD SetSelectionFlags(int16_t aInEnable);
-  NS_IMETHOD GetSelectionFlags(int16_t *aOutEnable);
-  NS_IMETHOD GetSelection(int16_t type, nsISelection **_retval);
-  NS_IMETHOD ScrollSelectionIntoView(int16_t aType, int16_t aRegion, int16_t aFlags);
-  NS_IMETHOD RepaintSelection(int16_t type);
+  NS_IMETHOD SetDisplaySelection(PRInt16 toggle);
+  NS_IMETHOD GetDisplaySelection(PRInt16 *_retval);
+  NS_IMETHOD SetSelectionFlags(PRInt16 aInEnable);
+  NS_IMETHOD GetSelectionFlags(PRInt16 *aOutEnable);
+  NS_IMETHOD GetSelection(PRInt16 type, nsISelection **_retval);
+  NS_IMETHOD ScrollSelectionIntoView(PRInt16 aType, PRInt16 aRegion, PRInt16 aFlags);
+  NS_IMETHOD RepaintSelection(PRInt16 type);
   NS_IMETHOD RepaintSelection(nsPresContext* aPresContext, SelectionType aSelectionType);
-  NS_IMETHOD SetCaretEnabled(bool enabled);
-  NS_IMETHOD SetCaretReadOnly(bool aReadOnly);
-  NS_IMETHOD GetCaretEnabled(bool *_retval);
-  NS_IMETHOD GetCaretVisible(bool *_retval);
-  NS_IMETHOD SetCaretVisibilityDuringSelection(bool aVisibility);
-  NS_IMETHOD CharacterMove(bool aForward, bool aExtend);
+  NS_IMETHOD SetCaretEnabled(PRBool enabled);
+  NS_IMETHOD SetCaretReadOnly(PRBool aReadOnly);
+  NS_IMETHOD GetCaretEnabled(PRBool *_retval);
+  NS_IMETHOD GetCaretVisible(PRBool *_retval);
+  NS_IMETHOD SetCaretVisibilityDuringSelection(PRBool aVisibility);
+  NS_IMETHOD CharacterMove(PRBool aForward, PRBool aExtend);
   NS_IMETHOD CharacterExtendForDelete();
   NS_IMETHOD CharacterExtendForBackspace();
-  NS_IMETHOD WordMove(bool aForward, bool aExtend);
-  NS_IMETHOD WordExtendForDelete(bool aForward);
-  NS_IMETHOD LineMove(bool aForward, bool aExtend);
-  NS_IMETHOD IntraLineMove(bool aForward, bool aExtend);
-  NS_IMETHOD PageMove(bool aForward, bool aExtend);
-  NS_IMETHOD CompleteScroll(bool aForward);
-  NS_IMETHOD CompleteMove(bool aForward, bool aExtend);
-  NS_IMETHOD ScrollPage(bool aForward);
-  NS_IMETHOD ScrollLine(bool aForward);
-  NS_IMETHOD ScrollCharacter(bool aRight);
+  NS_IMETHOD WordMove(PRBool aForward, PRBool aExtend);
+  NS_IMETHOD WordExtendForDelete(PRBool aForward);
+  NS_IMETHOD LineMove(PRBool aForward, PRBool aExtend);
+  NS_IMETHOD IntraLineMove(PRBool aForward, PRBool aExtend);
+  NS_IMETHOD PageMove(PRBool aForward, PRBool aExtend);
+  NS_IMETHOD CompleteScroll(PRBool aForward);
+  NS_IMETHOD CompleteMove(PRBool aForward, PRBool aExtend);
+  NS_IMETHOD ScrollPage(PRBool aForward);
+  NS_IMETHOD ScrollLine(PRBool aForward);
+  NS_IMETHOD ScrollHorizontal(PRBool aLeft);
   NS_IMETHOD SelectAll(void);
-  NS_IMETHOD CheckVisibility(nsIDOMNode *node, int16_t startOffset, int16_t EndOffset, bool *_retval);
-  virtual nsresult CheckVisibilityContent(nsIContent* aNode, int16_t aStartOffset, int16_t aEndOffset, bool* aRetval);
+  NS_IMETHOD CheckVisibility(nsIDOMNode *node, PRInt16 startOffset, PRInt16 EndOffset, PRBool *_retval);
 
 private:
   nsRefPtr<nsFrameSelection> mFrameSelection;
@@ -238,7 +243,7 @@ NS_IMPL_CYCLE_COLLECTION_2(nsTextInputSelectionImpl, mFrameSelection, mLimiter)
 nsTextInputSelectionImpl::nsTextInputSelectionImpl(nsFrameSelection *aSel,
                                                    nsIPresShell *aShell,
                                                    nsIContent *aLimiter)
-  : mScrollFrame(nullptr)
+  : mScrollFrame(nsnull)
 {
   if (aSel && aShell)
   {
@@ -255,12 +260,12 @@ nsTextInputSelectionImpl::SetScrollableFrame(nsIScrollableFrame *aScrollableFram
   mScrollFrame = aScrollableFrame;
   if (!mScrollFrame && mFrameSelection) {
     mFrameSelection->DisconnectFromPresShell();
-    mFrameSelection = nullptr;
+    mFrameSelection = nsnull;
   }
 }
 
 NS_IMETHODIMP
-nsTextInputSelectionImpl::SetDisplaySelection(int16_t aToggle)
+nsTextInputSelectionImpl::SetDisplaySelection(PRInt16 aToggle)
 {
   if (!mFrameSelection)
     return NS_ERROR_NULL_POINTER;
@@ -270,7 +275,7 @@ nsTextInputSelectionImpl::SetDisplaySelection(int16_t aToggle)
 }
 
 NS_IMETHODIMP
-nsTextInputSelectionImpl::GetDisplaySelection(int16_t *aToggle)
+nsTextInputSelectionImpl::GetDisplaySelection(PRInt16 *aToggle)
 {
   if (!mFrameSelection)
     return NS_ERROR_NULL_POINTER;
@@ -280,20 +285,20 @@ nsTextInputSelectionImpl::GetDisplaySelection(int16_t *aToggle)
 }
 
 NS_IMETHODIMP
-nsTextInputSelectionImpl::SetSelectionFlags(int16_t aToggle)
+nsTextInputSelectionImpl::SetSelectionFlags(PRInt16 aToggle)
 {
   return NS_OK;//stub this out. not used in input
 }
 
 NS_IMETHODIMP
-nsTextInputSelectionImpl::GetSelectionFlags(int16_t *aOutEnable)
+nsTextInputSelectionImpl::GetSelectionFlags(PRInt16 *aOutEnable)
 {
   *aOutEnable = nsISelectionDisplay::DISPLAY_TEXT;
   return NS_OK; 
 }
 
 NS_IMETHODIMP
-nsTextInputSelectionImpl::GetSelection(int16_t type, nsISelection **_retval)
+nsTextInputSelectionImpl::GetSelection(PRInt16 type, nsISelection **_retval)
 {
   if (!mFrameSelection)
     return NS_ERROR_NULL_POINTER;
@@ -308,7 +313,7 @@ nsTextInputSelectionImpl::GetSelection(int16_t type, nsISelection **_retval)
 }
 
 NS_IMETHODIMP
-nsTextInputSelectionImpl::ScrollSelectionIntoView(int16_t aType, int16_t aRegion, int16_t aFlags)
+nsTextInputSelectionImpl::ScrollSelectionIntoView(PRInt16 aType, PRInt16 aRegion, PRInt16 aFlags)
 {
   if (!mFrameSelection) 
     return NS_ERROR_FAILURE; 
@@ -317,7 +322,7 @@ nsTextInputSelectionImpl::ScrollSelectionIntoView(int16_t aType, int16_t aRegion
 }
 
 NS_IMETHODIMP
-nsTextInputSelectionImpl::RepaintSelection(int16_t type)
+nsTextInputSelectionImpl::RepaintSelection(PRInt16 type)
 {
   if (!mFrameSelection)
     return NS_ERROR_FAILURE;
@@ -335,7 +340,7 @@ nsTextInputSelectionImpl::RepaintSelection(nsPresContext* aPresContext, Selectio
 }
 
 NS_IMETHODIMP
-nsTextInputSelectionImpl::SetCaretEnabled(bool enabled)
+nsTextInputSelectionImpl::SetCaretEnabled(PRBool enabled)
 {
   if (!mPresShellWeak) return NS_ERROR_NOT_INITIALIZED;
 
@@ -352,7 +357,7 @@ nsTextInputSelectionImpl::SetCaretEnabled(bool enabled)
 }
 
 NS_IMETHODIMP
-nsTextInputSelectionImpl::SetCaretReadOnly(bool aReadOnly)
+nsTextInputSelectionImpl::SetCaretReadOnly(PRBool aReadOnly)
 {
   if (!mPresShellWeak) return NS_ERROR_NOT_INITIALIZED;
   nsresult result;
@@ -372,13 +377,13 @@ nsTextInputSelectionImpl::SetCaretReadOnly(bool aReadOnly)
 }
 
 NS_IMETHODIMP
-nsTextInputSelectionImpl::GetCaretEnabled(bool *_retval)
+nsTextInputSelectionImpl::GetCaretEnabled(PRBool *_retval)
 {
   return GetCaretVisible(_retval);
 }
 
 NS_IMETHODIMP
-nsTextInputSelectionImpl::GetCaretVisible(bool *_retval)
+nsTextInputSelectionImpl::GetCaretVisible(PRBool *_retval)
 {
   if (!mPresShellWeak) return NS_ERROR_NOT_INITIALIZED;
   nsresult result;
@@ -397,7 +402,7 @@ nsTextInputSelectionImpl::GetCaretVisible(bool *_retval)
 }
 
 NS_IMETHODIMP
-nsTextInputSelectionImpl::SetCaretVisibilityDuringSelection(bool aVisibility)
+nsTextInputSelectionImpl::SetCaretVisibilityDuringSelection(PRBool aVisibility)
 {
   if (!mPresShellWeak) return NS_ERROR_NOT_INITIALIZED;
   nsresult result;
@@ -417,7 +422,7 @@ nsTextInputSelectionImpl::SetCaretVisibilityDuringSelection(bool aVisibility)
 }
 
 NS_IMETHODIMP
-nsTextInputSelectionImpl::CharacterMove(bool aForward, bool aExtend)
+nsTextInputSelectionImpl::CharacterMove(PRBool aForward, PRBool aExtend)
 {
   if (mFrameSelection)
     return mFrameSelection->CharacterMove(aForward, aExtend);
@@ -441,7 +446,7 @@ nsTextInputSelectionImpl::CharacterExtendForBackspace()
 }
 
 NS_IMETHODIMP
-nsTextInputSelectionImpl::WordMove(bool aForward, bool aExtend)
+nsTextInputSelectionImpl::WordMove(PRBool aForward, PRBool aExtend)
 {
   if (mFrameSelection)
     return mFrameSelection->WordMove(aForward, aExtend);
@@ -449,7 +454,7 @@ nsTextInputSelectionImpl::WordMove(bool aForward, bool aExtend)
 }
 
 NS_IMETHODIMP
-nsTextInputSelectionImpl::WordExtendForDelete(bool aForward)
+nsTextInputSelectionImpl::WordExtendForDelete(PRBool aForward)
 {
   if (mFrameSelection)
     return mFrameSelection->WordExtendForDelete(aForward);
@@ -457,7 +462,7 @@ nsTextInputSelectionImpl::WordExtendForDelete(bool aForward)
 }
 
 NS_IMETHODIMP
-nsTextInputSelectionImpl::LineMove(bool aForward, bool aExtend)
+nsTextInputSelectionImpl::LineMove(PRBool aForward, PRBool aExtend)
 {
   if (mFrameSelection)
   {
@@ -471,7 +476,7 @@ nsTextInputSelectionImpl::LineMove(bool aForward, bool aExtend)
 
 
 NS_IMETHODIMP
-nsTextInputSelectionImpl::IntraLineMove(bool aForward, bool aExtend)
+nsTextInputSelectionImpl::IntraLineMove(PRBool aForward, PRBool aExtend)
 {
   if (mFrameSelection)
     return mFrameSelection->IntraLineMove(aForward, aExtend);
@@ -480,7 +485,7 @@ nsTextInputSelectionImpl::IntraLineMove(bool aForward, bool aExtend)
 
 
 NS_IMETHODIMP
-nsTextInputSelectionImpl::PageMove(bool aForward, bool aExtend)
+nsTextInputSelectionImpl::PageMove(PRBool aForward, PRBool aExtend)
 {
   // expected behavior for PageMove is to scroll AND move the caret
   // and to remain relative position of the caret in view. see Bug 4302.
@@ -495,7 +500,7 @@ nsTextInputSelectionImpl::PageMove(bool aForward, bool aExtend)
 }
 
 NS_IMETHODIMP
-nsTextInputSelectionImpl::CompleteScroll(bool aForward)
+nsTextInputSelectionImpl::CompleteScroll(PRBool aForward)
 {
   if (!mScrollFrame)
     return NS_ERROR_NOT_INITIALIZED;
@@ -507,7 +512,7 @@ nsTextInputSelectionImpl::CompleteScroll(bool aForward)
 }
 
 NS_IMETHODIMP
-nsTextInputSelectionImpl::CompleteMove(bool aForward, bool aExtend)
+nsTextInputSelectionImpl::CompleteMove(PRBool aForward, PRBool aExtend)
 {
   // grab the parent / root DIV for this text widget
   nsIContent* parentDIV = mFrameSelection->GetLimiter();
@@ -515,7 +520,7 @@ nsTextInputSelectionImpl::CompleteMove(bool aForward, bool aExtend)
     return NS_ERROR_UNEXPECTED;
 
   // make the caret be either at the very beginning (0) or the very end
-  int32_t offset = 0;
+  PRInt32 offset = 0;
   nsFrameSelection::HINT hint = nsFrameSelection::HINTLEFT;
   if (aForward)
   {
@@ -537,14 +542,14 @@ nsTextInputSelectionImpl::CompleteMove(bool aForward, bool aExtend)
   }
 
   mFrameSelection->HandleClick(parentDIV, offset, offset, aExtend,
-                               false, hint);
+                               PR_FALSE, hint);
 
   // if we got this far, attempt to scroll no matter what the above result is
   return CompleteScroll(aForward);
 }
 
 NS_IMETHODIMP
-nsTextInputSelectionImpl::ScrollPage(bool aForward)
+nsTextInputSelectionImpl::ScrollPage(PRBool aForward)
 {
   if (!mScrollFrame)
     return NS_ERROR_NOT_INITIALIZED;
@@ -556,7 +561,7 @@ nsTextInputSelectionImpl::ScrollPage(bool aForward)
 }
 
 NS_IMETHODIMP
-nsTextInputSelectionImpl::ScrollLine(bool aForward)
+nsTextInputSelectionImpl::ScrollLine(PRBool aForward)
 {
   if (!mScrollFrame)
     return NS_ERROR_NOT_INITIALIZED;
@@ -568,12 +573,12 @@ nsTextInputSelectionImpl::ScrollLine(bool aForward)
 }
 
 NS_IMETHODIMP
-nsTextInputSelectionImpl::ScrollCharacter(bool aRight)
+nsTextInputSelectionImpl::ScrollHorizontal(PRBool aLeft)
 {
   if (!mScrollFrame)
     return NS_ERROR_NOT_INITIALIZED;
 
-  mScrollFrame->ScrollBy(nsIntPoint(aRight ? 1 : -1, 0),
+  mScrollFrame->ScrollBy(nsIntPoint(aLeft ? -1 : 1, 0),
                          nsIScrollableFrame::LINES,
                          nsIScrollableFrame::SMOOTH);
   return NS_OK;
@@ -588,7 +593,7 @@ nsTextInputSelectionImpl::SelectAll()
 }
 
 NS_IMETHODIMP
-nsTextInputSelectionImpl::CheckVisibility(nsIDOMNode *node, int16_t startOffset, int16_t EndOffset, bool *_retval)
+nsTextInputSelectionImpl::CheckVisibility(nsIDOMNode *node, PRInt16 startOffset, PRInt16 EndOffset, PRBool *_retval)
 {
   if (!mPresShellWeak) return NS_ERROR_NOT_INITIALIZED;
   nsresult result;
@@ -599,22 +604,6 @@ nsTextInputSelectionImpl::CheckVisibility(nsIDOMNode *node, int16_t startOffset,
   }
   return NS_ERROR_FAILURE;
 
-}
-
-nsresult
-nsTextInputSelectionImpl::CheckVisibilityContent(nsIContent* aNode,
-                                                 int16_t aStartOffset,
-                                                 int16_t aEndOffset,
-                                                 bool* aRetval)
-{
-  if (!mPresShellWeak) {
-    return NS_ERROR_NOT_INITIALIZED;
-  }
-
-  nsCOMPtr<nsISelectionController> shell = do_QueryReferent(mPresShellWeak);
-  NS_ENSURE_TRUE(shell, NS_ERROR_FAILURE);
-
-  return shell->CheckVisibilityContent(aNode, aStartOffset, aEndOffset, aRetval);
 }
 
 class nsTextInputListener : public nsISelectionListener,
@@ -635,8 +624,7 @@ public:
    */
   void SetFrame(nsTextControlFrame *aFrame){mFrame = aFrame;}
 
-  void SettingValue(bool aValue) { mSettingValue = aValue; }
-  void SetValueChanged(bool aSetValueChanged) { mSetValueChanged = aSetValueChanged; }
+  void SettingValue(PRBool aValue) { mSettingValue = aValue; }
 
   NS_DECL_ISUPPORTS
 
@@ -658,27 +646,22 @@ protected:
 
   nsITextControlElement* const mTxtCtrlElement;
 
-  bool            mSelectionWasCollapsed;
+  PRPackedBool    mSelectionWasCollapsed;
   /**
    * Whether we had undo items or not the last time we got EditAction()
    * notification (when this state changes we update undo and redo menus)
    */
-  bool            mHadUndoItems;
+  PRPackedBool    mHadUndoItems;
   /**
    * Whether we had redo items or not the last time we got EditAction()
    * notification (when this state changes we update undo and redo menus)
    */
-  bool            mHadRedoItems;
+  PRPackedBool    mHadRedoItems;
   /**
    * Whether we're in the process of a SetValue call, and should therefore
    * refrain from calling OnValueChanged.
    */
-  bool mSettingValue;
-  /**
-   * Whether we are in the process of a SetValue call that doesn't want
-   * |SetValueChanged| to be called.
-   */
-  bool mSetValueChanged;
+  PRPackedBool mSettingValue;
 };
 
 
@@ -687,13 +670,12 @@ protected:
  */
 
 nsTextInputListener::nsTextInputListener(nsITextControlElement* aTxtCtrlElement)
-: mFrame(nullptr)
+: mFrame(nsnull)
 , mTxtCtrlElement(aTxtCtrlElement)
-, mSelectionWasCollapsed(true)
-, mHadUndoItems(false)
-, mHadRedoItems(false)
-, mSettingValue(false)
-, mSetValueChanged(true)
+, mSelectionWasCollapsed(PR_TRUE)
+, mHadUndoItems(PR_FALSE)
+, mHadRedoItems(PR_FALSE)
+, mSettingValue(PR_FALSE)
 {
 }
 
@@ -710,9 +692,9 @@ NS_IMPL_ISUPPORTS4(nsTextInputListener,
 // BEGIN nsIDOMSelectionListener
 
 NS_IMETHODIMP
-nsTextInputListener::NotifySelectionChanged(nsIDOMDocument* aDoc, nsISelection* aSel, int16_t aReason)
+nsTextInputListener::NotifySelectionChanged(nsIDOMDocument* aDoc, nsISelection* aSel, PRInt16 aReason)
 {
-  bool collapsed;
+  PRBool collapsed;
   nsWeakFrame weakFrame = mFrame;
 
   if (!aDoc || !aSel || NS_FAILED(aSel->GetIsCollapsed(&collapsed)))
@@ -746,7 +728,7 @@ nsTextInputListener::NotifySelectionChanged(nsIDOMDocument* aDoc, nsISelection* 
         if (presShell) 
         {
           nsEventStatus status = nsEventStatus_eIgnore;
-          nsEvent event(true, NS_FORM_SELECTED);
+          nsEvent event(PR_TRUE, NS_FORM_SELECTED);
 
           presShell->HandleEventWithTarget(&event, mFrame, content, &status);
         }
@@ -794,14 +776,7 @@ DoCommandCallback(const char *aCommand, void *aData)
 
   nsCOMPtr<nsIController> controller;
   controllers->GetControllerForCommand(aCommand, getter_AddRefs(controller));
-  if (!controller) {
-    return;
-  }
-
-  bool commandEnabled;
-  nsresult rv = controller->IsCommandEnabled(aCommand, &commandEnabled);
-  NS_ENSURE_SUCCESS_VOID(rv);
-  if (commandEnabled) {
+  if (controller) {
     controller->DoCommand(aCommand);
   }
 }
@@ -818,9 +793,9 @@ nsTextInputListener::HandleEvent(nsIDOMEvent* aEvent)
   nsNativeKeyEvent nativeEvent;
   nsINativeKeyBindings *bindings = GetKeyBindings();
   if (bindings &&
-      nsContentUtils::DOMEventToNativeKeyEvent(keyEvent, &nativeEvent, false)) {
+      nsContentUtils::DOMEventToNativeKeyEvent(keyEvent, &nativeEvent, PR_FALSE)) {
 
-    bool handled = false;
+    PRBool handled = PR_FALSE;
     if (eventType.EqualsLiteral("keydown")) {
       handled = bindings->KeyDown(nativeEvent, DoCommandCallback, mFrame);
     }
@@ -857,11 +832,15 @@ nsTextInputListener::EditAction()
   nsCOMPtr<nsIEditor> editor;
   frame->GetEditor(getter_AddRefs(editor));
 
+  nsCOMPtr<nsITransactionManager> manager;
+  editor->GetTransactionManager(getter_AddRefs(manager));
+  NS_ENSURE_TRUE(manager, NS_ERROR_FAILURE);
+
   // Get the number of undo / redo items
-  int32_t numUndoItems = 0;
-  int32_t numRedoItems = 0;
-  editor->GetNumberOfUndoItems(&numUndoItems);
-  editor->GetNumberOfRedoItems(&numRedoItems);
+  PRInt32 numUndoItems = 0;
+  PRInt32 numRedoItems = 0;
+  manager->GetNumberOfUndoItems(&numUndoItems);
+  manager->GetNumberOfRedoItems(&numRedoItems);
   if ((numUndoItems && !mHadUndoItems) || (!numUndoItems && mHadUndoItems) ||
       (numRedoItems && !mHadRedoItems) || (!numRedoItems && mHadRedoItems)) {
     // Modify the menu if undo or redo items are different
@@ -877,13 +856,19 @@ nsTextInputListener::EditAction()
 
   // Make sure we know we were changed (do NOT set this to false if there are
   // no undo items; JS could change the value and we'd still need to save it)
-  if (mSetValueChanged) {
-    frame->SetValueChanged(true);
-  }
+  frame->SetValueChanged(PR_TRUE);
 
   if (!mSettingValue) {
-    mTxtCtrlElement->OnValueChanged(true);
+    mTxtCtrlElement->OnValueChanged(PR_TRUE);
   }
+
+  // Fire input event
+  PRBool trusted = PR_FALSE;
+  editor->GetLastKeypressEventTrusted(&trusted);
+  frame->FireOnInput(trusted);
+
+  // mFrame may be dead after this, but we don't need to check for it, because
+  // we are not uisng it in this function any more.
 
   return NS_OK;
 }
@@ -910,27 +895,27 @@ nsINativeKeyBindings*
 nsTextInputListener::GetKeyBindings()
 {
   if (mTxtCtrlElement->IsTextArea()) {
-    static bool sNoTextAreaBindings = false;
+    static PRBool sNoTextAreaBindings = PR_FALSE;
 
     if (!sNativeTextAreaBindings && !sNoTextAreaBindings) {
       CallGetService(NS_NATIVEKEYBINDINGS_CONTRACTID_PREFIX "textarea",
                      &sNativeTextAreaBindings);
 
       if (!sNativeTextAreaBindings) {
-        sNoTextAreaBindings = true;
+        sNoTextAreaBindings = PR_TRUE;
       }
     }
 
     return sNativeTextAreaBindings;
   }
 
-  static bool sNoInputBindings = false;
+  static PRBool sNoInputBindings = PR_FALSE;
   if (!sNativeInputBindings && !sNoInputBindings) {
     CallGetService(NS_NATIVEKEYBINDINGS_CONTRACTID_PREFIX "input",
                    &sNativeInputBindings);
 
     if (!sNativeInputBindings) {
-      sNoInputBindings = true;
+      sNoInputBindings = PR_TRUE;
     }
   }
 
@@ -943,16 +928,15 @@ nsTextInputListener::GetKeyBindings()
 
 nsTextEditorState::nsTextEditorState(nsITextControlElement* aOwningElement)
   : mTextCtrlElement(aOwningElement),
-    mRestoringSelection(nullptr),
-    mBoundFrame(nullptr),
-    mTextListener(nullptr),
-    mEverInited(false),
-    mEditorInitialized(false),
-    mInitializing(false),
-    mValueTransferInProgress(false),
-    mSelectionCached(true),
-    mSelectionRestoreEagerInit(false),
-    mPlaceholderVisibility(false)
+    mRestoringSelection(nsnull),
+    mBoundFrame(nsnull),
+    mTextListener(nsnull),
+    mEverInited(PR_FALSE),
+    mEditorInitialized(PR_FALSE),
+    mInitializing(PR_FALSE),
+    mValueTransferInProgress(PR_FALSE),
+    mSelectionCached(PR_TRUE),
+    mSelectionRestoreEagerInit(PR_FALSE)
 {
   MOZ_COUNT_CTOR(nsTextEditorState);
 }
@@ -972,7 +956,7 @@ nsTextEditorState::Clear()
     // to something which is not a text control.  In this case, we should pretend
     // that a frame is being destroyed, and clean up after ourselves properly.
     UnbindFromFrame(mBoundFrame);
-    mEditor = nullptr;
+    mEditor = nsnull;
   } else {
     // If we have a bound frame around, UnbindFromFrame will call DestroyEditor
     // for us.
@@ -981,30 +965,28 @@ nsTextEditorState::Clear()
   NS_IF_RELEASE(mTextListener);
 }
 
-void nsTextEditorState::Unlink()
-{
-  nsTextEditorState* tmp = this;
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsTextEditorState)
+NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(nsTextEditorState, AddRef)
+NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(nsTextEditorState, Release)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_NATIVE(nsTextEditorState)
   tmp->Clear();
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mSelCon)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mEditor)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mRootNode)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mPlaceholderDiv)
-}
-
-void nsTextEditorState::Traverse(nsCycleCollectionTraversalCallback& cb)
-{
-  nsTextEditorState* tmp = this;
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mSelCon)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mEditor)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mRootNode)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPlaceholderDiv)
-}
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mSelCon)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mEditor)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mRootNode)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mPlaceholderDiv)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_BEGIN(nsTextEditorState)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mSelCon, nsISelectionController)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mEditor)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mRootNode)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mPlaceholderDiv)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 nsFrameSelection*
 nsTextEditorState::GetConstFrameSelection() {
   if (mSelCon)
     return mSelCon->GetConstFrameSelection();
-  return nullptr;
+  return nsnull;
 }
 
 nsIEditor*
@@ -1012,7 +994,7 @@ nsTextEditorState::GetEditor()
 {
   if (!mEditor) {
     nsresult rv = PrepareEditor();
-    NS_ENSURE_SUCCESS(rv, nullptr);
+    NS_ENSURE_SUCCESS(rv, nsnull);
   }
   return mEditor;
 }
@@ -1029,33 +1011,29 @@ public:
   PrepareEditorEvent(nsTextEditorState &aState,
                      nsIContent *aOwnerContent,
                      const nsAString &aCurrentValue)
-    : mState(aState.asWeakPtr())
+    : mState(aState)
     , mOwnerContent(aOwnerContent)
     , mCurrentValue(aCurrentValue)
   {
-    aState.mValueTransferInProgress = true;
+    mState.mValueTransferInProgress = PR_TRUE;
   }
 
   NS_IMETHOD Run() {
-    NS_ENSURE_TRUE(mState, NS_ERROR_NULL_POINTER);
-
     // Transfer the saved value to the editor if we have one
-    const nsAString *value = nullptr;
+    const nsAString *value = nsnull;
     if (!mCurrentValue.IsEmpty()) {
       value = &mCurrentValue;
     }
 
-    nsAutoScriptBlocker scriptBlocker;
+    mState.PrepareEditor(value);
 
-    mState->PrepareEditor(value);
-
-    mState->mValueTransferInProgress = false;
+    mState.mValueTransferInProgress = PR_FALSE;
 
     return NS_OK;
   }
 
 private:
-  WeakPtr<nsTextEditorState> mState;
+  nsTextEditorState &mState;
   nsCOMPtr<nsIContent> mOwnerContent; // strong reference
   nsAutoString mCurrentValue;
 };
@@ -1073,7 +1051,7 @@ nsTextEditorState::BindToFrame(nsTextControlFrame* aFrame)
   // binding to the frame.
   nsAutoString currentValue;
   if (mEditor) {
-    GetValue(currentValue, true);
+    GetValue(currentValue, PR_TRUE);
   }
 
   mBoundFrame = aFrame;
@@ -1124,13 +1102,13 @@ nsTextEditorState::BindToFrame(nsTextControlFrame* aFrame)
     NS_ENSURE_TRUE(content, NS_ERROR_FAILURE);
 
     // Set the correct direction on the newly created root node
-    uint32_t flags;
+    PRUint32 flags;
     nsresult rv = mEditor->GetFlags(&flags);
     NS_ENSURE_SUCCESS(rv, rv);
     if (flags & nsIPlaintextEditor::eEditorRightToLeft) {
-      rootNode->SetAttr(kNameSpaceID_None, nsGkAtoms::dir, NS_LITERAL_STRING("rtl"), false);
+      rootNode->SetAttr(kNameSpaceID_None, nsGkAtoms::dir, NS_LITERAL_STRING("rtl"), PR_FALSE);
     } else if (flags & nsIPlaintextEditor::eEditorLeftToRight) {
-      rootNode->SetAttr(kNameSpaceID_None, nsGkAtoms::dir, NS_LITERAL_STRING("ltr"), false);
+      rootNode->SetAttr(kNameSpaceID_None, nsGkAtoms::dir, NS_LITERAL_STRING("ltr"), PR_FALSE);
     } else {
       // otherwise, inherit the content node's direction
     }
@@ -1142,26 +1120,6 @@ nsTextEditorState::BindToFrame(nsTextControlFrame* aFrame)
 
   return NS_OK;
 }
-
-struct PreDestroyer
-{
-  void Init(nsIEditor* aEditor)
-  {
-    mNewEditor = aEditor;
-  }
-  ~PreDestroyer()
-  {
-    if (mNewEditor) {
-      mNewEditor->PreDestroy(true);
-    }
-  }
-  void Swap(nsCOMPtr<nsIEditor>& aEditor)
-  {
-    return mNewEditor.swap(aEditor);
-  }
-private:
-  nsCOMPtr<nsIEditor> mNewEditor;
-};
 
 nsresult
 nsTextEditorState::PrepareEditor(const nsAString *aValue)
@@ -1191,7 +1149,7 @@ nsTextEditorState::PrepareEditor(const nsAString *aValue)
   nsIPresShell *shell = presContext->GetPresShell();
 
   // Setup the editor flags
-  uint32_t editorFlags = 0;
+  PRUint32 editorFlags = 0;
   if (IsPlainTextControl())
     editorFlags |= nsIPlaintextEditor::eEditorPlaintextMask;
   if (IsSingleLineTextControl())
@@ -1202,29 +1160,27 @@ nsTextEditorState::PrepareEditor(const nsAString *aValue)
   // All nsTextControlFrames are widgets
   editorFlags |= nsIPlaintextEditor::eEditorWidgetMask;
 
-  // Spell check is diabled at creation time. It is enabled once
-  // the editor comes into focus.
-  editorFlags |= nsIPlaintextEditor::eEditorSkipSpellCheck;
+  // Use async reflow and painting for text widgets to improve
+  // performance.
+  editorFlags |= nsIPlaintextEditor::eEditorUseAsyncUpdatesMask;
 
-  bool shouldInitializeEditor = false;
+  PRBool shouldInitializeEditor = PR_FALSE;
   nsCOMPtr<nsIEditor> newEditor; // the editor that we might create
-  nsresult rv = NS_OK;
-  PreDestroyer preDestroyer;
+  nsresult rv;
   if (!mEditor) {
-    shouldInitializeEditor = true;
+    shouldInitializeEditor = PR_TRUE;
 
     // Create an editor
     newEditor = do_CreateInstance(kTextEditorCID, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
-    preDestroyer.Init(newEditor);
 
     // Make sure we clear out the non-breaking space before we initialize the editor
-    rv = mBoundFrame->UpdateValueDisplay(true, true);
+    rv = mBoundFrame->UpdateValueDisplay(PR_FALSE, PR_TRUE);
     NS_ENSURE_SUCCESS(rv, rv);
   } else {
     if (aValue || !mEditorInitialized) {
       // Set the correct value in the root node
-      rv = mBoundFrame->UpdateValueDisplay(true, !mEditorInitialized, aValue);
+      rv = mBoundFrame->UpdateValueDisplay(PR_TRUE, !mEditorInitialized, aValue);
       NS_ENSURE_SUCCESS(rv, rv);
     }
 
@@ -1277,10 +1233,10 @@ nsTextEditorState::PrepareEditor(const nsAString *aValue)
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (controllers) {
-      uint32_t numControllers;
-      bool found = false;
+      PRUint32 numControllers;
+      PRBool found = PR_FALSE;
       rv = controllers->GetControllerCount(&numControllers);
-      for (uint32_t i = 0; i < numControllers; i ++) {
+      for (PRUint32 i = 0; i < numControllers; i ++) {
         nsCOMPtr<nsIController> controller;
         rv = controllers->GetControllerAt(i, getter_AddRefs(controller));
         if (NS_SUCCEEDED(rv) && controller) {
@@ -1288,7 +1244,7 @@ nsTextEditorState::PrepareEditor(const nsAString *aValue)
             do_QueryInterface(controller);
           if (editController) {
             editController->SetCommandContext(newEditor);
-            found = true;
+            found = PR_TRUE;
           }
         }
       }
@@ -1305,7 +1261,7 @@ nsTextEditorState::PrepareEditor(const nsAString *aValue)
       textEditor->SetWrapColumn(GetWrapCols());
 
       // Set max text field length
-      int32_t maxLength;
+      PRInt32 maxLength;
       if (GetMaxLength(&maxLength)) { 
         textEditor->SetMaxTextLength(maxLength);
       }
@@ -1340,12 +1296,12 @@ nsTextEditorState::PrepareEditor(const nsAString *aValue)
   if (aValue) {
     defaultValue = *aValue;
   } else {
-    GetValue(defaultValue, true);
+    GetValue(defaultValue, PR_TRUE);
   }
 
   if (shouldInitializeEditor) {
     // Hold on to the newly created editor
-    preDestroyer.Swap(mEditor);
+    mEditor = newEditor;
   }
 
   // If we have a default value, insert it under the div we created
@@ -1354,7 +1310,12 @@ nsTextEditorState::PrepareEditor(const nsAString *aValue)
   // editor for us.
 
   if (!defaultValue.IsEmpty()) {
-    rv = newEditor->SetFlags(editorFlags);
+    // Avoid causing reentrant painting and reflowing by telling the editor
+    // that we don't want it to force immediate view refreshes or force
+    // immediate reflows during any editor calls.
+
+    rv = newEditor->SetFlags(editorFlags |
+                             nsIPlaintextEditor::eEditorUseAsyncUpdatesMask);
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Now call SetValue() which will make the necessary editor calls to set
@@ -1362,12 +1323,12 @@ nsTextEditorState::PrepareEditor(const nsAString *aValue)
     // value, and turn it back on afterwards. This will make sure we can't undo
     // past the default value.
 
-    rv = newEditor->EnableUndo(false);
+    rv = newEditor->EnableUndo(PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    SetValue(defaultValue, false, false);
+    SetValue(defaultValue, PR_FALSE);
 
-    rv = newEditor->EnableUndo(true);
+    rv = newEditor->EnableUndo(PR_TRUE);
     NS_ASSERTION(NS_SUCCEEDED(rv),"Transaction Manager must have failed");
 
     // Now restore the original editor flags.
@@ -1387,13 +1348,13 @@ nsTextEditorState::PrepareEditor(const nsAString *aValue)
     // default value don't screw us up.
     // Since changing the control type does a reframe, we don't have to worry
     // about dynamic type changes here.
-    newEditor->EnableUndo(false);
+    newEditor->EnableUndo(PR_FALSE);
   }
 
   if (!mEditorInitialized) {
     newEditor->PostCreate();
-    mEverInited = true;
-    mEditorInitialized = true;
+    mEverInited = PR_TRUE;
+    mEditorInitialized = PR_TRUE;
   }
 
   if (mTextListener)
@@ -1410,7 +1371,7 @@ nsTextEditorState::PrepareEditor(const nsAString *aValue)
   }
 
   // The selection cache is no longer going to be valid
-  mSelectionCached = false;
+  mSelectionCached = PR_FALSE;
 
   return rv;
 }
@@ -1423,28 +1384,28 @@ nsTextEditorState::DestroyEditor()
     if (mTextListener)
       mEditor->RemoveEditorObserver(mTextListener);
 
-    mEditor->PreDestroy(true);
-    mEditorInitialized = false;
+    mEditor->PreDestroy(PR_TRUE);
+    mEditorInitialized = PR_FALSE;
   }
 }
 
 void
 nsTextEditorState::UnbindFromFrame(nsTextControlFrame* aFrame)
 {
-  NS_ENSURE_TRUE_VOID(mBoundFrame);
+  NS_ENSURE_TRUE(mBoundFrame, );
 
   // If it was, however, it should be unbounded from the same frame.
   NS_ASSERTION(!aFrame || aFrame == mBoundFrame, "Unbinding from the wrong frame");
-  NS_ENSURE_TRUE_VOID(!aFrame || aFrame == mBoundFrame);
+  NS_ENSURE_TRUE(!aFrame || aFrame == mBoundFrame, );
 
   // We need to start storing the value outside of the editor if we're not
   // going to use it anymore, so retrieve it for now.
   nsAutoString value;
-  GetValue(value, true);
+  GetValue(value, PR_TRUE);
 
   if (mRestoringSelection) {
     mRestoringSelection->Revoke();
-    mRestoringSelection = nullptr;
+    mRestoringSelection = nsnull;
   }
 
   // Save our selection state if needed.
@@ -1457,7 +1418,7 @@ nsTextEditorState::UnbindFromFrame(nsTextControlFrame* aFrame)
     mBoundFrame->GetSelectionRange(&mSelectionProperties.mStart,
                                    &mSelectionProperties.mEnd,
                                    &mSelectionProperties.mDirection);
-    mSelectionCached = true;
+    mSelectionCached = PR_TRUE;
   }
 
   // Destroy our editor
@@ -1482,10 +1443,10 @@ nsTextEditorState::UnbindFromFrame(nsTextControlFrame* aFrame)
 
     if (controllers)
     {
-      uint32_t numControllers;
+      PRUint32 numControllers;
       nsresult rv = controllers->GetControllerCount(&numControllers);
       NS_ASSERTION((NS_SUCCEEDED(rv)), "bad result in gfx text control destructor");
-      for (uint32_t i = 0; i < numControllers; i ++)
+      for (PRUint32 i = 0; i < numControllers; i ++)
       {
         nsCOMPtr<nsIController> controller;
         rv = controllers->GetControllerAt(i, getter_AddRefs(controller));
@@ -1494,7 +1455,7 @@ nsTextEditorState::UnbindFromFrame(nsTextControlFrame* aFrame)
           nsCOMPtr<nsIControllerContext> editController = do_QueryInterface(controller);
           if (editController)
           {
-            editController->SetCommandContext(nullptr);
+            editController->SetCommandContext(nsnull);
           }
         }
       }
@@ -1514,44 +1475,47 @@ nsTextEditorState::UnbindFromFrame(nsTextControlFrame* aFrame)
       }
     }
 
-    mSelCon->SetScrollableFrame(nullptr);
-    mSelCon = nullptr;
+    mSelCon->SetScrollableFrame(nsnull);
+    mSelCon = nsnull;
   }
 
   if (mTextListener)
   {
-    mTextListener->SetFrame(nullptr);
+    mTextListener->SetFrame(nsnull);
 
-    nsCOMPtr<EventTarget> target = do_QueryInterface(mTextCtrlElement);
+    nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(mTextCtrlElement);
     nsEventListenerManager* manager =
-      target->GetListenerManager(false);
+      target->GetListenerManager(PR_FALSE);
     if (manager) {
       manager->RemoveEventListenerByType(mTextListener,
-        NS_LITERAL_STRING("keydown"),
-        dom::TrustedEventsAtSystemGroupBubble());
+                                         NS_LITERAL_STRING("keydown"),
+                                         NS_EVENT_FLAG_BUBBLE |
+                                         NS_EVENT_FLAG_SYSTEM_EVENT);
       manager->RemoveEventListenerByType(mTextListener,
-        NS_LITERAL_STRING("keypress"),
-        dom::TrustedEventsAtSystemGroupBubble());
+                                         NS_LITERAL_STRING("keypress"),
+                                         NS_EVENT_FLAG_BUBBLE |
+                                         NS_EVENT_FLAG_SYSTEM_EVENT);
       manager->RemoveEventListenerByType(mTextListener,
-        NS_LITERAL_STRING("keyup"),
-        dom::TrustedEventsAtSystemGroupBubble());
+                                         NS_LITERAL_STRING("keyup"),
+                                         NS_EVENT_FLAG_BUBBLE |
+                                         NS_EVENT_FLAG_SYSTEM_EVENT);
     }
 
     NS_RELEASE(mTextListener);
-    mTextListener = nullptr;
+    mTextListener = nsnull;
   }
 
-  mBoundFrame = nullptr;
+  mBoundFrame = nsnull;
 
   // Now that we don't have a frame any more, store the value in the text buffer.
   // The only case where we don't do this is if a value transfer is in progress.
   if (!mValueTransferInProgress) {
-    SetValue(value, false, false);
+    SetValue(value, PR_FALSE);
   }
 
   if (mRootNode && mMutationObserver) {
     mRootNode->RemoveMutationObserver(mMutationObserver);
-    mMutationObserver = nullptr;
+    mMutationObserver = nsnull;
   }
 
   // Unbind the anonymous content from the tree.
@@ -1575,9 +1539,10 @@ nsTextEditorState::CreateRootNode()
 
   // Now create a DIV and add it to the anonymous content child list.
   nsCOMPtr<nsINodeInfo> nodeInfo;
-  nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::div, nullptr,
+  nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::div, nsnull,
                                                  kNameSpaceID_XHTML,
                                                  nsIDOMNode::ELEMENT_NODE);
+  NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
   nsresult rv = NS_NewHTMLElement(getter_AddRefs(mRootNode), nodeInfo.forget(),
                                   NOT_FROM_PARSER);
@@ -1594,15 +1559,12 @@ nsTextEditorState::CreateRootNode()
 nsresult
 nsTextEditorState::InitializeRootNode()
 {
-  // Make our root node editable
-  mRootNode->SetFlags(NODE_IS_EDITABLE);
-
   // Set the necessary classes on the text control. We use class values
   // instead of a 'style' attribute so that the style comes from a user-agent
   // style sheet and is still applied even if author styles are disabled.
   nsAutoString classValue;
   classValue.AppendLiteral("anonymous-div");
-  int32_t wrapCols = GetWrapCols();
+  PRInt32 wrapCols = GetWrapCols();
   if (wrapCols >= 0) {
     classValue.AppendLiteral(" wrap");
   }
@@ -1611,17 +1573,17 @@ nsTextEditorState::InitializeRootNode()
     // crash when the number of lines exceeds the height of the textarea and
     // setting -moz-hidden-unscrollable overflow (NS_STYLE_OVERFLOW_CLIP)
     // doesn't paint the caret for some reason.
-    const nsStyleDisplay* disp = mBoundFrame->StyleDisplay();
+    const nsStyleDisplay* disp = mBoundFrame->GetStyleDisplay();
     if (disp->mOverflowX != NS_STYLE_OVERFLOW_VISIBLE &&
         disp->mOverflowX != NS_STYLE_OVERFLOW_CLIP) {
       classValue.AppendLiteral(" inherit-overflow");
     }
   }
   nsresult rv = mRootNode->SetAttr(kNameSpaceID_None, nsGkAtoms::_class,
-                                   classValue, false);
+                                   classValue, PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return mBoundFrame->UpdateValueDisplay(false);
+  return mBoundFrame->UpdateValueDisplay(PR_FALSE);
 }
 
 nsresult
@@ -1654,53 +1616,56 @@ be called if @placeholder is the empty string when trimmed from line breaks");
   NS_ENSURE_TRUE(pNodeInfoManager, NS_ERROR_OUT_OF_MEMORY);
 
   nsresult rv;
+  nsCOMPtr<nsIContent> placeholderText;
 
   // Create a DIV for the placeholder
   // and add it to the anonymous content child list
   nsCOMPtr<nsINodeInfo> nodeInfo;
-  nodeInfo = pNodeInfoManager->GetNodeInfo(nsGkAtoms::div, nullptr,
+  nodeInfo = pNodeInfoManager->GetNodeInfo(nsGkAtoms::div, nsnull,
                                            kNameSpaceID_XHTML,
                                            nsIDOMNode::ELEMENT_NODE);
+  NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
   rv = NS_NewHTMLElement(getter_AddRefs(mPlaceholderDiv), nodeInfo.forget(),
                          NOT_FROM_PARSER);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Create the text node for the placeholder text before doing anything else
-  nsRefPtr<nsTextNode> placeholderText = new nsTextNode(pNodeInfoManager);
+  rv = NS_NewTextNode(getter_AddRefs(placeholderText), pNodeInfoManager);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = mPlaceholderDiv->AppendChildTo(placeholderText, false);
+  rv = mPlaceholderDiv->AppendChildTo(placeholderText, PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // initialize the text
-  UpdatePlaceholderText(false);
+  UpdatePlaceholderText(PR_FALSE);
 
   return NS_OK;
 }
 
-bool
-nsTextEditorState::GetMaxLength(int32_t* aMaxLength)
+PRBool
+nsTextEditorState::GetMaxLength(PRInt32* aMaxLength)
 {
   nsCOMPtr<nsIContent> content = do_QueryInterface(mTextCtrlElement);
-  nsGenericHTMLElement* element =
-    nsGenericHTMLElement::FromContentOrNull(content);
-  NS_ENSURE_TRUE(element, false);
+  NS_ENSURE_TRUE(content, PR_FALSE);
+  nsGenericHTMLElement* element = nsGenericHTMLElement::FromContent(content);
+  NS_ENSURE_TRUE(element, PR_FALSE);
 
   const nsAttrValue* attr = element->GetParsedAttr(nsGkAtoms::maxlength);
   if (attr && attr->Type() == nsAttrValue::eInteger) {
     *aMaxLength = attr->GetIntegerValue();
 
-    return true;
+    return PR_TRUE;
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 void
-nsTextEditorState::GetValue(nsAString& aValue, bool aIgnoreWrap) const
+nsTextEditorState::GetValue(nsAString& aValue, PRBool aIgnoreWrap) const
 {
   if (mEditor && mBoundFrame && (mEditorInitialized || !IsSingleLineTextControl())) {
-    bool canCache = aIgnoreWrap && !IsSingleLineTextControl();
+    PRBool canCache = aIgnoreWrap && !IsSingleLineTextControl();
     if (canCache && !mCachedValue.IsEmpty()) {
       aValue = mCachedValue;
       return;
@@ -1708,7 +1673,7 @@ nsTextEditorState::GetValue(nsAString& aValue, bool aIgnoreWrap) const
 
     aValue.Truncate(); // initialize out param
 
-    uint32_t flags = (nsIDocumentEncoder::OutputLFLineBreak |
+    PRUint32 flags = (nsIDocumentEncoder::OutputLFLineBreak |
                       nsIDocumentEncoder::OutputPreformatted |
                       nsIDocumentEncoder::OutputPersistNBSP);
 
@@ -1761,8 +1726,7 @@ nsTextEditorState::GetValue(nsAString& aValue, bool aIgnoreWrap) const
 }
 
 void
-nsTextEditorState::SetValue(const nsAString& aValue, bool aUserInput,
-                            bool aSetValueChanged)
+nsTextEditorState::SetValue(const nsAString& aValue, PRBool aUserInput)
 {
   if (mEditor && mBoundFrame) {
     // The InsertText call below might flush pending notifications, which
@@ -1771,6 +1735,11 @@ nsTextEditorState::SetValue(const nsAString& aValue, bool aUserInput,
     // before InsertText returns.  This script blocker makes sure that
     // PrepareEditor cannot be called prematurely.
     nsAutoScriptBlocker scriptBlocker;
+
+    PRBool fireChangeEvent = mBoundFrame->GetFireChangeEventState();
+    if (aUserInput) {
+      mBoundFrame->SetFireChangeEventState(PR_TRUE);
+    }
 
 #ifdef DEBUG
     if (IsSingleLineTextControl()) {
@@ -1798,7 +1767,8 @@ nsTextEditorState::SetValue(const nsAString& aValue, bool aUserInput,
     // this is necessary to avoid infinite recursion
     if (!currentValue.Equals(aValue))
     {
-      nsTextControlFrame::ValueSetter valueSetter(mEditor);
+      nsTextControlFrame::ValueSetter valueSetter(mBoundFrame,
+                                                  mBoundFrame->mFocusedValue.Equals(currentValue));
 
       // \r is an illegal character in the dom, but people use them,
       // so convert windows and mac platform linebreaks to \n:
@@ -1835,8 +1805,8 @@ nsTextEditorState::SetValue(const nsAString& aValue, bool aUserInput,
         }
 
         nsCOMPtr<nsISelectionController> kungFuDeathGrip = mSelCon.get();
-        uint32_t currentLength = currentValue.Length();
-        uint32_t newlength = newValue.Length();
+        PRUint32 currentLength = currentValue.Length();
+        PRUint32 newlength = newValue.Length();
         if (!currentLength ||
             !StringBeginsWith(newValue, currentValue)) {
           // Replace the whole text.
@@ -1844,7 +1814,7 @@ nsTextEditorState::SetValue(const nsAString& aValue, bool aUserInput,
           mSelCon->SelectAll();
         } else {
           // Collapse selection to the end so that we can append data.
-          mBoundFrame->SelectAllOrCollapseToEndOfText(false);
+          mBoundFrame->SelectAllOrCollapseToEndOfText(PR_FALSE);
         }
         const nsAString& insertValue =
           StringTail(newValue, newlength - currentLength);
@@ -1858,30 +1828,29 @@ nsTextEditorState::SetValue(const nsAString& aValue, bool aUserInput,
 
         // get the flags, remove readonly and disabled, set the value,
         // restore flags
-        uint32_t flags, savedFlags;
+        PRUint32 flags, savedFlags;
         mEditor->GetFlags(&savedFlags);
         flags = savedFlags;
         flags &= ~(nsIPlaintextEditor::eEditorDisabledMask);
         flags &= ~(nsIPlaintextEditor::eEditorReadonlyMask);
+        flags |= nsIPlaintextEditor::eEditorUseAsyncUpdatesMask;
         flags |= nsIPlaintextEditor::eEditorDontEchoPassword;
         mEditor->SetFlags(flags);
 
-        mTextListener->SettingValue(true);
-        mTextListener->SetValueChanged(aSetValueChanged);
+        mTextListener->SettingValue(PR_TRUE);
 
         // Also don't enforce max-length here
-        int32_t savedMaxLength;
+        PRInt32 savedMaxLength;
         plaintextEditor->GetMaxTextLength(&savedMaxLength);
         plaintextEditor->SetMaxTextLength(-1);
 
         if (insertValue.IsEmpty()) {
-          mEditor->DeleteSelection(nsIEditor::eNone, nsIEditor::eStrip);
+          mEditor->DeleteSelection(nsIEditor::eNone);
         } else {
           plaintextEditor->InsertText(insertValue);
         }
 
-        mTextListener->SetValueChanged(true);
-        mTextListener->SettingValue(false);
+        mTextListener->SettingValue(PR_FALSE);
 
         if (!weakFrame.IsAlive()) {
           // If the frame was destroyed because of a flush somewhere inside
@@ -1890,7 +1859,7 @@ nsTextEditorState::SetValue(const nsAString& aValue, bool aUserInput,
           // the existing selection -- see bug 574558), in which case we don't
           // need to reset the value here.
           if (!mBoundFrame) {
-            SetValue(newValue, false, aSetValueChanged);
+            SetValue(newValue, PR_FALSE);
           }
           valueSetter.Cancel();
           return;
@@ -1906,6 +1875,22 @@ nsTextEditorState::SetValue(const nsAString& aValue, bool aUserInput,
           selPriv->EndBatchChanges();
       }
     }
+
+    // This second check _shouldn't_ be necessary, but let's be safe.
+    if (!weakFrame.IsAlive()) {
+      return;
+    }
+    nsIScrollableFrame* scrollableFrame = do_QueryFrame(mBoundFrame->GetFirstPrincipalChild());
+    if (scrollableFrame)
+    {
+      // Scroll the upper left corner of the text control's
+      // content area back into view.
+      scrollableFrame->ScrollTo(nsPoint(0, 0), nsIScrollableFrame::INSTANT);
+    }
+
+    if (aUserInput) {
+      mBoundFrame->SetFireChangeEventState(fireChangeEvent);
+    }
   } else {
     if (!mValue) {
       mValue = new nsCString;
@@ -1916,7 +1901,7 @@ nsTextEditorState::SetValue(const nsAString& aValue, bool aUserInput,
 
     // Update the frame display if needed
     if (mBoundFrame) {
-      mBoundFrame->UpdateValueDisplay(true);
+      mBoundFrame->UpdateValueDisplay(PR_TRUE);
     }
   }
 
@@ -1931,18 +1916,21 @@ void
 nsTextEditorState::InitializeKeyboardEventListeners()
 {
   //register key listeners
-  nsCOMPtr<EventTarget> target = do_QueryInterface(mTextCtrlElement);
-  nsEventListenerManager* manager = target->GetListenerManager(true);
+  nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(mTextCtrlElement);
+  nsEventListenerManager* manager = target->GetListenerManager(PR_TRUE);
   if (manager) {
     manager->AddEventListenerByType(mTextListener,
                                     NS_LITERAL_STRING("keydown"),
-                                    dom::TrustedEventsAtSystemGroupBubble());
+                                    NS_EVENT_FLAG_BUBBLE |
+                                    NS_EVENT_FLAG_SYSTEM_EVENT);
     manager->AddEventListenerByType(mTextListener,
                                     NS_LITERAL_STRING("keypress"),
-                                    dom::TrustedEventsAtSystemGroupBubble());
+                                    NS_EVENT_FLAG_BUBBLE |
+                                    NS_EVENT_FLAG_SYSTEM_EVENT);
     manager->AddEventListenerByType(mTextListener,
                                     NS_LITERAL_STRING("keyup"),
-                                    dom::TrustedEventsAtSystemGroupBubble());
+                                    NS_EVENT_FLAG_BUBBLE |
+                                    NS_EVENT_FLAG_SYSTEM_EVENT);
   }
 
   mSelCon->SetScrollableFrame(do_QueryFrame(mBoundFrame->GetFirstPrincipalChild()));
@@ -1956,18 +1944,27 @@ nsTextEditorState::ShutDown()
 }
 
 void
-nsTextEditorState::ValueWasChanged(bool aNotify)
+nsTextEditorState::ValueWasChanged(PRBool aNotify)
 {
   // placeholder management
   if (!mPlaceholderDiv) {
     return;
   }
 
-  UpdatePlaceholderVisibility(aNotify);
+  PRBool showPlaceholder = PR_FALSE;
+  nsCOMPtr<nsIContent> content = do_QueryInterface(mTextCtrlElement);
+  if (!nsContentUtils::IsFocusedContent(content)) {
+    // If the content is focused, we don't care about the changes because
+    // the placeholder is going to be hidden/shown on blur.
+    nsAutoString valueString;
+    GetValue(valueString, PR_TRUE);
+    showPlaceholder = valueString.IsEmpty();
+  }
+  SetPlaceholderClass(showPlaceholder, aNotify);
 }
 
 void
-nsTextEditorState::UpdatePlaceholderText(bool aNotify)
+nsTextEditorState::UpdatePlaceholderText(PRBool aNotify)
 {
   NS_ASSERTION(mPlaceholderDiv, "This function should not be called if "
                                 "mPlaceholderDiv isn't set");
@@ -1987,25 +1984,28 @@ nsTextEditorState::UpdatePlaceholderText(bool aNotify)
 }
 
 void
-nsTextEditorState::UpdatePlaceholderVisibility(bool aNotify)
+nsTextEditorState::SetPlaceholderClass(PRBool aVisible,
+                                       PRBool aNotify)
 {
   NS_ASSERTION(mPlaceholderDiv, "This function should not be called if "
                                 "mPlaceholderDiv isn't set");
 
-  nsAutoString value;
-  GetValue(value, true);
+  // No need to do anything if we don't have a frame yet
+  if (!mBoundFrame)
+    return;
 
-  mPlaceholderVisibility = value.IsEmpty();
+  nsAutoString classValue;
 
-  if (mPlaceholderVisibility &&
-      !Preferences::GetBool("dom.placeholder.show_on_focus", true)) {
-    nsCOMPtr<nsIContent> content = do_QueryInterface(mTextCtrlElement);
-    mPlaceholderVisibility = !nsContentUtils::IsFocusedContent(content);
-  }
+  classValue.Assign(NS_LITERAL_STRING("anonymous-div placeholder"));
 
-  if (mBoundFrame && aNotify) {
-    mBoundFrame->InvalidateFrame();
-  }
+  if (!aVisible)
+    classValue.AppendLiteral(" hidden");
+
+  nsIContent* placeholderDiv = GetPlaceholderNode();
+  NS_ENSURE_TRUE(placeholderDiv, );
+
+  placeholderDiv->SetAttr(kNameSpaceID_None, nsGkAtoms::_class,
+                          classValue, aNotify);
 }
 
 void
@@ -2032,7 +2032,7 @@ void
 nsAnonDivObserver::ContentAppended(nsIDocument* aDocument,
                                    nsIContent*  aContainer,
                                    nsIContent*  aFirstNewContent,
-                                   int32_t      /* unused */)
+                                   PRInt32      /* unused */)
 {
   mTextEditorState->ClearValueCache();
 }
@@ -2041,7 +2041,7 @@ void
 nsAnonDivObserver::ContentInserted(nsIDocument* aDocument,
                                    nsIContent*  aContainer,
                                    nsIContent*  aChild,
-                                   int32_t      /* unused */)
+                                   PRInt32      /* unused */)
 {
   mTextEditorState->ClearValueCache();
 }
@@ -2050,7 +2050,7 @@ void
 nsAnonDivObserver::ContentRemoved(nsIDocument* aDocument,
                                   nsIContent*  aContainer,
                                   nsIContent*  aChild,
-                                  int32_t      aIndexInContainer,
+                                  PRInt32      aIndexInContainer,
                                   nsIContent*  aPreviousSibling)
 {
   mTextEditorState->ClearValueCache();

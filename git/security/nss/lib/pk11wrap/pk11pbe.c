@@ -1,6 +1,38 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape security libraries.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1994-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "plarena.h"
 
@@ -26,7 +58,7 @@
 
 typedef struct SEC_PKCS5PBEParameterStr SEC_PKCS5PBEParameter;
 struct SEC_PKCS5PBEParameterStr {
-    PLArenaPool     *poolp;
+    PRArenaPool     *poolp;
     SECItem         salt;           /* octet string */
     SECItem         iteration;      /* integer */
     SECItem         keyLength;	/* PKCS5v2 only */
@@ -39,7 +71,7 @@ struct SEC_PKCS5PBEParameterStr {
  * and SEC_OID_PKCS5_PBMAC1
  */
 struct sec_pkcs5V2ParameterStr {
-    PLArenaPool    *poolp;
+    PRArenaPool    *poolp;
     SECAlgorithmID pbeAlgId;   /* real pbe algorithms */
     SECAlgorithmID cipherAlgId; /* encryption/mac */
 };
@@ -144,9 +176,9 @@ sec_pkcs5GetCryptoFromAlgTag(SECOidTag algorithm)
  *  if arena is passed in, use it, otherwise create a new arena.
  */
 sec_pkcs5V2Parameter *
-sec_pkcs5_v2_get_v2_param(PLArenaPool *arena, SECAlgorithmID *algid)
+sec_pkcs5_v2_get_v2_param(PRArenaPool *arena, SECAlgorithmID *algid)
 {
-    PLArenaPool *localArena = NULL;
+    PRArenaPool *localArena = NULL;
     sec_pkcs5V2Parameter *pbeV2_param;
     SECStatus rv;
 
@@ -313,7 +345,7 @@ int
 sec_pkcs5v2_key_length(SECAlgorithmID *algid)
 {
     SECOidTag algorithm;
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
     SEC_PKCS5PBEParameter p5_param;
     SECStatus rv;
     int length = -1;
@@ -471,7 +503,7 @@ sec_pkcs5_create_pbe_parameter(SECOidTag algorithm,
 			int keyLength,
 			SECOidTag prfAlg)
 {
-    PLArenaPool *poolp = NULL;
+    PRArenaPool *poolp = NULL;
     SEC_PKCS5PBEParameter *pbe_param = NULL;
     SECStatus rv= SECSuccess; 
     void *dummy = NULL;
@@ -559,7 +591,7 @@ sec_pkcs5CreateAlgorithmID(SECOidTag algorithm,
 			   SECItem *salt, 
 			   int iteration)
 {
-    PLArenaPool *poolp = NULL;
+    PRArenaPool *poolp = NULL;
     SECAlgorithmID *algid, *ret_algid = NULL;
     SECOidTag pbeAlgorithm = algorithm;
     SECItem der_param;
@@ -740,7 +772,7 @@ pbe_PK11AlgidToParam(SECAlgorithmID *algid,SECItem *mech)
     SEC_PKCS5PBEParameter p5_param;
     SECItem *salt = NULL;
     SECOidTag algorithm = SECOID_GetAlgorithmTag(algid);
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
     SECStatus rv = SECFailure;
     unsigned char *paramData = NULL;
     unsigned char *pSalt = NULL;
@@ -868,7 +900,7 @@ loser:
  * PBE algorithmID's directly.
  */
 SECStatus
-PBE_PK11ParamToAlgid(SECOidTag algTag, SECItem *param, PLArenaPool *arena,
+PBE_PK11ParamToAlgid(SECOidTag algTag, SECItem *param, PRArenaPool *arena, 
 		     SECAlgorithmID *algId)
 {
     CK_PBE_PARAMS *pbe_param;

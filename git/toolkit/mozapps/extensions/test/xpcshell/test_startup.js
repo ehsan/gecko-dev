@@ -115,7 +115,7 @@ var gCachePurged = false;
 
 // Set up the profile
 function run_test() {
-  do_test_pending("test_startup main");
+  do_test_pending();
 
   let obs = AM_Cc["@mozilla.org/observer-service;1"].
     getService(AM_Ci.nsIObserverService);
@@ -131,13 +131,6 @@ function run_test() {
   check_startup_changes(AddonManager.STARTUP_CHANGE_UNINSTALLED, []);
   check_startup_changes(AddonManager.STARTUP_CHANGE_DISABLED, []);
   check_startup_changes(AddonManager.STARTUP_CHANGE_ENABLED, []);
-
-  let file = gProfD.clone();
-  file.append("extensions.sqlite");
-  do_check_false(file.exists());
-
-  file.leafName = "extensions.ini";
-  do_check_false(file.exists());
 
   AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
                                "addon2@tests.mozilla.org",
@@ -157,12 +150,12 @@ function run_test() {
     do_check_eq(a4, null);
     do_check_eq(a5, null);
 
-    do_execute_soon(run_test_1);
+    run_test_1();
   });
 }
 
 function end_test() {
-  do_test_finished("test_startup main");
+  do_test_finished();
 }
 
 // Try to install all the items into the profile
@@ -190,13 +183,6 @@ function run_test_1() {
   check_startup_changes(AddonManager.STARTUP_CHANGE_ENABLED, []);
   do_check_true(gCachePurged);
 
-  let file = gProfD.clone();
-  file.append("extensions.sqlite");
-  do_check_true(file.exists());
-
-  file.leafName = "extensions.ini";
-  do_check_true(file.exists());
-
   AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
                                "addon2@tests.mozilla.org",
                                "addon3@tests.mozilla.org",
@@ -208,8 +194,6 @@ function run_test_1() {
 
     do_check_neq(a1, null);
     do_check_eq(a1.id, "addon1@tests.mozilla.org");
-    do_check_neq(a1.syncGUID, null);
-    do_check_true(a1.syncGUID.length >= 9);
     do_check_eq(a1.version, "1.0");
     do_check_eq(a1.name, "Test 1");
     do_check_true(isExtensionInAddonsList(profileDir, a1.id));
@@ -222,8 +206,6 @@ function run_test_1() {
 
     do_check_neq(a2, null);
     do_check_eq(a2.id, "addon2@tests.mozilla.org");
-    do_check_neq(a2.syncGUID, null);
-    do_check_true(a2.syncGUID.length >= 9);
     do_check_eq(a2.version, "2.0");
     do_check_eq(a2.name, "Test 2");
     do_check_true(isExtensionInAddonsList(profileDir, a2.id));
@@ -236,8 +218,6 @@ function run_test_1() {
 
     do_check_neq(a3, null);
     do_check_eq(a3.id, "addon3@tests.mozilla.org");
-    do_check_neq(a3.syncGUID, null);
-    do_check_true(a3.syncGUID.length >= 9);
     do_check_eq(a3.version, "3.0");
     do_check_eq(a3.name, "Test 3");
     do_check_true(isExtensionInAddonsList(profileDir, a3.id));
@@ -275,7 +255,7 @@ function run_test_1() {
     AddonManager.getAddonsByTypes(["extension"], function(extensionAddons) {
       do_check_eq(extensionAddons.length, 3);
 
-      do_execute_soon(run_test_2);
+      run_test_2();
     });
   });
 }
@@ -303,10 +283,6 @@ function run_test_2() {
   check_startup_changes(AddonManager.STARTUP_CHANGE_DISABLED, []);
   check_startup_changes(AddonManager.STARTUP_CHANGE_ENABLED, []);
   do_check_true(gCachePurged);
-
-  var file = gProfD.clone();
-  file.append("extensions.ini");
-  do_check_true(file.exists());
 
   AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
                                "addon2@tests.mozilla.org",
@@ -348,7 +324,7 @@ function run_test_2() {
     do_check_eq(a5, null);
     do_check_false(isExtensionInAddonsList(profileDir, "addon5@tests.mozilla.org"));
 
-    do_execute_soon(run_test_3);
+    run_test_3();
   });
 }
 
@@ -413,7 +389,7 @@ function run_test_3() {
     dest.append(do_get_expected_addon_name("addon4@tests.mozilla.org"));
     do_check_false(dest.exists());
 
-    do_execute_soon(run_test_4);
+    run_test_4();
   });
 }
 
@@ -452,7 +428,7 @@ function run_test_4() {
     do_check_in_crash_annotation(addon2.id, a2.version);
     do_check_eq(a2.scope, AddonManager.SCOPE_SYSTEM);
 
-    do_execute_soon(run_test_5);
+    run_test_5();
   });
 }
 
@@ -497,7 +473,7 @@ function run_test_5() {
     do_check_in_crash_annotation(addon2.id, a2.version);
     do_check_eq(a2.scope, AddonManager.SCOPE_USER);
 
-    do_execute_soon(run_test_6);
+    run_test_6();
   });
 }
 
@@ -542,7 +518,7 @@ function run_test_6() {
     do_check_in_crash_annotation(addon2.id, a2.version);
     do_check_eq(a2.scope, AddonManager.SCOPE_USER);
 
-    do_execute_soon(run_test_7);
+    run_test_7();
   });
 }
 
@@ -601,7 +577,7 @@ function run_test_7() {
     do_check_eq(a5, null);
     do_check_false(isExtensionInAddonsList(profileDir, "addon5@tests.mozilla.org"));
 
-    do_execute_soon(run_test_8);
+    run_test_8();
   });
 }
 
@@ -640,7 +616,7 @@ function run_test_8() {
     do_check_false(isExtensionInAddonsList(userDir, "addon2@tests.mozilla.org"));
     do_check_false(isExtensionInAddonsList(globalDir, "addon2@tests.mozilla.org"));
 
-    do_execute_soon(run_test_9);
+    run_test_9();
   });
 }
 
@@ -701,7 +677,7 @@ function run_test_9() {
     do_check_eq(a5, null);
     do_check_false(isExtensionInAddonsList(profileDir, "addon5@tests.mozilla.org"));
 
-    do_execute_soon(run_test_10);
+    run_test_10();
   });
 }
 
@@ -758,7 +734,7 @@ function run_test_10() {
     do_check_eq(a5, null);
     do_check_false(isExtensionInAddonsList(profileDir, "addon5@tests.mozilla.org"));
 
-    do_execute_soon(run_test_11);
+    run_test_11();
   });
 }
 
@@ -811,7 +787,7 @@ function run_test_11() {
     do_check_not_in_crash_annotation(addon1.id, addon1.version);
     do_check_not_in_crash_annotation(addon2.id, addon2.version);
 
-    do_execute_soon(run_test_12);
+    run_test_12();
   });
 }
 

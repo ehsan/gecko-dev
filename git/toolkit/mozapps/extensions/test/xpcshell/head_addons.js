@@ -8,14 +8,6 @@ const AM_Ci = Components.interfaces;
 const XULAPPINFO_CONTRACTID = "@mozilla.org/xre/app-info;1";
 const XULAPPINFO_CID = Components.ID("{c763b610-9d49-455a-bbd2-ede71682a1ac}");
 
-const PREF_EM_CHECK_UPDATE_SECURITY   = "extensions.checkUpdateSecurity";
-const PREF_EM_STRICT_COMPATIBILITY    = "extensions.strictCompatibility";
-const PREF_EM_MIN_COMPAT_APP_VERSION      = "extensions.minCompatibleAppVersion";
-const PREF_EM_MIN_COMPAT_PLATFORM_VERSION = "extensions.minCompatiblePlatformVersion";
-
-// Forcibly end the test if it runs longer than 15 minutes
-const TIMEOUT_MS = 900000;
-
 Components.utils.import("resource://gre/modules/AddonManager.jsm");
 Components.utils.import("resource://gre/modules/AddonRepository.jsm");
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
@@ -27,20 +19,7 @@ var gInternalManager = null;
 var gAppInfo = null;
 var gAddonsList;
 
-var gPort = null;
-var gUrlToFileMap = {};
-
 var TEST_UNPACKED = false;
-
-function isNightlyChannel() {
-  var channel = "default";
-  try {
-    channel = Services.prefs.getCharPref("app.update.channel");
-  }
-  catch (e) { }
-
-  return channel != "aurora" && channel != "beta" && channel != "release" && channel != "esr";
-}
 
 function createAppInfo(id, name, version, platformVersion) {
   gAppInfo = {
@@ -106,8 +85,7 @@ function do_check_in_crash_annotation(aId, aVersion) {
   }
 
   let addons = gAppInfo.annotations["Add-ons"].split(",");
-  do_check_false(addons.indexOf(encodeURIComponent(aId) + ":" +
-                                encodeURIComponent(aVersion)) < 0);
+  do_check_false(addons.indexOf(aId + ":" + aVersion) < 0);
 }
 
 /**
@@ -129,8 +107,7 @@ function do_check_not_in_crash_annotation(aId, aVersion) {
   }
 
   let addons = gAppInfo.annotations["Add-ons"].split(",");
-  do_check_true(addons.indexOf(encodeURIComponent(aId) + ":" +
-                               encodeURIComponent(aVersion)) < 0);
+  do_check_true(addons.indexOf(aId + ":" + aVersion) < 0);
 }
 
 /**
@@ -138,7 +115,7 @@ function do_check_not_in_crash_annotation(aId, aVersion) {
  *
  * @param  aName
  *         The name of the testcase (without extension)
- * @return an nsIFile pointing to the testcase xpi
+ * @return an nsILocalFile pointing to the testcase xpi
  */
 function do_get_addon(aName) {
   return do_get_file("addons/" + aName + ".xpi");
@@ -228,17 +205,10 @@ function do_check_addon(aActualAddon, aExpectedAddon, aProperties) {
 
     // Check that all undefined expected properties are null on actual add-on
     if (!(aProperty in aExpectedAddon)) {
-      if (actualValue !== undefined && actualValue !== null) {
+      if (actualValue !== undefined && actualValue !== null)
         do_throw("Unexpected defined/non-null property for add-on " +
-                 aExpectedAddon.id + " (addon[" + aProperty + "] = " +
-                 actualValue.toSource() + ")");
-      }
+                 aExpectedAddon.id + " (addon[" + aProperty + "] = " + actualValue);
 
-      return;
-    }
-    else if (expectedValue && !actualValue) {
-      do_throw("Missing property for add-on " + aExpectedAddon.id +
-        ": expected addon[" + aProperty + "] = " + expectedValue);
       return;
     }
 
@@ -269,18 +239,8 @@ function do_check_addon(aActualAddon, aExpectedAddon, aProperties) {
         do_check_eq(actualValue.getTime(), expectedValue.getTime());
         break;
 
-      case "compatibilityOverrides":
-        do_check_eq(actualValue.length, expectedValue.length);
-        for (let i = 0; i < actualValue.length; i++)
-          do_check_compatibilityoverride(actualValue[i], expectedValue[i]);
-        break;
-
-      case "icons":
-        do_check_icons(actualValue, expectedValue);
-        break;
-
       default:
-        if (remove_port(actualValue) !== remove_port(expectedValue))
+        if (actualValue !== expectedValue)
           do_throw("Failed for " + aProperty + " for add-on " + aExpectedAddon.id +
                    " (" + actualValue + " === " + expectedValue + ")");
     }
@@ -318,30 +278,6 @@ function do_check_screenshot(aActual, aExpected) {
   do_check_eq(aActual.thumbnailWidth, aExpected.thumbnailWidth);
   do_check_eq(aActual.thumbnailHeight, aExpected.thumbnailHeight);
   do_check_eq(aActual.caption, aExpected.caption);
-}
-
-/**
- * Check that the actual compatibility override is the same as the expected
- * compatibility override.
- *
- * @param  aAction
- *         The actual compatibility override to check.
- * @param  aExpected
- *         The expected compatibility override to check against.
- */
-function do_check_compatibilityoverride(aActual, aExpected) {
-  do_check_eq(aActual.type, aExpected.type);
-  do_check_eq(aActual.minVersion, aExpected.minVersion);
-  do_check_eq(aActual.maxVersion, aExpected.maxVersion);
-  do_check_eq(aActual.appID, aExpected.appID);
-  do_check_eq(aActual.appMinVersion, aExpected.appMinVersion);
-  do_check_eq(aActual.appMaxVersion, aExpected.appMaxVersion);
-}
-
-function do_check_icons(aActual, aExpected) {
-  for (var size in aExpected) {
-    do_check_eq(remove_port(aActual[size]), remove_port(aExpected[size]));
-  }
 }
 
 /**
@@ -416,8 +352,7 @@ function shutdownManager() {
   }, "addon-repository-shutdown", false);
 
   obs.notifyObservers(null, "quit-application-granted", null);
-  let scope = Components.utils.import("resource://gre/modules/AddonManager.jsm");
-  scope.AddonManagerInternal.shutdown();
+  gInternalManager.observe(null, "xpcom-shutdown", null);
   gInternalManager = null;
 
   AddonRepository.shutdown();
@@ -438,9 +373,9 @@ function shutdownManager() {
       thr.processNextEvent(false);
   }
 
-  // Force the XPIProvider provider to reload to better
-  // simulate real-world usage.
-  scope = Components.utils.import("resource://gre/modules/XPIProvider.jsm");
+  // Force the XPIProvider provider to reload since it defines some constants on
+  // load that need to change during tests
+  let scope = Components.utils.import("resource://gre/modules/XPIProvider.jsm");
   AddonManagerPrivate.unregisterProvider(scope.XPIProvider);
   Components.utils.unload("resource://gre/modules/XPIProvider.jsm");
 }
@@ -453,7 +388,7 @@ function loadAddonsList() {
       let descriptor = parser.getString(aSection, keys.getNext());
       try {
         let file = AM_Cc["@mozilla.org/file/local;1"].
-                   createInstance(AM_Ci.nsIFile);
+                   createInstance(AM_Ci.nsILocalFile);
         file.persistentDescriptor = descriptor;
         dirs.push(file);
       }
@@ -489,8 +424,6 @@ function isItemInAddonsList(aType, aDir, aId) {
   xpiPath.append(aId + ".xpi");
   for (var i = 0; i < gAddonsList[aType].length; i++) {
     let file = gAddonsList[aType][i];
-    if (!file.exists())
-      do_throw("Non-existant path found in extensions.ini: " + file.path)
     if (file.isDirectory() && file.equals(path))
       return true;
     if (file.isFile() && file.equals(xpiPath))
@@ -511,8 +444,12 @@ function check_startup_changes(aType, aIds) {
   var ids = aIds.slice(0);
   ids.sort();
   var changes = AddonManager.getStartupChanges(aType);
-  changes = changes.filter(function(aEl) /@tests.mozilla.org$/.test(aEl));
   changes.sort();
+
+  // Remove the default theme if it is in the list
+  var pos = changes.indexOf("{972ce4c6-7e08-4474-a285-3208198ce6fd}");
+  if (pos != -1)
+    changes.splice(pos, 1);
 
   do_check_eq(JSON.stringify(ids), JSON.stringify(changes));
 }
@@ -557,7 +494,7 @@ function createInstallRDF(aData) {
 
   ["id", "version", "type", "internalName", "updateURL", "updateKey",
    "optionsURL", "optionsType", "aboutURL", "iconURL", "icon64URL",
-   "skinnable", "bootstrap", "strictCompatibility"].forEach(function(aProp) {
+   "skinnable", "bootstrap"].forEach(function(aProp) {
     if (aProp in aData)
       rdf += "<em:" + aProp + ">" + escapeXML(aData[aProp]) + "</em:" + aProp + ">\n";
   });
@@ -615,7 +552,7 @@ function createInstallRDF(aData) {
 function writeInstallRDFToDir(aData, aDir, aExtraFile) {
   var rdf = createInstallRDF(aData);
   if (!aDir.exists())
-    aDir.create(AM_Ci.nsIFile.DIRECTORY_TYPE, FileUtils.PERMS_DIRECTORY);
+    aDir.create(AM_Ci.nsIFile.DIRECTORY_TYPE, 0755);
   var file = aDir.clone();
   file.append("install.rdf");
   if (file.exists())
@@ -633,7 +570,7 @@ function writeInstallRDFToDir(aData, aDir, aExtraFile) {
 
   file = aDir.clone();
   file.append(aExtraFile);
-  file.create(AM_Ci.nsIFile.NORMAL_FILE_TYPE, FileUtils.PERMS_FILE);
+  file.create(AM_Ci.nsIFile.NORMAL_FILE_TYPE, 0644);
 }
 
 /**
@@ -665,7 +602,7 @@ function writeInstallRDFForExtension(aData, aDir, aId, aExtraFile) {
   }
 
   if (!dir.exists())
-    dir.create(AM_Ci.nsIFile.DIRECTORY_TYPE, FileUtils.PERMS_DIRECTORY);
+    dir.create(AM_Ci.nsIFile.DIRECTORY_TYPE, 0755);
   dir.append(id + ".xpi");
   var rdf = createInstallRDF(aData);
   var stream = AM_Cc["@mozilla.org/io/string-input-stream;1"].
@@ -700,67 +637,6 @@ function setExtensionModifiedTime(aExt, aTime) {
       setExtensionModifiedTime(entries.nextFile, aTime);
     entries.close();
   }
-}
-
-/**
- * Manually installs an XPI file into an install location by either copying the
- * XPI there or extracting it depending on whether unpacking is being tested
- * or not.
- *
- * @param aXPIFile
- *        The XPI file to install.
- * @param aInstallLocation
- *        The install location (an nsIFile) to install into.
- * @param aID
- *        The ID to install as.
- */
-function manuallyInstall(aXPIFile, aInstallLocation, aID) {
-  if (TEST_UNPACKED) {
-    let dir = aInstallLocation.clone();
-    dir.append(aID);
-    dir.create(AM_Ci.nsIFile.DIRECTORY_TYPE, FileUtils.PERMS_DIRECTORY);
-    let zip = AM_Cc["@mozilla.org/libjar/zip-reader;1"].
-              createInstance(AM_Ci.nsIZipReader);
-    zip.open(aXPIFile);
-    let entries = zip.findEntries(null);
-    while (entries.hasMore()) {
-      let entry = entries.getNext();
-      let target = dir.clone();
-      entry.split("/").forEach(function(aPart) {
-        target.append(aPart);
-      });
-      zip.extract(entry, target);
-    }
-    zip.close();
-
-    return dir;
-  }
-  else {
-    let target = aInstallLocation.clone();
-    target.append(aID + ".xpi");
-    aXPIFile.copyTo(target.parent, target.leafName);
-    return target;
-  }
-}
-
-/**
- * Manually uninstalls an add-on by removing its files from the install
- * location.
- *
- * @param aInstallLocation
- *        The nsIFile of the install location to remove from.
- * @param aID
- *        The ID of the add-on to remove.
- */
-function manuallyUninstall(aInstallLocation, aID) {
-  let file = getFileForAddon(aInstallLocation, aID);
-
-  // In reality because the app is restarted a flush isn't necessary for XPIs
-  // removed outside the app, but for testing we must flush manually.
-  if (file.isFile())
-    Services.obs.notifyObservers(file, "flush-cache-entry", null);
-
-  file.remove(true);
 }
 
 /**
@@ -965,11 +841,7 @@ const InstallListener = {
   },
 
   onInstallCancelled: function(install) {
-    // If the install was cancelled by a listener returning false from
-    // onInstallStarted, then the state will revert to STATE_DOWNLOADED.
-    let possibleStates = [AddonManager.STATE_CANCELLED,
-                          AddonManager.STATE_DOWNLOADED];
-    do_check_true(possibleStates.indexOf(install.state) != -1);
+    do_check_eq(install.state, AddonManager.STATE_CANCELLED);
     do_check_eq(install.error, 0);
     do_check_eq("onInstallCancelled", getExpectedInstall(install.addon));
     return check_test_completed(arguments);
@@ -1049,7 +921,7 @@ function completeAllInstalls(aInstalls, aCallback) {
     aInstall.removeListener(listener);
 
     if (--count == 0)
-      do_execute_soon(aCallback);
+      aCallback();
   }
 
   let listener = {
@@ -1183,9 +1055,9 @@ if ("nsIWindowsRegKey" in AM_Ci) {
     },
 
     readStringValue: function(aName) {
-      for (let value of this.values) {
-        if (value.name == aName)
-          return value.value;
+      for (let i = 0; i < this.values.length; i++) {
+        if (this.values[i].name == aName)
+          return this.values[i].value;
       }
     }
   };
@@ -1207,7 +1079,7 @@ if ("nsIWindowsRegKey" in AM_Ci) {
 }
 
 // Get the profile directory for tests to use.
-const gProfD = do_get_profile();
+const gProfD = do_get_profile().QueryInterface(AM_Ci.nsILocalFile);
 
 // Enable more extensive EM logging
 Services.prefs.setBoolPref("extensions.logging.enabled", true);
@@ -1226,21 +1098,10 @@ Services.prefs.setBoolPref("extensions.showMismatchUI", false);
 
 // Point update checks to the local machine for fast failures
 Services.prefs.setCharPref("extensions.update.url", "http://127.0.0.1/updateURL");
-Services.prefs.setCharPref("extensions.update.background.url", "http://127.0.0.1/updateBackgroundURL");
 Services.prefs.setCharPref("extensions.blocklist.url", "http://127.0.0.1/blocklistURL");
 
 // By default ignore bundled add-ons
 Services.prefs.setBoolPref("extensions.installDistroAddons", false);
-
-// By default use strict compatibility
-Services.prefs.setBoolPref("extensions.strictCompatibility", true);
-
-// By default don't check for hotfixes
-Services.prefs.setCharPref("extensions.hotfix.id", "");
-
-// By default, set min compatible versions to 0
-Services.prefs.setCharPref(PREF_EM_MIN_COMPAT_APP_VERSION, "0");
-Services.prefs.setCharPref(PREF_EM_MIN_COMPAT_PLATFORM_VERSION, "0");
 
 // Register a temporary directory for the tests.
 const gTmpD = gProfD.clone();
@@ -1263,30 +1124,7 @@ var data = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
 stream.write(data, data.length);
 stream.close();
 
-// Throw a failure and attempt to abandon the test if it looks like it is going
-// to timeout
-function timeout() {
-  timer = null;
-  do_throw("Test ran longer than " + TIMEOUT_MS + "ms");
-
-  // Attempt to bail out of the test
-  do_test_finished();
-}
-
-var timer = AM_Cc["@mozilla.org/timer;1"].createInstance(AM_Ci.nsITimer);
-timer.init(timeout, TIMEOUT_MS, AM_Ci.nsITimer.TYPE_ONE_SHOT);
-
-// Make sure that a given path does not exist
-function pathShouldntExist(aPath) {
-  if (aPath.exists()) {
-    do_throw("Test cleanup: path " + aPath.path + " exists when it should not");
-  }
-}
-
-do_register_cleanup(function addon_cleanup() {
-  if (timer)
-    timer.cancel();
-
+do_register_cleanup(function() {
   // Check that the temporary directory is empty
   var dirEntries = gTmpD.directoryEntries
                         .QueryInterface(AM_Ci.nsIDirectoryEnumerator);
@@ -1299,108 +1137,13 @@ do_register_cleanup(function addon_cleanup() {
   var testDir = gProfD.clone();
   testDir.append("extensions");
   testDir.append("trash");
-  pathShouldntExist(testDir);
+  do_check_false(testDir.exists());
 
   testDir.leafName = "staged";
-  pathShouldntExist(testDir);
+  do_check_false(testDir.exists());
 
   testDir.leafName = "staged-xpis";
-  pathShouldntExist(testDir);
+  do_check_false(testDir.exists());
 
   shutdownManager();
-
-  // Clear commonly set prefs.
-  try {
-    Services.prefs.clearUserPref(PREF_EM_CHECK_UPDATE_SECURITY);
-  } catch (e) {}
-  try {
-    Services.prefs.clearUserPref(PREF_EM_STRICT_COMPATIBILITY);
-  } catch (e) {}
 });
-
-/**
- * Handler function that responds with the interpolated
- * static file associated to the URL specified by request.path.
- * This replaces the %PORT% entries in the file with the actual
- * value of the running server's port (stored in gPort).
- */
-function interpolateAndServeFile(request, response) {
-  try {
-    let file = gUrlToFileMap[request.path];
-    var data = "";
-    var fstream = Components.classes["@mozilla.org/network/file-input-stream;1"].
-    createInstance(Components.interfaces.nsIFileInputStream);
-    var cstream = Components.classes["@mozilla.org/intl/converter-input-stream;1"].
-    createInstance(Components.interfaces.nsIConverterInputStream);
-    fstream.init(file, -1, 0, 0);
-    cstream.init(fstream, "UTF-8", 0, 0);
-
-    let (str = {}) {
-      let read = 0;
-      do {
-        // read as much as we can and put it in str.value
-        read = cstream.readString(0xffffffff, str);
-        data += str.value;
-      } while (read != 0);
-    }
-    data = data.replace(/%PORT%/g, gPort);
-
-    response.write(data);
-  } catch (e) {
-    do_throw("Exception while serving interpolated file.");
-  } finally {
-    cstream.close(); // this closes fstream as well
-  }
-}
-
-/**
- * Sets up a path handler for the given URL and saves the
- * corresponding file in the global url -> file map.
- *
- * @param  url
- *         the actual URL
- * @param  file
- *         nsILocalFile representing a static file
- */
-function mapUrlToFile(url, file, server) {
-  server.registerPathHandler(url, interpolateAndServeFile);
-  gUrlToFileMap[url] = file;
-}
-
-function mapFile(path, server) {
-  mapUrlToFile(path, do_get_file(path), server);
-}
-
-/**
- * Take out the port number in an URL
- *
- * @param url
- *        String that represents an URL with a port number in it
- */
-function remove_port(url) {
-  if (typeof url === "string")
-    return url.replace(/:\d+/, "");
-  return url;
-}
-// Wrap a function (typically a callback) to catch and report exceptions
-function do_exception_wrap(func) {
-  return function() {
-    try {
-      func.apply(null, arguments);
-    }
-    catch(e) {
-      do_report_unexpected_exception(e);
-    }
-  };
-}
-
-/**
- * Create a callback function that calls do_execute_soon on an actual callback and arguments
- */
-function callback_soon(aFunction) {
-  return function(...args) {
-    do_execute_soon(function() {
-      aFunction.apply(null, args);
-    }, aFunction.name ? "delayed callback " + aFunction.name : "delayed callback");
-  }
-}

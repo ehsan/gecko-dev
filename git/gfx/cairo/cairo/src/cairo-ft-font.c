@@ -1351,7 +1351,6 @@ _render_glyph_outline (FT_Face                    face,
 	    } else {
 		rgba = FC_RGBA_RGB;
 	    }
-            break;
 	case FT_RENDER_MODE_LCD_V:
 	    if (font_options->subpixel_order == CAIRO_SUBPIXEL_ORDER_VBGR) {
 		rgba = FC_RGBA_VBGR;
@@ -1369,11 +1368,7 @@ _render_glyph_outline (FT_Face                    face,
 
         if (!initialized_setLcdFilter) {
           initialized_setLcdFilter = 1;
-#ifdef HAVE_FT_LIBRARY_SETLCDFILTER
-	  setLcdFilter = &FT_Library_SetLcdFilter;
-#else
           setLcdFilter = (setLcdFilterFunc) dlsym(RTLD_DEFAULT, "FT_Library_SetLcdFilter");
-#endif
         }
 
 	if (setLcdFilter)

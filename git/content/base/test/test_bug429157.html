@@ -15,17 +15,13 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=429157
 
 <script>
 var missingPlugins = new Array();
-const OBJLC = SpecialPowers.Ci.nsIObjectLoadingContent;
 
-function pluginBindingAttached(event)
+function pluginNotFound(event)
 {
-  var plugin = event.target;
-  plugin instanceof OBJLC;
-  if (SpecialPowers.wrap(plugin).pluginFallbackType == OBJLC.PLUGIN_UNSUPPORTED)
-    missingPlugins.push(plugin);
+  missingPlugins.push(event.target);
 }
 
-document.addEventListener("PluginBindingAttached", pluginBindingAttached, true);
+document.addEventListener("PluginNotFound", pluginNotFound, false);
 </script>
 
 <object id="obj1" type="image/png"    >ALT image/png</object><br>
@@ -36,15 +32,9 @@ document.addEventListener("PluginBindingAttached", pluginBindingAttached, true);
 <script class="testbody" type="text/javascript">
 function runtests()
 {
-  for (var obj of document.querySelectorAll("object")) {
-    obj.clientTop;
-  }
+  is(missingPlugins.length, 0, "There should be no missing plugins for this page");
 
-  SimpleTest.executeSoon(function () {
-    is(missingPlugins.length, 0, "There should be no missing plugins for this page");
-
-    SimpleTest.finish();
-  });
+  SimpleTest.finish();
 }
 
 SimpleTest.waitForExplicitFinish();

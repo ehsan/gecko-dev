@@ -1,7 +1,3 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
 #ifndef mozilla_PaintTracker_h
 #define mozilla_PaintTracker_h
 
@@ -10,7 +6,7 @@
 
 namespace mozilla {
 
-class MOZ_STACK_CLASS PaintTracker
+class NS_STACK_CLASS PaintTracker
 {
 public:
   PaintTracker() {

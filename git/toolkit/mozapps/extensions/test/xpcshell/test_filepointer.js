@@ -40,12 +40,12 @@ var addon2 = {
 
 const profileDir = gProfD.clone();
 profileDir.append("extensions");
-profileDir.create(AM_Ci.nsIFile.DIRECTORY_TYPE, 0755);
+profileDir.create(AM_Ci.nsILocalFile.DIRECTORY_TYPE, 0755);
 
 const sourceDir = gProfD.clone();
 sourceDir.append("source");
 
-Components.utils.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 var testserver;
 
 function writePointer(aId, aName) {
@@ -70,8 +70,9 @@ function writeRelativePointer(aId, aName) {
 
   let absTarget = sourceDir.clone();
   absTarget.append(do_get_expected_addon_name(aId));
-
-  var relTarget = absTarget.getRelativeDescriptor(profileDir);
+  
+  var relTarget = absTarget.QueryInterface(Ci.nsILocalFile)
+                       .getRelativeDescriptor(profileDir);
 
   var fos = AM_Cc["@mozilla.org/network/file-output-stream;1"].
             createInstance(AM_Ci.nsIFileOutputStream);
@@ -91,11 +92,10 @@ function run_test() {
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "1", "1");
 
   // Create and configure the HTTP server.
-  testserver = new HttpServer();
+  testserver = new nsHttpServer();
   testserver.registerDirectory("/data/", do_get_file("data"));
   testserver.registerDirectory("/addons/", do_get_file("addons"));
-  testserver.start(-1);
-  gPort = testserver.identity.primaryPort;
+  testserver.start(4444);
 
   run_test_1();
 }
@@ -137,7 +137,7 @@ function run_test_2() {
     "onNewInstall",
   ]);
 
-  let url = "http://localhost:" + gPort + "/addons/test_filepointer.xpi";
+  let url = "http://localhost:4444/addons/test_filepointer.xpi";
   AddonManager.getInstallForURL(url, function(install) {
     ensure_test_completed();
 
@@ -178,14 +178,14 @@ function check_test_2() {
 
     a1.uninstall();
 
-    do_execute_soon(run_test_3);
+    restartManager();
+
+    run_test_3();
   });
 }
 
 // Tests that uninstalling doesn't clobber the original sources
 function run_test_3() {
-  restartManager();
-
   writePointer(addon1.id);
 
   restartManager();
@@ -202,7 +202,7 @@ function run_test_3() {
     source.append(addon1.id);
     do_check_true(source.exists());
 
-    do_execute_soon(run_test_4);
+    run_test_4();
   });
 }
 
@@ -225,7 +225,7 @@ function run_test_4() {
     pointer.append("addon2@tests.mozilla.org");
     do_check_false(pointer.exists());
 
-    do_execute_soon(run_test_5);
+    run_test_5();
   });
 }
 
@@ -259,7 +259,7 @@ function run_test_5() {
       pointer.append(addon1.id);
       do_check_false(pointer.exists());
 
-      do_execute_soon(run_test_6);
+      run_test_6();
     });
   });
 }
@@ -286,7 +286,7 @@ function run_test_6() {
     AddonManager.getAddonByID("addon1@tests.mozilla.org", function(a1) {
       do_check_eq(a1, null);
 
-      do_execute_soon(run_test_7);
+      run_test_7();
     });
   });
 }
@@ -317,7 +317,7 @@ function run_test_7() {
 
       restartManager();
 
-      do_execute_soon(run_test_8);
+      run_test_8();
     });
   });
 }
@@ -344,7 +344,7 @@ function run_test_8() {
 
       restartManager();
 
-      do_execute_soon(run_test_9);
+      run_test_9();
     });
   });
 }
@@ -371,7 +371,7 @@ function run_test_9() {
       pointer.append(addon1.id);
       do_check_false(pointer.exists());
 
-      do_execute_soon(run_test_10);
+      run_test_10();
     });
   });
 }

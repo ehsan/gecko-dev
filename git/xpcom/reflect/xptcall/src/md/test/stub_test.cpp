@@ -2,7 +2,7 @@
 #include <stdio.h>
 
 typedef unsigned nsresult;
-typedef unsigned uint32_t;
+typedef unsigned PRUint32;
 typedef unsigned nsXPCVariant;
 
 
@@ -75,8 +75,8 @@ void docall(foo* f, int i, int j){
 #if defined(WIN32)
 
 static int __stdcall
-PrepareAndDispatch(baz* self, uint32_t methodIndex,
-                   uint32_t* args, uint32_t* stackBytesToPop)
+PrepareAndDispatch(baz* self, PRUint32 methodIndex,
+                   PRUint32* args, PRUint32* stackBytesToPop)
 {
     fprintf(stdout, "PrepareAndDispatch (%p, %d, %p)\n",
         (void*)self, methodIndex, (void*)args);
@@ -130,7 +130,7 @@ __declspec(naked) nsresult __stdcall baz::callme##n() \
 #define STUB_ENTRY(n) \
 nsresult __stdcall baz::callme##n() \
 { \
-  uint32_t *args, stackBytesToPop; \
+  PRUint32 *args, stackBytesToPop; \
   int result = 0; \
   baz *obj; \
   __asm__ __volatile__ ( \
@@ -151,7 +151,7 @@ nsresult __stdcall baz::callme##n() \
 // just Linux_x86 now. Add other later...
 
 static int
-PrepareAndDispatch(baz* self, uint32_t methodIndex, uint32_t* args)
+PrepareAndDispatch(baz* self, PRUint32 methodIndex, PRUint32* args)
 {
     foo* a = self->other;
     int p1 = (int) *args;

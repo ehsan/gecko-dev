@@ -3,20 +3,12 @@
  */
 
 // Tests whether
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
+do_load_httpd_js();
 
-Cu.import("resource://testing-common/httpd.js");
-
-var gTestserver = new HttpServer();
-gTestserver.start(-1);
-gPort = gTestserver.identity.primaryPort;
-mapFile("/data/test_bug619730.xml", gTestserver);
+var gTestserver = null;
 
 function load_blocklist(file) {
-  Services.prefs.setCharPref("extensions.blocklist.url", "http://localhost:" +
-                             gPort + "/data/" + file);
+  Services.prefs.setCharPref("extensions.blocklist.url", "http://localhost:4444/data/" + file);
   var blocklist = Cc["@mozilla.org/extensions/blocklist;1"].
                   getService(Ci.nsITimerCallback);
   blocklist.notify(null);
@@ -29,6 +21,10 @@ var gSawTest = false;
 function run_test() {
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "3", "8");
   startupManager();
+
+  gTestserver = new nsHttpServer();
+  gTestserver.registerDirectory("/data/", do_get_file("data"));
+  gTestserver.start(4444);
 
   do_test_pending();
 

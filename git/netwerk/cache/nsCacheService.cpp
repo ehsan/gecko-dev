@@ -1,13 +1,45 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* vim: set ts=8 sts=4 et sw=4 tw=80: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-#include "mozilla/Attributes.h"
-#include "mozilla/Assertions.h"
-#include "mozilla/DebugOnly.h"
-#include "mozilla/Util.h"
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* vim: set sw=4 ts=8 et tw=80 : */
+/*
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is nsCacheService.cpp, released
+ * February 10, 2001.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2001
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Gordon Sheridan, 10-February-2001
+ *   Michael Ventnor <m.ventnor@gmail.com>
+ *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "necko-config.h"
 
@@ -21,12 +53,13 @@
 #include "nsICacheVisitor.h"
 #include "nsDiskCacheDevice.h"
 #include "nsDiskCacheDeviceSQL.h"
-#include "nsCacheUtils.h"
 
+#include "nsIMemoryReporter.h"
 #include "nsIObserverService.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
-#include "nsIFile.h"
+#include "nsIPrefBranch2.h"
+#include "nsILocalFile.h"
 #include "nsIOService.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsAppDirectoryServiceDefs.h"
@@ -34,15 +67,15 @@
 #include "nsProxyRelease.h"
 #include "nsVoidArray.h"
 #include "nsDeleteDir.h"
+#include "nsIPrivateBrowsingService.h"
 #include "nsNetCID.h"
 #include <math.h>  // for log()
+#include "mozilla/Util.h" // for DebugOnly
 #include "mozilla/Services.h"
-#include "nsITimer.h"
-#include "mozIStorageService.h"
+
+#include "mozilla/FunctionTimer.h"
 
 #include "mozilla/net/NeckoCommon.h"
-#include "mozilla/VisualEventTracer.h"
-#include <algorithm>
 
 using namespace mozilla;
 
@@ -60,9 +93,6 @@ using namespace mozilla;
 #define DISK_CACHE_MAX_ENTRY_SIZE_PREF "browser.cache.disk.max_entry_size"
 #define DISK_CACHE_CAPACITY         256000
 
-#define DISK_CACHE_USE_OLD_MAX_SMART_SIZE_PREF \
-    "browser.cache.disk.smart_size.use_old_max"
-
 #define OFFLINE_CACHE_ENABLE_PREF   "browser.cache.offline.enable"
 #define OFFLINE_CACHE_DIR_PREF      "browser.cache.offline.parent_directory"
 #define OFFLINE_CACHE_CAPACITY_PREF "browser.cache.offline.capacity"
@@ -72,73 +102,50 @@ using namespace mozilla;
 #define MEMORY_CACHE_CAPACITY_PREF  "browser.cache.memory.capacity"
 #define MEMORY_CACHE_MAX_ENTRY_SIZE_PREF "browser.cache.memory.max_entry_size"
 
-#define CACHE_COMPRESSION_LEVEL_PREF "browser.cache.compression_level"
-#define CACHE_COMPRESSION_LEVEL     1
-
-#define SANITIZE_ON_SHUTDOWN_PREF   "privacy.sanitize.sanitizeOnShutdown"
-#define CLEAR_ON_SHUTDOWN_PREF      "privacy.clearOnShutdown.cache"
-
 static const char * observerList[] = { 
     "profile-before-change",
     "profile-do-change",
     NS_XPCOM_SHUTDOWN_OBSERVER_ID,
-    "last-pb-context-exited",
-    "suspend_process_notification",
-    "resume_process_notification"
+    NS_PRIVATE_BROWSING_SWITCH_TOPIC
 };
-
 static const char * prefList[] = { 
     DISK_CACHE_ENABLE_PREF,
     DISK_CACHE_SMART_SIZE_ENABLED_PREF,
     DISK_CACHE_CAPACITY_PREF,
     DISK_CACHE_DIR_PREF,
     DISK_CACHE_MAX_ENTRY_SIZE_PREF,
-    DISK_CACHE_USE_OLD_MAX_SMART_SIZE_PREF,
     OFFLINE_CACHE_ENABLE_PREF,
     OFFLINE_CACHE_CAPACITY_PREF,
     OFFLINE_CACHE_DIR_PREF,
     MEMORY_CACHE_ENABLE_PREF,
     MEMORY_CACHE_CAPACITY_PREF,
-    MEMORY_CACHE_MAX_ENTRY_SIZE_PREF,
-    CACHE_COMPRESSION_LEVEL_PREF,
-    SANITIZE_ON_SHUTDOWN_PREF,
-    CLEAR_ON_SHUTDOWN_PREF
+    MEMORY_CACHE_MAX_ENTRY_SIZE_PREF
 };
 
 // Cache sizes, in KB
-const int32_t DEFAULT_CACHE_SIZE = 250 * 1024;  // 250 MB
-const int32_t MIN_CACHE_SIZE = 50 * 1024;       //  50 MB
-#ifdef ANDROID
-const int32_t MAX_CACHE_SIZE = 200 * 1024;      // 200 MB
-const int32_t OLD_MAX_CACHE_SIZE = 200 * 1024;  // 200 MB
-#else
-const int32_t MAX_CACHE_SIZE = 350 * 1024;      // 350 MB
-const int32_t OLD_MAX_CACHE_SIZE = 1024 * 1024; //   1 GB
-#endif
+const PRInt32 DEFAULT_CACHE_SIZE = 250 * 1024;  // 250 MB
+const PRInt32 MIN_CACHE_SIZE = 50 * 1024;       //  50 MB
+const PRInt32 MAX_CACHE_SIZE = 1024 * 1024;     //   1 GB
 // Default cache size was 50 MB for many years until FF 4:
-const int32_t PRE_GECKO_2_0_DEFAULT_CACHE_SIZE = 50 * 1024;
+const PRInt32 PRE_GECKO_2_0_DEFAULT_CACHE_SIZE = 50 * 1024;
 
 class nsCacheProfilePrefObserver : public nsIObserver
 {
 public:
-    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIOBSERVER
 
     nsCacheProfilePrefObserver()
-        : mHaveProfile(false)
-        , mDiskCacheEnabled(false)
+        : mHaveProfile(PR_FALSE)
+        , mDiskCacheEnabled(PR_FALSE)
         , mDiskCacheCapacity(0)
         , mDiskCacheMaxEntrySize(-1) // -1 means "no limit"
-        , mSmartSizeEnabled(false)
-        , mShouldUseOldMaxSmartSize(false)
-        , mOfflineCacheEnabled(false)
+        , mOfflineCacheEnabled(PR_FALSE)
         , mOfflineCacheCapacity(0)
-        , mMemoryCacheEnabled(true)
+        , mMemoryCacheEnabled(PR_TRUE)
         , mMemoryCacheCapacity(-1)
         , mMemoryCacheMaxEntrySize(-1) // -1 means "no limit"
-        , mCacheCompressionLevel(CACHE_COMPRESSION_LEVEL)
-        , mSanitizeOnShutdown(false)
-        , mClearCacheOnShutdown(false)
+        , mInPrivateBrowsing(PR_FALSE)
     {
     }
 
@@ -148,113 +155,87 @@ public:
     void            Remove();
     nsresult        ReadPrefs(nsIPrefBranch* branch);
     
-    bool            DiskCacheEnabled();
-    int32_t         DiskCacheCapacity()         { return mDiskCacheCapacity; }
-    void            SetDiskCacheCapacity(int32_t);
-    int32_t         DiskCacheMaxEntrySize()     { return mDiskCacheMaxEntrySize; }
-    nsIFile *       DiskCacheParentDirectory()  { return mDiskCacheParentDirectory; }
-    bool            SmartSizeEnabled()          { return mSmartSizeEnabled; }
+    PRBool          DiskCacheEnabled();
+    PRInt32         DiskCacheCapacity()         { return mDiskCacheCapacity; }
+    void            SetDiskCacheCapacity(PRInt32);
+    PRInt32         DiskCacheMaxEntrySize()     { return mDiskCacheMaxEntrySize; }
+    nsILocalFile *  DiskCacheParentDirectory()  { return mDiskCacheParentDirectory; }
 
-    bool            ShouldUseOldMaxSmartSize()        { return mShouldUseOldMaxSmartSize; }
-    void            SetUseNewMaxSmartSize(bool useNew)     { mShouldUseOldMaxSmartSize = !useNew; }
-
-    bool            OfflineCacheEnabled();
-    int32_t         OfflineCacheCapacity()         { return mOfflineCacheCapacity; }
-    nsIFile *       OfflineCacheParentDirectory()  { return mOfflineCacheParentDirectory; }
+    PRBool          OfflineCacheEnabled();
+    PRInt32         OfflineCacheCapacity()         { return mOfflineCacheCapacity; }
+    nsILocalFile *  OfflineCacheParentDirectory()  { return mOfflineCacheParentDirectory; }
     
-    bool            MemoryCacheEnabled();
-    int32_t         MemoryCacheCapacity();
-    int32_t         MemoryCacheMaxEntrySize()     { return mMemoryCacheMaxEntrySize; }
+    PRBool          MemoryCacheEnabled();
+    PRInt32         MemoryCacheCapacity();
+    PRInt32         MemoryCacheMaxEntrySize()     { return mMemoryCacheMaxEntrySize; }
 
-    int32_t         CacheCompressionLevel();
-
-    bool            SanitizeAtShutdown() { return mSanitizeOnShutdown && mClearCacheOnShutdown; }
-
-    static uint32_t GetSmartCacheSize(const nsAString& cachePath,
-                                      uint32_t currentSize,
-                                      bool shouldUseOldMaxSmartSize);
-
-    bool                    PermittedToSmartSize(nsIPrefBranch*, bool firstRun);
+    static PRUint32 GetSmartCacheSize(const nsAString& cachePath);
 
 private:
-    bool                    mHaveProfile;
+    bool                    PermittedToSmartSize(nsIPrefBranch*, PRBool firstRun);
+    PRBool                  mHaveProfile;
     
-    bool                    mDiskCacheEnabled;
-    int32_t                 mDiskCacheCapacity; // in kilobytes
-    int32_t                 mDiskCacheMaxEntrySize; // in kilobytes
-    nsCOMPtr<nsIFile>       mDiskCacheParentDirectory;
-    bool                    mSmartSizeEnabled;
+    PRBool                  mDiskCacheEnabled;
+    PRInt32                 mDiskCacheCapacity; // in kilobytes
+    PRInt32                 mDiskCacheMaxEntrySize; // in kilobytes
+    nsCOMPtr<nsILocalFile>  mDiskCacheParentDirectory;
 
-    bool                    mShouldUseOldMaxSmartSize;
-
-    bool                    mOfflineCacheEnabled;
-    int32_t                 mOfflineCacheCapacity; // in kilobytes
-    nsCOMPtr<nsIFile>       mOfflineCacheParentDirectory;
+    PRBool                  mOfflineCacheEnabled;
+    PRInt32                 mOfflineCacheCapacity; // in kilobytes
+    nsCOMPtr<nsILocalFile>  mOfflineCacheParentDirectory;
     
-    bool                    mMemoryCacheEnabled;
-    int32_t                 mMemoryCacheCapacity; // in kilobytes
-    int32_t                 mMemoryCacheMaxEntrySize; // in kilobytes
+    PRBool                  mMemoryCacheEnabled;
+    PRInt32                 mMemoryCacheCapacity; // in kilobytes
+    PRInt32                 mMemoryCacheMaxEntrySize; // in kilobytes
 
-    int32_t                 mCacheCompressionLevel;
-
-    bool                    mSanitizeOnShutdown;
-    bool                    mClearCacheOnShutdown;
+    PRBool                  mInPrivateBrowsing;
 };
 
-NS_IMPL_ISUPPORTS1(nsCacheProfilePrefObserver, nsIObserver)
-
-class nsSetDiskSmartSizeCallback MOZ_FINAL : public nsITimerCallback
-{
-public:
-    NS_DECL_THREADSAFE_ISUPPORTS
-
-    NS_IMETHOD Notify(nsITimer* aTimer) {
-        if (nsCacheService::gService) {
-            nsCacheServiceAutoLock autoLock(LOCK_TELEM(NSSETDISKSMARTSIZECALLBACK_NOTIFY));
-            nsCacheService::gService->SetDiskSmartSize_Locked();
-            nsCacheService::gService->mSmartSizeTimer = nullptr;
-        }
-        return NS_OK;
-    }
-};
-
-NS_IMPL_ISUPPORTS1(nsSetDiskSmartSizeCallback, nsITimerCallback)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsCacheProfilePrefObserver, nsIObserver)
 
 // Runnable sent to main thread after the cache IO thread calculates available
 // disk space, so that there is no race in setting mDiskCacheCapacity.
 class nsSetSmartSizeEvent: public nsRunnable 
 {
 public:
-    nsSetSmartSizeEvent(int32_t smartSize)
-        : mSmartSize(smartSize) {}
+    nsSetSmartSizeEvent(bool firstRun, PRInt32 smartSize) 
+        : mFirstRun(firstRun) , mSmartSize(smartSize) {}
 
     NS_IMETHOD Run() 
     {
+        nsresult rv;
         NS_ASSERTION(NS_IsMainThread(), 
                      "Setting smart size data off the main thread");
 
         // Main thread may have already called nsCacheService::Shutdown
-        if (!nsCacheService::IsInitialized())
+        if (!nsCacheService::gService || !nsCacheService::gService->mObserver)
             return NS_ERROR_NOT_AVAILABLE;
-
-        // Ensure smart sizing wasn't switched off while event was pending.
-        // It is safe to access the observer without the lock since we are
-        // on the main thread and the value changes only on the main thread.
-        if (!nsCacheService::gService->mObserver->SmartSizeEnabled())
-            return NS_OK;
-
-        nsCacheService::SetDiskCacheCapacity(mSmartSize);
-
-        nsCOMPtr<nsIPrefBranch> ps = do_GetService(NS_PREFSERVICE_CONTRACTID);
-        if (!ps ||
-            NS_FAILED(ps->SetIntPref(DISK_CACHE_SMART_SIZE_PREF, mSmartSize)))
-            NS_WARNING("Failed to set smart size pref");
-
-        return NS_OK;
+    
+        PRBool smartSizeEnabled;
+        nsCOMPtr<nsIPrefBranch2> branch = do_GetService(NS_PREFSERVICE_CONTRACTID);
+        if (!branch) {
+            NS_WARNING("Failed to get pref service!");
+            return NS_ERROR_NOT_AVAILABLE;
+        }
+        // ensure smart sizing wasn't switched off while event was pending
+        rv = branch->GetBoolPref(DISK_CACHE_SMART_SIZE_ENABLED_PREF,
+                                 &smartSizeEnabled);
+        if (NS_FAILED(rv)) 
+            smartSizeEnabled = PR_FALSE;
+        if (smartSizeEnabled) {
+            nsCacheService::SetDiskCacheCapacity(mSmartSize);
+            // also set on observer, in case mDiskDevice not init'd yet.
+            nsCacheService::gService->mObserver->SetDiskCacheCapacity(mSmartSize);
+            rv = branch->SetIntPref(DISK_CACHE_SMART_SIZE_PREF, mSmartSize);
+            if (NS_FAILED(rv)) 
+                NS_WARNING("Failed to set smart size pref");
+        }
+        return rv;
     }
 
-private:
-    int32_t mSmartSize;
+private: 
+    bool mFirstRun;
+    PRInt32 mSmartSize;
 };
 
 
@@ -262,29 +243,28 @@ private:
 class nsGetSmartSizeEvent: public nsRunnable
 {
 public:
-    nsGetSmartSizeEvent(const nsAString& cachePath, uint32_t currentSize,
-                        bool shouldUseOldMaxSmartSize)
-      : mCachePath(cachePath)
-      , mCurrentSize(currentSize)
-      , mShouldUseOldMaxSmartSize(shouldUseOldMaxSmartSize)
+    nsGetSmartSizeEvent(bool firstRun, const nsAString& cachePath) 
+      : mFirstRun(firstRun)
+      , mCachePath(cachePath)
+      , mSmartSize(0) 
     {}
    
     // Calculates user's disk space available on a background thread and
     // dispatches this value back to the main thread.
     NS_IMETHOD Run()
     {
-        uint32_t size;
-        size = nsCacheProfilePrefObserver::GetSmartCacheSize(mCachePath,
-                                                             mCurrentSize,
-                                                             mShouldUseOldMaxSmartSize);
-        NS_DispatchToMainThread(new nsSetSmartSizeEvent(size));
+        mSmartSize = 
+          nsCacheProfilePrefObserver::GetSmartCacheSize(mCachePath);
+        nsCOMPtr<nsIRunnable> event = new nsSetSmartSizeEvent(mFirstRun,
+                                                              mSmartSize);
+        NS_DispatchToMainThread(event);
         return NS_OK;
     }
 
-private:
+private: 
+    bool mFirstRun;
     nsString mCachePath;
-    uint32_t mCurrentSize;
-    bool     mShouldUseOldMaxSmartSize;
+    PRInt32 mSmartSize;
 };
 
 class nsBlockOnCacheThreadEvent : public nsRunnable {
@@ -294,7 +274,7 @@ public:
     }
     NS_IMETHOD Run()
     {
-        nsCacheServiceAutoLock autoLock(LOCK_TELEM(NSBLOCKONCACHETHREADEVENT_RUN));
+        nsCacheServiceAutoLock autoLock;
 #ifdef PR_LOGGING
         CACHE_LOG_DEBUG(("nsBlockOnCacheThreadEvent [%p]\n", this));
 #endif
@@ -314,21 +294,27 @@ nsCacheProfilePrefObserver::Install()
         return NS_ERROR_FAILURE;
     
     nsresult rv, rv2 = NS_OK;
-    for (unsigned int i=0; i<ArrayLength(observerList); i++) {
-        rv = observerService->AddObserver(this, observerList[i], false);
+    for (unsigned int i=0; i<NS_ARRAY_LENGTH(observerList); i++) {
+        rv = observerService->AddObserver(this, observerList[i], PR_FALSE);
         if (NS_FAILED(rv)) 
             rv2 = rv;
     }
     
     // install preferences observer
-    nsCOMPtr<nsIPrefBranch> branch = do_GetService(NS_PREFSERVICE_CONTRACTID);
+    nsCOMPtr<nsIPrefBranch2> branch = do_GetService(NS_PREFSERVICE_CONTRACTID);
     if (!branch) return NS_ERROR_FAILURE;
 
-    for (unsigned int i=0; i<ArrayLength(prefList); i++) {
-        rv = branch->AddObserver(prefList[i], this, false);
+    for (unsigned int i=0; i<NS_ARRAY_LENGTH(prefList); i++) {
+        rv = branch->AddObserver(prefList[i], this, PR_FALSE);
         if (NS_FAILED(rv))
             rv2 = rv;
     }
+
+    // determine the initial status of the private browsing mode
+    nsCOMPtr<nsIPrivateBrowsingService> pbs =
+      do_GetService(NS_PRIVATE_BROWSING_SERVICE_CONTRACTID);
+    if (pbs)
+      pbs->GetPrivateBrowsingEnabled(&mInPrivateBrowsing);
 
     // Determine if we have a profile already
     //     Install() is called *after* the profile-after-change notification
@@ -341,7 +327,7 @@ nsCacheProfilePrefObserver::Install()
     rv = NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR,
                                 getter_AddRefs(directory));
     if (NS_SUCCEEDED(rv))
-        mHaveProfile = true;
+        mHaveProfile = PR_TRUE;
 
     rv = ReadPrefs(branch);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -357,24 +343,24 @@ nsCacheProfilePrefObserver::Remove()
     nsCOMPtr<nsIObserverService> obs =
         mozilla::services::GetObserverService();
     if (obs) {
-        for (unsigned int i=0; i<ArrayLength(observerList); i++) {
+        for (unsigned int i=0; i<NS_ARRAY_LENGTH(observerList); i++) {
             obs->RemoveObserver(this, observerList[i]);
         }
     }
 
     // remove Pref Service observers
-    nsCOMPtr<nsIPrefBranch> prefs =
+    nsCOMPtr<nsIPrefBranch2> prefs =
         do_GetService(NS_PREFSERVICE_CONTRACTID);
     if (!prefs)
         return;
-    for (unsigned int i=0; i<ArrayLength(prefList); i++)
+    for (unsigned int i=0; i<NS_ARRAY_LENGTH(prefList); i++)
         prefs->RemoveObserver(prefList[i], this); // remove cache pref observers
 }
 
 void
-nsCacheProfilePrefObserver::SetDiskCacheCapacity(int32_t capacity)
+nsCacheProfilePrefObserver::SetDiskCacheCapacity(PRInt32 capacity)
 {
-    mDiskCacheCapacity = std::max(0, capacity);
+    mDiskCacheCapacity = NS_MAX(0, capacity);
 }
 
 
@@ -387,32 +373,22 @@ nsCacheProfilePrefObserver::Observe(nsISupports *     subject,
     NS_ConvertUTF16toUTF8 data(data_unicode);
     CACHE_LOG_ALWAYS(("Observe [topic=%s data=%s]\n", topic, data.get()));
 
-    if (!nsCacheService::IsInitialized()) {
-        if (!strcmp("resume_process_notification", topic)) {
-            // A suspended process has a closed cache, so re-open it here.
-            nsCacheService::GlobalInstance()->Init();
-        }
-        return NS_OK;
-    }
-
     if (!strcmp(NS_XPCOM_SHUTDOWN_OBSERVER_ID, topic)) {
         // xpcom going away, shutdown cache service
-        nsCacheService::GlobalInstance()->Shutdown();
+        if (nsCacheService::GlobalInstance())
+            nsCacheService::GlobalInstance()->Shutdown();
+    
     } else if (!strcmp("profile-before-change", topic)) {
         // profile before change
-        mHaveProfile = false;
+        mHaveProfile = PR_FALSE;
 
         // XXX shutdown devices
         nsCacheService::OnProfileShutdown(!strcmp("shutdown-cleanse",
                                                   data.get()));
         
-    } else if (!strcmp("suspend_process_notification", topic)) {
-        // A suspended process may never return, so shutdown the cache to reduce
-        // cache corruption.
-        nsCacheService::GlobalInstance()->Shutdown();
     } else if (!strcmp("profile-do-change", topic)) {
         // profile after change
-        mHaveProfile = true;
+        mHaveProfile = PR_TRUE;
         nsCOMPtr<nsIPrefBranch> branch = do_GetService(NS_PREFSERVICE_CONTRACTID);
         ReadPrefs(branch);
         nsCacheService::OnProfileChanged();
@@ -430,52 +406,61 @@ nsCacheProfilePrefObserver::Observe(nsISupports *     subject,
         // which preference changed?
         if (!strcmp(DISK_CACHE_ENABLE_PREF, data.get())) {
 
-            rv = branch->GetBoolPref(DISK_CACHE_ENABLE_PREF,
-                                     &mDiskCacheEnabled);
-            if (NS_FAILED(rv))  
-                return rv;
-            nsCacheService::SetDiskCacheEnabled(DiskCacheEnabled());
+            if (!mInPrivateBrowsing) {
+                rv = branch->GetBoolPref(DISK_CACHE_ENABLE_PREF,
+                                         &mDiskCacheEnabled);
+                if (NS_FAILED(rv))  
+                    return rv;
+                nsCacheService::SetDiskCacheEnabled(DiskCacheEnabled());
+            }
 
         } else if (!strcmp(DISK_CACHE_CAPACITY_PREF, data.get())) {
 
-            int32_t capacity = 0;
+            PRInt32 capacity = 0;
             rv = branch->GetIntPref(DISK_CACHE_CAPACITY_PREF, &capacity);
             if (NS_FAILED(rv))  
                 return rv;
-            mDiskCacheCapacity = std::max(0, capacity);
+            mDiskCacheCapacity = NS_MAX(0, capacity);
             nsCacheService::SetDiskCacheCapacity(mDiskCacheCapacity);
        
         // Update the cache capacity when smart sizing is turned on/off 
         } else if (!strcmp(DISK_CACHE_SMART_SIZE_ENABLED_PREF, data.get())) {
             // Is the update because smartsizing was turned on, or off?
+            PRBool smartSizeEnabled;
             rv = branch->GetBoolPref(DISK_CACHE_SMART_SIZE_ENABLED_PREF,
-                                     &mSmartSizeEnabled);
+                                     &smartSizeEnabled);
             if (NS_FAILED(rv)) 
                 return rv;
-            int32_t newCapacity = 0;
-            if (mSmartSizeEnabled) {
-                nsCacheService::SetDiskSmartSize();
+            PRInt32 newCapacity = 0;
+            if (smartSizeEnabled) {
+                // Dispatch event to update smart size: just keep using old
+                // value if this fails at any point
+                if (!mDiskCacheParentDirectory) 
+                    return NS_ERROR_NOT_AVAILABLE; // disk cache disabled anyway
+                nsAutoString cachePath;
+                rv = mDiskCacheParentDirectory->GetPath(cachePath);
+                if (NS_FAILED(rv)) 
+                    return rv;
+                // Smart sizing switched on: recalculate the capacity.
+                nsCOMPtr<nsIRunnable> event = 
+                    new nsGetSmartSizeEvent(false, cachePath);
+                rv = nsCacheService::DispatchToCacheIOThread(event);
             } else {
                 // Smart sizing switched off: use user specified size
                 rv = branch->GetIntPref(DISK_CACHE_CAPACITY_PREF, &newCapacity);
                 if (NS_FAILED(rv)) 
                     return rv;
-                mDiskCacheCapacity = std::max(0, newCapacity);
+                mDiskCacheCapacity = NS_MAX(0, newCapacity);
                 nsCacheService::SetDiskCacheCapacity(mDiskCacheCapacity);
             }
-        } else if (!strcmp(DISK_CACHE_USE_OLD_MAX_SMART_SIZE_PREF, data.get())) {
-            rv = branch->GetBoolPref(DISK_CACHE_USE_OLD_MAX_SMART_SIZE_PREF,
-                                     &mShouldUseOldMaxSmartSize);
-            if (NS_FAILED(rv))
-                return rv;
         } else if (!strcmp(DISK_CACHE_MAX_ENTRY_SIZE_PREF, data.get())) {
-            int32_t newMaxSize;
+            PRInt32 newMaxSize;
             rv = branch->GetIntPref(DISK_CACHE_MAX_ENTRY_SIZE_PREF,
                                     &newMaxSize);
             if (NS_FAILED(rv)) 
                 return rv;
 
-            mDiskCacheMaxEntrySize = std::max(-1, newMaxSize);
+            mDiskCacheMaxEntrySize = NS_MAX(-1, newMaxSize);
             nsCacheService::SetDiskCacheMaxEntrySize(mDiskCacheMaxEntrySize);
           
 #if 0            
@@ -490,17 +475,19 @@ nsCacheProfilePrefObserver::Observe(nsISupports *     subject,
         // which preference changed?
         if (!strcmp(OFFLINE_CACHE_ENABLE_PREF, data.get())) {
 
-            rv = branch->GetBoolPref(OFFLINE_CACHE_ENABLE_PREF,
-                                     &mOfflineCacheEnabled);
-            if (NS_FAILED(rv))  return rv;
-            nsCacheService::SetOfflineCacheEnabled(OfflineCacheEnabled());
+            if (!mInPrivateBrowsing) {
+                rv = branch->GetBoolPref(OFFLINE_CACHE_ENABLE_PREF,
+                                         &mOfflineCacheEnabled);
+                if (NS_FAILED(rv))  return rv;
+                nsCacheService::SetOfflineCacheEnabled(OfflineCacheEnabled());
+            }
 
         } else if (!strcmp(OFFLINE_CACHE_CAPACITY_PREF, data.get())) {
 
-            int32_t capacity = 0;
+            PRInt32 capacity = 0;
             rv = branch->GetIntPref(OFFLINE_CACHE_CAPACITY_PREF, &capacity);
             if (NS_FAILED(rv))  return rv;
-            mOfflineCacheCapacity = std::max(0, capacity);
+            mOfflineCacheCapacity = NS_MAX(0, capacity);
             nsCacheService::SetOfflineCacheCapacity(mOfflineCacheCapacity);
 #if 0
         } else if (!strcmp(OFFLINE_CACHE_DIR_PREF, data.get())) {
@@ -526,85 +513,48 @@ nsCacheProfilePrefObserver::Observe(nsISupports *     subject,
                                       &mMemoryCacheCapacity);
             nsCacheService::SetMemoryCache();
         } else if (!strcmp(MEMORY_CACHE_MAX_ENTRY_SIZE_PREF, data.get())) {
-            int32_t newMaxSize;
+            PRInt32 newMaxSize;
             rv = branch->GetIntPref(MEMORY_CACHE_MAX_ENTRY_SIZE_PREF,
                                      &newMaxSize);
             if (NS_FAILED(rv)) 
                 return rv;
             
-            mMemoryCacheMaxEntrySize = std::max(-1, newMaxSize);
+            mMemoryCacheMaxEntrySize = NS_MAX(-1, newMaxSize);
             nsCacheService::SetMemoryCacheMaxEntrySize(mMemoryCacheMaxEntrySize);
-        } else if (!strcmp(CACHE_COMPRESSION_LEVEL_PREF, data.get())) {
-            mCacheCompressionLevel = CACHE_COMPRESSION_LEVEL;
-            (void)branch->GetIntPref(CACHE_COMPRESSION_LEVEL_PREF,
-                                     &mCacheCompressionLevel);
-            mCacheCompressionLevel = std::max(0, mCacheCompressionLevel);
-            mCacheCompressionLevel = std::min(9, mCacheCompressionLevel);
-        } else if (!strcmp(SANITIZE_ON_SHUTDOWN_PREF, data.get())) {
-            rv = branch->GetBoolPref(SANITIZE_ON_SHUTDOWN_PREF,
-                                     &mSanitizeOnShutdown);
-            if (NS_FAILED(rv))
-                return rv;
-            nsCacheService::SetDiskCacheEnabled(DiskCacheEnabled());
-        } else if (!strcmp(CLEAR_ON_SHUTDOWN_PREF, data.get())) {
-            rv = branch->GetBoolPref(CLEAR_ON_SHUTDOWN_PREF,
-                                     &mClearCacheOnShutdown);
-            if (NS_FAILED(rv))
-                return rv;
-            nsCacheService::SetDiskCacheEnabled(DiskCacheEnabled());
         }
-    } else if (!strcmp("last-pb-context-exited", topic)) {
-        nsCacheService::LeavePrivateBrowsing();
-    }
+    } else if (!strcmp(NS_PRIVATE_BROWSING_SWITCH_TOPIC, topic)) {
+        if (!strcmp(NS_PRIVATE_BROWSING_ENTER, data.get())) {
+            mInPrivateBrowsing = PR_TRUE;
 
+            nsCacheService::OnEnterExitPrivateBrowsing();
+
+            mDiskCacheEnabled = PR_FALSE;
+            nsCacheService::SetDiskCacheEnabled(DiskCacheEnabled());
+
+            mOfflineCacheEnabled = PR_FALSE;
+            nsCacheService::SetOfflineCacheEnabled(OfflineCacheEnabled());
+        } else if (!strcmp(NS_PRIVATE_BROWSING_LEAVE, data.get())) {
+            mInPrivateBrowsing = PR_FALSE;
+
+            nsCacheService::OnEnterExitPrivateBrowsing();
+
+            nsCOMPtr<nsIPrefBranch> branch = do_GetService(NS_PREFSERVICE_CONTRACTID, &rv);
+            if (NS_FAILED(rv))  
+                return rv;
+
+            mDiskCacheEnabled = PR_TRUE; // by default enabled
+            (void) branch->GetBoolPref(DISK_CACHE_ENABLE_PREF,
+                                       &mDiskCacheEnabled);
+            nsCacheService::SetDiskCacheEnabled(DiskCacheEnabled());
+
+            mOfflineCacheEnabled = PR_TRUE; // by default enabled
+            (void) branch->GetBoolPref(OFFLINE_CACHE_ENABLE_PREF,
+                                       &mOfflineCacheEnabled);
+            nsCacheService::SetOfflineCacheEnabled(OfflineCacheEnabled());
+        }
+    }
+    
     return NS_OK;
-}
-
-// Returns default ("smart") size (in KB) of cache, given available disk space
-// (also in KB)
-static uint32_t
-SmartCacheSize(const uint32_t availKB, bool shouldUseOldMaxSmartSize)
-{
-    uint32_t maxSize = shouldUseOldMaxSmartSize ? OLD_MAX_CACHE_SIZE : MAX_CACHE_SIZE;
-
-    if (availKB > 100 * 1024 * 1024)
-        return maxSize;  // skip computing if we're over 100 GB
-
-    // Grow/shrink in 10 MB units, deliberately, so that in the common case we
-    // don't shrink cache and evict items every time we startup (it's important
-    // that we don't slow down startup benchmarks).
-    uint32_t sz10MBs = 0;
-    uint32_t avail10MBs = availKB / (1024*10);
-
-    // .5% of space above 25 GB
-    if (avail10MBs > 2500) {
-        sz10MBs += static_cast<uint32_t>((avail10MBs - 2500)*.005);
-        avail10MBs = 2500;
-    }
-    // 1% of space between 7GB -> 25 GB
-    if (avail10MBs > 700) {
-        sz10MBs += static_cast<uint32_t>((avail10MBs - 700)*.01);
-        avail10MBs = 700;
-    }
-    // 5% of space between 500 MB -> 7 GB
-    if (avail10MBs > 50) {
-        sz10MBs += static_cast<uint32_t>((avail10MBs - 50)*.05);
-        avail10MBs = 50;
-    }
-
-#ifdef ANDROID
-    // On Android, smaller/older devices may have very little storage and
-    // device owners may be sensitive to storage footprint: Use a smaller
-    // percentage of available space and a smaller minimum.
-
-    // 20% of space up to 500 MB (10 MB min)
-    sz10MBs += std::max<uint32_t>(1, static_cast<uint32_t>(avail10MBs * .2));
-#else
-    // 40% of space up to 500 MB (50 MB min)
-    sz10MBs += std::max<uint32_t>(5, static_cast<uint32_t>(avail10MBs * .4));
-#endif
-
-    return std::min<uint32_t>(maxSize, sz10MBs * 10 * 1024);
 }
 
  /* Computes our best guess for the default size of the user's disk cache, 
@@ -618,28 +568,46 @@ SmartCacheSize(const uint32_t availKB, bool shouldUseOldMaxSmartSize)
   *@param:  None.
   *@return: The size that the user's disk cache should default to, in kBytes.
   */
-uint32_t
-nsCacheProfilePrefObserver::GetSmartCacheSize(const nsAString& cachePath,
-                                              uint32_t currentSize,
-                                              bool shouldUseOldMaxSmartSize)
+PRUint32
+nsCacheProfilePrefObserver::GetSmartCacheSize(const nsAString& cachePath) 
 {
-    // Check for free space on device where cache directory lives
-    nsresult rv;
-    nsCOMPtr<nsIFile> 
-        cacheDirectory (do_CreateInstance(NS_LOCAL_FILE_CONTRACTID, &rv));
-    if (NS_FAILED(rv) || !cacheDirectory)
-        return DEFAULT_CACHE_SIZE;
-    rv = cacheDirectory->InitWithPath(cachePath);
-    if (NS_FAILED(rv))
-        return DEFAULT_CACHE_SIZE;
-    int64_t bytesAvailable;
-    rv = cacheDirectory->GetDiskSpaceAvailable(&bytesAvailable);
-    if (NS_FAILED(rv))
-        return DEFAULT_CACHE_SIZE;
+  // Check for free space on device where cache directory lives
+  nsresult rv;
+  nsCOMPtr<nsILocalFile> 
+      cacheDirectory (do_CreateInstance(NS_LOCAL_FILE_CONTRACTID, &rv));
+  if (NS_FAILED(rv) || !cacheDirectory)
+    return DEFAULT_CACHE_SIZE;
+  rv = cacheDirectory->InitWithPath(cachePath);
+  if (NS_FAILED(rv))
+    return DEFAULT_CACHE_SIZE;
+  PRInt64 bytesAvailable;
+  rv = cacheDirectory->GetDiskSpaceAvailable(&bytesAvailable);
+  if (NS_FAILED(rv))
+    return DEFAULT_CACHE_SIZE;
+  PRInt64 kBytesAvail = bytesAvailable / 1024;
+  
+  // 0 MB <= Available < 500 MB: Use between 50MB and 200MB
+  if (kBytesAvail < DEFAULT_CACHE_SIZE * 2) 
+    return NS_MAX<PRInt64>(MIN_CACHE_SIZE, kBytesAvail * 4 / 10);
+  
+  // 500MB <= Available < 2.5 GB: Use 250MB 
+  if (kBytesAvail < static_cast<PRInt64>(DEFAULT_CACHE_SIZE) * 10) 
+    return DEFAULT_CACHE_SIZE;
 
-    return SmartCacheSize(static_cast<uint32_t>((bytesAvailable / 1024) +
-                                                currentSize),
-                          shouldUseOldMaxSmartSize);
+  // 2.5 GB <= Available < 5 GB: Use between 250MB and 500MB
+  if (kBytesAvail < static_cast<PRInt64>(DEFAULT_CACHE_SIZE) * 20) 
+    return kBytesAvail / 10;
+
+  // 5 GB <= Available < 50 GB:  Use 625MB
+  if (kBytesAvail < static_cast<PRInt64>(DEFAULT_CACHE_SIZE) * 200 ) 
+    return DEFAULT_CACHE_SIZE * 5 / 2;
+
+  // 50 GB <= Available < 75 GB: Use 800MB
+  if (kBytesAvail < static_cast<PRInt64>(DEFAULT_CACHE_SIZE) * 300) 
+    return DEFAULT_CACHE_SIZE / 5 * 16;  
+  
+  // Use 1 GB
+  return MAX_CACHE_SIZE;
 }
 
 /* Determine if we are permitted to dynamically size the user's disk cache based
@@ -647,38 +615,36 @@ nsCacheProfilePrefObserver::GetSmartCacheSize(const nsAString& cachePath,
  * smart_size.enabled is true.
  */
 bool
-nsCacheProfilePrefObserver::PermittedToSmartSize(nsIPrefBranch* branch, bool
+nsCacheProfilePrefObserver::PermittedToSmartSize(nsIPrefBranch* branch, PRBool
                                                  firstRun)
 {
     nsresult rv;
     if (firstRun) {
         // check if user has set cache size in the past
-        bool userSet;
+        PRBool userSet;
         rv = branch->PrefHasUserValue(DISK_CACHE_CAPACITY_PREF, &userSet);
-        if (NS_FAILED(rv)) userSet = true;
+        if (NS_FAILED(rv)) userSet = PR_TRUE;
         if (userSet) {
-            int32_t oldCapacity;
+            PRInt32 oldCapacity;
             // If user explicitly set cache size to be smaller than old default
             // of 50 MB, then keep user's value. Otherwise use smart sizing.
             rv = branch->GetIntPref(DISK_CACHE_CAPACITY_PREF, &oldCapacity);
             if (oldCapacity < PRE_GECKO_2_0_DEFAULT_CACHE_SIZE) {
-                mSmartSizeEnabled = false;
-                branch->SetBoolPref(DISK_CACHE_SMART_SIZE_ENABLED_PREF,
-                                    mSmartSizeEnabled);
-                return mSmartSizeEnabled;
+                branch->SetBoolPref(DISK_CACHE_SMART_SIZE_ENABLED_PREF, 
+                                    PR_FALSE);
+                return false;
             }
         }
         // Set manual setting to MAX cache size as starting val for any
         // adjustment by user: (bug 559942 comment 65)
-        int32_t maxSize = mShouldUseOldMaxSmartSize ? OLD_MAX_CACHE_SIZE : MAX_CACHE_SIZE;
-        branch->SetIntPref(DISK_CACHE_CAPACITY_PREF, maxSize);
+        branch->SetIntPref(DISK_CACHE_CAPACITY_PREF, MAX_CACHE_SIZE);
     }
-
+    PRBool smartSizeEnabled; 
     rv = branch->GetBoolPref(DISK_CACHE_SMART_SIZE_ENABLED_PREF,
-                             &mSmartSizeEnabled);
-    if (NS_FAILED(rv))
-        mSmartSizeEnabled = false;
-    return mSmartSizeEnabled;
+                             &smartSizeEnabled);
+    if (NS_FAILED(rv)) 
+        return false;
+    return !!smartSizeEnabled;
 }
 
 
@@ -688,23 +654,22 @@ nsCacheProfilePrefObserver::ReadPrefs(nsIPrefBranch* branch)
     nsresult rv = NS_OK;
 
     // read disk cache device prefs
-    mDiskCacheEnabled = true;  // presume disk cache is enabled
-    (void) branch->GetBoolPref(DISK_CACHE_ENABLE_PREF, &mDiskCacheEnabled);
+    if (!mInPrivateBrowsing) {
+        mDiskCacheEnabled = PR_TRUE;  // presume disk cache is enabled
+        (void) branch->GetBoolPref(DISK_CACHE_ENABLE_PREF, &mDiskCacheEnabled);
+    }
 
     mDiskCacheCapacity = DISK_CACHE_CAPACITY;
     (void)branch->GetIntPref(DISK_CACHE_CAPACITY_PREF, &mDiskCacheCapacity);
-    mDiskCacheCapacity = std::max(0, mDiskCacheCapacity);
+    mDiskCacheCapacity = NS_MAX(0, mDiskCacheCapacity);
 
     (void) branch->GetIntPref(DISK_CACHE_MAX_ENTRY_SIZE_PREF,
                               &mDiskCacheMaxEntrySize);
-    mDiskCacheMaxEntrySize = std::max(-1, mDiskCacheMaxEntrySize);
+    mDiskCacheMaxEntrySize = NS_MAX(-1, mDiskCacheMaxEntrySize);
     
     (void) branch->GetComplexValue(DISK_CACHE_DIR_PREF,     // ignore error
-                                   NS_GET_IID(nsIFile),
+                                   NS_GET_IID(nsILocalFile),
                                    getter_AddRefs(mDiskCacheParentDirectory));
-
-    (void) branch->GetBoolPref(DISK_CACHE_USE_OLD_MAX_SMART_SIZE_PREF,
-                               &mShouldUseOldMaxSmartSize);
     
     if (!mDiskCacheParentDirectory) {
         nsCOMPtr<nsIFile>  directory;
@@ -722,8 +687,17 @@ nsCacheProfilePrefObserver::ReadPrefs(nsIPrefBranch* branch)
             if (!directory)
                 directory = profDir;
             else if (profDir) {
-                nsCacheService::MoveOrRemoveDiskCache(profDir, directory, 
-                                                      "Cache");
+                PRBool same;
+                if (NS_SUCCEEDED(profDir->Equals(directory, &same)) && !same) {
+                    // We no longer store the cache directory in the main
+                    // profile directory, so we should cleanup the old one.
+                    rv = profDir->AppendNative(NS_LITERAL_CSTRING("Cache"));
+                    if (NS_SUCCEEDED(rv)) {
+                        PRBool exists;
+                        if (NS_SUCCEEDED(profDir->Exists(&exists)) && exists)
+                            DeleteDir(profDir, PR_FALSE, PR_FALSE);
+                    }
+                }
             }
         }
         // use file cache in build tree only if asked, to avoid cache dir litter
@@ -735,43 +709,60 @@ nsCacheProfilePrefObserver::ReadPrefs(nsIPrefBranch* branch)
             mDiskCacheParentDirectory = do_QueryInterface(directory, &rv);
     }
     if (mDiskCacheParentDirectory) {
-        bool firstSmartSizeRun;
+        PRBool firstSmartSizeRun;
         rv = branch->GetBoolPref(DISK_CACHE_SMART_SIZE_FIRST_RUN_PREF, 
                                  &firstSmartSizeRun); 
         if (NS_FAILED(rv)) 
-            firstSmartSizeRun = false;
+            firstSmartSizeRun = PR_FALSE;
         if (PermittedToSmartSize(branch, firstSmartSizeRun)) {
             // Avoid evictions: use previous cache size until smart size event
             // updates mDiskCacheCapacity
-            rv = branch->GetIntPref(firstSmartSizeRun ?
-                                    DISK_CACHE_CAPACITY_PREF :
-                                    DISK_CACHE_SMART_SIZE_PREF,
-                                    &mDiskCacheCapacity);
-            if (NS_FAILED(rv))
-                mDiskCacheCapacity = DEFAULT_CACHE_SIZE;
+            if (!firstSmartSizeRun) {
+                PRInt32 oldSmartSize;
+                rv = branch->GetIntPref(DISK_CACHE_SMART_SIZE_PREF,
+                                        &oldSmartSize);
+                mDiskCacheCapacity = oldSmartSize;
+            } else {
+                PRInt32 oldCapacity;
+                rv = branch->GetIntPref(DISK_CACHE_CAPACITY_PREF, &oldCapacity);
+                if (NS_SUCCEEDED(rv)) {
+                    mDiskCacheCapacity = oldCapacity;
+                } else {
+                    mDiskCacheCapacity = DEFAULT_CACHE_SIZE;
+                }
+            }
+            nsAutoString cachePath;
+            rv = mDiskCacheParentDirectory->GetPath(cachePath);
+            if (NS_SUCCEEDED(rv)) {
+                nsCOMPtr<nsIRunnable> event = 
+                    new nsGetSmartSizeEvent(!!firstSmartSizeRun, cachePath);
+                nsCacheService::DispatchToCacheIOThread(event);
+            }
         }
 
         if (firstSmartSizeRun) {
             // It is no longer our first run
             rv = branch->SetBoolPref(DISK_CACHE_SMART_SIZE_FIRST_RUN_PREF, 
-                                     false);
+                                     PR_FALSE);
             if (NS_FAILED(rv)) 
                 NS_WARNING("Failed setting first_run pref in ReadPrefs.");
         }
     }
 
     // read offline cache device prefs
-    mOfflineCacheEnabled = true;  // presume offline cache is enabled
-    (void) branch->GetBoolPref(OFFLINE_CACHE_ENABLE_PREF,
-                              &mOfflineCacheEnabled);
+    if (!mInPrivateBrowsing) {
+        mOfflineCacheEnabled = PR_TRUE;  // presume offline cache is enabled
+        (void) branch->GetBoolPref(OFFLINE_CACHE_ENABLE_PREF,
+                                   &mOfflineCacheEnabled);
+    }
 
     mOfflineCacheCapacity = OFFLINE_CACHE_CAPACITY;
     (void)branch->GetIntPref(OFFLINE_CACHE_CAPACITY_PREF,
                              &mOfflineCacheCapacity);
-    mOfflineCacheCapacity = std::max(0, mOfflineCacheCapacity);
+    mOfflineCacheCapacity = NS_MAX(0, mOfflineCacheCapacity);
 
     (void) branch->GetComplexValue(OFFLINE_CACHE_DIR_PREF,     // ignore error
-                                   NS_GET_IID(nsIFile),
+                                   NS_GET_IID(nsILocalFile),
                                    getter_AddRefs(mOfflineCacheParentDirectory));
 
     if (!mOfflineCacheParentDirectory) {
@@ -789,10 +780,6 @@ nsCacheProfilePrefObserver::ReadPrefs(nsIPrefBranch* branch)
                                    getter_AddRefs(directory));
             if (!directory)
                 directory = profDir;
-            else if (profDir) {
-                nsCacheService::MoveOrRemoveDiskCache(profDir, directory, 
-                                                      "OfflineCache");
-            }
         }
 #if DEBUG
         if (!directory) {
@@ -814,21 +801,7 @@ nsCacheProfilePrefObserver::ReadPrefs(nsIPrefBranch* branch)
 
     (void) branch->GetIntPref(MEMORY_CACHE_MAX_ENTRY_SIZE_PREF,
                               &mMemoryCacheMaxEntrySize);
-    mMemoryCacheMaxEntrySize = std::max(-1, mMemoryCacheMaxEntrySize);
-
-    // read cache compression level pref
-    mCacheCompressionLevel = CACHE_COMPRESSION_LEVEL;
-    (void)branch->GetIntPref(CACHE_COMPRESSION_LEVEL_PREF,
-                             &mCacheCompressionLevel);
-    mCacheCompressionLevel = std::max(0, mCacheCompressionLevel);
-    mCacheCompressionLevel = std::min(9, mCacheCompressionLevel);
-
-    // read cache shutdown sanitization prefs
-    (void) branch->GetBoolPref(SANITIZE_ON_SHUTDOWN_PREF,
-                               &mSanitizeOnShutdown);
-    (void) branch->GetBoolPref(CLEAR_ON_SHUTDOWN_PREF,
-                               &mClearCacheOnShutdown);
-
+    mMemoryCacheMaxEntrySize = NS_MAX(-1, mMemoryCacheMaxEntrySize);
     return rv;
 }
 
@@ -862,28 +835,28 @@ nsCacheService::SyncWithCacheIOThread()
 }
 
 
-bool
+PRBool
 nsCacheProfilePrefObserver::DiskCacheEnabled()
 {
-    if ((mDiskCacheCapacity == 0) || (!mDiskCacheParentDirectory))  return false;
-    return mDiskCacheEnabled && (!mSanitizeOnShutdown || !mClearCacheOnShutdown);
+    if ((mDiskCacheCapacity == 0) || (!mDiskCacheParentDirectory))  return PR_FALSE;
+    return mDiskCacheEnabled;
 }
 
 
-bool
+PRBool
 nsCacheProfilePrefObserver::OfflineCacheEnabled()
 {
     if ((mOfflineCacheCapacity == 0) || (!mOfflineCacheParentDirectory))
-        return false;
+        return PR_FALSE;
 
     return mOfflineCacheEnabled;
 }
 
 
-bool
+PRBool
 nsCacheProfilePrefObserver::MemoryCacheEnabled()
 {
-    if (mMemoryCacheCapacity == 0)  return false;
+    if (mMemoryCacheCapacity == 0)  return PR_FALSE;
     return mMemoryCacheEnabled;
 }
 
@@ -919,16 +892,16 @@ nsCacheProfilePrefObserver::MemoryCacheEnabled()
  *  if (C > 32) C = 32
  */
 
-int32_t
+PRInt32
 nsCacheProfilePrefObserver::MemoryCacheCapacity()
 {
-    int32_t capacity = mMemoryCacheCapacity;
+    PRInt32 capacity = mMemoryCacheCapacity;
     if (capacity >= 0) {
         CACHE_LOG_DEBUG(("Memory cache capacity forced to %d\n", capacity));
         return capacity;
     }
 
-    static uint64_t bytes = PR_GetPhysicalMemorySize();
+    static PRUint64 bytes = PR_GetPhysicalMemorySize();
     CACHE_LOG_DEBUG(("Physical Memory size is %llu\n", bytes));
 
     // If getting the physical memory failed, arbitrarily assume
@@ -937,19 +910,21 @@ nsCacheProfilePrefObserver::MemoryCacheCapacity()
     if (bytes == 0)
         bytes = 32 * 1024 * 1024;
 
-    // Conversion from unsigned int64_t to double doesn't work on all platforms.
-    // We need to truncate the value at INT64_MAX to make sure we don't
+    // Conversion from unsigned int64 to double doesn't work on all platforms.
+    // We need to truncate the value at LL_MAXINT to make sure we don't
     // overflow.
-    if (bytes > INT64_MAX)
-        bytes = INT64_MAX;
+    if (LL_CMP(bytes, >, LL_MAXINT))
+        bytes = LL_MAXINT;
 
-    uint64_t kbytes = bytes >> 10;
+    PRUint64 kbytes;
+    LL_SHR(kbytes, bytes, 10);
 
-    double kBytesD = double(kbytes);
+    double kBytesD;
+    LL_L2D(kBytesD, (PRInt64) kbytes);
 
     double x = log(kBytesD)/log(2.0) - 14;
     if (x > 0) {
-        capacity = (int32_t)(x * x / 3.0 + x + 2.0 / 3 + 0.1); // 0.1 for rounding
+        capacity = (PRInt32)(x * x / 3.0 + x + 2.0 / 3 + 0.1); // 0.1 for rounding
         if (capacity > 32)
             capacity = 32;
         capacity   *= 1024;
@@ -960,11 +935,6 @@ nsCacheProfilePrefObserver::MemoryCacheCapacity()
     return capacity;
 }
 
-int32_t
-nsCacheProfilePrefObserver::CacheCompressionLevel()
-{
-    return mCacheCompressionLevel;
-}
 
 /******************************************************************************
  * nsProcessRequestEvent
@@ -974,8 +944,6 @@ class nsProcessRequestEvent : public nsRunnable {
 public:
     nsProcessRequestEvent(nsCacheRequest *aRequest)
     {
-        MOZ_EVENT_TRACER_NAME_OBJECT(aRequest, aRequest->mKey.get());
-        MOZ_EVENT_TRACER_WAIT(aRequest, "net::cache::ProcessRequest");
         mRequest = aRequest;
     }
 
@@ -986,14 +954,13 @@ public:
         NS_ASSERTION(mRequest->mListener,
                      "Sync OpenCacheEntry() posted to background thread!");
 
-        nsCacheServiceAutoLock lock(LOCK_TELEM(NSPROCESSREQUESTEVENT_RUN));
+        nsCacheServiceAutoLock lock;
         rv = nsCacheService::gService->ProcessRequest(mRequest,
-                                                      false,
-                                                      nullptr);
+                                                      PR_FALSE,
+                                                      nsnull);
 
         // Don't delete the request if it was queued
-        if (!(mRequest->IsBlocking() &&
-            rv == NS_ERROR_CACHE_WAIT_FOR_VALIDATION))
+        if (rv != NS_ERROR_CACHE_WAIT_FOR_VALIDATION)
             delete mRequest;
 
         return NS_OK;
@@ -1007,85 +974,30 @@ private:
 };
 
 /******************************************************************************
- * nsDoomEvent
- *****************************************************************************/
-
-class nsDoomEvent : public nsRunnable {
-public:
-    nsDoomEvent(nsCacheSession *session,
-                const nsACString &key,
-                nsICacheListener *listener)
-    {
-        mKey = *session->ClientID();
-        mKey.Append(':');
-        mKey.Append(key);
-        mStoragePolicy = session->StoragePolicy();
-        mListener = listener;
-        mThread = do_GetCurrentThread();
-        // We addref the listener here and release it in nsNotifyDoomListener
-        // on the callers thread. If posting of nsNotifyDoomListener event fails
-        // we leak the listener which is better than releasing it on a wrong
-        // thread.
-        NS_IF_ADDREF(mListener);
-    }
-
-    NS_IMETHOD Run()
-    {
-        nsCacheServiceAutoLock lock(LOCK_TELEM(NSDOOMEVENT_RUN));
-
-        bool foundActive = true;
-        nsresult status = NS_ERROR_NOT_AVAILABLE;
-        nsCacheEntry *entry;
-        entry = nsCacheService::gService->mActiveEntries.GetEntry(&mKey);
-        if (!entry) {
-            bool collision = false;
-            foundActive = false;
-            entry = nsCacheService::gService->SearchCacheDevices(&mKey,
-                                                                 mStoragePolicy,
-                                                                 &collision);
-        }
-
-        if (entry) {
-            status = NS_OK;
-            nsCacheService::gService->DoomEntry_Internal(entry, foundActive);
-        }
-
-        if (mListener) {
-            mThread->Dispatch(new nsNotifyDoomListener(mListener, status),
-                              NS_DISPATCH_NORMAL);
-            // posted event will release the reference on the correct thread
-            mListener = nullptr;
-        }
-
-        return NS_OK;
-    }
-
-private:
-    nsCString             mKey;
-    nsCacheStoragePolicy  mStoragePolicy;
-    nsICacheListener     *mListener;
-    nsCOMPtr<nsIThread>   mThread;
-};
-
-/******************************************************************************
  * nsCacheService
  *****************************************************************************/
-nsCacheService *   nsCacheService::gService = nullptr;
+nsCacheService *   nsCacheService::gService = nsnull;
 
-NS_IMPL_ISUPPORTS2(nsCacheService, nsICacheService, nsICacheServiceInternal)
+static nsCOMPtr<nsIMemoryReporter> MemoryCacheReporter = nsnull;
+
+NS_THREADSAFE_MEMORY_REPORTER_IMPLEMENT(NetworkMemoryCache,
+    "explicit/network-memory-cache",
+    KIND_HEAP,
+    UNITS_BYTES,
+    nsCacheService::MemoryDeviceSize,
+    "Memory used by the network memory cache.")
+
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsCacheService, nsICacheService)
 
 nsCacheService::nsCacheService()
-    : mObserver(nullptr),
-      mLock("nsCacheService.mLock"),
+    : mLock("nsCacheService.mLock"),
       mCondVar(mLock, "nsCacheService.mCondVar"),
-      mTimeStampLock("nsCacheService.mTimeStampLock"),
-      mInitialized(false),
-      mClearingEntries(false),
-      mEnableMemoryDevice(true),
-      mEnableDiskDevice(true),
-      mMemoryDevice(nullptr),
-      mDiskDevice(nullptr),
-      mOfflineDevice(nullptr),
+      mInitialized(PR_FALSE),
+      mEnableMemoryDevice(PR_TRUE),
+      mEnableDiskDevice(PR_TRUE),
+      mMemoryDevice(nsnull),
+      mDiskDevice(nsnull),
+      mOfflineDevice(nsnull),
       mTotalEntries(0),
       mCacheHits(0),
       mCacheMisses(0),
@@ -1095,12 +1007,11 @@ nsCacheService::nsCacheService()
       mDeactivateFailures(0),
       mDeactivatedUnboundEntries(0)
 {
-    NS_ASSERTION(gService==nullptr, "multiple nsCacheService instances!");
+    NS_ASSERTION(gService==nsnull, "multiple nsCacheService instances!");
     gService = this;
 
     // create list of cache devices
     PR_INIT_CLIST(&mDoomedEntries);
-    mCustomOfflineDevices.Init();
 }
 
 nsCacheService::~nsCacheService()
@@ -1108,24 +1019,14 @@ nsCacheService::~nsCacheService()
     if (mInitialized) // Shutdown hasn't been called yet.
         (void) Shutdown();
 
-    if (mObserver) {
-        mObserver->Remove();
-        NS_RELEASE(mObserver);
-    }
-
-    gService = nullptr;
+    gService = nsnull;
 }
 
 
 nsresult
 nsCacheService::Init()
 {
-    // Thie method must be called on the main thread because mCacheIOThread must
-    // only be modified on the main thread.
-    if (!NS_IsMainThread()) {
-        NS_ERROR("nsCacheService::Init called off the main thread");
-        return NS_ERROR_NOT_SAME_THREAD;
-    }
+    NS_TIME_FUNCTION;
 
     NS_ASSERTION(!mInitialized, "nsCacheService already initialized.");
     if (mInitialized)
@@ -1137,22 +1038,9 @@ nsCacheService::Init()
 
     CACHE_LOG_INIT();
 
-    nsresult rv;
-
-    mStorageService = do_GetService("@mozilla.org/storage/service;1", &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    MOZ_EVENT_TRACER_NAME_OBJECT(nsCacheService::gService, "nsCacheService");
-
-    rv = NS_NewNamedThread("Cache I/O",
-                           getter_AddRefs(mCacheIOThread));
+    nsresult rv = NS_NewThread(getter_AddRefs(mCacheIOThread));
     if (NS_FAILED(rv)) {
-        NS_RUNTIMEABORT("Can't create cache IO thread");
-    }
-
-    rv = nsDeleteDir::Init();
-    if (NS_FAILED(rv)) {
-        NS_WARNING("Can't initialize nsDeleteDir");
+        NS_WARNING("Can't create cache IO thread");
     }
 
     // initialize hashtable for active cache entries
@@ -1160,118 +1048,69 @@ nsCacheService::Init()
     if (NS_FAILED(rv)) return rv;
     
     // create profile/preference observer
-    if (!mObserver) {
-      mObserver = new nsCacheProfilePrefObserver();
-      NS_ADDREF(mObserver);
-      mObserver->Install();
-    }
-
+    mObserver = new nsCacheProfilePrefObserver();
+    if (!mObserver)  return NS_ERROR_OUT_OF_MEMORY;
+    NS_ADDREF(mObserver);
+    
+    mObserver->Install();
     mEnableDiskDevice    = mObserver->DiskCacheEnabled();
     mEnableOfflineDevice = mObserver->OfflineCacheEnabled();
     mEnableMemoryDevice  = mObserver->MemoryCacheEnabled();
 
-    mInitialized = true;
+    mInitialized = PR_TRUE;
     return NS_OK;
 }
 
-// static
-PLDHashOperator
-nsCacheService::ShutdownCustomCacheDeviceEnum(const nsAString& aProfileDir,
-                                              nsRefPtr<nsOfflineCacheDevice>& aDevice,
-                                              void* aUserArg)
-{
-    aDevice->Shutdown();
-    return PL_DHASH_REMOVE;
-}
 
 void
 nsCacheService::Shutdown()
 {
-    // This method must be called on the main thread because mCacheIOThread must
-    // only be modified on the main thread.
-    if (!NS_IsMainThread()) {
-        NS_RUNTIMEABORT("nsCacheService::Shutdown called off the main thread");
-    }
-
     nsCOMPtr<nsIThread> cacheIOThread;
-    Telemetry::AutoTimer<Telemetry::NETWORK_DISK_CACHE_SHUTDOWN> totalTimer;
-
-    bool shouldSanitize = false;
-    nsCOMPtr<nsIFile> parentDir;
 
     {
-        nsCacheServiceAutoLock lock(LOCK_TELEM(NSCACHESERVICE_SHUTDOWN));
-        NS_ASSERTION(mInitialized,
-            "can't shutdown nsCacheService unless it has been initialized.");
-        if (!mInitialized)
-            return;
+    nsCacheServiceAutoLock lock;
+    NS_ASSERTION(mInitialized, 
+                 "can't shutdown nsCacheService unless it has been initialized.");
 
-        mClearingEntries = true;
-        DoomActiveEntries(nullptr);
-    }
+    if (mInitialized) {
 
-    CloseAllStreams();
+        mInitialized = PR_FALSE;
 
-    {
-        nsCacheServiceAutoLock lock(LOCK_TELEM(NSCACHESERVICE_SHUTDOWN));
-        NS_ASSERTION(mInitialized, "Bad state");
-
-        mInitialized = false;
-
+        mObserver->Remove();
+        NS_RELEASE(mObserver);
+        
         // Clear entries
         ClearDoomList();
-
-        if (mSmartSizeTimer) {
-            mSmartSizeTimer->Cancel();
-            mSmartSizeTimer = nullptr;
-        }
+        ClearActiveEntries();
 
         // Make sure to wait for any pending cache-operations before
         // proceeding with destructive actions (bug #620660)
         (void) SyncWithCacheIOThread();
-
-        // obtain the disk cache directory in case we need to sanitize it
-        parentDir = mObserver->DiskCacheParentDirectory();
-        shouldSanitize = mObserver->SanitizeAtShutdown();
+        
+        // unregister memory reporter, before deleting the memory device, just
+        // to be safe
+        NS_UnregisterMemoryReporter(MemoryCacheReporter);
+        MemoryCacheReporter = nsnull;
 
         // deallocate memory and disk caches
         delete mMemoryDevice;
-        mMemoryDevice = nullptr;
+        mMemoryDevice = nsnull;
 
         delete mDiskDevice;
-        mDiskDevice = nullptr;
-
-        if (mOfflineDevice)
-            mOfflineDevice->Shutdown();
+        mDiskDevice = nsnull;
 
         NS_IF_RELEASE(mOfflineDevice);
-
-        mCustomOfflineDevices.Enumerate(&nsCacheService::ShutdownCustomCacheDeviceEnum, nullptr);
 
 #ifdef PR_LOGGING
         LogCacheStatistics();
 #endif
 
-        mClearingEntries = false;
         mCacheIOThread.swap(cacheIOThread);
     }
+    } // lock
 
     if (cacheIOThread)
-        nsShutdownThread::BlockingShutdown(cacheIOThread);
-
-    if (shouldSanitize) {
-        nsresult rv = parentDir->AppendNative(NS_LITERAL_CSTRING("Cache"));
-        if (NS_SUCCEEDED(rv)) {
-            bool exists;
-            if (NS_SUCCEEDED(parentDir->Exists(&exists)) && exists)
-                nsDeleteDir::DeleteDir(parentDir, false);
-        }
-        Telemetry::AutoTimer<Telemetry::NETWORK_DISK_CACHE_SHUTDOWN_CLEAR_PRIVATE> timer;
-        nsDeleteDir::Shutdown(shouldSanitize);
-    } else {
-        Telemetry::AutoTimer<Telemetry::NETWORK_DISK_CACHE_DELETEDIR_SHUTDOWN> timer;
-        nsDeleteDir::Shutdown(shouldSanitize);
-    }
+        cacheIOThread->Shutdown();
 }
 
 
@@ -1280,11 +1119,11 @@ nsCacheService::Create(nsISupports* aOuter, const nsIID& aIID, void* *aResult)
 {
     nsresult  rv;
 
-    if (aOuter != nullptr)
+    if (aOuter != nsnull)
         return NS_ERROR_NO_AGGREGATION;
 
     nsCacheService * cacheService = new nsCacheService();
-    if (cacheService == nullptr)
+    if (cacheService == nsnull)
         return NS_ERROR_OUT_OF_MEMORY;
 
     NS_ADDREF(cacheService);
@@ -1300,12 +1139,12 @@ nsCacheService::Create(nsISupports* aOuter, const nsIID& aIID, void* *aResult)
 NS_IMETHODIMP
 nsCacheService::CreateSession(const char *          clientID,
                               nsCacheStoragePolicy  storagePolicy, 
-                              bool                  streamBased,
+                              PRBool                streamBased,
                               nsICacheSession     **result)
 {
-    *result = nullptr;
+    *result = nsnull;
 
-    if (this == nullptr)  return NS_ERROR_NOT_AVAILABLE;
+    if (this == nsnull)  return NS_ERROR_NOT_AVAILABLE;
 
     nsCacheSession * session = new nsCacheSession(clientID, storagePolicy, streamBased);
     if (!session)  return NS_ERROR_OUT_OF_MEMORY;
@@ -1347,7 +1186,7 @@ EvictionNotifierRunnable::Run()
     if (obsSvc) {
         obsSvc->NotifyObservers(mSubject,
                                 NS_CACHESERVICE_EMPTYCACHE_TOPIC_ID,
-                                nullptr);
+                                nsnull);
     }
     return NS_OK;
 }
@@ -1361,43 +1200,42 @@ nsCacheService::EvictEntriesForClient(const char *          clientID,
     nsRefPtr<EvictionNotifierRunnable> r = new EvictionNotifierRunnable(this);
     NS_DispatchToMainThread(r);
 
-    nsCacheServiceAutoLock lock(LOCK_TELEM(NSCACHESERVICE_EVICTENTRIESFORCLIENT));
+    nsCacheServiceAutoLock lock;
     nsresult res = NS_OK;
 
     if (storagePolicy == nsICache::STORE_ANYWHERE ||
         storagePolicy == nsICache::STORE_ON_DISK) {
 
         if (mEnableDiskDevice) {
-            nsresult rv = NS_OK;
+            nsresult rv;
             if (!mDiskDevice)
                 rv = CreateDiskDevice();
             if (mDiskDevice)
                 rv = mDiskDevice->EvictEntries(clientID);
-            if (NS_FAILED(rv))
-                res = rv;
+            if (NS_FAILED(rv)) res = rv;
         }
     }
 
     // Only clear the offline cache if it has been specifically asked for.
     if (storagePolicy == nsICache::STORE_OFFLINE) {
         if (mEnableOfflineDevice) {
-            nsresult rv = NS_OK;
+            nsresult rv;
             if (!mOfflineDevice)
                 rv = CreateOfflineDevice();
             if (mOfflineDevice)
                 rv = mOfflineDevice->EvictEntries(clientID);
-            if (NS_FAILED(rv))
-                res = rv;
+            if (NS_FAILED(rv)) res = rv;
         }
     }
 
     if (storagePolicy == nsICache::STORE_ANYWHERE ||
         storagePolicy == nsICache::STORE_IN_MEMORY) {
+
         // If there is no memory device, there is no need to evict it...
         if (mMemoryDevice) {
-            nsresult rv = mMemoryDevice->EvictEntries(clientID);
-            if (NS_FAILED(rv))
-                res = rv;
+            nsresult rv;
+            rv = mMemoryDevice->EvictEntries(clientID);
+            if (NS_FAILED(rv)) res = rv;
         }
     }
 
@@ -1407,58 +1245,43 @@ nsCacheService::EvictEntriesForClient(const char *          clientID,
 
 nsresult        
 nsCacheService::IsStorageEnabledForPolicy(nsCacheStoragePolicy  storagePolicy,
-                                          bool *              result)
+                                          PRBool *              result)
 {
-    if (gService == nullptr) return NS_ERROR_NOT_AVAILABLE;
-    nsCacheServiceAutoLock lock(LOCK_TELEM(NSCACHESERVICE_ISSTORAGEENABLEDFORPOLICY));
+    if (gService == nsnull) return NS_ERROR_NOT_AVAILABLE;
+    nsCacheServiceAutoLock lock;
 
     *result = gService->IsStorageEnabledForPolicy_Locked(storagePolicy);
     return NS_OK;
 }
 
 
-nsresult
-nsCacheService::DoomEntry(nsCacheSession   *session,
-                          const nsACString &key,
-                          nsICacheListener *listener)
-{
-    CACHE_LOG_DEBUG(("Dooming entry for session %p, key %s\n",
-                     session, PromiseFlatCString(key).get()));
-    NS_ASSERTION(gService, "nsCacheService::gService is null.");
-
-    if (!gService->mInitialized)
-        return NS_ERROR_NOT_INITIALIZED;
-
-    return DispatchToCacheIOThread(new nsDoomEvent(session, key, listener));
-}
-
-
-bool          
+PRBool        
 nsCacheService::IsStorageEnabledForPolicy_Locked(nsCacheStoragePolicy  storagePolicy)
 {
     if (gService->mEnableMemoryDevice &&
         (storagePolicy == nsICache::STORE_ANYWHERE ||
          storagePolicy == nsICache::STORE_IN_MEMORY)) {
-        return true;
+        return PR_TRUE;
     }
     if (gService->mEnableDiskDevice &&
         (storagePolicy == nsICache::STORE_ANYWHERE ||
-         storagePolicy == nsICache::STORE_ON_DISK)) {
-        return true;
+         storagePolicy == nsICache::STORE_ON_DISK  ||
+         storagePolicy == nsICache::STORE_ON_DISK_AS_FILE)) {
+        return PR_TRUE;
     }
     if (gService->mEnableOfflineDevice &&
         storagePolicy == nsICache::STORE_OFFLINE) {
-        return true;
+        return PR_TRUE;
     }
     
-    return false;
+    return PR_FALSE;
 }
 
 NS_IMETHODIMP nsCacheService::VisitEntries(nsICacheVisitor *visitor)
 {
     NS_ENSURE_ARG_POINTER(visitor);
 
-    nsCacheServiceAutoLock lock(LOCK_TELEM(NSCACHESERVICE_VISITENTRIES));
+    nsCacheServiceAutoLock lock;
 
     if (!(mEnableDiskDevice || mEnableMemoryDevice))
         return NS_ERROR_NOT_AVAILABLE;
@@ -1497,75 +1320,20 @@ NS_IMETHODIMP nsCacheService::VisitEntries(nsICacheVisitor *visitor)
     return NS_OK;
 }
 
-void nsCacheService::FireClearNetworkCacheStoredAnywhereNotification()
-{
-    MOZ_ASSERT(NS_IsMainThread());
-    nsCOMPtr<nsIObserverService> obsvc = mozilla::services::GetObserverService();
-    if (obsvc) {
-        obsvc->NotifyObservers(nullptr,
-                               "network-clear-cache-stored-anywhere",
-                               nullptr);
-    }
-}
 
 NS_IMETHODIMP nsCacheService::EvictEntries(nsCacheStoragePolicy storagePolicy)
 {
-    if (storagePolicy == nsICache::STORE_ANYWHERE) {
-        // if not called on main thread, dispatch the notification to the main thread to notify observers
-        if (!NS_IsMainThread()) { 
-            nsCOMPtr<nsIRunnable> event = NS_NewRunnableMethod(this,
-                                                               &nsCacheService::FireClearNetworkCacheStoredAnywhereNotification);
-            NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
-        } else {
-            // else you're already on main thread - notify observers
-            FireClearNetworkCacheStoredAnywhereNotification(); 
-        }
-    }
-    return EvictEntriesForClient(nullptr, storagePolicy);
+    return  EvictEntriesForClient(nsnull, storagePolicy);
 }
 
 NS_IMETHODIMP nsCacheService::GetCacheIOTarget(nsIEventTarget * *aCacheIOTarget)
 {
-    NS_ENSURE_ARG_POINTER(aCacheIOTarget);
+    nsCacheServiceAutoLock lock;
 
-    // Because mCacheIOThread can only be changed on the main thread, it can be
-    // read from the main thread without the lock. This is useful to prevent
-    // blocking the main thread on other cache operations.
-    if (!NS_IsMainThread()) {
-        Lock(LOCK_TELEM(NSCACHESERVICE_GETCACHEIOTARGET));
-    }
+    if (!mCacheIOThread)
+        return NS_ERROR_NOT_AVAILABLE;
 
-    nsresult rv;
-    if (mCacheIOThread) {
-        NS_ADDREF(*aCacheIOTarget = mCacheIOThread);
-        rv = NS_OK;
-    } else {
-        *aCacheIOTarget = nullptr;
-        rv = NS_ERROR_NOT_AVAILABLE;
-    }
-
-    if (!NS_IsMainThread()) {
-        Unlock();
-    }
-
-    return rv;
-}
-
-/* nsICacheServiceInternal
- * readonly attribute double lockHeldTime;
-*/
-NS_IMETHODIMP nsCacheService::GetLockHeldTime(double *aLockHeldTime)
-{
-    MutexAutoLock lock(mTimeStampLock);
-
-    if (mLockAcquiredTimeStamp.IsNull()) {
-        *aLockHeldTime = 0.0;
-    }
-    else {
-        *aLockHeldTime = 
-            (TimeStamp::Now() - mLockAcquiredTimeStamp).ToMilliseconds();
-    }
-
+    NS_ADDREF(*aCacheIOTarget = mCacheIOThread);
     return NS_OK;
 }
 
@@ -1586,185 +1354,48 @@ nsCacheService::CreateDiskDevice()
     mDiskDevice->SetCacheParentDirectory(mObserver->DiskCacheParentDirectory());
     mDiskDevice->SetCapacity(mObserver->DiskCacheCapacity());
     mDiskDevice->SetMaxEntrySize(mObserver->DiskCacheMaxEntrySize());
-
+    
     nsresult rv = mDiskDevice->Init();
     if (NS_FAILED(rv)) {
 #if DEBUG
         printf("###\n");
-        printf("### mDiskDevice->Init() failed (0x%.8x)\n",
-               static_cast<uint32_t>(rv));
+        printf("### mDiskDevice->Init() failed (0x%.8x)\n", rv);
         printf("###    - disabling disk cache for this session.\n");
         printf("###\n");
-#endif
-        mEnableDiskDevice = false;
+#endif        
+        mEnableDiskDevice = PR_FALSE;
         delete mDiskDevice;
-        mDiskDevice = nullptr;
-        return rv;
+        mDiskDevice = nsnull;
     }
-
-    Telemetry::Accumulate(Telemetry::DISK_CACHE_SMART_SIZE_USING_OLD_MAX,
-                          mObserver->ShouldUseOldMaxSmartSize());
-
-    NS_ASSERTION(!mSmartSizeTimer, "Smartsize timer was already fired!");
-
-    // Disk device is usually created during the startup. Delay smart size
-    // calculation to avoid possible massive IO caused by eviction of entries
-    // in case the new smart size is smaller than current cache usage.
-    mSmartSizeTimer = do_CreateInstance("@mozilla.org/timer;1", &rv);
-    if (NS_SUCCEEDED(rv)) {
-        rv = mSmartSizeTimer->InitWithCallback(new nsSetDiskSmartSizeCallback(),
-                                               1000*60*3,
-                                               nsITimer::TYPE_ONE_SHOT);
-        if (NS_FAILED(rv)) {
-            NS_WARNING("Failed to post smart size timer");
-            mSmartSizeTimer = nullptr;
-        }
-    } else {
-        NS_WARNING("Can't create smart size timer");
-    }
-    // Ignore state of the timer and return success since the purpose of the
-    // method (create the disk-device) has been fulfilled
-
-    return NS_OK;
-}
-
-// Runnable sent from cache thread to main thread
-class nsDisableOldMaxSmartSizePrefEvent: public nsRunnable
-{
-public:
-    nsDisableOldMaxSmartSizePrefEvent() {}
-
-    NS_IMETHOD Run()
-    {
-        // Main thread may have already called nsCacheService::Shutdown
-        if (!nsCacheService::IsInitialized())
-            return NS_ERROR_NOT_AVAILABLE;
-
-        nsCOMPtr<nsIPrefBranch> branch = do_GetService(NS_PREFSERVICE_CONTRACTID);
-        if (!branch) {
-            return NS_ERROR_NOT_AVAILABLE;
-        }
-
-        nsresult rv = branch->SetBoolPref(DISK_CACHE_USE_OLD_MAX_SMART_SIZE_PREF, false);
-        if (NS_FAILED(rv)) {
-            NS_WARNING("Failed to disable old max smart size");
-            return rv;
-        }
-
-        // It is safe to call SetDiskSmartSize_Locked() without holding the lock
-        // when we are on main thread and nsCacheService is initialized.
-        nsCacheService::gService->SetDiskSmartSize_Locked();
-
-        if (nsCacheService::gService->mObserver->PermittedToSmartSize(branch, false)) {
-            rv = branch->SetIntPref(DISK_CACHE_CAPACITY_PREF, MAX_CACHE_SIZE);
-            if (NS_FAILED(rv)) {
-                NS_WARNING("Failed to set cache capacity pref");
-            }
-        }
-
-        return NS_OK;
-    }
-};
-
-void
-nsCacheService::MarkStartingFresh()
-{
-    if (!gService->mObserver->ShouldUseOldMaxSmartSize()) {
-        // Already using new max, nothing to do here
-        return;
-    }
-
-    gService->mObserver->SetUseNewMaxSmartSize(true);
-
-    // We always dispatch an event here because we don't want to deal with lock
-    // reentrance issues.
-    NS_DispatchToMainThread(new nsDisableOldMaxSmartSizePrefEvent());
-}
-
-nsresult
-nsCacheService::GetOfflineDevice(nsOfflineCacheDevice **aDevice)
-{
-    if (!mOfflineDevice) {
-        nsresult rv = CreateOfflineDevice();
-        NS_ENSURE_SUCCESS(rv, rv);
-    }
-
-    NS_ADDREF(*aDevice = mOfflineDevice);
-    return NS_OK;
-}
-
-nsresult
-nsCacheService::GetCustomOfflineDevice(nsIFile *aProfileDir,
-                                       int32_t aQuota,
-                                       nsOfflineCacheDevice **aDevice)
-{
-    nsresult rv;
-
-    nsAutoString profilePath;
-    rv = aProfileDir->GetPath(profilePath);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    if (!mCustomOfflineDevices.Get(profilePath, aDevice)) {
-        rv = CreateCustomOfflineDevice(aProfileDir, aQuota, aDevice);
-        NS_ENSURE_SUCCESS(rv, rv);
-
-        (*aDevice)->SetAutoShutdown();
-        mCustomOfflineDevices.Put(profilePath, *aDevice);
-    }
-
-    return NS_OK;
+    return rv;
 }
 
 nsresult
 nsCacheService::CreateOfflineDevice()
 {
-    CACHE_LOG_ALWAYS(("Creating default offline device"));
-
-    if (mOfflineDevice)        return NS_OK;
-    if (!nsCacheService::IsInitialized()) {
-        return NS_ERROR_NOT_AVAILABLE;
-    }
-
-    nsresult rv = CreateCustomOfflineDevice(
-        mObserver->OfflineCacheParentDirectory(),
-        mObserver->OfflineCacheCapacity(),
-        &mOfflineDevice);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    return NS_OK;
-}
-
-nsresult
-nsCacheService::CreateCustomOfflineDevice(nsIFile *aProfileDir,
-                                          int32_t aQuota,
-                                          nsOfflineCacheDevice **aDevice)
-{
-    NS_ENSURE_ARG(aProfileDir);
-
-#if defined(PR_LOGGING)
-    nsAutoCString profilePath;
-    aProfileDir->GetNativePath(profilePath);
-    CACHE_LOG_ALWAYS(("Creating custom offline device, %s, %d",
-                      profilePath.BeginReading(), aQuota));
-#endif
+    CACHE_LOG_ALWAYS(("Creating offline device"));
 
     if (!mInitialized)         return NS_ERROR_NOT_AVAILABLE;
     if (!mEnableOfflineDevice) return NS_ERROR_NOT_AVAILABLE;
+    if (mOfflineDevice)        return NS_OK;
 
-    *aDevice = new nsOfflineCacheDevice;
+    mOfflineDevice = new nsOfflineCacheDevice;
+    if (!mOfflineDevice)       return NS_ERROR_OUT_OF_MEMORY;
 
-    NS_ADDREF(*aDevice);
+    NS_ADDREF(mOfflineDevice);
 
     // set the preferences
-    (*aDevice)->SetCacheParentDirectory(aProfileDir);
-    (*aDevice)->SetCapacity(aQuota);
+    mOfflineDevice->SetCacheParentDirectory(
+        mObserver->OfflineCacheParentDirectory());
+    mOfflineDevice->SetCapacity(mObserver->OfflineCacheCapacity());
 
-    nsresult rv = (*aDevice)->InitWithSqlite(mStorageService);
+    nsresult rv = mOfflineDevice->Init();
     if (NS_FAILED(rv)) {
-        CACHE_LOG_DEBUG(("OfflineDevice->InitWithSqlite() failed (0x%.8x)\n", rv));
+        CACHE_LOG_DEBUG(("mOfflineDevice->Init() failed (0x%.8x)\n", rv));
         CACHE_LOG_DEBUG(("    - disabling offline cache for this session.\n"));
 
-        NS_RELEASE(*aDevice);
+        mEnableOfflineDevice = PR_FALSE;
+        NS_RELEASE(mOfflineDevice);
     }
     return rv;
 }
@@ -1780,7 +1411,7 @@ nsCacheService::CreateMemoryDevice()
     if (!mMemoryDevice)       return NS_ERROR_OUT_OF_MEMORY;
     
     // set preference
-    int32_t capacity = mObserver->MemoryCacheCapacity();
+    PRInt32 capacity = mObserver->MemoryCacheCapacity();
     CACHE_LOG_DEBUG(("Creating memory device with capacity %d\n", capacity));
     mMemoryDevice->SetCapacity(capacity);
     mMemoryDevice->SetMaxEntrySize(mObserver->MemoryCacheMaxEntrySize());
@@ -1789,46 +1420,41 @@ nsCacheService::CreateMemoryDevice()
     if (NS_FAILED(rv)) {
         NS_WARNING("Initialization of Memory Cache failed.");
         delete mMemoryDevice;
-        mMemoryDevice = nullptr;
+        mMemoryDevice = nsnull;
     }
+
+    MemoryCacheReporter =
+        new NS_MEMORY_REPORTER_NAME(NetworkMemoryCache);
+    NS_RegisterMemoryReporter(MemoryCacheReporter);
 
     return rv;
 }
 
-nsresult
-nsCacheService::RemoveCustomOfflineDevice(nsOfflineCacheDevice *aDevice)
-{
-    nsCOMPtr<nsIFile> profileDir = aDevice->BaseDirectory();
-    if (!profileDir)
-        return NS_ERROR_UNEXPECTED;
-
-    nsAutoString profilePath;
-    nsresult rv = profileDir->GetPath(profilePath);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    mCustomOfflineDevices.Remove(profilePath);
-    return NS_OK;
-}
 
 nsresult
 nsCacheService::CreateRequest(nsCacheSession *   session,
                               const nsACString & clientKey,
                               nsCacheAccessMode  accessRequested,
-                              bool               blockingMode,
+                              PRBool             blockingMode,
                               nsICacheListener * listener,
                               nsCacheRequest **  request)
 {
     NS_ASSERTION(request, "CreateRequest: request is null");
      
-    nsAutoCString key(*session->ClientID());
-    key.Append(':');
-    key.Append(clientKey);
+    nsCString * key = new nsCString(*session->ClientID());
+    if (!key)
+        return NS_ERROR_OUT_OF_MEMORY;
+    key->Append(':');
+    key->Append(clientKey);
 
-    if (mMaxKeyLength < key.Length()) mMaxKeyLength = key.Length();
+    if (mMaxKeyLength < key->Length()) mMaxKeyLength = key->Length();
 
     // create request
-    *request = new nsCacheRequest(key, listener, accessRequested,
-                                  blockingMode, session);
+    *request = new  nsCacheRequest(key, listener, accessRequested, blockingMode, session);    
+    if (!*request) {
+        delete key;
+        return NS_ERROR_OUT_OF_MEMORY;
+    }
 
     if (!listener)  return NS_OK;  // we're sync, we're done.
 
@@ -1854,12 +1480,6 @@ public:
 
     NS_IMETHOD Run()
     {
-        mozilla::eventtracer::AutoEventTracer tracer(
-            static_cast<nsIRunnable*>(this),
-            eventtracer::eExec,
-            eventtracer::eDone,
-            "net::cache::OnCacheEntryAvailable");
-
         mListener->OnCacheEntryAvailable(mDescriptor, mAccessGranted, mStatus);
 
         NS_RELEASE(mListener);
@@ -1889,7 +1509,7 @@ nsCacheService::NotifyListener(nsCacheRequest *          request,
 
     // Swap ownership, and release listener on target thread...
     nsICacheListener *listener = request->mListener;
-    request->mListener = nullptr;
+    request->mListener = nsnull;
 
     nsCOMPtr<nsIRunnable> ev =
             new nsCacheListenerEvent(listener, descriptor,
@@ -1901,29 +1521,21 @@ nsCacheService::NotifyListener(nsCacheRequest *          request,
         return NS_ERROR_OUT_OF_MEMORY;
     }
 
-    MOZ_EVENT_TRACER_NAME_OBJECT(ev.get(), request->mKey.get());
-    MOZ_EVENT_TRACER_WAIT(ev.get(), "net::cache::OnCacheEntryAvailable");
     return request->mThread->Dispatch(ev, NS_DISPATCH_NORMAL);
 }
 
 
 nsresult
 nsCacheService::ProcessRequest(nsCacheRequest *           request,
-                               bool                       calledFromOpenCacheEntry,
+                               PRBool                     calledFromOpenCacheEntry,
                                nsICacheEntryDescriptor ** result)
 {
-    mozilla::eventtracer::AutoEventTracer tracer(
-        request,
-        eventtracer::eExec,
-        eventtracer::eDone,
-        "net::cache::ProcessRequest");
-
     // !!! must be called with mLock held !!!
     nsresult           rv;
-    nsCacheEntry *     entry = nullptr;
-    nsCacheEntry *     doomedEntry = nullptr;
+    nsCacheEntry *     entry = nsnull;
+    nsCacheEntry *     doomedEntry = nsnull;
     nsCacheAccessMode  accessGranted = nsICache::ACCESS_NONE;
-    if (result) *result = nullptr;
+    if (result) *result = nsnull;
 
     while(1) {  // Activate entry loop
         rv = ActivateEntry(request, &entry, &doomedEntry);  // get the entry for this request
@@ -1934,17 +1546,15 @@ nsCacheService::ProcessRequest(nsCacheRequest *           request,
             // entry->RequestAccess queues request on entry
             rv = entry->RequestAccess(request, &accessGranted);
             if (rv != NS_ERROR_CACHE_WAIT_FOR_VALIDATION) break;
-
+            
+            if (request->mListener) // async exits - validate, doom, or close will resume
+                return rv;
+            
             if (request->IsBlocking()) {
-                if (request->mListener) {
-                    // async exits - validate, doom, or close will resume
-                    return rv;
-                }
-
                 // XXX this is probably wrong...
                 Unlock();
                 rv = request->WaitForValidation();
-                Lock(LOCK_TELEM(NSCACHESERVICE_PROCESSREQUEST));
+                Lock();
             }
 
             PR_REMOVE_AND_INIT_LINK(request);
@@ -1960,21 +1570,7 @@ nsCacheService::ProcessRequest(nsCacheRequest *           request,
         // loop back around to look for another entry
     }
 
-    if (NS_SUCCEEDED(rv) && request->mProfileDir) {
-        // Custom cache directory has been demanded.  Preset the cache device.
-        if (entry->StoragePolicy() != nsICache::STORE_OFFLINE) {
-            // Failsafe check: this is implemented only for offline cache atm.
-            rv = NS_ERROR_FAILURE;
-        } else {
-            nsRefPtr<nsOfflineCacheDevice> customCacheDevice;
-            rv = GetCustomOfflineDevice(request->mProfileDir, -1,
-                                        getter_AddRefs(customCacheDevice));
-            if (NS_SUCCEEDED(rv))
-                entry->SetCustomCacheDevice(customCacheDevice);
-        }
-    }
-
-    nsICacheEntryDescriptor *descriptor = nullptr;
+    nsICacheEntryDescriptor *descriptor = nsnull;
     
     if (NS_SUCCEEDED(rv))
         rv = entry->CreateDescriptor(request, accessGranted, &descriptor);
@@ -1994,12 +1590,12 @@ nsCacheService::ProcessRequest(nsCacheRequest *           request,
         (void) ProcessPendingRequests(doomedEntry);
         if (doomedEntry->IsNotInUse())
             DeactivateEntry(doomedEntry);
-        doomedEntry = nullptr;
+        doomedEntry = nsnull;
     }
 
     if (request->mListener) {  // Asynchronous
     
-        if (NS_FAILED(rv) && calledFromOpenCacheEntry && request->IsBlocking())
+        if (NS_FAILED(rv) && calledFromOpenCacheEntry)
             return rv;  // skip notifying listener, just return rv to caller
             
         // call listener to report error or descriptor
@@ -2018,7 +1614,7 @@ nsresult
 nsCacheService::OpenCacheEntry(nsCacheSession *           session,
                                const nsACString &         key,
                                nsCacheAccessMode          accessRequested,
-                               bool                       blockingMode,
+                               PRBool                     blockingMode,
                                nsICacheListener *         listener,
                                nsICacheEntryDescriptor ** result)
 {
@@ -2027,12 +1623,12 @@ nsCacheService::OpenCacheEntry(nsCacheSession *           session,
                      blockingMode));
     NS_ASSERTION(gService, "nsCacheService::gService is null.");
     if (result)
-        *result = nullptr;
+        *result = nsnull;
 
     if (!gService->mInitialized)
         return NS_ERROR_NOT_INITIALIZED;
 
-    nsCacheRequest * request = nullptr;
+    nsCacheRequest * request = nsnull;
 
     nsresult rv = gService->CreateRequest(session,
                                           key,
@@ -2057,12 +1653,11 @@ nsCacheService::OpenCacheEntry(nsCacheSession *           session,
     }
     else {
 
-        nsCacheServiceAutoLock lock(LOCK_TELEM(NSCACHESERVICE_OPENCACHEENTRY));
-        rv = gService->ProcessRequest(request, true, result);
+        nsCacheServiceAutoLock lock;
+        rv = gService->ProcessRequest(request, PR_TRUE, result);
 
         // delete requests that have completed
-        if (!(listener && blockingMode &&
-            (rv == NS_ERROR_CACHE_WAIT_FOR_VALIDATION)))
+        if (!(listener && (rv == NS_ERROR_CACHE_WAIT_FOR_VALIDATION)))
             delete request;
     }
 
@@ -2076,20 +1671,12 @@ nsCacheService::ActivateEntry(nsCacheRequest * request,
                               nsCacheEntry ** doomedEntry)
 {
     CACHE_LOG_DEBUG(("Activate entry for request %p\n", request));
-    if (!mInitialized || mClearingEntries)
-        return NS_ERROR_NOT_AVAILABLE;
-
-    mozilla::eventtracer::AutoEventTracer tracer(
-        request,
-        eventtracer::eExec,
-        eventtracer::eDone,
-        "net::cache::ActivateEntry");
-
+    
     nsresult        rv = NS_OK;
 
-    NS_ASSERTION(request != nullptr, "ActivateEntry called with no request");
-    if (result) *result = nullptr;
-    if (doomedEntry) *doomedEntry = nullptr;
+    NS_ASSERTION(request != nsnull, "ActivateEntry called with no request");
+    if (result) *result = nsnull;
+    if (doomedEntry) *doomedEntry = nsnull;
     if ((!request) || (!result) || (!doomedEntry))
         return NS_ERROR_NULL_POINTER;
 
@@ -2100,13 +1687,13 @@ nsCacheService::ActivateEntry(nsCacheRequest * request,
         return NS_ERROR_FAILURE;
 
     // search active entries (including those not bound to device)
-    nsCacheEntry *entry = mActiveEntries.GetEntry(&(request->mKey));
+    nsCacheEntry *entry = mActiveEntries.GetEntry(request->mKey);
     CACHE_LOG_DEBUG(("Active entry for request %p is %p\n", request, entry));
 
     if (!entry) {
         // search cache devices for entry
-        bool collision = false;
-        entry = SearchCacheDevices(&(request->mKey), request->StoragePolicy(), &collision);
+        PRBool collision = PR_FALSE;
+        entry = SearchCacheDevices(request->mKey, request->StoragePolicy(), &collision);
         CACHE_LOG_DEBUG(("Device search for request %p returned %p\n",
                          request, entry));
         // When there is a hashkey collision just refuse to cache it...
@@ -2139,7 +1726,7 @@ nsCacheService::ActivateEntry(nsCacheRequest * request,
         if (NS_FAILED(rv)) {
             // XXX what to do?  Increment FailedDooms counter?
         }
-        entry = nullptr;
+        entry = nsnull;
     }
 
     if (!entry) {
@@ -2154,9 +1741,6 @@ nsCacheService::ActivateEntry(nsCacheRequest * request,
                                  request->StoragePolicy());
         if (!entry)
             return NS_ERROR_OUT_OF_MEMORY;
-
-        if (request->IsPrivate())
-            entry->MarkPrivate();
         
         entry->Fetched();
         ++mTotalEntries;
@@ -2174,28 +1758,20 @@ nsCacheService::ActivateEntry(nsCacheRequest * request,
     return NS_OK;
     
  error:
-    *result = nullptr;
+    *result = nsnull;
     delete entry;
     return rv;
 }
 
 
 nsCacheEntry *
-nsCacheService::SearchCacheDevices(nsCString * key, nsCacheStoragePolicy policy, bool *collision)
+nsCacheService::SearchCacheDevices(nsCString * key, nsCacheStoragePolicy policy, PRBool *collision)
 {
-    Telemetry::AutoTimer<Telemetry::CACHE_DEVICE_SEARCH_2> timer;
-    nsCacheEntry * entry = nullptr;
-
-    MOZ_EVENT_TRACER_NAME_OBJECT(key, key->BeginReading());
-    eventtracer::AutoEventTracer searchCacheDevices(
-        key,
-        eventtracer::eExec,
-        eventtracer::eDone,
-        "net::cache::SearchCacheDevices");
+    nsCacheEntry * entry = nsnull;
 
     CACHE_LOG_DEBUG(("mMemoryDevice: 0x%p\n", mMemoryDevice));
 
-    *collision = false;
+    *collision = PR_FALSE;
     if ((policy == nsICache::STORE_ANYWHERE) || (policy == nsICache::STORE_IN_MEMORY)) {
         // If there is no memory device, then there is nothing to search...
         if (mMemoryDevice) {
@@ -2212,7 +1788,7 @@ nsCacheService::SearchCacheDevices(nsCString * key, nsCacheStoragePolicy policy,
             if (!mDiskDevice) {
                 nsresult rv = CreateDiskDevice();
                 if (NS_FAILED(rv))
-                    return nullptr;
+                    return nsnull;
             }
             
             entry = mDiskDevice->FindEntry(key, collision);
@@ -2227,7 +1803,7 @@ nsCacheService::SearchCacheDevices(nsCString * key, nsCacheStoragePolicy policy,
             if (!mOfflineDevice) {
                 nsresult rv = CreateOfflineDevice();
                 if (NS_FAILED(rv))
-                    return nullptr;
+                    return nsnull;
             }
 
             entry = mOfflineDevice->FindEntry(key, collision);
@@ -2246,7 +1822,7 @@ nsCacheService::EnsureEntryHasDevice(nsCacheEntry * entry)
     // doomed entries to bind to a device (see e.g. bugs #548406 and #596443)
     if (device || entry->IsDoomed())  return device;
 
-    int64_t predictedDataSize = entry->PredictedDataSize();
+    PRInt64 predictedDataSize = entry->PredictedDataSize();
     if (entry->IsStreamData() && entry->IsAllowedOnDisk() && mEnableDiskDevice) {
         // this is the default
         if (!mDiskDevice) {
@@ -2256,10 +1832,11 @@ nsCacheService::EnsureEntryHasDevice(nsCacheEntry * entry)
         if (mDiskDevice) {
             // Bypass the cache if Content-Length says the entry will be too big
             if (predictedDataSize != -1 &&
+                entry->StoragePolicy() != nsICache::STORE_ON_DISK_AS_FILE &&
                 mDiskDevice->EntryIsTooBig(predictedDataSize)) {
                 DebugOnly<nsresult> rv = nsCacheService::DoomEntry(entry);
                 NS_ASSERTION(NS_SUCCEEDED(rv),"DoomEntry() failed.");
-                return nullptr;
+                return nsnull;
             }
 
             entry->MarkBinding();  // enter state of binding
@@ -2281,7 +1858,7 @@ nsCacheService::EnsureEntryHasDevice(nsCacheEntry * entry)
                 mMemoryDevice->EntryIsTooBig(predictedDataSize)) {
                 DebugOnly<nsresult> rv = nsCacheService::DoomEntry(entry);
                 NS_ASSERTION(NS_SUCCEEDED(rv),"DoomEntry() failed.");
-                return nullptr;
+                return nsnull;
             }
 
             entry->MarkBinding();  // enter state of binding
@@ -2298,22 +1875,25 @@ nsCacheService::EnsureEntryHasDevice(nsCacheEntry * entry)
             (void)CreateOfflineDevice(); // ignore the error (check for mOfflineDevice instead)
         }
 
-        device = entry->CustomCacheDevice()
-               ? entry->CustomCacheDevice()
-               : mOfflineDevice;
-
-        if (device) {
+        if (mOfflineDevice) {
             entry->MarkBinding();
-            nsresult rv = device->BindEntry(entry);
+            nsresult rv = mOfflineDevice->BindEntry(entry);
             entry->ClearBinding();
-            if (NS_FAILED(rv))
-                device = nullptr;
+            if (NS_SUCCEEDED(rv))
+                device = mOfflineDevice;
         }
     }
 
     if (device) 
         entry->SetCacheDevice(device);
     return device;
+}
+
+PRInt64
+nsCacheService::MemoryDeviceSize()
+{
+    nsMemoryCacheDevice *memoryDevice = GlobalInstance()->mMemoryDevice;
+    return memoryDevice ? memoryDevice->TotalSize() : 0;
 }
 
 nsresult
@@ -2325,7 +1905,7 @@ nsCacheService::DoomEntry(nsCacheEntry * entry)
 
 nsresult
 nsCacheService::DoomEntry_Internal(nsCacheEntry * entry,
-                                   bool doProcessPendingRequests)
+                                   PRBool doProcessPendingRequests)
 {
     if (entry->IsDoomed())  return NS_OK;
     
@@ -2363,7 +1943,7 @@ nsCacheService::DoomEntry_Internal(nsCacheEntry * entry,
 
 
 void
-nsCacheService::OnProfileShutdown(bool cleanse)
+nsCacheService::OnProfileShutdown(PRBool cleanse)
 {
     if (!gService)  return;
     if (!gService->mInitialized) {
@@ -2371,15 +1951,9 @@ nsCacheService::OnProfileShutdown(bool cleanse)
         // a reference to it. Ignore this call.
         return;
     }
-    {
-        nsCacheServiceAutoLock lock(LOCK_TELEM(NSCACHESERVICE_ONPROFILESHUTDOWN));
-        gService->mClearingEntries = true;
-        gService->DoomActiveEntries(nullptr);
-    }
+    nsCacheServiceAutoLock lock;
 
-    gService->CloseAllStreams();
-
-    nsCacheServiceAutoLock lock(LOCK_TELEM(NSCACHESERVICE_ONPROFILESHUTDOWN));
+    gService->DoomActiveEntries();
     gService->ClearDoomList();
 
     // Make sure to wait for any pending cache-operations before
@@ -2388,29 +1962,25 @@ nsCacheService::OnProfileShutdown(bool cleanse)
 
     if (gService->mDiskDevice && gService->mEnableDiskDevice) {
         if (cleanse)
-            gService->mDiskDevice->EvictEntries(nullptr);
+            gService->mDiskDevice->EvictEntries(nsnull);
 
         gService->mDiskDevice->Shutdown();
     }
-    gService->mEnableDiskDevice = false;
+    gService->mEnableDiskDevice = PR_FALSE;
 
     if (gService->mOfflineDevice && gService->mEnableOfflineDevice) {
         if (cleanse)
-            gService->mOfflineDevice->EvictEntries(nullptr);
+            gService->mOfflineDevice->EvictEntries(nsnull);
 
         gService->mOfflineDevice->Shutdown();
     }
-    gService->mCustomOfflineDevices.Enumerate(
-        &nsCacheService::ShutdownCustomCacheDeviceEnum, nullptr);
-
-    gService->mEnableOfflineDevice = false;
+    gService->mEnableOfflineDevice = PR_FALSE;
 
     if (gService->mMemoryDevice) {
         // clear memory cache
-        gService->mMemoryDevice->EvictEntries(nullptr);
+        gService->mMemoryDevice->EvictEntries(nsnull);
     }
 
-    gService->mClearingEntries = false;
 }
 
 
@@ -2421,7 +1991,7 @@ nsCacheService::OnProfileChanged()
 
     CACHE_LOG_DEBUG(("nsCacheService::OnProfileChanged"));
  
-    nsCacheServiceAutoLock lock(LOCK_TELEM(NSCACHESERVICE_ONPROFILECHANGED));
+    nsCacheServiceAutoLock lock;
     
     gService->mEnableDiskDevice    = gService->mObserver->DiskCacheEnabled();
     gService->mEnableOfflineDevice = gService->mObserver->OfflineCacheEnabled();
@@ -2435,7 +2005,7 @@ nsCacheService::OnProfileChanged()
         nsresult rv = gService->mDiskDevice->Init();
         if (NS_FAILED(rv)) {
             NS_ERROR("nsCacheService::OnProfileChanged: Re-initializing disk device failed");
-            gService->mEnableDiskDevice = false;
+            gService->mEnableDiskDevice = PR_FALSE;
             // XXX delete mDiskDevice?
         }
     }
@@ -2445,10 +2015,10 @@ nsCacheService::OnProfileChanged()
         gService->mOfflineDevice->SetCapacity(gService->mObserver->OfflineCacheCapacity());
 
         // XXX initialization of mOfflineDevice could be made lazily, if mEnableOfflineDevice is false
-        nsresult rv = gService->mOfflineDevice->InitWithSqlite(gService->mStorageService);
+        nsresult rv = gService->mOfflineDevice->Init();
         if (NS_FAILED(rv)) {
             NS_ERROR("nsCacheService::OnProfileChanged: Re-initializing offline device failed");
-            gService->mEnableOfflineDevice = false;
+            gService->mEnableOfflineDevice = PR_FALSE;
             // XXX delete mOfflineDevice?
         }
     }
@@ -2457,7 +2027,7 @@ nsCacheService::OnProfileChanged()
     if (gService->mMemoryDevice) {
         if (gService->mEnableMemoryDevice) {
             // make sure that capacity is reset to the right value
-            int32_t capacity = gService->mObserver->MemoryCacheCapacity();
+            PRInt32 capacity = gService->mObserver->MemoryCacheCapacity();
             CACHE_LOG_DEBUG(("Resetting memory device capacity to %d\n",
                              capacity));
             gService->mMemoryDevice->SetCapacity(capacity);
@@ -2472,32 +2042,33 @@ nsCacheService::OnProfileChanged()
 
 
 void
-nsCacheService::SetDiskCacheEnabled(bool    enabled)
+nsCacheService::SetDiskCacheEnabled(PRBool  enabled)
 {
     if (!gService)  return;
-    nsCacheServiceAutoLock lock(LOCK_TELEM(NSCACHESERVICE_SETDISKCACHEENABLED));
+    nsCacheServiceAutoLock lock;
     gService->mEnableDiskDevice = enabled;
 }
 
 
 void
-nsCacheService::SetDiskCacheCapacity(int32_t  capacity)
+nsCacheService::SetDiskCacheCapacity(PRInt32  capacity)
 {
     if (!gService)  return;
-    nsCacheServiceAutoLock lock(LOCK_TELEM(NSCACHESERVICE_SETDISKCACHECAPACITY));
+    nsCacheServiceAutoLock lock;
 
     if (gService->mDiskDevice) {
         gService->mDiskDevice->SetCapacity(capacity);
     }
 
-    gService->mEnableDiskDevice = gService->mObserver->DiskCacheEnabled();
+    if (gService->mObserver)
+        gService->mEnableDiskDevice = gService->mObserver->DiskCacheEnabled();
 }
 
 void
-nsCacheService::SetDiskCacheMaxEntrySize(int32_t  maxSize)
+nsCacheService::SetDiskCacheMaxEntrySize(PRInt32  maxSize)
 {
     if (!gService)  return;
-    nsCacheServiceAutoLock lock(LOCK_TELEM(NSCACHESERVICE_SETDISKCACHEMAXENTRYSIZE));
+    nsCacheServiceAutoLock lock;
 
     if (gService->mDiskDevice) {
         gService->mDiskDevice->SetMaxEntrySize(maxSize);
@@ -2505,10 +2076,10 @@ nsCacheService::SetDiskCacheMaxEntrySize(int32_t  maxSize)
 }
 
 void
-nsCacheService::SetMemoryCacheMaxEntrySize(int32_t  maxSize)
+nsCacheService::SetMemoryCacheMaxEntrySize(PRInt32  maxSize)
 {
     if (!gService)  return;
-    nsCacheServiceAutoLock lock(LOCK_TELEM(NSCACHESERVICE_SETMEMORYCACHEMAXENTRYSIZE));
+    nsCacheServiceAutoLock lock;
 
     if (gService->mMemoryDevice) {
         gService->mMemoryDevice->SetMaxEntrySize(maxSize);
@@ -2516,18 +2087,18 @@ nsCacheService::SetMemoryCacheMaxEntrySize(int32_t  maxSize)
 }
 
 void
-nsCacheService::SetOfflineCacheEnabled(bool    enabled)
+nsCacheService::SetOfflineCacheEnabled(PRBool  enabled)
 {
     if (!gService)  return;
-    nsCacheServiceAutoLock lock(LOCK_TELEM(NSCACHESERVICE_SETOFFLINECACHEENABLED));
+    nsCacheServiceAutoLock lock;
     gService->mEnableOfflineDevice = enabled;
 }
 
 void
-nsCacheService::SetOfflineCacheCapacity(int32_t  capacity)
+nsCacheService::SetOfflineCacheCapacity(PRInt32  capacity)
 {
     if (!gService)  return;
-    nsCacheServiceAutoLock lock(LOCK_TELEM(NSCACHESERVICE_SETOFFLINECACHECAPACITY));
+    nsCacheServiceAutoLock lock;
 
     if (gService->mOfflineDevice) {
         gService->mOfflineDevice->SetCapacity(capacity);
@@ -2544,13 +2115,13 @@ nsCacheService::SetMemoryCache()
 
     CACHE_LOG_DEBUG(("nsCacheService::SetMemoryCache"));
 
-    nsCacheServiceAutoLock lock(LOCK_TELEM(NSCACHESERVICE_SETMEMORYCACHE));
+    nsCacheServiceAutoLock lock;
 
     gService->mEnableMemoryDevice = gService->mObserver->MemoryCacheEnabled();
 
     if (gService->mEnableMemoryDevice) {
         if (gService->mMemoryDevice) {
-            int32_t capacity = gService->mObserver->MemoryCacheCapacity();
+            PRInt32 capacity = gService->mObserver->MemoryCacheCapacity();
             // make sure that capacity is reset to the right value
             CACHE_LOG_DEBUG(("Resetting memory device capacity to %d\n",
                              capacity));
@@ -2574,17 +2145,12 @@ void
 nsCacheService::CloseDescriptor(nsCacheEntryDescriptor * descriptor)
 {
     // ask entry to remove descriptor
-    nsCacheEntry * entry = descriptor->CacheEntry();
-    bool doomEntry;
-    bool stillActive = entry->RemoveDescriptor(descriptor, &doomEntry);
+    nsCacheEntry * entry       = descriptor->CacheEntry();
+    PRBool         stillActive = entry->RemoveDescriptor(descriptor);
+    nsresult       rv          = NS_OK;
 
     if (!entry->IsValid()) {
-        gService->ProcessPendingRequests(entry);
-    }
-
-    if (doomEntry) {
-        gService->DoomEntry_Internal(entry, true);
-        return;
+        rv = gService->ProcessPendingRequests(entry);
     }
 
     if (!stillActive) {
@@ -2607,7 +2173,7 @@ nsCacheService::GetFileForEntry(nsCacheEntry *         entry,
 nsresult
 nsCacheService::OpenInputStreamForEntry(nsCacheEntry *     entry,
                                         nsCacheAccessMode  mode,
-                                        uint32_t           offset,
+                                        PRUint32           offset,
                                         nsIInputStream  ** result)
 {
     nsCacheDevice * device = gService->EnsureEntryHasDevice(entry);
@@ -2619,7 +2185,7 @@ nsCacheService::OpenInputStreamForEntry(nsCacheEntry *     entry,
 nsresult
 nsCacheService::OpenOutputStreamForEntry(nsCacheEntry *     entry,
                                          nsCacheAccessMode  mode,
-                                         uint32_t           offset,
+                                         PRUint32           offset,
                                          nsIOutputStream ** result)
 {
     nsCacheDevice * device = gService->EnsureEntryHasDevice(entry);
@@ -2630,7 +2196,7 @@ nsCacheService::OpenOutputStreamForEntry(nsCacheEntry *     entry,
 
 
 nsresult
-nsCacheService::OnDataSizeChange(nsCacheEntry * entry, int32_t deltaSize)
+nsCacheService::OnDataSizeChange(nsCacheEntry * entry, PRInt32 deltaSize)
 {
     nsCacheDevice * device = gService->EnsureEntryHasDevice(entry);
     if (!device)  return  NS_ERROR_UNEXPECTED;
@@ -2639,48 +2205,9 @@ nsCacheService::OnDataSizeChange(nsCacheEntry * entry, int32_t deltaSize)
 }
 
 void
-nsCacheService::LockAcquired()
+nsCacheService::Lock()
 {
-    MutexAutoLock lock(mTimeStampLock);
-    mLockAcquiredTimeStamp = TimeStamp::Now();
-}
-
-void
-nsCacheService::LockReleased()
-{
-    MutexAutoLock lock(mTimeStampLock);
-    mLockAcquiredTimeStamp = TimeStamp();
-}
-
-void
-nsCacheService::Lock(mozilla::Telemetry::ID mainThreadLockerID)
-{
-    mozilla::Telemetry::ID lockerID;
-    mozilla::Telemetry::ID generalID;
-
-    if (NS_IsMainThread()) {
-        lockerID = mainThreadLockerID;
-        generalID = mozilla::Telemetry::CACHE_SERVICE_LOCK_WAIT_MAINTHREAD_2;
-    } else {
-        lockerID = mozilla::Telemetry::HistogramCount;
-        generalID = mozilla::Telemetry::CACHE_SERVICE_LOCK_WAIT_2;
-    }
-
-    TimeStamp start(TimeStamp::Now());
-    MOZ_EVENT_TRACER_WAIT(nsCacheService::gService, "net::cache::lock");
-
     gService->mLock.Lock();
-    gService->LockAcquired();
-
-    TimeStamp stop(TimeStamp::Now());
-    MOZ_EVENT_TRACER_EXEC(nsCacheService::gService, "net::cache::lock");
-
-    // Telemetry isn't thread safe on its own, but this is OK because we're
-    // protecting it with the cache lock. 
-    if (lockerID != mozilla::Telemetry::HistogramCount) {
-        mozilla::Telemetry::AccumulateTimeDelta(lockerID, start, stop);
-    }
-    mozilla::Telemetry::AccumulateTimeDelta(generalID, start, stop);
 }
 
 void
@@ -2691,12 +2218,9 @@ nsCacheService::Unlock()
     nsTArray<nsISupports*> doomed;
     doomed.SwapElements(gService->mDoomedObjects);
 
-    gService->LockReleased();
     gService->mLock.Unlock();
 
-    MOZ_EVENT_TRACER_DONE(nsCacheService::gService, "net::cache::lock");
-
-    for (uint32_t i = 0; i < doomed.Length(); ++i)
+    for (PRUint32 i = 0; i < doomed.Length(); ++i)
         doomed[i]->Release();
 }
 
@@ -2706,7 +2230,7 @@ nsCacheService::ReleaseObject_Locked(nsISupports * obj,
 {
     gService->mLock.AssertCurrentThreadOwns();
 
-    bool isCur;
+    PRBool isCur;
     if (!target || (NS_SUCCEEDED(target->IsOnCurrentThread(&isCur)) && isCur)) {
         gService->mDoomedObjects.AppendElement(obj);
     } else {
@@ -2739,21 +2263,13 @@ nsCacheService::ValidateEntry(nsCacheEntry * entry)
 }
 
 
-int32_t
-nsCacheService::CacheCompressionLevel()
-{
-    int32_t level = gService->mObserver->CacheCompressionLevel();
-    return level;
-}
-
-
 void
 nsCacheService::DeactivateEntry(nsCacheEntry * entry)
 {
     CACHE_LOG_DEBUG(("Deactivating entry %p\n", entry));
     nsresult  rv = NS_OK;
     NS_ASSERTION(entry->IsNotInUse(), "### deactivating an entry while in use!");
-    nsCacheDevice * device = nullptr;
+    nsCacheDevice * device = nsnull;
 
     if (mMaxDataSize < entry->DataSize() )     mMaxDataSize = entry->DataSize();
     if (mMaxMetaSize < entry->MetaDataSize() ) mMaxMetaSize = entry->MetaDataSize();
@@ -2778,7 +2294,7 @@ nsCacheService::DeactivateEntry(nsCacheEntry * entry)
             return;
         }
     } else {
-        // if mInitialized == false,
+        // if mInitialized == PR_FALSE,
         // then we're shutting down and this state is okay.
         NS_ASSERTION(!mInitialized, "DeactivateEntry: bad cache entry state.");
     }
@@ -2801,16 +2317,10 @@ nsCacheService::DeactivateEntry(nsCacheEntry * entry)
 nsresult
 nsCacheService::ProcessPendingRequests(nsCacheEntry * entry)
 {
-    mozilla::eventtracer::AutoEventTracer tracer(
-        entry,
-        eventtracer::eExec,
-        eventtracer::eDone,
-        "net::cache::ProcessPendingRequests");
-
     nsresult            rv = NS_OK;
     nsCacheRequest *    request = (nsCacheRequest *)PR_LIST_HEAD(&entry->mRequestQ);
     nsCacheRequest *    nextRequest;
-    bool                newWriter = false;
+    PRBool              newWriter = PR_FALSE;
     
     CACHE_LOG_DEBUG(("ProcessPendingRequests for %sinitialized %s %salid entry %p\n",
                     (entry->IsInitialized()?"" : "Un"),
@@ -2835,7 +2345,7 @@ nsCacheService::ProcessPendingRequests(nsCacheEntry * entry)
         // find first request with ACCESS_READ_WRITE (if any) and promote it to 1st writer
         while (request != &entry->mRequestQ) {
             if (request->AccessRequested() == nsICache::ACCESS_READ_WRITE) {
-                newWriter = true;
+                newWriter = PR_TRUE;
                 CACHE_LOG_DEBUG(("  promoting request %p to 1st writer\n", request));
                 break;
             }
@@ -2865,7 +2375,7 @@ nsCacheService::ProcessPendingRequests(nsCacheEntry * entry)
             PR_REMOVE_AND_INIT_LINK(request);
 
             if (entry->IsDoomed()) {
-                rv = ProcessRequest(request, false, nullptr);
+                rv = ProcessRequest(request, PR_FALSE, nsnull);
                 if (rv == NS_ERROR_CACHE_WAIT_FOR_VALIDATION)
                     rv = NS_OK;
                 else
@@ -2881,7 +2391,7 @@ nsCacheService::ProcessPendingRequests(nsCacheEntry * entry)
                 // XXX if (newWriter)  NS_ASSERTION( accessGranted == request->AccessRequested(), "why not?");
 
                 // entry->CreateDescriptor dequeues request, and queues descriptor
-                nsICacheEntryDescriptor *descriptor = nullptr;
+                nsICacheEntryDescriptor *descriptor = nsnull;
                 rv = entry->CreateDescriptor(request,
                                              accessGranted,
                                              &descriptor);
@@ -2916,12 +2426,22 @@ nsCacheService::ProcessPendingRequests(nsCacheEntry * entry)
     return NS_OK;
 }
 
-bool
-nsCacheService::IsDoomListEmpty()
+
+void
+nsCacheService::ClearPendingRequests(nsCacheEntry * entry)
 {
-    nsCacheEntry * entry = (nsCacheEntry *)PR_LIST_HEAD(&mDoomedEntries);
-    return &mDoomedEntries == entry;
+    nsCacheRequest * request = (nsCacheRequest *)PR_LIST_HEAD(&entry->mRequestQ);
+    
+    while (request != &entry->mRequestQ) {
+        nsCacheRequest * next = (nsCacheRequest *)PR_NEXT_LINK(request);
+
+        // XXX we're just dropping these on the floor for now...definitely wrong.
+        PR_REMOVE_AND_INIT_LINK(request);
+        delete request;
+        request = next;
+    }
 }
+
 
 void
 nsCacheService::ClearDoomList()
@@ -2930,58 +2450,66 @@ nsCacheService::ClearDoomList()
 
     while (entry != &mDoomedEntries) {
         nsCacheEntry * next = (nsCacheEntry *)PR_NEXT_LINK(entry);
-
-        entry->DetachDescriptors();
-        DeactivateEntry(entry);
-        entry = next;
-    }
+        
+         entry->DetachDescriptors();
+         DeactivateEntry(entry);
+         entry = next;
+    }        
 }
 
-PLDHashOperator
-nsCacheService::GetActiveEntries(PLDHashTable *    table,
-                                 PLDHashEntryHdr * hdr,
-                                 uint32_t          number,
-                                 void *            arg)
-{
-    static_cast<nsVoidArray *>(arg)->AppendElement(
-        ((nsCacheEntryHashTableEntry *)hdr)->cacheEntry);
-    return PL_DHASH_NEXT;
-}
-
-struct ActiveEntryArgs
-{
-    nsTArray<nsCacheEntry*>* mActiveArray;
-    nsCacheService::DoomCheckFn mCheckFn;
-};
 
 void
-nsCacheService::DoomActiveEntries(DoomCheckFn check)
+nsCacheService::ClearActiveEntries()
+{
+    mActiveEntries.VisitEntries(DeactivateAndClearEntry, nsnull);
+    mActiveEntries.Shutdown();
+}
+
+
+PLDHashOperator
+nsCacheService::DeactivateAndClearEntry(PLDHashTable *    table,
+                                        PLDHashEntryHdr * hdr,
+                                        PRUint32          number,
+                                        void *            arg)
+{
+    nsCacheEntry * entry = ((nsCacheEntryHashTableEntry *)hdr)->cacheEntry;
+    NS_ASSERTION(entry, "### active entry = nsnull!");
+    // only called from Shutdown() so we don't worry about pending requests
+    gService->ClearPendingRequests(entry);
+    entry->DetachDescriptors();
+    
+    entry->MarkInactive();  // so we don't call Remove() while we're enumerating
+    gService->DeactivateEntry(entry);
+    
+    return PL_DHASH_REMOVE; // and continue enumerating
+}
+
+
+void
+nsCacheService::DoomActiveEntries()
 {
     nsAutoTArray<nsCacheEntry*, 8> array;
-    ActiveEntryArgs args = { &array, check };
 
-    mActiveEntries.VisitEntries(RemoveActiveEntry, &args);
+    mActiveEntries.VisitEntries(RemoveActiveEntry, &array);
 
-    uint32_t count = array.Length();
-    for (uint32_t i=0; i < count; ++i)
+    PRUint32 count = array.Length();
+    for (PRUint32 i=0; i < count; ++i)
         DoomEntry_Internal(array[i], true);
 }
+
 
 PLDHashOperator
 nsCacheService::RemoveActiveEntry(PLDHashTable *    table,
                                   PLDHashEntryHdr * hdr,
-                                  uint32_t          number,
+                                  PRUint32          number,
                                   void *            arg)
 {
     nsCacheEntry * entry = ((nsCacheEntryHashTableEntry *)hdr)->cacheEntry;
-    NS_ASSERTION(entry, "### active entry = nullptr!");
+    NS_ASSERTION(entry, "### active entry = nsnull!");
 
-    ActiveEntryArgs* args = static_cast<ActiveEntryArgs*>(arg);
-    if (args->mCheckFn && !args->mCheckFn(entry))
-        return PL_DHASH_NEXT;
-
-    NS_ASSERTION(args->mActiveArray, "### array = nullptr!");
-    args->mActiveArray->AppendElement(entry);
+    nsTArray<nsCacheEntry*> * array = (nsTArray<nsCacheEntry*> *) arg;
+    NS_ASSERTION(array, "### array = nsnull!");
+    array->AppendElement(entry);
 
     // entry is being removed from the active entry list
     entry->MarkInactive();
@@ -2989,72 +2517,11 @@ nsCacheService::RemoveActiveEntry(PLDHashTable *    table,
 }
 
 
-void
-nsCacheService::CloseAllStreams()
-{
-    nsTArray<nsRefPtr<nsCacheEntryDescriptor::nsInputStreamWrapper> > inputs;
-    nsTArray<nsRefPtr<nsCacheEntryDescriptor::nsOutputStreamWrapper> > outputs;
-
-    {
-        nsCacheServiceAutoLock lock(LOCK_TELEM(NSCACHESERVICE_CLOSEALLSTREAMS));
-
-        nsVoidArray entries;
-
-#if DEBUG
-        // make sure there is no active entry
-        mActiveEntries.VisitEntries(GetActiveEntries, &entries);
-        NS_ASSERTION(entries.Count() == 0, "Bad state");
-#endif
-
-        // Get doomed entries
-        nsCacheEntry * entry = (nsCacheEntry *)PR_LIST_HEAD(&mDoomedEntries);
-        while (entry != &mDoomedEntries) {
-            nsCacheEntry * next = (nsCacheEntry *)PR_NEXT_LINK(entry);
-            entries.AppendElement(entry);
-            entry = next;
-        }
-
-        // Iterate through all entries and collect input and output streams
-        for (int32_t i = 0 ; i < entries.Count() ; i++) {
-            entry = static_cast<nsCacheEntry *>(entries.ElementAt(i));
-
-            nsTArray<nsRefPtr<nsCacheEntryDescriptor> > descs;
-            entry->GetDescriptors(descs);
-
-            for (uint32_t j = 0 ; j < descs.Length() ; j++) {
-                if (descs[j]->mOutputWrapper)
-                    outputs.AppendElement(descs[j]->mOutputWrapper);
-
-                for (int32_t k = 0 ; k < descs[j]->mInputWrappers.Count() ; k++)
-                    inputs.AppendElement(static_cast<
-                        nsCacheEntryDescriptor::nsInputStreamWrapper *>(
-                        descs[j]->mInputWrappers[k]));
-            }
-        }
-    }
-
-    uint32_t i;
-    for (i = 0 ; i < inputs.Length() ; i++)
-        inputs[i]->Close();
-
-    for (i = 0 ; i < outputs.Length() ; i++)
-        outputs[i]->Close();
-}
-
-
-bool
-nsCacheService::GetClearingEntries()
-{
-    AssertOwnsLock();
-    return gService->mClearingEntries;
-}
-
-
 #if defined(PR_LOGGING)
 void
 nsCacheService::LogCacheStatistics()
 {
-    uint32_t hitPercentage = (uint32_t)((((double)mCacheHits) /
+    PRUint32 hitPercentage = (PRUint32)((((double)mCacheHits) /
         ((double)(mCacheHits + mCacheMisses))) * 100);
     CACHE_LOG_ALWAYS(("\nCache Service Statistics:\n\n"));
     CACHE_LOG_ALWAYS(("    TotalEntries   = %d\n", mTotalEntries));
@@ -3072,110 +2539,17 @@ nsCacheService::LogCacheStatistics()
 }
 #endif
 
-nsresult
-nsCacheService::SetDiskSmartSize()
-{
-    nsCacheServiceAutoLock lock(LOCK_TELEM(NSCACHESERVICE_SETDISKSMARTSIZE));
-
-    if (!gService) return NS_ERROR_NOT_AVAILABLE;
-
-    return gService->SetDiskSmartSize_Locked();
-}
-
-nsresult
-nsCacheService::SetDiskSmartSize_Locked()
-{
-    nsresult rv;
-
-    if (!mObserver->DiskCacheParentDirectory())
-        return NS_ERROR_NOT_AVAILABLE;
-
-    if (!mDiskDevice)
-        return NS_ERROR_NOT_AVAILABLE;
-
-    if (!mObserver->SmartSizeEnabled())
-        return NS_ERROR_NOT_AVAILABLE;
-
-    nsAutoString cachePath;
-    rv = mObserver->DiskCacheParentDirectory()->GetPath(cachePath);
-    if (NS_SUCCEEDED(rv)) {
-        nsCOMPtr<nsIRunnable> event =
-            new nsGetSmartSizeEvent(cachePath, mDiskDevice->getCacheSize(),
-                                    mObserver->ShouldUseOldMaxSmartSize());
-        DispatchToCacheIOThread(event);
-    } else {
-        return NS_ERROR_FAILURE;
-    }
-
-    return NS_OK;
-}
 
 void
-nsCacheService::MoveOrRemoveDiskCache(nsIFile *aOldCacheDir, 
-                                      nsIFile *aNewCacheDir,
-                                      const char *aCacheSubdir)
+nsCacheService::OnEnterExitPrivateBrowsing()
 {
-    bool same;
-    if (NS_FAILED(aOldCacheDir->Equals(aNewCacheDir, &same)) || same)
-        return;
+    if (!gService)  return;
+    nsCacheServiceAutoLock lock;
 
-    nsCOMPtr<nsIFile> aOldCacheSubdir;
-    aOldCacheDir->Clone(getter_AddRefs(aOldCacheSubdir));
-
-    nsresult rv = aOldCacheSubdir->AppendNative(
-        nsDependentCString(aCacheSubdir));
-    if (NS_FAILED(rv))
-        return;
-
-    bool exists;
-    if (NS_FAILED(aOldCacheSubdir->Exists(&exists)) || !exists)
-        return;
-
-    nsCOMPtr<nsIFile> aNewCacheSubdir;
-    aNewCacheDir->Clone(getter_AddRefs(aNewCacheSubdir));
-
-    rv = aNewCacheSubdir->AppendNative(nsDependentCString(aCacheSubdir));
-    if (NS_FAILED(rv))
-        return;
-    
-    nsAutoCString newPath;
-    rv = aNewCacheSubdir->GetNativePath(newPath);
-    if (NS_FAILED(rv))
-        return;
-        
-    if (NS_SUCCEEDED(aNewCacheSubdir->Exists(&exists)) && !exists) {
-        // New cache directory does not exist, try to move the old one here
-        // rename needs an empty target directory
-        rv = aNewCacheSubdir->Create(nsIFile::DIRECTORY_TYPE, 0777); 
-        if (NS_SUCCEEDED(rv)) {
-            nsAutoCString oldPath;
-            rv = aOldCacheSubdir->GetNativePath(oldPath);
-            if (NS_FAILED(rv))
-                return;
-            if(rename(oldPath.get(), newPath.get()) == 0)
-                return;
-        }
-    }
-    
-    // Delay delete by 1 minute to avoid IO thrash on startup.
-    nsDeleteDir::DeleteDir(aOldCacheSubdir, false, 60000);
-}
-
-static bool
-IsEntryPrivate(nsCacheEntry* entry)
-{
-    return entry->IsPrivate();
-}
-
-void
-nsCacheService::LeavePrivateBrowsing()
-{
-    nsCacheServiceAutoLock lock(LOCK_TELEM(NSCACHESERVICE_LEAVEPRIVATEBROWSING));
-
-    gService->DoomActiveEntries(IsEntryPrivate);
+    gService->DoomActiveEntries();
 
     if (gService->mMemoryDevice) {
         // clear memory cache
-        gService->mMemoryDevice->EvictPrivateEntries();
+        gService->mMemoryDevice->EvictEntries(nsnull);
     }
 }

@@ -1,6 +1,38 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape security libraries.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1994-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 #include "nspr.h"
 #include "secerr.h"
 #include "secasn1.h"
@@ -80,7 +112,7 @@ CERT_FindUserCertsByUsage(CERTCertDBHandle *handle,
     CERTCertificate *cert = NULL;
     CERTCertList *certList = NULL;
     SECStatus rv;
-    PRTime time;
+    int64 time;
     CERTCertListNode *node = NULL;
     CERTCertListNode *freenode = NULL;
     int n;
@@ -228,7 +260,7 @@ CERT_FindUserCertByUsage(CERTCertDBHandle *handle,
     CERTCertificate *cert = NULL;
     CERTCertList *certList = NULL;
     SECStatus rv;
-    PRTime time;
+    int64 time;
     
     time = PR_Now();
     
@@ -362,8 +394,6 @@ CollectNicknames( NSSCertificate *c, void *data)
     stanNickname = nssCertificate_GetNickname(c,NULL);
     
     if ( stanNickname ) {
-        nss_ZFreeIf(stanNickname);
-        stanNickname = NULL;
 	if (names->what == SEC_CERT_NICKNAMES_USER) {
 	    saveit = NSSCertificate_IsPrivateKeyAvailable(c, NULL, NULL);
 	}
@@ -458,7 +488,7 @@ CollectNicknames( NSSCertificate *c, void *data)
 CERTCertNicknames *
 CERT_GetCertNicknames(CERTCertDBHandle *handle, int what, void *wincx)
 {
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     CERTCertNicknames *names;
     int i;
     stringNode *node;
@@ -542,15 +572,17 @@ CollectDistNames( CERTCertificate *cert, SECItem *k, void *data)
 {
     CERTDistNames *names;
     PRBool saveit = PR_FALSE;
-    CERTCertTrust trust;
+    CERTCertTrust *trust;
     dnameNode *node;
     int len;
     
     names = (CERTDistNames *)data;
     
-    if ( CERT_GetCertTrust(cert, &trust) == SECSuccess ) {
+    if ( cert->trust ) {
+	trust = cert->trust;
+	
 	/* only collect names of CAs trusted for issuing SSL clients */
-	if (  trust.sslFlags &  CERTDB_TRUSTED_CLIENT_CA )  {
+	if (  trust->sslFlags &  CERTDB_TRUSTED_CLIENT_CA )  {
 	    saveit = PR_TRUE;
 	}
     }
@@ -588,7 +620,7 @@ CollectDistNames( CERTCertificate *cert, SECItem *k, void *data)
 CERTDistNames *
 CERT_DupDistNames(CERTDistNames *orig)
 {
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     CERTDistNames *names;
     int i;
     SECStatus rv;
@@ -636,7 +668,7 @@ loser:
 CERTDistNames *
 CERT_GetSSLCACerts(CERTCertDBHandle *handle)
 {
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     CERTDistNames *names;
     int i;
     SECStatus rv;
@@ -698,7 +730,7 @@ CERTDistNames *
 CERT_DistNamesFromCertList(CERTCertList *certList)
 {
     CERTDistNames *   dnames = NULL;
-    PLArenaPool *     arena;
+    PRArenaPool *     arena;
     CERTCertListNode *node = NULL;
     SECItem *         names = NULL;
     int               listLen = 0, i = 0;
@@ -746,7 +778,7 @@ CERT_DistNamesFromNicknames(CERTCertDBHandle *handle, char **nicknames,
 			   int nnames)
 {
     CERTDistNames *dnames = NULL;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     int i, rv;
     SECItem *names = NULL;
     CERTCertificate *cert = NULL;
@@ -788,7 +820,7 @@ CERT_FindCertByNameString(CERTCertDBHandle *handle, char *nameStr)
     CERTName *name;
     SECItem *nameItem;
     CERTCertificate *cert = NULL;
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
     
     arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
     
@@ -1024,7 +1056,7 @@ CERT_CertChainFromCert(CERTCertificate *cert, SECCertUsage usage,
     CERTCertificateList *chain = NULL;
     NSSCertificate **stanChain;
     NSSCertificate *stanCert;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     NSSUsage nssUsage;
     int i, len;
     NSSTrustDomain *td   = STAN_GetDefaultTrustDomain();
@@ -1116,7 +1148,7 @@ CERT_CertListFromCert(CERTCertificate *cert)
 {
     CERTCertificateList *chain = NULL;
     int rv;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
 
     /* arena for SecCertificateList */
     arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
@@ -1147,7 +1179,7 @@ CERTCertificateList *
 CERT_DupCertList(const CERTCertificateList * oldList)
 {
     CERTCertificateList *newList = NULL;
-    PLArenaPool         *arena   = NULL;
+    PRArenaPool         *arena   = NULL;
     SECItem             *newItem;
     SECItem             *oldItem;
     int                 len      = oldList->len;

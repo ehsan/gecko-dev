@@ -1,7 +1,42 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Alec Flett <alecf@netscape.com>
+ *   Brian Nesse <bnesse@netscape.com>
+ *   Benjamin Smedberg <benjamin@smedbergs.us>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsCOMPtr.h"
 #include "nsIObserver.h"
@@ -11,7 +46,7 @@
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
 #include "nsIRelativeFilePref.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsString.h"
 #include "nsVoidArray.h"
 #include "nsTArray.h"
@@ -20,8 +55,6 @@
 #include "nsCRT.h"
 #include "prbit.h"
 #include "nsTraceRefcnt.h"
-#include "mozilla/HashFunctions.h"
-#include "mozilla/MemoryReporting.h"
 
 class nsPrefBranch;
 
@@ -38,8 +71,11 @@ class PrefCallback : public PLDHashEntryHdr {
 
     static PLDHashNumber HashKey(const PrefCallback *aKey)
     {
-      uint32_t hash = mozilla::HashString(aKey->mDomain);
-      return mozilla::AddToHash(hash, aKey->mCanonical);
+      PRUint32 strHash = nsCRT::HashCode(aKey->mDomain.BeginReading(),
+                                         aKey->mDomain.Length());
+
+      return PR_ROTATE_LEFT32(strHash, 4) ^
+             NS_PTR_TO_UINT32(aKey->mCanonical);
     }
 
 
@@ -49,7 +85,7 @@ class PrefCallback : public PLDHashEntryHdr {
                  nsPrefBranch *aBranch)
       : mDomain(aDomain),
         mBranch(aBranch),
-        mWeakRef(nullptr),
+        mWeakRef(nsnull),
         mStrongRef(aObserver)
     {
       MOZ_COUNT_CTOR(PrefCallback);
@@ -64,7 +100,7 @@ class PrefCallback : public PLDHashEntryHdr {
       : mDomain(aDomain),
         mBranch(aBranch),
         mWeakRef(do_GetWeakReference(aObserver)),
-        mStrongRef(nullptr)
+        mStrongRef(nsnull)
     {
       MOZ_COUNT_CTOR(PrefCallback);
       nsCOMPtr<nsISupports> canonical = do_QueryInterface(aObserver);
@@ -87,7 +123,7 @@ class PrefCallback : public PLDHashEntryHdr {
       MOZ_COUNT_DTOR(PrefCallback);
     }
 
-    bool KeyEquals(const PrefCallback *aKey) const
+    PRBool KeyEquals(const PrefCallback *aKey) const
     {
       // We want to be able to look up a weakly-referencing PrefCallback after
       // its observer has died so we can remove it from the table.  Once the
@@ -107,7 +143,7 @@ class PrefCallback : public PLDHashEntryHdr {
         return this == aKey;
 
       if (mCanonical != aKey->mCanonical)
-        return false;
+        return PR_FALSE;
 
       return mDomain.Equals(aKey->mDomain);
     }
@@ -141,16 +177,16 @@ class PrefCallback : public PLDHashEntryHdr {
     }
 
     // Has this callback's weak reference died?
-    bool IsExpired() const
+    PRBool IsExpired() const
     {
       if (!IsWeak())
-        return false;
+        return PR_FALSE;
 
       nsCOMPtr<nsIObserver> observer(do_QueryReferent(mWeakRef));
       return !observer;
     }
 
-    enum { ALLOW_MEMMOVE = true };
+    enum { ALLOW_MEMMOVE = PR_TRUE };
 
   private:
     nsCString             mDomain;
@@ -163,7 +199,7 @@ class PrefCallback : public PLDHashEntryHdr {
     // We need a canonical nsISupports pointer, per bug 578392.
     nsISupports          *mCanonical;
 
-    bool IsWeak() const
+    PRBool IsWeak() const
     {
       return !!mWeakRef;
     }
@@ -174,33 +210,25 @@ class nsPrefBranch : public nsIPrefBranchInternal,
                      public nsSupportsWeakReference
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIPREFBRANCH
   NS_DECL_NSIPREFBRANCH2
   NS_DECL_NSIOBSERVER
 
-  nsPrefBranch(const char *aPrefRoot, bool aDefaultBranch);
+  nsPrefBranch(const char *aPrefRoot, PRBool aDefaultBranch);
   virtual ~nsPrefBranch();
 
-  int32_t GetRootLength() { return mPrefRootLength; }
+  PRInt32 GetRootLength() { return mPrefRootLength; }
 
   nsresult RemoveObserverFromMap(const char *aDomain, nsISupports *aObserver);
 
   static nsresult NotifyObserver(const char *newpref, void *data);
-
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf);
 
 protected:
   nsPrefBranch()    /* disallow use of this constructer */
     { }
 
   nsresult   GetDefaultFromPropertiesFile(const char *aPrefName, PRUnichar **return_buf);
-  // As SetCharPref, but without any check on the length of |aValue|
-  nsresult   SetCharPrefInternal(const char *aPrefName, const char *aValue);
-  // Reject strings that are more than 1Mb, warn if strings are more than 16kb
-  nsresult   CheckSanityOfStringLength(const char* aPrefName, const nsAString& aValue);
-  nsresult   CheckSanityOfStringLength(const char* aPrefName, const char* aValue);
-  nsresult   CheckSanityOfStringLength(const char* aPrefName, const uint32_t aLength);
   void RemoveExpiredCallback(PrefCallback *aCallback);
   const char *getPrefName(const char *aPrefName);
   void       freeObserverList(void);
@@ -211,11 +239,11 @@ protected:
                      void *aArgs);
 
 private:
-  int32_t               mPrefRootLength;
+  PRInt32               mPrefRootLength;
   nsCString             mPrefRoot;
-  bool                  mIsDefault;
+  PRBool                mIsDefault;
 
-  bool                  mFreeingObserverList;
+  PRBool                mFreeingObserverList;
   nsClassHashtable<PrefCallback, PrefCallback> mObservers;
 };
 
@@ -227,7 +255,7 @@ public:
   nsPrefLocalizedString();
   virtual ~nsPrefLocalizedString();
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_FORWARD_NSISUPPORTSSTRING(mUnicodeString->)
   NS_FORWARD_NSISUPPORTSPRIMITIVE(mUnicodeString->)
 
@@ -236,7 +264,7 @@ public:
 private:
   NS_IMETHOD GetData(PRUnichar**);
   NS_IMETHOD SetData(const PRUnichar* aData);
-  NS_IMETHOD SetDataWithLength(uint32_t aLength, const PRUnichar *aData);
+  NS_IMETHOD SetDataWithLength(PRUint32 aLength, const PRUnichar *aData);
 
   nsCOMPtr<nsISupportsString> mUnicodeString;
 };
@@ -245,13 +273,13 @@ private:
 class nsRelativeFilePref : public nsIRelativeFilePref
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIRELATIVEFILEPREF
   
                 nsRelativeFilePref();
   virtual       ~nsRelativeFilePref();
   
 private:
-  nsCOMPtr<nsIFile> mFile;
+  nsCOMPtr<nsILocalFile> mFile;
   nsCString mRelativeToKey;
 };

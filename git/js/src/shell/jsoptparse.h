@@ -1,18 +1,48 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * vim: set ts=8 sw=4 et tw=99:
+ *
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is SpiderMonkey JavaScript shell.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Christopher D. Leary <cdleary@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-#ifndef shell_jsoptparse_h
-#define shell_jsoptparse_h
+#ifndef jsoptparse_h__
+#define jsoptparse_h__
 
 #include <stdio.h>
-
-#include "jsalloc.h"
-#include "jsutil.h"
-
-#include "js/Vector.h"
+#include <jsvector.h>
 
 namespace js {
 namespace cli {
@@ -56,7 +86,7 @@ struct Option
     /* Only some valued options are variadic (like MultiStringOptions). */
     virtual bool isVariadic() const { return false; }
 
-    /*
+    /* 
      * For arguments, the shortflag field is used to indicate whether the
      * argument is optional.
      */
@@ -175,7 +205,7 @@ class MultiStringRange
     size_t argno() const { JS_ASSERT(!empty()); return cur->argno; }
 };
 
-/*
+/* 
  * Builder for describing a command line interface and parsing the resulting
  * specification.
  *
@@ -211,18 +241,12 @@ class OptionParser
     size_t      helpWidth;
     size_t      nextArgument;
 
-    // If '--' is passed, all remaining arguments should be interpreted as the
-    // argument at index 'restArgument'. Defaults to the next unassigned
-    // argument.
-    int         restArgument;
-
     static const char prognameMeta[];
 
     Option *findOption(char shortflag);
     const Option *findOption(char shortflag) const;
     Option *findOption(const char *longflag);
     const Option *findOption(const char *longflag) const;
-    int findArgumentIndex(const char *name) const;
     Option *findArgument(const char *name);
     const Option *findArgument(const char *name) const;
 
@@ -234,8 +258,7 @@ class OptionParser
   public:
     explicit OptionParser(const char *usage)
       : helpOption('h', "help", "Display help information"),
-        usage(usage), ver(NULL), descr(NULL), descrWidth(80), helpWidth(80),
-        nextArgument(0), restArgument(-1)
+        usage(usage), ver(NULL), descr(NULL), descrWidth(80), helpWidth(80), nextArgument(0)
     {}
 
     ~OptionParser();
@@ -251,7 +274,6 @@ class OptionParser
     void setDescription(const char *description) { descr = description; }
     void setHelpOption(char shortflag, const char *longflag, const char *help);
     void setArgTerminatesOptions(const char *name, bool enabled);
-    void setArgCapturesRest(const char *name);
 
     /* Arguments: no further arguments may be added after a variadic argument. */
 
@@ -281,7 +303,7 @@ class OptionParser
     MultiStringRange getMultiStringOption(char shortflag) const;
     MultiStringRange getMultiStringOption(const char *longflag) const;
 
-    /*
+    /* 
      * Return whether the help option was present (and thus help was already
      * displayed during parse_args).
      */
@@ -291,4 +313,4 @@ class OptionParser
 } /* namespace cli */
 } /* namespace js */
 
-#endif /* shell_jsoptparse_h */
+#endif /* jsoptparse_h__ */

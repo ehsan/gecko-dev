@@ -1,28 +1,59 @@
 /* -*- Mode: c++; c-basic-offset: 2; indent-tabs-mode: nil; tab-width: 40 -*- */
 /* vim: set ts=2 et sw=2 tw=80: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Web Workers.
+ *
+ * The Initial Developer of the Original Code is
+ *   The Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Ben Turner <bent.mozilla@gmail.com> (Original Author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "Exceptions.h"
 
 #include "jsapi.h"
-#include "jsfriendapi.h"
+#include "jscntxt.h"
+#include "jsobj.h"
 #include "jsprf.h"
-#include "mozilla/Util.h"
-#include "nsDOMException.h"
+
 #include "nsTraceRefcnt.h"
-#include "mozilla/dom/BindingUtils.h"
 
 #include "WorkerInlines.h"
 
 #define PROPERTY_FLAGS \
-  (JSPROP_ENUMERATE | JSPROP_SHARED)
+  JSPROP_ENUMERATE | JSPROP_SHARED
 
 #define CONSTANT_FLAGS \
   JSPROP_ENUMERATE | JSPROP_SHARED | JSPROP_PERMANENT | JSPROP_READONLY
 
-using namespace mozilla;
 USING_WORKERS_NAMESPACE
 
 namespace {
@@ -30,36 +61,25 @@ namespace {
 class DOMException : public PrivatizableBase
 {
   static JSClass sClass;
-  static const JSPropertySpec sProperties[];
-  static const JSFunctionSpec sFunctions[];
-  static const dom::ConstantSpec sStaticConstants[];
+  static JSPropertySpec sProperties[];
+  static JSFunctionSpec sFunctions[];
+  static JSPropertySpec sStaticProperties[];
 
   enum SLOT {
     SLOT_code = 0,
     SLOT_name,
-    SLOT_message,
 
-    SLOT_COUNT,
-    SLOT_FIRST = SLOT_code
+    SLOT_COUNT
   };
 
 public:
   static JSObject*
   InitClass(JSContext* aCx, JSObject* aObj)
   {
-    JS::Rooted<JSObject*> proto(aCx, JS_InitClass(aCx, aObj, nullptr, &sClass, Construct, 0,
-                                                  sProperties, sFunctions, nullptr, nullptr));
-    if (!proto) {
-      return NULL;
-    }
-
-    JS::Rooted<JSObject*> ctor(aCx, JS_GetConstructor(aCx, proto));
-    if (!ctor) {
-      return NULL;
-    }
-
-    if (!dom::DefineConstants(aCx, ctor, sStaticConstants) ||
-        !dom::DefineConstants(aCx, proto, sStaticConstants)) {
+    JSObject* proto = JS_InitClass(aCx, aObj, NULL, &sClass, Construct, 0,
+                                   sProperties, sFunctions, sStaticProperties,
+                                   NULL);
+    if (proto && !JS_DefineProperties(aCx, proto, sStaticProperties)) {
       return NULL;
     }
 
@@ -67,7 +87,7 @@ public:
   }
 
   static JSObject*
-  Create(JSContext* aCx, nsresult aNSResult);
+  Create(JSContext* aCx, intN aCode);
 
 private:
   DOMException()
@@ -81,7 +101,7 @@ private:
   }
 
   static JSBool
-  Construct(JSContext* aCx, unsigned aArgc, jsval* aVp)
+  Construct(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL, JSMSG_WRONG_CONSTRUCTOR,
                          sClass.name);
@@ -89,45 +109,41 @@ private:
   }
 
   static void
-  Finalize(JSFreeOp* aFop, JSObject* aObj)
+  Finalize(JSContext* aCx, JSObject* aObj)
   {
-    JS_ASSERT(JS_GetClass(aObj) == &sClass);
-    delete GetJSPrivateSafeish<DOMException>(aObj);
+    JS_ASSERT(JS_GET_CLASS(aCx, aObj) == &sClass);
+    delete GetJSPrivateSafeish<DOMException>(aCx, aObj);
   }
 
   static JSBool
-  ToString(JSContext* aCx, unsigned aArgc, jsval* aVp)
+  ToString(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
-    JS::Rooted<JSObject*> obj(aCx, JS_THIS_OBJECT(aCx, aVp));
-    if (!obj) {
-      return false;
-    }
+    JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
 
-    JSClass* classPtr = JS_GetClass(obj);
-    if (classPtr != &sClass) {
+    JSClass* classPtr;
+    if (!obj || ((classPtr = JS_GET_CLASS(aCx, obj)) != &sClass)) {
       JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL,
                            JSMSG_INCOMPATIBLE_PROTO, sClass.name, "toString",
-                           classPtr->name);
+                           classPtr ? classPtr->name : "object");
       return false;
     }
 
-    JS::Rooted<JS::Value> name(aCx, JS_GetReservedSlot(obj, SLOT_name));
-    JS_ASSERT(name.isString());
+    char buf[100];
+    JS_snprintf(buf, sizeof(buf), "%s: ", sClass.name);
 
-    JSString *colon = JS_NewStringCopyN(aCx, ": ", 2);
-    if (!colon){
+    JSString* classString = JS_NewStringCopyZ(aCx, buf);
+    if (!classString) {
       return false;
     }
 
-    JSString* out = JS_ConcatStrings(aCx, name.toString(), colon);
-    if (!out) {
+    jsval name;
+    if (!JS_GetReservedSlot(aCx, obj, SLOT_name, &name)) {
       return false;
     }
 
-    jsval message = JS_GetReservedSlot(obj, SLOT_message);
-    JS_ASSERT(message.isString());
+    JS_ASSERT(JSVAL_IS_STRING(name));
 
-    out = JS_ConcatStrings(aCx, out, message.toString());
+    JSString* out = JS_ConcatStrings(aCx, classString, JSVAL_TO_STRING(name));
     if (!out) {
       return false;
     }
@@ -136,64 +152,62 @@ private:
     return true;
   }
 
-  static bool
-  IsDOMException(const JS::Value& v)
+  static JSBool
+  GetProperty(JSContext* aCx, JSObject* aObj, jsid aIdval, jsval* aVp)
   {
-    if (!v.isObject())
+    JS_ASSERT(JSID_IS_INT(aIdval));
+
+    int32 slot = JSID_TO_INT(aIdval);
+
+    JSClass* classPtr = JS_GET_CLASS(aCx, aObj);
+
+    if (classPtr != &sClass ||
+        !GetJSPrivateSafeish<DOMException>(aCx, aObj)) {
+      JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL,
+                           JSMSG_INCOMPATIBLE_PROTO, sClass.name,
+                           sProperties[slot].name,
+                           classPtr ? classPtr->name : "object");
       return false;
-    JSObject* obj = &v.toObject();
-    return JS_GetClass(obj) == &sClass &&
-           GetJSPrivateSafeish<DOMException>(obj) != nullptr;
+    }
+
+    return JS_GetReservedSlot(aCx, aObj, slot, aVp);
   }
 
-  template<SLOT Slot>
-  static bool
-  GetPropertyImpl(JSContext* aCx, JS::CallArgs aArgs)
+  static JSBool
+  GetConstant(JSContext* aCx, JSObject* aObj, jsid idval, jsval* aVp)
   {
-    aArgs.rval().set(JS_GetReservedSlot(&aArgs.thisv().toObject(), Slot));
+    JS_ASSERT(JSID_IS_INT(idval));
+    *aVp = INT_TO_JSVAL(JSID_TO_INT(idval));
     return true;
   }
-
-  // This struct (versus just templating the method directly) is needed only for
-  // gcc 4.4 (and maybe 4.5 -- 4.6 is okay) being too braindead to allow
-  // GetProperty<Slot> and friends in the JSPropertySpec[] below.
-  template<SLOT Slot>
-  struct Property
-  {
-    static JSBool
-    Get(JSContext* aCx, unsigned aArgc, JS::Value* aVp)
-    {
-      static_assert(SLOT_FIRST <= Slot && Slot < SLOT_COUNT, "bad slot");
-      JS::CallArgs args = JS::CallArgsFromVp(aArgc, aVp);
-      return JS::CallNonGenericMethod<IsDOMException, GetPropertyImpl<Slot> >(aCx, args);
-    }
-  };
 };
 
 JSClass DOMException::sClass = {
   "DOMException",
   JSCLASS_HAS_PRIVATE | JSCLASS_HAS_RESERVED_SLOTS(SLOT_COUNT),
-  JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
-  JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Finalize
+  JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
+  JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Finalize,
+  JSCLASS_NO_OPTIONAL_MEMBERS
 };
 
-const JSPropertySpec DOMException::sProperties[] = {
-  JS_PSGS("code", Property<SLOT_code>::Get, GetterOnlyJSNative, JSPROP_ENUMERATE),
-  JS_PSGS("name", Property<SLOT_name>::Get, GetterOnlyJSNative, JSPROP_ENUMERATE),
-  JS_PSGS("message", Property<SLOT_message>::Get, GetterOnlyJSNative,
-          JSPROP_ENUMERATE),
-  JS_PS_END
+JSPropertySpec DOMException::sProperties[] = {
+  { "code", SLOT_code, PROPERTY_FLAGS, GetProperty, js_GetterOnlyPropertyStub },
+  { "name", SLOT_name, PROPERTY_FLAGS, GetProperty, js_GetterOnlyPropertyStub },
+  { 0, 0, 0, NULL, NULL }
 };
 
-const JSFunctionSpec DOMException::sFunctions[] = {
+JSFunctionSpec DOMException::sFunctions[] = {
   JS_FN("toString", ToString, 0, 0),
   JS_FS_END
 };
 
-const dom::ConstantSpec DOMException::sStaticConstants[] = {
+JSPropertySpec DOMException::sStaticProperties[] = {
 
 #define EXCEPTION_ENTRY(_name) \
-  { #_name, JS::Int32Value(_name) },
+  { #_name, _name, CONSTANT_FLAGS, GetConstant, NULL },
+
+  // Make sure this one is always first.
+  EXCEPTION_ENTRY(UNKNOWN_ERR)
 
   EXCEPTION_ENTRY(INDEX_SIZE_ERR)
   EXCEPTION_ENTRY(DOMSTRING_SIZE_ERR)
@@ -223,43 +237,197 @@ const dom::ConstantSpec DOMException::sStaticConstants[] = {
 
 #undef EXCEPTION_ENTRY
 
-  { nullptr, JS::UndefinedValue() }
+  { 0, 0, 0, NULL, NULL }
 };
 
 // static
 JSObject*
-DOMException::Create(JSContext* aCx, nsresult aNSResult)
+DOMException::Create(JSContext* aCx, intN aCode)
 {
-  JS::Rooted<JSObject*> obj(aCx, JS_NewObject(aCx, &sClass, NULL, NULL));
+  JSObject* obj = JS_NewObject(aCx, &sClass, NULL, NULL);
   if (!obj) {
     return NULL;
   }
 
-  const char* name;
-  const char* message;
-  uint16_t code;
-  if (NS_FAILED(NS_GetNameAndMessageForDOMNSResult(aNSResult, &name, &message,
-                                                   &code))) {
-    JS_ReportError(aCx, "Exception thrown (nsresult = 0x%x).", aNSResult);
+  size_t foundIndex = size_t(-1);
+  for (size_t index = 0;
+       index < JS_ARRAY_LENGTH(sStaticProperties) - 1;
+       index++) {
+    if (sStaticProperties[index].tinyid == aCode) {
+      foundIndex = index;
+      break;
+    }
+  }
+
+  if (foundIndex == size_t(-1)) {
+    foundIndex = 0;
+  }
+
+  JSString* name = JS_NewStringCopyZ(aCx, sStaticProperties[foundIndex].name);
+  if (!name) {
     return NULL;
   }
 
-  JS::Rooted<JSString*> jsname(aCx, JS_NewStringCopyZ(aCx, name));
-  if (!jsname) {
+  if (!JS_SetReservedSlot(aCx, obj, SLOT_code, INT_TO_JSVAL(aCode)) ||
+      !JS_SetReservedSlot(aCx, obj, SLOT_name, STRING_TO_JSVAL(name))) {
     return NULL;
   }
-
-  JS::Rooted<JSString*> jsmessage(aCx, JS_NewStringCopyZ(aCx, message));
-  if (!jsmessage) {
-    return NULL;
-  }
-
-  JS_SetReservedSlot(obj, SLOT_code, INT_TO_JSVAL(code));
-  JS_SetReservedSlot(obj, SLOT_name, STRING_TO_JSVAL(jsname));
-  JS_SetReservedSlot(obj, SLOT_message, STRING_TO_JSVAL(jsmessage));
 
   DOMException* priv = new DOMException();
-  SetJSPrivateSafeish(obj, priv);
+  if (!SetJSPrivateSafeish(aCx, obj, priv)) {
+    delete priv;
+    return NULL;
+  }
+
+  return obj;
+}
+
+class FileException : public PrivatizableBase
+{
+  static JSClass sClass;
+  static JSPropertySpec sProperties[];
+  static JSPropertySpec sStaticProperties[];
+
+  enum SLOT {
+    SLOT_code = 0,
+    SLOT_name,
+
+    SLOT_COUNT
+  };
+
+public:
+  static JSObject*
+  InitClass(JSContext* aCx, JSObject* aObj)
+  {
+    return JS_InitClass(aCx, aObj, NULL, &sClass, Construct, 0, sProperties,
+                        NULL, sStaticProperties, NULL);
+  }
+
+  static JSObject*
+  Create(JSContext* aCx, intN aCode);
+
+private:
+  FileException()
+  {
+    MOZ_COUNT_CTOR(mozilla::dom::workers::exceptions::FileException);
+  }
+
+  ~FileException()
+  {
+    MOZ_COUNT_DTOR(mozilla::dom::workers::exceptions::FileException);
+  }
+
+  static JSBool
+  Construct(JSContext* aCx, uintN aArgc, jsval* aVp)
+  {
+    JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL, JSMSG_WRONG_CONSTRUCTOR,
+                         sClass.name);
+    return false;
+  }
+
+  static void
+  Finalize(JSContext* aCx, JSObject* aObj)
+  {
+    JS_ASSERT(JS_GET_CLASS(aCx, aObj) == &sClass);
+    delete GetJSPrivateSafeish<FileException>(aCx, aObj);
+  }
+
+  static JSBool
+  GetProperty(JSContext* aCx, JSObject* aObj, jsid aIdval, jsval* aVp)
+  {
+    JS_ASSERT(JSID_IS_INT(aIdval));
+
+    int32 slot = JSID_TO_INT(aIdval);
+
+    JSClass* classPtr = JS_GET_CLASS(aCx, aObj);
+
+    if (classPtr != &sClass ||
+        !GetJSPrivateSafeish<FileException>(aCx, aObj)) {
+      JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL,
+                           JSMSG_INCOMPATIBLE_PROTO, sClass.name,
+                           sProperties[slot].name,
+                           classPtr ? classPtr->name : "object");
+      return false;
+    }
+
+    return JS_GetReservedSlot(aCx, aObj, slot, aVp);
+  }
+
+  static JSBool
+  GetConstant(JSContext* aCx, JSObject* aObj, jsid idval, jsval* aVp)
+  {
+    JS_ASSERT(JSID_IS_INT(idval));
+    *aVp = INT_TO_JSVAL(JSID_TO_INT(idval));
+    return true;
+  }
+};
+
+JSClass FileException::sClass = {
+  "FileException",
+  JSCLASS_HAS_PRIVATE | JSCLASS_HAS_RESERVED_SLOTS(SLOT_COUNT),
+  JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
+  JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Finalize,
+  JSCLASS_NO_OPTIONAL_MEMBERS
+};
+
+JSPropertySpec FileException::sProperties[] = {
+  { "code", SLOT_code, PROPERTY_FLAGS, GetProperty, js_GetterOnlyPropertyStub },
+  { "name", SLOT_name, PROPERTY_FLAGS, GetProperty, js_GetterOnlyPropertyStub },
+  { 0, 0, 0, NULL, NULL }
+};
+
+JSPropertySpec FileException::sStaticProperties[] = {
+
+#define EXCEPTION_ENTRY(_name) \
+  { #_name, FILE_##_name, CONSTANT_FLAGS, GetConstant, NULL },
+
+  EXCEPTION_ENTRY(NOT_FOUND_ERR)
+  EXCEPTION_ENTRY(SECURITY_ERR)
+  EXCEPTION_ENTRY(ABORT_ERR)
+  EXCEPTION_ENTRY(NOT_READABLE_ERR)
+  EXCEPTION_ENTRY(ENCODING_ERR)
+
+#undef EXCEPTION_ENTRY
+
+  { 0, 0, 0, NULL, NULL }
+};
+
+// static
+JSObject*
+FileException::Create(JSContext* aCx, intN aCode)
+{
+  JSObject* obj = JS_NewObject(aCx, &sClass, NULL, NULL);
+  if (!obj) {
+    return NULL;
+  }
+
+  size_t foundIndex = size_t(-1);
+  for (size_t index = 0;
+       index < JS_ARRAY_LENGTH(sStaticProperties) - 1;
+       index++) {
+    if (sStaticProperties[index].tinyid == aCode) {
+      foundIndex = index;
+      break;
+    }
+  }
+
+  JS_ASSERT(foundIndex != size_t(-1));
+
+  JSString* name = JS_NewStringCopyZ(aCx, sStaticProperties[foundIndex].name);
+  if (!name) {
+    return NULL;
+  }
+
+  if (!JS_SetReservedSlot(aCx, obj, SLOT_code, INT_TO_JSVAL(aCode)) ||
+      !JS_SetReservedSlot(aCx, obj, SLOT_name, STRING_TO_JSVAL(name))) {
+    return NULL;
+  }
+
+  FileException* priv = new FileException();
+  if (!SetJSPrivateSafeish(aCx, obj, priv)) {
+    delete priv;
+    return NULL;
+  }
 
   return obj;
 }
@@ -273,16 +441,24 @@ namespace exceptions {
 bool
 InitClasses(JSContext* aCx, JSObject* aGlobal)
 {
-  return DOMException::InitClass(aCx, aGlobal);
+  return DOMException::InitClass(aCx, aGlobal) &&
+         FileException::InitClass(aCx, aGlobal);
 }
 
 void
-ThrowDOMExceptionForNSResult(JSContext* aCx, nsresult aNSResult)
+ThrowDOMExceptionForCode(JSContext* aCx, intN aCode)
 {
-  JSObject* exception = DOMException::Create(aCx, aNSResult);
-  if (!exception) {
-    return;
-  }
+  JSObject* exception = DOMException::Create(aCx, aCode);
+  JS_ASSERT(exception);
+
+  JS_SetPendingException(aCx, OBJECT_TO_JSVAL(exception));
+}
+
+void
+ThrowFileExceptionForCode(JSContext* aCx, intN aCode)
+{
+  JSObject* exception = FileException::Create(aCx, aCode);
+  JS_ASSERT(exception);
 
   JS_SetPendingException(aCx, OBJECT_TO_JSVAL(exception));
 }

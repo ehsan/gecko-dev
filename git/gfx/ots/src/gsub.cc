@@ -15,8 +15,6 @@
 // GSUB - The Glyph Substitution Table
 // http://www.microsoft.com/typography/otspec/gsub.htm
 
-#define TABLE_NAME "GSUB"
-
 namespace {
 
 // The GSUB header size
@@ -65,10 +63,8 @@ const ots::LookupSubtableParser::TypeParser kGsubTypeParsers[] = {
     ParseReverseChainingContextSingleSubstitution}
 };
 
-// TODO(bashi): Port Chromium's arraysize macro and use it instead of sizeof().
 const ots::LookupSubtableParser kGsubLookupSubtableParser = {
-  sizeof(kGsubTypeParsers) / sizeof(kGsubTypeParsers[0]),
-  GSUB_TYPE_EXTENSION_SUBSTITUTION, kGsubTypeParsers
+  GSUB_TYPE_RESERVED, GSUB_TYPE_EXTENSION_SUBSTITUTION, kGsubTypeParsers
 };
 
 // Lookup Type 1:
@@ -221,7 +217,7 @@ bool ParseAlternateSetTable(const uint8_t *data, const size_t length,
       return OTS_FAILURE();
     }
     if (alternate >= num_glyphs) {
-      OTS_WARNING("too large alternate: %u", alternate);
+      OTS_WARNING("too arge alternate: %u", alternate);
       return OTS_FAILURE();
     }
   }
@@ -396,6 +392,24 @@ bool ParseLigatureSubstitution(const ots::OpenTypeFile *file,
   return true;
 }
 
+bool ParseSubstLookupRecord(ots::Buffer *subtable, const uint16_t num_glyphs,
+                            const uint16_t num_lookups) {
+  uint16_t sequence_index = 0;
+  uint16_t lookup_list_index = 0;
+
+  if (!subtable->ReadU16(&sequence_index) ||
+      !subtable->ReadU16(&lookup_list_index)) {
+    return OTS_FAILURE();
+  }
+  if (sequence_index >= num_glyphs) {
+    return OTS_FAILURE();
+  }
+  if (lookup_list_index >= num_lookups) {
+    return OTS_FAILURE();
+  }
+  return true;
+}
+
 // Lookup Type 5:
 // Contextual Substitution Subtable
 bool ParseContextSubstitution(const ots::OpenTypeFile *file,
@@ -531,11 +545,7 @@ bool ParseReverseChainingContextSingleSubstitution(
 }  // namespace
 
 #define DROP_THIS_TABLE \
-  do { \
-    file->gsub->data = 0; \
-    file->gsub->length = 0; \
-    OTS_FAILURE_MSG("OpenType layout data discarded"); \
-  } while (0)
+  do { file->gsub->data = 0; file->gsub->length = 0; } while (0)
 
 namespace ots {
 
@@ -608,9 +618,7 @@ bool ots_gsub_parse(OpenTypeFile *file, const uint8_t *data, size_t length) {
       !table.ReadU16(&offset_script_list) ||
       !table.ReadU16(&offset_feature_list) ||
       !table.ReadU16(&offset_lookup_list)) {
-    OTS_WARNING("incomplete GSUB table");
-    DROP_THIS_TABLE;
-    return true;
+    return OTS_FAILURE();
   }
 
   if (version != 0x00010000) {
@@ -633,7 +641,7 @@ bool ots_gsub_parse(OpenTypeFile *file, const uint8_t *data, size_t length) {
                             length - offset_lookup_list,
                             &kGsubLookupSubtableParser,
                             &gsub->num_lookups)) {
-    OTS_WARNING("failed to parse lookup list table");
+    OTS_WARNING("faild to parse lookup list table");
     DROP_THIS_TABLE;
     return true;
   }
@@ -642,14 +650,14 @@ bool ots_gsub_parse(OpenTypeFile *file, const uint8_t *data, size_t length) {
   if (!ParseFeatureListTable(data + offset_feature_list,
                              length - offset_feature_list, gsub->num_lookups,
                              &num_features)) {
-    OTS_WARNING("failed to parse feature list table");
+    OTS_WARNING("faild to parse feature list table");
     DROP_THIS_TABLE;
     return true;
   }
 
   if (!ParseScriptListTable(data + offset_script_list,
                             length - offset_script_list, num_features)) {
-    OTS_WARNING("failed to parse script list table");
+    OTS_WARNING("faild to parse script list table");
     DROP_THIS_TABLE;
     return true;
   }

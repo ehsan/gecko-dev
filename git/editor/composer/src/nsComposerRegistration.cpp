@@ -1,31 +1,53 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Michael Judge  <mjudge@netscape.com>
+ *   Charles Manske <cmanske@netscape.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-#include <stddef.h>                     // for nullptr
-
-#include "mozilla/Module.h"             // for Module, Module::CIDEntry, etc
 #include "mozilla/ModuleUtils.h"
-#include "mozilla/mozalloc.h"           // for operator new
-#include "nsCOMPtr.h"                   // for nsCOMPtr, getter_AddRefs, etc
-#include "nsComponentManagerUtils.h"    // for do_CreateInstance
-#include "nsComposeTxtSrvFilter.h"      // for nsComposeTxtSrvFilter, etc
-#include "nsComposerController.h"       // for nsComposerController, etc
-#include "nsDebug.h"                    // for NS_ENSURE_SUCCESS
-#include "nsEditingSession.h"           // for NS_EDITINGSESSION_CID, etc
-#include "nsEditorSpellCheck.h"         // for NS_EDITORSPELLCHECK_CID, etc
-#include "nsError.h"                    // for NS_ERROR_NO_AGGREGATION, etc
-#include "nsIController.h"              // for nsIController
-#include "nsIControllerCommandTable.h"  // for nsIControllerCommandTable, etc
-#include "nsIControllerContext.h"       // for nsIControllerContext
-#include "nsID.h"                       // for NS_DEFINE_NAMED_CID, etc
-#include "nsISupportsImpl.h"
-#include "nsISupportsUtils.h"           // for NS_ADDREF, NS_RELEASE
-#include "nsServiceManagerUtils.h"      // for do_GetService
-#include "nscore.h"                     // for nsresult
 
-class nsISupports;
+#include "nsEditingSession.h"       // for the CID
+#include "nsComposerController.h"   // for the CID
+#include "nsEditorSpellCheck.h"     // for the CID
+#include "nsComposeTxtSrvFilter.h"
+#include "nsIController.h"
+#include "nsIControllerContext.h"
+#include "nsIControllerCommandTable.h"
+
+#include "nsServiceManagerUtils.h"
 
 #define NS_HTMLEDITOR_COMMANDTABLE_CID \
 { 0x13e50d8d, 0x9cee, 0x4ad1, { 0xa3, 0xa2, 0x4a, 0x44, 0x2f, 0xdf, 0x7d, 0xfa } }
@@ -55,15 +77,15 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsEditorSpellCheck)
 // Basically, we need to tell the filter whether it is doing mail or not
 static nsresult
 nsComposeTxtSrvFilterConstructor(nsISupports *aOuter, REFNSIID aIID,
-                                 void **aResult, bool aIsForMail)
+                                 void **aResult, PRBool aIsForMail)
 {
-    *aResult = nullptr;
-    if (nullptr != aOuter) 
+    *aResult = NULL;
+    if (NULL != aOuter) 
     {
         return NS_ERROR_NO_AGGREGATION;
     }
     nsComposeTxtSrvFilter * inst = new nsComposeTxtSrvFilter();
-    if (nullptr == inst) 
+    if (NULL == inst) 
     {
         return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -79,7 +101,7 @@ nsComposeTxtSrvFilterConstructorForComposer(nsISupports *aOuter,
                                             REFNSIID aIID,
                                             void **aResult)
 {
-    return nsComposeTxtSrvFilterConstructor(aOuter, aIID, aResult, false);
+    return nsComposeTxtSrvFilterConstructor(aOuter, aIID, aResult, PR_FALSE);
 }
 
 static nsresult
@@ -87,7 +109,7 @@ nsComposeTxtSrvFilterConstructorForMail(nsISupports *aOuter,
                                         REFNSIID aIID,
                                         void **aResult)
 {
-    return nsComposeTxtSrvFilterConstructor(aOuter, aIID, aResult, true);
+    return nsComposeTxtSrvFilterConstructor(aOuter, aIID, aResult, PR_TRUE);
 }
 
 
@@ -198,15 +220,15 @@ NS_DEFINE_NAMED_CID(NS_COMPOSERTXTSRVFILTERMAIL_CID);
 
 
 static const mozilla::Module::CIDEntry kComposerCIDs[] = {
-  { &kNS_HTMLEDITORCONTROLLER_CID, false, nullptr, nsHTMLEditorControllerConstructor },
-  { &kNS_EDITORDOCSTATECONTROLLER_CID, false, nullptr, nsHTMLEditorDocStateControllerConstructor },
-  { &kNS_HTMLEDITOR_COMMANDTABLE_CID, false, nullptr, nsHTMLEditorCommandTableConstructor },
-  { &kNS_HTMLEDITOR_DOCSTATE_COMMANDTABLE_CID, false, nullptr, nsHTMLEditorDocStateCommandTableConstructor },
-  { &kNS_EDITINGSESSION_CID, false, nullptr, nsEditingSessionConstructor },
-  { &kNS_EDITORSPELLCHECK_CID, false, nullptr, nsEditorSpellCheckConstructor },
-  { &kNS_COMPOSERTXTSRVFILTER_CID, false, nullptr, nsComposeTxtSrvFilterConstructorForComposer },
-  { &kNS_COMPOSERTXTSRVFILTERMAIL_CID, false, nullptr, nsComposeTxtSrvFilterConstructorForMail },
-  { nullptr }
+  { &kNS_HTMLEDITORCONTROLLER_CID, false, NULL, nsHTMLEditorControllerConstructor },
+  { &kNS_EDITORDOCSTATECONTROLLER_CID, false, NULL, nsHTMLEditorDocStateControllerConstructor },
+  { &kNS_HTMLEDITOR_COMMANDTABLE_CID, false, NULL, nsHTMLEditorCommandTableConstructor },
+  { &kNS_HTMLEDITOR_DOCSTATE_COMMANDTABLE_CID, false, NULL, nsHTMLEditorDocStateCommandTableConstructor },
+  { &kNS_EDITINGSESSION_CID, false, NULL, nsEditingSessionConstructor },
+  { &kNS_EDITORSPELLCHECK_CID, false, NULL, nsEditorSpellCheckConstructor },
+  { &kNS_COMPOSERTXTSRVFILTER_CID, false, NULL, nsComposeTxtSrvFilterConstructorForComposer },
+  { &kNS_COMPOSERTXTSRVFILTERMAIL_CID, false, NULL, nsComposeTxtSrvFilterConstructorForMail },
+  { NULL }
 };
 
 static const mozilla::Module::ContractIDEntry kComposerContracts[] = {
@@ -216,7 +238,7 @@ static const mozilla::Module::ContractIDEntry kComposerContracts[] = {
   { "@mozilla.org/editor/editorspellchecker;1", &kNS_EDITORSPELLCHECK_CID },
   { COMPOSER_TXTSRVFILTER_CONTRACTID, &kNS_COMPOSERTXTSRVFILTER_CID },
   { COMPOSER_TXTSRVFILTERMAIL_CONTRACTID, &kNS_COMPOSERTXTSRVFILTERMAIL_CID },
-  { nullptr }
+  { NULL }
 };
 
 static const mozilla::Module kComposerModule = {

@@ -1,14 +1,47 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Mozilla SMIL module.
+ *
+ * The Initial Developer of the Original Code is the Mozilla Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Daniel Holbert <dholbert@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /* representation of a SMIL-animatable mapped attribute on an element */
 #include "nsSMILMappedAttribute.h"
-#include "nsAttrValue.h"
-#include "nsError.h" // For NS_PROPTABLE_PROP_OVERWRITTEN
+#include "nsPropertyTable.h"
+#include "nsContentErrors.h" // For NS_PROPTABLE_PROP_OVERWRITTEN
 #include "nsSMILValue.h"
 #include "nsSMILCSSValueType.h"
+#include "nsIContent.h"
 #include "nsIDocument.h"
 #include "nsIPresShell.h"
 #include "nsCSSProps.h"
@@ -28,9 +61,9 @@ ReleaseStringBufferPropertyValue(void*    aObject,       /* unused */
 
 nsresult
 nsSMILMappedAttribute::ValueFromString(const nsAString& aStr,
-                                       const mozilla::dom::SVGAnimationElement* aSrcElement,
+                                       const nsISMILAnimationElement* aSrcElement,
                                        nsSMILValue& aValue,
-                                       bool& aPreventCachingOfSandwich) const
+                                       PRBool& aPreventCachingOfSandwich) const
 {
   NS_ENSURE_TRUE(IsPropertyAnimatable(mPropID), NS_ERROR_FAILURE);
 
@@ -44,7 +77,7 @@ nsSMILMappedAttribute::GetBaseValue() const
 {
   nsAutoString baseStringValue;
   nsRefPtr<nsIAtom> attrName = GetAttrNameAtom();
-  bool success = mElement->GetAttr(kNameSpaceID_None, attrName,
+  PRBool success = mElement->GetAttr(kNameSpaceID_None, attrName,
                                      baseStringValue);
   nsSMILValue baseValue;
   if (success) {
@@ -53,13 +86,13 @@ nsSMILMappedAttribute::GetBaseValue() const
     // the returned (computed) base value and its cached value and determining
     // if an update is required or not.
     nsSMILCSSValueType::ValueFromString(mPropID, mElement,
-                                        baseStringValue, baseValue, nullptr);
+                                        baseStringValue, baseValue, nsnull);
   } else {
     // Attribute is unset -- use computed value.
     // FIRST: Temporarily clear animated value, to make sure it doesn't pollute
     // the computed value. (We want base value, _without_ animations applied.)
     void* buf = mElement->UnsetProperty(SMIL_MAPPED_ATTR_ANIMVAL,
-                                        attrName, nullptr);
+                                        attrName, nsnull);
     FlushChangesToTargetAttr();
 
     // SECOND: we use nsSMILCSSProperty::GetBaseValue to look up the property's
@@ -91,16 +124,10 @@ nsSMILMappedAttribute::SetAnimValue(const nsSMILValue& aValue)
     return NS_ERROR_FAILURE;
   }
 
-  nsRefPtr<nsIAtom> attrName = GetAttrNameAtom();
-  nsStringBuffer* oldValStrBuf = static_cast<nsStringBuffer*>
-    (mElement->GetProperty(SMIL_MAPPED_ATTR_ANIMVAL, attrName));
-  if (oldValStrBuf && valStr.Equals(nsCheapString(oldValStrBuf))) {
-    return NS_OK;
-  }
-
   // Set the string as this mapped attribute's animated value.
   nsStringBuffer* valStrBuf =
     nsCSSValue::BufferFromString(nsString(valStr)).get();
+  nsRefPtr<nsIAtom> attrName = GetAttrNameAtom();
   nsresult rv = mElement->SetProperty(SMIL_MAPPED_ATTR_ANIMVAL,
                                       attrName, valStrBuf,
                                       ReleaseStringBufferPropertyValue);

@@ -13,11 +13,7 @@
 #define GL_APICALL
 #include <GLES2/gl2.h>
 
-#ifdef _MSC_VER
 #include <hash_map>
-#else
-#include <unordered_map>
-#endif
 
 #include "common/angleutils.h"
 #include "libGLESv2/HandleAllocator.h"
@@ -83,30 +79,22 @@ class ResourceManager
 
     std::size_t mRefCount;
 
-#ifndef HASH_MAP
-# ifdef _MSC_VER
-#  define HASH_MAP stdext::hash_map
-# else
-#  define HASH_MAP std::unordered_map
-# endif
-#endif
-
-    typedef HASH_MAP<GLuint, Buffer*> BufferMap;
+    typedef stdext::hash_map<GLuint, Buffer*> BufferMap;
     BufferMap mBufferMap;
     HandleAllocator mBufferHandleAllocator;
 
-    typedef HASH_MAP<GLuint, Shader*> ShaderMap;
+    typedef stdext::hash_map<GLuint, Shader*> ShaderMap;
     ShaderMap mShaderMap;
 
-    typedef HASH_MAP<GLuint, Program*> ProgramMap;
+    typedef stdext::hash_map<GLuint, Program*> ProgramMap;
     ProgramMap mProgramMap;
     HandleAllocator mProgramShaderHandleAllocator;
 
-    typedef HASH_MAP<GLuint, Texture*> TextureMap;
+    typedef stdext::hash_map<GLuint, Texture*> TextureMap;
     TextureMap mTextureMap;
     HandleAllocator mTextureHandleAllocator;
 
-    typedef HASH_MAP<GLuint, Renderbuffer*> RenderbufferMap;
+    typedef stdext::hash_map<GLuint, Renderbuffer*> RenderbufferMap;
     RenderbufferMap mRenderbufferMap;
     HandleAllocator mRenderbufferHandleAllocator;
 };

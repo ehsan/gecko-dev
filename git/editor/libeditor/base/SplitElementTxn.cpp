@@ -1,25 +1,48 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-#include <stdio.h>                      // for printf
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998-1999
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "SplitElementTxn.h"
-#include "nsAString.h"
-#include "nsDebug.h"                    // for NS_ASSERTION, etc
-#include "nsEditor.h"                   // for nsEditor
-#include "nsError.h"                    // for NS_ERROR_NOT_INITIALIZED, etc
-#include "nsIContent.h"                 // for nsIContent
-#include "nsIDOMCharacterData.h"        // for nsIDOMCharacterData
-#include "nsIEditor.h"                  // for nsEditor::DebugDumpContent, etc
-#include "nsISelection.h"               // for nsISelection
-#include "nsISupportsUtils.h"           // for NS_ADDREF
+#include "nsEditor.h"
+#include "nsIDOMNode.h"
+#include "nsISelection.h"
+#include "nsIDOMCharacterData.h"
 
-using namespace mozilla;
-
-#ifdef DEBUG
-static bool gNoisy = false;
+#ifdef NS_DEBUG
+static PRBool gNoisy = PR_FALSE;
 #endif
 
 
@@ -29,9 +52,17 @@ SplitElementTxn::SplitElementTxn()
 {
 }
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED_2(SplitElementTxn, EditTxn,
-                                     mParent,
-                                     mNewLeftNode)
+NS_IMPL_CYCLE_COLLECTION_CLASS(SplitElementTxn)
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(SplitElementTxn, EditTxn)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mParent)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mNewLeftNode)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(SplitElementTxn, EditTxn)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mParent)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mNewLeftNode)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_ADDREF_INHERITED(SplitElementTxn, EditTxn)
 NS_IMPL_RELEASE_INHERITED(SplitElementTxn, EditTxn)
@@ -39,8 +70,8 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(SplitElementTxn)
 NS_INTERFACE_MAP_END_INHERITING(EditTxn)
 
 NS_IMETHODIMP SplitElementTxn::Init(nsEditor   *aEditor,
-                                    nsINode    *aNode,
-                                    int32_t     aOffset)
+                                    nsIDOMNode *aNode,
+                                    PRInt32     aOffset)
 {
   NS_ASSERTION(aEditor && aNode, "bad args");
   if (!aEditor || !aNode) { return NS_ERROR_NOT_INITIALIZED; }
@@ -53,7 +84,7 @@ NS_IMETHODIMP SplitElementTxn::Init(nsEditor   *aEditor,
 
 NS_IMETHODIMP SplitElementTxn::DoTransaction(void)
 {
-#ifdef DEBUG
+#ifdef NS_DEBUG
   if (gNoisy)
   {
     printf("%p Do Split of node %p offset %d\n",
@@ -67,14 +98,13 @@ NS_IMETHODIMP SplitElementTxn::DoTransaction(void)
   if (!mExistingRightNode || !mEditor) { return NS_ERROR_NOT_INITIALIZED; }
 
   // create a new node
-  ErrorResult rv;
-  mNewLeftNode = mExistingRightNode->CloneNode(false, rv);
-  NS_ENSURE_SUCCESS(rv.ErrorCode(), rv.ErrorCode());
-  NS_ASSERTION(mNewLeftNode, "could not create element.");
+  nsresult result = mExistingRightNode->CloneNode(PR_FALSE, getter_AddRefs(mNewLeftNode));
+  NS_ASSERTION(((NS_SUCCEEDED(result)) && (mNewLeftNode)), "could not create element.");
+  NS_ENSURE_SUCCESS(result, result);
   NS_ENSURE_TRUE(mNewLeftNode, NS_ERROR_NULL_POINTER);
   mEditor->MarkNodeDirty(mExistingRightNode);
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
   if (gNoisy)
   {
     printf("  created left node = %p\n",
@@ -83,17 +113,14 @@ NS_IMETHODIMP SplitElementTxn::DoTransaction(void)
 #endif
 
   // get the parent node
-  mParent = mExistingRightNode->GetParentNode();
+  result = mExistingRightNode->GetParentNode(getter_AddRefs(mParent));
+  NS_ENSURE_SUCCESS(result, result);
   NS_ENSURE_TRUE(mParent, NS_ERROR_NULL_POINTER);
 
   // insert the new node
-  nsresult result = mEditor->SplitNodeImpl(mExistingRightNode->AsDOMNode(),
-                                           mOffset,
-                                           mNewLeftNode->AsDOMNode(),
-                                           mParent->AsDOMNode());
-  NS_ENSURE_SUCCESS(result, result);
+  result = mEditor->SplitNodeImpl(mExistingRightNode, mOffset, mNewLeftNode, mParent);
   if (mNewLeftNode) {
-    bool bAdjustSelection;
+    PRBool bAdjustSelection;
     mEditor->ShouldTxnSetSelection(&bAdjustSelection);
     if (bAdjustSelection)
     {
@@ -101,7 +128,7 @@ NS_IMETHODIMP SplitElementTxn::DoTransaction(void)
       result = mEditor->GetSelection(getter_AddRefs(selection));
       NS_ENSURE_SUCCESS(result, result);
       NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
-      result = selection->Collapse(mNewLeftNode->AsDOMNode(), mOffset);
+      result = selection->Collapse(mNewLeftNode, mOffset);
     }
     else
     {
@@ -113,7 +140,7 @@ NS_IMETHODIMP SplitElementTxn::DoTransaction(void)
 
 NS_IMETHODIMP SplitElementTxn::UndoTransaction(void)
 {
-#ifdef DEBUG
+#ifdef NS_DEBUG
   if (gNoisy) { 
     printf("%p Undo Split of existing node %p and new node %p offset %d\n",
            static_cast<void*>(this),
@@ -129,9 +156,8 @@ NS_IMETHODIMP SplitElementTxn::UndoTransaction(void)
   }
 
   // this assumes Do inserted the new node in front of the prior existing node
-  nsresult rv = mEditor->JoinNodesImpl(mExistingRightNode, mNewLeftNode,
-                                       mParent);
-#ifdef DEBUG
+  nsresult result = mEditor->JoinNodesImpl(mExistingRightNode, mNewLeftNode, mParent, PR_FALSE);
+#ifdef NS_DEBUG
   if (gNoisy) 
   { 
     printf("** after join left child node %p into right node %p\n",
@@ -139,7 +165,7 @@ NS_IMETHODIMP SplitElementTxn::UndoTransaction(void)
            static_cast<void*>(mExistingRightNode.get()));
     if (gNoisy) {mEditor->DebugDumpContent(); } // DEBUG
   }
-  if (NS_SUCCEEDED(rv))
+  if (NS_SUCCEEDED(result))
   {
     if (gNoisy)
     {
@@ -149,7 +175,7 @@ NS_IMETHODIMP SplitElementTxn::UndoTransaction(void)
   }
 #endif
 
-  return rv;
+  return result;
 }
 
 /* redo cannot simply resplit the right node, because subsequent transactions
@@ -162,7 +188,7 @@ NS_IMETHODIMP SplitElementTxn::RedoTransaction(void)
     return NS_ERROR_NOT_INITIALIZED;
   }
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
   if (gNoisy) { 
     printf("%p Redo Split of existing node %p and new node %p offset %d\n",
            static_cast<void*>(this),
@@ -173,13 +199,14 @@ NS_IMETHODIMP SplitElementTxn::RedoTransaction(void)
   }
 #endif
 
+  nsresult result;
+  nsCOMPtr<nsIDOMNode>resultNode;
   // first, massage the existing node so it is in its post-split state
   nsCOMPtr<nsIDOMCharacterData>rightNodeAsText = do_QueryInterface(mExistingRightNode);
   if (rightNodeAsText)
   {
-    nsresult result = rightNodeAsText->DeleteData(0, mOffset);
-    NS_ENSURE_SUCCESS(result, result);
-#ifdef DEBUG
+    result = rightNodeAsText->DeleteData(0, mOffset);
+#ifdef NS_DEBUG
     if (gNoisy) 
     { 
       printf("** after delete of text in right text node %p offset %d\n",
@@ -191,43 +218,45 @@ NS_IMETHODIMP SplitElementTxn::RedoTransaction(void)
   }
   else
   {
-    nsCOMPtr<nsINode> child = mExistingRightNode->GetFirstChild();
-    for (int32_t i=0; i<mOffset; i++)
+    nsCOMPtr<nsIDOMNode>child;
+    nsCOMPtr<nsIDOMNode>nextSibling;
+    result = mExistingRightNode->GetFirstChild(getter_AddRefs(child));
+    PRInt32 i;
+    for (i=0; i<mOffset; i++)
     {
+      if (NS_FAILED(result)) {return result;}
       if (!child) {return NS_ERROR_NULL_POINTER;}
-      ErrorResult rv;
-      mExistingRightNode->RemoveChild(*child, rv);
-      if (NS_SUCCEEDED(rv.ErrorCode()))
+      child->GetNextSibling(getter_AddRefs(nextSibling));
+      result = mExistingRightNode->RemoveChild(child, getter_AddRefs(resultNode));
+      if (NS_SUCCEEDED(result)) 
       {
-        mNewLeftNode->AppendChild(*child, rv);
-        NS_ENSURE_SUCCESS(rv.ErrorCode(), rv.ErrorCode());
-#ifdef DEBUG
-        if (gNoisy)
-        {
+        result = mNewLeftNode->AppendChild(child, getter_AddRefs(resultNode));
+#ifdef NS_DEBUG
+        if (gNoisy) 
+        { 
           printf("** move child node %p from right node %p to left node %p\n",
-                 static_cast<void*>(child),
+                 static_cast<void*>(child.get()),
                  static_cast<void*>(mExistingRightNode.get()),
                  static_cast<void*>(mNewLeftNode.get()));
           if (gNoisy) {mEditor->DebugDumpContent(); } // DEBUG
         }
 #endif
       }
-      child = child->GetNextSibling();
+      child = do_QueryInterface(nextSibling);
     }
   }
-  // second, re-insert the left node into the tree
-  ErrorResult rv;
-  mParent->InsertBefore(*mNewLeftNode, mExistingRightNode, rv);
-#ifdef DEBUG
-  if (gNoisy)
-  {
+  // second, re-insert the left node into the tree 
+  result = mParent->InsertBefore(mNewLeftNode, mExistingRightNode, getter_AddRefs(resultNode));
+#ifdef NS_DEBUG
+  if (gNoisy) 
+  { 
     printf("** reinsert left child node %p before right node %p\n",
            static_cast<void*>(mNewLeftNode.get()),
            static_cast<void*>(mExistingRightNode.get()));
     if (gNoisy) {mEditor->DebugDumpContent(); } // DEBUG
   }
 #endif
-  return rv.ErrorCode();
+  return result;
 }
 
 
@@ -237,7 +266,7 @@ NS_IMETHODIMP SplitElementTxn::GetTxnDescription(nsAString& aString)
   return NS_OK;
 }
 
-NS_IMETHODIMP SplitElementTxn::GetNewNode(nsINode **aNewNode)
+NS_IMETHODIMP SplitElementTxn::GetNewNode(nsIDOMNode **aNewNode)
 {
   NS_ENSURE_TRUE(aNewNode, NS_ERROR_NULL_POINTER);
   NS_ENSURE_TRUE(mNewLeftNode, NS_ERROR_NOT_INITIALIZED);

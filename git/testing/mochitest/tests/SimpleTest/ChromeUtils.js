@@ -5,12 +5,9 @@
  * EventUtils.js, but when porting to specialPowers, we didn't want
  * to move unnecessary functions.
  *
+ * ChromeUtils.js depends on EventUtils.js being loaded.
+ *
  */
-
-const EventUtils = {};
-const scriptLoader = Components.classes["@mozilla.org/moz/jssubscript-loader;1"].
-                   getService(Components.interfaces.mozIJSSubScriptLoader);
-scriptLoader.loadSubScript("chrome://mochikit/content/tests/SimpleTest/EventUtils.js", EventUtils);
 
 /**
  * Synthesize a query text content event.
@@ -27,7 +24,7 @@ function synthesizeQueryTextContent(aOffset, aLength, aWindow)
 {
   var utils = _getDOMWindowUtils(aWindow);
   if (!utils) {
-    return nullptr;
+    return nsnull;
   }
   return utils.sendQueryContentEvent(utils.QUERY_TEXT_CONTENT,
                                      aOffset, aLength, 0, 0);
@@ -46,7 +43,7 @@ function synthesizeQueryCaretRect(aOffset, aWindow)
 {
   var utils = _getDOMWindowUtils(aWindow);
   if (!utils) {
-    return nullptr;
+    return nsnull;
   }
   return utils.sendQueryContentEvent(utils.QUERY_CARET_RECT,
                                      aOffset, 0, 0, 0);
@@ -67,7 +64,7 @@ function synthesizeQueryTextRect(aOffset, aLength, aWindow)
 {
   var utils = _getDOMWindowUtils(aWindow);
   if (!utils) {
-    return nullptr;
+    return nsnull;
   }
   return utils.sendQueryContentEvent(utils.QUERY_TEXT_RECT,
                                      aOffset, aLength, 0, 0);
@@ -84,7 +81,7 @@ function synthesizeQueryEditorRect(aWindow)
 {
   var utils = _getDOMWindowUtils(aWindow);
   if (!utils) {
-    return nullptr;
+    return nsnull;
   }
   return utils.sendQueryContentEvent(utils.QUERY_EDITOR_RECT, 0, 0, 0, 0);
 }
@@ -101,10 +98,31 @@ function synthesizeCharAtPoint(aX, aY, aWindow)
 {
   var utils = _getDOMWindowUtils(aWindow);
   if (!utils) {
-    return nullptr;
+    return nsnull;
   }
   return utils.sendQueryContentEvent(utils.QUERY_CHARACTER_AT_POINT,
                                      0, 0, aX, aY);
+}
+
+/**
+ * Synthesize a selection set event.
+ *
+ * @param aOffset  The character offset.  0 means the first character in the
+ *                 selection root.
+ * @param aLength  The length of the text.  If the length is too long,
+ *                 the extra length is ignored.
+ * @param aReverse If true, the selection is from |aOffset + aLength| to
+ *                 |aOffset|.  Otherwise, from |aOffset| to |aOffset + aLength|.
+ * @param aWindow  Optional (If null, current |window| will be used)
+ * @return         True, if succeeded.  Otherwise false.
+ */
+function synthesizeSelectionSet(aOffset, aLength, aReverse, aWindow)
+{
+  var utils = _getDOMWindowUtils(aWindow);
+  if (!utils) {
+    return false;
+  }
+  return utils.sendSelectionSetEvent(aOffset, aLength, aReverse);
 }
 
 /**
@@ -168,13 +186,13 @@ function synthesizeDragStart(element, expectedDragData, aWindow, x, y)
     event.stopPropagation();
   }
   aWindow.addEventListener("dragstart", trapDrag, false);
-  EventUtils.synthesizeMouse(element, x, y, { type: "mousedown" }, aWindow);
+  synthesizeMouse(element, x, y, { type: "mousedown" }, aWindow);
   x += step; y += step;
-  EventUtils.synthesizeMouse(element, x, y, { type: "mousemove" }, aWindow);
+  synthesizeMouse(element, x, y, { type: "mousemove" }, aWindow);
   x += step; y += step;
-  EventUtils.synthesizeMouse(element, x, y, { type: "mousemove" }, aWindow);
+  synthesizeMouse(element, x, y, { type: "mousemove" }, aWindow);
   aWindow.removeEventListener("dragstart", trapDrag, false);
-  EventUtils.synthesizeMouse(element, x, y, { type: "mouseup" }, aWindow);
+  synthesizeMouse(element, x, y, { type: "mouseup" }, aWindow);
   return result;
 }
 
@@ -189,20 +207,24 @@ function synthesizeDragStart(element, expectedDragData, aWindow, x, y)
  *                       [ [ {type: value, data: value}, ...], ... ]
  *  dropEffect - the drop effect to set during the dragstart event, or 'move' if null
  *  aWindow - optional; defaults to the current window object.
- *  aDestWindow - optional; defaults to aWindow.
- *                Used when destElement is in a different window than srcElement.
+ *  eventUtils - optional; allows you to pass in a reference to EventUtils.js. 
+ *               If the eventUtils parameter is not passed in, we assume EventUtils.js is 
+ *               in the scope. Used by browser-chrome tests.
  *
  * Returns the drop effect that was desired.
  */
-function synthesizeDrop(srcElement, destElement, dragData, dropEffect, aWindow, aDestWindow)
+function synthesizeDrop(srcElement, destElement, dragData, dropEffect, aWindow, eventUtils)
 {
   if (!aWindow)
     aWindow = window;
-  if (!aDestWindow)
-    aDestWindow = aWindow;
 
-  var gWindowUtils = aDestWindow.QueryInterface(Components.interfaces.nsIInterfaceRequestor).
-                                 getInterface(Components.interfaces.nsIDOMWindowUtils);
+  if (typeof(eventUtils) != 'undefined') {
+    synthesizeMouseAtCenter = eventUtils.synthesizeMouseAtCenter;
+    synthesizeMouse = eventUtils.synthesizeMouse;
+  }
+
+  var gWindowUtils  = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor).
+                             getInterface(Components.interfaces.nsIDOMWindowUtils);
   var ds = Components.classes["@mozilla.org/widget/dragservice;1"].
            getService(Components.interfaces.nsIDragService);
 
@@ -225,63 +247,32 @@ function synthesizeDrop(srcElement, destElement, dragData, dropEffect, aWindow, 
   try {
     // need to use real mouse action
     aWindow.addEventListener("dragstart", trapDrag, true);
-    EventUtils.synthesizeMouseAtCenter(srcElement, { type: "mousedown" }, aWindow);
-
-    var rect = srcElement.getBoundingClientRect();
-    var x = rect.width / 2;
-    var y = rect.height / 2;
-    EventUtils.synthesizeMouse(srcElement, x, y, { type: "mousemove" }, aWindow);
-    EventUtils.synthesizeMouse(srcElement, x+10, y+10, { type: "mousemove" }, aWindow);
+    synthesizeMouseAtCenter(srcElement, { type: "mousedown" }, aWindow);
+    synthesizeMouse(srcElement, 11, 11, { type: "mousemove" }, aWindow);
+    synthesizeMouse(srcElement, 20, 20, { type: "mousemove" }, aWindow);
     aWindow.removeEventListener("dragstart", trapDrag, true);
 
-    event = aDestWindow.document.createEvent("DragEvents");
-    event.initDragEvent("dragenter", true, true, aDestWindow, 0, 0, 0, 0, 0, false, false, false, false, 0, null, dataTransfer);
+    event = aWindow.document.createEvent("DragEvents");
+    event.initDragEvent("dragenter", true, true, aWindow, 0, 0, 0, 0, 0, false, false, false, false, 0, null, dataTransfer);
     gWindowUtils.dispatchDOMEventViaPresShell(destElement, event, true);
-    var event = aDestWindow.document.createEvent("DragEvents");
-    event.initDragEvent("dragover", true, true, aDestWindow, 0, 0, 0, 0, 0, false, false, false, false, 0, null, dataTransfer);
+
+    var event = aWindow.document.createEvent("DragEvents");
+    event.initDragEvent("dragover", true, true, aWindow, 0, 0, 0, 0, 0, false, false, false, false, 0, null, dataTransfer);
     if (gWindowUtils.dispatchDOMEventViaPresShell(destElement, event, true)) {
-      EventUtils.synthesizeMouseAtCenter(destElement, { type: "mouseup" }, aDestWindow);
+      synthesizeMouseAtCenter(destElement, { type: "mouseup" }, aWindow);
       return "none";
     }
 
     if (dataTransfer.dropEffect != "none") {
-      event = aDestWindow.document.createEvent("DragEvents");
-      event.initDragEvent("drop", true, true, aDestWindow, 0, 0, 0, 0, 0, false, false, false, false, 0, null, dataTransfer);
+      event = aWindow.document.createEvent("DragEvents");
+      event.initDragEvent("drop", true, true, aWindow, 0, 0, 0, 0, 0, false, false, false, false, 0, null, dataTransfer);
       gWindowUtils.dispatchDOMEventViaPresShell(destElement, event, true);
     }
 
-    EventUtils.synthesizeMouseAtCenter(destElement, { type: "mouseup" }, aDestWindow);
+    synthesizeMouseAtCenter(destElement, { type: "mouseup" }, aWindow);
 
     return dataTransfer.dropEffect;
   } finally {
     ds.endDragSession(true);
   }
-};
-
-var PluginUtils =
-{
-  withTestPlugin : function(callback)
-  {
-    if (typeof Components == "undefined")
-    {
-      todo(false, "Not a Mozilla-based browser");
-      return false;
-    }
-
-    var ph = Components.classes["@mozilla.org/plugin/host;1"]
-                       .getService(Components.interfaces.nsIPluginHost);
-    var tags = ph.getPluginTags();
-
-    // Find the test plugin
-    for (var i = 0; i < tags.length; i++)
-    {
-      if (tags[i].name == "Test Plug-in")
-      {
-        callback(tags[i]);
-        return true;
-      }
-    }
-    todo(false, "Need a test plugin on this platform");
-    return false;
-  }
-};
+}

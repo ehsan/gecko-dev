@@ -34,10 +34,15 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=238987
   // accessibility.tabfocus must be set to value 7 before running test also
   // on a mac.
   function setOrRestoreTabFocus(newValue) {
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+    const prefSvcContractID = "@mozilla.org/preferences-service;1";
+    const prefSvcIID = Components.interfaces.nsIPrefService;
+    var prefs = Components.classes[prefSvcContractID].getService(prefSvcIID)
+                                                     .getBranch("accessibility.");
     if (!newValue) {
-      SpecialPowers.clearUserPref("accessibility.tabfocus");
+      prefs.clearUserPref("tabfocus");
     } else {
-      SpecialPowers.setIntPref("accessibility.tabfocus", newValue);
+      prefs.setIntPref("tabfocus", newValue);
     }
   }
 
@@ -48,7 +53,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=238987
         shouldStop = true;
       }
     } else if (e.target.id == "end") {
-      modifier = Components.interfaces.nsIDOMEvent.SHIFT_MASK;
+      modifier = Components.interfaces.nsIDOMNSEvent.SHIFT_MASK;
     } else if (modifier) {
       var expected = backwardFocusArray.pop();
       ok(expected == e.target.id,
@@ -56,7 +61,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=238987
          expected + "], got [" + e.target.id + "]");
     } else {
       var expected = forwardFocusArray.shift();
-      is(e.target, document.activeElement, "Wrong activeElement!");
       ok(expected == e.target.id,
          "(focus) Forward tabbing, expected [" +
          expected + "], got [" + e.target.id + "]");
@@ -100,7 +104,9 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=238987
   }
 
   function tab() {
-    var utils = SpecialPowers.DOMWindowUtils;
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+    var utils = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor).
+                       getInterface(Components.interfaces.nsIDOMWindowUtils);
     // Send tab key events.
     var key = Components.interfaces.nsIDOMKeyEvent.DOM_VK_TAB;
     utils.sendKeyEvent("keydown", key, 0, modifier);
@@ -126,21 +132,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=238987
          backwardBlurArray.toString());
       is(expectedWindowBlurCount, 0,
          "|window| didn't get the right amount of blur events");
-
-      // Cleanup
       setOrRestoreTabFocus(0);
-      window.removeEventListener("focus", handleWindowFocus, true);
-      window.removeEventListener("focus", handleWindowFocus, false);
-      window.removeEventListener("blur", handleWindowBlur, true);
-      window.removeEventListener("blur", handleWindowBlur, false);
-      var elements = document.getElementsByTagName("*");
-      for (var i = 0; i < elements.length; ++i) {
-        if (elements[i].hasAttribute("id")) {
-          elements[i].removeEventListener("focus", handleFocus, false);
-          elements[i].removeEventListener("blur", handleBlur, false);
-        }
-      }
-
       SimpleTest.finish();
     } else {
       setTimeout(tab, 0);

@@ -1,9 +1,4 @@
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
-Cu.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 
 var server;
 const BUGID = "263127";
@@ -39,14 +34,13 @@ var listener = {
 
 function run_test() {
   // start server
-  server = new HttpServer();
-  server.start(-1);
+  server = new nsHttpServer();
+  server.start(4444);
 
   // Initialize downloader
   var channel = Cc["@mozilla.org/network/io-service;1"]
                   .getService(Ci.nsIIOService)
-                  .newChannel("http://localhost:" +
-                              server.identity.primaryPort + "/", null, null);
+                  .newChannel("http://localhost:4444/", null, null);
 
   var targetFile = Cc["@mozilla.org/file/directory_service;1"]
                      .getService(Ci.nsIProperties)

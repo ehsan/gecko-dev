@@ -12,7 +12,6 @@
 #include <queue>
 #include <string>
 #include <vector>
-#include <list>
 
 #include "base/message_loop.h"
 #include "chrome/common/file_descriptor_set_posix.h"
@@ -40,12 +39,6 @@ class Channel::ChannelImpl : public MessageLoopForIO::Watcher {
     DCHECK(mode_ == MODE_SERVER);
     return pipe_;
   }
-  void CloseClientFileDescriptor();
-
-  // See the comment in ipc_channel.h for info on Unsound_IsClosed() and
-  // Unsound_NumQueuedMessages().
-  bool Unsound_IsClosed() const;
-  uint32_t Unsound_NumQueuedMessages() const;
 
  private:
   void Init(Mode mode, Listener* listener);
@@ -58,13 +51,6 @@ class Channel::ChannelImpl : public MessageLoopForIO::Watcher {
   // MessageLoopForIO::Watcher implementation.
   virtual void OnFileCanReadWithoutBlocking(int fd);
   virtual void OnFileCanWriteWithoutBlocking(int fd);
-
-#if defined(OS_MACOSX)
-  void CloseDescriptors(uint32_t pending_fd_id);
-#endif
-
-  void OutputQueuePush(Message* msg);
-  void OutputQueuePop();
 
   Mode mode_;
 
@@ -105,11 +91,11 @@ class Channel::ChannelImpl : public MessageLoopForIO::Watcher {
     // We assume a worst case: kReadBufferSize bytes of messages, where each
     // message has no payload and a full complement of descriptors.
     MAX_READ_FDS = (Channel::kReadBufferSize / sizeof(IPC::Message::Header)) *
-                   FileDescriptorSet::MAX_DESCRIPTORS_PER_MESSAGE
+                   FileDescriptorSet::MAX_DESCRIPTORS_PER_MESSAGE,
   };
 
   // This is a control message buffer large enough to hold kMaxReadFDs
-#if defined(OS_MACOSX) || defined(OS_NETBSD)
+#if defined(OS_MACOSX)
   // TODO(agl): OSX appears to have non-constant CMSG macros!
   char input_cmsg_buf_[1024];
 #else
@@ -130,33 +116,6 @@ class Channel::ChannelImpl : public MessageLoopForIO::Watcher {
   // avoid recursing through ProcessIncomingMessages, which could cause
   // problems.  TODO(darin): make this unnecessary
   bool processing_incoming_;
-
-  // This flag is set after we've closed the channel.
-  bool closed_;
-
-#if defined(OS_MACOSX)
-  struct PendingDescriptors {
-    uint32_t id;
-    scoped_refptr<FileDescriptorSet> fds;
-
-    PendingDescriptors() : id(0) { }
-    PendingDescriptors(uint32_t id, FileDescriptorSet *fds)
-      : id(id),
-        fds(fds)
-    { }
-  };
-
-  std::list<PendingDescriptors> pending_fds_;
-
-  // A generation ID for RECEIVED_FD messages.
-  uint32_t last_pending_fd_id_;
-#endif
-
-  // This variable is updated so it matches output_queue_.size(), except we can
-  // read output_queue_length_ from any thread (if we're OK getting an
-  // occasional out-of-date or bogus value).  We use output_queue_length_ to
-  // implement Unsound_NumQueuedMessages.
-  size_t output_queue_length_;
 
   ScopedRunnableMethodFactory<ChannelImpl> factory_;
 

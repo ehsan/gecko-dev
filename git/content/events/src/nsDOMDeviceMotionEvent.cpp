@@ -1,31 +1,74 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Device Motion System.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Doug Turner <dougt@dougt.org>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsDOMDeviceMotionEvent.h"
-#include "nsDOMClassInfoID.h"
+#include "nsContentUtils.h"
 
-using namespace mozilla;
-using namespace mozilla::dom;
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED_3(nsDOMDeviceMotionEvent, nsDOMEvent,
-                                     mAcceleration,
-                                     mAccelerationIncludingGravity,
-                                     mRotationRate)
+
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMDeviceMotionEvent)
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDOMDeviceMotionEvent, nsDOMEvent)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mAcceleration)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mAccelerationIncludingGravity)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mRotationRate)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsDOMDeviceMotionEvent, nsDOMEvent)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mAcceleration)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mAccelerationIncludingGravity)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mRotationRate)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_ADDREF_INHERITED(nsDOMDeviceMotionEvent, nsDOMEvent)
 NS_IMPL_RELEASE_INHERITED(nsDOMDeviceMotionEvent, nsDOMEvent)
 
+DOMCI_DATA(DeviceMotionEvent, nsDOMDeviceMotionEvent)
+
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsDOMDeviceMotionEvent)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMDeviceMotionEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMDeviceMotionEvent)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(DeviceMotionEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEvent)
 
 NS_IMETHODIMP
 nsDOMDeviceMotionEvent::InitDeviceMotionEvent(const nsAString & aEventTypeArg,
-                                              bool aCanBubbleArg,
-                                              bool aCancelableArg,
+                                              PRBool aCanBubbleArg,
+                                              PRBool aCancelableArg,
                                               nsIDOMDeviceAcceleration* aAcceleration,
                                               nsIDOMDeviceAcceleration* aAccelerationIncludingGravity,
                                               nsIDOMDeviceRotationRate* aRotationRate,
@@ -41,31 +84,12 @@ nsDOMDeviceMotionEvent::InitDeviceMotionEvent(const nsAString & aEventTypeArg,
   return NS_OK;
 }
 
-void
-nsDOMDeviceMotionEvent::InitDeviceMotionEvent(const nsAString& aType,
-                                              bool aCanBubble,
-                                              bool aCancelable,
-                                              nsIDOMDeviceAcceleration* aAcceleration,
-                                              nsIDOMDeviceAcceleration* aAccelerationIncludingGravity,
-                                              nsIDOMDeviceRotationRate* aRotationRate,
-                                              double aInterval,
-                                              ErrorResult& aRv)
-{
-  aRv = InitDeviceMotionEvent(aType,
-                              aCanBubble,
-                              aCancelable,
-                              aAcceleration,
-                              aAccelerationIncludingGravity,
-                              aRotationRate,
-                              aInterval);
-}
-
 NS_IMETHODIMP
 nsDOMDeviceMotionEvent::GetAcceleration(nsIDOMDeviceAcceleration **aAcceleration)
 {
   NS_ENSURE_ARG_POINTER(aAcceleration);
 
-  NS_IF_ADDREF(*aAcceleration = GetAcceleration());
+  NS_IF_ADDREF(*aAcceleration = mAcceleration);
   return NS_OK;
 }
 
@@ -74,8 +98,7 @@ nsDOMDeviceMotionEvent::GetAccelerationIncludingGravity(nsIDOMDeviceAcceleration
 {
   NS_ENSURE_ARG_POINTER(aAccelerationIncludingGravity);
 
-  NS_IF_ADDREF(*aAccelerationIncludingGravity =
-               GetAccelerationIncludingGravity());
+  NS_IF_ADDREF(*aAccelerationIncludingGravity = mAccelerationIncludingGravity);
   return NS_OK;
 }
 
@@ -84,7 +107,7 @@ nsDOMDeviceMotionEvent::GetRotationRate(nsIDOMDeviceRotationRate **aRotationRate
 {
   NS_ENSURE_ARG_POINTER(aRotationRate);
 
-  NS_IF_ADDREF(*aRotationRate = GetRotationRate());
+  NS_IF_ADDREF(*aRotationRate = mRotationRate);
   return NS_OK;
 }
 
@@ -93,21 +116,19 @@ nsDOMDeviceMotionEvent::GetInterval(double *aInterval)
 {
   NS_ENSURE_ARG_POINTER(aInterval);
 
-  *aInterval = Interval();
+  *aInterval = mInterval;
   return NS_OK;
 }
 
 
 nsresult
 NS_NewDOMDeviceMotionEvent(nsIDOMEvent** aInstancePtrResult,
-                           mozilla::dom::EventTarget* aOwner,
                            nsPresContext* aPresContext,
                            nsEvent *aEvent) 
 {
   NS_ENSURE_ARG_POINTER(aInstancePtrResult);
 
-  nsDOMDeviceMotionEvent* it =
-    new nsDOMDeviceMotionEvent(aOwner, aPresContext, aEvent);
+  nsDOMDeviceMotionEvent* it = new nsDOMDeviceMotionEvent(aPresContext, aEvent);
   return CallQueryInterface(it, aInstancePtrResult);
 }
 

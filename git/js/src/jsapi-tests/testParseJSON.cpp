@@ -1,16 +1,12 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=99:
  */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <limits>
 #include <math.h>
 
+#include "tests.h"
 #include "jsstr.h"
-
-#include "jsapi-tests/tests.h"
 #include "vm/String.h"
 
 using namespace js;
@@ -40,75 +36,51 @@ class AutoInflatedString {
 template<size_t N> JSFlatString *
 NewString(JSContext *cx, const jschar (&chars)[N])
 {
-    return js_NewStringCopyN<CanGC>(cx, chars, N);
+    return js_NewStringCopyN(cx, chars, N);
 }
 
 BEGIN_TEST(testParseJSON_success)
 {
     // Primitives
-    JS::RootedValue expected(cx);
-    expected = JSVAL_TRUE;
-    CHECK(TryParse(cx, "true", expected));
+    CHECK(TryParse(cx, "true", JSVAL_TRUE));
+    CHECK(TryParse(cx, "false", JSVAL_FALSE));
+    CHECK(TryParse(cx, "null", JSVAL_NULL));
+    CHECK(TryParse(cx, "0", INT_TO_JSVAL(0)));
+    CHECK(TryParse(cx, "1", INT_TO_JSVAL(1)));
+    CHECK(TryParse(cx, "-1", INT_TO_JSVAL(-1)));
+    CHECK(TryParse(cx, "1", DOUBLE_TO_JSVAL(1)));
+    CHECK(TryParse(cx, "1.75", DOUBLE_TO_JSVAL(1.75)));
+    CHECK(TryParse(cx, "9e9", DOUBLE_TO_JSVAL(9e9)));
+    CHECK(TryParse(cx, "9e99999", DOUBLE_TO_JSVAL(std::numeric_limits<jsdouble>::infinity())));
 
-    expected = JSVAL_FALSE;
-    CHECK(TryParse(cx, "false", expected));
-
-    expected = JSVAL_NULL;
-    CHECK(TryParse(cx, "null", expected));
-
-    expected = INT_TO_JSVAL(0);
-    CHECK(TryParse(cx, "0", expected));
-
-    expected = INT_TO_JSVAL(1);
-    CHECK(TryParse(cx, "1", expected));
-
-    expected = INT_TO_JSVAL(-1);
-    CHECK(TryParse(cx, "-1", expected));
-
-    expected = DOUBLE_TO_JSVAL(1);
-    CHECK(TryParse(cx, "1", expected));
-
-    expected = DOUBLE_TO_JSVAL(1.75);
-    CHECK(TryParse(cx, "1.75", expected));
-
-    expected = DOUBLE_TO_JSVAL(9e9);
-    CHECK(TryParse(cx, "9e9", expected));
-
-    expected = DOUBLE_TO_JSVAL(std::numeric_limits<double>::infinity());
-    CHECK(TryParse(cx, "9e99999", expected));
-
-    JS::Rooted<JSFlatString*> str(cx);
+    JSFlatString *str;
 
     const jschar emptystr[] = { '\0' };
-    str = js_NewStringCopyN<CanGC>(cx, emptystr, 0);
+    str = js_NewStringCopyN(cx, emptystr, 0);
     CHECK(str);
-    expected = STRING_TO_JSVAL(str);
-    CHECK(TryParse(cx, "\"\"", expected));
+    CHECK(TryParse(cx, "\"\"", STRING_TO_JSVAL(str)));
 
     const jschar nullstr[] = { '\0' };
     str = NewString(cx, nullstr);
     CHECK(str);
-    expected = STRING_TO_JSVAL(str);
-    CHECK(TryParse(cx, "\"\\u0000\"", expected));
+    CHECK(TryParse(cx, "\"\\u0000\"", STRING_TO_JSVAL(str)));
 
     const jschar backstr[] = { '\b' };
     str = NewString(cx, backstr);
     CHECK(str);
-    expected = STRING_TO_JSVAL(str);
-    CHECK(TryParse(cx, "\"\\b\"", expected));
-    CHECK(TryParse(cx, "\"\\u0008\"", expected));
+    CHECK(TryParse(cx, "\"\\b\"", STRING_TO_JSVAL(str)));
+    CHECK(TryParse(cx, "\"\\u0008\"", STRING_TO_JSVAL(str)));
 
     const jschar newlinestr[] = { '\n', };
     str = NewString(cx, newlinestr);
     CHECK(str);
-    expected = STRING_TO_JSVAL(str);
-    CHECK(TryParse(cx, "\"\\n\"", expected));
-    CHECK(TryParse(cx, "\"\\u000A\"", expected));
+    CHECK(TryParse(cx, "\"\\n\"", STRING_TO_JSVAL(str)));
+    CHECK(TryParse(cx, "\"\\u000A\"", STRING_TO_JSVAL(str)));
 
 
     // Arrays
-    JS::RootedValue v(cx), v2(cx);
-    JS::RootedObject obj(cx);
+    jsval v, v2;
+    JSObject *obj;
 
     CHECK(Parse(cx, "[]", &v));
     CHECK(!JSVAL_IS_PRIMITIVE(v));
@@ -144,7 +116,7 @@ BEGIN_TEST(testParseJSON_success)
 }
 
 template<size_t N> inline bool
-Parse(JSContext *cx, const char (&input)[N], JS::MutableHandleValue vp)
+Parse(JSContext *cx, const char (&input)[N], jsval *vp)
 {
     AutoInflatedString str(cx);
     str = input;
@@ -153,10 +125,10 @@ Parse(JSContext *cx, const char (&input)[N], JS::MutableHandleValue vp)
 }
 
 template<size_t N> inline bool
-TryParse(JSContext *cx, const char (&input)[N], JS::HandleValue expected)
+TryParse(JSContext *cx, const char (&input)[N], const jsval &expected)
 {
     AutoInflatedString str(cx);
-    RootedValue v(cx);
+    jsval v;
     str = input;
     CHECK(JS_ParseJSON(cx, str.chars(), str.length(), &v));
     CHECK_SAME(v, expected);
@@ -183,46 +155,16 @@ template<size_t N> inline bool
 Error(JSContext *cx, const char (&input)[N])
 {
     AutoInflatedString str(cx);
-    RootedValue dummy(cx);
+    jsval dummy;
     str = input;
-
-    ContextPrivate p = {0, 0};
-    CHECK(!JS_GetContextPrivate(cx));
-    JS_SetContextPrivate(cx, &p);
-    JSErrorReporter old = JS_SetErrorReporter(cx, reportJSONEror);
-    JSBool ok = JS_ParseJSON(cx, str.chars(), str.length(), &dummy);
-    JS_SetErrorReporter(cx, old);
-    JS_SetContextPrivate(cx, NULL);
-
-    CHECK(!ok);
-    CHECK(!p.unexpectedErrorCount);
-    CHECK(p.expectedErrorCount == 1);
-
-    /* We do not execute JS, so there should be no exception thrown. */
-    CHECK(!JS_IsExceptionPending(cx));
-
+    CHECK(!JS_ParseJSON(cx, str.chars(), str.length(), &dummy));
+    JS_ClearPendingException(cx);
     return true;
 }
-
-struct ContextPrivate {
-    unsigned unexpectedErrorCount;
-    unsigned expectedErrorCount;
-};
-
-static void
-reportJSONEror(JSContext *cx, const char *message, JSErrorReport *report)
-{
-    ContextPrivate *p = static_cast<ContextPrivate *>(JS_GetContextPrivate(cx));
-    if (report->errorNumber == JSMSG_JSON_BAD_PARSE)
-        p->expectedErrorCount++;
-    else
-        p->unexpectedErrorCount++;
-}
-
 END_TEST(testParseJSON_error)
 
 static JSBool
-Censor(JSContext *cx, unsigned argc, jsval *vp)
+Censor(JSContext *cx, uintN argc, jsval *vp)
 {
     JS_ASSERT(argc == 2);
 #ifdef DEBUG
@@ -238,7 +180,7 @@ BEGIN_TEST(testParseJSON_reviver)
     JSFunction *fun = JS_NewFunction(cx, Censor, 0, 0, global, "censor");
     CHECK(fun);
 
-    JS::RootedValue filter(cx, OBJECT_TO_JSVAL(JS_GetFunctionObject(fun)));
+    jsval filter = OBJECT_TO_JSVAL(JS_GetFunctionObject(fun));
 
     CHECK(TryParse(cx, "true", filter));
     CHECK(TryParse(cx, "false", filter));
@@ -252,12 +194,12 @@ BEGIN_TEST(testParseJSON_reviver)
 }
 
 template<size_t N> inline bool
-TryParse(JSContext *cx, const char (&input)[N], JS::HandleValue filter)
+TryParse(JSContext *cx, const char (&input)[N], jsval filter)
 {
     AutoInflatedString str(cx);
-    JS::RootedValue v(cx);
+    jsval v;
     str = input;
-    CHECK(JS_ParseJSONWithReviver(cx, str.chars(), str.length(), filter, v.address()));
+    CHECK(JS_ParseJSONWithReviver(cx, str.chars(), str.length(), filter, &v));
     CHECK_SAME(v, JSVAL_NULL);
     return true;
 }

@@ -18,19 +18,19 @@ TestFailedCtorParent::Main()
 }
 
 PTestFailedCtorSubParent*
-TestFailedCtorParent::AllocPTestFailedCtorSubParent()
+TestFailedCtorParent::AllocPTestFailedCtorSub()
 {
     return new TestFailedCtorSubParent();
 }
 bool
-TestFailedCtorParent::DeallocPTestFailedCtorSubParent(PTestFailedCtorSubParent* actor)
+TestFailedCtorParent::DeallocPTestFailedCtorSub(PTestFailedCtorSubParent* actor)
 {
     delete actor;
     return true;
 }
 
 PTestFailedCtorSubsubParent*
-TestFailedCtorSubParent::AllocPTestFailedCtorSubsubParent()
+TestFailedCtorSubParent::AllocPTestFailedCtorSubsub()
 {
     TestFailedCtorSubsub* a = new TestFailedCtorSubsub();
     if (!mOne) {
@@ -41,11 +41,11 @@ TestFailedCtorSubParent::AllocPTestFailedCtorSubsubParent()
         return mThree = a;
     } else {
         fail("unexpected Alloc()");
-        return nullptr;
+        return nsnull;
     }
 }
 bool
-TestFailedCtorSubParent::DeallocPTestFailedCtorSubsubParent(PTestFailedCtorSubsubParent* actor)
+TestFailedCtorSubParent::DeallocPTestFailedCtorSubsub(PTestFailedCtorSubsubParent* actor)
 {
     static_cast<TestFailedCtorSubsub*>(actor)->mDealloced = true;
     return true;
@@ -80,7 +80,7 @@ TestFailedCtorSubParent::~TestFailedCtorSubParent()
 // child
 
 PTestFailedCtorSubChild*
-TestFailedCtorChild::AllocPTestFailedCtorSubChild()
+TestFailedCtorChild::AllocPTestFailedCtorSub()
 {
     return new TestFailedCtorSubChild();
 }
@@ -101,7 +101,7 @@ TestFailedCtorChild::AnswerPTestFailedCtorSubConstructor(PTestFailedCtorSubChild
 }
 
 bool
-TestFailedCtorChild::DeallocPTestFailedCtorSubChild(PTestFailedCtorSubChild* actor)
+TestFailedCtorChild::DeallocPTestFailedCtorSub(PTestFailedCtorSubChild* actor)
 {
     delete actor;
     return true;
@@ -110,18 +110,17 @@ TestFailedCtorChild::DeallocPTestFailedCtorSubChild(PTestFailedCtorSubChild* act
 void
 TestFailedCtorChild::ProcessingError(Result what)
 {
-    if (OtherProcess() != 0) // thread-mode
-        _exit(0);
+    _exit(0);
 }
 
 PTestFailedCtorSubsubChild*
-TestFailedCtorSubChild::AllocPTestFailedCtorSubsubChild()
+TestFailedCtorSubChild::AllocPTestFailedCtorSubsub()
 {
     return new TestFailedCtorSubsub();
 }
 
 bool
-TestFailedCtorSubChild::DeallocPTestFailedCtorSubsubChild(PTestFailedCtorSubsubChild* actor)
+TestFailedCtorSubChild::DeallocPTestFailedCtorSubsub(PTestFailedCtorSubsubChild* actor)
 {
     delete actor;
     return true;

@@ -11,7 +11,8 @@ const TEST_ID = "0170";
 // operations located in the precomplete file performed first.
 const TEST_FILES = [
 {
-  description      : "Should never change",
+  description      : "Only added by update.manifest for complete updates " +
+                     "when there is a channel change (add-cc)",
   fileName         : "channel-prefs.js",
   relPathDir       : "a/b/defaults/pref/",
   originalContents : "ShouldNotBeReplaced\n",
@@ -187,8 +188,6 @@ function run_test() {
   do_test_pending();
   do_register_cleanup(cleanupUpdaterTest);
 
-  adjustGeneralPaths();
-
   setupUpdaterTest(MAR_COMPLETE_FILE);
 
   // Exclusively lock an existing file so it is in use during the update
@@ -213,9 +212,9 @@ function run_test() {
 function doUpdate() {
   // apply the complete mar
   let exitValue = runUpdate();
-  logTestInfo("testing updater binary process exitValue for failure when " +
+  logTestInfo("testing updater binary process exitValue for success when " +
               "applying a complete mar");
-  do_check_eq(exitValue, 1);
+  do_check_eq(exitValue, 0);
 
   setupHelperFinish();
 }

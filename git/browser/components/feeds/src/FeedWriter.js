@@ -1,7 +1,44 @@
 # -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is the Feed Writer.
+#
+# The Initial Developer of the Original Code is Google Inc.
+# Portions created by the Initial Developer are Copyright (C) 2006
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Ben Goodger <beng@google.com>
+#   Jeff Walden <jwalden+code@mit.edu>
+#   Asaf Romano <mano@mozilla.com>
+#   Robert Sayre <sayrer@gmail.com>
+#   Michael Ventnor <m.ventnor@gmail.com>
+#   Will Guaraldi <will.guaraldi@pculture.org>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK ***** */
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -44,13 +81,14 @@ function makeURI(aURLSpec, aCharset) {
   return null;
 }
 
-const XML_NS = "http://www.w3.org/XML/1998/namespace";
+const XML_NS = "http://www.w3.org/XML/1998/namespace"
 const HTML_NS = "http://www.w3.org/1999/xhtml";
 const XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 const TYPE_MAYBE_FEED = "application/vnd.mozilla.maybe.feed";
 const TYPE_MAYBE_AUDIO_FEED = "application/vnd.mozilla.maybe.audio.feed";
 const TYPE_MAYBE_VIDEO_FEED = "application/vnd.mozilla.maybe.video.feed";
 const URI_BUNDLE = "chrome://browser/locale/feeds/subscribe.properties";
+const SUBSCRIBE_PAGE_URI = "chrome://browser/content/feeds/subscribe.xhtml";
 
 const PREF_SELECTED_APP = "browser.feeds.handlers.application";
 const PREF_SELECTED_WEB = "browser.feeds.handlers.webservice";
@@ -169,15 +207,11 @@ FeedWriter.prototype = {
 
   _setContentText: function FW__setContentText(id, text) {
     this._contentSandbox.element = this._document.getElementById(id);
-    this._contentSandbox.textNode = text.createDocumentFragment(this._contentSandbox.element);
+    this._contentSandbox.textNode = this._document.createTextNode(text);
     var codeStr =
       "while (element.hasChildNodes()) " +
       "  element.removeChild(element.firstChild);" +
       "element.appendChild(textNode);";
-    if (text.base) {
-      this._contentSandbox.spec = text.base.spec;
-      codeStr += "element.setAttributeNS('" + XML_NS + "', 'base', spec);";
-    }
     Cu.evalInSandbox(codeStr, this._contentSandbox);
     this._contentSandbox.element = null;
     this._contentSandbox.textNode = null;
@@ -365,7 +399,7 @@ FeedWriter.prototype = {
   _setTitleText: function FW__setTitleText(container) {
     if (container.title) {
       var title = container.title.plainText();
-      this._setContentText(TITLE_ID, container.title);
+      this._setContentText(TITLE_ID, title);
       this._contentSandbox.document = this._document;
       this._contentSandbox.title = title;
       var codeStr = "document.title = title;"
@@ -374,7 +408,7 @@ FeedWriter.prototype = {
 
     var feed = container.QueryInterface(Ci.nsIFeed);
     if (feed && feed.subtitle)
-      this._setContentText(SUBTITLE_ID, container.subtitle);
+      this._setContentText(SUBTITLE_ID, container.subtitle.plainText());
   },
 
   /**
@@ -443,11 +477,7 @@ FeedWriter.prototype = {
       // If the entry has a title, make it a link
       if (entry.title) {
         var a = this._document.createElementNS(HTML_NS, "a");
-        var span = this._document.createElementNS(HTML_NS, "span");
-        a.appendChild(span);
-        if (entry.title.base)
-          span.setAttributeNS(XML_NS, "base", entry.title.base.spec);
-        span.appendChild(entry.title.createDocumentFragment(a));
+        a.appendChild(this._document.createTextNode(entry.title.plainText()));
 
         // Entries are not required to have links, so entry.link can be null.
         if (entry.link)
@@ -680,7 +710,7 @@ FeedWriter.prototype = {
    */
   _getFileIconURL: function FW__getFileIconURL(file) {
     var ios = Cc["@mozilla.org/network/io-service;1"].
-              getService(Ci.nsIIOService);
+              getService(Components.interfaces.nsIIOService);
     var fph = ios.getProtocolHandler("file")
                  .QueryInterface(Ci.nsIFileProtocolHandler);
     var urlSpec = fph.getURLSpecFromFile(file);
@@ -715,53 +745,46 @@ FeedWriter.prototype = {
 
   /**
    * Displays a prompt from which the user may choose a (client) feed reader.
-   * @param aCallback the callback method, passes in true if a feed reader was
-   *        selected, false otherwise.
+   * @return - true if a feed reader was selected, false otherwise.
    */
-  _chooseClientApp: function FW__chooseClientApp(aCallback) {
+  _chooseClientApp: function FW__chooseClientApp() {
     try {
-      let fp = Cc["@mozilla.org/filepicker;1"].createInstance(Ci.nsIFilePicker);
-      let fpCallback = function fpCallback_done(aResult) {
-        if (aResult == Ci.nsIFilePicker.returnOK) {
-          this._selectedApp = fp.file;
-          if (this._selectedApp) {
-            // XXXben - we need to compare this with the running instance
-            //          executable just don't know how to do that via script
-            // XXXmano TBD: can probably add this to nsIShellService
-#ifdef XP_WIN
-#expand             if (fp.file.leafName != "__MOZ_APP_NAME__.exe") {
-#else
-#ifdef XP_MACOSX
-#expand             if (fp.file.leafName != "__MOZ_MACBUNDLE_NAME__") {
-#else
-#expand             if (fp.file.leafName != "__MOZ_APP_NAME__-bin") {
-#endif
-#endif
-              this._initMenuItemWithFile(this._contentSandbox.selectedAppMenuItem,
-                                         this._selectedApp);
-
-              // Show and select the selected application menuitem
-              let codeStr = "selectedAppMenuItem.hidden = false;" +
-                            "selectedAppMenuItem.doCommand();"
-              Cu.evalInSandbox(codeStr, this._contentSandbox);
-              if (aCallback) {
-                aCallback(true);
-                return;
-              }
-            }
-          }
-        }
-        if (aCallback) {
-          aCallback(false);
-        }
-      }.bind(this);
-
-      fp.init(this._window, this._getString("chooseApplicationDialogTitle"),
+      var fp = Cc["@mozilla.org/filepicker;1"].createInstance(Ci.nsIFilePicker);
+      fp.init(this._window,
+              this._getString("chooseApplicationDialogTitle"),
               Ci.nsIFilePicker.modeOpen);
       fp.appendFilters(Ci.nsIFilePicker.filterApps);
-      fp.open(fpCallback);
-    } catch(ex) {
+
+      if (fp.show() == Ci.nsIFilePicker.returnOK) {
+        this._selectedApp = fp.file;
+        if (this._selectedApp) {
+          // XXXben - we need to compare this with the running instance executable
+          //          just don't know how to do that via script...
+          // XXXmano TBD: can probably add this to nsIShellService
+#ifdef XP_WIN
+#expand           if (fp.file.leafName != "__MOZ_APP_NAME__.exe") {
+#else
+#ifdef XP_MACOSX
+#expand           if (fp.file.leafName != "__MOZ_APP_DISPLAYNAME__.app") {
+#else
+#expand           if (fp.file.leafName != "__MOZ_APP_NAME__-bin") {
+#endif
+#endif
+            this._initMenuItemWithFile(this._contentSandbox.selectedAppMenuItem,
+                                       this._selectedApp);
+
+            // Show and select the selected application menuitem
+            var codeStr = "selectedAppMenuItem.hidden = false;" +
+                          "selectedAppMenuItem.doCommand();"
+            Cu.evalInSandbox(codeStr, this._contentSandbox);
+            return true;
+          }
+        }
+      }
     }
+    catch(ex) { }
+
+    return false;
   },
 
   _setAlwaysUseCheckedState: function FW__setAlwaysUseCheckedState(feedType) {
@@ -847,14 +870,10 @@ FeedWriter.prototype = {
            */
           var popupbox = this._handlersMenuList.firstChild.boxObject;
           popupbox.QueryInterface(Components.interfaces.nsIPopupBoxObject);
-          if (popupbox.popupState == "hiding") {
-            this._chooseClientApp(function(aResult) {
-              if (!aResult) {
-                // Select the (per-prefs) selected handler if no application
-                // was selected
-                this._setSelectedHandler(this._getFeedType());
-              }
-            }.bind(this));
+          if (popupbox.popupState == "hiding" && !this._chooseClientApp()) {
+            // Select the (per-prefs) selected handler if no application was
+            // selected
+            this._setSelectedHandler(this._getFeedType());
           }
           break;
         default:
@@ -1107,9 +1126,10 @@ FeedWriter.prototype = {
                getInterface(Ci.nsIWebNavigation).
                QueryInterface(Ci.nsIDocShell).currentDocumentChannel;
 
-    var resolvedURI = Cc["@mozilla.org/network/io-service;1"].
-                      getService(Ci.nsIIOService).
-                      newChannel("about:feeds", null, null).URI;
+    var uri = makeURI(SUBSCRIBE_PAGE_URI);
+    var resolvedURI = Cc["@mozilla.org/chrome/chrome-registry;1"].
+                      getService(Ci.nsIChromeRegistry).
+                      convertChromeURL(uri);
 
     if (resolvedURI.equals(chan.URI))
       return chan.originalURI;
@@ -1137,14 +1157,14 @@ FeedWriter.prototype = {
 
     var secman = Cc["@mozilla.org/scriptsecuritymanager;1"].
                  getService(Ci.nsIScriptSecurityManager);
-    this._feedPrincipal = secman.getSimpleCodebasePrincipal(this._feedURI);
+    this._feedPrincipal = secman.getCodebasePrincipal(this._feedURI);
 
     LOG("Subscribe Preview: feed uri = " + this._window.location.href);
 
     // Set up the subscription UI
     this._initSubscriptionUI();
     var prefs = Cc["@mozilla.org/preferences-service;1"].
-                getService(Ci.nsIPrefBranch);
+                getService(Ci.nsIPrefBranch2);
     prefs.addObserver(PREF_SELECTED_ACTION, this, false);
     prefs.addObserver(PREF_SELECTED_READER, this, false);
     prefs.addObserver(PREF_SELECTED_WEB, this, false);
@@ -1187,7 +1207,7 @@ FeedWriter.prototype = {
     this._document = null;
     this._window = null;
     var prefs = Cc["@mozilla.org/preferences-service;1"].
-                getService(Ci.nsIPrefBranch);
+                getService(Ci.nsIPrefBranch2);
     prefs.removeObserver(PREF_SELECTED_ACTION, this);
     prefs.removeObserver(PREF_SELECTED_READER, this);
     prefs.removeObserver(PREF_SELECTED_WEB, this);
@@ -1228,77 +1248,70 @@ FeedWriter.prototype = {
     var useAsDefault = this._getUIElement("alwaysUse").getAttribute("checked");
 
     var selectedItem = this._getSelectedItemFromMenulist(this._handlersMenuList);
-    let subscribeCallback = function() {
-      if (selectedItem.hasAttribute("webhandlerurl")) {
-        var webURI = selectedItem.getAttribute("webhandlerurl");
-        prefs.setCharPref(getPrefReaderForType(feedType), "web");
-
-        var supportsString = Cc["@mozilla.org/supports-string;1"].
-                             createInstance(Ci.nsISupportsString);
-        supportsString.data = webURI;
-        prefs.setComplexValue(getPrefWebForType(feedType), Ci.nsISupportsString,
-                              supportsString);
-
-        var wccr = Cc["@mozilla.org/embeddor.implemented/web-content-handler-registrar;1"].
-                   getService(Ci.nsIWebContentConverterService);
-        var handler = wccr.getWebContentHandlerByURI(this._getMimeTypeForFeedType(feedType), webURI);
-        if (handler) {
-          if (useAsDefault) {
-            wccr.setAutoHandler(this._getMimeTypeForFeedType(feedType), handler);
-          }
-
-          this._window.location.href = handler.getHandlerURI(this._window.location.href);
-        }
-      } else {
-        switch (selectedItem.getAttribute("anonid")) {
-          case "selectedAppMenuItem":
-            prefs.setComplexValue(getPrefAppForType(feedType), Ci.nsILocalFile, 
-                                  this._selectedApp);
-            prefs.setCharPref(getPrefReaderForType(feedType), "client");
-            break;
-          case "defaultHandlerMenuItem":
-            prefs.setComplexValue(getPrefAppForType(feedType), Ci.nsILocalFile, 
-                                  this._defaultSystemReader);
-            prefs.setCharPref(getPrefReaderForType(feedType), "client");
-            break;
-          case "liveBookmarksMenuItem":
-            defaultHandler = "bookmarks";
-            prefs.setCharPref(getPrefReaderForType(feedType), "bookmarks");
-            break;
-        }
-        var feedService = Cc["@mozilla.org/browser/feeds/result-service;1"].
-                          getService(Ci.nsIFeedResultService);
-
-        // Pull the title and subtitle out of the document
-        var feedTitle = this._document.getElementById(TITLE_ID).textContent;
-        var feedSubtitle = this._document.getElementById(SUBTITLE_ID).textContent;
-        feedService.addToClientReader(this._window.location.href, feedTitle, feedSubtitle, feedType);
-      }
-
-      // If "Always use..." is checked, we should set PREF_*SELECTED_ACTION
-      // to either "reader" (If a web reader or if an application is selected),
-      // or to "bookmarks" (if the live bookmarks option is selected).
-      // Otherwise, we should set it to "ask"
-      if (useAsDefault) {
-        prefs.setCharPref(getPrefActionForType(feedType), defaultHandler);
-      } else {
-        prefs.setCharPref(getPrefActionForType(feedType), "ask");
-      }
-    }.bind(this);
 
     // Show the file picker before subscribing if the
     // choose application menuitem was chosen using the keyboard
     if (selectedItem.getAttribute("anonid") == "chooseApplicationMenuItem") {
-      this._chooseClientApp(function(aResult) {
-        if (aResult) {
-          selectedItem =
-            this._getSelectedItemFromMenulist(this._handlersMenuList);
-          subscribeCallback();
-        }
-      }.bind(this));
-    } else {
-      subscribeCallback();
+      if (!this._chooseClientApp())
+        return;
+      
+      selectedItem = this._getSelectedItemFromMenulist(this._handlersMenuList);
     }
+
+    if (selectedItem.hasAttribute("webhandlerurl")) {
+      var webURI = selectedItem.getAttribute("webhandlerurl");
+      prefs.setCharPref(getPrefReaderForType(feedType), "web");
+
+      var supportsString = Cc["@mozilla.org/supports-string;1"].
+                           createInstance(Ci.nsISupportsString);
+      supportsString.data = webURI;
+      prefs.setComplexValue(getPrefWebForType(feedType), Ci.nsISupportsString,
+                            supportsString);
+
+      var wccr = Cc["@mozilla.org/embeddor.implemented/web-content-handler-registrar;1"].
+                 getService(Ci.nsIWebContentConverterService);
+      var handler = wccr.getWebContentHandlerByURI(this._getMimeTypeForFeedType(feedType), webURI);
+      if (handler) {
+        if (useAsDefault)
+          wccr.setAutoHandler(this._getMimeTypeForFeedType(feedType), handler);
+
+        this._window.location.href = handler.getHandlerURI(this._window.location.href);
+      }
+    }
+    else {
+      switch (selectedItem.getAttribute("anonid")) {
+        case "selectedAppMenuItem":
+          prefs.setComplexValue(getPrefAppForType(feedType), Ci.nsILocalFile, 
+                                this._selectedApp);
+          prefs.setCharPref(getPrefReaderForType(feedType), "client");
+          break;
+        case "defaultHandlerMenuItem":
+          prefs.setComplexValue(getPrefAppForType(feedType), Ci.nsILocalFile, 
+                                this._defaultSystemReader);
+          prefs.setCharPref(getPrefReaderForType(feedType), "client");
+          break;
+        case "liveBookmarksMenuItem":
+          defaultHandler = "bookmarks";
+          prefs.setCharPref(getPrefReaderForType(feedType), "bookmarks");
+          break;
+      }
+      var feedService = Cc["@mozilla.org/browser/feeds/result-service;1"].
+                        getService(Ci.nsIFeedResultService);
+
+      // Pull the title and subtitle out of the document
+      var feedTitle = this._document.getElementById(TITLE_ID).textContent;
+      var feedSubtitle = this._document.getElementById(SUBTITLE_ID).textContent;
+      feedService.addToClientReader(this._window.location.href, feedTitle, feedSubtitle, feedType);
+    }
+
+    // If "Always use..." is checked, we should set PREF_*SELECTED_ACTION
+    // to either "reader" (If a web reader or if an application is selected),
+    // or to "bookmarks" (if the live bookmarks option is selected).
+    // Otherwise, we should set it to "ask"
+    if (useAsDefault)
+      prefs.setCharPref(getPrefActionForType(feedType), defaultHandler);
+    else
+      prefs.setCharPref(getPrefActionForType(feedType), "ask");
   },
 
   // nsIObserver
@@ -1347,20 +1360,13 @@ FeedWriter.prototype = {
   _setFaviconForWebReader:
   function FW__setFaviconForWebReader(aReaderUrl, aMenuItem) {
     var readerURI = makeURI(aReaderUrl);
-    if (!/^https?$/.test(readerURI.scheme)) {
+    if (!/^https?/.test(readerURI.scheme)) {
       // Don't try to get a favicon for non http(s) URIs.
       return;
     }
     var faviconURI = makeURI(readerURI.prePath + "/favicon.ico");
     var self = this;
-    var usePrivateBrowsing = this._window.QueryInterface(Ci.nsIInterfaceRequestor)
-                                         .getInterface(Ci.nsIWebNavigation)
-                                         .QueryInterface(Ci.nsIDocShell)
-                                         .QueryInterface(Ci.nsILoadContext)
-                                         .usePrivateBrowsing;
-    this._faviconService.setAndFetchFaviconForPage(readerURI, faviconURI, false,
-      usePrivateBrowsing ? this._faviconService.FAVICON_LOAD_PRIVATE
-                         : this._faviconService.FAVICON_LOAD_NON_PRIVATE,
+    this._faviconService.setAndLoadFaviconForPage(readerURI, faviconURI, false,
       function (aURI, aDataLen, aData, aMimeType) {
         if (aDataLen > 0) {
           var dataURL = "data:" + aMimeType + ";base64," +
@@ -1385,4 +1391,4 @@ FeedWriter.prototype = {
                                          Ci.nsINavHistoryObserver])
 };
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([FeedWriter]);
+var NSGetFactory = XPCOMUtils.generateNSGetFactory([FeedWriter]);

@@ -1,9 +1,43 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape security libraries.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1994-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * Stuff specific to S/MIME policy and interoperability.
+ *
+ * $Id: smimeutil.c,v 1.22 2011/08/21 01:14:18 wtc%google.com Exp $
  */
 
 #include "secmime.h"
@@ -118,8 +152,7 @@ static smime_cipher_map_entry smime_cipher_map[] = {
     { SMIME_RC2_CBC_64,		SEC_OID_RC2_CBC,	&param_int64,	PR_TRUE, PR_TRUE },
     { SMIME_RC2_CBC_128,	SEC_OID_RC2_CBC,	&param_int128,	PR_TRUE, PR_TRUE },
     { SMIME_DES_EDE3_168,	SEC_OID_DES_EDE3_CBC,	NULL,		PR_TRUE, PR_TRUE },
-    { SMIME_AES_CBC_128,	SEC_OID_AES_128_CBC,	NULL,		PR_TRUE, PR_TRUE },
-    { SMIME_AES_CBC_256,	SEC_OID_AES_256_CBC,	NULL,		PR_TRUE, PR_TRUE }
+    { SMIME_AES_CBC_128,	SEC_OID_AES_128_CBC,	NULL,		PR_TRUE, PR_TRUE }
 };
 static const int smime_cipher_map_count = sizeof(smime_cipher_map) / sizeof(smime_cipher_map_entry);
 
@@ -239,9 +272,6 @@ nss_smime_get_cipher_for_alg_and_key(SECAlgorithmID *algid, PK11SymKey *key, uns
     case SEC_OID_AES_128_CBC:
 	c = SMIME_AES_CBC_128;
 	break;
-    case SEC_OID_AES_256_CBC:
-	c = SMIME_AES_CBC_256;
-	break;
     default:
 	PORT_SetError(SEC_ERROR_INVALID_ALGORITHM);
 	return SECFailure;
@@ -352,21 +382,17 @@ nss_SMIME_FindCipherForSMIMECap(NSSSMIMECapability *cap)
 static long
 smime_choose_cipher(CERTCertificate *scert, CERTCertificate **rcerts)
 {
-    PLArenaPool *poolp;
+    PRArenaPool *poolp;
     long cipher;
     long chosen_cipher;
     int *cipher_abilities;
     int *cipher_votes;
     int weak_mapi;
     int strong_mapi;
-    int aes128_mapi;
-    int aes256_mapi;
     int rcount, mapi, max, i;
 
     chosen_cipher = SMIME_RC2_CBC_40;		/* the default, LCD */
     weak_mapi = smime_mapi_by_cipher(chosen_cipher);
-    aes128_mapi = smime_mapi_by_cipher(SMIME_AES_CBC_128);
-    aes256_mapi = smime_mapi_by_cipher(SMIME_AES_CBC_256);
 
     poolp = PORT_NewArena (1024);		/* XXX what is right value? */
     if (poolp == NULL)
@@ -416,13 +442,9 @@ smime_choose_cipher(CERTCertificate *scert, CERTCertificate **rcerts)
 	    }
 	} else {
 	    /* no profile found - so we can only assume that the user can do
-	     * the mandatory algorithms which are RC2-40 (weak crypto) and
-	     * 3DES (strong crypto), unless the user has an elliptic curve
-	     * key.  For elliptic curve keys, RFC 5753 mandates support
-	     * for AES 128 CBC. */
+	     * the mandatory algorithms which is RC2-40 (weak crypto) and 3DES (strong crypto) */
 	    SECKEYPublicKey *key;
 	    unsigned int pklen_bits;
-	    KeyType key_type;
 
 	    /*
 	     * if recipient's public key length is > 512, vote for a strong cipher
@@ -438,41 +460,20 @@ smime_choose_cipher(CERTCertificate *scert, CERTCertificate **rcerts)
 	    key = CERT_ExtractPublicKey(rcerts[rcount]);
 	    pklen_bits = 0;
 	    if (key != NULL) {
-		pklen_bits = SECKEY_PublicKeyStrengthInBits (key);
-		key_type = SECKEY_GetPublicKeyType(key);
+		pklen_bits = SECKEY_PublicKeyStrength (key) * 8;
 		SECKEY_DestroyPublicKey (key);
 	    }
 
-	    if (key_type == ecKey) {
-		/* While RFC 5753 mandates support for AES-128 CBC, should use
-		 * AES 256 if user's key provides more than 128 bits of
-		 * security strength so that symmetric key is not weak link. */
-
-		/* RC2-40 is not compatible with elliptic curve keys. */
-		chosen_cipher = SMIME_DES_EDE3_168;
-		if (pklen_bits > 256) {
-		    cipher_abilities[aes256_mapi]++;
-		    cipher_votes[aes256_mapi] += pref;
-		    pref--;
-		}
-		cipher_abilities[aes128_mapi]++;
-		cipher_votes[aes128_mapi] += pref;
-		pref--;
+	    if (pklen_bits > 512) {
+		/* cast votes for the strong algorithm */
 		cipher_abilities[strong_mapi]++;
 		cipher_votes[strong_mapi] += pref;
 		pref--;
-	    } else {
-		if (pklen_bits > 512) {
-		    /* cast votes for the strong algorithm */
-		    cipher_abilities[strong_mapi]++;
-		    cipher_votes[strong_mapi] += pref;
-		    pref--;
-		}
-
-		/* always cast (possibly less) votes for the weak algorithm */
-		cipher_abilities[weak_mapi]++;
-		cipher_votes[weak_mapi] += pref;
 	    } 
+
+	    /* always cast (possibly less) votes for the weak algorithm */
+	    cipher_abilities[weak_mapi]++;
+	    cipher_votes[weak_mapi] += pref;
 	}
 	if (profile != NULL)
 	    SECITEM_FreeItem(profile, PR_TRUE);
@@ -524,9 +525,6 @@ smime_keysize_by_cipher (unsigned long which)
       case SMIME_RC2_CBC_128:
       case SMIME_AES_CBC_128:
 	keysize = 128;
-	break;
-      case SMIME_AES_CBC_256:
-	keysize = 256;
 	break;
       case SMIME_DES_CBC_56:
       case SMIME_DES_EDE3_168:

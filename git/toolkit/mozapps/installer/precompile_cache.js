@@ -1,8 +1,41 @@
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ * 
+ * Contributor(s):
+ *  Taras Glek <tglek@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 // see http://mxr.mozilla.org/mozilla-central/source/services/sync/Weave.js#76
 
@@ -10,85 +43,57 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
 
-Cu.import("resource://gre/modules/Services.jsm");
-
-const rph = Services.io.getProtocolHandler("resource").QueryInterface(Ci.nsIResProtocolHandler);
-
-function endsWith(str, end) {
-  return str.slice(-end.length) == end;
-}
-
-function jar_entries(jarReader, pattern) {
-  var entries = [];
-  var enumerator = jarReader.findEntries(pattern);
-  while (enumerator.hasMore()) {
-    entries.push(enumerator.getNext());
-  }
-  return entries;
-}
-
-function dir_entries(baseDir, subpath, ext) {
-  var dir = baseDir.clone();
-  dir.append(subpath);
-  var enumerator = dir.directoryEntries;
-  var entries = [];
-  while (enumerator.hasMoreElements()) {
-    var file = enumerator.getNext().QueryInterface(Ci.nsIFile);
-    if (file.isDirectory()) {
-      entries = entries.concat(dir_entries(dir, file.leafName, ext).map(function(p) subpath + "/" + p));
-    } else if (endsWith(file.leafName, ext)) {
-      entries.push(subpath + "/" + file.leafName);
-    }
-  }
-  return entries;
-}
-
-function get_modules_under(uri) {
-  if (uri instanceof Ci.nsIJARURI) {
-    var jar = uri.QueryInterface(Ci.nsIJARURI);
-    var jarReader = Cc["@mozilla.org/libjar/zip-reader;1"].createInstance(Ci.nsIZipReader);
-    var file = jar.JARFile.QueryInterface(Ci.nsIFileURL);
-    jarReader.open(file.file);
-    var entries = jar_entries(jarReader, "components/*.js")
-                  .concat(jar_entries(jarReader, "modules/*.js"))
-                  .concat(jar_entries(jarReader, "modules/*.jsm"));
-    jarReader.close();
-    return entries;
-  } else if (uri instanceof Ci.nsIFileURL){
-    var file = uri.QueryInterface(Ci.nsIFileURL);
-    return dir_entries(file.file, "components", ".js")
-           .concat(dir_entries(file.file, "modules", ".js"))
-           .concat(dir_entries(file.file, "modules", ".jsm"));
-  } else {
-    throw "Expected a nsIJARURI or nsIFileURL";
+function setenv(name, val) {
+  try {
+    var environment = Components.classes["@mozilla.org/process/environment;1"].
+      getService(Components.interfaces.nsIEnvironment);
+    environment.set(name, val);
+  } catch(e) {
+    displayError("setenv", e);
   }
 }
 
-function load_modules_under(spec, uri) {
-  var entries = get_modules_under(uri);
-  // The precompilation of JS here sometimes reports errors, which we don't
-  // really care about. But if the errors are ever reported to xpcshell's
-  // error reporter, it will cause it to return an error code, which will break
-  // automation. Currently they won't be, because the component loader spins up
-  // its JSContext before xpcshell has time to set its context callback (which
-  // overrides the error reporter on all newly-created JSContexts). But as we
-  // move towards a singled-cxed browser, we'll run into this. So let's be
-  // forward-thinking and deal with it now.
-  ignoreReportedErrors(true);
-  for each (let entry in entries) {
-    try {
-      dump(spec + entry + "\n");
-      Cu.import(spec + entry, null);
-    } catch(e) {}
+function load(url) {
+  print(url);
+  try {
+    Cu.import(url, null);
+  } catch(e) {
+    dump("Failed to import " + url + ":" + e + "\n");
   }
-  ignoreReportedErrors(false);
 }
 
-function resolveResource(spec) {
-  var uri = Services.io.newURI(spec, null, null);
-  return Services.io.newURI(rph.resolveURI(uri), null, null);
+function load_entries(entries, prefix) {
+  while (entries.hasMore()) {
+    var c = entries.getNext();
+    load(prefix + c);
+  }
 }
 
-function precompile_startupcache(uri) {
-  load_modules_under(uri, resolveResource(uri));
+function getDir(prop) {
+  return Cc["@mozilla.org/file/directory_service;1"].
+    getService(Ci.nsIProperties).get(prop, Ci.nsIFile);
+}
+
+function openJar(file) {
+  var zipreader = Cc["@mozilla.org/libjar/zip-reader;1"].
+    createInstance(Ci.nsIZipReader);
+  zipreader.open(file);
+  return zipreader;
+}
+
+function populate_startupcache(prop, omnijarName, startupcacheName) {
+  var file = getDir(prop);
+  file.append(omnijarName);
+  zipreader = openJar(file);
+
+  var scFile = getDir(prop);
+  scFile.append(startupcacheName);
+  setenv("MOZ_STARTUP_CACHE", scFile.path);
+
+  let prefix = "resource:///";
+
+  load_entries(zipreader.findEntries("components/*js"), prefix);
+  load_entries(zipreader.findEntries("modules/*js"), prefix);
+  load_entries(zipreader.findEntries("modules/*jsm"), prefix);
+  zipreader.close();
 }

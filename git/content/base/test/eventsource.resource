@@ -18,5 +18,3 @@ retry:500
 
 event:keypress
 retry:500
-
-

@@ -1,42 +1,58 @@
 /* -*- Mode: c++; c-basic-offset: 2; indent-tabs-mode: nil; tab-width: 40 -*- */
 /* vim: set ts=2 et sw=2 tw=80: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Web Workers.
+ *
+ * The Initial Developer of the Original Code is
+ *   The Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Ben Turner <bent.mozilla@gmail.com> (Original Author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "WorkerScope.h"
 
 #include "jsapi.h"
-#include "jsdbgapi.h"
-#include "mozilla/Util.h"
-#include "mozilla/dom/DOMJSClass.h"
-#include "mozilla/dom/EventTargetBinding.h"
-#include "mozilla/dom/BindingUtils.h"
-#include "mozilla/dom/FileReaderSyncBinding.h"
-#include "mozilla/dom/ImageData.h"
-#include "mozilla/dom/ImageDataBinding.h"
-#include "mozilla/dom/TextDecoderBinding.h"
-#include "mozilla/dom/TextEncoderBinding.h"
-#include "mozilla/dom/XMLHttpRequestBinding.h"
-#include "mozilla/dom/XMLHttpRequestUploadBinding.h"
-#include "mozilla/dom/URLBinding.h"
-#include "mozilla/dom/WorkerLocationBinding.h"
-#include "mozilla/dom/WorkerNavigatorBinding.h"
-#include "mozilla/OSFileConstants.h"
-#include "nsTraceRefcnt.h"
-#include "xpcpublic.h"
+#include "jscntxt.h"
+#include "jsobj.h"
 
-#ifdef ANDROID
-#include <android/log.h>
-#endif
+#include "nsTraceRefcnt.h"
+#include "xpcprivate.h"
 
 #include "ChromeWorkerScope.h"
 #include "Events.h"
-#include "EventListenerManager.h"
 #include "EventTarget.h"
 #include "Exceptions.h"
 #include "File.h"
 #include "FileReaderSync.h"
+#include "ListenerManager.h"
 #include "Location.h"
 #include "Navigator.h"
 #include "Principal.h"
@@ -47,20 +63,21 @@
 
 #include "WorkerInlines.h"
 
+#define PROPERTY_FLAGS \
+  JSPROP_ENUMERATE | JSPROP_SHARED
+
 #define FUNCTION_FLAGS \
   JSPROP_ENUMERATE
 
-using namespace mozilla;
-using namespace mozilla::dom;
 USING_WORKERS_NAMESPACE
 
 namespace {
 
-class WorkerGlobalScope : public workers::EventTarget
+class WorkerGlobalScope : public events::EventTarget
 {
   static JSClass sClass;
-  static const JSPropertySpec sProperties[];
-  static const JSFunctionSpec sFunctions[];
+  static JSPropertySpec sProperties[];
+  static JSFunctionSpec sFunctions[];
 
   enum
   {
@@ -77,7 +94,7 @@ class WorkerGlobalScope : public workers::EventTarget
   };
 
   // Must be traced!
-  JS::Heap<JS::Value> mSlots[SLOT_COUNT];
+  jsval mSlots[SLOT_COUNT];
 
   enum
   {
@@ -102,19 +119,16 @@ public:
   static JSObject*
   InitClass(JSContext* aCx, JSObject* aObj, JSObject* aParentProto)
   {
-    return JS_InitClass(aCx, aObj, aParentProto, Class(), Construct, 0,
+    return JS_InitClass(aCx, aObj, aParentProto, &sClass, Construct, 0,
                         sProperties, sFunctions, NULL, NULL);
   }
 
-  using EventTarget::GetEventListener;
-  using EventTarget::SetEventListener;
-
 protected:
-  WorkerGlobalScope(JSContext* aCx, WorkerPrivate* aWorker)
-  : EventTarget(aCx), mWorker(aWorker)
+  WorkerGlobalScope(WorkerPrivate* aWorker)
+  : mWorker(aWorker)
   {
     MOZ_COUNT_CTOR(mozilla::dom::workers::WorkerGlobalScope);
-    for (int32_t i = 0; i < SLOT_COUNT; i++) {
+    for (int32 i = 0; i < SLOT_COUNT; i++) {
       mSlots[i] = JSVAL_VOID;
     }
   }
@@ -124,299 +138,252 @@ protected:
     MOZ_COUNT_DTOR(mozilla::dom::workers::WorkerGlobalScope);
   }
 
-  virtual void
-  _trace(JSTracer* aTrc) MOZ_OVERRIDE
+  void
+  TraceInstance(JSTracer* aTrc)
   {
-    for (int32_t i = 0; i < SLOT_COUNT; i++) {
-      JS_CallHeapValueTracer(aTrc, &mSlots[i], "WorkerGlobalScope instance slot");
+    for (int32 i = 0; i < SLOT_COUNT; i++) {
+      JS_CALL_VALUE_TRACER(aTrc, mSlots[i], "WorkerGlobalScope instance slot");
     }
     mWorker->TraceInternal(aTrc);
-    EventTarget::_trace(aTrc);
+    events::EventTarget::TraceInstance(aTrc);
   }
 
-  virtual void
-  _finalize(JSFreeOp* aFop) MOZ_OVERRIDE
+  void
+  FinalizeInstance(JSContext* aCx)
   {
-    EventTarget::_finalize(aFop);
+    events::EventTarget::FinalizeInstance(aCx);
   }
 
 private:
-  static bool IsWorkerGlobalScope(const JS::Value& v);
-
-  static bool
-  GetOnCloseImpl(JSContext* aCx, JS::CallArgs aArgs)
+  static JSBool
+  GetEventListener(JSContext* aCx, JSObject* aObj, jsid aIdval, jsval* aVp)
   {
-    const char* name = sEventStrings[STRING_onclose];
-    WorkerGlobalScope* scope = GetInstancePrivate(aCx, &aArgs.thisv().toObject(), name);
-    MOZ_ASSERT(scope);
+    JS_ASSERT(JSID_IS_INT(aIdval));
+    JS_ASSERT(JSID_TO_INT(aIdval) >= 0 && JSID_TO_INT(aIdval) < STRING_COUNT);
 
-    ErrorResult rv;
-
-    JSObject* listener =
-      scope->GetEventListener(NS_ConvertASCIItoUTF16(name + 2), rv);
-
-    if (rv.Failed()) {
-      JS_ReportError(aCx, "Failed to get event listener!");
+    const char* name = sEventStrings[JSID_TO_INT(aIdval)];
+    WorkerGlobalScope* scope = GetInstancePrivate(aCx, aObj, name);
+    if (!scope) {
       return false;
     }
 
-    aArgs.rval().setObjectOrNull(listener);
-    return true;
+    return scope->GetEventListenerOnEventTarget(aCx, name + 2, aVp);
   }
 
   static JSBool
-  GetOnClose(JSContext* aCx, unsigned aArgc, JS::Value* aVp)
+  SetEventListener(JSContext* aCx, JSObject* aObj, jsid aIdval, JSBool aStrict,
+                   jsval* aVp)
   {
-    JS::CallArgs args = JS::CallArgsFromVp(aArgc, aVp);
-    return JS::CallNonGenericMethod<IsWorkerGlobalScope, GetOnCloseImpl>(aCx, args);
-  }
+    JS_ASSERT(JSID_IS_INT(aIdval));
+    JS_ASSERT(JSID_TO_INT(aIdval) >= 0 && JSID_TO_INT(aIdval) < STRING_COUNT);
 
-  static bool
-  SetOnCloseImpl(JSContext* aCx, JS::CallArgs aArgs)
-  {
-    const char* name = sEventStrings[STRING_onclose];
-    WorkerGlobalScope* scope =
-      GetInstancePrivate(aCx, &aArgs.thisv().toObject(), name);
-    MOZ_ASSERT(scope);
-
-    if (aArgs.length() == 0 || !aArgs[0].isObject()) {
-      JS_ReportError(aCx, "Not an event listener!");
+    const char* name = sEventStrings[JSID_TO_INT(aIdval)];
+    WorkerGlobalScope* scope = GetInstancePrivate(aCx, aObj, name);
+    if (!scope) {
       return false;
     }
 
-    ErrorResult rv;
-    JS::Rooted<JSObject*> listenerObj(aCx, &aArgs[0].toObject());
-    scope->SetEventListener(NS_ConvertASCIItoUTF16(name + 2),
-                            listenerObj, rv);
-    if (rv.Failed()) {
-      JS_ReportError(aCx, "Failed to set event listener!");
-      return false;
-    }
-
-    aArgs.rval().setUndefined();
-    return true;
-  }
-
-  static JSBool
-  SetOnClose(JSContext* aCx, unsigned aArgc, JS::Value* aVp)
-  {
-    JS::CallArgs args = JS::CallArgsFromVp(aArgc, aVp);
-    return JS::CallNonGenericMethod<IsWorkerGlobalScope, SetOnCloseImpl>(aCx, args);
+    return scope->SetEventListenerOnEventTarget(aCx, name + 2, aVp);
   }
 
   static WorkerGlobalScope*
   GetInstancePrivate(JSContext* aCx, JSObject* aObj, const char* aFunctionName);
 
   static JSBool
-  Construct(JSContext* aCx, unsigned aArgc, jsval* aVp)
+  Construct(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL, JSMSG_WRONG_CONSTRUCTOR,
                          sClass.name);
     return false;
   }
 
-  static bool
-  GetSelfImpl(JSContext* aCx, JS::CallArgs aArgs)
+  static JSBool
+  GetSelf(JSContext* aCx, JSObject* aObj, jsid aIdval, jsval* aVp)
   {
-    aArgs.rval().setObject(aArgs.thisv().toObject());
+    if (!GetInstancePrivate(aCx, aObj, "self")) {
+      return false;
+    }
+
+    *aVp = OBJECT_TO_JSVAL(aObj);
     return true;
   }
 
   static JSBool
-  GetSelf(JSContext* aCx, unsigned aArgc, JS::Value* aVp)
+  GetLocation(JSContext* aCx, JSObject* aObj, jsid aIdval, jsval* aVp)
   {
-    JS::CallArgs args = JS::CallArgsFromVp(aArgc, aVp);
-    return JS::CallNonGenericMethod<IsWorkerGlobalScope, GetSelfImpl>(aCx, args);
-  }
-
-  static bool
-  GetLocationImpl(JSContext* aCx, JS::CallArgs aArgs)
-  {
-    JS::Rooted<JSObject*> obj(aCx, &aArgs.thisv().toObject());
     WorkerGlobalScope* scope =
-      GetInstancePrivate(aCx, obj, sProperties[SLOT_location].name);
-    MOZ_ASSERT(scope);
+      GetInstancePrivate(aCx, aObj, sProperties[SLOT_location].name);
+    if (!scope) {
+      return false;
+    }
 
-    if (scope->mSlots[SLOT_location].isUndefined()) {
+    if (JSVAL_IS_VOID(scope->mSlots[SLOT_location])) {
+      JSString* href, *protocol, *host, *hostname;
+      JSString* port, *pathname, *search, *hash;
+
       WorkerPrivate::LocationInfo& info = scope->mWorker->GetLocationInfo();
 
-      nsRefPtr<WorkerLocation> location =
-        WorkerLocation::Create(aCx, obj, info);
+#define COPY_STRING(_jsstr, _cstr)                                             \
+  if (info. _cstr .IsEmpty()) {                                                \
+    _jsstr = NULL;                                                             \
+  }                                                                            \
+  else {                                                                       \
+    if (!(_jsstr = JS_NewStringCopyN(aCx, info. _cstr .get(),                  \
+                                     info. _cstr .Length()))) {                \
+      return false;                                                            \
+    }                                                                          \
+    info. _cstr .Truncate();                                                   \
+  }
+
+      COPY_STRING(href, mHref);
+      COPY_STRING(protocol, mProtocol);
+      COPY_STRING(host, mHost);
+      COPY_STRING(hostname, mHostname);
+      COPY_STRING(port, mPort);
+      COPY_STRING(pathname, mPathname);
+      COPY_STRING(search, mSearch);
+      COPY_STRING(hash, mHash);
+
+#undef COPY_STRING
+
+      JSObject* location = location::Create(aCx, href, protocol, host, hostname,
+                                            port, pathname, search, hash);
       if (!location) {
         return false;
       }
 
-      scope->mSlots[SLOT_location] = OBJECT_TO_JSVAL(location->GetJSObject());
+      scope->mSlots[SLOT_location] = OBJECT_TO_JSVAL(location);
     }
 
-    aArgs.rval().set(scope->mSlots[SLOT_location]);
+    *aVp = scope->mSlots[SLOT_location];
     return true;
   }
 
   static JSBool
-  GetLocation(JSContext* aCx, unsigned aArgc, JS::Value* aVp)
+  UnwrapErrorEvent(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
-    JS::CallArgs args = JS::CallArgsFromVp(aArgc, aVp);
-    return JS::CallNonGenericMethod<IsWorkerGlobalScope, GetLocationImpl>(aCx, args);
-  }
-
-  static JSBool
-  UnwrapErrorEvent(JSContext* aCx, unsigned aArgc, jsval* aVp)
-  {
+    JS_ASSERT(JSVAL_IS_OBJECT(JS_CALLEE(aCx, aVp)));
     JS_ASSERT(aArgc == 1);
-    JS_ASSERT((JS_ARGV(aCx, aVp)[0]).isObject());
+    JS_ASSERT(JSVAL_IS_OBJECT(JS_ARGV(aCx, aVp)[0]));
 
-    JSObject* wrapper = &JS_CALLEE(aCx, aVp).toObject();
+    JSObject* wrapper = JSVAL_TO_OBJECT(JS_CALLEE(aCx, aVp));
     JS_ASSERT(JS_ObjectIsFunction(aCx, wrapper));
 
-    JS::Rooted<JS::Value> scope(aCx, js::GetFunctionNativeReserved(wrapper, SLOT_wrappedScope));
-    JS::Rooted<JS::Value> listener(aCx, js::GetFunctionNativeReserved(wrapper, SLOT_wrappedFunction));
-
-    JS_ASSERT(scope.isObject());
-
-    JS::Rooted<JSObject*> event(aCx, &JS_ARGV(aCx, aVp)[0].toObject());
-
-    jsval argv[3] = { JSVAL_VOID, JSVAL_VOID, JSVAL_VOID };
-    JS::AutoArrayRooter rootedArgv(aCx, ArrayLength(argv), argv);
-    if (!JS_GetProperty(aCx, event, "message", rootedArgv.handleAt(0)) ||
-        !JS_GetProperty(aCx, event, "filename", rootedArgv.handleAt(1)) ||
-        !JS_GetProperty(aCx, event, "lineno", rootedArgv.handleAt(2))) {
+    jsval scope, listener;
+    if (!JS_GetReservedSlot(aCx, wrapper, SLOT_wrappedScope, &scope) ||
+        !JS_GetReservedSlot(aCx, wrapper, SLOT_wrappedFunction, &listener)) {
       return false;
     }
 
-    JS::Rooted<JS::Value> rval(aCx, JS::UndefinedValue());
+    JS_ASSERT(JSVAL_IS_OBJECT(scope));
+
+    JSObject* event = JSVAL_TO_OBJECT(JS_ARGV(aCx, aVp)[0]);
+
+    jsval argv[3] = { JSVAL_VOID, JSVAL_VOID, JSVAL_VOID };
+    if (!JS_GetProperty(aCx, event, "message", &argv[0]) ||
+        !JS_GetProperty(aCx, event, "filename", &argv[1]) ||
+        !JS_GetProperty(aCx, event, "lineno", &argv[2])) {
+      return false;
+    }
+
+    jsval rval = JSVAL_VOID;
     if (!JS_CallFunctionValue(aCx, JSVAL_TO_OBJECT(scope), listener,
-                              ArrayLength(argv), argv, rval.address())) {
+                              JS_ARRAY_LENGTH(argv), argv, &rval)) {
       JS_ReportPendingException(aCx);
       return false;
     }
 
     if (JSVAL_IS_BOOLEAN(rval) && JSVAL_TO_BOOLEAN(rval) &&
-        !JS_CallFunctionName(aCx, event, "preventDefault", 0, NULL, rval.address())) {
+        !JS_CallFunctionName(aCx, event, "preventDefault", 0, NULL, &rval)) {
       return false;
     }
 
-    return true;
-  }
-
-  static bool
-  GetOnErrorListenerImpl(JSContext* aCx, JS::CallArgs aArgs)
-  {
-    const char* name = sEventStrings[STRING_onerror];
-    WorkerGlobalScope* scope = GetInstancePrivate(aCx, &aArgs.thisv().toObject(), name);
-    MOZ_ASSERT(scope);
-
-    ErrorResult rv;
-
-    JSObject* adaptor =
-      scope->GetEventListener(NS_ConvertASCIItoUTF16(name + 2), rv);
-
-    if (rv.Failed()) {
-      JS_ReportError(aCx, "Failed to get event listener!");
-      return false;
-    }
-
-    if (!adaptor) {
-      aArgs.rval().setNull();
-      return true;
-    }
-
-    aArgs.rval().set(js::GetFunctionNativeReserved(adaptor, SLOT_wrappedFunction));
-    MOZ_ASSERT(aArgs.rval().isObject());
     return true;
   }
 
   static JSBool
-  GetOnErrorListener(JSContext* aCx, unsigned aArgc, JS::Value* aVp)
+  GetOnErrorListener(JSContext* aCx, JSObject* aObj, jsid aIdval, jsval* aVp)
   {
-    JS::CallArgs args = JS::CallArgsFromVp(aArgc, aVp);
-    return JS::CallNonGenericMethod<IsWorkerGlobalScope, GetOnErrorListenerImpl>(aCx, args);
-  }
-
-  static bool
-  SetOnErrorListenerImpl(JSContext* aCx, JS::CallArgs aArgs)
-  {
-    JS::Rooted<JSObject*> obj(aCx, &aArgs.thisv().toObject());
     const char* name = sEventStrings[STRING_onerror];
-    WorkerGlobalScope* scope = GetInstancePrivate(aCx, obj, name);
-    MOZ_ASSERT(scope);
-
-    if (aArgs.length() == 0 || !aArgs[0].isObject()) {
-      JS_ReportError(aCx, "Not an event listener!");
+    WorkerGlobalScope* scope = GetInstancePrivate(aCx, aObj, name);
+    if (!scope) {
       return false;
     }
 
-    JSFunction* adaptor =
-      js::NewFunctionWithReserved(aCx, UnwrapErrorEvent, 1, 0,
-                                  JS::CurrentGlobalOrNull(aCx), "unwrap");
+    jsval adaptor;
+    if (!scope->GetEventListenerOnEventTarget(aCx, name + 2, &adaptor)) {
+      return false;
+    }
+
+    JS_ASSERT(JSVAL_IS_OBJECT(adaptor));
+
+    jsval listener;
+    if (!JS_GetReservedSlot(aCx, JSVAL_TO_OBJECT(adaptor), SLOT_wrappedFunction,
+                            &listener)) {
+      return false;
+    }
+
+    *aVp = listener;
+    return true;
+  }
+
+  static JSBool
+  SetOnErrorListener(JSContext* aCx, JSObject* aObj, jsid aIdval,
+                     JSBool aStrict, jsval* aVp)
+  {
+    const char* name = sEventStrings[STRING_onerror];
+    WorkerGlobalScope* scope = GetInstancePrivate(aCx, aObj, name);
+    if (!scope) {
+      return false;
+    }
+
+    JSFunction* adaptor = JS_NewFunction(aCx, UnwrapErrorEvent, 1, 0,
+                                         JS_GetGlobalObject(aCx), "unwrap");
     if (!adaptor) {
       return false;
     }
 
-    JS::Rooted<JSObject*> listener(aCx, JS_GetFunctionObject(adaptor));
+    JSObject* listener = JS_GetFunctionObject(adaptor);
     if (!listener) {
       return false;
     }
 
-    js::SetFunctionNativeReserved(listener, SLOT_wrappedScope,
-                                  JS::ObjectValue(*obj));
-    js::SetFunctionNativeReserved(listener, SLOT_wrappedFunction, aArgs[0]);
-
-    ErrorResult rv;
-
-    scope->SetEventListener(NS_ConvertASCIItoUTF16(name + 2), listener, rv);
-
-    if (rv.Failed()) {
-      JS_ReportError(aCx, "Failed to set event listener!");
+    if (!JS_SetReservedSlot(aCx, listener, SLOT_wrappedScope,
+                            OBJECT_TO_JSVAL(aObj)) ||
+        !JS_SetReservedSlot(aCx, listener, SLOT_wrappedFunction, *aVp)) {
       return false;
     }
 
-    aArgs.rval().setUndefined();
-    return true;
+    jsval val = OBJECT_TO_JSVAL(listener);
+    return scope->SetEventListenerOnEventTarget(aCx, name + 2, &val);
   }
 
   static JSBool
-  SetOnErrorListener(JSContext* aCx, unsigned aArgc, JS::Value* aVp)
+  GetNavigator(JSContext* aCx, JSObject* aObj, jsid aIdval, jsval* aVp)
   {
-    JS::CallArgs args = JS::CallArgsFromVp(aArgc, aVp);
-    return JS::CallNonGenericMethod<IsWorkerGlobalScope, SetOnErrorListenerImpl>(aCx, args);
-  }
-
-  static bool
-  GetNavigatorImpl(JSContext* aCx, JS::CallArgs aArgs)
-  {
-    JS::Rooted<JSObject*> obj(aCx, &aArgs.thisv().toObject());
     WorkerGlobalScope* scope =
-      GetInstancePrivate(aCx, obj, sProperties[SLOT_navigator].name);
-    MOZ_ASSERT(scope);
+      GetInstancePrivate(aCx, aObj, sProperties[SLOT_navigator].name);
+    if (!scope) {
+      return false;
+    }
 
-    if (scope->mSlots[SLOT_navigator].isUndefined()) {
-      nsRefPtr<WorkerNavigator> navigator = WorkerNavigator::Create(aCx, obj);
+    if (JSVAL_IS_VOID(scope->mSlots[SLOT_navigator])) {
+      JSObject* navigator = navigator::Create(aCx);
       if (!navigator) {
         return false;
       }
 
-      scope->mSlots[SLOT_navigator] = OBJECT_TO_JSVAL(navigator->GetJSObject());
+      scope->mSlots[SLOT_navigator] = OBJECT_TO_JSVAL(navigator);
     }
 
-    aArgs.rval().set(scope->mSlots[SLOT_navigator]);
+    *aVp = scope->mSlots[SLOT_navigator];
     return true;
   }
 
   static JSBool
-  GetNavigator(JSContext* aCx, unsigned aArgc, JS::Value* aVp)
-  {
-    JS::CallArgs args = JS::CallArgsFromVp(aArgc, aVp);
-    return JS::CallNonGenericMethod<IsWorkerGlobalScope, GetNavigatorImpl>(aCx, args);
-  }
-
-  static JSBool
-  Close(JSContext* aCx, unsigned aArgc, jsval* aVp)
+  Close(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
-      return false;
-    }
 
     WorkerGlobalScope* scope = GetInstancePrivate(aCx, obj, sFunctions[0].name);
     if (!scope) {
@@ -427,12 +394,9 @@ private:
   }
 
   static JSBool
-  ImportScripts(JSContext* aCx, unsigned aArgc, jsval* aVp)
+  ImportScripts(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
-      return false;
-    }
 
     WorkerGlobalScope* scope = GetInstancePrivate(aCx, obj, sFunctions[1].name);
     if (!scope) {
@@ -447,20 +411,17 @@ private:
   }
 
   static JSBool
-  SetTimeout(JSContext* aCx, unsigned aArgc, jsval* aVp)
+  SetTimeout(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
-      return false;
-    }
 
     WorkerGlobalScope* scope = GetInstancePrivate(aCx, obj, sFunctions[2].name);
     if (!scope) {
       return false;
     }
 
-    JS::Rooted<JS::Value> dummy(aCx);
-    if (!JS_ConvertArguments(aCx, aArgc, JS_ARGV(aCx, aVp), "v", dummy.address())) {
+    jsval dummy;
+    if (!JS_ConvertArguments(aCx, aArgc, JS_ARGV(aCx, aVp), "v", &dummy)) {
       return false;
     }
 
@@ -468,19 +429,16 @@ private:
   }
 
   static JSBool
-  ClearTimeout(JSContext* aCx, unsigned aArgc, jsval* aVp)
+  ClearTimeout(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
-      return false;
-    }
 
     WorkerGlobalScope* scope = GetInstancePrivate(aCx, obj, sFunctions[3].name);
     if (!scope) {
       return false;
     }
 
-    uint32_t id;
+    uint32 id;
     if (!JS_ConvertArguments(aCx, aArgc, JS_ARGV(aCx, aVp), "u", &id)) {
       return false;
     }
@@ -489,20 +447,17 @@ private:
   }
 
   static JSBool
-  SetInterval(JSContext* aCx, unsigned aArgc, jsval* aVp)
+  SetInterval(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
-      return false;
-    }
 
     WorkerGlobalScope* scope = GetInstancePrivate(aCx, obj, sFunctions[4].name);
     if (!scope) {
       return false;
     }
 
-    JS::Rooted<JS::Value> dummy(aCx);
-    if (!JS_ConvertArguments(aCx, aArgc, JS_ARGV(aCx, aVp), "v", dummy.address())) {
+    jsval dummy;
+    if (!JS_ConvertArguments(aCx, aArgc, JS_ARGV(aCx, aVp), "v", &dummy)) {
       return false;
     }
 
@@ -510,19 +465,16 @@ private:
   }
 
   static JSBool
-  ClearInterval(JSContext* aCx, unsigned aArgc, jsval* aVp)
+  ClearInterval(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
-      return false;
-    }
 
     WorkerGlobalScope* scope = GetInstancePrivate(aCx, obj, sFunctions[5].name);
     if (!scope) {
       return false;
     }
 
-    uint32_t id;
+    uint32 id;
     if (!JS_ConvertArguments(aCx, aArgc, JS_ARGV(aCx, aVp), "u", &id)) {
       return false;
     }
@@ -531,14 +483,10 @@ private:
   }
 
   static JSBool
-  Dump(JSContext* aCx, unsigned aArgc, jsval* aVp)
+  Dump(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
-    JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
-      return false;
-    }
-
-    if (!GetInstancePrivate(aCx, obj, sFunctions[6].name)) {
+    if (!GetInstancePrivate(aCx, JS_THIS_OBJECT(aCx, aVp),
+                            sFunctions[6].name)) {
       return false;
     }
 
@@ -553,35 +501,28 @@ private:
         return false;
       }
 
-#ifdef ANDROID
-      __android_log_print(ANDROID_LOG_INFO, "Gecko", "%s", buffer.ptr());
-#endif
-      fputs(buffer.ptr(), stdout);
-      fflush(stdout);
+      fputs(buffer.ptr(), stderr);
+      fflush(stderr);
     }
 
     return true;
   }
 
   static JSBool
-  AtoB(JSContext* aCx, unsigned aArgc, jsval* aVp)
+  AtoB(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
-    JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
+    if (!GetInstancePrivate(aCx, JS_THIS_OBJECT(aCx, aVp),
+                            sFunctions[7].name)) {
       return false;
     }
 
-    if (!GetInstancePrivate(aCx, obj, sFunctions[7].name)) {
+    jsval string;
+    if (!JS_ConvertArguments(aCx, aArgc, JS_ARGV(aCx, aVp), "v", &string)) {
       return false;
     }
 
-    JS::Rooted<JS::Value> string(aCx);
-    if (!JS_ConvertArguments(aCx, aArgc, JS_ARGV(aCx, aVp), "v", string.address())) {
-      return false;
-    }
-
-    JS::Rooted<JS::Value> result(aCx);
-    if (!xpc::Base64Decode(aCx, string, result.address())) {
+    jsval result;
+    if (!nsXPConnect::Base64Decode(aCx, string, &result)) {
       return false;
     }
 
@@ -590,24 +531,20 @@ private:
   }
 
   static JSBool
-  BtoA(JSContext* aCx, unsigned aArgc, jsval* aVp)
+  BtoA(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
-    JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
+    if (!GetInstancePrivate(aCx, JS_THIS_OBJECT(aCx, aVp),
+                            sFunctions[8].name)) {
       return false;
     }
 
-    if (!GetInstancePrivate(aCx, obj, sFunctions[8].name)) {
+    jsval binary;
+    if (!JS_ConvertArguments(aCx, aArgc, JS_ARGV(aCx, aVp), "v", &binary)) {
       return false;
     }
 
-    JS::Rooted<JS::Value> binary(aCx);
-    if (!JS_ConvertArguments(aCx, aArgc, JS_ARGV(aCx, aVp), "v", binary.address())) {
-      return false;
-    }
-
-    JS::Rooted<JS::Value> result(aCx);
-    if (!xpc::Base64Encode(aCx, binary, result.address())) {
+    jsval result;
+    if (!nsXPConnect::Base64Encode(aCx, binary, &result)) {
       return false;
     }
 
@@ -619,22 +556,25 @@ private:
 JSClass WorkerGlobalScope::sClass = {
   "WorkerGlobalScope",
   0,
-  JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
-  JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub
+  JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
+  JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, JS_FinalizeStub,
+  JSCLASS_NO_OPTIONAL_MEMBERS
 };
 
-const JSPropertySpec WorkerGlobalScope::sProperties[] = {
-  JS_PSGS("location", GetLocation, GetterOnlyJSNative, JSPROP_ENUMERATE),
-  JS_PSGS(sEventStrings[STRING_onerror], GetOnErrorListener, SetOnErrorListener,
-          JSPROP_ENUMERATE),
-  JS_PSGS(sEventStrings[STRING_onclose], GetOnClose, SetOnClose,
-          JSPROP_ENUMERATE),
-  JS_PSGS("navigator", GetNavigator, GetterOnlyJSNative, JSPROP_ENUMERATE),
-  JS_PSGS("self", GetSelf, GetterOnlyJSNative, JSPROP_ENUMERATE),
-  JS_PS_END
+JSPropertySpec WorkerGlobalScope::sProperties[] = {
+  { "location", SLOT_location, PROPERTY_FLAGS, GetLocation, 
+    js_GetterOnlyPropertyStub },
+  { sEventStrings[STRING_onerror], STRING_onerror, PROPERTY_FLAGS,
+    GetOnErrorListener, SetOnErrorListener },
+  { sEventStrings[STRING_onclose], STRING_onclose, PROPERTY_FLAGS,
+    GetEventListener, SetEventListener },
+  { "navigator", SLOT_navigator, PROPERTY_FLAGS, GetNavigator, 
+    js_GetterOnlyPropertyStub },
+  { "self", 0, PROPERTY_FLAGS, GetSelf, js_GetterOnlyPropertyStub },
+  { 0, 0, 0, NULL, NULL }
 };
 
-const JSFunctionSpec WorkerGlobalScope::sFunctions[] = {
+JSFunctionSpec WorkerGlobalScope::sFunctions[] = {
   JS_FN("close", Close, 0, FUNCTION_FLAGS),
   JS_FN("importScripts", ImportScripts, 1, FUNCTION_FLAGS),
   JS_FN("setTimeout", SetTimeout, 1, FUNCTION_FLAGS),
@@ -654,10 +594,9 @@ const char* const WorkerGlobalScope::sEventStrings[STRING_COUNT] = {
 
 class DedicatedWorkerGlobalScope : public WorkerGlobalScope
 {
-  static DOMJSClass sClass;
-  static DOMIfaceAndProtoJSClass sProtoClass;
-  static const JSPropertySpec sProperties[];
-  static const JSFunctionSpec sFunctions[];
+  static JSClass sClass;
+  static JSPropertySpec sProperties[];
+  static JSFunctionSpec sFunctions[];
 
   enum
   {
@@ -672,56 +611,35 @@ public:
   static JSClass*
   Class()
   {
-    return sClass.ToJSClass();
-  }
-
-  static JSClass*
-  ProtoClass()
-  {
-    return sProtoClass.ToJSClass();
-  }
-
-  static DOMClass*
-  DOMClassStruct()
-  {
-    return &sClass.mClass;
+    return &sClass;
   }
 
   static JSObject*
   InitClass(JSContext* aCx, JSObject* aObj, JSObject* aParentProto)
   {
-    JSObject* proto =
-      JS_InitClass(aCx, aObj, aParentProto, ProtoClass(), Construct, 0,
-                   sProperties, sFunctions, NULL, NULL);
-    if (proto) {
-      js::SetReservedSlot(proto, DOM_PROTO_INSTANCE_CLASS_SLOT,
-                          JS::PrivateValue(DOMClassStruct()));
-    }
-    return proto;
+    return JS_InitClass(aCx, aObj, aParentProto, &sClass, Construct, 0,
+                        sProperties, sFunctions, NULL, NULL);
   }
 
   static JSBool
   InitPrivate(JSContext* aCx, JSObject* aObj, WorkerPrivate* aWorkerPrivate)
   {
-    JS_ASSERT(JS_GetClass(aObj) == Class());
+    JS_ASSERT(JS_GET_CLASS(aCx, aObj) == &sClass);
+    JS_ASSERT(!GetJSPrivateSafeish<DedicatedWorkerGlobalScope>(aCx, aObj));
 
-    dom::AllocateProtoAndIfaceCache(aObj);
+    DedicatedWorkerGlobalScope* priv =
+      new DedicatedWorkerGlobalScope(aWorkerPrivate);
+    if (!SetJSPrivateSafeish(aCx, aObj, priv)) {
+      delete priv;
+      return false;
+    }
 
-    nsRefPtr<DedicatedWorkerGlobalScope> scope =
-      new DedicatedWorkerGlobalScope(aCx, aWorkerPrivate);
-
-    js::SetReservedSlot(aObj, DOM_OBJECT_SLOT, PRIVATE_TO_JSVAL(scope));
-
-    scope->SetIsDOMBinding();
-    scope->SetWrapper(aObj);
-
-    scope.forget();
     return true;
   }
 
 protected:
-  DedicatedWorkerGlobalScope(JSContext* aCx, WorkerPrivate* aWorker)
-  : WorkerGlobalScope(aCx, aWorker)
+  DedicatedWorkerGlobalScope(WorkerPrivate* aWorker)
+  : WorkerGlobalScope(aWorker)
   {
     MOZ_COUNT_CTOR(mozilla::dom::workers::DedicatedWorkerGlobalScope);
   }
@@ -731,219 +649,140 @@ protected:
     MOZ_COUNT_DTOR(mozilla::dom::workers::DedicatedWorkerGlobalScope);
   }
 
+  using WorkerGlobalScope::TraceInstance;
+  using WorkerGlobalScope::FinalizeInstance;
+
 private:
-  using EventTarget::GetEventListener;
-  using EventTarget::SetEventListener;
-
-  static bool
-  IsDedicatedWorkerGlobalScope(const JS::Value& v)
+  static JSBool
+  GetEventListener(JSContext* aCx, JSObject* aObj, jsid aIdval, jsval* aVp)
   {
-    return v.isObject() && JS_GetClass(&v.toObject()) == Class();
-  }
+    JS_ASSERT(JSID_IS_INT(aIdval));
+    JS_ASSERT(JSID_TO_INT(aIdval) >= 0 && JSID_TO_INT(aIdval) < STRING_COUNT);
 
-  static bool
-  GetOnMessageImpl(JSContext* aCx, JS::CallArgs aArgs)
-  {
-    const char* name = sEventStrings[STRING_onmessage];
-    DedicatedWorkerGlobalScope* scope =
-      GetInstancePrivate(aCx, &aArgs.thisv().toObject(), name);
-    MOZ_ASSERT(scope);
-
-    ErrorResult rv;
-
-    JSObject* listener =
-      scope->GetEventListener(NS_ConvertASCIItoUTF16(name + 2), rv);
-
-    if (rv.Failed()) {
-      JS_ReportError(aCx, "Failed to get event listener!");
+    const char* name = sEventStrings[JSID_TO_INT(aIdval)];
+    DedicatedWorkerGlobalScope* scope = GetInstancePrivate(aCx, aObj, name);
+    if (!scope) {
       return false;
     }
 
-    aArgs.rval().setObjectOrNull(listener);
-    return true;
+    return scope->GetEventListenerOnEventTarget(aCx, name + 2, aVp);
   }
 
   static JSBool
-  GetOnMessage(JSContext* aCx, unsigned aArgc, JS::Value* aVp)
+  SetEventListener(JSContext* aCx, JSObject* aObj, jsid aIdval, JSBool aStrict,
+                   jsval* aVp)
   {
-    JS::CallArgs args = JS::CallArgsFromVp(aArgc, aVp);
-    return JS::CallNonGenericMethod<IsDedicatedWorkerGlobalScope, GetOnMessageImpl>(aCx, args);
-  }
+    JS_ASSERT(JSID_IS_INT(aIdval));
+    JS_ASSERT(JSID_TO_INT(aIdval) >= 0 && JSID_TO_INT(aIdval) < STRING_COUNT);
 
-  static bool
-  SetOnMessageImpl(JSContext* aCx, JS::CallArgs aArgs)
-  {
-    const char* name = sEventStrings[STRING_onmessage];
-    DedicatedWorkerGlobalScope* scope =
-      GetInstancePrivate(aCx, &aArgs.thisv().toObject(), name);
-    MOZ_ASSERT(scope);
-
-    if (aArgs.length() == 0 || !aArgs[0].isObject()) {
-      JS_ReportError(aCx, "Not an event listener!");
+    const char* name = sEventStrings[JSID_TO_INT(aIdval)];
+    DedicatedWorkerGlobalScope* scope = GetInstancePrivate(aCx, aObj, name);
+    if (!scope) {
       return false;
     }
 
-    ErrorResult rv;
-
-    JS::Rooted<JSObject*> listenerObj(aCx, &aArgs[0].toObject());
-    scope->SetEventListener(NS_ConvertASCIItoUTF16(name + 2),
-                            listenerObj, rv);
-
-    if (rv.Failed()) {
-      JS_ReportError(aCx, "Failed to set event listener!");
-      return false;
-    }
-
-    aArgs.rval().setUndefined();
-    return true;
-  }
-
-  static JSBool
-  SetOnMessage(JSContext* aCx, unsigned aArgc, JS::Value* aVp)
-  {
-    JS::CallArgs args = JS::CallArgsFromVp(aArgc, aVp);
-    return JS::CallNonGenericMethod<IsDedicatedWorkerGlobalScope, SetOnMessageImpl>(aCx, args);
+    return scope->SetEventListenerOnEventTarget(aCx, name + 2, aVp);
   }
 
   static DedicatedWorkerGlobalScope*
   GetInstancePrivate(JSContext* aCx, JSObject* aObj, const char* aFunctionName)
   {
-    JSClass* classPtr = JS_GetClass(aObj);
-    if (classPtr == Class()) {
-      return UnwrapDOMObject<DedicatedWorkerGlobalScope>(aObj);
+    // JS_GetInstancePrivate is ok to be called with a null aObj, so this should
+    // be too.
+    JSClass* classPtr = NULL;
+
+    if (aObj) {
+      classPtr = JS_GET_CLASS(aCx, aObj);
+      if (classPtr == &sClass) {
+        return GetJSPrivateSafeish<DedicatedWorkerGlobalScope>(aCx, aObj);
+      }
     }
 
     JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL,
-                         JSMSG_INCOMPATIBLE_PROTO, Class()->name, aFunctionName,
-                         classPtr->name);
+                         JSMSG_INCOMPATIBLE_PROTO, sClass.name, aFunctionName,
+                         classPtr ? classPtr->name : "object");
     return NULL;
   }
 
   static JSBool
-  Construct(JSContext* aCx, unsigned aArgc, jsval* aVp)
+  Construct(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL, JSMSG_WRONG_CONSTRUCTOR,
-                         Class()->name);
+                         sClass.name);
     return false;
   }
 
   static JSBool
-  Resolve(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> aId, unsigned aFlags,
-          JS::MutableHandle<JSObject*> aObjp)
+  Resolve(JSContext* aCx, JSObject* aObj, jsid aId, uintN aFlags,
+          JSObject** aObjp)
   {
     JSBool resolved;
     if (!JS_ResolveStandardClass(aCx, aObj, aId, &resolved)) {
       return false;
     }
 
-    aObjp.set(resolved ? aObj.get() : NULL);
+    *aObjp = resolved ? aObj : NULL;
     return true;
   }
 
   static void
-  Finalize(JSFreeOp* aFop, JSObject* aObj)
+  Finalize(JSContext* aCx, JSObject* aObj)
   {
-    JS_ASSERT(JS_GetClass(aObj) == Class());
+    JS_ASSERT(JS_GET_CLASS(aCx, aObj) == &sClass);
     DedicatedWorkerGlobalScope* scope =
-      UnwrapDOMObject<DedicatedWorkerGlobalScope>(aObj);
+      GetJSPrivateSafeish<DedicatedWorkerGlobalScope>(aCx, aObj);
     if (scope) {
-      DestroyProtoAndIfaceCache(aObj);
-      scope->_finalize(aFop);
+      scope->FinalizeInstance(aCx);
+      delete scope;
     }
   }
 
   static void
   Trace(JSTracer* aTrc, JSObject* aObj)
   {
-    JS_ASSERT(JS_GetClass(aObj) == Class());
+    JS_ASSERT(JS_GET_CLASS(aTrc->context, aObj) == &sClass);
     DedicatedWorkerGlobalScope* scope =
-      UnwrapDOMObject<DedicatedWorkerGlobalScope>(aObj);
+      GetJSPrivateSafeish<DedicatedWorkerGlobalScope>(aTrc->context, aObj);
     if (scope) {
-      TraceProtoAndIfaceCache(aTrc, aObj);
-      scope->_trace(aTrc);
+      scope->TraceInstance(aTrc);
     }
   }
 
   static JSBool
-  PostMessage(JSContext* aCx, unsigned aArgc, jsval* aVp)
+  PostMessage(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
-      return false;
-    }
 
-    const char* name = sFunctions[0].name;
+    const char*& name = sFunctions[0].name;
     DedicatedWorkerGlobalScope* scope = GetInstancePrivate(aCx, obj, name);
     if (!scope) {
       return false;
     }
 
-    JS::Rooted<JS::Value> message(aCx);
-    JS::Rooted<JS::Value> transferable(aCx, JSVAL_VOID);
-    if (!JS_ConvertArguments(aCx, aArgc, JS_ARGV(aCx, aVp), "v/v",
-                             message.address(), transferable.address())) {
+    jsval message;
+    if (!JS_ConvertArguments(aCx, aArgc, JS_ARGV(aCx, aVp), "v", &message)) {
       return false;
     }
 
-    return scope->mWorker->PostMessageToParent(aCx, message, transferable);
+    return scope->mWorker->PostMessageToParent(aCx, message);
   }
 };
 
-DOMJSClass DedicatedWorkerGlobalScope::sClass = {
-  {
-    // We don't have to worry about Xray expando slots here because we'll never
-    // have an Xray wrapper to a worker global scope.
-    "DedicatedWorkerGlobalScope",
-    JSCLASS_DOM_GLOBAL | JSCLASS_IS_DOMJSCLASS | JSCLASS_IMPLEMENTS_BARRIERS |
-    JSCLASS_GLOBAL_FLAGS_WITH_SLOTS(3) | JSCLASS_NEW_RESOLVE,
-    JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
-    JS_EnumerateStub, reinterpret_cast<JSResolveOp>(Resolve), JS_ConvertStub,
-    Finalize, NULL, NULL, NULL, NULL, Trace
-  },
-  {
-    INTERFACE_CHAIN_1(prototypes::id::EventTarget_workers),
-    false,
-    &sWorkerNativePropertyHooks
-  }
+JSClass DedicatedWorkerGlobalScope::sClass = {
+  "DedicatedWorkerGlobalScope",
+  JSCLASS_GLOBAL_FLAGS | JSCLASS_HAS_PRIVATE | JSCLASS_NEW_RESOLVE,
+  JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
+  JS_EnumerateStub, reinterpret_cast<JSResolveOp>(Resolve), JS_ConvertStub,
+  Finalize, NULL, NULL, NULL, NULL, NULL, NULL, Trace, NULL
 };
 
-DOMIfaceAndProtoJSClass DedicatedWorkerGlobalScope::sProtoClass = {
-  {
-    // XXXbz we use "DedicatedWorkerGlobalScope" here to match sClass
-    // so that we can JS_InitClass this JSClass and then
-    // call JS_NewObject with our sClass and have it find the right
-    // prototype.
-    "DedicatedWorkerGlobalScope",
-    JSCLASS_IS_DOMIFACEANDPROTOJSCLASS | JSCLASS_HAS_RESERVED_SLOTS(2),
-    JS_PropertyStub,       /* addProperty */
-    JS_DeletePropertyStub, /* delProperty */
-    JS_PropertyStub,       /* getProperty */
-    JS_StrictPropertyStub, /* setProperty */
-    JS_EnumerateStub,
-    JS_ResolveStub,
-    JS_ConvertStub,
-    nullptr,               /* finalize */
-    nullptr,               /* checkAccess */
-    nullptr,               /* call */
-    nullptr,               /* hasInstance */
-    nullptr,               /* construct */
-    nullptr,               /* trace */
-    JSCLASS_NO_INTERNAL_MEMBERS
-  },
-  eInterfacePrototype,
-  &sWorkerNativePropertyHooks,
-  "[object DedicatedWorkerGlobalScope]",
-  prototypes::id::_ID_Count,
-  0
+JSPropertySpec DedicatedWorkerGlobalScope::sProperties[] = {
+  { sEventStrings[STRING_onmessage], STRING_onmessage, PROPERTY_FLAGS,
+    GetEventListener, SetEventListener },
+  { 0, 0, 0, NULL, NULL }
 };
 
-const JSPropertySpec DedicatedWorkerGlobalScope::sProperties[] = {
-  JS_PSGS(sEventStrings[STRING_onmessage], GetOnMessage, SetOnMessage,
-          JSPROP_ENUMERATE),
-  JS_PS_END
-};
-
-const JSFunctionSpec DedicatedWorkerGlobalScope::sFunctions[] = {
+JSFunctionSpec DedicatedWorkerGlobalScope::sFunctions[] = {
   JS_FN("postMessage", PostMessage, 1, FUNCTION_FLAGS),
   JS_FS_END
 };
@@ -956,25 +795,22 @@ WorkerGlobalScope*
 WorkerGlobalScope::GetInstancePrivate(JSContext* aCx, JSObject* aObj,
                                       const char* aFunctionName)
 {
-  JSClass* classPtr = JS_GetClass(aObj);
+  // JS_GetInstancePrivate is ok to be called with a null aObj, so this should
+  // be too.
+  JSClass* classPtr = NULL;
 
-  // We can only make DedicatedWorkerGlobalScope, not WorkerGlobalScope, so this
-  // should never happen.
-  JS_ASSERT(classPtr != Class());
-
-  if (classPtr == DedicatedWorkerGlobalScope::Class()) {
-    return UnwrapDOMObject<DedicatedWorkerGlobalScope>(aObj);
+  if (aObj) {
+    classPtr = JS_GET_CLASS(aCx, aObj);
+    if (classPtr == &sClass ||
+        classPtr == DedicatedWorkerGlobalScope::Class()) {
+      return GetJSPrivateSafeish<WorkerGlobalScope>(aCx, aObj);
+    }
   }
 
   JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL, JSMSG_INCOMPATIBLE_PROTO,
-                       sClass.name, aFunctionName, classPtr->name);
+                       sClass.name, aFunctionName,
+                       classPtr ? classPtr->name : "object");
   return NULL;
-}
-
-bool
-WorkerGlobalScope::IsWorkerGlobalScope(const JS::Value& v)
-{
-  return v.isObject() && JS_GetClass(&v.toObject()) == DedicatedWorkerGlobalScope::Class();
 }
 
 } /* anonymous namespace */
@@ -984,22 +820,15 @@ BEGIN_WORKERS_NAMESPACE
 JSObject*
 CreateDedicatedWorkerGlobalScope(JSContext* aCx)
 {
-  using namespace mozilla::dom;
-
   WorkerPrivate* worker = GetWorkerPrivateFromContext(aCx);
   JS_ASSERT(worker);
 
-  JS::CompartmentOptions options;
-  if (worker->IsChromeWorker())
-    options.setVersion(JSVERSION_LATEST);
-  JS::Rooted<JSObject*> global(aCx,
-    JS_NewGlobalObject(aCx, DedicatedWorkerGlobalScope::Class(),
-                       GetWorkerPrincipal(), JS::DontFireOnNewGlobalHook, options));
+  JSObject* global =
+    JS_NewCompartmentAndGlobalObject(aCx, DedicatedWorkerGlobalScope::Class(),
+                                     GetWorkerPrincipal());
   if (!global) {
     return NULL;
   }
-
-  JSAutoCompartment ac(aCx, global);
 
   // Make the private slots now so that all our instance checks succeed.
   if (!DedicatedWorkerGlobalScope::InitPrivate(aCx, global, worker)) {
@@ -1012,20 +841,20 @@ CreateDedicatedWorkerGlobalScope(JSContext* aCx)
   //          -> EventTarget
   //          -> Object
 
-  JS::Rooted<JSObject*> eventTargetProto(aCx,
-    EventTargetBinding_workers::GetProtoObject(aCx, global));
+  JSObject* eventTargetProto =
+    events::InitEventTargetClass(aCx, global, nsnull);
   if (!eventTargetProto) {
     return NULL;
   }
 
-  JS::Rooted<JSObject*> scopeProto(aCx,
-    WorkerGlobalScope::InitClass(aCx, global, eventTargetProto));
+  JSObject* scopeProto =
+    WorkerGlobalScope::InitClass(aCx, global, eventTargetProto);
   if (!scopeProto) {
     return NULL;
   }
 
-  JS::Rooted<JSObject*> dedicatedScopeProto(aCx,
-    DedicatedWorkerGlobalScope::InitClass(aCx, global, scopeProto));
+  JSObject* dedicatedScopeProto =
+    DedicatedWorkerGlobalScope::InitClass(aCx, global, scopeProto);
   if (!dedicatedScopeProto) {
     return NULL;
   }
@@ -1042,8 +871,7 @@ CreateDedicatedWorkerGlobalScope(JSContext* aCx)
 
   if (worker->IsChromeWorker()) {
     if (!chromeworker::InitClass(aCx, global, workerProto, false) ||
-        !DefineChromeWorkerFunctions(aCx, global) ||
-        !DefineOSFileConstants(aCx, global)) {
+        !chromeworker::DefineChromeWorkerFunctions(aCx, global)) {
       return NULL;
     }
   }
@@ -1051,20 +879,11 @@ CreateDedicatedWorkerGlobalScope(JSContext* aCx)
   // Init other classes we care about.
   if (!events::InitClasses(aCx, global, false) ||
       !file::InitClasses(aCx, global) ||
-      !exceptions::InitClasses(aCx, global)) {
-    return NULL;
-  }
-
-  // Init other paris-bindings.
-  if (!FileReaderSyncBinding_workers::GetConstructorObject(aCx, global) ||
-      !ImageDataBinding::GetConstructorObject(aCx, global) ||
-      !TextDecoderBinding_workers::GetConstructorObject(aCx, global) ||
-      !TextEncoderBinding_workers::GetConstructorObject(aCx, global) ||
-      !XMLHttpRequestBinding_workers::GetConstructorObject(aCx, global) ||
-      !XMLHttpRequestUploadBinding_workers::GetConstructorObject(aCx, global) ||
-      !URLBinding_workers::GetConstructorObject(aCx, global) ||
-      !WorkerLocationBinding_workers::GetConstructorObject(aCx, global) ||
-      !WorkerNavigatorBinding_workers::GetConstructorObject(aCx, global)) {
+      !filereadersync::InitClass(aCx, global) ||
+      !exceptions::InitClasses(aCx, global) ||
+      !xhr::InitClasses(aCx, global, eventTargetProto) ||
+      !location::InitClass(aCx, global) ||
+      !navigator::InitClass(aCx, global)) {
     return NULL;
   }
 
@@ -1072,16 +891,7 @@ CreateDedicatedWorkerGlobalScope(JSContext* aCx)
     return NULL;
   }
 
-  JS_FireOnNewGlobalObject(aCx, global);
-
   return global;
-}
-
-bool
-ClassIsWorkerGlobalScope(JSClass* aClass)
-{
-  return WorkerGlobalScope::Class() == aClass ||
-         DedicatedWorkerGlobalScope::Class() == aClass;
 }
 
 END_WORKERS_NAMESPACE

@@ -1,40 +1,67 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Selection.h"
-#include "nsCOMArray.h"
-#include "nsComponentManagerUtils.h"
+
 #include "nsEditorUtils.h"
-#include "nsError.h"
-#include "nsIClipboardDragDropHookList.h"
+#include "nsIDOMDocument.h"
+#include "nsIDOMRange.h"
+#include "nsIContent.h"
+#include "nsLayoutCID.h"
+
 // hooks
 #include "nsIClipboardDragDropHooks.h"
-#include "nsIContent.h"
-#include "nsIContentIterator.h"
-#include "nsIDOMDocument.h"
+#include "nsIClipboardDragDropHookList.h"
+#include "nsISimpleEnumerator.h"
 #include "nsIDocShell.h"
 #include "nsIDocument.h"
 #include "nsIInterfaceRequestorUtils.h"
-#include "nsINode.h"
-#include "nsISimpleEnumerator.h"
 
-class nsIDOMRange;
-class nsISupports;
-
-using namespace mozilla;
 
 /******************************************************************************
  * nsAutoSelectionReset
  *****************************************************************************/
 
-nsAutoSelectionReset::nsAutoSelectionReset(Selection* aSel, nsEditor* aEd)
-  : mSel(nullptr), mEd(nullptr)
+nsAutoSelectionReset::nsAutoSelectionReset(nsISelection *aSel, nsEditor *aEd) : 
+mSel(nsnull)
+,mEd(nsnull)
 { 
   if (!aSel || !aEd) return;    // not much we can do, bail.
   if (aEd->ArePreservingSelection()) return;   // we already have initted mSavedSel, so this must be nested call.
-  mSel = aSel;
+  mSel = do_QueryInterface(aSel);
   mEd = aEd;
   if (mSel)
   {
@@ -65,7 +92,7 @@ nsAutoSelectionReset::Abort()
  *****************************************************************************/
 
 nsDOMIterator::nsDOMIterator() :
-mIter(nullptr)
+mIter(nsnull)
 {
 }
     
@@ -92,6 +119,23 @@ nsDOMIterator::Init(nsIDOMNode* aNode)
   NS_ENSURE_TRUE(mIter, NS_ERROR_FAILURE);
   nsCOMPtr<nsIContent> content = do_QueryInterface(aNode);
   return mIter->Init(content);
+}
+
+void
+nsDOMIterator::ForEach(nsDomIterFunctor& functor) const
+{
+  nsCOMPtr<nsIDOMNode> node;
+  
+  // iterate through dom
+  while (!mIter->IsDone())
+  {
+    node = do_QueryInterface(mIter->GetCurrentNode());
+    if (!node)
+      return;
+
+    functor(node);
+    mIter->Next();
+  }
 }
 
 nsresult
@@ -133,15 +177,26 @@ nsDOMSubtreeIterator::Init(nsIDOMRange* aRange)
   return mIter->Init(aRange);
 }
 
+nsresult
+nsDOMSubtreeIterator::Init(nsIDOMNode* aNode)
+{
+  nsresult res;
+  mIter = do_CreateInstance("@mozilla.org/content/subtree-content-iterator;1", &res);
+  NS_ENSURE_SUCCESS(res, res);
+  NS_ENSURE_TRUE(mIter, NS_ERROR_FAILURE);
+  nsCOMPtr<nsIContent> content = do_QueryInterface(aNode);
+  return mIter->Init(content);
+}
+
 /******************************************************************************
  * some general purpose editor utils
  *****************************************************************************/
 
-bool 
-nsEditorUtils::IsDescendantOf(nsIDOMNode *aNode, nsIDOMNode *aParent, int32_t *aOffset) 
+PRBool 
+nsEditorUtils::IsDescendantOf(nsIDOMNode *aNode, nsIDOMNode *aParent, PRInt32 *aOffset) 
 {
-  NS_ENSURE_TRUE(aNode || aParent, false);
-  if (aNode == aParent) return false;
+  NS_ENSURE_TRUE(aNode || aParent, PR_FALSE);
+  if (aNode == aParent) return PR_FALSE;
   
   nsCOMPtr<nsIDOMNode> parent, node = do_QueryInterface(aNode);
   nsresult res;
@@ -149,7 +204,7 @@ nsEditorUtils::IsDescendantOf(nsIDOMNode *aNode, nsIDOMNode *aParent, int32_t *a
   do
   {
     res = node->GetParentNode(getter_AddRefs(parent));
-    NS_ENSURE_SUCCESS(res, false);
+    NS_ENSURE_SUCCESS(res, PR_FALSE);
     if (parent == aParent) 
     {
       if (aOffset)
@@ -161,18 +216,18 @@ nsEditorUtils::IsDescendantOf(nsIDOMNode *aNode, nsIDOMNode *aParent, int32_t *a
           *aOffset = pCon->IndexOf(cCon);
         }
       }
-      return true;
+      return PR_TRUE;
     }
     node = parent;
   } while (parent);
   
-  return false;
+  return PR_FALSE;
 }
 
-bool
+PRBool
 nsEditorUtils::IsLeafNode(nsIDOMNode *aNode)
 {
-  bool hasChildren = false;
+  PRBool hasChildren = PR_FALSE;
   if (aNode)
     aNode->HasChildNodes(&hasChildren);
   return !hasChildren;
@@ -197,15 +252,15 @@ nsEditorHookUtils::GetHookEnumeratorFromDocument(nsIDOMDocument *aDoc,
   return hookObj->GetHookEnumerator(aResult);
 }
 
-bool
+PRBool
 nsEditorHookUtils::DoInsertionHook(nsIDOMDocument *aDoc, nsIDOMEvent *aDropEvent,  
                                    nsITransferable *aTrans)
 {
   nsCOMPtr<nsISimpleEnumerator> enumerator;
   GetHookEnumeratorFromDocument(aDoc, getter_AddRefs(enumerator));
-  NS_ENSURE_TRUE(enumerator, true);
+  NS_ENSURE_TRUE(enumerator, PR_TRUE);
 
-  bool hasMoreHooks = false;
+  PRBool hasMoreHooks = PR_FALSE;
   while (NS_SUCCEEDED(enumerator->HasMoreElements(&hasMoreHooks)) && hasMoreHooks)
   {
     nsCOMPtr<nsISupports> isupp;
@@ -215,15 +270,15 @@ nsEditorHookUtils::DoInsertionHook(nsIDOMDocument *aDoc, nsIDOMEvent *aDropEvent
     nsCOMPtr<nsIClipboardDragDropHooks> override = do_QueryInterface(isupp);
     if (override)
     {
-      bool doInsert = true;
+      PRBool doInsert = PR_TRUE;
 #ifdef DEBUG
       nsresult hookResult =
 #endif
       override->OnPasteOrDrop(aDropEvent, aTrans, &doInsert);
       NS_ASSERTION(NS_SUCCEEDED(hookResult), "hook failure in OnPasteOrDrop");
-      NS_ENSURE_TRUE(doInsert, false);
+      NS_ENSURE_TRUE(doInsert, PR_FALSE);
     }
   }
 
-  return true;
+  return PR_TRUE;
 }

@@ -145,8 +145,8 @@ vp8_yv12_extend_frame_borders(YV12_BUFFER_CONFIG *ybf)
 }
 
 
-static void
-extend_frame_borders_yonly(YV12_BUFFER_CONFIG *ybf)
+void
+vp8_yv12_extend_frame_borders_yonly(YV12_BUFFER_CONFIG *ybf)
 {
     int i;
     unsigned char *src_ptr1, *src_ptr2;
@@ -259,7 +259,8 @@ vp8_yv12_copy_frame(YV12_BUFFER_CONFIG *src_ybc, YV12_BUFFER_CONFIG *dst_ybc)
     vp8_yv12_extend_frame_borders_ptr(dst_ybc);
 }
 
-void vp8_yv12_copy_y_c(YV12_BUFFER_CONFIG *src_ybc, YV12_BUFFER_CONFIG *dst_ybc)
+void
+vp8_yv12_copy_frame_yonly(YV12_BUFFER_CONFIG *src_ybc, YV12_BUFFER_CONFIG *dst_ybc)
 {
     int row;
     unsigned char *source, *dest;
@@ -274,4 +275,6 @@ void vp8_yv12_copy_y_c(YV12_BUFFER_CONFIG *src_ybc, YV12_BUFFER_CONFIG *dst_ybc)
         source += src_ybc->y_stride;
         dest   += dst_ybc->y_stride;
     }
+
+    vp8_yv12_extend_frame_borders_yonly(dst_ybc);
 }

@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 #include "nsCOMPtr.h"
 #include "nsGkAtoms.h"
 
@@ -17,27 +49,27 @@ public:
 
   NS_DECL_ISUPPORTS
 
-  virtual ~nsFrameIterator() {}
-
   virtual void First();
   virtual void Next();
   virtual nsIFrame* CurrentItem();
-  virtual bool IsDone();
+  virtual PRBool IsDone();
 
   virtual void Last();
   virtual void Prev();
 
   nsFrameIterator(nsPresContext* aPresContext, nsIFrame *aStart,
-                  nsIteratorType aType, bool aLockScroll, bool aFollowOOFs);
+                  nsIteratorType aType, PRBool aLockScroll, PRBool aFollowOOFs);
 
 protected:
   void      setCurrent(nsIFrame *aFrame){mCurrent = aFrame;}
   nsIFrame *getCurrent(){return mCurrent;}
+  void      setStart(nsIFrame *aFrame){mStart = aFrame;}
   nsIFrame *getStart(){return mStart;}
   nsIFrame *getLast(){return mLast;}
   void      setLast(nsIFrame *aFrame){mLast = aFrame;}
-  int8_t    getOffEdge(){return mOffEdge;}
-  void      setOffEdge(int8_t aOffEdge){mOffEdge = aOffEdge;}
+  PRInt8    getOffEdge(){return mOffEdge;}
+  void      setOffEdge(PRInt8 aOffEdge){mOffEdge = aOffEdge;}
+  void      SetLockInScrollView(PRBool aLockScroll){mLockScroll = aLockScroll;}
 
   /*
    Our own versions of the standard frame tree navigation
@@ -81,18 +113,18 @@ protected:
   virtual nsIFrame* GetPrevSiblingInner(nsIFrame* aFrame);
 
   nsIFrame* GetPlaceholderFrame(nsIFrame* aFrame);
-  bool      IsPopupFrame(nsIFrame* aFrame);
+  PRBool    IsPopupFrame(nsIFrame* aFrame);
 
-  nsPresContext* const mPresContext;
-  const bool mLockScroll;
-  const bool mFollowOOFs;
-  const nsIteratorType mType;
+  nsPresContext* mPresContext;
+  PRPackedBool mLockScroll;
+  PRPackedBool mFollowOOFs;
+  nsIteratorType mType;
 
 private:
-  nsIFrame* const mStart;
-  nsIFrame* mCurrent;
-  nsIFrame* mLast; //the last one that was in current;
-  int8_t    mOffEdge; //0= no -1 to far prev, 1 to far next;
+  nsIFrame *mStart;
+  nsIFrame *mCurrent;
+  nsIFrame *mLast; //the last one that was in current;
+  PRInt8    mOffEdge; //0= no -1 to far prev, 1 to far next;
 };
 
 
@@ -102,7 +134,7 @@ class nsVisualIterator: public nsFrameIterator
 {
 public:
   nsVisualIterator(nsPresContext* aPresContext, nsIFrame *aStart,
-                   nsIteratorType aType, bool aLockScroll, bool aFollowOOFs) :
+                   nsIteratorType aType, PRBool aLockScroll, PRBool aFollowOOFs) :
   nsFrameIterator(aPresContext, aStart, aType, aLockScroll, aFollowOOFs) {}
 
 protected:
@@ -118,7 +150,7 @@ protected:
 nsresult NS_CreateFrameTraversal(nsIFrameTraversal** aResult)
 {
   NS_ENSURE_ARG_POINTER(aResult);
-  *aResult = nullptr;
+  *aResult = nsnull;
 
   nsCOMPtr<nsIFrameTraversal> t(new nsFrameTraversal());
 
@@ -133,17 +165,12 @@ NS_NewFrameTraversal(nsIFrameEnumerator **aEnumerator,
                      nsPresContext* aPresContext,
                      nsIFrame *aStart,
                      nsIteratorType aType,
-                     bool aVisual,
-                     bool aLockInScrollView,
-                     bool aFollowOOFs)
+                     PRBool aVisual,
+                     PRBool aLockInScrollView,
+                     PRBool aFollowOOFs)
 {
   if (!aEnumerator || !aStart)
     return NS_ERROR_NULL_POINTER;
-
-  if (aFollowOOFs) {
-    aStart = nsPlaceholderFrame::GetRealFrameFor(aStart);
-  }
-
   nsCOMPtr<nsIFrameEnumerator> trav;
   if (aVisual) {
     trav = new nsVisualIterator(aPresContext, aStart, aType,
@@ -171,10 +198,10 @@ NS_IMETHODIMP
  nsFrameTraversal::NewFrameTraversal(nsIFrameEnumerator **aEnumerator,
                                      nsPresContext* aPresContext,
                                      nsIFrame *aStart,
-                                     int32_t aType,
-                                     bool aVisual,
-                                     bool aLockInScrollView,
-                                     bool aFollowOOFs)
+                                     PRInt32 aType,
+                                     PRBool aVisual,
+                                     PRBool aLockInScrollView,
+                                     PRBool aFollowOOFs)
 {
   return NS_NewFrameTraversal(aEnumerator, aPresContext, aStart,
                               static_cast<nsIteratorType>(aType),
@@ -186,19 +213,19 @@ NS_IMETHODIMP
 NS_IMPL_ISUPPORTS1(nsFrameIterator, nsIFrameEnumerator)
 
 nsFrameIterator::nsFrameIterator(nsPresContext* aPresContext, nsIFrame *aStart,
-                                 nsIteratorType aType, bool aLockInScrollView,
-                                 bool aFollowOOFs)
-: mPresContext(aPresContext),
-  mLockScroll(aLockInScrollView),
-  mFollowOOFs(aFollowOOFs),
-  mType(aType),
-  mStart(aStart),
-  mCurrent(aStart),
-  mLast(aStart),
-  mOffEdge(0)
+                                 nsIteratorType aType, PRBool aLockInScrollView,
+                                 PRBool aFollowOOFs)
 {
-  MOZ_ASSERT(!aFollowOOFs || aStart->GetType() != nsGkAtoms::placeholderFrame,
-             "Caller should have resolved placeholder frame");
+  mOffEdge = 0;
+  mPresContext = aPresContext;
+  if (aFollowOOFs && aStart)
+    aStart = nsPlaceholderFrame::GetRealFrameFor(aStart);
+  setStart(aStart);
+  setCurrent(aStart);
+  setLast(aStart);
+  mType = aType;
+  SetLockInScrollView(aLockInScrollView);
+  mFollowOOFs = aFollowOOFs;
 }
 
 
@@ -207,14 +234,14 @@ nsIFrame*
 nsFrameIterator::CurrentItem()
 {
   if (mOffEdge)
-    return nullptr;
+    return nsnull;
 
   return mCurrent;
 }
 
 
 
-bool
+PRBool
 nsFrameIterator::IsDone()
 {
   return mOffEdge != 0;
@@ -226,7 +253,7 @@ nsFrameIterator::First()
   mCurrent = mStart;
 }
 
-static bool
+static PRBool
 IsRootFrame(nsIFrame* aFrame)
 {
   nsIAtom* atom = aFrame->GetType();
@@ -259,7 +286,7 @@ void
 nsFrameIterator::Next()
 {
   // recursive-oid method to get next frame
-  nsIFrame *result = nullptr;
+  nsIFrame *result = nsnull;
   nsIFrame *parent = getCurrent();
   if (!parent)
     parent = getLast();
@@ -294,7 +321,7 @@ nsFrameIterator::Next()
         result = GetParentFrameNotPopup(parent);
         if (!result || IsRootFrame(result) ||
             (mLockScroll && result->GetType() == nsGkAtoms::scrollFrame)) {
-          result = nullptr;
+          result = nsnull;
           break;
         }
         if (mType == ePostOrder)
@@ -315,7 +342,7 @@ void
 nsFrameIterator::Prev()
 {
   // recursive-oid method to get prev frame
-  nsIFrame *result = nullptr;
+  nsIFrame *result = nsnull;
   nsIFrame *parent = getCurrent();
   if (!parent)
     parent = getLast();
@@ -349,7 +376,7 @@ nsFrameIterator::Prev()
         result = GetParentFrameNotPopup(parent);
         if (!result || IsRootFrame(result) ||
             (mLockScroll && result->GetType() == nsGkAtoms::scrollFrame)) {
-          result = nullptr;
+          result = nsnull;
           break;
         }
         if (mType == ePreOrder)
@@ -374,7 +401,7 @@ nsFrameIterator::GetParentFrame(nsIFrame* aFrame)
   if (aFrame)
     return aFrame->GetParent();
   
-  return nullptr;
+  return nsnull;
 }
 
 nsIFrame*
@@ -388,7 +415,7 @@ nsFrameIterator::GetParentFrameNotPopup(nsIFrame* aFrame)
       return parent;
   }
     
-  return nullptr;
+  return nsnull;
 }
 
 nsIFrame*
@@ -396,7 +423,7 @@ nsFrameIterator::GetFirstChild(nsIFrame* aFrame)
 {
   nsIFrame* result = GetFirstChildInner(aFrame);
   if (mLockScroll && result && result->GetType() == nsGkAtoms::scrollFrame)
-    return nullptr;
+    return nsnull;
   if (result && mFollowOOFs) {
     result = nsPlaceholderFrame::GetRealFrameFor(result);
     
@@ -411,7 +438,7 @@ nsFrameIterator::GetLastChild(nsIFrame* aFrame)
 {
   nsIFrame* result = GetLastChildInner(aFrame);
   if (mLockScroll && result && result->GetType() == nsGkAtoms::scrollFrame)
-    return nullptr;
+    return nsnull;
   if (result && mFollowOOFs) {
     result = nsPlaceholderFrame::GetRealFrameFor(result);
     
@@ -424,7 +451,7 @@ nsFrameIterator::GetLastChild(nsIFrame* aFrame)
 nsIFrame*
 nsFrameIterator::GetNextSibling(nsIFrame* aFrame)
 {
-  nsIFrame* result = nullptr;
+  nsIFrame* result = nsnull;
   if (mFollowOOFs)
     aFrame = GetPlaceholderFrame(aFrame);
   if (aFrame) {
@@ -442,7 +469,7 @@ nsFrameIterator::GetNextSibling(nsIFrame* aFrame)
 nsIFrame*
 nsFrameIterator::GetPrevSibling(nsIFrame* aFrame)
 {
-  nsIFrame* result = nullptr;
+  nsIFrame* result = nsnull;
   if (mFollowOOFs)
     aFrame = GetPlaceholderFrame(aFrame);
   if (aFrame) {
@@ -495,30 +522,30 @@ nsFrameIterator::GetPlaceholderFrame(nsIFrame* aFrame)
   return result;
 }
 
-bool
+PRBool
 nsFrameIterator::IsPopupFrame(nsIFrame* aFrame)
 {
   return (aFrame &&
-          aFrame->StyleDisplay()->mDisplay == NS_STYLE_DISPLAY_POPUP);
+          aFrame->GetStyleDisplay()->mDisplay == NS_STYLE_DISPLAY_POPUP);
 }
 
 // nsVisualIterator implementation
 
 nsIFrame*
 nsVisualIterator::GetFirstChildInner(nsIFrame* aFrame) {
-  return aFrame->PrincipalChildList().GetNextVisualFor(nullptr);
+  return aFrame->PrincipalChildList().GetNextVisualFor(nsnull);
 }
 
 nsIFrame*
 nsVisualIterator::GetLastChildInner(nsIFrame* aFrame) {
-  return aFrame->PrincipalChildList().GetPrevVisualFor(nullptr);
+  return aFrame->PrincipalChildList().GetPrevVisualFor(nsnull);
 }
 
 nsIFrame*
 nsVisualIterator::GetNextSiblingInner(nsIFrame* aFrame) {
   nsIFrame* parent = GetParentFrame(aFrame);
   if (!parent)
-    return nullptr;
+    return nsnull;
   return parent->PrincipalChildList().GetNextVisualFor(aFrame);
 }
 
@@ -526,6 +553,6 @@ nsIFrame*
 nsVisualIterator::GetPrevSiblingInner(nsIFrame* aFrame) {
   nsIFrame* parent = GetParentFrame(aFrame);
   if (!parent)
-    return nullptr;
+    return nsnull;
   return parent->PrincipalChildList().GetPrevVisualFor(aFrame);
 }

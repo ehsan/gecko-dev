@@ -1,106 +1,61 @@
 /* -*- Mode: c++; c-basic-offset: 2; indent-tabs-mode: nil; tab-width: 40 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Web Workers.
+ *
+ * The Initial Developer of the Original Code is
+ *   The Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Ben Turner <bent.mozilla@gmail.com> (Original Author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef mozilla_dom_workers_location_h__
 #define mozilla_dom_workers_location_h__
 
 #include "Workers.h"
-#include "DOMBindingBase.h"
-#include "WorkerPrivate.h"
 
 #include "jspubtd.h"
 
 BEGIN_WORKERS_NAMESPACE
 
-class WorkerLocation MOZ_FINAL : public DOMBindingBase
-{
-  nsString mHref;
-  nsString mProtocol;
-  nsString mHost;
-  nsString mHostname;
-  nsString mPort;
-  nsString mPathname;
-  nsString mSearch;
-  nsString mHash;
+namespace location {
 
-  WorkerLocation(JSContext* aCx,
-                 const nsAString& aHref,
-                 const nsAString& aProtocol,
-                 const nsAString& aHost,
-                 const nsAString& aHostname,
-                 const nsAString& aPort,
-                 const nsAString& aPathname,
-                 const nsAString& aSearch,
-                 const nsAString& aHash)
-    : DOMBindingBase(aCx)
-    , mHref(aHref)
-    , mProtocol(aProtocol)
-    , mHost(aHost)
-    , mHostname(aHostname)
-    , mPort(aPort)
-    , mPathname(aPathname)
-    , mSearch(aSearch)
-    , mHash(aHash)
-  {
-    MOZ_COUNT_CTOR(mozilla::dom::workers::WorkerLocation);
-  }
+bool
+InitClass(JSContext* aCx, JSObject* aGlobal);
 
-public:
-  static already_AddRefed<WorkerLocation>
-  Create(JSContext* aCx, JS::Handle<JSObject*> aGlobal,
-         WorkerPrivate::LocationInfo& aInfo);
+JSObject*
+Create(JSContext* aCx, JSString* aHref, JSString* aProtocol, JSString* aHost,
+       JSString* aHostname, JSString* aPort, JSString* aPathname,
+       JSString* aSearch, JSString* aHash);
 
-  virtual void
-  _trace(JSTracer* aTrc) MOZ_OVERRIDE;
-
-  virtual void
-  _finalize(JSFreeOp* aFop) MOZ_OVERRIDE;
-
-  ~WorkerLocation()
-  {
-    MOZ_COUNT_DTOR(mozilla::dom::workers::WorkerLocation);
-  }
-
-  void Stringify(nsString& aHref) const
-  {
-    aHref = mHref;
-  }
-  void GetHref(nsString& aHref) const
-  {
-    aHref = mHref;
-  }
-  void GetProtocol(nsString& aProtocol) const
-  {
-    aProtocol = mProtocol;
-  }
-  void GetHost(nsString& aHost) const
-  {
-    aHost = mHost;
-  }
-  void GetHostname(nsString& aHostname) const
-  {
-    aHostname = mHostname;
-  }
-  void GetPort(nsString& aPort) const
-  {
-    aPort = mPort;
-  }
-  void GetPathname(nsString& aPathname) const
-  {
-    aPathname = mPathname;
-  }
-  void GetSearch(nsString& aSearch) const
-  {
-    aSearch = mSearch;
-  }
-  void GetHash(nsString& aHash) const
-  {
-    aHash = mHash;
-  }
-
-};
+} // namespace location
 
 END_WORKERS_NAMESPACE
 

@@ -1,16 +1,51 @@
 /*
  * NSS utility functions
  *
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape security libraries.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1994-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
+/* $Id: nssinit.c,v 1.114 2011/10/18 19:03:31 wtc%google.com Exp $ */
 
 #include <ctype.h>
 #include <string.h>
 #include "seccomon.h"
+#include "prerror.h"
 #include "prinit.h"
 #include "prprf.h"
 #include "prmem.h"
+#include "prtypes.h"
 #include "cert.h"
 #include "key.h"
 #include "secmod.h"
@@ -29,7 +64,6 @@
 #include "secmodi.h"
 #include "ocspti.h"
 #include "ocspi.h"
-#include "utilpars.h"
 
 /*
  * On Windows nss3.dll needs to export the symbol 'mktemp' to be
@@ -371,39 +405,39 @@ nss_InitModules(const char *configdir, const char *certPrefix,
      * configdir is double nested, and Windows uses the same character
      * for file seps as we use for escapes! (sigh).
      */
-    lconfigdir = NSSUTIL_DoubleEscape(configdir, '\'', '\"');
+    lconfigdir = secmod_DoubleEscape(configdir, '\'', '\"');
     if (lconfigdir == NULL) {
 	goto loser;
     }
-    lcertPrefix = NSSUTIL_DoubleEscape(certPrefix, '\'', '\"');
+    lcertPrefix = secmod_DoubleEscape(certPrefix, '\'', '\"');
     if (lcertPrefix == NULL) {
 	goto loser;
     }
-    lkeyPrefix = NSSUTIL_DoubleEscape(keyPrefix, '\'', '\"');
+    lkeyPrefix = secmod_DoubleEscape(keyPrefix, '\'', '\"');
     if (lkeyPrefix == NULL) {
 	goto loser;
     }
-    lsecmodName = NSSUTIL_DoubleEscape(secmodName, '\'', '\"');
+    lsecmodName = secmod_DoubleEscape(secmodName, '\'', '\"');
     if (lsecmodName == NULL) {
 	goto loser;
     }
-    lupdateDir = NSSUTIL_DoubleEscape(updateDir, '\'', '\"');
+    lupdateDir = secmod_DoubleEscape(updateDir, '\'', '\"');
     if (lupdateDir == NULL) {
 	goto loser;
     }
-    lupdCertPrefix = NSSUTIL_DoubleEscape(updCertPrefix, '\'', '\"');
+    lupdCertPrefix = secmod_DoubleEscape(updCertPrefix, '\'', '\"');
     if (lupdCertPrefix == NULL) {
 	goto loser;
     }
-    lupdKeyPrefix = NSSUTIL_DoubleEscape(updKeyPrefix, '\'', '\"');
+    lupdKeyPrefix = secmod_DoubleEscape(updKeyPrefix, '\'', '\"');
     if (lupdKeyPrefix == NULL) {
 	goto loser;
     }
-    lupdateID = NSSUTIL_DoubleEscape(updateID, '\'', '\"');
+    lupdateID = secmod_DoubleEscape(updateID, '\'', '\"');
     if (lupdateID == NULL) {
 	goto loser;
     }
-    lupdateName = NSSUTIL_DoubleEscape(updateName, '\'', '\"');
+    lupdateName = secmod_DoubleEscape(updateName, '\'', '\"');
     if (lupdateName == NULL) {
 	goto loser;
     }
@@ -633,18 +667,15 @@ nss_Init(const char *configdir, const char *certPrefix, const char *keyPrefix,
 	passwordRequired = pk11_password_required;
     }
 
-    /* Skip the module init if we are already initted and we are trying
-     * to init with noCertDB and noModDB */
-    if (!(isReallyInitted && noCertDB && noModDB)) {
-	rv = nss_InitModules(configdir, certPrefix, keyPrefix, secmodName, 
+    /* we always try to initialize the modules */
+    rv = nss_InitModules(configdir, certPrefix, keyPrefix, secmodName, 
 		updateDir, updCertPrefix, updKeyPrefix, updateID, 
 		updateName, configName, configStrings, passwordRequired,
 		readOnly, noCertDB, noModDB, forceOpen, optimizeSpace, 
 		(initContextPtr != NULL));
 
-	if (rv != SECSuccess) {
-	    goto loser;
-	}
+    if (rv != SECSuccess) {
+	goto loser;
     }
 
 
@@ -718,10 +749,6 @@ nss_Init(const char *configdir, const char *certPrefix, const char *keyPrefix,
     /* now that we are inited, all waiters can move forward */
     PZ_NotifyAllCondVar(nssInitCondition);
     PZ_Unlock(nssInitLock);
-
-    if (initContextPtr && configStrings) {
-	PR_smprintf_free(configStrings);
-    }
 
     return SECSuccess;
 
@@ -917,12 +944,6 @@ NSS_RegisterShutdown(NSS_ShutdownFunc sFunc, void *appData)
 {
     int i;
 
-    /* make sure our lock and condition variable are initialized one and only
-     * one time */ 
-    if (PR_CallOnce(&nssInitOnce, nss_doLockInit) != PR_SUCCESS) {
-	return SECFailure;
-    }
-
     PZ_Lock(nssInitLock);
     if (!NSS_IsInitialized()) {
 	PZ_Unlock(nssInitLock);
@@ -981,11 +1002,6 @@ NSS_UnregisterShutdown(NSS_ShutdownFunc sFunc, void *appData)
 {
     int i;
 
-    /* make sure our lock and condition variable are initialized one and only
-     * one time */ 
-    if (PR_CallOnce(&nssInitOnce, nss_doLockInit) != PR_SUCCESS) {
-	return SECFailure;
-    }
     PZ_Lock(nssInitLock);
     if (!NSS_IsInitialized()) {
 	PZ_Unlock(nssInitLock);
@@ -1124,11 +1140,6 @@ SECStatus
 NSS_Shutdown(void)
 {
     SECStatus rv;
-    /* make sure our lock and condition variable are initialized one and only
-     * one time */ 
-    if (PR_CallOnce(&nssInitOnce, nss_doLockInit) != PR_SUCCESS) {
-	return SECFailure;
-    }
     PZ_Lock(nssInitLock);
 
     if (!nssIsInitted) {
@@ -1181,11 +1192,6 @@ NSS_ShutdownContext(NSSInitContext *context)
 {
     SECStatus rv = SECSuccess;
 
-    /* make sure our lock and condition variable are initialized one and only
-     * one time */ 
-    if (PR_CallOnce(&nssInitOnce, nss_doLockInit) != PR_SUCCESS) {
-	return SECFailure;
-    }
     PZ_Lock(nssInitLock);
     /* If one or more threads are in the middle of init, wait for them
      * to complete */
@@ -1286,6 +1292,10 @@ NSS_VersionCheck(const char *importedVersion)
     }
     if (vmajor == NSS_VMAJOR && vminor == NSS_VMINOR &&
         vpatch == NSS_VPATCH && vbuild > NSS_VBUILD) {
+        return PR_FALSE;
+    }
+    /* Check dependent libraries */
+    if (PR_VersionCheck(PR_VERSION) == PR_FALSE) {
         return PR_FALSE;
     }
     return PR_TRUE;

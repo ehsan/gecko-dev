@@ -1,3 +1,5 @@
+const Cc = Components.classes;
+const Ci = Components.interfaces;
 const DSV = Ci.nsIDataSignatureVerifier;
 
 var keys = [

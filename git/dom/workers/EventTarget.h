@@ -1,87 +1,109 @@
 /* -*- Mode: c++; c-basic-offset: 2; indent-tabs-mode: nil; tab-width: 40 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this file,
- * You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Web Workers.
+ *
+ * The Initial Developer of the Original Code is
+ *   The Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Ben Turner <bent.mozilla@gmail.com> (Original Author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef mozilla_dom_workers_eventtarget_h__
 #define mozilla_dom_workers_eventtarget_h__
 
-#include "mozilla/dom/workers/bindings/DOMBindingBase.h"
+#include "jspubtd.h"
 
-// I hate having to export this...
-#include "mozilla/dom/workers/bindings/EventListenerManager.h"
-
-#include "mozilla/dom/Nullable.h"
-#include "mozilla/ErrorResult.h"
-
+#include "ListenerManager.h"
 
 BEGIN_WORKERS_NAMESPACE
 
-class EventTarget : public DOMBindingBase
+namespace events {
+
+class EventTarget : public PrivatizableBase
 {
-  EventListenerManager mListenerManager;
+  ListenerManager mListenerManager;
 
 protected:
-  EventTarget(JSContext* aCx)
-  : DOMBindingBase(aCx)
-  { }
-
-  virtual ~EventTarget()
-  { }
-
-public:
-  virtual void
-  _trace(JSTracer* aTrc) MOZ_OVERRIDE;
-
-  virtual void
-  _finalize(JSFreeOp* aFop) MOZ_OVERRIDE;
+  EventTarget();
+  ~EventTarget();
 
   void
-  AddEventListener(const nsAString& aType, JS::Handle<JSObject*> aListener,
-                   bool aCapture, Nullable<bool> aWantsUntrusted,
-                   ErrorResult& aRv);
-
-  void
-  RemoveEventListener(const nsAString& aType, JS::Handle<JSObject*> aListener,
-                      bool aCapture, ErrorResult& aRv);
-
-  bool
-  DispatchEvent(JS::Handle<JSObject*> aEvent, ErrorResult& aRv) const
+  TraceInstance(JSTracer* aTrc)
   {
-    return mListenerManager.DispatchEvent(GetJSContext(), *this, aEvent, aRv);
+    mListenerManager.Trace(aTrc);
   }
 
-  JSObject*
-  GetEventListener(const nsAString& aType, ErrorResult& aRv) const;
-
   void
-  SetEventListener(const nsAString& aType, JS::Handle<JSObject*> aListener,
-                   ErrorResult& aRv);
+  FinalizeInstance(JSContext* aCx)
+  {
+    mListenerManager.Finalize(aCx);
+  }
 
   bool
-  HasListeners() const
+  GetEventListenerOnEventTarget(JSContext* aCx, const char* aType, jsval* aVp);
+
+  bool
+  SetEventListenerOnEventTarget(JSContext* aCx, const char* aType, jsval* aVp);
+
+public:
+  static EventTarget*
+  FromJSObject(JSContext* aCx, JSObject* aObj);
+
+  static JSBool
+  AddEventListener(JSContext* aCx, uintN aArgc, jsval* aVp);
+
+  static JSBool
+  RemoveEventListener(JSContext* aCx, uintN aArgc, jsval* aVp);
+
+  static JSBool
+  DispatchEvent(JSContext* aCx, uintN aArgc, jsval* aVp);
+
+  bool
+  HasListeners()
   {
     return mListenerManager.HasListeners();
   }
 
-  void SetEventHandler(JSContext*, const nsAString& aType, JSObject* aHandler,
-                       ErrorResult& rv)
+  bool
+  HasListenersForType(JSContext* aCx, JSString* aType)
   {
-    rv.Throw(NS_ERROR_NOT_IMPLEMENTED);
-  }
-
-  JSObject* GetEventHandler(JSContext*, const nsAString& aType)
-  {
-    return nullptr;
-  }
-
-  JSObject* GetOwnerGlobal() const
-  {
-    // We have no windows
-    return nullptr;
+    return mListenerManager.HasListenersForType(aCx, aType);
   }
 };
 
+JSObject*
+InitEventTargetClass(JSContext* aCx, JSObject* aGlobal, bool aMainRuntime);
+
+} // namespace events
+
 END_WORKERS_NAMESPACE
 
-#endif // mozilla_dom_workers_eventtarget_h__
+#endif /* mozilla_dom_workers_eventtarget_h__ */

@@ -88,8 +88,7 @@ is(s.getPropertyPriority("z-index"), "",
    "z-index priority still stored");
 
   // and overriding one element of that shorthand with some longhand
-  // test omitting the third argument to setProperty too (bug 655478)
-s.setProperty("font-style", "normal");
+s.setProperty("font-style", "normal", "");
 
 is(s.getPropertyValue("font-style"), "normal", "font-style overridden");
 is(s.getPropertyPriority("font-style"), "", "font-style priority overridden");
@@ -117,22 +116,22 @@ is(s.getPropertyPriority("z-index"), "",
    "z-index priority still stored");
 
 s.setProperty("border-radius", "2em", "");
-is(s.getPropertyValue("border-radius"), "2em",
+is(s.getPropertyValue("border-radius"), "2em 2em 2em 2em",
    "border-radius serialization 1")
 
 s.setProperty("border-top-left-radius", "3em 4em", "");
 is(s.getPropertyValue("border-radius"),
-   "3em 2em 2em / 4em 2em 2em",
+   "3em 2em 2em 2em / 4em 2em 2em 2em",
    "border-radius serialization 2");
 
 s.setProperty("border-radius", "2em / 3em", "");
 is(s.getPropertyValue("border-radius"),
-   "2em / 3em",
+   "2em 2em 2em 2em / 3em 3em 3em 3em",
    "border-radius serialization 3")
 
 s.setProperty("border-top-left-radius", "4em", "");
 is(s.getPropertyValue("border-radius"),
-   "4em 2em 2em / 4em 3em 3em",
+   "4em 2em 2em 2em / 4em 3em 3em 3em",
    "border-radius serialization 3");
 
 </script>

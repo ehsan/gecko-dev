@@ -26,11 +26,11 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef assembler_wtf_SegmentedVector_h
-#define assembler_wtf_SegmentedVector_h
+#ifndef SegmentedVector_h
+#define SegmentedVector_h
 
 #include "jsprvtd.h"
-#include "js/Vector.h"
+#include "jsvector.h"
 
 namespace WTF {
 
@@ -261,4 +261,4 @@ namespace WTF {
 
 using WTF::SegmentedVector;
 
-#endif /* assembler_wtf_SegmentedVector_h */
+#endif // SegmentedVector_h

@@ -1,7 +1,8 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sw=4 et tw=99 ft=cpp:
  *
- * Copyright (C) 2009, 2013 Apple Inc. All rights reserved.
+ * ***** BEGIN LICENSE BLOCK *****
+ * Copyright (C) 2009 Apple Inc. All rights reserved.
  * Copyright (C) 2010 Peter Varga (pvarga@inf.u-szeged.hu), University of Szeged
  *
  * Redistribution and use in source and binary forms, with or without
@@ -24,57 +25,34 @@
  * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
- */
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-#ifndef yarr_YarrPattern_h
-#define yarr_YarrPattern_h
+#ifndef YarrPattern_h
+#define YarrPattern_h
 
-#include "yarr/wtfbridge.h"
-#include "yarr/ASCIICType.h"
+#include "wtfbridge.h"
+#include "ASCIICType.h"
 
 namespace JSC { namespace Yarr {
-
-struct PatternDisjunction;
 
 enum ErrorCode {
     NoError,
     PatternTooLarge,
     QuantifierOutOfOrder,
     QuantifierWithoutAtom,
-    QuantifierTooLarge,
     MissingParentheses,
     ParenthesesUnmatched,
     ParenthesesTypeInvalid,
     CharacterClassUnmatched,
-    CharacterClassOutOfOrder,
     CharacterClassInvalidRange,
+    CharacterClassOutOfOrder,
     EscapeUnterminated,
+    QuantifierTooLarge,
     NumberOfErrorCodes
 };
 
-static inline const char* errorMessage(ErrorCode code)
-{
-
-#define REGEXP_ERROR_PREFIX "Invalid regular expression: "
-   // The order of this array must match the ErrorCode enum.
-   static const char* errorMessages[NumberOfErrorCodes] = {
-       0, // NoError
-       REGEXP_ERROR_PREFIX "regular expression too large",
-       REGEXP_ERROR_PREFIX "numbers out of order in {} quantifier",
-       REGEXP_ERROR_PREFIX "nothing to repeat",
-       REGEXP_ERROR_PREFIX "number too large in {} quantifier",
-       REGEXP_ERROR_PREFIX "missing )",
-       REGEXP_ERROR_PREFIX "unmatched parentheses",
-       REGEXP_ERROR_PREFIX "unrecognized character after (?",
-       REGEXP_ERROR_PREFIX "missing terminating ] for character class",
-       REGEXP_ERROR_PREFIX "character class out of order"
-       REGEXP_ERROR_PREFIX "range out of order in character class",
-       REGEXP_ERROR_PREFIX "\\ at end of pattern"
-   };
-#undef REGEXP_ERROR_PREFIX
-
-   return errorMessages[code];
-}
+struct PatternDisjunction;
 
 struct CharacterRange {
     UChar begin;
@@ -87,28 +65,42 @@ struct CharacterRange {
     }
 };
 
-struct CharacterClass {
-    WTF_MAKE_FAST_ALLOCATED;
-public:
-    // All CharacterClass instances have to have the full set of matches and ranges,
-    // they may have an optional m_table for faster lookups (which must match the
-    // specified matches and ranges)
-    CharacterClass()
-        : m_table(0)
+struct CharacterClassTable : RefCounted<CharacterClassTable> {
+    friend class js::OffTheBooks;
+    const char* m_table;
+    bool m_inverted;
+    static PassRefPtr<CharacterClassTable> create(const char* table, bool inverted)
+    {
+        return adoptRef(js::OffTheBooks::new_<CharacterClassTable>(table, inverted));
+    }
+
+private:
+    CharacterClassTable(const char* table, bool inverted)
+        : m_table(table)
+        , m_inverted(inverted)
     {
     }
-    CharacterClass(const char* table, bool inverted)
+};
+
+struct CharacterClass {
+    WTF_MAKE_FAST_ALLOCATED
+public:
+    // All CharacterClass instances have to have the full set of matches and ranges,
+    // they may have an optional table for faster lookups (which must match the
+    // specified matches and ranges)
+    CharacterClass(PassRefPtr<CharacterClassTable> table)
         : m_table(table)
-        , m_tableInverted(inverted)
     {
+    }
+    ~CharacterClass()
+    {
+        js::Foreground::delete_(m_table.get());
     }
     Vector<UChar> m_matches;
     Vector<CharacterRange> m_ranges;
     Vector<UChar> m_matchesUnicode;
     Vector<CharacterRange> m_rangesUnicode;
-
-    const char* m_table;
-    bool m_tableInverted;
+    RefPtr<CharacterClassTable> m_table;
 };
 
 enum QuantifierType {
@@ -127,8 +119,7 @@ struct PatternTerm {
         TypeBackReference,
         TypeForwardReference,
         TypeParenthesesSubpattern,
-        TypeParentheticalAssertion,
-        TypeDotStarEnclosure
+        TypeParentheticalAssertion
     } type;
     bool m_capture :1;
     bool m_invert :1;
@@ -143,15 +134,22 @@ struct PatternTerm {
             bool isCopy;
             bool isTerminal;
         } parentheses;
-        struct {
-            bool bolAnchor : 1;
-            bool eolAnchor : 1;
-        } anchors;
     };
     QuantifierType quantityType;
-    Checked<unsigned> quantityCount;
+    unsigned quantityCount;
     int inputPosition;
     unsigned frameLocation;
+
+    // No-argument constructor for js::Vector.
+    PatternTerm()
+        : type(PatternTerm::TypePatternCharacter)
+        , m_capture(false)
+        , m_invert(false)
+    {
+        patternCharacter = 0;
+        quantityType = QuantifierFixedCount;
+        quantityCount = 1;
+    }
 
     PatternTerm(UChar ch)
         : type(PatternTerm::TypePatternCharacter)
@@ -205,28 +203,6 @@ struct PatternTerm {
         quantityCount = 1;
     }
 
-    PatternTerm(bool bolAnchor, bool eolAnchor)
-        : type(TypeDotStarEnclosure)
-        , m_capture(false)
-        , m_invert(false)
-    {
-        anchors.bolAnchor = bolAnchor;
-        anchors.eolAnchor = eolAnchor;
-        quantityType = QuantifierFixedCount;
-        quantityCount = 1;
-    }
-
-    // No-argument constructor for js::Vector.
-    PatternTerm()
-        : type(PatternTerm::TypePatternCharacter)
-        , m_capture(false)
-        , m_invert(false)
-    {
-        patternCharacter = 0;
-        quantityType = QuantifierFixedCount;
-        quantityCount = 1;
-    }
-    
     static PatternTerm ForwardReference()
     {
         return PatternTerm(TypeForwardReference);
@@ -265,7 +241,7 @@ struct PatternTerm {
 };
 
 struct PatternAlternative {
-    WTF_MAKE_FAST_ALLOCATED;
+    WTF_MAKE_FAST_ALLOCATED
 public:
     PatternAlternative(PatternDisjunction* disjunction)
         : m_parent(disjunction)
@@ -308,14 +284,14 @@ public:
 };
 
 struct PatternDisjunction {
-    WTF_MAKE_FAST_ALLOCATED;
+    WTF_MAKE_FAST_ALLOCATED
 public:
     PatternDisjunction(PatternAlternative* parent = 0)
         : m_parent(parent)
         , m_hasFixedSize(false)
     {
     }
-
+    
     ~PatternDisjunction()
     {
         deleteAllValues(m_alternatives);
@@ -323,7 +299,7 @@ public:
 
     PatternAlternative* addNewAlternative()
     {
-        PatternAlternative* alternative = js_new<PatternAlternative>(this);
+        PatternAlternative* alternative = js::OffTheBooks::new_<PatternAlternative>(this);
         m_alternatives.append(alternative);
         return alternative;
     }
@@ -356,8 +332,23 @@ struct TermChain {
     Vector<TermChain> hotTerms;
 };
 
+struct BeginChar {
+    BeginChar()
+        : value(0)
+        , mask(0)
+    {}
+
+    BeginChar(unsigned value, unsigned mask)
+        : value(value)
+        , mask(mask)
+    {}
+
+    unsigned value;
+    unsigned mask;
+};
+
 struct YarrPattern {
-    YarrPattern(const String& pattern, bool ignoreCase, bool multiline, ErrorCode* error);
+    YarrPattern(const UString& pattern, bool ignoreCase, bool multiline, ErrorCode* error);
 
     ~YarrPattern()
     {
@@ -371,6 +362,7 @@ struct YarrPattern {
         m_maxBackReference = 0;
 
         m_containsBackreferences = false;
+        m_containsBeginChars = false;
         m_containsBOL = false;
 
         newlineCached = 0;
@@ -385,6 +377,7 @@ struct YarrPattern {
         m_disjunctions.clear();
         deleteAllValues(m_userCharacterClasses);
         m_userCharacterClasses.clear();
+        m_beginChars.clear();
     }
 
     bool containsIllegalBackReference()
@@ -438,15 +431,17 @@ struct YarrPattern {
     bool m_ignoreCase : 1;
     bool m_multiline : 1;
     bool m_containsBackreferences : 1;
+    bool m_containsBeginChars : 1;
     bool m_containsBOL : 1;
     unsigned m_numSubpatterns;
     unsigned m_maxBackReference;
     PatternDisjunction* m_body;
     Vector<PatternDisjunction*, 4> m_disjunctions;
     Vector<CharacterClass*> m_userCharacterClasses;
+    Vector<BeginChar> m_beginChars;
 
 private:
-    ErrorCode compile(const String& patternString);
+    ErrorCode compile(const UString& patternString);
 
     CharacterClass* newlineCached;
     CharacterClass* digitsCached;
@@ -459,4 +454,4 @@ private:
 
 } } // namespace JSC::Yarr
 
-#endif /* yarr_YarrPattern_h */
+#endif // YarrPattern_h

@@ -1,8 +1,41 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et cindent: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla code.
+ *
+ * The Initial Developer of the Original Code is the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  David Humphrey <david.humphrey@senecac.on.ca>
+ *  Yury Delendik
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsDOMNotifyAudioAvailableEvent_h_
 #define nsDOMNotifyAudioAvailableEvent_h_
@@ -11,16 +44,14 @@
 #include "nsDOMEvent.h"
 #include "nsPresContext.h"
 #include "nsCycleCollectionParticipant.h"
-#include "mozilla/dom/NotifyAudioAvailableEventBinding.h"
 
 class nsDOMNotifyAudioAvailableEvent : public nsDOMEvent,
                                        public nsIDOMNotifyAudioAvailableEvent
 {
 public:
-  nsDOMNotifyAudioAvailableEvent(mozilla::dom::EventTarget* aOwner,
-                                 nsPresContext* aPresContext, nsEvent* aEvent,
-                                 uint32_t aEventType, float * aFrameBuffer,
-                                 uint32_t aFrameBufferLength, float aTime);
+  nsDOMNotifyAudioAvailableEvent(nsPresContext* aPresContext, nsEvent* aEvent,
+                                 PRUint32 aEventType, float * aFrameBuffer,
+                                 PRUint32 aFrameBufferLength, float aTime);
 
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(nsDOMNotifyAudioAvailableEvent,
@@ -30,48 +61,21 @@ public:
   NS_FORWARD_NSIDOMEVENT(nsDOMEvent::)
 
   nsresult NS_NewDOMAudioAvailableEvent(nsIDOMEvent** aInstancePtrResult,
-                                        mozilla::dom::EventTarget* aOwner,
                                         nsPresContext* aPresContext,
                                         nsEvent *aEvent,
-                                        uint32_t aEventType,
+                                        PRUint32 aEventType,
                                         float * aFrameBuffer,
-                                        uint32_t aFrameBufferLength,
+                                        PRUint32 aFrameBufferLength,
                                         float aTime);
 
   ~nsDOMNotifyAudioAvailableEvent();
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
-  {
-    return mozilla::dom::NotifyAudioAvailableEventBinding::Wrap(aCx, aScope, this);
-  }
-
-  JSObject* GetFrameBuffer(JSContext* aCx, mozilla::ErrorResult& aRv)
-  {
-    JS::Rooted<JS::Value> dummy(aCx);
-    aRv = GetFrameBuffer(aCx, dummy.address());
-    return mCachedArray;
-  }
-
-  float Time()
-  {
-    return mTime;
-  }
-
-  void InitAudioAvailableEvent(const nsAString& aType,
-                               bool aCanBubble,
-                               bool aCancelable,
-                               const mozilla::dom::Nullable<mozilla::dom::Sequence<float> >& aFrameBuffer,
-                               uint32_t aFrameBufferLength,
-                               float aTime,
-                               bool aAllowAudioData,
-                               mozilla::ErrorResult& aRv);
 private:
   nsAutoArrayPtr<float> mFrameBuffer;
-  uint32_t mFrameBufferLength;
+  PRUint32 mFrameBufferLength;
   float mTime;
-  JS::Heap<JSObject*> mCachedArray;
-  bool mAllowAudioData;
+  JSObject* mCachedArray;
+  PRPackedBool mAllowAudioData;
 };
 
 #endif // nsDOMNotifyAudioAvailableEvent_h_

@@ -1,21 +1,51 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Steve Clark (buster@netscape.com)
+ *   Ilya Konstantinov (mozilla-code@future.shiny.co.il)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsDOMMouseEvent.h"
 #include "nsGUIEvent.h"
 #include "nsIContent.h"
 #include "nsContentUtils.h"
-#include "prtime.h"
 
-using namespace mozilla;
-
-nsDOMMouseEvent::nsDOMMouseEvent(mozilla::dom::EventTarget* aOwner,
-                                 nsPresContext* aPresContext,
+nsDOMMouseEvent::nsDOMMouseEvent(nsPresContext* aPresContext,
                                  nsInputEvent* aEvent)
-  : nsDOMUIEvent(aOwner, aPresContext, aEvent ? aEvent :
-                 new nsMouseEvent(false, 0, nullptr,
+  : nsDOMUIEvent(aPresContext, aEvent ? aEvent :
+                 new nsMouseEvent(PR_FALSE, 0, nsnull,
                                   nsMouseEvent::eReal))
 {
   // There's no way to make this class' ctor allocate an nsMouseScrollEvent.
@@ -23,10 +53,10 @@ nsDOMMouseEvent::nsDOMMouseEvent(mozilla::dom::EventTarget* aOwner,
   // DOM event.
   
   if (aEvent) {
-    mEventIsInternal = false;
+    mEventIsInternal = PR_FALSE;
   }
   else {
-    mEventIsInternal = true;
+    mEventIsInternal = PR_TRUE;
     mEvent->time = PR_Now();
     mEvent->refPoint.x = mEvent->refPoint.y = 0;
     static_cast<nsMouseEvent*>(mEvent)->inputSource = nsIDOMMouseEvent::MOZ_SOURCE_UNKNOWN;
@@ -57,23 +87,26 @@ nsDOMMouseEvent::~nsDOMMouseEvent()
         delete mEvent;
         break;
     }
-    mEvent = nullptr;
+    mEvent = nsnull;
   }
 }
 
 NS_IMPL_ADDREF_INHERITED(nsDOMMouseEvent, nsDOMUIEvent)
 NS_IMPL_RELEASE_INHERITED(nsDOMMouseEvent, nsDOMUIEvent)
 
+DOMCI_DATA(MouseEvent, nsDOMMouseEvent)
+
 NS_INTERFACE_MAP_BEGIN(nsDOMMouseEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMMouseEvent)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(MouseEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMUIEvent)
 
 NS_IMETHODIMP
-nsDOMMouseEvent::InitMouseEvent(const nsAString & aType, bool aCanBubble, bool aCancelable,
-                                nsIDOMWindow* aView, int32_t aDetail, int32_t aScreenX, 
-                                int32_t aScreenY, int32_t aClientX, int32_t aClientY, 
-                                bool aCtrlKey, bool aAltKey, bool aShiftKey, 
-                                bool aMetaKey, uint16_t aButton, nsIDOMEventTarget *aRelatedTarget)
+nsDOMMouseEvent::InitMouseEvent(const nsAString & aType, PRBool aCanBubble, PRBool aCancelable,
+                                nsIDOMWindow* aView, PRInt32 aDetail, PRInt32 aScreenX, 
+                                PRInt32 aScreenY, PRInt32 aClientX, PRInt32 aClientY, 
+                                PRBool aCtrlKey, PRBool aAltKey, PRBool aShiftKey, 
+                                PRBool aMetaKey, PRUint16 aButton, nsIDOMEventTarget *aRelatedTarget)
 {
   nsresult rv = nsDOMUIEvent::InitUIEvent(aType, aCanBubble, aCancelable, aView, aDetail);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -82,14 +115,17 @@ nsDOMMouseEvent::InitMouseEvent(const nsAString & aType, bool aCanBubble, bool a
   {
     case NS_MOUSE_EVENT:
     case NS_MOUSE_SCROLL_EVENT:
-    case NS_WHEEL_EVENT:
     case NS_DRAG_EVENT:
     case NS_SIMPLE_GESTURE_EVENT:
+    case NS_MOZTOUCH_EVENT:
     {
        static_cast<nsMouseEvent_base*>(mEvent)->relatedTarget = aRelatedTarget;
        static_cast<nsMouseEvent_base*>(mEvent)->button = aButton;
        nsInputEvent* inputEvent = static_cast<nsInputEvent*>(mEvent);
-       inputEvent->InitBasicModifiers(aCtrlKey, aAltKey, aShiftKey, aMetaKey);
+       inputEvent->isControl = aCtrlKey;
+       inputEvent->isAlt = aAltKey;
+       inputEvent->isShift = aShiftKey;
+       inputEvent->isMeta = aMetaKey;
        mClientPoint.x = aClientX;
        mClientPoint.y = aClientY;
        inputEvent->refPoint.x = aScreenX;
@@ -108,83 +144,13 @@ nsDOMMouseEvent::InitMouseEvent(const nsAString & aType, bool aCanBubble, bool a
   return NS_OK;
 }   
 
-nsresult
-nsDOMMouseEvent::InitMouseEvent(const nsAString& aType,
-                                bool aCanBubble,
-                                bool aCancelable,
-                                nsIDOMWindow* aView,
-                                int32_t aDetail,
-                                int32_t aScreenX,
-                                int32_t aScreenY,
-                                int32_t aClientX,
-                                int32_t aClientY,
-                                uint16_t aButton,
-                                nsIDOMEventTarget *aRelatedTarget,
-                                const nsAString& aModifiersList)
-{
-  Modifiers modifiers = ComputeModifierState(aModifiersList);
-
-  nsresult rv = InitMouseEvent(aType, aCanBubble, aCancelable, aView,
-                               aDetail, aScreenX, aScreenY, aClientX, aClientY,
-                               (modifiers & widget::MODIFIER_CONTROL) != 0,
-                               (modifiers & widget::MODIFIER_ALT) != 0,
-                               (modifiers & widget::MODIFIER_SHIFT) != 0,
-                               (modifiers & widget::MODIFIER_META) != 0,
-                               aButton, aRelatedTarget);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  switch(mEvent->eventStructType) {
-    case NS_MOUSE_EVENT:
-    case NS_MOUSE_SCROLL_EVENT:
-    case NS_WHEEL_EVENT:
-    case NS_DRAG_EVENT:
-    case NS_SIMPLE_GESTURE_EVENT:
-      static_cast<nsInputEvent*>(mEvent)->modifiers = modifiers;
-      return NS_OK;
-    default:
-      MOZ_CRASH("There is no space to store the modifiers");
-  }
-}
-
-already_AddRefed<nsDOMMouseEvent>
-nsDOMMouseEvent::Constructor(const mozilla::dom::GlobalObject& aGlobal,
-                             const nsAString& aType,
-                             const mozilla::dom::MouseEventInit& aParam,
-                             mozilla::ErrorResult& aRv)
-{
-  nsCOMPtr<mozilla::dom::EventTarget> t = do_QueryInterface(aGlobal.Get());
-  nsRefPtr<nsDOMMouseEvent> e = new nsDOMMouseEvent(t, nullptr, nullptr);
-  bool trusted = e->Init(t);
-  e->InitMouseEvent(aType, aParam.mBubbles, aParam.mCancelable,
-                    aParam.mView, aParam.mDetail, aParam.mScreenX,
-                    aParam.mScreenY, aParam.mClientX, aParam.mClientY,
-                    aParam.mCtrlKey, aParam.mAltKey, aParam.mShiftKey,
-                    aParam.mMetaKey, aParam.mButton, aParam.mRelatedTarget,
-                    aRv);
-  e->SetTrusted(trusted);
-
-  switch (e->mEvent->eventStructType) {
-    case NS_MOUSE_EVENT:
-    case NS_MOUSE_SCROLL_EVENT:
-    case NS_WHEEL_EVENT:
-    case NS_DRAG_EVENT:
-    case NS_SIMPLE_GESTURE_EVENT:
-      static_cast<nsMouseEvent_base*>(e->mEvent)->buttons = aParam.mButtons;
-      break;
-    default:
-      break;
-  }
-
-  return e.forget();
-}
-
 NS_IMETHODIMP
-nsDOMMouseEvent::InitNSMouseEvent(const nsAString & aType, bool aCanBubble, bool aCancelable,
-                                  nsIDOMWindow *aView, int32_t aDetail, int32_t aScreenX,
-                                  int32_t aScreenY, int32_t aClientX, int32_t aClientY,
-                                  bool aCtrlKey, bool aAltKey, bool aShiftKey,
-                                  bool aMetaKey, uint16_t aButton, nsIDOMEventTarget *aRelatedTarget,
-                                  float aPressure, uint16_t aInputSource)
+nsDOMMouseEvent::InitNSMouseEvent(const nsAString & aType, PRBool aCanBubble, PRBool aCancelable,
+                                  nsIDOMWindow *aView, PRInt32 aDetail, PRInt32 aScreenX,
+                                  PRInt32 aScreenY, PRInt32 aClientX, PRInt32 aClientY,
+                                  PRBool aCtrlKey, PRBool aAltKey, PRBool aShiftKey,
+                                  PRBool aMetaKey, PRUint16 aButton, nsIDOMEventTarget *aRelatedTarget,
+                                  float aPressure, PRUint16 aInputSource)
 {
   nsresult rv = nsDOMMouseEvent::InitMouseEvent(aType, aCanBubble, aCancelable,
                                                 aView, aDetail, aScreenX, aScreenY,
@@ -198,74 +164,40 @@ nsDOMMouseEvent::InitNSMouseEvent(const nsAString & aType, bool aCanBubble, bool
 }
 
 NS_IMETHODIMP
-nsDOMMouseEvent::GetButton(uint16_t* aButton)
+nsDOMMouseEvent::GetButton(PRUint16* aButton)
 {
   NS_ENSURE_ARG_POINTER(aButton);
-  *aButton = Button();
-  return NS_OK;
-}
-
-uint16_t
-nsDOMMouseEvent::Button()
-{
   switch(mEvent->eventStructType)
   {
     case NS_MOUSE_EVENT:
     case NS_MOUSE_SCROLL_EVENT:
-    case NS_WHEEL_EVENT:
     case NS_DRAG_EVENT:
     case NS_SIMPLE_GESTURE_EVENT:
-      return static_cast<nsMouseEvent_base*>(mEvent)->button;
+    case NS_MOZTOUCH_EVENT:
+      *aButton = static_cast<nsMouseEvent_base*>(mEvent)->button;
+      break;
     default:
       NS_WARNING("Tried to get mouse button for non-mouse event!");
-      return nsMouseEvent::eLeftButton;
+      *aButton = nsMouseEvent::eLeftButton;
+      break;
   }
-}
-
-NS_IMETHODIMP
-nsDOMMouseEvent::GetButtons(uint16_t* aButtons)
-{
-  NS_ENSURE_ARG_POINTER(aButtons);
-  *aButtons = Buttons();
   return NS_OK;
-}
-
-uint16_t
-nsDOMMouseEvent::Buttons()
-{
-  switch(mEvent->eventStructType)
-  {
-    case NS_MOUSE_EVENT:
-    case NS_MOUSE_SCROLL_EVENT:
-    case NS_WHEEL_EVENT:
-    case NS_DRAG_EVENT:
-    case NS_SIMPLE_GESTURE_EVENT:
-      return static_cast<nsMouseEvent_base*>(mEvent)->buttons;
-    default:
-      MOZ_CRASH("Tried to get mouse buttons for non-mouse event!");
-  }
 }
 
 NS_IMETHODIMP
 nsDOMMouseEvent::GetRelatedTarget(nsIDOMEventTarget** aRelatedTarget)
 {
   NS_ENSURE_ARG_POINTER(aRelatedTarget);
-  *aRelatedTarget = GetRelatedTarget().get();
-  return NS_OK;
-}
-
-already_AddRefed<mozilla::dom::EventTarget>
-nsDOMMouseEvent::GetRelatedTarget()
-{
-  nsCOMPtr<mozilla::dom::EventTarget> relatedTarget;
+  *aRelatedTarget = nsnull;
+  nsISupports* relatedTarget = nsnull;
   switch(mEvent->eventStructType)
   {
     case NS_MOUSE_EVENT:
     case NS_MOUSE_SCROLL_EVENT:
-    case NS_WHEEL_EVENT:
     case NS_DRAG_EVENT:
     case NS_SIMPLE_GESTURE_EVENT:
-      relatedTarget = do_QueryInterface(static_cast<nsMouseEvent_base*>(mEvent)->relatedTarget);
+    case NS_MOZTOUCH_EVENT:
+      relatedTarget = static_cast<nsMouseEvent_base*>(mEvent)->relatedTarget;
       break;
     default:
       break;
@@ -273,141 +205,90 @@ nsDOMMouseEvent::GetRelatedTarget()
 
   if (relatedTarget) {
     nsCOMPtr<nsIContent> content = do_QueryInterface(relatedTarget);
-    if (content && content->ChromeOnlyAccess() &&
+    if (content && content->IsInNativeAnonymousSubtree() &&
         !nsContentUtils::CanAccessNativeAnon()) {
-      relatedTarget = do_QueryInterface(content->FindFirstNonChromeOnlyAccessContent());
+      relatedTarget = content->FindFirstNonNativeAnonymous();
+      if (!relatedTarget) {
+        return NS_OK;
+      }
     }
 
-    if (relatedTarget) {
-      relatedTarget = relatedTarget->GetTargetForDOMEvent();
-    }
-    return relatedTarget.forget();
+    CallQueryInterface(relatedTarget, aRelatedTarget);
   }
-  return nullptr;
-}
-
-NS_IMETHODIMP
-nsDOMMouseEvent::GetMozMovementX(int32_t* aMovementX)
-{
-  NS_ENSURE_ARG_POINTER(aMovementX);
-  *aMovementX = MozMovementX();
-
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsDOMMouseEvent::GetMozMovementY(int32_t* aMovementY)
-{
-  NS_ENSURE_ARG_POINTER(aMovementY);
-  *aMovementY = MozMovementY();
-
-  return NS_OK;
-}
-
-NS_METHOD nsDOMMouseEvent::GetScreenX(int32_t* aScreenX)
+NS_METHOD nsDOMMouseEvent::GetScreenX(PRInt32* aScreenX)
 {
   NS_ENSURE_ARG_POINTER(aScreenX);
-  *aScreenX = ScreenX();
+  *aScreenX = GetScreenPoint().x;
   return NS_OK;
 }
 
-int32_t
-nsDOMMouseEvent::ScreenX()
-{
-  return nsDOMEvent::GetScreenCoords(mPresContext,
-                                     mEvent,
-                                     mEvent->refPoint).x;
-}
-
 NS_IMETHODIMP
-nsDOMMouseEvent::GetScreenY(int32_t* aScreenY)
+nsDOMMouseEvent::GetScreenY(PRInt32* aScreenY)
 {
   NS_ENSURE_ARG_POINTER(aScreenY);
-  *aScreenY = ScreenY();
+  *aScreenY = GetScreenPoint().y;
   return NS_OK;
 }
 
-int32_t
-nsDOMMouseEvent::ScreenY()
-{
-  return nsDOMEvent::GetScreenCoords(mPresContext,
-                                     mEvent,
-                                     mEvent->refPoint).y;
-}
 
-
-NS_METHOD nsDOMMouseEvent::GetClientX(int32_t* aClientX)
+NS_METHOD nsDOMMouseEvent::GetClientX(PRInt32* aClientX)
 {
   NS_ENSURE_ARG_POINTER(aClientX);
-  *aClientX = ClientX();
+  *aClientX = GetClientPoint().x;
   return NS_OK;
 }
 
-int32_t
-nsDOMMouseEvent::ClientX()
-{
-  return nsDOMEvent::GetClientCoords(mPresContext,
-                                     mEvent,
-                                     mEvent->refPoint,
-                                     mClientPoint).x;
-}
-
 NS_IMETHODIMP
-nsDOMMouseEvent::GetClientY(int32_t* aClientY)
+nsDOMMouseEvent::GetClientY(PRInt32* aClientY)
 {
   NS_ENSURE_ARG_POINTER(aClientY);
-  *aClientY = ClientY();
+  *aClientY = GetClientPoint().y;
   return NS_OK;
 }
 
-int32_t
-nsDOMMouseEvent::ClientY()
-{
-  return nsDOMEvent::GetClientCoords(mPresContext,
-                                     mEvent,
-                                     mEvent->refPoint,
-                                     mClientPoint).y;
-}
-
 NS_IMETHODIMP
-nsDOMMouseEvent::GetAltKey(bool* aIsDown)
+nsDOMMouseEvent::GetAltKey(PRBool* aIsDown)
 {
   NS_ENSURE_ARG_POINTER(aIsDown);
-  *aIsDown = AltKey();
+  *aIsDown = ((nsInputEvent*)mEvent)->isAlt;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDOMMouseEvent::GetCtrlKey(bool* aIsDown)
+nsDOMMouseEvent::GetCtrlKey(PRBool* aIsDown)
 {
   NS_ENSURE_ARG_POINTER(aIsDown);
-  *aIsDown = CtrlKey();
+  *aIsDown = ((nsInputEvent*)mEvent)->isControl;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDOMMouseEvent::GetShiftKey(bool* aIsDown)
+nsDOMMouseEvent::GetShiftKey(PRBool* aIsDown)
 {
   NS_ENSURE_ARG_POINTER(aIsDown);
-  *aIsDown = ShiftKey();
+  *aIsDown = ((nsInputEvent*)mEvent)->isShift;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDOMMouseEvent::GetMetaKey(bool* aIsDown)
+nsDOMMouseEvent::GetMetaKey(PRBool* aIsDown)
 {
   NS_ENSURE_ARG_POINTER(aIsDown);
-  *aIsDown = MetaKey();
+  *aIsDown = ((nsInputEvent*)mEvent)->isMeta;
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsDOMMouseEvent::GetModifierState(const nsAString& aKey,
-                                  bool* aState)
+/* virtual */
+nsresult
+nsDOMMouseEvent::Which(PRUint32* aWhich)
 {
-  NS_ENSURE_ARG_POINTER(aState);
-
-  *aState = GetModifierState(aKey);
+  NS_ENSURE_ARG_POINTER(aWhich);
+  PRUint16 button;
+  (void) GetButton(&button);
+  *aWhich = button + 1;
   return NS_OK;
 }
 
@@ -415,23 +296,22 @@ NS_IMETHODIMP
 nsDOMMouseEvent::GetMozPressure(float* aPressure)
 {
   NS_ENSURE_ARG_POINTER(aPressure);
-  *aPressure = MozPressure();
+  *aPressure = static_cast<nsMouseEvent_base*>(mEvent)->pressure;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDOMMouseEvent::GetMozInputSource(uint16_t* aInputSource)
+nsDOMMouseEvent::GetMozInputSource(PRUint16* aInputSource)
 {
   NS_ENSURE_ARG_POINTER(aInputSource);
-  *aInputSource = MozInputSource();
+  *aInputSource = static_cast<nsMouseEvent_base*>(mEvent)->inputSource;
   return NS_OK;
 }
 
 nsresult NS_NewDOMMouseEvent(nsIDOMEvent** aInstancePtrResult,
-                             mozilla::dom::EventTarget* aOwner,
                              nsPresContext* aPresContext,
-                             nsInputEvent *aEvent)
+                             nsInputEvent *aEvent) 
 {
-  nsDOMMouseEvent* it = new nsDOMMouseEvent(aOwner, aPresContext, aEvent);
+  nsDOMMouseEvent* it = new nsDOMMouseEvent(aPresContext, aEvent);
   return CallQueryInterface(it, aInstancePtrResult);
 }

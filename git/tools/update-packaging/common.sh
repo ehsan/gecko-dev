@@ -1,8 +1,4 @@
 #!/bin/bash
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
-
 #
 # Code shared by update packaging scripts.
 # Author: Darin Fisher
@@ -47,11 +43,11 @@ make_add_instruction() {
     forced=
   fi
 
-  is_extension=$(echo "$f" | grep -c 'distribution/extensions/.*/')
+  is_extension=$(echo "$f" | grep -c 'extensions/.*/')
   if [ $is_extension = "1" ]; then
     # Use the subdirectory of the extensions folder as the file to test
     # before performing this add instruction.
-    testdir=$(echo "$f" | sed 's/\(.*distribution\/extensions\/[^\/]*\)\/.*/\1/')
+    testdir=$(echo "$f" | sed 's/\(extensions\/[^\/]*\)\/.*/\1/')
     notice "     add-if: $f$forced"
     echo "add-if \"$testdir\" \"$f\""
   else
@@ -62,13 +58,17 @@ make_add_instruction() {
 
 make_patch_instruction() {
   f="$1"
-  is_extension=$(echo "$f" | grep -c 'distribution/extensions/.*/')
+  is_extension=$(echo "$f" | grep -c 'extensions/.*/')
+  is_search_plugin=$(echo "$f" | grep -c 'searchplugins/.*')
   if [ $is_extension = "1" ]; then
     # Use the subdirectory of the extensions folder as the file to test
     # before performing this add instruction.
-    testdir=$(echo "$f" | sed 's/\(.*distribution\/extensions\/[^\/]*\)\/.*/\1/')
+    testdir=$(echo "$f" | sed 's/\(extensions\/[^\/]*\)\/.*/\1/')
     notice "   patch-if: $f"
     echo "patch-if \"$testdir\" \"$f.patch\" \"$f\""
+  elif [ $is_search_plugin = "1" ]; then
+    notice "   patch-if: $f"
+    echo "patch-if \"$f\" \"$f.patch\" \"$f\""
   else
     notice "      patch: $f"
     echo "patch \"$f.patch\" \"$f\""

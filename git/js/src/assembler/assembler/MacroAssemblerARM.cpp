@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=79:
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Copyright (C) 2009 University of Szeged
@@ -32,7 +32,7 @@
 
 #if ENABLE_ASSEMBLER && WTF_CPU_ARM_TRADITIONAL
 
-#include "assembler/assembler/MacroAssemblerARM.h"
+#include "MacroAssemblerARM.h"
 
 #if WTF_OS_LINUX || WTF_OS_ANDROID
 #include <sys/types.h>
@@ -56,7 +56,7 @@ namespace JSC {
 
 static bool isVFPPresent()
 {
-#if WTF_OS_LINUX
+#if WTF_PLATFORM_LINUX
     int fd = open("/proc/self/auxv", O_RDONLY);
     if (fd > 0) {
         Elf32_auxv_t aux;
@@ -68,22 +68,6 @@ static bool isVFPPresent()
         }
         close(fd);
     }
-#endif
-
-#if defined(__GNUC__) && defined(__VFP_FP__)
-    return true;
-#endif
-
-#ifdef WTF_OS_ANDROID
-    FILE *fp = fopen("/proc/cpuinfo", "r");
-    if (!fp)
-        return false;
-
-    char buf[1024];
-    fread(buf, sizeof(char), sizeof(buf), fp);
-    fclose(fp);
-    if (strstr(buf, "vfp"))
-        return true;
 #endif
 
     return false;

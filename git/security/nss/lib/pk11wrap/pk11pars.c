@@ -1,6 +1,38 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape security libraries.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2001
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 /*
  * The following handles the loading, unloading and management of
  * various PCKS #11 modules
@@ -15,14 +47,14 @@
 #include "pki3hack.h"
 #include "secerr.h"
    
-#include "utilpars.h" 
+#include "pk11pars.h" 
 
 /* create a new module */
 static  SECMODModule *
 secmod_NewModule(void)
 {
     SECMODModule *newMod;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
 
 
     /* create an arena in which dllName and commonName can be
@@ -148,22 +180,22 @@ SECMOD_CreateModule(const char *library, const char *moduleName,
     if (parameters) {
 	mod->libraryParams = PORT_ArenaStrdup(mod->arena,parameters);
     }
-    mod->internal   = NSSUTIL_ArgHasFlag("flags","internal",nssc);
-    mod->isFIPS     = NSSUTIL_ArgHasFlag("flags","FIPS",nssc);
-    mod->isCritical = NSSUTIL_ArgHasFlag("flags","critical",nssc);
-    slotParams      = NSSUTIL_ArgGetParamValue("slotParams",nssc);
-    mod->slotInfo   = NSSUTIL_ArgParseSlotInfo(mod->arena,slotParams,
+    mod->internal   = secmod_argHasFlag("flags","internal",nssc);
+    mod->isFIPS     = secmod_argHasFlag("flags","FIPS",nssc);
+    mod->isCritical = secmod_argHasFlag("flags","critical",nssc);
+    slotParams      = secmod_argGetParamValue("slotParams",nssc);
+    mod->slotInfo   = secmod_argParseSlotInfo(mod->arena,slotParams,
 							&mod->slotInfoCount);
     if (slotParams) PORT_Free(slotParams);
     /* new field */
-    mod->trustOrder  = NSSUTIL_ArgReadLong("trustOrder",nssc,
-					NSSUTIL_DEFAULT_TRUST_ORDER,NULL);
+    mod->trustOrder  = secmod_argReadLong("trustOrder",nssc,
+					SECMOD_DEFAULT_TRUST_ORDER,NULL);
     /* new field */
-    mod->cipherOrder = NSSUTIL_ArgReadLong("cipherOrder",nssc,
-					NSSUTIL_DEFAULT_CIPHER_ORDER,NULL);
+    mod->cipherOrder = secmod_argReadLong("cipherOrder",nssc,
+					SECMOD_DEFAULT_CIPHER_ORDER,NULL);
     /* new field */
-    mod->isModuleDB   = NSSUTIL_ArgHasFlag("flags","moduleDB",nssc);
-    mod->moduleDBOnly = NSSUTIL_ArgHasFlag("flags","moduleDBOnly",nssc);
+    mod->isModuleDB   = secmod_argHasFlag("flags","moduleDB",nssc);
+    mod->moduleDBOnly = secmod_argHasFlag("flags","moduleDBOnly",nssc);
     if (mod->moduleDBOnly) mod->isModuleDB = PR_TRUE;
 
     /* we need more bits, but we also want to preserve binary compatibility 
@@ -174,10 +206,10 @@ SECMOD_CreateModule(const char *library, const char *moduleName,
      * code checking if (mod->isModuleDB) will continue to work correctly. */
     if (mod->isModuleDB) {
 	char flags = SECMOD_FLAG_MODULE_DB_IS_MODULE_DB;
-	if (NSSUTIL_ArgHasFlag("flags","skipFirst",nssc)) {
+	if (secmod_argHasFlag("flags","skipFirst",nssc)) {
 	    flags |= SECMOD_FLAG_MODULE_DB_SKIP_FIRST;
 	}
-	if (NSSUTIL_ArgHasFlag("flags","defaultModDB",nssc)) {
+	if (secmod_argHasFlag("flags","defaultModDB",nssc)) {
 	    flags |= SECMOD_FLAG_MODULE_DB_DEFAULT_MODDB;
 	}
 	/* additional moduleDB flags could be added here in the future */
@@ -187,14 +219,14 @@ SECMOD_CreateModule(const char *library, const char *moduleName,
     if (mod->internal) {
 	char flags = SECMOD_FLAG_INTERNAL_IS_INTERNAL;
 
-	if (NSSUTIL_ArgHasFlag("flags", "internalKeySlot", nssc)) {
+	if (secmod_argHasFlag("flags", "internalKeySlot", nssc)) {
 	    flags |= SECMOD_FLAG_INTERNAL_KEY_SLOT;
 	}
 	mod->internal = (PRBool) flags;
     }
 
-    ciphers = NSSUTIL_ArgGetParamValue("ciphers",nssc);
-    NSSUTIL_ArgParseCipherFlags(&mod->ssl[0],ciphers);
+    ciphers = secmod_argGetParamValue("ciphers",nssc);
+    secmod_argSetNewCipherFlags(&mod->ssl[0],ciphers);
     if (ciphers) PORT_Free(ciphers);
 
     secmod_PrivateModuleCount++;
@@ -239,6 +271,10 @@ secmod_SetInternalKeySlotFlag(SECMODModule *mod, PRBool val)
    mod->internal = flags;
 }
 
+/* forward declarations */
+static int secmod_escapeSize(const char *string, char quote);
+static char *secmod_addEscape(const char *string, char quote);
+
 /*
  * copy desc and value into target. Target is known to be big enough to
  * hold desc +2 +value, which is good because the result of this will be
@@ -254,7 +290,7 @@ secmod_doDescCopy(char *target, int *targetLen, const char *desc,
 {
     int diff, esc_len;
 
-    esc_len = NSSUTIL_EscapeSize(value, '\"') - 1;
+    esc_len = secmod_escapeSize(value, '\"') - 1;
     diff = esc_len - strlen(value);
     if (diff > 0) {
 	/* we need to escape... expand newSpecPtr as well to make sure
@@ -265,7 +301,7 @@ secmod_doDescCopy(char *target, int *targetLen, const char *desc,
 	}
 	*targetLen += diff;
 	target = newPtr;
-	value = NSSUTIL_Escape(value, '\"');
+	value = secmod_addEscape(value, '\"');
 	if (value == NULL) {
 	    return target; /* couldn't escape value, just drop the copy */
 	}
@@ -276,9 +312,6 @@ secmod_doDescCopy(char *target, int *targetLen, const char *desc,
     PORT_Memcpy(target, value, esc_len);
     target += esc_len;
     *target++='\"';
-    if (diff > 0) {
-	PORT_Free(value);
-    }
     return target;
 }
 
@@ -326,7 +359,7 @@ secmod_ParseModuleSpecForTokens(PRBool convert, PRBool isFIPS,
     if (ids) {
 	*ids = NULL;
     }
-    moduleSpec = NSSUTIL_ArgStrip(moduleSpec);
+    moduleSpec = secmod_argStrip(moduleSpec);
     SECMOD_SPEC_COPY(newSpecPtr, modulePrev, moduleSpec);
 
     /* Notes on 'convert' and 'isFIPS' flags: The base parameters for opening 
@@ -358,13 +391,13 @@ secmod_ParseModuleSpecForTokens(PRBool convert, PRBool isFIPS,
     while (*moduleSpec) {
 	int next;
 	modulePrev = moduleSpec;
-	NSSUTIL_HANDLE_STRING_ARG(moduleSpec, target, "tokens=",
+	SECMOD_HANDLE_STRING_ARG(moduleSpec, target, "tokens=",
 			modulePrev = moduleSpec; /* skip copying */ )
-	NSSUTIL_HANDLE_STRING_ARG(moduleSpec, tmp, "cryptoTokenDescription=",
+	SECMOD_HANDLE_STRING_ARG(moduleSpec, tmp, "cryptoTokenDescription=",
 			if (convert) { modulePrev = moduleSpec; } );
-	NSSUTIL_HANDLE_STRING_ARG(moduleSpec, tmp, "cryptoSlotDescription=",
+	SECMOD_HANDLE_STRING_ARG(moduleSpec, tmp, "cryptoSlotDescription=",
 			if (convert) { modulePrev = moduleSpec; } );
-	NSSUTIL_HANDLE_STRING_ARG(moduleSpec, tmp, "dbTokenDescription=",
+	SECMOD_HANDLE_STRING_ARG(moduleSpec, tmp, "dbTokenDescription=",
 			if (convert) {
 			    modulePrev = moduleSpec; 
 			    if (!isFIPS) {
@@ -373,7 +406,7 @@ secmod_ParseModuleSpecForTokens(PRBool convert, PRBool isFIPS,
 				    sizeof(SECMOD_TOKEN_DESCRIPTION)-1, tmp);
 			    }
 			});
-	NSSUTIL_HANDLE_STRING_ARG(moduleSpec, tmp, "dbSlotDescription=",
+	SECMOD_HANDLE_STRING_ARG(moduleSpec, tmp, "dbSlotDescription=",
 			if (convert) {
 			    modulePrev = moduleSpec; /* skip copying */ 
 			    if (!isFIPS) {
@@ -382,7 +415,7 @@ secmod_ParseModuleSpecForTokens(PRBool convert, PRBool isFIPS,
 				    sizeof(SECMOD_SLOT_DESCRIPTION)-1, tmp);
 			    }
 			} );
-	NSSUTIL_HANDLE_STRING_ARG(moduleSpec, tmp, "FIPSTokenDescription=",
+	SECMOD_HANDLE_STRING_ARG(moduleSpec, tmp, "FIPSTokenDescription=",
 			if (convert) {
 			    modulePrev = moduleSpec; /* skip copying */ 
 			    if (isFIPS) {
@@ -391,7 +424,7 @@ secmod_ParseModuleSpecForTokens(PRBool convert, PRBool isFIPS,
 				    sizeof(SECMOD_TOKEN_DESCRIPTION)-1, tmp);
 			    }
 			} );
-	NSSUTIL_HANDLE_STRING_ARG(moduleSpec, tmp, "FIPSSlotDescription=",
+	SECMOD_HANDLE_STRING_ARG(moduleSpec, tmp, "FIPSSlotDescription=",
 			if (convert) {
 			    modulePrev = moduleSpec; /* skip copying */ 
 			    if (isFIPS) {
@@ -400,7 +433,7 @@ secmod_ParseModuleSpecForTokens(PRBool convert, PRBool isFIPS,
 				    sizeof(SECMOD_SLOT_DESCRIPTION)-1, tmp);
 			    }
 			} );
-	NSSUTIL_HANDLE_FINAL_ARG(moduleSpec)
+	SECMOD_HANDLE_FINAL_ARG(moduleSpec)
 	SECMOD_SPEC_COPY(newSpecPtr, modulePrev, moduleSpec);
     }
     if (tmp) {
@@ -416,8 +449,8 @@ secmod_ParseModuleSpecForTokens(PRBool convert, PRBool isFIPS,
 
     /* now build the child array from target */
     /*first count them */
-    for (tokenIndex = NSSUTIL_ArgStrip(target); *tokenIndex;
-	tokenIndex = NSSUTIL_ArgStrip(NSSUTIL_ArgSkipParameter(tokenIndex))) {
+    for (tokenIndex = secmod_argStrip(target); *tokenIndex;
+	tokenIndex = secmod_argStrip(secmod_argSkipParameter(tokenIndex))) {
 	tokenCount++;
     }
 
@@ -437,22 +470,22 @@ secmod_ParseModuleSpecForTokens(PRBool convert, PRBool isFIPS,
     }
 
     /* now fill them in */
-    for (tokenIndex = NSSUTIL_ArgStrip(target), i=0 ; 
+    for (tokenIndex = secmod_argStrip(target), i=0 ; 
 			*tokenIndex && (i < tokenCount); 
-			tokenIndex=NSSUTIL_ArgStrip(tokenIndex)) {
+			tokenIndex=secmod_argStrip(tokenIndex)) {
 	int next;
-	char *name = NSSUTIL_ArgGetLabel(tokenIndex, &next);
+	char *name = secmod_argGetName(tokenIndex, &next);
 	tokenIndex += next;
 
  	if (idArray) {
-	   idArray[i] = NSSUTIL_ArgDecodeNumber(name);
+	   idArray[i] = secmod_argDecodeNumber(name);
 	}
 
 	PORT_Free(name); /* drop the explicit number */
 
 	/* if anything is left, copy the args to the child array */
-	if (!NSSUTIL_ArgIsBlank(*tokenIndex)) {
-	    childArray[i++] = NSSUTIL_ArgFetchValue(tokenIndex, &next);
+	if (!secmod_argIsBlank(*tokenIndex)) {
+	    childArray[i++] = secmod_argFetchValue(tokenIndex, &next);
 	    tokenIndex += next;
 	}
     }
@@ -480,15 +513,15 @@ secmod_getConfigDir(char *spec, char **certPrefix, char **keyPrefix,
 
     *certPrefix = NULL;
     *keyPrefix = NULL;
-    *readOnly = NSSUTIL_ArgHasFlag("flags","readOnly",spec);
+    *readOnly = secmod_argHasFlag("flags","readOnly",spec);
 
-    spec = NSSUTIL_ArgStrip(spec);
+    spec = secmod_argStrip(spec);
     while (*spec) {
 	int next;
-	NSSUTIL_HANDLE_STRING_ARG(spec, config, "configdir=", ;)
-	NSSUTIL_HANDLE_STRING_ARG(spec, *certPrefix, "certPrefix=", ;)
-	NSSUTIL_HANDLE_STRING_ARG(spec, *keyPrefix, "keyPrefix=", ;)
-	NSSUTIL_HANDLE_FINAL_ARG(spec)
+	SECMOD_HANDLE_STRING_ARG(spec, config, "configdir=", ;)
+	SECMOD_HANDLE_STRING_ARG(spec, *certPrefix, "certPrefix=", ;)
+	SECMOD_HANDLE_STRING_ARG(spec, *keyPrefix, "keyPrefix=", ;)
+	SECMOD_HANDLE_FINAL_ARG(spec)
     }
     return config;
 }
@@ -669,6 +702,86 @@ secmod_FreeChildren(char **children, CK_SLOT_ID *ids)
     return;
 }
 
+
+static int
+secmod_escapeSize(const char *string, char quote)
+{
+    int escapes = 0, size = 0;
+    const char *src;
+    for (src=string; *src ; src++) {
+        if ((*src == quote) || (*src == '\\')) escapes++;
+        size++;
+    }
+
+    return escapes+size+1;
+}
+
+
+/*
+ * add escapes to protect quote characters...
+ */
+static char *
+secmod_addEscape(const char *string, char quote)
+{
+    char *newString = 0;
+    int size = 0;
+    const char *src;
+    char *dest;
+
+
+    size = secmod_escapeSize(string,quote);
+    newString = PORT_ZAlloc(size);
+    if (newString == NULL) {
+        return NULL;
+    }
+
+    for (src=string, dest=newString; *src; src++,dest++) {
+        if ((*src == '\\') || (*src == quote)) {
+            *dest++ = '\\';
+        }
+        *dest = *src;
+    }
+
+    return newString;
+}
+
+static int
+secmod_doubleEscapeSize(const char *string, char quote1, char quote2)
+{
+    int escapes = 0, size = 0;
+    const char *src;
+    for (src=string; *src ; src++) {
+        if (*src == '\\')   escapes+=3; /* \\\\ */
+        if (*src == quote1) escapes+=2; /* \\quote1 */
+        if (*src == quote2) escapes++;   /* \quote2 */
+        size++;
+    }
+
+    return escapes+size+1;
+}
+
+char *
+secmod_DoubleEscape(const char *string, char quote1, char quote2)
+{
+    char *round1 = NULL;
+    char *retValue = NULL;
+    if (string == NULL) {
+        goto done;
+    }
+    round1 = secmod_addEscape(string,quote1);
+    if (round1) {
+        retValue = secmod_addEscape(round1,quote2);
+        PORT_Free(round1);
+    }
+
+done:
+    if (retValue == NULL) {
+        retValue = PORT_Strdup("");
+    }
+    return retValue;
+}
+
+
 /*
  * caclulate the length of each child record:
  * " 0x{id}=<{escaped_child}>"
@@ -676,7 +789,7 @@ secmod_FreeChildren(char **children, CK_SLOT_ID *ids)
 static int
 secmod_getChildLength(char *child, CK_SLOT_ID id)
 {
-    int length = NSSUTIL_DoubleEscapeSize(child, '>', ']');
+    int length = secmod_doubleEscapeSize(child, '>', ']');
     if (id == 0) {
 	length++;
     }
@@ -704,7 +817,7 @@ secmod_mkTokenChild(char **next, int *length, char *child, CK_SLOT_ID id)
     }
     *next += len;
     *length -= len;
-    escSpec = NSSUTIL_DoubleEscape(child, '>', ']');
+    escSpec = secmod_DoubleEscape(child, '>', ']');
     if (escSpec == NULL) {
 	return SECFailure;
     }
@@ -730,7 +843,7 @@ secmod_mkTokenChild(char **next, int *length, char *child, CK_SLOT_ID id)
 #define TOKEN_STRING " tokens=["
 
 char *
-secmod_MkAppendTokensList(PLArenaPool *arena, char *oldParam, char *newToken,
+secmod_MkAppendTokensList(PRArenaPool *arena, char *oldParam, char *newToken, 
 			CK_SLOT_ID newID, char **children, CK_SLOT_ID *ids)
 {
     char *rawParam = NULL;	/* oldParam with tokens stripped off */
@@ -870,7 +983,7 @@ secmod_mkModuleSpec(SECMODModule * module)
 	    if (module->slots[i]->defaultFlags) {
 		PORT_Assert(si < slotCount);
 		if (si >= slotCount) break;
-		slotStrings[si] = NSSUTIL_MkSlotString(module->slots[i]->slotID,
+		slotStrings[si] = secmod_mkSlotString(module->slots[i]->slotID,
 			module->slots[i]->defaultFlags,
 			module->slots[i]->timeout,
 			module->slots[i]->askpw,
@@ -881,8 +994,7 @@ secmod_mkModuleSpec(SECMODModule * module)
 	}
      } else {
 	for (i=0; i < slotCount; i++) {
-		slotStrings[i] = NSSUTIL_MkSlotString(
-			module->slotInfo[i].slotID,
+		slotStrings[i] = secmod_mkSlotString(module->slotInfo[i].slotID,
 			module->slotInfo[i].defaultFlags,
 			module->slotInfo[i].timeout,
 			module->slotInfo[i].askpw,
@@ -892,12 +1004,11 @@ secmod_mkModuleSpec(SECMODModule * module)
     }
 
     SECMOD_ReleaseReadLock(moduleLock);
-    nss = NSSUTIL_MkNSSString(slotStrings,slotCount,module->internal, 
-		       module->isFIPS, module->isModuleDB,
-		       module->moduleDBOnly, module->isCritical,
-		       module->trustOrder, module->cipherOrder,
-		       module->ssl[0],module->ssl[1]);
-    modSpec= NSSUTIL_MkModuleSpec(module->dllName,module->commonName,
+    nss = secmod_mkNSS(slotStrings,slotCount,module->internal, module->isFIPS,
+		       module->isModuleDB, module->moduleDBOnly, 
+		       module->isCritical, module->trustOrder,
+		       module->cipherOrder,module->ssl[0],module->ssl[1]);
+    modSpec= secmod_mkNewModuleSpec(module->dllName,module->commonName,
 						module->libraryParams,nss);
     PORT_Free(slotStrings);
     PR_smprintf_free(nss);
@@ -985,7 +1096,7 @@ SECMOD_LoadModule(char *modulespec,SECMODModule *parent, PRBool recurse)
     /* initialize the underlying module structures */
     SECMOD_Init();
 
-    status = NSSUTIL_ArgParseModuleSpec(modulespec, &library, &moduleName, 
+    status = secmod_argParseModuleSpec(modulespec, &library, &moduleName, 
 							&parameters, &nss);
     if (status != SECSuccess) {
 	goto loser;

@@ -1,6 +1,40 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2007
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Johnathan Nightingale <johnath@mozilla.com>
+ *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 
 var gDialog;
@@ -11,10 +45,6 @@ var gCert;
 var gChecking;
 var gBroken;
 var gNeedReset;
-var gSecHistogram;
-var gNsISecTel;
-
-Components.utils.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
 
 function badCertListener() {}
 badCertListener.prototype = {
@@ -44,15 +74,13 @@ badCertListener.prototype = {
 function initExceptionDialog() {
   gNeedReset = false;
   gDialog = document.documentElement;
-  gBundleBrand = document.getElementById("brand_bundle");
-  gPKIBundle = document.getElementById("pippki_bundle");
-  gSecHistogram = Components.classes["@mozilla.org/base/telemetry;1"].
-                    getService(Components.interfaces.nsITelemetry).
-                    getHistogramById("SECURITY_UI");
-  gNsISecTel = Components.interfaces.nsISecurityUITelemetry;
+  gBundleBrand = srGetStrBundle("chrome://branding/locale/brand.properties");
+  gPKIBundle = srGetStrBundle("chrome://pippki/locale/pippki.properties");
 
-  var brandName = gBundleBrand.getString("brandShortName");
-  setText("warningText", gPKIBundle.getFormattedString("addExceptionBrandedWarning2", [brandName]));
+  var brandName = gBundleBrand.GetStringFromName("brandShortName");
+  
+  setText("warningText", gPKIBundle.formatStringFromName("addExceptionBrandedWarning2",
+                                                         [brandName], 1));
   gDialog.getButton("extra1").disabled = true;
   
   var args = window.arguments;
@@ -86,11 +114,8 @@ function initExceptionDialog() {
 // returns true if found and global status could be set
 function findRecentBadCert(uri) {
   try {
-    var certDB = Components.classes["@mozilla.org/security/x509certdb;1"]
-                           .getService(Components.interfaces.nsIX509CertDB);
-    if (!certDB)
-      return false;
-    var recentCertsSvc = certDB.getRecentBadCerts(inPrivateBrowsingMode());
+    var recentCertsSvc = Components.classes["@mozilla.org/security/recentbadcerts;1"]
+                         .getService(Components.interfaces.nsIRecentBadCertsService);
     if (!recentCertsSvc)
       return false;
 
@@ -212,24 +237,21 @@ function updateCertStatus() {
   var shortDesc3, longDesc3;
   var use2 = false;
   var use3 = false;
-  let bucketId = gNsISecTel.WARNING_BAD_CERT_TOP_ADD_EXCEPTION_BASE;
   if(gCert) {
     if(gBroken) { 
       var mms = "addExceptionDomainMismatchShort";
       var mml = "addExceptionDomainMismatchLong";
       var exs = "addExceptionExpiredShort";
       var exl = "addExceptionExpiredLong";
-      var uts = "addExceptionUnverifiedOrBadSignatureShort";
-      var utl = "addExceptionUnverifiedOrBadSignatureLong";
+      var uts = "addExceptionUnverifiedShort";
+      var utl = "addExceptionUnverifiedLong";
       var use1 = false;
       if (gSSLStatus.isDomainMismatch) {
-        bucketId += gNsISecTel.WARNING_BAD_CERT_TOP_ADD_EXCEPTION_FLAG_DOMAIN;
         use1 = true;
         shortDesc = mms;
         longDesc  = mml;
       }
       if (gSSLStatus.isNotValidAtThisTime) {
-        bucketId += gNsISecTel.WARNING_BAD_CERT_TOP_ADD_EXCEPTION_FLAG_TIME;
         if (!use1) {
           use1 = true;
           shortDesc = exs;
@@ -242,7 +264,6 @@ function updateCertStatus() {
         }
       }
       if (gSSLStatus.isUntrusted) {
-        bucketId += gNsISecTel.WARNING_BAD_CERT_TOP_ADD_EXCEPTION_FLAG_UNTRUSTED;
         if (!use1) {
           use1 = true;
           shortDesc = uts;
@@ -259,8 +280,7 @@ function updateCertStatus() {
           longDesc3  = utl;
         }
       }
-      gSecHistogram.add(bucketId);
-
+      
       // In these cases, we do want to enable the "Add Exception" button
       gDialog.getButton("extra1").disabled = false;
 
@@ -272,7 +292,7 @@ function updateCertStatus() {
       pe.disabled = inPrivateBrowsing;
       pe.checked = !inPrivateBrowsing;
 
-      setText("headerDescription", gPKIBundle.getString("addExceptionInvalidHeader"));
+      setText("headerDescription", gPKIBundle.GetStringFromName("addExceptionInvalidHeader"));
     }
     else {
       shortDesc = "addExceptionValidShort";
@@ -311,17 +331,17 @@ function updateCertStatus() {
     document.getElementById("permanent").disabled = true;
   }
   
-  setText("statusDescription", gPKIBundle.getString(shortDesc));
-  setText("statusLongDescription", gPKIBundle.getString(longDesc));
+  setText("statusDescription", gPKIBundle.GetStringFromName(shortDesc));
+  setText("statusLongDescription", gPKIBundle.GetStringFromName(longDesc));
 
   if (use2) {
-    setText("status2Description", gPKIBundle.getString(shortDesc2));
-    setText("status2LongDescription", gPKIBundle.getString(longDesc2));
+    setText("status2Description", gPKIBundle.GetStringFromName(shortDesc2));
+    setText("status2LongDescription", gPKIBundle.GetStringFromName(longDesc2));
   }
 
   if (use3) {
-    setText("status3Description", gPKIBundle.getString(shortDesc3));
-    setText("status3LongDescription", gPKIBundle.getString(longDesc3));
+    setText("status3Description", gPKIBundle.GetStringFromName(shortDesc3));
+    setText("status3LongDescription", gPKIBundle.GetStringFromName(longDesc3));
   }
 
   gNeedReset = true;
@@ -331,7 +351,6 @@ function updateCertStatus() {
  * Handle user request to display certificate details
  */
 function viewCertButtonClick() {
-  gSecHistogram.add(gNsISecTel.WARNING_BAD_CERT_TOP_CLICK_VIEW_CERT);
   if (gCert)
     viewCertHelper(this, gCert);
     
@@ -347,26 +366,16 @@ function addException() {
   var overrideService = Components.classes["@mozilla.org/security/certoverride;1"]
                                   .getService(Components.interfaces.nsICertOverrideService);
   var flags = 0;
-  let confirmBucketId = gNsISecTel.WARNING_BAD_CERT_TOP_CONFIRM_ADD_EXCEPTION_BASE;
-  if (gSSLStatus.isUntrusted) {
+  if(gSSLStatus.isUntrusted)
     flags |= overrideService.ERROR_UNTRUSTED;
-    confirmBucketId += gNsISecTel.WARNING_BAD_CERT_TOP_CONFIRM_ADD_EXCEPTION_FLAG_UNTRUSTED;
-  }
-  if (gSSLStatus.isDomainMismatch) {
+  if(gSSLStatus.isDomainMismatch)
     flags |= overrideService.ERROR_MISMATCH;
-    confirmBucketId += gNsISecTel.WARNING_BAD_CERT_TOP_CONFIRM_ADD_EXCEPTION_FLAG_DOMAIN;
-  }
-  if (gSSLStatus.isNotValidAtThisTime) {
+  if(gSSLStatus.isNotValidAtThisTime)
     flags |= overrideService.ERROR_TIME;
-    confirmBucketId += gNsISecTel.WARNING_BAD_CERT_TOP_CONFIRM_ADD_EXCEPTION_FLAG_TIME;
-  }
   
   var permanentCheckbox = document.getElementById("permanent");
   var shouldStorePermanently = permanentCheckbox.checked && !inPrivateBrowsingMode();
-  if(!permanentCheckbox.checked)
-   gSecHistogram.add(gNsISecTel.WARNING_BAD_CERT_TOP_DONT_REMEMBER_EXCEPTION);
 
-  gSecHistogram.add(confirmBucketId);
   var uri = getURI();
   overrideService.rememberValidityOverride(
     uri.asciiHost, uri.port,
@@ -382,8 +391,22 @@ function addException() {
 }
 
 /**
- * Returns true if this dialog is in private browsing mode.
+ * Returns true if the private browsing mode is currently active and
+ * we have been instructed to handle it.
  */
 function inPrivateBrowsingMode() {
-  return PrivateBrowsingUtils.isWindowPrivate(window);
+  // first, check to see if we should handle the private browsing mode
+  var args = window.arguments;
+  if (args && args[0] && args[0].handlePrivateBrowsing) {
+    // detect if the private browsing mode is active
+    try {
+      var pb = Components.classes["@mozilla.org/privatebrowsing;1"].
+               getService(Components.interfaces.nsIPrivateBrowsingService);
+      return pb.privateBrowsingEnabled;
+    } catch (ex) {
+      Components.utils.reportError("Could not get the Private Browsing service");
+    }
+  }
+
+  return false;
 }

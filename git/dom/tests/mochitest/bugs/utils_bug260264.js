@@ -52,12 +52,14 @@ function alter_file(uri, file) {
 
 (function() {
 
-  var prefService = SpecialPowers.Cc["@mozilla.org/preferences-service;1"]
-                              .getService(SpecialPowers.Ci.nsIPrefService),
-      pm = SpecialPowers.Cc["@mozilla.org/permissionmanager;1"]
-                     .getService(SpecialPowers.Ci.nsIPermissionManager),
-      ioService = SpecialPowers.Cc["@mozilla.org/network/io-service;1"]
-                            .getService(SpecialPowers.Ci.nsIIOService);
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
+  var prefService = Components.classes["@mozilla.org/preferences-service;1"]
+                              .getService(Components.interfaces.nsIPrefService),
+      pm = Components.classes["@mozilla.org/permissionmanager;1"]
+                     .getService(Components.interfaces.nsIPermissionManager),
+      ioService = Components.classes["@mozilla.org/network/io-service;1"]
+                            .getService(Components.interfaces.nsIIOService);
 
   ALLOW_ACTION = pm.ALLOW_ACTION;
   DENY_ACTION = pm.DENY_ACTION;
@@ -98,15 +100,11 @@ function alter_file(uri, file) {
 
   makePopupPrivAccessor = function(uri) {
     uri = ioService.newURI(uri, null, null);
-    var principal = SpecialPowers.Cc["@mozilla.org/scriptsecuritymanager;1"]
-                      .getService(SpecialPowers.Ci.nsIScriptSecurityManager)
-                      .getNoAppCodebasePrincipal(uri);
-
     return function(permission) {
-      var old = pm.testPermissionFromPrincipal(principal, "popup");
+      var old = pm.testPermission(uri, "popup");
       if (arguments.length) {
-        pm.removeFromPrincipal(principal, "popup");
-        pm.addFromPrincipal(principal, "popup", permission);
+        pm.remove(uri.host, "popup");
+        pm.add(uri, "popup", permission);
       }
       return old;
     };

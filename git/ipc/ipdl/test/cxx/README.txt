@@ -16,17 +16,8 @@ Next
 
   - append TestFoo to the variable IPDLTESTS in Makefile.in
 
-You must define three methods in your |TestFooParent| class:
-
-  - static methods |bool RunTestInProcesses()| and
-    |bool RunTestInThreads()|.  These methods control whether
-    to execute the test using actors in separate processes and
-    threads respectively.  Generally, both should return true.
-
-  - an instance method |void Main()|.  The test harness wil first
-    initialize the processes or threads, create and open both actors,
-    and then kick off the test using |Main()|.  Make sure you define
-    it.
+The IPDL test harness will try to execute |testFooParentActor->Main()|
+to kick off your test.  Make sure you define |TestFooParent::Main()|.
 
 If your test passes its criteria, please call
 |MOZ_IPDL_TESTPASS("msg")| and "exit gracefully".
@@ -43,17 +34,14 @@ will update the file IPDLUnitTests.cpp (the test launcher), and your
 new code will be built automatically.
 
 
-You can launch your new test by invoking one of
+You can launch your new test by invoking
 
-  make -C $OBJDIR/ipc/ipdl/test/cxx check-proc     (test process-based tests)
-  make -C $OBJDIR/ipc/ipdl/test/cxx check-threads  (test thread-based tests)
-  make -C $OBJDIR/ipc/ipdl/test/cxx check          (tests both)
+  make -C $OBJDIR/ipc/ipdl/test/cxx check
 
 If you want to launch only your test, run
 
   cd $OBJDIR/dist/bin
-  ./run-mozilla.sh ./ipdlunittest TestFoo          (test in two processes, if appl.)
-  ./run-mozilla.sh ./ipdlunittest thread:TestFoo   (test in two threads, if appl.)
+  ./run-mozilla.sh ./ipdlunittest TestFoo
 
 
 For a bare-bones example of adding a test, take a look at

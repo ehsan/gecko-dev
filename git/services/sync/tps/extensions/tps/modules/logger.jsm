@@ -1,10 +1,42 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Crossweave.
+ *
+ * The Initial Developer of the Original Code is Mozilla.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Jonathan Griffin <jgriffin@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
- /* This is a JavaScript module (JSM) to be imported via
+ /* This is a JavaScript module (JSM) to be imported via 
     Components.utils.import() and acts as a singleton.
-    Only the following listed symbols will exposed on import, and only when
+    Only the following listed symbols will exposed on import, and only when 
     and where imported. */
 
 var EXPORTED_SYMBOLS = ["Logger"];
@@ -69,24 +101,19 @@ var Logger =
   },
 
   AssertTrue: function(bool, msg, showPotentialError) {
-    if (bool) {
-      return;
+    if (!bool) {
+      let message = msg;
+      if (showPotentialError && this._potentialError) {
+        message += "; " + this._potentialError;
+        this._potentialError = null;
+      }
+      throw("ASSERTION FAILED! " + message);
     }
-
-    if (showPotentialError && this._potentialError) {
-      msg += "; " + this._potentialError;
-      this._potentialError = null;
-    }
-    throw("ASSERTION FAILED! " + msg);
-  },
-
-  AssertFalse: function(bool, msg, showPotentialError) {
-    return this.AssertTrue(!bool, msg, showPotentialError);
   },
 
   AssertEqual: function(val1, val2, msg) {
     if (val1 != val2)
-      throw("ASSERTION FAILED! " + msg + "; expected " +
+      throw("ASSERTION FAILED! " + msg + "; expected " + 
             JSON.stringify(val2) + ", got " + JSON.stringify(val1));
   },
 
@@ -96,23 +123,14 @@ var Logger =
       this.write(msg + "\n");
     }
     else {
-      function pad(n, len) {
-        let s = "0000" + n;
-        return s.slice(-len);
-      }
-
-      let now = new Date();
-      let year    = pad(now.getFullYear(),     4);
-      let month   = pad(now.getMonth() + 1,    2);
-      let day     = pad(now.getDate(),         2);
-      let hour    = pad(now.getHours(),        2);
-      let minutes = pad(now.getMinutes(),      2);
-      let seconds = pad(now.getSeconds(),      2);
-      let ms      = pad(now.getMilliseconds(), 3);
-
-      this.write(year + "-" + month + "-" + day + " " +
-                 hour + ":" + minutes + ":" + seconds + "." + ms + " " +
-                 msg + "\n");
+      var now = new Date()
+      this.write(now.getFullYear() + "-" + (now.getMonth() < 9 ? '0' : '') + 
+          (now.getMonth() + 1) + "-" + 
+          (now.getDay() < 9 ? '0' : '') + (now.getDay() + 1) + " " +
+          (now.getHours() < 10 ? '0' : '') + now.getHours() + ":" +
+          (now.getMinutes() < 10 ? '0' : '') + now.getMinutes() + ":" +
+          (now.getSeconds() < 10 ? '0' : '') + now.getSeconds() + " " + 
+          msg + "\n");
     }
   },
 

@@ -2,9 +2,9 @@
 // the most rare of all coding incantations.
 
 var i = 0;
-while (i < 12) {
+while (i < HOTLOOP+4) {
     ++i;
     continue;
 }
-assertEq(i, 12);
+assertEq(i, HOTLOOP+4);
 

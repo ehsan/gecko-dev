@@ -1,18 +1,48 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  * vim: sw=4 ts=4 et :
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Plugin App.
+ *
+ * The Initial Developer of the Original Code is
+ *   Chris Jones <jones.chris.g@gmail.com>
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef DOM_PLUGINS_PLUGINMESSAGEUTILS_H
 #define DOM_PLUGINS_PLUGINMESSAGEUTILS_H
 
-#include "ipc/IPCMessageUtils.h"
+#include "IPC/IPCMessageUtils.h"
 #include "base/message_loop.h"
 
 #include "mozilla/ipc/RPCChannel.h"
-#include "mozilla/ipc/CrossProcessMutex.h"
-#include "gfxipc/ShadowLayerUtils.h"
 
 #include "npapi.h"
 #include "npruntime.h"
@@ -36,8 +66,6 @@ using mac_plugin_interposing::NSCursorInfo;
 namespace mozilla {
 namespace plugins {
 
-using layers::SurfaceDescriptorX11;
-
 enum ScriptableObjectType
 {
   LocalObject,
@@ -53,29 +81,19 @@ MungePluginDsoPath(const std::string& path);
 std::string
 UnmungePluginDsoPath(const std::string& munged);
 
-extern PRLogModuleInfo* GetPluginLog();
-
-const uint32_t kAllowAsyncDrawing = 0x1;
-
-inline bool IsDrawingModelAsync(int16_t aModel) {
-  return aModel == NPDrawingModelAsyncBitmapSurface
-#ifdef XP_WIN
-         || aModel == NPDrawingModelAsyncWindowsDXGISurface
-#endif
-         ;
-}
+extern PRLogModuleInfo* gPluginLog;
 
 #if defined(_MSC_VER)
 #define FULLFUNCTION __FUNCSIG__
-#elif defined(__GNUC__)
+#elif (__GNUC__ >= 4)
 #define FULLFUNCTION __PRETTY_FUNCTION__
 #else
 #define FULLFUNCTION __FUNCTION__
 #endif
 
-#define PLUGIN_LOG_DEBUG(args) PR_LOG(GetPluginLog(), PR_LOG_DEBUG, args)
-#define PLUGIN_LOG_DEBUG_FUNCTION PR_LOG(GetPluginLog(), PR_LOG_DEBUG, ("%s", FULLFUNCTION))
-#define PLUGIN_LOG_DEBUG_METHOD PR_LOG(GetPluginLog(), PR_LOG_DEBUG, ("%s [%p]", FULLFUNCTION, (void*) this))
+#define PLUGIN_LOG_DEBUG(args) PR_LOG(gPluginLog, PR_LOG_DEBUG, args)
+#define PLUGIN_LOG_DEBUG_FUNCTION PR_LOG(gPluginLog, PR_LOG_DEBUG, ("%s", FULLFUNCTION))
+#define PLUGIN_LOG_DEBUG_METHOD PR_LOG(gPluginLog, PR_LOG_DEBUG, ("%s [%p]", FULLFUNCTION, (void*) this))
 
 /**
  * This is NPByteRange without the linked list.
@@ -92,7 +110,6 @@ typedef nsCString Buffer;
 
 struct NPRemoteWindow
 {
-  NPRemoteWindow();
   uint64_t window;
   int32_t x;
   int32_t y;
@@ -106,9 +123,6 @@ struct NPRemoteWindow
 #endif /* XP_UNIX */
 #if defined(XP_WIN)
   base::SharedMemoryHandle surfaceHandle;
-#endif
-#if defined(XP_MACOSX)
-  double contentsScaleFactor;
 #endif
 };
 
@@ -124,10 +138,15 @@ typedef intptr_t NativeWindowHandle; // never actually used, will always be 0
 
 #ifdef XP_WIN
 typedef base::SharedMemoryHandle WindowsSharedMemoryHandle;
-typedef HANDLE DXGISharedSurfaceHandle;
 #else
 typedef mozilla::null_t WindowsSharedMemoryHandle;
-typedef mozilla::null_t DXGISharedSurfaceHandle;
+#endif
+
+#ifdef MOZ_CRASHREPORTER
+typedef CrashReporter::ThreadId NativeThreadId;
+#else
+// unused in this case
+typedef int32 NativeThreadId;
 #endif
 
 // XXX maybe not the best place for these. better one?
@@ -240,7 +259,7 @@ NullableString(const char* aString)
 {
     if (!aString) {
         nsCString str;
-        str.SetIsVoid(true);
+        str.SetIsVoid(PR_TRUE);
         return str;
     }
     return nsCString(aString);
@@ -319,12 +338,12 @@ struct ParamTraits<NPWindowType>
 
   static void Write(Message* aMsg, const paramType& aParam)
   {
-    aMsg->WriteInt16(int16_t(aParam));
+    aMsg->WriteInt16(int16(aParam));
   }
 
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
   {
-    int16_t result;
+    int16 result;
     if (aMsg->ReadInt16(aIter, &result)) {
       *aResult = paramType(result);
       return true;
@@ -334,33 +353,7 @@ struct ParamTraits<NPWindowType>
 
   static void Log(const paramType& aParam, std::wstring* aLog)
   {
-    aLog->append(StringPrintf(L"%d", int16_t(aParam)));
-  }
-};
-
-template <>
-struct ParamTraits<NPImageFormat>
-{
-  typedef NPImageFormat paramType;
-
-  static void Write(Message* aMsg, const paramType& aParam)
-  {
-    aMsg->WriteInt16(int16_t(aParam));
-  }
-
-  static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
-  {
-    int16_t result;
-    if (aMsg->ReadInt16(aIter, &result)) {
-      *aResult = paramType(result);
-      return true;
-    }
-    return false;
-  }
-
-  static void Log(const paramType& aParam, std::wstring* aLog)
-  {
-    aLog->append(StringPrintf(L"%d", int16_t(aParam)));
+    aLog->append(StringPrintf(L"%d", int16(aParam)));
   }
 };
 
@@ -385,14 +378,11 @@ struct ParamTraits<mozilla::plugins::NPRemoteWindow>
 #if defined(XP_WIN)
     WriteParam(aMsg, aParam.surfaceHandle);
 #endif
-#if defined(XP_MACOSX)
-    aMsg->WriteDouble(aParam.contentsScaleFactor);
-#endif
   }
 
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
   {
-    uint64_t window;
+    uint64 window;
     int32_t x, y;
     uint32_t width, height;
     NPRect clipRect;
@@ -420,12 +410,6 @@ struct ParamTraits<mozilla::plugins::NPRemoteWindow>
       return false;
 #endif
 
-#if defined(XP_MACOSX)
-    double contentsScaleFactor;
-    if (!aMsg->ReadDouble(aIter, &contentsScaleFactor))
-      return false;
-#endif
-
     aResult->window = window;
     aResult->x = x;
     aResult->y = y;
@@ -439,9 +423,6 @@ struct ParamTraits<mozilla::plugins::NPRemoteWindow>
 #endif
 #if defined(XP_WIN)
     aResult->surfaceHandle = surfaceHandle;
-#endif
-#if defined(XP_MACOSX)
-    aResult->contentsScaleFactor = contentsScaleFactor;
 #endif
     return true;
   }
@@ -476,7 +457,7 @@ struct ParamTraits<NPString>
         return true;
       }
 
-      const char* messageBuffer = nullptr;
+      const char* messageBuffer = nsnull;
       nsAutoArrayPtr<char> newBuffer(new char[byteCount]);
       if (newBuffer && aMsg->ReadBytes(aIter, &messageBuffer, byteCount )) {
         memcpy((void*)messageBuffer, newBuffer.get(), byteCount);
@@ -544,7 +525,7 @@ struct ParamTraits<NPNSString*>
       return false;
     }
 
-    UniChar* buffer = nullptr;
+    UniChar* buffer = nsnull;
     if (length != 0) {
       if (!aMsg->ReadBytes(aIter, (const char**)&buffer, length * sizeof(UniChar)) ||
           !buffer) {
@@ -727,7 +708,7 @@ struct ParamTraits<NPVariant>
       } break;
 
       case 3: {
-        int32_t value;
+        int32 value;
         if (ReadParam(aMsg, aIter, &value)) {
           INT32_TO_NPVARIANT(value, *aResult);
           return true;
@@ -871,12 +852,12 @@ struct ParamTraits<NPCoordinateSpace>
 
   static void Write(Message* aMsg, const paramType& aParam)
   {
-    WriteParam(aMsg, int32_t(aParam));
+    WriteParam(aMsg, int32(aParam));
   }
 
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
   {
-    int32_t intval;
+    int32 intval;
     if (ReadParam(aMsg, aIter, &intval)) {
       switch (intval) {
       case NPCoordinateSpacePlugin:

@@ -1,7 +1,42 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla MathML Project.
+ *
+ * The Initial Developer of the Original Code is
+ * The University Of Queensland.
+ * Portions created by the Initial Developer are Copyright (C) 1999
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Roger B. Sidje <rbs@maths.uq.edu.au>
+ *   David J. Fiddes <D.J.Fiddes@hw.ac.uk>
+ *   Shyjan Mahamud <mahamud@cs.cmu.edu> (added TeX rendering rules)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsCOMPtr.h"
 #include "nsFrame.h"
@@ -10,7 +45,6 @@
 #include "nsStyleConsts.h"
 
 #include "nsMathMLmsupFrame.h"
-#include <algorithm>
 
 //
 // <msup> -- attach a superscript to a base - implementation
@@ -49,29 +83,22 @@ nsMathMLmsupFrame::TransmitAutomaticData()
 
 /* virtual */ nsresult
 nsMathMLmsupFrame::Place(nsRenderingContext& aRenderingContext,
-                         bool                 aPlaceOrigin,
+                         PRBool               aPlaceOrigin,
                          nsHTMLReflowMetrics& aDesiredSize)
 {
   // extra spacing after sup/subscript
   nscoord scriptSpace = nsPresContext::CSSPointsToAppUnits(0.5f); // 0.5pt as in plain TeX
 
-  // superscriptshift
-  //
-  // "Specifies the minimum amount to shift the baseline of superscript up; the
-  // default is for the rendering agent to use its own positioning rules."
-  //
-  // values: length
-  // default: automatic
-  //
-  // We use 0 as the default value so unitless values can be ignored.
-  // As a minimum, negative values can be ignored.
-  //
+  // check if the superscriptshift attribute is there
   nsAutoString value;
   nscoord supScriptShift = 0;
   GetAttribute(mContent, mPresentationData.mstyle,
                nsGkAtoms::superscriptshift_, value);
   if (!value.IsEmpty()) {
-    ParseNumericValue(value, &supScriptShift, 0, PresContext(), mStyleContext);
+    nsCSSValue cssValue;
+    if (ParseNumericValue(value, cssValue) && cssValue.IsLengthUnit()) {
+      supScriptShift = CalcLength(PresContext(), mStyleContext, cssValue);
+    }
   }
 
   return nsMathMLmsupFrame::PlaceSuperScript(PresContext(), 
@@ -88,7 +115,7 @@ nsMathMLmsupFrame::Place(nsRenderingContext& aRenderingContext,
 nsresult
 nsMathMLmsupFrame::PlaceSuperScript(nsPresContext*      aPresContext,
                                     nsRenderingContext& aRenderingContext,
-                                    bool                 aPlaceOrigin,
+                                    PRBool               aPlaceOrigin,
                                     nsHTMLReflowMetrics& aDesiredSize,
                                     nsMathMLContainerFrame* aFrame,
                                     nscoord              aUserSupScriptShift,
@@ -96,7 +123,7 @@ nsMathMLmsupFrame::PlaceSuperScript(nsPresContext*      aPresContext,
 {
   // force the scriptSpace to be at least 1 pixel 
   nscoord onePixel = nsPresContext::CSSPixelsToAppUnits(1);
-  aScriptSpace = std::max(onePixel, aScriptSpace);
+  aScriptSpace = NS_MAX(onePixel, aScriptSpace);
 
   ////////////////////////////////////
   // Get the children's desired sizes
@@ -104,15 +131,12 @@ nsMathMLmsupFrame::PlaceSuperScript(nsPresContext*      aPresContext,
   nsHTMLReflowMetrics baseSize;
   nsHTMLReflowMetrics supScriptSize;
   nsBoundingMetrics bmBase, bmSupScript;
-  nsIFrame* supScriptFrame = nullptr;
+  nsIFrame* supScriptFrame = nsnull;
   nsIFrame* baseFrame = aFrame->GetFirstPrincipalChild();
   if (baseFrame)
     supScriptFrame = baseFrame->GetNextSibling();
   if (!baseFrame || !supScriptFrame || supScriptFrame->GetNextSibling()) {
     // report an error, encourage people to get their markups in order
-    if (aPlaceOrigin) {
-      aFrame->ReportChildCountError();
-    }
     return aFrame->ReflowError(aRenderingContext, aDesiredSize);
   }
   GetReflowAndBoundingMetricsFor(baseFrame, baseSize, bmBase);
@@ -154,7 +178,7 @@ nsMathMLmsupFrame::PlaceSuperScript(nsPresContext*      aPresContext,
     float scaler2 = ((float) supScriptShift2) / supScriptShift1;
     float scaler3 = ((float) supScriptShift3) / supScriptShift1;
     supScriptShift1 = 
-      std::max(supScriptShift1, aUserSupScriptShift);
+      NS_MAX(supScriptShift1, aUserSupScriptShift);
     supScriptShift2 = NSToCoordRound(scaler2 * supScriptShift1);
     supScriptShift3 = NSToCoordRound(scaler3 * supScriptShift1);
   }
@@ -164,7 +188,7 @@ nsMathMLmsupFrame::PlaceSuperScript(nsPresContext*      aPresContext,
   nscoord supScriptShift;
   nsPresentationData presentationData;
   aFrame->GetPresentationData (presentationData);
-  if ( aFrame->StyleFont()->mScriptLevel == 0 && 
+  if ( aFrame->GetStyleFont()->mScriptLevel == 0 && 
        NS_MATHML_IS_DISPLAYSTYLE(presentationData.flags) &&
       !NS_MATHML_IS_COMPRESSED(presentationData.flags)) {
     // Style D in TeXbook
@@ -182,14 +206,14 @@ nsMathMLmsupFrame::PlaceSuperScript(nsPresContext*      aPresContext,
   // get actual supscriptshift to be used
   // Rule 18c, App. G, TeXbook
   nscoord actualSupScriptShift = 
-    std::max(minSupScriptShift,std::max(supScriptShift,minShiftFromXHeight));
+    NS_MAX(minSupScriptShift,NS_MAX(supScriptShift,minShiftFromXHeight));
 
   // bounding box
   nsBoundingMetrics boundingMetrics;
   boundingMetrics.ascent =
-    std::max(bmBase.ascent, (bmSupScript.ascent + actualSupScriptShift));
+    NS_MAX(bmBase.ascent, (bmSupScript.ascent + actualSupScriptShift));
   boundingMetrics.descent =
-    std::max(bmBase.descent, (bmSupScript.descent - actualSupScriptShift));
+    NS_MAX(bmBase.descent, (bmSupScript.descent - actualSupScriptShift));
 
   // leave aScriptSpace after superscript
   // add italicCorrection between base and superscript
@@ -205,9 +229,9 @@ nsMathMLmsupFrame::PlaceSuperScript(nsPresContext*      aPresContext,
 
   // reflow metrics
   aDesiredSize.ascent =
-    std::max(baseSize.ascent, (supScriptSize.ascent + actualSupScriptShift));
+    NS_MAX(baseSize.ascent, (supScriptSize.ascent + actualSupScriptShift));
   aDesiredSize.height = aDesiredSize.ascent +
-    std::max(baseSize.height - baseSize.ascent,
+    NS_MAX(baseSize.height - baseSize.ascent,
            (supScriptSize.height - supScriptSize.ascent - actualSupScriptShift));
   aDesiredSize.width = boundingMetrics.width;
   aDesiredSize.mBoundingMetrics = boundingMetrics;
@@ -217,14 +241,12 @@ nsMathMLmsupFrame::PlaceSuperScript(nsPresContext*      aPresContext,
   if (aPlaceOrigin) {
     nscoord dx, dy;
     // now place the base ...
-    dx = aFrame->MirrorIfRTL(aDesiredSize.width, baseSize.width, 0);
-    dy = aDesiredSize.ascent - baseSize.ascent;
-    FinishReflowChild (baseFrame, aPresContext, nullptr, baseSize, dx, dy, 0);
+    dx = 0; dy = aDesiredSize.ascent - baseSize.ascent;
+    FinishReflowChild (baseFrame, aPresContext, nsnull, baseSize, dx, dy, 0);
     // ... and supscript
-    dx = aFrame->MirrorIfRTL(aDesiredSize.width, supScriptSize.width,
-                             bmBase.width + italicCorrection);
+    dx = bmBase.width + italicCorrection;
     dy = aDesiredSize.ascent - (supScriptSize.ascent + actualSupScriptShift);
-    FinishReflowChild (supScriptFrame, aPresContext, nullptr, supScriptSize, dx, dy, 0);
+    FinishReflowChild (supScriptFrame, aPresContext, nsnull, supScriptSize, dx, dy, 0);
   }
 
   return NS_OK;

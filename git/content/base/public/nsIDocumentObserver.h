@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 #ifndef nsIDocumentObserver_h___
 #define nsIDocumentObserver_h___
 
@@ -20,7 +52,7 @@ class nsIDocument;
 { 0x900bc4bc, 0x8b6c, 0x4cba, \
  { 0x82, 0xfa, 0x56, 0x8a, 0x80, 0xff, 0xfd, 0x3e } }
 
-typedef uint32_t nsUpdateType;
+typedef PRUint32 nsUpdateType;
 
 #define UPDATE_CONTENT_MODEL 0x00000001
 #define UPDATE_STYLE         0x00000002
@@ -99,7 +131,7 @@ public:
    */
   virtual void StyleSheetAdded(nsIDocument *aDocument,
                                nsIStyleSheet* aStyleSheet,
-                               bool aDocumentSheet) = 0;
+                               PRBool aDocumentSheet) = 0;
 
   /**
    * A StyleSheet has just been removed from the document.  This
@@ -114,7 +146,7 @@ public:
    */
   virtual void StyleSheetRemoved(nsIDocument *aDocument,
                                  nsIStyleSheet* aStyleSheet,
-                                 bool aDocumentSheet) = 0;
+                                 PRBool aDocumentSheet) = 0;
   
   /**
    * A StyleSheet has just changed its applicable state.
@@ -125,12 +157,12 @@ public:
    *
    * @param aDocument The document being observed
    * @param aStyleSheet the StyleSheet that has changed state
-   * @param aApplicable true if the sheet is applicable, false if
+   * @param aApplicable PR_TRUE if the sheet is applicable, PR_FALSE if
    *        it is not applicable
    */
   virtual void StyleSheetApplicableStateChanged(nsIDocument *aDocument,
                                                 nsIStyleSheet* aStyleSheet,
-                                                bool aApplicable) = 0;
+                                                PRBool aApplicable) = 0;
 
   /**
    * A StyleRule has just been modified within a style sheet.
@@ -218,17 +250,17 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsIDocumentObserver, NS_IDOCUMENT_OBSERVER_IID)
 #define NS_DECL_NSIDOCUMENTOBSERVER_STYLESHEETADDED                          \
     virtual void StyleSheetAdded(nsIDocument* aDocument,                     \
                                  nsIStyleSheet* aStyleSheet,                 \
-                                 bool aDocumentSheet);
+                                 PRBool aDocumentSheet);
 
 #define NS_DECL_NSIDOCUMENTOBSERVER_STYLESHEETREMOVED                        \
     virtual void StyleSheetRemoved(nsIDocument* aDocument,                   \
                                    nsIStyleSheet* aStyleSheet,               \
-                                   bool aDocumentSheet);
+                                   PRBool aDocumentSheet);
 
 #define NS_DECL_NSIDOCUMENTOBSERVER_STYLESHEETAPPLICABLESTATECHANGED         \
     virtual void StyleSheetApplicableStateChanged(nsIDocument* aDocument,    \
                                                   nsIStyleSheet* aStyleSheet,\
-                                                  bool aApplicable);
+                                                  PRBool aApplicable);
 
 #define NS_DECL_NSIDOCUMENTOBSERVER_STYLERULECHANGED                         \
     virtual void StyleRuleChanged(nsIDocument* aDocument,                    \
@@ -304,19 +336,19 @@ NS_IMPL_NSIMUTATIONOBSERVER_CONTENT(_class)
 void                                                                      \
 _class::StyleSheetAdded(nsIDocument* aDocument,                           \
                         nsIStyleSheet* aStyleSheet,                       \
-                        bool aDocumentSheet)                            \
+                        PRBool aDocumentSheet)                            \
 {                                                                         \
 }                                                                         \
 void                                                                      \
 _class::StyleSheetRemoved(nsIDocument* aDocument,                         \
                           nsIStyleSheet* aStyleSheet,                     \
-                          bool aDocumentSheet)                          \
+                          PRBool aDocumentSheet)                          \
 {                                                                         \
 }                                                                         \
 void                                                                      \
 _class::StyleSheetApplicableStateChanged(nsIDocument* aDocument,          \
                                          nsIStyleSheet* aStyleSheet,      \
-                                         bool aApplicable)              \
+                                         PRBool aApplicable)              \
 {                                                                         \
 }                                                                         \
 void                                                                      \

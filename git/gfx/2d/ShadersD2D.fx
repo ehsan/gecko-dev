@@ -14,7 +14,6 @@ cbuffer cb0
     float4 QuadDesc;
     float4 TexCoords;
     float4 MaskTexCoords;
-    float4 TextColor;
 }
 
 cbuffer cb1
@@ -51,43 +50,14 @@ struct VS_RADIAL_OUTPUT
     float2 PixelCoord : TEXCOORD1;
 };
 
-struct PS_TEXT_OUTPUT
-{
-    float4 color;
-    float4 alpha;
-};
-
 Texture2D tex;
-Texture2D bcktex;
 Texture2D mask;
-uint blendop;
 
 sampler sSampler = sampler_state {
     Filter = MIN_MAG_MIP_LINEAR;
     Texture = tex;
     AddressU = Clamp;
     AddressV = Clamp;
-};
-
-sampler sBckSampler = sampler_state {
-    Filter = MIN_MAG_MIP_LINEAR;
-    Texture = bcktex;
-    AddressU = Clamp;
-    AddressV = Clamp;
-};
-
-sampler sWrapSampler = sampler_state {
-    Filter = MIN_MAG_MIP_LINEAR;
-    Texture = tex;
-    AddressU = Wrap;
-    AddressV = Wrap;
-};
-
-sampler sMirrorSampler = sampler_state {
-    Filter = MIN_MAG_MIP_LINEAR;
-    Texture = tex;
-    AddressU = Mirror;
-    AddressV = Mirror;
 };
 
 sampler sMaskSampler = sampler_state {
@@ -107,7 +77,7 @@ sampler sShadowSampler = sampler_state {
 
 RasterizerState TextureRast
 {
-  ScissorEnable = True;
+  ScissorEnable = False;
   CullMode = None;
 };
 
@@ -127,19 +97,6 @@ BlendState ShadowBlendV
   DestBlendAlpha = Inv_Src_Alpha;
   BlendOpAlpha = Add;
   RenderTargetWriteMask[0] = 0xF;
-};
-
-BlendState bTextBlend
-{
-  AlphaToCoverageEnable = FALSE;
-  BlendEnable[0] = TRUE;
-  SrcBlend = Src1_Color;
-  DestBlend = Inv_Src1_Color;
-  BlendOp = Add;
-  SrcBlendAlpha = Src1_Alpha;
-  DestBlendAlpha = Inv_Src1_Alpha;
-  BlendOpAlpha = Add;
-  RenderTargetWriteMask[0] = 0x0F; // All
 };
 
 VS_OUTPUT SampleTextureVS(float3 pos : POSITION)
@@ -175,264 +132,17 @@ VS_RADIAL_OUTPUT SampleRadialVS(float3 pos : POSITION)
     return Output;
 }
 
-float Screen(float a, float b)
-{
-  return 1 - ((1 - a)*(1 - b));
-}
-
-static float RedLuminance = 0.3f;
-static float GreenLuminance = 0.59f;
-static float BlueLuminance = 0.11f;
-
-float Lum(float3 C)
-{
-  return RedLuminance * C.r + GreenLuminance * C.g + BlueLuminance * C.b;
-}
-
-float3 ClipColor(float3 C)
-{
-  float L = Lum(C);
-  float n = min(min(C.r, C.g), C.b);
-  float x = max(max(C.r, C.g), C.b);
-
-  if(n < 0)
-    C = L + (((C - L) * L) / (L - n));
-
-  if(x > 1)
-    C = L + ((C - L) * (1 - L) / (x - L));
-
-  return C;
-}
-
-float3 SetLum(float3 C, float l)
-{
-  float d = l - Lum(C);
-  C = C + d;
-  return ClipColor(C);
-}
-
-float Sat(float3 C)
-{
-  return max(C.r, max(C.g, C.b)) - min(C.r, min(C.g, C.b));
-}
-
-void SetSatComponents(inout float minComp, inout float midComp, inout float maxComp, in float satVal)
-{
-  midComp -= minComp;
-  maxComp -= minComp;
-  minComp = 0.0;
-  if (maxComp > 0.0)
-  {
-    midComp *= satVal/maxComp;
-    maxComp = satVal;
-  }
-}
-
-float3 SetSat(float3 color, in float satVal)
-{
-  if (color.x <= color.y) {
-    if (color.y <= color.z) {
-      // x <= y <= z
-      SetSatComponents(color.x, color.y, color.z, satVal);
-    }
-    else {
-      if (color.x <= color.z) {
-        // x <= z <= y
-        SetSatComponents(color.x, color.z, color.y, satVal);
-      }
-      else {
-        // z <= x <= y
-        SetSatComponents(color.z, color.x, color.y, satVal);
-      }
-    }
-  }
-  else {
-    if (color.x <= color.z) {
-      // y <= x <= z
-      SetSatComponents(color.y, color.x, color.z, satVal);
-    }
-    else {
-      if (color.y <= color.z) {
-        // y <= z <= x
-        SetSatComponents(color.y, color.z, color.x, satVal);
-      }
-      else {
-        // z <= y <= x
-        SetSatComponents(color.z, color.y, color.x, satVal);
-      }
-    }
-  }
-
-  return color;
-}
-
-float4 SampleBlendTextureSeparablePS_1( VS_OUTPUT In) : SV_Target
-{
-  float4 output = tex.Sample(sSampler, In.TexCoord);
-  float4 background = bcktex.Sample(sBckSampler, In.TexCoord);
-  if((output.a == 0) || (background.a == 0))
-	return output;
-
-  output.rgb /= output.a;
-  background.rgb /= background.a;
-
-  float4 retval = output;
-
-  if(blendop == 1) { // multiply
-      retval.rgb = output.rgb * background.rgb;
-  } else if(blendop == 2) {
-      retval.rgb = output.rgb + background.rgb - output.rgb * background.rgb;
-  } else if(blendop == 3) {
-    if(background.r <= 0.5)
-      retval.r  = 2*background.r * output.r;
-    else
-      retval.r  = Screen(output.r, 2 * background.r - 1);
-    if(background.g <= 0.5)
-      retval.g  = 2 * background.g * output.g;
-    else
-      retval.g  = Screen(output.g, 2 * background.g - 1);
-    if(background.b <= 0.5)
-      retval.b  = 2 * background.b * output.b;
-    else
-      retval.b  = Screen(output.b, 2 * background.b - 1);
-  } else if(blendop == 4) {
-      retval.rgb = min(output.rgb, background.rgb);
-  } else if(blendop == 5) {
-    retval.rgb = max(output.rgb, background.rgb);
-  } else {
-    if(output.r > 0)
-      retval.r = 1 - min(1, (1 - background.r) / output.r);
-    else
-      retval.r = background.r ? 1 : 0;
-    if(output.g > 0)
-       retval.g = 1 - min(1, (1 - background.g) / output.g);
-    else
-      retval.g = background.g ? 1 : 0;
-    if(output.b > 0)
-     retval.b = 1 - min(1, (1 - background.b) / output.b);
-    else
-      retval.b = background.b ? 1 : 0;
-  }
-
-  output.rgb = ((1 - background.a) * output.rgb + background.a * retval.rgb) * output.a;
-  return output;
-}
-
-float4 SampleBlendTextureSeparablePS_2( VS_OUTPUT In) : SV_Target
-{
-  float4 output = tex.Sample(sSampler, In.TexCoord);
-  float4 background = bcktex.Sample(sBckSampler, In.TexCoord);
-  if((output.a == 0) || (background.a == 0))
-	return output;
-
-  output.rgb /= output.a;
-  background.rgb /= background.a;
-
-  float4 retval = output;
-
-  if(blendop == 7) {
-    if(output.r > 0)
-      retval.r = 1 - min(1, (1 - background.r) / output.r);
-    else
-      retval.r = background.r ? 1 : 0;
-    if(output.g > 0)
-      retval.g = 1 - min(1, (1 - background.g) / output.g);
-    else
-      retval.g = background.g ? 1 : 0;
-    if(output.b > 0)
-      retval.b = 1 - min(1, (1 - background.b) / output.b);
-    else
-      retval.b = background.b ? 1 : 0;
-  } else if(blendop == 8) {
-    if(output.r <= 0.5)
-      retval.r = 2 * output.r * background.r;
-	else
-      retval.r = Screen(background.r, 2 * output.r -1);
-    if(output.g <= 0.5)
-      retval.g = 2 * output.g * background.g;
-    else
-      retval.g = Screen(background.g, 2 * output.g -1);
-    if(output.b <= 0.5)
-      retval.b = 2 * output.b * background.b;
-    else
-      retval.b = Screen(background.b, 2 * output.b -1);
-  } else if(blendop == 9){
-    float D;
-    if(background.r <= 0.25)
-      D = ((16 * background.r - 12) * background.r + 4) * background.r;
-    else
-      D = sqrt(background.r);
-    if(output.r <= 0.5)
-      retval.r = background.r - (1 - 2 * output.r) * background.r * (1 - background.r);
-    else
-      retval.r = background.r + (2 * output.r - 1) * (D - background.r);
-
-    if(background.g <= 0.25)
-      D = ((16 * background.g - 12) * background.g + 4) * background.g;
-    else
-      D = sqrt(background.g);
-    if(output.g <= 0.5)
-      retval.g = background.g - (1 - 2 * output.g) * background.g * (1 - background.g);
-    else
-      retval.g = background.g + (2 * output.g - 1) * (D - background.g);
-
-    if(background.b <= 0.25)
-      D = ((16 * background.b - 12) * background.b + 4) * background.b;
-    else
-      D = sqrt(background.b);
-
-    if(output.b <= 0.5)
-      retval.b = background.b - (1 - 2 * output.b) * background.b * (1 - background.b);
-    else
-      retval.b = background.b + (2 * output.b - 1) * (D - background.b);
-  } else if(blendop == 10) {
-    retval.rgb = abs(output.rgb - background.rgb);
-  } else {
-    retval.rgb = output.rgb + background.rgb - 2 * output.rgb * background.rgb;
-  }
-
-  output.rgb = ((1 - background.a) * output.rgb + background.a * retval.rgb) * output.a;
-  return output;
-}
-
-float4 SampleBlendTextureNonSeparablePS( VS_OUTPUT In) : SV_Target
-{
-  float4 output = tex.Sample(sSampler, In.TexCoord);
-  float4 background = bcktex.Sample(sBckSampler, In.TexCoord);
-  if((output.a == 0) || (background.a == 0))
-	return output;
-
-  output.rgb /= output.a;
-  background.rgb /= background.a;
-
-  float4 retval = output;
-
-  if(blendop == 12) {
-    retval.rgb = SetLum(SetSat(output.rgb, Sat(background.rgb)), Lum(background.rgb));
-  } else if(blendop == 13) {
-    retval.rgb = SetLum(SetSat(background.rgb, Sat(output.rgb)), Lum(background.rgb));
-  } else if(blendop == 14) {
-    retval.rgb = SetLum(output.rgb, Lum(background.rgb));
-  } else {
-    retval.rgb = SetLum(background.rgb, Lum(output.rgb));
-  }
-
-  output.rgb = ((1 - background.a) * output.rgb + background.a * retval.rgb) * output.a;
-  return output;
-}
-
-
 float4 SampleTexturePS( VS_OUTPUT In) : SV_Target
 {
-  return tex.Sample(sSampler, In.TexCoord);
-}
+    return tex.Sample(sSampler, In.TexCoord);
+};
 
 float4 SampleMaskTexturePS( VS_OUTPUT In) : SV_Target
 {
     return tex.Sample(sSampler, In.TexCoord) * mask.Sample(sMaskSampler, In.MaskTexCoord).a;
-}
+};
 
-float4 SampleRadialGradientPS(VS_RADIAL_OUTPUT In, uniform sampler aSampler) : SV_Target
+float4 SampleRadialGradientPS( VS_RADIAL_OUTPUT In) : SV_Target
 {
     // Radial gradient painting is defined as the set of circles whose centers
     // are described by C(t) = (C2 - C1) * t + C1; with radii
@@ -468,7 +178,7 @@ float4 SampleRadialGradientPS(VS_RADIAL_OUTPUT In, uniform sampler aSampler) : S
 
     float upper_t = lerp(t.y, t.x, isValid.x);
 
-    float4 output = tex.Sample(aSampler, float2(upper_t, 0.5));
+    float4 output = tex.Sample(sSampler, float2(upper_t, 0.5));
     // Premultiply
     output.rgb *= output.a;
     // Multiply the output color by the input mask for the operation.
@@ -476,7 +186,7 @@ float4 SampleRadialGradientPS(VS_RADIAL_OUTPUT In, uniform sampler aSampler) : S
     return output;
 };
 
-float4 SampleRadialGradientA0PS( VS_RADIAL_OUTPUT In, uniform sampler aSampler ) : SV_Target
+float4 SampleRadialGradientA0PS( VS_RADIAL_OUTPUT In) : SV_Target
 {
     // This simpler shader is used for the degenerate case where A is 0,
     // i.e. we're actually solving a linear equation.
@@ -495,7 +205,7 @@ float4 SampleRadialGradientA0PS( VS_RADIAL_OUTPUT In, uniform sampler aSampler )
       return float4(0, 0, 0, 0);
     }
 
-    float4 output = tex.Sample(aSampler, float2(t, 0.5));
+    float4 output = tex.Sample(sSampler, float2(t, 0.5));
     // Premultiply
     output.rgb *= output.a;
     // Multiply the output color by the input mask for the operation.
@@ -554,26 +264,6 @@ float4 SampleMaskShadowVPS( VS_OUTPUT In) : SV_Target
     return outputColor * mask.Sample(sMaskSampler, In.MaskTexCoord).a;
 };
 
-PS_TEXT_OUTPUT SampleTextTexturePS( VS_OUTPUT In) : SV_Target
-{
-    PS_TEXT_OUTPUT output;
-    output.color = float4(TextColor.r, TextColor.g, TextColor.b, 1.0);
-    output.alpha.rgba = tex.Sample(sSampler, In.TexCoord).bgrg * TextColor.a;
-    return output;
-};
-
-PS_TEXT_OUTPUT SampleTextTexturePSMasked( VS_OUTPUT In) : SV_Target
-{
-    PS_TEXT_OUTPUT output;
-    
-    float maskValue = mask.Sample(sMaskSampler, In.MaskTexCoord).a;
-
-    output.color = float4(TextColor.r, TextColor.g, TextColor.b, 1.0);
-    output.alpha.rgba = tex.Sample(sSampler, In.TexCoord).bgrg * TextColor.a * maskValue;
-    
-    return output;
-};
-
 technique10 SampleTexture
 {
     pass P0
@@ -585,82 +275,21 @@ technique10 SampleTexture
     }
 }
 
-technique10 SampleTextureForSeparableBlending_1
-{
-    pass P0
-    {
-        SetRasterizerState(TextureRast);
-        SetVertexShader(CompileShader(vs_4_0_level_9_3, SampleTextureVS()));
-        SetGeometryShader(NULL);
-        SetPixelShader(CompileShader(ps_4_0_level_9_3, SampleBlendTextureSeparablePS_1()));
-    }
-}
-
-technique10 SampleTextureForSeparableBlending_2
-{
-    pass P0
-    {
-        SetRasterizerState(TextureRast);
-        SetVertexShader(CompileShader(vs_4_0_level_9_3, SampleTextureVS()));
-        SetGeometryShader(NULL);
-        SetPixelShader(CompileShader(ps_4_0_level_9_3, SampleBlendTextureSeparablePS_2()));
-    }
-}
-
-technique10 SampleTextureForNonSeparableBlending
-{
-    pass P0
-    {
-        SetRasterizerState(TextureRast);
-        SetVertexShader(CompileShader(vs_4_0_level_9_3, SampleTextureVS()));
-        SetGeometryShader(NULL);
-        SetPixelShader(CompileShader(ps_4_0_level_9_3, SampleBlendTextureNonSeparablePS()));
-    }
-}
-
 technique10 SampleRadialGradient
 {
-    pass APos
+    pass P0
     {
         SetRasterizerState(TextureRast);
         SetVertexShader(CompileShader(vs_4_0_level_9_3, SampleRadialVS()));
         SetGeometryShader(NULL);
-        SetPixelShader(CompileShader(ps_4_0_level_9_3, SampleRadialGradientPS( sSampler )));
+        SetPixelShader(CompileShader(ps_4_0_level_9_3, SampleRadialGradientPS()));
     }
-    pass A0
+    pass P1
     {
         SetRasterizerState(TextureRast);
         SetVertexShader(CompileShader(vs_4_0_level_9_3, SampleRadialVS()));
         SetGeometryShader(NULL);
-        SetPixelShader(CompileShader(ps_4_0_level_9_3, SampleRadialGradientA0PS( sSampler )));
-    }
-    pass APosWrap
-    {
-        SetRasterizerState(TextureRast);
-        SetVertexShader(CompileShader(vs_4_0_level_9_3, SampleRadialVS()));
-        SetGeometryShader(NULL);
-        SetPixelShader(CompileShader(ps_4_0_level_9_3, SampleRadialGradientPS( sWrapSampler )));
-    }
-    pass A0Wrap
-    {
-        SetRasterizerState(TextureRast);
-        SetVertexShader(CompileShader(vs_4_0_level_9_3, SampleRadialVS()));
-        SetGeometryShader(NULL);
-        SetPixelShader(CompileShader(ps_4_0_level_9_3, SampleRadialGradientA0PS( sWrapSampler )));
-    }
-    pass APosMirror
-    {
-        SetRasterizerState(TextureRast);
-        SetVertexShader(CompileShader(vs_4_0_level_9_3, SampleRadialVS()));
-        SetGeometryShader(NULL);
-        SetPixelShader(CompileShader(ps_4_0_level_9_3, SampleRadialGradientPS( sMirrorSampler )));
-    }
-    pass A0Mirror
-    {
-        SetRasterizerState(TextureRast);
-        SetVertexShader(CompileShader(vs_4_0_level_9_3, SampleRadialVS()));
-        SetGeometryShader(NULL);
-        SetPixelShader(CompileShader(ps_4_0_level_9_3, SampleRadialGradientA0PS( sMirrorSampler )));
+        SetPixelShader(CompileShader(ps_4_0_level_9_3, SampleRadialGradientA0PS()));
     }
 }
 
@@ -704,25 +333,4 @@ technique10 SampleTextureWithShadow
         SetGeometryShader(NULL);
         SetPixelShader(CompileShader(ps_4_0_level_9_3, SampleMaskShadowVPS()));
     }
-}
-
-technique10 SampleTextTexture
-{
-    pass Unmasked
-    {
-        SetRasterizerState(TextureRast);
-        SetBlendState(bTextBlend, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
-        SetVertexShader(CompileShader(vs_4_0_level_9_3, SampleTextureVS()));
-        SetGeometryShader(NULL);
-        SetPixelShader(CompileShader(ps_4_0_level_9_3, SampleTextTexturePS()));
-    }
-    pass Masked
-    {
-        SetRasterizerState(TextureRast);
-        SetBlendState(bTextBlend, float4( 0.0f, 0.0f, 0.0f, 0.0f ), 0xFFFFFFFF );
-        SetVertexShader(CompileShader(vs_4_0_level_9_3, SampleTextureVS()));
-        SetGeometryShader(NULL);
-        SetPixelShader(CompileShader(ps_4_0_level_9_3, SampleTextTexturePSMasked()));
-    }
-}
-
+ }

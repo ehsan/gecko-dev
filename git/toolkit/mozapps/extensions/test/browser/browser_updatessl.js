@@ -2,9 +2,7 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-let tempScope = {};
-Components.utils.import("resource://gre/modules/AddonUpdateChecker.jsm", tempScope);
-let AddonUpdateChecker = tempScope.AddonUpdateChecker;
+Components.utils.import("resource://gre/modules/AddonUpdateChecker.jsm");
 
 const updaterdf = RELATIVE_DIR + "browser_updatessl.rdf";
 const redirect = RELATIVE_DIR + "redirect.sjs?";
@@ -88,7 +86,7 @@ function run_update_tests(callback) {
                 mainURL;
     }
 
-    AddonUpdateChecker.checkForUpdates("addon1@tests.mozilla.org",
+    AddonUpdateChecker.checkForUpdates("addon1@tests.mozilla.org", "extension",
                                        null, url, {
       onUpdateCheckComplete: function(updates) {
         is(updates.length, 1, "Should be the right number of results");

@@ -64,9 +64,9 @@ enum {
 
 
 idn_result_t
-race_decode_decompress(const char *from, uint16_t *buf, size_t buflen)
+race_decode_decompress(const char *from, PRUint16 *buf, size_t buflen)
 {
-	uint16_t *p = buf;
+	PRUint16 *p = buf;
 	unsigned int bitbuf = 0;
 	int bitlen = 0;
 	unsigned int i, j;
@@ -108,7 +108,7 @@ race_decode_decompress(const char *from, uint16_t *buf, size_t buflen)
 			buf[j] = (buf[i] << 8) + buf[i + 1];
 		len = j;
 	} else {
-		uint16_t c = buf[0] << 8;	/* higher octet */
+		PRUint16 c = buf[0] << 8;	/* higher octet */
 
 		for (i = 1, j = 0; i < len; j++) {
 			if (buf[i] == RACE_ESCAPE) {
@@ -138,10 +138,10 @@ race_decode_decompress(const char *from, uint16_t *buf, size_t buflen)
 }
 
 idn_result_t
-race_compress_encode(const uint16_t *p, int compress_mode,
+race_compress_encode(const PRUint16 *p, int compress_mode,
 		     char *to, size_t tolen)
 {
-	uint32_t bitbuf = *p++;	/* bit stream buffer */
+	PRUint32 bitbuf = *p++;	/* bit stream buffer */
 	int bitlen = 8;			/* # of bits in 'bitbuf' */
 
 	while (*p != '\0' || bitlen > 0) {
@@ -208,10 +208,10 @@ race_compress_encode(const uint16_t *p, int compress_mode,
 }
 
 int
-get_compress_mode(uint16_t *p) {
+get_compress_mode(PRUint16 *p) {
 	int zero = 0;
 	unsigned int upper = 0;
-	uint16_t *modepos = p - 1;
+	PRUint16 *modepos = p - 1;
 
 	while (*p != '\0') {
 		unsigned int hi = *p++ & 0xff00;

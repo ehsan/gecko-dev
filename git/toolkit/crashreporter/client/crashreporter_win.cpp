@@ -1,13 +1,45 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Toolkit Crash Reporter
+ *
+ * The Initial Developer of the Original Code is
+ * Ted Mielczarek <ted.mielczarek@gmail.com>
+ * Portions created by the Initial Developer are Copyright (C) 2006
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Ted Mielczarek <ted.mielczarek@gmail.com>
+ *   Dave Camp <dcamp@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifdef WIN32_LEAN_AND_MEAN
 #undef WIN32_LEAN_AND_MEAN
 #endif
-
-#define NOMINMAX
 
 #include "crashreporter.h"
 
@@ -23,7 +55,6 @@
 #include "resource.h"
 #include "client/windows/sender/crash_report_sender.h"
 #include "common/windows/string_utils-inl.h"
-#include "mozilla/NullPtr.h"
 
 #define CRASH_REPORTER_VALUE L"Enabled"
 #define SUBMIT_REPORT_VALUE  L"SubmitCrashReport"
@@ -114,7 +145,7 @@ static void DoInitCommonControls()
   ic.dwICC = ICC_PROGRESS_CLASS;
   InitCommonControlsEx(&ic);
   // also get the rich edit control
-  LoadLibrary(L"Msftedit.dll");
+  LoadLibrary(L"riched20.dll");
 }
 
 static bool GetBoolValue(HKEY hRegKey, LPCTSTR valueName, DWORD* value)
@@ -896,7 +927,7 @@ static BOOL CALLBACK CrashReporterDialogProc(HWND hwndDlg, UINT message,
 
     hwnd = GetDlgItem(hwndDlg, IDC_SUBMITREPORTCHECK);
     GetRelativeRect(hwnd, hwndDlg, &rect);
-    long maxdiff = ResizeControl(hwnd, rect, Str(ST_CHECKSUBMIT), false,
+    int maxdiff = ResizeControl(hwnd, rect, Str(ST_CHECKSUBMIT), false,
                                 gCheckboxPadding);
     SetDlgItemText(hwndDlg, IDC_SUBMITREPORTCHECK,
                    Str(ST_CHECKSUBMIT).c_str());
@@ -923,9 +954,9 @@ static BOOL CALLBACK CrashReporterDialogProc(HWND hwndDlg, UINT message,
 
     hwnd = GetDlgItem(hwndDlg, IDC_INCLUDEURLCHECK);
     GetRelativeRect(hwnd, hwndDlg, &rect);
-    long diff = ResizeControl(hwnd, rect, Str(ST_CHECKURL), false,
+    int diff = ResizeControl(hwnd, rect, Str(ST_CHECKURL), false,
                              gCheckboxPadding);
-    maxdiff = std::max(diff, maxdiff);
+    maxdiff = max(diff, maxdiff);
     SetDlgItemText(hwndDlg, IDC_INCLUDEURLCHECK, Str(ST_CHECKURL).c_str());
 
     // want this on by default
@@ -940,7 +971,7 @@ static BOOL CALLBACK CrashReporterDialogProc(HWND hwndDlg, UINT message,
     GetRelativeRect(hwnd, hwndDlg, &rect);
     diff = ResizeControl(hwnd, rect, Str(ST_CHECKEMAIL), false,
                          gCheckboxPadding);
-    maxdiff = std::max(diff, maxdiff);
+    maxdiff = max(diff, maxdiff);
     SetDlgItemText(hwndDlg, IDC_EMAILMECHECK, Str(ST_CHECKEMAIL).c_str());
 
     if (CheckBoolKey(gCrashReporterKey.c_str(), EMAIL_ME_VALUE, &enabled) &&
@@ -998,7 +1029,7 @@ static BOOL CALLBACK CrashReporterDialogProc(HWND hwndDlg, UINT message,
       restartRect.right - restartRect.left + 6 * 3;
     GetClientRect(hwndDlg, &r);
     // We may already have resized one of the checkboxes above
-    maxdiff = std::max(maxdiff, neededSize - (r.right - r.left));
+    maxdiff = max(maxdiff, neededSize - (r.right - r.left));
 
     if (maxdiff > 0) {
       // widen window
@@ -1036,7 +1067,6 @@ static BOOL CALLBACK CrashReporterDialogProc(HWND hwndDlg, UINT message,
     description += Str(ST_CRASHREPORTERDESCRIPTION);
     SetDlgItemText(hwndDlg, IDC_DESCRIPTIONTEXT, description.c_str());
 
-
     // Make the title bold.
     CHARFORMAT fmt = { 0, };
     fmt.cbSize = sizeof(fmt);
@@ -1047,12 +1077,9 @@ static BOOL CALLBACK CrashReporterDialogProc(HWND hwndDlg, UINT message,
     SendDlgItemMessage(hwndDlg, IDC_DESCRIPTIONTEXT, EM_SETCHARFORMAT,
                        SCF_SELECTION, (LPARAM)&fmt);
     SendDlgItemMessage(hwndDlg, IDC_DESCRIPTIONTEXT, EM_SETSEL, 0, 0);
-    // Force redraw.
+
     SendDlgItemMessage(hwndDlg, IDC_DESCRIPTIONTEXT,
                        EM_SETTARGETDEVICE, (WPARAM)NULL, 0);
-    // Force resize.
-    SendDlgItemMessage(hwndDlg, IDC_DESCRIPTIONTEXT,
-                       EM_REQUESTRESIZE, 0, 0);
 
     // if no URL was given, hide the URL checkbox
     if (gQueryParameters.find(L"URL") == gQueryParameters.end()) {
@@ -1225,10 +1252,10 @@ static wstring UTF8ToWide(const string& utf8, bool *success)
   return str;
 }
 
-static string WideToMBCP(const wstring& wide, unsigned int cp, bool* success = nullptr)
+string WideToUTF8(const wstring& wide, bool* success)
 {
   char* buffer = NULL;
-  int buffer_size = WideCharToMultiByte(cp, 0, wide.c_str(),
+  int buffer_size = WideCharToMultiByte(CP_UTF8, 0, wide.c_str(),
                                         -1, NULL, 0, NULL, NULL);
   if(buffer_size == 0) {
     if (success)
@@ -1243,20 +1270,15 @@ static string WideToMBCP(const wstring& wide, unsigned int cp, bool* success = n
     return "";
   }
 
-  WideCharToMultiByte(cp, 0, wide.c_str(),
+  WideCharToMultiByte(CP_UTF8, 0, wide.c_str(),
                       -1, buffer, buffer_size, NULL, NULL);
-  string mb = buffer;
+  string utf8 = buffer;
   delete [] buffer;
 
   if (success)
     *success = true;
 
-  return mb;
-}
-
-string WideToUTF8(const wstring& wide, bool* success)
-{
-  return WideToMBCP(wide, CP_UTF8, success);
+  return utf8;
 }
 
 /* === Crashreporter UI Functions === */
@@ -1432,11 +1454,8 @@ ifstream* UIOpenRead(const string& filename)
 #if _MSC_VER >= 1400  // MSVC 2005/8
   ifstream* file = new ifstream();
   file->open(UTF8ToWide(filename).c_str(), ios::in);
-#elif defined(_MSC_VER)
+#else  // _MSC_VER >= 1400
   ifstream* file = new ifstream(_wfopen(UTF8ToWide(filename).c_str(), L"r"));
-#else   // GCC
-  ifstream* file = new ifstream(WideToMBCP(UTF8ToWide(filename), CP_ACP).c_str(),
-                                ios::in);
 #endif  // _MSC_VER >= 1400
 
   return file;
@@ -1454,12 +1473,9 @@ ofstream* UIOpenWrite(const string& filename, bool append) // append=false
   ofstream* file = new ofstream();
   file->open(UTF8ToWide(filename).c_str(), append ? ios::out | ios::app
                                                   : ios::out);
-#elif defined(_MSC_VER)
+#else  // _MSC_VER >= 1400
   ofstream* file = new ofstream(_wfopen(UTF8ToWide(filename).c_str(),
                                         append ? L"a" : L"w"));
-#else   // GCC
-  ofstream* file = new ofstream(WideToMBCP(UTF8ToWide(filename), CP_ACP).c_str(),
-                                append ? ios::out | ios::app : ios::out);
 #endif  // _MSC_VER >= 1400
 
   return file;

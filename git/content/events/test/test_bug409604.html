@@ -19,8 +19,8 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=409604
 
   /** Test for Bug 409604 **/
 
-  var modifier = SpecialPowers.Ci.nsIDOMEvent.ALT_MASK |
-                 SpecialPowers.Ci.nsIDOMEvent.SHIFT_MASK;
+  var modifier = Components.interfaces.nsIDOMNSEvent.ALT_MASK |
+                 Components.interfaces.nsIDOMNSEvent.SHIFT_MASK;
   var expectedFocus = "a,c,d,e,f,g,h,i,j,k,l,m,n,p,x,y";
   // XXX the "map" test is causing trouble, see bug 433089
   var focusArray = expectedFocus.split(",");
@@ -92,10 +92,15 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=409604
 
   // ui.key.contentAccess must be set to value 5 before running the test.
   function setOrRestoreContentAccess(newValue) {
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+    const prefSvcContractID = "@mozilla.org/preferences-service;1";
+    const prefSvcIID = Components.interfaces.nsIPrefService;
+    var prefs = Components.classes[prefSvcContractID].getService(prefSvcIID)
+                                                     .getBranch("ui.key.");
     if (!newValue) {
-      SpecialPowers.clearUserPref("ui.key.contentAccess");
+      prefs.clearUserPref("contentAccess");
     } else {
-      SpecialPowers.setIntPref("ui.key.contentAccess", newValue);
+      prefs.setIntPref("contentAccess", newValue);
     }
   }
 
@@ -129,7 +134,10 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=409604
   }
 
   function pressAccessKey(key) {
-    var utils = SpecialPowers.DOMWindowUtils;
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+    // Send key events.
+    var utils = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor).
+                       getInterface(Components.interfaces.nsIDOMWindowUtils);
     utils.sendKeyEvent("keydown", key, key, modifier);
     utils.sendKeyEvent("keypress", key, key, modifier);
     utils.sendKeyEvent("keyup", key, key, modifier);

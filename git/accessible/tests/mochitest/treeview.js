@@ -1,54 +1,3 @@
-/**
- * Helper method to start a single XUL tree test.
- */
-function loadXULTreeAndDoTest(aDoTestFunc, aTreeID, aTreeView)
-{
-  var doTestFunc = aDoTestFunc ? aDoTestFunc : gXULTreeLoadContext.doTestFunc;
-  var treeID = aTreeID ? aTreeID : gXULTreeLoadContext.treeID;
-  var treeView = aTreeView ? aTreeView : gXULTreeLoadContext.treeView;
-
-  function loadXULTree(aTreeID, aTreeView)
-  {
-    this.treeNode = getNode(aTreeID);
-
-    this.eventSeq = [
-      new invokerChecker(EVENT_REORDER, this.treeNode)
-    ];
-
-    this.invoke = function loadXULTree_invoke()
-    {
-      this.treeNode.treeBoxObject.view = aTreeView;
-    }
-
-    this.getID = function loadXULTree_getID()
-    {
-      return "Load XUL tree " + prettyName(aTreeID);
-    }
-  }
-
-  gXULTreeLoadContext.queue = new eventQueue();
-  gXULTreeLoadContext.queue.push(new loadXULTree(treeID, treeView));
-  gXULTreeLoadContext.queue.onFinish = function()
-  {
-    SimpleTest.executeSoon(doTestFunc);
-    return DO_NOT_FINISH_TEST;
-  }
-  gXULTreeLoadContext.queue.invoke();
-}
-
-/**
- * Analogy of addA11yLoadEvent, nice helper to load XUL tree and start the test.
- */
-function addA11yXULTreeLoadEvent(aDoTestFunc, aTreeID, aTreeView)
-{
-  gXULTreeLoadContext.doTestFunc = aDoTestFunc;
-  gXULTreeLoadContext.treeID = aTreeID;
-  gXULTreeLoadContext.treeView = aTreeView;
-
-  addA11yLoadEvent(loadXULTreeAndDoTest);
-}
-
-
 function nsTableTreeView(aRowCount)
 {
   this.__proto__ = new nsTreeView();
@@ -91,8 +40,8 @@ nsTreeView.prototype =
   getCellText: function getCellText(aRow, aCol)
   {
     var data = this.getDataForIndex(aRow);
-    if (aCol.id in data.colsText)
-      return data.colsText[aCol.id];
+    if (aCol in data.colsText)
+      return data.colsText[aCol];
 
     return data.text + aCol.id;
   },
@@ -101,16 +50,17 @@ nsTreeView.prototype =
     var data = this.getDataForIndex(aRow);
     return data.value;
   },
-  getRowProperties: function getRowProperties(aIndex) { return ""; },
-  getCellProperties: function getCellProperties(aIndex, aCol)
+  getRowProperties: function getRowProperties(aIndex, aProperties) {},
+  getCellProperties: function getCellProperties(aIndex, aCol, aProperties)
   {
     if (!aCol.cycler)
-      return "";
+      return;
 
     var data = this.getDataForIndex(aIndex);
-    return this.mCyclerStates[data.cyclerState];
+    var atom = this.mCyclerStates[data.cyclerState];
+    aProperties.AppendElement(atom);
   },
-  getColumnProperties: function getColumnProperties(aCol) { return ""; },
+  getColumnProperties: function getColumnProperties(aCol, aProperties) {},
   getParentIndex: function getParentIndex(aRowIndex)
   {
     var info = this.getInfoByIndex(aRowIndex);
@@ -170,7 +120,7 @@ nsTreeView.prototype =
   setCellText: function setCellText(aRow, aCol, aValue)
   {
     var data = this.getDataForIndex(aRow);
-    data.colsText[aCol.id] = aValue;
+    data.colsText[aCol] = aValue;
   },
   setCellValue: function setCellValue(aRow, aCol, aValue)
   {
@@ -260,9 +210,9 @@ nsTreeView.prototype =
   },
 
   mCyclerStates: [
-    "cyclerState1",
-    "cyclerState2",
-    "cyclerState3"
+    createAtom("cyclerState1"),
+    createAtom("cyclerState2"),
+    createAtom("cyclerState3")
   ]
 };
 
@@ -282,14 +232,3 @@ function createAtom(aName)
   return Components.classes["@mozilla.org/atom-service;1"]
     .getService(Components.interfaces.nsIAtomService).getAtom(aName);
 }
-
-/**
- * Used in conjunction with loadXULTreeAndDoTest and addA11yXULTreeLoadEvent.
- */
-var gXULTreeLoadContext =
-{
-  doTestFunc: null,
-  treeID: null,
-  treeView: null,
-  queue: null
-};

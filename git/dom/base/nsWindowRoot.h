@@ -1,8 +1,41 @@
 /* -*- Mode: C++; tab-width: 3; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  *
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Mozilla browser.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications, Inc.
+ * Portions created by the Initial Developer are Copyright (C) 1999
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   David W. Hyatt <hyatt@netscape.com> (Original Author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsWindowRoot_h__
 #define nsWindowRoot_h__
@@ -14,7 +47,6 @@ class nsIDOMEvent;
 class nsEventChainPreVisitor;
 class nsEventChainPostVisitor;
 
-#include "mozilla/Attributes.h"
 #include "nsIDOMEventTarget.h"
 #include "nsEventListenerManager.h"
 #include "nsPIWindowRoot.h"
@@ -28,46 +60,39 @@ public:
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_NSIDOMEVENTTARGET
-  using mozilla::dom::EventTarget::RemoveEventListener;
-  virtual void AddEventListener(const nsAString& aType,
-                                nsIDOMEventListener* aListener,
-                                bool aUseCapture,
-                                const mozilla::dom::Nullable<bool>& aWantsUntrusted,
-                                mozilla::ErrorResult& aRv) MOZ_OVERRIDE;
 
   // nsPIWindowRoot
 
-  virtual nsPIDOMWindow* GetWindow() MOZ_OVERRIDE;
+  virtual nsPIDOMWindow* GetWindow();
 
-  virtual nsresult GetControllers(nsIControllers** aResult) MOZ_OVERRIDE;
+  virtual nsresult GetControllers(nsIControllers** aResult);
   virtual nsresult GetControllerForCommand(const char * aCommand,
-                                           nsIController** _retval) MOZ_OVERRIDE;
+                                           nsIController** _retval);
 
-  virtual nsIDOMNode* GetPopupNode() MOZ_OVERRIDE;
-  virtual void SetPopupNode(nsIDOMNode* aNode) MOZ_OVERRIDE;
+  virtual nsIDOMNode* GetPopupNode();
+  virtual void SetPopupNode(nsIDOMNode* aNode);
 
-  virtual void SetParentTarget(mozilla::dom::EventTarget* aTarget) MOZ_OVERRIDE
+  virtual void SetParentTarget(nsIDOMEventTarget* aTarget)
   {
     mParent = aTarget;
   }
-  virtual mozilla::dom::EventTarget* GetParentTarget() MOZ_OVERRIDE { return mParent; }
-  virtual nsIDOMWindow* GetOwnerGlobal() MOZ_OVERRIDE;
+  virtual nsIDOMEventTarget* GetParentTarget() { return mParent; }
 
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(nsWindowRoot,
-                                                         nsIDOMEventTarget)
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsWindowRoot, nsIDOMEventTarget)
 
 protected:
   // Members
-  nsCOMPtr<nsPIDOMWindow> mWindow;
+  nsPIDOMWindow* mWindow; // [Weak]. The window will hold on to us and let go when it dies.
   nsRefPtr<nsEventListenerManager> mListenerManager; // [Strong]. We own the manager, which owns event listeners attached
                                                       // to us.
 
   nsCOMPtr<nsIDOMNode> mPopupNode; // [OWNER]
 
-  nsCOMPtr<mozilla::dom::EventTarget> mParent;
+  nsCOMPtr<nsIDOMEventTarget> mParent;
 };
 
-extern already_AddRefed<mozilla::dom::EventTarget>
-NS_NewWindowRoot(nsPIDOMWindow* aWindow);
+extern nsresult
+NS_NewWindowRoot(nsPIDOMWindow* aWindow,
+                 nsIDOMEventTarget** aResult);
 
 #endif

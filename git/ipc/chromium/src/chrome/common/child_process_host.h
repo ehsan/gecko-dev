@@ -12,6 +12,7 @@
 #include "base/basictypes.h"
 #include "base/scoped_ptr.h"
 #include "base/waitable_event_watcher.h"
+class ResourceDispatcherHost;
 #include "chrome/common/child_process_info.h"
 #include "chrome/common/ipc_channel.h"
 
@@ -51,7 +52,8 @@ class ChildProcessHost :
   };
 
  protected:
-  explicit ChildProcessHost(ProcessType type);
+  ChildProcessHost(ProcessType type,
+                   ResourceDispatcherHost* resource_dispatcher_host = 0);
 
   // Derived classes return true if it's ok to shut down the child process.
   virtual bool CanShutdown() = 0;
@@ -68,7 +70,7 @@ class ChildProcessHost :
 
   // IPC::Channel::Listener implementation:
   virtual void OnMessageReceived(const IPC::Message& msg) { }
-  virtual void OnChannelConnected(int32_t peer_pid) { }
+  virtual void OnChannelConnected(int32 peer_pid) { }
   virtual void OnChannelError() { }
 
   bool opening_channel() { return opening_channel_; }
@@ -95,14 +97,15 @@ class ChildProcessHost :
    public:
     ListenerHook(ChildProcessHost* host);
     virtual void OnMessageReceived(const IPC::Message& msg);
-    virtual void OnChannelConnected(int32_t peer_pid);
+    virtual void OnChannelConnected(int32 peer_pid);
     virtual void OnChannelError();
-    virtual void GetQueuedMessages(std::queue<IPC::Message>& queue);
    private:
     ChildProcessHost* host_;
   };
 
   ListenerHook listener_;
+
+  ResourceDispatcherHost* resource_dispatcher_host_;
 
   // True while we're waiting the channel to be opened.
   bool opening_channel_;

@@ -7,7 +7,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=523771
   <title>Test for Bug 523771</title>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>        
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
-  <meta http-equiv="Content-Type" content="text/html;charset=utf-8">
 </head>
 <body>
 <a target="_blank" href="https://bugzilla.mozilla.org/show_bug.cgi?id=523771">Mozilla Bug 523771</a>
@@ -227,32 +226,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=523771
       <td><button type=foobar name="n18_7_&#13;_&#10;_&#13;&#10;_ _&quot;"
                   value="v18_7_&#13;_&#10;_&#13;&#10;_ _&quot;"></button></td>
     </tr>
-    <tr>
-      <td>&lt;input type='url'&gt;</td>
-      <td><input type=url name="n19_1" value="http://v19_1.org"></td>
-      <td><input type=url name="n19_2" value=""></td>
-      <td><input type=url name="n19_3"></td>
-      <td><input type=url name="" value="http://v19_4.org"></td>
-      <td><input type=url value="http://v19_5.org"></td>
-      <td><input type=url ></td>
-      <td><input type=url name="n19_7_&#13;_&#10;_&#13;&#10;__&quot;"
-                 value="http://v19_7_&#13;_&#10;_&#13;&#10;__&quot;">
-          <!-- Put UTF-8 value in the "strange" column. -->
-          <input type=url name="n19_8" value="http://m&#xf3;zill&auml;.&#xf3;rg"></td>
-    </tr>
-    <tr>
-      <td>&lt;input type='email'&gt;</td>
-      <td><input type=email name="n20_1" value="v20_1@bar"></td>
-      <td><input type=email name="n20_2" value=""></td>
-      <td><input type=email name="n20_3"></td>
-      <td><input type=email name="" value="v20_4@bar"></td>
-      <td><input type=email value="v20_5@bar"></td>
-      <td><input type=email ></td>
-      <td><input type=email name="n20_7_&#13;_&#10;_&#13;&#10;__&quot;"
-                 value="v20_7_&#13;_&#10;_&#13;&#10;__&quot;@bar">
-          <!-- Put UTF-8 value is the "strange" column. -->
-          <input type=email name="n20_8" value="foo@mózillä.órg"></td>
-    </tr>
   </table>
   
   <p>
@@ -411,22 +384,24 @@ var myFile1, myFile2, emptyFile;
   multiFile = [basePath + "file_formSubmission_text.txt",
                basePath + "file_formSubmission_img.jpg"];
 
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
   var addList = document.getElementsByClassName("setfile");
   let i = 0;
   var input;
   while (input = addList[i++]) {
     if (input.classList.contains("multi")) {
-      SpecialPowers.wrap(input).mozSetFileNameArray(multiFile, multiFile.length);
+      input.mozSetFileNameArray(multiFile, multiFile.length);
     }
     else {
-      SpecialPowers.wrap(input).value = singleFile;
+      input.value = singleFile;
     }
   }
 
   input = document.createElement("input");
   input.type = "file";
   input.multiple = true;
-  SpecialPowers.wrap(input).mozSetFileNameArray(multiFile, multiFile.length);
+  input.mozSetFileNameArray(multiFile, multiFile.length);
   myFile1 = input.files[0];
   myFile2 = input.files[1];
   is(myFile1.size, 20, "File1 size");
@@ -477,18 +452,6 @@ var expectedSub = [
   { name: "n13_2", value: "" },
   { name: "n13_3", value: "" },
   { name: "n13_7_\r\n_\r\n_\r\n_ _\"", value: "v13_7____ _\"" },
-  // <input type='url'>
-  { name: "n19_1", value: "http://v19_1.org" },
-  { name: "n19_2", value: "" },
-  { name: "n19_3", value: "" },
-  { name: "n19_7_\r\n_\r\n_\r\n__\"", value: "http://v19_7_____\"" },
-  { name: "n19_8", value: "http://m\xf3zill\xe4.\xf3rg" },
-  // <input type='email'>
-  { name: "n20_1", value: "v20_1@bar" },
-  { name: "n20_2", value: "" },
-  { name: "n20_3", value: "" },
-  { name: "n20_7_\r\n_\r\n_\r\n__\"", value: "v20_7_____\"@bar" },
-  { name: "n20_8", value: "foo@mózillä.órg" },
   // Default button
   // Submit button
   // Button button
@@ -622,15 +585,9 @@ function checkMPSubmission(sub, expected, test) {
   }
 }
 
-function utf8encode(s) {
-  return unescape(encodeURIComponent(s));
-}
-
 function checkURLSubmission(sub, expected) {
   function urlEscape(s) {
-    return escape(utf8encode(s)).replace("%20", "+", "g")
-                                .replace("/", "%2F", "g")
-                                .replace("@", "%40", "g");
+    return escape(s).replace("%20", "+", "g");
   }
 
   subItems = sub.split("&");
@@ -673,8 +630,8 @@ function runTest() {
   fileReader2 = new FileReader;
   fileReader2.readAsBinaryString(myFile2);
   fileReader1.onload = fileReader2.onload = function() { gen.next(); };
-  yield undefined; // Wait for both FileReaders. We don't care which order they finish.
-  yield undefined;
+  yield; // Wait for both FileReaders. We don't care which order they finish.
+  yield;
   function fileFixup(o) {
     if (o.value == myFile1) {
       o.value = fileReader1.result;
@@ -699,26 +656,25 @@ function runTest() {
 
   // multipart/form-data
 
+  // Make normal submission
   var iframe = $("target_iframe");
   iframe.onload = function() { gen.next(); };
-
-  // Make normal submission
   form.submit();
-  yield undefined; // Wait for iframe to load as a result of the submission
+  yield; // Wait for iframe to load as a result of the submission
   var submission = JSON.parse(iframe.contentDocument.documentElement.textContent);
   checkMPSubmission(submission, expectedSub, "normal submission");
 
   // Disabled controls
   setDisabled(document.querySelectorAll("input, select, textarea"), true);
   form.submit();
-  yield undefined;
+  yield;
   submission = JSON.parse(iframe.contentDocument.documentElement.textContent);
   checkMPSubmission(submission, [], "disabled controls");
 
   // Reenabled controls
   setDisabled(document.querySelectorAll("input, select, textarea"), false);
   form.submit();
-  yield undefined;
+  yield;
   submission = JSON.parse(iframe.contentDocument.documentElement.textContent);
   checkMPSubmission(submission, expectedSub, "reenabled controls");
 
@@ -726,7 +682,7 @@ function runTest() {
   form.action = "form_submit_server.sjs?plain";
   form.enctype = "text/plain";
   form.submit();
-  yield undefined;
+  yield;
   submission = JSON.parse(iframe.contentDocument.documentElement.textContent);
   checkPlainSubmission(submission, expectedSub);
 
@@ -734,7 +690,7 @@ function runTest() {
   form.action = "form_submit_server.sjs?url";
   form.enctype = "application/x-www-form-urlencoded";
   form.submit();
-  yield undefined;
+  yield;
   submission = JSON.parse(iframe.contentDocument.documentElement.textContent);
   checkURLSubmission(submission, expectedSub);
 
@@ -743,7 +699,7 @@ function runTest() {
   form.method = "GET";
   form.enctype = "";
   form.submit();
-  yield undefined;
+  yield;
   submission = JSON.parse(iframe.contentDocument.documentElement.textContent);
   checkURLSubmission(submission, expectedSub);
 
@@ -752,7 +708,7 @@ function runTest() {
   form.method = "";
   form.enctype = "";
   form.submit();
-  yield undefined;
+  yield;
   submission = JSON.parse(iframe.contentDocument.documentElement.textContent);
   checkURLSubmission(submission, expectedSub);
 
@@ -761,14 +717,14 @@ function runTest() {
   xhr.onload = function() { gen.next(); };
   xhr.open("POST", "form_submit_server.sjs");
   xhr.send(new FormData(form));
-  yield undefined; // Wait for XHR load
+  yield; // Wait for XHR load
   checkMPSubmission(JSON.parse(xhr.responseText), expectedSub, "send form using XHR and FormData");
   
   // Send disabled form using XHR and FormData
   setDisabled(document.querySelectorAll("input, select, textarea"), true);
   xhr.open("POST", "form_submit_server.sjs");
   xhr.send(new FormData(form));
-  yield undefined;
+  yield;
   checkMPSubmission(JSON.parse(xhr.responseText), [], "send disabled form using XHR and FormData");
   setDisabled(document.querySelectorAll("input, select, textarea"), false);
   
@@ -783,7 +739,7 @@ function runTest() {
   addToFormData(fd);
   xhr.open("POST", "form_submit_server.sjs");
   xhr.send(fd);
-  yield undefined;
+  yield;
   checkMPSubmission(JSON.parse(xhr.responseText), expectedAugment, "send FormData");
 
   // Augment <form> using FormData
@@ -791,12 +747,12 @@ function runTest() {
   addToFormData(fd);
   xhr.open("POST", "form_submit_server.sjs");
   xhr.send(fd);
-  yield undefined;
+  yield;
   checkMPSubmission(JSON.parse(xhr.responseText),
                     expectedSub.concat(expectedAugment), "send augmented FormData");
 
   SimpleTest.finish();
-  yield undefined;
+  yield;
 }
 
 </script>

@@ -1,22 +1,11 @@
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
-Cu.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 
 var httpserver = null;
 var simplePath = "/simple";
 var normalPath = "/normal";
 var httpbody = "<html></html>";
-
-XPCOMUtils.defineLazyGetter(this, "uri1", function() {
-  return "http://localhost:" + httpserver.identity.primaryPort + simplePath;
-});
-
-XPCOMUtils.defineLazyGetter(this, "uri2", function() {
-  return "http://localhost:" + httpserver.identity.primaryPort + normalPath;
-});
+var uri1 = "http://localhost:4444" + simplePath;
+var uri2 = "http://localhost:4444" + normalPath;
 
 function make_channel(url) {
   var ios = Cc["@mozilla.org/network/io-service;1"].
@@ -57,11 +46,11 @@ listener.prototype = listener_proto;
 
 function run_test()
 {
-  httpserver = new HttpServer();
+  httpserver = new nsHttpServer();
   httpserver.registerPathHandler(simplePath, simpleHandler);
   httpserver.registerPathHandler(normalPath, normalHandler);
-  httpserver.start(-1);
-
+  httpserver.start(4444);
+  
   var channel = make_channel(uri1);
   channel.asyncOpen(new listener("text/plain", function() {
 	run_test2();

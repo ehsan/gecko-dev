@@ -11,12 +11,10 @@
 #include "base/basictypes.h"
 #include "prlog.h"
 
-#ifdef NO_CHROMIUM_LOGGING
-#include <sstream>
-#endif
-
 // Replace the Chromium logging code with NSPR-based logging code and
 // some C++ wrappers to emulate std::ostream
+
+#define ERROR 0
 
 namespace mozilla {
 
@@ -88,15 +86,9 @@ const mozilla::EmptyLog& operator <<(const mozilla::EmptyLog& log, const T&)
   return log;
 }
 
-#ifdef NO_CHROMIUM_LOGGING
-#define LOG(info) std::stringstream()
-#define LOG_IF(info, condition) if (!(condition)) std::stringstream()
-#else
 #define LOG(info) mozilla::LogWrapper(mozilla::LOG_ ## info, __FILE__, __LINE__)
 #define LOG_IF(info, condition) \
   if (!(condition)) mozilla::LogWrapper(mozilla::LOG_ ## info, __FILE__, __LINE__)
-#endif
-
 
 #ifdef DEBUG
 #define DLOG(info) LOG(info)
@@ -108,8 +100,8 @@ const mozilla::EmptyLog& operator <<(const mozilla::EmptyLog& log, const T&)
 #define DCHECK(condition) while (false && (condition)) mozilla::EmptyLog()
 #endif
 
-#define LOG_ASSERT(cond) CHECK(0)
-#define DLOG_ASSERT(cond) DCHECK(0)
+#define LOG_ASSERT(cond) CHECK(ERROR)
+#define DLOG_ASSERT(cond) DCHECK(ERROR)
 
 #define NOTREACHED() LOG(ERROR)
 #define NOTIMPLEMENTED() LOG(ERROR)
@@ -122,5 +114,10 @@ const mozilla::EmptyLog& operator <<(const mozilla::EmptyLog& log, const T&)
 #define DCHECK_LT(v1, v2) DCHECK((v1) < (v2))
 #define DCHECK_GE(v1, v2) DCHECK((v1) >= (v2))
 #define DCHECK_GT(v1, v2) DCHECK((v1) > (v2))
+
+#ifdef assert
+#undef assert
+#endif
+#define assert DLOG_ASSERT
 
 #endif  // BASE_LOGGING_H_

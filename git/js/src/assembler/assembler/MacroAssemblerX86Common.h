@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=79:
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Copyright (C) 2008 Apple Inc. All rights reserved.
@@ -27,15 +27,15 @@
  * 
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef assembler_assembler_MacroAssemblerX86Common_h
-#define assembler_assembler_MacroAssemblerX86Common_h
+#ifndef MacroAssemblerX86Common_h
+#define MacroAssemblerX86Common_h
 
 #include "assembler/wtf/Platform.h"
 
 #if ENABLE_ASSEMBLER
 
-#include "assembler/assembler/X86Assembler.h"
-#include "assembler/assembler/AbstractMacroAssembler.h"
+#include "X86Assembler.h"
+#include "AbstractMacroAssembler.h"
 
 #if WTF_COMPILER_MSVC
 #if WTF_CPU_X86_64
@@ -91,11 +91,9 @@ public:
         DoubleLessThanOrUnordered = X86Assembler::ConditionB,
         DoubleLessThanOrEqualOrUnordered = X86Assembler::ConditionBE
     };
-    static void staticAsserts() {
-        COMPILE_ASSERT(
-            !((X86Assembler::ConditionE | X86Assembler::ConditionNE | X86Assembler::ConditionA | X86Assembler::ConditionAE | X86Assembler::ConditionB | X86Assembler::ConditionBE) & DoubleConditionBits),
-            DoubleConditionBits_should_not_interfere_with_X86Assembler_Condition_codes);
-    }
+    COMPILE_ASSERT(
+        !((X86Assembler::ConditionE | X86Assembler::ConditionNE | X86Assembler::ConditionA | X86Assembler::ConditionAE | X86Assembler::ConditionB | X86Assembler::ConditionBE) & DoubleConditionBits),
+        DoubleConditionBits_should_not_interfere_with_X86Assembler_Condition_codes);
 
     static const RegisterID stackPointerRegister = X86Registers::esp;
 
@@ -414,11 +412,6 @@ public:
         m_assembler.movw_rm(src, address.offset, address.base, address.index, address.scale);
     }
 
-    void load8(BaseIndex address, RegisterID dest)
-    {
-        load8ZeroExtend(address, dest);
-    }
-
     void load8ZeroExtend(BaseIndex address, RegisterID dest)
     {
         m_assembler.movzbl_mr(address.offset, address.base, address.index, address.scale, dest);
@@ -431,22 +424,22 @@ public:
 
     void load8SignExtend(BaseIndex address, RegisterID dest)
     {
-        m_assembler.movsbl_mr(address.offset, address.base, address.index, address.scale, dest);
+        m_assembler.movxbl_mr(address.offset, address.base, address.index, address.scale, dest);
     }
     
     void load8SignExtend(Address address, RegisterID dest)
     {
-        m_assembler.movsbl_mr(address.offset, address.base, dest);
+        m_assembler.movxbl_mr(address.offset, address.base, dest);
     }
 
     void load16SignExtend(BaseIndex address, RegisterID dest)
     {
-        m_assembler.movswl_mr(address.offset, address.base, address.index, address.scale, dest);
+        m_assembler.movxwl_mr(address.offset, address.base, address.index, address.scale, dest);
     }
     
     void load16SignExtend(Address address, RegisterID dest)
     {
-        m_assembler.movswl_mr(address.offset, address.base, dest);
+        m_assembler.movxwl_mr(address.offset, address.base, dest);
     }
 
     void load16(BaseIndex address, RegisterID dest)
@@ -457,11 +450,6 @@ public:
     void load16(Address address, RegisterID dest)
     {
         m_assembler.movzwl_mr(address.offset, address.base, dest);
-    }
-
-    void load16Unaligned(BaseIndex address, RegisterID dest)
-    {
-        load16(address, dest);
     }
 
     DataLabel32 store32WithAddressOffsetPatch(RegisterID src, Address address)
@@ -557,7 +545,7 @@ public:
     {
         union {
             float f;
-            uint32_t u32;
+            uint32 u32;
         } u;
         u.f = imm.u.d;
         store32(Imm32(u.u32), address);
@@ -567,7 +555,7 @@ public:
     {
         union {
             float f;
-            uint32_t u32;
+            uint32 u32;
         } u;
         u.f = imm.u.d;
         store32(Imm32(u.u32), address);
@@ -1374,15 +1362,6 @@ private:
              );
 #endif
 #endif
-
-#ifdef DEBUG
-        if (s_floatingPointDisabled) {
-            // Disable SSE2.
-            s_sseCheckState = HasSSE;
-            return;
-        }
-#endif
-
         static const int SSEFeatureBit = 1 << 25;
         static const int SSE2FeatureBit = 1 << 26;
         static const int SSE3FeatureBit = 1 << 0;
@@ -1416,10 +1395,6 @@ private:
 
     static bool isSSE2Present()
     {
-#ifdef DEBUG
-        if (s_floatingPointDisabled)
-            return false;
-#endif
         return true;
     }
 
@@ -1502,19 +1477,10 @@ private:
 
         return s_sseCheckState >= HasSSE4_2;
     }
-
-#ifdef DEBUG
-    static bool s_floatingPointDisabled;
-
-  public:
-    static void SetFloatingPointDisabled() {
-        s_floatingPointDisabled = true;
-    }
-#endif
 };
 
 } // namespace JSC
 
 #endif // ENABLE(ASSEMBLER)
 
-#endif /* assembler_assembler_MacroAssemblerX86Common_h */
+#endif // MacroAssemblerX86Common_h

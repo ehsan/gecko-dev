@@ -3,17 +3,9 @@
 // response. Make sure that body received by original channel's listener
 // is correctly modified.
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
+do_load_httpd_js();
 
-Cu.import("resource://testing-common/httpd.js");
-
-var httpserver = new HttpServer();
-httpserver.start(-1);
-const PORT = httpserver.identity.primaryPort;
-
+var httpserver = null;
 var pipe = null;
 var streamSink = null;
 
@@ -34,9 +26,9 @@ TracingListener.prototype = {
 /*
     do_check_eq(request.localAddress, "127.0.0.1");
     do_check_eq(request.localPort > 0, true);
-    do_check_neq(request.localPort, PORT);
+    do_check_neq(request.localPort, 4444);
     do_check_eq(request.remoteAddress, "127.0.0.1");
-    do_check_eq(request.remotePort, PORT);
+    do_check_eq(request.remotePort, 4444);
 */
 
     // Make sure listener can't be replaced after OnStartRequest was called.
@@ -150,9 +142,11 @@ function run_test() {
   var observer = new HttpResponseExaminer();
   observer.register();
 
+  httpserver = new nsHttpServer();
   httpserver.registerPathHandler("/testdir", test_handler);
+  httpserver.start(4444);
 
-  var channel = make_channel("http://localhost:" + PORT + "/testdir");
+  var channel = make_channel("http://localhost:4444/testdir");
   channel.asyncOpen(new ChannelListener(channel_finished), null);
   do_test_pending();
 }

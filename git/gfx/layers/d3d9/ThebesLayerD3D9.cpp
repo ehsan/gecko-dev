@@ -1,15 +1,43 @@
 /* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Corporation code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Bas Schouten <bschouten@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/layers/PLayerTransaction.h"
-
-// This must occur *after* layers/PLayerTransaction.h to avoid
-// typedefs conflicts.
-#include "mozilla/Util.h"
-
-#include "ipc/AutoOpenSurface.h"
+#include "mozilla/layers/PLayers.h"
+#include "mozilla/layers/ShadowLayers.h"
+#include "ShadowBufferD3D9.h"
 
 #include "ThebesLayerD3D9.h"
 #include "gfxPlatform.h"
@@ -18,13 +46,12 @@
 #include "gfxTeeSurface.h"
 #include "gfxUtils.h"
 #include "ReadbackProcessor.h"
-#include "ReadbackLayer.h"
 
 namespace mozilla {
 namespace layers {
 
 ThebesLayerD3D9::ThebesLayerD3D9(LayerManagerD3D9 *aManager)
-  : ThebesLayer(aManager, nullptr)
+  : ThebesLayer(aManager, NULL)
   , LayerD3D9(aManager)
 {
   mImplData = static_cast<LayerD3D9*>(this);
@@ -48,9 +75,7 @@ ThebesLayerD3D9::~ThebesLayerD3D9()
 void
 ThebesLayerD3D9::InvalidateRegion(const nsIntRegion &aRegion)
 {
-  mInvalidRegion.Or(mInvalidRegion, aRegion);
-  mInvalidRegion.SimplifyOutward(10);
-  mValidRegion.Sub(mValidRegion, mInvalidRegion);
+  mValidRegion.Sub(mValidRegion, aRegion);
 }
 
 void
@@ -95,9 +120,9 @@ ThebesLayerD3D9::CopyRegion(IDirect3DTexture9* aSrc, const nsIntPoint &aSrcOffse
   aValidRegion->And(*aValidRegion, retainedRegion);
 }
 
-static uint64_t RectArea(const nsIntRect& aRect)
+static PRUint64 RectArea(const nsIntRect& aRect)
 {
-  return aRect.width*uint64_t(aRect.height);
+  return aRect.width*PRUint64(aRect.height);
 }
 
 void
@@ -191,7 +216,9 @@ ThebesLayerD3D9::RenderThebesLayer(ReadbackProcessor* aReadback)
   nsIntRegion neededRegion = mVisibleRegion;
   if (!neededRegion.GetBounds().IsEqualInterior(newTextureRect) ||
       neededRegion.GetNumRects() > 1) {
-    if (MayResample()) {
+    gfxMatrix transform2d;
+    if (!GetEffectiveTransform().Is2D(&transform2d) ||
+        transform2d.HasNonIntegerTranslation()) {
       neededRegion = newTextureRect;
       if (mode == SURFACE_OPAQUE) {
         // We're going to paint outside the visible region, but layout hasn't
@@ -237,23 +264,17 @@ ThebesLayerD3D9::RenderThebesLayer(ReadbackProcessor* aReadback)
     mValidRegion = neededRegion;
   }
 
-  if (mD3DManager->CompositingDisabled()) {
-    return;
-  }
-
   SetShaderTransformAndOpacity();
 
   if (mode == SURFACE_COMPONENT_ALPHA) {
-    mD3DManager->SetShaderMode(DeviceManagerD3D9::COMPONENTLAYERPASS1,
-                               GetMaskLayer());
+    mD3DManager->SetShaderMode(DeviceManagerD3D9::COMPONENTLAYERPASS1);
     device()->SetTexture(0, mTexture);
     device()->SetTexture(1, mTextureOnWhite);
     device()->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_ZERO);
     device()->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCCOLOR);
     RenderRegion(neededRegion);
 
-    mD3DManager->SetShaderMode(DeviceManagerD3D9::COMPONENTLAYERPASS2,
-                               GetMaskLayer());
+    mD3DManager->SetShaderMode(DeviceManagerD3D9::COMPONENTLAYERPASS2);
     device()->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_ONE);
     device()->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_ONE);
     RenderRegion(neededRegion);
@@ -261,10 +282,9 @@ ThebesLayerD3D9::RenderThebesLayer(ReadbackProcessor* aReadback)
     // Restore defaults
     device()->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_ONE);
     device()->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
-    device()->SetTexture(1, nullptr);
+    device()->SetTexture(1, NULL);
   } else {
-    mD3DManager->SetShaderMode(DeviceManagerD3D9::RGBALAYER,
-                               GetMaskLayer());
+    mD3DManager->SetShaderMode(DeviceManagerD3D9::RGBALAYER);
     device()->SetTexture(0, mTexture);
     RenderRegion(neededRegion);
   }
@@ -278,8 +298,8 @@ ThebesLayerD3D9::RenderThebesLayer(ReadbackProcessor* aReadback)
 void
 ThebesLayerD3D9::CleanResources()
 {
-  mTexture = nullptr;
-  mTextureOnWhite = nullptr;
+  mTexture = nsnull;
+  mTextureOnWhite = nsnull;
   mValidRegion.SetEmpty();
 }
 
@@ -287,7 +307,7 @@ void
 ThebesLayerD3D9::LayerManagerDestroyed()
 {
   mD3DManager->deviceManager()->mLayersWithResources.RemoveElement(this);
-  mD3DManager = nullptr;
+  mD3DManager = nsnull;
 }
 
 Layer*
@@ -296,7 +316,7 @@ ThebesLayerD3D9::GetLayer()
   return this;
 }
 
-bool
+PRBool
 ThebesLayerD3D9::IsEmpty()
 {
   return !mTexture;
@@ -332,15 +352,15 @@ ThebesLayerD3D9::VerifyContentType(SurfaceMode aMode)
 
   // The new format isn't compatible with the old texture(s), toss out the old
   // texture(s).
-  mTexture = nullptr;
-  mTextureOnWhite = nullptr;
+  mTexture = nsnull;
+  mTextureOnWhite = nsnull;
   mValidRegion.SetEmpty();
 }
 
 class OpaqueRenderer {
 public:
   OpaqueRenderer(const nsIntRegion& aUpdateRegion) :
-    mUpdateRegion(aUpdateRegion), mDC(nullptr) {}
+    mUpdateRegion(aUpdateRegion), mDC(NULL) {}
   ~OpaqueRenderer() { End(); }
   already_AddRefed<gfxWindowsSurface> Begin(LayerD3D9* aLayer);
   void End();
@@ -360,11 +380,11 @@ OpaqueRenderer::Begin(LayerD3D9* aLayer)
 
   HRESULT hr = aLayer->device()->
       CreateTexture(bounds.width, bounds.height, 1, 0, D3DFMT_X8R8G8B8,
-                    D3DPOOL_SYSTEMMEM, getter_AddRefs(mTmpTexture), nullptr);
+                    D3DPOOL_SYSTEMMEM, getter_AddRefs(mTmpTexture), NULL);
 
   if (FAILED(hr)) {
     aLayer->ReportFailure(NS_LITERAL_CSTRING("Failed to create temporary texture in system memory."), hr);
-    return nullptr;
+    return nsnull;
   }
 
   hr = mTmpTexture->GetSurfaceLevel(0, getter_AddRefs(mSurface));
@@ -372,13 +392,13 @@ OpaqueRenderer::Begin(LayerD3D9* aLayer)
   if (FAILED(hr)) {
     // Uh-oh, bail.
     NS_WARNING("Failed to get texture surface level.");
-    return nullptr;
+    return nsnull;
   }
 
   hr = mSurface->GetDC(&mDC);
   if (FAILED(hr)) {
     NS_WARNING("Failed to get device context for texture surface.");
-    return nullptr;
+    return nsnull;
   }
 
   nsRefPtr<gfxWindowsSurface> result = new gfxWindowsSurface(mDC);
@@ -390,8 +410,8 @@ OpaqueRenderer::End()
 {
   if (mSurface && mDC) {
     mSurface->ReleaseDC(mDC);
-    mSurface = nullptr;
-    mDC = nullptr;
+    mSurface = NULL;
+    mDC = NULL;
   }
 }
 
@@ -428,7 +448,7 @@ ThebesLayerD3D9::DrawRegion(nsIntRegion &aRegion, SurfaceMode aMode,
     case SURFACE_SINGLE_CHANNEL_ALPHA: {
       hr = device()->CreateTexture(bounds.width, bounds.height, 1,
                                    0, D3DFMT_A8R8G8B8,
-                                   D3DPOOL_SYSTEMMEM, getter_AddRefs(tmpTexture), nullptr);
+                                   D3DPOOL_SYSTEMMEM, getter_AddRefs(tmpTexture), NULL);
 
       if (FAILED(hr)) {
         ReportFailure(NS_LITERAL_CSTRING("Failed to create temporary texture in system memory."), hr);
@@ -455,11 +475,11 @@ ThebesLayerD3D9::DrawRegion(nsIntRegion &aRegion, SurfaceMode aMode,
         FillSurface(onBlack, aRegion, bounds.TopLeft(), gfxRGBA(0.0, 0.0, 0.0, 1.0));
         FillSurface(onWhite, aRegion, bounds.TopLeft(), gfxRGBA(1.0, 1.0, 1.0, 1.0));
         gfxASurface* surfaces[2] = { onBlack.get(), onWhite.get() };
-        destinationSurface = new gfxTeeSurface(surfaces, ArrayLength(surfaces));
+        destinationSurface = new gfxTeeSurface(surfaces, NS_ARRAY_LENGTH(surfaces));
         // Using this surface as a source will likely go horribly wrong, since
         // only the onBlack surface will really be used, so alpha information will
         // be incorrect.
-        destinationSurface->SetAllowUseAsSource(false);
+        destinationSurface->SetAllowUseAsSource(PR_FALSE);
       }
       break;
     }
@@ -473,7 +493,7 @@ ThebesLayerD3D9::DrawRegion(nsIntRegion &aRegion, SurfaceMode aMode,
   LayerManagerD3D9::CallbackInfo cbInfo = mD3DManager->GetCallbackInfo();
   cbInfo.Callback(this, context, aRegion, nsIntRegion(), cbInfo.CallbackData);
 
-  for (uint32_t i = 0; i < aReadbackUpdates.Length(); ++i) {
+  for (PRUint32 i = 0; i < aReadbackUpdates.Length(); ++i) {
     NS_ASSERTION(aMode == SURFACE_OPAQUE,
                  "Transparent surfaces should not be used for readback");
     const ReadbackProcessor::Update& update = aReadbackUpdates[i];
@@ -521,7 +541,7 @@ ThebesLayerD3D9::DrawRegion(nsIntRegion &aRegion, SurfaceMode aMode,
         context->Paint();
       }
 
-      imgSurface = nullptr;
+      imgSurface = NULL;
 
       srcTextures.AppendElement(tmpTexture);
       destTextures.AppendElement(mTexture);
@@ -541,7 +561,7 @@ ThebesLayerD3D9::DrawRegion(nsIntRegion &aRegion, SurfaceMode aMode,
   NS_ASSERTION(srcTextures.Length() == destTextures.Length(), "Mismatched lengths");
 
   // Copy to the texture.
-  for (uint32_t i = 0; i < srcTextures.Length(); ++i) {
+  for (PRUint32 i = 0; i < srcTextures.Length(); ++i) {
     nsRefPtr<IDirect3DSurface9> srcSurface;
     nsRefPtr<IDirect3DSurface9> dstSurface;
 
@@ -574,29 +594,108 @@ ThebesLayerD3D9::CreateNewTextures(const gfxIntSize &aSize,
     return;
   }
 
-  mTexture = nullptr;
-  mTextureOnWhite = nullptr;
-  HRESULT hr = device()->CreateTexture(aSize.width, aSize.height, 1,
-                                       D3DUSAGE_RENDERTARGET,
-                                       aMode != SURFACE_SINGLE_CHANNEL_ALPHA ? D3DFMT_X8R8G8B8 : D3DFMT_A8R8G8B8,
-                                       D3DPOOL_DEFAULT, getter_AddRefs(mTexture), nullptr);
-  if (FAILED(hr)) {
-    ReportFailure(NS_LITERAL_CSTRING("ThebesLayerD3D9::CreateNewTextures(): Failed to create texture"),
-                  hr);
-    return;
+  mTexture = nsnull;
+  mTextureOnWhite = nsnull;
+  device()->CreateTexture(aSize.width, aSize.height, 1,
+                          D3DUSAGE_RENDERTARGET,
+                          aMode != SURFACE_SINGLE_CHANNEL_ALPHA ? D3DFMT_X8R8G8B8 : D3DFMT_A8R8G8B8,
+                          D3DPOOL_DEFAULT, getter_AddRefs(mTexture), NULL);
+  if (aMode == SURFACE_COMPONENT_ALPHA) {
+    device()->CreateTexture(aSize.width, aSize.height, 1,
+                            D3DUSAGE_RENDERTARGET,
+                            D3DFMT_X8R8G8B8,
+                            D3DPOOL_DEFAULT, getter_AddRefs(mTextureOnWhite), NULL);
+  }
+}
+
+ShadowThebesLayerD3D9::ShadowThebesLayerD3D9(LayerManagerD3D9 *aManager)
+  : ShadowThebesLayer(aManager, nsnull)
+  , LayerD3D9(aManager)
+{
+  mImplData = static_cast<LayerD3D9*>(this);
+}
+
+ShadowThebesLayerD3D9::~ShadowThebesLayerD3D9()
+{}
+
+void
+ShadowThebesLayerD3D9::SetFrontBuffer(const OptionalThebesBuffer& aNewFront,
+                                     const nsIntRegion& aValidRegion)
+{
+  if (!mBuffer) {
+    mBuffer = new ShadowBufferD3D9(this);
   }
 
-  if (aMode == SURFACE_COMPONENT_ALPHA) {
-    hr = device()->CreateTexture(aSize.width, aSize.height, 1,
-                                 D3DUSAGE_RENDERTARGET,
-                                 D3DFMT_X8R8G8B8,
-                                 D3DPOOL_DEFAULT, getter_AddRefs(mTextureOnWhite), nullptr);
-    if (FAILED(hr)) {
-      ReportFailure(NS_LITERAL_CSTRING("ThebesLayerD3D9::CreateNewTextures(): Failed to create texture (2)"),
-                    hr);
-      return;
-    }
+  NS_ASSERTION(OptionalThebesBuffer::Tnull_t == aNewFront.type(),
+               "Only one system-memory buffer expected");
+}
+
+void
+ShadowThebesLayerD3D9::Swap(const ThebesBuffer& aNewFront,
+                           const nsIntRegion& aUpdatedRegion,
+                           ThebesBuffer* aNewBack,
+                           nsIntRegion* aNewBackValidRegion,
+                           OptionalThebesBuffer* aReadOnlyFront,
+                           nsIntRegion* aFrontUpdatedRegion)
+{
+  if (mBuffer) {
+    nsRefPtr<gfxASurface> surf = ShadowLayerForwarder::OpenDescriptor(aNewFront.buffer());
+    mBuffer->Upload(surf, GetVisibleRegion().GetBounds());
   }
+
+  *aNewBack = aNewFront;
+  *aNewBackValidRegion = mValidRegion;
+  *aReadOnlyFront = null_t();
+  aFrontUpdatedRegion->SetEmpty();
+}
+
+void
+ShadowThebesLayerD3D9::DestroyFrontBuffer()
+{
+  mBuffer = nsnull;
+}
+
+void
+ShadowThebesLayerD3D9::Disconnect()
+{
+  mBuffer = nsnull;
+}
+
+Layer*
+ShadowThebesLayerD3D9::GetLayer()
+{
+  return this;
+}
+
+PRBool
+ShadowThebesLayerD3D9::IsEmpty()
+{
+  return !mBuffer;
+}
+
+void
+ShadowThebesLayerD3D9::RenderThebesLayer()
+{
+  if (!mBuffer) {
+    return;
+  }
+  NS_ABORT_IF_FALSE(mBuffer, "should have a buffer here");
+
+  mBuffer->RenderTo(mD3DManager, GetEffectiveVisibleRegion());
+}
+
+void
+ShadowThebesLayerD3D9::CleanResources()
+{
+  mBuffer = nsnull;
+  mValidRegion.SetEmpty();
+}
+
+void
+ShadowThebesLayerD3D9::LayerManagerDestroyed()
+{
+  mD3DManager->deviceManager()->mLayersWithResources.RemoveElement(this);
+  mD3DManager = nsnull;
 }
 
 } /* namespace layers */

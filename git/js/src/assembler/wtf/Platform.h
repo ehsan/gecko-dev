@@ -25,8 +25,8 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef assembler_wtf_Platform_h
-#define assembler_wtf_Platform_h
+#ifndef WTF_Platform_h
+#define WTF_Platform_h
 
 /* ==== PLATFORM handles OS, operating environment, graphics API, and
    CPU. This macro will be phased out in favor of platform adaptation
@@ -245,7 +245,6 @@
 #endif
 
 #define WTF_ARM_ARCH_AT_LEAST(N) (CPU(ARM) && WTF_ARM_ARCH_VERSION >= N)
-#define WTF_ARM_ARCH_AT_LEAST_5 (WTF_CPU_ARM && WTF_ARM_ARCH_VERSION >= 5)
 
 /* Set WTF_ARM_ARCH_VERSION */
 #if   defined(__ARM_ARCH_4__) \
@@ -1029,7 +1028,7 @@
 
 /* The JIT is enabled by default on all x86, x64-64, ARM platforms. */
 #if !defined(ENABLE_JIT) \
-    && (WTF_CPU_X86 || WTF_CPU_X86_64 || WTF_CPU_ARM || WTF_CPU_SPARC32 || WTF_CPU_MIPS) \
+    && (WTF_CPU_X86 || WTF_CPU_X86_64 || WTF_CPU_ARM || WTF_CPU_SPARC32) \
     && (WTF_OS_DARWIN || !WTF_COMPILER_GCC || GCC_VERSION_AT_LEAST(4, 1, 0)) \
     && !WTF_OS_WINCE
 #define ENABLE_JIT 1
@@ -1103,7 +1102,9 @@
 #if WTF_PLATFORM_CHROMIUM
 #define ENABLE_YARR_JIT 0
 
-#elif ENABLE_YARR_JIT
+#elif ENABLE_JIT && !defined(ENABLE_YARR_JIT)
+#define ENABLE_YARR_JIT 1
+
 /* Setting this flag compares JIT results with interpreter results. */
 #define ENABLE_YARR_JIT_DEBUG 0
 #endif
@@ -1177,11 +1178,6 @@
 #define WARN_UNUSED_RETURN
 #endif
 
-/* COMPILER(CLANG) - Clang  */
-#if defined(__clang__)
-#define WTF_COMPILER_CLANG 1
-#endif
-
 #if !ENABLE_NETSCAPE_PLUGIN_API || (ENABLE_NETSCAPE_PLUGIN_API && ((WTF_OS_UNIX && (WTF_PLATFORM_QT || WTF_PLATFORM_WX)) || WTF_PLATFORM_GTK))
 #define ENABLE_PLUGIN_PACKAGE_SIMPLE_HASH 1
 #endif
@@ -1220,7 +1216,7 @@
 #endif
 
 #if ENABLE_GLIB_SUPPORT
-//#include "GTypedefs.h"
+#include "GTypedefs.h"
 #endif
 
 /* FIXME: This define won't be needed once #27551 is fully landed. However, 
@@ -1233,4 +1229,4 @@
 #define WTF_USE_UNIX_DOMAIN_SOCKETS 1
 #endif
 
-#endif /* assembler_wtf_Platform_h */
+#endif /* WTF_Platform_h */

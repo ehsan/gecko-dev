@@ -1,51 +1,47 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * The Mozilla Foundation <http://www.mozilla.org/>.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Daniel Witte <dwitte@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "mozilla/net/CookieServiceParent.h"
-#include "mozilla/dom/PBrowserParent.h"
-#include "mozilla/net/NeckoParent.h"
-
-#include "mozilla/ipc/URIUtils.h"
 #include "nsCookieService.h"
 #include "nsNetUtil.h"
-#include "nsPrintfCString.h"
-
-using namespace mozilla::ipc;
-using mozilla::dom::PBrowserParent;
-using mozilla::net::NeckoParent;
 
 namespace mozilla {
 namespace net {
-
-MOZ_WARN_UNUSED_RESULT
-static bool
-GetAppInfoFromParams(const IPC::SerializedLoadContext &aLoadContext,
-                     PBrowserParent* aBrowser,
-                     uint32_t& aAppId,
-                     bool& aIsInBrowserElement,
-                     bool& aIsPrivate)
-{
-  aAppId = NECKO_NO_APP_ID;
-  aIsInBrowserElement = false;
-  aIsPrivate = false;
-
-  const char* error = NeckoParent::GetValidatedAppInfo(aLoadContext, aBrowser,
-                                                       &aAppId,
-                                                       &aIsInBrowserElement);
-  if (error) {
-    NS_WARNING(nsPrintfCString("CookieServiceParent: GetAppInfoFromParams: "
-                               "FATAL error: %s: KILLING CHILD PROCESS\n",
-                               error).get());
-    return false;
-  }
-
-  if (aLoadContext.IsPrivateBitValid()) {
-    aIsPrivate = aLoadContext.mUsePrivateBrowsing;
-  }
-  return true;
-}
 
 CookieServiceParent::CookieServiceParent()
 {
@@ -64,12 +60,9 @@ CookieServiceParent::~CookieServiceParent()
 }
 
 bool
-CookieServiceParent::RecvGetCookieString(const URIParams& aHost,
+CookieServiceParent::RecvGetCookieString(const IPC::URI& aHost,
                                          const bool& aIsForeign,
                                          const bool& aFromHttp,
-                                         const IPC::SerializedLoadContext&
-                                               aLoadContext,
-                                         PBrowserParent* aBrowser,
                                          nsCString* aResult)
 {
   if (!mCookieService)
@@ -77,55 +70,35 @@ CookieServiceParent::RecvGetCookieString(const URIParams& aHost,
 
   // Deserialize URI. Having a host URI is mandatory and should always be
   // provided by the child; thus we consider failure fatal.
-  nsCOMPtr<nsIURI> hostURI = DeserializeURI(aHost);
+  nsCOMPtr<nsIURI> hostURI(aHost);
   if (!hostURI)
     return false;
 
-  uint32_t appId;
-  bool isInBrowserElement, isPrivate;
-  bool valid = GetAppInfoFromParams(aLoadContext, aBrowser, appId,
-                                    isInBrowserElement, isPrivate);
-  if (!valid) {
-    return false;
-  }
-
-  mCookieService->GetCookieStringInternal(hostURI, aIsForeign, aFromHttp, appId,
-                                          isInBrowserElement, isPrivate, *aResult);
+  mCookieService->GetCookieStringInternal(hostURI, aIsForeign,
+                                          aFromHttp, *aResult);
   return true;
 }
 
 bool
-CookieServiceParent::RecvSetCookieString(const URIParams& aHost,
+CookieServiceParent::RecvSetCookieString(const IPC::URI& aHost,
                                          const bool& aIsForeign,
                                          const nsCString& aCookieString,
                                          const nsCString& aServerTime,
-                                         const bool& aFromHttp,
-                                         const IPC::SerializedLoadContext&
-                                               aLoadContext,
-                                         PBrowserParent* aBrowser)
+                                         const bool& aFromHttp)
 {
   if (!mCookieService)
     return true;
 
   // Deserialize URI. Having a host URI is mandatory and should always be
   // provided by the child; thus we consider failure fatal.
-  nsCOMPtr<nsIURI> hostURI = DeserializeURI(aHost);
+  nsCOMPtr<nsIURI> hostURI(aHost);
   if (!hostURI)
     return false;
 
-  uint32_t appId;
-  bool isInBrowserElement, isPrivate;
-  bool valid = GetAppInfoFromParams(aLoadContext, aBrowser, appId,
-                                    isInBrowserElement, isPrivate);
-  if (!valid) {
-    return false;
-  }
-
   nsDependentCString cookieString(aCookieString, 0);
-  //TODO: bug 812475, pass a real channel object
-  mCookieService->SetCookieStringInternal(hostURI, aIsForeign, cookieString,
-                                          aServerTime, aFromHttp, appId,
-                                          isInBrowserElement, isPrivate, nullptr);
+  mCookieService->SetCookieStringInternal(hostURI, aIsForeign,
+                                          cookieString, aServerTime,
+                                          aFromHttp);
   return true;
 }
 

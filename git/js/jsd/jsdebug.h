@@ -1,8 +1,39 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * Header for JavaScript Debugging support - All public functions
@@ -11,10 +42,25 @@
 #ifndef jsdebug_h___
 #define jsdebug_h___
 
+/* Get jstypes.h included first. After that we can use PR macros for doing
+*  this extern "C" stuff!
+*/
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+#include "jstypes.h"
+#ifdef __cplusplus
+}
+#endif
+
 #include "jsapi.h"
 #include "jsdbgapi.h"
+#ifdef LIVEWIRE
+#include "lwdbgapi.h"
+#endif
 
-extern "C" {
+JS_BEGIN_EXTERN_C
 
 /*
  * The linkage of JSD API functions differs depending on whether the file is
@@ -65,7 +111,7 @@ typedef void
 /* This struct could have more fields in future versions */
 typedef struct
 {
-    unsigned              size;       /* size of this struct (init before use)*/
+    uintN              size;       /* size of this struct (init before use)*/
     JSD_SetContextProc setContext;
 } JSD_UserCallbacks;
 
@@ -127,26 +173,20 @@ JSD_DebuggerUnpause(JSDContext* jsdc);
 /*
 * Get the Major Version (initial JSD release used major version = 1)
 */
-extern JSD_PUBLIC_API(unsigned)
+extern JSD_PUBLIC_API(uintN)
 JSD_GetMajorVersion(void);
 
 /*
 * Get the Minor Version (initial JSD release used minor version = 0)
 */
-extern JSD_PUBLIC_API(unsigned)
+extern JSD_PUBLIC_API(uintN)
 JSD_GetMinorVersion(void);
 
 /*
-* Returns the default JSD global associated with a given JSDContext.
+* Returns a 'dumb' JSContext that can be used for utility purposes as needed
 */
-extern JSD_PUBLIC_API(JSObject*)
-JSD_GetDefaultGlobal(JSDContext* jsdc);
-
-/*
-* Returns a JSRuntime this context is associated with
-*/
-extern JSD_PUBLIC_API(JSRuntime*)
-JSD_GetJSRuntime(JSDContext* jsdc);
+extern JSD_PUBLIC_API(JSContext*)
+JSD_GetDefaultJSContext(JSDContext* jsdc);
 
 /*
 * Set the private data for this context, returns previous value
@@ -218,9 +258,9 @@ JSD_ClearAllProfileData(JSDContext* jsdc);
 
 
 extern JSD_PUBLIC_API(void)
-JSD_SetContextFlags (JSDContext* jsdc, uint32_t flags);
+JSD_SetContextFlags (JSDContext* jsdc, uint32 flags);
 
-extern JSD_PUBLIC_API(uint32_t)
+extern JSD_PUBLIC_API(uint32)
 JSD_GetContextFlags (JSDContext* jsdc);     
 
 /*
@@ -281,52 +321,52 @@ JSD_IterateScripts(JSDContext* jsdc, JSDScript **iterp);
 /*
 * Get the number of times this script has been called.
 */
-extern JSD_PUBLIC_API(unsigned)
+extern JSD_PUBLIC_API(uintN)
 JSD_GetScriptCallCount(JSDContext* jsdc, JSDScript *script);
 
 /*
 * Get the max number of times this script called itself, directly or indirectly.
 */
-extern JSD_PUBLIC_API(unsigned)
+extern JSD_PUBLIC_API(uintN)
 JSD_GetScriptMaxRecurseDepth(JSDContext* jsdc, JSDScript *script);
 
 /*
 * Get the shortest execution time recorded.
 */
-extern JSD_PUBLIC_API(double)
+extern JSD_PUBLIC_API(jsdouble)
 JSD_GetScriptMinExecutionTime(JSDContext* jsdc, JSDScript *script);
 
 /*
 * Get the longest execution time recorded.
 */
-extern JSD_PUBLIC_API(double)
+extern JSD_PUBLIC_API(jsdouble)
 JSD_GetScriptMaxExecutionTime(JSDContext* jsdc, JSDScript *script);
 
 /*
 * Get the total amount of time spent in this script.
 */
-extern JSD_PUBLIC_API(double)
+extern JSD_PUBLIC_API(jsdouble)
 JSD_GetScriptTotalExecutionTime(JSDContext* jsdc, JSDScript *script);
 
 /*
 * Get the shortest execution time recorded, excluding time spent in called
 * functions.
 */
-extern JSD_PUBLIC_API(double)
+extern JSD_PUBLIC_API(jsdouble)
 JSD_GetScriptMinOwnExecutionTime(JSDContext* jsdc, JSDScript *script);
 
 /*
 * Get the longest execution time recorded, excluding time spent in called
 * functions.
 */
-extern JSD_PUBLIC_API(double)
+extern JSD_PUBLIC_API(jsdouble)
 JSD_GetScriptMaxOwnExecutionTime(JSDContext* jsdc, JSDScript *script);
 
 /*
 * Get the total amount of time spent in this script, excluding time spent
 * in called functions.
 */
-extern JSD_PUBLIC_API(double)
+extern JSD_PUBLIC_API(jsdouble)
 JSD_GetScriptTotalOwnExecutionTime(JSDContext* jsdc, JSDScript *script);
 
 /*
@@ -357,18 +397,12 @@ JSD_GetJSFunction(JSDContext* jsdc, JSDScript *script);
 * The context flag JSD_DEBUG_WHEN_SET decides the logic.
 */
 #define JSD_SCRIPT_DEBUG_BIT   0x02
-/*
- * Determines whether to invoke the onScriptDestroy callback for this
- * script. The default is for this to be true if the onScriptCreated
- * callback was invoked for this script.
- */
-#define JSD_SCRIPT_CALL_DESTROY_HOOK_BIT 0x04
 
-extern JSD_PUBLIC_API(uint32_t)
+extern JSD_PUBLIC_API(uint32)
 JSD_GetScriptFlags(JSDContext *jsdc, JSDScript* jsdscript);
 
 extern JSD_PUBLIC_API(void)
-JSD_SetScriptFlags(JSDContext *jsdc, JSDScript* jsdscript, uint32_t flags);
+JSD_SetScriptFlags(JSDContext *jsdc, JSDScript* jsdscript, uint32 flags);
 
 /*
 * Set the private data for this script, returns previous value
@@ -407,13 +441,13 @@ JSD_GetScriptFunctionId(JSDContext* jsdc, JSDScript *jsdscript);
 * This is one-based -- i.e. the first line of a file is line '1'. This may
 * return 0 if this infomation is unknown.
 */
-extern JSD_PUBLIC_API(unsigned)
+extern JSD_PUBLIC_API(uintN)
 JSD_GetScriptBaseLineNumber(JSDContext* jsdc, JSDScript *jsdscript);
 
 /*
 * Get the count of source lines associated with this script (1 or greater)
 */
-extern JSD_PUBLIC_API(unsigned)
+extern JSD_PUBLIC_API(uintN)
 JSD_GetScriptLineExtent(JSDContext* jsdc, JSDScript *jsdscript);
 
 /*
@@ -451,16 +485,16 @@ JSD_GetScriptHook(JSDContext* jsdc, JSD_ScriptHookProc* hook, void** callerdata)
 * code within the script (if any) after the given line.
 * This function can be used to set breakpoints -- see JSD_SetExecutionHook
 */
-extern JSD_PUBLIC_API(uintptr_t)
-JSD_GetClosestPC(JSDContext* jsdc, JSDScript* jsdscript, unsigned line);
+extern JSD_PUBLIC_API(jsuword)
+JSD_GetClosestPC(JSDContext* jsdc, JSDScript* jsdscript, uintN line);
 
 /*
 * Get the source line number for a given 'Program Counter' location.
 * Returns 0 if no source line information is appropriate (or available) for
 * the given pc.
 */
-extern JSD_PUBLIC_API(unsigned)
-JSD_GetClosestLine(JSDContext* jsdc, JSDScript* jsdscript, uintptr_t pc);
+extern JSD_PUBLIC_API(uintN)
+JSD_GetClosestLine(JSDContext* jsdc, JSDScript* jsdscript, jsuword pc);
 
 /*
  * Get a list of lines and the corresponding earliest PC for each (see
@@ -470,8 +504,8 @@ JSD_GetClosestLine(JSDContext* jsdc, JSDScript* jsdscript, uintptr_t pc);
  */
 extern JSD_PUBLIC_API(JSBool)
 JSD_GetLinePCs(JSDContext* jsdc, JSDScript* jsdscript,
-               unsigned startLine, unsigned maxLines,
-               unsigned* count, unsigned** lines, uintptr_t** pcs);
+               uintN startLine, uintN maxLines,
+               uintN* count, uintN** lines, jsuword** pcs);
 
 /* these are only used in cases where scripts are created outside of JS*/
 
@@ -486,7 +520,7 @@ extern JSD_PUBLIC_API(void)
 JSD_ScriptCreated(JSDContext* jsdc,
                   JSContext   *cx,
                   const char  *filename,    /* URL this script loads from */
-                  unsigned       lineno,       /* line where this script starts */
+                  uintN       lineno,       /* line where this script starts */
                   JSScript    *script,
                   JSFunction  *fun);
 
@@ -495,7 +529,7 @@ JSD_ScriptCreated(JSDContext* jsdc,
 */
 extern JSD_PUBLIC_API(void)
 JSD_ScriptDestroyed(JSDContext* jsdc,
-                    JSFreeOp    *fop,
+                    JSContext   *cx,
                     JSScript    *script);
 
 /***************************************************************************/
@@ -577,7 +611,7 @@ JSD_GetSourceURL(JSDContext* jsdc, JSDSourceText* jsdsrc);
 */
 extern JSD_PUBLIC_API(JSBool)
 JSD_GetSourceText(JSDContext* jsdc, JSDSourceText* jsdsrc,
-                  const char** ppBuf, int* pLen);
+                  const char** ppBuf, intN* pLen);
 
 /*
 * Clear the text -- delete the text and set the status to JSD_SOURCE_CLEARED.
@@ -616,7 +650,7 @@ JSD_SetSourceDirty(JSDContext* jsdc, JSDSourceText* jsdsrc, JSBool dirty);
 * different from their stored value. Thus they can know if they have stale
 * data or not. NOTE: this value is not gauranteed to start at any given number.
 */
-extern JSD_PUBLIC_API(unsigned)
+extern JSD_PUBLIC_API(uintN)
 JSD_GetSourceAlterCount(JSDContext* jsdc, JSDSourceText* jsdsrc);
 
 /*
@@ -624,7 +658,7 @@ JSD_GetSourceAlterCount(JSDContext* jsdc, JSDSourceText* jsdsrc);
 * normally automatic when the item changes, but a give consumer may want to
 * force this to amke an item appear to have changed even if it has not.
 */
-extern JSD_PUBLIC_API(unsigned)
+extern JSD_PUBLIC_API(uintN)
 JSD_IncrementSourceAlterCount(JSDContext* jsdc, JSDSourceText* jsdsrc);
 
 /*
@@ -637,9 +671,11 @@ JSD_DestroyAllSources( JSDContext* jsdc );
 /* functions for adding source items */
 
 /*
-* Add a new item for a given URL. If an item already exists for the given URL
+* Add a new item for a given URL. If an iten already exists for the given URL
 * then the old item is removed.
 * 'url' may not be NULL.
+*
+* ifdef LIVEWIRE url is treated as a char* and ownership is claimed by jsd
 */
 extern JSD_PUBLIC_API(JSDSourceText*)
 JSD_NewSourceText(JSDContext* jsdc, const char* url);
@@ -712,10 +748,10 @@ JSD_AddFullSourceText(JSDContext* jsdc,
 /*
 * Implement a callback of this form in order to hook execution.
 */
-typedef unsigned
+typedef uintN
 (* JSD_ExecutionHookProc)(JSDContext*     jsdc,
                           JSDThreadState* jsdthreadstate,
-                          unsigned           type,
+                          uintN           type,
                           void*           callerdata,
                           jsval*          rval);
 
@@ -734,7 +770,7 @@ typedef unsigned
 typedef JSBool
 (* JSD_CallHookProc)(JSDContext*     jsdc,
                      JSDThreadState* jsdthreadstate,
-                     unsigned           type,
+                     uintN           type,
                      void*           callerdata);
 
 /*
@@ -744,7 +780,7 @@ typedef JSBool
 extern JSD_PUBLIC_API(JSBool)
 JSD_SetExecutionHook(JSDContext*           jsdc,
                      JSDScript*            jsdscript,
-                     uintptr_t             pc,
+                     jsuword               pc,
                      JSD_ExecutionHookProc hook,
                      void*                 callerdata);
 
@@ -754,7 +790,7 @@ JSD_SetExecutionHook(JSDContext*           jsdc,
 extern JSD_PUBLIC_API(JSBool)
 JSD_ClearExecutionHook(JSDContext*          jsdc,
                        JSDScript*           jsdscript,
-                       uintptr_t            pc);
+                       jsuword              pc);
 
 /*
 * Clear all the pc specific hooks for this script
@@ -869,7 +905,7 @@ JSD_ClearFunctionHook(JSDContext* jsdc);
 /*
 * Get the count of call stack frames for the given JSDThreadState
 */
-extern JSD_PUBLIC_API(unsigned)
+extern JSD_PUBLIC_API(uintN)
 JSD_GetCountOfStackFrames(JSDContext* jsdc, JSDThreadState* jsdthreadstate);
 
 /*
@@ -903,7 +939,7 @@ JSD_GetScriptForStackFrame(JSDContext* jsdc,
 /*
 * Get the 'Program Counter' for the given call stack frame
 */
-extern JSD_PUBLIC_API(uintptr_t)
+extern JSD_PUBLIC_API(jsuword)
 JSD_GetPCForStackFrame(JSDContext* jsdc,
                        JSDThreadState* jsdthreadstate,
                        JSDStackFrameInfo* jsdframe);
@@ -972,9 +1008,9 @@ extern JSD_PUBLIC_API(JSBool)
 JSD_EvaluateUCScriptInStackFrame(JSDContext* jsdc,
                                  JSDThreadState* jsdthreadstate,
                                  JSDStackFrameInfo* jsdframe,
-                                 const jschar *bytes, unsigned length,
-                                 const char *filename, unsigned lineno,
-                                 JS::MutableHandleValue rval);
+                                 const jschar *bytes, uintN length,
+                                 const char *filename, uintN lineno,
+                                 jsval *rval);
 
 /*
 * Same as above, but does not eat exceptions.
@@ -983,17 +1019,17 @@ extern JSD_PUBLIC_API(JSBool)
 JSD_AttemptUCScriptInStackFrame(JSDContext* jsdc,
                                 JSDThreadState* jsdthreadstate,
                                 JSDStackFrameInfo* jsdframe,
-                                const jschar *bytes, unsigned length,
-                                const char *filename, unsigned lineno,
-                                JS::MutableHandleValue rval);
+                                const jschar *bytes, uintN length,
+                                const char *filename, uintN lineno,
+                                jsval *rval);
 
 /* single byte character version of JSD_EvaluateUCScriptInStackFrame */
 extern JSD_PUBLIC_API(JSBool)
 JSD_EvaluateScriptInStackFrame(JSDContext* jsdc,
                                JSDThreadState* jsdthreadstate,
                                JSDStackFrameInfo* jsdframe,
-                               const char *bytes, unsigned length,
-                               const char *filename, unsigned lineno, JS::MutableHandleValue rval);
+                               const char *bytes, uintN length,
+                               const char *filename, uintN lineno, jsval *rval);
 
 /*
 * Same as above, but does not eat exceptions.
@@ -1002,8 +1038,8 @@ extern JSD_PUBLIC_API(JSBool)
 JSD_AttemptScriptInStackFrame(JSDContext* jsdc,
                               JSDThreadState* jsdthreadstate,
                               JSDStackFrameInfo* jsdframe,
-                              const char *bytes, unsigned length,
-                              const char *filename, unsigned lineno, JS::MutableHandleValue rval);
+                              const char *bytes, uintN length,
+                              const char *filename, uintN lineno, jsval *rval);
 
 /*
 * Convert the given jsval to a string
@@ -1048,7 +1084,7 @@ JSD_SetException(JSDContext* jsdc, JSDThreadState* jsdthreadstate,
 /*
 * Implement a callback of this form in order to hook the ErrorReporter
 */
-typedef unsigned
+typedef uintN
 (* JSD_ErrorReporter)(JSDContext*     jsdc,
                       JSContext*      cx,
                       const char*     message,
@@ -1070,8 +1106,6 @@ JSD_GetErrorReporter(JSDContext*        jsdc,
 /***************************************************************************/
 /* Generic locks that callers can use for their own purposes */
 
-struct JSDStaticLock;
-
 /*
 * Is Locking and GetThread supported in this build?
 */
@@ -1081,7 +1115,7 @@ JSD_IsLockingAndThreadIdSupported();
 /*
 * Create a reentrant/nestable lock
 */
-extern JSD_PUBLIC_API(JSDStaticLock*)
+extern JSD_PUBLIC_API(void*)
 JSD_CreateLock();
 
 /*
@@ -1089,27 +1123,27 @@ JSD_CreateLock();
 * counter if this thread already owns the lock.
 */
 extern JSD_PUBLIC_API(void)
-JSD_Lock(JSDStaticLock* lock);
+JSD_Lock(void* lock);
 
 /*
 * Release lock for this thread (or decrement the counter if JSD_Lock
 * was previous called more than once).
 */
 extern JSD_PUBLIC_API(void)
-JSD_Unlock(JSDStaticLock* lock);
+JSD_Unlock(void* lock);
 
 /*
 * For debugging only if not (JS_THREADSAFE AND DEBUG) then returns JS_TRUE
 *    So JSD_IsLocked(lock) may not equal !JSD_IsUnlocked(lock)
 */
 extern JSD_PUBLIC_API(JSBool)
-JSD_IsLocked(JSDStaticLock* lock);
+JSD_IsLocked(void* lock);
 
 /*
 * See above...
 */
 extern JSD_PUBLIC_API(JSBool)
-JSD_IsUnlocked(JSDStaticLock* lock);
+JSD_IsUnlocked(void* lock);
 
 /*
 * return an ID uniquely identifying this thread.
@@ -1249,17 +1283,17 @@ extern JSD_PUBLIC_API(JSBool)
 JSD_GetValueBoolean(JSDContext* jsdc, JSDValue* jsdval);
 
 /*
-* Return int32_t value (does NOT do conversion).
+* Return int32 value (does NOT do conversion).
 * *** new for version 1.1 ****
 */
-extern JSD_PUBLIC_API(int32_t)
+extern JSD_PUBLIC_API(int32)
 JSD_GetValueInt(JSDContext* jsdc, JSDValue* jsdval);
 
 /*
 * Return double value (does NOT do conversion).
 * *** new for version 1.1 ****
 */
-extern JSD_PUBLIC_API(double)
+extern JSD_PUBLIC_API(jsdouble)
 JSD_GetValueDouble(JSDContext* jsdc, JSDValue* jsdval);
 
 /*
@@ -1293,7 +1327,7 @@ JSD_GetValueFunction(JSDContext* jsdc, JSDValue* jsdval);
 * Return the number of properties for the JSDValue.
 * *** new for version 1.1 ****
 */
-extern JSD_PUBLIC_API(unsigned)
+extern JSD_PUBLIC_API(uintN)
 JSD_GetCountOfProperties(JSDContext* jsdc, JSDValue* jsdval);
 
 /*
@@ -1362,6 +1396,8 @@ JSD_GetScriptForValue(JSDContext* jsdc, JSDValue* jsdval);
 #define JSDPD_READONLY   JSPD_READONLY     /* assignment is error */
 #define JSDPD_PERMANENT  JSPD_PERMANENT    /* property cannot be deleted */
 #define JSDPD_ALIAS      JSPD_ALIAS        /* property has an alias id */
+#define JSDPD_ARGUMENT   JSPD_ARGUMENT     /* argument to function */
+#define JSDPD_VARIABLE   JSPD_VARIABLE     /* local variable in function */
 #define JSDPD_EXCEPTION  JSPD_EXCEPTION    /* exception occurred looking up */
                                            /* proprety, value is exception  */
 #define JSDPD_ERROR      JSPD_ERROR        /* native getter returned JS_FALSE */
@@ -1404,8 +1440,15 @@ JSD_GetPropertyAlias(JSDContext* jsdc, JSDProperty* jsdprop);
 * Get the flags for this property
 * *** new for version 1.1 ****
 */
-extern JSD_PUBLIC_API(unsigned)
+extern JSD_PUBLIC_API(uintN)
 JSD_GetPropertyFlags(JSDContext* jsdc, JSDProperty* jsdprop);
+
+/*
+* Get Variable or Argument slot number (if JSDPD_ARGUMENT or JSDPD_VARIABLE set)
+* *** new for version 1.1 ****
+*/
+extern JSD_PUBLIC_API(uintN)
+JSD_GetPropertyVarArgSlot(JSDContext* jsdc, JSDProperty* jsdprop);
 
 /***************************************************************************/
 /* Object Functions  --- All NEW for 1.1 --- */
@@ -1466,7 +1509,7 @@ JSD_GetObjectNewURL(JSDContext* jsdc, JSDObject* jsdobj);
 * created. May be 0 indicating that the line number is unknown.
 * *** new for version 1.1 ****
 */
-extern JSD_PUBLIC_API(unsigned)
+extern JSD_PUBLIC_API(uintN)
 JSD_GetObjectNewLineNumber(JSDContext* jsdc, JSDObject* jsdobj);
 
 /*
@@ -1482,7 +1525,7 @@ JSD_GetObjectConstructorURL(JSDContext* jsdc, JSDObject* jsdobj);
 * created. May be 0 indicating that the line number is unknown.
 * *** new for version 1.1 ****
 */
-extern JSD_PUBLIC_API(unsigned)
+extern JSD_PUBLIC_API(uintN)
 JSD_GetObjectConstructorLineNumber(JSDContext* jsdc, JSDObject* jsdobj);
 
 /*
@@ -1517,6 +1560,31 @@ JSD_GetObjectForValue(JSDContext* jsdc, JSDValue* jsdval);
 extern JSD_PUBLIC_API(JSDValue*)
 JSD_GetValueForObject(JSDContext* jsdc, JSDObject* jsdobj);
 
-} // extern "C"
+/***************************************************************************/
+/* Livewire specific API */
+#ifdef LIVEWIRE
+
+extern JSD_PUBLIC_API(LWDBGScript*)
+JSDLW_GetLWScript(JSDContext* jsdc, JSDScript* jsdscript);
+
+extern JSD_PUBLIC_API(JSDSourceText*)
+JSDLW_PreLoadSource(JSDContext* jsdc, LWDBGApp* app,
+                    const char* filename, JSBool clear);
+
+extern JSD_PUBLIC_API(JSDSourceText*)
+JSDLW_ForceLoadSource(JSDContext* jsdc, JSDSourceText* jsdsrc);
+
+extern JSD_PUBLIC_API(JSBool)
+JSDLW_RawToProcessedLineNumber(JSDContext* jsdc, JSDScript* jsdscript,
+                               uintN lineIn, uintN* lineOut);
+
+extern JSD_PUBLIC_API(JSBool)
+JSDLW_ProcessedToRawLineNumber(JSDContext* jsdc, JSDScript* jsdscript,
+                               uintN lineIn, uintN* lineOut);
+
+#endif
+/***************************************************************************/
+
+JS_END_EXTERN_C
 
 #endif /* jsdebug_h___ */

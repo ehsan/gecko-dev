@@ -1,25 +1,22 @@
-/* Any copyright is dedicated to the Public Domain.
- * http://creativecommons.org/publicdomain/zero/1.0/ */
-
-Cu.import("resource://services-sync/constants.js");
+Cu.import("resource://services-sync/record.js");
 Cu.import("resource://services-sync/engines/history.js");
+Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/identity.js");
-Cu.import("resource://services-sync/record.js");
-Cu.import("resource://services-sync/service.js");
 Cu.import("resource://services-sync/util.js");
-Cu.import("resource://testing-common/services/sync/utils.js");
 
-Service.engineManager.clear();
+var syncTesting = new SyncTestingInfrastructure();
 
 add_test(function test_processIncoming_mobile_history_batched() {
   _("SyncEngine._processIncoming works on history engine.");
 
   let FAKE_DOWNLOAD_LIMIT = 100;
-
+  
+  Svc.Prefs.set("clusterURL", "http://localhost:8080/");
+  Svc.Prefs.set("username", "foo");
   Svc.Prefs.set("client.type", "mobile");
   PlacesUtils.history.removeAllPages();
-  Service.engineManager.register(HistoryEngine);
+  Engines.register(HistoryEngine);
 
   // A collection that logs each GET
   let collection = new ServerCollection();
@@ -29,12 +26,6 @@ add_test(function test_processIncoming_mobile_history_batched() {
     this.get_log.push(options);
     return this._get(options);
   };
-
-  let server = sync_httpd_setup({
-    "/1.1/foo/storage/history": collection.handler()
-  });
-
-  new SyncTestingInfrastructure(server);
 
   // Let's create some 234 server side history records. They're all at least
   // 10 minutes old.
@@ -49,15 +40,18 @@ add_test(function test_processIncoming_mobile_history_batched() {
         sortindex: i,
         visits: [{date: (modified - 5) * 1000000, type: visitType}],
         deleted: false});
-
+    
     let wbo = new ServerWBO(id, payload);
     wbo.modified = modified;
-    collection.insertWBO(wbo);
+    collection.wbos[id] = wbo;
   }
+  
+  let server = sync_httpd_setup({
+      "/1.1/foo/storage/history": collection.handler()
+  });
 
-  let engine = Service.engineManager.get("history");
-  let meta_global = Service.recordManager.set(engine.metaURL,
-                                              new WBORecord(engine.metaURL));
+  let engine = new HistoryEngine("history");
+  let meta_global = Records.set(engine.metaURL, new WBORecord(engine.metaURL));
   meta_global.payload.engines = {history: {version: engine.version,
                                            syncID: engine.syncID}};
 
@@ -65,30 +59,30 @@ add_test(function test_processIncoming_mobile_history_batched() {
 
     _("On a mobile client, we get new records from the server in batches of 50.");
     engine._syncStartup();
-
+    
     // Fake a lower limit.
     engine.downloadLimit = FAKE_DOWNLOAD_LIMIT;
     _("Last modified: " + engine.lastModified);
     _("Processing...");
     engine._processIncoming();
-
+    
     _("Last modified: " + engine.lastModified);
     engine._syncFinish();
-
+    
     // Back to the normal limit.
     _("Running again. Should fetch none, because of lastModified");
     engine.downloadLimit = MAX_HISTORY_DOWNLOAD;
     _("Processing...");
     engine._processIncoming();
-
+    
     _("Last modified: " + engine.lastModified);
     _("Running again. Expecting to pull everything");
-
+    
     engine.lastModified = undefined;
     engine.lastSync     = 0;
     _("Processing...");
     engine._processIncoming();
-
+    
     _("Last modified: " + engine.lastModified);
 
     // Verify that the right number of GET requests with the right
@@ -105,7 +99,7 @@ add_test(function test_processIncoming_mobile_history_batched() {
         1 +    // 1 GUID fetch...
                // 4 fetch...
         Math.ceil((234 - 50) / MOBILE_BATCH_SIZE));
-
+    
     // Check the structure of each HTTP request.
     do_check_eq(collection.get_log[0].full, 1);
     do_check_eq(collection.get_log[0].limit, MOBILE_BATCH_SIZE);
@@ -132,12 +126,12 @@ add_test(function test_processIncoming_mobile_history_batched() {
     PlacesUtils.history.removeAllPages();
     server.stop(do_test_finished);
     Svc.Prefs.resetBranch("");
-    Service.recordManager.clearCache();
+    Records.clearCache();
   }
 });
 
 function run_test() {
-  generateNewKeys(Service.collectionKeys);
+  generateNewKeys();
 
   run_next_test();
 }

@@ -1,17 +1,46 @@
 /* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Oracle Corporation code.
+ *
+ * The Initial Developer of the Original Code is Oracle Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2005
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Bas Schouten <bschouten@mozilla.com>
+ *   Matt Woodrow <mwoodrow@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "gfxMatrix.h"
 #include "gfx3DMatrix.h"
-#include "mozilla/gfx/Tools.h"
 #include <math.h>
 #include <algorithm>
-
 using namespace std;
-using namespace mozilla;
-using namespace mozilla::gfx;
 
 /* Force small values to zero.  We do this to avoid having sin(360deg)
  * evaluate to a tiny but nonzero value.
@@ -116,26 +145,6 @@ gfx3DMatrix::operator==(const gfx3DMatrix& o) const
          _41 == o._41 && _42 == o._42 && _43 == o._43 && _44 == o._44;
 }
 
-bool
-gfx3DMatrix::operator!=(const gfx3DMatrix& o) const
-{
-  return !((*this) == o);
-}
-
-bool
-gfx3DMatrix::FuzzyEqual(const gfx3DMatrix& o) const
-{
-  static const float error = 1e-4;
-  return gfx::FuzzyEqual(_11, o._11, error) && gfx::FuzzyEqual(_12, o._12, error) && 
-         gfx::FuzzyEqual(_13, o._13, error) && gfx::FuzzyEqual(_14, o._14, error) &&
-         gfx::FuzzyEqual(_21, o._21, error) && gfx::FuzzyEqual(_22, o._22, error) && 
-         gfx::FuzzyEqual(_23, o._23, error) && gfx::FuzzyEqual(_24, o._24, error) &&
-         gfx::FuzzyEqual(_31, o._31, error) && gfx::FuzzyEqual(_32, o._32, error) && 
-         gfx::FuzzyEqual(_33, o._33, error) && gfx::FuzzyEqual(_34, o._34, error) &&
-         gfx::FuzzyEqual(_41, o._41, error) && gfx::FuzzyEqual(_42, o._42, error) && 
-         gfx::FuzzyEqual(_43, o._43, error) && gfx::FuzzyEqual(_44, o._44, error);
-}
-
 gfx3DMatrix&
 gfx3DMatrix::operator/=(const gfxFloat scalar)
 {
@@ -171,7 +180,7 @@ gfx3DMatrix::From2D(const gfxMatrix &aMatrix)
   return matrix;
 }
 
-bool
+PRBool
 gfx3DMatrix::IsIdentity() const
 {
   return _11 == 1.0f && _12 == 0.0f && _13 == 0.0f && _14 == 0.0f &&
@@ -204,25 +213,6 @@ gfx3DMatrix::TranslatePost(const gfxPoint3D& aPoint)
     _23 += _24 * aPoint.z;
     _33 += _34 * aPoint.z;
     _43 += _44 * aPoint.z;
-}
-
-void
-gfx3DMatrix::ScalePost(float aX, float aY, float aZ)
-{
-  _11 *= aX;
-  _21 *= aX;
-  _31 *= aX;
-  _41 *= aX;
-
-  _12 *= aY;
-  _22 *= aY;
-  _32 *= aY;
-  _42 *= aY;
-
-  _13 *= aZ;
-  _23 *= aZ;
-  _33 *= aZ;
-  _43 *= aZ;
 }
 
 void
@@ -492,7 +482,7 @@ gfx3DMatrix::Inverse3x3() const
     return temp;
 }
 
-bool
+PRBool
 gfx3DMatrix::IsSingular() const
 {
   return Determinant() == 0.0;
@@ -677,38 +667,23 @@ gfx3DMatrix::TransformBounds(const gfxRect& rect) const
   return gfxRect(min_x, min_y, max_x - min_x, max_y - min_y);
 }
 
-gfxQuad 
-gfx3DMatrix::TransformRect(const gfxRect& aRect) const
-{
-  gfxPoint points[4];
-
-  points[0] = Transform(aRect.TopLeft());
-  points[1] = Transform(gfxPoint(aRect.X() + aRect.Width(), aRect.Y()));
-  points[2] = Transform(gfxPoint(aRect.X() + aRect.Width(),
-                                 aRect.Y() + aRect.Height()));
-  points[3] = Transform(gfxPoint(aRect.X(), aRect.Y() + aRect.Height()));
-  
-  // Could this ever result in lines that intersect? I don't think so.
-  return gfxQuad(points[0], points[1], points[2], points[3]);
-}
-
-bool
+PRBool
 gfx3DMatrix::Is2D() const
 {
   if (_13 != 0.0f || _14 != 0.0f ||
       _23 != 0.0f || _24 != 0.0f ||
       _31 != 0.0f || _32 != 0.0f || _33 != 1.0f || _34 != 0.0f ||
       _43 != 0.0f || _44 != 1.0f) {
-    return false;
+    return PR_FALSE;
   }
-  return true;
+  return PR_TRUE;
 }
 
-bool
+PRBool
 gfx3DMatrix::Is2D(gfxMatrix* aMatrix) const
 {
   if (!Is2D()) {
-    return false;
+    return PR_FALSE;
   }
   if (aMatrix) {
     aMatrix->xx = _11;
@@ -718,16 +693,15 @@ gfx3DMatrix::Is2D(gfxMatrix* aMatrix) const
     aMatrix->x0 = _41;
     aMatrix->y0 = _42;
   }
-  return true;
+  return PR_TRUE;
 }
 
-bool
+PRBool
 gfx3DMatrix::CanDraw2D(gfxMatrix* aMatrix) const
 {
-  if (_14 != 0.0f ||
-      _24 != 0.0f ||
-      _44 != 1.0f) {
-    return false;
+  if (_14 != 0.0f || _24 != 0.0f ||
+      _34 != 0.0f || _44 != 1.0f) {
+    return PR_FALSE;
   }
   if (aMatrix) {
     aMatrix->xx = _11;
@@ -737,20 +711,7 @@ gfx3DMatrix::CanDraw2D(gfxMatrix* aMatrix) const
     aMatrix->x0 = _41;
     aMatrix->y0 = _42;
   }
-  return true;
-}
-
-gfx3DMatrix&
-gfx3DMatrix::ProjectTo2D()
-{
-  _31 = 0.0f;
-  _32 = 0.0f;
-  _13 = 0.0f; 
-  _23 = 0.0f; 
-  _33 = 1.0f; 
-  _43 = 0.0f; 
-  _34 = 0.0f;
-  return *this;
+  return PR_TRUE;
 }
 
 gfxPoint gfx3DMatrix::ProjectPoint(const gfxPoint& aPoint) const
@@ -811,45 +772,15 @@ gfxRect gfx3DMatrix::ProjectRectBounds(const gfxRect& aRect) const
 
 gfxPoint3D gfx3DMatrix::GetNormalVector() const
 {
-  // Define a plane in transformed space as the transformations
-  // of 3 points on the z=0 screen plane.
-  gfxPoint3D a = Transform3D(gfxPoint3D(0, 0, 0));
-  gfxPoint3D b = Transform3D(gfxPoint3D(0, 1, 0));
-  gfxPoint3D c = Transform3D(gfxPoint3D(1, 0, 0));
+    // Define a plane in transformed space as the transformations
+    // of 3 points on the z=0 screen plane.
+    gfxPoint3D a = Transform3D(gfxPoint3D(0, 0, 0));
+    gfxPoint3D b = Transform3D(gfxPoint3D(0, 1, 0));
+    gfxPoint3D c = Transform3D(gfxPoint3D(1, 0, 0));
 
-  // Convert to two vectors on the surface of the plane.
-  gfxPoint3D ab = b - a;
-  gfxPoint3D ac = c - a;
+    // Convert to two vectors on the surface of the plane.
+    gfxPoint3D ab = b - a;
+    gfxPoint3D ac = c - a;
 
-  return ac.CrossProduct(ab);
-}
-
-bool gfx3DMatrix::IsBackfaceVisible() const
-{
-  // Inverse()._33 < 0;
-  gfxFloat det = Determinant();
-  float _33 = _12*_24*_41 - _14*_22*_41 +
-              _14*_21*_42 - _11*_24*_42 -
-              _12*_21*_44 + _11*_22*_44;
-  return (_33 * det) < 0;
-}
-
-void gfx3DMatrix::NudgeToIntegers(void)
-{
-  NudgeToInteger(&_11);
-  NudgeToInteger(&_12);
-  NudgeToInteger(&_13);
-  NudgeToInteger(&_14);
-  NudgeToInteger(&_21);
-  NudgeToInteger(&_22);
-  NudgeToInteger(&_23);
-  NudgeToInteger(&_24);
-  NudgeToInteger(&_31);
-  NudgeToInteger(&_32);
-  NudgeToInteger(&_33);
-  NudgeToInteger(&_34);
-  NudgeToInteger(&_41);
-  NudgeToInteger(&_42);
-  NudgeToInteger(&_43);
-  NudgeToInteger(&_44);
+    return ac.CrossProduct(ab);
 }

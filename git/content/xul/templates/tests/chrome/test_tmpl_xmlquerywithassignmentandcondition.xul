@@ -14,24 +14,6 @@
 
   <body xmlns="http://www.w3.org/1999/xhtml" style="height: 300px; overflow: auto;"/>
 
-  <data id="output">
-    <hbox anyid="true" container="true" empty="false">
-      <label value="class"/>
-      <hbox anyid="true" container="true" empty="true">
-        <label value="name"/>
-      </hbox>
-    </hbox>
-    <hbox anyid="true" container="true" empty="false">
-      <label value="class"/>
-      <hbox anyid="true" container="true" empty="true">
-        <label value="name"/>
-      </hbox>
-      <hbox anyid="true" container="true" empty="true">
-        <label value="location"/>
-      </hbox>
-    </hbox>
-  </data>
-
 <script src="templates_shared.js"/>
 
 <script>
@@ -44,7 +26,24 @@ var isTreeBuilder = false;
 var needsOpen = false;
 var notWorkingYet = false;
 var notWorkingYetDynamic = false;
-var expectedOutput = document.getElementById("output");
+var expectedOutput =
+<output>
+  <hbox anyid="true" container="true" empty="false">
+    <label value="class"/>
+    <hbox anyid="true" container="true" empty="true">
+      <label value="name"/>
+    </hbox>
+  </hbox>
+  <hbox anyid="true" container="true" empty="false">
+    <label value="class"/>
+    <hbox anyid="true" container="true" empty="true">
+      <label value="name"/>
+    </hbox>
+    <hbox anyid="true" container="true" empty="true">
+      <label value="location"/>
+    </hbox>
+  </hbox>
+</output>;
 
 var changes = [];
 ]]>

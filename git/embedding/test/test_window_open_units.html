@@ -19,27 +19,14 @@ var viewer =
                .QueryInterface(Components.interfaces.nsIDocShell)
                .contentViewer
                .QueryInterface(Components.interfaces.nsIMarkupDocumentViewer);
+viewer.fullZoom = 2;
 
-SimpleTest.waitForExplicitFinish();
+var w = window.open("about:blank", "", "width=200,height=100");
+is(w.innerWidth, 400, "wrong width");
+is(w.innerHeight, 200, "wrong height");
+w.close();
 
-SimpleTest.waitForFocus(function() {
-  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
-  viewer.fullZoom = 2;
-
-  var p = window;
-  var w = window.open("about:blank", "", "width=200,height=100");
-  SimpleTest.waitForFocus(function() {
-    ok(w.innerWidth <= 402 && w.innerWidth >= 398,
-       "width (" + w.innerWidth + ") should be around twice what was requested (200)");
-    ok(w.innerHeight <= 202 && w.innerHeight >= 198,
-       "height (" + w.innerHeight + ") should be around twice what was requested (100)");
-
-    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
-    viewer.fullZoom = 1;
-    w.close();
-    SimpleTest.finish();
-  }, w, true);
-}, window, false);
+viewer.fullZoom = 1;
 
 </script>
 </pre>

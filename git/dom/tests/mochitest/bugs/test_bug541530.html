@@ -25,58 +25,46 @@ ok(window === orig, "can't override window");
 ok(window.location === location, "properties are properly aliased");
 ok(document.location === location, "properties are properly aliased");
 
-var canDefine = false;
 try {
-    var foo;
-    this.__defineGetter__.call(foo, 'bar', function() {});
-    this.__defineSetter__.call(foo, 'bar', function() {});
-    canDefine = true;
-} catch (e) {}
-ok(canDefine, "Should have access to __defineGetter__ and __defineSetter__");
-
-try {
-    this.__defineGetter__('window', function() {});
+    __defineGetter__('window', function() {});
     ok(false, "should not be able to defineGetter(window)");
 } catch (e) {
 }
 
 try {
-    this.__defineGetter__.call(window, 'location', function(){});
+    window.__defineGetter__('location', function(){});
     ok(false, "should not be able to defineGetter(window.location)");
 } catch (e) {
 }
 
 try {
-    this.__defineGetter__.call(window.location, 'href', function(){});
+    window.location.__defineGetter__('href', function(){});
     ok(false, "shouldn't be able to override location.href");
 } catch (e) {
-    ok(/shadow/.exec(e.message), "Should be caught by the anti-shadow mechanism.");
 }
 
-// Try deleting the property.
-delete window.location.href;
-ok(typeof window.location.href !== 'undefined',
-   "shouldn't be able to delete the inherited property");
-delete Object.getPrototypeOf(window.location).href;
-ok(typeof window.location.href !== 'undefined',
-   "shouldn't be able to delete the property off of the prototype");
-
 try {
-    this.__defineGetter__.call(Object.getPrototypeOf(window.location), 'href', function(){});
+    window.location.__proto__.__defineGetter__('href', function(){});
     ok(false, "shouldn't be able to use the prototype");
 } catch (e) {
 }
 
 try {
-    this.__defineSetter__.call(window.location, 'href', function(){});
+    window.location.__defineSetter__('href', function(){});
     ok(false, "overrode a setter for location.href?");
 } catch (e) {
-    ok(/shadow/.exec(e.message), "Should be caught by the anti-shadow mechanism.");
 }
 
 try {
-    this.__defineGetter__.call(document, 'location', function(){});
+    document.__defineGetter__('location', function(){});
     ok(false, "shouldn't be able to override document.location");
+} catch (e) {
+}
+
+is(location.watch, undefined, "watch doesn't exist on location objects");
+try {
+    Object.prototype.watch.call(location, function() {});
+    ok(false, "shouldn't be able to set a watchpoint on location");
 } catch (e) {
 }
 

@@ -37,12 +37,22 @@
     function doTest()
     {
       //////////////////////////////////////////////////////////////////////////
-      // role="tablist"
+      // role="list"
 
-      id = "tablist";
+      var id = "list1";
       ok(isAccessible(id, [nsIAccessibleSelectable]),
          "No selectable accessible for " + id);
 
+      testSelectableSelection(id, [ ]);
+
+      var select = getAccessible(id, [nsIAccessibleSelectable]);
+      select.addChildToSelection(0);
+      testSelectableSelection(id, [ ]);
+      select.removeChildFromSelection(0);
+      testSelectableSelection(id, [ ]);
+      select.selectAllSelection();
+      testSelectableSelection(id, [ ]);
+      select.clearSelection();
       testSelectableSelection(id, [ ]);
 
       //////////////////////////////////////////////////////////////////////////
@@ -72,7 +82,7 @@
       testSelectableSelection(id, [ "listbox2_item1", "listbox2_item2" ]);
       select.clearSelection();
       testSelectableSelection(id, [ ]);
-      
+
       //////////////////////////////////////////////////////////////////////////
       // role="grid"
 
@@ -126,40 +136,35 @@
      href="https://bugzilla.mozilla.org/show_bug.cgi?id=530014"
      title="ARIA single selectable widget should implement nsIAccessibleSelectable">
     Mozilla Bug 530014
-  </a>
+  </a><br>
   <a target="_blank"
      href="https://bugzilla.mozilla.org/show_bug.cgi?id=566551"
      title="ARIA grid and accessible selectable methods shouldn't use GetNextSibling">
     Mozilla Bug 566551
-  </a>
+  </a><br>
   <a target="_blank"
      href="https://bugzilla.mozilla.org/show_bug.cgi?id=590176"
      title="add pseudo SelectAccessible interface">
     Mozilla Bug 590176
-  </a>
-  <a target="_blank"
-     href="https://bugzilla.mozilla.org/show_bug.cgi?id=804040"
-     title="Selection event not fired when selection of ARIA tab changes">
-    Mozilla Bug 804040
-  </a>
+  </a><br>
   <p id="display"></p>
   <div id="content" style="display: none"></div>
   <pre id="test">
   </pre>
 
-  <div role="tablist" id="tablist">
-    <div role="tab">tab1</div>
-    <div role="tab">tab2</div>
+  <div role="list" id="list1">
+    <div role="listitem">item1</div>
+    <div role="listitem">item2</div>
   </div>
 
   <div role="listbox" id="listbox1">
-    <div role="option">item1</div>
-    <div role="option">item2</div>
+    <div role="listitem">item1</div>
+    <div role="listitem">item2</div>
   </div>
 
   <div role="listbox" id="listbox2" aria-multiselectable="true">
-    <div role="option" id="listbox2_item1">item1</div>
-    <div role="option" id="listbox2_item2">item2</div>
+    <div role="listitem" id="listbox2_item1">item1</div>
+    <div role="listitem" id="listbox2_item2">item2</div>
   </div>
 
   <div role="grid" id="grid1">

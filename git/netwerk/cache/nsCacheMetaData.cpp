@@ -1,11 +1,46 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  *
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is nsCacheMetaData.cpp, released
+ * February 22, 2001.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2001
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Gordon Sheridan <gordon@netscape.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsCacheMetaData.h"
 #include "nsICacheEntryDescriptor.h"
+#include "prmem.h"
 
 const char *
 nsCacheMetaData::GetElement(const char * key)
@@ -24,7 +59,7 @@ nsCacheMetaData::GetElement(const char * key)
         data = value + strlen(value) + 1;
     }
     NS_ABORT_IF_FALSE(data == limit, "Metadata corrupted");
-    return nullptr;
+    return nsnull;
 }
 
 
@@ -32,15 +67,15 @@ nsresult
 nsCacheMetaData::SetElement(const char * key,
                             const char * value)
 {
-    const uint32_t keySize = strlen(key) + 1;
+    const PRUint32 keySize = strlen(key) + 1;
     char * pos = (char *)GetElement(key);
 
     if (!value) {
         // No value means remove the key/value pair completely, if existing
         if (pos) {
-            uint32_t oldValueSize = strlen(pos) + 1;
-            uint32_t offset = pos - mBuffer;
-            uint32_t remainder = mMetaSize - (offset + oldValueSize);
+            PRUint32 oldValueSize = strlen(pos) + 1;
+            PRUint32 offset = pos - mBuffer;
+            PRUint32 remainder = mMetaSize - (offset + oldValueSize);
 
             memmove(pos - keySize, pos + oldValueSize, remainder);
             mMetaSize -= keySize + oldValueSize;
@@ -48,12 +83,12 @@ nsCacheMetaData::SetElement(const char * key,
         return NS_OK;
     }
 
-    const uint32_t valueSize = strlen(value) + 1;
-    uint32_t newSize = mMetaSize + valueSize;
+    const PRUint32 valueSize = strlen(value) + 1;
+    PRUint32 newSize = mMetaSize + valueSize;
     if (pos) {
-        const uint32_t oldValueSize = strlen(pos) + 1;
-        const uint32_t offset = pos - mBuffer;
-        const uint32_t remainder = mMetaSize - (offset + oldValueSize);
+        const PRUint32 oldValueSize = strlen(pos) + 1;
+        const PRUint32 offset = pos - mBuffer;
+        const PRUint32 remainder = mMetaSize - (offset + oldValueSize);
 
         // Update the value in place
         newSize -= oldValueSize;
@@ -83,7 +118,7 @@ nsCacheMetaData::SetElement(const char * key,
 }
 
 nsresult
-nsCacheMetaData::FlattenMetaData(char * buffer, uint32_t bufSize)
+nsCacheMetaData::FlattenMetaData(char * buffer, PRUint32 bufSize)
 {
     if (mMetaSize > bufSize) {
         NS_ERROR("buffer size too small for meta data.");
@@ -95,7 +130,7 @@ nsCacheMetaData::FlattenMetaData(char * buffer, uint32_t bufSize)
 }
 
 nsresult
-nsCacheMetaData::UnflattenMetaData(const char * data, uint32_t size)
+nsCacheMetaData::UnflattenMetaData(const char * data, PRUint32 size)
 {
     if (data && size) {
         // Check if the metadata ends with a zero byte.
@@ -105,8 +140,8 @@ nsCacheMetaData::UnflattenMetaData(const char * data, uint32_t size)
         }
         // Check that there are an even number of zero bytes
         // to match the pattern { key \0 value \0 }
-        bool odd = false;
-        for (uint32_t i = 0; i < size; i++) {
+        PRBool odd = PR_FALSE;
+        for (int i = 0; i < size; i++) {
             if (data[i] == '\0') 
                 odd = !odd;
         }
@@ -135,10 +170,10 @@ nsCacheMetaData::VisitElements(nsICacheMetaDataVisitor * visitor)
         // Skip key part
         data += strlen(data) + 1;
         NS_ABORT_IF_FALSE(data < limit, "Metadata corrupted");
-        bool keepGoing;
+        PRBool keepGoing;
         nsresult rv = visitor->VisitMetaDataElement(key, data, &keepGoing);
         if (NS_FAILED(rv) || !keepGoing)
-            return NS_OK;
+            break;
 
         // Skip value part
         data += strlen(data) + 1;
@@ -148,10 +183,10 @@ nsCacheMetaData::VisitElements(nsICacheMetaDataVisitor * visitor)
 }
 
 nsresult
-nsCacheMetaData::EnsureBuffer(uint32_t bufSize)
+nsCacheMetaData::EnsureBuffer(PRUint32 bufSize)
 {
     if (mBufferSize < bufSize) {
-        char * buf = (char *)moz_realloc(mBuffer, bufSize);
+        char * buf = (char *)PR_REALLOC(mBuffer, bufSize);
         if (!buf) {
             return NS_ERROR_OUT_OF_MEMORY;
         }

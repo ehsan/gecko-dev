@@ -1,16 +1,45 @@
 /* -*- Mode: idl; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Oracle Corporation code.
+ *
+ * The Initial Developer of the Original Code is
+ *  Oracle Corporation
+ * Portions created by the Initial Developer are Copyright (C) 2004
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Vladimir Vukicevic <vladimir.vukicevic@oracle.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsISupports.idl"
 
 interface mozIStorageConnection;
 interface nsIFile;
-interface nsIFileURL;
-interface nsIPropertyBag2;
-interface nsIVariant;
-interface mozIStorageCompletionCallback;
 
 /**
  * The mozIStorageService interface is intended to be implemented by
@@ -18,65 +47,14 @@ interface mozIStorageCompletionCallback;
  * to either a well-known profile database or to a specific database file.
  *
  * This is the only way to open a database connection.
- *
- * @note The first reference to mozIStorageService must be made on the main
- * thread.
  */
-[scriptable, uuid(07b6b2f5-6d97-47b4-9584-e65bc467fe9e)]
+[scriptable, uuid(fe8e95cb-b377-4c8d-bccb-d9198c67542b)]
 interface mozIStorageService : nsISupports {
-  /**
-   * Open an asynchronous connection to a database.
-   *
-   * This method MUST be called from the main thread. The connection object
-   * returned by this function is not threadsafe. You MUST use it only from
-   * the main thread.
-   *
-   * If you have more than one connection to a file, you MUST use the EXACT
-   * SAME NAME for the file each time, including case. The sqlite code uses
-   * a simple string compare to see if there is already a connection. Opening
-   * a connection to "Foo.sqlite" and "foo.sqlite" will CORRUPT YOUR DATABASE.
-   *
-   * @param aDatabaseStore Either a nsIFile representing the file that contains
-   * the database or a special string to open a special database. The special
-   * string may be:
-   * - "memory" to open an in-memory database.
-   *
-   * @param aOptions A set of options (may be null). Options may contain:
-   * - bool shared (defaults to |false|).
-   *   -- If |true|, opens the database with a shared-cache. The
-   *     shared-cache mode is more memory-efficient when many
-   *     connections to the same database are expected, though, the
-   *     connections will contend the cache resource. In any cases
-   *     where performance matter, working without a shared-cache will
-   *     improve concurrency.  @see openUnsharedDatabase
-   *
-   * - int growthIncrement (defaults to none).
-   *   -- Set the growth increment for the main database.  This hints SQLite to
-   *      grow the database file by a given chunk size and may reduce
-   *      filesystem fragmentation on large databases.
-   *      @see mozIStorageConnection::setGrowthIncrement
-   *
-   * @param aCallback A callback that will receive the result of the operation.
-   *  In case of error, it may receive as status:
-   *  - NS_ERROR_OUT_OF_MEMORY if allocating a new storage object fails.
-   *  - NS_ERROR_FILE_CORRUPTED if the database file is corrupted.
-   *  In case of success, it receives as argument the new database
-   *  connection, as an instance of |mozIStorageAsyncConnection|.
-   *
-   * @throws NS_ERROR_INVALID_ARG if |aDatabaseStore| is neither a file nor
-   *         one of the special strings understood by this method, or if one of
-   *         the options passed through |aOptions| does not have the right type.
-   * @throws NS_ERROR_NOT_SAME_THREAD if called from a thread other than the
-   *         main thread.
-   */
-  void openAsyncDatabase(in nsIVariant aDatabaseStore,
-                         [optional] in nsIPropertyBag2 aOptions,
-                         in mozIStorageCompletionCallback aCallback);
   /**
    * Get a connection to a named special database storage.
    *
    * @param aStorageKey a string key identifying the type of storage
-   * requested.  Valid values include: "memory".
+   * requested.  Valid values include: "profile", "memory".
    *
    * @see openDatabase for restrictions on how database connections may be
    * used. For the profile database, you should only access it from the main
@@ -109,6 +87,12 @@ interface mozIStorageService : nsISupports {
    * The connection object returned by this function is not threadsafe. You must
    * use it only from the thread you created it from.
    *
+   * If your database contains virtual tables (f.e. for full-text indexes), you
+   * must open it with openUnsharedDatabase, as those tables are incompatible
+   * with a shared cache.  If you attempt to use this method to open a database
+   * containing virtual tables, it will think the database is corrupted and
+   * throw NS_ERROR_FILE_CORRUPTED.
+   *
    * @param aDatabaseFile
    *        A nsIFile that represents the database that is to be opened..
    *
@@ -124,11 +108,12 @@ interface mozIStorageService : nsISupports {
   /**
    * Open a connection to the specified file that doesn't share a sqlite cache.
    *
-   * Without a shared-cache, each connection uses its own pages cache, which
-   * may be memory inefficient with a large number of connections, in such a
-   * case so you should use openDatabase instead.  On the other side, if cache
-   * contention may be an issue, for instance when concurrency is important to
-   * ensure responsiveness, using unshared connections may be a performance win.
+   * Each connection uses its own sqlite cache, which is inefficient, so you
+   * should use openDatabase instead of this method unless you need a feature
+   * of SQLite that is incompatible with a shared cache, like virtual table
+   * and full text indexing support. If cache contention is expected, for
+   * instance when operating on a database from multiple threads, using
+   * unshared connections may be a performance win.
    *
    * ==========
    *   DANGER
@@ -153,16 +138,6 @@ interface mozIStorageService : nsISupports {
    *         If the database file is corrupted.
    */
   mozIStorageConnection openUnsharedDatabase(in nsIFile aDatabaseFile);
-
-  /**
-   * See openDatabase(). Exactly the same only initialized with a file URL.
-   * Custom parameters can be passed to SQLite and VFS implementations through
-   * the query part of the URL.
-   *
-   * @param aURL
-   *        A nsIFileURL that represents the database that is to be opened.
-   */
-  mozIStorageConnection openDatabaseWithFileURL(in nsIFileURL aFileURL);
 
   /*
    * Utilities
@@ -189,5 +164,6 @@ interface mozIStorageService : nsISupports {
 %{C++
 
 #define MOZ_STORAGE_MEMORY_STORAGE_KEY    "memory"
+#define MOZ_STORAGE_PROFILE_STORAGE_KEY   "profile"
 
 %}

@@ -1,13 +1,48 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsGfxButtonControlFrame.h"
 #include "nsWidgetsCID.h"
 #include "nsFormControlFrame.h"
 #include "nsIFormControl.h"
 #include "nsINameSpaceManager.h"
+#ifdef ACCESSIBILITY
+#include "nsAccessibilityService.h"
+#endif
 #include "nsIServiceManager.h"
 #include "nsIDOMNode.h"
 #include "nsGkAtoms.h"
@@ -16,13 +51,10 @@
 #include "nsContentUtils.h"
 // MouseEvent suppression in PP
 #include "nsGUIEvent.h"
-#include "nsContentList.h"
 #include "nsContentCreatorFunctions.h"
 
 #include "nsNodeInfoManager.h"
 #include "nsIDOMHTMLInputElement.h"
-#include "nsContentList.h"
-#include "nsTextNode.h"
 
 const nscoord kSuggestedNotSet = -1;
 
@@ -51,6 +83,24 @@ nsGfxButtonControlFrame::GetType() const
   return nsGkAtoms::gfxButtonControlFrame;
 }
 
+// Special check for the browse button of a file input.
+//
+// We'll return PR_TRUE if type is NS_FORM_INPUT_BUTTON and our parent
+// is a file input.
+PRBool
+nsGfxButtonControlFrame::IsFileBrowseButton(PRInt32 type)
+{
+  PRBool rv = PR_FALSE;
+  if (NS_FORM_INPUT_BUTTON == type) {
+    // Check to see if parent is a file input
+    nsCOMPtr<nsIFormControl> formCtrl =
+      do_QueryInterface(mContent->GetParent());
+
+    rv = formCtrl && formCtrl->GetType() == NS_FORM_INPUT_FILE;
+  }
+  return rv;
+}
+
 #ifdef DEBUG
 NS_IMETHODIMP
 nsGfxButtonControlFrame::GetFrameName(nsAString& aResult) const
@@ -68,18 +118,21 @@ nsGfxButtonControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements
   GetLabel(label);
 
   // Add a child text content node for the label
-  mTextContent = new nsTextNode(mContent->NodeInfo()->NodeInfoManager());
+  NS_NewTextNode(getter_AddRefs(mTextContent),
+                 mContent->NodeInfo()->NodeInfoManager());
+  if (!mTextContent)
+    return NS_ERROR_OUT_OF_MEMORY;
 
   // set the value of the text node and add it to the child list
-  mTextContent->SetText(label, false);
-  aElements.AppendElement(mTextContent);
-
+  mTextContent->SetText(label, PR_FALSE);
+  if (!aElements.AppendElement(mTextContent))
+    return NS_ERROR_OUT_OF_MEMORY;
   return NS_OK;
 }
 
 void
 nsGfxButtonControlFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                                  uint32_t aFilter)
+                                                  PRUint32 aFilter)
 {
   aElements.MaybeAppendElement(mTextContent);
 }
@@ -89,7 +142,7 @@ nsGfxButtonControlFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
 nsIFrame*
 nsGfxButtonControlFrame::CreateFrameFor(nsIContent*      aContent)
 {
-  nsIFrame * newFrame = nullptr;
+  nsIFrame * newFrame = nsnull;
 
   if (aContent == mTextContent) {
     nsIFrame * parentFrame = mFrames.FirstChild();
@@ -99,13 +152,33 @@ nsGfxButtonControlFrame::CreateFrameFor(nsIContent*      aContent)
     textStyleContext = presContext->StyleSet()->
       ResolveStyleForNonElement(mStyleContext);
 
-    newFrame = NS_NewTextFrame(presContext->PresShell(), textStyleContext);
-    // initialize the text frame
-    newFrame->Init(mTextContent, parentFrame, nullptr);
-    mTextContent->SetPrimaryFrame(newFrame);
+    if (textStyleContext) {
+      newFrame = NS_NewTextFrame(presContext->PresShell(), textStyleContext);
+      if (newFrame) {
+        // initialize the text frame
+        newFrame->Init(mTextContent, parentFrame, nsnull);
+        mTextContent->SetPrimaryFrame(newFrame);
+      }
+    }
   }
 
   return newFrame;
+}
+
+nsresult
+nsGfxButtonControlFrame::GetFormProperty(nsIAtom* aName, nsAString& aValue) const
+{
+  nsresult rv = NS_OK;
+  if (nsGkAtoms::defaultLabel == aName) {
+    // This property is used by accessibility to get
+    // the default label of the button.
+    nsXPIDLString temp;
+    rv = const_cast<nsGfxButtonControlFrame*>(this)->GetDefaultLabel(temp);
+    aValue = temp;
+  } else {
+    aValue.Truncate();
+  }
+  return rv;
 }
 
 NS_QUERYFRAME_HEAD(nsGfxButtonControlFrame)
@@ -119,18 +192,21 @@ NS_QUERYFRAME_TAIL_INHERITING(nsHTMLButtonControlFrame)
 // label from a string bundle as is done for all other UI strings.
 // See bug 16999 for further details.
 nsresult
-nsGfxButtonControlFrame::GetDefaultLabel(nsXPIDLString& aString) const
+nsGfxButtonControlFrame::GetDefaultLabel(nsXPIDLString& aString)
 {
   nsCOMPtr<nsIFormControl> form = do_QueryInterface(mContent);
   NS_ENSURE_TRUE(form, NS_ERROR_UNEXPECTED);
 
-  int32_t type = form->GetType();
+  PRInt32 type = form->GetType();
   const char *prop;
   if (type == NS_FORM_INPUT_RESET) {
     prop = "Reset";
-  }
+  } 
   else if (type == NS_FORM_INPUT_SUBMIT) {
     prop = "Submit";
+  } 
+  else if (IsFileBrowseButton(type)) {
+    prop = "Browse";
   }
   else {
     aString.Truncate();
@@ -161,7 +237,7 @@ nsGfxButtonControlFrame::GetLabel(nsXPIDLString& aLabel)
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Compress whitespace out of label if needed.
-  if (!StyleText()->WhiteSpaceIsSignificant()) {
+  if (!GetStyleText()->WhiteSpaceIsSignificant()) {
     aLabel.CompressWhitespace();
   } else if (aLabel.Length() > 2 && aLabel.First() == ' ' &&
              aLabel.CharAt(aLabel.Length() - 1) == ' ') {
@@ -188,9 +264,9 @@ nsGfxButtonControlFrame::GetLabel(nsXPIDLString& aLabel)
 }
 
 NS_IMETHODIMP
-nsGfxButtonControlFrame::AttributeChanged(int32_t         aNameSpaceID,
+nsGfxButtonControlFrame::AttributeChanged(PRInt32         aNameSpaceID,
                                           nsIAtom*        aAttribute,
-                                          int32_t         aModType)
+                                          PRInt32         aModType)
 {
   nsresult rv = NS_OK;
 
@@ -201,7 +277,7 @@ nsGfxButtonControlFrame::AttributeChanged(int32_t         aNameSpaceID,
       rv = GetLabel(label);
       NS_ENSURE_SUCCESS(rv, rv);
     
-      mTextContent->SetText(label, true);
+      mTextContent->SetText(label, PR_TRUE);
     } else {
       rv = NS_ERROR_UNEXPECTED;
     }
@@ -213,10 +289,10 @@ nsGfxButtonControlFrame::AttributeChanged(int32_t         aNameSpaceID,
   return rv;
 }
 
-bool
+PRBool
 nsGfxButtonControlFrame::IsLeaf() const
 {
-  return true;
+  return PR_TRUE;
 }
 
 nsIFrame*
@@ -235,7 +311,7 @@ nsGfxButtonControlFrame::HandleEvent(nsPresContext* aPresContext,
   // to be selected (Drawn with an XOR rectangle over the label)
 
   // do we have user-input style?
-  const nsStyleUserInterface* uiStyle = StyleUserInterface();
+  const nsStyleUserInterface* uiStyle = GetStyleUserInterface();
   if (uiStyle->mUserInput == NS_STYLE_USER_INPUT_NONE || uiStyle->mUserInput == NS_STYLE_USER_INPUT_DISABLED)
     return nsFrame::HandleEvent(aPresContext, aEvent, aEventStatus);
   

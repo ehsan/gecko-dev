@@ -1,16 +1,13 @@
-/* Any copyright is dedicated to the Public Domain.
- * http://creativecommons.org/publicdomain/zero/1.0/ */
-
 Cu.import("resource://services-sync/constants.js");
+Cu.import("resource://services-sync/identity.js");
 Cu.import("resource://services-sync/status.js");
 Cu.import("resource://services-sync/util.js");
 
 function run_test() {
-  initTestLogging("Trace");
-
   try {
-    _("Ensure fresh config.");
-    Status._authManager.deleteSyncCredentials();
+    _("Verify initial setup.");
+    do_check_eq(ID.get("WeaveID"), null);
+    do_check_eq(ID.get("WeaveCryptoID"), null);
 
     _("Fresh setup, we're not configured.");
     do_check_eq(Status.checkSetup(), CLIENT_NOT_CONFIGURED);
@@ -18,22 +15,27 @@ function run_test() {
     Status.resetSync();
 
     _("Let's provide a username.");
-    Status._authManager.username = "johndoe";
+    Svc.Prefs.set("username", "johndoe");
     do_check_eq(Status.checkSetup(), CLIENT_NOT_CONFIGURED);
     do_check_eq(Status.login, LOGIN_FAILED_NO_PASSWORD);
     Status.resetSync();
 
-    do_check_neq(Status._authManager.username, null);
+    _("checkSetup() created a WeaveID identity.");
+    let id = ID.get("WeaveID");
+    do_check_true(!!id);
 
     _("Let's provide a password.");
-    Status._authManager.basicPassword = "carotsalad";
+    id.password = "carotsalad";
     do_check_eq(Status.checkSetup(), CLIENT_NOT_CONFIGURED);
     do_check_eq(Status.login, LOGIN_FAILED_NO_PASSPHRASE);
     Status.resetSync();
 
+    _("checkSetup() created a WeaveCryptoID identity");
+    id = ID.get("WeaveCryptoID");
+    do_check_true(!!id);
+
     _("Let's provide a passphrase");
-    Status._authManager.syncKey = "a-bcdef-abcde-acbde-acbde-acbde";
-    _("checkSetup()");
+    id.keyStr = "a-bcdef-abcde-acbde-acbde-acbde";
     do_check_eq(Status.checkSetup(), STATUS_OK);
     Status.resetSync();
 

@@ -1,23 +1,21 @@
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
+do_load_httpd_js();
 
-Cu.import("resource://testing-common/httpd.js");
-
-var httpserver = new HttpServer();
+var httpserver = new nsHttpServer();
 var index = 0;
 var tests = [
     { url : "/bug510359", server : "0", expected : "0"},
     { url : "/bug510359", server : "1", expected : "1"},
 ];
 
+function getCacheService() {
+    return Components.classes["@mozilla.org/network/cache-service;1"]
+            .getService(Components.interfaces.nsICacheService);
+}
+
 function setupChannel(suffix, value) {
     var ios = Components.classes["@mozilla.org/network/io-service;1"]
             .getService(Ci.nsIIOService);
-    var chan = ios.newChannel("http://localhost:" +
-                              httpserver.identity.primaryPort +
-                              suffix, "", null);
+    var chan = ios.newChannel("http://localhost:4444" + suffix, "", null);
     var httpChan = chan.QueryInterface(Components.interfaces.nsIHttpChannel);
     httpChan.requestMethod = "GET";
     httpChan.setRequestHeader("x-request", value, false);
@@ -43,11 +41,11 @@ function checkValueAndTrigger(request, data, ctx) {
 
 function run_test() {
     httpserver.registerPathHandler("/bug510359", handler);
-    httpserver.start(-1);
+    httpserver.start(4444);
 
     // clear cache
-    evict_cache_entries();
-
+    getCacheService().evictEntries(
+            Components.interfaces.nsICache.STORE_ANYWHERE);
     triggerNextTest();
 
     do_test_pending();

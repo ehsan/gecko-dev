@@ -1,8 +1,4 @@
 <?xml version="1.0"?>
-<!-- This Source Code Form is subject to the terms of the Mozilla Public
-   - License, v. 2.0. If a copy of the MPL was not distributed with this
-   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
-
 <?xml-stylesheet href="chrome://global/skin" type="text/css"?>
 <window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
         width="800" height="800" orient="vertical" onload="initRemoteFrameScript();">
@@ -97,16 +93,24 @@
       // 1. Test that loading a script works, and that accessing process level mm and
       //     global mm works.
       var ppm = Components.classes["@mozilla.org/parentprocessmessagemanager;1"]
-                          .getService(Components.interfaces.nsIMessageBroadcaster);
+                          .getService(Components.interfaces.nsIFrameMessageManager);
       var gm = Components.classes["@mozilla.org/globalmessagemanager;1"]
-                         .getService(Components.interfaces.nsIMessageBroadcaster);
-      var cpm = Components.classes["@mozilla.org/childprocessmessagemanager;1"]
-                            .getService(Components.interfaces.nsISyncMessageSender);
-
-      if (ppm.childCount != 2) {
-        alert("Should have two child processes!");
+                         .getService(Components.interfaces.nsIChromeFrameMessageManager);
+      var didThrow = false;
+      try {
+        var cpm = Components.classes["@mozilla.org/childprocessmessagemanager;1"]
+                            .getService(Components.interfaces.nsISyncMessageSender);  
+      } catch (ex) {
+        didThrow = true;
       }
-      var childprocessmm = ppm.getChildAt(1); // 0 is the in-process child process mm
+      if (!didThrow) {
+        alert("One shouldn't be able to create content process message manager in chrome process!");
+      }
+      var tppm = ppm.QueryInterface(Components.interfaces.nsITreeItemFrameMessageManager);
+      if (tppm.childCount != 1) {
+        alert("Should have one child process!");
+      }
+      var childprocessmm = tppm.getChildAt(0);
       
       childprocessmm.addMessageListener("ppm-sync",
         function(m) {
@@ -160,7 +164,7 @@
           receiveMessage: function(m) {
             var s = (m.json.message == "linkclick-received") &amp;&amp;
                     (this.foobarObjectVar) ? "PASS" : "FAIL";
-            messageManager.broadcastAsyncMessage("chrome-message", { ok : s } );
+            messageManager.sendAsyncMessage("chrome-message", { ok : s } );
           }
         }
         );
@@ -196,7 +200,7 @@
     function messageSpeed() {
       speedTestCount = 0;
       messageManager.addMessageListener("speed-test", speedHandler);
-      messageManager.broadcastAsyncMessage("speed-test-start");
+      messageManager.sendAsyncMessage("speed-test-start");
     }
 
     function speedHandler() {
@@ -216,7 +220,7 @@
       if (++addRemoveTestCount == 1) {
         alert("Expected echo message");
         messageManager.removeMessageListener("async-echo", echoListener);
-        messageManager.broadcastAsyncMessage("async-echo");
+        messageManager.sendAsyncMessage("async-echo");
         return;
       }
       alert("Unexpected echo message");
@@ -225,7 +229,7 @@
     function listenerAddRemove() {
       addRemoveTestCount = 0;
       messageManager.addMessageListener("async-echo", echoListener);
-      messageManager.broadcastAsyncMessage("async-echo");
+      messageManager.sendAsyncMessage("async-echo");
     }
 
     var MozAfterPaintCount = 0;
@@ -253,9 +257,6 @@
       },
       openDialog: function(aType, aName, aFeatures, aArguments, aFrameElement) {
         alert(aType + ", " + aName + ", " + aFeatures + ", " + aArguments + ", " + aFrameElement);
-      },
-      get contentWindow() {
-        return null;
       }
     }
 
@@ -288,10 +289,8 @@
   </toolbar>
   <toolbar><label value="Load a script (URL) to content process:"/>
     <textbox flex="1" id="script"/><button
-      label="send" oncommand="document.getElementById('page')
-                                      .QueryInterface(Components.interfaces.nsIFrameLoaderOwner)
-                                      .frameLoader.messageManager
-                                      .loadFrameScript(this.previousSibling.value, false);"/>
+      label="send" oncommand="document.getElementById('page').QueryInterface(Components.interfaces.nsIFrameLoaderOwner).frameLoader.
+                              messageManager.loadFrameScript(this.previousSibling.value, false);"/>
   </toolbar>
   <toolbar>
     <label value="Eval script in chrome context"/>

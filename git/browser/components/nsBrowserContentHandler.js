@@ -1,14 +1,43 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is the Mozilla Firefox browser.
+#
+# The Initial Developer of the Original Code is
+# Benjamin Smedberg <benjamin@smedbergs.us>
+#
+# Portions created by the Initial Developer are Copyright (C) 2004
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Robert Strong <robert.bugzilla@gmail.com>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
-                                  "resource://gre/modules/PrivateBrowsingUtils.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "RecentWindow",
-                                  "resource:///modules/RecentWindow.jsm");
 
 const nsISupports            = Components.interfaces.nsISupports;
 
@@ -23,6 +52,7 @@ const nsIDocShellTreeItem    = Components.interfaces.nsIDocShellTreeItem;
 const nsIDOMChromeWindow     = Components.interfaces.nsIDOMChromeWindow;
 const nsIDOMWindow           = Components.interfaces.nsIDOMWindow;
 const nsIFileURL             = Components.interfaces.nsIFileURL;
+const nsIHttpProtocolHandler = Components.interfaces.nsIHttpProtocolHandler;
 const nsIInterfaceRequestor  = Components.interfaces.nsIInterfaceRequestor;
 const nsINetUtil             = Components.interfaces.nsINetUtil;
 const nsIPrefBranch          = Components.interfaces.nsIPrefBranch;
@@ -35,12 +65,13 @@ const nsIWindowWatcher       = Components.interfaces.nsIWindowWatcher;
 const nsIWebNavigationInfo   = Components.interfaces.nsIWebNavigationInfo;
 const nsIBrowserSearchService = Components.interfaces.nsIBrowserSearchService;
 const nsICommandLineValidator = Components.interfaces.nsICommandLineValidator;
+const nsIXULAppInfo          = Components.interfaces.nsIXULAppInfo;
 
 const NS_BINDING_ABORTED = Components.results.NS_BINDING_ABORTED;
 const NS_ERROR_WONT_HANDLE_CONTENT = 0x805d0001;
 const NS_ERROR_ABORT = Components.results.NS_ERROR_ABORT;
 
-const URI_INHERITS_SECURITY_CONTEXT = Components.interfaces.nsIHttpProtocolHandler
+const URI_INHERITS_SECURITY_CONTEXT = nsIHttpProtocolHandler
                                         .URI_INHERITS_SECURITY_CONTEXT;
 
 function shouldLoadURI(aURI) {
@@ -83,8 +114,6 @@ function resolveURIInternal(aCmdLine, aArgument) {
   return uri;
 }
 
-var gFirstWindow = false;
-
 const OVERRIDE_NONE        = 0;
 const OVERRIDE_NEW_PROFILE = 1;
 const OVERRIDE_NEW_MSTONE  = 2;
@@ -108,14 +137,16 @@ function needHomepageOverride(prefb) {
   if (savedmstone == "ignore")
     return OVERRIDE_NONE;
 
-  var mstone = Services.appinfo.platformVersion;
+  var mstone = Components.classes["@mozilla.org/network/protocol;1?name=http"]
+                         .getService(nsIHttpProtocolHandler).misc;
 
   var savedBuildID = null;
   try {
     savedBuildID = prefb.getCharPref("browser.startup.homepage_override.buildID");
   } catch (e) {}
 
-  var buildID = Services.appinfo.platformBuildID;
+  var buildID =  Components.classes["@mozilla.org/xre/app-info;1"]
+                           .getService(nsIXULAppInfo).platformBuildID;
 
   if (mstone != savedmstone) {
     // Bug 462254. Previous releases had a default pref to suppress the EULA
@@ -172,6 +203,40 @@ function getPostUpdateOverridePage(defaultOverridePage) {
   return update.getProperty("openURL") || defaultOverridePage;
 }
 
+// Copies a pref override file into the user's profile pref-override folder,
+// and then tells the pref service to reload its default prefs.
+function copyPrefOverride() {
+  try {
+    var fileLocator = Components.classes["@mozilla.org/file/directory_service;1"]
+                                .getService(Components.interfaces.nsIProperties);
+    const NS_APP_EXISTING_PREF_OVERRIDE = "ExistingPrefOverride";
+    var prefOverride = fileLocator.get(NS_APP_EXISTING_PREF_OVERRIDE,
+                                       Components.interfaces.nsIFile);
+    if (!prefOverride.exists())
+      return; // nothing to do
+
+    const NS_APP_PREFS_OVERRIDE_DIR     = "PrefDOverride";
+    var prefOverridesDir = fileLocator.get(NS_APP_PREFS_OVERRIDE_DIR,
+                                           Components.interfaces.nsIFile);
+
+    // Check for any existing pref overrides, and remove them if present
+    var existingPrefOverridesFile = prefOverridesDir.clone();
+    existingPrefOverridesFile.append(prefOverride.leafName);
+    if (existingPrefOverridesFile.exists())
+      existingPrefOverridesFile.remove(false);
+
+    prefOverride.copyTo(prefOverridesDir, null);
+
+    // Now that we've installed the new-profile pref override file,
+    // re-read the default prefs.
+    var prefSvcObs = Components.classes["@mozilla.org/preferences-service;1"]
+                               .getService(Components.interfaces.nsIObserver);
+    prefSvcObs.observe(null, "reload-default-prefs", null);
+  } catch (ex) {
+    Components.utils.reportError(ex);
+  }
+}
+
 // Flag used to indicate that the arguments to openWindow can be passed directly.
 const NO_EXTERNAL_URIS = 1;
 
@@ -218,7 +283,7 @@ function openWindow(parent, url, target, features, args, noExternalArgs) {
   }
 
   // Pass these as null to ensure that we always trigger the "single URL"
-  // behavior in browser.js's gBrowserInit.onLoad (which handles the window
+  // behavior in browser.js's BrowserStartup (which handles the window
   // arguments)
   argArray.AppendElement(null); // charset
   argArray.AppendElement(null); // referer
@@ -229,33 +294,14 @@ function openWindow(parent, url, target, features, args, noExternalArgs) {
 }
 
 function openPreferences() {
-  if (Services.prefs.getBoolPref("browser.preferences.inContent")) { 
-    var sa = Components.classes["@mozilla.org/supports-array;1"]
-                       .createInstance(Components.interfaces.nsISupportsArray);
+  var features = "chrome,titlebar,toolbar,centerscreen,dialog=no";
+  var url = "chrome://browser/content/preferences/preferences.xul";
 
-    var wuri = Components.classes["@mozilla.org/supports-string;1"]
-                         .createInstance(Components.interfaces.nsISupportsString);
-    wuri.data = "about:preferences";
-
-    sa.AppendElement(wuri);
-
-    var wwatch = Components.classes["@mozilla.org/embedcomp/window-watcher;1"]
-                           .getService(nsIWindowWatcher);
-
-    wwatch.openWindow(null, gBrowserContentHandler.chromeURL,
-                      "_blank",
-                      "chrome,dialog=no,all",
-                      sa);
+  var win = getMostRecentWindow("Browser:Preferences");
+  if (win) {
+    win.focus();
   } else {
-    var features = "chrome,titlebar,toolbar,centerscreen,dialog=no";
-    var url = "chrome://browser/content/preferences/preferences.xul";
-    
-    var win = getMostRecentWindow("Browser:Preferences");
-    if (win) {
-      win.focus();
-    } else {
-      openWindow(null, url, "_blank", features);
-    }
+    openWindow(null, url, "_blank", features);
   }
 }
 
@@ -263,6 +309,13 @@ function getMostRecentWindow(aType) {
   var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
                      .getService(nsIWindowMediator);
   return wm.getMostRecentWindow(aType);
+}
+
+// this returns the most recent non-popup browser window
+function getMostRecentBrowserWindow() {
+  var browserGlue = Components.classes["@mozilla.org/browser/browserglue;1"]
+                              .getService(Components.interfaces.nsIBrowserGlue);
+  return browserGlue.getMostRecentBrowserWindow();
 }
 
 function doSearch(searchTerm, cmdLine) {
@@ -477,23 +530,13 @@ nsBrowserContentHandler.prototype = {
     }
     if (cmdLine.handleFlag("silent", false))
       cmdLine.preventDefault = true;
-    if (cmdLine.handleFlag("private-window", false)) {
-      openWindow(null, this.chromeURL, "_blank",
-        "chrome,dialog=no,private,all" + this.getFeatures(cmdLine),
-        "about:privatebrowsing");
+    if (cmdLine.findFlag("private-toggle", false) >= 0)
       cmdLine.preventDefault = true;
-    }
 
     var searchParam = cmdLine.handleFlagWithParam("search", false);
     if (searchParam) {
       doSearch(searchParam, cmdLine);
       cmdLine.preventDefault = true;
-    }
-
-    // The global PB Service consumes this flag, so only eat it in per-window
-    // PB builds.
-    if (cmdLine.handleFlag("private", false)) {
-      PrivateBrowsingUtils.enterTemporaryAutoStartMode();
     }
 
     var fileParam = cmdLine.handleFlagWithParam("file", false);
@@ -539,33 +582,24 @@ nsBrowserContentHandler.prototype = {
     var prefb = Components.classes["@mozilla.org/preferences-service;1"]
                           .getService(nsIPrefBranch);
 
-    if (!gFirstWindow) {
-      gFirstWindow = true;
-      if (PrivateBrowsingUtils.isInTemporaryAutoStartMode) {
-        return "about:privatebrowsing";
-      }
-    }
-
     var overridePage = "";
     var haveUpdateSession = false;
     try {
-      // Read the old value of homepage_override.mstone before
-      // needHomepageOverride updates it, so that we can later add it to the
-      // URL if we do end up showing an overridePage. This makes it possible
-      // to have the overridePage's content vary depending on the version we're
-      // upgrading from.
-      let old_mstone = "unknown";
-      try {
-        old_mstone = Services.prefs.getCharPref("browser.startup.homepage_override.mstone");
-      } catch (ex) {}
       let override = needHomepageOverride(prefb);
       if (override != OVERRIDE_NONE) {
+        // Setup the default search engine to about:home page.
+        AboutHomeUtils.loadDefaultSearchEngine();
+        AboutHomeUtils.loadSnippetsURL();
+
         switch (override) {
           case OVERRIDE_NEW_PROFILE:
             // New profile.
             overridePage = Services.urlFormatter.formatURLPref("startup.homepage_welcome_url");
             break;
           case OVERRIDE_NEW_MSTONE:
+            // Existing profile, new milestone build.
+            copyPrefOverride();
+
             // Check whether we have a session to restore. If we do, we assume
             // that this is an "update" session.
             var ss = Components.classes["@mozilla.org/browser/sessionstartup;1"]
@@ -574,9 +608,14 @@ nsBrowserContentHandler.prototype = {
             overridePage = Services.urlFormatter.formatURLPref("startup.homepage_override_url");
             if (prefb.prefHasUserValue("app.update.postupdate"))
               overridePage = getPostUpdateOverridePage(overridePage);
-
-            overridePage = overridePage.replace("%OLD_VERSION%", old_mstone);
             break;
+        }
+      }
+      else {
+        // No need to override homepage, but update snippets url if the pref has
+        // been manually changed.
+        if (Services.prefs.prefHasUserValue(AboutHomeUtils.SNIPPETS_URL_PREF)) {
+          AboutHomeUtils.loadSnippetsURL();
         }
       }
     } catch (ex) {}
@@ -590,6 +629,10 @@ nsBrowserContentHandler.prototype = {
       var choice = prefb.getIntPref("browser.startup.page");
       if (choice == 1 || choice == 3)
         startPage = this.startPage;
+
+      if (choice == 2)
+        startPage = Components.classes["@mozilla.org/browser/global-history;2"]
+                              .getService(nsIBrowserHistory).lastPageVisited;
     } catch (e) {
       Components.utils.reportError(e);
     }
@@ -605,13 +648,36 @@ nsBrowserContentHandler.prototype = {
   },
 
   get startPage() {
-    var uri = Services.prefs.getComplexValue("browser.startup.homepage",
-                                             nsIPrefLocalizedString).data;
+    var prefb = Components.classes["@mozilla.org/preferences-service;1"]
+                          .getService(nsIPrefBranch);
+
+    var uri = prefb.getComplexValue("browser.startup.homepage",
+                                    nsIPrefLocalizedString).data;
+
     if (!uri) {
-      Services.prefs.clearUserPref("browser.startup.homepage");
-      uri = Services.prefs.getComplexValue("browser.startup.homepage",
-                                           nsIPrefLocalizedString).data;
+      prefb.clearUserPref("browser.startup.homepage");
+      uri = prefb.getComplexValue("browser.startup.homepage",
+                                  nsIPrefLocalizedString).data;
     }
+                                
+    var count;
+    try {
+      count = prefb.getIntPref("browser.startup.homepage.count");
+    }
+    catch (e) {
+      return uri;
+    }
+
+    for (var i = 1; i < count; ++i) {
+      try {
+        var page = prefb.getComplexValue("browser.startup.homepage." + i,
+                                         nsIPrefLocalizedString).data;
+        uri += "\n" + page;
+      }
+      catch (e) {
+      }
+    }
+
     return uri;
   },
 
@@ -631,12 +697,6 @@ nsBrowserContentHandler.prototype = {
           this.mFeatures += ",height=" + height;
       }
       catch (e) {
-      }
-
-      // The global PB Service consumes this flag, so only eat it in per-window
-      // PB builds.
-      if (PrivateBrowsingUtils.isInTemporaryAutoStartMode) {
-        this.mFeatures = ",private";
       }
     }
 
@@ -684,9 +744,7 @@ function handURIToExistingBrowser(uri, location, cmdLine)
   if (!shouldLoadURI(uri))
     return;
 
-  // Do not open external links in private windows, unless we're in perma-private mode
-  var allowPrivate = PrivateBrowsingUtils.permanentPrivateBrowsing;
-  var navWin = RecentWindow.getMostRecentBrowserWindow({private: allowPrivate});
+  var navWin = getMostRecentBrowserWindow();
   if (!navWin) {
     // if we couldn't load it in an existing window, open a new one
     openWindow(null, gBrowserContentHandler.chromeURL, "_blank",
@@ -720,6 +778,10 @@ nsDefaultCommandLineHandler.prototype = {
     return this;
   },
 
+  // List of uri's that were passed via the command line without the app
+  // running and have already been handled. This is compared against uri's
+  // opened using DDE on Win32 so we only open one of the requests.
+  _handledURIs: [ ],
 #ifdef XP_WIN
   _haveProfile: false,
 #endif
@@ -753,8 +815,25 @@ nsDefaultCommandLineHandler.prototype = {
     try {
       var ar;
       while ((ar = cmdLine.handleFlagWithParam("url", false))) {
+        var found = false;
         var uri = resolveURIInternal(cmdLine, ar);
-        urilist.push(uri);
+        // count will never be greater than zero except on Win32.
+        var count = this._handledURIs.length;
+        for (var i = 0; i < count; ++i) {
+          if (this._handledURIs[i].spec == uri.spec) {
+            this._handledURIs.splice(i, 1);
+            found = true;
+            cmdLine.preventDefault = true;
+            break;
+          }
+        }
+        if (!found) {
+          urilist.push(uri);
+          // The requestpending command line flag is only used on Win32.
+          if (cmdLine.handleFlag("requestpending", false) &&
+              cmdLine.state == nsICommandLine.STATE_INITIAL_LAUNCH)
+            this._handledURIs.push(uri)
+        }
       }
     }
     catch (e) {
@@ -812,5 +891,41 @@ nsDefaultCommandLineHandler.prototype = {
   helpInfo : "",
 };
 
+let AboutHomeUtils = {
+  SNIPPETS_URL_PREF: "browser.aboutHomeSnippets.updateUrl",
+  get _storage() {
+    let aboutHomeURI = Services.io.newURI("moz-safe-about:home", null, null);
+    let principal = Components.classes["@mozilla.org/scriptsecuritymanager;1"].
+                    getService(Components.interfaces.nsIScriptSecurityManager).
+                    getCodebasePrincipal(aboutHomeURI);
+    let dsm = Components.classes["@mozilla.org/dom/storagemanager;1"].
+              getService(Components.interfaces.nsIDOMStorageManager);
+    return dsm.getLocalStorageForPrincipal(principal, "");
+  },
+
+  loadDefaultSearchEngine: function AHU_loadDefaultSearchEngine()
+  {
+    let defaultEngine = Services.search.originalDefaultEngine;
+    let submission = defaultEngine.getSubmission("_searchTerms_");
+    if (submission.postData)
+      throw new Error("Home page does not support POST search engines.");
+    let engine = {
+      name: defaultEngine.name
+    , searchUrl: submission.uri.spec
+    }
+    this._storage.setItem("search-engine", JSON.stringify(engine));
+  },
+
+  loadSnippetsURL: function AHU_loadSnippetsURL()
+  {
+    const STARTPAGE_VERSION = 1;
+    let updateURL = Services.prefs
+                            .getCharPref(this.SNIPPETS_URL_PREF)
+                            .replace("%STARTPAGE_VERSION%", STARTPAGE_VERSION);
+    updateURL = Services.urlFormatter.formatURL(updateURL);
+    this._storage.setItem("snippets-update-url", updateURL);
+  },
+};
+
 var components = [nsBrowserContentHandler, nsDefaultCommandLineHandler];
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory(components);
+var NSGetFactory = XPCOMUtils.generateNSGetFactory(components);

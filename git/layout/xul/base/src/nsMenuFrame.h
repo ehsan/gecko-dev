@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Original Author: David W. Hyatt (hyatt@netscape.com)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 //
 // nsMenuFrame
@@ -10,6 +43,7 @@
 #ifndef nsMenuFrame_h__
 #define nsMenuFrame_h__
 
+#include "prtypes.h"
 #include "nsIAtom.h"
 #include "nsCOMPtr.h"
 
@@ -19,12 +53,11 @@
 #include "nsMenuParent.h"
 #include "nsXULPopupManager.h"
 #include "nsITimer.h"
-#include "mozilla/Attributes.h"
+#include "nsIContent.h"
 
 nsIFrame* NS_NewMenuFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 nsIFrame* NS_NewMenuItemFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
-class nsIContent;
 class nsMenuBarFrame;
 
 #define NS_STATE_ACCELTEXT_IS_DERIVED  NS_STATE_BOX_CHILD_RESERVED
@@ -55,7 +88,7 @@ class nsMenuFrame;
  * to it. The callback is delegated to the contained nsMenuFrame as long as
  * the contained nsMenuFrame has not been destroyed.
  */
-class nsMenuTimerMediator MOZ_FINAL : public nsITimerCallback
+class nsMenuTimerMediator : public nsITimerCallback
 {
 public:
   nsMenuTimerMediator(nsMenuFrame* aFrame);
@@ -81,61 +114,62 @@ public:
   NS_DECL_QUERYFRAME
   NS_DECL_FRAMEARENA_HELPERS
 
-  NS_IMETHOD DoLayout(nsBoxLayoutState& aBoxLayoutState) MOZ_OVERRIDE;
-  virtual nsSize GetMinSize(nsBoxLayoutState& aBoxLayoutState) MOZ_OVERRIDE;
-  virtual nsSize GetPrefSize(nsBoxLayoutState& aBoxLayoutState) MOZ_OVERRIDE;
+  // nsIBox
+  NS_IMETHOD DoLayout(nsBoxLayoutState& aBoxLayoutState);
+  virtual nsSize GetMinSize(nsBoxLayoutState& aBoxLayoutState);
+  virtual nsSize GetPrefSize(nsBoxLayoutState& aBoxLayoutState);
 
-  virtual void Init(nsIContent*      aContent,
-                    nsIFrame*        aParent,
-                    nsIFrame*        aPrevInFlow) MOZ_OVERRIDE;
+  NS_IMETHOD Init(nsIContent*      aContent,
+                  nsIFrame*        aParent,
+                  nsIFrame*        aPrevInFlow);
 
 #ifdef DEBUG_LAYOUT
-  NS_IMETHOD SetDebug(nsBoxLayoutState& aState, bool aDebug) MOZ_OVERRIDE;
+  NS_IMETHOD SetDebug(nsBoxLayoutState& aState, PRBool aDebug);
 #endif
 
   // The following methods are all overridden so that the menupopup
   // can be stored in a separate list, so that it doesn't impact reflow of the
   // actual menu item at all.
-  virtual const nsFrameList& GetChildList(ChildListID aList) const MOZ_OVERRIDE;
-  virtual void GetChildLists(nsTArray<ChildList>* aLists) const MOZ_OVERRIDE;
+  virtual nsFrameList GetChildList(ChildListID aList) const;
+  virtual void GetChildLists(nsTArray<ChildList>* aLists) const;
   NS_IMETHOD SetInitialChildList(ChildListID     aListID,
-                                 nsFrameList&    aChildList) MOZ_OVERRIDE;
-  virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
+                                 nsFrameList&    aChildList);
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   // Overridden to prevent events from going to children of the menu.
-  virtual void BuildDisplayListForChildren(nsDisplayListBuilder*   aBuilder,
-                                           const nsRect&           aDirtyRect,
-                                           const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+  NS_IMETHOD BuildDisplayListForChildren(nsDisplayListBuilder*   aBuilder,
+                                         const nsRect&           aDirtyRect,
+                                         const nsDisplayListSet& aLists);
                                          
   // this method can destroy the frame
   NS_IMETHOD HandleEvent(nsPresContext* aPresContext, 
                          nsGUIEvent*     aEvent,
-                         nsEventStatus*  aEventStatus) MOZ_OVERRIDE;
+                         nsEventStatus*  aEventStatus);
 
   NS_IMETHOD  AppendFrames(ChildListID     aListID,
-                           nsFrameList&    aFrameList) MOZ_OVERRIDE;
+                           nsFrameList&    aFrameList);
 
   NS_IMETHOD  InsertFrames(ChildListID     aListID,
                            nsIFrame*       aPrevFrame,
-                           nsFrameList&    aFrameList) MOZ_OVERRIDE;
+                           nsFrameList&    aFrameList);
 
   NS_IMETHOD  RemoveFrame(ChildListID     aListID,
-                          nsIFrame*       aOldFrame) MOZ_OVERRIDE;
+                          nsIFrame*       aOldFrame);
 
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE { return nsGkAtoms::menuFrame; }
+  virtual nsIAtom* GetType() const { return nsGkAtoms::menuFrame; }
 
-  NS_IMETHOD SelectMenu(bool aActivateFlag);
+  NS_IMETHOD SelectMenu(PRBool aActivateFlag);
 
-  virtual nsIScrollableFrame* GetScrollTargetFrame() MOZ_OVERRIDE;
+  virtual nsIScrollableFrame* GetScrollTargetFrame();
 
   /**
    * NOTE: OpenMenu will open the menu asynchronously.
    */
-  void OpenMenu(bool aSelectFirstItem);
+  void OpenMenu(PRBool aSelectFirstItem);
   // CloseMenu closes the menu asynchronously
-  void CloseMenu(bool aDeselectMenu);
+  void CloseMenu(PRBool aDeselectMenu);
 
-  bool IsChecked() { return mChecked; }
+  PRBool IsChecked() { return mChecked; }
 
   NS_IMETHOD GetActiveChild(nsIDOMElement** aResult);
   NS_IMETHOD SetActiveChild(nsIDOMElement* aChild);
@@ -146,30 +180,21 @@ public:
   // otherwise null will be returned.
   nsMenuFrame* Enter(nsGUIEvent* aEvent);
 
-  virtual void SetParent(nsIFrame* aParent) MOZ_OVERRIDE;
+  virtual void SetParent(nsIFrame* aParent);
 
   virtual nsMenuParent *GetMenuParent() { return mMenuParent; }
   const nsAString& GetRadioGroupName() { return mGroupName; }
   nsMenuType GetMenuType() { return mType; }
-  nsMenuPopupFrame* GetPopup();
-
-  /**
-   * @return true if this frame has a popup child frame.
-   */
-  bool HasPopup() const
-  {
-    return (GetStateBits() & NS_STATE_MENU_HAS_POPUP_LIST) != 0;
-  }
-
+  nsMenuPopupFrame* GetPopup() { return mPopupFrame; }
 
   // nsMenuFrame methods 
 
-  bool IsOnMenuBar() { return mMenuParent && mMenuParent->IsMenuBar(); }
-  bool IsOnActiveMenuBar() { return IsOnMenuBar() && mMenuParent->IsActive(); }
-  virtual bool IsOpen();
-  virtual bool IsMenu();
+  PRBool IsOnMenuBar() { return mMenuParent && mMenuParent->IsMenuBar(); }
+  PRBool IsOnActiveMenuBar() { return IsOnMenuBar() && mMenuParent->IsActive(); }
+  virtual PRBool IsOpen();
+  virtual PRBool IsMenu();
   nsMenuListType GetParentMenuListType();
-  bool IsDisabled();
+  PRBool IsDisabled();
   void ToggleMenuState();
 
   // indiciate that the menu's popup has just been opened, so that the menu
@@ -180,43 +205,30 @@ public:
   // can update its open state. The menu should be unhighlighted if
   // aDeselectedMenu is true. This method modifies the open attribute on
   // the menu, so the frames could be gone after this call.
-  void PopupClosed(bool aDeselectMenu);
+  void PopupClosed(PRBool aDeselectMenu);
 
   // returns true if this is a menu on another menu popup. A menu is a submenu
   // if it has a parent popup or menupopup.
-  bool IsOnMenu() { return mMenuParent && mMenuParent->IsMenu(); }
-  void SetIsMenu(bool aIsMenu) { mIsMenu = aIsMenu; }
+  PRBool IsOnMenu() { return mMenuParent && mMenuParent->IsMenu(); }
+  void SetIsMenu(PRBool aIsMenu) { mIsMenu = aIsMenu; }
 
 #ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE
+  NS_IMETHOD GetFrameName(nsAString& aResult) const
   {
       return MakeFrameName(NS_LITERAL_STRING("Menu"), aResult);
   }
 #endif
 
-  static bool IsSizedToPopup(nsIContent* aContent, bool aRequireAlways);
+  static PRBool IsSizedToPopup(nsIContent* aContent, PRBool aRequireAlways);
 
 protected:
   friend class nsMenuTimerMediator;
   friend class nsASyncMenuInitialization;
   friend class nsMenuAttributeChangedEvent;
 
-  /**
-   * Initialize the popup list to the first popup frame within
-   * aChildList. Removes the popup, if any, from aChildList.
-   */
+  // initialize mPopupFrame to the first popup frame within
+  // aChildList. Removes the popup, if any, from aChildList.
   void SetPopupFrame(nsFrameList& aChildList);
-
-  /**
-   * Get the popup frame list from the frame property.
-   * @return the property value if it exists, nullptr otherwise.
-   */
-  nsFrameList* GetPopupList() const;
-
-  /**
-   * Destroy the popup list property.  The list must exist and be empty.
-   */
-  void DestroyPopupList();
 
   // set mMenuParent to the nearest enclosing menu bar or menupopup frame of
   // aParent (or aParent itself). This is called when initializing the frame,
@@ -231,37 +243,40 @@ protected:
   void UpdateMenuSpecialState(nsPresContext* aPresContext);
 
   // Examines the key node and builds the accelerator.
-  void BuildAcceleratorText(bool aNotify);
+  void BuildAcceleratorText(PRBool aNotify);
 
   // Called to execute our command handler. This method can destroy the frame.
   void Execute(nsGUIEvent *aEvent);
 
   // This method can destroy the frame
-  NS_IMETHOD AttributeChanged(int32_t aNameSpaceID,
+  NS_IMETHOD AttributeChanged(PRInt32 aNameSpaceID,
                               nsIAtom* aAttribute,
-                              int32_t aModType) MOZ_OVERRIDE;
-  virtual ~nsMenuFrame() { }
+                              PRInt32 aModType);
+  virtual ~nsMenuFrame() { };
 
-  bool SizeToPopup(nsBoxLayoutState& aState, nsSize& aSize);
+  PRBool SizeToPopup(nsBoxLayoutState& aState, nsSize& aSize);
 
-  bool ShouldBlink();
-  void StartBlinking(nsGUIEvent *aEvent, bool aFlipChecked);
+  PRBool ShouldBlink();
+  void StartBlinking(nsGUIEvent *aEvent, PRBool aFlipChecked);
   void StopBlinking();
-  void CreateMenuCommandEvent(nsGUIEvent *aEvent, bool aFlipChecked);
+  void CreateMenuCommandEvent(nsGUIEvent *aEvent, PRBool aFlipChecked);
   void PassMenuCommandEventToPopupManager();
 
 protected:
 #ifdef DEBUG_LAYOUT
-  nsresult SetDebug(nsBoxLayoutState& aState, nsIFrame* aList, bool aDebug);
+  nsresult SetDebug(nsBoxLayoutState& aState, nsIFrame* aList, PRBool aDebug);
 #endif
   NS_HIDDEN_(nsresult) Notify(nsITimer* aTimer);
 
-  bool mIsMenu; // Whether or not we can even have children or not.
-  bool mChecked;              // are we checked?
-  bool mIgnoreAccelTextChange; // temporarily set while determining the accelerator key
+  PRPackedBool mIsMenu; // Whether or not we can even have children or not.
+  PRPackedBool mChecked;              // are we checked?
+  PRPackedBool mIgnoreAccelTextChange; // temporarily set while determining the accelerator key
   nsMenuType mType;
 
   nsMenuParent* mMenuParent; // Our parent menu.
+
+  // the popup for this menu, owned
+  nsMenuPopupFrame* mPopupFrame;
 
   // Reference to the mediator which wraps this frame.
   nsRefPtr<nsMenuTimerMediator> mTimerMediator;
@@ -269,7 +284,7 @@ protected:
   nsCOMPtr<nsITimer> mOpenTimer;
   nsCOMPtr<nsITimer> mBlinkTimer;
 
-  uint8_t mBlinkState; // 0: not blinking, 1: off, 2: on
+  PRUint8 mBlinkState; // 0: not blinking, 1: off, 2: on
   nsRefPtr<nsXULMenuCommandEvent> mDelayedMenuCommandEvent;
 
   nsString mGroupName;

@@ -1,10 +1,46 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  *
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Vipul Gupta <vipul.gupta@sun.com>
+ *   Douglas Stebila <douglas@stebila.ca>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
+extern "C" {
 #include "secdert.h"
+}
 #include "nspr.h"
 #include "nsNSSComponent.h" // for PIPNSS string bundle calls.
 #include "keyhi.h"
@@ -12,7 +48,10 @@
 #include "cryptohi.h"
 #include "base64.h"
 #include "secasn1.h"
+extern "C" {
 #include "pk11pqg.h"
+}
+#include "nsProxiedService.h"
 #include "nsKeygenHandler.h"
 #include "nsVoidArray.h"
 #include "nsIServiceManager.h"
@@ -33,7 +72,7 @@
 
 DERTemplate SECAlgorithmIDTemplate[] = {
     { DER_SEQUENCE,
-          0, nullptr, sizeof(SECAlgorithmID) },
+          0, NULL, sizeof(SECAlgorithmID) },
     { DER_OBJECT_ID,
           offsetof(SECAlgorithmID,algorithm), },
     { DER_OPTIONAL | DER_ANY,
@@ -43,7 +82,7 @@ DERTemplate SECAlgorithmIDTemplate[] = {
 
 DERTemplate CERTSubjectPublicKeyInfoTemplate[] = {
     { DER_SEQUENCE,
-          0, nullptr, sizeof(CERTSubjectPublicKeyInfo) },
+          0, nsnull, sizeof(CERTSubjectPublicKeyInfo) },
     { DER_INLINE,
           offsetof(CERTSubjectPublicKeyInfo,algorithm),
           SECAlgorithmIDTemplate, },
@@ -54,14 +93,14 @@ DERTemplate CERTSubjectPublicKeyInfoTemplate[] = {
 
 DERTemplate CERTPublicKeyAndChallengeTemplate[] =
 {
-    { DER_SEQUENCE, 0, nullptr, sizeof(CERTPublicKeyAndChallenge) },
+    { DER_SEQUENCE, 0, nsnull, sizeof(CERTPublicKeyAndChallenge) },
     { DER_ANY, offsetof(CERTPublicKeyAndChallenge,spki), },
     { DER_IA5_STRING, offsetof(CERTPublicKeyAndChallenge,challenge), },
     { 0, }
 };
 
 const SEC_ASN1Template SECKEY_PQGParamsTemplate[] = {
-    { SEC_ASN1_SEQUENCE, 0, nullptr, sizeof(PQGParams) },
+    { SEC_ASN1_SEQUENCE, 0, NULL, sizeof(PQGParams) },
     { SEC_ASN1_INTEGER, offsetof(PQGParams,prime) },
     { SEC_ASN1_INTEGER, offsetof(PQGParams,subPrime) },
     { SEC_ASN1_INTEGER, offsetof(PQGParams,base) },
@@ -75,15 +114,15 @@ static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
 static PQGParams *
 decode_pqg_params(char *aStr)
 {
-    unsigned char *buf = nullptr;
+    unsigned char *buf = nsnull;
     unsigned int len;
-    PLArenaPool *arena = nullptr;
-    PQGParams *params = nullptr;
+    PRArenaPool *arena = nsnull;
+    PQGParams *params = nsnull;
     SECStatus status;
 
     arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
     if (!arena)
-        return nullptr;
+        return nsnull;
 
     params = static_cast<PQGParams*>(PORT_ArenaZAlloc(arena, sizeof(PQGParams)));
     if (!params)
@@ -102,18 +141,18 @@ decode_pqg_params(char *aStr)
 
 loser:
     if (arena) {
-      PORT_FreeArena(arena, false);
+      PORT_FreeArena(arena, PR_FALSE);
     }
     if (buf) {
       PR_Free(buf);
     }
-    return nullptr;
+    return nsnull;
 }
 
 static int
 pqg_prime_bits(char *str)
 {
-    PQGParams *params = nullptr;
+    PQGParams *params = nsnull;
     int primeBits = 0, i;
 
     params = decode_pqg_params(str);
@@ -222,7 +261,7 @@ SECKEYECParams *
 decode_ec_params(const char *curve)
 {
     SECKEYECParams *ecparams;
-    SECOidData *oidData = nullptr;
+    SECOidData *oidData = NULL;
     SECOidTag curveOidTag = SEC_OID_UNKNOWN; /* default */
     int i, numCurves;
 
@@ -235,16 +274,16 @@ decode_ec_params(const char *curve)
         }
     }
 
-    /* Return nullptr if curve name is not recognized */
+    /* Return NULL if curve name is not recognized */
     if ((curveOidTag == SEC_OID_UNKNOWN) || 
-        (oidData = SECOID_FindOIDByTag(curveOidTag)) == nullptr) {
-        return nullptr;
+        (oidData = SECOID_FindOIDByTag(curveOidTag)) == NULL) {
+        return nsnull;
     }
 
-    ecparams = SECITEM_AllocItem(nullptr, nullptr, (2 + oidData->oid.len));
+    ecparams = SECITEM_AllocItem(NULL, NULL, (2 + oidData->oid.len));
 
     if (!ecparams)
-      return nullptr;
+      return nsnull;
 
     /* 
      * ecparams->data needs to contain the ASN encoding of an object ID (OID)
@@ -258,7 +297,7 @@ decode_ec_params(const char *curve)
     return ecparams;
 }
 
-NS_IMPL_ISUPPORTS1(nsKeygenFormProcessor, nsIFormProcessor)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsKeygenFormProcessor, nsIFormProcessor)
 
 nsKeygenFormProcessor::nsKeygenFormProcessor()
 { 
@@ -276,6 +315,8 @@ nsKeygenFormProcessor::Create(nsISupports* aOuter, const nsIID& aIID, void* *aRe
   nsresult rv;
   NS_ENSURE_NO_AGGREGATION(aOuter);
   nsKeygenFormProcessor* formProc = new nsKeygenFormProcessor();
+  if (!formProc)
+    return NS_ERROR_OUT_OF_MEMORY;
 
   nsCOMPtr<nsISupports> stabilize = formProc;
   rv = formProc->Init();
@@ -306,15 +347,15 @@ nsKeygenFormProcessor::Init()
 }
 
 nsresult
-nsKeygenFormProcessor::GetSlot(uint32_t aMechanism, PK11SlotInfo** aSlot)
+nsKeygenFormProcessor::GetSlot(PRUint32 aMechanism, PK11SlotInfo** aSlot)
 {
   return GetSlotWithMechanism(aMechanism,m_ctx,aSlot);
 }
 
 
-uint32_t MapGenMechToAlgoMech(uint32_t mechanism)
+PRUint32 MapGenMechToAlgoMech(PRUint32 mechanism)
 {
-    uint32_t searchMech;
+    PRUint32 searchMech;
 
     /* We are interested in slots based on the ability to perform
        a given algorithm, not on their ability to generate keys usable
@@ -349,25 +390,25 @@ uint32_t MapGenMechToAlgoMech(uint32_t mechanism)
 
 
 nsresult
-GetSlotWithMechanism(uint32_t aMechanism, 
+GetSlotWithMechanism(PRUint32 aMechanism, 
                      nsIInterfaceRequestor *m_ctx,
                      PK11SlotInfo** aSlot)
 {
     nsNSSShutDownPreventionLock locker;
-    PK11SlotList * slotList = nullptr;
-    PRUnichar** tokenNameList = nullptr;
+    PK11SlotList * slotList = nsnull;
+    PRUnichar** tokenNameList = nsnull;
     nsITokenDialogs * dialogs;
     PRUnichar *unicodeTokenChosen;
     PK11SlotListElement *slotElement, *tmpSlot;
-    uint32_t numSlots = 0, i = 0;
-    bool canceled;
+    PRUint32 numSlots = 0, i = 0;
+    PRBool canceled;
     nsresult rv = NS_OK;
 
-    *aSlot = nullptr;
+    *aSlot = nsnull;
 
     // Get the slot
     slotList = PK11_GetAllTokens(MapGenMechToAlgoMech(aMechanism), 
-                                true, true, m_ctx);
+                                PR_TRUE, PR_TRUE, m_ctx);
     if (!slotList || !slotList->head) {
         rv = NS_ERROR_FAILURE;
         goto loser;
@@ -395,7 +436,7 @@ GetSlotWithMechanism(uint32_t aMechanism,
         slotElement = PK11_GetFirstSafe(slotList);
         while (slotElement) {
             tokenNameList[i] = UTF8ToNewUnicode(nsDependentCString(PK11_GetTokenName(slotElement->slot)));
-            slotElement = PK11_GetNextSafe(slotList, slotElement, false);
+            slotElement = PK11_GetNextSafe(slotList, slotElement, PR_FALSE);
             if (tokenNameList[i])
                 i++;
             else {
@@ -440,7 +481,7 @@ GetSlotWithMechanism(uint32_t aMechanism,
                 PK11_FreeSlotListElement(slotList, slotElement);
                 break;
             }
-            slotElement = PK11_GetNextSafe(slotList, slotElement, false);
+            slotElement = PK11_GetNextSafe(slotList, slotElement, PR_FALSE);
         }
         if(!(*aSlot)) {
             rv = NS_ERROR_FAILURE;
@@ -467,31 +508,29 @@ nsKeygenFormProcessor::GetPublicKey(nsAString& aValue, nsAString& aChallenge,
 {
     nsNSSShutDownPreventionLock locker;
     nsresult rv = NS_ERROR_FAILURE;
-    char *keystring = nullptr;
-    char *keyparamsString = nullptr, *str = nullptr;
-    uint32_t keyGenMechanism;
-    int32_t primeBits;
-    PK11SlotInfo *slot = nullptr;
+    char *keystring = nsnull;
+    char *keyparamsString = nsnull, *str = nsnull;
+    KeyType type;
+    PRUint32 keyGenMechanism;
+    PRInt32 primeBits;
+    PK11SlotInfo *slot = nsnull;
     PK11RSAGenParams rsaParams;
     SECOidTag algTag;
     int keysize = 0;
     void *params;
-    SECKEYPrivateKey *privateKey = nullptr;
-    SECKEYPublicKey *publicKey = nullptr;
-    CERTSubjectPublicKeyInfo *spkInfo = nullptr;
-    PLArenaPool *arena = nullptr;
+    SECKEYPrivateKey *privateKey = nsnull;
+    SECKEYPublicKey *publicKey = nsnull;
+    CERTSubjectPublicKeyInfo *spkInfo = nsnull;
+    PRArenaPool *arena = nsnull;
     SECStatus sec_rv = SECFailure;
     SECItem spkiItem;
     SECItem pkacItem;
     SECItem signedItem;
     CERTPublicKeyAndChallenge pkac;
-    pkac.challenge.data = nullptr;
+    pkac.challenge.data = nsnull;
     nsIGeneratingKeypairInfoDialogs * dialogs;
     nsKeygenThread *KeygenRunnable = 0;
     nsCOMPtr<nsIKeygenThread> runnable;
-    
-    // permanent and sensitive flags for keygen
-    PK11AttrFlags attrFlags = PK11_ATTR_TOKEN | PK11_ATTR_SENSITIVE | PK11_ATTR_PRIVATE;
 
     // Get the key size //
     for (size_t i = 0; i < number_of_key_size_choices; ++i) {
@@ -511,6 +550,7 @@ nsKeygenFormProcessor::GetPublicKey(nsAString& aValue, nsAString& aChallenge,
 
     // Set the keygen mechanism
     if (aKeyType.IsEmpty() || aKeyType.LowerCaseEqualsLiteral("rsa")) {
+        type = rsaKey;
         keyGenMechanism = CKM_RSA_PKCS_KEY_PAIR_GEN;
     } else if (aKeyType.LowerCaseEqualsLiteral("dsa")) {
         char * end;
@@ -520,22 +560,23 @@ nsKeygenFormProcessor::GetPublicKey(nsAString& aValue, nsAString& aChallenge,
             goto loser;
         }
 
+        type = dsaKey;
         keyGenMechanism = CKM_DSA_KEY_PAIR_GEN;
         if (strcmp(keyparamsString, "null") == 0)
             goto loser;
         str = keyparamsString;
-        bool found_match = false;
+        PRBool found_match = PR_FALSE;
         do {
             end = strchr(str, ',');
-            if (end)
+            if (end != nsnull)
                 *end = '\0';
             primeBits = pqg_prime_bits(str);
             if (keysize == primeBits) {
-                found_match = true;
+                found_match = PR_TRUE;
                 break;
             }
             str = end + 1;
-        } while (end);
+        } while (end != nsnull);
         if (!found_match) {
             goto loser;
         }
@@ -546,6 +587,7 @@ nsKeygenFormProcessor::GetPublicKey(nsAString& aValue, nsAString& aChallenge,
             goto loser;
         }
 
+        type = ecKey;
         keyGenMechanism = CKM_EC_KEY_PAIR_GEN;
         /* ecParams are initialized later */
     } else {
@@ -585,7 +627,7 @@ nsKeygenFormProcessor::GetPublicKey(nsAString& aValue, nsAString& aChallenge,
              * is silently ignored when a valid curve is presented
              * in keyparams.
              */
-            if ((params = decode_ec_params(keyparamsString)) == nullptr) {
+            if ((params = decode_ec_params(keyparamsString)) == nsnull) {
                 /* The keyparams attribute did not specify a valid
                  * curve name so use a curve based on the keysize.
                  * NOTE: Here keysize is used only as an indication of
@@ -618,7 +660,7 @@ nsKeygenFormProcessor::GetPublicKey(nsAString& aValue, nsAString& aChallenge,
     if (NS_FAILED(rv))
         goto loser;
 
-    sec_rv = PK11_Authenticate(slot, true, m_ctx);
+    sec_rv = PK11_Authenticate(slot, PR_TRUE, m_ctx);
     if (sec_rv != SECSuccess) {
         goto loser;
     }
@@ -634,11 +676,10 @@ nsKeygenFormProcessor::GetPublicKey(nsAString& aValue, nsAString& aChallenge,
 
     if (NS_FAILED(rv) || !KeygenRunnable) {
         rv = NS_OK;
-        privateKey = PK11_GenerateKeyPairWithFlags(slot, keyGenMechanism, params,
-                                                   &publicKey, attrFlags, m_ctx);
+        privateKey = PK11_GenerateKeyPair(slot, keyGenMechanism, params,
+                                          &publicKey, PR_TRUE, PR_TRUE, m_ctx);
     } else {
-        KeygenRunnable->SetParams( slot, attrFlags, nullptr, 0,
-                                   keyGenMechanism, params, m_ctx );
+        KeygenRunnable->SetParams( slot, keyGenMechanism, params, PR_TRUE, PR_TRUE, m_ctx );
 
         runnable = do_QueryInterface(KeygenRunnable);
         
@@ -658,11 +699,7 @@ nsKeygenFormProcessor::GetPublicKey(nsAString& aValue, nsAString& aChallenge,
 
             NS_RELEASE(dialogs);
             if (NS_SUCCEEDED(rv)) {
-                PK11SlotInfo *used_slot = nullptr;
-                rv = KeygenRunnable->ConsumeResult(&used_slot, &privateKey, &publicKey);
-                if (NS_SUCCEEDED(rv) && used_slot) {
-                  PK11_FreeSlot(used_slot);
-                }
+                rv = KeygenRunnable->GetParams(&privateKey, &publicKey);
             }
         }
     }
@@ -746,9 +783,9 @@ loser:
         SECKEY_DestroyPrivateKey(privateKey);
     }
     if ( arena ) {
-        PORT_FreeArena(arena, true);
+        PORT_FreeArena(arena, PR_TRUE);
     }
-    if (slot) {
+    if (slot != nsnull) {
         PK11_FreeSlot(slot);
     }
     if (KeygenRunnable) {

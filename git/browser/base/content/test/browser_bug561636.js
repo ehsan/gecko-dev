@@ -5,20 +5,20 @@ ok(gInvalidFormPopup,
 function checkPopupShow()
 {
   ok(gInvalidFormPopup.state == 'showing' || gInvalidFormPopup.state == 'open',
-     "[Test " + testId + "] The invalid form popup should be shown");
+     "The invalid form popup should be shown");
 }
 
 function checkPopupHide()
 {
   ok(gInvalidFormPopup.state != 'showing' && gInvalidFormPopup.state != 'open',
-     "[Test " + testId + "] The invalid form popup should not be shown");
+     "The invalid form popup should not be shown");
 }
 
 function checkPopupMessage(doc)
 {
   is(gInvalidFormPopup.firstChild.textContent,
      doc.getElementById('i').validationMessage,
-     "[Test " + testId + "] The panel should show the message from validationMessage");
+     "The panel should show the message from validationMessage");
 }
 
 let gObserver = {
@@ -29,31 +29,17 @@ let gObserver = {
   }
 };
 
-var testId = -1;
-
-function nextTest()
-{
-  testId++;
-  if (testId >= tests.length) {
-    finish();
-    return;
-  }
-  executeSoon(tests[testId]);
-}
-
 function test()
 {
   waitForExplicitFinish();
-  waitForFocus(nextTest);
-}
 
-var tests = [
+  test1();
+}
 
 /**
  * In this test, we check that no popup appears if the form is valid.
  */
-function()
-{
+function test1() {
   let uri = "data:text/html,<html><body><iframe name='t'></iframe><form target='t' action='data:text/html,'><input><input id='s' type='submit'></form></body></html>";
   let tab = gBrowser.addTab();
 
@@ -68,19 +54,21 @@ function()
 
       // Clean-up
       gBrowser.removeTab(gBrowser.selectedTab);
-      nextTest();
+
+      // Next test
+      executeSoon(test2);
     });
   }, true);
 
   gBrowser.selectedTab = tab;
   gBrowser.selectedTab.linkedBrowser.loadURI(uri);
-},
+}
 
 /**
  * In this test, we check that, when an invalid form is submitted,
  * the invalid element is focused and a popup appears.
  */
-function()
+function test2()
 {
   let uri = "data:text/html,<iframe name='t'></iframe><form target='t' action='data:text/html,'><input required id='i'><input id='s' type='submit'></form>";
   let tab = gBrowser.addTab();
@@ -97,7 +85,7 @@ function()
 
     // Clean-up and next test.
     gBrowser.removeTab(gBrowser.selectedTab);
-    nextTest();
+    executeSoon(test3);
   }, false);
 
   tab.linkedBrowser.addEventListener("load", function(aEvent) {
@@ -108,13 +96,13 @@ function()
 
   gBrowser.selectedTab = tab;
   gBrowser.selectedTab.linkedBrowser.loadURI(uri);
-},
+}
 
 /**
  * In this test, we check that, when an invalid form is submitted,
  * the first invalid element is focused and a popup appears.
  */
-function()
+function test3()
 {
   let uri = "data:text/html,<iframe name='t'></iframe><form target='t' action='data:text/html,'><input><input id='i' required><input required><input id='s' type='submit'></form>";
   let tab = gBrowser.addTab();
@@ -131,7 +119,7 @@ function()
 
     // Clean-up and next test.
     gBrowser.removeTab(gBrowser.selectedTab);
-    nextTest();
+    executeSoon(test4a);
   }, false);
 
   tab.linkedBrowser.addEventListener("load", function(aEvent) {
@@ -142,13 +130,13 @@ function()
 
   gBrowser.selectedTab = tab;
   gBrowser.selectedTab.linkedBrowser.loadURI(uri);
-},
+}
 
 /**
  * In this test, we check that, we hide the popup by interacting with the
  * invalid element if the element becomes valid.
  */
-function()
+function test4a()
 {
   let uri = "data:text/html,<iframe name='t'></iframe><form target='t' action='data:text/html,'><input id='i' required><input id='s' type='submit'></form>";
   let tab = gBrowser.addTab();
@@ -170,7 +158,7 @@ function()
 
       // Clean-up and next test.
       gBrowser.removeTab(gBrowser.selectedTab);
-      nextTest();
+      executeSoon(test4b);
     });
   }, false);
 
@@ -182,13 +170,13 @@ function()
 
   gBrowser.selectedTab = tab;
   gBrowser.selectedTab.linkedBrowser.loadURI(uri);
-},
+}
 
 /**
  * In this test, we check that, we don't hide the popup by interacting with the
  * invalid element if the element is still invalid.
  */
-function()
+function test4b()
 {
   let uri = "data:text/html,<iframe name='t'></iframe><form target='t' action='data:text/html,'><input type='email' id='i' required><input id='s' type='submit'></form>";
   let tab = gBrowser.addTab();
@@ -210,7 +198,7 @@ function()
 
       // Clean-up and next test.
       gBrowser.removeTab(gBrowser.selectedTab);
-      nextTest();
+      executeSoon(test5);
     });
   }, false);
 
@@ -222,13 +210,13 @@ function()
 
   gBrowser.selectedTab = tab;
   gBrowser.selectedTab.linkedBrowser.loadURI(uri);
-},
+}
 
 /**
  * In this test, we check that we can hide the popup by blurring the invalid
  * element.
  */
-function()
+function test5()
 {
   let uri = "data:text/html,<iframe name='t'></iframe><form target='t' action='data:text/html,'><input id='i' required><input id='s' type='submit'></form>";
   let tab = gBrowser.addTab();
@@ -250,7 +238,7 @@ function()
 
       // Clean-up and next test.
       gBrowser.removeTab(gBrowser.selectedTab);
-      nextTest();
+      executeSoon(test6);
     });
   }, false);
 
@@ -262,12 +250,12 @@ function()
 
   gBrowser.selectedTab = tab;
   gBrowser.selectedTab.linkedBrowser.loadURI(uri);
-},
+}
 
 /**
  * In this test, we check that we can hide the popup by pressing TAB.
  */
-function()
+function test6()
 {
   let uri = "data:text/html,<iframe name='t'></iframe><form target='t' action='data:text/html,'><input id='i' required><input id='s' type='submit'></form>";
   let tab = gBrowser.addTab();
@@ -289,7 +277,7 @@ function()
 
       // Clean-up and next test.
       gBrowser.removeTab(gBrowser.selectedTab);
-      nextTest();
+      executeSoon(test7);
     });
   }, false);
 
@@ -301,12 +289,12 @@ function()
 
   gBrowser.selectedTab = tab;
   gBrowser.selectedTab.linkedBrowser.loadURI(uri);
-},
+}
 
 /**
  * In this test, we check that the popup will hide if we move to another tab.
  */
-function()
+function test7()
 {
   let uri = "data:text/html,<iframe name='t'></iframe><form target='t' action='data:text/html,'><input id='i' required><input id='s' type='submit'></form>";
   let tab = gBrowser.addTab();
@@ -330,7 +318,7 @@ function()
       // Clean-up and next test.
       gBrowser.removeTab(gBrowser.selectedTab);
       gBrowser.removeTab(gBrowser.selectedTab);
-      nextTest();
+      executeSoon(test8);
     });
   }, false);
 
@@ -342,14 +330,14 @@ function()
 
   gBrowser.selectedTab = tab;
   gBrowser.selectedTab.linkedBrowser.loadURI(uri);
-},
+}
 
 /**
  * In this test, we check that nothing happen (no focus nor popup) if the
  * invalid form is submitted in another tab than the current focused one
  * (submitted in background).
  */
-function()
+function test8()
 {
   let uri = "data:text/html,<iframe name='t'></iframe><form target='t' action='data:text/html,'><input id='i' required><input id='s' type='submit'></form>";
   let tab = gBrowser.addTab();
@@ -367,31 +355,29 @@ function()
       gObserver.notifyInvalidSubmit = function () {};
       gBrowser.removeTab(tab);
 
-      nextTest();
+      // Next test
+      executeSoon(test9);
     });
   };
 
   Services.obs.addObserver(gObserver, "invalidformsubmit", false);
 
-  tab.linkedBrowser.addEventListener("load", function(e) {
-    // Ignore load events from the iframe.
-    if (tab.linkedBrowser.contentDocument == e.target) {
-      let browser = e.currentTarget;
-      browser.removeEventListener("load", arguments.callee, true);
+  tab.linkedBrowser.addEventListener("load", function(aEvent) {
+    tab.linkedBrowser.removeEventListener("load", arguments.callee, true);
 
-      isnot(gBrowser.selectedTab.linkedBrowser, browser,
-            "This tab should have been loaded in background");
-      browser.contentDocument.getElementById('s').click();
-    }
+    isnot(gBrowser.selectedTab, tab,
+          "This tab should have been loaded in background");
+
+    tab.linkedBrowser.contentDocument.getElementById('s').click();
   }, true);
 
   tab.linkedBrowser.loadURI(uri);
-},
+}
 
 /**
  * In this test, we check that the author defined error message is shown.
  */
-function()
+function test9()
 {
   let uri = "data:text/html,<iframe name='t'></iframe><form target='t' action='data:text/html,'><input x-moz-errormessage='foo' required id='i'><input id='s' type='submit'></form>";
   let tab = gBrowser.addTab();
@@ -410,7 +396,7 @@ function()
 
     // Clean-up and next test.
     gBrowser.removeTab(gBrowser.selectedTab);
-    nextTest();
+    executeSoon(test10);
   }, false);
 
   tab.linkedBrowser.addEventListener("load", function(aEvent) {
@@ -421,12 +407,12 @@ function()
 
   gBrowser.selectedTab = tab;
   gBrowser.selectedTab.linkedBrowser.loadURI(uri);
-},
+}
 
 /**
  * In this test, we check that the message is correctly updated when it changes.
  */
-function()
+function test10()
 {
   let uri = "data:text/html,<iframe name='t'></iframe><form target='t' action='data:text/html,'><input type='email' required id='i'><input id='s' type='submit'></form>";
   let tab = gBrowser.addTab();
@@ -448,13 +434,13 @@ function()
 
       executeSoon(function() {
         // Now, the element suffers from another error, the message should have
-        // been updated.
+	// been updated.
         is(gInvalidFormPopup.firstChild.textContent, input.validationMessage,
            "The panel should show the current validation message");
 
         // Clean-up and next test.
         gBrowser.removeTab(gBrowser.selectedTab);
-        nextTest();
+        executeSoon(finish);
       });
     }, false);
 
@@ -469,6 +455,4 @@ function()
 
   gBrowser.selectedTab = tab;
   gBrowser.selectedTab.linkedBrowser.loadURI(uri);
-},
-
-];
+}

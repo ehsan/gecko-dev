@@ -27,12 +27,13 @@ SimpleTest.waitForExplicitFinish();
 
 var selectionTest = false;
 var testNum = 0;
+var utils = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor).
+              getInterface(Components.interfaces.nsIDOMWindowUtils);
 
 function hasTabModalPrompts() {
   var prefName = "prompts.tab_modal.enabled";
-  var Services = SpecialPowers.Cu
-                              .import("resource://gre/modules/Services.jsm")
-                              .Services;
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  Components.utils.import("resource://gre/modules/Services.jsm");
   return Services.prefs.getPrefType(prefName) == Services.prefs.PREF_BOOL &&
          Services.prefs.getBoolPref(prefName);
 }
@@ -47,6 +48,7 @@ function runtest()
 {
   // The <button> in this test's HTML opens a prompt when clicked.
   // Here we send the events to simulate clicking it.
+  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
   ok(true, "starting test");
   isTabModal = hasTabModalPrompts();
   if (!isTabModal)
@@ -72,11 +74,9 @@ function runtest()
 
 function dispatchMouseEvent(target, type)
 {
-  var win = target.ownerDocument.defaultView;
   e = document.createEvent("MouseEvent");
-  e.initEvent(type, false, false, win, 0, 1, 1, 1, 1,
+  e.initEvent(type, false, false, window, 0, 1, 1, 1, 1,
               false, false, false, false, 0, null);
-  var utils = SpecialPowers.getDOMWindowUtils(win);
   utils.dispatchDOMEventViaPresShell(target, e, true);
   ok(true, type + " sent to " + target.id);
 }
@@ -88,6 +88,7 @@ function handleDialog(ui, testNum)
   } else {
     synthesizeMouse($("text"), 25, 55, { type: "mousemove" });
     is(window.getSelection().toString(), "", "selection not made");
+    synthesizeMouse(ui.button0, 5, 5, { }, ui.button0.ownerDocument.defaultView);
   }
 
   ok(true, "handleDialog sending mouseclick to dialog...");

@@ -40,7 +40,6 @@ function tooltipStillShown()
   document.getElementById("thetooltip").hidePopup();
 }
 
-SimpleTest.waitForExplicitFinish();
 SimpleTest.waitForFocus(runTests);
 
 ]]>

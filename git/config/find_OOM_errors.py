@@ -1,8 +1,4 @@
 #!/usr/bin/env python
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
-from __future__ import print_function
 
 usage = """%prog: A test for OOM conditions in the shell.
 
@@ -65,7 +61,7 @@ def run(args, stdin=None):
     stdout_worker.join()
     stderr_worker.join()
 
-  except KeyboardInterrupt as e:
+  except KeyboardInterrupt, e:
     sys.exit(-1)
 
   stdout, stderr = stdout_worker.all, stderr_worker.all
@@ -101,7 +97,7 @@ def count_lines():
 
   lines = []
   for k,v in counts.items():
-    lines.append("{0:6}: {1}".format(v, k))
+    lines.append("%6d: %s" % (v,k))
 
   lines.sort()
 
@@ -171,7 +167,7 @@ command_template = 'shell/js' \
                  + ' -m -j -p' \
                  + ' -e "const platform=\'darwin\'; const libdir=\'../jit-test/lib/\';"' \
                  + ' -f ../jit-test/lib/prolog.js' \
-                 + ' -f {0}'
+                 + ' -f %s'
 
 
 # Blacklists are things we don't want to see in our logs again (though we do
@@ -222,7 +218,7 @@ num_failures = 0
 for f in files:
 
   # Run it once to establish boundaries
-  command = (command_template + ' -O').format(f)
+  command = (command_template + ' -O') % (f)
   out, err, exit = run(command)
   max = re.match(".*OOM max count: (\d+).*", out, flags=re.DOTALL).groups()[0]
   max = int(max)
@@ -232,11 +228,11 @@ for f in files:
   for i in range(20, max): 
 
     if OPTIONS.regression == None:
-      print("Testing allocation {0}/{1} in {2}".format(i,max,f))
+      print "Testing allocation %d/%d in %s" % (i,max,f)
     else:
       sys.stdout.write('.') # something short for tinderbox, no space or \n
 
-    command = (command_template + ' -A {0}').format(f, i)
+    command = (command_template + ' -A %d') % (f, i)
     out, err, exit = run(command)
 
     # Success (5 is SM's exit code for controlled errors)
@@ -282,9 +278,7 @@ for f in files:
       log.write ("\n")
       log.write ("=========================================================================")
       log.write ("\n")
-      log.write ("An allocation failure at\n\tallocation {0}/{1} in {2}\n\t"
-                 "causes problems (detected using bug 624094)"
-                 .format(i, max, f))
+      log.write ("An allocation failure at\n\tallocation %d/%d in %s\n\tcauses problems (detected using bug 624094)" % (i, max, f))
       log.write ("\n")
       log.write ("\n")
 
@@ -325,7 +319,7 @@ for f in files:
   if OPTIONS.regression == None:
     count_lines()
 
-print()
+print '\n',
 
 # Do the actual regression check
 if OPTIONS.regression != None:
@@ -333,20 +327,12 @@ if OPTIONS.regression != None:
 
   if num_failures != expected_num_failures:
 
-    print("TEST-UNEXPECTED-FAIL |", end='')
+    print "TEST-UNEXPECTED-FAIL |",
     if num_failures > expected_num_failures:
-      print("More out-of-memory errors were found ({0}) than expected ({1}). "
-            "This probably means an allocation site has been added without a "
-            "NULL-check. If this is unavoidable, you can account for it by "
-            "updating Makefile.in.".format(num_failures, expected_num_failures),
-            end='')
+      print "More out-of-memory errors were found (%s) than expected (%d). This probably means an allocation site has been added without a NULL-check. If this is unavoidable, you can account for it by updating Makefile.in." % (num_failures, expected_num_failures),
     else:
-      print("Congratulations, you have removed {0} out-of-memory error(s) "
-            "({1} remain)! Please account for it by updating Makefile.in." 
-            .format(expected_num_failures - num_failures, num_failures),
-            end='')
+      print "Congratulations, you have removed %d out-of-memory error(s) (%d remain)! Please account for it by updating Makefile.in." % (expected_num_failures - num_failures, num_failures),
     sys.exit(-1)
   else:
-    print('TEST-PASS | find_OOM_errors | Found the expected number of OOM '
-          'errors ({0})'.format(expected_num_failures))
+    print 'TEST-PASS | find_OOM_errors | Found the expected number of OOM errors (%d)' % (expected_num_failures)
 

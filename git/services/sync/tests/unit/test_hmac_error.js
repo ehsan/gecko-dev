@@ -1,11 +1,8 @@
-/* Any copyright is dedicated to the Public Domain.
-   http://creativecommons.org/publicdomain/zero/1.0/ */
-
 Cu.import("resource://services-sync/engines.js");
+Cu.import("resource://services-sync/engines/clients.js");
+Cu.import("resource://services-sync/record.js");
 Cu.import("resource://services-sync/service.js");
 Cu.import("resource://services-sync/util.js");
-Cu.import("resource://testing-common/services/sync/rotaryengine.js");
-Cu.import("resource://testing-common/services/sync/utils.js");
 
 // Track HMAC error counts.
 let hmacErrorCount = 0;
@@ -21,23 +18,27 @@ function shared_setup() {
   hmacErrorCount = 0;
 
   // Do not instantiate SyncTestingInfrastructure; we need real crypto.
-  setBasicCredentials("foo", "foo", "aabcdeabcdeabcdeabcdeabcde");
+  Service.serverURL  = "http://localhost:8080/";
+  Service.clusterURL = "http://localhost:8080/";
+  Service.username   = "foo";
+  Service.password   = "foo";
+  Service.passphrase = "aabcdeabcdeabcdeabcdeabcde";
 
   // Make sure RotaryEngine is the only one we sync.
-  Service.engineManager._engines = {};
-  Service.engineManager.register(RotaryEngine);
-  let engine = Service.engineManager.get("rotary");
+  Engines._engines = {};
+  Engines.register(RotaryEngine);
+  let engine = Engines.get("rotary");
   engine.enabled = true;
   engine.lastSync = 123; // Needs to be non-zero so that tracker is queried.
   engine._store.items = {flying: "LNER Class A3 4472",
                          scotsman: "Flying Scotsman"};
   engine._tracker.addChangedID('scotsman', 0);
-  do_check_eq(1, Service.engineManager.getEnabled().length);
+  do_check_eq(1, Engines.getEnabled().length);
 
   let engines = {rotary:  {version: engine.version,
                            syncID:  engine.syncID},
-                 clients: {version: Service.clientsEngine.version,
-                           syncID:  Service.clientsEngine.syncID}};
+                 clients: {version: Clients.version,
+                           syncID:  Clients.syncID}};
 
   // Common server objects.
   let global      = new ServerWBO("global", {engines: engines});
@@ -78,13 +79,12 @@ add_test(function hmac_error_during_404() {
   };
 
   let server = sync_httpd_setup(handlers);
-  Service.serverURL = server.baseURI;
 
   try {
     _("Syncing.");
     Service.sync();
     _("Partially resetting client, as if after a restart, and forcing redownload.");
-    Service.collectionKeys.clear();
+    CollectionKeys.clear();
     engine.lastSync = 0;        // So that we redownload records.
     key404Counter = 1;
     _("---------------------------");
@@ -95,7 +95,7 @@ add_test(function hmac_error_during_404() {
     do_check_eq(hmacErrorCount, 0)
   } finally {
     Svc.Prefs.resetBranch("");
-    Service.recordManager.clearCache();
+    Records.clearCache();
     server.stop(run_next_test);
   }
 });
@@ -154,7 +154,6 @@ add_test(function hmac_error_during_node_reassignment() {
   };
 
   let server = sync_httpd_setup(handlers);
-  Service.serverURL = server.baseURI;
   _("Syncing.");
   // First hit of clients will 401. This will happen after meta/global and
   // keys -- i.e., in the middle of the sync, but before RotaryEngine.
@@ -189,8 +188,8 @@ add_test(function hmac_error_during_node_reassignment() {
     _("== Invoking first sync.");
     Service.sync();
     _("We should not simultaneously have data but no keys on the server.");
-    let hasData = rotaryColl.wbo("flying") ||
-                  rotaryColl.wbo("scotsman");
+    let hasData = rotaryColl.wbos["flying"] ||
+                  rotaryColl.wbos["scotsman"];
     let hasKeys = keysWBO.modified;
 
     _("We correctly handle 401s by aborting the sync and starting again.");
@@ -205,8 +204,8 @@ add_test(function hmac_error_during_node_reassignment() {
     _("---------------------------");
     onSyncFinished = function() {
       _("== Second (automatic) sync done.");
-      hasData = rotaryColl.wbo("flying") ||
-                rotaryColl.wbo("scotsman");
+      hasData = rotaryColl.wbos["flying"] ||
+                rotaryColl.wbos["scotsman"];
       hasKeys = keysWBO.modified;
       do_check_true(!hasData == !hasKeys);
 
@@ -215,7 +214,7 @@ add_test(function hmac_error_during_node_reassignment() {
       Utils.nextTick(function() {
         _("Now a fresh sync will get no HMAC errors.");
         _("Partially resetting client, as if after a restart, and forcing redownload.");
-        Service.collectionKeys.clear();
+        CollectionKeys.clear();
         engine.lastSync = 0;
         hmacErrorCount = 0;
 
@@ -225,9 +224,9 @@ add_test(function hmac_error_during_node_reassignment() {
 
           Svc.Obs.remove("weave:service:sync:finish", obs);
           Svc.Obs.remove("weave:service:sync:error", obs);
-
+                  
           Svc.Prefs.resetBranch("");
-          Service.recordManager.clearCache();
+          Records.clearCache();
           server.stop(run_next_test);
         };
 

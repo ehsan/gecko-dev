@@ -1,5 +1,5 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sw=4 et tw=99 ft=cpp:
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Copyright (C) 2010 Apple Inc. All rights reserved.
@@ -31,11 +31,11 @@
 
 #if WTF_OS_UNIX && !WTF_OS_SYMBIAN
 
-#include "yarr/OSAllocator.h"
+#include "OSAllocator.h"
 
 #include <errno.h>
 #include <sys/mman.h>
-#include "assembler/wtf/Assertions.h"
+#include "wtf/Assertions.h"
 
 namespace WTF {
 

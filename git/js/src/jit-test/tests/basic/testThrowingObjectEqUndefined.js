@@ -13,3 +13,6 @@ function testThrowingObjectEqUndefined()
   }
 }
 assertEq(testThrowingObjectEqUndefined(), true);
+checkStats({
+  sideExitIntoInterpreter: 1
+});

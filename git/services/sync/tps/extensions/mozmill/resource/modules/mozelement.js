@@ -1,8 +1,42 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozmill Elements.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Corporation
+ *
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ * Andrew Halberstadt <halbersa@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-var EXPORTED_SYMBOLS = ["Elem", "Selector", "ID", "Link", "XPath", "Name", "Lookup",
+var EXPORTED_SYMBOLS = ["Elem", "Selector", "ID", "Link", "XPath", "Name", "Lookup", 
                         "MozMillElement", "MozMillCheckBox", "MozMillRadio", "MozMillDropList",
                         "MozMillTextBox", "subclasses",
                        ];
@@ -87,7 +121,7 @@ MozMillElement.isType = function(node) {
 MozMillElement.prototype.__defineGetter__("element", function() {
   if (this._element == undefined) {
     if (elementslib[this._locatorType]) {
-      this._element = elementslib[this._locatorType](this._document, this._locator);
+      this._element = elementslib[this._locatorType](this._document, this._locator); 
     } else if (this._locatorType == "Elem") {
       this._element = this._locator;
     } else {
@@ -445,7 +479,7 @@ MozMillRadio.prototype.select = function(index) {
   if (!this.element) {
     throw new Error("could not find element " + this.getInfo());
   }
-
+  
   if (this.element.localName.toLowerCase() == "radiogroup") {
     var element = this.element.getElementsByTagName("radio")[index || 0];
     new MozMillRadio("Elem", element).click();
@@ -453,7 +487,7 @@ MozMillRadio.prototype.select = function(index) {
     var element = this.element;
     this.click();
   }
-
+  
   utils.waitFor(function() {
     // If we have a XUL element, unwrap its XPCNativeWrapper
     if (element.namespaceURI == "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul") {
@@ -547,7 +581,7 @@ MozMillDropList.prototype.select = function (indx, option, value) {
     this.element = utils.unwrapNode(this.element);
     // Get the list of menuitems
     menuitems = this.element.getElementsByTagName("menupopup")[0].getElementsByTagName("menuitem");
-
+    
     var item = null;
 
     if (indx != undefined) {

@@ -1,7 +1,3 @@
-dnl This Source Code Form is subject to the terms of the Mozilla Public
-dnl License, v. 2.0. If a copy of the MPL was not distributed with this
-dnl file, You can obtain one at http://mozilla.org/MPL/2.0/.
-
 dnl Check if the compiler is gcc and has PR49911. If so
 dnl disable vrp.
 
@@ -60,7 +56,7 @@ CXXFLAGS="$_SAVE_CXXFLAGS"
 
 AC_LANG_RESTORE
 
-if test "$ac_have_gcc_pr49911" = "yes"; then
+if test "$ac_have_gcc_pr49911" == "yes"; then
    AC_MSG_RESULT(yes)
    CFLAGS="$CFLAGS -fno-tree-vrp"
    CXXFLAGS="$CXXFLAGS -fno-tree-vrp"

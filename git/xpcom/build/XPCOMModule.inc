@@ -18,14 +18,13 @@
     COMPONENT(PERSISTENTPROPERTIES, nsPersistentProperties::Create)
 
     COMPONENT(SUPPORTSARRAY, nsSupportsArray::Create)
-    COMPONENT(ARRAY, nsArray::XPCOMConstructor)
+    COMPONENT(ARRAY, nsArrayConstructor)
     COMPONENT(CONSOLESERVICE, nsConsoleServiceConstructor)
     COMPONENT(EXCEPTIONSERVICE, nsExceptionServiceConstructor)
     COMPONENT(ATOMSERVICE, nsAtomServiceConstructor)
     COMPONENT(OBSERVERSERVICE, nsObserverService::Create)
-#ifdef MOZ_VISUAL_EVENT_TRACER
-    COMPONENT(VISUALEVENTTRACER, VisualEventTracerConstructor)
-#endif
+
+    COMPONENT(XPCOMPROXY, nsProxyObjectManager::Create)
 
     COMPONENT(TIMER, nsTimerImplConstructor)
 
@@ -65,6 +64,8 @@
     COMPONENT(VARIANT, nsVariantConstructor)
     COMPONENT(INTERFACEINFOMANAGER_SERVICE, nsXPTIInterfaceInfoManagerGetSingleton)
 
+    COMPONENT(RECYCLINGALLOCATOR, nsRecyclingAllocatorImplConstructor)
+
     COMPONENT(HASH_PROPERTY_BAG, nsHashPropertyBagConstructor)
 
     COMPONENT(UUID_GENERATOR, nsUUIDGeneratorConstructor)
@@ -79,7 +80,5 @@
 
     COMPONENT(SYSTEMINFO, nsSystemInfoConstructor)
     COMPONENT(MEMORY_REPORTER_MANAGER, nsMemoryReporterManagerConstructor)
-    COMPONENT(MEMORY_INFO_DUMPER, nsMemoryInfoDumperConstructor)
     COMPONENT(IOUTIL, nsIOUtilConstructor)
     COMPONENT(CYCLE_COLLECTOR_LOGGER, nsCycleCollectorLoggerConstructor)
-    COMPONENT(MESSAGE_LOOP, nsMessageLoopConstructor)

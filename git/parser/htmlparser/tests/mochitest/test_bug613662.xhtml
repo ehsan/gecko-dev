@@ -12,8 +12,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=613662
 <p id="display"></p><div id="content" style="display: none"></div><div id="content2" style="display: none"></div><pre id="test">
 <script type="application/javascript"><![CDATA[
 
-SimpleTest.expectAssertions(1);
-
 /** Test for Bug 613662 **/
 
 function testPositions(node) {
@@ -35,7 +33,6 @@ try {
   content.insertAdjacentHTML("bar", "foo");
   ok(false, "insertAdjacentHTML should have thrown");
 } catch (e) {
-  is(e.name, "SyntaxError", "insertAdjacentHTML should throw SyntaxError");
   is(e.code, 12, "insertAdjacentHTML should throw SYNTAX_ERR");
 }
 
@@ -46,7 +43,6 @@ try {
   child.insertAdjacentHTML("Beforebegin", "foo");
   ok(false, "insertAdjacentHTML should have thrown");
 } catch (e) {
-  is(e.name, "NoModificationAllowedError", "insertAdjacentHTML should throw NoModificationAllowedError");
   is(e.code, 7, "insertAdjacentHTML should throw NO_MODIFICATION_ALLOWED_ERR");
 }
 
@@ -54,7 +50,6 @@ try {
   child.insertAdjacentHTML("AfterEnd", "foo");
   ok(false, "insertAdjacentHTML should have thrown");
 } catch (e) {
-  is(e.name, "NoModificationAllowedError", "insertAdjacentHTML should throw NoModificationAllowedError");
   is(e.code, 7, "insertAdjacentHTML should throw NO_MODIFICATION_ALLOWED_ERR");
 }
 
@@ -70,7 +65,6 @@ try {
   document.documentElement.insertAdjacentHTML("afterend", "<div></div>");
   ok(false, "insertAdjacentHTML should have thrown");
 } catch (e) {
-  is(e.name, "NoModificationAllowedError", "insertAdjacentHTML should throw NoModificationAllowedError");
   is(e.code, 7, "insertAdjacentHTML should throw NO_MODIFICATION_ALLOWED_ERR");
 }
 
@@ -127,7 +121,6 @@ try {
   content.insertAdjacentHTML("beforeend", "<p>");
   ok(false, "insertAdjacentHTML should have thrown");
 } catch (e) {
-  is(e.name, "SyntaxError", "insertAdjacentHTML should throw SyntaxError");
   is(e.code, 12, "insertAdjacentHTML should throw SYNTAX_ERR");
 }
 

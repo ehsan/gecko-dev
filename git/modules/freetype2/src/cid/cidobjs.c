@@ -4,7 +4,7 @@
 /*                                                                         */
 /*    CID objects manager (body).                                          */
 /*                                                                         */
-/*  Copyright 1996-2006, 2008, 2010-2011, 2013 by                          */
+/*  Copyright 1996-2001, 2002, 2003, 2004, 2005, 2006, 2008, 2010 by       */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -131,7 +131,7 @@
   cid_size_init( FT_Size  cidsize )     /* CID_Size */
   {
     CID_Size           size  = (CID_Size)cidsize;
-    FT_Error           error = FT_Err_Ok;
+    FT_Error           error = CID_Err_Ok;
     PSH_Globals_Funcs  funcs = cid_size_get_globals_funcs( size );
 
 
@@ -169,7 +169,7 @@
                         size->metrics.y_scale,
                         0, 0 );
 
-    return FT_Err_Ok;
+    return CID_Err_Ok;
   }
 
 
@@ -299,13 +299,6 @@
       psaux = (PSAux_Service)FT_Get_Module_Interface(
                 FT_FACE_LIBRARY( face ), "psaux" );
 
-      if ( !psaux )
-      {
-        FT_ERROR(( "cid_face_init: cannot access `psaux' module\n" ));
-        error = FT_THROW( Missing_Module );
-        goto Exit;
-      }
-
       face->psaux = psaux;
     }
 
@@ -317,8 +310,6 @@
 
       face->pshinter = pshinter;
     }
-
-    FT_TRACE2(( "CID driver\n" ));
 
     /* open the tokenizer; this will also check the font format */
     if ( FT_STREAM_SEEK( 0 ) )
@@ -337,7 +328,7 @@
     if ( face_index != 0 )
     {
       FT_ERROR(( "cid_face_init: invalid face index\n" ));
-      error = FT_THROW( Invalid_Argument );
+      error = CID_Err_Invalid_Argument;
       goto Exit;
     }
 
@@ -466,7 +457,7 @@
   {
     FT_UNUSED( driver );
 
-    return FT_Err_Ok;
+    return CID_Err_Ok;
   }
 
 

@@ -1,6 +1,7 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sw=4 et tw=99 ft=cpp:
  *
+ * ***** BEGIN LICENSE BLOCK *****
  * Copyright (C) 2009 Apple Inc. All rights reserved.
  * Copyright (C) 2010 Peter Varga (pvarga@inf.u-szeged.hu), University of Szeged
  * All rights reserved.
@@ -25,14 +26,16 @@
  * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-#ifndef yarr_Yarr_h
-#define yarr_Yarr_h
+#ifndef Yarr_h
+#define Yarr_h
 
 #include <limits.h>
-#include "yarr/YarrInterpreter.h"
-#include "yarr/YarrPattern.h"
+
+#include "YarrInterpreter.h"
+#include "YarrPattern.h"
 
 namespace JSC { namespace Yarr {
 
@@ -46,7 +49,6 @@ namespace JSC { namespace Yarr {
 #define YarrStackSpaceForBackTrackInfoParentheses 2
 
 static const unsigned quantifyInfinite = UINT_MAX;
-static const unsigned offsetNoMatch = (unsigned)-1;
 
 // The below limit restricts the number of "recursive" match calls in order to
 // avoid spending exponential time on complex regular expressions.
@@ -61,11 +63,10 @@ enum JSRegExpResult {
     JSRegExpErrorInternal = -4
 };
 
-enum YarrCharSize {
-    Char8,
-    Char16
-};
+PassOwnPtr<BytecodePattern> byteCompile(YarrPattern&, BumpPointerAllocator*);
+int interpret(BytecodePattern*, const UChar* input, unsigned start, unsigned length, int* output);
 
 } } // namespace JSC::Yarr
 
-#endif /* yarr_Yarr_h */
+#endif // Yarr_h
+

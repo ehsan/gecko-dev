@@ -1,24 +1,59 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Weave
+ *
+ * The Initial Developer of the Original Code is Mozilla.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Dan Mills <thunder@mozilla.com>
+ *  Philipp von Weitershausen <philipp@weitershausen.de>
+ *  Gregory Szorc <gps@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-this.EXPORTED_SYMBOLS = [
-  "ClientEngine",
-  "ClientsRec"
-];
+const EXPORTED_SYMBOLS = ["Clients", "ClientsRec"];
 
-const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
 
-Cu.import("resource://services-common/stringbundle.js");
 Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/engines.js");
+Cu.import("resource://services-sync/ext/StringBundle.js");
 Cu.import("resource://services-sync/record.js");
+Cu.import("resource://services-sync/resource.js");
 Cu.import("resource://services-sync/util.js");
+Cu.import("resource://services-sync/main.js");
 
 const CLIENTS_TTL = 1814400; // 21 days
 const CLIENTS_TTL_REFRESH = 604800; // 7 days
 
-this.ClientsRec = function ClientsRec(collection, id) {
+function ClientsRec(collection, id) {
   CryptoWrapper.call(this, collection, id);
 }
 ClientsRec.prototype = {
@@ -30,8 +65,12 @@ ClientsRec.prototype = {
 Utils.deferGetSet(ClientsRec, "cleartext", ["name", "type", "commands"]);
 
 
-this.ClientEngine = function ClientEngine(service) {
-  SyncEngine.call(this, "Clients", service);
+XPCOMUtils.defineLazyGetter(this, "Clients", function () {
+  return new ClientEngine();
+});
+
+function ClientEngine() {
+  SyncEngine.call(this, "Clients");
 
   // Reset the client on every startup so that we fetch recent clients
   this._resetClient();
@@ -86,25 +125,15 @@ ClientEngine.prototype = {
                 .getService(Ci.nsIEnvironment);
     let user = env.get("USER") || env.get("USERNAME") ||
                Svc.Prefs.get("account") || Svc.Prefs.get("username");
-
-    let appName;
     let brand = new StringBundle("chrome://branding/locale/brand.properties");
-    let brandName = brand.get("brandShortName");
-    try {
-      let syncStrings = new StringBundle("chrome://browser/locale/sync.properties");
-      appName = syncStrings.getFormattedString("sync.defaultAccountApplication", [brandName]);
-    } catch (ex) {}
-    appName = appName || brandName;
+    let app = brand.get("brandShortName");
 
-    let system =
-      // 'device' is defined on unix systems
-      Cc["@mozilla.org/system-info;1"].getService(Ci.nsIPropertyBag2).get("device") ||
-      // hostname of the system, usually assigned by the user or admin
-      Cc["@mozilla.org/system-info;1"].getService(Ci.nsIPropertyBag2).get("host") ||
-      // fall back on ua info string
-      Cc["@mozilla.org/network/protocol;1?name=http"].getService(Ci.nsIHttpProtocolHandler).oscpu;
+    let system = Cc["@mozilla.org/system-info;1"]
+                   .getService(Ci.nsIPropertyBag2).get("device") ||
+                 Cc["@mozilla.org/network/protocol;1?name=http"]
+                   .getService(Ci.nsIHttpProtocolHandler).oscpu;
 
-    return this.localName = Str.sync.get("client.name2", [user, appName, system]);
+    return this.localName = Str.sync.get("client.name2", [user, app, system]);
   },
   set localName(value) Svc.Prefs.set("client.name", value),
 
@@ -140,7 +169,7 @@ ClientEngine.prototype = {
   },
 
   removeClientData: function removeClientData() {
-    let res = this.service.resource(this.engineURL + "/" + this.localID);
+    let res = new Resource(this.engineURL + "/" + this.localID);
     res.delete();
   },
 
@@ -171,7 +200,7 @@ ClientEngine.prototype = {
     wipeAll:     { args: 0, desc: "Delete all client data for all engines" },
     wipeEngine:  { args: 1, desc: "Delete all client data for engine" },
     logout:      { args: 0, desc: "Log out client" },
-    displayURI:  { args: 3, desc: "Instruct a client to display a URI" },
+    displayURI:  { args: 2, desc: "Instruct a client to display a URI" }
   },
 
   /**
@@ -245,19 +274,19 @@ ClientEngine.prototype = {
             engines = null;
             // Fallthrough
           case "resetEngine":
-            this.service.resetClient(engines);
+            Weave.Service.resetClient(engines);
             break;
           case "wipeAll":
             engines = null;
             // Fallthrough
           case "wipeEngine":
-            this.service.wipeClient(engines);
+            Weave.Service.wipeClient(engines);
             break;
           case "logout":
-            this.service.logout();
+            Weave.Service.logout();
             return false;
           case "displayURI":
-            this._handleDisplayURI.apply(this, args);
+            this._handleDisplayURI(args[0], args[1]);
             break;
           default:
             this._log.debug("Received an unknown command: " + command);
@@ -321,15 +350,12 @@ ClientEngine.prototype = {
    * @param clientId
    *        ID of client to send the command to. If not defined, will be sent
    *        to all remote clients.
-   * @param title
-   *        Title of the page being sent.
    */
-  sendURIToClientForDisplay: function sendURIToClientForDisplay(uri, clientId, title) {
-    this._log.info("Sending URI to client: " + uri + " -> " +
-                   clientId + " (" + title + ")");
-    this.sendCommand("displayURI", [uri, this.localID, title], clientId);
+  sendURIToClientForDisplay: function sendURIToClientForDisplay(uri, clientId) {
+    this._log.info("Sending URI to client: " + uri + " -> " + clientId);
+    this.sendCommand("displayURI", [uri, this.syncID], clientId);
 
-    this._tracker.score += SCORE_INCREMENT_XLARGE;
+    Clients._tracker.score += SCORE_INCREMENT_XLARGE;
   },
 
   /**
@@ -339,9 +365,8 @@ ClientEngine.prototype = {
    * topic. The callback will receive an object as the subject parameter with
    * the following keys:
    *
-   *   uri       URI (string) that is requested for display.
-   *   clientId  ID of client that sent the command.
-   *   title     Title of page that loaded URI (likely) corresponds to.
+   *   uri       URI (string) that is requested for display
+   *   clientId  ID of client that sent the command
    *
    * The 'data' parameter to the callback will not be defined.
    *
@@ -349,21 +374,17 @@ ClientEngine.prototype = {
    *        String URI that was received
    * @param clientId
    *        ID of client that sent URI
-   * @param title
-   *        String title of page that URI corresponds to. Older clients may not
-   *        send this.
    */
-  _handleDisplayURI: function _handleDisplayURI(uri, clientId, title) {
-    this._log.info("Received a URI for display: " + uri + " (" + title +
-                   ") from " + clientId);
+  _handleDisplayURI: function _handleDisplayURI(uri, clientId) {
+    this._log.info("Received a URI for display: " + uri + " from " + clientId);
 
-    let subject = {uri: uri, client: clientId, title: title};
+    let subject = { uri: uri, client: clientId };
     Svc.Obs.notify("weave:engine:clients:display-uri", subject);
   }
 };
 
-function ClientStore(name, engine) {
-  Store.call(this, name, engine);
+function ClientStore(name) {
+  Store.call(this, name);
 }
 ClientStore.prototype = {
   __proto__: Store.prototype,
@@ -372,8 +393,8 @@ ClientStore.prototype = {
 
   update: function update(record) {
     // Only grab commands from the server; local name/type always wins
-    if (record.id == this.engine.localID)
-      this.engine.localCommands = record.commands;
+    if (record.id == Clients.localID)
+      Clients.localCommands = record.commands;
     else
       this._remoteClients[record.id] = record.cleartext;
   },
@@ -382,10 +403,10 @@ ClientStore.prototype = {
     let record = new ClientsRec(collection, id);
 
     // Package the individual components into a record for the local client
-    if (id == this.engine.localID) {
-      record.name = this.engine.localName;
-      record.type = this.engine.localType;
-      record.commands = this.engine.localCommands;
+    if (id == Clients.localID) {
+      record.name = Clients.localName;
+      record.type = Clients.localType;
+      record.commands = Clients.localCommands;
     }
     else
       record.cleartext = this._remoteClients[id];
@@ -397,7 +418,7 @@ ClientStore.prototype = {
 
   getAllIDs: function getAllIDs() {
     let ids = {};
-    ids[this.engine.localID] = true;
+    ids[Clients.localID] = true;
     for (let id in this._remoteClients)
       ids[id] = true;
     return ids;
@@ -408,8 +429,8 @@ ClientStore.prototype = {
   },
 };
 
-function ClientsTracker(name, engine) {
-  Tracker.call(this, name, engine);
+function ClientsTracker(name) {
+  Tracker.call(this, name);
   Svc.Obs.add("weave:engine:start-tracking", this);
   Svc.Obs.add("weave:engine:stop-tracking", this);
 }

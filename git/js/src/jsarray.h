@@ -1,139 +1,235 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ *
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code, released
+ * March 31, 1998.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-/* JS Array interface. */
-
-#ifndef jsarray_h
-#define jsarray_h
-
-#include "jsobj.h"
+#ifndef jsarray_h___
+#define jsarray_h___
+/*
+ * JS Array interface.
+ */
+#include "jscntxt.h"
+#include "jsprvtd.h"
 #include "jspubtd.h"
+#include "jsatom.h"
+#include "jsobj.h"
+
+/* Small arrays are dense, no matter what. */
+const uintN MIN_SPARSE_INDEX = 256;
+
+inline uint32
+JSObject::getDenseArrayInitializedLength()
+{
+    JS_ASSERT(isDenseArray());
+    return initializedLength;
+}
+
+inline void
+JSObject::setDenseArrayInitializedLength(uint32 length)
+{
+    JS_ASSERT(isDenseArray());
+    JS_ASSERT(length <= getDenseArrayCapacity());
+    initializedLength = length;
+}
+
+inline bool
+JSObject::isPackedDenseArray()
+{
+    JS_ASSERT(isDenseArray());
+    return flags & PACKED_ARRAY;
+}
 
 namespace js {
 /* 2^32-2, inclusive */
-const uint32_t MAX_ARRAY_INDEX = 4294967294u;
+const uint32 MAX_ARRAY_INDEX = 4294967294u;
+    
+extern bool
+StringIsArrayIndex(JSLinearString *str, jsuint *indexp);
+    
 }
 
 inline JSBool
-js_IdIsIndex(jsid id, uint32_t *indexp)
+js_IdIsIndex(jsid id, jsuint *indexp)
 {
     if (JSID_IS_INT(id)) {
-        int32_t i = JSID_TO_INT(id);
-        JS_ASSERT(i >= 0);
-        *indexp = (uint32_t)i;
-        return true;
+        jsint i;
+        i = JSID_TO_INT(id);
+        if (i < 0)
+            return JS_FALSE;
+        *indexp = (jsuint)i;
+        return JS_TRUE;
     }
 
     if (JS_UNLIKELY(!JSID_IS_STRING(id)))
-        return false;
+        return JS_FALSE;
 
     return js::StringIsArrayIndex(JSID_TO_ATOM(id), indexp);
 }
 
+/*
+ * Dense arrays are not native -- aobj->isNative() for a dense array aobj
+ * results in false, meaning aobj->map does not point to a js::Shape.
+ *
+ * But Array methods are called via aobj.sort(), e.g., and the interpreter and
+ * the trace recorder must consult the property cache in order to perform well.
+ * The cache works only for native objects.
+ *
+ * Therefore the interpreter (js_Interpret in JSOP_GETPROP and JSOP_CALLPROP)
+ * and js_GetPropertyHelper use this inline function to skip up one link in the
+ * prototype chain when obj is a dense array, in order to find a native object
+ * (to wit, Array.prototype) in which to probe for cached methods.
+ *
+ * Note that setting aobj.__proto__ for a dense array aobj turns aobj into a
+ * slow array, avoiding the neede to skip.
+ *
+ * Callers of js_GetProtoIfDenseArray must take care to use the original object
+ * (obj) for the |this| value of a getter, setter, or method call (bug 476447).
+ */
+inline JSObject *
+js_GetProtoIfDenseArray(JSObject *obj);
+
 extern JSObject *
-js_InitArrayClass(JSContext *cx, js::HandleObject obj);
+js_InitArrayClass(JSContext *cx, JSObject *obj);
 
 extern bool
 js_InitContextBusyArrayTable(JSContext *cx);
 
-namespace js {
-
-class ArrayObject;
+namespace js
+{
 
 /* Create a dense array with no capacity allocated, length set to 0. */
-extern ArrayObject * JS_FASTCALL
-NewDenseEmptyArray(JSContext *cx, JSObject *proto = NULL,
-                   NewObjectKind newKind = GenericObject);
+extern JSObject * JS_FASTCALL
+NewDenseEmptyArray(JSContext *cx, JSObject *proto=NULL);
 
 /* Create a dense array with length and capacity == 'length', initialized length set to 0. */
-extern ArrayObject * JS_FASTCALL
-NewDenseAllocatedArray(ExclusiveContext *cx, uint32_t length, JSObject *proto = NULL,
-                       NewObjectKind newKind = GenericObject);
+extern JSObject * JS_FASTCALL
+NewDenseAllocatedArray(JSContext *cx, uint length, JSObject *proto=NULL);
+
+/*
+ * Create a dense array with length, capacity and initialized length == 'length', and filled with holes.
+ * This is a kludge, as the tracer doesn't yet track/update initialized length when initializing
+ * array elements.
+ */
+extern JSObject * JS_FASTCALL
+NewDenseAllocatedEmptyArray(JSContext *cx, uint length, JSObject *proto=NULL);
 
 /*
  * Create a dense array with a set length, but without allocating space for the
  * contents. This is useful, e.g., when accepting length from the user.
  */
-extern ArrayObject * JS_FASTCALL
-NewDenseUnallocatedArray(ExclusiveContext *cx, uint32_t length, JSObject *proto = NULL,
-                         NewObjectKind newKind = GenericObject);
+extern JSObject * JS_FASTCALL
+NewDenseUnallocatedArray(JSContext *cx, uint length, JSObject *proto=NULL);
 
-/* Create a dense array with a copy of the dense array elements in src. */
-extern ArrayObject *
-NewDenseCopiedArray(JSContext *cx, uint32_t length, HandleObject src, uint32_t elementOffset, JSObject *proto = NULL);
+/* Create a dense array with a copy of vp. */
+extern JSObject *
+NewDenseCopiedArray(JSContext *cx, uint length, const Value *vp, JSObject *proto=NULL);
 
-/* Create a dense array from the given array values, which must be rooted */
-extern ArrayObject *
-NewDenseCopiedArray(JSContext *cx, uint32_t length, const Value *values, JSObject *proto = NULL,
-                    NewObjectKind newKind = GenericObject);
+/* Create a sparse array. */
+extern JSObject *
+NewSlowEmptyArray(JSContext *cx);
 
-/*
- * Determines whether a write to the given element on |obj| should fail because
- * |obj| is an Array with a non-writable length, and writing that element would
- * increase the length of the array.
- */
-extern bool
-WouldDefinePastNonwritableLength(ExclusiveContext *cx,
-                                 HandleObject obj, uint32_t index, bool strict,
-                                 bool *definesPast);
-
-/*
- * Canonicalize |vp| to a uint32_t value potentially suitable for use as an
- * array length.
- */
-extern bool
-CanonicalizeArrayLengthValue(JSContext *cx, HandleValue v, uint32_t *canonicalized);
+}
 
 extern JSBool
-GetLengthProperty(JSContext *cx, HandleObject obj, uint32_t *lengthp);
+js_GetLengthProperty(JSContext *cx, JSObject *obj, jsuint *lengthp);
 
 extern JSBool
-SetLengthProperty(JSContext *cx, HandleObject obj, double length);
+js_SetLengthProperty(JSContext *cx, JSObject *obj, jsdouble length);
+
+namespace js {
 
 extern JSBool
-ObjectMayHaveExtraIndexedProperties(JSObject *obj);
+array_defineProperty(JSContext *cx, JSObject *obj, jsid id, const Value *value,
+                     PropertyOp getter, StrictPropertyOp setter, uintN attrs);
+
+extern JSBool
+array_deleteProperty(JSContext *cx, JSObject *obj, jsid id, Value *rval, JSBool strict);
 
 /*
- * Copy 'length' elements from aobj to vp.
- *
  * This function assumes 'length' is effectively the result of calling
- * js_GetLengthProperty on aobj. vp must point to rooted memory.
+ * js_GetLengthProperty on aobj.
  */
 extern bool
-GetElements(JSContext *cx, HandleObject aobj, uint32_t length, js::Value *vp);
+GetElements(JSContext *cx, JSObject *aobj, jsuint length, js::Value *vp);
+
+}
+
+/*
+ * JS-specific merge sort function.
+ */
+typedef JSBool (*JSComparator)(void *arg, const void *a, const void *b,
+                               int *result);
+
+enum JSMergeSortElemType {
+    JS_SORTING_VALUES,
+    JS_SORTING_GENERIC
+};
+
+/*
+ * NB: vec is the array to be sorted, tmp is temporary space at least as big
+ * as vec. Both should be GC-rooted if appropriate.
+ *
+ * isValue should true iff vec points to an array of js::Value
+ *
+ * The sorted result is in vec. vec may be in an inconsistent state if the
+ * comparator function cmp returns an error inside a comparison, so remember
+ * to check the return value of this function.
+ */
+extern bool
+js_MergeSort(void *vec, size_t nel, size_t elsize, JSComparator cmp,
+             void *arg, void *tmp, JSMergeSortElemType elemType);
 
 /* Natives exposed for optimization by the interpreter and JITs. */
+namespace js {
 
 extern JSBool
-array_sort(JSContext *cx, unsigned argc, js::Value *vp);
+array_sort(JSContext *cx, uintN argc, js::Value *vp);
 
 extern JSBool
-array_push(JSContext *cx, unsigned argc, js::Value *vp);
+array_push(JSContext *cx, uintN argc, js::Value *vp);
 
 extern JSBool
-array_pop(JSContext *cx, unsigned argc, js::Value *vp);
-
-extern JSBool
-array_concat(JSContext *cx, unsigned argc, js::Value *vp);
-
-extern bool
-array_concat_dense(JSContext *cx, Handle<ArrayObject*> arr1, Handle<ArrayObject*> arr2,
-                   Handle<ArrayObject*> result);
-
-extern void
-ArrayShiftMoveElements(JSObject *obj);
-
-extern JSBool
-array_shift(JSContext *cx, unsigned argc, js::Value *vp);
+array_pop(JSContext *cx, uintN argc, js::Value *vp);
 
 } /* namespace js */
 
 #ifdef DEBUG
 extern JSBool
-js_ArrayInfo(JSContext *cx, unsigned argc, js::Value *vp);
+js_ArrayInfo(JSContext *cx, uintN argc, jsval *vp);
 #endif
 
 /*
@@ -144,10 +240,23 @@ js_ArrayInfo(JSContext *cx, unsigned argc, js::Value *vp);
  * sparse, which requires that the array be completely filled.)
  */
 extern JSBool
-js_NewbornArrayPush(JSContext *cx, js::HandleObject obj, const js::Value &v);
+js_NewbornArrayPush(JSContext *cx, JSObject *obj, const js::Value &v);
+
+JSBool
+js_PrototypeHasIndexedProperties(JSContext *cx, JSObject *obj);
+
+/*
+ * Utility to access the value from the id returned by array_lookupProperty.
+ */
+JSBool
+js_GetDenseArrayElementValue(JSContext *cx, JSObject *obj, jsid id,
+                             js::Value *vp);
 
 /* Array constructor native. Exposed only so the JIT can know its address. */
 JSBool
-js_Array(JSContext *cx, unsigned argc, js::Value *vp);
+js_Array(JSContext *cx, uintN argc, js::Value *vp);
 
-#endif /* jsarray_h */
+extern JSBool JS_FASTCALL
+js_EnsureDenseArrayCapacity(JSContext *cx, JSObject *obj, jsint i);
+
+#endif /* jsarray_h___ */

@@ -372,33 +372,6 @@ def parsefile(pathname):
     pathname = os.path.realpath(pathname)
     return _parsecache.get(pathname)
 
-def parsedepfile(pathname):
-    """
-    Parse a filename listing only depencencies into a parserdata.StatementList.
-    """
-    def continuation_iter(lines):
-        current_line = []
-        for line in lines:
-            line = line.rstrip()
-            if line.endswith("\\"):
-                current_line.append(line.rstrip("\\"))
-                continue
-            if not len(line):
-                continue
-            current_line.append(line)
-            yield ''.join(current_line)
-            current_line = []
-        if current_line:
-            yield ''.join(current_line)
-
-    pathname = os.path.realpath(pathname)
-    stmts = parserdata.StatementList()
-    for line in continuation_iter(open(pathname).readlines()):
-        target, deps = line.split(":", 1)
-        stmts.append(parserdata.Rule(data.StringExpansion(target, None),
-                                     data.StringExpansion(deps, None), False))
-    return stmts
-
 def parsestring(s, filename):
     """
     Parse a string containing makefile data into a parserdata.StatementList.
@@ -525,9 +498,9 @@ def parsestring(s, filename):
                 e.rstrip()
 
                 if token is None:
-                    condstack[-1].append(parserdata.ExportDirective(e, concurrent_set=False))
+                    condstack[-1].append(parserdata.ExportDirective(e, single=False))
                 else:
-                    condstack[-1].append(parserdata.ExportDirective(e, concurrent_set=True))
+                    condstack[-1].append(parserdata.ExportDirective(e, single=True))
 
                     value = flattenmakesyntax(d, offset).lstrip()
                     condstack[-1].append(parserdata.SetVariable(e, value=value, valueloc=d.getloc(offset), token=token, targetexp=None))

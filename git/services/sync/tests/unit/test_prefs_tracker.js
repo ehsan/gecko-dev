@@ -1,20 +1,11 @@
-/* Any copyright is dedicated to the Public Domain.
-   http://creativecommons.org/publicdomain/zero/1.0/ */
-
-Cu.import("resource://gre/modules/Preferences.jsm");
-Cu.import("resource://services-common/utils.js");
-Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/engines/prefs.js");
-Cu.import("resource://services-sync/service.js");
 Cu.import("resource://services-sync/util.js");
+Cu.import("resource://services-sync/constants.js");
+Cu.import("resource://services-sync/ext/Preferences.js");
 
 function run_test() {
-  let engine = Service.engineManager.get("prefs");
+  let engine = new PrefsEngine();
   let tracker = engine._tracker;
-
-  // Don't write out by default.
-  tracker.persistChangedIDs = false;
-
   let prefs = new Preferences();
 
   try {
@@ -31,7 +22,7 @@ function run_test() {
     let changedIDs = engine.getChangedIDs();
     let ids = Object.keys(changedIDs);
     do_check_eq(ids.length, 1);
-    do_check_eq(ids[0], CommonUtils.encodeBase64URL(Services.appinfo.ID));
+    do_check_eq(ids[0], Utils.encodeBase64url(Services.appinfo.ID));
 
     Svc.Prefs.set("engine.prefs.modified", false);
     do_check_false(tracker.modified);

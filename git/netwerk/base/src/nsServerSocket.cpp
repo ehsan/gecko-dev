@@ -1,22 +1,51 @@
 /* vim:set ts=2 sw=2 et cindent: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla.
+ *
+ * The Initial Developer of the Original Code is IBM Corporation.
+ * Portions created by IBM Corporation are Copyright (C) 2003
+ * IBM Corporation. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Darin Fisher <darin@meer.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsIServiceManager.h"
 #include "nsSocketTransport2.h"
 #include "nsServerSocket.h"
 #include "nsProxyRelease.h"
 #include "nsAutoPtr.h"
-#include "nsError.h"
+#include "nsNetError.h"
 #include "nsNetCID.h"
 #include "prnetdb.h"
 #include "prio.h"
-#include "mozilla/Attributes.h"
-#include "mozilla/net/DNS.h"
 
 using namespace mozilla;
-using namespace mozilla::net;
 
 static NS_DEFINE_CID(kSocketTransportServiceCID, NS_SOCKETTRANSPORTSERVICE_CID);
 
@@ -43,9 +72,8 @@ PostEvent(nsServerSocket *s, nsServerSocketFunc func)
 
 nsServerSocket::nsServerSocket()
   : mLock("nsServerSocket.mLock")
-  , mFD(nullptr)
-  , mAttached(false)
-  , mKeepWhenOffline(false)
+  , mFD(nsnull)
+  , mAttached(PR_FALSE)
 {
   // we want to be able to access the STS directly, and it may not have been
   // constructed yet.  the STS constructor sets gSocketTransportService.
@@ -142,7 +170,7 @@ nsServerSocket::TryAttach()
   if (NS_FAILED(rv))
     return rv;
 
-  mAttached = true;
+  mAttached = PR_TRUE;
 
   //
   // now, configure our poll flags for listening...
@@ -156,7 +184,7 @@ nsServerSocket::TryAttach()
 //-----------------------------------------------------------------------------
 
 void
-nsServerSocket::OnSocketReady(PRFileDesc *fd, int16_t outFlags)
+nsServerSocket::OnSocketReady(PRFileDesc *fd, PRInt16 outFlags)
 {
   NS_ASSERTION(NS_SUCCEEDED(mCondition), "oops");
   NS_ASSERTION(mFD == fd, "wrong file descriptor");
@@ -170,11 +198,9 @@ nsServerSocket::OnSocketReady(PRFileDesc *fd, int16_t outFlags)
   }
 
   PRFileDesc *clientFD;
-  PRNetAddr prClientAddr;
-  NetAddr clientAddr;
+  PRNetAddr clientAddr;
 
-  clientFD = PR_Accept(mFD, &prClientAddr, PR_INTERVAL_NO_WAIT);
-  PRNetAddrToNetAddr(&prClientAddr, &clientAddr);
+  clientFD = PR_Accept(mFD, &clientAddr, PR_INTERVAL_NO_WAIT);
   if (!clientFD)
   {
     NS_WARNING("PR_Accept failed");
@@ -207,7 +233,7 @@ nsServerSocket::OnSocketDetached(PRFileDesc *fd)
   {
     NS_ASSERTION(mFD == fd, "wrong file descriptor");
     PR_Close(mFD);
-    mFD = nullptr;
+    mFD = nsnull;
   }
 
   if (mListener)
@@ -215,7 +241,7 @@ nsServerSocket::OnSocketDetached(PRFileDesc *fd)
     mListener->OnStopListening(this, mCondition);
 
     // need to atomically clear mListener.  see our Close() method.
-    nsIServerSocketListener *listener = nullptr;
+    nsIServerSocketListener *listener = nsnull;
     {
       MutexAutoLock lock(mLock);
       mListener.swap(listener);
@@ -227,24 +253,12 @@ nsServerSocket::OnSocketDetached(PRFileDesc *fd)
   }
 }
 
-void
-nsServerSocket::IsLocal(bool *aIsLocal)
-{
-  // If bound to loopback, this server socket only accepts local connections.
-  *aIsLocal = PR_IsNetAddrType(&mAddr, PR_IpAddrLoopback);
-}
-
-void
-nsServerSocket::KeepWhenOffline(bool *aKeepWhenOffline)
-{
-  *aKeepWhenOffline = mKeepWhenOffline;
-}
 
 //-----------------------------------------------------------------------------
 // nsServerSocket::nsISupports
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS1(nsServerSocket, nsIServerSocket)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsServerSocket, nsIServerSocket)
 
 
 //-----------------------------------------------------------------------------
@@ -252,34 +266,26 @@ NS_IMPL_ISUPPORTS1(nsServerSocket, nsIServerSocket)
 //-----------------------------------------------------------------------------
 
 NS_IMETHODIMP
-nsServerSocket::Init(int32_t aPort, bool aLoopbackOnly, int32_t aBackLog)
-{
-  return InitSpecialConnection(aPort, aLoopbackOnly ? LoopbackOnly : 0, aBackLog);
-}
-
-NS_IMETHODIMP
-nsServerSocket::InitSpecialConnection(int32_t aPort, nsServerSocketFlag aFlags,
-                                      int32_t aBackLog)
+nsServerSocket::Init(PRInt32 aPort, PRBool aLoopbackOnly, PRInt32 aBackLog)
 {
   PRNetAddrValue val;
   PRNetAddr addr;
 
   if (aPort < 0)
     aPort = 0;
-  if (aFlags & nsIServerSocket::LoopbackOnly)
+  if (aLoopbackOnly)
     val = PR_IpAddrLoopback;
   else
     val = PR_IpAddrAny;
   PR_SetNetAddr(val, PR_AF_INET, aPort, &addr);
 
-  mKeepWhenOffline = ((aFlags & nsIServerSocket::KeepWhenOffline) != 0);
   return InitWithAddress(&addr, aBackLog);
 }
 
 NS_IMETHODIMP
-nsServerSocket::InitWithAddress(const PRNetAddr *aAddr, int32_t aBackLog)
+nsServerSocket::InitWithAddress(const PRNetAddr *aAddr, PRInt32 aBackLog)
 {
-  NS_ENSURE_TRUE(mFD == nullptr, NS_ERROR_ALREADY_INITIALIZED);
+  NS_ENSURE_TRUE(mFD == nsnull, NS_ERROR_ALREADY_INITIALIZED);
 
   //
   // configure listening socket...
@@ -295,11 +301,11 @@ nsServerSocket::InitWithAddress(const PRNetAddr *aAddr, int32_t aBackLog)
   PRSocketOptionData opt;
 
   opt.option = PR_SockOpt_Reuseaddr;
-  opt.value.reuse_addr = true;
+  opt.value.reuse_addr = PR_TRUE;
   PR_SetSocketOption(mFD, &opt);
 
   opt.option = PR_SockOpt_Nonblocking;
-  opt.value.non_blocking = true;
+  opt.value.non_blocking = PR_TRUE;
   PR_SetSocketOption(mFD, &opt);
 
   if (PR_Bind(mFD, aAddr) != PR_SUCCESS)
@@ -346,7 +352,7 @@ nsServerSocket::Close()
       if (mFD)
       {
         PR_Close(mFD);
-        mFD = nullptr;
+        mFD = nsnull;
       }
       return NS_OK;
     }
@@ -356,21 +362,21 @@ nsServerSocket::Close()
 
 namespace {
 
-class ServerSocketListenerProxy MOZ_FINAL : public nsIServerSocketListener
+class ServerSocketListenerProxy : public nsIServerSocketListener
 {
 public:
   ServerSocketListenerProxy(nsIServerSocketListener* aListener)
-    : mListener(new nsMainThreadPtrHolder<nsIServerSocketListener>(aListener))
+    : mListener(aListener)
     , mTargetThread(do_GetCurrentThread())
   { }
 
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSISERVERSOCKETLISTENER
 
   class OnSocketAcceptedRunnable : public nsRunnable
   {
   public:
-    OnSocketAcceptedRunnable(const nsMainThreadPtrHandle<nsIServerSocketListener>& aListener,
+    OnSocketAcceptedRunnable(nsIServerSocketListener* aListener,
                              nsIServerSocket* aServ,
                              nsISocketTransport* aTransport)
       : mListener(aListener)
@@ -381,7 +387,7 @@ public:
     NS_DECL_NSIRUNNABLE
 
   private:
-    nsMainThreadPtrHandle<nsIServerSocketListener> mListener;
+    nsCOMPtr<nsIServerSocketListener> mListener;
     nsCOMPtr<nsIServerSocket> mServ;
     nsCOMPtr<nsISocketTransport> mTransport;
   };
@@ -389,7 +395,7 @@ public:
   class OnStopListeningRunnable : public nsRunnable
   {
   public:
-    OnStopListeningRunnable(const nsMainThreadPtrHandle<nsIServerSocketListener>& aListener,
+    OnStopListeningRunnable(nsIServerSocketListener* aListener,
                             nsIServerSocket* aServ,
                             nsresult aStatus)
       : mListener(aListener)
@@ -400,18 +406,18 @@ public:
     NS_DECL_NSIRUNNABLE
 
   private:
-    nsMainThreadPtrHandle<nsIServerSocketListener> mListener;
+    nsCOMPtr<nsIServerSocketListener> mListener;
     nsCOMPtr<nsIServerSocket> mServ;
     nsresult mStatus;
   };
 
 private:
-  nsMainThreadPtrHandle<nsIServerSocketListener> mListener;
+  nsCOMPtr<nsIServerSocketListener> mListener;
   nsCOMPtr<nsIEventTarget> mTargetThread;
 };
 
-NS_IMPL_ISUPPORTS1(ServerSocketListenerProxy,
-                   nsIServerSocketListener)
+NS_IMPL_THREADSAFE_ISUPPORTS1(ServerSocketListenerProxy,
+                              nsIServerSocketListener)
 
 NS_IMETHODIMP
 ServerSocketListenerProxy::OnSocketAccepted(nsIServerSocket* aServ,
@@ -452,7 +458,7 @@ nsServerSocket::AsyncListen(nsIServerSocketListener *aListener)
 {
   // ensuring mFD implies ensuring mLock
   NS_ENSURE_TRUE(mFD, NS_ERROR_NOT_INITIALIZED);
-  NS_ENSURE_TRUE(mListener == nullptr, NS_ERROR_IN_PROGRESS);
+  NS_ENSURE_TRUE(mListener == nsnull, NS_ERROR_IN_PROGRESS);
   {
     MutexAutoLock lock(mLock);
     mListener = new ServerSocketListenerProxy(aListener);
@@ -462,15 +468,15 @@ nsServerSocket::AsyncListen(nsIServerSocketListener *aListener)
 }
 
 NS_IMETHODIMP
-nsServerSocket::GetPort(int32_t *aResult)
+nsServerSocket::GetPort(PRInt32 *aResult)
 {
   // no need to enter the lock here
-  uint16_t port;
+  PRUint16 port;
   if (mAddr.raw.family == PR_AF_INET)
     port = mAddr.inet.port;
   else
     port = mAddr.ipv6.port;
-  *aResult = (int32_t) PR_ntohs(port);
+  *aResult = (PRInt32) PR_ntohs(port);
   return NS_OK;
 }
 

@@ -1,11 +1,42 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla MathML Project.
+ *
+ * The Initial Developer of the Original Code is
+ * Frederic Wang <fred.wang@free.fr>
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 
 #include "nsMathMLsemanticsFrame.h"
-#include "nsMimeTypes.h"
 
 //
 // <semantics> -- associate annotations with a MathML expression
@@ -23,97 +54,17 @@ nsMathMLsemanticsFrame::~nsMathMLsemanticsFrame()
 {
 }
 
-nsIFrame* 
-nsMathMLsemanticsFrame::GetSelectedFrame()
+NS_IMETHODIMP
+nsMathMLsemanticsFrame::TransmitAutomaticData()
 {
-  // By default, we will display the first child of the <semantics> element.
-  nsIFrame* childFrame = mFrames.FirstChild(); 
-  mSelectedFrame = childFrame;
+  // The REC defines the following elements to be embellished operators:
+  // * one of the elements msub, msup, msubsup, munder, mover, munderover,
+  //   mmultiscripts, mfrac, or semantics (Section 5.1 Annotation Framework),
+  //   whose first argument exists and is an embellished operator; 
+  //
+  // If our first child is an embellished operator, its flags bubble to us
+  mPresentationData.baseFrame = mFrames.FirstChild();
+  GetEmbellishDataFrom(mPresentationData.baseFrame, mEmbellishData);
 
-  // An empty <semantics> is invalid
-  if (!childFrame) {
-    mInvalidMarkup = true;
-    return mSelectedFrame;
-  }
-  mInvalidMarkup = false;
-
-  // Using <annotation> or <annotation-xml> as a first child is invalid.
-  // However some people use this syntax so we take care of this case too.
-  bool firstChildIsAnnotation = false;
-  nsIContent* childContent = childFrame->GetContent();
-  if (childContent->GetNameSpaceID() == kNameSpaceID_MathML &&
-      (childContent->Tag() == nsGkAtoms::annotation_ ||
-       childContent->Tag() == nsGkAtoms::annotation_xml_)) {
-    firstChildIsAnnotation = true;
-  }
-
-  // If the first child is a presentation MathML element other than
-  // <annotation> or <annotation-xml>, we are done.
-  if (!firstChildIsAnnotation &&
-      childFrame->IsFrameOfType(nsIFrame::eMathML)) {
-    nsIMathMLFrame* mathMLFrame = do_QueryFrame(childFrame);
-    if (mathMLFrame) {
-      TransmitAutomaticData();
-      return mSelectedFrame;
-    }
-    // The first child is not an annotation, so skip it.
-    childFrame = childFrame->GetNextSibling();
-  }
-
-  // Otherwise, we read the list of annotations and select the first one that
-  // could be displayed in place of the first child of <semantics>. If none is
-  // found, we fallback to this first child.
-  for ( ; childFrame; childFrame = childFrame->GetNextSibling()) {
-    nsIContent* childContent = childFrame->GetContent();
-
-    if (childContent->GetNameSpaceID() != kNameSpaceID_MathML) continue;
-
-    if (childContent->Tag() == nsGkAtoms::annotation_) {
-
-      // If the <annotation> element has an src attribute we ignore it.
-      // XXXfredw Should annotation images be supported? See the related
-      // bug 297465 for mglyph.
-      if (childContent->HasAttr(kNameSpaceID_None, nsGkAtoms::src)) continue;
-
-      // Otherwise, we assume it is a text annotation that can always be
-      // displayed and stop here.
-      mSelectedFrame = childFrame;
-      break;
-    }
-
-    if (childContent->Tag() == nsGkAtoms::annotation_xml_) {
-
-      // If the <annotation-xml> element has an src attribute we ignore it.
-      if (childContent->HasAttr(kNameSpaceID_None, nsGkAtoms::src)) continue;
-
-      // If the <annotation-xml> element has an encoding attribute
-      // describing presentation MathML, SVG or HTML we assume the content
-      // can be displayed and stop here.
-      //
-      // We recognize the following encoding values:
-      //
-      // - "MathML-Presentation", which is mentioned in the MathML3 REC
-      // - "SVG1.1" which is mentioned in the W3C note
-      //                   http://www.w3.org/Math/Documents/Notes/graphics.xml
-      // - Other mime Content-Types for SVG and HTML
-      //
-      // We exclude APPLICATION_MATHML_XML = "application/mathml+xml" which
-      // is ambiguous about whether it is Presentation or Content MathML.
-      // Authors must use a more explicit encoding value.
-      nsAutoString value;
-      childContent->GetAttr(kNameSpaceID_None, nsGkAtoms::encoding, value);
-      if (value.EqualsLiteral("application/mathml-presentation+xml") ||
-          value.EqualsLiteral("MathML-Presentation") ||
-          value.EqualsLiteral(IMAGE_SVG_XML) ||
-          value.EqualsLiteral("SVG1.1") ||
-          value.EqualsLiteral(APPLICATION_XHTML_XML) ||
-          value.EqualsLiteral(TEXT_HTML)) {
-        mSelectedFrame = childFrame;
-        break;
-      }
-    }
-  }
-
-  TransmitAutomaticData();
-  return mSelectedFrame;
+  return NS_OK;
 }

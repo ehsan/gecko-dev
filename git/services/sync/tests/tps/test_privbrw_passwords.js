@@ -6,7 +6,6 @@
  * here must be in strict JSON format, as it will get parsed by the Python
  * testrunner (no single quotes, extra comma's, etc).
  */
-EnableEngines(["passwords"]);
 
 var phases = { "phase1": "profile1",
                "phase2": "profile2",
@@ -77,7 +76,7 @@ var passwords_after_second_change = [
 
 Phase('phase1', [
   [Passwords.add, passwords_initial],
-  [Sync]
+  [Sync, SYNC_WIPE_SERVER]
 ]);
 
 Phase('phase2', [
@@ -90,7 +89,7 @@ Phase('phase2', [
 
 Phase('phase3', [
   [Sync],
-  [Windows.add, { private: true }],
+  [SetPrivateBrowsing, true],
   [Passwords.verify, passwords_after_first_change],
   [Passwords.modify, passwords_after_first_change],
   [Passwords.verify, passwords_after_second_change],

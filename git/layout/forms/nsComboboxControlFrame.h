@@ -1,7 +1,41 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Dean Tessman <dean_tessman@hotmail.com>
+ *   Mats Palmgren <matspal@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsComboboxControlFrame_h___
 #define nsComboboxControlFrame_h___
@@ -21,7 +55,6 @@
 //Mark used to indicate when onchange has been fired for current combobox item
 #define NS_SKIP_NOTIFY_INDEX -2
 
-#include "mozilla/Attributes.h"
 #include "nsBlockFrame.h"
 #include "nsIFormControlFrame.h"
 #include "nsIComboboxControlFrame.h"
@@ -35,7 +68,7 @@
 #include "nsIDOMEventListener.h"
 #include "nsThreadUtils.h"
 
-class nsView;
+class nsIView;
 class nsStyleContext;
 class nsIListControlFrame;
 class nsComboboxDisplayFrame;
@@ -49,7 +82,7 @@ class nsComboboxControlFrame : public nsBlockFrame,
                                public nsIStatefulFrame
 {
 public:
-  friend nsIFrame* NS_NewComboboxControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, uint32_t aFlags);
+  friend nsIFrame* NS_NewComboboxControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRUint32 aFlags);
   friend class nsComboboxDisplayFrame;
 
   nsComboboxControlFrame(nsStyleContext* aContext);
@@ -59,40 +92,40 @@ public:
   NS_DECL_FRAMEARENA_HELPERS
 
   // nsIAnonymousContentCreator
-  virtual nsresult CreateAnonymousContent(nsTArray<ContentInfo>& aElements) MOZ_OVERRIDE;
+  virtual nsresult CreateAnonymousContent(nsTArray<ContentInfo>& aElements);
   virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                        uint32_t aFilter) MOZ_OVERRIDE;
-  virtual nsIFrame* CreateFrameFor(nsIContent* aContent) MOZ_OVERRIDE;
+                                        PRUint32 aFilter);
+  virtual nsIFrame* CreateFrameFor(nsIContent* aContent);
 
 #ifdef ACCESSIBILITY
-  virtual mozilla::a11y::AccType AccessibleType() MOZ_OVERRIDE;
+  virtual already_AddRefed<nsAccessible> CreateAccessible();
 #endif
 
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
+  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
 
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
+  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
 
   NS_IMETHOD Reflow(nsPresContext*          aCX,
                     nsHTMLReflowMetrics&     aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
-                    nsReflowStatus&          aStatus) MOZ_OVERRIDE;
+                    nsReflowStatus&          aStatus);
 
   NS_IMETHOD HandleEvent(nsPresContext* aPresContext,
                          nsGUIEvent* aEvent,
                          nsEventStatus* aEventStatus);
 
-  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                              const nsRect&           aDirtyRect,
+                              const nsDisplayListSet& aLists);
 
   void PaintFocus(nsRenderingContext& aRenderingContext, nsPoint aPt);
 
   // XXXbz this is only needed to prevent the quirk percent height stuff from
   // leaking out of the combobox.  We may be able to get rid of this as more
   // things move to IsFrameOfType.
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const;
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const MOZ_OVERRIDE
+  virtual PRBool IsFrameOfType(PRUint32 aFlags) const
   {
     return nsBlockFrame::IsFrameOfType(aFlags &
       ~(nsIFrame::eReplaced | nsIFrame::eReplacedContainsBlock));
@@ -102,130 +135,102 @@ public:
     return do_QueryFrame(mDropdownFrame);
   }
 
-#ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+#ifdef NS_DEBUG
+  NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
-  virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
   NS_IMETHOD SetInitialChildList(ChildListID     aListID,
-                                 nsFrameList&    aChildList) MOZ_OVERRIDE;
-  virtual const nsFrameList& GetChildList(ChildListID aListID) const MOZ_OVERRIDE;
-  virtual void GetChildLists(nsTArray<ChildList>* aLists) const MOZ_OVERRIDE;
+                                 nsFrameList&    aChildList);
+  virtual nsFrameList GetChildList(ChildListID aListID) const;
+  virtual void GetChildLists(nsTArray<ChildList>* aLists) const;
 
   virtual nsIFrame* GetContentInsertionFrame();
 
   // nsIFormControlFrame
-  virtual nsresult SetFormProperty(nsIAtom* aName, const nsAString& aValue) MOZ_OVERRIDE;
+  virtual nsresult SetFormProperty(nsIAtom* aName, const nsAString& aValue);
+  virtual nsresult GetFormProperty(nsIAtom* aName, nsAString& aValue) const; 
   /**
    * Inform the control that it got (or lost) focus.
    * If it lost focus, the dropdown menu will be rolled up if needed,
    * and FireOnChange() will be called.
-   * @param aOn true if got focus, false if lost focus.
-   * @param aRepaint if true then force repaint (NOTE: we always force repaint currently)
+   * @param aOn PR_TRUE if got focus, PR_FALSE if lost focus.
+   * @param aRepaint if PR_TRUE then force repaint (NOTE: we always force repaint currently)
    * @note This method might destroy |this|.
    */
-  virtual void SetFocus(bool aOn, bool aRepaint) MOZ_OVERRIDE;
+  virtual void SetFocus(PRBool aOn, PRBool aRepaint);
 
   //nsIComboboxControlFrame
-  virtual bool IsDroppedDown() MOZ_OVERRIDE { return mDroppedDown; }
+  virtual PRBool IsDroppedDown() { return mDroppedDown; }
   /**
    * @note This method might destroy |this|.
    */
-  virtual void ShowDropDown(bool aDoDropDown) MOZ_OVERRIDE;
-  virtual nsIFrame* GetDropDown() MOZ_OVERRIDE;
-  virtual void SetDropDown(nsIFrame* aDropDownFrame) MOZ_OVERRIDE;
+  virtual void ShowDropDown(PRBool aDoDropDown);
+  virtual nsIFrame* GetDropDown();
+  virtual void SetDropDown(nsIFrame* aDropDownFrame);
   /**
    * @note This method might destroy |this|.
    */
-  virtual void RollupFromList() MOZ_OVERRIDE;
-
-  /**
-   * Return the available space above and below this frame for
-   * placing the drop-down list, and the current 2D translation.
-   * Note that either or both can be less than or equal to zero,
-   * if both are then the drop-down should be closed.
-   */
-  void GetAvailableDropdownSpace(nscoord* aAbove,
-                                 nscoord* aBelow,
-                                 nsPoint* aTranslation);
-  virtual int32_t GetIndexOfDisplayArea() MOZ_OVERRIDE;
+  virtual void RollupFromList();
+  virtual void AbsolutelyPositionDropDown();
+  virtual PRInt32 GetIndexOfDisplayArea();
   /**
    * @note This method might destroy |this|.
    */
-  NS_IMETHOD RedisplaySelectedText() MOZ_OVERRIDE;
-  virtual int32_t UpdateRecentIndex(int32_t aIndex) MOZ_OVERRIDE;
-  virtual void OnContentReset() MOZ_OVERRIDE;
+  NS_IMETHOD RedisplaySelectedText();
+  virtual PRInt32 UpdateRecentIndex(PRInt32 aIndex);
+  virtual void OnContentReset();
 
   // nsISelectControlFrame
-  NS_IMETHOD AddOption(int32_t index) MOZ_OVERRIDE;
-  NS_IMETHOD RemoveOption(int32_t index) MOZ_OVERRIDE;
-  NS_IMETHOD DoneAddingChildren(bool aIsDone) MOZ_OVERRIDE;
-  NS_IMETHOD OnOptionSelected(int32_t aIndex, bool aSelected) MOZ_OVERRIDE;
-  NS_IMETHOD OnSetSelectedIndex(int32_t aOldIndex, int32_t aNewIndex) MOZ_OVERRIDE;
+  NS_IMETHOD AddOption(PRInt32 index);
+  NS_IMETHOD RemoveOption(PRInt32 index);
+  NS_IMETHOD DoneAddingChildren(PRBool aIsDone);
+  NS_IMETHOD OnOptionSelected(PRInt32 aIndex, PRBool aSelected);
+  NS_IMETHOD OnSetSelectedIndex(PRInt32 aOldIndex, PRInt32 aNewIndex);
 
   //nsIRollupListener
   /**
    * Hide the dropdown menu and stop capturing mouse events.
    * @note This method might destroy |this|.
    */
-  virtual bool Rollup(uint32_t aCount, nsIContent** aLastRolledUp) MOZ_OVERRIDE;
-  virtual void NotifyGeometryChange() MOZ_OVERRIDE;
-
+  NS_IMETHOD Rollup(PRUint32 aCount, nsIContent** aLastRolledUp);
   /**
    * A combobox should roll up if a mousewheel event happens outside of
    * the popup area.
    */
-  virtual bool ShouldRollupOnMouseWheelEvent() MOZ_OVERRIDE
-    { return true; }
-
-  virtual bool ShouldConsumeOnMouseWheelEvent() MOZ_OVERRIDE
-    { return false; }
+  NS_IMETHOD ShouldRollupOnMouseWheelEvent(PRBool *aShouldRollup)
+    { *aShouldRollup = PR_TRUE; return NS_OK;}
 
   /**
    * A combobox should not roll up if activated by a mouse activate message
    * (eg. X-mouse).
    */
-  virtual bool ShouldRollupOnMouseActivate() MOZ_OVERRIDE
-    { return false; }
-
-  virtual uint32_t GetSubmenuWidgetChain(nsTArray<nsIWidget*> *aWidgetChain) MOZ_OVERRIDE
-    { return 0; }
-
-  virtual nsIWidget* GetRollupWidget() MOZ_OVERRIDE;
+  NS_IMETHOD ShouldRollupOnMouseActivate(PRBool *aShouldRollup)
+    { *aShouldRollup = PR_FALSE; return NS_OK;}
 
   //nsIStatefulFrame
-  NS_IMETHOD SaveState(nsPresState** aState) MOZ_OVERRIDE;
-  NS_IMETHOD RestoreState(nsPresState* aState) MOZ_OVERRIDE;
+  NS_IMETHOD SaveState(SpecialStateID aStateID, nsPresState** aState);
+  NS_IMETHOD RestoreState(nsPresState* aState);
 
-  static bool ToolkitHasNativePopup();
+  static PRBool ToolkitHasNativePopup();
 
 protected:
-  friend class RedisplayTextEvent;
-  friend class nsAsyncResize;
-  friend class nsResizeDropdownAtFinalPosition;
 
   // Utilities
   nsresult ReflowDropdown(nsPresContext*          aPresContext, 
                           const nsHTMLReflowState& aReflowState);
 
-  enum DropDownPositionState {
-    // can't show the dropdown at its current position
-    eDropDownPositionSuppressed,
-    // a resize reflow is pending, don't show it yet
-    eDropDownPositionPendingResize,
-    // the dropdown has its final size and position and can be displayed here
-    eDropDownPositionFinal
-  };
-  DropDownPositionState AbsolutelyPositionDropDown();
-
   // Helper for GetMinWidth/GetPrefWidth
   nscoord GetIntrinsicWidth(nsRenderingContext* aRenderingContext,
                             nsLayoutUtils::IntrinsicWidthType aType);
+protected:
+  class RedisplayTextEvent;
+  friend class RedisplayTextEvent;
 
   class RedisplayTextEvent : public nsRunnable {
   public:
     NS_DECL_NSIRUNNABLE
     RedisplayTextEvent(nsComboboxControlFrame *c) : mControlFrame(c) {}
-    void Revoke() { mControlFrame = nullptr; }
+    void Revoke() { mControlFrame = nsnull; }
   private:
     nsComboboxControlFrame *mControlFrame;
   };
@@ -234,20 +239,20 @@ protected:
    * Show or hide the dropdown list.
    * @note This method might destroy |this|.
    */
-  void ShowPopup(bool aShowPopup);
+  void ShowPopup(PRBool aShowPopup);
 
   /**
    * Show or hide the dropdown list.
-   * @param aShowList true to show, false to hide the dropdown.
+   * @param aShowList PR_TRUE to show, PR_FALSE to hide the dropdown.
    * @note This method might destroy |this|.
-   * @return false if this frame is destroyed, true if still alive.
+   * @return PR_FALSE if this frame is destroyed, PR_TRUE if still alive.
    */
-  bool ShowList(bool aShowList);
+  PRBool ShowList(PRBool aShowList);
   void CheckFireOnChange();
   void FireValueChangeEvent();
-  nsresult RedisplayText(int32_t aIndex);
+  nsresult RedisplayText(PRInt32 aIndex);
   void HandleRedisplayTextEvent();
-  void ActuallyDisplayText(bool aNotify);
+  void ActuallyDisplayText(PRBool aNotify);
 
 private:
   // If our total transform to the root frame of the root document is only a 2d
@@ -267,36 +272,25 @@ protected:
   // size to the full width except the drop-marker.
   nscoord mDisplayWidth;
   
+  PRPackedBool          mDroppedDown;             // Current state of the dropdown list, PR_TRUE is dropped down
+  PRPackedBool          mInRedisplayText;
+
   nsRevocableEventPtr<RedisplayTextEvent> mRedisplayTextEvent;
 
-  int32_t               mRecentSelectedIndex;
-  int32_t               mDisplayedIndex;
+  PRInt32               mRecentSelectedIndex;
+  PRInt32               mDisplayedIndex;
   nsString              mDisplayedOptionText;
 
   // make someone to listen to the button. If its programmatically pressed by someone like Accessibility
   // then open or close the combo box.
   nsCOMPtr<nsIDOMEventListener> mButtonListener;
 
-  // The last y-positions used for estimating available space above and
-  // below for the dropdown list in GetAvailableDropdownSpace.  These are
-  // reset to nscoord_MIN in AbsolutelyPositionDropDown when placing the
-  // dropdown at its actual position.  The GetAvailableDropdownSpace call
-  // from nsListControlFrame::ReflowAsDropdown use the last position.
-  nscoord               mLastDropDownAboveScreenY;
-  nscoord               mLastDropDownBelowScreenY;
-  // Current state of the dropdown list, true is dropped down.
-  bool                  mDroppedDown;
-  // See comment in HandleRedisplayTextEvent().
-  bool                  mInRedisplayText;
-  // Acting on ShowDropDown(true) is delayed until we're focused.
-  bool                  mDelayedShowDropDown;
-
   // static class data member for Bug 32920
   // only one control can be focused at a time
-  static nsComboboxControlFrame* sFocused;
+  static nsComboboxControlFrame * mFocused;
 
 #ifdef DO_REFLOW_COUNTER
-  int32_t mReflowId;
+  PRInt32 mReflowId;
 #endif
 };
 

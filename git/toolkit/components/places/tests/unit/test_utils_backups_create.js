@@ -1,8 +1,41 @@
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Places unit test code.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Marco Bonardo <mak77@bonardo.net> (Original Author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
  /**
   * Check for correct functionality of PlacesUtils.archiveBookmarksFile
@@ -15,8 +48,6 @@ const SUFFIX = ".json";
 const NUMBER_OF_BACKUPS = 10;
 
 function run_test() {
-  do_test_pending();
-
   // Generate random dates.
   var dateObj = new Date();
   var dates = [];
@@ -33,7 +64,7 @@ function run_test() {
   dates.sort();
 
   // Get and cleanup the backups folder.
-  var bookmarksBackupDir = PlacesBackups.folder;
+  var bookmarksBackupDir = PlacesUtils.backups.folder;
 
   // Fake backups are created backwards to ensure we won't consider file
   // creation time.
@@ -57,52 +88,31 @@ function run_test() {
     return LOCALIZED_PREFIX + aValue;
   }
 
-  Task.spawn(function() {
-    yield PlacesBackups.create(Math.floor(dates.length/2));
-    // Add today's backup.
-    dates.push(dateObj.toLocaleFormat("%Y-%m-%d"));
+  PlacesUtils.backups.create(Math.floor(dates.length/2));
+  // Add today's backup.
+  dates.push(dateObj.toLocaleFormat("%Y-%m-%d"));
 
-    // Check backups.
-    for (var i = 0; i < dates.length; i++) {
-      let backupFilename;
-      let shouldExist;
-      let backupFile;
-      if (i > Math.floor(dates.length/2)) {
-        let files = bookmarksBackupDir.directoryEntries;
-        let rx = new RegExp("^" + PREFIX + dates[i] + "(_[0-9]+){0,1}" + SUFFIX + "$");
-        while (files.hasMoreElements()) {
-          let entry = files.getNext().QueryInterface(Ci.nsIFile);
-          if (entry.leafName.match(rx)) {
-            backupFilename = entry.leafName;
-            backupFile = entry;
-            break;
-          }
-        }
-        shouldExist = true;
-      }
-      else {
-        backupFilename = LOCALIZED_PREFIX + dates[i] + SUFFIX;
-        backupFile = bookmarksBackupDir.clone();
-        backupFile.append(backupFilename);
-        shouldExist = false;
-      }
-      if (backupFile.exists() != shouldExist)
-        do_throw("Backup should " + (shouldExist ? "" : "not") + " exist: " + backupFilename);
+  // Check backups.
+  for (var i = 0; i < dates.length; i++) {
+    let backupFilename;
+    let shouldExist;
+    if (i > Math.floor(dates.length/2)) {
+      backupFilename = PREFIX + dates[i] + SUFFIX;
+      shouldExist = true;
     }
-
-    // Cleanup backups folder.
-    // XXX: Can't use bookmarksBackupDir.remove(true) because file lock happens
-    // on WIN XP.
-    let files = bookmarksBackupDir.directoryEntries;
-    while (files.hasMoreElements()) {
-      let entry = files.getNext().QueryInterface(Ci.nsIFile);
-      entry.remove(false);
+    else {
+      backupFilename = LOCALIZED_PREFIX + dates[i] + SUFFIX;
+      shouldExist = false;
     }
-    do_check_false(bookmarksBackupDir.directoryEntries.hasMoreElements());
+    var backupFile = bookmarksBackupDir.clone();
+    backupFile.append(backupFilename);
+    if (backupFile.exists() != shouldExist)
+      do_throw("Backup should " + (shouldExist ? "" : "not") + " exist: " + backupFilename);
+  }
 
-    // Recreate the folder.
-    PlacesBackups.folder;
-
-    do_test_finished();
-  });
+  // Cleanup backups folder.
+  bookmarksBackupDir.remove(true);
+  do_check_false(bookmarksBackupDir.exists());
+  // Recreate the folder.
+  PlacesUtils.backups.folder;
 }

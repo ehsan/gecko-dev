@@ -30,7 +30,7 @@
 <p>blah blah blah blah</p>
 </div>
 <script class="testbody" type="text/javascript">
-info("\nProfile::EventUtilsLoadTime: " + (loadTime - start) + "\n");
+SimpleTest.info("\nProfile::EventUtilsLoadTime: " + (loadTime - start) + "\n");
 function starttest() {
   SimpleTest.waitForFocus(
     function () {
@@ -46,19 +46,17 @@ function starttest() {
       check = false;
       $("testKeyEvent").addEventListener("keypress", function() { check = true; }, false);
       $("testKeyEvent").focus();
-      sendChar("x");
+      sendChar("x", "testKeyEvent");
       is($("testKeyEvent").value, "x", "sendChar should work");
       is(check, true, "sendChar should dispatch keyPress");
       $("testKeyEvent").value = "";
     
-      $("testStrEvent").focus();
-      sendString("string");
+      sendString("string", "testStrEvent");
       is($("testStrEvent").value, "string", "sendString should work");
       $("testStrEvent").value = "";
     
       check = false;
-      $("testKeyEvent").focus();
-      sendKey("DOWN");
+      sendKey("DOWN", "testKeyEvent");
       is(check, true, "sendKey should dispatch keyPress");
     
       /* test synthesizeMouse* */
@@ -91,13 +89,13 @@ function starttest() {
       $("textBoxA").focus();
     
       /**
-       * TODO: testing synthesizeWheel requires a setTimeout 
+       * TODO: testing synthesizeMouseScroll requires a setTimeout 
        * since there is delay between the scroll event and a check, so for now just test
        * that we can successfully call it to avoid having setTimeout vary the runtime metric.
        * Testing of this method is currently done here:
        * toolkit/content/tests/chrome/test_mousescroll.xul
        */
-      synthesizeWheel($("scrollB"), 5, 5, {'deltaY': 10.0, deltaMode: WheelEvent.DOM_DELTA_LINE});
+      synthesizeMouseScroll($("scrollB"), 5, 5, {'delta': 10, 'type': "DOMMouseScroll"});
     
       /* test synthesizeKey* */
       check = false;
@@ -115,7 +113,6 @@ function starttest() {
       $("testKeyEvent").value = "";
     
       /* test synthesizeComposition */
-      $("textBoxB").focus();
       check = false;
       window.addEventListener("compositionstart", function() { check = true; }, false);
       synthesizeComposition({ type: "compositionstart" });
@@ -123,41 +120,30 @@ function starttest() {
     
       check = false;
       window.addEventListener("compositionupdate", function() { check = true; }, false);
-      synthesizeComposition({ type: "compositionupdate", data: "a" });
+      synthesizeComposition({ type: "compositionupdate" });
       is(check, true, 'synthesizeComposition() should dispatch compositionupdate');
-
-      check = false;
-      window.addEventListener("text", function() { check = true; }, false);
-      synthesizeText(
-        { "composition":
-          { "string": "a",
-            "clauses":
-            [
-              { "length": 1, "attr": COMPOSITION_ATTR_RAWINPUT }
-            ]
-          },
-          "caret": { "start": 1, "length": 0 }
-        }
-      );
-      is(check, true, "synthesizeText should dispatch text event");
-
-      synthesizeText(
-        { "composition":
-          { "string": "a",
-            "clauses":
-            [
-              { "length": 0, "attr": 0 }
-            ]
-          },
-          "caret": { "start": 1, "length": 0 }
-        }
-      );
-
+    
       check = false;
       window.addEventListener("compositionend", function() { check = true; }, false);
-      synthesizeComposition({ type: "compositionend", data: "a" });
+      synthesizeComposition({ type: "compositionend" });
       is(check, true, 'synthesizeComposition() should dispatch compositionend');
-
+      check = false;
+    
+      $("textBoxB").focus();
+      const nsIDOMWindowUtils = Components.interfaces.nsIDOMWindowUtils;
+      synthesizeText(
+        { "composition":
+          { "string": "a",
+            "clauses":
+            [
+              { "length": 1, "attr": nsIDOMWindowUtils.COMPOSITION_ATTR_RAWINPUT }
+            ]
+          },
+          "caret": { "start": 1, "length": 0 }
+        }
+      );
+      is(check, false, "synthesizeText shouldn't start or end composition");
+      is($("textBoxB").value, "a", "synthesizeText should send text");
       var querySelectedText = synthesizeQuerySelectedText();
       ok(querySelectedText, "query selected text event result is null");
       netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect'); //get permission to check members of querySelectedText
@@ -176,7 +162,7 @@ function starttest() {
       is(querySelectedText.text, "",
          "query selected text event returns wrong selected text");
       var endTime = new Date();
-      info("\nProfile::EventUtilsRunTime: " + (endTime-startTime) + "\n");
+      SimpleTest.info("\nProfile::EventUtilsRunTime: " + (endTime-startTime) + "\n");
       SimpleTest.finish();
     }
   );

@@ -19,15 +19,17 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=596333
 <script type="application/javascript">
 
 /** Test for Bug 596333 **/
-const Ci = SpecialPowers.Ci;
 
 SimpleTest.waitForExplicitFinish();
-addLoadEvent(runTest);
+addLoadEvent(function() SimpleTest.executeSoon(runTest));
 
 var gMisspeltWords;
 
 function getEditor() {
-  return SpecialPowers.wrap(document.getElementById("edit")).editor;
+  var Ci = Components.interfaces;
+  return document.getElementById("edit")
+                 .QueryInterface(Ci.nsIDOMNSEditableElement)
+                 .editor;
 }
 
 function getSpellCheckSelection() {
@@ -49,19 +51,12 @@ function append(str) {
   }
 }
 
-function getLoadContext() {
-  return window.QueryInterface(Ci.nsIInterfaceRequestor)
-               .getInterface(Ci.nsIWebNavigation)
-               .QueryInterface(Ci.nsILoadContext);
-}
-
 function paste(str) {
   netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
 
   var edit = document.getElementById("edit");
   var Cc = Components.classes, Ci = Components.interfaces;
   var trans = Cc["@mozilla.org/widget/transferable;1"].createInstance(Ci.nsITransferable);
-  trans.init(getLoadContext());
   var s = Cc["@mozilla.org/supports-string;1"].createInstance(Ci.nsISupportsString);
   s.data = str;
   trans.setTransferData("text/unicode", s, str.length * 2);
@@ -69,13 +64,13 @@ function paste(str) {
   getEditor().pasteTransferable(trans);
 }
 
-function runOnFocus() {
-  var edit = document.getElementById("edit");
-
+function runTest() {
   gMisspeltWords = ["haz", "cheezburger"];
   is(isSpellingCheckOk(), true, "All misspellings before editing are accounted for.");
+
+  var edit = document.getElementById("edit");
   append(" becaz I'm a lolcat!");
-  onSpellCheck(edit, function () {
+  SimpleTest.executeSoon(function() {
     gMisspeltWords.push("becaz");
     gMisspeltWords.push("lolcat");
     is(isSpellingCheckOk(), true, "All misspellings after typing are accounted for.");
@@ -84,7 +79,7 @@ function runOnFocus() {
     // the textarea and see if the spell check after the blur event catches it.
     append(" workd");
     edit.blur();
-    onSpellCheck(edit, function () {
+    SimpleTest.executeSoon(function() {
       gMisspeltWords.push("workd");
       is(isSpellingCheckOk(), true, "All misspellings after blur are accounted for.");
 
@@ -92,7 +87,7 @@ function runOnFocus() {
       gMisspeltWords = ["workd"];
       edit.value = "";
       append("workd ");
-      onSpellCheck(edit, function () {
+      SimpleTest.executeSoon(function() {
         is(isSpellingCheckOk(), true, "Misspelling in the first entered word is accounted for.");
 
         // Make sure that pasting would also trigger spell checking for the previous word
@@ -100,7 +95,7 @@ function runOnFocus() {
         edit.value = "";
         append("workd");
         paste("           x");
-        onSpellCheck(edit, function () {
+        SimpleTest.executeSoon(function() {
           is(isSpellingCheckOk(), true, "Misspelling is accounted for after pasting.");
 
           SimpleTest.finish();
@@ -108,15 +103,6 @@ function runOnFocus() {
       });
     });
   });
-}
-
-function runTest()
-{
-  var edit = document.getElementById("edit");
-  edit.focus();
-
-  SpecialPowers.Cu.import("resource://gre/modules/AsyncSpellCheckTestHelper.jsm", window);
-  onSpellCheck(edit, runOnFocus);
 }
 
 function isSpellingCheckOk() {

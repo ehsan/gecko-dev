@@ -1,29 +1,47 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Dave Townsend <dtownsend@oxymoronical.com>.
+ *
+ * Portions created by the Initial Developer are Copyright (C) 2008
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL
+ *
+ * ***** END LICENSE BLOCK *****
  */
-
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
 const URI_EXTENSION_BLOCKLIST_DIALOG = "chrome://mozapps/content/extensions/blocklist.xul";
-
-Cu.import("resource://testing-common/httpd.js");
-var gTestserver = new HttpServer();
-gTestserver.start(-1);
-gPort = gTestserver.identity.primaryPort;
-
-// register static files with server and interpolate port numbers in them
-mapFile("/data/bug455906_warn.xml", gTestserver);
-mapFile("/data/bug455906_start.xml", gTestserver);
-mapFile("/data/bug455906_block.xml", gTestserver);
-mapFile("/data/bug455906_empty.xml", gTestserver);
 
 // Workaround for Bug 658720 - URL formatter can leak during xpcshell tests
 const PREF_BLOCKLIST_ITEM_URL = "extensions.blocklist.itemURL";
-Services.prefs.setCharPref(PREF_BLOCKLIST_ITEM_URL, "http://localhost:" + gPort + "/blocklist/%blockID%");
+Services.prefs.setCharPref(PREF_BLOCKLIST_ITEM_URL, "http://localhost:4444/blocklist/%blockID%");
+
+do_load_httpd_js();
 
 var ADDONS = [{
   // Tests how the blocklist affects a disabled add-on
@@ -81,40 +99,47 @@ var ADDONS = [{
   appVersion: "3"
 }];
 
-function MockPlugin(name, version, enabledState) {
-  this.name = name;
-  this.version = version;
-  this.enabledState = enabledState;
-}
-Object.defineProperty(MockPlugin.prototype, "blocklisted", {
-  get: function MockPlugin_getBlocklisted() {
-    let bls = Cc["@mozilla.org/extensions/blocklist;1"].getService(Ci.nsIBlocklistService);
-    return bls.getPluginBlocklistState(this) == bls.STATE_BLOCKED;
-  }
-});
-Object.defineProperty(MockPlugin.prototype, "disabled", {
-  get: function MockPlugin_getDisabled() {
-    return this.enabledState == Ci.nsIPluginTag.STATE_DISABLED;
-  }
-});
-
-var PLUGINS = [
+var PLUGINS = [{
   // Tests how the blocklist affects a disabled plugin
-  new MockPlugin("test_bug455906_1", "5", Ci.nsIPluginTag.STATE_DISABLED),
+  name: "test_bug455906_1",
+  version: "5",
+  disabled: true,
+  blocklisted: false
+}, {
   // Tests how the blocklist affects an enabled plugin
-  new MockPlugin("test_bug455906_2", "5", Ci.nsIPluginTag.STATE_ENABLED),
+  name: "test_bug455906_2",
+  version: "5",
+  disabled: false,
+  blocklisted: false
+}, {
   // Tests how the blocklist affects an enabled plugin, to be disabled by the notification
-  new MockPlugin("test_bug455906_3", "5", Ci.nsIPluginTag.STATE_ENABLED),
+  name: "test_bug455906_3",
+  version: "5",
+  disabled: false,
+  blocklisted: false
+}, {
   // Tests how the blocklist affects a disabled plugin that was already warned about
-  new MockPlugin("test_bug455906_4", "5", Ci.nsIPluginTag.STATE_DISABLED),
+  name: "test_bug455906_4",
+  version: "5",
+  disabled: true,
+  blocklisted: false
+}, {
   // Tests how the blocklist affects an enabled plugin that was already warned about
-  new MockPlugin("test_bug455906_5", "5", Ci.nsIPluginTag.STATE_ENABLED),
+  name: "test_bug455906_5",
+  version: "5",
+  disabled: false,
+  blocklisted: false
+}, {
   // Tests how the blocklist affects an already blocked plugin
-  new MockPlugin("test_bug455906_6", "5", Ci.nsIPluginTag.STATE_ENABLED)
-];
+  name: "test_bug455906_6",
+  version: "5",
+  disabled: false,
+  blocklisted: true
+}];
 
 var gNotificationCheck = null;
 var gTestCheck = null;
+var gTestserver = null;
 
 // A fake plugin host for the blocklist service to use
 var PluginHost = {
@@ -214,7 +239,7 @@ function create_addon(addon) {
 }
 
 function load_blocklist(file) {
-  Services.prefs.setCharPref("extensions.blocklist.url", "http://localhost:" + gPort + "/data/" + file);
+  Services.prefs.setCharPref("extensions.blocklist.url", "http://localhost:4444/data/" + file);
   var blocklist = Cc["@mozilla.org/extensions/blocklist;1"].
                   getService(Ci.nsITimerCallback);
   blocklist.notify(null);
@@ -240,8 +265,8 @@ function run_test() {
   dump("Setting up tests\n");
   // Rather than keeping lots of identical add-ons in version control, just
   // write them into the profile.
-  for (let addon of ADDONS)
-    create_addon(addon);
+  for (var i = 0; i < ADDONS.length; i++)
+    create_addon(ADDONS[i]);
 
   // Copy the initial blocklist into the profile to check add-ons start in the
   // right state.
@@ -254,6 +279,10 @@ function run_test() {
 
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "3", "8");
   startupManager();
+
+  gTestserver = new nsHttpServer();
+  gTestserver.registerDirectory("/data/", do_get_file("data"));
+  gTestserver.start(4444);
 
   do_test_pending();
   check_test_pt1();
@@ -323,7 +352,8 @@ function check_notification_pt2(args) {
   dump("Checking notification pt 2\n");
   do_check_eq(args.list.length, 4);
 
-  for (let addon of args.list) {
+  for (let i = 0; i < args.list.length; i++) {
+    let addon = args.list[i];
     if (addon.item instanceof Ci.nsIPluginTag) {
       switch (addon.item.name) {
         case "test_bug455906_2":
@@ -380,8 +410,8 @@ function check_test_pt2() {
     // Back to starting state
     addons[2].userDisabled = false;
     addons[5].userDisabled = false;
-    PLUGINS[2].enabledState = Ci.nsIPluginTag.STATE_ENABLED;
-    PLUGINS[5].enabledState = Ci.nsIPluginTag.STATE_ENABLED;
+    PLUGINS[2].disabled = false;
+    PLUGINS[5].disabled = false;
     restartManager();
     gNotificationCheck = null;
     gTestCheck = run_test_pt3;
@@ -402,7 +432,8 @@ function check_notification_pt3(args) {
   dump("Checking notification pt 3\n");
   do_check_eq(args.list.length, 6);
 
-  for (let addon of args.list) {
+  for (let i = 0; i < args.list.length; i++) {
+    let addon = args.list[i];
     if (addon.item instanceof Ci.nsIPluginTag) {
       switch (addon.item.name) {
         case "test_bug455906_2":
@@ -487,7 +518,7 @@ function check_test_pt3() {
 function run_test_pt4() {
   AddonManager.getAddonByID(ADDONS[4].id, function(addon) {
     addon.userDisabled = false;
-    PLUGINS[4].enabledState = Ci.nsIPluginTag.STATE_ENABLED;
+    PLUGINS[4].disabled = false;
     restartManager();
     check_initial_state(function() {
       gNotificationCheck = check_notification_pt4;

@@ -1,20 +1,13 @@
-/* Any copyright is dedicated to the Public Domain.
-   http://creativecommons.org/publicdomain/zero/1.0/ */
-
-Cu.import("resource://gre/modules/PlacesUtils.jsm");
-Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/engines/bookmarks.js");
+Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/engines.js");
-Cu.import("resource://services-sync/service.js");
 Cu.import("resource://services-sync/util.js");
+Cu.import("resource://gre/modules/PlacesUtils.jsm");
 
-Service.engineManager.register(BookmarksEngine);
-let engine = Service.engineManager.get("bookmarks");
+Engines.register(BookmarksEngine);
+let engine = Engines.get("bookmarks");
 let store  = engine._store;
-let tracker = engine._tracker;
-
 store.wipe();
-tracker.persistChangedIDs = false;
 
 function test_tracking() {
   _("Verify we've got an empty tracker to work with.");

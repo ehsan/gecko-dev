@@ -225,9 +225,23 @@ void MessagePumpCFRunLoopBase::ScheduleWork() {
 
 // Must be called on the run loop thread.
 void MessagePumpCFRunLoopBase::ScheduleDelayedWork(
-    const TimeTicks& delayed_work_time) {
-  TimeDelta delta = delayed_work_time - TimeTicks::Now();
-  delayed_work_fire_time_ = CFAbsoluteTimeGetCurrent() + delta.InSecondsF();
+    const Time& delayed_work_time) {
+  Time::Exploded exploded;
+  delayed_work_time.UTCExplode(&exploded);
+  double seconds = exploded.second +
+                   (static_cast<double>((delayed_work_time.ToInternalValue()) %
+                                        Time::kMicrosecondsPerSecond) /
+                    Time::kMicrosecondsPerSecond);
+  CFGregorianDate gregorian = {
+    exploded.year,
+    exploded.month,
+    exploded.day_of_month,
+    exploded.hour,
+    exploded.minute,
+    seconds
+  };
+  delayed_work_fire_time_ = CFGregorianDateGetAbsoluteTime(gregorian, NULL);
+
   CFRunLoopTimerSetNextFireDate(delayed_work_timer_, delayed_work_fire_time_);
 }
 
@@ -306,12 +320,12 @@ bool MessagePumpCFRunLoopBase::RunDelayedWork() {
   // released promptly even in the absence of UI events.
   MessagePumpScopedAutoreleasePool autorelease_pool(this);
 
-  TimeTicks next_time;
+  Time next_time;
   delegate_->DoDelayedWork(&next_time);
 
   bool more_work = !next_time.is_null();
   if (more_work) {
-    TimeDelta delay = next_time - TimeTicks::Now();
+    TimeDelta delay = next_time - Time::Now();
     if (delay > TimeDelta()) {
       // There's more delayed work to be done in the future.
       ScheduleDelayedWork(next_time);

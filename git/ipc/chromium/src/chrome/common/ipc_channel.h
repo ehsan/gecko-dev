@@ -5,7 +5,6 @@
 #ifndef CHROME_COMMON_IPC_CHANNEL_H_
 #define CHROME_COMMON_IPC_CHANNEL_H_
 
-#include <queue>
 #include "chrome/common/ipc_message.h"
 
 namespace IPC {
@@ -27,15 +26,11 @@ class Channel : public Message::Sender {
 
     // Called when the channel is connected and we have received the internal
     // Hello message from the peer.
-    virtual void OnChannelConnected(int32_t peer_pid) {}
+    virtual void OnChannelConnected(int32 peer_pid) {}
 
     // Called when an error is detected that causes the channel to close.
     // This method is not called when a channel is closed normally.
     virtual void OnChannelError() {}
-
-    // If the listener has queued messages, swap them for |queue| like so
-    //   swap(impl->my_queued_messages, queue);
-    virtual void GetQueuedMessages(std::queue<Message>& queue) {}
   };
 
   enum Mode {
@@ -96,15 +91,11 @@ class Channel : public Message::Sender {
   // |message| must be allocated using operator new.  This object will be
   // deleted once the contents of the Message have been sent.
   //
-  // If you Send() a message on a Close()'d channel, we delete the message
-  // immediately.
+  //  FIXME bug 551500: the channel does not notice failures, so if the
+  //    renderer crashes, it will silently succeed, leaking the parameter.
+  //    At least the leak will be fixed by...
+  //
   virtual bool Send(Message* message);
-
-  // Unsound_IsClosed() and Unsound_NumQueuedMessages() are safe to call from
-  // any thread, but the value returned may be out of date, because we don't
-  // use any synchronization when reading or writing it.
-  bool Unsound_IsClosed() const;
-  uint32_t Unsound_NumQueuedMessages() const;
 
 #if defined(OS_POSIX)
   // On POSIX an IPC::Channel wraps a socketpair(), this method returns the
@@ -119,10 +110,6 @@ class Channel : public Message::Sender {
 
   // Return the server side of the socketpair.
   int GetServerFileDescriptor() const;
-
-  // Close the client side of the socketpair.
-  void CloseClientFileDescriptor();
-
 #elif defined(OS_WIN)
   // Return the server pipe handle.
   void* GetServerPipeHandle() const;
@@ -133,22 +120,12 @@ class Channel : public Message::Sender {
   class ChannelImpl;
   ChannelImpl *channel_impl_;
 
+  // The Hello message is internal to the Channel class.  It is sent
+  // by the peer when the channel is connected.  The message contains
+  // just the process id (pid).  The message has a special routing_id
+  // (MSG_ROUTING_NONE) and type (HELLO_MESSAGE_TYPE).
   enum {
-#if defined(OS_MACOSX)
-    // If the channel receives a message that contains file descriptors, then
-    // it will reply back with this message, indicating that the message has
-    // been received. The sending channel can then close any descriptors that
-    // had been marked as auto_close. This works around a sendmsg() bug on BSD
-    // where the kernel can eagerly close file descriptors that are in message
-    // queues but not yet delivered.
-    RECEIVED_FDS_MESSAGE_TYPE = kuint16max - 1,
-#endif
-
-    // The Hello message is internal to the Channel class.  It is sent
-    // by the peer when the channel is connected.  The message contains
-    // just the process id (pid).  The message has a special routing_id
-    // (MSG_ROUTING_NONE) and type (HELLO_MESSAGE_TYPE).
-    HELLO_MESSAGE_TYPE = kuint16max  // Maximum value of message type (uint16_t),
+    HELLO_MESSAGE_TYPE = kuint16max  // Maximum value of message type (uint16),
                                      // to avoid conflicting with normal
                                      // message types, which are enumeration
                                      // constants starting from 0.

@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * rendering object for the point that anchors out-of-flow rendering
@@ -34,7 +66,6 @@
 #ifndef nsPlaceholderFrame_h___
 #define nsPlaceholderFrame_h___
 
-#include "mozilla/Attributes.h"
 #include "nsFrame.h"
 #include "nsGkAtoms.h"
 
@@ -55,9 +86,9 @@ nsIFrame* NS_NewPlaceholderFrame(nsIPresShell* aPresShell,
 
 /**
  * Implementation of a frame that's used as a placeholder for a frame that
- * has been moved out of the flow.
+ * has been moved out of the flow
  */
-class nsPlaceholderFrame MOZ_FINAL : public nsFrame {
+class nsPlaceholderFrame : public nsFrame {
 public:
   NS_DECL_FRAMEARENA_HELPERS
 
@@ -68,8 +99,8 @@ public:
   friend nsIFrame* NS_NewPlaceholderFrame(nsIPresShell* aPresShell,
                                           nsStyleContext* aContext,
                                           nsFrameState aTypeBit);
-  nsPlaceholderFrame(nsStyleContext* aContext, nsFrameState aTypeBit)
-    : nsFrame(aContext)
+  nsPlaceholderFrame(nsStyleContext* aContext, nsFrameState aTypeBit) :
+    nsFrame(aContext)
   {
     NS_PRECONDITION(aTypeBit == PLACEHOLDER_FOR_FLOAT ||
                     aTypeBit == PLACEHOLDER_FOR_ABSPOS ||
@@ -78,42 +109,44 @@ public:
                     "Unexpected type bit");
     AddStateBits(aTypeBit);
   }
+  virtual ~nsPlaceholderFrame();
 
   // Get/Set the associated out of flow frame
-  nsIFrame*  GetOutOfFlowFrame() const { return mOutOfFlowFrame; }
+  nsIFrame*  GetOutOfFlowFrame() const {return mOutOfFlowFrame;}
   void       SetOutOfFlowFrame(nsIFrame* aFrame) {
                NS_ASSERTION(!aFrame || !aFrame->GetPrevContinuation(),
                             "OOF must be first continuation");
                mOutOfFlowFrame = aFrame;
              }
 
-  // nsIFrame overrides
-  // We need to override GetMinSize and GetPrefSize because XUL uses
+  // nsIHTMLReflow overrides
+  // We need to override GetMinWidth and GetPrefWidth because XUL uses
   // placeholders not within lines.
-  virtual void AddInlineMinWidth(nsRenderingContext* aRenderingContext,
-                                 InlineMinWidthData* aData) MOZ_OVERRIDE;
-  virtual void AddInlinePrefWidth(nsRenderingContext* aRenderingContext,
-                                  InlinePrefWidthData* aData) MOZ_OVERRIDE;
-  virtual nsSize GetMinSize(nsBoxLayoutState& aBoxLayoutState) MOZ_OVERRIDE;
-  virtual nsSize GetPrefSize(nsBoxLayoutState& aBoxLayoutState) MOZ_OVERRIDE;
-  virtual nsSize GetMaxSize(nsBoxLayoutState& aBoxLayoutState) MOZ_OVERRIDE;
-
+  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
+  virtual void AddInlineMinWidth(nsRenderingContext *aRenderingContext,
+                                 InlineMinWidthData *aData);
+  virtual void AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
+                                  InlinePrefWidthData *aData);
+  virtual nsSize GetMinSize(nsBoxLayoutState& aBoxLayoutState);
+  virtual nsSize GetPrefSize(nsBoxLayoutState& aBoxLayoutState);
+  virtual nsSize GetMaxSize(nsBoxLayoutState& aBoxLayoutState);
   NS_IMETHOD Reflow(nsPresContext* aPresContext,
                     nsHTMLReflowMetrics& aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
-                    nsReflowStatus& aStatus) MOZ_OVERRIDE;
+                    nsReflowStatus& aStatus);
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
+  // nsIFrame overrides
 #if defined(DEBUG) || (defined(MOZ_REFLOW_PERF_DSP) && defined(MOZ_REFLOW_PERF))
-  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                              const nsRect&           aDirtyRect,
+                              const nsDisplayListSet& aLists);
 #endif // DEBUG || (MOZ_REFLOW_PERF_DSP && MOZ_REFLOW_PERF)
   
 #ifdef DEBUG
-  void List(FILE* out, int32_t aIndent, uint32_t aFlags = 0) const MOZ_OVERRIDE;
-  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+  NS_IMETHOD List(FILE* out, PRInt32 aIndent) const;
 #endif // DEBUG
 
   /**
@@ -121,23 +154,27 @@ public:
    *
    * @see nsGkAtoms::placeholderFrame
    */
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const;
 
-  virtual bool IsEmpty() MOZ_OVERRIDE { return true; }
-  virtual bool IsSelfEmpty() MOZ_OVERRIDE { return true; }
+#ifdef DEBUG
+  NS_IMETHOD GetFrameName(nsAString& aResult) const;
+#endif
 
-  virtual bool CanContinueTextRun() const MOZ_OVERRIDE;
+  virtual PRBool IsEmpty() { return PR_TRUE; }
+  virtual PRBool IsSelfEmpty() { return PR_TRUE; }
+
+  virtual PRBool CanContinueTextRun() const;
 
 #ifdef ACCESSIBILITY
-  virtual mozilla::a11y::AccType AccessibleType() MOZ_OVERRIDE
+  virtual already_AddRefed<nsAccessible> CreateAccessible()
   {
     nsIFrame* realFrame = GetRealFrameForPlaceholder(this);
-    return realFrame ? realFrame->AccessibleType() :
-                       nsFrame::AccessibleType();
+    return realFrame ? realFrame->CreateAccessible() :
+                       nsFrame::CreateAccessible();
   }
 #endif
 
-  virtual nsIFrame* GetParentStyleContextFrame() const MOZ_OVERRIDE;
+  virtual nsIFrame* GetParentStyleContextFrame();
 
   /**
    * @return the out-of-flow for aFrame if aFrame is a placeholder; otherwise

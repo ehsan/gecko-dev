@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Corporation code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Bas Schouten <bschouten@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef MOZILLA_GFX_POINT_H_
 #define MOZILLA_GFX_POINT_H_
@@ -13,105 +45,35 @@
 namespace mozilla {
 namespace gfx {
 
-// This should only be used by the typedefs below.
-struct UnknownUnits {};
-
-template<class units>
-struct IntPointTyped :
-  public BasePoint< int32_t, IntPointTyped<units> >,
-  public units {
-  typedef BasePoint< int32_t, IntPointTyped<units> > Super;
-
-  IntPointTyped() : Super() {}
-  IntPointTyped(int32_t aX, int32_t aY) : Super(aX, aY) {}
-
-  // XXX When all of the code is ported, the following functions to convert to and from
-  // unknown types should be removed.
-
-  static IntPointTyped<units> FromUnknownPoint(const IntPointTyped<UnknownUnits>& aPoint) {
-    return IntPointTyped<units>(aPoint.x, aPoint.y);
-  }
-
-  IntPointTyped<UnknownUnits> ToUnknownPoint() const {
-    return IntPointTyped<UnknownUnits>(this->x, this->y);
-  }
+struct Point :
+  public BasePoint<Float, Point> {
+  typedef BasePoint<Float, Point> Super;
+  Point() : Super() {}
+  Point(Float aX, Float aY) : Super(aX, aY) {}
 };
-typedef IntPointTyped<UnknownUnits> IntPoint;
 
-template<class units>
-struct PointTyped :
-  public BasePoint< Float, PointTyped<units> >,
-  public units {
-  typedef BasePoint< Float, PointTyped<units> > Super;
-
-  PointTyped() : Super() {}
-  PointTyped(Float aX, Float aY) : Super(aX, aY) {}
-  PointTyped(const IntPointTyped<units>& point) : Super(float(point.x), float(point.y)) {}
-
-  // XXX When all of the code is ported, the following functions to convert to and from
-  // unknown types should be removed.
-
-  static PointTyped<units> FromUnknownPoint(const PointTyped<UnknownUnits>& aPoint) {
-    return PointTyped<units>(aPoint.x, aPoint.y);
-  }
-
-  PointTyped<UnknownUnits> ToUnknownPoint() const {
-    return PointTyped<UnknownUnits>(this->x, this->y);
-  }
+struct IntPoint :
+  public BasePoint<int32_t, Point> {
+  typedef BasePoint<int32_t, Point> Super;
+  IntPoint() : Super() {}
+  IntPoint(int32_t aX, int32_t aY) : Super(aX, aY) {}
 };
-typedef PointTyped<UnknownUnits> Point;
 
-template<class units>
-IntPointTyped<units> RoundedToInt(const PointTyped<units>& aPoint) {
-  return IntPointTyped<units>(NS_lround(aPoint.x),
-                              NS_lround(aPoint.y));
-}
+struct Size :
+  public BaseSize<Float, Size> {
+  typedef BaseSize<Float, Size> Super;
 
-template<class units>
-struct IntSizeTyped :
-  public BaseSize< int32_t, IntSizeTyped<units> >,
-  public units {
-  typedef BaseSize< int32_t, IntSizeTyped<units> > Super;
-
-  IntSizeTyped() : Super() {}
-  IntSizeTyped(int32_t aWidth, int32_t aHeight) : Super(aWidth, aHeight) {}
-
-  // XXX When all of the code is ported, the following functions to convert to and from
-  // unknown types should be removed.
-
-  static IntSizeTyped<units> FromUnknownSize(const IntSizeTyped<UnknownUnits>& aSize) {
-    return IntSizeTyped<units>(aSize.width, aSize.height);
-  }
-
-  IntSizeTyped<UnknownUnits> ToUnknownSize() const {
-    return IntSizeTyped<UnknownUnits>(this->width, this->height);
-  }
+  Size() : Super() {}
+  Size(Float aWidth, Float aHeight) : Super(aWidth, aHeight) {}
 };
-typedef IntSizeTyped<UnknownUnits> IntSize;
 
-template<class units>
-struct SizeTyped :
-  public BaseSize< Float, SizeTyped<units> >,
-  public units {
-  typedef BaseSize< Float, SizeTyped<units> > Super;
+struct IntSize :
+  public BaseSize<int32_t, IntSize> {
+  typedef BaseSize<int32_t, IntSize> Super;
 
-  SizeTyped() : Super() {}
-  SizeTyped(Float aWidth, Float aHeight) : Super(aWidth, aHeight) {}
-  explicit SizeTyped(const IntSizeTyped<units>& size) :
-    Super(float(size.width), float(size.height)) {}
-
-  // XXX When all of the code is ported, the following functions to convert to and from
-  // unknown types should be removed.
-
-  static SizeTyped<units> FromUnknownSize(const SizeTyped<UnknownUnits>& aSize) {
-    return SizeTyped<units>(aSize.width, aSize.height);
-  }
-
-  SizeTyped<UnknownUnits> ToUnknownSize() const {
-    return SizeTyped<UnknownUnits>(this->width, this->height);
-  }
+  IntSize() : Super() {}
+  IntSize(int32_t aWidth, int32_t aHeight) : Super(aWidth, aHeight) {}
 };
-typedef SizeTyped<UnknownUnits> Size;
 
 }
 }

@@ -27,7 +27,7 @@ function printpreview() {
   gWbp = window.frames[1].QueryInterface(Components.interfaces.nsIInterfaceRequestor)
              .getInterface(Components.interfaces.nsIWebBrowserPrint);
   var listener = {
-    onLocationChange: function(webProgress, request, location, flags) { },
+    onLocationChange: function(webProgress, request, location) { },
     onProgressChange: function(webProgress, request, curSelfProgress, 
                                maxSelfProgress, curTotalProgress,
                                maxTotalProgress) { },
@@ -244,23 +244,6 @@ function runTest5() {
     '<input contenteditable="true" style="display: table; page-break-before: left; width: 10000px;">';
   printpreview();
   exitprintpreview();
-
-  setTimeout(runTest6, 0);
-}
-
-// Crash test for bug 878037
-function runTest6() {
-  window.frames[0].document.body.innerHTML =
-    '<style> li { list-style-image: url("animated.gif"); } </style>' +
-    '<li>Firefox will crash if you try and print this page</li>';
-
-  setTimeout(runTest6end, 500);
-}
-
-function runTest6end() {
-  printpreview();
-  exitprintpreview();
-
   finish();
 }
 

@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Jean-Francois Ducarroz <ducarroz@netscape.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
  
 #include "nsAppleFileDecoder.h"
 #include "prmem.h"
@@ -16,11 +49,11 @@ nsAppleFileDecoder::nsAppleFileDecoder()
   m_state = parseHeaders;
   m_dataBufferLength = 0;
   m_dataBuffer = (unsigned char*) PR_MALLOC(MAX_BUFFERSIZE);
-  m_entries = nullptr;
+  m_entries = nsnull;
   m_rfRefNum = -1;
   m_totalDataForkWritten = 0;
   m_totalResourceForkWritten = 0;
-  m_headerOk = false;
+  m_headerOk = PR_FALSE;
   
   m_comment[0] = 0;
   memset(&m_dates, 0, sizeof(m_dates));
@@ -43,9 +76,9 @@ NS_IMETHODIMP nsAppleFileDecoder::Initialize(nsIOutputStream *outputStream, nsIF
   m_output = outputStream;
   
   nsCOMPtr<nsILocalFileMac> macFile = do_QueryInterface(outputFile);
-  bool saveFollowLinks;
+  PRBool saveFollowLinks;
   macFile->GetFollowLinks(&saveFollowLinks);
-  macFile->SetFollowLinks(true);
+  macFile->SetFollowLinks(PR_TRUE);
   macFile->GetFSSpec(&m_fsFileSpec);
   macFile->SetFollowLinks(saveFollowLinks);
 
@@ -60,7 +93,7 @@ NS_IMETHODIMP nsAppleFileDecoder::Close(void)
   nsresult rv;
   rv = m_output->Close();
 
-  int32_t i;
+  PRInt32 i;
 
   if (m_rfRefNum != -1)
     FSClose(m_rfRefNum);
@@ -68,22 +101,22 @@ NS_IMETHODIMP nsAppleFileDecoder::Close(void)
   /* Check if the file is complete and if it's the case, write file attributes */
   if (m_headerOk)
   {
-    bool dataOk = true; /* It's ok if the file doesn't have a datafork, therefore set it to true by default. */
+    PRBool dataOk = PR_TRUE; /* It's ok if the file doesn't have a datafork, therefore set it to true by default. */
     if (m_headers.magic == APPLESINGLE_MAGIC)
     {
       for (i = 0; i < m_headers.entriesCount; i ++)
         if (ENT_DFORK == m_entries[i].id)
         {
-          dataOk = (bool)(m_totalDataForkWritten == m_entries[i].length);
+          dataOk = (PRBool)(m_totalDataForkWritten == m_entries[i].length);
           break;
         }
     }
 
-    bool resourceOk = FALSE;
+    PRBool resourceOk = FALSE;
     for (i = 0; i < m_headers.entriesCount; i ++)
       if (ENT_RFORK == m_entries[i].id)
       {
-        resourceOk = (bool)(m_totalResourceForkWritten == m_entries[i].length);
+        resourceOk = (PRBool)(m_totalResourceForkWritten == m_entries[i].length);
         break;
       }
       
@@ -140,7 +173,7 @@ NS_IMETHODIMP nsAppleFileDecoder::Close(void)
   }
   
   /* setting m_headerOk to false will prevent us to reprocess the header in case the Close function is called several time*/
-  m_headerOk = false;
+  m_headerOk = PR_FALSE;
 
   return rv;
 }
@@ -150,29 +183,29 @@ NS_IMETHODIMP nsAppleFileDecoder::Flush(void)
   return m_output->Flush();
 } 
 
-NS_IMETHODIMP nsAppleFileDecoder::WriteFrom(nsIInputStream *inStr, uint32_t count, uint32_t *_retval)
+NS_IMETHODIMP nsAppleFileDecoder::WriteFrom(nsIInputStream *inStr, PRUint32 count, PRUint32 *_retval)
 {
   return m_output->WriteFrom(inStr, count, _retval);
 }
 
-NS_IMETHODIMP nsAppleFileDecoder::WriteSegments(nsReadSegmentFun reader, void * closure, uint32_t count, uint32_t *_retval)
+NS_IMETHODIMP nsAppleFileDecoder::WriteSegments(nsReadSegmentFun reader, void * closure, PRUint32 count, PRUint32 *_retval)
 {
   return m_output->WriteSegments(reader, closure, count, _retval);
 }
 
-NS_IMETHODIMP nsAppleFileDecoder::IsNonBlocking(bool *aNonBlocking)
+NS_IMETHODIMP nsAppleFileDecoder::IsNonBlocking(PRBool *aNonBlocking)
 {
   return m_output->IsNonBlocking(aNonBlocking);
 }
 
-NS_IMETHODIMP nsAppleFileDecoder::Write(const char *buffer, uint32_t bufferSize, uint32_t* writeCount)
+NS_IMETHODIMP nsAppleFileDecoder::Write(const char *buffer, PRUint32 bufferSize, PRUint32* writeCount)
 {
   /* WARNING: to simplify my life, I presume that I should get all appledouble headers in the first block,
               else I would have to implement a buffer */
 
   const char * buffPtr = buffer;
-  uint32_t dataCount;
-  int32_t i;
+  PRUint32 dataCount;
+  PRInt32 i;
   nsresult rv = NS_OK;
 
   *writeCount = 0;
@@ -191,11 +224,11 @@ NS_IMETHODIMP nsAppleFileDecoder::Write(const char *buffer, uint32_t bufferSize,
         if (m_dataBufferLength == sizeof(ap_header))
         {
           memcpy(&m_headers, m_dataBuffer, sizeof(ap_header));
-          m_headers.magic   = (int32_t)PR_ntohl((uint32_t)m_headers.magic);
-          m_headers.version = (int32_t)PR_ntohl((uint32_t)m_headers.version);
+          m_headers.magic   = (PRInt32)PR_ntohl((PRUint32)m_headers.magic);
+          m_headers.version = (PRInt32)PR_ntohl((PRUint32)m_headers.version);
           // m_headers.fill is required to be all zeroes; no endian issues
           m_headers.entriesCount =
-            (int16_t)PR_ntohs((uint16_t)m_headers.entriesCount);
+            (PRInt16)PR_ntohs((PRUint16)m_headers.entriesCount);
 
           /* Check header to be sure we are dealing with the right kind of data, else just write it to the data fork. */
           if ((m_headers.magic == APPLEDOUBLE_MAGIC || m_headers.magic == APPLESINGLE_MAGIC) && 
@@ -225,7 +258,7 @@ NS_IMETHODIMP nsAppleFileDecoder::Write(const char *buffer, uint32_t bufferSize,
           if (!m_entries)
             return NS_ERROR_OUT_OF_MEMORY;
         }
-        uint32_t entriesSize = sizeof(ap_entry) * m_headers.entriesCount;
+        PRUint32 entriesSize = sizeof(ap_entry) * m_headers.entriesCount;
         dataCount = entriesSize - m_dataBufferLength;
         if (dataCount > bufferSize)
           dataCount = bufferSize;
@@ -237,19 +270,19 @@ NS_IMETHODIMP nsAppleFileDecoder::Write(const char *buffer, uint32_t bufferSize,
           for (i = 0; i < m_headers.entriesCount; i ++)
           {
             memcpy(&m_entries[i], &m_dataBuffer[i * sizeof(ap_entry)], sizeof(ap_entry));
-            m_entries[i].id     = (int32_t)PR_ntohl((uint32_t)m_entries[i].id);
+            m_entries[i].id     = (PRInt32)PR_ntohl((PRUint32)m_entries[i].id);
             m_entries[i].offset =
-              (int32_t)PR_ntohl((uint32_t)m_entries[i].offset);
+              (PRInt32)PR_ntohl((PRUint32)m_entries[i].offset);
             m_entries[i].length =
-              (int32_t)PR_ntohl((uint32_t)m_entries[i].length);
+              (PRInt32)PR_ntohl((PRUint32)m_entries[i].length);
             if (m_headers.magic == APPLEDOUBLE_MAGIC)
             {
-              uint32_t offset = m_entries[i].offset + m_entries[i].length;
+              PRUint32 offset = m_entries[i].offset + m_entries[i].length;
               if (offset > m_dataForkOffset)
                 m_dataForkOffset = offset;
             }
           }
-          m_headerOk = true;          
+          m_headerOk = PR_TRUE;          
           m_state = parseLookupPart;
         }
         }
@@ -315,10 +348,10 @@ NS_IMETHODIMP nsAppleFileDecoder::Write(const char *buffer, uint32_t bufferSize,
             case ENT_DATES    :
               if (m_currentPartLength == sizeof(m_dates)) {
                 memcpy(&m_dates, buffPtr, m_currentPartLength);
-                m_dates.create = (int32_t)PR_ntohl((uint32_t)m_dates.create);
-                m_dates.modify = (int32_t)PR_ntohl((uint32_t)m_dates.modify);
-                m_dates.backup = (int32_t)PR_ntohl((uint32_t)m_dates.backup);
-                m_dates.access = (int32_t)PR_ntohl((uint32_t)m_dates.access);
+                m_dates.create = (PRInt32)PR_ntohl((PRUint32)m_dates.create);
+                m_dates.modify = (PRInt32)PR_ntohl((PRUint32)m_dates.modify);
+                m_dates.backup = (PRInt32)PR_ntohl((PRUint32)m_dates.backup);
+                m_dates.access = (PRInt32)PR_ntohl((PRUint32)m_dates.access);
               }
               break;
             case ENT_FINFO    :
@@ -327,33 +360,33 @@ NS_IMETHODIMP nsAppleFileDecoder::Write(const char *buffer, uint32_t bufferSize,
                 memcpy(&m_finderInfo, buffPtr, sizeof(m_finderInfo));
                 // OSType (four character codes) are still integers; swap them.
                 m_finderInfo.fdType =
-                  (OSType)PR_ntohl((uint32_t)m_finderInfo.fdType);
+                  (OSType)PR_ntohl((PRUint32)m_finderInfo.fdType);
                 m_finderInfo.fdCreator =
-                  (OSType)PR_ntohl((uint32_t)m_finderInfo.fdCreator);
+                  (OSType)PR_ntohl((PRUint32)m_finderInfo.fdCreator);
                 m_finderInfo.fdFlags =
-                  (UInt16)PR_ntohs((uint16_t)m_finderInfo.fdFlags);
+                  (UInt16)PR_ntohs((PRUint16)m_finderInfo.fdFlags);
                 m_finderInfo.fdLocation.v =
-                  (short)PR_ntohs((uint16_t)m_finderInfo.fdLocation.v);
+                  (short)PR_ntohs((PRUint16)m_finderInfo.fdLocation.v);
                 m_finderInfo.fdLocation.h =
-                  (short)PR_ntohs((uint16_t)m_finderInfo.fdLocation.h);
+                  (short)PR_ntohs((PRUint16)m_finderInfo.fdLocation.h);
                 m_finderInfo.fdFldr =
-                  (SInt16)PR_ntohs((uint16_t)m_finderInfo.fdFldr);
+                  (SInt16)PR_ntohs((PRUint16)m_finderInfo.fdFldr);
 
                 memcpy(&m_finderExtraInfo, buffPtr + sizeof(m_finderInfo), sizeof(m_finderExtraInfo));
                 m_finderExtraInfo.fdIconID =
-                  (SInt16)PR_ntohs((uint16_t)m_finderExtraInfo.fdIconID);
+                  (SInt16)PR_ntohs((PRUint16)m_finderExtraInfo.fdIconID);
                 m_finderExtraInfo.fdReserved[0] =
-                  (SInt16)PR_ntohs((uint16_t)m_finderExtraInfo.fdReserved[0]);
+                  (SInt16)PR_ntohs((PRUint16)m_finderExtraInfo.fdReserved[0]);
                 m_finderExtraInfo.fdReserved[1] =
-                  (SInt16)PR_ntohs((uint16_t)m_finderExtraInfo.fdReserved[1]);
+                  (SInt16)PR_ntohs((PRUint16)m_finderExtraInfo.fdReserved[1]);
                 m_finderExtraInfo.fdReserved[2] =
-                  (SInt16)PR_ntohs((uint16_t)m_finderExtraInfo.fdReserved[2]);
+                  (SInt16)PR_ntohs((PRUint16)m_finderExtraInfo.fdReserved[2]);
                 // fdScript is a byte
                 // fdXFlags is a byte
                 m_finderExtraInfo.fdComment =
-                  (SInt16)PR_ntohs((uint16_t)m_finderExtraInfo.fdComment);
+                  (SInt16)PR_ntohs((PRUint16)m_finderExtraInfo.fdComment);
                 m_finderExtraInfo.fdPutAway =
-                  (SInt32)PR_ntohl((uint32_t)m_finderExtraInfo.fdPutAway);
+                  (SInt32)PR_ntohl((PRUint32)m_finderExtraInfo.fdPutAway);
               }
               break;
           }
@@ -383,7 +416,7 @@ NS_IMETHODIMP nsAppleFileDecoder::Write(const char *buffer, uint32_t bufferSize,
         
         if (m_output)
         {
-          uint32_t writeCount;
+          PRUint32 writeCount;
           rv = m_output->Write((const char *)buffPtr, dataCount, &writeCount);
           if (dataCount != writeCount)
             rv = NS_ERROR_FAILURE;
@@ -417,7 +450,7 @@ NS_IMETHODIMP nsAppleFileDecoder::Write(const char *buffer, uint32_t bufferSize,
         dataCount = bufferSize;
         if (m_output)
         {
-          uint32_t writeCount;
+          PRUint32 writeCount;
           rv = m_output->Write((const char *)buffPtr, dataCount, &writeCount);
           if (dataCount != writeCount)
             rv = NS_ERROR_FAILURE;

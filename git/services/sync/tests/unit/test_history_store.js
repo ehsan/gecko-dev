@@ -1,10 +1,6 @@
-/* Any copyright is dedicated to the Public Domain.
-   http://creativecommons.org/publicdomain/zero/1.0/ */
-
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://services-common/async.js");
 Cu.import("resource://services-sync/engines/history.js");
-Cu.import("resource://services-sync/service.js");
+Cu.import("resource://services-sync/async.js");
 Cu.import("resource://services-sync/util.js");
 
 const TIMESTAMP1 = (Date.now() - 103406528) * 1000;
@@ -44,6 +40,7 @@ function onNextTitleChanged(callback) {
     onVisit: function onVisit() {},
     onDeleteVisits: function onDeleteVisits() {},
     onPageExpired: function onPageExpired() {},
+    onBeforeDeleteURI: function onBeforeDeleteURI() {},
     onDeleteURI: function onDeleteURI() {},
     onClearHistory: function onClearHistory() {},
     QueryInterface: XPCOMUtils.generateQI([
@@ -67,7 +64,7 @@ function ensureThrows(func) {
   };
 }
 
-let store = new HistoryEngine(Service)._store;
+let store = new HistoryEngine()._store;
 function applyEnsureNoFailures(records) {
   do_check_eq(store.applyIncomingBatch(records).length, 0);
 }
@@ -85,61 +82,44 @@ add_test(function test_store() {
 
   _("Let's create an entry in the database.");
   fxuri = Utils.makeURI("http://getfirefox.com/");
+   PlacesUtils.history.addPageWithDetails(fxuri, "Get Firefox!", TIMESTAMP1);
 
-  let place = {
-    uri: fxuri,
-    title: "Get Firefox!",
-    visits: [{
-      visitDate: TIMESTAMP1,
-      transitionType: Ci.nsINavHistoryService.TRANSITION_LINK
-    }]
-  };
-  PlacesUtils.asyncHistory.updatePlaces(place, {
-    handleError: function handleError() {
-      do_throw("Unexpected error in adding visit.");
-    },
-    handleResult: function handleResult() {},
-    handleCompletion: onVisitAdded
-  });
+  _("Verify that the entry exists.");
+  let ids = Object.keys(store.getAllIDs());
+  do_check_eq(ids.length, 1);
+  fxguid = ids[0];
+  do_check_true(store.itemExists(fxguid));
 
-  function onVisitAdded() {
-    _("Verify that the entry exists.");
-    let ids = Object.keys(store.getAllIDs());
-    do_check_eq(ids.length, 1);
-    fxguid = ids[0];
-    do_check_true(store.itemExists(fxguid));
+  _("If we query a non-existent record, it's marked as deleted.");
+  let record = store.createRecord("non-existent");
+  do_check_true(record.deleted);
 
-    _("If we query a non-existent record, it's marked as deleted.");
-    let record = store.createRecord("non-existent");
-    do_check_true(record.deleted);
+  _("Verify createRecord() returns a complete record.");
+  record = store.createRecord(fxguid);
+  do_check_eq(record.histUri, fxuri.spec);
+  do_check_eq(record.title, "Get Firefox!");
+  do_check_eq(record.visits.length, 1);
+  do_check_eq(record.visits[0].date, TIMESTAMP1);
+  do_check_eq(record.visits[0].type, Ci.nsINavHistoryService.TRANSITION_LINK);
 
-    _("Verify createRecord() returns a complete record.");
-    record = store.createRecord(fxguid);
-    do_check_eq(record.histUri, fxuri.spec);
-    do_check_eq(record.title, "Get Firefox!");
-    do_check_eq(record.visits.length, 1);
-    do_check_eq(record.visits[0].date, TIMESTAMP1);
-    do_check_eq(record.visits[0].type, Ci.nsINavHistoryService.TRANSITION_LINK);
-
-    _("Let's modify the record and have the store update the database.");
-    let secondvisit = {date: TIMESTAMP2,
-                       type: Ci.nsINavHistoryService.TRANSITION_TYPED};
-    onNextTitleChanged(ensureThrows(function() {
-      let queryres = queryHistoryVisits(fxuri);
-      do_check_eq(queryres.length, 2);
-      do_check_eq(queryres[0].time, TIMESTAMP1);
-      do_check_eq(queryres[0].title, "Hol Dir Firefox!");
-      do_check_eq(queryres[1].time, TIMESTAMP2);
-      do_check_eq(queryres[1].title, "Hol Dir Firefox!");
-      run_next_test();
-    }));
-    applyEnsureNoFailures([
-      {id: fxguid,
-       histUri: record.histUri,
-       title: "Hol Dir Firefox!",
-       visits: [record.visits[0], secondvisit]}
-    ]);
-  }
+  _("Let's modify the record and have the store update the database.");
+  let secondvisit = {date: TIMESTAMP2,
+                     type: Ci.nsINavHistoryService.TRANSITION_TYPED};
+  onNextTitleChanged(ensureThrows(function() {
+    let queryres = queryHistoryVisits(fxuri);
+    do_check_eq(queryres.length, 2);
+    do_check_eq(queryres[0].time, TIMESTAMP1);
+    do_check_eq(queryres[0].title, "Hol Dir Firefox!");
+    do_check_eq(queryres[1].time, TIMESTAMP2);
+    do_check_eq(queryres[1].title, "Hol Dir Firefox!");
+    run_next_test();
+  }));
+  applyEnsureNoFailures([
+    {id: fxguid,
+     histUri: record.histUri,
+     title: "Hol Dir Firefox!",
+     visits: [record.visits[0], secondvisit]}
+  ]);
 });
 
 add_test(function test_store_create() {
@@ -183,24 +163,11 @@ add_test(function test_null_title() {
 
 add_test(function test_invalid_records() {
   _("Make sure we handle invalid URLs in places databases gracefully.");
-  let connection = PlacesUtils.history
-                              .QueryInterface(Ci.nsPIPlacesDatabase)
-                              .DBConnection;
-  let stmt = connection.createAsyncStatement(
-    "INSERT INTO moz_places "
-  + "(url, title, rev_host, visit_count, last_visit_date) "
-  + "VALUES ('invalid-uri', 'Invalid URI', '.', 1, " + TIMESTAMP3 + ")"
-  );
-  Async.querySpinningly(stmt);
-  stmt.finalize();
-  // Add the corresponding visit to retain database coherence.
-  stmt = connection.createAsyncStatement(
-    "INSERT INTO moz_historyvisits "
-  + "(place_id, visit_date, visit_type, session) "
-  + "VALUES ((SELECT id FROM moz_places WHERE url = 'invalid-uri'), "
-  + TIMESTAMP3 + ", " + Ci.nsINavHistoryService.TRANSITION_TYPED + ", 1)"
-  );
-  Async.querySpinningly(stmt);
+  let query = "INSERT INTO moz_places "
+    + "(url, title, rev_host, visit_count, last_visit_date) "
+    + "VALUES ('invalid-uri', 'Invalid URI', '.', 1, " + TIMESTAMP3 + ")";
+  let stmt = PlacesUtils.history.DBConnection.createAsyncStatement(query);
+  let result = Async.querySpinningly(stmt);
   stmt.finalize();
   do_check_attribute_count(store.getAllIDs(), 4);
 

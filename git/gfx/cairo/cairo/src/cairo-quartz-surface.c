@@ -135,11 +135,6 @@ static bool (*CGContextGetAllowsFontSmoothingPtr) (CGContextRef) = NULL;
 static CGPathRef (*CGContextCopyPathPtr) (CGContextRef) = NULL;
 static CGFloat (*CGContextGetAlphaPtr) (CGContextRef) = NULL;
 
-/* CTFontDrawGlyphs is not available until 10.7 */
-static void (*CTFontDrawGlyphsPtr) (CTFontRef, const CGGlyph[], const CGPoint[], size_t, CGContextRef) = NULL;
-
-static SInt32 _cairo_quartz_osx_version = 0x0;
-
 static cairo_bool_t _cairo_quartz_symbol_lookup_done = FALSE;
 
 /*
@@ -174,13 +169,6 @@ static void quartz_ensure_symbols(void)
     CGContextGetAllowsFontSmoothingPtr = dlsym(RTLD_DEFAULT, "CGContextGetAllowsFontSmoothing");
     CGContextSetAllowsFontSmoothingPtr = dlsym(RTLD_DEFAULT, "CGContextSetAllowsFontSmoothing");
     CGContextGetAlphaPtr = dlsym(RTLD_DEFAULT, "CGContextGetAlpha");
-
-    CTFontDrawGlyphsPtr = dlsym(RTLD_DEFAULT, "CTFontDrawGlyphs");
-
-    if (Gestalt(gestaltSystemVersion, &_cairo_quartz_osx_version) != noErr) {
-        // assume 10.5
-        _cairo_quartz_osx_version = 0x1050;
-    }
 
     _cairo_quartz_symbol_lookup_done = TRUE;
 }
@@ -446,7 +434,6 @@ _cairo_quartz_cairo_operator_to_quartz_composite (cairo_operator_t op)
 	case CAIRO_OPERATOR_HSL_LUMINOSITY:
         default:
 	    assert (0);
-	    return kPrivateCGCompositeClear;
     }
 }
 
@@ -615,13 +602,10 @@ _cairo_quartz_cairo_matrix_to_quartz (const cairo_matrix_t *src,
 typedef struct {
     bool isClipping;
     CGGlyph *cg_glyphs;
-    union {
-      CGSize *cg_advances;
-      CGPoint *cg_positions;
-    } u;
+    CGSize *cg_advances;
     size_t nglyphs;
     CGAffineTransform textTransform;
-    cairo_scaled_font_t *scaled_font;
+    CGFontRef font;
     CGPoint origin;
 } unbounded_show_glyphs_t;
 
@@ -699,6 +683,12 @@ _cairo_quartz_fixup_unbounded_operation (cairo_quartz_surface_t *surface,
 	else
 	    CGContextEOFillPath (cgc);
     } else if (op->op == UNBOUNDED_SHOW_GLYPHS) {
+	CGContextSetFont (cgc, op->u.show_glyphs.font);
+	CGContextSetFontSize (cgc, 1.0);
+	CGContextSetTextMatrix (cgc, CGAffineTransformIdentity);
+	CGContextTranslateCTM (cgc, op->u.show_glyphs.origin.x, op->u.show_glyphs.origin.y);
+	CGContextConcatCTM (cgc, op->u.show_glyphs.textTransform);
+
 	if (op->u.show_glyphs.isClipping) {
 	    /* Note that the comment in show_glyphs about kCGTextClip
 	     * and the text transform still applies here; however, the
@@ -707,25 +697,12 @@ _cairo_quartz_fixup_unbounded_operation (cairo_quartz_surface_t *surface,
 	    CGContextSetTextDrawingMode (cgc, kCGTextClip);
 	    CGContextSaveGState (cgc);
 	}
-        CGContextTranslateCTM (cgc, op->u.show_glyphs.origin.x, op->u.show_glyphs.origin.y);
-        CGContextConcatCTM (cgc, op->u.show_glyphs.textTransform);
-        if (CTFontDrawGlyphsPtr) {
-            CTFontDrawGlyphsPtr (_cairo_quartz_scaled_font_get_ct_font_ref (op->u.show_glyphs.scaled_font),
-                                 op->u.show_glyphs.cg_glyphs,
-                                 op->u.show_glyphs.u.cg_positions,
-                                 op->u.show_glyphs.nglyphs,
-                                 cgc);
-        } else {
-	    CGContextSetFont (cgc, _cairo_quartz_scaled_font_get_cg_font_ref (op->u.show_glyphs.scaled_font));
-	    CGContextSetFontSize (cgc, 1.0);
-	    CGContextSetTextMatrix (cgc, CGAffineTransformIdentity);
 
-	    CGContextShowGlyphsWithAdvances (cgc,
-					     op->u.show_glyphs.cg_glyphs,
-					     op->u.show_glyphs.u.cg_advances,
-					     op->u.show_glyphs.nglyphs);
+	CGContextShowGlyphsWithAdvances (cgc,
+					 op->u.show_glyphs.cg_glyphs,
+					 op->u.show_glyphs.cg_advances,
+					 op->u.show_glyphs.nglyphs);
 
-        }
 	if (op->u.show_glyphs.isClipping) {
 	    CGContextClearRect (cgc, clipBoxRound);
 	    CGContextRestoreGState (cgc);
@@ -2578,33 +2555,19 @@ _cairo_quartz_surface_stroke_cg (void *abstract_surface,
 	unsigned int max_dashes = style->num_dashes;
 	unsigned int k;
 
-	bool set_line_dash = false;
-	if (style->num_dashes % 2 == 0) {
-	    for (k = 1; k < max_dashes; k++) {
-		if (style->dash[k]) {
-		    set_line_dash = true;
-		    break;
-		}
-	    }
-	} else
-	    set_line_dash = true;
+	if (style->num_dashes%2)
+	    max_dashes *= 2;
+	if (max_dashes > STATIC_DASH)
+	    fdash = _cairo_malloc_ab (max_dashes, sizeof (cairo_quartz_float_t));
+	if (fdash == NULL)
+	    return _cairo_error (CAIRO_STATUS_NO_MEMORY);
 
-	if (set_line_dash) {
-	    if (style->num_dashes%2)
-		max_dashes *= 2;
-	    if (max_dashes > STATIC_DASH)
-		fdash = _cairo_malloc_ab (max_dashes, sizeof (cairo_quartz_float_t));
-	    if (fdash == NULL)
-		return _cairo_error (CAIRO_STATUS_NO_MEMORY);
+	for (k = 0; k < max_dashes; k++)
+	    fdash[k] = (cairo_quartz_float_t) style->dash[k % style->num_dashes];
 
-	    for (k = 0; k < max_dashes; k++)
-		fdash[k] = (cairo_quartz_float_t) style->dash[k % style->num_dashes];
-
-	    CGContextSetLineDash (surface->cgContext, style->dash_offset, fdash, max_dashes);
-	    if (fdash != sdash)
-		free (fdash);
-	} else
-	    CGContextSetLineDash (state.context, 0, NULL, 0);
+	CGContextSetLineDash (surface->cgContext, style->dash_offset, fdash, max_dashes);
+	if (fdash != sdash)
+	    free (fdash);
     } else
 	CGContextSetLineDash (state.context, 0, NULL, 0);
 
@@ -2718,9 +2681,6 @@ _cairo_quartz_surface_show_glyphs_cg (void *abstract_surface,
     CGGlyph glyphs_static[STATIC_BUF_SIZE];
     CGSize cg_advances_static[STATIC_BUF_SIZE];
     CGGlyph *cg_glyphs = &glyphs_static[0];
-    /* We'll use the cg_advances array for either advances or positions,
-       depending which API we're using to actually draw. The types involved
-       have the same size, so this is safe. */
     CGSize *cg_advances = &cg_advances_static[0];
 
     cairo_rectangle_int_t glyph_extents;
@@ -2833,52 +2793,31 @@ _cairo_quartz_surface_show_glyphs_cg (void *abstract_surface,
 
     CGContextSetTextMatrix (state.context, CGAffineTransformIdentity);
 
+    /* Convert our glyph positions to glyph advances.  We need n-1 advances,
+     * since the advance at index 0 is applied after glyph 0. */
+    xprev = glyphs[0].x;
+    yprev = glyphs[0].y;
+
+    cg_glyphs[0] = glyphs[0].index;
+
+    for (i = 1; i < num_glyphs; i++) {
+	cairo_quartz_float_t xf = glyphs[i].x;
+	cairo_quartz_float_t yf = glyphs[i].y;
+	cg_glyphs[i] = glyphs[i].index;
+	cg_advances[i - 1] = CGSizeApplyAffineTransform(CGSizeMake (xf - xprev, yf - yprev), invTextTransform);
+	xprev = xf;
+	yprev = yf;
+    }
+
     /* Translate to the first glyph's position before drawing */
     ctm = CGContextGetCTM (state.context);
     CGContextTranslateCTM (state.context, glyphs[0].x, glyphs[0].y);
     CGContextConcatCTM (state.context, textTransform);
 
-    if (CTFontDrawGlyphsPtr) {
-        /* If CTFontDrawGlyphs is available (i.e. OS X 10.7 or later), we want to use
-         * that in preference to CGContextShowGlyphsWithAdvances so that colored-bitmap
-         * fonts like Apple Color Emoji will render properly.
-         * For this, we need to convert our glyph positions to Core Graphics's CGPoint.
-         * We borrow the cg_advances array, as CGPoint and CGSize are the same size. */
-
-        CGPoint *cg_positions = (CGPoint*) cg_advances;
-        cairo_quartz_float_t origin_x = glyphs[0].x;
-        cairo_quartz_float_t origin_y = glyphs[0].y;
-
-        for (i = 0; i < num_glyphs; i++) {
-            CGPoint pt = CGPointMake (glyphs[i].x - origin_x, glyphs[i].y - origin_y);
-            cg_positions[i] = CGPointApplyAffineTransform (pt, invTextTransform);
-            cg_glyphs[i] = glyphs[i].index;
-        }
-
-        CTFontDrawGlyphsPtr (_cairo_quartz_scaled_font_get_ct_font_ref (scaled_font),
-                             cg_glyphs, cg_positions, num_glyphs, state.context);
-    } else {
-        /* Convert our glyph positions to glyph advances.  We need n-1 advances,
-         * since the advance at index 0 is applied after glyph 0. */
-        xprev = glyphs[0].x;
-        yprev = glyphs[0].y;
-
-        cg_glyphs[0] = glyphs[0].index;
-
-        for (i = 1; i < num_glyphs; i++) {
-	    cairo_quartz_float_t xf = glyphs[i].x;
-	    cairo_quartz_float_t yf = glyphs[i].y;
-	    cg_glyphs[i] = glyphs[i].index;
-	    cg_advances[i - 1] = CGSizeApplyAffineTransform(CGSizeMake (xf - xprev, yf - yprev), invTextTransform);
-	    xprev = xf;
-	    yprev = yf;
-        }
-
-        CGContextShowGlyphsWithAdvances (state.context,
-				         cg_glyphs,
-				         cg_advances,
-				         num_glyphs);
-    }
+    CGContextShowGlyphsWithAdvances (state.context,
+				     cg_glyphs,
+				     cg_advances,
+				     num_glyphs);
 
     CGContextSetCTM (state.context, ctm);
 
@@ -2905,17 +2844,10 @@ BAIL:
 
 	ub.u.show_glyphs.isClipping = isClipping;
 	ub.u.show_glyphs.cg_glyphs = cg_glyphs;
-	if (CTFontDrawGlyphsPtr) {
-	    /* we're using Core Text API: the cg_advances array was
-	       reused (above) for glyph positions */
-            CGPoint *cg_positions = (CGPoint*) cg_advances;
-	    ub.u.show_glyphs.u.cg_positions = cg_positions;
-	} else {
-	    ub.u.show_glyphs.u.cg_advances = cg_advances;
-	}
+	ub.u.show_glyphs.cg_advances = cg_advances;
 	ub.u.show_glyphs.nglyphs = num_glyphs;
 	ub.u.show_glyphs.textTransform = textTransform;
-	ub.u.show_glyphs.scaled_font = scaled_font;
+	ub.u.show_glyphs.font = cgfref;
 	ub.u.show_glyphs.origin = CGPointMake (glyphs[0].x, glyphs[0].y);
 
 	_cairo_quartz_fixup_unbounded_operation (surface, &ub, scaled_font->options.antialias);
@@ -3103,11 +3035,8 @@ _cairo_quartz_surface_mask_cg (void *abstract_surface,
     /* If we have CGContextClipToMask, we can do more complex masks */
     if (CGContextClipToMaskPtr) {
 	/* For these, we can skip creating a temporary surface, since we already have one */
-	/* For some reason this doesn't work reliably on OS X 10.5.  See bug 721663. */
-	if (_cairo_quartz_osx_version >= 0x1060 && mask->type == CAIRO_PATTERN_TYPE_SURFACE &&
-	    mask->extend == CAIRO_EXTEND_NONE) {
+	if (mask->type == CAIRO_PATTERN_TYPE_SURFACE && mask->extend == CAIRO_EXTEND_NONE)
 	    return _cairo_quartz_surface_mask_with_surface (surface, op, source, (cairo_surface_pattern_t *) mask, clip);
-	}
 
 	return _cairo_quartz_surface_mask_with_generic (surface, op, source, mask, clip);
     }
@@ -3192,17 +3121,6 @@ _cairo_quartz_surface_clipper_intersect_clip_path (cairo_surface_clipper_t *clip
     return CAIRO_STATUS_SUCCESS;
 }
 
-static cairo_status_t
-_cairo_quartz_surface_mark_dirty_rectangle (void *abstract_surface,
-					    int x, int y,
-					    int width, int height)
-{
-    cairo_quartz_surface_t *surface = (cairo_quartz_surface_t *) abstract_surface;
-    _cairo_quartz_surface_will_change (surface);
-    return CAIRO_STATUS_SUCCESS;
-}
-
-
 // XXXtodo implement show_page; need to figure out how to handle begin/end
 
 static const struct _cairo_surface_backend cairo_quartz_surface_backend = {
@@ -3225,7 +3143,7 @@ static const struct _cairo_surface_backend cairo_quartz_surface_backend = {
     NULL, /* old_show_glyphs */
     NULL, /* get_font_options */
     NULL, /* flush */
-    _cairo_quartz_surface_mark_dirty_rectangle,
+    NULL, /* mark_dirty_rectangle */
     NULL, /* scaled_font_fini */
     NULL, /* scaled_glyph_fini */
 

@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=79:
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Copyright (C) 2008 Apple Inc. All rights reserved.
@@ -27,12 +27,13 @@
  * 
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef assembler_assembler_AbstractMacroAssembler_h
-#define assembler_assembler_AbstractMacroAssembler_h
+#ifndef AbstractMacroAssembler_h
+#define AbstractMacroAssembler_h
 
 #include "assembler/wtf/Platform.h"
 #include "assembler/assembler/MacroAssemblerCodeRef.h"
 #include "assembler/assembler/CodeLocation.h"
+#include "jsstdint.h"
 
 #if ENABLE_ASSEMBLER
 
@@ -157,12 +158,12 @@ public:
     // Describes an memory operand given by a pointer.  For regular load & store
     // operations an unwrapped void* will be used, rather than using this.
     struct AbsoluteAddress {
-        explicit AbsoluteAddress(const void* ptr)
+        explicit AbsoluteAddress(void* ptr)
             : m_ptr(ptr)
         {
         }
 
-        const void* m_ptr;
+        void* m_ptr;
     };
 
     // TrustedImmPtr:
@@ -247,9 +248,9 @@ public:
         union {
             struct {
 #if WTF_CPU_BIG_ENDIAN || WTF_CPU_MIDDLE_ENDIAN
-                uint32_t msb, lsb;
+                uint32 msb, lsb;
 #else
-                uint32_t lsb, msb;
+                uint32 lsb, msb;
 #endif
             } s;
             uint64_t u64;
@@ -408,17 +409,15 @@ public:
         {
         }
         
-        void link(AbstractMacroAssembler<AssemblerType>* masm) const
+        void link(AbstractMacroAssembler<AssemblerType>* masm)
         {
             masm->m_assembler.linkJump(m_jmp, masm->m_assembler.label());
         }
         
-        void linkTo(Label label, AbstractMacroAssembler<AssemblerType>* masm) const
+        void linkTo(Label label, AbstractMacroAssembler<AssemblerType>* masm)
         {
             masm->m_assembler.linkJump(m_jmp, label.m_label);
         }
-
-        bool isSet() const { return m_jmp.isSet(); }
 
     private:
         JmpSrc m_jmp;
@@ -438,7 +437,7 @@ public:
 
         JumpList(const JumpList &other)
         {
-            m_jumps.appendAll(other.m_jumps);
+            m_jumps.append(other.m_jumps);
         }
 
         JumpList &operator=(const JumpList &other)
@@ -565,11 +564,6 @@ public:
         return AssemblerType::getDifferenceBetweenLabels(from.m_label, to.m_label);
     }
 
-    ptrdiff_t differenceBetween(DataLabelPtr from, Label to)
-    {
-        return AssemblerType::getDifferenceBetweenLabels(from.m_label, to.m_label);
-    }
-
     ptrdiff_t differenceBetween(DataLabelPtr from, Jump to)
     {
         return AssemblerType::getDifferenceBetweenLabels(from.m_label, to.m_jmp);
@@ -656,4 +650,4 @@ protected:
 
 #endif // ENABLE(ASSEMBLER)
 
-#endif /* assembler_assembler_AbstractMacroAssembler_h */
+#endif // AbstractMacroAssembler_h

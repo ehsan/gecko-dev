@@ -1,9 +1,41 @@
 #!/usr/bin/env python
 # typelib.py - Generate XPCOM typelib files from IDL.
 #
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is pyxpidl.
+#
+# The Initial Developer of the Original Code is the Mozilla Foundation.
+# Portions created by the Initial Developer are Copyright (C) 2011
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Kyle Huey <khuey@kylehuey.com>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either of the GNU General Public License Version 2 or later (the "GPL"),
+# or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 
 """Generate an XPIDL typelib for the IDL files specified on the command line"""
 
@@ -18,13 +50,6 @@ TypeMap = {
     # builtins
     'boolean':            xpt.Type.Tags.boolean,
     'void':               xpt.Type.Tags.void,
-    'int16_t':            xpt.Type.Tags.int16,
-    'int32_t':            xpt.Type.Tags.int32,
-    'int64_t':            xpt.Type.Tags.int64,
-    'uint8_t':            xpt.Type.Tags.uint8,
-    'uint16_t':           xpt.Type.Tags.uint16,
-    'uint32_t':           xpt.Type.Tags.uint32,
-    'uint64_t':           xpt.Type.Tags.uint64,
     'octet':              xpt.Type.Tags.uint8,
     'short':              xpt.Type.Tags.int16,
     'long':               xpt.Type.Tags.int32,
@@ -193,7 +218,7 @@ def build_interface(iface, ifaces):
         # Write the getter
         methods.append(xpt.Method(a.name, build_nsresult_param(),
                                   [build_attr_param(a, getter=True)],
-                                  getter=True, setter=False,
+                                  getter=True, setter=False, notxpcom=a.notxpcom,
                                   constructor=False, hidden=a.noscript,
                                   optargc=False,
                                   implicit_jscontext=a.implicit_jscontext))
@@ -202,7 +227,7 @@ def build_interface(iface, ifaces):
         if not a.readonly:
             methods.append(xpt.Method(a.name, build_nsresult_param(),
                                       [build_attr_param(a, setter=True)],
-                                      getter=False, setter=True,
+                                      getter=False, setter=True, notxpcom=a.notxpcom,
                                       constructor=False, hidden=a.noscript,
                                       optargc=False,
                                       implicit_jscontext=a.implicit_jscontext))
@@ -260,7 +285,7 @@ if __name__ == '__main__':
     o.add_option('--regen', action='store_true', dest='regen', default=False,
                  help="Regenerate IDL Parser cache")
     options, args = o.parse_args()
-    file = args[0] if args else None
+    file, = args
 
     if options.cachedir is not None:
         if not os.path.isdir(options.cachedir):
@@ -298,5 +323,3 @@ if __name__ == '__main__':
         deps = [dep.replace('\\', '/') for dep in idl.deps]
 
         print >>depfd, "%s: %s" % (options.outfile, " ".join(deps))
-        for dep in deps:
-            print >>depfd, "%s:" % dep

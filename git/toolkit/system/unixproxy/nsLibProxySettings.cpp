@@ -1,11 +1,44 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla libproxy integration code.
+ *
+ * The Initial Developer of the Original Code is
+ * Wolfgang Rosenauer <wr@rosenauer.org>.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsISystemProxySettings.h"
 #include "mozilla/ModuleUtils.h"
 #include "nsIServiceManager.h"
+#include "nsIIOService.h"
 #include "nsIURI.h"
 #include "nsString.h"
 #include "nsNetUtil.h"
@@ -18,10 +51,10 @@ extern "C" {
 
 class nsUnixSystemProxySettings : public nsISystemProxySettings {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSISYSTEMPROXYSETTINGS
 
-  nsUnixSystemProxySettings() { mProxyFactory = nullptr; }
+  nsUnixSystemProxySettings() { mProxyFactory = nsnull; }
   nsresult Init();
 
 private:
@@ -34,13 +67,6 @@ private:
 };
 
 NS_IMPL_ISUPPORTS1(nsUnixSystemProxySettings, nsISystemProxySettings)
-
-NS_IMETHODIMP
-nsUnixSystemProxySettings::GetMainThreadOnly(bool *aMainThreadOnly)
-{
-  *aMainThreadOnly = false;
-  return NS_OK;
-}
 
 nsresult
 nsUnixSystemProxySettings::Init()
@@ -57,11 +83,7 @@ nsUnixSystemProxySettings::GetPACURI(nsACString& aResult)
 }
 
 nsresult
-nsUnixSystemProxySettings::GetProxyForURI(const nsACString & aSpec,
-                                          const nsACString & aScheme,
-                                          const nsACString & aHost,
-                                          const int32_t      aPort,
-                                          nsACString & aResult)
+nsUnixSystemProxySettings::GetProxyForURI(nsIURI* aURI, nsACString& aResult)
 {
   nsresult rv;
 
@@ -70,9 +92,15 @@ nsUnixSystemProxySettings::GetProxyForURI(const nsACString & aSpec,
   }
   NS_ENSURE_TRUE(mProxyFactory, NS_ERROR_NOT_AVAILABLE);
 
-  char **proxyArray = nullptr;
-  proxyArray = px_proxy_factory_get_proxies(mProxyFactory,
-                                            PromiseFlatCString(aSpec).get());
+  nsCOMPtr<nsIIOService> ios = do_GetIOService(&rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCAutoString spec;
+  rv = aURI->GetSpec(spec);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  char **proxyArray = nsnull;
+  proxyArray = px_proxy_factory_get_proxies(mProxyFactory, (char*)(spec.get()));
   NS_ENSURE_TRUE(proxyArray, NS_ERROR_NOT_AVAILABLE);
 
   // Translate libproxy's output to PAC string as expected
@@ -82,33 +110,44 @@ nsUnixSystemProxySettings::GetProxyForURI(const nsACString & aSpec,
   // direct://
   //
   // PAC format: "PROXY proxy1.foo.com:8080; PROXY proxy2.foo.com:8080; DIRECT"
-  // but nsISystemProxySettings allows "PROXY http://proxy.foo.com:8080" as well.
-
   int c = 0;
   while (proxyArray[c] != NULL) {
     if (!aResult.IsEmpty()) {
       aResult.AppendLiteral("; ");
     }
 
-    // figure out the scheme, and we can't use nsIIOService::NewURI because
-    // this is not the main thread.
-    char *colon = strchr (proxyArray[c], ':');
-    uint32_t schemelen = colon ? colon - proxyArray[c] : 0;
-    if (schemelen < 1) {
+    PRBool isScheme = PR_FALSE;
+    nsXPIDLCString schemeString;
+    nsXPIDLCString hostPortString;
+    nsCOMPtr<nsIURI> proxyURI;
+
+    rv = ios->NewURI(nsDependentCString(proxyArray[c]),
+                                        nsnull,
+                                        nsnull,
+                                        getter_AddRefs(proxyURI));
+    if (NS_FAILED(rv)) {
       c++;
       continue;
     }
 
-    if (schemelen == 6 && !strncasecmp(proxyArray[c], "direct", 6)) {
-      aResult.AppendLiteral("DIRECT");
+    proxyURI->GetScheme(schemeString);
+    if (NS_SUCCEEDED(proxyURI->SchemeIs("http", &isScheme)) && isScheme) {
+      schemeString.AssignLiteral("proxy");
     }
-    else {
-      aResult.AppendLiteral("PROXY ");
-      aResult.Append(proxyArray[c]);
+    aResult.Append(schemeString);
+    if (NS_SUCCEEDED(proxyURI->SchemeIs("direct", &isScheme)) && !isScheme) {
+      // Add the proxy URI only if it's not DIRECT
+      proxyURI->GetHostPort(hostPortString);
+      aResult.AppendLiteral(" ");
+      aResult.Append(hostPortString);
     }
 
     c++;
   }
+
+#ifdef DEBUG
+  printf("returned PAC proxy string: %s\n", PromiseFlatCString(aResult).get());
+#endif
 
   PR_Free(proxyArray);
   return NS_OK;

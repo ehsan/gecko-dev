@@ -22,10 +22,11 @@ var iframe = document.getElementById("load-frame");
 function enableJS() allowJS(true, iframe);
 function disableJS() allowJS(false, iframe);
 function allowJS(allow, frame) {
-  SpecialPowers.wrap(frame.contentWindow.QueryInterface(SpecialPowers.Ci.nsIInterfaceRequestor))
-               .getInterface(SpecialPowers.Ci.nsIWebNavigation)
-               .QueryInterface(SpecialPowers.Ci.nsIDocShell)
-               .allowJavascript = allow;
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  frame.contentWindow.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                     .getInterface(Components.interfaces.nsIWebNavigation)
+                     .QueryInterface(Components.interfaces.nsIDocShell)
+                     .allowJavascript = allow;
 }
 function expectJSAllowed(allowed, testCondition, callback) {
   window.ICanRunMyJS = false;
@@ -65,7 +66,7 @@ addLoadEvent(function() {
                       expectJSAllowed(true, enterDesignMode, function() {
                         expectJSAllowed(true, leaveDesignMode, function() {
                           expectJSAllowed(false, disableJS, function() {
-                            expectJSAllowed(false, enterDesignMode, function() {
+                            expectJSAllowed(true, enterDesignMode, function() {
                               expectJSAllowed(false, leaveDesignMode, function() {
                                 expectJSAllowed(true, enableJS, function() {
                                   testDocumentDisabledJS();
@@ -94,7 +95,7 @@ function testDocumentDisabledJS() {
   document.designMode = "off";
   iframe.contentDocument.designMode = "off";
 
-  // Javascript enabled on the main iframe
+  // Javascriont enabled on the main iframe
   enableJS();
 
   var doc = iframe.contentDocument;

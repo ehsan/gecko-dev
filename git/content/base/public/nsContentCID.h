@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsContentCID_h__
 #define nsContentCID_h__
@@ -13,7 +45,7 @@
 "@mozilla.org/layout/htmlCopyEncoder;1"
 
 // {972D8D8F-F0DA-11d4-9885-00C04FA0CF4B}
-#define NS_CONTENT_VIEWER_CID \
+#define NS_DOCUMENT_VIEWER_CID \
 { 0x972d8d8f, 0xf0da, 0x11d4, { 0x98, 0x85, 0x0, 0xc0, 0x4f, 0xa0, 0xcf, 0x4b } }
 
 // {FC886801-E768-11d4-9885-00C04FA0CF4B}
@@ -43,10 +75,31 @@
 #define NS_HTMLCOPY_TEXT_ENCODER_CID \
 { 0x7f915b01, 0x98fc, 0x11d4, { 0x8e, 0xb0, 0xa8, 0x03, 0xf8, 0x0f, 0xf1, 0xbc } }
 
+#define NS_HTMLIMAGEELEMENT_CID                   \
+{ /* d6008c40-4dad-11d2-b328-00805f8a3859 */      \
+ 0xd6008c40, 0x4dad, 0x11d2,                      \
+ {0xb3, 0x28, 0x00, 0x80, 0x5f, 0x8a, 0x38, 0x59}}
+
+#define NS_HTMLOPTIONELEMENT_CID                  \
+{ /* a6cf90f5-15b3-11d2-932e-00805f8add32 */      \
+ 0xa6cf90f5, 0x15b3, 0x11d2,                      \
+ {0x93, 0x2e, 0x00, 0x80, 0x5f, 0x8a, 0xdd, 0x32}}
+
+#ifdef MOZ_MEDIA
+#define NS_HTMLAUDIOELEMENT_CID                   \
+{ /* 1d40026b-4c44-4f6f-b158-26bb5e9c65e9 */      \
+ 0x1d40026b, 0x4c44, 0x4f6f,                      \
+ {0xb1, 0x58, 0x26, 0xbb, 0x5e, 0x9c, 0x65, 0xe9}}
+#endif
+
 #define NS_NAMESPACEMANAGER_CID                   \
 { /* d9783472-8fe9-11d2-9d3c-0060088f9ff7 */      \
  0xd9783472, 0x8fe9, 0x11d2,                      \
  {0x9d, 0x3c, 0x00, 0x60, 0x08, 0x8f, 0x9f, 0xf7}}
+
+#define NS_RANGE_CID \
+{/* {56AD2981-8A87-11d2-918C-0080C8E44DB5}*/ \
+ 0x56ad2981, 0x8a87, 0x11d2, { 0x91, 0x8c, 0x0, 0x80, 0xc8, 0xe4, 0x4d, 0xb5 } }
 
 #define NS_CONTENTITERATOR_CID \
 {/* {a6cf90e3-15b3-11d2-932e-00805f8add32}*/ \
@@ -129,15 +182,23 @@
 #define NS_XULDOCUMENT_CID \
 { 0x541afcb2, 0xa9a3, 0x11d2, { 0x8e, 0xc5, 0x0, 0x80, 0x5f, 0x29, 0xf3, 0x70 } }
 
+// {a6cf9126-15b3-11d2-932e-00805f8add32}
+#define NS_RANGEUTILS_CID \
+{ 0xa6cf9126, 0x15b3, 0x11d2, {0x93, 0x2e, 0x00, 0x80, 0x5f, 0x8a, 0xdd, 0x32 } }
+
 #define NS_SVGDOCUMENT_CID                        \
 { /* b7f44954-1dd1-11b2-8c2e-c2feab4186bc */      \
   0xb7f44954, 0x11d1, 0x11b2,                     \
   {0x8c, 0x2e, 0xc2, 0xfe, 0xab, 0x41, 0x86, 0xbc}}
 
+#ifdef MOZ_MEDIA
+
 // {d899a152-9412-46b2-b651-2e71c5c2f05f}
 #define NS_VIDEODOCUMENT_CID   \
 { 0xd899a152, 0x9412, 0x46b2,  \
   { 0xb6, 0x51, 0x2e, 0x71, 0xc5, 0xc2, 0xf0, 0x5f } }
+
+#endif
 
 #define NS_EVENTLISTENERSERVICE_CID                 \
  { /* baa34652-f1f1-4185-b224-244ee82a413a */       \

@@ -1,58 +1,51 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-#include "jsonparser.h"
-
-#include "mozilla/RangedPtr.h"
+ * vim: set ts=8 sw=4 et tw=99:
+ *
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is SpiderMonkey JSON.
+ *
+ * The Initial Developer of the Original Code is
+ * the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Jeff Walden <jwalden+code@mit.edu> (original author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "jsarray.h"
-#include "jscompartment.h"
 #include "jsnum.h"
-
-#include "vm/StringBuffer.h"
+#include "jsonparser.h"
 
 #include "jsobjinlines.h"
+#include "jsstrinlines.h"
 
 using namespace js;
-
-using mozilla::RangedPtr;
-
-JSONParser::~JSONParser()
-{
-    for (size_t i = 0; i < stack.length(); i++) {
-        if (stack[i].state == FinishArrayElement)
-            js_delete(&stack[i].elements());
-        else
-            js_delete(&stack[i].properties());
-    }
-
-    for (size_t i = 0; i < freeElements.length(); i++)
-        js_delete(freeElements[i]);
-
-    for (size_t i = 0; i < freeProperties.length(); i++)
-        js_delete(freeProperties[i]);
-}
-
-void
-JSONParser::trace(JSTracer *trc)
-{
-    for (size_t i = 0; i < stack.length(); i++) {
-        if (stack[i].state == FinishArrayElement) {
-            ElementVector &elements = stack[i].elements();
-            for (size_t j = 0; j < elements.length(); j++)
-                gc::MarkValueRoot(trc, &elements[j], "JSONParser element");
-        } else {
-            PropertyVector &properties = stack[i].properties();
-            for (size_t j = 0; j < properties.length(); j++) {
-                gc::MarkValueRoot(trc, &properties[j].value, "JSONParser property value");
-                gc::MarkIdRoot(trc, &properties[j].id, "JSONParser property id");
-            }
-        }
-    }
-}
 
 void
 JSONParser::error(const char *msg)
@@ -94,8 +87,8 @@ JSONParser::readString()
             size_t length = current - start;
             current++;
             JSFlatString *str = (ST == JSONParser::PropertyName)
-                                ? AtomizeChars<CanGC>(cx, start.get(), length)
-                                : js_NewStringCopyN<CanGC>(cx, start.get(), length);
+                                ? js_AtomizeChars(cx, start.get(), length)
+                                : js_NewStringCopyN(cx, start.get(), length);
             if (!str)
                 return token(OOM);
             return stringToken(str);
@@ -223,18 +216,8 @@ JSONParser::readNumber()
 
     /* Fast path: no fractional or exponent part. */
     if (current == end || (*current != '.' && *current != 'e' && *current != 'E')) {
-        TwoByteChars chars(digitStart.get(), current - digitStart);
-        if (chars.length() < strlen("9007199254740992")) {
-            // If the decimal number is shorter than the length of 2**53, (the
-            // largest number a double can represent with integral precision),
-            // parse it using a decimal-only parser.  This comparison is
-            // conservative but faster than a fully-precise check.
-            double d = ParseDecimalNumber(chars);
-            return numberToken(negative ? -d : d);
-        }
-
-        double d;
         const jschar *dummy;
+        jsdouble d;
         if (!GetPrefixInteger(cx, digitStart.get(), current.get(), 10, &dummy, &d))
             return token(OOM);
         JS_ASSERT(current == dummy);
@@ -279,7 +262,7 @@ JSONParser::readNumber()
         }
     }
 
-    double d;
+    jsdouble d;
     const jschar *finish;
     if (!js_strtod(cx, digitStart.get(), current.get(), &finish, &d))
         return token(OOM);
@@ -466,6 +449,19 @@ JSONParser::advancePropertyName()
     if (*current == '"')
         return readString<PropertyName>();
 
+    if (parsingMode == LegacyJSON && *current == '}') {
+        /*
+         * Previous JSON parsing accepted trailing commas in non-empty object
+         * syntax, and some users depend on this.  (Specifically, Places data
+         * serialization in versions of Firefox before 4.0.  We can remove this
+         * mode when profile upgrades from 3.6 become unsupported.)  Permit
+         * such trailing commas only when legacy parsing is specifically
+         * requested.
+         */
+        current++;
+        return token(ObjectClose);
+    }
+
     error("expected double-quoted property name");
     return token(Error);
 }
@@ -517,112 +513,40 @@ JSONParser::advanceAfterProperty()
     return token(Error);
 }
 
-JSObject *
-JSONParser::createFinishedObject(PropertyVector &properties)
-{
-    /*
-     * Look for an existing cached type and shape for objects with this set of
-     * properties.
-     */
-    if (cx->typeInferenceEnabled()) {
-        JSObject *obj = cx->compartment()->types.newTypedObject(cx, properties.begin(),
-                                                              properties.length());
-        if (obj)
-            return obj;
-    }
-
-    /*
-     * Make a new object sized for the given number of properties and fill its
-     * shape in manually.
-     */
-    gc::AllocKind allocKind = gc::GetGCObjectKind(properties.length());
-    RootedObject obj(cx, NewBuiltinClassInstance(cx, &JSObject::class_, allocKind));
-    if (!obj)
-        return NULL;
-
-    RootedId propid(cx);
-    RootedValue value(cx);
-
-    for (size_t i = 0; i < properties.length(); i++) {
-        propid = properties[i].id;
-        value = properties[i].value;
-        if (!DefineNativeProperty(cx, obj, propid, value,
-                                  JS_PropertyStub, JS_StrictPropertyStub, JSPROP_ENUMERATE,
-                                  0, 0))
-        {
-            return NULL;
-        }
-    }
-
-    /*
-     * Try to assign a new type to the object with type information for its
-     * properties, and update the initializer type object cache with this
-     * object's final shape.
-     */
-    if (cx->typeInferenceEnabled())
-        cx->compartment()->types.fixObjectType(cx, obj);
-
-    return obj;
-}
-
-inline bool
-JSONParser::finishObject(MutableHandleValue vp, PropertyVector &properties)
-{
-    JS_ASSERT(&properties == &stack.back().properties());
-
-    JSObject *obj = createFinishedObject(properties);
-    if (!obj)
-        return false;
-
-    vp.setObject(*obj);
-    if (!freeProperties.append(&properties))
-        return false;
-    stack.popBack();
-    return true;
-}
-
-inline bool
-JSONParser::finishArray(MutableHandleValue vp, ElementVector &elements)
-{
-    JS_ASSERT(&elements == &stack.back().elements());
-
-    JSObject *obj = NewDenseCopiedArray(cx, elements.length(), elements.begin());
-    if (!obj)
-        return false;
-
-    /* Try to assign a new type to the array according to its elements. */
-    if (cx->typeInferenceEnabled())
-        cx->compartment()->types.fixArrayType(cx, obj);
-
-    vp.setObject(*obj);
-    if (!freeElements.append(&elements))
-        return false;
-    stack.popBack();
-    return true;
-}
+/*
+ * This enum is local to JSONParser::parse, below, but ISO C++98 doesn't allow
+ * templates to depend on local types.  Boo-urns!
+ */
+enum ParserState { FinishArrayElement, FinishObjectMember, JSONValue };
 
 bool
-JSONParser::parse(MutableHandleValue vp)
+JSONParser::parse(Value *vp)
 {
-    RootedValue value(cx);
-    JS_ASSERT(stack.empty());
+    Vector<ParserState> stateStack(cx);
+    AutoValueVector valueStack(cx);
 
-    vp.setUndefined();
+    *vp = UndefinedValue();
 
     Token token;
     ParserState state = JSONValue;
     while (true) {
         switch (state) {
           case FinishObjectMember: {
-            PropertyVector &properties = stack.back().properties();
-            properties.back().value = value;
-
-            token = advanceAfterProperty();
-            if (token == ObjectClose) {
-                if (!finishObject(&value, properties))
-                    return false;
-                break;
+            Value v = valueStack.popCopy();
+            /*
+             * NB: Relies on js_DefineNativeProperty performing
+             *     js_CheckForStringIndex.
+             */
+            jsid propid = ATOM_TO_JSID(&valueStack.popCopy().toString()->asAtom());
+            if (!DefineNativeProperty(cx, &valueStack.back().toObject(), propid, v,
+                                      JS_PropertyStub, JS_StrictPropertyStub, JSPROP_ENUMERATE,
+                                      0, 0))
+            {
+                return false;
             }
+            token = advanceAfterProperty();
+            if (token == ObjectClose)
+                break;
             if (token != Comma) {
                 if (token == OOM)
                     return false;
@@ -636,16 +560,21 @@ JSONParser::parse(MutableHandleValue vp)
 
           JSONMember:
             if (token == String) {
-                jsid id = AtomToId(atomValue());
-                PropertyVector &properties = stack.back().properties();
-                if (!properties.append(IdValuePair(id)))
+                if (!valueStack.append(atomValue()))
                     return false;
                 token = advancePropertyColon();
                 if (token != Colon) {
                     JS_ASSERT(token == Error);
                     return errorReturn();
                 }
+                if (!stateStack.append(FinishObjectMember))
+                    return false;
                 goto JSONValue;
+            }
+            if (token == ObjectClose) {
+                JS_ASSERT(state == FinishObjectMember);
+                JS_ASSERT(parsingMode == LegacyJSON);
+                break;
             }
             if (token == OOM)
                 return false;
@@ -654,17 +583,17 @@ JSONParser::parse(MutableHandleValue vp)
             return errorReturn();
 
           case FinishArrayElement: {
-            ElementVector &elements = stack.back().elements();
-            if (!elements.append(value.get()))
+            Value v = valueStack.popCopy();
+            if (!js_NewbornArrayPush(cx, &valueStack.back().toObject(), v))
                 return false;
             token = advanceAfterArrayElement();
-            if (token == Comma)
-                goto JSONValue;
-            if (token == ArrayClose) {
-                if (!finishArray(&value, elements))
+            if (token == Comma) {
+                if (!stateStack.append(FinishArrayElement))
                     return false;
-                break;
+                goto JSONValue;
             }
+            if (token == ArrayClose)
+                break;
             JS_ASSERT(token == Error);
             return errorReturn();
           }
@@ -675,66 +604,63 @@ JSONParser::parse(MutableHandleValue vp)
           JSONValueSwitch:
             switch (token) {
               case String:
-                value = stringValue();
-                break;
               case Number:
-                value = numberValue();
+                if (!valueStack.append(token == String ? stringValue() : numberValue()))
+                    return false;
                 break;
               case True:
-                value = BooleanValue(true);
+                if (!valueStack.append(BooleanValue(true)))
+                    return false;
                 break;
               case False:
-                value = BooleanValue(false);
+                if (!valueStack.append(BooleanValue(false)))
+                    return false;
                 break;
               case Null:
-                value = NullValue();
+                if (!valueStack.append(NullValue()))
+                    return false;
                 break;
 
               case ArrayOpen: {
-                ElementVector *elements;
-                if (!freeElements.empty()) {
-                    elements = freeElements.popCopy();
-                    elements->clear();
-                } else {
-                    elements = cx->new_<ElementVector>(cx);
-                    if (!elements)
-                        return false;
-                }
-                if (!stack.append(elements))
+                JSObject *obj = NewDenseEmptyArray(cx);
+                if (!obj || !valueStack.append(ObjectValue(*obj)))
                     return false;
-
                 token = advance();
-                if (token == ArrayClose) {
-                    if (!finishArray(&value, *elements))
-                        return false;
+                if (token == ArrayClose)
                     break;
-                }
+                if (!stateStack.append(FinishArrayElement))
+                    return false;
                 goto JSONValueSwitch;
               }
 
               case ObjectOpen: {
-                PropertyVector *properties;
-                if (!freeProperties.empty()) {
-                    properties = freeProperties.popCopy();
-                    properties->clear();
-                } else {
-                    properties = cx->new_<PropertyVector>(cx);
-                    if (!properties)
-                        return false;
-                }
-                if (!stack.append(properties))
+                JSObject *obj = NewBuiltinClassInstance(cx, &ObjectClass);
+                if (!obj || !valueStack.append(ObjectValue(*obj)))
                     return false;
-
                 token = advanceAfterObjectOpen();
-                if (token == ObjectClose) {
-                    if (!finishObject(&value, *properties))
-                        return false;
+                if (token == ObjectClose)
                     break;
-                }
                 goto JSONMember;
               }
 
               case ArrayClose:
+                if (parsingMode == LegacyJSON &&
+                    !stateStack.empty() &&
+                    stateStack.back() == FinishArrayElement) {
+                    /*
+                     * Previous JSON parsing accepted trailing commas in
+                     * non-empty array syntax, and some users depend on this.
+                     * (Specifically, Places data serialization in versions of
+                     * Firefox prior to 4.0.  We can remove this mode when
+                     * profile upgrades from 3.6 become unsupported.)  Permit
+                     * such trailing commas only when specifically
+                     * instructed to do so.
+                     */
+                    stateStack.popBack();
+                    break;
+                }
+                /* FALL THROUGH */
+
               case ObjectClose:
               case Colon:
               case Comma:
@@ -750,9 +676,9 @@ JSONParser::parse(MutableHandleValue vp)
             break;
         }
 
-        if (stack.empty())
+        if (stateStack.empty())
             break;
-        state = stack.back().state;
+        state = stateStack.popCopy();
     }
 
     for (; current < end; current++) {
@@ -763,8 +689,7 @@ JSONParser::parse(MutableHandleValue vp)
     }
 
     JS_ASSERT(end == current);
-    JS_ASSERT(stack.empty());
-
-    vp.set(value);
+    JS_ASSERT(valueStack.length() == 1);
+    *vp = valueStack[0];
     return true;
 }

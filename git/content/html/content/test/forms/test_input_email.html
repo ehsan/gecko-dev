@@ -3,7 +3,6 @@
 <!--
 https://bugzilla.mozilla.org/show_bug.cgi?id=555559
 https://bugzilla.mozilla.org/show_bug.cgi?id=668817
-https://bugzilla.mozilla.org/show_bug.cgi?id=854812
 -->
 <head>
   <title>Test for &lt;input type='email'&gt; validity</title>
@@ -13,7 +12,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=854812
 <body>
 <a target="_blank" href="https://bugzilla.mozilla.org/show_bug.cgi?id=555559">Mozilla Bug 555559</a>
 <a target="_blank" href="https://bugzilla.mozilla.org/show_bug.cgi?id=668817">Mozilla Bug 668817</a>
-<a target="_blank" href="https://bugzilla.mozilla.org/show_bug.cgi?id=854812">Mozilla Bug 854812</a>
 <p id="display"></p>
 <div id="content" style="display: none">
   <form>
@@ -89,7 +87,6 @@ var values = [
   [ 'f\noo@bar.com', true ],
   [ 'f\roo@bar.com', true ],
   [ 'f\r\noo@bar.com', true ],
-  [ 'fü@foo.com', true ],
   // Some checks for the domain part.
   [ 'foo@bar', true ],
   [ 'foo@b', true ],
@@ -107,21 +104,6 @@ var values = [
   [ 'foo@b\rar.com', true ],
   [ 'foo@b\r\nar.com', true ],
   [ 'foo@.', false ],
-  [ 'foo@fü.com', true ],
-  [ 'foo@fu.cüm', true ],
-  // Long strings with UTF-8.
-  [ 'this.is.email.should.be.longer.than.sixty.four.characters.föö@mözillä.tld', true ],
-  [ 'this-is-email-should-be-longer-than-sixty-four-characters-föö@mözillä.tld', true, true ],
-  // The domains labels (sub-domains or tld) can't start or finish with a '-'
-  [ 'foo@foo-bar', true ],
-  [ 'foo@-foo', false ],
-  [ 'foo@foo-.bar', false ],
-  [ 'foo@-.-', false ],
-  [ 'foo@fo-o.bar', true ],
-  [ 'foo@fo-o.-bar', false ],
-  [ 'foo@fo-o.bar-', false ],
-  [ 'foo@fo-o.-', false ],
-  [ 'foo@fo--o', true ],
 ];
 
 // Multiple values, we don't check e-mail validity, only multiple stuff.
@@ -156,7 +138,7 @@ legalCharacters += "0123456789";
 legalCharacters += "!#$%&'*+-/=?^_`{|}~.";
 
 // Add all username legal characters individually to the list.
-for (c of legalCharacters) {
+for each (c in legalCharacters) {
   values.push([c + "@bar.com", true]);
 }
 // Add the concatenation of all legal characters too.
@@ -164,7 +146,7 @@ values.push([legalCharacters + "@bar.com", true]);
 
 // Add username illegal characters, the same way.
 var illegalCharacters = "()<>[]:;@\\, \t";
-for (c of illegalCharacters) {
+for each (c in illegalCharacters) {
   values.push([illegalCharacters + "@bar.com", false]);
 }
 
@@ -173,9 +155,10 @@ for (c of illegalCharacters) {
 legalCharacters = "abcdefghijklmnopqrstuvwxyz";
 legalCharacters += "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 legalCharacters += "0123456789";
+legalCharacters += "-";
 
-// Add domain legal characters (except '.' and '-' because they are special).
-for (c of legalCharacters) {
+// Add domain legal characters (except '.' because it's special).
+for each (c in legalCharacters) {
   values.push(["foo@foo.bar" + c, true]);
 }
 // Add the concatenation of all legal characters too.
@@ -183,17 +166,12 @@ values.push(["foo@bar.com" + legalCharacters, true]);
 
 // Add domain illegal characters.
 illegalCharacters = "()<>[]:;@\\,!#$%&'*+/=?^_`{|}~ \t";
-for (c of illegalCharacters) {
+for each (c in illegalCharacters) {
   values.push(['foo@foo.ba' + c + 'r', false]);
 }
 
-values.forEach(function([value, valid, todo]) {
-  if (todo === true) {
-    email.value = value;
-    todo_is(email.validity.valid, true, "value should be valid");
-  } else {
-    testEmailAddress(email, value, false, valid);
-  }
+values.forEach(function([value, valid]) {
+  testEmailAddress(email, value, false, valid);
 });
 
 multipleValues.forEach(function([value, valid]) {

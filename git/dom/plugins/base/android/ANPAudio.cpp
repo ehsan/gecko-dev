@@ -1,7 +1,40 @@
-/* -*- Mode: c++; c-basic-offset: 2; tab-width: 20; indent-tabs-mode: nil; -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* -*- Mode: IDL; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Android NPAPI support code
+ *
+ * The Initial Developer of the Original Code is
+ * the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Doug Turner <dougt@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "base/basictypes.h"
 #include "AndroidBridge.h"
@@ -14,7 +47,6 @@
 #include "ANPBase.h"
 #include "nsIThread.h"
 #include "nsThreadUtils.h"
-#include "mozilla/Mutex.h"
 
 #define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GeckoPluginsAudio" , ## args)
 #define ASSIGN(obj, name)   (obj)->name = anp_audio_##name
@@ -30,8 +62,6 @@ struct AudioTrack {
   jmethodID stop;
   jmethodID write;
   jmethodID getpos;
-  jmethodID getstate;
-  jmethodID release;
 };
 
 enum AudioTrackMode {
@@ -61,18 +91,11 @@ enum AudioFormatEncoding {
   ENCODING_PCM_8BIT = 3
 };
 
-enum AudioFormatState {
-  STATE_UNINITIALIZED = 0,
-  STATE_INITIALIZED = 1,
-  STATE_NO_STATIC_DATA = 2
-};
-
 static struct AudioTrack at;
 
 static jclass
 init_jni_bindings(JNIEnv *jenv) {
-  jclass jc =
-    (jclass)jenv->NewGlobalRef(jenv->FindClass("android/media/AudioTrack"));
+  jclass jc = jenv->FindClass("android/media/AudioTrack");
 
   at.constructor = jenv->GetMethodID(jc, "<init>", "(IIIIII)V");
   at.flush       = jenv->GetMethodID(jc, "flush", "()V");
@@ -82,8 +105,6 @@ init_jni_bindings(JNIEnv *jenv) {
   at.stop        = jenv->GetMethodID(jc, "stop",  "()V");
   at.write       = jenv->GetMethodID(jc, "write", "([BII)I");
   at.getpos      = jenv->GetMethodID(jc, "getPlaybackHeadPosition", "()I");
-  at.getstate    = jenv->GetMethodID(jc, "getState", "()I");
-  at.release     = jenv->GetMethodID(jc, "release", "()V");
 
   return jc;
 }
@@ -98,13 +119,9 @@ struct ANPAudioTrack {
   unsigned int isStopped;
   unsigned int keepGoing;
 
-  mozilla::Mutex lock;
-
   void* user;
   ANPAudioCallbackProc proc;
   ANPSampleFormat format;
-
-  ANPAudioTrack() : lock("ANPAudioTrack") { }
 };
 
 class AudioRunnable : public nsRunnable
@@ -122,13 +139,11 @@ public:
 NS_IMETHODIMP
 AudioRunnable::Run()
 {
-  PR_SetCurrentThreadName("Android Audio");
-
   JNIEnv* jenv = GetJNIForThread();
-  if (!jenv)
-    return NS_ERROR_FAILURE;
 
-  mozilla::AutoLocalJNIFrame autoFrame(jenv, 2);
+  if (jenv->PushLocalFrame(128)) {
+    return NS_ERROR_FAILURE;
+  }
 
   jbyteArray bytearray = jenv->NewByteArray(mTrack->bufferSize);
   if (!bytearray) {
@@ -147,20 +162,13 @@ AudioRunnable::Run()
   buffer.format = mTrack->format;
   buffer.bufferData = (void*) byte;
 
-  while (true)
+  while (mTrack->keepGoing)
   {
     // reset the buffer size
     buffer.size = mTrack->bufferSize;
-    
-    {
-      mozilla::MutexAutoLock lock(mTrack->lock);
 
-      if (!mTrack->keepGoing)
-        break;
-
-      // Get data from the plugin
-      mTrack->proc(kMoreData_ANPAudioEvent, mTrack->user, &buffer);
-    }
+    // Get data from the plugin
+    mTrack->proc(kMoreData_ANPAudioEvent, mTrack->user, &buffer);
 
     if (buffer.size == 0) {
       LOG("%p - kMoreData_ANPAudioEvent", mTrack);
@@ -185,14 +193,13 @@ AudioRunnable::Run()
     } while(wroteSoFar < buffer.size);
   }
 
-  jenv->CallVoidMethod(mTrack->output_unit, at.release);
-
   jenv->DeleteGlobalRef(mTrack->output_unit);
   jenv->DeleteGlobalRef(mTrack->at_class);
 
-  delete mTrack;
-  
+  free(mTrack);
+
   jenv->ReleaseByteArrayElements(bytearray, byte, 0);
+  jenv->PopLocalFrame(NULL);
 
   return NS_OK;
 }
@@ -204,7 +211,7 @@ anp_audio_newTrack(uint32_t sampleRate,    // sampling rate in Hz
                    ANPAudioCallbackProc proc,
                    void* user)
 {
-  ANPAudioTrack *s = new ANPAudioTrack();
+  ANPAudioTrack *s = (ANPAudioTrack*) malloc(sizeof(ANPAudioTrack));
   if (s == NULL) {
     return NULL;
   }
@@ -251,8 +258,6 @@ anp_audio_newTrack(uint32_t sampleRate,    // sampling rate in Hz
     break;
   }
 
-  mozilla::AutoLocalJNIFrame autoFrame(jenv);
-
   jobject obj = jenv->NewObject(s->at_class,
                                 at.constructor,
                                 STREAM_MUSIC,
@@ -262,15 +267,11 @@ anp_audio_newTrack(uint32_t sampleRate,    // sampling rate in Hz
                                 s->bufferSize,
                                 MODE_STREAM);
 
-  if (autoFrame.CheckForException() || obj == NULL) {
-    jenv->DeleteGlobalRef(s->at_class);
-    free(s);
-    return NULL;
-  }
-
-  jint state = jenv->CallIntMethod(obj, at.getstate);
-
-  if (autoFrame.CheckForException() || state == STATE_UNINITIALIZED) {
+  jthrowable exception = jenv->ExceptionOccurred();
+  if (exception) {
+    LOG("%s fAILED  ", __PRETTY_FUNCTION__);
+    jenv->ExceptionDescribe();
+    jenv->ExceptionClear();
     jenv->DeleteGlobalRef(s->at_class);
     free(s);
     return NULL;
@@ -287,7 +288,6 @@ anp_audio_deleteTrack(ANPAudioTrack* s)
     return;
   }
 
-  mozilla::MutexAutoLock lock(s->lock);
   s->keepGoing = false;
 
   // deallocation happens in the AudioThread.  There is a
@@ -301,24 +301,15 @@ anp_audio_start(ANPAudioTrack* s)
   if (s == NULL || s->output_unit == NULL) {
     return;
   }
-
+  
   if (s->keepGoing) {
     // we are already playing.  Ignore.
+    LOG("anp_audio_start called twice!");
     return;
   }
 
   JNIEnv *jenv = GetJNIForThread();
-  if (!jenv)
-    return;
-
-  mozilla::AutoLocalJNIFrame autoFrame(jenv, 0);
   jenv->CallVoidMethod(s->output_unit, at.play);
-
-  if (autoFrame.CheckForException()) {
-    jenv->DeleteGlobalRef(s->at_class);
-    free(s);
-    return;
-  }
 
   s->isStopped = false;
   s->keepGoing = true;
@@ -338,10 +329,6 @@ anp_audio_pause(ANPAudioTrack* s)
   }
 
   JNIEnv *jenv = GetJNIForThread();
-  if (!jenv)
-    return;
-
-  mozilla::AutoLocalJNIFrame autoFrame(jenv, 0);
   jenv->CallVoidMethod(s->output_unit, at.pause);
 }
 
@@ -354,10 +341,6 @@ anp_audio_stop(ANPAudioTrack* s)
 
   s->isStopped = true;
   JNIEnv *jenv = GetJNIForThread();
-  if (!jenv)
-    return;
-
-  mozilla::AutoLocalJNIFrame autoFrame(jenv, 0);
   jenv->CallVoidMethod(s->output_unit, at.stop);
 }
 
@@ -367,18 +350,7 @@ anp_audio_isStopped(ANPAudioTrack* s)
   return s->isStopped;
 }
 
-uint32_t
-anp_audio_trackLatency(ANPAudioTrack* s) {
-  // Hardcode an estimate of the system's audio latency. Flash hardcodes
-  // similar latency estimates for pre-Honeycomb devices that do not support
-  // ANPAudioTrackInterfaceV1's trackLatency(). The Android stock browser
-  // calls android::AudioTrack::latency(), an internal Android API that is
-  // not available in the public NDK:
-  // https://github.com/android/platform_external_webkit/commit/49bf866973cb3b2a6c74c0eab864e9562e4cbab1
-  return 100; // milliseconds
-}
-
-void InitAudioTrackInterfaceV0(ANPAudioTrackInterfaceV0 *i) {
+void InitAudioTrackInterface(ANPAudioTrackInterfaceV0 *i) {
   _assert(i->inSize == sizeof(*i));
   ASSIGN(i, newTrack);
   ASSIGN(i, deleteTrack);
@@ -386,15 +358,4 @@ void InitAudioTrackInterfaceV0(ANPAudioTrackInterfaceV0 *i) {
   ASSIGN(i, pause);
   ASSIGN(i, stop);
   ASSIGN(i, isStopped);
-}
-
-void InitAudioTrackInterfaceV1(ANPAudioTrackInterfaceV1 *i) {
-  _assert(i->inSize == sizeof(*i));
-  ASSIGN(i, newTrack);
-  ASSIGN(i, deleteTrack);
-  ASSIGN(i, start);
-  ASSIGN(i, pause);
-  ASSIGN(i, stop);
-  ASSIGN(i, isStopped);
-  ASSIGN(i, trackLatency);
 }

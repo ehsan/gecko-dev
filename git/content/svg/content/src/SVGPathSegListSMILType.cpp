@@ -1,14 +1,44 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-#include "mozilla/DebugOnly.h"
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Mozilla SVG project.
+ *
+ * The Initial Developer of the Original Code is the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "SVGPathSegListSMILType.h"
 #include "nsSMILValue.h"
-#include "SVGPathSegUtils.h"
 #include "SVGPathData.h"
+#include "mozilla/Util.h"
+#include <math.h>
 
 // Indices of boolean flags within 'arc' segment chunks in path-data arrays
 // (where '0' would correspond to the index of the encoded segment type):
@@ -16,6 +46,8 @@
 #define SWEEP_FLAG_IDX     5
 
 namespace mozilla {
+
+/*static*/ SVGPathSegListSMILType SVGPathSegListSMILType::sSingleton;
 
 //----------------------------------------------------------------------
 // nsISMILType implementation
@@ -33,8 +65,8 @@ SVGPathSegListSMILType::Destroy(nsSMILValue& aValue) const
 {
   NS_PRECONDITION(aValue.mType == this, "Unexpected SMIL value type");
   delete static_cast<SVGPathDataAndOwner*>(aValue.mU.mPtr);
-  aValue.mU.mPtr = nullptr;
-  aValue.mType = nsSMILNullType::Singleton();
+  aValue.mU.mPtr = nsnull;
+  aValue.mType = &nsSMILNullType::sSingleton;
 }
 
 nsresult
@@ -52,7 +84,7 @@ SVGPathSegListSMILType::Assign(nsSMILValue& aDest,
   return dest->CopyFrom(*src);
 }
 
-bool
+PRBool
 SVGPathSegListSMILType::IsEqual(const nsSMILValue& aLeft,
                                 const nsSMILValue& aRight) const
 {
@@ -63,7 +95,7 @@ SVGPathSegListSMILType::IsEqual(const nsSMILValue& aLeft,
          *static_cast<const SVGPathDataAndOwner*>(aRight.mU.mPtr);
 }
 
-static bool
+static PRBool
 ArcFlagsDiffer(SVGPathDataAndOwner::const_iterator aPathData1,
                SVGPathDataAndOwner::const_iterator aPathData2)
 {
@@ -104,8 +136,8 @@ CanInterpolate(const SVGPathDataAndOwner& aStart,
   SVGPathDataAndOwner::const_iterator pEndDataEnd = aEnd.end();
 
   while (pStart < pStartDataEnd && pEnd < pEndDataEnd) {
-    uint32_t startType = SVGPathSegUtils::DecodeType(*pStart);
-    uint32_t endType = SVGPathSegUtils::DecodeType(*pEnd);
+    PRUint32 startType = SVGPathSegUtils::DecodeType(*pStart);
+    PRUint32 endType = SVGPathSegUtils::DecodeType(*pEnd);
 
     if (SVGPathSegUtils::IsArcType(startType) &&
         SVGPathSegUtils::IsArcType(endType) &&
@@ -158,7 +190,7 @@ AdjustSegmentForRelativeness(RelativenessAdjustmentType aAdjustmentType,
  * Helper function for AddWeightedPathSegLists, to add multiples of two
  * path-segments of the same type.
  *
- * NOTE: |aSeg1| is allowed to be nullptr, so we use |aSeg2| as the
+ * NOTE: |aSeg1| is allowed to be nsnull, so we use |aSeg2| as the
  * authoritative source of things like segment-type and boolean arc flags.
  *
  * @param aCoeff1    The coefficient to use on the first segment.
@@ -179,14 +211,14 @@ AddWeightedPathSegs(double aCoeff1,
   NS_ABORT_IF_FALSE(aSeg2, "2nd segment must be non-null");
   NS_ABORT_IF_FALSE(aResultSeg, "result segment must be non-null");
 
-  uint32_t segType = SVGPathSegUtils::DecodeType(aSeg2[0]);
+  PRUint32 segType = SVGPathSegUtils::DecodeType(aSeg2[0]);
   NS_ABORT_IF_FALSE(!aSeg1 || SVGPathSegUtils::DecodeType(*aSeg1) == segType,
                     "unexpected segment type");
 
   // FIRST: Directly copy the arguments that don't make sense to add.
   aResultSeg[0] = aSeg2[0];  // encoded segment type
 
-  bool isArcType = SVGPathSegUtils::IsArcType(segType);
+  PRBool isArcType = SVGPathSegUtils::IsArcType(segType);
   if (isArcType) {
     // Copy boolean arc flags.
     NS_ABORT_IF_FALSE(!aSeg1 || !ArcFlagsDiffer(aSeg1, aSeg2),
@@ -197,8 +229,8 @@ AddWeightedPathSegs(double aCoeff1,
 
   // SECOND: Add the arguments that are supposed to be added.
   // (The 1's below are to account for segment type)
-  uint32_t numArgs = SVGPathSegUtils::ArgCountForType(segType);
-  for (uint32_t i = 1; i < 1 + numArgs; ++i) {
+  PRUint32 numArgs = SVGPathSegUtils::ArgCountForType(segType);
+  for (PRUint32 i = 1; i < 1 + numArgs; ++i) {
      // Need to skip arc flags for arc-type segments. (already handled them)
     if (!(isArcType && (i == LARGE_ARC_FLAG_IDX || i == SWEEP_FLAG_IDX))) {
       aResultSeg[i] = (aSeg1 ? aCoeff1 * aSeg1[i] : 0.0) + aCoeff2 * aSeg2[i];
@@ -250,7 +282,7 @@ AddWeightedPathSegLists(double aCoeff1, const SVGPathDataAndOwner& aList1,
 
   SVGPathDataAndOwner::const_iterator iter1, end1;
   if (aList1.IsIdentity()) {
-    iter1 = end1 = nullptr; // indicate that this is an identity list
+    iter1 = end1 = nsnull; // indicate that this is an identity list
   } else {
     iter1 = aList1.begin();
     end1 = aList1.end();
@@ -260,10 +292,10 @@ AddWeightedPathSegLists(double aCoeff1, const SVGPathDataAndOwner& aList1,
 
   // Grow |aResult| if necessary. (NOTE: It's possible that aResult and aList1
   // are the same list, so this may implicitly resize aList1. That's fine,
-  // because in that case, we will have already set iter1 to nullptr above, to
+  // because in that case, we will have already set iter1 to nsnull above, to
   // record that our first operand is an identity value.)
   if (aResult.IsIdentity()) {
-    DebugOnly<bool> success = aResult.SetLength(aList2.Length());
+    DebugOnly<PRBool> success = aResult.SetLength(aList2.Length());
     NS_ABORT_IF_FALSE(success, "infallible nsTArray::SetLength should succeed");
     aResult.SetElement(aList2.Element()); // propagate target element info!
   }
@@ -288,10 +320,10 @@ ConvertPathSegmentData(SVGPathDataAndOwner::const_iterator& aStart,
                        SVGPathDataAndOwner::iterator& aResult,
                        SVGPathTraversalState& aState)
 {
-  uint32_t startType = SVGPathSegUtils::DecodeType(*aStart);
-  uint32_t endType = SVGPathSegUtils::DecodeType(*aEnd);
+  PRUint32 startType = SVGPathSegUtils::DecodeType(*aStart);
+  PRUint32 endType = SVGPathSegUtils::DecodeType(*aEnd);
 
-  uint32_t segmentLengthIncludingType =
+  PRUint32 segmentLengthIncludingType =
       1 + SVGPathSegUtils::ArgCountForType(startType);
 
   SVGPathDataAndOwner::const_iterator pResultSegmentBegin = aResult;
@@ -323,18 +355,18 @@ ConvertPathSegmentData(SVGPathDataAndOwner::const_iterator& aStart,
   aResult[0] = aEnd[0];
 
   switch (endType) {
-    case PATHSEG_LINETO_HORIZONTAL_ABS:
-    case PATHSEG_LINETO_HORIZONTAL_REL:
+    case nsIDOMSVGPathSeg::PATHSEG_LINETO_HORIZONTAL_ABS:
+    case nsIDOMSVGPathSeg::PATHSEG_LINETO_HORIZONTAL_REL:
       aResult[1] = aStart[1] +
         (adjustmentType == eRelativeToAbsolute ? 1 : -1) * aState.pos.x;
       break;
-    case PATHSEG_LINETO_VERTICAL_ABS:
-    case PATHSEG_LINETO_VERTICAL_REL:
+    case nsIDOMSVGPathSeg::PATHSEG_LINETO_VERTICAL_ABS:
+    case nsIDOMSVGPathSeg::PATHSEG_LINETO_VERTICAL_REL:
       aResult[1] = aStart[1] +
         (adjustmentType == eRelativeToAbsolute  ? 1 : -1) * aState.pos.y;
       break;
-    case PATHSEG_ARC_ABS:
-    case PATHSEG_ARC_REL:
+    case nsIDOMSVGPathSeg::PATHSEG_ARC_ABS:
+    case nsIDOMSVGPathSeg::PATHSEG_ARC_REL:
       aResult[1] = aStart[1];
       aResult[2] = aStart[2];
       aResult[3] = aStart[3];
@@ -344,26 +376,26 @@ ConvertPathSegmentData(SVGPathDataAndOwner::const_iterator& aStart,
       aResult[7] = aStart[7];
       AdjustSegmentForRelativeness(adjustmentType, aResult + 6, aState);
       break;
-    case PATHSEG_CURVETO_CUBIC_ABS:
-    case PATHSEG_CURVETO_CUBIC_REL:
+    case nsIDOMSVGPathSeg::PATHSEG_CURVETO_CUBIC_ABS:
+    case nsIDOMSVGPathSeg::PATHSEG_CURVETO_CUBIC_REL:
       aResult[5] = aStart[5];
       aResult[6] = aStart[6];
       AdjustSegmentForRelativeness(adjustmentType, aResult + 5, aState);
       // fall through
-    case PATHSEG_CURVETO_QUADRATIC_ABS:
-    case PATHSEG_CURVETO_QUADRATIC_REL:
-    case PATHSEG_CURVETO_CUBIC_SMOOTH_ABS:
-    case PATHSEG_CURVETO_CUBIC_SMOOTH_REL:
+    case nsIDOMSVGPathSeg::PATHSEG_CURVETO_QUADRATIC_ABS:
+    case nsIDOMSVGPathSeg::PATHSEG_CURVETO_QUADRATIC_REL:
+    case nsIDOMSVGPathSeg::PATHSEG_CURVETO_CUBIC_SMOOTH_ABS:
+    case nsIDOMSVGPathSeg::PATHSEG_CURVETO_CUBIC_SMOOTH_REL:
       aResult[3] = aStart[3];
       aResult[4] = aStart[4];
       AdjustSegmentForRelativeness(adjustmentType, aResult + 3, aState);
       // fall through
-    case PATHSEG_MOVETO_ABS:
-    case PATHSEG_MOVETO_REL:
-    case PATHSEG_LINETO_ABS:
-    case PATHSEG_LINETO_REL:
-    case PATHSEG_CURVETO_QUADRATIC_SMOOTH_ABS:
-    case PATHSEG_CURVETO_QUADRATIC_SMOOTH_REL:
+    case nsIDOMSVGPathSeg::PATHSEG_MOVETO_ABS:
+    case nsIDOMSVGPathSeg::PATHSEG_MOVETO_REL:
+    case nsIDOMSVGPathSeg::PATHSEG_LINETO_ABS:
+    case nsIDOMSVGPathSeg::PATHSEG_LINETO_REL:
+    case nsIDOMSVGPathSeg::PATHSEG_CURVETO_QUADRATIC_SMOOTH_ABS:
+    case nsIDOMSVGPathSeg::PATHSEG_CURVETO_QUADRATIC_SMOOTH_REL:
       aResult[1] = aStart[1];
       aResult[2] = aStart[2];
       AdjustSegmentForRelativeness(adjustmentType, aResult + 1, aState);
@@ -395,7 +427,7 @@ ConvertAllPathSegmentData(SVGPathDataAndOwner::const_iterator aStart,
 nsresult
 SVGPathSegListSMILType::Add(nsSMILValue& aDest,
                             const nsSMILValue& aValueToAdd,
-                            uint32_t aCount) const
+                            PRUint32 aCount) const
 {
   NS_PRECONDITION(aDest.mType == this, "Unexpected SMIL type");
   NS_PRECONDITION(aValueToAdd.mType == this, "Incompatible SMIL type");
@@ -416,7 +448,7 @@ SVGPathSegListSMILType::Add(nsSMILValue& aDest,
 
     PathInterpolationResult check = CanInterpolate(dest, valueToAdd);
     if (check == eCannotInterpolate) {
-      // SVGContentUtils::ReportToConsole - can't add path segment lists with
+      // nsSVGUtils::ReportToConsole - can't add path segment lists with
       // different numbers of segments, with arcs that have different flag
       // values, or with incompatible segment types.
       return NS_ERROR_FAILURE;
@@ -444,7 +476,7 @@ SVGPathSegListSMILType::ComputeDistance(const nsSMILValue& aFrom,
 
   // See https://bugzilla.mozilla.org/show_bug.cgi?id=522306#c18
 
-  // SVGContentUtils::ReportToConsole
+  // nsSVGUtils::ReportToConsole
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
@@ -472,7 +504,7 @@ SVGPathSegListSMILType::Interpolate(const nsSMILValue& aStartVal,
   PathInterpolationResult check = CanInterpolate(start, end); 
 
   if (check == eCannotInterpolate) {
-    // SVGContentUtils::ReportToConsole - can't interpolate path segment lists with
+    // nsSVGUtils::ReportToConsole - can't interpolate path segment lists with
     // different numbers of segments, with arcs with different flag values, or
     // with incompatible segment types.
     return NS_ERROR_FAILURE;
@@ -482,7 +514,7 @@ SVGPathSegListSMILType::Interpolate(const nsSMILValue& aStartVal,
   if (check == eRequiresConversion) {
     // Can't convert |start| in-place, since it's const. Instead, we copy it
     // into |result|, converting the types as we go, and use that as our start.
-    DebugOnly<bool> success = result.SetLength(end.Length());
+    DebugOnly<PRBool> success = result.SetLength(end.Length());
     NS_ABORT_IF_FALSE(success, "infallible nsTArray::SetLength should succeed");
     result.SetElement(end.Element()); // propagate target element info!
 

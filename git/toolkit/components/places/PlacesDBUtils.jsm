@@ -1,8 +1,42 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  * vim: sw=2 ts=2 sts=2 expandtab filetype=javascript
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Places Database Utils code.
+ *
+ * The Initial Developer of the Original Code is
+ * the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2008
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Marco Bonardo <mak77@bonardo.net> (Original Author)
+ *   Richard Newman <rnewman@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -13,14 +47,12 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/PlacesUtils.jsm");
 
-this.EXPORTED_SYMBOLS = [ "PlacesDBUtils" ];
+let EXPORTED_SYMBOLS = [ "PlacesDBUtils" ];
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Constants
 
 const FINISHED_MAINTENANCE_TOPIC = "places-maintenance-finished";
-
-const BYTES_PER_MEBIBYTE = 1048576;
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Smart getters
@@ -32,10 +64,11 @@ XPCOMUtils.defineLazyGetter(this, "DBConn", function() {
 ////////////////////////////////////////////////////////////////////////////////
 //// PlacesDBUtils
 
-this.PlacesDBUtils = {
+let PlacesDBUtils = {
   /**
    * Executes a list of maintenance tasks.
-   * Once finished it will pass a array log to the callback attached to tasks.
+   * Once finished it will pass a array log to the callback attached to tasks,
+   * or print out to the error console if no callback is defined.
    * FINISHED_MAINTENANCE_TOPIC is notified through observer service on finish.
    *
    * @param aTasks
@@ -43,38 +76,28 @@ this.PlacesDBUtils = {
    */
   _executeTasks: function PDBU__executeTasks(aTasks)
   {
-    if (PlacesDBUtils._isShuttingDown) {
-      aTasks.log("- We are shutting down. Will not schedule the tasks.");
-      aTasks.clear();
-    }
-
     let task = aTasks.pop();
     if (task) {
       task.call(PlacesDBUtils, aTasks);
     }
     else {
-      // All tasks have been completed.
-      // Telemetry the time it took for maintenance, if a start time exists.
-      if (aTasks._telemetryStart) {
-        Services.telemetry.getHistogramById("PLACES_IDLE_MAINTENANCE_TIME_MS")
-                          .add(Date.now() - aTasks._telemetryStart);
-        aTasks._telemetryStart = 0;
-      }
-
       if (aTasks.callback) {
         let scope = aTasks.scope || Cu.getGlobalForObject(aTasks.callback);
         aTasks.callback.call(scope, aTasks.messages);
+      }
+      else {
+        // Output to the error console.
+        let messages = aTasks.messages;
+        messages.unshift("[ Places Maintenance ]");
+        try {
+          Services.console.logStringMessage(messages.join("\n"));
+        } catch(ex) {}
       }
 
       // Notify observers that maintenance finished.
       Services.prefs.setIntPref("places.database.lastMaintenance", parseInt(Date.now() / 1000));
       Services.obs.notifyObservers(null, FINISHED_MAINTENANCE_TOPIC, null);
     }
-  },
-
-  _isShuttingDown : false,
-  shutdown: function PDBU_shutdown() {
-    PlacesDBUtils._isShuttingDown = true;
   },
 
   /**
@@ -92,8 +115,8 @@ this.PlacesDBUtils = {
       this.checkIntegrity
     , this.checkCoherence
     , this._refreshUI
+    , this._telemetry
     ]);
-    tasks._telemetryStart = Date.now();
     tasks.callback = aCallback;
     tasks.scope = aScope;
     this._executeTasks(tasks);
@@ -255,7 +278,7 @@ this.PlacesDBUtils = {
     let tasks = new Tasks(aTasks);
     tasks.log("> Coherence check");
 
-    let stmts = PlacesDBUtils._getBoundCoherenceStatements();
+    let stmts = this._getBoundCoherenceStatements();
     DBConn.executeAsync(stmts, stmts.length, {
       handleError: PlacesDBUtils._handleError,
       handleResult: function () {},
@@ -298,7 +321,6 @@ this.PlacesDBUtils = {
       "WHERE anno_attribute_id IN ( "               +
       "  SELECT id FROM moz_anno_attributes "       +
       "  WHERE name = 'sync/children' "             +
-      "     OR name = 'placesInternal/GUID' "       +
       "     OR name BETWEEN 'weave/' AND 'weave0' " +
       ")");
     cleanupStatements.push(deleteObsoleteItemsAnnos);
@@ -464,7 +486,7 @@ this.PlacesDBUtils = {
     cleanupStatements.push(fixInvalidKeywords);
 
     // D.6 fix wrong item types
-    //     Folders and separators should not have an fk.
+    //     Folders, separators and dynamic containers should not have an fk.
     //     If they have a valid fk convert them to bookmarks. Later in D.9 we
     //     will move eventual children to unsorted bookmarks.
     let fixBookmarksAsFolders = DBConn.createAsyncStatement(
@@ -472,12 +494,13 @@ this.PlacesDBUtils = {
         "SELECT folder_id FROM moz_bookmarks_roots " + // skip roots
       ") AND id IN ( " +
         "SELECT id FROM moz_bookmarks b " +
-        "WHERE type IN (:folder_type, :separator_type) " +
+        "WHERE type IN (:folder_type, :separator_type, :dynamic_type) " +
           "AND fk NOTNULL " +
       ")");
     fixBookmarksAsFolders.params["bookmark_type"] = PlacesUtils.bookmarks.TYPE_BOOKMARK;
     fixBookmarksAsFolders.params["folder_type"] = PlacesUtils.bookmarks.TYPE_FOLDER;
     fixBookmarksAsFolders.params["separator_type"] = PlacesUtils.bookmarks.TYPE_SEPARATOR;
+    fixBookmarksAsFolders.params["dynamic_type"] = PlacesUtils.bookmarks.TYPE_DYNAMIC_CONTAINER;
     cleanupStatements.push(fixBookmarksAsFolders);
 
     // D.7 fix wrong item types
@@ -495,8 +518,23 @@ this.PlacesDBUtils = {
     fixFoldersAsBookmarks.params["folder_type"] = PlacesUtils.bookmarks.TYPE_FOLDER;
     cleanupStatements.push(fixFoldersAsBookmarks);
 
+    // D.8 fix wrong item types
+    //     Dynamic containers should have a folder_type, if they don't have any
+    //     convert them to folders.
+    let fixFoldersAsDynamic = DBConn.createAsyncStatement(
+      "UPDATE moz_bookmarks SET type = :folder_type WHERE id NOT IN ( " +
+        "SELECT folder_id FROM moz_bookmarks_roots " + // skip roots
+      ") AND id IN ( " +
+        "SELECT id FROM moz_bookmarks b " +
+        "WHERE type = :dynamic_type " +
+          "AND folder_type IS NULL " +
+      ")");
+    fixFoldersAsDynamic.params["dynamic_type"] = PlacesUtils.bookmarks.TYPE_DYNAMIC_CONTAINER;
+    fixFoldersAsDynamic.params["folder_type"] = PlacesUtils.bookmarks.TYPE_FOLDER;
+    cleanupStatements.push(fixFoldersAsDynamic);
+
     // D.9 fix wrong parents
-    //     Items cannot have separators or other bookmarks
+    //     Items cannot have dynamic containers, separators or other bookmarks
     //     as parent, if they have bad parent move them to unsorted bookmarks.
     let fixInvalidParents = DBConn.createAsyncStatement(
       "UPDATE moz_bookmarks SET parent = :unsorted_folder WHERE id NOT IN ( " +
@@ -505,12 +543,13 @@ this.PlacesDBUtils = {
         "SELECT id FROM moz_bookmarks b " +
         "WHERE EXISTS " +
           "(SELECT id FROM moz_bookmarks WHERE id = b.parent " +
-            "AND type IN (:bookmark_type, :separator_type) " +
+            "AND type IN (:bookmark_type, :separator_type, :dynamic_type) " +
             "LIMIT 1) " +
       ")");
     fixInvalidParents.params["unsorted_folder"] = PlacesUtils.unfiledBookmarksFolderId;
     fixInvalidParents.params["bookmark_type"] = PlacesUtils.bookmarks.TYPE_BOOKMARK;
     fixInvalidParents.params["separator_type"] = PlacesUtils.bookmarks.TYPE_SEPARATOR;
+    fixInvalidParents.params["dynamic_type"] = PlacesUtils.bookmarks.TYPE_DYNAMIC_CONTAINER;
     cleanupStatements.push(fixInvalidParents);
 
     // D.10 recalculate positions
@@ -568,6 +607,18 @@ this.PlacesDBUtils = {
     cleanupStatements.push(DBConn.createAsyncStatement(
       "DROP TABLE moz_bm_reindex_temp "
     ));
+
+    // D.11 remove old livemarks status items
+    //      Livemark status items are now static but some livemark has still old
+    //      status items bookmarks inside it. We should remove them.
+    let removeLivemarkStaticItems = DBConn.createAsyncStatement(
+      "DELETE FROM moz_bookmarks WHERE type = :bookmark_type AND fk IN ( " +
+        "SELECT id FROM moz_places WHERE url = :lmloading OR url = :lmfailed " +
+      ")");
+    removeLivemarkStaticItems.params["bookmark_type"] = PlacesUtils.bookmarks.TYPE_BOOKMARK;
+    removeLivemarkStaticItems.params["lmloading"] = "about:livemark-loading";
+    removeLivemarkStaticItems.params["lmfailed"] = "about:livemark-failed";
+    cleanupStatements.push(removeLivemarkStaticItems);
 
     // D.12 Fix empty-named tags.
     //      Tags were allowed to have empty names due to a UI bug.  Fix them
@@ -653,34 +704,24 @@ this.PlacesDBUtils = {
       ")");
     cleanupStatements.push(fixInvalidFaviconIds);
 
-    // L.2 recalculate visit_count and last_visit_date
-    let fixVisitStats = DBConn.createAsyncStatement(
-      "UPDATE moz_places " +
-      "SET visit_count = (SELECT count(*) FROM moz_historyvisits " +
-                         "WHERE place_id = moz_places.id AND visit_type NOT IN (0,4,7,8)), " +
-          "last_visit_date = (SELECT MAX(visit_date) FROM moz_historyvisits " +
-                             "WHERE place_id = moz_places.id) " +
-      "WHERE id IN ( " +
-        "SELECT h.id FROM moz_places h " +
-        "WHERE visit_count <> (SELECT count(*) FROM moz_historyvisits v " +
-                              "WHERE v.place_id = h.id AND visit_type NOT IN (0,4,7,8)) " +
-           "OR last_visit_date <> (SELECT MAX(visit_date) FROM moz_historyvisits v " +
-                                  "WHERE v.place_id = h.id) " +
-      ")");
-    cleanupStatements.push(fixVisitStats);
-
-    // L.3 recalculate hidden for redirects.
-    let fixRedirectsHidden = DBConn.createAsyncStatement(
-      "UPDATE moz_places " +
-      "SET hidden = 1 " +
-      "WHERE id IN ( " +
-        "SELECT h.id FROM moz_places h " +
-        "JOIN moz_historyvisits src ON src.place_id = h.id " +
-        "JOIN moz_historyvisits dst ON dst.from_visit = src.id AND dst.visit_type IN (5,6) " +
-        "LEFT JOIN moz_bookmarks on fk = h.id AND fk ISNULL " +
-        "GROUP BY src.place_id HAVING count(*) = visit_count " +
-      ")");
-    cleanupStatements.push(fixRedirectsHidden);
+/* XXX needs test
+    // L.2 recalculate visit_count
+    let detectWrongCountPlaces = DBConn.createStatement(
+      "SELECT id FROM moz_places h " +
+      "WHERE h.visit_count <> " +
+          "(SELECT count(*) FROM moz_historyvisits " +
+            "WHERE place_id = h.id AND visit_type NOT IN (0,4,7,8))");
+    while (detectWrongCountPlaces.executeStep()) {
+      let placeId = detectWrongCountPlaces.getInt64(0);
+      let fixCountForPlace = DBConn.createStatement(
+        "UPDATE moz_places SET visit_count = ( " +
+          "(SELECT count(*) FROM moz_historyvisits " +
+            "WHERE place_id = :place_id AND visit_type NOT IN (0,4,7,8)) + "
+        ") WHERE id = :place_id");
+      fixCountForPlace.params["place_id"] = placeId;
+      cleanupStatements.push(fixCountForPlace);
+    }
+*/
 
     // MAINTENANCE STATEMENTS SHOULD GO ABOVE THIS POINT!
 
@@ -817,141 +858,94 @@ this.PlacesDBUtils = {
   /**
    * Collects telemetry data.
    *
-   * There are essentially two modes of collection and the mode is
-   * determined by the presence of aHealthReportCallback. If
-   * aHealthReportCallback is not defined (the default) then we are in
-   * "Telemetry" mode. Results will be reported to Telemetry. If we are
-   * in "Health Report" mode only the probes with a true healthreport
-   * flag will be collected and the results will be reported to the
-   * aHealthReportCallback.
-   *
    * @param [optional] aTasks
    *        Tasks object to execute.
-   * @param [optional] aHealthReportCallback
-   *        Function to receive data relevant for Firefox Health Report.
    */
-  telemetry: function PDBU_telemetry(aTasks, aHealthReportCallback=null)
+  _telemetry: function PDBU__telemetry(aTasks)
   {
     let tasks = new Tasks(aTasks);
 
-    let isTelemetry = !aHealthReportCallback;
+    // Hash of telemetry probes.  Each one uses the historygram name as key,
+    // and may be either a database query or an helper function.
+    let probes = {
+      PLACES_PAGES_COUNT: "SELECT count(*) FROM moz_places",
 
-    // This will be populated with one integer property for each probe result,
-    // using the histogram name as key.
-    let probeValues = {};
+      PLACES_BOOKMARKS_COUNT: "SELECT count(*) FROM moz_bookmarks b "
+                            + "JOIN moz_bookmarks t ON t.id = b.parent "
+                            + "AND t.parent <> :tags_folder "
+                            + "WHERE b.type = :type_bookmark ",
 
-    // The following array contains an ordered list of entries that are
-    // processed to collect telemetry data.  Each entry has these properties:
-    //
-    //  histogram: Name of the telemetry histogram to update.
-    //  query:     This is optional.  If present, contains a database command
-    //             that will be executed asynchronously, and whose result will
-    //             be added to the telemetry histogram.
-    //  callback:  This is optional.  If present, contains a function that must
-    //             return the value that will be added to the telemetry
-    //             histogram. If a query is also present, its result is passed
-    //             as the first argument of the function.  If the function
-    //             raises an exception, no data is added to the histogram.
-    //  healthreport: Boolean indicating whether this probe is relevant
-    //                to Firefox Health Report.
-    //
-    // Since all queries are executed in order by the database backend, the
-    // callbacks can also use the result of previous queries stored in the
-    // probeValues object.
-    let probes = [
-      { histogram: "PLACES_PAGES_COUNT",
-        healthreport: true,
-        query:     "SELECT count(*) FROM moz_places" },
+      PLACES_TAGS_COUNT: "SELECT count(*) FROM moz_bookmarks "
+                       + "WHERE parent = :tags_folder ",
 
-      { histogram: "PLACES_BOOKMARKS_COUNT",
-        healthreport: true,
-        query:     "SELECT count(*) FROM moz_bookmarks b "
-                 + "JOIN moz_bookmarks t ON t.id = b.parent "
-                 + "AND t.parent <> :tags_folder "
-                 + "WHERE b.type = :type_bookmark " },
+      PLACES_FOLDERS_COUNT: "SELECT count(*) FROM moz_bookmarks "
+                          + "WHERE TYPE = :type_folder "
+                          + "AND parent NOT IN (0, :places_root, :tags_folder) ",
 
-      { histogram: "PLACES_TAGS_COUNT",
-        query:     "SELECT count(*) FROM moz_bookmarks "
-                 + "WHERE parent = :tags_folder " },
+      PLACES_KEYWORDS_COUNT: "SELECT count(*) FROM moz_keywords ",
 
-      { histogram: "PLACES_FOLDERS_COUNT",
-        query:     "SELECT count(*) FROM moz_bookmarks "
-                 + "WHERE TYPE = :type_folder "
-                 + "AND parent NOT IN (0, :places_root, :tags_folder) " },
+      PLACES_SORTED_BOOKMARKS_PERC: "SELECT ROUND(( "
+                                  +   "SELECT count(*) FROM moz_bookmarks b "
+                                  +   "JOIN moz_bookmarks t ON t.id = b.parent "
+                                  +   "AND t.parent <> :tags_folder AND t.parent > :places_root "
+                                  +   "WHERE b.type  = :type_bookmark "
+                                  +   ") * 100 / ( "
+                                  +   "SELECT count(*) FROM moz_bookmarks b "
+                                  +   "JOIN moz_bookmarks t ON t.id = b.parent "
+                                  +   "AND t.parent <> :tags_folder "
+                                  +   "WHERE b.type = :type_bookmark "
+                                  + ")) ",
 
-      { histogram: "PLACES_KEYWORDS_COUNT",
-        query:     "SELECT count(*) FROM moz_keywords " },
+      PLACES_TAGGED_BOOKMARKS_PERC: "SELECT ROUND(( "
+                                  +   "SELECT count(*) FROM moz_bookmarks b "
+                                  +   "JOIN moz_bookmarks t ON t.id = b.parent "
+                                  +   "AND t.parent = :tags_folder "
+                                  +   ") * 100 / ( "
+                                  +   "SELECT count(*) FROM moz_bookmarks b "
+                                  +   "JOIN moz_bookmarks t ON t.id = b.parent "
+                                  +   "AND t.parent <> :tags_folder "
+                                  +   "WHERE b.type = :type_bookmark "
+                                  + ")) ",
 
-      { histogram: "PLACES_SORTED_BOOKMARKS_PERC",
-        query:     "SELECT ROUND(( "
-                 +   "SELECT count(*) FROM moz_bookmarks b "
-                 +   "JOIN moz_bookmarks t ON t.id = b.parent "
-                 +   "AND t.parent <> :tags_folder AND t.parent > :places_root "
-                 +   "WHERE b.type  = :type_bookmark "
-                 +   ") * 100 / ( "
-                 +   "SELECT count(*) FROM moz_bookmarks b "
-                 +   "JOIN moz_bookmarks t ON t.id = b.parent "
-                 +   "AND t.parent <> :tags_folder "
-                 +   "WHERE b.type = :type_bookmark "
-                 + ")) " },
-
-      { histogram: "PLACES_TAGGED_BOOKMARKS_PERC",
-        query:     "SELECT ROUND(( "
-                 +   "SELECT count(*) FROM moz_bookmarks b "
-                 +   "JOIN moz_bookmarks t ON t.id = b.parent "
-                 +   "AND t.parent = :tags_folder "
-                 +   ") * 100 / ( "
-                 +   "SELECT count(*) FROM moz_bookmarks b "
-                 +   "JOIN moz_bookmarks t ON t.id = b.parent "
-                 +   "AND t.parent <> :tags_folder "
-                 +   "WHERE b.type = :type_bookmark "
-                 + ")) " },
-
-      { histogram: "PLACES_DATABASE_FILESIZE_MB",
-        callback: function () {
-          let DBFile = Services.dirsvc.get("ProfD", Ci.nsILocalFile);
-          DBFile.append("places.sqlite");
-          return parseInt(DBFile.fileSize / BYTES_PER_MEBIBYTE);
+      PLACES_DATABASE_FILESIZE_MB: function () {
+        let DBFile = Services.dirsvc.get("ProfD", Ci.nsILocalFile);
+        DBFile.append("places.sqlite");
+        try {
+          return parseInt(DBFile.fileSize / 1024);
+        } catch (ex) {
+          return 0;
         }
       },
 
-      { histogram: "PLACES_DATABASE_JOURNALSIZE_MB",
-        callback: function () {
-          let DBFile = Services.dirsvc.get("ProfD", Ci.nsILocalFile);
-          DBFile.append("places.sqlite-wal");
-          return parseInt(DBFile.fileSize / BYTES_PER_MEBIBYTE);
+      PLACES_DATABASE_JOURNALSIZE_MB: function () {
+        let DBFile = Services.dirsvc.get("ProfD", Ci.nsILocalFile);
+        DBFile.append("places.sqlite-wal");
+        try {
+          return parseInt(DBFile.fileSize / 1024);
+        } catch (ex) {
+          return 0;
         }
       },
 
-      { histogram: "PLACES_DATABASE_PAGESIZE_B",
-        query:     "PRAGMA page_size /* PlacesDBUtils.jsm PAGESIZE_B */" },
+      PLACES_DATABASE_PAGESIZE_B: "PRAGMA page_size",
 
-      { histogram: "PLACES_DATABASE_SIZE_PER_PAGE_B",
-        query:     "PRAGMA page_count",
-        callback: function (aDbPageCount) {
-          // Note that the database file size would not be meaningful for this
-          // calculation, because the file grows in fixed-size chunks.
-          let dbPageSize = probeValues.PLACES_DATABASE_PAGESIZE_B;
-          let placesPageCount = probeValues.PLACES_PAGES_COUNT;
-          return Math.round((dbPageSize * aDbPageCount) / placesPageCount);
-        }
-      },
-
-      { histogram: "PLACES_ANNOS_BOOKMARKS_COUNT",
-        query:     "SELECT count(*) FROM moz_items_annos" },
-
-      // LENGTH is not a perfect measure, since it returns the number of bytes
-      // only for BLOBs, the number of chars for anything else.  Though it's
-      // the best approximation we have.
-      { histogram: "PLACES_ANNOS_BOOKMARKS_SIZE_KB",
-        query:     "SELECT SUM(LENGTH(content))/1024 FROM moz_items_annos" },
-
-      { histogram: "PLACES_ANNOS_PAGES_COUNT",
-        query:     "SELECT count(*) FROM moz_annos" },
-
-      { histogram: "PLACES_ANNOS_PAGES_SIZE_KB",
-        query:     "SELECT SUM(LENGTH(content))/1024 FROM moz_annos" },
-    ];
+      PLACES_DATABASE_SIZE_PER_PAGE_B: function() {
+        // Cannot use the filesize here, due to chunked growth.
+        let stmt = DBConn.createStatement("PRAGMA page_size");
+        stmt.executeStep();
+        let pageSize = stmt.row.page_size;
+        stmt.finalize();
+        stmt = DBConn.createStatement("PRAGMA page_count");
+        stmt.executeStep();
+        let pageCount = stmt.row.page_count;
+        stmt.finalize();
+        stmt = DBConn.createStatement("SELECT count(*) AS c FROM moz_places");
+        stmt.executeStep();
+        let count = stmt.row.c;
+        stmt.finalize();
+        return Math.round((pageSize * pageCount) / count);
+      }
+    };
 
     let params = {
       tags_folder: PlacesUtils.tagsFolderId,
@@ -960,85 +954,49 @@ this.PlacesDBUtils = {
       places_root: PlacesUtils.placesRootId
     };
 
-    let outstandingProbes = 0;
-
-    function reportResult(aProbe, aValue) {
-      outstandingProbes--;
-
-      try {
-        let value = aValue;
-        if ("callback" in aProbe) {
-          value = aProbe.callback(value);
+    for (let probename in probes) {
+      let probe = probes[probename];
+      let histogram = Services.telemetry.getHistogramById(probename);
+      if (typeof probe == "string") {
+        // Run it as a query.
+        let stmt = DBConn.createAsyncStatement(probe);
+        for (param in params) {
+          if (probe.indexOf(":" + param) > 0) {
+            stmt.params[param] = params[param];
+          }
         }
-        probeValues[aProbe.histogram] = value;
-        Services.telemetry.getHistogramById(aProbe.histogram)
-                          .add(value);
-      } catch (ex) {
-        Components.utils.reportError(ex);
-      }
 
-      if (!outstandingProbes && aHealthReportCallback) {
         try {
-          aHealthReportCallback(probeValues);
+          stmt.executeAsync({
+            handleError: PlacesDBUtils._handleError,
+            handleResult: function (aResultSet) {
+              let row = aResultSet.getNextRow();
+              try {
+                histogram.add(row.getResultByIndex(0));
+              } catch (ex) {
+                Components.utils.reportError("Unable to report telemetry.");
+              }
+            },
+            handleCompletion: function () {}
+          });
+        }
+        finally{
+          stmt.finalize();
+        }
+      }
+      else {
+        // Execute it as a function.
+        try {
+          histogram.add(probe());
         } catch (ex) {
-          Components.utils.reportError(ex);
+          Components.utils.reportError("Unable to report telemetry.");
         }
-      }
-    }
-
-    for (let i = 0; i < probes.length; i++) {
-      let probe = probes[i];
-
-      if (!isTelemetry && !probe.healthreport) {
-        continue;
-      }
-
-      outstandingProbes++;
-
-      if (!("query" in probe)) {
-        reportResult(probe);
-        continue;
-      }
-
-      let stmt = DBConn.createAsyncStatement(probe.query);
-      for (param in params) {
-        if (probe.query.indexOf(":" + param) > 0) {
-          stmt.params[param] = params[param];
-        }
-      }
-
-      try {
-        stmt.executeAsync({
-          handleError: PlacesDBUtils._handleError,
-          handleResult: function (aResultSet) {
-            let row = aResultSet.getNextRow();
-            reportResult(probe, row.getResultByIndex(0));
-          },
-          handleCompletion: function () {}
-        });
-      } finally{
-        stmt.finalize();
       }
     }
 
     PlacesDBUtils._executeTasks(tasks);
   },
 
-  /**
-   * Runs a list of tasks, notifying log messages to the callback.
-   *
-   * @param aTasks
-   *        Array of tasks to be executed, in form of pointers to methods in
-   *        this module.
-   * @param [optional] aCallback
-   *        Callback to be invoked when done.  It will receive an array of
-   *        log messages.
-   */
-  runTasks: function PDBU_runTasks(aTasks, aCallback) {
-    let tasks = new Tasks(aTasks);
-    tasks.callback = aCallback;
-    PlacesDBUtils._executeTasks(tasks);
-  }
 };
 
 /**
@@ -1053,15 +1011,11 @@ function Tasks(aTasks)
     if (Array.isArray(aTasks)) {
       this._list = aTasks.slice(0, aTasks.length);
     }
-    // This supports passing in a Tasks-like object, with a "list" property,
-    // for compatibility reasons.
-    else if (typeof(aTasks) == "object" &&
-             (Tasks instanceof Tasks || "list" in aTasks)) {
+    else if ("list" in aTasks) {
       this._list = aTasks.list;
       this._log = aTasks.messages;
       this.callback = aTasks.callback;
       this.scope = aTasks.scope;
-      this._telemetryStart = aTasks._telemetryStart;
     }
   }
 }
@@ -1071,7 +1025,6 @@ Tasks.prototype = {
   _log: [],
   callback: null,
   scope: null,
-  _telemetryStart: 0,
 
   /**
    * Adds a task to the top of the list.

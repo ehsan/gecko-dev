@@ -12,7 +12,7 @@ if (typeof evalcx == 'function') {
     '} catch (e) {}\n' +
     'try {\n' +
     '    let(x = Object.freeze(this, /x/))\n' +
-    '    e = {}.toString\n' +
+    '    e = #0= * .toString\n' +
     '    function y() {}\n' +
     '} catch (e) {}';
 

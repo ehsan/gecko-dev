@@ -5523,14 +5523,7 @@ struct cs_info * get_current_cs(const char * es) {
 // conversion tables static in this file, create them when needed
 // with help the mozilla backend.
 struct cs_info * get_current_cs(const char * es) {
-  struct cs_info *ccs = new cs_info[256];
-  // Initialze the array with dummy data so that we wouldn't need
-  // to return null in case of failures.
-  for (int i = 0; i <= 0xff; ++i) {
-    ccs[i].ccase = false;
-    ccs[i].clower = i;
-    ccs[i].cupper = i;
-  }
+  struct cs_info *ccs;
 
   nsCOMPtr<nsIUnicodeEncoder> encoder; 
   nsCOMPtr<nsIUnicodeDecoder> decoder; 
@@ -5538,22 +5531,24 @@ struct cs_info * get_current_cs(const char * es) {
   nsresult rv;
   nsCOMPtr<nsICharsetConverterManager> ccm = do_GetService(kCharsetConverterManagerCID, &rv);
   if (NS_FAILED(rv))
-    return ccs;
+    return nsnull;
 
   rv = ccm->GetUnicodeEncoder(es, getter_AddRefs(encoder));
   if (NS_FAILED(rv))
-    return ccs;
-  encoder->SetOutputErrorBehavior(encoder->kOnError_Signal, nullptr, '?');
+    return nsnull;
+  encoder->SetOutputErrorBehavior(encoder->kOnError_Signal, nsnull, '?');
   rv = ccm->GetUnicodeDecoder(es, getter_AddRefs(decoder));
   if (NS_FAILED(rv))
-    return ccs;
+    return nsnull;
   decoder->SetInputErrorBehavior(decoder->kOnError_Signal);
 
   if (NS_FAILED(rv))
-    return ccs;
+    return nsnull;
+
+  ccs = new cs_info[256];
 
   for (unsigned int i = 0; i <= 0xff; ++i) {
-    bool success = false;
+    PRBool success = PR_FALSE;
     // We want to find the upper/lowercase equivalents of each byte
     // in this 1-byte character encoding.  Call our encoding/decoding
     // APIs separately for each byte since they may reject some of the
@@ -5564,7 +5559,7 @@ struct cs_info * get_current_cs(const char * es) {
         break;
       const char source = char(i);
       PRUnichar uni, uniCased;
-      int32_t charLength = 1, uniLength = 1;
+      PRInt32 charLength = 1, uniLength = 1;
 
       rv = decoder->Convert(&source, &charLength, &uni, &uniLength);
       // Explicitly check NS_OK because we don't want to allow
@@ -5585,7 +5580,7 @@ struct cs_info * get_current_cs(const char * es) {
       if (rv != NS_OK || charLength != 1 || uniLength != 1)
         break;
 
-      success = true;
+      success = PR_TRUE;
     } while (0);
 
     if (success) {

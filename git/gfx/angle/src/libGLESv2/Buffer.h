@@ -18,7 +18,7 @@
 #include <GLES2/gl2.h>
 
 #include "common/angleutils.h"
-#include "common/RefCountObject.h"
+#include "libGLESv2/RefCountObject.h"
 
 namespace gl
 {
@@ -48,12 +48,12 @@ class Buffer : public RefCountObject
     DISALLOW_COPY_AND_ASSIGN(Buffer);
 
     GLubyte *mContents;
-    GLsizeiptr mSize;
+    size_t mSize;
     GLenum mUsage;
 
     StaticVertexBuffer *mStaticVertexBuffer;
     StaticIndexBuffer *mStaticIndexBuffer;
-    GLsizeiptr mUnmodifiedDataUse;
+    size_t mUnmodifiedDataUse;
 };
 
 }

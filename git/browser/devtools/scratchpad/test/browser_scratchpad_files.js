@@ -2,9 +2,11 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-let tempScope = {};
-Cu.import("resource://gre/modules/NetUtil.jsm", tempScope);
-let NetUtil = tempScope.NetUtil;
+Cu.import("resource://gre/modules/NetUtil.jsm");
+Cu.import("resource://gre/modules/FileUtils.jsm");
+
+// Reference to the Scratchpad chrome window object.
+let gScratchpadWindow;
 
 // Reference to the Scratchpad object.
 let gScratchpad;
@@ -20,9 +22,11 @@ function test()
   waitForExplicitFinish();
 
   gBrowser.selectedTab = gBrowser.addTab();
-  gBrowser.selectedBrowser.addEventListener("load", function onLoad() {
-    gBrowser.selectedBrowser.removeEventListener("load", onLoad, true);
-    openScratchpad(runTests);
+  gBrowser.selectedBrowser.addEventListener("load", function() {
+    gBrowser.selectedBrowser.removeEventListener("load", arguments.callee, true);
+
+    gScratchpadWindow = Scratchpad.openScratchpad();
+    gScratchpadWindow.addEventListener("load", runTests, false);
   }, true);
 
   content.location = "data:text/html,<p>test file open and save in Scratchpad";
@@ -30,16 +34,36 @@ function test()
 
 function runTests()
 {
+  gScratchpadWindow.removeEventListener("load", arguments.callee, false);
+
   gScratchpad = gScratchpadWindow.Scratchpad;
 
-  createTempFile("fileForBug636725.tmp", gFileContent, function(aStatus, aFile) {
-    ok(Components.isSuccessCode(aStatus),
-      "The temporary file was saved successfully");
+  // Create a temporary file.
+  gFile = FileUtils.getFile("TmpD", ["fileForBug636725.tmp"]);
+  gFile.createUnique(Ci.nsIFile.NORMAL_FILE_TYPE, 0666);
 
-      gFile = aFile;
-      gScratchpad.importFromFile(gFile.QueryInterface(Ci.nsILocalFile), true,
-        fileImported);
-  });
+  // Write the temporary file.
+  let fout = Cc["@mozilla.org/network/file-output-stream;1"].
+             createInstance(Ci.nsIFileOutputStream);
+  fout.init(gFile.QueryInterface(Ci.nsILocalFile), 0x02 | 0x08 | 0x20,
+            0644, fout.DEFER_OPEN);
+
+  let converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"].
+                  createInstance(Ci.nsIScriptableUnicodeConverter);
+  converter.charset = "UTF-8";
+  let fileContentStream = converter.convertToInputStream(gFileContent);
+
+  NetUtil.asyncCopy(fileContentStream, fout, tempFileSaved);
+}
+
+function tempFileSaved(aStatus)
+{
+  ok(Components.isSuccessCode(aStatus),
+     "the temporary file was saved successfully");
+
+  // Import the file into Scratchpad.
+  gScratchpad.importFromFile(gFile.QueryInterface(Ci.nsILocalFile),  true,
+                            fileImported);
 }
 
 function fileImported(aStatus, aFileContent)
@@ -114,5 +138,8 @@ function fileRead(aInputStream, aStatus)
   gFile.remove(false);
   gFile = null;
   gScratchpad = null;
+  gScratchpadWindow.close();
+  gScratchpadWindow = null;
+  gBrowser.removeCurrentTab();
   finish();
 }

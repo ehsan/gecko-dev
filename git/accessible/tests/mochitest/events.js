@@ -15,9 +15,7 @@ const EVENT_MENUPOPUP_END = nsIAccessibleEvent.EVENT_MENUPOPUP_END;
 const EVENT_OBJECT_ATTRIBUTE_CHANGED = nsIAccessibleEvent.EVENT_OBJECT_ATTRIBUTE_CHANGED;
 const EVENT_REORDER = nsIAccessibleEvent.EVENT_REORDER;
 const EVENT_SCROLLING_START = nsIAccessibleEvent.EVENT_SCROLLING_START;
-const EVENT_SELECTION = nsIAccessibleEvent.EVENT_SELECTION;
 const EVENT_SELECTION_ADD = nsIAccessibleEvent.EVENT_SELECTION_ADD;
-const EVENT_SELECTION_REMOVE = nsIAccessibleEvent.EVENT_SELECTION_REMOVE;
 const EVENT_SELECTION_WITHIN = nsIAccessibleEvent.EVENT_SELECTION_WITHIN;
 const EVENT_SHOW = nsIAccessibleEvent.EVENT_SHOW;
 const EVENT_STATE_CHANGE = nsIAccessibleEvent.EVENT_STATE_CHANGE;
@@ -25,17 +23,10 @@ const EVENT_TEXT_ATTRIBUTE_CHANGED = nsIAccessibleEvent.EVENT_TEXT_ATTRIBUTE_CHA
 const EVENT_TEXT_CARET_MOVED = nsIAccessibleEvent.EVENT_TEXT_CARET_MOVED;
 const EVENT_TEXT_INSERTED = nsIAccessibleEvent.EVENT_TEXT_INSERTED;
 const EVENT_TEXT_REMOVED = nsIAccessibleEvent.EVENT_TEXT_REMOVED;
-const EVENT_TEXT_SELECTION_CHANGED = nsIAccessibleEvent.EVENT_TEXT_SELECTION_CHANGED;
 const EVENT_VALUE_CHANGE = nsIAccessibleEvent.EVENT_VALUE_CHANGE;
-const EVENT_VIRTUALCURSOR_CHANGED = nsIAccessibleEvent.EVENT_VIRTUALCURSOR_CHANGED;
-
-const kNotFromUserInput = 0;
-const kFromUserInput = 1;
 
 ////////////////////////////////////////////////////////////////////////////////
 // General
-
-Components.utils.import("resource://gre/modules/Services.jsm");
 
 /**
  * Set up this variable to dump events into DOM.
@@ -53,11 +44,6 @@ var gA11yEventDumpToConsole = false;
 var gA11yEventDumpToAppConsole = false;
 
 /**
- * Semicolon separated set of logging features.
- */
-var gA11yEventDumpFeature = "";
-
-/**
  * Executes the function when requested event is handled.
  *
  * @param aEventType  [in] event type
@@ -68,22 +54,18 @@ var gA11yEventDumpFeature = "";
  * @param aArg1       [in, optional] argument passed into the function
  * @param aArg2       [in, optional] argument passed into the function
  */
-function waitForEvent(aEventType, aTargetOrFunc, aFunc, aContext, aArg1, aArg2)
+function waitForEvent(aEventType, aTarget, aFunc, aContext, aArg1, aArg2)
 {
   var handler = {
     handleEvent: function handleEvent(aEvent) {
 
-      var target = aTargetOrFunc;
-      if (typeof aTargetOrFunc == "function")
-        target = aTargetOrFunc.call();
-
-      if (target) {
-        if (target instanceof nsIAccessible &&
-            target != aEvent.accessible)
+      if (aTarget) {
+        if (aTarget instanceof nsIAccessible &&
+            aTarget != aEvent.accessible)
           return;
 
-        if (target instanceof nsIDOMNode &&
-            target != aEvent.DOMNode)
+        if (aTarget instanceof nsIDOMNode &&
+            aTarget != aEvent.DOMNode)
           return;
       }
 
@@ -100,31 +82,6 @@ function waitForEvent(aEventType, aTargetOrFunc, aFunc, aContext, aArg1, aArg2)
   };
 
   registerA11yEventListener(aEventType, handler);
-}
-
-/**
- * Generate mouse move over image map what creates image map accessible (async).
- * See waitForImageMap() function.
- */
-function waveOverImageMap(aImageMapID)
-{
-  var imageMapNode = getNode(aImageMapID);
-  synthesizeMouse(imageMapNode, 10, 10, { type: "mousemove" },
-                  imageMapNode.ownerDocument.defaultView);
-}
-
-/**
- * Call the given function when the tree of the given image map is built.
- */
-function waitForImageMap(aImageMapID, aTestFunc)
-{
-  waveOverImageMap(aImageMapID);
-
-  var imageMapAcc = getAccessible(aImageMapID);
-  if (imageMapAcc.firstChild)
-    return aTestFunc();
-
-  waitForEvent(EVENT_REORDER, imageMapAcc, aTestFunc);
 }
 
 /**
@@ -190,17 +147,12 @@ const DO_NOT_FINISH_TEST = 1;
  *     // [optional] Invoker's check before the next invoker is proceeded.
  *     finalCheck: function(aEvent){},
  *
- *     // [optional] Is called when event of any registered type is handled.
+ *     // [optional] Is called when event of registered type is handled.
  *     debugCheck: function(aEvent){},
  *
  *     // [ignored if 'eventSeq' is defined] DOM node event is generated for
  *     // (used in the case when invoker expects single event).
  *     DOMNode getter: function() {},
- *
- *     // [optional] if true then event sequences are ignored (no failure if
- *     // sequences are empty). Use you need to invoke an action, do some check
- *     // after timeout and proceed a next invoker.
- *     noEventsOnAction getter: function() {},
  *
  *     // Array of checker objects defining expected events on invoker's action.
  *     //
@@ -216,9 +168,6 @@ const DO_NOT_FINISH_TEST = 1;
  *     //   * DOM event phase (false - bubbling). *
  *     //   phase getter: function() {},
  *     //
- *     //   * Callback, called to match handled event. *
- *     //   match : function(aEvent) {},
- *     //
  *     //   * Callback, called when event is handled
  *     //   check: function(aEvent) {},
  *     //
@@ -226,13 +175,7 @@ const DO_NOT_FINISH_TEST = 1;
  *     //   getID: function() {},
  *     //
  *     //   * Event that don't have predefined order relative other events. *
- *     //   async getter: function() {},
- *     //
- *     //   * Event that is not expected. *
- *     //   unexpected getter: function() {},
- *     //
- *     //   * No other event of the same type is not allowed. *
- *     //   unique getter: function() {}
+ *     //   async getter: function() {}
  *     // };
  *     eventSeq getter() {},
  *
@@ -243,11 +186,6 @@ const DO_NOT_FINISH_TEST = 1;
  *     // The ID of invoker.
  *     getID: function(){} // returns invoker ID
  *   };
- *
- *   // Used to add a possible scenario of expected/unexpected events on
- *   // invoker's action.
- *  defineScenario(aInvokerObj, aEventSeq, aUnexpectedEventSeq)
- *
  *
  * @param  aEventType  [in, optional] the default event type (isn't used if
  *                      invoker defines eventSeq property).
@@ -291,16 +229,7 @@ function eventQueue(aEventType)
    */
   this.processNextInvoker = function eventQueue_processNextInvoker()
   {
-    // Some scenario was matched, we wait on next invoker processing.
-    if (this.mNextInvokerStatus == kInvokerCanceled) {
-      this.setInvokerStatus(kInvokerNotScheduled,
-                            "scenario was matched, wait for next invoker activation");
-      return;
-    }
-
-    this.setInvokerStatus(kInvokerNotScheduled, "the next invoker is processed now");
-
-    // Finish processing of the current invoker if any.
+    // Finish processing of the current invoker.
     var testFailed = false;
 
     var invoker = this.getInvoker();
@@ -308,74 +237,38 @@ function eventQueue(aEventType)
       if ("finalCheck" in invoker)
         invoker.finalCheck();
 
-      if (this.mScenarios && this.mScenarios.length) {
-        var matchIdx = -1;
-        for (var scnIdx = 0; scnIdx < this.mScenarios.length; scnIdx++) {
-          var eventSeq = this.mScenarios[scnIdx];
-          if (!this.areExpectedEventsLeft(eventSeq)) {
-            for (var idx = 0; idx < eventSeq.length; idx++) {
-              var checker = eventSeq[idx];
-              if (checker.unexpected && checker.wasCaught ||
-                  !checker.unexpected && checker.wasCaught != 1) {
-                break;
-              }
-            }
+      if (invoker.wasCaught) {
+        for (var idx = 0; idx < invoker.wasCaught.length; idx++) {
+          var id = this.getEventID(idx);
+          var type = this.getEventType(idx);
+          var unexpected = this.mEventSeq[idx].unexpected;
 
-            // Ok, we have matched scenario. Report it was completed ok. In
-            // case of empty scenario guess it was matched but if later we
-            // find out that non empty scenario was matched then it will be
-            // a final match.
-            if (idx == eventSeq.length) {
-              if (matchIdx != -1 && eventSeq.length > 0 &&
-                  this.mScenarios[matchIdx].length > 0) {
-                ok(false,
-                   "We have a matched scenario at index " + matchIdx + " already.");
-              }
+          var typeStr = this.getEventTypeAsString(idx);
 
-              if (matchIdx == -1 || eventSeq.length > 0)
-                matchIdx = scnIdx;
+          var msg = "test with ID = '" + id + "' failed. ";
+          if (unexpected) {
+            var wasCaught = invoker.wasCaught[idx];
+            if (!testFailed)
+              testFailed = wasCaught;
 
-              // Report everythign is ok.
-              for (var idx = 0; idx < eventSeq.length; idx++) {
-                var checker = eventSeq[idx];
+            ok(!wasCaught,
+               msg + "There is unexpected " + typeStr + " event.");
 
-                var typeStr = eventQueue.getEventTypeAsString(checker);
-                var msg = "Test with ID = '" + this.getEventID(checker) +
-                  "' succeed. ";
+          } else {
+            var wasCaught = invoker.wasCaught[idx];
+            if (!testFailed)
+              testFailed = !wasCaught;
 
-                if (checker.unexpected)
-                  ok(true, msg + "There's no unexpected " + typeStr + " event.");
-                else
-                  ok(true, msg + "Event " + typeStr + " was handled.");
-              }
-            }
+            ok(wasCaught,
+               msg + "No " + typeStr + " event.");
           }
         }
-
-        // We don't have completely matched scenario. Report each failure/success
-        // for every scenario.
-        if (matchIdx == -1) {
-          testFailed = true;
-          for (var scnIdx = 0; scnIdx < this.mScenarios.length; scnIdx++) {
-            var eventSeq = this.mScenarios[scnIdx];
-            for (var idx = 0; idx < eventSeq.length; idx++) {
-              var checker = eventSeq[idx];
-
-              var typeStr = eventQueue.getEventTypeAsString(checker);
-              var msg = "Scenario #" + scnIdx + " of test with ID = '" +
-                this.getEventID(checker) + "' failed. ";
-
-              if (checker.wasCaught > 1)
-                ok(false, msg + "Dupe " + typeStr + " event.");
-
-              if (checker.unexpected) {
-                if (checker.wasCaught)
-                  ok(false, msg + "There's unexpected " + typeStr + " event.");
-              } else if (!checker.wasCaught) {
-                ok(false, msg + typeStr + " event was missed.");
-              }
-            }
-          }
+      } else {
+        testFailed = true;
+        for (var idx = 0; idx < this.mEventSeq.length; idx++) {
+          var id = this.getEventID(idx);
+          ok(false,
+             "test with ID = '" + id + "' failed. No events were registered.");
         }
       }
     }
@@ -396,30 +289,12 @@ function eventQueue(aEventType)
     // Start processing of next invoker.
     invoker = this.getNextInvoker();
 
-    // Set up event listeners. Process a next invoker if no events were added.
-    if (!this.setEventHandler(invoker)) {
-      this.processNextInvoker();
-      return;
-    }
-
     if (gLogger.isEnabled()) {
       gLogger.logToConsole("Event queue: \n  invoke: " + invoker.getID());
       gLogger.logToDOM("EQ: invoke: " + invoker.getID(), true);
     }
 
-    var infoText = "Invoke the '" + invoker.getID() + "' test { ";
-    var scnCount = this.mScenarios ? this.mScenarios.length : 0;
-    for (var scnIdx = 0; scnIdx < scnCount; scnIdx++) {
-      infoText += "scenario #" + scnIdx + ": ";
-      var eventSeq = this.mScenarios[scnIdx];
-      for (var idx = 0; idx < eventSeq.length; idx++) {
-        infoText += eventSeq[idx].unexpected ? "un" : "" +
-          "expected '" + eventQueue.getEventTypeAsString(eventSeq[idx]) +
-          "' event; ";
-      }
-    }
-    infoText += " }";
-    info(infoText);
+    this.setEventHandler(invoker);
 
     if (invoker.invoke() == INVOKER_ACTION_FAILED) {
       // Invoker failed to prepare action, fail and finish tests.
@@ -427,17 +302,12 @@ function eventQueue(aEventType)
       return;
     }
 
-    if (this.hasUnexpectedEventsScenario())
+    if (this.areAllEventsUnexpected())
       this.processNextInvokerInTimeout(true);
   }
 
-  this.processNextInvokerInTimeout =
-    function eventQueue_processNextInvokerInTimeout(aUncondProcess)
+  this.processNextInvokerInTimeout = function eventQueue_processNextInvokerInTimeout(aUncondProcess)
   {
-    this.setInvokerStatus(kInvokerPending, "Process next invoker in timeout");
-
-    // No need to wait extra timeout when a) we know we don't need to do that
-    // and b) there's no any single unexpected event.
     if (!aUncondProcess && this.areAllEventsExpected()) {
       // We need delay to avoid events coalesce from different invokers.
       var queue = this;
@@ -446,7 +316,7 @@ function eventQueue(aEventType)
     }
 
     // Check in timeout invoker didn't fire registered events.
-    window.setTimeout(function(aQueue) { aQueue.processNextInvoker(); }, 300,
+    window.setTimeout(function(aQueue) { aQueue.processNextInvoker(); }, 500,
                       this);
   }
 
@@ -459,7 +329,7 @@ function eventQueue(aEventType)
     if (!invoker) // skip events before test was started
       return;
 
-    if (!this.mScenarios) {
+    if (!this.mEventSeq) {
       // Bad invoker object, error will be reported before processing of next
       // invoker in the queue.
       this.processNextInvoker();
@@ -469,201 +339,98 @@ function eventQueue(aEventType)
     if ("debugCheck" in invoker)
       invoker.debugCheck(aEvent);
 
-    for (var scnIdx = 0; scnIdx < this.mScenarios.length; scnIdx++) {
-      var eventSeq = this.mScenarios[scnIdx];
-      for (var idx = 0; idx < eventSeq.length; idx++) {
-        var checker = eventSeq[idx];
+    // Search through handled expected events to report error if one of them is
+    // handled for a second time.
+    var idx = 0;
+    for (; idx < this.mEventSeq.length; idx++) {
+      if (this.isEventExpected(idx) && (invoker.wasCaught[idx] == true) &&
+          this.isAlreadyCaught(idx, aEvent)) {
 
-        // Search through handled expected events to report error if one of them
-        // is handled for a second time.
-        if (!checker.unexpected && (checker.wasCaught > 0) &&
-            eventQueue.isSameEvent(checker, aEvent)) {
-          checker.wasCaught++;
-          continue;
-        }
-
-        // Search through unexpected events, any match results in error report
-        // after this invoker processing (in case of matched scenario only).
-        if (checker.unexpected && eventQueue.compareEvents(checker, aEvent)) {
-          checker.wasCaught++;
-          continue;
-        }
-
-        // Report an error if we hanlded not expected event of unique type
-        // (i.e. event types are matched, targets differs).
-        if (!checker.unexpected && checker.unique &&
-            eventQueue.compareEventTypes(checker, aEvent)) {
-          var isExppected = false;
-          for (var jdx = 0; jdx < eventSeq.length; jdx++) {
-            isExpected = eventQueue.compareEvents(eventSeq[jdx], aEvent);
-            if (isExpected)
-              break;
-          }
-
-          if (!isExpected) {
-            ok(false,
-               "Unique type " +
-               eventQueue.getEventTypeAsString(checker) + " event was handled.");
-          }
-        }
+        var msg = "Doubled event { event type: " +
+          this.getEventTypeAsString(idx) + ", target: " +
+          prettyName(this.getEventTarget(idx)) + "} in test with ID = '" +
+          this.getEventID(idx) + "'.";
+        ok(false, msg);
       }
     }
 
-    var hasMatchedCheckers = false;
-    for (var scnIdx = 0; scnIdx < this.mScenarios.length; scnIdx++) {
-      var eventSeq = this.mScenarios[scnIdx];
-
-      // Check if handled event matches expected sync event.
-      var nextChecker = this.getNextExpectedEvent(eventSeq);
-      if (nextChecker) {
-        if (eventQueue.compareEvents(nextChecker, aEvent)) {
-          this.processMatchedChecker(aEvent, nextChecker, scnIdx, eventSeq.idx);
-          hasMatchedCheckers = true;
-          continue;
-        }
-      }
-
-      // Check if handled event matches any expected async events.
-      for (idx = 0; idx < eventSeq.length; idx++) {
-        if (!eventSeq[idx].unexpected && eventSeq[idx].async) {
-          if (eventQueue.compareEvents(eventSeq[idx], aEvent)) {
-            this.processMatchedChecker(aEvent, eventSeq[idx], scnIdx, idx);
-            hasMatchedCheckers = true;
-            break;
-          }
-        }
-      }
+    // Search through unexpected events, any matches result in error report
+    // after this invoker processing.
+    for (idx = 0; idx < this.mEventSeq.length; idx++) {
+      if (this.isEventUnexpected(idx) && this.compareEvents(idx, aEvent))
+        invoker.wasCaught[idx] = true;
     }
 
-    if (hasMatchedCheckers) {
-      var invoker = this.getInvoker();
-      if ("check" in invoker)
-        invoker.check(aEvent);
-    }
-
-    // If we don't have more events to wait then schedule next invoker.
-    if (this.hasMatchedScenario()) {
-      if (this.mNextInvokerStatus == kInvokerNotScheduled) {
-        this.processNextInvokerInTimeout();
-
-      } else if (this.mNextInvokerStatus == kInvokerCanceled) {
-        this.setInvokerStatus(kInvokerPending,
-                              "Full match. Void the cancelation of next invoker processing");
-      }
+    // Nothing left, proceed next invoker in timeout. Otherwise check if
+    // handled event is matched.
+    var idxObj = {};
+    if (!this.prepareForExpectedEvent(invoker, idxObj))
       return;
+
+    // Check if handled event matches expected sync event.
+    var matched = false;
+    idx = idxObj.value;
+    if (idx < this.mEventSeq.length) {
+      matched = this.compareEvents(idx, aEvent);
+      if (matched)
+        this.mEventSeqIdx = idx;
     }
 
-    // If we have scheduled a next invoker then cancel in case of match.
-    if ((this.mNextInvokerStatus == kInvokerPending) && hasMatchedCheckers) {
-      this.setInvokerStatus(kInvokerCanceled,
-                            "Cancel the scheduled invoker in case of match");
+    // Check if handled event matches any expected async events.
+    if (!matched) {
+      for (idx = 0; idx < this.mEventSeq.length; idx++) {
+        if (this.mEventSeq[idx].async) {
+          matched = this.compareEvents(idx, aEvent);
+          if (matched)
+            break;
+        }
+      }
+    }
+    this.dumpEventToDOM(aEvent, idx, matched);
+
+    if (matched) {
+      this.checkEvent(idx, aEvent);
+      invoker.wasCaught[idx] = true;
+
+      this.prepareForExpectedEvent(invoker);
     }
   }
 
   // Helpers
-  this.processMatchedChecker =
-    function eventQueue_function(aEvent, aMatchedChecker, aScenarioIdx, aEventIdx)
+  this.prepareForExpectedEvent =
+    function eventQueue_prepareForExpectedEvent(aInvoker, aIdxObj)
   {
-    aMatchedChecker.wasCaught++;
-
-    if ("check" in aMatchedChecker)
-      aMatchedChecker.check(aEvent);
-
-    eventQueue.logEvent(aEvent, aMatchedChecker, aScenarioIdx, aEventIdx,
-                        this.areExpectedEventsLeft(),
-                        this.mNextInvokerStatus);
-  }
-
-  this.getNextExpectedEvent =
-    function eventQueue_getNextExpectedEvent(aEventSeq)
-  {
-    if (!("idx" in aEventSeq))
-      aEventSeq.idx = 0;
-
-    while (aEventSeq.idx < aEventSeq.length &&
-           (aEventSeq[aEventSeq.idx].unexpected ||
-            aEventSeq[aEventSeq.idx].async ||
-            aEventSeq[aEventSeq.idx].wasCaught > 0)) {
-      aEventSeq.idx++;
-    }
-
-    return aEventSeq.idx != aEventSeq.length ? aEventSeq[aEventSeq.idx] : null;
-  }
-
-  this.areExpectedEventsLeft =
-    function eventQueue_areExpectedEventsLeft(aScenario)
-  {
-    function scenarioHasUnhandledExpectedEvent(aEventSeq)
-    {
-      // Check if we have unhandled async (can be anywhere in the sequance) or
-      // sync expcected events yet.
-      for (var idx = 0; idx < aEventSeq.length; idx++) {
-        if (!aEventSeq[idx].unexpected && !aEventSeq[idx].wasCaught)
-          return true;
-      }
-
+    // Nothing left, wait for next invoker.
+    if (this.mEventSeqFinished)
       return false;
-    }
 
-    if (aScenario)
-      return scenarioHasUnhandledExpectedEvent(aScenario);
+    // Compute next expected sync event index.
+    for (var idx = this.mEventSeqIdx + 1;
+         idx < this.mEventSeq.length &&
+         (this.mEventSeq[idx].unexpected || this.mEventSeq[idx].async);
+         idx++);
 
-    for (var scnIdx = 0; scnIdx < this.mScenarios.length; scnIdx++) {
-      var eventSeq = this.mScenarios[scnIdx];
-      if (scenarioHasUnhandledExpectedEvent(eventSeq))
-        return true;
-    }
-    return false;
-  }
+    // If no expected events were left, proceed to next invoker in timeout
+    // to make sure unexpected events for current invoker aren't be handled.
+    if (idx == this.mEventSeq.length) {
+      var allHandled = true;
+      for (var jdx = 0; jdx < this.mEventSeq.length; jdx++) {
+        if (this.isEventExpected(jdx) && !aInvoker.wasCaught[jdx])
+          allHandled = false;
+      }
 
-  this.areAllEventsExpected =
-    function eventQueue_areAllEventsExpected()
-  {
-    for (var scnIdx = 0; scnIdx < this.mScenarios.length; scnIdx++) {
-      var eventSeq = this.mScenarios[scnIdx];
-      for (var idx = 0; idx < eventSeq.length; idx++) {
-        if (eventSeq[idx].unexpected)
-          return false;
+      if (allHandled) {
+        this.mEventSeqIdx = this.mEventSeq.length;
+        this.mEventFinished = true;
+        this.processNextInvokerInTimeout();
+        return false;
       }
     }
+
+    if (aIdxObj)
+      aIdxObj.value = idx;
 
     return true;
-  }
-
-  this.isUnexpectedEventScenario =
-    function eventQueue_isUnexpectedEventsScenario(aScenario)
-  {
-    for (var idx = 0; idx < aScenario.length; idx++) {
-      if (!aScenario[idx].unexpected)
-        break;
-    }
-
-    return idx == aScenario.length;
-  }
-
-  this.hasUnexpectedEventsScenario =
-    function eventQueue_hasUnexpectedEventsScenario()
-  {
-    if (this.getInvoker().noEventsOnAction)
-      return true;
-
-    for (var scnIdx = 0; scnIdx < this.mScenarios.length; scnIdx++) {
-      if (this.isUnexpectedEventScenario(this.mScenarios[scnIdx]))
-        return true;
-    }
-
-    return false;
-  }
-
-  this.hasMatchedScenario =
-    function eventQueue_hasMatchedScenario()
-  {
-    for (var scnIdx = 0; scnIdx < this.mScenarios.length; scnIdx++) {
-      var scn = this.mScenarios[scnIdx];
-      if (!this.isUnexpectedEventScenario(scn) && !this.areExpectedEventsLeft(scn))
-        return true;
-    }
-    return false;
   }
 
   this.getInvoker = function eventQueue_getInvoker()
@@ -678,73 +445,54 @@ function eventQueue(aEventType)
 
   this.setEventHandler = function eventQueue_setEventHandler(aInvoker)
   {
-    if (!("scenarios" in aInvoker) || aInvoker.scenarios.length == 0) {
-      var eventSeq = aInvoker.eventSeq;
-      var unexpectedEventSeq = aInvoker.unexpectedEventSeq;
-      if (!eventSeq && !unexpectedEventSeq && this.mDefEventType)
-        eventSeq = [ new invokerChecker(this.mDefEventType, aInvoker.DOMNode) ];
+    // Create unique event sequence concatenating expected and unexpected
+    // events.
+    this.mEventSeq = ("eventSeq" in aInvoker) ?
+      aInvoker.eventSeq :
+      [ new invokerChecker(this.mDefEventType, aInvoker.DOMNode) ];
 
-      if (eventSeq || unexpectedEventSeq)
-        defineScenario(aInvoker, eventSeq, unexpectedEventSeq);
+    for (var idx = 0; idx < this.mEventSeq.length; idx++) {
+      this.mEventSeq[idx].unexpected = false;
+      if (!("async" in this.mEventSeq[idx]))
+        this.mEventSeq[idx].async = false;
     }
 
-    if (aInvoker.noEventsOnAction)
-      return true;
+    var unexpectedSeq = aInvoker.unexpectedEventSeq;
+    if (unexpectedSeq) {
+      for (var idx = 0; idx < unexpectedSeq.length; idx++) {
+        unexpectedSeq[idx].unexpected = true;
+        unexpectedSeq[idx].async = false;
+      }
 
-    this.mScenarios = aInvoker.scenarios;
-    if (!this.mScenarios || !this.mScenarios.length) {
-      ok(false, "Broken invoker '" + aInvoker.getID() + "'");
-      return false;
+      this.mEventSeq = this.mEventSeq.concat(unexpectedSeq);
     }
 
-    // Register event listeners.
-    for (var scnIdx = 0; scnIdx < this.mScenarios.length; scnIdx++) {
-      var eventSeq = this.mScenarios[scnIdx];
+    this.mEventSeqIdx = -1;
+    this.mEventSeqFinished = false;
 
-      if (gLogger.isEnabled()) {
-        var msg = "scenario #" + scnIdx +
-          ", registered events number: " + eventSeq.length;
-        gLogger.logToConsole(msg);
-        gLogger.logToDOM(msg, true);
-      }
+    // Register event listeners
+    if (this.mEventSeq) {
+      aInvoker.wasCaught = new Array(this.mEventSeq.length);
 
-      // Do not warn about empty event sequances when more than one scenario
-      // was registered.
-      if (this.mScenarios.length == 1 && eventSeq.length == 0) {
-        ok(false,
-           "Broken scenario #" + scnIdx + " of invoker '" + aInvoker.getID() +
-           "'. No registered events");
-        return false;
-      }
+      for (var idx = 0; idx < this.mEventSeq.length; idx++) {
+        var eventType = this.getEventType(idx);
 
-      for (var idx = 0; idx < eventSeq.length; idx++)
-        eventSeq[idx].wasCaught = 0;
-
-      for (var idx = 0; idx < eventSeq.length; idx++) {
         if (gLogger.isEnabled()) {
           var msg = "registered";
-          if (eventSeq[idx].unexpected)
+          if (this.isEventUnexpected(idx))
             msg += " unexpected";
-          if (eventSeq[idx].async)
-            msg += " async";
 
-          msg += ": event type: " +
-            eventQueue.getEventTypeAsString(eventSeq[idx]) +
-            ", target: " + eventQueue.getEventTargetDescr(eventSeq[idx], true);
+          msg += ": event type: " + this.getEventTypeAsString(idx) +
+            ", target: " + this.getEventTargetDescr(idx);
 
           gLogger.logToConsole(msg);
           gLogger.logToDOM(msg, true);
         }
 
-        var eventType = eventSeq[idx].type;
         if (typeof eventType == "string") {
           // DOM event
-          var target = eventSeq[idx].target;
-          if (!target) {
-            ok(false, "no target for DOM event!");
-            return false;
-          }
-          var phase = eventQueue.getEventPhase(eventSeq[idx]);
+          var target = this.getEventTarget(idx);
+          var phase = this.getEventPhase(idx);
           target.ownerDocument.addEventListener(eventType, this, phase);
 
         } else {
@@ -753,23 +501,17 @@ function eventQueue(aEventType)
         }
       }
     }
-
-    return true;
   }
 
   this.clearEventHandler = function eventQueue_clearEventHandler()
   {
-    if (!this.mScenarios)
-      return;
-
-    for (var scnIdx = 0; scnIdx < this.mScenarios.length; scnIdx++) {
-      var eventSeq = this.mScenarios[scnIdx];
-      for (var idx = 0; idx < eventSeq.length; idx++) {
-        var eventType = eventSeq[idx].type;
+    if (this.mEventSeq) {
+      for (var idx = 0; idx < this.mEventSeq.length; idx++) {
+        var eventType = this.getEventType(idx);
         if (typeof eventType == "string") {
           // DOM event
-          var target = eventSeq[idx].target;
-          var phase = eventQueue.getEventPhase(eventSeq[idx]);
+          var target = this.getEventTarget(idx);
+          var phase = this.getEventPhase(idx);
           target.ownerDocument.removeEventListener(eventType, this, phase);
 
         } else {
@@ -777,172 +519,166 @@ function eventQueue(aEventType)
           removeA11yEventListener(eventType, this);
         }
       }
+
+      this.mEventSeq = null;
     }
-    this.mScenarios = null;
   }
 
-  this.getEventID = function eventQueue_getEventID(aChecker)
+  this.getEventType = function eventQueue_getEventType(aIdx)
   {
-    if ("getID" in aChecker)
-      return aChecker.getID();
+    return this.mEventSeq[aIdx].type;
+  }
 
+  this.getEventTypeAsString = function eventQueue_getEventTypeAsString(aIdx)
+  {
+    var type = this.mEventSeq[aIdx].type;
+    return (typeof type == "string") ? type : eventTypeToString(type);
+  }
+
+  this.getEventTarget = function eventQueue_getEventTarget(aIdx)
+  {
+    return this.mEventSeq[aIdx].target;
+  }
+
+  this.getEventTargetDescr = function eventQueue_getEventTargetDescr(aIdx)
+  {
+    var descr = this.mEventSeq[aIdx].targetDescr;
+    return descr ? descr : "no target description";
+  }
+
+  this.getEventPhase = function eventQueue_getEventPhase(aIdx)
+  {
+     var eventItem = this.mEventSeq[aIdx];
+    if ("phase" in eventItem)
+      return eventItem.phase;
+
+    return true;
+  }
+
+  this.getEventID = function eventQueue_getEventID(aIdx)
+  {
+    var eventItem = this.mEventSeq[aIdx];
+    if ("getID" in eventItem)
+      return eventItem.getID();
+    
     var invoker = this.getInvoker();
     return invoker.getID();
   }
 
-  this.setInvokerStatus = function eventQueue_setInvokerStatus(aStatus, aLogMsg)
+  this.isEventUnexpected = function eventQueue_isEventUnexpected(aIdx)
   {
-    this.mNextInvokerStatus = aStatus;
+    return this.mEventSeq[aIdx].unexpected;
+  }
+  this.isEventExpected = function eventQueue_isEventExpected(aIdx)
+  {
+    return !this.mEventSeq[aIdx].unexpected;
+  }
 
-    // Uncomment it to debug invoker processing logic.
-    //gLogger.log(eventQueue.invokerStatusToMsg(aStatus, aLogMsg));
+  this.compareEvents = function eventQueue_compareEvents(aIdx, aEvent)
+  {
+    var eventType1 = this.getEventType(aIdx);
+
+    var eventType2 = (aEvent instanceof nsIDOMEvent) ?
+      aEvent.type : aEvent.eventType;
+
+    if (eventType1 != eventType2)
+      return false;
+
+    var target1 = this.getEventTarget(aIdx);
+    if (target1 instanceof nsIAccessible) {
+      var target2 = (aEvent instanceof nsIDOMEvent) ?
+        getAccessible(aEvent.target) : aEvent.accessible;
+
+      return target1 == target2;
+    }
+
+    // If original target isn't suitable then extend interface to support target
+    // (original target is used in test_elm_media.html).
+    var target2 = (aEvent instanceof nsIDOMEvent) ?
+      aEvent.originalTarget : aEvent.DOMNode;
+    return target1 == target2;
+  }
+
+  this.isAlreadyCaught = function eventQueue_isAlreadyCaught(aIdx, aEvent)
+  {
+    // We don't have stored info about handled event other than its type and
+    // target, thus we should filter text change and state change events since
+    // they may occur on the same element because of complex changes.
+    return this.compareEvents(aIdx, aEvent) &&
+      !(aEvent instanceof nsIAccessibleTextChangeEvent) &&
+      !(aEvent instanceof nsIAccessibleStateChangeEvent);
+  }
+
+  this.checkEvent = function eventQueue_checkEvent(aIdx, aEvent)
+  {
+    var eventItem = this.mEventSeq[aIdx];
+    if ("check" in eventItem)
+      eventItem.check(aEvent);
+
+    var invoker = this.getInvoker();
+    if ("check" in invoker)
+      invoker.check(aEvent);
+  }
+
+  this.areAllEventsExpected = function eventQueue_areAllEventsExpected()
+  {
+    for (var idx = 0; idx < this.mEventSeq.length; idx++) {
+      if (this.mEventSeq[idx].unexpected)
+        return false;
+    }
+
+    return true;
+  }
+
+  this.areAllEventsUnexpected = function eventQueue_areAllEventsUnxpected()
+  {
+    for (var idx = 0; idx < this.mEventSeq.length; idx++) {
+      if (!this.mEventSeq[idx].unexpected)
+        return false;
+    }
+
+    return true;
+  }
+
+  this.dumpEventToDOM = function eventQueue_dumpEventToDOM(aOrigEvent,
+                                                           aExpectedEventIdx,
+                                                           aMatch)
+  {
+    if (!gLogger.isEnabled()) // debug stuff
+      return;
+
+    // Dump DOM event information. Skip a11y event since it is dumped by
+    // gA11yEventObserver.
+    if (aOrigEvent instanceof nsIDOMEvent) {
+      var info = "Event type: " + aOrigEvent.type;
+      info += ". Target: " + prettyName(aOrigEvent.originalTarget);
+      gLogger.logToDOM(info);
+    }
+
+    if (!aMatch)
+      return;
+
+    var msg = "EQ: ";
+    var emphText = "matched ";
+
+    var currType = this.getEventTypeAsString(aExpectedEventIdx);
+    var currTarget = this.getEventTarget(aExpectedEventIdx);
+    var consoleMsg = "*****\nEQ matched: " + currType + "\n*****";
+    gLogger.logToConsole(consoleMsg);
+
+    msg += " event, type: " + currType + ", target: " + prettyName(currTarget);
+
+    gLogger.logToDOM(msg, true, emphText);
   }
 
   this.mDefEventType = aEventType;
 
   this.mInvokers = new Array();
   this.mIndex = -1;
-  this.mScenarios = null;
 
-  this.mNextInvokerStatus = kInvokerNotScheduled;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// eventQueue static members and constants
-
-const kInvokerNotScheduled = 0;
-const kInvokerPending = 1;
-const kInvokerCanceled = 2;
-
-eventQueue.getEventTypeAsString =
-  function eventQueue_getEventTypeAsString(aEventOrChecker)
-{
-  if (aEventOrChecker instanceof nsIDOMEvent)
-    return aEventOrChecker.type;
-
-  if (aEventOrChecker instanceof nsIAccessibleEvent)
-    return eventTypeToString(aEventOrChecker.eventType);
-
-  return (typeof aEventOrChecker.type == "string") ?
-    aEventOrChecker.type : eventTypeToString(aEventOrChecker.type);
-}
-
-eventQueue.getEventTargetDescr =
-  function eventQueue_getEventTargetDescr(aEventOrChecker, aDontForceTarget)
-{
-  if (aEventOrChecker instanceof nsIDOMEvent)
-    return prettyName(aEventOrChecker.originalTarget);
-
-  if (aEventOrChecker instanceof nsIDOMEvent)
-    return prettyName(aEventOrChecker.accessible);
-
-  var descr = aEventOrChecker.targetDescr;
-  if (descr)
-    return descr;
-
-  if (aDontForceTarget)
-    return "no target description";
-
-  var target = ("target" in aEventOrChecker) ? aEventOrChecker.target : null;
-  return prettyName(target);
-}
-
-eventQueue.getEventPhase = function eventQueue_getEventPhase(aChecker)
-{
-  return ("phase" in aChecker) ? aChecker.phase : true;
-}
-
-eventQueue.compareEventTypes =
-  function eventQueue_compareEventTypes(aChecker, aEvent)
-{
-  var eventType = (aEvent instanceof nsIDOMEvent) ?
-    aEvent.type : aEvent.eventType;
-  return aChecker.type == eventType;
-}
-
-eventQueue.compareEvents = function eventQueue_compareEvents(aChecker, aEvent)
-{
-  if (!eventQueue.compareEventTypes(aChecker, aEvent))
-    return false;
-
-  // If checker provides "match" function then allow the checker to decide
-  // whether event is matched.
-  if ("match" in aChecker)
-    return aChecker.match(aEvent);
-
-  var target1 = aChecker.target;
-  if (target1 instanceof nsIAccessible) {
-    var target2 = (aEvent instanceof nsIDOMEvent) ?
-      getAccessible(aEvent.target) : aEvent.accessible;
-
-    return target1 == target2;
-  }
-
-  // If original target isn't suitable then extend interface to support target
-  // (original target is used in test_elm_media.html).
-  var target2 = (aEvent instanceof nsIDOMEvent) ?
-    aEvent.originalTarget : aEvent.DOMNode;
-  return target1 == target2;
-}
-
-eventQueue.isSameEvent = function eventQueue_isSameEvent(aChecker, aEvent)
-{
-  // We don't have stored info about handled event other than its type and
-  // target, thus we should filter text change and state change events since
-  // they may occur on the same element because of complex changes.
-  return this.compareEvents(aChecker, aEvent) &&
-    !(aEvent instanceof nsIAccessibleTextChangeEvent) &&
-    !(aEvent instanceof nsIAccessibleStateChangeEvent);
-}
-
-eventQueue.invokerStatusToMsg =
-  function eventQueue_invokerStatusToMsg(aInvokerStatus, aMsg)
-{
-  var msg = "invoker status: ";
-  switch (aInvokerStatus) {
-    case kInvokerNotScheduled:
-      msg += "not scheduled";
-      break;
-    case kInvokerPending:
-      msg += "pending";
-      break;
-    case kInvokerCanceled:
-      msg += "canceled";
-      break;
-  }
-
-  if (aMsg)
-    msg += " (" + aMsg + ")";
-
-  return msg;
-}
-
-eventQueue.logEvent = function eventQueue_logEvent(aOrigEvent, aMatchedChecker,
-                                                   aScenarioIdx, aEventIdx,
-                                                   aAreExpectedEventsLeft,
-                                                   aInvokerStatus)
-{
-  // Dump DOM event information. Skip a11y event since it is dumped by
-  // gA11yEventObserver.
-  if (aOrigEvent instanceof nsIDOMEvent) {
-    var info = "Event type: " + eventQueue.getEventTypeAsString(aOrigEvent);
-    info += ". Target: " + eventQueue.getEventTargetDescr(aOrigEvent);
-    gLogger.logToDOM(info);
-  }
-
-  var infoMsg = "unhandled expected events: " + aAreExpectedEventsLeft +
-    ", "  + eventQueue.invokerStatusToMsg(aInvokerStatus);
-
-  var currType = eventQueue.getEventTypeAsString(aMatchedChecker);
-  var currTargetDescr = eventQueue.getEventTargetDescr(aMatchedChecker);
-  var consoleMsg = "*****\nScenario " + aScenarioIdx + 
-    ", event " + aEventIdx + " matched: " + currType + "\n" + infoMsg + "\n*****";
-  gLogger.logToConsole(consoleMsg);
-
-  var emphText = "matched ";
-  var msg = "EQ event, type: " + currType + ", target: " + currTargetDescr +
-    ", " + infoMsg;
-  gLogger.logToDOM(msg, true, emphText);
+  this.mEventSeq = null;
+  this.mEventSeqIdx = -1;
+  this.mEventSeqFinished = false;
 }
 
 
@@ -1000,76 +736,31 @@ function sequence()
 // Event queue invokers
 
 /**
- * Defines a scenario of expected/unexpected events. Each invoker can have
- * one or more scenarios of events. Only one scenario must be completed.
- */
-function defineScenario(aInvoker, aEventSeq, aUnexpectedEventSeq)
-{
-  if (!("scenarios" in aInvoker))
-    aInvoker.scenarios = new Array();
-
-  // Create unified event sequence concatenating expected and unexpected
-  // events.
-  if (!aEventSeq)
-    aEventSeq = [];
-
-  for (var idx = 0; idx < aEventSeq.length; idx++) {
-    aEventSeq[idx].unexpected |= false;
-    aEventSeq[idx].async |= false;
-  }
-
-  if (aUnexpectedEventSeq) {
-    for (var idx = 0; idx < aUnexpectedEventSeq.length; idx++) {
-      aUnexpectedEventSeq[idx].unexpected = true;
-      aUnexpectedEventSeq[idx].async = false;
-    }
-
-    aEventSeq = aEventSeq.concat(aUnexpectedEventSeq);
-  }
-
-  aInvoker.scenarios.push(aEventSeq);
-}
-
-
-/**
- * Invokers defined below take a checker object (or array of checker objects).
- * An invoker listens for default event type registered in event queue object
- * until its checker is provided.
+ * Invokers defined below take a checker object (or array of checker objects)
+ * implementing 'check' method which will be called when proper event is
+ * handled. Invokers listen default event type registered in event queue object
+ * until it is passed explicetly.
  *
  * Note, checker object or array of checker objects is optional.
+ * Note, you don't need to initialize 'target' and 'type' members of checker
+ * object. The 'target' member will be initialized by invoker object and you are
+ * free to use it in 'check' method.
  */
 
 /**
  * Click invoker.
  */
-function synthClick(aNodeOrID, aCheckerOrEventSeq, aArgs)
+function synthClick(aNodeOrID, aCheckerOrEventSeq, aEventType)
 {
-  this.__proto__ = new synthAction(aNodeOrID, aCheckerOrEventSeq);
+  this.__proto__ = new synthAction(aNodeOrID, aCheckerOrEventSeq, aEventType);
 
   this.invoke = function synthClick_invoke()
   {
-    var targetNode = this.DOMNode;
-    if (targetNode instanceof nsIDOMDocument) {
-      targetNode =
-        this.DOMNode.body ? this.DOMNode.body : this.DOMNode.documentElement;
-    }
-
     // Scroll the node into view, otherwise synth click may fail.
-    if (targetNode instanceof nsIDOMHTMLElement) {
-      targetNode.scrollIntoView(true);
-    } else if (targetNode instanceof nsIDOMXULElement) {
-      var targetAcc = getAccessible(targetNode);
-      targetAcc.scrollTo(SCROLL_TYPE_ANYWHERE);
-    }
+    if (this.DOMNode instanceof nsIDOMNSHTMLElement)
+      this.DOMNode.scrollIntoView(true);
 
-    var x = 1, y = 1;
-    if (aArgs && ("where" in aArgs) && aArgs.where == "right") {
-      if (targetNode instanceof nsIDOMHTMLElement)
-        x = targetNode.offsetWidth - 1;
-      else if (targetNode instanceof nsIDOMXULElement)
-        x = targetNode.boxObject.width - 1;
-    }
-    synthesizeMouse(targetNode, x, y, aArgs ? aArgs : {});
+    synthesizeMouse(this.DOMNode, 1, 1, {});
   }
 
   this.finalCheck = function synthClick_finalCheck()
@@ -1080,16 +771,16 @@ function synthClick(aNodeOrID, aCheckerOrEventSeq, aArgs)
 
   this.getID = function synthClick_getID()
   {
-    return prettyName(aNodeOrID) + " click";
+    return prettyName(aNodeOrID) + " click"; 
   }
 }
 
 /**
  * Mouse move invoker.
  */
-function synthMouseMove(aID, aCheckerOrEventSeq)
+function synthMouseMove(aNodeOrID, aCheckerOrEventSeq, aEventType)
 {
-  this.__proto__ = new synthAction(aID, aCheckerOrEventSeq);
+  this.__proto__ = new synthAction(aNodeOrID, aCheckerOrEventSeq, aEventType);
 
   this.invoke = function synthMouseMove_invoke()
   {
@@ -1099,174 +790,111 @@ function synthMouseMove(aID, aCheckerOrEventSeq)
 
   this.getID = function synthMouseMove_getID()
   {
-    return prettyName(aID) + " mouse move";
+    return prettyName(aNodeOrID) + " mouse move"; 
   }
 }
 
 /**
  * General key press invoker.
  */
-function synthKey(aNodeOrID, aKey, aArgs, aCheckerOrEventSeq)
+function synthKey(aNodeOrID, aKey, aArgs, aCheckerOrEventSeq, aEventType)
 {
-  this.__proto__ = new synthAction(aNodeOrID, aCheckerOrEventSeq);
+  this.__proto__ = new synthAction(aNodeOrID, aCheckerOrEventSeq, aEventType);
 
   this.invoke = function synthKey_invoke()
   {
-    synthesizeKey(this.mKey, this.mArgs, this.mWindow);
+    synthesizeKey(this.mKey, this.mArgs);
   }
 
   this.getID = function synthKey_getID()
   {
-    var key = this.mKey;
-    switch (this.mKey) {
-      case "VK_TAB":
-        key = "tab";
-        break;
-      case "VK_DOWN":
-        key = "down";
-        break;
-      case "VK_UP":
-        key = "up";
-        break;
-      case "VK_LEFT":
-        key = "left";
-        break;
-      case "VK_RIGHT":
-        key = "right";
-        break;
-      case "VK_HOME":
-        key = "home";
-        break;
-      case "VK_END":
-        key = "end";
-        break;
-      case "VK_ESCAPE":
-        key = "escape";
-        break;
-      case "VK_RETURN":
-        key = "enter";
-        break;
-    }
-    if (aArgs) {
-      if (aArgs.shiftKey)
-        key += " shift";
-      if (aArgs.ctrlKey)
-        key += " ctrl";
-      if (aArgs.altKey)
-        key += " alt";
-    }
-    return prettyName(aNodeOrID) + " '" + key + " ' key";
+    return prettyName(aNodeOrID) + " '" + this.mKey + "' key"; 
   }
 
   this.mKey = aKey;
   this.mArgs = aArgs ? aArgs : {};
-  this.mWindow = aArgs ? aArgs.window : null;
 }
 
 /**
  * Tab key invoker.
  */
-function synthTab(aNodeOrID, aCheckerOrEventSeq, aWindow)
+function synthTab(aNodeOrID, aCheckerOrEventSeq, aEventType)
 {
-  this.__proto__ = new synthKey(aNodeOrID, "VK_TAB",
-                                { shiftKey: false, window: aWindow },
-                                aCheckerOrEventSeq);
+  this.__proto__ = new synthKey(aNodeOrID, "VK_TAB", { shiftKey: false },
+                                aCheckerOrEventSeq, aEventType);
+
+  this.getID = function synthTab_getID() 
+  { 
+    return prettyName(aNodeOrID) + " tab";
+  }
 }
 
 /**
  * Shift tab key invoker.
  */
-function synthShiftTab(aNodeOrID, aCheckerOrEventSeq)
+function synthShiftTab(aNodeOrID, aCheckerOrEventSeq, aEventType)
 {
   this.__proto__ = new synthKey(aNodeOrID, "VK_TAB", { shiftKey: true },
-                                aCheckerOrEventSeq);
-}
+                                aCheckerOrEventSeq, aEventType);
 
-/**
- * Escape key invoker.
- */
-function synthEscapeKey(aNodeOrID, aCheckerOrEventSeq)
-{
-  this.__proto__ = new synthKey(aNodeOrID, "VK_ESCAPE", null,
-                                aCheckerOrEventSeq);
+  this.getID = function synthTabTest_getID() 
+  { 
+    return prettyName(aNodeOrID) + " shift tab";
+  }
 }
 
 /**
  * Down arrow key invoker.
  */
-function synthDownKey(aNodeOrID, aCheckerOrEventSeq, aArgs)
+function synthDownKey(aNodeOrID, aCheckerOrEventSeq, aEventType)
 {
-  this.__proto__ = new synthKey(aNodeOrID, "VK_DOWN", aArgs,
-                                aCheckerOrEventSeq);
-}
+  this.__proto__ = new synthKey(aNodeOrID, "VK_DOWN", null, aCheckerOrEventSeq,
+                                aEventType);
 
-/**
- * Up arrow key invoker.
- */
-function synthUpKey(aNodeOrID, aCheckerOrEventSeq, aArgs)
-{
-  this.__proto__ = new synthKey(aNodeOrID, "VK_UP", aArgs,
-                                aCheckerOrEventSeq);
+  this.getID = function synthDownKey_getID()
+  {
+    return prettyName(aNodeOrID) + " key down";
+  }
 }
 
 /**
  * Right arrow key invoker.
  */
-function synthRightKey(aNodeOrID, aCheckerOrEventSeq)
+function synthRightKey(aNodeOrID, aCheckerOrEventSeq, aEventType)
 {
-  this.__proto__ = new synthKey(aNodeOrID, "VK_RIGHT", null, aCheckerOrEventSeq);
+  this.__proto__ = new synthKey(aNodeOrID, "VK_RIGHT", null, aCheckerOrEventSeq,
+                                aEventType);
+
+  this.getID = function synthRightKey_getID()
+  {
+    return prettyName(aNodeOrID) + " key right";
+  }
 }
 
 /**
  * Home key invoker.
  */
-function synthHomeKey(aNodeOrID, aCheckerOrEventSeq)
+function synthHomeKey(aNodeOrID, aCheckerOrEventSeq, aEventType)
 {
-  this.__proto__ = new synthKey(aNodeOrID, "VK_HOME", null, aCheckerOrEventSeq);
-}
-
-/**
- * End key invoker.
- */
-function synthEndKey(aNodeOrID, aCheckerOrEventSeq)
-{
-  this.__proto__ = new synthKey(aNodeOrID, "VK_END", null, aCheckerOrEventSeq);
-}
-
-/**
- * Enter key invoker
- */
-function synthEnterKey(aID, aCheckerOrEventSeq)
-{
-  this.__proto__ = new synthKey(aID, "VK_RETURN", null, aCheckerOrEventSeq);
-}
-
-/**
- * Synth alt + down arrow to open combobox.
- */
-function synthOpenComboboxKey(aID, aCheckerOrEventSeq)
-{
-  this.__proto__ = new synthDownKey(aID, aCheckerOrEventSeq, { altKey: true });
-
-  this.getID = function synthOpenComboboxKey_getID()
+  this.__proto__ = new synthKey(aNodeOrID, "VK_HOME", null, aCheckerOrEventSeq,
+                                aEventType);
+  
+  this.getID = function synthHomeKey_getID()
   {
-    return "open combobox (atl + down arrow) " + prettyName(aID);
+    return prettyName(aNodeOrID) + " key home";
   }
 }
 
 /**
  * Focus invoker.
  */
-function synthFocus(aNodeOrID, aCheckerOrEventSeq)
+function synthFocus(aNodeOrID, aCheckerOrEventSeq, aEventType)
 {
-  var checkerOfEventSeq =
-    aCheckerOrEventSeq ? aCheckerOrEventSeq : new focusChecker(aNodeOrID);
-  this.__proto__ = new synthAction(aNodeOrID, checkerOfEventSeq);
+  this.__proto__ = new synthAction(aNodeOrID, aCheckerOrEventSeq, aEventType);
 
   this.invoke = function synthFocus_invoke()
   {
-    if (this.DOMNode instanceof Components.interfaces.nsIDOMNSEditableElement &&
-        this.DOMNode.editor ||
+    if (this.DOMNode instanceof Components.interfaces.nsIDOMNSEditableElement ||
         this.DOMNode instanceof Components.interfaces.nsIDOMXULTextBoxElement) {
       this.DOMNode.selectionStart = this.DOMNode.selectionEnd = this.DOMNode.value.length;
     }
@@ -1282,18 +910,16 @@ function synthFocus(aNodeOrID, aCheckerOrEventSeq)
 /**
  * Focus invoker. Focus the HTML body of content document of iframe.
  */
-function synthFocusOnFrame(aNodeOrID, aCheckerOrEventSeq)
+function synthFocusOnFrame(aNodeOrID, aCheckerOrEventSeq, aEventType)
 {
-  var frameDoc = getNode(aNodeOrID).contentDocument;
-  var checkerOrEventSeq =
-    aCheckerOrEventSeq ? aCheckerOrEventSeq : new focusChecker(frameDoc);
-  this.__proto__ = new synthAction(frameDoc, checkerOrEventSeq);
-
+  this.__proto__ = new synthAction(getNode(aNodeOrID).contentDocument,
+                                   aCheckerOrEventSeq, aEventType);
+  
   this.invoke = function synthFocus_invoke()
   {
     this.DOMNode.body.focus();
   }
-
+  
   this.getID = function synthFocus_getID() 
   { 
     return prettyName(aNodeOrID) + " frame document focus";
@@ -1301,145 +927,11 @@ function synthFocusOnFrame(aNodeOrID, aCheckerOrEventSeq)
 }
 
 /**
- * Change the current item when the widget doesn't have a focus.
- */
-function changeCurrentItem(aID, aItemID)
-{
-  this.eventSeq = [ new nofocusChecker() ];
-
-  this.invoke = function changeCurrentItem_invoke()
-  {
-    var controlNode = getNode(aID);
-    var itemNode = getNode(aItemID);
-
-    // HTML
-    if (controlNode.localName == "input") {
-      if (controlNode.checked)
-        this.reportError();
-
-      controlNode.checked = true;
-      return;
-    }
-
-    if (controlNode.localName == "select") {
-      if (controlNode.selectedIndex == itemNode.index)
-        this.reportError();
-
-      controlNode.selectedIndex = itemNode.index;
-      return;
-    }
-
-    // XUL
-    if (controlNode.localName == "tree") {
-      if (controlNode.currentIndex == aItemID)
-        this.reportError();
-
-      controlNode.currentIndex = aItemID;
-      return;
-    }
-
-    if (controlNode.localName == "menulist") {
-      if (controlNode.selectedItem == itemNode)
-        this.reportError();
-
-      controlNode.selectedItem = itemNode;
-      return;
-    }
-
-    if (controlNode.currentItem == itemNode)
-      ok(false, "Error in test: proposed current item is already current" + prettyName(aID));
-
-    controlNode.currentItem = itemNode;
-  }
-
-  this.getID = function changeCurrentItem_getID()
-  {
-    return "current item change for " + prettyName(aID);
-  }
-
-  this.reportError = function changeCurrentItem_reportError()
-  {
-    ok(false,
-       "Error in test: proposed current item '" + aItemID + "' is already current");
-  }
-}
-
-/**
- * Toggle top menu invoker.
- */
-function toggleTopMenu(aID, aCheckerOrEventSeq)
-{
-  this.__proto__ = new synthKey(aID, "VK_ALT", null,
-                                aCheckerOrEventSeq);
-
-  this.getID = function toggleTopMenu_getID()
-  {
-    return "toggle top menu on " + prettyName(aID);
-  }
-}
-
-/**
- * Context menu invoker.
- */
-function synthContextMenu(aID, aCheckerOrEventSeq)
-{
-  this.__proto__ = new synthClick(aID, aCheckerOrEventSeq,
-                                  { button: 0, type: "contextmenu" });
-
-  this.getID = function synthContextMenu_getID()
-  {
-    return "context menu on " + prettyName(aID);
-  }
-}
-
-/**
- * Open combobox, autocomplete and etc popup, check expandable states.
- */
-function openCombobox(aComboboxID)
-{
-  this.eventSeq = [
-    new stateChangeChecker(STATE_EXPANDED, false, true, aComboboxID)
-  ];
-
-  this.invoke = function openCombobox_invoke()
-  {
-    getNode(aComboboxID).focus();
-    synthesizeKey("VK_DOWN", { altKey: true });
-  }
-
-  this.getID = function openCombobox_getID()
-  {
-    return "open combobox " + prettyName(aComboboxID);
-  }
-}
-
-/**
- * Close combobox, autocomplete and etc popup, check expandable states.
- */
-function closeCombobox(aComboboxID)
-{
-  this.eventSeq = [
-    new stateChangeChecker(STATE_EXPANDED, false, false, aComboboxID)
-  ];
-
-  this.invoke = function closeCombobox_invoke()
-  {
-    synthesizeKey("VK_ESCAPE", { });
-  }
-
-  this.getID = function closeCombobox_getID()
-  {
-    return "close combobox " + prettyName(aComboboxID);
-  }
-}
-
-
-/**
  * Select all invoker.
  */
-function synthSelectAll(aNodeOrID, aCheckerOrEventSeq)
+function synthSelectAll(aNodeOrID, aCheckerOrEventSeq, aEventType)
 {
-  this.__proto__ = new synthAction(aNodeOrID, aCheckerOrEventSeq);
+  this.__proto__ = new synthAction(aNodeOrID, aCheckerOrEventSeq, aEventType);
 
   this.invoke = function synthSelectAll_invoke()
   {
@@ -1456,145 +948,6 @@ function synthSelectAll(aNodeOrID, aCheckerOrEventSeq)
   {
     return aNodeOrID + " selectall";
   }
-}
-
-/**
- * Move the caret to the end of line.
- */
-function moveToLineEnd(aID, aCaretOffset)
-{
-  if (MAC) {
-    this.__proto__ = new synthKey(aID, "VK_RIGHT", { metaKey: true },
-                                  new caretMoveChecker(aCaretOffset, aID));
-  } else {
-    this.__proto__ = new synthEndKey(aID,
-                                     new caretMoveChecker(aCaretOffset, aID));
-  }
-
-  this.getID = function moveToLineEnd_getID()
-  {
-    return "move to line end in " + prettyName(aID);
-  }
-}
-
-/**
- * Move the caret to the end of previous line if any.
- */
-function moveToPrevLineEnd(aID, aCaretOffset)
-{
-  this.__proto__ = new synthAction(aID, new caretMoveChecker(aCaretOffset, aID));
-
-  this.invoke = function moveToPrevLineEnd_invoke()
-  {
-    synthesizeKey("VK_UP", { });
-
-    if (MAC)
-      synthesizeKey("VK_RIGHT", { metaKey: true });
-    else
-      synthesizeKey("VK_END", { });
-  }
-
-  this.getID = function moveToPrevLineEnd_getID()
-  {
-    return "move to previous line end in " + prettyName(aID);
-  }
-}
-
-/**
- * Move the caret to begining of the line.
- */
-function moveToLineStart(aID, aCaretOffset)
-{
-  if (MAC) {
-    this.__proto__ = new synthKey(aID, "VK_LEFT", { metaKey: true },
-                                  new caretMoveChecker(aCaretOffset, aID));
-  } else {
-    this.__proto__ = new synthHomeKey(aID,
-                                      new caretMoveChecker(aCaretOffset, aID));
-  }
-
-  this.getID = function moveToLineEnd_getID()
-  {
-    return "move to line start in " + prettyName(aID);
-  }
-}
-
-/**
- * Move the caret to begining of the text.
- */
-function moveToTextStart(aID)
-{
-  if (MAC) {
-    this.__proto__ = new synthKey(aID, "VK_UP", { metaKey: true },
-                                  new caretMoveChecker(0, aID));
-  } else {
-    this.__proto__ = new synthKey(aID, "VK_HOME", { ctrlKey: true },
-                                  new caretMoveChecker(0, aID));
-  }
-
-  this.getID = function moveToTextStart_getID()
-  {
-    return "move to text start in " + prettyName(aID);
-  }
-}
-
-/**
- * Move the caret in text accessible.
- */
-function moveCaretToDOMPoint(aID, aNode, aOffset, aExpectedOffset,
-                             aFocusTargetID)
-{
-  this.target = getAccessible(aID, [nsIAccessibleText]);
-  this.focus = aFocusTargetID ? getAccessible(aFocusTargetID) : null;
-  this.focusNode = this.focus ? this.focus.DOMNode : null;
-
-  this.invoke = function moveCaretToDOMPoint_invoke()
-  {
-    if (this.focusNode)
-      this.focusNode.focus();
-
-    window.getSelection().getRangeAt(0).setStart(aNode, aOffset);
-  }
-
-  this.getID = function moveCaretToDOMPoint_getID()
-  {
-   return "Set caret on " + prettyName(aID) + " at point: " +
-     prettyName(aNode) + " node with offset " + aOffset;
-  }
-
-  this.eventSeq = [
-    new caretMoveChecker(aExpectedOffset, this.target)
-  ];
-
-  if (this.focus)
-    this.eventSeq.push(new asyncInvokerChecker(EVENT_FOCUS, this.focus));
-}
-
-/**
- * Set caret offset in text accessible.
- */
-function setCaretOffset(aID, aOffset, aFocusTargetID)
-{
-  this.target = getAccessible(aID, [nsIAccessibleText]);
-  this.offset = aOffset == -1 ? this.target.characterCount: aOffset;
-  this.focus = aFocusTargetID ? getAccessible(aFocusTargetID) : null;
-
-  this.invoke = function setCaretOffset_invoke()
-  {
-    this.target.caretOffset = this.offset;
-  }
-
-  this.getID = function setCaretOffset_getID()
-  {
-   return "Set caretOffset on " + prettyName(aID) + " at " + this.offset;
-  }
-
-  this.eventSeq = [
-    new caretMoveChecker(this.offset, this.target)
-  ];
-
-  if (this.focus)
-    this.eventSeq.push(new asyncInvokerChecker(EVENT_FOCUS, this.focus));
 }
 
 
@@ -1617,8 +970,6 @@ function invokerChecker(aEventType, aTargetOrFunc, aTargetFuncArg, aIsAsync)
   {
     if (typeof this.mTarget == "function")
       return this.mTarget.call(null, this.mTargetFuncArg);
-    if (typeof this.mTarget == "string")
-      return getNode(this.mTarget);
 
     return this.mTarget;
   }
@@ -1652,68 +1003,37 @@ function asyncInvokerChecker(aEventType, aTargetOrFunc, aTargetFuncArg)
                                       aTargetFuncArg, true);
 }
 
-function focusChecker(aTargetOrFunc, aTargetFuncArg)
-{
-  this.__proto__ = new invokerChecker(EVENT_FOCUS, aTargetOrFunc,
-                                      aTargetFuncArg, false);
-
-  this.unique = true; // focus event must be unique for invoker action
-
-  this.check = function focusChecker_check(aEvent)
-  {
-    testStates(aEvent.accessible, STATE_FOCUSED);
-  }
-}
-
-function nofocusChecker(aID)
-{
-  this.__proto__ = new focusChecker(aID);
-  this.unexpected = true;
-}
-
 /**
  * Text inserted/removed events checker.
- * @param aFromUser  [in, optional] kNotFromUserInput or kFromUserInput
  */
-function textChangeChecker(aID, aStart, aEnd, aTextOrFunc, aIsInserted, aFromUser)
+function textChangeChecker(aID, aStart, aEnd, aTextOrFunc, aIsInserted)
 {
   this.target = getNode(aID);
   this.type = aIsInserted ? EVENT_TEXT_INSERTED : EVENT_TEXT_REMOVED;
-  this.startOffset = aStart;
-  this.endOffset = aEnd;
-  this.textOrFunc = aTextOrFunc;
 
   this.check = function textChangeChecker_check(aEvent)
   {
     aEvent.QueryInterface(nsIAccessibleTextChangeEvent);
 
-    var modifiedText = (typeof this.textOrFunc == "function") ?
-      this.textOrFunc() : this.textOrFunc;
-    var modifiedTextLen =
-      (this.endOffset == -1) ? modifiedText.length : aEnd - aStart;
+    var modifiedText = (typeof aTextOrFunc == "function") ?
+      aTextOrFunc() : aTextOrFunc;
+    var modifiedTextLen = (aEnd == -1) ? modifiedText.length : aEnd - aStart;
 
-    is(aEvent.start, this.startOffset,
-       "Wrong start offset for " + prettyName(aID));
+    is(aEvent.start, aStart, "Wrong start offset for " + prettyName(aID));
     is(aEvent.length, modifiedTextLen, "Wrong length for " + prettyName(aID));
     var changeInfo = (aIsInserted ? "inserted" : "removed");
-    is(aEvent.isInserted, aIsInserted,
+    is(aEvent.isInserted(), aIsInserted,
        "Text was " + changeInfo + " for " + prettyName(aID));
     is(aEvent.modifiedText, modifiedText,
        "Wrong " + changeInfo + " text for " + prettyName(aID));
-    if (typeof aFromUser != "undefined")
-      is(aEvent.isFromUserInput, aFromUser,
-         "wrong value of isFromUserInput() for " + prettyName(aID));
   }
 }
 
 /**
  * Caret move events checker.
  */
-function caretMoveChecker(aCaretOffset, aTargetOrFunc, aTargetFuncArg)
+function caretMoveChecker(aCaretOffset)
 {
-  this.__proto__ = new invokerChecker(EVENT_TEXT_CARET_MOVED,
-                                      aTargetOrFunc, aTargetFuncArg);
-
   this.check = function caretMoveChecker_check(aEvent)
   {
     is(aEvent.QueryInterface(nsIAccessibleCaretMoveEvent).caretOffset,
@@ -1726,11 +1046,10 @@ function caretMoveChecker(aCaretOffset, aTargetOrFunc, aTargetFuncArg)
  * State change checker.
  */
 function stateChangeChecker(aState, aIsExtraState, aIsEnabled,
-                            aTargetOrFunc, aTargetFuncArg, aIsAsync,
-                            aSkipCurrentStateCheck)
+                            aTargetOrFunc, aTargetFuncArg)
 {
   this.__proto__ = new invokerChecker(EVENT_STATE_CHANGE, aTargetOrFunc,
-                                      aTargetFuncArg, aIsAsync);
+                                      aTargetFuncArg);
 
   this.check = function stateChangeChecker_check(aEvent)
   {
@@ -1744,17 +1063,11 @@ function stateChangeChecker(aState, aIsExtraState, aIsEnabled,
     if (!event)
       return;
 
-    is(event.isExtraState, aIsExtraState,
+    is(event.state, aState, "Wrong state of the statechange event.");
+    is(event.isExtraState(), aIsExtraState,
        "Wrong extra state bit of the statechange event.");
-    isState(event.state, aState, aIsExtraState,
-            "Wrong state of the statechange event.");
-    is(event.isEnabled, aIsEnabled,
+    is(event.isEnabled(), aIsEnabled,
       "Wrong state of statechange event state");
-
-    if (aSkipCurrentStateCheck) {
-      todo(false, "State checking was skipped!");
-      return;
-    }
 
     var state = aIsEnabled ? (aIsExtraState ? 0 : aState) : 0;
     var extraState = aIsEnabled ? (aIsExtraState ? aState : 0) : 0;
@@ -1762,23 +1075,6 @@ function stateChangeChecker(aState, aIsExtraState, aIsEnabled,
     var unxpdExtraState = aIsEnabled ? 0 : (aIsExtraState ? aState : 0);
     testStates(event.accessible, state, extraState, unxpdState, unxpdExtraState);
   }
-
-  this.match = function stateChangeChecker_match(aEvent)
-  {
-    if (aEvent instanceof nsIAccessibleStateChangeEvent) {
-      var scEvent = aEvent.QueryInterface(nsIAccessibleStateChangeEvent);
-      return (aEvent.accessible == getAccessible(this.target)) &&
-        (scEvent.state == aState);
-    }
-    return false;
-  }
-}
-
-function asyncStateChangeChecker(aState, aIsExtraState, aIsEnabled,
-                                 aTargetOrFunc, aTargetFuncArg)
-{
-  this.__proto__ = new stateChangeChecker(aState, aIsExtraState, aIsEnabled,
-                                          aTargetOrFunc, aTargetFuncArg, true);
 }
 
 /**
@@ -1802,67 +1098,14 @@ function expandedStateChecker(aIsEnabled, aTargetOrFunc, aTargetFuncArg)
       return;
 
     is(event.state, STATE_EXPANDED, "Wrong state of the statechange event.");
-    is(event.isExtraState, false,
+    is(event.isExtraState(), false,
        "Wrong extra state bit of the statechange event.");
-    is(event.isEnabled, aIsEnabled,
+    is(event.isEnabled(), aIsEnabled,
       "Wrong state of statechange event state");
 
     testStates(event.accessible,
                (aIsEnabled ? STATE_EXPANDED : STATE_COLLAPSED));
   }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Event sequances (array of predefined checkers)
-
-/**
- * Event seq for single selection change.
- */
-function selChangeSeq(aUnselectedID, aSelectedID)
-{
-  if (!aUnselectedID) {
-    return [
-      new stateChangeChecker(STATE_SELECTED, false, true, aSelectedID),
-      new invokerChecker(EVENT_SELECTION, aSelectedID)
-    ];
-  }
-
-  // Return two possible scenarios: depending on widget type when selection is
-  // moved the the order of items that get selected and unselected may vary. 
-  return [
-    [
-      new stateChangeChecker(STATE_SELECTED, false, false, aUnselectedID),
-      new stateChangeChecker(STATE_SELECTED, false, true, aSelectedID),
-      new invokerChecker(EVENT_SELECTION, aSelectedID)
-    ],
-    [
-      new stateChangeChecker(STATE_SELECTED, false, true, aSelectedID),
-      new stateChangeChecker(STATE_SELECTED, false, false, aUnselectedID),
-      new invokerChecker(EVENT_SELECTION, aSelectedID)
-    ]
-  ];
-}
-
-/**
- * Event seq for item removed form the selection.
- */
-function selRemoveSeq(aUnselectedID)
-{
-  return [
-    new stateChangeChecker(STATE_SELECTED, false, false, aUnselectedID),
-    new invokerChecker(EVENT_SELECTION_REMOVE, aUnselectedID)
-  ];
-}
-
-/**
- * Event seq for item added to the selection.
- */
-function selAddSeq(aSelectedID)
-{
-  return [
-    new stateChangeChecker(STATE_SELECTED, false, true, aSelectedID),
-    new invokerChecker(EVENT_SELECTION_ADD, aSelectedID)
-  ];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1878,6 +1121,12 @@ var gA11yEventApplicantsCount = 0;
 
 var gA11yEventObserver =
 {
+  // The service reference needs to live in the observer, instead of as a global var,
+  //   to be available in observe() catch case too.
+  observerService :
+    Components.classes["@mozilla.org/observer-service;1"]
+              .getService(nsIObserverService),
+
   observe: function observe(aSubject, aTopic, aData)
   {
     if (aTopic != "accessible-event")
@@ -1889,7 +1138,7 @@ var gA11yEventObserver =
     } catch (ex) {
       // After a test is aborted (i.e. timed out by the harness), this exception is soon triggered.
       // Remove the leftover observer, otherwise it "leaks" to all the following tests.
-      Services.obs.removeObserver(this, "accessible-event");
+      this.observerService.removeObserver(this, "accessible-event");
       // Forward the exception, with added explanation.
       throw "[accessible/events.js, gA11yEventObserver.observe] This is expected if a previous test has been aborted... Initial exception was: [ " + ex + " ]";
     }
@@ -1915,7 +1164,7 @@ var gA11yEventObserver =
 
         if (event instanceof nsIAccessibleTextChangeEvent) {
           info += ", start: " + event.start + ", length: " + event.length +
-            ", " + (event.isInserted ? "inserted" : "removed") +
+            ", " + (event.isInserted() ? "inserted" : "removed") +
             " text: " + event.modifiedText;
         }
 
@@ -1923,15 +1172,6 @@ var gA11yEventObserver =
 
         if (listenersArray)
           info += ". Listeners count: " + listenersArray.length;
-
-        if (gLogger.hasFeature("parentchain:" + type)) {
-          info += "\nParent chain:\n";
-          var acc = event.accessible;
-          while (acc) {
-            info += "  " + prettyName(acc) + "\n";
-            acc = acc.parent;
-          }
-        }
 
         eventFromDumpArea = false;
         gLogger.log(info);
@@ -1952,12 +1192,14 @@ function listenA11yEvents(aStartToListen)
   if (aStartToListen) {
     // Add observer when adding the first applicant only.
     if (!(gA11yEventApplicantsCount++))
-      Services.obs.addObserver(gA11yEventObserver, "accessible-event", false);
+      gA11yEventObserver.observerService
+                        .addObserver(gA11yEventObserver, "accessible-event", false);
   } else {
     // Remove observer when there are no more applicants only.
     // '< 0' case should not happen, but just in case: removeObserver() will throw.
     if (--gA11yEventApplicantsCount <= 0)
-      Services.obs.removeObserver(gA11yEventObserver, "accessible-event");
+      gA11yEventObserver.observerService
+                        .removeObserver(gA11yEventObserver, "accessible-event");
   }
 }
 
@@ -2074,22 +1316,11 @@ var gLogger =
   logToAppConsole: function logger_logToAppConsole(aMsg)
   {
     if (gA11yEventDumpToAppConsole)
-      Services.console.logStringMessage("events: " + aMsg);
+      consoleService.logStringMessage("events: " + aMsg);
   },
 
-  /**
-   * Return true if logging feature is enabled.
-   */
-  hasFeature: function logger_hasFeature(aFeature)
-  {
-    var startIdx = gA11yEventDumpFeature.indexOf(aFeature);
-    if (startIdx == - 1)
-      return false;
-
-    var endIdx = startIdx + aFeature.length;
-    return endIdx == gA11yEventDumpFeature.length ||
-      gA11yEventDumpFeature[endIdx] == ";";
-  }
+  consoleService: Components.classes["@mozilla.org/consoleservice;1"].
+    getService(Components.interfaces.nsIConsoleService)
 };
 
 
@@ -2137,25 +1368,28 @@ function sequenceItem(aProcessor, aEventType, aTarget, aItemID)
 /**
  * Invoker base class for prepare an action.
  */
-function synthAction(aNodeOrID, aEventsObj)
+function synthAction(aNodeOrID, aCheckerOrEventSeq, aEventType)
 {
   this.DOMNode = getNode(aNodeOrID);
 
-  if (aEventsObj) {
-    var scenarios = null;
-    if (aEventsObj instanceof Array) {
-      if (aEventsObj[0] instanceof Array)
-        scenarios = aEventsObj; // scenarios
-      else
-        scenarios = [ aEventsObj ]; // event sequance
+  this.checker = null;
+  if (aCheckerOrEventSeq) {
+    if (aCheckerOrEventSeq instanceof Array) {
+      this.eventSeq = aCheckerOrEventSeq;
     } else {
-      scenarios = [ [ aEventsObj ] ]; // a single checker object
+      this.checker = aCheckerOrEventSeq;
+      this.checker.target = this.DOMNode;
     }
-
-    for (var i = 0; i < scenarios.length; i++)
-      defineScenario(this, scenarios[i]);
   }
 
-  this.getID = function synthAction_getID()
-    { return prettyName(aNodeOrID) + " action"; }
+  if (aEventType)
+    this.eventSeq = [ new invokerChecker(aEventType, this.DOMNode) ];
+
+  this.check = function synthAction_check(aEvent)
+  {
+    if (this.checker)
+      this.checker.check(aEvent);
+  }
+
+  this.getID = function synthAction_getID() { return aNodeOrID + " action"; }
 }

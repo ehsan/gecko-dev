@@ -1,34 +1,70 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * vim: set ts=8 sw=4 et tw=99:
+ *
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is SpiderMonkey JSON.
+ *
+ * The Initial Developer of the Original Code is
+ * the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Jeff Walden <jwalden+code@mit.edu> (original author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-#ifndef jsonparser_h
-#define jsonparser_h
+#ifndef jsonparser_h___
+#define jsonparser_h___
 
-#include "mozilla/Attributes.h"
+#include "mozilla/RangedPtr.h"
 
-#include "jsapi.h"
+#include "jscntxt.h"
+#include "jsstr.h"
 
-#include "vm/String.h"
-
-namespace js {
-
-class MOZ_STACK_CLASS JSONParser : private AutoGCRooter
+/*
+ * NB: This class must only be used on the stack as it contains a js::Value.
+ */
+class JSONParser
 {
   public:
     enum ErrorHandling { RaiseError, NoError };
+    enum ParsingMode { StrictJSON, LegacyJSON };
 
   private:
     /* Data members */
 
     JSContext * const cx;
-    StableCharPtr current;
-    const StableCharPtr end;
+    mozilla::RangedPtr<const jschar> current;
+    const mozilla::RangedPtr<const jschar> end;
 
-    Value v;
+    js::Value v;
 
+    const ParsingMode parsingMode;
     const ErrorHandling errorHandling;
 
     enum Token { String, Number, True, False, Null,
@@ -36,70 +72,6 @@ class MOZ_STACK_CLASS JSONParser : private AutoGCRooter
                  ObjectOpen, ObjectClose,
                  Colon, Comma,
                  OOM, Error };
-
-    // State related to the parser's current position. At all points in the
-    // parse this keeps track of the stack of arrays and objects which have
-    // been started but not finished yet. The actual JS object is not
-    // allocated until the literal is closed, so that the result can be sized
-    // according to its contents and have its type and shape filled in using
-    // caches.
-
-    // State for an array that is currently being parsed. This includes all
-    // elements that have been seen so far.
-    typedef Vector<Value, 20> ElementVector;
-
-    // State for an object that is currently being parsed. This includes all
-    // the key/value pairs that have been seen so far.
-    typedef Vector<IdValuePair, 10> PropertyVector;
-
-    // Possible states the parser can be in between values.
-    enum ParserState {
-        // An array element has just being parsed.
-        FinishArrayElement,
-
-        // An object property has just been parsed.
-        FinishObjectMember,
-
-        // At the start of the parse, before any values have been processed.
-        JSONValue
-    };
-
-    // Stack element for an in progress array or object.
-    struct StackEntry {
-        ElementVector &elements() {
-            JS_ASSERT(state == FinishArrayElement);
-            return * static_cast<ElementVector *>(vector);
-        }
-
-        PropertyVector &properties() {
-            JS_ASSERT(state == FinishObjectMember);
-            return * static_cast<PropertyVector *>(vector);
-        }
-
-        StackEntry(ElementVector *elements)
-          : state(FinishArrayElement), vector(elements)
-        {}
-
-        StackEntry(PropertyVector *properties)
-          : state(FinishObjectMember), vector(properties)
-        {}
-
-        ParserState state;
-
-      private:
-        void *vector;
-    };
-
-    // All in progress arrays and objects being parsed, in order from outermost
-    // to innermost.
-    Vector<StackEntry, 10> stack;
-
-    // Unused element and property vectors for previous in progress arrays and
-    // objects. These vectors are not freed until the end of the parse to avoid
-    // unnecessary freeing and allocation.
-    Vector<ElementVector*, 5> freeElements;
-    Vector<PropertyVector*, 5> freeProperties;
-
 #ifdef DEBUG
     Token lastToken;
 #endif
@@ -107,25 +79,26 @@ class MOZ_STACK_CLASS JSONParser : private AutoGCRooter
   public:
     /* Public API */
 
-    /* Create a parser for the provided JSON data. */
-    JSONParser(JSContext *cx, JS::StableCharPtr data, size_t length,
+    /*
+     * Create a parser for the provided JSON data.  The parser will accept
+     * certain legacy, non-JSON syntax if decodingMode is LegacyJSON.
+     * Description of this syntax is deliberately omitted: new code should only
+     * use strict JSON parsing.
+     */
+    JSONParser(JSContext *cx, const jschar *data, size_t length,
+               ParsingMode parsingMode = StrictJSON,
                ErrorHandling errorHandling = RaiseError)
-      : AutoGCRooter(cx, JSONPARSER),
-        cx(cx),
-        current(data),
-        end((data + length).get(), data.get(), length),
-        errorHandling(errorHandling),
-        stack(cx),
-        freeElements(cx),
-        freeProperties(cx)
+      : cx(cx),
+        current(data, length),
+        end(data + length, data, length),
+        parsingMode(parsingMode),
+        errorHandling(errorHandling)
 #ifdef DEBUG
       , lastToken(Error)
 #endif
     {
         JS_ASSERT(current <= end);
     }
-
-    ~JSONParser();
 
     /*
      * Parse the JSON data specified at construction time.  If it parses
@@ -137,24 +110,25 @@ class MOZ_STACK_CLASS JSONParser : private AutoGCRooter
      * otherwise return true and set *vp to |undefined|.  (JSON syntax can't
      * represent |undefined|, so the JSON data couldn't have specified it.)
      */
-    bool parse(MutableHandleValue vp);
+    bool parse(js::Value *vp);
 
   private:
-    Value numberValue() const {
+    js::Value numberValue() const {
         JS_ASSERT(lastToken == Number);
         JS_ASSERT(v.isNumber());
         return v;
     }
 
-    Value stringValue() const {
+    js::Value stringValue() const {
         JS_ASSERT(lastToken == String);
         JS_ASSERT(v.isString());
         return v;
     }
 
-    JSAtom *atomValue() const {
-        Value strval = stringValue();
-        return &strval.toString()->asAtom();
+    js::Value atomValue() const {
+        js::Value strval = stringValue();
+        JS_ASSERT(strval.toString()->isAtom());
+        return strval;
     }
 
     Token token(Token t) {
@@ -167,15 +141,15 @@ class MOZ_STACK_CLASS JSONParser : private AutoGCRooter
     }
 
     Token stringToken(JSString *str) {
-        this->v = StringValue(str);
+        this->v = js::StringValue(str);
 #ifdef DEBUG
         lastToken = String;
 #endif
         return String;
     }
 
-    Token numberToken(double d) {
-        this->v = NumberValue(d);
+    Token numberToken(jsdouble d) {
+        this->v = js::NumberValue(d);
 #ifdef DEBUG
         lastToken = Number;
 #endif
@@ -196,19 +170,6 @@ class MOZ_STACK_CLASS JSONParser : private AutoGCRooter
 
     void error(const char *msg);
     bool errorReturn();
-
-    JSObject *createFinishedObject(PropertyVector &properties);
-    bool finishObject(MutableHandleValue vp, PropertyVector &properties);
-    bool finishArray(MutableHandleValue vp, ElementVector &elements);
-
-    friend void AutoGCRooter::trace(JSTracer *trc);
-    void trace(JSTracer *trc);
-
-  private:
-    JSONParser(const JSONParser &other) MOZ_DELETE;
-    void operator=(const JSONParser &other) MOZ_DELETE;
 };
 
-} /* namespace js */
-
-#endif /* jsonparser_h */
+#endif /* jsonparser_h___ */

@@ -1,6 +1,40 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape security libraries.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1994-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Dr Stephen Henson <stephen.henson@gemplus.com>
+ *   Dr Vipul Gupta <vipul.gupta@sun.com>, Sun Microsystems Laboratories
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 #include "cryptohi.h"
 #include "keyhi.h"
 #include "secoid.h"
@@ -13,6 +47,7 @@
 #include "secerr.h"
 #include "secdig.h"
 #include "prtime.h"
+#include "ec.h"
 #include "keyi.h"
 
 SEC_ASN1_MKSUB(SECOID_AlgorithmIDTemplate)
@@ -266,7 +301,7 @@ SECKEY_DestroyPublicKey(SECKEYPublicKey *pubk)
 }
 
 SECStatus
-SECKEY_CopySubjectPublicKeyInfo(PLArenaPool *arena,
+SECKEY_CopySubjectPublicKeyInfo(PRArenaPool *arena,
 			     CERTSubjectPublicKeyInfo *to,
 			     CERTSubjectPublicKeyInfo *from)
 {
@@ -324,19 +359,11 @@ seckey_UpdateCertPQGChain(CERTCertificate * subjectCert, int count)
     if (oid != NULL) {  
         tag = oid->offset;
              
-        /* Check if cert has a DSA or EC public key. If not, return
-         * success since no PQG params need to be updated.
-	 *
-	 * Question: do we really need to do this for EC keys. They don't have
-	 * PQG parameters, but they do have parameters. The question is does
-	 * the child cert inherit thost parameters for EC from the parent, or
-	 * do we always include those parameters in each cert.
-	 */
+        /* Check if cert has a DSA public key. If not, return
+         * success since no PQG params need to be updated.  */
 
 	if ( (tag != SEC_OID_ANSIX9_DSA_SIGNATURE) &&
              (tag != SEC_OID_ANSIX9_DSA_SIGNATURE_WITH_SHA1_DIGEST) &&
-             (tag != SEC_OID_NIST_DSA_SIGNATURE_WITH_SHA224_DIGEST) &&
-             (tag != SEC_OID_NIST_DSA_SIGNATURE_WITH_SHA256_DIGEST) &&
              (tag != SEC_OID_BOGUS_DSA_SIGNATURE_WITH_SHA1_DIGEST) &&
              (tag != SEC_OID_SDN702_DSA_SIGNATURE) &&
              (tag != SEC_OID_ANSIX962_EC_PUBLIC_KEY) ) {
@@ -379,8 +406,6 @@ seckey_UpdateCertPQGChain(CERTCertificate * subjectCert, int count)
 
 	if ( (tag != SEC_OID_ANSIX9_DSA_SIGNATURE) &&
              (tag != SEC_OID_ANSIX9_DSA_SIGNATURE_WITH_SHA1_DIGEST) &&
-             (tag != SEC_OID_NIST_DSA_SIGNATURE_WITH_SHA224_DIGEST) &&
-             (tag != SEC_OID_NIST_DSA_SIGNATURE_WITH_SHA256_DIGEST) &&
              (tag != SEC_OID_BOGUS_DSA_SIGNATURE_WITH_SHA1_DIGEST) &&
              (tag != SEC_OID_SDN702_DSA_SIGNATURE) &&
              (tag != SEC_OID_ANSIX962_EC_PUBLIC_KEY) ) {            
@@ -444,9 +469,8 @@ SECKEY_UpdateCertPQG(CERTCertificate * subjectCert)
  * the normal standard format.  Store the decoded parameters in
  * a V3 certificate data structure.  */ 
 
-static SECStatus
-seckey_DSADecodePQG(PLArenaPool *arena, SECKEYPublicKey *pubk,
-                    const SECItem *params) {
+SECStatus
+SECKEY_DSADecodePQG(PRArenaPool *arena, SECKEYPublicKey *pubk, SECItem *params) {
     SECStatus rv;
     SECItem newparams;
 
@@ -540,18 +564,18 @@ seckey_GetKeyType (SECOidTag tag) {
 
 /* Function used to determine what kind of cert we are dealing with. */
 KeyType 
-CERT_GetCertKeyType (const CERTSubjectPublicKeyInfo *spki) 
+CERT_GetCertKeyType (CERTSubjectPublicKeyInfo *spki) 
 {
     return seckey_GetKeyType(SECOID_GetAlgorithmTag(&spki->algorithm));
 }
 
 static SECKEYPublicKey *
-seckey_ExtractPublicKey(const CERTSubjectPublicKeyInfo *spki)
+seckey_ExtractPublicKey(CERTSubjectPublicKeyInfo *spki)
 {
     SECKEYPublicKey *pubk;
     SECItem os, newOs, newParms;
     SECStatus rv;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     SECOidTag tag;
 
     arena = PORT_NewArena (DER_DEFAULT_CHUNKSIZE);
@@ -595,7 +619,7 @@ seckey_ExtractPublicKey(const CERTSubjectPublicKeyInfo *spki)
 	rv = SEC_QuickDERDecodeItem(arena, pubk, SECKEY_DSAPublicKeyTemplate, &newOs);
 	if (rv != SECSuccess) break;
 
-        rv = seckey_DSADecodePQG(arena, pubk,
+        rv = SECKEY_DSADecodePQG(arena, pubk,
                                  &spki->algorithm.parameters); 
 
 	if (rv == SECSuccess) return pubk;
@@ -645,7 +669,7 @@ seckey_ExtractPublicKey(const CERTSubjectPublicKeyInfo *spki)
 
 /* required for JSS */
 SECKEYPublicKey *
-SECKEY_ExtractPublicKey(const CERTSubjectPublicKeyInfo *spki)
+SECKEY_ExtractPublicKey(CERTSubjectPublicKeyInfo *spki)
 {
     return seckey_ExtractPublicKey(spki);
 }
@@ -1010,7 +1034,7 @@ SECKEY_SignatureLen(const SECKEYPublicKey *pubk)
     	b0 = pubk->u.rsa.modulus.data[0];
     	return b0 ? pubk->u.rsa.modulus.len : pubk->u.rsa.modulus.len - 1;
     case dsaKey:
-	return pubk->u.dsa.params.subPrime.len * 2;
+    	return DSA_SIGNATURE_LEN;
     case ecKey:
 	/* Get the base point order length in bits and adjust */
 	size =	SECKEY_ECParamsToBasePointOrderLen(
@@ -1027,7 +1051,7 @@ SECKEYPrivateKey *
 SECKEY_CopyPrivateKey(const SECKEYPrivateKey *privk)
 {
     SECKEYPrivateKey *copyk;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     
     if (!privk || !privk->pkcs11Slot) {
 	PORT_SetError(SEC_ERROR_INVALID_ARGS);
@@ -1073,7 +1097,7 @@ SECKEYPublicKey *
 SECKEY_CopyPublicKey(const SECKEYPublicKey *pubk)
 {
     SECKEYPublicKey *copyk;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     SECStatus rv = SECSuccess;
 
     arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
@@ -1158,7 +1182,7 @@ SECKEYPublicKey *
 SECKEY_ConvertToPublicKey(SECKEYPrivateKey *privk)
 {
     SECKEYPublicKey *pubk;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     CERTCertificate *cert;
     SECStatus rv;
 
@@ -1217,7 +1241,7 @@ CERTSubjectPublicKeyInfo *
 SECKEY_CreateSubjectPublicKeyInfo(SECKEYPublicKey *pubk)
 {
     CERTSubjectPublicKeyInfo *spki;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     SECItem params = { siBuffer, NULL, 0 };
 
     if (!pubk) {
@@ -1345,9 +1369,9 @@ SECKEY_DestroySubjectPublicKeyInfo(CERTSubjectPublicKeyInfo *spki)
  * similiar to CERT_ExtractPublicKey for other key times.
  */
 SECKEYPublicKey *
-SECKEY_DecodeDERPublicKey(const SECItem *pubkder)
+SECKEY_DecodeDERPublicKey(SECItem *pubkder)
 {
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     SECKEYPublicKey *pubk;
     SECStatus rv;
     SECItem newPubkder;
@@ -1386,7 +1410,7 @@ SECKEY_DecodeDERPublicKey(const SECItem *pubkder)
  * Decode a base64 ascii encoded DER encoded public key.
  */
 SECKEYPublicKey *
-SECKEY_ConvertAndDecodePublicKey(const char *pubkstr)
+SECKEY_ConvertAndDecodePublicKey(char *pubkstr)
 {
     SECKEYPublicKey *pubk;
     SECStatus rv;
@@ -1426,9 +1450,9 @@ finish:
 
 
 CERTSubjectPublicKeyInfo *
-SECKEY_DecodeDERSubjectPublicKeyInfo(const SECItem *spkider)
+SECKEY_DecodeDERSubjectPublicKeyInfo(SECItem *spkider)
 {
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     CERTSubjectPublicKeyInfo *spki;
     SECStatus rv;
     SECItem newSpkider;
@@ -1465,7 +1489,7 @@ SECKEY_DecodeDERSubjectPublicKeyInfo(const SECItem *spkider)
  * Decode a base64 ascii encoded DER encoded subject public key info.
  */
 CERTSubjectPublicKeyInfo *
-SECKEY_ConvertAndDecodeSubjectPublicKeyInfo(const char *spkistr)
+SECKEY_ConvertAndDecodeSubjectPublicKeyInfo(char *spkistr)
 {
     CERTSubjectPublicKeyInfo *spki;
     SECStatus rv;
@@ -1493,7 +1517,7 @@ SECKEY_ConvertAndDecodePublicKeyAndChallenge(char *pkacstr, char *challenge,
     CERTPublicKeyAndChallenge pkac;
     SECStatus rv;
     SECItem signedItem;
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
     CERTSignedData sd;
     SECItem sig;
     SECKEYPublicKey *pubKey = NULL;
@@ -1588,7 +1612,7 @@ void
 SECKEY_DestroyPrivateKeyInfo(SECKEYPrivateKeyInfo *pvk,
 			     PRBool freeit)
 {
-    PLArenaPool *poolp;
+    PRArenaPool *poolp;
 
     if(pvk != NULL) {
 	if(pvk->arena) {
@@ -1619,7 +1643,7 @@ void
 SECKEY_DestroyEncryptedPrivateKeyInfo(SECKEYEncryptedPrivateKeyInfo *epki,
 				      PRBool freeit)
 {
-    PLArenaPool *poolp;
+    PRArenaPool *poolp;
 
     if(epki != NULL) {
 	if(epki->arena) {
@@ -1646,9 +1670,9 @@ SECKEY_DestroyEncryptedPrivateKeyInfo(SECKEYEncryptedPrivateKeyInfo *epki,
 }
 
 SECStatus
-SECKEY_CopyPrivateKeyInfo(PLArenaPool *poolp,
+SECKEY_CopyPrivateKeyInfo(PRArenaPool *poolp,
 			  SECKEYPrivateKeyInfo *to,
-			  const SECKEYPrivateKeyInfo *from)
+			  SECKEYPrivateKeyInfo *from)
 {
     SECStatus rv = SECFailure;
 
@@ -1670,9 +1694,9 @@ SECKEY_CopyPrivateKeyInfo(PLArenaPool *poolp,
 }
 
 SECStatus
-SECKEY_CopyEncryptedPrivateKeyInfo(PLArenaPool *poolp,
+SECKEY_CopyEncryptedPrivateKeyInfo(PRArenaPool *poolp, 
 				   SECKEYEncryptedPrivateKeyInfo *to,
-				   const SECKEYEncryptedPrivateKeyInfo *from)
+				   SECKEYEncryptedPrivateKeyInfo *from)
 {
     SECStatus rv = SECFailure;
 
@@ -1690,24 +1714,24 @@ SECKEY_CopyEncryptedPrivateKeyInfo(PLArenaPool *poolp,
 }
 
 KeyType
-SECKEY_GetPrivateKeyType(const SECKEYPrivateKey *privKey)
+SECKEY_GetPrivateKeyType(SECKEYPrivateKey *privKey)
 {
    return privKey->keyType;
 }
 
 KeyType
-SECKEY_GetPublicKeyType(const SECKEYPublicKey *pubKey)
+SECKEY_GetPublicKeyType(SECKEYPublicKey *pubKey)
 {
    return pubKey->keyType;
 }
 
 SECKEYPublicKey*
-SECKEY_ImportDERPublicKey(const SECItem *derKey, CK_KEY_TYPE type)
+SECKEY_ImportDERPublicKey(SECItem *derKey, CK_KEY_TYPE type)
 {
     SECKEYPublicKey *pubk = NULL;
     SECStatus rv = SECFailure;
     SECItem newDerKey;
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
 
     if (!derKey) {
         return NULL;
@@ -1767,7 +1791,7 @@ finish:
 SECKEYPrivateKeyList*
 SECKEY_NewPrivateKeyList(void)
 {
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
     SECKEYPrivateKeyList *ret = NULL;
 
     arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
@@ -1844,7 +1868,7 @@ loser:
 SECKEYPublicKeyList*
 SECKEY_NewPublicKeyList(void)
 {
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
     SECKEYPublicKeyList *ret = NULL;
 
     arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
@@ -1918,7 +1942,7 @@ loser:
 }
 
 #define SECKEY_CacheAttribute(key, attribute) \
-    if (CK_TRUE == PK11_HasAttributeSet(key->pkcs11Slot, key->pkcs11ID, attribute, PR_FALSE)) { \
+    if (CK_TRUE == PK11_HasAttributeSet(key->pkcs11Slot, key->pkcs11ID, attribute)) { \
         key->staticflags |= SECKEY_##attribute; \
     } else { \
         key->staticflags &= (~SECKEY_##attribute); \
@@ -1931,7 +1955,6 @@ SECKEY_CacheStaticFlags(SECKEYPrivateKey* key)
     if (key && key->pkcs11Slot && key->pkcs11ID) {
         key->staticflags |= SECKEY_Attributes_Cached;
         SECKEY_CacheAttribute(key, CKA_PRIVATE);
-        SECKEY_CacheAttribute(key, CKA_ALWAYS_AUTHENTICATE);
         rv = SECSuccess;
     }
     return rv;

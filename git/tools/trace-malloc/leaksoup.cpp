@@ -1,17 +1,48 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is leaksoup3, a memory graph analysis tool that
+ * finds roots based on strongly connected components (SCCs).
+ *
+ * The Initial Developer of the Original Code is L. David Baron.
+ * Portions created by the Initial Developer are Copyright (C) 2002
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   L. David Baron <dbaron@dbaron.org> (original author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "adreader.h"
 
 #include <stdio.h>
 #include "plhash.h"
 
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsQuickSort.h"
 #include "nsXPCOM.h"
-
-const uint32_t kPointersDefaultSize = 8;
 
 /*
  * Read in an allocation dump, presumably one taken at shutdown (using
@@ -27,18 +58,18 @@ struct AllocationNode {
 
     // Other |AllocationNode| objects whose memory has a pointer to
     // this object.
-    nsAutoTArray<AllocationNode*, kPointersDefaultSize> pointers_to;
+    nsAutoVoidArray pointers_to;
 
     // The reverse.
-    nsAutoTArray<AllocationNode*, kPointersDefaultSize> pointers_from;
+    nsAutoVoidArray pointers_from;
 
     // Early on in the algorithm, the pre-order index from a DFS.
     // Later on, set to the index of the strongly connected component to
     // which this node belongs.
-    uint32_t index;
+    PRUint32 index;
 
-    bool reached;
-    bool is_root;
+    PRPackedBool reached;
+    PRPackedBool is_root;
 };
 
 static PLHashNumber hash_pointer(const void *key)
@@ -133,7 +164,7 @@ int main(int argc, char **argv)
         for (ADLog::const_iterator entry = log.begin(), entry_end = log.end();
              entry != entry_end; ++entry, ++cur_node) {
             const ADLog::Entry *e = cur_node->entry = *entry;
-            cur_node->reached = false;
+            cur_node->reached = PR_FALSE;
 
             for (ADLog::Pointer p = e->address,
                             p_end = e->address + e->datasize;
@@ -166,8 +197,8 @@ int main(int argc, char **argv)
     // Do a depth-first search on the graph (i.e., by following
     // |pointers_to|) and assign the post-order index to |index|.
     {
-        uint32_t dfs_index = 0;
-        nsTArray<AllocationNode*> stack;
+        PRUint32 dfs_index = 0;
+        nsVoidArray stack;
 
         for (AllocationNode *n = nodes, *n_end = nodes+count; n != n_end; ++n) {
             if (n->reached) {
@@ -176,24 +207,25 @@ int main(int argc, char **argv)
             stack.AppendElement(n);
 
             do {
-                uint32_t pos = stack.Length() - 1;
-                AllocationNode *n = stack[pos];
+                PRUint32 pos = stack.Count() - 1;
+                AllocationNode *n =
+                    static_cast<AllocationNode*>(stack[pos]);
                 if (n->reached) {
                     n->index = dfs_index++;
                     stack.RemoveElementAt(pos);
                 } else {
-                    n->reached = true;
+                    n->reached = PR_TRUE;
 
                     // When doing post-order processing, we have to be
                     // careful not to put reached nodes into the stack.
-                    for (int32_t i = n->pointers_to.Length() - 1; i >= 0; --i) {
-                        AllocationNode* e = n->pointers_to[i];
-                        if (!e->reached) {
-                            stack.AppendElement(e);
+                    nsVoidArray &pt = n->pointers_to;
+                    for (PRInt32 i = pt.Count() - 1; i >= 0; --i) {
+                        if (!static_cast<AllocationNode*>(pt[i])->reached) {
+                            stack.AppendElement(pt[i]);
                         }
                     }
                 }
-            } while (stack.Length() > 0);
+            } while (stack.Count() > 0);
         }
     }
 
@@ -214,12 +246,12 @@ int main(int argc, char **argv)
     }
 
     // Put the nodes into their strongly-connected components.
-    uint32_t num_sccs = 0;
+    PRUint32 num_sccs = 0;
     {
         for (size_t i = 0; i < count; ++i) {
-            nodes[i].reached = false;
+            nodes[i].reached = PR_FALSE;
         }
-        nsTArray<AllocationNode*> stack;
+        nsVoidArray stack;
         for (AllocationNode **sn = sorted_nodes,
                         **sn_end = sorted_nodes + count; sn != sn_end; ++sn) {
             if ((*sn)->reached) {
@@ -229,29 +261,30 @@ int main(int argc, char **argv)
             // We found a new strongly connected index.
             stack.AppendElement(*sn);
             do {
-                uint32_t pos = stack.Length() - 1;
-                AllocationNode *n = stack[pos];
+                PRUint32 pos = stack.Count() - 1;
+                AllocationNode *n =
+                    static_cast<AllocationNode*>(stack[pos]);
                 stack.RemoveElementAt(pos);
 
                 if (!n->reached) {
-                    n->reached = true;
+                    n->reached = PR_TRUE;
                     n->index = num_sccs;
                     stack.AppendElements(n->pointers_from);
                 }
-            } while (stack.Length() > 0);
+            } while (stack.Count() > 0);
             ++num_sccs;
         }
     }
 
     // Identify which nodes are leak roots by using DFS, and watching
     // for component transitions.
-    uint32_t num_root_nodes = count;
+    PRUint32 num_root_nodes = count;
     {
         for (size_t i = 0; i < count; ++i) {
-            nodes[i].is_root = true;
+            nodes[i].is_root = PR_TRUE;
         }
 
-        nsTArray<AllocationNode*> stack;
+        nsVoidArray stack;
         for (AllocationNode *n = nodes, *n_end = nodes+count; n != n_end; ++n) {
             if (!n->is_root) {
                 continue;
@@ -259,20 +292,22 @@ int main(int argc, char **argv)
 
             // Loop through pointers_to, and add any that are in a
             // different SCC to stack:
-            for (int i = n->pointers_to.Length() - 1; i >= 0; --i) {
-                AllocationNode *target = n->pointers_to[i];
+            for (int i = n->pointers_to.Count() - 1; i >= 0; --i) {
+                AllocationNode *target =
+                    static_cast<AllocationNode*>(n->pointers_to[i]);
                 if (n->index != target->index) {
                     stack.AppendElement(target);
                 }
             }
 
-            while (stack.Length() > 0) {
-                uint32_t pos = stack.Length() - 1;
-                AllocationNode *n = stack[pos];
+            while (stack.Count() > 0) {
+                PRUint32 pos = stack.Count() - 1;
+                AllocationNode *n =
+                    static_cast<AllocationNode*>(stack[pos]);
                 stack.RemoveElementAt(pos);
 
                 if (n->is_root) {
-                    n->is_root = false;
+                    n->is_root = PR_FALSE;
                     --num_root_nodes;
                     stack.AppendElements(n->pointers_to);
                 }
@@ -300,13 +335,13 @@ int main(int argc, char **argv)
                count, num_root_nodes, num_sccs);
 
         for (size_t i = 0; i < count; ++i) {
-            nodes[i].reached = false;
+            nodes[i].reached = PR_FALSE;
         }
 
         // Loop over the sorted nodes twice, first printing the roots
         // and then the non-roots.
-        for (int32_t root_type = true;
-             root_type == true || root_type == false; --root_type) {
+        for (PRInt32 root_type = PR_TRUE;
+             root_type == PR_TRUE || root_type == PR_FALSE; --root_type) {
             if (root_type) {
                 printf("\n\n"
                        "<div class=\"root\">\n"
@@ -316,8 +351,8 @@ int main(int argc, char **argv)
                        "<div class=\"nonroot\">\n"
                        "<h1 id=\"nonroot\">Non-root components</h1>\n");
             }
-            uint32_t component = (uint32_t)-1;
-            bool one_object_component;
+            PRUint32 component = (PRUint32)-1;
+            PRBool one_object_component;
             for (const AllocationNode *const* sn = sorted_nodes,
                                   *const* sn_end = sorted_nodes + count;
                  sn != sn_end; ++sn) {
@@ -366,11 +401,12 @@ int main(int argc, char **argv)
                     }
                 }
 
-                if (n->pointers_from.Length()) {
+                if (n->pointers_from.Count()) {
                     printf("\nPointers from:\n");
-                    for (uint32_t i = 0, i_end = n->pointers_from.Length();
+                    for (PRUint32 i = 0, i_end = n->pointers_from.Count();
                          i != i_end; ++i) {
-                        AllocationNode *t = n->pointers_from[i];
+                        AllocationNode *t = static_cast<AllocationNode*>
+                                                       (n->pointers_from[i]);
                         const ADLog::Entry *te = t->entry;
                         printf("    <a href=\"#o%d\">%s</a> (Object %d, ",
                                t - nodes, te->type, t - nodes);

@@ -1,7 +1,41 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ *   Steve Swanson <steve.swanson@mackichan.com>
+ * Portions created by the Initial Developer are Copyright (C) 2004
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Blake Kaplan <mrbkap@gmail.com>
+ *   Robert Sayre <sayrer@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 #include "nsCOMPtr.h"
 #include "nsXMLContentSink.h"
 #include "nsIFragmentContentSink.h"
@@ -9,15 +43,21 @@
 #include "nsContentSink.h"
 #include "nsIExpatSink.h"
 #include "nsIDTD.h"
+#include "nsIParser.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocumentFragment.h"
 #include "nsIContent.h"
 #include "nsGkAtoms.h"
 #include "nsINodeInfo.h"
+#include "nsNodeInfoManager.h"
+#include "nsNullPrincipal.h"
 #include "nsContentCreatorFunctions.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsIConsoleService.h"
 #include "nsIScriptError.h"
+#include "nsServiceManagerUtils.h"
+#include "nsContentUtils.h"
+#include "nsIScriptSecurityManager.h"
 #include "nsNetUtil.h"
 #include "nsTHashtable.h"
 #include "nsHashKeys.h"
@@ -26,8 +66,6 @@
 #include "nsIDocShell.h"
 #include "nsScriptLoader.h"
 #include "mozilla/css/Loader.h"
-#include "mozilla/dom/DocumentFragment.h"
-#include "mozilla/dom/ProcessingInstruction.h"
 
 using namespace mozilla::dom;
 
@@ -55,15 +93,15 @@ public:
                                          const PRUnichar *aData);
   NS_IMETHOD HandleXMLDeclaration(const PRUnichar *aVersion,
                                   const PRUnichar *aEncoding,
-                                  int32_t aStandalone);
+                                  PRInt32 aStandalone);
   NS_IMETHOD ReportError(const PRUnichar* aErrorText, 
                          const PRUnichar* aSourceText,
                          nsIScriptError *aError,
-                         bool *_retval);
+                         PRBool *_retval);
 
   // nsIContentSink
   NS_IMETHOD WillBuildModel(nsDTDMode aDTDMode);
-  NS_IMETHOD DidBuildModel(bool aTerminated);
+  NS_IMETHOD DidBuildModel(PRBool aTerminated);
   NS_IMETHOD SetDocumentCharset(nsACString& aCharset);
   virtual nsISupports *GetTarget();
   NS_IMETHOD DidProcessATokenImpl();
@@ -76,24 +114,24 @@ public:
   NS_IMETHOD WillBuildContent();
   NS_IMETHOD DidBuildContent();
   NS_IMETHOD IgnoreFirstContainer();
-  NS_IMETHOD SetPreventScriptExecution(bool aPreventScriptExecution);
+  NS_IMETHOD SetPreventScriptExecution(PRBool aPreventScriptExecution);
 
 protected:
-  virtual bool SetDocElement(int32_t aNameSpaceID, 
+  virtual PRBool SetDocElement(PRInt32 aNameSpaceID, 
                                nsIAtom *aTagName,
                                nsIContent *aContent);
-  virtual nsresult CreateElement(const PRUnichar** aAtts, uint32_t aAttsCount,
-                                 nsINodeInfo* aNodeInfo, uint32_t aLineNumber,
-                                 nsIContent** aResult, bool* aAppendContent,
+  virtual nsresult CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
+                                 nsINodeInfo* aNodeInfo, PRUint32 aLineNumber,
+                                 nsIContent** aResult, PRBool* aAppendContent,
                                  mozilla::dom::FromParser aFromParser);
   virtual nsresult CloseElement(nsIContent* aContent);
 
-  virtual void MaybeStartLayout(bool aIgnorePendingSheets);
+  virtual void MaybeStartLayout(PRBool aIgnorePendingSheets);
 
   // nsContentSink overrides
   virtual nsresult ProcessStyleLink(nsIContent* aElement,
                                     const nsSubstring& aHref,
-                                    bool aAlternate,
+                                    PRBool aAlternate,
                                     const nsSubstring& aTitle,
                                     const nsSubstring& aType,
                                     const nsSubstring& aMedia);
@@ -103,7 +141,7 @@ protected:
   nsCOMPtr<nsIDocument> mTargetDocument;
   // the fragment
   nsCOMPtr<nsIContent>  mRoot;
-  bool                  mParseError;
+  PRPackedBool          mParseError;
 };
 
 static nsresult
@@ -126,9 +164,9 @@ NS_NewXMLFragmentContentSink(nsIFragmentContentSink** aResult)
 }
 
 nsXMLFragmentContentSink::nsXMLFragmentContentSink()
- : mParseError(false)
+ : mParseError(PR_FALSE)
 {
-  mRunsToCompletion = true;
+  mFragmentMode = PR_TRUE;
 }
 
 nsXMLFragmentContentSink::~nsXMLFragmentContentSink()
@@ -146,8 +184,8 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(nsXMLFragmentContentSink)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXMLFragmentContentSink,
                                                   nsXMLContentSink)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mTargetDocument)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mRoot)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mTargetDocument)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mRoot)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMETHODIMP 
@@ -161,19 +199,23 @@ nsXMLFragmentContentSink::WillBuildModel(nsDTDMode aDTDMode)
 
   NS_ASSERTION(mTargetDocument, "Need a document!");
 
-  mRoot = new DocumentFragment(mNodeInfoManager);
+  nsCOMPtr<nsIDOMDocumentFragment> frag;
+  nsresult rv = NS_NewDocumentFragment(getter_AddRefs(frag), mNodeInfoManager);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  mRoot = do_QueryInterface(frag);
   
-  return NS_OK;
+  return rv;
 }
 
 NS_IMETHODIMP 
-nsXMLFragmentContentSink::DidBuildModel(bool aTerminated)
+nsXMLFragmentContentSink::DidBuildModel(PRBool aTerminated)
 {
-  nsRefPtr<nsParserBase> kungFuDeathGrip(mParser);
+  nsCOMPtr<nsIParser> kungFuDeathGrip(mParser);
 
   // Drop our reference to the parser to get rid of a circular
   // reference.
-  mParser = nullptr;
+  mParser = nsnull;
 
   return NS_OK;
 }
@@ -193,19 +235,19 @@ nsXMLFragmentContentSink::GetTarget()
 
 ////////////////////////////////////////////////////////////////////////
 
-bool
-nsXMLFragmentContentSink::SetDocElement(int32_t aNameSpaceID,
+PRBool
+nsXMLFragmentContentSink::SetDocElement(PRInt32 aNameSpaceID,
                                         nsIAtom* aTagName,
                                         nsIContent *aContent)
 {
   // this is a fragment, not a document
-  return false;
+  return PR_FALSE;
 }
 
 nsresult
-nsXMLFragmentContentSink::CreateElement(const PRUnichar** aAtts, uint32_t aAttsCount,
-                                        nsINodeInfo* aNodeInfo, uint32_t aLineNumber,
-                                        nsIContent** aResult, bool* aAppendContent,
+nsXMLFragmentContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
+                                        nsINodeInfo* aNodeInfo, PRUint32 aLineNumber,
+                                        nsIContent** aResult, PRBool* aAppendContent,
                                         FromParser /*aFromParser*/)
 {
   // Claim to not be coming from parser, since we don't do any of the
@@ -219,7 +261,7 @@ nsXMLFragmentContentSink::CreateElement(const PRUnichar** aAtts, uint32_t aAttsC
   // element, we run into trouble on the first element, so we don't append,
   // and simply push this onto the content stack.
   if (mContentStack.Length() == 0) {
-    *aAppendContent = false;
+    *aAppendContent = PR_FALSE;
   }
 
   return rv;
@@ -230,7 +272,8 @@ nsXMLFragmentContentSink::CloseElement(nsIContent* aContent)
 {
   // don't do fancy stuff in nsXMLContentSink
   if (mPreventScriptExecution && aContent->Tag() == nsGkAtoms::script &&
-      (aContent->IsHTML() || aContent->IsSVG())) {
+      (aContent->GetNameSpaceID() == kNameSpaceID_XHTML ||
+       aContent->GetNameSpaceID() == kNameSpaceID_SVG)) {
     nsCOMPtr<nsIScriptElement> sele = do_QueryInterface(aContent);
     NS_ASSERTION(sele, "script did QI correctly!");
     sele->PreventExecution();
@@ -239,7 +282,7 @@ nsXMLFragmentContentSink::CloseElement(nsIContent* aContent)
 }
 
 void
-nsXMLFragmentContentSink::MaybeStartLayout(bool aIgnorePendingSheets)
+nsXMLFragmentContentSink::MaybeStartLayout(PRBool aIgnorePendingSheets)
 {
   return;
 }
@@ -264,20 +307,25 @@ nsXMLFragmentContentSink::HandleProcessingInstruction(const PRUnichar *aTarget,
 {
   FlushText();
 
+  nsresult result = NS_OK;
   const nsDependentString target(aTarget);
   const nsDependentString data(aData);
 
-  nsRefPtr<ProcessingInstruction> node =
-    NS_NewXMLProcessingInstruction(mNodeInfoManager, target, data);
+  nsCOMPtr<nsIContent> node;
 
-  // no special processing here.  that should happen when the fragment moves into the document
-  return AddContentAsLeaf(node);
+  result = NS_NewXMLProcessingInstruction(getter_AddRefs(node),
+                                          mNodeInfoManager, target, data);
+  if (NS_SUCCEEDED(result)) {
+    // no special processing here.  that should happen when the fragment moves into the document
+    result = AddContentAsLeaf(node);
+  }
+  return result;
 }
 
 NS_IMETHODIMP
 nsXMLFragmentContentSink::HandleXMLDeclaration(const PRUnichar *aVersion,
                                                const PRUnichar *aEncoding,
-                                               int32_t aStandalone)
+                                               PRInt32 aStandalone)
 {
   NS_NOTREACHED("fragments shouldn't have XML declarations");
   return NS_OK;
@@ -287,14 +335,14 @@ NS_IMETHODIMP
 nsXMLFragmentContentSink::ReportError(const PRUnichar* aErrorText, 
                                       const PRUnichar* aSourceText,
                                       nsIScriptError *aError,
-                                      bool *_retval)
+                                      PRBool *_retval)
 {
   NS_PRECONDITION(aError && aSourceText && aErrorText, "Check arguments!!!");
 
   // The expat driver should report the error.
-  *_retval = true;
+  *_retval = PR_TRUE;
 
-  mParseError = true;
+  mParseError = PR_TRUE;
 
 #ifdef DEBUG
   // Report the error to stderr.
@@ -330,7 +378,7 @@ nsXMLFragmentContentSink::ReportError(const PRUnichar* aErrorText,
 nsresult
 nsXMLFragmentContentSink::ProcessStyleLink(nsIContent* aElement,
                                            const nsSubstring& aHref,
-                                           bool aAlternate,
+                                           PRBool aAlternate,
                                            const nsSubstring& aTitle,
                                            const nsSubstring& aType,
                                            const nsSubstring& aMedia)
@@ -357,22 +405,22 @@ nsXMLFragmentContentSink::StartLayout()
 NS_IMETHODIMP 
 nsXMLFragmentContentSink::FinishFragmentParsing(nsIDOMDocumentFragment** aFragment)
 {
-  *aFragment = nullptr;
-  mTargetDocument = nullptr;
-  mNodeInfoManager = nullptr;
-  mScriptLoader = nullptr;
-  mCSSLoader = nullptr;
+  *aFragment = nsnull;
+  mTargetDocument = nsnull;
+  mNodeInfoManager = nsnull;
+  mScriptLoader = nsnull;
+  mCSSLoader = nsnull;
   mContentStack.Clear();
-  mDocumentURI = nullptr;
-  mDocShell = nullptr;
+  mDocumentURI = nsnull;
+  mDocShell = nsnull;
   if (mParseError) {
     //XXX PARSE_ERR from DOM3 Load and Save would be more appropriate
-    mRoot = nullptr;
-    mParseError = false;
+    mRoot = nsnull;
+    mParseError = PR_FALSE;
     return NS_ERROR_DOM_SYNTAX_ERR;
   } else if (mRoot) {
     nsresult rv = CallQueryInterface(mRoot, aFragment);
-    mRoot = nullptr;
+    mRoot = nsnull;
     return rv;
   } else {
     return NS_OK;
@@ -425,7 +473,7 @@ nsXMLFragmentContentSink::IgnoreFirstContainer()
 }
 
 NS_IMETHODIMP
-nsXMLFragmentContentSink::SetPreventScriptExecution(bool aPrevent)
+nsXMLFragmentContentSink::SetPreventScriptExecution(PRBool aPrevent)
 {
   mPreventScriptExecution = aPrevent;
   return NS_OK;

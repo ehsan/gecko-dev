@@ -1,18 +1,47 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * Base class for DOM Core's nsIDOMComment, nsIDOMDocumentType, nsIDOMText,
  * nsIDOMCDATASection, and nsIDOMProcessingInstruction nodes.
  */
 
-#include "mozilla/DebugOnly.h"
-
 #include "nsGenericDOMDataNode.h"
-#include "mozilla/MemoryReporting.h"
-#include "mozilla/dom/Element.h"
+#include "nsGenericElement.h"
 #include "nsIDocument.h"
 #include "nsEventListenerManager.h"
 #include "nsIDOMDocument.h"
@@ -20,6 +49,7 @@
 #include "nsMutationEvent.h"
 #include "nsINameSpaceManager.h"
 #include "nsIURI.h"
+#include "nsIPrivateDOMEvent.h"
 #include "nsIDOMEvent.h"
 #include "nsIDOMText.h"
 #include "nsCOMPtr.h"
@@ -29,18 +59,15 @@
 #include "nsEventDispatcher.h"
 #include "nsCOMArray.h"
 #include "nsNodeUtils.h"
-#include "mozilla/dom/DirectionalityUtils.h"
 #include "nsBindingManager.h"
 #include "nsCCUncollectableMarker.h"
 #include "mozAutoDocUpdate.h"
-#include "nsAsyncDOMEvent.h"
+#include "nsPLDOMEvent.h"
 
 #include "pldhash.h"
 #include "prprf.h"
-#include "nsWrapperCacheInlines.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 nsGenericDOMDataNode::nsGenericDOMDataNode(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsIContent(aNodeInfo)
@@ -58,26 +85,13 @@ nsGenericDOMDataNode::~nsGenericDOMDataNode()
 {
   NS_PRECONDITION(!IsInDoc(),
                   "Please remove this from the document properly");
-  if (GetParent()) {
-    NS_RELEASE(mParent);
-  }
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsGenericDOMDataNode)
 
-NS_IMPL_CYCLE_COLLECTION_TRACE_WRAPPERCACHE(nsGenericDOMDataNode)
-
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsGenericDOMDataNode)
-  return Element::CanSkip(tmp, aRemovingAllowed);
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_END
-
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_BEGIN(nsGenericDOMDataNode)
-  return Element::CanSkipInCC(tmp);
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_END
-
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_BEGIN(nsGenericDOMDataNode)
-  return Element::CanSkipThis(tmp);
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_END
+NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsGenericDOMDataNode)
+  nsINode::Trace(tmp, aCallback, aClosure);
+NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGenericDOMDataNode)
   // Always need to traverse script objects, so do that before we check
@@ -88,21 +102,14 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGenericDOMDataNode)
     return NS_SUCCESS_INTERRUPTED_TRAVERSE;
   }
 
-  nsDataSlots *slots = tmp->GetExistingDataSlots();
-  if (slots) {
-    slots->Traverse(cb);
+  nsIDocument* ownerDoc = tmp->GetOwnerDoc();
+  if (ownerDoc) {
+    ownerDoc->BindingManager()->Traverse(tmp, cb);
   }
-
-  tmp->OwnerDoc()->BindingManager()->Traverse(tmp, cb);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGenericDOMDataNode)
   nsINode::Unlink(tmp);
-
-  nsDataSlots *slots = tmp->GetExistingDataSlots();
-  if (slots) {
-    slots->Unlink();
-  }
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN(nsGenericDOMDataNode)
@@ -111,34 +118,58 @@ NS_INTERFACE_MAP_BEGIN(nsGenericDOMDataNode)
   NS_INTERFACE_MAP_ENTRY(nsIContent)
   NS_INTERFACE_MAP_ENTRY(nsINode)
   NS_INTERFACE_MAP_ENTRY(nsIDOMEventTarget)
-  NS_INTERFACE_MAP_ENTRY(mozilla::dom::EventTarget)
   NS_INTERFACE_MAP_ENTRY_TEAROFF(nsISupportsWeakReference,
                                  new nsNodeSupportsWeakRefTearoff(this))
   NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIDOMXPathNSResolver,
                                  new nsNode3Tearoff(this))
-  // DOM bindings depend on the identity pointer being the
-  // same as nsINode (which nsIContent inherits).
+  // nsNodeSH::PreCreate() depends on the identity pointer being the
+  // same as nsINode (which nsIContent inherits), so if you change the
+  // below line, make sure nsNodeSH::PreCreate() still does the right
+  // thing!
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIContent)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsGenericDOMDataNode)
-NS_IMPL_CYCLE_COLLECTING_RELEASE_WITH_LAST_RELEASE(nsGenericDOMDataNode,
-                                                   nsNodeUtils::LastRelease(this))
+NS_IMPL_CYCLE_COLLECTING_RELEASE_WITH_DESTROY(nsGenericDOMDataNode,
+                                              nsNodeUtils::LastRelease(this))
 
 
-void
-nsGenericDOMDataNode::GetNodeValueInternal(nsAString& aNodeValue)
+nsresult
+nsGenericDOMDataNode::GetNodeValue(nsAString& aNodeValue)
 {
-  DebugOnly<nsresult> rv = GetData(aNodeValue);
-  NS_ASSERTION(NS_SUCCEEDED(rv), "GetData() failed!");
+  return GetData(aNodeValue);
 }
 
-void
-nsGenericDOMDataNode::SetNodeValueInternal(const nsAString& aNodeValue,
-                                           ErrorResult& aError)
+nsresult
+nsGenericDOMDataNode::SetNodeValue(const nsAString& aNodeValue)
 {
-  aError = SetTextInternal(0, mText.GetLength(), aNodeValue.BeginReading(),
-                           aNodeValue.Length(), true);
+  return SetTextInternal(0, mText.GetLength(), aNodeValue.BeginReading(),
+                         aNodeValue.Length(), PR_TRUE);
+}
+
+nsresult
+nsGenericDOMDataNode::GetNamespaceURI(nsAString& aNamespaceURI)
+{
+  SetDOMStringToNull(aNamespaceURI);
+
+  return NS_OK;
+}
+
+nsresult
+nsGenericDOMDataNode::GetPrefix(nsAString& aPrefix)
+{
+  SetDOMStringToNull(aPrefix);
+
+  return NS_OK;
+}
+
+nsresult
+nsGenericDOMDataNode::IsSupported(const nsAString& aFeature,
+                                  const nsAString& aVersion,
+                                  PRBool* aReturn)
+{
+  return nsGenericElement::InternalIsSupported(static_cast<nsIContent*>(this),
+                                               aFeature, aVersion, aReturn);
 }
 
 //----------------------------------------------------------------------
@@ -170,38 +201,28 @@ nsresult
 nsGenericDOMDataNode::SetData(const nsAString& aData)
 {
   return SetTextInternal(0, mText.GetLength(), aData.BeginReading(),
-                         aData.Length(), true);
+                         aData.Length(), PR_TRUE);
 }
 
 nsresult
-nsGenericDOMDataNode::GetLength(uint32_t* aLength)
+nsGenericDOMDataNode::GetLength(PRUint32* aLength)
 {
   *aLength = mText.GetLength();
   return NS_OK;
 }
 
 nsresult
-nsGenericDOMDataNode::SubstringData(uint32_t aStart, uint32_t aCount,
+nsGenericDOMDataNode::SubstringData(PRUint32 aStart, PRUint32 aCount,
                                     nsAString& aReturn)
-{
-  ErrorResult rv;
-  SubstringData(aStart, aCount, aReturn, rv);
-  return rv.ErrorCode();
-}
-
-void
-nsGenericDOMDataNode::SubstringData(uint32_t aStart, uint32_t aCount,
-                                    nsAString& aReturn, ErrorResult& rv)
 {
   aReturn.Truncate();
 
-  uint32_t textLength = mText.GetLength();
+  PRUint32 textLength = mText.GetLength();
   if (aStart > textLength) {
-    rv.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
-    return;
+    return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
 
-  uint32_t amount = aCount;
+  PRUint32 amount = aCount;
   if (amount > textLength - aStart) {
     amount = textLength - aStart;
   }
@@ -215,12 +236,7 @@ nsGenericDOMDataNode::SubstringData(uint32_t aStart, uint32_t aCount,
     const char *data = mText.Get1b() + aStart;
     CopyASCIItoUTF16(Substring(data, data + amount), aReturn);
   }
-}
 
-NS_IMETHODIMP
-nsGenericDOMDataNode::MozRemove()
-{
-  Remove();
   return NS_OK;
 }
 
@@ -230,42 +246,42 @@ nsresult
 nsGenericDOMDataNode::AppendData(const nsAString& aData)
 {
   return SetTextInternal(mText.GetLength(), 0, aData.BeginReading(),
-                         aData.Length(), true);
+                         aData.Length(), PR_TRUE);
 }
 
 nsresult
-nsGenericDOMDataNode::InsertData(uint32_t aOffset,
+nsGenericDOMDataNode::InsertData(PRUint32 aOffset,
                                  const nsAString& aData)
 {
   return SetTextInternal(aOffset, 0, aData.BeginReading(),
-                         aData.Length(), true);
+                         aData.Length(), PR_TRUE);
 }
 
 nsresult
-nsGenericDOMDataNode::DeleteData(uint32_t aOffset, uint32_t aCount)
+nsGenericDOMDataNode::DeleteData(PRUint32 aOffset, PRUint32 aCount)
 {
-  return SetTextInternal(aOffset, aCount, nullptr, 0, true);
+  return SetTextInternal(aOffset, aCount, nsnull, 0, PR_TRUE);
 }
 
 nsresult
-nsGenericDOMDataNode::ReplaceData(uint32_t aOffset, uint32_t aCount,
+nsGenericDOMDataNode::ReplaceData(PRUint32 aOffset, PRUint32 aCount,
                                   const nsAString& aData)
 {
   return SetTextInternal(aOffset, aCount, aData.BeginReading(),
-                         aData.Length(), true);
+                         aData.Length(), PR_TRUE);
 }
 
 nsresult
-nsGenericDOMDataNode::SetTextInternal(uint32_t aOffset, uint32_t aCount,
+nsGenericDOMDataNode::SetTextInternal(PRUint32 aOffset, PRUint32 aCount,
                                       const PRUnichar* aBuffer,
-                                      uint32_t aLength, bool aNotify,
+                                      PRUint32 aLength, PRBool aNotify,
                                       CharacterDataChangeInfo::Details* aDetails)
 {
   NS_PRECONDITION(aBuffer || !aLength,
                   "Null buffer passed to SetTextInternal!");
 
   // sanitize arguments
-  uint32_t textLength = mText.GetLength();
+  PRUint32 textLength = mText.GetLength();
   if (aOffset > textLength) {
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
@@ -274,17 +290,20 @@ nsGenericDOMDataNode::SetTextInternal(uint32_t aOffset, uint32_t aCount,
     aCount = textLength - aOffset;
   }
 
-  uint32_t endOffset = aOffset + aCount;
+  PRUint32 endOffset = aOffset + aCount;
 
   // Make sure the text fragment can hold the new data.
   if (aLength > aCount && !mText.CanGrowBy(aLength - aCount)) {
-    return NS_ERROR_OUT_OF_MEMORY;
+    // This exception isn't per spec, but the spec doesn't actually
+    // say what to do here.
+
+    return NS_ERROR_DOM_DOMSTRING_SIZE_ERR;
   }
 
   nsIDocument *document = GetCurrentDoc();
   mozAutoDocUpdate updateBatch(document, UPDATE_CONTENT_MODEL, aNotify);
 
-  bool haveMutationListeners = aNotify &&
+  PRBool haveMutationListeners = aNotify &&
     nsContentUtils::HasMutationListeners(this,
       NS_EVENT_BITS_MUTATION_CHARACTERDATAMODIFIED,
       this);
@@ -305,10 +324,6 @@ nsGenericDOMDataNode::SetTextInternal(uint32_t aOffset, uint32_t aCount,
     nsNodeUtils::CharacterDataWillChange(this, &info);
   }
 
-  if (NodeType() == nsIDOMNode::TEXT_NODE) {
-    SetDirectionFromChangedTextNode(this, aOffset, aBuffer, aLength, aNotify);
-  }
-
   if (aOffset == 0 && endOffset == textLength) {
     // Replacing whole text or old text was empty.  Don't bother to check for
     // bidi in this string if the document already has bidi enabled.
@@ -322,7 +337,7 @@ nsGenericDOMDataNode::SetTextInternal(uint32_t aOffset, uint32_t aCount,
     // Merging old and new
 
     // Allocate new buffer
-    int32_t newLength = textLength - aCount + aLength;
+    PRInt32 newLength = textLength - aCount + aLength;
     PRUnichar* to = new PRUnichar[newLength];
     NS_ENSURE_TRUE(to, NS_ERROR_OUT_OF_MEMORY);
 
@@ -343,8 +358,6 @@ nsGenericDOMDataNode::SetTextInternal(uint32_t aOffset, uint32_t aCount,
     delete [] to;
   }
 
-  UnsetFlags(NS_CACHED_TEXT_IS_ONLY_WHITESPACE);
-
   if (document && mText.IsBidi()) {
     // If we found bidi characters in mText.SetTo() above, indicate that the
     // document contains bidi characters.
@@ -363,7 +376,7 @@ nsGenericDOMDataNode::SetTextInternal(uint32_t aOffset, uint32_t aCount,
     nsNodeUtils::CharacterDataChanged(this, &info);
 
     if (haveMutationListeners) {
-      nsMutationEvent mutation(true, NS_MUTATION_CHARACTERDATAMODIFIED);
+      nsMutationEvent mutation(PR_TRUE, NS_MUTATION_CHARACTERDATAMODIFIED);
 
       mutation.mPrevAttrValue = oldValue;
       if (aLength > 0) {
@@ -372,8 +385,8 @@ nsGenericDOMDataNode::SetTextInternal(uint32_t aOffset, uint32_t aCount,
         mutation.mNewAttrValue = do_GetAtom(val);
       }
 
-      mozAutoSubtreeModified subtree(OwnerDoc(), this);
-      (new nsAsyncDOMEvent(this, mutation))->RunDOMEventWhenSafe();
+      mozAutoSubtreeModified subtree(GetOwnerDoc(), this);
+      (new nsPLDOMEvent(this, mutation))->RunDOMEventWhenSafe();
     }
   }
 
@@ -386,8 +399,8 @@ nsGenericDOMDataNode::SetTextInternal(uint32_t aOffset, uint32_t aCount,
 
 #ifdef DEBUG
 void
-nsGenericDOMDataNode::ToCString(nsAString& aBuf, int32_t aOffset,
-                                int32_t aLen) const
+nsGenericDOMDataNode::ToCString(nsAString& aBuf, PRInt32 aOffset,
+                                PRInt32 aLen) const
 {
   if (mText.Is2b()) {
     const PRUnichar* cp = mText.Get2b() + aOffset;
@@ -437,10 +450,10 @@ nsGenericDOMDataNode::ToCString(nsAString& aBuf, int32_t aOffset,
 nsresult
 nsGenericDOMDataNode::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                  nsIContent* aBindingParent,
-                                 bool aCompileEventHandlers)
+                                 PRBool aCompileEventHandlers)
 {
   NS_PRECONDITION(aParent || aDocument, "Must have document if no parent!");
-  NS_PRECONDITION(NODE_FROM(aParent, aDocument)->OwnerDoc() == OwnerDoc(),
+  NS_PRECONDITION(HasSameOwnerDoc(NODE_FROM(aParent, aDocument)),
                   "Must have the same owner document");
   NS_PRECONDITION(!aParent || aDocument == aParent->GetCurrentDoc(),
                   "aDocument must be current doc of aParent");
@@ -468,25 +481,22 @@ nsGenericDOMDataNode::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 
   // First set the binding parent
   if (aBindingParent) {
+    nsDataSlots *slots = GetDataSlots();
+    NS_ENSURE_TRUE(slots, NS_ERROR_OUT_OF_MEMORY);
+
     NS_ASSERTION(IsRootOfNativeAnonymousSubtree() ||
                  !HasFlag(NODE_IS_IN_ANONYMOUS_SUBTREE) ||
                  (aParent && aParent->IsInNativeAnonymousSubtree()),
                  "Trying to re-bind content from native anonymous subtree to "
                  "non-native anonymous parent!");
-    DataSlots()->mBindingParent = aBindingParent; // Weak, so no addref happens.
+    slots->mBindingParent = aBindingParent; // Weak, so no addref happens.
     if (aParent->IsInNativeAnonymousSubtree()) {
       SetFlags(NODE_IS_IN_ANONYMOUS_SUBTREE);
-    }
-    if (aParent->HasFlag(NODE_CHROME_ONLY_ACCESS)) {
-      SetFlags(NODE_CHROME_ONLY_ACCESS);
     }
   }
 
   // Set parent
   if (aParent) {
-    if (!GetParent()) {
-      NS_ADDREF(aParent);
-    }
     mParent = aParent;
   }
   else {
@@ -498,25 +508,18 @@ nsGenericDOMDataNode::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 
   // Set document
   if (aDocument) {
-    // We no longer need to track the subtree pointer (and in fact we'll assert
-    // if we do this any later).
-    ClearSubtreeRootPointer();
-
-    // XXX See the comment in Element::BindToTree
+    // XXX See the comment in nsGenericElement::BindToTree
     SetInDocument();
     if (mText.IsBidi()) {
       aDocument->SetBidiEnabled();
     }
     // Clear the lazy frame construction bits.
     UnsetFlags(NODE_NEEDS_FRAME | NODE_DESCENDANTS_NEED_FRAMES);
-  } else {
-    // If we're not in the doc, update our subtree pointer.
-    SetSubtreeRootPointer(aParent->SubtreeRoot());
   }
 
   nsNodeUtils::ParentChainChanged(this);
 
-  UpdateEditableState(false);
+  UpdateEditableState(PR_FALSE);
 
   NS_POSTCONDITION(aDocument == GetCurrentDoc(), "Bound to wrong document");
   NS_POSTCONDITION(aParent == GetParent(), "Bound to wrong parent");
@@ -527,7 +530,7 @@ nsGenericDOMDataNode::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 }
 
 void
-nsGenericDOMDataNode::UnbindFromTree(bool aDeep, bool aNullParent)
+nsGenericDOMDataNode::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 {
   // Unset frame flags; if we need them again later, they'll get set again.
   UnsetFlags(NS_CREATE_FRAME_IF_NON_WHITESPACE |
@@ -542,146 +545,126 @@ nsGenericDOMDataNode::UnbindFromTree(bool aDeep, bool aNullParent)
   }
 
   if (aNullParent) {
-    if (GetParent()) {
-      NS_RELEASE(mParent);
-    } else {
-      mParent = nullptr;
-    }
+    mParent = nsnull;
     SetParentIsContent(false);
   }
   ClearInDocument();
 
-  // Begin keeping track of our subtree root.
-  SetSubtreeRootPointer(aNullParent ? this : mParent->SubtreeRoot());
-
   nsDataSlots *slots = GetExistingDataSlots();
   if (slots) {
-    slots->mBindingParent = nullptr;
+    slots->mBindingParent = nsnull;
   }
 
   nsNodeUtils::ParentChainChanged(this);
 }
 
 already_AddRefed<nsINodeList>
-nsGenericDOMDataNode::GetChildren(uint32_t aFilter)
+nsGenericDOMDataNode::GetChildren(PRUint32 aFilter)
 {
-  return nullptr;
+  return nsnull;
 }
 
 nsIAtom *
 nsGenericDOMDataNode::GetIDAttributeName() const
 {
-  return nullptr;
+  return nsnull;
+}
+
+already_AddRefed<nsINodeInfo>
+nsGenericDOMDataNode::GetExistingAttrNameFromQName(const nsAString& aStr) const
+{
+  return nsnull;
 }
 
 nsresult
-nsGenericDOMDataNode::SetAttr(int32_t aNameSpaceID, nsIAtom* aAttr,
+nsGenericDOMDataNode::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttr,
                               nsIAtom* aPrefix, const nsAString& aValue,
-                              bool aNotify)
+                              PRBool aNotify)
 {
   return NS_OK;
 }
 
 nsresult
-nsGenericDOMDataNode::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttr,
-                                bool aNotify)
+nsGenericDOMDataNode::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttr,
+                                PRBool aNotify)
 {
   return NS_OK;
+}
+
+PRBool
+nsGenericDOMDataNode::GetAttr(PRInt32 aNameSpaceID, nsIAtom *aAttr,
+                              nsAString& aResult) const
+{
+  aResult.Truncate();
+
+  return PR_FALSE;
+}
+
+PRBool
+nsGenericDOMDataNode::HasAttr(PRInt32 aNameSpaceID, nsIAtom *aAttribute) const
+{
+  return PR_FALSE;
 }
 
 const nsAttrName*
-nsGenericDOMDataNode::GetAttrNameAt(uint32_t aIndex) const
+nsGenericDOMDataNode::GetAttrNameAt(PRUint32 aIndex) const
 {
-  return nullptr;
+  return nsnull;
 }
 
-uint32_t
+PRUint32
 nsGenericDOMDataNode::GetAttrCount() const
 {
   return 0;
 }
 
-uint32_t
+PRUint32
 nsGenericDOMDataNode::GetChildCount() const
 {
   return 0;
 }
 
 nsIContent *
-nsGenericDOMDataNode::GetChildAt(uint32_t aIndex) const
+nsGenericDOMDataNode::GetChildAt(PRUint32 aIndex) const
 {
-  return nullptr;
+  return nsnull;
 }
 
 nsIContent * const *
-nsGenericDOMDataNode::GetChildArray(uint32_t* aChildCount) const
+nsGenericDOMDataNode::GetChildArray(PRUint32* aChildCount) const
 {
   *aChildCount = 0;
-  return nullptr;
+  return nsnull;
 }
 
-int32_t
-nsGenericDOMDataNode::IndexOf(const nsINode* aPossibleChild) const
+PRInt32
+nsGenericDOMDataNode::IndexOf(nsINode* aPossibleChild) const
 {
   return -1;
 }
 
 nsresult
-nsGenericDOMDataNode::InsertChildAt(nsIContent* aKid, uint32_t aIndex,
-                                    bool aNotify)
+nsGenericDOMDataNode::InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
+                                    PRBool aNotify)
 {
   return NS_OK;
 }
 
-void
-nsGenericDOMDataNode::RemoveChildAt(uint32_t aIndex, bool aNotify)
+nsresult
+nsGenericDOMDataNode::RemoveChildAt(PRUint32 aIndex, PRBool aNotify)
 {
+  return NS_OK;
 }
 
 nsIContent *
 nsGenericDOMDataNode::GetBindingParent() const
 {
   nsDataSlots *slots = GetExistingDataSlots();
-  return slots ? slots->mBindingParent : nullptr;
+  return slots ? slots->mBindingParent : nsnull;
 }
 
-nsXBLBinding *
-nsGenericDOMDataNode::GetXBLBinding() const
-{
-  return nullptr;
-}
-
-void
-nsGenericDOMDataNode::SetXBLBinding(nsXBLBinding* aBinding,
-                                    nsBindingManager* aOldBindingManager)
-{
-}
-
-nsIContent *
-nsGenericDOMDataNode::GetXBLInsertionParent() const
-{
-  if (HasFlag(NODE_MAY_BE_IN_BINDING_MNGR)) {
-    nsDataSlots *slots = GetExistingDataSlots();
-    if (slots) {
-      return slots->mXBLInsertionParent;
-    }
-  }
-
-  return nullptr;
-}
-
-void
-nsGenericDOMDataNode::SetXBLInsertionParent(nsIContent* aContent)
-{
-  nsDataSlots *slots = DataSlots();
-  if (aContent) {
-    SetFlags(NODE_MAY_BE_IN_BINDING_MNGR);
-  }
-  slots->mXBLInsertionParent = aContent;
-}
-
-bool
-nsGenericDOMDataNode::IsNodeOfType(uint32_t aFlags) const
+PRBool
+nsGenericDOMDataNode::IsNodeOfType(PRUint32 aFlags) const
 {
   return !(aFlags & ~(eCONTENT | eDATA_NODE));
 }
@@ -696,27 +679,27 @@ nsGenericDOMDataNode::DestroyContent()
 {
   // XXX We really should let cycle collection do this, but that currently still
   //     leaks (see https://bugzilla.mozilla.org/show_bug.cgi?id=406684).
-  ReleaseWrapper(this);
+  nsContentUtils::ReleaseWrapper(this, this);
 }
 
 #ifdef DEBUG
 void
-nsGenericDOMDataNode::List(FILE* out, int32_t aIndent) const
+nsGenericDOMDataNode::List(FILE* out, PRInt32 aIndent) const
 {
 }
 
 void
-nsGenericDOMDataNode::DumpContent(FILE* out, int32_t aIndent,
-                                  bool aDumpAll) const 
+nsGenericDOMDataNode::DumpContent(FILE* out, PRInt32 aIndent,
+                                  PRBool aDumpAll) const 
 {
 }
 #endif
 
-bool
+PRBool
 nsGenericDOMDataNode::IsLink(nsIURI** aURI) const
 {
-  *aURI = nullptr;
-  return false;
+  *aURI = nsnull;
+  return PR_FALSE;
 }
 
 nsINode::nsSlots*
@@ -725,70 +708,54 @@ nsGenericDOMDataNode::CreateSlots()
   return new nsDataSlots();
 }
 
-void
-nsGenericDOMDataNode::nsDataSlots::Traverse(nsCycleCollectionTraversalCallback &cb)
-{
-  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mSlots->mXBLInsertionParent");
-  cb.NoteXPCOMChild(mXBLInsertionParent.get());
-}
-
-void
-nsGenericDOMDataNode::nsDataSlots::Unlink()
-{
-  mXBLInsertionParent = nullptr;
-}
-
 //----------------------------------------------------------------------
 
 // Implementation of the nsIDOMText interface
 
 nsresult
-nsGenericDOMDataNode::SplitData(uint32_t aOffset, nsIContent** aReturn,
-                                bool aCloneAfterOriginal)
+nsGenericDOMDataNode::SplitData(PRUint32 aOffset, nsIContent** aReturn,
+                                PRBool aCloneAfterOriginal)
 {
-  *aReturn = nullptr;
+  *aReturn = nsnull;
   nsresult rv = NS_OK;
   nsAutoString cutText;
-  uint32_t length = TextLength();
+  PRUint32 length = TextLength();
 
   if (aOffset > length) {
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
 
-  uint32_t cutStartOffset = aCloneAfterOriginal ? aOffset : 0;
-  uint32_t cutLength = aCloneAfterOriginal ? length - aOffset : aOffset;
+  PRUint32 cutStartOffset = aCloneAfterOriginal ? aOffset : 0;
+  PRUint32 cutLength = aCloneAfterOriginal ? length - aOffset : aOffset;
   rv = SubstringData(cutStartOffset, cutLength, cutText);
   if (NS_FAILED(rv)) {
     return rv;
   }
 
-  nsIDocument* document = GetCurrentDoc();
-  mozAutoDocUpdate updateBatch(document, UPDATE_CONTENT_MODEL, true);
-
   // Use Clone for creating the new node so that the new node is of same class
   // as this node!
-  nsCOMPtr<nsIContent> newContent = CloneDataNode(mNodeInfo, false);
+  nsCOMPtr<nsIContent> newContent = CloneDataNode(mNodeInfo, PR_FALSE);
   if (!newContent) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
-  newContent->SetText(cutText, true); // XXX should be false?
+  newContent->SetText(cutText, PR_TRUE); // XXX should be PR_FALSE?
 
   CharacterDataChangeInfo::Details details = {
     CharacterDataChangeInfo::Details::eSplit, newContent
   };
-  rv = SetTextInternal(cutStartOffset, cutLength, nullptr, 0, true,
-                       aCloneAfterOriginal ? &details : nullptr);
+  rv = SetTextInternal(cutStartOffset, cutLength, nsnull, 0, PR_TRUE,
+                       aCloneAfterOriginal ? &details : nsnull);
   if (NS_FAILED(rv)) {
     return rv;
   }
 
-  nsCOMPtr<nsINode> parent = GetParentNode();
+  nsCOMPtr<nsINode> parent = GetNodeParent();
   if (parent) {
-    int32_t insertionIndex = parent->IndexOf(this);
+    PRInt32 insertionIndex = parent->IndexOf(this);
     if (aCloneAfterOriginal) {
       ++insertionIndex;
     }
-    parent->InsertChildAt(newContent, insertionIndex, true);
+    parent->InsertChildAt(newContent, insertionIndex, PR_TRUE);
   }
 
   newContent.swap(*aReturn);
@@ -796,7 +763,7 @@ nsGenericDOMDataNode::SplitData(uint32_t aOffset, nsIContent** aReturn,
 }
 
 nsresult
-nsGenericDOMDataNode::SplitText(uint32_t aOffset, nsIDOMText** aReturn)
+nsGenericDOMDataNode::SplitText(PRUint32 aOffset, nsIDOMText** aReturn)
 {
   nsCOMPtr<nsIContent> newChild;
   nsresult rv = SplitData(aOffset, getter_AddRefs(newChild));
@@ -806,9 +773,9 @@ nsGenericDOMDataNode::SplitText(uint32_t aOffset, nsIDOMText** aReturn)
   return rv;
 }
 
-/* static */ int32_t
+/* static */ PRInt32
 nsGenericDOMDataNode::FirstLogicallyAdjacentTextNode(nsIContent* aParent,
-                                                     int32_t aIndex)
+                                                     PRInt32 aIndex)
 {
   while (aIndex-- > 0) {
     nsIContent* sibling = aParent->GetChildAt(aIndex);
@@ -818,12 +785,12 @@ nsGenericDOMDataNode::FirstLogicallyAdjacentTextNode(nsIContent* aParent,
   return 0;
 }
 
-/* static */ int32_t
+/* static */ PRInt32
 nsGenericDOMDataNode::LastLogicallyAdjacentTextNode(nsIContent* aParent,
-                                                    int32_t aIndex,
-                                                    uint32_t aCount)
+                                                    PRInt32 aIndex,
+                                                    PRUint32 aCount)
 {
-  while (++aIndex < int32_t(aCount)) {
+  while (++aIndex < PRInt32(aCount)) {
     nsIContent* sibling = aParent->GetChildAt(aIndex);
     if (!sibling->IsNodeOfType(nsINode::eTEXT))
       return aIndex - 1;
@@ -840,14 +807,14 @@ nsGenericDOMDataNode::GetWholeText(nsAString& aWholeText)
   if (!parent)
     return GetData(aWholeText);
 
-  int32_t index = parent->IndexOf(this);
+  PRInt32 index = parent->IndexOf(this);
   NS_WARN_IF_FALSE(index >= 0,
                    "Trying to use .wholeText with an anonymous"
                     "text node child of a binding parent?");
   NS_ENSURE_TRUE(index >= 0, NS_ERROR_DOM_NOT_SUPPORTED_ERR);
-  int32_t first =
+  PRInt32 first =
     FirstLogicallyAdjacentTextNode(parent, index);
-  int32_t last =
+  PRInt32 last =
     LastLogicallyAdjacentTextNode(parent, index, parent->GetChildCount());
 
   aWholeText.Truncate();
@@ -863,6 +830,83 @@ nsGenericDOMDataNode::GetWholeText(nsAString& aWholeText)
   return NS_OK;
 }
 
+nsresult
+nsGenericDOMDataNode::ReplaceWholeText(const nsAString& aContent,
+                                       nsIDOMText **aResult)
+{
+  *aResult = nsnull;
+
+  if (GetOwnerDoc()) {
+    GetOwnerDoc()->WarnOnceAbout(nsIDocument::eReplaceWholeText);
+  }
+
+  // Handle parent-less nodes
+  nsCOMPtr<nsIContent> parent = GetParent();
+  if (!parent) {
+    if (aContent.IsEmpty()) {
+      return NS_OK;
+    }
+
+    SetNodeValue(aContent);
+    return CallQueryInterface(this, aResult);
+  }
+
+  // We're relying on mozAutoSubtreeModified to keep the doc alive here.
+  nsIDocument* doc = GetOwnerDoc();
+
+  // Batch possible DOMSubtreeModified events.
+  mozAutoSubtreeModified subtree(doc, nsnull);
+
+  PRInt32 index = parent->IndexOf(this);
+  if (index < 0) {
+    NS_WARNING("Trying to use .replaceWholeText with an anonymous text node "
+               "child of a binding parent?");
+    return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
+  }
+
+  // We don't support entity references or read-only nodes, so remove the
+  // logically adjacent text nodes (which therefore must all be siblings of
+  // this) and set this one to the provided text, if that text isn't empty.
+  PRInt32 first =
+    FirstLogicallyAdjacentTextNode(parent, index);
+  PRInt32 last =
+    LastLogicallyAdjacentTextNode(parent, index, parent->GetChildCount());
+
+  // Fire mutation events. Optimize the common case of there being no
+  // listeners
+  if (nsContentUtils::
+        HasMutationListeners(doc, NS_EVENT_BITS_MUTATION_NODEREMOVED)) {
+    for (PRInt32 i = first; i <= last; ++i) {
+      nsCOMPtr<nsIContent> child = parent->GetChildAt((PRUint32)i);
+      if (child &&
+          (i != index || aContent.IsEmpty())) {
+        nsContentUtils::MaybeFireNodeRemoved(child, parent, doc);
+      }
+    }
+  }
+
+  // Remove the needed nodes
+  // Don't want to use 'doc' here since it might no longer be the correct
+  // document.
+  mozAutoDocUpdate updateBatch(parent->GetCurrentDoc(), UPDATE_CONTENT_MODEL,
+                               PR_TRUE);
+
+  do {
+    if (last == index && !aContent.IsEmpty())
+      continue;
+
+    parent->RemoveChildAt(last, PR_TRUE);
+  } while (last-- > first);
+
+  // Empty string means we removed this node too.
+  if (aContent.IsEmpty()) {
+    return NS_OK;
+  }
+
+  SetText(aContent.BeginReading(), aContent.Length(), PR_TRUE);
+  return CallQueryInterface(this, aResult);
+}
+
 //----------------------------------------------------------------------
 
 // Implementation of the nsIContent interface text functions
@@ -873,40 +917,35 @@ nsGenericDOMDataNode::GetText()
   return &mText;
 }
 
-uint32_t
-nsGenericDOMDataNode::TextLength() const
+PRUint32
+nsGenericDOMDataNode::TextLength()
 {
   return mText.GetLength();
 }
 
 nsresult
 nsGenericDOMDataNode::SetText(const PRUnichar* aBuffer,
-                              uint32_t aLength,
-                              bool aNotify)
+                              PRUint32 aLength,
+                              PRBool aNotify)
 {
   return SetTextInternal(0, mText.GetLength(), aBuffer, aLength, aNotify);
 }
 
 nsresult
 nsGenericDOMDataNode::AppendText(const PRUnichar* aBuffer,
-                                 uint32_t aLength,
-                                 bool aNotify)
+                                 PRUint32 aLength,
+                                 PRBool aNotify)
 {
   return SetTextInternal(mText.GetLength(), 0, aBuffer, aLength, aNotify);
 }
 
-bool
+PRBool
 nsGenericDOMDataNode::TextIsOnlyWhitespace()
 {
-  // FIXME: should this method take content language into account?
   if (mText.Is2b()) {
     // The fragment contains non-8bit characters and such characters
     // are never considered whitespace.
-    return false;
-  }
-
-  if (HasFlag(NS_CACHED_TEXT_IS_ONLY_WHITESPACE)) {
-    return HasFlag(NS_TEXT_IS_ONLY_WHITESPACE);
+    return PR_FALSE;
   }
 
   const char* cp = mText.Get1b();
@@ -915,17 +954,14 @@ nsGenericDOMDataNode::TextIsOnlyWhitespace()
   while (cp < end) {
     char ch = *cp;
 
-    if (!dom::IsSpaceCharacter(ch)) {
-      UnsetFlags(NS_TEXT_IS_ONLY_WHITESPACE);
-      SetFlags(NS_CACHED_TEXT_IS_ONLY_WHITESPACE);
-      return false;
+    if (!XP_IS_SPACE(ch)) {
+      return PR_FALSE;
     }
 
     ++cp;
   }
 
-  SetFlags(NS_CACHED_TEXT_IS_ONLY_WHITESPACE | NS_TEXT_IS_ONLY_WHITESPACE);
-  return true;
+  return PR_TRUE;
 }
 
 void
@@ -945,14 +981,14 @@ nsGenericDOMDataNode::GetCurrentValueAtom()
 nsIAtom*
 nsGenericDOMDataNode::DoGetID() const
 {
-  return nullptr;
+  return nsnull;
 }
 
 const nsAttrValue*
 nsGenericDOMDataNode::DoGetClasses() const
 {
   NS_NOTREACHED("Shouldn't ever be called");
-  return nullptr;
+  return nsnull;
 }
 
 NS_IMETHODIMP
@@ -961,15 +997,51 @@ nsGenericDOMDataNode::WalkContentStyleRules(nsRuleWalker* aRuleWalker)
   return NS_OK;
 }
 
-NS_IMETHODIMP_(bool)
+#ifdef MOZ_SMIL
+nsIDOMCSSStyleDeclaration*
+nsGenericDOMDataNode::GetSMILOverrideStyle()
+{
+  return nsnull;
+}
+
+css::StyleRule*
+nsGenericDOMDataNode::GetSMILOverrideStyleRule()
+{
+  return nsnull;
+}
+
+nsresult
+nsGenericDOMDataNode::SetSMILOverrideStyleRule(css::StyleRule* aStyleRule,
+                                               PRBool aNotify)
+{
+  NS_NOTREACHED("How come we're setting SMILOverrideStyle on a non-element?");
+  return NS_ERROR_UNEXPECTED;
+}
+#endif // MOZ_SMIL
+
+css::StyleRule*
+nsGenericDOMDataNode::GetInlineStyleRule()
+{
+  return nsnull;
+}
+
+NS_IMETHODIMP
+nsGenericDOMDataNode::SetInlineStyleRule(css::StyleRule* aStyleRule,
+                                         PRBool aNotify)
+{
+  NS_NOTREACHED("How come we're setting inline style on a non-element?");
+  return NS_ERROR_UNEXPECTED;
+}
+
+NS_IMETHODIMP_(PRBool)
 nsGenericDOMDataNode::IsAttributeMapped(const nsIAtom* aAttribute) const
 {
-  return false;
+  return PR_FALSE;
 }
 
 nsChangeHint
 nsGenericDOMDataNode::GetAttributeChangeHint(const nsIAtom* aAttribute,
-                                             int32_t aModType) const
+                                             PRInt32 aModType) const
 {
   NS_NOTREACHED("Shouldn't be calling this!");
   return nsChangeHint(0);
@@ -978,14 +1050,15 @@ nsGenericDOMDataNode::GetAttributeChangeHint(const nsIAtom* aAttribute,
 nsIAtom*
 nsGenericDOMDataNode::GetClassAttributeName() const
 {
-  return nullptr;
+  return nsnull;
 }
 
-size_t
-nsGenericDOMDataNode::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
+PRInt64
+nsGenericDOMDataNode::SizeOf() const
 {
-  size_t n = nsIContent::SizeOfExcludingThis(aMallocSizeOf);
-  n += mText.SizeOfExcludingThis(aMallocSizeOf);
-  return n;
+  PRInt64 size = dom::MemoryReporter::GetBasicSize<nsGenericDOMDataNode,
+                                                   nsIContent>(this);
+  size += mText.SizeOf() - sizeof(mText);
+  return size;
 }
 

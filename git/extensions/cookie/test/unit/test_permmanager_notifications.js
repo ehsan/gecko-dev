@@ -21,11 +21,9 @@ function do_run_test() {
   let profile = do_get_profile();
 
   let pm = Services.permissions;
+  let permURI = NetUtil.newURI("http://example.com");
   let now = Number(Date.now());
   let permType = "test/expiration-perm";
-  let principal = Components.classes["@mozilla.org/scriptsecuritymanager;1"]
-                    .getService(Ci.nsIScriptSecurityManager)
-                    .getNoAppCodebasePrincipal(NetUtil.newURI("http://example.com"));
 
   let observer = new permission_observer(test_generator, now, permType);
   Services.obs.addObserver(observer, "perm-changed", false);
@@ -34,19 +32,19 @@ function do_run_test() {
   // do_execute_soon() so that we can use our generator to continue the test
   // where we left off.
   do_execute_soon(function() {
-    pm.addFromPrincipal(principal, permType, pm.ALLOW_ACTION, pm.EXPIRE_TIME, now + 100000);
+    pm.add(permURI, permType, pm.ALLOW_ACTION, pm.EXPIRE_TIME, now + 100000);
   });
   yield;
 
   // Alter a permission, to test the 'changed' notification.
   do_execute_soon(function() {
-    pm.addFromPrincipal(principal, permType, pm.ALLOW_ACTION, pm.EXPIRE_TIME, now + 200000);
+    pm.add(permURI, permType, pm.ALLOW_ACTION, pm.EXPIRE_TIME, now + 200000);
   });
   yield;
 
   // Remove a permission, to test the 'deleted' notification.
   do_execute_soon(function() {
-    pm.removeFromPrincipal(principal, permType);
+    pm.remove(permURI.asciiHost, permType);
   });
   yield;
 

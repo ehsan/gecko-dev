@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2002-2012 The ANGLE Project Authors. All rights reserved.
+// Copyright (c) 2002-2010 The ANGLE Project Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -12,7 +12,7 @@
 
 #include <string>
 
-#include "GLSLANG/ShaderLang.h"
+#include "GLSLANG/Shaderlang.h"
 #include "libGLESv2/main.h"
 #include "libGLESv2/utilities.h"
 
@@ -27,8 +27,31 @@ Shader::Shader(ResourceManager *manager, GLuint handle) : mHandle(handle), mReso
     mHlsl = NULL;
     mInfoLog = NULL;
 
-    uncompile();
-    initializeCompiler();
+    // Perform a one-time initialization of the shader compiler (or after being destructed by releaseCompiler)
+    if (!mFragmentCompiler)
+    {
+        int result = ShInitialize();
+
+        if (result)
+        {
+            ShBuiltInResources resources;
+            ShInitBuiltInResources(&resources);
+            Context *context = getContext();
+
+            resources.MaxVertexAttribs = MAX_VERTEX_ATTRIBS;
+            resources.MaxVertexUniformVectors = MAX_VERTEX_UNIFORM_VECTORS;
+            resources.MaxVaryingVectors = context->getMaximumVaryingVectors();
+            resources.MaxVertexTextureImageUnits = context->getMaximumVertexTextureImageUnits();
+            resources.MaxCombinedTextureImageUnits = context->getMaximumCombinedTextureImageUnits();
+            resources.MaxTextureImageUnits = MAX_TEXTURE_IMAGE_UNITS;
+            resources.MaxFragmentUniformVectors = context->getMaximumFragmentUniformVectors();
+            resources.MaxDrawBuffers = MAX_DRAW_BUFFERS;
+            resources.OES_standard_derivatives = 1;
+
+            mFragmentCompiler = ShConstructCompiler(SH_FRAGMENT_SHADER, SH_GLES2_SPEC, SH_HLSL_OUTPUT, &resources);
+            mVertexCompiler = ShConstructCompiler(SH_VERTEX_SHADER, SH_GLES2_SPEC, SH_HLSL_OUTPUT, &resources);
+        }
+    }
 
     mRefCount = 0;
     mDeleteStatus = false;
@@ -102,14 +125,17 @@ void Shader::getInfoLog(GLsizei bufSize, GLsizei *length, char *infoLog)
 {
     int index = 0;
 
-    if (bufSize > 0)
+    if (mInfoLog)
     {
-        if (mInfoLog)
+        while (index < bufSize - 1 && index < (int)strlen(mInfoLog))
         {
-            index = std::min(bufSize - 1, (int)strlen(mInfoLog));
-            memcpy(infoLog, mInfoLog, index);
+            infoLog[index] = mInfoLog[index];
+            index++;
         }
+    }
 
+    if (bufSize)
+    {
         infoLog[index] = '\0';
     }
 
@@ -147,14 +173,17 @@ void Shader::getSourceImpl(char *source, GLsizei bufSize, GLsizei *length, char 
 {
     int index = 0;
 
-    if (bufSize > 0)
+    if (source)
     {
-        if (source)
+        while (index < bufSize - 1 && index < (int)strlen(source))
         {
-            index = std::min(bufSize - 1, (int)strlen(source));
-            memcpy(buffer, source, index);
+            buffer[index] = source[index];
+            index++;
         }
+    }
 
+    if (bufSize)
+    {
         buffer[index] = '\0';
     }
 
@@ -214,37 +243,6 @@ void Shader::flagForDeletion()
     mDeleteStatus = true;
 }
 
-// Perform a one-time initialization of the shader compiler (or after being destructed by releaseCompiler)
-void Shader::initializeCompiler()
-{
-    if (!mFragmentCompiler)
-    {
-        int result = ShInitialize();
-
-        if (result)
-        {
-            ShBuiltInResources resources;
-            ShInitBuiltInResources(&resources);
-            Context *context = getContext();
-
-            resources.MaxVertexAttribs = MAX_VERTEX_ATTRIBS;
-            resources.MaxVertexUniformVectors = MAX_VERTEX_UNIFORM_VECTORS;
-            resources.MaxVaryingVectors = context->getMaximumVaryingVectors();
-            resources.MaxVertexTextureImageUnits = context->getMaximumVertexTextureImageUnits();
-            resources.MaxCombinedTextureImageUnits = context->getMaximumCombinedTextureImageUnits();
-            resources.MaxTextureImageUnits = MAX_TEXTURE_IMAGE_UNITS;
-            resources.MaxFragmentUniformVectors = context->getMaximumFragmentUniformVectors();
-            resources.MaxDrawBuffers = MAX_DRAW_BUFFERS;
-            resources.OES_standard_derivatives = context->supportsDerivativeInstructions() ? 1 : 0;
-            // resources.OES_EGL_image_external = getDisplay()->isD3d9ExDevice() ? 1 : 0; // TODO: commented out until the extension is actually supported.
-            resources.FragmentPrecisionHigh = 1;   // Shader Model 2+ always supports FP24 (s16e7) which corresponds to highp
-
-            mFragmentCompiler = ShConstructCompiler(SH_FRAGMENT_SHADER, SH_GLES2_SPEC, SH_HLSL_OUTPUT, &resources);
-            mVertexCompiler = ShConstructCompiler(SH_VERTEX_SHADER, SH_GLES2_SPEC, SH_HLSL_OUTPUT, &resources);
-        }
-    }
-}
-
 void Shader::releaseCompiler()
 {
     ShDestruct(mFragmentCompiler);
@@ -283,7 +281,7 @@ void Shader::parseVaryings()
                 *array = '\0';
             }
 
-            mVaryings.push_back(Varying(parseType(varyingType), varyingName, size, array != NULL));
+            varyings.push_back(Varying(parseType(varyingType), varyingName, size, array != NULL));
 
             input = strstr(input, ";") + 2;
         }
@@ -295,56 +293,36 @@ void Shader::parseVaryings()
     }
 }
 
-// initialize/clean up previous state
-void Shader::uncompile()
-{
-    // set by compileToHLSL
-    delete[] mHlsl;
-    mHlsl = NULL;
-    delete[] mInfoLog;
-    mInfoLog = NULL;
-
-    // set by parseVaryings
-    mVaryings.clear();
-
-    mUsesFragCoord = false;
-    mUsesFrontFacing = false;
-    mUsesPointSize = false;
-    mUsesPointCoord = false;
-}
-
 void Shader::compileToHLSL(void *compiler)
 {
-    // ensure we don't pass a NULL source to the compiler
-    const char *source = "\0";
-    if (mSource)
+    if (isCompiled() || !mSource)
     {
-        source = mSource;
+        return;
     }
 
-    // ensure the compiler is loaded
-    initializeCompiler();
+    delete[] mInfoLog;
+    mInfoLog = NULL;
 
     int compileOptions = SH_OBJECT_CODE;
     std::string sourcePath;
     if (perfActive())
     {
         sourcePath = getTempPath();
-        writeFile(sourcePath.c_str(), source, strlen(source));
+        writeFile(sourcePath.c_str(), mSource, strlen(mSource));
         compileOptions |= SH_LINE_DIRECTIVES;
     }
 
     int result;
     if (sourcePath.empty())
     {
-        result = ShCompile(compiler, &source, 1, compileOptions);
+        result = ShCompile(compiler, &mSource, 1, compileOptions);
     }
     else
     {
         const char* sourceStrings[2] =
         {
             sourcePath.c_str(),
-            source
+            mSource
         };
 
         result = ShCompile(compiler, sourceStrings, 2, compileOptions | SH_SOURCE_PATH);
@@ -352,14 +330,14 @@ void Shader::compileToHLSL(void *compiler)
 
     if (result)
     {
-        size_t objCodeLen = 0;
+        int objCodeLen = 0;
         ShGetInfo(compiler, SH_OBJECT_CODE_LENGTH, &objCodeLen);
         mHlsl = new char[objCodeLen];
         ShGetObjectCode(compiler, mHlsl);
     }
     else
     {
-        size_t infoLogLen = 0;
+        int infoLogLen = 0;
         ShGetInfo(compiler, SH_INFO_LOG_LENGTH, &infoLogLen);
         mInfoLog = new char[infoLogLen];
         ShGetInfoLog(compiler, mInfoLog);
@@ -499,18 +477,8 @@ GLenum VertexShader::getType()
     return GL_VERTEX_SHADER;
 }
 
-void VertexShader::uncompile()
-{
-    Shader::uncompile();
-
-    // set by ParseAttributes
-    mAttributes.clear();
-}
-
 void VertexShader::compile()
 {
-    uncompile();
-
     compileToHLSL(mVertexCompiler);
     parseAttributes();
     parseVaryings();
@@ -537,10 +505,9 @@ int VertexShader::getSemanticIndex(const std::string &attributeName)
 
 void VertexShader::parseAttributes()
 {
-    const char *hlsl = getHLSL();
-    if (hlsl)
+    if (mHlsl)
     {
-        const char *input = strstr(hlsl, "// Attributes") + 14;
+        const char *input = strstr(mHlsl, "// Attributes") + 14;
 
         while(true)
         {
@@ -576,10 +543,8 @@ GLenum FragmentShader::getType()
 
 void FragmentShader::compile()
 {
-    uncompile();
-
     compileToHLSL(mFragmentCompiler);
     parseVaryings();
-    mVaryings.sort(compareVarying);
+    varyings.sort(compareVarying);
 }
 }

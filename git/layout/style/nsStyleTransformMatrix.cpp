@@ -1,17 +1,53 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ *   Mozilla Corporation
+ *
+ * Contributor(s):
+ *   Keith Schwarz <kschwarz@mozilla.com> (original author)
+ *   Matt Woodrow <mwoodrow@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * A class used for intermediate representations of the -moz-transform property.
  */
 
 #include "nsStyleTransformMatrix.h"
+#include "nsAutoPtr.h"
 #include "nsCSSValue.h"
+#include "nsStyleContext.h"
 #include "nsPresContext.h"
 #include "nsRuleNode.h"
 #include "nsCSSKeywords.h"
+#include "nsMathUtils.h"
+#include "CSSCalc.h"
 #include "nsStyleAnimation.h"
 
 namespace css = mozilla::css;
@@ -35,21 +71,14 @@ static double FlushToZero(double aVal)
     return aVal;
 }
 
-float
-ProcessTranslatePart(const nsCSSValue& aValue,
-                     nsStyleContext* aContext,
-                     nsPresContext* aPresContext,
-                     bool& aCanStoreInRuleTree,
-                     nscoord aSize,
-                     float aAppUnitsPerMatrixUnit)
+/* Helper function to fill in an nscoord with the specified nsCSSValue. */
+static nscoord CalcLength(const nsCSSValue &aValue,
+                          nsStyleContext* aContext,
+                          nsPresContext* aPresContext,
+                          PRBool &aCanStoreInRuleTree)
 {
-  nscoord offset = 0;
-  float percent = 0.0f;
-
-  if (aValue.GetUnit() == eCSSUnit_Percent) {
-    percent = aValue.GetPercentValue();
-  } else if (aValue.GetUnit() == eCSSUnit_Pixel ||
-             aValue.GetUnit() == eCSSUnit_Number) {
+  if (aValue.GetUnit() == eCSSUnit_Pixel ||
+      aValue.GetUnit() == eCSSUnit_Number) {
     // Handle this here (even though nsRuleNode::CalcLength handles it
     // fine) so that callers are allowed to pass a null style context
     // and pres context to SetToTransformFunction if they know (as
@@ -57,10 +86,24 @@ ProcessTranslatePart(const nsCSSValue& aValue,
     // function have already been computed to pixels and percents.
     //
     // Raw numbers are treated as being pixels.
-    //
-    // Don't convert to aValue to AppUnits here to avoid precision issues.
-    return aValue.GetFloatValue() *
-           (float(nsPresContext::AppUnitsPerCSSPixel()) / aAppUnitsPerMatrixUnit);
+    return nsPresContext::CSSPixelsToAppUnits(aValue.GetFloatValue());
+  }
+  return nsRuleNode::CalcLength(aValue, aContext, aPresContext,
+                                aCanStoreInRuleTree);
+}
+
+static float
+ProcessTranslatePart(const nsCSSValue& aValue,
+                     nsStyleContext* aContext,
+                     nsPresContext* aPresContext,
+                     PRBool& aCanStoreInRuleTree,
+                     nscoord aSize, float aAppUnitsPerMatrixUnit)
+{
+  nscoord offset = 0;
+  float percent = 0.0f;
+
+  if (aValue.GetUnit() == eCSSUnit_Percent) {
+    percent = aValue.GetPercentValue();
   } else if (aValue.IsCalcUnit()) {
     nsRuleNode::ComputedCalc result =
       nsRuleNode::SpecifiedCalcToComputedCalc(aValue, aContext, aPresContext,
@@ -68,8 +111,8 @@ ProcessTranslatePart(const nsCSSValue& aValue,
     percent = result.mPercent;
     offset = result.mLength;
   } else {
-    offset = nsRuleNode::CalcLength(aValue, aContext, aPresContext,
-                                    aCanStoreInRuleTree);
+    offset = CalcLength(aValue, aContext, aPresContext,
+                         aCanStoreInRuleTree);
   }
 
   return (percent * NSAppUnitsToFloatPixels(aSize, aAppUnitsPerMatrixUnit)) + 
@@ -88,7 +131,7 @@ ProcessMatrix(gfx3DMatrix& aMatrix,
               const nsCSSValue::Array* aData,
               nsStyleContext* aContext,
               nsPresContext* aPresContext,
-              bool& aCanStoreInRuleTree,
+              PRBool& aCanStoreInRuleTree,
               nsRect& aBounds, float aAppUnitsPerMatrixUnit)
 {
   NS_PRECONDITION(aData->Count() == 7, "Invalid array!");
@@ -121,7 +164,7 @@ ProcessMatrix3D(gfx3DMatrix& aMatrix,
                 const nsCSSValue::Array* aData,
                 nsStyleContext* aContext,
                 nsPresContext* aPresContext,
-                bool& aCanStoreInRuleTree,
+                PRBool& aCanStoreInRuleTree,
                 nsRect& aBounds, float aAppUnitsPerMatrixUnit)
 {
   NS_PRECONDITION(aData->Count() == 17, "Invalid array!");
@@ -156,12 +199,12 @@ ProcessMatrix3D(gfx3DMatrix& aMatrix,
 }
 
 /* Helper function to process two matrices that we need to interpolate between */
-void
+static void
 ProcessInterpolateMatrix(gfx3DMatrix& aMatrix,
                          const nsCSSValue::Array* aData,
                          nsStyleContext* aContext,
                          nsPresContext* aPresContext,
-                         bool& aCanStoreInRuleTree,
+                         PRBool& aCanStoreInRuleTree,
                          nsRect& aBounds, float aAppUnitsPerMatrixUnit)
 {
   NS_PRECONDITION(aData->Count() == 4, "Invalid array!");
@@ -190,7 +233,7 @@ ProcessTranslateX(gfx3DMatrix& aMatrix,
                   const nsCSSValue::Array* aData,
                   nsStyleContext* aContext,
                   nsPresContext* aPresContext,
-                  bool& aCanStoreInRuleTree,
+                  PRBool& aCanStoreInRuleTree,
                   nsRect& aBounds, float aAppUnitsPerMatrixUnit)
 {
   NS_PRECONDITION(aData->Count() == 2, "Invalid array!");
@@ -209,7 +252,7 @@ ProcessTranslateY(gfx3DMatrix& aMatrix,
                   const nsCSSValue::Array* aData,
                   nsStyleContext* aContext,
                   nsPresContext* aPresContext,
-                  bool& aCanStoreInRuleTree,
+                  PRBool& aCanStoreInRuleTree,
                   nsRect& aBounds, float aAppUnitsPerMatrixUnit)
 {
   NS_PRECONDITION(aData->Count() == 2, "Invalid array!");
@@ -227,7 +270,7 @@ ProcessTranslateZ(gfx3DMatrix& aMatrix,
                   const nsCSSValue::Array* aData,
                   nsStyleContext* aContext,
                                           nsPresContext* aPresContext,
-                                          bool& aCanStoreInRuleTree,
+                                          PRBool& aCanStoreInRuleTree,
                                           float aAppUnitsPerMatrixUnit)
 {
   NS_PRECONDITION(aData->Count() == 2, "Invalid array!");
@@ -246,7 +289,7 @@ ProcessTranslate(gfx3DMatrix& aMatrix,
                  const nsCSSValue::Array* aData,
                  nsStyleContext* aContext,
                  nsPresContext* aPresContext,
-                 bool& aCanStoreInRuleTree,
+                 PRBool& aCanStoreInRuleTree,
                  nsRect& aBounds, float aAppUnitsPerMatrixUnit)
 {
   NS_PRECONDITION(aData->Count() == 2 || aData->Count() == 3, "Invalid array!");
@@ -271,7 +314,7 @@ ProcessTranslate3D(gfx3DMatrix& aMatrix,
                    const nsCSSValue::Array* aData,
                    nsStyleContext* aContext,
                    nsPresContext* aPresContext,
-                   bool& aCanStoreInRuleTree,
+                   PRBool& aCanStoreInRuleTree,
                    nsRect& aBounds, float aAppUnitsPerMatrixUnit)
 {
   NS_PRECONDITION(aData->Count() == 4, "Invalid array!");
@@ -429,12 +472,7 @@ ProcessRotate3D(gfx3DMatrix& aMatrix, const nsCSSValue::Array* aData)
    * |                                0                                  0                                 0   1 |
    * (see http://www.w3.org/TR/css3-3d-transforms/#transform-functions)
    */
-
-  /* The current spec specifies a matrix that rotates in the wrong direction. For now we just negate
-   * the angle provided to get the correct rotation direction until the spec is updated.
-   * See bug 704468.
-   */
-  double theta = -aData->Item(4).GetAngleValueInRadians();
+  double theta = aData->Item(4).GetAngleValueInRadians();
   float cosTheta = FlushToZero(cos(theta));
   float sinTheta = FlushToZero(sin(theta));
 
@@ -479,7 +517,7 @@ ProcessPerspective(gfx3DMatrix& aMatrix,
                    const nsCSSValue::Array* aData,
                    nsStyleContext *aContext,
                    nsPresContext *aPresContext,
-                   bool &aCanStoreInRuleTree,
+                   PRBool &aCanStoreInRuleTree,
                    float aAppUnitsPerMatrixUnit)
 {
   NS_PRECONDITION(aData->Count() == 2, "Invalid array!");
@@ -500,7 +538,7 @@ MatrixForTransformFunction(gfx3DMatrix& aMatrix,
                            const nsCSSValue::Array * aData,
                            nsStyleContext* aContext,
                            nsPresContext* aPresContext,
-                           bool& aCanStoreInRuleTree,
+                           PRBool& aCanStoreInRuleTree,
                            nsRect& aBounds, 
                            float aAppUnitsPerMatrixUnit)
 {
@@ -597,21 +635,22 @@ MatrixForTransformFunction(gfx3DMatrix& aMatrix,
 nsCSSKeyword
 TransformFunctionOf(const nsCSSValue::Array* aData)
 {
-  MOZ_ASSERT(aData->Item(0).GetUnit() == eCSSUnit_Enumerated);
-  return aData->Item(0).GetKeywordValue();
+  nsAutoString keyword;
+  aData->Item(0).GetStringValue(keyword);
+  return nsCSSKeywords::LookupKeyword(keyword);
 }
 
 gfx3DMatrix
 ReadTransforms(const nsCSSValueList* aList,
                nsStyleContext* aContext,
                nsPresContext* aPresContext,
-               bool &aCanStoreInRuleTree,
+               PRBool &aCanStoreInRuleTree,
                nsRect& aBounds,
                float aAppUnitsPerMatrixUnit)
 {
   gfx3DMatrix result;
 
-  for (const nsCSSValueList* curr = aList; curr != nullptr; curr = curr->mNext) {
+  for (const nsCSSValueList* curr = aList; curr != nsnull; curr = curr->mNext) {
     const nsCSSValue &currElem = curr->mValue;
     NS_ASSERTION(currElem.GetUnit() == eCSSUnit_Function,
                  "Stream should consist solely of functions!");

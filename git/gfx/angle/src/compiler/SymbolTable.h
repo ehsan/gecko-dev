@@ -169,8 +169,8 @@ public:
     void setDefined() { defined = true; }
     bool isDefined() { return defined; }
 
-    size_t getParamCount() const { return parameters.size(); }  
-    const TParameter& getParam(size_t i) const { return parameters[i]; }
+    int getParamCount() const { return static_cast<int>(parameters.size()); }  
+    const TParameter& getParam(int i) const { return parameters[i]; }
 
     virtual void dump(TInfoSink &infoSink) const;
     TFunction(const TFunction&, TStructureMap& remapper);
@@ -298,21 +298,10 @@ public:
         return symbol;
     }
 
-    TSymbol *findBuiltIn(const TString &name)
-    {
-        return table[0]->find(name);
-    }
-
     TSymbolTableLevel* getGlobalLevel() {
         assert(table.size() >= 2);
         return table[1];
     }
-
-    TSymbolTableLevel* getOuterLevel() {
-        assert(table.size() >= 2);
-        return table[currentLevel() - 1];
-    }
-
     void relateToOperator(const char* name, TOperator op) {
         table[0]->relateToOperator(name, op);
     }
@@ -323,16 +312,10 @@ public:
     void dump(TInfoSink &infoSink) const;
     void copyTable(const TSymbolTable& copyOf);
 
-    bool setDefaultPrecision( const TPublicType& type, TPrecision prec ){
-        if (IsSampler(type.type))
-            return true;  // Skip sampler types for the time being
-        if (type.type != EbtFloat && type.type != EbtInt)
-            return false; // Only set default precision for int/float
-        if (type.size != 1 || type.matrix || type.array)
-            return false; // Not allowed to set for aggregate types
+    void setDefaultPrecision( TBasicType type, TPrecision prec ){
+        if( type != EbtFloat && type != EbtInt ) return; // Only set default precision for int/float
         int indexOfLastElement = static_cast<int>(precisionStack.size()) - 1;
-        precisionStack[indexOfLastElement][type.type] = prec; // Uses map operator [], overwrites the current value
-        return true;
+        precisionStack[indexOfLastElement][type] = prec; // Uses map operator [], overwrites the current value
     }
 
     // Searches down the precisionStack for a precision qualifier for the specified TBasicType

@@ -16,11 +16,7 @@
 class TOutputGLSLBase : public TIntermTraverser
 {
 public:
-    TOutputGLSLBase(TInfoSinkBase& objSink,
-                    ShArrayIndexClampingStrategy clampingStrategy,
-                    ShHashFunction64 hashFunction,
-                    NameMap& nameMap,
-                    TSymbolTable& symbolTable);
+    TOutputGLSLBase(TInfoSinkBase& objSink);
 
 protected:
     TInfoSinkBase& objSink() { return mObjSink; }
@@ -29,7 +25,6 @@ protected:
     virtual bool writeVariablePrecision(TPrecision precision) = 0;
     void writeFunctionParameters(const TIntermSequence& args);
     const ConstantUnion* writeConstantUnion(const TType& type, const ConstantUnion* pConstUnion);
-    TString getTypeName(const TType& type);
 
     virtual void visitSymbol(TIntermSymbol* node);
     virtual void visitConstantUnion(TIntermConstantUnion* node);
@@ -42,15 +37,6 @@ protected:
 
     void visitCodeBlock(TIntermNode* node);
 
-
-    // Return the original name if hash function pointer is NULL;
-    // otherwise return the hashed name.
-    TString hashName(const TString& name);
-    // Same as hashName(), but without hashing built-in variables.
-    TString hashVariableName(const TString& name);
-    // Same as hashName(), but without hashing built-in functions.
-    TString hashFunctionName(const TString& mangled_name);
-
 private:
     TInfoSinkBase& mObjSink;
     bool mDeclaringVariables;
@@ -62,15 +48,6 @@ private:
     DeclaredStructs mDeclaredStructs;
 
     ForLoopUnroll mLoopUnroll;
-
-    ShArrayIndexClampingStrategy mClampingStrategy;
-
-    // name hashing.
-    ShHashFunction64 mHashFunction;
-
-    NameMap& mNameMap;
-
-    TSymbolTable& mSymbolTable;
 };
 
 #endif  // CROSSCOMPILERGLSL_OUTPUTGLSLBASE_H_

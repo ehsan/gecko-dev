@@ -31,3 +31,7 @@ function testChangingObjectWithLength()
   return counter;
 }
 assertEq(testChangingObjectWithLength(), 400);
+checkStats({
+  recorderAborted: 0,
+  sideExitIntoInterpreter: 15 // empirically determined
+});

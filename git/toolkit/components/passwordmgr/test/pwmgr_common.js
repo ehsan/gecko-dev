@@ -123,9 +123,8 @@ function doKey(aKey, modifier) {
     var wutils = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor).
                           getInterface(Components.interfaces.nsIDOMWindowUtils);
 
-    if (wutils.sendKeyEvent("keydown",  key, 0, modifier)) {
-      wutils.sendKeyEvent("keypress", key, 0, modifier);
-    }
+    wutils.sendKeyEvent("keydown",  key, 0, modifier);
+    wutils.sendKeyEvent("keypress", key, 0, modifier);
     wutils.sendKeyEvent("keyup",    key, 0, modifier);
 }
 
@@ -147,7 +146,7 @@ function commonInit() {
     var disabledHosts = pwmgr.getAllDisabledHosts();
     if (disabledHosts.length) {
         //todo(false, "Warning: wasn't expecting disabled hosts to be present.");
-        for (var host of disabledHosts)
+        for each (var host in disabledHosts)
             pwmgr.setLoginSavingEnabled(host, true);
     }
 

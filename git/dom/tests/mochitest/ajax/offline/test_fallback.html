@@ -93,24 +93,17 @@ function onFallbackLoad(fallbackIdentification)
   ++gStep;
 }
 
-
-function finishTest()
-{
-  OfflineTest.teardown();
-  OfflineTest.finish();
-}
-
 function finalize()
 {
   netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
 
-  var entries = [
-    ["http://mochi.test:8888/tests/dom/tests/mochitest/ajax/offline/namespace1/sub-non-existing.html", false],
-    ["http://mochi.test:8888/tests/dom/tests/mochitest/ajax/offline/namespace1/sub/non-existing.html", false],
-    ["http://mochi.test:8888/tests/dom/tests/mochitest/ajax/offline/namespace1/non-existing.html", false],
-    ["http://mochi.test:8888/tests/dom/tests/mochitest/ajax/offline/namespace2/non-existing.html", false]
-  ];
-  OfflineTest.checkCacheEntries(entries, finishTest);
+  OfflineTest.checkCache("http://mochi.test:8888/tests/dom/tests/mochitest/ajax/offline/namespace1/sub-non-existing.html", false);
+  OfflineTest.checkCache("http://mochi.test:8888/tests/dom/tests/mochitest/ajax/offline/namespace1/sub/non-existing.html", false);
+  OfflineTest.checkCache("http://mochi.test:8888/tests/dom/tests/mochitest/ajax/offline/namespace1/non-existing.html", false);
+  OfflineTest.checkCache("http://mochi.test:8888/tests/dom/tests/mochitest/ajax/offline/namespace2/non-existing.html", false);
+
+  OfflineTest.teardown();
+  OfflineTest.finish();
 }
 
 SimpleTest.waitForExplicitFinish();
@@ -126,6 +119,6 @@ if (OfflineTest.setup()) {
 </head>
 
 <body>
-<iframe name="fallbackFrame" src=""></iframe>
+<iframe name="fallbackFrame" src="http://mochi.test:8888/tests/dom/tests/mochitest/ajax/offline/namespace1/non-existing.html"></iframe>
 </body>
 </html>

@@ -9,7 +9,7 @@ var thrown3 = false;
 
 function startTest() {
   if (completed)
-    return;
+    return false;
 
   try {
     v.currentTime = NaN;
@@ -27,6 +27,7 @@ function startTest() {
   ok(thrown1, "Setting currentTime to invalid value of NaN");
   ok(thrown3, "Setting currentTime to invalid value of a function");
   finish();
+  return false;
 }
 
 v.addEventListener("loadedmetadata", startTest, false);

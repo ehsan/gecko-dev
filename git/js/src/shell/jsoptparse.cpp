@@ -1,15 +1,46 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * vim: set ts=8 sw=4 et tw=99:
+ *
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is SpiderMonkey JavaScript shell.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Christopher D. Leary <cdleary@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-#include "shell/jsoptparse.h"
-
+#include "jsoptparse.h"
 #include <ctype.h>
 #include <stdarg.h>
-
-#include "jsutil.h"
 
 using namespace js;
 using namespace js::cli;
@@ -59,14 +90,6 @@ OptionParser::setArgTerminatesOptions(const char *name, bool enabled)
     findArgument(name)->setTerminatesOptions(enabled);
 }
 
-void
-OptionParser::setArgCapturesRest(const char *name)
-{
-    MOZ_ASSERT(restArgument == -1, "only one argument may be set to capture the rest");
-    restArgument = findArgumentIndex(name);
-    MOZ_ASSERT(restArgument != -1, "unknown argument name passed to setArgCapturesRest");
-}
-
 OptionParser::Result
 OptionParser::error(const char *fmt, ...)
 {
@@ -81,9 +104,9 @@ OptionParser::error(const char *fmt, ...)
 
 /* Quick and dirty paragraph printer. */
 static void
-PrintParagraph(const char *text, unsigned startColno, const unsigned limitColno, bool padFirstLine)
+PrintParagraph(const char *text, uintN startColno, const uintN limitColno, bool padFirstLine)
 {
-    unsigned colno = startColno;
+    uintN colno = startColno;
     const char *it = text;
 
     if (padFirstLine)
@@ -97,7 +120,7 @@ PrintParagraph(const char *text, unsigned startColno, const unsigned limitColno,
         while (!isspace(*limit) && *limit != '\0')
             ++limit;
 
-        /*
+        /* 
          * If the current token is longer than the available number of columns,
          * then make a line break before printing the token.
          */
@@ -135,7 +158,7 @@ PrintParagraph(const char *text, unsigned startColno, const unsigned limitColno,
             }
             break;
           default:
-            MOZ_ASSUME_UNREACHABLE("unhandled token splitting character in text");
+            JS_NOT_REACHED("unhandled token splitting character in text");
         }
     }
 }
@@ -143,10 +166,10 @@ PrintParagraph(const char *text, unsigned startColno, const unsigned limitColno,
 static const char *
 OptionFlagsToFormatInfo(char shortflag, bool isValued, size_t *length)
 {
-    static const char * const fmt[4] = { "  -%c --%s ",
-                                         "  --%s ",
-                                         "  -%c --%s=%s ",
-                                         "  --%s=%s " };
+    static const char *fmt[4] = { "  -%c --%s ",
+                                  "  --%s ",
+                                  "  -%c --%s=%s ",
+                                  "  --%s=%s " };
 
     /* How mny chars w/o longflag? */
     size_t lengths[4] = { strlen(fmt[0]) - 3,
@@ -188,7 +211,7 @@ OptionParser::printHelp(const char *progname)
         size_t fmtChars = sizeof(fmt) - 2;
         size_t lhsLen = 0;
         for (Option **it = arguments.begin(), **end = arguments.end(); it != end; ++it)
-            lhsLen = Max(lhsLen, strlen((*it)->longflag) + fmtChars);
+            lhsLen = JS_MAX(lhsLen, strlen((*it)->longflag) + fmtChars);
 
         for (Option **it = arguments.begin(), **end = arguments.end(); it != end; ++it) {
             Option *arg = *it;
@@ -203,7 +226,7 @@ OptionParser::printHelp(const char *progname)
 
     if (!options.empty()) {
         printf("Options:\n");
-
+                                
         /* Calculate sizes for column alignment. */
         size_t lhsLen = 0;
         for (Option **it = options.begin(), **end = options.end(); it != end; ++it) {
@@ -216,7 +239,7 @@ OptionParser::printHelp(const char *progname)
             size_t len = fmtLen + longflagLen;
             if (opt->isValued())
                 len += strlen(opt->asValued()->metavar);
-            lhsLen = Max(lhsLen, len);
+            lhsLen = JS_MAX(lhsLen, len);
         }
 
         /* Print option help text. */
@@ -253,7 +276,7 @@ OptionParser::extractValue(size_t argc, char **argv, size_t *i, char **value)
     char *eq = strchr(argv[*i], '=');
     if (eq) {
         *value = eq + 1;
-        if (*value[0] == '\0')
+        if (value[0] == '\0')
             return error("A value is required for option %.*s", eq - argv[*i], argv[*i]);
         return Okay;
     }
@@ -280,7 +303,7 @@ OptionParser::handleOption(Option *opt, size_t argc, char **argv, size_t *i, boo
         opt->asBoolOption()->value = true;
         return Okay;
       }
-      /*
+      /* 
        * Valued options are allowed to specify their values either via
        * successive arguments or a single --longflag=value argument.
        */
@@ -309,7 +332,8 @@ OptionParser::handleOption(Option *opt, size_t argc, char **argv, size_t *i, boo
         return opt->asMultiStringOption()->strings.append(arg) ? Okay : Fail;
       }
       default:
-        MOZ_ASSUME_UNREACHABLE("unhandled option kind");
+        JS_NOT_REACHED("unhandled option kind");
+        return Fail;
     }
 }
 
@@ -336,7 +360,8 @@ OptionParser::handleArg(size_t argc, char **argv, size_t *i, bool *optionsAllowe
         return arg->asMultiStringOption()->strings.append(value) ? Okay : Fail;
       }
       default:
-        MOZ_ASSUME_UNREACHABLE("unhandled argument kind");
+        JS_NOT_REACHED("unhandled argument kind");
+        return Fail;
     }
 }
 
@@ -356,17 +381,10 @@ OptionParser::parseArgs(int inputArgc, char **argv)
             /* Option. */
             Option *opt;
             if (arg[1] == '-') {
-                if (arg[2] == '\0') {
-                    /* End of options */
-                    optionsAllowed = false;
-                    nextArgument = restArgument;
-                    continue;
-                } else {
-                    /* Long option. */
-                    opt = findOption(arg + 2);
-                    if (!opt)
-                        return error("Invalid long option: %s", arg);
-                }
+                /* Long option. */
+                opt = findOption(arg + 2);
+                if (!opt)
+                    return error("Invalid long option: %s", arg);
             } else {
                 /* Short option */
                 if (arg[2] != '\0')
@@ -382,8 +400,12 @@ OptionParser::parseArgs(int inputArgc, char **argv)
             r = handleArg(argc, argv, &i, &optionsAllowed);
         }
 
-        if (r != Okay)
+        switch (r) {
+          case Okay:
+            break;
+          default:
             return r;
+        }
     }
     return Okay;
 }
@@ -453,9 +475,9 @@ OptionParser::getMultiStringOption(const char *longflag) const
 OptionParser::~OptionParser()
 {
     for (Option **it = options.begin(), **end = options.end(); it != end; ++it)
-        js_delete<Option>(*it);
+        Foreground::delete_<Option>(*it);
     for (Option **it = arguments.begin(), **end = arguments.end(); it != end; ++it)
-        js_delete<Option>(*it);
+        Foreground::delete_<Option>(*it);
 }
 
 Option *
@@ -507,29 +529,21 @@ OptionParser::findOption(const char *longflag) const
 
 /* Argument accessors */
 
-int
-OptionParser::findArgumentIndex(const char *name) const
-{
-    for (Option * const *it = arguments.begin(); it != arguments.end(); ++it) {
-        const char *target = (*it)->longflag;
-        if (strcmp(target, name) == 0)
-            return it - arguments.begin();
-    }
-    return -1;
-}
-
 Option *
 OptionParser::findArgument(const char *name)
 {
-    int index = findArgumentIndex(name);
-    return (index == -1) ? NULL : arguments[index];
+    for (Option **it = arguments.begin(), **end = arguments.end(); it != end; ++it) {
+        const char *target = (*it)->longflag;
+        if (strcmp(target, name) == 0)
+            return *it;
+    }
+    return NULL;
 }
 
 const Option *
 OptionParser::findArgument(const char *name) const
 {
-    int index = findArgumentIndex(name);
-    return (index == -1) ? NULL : arguments[index];
+    return const_cast<OptionParser *>(this)->findArgument(name);
 }
 
 const char *
@@ -553,7 +567,8 @@ OptionParser::addIntOption(char shortflag, const char *longflag, const char *met
 {
     if (!options.reserve(options.length() + 1))
         return false;
-    IntOption *io = js_new<IntOption>(shortflag, longflag, help, metavar, defaultValue);
+    IntOption *io = OffTheBooks::new_<IntOption>(shortflag, longflag, help, metavar,
+                                                 defaultValue);
     if (!io)
         return false;
     options.infallibleAppend(io);
@@ -565,7 +580,7 @@ OptionParser::addBoolOption(char shortflag, const char *longflag, const char *he
 {
     if (!options.reserve(options.length() + 1))
         return false;
-    BoolOption *bo = js_new<BoolOption>(shortflag, longflag, help);
+    BoolOption *bo = OffTheBooks::new_<BoolOption>(shortflag, longflag, help);
     if (!bo)
         return false;
     options.infallibleAppend(bo);
@@ -578,7 +593,7 @@ OptionParser::addStringOption(char shortflag, const char *longflag, const char *
 {
     if (!options.reserve(options.length() + 1))
         return false;
-    StringOption *so = js_new<StringOption>(shortflag, longflag, help, metavar);
+    StringOption *so = OffTheBooks::new_<StringOption>(shortflag, longflag, help, metavar);
     if (!so)
         return false;
     options.infallibleAppend(so);
@@ -591,7 +606,8 @@ OptionParser::addMultiStringOption(char shortflag, const char *longflag, const c
 {
     if (!options.reserve(options.length() + 1))
         return false;
-    MultiStringOption *mso = js_new<MultiStringOption>(shortflag, longflag, help, metavar);
+    MultiStringOption *mso = OffTheBooks::new_<MultiStringOption>(shortflag, longflag, help,
+                                                                  metavar);
     if (!mso)
         return false;
     options.infallibleAppend(mso);
@@ -605,7 +621,7 @@ OptionParser::addOptionalStringArg(const char *name, const char *help)
 {
     if (!arguments.reserve(arguments.length() + 1))
         return false;
-    StringOption *so = js_new<StringOption>(1, name, help, (const char *) NULL);
+    StringOption *so = OffTheBooks::new_<StringOption>(1, name, help, (const char *) NULL);
     if (!so)
         return false;
     arguments.infallibleAppend(so);
@@ -618,7 +634,8 @@ OptionParser::addOptionalMultiStringArg(const char *name, const char *help)
     JS_ASSERT_IF(!arguments.empty(), !arguments.back()->isVariadic());
     if (!arguments.reserve(arguments.length() + 1))
         return false;
-    MultiStringOption *mso = js_new<MultiStringOption>(1, name, help, (const char *) NULL);
+    MultiStringOption *mso = OffTheBooks::new_<MultiStringOption>(1, name, help,
+                                                                  (const char *) NULL);
     if (!mso)
         return false;
     arguments.infallibleAppend(mso);

@@ -1,10 +1,41 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  * vim: sw=2 ts=2 et lcs=trail\:.,tab\:>~ :
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-#include "mozilla/Util.h"
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Storage code.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Drew Willcoxon <adw@mozilla.com> (Original Author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "SQLCollations.h"
 
@@ -43,7 +74,7 @@ localeCollationHelper8(void *aService,
                        const void *aStr1,
                        int aLen2,
                        const void *aStr2,
-                       int32_t aComparisonStrength)
+                       PRInt32 aComparisonStrength)
 {
   NS_ConvertUTF8toUTF16 str1(static_cast<const char *>(aStr1), aLen1);
   NS_ConvertUTF8toUTF16 str2(static_cast<const char *>(aStr2), aLen2);
@@ -78,7 +109,7 @@ localeCollationHelper16(void *aService,
                         const void *aStr1,
                         int aLen2,
                         const void *aStr2,
-                        int32_t aComparisonStrength)
+                        PRInt32 aComparisonStrength)
 {
   const PRUnichar *buf1 = static_cast<const PRUnichar *>(aStr1);
   const PRUnichar *buf2 = static_cast<const PRUnichar *>(aStr2);
@@ -93,14 +124,6 @@ localeCollationHelper16(void *aService,
   return serv->localeCompareStrings(str1, str2, aComparisonStrength);
 }
 
-// This struct is used only by registerCollations below, but ISO C++98 forbids
-// instantiating a template dependent on a locally-defined type.  Boo-urns!
-struct Collations {
-  const char *zName;
-  int enc;
-  int(*xCompare)(void*, int, const void*, int, const void*);
-};
-
 } // anonymous namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -110,7 +133,11 @@ int
 registerCollations(sqlite3 *aDB,
                    Service *aService)
 {
-  Collations collations[] = {
+  struct Collations {
+    const char *zName;
+    int enc;
+    int(*xCompare)(void*, int, const void*, int, const void*);
+  } collations[] = {
     {"locale",
      SQLITE_UTF8,
      localeCollation8},
@@ -138,7 +165,7 @@ registerCollations(sqlite3 *aDB,
   };
 
   int rv = SQLITE_OK;
-  for (size_t i = 0; SQLITE_OK == rv && i < ArrayLength(collations); ++i) {
+  for (size_t i = 0; SQLITE_OK == rv && i < NS_ARRAY_LENGTH(collations); ++i) {
     struct Collations *p = &collations[i];
     rv = ::sqlite3_create_collation(aDB, p->zName, p->enc, aService,
                                     p->xCompare);

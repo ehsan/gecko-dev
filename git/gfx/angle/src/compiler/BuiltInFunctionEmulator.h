@@ -28,8 +28,6 @@ public:
     bool SetFunctionCalled(TOperator op, const TType& param);
     bool SetFunctionCalled(
         TOperator op, const TType& param1, const TType& param2);
-    bool SetFunctionCalled(
-        TOperator op, const TType& param1, const TType& param2, const TType& param3);
 
     // Output function emulation definition.  This should be before any other
     // shader source.
@@ -47,7 +45,12 @@ private:
     // Built-in functions.
     //
     enum TBuiltInFunction {
-        TFunctionCos1 = 0,  // float cos(float);
+        TFunctionAtan1_1 = 0,  // float atan(float, float);
+        TFunctionAtan2_2,  // vec2 atan(vec2, vec2);
+        TFunctionAtan3_3,  // vec3 atan(vec3, vec2);
+        TFunctionAtan4_4,  // vec4 atan(vec4, vec2);
+
+        TFunctionCos1,  // float cos(float);
         TFunctionCos2,  // vec2 cos(vec2);
         TFunctionCos3,  // vec3 cos(vec3);
         TFunctionCos4,  // vec4 cos(vec4);
@@ -62,15 +65,15 @@ private:
         TFunctionDot3_3,  // vec3 dot(vec3, vec3);
         TFunctionDot4_4,  // vec4 dot(vec4, vec4);
 
-        TFunctionFaceForward1_1_1,  // float faceforward(float, float, float);
-        TFunctionFaceForward2_2_2,  // vec2 faceforward(vec2, vec2, vec2);
-        TFunctionFaceForward3_3_3,  // vec3 faceforward(vec3, vec3, vec3);
-        TFunctionFaceForward4_4_4,  // vec4 faceforward(vec4, vec4, vec4);
-
         TFunctionLength1,  // float length(float);
         TFunctionLength2,  // float length(vec2);
         TFunctionLength3,  // float length(vec3);
         TFunctionLength4,  // float length(vec4);
+
+        TFunctionMod1_1,  // float mod(float, float);
+        TFunctionMod2_2,  // vec2 mod(vec2, vec2);
+        TFunctionMod3_3,  // vec3 mod(vec3, vec3);
+        TFunctionMod4_4,  // vec4 mod(vec4, vec4);
 
         TFunctionNormalize1,  // float normalize(float);
         TFunctionNormalize2,  // vec2 normalize(vec2);
@@ -88,8 +91,6 @@ private:
     TBuiltInFunction IdentifyFunction(TOperator op, const TType& param);
     TBuiltInFunction IdentifyFunction(
         TOperator op, const TType& param1, const TType& param2);
-    TBuiltInFunction IdentifyFunction(
-        TOperator op, const TType& param1, const TType& param2, const TType& param3);
 
     bool SetFunctionCalled(TBuiltInFunction function);
 

@@ -1,11 +1,6 @@
 // Test the plaintext-or-binary sniffer
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
-Cu.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 
 // List of Content-Type headers to test.  For each header we have an array.
 // The first element in the array is the Content-Type header string.  The
@@ -81,8 +76,8 @@ function makeChan(headerIdx, bodyIdx) {
   var ios = Components.classes["@mozilla.org/network/io-service;1"]
                       .getService(Components.interfaces.nsIIOService);
   var chan =
-    ios.newChannel("http://localhost:" + httpserv.identity.primaryPort +
-                   "/" + headerIdx + "/" + bodyIdx, null, null)
+    ios.newChannel("http://localhost:4444/" + headerIdx + "/" + bodyIdx, null,
+                   null)
        .QueryInterface(Components.interfaces.nsIHttpChannel);
 
   chan.loadFlags |=
@@ -184,16 +179,16 @@ function run_test() {
   if ("@mozilla.org/windows-registry-key;1" in Cc) {
     return;
   }
-
-  httpserv = new HttpServer();
+  
+  httpserv = new nsHttpServer();
 
   for (i = 0; i < contentTypeHeaderList.length; ++i) {
     for (j = 0; j < bodyList.length; ++j) {
       httpserv.registerPathHandler("/" + i + "/" + j, makeHandler(i, j));
     }
   }
-
-  httpserv.start(-1);
+  
+  httpserv.start(4444);
 
   doTest(0, 0);
 }

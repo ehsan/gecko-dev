@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsDeque.h"
 #include "nsCRT.h"
@@ -103,23 +135,28 @@ void nsDeque::SetDeallocator(nsDequeFunctor* aDeallocator){
 
 /**
  * Remove all items from container without destroying them.
+ *
+ * @return  *this
  */
-void nsDeque::Empty() {
+nsDeque& nsDeque::Empty() {
   if (mSize && mData) {
     memset(mData, 0, mCapacity*sizeof(mData));
   }
   mSize=0;
   mOrigin=0;
+  return *this;
 }
 
 /**
  * Remove and delete all items from container
+ *
+ * @return  *this
  */
-void nsDeque::Erase() {
+nsDeque& nsDeque::Erase() {
   if (mDeallocator && mSize) {
     ForEach(*mDeallocator);
   }
-  Empty();
+  return Empty();
 }
 
 /**
@@ -127,16 +164,19 @@ void nsDeque::Erase() {
  * Elements in the deque are resequenced so that elements
  * in the deque are stored sequentially
  *
+ * If the deque actually overflows, there's very little we can do.
+ * Perhaps this function should return PRBool/nsresult indicating success/failure.
+ *
  * @return  whether growing succeeded
  */
-bool nsDeque::GrowCapacity() {
-  int32_t theNewSize=mCapacity<<2;
+PRBool nsDeque::GrowCapacity() {
+  PRInt32 theNewSize=mCapacity<<2;
   NS_ASSERTION(theNewSize>mCapacity, "Overflow");
   if (theNewSize<=mCapacity)
-    return false;
+    return PR_FALSE;
   void** temp=(void**)malloc(theNewSize * sizeof(void*));
   if (!temp)
-    return false;
+    return PR_FALSE;
 
   //Here's the interesting part: You can't just move the elements
   //directly (in situ) from the old buffer to the new one.
@@ -154,7 +194,7 @@ bool nsDeque::GrowCapacity() {
   mOrigin=0; //now realign the origin...
   mData=temp;
 
-  return true;
+  return PR_TRUE;
 }
 
 /**
@@ -163,14 +203,16 @@ bool nsDeque::GrowCapacity() {
  * underlying buffer to resize.
  *
  * @param   aItem: new item to be added to deque
+ * @return  *this
  */
-bool nsDeque::Push(void* aItem, const fallible_t&) {
+nsDeque& nsDeque::Push(void* aItem) {
   if (mSize==mCapacity && !GrowCapacity()) {
-    return false;
+    NS_WARNING("out of memory");
+    return *this;
   }
   mData[modulus(mOrigin + mSize, mCapacity)]=aItem;
   mSize++;
-  return true;
+  return *this;
 }
 
 /**
@@ -204,20 +246,22 @@ bool nsDeque::Push(void* aItem, const fallible_t&) {
  * and increment size: 9. (C is no longer out of bounds)
  * --
  * @param   aItem: new item to be added to deque
+ * @return  *this
  */
-bool nsDeque::PushFront(void* aItem, const fallible_t&) {
+nsDeque& nsDeque::PushFront(void* aItem) {
   mOrigin--;
   modasgn(mOrigin,mCapacity);
   if (mSize==mCapacity) {
     if (!GrowCapacity()) {
-      return false;
+      NS_WARNING("out of memory");
+      return *this;
     }
     /* Comments explaining this are above*/
     mData[mSize]=mData[mOrigin];
   }
   mData[mOrigin]=aItem;
   mSize++;
-  return true;
+  return *this;
 }
 
 /**
@@ -229,7 +273,7 @@ void* nsDeque::Pop() {
   void* result=0;
   if (mSize>0) {
     --mSize;
-    int32_t offset=modulus(mSize + mOrigin, mCapacity);
+    PRInt32 offset=modulus(mSize + mOrigin, mCapacity);
     result=mData[offset];
     mData[offset]=0;
     if (!mSize) {
@@ -298,27 +342,11 @@ void* nsDeque::PeekFront() {
  * @param   aIndex : 0 relative offset of item you want
  * @return  void* or null
  */
-void* nsDeque::ObjectAt(int32_t aIndex) const {
+void* nsDeque::ObjectAt(PRInt32 aIndex) const {
   void* result=0;
   if ((aIndex>=0) && (aIndex<mSize)) {
     result=mData[modulus(mOrigin + aIndex, mCapacity)];
   }
-  return result;
-}
-
-void* nsDeque::RemoveObjectAt(int32_t aIndex) {
-  if ((aIndex<0) || (aIndex>=mSize)) {
-    return 0;
-  }
-  void* result=mData[modulus(mOrigin + aIndex, mCapacity)];
-
-  // "Shuffle down" all elements in the array by 1, overwritting the element
-  // being removed.
-  for (int32_t i=aIndex; i<mSize; i++) {
-    mData[modulus(mOrigin + i, mCapacity)] = mData[modulus(mOrigin + i + 1, mCapacity)];
-  }
-  mSize--;
-
   return result;
 }
 
@@ -358,7 +386,7 @@ void* nsDeque::Last() const {
  * @return  *this
  */
 void nsDeque::ForEach(nsDequeFunctor& aFunctor) const{
-  for (int32_t i=0; i<mSize; i++) {
+  for (PRInt32 i=0; i<mSize; i++) {
     aFunctor(ObjectAt(i));
   }
 }
@@ -373,7 +401,7 @@ void nsDeque::ForEach(nsDequeFunctor& aFunctor) const{
  * @return  first nonzero result of aFunctor or 0.
  */
 const void* nsDeque::FirstThat(nsDequeFunctor& aFunctor) const{
-  for (int32_t i=0; i<mSize; i++) {
+  for (PRInt32 i=0; i<mSize; i++) {
     void* obj=aFunctor(ObjectAt(i));
     if (obj) {
       return obj;
@@ -441,8 +469,8 @@ nsDequeIterator& nsDequeIterator::operator=(const nsDequeIterator& aCopy) {
  * @param   aIter is the object to be compared to
  * @return  TRUE if NOT equal.
  */
-bool nsDequeIterator::operator!=(nsDequeIterator& aIter) {
-  return bool(!this->operator==(aIter));
+PRBool nsDequeIterator::operator!=(nsDequeIterator& aIter) {
+  return PRBool(!this->operator==(aIter));
 }
 
 /**
@@ -453,8 +481,8 @@ bool nsDequeIterator::operator!=(nsDequeIterator& aIter) {
  *          the element pointed to by aIter.
  *          FALSE if this and aIter are not iterating over the same deque.
  */
-bool nsDequeIterator::operator<(nsDequeIterator& aIter) {
-  return bool(((mIndex<aIter.mIndex) && (&mDeque==&aIter.mDeque)));
+PRBool nsDequeIterator::operator<(nsDequeIterator& aIter) {
+  return PRBool(((mIndex<aIter.mIndex) && (&mDeque==&aIter.mDeque)));
 }
 
 /**
@@ -463,8 +491,8 @@ bool nsDequeIterator::operator<(nsDequeIterator& aIter) {
  * @param   aIter is the other iterator to be compared to
  * @return  TRUE if EQUAL
  */
-bool nsDequeIterator::operator==(nsDequeIterator& aIter) {
-  return bool(((mIndex==aIter.mIndex) && (&mDeque==&aIter.mDeque)));
+PRBool nsDequeIterator::operator==(nsDequeIterator& aIter) {
+  return PRBool(((mIndex==aIter.mIndex) && (&mDeque==&aIter.mDeque)));
 }
 
 /**
@@ -475,8 +503,8 @@ bool nsDequeIterator::operator==(nsDequeIterator& aIter) {
  *          an element after the element pointed to by aIter.
  *          FALSE if this and aIter are not iterating over the same deque.
  */
-bool nsDequeIterator::operator>=(nsDequeIterator& aIter) {
-  return bool(((mIndex>=aIter.mIndex) && (&mDeque==&aIter.mDeque)));
+PRBool nsDequeIterator::operator>=(nsDequeIterator& aIter) {
+  return PRBool(((mIndex>=aIter.mIndex) && (&mDeque==&aIter.mDeque)));
 }
 
 /**

@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 40; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Vladimir Vukicevic <vladimir@pobox.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include <windows.h>
 #include <winternl.h>
@@ -11,17 +43,17 @@
 
 #include <map>
 
+#ifdef XRE_WANT_DLL_BLOCKLIST
+#define XRE_SetupDllBlocklist SetupDllBlocklist
+#else
 #include "nsXULAppAPI.h"
+#endif
 
 #include "nsAutoPtr.h"
-#include "nsThreadUtils.h"
 
 #include "prlog.h"
 
 #include "nsWindowsDllInterceptor.h"
-#include "nsWindowsHelpers.h"
-
-using namespace mozilla;
 
 #if defined(MOZ_CRASHREPORTER) && !defined(NO_BLOCKLIST_CRASHREPORTER)
 #include "nsExceptionHandler.h"
@@ -54,11 +86,6 @@ struct DllBlockInfo {
   // encoded as 0x AAAA BBBB CCCC DDDD ULL (spaces added for clarity),
   // but it's not required to be of that format.
   unsigned long long maxVersion;
-
-  enum {
-    FLAGS_DEFAULT = 0,
-    BLOCK_WIN8PLUS_ONLY = 1
-  } flags;
 };
 
 static DllBlockInfo sWindowsDllBlocklist[] = {
@@ -110,26 +137,9 @@ static DllBlockInfo sWindowsDllBlocklist[] = {
   {"rf-firefox.dll", MAKE_VERSION(7,6,1,0)},
   {"roboform.dll", MAKE_VERSION(7,6,1,0)},
 
-  // Topcrash with Babylon Toolbar on FF16+ (bug 721264)
-  {"babyfox.dll", ALL_VERSIONS},
-
-  {"sprotector.dll", ALL_VERSIONS, DllBlockInfo::BLOCK_WIN8PLUS_ONLY },
-
-  // Topcrash with Websense Endpoint, bug 828184
-  {"qipcap.dll", MAKE_VERSION(7, 6, 815, 1)},
-
   // leave these two in always for tests
   { "mozdllblockingtest.dll", ALL_VERSIONS },
   { "mozdllblockingtest_versioned.dll", 0x0000000400000000ULL },
-
-  // Windows Media Foundation FLAC decoder and type sniffer (bug 839031).
-  { "mfflac.dll", ALL_VERSIONS },
-
-  // Older Relevant Knowledge DLLs cause us to crash (bug 904001).
-  { "rlnx.dll", MAKE_VERSION(1, 3, 334, 9) },
-  { "pmnx.dll", MAKE_VERSION(1, 3, 334, 9) },
-  { "opnx.dll", MAKE_VERSION(1, 3, 334, 9) },
-  { "prnx.dll", MAKE_VERSION(1, 3, 334, 9) },
 
   { NULL, 0 }
 };
@@ -141,76 +151,11 @@ static DllBlockInfo sWindowsDllBlocklist[] = {
 // define this for very verbose dll load debug spew
 #undef DEBUG_very_verbose
 
-extern bool gInXPCOMLoadOnMainThread;
-
 namespace {
 
 typedef NTSTATUS (NTAPI *LdrLoadDll_func) (PWCHAR filePath, PULONG flags, PUNICODE_STRING moduleFileName, PHANDLE handle);
 
 static LdrLoadDll_func stub_LdrLoadDll = 0;
-
-template <class T>
-struct RVAMap {
-  RVAMap(HANDLE map, DWORD offset) {
-    SYSTEM_INFO info;
-    GetSystemInfo(&info);
-
-    DWORD alignedOffset = (offset / info.dwAllocationGranularity) *
-                          info.dwAllocationGranularity;
-
-    NS_ASSERTION(offset - alignedOffset < info.dwAllocationGranularity, "Wtf");
-
-    mRealView = ::MapViewOfFile(map, FILE_MAP_READ, 0, alignedOffset,
-                                sizeof(T) + (offset - alignedOffset));
-
-    mMappedView = mRealView ? reinterpret_cast<T*>((char*)mRealView + (offset - alignedOffset)) :
-                              nullptr;
-  }
-  ~RVAMap() {
-    if (mRealView) {
-      ::UnmapViewOfFile(mRealView);
-    }
-  }
-  operator const T*() const { return mMappedView; }
-  const T* operator->() const { return mMappedView; }
-private:
-  const T* mMappedView;
-  void* mRealView;
-};
-
-bool
-CheckASLR(const wchar_t* path)
-{
-  bool retval = false;
-
-  HANDLE file = ::CreateFileW(path, GENERIC_READ, FILE_SHARE_READ,
-                              NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL,
-                              NULL);
-  if (file != INVALID_HANDLE_VALUE) {
-    HANDLE map = ::CreateFileMappingW(file, NULL, PAGE_READONLY, 0, 0, NULL);
-    if (map) {
-      RVAMap<IMAGE_DOS_HEADER> peHeader(map, 0);
-      if (peHeader) {
-        RVAMap<IMAGE_NT_HEADERS> ntHeader(map, peHeader->e_lfanew);
-        if (ntHeader) {
-          // If the DLL has no code, permit it regardless of ASLR status.
-          if (ntHeader->OptionalHeader.SizeOfCode == 0) {
-            retval = true;
-          }
-          // Check to see if the DLL supports ASLR
-          else if ((ntHeader->OptionalHeader.DllCharacteristics &
-                    IMAGE_DLLCHARACTERISTICS_DYNAMIC_BASE) != 0) {
-            retval = true;
-          }
-        }
-      }
-      ::CloseHandle(map);
-    }
-    ::CloseHandle(file);
-  }
-
-  return retval;
-}
 
 /**
  * Some versions of Windows call LoadLibraryEx to get the version information
@@ -268,42 +213,6 @@ private:
 CRITICAL_SECTION ReentrancySentinel::sLock;
 std::map<DWORD, const char*>* ReentrancySentinel::sThreadMap;
 
-static
-wchar_t* getFullPath (PWCHAR filePath, wchar_t* fname)
-{
-  // In Windows 8, the first parameter seems to be used for more than just the
-  // path name.  For example, its numerical value can be 1.  Passing a non-valid
-  // pointer to SearchPathW will cause a crash, so we need to check to see if we
-  // are handed a valid pointer, and otherwise just pass NULL to SearchPathW.
-  PWCHAR sanitizedFilePath = (intptr_t(filePath) < 1024) ? NULL : filePath;
-
-  // figure out the length of the string that we need
-  DWORD pathlen = SearchPathW(sanitizedFilePath, fname, L".dll", 0, NULL, NULL);
-  if (pathlen == 0) {
-    return nullptr;
-  }
-
-  wchar_t* full_fname = new wchar_t[pathlen+1];
-  if (!full_fname) {
-    // couldn't allocate memory?
-    return nullptr;
-  }
-
-  // now actually grab it
-  SearchPathW(sanitizedFilePath, fname, L".dll", pathlen+1, full_fname, NULL);
-  return full_fname;
-}
-
-static bool
-IsWin8OrLater()
-{
-  OSVERSIONINFOW osInfo;
-  osInfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFOW);
-  GetVersionExW(&osInfo);
-  return (osInfo.dwMajorVersion > 6) ||
-    (osInfo.dwMajorVersion >= 6 && osInfo.dwMinorVersion >= 2);
-}
-
 static NTSTATUS NTAPI
 patched_LdrLoadDll (PWCHAR filePath, PULONG flags, PUNICODE_STRING moduleFileName, PHANDLE handle)
 {
@@ -315,7 +224,6 @@ patched_LdrLoadDll (PWCHAR filePath, PULONG flags, PUNICODE_STRING moduleFileNam
 
   int len = moduleFileName->Length / 2;
   wchar_t *fname = moduleFileName->Buffer;
-  nsAutoArrayPtr<wchar_t> full_fname;
 
   // The filename isn't guaranteed to be null terminated, but in practice
   // it always will be; ensure that this is so, and bail if not.
@@ -391,23 +299,34 @@ patched_LdrLoadDll (PWCHAR filePath, PULONG flags, PUNICODE_STRING moduleFileNam
     printf_stderr("LdrLoadDll: info->name: '%s'\n", info->name);
 #endif
 
-    if ((info->flags == DllBlockInfo::BLOCK_WIN8PLUS_ONLY) &&
-        !IsWin8OrLater()) {
-      goto continue_loading;
-    }
-
     if (info->maxVersion != ALL_VERSIONS) {
       ReentrancySentinel sentinel(dllName);
       if (sentinel.BailOut()) {
         goto continue_loading;
       }
 
-      full_fname = getFullPath(filePath, fname);
-      if (!full_fname) {
+      // In Windows 8, the first parameter seems to be used for more than just the
+      // path name.  For example, its numerical value can be 1.  Passing a non-valid
+      // pointer to SearchPathW will cause a crash, so we need to check to see if we
+      // are handed a valid pointer, and otherwise just pass NULL to SearchPathW.
+      PWCHAR sanitizedFilePath = (intptr_t(filePath) < 1024) ? NULL : filePath;
+
+      // figure out the length of the string that we need
+      DWORD pathlen = SearchPathW(sanitizedFilePath, fname, L".dll", 0, NULL, NULL);
+      if (pathlen == 0) {
         // uh, we couldn't find the DLL at all, so...
         printf_stderr("LdrLoadDll: Blocking load of '%s' (SearchPathW didn't find it?)\n", dllName);
         return STATUS_DLL_NOT_FOUND;
       }
+
+      wchar_t *full_fname = (wchar_t*) malloc(sizeof(wchar_t)*(pathlen+1));
+      if (!full_fname) {
+        // couldn't allocate memory?
+        return STATUS_DLL_NOT_FOUND;
+      }
+
+      // now actually grab it
+      SearchPathW(sanitizedFilePath, fname, L".dll", pathlen+1, full_fname, NULL);
 
       DWORD zero;
       DWORD infoSize = GetFileVersionInfoSizeW(full_fname, &zero);
@@ -432,6 +351,8 @@ patched_LdrLoadDll (PWCHAR filePath, PULONG flags, PUNICODE_STRING moduleFileNam
             load_ok = true;
         }
       }
+
+      free(full_fname);
     }
 
     if (!load_ok) {
@@ -445,20 +366,7 @@ continue_loading:
   printf_stderr("LdrLoadDll: continuing load... ('%S')\n", moduleFileName->Buffer);
 #endif
 
-  if (gInXPCOMLoadOnMainThread && NS_IsMainThread()) {
-    // Check to ensure that the DLL has ASLR.
-    full_fname = getFullPath(filePath, fname);
-    if (!full_fname) {
-      // uh, we couldn't find the DLL at all, so...
-      printf_stderr("LdrLoadDll: Blocking load of '%s' (SearchPathW didn't find it?)\n", dllName);
-      return STATUS_DLL_NOT_FOUND;
-    }
-
-    if (IsVistaOrLater() && !CheckASLR(full_fname)) {
-      printf_stderr("LdrLoadDll: Blocking load of '%s'.  XPCOM components must support ASLR.\n", dllName);
-      return STATUS_DLL_NOT_FOUND;
-    }
-  }
+  NS_SetHasLoadedNewDLLs();
 
   return stub_LdrLoadDll(filePath, flags, moduleFileName, handle);
 }

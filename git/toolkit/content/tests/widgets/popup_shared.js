@@ -52,7 +52,8 @@ function startPopupTests(tests)
   document.addEventListener("DOMMenuBarInactive", eventOccurred, false);
 
   gPopupTests = tests;
-  gWindowUtils = SpecialPowers.getDOMWindowUtils(window);
+  gWindowUtils = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                       .getInterface(Components.interfaces.nsIDOMWindowUtils);
 
   goNext();
 }
@@ -83,11 +84,15 @@ function is(left, right, message) {
 }
 
 function disableNonTestMouse(aDisable) {
+  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+
   gWindowUtils.disableNonTestMouseEvents(aDisable);
 }
 
 function eventOccurred(event)
 {
+   netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+
   if (gPopupTests.length <= gTestIndex) {
     ok(false, "Extra " + event.type + " event fired");
     return;
@@ -251,7 +256,7 @@ function openMenu(menu)
   }
   else {
     var bo = menu.boxObject;
-    if (bo instanceof SpecialPowers.Ci.nsIMenuBoxObject)
+    if (bo instanceof Components.interfaces.nsIMenuBoxObject)
       bo.openMenu(true);
     else
       synthesizeMouse(menu, 4, 4, { });
@@ -265,7 +270,7 @@ function closeMenu(menu, popup)
   }
   else {
     var bo = menu.boxObject;
-    if (bo instanceof SpecialPowers.Ci.nsIMenuBoxObject)
+    if (bo instanceof Components.interfaces.nsIMenuBoxObject)
       bo.openMenu(false);
     else
       popup.hidePopup();
@@ -292,7 +297,7 @@ function checkOpen(menuid, testname)
   var menu = document.getElementById(menuid);
   if ("open" in menu)
     ok(menu.open, testname + " " + menuid + " menu is open");
-  else if (menu.boxObject instanceof SpecialPowers.Ci.nsIMenuBoxObject)
+  else if (menu.boxObject instanceof Components.interfaces.nsIMenuBoxObject)
     ok(menu.getAttribute("open") == "true", testname + " " + menuid + " menu is open");
 }
 
@@ -301,7 +306,7 @@ function checkClosed(menuid, testname)
   var menu = document.getElementById(menuid);
   if ("open" in menu)
     ok(!menu.open, testname + " " + menuid + " menu is open");
-  else if (menu.boxObject instanceof SpecialPowers.Ci.nsIMenuBoxObject)
+  else if (menu.boxObject instanceof Components.interfaces.nsIMenuBoxObject)
     ok(!menu.hasAttribute("open"), testname + " " + menuid + " menu is closed");
 }
 

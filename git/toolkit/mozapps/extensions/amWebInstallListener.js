@@ -1,6 +1,41 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/*
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is the Extension Manager.
+#
+# The Initial Developer of the Original Code is
+# the Mozilla Foundation.
+# Portions created by the Initial Developer are Copyright (C) 2010
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Dave Townsend <dtownsend@oxymoronical.com>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
+*/
 
 /**
  * This is a default implementation of amIWebInstallListener that should work
@@ -30,7 +65,7 @@ const READY_STATES = [
 ];
 
 ["LOG", "WARN", "ERROR"].forEach(function(aName) {
-  this.__defineGetter__(aName, function logFuncGetter() {
+  this.__defineGetter__(aName, function() {
     Components.utils.import("resource://gre/modules/AddonLogging.jsm");
 
     LogManager.getLogger("addons.weblistener", this);
@@ -88,7 +123,7 @@ Installer.prototype = {
   /**
    * Checks if all downloads are now complete and if so prompts to install.
    */
-  checkAllDownloaded: function Installer_checkAllDownloaded() {
+  checkAllDownloaded: function() {
     // Prevent re-entrancy caused by the confirmation dialog cancelling unwanted
     // installs.
     if (!this.isDownloading)
@@ -97,7 +132,8 @@ Installer.prototype = {
     var failed = [];
     var installs = [];
 
-    for (let install of this.downloads) {
+    for (let i = 0; i < this.downloads.length; i++) {
+      let install = this.downloads[i];
       switch (install.state) {
       case AddonManager.STATE_AVAILABLE:
       case AddonManager.STATE_DOWNLOADING:
@@ -171,10 +207,6 @@ Installer.prototype = {
     args.wrappedJSObject = args;
 
     try {
-      Cc["@mozilla.org/base/telemetry;1"].
-            getService(Ci.nsITelemetry).
-            getHistogramById("SECURITY_UI").
-            add(Ci.nsISecurityUITelemetry.WARNING_CONFIRM_ADDON_INSTALL);
       Services.ww.openWindow(this.window, URI_XPINSTALL_DIALOG,
                              null, "chrome,modal,centerscreen", args);
     } catch (e) {
@@ -192,10 +224,11 @@ Installer.prototype = {
   /**
    * Checks if all installs are now complete and if so notifies observers.
    */
-  checkAllInstalled: function Installer_checkAllInstalled() {
+  checkAllInstalled: function() {
     var failed = [];
 
-    for (let install of this.downloads) {
+    for (let i = 0; i < this.downloads.length; i++) {
+      let install = this.downloads[i];
       switch(install.state) {
       case AddonManager.STATE_DOWNLOADED:
       case AddonManager.STATE_INSTALLING:
@@ -218,32 +251,32 @@ Installer.prototype = {
     this.installed = null;
   },
 
-  onDownloadCancelled: function Installer_onDownloadCancelled(aInstall) {
+  onDownloadCancelled: function(aInstall) {
     aInstall.removeListener(this);
     this.checkAllDownloaded();
   },
 
-  onDownloadFailed: function Installer_onDownloadFailed(aInstall) {
+  onDownloadFailed: function(aInstall) {
     aInstall.removeListener(this);
     this.checkAllDownloaded();
   },
 
-  onDownloadEnded: function Installer_onDownloadEnded(aInstall) {
+  onDownloadEnded: function(aInstall) {
     this.checkAllDownloaded();
     return false;
   },
 
-  onInstallCancelled: function Installer_onInstallCancelled(aInstall) {
+  onInstallCancelled: function(aInstall) {
     aInstall.removeListener(this);
     this.checkAllInstalled();
   },
 
-  onInstallFailed: function Installer_onInstallFailed(aInstall) {
+  onInstallFailed: function(aInstall) {
     aInstall.removeListener(this);
     this.checkAllInstalled();
   },
 
-  onInstallEnded: function Installer_onInstallEnded(aInstall) {
+  onInstallEnded: function(aInstall) {
     aInstall.removeListener(this);
     this.installed.push(aInstall);
 
@@ -265,7 +298,7 @@ extWebInstallListener.prototype = {
   /**
    * @see amIWebInstallListener.idl
    */
-  onWebInstallDisabled: function extWebInstallListener_onWebInstallDisabled(aWindow, aUri, aInstalls) {
+  onWebInstallDisabled: function(aWindow, aUri, aInstalls) {
     let info = {
       originatingWindow: aWindow,
       originatingURI: aUri,
@@ -279,13 +312,13 @@ extWebInstallListener.prototype = {
   /**
    * @see amIWebInstallListener.idl
    */
-  onWebInstallBlocked: function extWebInstallListener_onWebInstallBlocked(aWindow, aUri, aInstalls) {
+  onWebInstallBlocked: function(aWindow, aUri, aInstalls) {
     let info = {
       originatingWindow: aWindow,
       originatingURI: aUri,
       installs: aInstalls,
 
-      install: function onWebInstallBlocked_install() {
+      install: function() {
         new Installer(this.originatingWindow, this.originatingURI, this.installs);
       },
 
@@ -299,7 +332,7 @@ extWebInstallListener.prototype = {
   /**
    * @see amIWebInstallListener.idl
    */
-  onWebInstallRequested: function extWebInstallListener_onWebInstallRequested(aWindow, aUri, aInstalls) {
+  onWebInstallRequested: function(aWindow, aUri, aInstalls) {
     new Installer(aWindow, aUri, aInstalls);
 
     // We start the installs ourself
@@ -312,4 +345,4 @@ extWebInstallListener.prototype = {
   QueryInterface: XPCOMUtils.generateQI([Ci.amIWebInstallListener])
 };
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([extWebInstallListener]);
+var NSGetFactory = XPCOMUtils.generateNSGetFactory([extWebInstallListener]);

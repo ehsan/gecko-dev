@@ -326,7 +326,7 @@ _cairo_image_surface_create_with_pixman_format (unsigned char		*data,
 	return _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_INVALID_SIZE));
     }
 
-    pixman_image = pixman_image_create_bits (pixman_format, width, height,
+    pixman_image = pixman_image_create_bits (pixman_format, width ? width : 1, height ? height : 1,
 					     (uint32_t *) data, stride ? stride : 4);
 
     if (unlikely (pixman_image == NULL))
@@ -1395,6 +1395,15 @@ _pixman_image_for_surface (const cairo_surface_pattern_t *pattern,
 
 	type = source->base.backend->type;
 	if (type == CAIRO_SURFACE_TYPE_IMAGE) {
+	    if (extend != CAIRO_EXTEND_NONE &&
+		sample.x >= 0 &&
+		sample.y >= 0 &&
+		sample.x + sample.width  <= source->width &&
+		sample.y + sample.height <= source->height)
+	    {
+		extend = CAIRO_EXTEND_NONE;
+	    }
+
 	    if (sample.width == 1 && sample.height == 1) {
 		if (sample.x < 0 ||
 		    sample.y < 0 ||
@@ -1851,10 +1860,6 @@ _cairo_image_surface_fixup_unbounded_boxes (cairo_image_surface_t *dst,
 		int x2 = _cairo_fixed_integer_part (chunk->base[i].p2.x);
 		int y2 = _cairo_fixed_integer_part (chunk->base[i].p2.y);
 
-		x1 = (x1 < 0 ? 0 : x1);
-		y1 = (y1 < 0 ? 0 : y1);
-		if (x2 <= x1 || y2 <= y1)
-		    continue;
 		pixman_fill ((uint32_t *) dst->data, dst->stride / sizeof (uint32_t),
 			     PIXMAN_FORMAT_BPP (dst->pixman_format),
 			     x1, y1, x2 - x1, y2 - y1,
@@ -2678,8 +2683,6 @@ _fill_unaligned_boxes (cairo_image_surface_t *dst,
 	    int x2 = _cairo_fixed_integer_floor (box[i].p2.x);
 	    int y2 = _cairo_fixed_integer_floor (box[i].p2.y);
 
-	    x1 = (x1 < 0 ? 0 : x1);
-	    y1 = (y1 < 0 ? 0 : y1);
 	    if (x2 > x1 && y2 > y1) {
 		cairo_box_t b;
 
@@ -2896,8 +2899,6 @@ _composite_boxes (cairo_image_surface_t *dst,
 
     if (clip != NULL) {
 	status = _cairo_clip_get_region (clip, &clip_region);
-	if (unlikely (status == CAIRO_INT_STATUS_NOTHING_TO_DO))
-	    return CAIRO_STATUS_SUCCESS;
 	need_clip_mask = status == CAIRO_INT_STATUS_UNSUPPORTED;
 	if (need_clip_mask &&
 	    (op == CAIRO_OPERATOR_SOURCE || ! extents->is_bounded))
@@ -2940,9 +2941,7 @@ _composite_boxes (cairo_image_surface_t *dst,
 		int x2 = _cairo_fixed_integer_round_down (box[i].p2.x);
 		int y2 = _cairo_fixed_integer_round_down (box[i].p2.y);
 
-		x1 = (x1 < 0 ? 0 : x1);
-		y1 = (y1 < 0 ? 0 : y1);
-		if (x2 <= x1 || y2 <= y1)
+		if (x2 == x1 || y2 == y1)
 		    continue;
 
 		pixman_fill ((uint32_t *) dst->data, dst->stride / sizeof (uint32_t),
@@ -3215,10 +3214,20 @@ _clip_and_composite_trapezoids (cairo_image_surface_t *dst,
 static cairo_clip_path_t *
 _clip_get_single_path (cairo_clip_t *clip)
 {
-    if (clip->path->prev == NULL)
-      return clip->path;
+    cairo_clip_path_t *iter = clip->path;
+    cairo_clip_path_t *path = NULL;
 
-    return NULL;
+    do {
+	if ((iter->flags & CAIRO_CLIP_PATH_IS_BOX) == 0) {
+	    if (path != NULL)
+		return FALSE;
+
+	    path = iter;
+	}
+	iter = iter->prev;
+    } while (iter != NULL);
+
+    return path;
 }
 
 /* high level image interface */
@@ -4031,13 +4040,7 @@ _cairo_image_surface_glyphs (void			*abstract_surface,
     composite_glyphs_info_t glyph_info;
     cairo_clip_t local_clip;
     cairo_bool_t have_clip = FALSE;
-#ifdef MOZ_GFX_OPTIMIZE_MOBILE
-    // For performance reasons we don't want to use two passes for overlapping glyphs
-    // on mobile
-    cairo_bool_t overlap = FALSE;
-#else
     cairo_bool_t overlap;
-#endif
     cairo_status_t status;
 
     cairo_rectangle_int_t rect;
@@ -4051,12 +4054,7 @@ _cairo_image_surface_glyphs (void			*abstract_surface,
 							  scaled_font,
 							  glyphs, num_glyphs,
 							  clip,
-#ifdef MOZ_GFX_OPTIMIZE_MOBILE
-							  NULL);
-#else
 							  &overlap);
-#endif
-
     if (unlikely (status))
 	return status;
 

@@ -1,18 +1,46 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99 ft=cpp:
+ *
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is SpiderMonkey JavaScript engine.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Chris Leary <cdleary@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-#include "frontend/ParseMaps-inl.h"
-
-#include "jscntxt.h"
-
-#include "frontend/FullParseHandler.h"
-#include "frontend/SyntaxParseHandler.h"
+#include "ParseMaps-inl.h"
 
 using namespace js;
-using namespace js::frontend;
 
 void
 ParseMapPool::checkInvariants()
@@ -21,22 +49,22 @@ ParseMapPool::checkInvariants()
      * Having all values be of the same size permits us to easily reuse the
      * allocated space for each of the map types.
      */
-    JS_STATIC_ASSERT(sizeof(Definition *) == sizeof(jsatomid));
-    JS_STATIC_ASSERT(sizeof(Definition *) == sizeof(DefinitionList));
+    JS_STATIC_ASSERT(sizeof(JSDefinition *) == sizeof(jsatomid));
+    JS_STATIC_ASSERT(sizeof(JSDefinition *) == sizeof(DefnOrHeader));
     JS_STATIC_ASSERT(sizeof(AtomDefnMap::Entry) == sizeof(AtomIndexMap::Entry));
-    JS_STATIC_ASSERT(sizeof(AtomDefnMap::Entry) == sizeof(AtomDefnListMap::Entry));
-    JS_STATIC_ASSERT(sizeof(AtomMapT::Entry) == sizeof(AtomDefnListMap::Entry));
+    JS_STATIC_ASSERT(sizeof(AtomDefnMap::Entry) == sizeof(AtomDOHMap::Entry));
+    JS_STATIC_ASSERT(sizeof(AtomMapT::Entry) == sizeof(AtomDOHMap::Entry));
     /* Ensure that the HasTable::clear goes quickly via memset. */
-    JS_STATIC_ASSERT(mozilla::IsPod<AtomIndexMap::WordMap::Entry>::value);
-    JS_STATIC_ASSERT(mozilla::IsPod<AtomDefnListMap::WordMap::Entry>::value);
-    JS_STATIC_ASSERT(mozilla::IsPod<AtomDefnMap::WordMap::Entry>::value);
+    JS_STATIC_ASSERT(tl::IsPodType<AtomIndexMap::WordMap::Entry>::result);
+    JS_STATIC_ASSERT(tl::IsPodType<AtomDOHMap::WordMap::Entry>::result);
+    JS_STATIC_ASSERT(tl::IsPodType<AtomDefnMap::WordMap::Entry>::result);
 }
 
 void
 ParseMapPool::purgeAll()
 {
     for (void **it = all.begin(), **end = all.end(); it != end; ++it)
-        js_delete<AtomMapT>(asAtomMap(*it));
+        cx->delete_<AtomMapT>(asAtomMap(*it));
 
     all.clearAndFree();
     recyclable.clearAndFree();
@@ -49,7 +77,7 @@ ParseMapPool::allocateFresh()
     if (!all.reserve(newAllLength) || !recyclable.reserve(newAllLength))
         return NULL;
 
-    AtomMapT *map = js_new<AtomMapT>();
+    AtomMapT *map = cx->new_<AtomMapT>(cx);
     if (!map)
         return NULL;
 
@@ -57,26 +85,23 @@ ParseMapPool::allocateFresh()
     return (void *) map;
 }
 
-DefinitionList::Node *
-DefinitionList::allocNode(ExclusiveContext *cx, LifoAlloc &alloc, uintptr_t head, Node *tail)
-{
-    Node *result = alloc.new_<Node>(head, tail);
-    if (!result)
-        js_ReportOutOfMemory(cx);
-    return result;
-}
-
 #ifdef DEBUG
-template <typename ParseHandler>
 void
-AtomDecls<ParseHandler>::dump()
+AtomDecls::dump()
 {
-    for (AtomDefnListRange r = map->all(); !r.empty(); r.popFront()) {
+    for (AtomDOHRange r = map->all(); !r.empty(); r.popFront()) {
         fprintf(stderr, "atom: ");
         js_DumpAtom(r.front().key());
-        const DefinitionList &dlist = r.front().value();
-        for (DefinitionList::Range dr = dlist.all(); !dr.empty(); dr.popFront()) {
-            fprintf(stderr, "    defn: %p\n", (void *) dr.front<ParseHandler>());
+        const DefnOrHeader &doh = r.front().value();
+        if (doh.isHeader()) {
+            AtomDeclNode *node = doh.header();
+            do {
+                fprintf(stderr, "  node: %p\n", (void *) node);
+                fprintf(stderr, "    defn: %p\n", (void *) node->defn);
+                node = node->next;
+            } while (node);
+        } else {
+            fprintf(stderr, "  defn: %p\n", (void *) doh.defn());
         }
     }
 }
@@ -92,45 +117,80 @@ DumpAtomDefnMap(const AtomDefnMapPtr &map)
     for (AtomDefnRange r = map->all(); !r.empty(); r.popFront()) {
         fprintf(stderr, "atom: ");
         js_DumpAtom(r.front().key());
-        fprintf(stderr, "defn: %p\n", (void *) r.front().value().get<FullParseHandler>());
+        fprintf(stderr, "defn: %p\n", (void *) r.front().value());
     }
 }
 #endif
 
-template <typename ParseHandler>
-bool
-AtomDecls<ParseHandler>::addShadow(JSAtom *atom, typename ParseHandler::DefinitionNode defn)
+AtomDeclNode *
+AtomDecls::allocNode(JSDefinition *defn)
 {
-    AtomDefnListAddPtr p = map->lookupForAdd(atom);
-    if (!p)
-        return map->add(p, atom, DefinitionList(ParseHandler::definitionToBits(defn)));
-
-    return p.value().pushFront<ParseHandler>(cx, alloc, defn);
-}
-
-void
-frontend::InitAtomMap(frontend::AtomIndexMap *indices, HeapPtrAtom *atoms)
-{
-    if (indices->isMap()) {
-        typedef AtomIndexMap::WordMap WordMap;
-        const WordMap &wm = indices->asMap();
-        for (WordMap::Range r = wm.all(); !r.empty(); r.popFront()) {
-            JSAtom *atom = r.front().key;
-            jsatomid index = r.front().value;
-            JS_ASSERT(index < indices->count());
-            atoms[index].init(atom);
-        }
-    } else {
-        for (const AtomIndexMap::InlineElem *it = indices->asInline(), *end = indices->inlineEnd();
-             it != end; ++it) {
-            JSAtom *atom = it->key;
-            if (!atom)
-                continue;
-            JS_ASSERT(it->value < indices->count());
-            atoms[it->value].init(atom);
-        }
+    AtomDeclNode *p;
+    JS_ARENA_ALLOCATE_TYPE(p, AtomDeclNode, &cx->tempPool);
+    if (!p) {
+        js_ReportOutOfMemory(cx);
+        return NULL;
     }
+    return new (p) AtomDeclNode(defn);
 }
 
-template class js::frontend::AtomDecls<FullParseHandler>;
-template class js::frontend::AtomDecls<SyntaxParseHandler>;
+bool
+AtomDecls::addShadow(JSAtom *atom, JSDefinition *defn)
+{
+    AtomDeclNode *node = allocNode(defn);
+    if (!node)
+        return false;
+
+    AtomDOHAddPtr p = map->lookupForAdd(atom);
+    if (!p)
+        return map->add(p, atom, DefnOrHeader(node));
+
+    AtomDeclNode *toShadow;
+    if (p.value().isHeader()) {
+        toShadow = p.value().header();
+    } else {
+        toShadow = allocNode(p.value().defn());
+        if (!toShadow)
+            return false;
+    }
+    node->next = toShadow;
+    p.value() = DefnOrHeader(node);
+    return true;
+}
+
+AtomDeclNode *
+AtomDecls::lastAsNode(DefnOrHeader *doh)
+{
+    if (doh->isHeader()) {
+        AtomDeclNode *last = doh->header();
+        while (last->next)
+            last = last->next;
+        return last;
+    }
+
+    /* Otherwise, we need to turn the existing defn into a node. */
+    AtomDeclNode *node = allocNode(doh->defn());
+    if (!node)
+        return NULL;
+    *doh = DefnOrHeader(node);
+    return node;
+}
+
+bool
+AtomDecls::addHoist(JSAtom *atom, JSDefinition *defn)
+{
+    AtomDeclNode *node = allocNode(defn);
+    if (!node)
+        return false;
+
+    AtomDOHAddPtr p = map->lookupForAdd(atom);
+    if (p) {
+        AtomDeclNode *last = lastAsNode(&p.value());
+        if (!last)
+            return false;
+        last->next = node;
+        return true;
+    }
+
+    return map->add(p, atom, DefnOrHeader(node));
+}

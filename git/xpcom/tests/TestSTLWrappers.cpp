@@ -13,9 +13,6 @@
 // gcc errors out if we |try ... catch| with -fno-exceptions, but we
 // can still test on windows
 #ifdef _MSC_VER
-   // C4530 will be generated whenever try...catch is used without
-   // enabling exceptions. We know we don't enbale exceptions.
-#  pragma warning( disable : 4530 )
 #  define TRY       try
 #  define CATCH(e)  catch (e)
 #else
@@ -33,7 +30,7 @@ int main() {
       // (Do some arithmetic with result of v.at() to avoid
       // compiler warnings for unused variable/result.)
       rv += v.at(1) ? 1 : 2;
-    } CATCH(const std::out_of_range&) {
+    } CATCH(const std::out_of_range& e) {
       fputs("TEST-FAIL | TestSTLWrappers.cpp | caught an exception?\n",
             stderr);
       return 1;

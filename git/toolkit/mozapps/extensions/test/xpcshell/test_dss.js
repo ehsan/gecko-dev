@@ -4,12 +4,6 @@
 
 Components.utils.import("resource://gre/modules/NetUtil.jsm");
 
-// using a dynamic port in the addon metadata
-Components.utils.import("resource://testing-common/httpd.js");
-let gServer = new HttpServer();
-gServer.start(-1);
-gPort = gServer.identity.primaryPort;
-
 // This verifies that themes behave as expected
 
 const PREF_GENERAL_SKINS_SELECTEDSKIN = "general.skins.selectedSkin";
@@ -110,7 +104,7 @@ function run_test() {
     do_check_false(hasFlag(t2.permissions, AddonManager.PERM_CAN_DISABLE));
     do_check_true(hasFlag(t2.permissions, AddonManager.PERM_CAN_ENABLE));
 
-    do_execute_soon(run_test_1);
+    run_test_1();
   });
 }
 
@@ -142,7 +136,7 @@ function run_test_1() {
     do_check_false(hasFlag(t1.permissions, AddonManager.PERM_CAN_DISABLE));
     do_check_true(hasFlag(t1.permissions, AddonManager.PERM_CAN_ENABLE));
 
-    do_execute_soon(check_test_1);
+    check_test_1();
   });
 }
 
@@ -169,7 +163,7 @@ function check_test_1() {
     do_check_false(hasFlag(t2.permissions, AddonManager.PERM_CAN_ENABLE));
     do_check_false(gLWThemeChanged);
 
-    do_execute_soon(run_test_2);
+    run_test_2();
   });
 }
 
@@ -197,7 +191,7 @@ function run_test_2() {
     do_check_false(isThemeInAddonsList(profileDir, "theme2@tests.mozilla.org"));
     do_check_false(gLWThemeChanged);
 
-    do_execute_soon(run_test_3);
+    run_test_3();
   });
 }
 
@@ -237,11 +231,11 @@ function run_test_3() {
     name: "Test LW Theme",
     description: "A test theme",
     author: "Mozilla",
-    homepageURL: "http://localhost:" + gPort + "/data/index.html",
-    headerURL: "http://localhost:" + gPort + "/data/header.png",
-    footerURL: "http://localhost:" + gPort + "/data/footer.png",
-    previewURL: "http://localhost:" + gPort + "/data/preview.png",
-    iconURL: "http://localhost:" + gPort + "/data/icon.png"
+    homepageURL: "http://localhost:4444/data/index.html",
+    headerURL: "http://localhost:4444/data/header.png",
+    footerURL: "http://localhost:4444/data/footer.png",
+    previewURL: "http://localhost:4444/data/preview.png",
+    iconURL: "http://localhost:4444/data/icon.png"
   };
 
   ensure_test_completed();
@@ -253,10 +247,10 @@ function run_test_3() {
     do_check_eq(p1.type, "theme");
     do_check_eq(p1.description, "A test theme");
     do_check_eq(p1.creator, "Mozilla");
-    do_check_eq(p1.homepageURL, "http://localhost:" + gPort + "/data/index.html");
-    do_check_eq(p1.iconURL, "http://localhost:" + gPort + "/data/icon.png");
+    do_check_eq(p1.homepageURL, "http://localhost:4444/data/index.html");
+    do_check_eq(p1.iconURL, "http://localhost:4444/data/icon.png");
     do_check_eq(p1.screenshots.length, 1);
-    do_check_eq(p1.screenshots[0], "http://localhost:" + gPort + "/data/preview.png");
+    do_check_eq(p1.screenshots[0], "http://localhost:4444/data/preview.png");
     do_check_false(p1.appDisabled);
     do_check_false(p1.userDisabled);
     do_check_true(p1.isCompatible);
@@ -286,7 +280,7 @@ function run_test_3() {
       do_check_true(gLWThemeChanged);
       gLWThemeChanged = false;
 
-      do_execute_soon(run_test_4);
+      run_test_4();
     });
   });
 }
@@ -314,11 +308,11 @@ function run_test_4() {
     name: "Test LW Theme",
     description: "A second test theme",
     author: "Mozilla",
-    homepageURL: "http://localhost:" + gPort + "/data/index.html",
-    headerURL: "http://localhost:" + gPort + "/data/header.png",
-    footerURL: "http://localhost:" + gPort + "/data/footer.png",
-    previewURL: "http://localhost:" + gPort + "/data/preview.png",
-    iconURL: "http://localhost:" + gPort + "/data/icon.png"
+    homepageURL: "http://localhost:4444/data/index.html",
+    headerURL: "http://localhost:4444/data/header.png",
+    footerURL: "http://localhost:4444/data/footer.png",
+    previewURL: "http://localhost:4444/data/preview.png",
+    iconURL: "http://localhost:4444/data/icon.png"
   };
 
   ensure_test_completed();
@@ -356,7 +350,7 @@ function run_test_4() {
       do_check_true(gLWThemeChanged);
       gLWThemeChanged = false;
 
-      do_execute_soon(run_test_5);
+      run_test_5();
     });
   });
 }
@@ -418,7 +412,7 @@ function run_test_5() {
     do_check_true(hasFlag(AddonManager.PERM_CAN_ENABLE, p2.permissions));
     do_check_true(gLWThemeChanged);
 
-    do_execute_soon(check_test_5);
+    check_test_5();
   });
 }
 
@@ -437,7 +431,7 @@ function check_test_5() {
     do_check_true(gLWThemeChanged);
     gLWThemeChanged = false;
 
-    do_execute_soon(run_test_6);
+    run_test_6();
   });
 }
 
@@ -495,7 +489,7 @@ function run_test_6() {
     do_check_false(hasFlag(AddonManager.PENDING_DISABLE, t2.pendingOperations));
     do_check_false(gLWThemeChanged);
 
-    do_execute_soon(check_test_6);
+    check_test_6();
   });
 }
 
@@ -514,7 +508,7 @@ function check_test_6() {
     do_check_true(gLWThemeChanged);
     gLWThemeChanged = false;
 
-    do_execute_soon(run_test_7);
+    run_test_7();
   });
 }
 
@@ -534,7 +528,7 @@ function run_test_7() {
     do_check_eq(LightweightThemeManager.usedThemes.length, 1);
     do_check_false(gLWThemeChanged);
 
-    do_execute_soon(run_test_8);
+    run_test_8();
   });
 }
 
@@ -563,7 +557,7 @@ function run_test_8() {
     do_check_true(gLWThemeChanged);
     gLWThemeChanged = false;
 
-    do_execute_soon(run_test_9);
+    run_test_9();
   });
 }
 
@@ -585,7 +579,7 @@ function run_test_9() {
       do_check_eq(newt1, null);
       do_check_false(gLWThemeChanged);
 
-      do_execute_soon(run_test_10);
+      run_test_10();
     });
   });
 }
@@ -637,7 +631,7 @@ function run_test_10() {
 
       restartManager();
 
-      do_execute_soon(run_test_11);
+      run_test_11();
     });
   });
 }
@@ -679,7 +673,7 @@ function check_test_11() {
     do_check_eq(t1.screenshots[0], previewSpec);
     do_check_false(gLWThemeChanged);
 
-    do_execute_soon(run_test_12);
+    run_test_12();
   });
 }
 
@@ -716,7 +710,7 @@ function check_test_12() {
     do_check_neq(t1, null);
     do_check_false(gLWThemeChanged);
 
-    do_execute_soon(run_test_13);
+    run_test_13();
   });
 }
 
@@ -774,7 +768,7 @@ function check_test_13() {
     t1.uninstall();
     restartManager();
 
-    do_execute_soon(run_test_14);
+    run_test_14();
   });
 }
 
@@ -787,11 +781,11 @@ function run_test_14() {
     name: "Test LW Theme",
     description: "A test theme",
     author: "Mozilla",
-    homepageURL: "http://localhost:" + gPort + "/data/index.html",
-    headerURL: "http://localhost:" + gPort + "/data/header.png",
-    footerURL: "http://localhost:" + gPort + "/data/footer.png",
-    previewURL: "http://localhost:" + gPort + "/data/preview.png",
-    iconURL: "http://localhost:" + gPort + "/data/icon.png"
+    homepageURL: "http://localhost:4444/data/index.html",
+    headerURL: "http://localhost:4444/data/header.png",
+    footerURL: "http://localhost:4444/data/footer.png",
+    previewURL: "http://localhost:4444/data/preview.png",
+    iconURL: "http://localhost:4444/data/icon.png"
   };
 
   AddonManager.getAddonByID("default@tests.mozilla.org", function(d) {

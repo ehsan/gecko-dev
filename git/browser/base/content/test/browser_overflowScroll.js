@@ -72,11 +72,11 @@ function runOverflowTests(aEvent) {
      "(" + left(scrollbox) + " <= " + firstScrollableLeft + ")");
 
   for (var i = 2; i; i--)
-    EventUtils.synthesizeWheel(scrollbox, 1, 1, { deltaX: -1.0, deltaMode: WheelEvent.DOM_DELTA_LINE });
+    EventUtils.synthesizeMouseScroll(scrollbox, 1, 1, {axis: "horizontal", delta: -1});
   is(left(firstScrollable()), firstScrollableLeft, "Remained at the start with the mouse wheel");
 
   element = nextRightElement();
-  EventUtils.synthesizeWheel(scrollbox, 1, 1, { deltaX: 1.0, deltaMode: WheelEvent.DOM_DELTA_LINE});
+  EventUtils.synthesizeMouseScroll(scrollbox, 1, 1, {axis: "horizontal", delta: 1});
   isRight(element, "Scrolled one tab to the right with the mouse wheel");
 
   while (tabs.length > 1)

@@ -1,6 +1,40 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Corporation.
+ *
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Dave Townsend <dtownsend@oxymoronical.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL
+ *
+ * ***** END LICENSE BLOCK *****
  */
 
 const URI_EXTENSION_UPDATE_DIALOG     = "chrome://mozapps/content/extensions/update.xul";
@@ -9,12 +43,7 @@ const PREF_EM_SHOW_MISMATCH_UI        = "extensions.showMismatchUI";
 // The test extension uses an insecure update url.
 Services.prefs.setBoolPref("extensions.checkUpdateSecurity", false);
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
-Cu.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 var testserver;
 
 const profileDir = gProfD.clone();
@@ -307,7 +336,7 @@ function run_test() {
   }, profileDir);
 
   // Create and configure the HTTP server.
-  testserver = new HttpServer();
+  testserver = new nsHttpServer();
   testserver.registerDirectory("/data/", do_get_file("data"));
   testserver.registerDirectory("/addons/", do_get_file("addons"));
   testserver.start(4444);
@@ -321,7 +350,7 @@ function run_test() {
                    do_get_addon("test_bug542391_3_1"),
                    do_get_addon("test_bug542391_4"),
                    do_get_addon("test_bug542391_5"),
-                   do_get_addon("test_bug542391_6")], function install_and_restart() {
+                   do_get_addon("test_bug542391_6")], function() {
 
     restartManager();
     check_startup_changes("installed", []);
@@ -332,8 +361,7 @@ function run_test() {
 
     AddonManager.getAddonsByIDs(["bug542391_2@tests.mozilla.org",
                                  "bug542391_4@tests.mozilla.org"],
-                                 function disable_and_restart([a2, a4]) {
-      do_check_true(a2 != null && a4 != null);
+                                 function([a2, a4]) {
       a2.userDisabled = true;
       a4.userDisabled = true;
       restartManager();
@@ -370,7 +398,7 @@ function run_test() {
                                      function(addons) {
           check_state_v2(addons);
 
-          do_execute_soon(run_test_1);
+          run_test_1();
         });
       });
     });
@@ -409,7 +437,7 @@ function run_test_1() {
     do_check_true(WindowWatcher.arguments.indexOf("bug542391_2@tests.mozilla.org") >= 0);
     do_check_true(WindowWatcher.arguments.indexOf("bug542391_4@tests.mozilla.org") >= 0);
 
-    do_execute_soon(run_test_2);
+    run_test_2();
   });
 }
 
@@ -440,7 +468,7 @@ function run_test_2() {
     do_check_true(WindowWatcher.arguments.indexOf("bug542391_3@tests.mozilla.org") >= 0);
     do_check_true(WindowWatcher.arguments.indexOf("bug542391_4@tests.mozilla.org") >= 0);
 
-    do_execute_soon(run_test_5);
+    run_test_5();
   });
 }
 
@@ -474,7 +502,7 @@ function run_test_5() {
     do_check_true(WindowWatcher.arguments.indexOf("bug542391_2@tests.mozilla.org") >= 0);
     do_check_true(WindowWatcher.arguments.indexOf("bug542391_4@tests.mozilla.org") >= 0);
 
-    do_execute_soon(run_test_6);
+    run_test_6();
   });
 }
 
@@ -498,6 +526,10 @@ function run_test_6() {
                                function(addons) {
     check_state_v1_2(addons);
 
-    end_test();
+    finish_test();
   });
+}
+
+function finish_test() {
+  do_test_finished();
 }

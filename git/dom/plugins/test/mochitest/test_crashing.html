@@ -7,7 +7,7 @@
   SimpleTest.waitForExplicitFinish();
 
   window.frameLoaded = function frameLoaded_toCrash() {
-   if (!SimpleTest.testPluginIsOOP()) {
+    if (!SimpleTest.testPluginIsOOP()) {
       ok(true, "Skipping this test when test plugin is not OOP.");
       SimpleTest.finish();
       return;

@@ -6,22 +6,12 @@
 // its decisions when the remote blacklist is changed.
 // Uses test_gfxBlacklist.xml and test_gfxBlacklist2.xml
 
-Components.utils.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 
-var gTestserver = new HttpServer();
-gTestserver.start(-1);
-gPort = gTestserver.identity.primaryPort;
-mapFile("/data/test_gfxBlacklist.xml", gTestserver);
-
-function get_platform() {
-  var xulRuntime = Components.classes["@mozilla.org/xre/app-info;1"]
-                             .getService(Components.interfaces.nsIXULRuntime);
-  return xulRuntime.OS;
-}
+var gTestserver = null;
 
 function load_blocklist(file) {
-  Services.prefs.setCharPref("extensions.blocklist.url", "http://localhost:" +
-                             gPort + "/data/" + file);
+  Services.prefs.setCharPref("extensions.blocklist.url", "http://localhost:4444/data/" + file);
   var blocklist = Cc["@mozilla.org/extensions/blocklist;1"].
                   getService(Ci.nsITimerCallback);
   blocklist.notify(null);
@@ -45,32 +35,18 @@ function run_test() {
   gfxInfo.QueryInterface(Ci.nsIGfxInfoDebug);
 
   // Set the vendor/device ID, etc, to match the test file.
-  switch (get_platform()) {
-    case "WINNT":
-      gfxInfo.spoofVendorID("0xabcd");
-      gfxInfo.spoofDeviceID("0x1234");
-      gfxInfo.spoofDriverVersion("8.52.322.2201");
-      // Windows 7
-      gfxInfo.spoofOSVersion(0x60001);
-      break;
-    case "Linux":
-      gfxInfo.spoofVendorID("0xabcd");
-      gfxInfo.spoofDeviceID("0x1234");
-      break;
-    case "Darwin":
-      gfxInfo.spoofVendorID("0xabcd");
-      gfxInfo.spoofDeviceID("0x1234");
-      gfxInfo.spoofOSVersion(0x1050);
-      break;
-    case "Android":
-      gfxInfo.spoofVendorID("abcd");
-      gfxInfo.spoofDeviceID("asdf");
-      gfxInfo.spoofDriverVersion("5");
-      break;
-  }
+  gfxInfo.spoofVendorID(0xabcd);
+  gfxInfo.spoofDeviceID(0x1234);
+  gfxInfo.spoofDriverVersion("8.52.322.2201");
+  // Windows 7
+  gfxInfo.spoofOSVersion(0x60001);
 
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "3", "8");
   startupManager();
+
+  gTestserver = new nsHttpServer();
+  gTestserver.registerDirectory("/data/", do_get_file("data"));
+  gTestserver.start(4444);
 
   do_test_pending();
 
@@ -90,7 +66,7 @@ function run_test() {
     do_check_eq(status, Ci.nsIGfxInfo.FEATURE_NO_INFO);
 
     var prefs = Cc["@mozilla.org/preferences-service;1"].
-          getService(Ci.nsIPrefBranch);
+          getService(Ci.nsIPrefBranch2);
     do_check_eq(prefs.getIntPref("gfx.blacklist.direct2d"),
                 Ci.nsIGfxInfo.FEATURE_BLOCKED_DRIVER_VERSION);
 
@@ -115,7 +91,7 @@ function run_test() {
     do_check_eq(status, Ci.nsIGfxInfo.FEATURE_NO_INFO);
 
     var prefs = Cc["@mozilla.org/preferences-service;1"].
-          getService(Ci.nsIPrefBranch);
+          getService(Ci.nsIPrefBranch2);
     var exists = false;
     try {
       prefs.getIntPref("gfx.blacklist.direct2d");

@@ -32,24 +32,13 @@ SimpleTest.waitForFocus(runTests);
 
 var gBlock1, gBlock2;
 
-var alwaysEnabledCommands = [
-  "contentReadOnly",
-  "copy",
-  "enableInlineTableEditing",
-  "enableObjectResizing",
-  "insertBrOnReturn",
-  "selectAll",
-  "styleWithCSS",
-];
-
 function IsCommandEnabled(command) {
   var enabled;
 
-  // non-editable div: should return false unless alwaysEnabled
+  // non-editable div: should return false
   window.getSelection().selectAllChildren(gBlock1);
   enabled = document.queryCommandEnabled(command);
-  is(enabled, alwaysEnabledCommands.indexOf(command) != -1,
-     "'" + command + "' should not be enabled on a non-editable block.");
+  is(enabled, false, "'" + command + "' should not be enabled on a non-editable block.");
 
   // editable div: should return true
   window.getSelection().selectAllChildren(gBlock2);

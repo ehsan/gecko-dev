@@ -11,7 +11,10 @@ function test() {
 }
 
 function checkAnimationState() {
-  is(tab.getAttribute("fadein"), "true", "tab opening animation initiated");
+  if (tab.getAttribute("fadein") != "true") {
+    window.mozRequestAnimationFrame(checkAnimationState);
+    return;
+  }
 
   info(window.getComputedStyle(tab).maxWidth);
   gBrowser.removeTab(tab, { animate: true });

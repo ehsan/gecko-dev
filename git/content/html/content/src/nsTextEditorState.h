@@ -1,8 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set sw=2 ts=2 et tw=80: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla.org client code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Ehsan Akhgari <ehsan@mozilla.com> (Original Author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsTextEditorState_h__
 #define nsTextEditorState_h__
@@ -12,8 +44,6 @@
 #include "nsITextControlElement.h"
 #include "nsITextControlFrame.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsIContent.h"
-#include "mozilla/WeakPtr.h"
 
 class nsTextInputListener;
 class nsTextControlFrame;
@@ -33,7 +63,7 @@ class nsITextControlElement;
  * and also XUL controls such as <textbox> which use one of these elements behind
  * the scenes.
  *
- * This class is held as a member of HTMLInputElement and nsHTMLTextAreaElement.
+ * This class is held as a member of nsHTMLInputElement and nsHTMLTextAreaElement.
  * The public functions in this class include the public APIs which content/ uses.
  * Layout code uses the nsITextControlElement interface to invoke functions on this
  * class.
@@ -118,27 +148,26 @@ class nsITextControlElement;
 
 class RestoreSelectionState;
 
-class nsTextEditorState : public mozilla::SupportsWeakPtr<nsTextEditorState> {
+class nsTextEditorState {
 public:
   explicit nsTextEditorState(nsITextControlElement* aOwningElement);
   ~nsTextEditorState();
 
-  void Traverse(nsCycleCollectionTraversalCallback& cb);
-  void Unlink();
+  NS_DECL_CYCLE_COLLECTION_NATIVE_CLASS(nsTextEditorState)
+  NS_INLINE_DECL_REFCOUNTING(nsTextEditorState)
 
   nsIEditor* GetEditor();
   nsISelectionController* GetSelectionController() const;
   nsFrameSelection* GetConstFrameSelection();
   nsresult BindToFrame(nsTextControlFrame* aFrame);
   void UnbindFromFrame(nsTextControlFrame* aFrame);
-  nsresult PrepareEditor(const nsAString *aValue = nullptr);
+  nsresult PrepareEditor(const nsAString *aValue = nsnull);
   void InitializeKeyboardEventListeners();
 
-  void SetValue(const nsAString& aValue, bool aUserInput,
-                bool aSetValueAsChanged);
-  void GetValue(nsAString& aValue, bool aIgnoreWrap) const;
+  void SetValue(const nsAString& aValue, PRBool aUserInput);
+  void GetValue(nsAString& aValue, PRBool aIgnoreWrap) const;
   void EmptyValue() { if (mValue) mValue->Truncate(); }
-  bool IsEmpty() const { return mValue ? mValue->IsEmpty() : true; }
+  PRBool IsEmpty() const { return mValue ? mValue->IsEmpty() : PR_TRUE; }
 
   nsresult CreatePlaceholderNode();
 
@@ -151,41 +180,38 @@ public:
     return mPlaceholderDiv;
   }
 
-  bool IsSingleLineTextControl() const {
+  PRBool IsSingleLineTextControl() const {
     return mTextCtrlElement->IsSingleLineTextControl();
   }
-  bool IsTextArea() const {
+  PRBool IsTextArea() const {
     return mTextCtrlElement->IsTextArea();
   }
-  bool IsPlainTextControl() const {
+  PRBool IsPlainTextControl() const {
     return mTextCtrlElement->IsPlainTextControl();
   }
-  bool IsPasswordTextControl() const {
+  PRBool IsPasswordTextControl() const {
     return mTextCtrlElement->IsPasswordTextControl();
   }
-  int32_t GetCols() {
+  PRInt32 GetCols() {
     return mTextCtrlElement->GetCols();
   }
-  int32_t GetWrapCols() {
+  PRInt32 GetWrapCols() {
     return mTextCtrlElement->GetWrapCols();
   }
-  int32_t GetRows() {
+  PRInt32 GetRows() {
     return mTextCtrlElement->GetRows();
   }
 
   // placeholder methods
-  void UpdatePlaceholderVisibility(bool aNotify);
-  bool GetPlaceholderVisibility() {
-    return mPlaceholderVisibility;
-  }
-  void UpdatePlaceholderText(bool aNotify); 
+  void SetPlaceholderClass(PRBool aVisible, PRBool aNotify);
+  void UpdatePlaceholderText(PRBool aNotify); 
 
   /**
    * Get the maxlength attribute
    * @param aMaxLength the value of the max length attr
-   * @returns false if attr not defined
+   * @returns PR_FALSE if attr not defined
    */
-  bool GetMaxLength(int32_t* aMaxLength);
+  PRBool GetMaxLength(PRInt32* aMaxLength);
 
   /* called to free up native keybinding services */
   static NS_HIDDEN_(void) ShutDown();
@@ -201,22 +227,16 @@ public:
       return mStart == 0 && mEnd == 0 &&
              mDirection == nsITextControlFrame::eForward;
     }
-    int32_t mStart, mEnd;
+    PRInt32 mStart, mEnd;
     nsITextControlFrame::SelectionDirection mDirection;
   };
 
-  bool IsSelectionCached() const { return mSelectionCached; }
+  PRBool IsSelectionCached() const { return mSelectionCached; }
   SelectionProperties& GetSelectionProperties() {
     return mSelectionProperties;
   }
-  void WillInitEagerly() { mSelectionRestoreEagerInit = true; }
-  bool HasNeverInitializedBefore() const { return !mEverInited; }
-
-  void UpdateEditableState(bool aNotify) {
-    if (mRootNode) {
-      mRootNode->UpdateEditableState(aNotify);
-    }
-  }
+  void WillInitEagerly() { mSelectionRestoreEagerInit = PR_TRUE; }
+  PRBool HasNeverInitializedBefore() const { return !mEverInited; }
 
 private:
   friend class RestoreSelectionState;
@@ -228,37 +248,37 @@ private:
 
   nsresult CreateRootNode();
 
-  void ValueWasChanged(bool aNotify);
+  void ValueWasChanged(PRBool aNotify);
 
   void DestroyEditor();
   void Clear();
 
   nsresult InitializeRootNode();
 
-  void FinishedRestoringSelection() { mRestoringSelection = nullptr; }
+  void FinishedRestoringSelection() { mRestoringSelection = nsnull; }
 
   class InitializationGuard {
   public:
     explicit InitializationGuard(nsTextEditorState& aState) :
       mState(aState),
-      mGuardSet(false)
+      mGuardSet(PR_FALSE)
     {
       if (!mState.mInitializing) {
-        mGuardSet = true;
-        mState.mInitializing = true;
+        mGuardSet = PR_TRUE;
+        mState.mInitializing = PR_TRUE;
       }
     }
     ~InitializationGuard() {
       if (mGuardSet) {
-        mState.mInitializing = false;
+        mState.mInitializing = PR_FALSE;
       }
     }
-    bool IsInitializingRecursively() const {
+    PRBool IsInitializingRecursively() const {
       return !mGuardSet;
     }
   private:
     nsTextEditorState& mState;
-    bool mGuardSet;
+    PRBool mGuardSet;
   };
   friend class InitializationGuard;
   friend class PrepareEditorEvent;
@@ -274,29 +294,13 @@ private:
   nsAutoPtr<nsCString> mValue;
   nsRefPtr<nsAnonDivObserver> mMutationObserver;
   mutable nsString mCachedValue; // Caches non-hard-wrapped value on a multiline control.
-  bool mEverInited; // Have we ever been initialized?
-  bool mEditorInitialized;
-  bool mInitializing; // Whether we're in the process of initialization
-  bool mValueTransferInProgress; // Whether a value is being transferred to the frame
-  bool mSelectionCached; // Whether mSelectionProperties is valid
-  mutable bool mSelectionRestoreEagerInit; // Whether we're eager initing because of selection restore
+  PRPackedBool mEverInited; // Have we ever been initialized?
+  PRPackedBool mEditorInitialized;
+  PRPackedBool mInitializing; // Whether we're in the process of initialization
+  PRPackedBool mValueTransferInProgress; // Whether a value is being transferred to the frame
+  PRPackedBool mSelectionCached; // Whether mSelectionProperties is valid
+  mutable PRPackedBool mSelectionRestoreEagerInit; // Whether we're eager initing because of selection restore
   SelectionProperties mSelectionProperties;
-  bool mPlaceholderVisibility;
 };
-
-inline void
-ImplCycleCollectionUnlink(nsTextEditorState& aField)
-{
-  aField.Unlink();
-}
-
-inline void
-ImplCycleCollectionTraverse(nsCycleCollectionTraversalCallback& aCallback,
-                            nsTextEditorState& aField,
-                            const char* aName,
-                            uint32_t aFlags = 0)
-{
-  aField.Traverse(aCallback);
-}
 
 #endif

@@ -1,59 +1,46 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-#if !defined(JSGC_ROOT_ANALYSIS) && !defined(JSGC_USE_EXACT_ROOTING)
-
+#include "tests.h"
 #include "jsobj.h"
-
-#include "jsapi-tests/tests.h"
 #include "vm/String.h"
-
-#include "jsobjinlines.h"
 
 BEGIN_TEST(testConservativeGC)
 {
-    JS::RootedValue v2(cx);
-    EVAL("({foo: 'bar'});", v2.address());
-    CHECK(v2.isObject());
-    char objCopy[sizeof(JSObject)];
-    js_memcpy(&objCopy, JSVAL_TO_OBJECT(v2), sizeof(JSObject));
+    jsval v2;
+    EVAL("({foo: 'bar'});", &v2);
+    CHECK(JSVAL_IS_OBJECT(v2));
+    JSObject objCopy = *JSVAL_TO_OBJECT(v2);
 
-    JS::RootedValue v3(cx);
-    EVAL("String(Math.PI);", v3.address());
+    jsval v3;
+    EVAL("String(Math.PI);", &v3);
     CHECK(JSVAL_IS_STRING(v3));
-    char strCopy[sizeof(JSString)];
-    js_memcpy(&strCopy, JSVAL_TO_STRING(v3), sizeof(JSString));
+    JSString strCopy = *JSVAL_TO_STRING(v3);
 
-    JS::RootedValue tmp(cx);
-    EVAL("({foo2: 'bar2'});", tmp.address());
-    CHECK(tmp.isObject());
-    JS::RootedObject obj2(cx, JSVAL_TO_OBJECT(tmp));
-    char obj2Copy[sizeof(JSObject)];
-    js_memcpy(&obj2Copy, obj2, sizeof(JSObject));
+    jsval tmp;
+    EVAL("({foo2: 'bar2'});", &tmp);
+    CHECK(JSVAL_IS_OBJECT(tmp));
+    JSObject *obj2 = JSVAL_TO_OBJECT(tmp);
+    JSObject obj2Copy = *obj2;
 
-    EVAL("String(Math.sqrt(3));", tmp.address());
+    EVAL("String(Math.sqrt(3));", &tmp);
     CHECK(JSVAL_IS_STRING(tmp));
-    JS::RootedString str2(cx, JSVAL_TO_STRING(tmp));
-    char str2Copy[sizeof(JSString)];
-    js_memcpy(&str2Copy, str2, sizeof(JSString));
+    JSString *str2 = JSVAL_TO_STRING(tmp);
+    JSString str2Copy = *str2;
 
     tmp = JSVAL_NULL;
 
-    JS_GC(rt);
+    JS_GC(cx);
 
     EVAL("var a = [];\n"
          "for (var i = 0; i != 10000; ++i) {\n"
          "a.push(i + 0.1, [1, 2], String(Math.sqrt(i)), {a: i});\n"
-         "}", tmp.address());
+         "}", &tmp);
 
-    JS_GC(rt);
+    JS_GC(cx);
 
-    checkObjectFields((JSObject *)objCopy, JSVAL_TO_OBJECT(v2));
-    CHECK(!memcmp(strCopy, JSVAL_TO_STRING(v3), sizeof(strCopy)));
+    checkObjectFields(&objCopy, JSVAL_TO_OBJECT(v2));
+    CHECK(!memcmp(&strCopy, JSVAL_TO_STRING(v3), sizeof(strCopy)));
 
-    checkObjectFields((JSObject *)obj2Copy, obj2);
-    CHECK(!memcmp(str2Copy, str2, sizeof(str2Copy)));
+    checkObjectFields(&obj2Copy, obj2);
+    CHECK(!memcmp(&str2Copy, str2, sizeof(str2Copy)));
 
     return true;
 }
@@ -61,8 +48,13 @@ BEGIN_TEST(testConservativeGC)
 bool checkObjectFields(JSObject *savedCopy, JSObject *obj)
 {
     /* Ignore fields which are unstable across GCs. */
-    CHECK(savedCopy->lastProperty() == obj->lastProperty());
+    CHECK(savedCopy->lastProp == obj->lastProp);
+    CHECK(savedCopy->getClass() == obj->getClass());
+    CHECK(savedCopy->flags == obj->flags);
+    CHECK(savedCopy->newType == obj->newType);
     CHECK(savedCopy->getProto() == obj->getProto());
+    CHECK(savedCopy->parent == obj->parent);
+    CHECK(savedCopy->privateData == obj->privateData);
     return true;
 }
 
@@ -80,12 +72,10 @@ BEGIN_TEST(testDerivedValues)
   for (int i = 0; i < 3; i++) {
     for (int j = 0; j < 1000; j++)
       JS_NewStringCopyZ(cx, "as I pondered weak and weary");
-    JS_GC(rt);
+    JS_GC(cx);
   }
 
   CHECK(!memcmp(ch, expected, sizeof(expected)));
   return true;
 }
 END_TEST(testDerivedValues)
-
-#endif /* !defined(JSGC_ROOT_ANALYSIS) && !defined(JSGC_USE_EXACT_ROOTING) */

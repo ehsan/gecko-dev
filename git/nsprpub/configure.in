@@ -1,8 +1,43 @@
 dnl -*- Mode: Autoconf; tab-width: 4; indent-tabs-mode: nil; -*-
 dnl 
-dnl This Source Code Form is subject to the terms of the Mozilla Public
-dnl License, v. 2.0. If a copy of the MPL was not distributed with this
-dnl file, You can obtain one at http://mozilla.org/MPL/2.0/.
+dnl ***** BEGIN LICENSE BLOCK *****
+dnl Version: MPL 1.1/GPL 2.0/LGPL 2.1
+dnl
+dnl The contents of this file are subject to the Mozilla Public License Version
+dnl 1.1 (the "License"); you may not use this file except in compliance with
+dnl the License. You may obtain a copy of the License at
+dnl http://www.mozilla.org/MPL/
+dnl
+dnl Software distributed under the License is distributed on an "AS IS" basis,
+dnl WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+dnl for the specific language governing rights and limitations under the
+dnl License.
+dnl
+dnl The Original Code is the Netscape Portable Runtime (NSPR).
+dnl
+dnl The Initial Developer of the Original Code is
+dnl Netscape Communications Corporation.
+dnl Portions created by the Initial Developer are Copyright (C) 1998
+dnl the Initial Developer. All Rights Reserved.
+dnl
+dnl Contributor(s):
+dnl   Christopher Seawood <cls@seawood.org>
+dnl   Howard Chu <hyc@symas.com>
+dnl   Mark Mentovai <mark@moxienet.com>
+dnl
+dnl Alternatively, the contents of this file may be used under the terms of
+dnl either the GNU General Public License Version 2 or later (the "GPL"), or
+dnl the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+dnl in which case the provisions of the GPL or the LGPL are applicable instead
+dnl of those above. If you wish to allow use of your version of this file only
+dnl under the terms of either the GPL or the LGPL, and not to allow others to
+dnl use your version of this file under the terms of the MPL, indicate your
+dnl decision by deleting the provisions above and replace them with the notice
+dnl and other provisions required by the GPL or the LGPL. If you do not delete
+dnl the provisions above, a recipient may use your version of this file under
+dnl the terms of any one of the MPL, the GPL or the LGPL.
+dnl
+dnl ***** END LICENSE BLOCK *****
 
 AC_PREREQ(2.12)
 AC_INIT(config/libc_r.h)
@@ -14,8 +49,8 @@ dnl ========================================================
 dnl = Defaults
 dnl ========================================================
 MOD_MAJOR_VERSION=4
-MOD_MINOR_VERSION=10
-MOD_PATCH_VERSION=1
+MOD_MINOR_VERSION=9
+MOD_PATCH_VERSION=0
 NSPR_MODNAME=nspr20
 _HAVE_PTHREADS=
 USE_PTHREADS=
@@ -103,78 +138,31 @@ dnl ========================================================
 
 AC_ARG_WITH(android-ndk,
 [  --with-android-ndk=DIR
-                          location where the Android NDK can be found],
+                      location where the Android NDK can be found],
     android_ndk=$withval)
 
 AC_ARG_WITH(android-toolchain,
 [  --with-android-toolchain=DIR
-                          location of the Android toolchain],
+                            location of the android toolchain, default NDK/build/prebuilt/HOST/arm-eabi-4.4.0],
     android_toolchain=$withval)
-
-dnl The default android_version is different for each target cpu.
-case "$target_cpu" in
-arm)
-    android_version=5
-    ;;
-i?86|mipsel)
-    android_version=9
-    ;;
-esac
-
-AC_ARG_WITH(android-version,
-[  --with-android-version=VER
-                          Android platform version, default 5 for arm, 9 for x86/mips],
-    android_version=$withval)
 
 AC_ARG_WITH(android-platform,
 [  --with-android-platform=DIR
-                          location of platform dir],
+                           location of platform dir, default NDK/build/platforms/android-5/arch-arm],
     android_platform=$withval)
 
 case "$target" in
 arm-linux*-android*|*-linuxandroid*)
     android_tool_prefix="arm-linux-androideabi"
     ;;
-i?86-*android*)
-    android_tool_prefix="i686-linux-android"
-    ;;
-mipsel-*android*)
-    android_tool_prefix="mipsel-linux-android"
+arm-android-eabi)
+    android_tool_prefix="arm-eabi"
     ;;
 *)
     android_tool_prefix="$target_os"
     ;;
 esac
 
-dnl ========================================================
-dnl = Gonk is a fork of Android used for Mozilla's B2G project.
-dnl = Configuration is done largely by the top level config
-dnl = and the specified gonk directory doesn't matter here.
-dnl ========================================================
-
-AC_ARG_WITH(gonk,
-[  --with-gonk=DIR         location of gonk dir],
-    gonkdir=$withval)
-
-if test -n "$gonkdir" ; then
-    dnl Most things are directly configured by env vars when building for gonk
-
-    dnl prevent cross compile section from using these flags as host flags
-    if test -z "$HOST_CPPFLAGS" ; then
-        HOST_CPPFLAGS=" "
-    fi
-    if test -z "$HOST_CFLAGS" ; then
-        HOST_CFLAGS=" "
-    fi
-    if test -z "$HOST_CXXFLAGS" ; then
-        HOST_CXXFLAGS=" "
-    fi
-    if test -z "$HOST_LDFLAGS" ; then
-        HOST_LDFLAGS=" "
-    fi
-
-    AC_DEFINE(ANDROID)
-else
 case "$target" in
 *-android*|*-linuxandroid*)
     if test -z "$android_ndk" ; then
@@ -186,18 +174,12 @@ case "$target" in
 
         kernel_name=`uname -s | tr "[[:upper:]]" "[[:lower:]]"`
 
-        case "$target_cpu" in
-        arm)
-            target_name=arm-linux-androideabi-4.4.3
-            ;;
-        i?86)
-            target_name=x86-4.4.3
-            ;;
-        mipsel)
-            target_name=mipsel-linux-android-4.4.3
-            ;;
-        esac
-        android_toolchain="$android_ndk"/toolchains/$target_name/prebuilt/$kernel_name-x86
+        android_toolchain="$android_ndk"/build/prebuilt/$kernel_name-x86/arm-eabi-4.4.0
+
+        # With newer NDK, the toolchain path has changed.
+        if ! test -d "$android_toolchain" ; then
+            android_toolchain="$android_ndk"/toolchains/arm-$kernel_name-androideabi-4.4.3/prebuilt/$kernel_name-x86
+        fi
 
         if test -d "$android_toolchain" ; then
             AC_MSG_RESULT([$android_toolchain])
@@ -209,19 +191,12 @@ case "$target" in
     if test -z "$android_platform" ; then
         AC_MSG_CHECKING([for android platform directory])
 
-        case "$target_cpu" in
-        arm)
-            target_name=arm
-            ;;
-        i?86)
-            target_name=x86
-            ;;
-        mipsel)
-            target_name=mips
-            ;;
-        esac
+        android_platform="$android_ndk"/build/platforms/android-5/arch-arm
 
-        android_platform="$android_ndk"/platforms/android-"$android_version"/arch-"$target_name"
+        # With newer NDK, the platform path has changed.
+        if ! test -d "$android_platform" ; then
+            android_platform="$android_ndk"/platforms/android-5/arch-arm
+        fi
 
         if test -d "$android_platform" ; then
             AC_MSG_RESULT([$android_platform])
@@ -229,17 +204,6 @@ case "$target" in
             AC_MSG_ERROR([not found. You have to specify --with-android-platform=/path/to/ndk/platform.])
         fi
     fi
-
-    dnl Old NDK support. If minimum requirement is changed to NDK r8b,
-    dnl please remove this.
-    case "$target_cpu" in
-    i?86)
-        if ! test -e "$android_toolchain"/bin/"$android_tool_prefix"-gcc; then
-            dnl Old NDK toolchain name
-            android_tool_prefix="i686-android-linux"
-        fi
-        ;;
-    esac
 
     dnl set up compilers
     AS="$android_toolchain"/bin/"$android_tool_prefix"-as
@@ -252,8 +216,8 @@ case "$target" in
     STRIP="$android_toolchain"/bin/"$android_tool_prefix"-strip
 
     CPPFLAGS="-I$android_platform/usr/include $CPPFLAGS"
-    CFLAGS="-mandroid -I$android_platform/usr/include -fno-short-enums -fno-exceptions $CFLAGS"
-    CXXFLAGS="-mandroid -I$android_platform/usr/include -fpic -fno-short-enums -fno-exceptions $CXXFLAGS"
+    CFLAGS="-mandroid -I$android_platform/usr/include -msoft-float -fno-short-enums -fno-exceptions $CFLAGS"
+    CXXFLAGS="-mandroid -I$android_platform/usr/include -msoft-float -fpic -fno-short-enums -fno-exceptions $CXXFLAGS"
     LDFLAGS="-mandroid -L$android_platform/usr/lib -Wl,-rpath-link=$android_platform/usr/lib --sysroot=$android_platform $LDFLAGS"
 
     dnl prevent cross compile section from using these flags as host flags
@@ -273,7 +237,6 @@ case "$target" in
     AC_DEFINE(ANDROID)
     ;;
 esac
-fi
 
 dnl ========================================================
 dnl =
@@ -592,9 +555,9 @@ if test "$target" != "$host" -o -n "$CROSS_COMPILE"; then
     LDFLAGS="$HOST_LDFLAGS"
 
     AC_MSG_CHECKING([whether the $host compiler ($HOST_CC $HOST_CFLAGS $HOST_LDFLAGS) works])
-    AC_TRY_COMPILE([], [return 0;],
-        [AC_MSG_RESULT([yes])],
-        [AC_MSG_ERROR([installation or configuration problem: $host compiler $HOST_CC cannot create executables.])] )
+    AC_TRY_COMPILE([], [return(0);], 
+        [ac_cv_prog_host_cc_works=1 AC_MSG_RESULT([yes])],
+        AC_MSG_ERROR([installation or configuration problem: $host compiler $HOST_CC cannot create executables.]) )
 
     CC=$_SAVE_CC
     CFLAGS=$_SAVE_CFLAGS
@@ -1006,15 +969,14 @@ dnl = ARM toolchain tweaks
 dnl ========================================================
 
 dnl Defaults
-case "$target" in
-arm*-android*|arm*-linuxandroid*)
+case "${CPU_ARCH}-${OS_TARGET}" in
+arm-Android)
     MOZ_THUMB=yes
     MOZ_ARCH=armv7-a
     MOZ_FPU=vfp
     MOZ_FLOAT_ABI=softfp
-    MOZ_SOFT_FLOAT=yes
     ;;
-arm*-*)
+arm-*)
     if test -n "$MOZ_PLATFORM_MAEMO"; then
         MOZ_THUMB=no
         MOZ_ARCH=armv7-a
@@ -1254,6 +1216,33 @@ case "$target" in
     RESOLVE_LINK_SYMBOLS=1
     ;;
         
+*-android*|*-linuxandroid*)
+    if test -z "$USE_NSPR_THREADS"; then
+        USE_PTHREADS=1
+        IMPL_STRATEGY=_PTH
+    fi
+    AC_DEFINE(XP_UNIX)
+    AC_DEFINE(_GNU_SOURCE)
+    AC_DEFINE(HAVE_FCNTL_FILE_LOCKING)
+    AC_DEFINE(LINUX)
+    CFLAGS="$CFLAGS -Wall"
+    CXXFLAGS="$CXXFLAGS -Wall"
+    MDCPUCFG_H=_linux.cfg
+    PR_MD_CSRCS=linux.c
+    MKSHLIB='$(CC) $(DSO_LDOPTS) -o $@'
+    DSO_CFLAGS=-fPIC
+    DSO_LDOPTS='-shared -Wl,-soname -Wl,$(notdir $@)'
+    _OPTIMIZE_FLAGS=-O2
+    _DEBUG_FLAGS="-g -fno-inline"  # most people on linux use gcc/gdb, and that
+                                   # combo is not yet good at debugging inlined
+                                   # functions (even when using DWARF2 as the
+                                   # debugging format)
+    COMPILER_TAG=_glibc
+    CPU_ARCH=arm
+    CPU_ARCH_TAG=_arm
+    OS_TARGET=Android
+    ;;
+
 *-beos*)
     AC_DEFINE(XP_BEOS)
     AC_DEFINE(BeOS)
@@ -1365,9 +1354,6 @@ case "$target" in
             else        
                 CPU_ARCH=i386
             fi
-            ;;
-        x86_64)
-            CPU_ARCH=x86_64
             ;;
         *)
             CPU_ARCH=ppc
@@ -1788,7 +1774,7 @@ tools are selected during the Xcode/Developer Tools installation.])
 	esac
     ;;
 
-*-linux*|*-gnu*|*-k*bsd*-gnu|*-android*|*-linuxandroid*)
+*-linux*|*-gnu*|*-k*bsd*-gnu)
     if test -z "$USE_NSPR_THREADS"; then
         USE_PTHREADS=1
         IMPL_STRATEGY=_PTH
@@ -1796,12 +1782,8 @@ tools are selected during the Xcode/Developer Tools installation.])
     AC_DEFINE(XP_UNIX)
     AC_DEFINE(_GNU_SOURCE)
     AC_DEFINE(HAVE_FCNTL_FILE_LOCKING)
-    case "${target}" in
-    *-android*|*-linuxandroid*)
-        OS_TARGET=Android
-        AC_DEFINE(LINUX)
-        ;;
-    *-linux*)
+    case "${target_os}" in
+    linux*)
         AC_DEFINE(LINUX)
         ;;
     esac
@@ -2084,6 +2066,47 @@ tools are selected during the Xcode/Developer Tools installation.])
     _OPTIMIZE_FLAGS=-O2
     ;;
 
+*-ncr-sysv*)
+    AC_DEFINE(XP_UNIX)
+    AC_DEFINE(SVR4)
+    AC_DEFINE(SYSV)
+    AC_DEFINE(NCR)
+    USE_NSPR_THREADS=1
+    if test "$OS_RELEASE" = "2.03"; then
+        AC_DEFINE(_PR_STAT_HAS_ST_ATIM)
+    else
+        AC_DEFINE(_PR_STAT_HAS_ST_ATIM_UNION)
+    fi
+
+    if test -z "$GNU_CC"; then
+        CFLAGS="$CFLAGS -Hnocopyr"
+        CXXFLAGS="$CXXFLAGS -Hnocopyr"
+    else
+        CFLAGS="$CFLAGS -fPIC -Wall"
+        CXXFLAGS="$CXXFLAGS -fPIC -Wall"
+        DSO_LDOPTS=-G
+    fi
+    MDCPUCFG_H=_ncr.cfg
+    PR_MD_CSRCS=ncr.c
+    ;;
+
+mips-nec-sysv*)
+    AC_DEFINE(XP_UNIX)
+    AC_DEFINE(SVR4)
+    AC_DEFINE(__SVR4)
+    AC_DEFINE(NEC)
+    AC_DEFINE(nec_ews)
+    USE_NSPR_THREADS=1
+    if test -z "$GNU_CC"; then
+        CC='$(NSDEPTH)/build/hcc cc -Xa -KGnum=0 -KOlimit=4000'
+        CXX=g++
+    fi
+    OS_LIBS="$OS_LIBS -lsocket -lnsl -ldl"
+    DSO_LDOPTS=-G
+    MDCPUCFG_H=_nec.cfg
+    PR_MD_CSRCS=nec.c
+    ;;
+
 *-netbsd*)
     AC_DEFINE(XP_UNIX)
     AC_DEFINE(NETBSD)
@@ -2115,6 +2138,36 @@ tools are selected during the Xcode/Developer Tools installation.])
         DSO_LDOPTS="$DSO_LDOPTS -Wl,-R$LIBRUNPATH"
     fi
     ;;
+
+mips-sony-newsos*)
+    AC_DEFINE(XP_UNIX)
+    AC_DEFINE(SONY)
+    AC_DEFINE(SYSV)
+    AC_DEFINE(SVR4)
+    AC_DEFINE(__svr4)
+    AC_DEFINE(__svr4__)
+    AC_DEFINE(HAVE_SVID_GETTOD)
+    USE_NSPR_THREADS=1
+    CFLAGS="$CFLAGS -Xa -fullwarn"
+    CXXFLAGS="$CXXFLAGS -Xa -fullwarn"
+    DSO_LDOPTS=-G
+    MDCPUCFG_H=_sony.cfg
+    PR_MD_CSRCS=sony.c
+    ;;
+
+*-nextstep*|*-openstep*)
+    AC_DEFINE(XP_UNIX)
+    AC_DEFINE(NEXTSTEP)
+    AC_DEFINE(HAVE_BSD_FLOCK)
+    AC_DEFINE(_POSIX_SOURCE)
+    CFLAGS="$CFLAGS -Wall -fno-common -traditional-cpp -posix"
+    CXXFLAGS="$CXXFLAGS -Wall -fno-common -traditional-cpp -posix"
+    USE_NSPR_THREADS=1
+    DLL_SUFFIX=dylib
+    MDCPUCFG_H=_nextstep.cfg
+    PR_MD_CSRCS=nextstep.c
+    ;;
+
 
 *-nto*)
     AC_DEFINE(XP_UNIX)
@@ -2226,6 +2279,66 @@ tools are selected during the Xcode/Developer Tools installation.])
     DSO_LDOPTS='-b elf -G'
     MDCPUCFG_H=_scoos.cfg
     PR_MD_SRCS=scoos.c
+    ;;
+
+*-sinix*)
+    AC_DEFINE(XP_UNIX)
+    AC_DEFINE(SVR4)
+    AC_DEFINE(SNI)
+    AC_DEFINE(RELIANTUNIX)
+    AC_DEFINE(sinix)
+    AC_DEFINE(HAVE_SVID_GETTOD)
+    if echo "$OS_TEST" | grep -c 86 2>/dev/null; then
+        AC_DEFINE(i386)
+        CPU_ARCH=x86
+    else
+        CPU_ARCH=mips
+    fi
+
+    if test "$GNU_CC"; then
+        AS='$(CC) -x assembler-with-cpp'
+        if test "$CPU_ARCH" = "mips"; then
+            LD=gld
+        fi
+        CFLAGS="$CFLAGS -Wall -Wno-format"
+    else
+        AS='/usr/bin/cc'
+        _OPTIMIZE_FLAGS='-O -F Olimit,4000'
+    fi
+
+    DSO_LDOPTS='-G -z defs -h $(@:$(OBJDIR)/%.so=%.so)'
+
+    if test "$OS_RELEASE" = "5.43"; then
+        AC_DEFINE(IP_MULTICAST)
+    fi
+
+    OS_LIBS="$OS_LIBS -lsocket -lnsl -lresolv -ldl -lc"
+    USE_NSPR_THREADS=1
+    MDCPUCFG_H=_reliantunix.cfg
+    PR_MD_CSRCS=reliantunix.c
+    if test "${OS_ARCH}" = "mips"; then
+        PR_MD_ASFILES=os_ReliantUNIX.s
+    fi
+    ;;
+
+*-sunos*)
+    AC_DEFINE(XP_UNIX)
+    AC_DEFINE(SUNOS4)
+    CFLAGS="$CFLAGS -Wall -Wno-format"
+    if test "$USE_MDUPDATE"; then
+        CFLAGS="$CFLAGS -MDupdate \$(DEPENDENCIES)"
+    fi
+    CPU_ARCH=sparc
+    DLL_SUFFIX=so.1.0
+    DSO_LDOPTS=
+    DSO_CFLAGS=-fPIC
+    USE_NSPR_THREADS=1
+    if test "$OS_RELEASE" = "4.1.3_U1"; then
+        _OPTIMIZE_FLAGS=
+        OS_LIBS="$OS_LIBS -lm"
+    fi
+    MDCPUCFG_H=_sunos4.cfg
+    PR_MD_CSRCS=sunos4.c
     ;;
 
 *-solaris*)
@@ -2552,8 +2665,8 @@ case $target in
     ;;
 *)
     AC_CHECK_LIB(dl, dlopen,
-        [AC_CHECK_HEADER(dlfcn.h,
-            OS_LIBS="-ldl $OS_LIBS")])
+        AC_CHECK_HEADER(dlfcn.h,
+            OS_LIBS="-ldl $OS_LIBS"))
     ;;
 esac
 
@@ -2585,10 +2698,7 @@ dnl ========================================================
 dnl Checks for library functions.
 dnl ========================================================
 AC_PROG_GCC_TRADITIONAL
-_SAVE_LIBS="$LIBS"
-LIBS="$LIBS $OS_LIBS"
-AC_CHECK_FUNCS(dladdr gettid lchown setpriority strerror syscall)
-LIBS="$_SAVE_LIBS"
+AC_CHECK_FUNCS(lchown strerror)
 
 dnl AC_FUNC_MEMCMP
 dnl AC_FUNC_MMAP
@@ -3069,6 +3179,7 @@ if test -n "$_WRAP_MALLOC"; then
     if test -n "$GNU_CC"; then
         WRAP_LDFLAGS="${WRAP_LDFLAGS} -Wl,--wrap=malloc,--wrap=calloc,--wrap=valloc,--wrap=free,--wrap=realloc,--wrap=memalign"
         WRAP_LDFLAGS="${WRAP_LDFLAGS} -Wl,--wrap=__builtin_new,--wrap=__builtin_vec_new,--wrap=__builtin_delete,--wrap=__builtin_vec_delete"
+        WRAP_LDFLAGS="${WRAP_LDFLAGS} -Wl,--wrap=PR_Free,--wrap=PR_Malloc,--wrap=PR_Calloc,--wrap=PR_Realloc"
         WRAP_LDFLAGS="${WRAP_LDFLAGS} -Wl,--wrap=strdup,--wrap=strndup"
         WRAP_LDFLAGS="${WRAP_LDFLAGS} -Wl,--wrap=posix_memalign,--wrap=malloc_usable_size"
     else
@@ -3194,69 +3305,55 @@ dnl ========================================================
 dnl Generate output files.
 dnl ========================================================
 MAKEFILES="
-    Makefile
-    config/Makefile
-    config/autoconf.mk
-    config/nsprincl.mk
-    config/nsprincl.sh
-    config/nspr-config
-    config/nspr.pc
-    lib/Makefile
-    lib/ds/Makefile
-    lib/libc/Makefile
-    lib/libc/include/Makefile
-    lib/libc/src/Makefile
-    lib/tests/Makefile
-    pkg/Makefile
-    pr/Makefile
-    pr/include/Makefile
-    pr/include/md/Makefile
-    pr/include/obsolete/Makefile
-    pr/include/private/Makefile
-    pr/src/Makefile
-    pr/src/io/Makefile
-    pr/src/linking/Makefile
-    pr/src/malloc/Makefile
-    pr/src/md/Makefile
-    pr/src/md/${PR_MD_ARCH_DIR}/Makefile
-    pr/src/memory/Makefile
-    pr/src/misc/Makefile
-    pr/src/threads/Makefile
-    pr/tests/Makefile
-    pr/tests/dll/Makefile
+Makefile 
+config/Makefile
+config/autoconf.mk
+config/nsprincl.mk
+config/nsprincl.sh
+config/nspr-config
+lib/Makefile 
+lib/ds/Makefile 
+lib/libc/Makefile 
+lib/libc/include/Makefile 
+lib/libc/src/Makefile 
+lib/tests/Makefile
+pkg/Makefile
+pkg/linux/Makefile
+pkg/solaris/Makefile
+pkg/solaris/SUNWpr/Makefile
+pkg/solaris/SUNWprd/Makefile
+pr/Makefile 
+pr/include/Makefile 
+pr/include/md/Makefile 
+pr/include/obsolete/Makefile 
+pr/include/private/Makefile 
+pr/src/Makefile 
+pr/src/io/Makefile 
+pr/src/linking/Makefile 
+pr/src/malloc/Makefile 
+pr/src/md/Makefile 
+pr/src/md/${PR_MD_ARCH_DIR}/Makefile 
+pr/src/memory/Makefile 
+pr/src/misc/Makefile 
+pr/src/threads/Makefile 
+pr/tests/Makefile 
+pr/tests/dll/Makefile 
 "
 
-if test "$OS_TARGET" = "Linux"; then
-    MAKEFILES="$MAKEFILES
-        pkg/linux/Makefile
-    "
-elif test "$OS_TARGET" = "SunOS"; then
-    MAKEFILES="$MAKEFILES
-        pkg/solaris/Makefile
-        pkg/solaris/SUNWpr/Makefile
-        pkg/solaris/SUNWprd/Makefile
-    "
-fi
+dnl lib/tests/Makefile
+dnl pr/tests/w16gui/Makefile
+dnl tools/Makefile
 
 if test -z "$USE_PTHREADS" && test -z "$USE_BTHREADS"; then
-    MAKEFILES="$MAKEFILES
-        pr/src/threads/combined/Makefile
-    "
+    MAKEFILES="$MAKEFILES pr/src/threads/combined/Makefile"
 elif test -n "$USE_PTHREADS"; then
-    MAKEFILES="$MAKEFILES
-        pr/src/pthreads/Makefile
-    "
+    MAKEFILES="$MAKEFILES pr/src/pthreads/Makefile"
 elif test -n "$USE_BTHREADS"; then
-    MAKEFILES="$MAKEFILES
-        pr/src/bthreads/Makefile
-    "
+    MAKEFILES="$MAKEFILES pr/src/bthreads/Makefile"
 fi
 
 if test -n "$USE_CPLUS"; then
-    MAKEFILES="$MAKEFILES
-        pr/src/cplus/Makefile
-        pr/src/cplus/tests/Makefile
-    "
+    MAKEFILES="$MAKEFILES pr/src/cplus/Makefile pr/src/cplus/tests/Makefile"
 fi
 
 echo $MAKEFILES > unallmakefiles

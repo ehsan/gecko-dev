@@ -1,39 +1,51 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99 ft=cpp:
+ *
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is SpiderMonkey JavaScript engine.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Chris Leary <cdleary@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-#ifndef frontend_ParseMaps_h
-#define frontend_ParseMaps_h
+#ifndef ParseMaps_h__
+#define ParseMaps_h__
 
-#include "mozilla/Attributes.h"
-#include "mozilla/TypeTraits.h"
+#include "jsvector.h"
 
-#include "jsprvtd.h"
-
-#include "ds/InlineMap.h"
-#include "gc/Barrier.h"
-#include "js/HashTable.h"
-#include "js/Vector.h"
+#include "mfbt/InlineMap.h"
 
 namespace js {
-namespace frontend {
-
-class DefinitionSingle;
-class DefinitionList;
-
-typedef InlineMap<JSAtom *, jsatomid, 24> AtomIndexMap;
-typedef InlineMap<JSAtom *, DefinitionSingle, 24> AtomDefnMap;
-typedef InlineMap<JSAtom *, DefinitionList, 24> AtomDefnListMap;
-
-/*
- * For all unmapped atoms recorded in al, add a mapping from the atom's index
- * to its address. map->length must already be set to the number of atoms in
- * the list and map->vector must point to pre-allocated memory.
- */
-void
-InitAtomMap(AtomIndexMap *indices, HeapPtr<JSAtom> *atoms);
 
 /*
  * A pool that permits the reuse of the backing storage for the defn, index, or
@@ -48,6 +60,7 @@ class ParseMapPool
 
     RecyclableMaps      all;
     RecyclableMaps      recyclable;
+    JSContext           *cx;
 
     void checkInvariants();
 
@@ -71,14 +84,7 @@ class ParseMapPool
     }
 
     void *allocateFresh();
-    void *allocate() {
-        if (recyclable.empty())
-            return allocateFresh();
-
-        void *map = recyclable.popCopy();
-        asAtomMap(map)->clear();
-        return map;
-    }
+    void *allocate();
 
     /* Arbitrary atom map type, that has keys and values of the same kind. */
     typedef AtomIndexMap AtomMapT;
@@ -88,6 +94,8 @@ class ParseMapPool
     }
 
   public:
+    explicit ParseMapPool(JSContext *cx) : cx(cx) {}
+
     ~ParseMapPool() {
         purgeAll();
     }
@@ -100,9 +108,7 @@ class ParseMapPool
 
     /* Fallibly aquire one of the supported map types from the pool. */
     template <typename T>
-    T *acquire() {
-        return reinterpret_cast<T *>(allocate());
-    }
+    T *acquire();
 
     /* Release one of the supported map types back to the pool. */
 
@@ -114,13 +120,13 @@ class ParseMapPool
         recycle((void *) map);
     }
 
-    void release(AtomDefnListMap *map) {
+    void release(AtomDOHMap *map) {
         recycle((void *) map);
     }
 }; /* ParseMapPool */
 
 /*
- * N.B. This is a POD-type so that it can be included in the ParseNode union.
+ * N.B. This is a POD-type so that it can be included in the JSParseNode union.
  * If possible, use the corresponding |OwnedAtomThingMapPtr| variant.
  */
 template <class Map>
@@ -130,8 +136,8 @@ struct AtomThingMapPtr
 
     void init() { clearMap(); }
 
-    bool ensureMap(ExclusiveContext *cx);
-    void releaseMap(ExclusiveContext *cx);
+    bool ensureMap(JSContext *cx);
+    void releaseMap(JSContext *cx);
 
     bool hasMap() const { return map_; }
     Map *getMap() { return map_; }
@@ -143,6 +149,15 @@ struct AtomThingMapPtr
     Map &operator*() const { return *map_; }
 };
 
+struct AtomDefnMapPtr : public AtomThingMapPtr<AtomDefnMap>
+{
+    JS_ALWAYS_INLINE
+    JSDefinition *lookupDefn(JSAtom *atom) {
+        AtomDefnMap::Ptr p = map_->lookup(atom);
+        return p ? p.value() : NULL;
+    }
+};
+
 typedef AtomThingMapPtr<AtomIndexMap> AtomIndexMapPtr;
 
 /*
@@ -152,10 +167,10 @@ typedef AtomThingMapPtr<AtomIndexMap> AtomIndexMapPtr;
 template <typename AtomThingMapPtrT>
 class OwnedAtomThingMapPtr : public AtomThingMapPtrT
 {
-    ExclusiveContext *cx;
+    JSContext *cx;
 
   public:
-    explicit OwnedAtomThingMapPtr(ExclusiveContext *cx) : cx(cx) {
+    explicit OwnedAtomThingMapPtr(JSContext *cx) : cx(cx) {
         AtomThingMapPtrT::init();
     }
 
@@ -164,259 +179,107 @@ class OwnedAtomThingMapPtr : public AtomThingMapPtrT
     }
 };
 
+typedef OwnedAtomThingMapPtr<AtomDefnMapPtr> OwnedAtomDefnMapPtr;
 typedef OwnedAtomThingMapPtr<AtomIndexMapPtr> OwnedAtomIndexMapPtr;
 
-/*
- * DefinitionSingle and DefinitionList represent either a single definition
- * or a list of them. The representation of definitions varies between
- * parse handlers, being either a Definition* (FullParseHandler) or a
- * Definition::Kind (SyntaxParseHandler). Methods on the below classes are
- * templated to distinguish the kind of value wrapped by the class.
- */
-
-/* Wrapper for a single definition. */
-class DefinitionSingle
+/* Node structure for chaining in AtomDecls. */
+struct AtomDeclNode
 {
-    uintptr_t bits;
+    JSDefinition *defn;
+    AtomDeclNode *next;
 
-  public:
-
-    template <typename ParseHandler>
-    static DefinitionSingle new_(typename ParseHandler::DefinitionNode defn)
-    {
-        DefinitionSingle res;
-        res.bits = ParseHandler::definitionToBits(defn);
-        return res;
-    }
-
-    template <typename ParseHandler>
-    typename ParseHandler::DefinitionNode get() {
-        return ParseHandler::definitionFromBits(bits);
-    }
+    explicit AtomDeclNode(JSDefinition *defn)
+      : defn(defn), next(NULL)
+    {}
 };
 
-struct AtomDefnMapPtr : public AtomThingMapPtr<AtomDefnMap>
-{
-    template <typename ParseHandler>
-    JS_ALWAYS_INLINE
-    typename ParseHandler::DefinitionNode lookupDefn(JSAtom *atom) {
-        AtomDefnMap::Ptr p = map_->lookup(atom);
-        return p ? p.value().get<ParseHandler>() : ParseHandler::nullDefinition();
-    }
-};
-
-typedef OwnedAtomThingMapPtr<AtomDefnMapPtr> OwnedAtomDefnMapPtr;
-
 /*
- * A nonempty list containing one or more pointers to Definitions.
- *
- * By far the most common case is that the list contains exactly one
- * Definition, so the implementation is optimized for that case.
- *
- * Nodes for the linked list (if any) are allocated from the tempPool of a
- * context the caller passes into pushFront and pushBack. This means the
- * DefinitionList does not own the memory for the nodes: the JSContext does.
- * As a result, DefinitionList is a POD type; it can be safely and cheaply
- * copied.
+ * Tagged union of a JSDefinition and an AtomDeclNode, for use in AtomDecl's
+ * internal map.
  */
-class DefinitionList
+class DefnOrHeader
 {
-  public:
-    class Range;
-
-  private:
-    friend class Range;
-
-    /* A node in a linked list of Definitions. */
-    struct Node
-    {
-        uintptr_t bits;
-        Node *next;
-
-        Node(uintptr_t bits, Node *next) : bits(bits), next(next) {}
-    };
-
     union {
-        uintptr_t bits;
-        Node *head;
+        JSDefinition    *defn;
+        AtomDeclNode    *head;
+        uintptr_t       bits;
     } u;
 
-    Node *firstNode() const {
-        JS_ASSERT(isMultiple());
-        return (Node *) (u.bits & ~0x1);
-    }
-
-    static Node *
-    allocNode(ExclusiveContext *cx, LifoAlloc &alloc, uintptr_t bits, Node *tail);
-
   public:
-    class Range
-    {
-        friend class DefinitionList;
-
-        Node *node;
-        uintptr_t bits;
-
-        explicit Range(const DefinitionList &list) {
-            if (list.isMultiple()) {
-                node = list.firstNode();
-                bits = node->bits;
-            } else {
-                node = NULL;
-                bits = list.u.bits;
-            }
-        }
-
-      public:
-        /* An empty Range. */
-        Range() : node(NULL), bits(0) {}
-
-        void popFront() {
-            JS_ASSERT(!empty());
-            if (!node) {
-                bits = 0;
-                return;
-            }
-            node = node->next;
-            bits = node ? node->bits : 0;
-        }
-
-        template <typename ParseHandler>
-        typename ParseHandler::DefinitionNode front() {
-            JS_ASSERT(!empty());
-            return ParseHandler::definitionFromBits(bits);
-        }
-
-        bool empty() const {
-            JS_ASSERT_IF(!bits, !node);
-            return !bits;
-        }
-    };
-
-    DefinitionList() {
+    DefnOrHeader() {
         u.bits = 0;
     }
 
-    explicit DefinitionList(uintptr_t bits) {
-        u.bits = bits;
-        JS_ASSERT(!isMultiple());
+    explicit DefnOrHeader(JSDefinition *defn) {
+        u.defn = defn;
+        JS_ASSERT(!isHeader());
     }
 
-    explicit DefinitionList(Node *node) {
+    explicit DefnOrHeader(AtomDeclNode *node) {
         u.head = node;
         u.bits |= 0x1;
-        JS_ASSERT(isMultiple());
+        JS_ASSERT(isHeader());
     }
 
-    bool isMultiple() const { return (u.bits & 0x1) != 0; }
-
-    template <typename ParseHandler>
-    typename ParseHandler::DefinitionNode front() {
-        return ParseHandler::definitionFromBits(isMultiple() ? firstNode()->bits : u.bits);
+    bool isHeader() const {
+        return u.bits & 0x1;
     }
 
-    /*
-     * If there are multiple Definitions in this list, remove the first and
-     * return true. Otherwise there is exactly one Definition in the list; do
-     * nothing and return false.
-     */
-    bool popFront() {
-        if (!isMultiple())
-            return false;
-
-        Node *node = firstNode();
-        Node *next = node->next;
-        if (next->next)
-            *this = DefinitionList(next);
-        else
-            *this = DefinitionList(next->bits);
-        return true;
+    JSDefinition *defn() const {
+        JS_ASSERT(!isHeader());
+        return u.defn;
     }
 
-    /*
-     * Add a definition to the front of this list.
-     *
-     * Return true on success. On OOM, report on cx and return false.
-     */
-    template <typename ParseHandler>
-    bool pushFront(ExclusiveContext *cx, LifoAlloc &alloc,
-                   typename ParseHandler::DefinitionNode defn) {
-        Node *tail;
-        if (isMultiple()) {
-            tail = firstNode();
-        } else {
-            tail = allocNode(cx, alloc, u.bits, NULL);
-            if (!tail)
-                return false;
-        }
-
-        Node *node = allocNode(cx, alloc, ParseHandler::definitionToBits(defn), tail);
-        if (!node)
-            return false;
-        *this = DefinitionList(node);
-        return true;
+    AtomDeclNode *header() const {
+        JS_ASSERT(isHeader());
+        return (AtomDeclNode *) (u.bits & ~0x1);
     }
-
-    /* Overwrite the first Definition in the list. */
-    template <typename ParseHandler>
-        void setFront(typename ParseHandler::DefinitionNode defn) {
-        if (isMultiple())
-            firstNode()->bits = ParseHandler::definitionToBits(defn);
-        else
-            *this = DefinitionList(ParseHandler::definitionToBits(defn));
-    }
-
-    Range all() const { return Range(*this); }
 
 #ifdef DEBUG
     void dump();
 #endif
 };
 
-typedef AtomDefnMap::Range      AtomDefnRange;
-typedef AtomDefnMap::AddPtr     AtomDefnAddPtr;
-typedef AtomDefnMap::Ptr        AtomDefnPtr;
-typedef AtomIndexMap::AddPtr    AtomIndexAddPtr;
-typedef AtomIndexMap::Ptr       AtomIndexPtr;
-typedef AtomDefnListMap::Ptr    AtomDefnListPtr;
-typedef AtomDefnListMap::AddPtr AtomDefnListAddPtr;
-typedef AtomDefnListMap::Range  AtomDefnListRange;
+namespace tl {
+
+template <> struct IsPodType<DefnOrHeader> {
+    static const bool result = true;
+};
+
+} /* namespace tl */
 
 /*
- * AtomDecls is a map of atoms to (sequences of) Definitions. It is used by
- * ParseContext to store declarations. A declaration associates a name with a
- * Definition.
+ * Multimap for function-scope atom declarations.
  *
- * Declarations with function scope (such as const, var, and function) are
- * unique in the sense that they override any previous declarations with the
- * same name. For such declarations, we only need to store a single Definition,
- * using the method addUnique.
+ * Wraps an internal DeclOrHeader map with multi-map functionality.
  *
- * Declarations with block scope (such as let) are slightly more complex. They
- * override any previous declarations with the same name, but only do so for
- * the block they are associated with. This is known as shadowing. For such
- * definitions, we need to store a sequence of Definitions, including those
- * introduced by previous declarations (and which are now shadowed), using the
- * method addShadow. When we leave the block associated with the let, the method
- * remove is used to unshadow the declaration immediately preceding it.
+ * In the common case, no block scoping is used, and atoms have a single
+ * associated definition. In the uncommon (block scoping) case, we map the atom
+ * to a chain of definition nodes.
  */
-template <typename ParseHandler>
 class AtomDecls
 {
-    typedef typename ParseHandler::DefinitionNode DefinitionNode;
-
-    /* AtomDeclsIter needs to get at the DefnListMap directly. */
+    /* AtomDeclsIter needs to get at the DOHMap directly. */
     friend class AtomDeclsIter;
 
-    ExclusiveContext *cx;
-    LifoAlloc &alloc;
-    AtomDefnListMap  *map;
+    JSContext   *cx;
+    AtomDOHMap  *map;
 
-    AtomDecls(const AtomDecls &other) MOZ_DELETE;
-    void operator=(const AtomDecls &other) MOZ_DELETE;
+    AtomDecls(const AtomDecls &other);
+    void operator=(const AtomDecls &other);
+
+    AtomDeclNode *allocNode(JSDefinition *defn);
+
+    /*
+     * Fallibly return the value in |doh| as a node.
+     * Update the defn currently occupying |doh| to a node if necessary.
+     */
+    AtomDeclNode *lastAsNode(DefnOrHeader *doh);
 
   public:
-    explicit AtomDecls(ExclusiveContext *cx, LifoAlloc &alloc) : cx(cx), alloc(alloc), map(NULL) {}
+    explicit AtomDecls(JSContext *cx)
+      : cx(cx), map(NULL)
+    {}
 
     ~AtomDecls();
 
@@ -427,58 +290,49 @@ class AtomDecls
     }
 
     /* Return the definition at the head of the chain for |atom|. */
-    DefinitionNode lookupFirst(JSAtom *atom) const {
-        JS_ASSERT(map);
-        AtomDefnListPtr p = map->lookup(atom);
-        if (!p)
-            return ParseHandler::nullDefinition();
-        return p.value().front<ParseHandler>();
-    }
+    inline JSDefinition *lookupFirst(JSAtom *atom);
 
     /* Perform a lookup that can iterate over the definitions associated with |atom|. */
-    DefinitionList::Range lookupMulti(JSAtom *atom) const {
-        JS_ASSERT(map);
-        if (AtomDefnListPtr p = map->lookup(atom))
-            return p.value().all();
-        return DefinitionList::Range();
-    }
+    inline MultiDeclRange lookupMulti(JSAtom *atom);
 
     /* Add-or-update a known-unique definition for |atom|. */
-    bool addUnique(JSAtom *atom, DefinitionNode defn) {
-        JS_ASSERT(map);
-        AtomDefnListAddPtr p = map->lookupForAdd(atom);
-        if (!p)
-            return map->add(p, atom, DefinitionList(ParseHandler::definitionToBits(defn)));
-        JS_ASSERT(!p.value().isMultiple());
-        p.value() = DefinitionList(ParseHandler::definitionToBits(defn));
-        return true;
-    }
-
-    bool addShadow(JSAtom *atom, DefinitionNode defn);
+    inline bool addUnique(JSAtom *atom, JSDefinition *defn);
+    bool addShadow(JSAtom *atom, JSDefinition *defn);
+    bool addHoist(JSAtom *atom, JSDefinition *defn);
 
     /* Updating the definition for an entry that is known to exist is infallible. */
-    void updateFirst(JSAtom *atom, DefinitionNode defn) {
+    void updateFirst(JSAtom *atom, JSDefinition *defn) {
         JS_ASSERT(map);
-        AtomDefnListMap::Ptr p = map->lookup(atom);
+        AtomDOHMap::Ptr p = map->lookup(atom);
         JS_ASSERT(p);
-        p.value().setFront<ParseHandler>(defn);
+        if (p.value().isHeader())
+            p.value().header()->defn = defn;
+        else
+            p.value() = DefnOrHeader(defn);
     }
 
     /* Remove the node at the head of the chain for |atom|. */
     void remove(JSAtom *atom) {
         JS_ASSERT(map);
-        AtomDefnListMap::Ptr p = map->lookup(atom);
+        AtomDOHMap::Ptr p = map->lookup(atom);
         if (!p)
             return;
 
-        DefinitionList &list = p.value();
-        if (!list.popFront()) {
+        DefnOrHeader &doh = p.value();
+        if (!doh.isHeader()) {
             map->remove(p);
             return;
         }
+
+        AtomDeclNode *node = doh.header();
+        AtomDeclNode *newHead = node->next;
+        if (newHead)
+            p.value() = DefnOrHeader(newHead);
+        else
+            map->remove(p);
     }
 
-    AtomDefnListMap::Range all() const {
+    AtomDOHMap::Range all() {
         JS_ASSERT(map);
         return map->all();
     }
@@ -488,18 +342,86 @@ class AtomDecls
 #endif
 };
 
-} /* namespace frontend */
+/*
+ * Lookup state tracker for those situations where the caller wants to traverse
+ * multiple definitions associated with a single atom. This occurs due to block
+ * scoping.
+ */
+class MultiDeclRange
+{
+    friend class AtomDecls;
 
-} /* namespace js */
+    AtomDeclNode *node;
+    JSDefinition *defn;
 
-namespace mozilla {
+    explicit MultiDeclRange(JSDefinition *defn) : node(NULL), defn(defn) {}
+    explicit MultiDeclRange(AtomDeclNode *node) : node(node), defn(node->defn) {}
 
-template <>
-struct IsPod<js::frontend::DefinitionSingle> : TrueType {};
+  public:
+    void popFront() {
+        JS_ASSERT(!empty());
+        if (!node) {
+            defn = NULL;
+            return;
+        }
+        node = node->next;
+        defn = node ? node->defn : NULL;
+    }
 
-template <>
-struct IsPod<js::frontend::DefinitionList> : TrueType {};
+    JSDefinition *front() {
+        JS_ASSERT(!empty());
+        return defn;
+    }
 
-} /* namespace mozilla */
+    bool empty() const {
+        JS_ASSERT_IF(!defn, !node);
+        return !defn;
+    }
+};
 
-#endif /* frontend_ParseMaps_h */
+/* Iterates over all the definitions in an AtomDecls. */
+class AtomDeclsIter
+{
+    AtomDOHMap::Range   r;     /* Range over the map. */
+    AtomDeclNode        *link; /* Optional next node in the current atom's chain. */
+
+  public:
+    explicit AtomDeclsIter(AtomDecls *decls) : r(decls->all()), link(NULL) {}
+
+    JSDefinition *operator()() {
+        if (link) {
+            JS_ASSERT(link != link->next);
+            JSDefinition *result = link->defn;
+            link = link->next;
+            JS_ASSERT(result);
+            return result;
+        }
+
+        if (r.empty())
+            return NULL;
+
+        const DefnOrHeader &doh = r.front().value();
+        r.popFront();
+
+        if (!doh.isHeader())
+            return doh.defn();
+
+        JS_ASSERT(!link);
+        AtomDeclNode *node = doh.header();
+        link = node->next;
+        return node->defn;
+    }
+};
+
+typedef AtomDefnMap::Range      AtomDefnRange;
+typedef AtomDefnMap::AddPtr     AtomDefnAddPtr;
+typedef AtomDefnMap::Ptr        AtomDefnPtr;
+typedef AtomIndexMap::AddPtr    AtomIndexAddPtr;
+typedef AtomIndexMap::Ptr       AtomIndexPtr;
+typedef AtomDOHMap::Ptr         AtomDOHPtr;
+typedef AtomDOHMap::AddPtr      AtomDOHAddPtr;
+typedef AtomDOHMap::Range       AtomDOHRange;
+
+} /* namepsace js */
+
+#endif

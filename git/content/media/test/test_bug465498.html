@@ -43,11 +43,10 @@ function seekEnded(e) {
 }
 
 function initTest(test, token) {
-  var type = getMajorMimeType(test.type);
+  var type = /^video/.test(test.type) ? "video" : "audio";
   var v = document.createElement(type);
   if (!v.canPlayType(test.type))
     return;
-  v.preload = "metadata";
   v.token = token;
   manager.started(token);
   v._name = test.name;

@@ -1,6 +1,7 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sw=4 et tw=99 ft=cpp:
  *
+ * ***** BEGIN LICENSE BLOCK *****
  * Copyright (C) 2009 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -23,14 +24,17 @@
  * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
- */
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-#ifndef yarr_YarrParser_h
-#define yarr_YarrParser_h
+#ifndef YarrParser_h
+#define YarrParser_h
 
-#include "yarr/Yarr.h"
+#include "Yarr.h"
 
 namespace JSC { namespace Yarr {
+
+#define REGEXP_ERROR_PREFIX "Invalid regular expression: "
 
 enum BuiltInCharacterClassID {
     DigitClassID,
@@ -40,11 +44,11 @@ enum BuiltInCharacterClassID {
 };
 
 // The Parser class should not be used directly - only via the Yarr::parse() method.
-template<class Delegate, typename CharType>
+template<class Delegate>
 class Parser {
 private:
     template<class FriendDelegate>
-    friend ErrorCode parse(FriendDelegate&, const String& pattern, unsigned backReferenceLimit);
+    friend ErrorCode parse(FriendDelegate& delegate, const UString& pattern, unsigned backReferenceLimit);
 
     /*
      * CharacterClassParserDelegate:
@@ -155,6 +159,7 @@ private:
                 // the end of the range to be a single character.
                 m_err = CharacterClassInvalidRange;
                 return;
+
             case AfterCharacterClassHyphen:
                 m_delegate.atomCharacterClassBuiltIn(classID, invert);
                 m_state = Empty;
@@ -180,8 +185,8 @@ private:
 
         // parseEscape() should never call these delegate methods when
         // invoked with inCharacterClass set.
-        NO_RETURN_DUE_TO_ASSERT void assertionWordBoundary(bool) { ASSERT_NOT_REACHED(); }
-        NO_RETURN_DUE_TO_ASSERT void atomBackReference(unsigned) { ASSERT_NOT_REACHED(); }
+        void assertionWordBoundary(bool) { ASSERT_NOT_REACHED(); }
+        void atomBackReference(unsigned) { ASSERT_NOT_REACHED(); }
 
     private:
         Delegate& m_delegate;
@@ -196,7 +201,7 @@ private:
         UChar m_character;
     };
 
-    Parser(Delegate& delegate, const String& pattern, unsigned backReferenceLimit)
+    Parser(Delegate& delegate, const UString& pattern, unsigned backReferenceLimit)
         : m_delegate(delegate)
         , m_backReferenceLimit(backReferenceLimit)
         , m_err(NoError)
@@ -206,7 +211,7 @@ private:
         , m_parenthesesNestingDepth(0)
     {
     }
-
+    
     /*
      * parseEscape():
      *
@@ -303,7 +308,7 @@ private:
 
                 unsigned backReference;
                 if (!consumeNumber(backReference))
-                    break; 
+                    break;
                 if (backReference <= m_backReferenceLimit) {
                     delegate.atomBackReference(backReference);
                     break;
@@ -517,7 +522,7 @@ private:
         ASSERT(!m_err);
         ASSERT(min <= max);
 
-        if (min == UINT_MAX) {
+        if (min == unsigned(-1)) {
             m_err = QuantifierTooLarge;
             return;
         }
@@ -612,8 +617,8 @@ private:
                     unsigned min;
                     if (!consumeNumber(min))
                         break;
-
                     unsigned max = min;
+                    
                     if (tryConsume(',')) {
                         if (peekIsDigit()) {
                             if (!consumeNumber(max))
@@ -665,6 +670,7 @@ private:
 
         return m_err;
     }
+
 
     // Misc helper functions:
 
@@ -766,7 +772,7 @@ private:
     Delegate& m_delegate;
     unsigned m_backReferenceLimit;
     ErrorCode m_err;
-    const CharType* m_data;
+    const UChar* m_data;
     unsigned m_size;
     unsigned m_index;
     unsigned m_parenthesesNestingDepth;
@@ -835,15 +841,11 @@ private:
  */
 
 template<class Delegate>
-ErrorCode parse(Delegate& delegate, const String& pattern, unsigned backReferenceLimit = quantifyInfinite)
+ErrorCode parse(Delegate& delegate, const UString& pattern, unsigned backReferenceLimit = quantifyInfinite)
 {
-#ifdef YARR_8BIT_CHAR_SUPPORT
-    if (pattern.is8Bit())
-        return Parser<Delegate, LChar>(delegate, pattern, backReferenceLimit).parse();
-#endif
-    return Parser<Delegate, UChar>(delegate, pattern, backReferenceLimit).parse();
+    return Parser<Delegate>(delegate, pattern, backReferenceLimit).parse();
 }
 
 } } // namespace JSC::Yarr
 
-#endif /* yarr_YarrParser_h */
+#endif // YarrParser_h

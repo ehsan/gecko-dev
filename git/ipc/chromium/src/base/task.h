@@ -416,7 +416,6 @@ class RunnableFunction : public CancelableTask {
   }
 
   virtual void Cancel() {
-    function_ = NULL;
   }
 
  private:

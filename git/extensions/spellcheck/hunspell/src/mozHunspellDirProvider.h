@@ -38,9 +38,8 @@
 
 #include "nsIDirectoryService.h"
 #include "nsISimpleEnumerator.h"
-#include "mozilla/Attributes.h"
 
-class mozHunspellDirProvider MOZ_FINAL :
+class mozHunspellDirProvider :
   public nsIDirectoryServiceProvider2
 {
 public:
@@ -51,7 +50,7 @@ public:
   static char const *const kContractID;
 
 private:
-  class AppendingEnumerator MOZ_FINAL : public nsISimpleEnumerator
+  class AppendingEnumerator : public nsISimpleEnumerator
   {
   public:
     NS_DECL_ISUPPORTS

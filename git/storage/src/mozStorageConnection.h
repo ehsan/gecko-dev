@@ -1,8 +1,42 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  * vim: sw=2 ts=2 et lcs=trail\:.,tab\:>~ :
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Oracle Corporation code.
+ *
+ * The Initial Developer of the Original Code is
+ *  Oracle Corporation
+ * Portions created by the Initial Developer are Copyright (C) 2004
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Vladimir Vukicevic <vladimir.vukicevic@oracle.com>
+ *   Lev Serebryakov <lev@serebryakov.spb.ru>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef mozilla_storage_Connection_h
 #define mozilla_storage_Connection_h
@@ -10,8 +44,6 @@
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "mozilla/Mutex.h"
-#include "nsProxyRelease.h"
-#include "nsThreadUtils.h"
 #include "nsIInterfaceRequestor.h"
 
 #include "nsDataHashtable.h"
@@ -19,29 +51,27 @@
 #include "SQLiteMutex.h"
 #include "mozIStorageConnection.h"
 #include "mozStorageService.h"
-#include "mozIStorageAsyncConnection.h"
-#include "mozIStorageCompletionCallback.h"
 
 #include "nsIMutableArray.h"
-#include "mozilla/Attributes.h"
 
 #include "sqlite3.h"
 
 struct PRLock;
 class nsIFile;
-class nsIFileURL;
 class nsIEventTarget;
 class nsIThread;
+class nsIMemoryReporter;
 
 namespace mozilla {
 namespace storage {
 
-class Connection MOZ_FINAL : public mozIStorageConnection
-                           , public nsIInterfaceRequestor
+class StorageMemoryReporter;
+
+class Connection : public mozIStorageConnection
+                 , public nsIInterfaceRequestor
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
-  NS_DECL_MOZISTORAGEASYNCCONNECTION
+  NS_DECL_ISUPPORTS
   NS_DECL_MOZISTORAGECONNECTION
   NS_DECL_NSIINTERFACEREQUESTOR
 
@@ -56,7 +86,7 @@ public:
 
     nsCOMPtr<nsISupports> function;
     FunctionType type;
-    int32_t numArgs;
+    PRInt32 numArgs;
   };
 
   /**
@@ -65,36 +95,22 @@ public:
    *        connection.
    * @param aFlags
    *        The flags to pass to sqlite3_open_v2.
-   * @param aAsyncOnly
-   *        If |true|, the Connection only implements asynchronous interface:
-   *        - |mozIStorageAsyncConnection|;
-   *        If |false|, the result also implements synchronous interface:
-   *        - |mozIStorageConnection|.
    */
-  Connection(Service *aService, int aFlags, bool aAsyncOnly);
-
-  /**
-   * Creates the connection to an in-memory database.
-   */
-  nsresult initialize();
+  Connection(Service *aService, int aFlags);
 
   /**
    * Creates the connection to the database.
    *
    * @param aDatabaseFile
    *        The nsIFile of the location of the database to open, or create if it
-   *        does not exist.
+   *        does not exist.  Passing in nsnull here creates an in-memory
+   *        database.
+   * @param aVFSName
+   *        The VFS that SQLite will use when opening this database. NULL means
+   *        "default".
    */
-  nsresult initialize(nsIFile *aDatabaseFile);
-
-  /**
-   * Creates the connection to the database.
-   *
-   * @param aFileURL
-   *        The nsIFileURL of the location of the database to open, or create if it
-   *        does not exist.
-   */
-  nsresult initialize(nsIFileURL *aFileURL);
+  nsresult initialize(nsIFile *aDatabaseFile,
+                      const char* aVFSName = NULL);
 
   // fetch the native handle
   sqlite3 *GetNativeConnection() { return mDBConn; }
@@ -141,60 +157,16 @@ public:
    */
   nsCString getFilename();
 
-  /**
-   * Creates an sqlite3 prepared statement object from an SQL string.
-   *
-   * @param aSQL
-   *        The SQL statement string to compile.
-   * @param _stmt
-   *        New sqlite3_stmt object.
-   * @return the result from sqlite3_prepare_v2.
-   */
-  int prepareStatement(const nsCString &aSQL, sqlite3_stmt **_stmt);
-
-  /**
-   * Performs a sqlite3_step on aStatement, while properly handling SQLITE_LOCKED
-   * when not on the main thread by waiting until we are notified.
-   *
-   * @param aStatement
-   *        A pointer to a sqlite3_stmt object.
-   * @return the result from sqlite3_step.
-   */
-  int stepStatement(sqlite3_stmt* aStatement);
-
-  bool ConnectionReady() {
-    return mDBConn != nullptr;
-  }
-
-  /**
-   * True if this is an async connection, it is shutting down and it is not
-   * closed yet.
-   */
-  bool isAsyncClosing();
-
-
-  nsresult initializeClone(Connection *aClone, bool aReadOnly);
-
 private:
   ~Connection();
-  nsresult initializeInternal(nsIFile *aDatabaseFile);
 
   /**
    * Sets the database into a closed state so no further actions can be
    * performed.
    *
-   * @note mDBConn is set to nullptr in this method.
+   * @note mDBConn is set to NULL in this method.
    */
   nsresult setClosedState();
-
-  /**
-   * Helper for calls to sqlite3_exec. Reports long delays to Telemetry.
-   *
-   * @param aSqlString
-   *        SQL string to execute
-   * @return the result from sqlite3_exec.
-   */
-  int executeSql(const char *aSqlString);
 
   /**
    * Describes a certain primitive type in the database.
@@ -219,7 +191,7 @@ private:
    */
   nsresult databaseElementExists(enum DatabaseElementType aElementType,
                                  const nsACString& aElementName,
-                                 bool *_exists);
+                                 PRBool *_exists);
 
   bool findFunctionByInstance(nsISupports *aInstance);
 
@@ -230,8 +202,9 @@ private:
   int progressHandler();
 
   sqlite3 *mDBConn;
-  nsCOMPtr<nsIFileURL> mFileURL;
   nsCOMPtr<nsIFile> mDatabaseFile;
+
+  nsTArray<nsRefPtr<StorageMemoryReporter> > mMemoryReporters;
 
   /**
    * Lazily created thread for asynchronous statement execution.  Consumers
@@ -251,7 +224,7 @@ private:
    * Tracks if we have a transaction in progress or not.  Access protected by
    * mDBMutex.
    */
-  bool mTransactionInProgress;
+  PRBool mTransactionInProgress;
 
   /**
    * Stores the mapping of a given function by name to its instance.  Access is
@@ -274,54 +247,6 @@ private:
   // connections do not outlive the service.  2) Our custom collating functions
   // call its localeCompareStrings() method.
   nsRefPtr<Service> mStorageService;
-
-  /**
-   * If |false|, this instance supports synchronous operations
-   * and it can be cast to |mozIStorageConnection|.
-   */
-  const bool mAsyncOnly;
-};
-
-
-/**
- * A Runnable designed to call a mozIStorageCompletionCallback on
- * the appropriate thread.
- */
-class CallbackComplete MOZ_FINAL : public nsRunnable
-{
-public:
-  /**
-   * @param aValue The result to pass to the callback. It must
-   *               already be owned by the main thread.
-   * @param aCallback The callback. It must already be owned by the
-   *                  main thread.
-   */
-  CallbackComplete(nsresult aStatus,
-                   nsISupports* aValue,
-                   already_AddRefed<mozIStorageCompletionCallback> aCallback)
-    : mStatus(aStatus)
-    , mValue(aValue)
-    , mCallback(aCallback)
-  {
-  }
-
-  NS_IMETHOD Run() {
-    MOZ_ASSERT(NS_IsMainThread());
-    nsresult rv = mCallback->Complete(mStatus, mValue);
-
-    // Ensure that we release on the main thread
-    mValue = nullptr;
-    mCallback = nullptr;
-    return rv;
-  }
-
-private:
-  nsresult mStatus;
-  nsCOMPtr<nsISupports> mValue;
-  // This is a nsRefPtr<T> and not a nsCOMPtr<T> because
-  // nsCOMP<T> would cause an off-main thread QI, which
-  // is not a good idea (and crashes XPConnect).
-  nsRefPtr<mozIStorageCompletionCallback> mCallback;
 };
 
 } // namespace storage

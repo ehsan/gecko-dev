@@ -24,14 +24,12 @@ Tests of DOM Worker Location
   var workerFilename = "location_worker.js";
 
   var href = window.location.href
-  var queryPos = href.lastIndexOf(window.location.search);
-  var baseHref = href.substr(0, href.substr(0, queryPos).lastIndexOf("/") + 1);
+  var baseHref = href.substr(0, href.lastIndexOf("/") + 1);
 
   var path = window.location.pathname;
   var basePath = path.substr(0, path.lastIndexOf("/") + 1);
 
   var strings = {
-    "toString": baseHref + workerFilename,
     "href": baseHref + workerFilename,
     "protocol": window.location.protocol,
     "host": window.location.host,
@@ -42,20 +40,22 @@ Tests of DOM Worker Location
     "hash": ""
   };
 
-  var lastSlash = href.substr(0, queryPos).lastIndexOf("/") + 1;
+  var lastSlash = href.lastIndexOf("/") + 1;
   is(thisFilename,
-     href.substr(lastSlash, queryPos - lastSlash),
-     "Correct filename ");
+     href.substr(lastSlash,
+                 href.lastIndexOf(window.location.search) - lastSlash),
+     "Correct filename");
 
   var worker = new Worker(workerFilename);
 
   worker.onmessage = function(event) {
     if (event.data.string == "testfinished") {
+      is(event.data.value, strings["href"]);
       SimpleTest.finish();
       return;
     }
-    ok(event.data.string in strings, event.data.string);
-    is(event.data.value, strings[event.data.string], event.data.string);
+    ok(event.data.string in strings);
+    is(event.data.value, strings[event.data.string]);
   };
 
   worker.onerror = function(event) {

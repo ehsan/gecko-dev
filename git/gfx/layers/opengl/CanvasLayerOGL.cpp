@@ -1,10 +1,41 @@
 /* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Corporation code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Vladimir Vukicevic <vladimir@pobox.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-#include "ipc/AutoOpenSurface.h"
-#include "mozilla/layers/PLayerTransaction.h"
+#include "mozilla/layers/PLayers.h"
 #include "mozilla/layers/ShadowLayers.h"
 
 #include "gfxSharedImageSurface.h"
@@ -14,16 +45,6 @@
 #include "gfxImageSurface.h"
 #include "gfxContext.h"
 #include "GLContextProvider.h"
-#include "gfxPlatform.h"
-#include "SharedSurfaceGL.h"
-#include "SharedSurfaceEGL.h"
-#include "SurfaceStream.h"
-#include "gfxColor.h"
-
-#ifdef XP_MACOSX
-#include "mozilla/gfx/MacIOSurface.h"
-#include "SharedSurfaceIO.h"
-#endif
 
 #ifdef XP_WIN
 #include "gfxWindowsSurface.h"
@@ -34,127 +55,69 @@
 #include <OpenGL/OpenGL.h>
 #endif
 
-#ifdef GL_PROVIDER_GLX
+#ifdef MOZ_X11
 #include "gfxXlibSurface.h"
 #endif
 
 using namespace mozilla;
 using namespace mozilla::layers;
 using namespace mozilla::gl;
-using namespace mozilla::gfx;
-
-static void
-MakeTextureIfNeeded(GLContext* gl, GLuint& aTexture)
-{
-  if (aTexture != 0)
-    return;
-
-  gl->fGenTextures(1, &aTexture);
-
-  gl->fActiveTexture(LOCAL_GL_TEXTURE0);
-  gl->fBindTexture(LOCAL_GL_TEXTURE_2D, aTexture);
-
-  gl->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MIN_FILTER, LOCAL_GL_LINEAR);
-  gl->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MAG_FILTER, LOCAL_GL_LINEAR);
-  gl->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_S, LOCAL_GL_CLAMP_TO_EDGE);
-  gl->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_T, LOCAL_GL_CLAMP_TO_EDGE);
-}
-
-#ifdef XP_MACOSX
-static GLuint
-MakeIOSurfaceTexture(void* aCGIOSurfaceContext, mozilla::gl::GLContext* aGL)
-{
-  GLuint ioSurfaceTexture;
-
-  aGL->MakeCurrent();
-
-  aGL->fGenTextures(1, &ioSurfaceTexture);
-
-  aGL->fActiveTexture(LOCAL_GL_TEXTURE0);
-  aGL->fBindTexture(LOCAL_GL_TEXTURE_RECTANGLE_ARB, ioSurfaceTexture);
-
-  aGL->fTexParameteri(LOCAL_GL_TEXTURE_RECTANGLE_ARB, LOCAL_GL_TEXTURE_MIN_FILTER, LOCAL_GL_LINEAR);
-  aGL->fTexParameteri(LOCAL_GL_TEXTURE_RECTANGLE_ARB, LOCAL_GL_TEXTURE_MAG_FILTER, LOCAL_GL_LINEAR);
-  aGL->fTexParameteri(LOCAL_GL_TEXTURE_RECTANGLE_ARB, LOCAL_GL_TEXTURE_WRAP_S, LOCAL_GL_CLAMP_TO_EDGE);
-  aGL->fTexParameteri(LOCAL_GL_TEXTURE_RECTANGLE_ARB, LOCAL_GL_TEXTURE_WRAP_T, LOCAL_GL_CLAMP_TO_EDGE);
-
-  RefPtr<MacIOSurface> ioSurface = MacIOSurface::IOSurfaceContextGetSurface((CGContextRef)aCGIOSurfaceContext);
-  void *nativeCtx = aGL->GetNativeData(GLContext::NativeGLContext);
-
-  ioSurface->CGLTexImageIOSurface2D(nativeCtx);
-
-  aGL->fBindTexture(LOCAL_GL_TEXTURE_RECTANGLE_ARB, 0);
-
-  return ioSurfaceTexture;
-}
-#endif
 
 void
 CanvasLayerOGL::Destroy()
 {
   if (!mDestroyed) {
-    CleanupResources();
-    mDestroyed = true;
+    if (mTexture) {
+      GLContext *cx = mOGLManager->glForResources();
+      cx->MakeCurrent();
+      cx->fDeleteTextures(1, &mTexture);
+    }
+
+    mDestroyed = PR_TRUE;
   }
 }
 
 void
 CanvasLayerOGL::Initialize(const Data& aData)
 {
-  NS_ASSERTION(mCanvasSurface == nullptr, "BasicCanvasLayer::Initialize called twice!");
+  NS_ASSERTION(mCanvasSurface == nsnull, "BasicCanvasLayer::Initialize called twice!");
 
-  if (aData.mGLContext != nullptr &&
-      aData.mSurface != nullptr)
+  if (aData.mGLContext != nsnull &&
+      aData.mSurface != nsnull)
   {
-    NS_WARNING("CanvasLayerOGL can't have both surface and WebGLContext");
+    NS_WARNING("CanvasLayerOGL can't have both surface and GLContext");
     return;
   }
 
   mOGLManager->MakeCurrent();
 
-  if (aData.mDrawTarget &&
-      aData.mDrawTarget->GetNativeSurface(gfx::NATIVE_SURFACE_CGCONTEXT_ACCELERATED)) {
-    mDrawTarget = aData.mDrawTarget;
-    mNeedsYFlip = false;
-    mBounds.SetRect(0, 0, aData.mSize.width, aData.mSize.height);
-    return;
-  } else if (aData.mDrawTarget) {
-    mDrawTarget = aData.mDrawTarget;
-    mCanvasSurface = gfxPlatform::GetPlatform()->CreateThebesSurfaceAliasForDrawTarget_hack(mDrawTarget);
-    mNeedsYFlip = false;
-  } else if (aData.mSurface) {
+  if (aData.mSurface) {
     mCanvasSurface = aData.mSurface;
-    mNeedsYFlip = false;
-#if defined(GL_PROVIDER_GLX)
+    mNeedsYFlip = PR_FALSE;
+#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
     if (aData.mSurface->GetType() == gfxASurface::SurfaceTypeXlib) {
         gfxXlibSurface *xsurf = static_cast<gfxXlibSurface*>(aData.mSurface);
         mPixmap = xsurf->GetGLXPixmap();
         if (mPixmap) {
-            mLayerProgram = ShaderProgramFromContentType(aData.mSurface->GetContentType());
-            MakeTextureIfNeeded(gl(), mUploadTexture);
+            if (aData.mSurface->GetContentType() == gfxASurface::CONTENT_COLOR_ALPHA) {
+                mLayerProgram = gl::RGBALayerProgramType;
+            } else {
+                mLayerProgram = gl::RGBXLayerProgramType;
+            }
+            MakeTexture();
         }
     }
 #endif
   } else if (aData.mGLContext) {
-    mGLContext = aData.mGLContext;
-    NS_ASSERTION(mGLContext->IsOffscreen(), "Canvas GLContext must be offscreen.");
-    mIsGLAlphaPremult = aData.mIsGLAlphaPremult;
-    mNeedsYFlip = true;
-
-    // [OGL Layers, MTC] WebGL layer init.
-
-    GLScreenBuffer* screen = mGLContext->Screen();
-    SurfaceStreamType streamType =
-        SurfaceStream::ChooseGLStreamType(SurfaceStream::MainThread,
-                                          screen->PreserveBuffer());
-    SurfaceFactory_GL* factory = nullptr;
-    if (!mForceReadback) {
-      factory = new SurfaceFactory_GLTexture(mGLContext, gl(), screen->Caps());
+    if (!aData.mGLContext->IsOffscreen()) {
+      NS_WARNING("CanvasLayerOGL with a non-offscreen GL context given");
+      return;
     }
 
-    if (factory) {
-      screen->Morph(factory, streamType);
-    }
+    mCanvasGLContext = aData.mGLContext;
+    mGLBufferIsPremultiplied = aData.mGLBufferIsPremultiplied;
+
+    mNeedsYFlip = PR_TRUE;
   } else {
     NS_WARNING("CanvasLayerOGL::Initialize called without surface or GL context!");
     return;
@@ -164,120 +127,90 @@ CanvasLayerOGL::Initialize(const Data& aData)
       
   // Check the maximum texture size supported by GL. glTexImage2D supports
   // images of up to 2 + GL_MAX_TEXTURE_SIZE
-  GLint texSize = 0;
-  gl()->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_SIZE, &texSize);
-  MOZ_ASSERT(texSize != 0);
+  GLint texSize = gl()->GetMaxTextureSize();
   if (mBounds.width > (2 + texSize) || mBounds.height > (2 + texSize)) {
-    mDelayedUpdates = true;
-    MakeTextureIfNeeded(gl(), mUploadTexture);
+    mDelayedUpdates = PR_TRUE;
+    MakeTexture();
     // This should only ever occur with 2d canvas, WebGL can't already have a texture
     // of this size can it?
-    NS_ABORT_IF_FALSE(mCanvasSurface || mDrawTarget, 
+    NS_ABORT_IF_FALSE(mCanvasSurface, 
                       "Invalid texture size when WebGL surface already exists at that size?");
   }
 }
 
-/**
- * Following UpdateSurface(), mTexture on context this->gl() should contain the data we want,
- * unless mDelayedUpdates is true because of a too-large surface.
- */
+void
+CanvasLayerOGL::MakeTexture()
+{
+  if (mTexture != 0)
+    return;
+
+  gl()->fGenTextures(1, &mTexture);
+
+  gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
+  gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexture);
+
+  gl()->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MIN_FILTER, LOCAL_GL_LINEAR);
+  gl()->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MAG_FILTER, LOCAL_GL_LINEAR);
+  gl()->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_S, LOCAL_GL_CLAMP_TO_EDGE);
+  gl()->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_T, LOCAL_GL_CLAMP_TO_EDGE);
+}
+
 void
 CanvasLayerOGL::UpdateSurface()
 {
-  if (!IsDirty())
+  if (!mDirty)
     return;
-  Painted();
+  mDirty = PR_FALSE;
 
   if (mDestroyed || mDelayedUpdates) {
     return;
   }
 
-#if defined(GL_PROVIDER_GLX)
+#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
   if (mPixmap) {
     return;
   }
 #endif
 
-  gfxASurface* updatedSurface = nullptr;
-  gfxImageSurface* temporarySurface = nullptr;
-  bool nothingToShow = false;
-  if (mGLContext) {
-    SharedSurface* surf = mGLContext->RequestFrame();
-    if (surf) {
-      mLayerProgram = surf->HasAlpha() ? RGBALayerProgramType
-                                       : RGBXLayerProgramType;
-      switch (surf->Type()) {
-        case SharedSurfaceType::Basic: {
-          SharedSurface_Basic* readbackSurf = SharedSurface_Basic::Cast(surf);
-          updatedSurface = readbackSurf->GetData();
-          break;
-        }
-        case SharedSurfaceType::GLTextureShare: {
-          SharedSurface_GLTexture* textureSurf = SharedSurface_GLTexture::Cast(surf);
-          mTexture = textureSurf->Texture();
-          break;
-        }
-#ifdef XP_MACOSX
-        case SharedSurfaceType::IOSurface: {
-          SharedSurface_IOSurface *ioSurf = SharedSurface_IOSurface::Cast(surf);
-          mTexture = ioSurf->Texture();
-          mTextureTarget = ioSurf->TextureTarget();
-          mLayerProgram = ioSurf->HasAlpha() ? RGBARectLayerProgramType : RGBXRectLayerProgramType;
-          break;
-        }
-#endif
-        default:
-          MOZ_CRASH("Unacceptable SharedSurface type.");
-      }
-    } else {
-      nothingToShow = true;
+  mOGLManager->MakeCurrent();
+
+  if (mCanvasGLContext &&
+      mCanvasGLContext->GetContextType() == gl()->GetContextType())
+  {
+    if (gl()->BindOffscreenNeedsTexture(mCanvasGLContext) &&
+        mTexture == 0)
+    {
+      MakeTexture();
     }
-  } else if (mCanvasSurface) {
-#ifdef XP_MACOSX
-    if (mDrawTarget && mDrawTarget->GetNativeSurface(gfx::NATIVE_SURFACE_CGCONTEXT_ACCELERATED)) {
-      if (!mTexture) {
-        mTexture = MakeIOSurfaceTexture((CGContextRef)mDrawTarget->GetNativeSurface(
-                                        gfx::NATIVE_SURFACE_CGCONTEXT_ACCELERATED),
-                                        gl());
-        mTextureTarget = LOCAL_GL_TEXTURE_RECTANGLE_ARB;
-        mLayerProgram = RGBARectLayerProgramType;
-      }
-      mDrawTarget->Flush();
-      return;
-    }
-#endif
-    updatedSurface = mCanvasSurface;
   } else {
-    MOZ_CRASH("Unhandled canvas layer type.");
-  }
+    nsRefPtr<gfxASurface> updatedAreaSurface;
+    if (mCanvasSurface) {
+      updatedAreaSurface = mCanvasSurface;
+    } else if (mCanvasGLContext) {
+      nsRefPtr<gfxImageSurface> updatedAreaImageSurface =
+        new gfxImageSurface(gfxIntSize(mBounds.width, mBounds.height),
+                            gfxASurface::ImageFormatARGB32);
+      mCanvasGLContext->ReadPixelsIntoImageSurface(0, 0,
+                                                   mBounds.width,
+                                                   mBounds.height,
+                                                   updatedAreaImageSurface);
+      updatedAreaSurface = updatedAreaImageSurface;
+    }
 
-  if (updatedSurface) {
-    mOGLManager->MakeCurrent();
-    gfx::SurfaceFormat format =
-      gl()->UploadSurfaceToTexture(updatedSurface,
+    mLayerProgram =
+      gl()->UploadSurfaceToTexture(updatedAreaSurface,
                                    mBounds,
-                                   mUploadTexture,
-                                   true,//false,
+                                   mTexture,
+                                   false,
                                    nsIntPoint(0, 0));
-    mLayerProgram = ShaderProgramFromSurfaceFormat(format);
-    mTexture = mUploadTexture;
-
-    if (temporarySurface)
-      delete temporarySurface;
   }
-
-  MOZ_ASSERT(mTexture || nothingToShow);
 }
 
 void
 CanvasLayerOGL::RenderLayer(int aPreviousDestination,
                             const nsIntPoint& aOffset)
 {
-  FirePreTransactionCallback();
   UpdateSurface();
-  if (mOGLManager->CompositingDisabled()) {
-    return;
-  }
   FireDidTransactionCallback();
 
   mOGLManager->MakeCurrent();
@@ -289,72 +222,162 @@ CanvasLayerOGL::RenderLayer(int aPreviousDestination,
   gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
 
   if (mTexture) {
-    gl()->fBindTexture(mTextureTarget, mTexture);
+    gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexture);
   }
 
-  ShaderProgramOGL *program = nullptr;
+  ColorTextureLayerProgram *program = nsnull;
+
+  bool useGLContext = mCanvasGLContext &&
+    mCanvasGLContext->GetContextType() == gl()->GetContextType();
 
   nsIntRect drawRect = mBounds;
-  if (mDelayedUpdates) {
-    NS_ABORT_IF_FALSE(mCanvasSurface || mDrawTarget, "WebGL canvases should always be using full texture upload");
+
+  if (useGLContext) {
+    mCanvasGLContext->MakeCurrent();
+    mCanvasGLContext->fFlush();
+
+    gl()->MakeCurrent();
+    gl()->BindTex2DOffscreen(mCanvasGLContext);
+    program = mOGLManager->GetBasicLayerProgram(CanUseOpaqueSurface(), PR_TRUE);
+  } else if (mDelayedUpdates) {
+    NS_ABORT_IF_FALSE(mCanvasSurface, "WebGL canvases should always be using full texture upload");
     
     drawRect.IntersectRect(drawRect, GetEffectiveVisibleRegion().GetBounds());
 
-    gfx::SurfaceFormat format =
+    mLayerProgram =
       gl()->UploadSurfaceToTexture(mCanvasSurface,
                                    nsIntRect(0, 0, drawRect.width, drawRect.height),
-                                   mUploadTexture,
+                                   mTexture,
                                    true,
                                    drawRect.TopLeft());
-    mLayerProgram = ShaderProgramFromSurfaceFormat(format);
-    mTexture = mUploadTexture;
+  }
+  if (!program) { 
+    program = mOGLManager->GetColorTextureLayerProgram(mLayerProgram);
   }
 
-  if (!program) {
-    program = mOGLManager->GetProgram(mLayerProgram, GetMaskLayer());
-  }
-
-#if defined(GL_PROVIDER_GLX)
+#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
   if (mPixmap && !mDelayedUpdates) {
-    sDefGLXLib.BindTexImage(mPixmap);
+    sGLXLibrary.BindTexImage(mPixmap);
   }
 #endif
 
-  gl()->ApplyFilterToBoundTexture(mFilter);
+  ApplyFilter(mFilter);
 
   program->Activate();
-  if (mLayerProgram == RGBARectLayerProgramType ||
-      mLayerProgram == RGBXRectLayerProgramType) {
-    // This is used by IOSurface that use 0,0...w,h coordinate rather then 0,0..1,1.
-    program->SetTexCoordMultiplier(mBounds.width, mBounds.height);
-  }
   program->SetLayerQuadRect(drawRect);
   program->SetLayerTransform(GetEffectiveTransform());
-  program->SetTextureTransform(gfx3DMatrix());
   program->SetLayerOpacity(GetEffectiveOpacity());
   program->SetRenderOffset(aOffset);
   program->SetTextureUnit(0);
-  program->LoadMask(GetMaskLayer());
 
-  if (gl()->CanUploadNonPowerOfTwo()) {
-    mOGLManager->BindAndDrawQuad(program, mNeedsYFlip ? true : false);
-  } else {
-    mOGLManager->BindAndDrawQuadWithTextureRect(program, drawRect, drawRect.Size());
-  }
+  mOGLManager->BindAndDrawQuad(program, mNeedsYFlip ? true : false);
 
-#if defined(GL_PROVIDER_GLX)
+#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
   if (mPixmap && !mDelayedUpdates) {
-    sDefGLXLib.ReleaseTexImage(mPixmap);
+    sGLXLibrary.ReleaseTexImage(mPixmap);
   }
 #endif
+
+  if (useGLContext) {
+    gl()->UnbindTex2DOffscreen(mCanvasGLContext);
+  }
+}
+
+
+ShadowCanvasLayerOGL::ShadowCanvasLayerOGL(LayerManagerOGL* aManager)
+  : ShadowCanvasLayer(aManager, nsnull)
+  , LayerOGL(aManager)
+  , mNeedsYFlip(PR_FALSE)
+{
+  mImplData = static_cast<LayerOGL*>(this);
+}
+ 
+ShadowCanvasLayerOGL::~ShadowCanvasLayerOGL()
+{}
+
+void
+ShadowCanvasLayerOGL::Initialize(const Data& aData)
+{
+  NS_RUNTIMEABORT("Incompatibe surface type");
 }
 
 void
-CanvasLayerOGL::CleanupResources()
+ShadowCanvasLayerOGL::Init(const SurfaceDescriptor& aNewFront, const nsIntSize& aSize, bool needYFlip)
 {
-  if (mUploadTexture) {
-    gl()->MakeCurrent();
-    gl()->fDeleteTextures(1, &mUploadTexture);
-    mUploadTexture = 0;
+  mDeadweight = aNewFront;
+  nsRefPtr<gfxASurface> surf = ShadowLayerForwarder::OpenDescriptor(mDeadweight);
+
+  mTexImage = gl()->CreateTextureImage(nsIntSize(aSize.width, aSize.height),
+                                       surf->GetContentType(),
+                                       LOCAL_GL_CLAMP_TO_EDGE);
+  mNeedsYFlip = needYFlip;
+}
+
+void
+ShadowCanvasLayerOGL::Swap(const SurfaceDescriptor& aNewFront,
+                           SurfaceDescriptor* aNewBack)
+{
+  if (!mDestroyed && mTexImage) {
+    nsRefPtr<gfxASurface> surf = ShadowLayerForwarder::OpenDescriptor(aNewFront);
+    gfxSize sz = surf->GetSize();
+    nsIntRegion updateRegion(nsIntRect(0, 0, sz.width, sz.height));
+    mTexImage->DirectUpdate(surf, updateRegion);
   }
+
+  *aNewBack = aNewFront;
+}
+
+void
+ShadowCanvasLayerOGL::DestroyFrontBuffer()
+{
+  mTexImage = nsnull;
+  if (IsSurfaceDescriptorValid(mDeadweight)) {
+    mOGLManager->DestroySharedSurface(&mDeadweight, mAllocator);
+  }
+}
+
+void
+ShadowCanvasLayerOGL::Disconnect()
+{
+  Destroy();
+}
+
+void
+ShadowCanvasLayerOGL::Destroy()
+{
+  if (!mDestroyed) {
+    mDestroyed = PR_TRUE;
+    mTexImage = nsnull;
+  }
+}
+
+Layer*
+ShadowCanvasLayerOGL::GetLayer()
+{
+  return this;
+}
+
+void
+ShadowCanvasLayerOGL::RenderLayer(int aPreviousFrameBuffer,
+                                  const nsIntPoint& aOffset)
+{
+  mOGLManager->MakeCurrent();
+
+  ColorTextureLayerProgram *program =
+    mOGLManager->GetColorTextureLayerProgram(mTexImage->GetShaderProgramType());
+
+  ApplyFilter(mFilter);
+
+  program->Activate();
+  program->SetLayerTransform(GetEffectiveTransform());
+  program->SetLayerOpacity(GetEffectiveOpacity());
+  program->SetRenderOffset(aOffset);
+  program->SetTextureUnit(0);
+
+  mTexImage->BeginTileIteration();
+  do {
+    TextureImage::ScopedBindTexture texBind(mTexImage, LOCAL_GL_TEXTURE0);
+    program->SetLayerQuadRect(mTexImage->GetTileRect());
+    mOGLManager->BindAndDrawQuad(program, mNeedsYFlip); // FIXME flip order of tiles?
+  } while (mTexImage->NextTile());
 }

@@ -17,20 +17,19 @@ public:
     TestRPCShutdownRaceParent();
     virtual ~TestRPCShutdownRaceParent();
 
-    static bool RunTestInProcesses() { return true; }
-    // FIXME/bug 703323 Could work if modified
-    static bool RunTestInThreads() { return false; }
-
     void Main();
 
-    virtual bool RecvStartDeath() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool RecvStartDeath();
 
-    virtual bool RecvOrphan() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool RecvOrphan();
 
 protected:
     void StartShuttingDown();
 
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE
+    NS_OVERRIDE
+    virtual void ActorDestroy(ActorDestroyReason why)
     {
         if (AbnormalShutdown != why)
             fail("unexpected destruction!");  
@@ -46,11 +45,14 @@ public:
     virtual ~TestRPCShutdownRaceChild();
 
 protected:
-    virtual bool RecvStart() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool RecvStart();
 
-    virtual bool AnswerExit() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool AnswerExit();
 
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE
+    NS_OVERRIDE
+    virtual void ActorDestroy(ActorDestroyReason why)
     {
         fail("should have 'crashed'!");
     }

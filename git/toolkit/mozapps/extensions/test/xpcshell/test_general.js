@@ -31,7 +31,7 @@ function run_test_1() {
     AddonManager.getAddonsWithOperationsByTypes(null, function(pendingAddons) {
       do_check_eq(0, pendingAddons.length);
 
-      do_execute_soon(run_test_2);
+      run_test_2();
     });
   });
 }
@@ -44,7 +44,7 @@ function run_test_2() {
   AddonManager.getAddonsByTypes(null, function(addons) {
     do_check_eq(gCount, addons.length);
 
-    do_execute_soon(run_test_3);
+    run_test_3();
   });
 }
 

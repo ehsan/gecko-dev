@@ -1,8 +1,41 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  * vim: sw=2 ts=2 et lcs=trail\:.,tab\:>~ :
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozStorage code.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2008
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Shawn Wilsher <me@shawnwilsher.com> (Original Author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsIXPConnect.h"
 #include "mozStorageStatement.h"
@@ -28,18 +61,14 @@ namespace storage {
 static
 JSBool
 stepFunc(JSContext *aCtx,
-         uint32_t,
+         PRUint32,
          jsval *_vp)
 {
   nsCOMPtr<nsIXPConnect> xpc(Service::getXPConnect());
   nsCOMPtr<nsIXPConnectWrappedNative> wrapper;
-  JSObject *obj = JS_THIS_OBJECT(aCtx, _vp);
-  if (!obj) {
-    return JS_FALSE;
-  }
-
-  nsresult rv =
-    xpc->GetWrappedNativeOfJSObject(aCtx, obj, getter_AddRefs(wrapper));
+  nsresult rv = xpc->GetWrappedNativeOfJSObject(
+    aCtx, JS_THIS_OBJECT(aCtx, _vp), getter_AddRefs(wrapper)
+  );
   if (NS_FAILED(rv)) {
     ::JS_ReportError(aCtx, "mozIStorageStatement::step() could not obtain native statement");
     return JS_FALSE;
@@ -58,7 +87,7 @@ stepFunc(JSContext *aCtx,
     static_cast<mozIStorageStatement *>(wrapper->Native())
   );
 
-  bool hasMore = false;
+  PRBool hasMore = PR_FALSE;
   rv = stmt->ExecuteStep(&hasMore);
   if (NS_SUCCEEDED(rv) && !hasMore) {
     *_vp = JSVAL_FALSE;
@@ -87,21 +116,20 @@ StatementJSHelper::getRow(Statement *aStatement,
   nsresult rv;
 
 #ifdef DEBUG
-  int32_t state;
+  PRInt32 state;
   (void)aStatement->GetState(&state);
   NS_ASSERTION(state == mozIStorageStatement::MOZ_STORAGE_STATEMENT_EXECUTING,
                "Invalid state to get the row object - all calls will fail!");
 #endif
 
   if (!aStatement->mStatementRowHolder) {
-    JS::RootedObject scope(aCtx, aScopeObj);
     nsCOMPtr<mozIStorageStatementRow> row(new StatementRow(aStatement));
     NS_ENSURE_TRUE(row, NS_ERROR_OUT_OF_MEMORY);
 
     nsCOMPtr<nsIXPConnect> xpc(Service::getXPConnect());
     rv = xpc->WrapNative(
       aCtx,
-      ::JS_GetGlobalForObject(aCtx, scope),
+      ::JS_GetGlobalForObject(aCtx, aScopeObj),
       row,
       NS_GET_IID(mozIStorageStatementRow),
       getter_AddRefs(aStatement->mStatementRowHolder)
@@ -109,9 +137,9 @@ StatementJSHelper::getRow(Statement *aStatement,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  JS::Rooted<JSObject*> obj(aCtx);
-  obj = aStatement->mStatementRowHolder->GetJSObject();
-  NS_ENSURE_STATE(obj);
+  JSObject *obj = nsnull;
+  rv = aStatement->mStatementRowHolder->GetJSObject(&obj);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   *_row = OBJECT_TO_JSVAL(obj);
   return NS_OK;
@@ -126,14 +154,13 @@ StatementJSHelper::getParams(Statement *aStatement,
   nsresult rv;
 
 #ifdef DEBUG
-  int32_t state;
+  PRInt32 state;
   (void)aStatement->GetState(&state);
   NS_ASSERTION(state == mozIStorageStatement::MOZ_STORAGE_STATEMENT_READY,
                "Invalid state to get the params object - all calls will fail!");
 #endif
 
   if (!aStatement->mStatementParamsHolder) {
-    JS::RootedObject scope(aCtx, aScopeObj);
     nsCOMPtr<mozIStorageStatementParams> params =
       new StatementParams(aStatement);
     NS_ENSURE_TRUE(params, NS_ERROR_OUT_OF_MEMORY);
@@ -141,7 +168,7 @@ StatementJSHelper::getParams(Statement *aStatement,
     nsCOMPtr<nsIXPConnect> xpc(Service::getXPConnect());
     rv = xpc->WrapNative(
       aCtx,
-      ::JS_GetGlobalForObject(aCtx, scope),
+      ::JS_GetGlobalForObject(aCtx, aScopeObj),
       params,
       NS_GET_IID(mozIStorageStatementParams),
       getter_AddRefs(aStatement->mStatementParamsHolder)
@@ -149,9 +176,9 @@ StatementJSHelper::getParams(Statement *aStatement,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  JS::Rooted<JSObject*> obj(aCtx);
-  obj = aStatement->mStatementParamsHolder->GetJSObject();
-  NS_ENSURE_STATE(obj);
+  JSObject *obj = nsnull;
+  rv = aStatement->mStatementParamsHolder->GetJSObject(&obj);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   *_params = OBJECT_TO_JSVAL(obj);
   return NS_OK;
@@ -180,13 +207,10 @@ StatementJSHelper::GetProperty(nsIXPConnectWrappedNative *aWrapper,
                                JSObject *aScopeObj,
                                jsid aId,
                                jsval *_result,
-                               bool *_retval)
+                               PRBool *_retval)
 {
   if (!JSID_IS_STRING(aId))
     return NS_OK;
-
-  JS::Rooted<JSObject*> scope(aCtx, aScopeObj);
-  JS::Rooted<jsid> id(aCtx, aId);
 
 #ifdef DEBUG
   {
@@ -200,12 +224,12 @@ StatementJSHelper::GetProperty(nsIXPConnectWrappedNative *aWrapper,
     static_cast<mozIStorageStatement *>(aWrapper->Native())
   );
 
-  JSFlatString *str = JSID_TO_FLAT_STRING(id);
+  JSFlatString *str = JSID_TO_FLAT_STRING(aId);
   if (::JS_FlatStringEqualsAscii(str, "row"))
-    return getRow(stmt, aCtx, scope, _result);
+    return getRow(stmt, aCtx, aScopeObj, _result);
 
   if (::JS_FlatStringEqualsAscii(str, "params"))
-    return getParams(stmt, aCtx, scope, _result);
+    return getParams(stmt, aCtx, aScopeObj, _result);
 
   return NS_OK;
 }
@@ -216,18 +240,17 @@ StatementJSHelper::NewResolve(nsIXPConnectWrappedNative *aWrapper,
                               JSContext *aCtx,
                               JSObject *aScopeObj,
                               jsid aId,
-                              uint32_t aFlags,
+                              PRUint32 aFlags,
                               JSObject **_objp,
-                              bool *_retval)
+                              PRBool *_retval)
 {
   if (!JSID_IS_STRING(aId))
     return NS_OK;
 
-  JS::RootedObject scope(aCtx, aScopeObj);
   if (::JS_FlatStringEqualsAscii(JSID_TO_FLAT_STRING(aId), "step")) {
-    *_retval = ::JS_DefineFunction(aCtx, scope, "step", stepFunc,
-                                   0, 0) != nullptr;
-    *_objp = scope.get();
+    *_retval = ::JS_DefineFunction(aCtx, aScopeObj, "step", stepFunc,
+                                   0, 0) != nsnull;
+    *_objp = aScopeObj;
     return NS_OK;
   }
   return NS_OK;

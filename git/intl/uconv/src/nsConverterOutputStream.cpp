@@ -1,7 +1,39 @@
 /* vim:set expandtab ts=4 sw=4 sts=4 cin: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org unicode stream converter code.
+ *
+ * The Initial Developer of the Original Code is
+ * Christian Biesinger <cbiesinger@web.de>.
+ * Portions created by the Initial Developer are Copyright (C) 2005
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
@@ -24,7 +56,7 @@ nsConverterOutputStream::~nsConverterOutputStream()
 NS_IMETHODIMP
 nsConverterOutputStream::Init(nsIOutputStream* aOutStream,
                               const char*      aCharset,
-                              uint32_t         aBufferSize /* ignored */,
+                              PRUint32         aBufferSize /* ignored */,
                               PRUnichar        aReplacementChar)
 {
     NS_PRECONDITION(aOutStream, "Null output stream!");
@@ -43,17 +75,17 @@ nsConverterOutputStream::Init(nsIOutputStream* aOutStream,
 
     mOutStream = aOutStream;
 
-    int32_t behaviour = aReplacementChar ? nsIUnicodeEncoder::kOnError_Replace
+    PRInt32 behaviour = aReplacementChar ? nsIUnicodeEncoder::kOnError_Replace
                                          : nsIUnicodeEncoder::kOnError_Signal;
     return mConverter->
         SetOutputErrorBehavior(behaviour,
-                               nullptr,
+                               nsnull,
                                aReplacementChar);
 }
 
 NS_IMETHODIMP
-nsConverterOutputStream::Write(uint32_t aCount, const PRUnichar* aChars,
-                               bool* aSuccess)
+nsConverterOutputStream::Write(PRUint32 aCount, const PRUnichar* aChars,
+                               PRBool* aSuccess)
 {
     if (!mOutStream) {
         NS_ASSERTION(!mConverter, "Closed streams shouldn't have converters");
@@ -61,18 +93,18 @@ nsConverterOutputStream::Write(uint32_t aCount, const PRUnichar* aChars,
     }
     NS_ASSERTION(mConverter, "Must have a converter when not closed");
 
-    int32_t inLen = aCount;
+    PRInt32 inLen = aCount;
 
-    int32_t maxLen;
+    PRInt32 maxLen;
     nsresult rv = mConverter->GetMaxLength(aChars, inLen, &maxLen);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsAutoCString buf;
+    nsCAutoString buf;
     buf.SetLength(maxLen);
-    if (buf.Length() != (uint32_t) maxLen)
+    if (buf.Length() != (PRUint32) maxLen)
         return NS_ERROR_OUT_OF_MEMORY;
 
-    int32_t outLen = maxLen;
+    PRInt32 outLen = maxLen;
     rv = mConverter->Convert(aChars, &inLen, buf.BeginWriting(), &outLen);
     if (NS_FAILED(rv))
         return rv;
@@ -80,20 +112,20 @@ nsConverterOutputStream::Write(uint32_t aCount, const PRUnichar* aChars,
         // Yes, NS_ERROR_UENC_NOMAPPING is a success code
         return NS_ERROR_LOSS_OF_SIGNIFICANT_DATA;
     }
-    NS_ASSERTION((uint32_t) inLen == aCount,
+    NS_ASSERTION((PRUint32) inLen == aCount,
                  "Converter didn't consume all the data!");
 
-    uint32_t written;
+    PRUint32 written;
     rv = mOutStream->Write(buf.get(), outLen, &written);
-    *aSuccess = NS_SUCCEEDED(rv) && written == uint32_t(outLen);
+    *aSuccess = NS_SUCCEEDED(rv) && written == PRUint32(outLen);
     return rv;
 
 }
 
 NS_IMETHODIMP
-nsConverterOutputStream::WriteString(const nsAString& aString, bool* aSuccess)
+nsConverterOutputStream::WriteString(const nsAString& aString, PRBool* aSuccess)
 {
-    int32_t inLen = aString.Length();
+    PRInt32 inLen = aString.Length();
     nsAString::const_iterator i;
     aString.BeginReading(i);
     return Write(inLen, i.get(), aSuccess);
@@ -106,22 +138,19 @@ nsConverterOutputStream::Flush()
         return NS_OK; // Already closed.
 
     char buf[1024];
-    int32_t size = sizeof(buf);
+    PRInt32 size = sizeof(buf);
     nsresult rv = mConverter->Finish(buf, &size);
     NS_ASSERTION(rv != NS_OK_UENC_MOREOUTPUT,
                  "1024 bytes ought to be enough for everyone");
     if (NS_FAILED(rv))
         return rv;
-    if (size == 0)
-        return NS_OK;
-
-    uint32_t written;
+    PRUint32 written;
     rv = mOutStream->Write(buf, size, &written);
     if (NS_FAILED(rv)) {
         NS_WARNING("Flush() lost data!");
         return rv;
     }
-    if (written != uint32_t(size)) {
+    if (written != PRUint32(size)) {
         NS_WARNING("Flush() lost data!");
         return NS_ERROR_LOSS_OF_SIGNIFICANT_DATA;
     }
@@ -137,8 +166,8 @@ nsConverterOutputStream::Close()
     nsresult rv1 = Flush();
 
     nsresult rv2 = mOutStream->Close();
-    mOutStream = nullptr;
-    mConverter = nullptr;
+    mOutStream = nsnull;
+    mConverter = nsnull;
     return NS_FAILED(rv1) ? rv1 : rv2;
 }
 

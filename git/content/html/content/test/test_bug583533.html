@@ -20,8 +20,10 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=583533
 
     /** Test for Bug 583533 **/
 
-    var sbs = SpecialPowers.Cc['@mozilla.org/intl/stringbundle;1'].
-       getService(SpecialPowers.Ci.nsIStringBundleService);
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
+    var sbs = Components.classes["@mozilla.org/intl/stringbundle;1"].
+    getService(Components.interfaces.nsIStringBundleService);
     var bundle = sbs.createBundle("chrome://global-platform/locale/platformKeys.properties");
     
     var shiftText = bundle.GetStringFromName("VK_SHIFT");
@@ -30,8 +32,12 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=583533
     var metaText = bundle.GetStringFromName("VK_META");
     var separatorText = bundle.GetStringFromName("MODIFIER_SEPARATOR");
 
-    var modifier = SpecialPowers.getIntPref("ui.key.contentAccess");
-
+    var modifier = Components.classes["@mozilla.org/preferences-service;1"]
+                                      .getService(Components.interfaces.nsIPrefBranch)
+                                      .getIntPref("ui.key.contentAccess");
+                                      
+    var domEvent = Components.interfaces.nsIDOMNSEvent;
+    
     var isShift;
     var isAlt;
     var isControl;
@@ -39,19 +45,14 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=583533
 
     is(modifier < 16 && modifier >= 0, true, "Modifier in range");
 
-    // There are no consts for the mask of this prefs.
-    if (modifier & 8) {
+    if (modifier & domEvent.META_MASK)
         isMeta = true;
-    }
-    if (modifier & 1) {
+    if (modifier & domEvent.SHIFT_MASK)
         isShift = true;
-    }
-    if (modifier & 2) {
+    if (modifier & domEvent.CONTROL_MASK)
         isControl = true;
-    }
-    if (modifier & 4) {
+    if (modifier & domEvent.ALT_MASK)
         isAlt = true;
-    }
 
     var label = "";
 
@@ -67,13 +68,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=583533
     label += document.getElementById("e").accessKey;
 
     is(label, document.getElementById("e").accessKeyLabel, "JS and C++ agree on accessKeyLabel");
-
-    /** Test for Bug 808964 **/
-
-    var div = document.createElement("div");
-    document.body.appendChild(div);
-
-    is(div.accessKeyLabel, "", "accessKeyLabel should be empty string");
 
 </script>
 </pre>

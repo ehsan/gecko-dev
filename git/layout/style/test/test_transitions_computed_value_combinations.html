@@ -38,17 +38,17 @@ function myrand()
 // Each of these values will also have a "computed" property filled in
 // below, so that we ensure it always computes to the same value.
 var values = {
-  "transition-duration":
+  "-moz-transition-duration":
     [
-      { lone: true,  specified: "initial" },
+      { lone: true,  specified: "-moz-initial" },
       { lone: false, specified: "2s" },
       { lone: false, specified: "0s" },
       { lone: false, specified: "430ms" },
-      { lone: false, specified: "1s" },
+      { lone: false, specified: "-1s" },
     ],
-  "transition-property":
+  "-moz-transition-property":
     [
-      { lone: true,  specified: "initial" },
+      { lone: true,  specified: "-moz-initial" },
       { lone: true,  specified: "none" },
       { lone: true,  specified: "all" },
       { lone: false, specified: "color" },
@@ -57,17 +57,17 @@ var values = {
       { lone: false, specified: "unsupported-property" },
       { lone: false, specified: "-other-unsupported-property" },
     ],
-  "transition-timing-function":
+  "-moz-transition-timing-function":
     [
-      { lone: true,  specified: "initial" },
+      { lone: true,  specified: "-moz-initial" },
       { lone: false, specified: "linear" },
       { lone: false, specified: "ease" },
       { lone: false, specified: "ease-in-out" },
       { lone: false, specified: "cubic-bezier(0, 0, 0.63, 1.00)" },
     ],
-  "transition-delay":
+  "-moz-transition-delay":
     [
-      { lone: true,  specified: "initial" },
+      { lone: true,  specified: "-moz-initial" },
       { lone: false, specified: "2s" },
       { lone: false, specified: "0s" },
       { lone: false, specified: "430ms" },

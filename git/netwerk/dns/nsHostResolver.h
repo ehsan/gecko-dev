@@ -1,32 +1,89 @@
 /* vim:set ts=4 sw=4 sts=4 et cin: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla.
+ *
+ * The Initial Developer of the Original Code is IBM Corporation.
+ * Portions created by IBM Corporation are Copyright (C) 2003
+ * IBM Corporation. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   IBM Corp.
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsHostResolver_h__
 #define nsHostResolver_h__
 
 #include "nscore.h"
+#include "nsAtomicRefcnt.h"
 #include "prclist.h"
 #include "prnetdb.h"
 #include "pldhash.h"
 #include "mozilla/CondVar.h"
 #include "mozilla/Mutex.h"
 #include "nsISupportsImpl.h"
-#include "nsIDNSListener.h"
 #include "nsString.h"
 #include "nsTArray.h"
-#include "mozilla/net/DNS.h"
-#include "mozilla/net/DashboardTypes.h"
-#include "mozilla/TimeStamp.h"
 
 class nsHostResolver;
 class nsHostRecord;
 class nsResolveHostCallback;
 
+/* XXX move this someplace more generic */
+#define NS_DECL_REFCOUNTED_THREADSAFE(classname)                             \
+  private:                                                                   \
+    nsAutoRefCnt _refc;                                                      \
+  public:                                                                    \
+    PRInt32 AddRef() {                                                       \
+        PRInt32 n = NS_AtomicIncrementRefcnt(_refc);                         \
+        NS_LOG_ADDREF(this, n, #classname, sizeof(classname));               \
+        return n;                                                            \
+    }                                                                        \
+    PRInt32 Release() {                                                      \
+        PRInt32 n = NS_AtomicDecrementRefcnt(_refc);                         \
+        NS_LOG_RELEASE(this, n, #classname);                                 \
+        if (n == 0)                                                          \
+            delete this;                                                     \
+        return n;                                                            \
+    }
+
+#ifdef ANDROID
+// See bug 687367 - pre gingerbread android has race conditions involving stdio.
+// stdio is used as part of the getaddrinfo() implementation. In order to reduce
+// that race window limit ourselves to 1 lookup at a time on android.
+
+#define MAX_RESOLVER_THREADS_FOR_ANY_PRIORITY  0
+#define MAX_RESOLVER_THREADS_FOR_HIGH_PRIORITY 1
+#define MAX_NON_PRIORITY_REQUESTS 0
+#else
 #define MAX_RESOLVER_THREADS_FOR_ANY_PRIORITY  3
 #define MAX_RESOLVER_THREADS_FOR_HIGH_PRIORITY 5
 #define MAX_NON_PRIORITY_REQUESTS 150
+#endif
 
 #define MAX_RESOLVER_THREADS (MAX_RESOLVER_THREADS_FOR_ANY_PRIORITY + \
                               MAX_RESOLVER_THREADS_FOR_HIGH_PRIORITY)
@@ -34,8 +91,8 @@ class nsResolveHostCallback;
 struct nsHostKey
 {
     const char *host;
-    uint16_t    flags;
-    uint16_t    af;
+    PRUint16    flags;
+    PRUint16    af;
 };
 
 /**
@@ -46,7 +103,7 @@ class nsHostRecord : public PRCList, public nsHostKey
     typedef mozilla::Mutex Mutex;
 
 public:
-    NS_INLINE_DECL_THREADSAFE_REFCOUNTING(nsHostRecord)
+    NS_DECL_REFCOUNTED_THREADSAFE(nsHostRecord)
 
     /* instantiates a new host record */
     static nsresult Create(const nsHostKey *key, nsHostRecord **record);
@@ -70,34 +127,33 @@ public:
      */
     Mutex        addr_info_lock;
     int          addr_info_gencnt; /* generation count of |addr_info| */
-    mozilla::net::AddrInfo *addr_info;
-    mozilla::net::NetAddr  *addr;
-    bool         negative;   /* True if this record is a cache of a failed lookup.
+    PRAddrInfo  *addr_info;
+    PRNetAddr   *addr;
+    PRBool       negative;   /* True if this record is a cache of a failed lookup.
                                 Negative cache entries are valid just like any other
                                 (though never for more than 60 seconds), but a use
                                 of that negative entry forces an asynchronous refresh. */
 
-    mozilla::TimeStamp expiration;
+    PRUint32     expiration; /* measured in minutes since epoch */
 
-    bool HasUsableResult(uint16_t queryFlags) const;
+    PRBool HasResult() const { return addr_info || addr || negative; }
 
     // hold addr_info_lock when calling the blacklist functions
-    bool   Blacklisted(mozilla::net::NetAddr *query);
+    PRBool Blacklisted(PRNetAddr *query);
     void   ResetBlacklist();
-    void   ReportUnusable(mozilla::net::NetAddr *addr);
+    void   ReportUnusable(PRNetAddr *addr);
 
 private:
     friend class nsHostResolver;
 
     PRCList callbacks; /* list of callbacks */
 
-    bool    resolving; /* true if this record is being resolved, which means
+    PRBool  resolving; /* true if this record is being resolved, which means
                         * that it is either on the pending queue or owned by
                         * one of the worker threads. */ 
     
-    bool    onQueue;  /* true if pending and on the queue (not yet given to getaddrinfo())*/
-    bool    usingAnyThread; /* true if off queue and contributing to mActiveAnyThreadCount */
-    bool    mDoomed; /* explicitly expired */
+    PRBool  onQueue;  /* true if pending and on the queue (not yet given to getaddrinfo())*/
+    PRBool  usingAnyThread; /* true if off queue and contributing to mActiveAnyThreadCount */
 
     // a list of addresses associated with this record that have been reported
     // as unusable. the list is kept as a set of strings to make it independent
@@ -135,20 +191,6 @@ public:
     virtual void OnLookupComplete(nsHostResolver *resolver,
                                   nsHostRecord   *record,
                                   nsresult        status) = 0;
-    /**
-     * EqualsAsyncListener
-     *
-     * Determines if the listener argument matches the listener member var.
-     * For subclasses not implementing a member listener, should return false.
-     * For subclasses having a member listener, the function should check if
-     * they are the same.  Used for cases where a pointer to an object
-     * implementing nsResolveHostCallback is unknown, but a pointer to
-     * the original listener is known.
-     *
-     * @param aListener
-     *        nsIDNSListener object associated with the original request
-     */
-    virtual bool EqualsAsyncListener(nsIDNSListener *aListener) = 0;
 };
 
 /**
@@ -163,14 +205,13 @@ public:
     /**
      * host resolver instances are reference counted.
      */
-    NS_INLINE_DECL_THREADSAFE_REFCOUNTING(nsHostResolver)
+    NS_DECL_REFCOUNTED_THREADSAFE(nsHostResolver)
 
     /**
      * creates an addref'd instance of a nsHostResolver object.
      */
-    static nsresult Create(uint32_t         maxCacheEntries,  // zero disables cache
-                           uint32_t         maxCacheLifetime, // minutes
-                           uint32_t         lifetimeGracePeriod, // minutes
+    static nsresult Create(PRUint32         maxCacheEntries,  // zero disables cache
+                           PRUint32         maxCacheLifetime, // minutes
                            nsHostResolver **resolver);
     
     /**
@@ -187,8 +228,8 @@ public:
      * by having the callback implementation return without doing anything).
      */
     nsresult ResolveHost(const char            *hostname,
-                         uint16_t               flags,
-                         uint16_t               af,
+                         PRUint16               flags,
+                         PRUint16               af,
                          nsResolveHostCallback *callback);
 
     /**
@@ -198,23 +239,11 @@ public:
      * callback if the callback is still pending with the given status.
      */
     void DetachCallback(const char            *hostname,
-                        uint16_t               flags,
-                        uint16_t               af,
+                        PRUint16               flags,
+                        PRUint16               af,
                         nsResolveHostCallback *callback,
                         nsresult               status);
 
-    /**
-     * Cancels an async request associated with the hostname, flags,
-     * address family and listener.  Cancels first callback found which matches
-     * these criteria.  These parameters should correspond to the parameters
-     * passed to ResolveHost.  If this is the last callback associated with the
-     * host record, it is removed from any request queues it might be on. 
-     */
-    void CancelAsyncRequest(const char            *host,
-                            uint16_t               flags,
-                            uint16_t               af,
-                            nsIDNSListener        *aListener,
-                            nsresult               status);
     /**
      * values for the flags parameter passed to ResolveHost and DetachCallback
      * that may be bitwise OR'd together.
@@ -227,20 +256,17 @@ public:
         RES_CANON_NAME   = 1 << 1,
         RES_PRIORITY_MEDIUM   = 1 << 2,
         RES_PRIORITY_LOW  = 1 << 3,
-        RES_SPECULATE     = 1 << 4,
-        //RES_DISABLE_IPV6 = 1 << 5, // Not used
-        RES_OFFLINE       = 1 << 6
+        RES_SPECULATE     = 1 << 4   
     };
 
 private:
-    nsHostResolver(uint32_t maxCacheEntries = 50, uint32_t maxCacheLifetime = 1,
-                   uint32_t lifetimeGracePeriod = 0);
+    nsHostResolver(PRUint32 maxCacheEntries=50, PRUint32 maxCacheLifetime=1);
    ~nsHostResolver();
 
     nsresult Init();
     nsresult IssueLookup(nsHostRecord *);
-    bool     GetHostToLookup(nsHostRecord **m);
-    void     OnLookupComplete(nsHostRecord *, nsresult, mozilla::net::AddrInfo *);
+    PRBool   GetHostToLookup(nsHostRecord **m);
+    void     OnLookupComplete(nsHostRecord *, nsresult, PRAddrInfo *);
     void     DeQueue(PRCList &aQ, nsHostRecord **aResult);
     void     ClearPendingQueue(PRCList *aPendingQueue);
     nsresult ConditionallyCreateThread(nsHostRecord *rec);
@@ -249,41 +275,24 @@ private:
     
     static void ThreadFunc(void *);
 
-    enum {
-        METHOD_HIT = 1,
-        METHOD_RENEWAL = 2,
-        METHOD_NEGATIVE_HIT = 3,
-        METHOD_LITERAL = 4,
-        METHOD_OVERFLOW = 5,
-        METHOD_NETWORK_FIRST = 6,
-        METHOD_NETWORK_SHARED = 7
-    };
-
-    uint32_t      mMaxCacheEntries;
-    mozilla::TimeDuration mMaxCacheLifetime;
-    uint32_t      mGracePeriod;
+    PRUint32      mMaxCacheEntries;
+    PRUint32      mMaxCacheLifetime;
     Mutex         mLock;
     CondVar       mIdleThreadCV;
-    uint32_t      mNumIdleThreads;
-    uint32_t      mThreadCount;
-    uint32_t      mActiveAnyThreadCount;
+    PRUint32      mNumIdleThreads;
+    PRUint32      mThreadCount;
+    PRUint32      mActiveAnyThreadCount;
     PLDHashTable  mDB;
     PRCList       mHighQ;
     PRCList       mMediumQ;
     PRCList       mLowQ;
     PRCList       mEvictionQ;
-    uint32_t      mEvictionQSize;
-    uint32_t      mPendingCount;
+    PRUint32      mEvictionQSize;
+    PRUint32      mPendingCount;
     PRTime        mCreationTime;
-    bool          mShutdown;
+    PRBool        mShutdown;
     PRIntervalTime mLongIdleTimeout;
     PRIntervalTime mShortIdleTimeout;
-
-public:
-    /*
-     * Called by the networking dashboard via the DnsService2
-     */
-    void GetDNSCacheEntries(nsTArray<mozilla::net::DNSCacheEntries> *);
 };
 
 #endif // nsHostResolver_h__

@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=79:
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Copyright (C) 2008 Apple Inc. All rights reserved.
@@ -27,32 +27,17 @@
  * 
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef assembler_assembler_AssemblerBuffer_h
-#define assembler_assembler_AssemblerBuffer_h
+#ifndef AssemblerBuffer_h
+#define AssemblerBuffer_h
 
 #include "assembler/wtf/Platform.h"
 
 #if ENABLE_ASSEMBLER
 
 #include <string.h>
-#include <limits.h>
 #include "assembler/jit/ExecutableAllocator.h"
 #include "assembler/wtf/Assertions.h"
-
-#include <stdarg.h>
-#include "jsfriendapi.h"
-#include "jsopcode.h"
-
-#include "jit/IonSpewer.h"
-#include "js/RootingAPI.h"
-
-#define PRETTY_PRINT_OFFSET(os) (((os)<0)?"-":""), (((os)<0)?-(os):(os))
-
-#define FIXME_INSN_PRINTING                                 \
-    do {                                                    \
-        spew("FIXME insn printing %s:%d",                   \
-             __FILE__, __LINE__);                           \
-    } while (0)
+#include "jsstdint.h"
 
 namespace JSC {
 
@@ -213,14 +198,6 @@ namespace JSC {
             int newCapacity = m_capacity + m_capacity + extraCapacity;
             char* newBuffer;
 
-            // Do not allow offsets to grow beyond INT_MAX / 2. This mirrors
-            // Assembler-shared.h.
-            if (newCapacity >= INT_MAX / 2) {
-                m_size = 0;
-                m_oom = true;
-                return;
-            }
-
             if (m_buffer == m_inlineBuffer) {
                 newBuffer = static_cast<char*>(malloc(newCapacity));
                 if (!newBuffer) {
@@ -249,77 +226,8 @@ namespace JSC {
         bool m_oom;
     };
 
-    class GenericAssembler
-    {
-        js::Sprinter *printer;
-
-      public:
-
-        bool isOOLPath;
-
-        GenericAssembler()
-          : printer(NULL)
-          , isOOLPath(false)
-        {}
-
-        void setPrinter(js::Sprinter *sp) {
-            printer = sp;
-        }
-
-        void spew(const char *fmt, ...)
-#ifdef __GNUC__
-            __attribute__ ((format (printf, 2, 3)))
-#endif
-        {
-            if (printer
-#ifdef JS_ION
-                || js::jit::IonSpewEnabled(js::jit::IonSpew_Codegen)
-#endif
-                )
-            {
-                // Buffer to hold the formatted string. Note that this may contain
-                // '%' characters, so do not pass it directly to printf functions.
-                char buf[200];
-
-                va_list va;
-                va_start(va, fmt);
-                int i = vsnprintf(buf, sizeof(buf), fmt, va);
-                va_end(va);
-
-                if (i > -1) {
-                    if (printer)
-                        printer->printf("%s\n", buf);
-
-#ifdef JS_ION
-                    js::jit::IonSpew(js::jit::IonSpew_Codegen, "%s", buf);
-#endif
-                }
-            }
-        }
-
-        static void staticSpew(const char *fmt, ...)
-#ifdef __GNUC__
-            __attribute__ ((format (printf, 1, 2)))
-#endif
-        {
-#ifdef JS_ION
-            if (js::jit::IonSpewEnabled(js::jit::IonSpew_Codegen)) {
-                char buf[200];
-
-                va_list va;
-                va_start(va, fmt);
-                int i = vsnprintf(buf, sizeof(buf), fmt, va);
-                va_end(va);
-
-                if (i > -1)
-                    js::jit::IonSpew(js::jit::IonSpew_Codegen, "%s", buf);
-            }
-#endif
-        }
-    };
-
 } // namespace JSC
 
 #endif // ENABLE(ASSEMBLER)
 
-#endif /* assembler_assembler_AssemblerBuffer_h */
+#endif // AssemblerBuffer_h

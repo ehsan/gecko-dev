@@ -1,7 +1,39 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* -*- Mode: IDL; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Mounir Lamouri <mounir.lamouri@mozilla.com> (original author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsIConstraintValidition_h___
 #define nsIConstraintValidition_h___
@@ -10,13 +42,8 @@
 #include "nsAutoPtr.h"
 #include "nsString.h"
 
+class nsDOMValidityState;
 class nsIDOMValidityState;
-
-namespace mozilla {
-namespace dom {
-class ValidityState;
-}
-}
 
 #define NS_ICONSTRAINTVALIDATION_IID \
 { 0xca3824dc, 0x4f5c, 0x4878, \
@@ -35,15 +62,15 @@ public:
 
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_ICONSTRAINTVALIDATION_IID);
 
-  friend class mozilla::dom::ValidityState;
+  friend class nsDOMValidityState;
 
-  static const uint16_t sContentSpecifiedMaxLengthMessage;
+  static const PRUint16 sContentSpecifiedMaxLengthMessage;
 
   virtual ~nsIConstraintValidation();
 
-  bool IsValid() const { return mValidityBitField == 0; }
+  PRBool IsValid() const { return mValidityBitField == 0; }
 
-  bool IsCandidateForConstraintValidation() const {
+  PRBool IsCandidateForConstraintValidation() const {
            return !mBarredFromConstraintValidation;
          }
 
@@ -62,14 +89,7 @@ public:
   };
 
   void SetValidityState(ValidityStateType mState,
-                        bool mValue);
-
-  // Web IDL binding methods
-  bool WillValidate() const {
-    return IsCandidateForConstraintValidation();
-  }
-  mozilla::dom::ValidityState* Validity();
-  bool CheckValidity();
+                        PRBool mValue);
 
 protected:
 
@@ -77,25 +97,19 @@ protected:
   nsIConstraintValidation();
 
   nsresult GetValidity(nsIDOMValidityState** aValidity);
-  nsresult CheckValidity(bool* aValidity);
+  nsresult CheckValidity(PRBool* aValidity);
   void     SetCustomValidity(const nsAString& aError);
 
   bool GetValidityState(ValidityStateType mState) const {
          return mValidityBitField & mState;
        }
 
-  void SetBarredFromConstraintValidation(bool aBarred);
+  void SetBarredFromConstraintValidation(PRBool aBarred);
 
   virtual nsresult GetValidationMessage(nsAString& aValidationMessage,
                                         ValidityStateType aType) {
                      return NS_OK;
                    }
-
-protected:
-  /**
-   * A pointer to the ValidityState object.
-   */
-  nsRefPtr<mozilla::dom::ValidityState>  mValidity;
 
 private:
 
@@ -103,12 +117,17 @@ private:
    * A bitfield representing the current validity state of the element.
    * Each bit represent an error. All bits to zero means the element is valid.
    */
-  int8_t                        mValidityBitField;
+  PRInt8                        mValidityBitField;
+
+  /**
+   * A pointer to the ValidityState object.
+   */
+  nsRefPtr<nsDOMValidityState>  mValidity;
 
   /**
    * Keeps track whether the element is barred from constraint validation.
    */
-  bool                          mBarredFromConstraintValidation;
+  PRBool                        mBarredFromConstraintValidation;
 
   /**
    * The string representing the custom error.
@@ -124,15 +143,14 @@ private:
   NS_IMETHOD GetValidity(nsIDOMValidityState** aValidity) {                   \
     return nsIConstraintValidation::GetValidity(aValidity);                   \
   }                                                                           \
-  NS_IMETHOD GetWillValidate(bool* aWillValidate) {                           \
-    *aWillValidate = WillValidate();                                          \
+  NS_IMETHOD GetWillValidate(PRBool* aWillValidate) {                         \
+    *aWillValidate = IsCandidateForConstraintValidation();                    \
     return NS_OK;                                                             \
   }                                                                           \
   NS_IMETHOD GetValidationMessage(nsAString& aValidationMessage) {            \
     return nsIConstraintValidation::GetValidationMessage(aValidationMessage); \
   }                                                                           \
-  using nsIConstraintValidation::CheckValidity;                               \
-  NS_IMETHOD CheckValidity(bool* aValidity) {                                 \
+  NS_IMETHOD CheckValidity(PRBool* aValidity) {                               \
     return nsIConstraintValidation::CheckValidity(aValidity);                 \
   }
 
@@ -149,14 +167,14 @@ private:
   NS_IMETHODIMP _from::GetValidity(nsIDOMValidityState** aValidity) {         \
     return nsIConstraintValidation::GetValidity(aValidity);                   \
   }                                                                           \
-  NS_IMETHODIMP _from::GetWillValidate(bool* aWillValidate) {                 \
-    *aWillValidate = WillValidate();                                          \
+  NS_IMETHODIMP _from::GetWillValidate(PRBool* aWillValidate) {               \
+    *aWillValidate = IsCandidateForConstraintValidation();                    \
     return NS_OK;                                                             \
   }                                                                           \
   NS_IMETHODIMP _from::GetValidationMessage(nsAString& aValidationMessage) {  \
     return nsIConstraintValidation::GetValidationMessage(aValidationMessage); \
   }                                                                           \
-  NS_IMETHODIMP _from::CheckValidity(bool* aValidity) {                     \
+  NS_IMETHODIMP _from::CheckValidity(PRBool* aValidity) {                     \
     return nsIConstraintValidation::CheckValidity(aValidity);                 \
   }
 

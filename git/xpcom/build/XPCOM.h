@@ -1,7 +1,3 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
 #ifndef mozilla_XPCOM_h
 #define mozilla_XPCOM_h
 
@@ -70,6 +66,7 @@
 #include "nsIConsoleService.h"
 #include "nsIDebug.h"
 #include "nsIDirectoryEnumerator.h"
+#include "nsIEnumerator.h"
 #include "nsIEnvironment.h"
 #include "nsIErrorService.h"
 #include "nsIEventTarget.h"
@@ -92,6 +89,7 @@
 #include "nsIProgrammingLanguage.h"
 #include "nsIProperties.h"
 #include "nsIPropertyBag2.h"
+#include "nsIRecyclingAllocator.h"
 #include "nsIRunnable.h"
 #include "nsISeekableStream.h"
 #include "nsISerializable.h"
@@ -102,6 +100,7 @@
 #include "nsIStreamBufferAccess.h"
 #include "nsIStringEnumerator.h"
 #include "nsIStorageStream.h"
+#include "nsISupportsArray.h"
 #include "nsISupportsIterators.h"
 #include "nsISupportsPrimitives.h"
 #include "nsISupportsPriority.h"
@@ -126,6 +125,7 @@
 #include "nsIConverterOutputStream.h"
 #include "nsIDebug2.h"
 #include "nsIInputStreamTee.h"
+#include "nsILocalFile.h"
 #include "nsIMultiplexInputStream.h"
 #include "nsIMutableArray.h"
 #include "nsIPersistentProperties2.h"

@@ -1,8 +1,40 @@
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Places Unit Test code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Marco Bonardo <mak77@bonardo.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /**
  * Tests that nsBrowserGlue is correctly exporting based on preferences values,
@@ -29,8 +61,6 @@ let tests = [];
 tests.push({
   description: "Export to bookmarks.html if autoExportHTML is true.",
   exec: function() {
-    remove_all_JSON_backups();
-
     // Sanity check: we should have bookmarks on the toolbar.
     do_check_true(bs.getIdForItemAt(bs.toolbarFolder, 0) > 0);
 
@@ -45,7 +75,7 @@ tests.push({
     // Check bookmarks.html has been created.
     check_bookmarks_html();
     // Check JSON backup has been created.
-    check_JSON_backup(true);
+    check_JSON_backup();
 
     // Check preferences have not been reverted.
     do_check_true(ps.getBoolPref(PREF_AUTO_EXPORT_HTML));
@@ -81,15 +111,8 @@ tests.push({
     // Check a new bookmarks.html has been created.
     let profileBookmarksHTMLFile = check_bookmarks_html();
     //XXX not working on Linux unit boxes. Could be filestats caching issue.
-    let isLinux = ("@mozilla.org/gnome-gconf-service;1" in Cc);
-    if (!isLinux) {
-      //XXX this test does not working on Mac boxes as well.
-      let isOSX = ("nsILocalFileMac" in Ci);
-      if (!isOSX) {
-        do_check_true(profileBookmarksHTMLFile.lastModifiedTime > lastMod);
-      }
-      do_check_neq(profileBookmarksHTMLFile.fileSize, fileSize);
-    }
+    //do_check_true(profileBookmarksHTMLFile.lastModifiedTime > lastMod);
+    do_check_neq(profileBookmarksHTMLFile.fileSize, fileSize);
 
     // Check preferences have not been reverted.
     do_check_true(ps.getBoolPref(PREF_AUTO_EXPORT_HTML));
@@ -130,10 +153,16 @@ tests.push({
 
 //------------------------------------------------------------------------------
 
+function finish_test() {
+  do_test_finished();
+}
+
 var testIndex = 0;
 function next_test() {
   // Remove bookmarks.html from profile.
   remove_bookmarks_html();
+  // Remove JSON backups from profile.
+  remove_all_JSON_backups();
 
   // Execute next test.
   let test = tests.shift();

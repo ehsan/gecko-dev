@@ -45,27 +45,20 @@ function logEvent(evt) {
   }
 }
 
-function hasPendingNonOptionalEvent(ev) {
-  var i = 0;
-  while (i < currentEvents.length) {
-    if (!currentEvents[i].optional && currentEvents[i].type == ev)
-      return true;
-    ++i;
-  }
-  return false;
-}
-
-function maybeStop(evt) {
+function stop(evt) {
   logEvent(evt);
-  if (!hasPendingNonOptionalEvent("loadend"))
-    nextTest();
+  nextTest();
 }
 
 function openXHR(xhr, method, url, privileged) {
-  if (privileged)
-    SpecialPowers.wrap(xhr).open(method, url);
-  else
-    xhr.open(method, url);
+  try {
+    if (privileged) {
+      netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+    }
+  } catch (ex) {
+    ok(false, ex);
+  }
+  xhr.open(method, url);
 }
 
 function start(obj) {
@@ -90,13 +83,17 @@ function start(obj) {
     }
   xhr.onloadend =
     function (evt) {
-      maybeStop(evt);
+      stop(evt);
     }
   xhr.onloadstart =
     function (evt) {
       logEvent(evt);
     }
   xhr.onprogress =
+    function (evt) {
+      logEvent(evt);
+    }
+  xhr.onuploadprogress =
     function (evt) {
       logEvent(evt);
     }
@@ -124,7 +121,7 @@ function start(obj) {
       }
     xhr.upload.onloadend =
       function (evt) {
-        maybeStop(evt);
+        logEvent(evt);
       }
   }
 
@@ -171,8 +168,8 @@ for (var largeLength = 0; largeLength < (0x0000FFFF + 2); ++largeLength) {
   large += "A";
 }
 
-const XHR = XMLHttpRequest;
-const UPLOAD = XMLHttpRequestUpload;
+const XHR = Components.interfaces.nsIXMLHttpRequest;
+const UPLOAD = Components.interfaces.nsIXMLHttpRequestUpload;
 
 var tests = 
   [
@@ -269,6 +266,7 @@ var tests =
     { method: "POST", withUpload: small, testAbort: false, testRedirectError: false, testNetworkError: false,
       expectedEvents: [{target: XHR, type: "loadstart", optional: false},
                        {target: UPLOAD, type: "loadstart", optional: false},
+                       {target: XHR, type: "uploadprogress", optional: true},
                        {target: UPLOAD, type: "progress", optional: true},
                        {target: UPLOAD, type: "load", optional: false},
                        {target: UPLOAD, type: "loadend", optional: false},
@@ -285,6 +283,7 @@ var tests =
     { method: "POST", withUpload: small, testAbort: false, testRedirectError: true, testNetworkError: false,
       expectedEvents: [{target: XHR, type: "loadstart", optional: false},
                        {target: UPLOAD, type: "loadstart", optional: false},
+                       {target: XHR, type: "uploadprogress", optional: true},
                        {target: UPLOAD, type: "progress", optional: true},
                        {target: XHR, type: "error", optional: false},
                        {target: XHR, type: "loadend", optional: false},
@@ -293,6 +292,7 @@ var tests =
     { method: "POST", withUpload: small, testAbort: false, testRedirectError: false, testNetworkError: true,
       expectedEvents: [{target: XHR, type: "loadstart", optional: false},
                        {target: UPLOAD, type: "loadstart", optional: false},
+                       {target: XHR, type: "uploadprogress", optional: true},
                        {target: UPLOAD, type: "progress", optional: true},
                        {target: XHR, type: "error", optional: false},
                        {target: XHR, type: "loadend", optional: false},
@@ -302,6 +302,7 @@ var tests =
     { method: "POST", withUpload: mid, testAbort: false, testRedirectError: false, testNetworkError: false,
       expectedEvents: [{target: XHR, type: "loadstart", optional: false},
                        {target: UPLOAD, type: "loadstart", optional: false},
+                       {target: XHR, type: "uploadprogress", optional: true},
                        {target: UPLOAD, type: "progress", optional: true},
                        {target: UPLOAD, type: "load", optional: false},
                        {target: UPLOAD, type: "loadend", optional: false},
@@ -318,6 +319,7 @@ var tests =
     { method: "POST", withUpload: mid, testAbort: false, testRedirectError: true, testNetworkError: false,
       expectedEvents: [{target: XHR, type: "loadstart", optional: false},
                        {target: UPLOAD, type: "loadstart", optional: false},
+                       {target: XHR, type: "uploadprogress", optional: true},
                        {target: UPLOAD, type: "progress", optional: true},
                        {target: XHR, type: "error", optional: false},
                        {target: XHR, type: "loadend", optional: false},
@@ -326,6 +328,7 @@ var tests =
     { method: "POST", withUpload: mid, testAbort: false, testRedirectError: false, testNetworkError: true,
       expectedEvents: [{target: XHR, type: "loadstart", optional: false},
                        {target: UPLOAD, type: "loadstart", optional: false},
+                       {target: XHR, type: "uploadprogress", optional: true},
                        {target: UPLOAD, type: "progress", optional: true},
                        {target: XHR, type: "error", optional: false},
                        {target: XHR, type: "loadend", optional: false},
@@ -335,6 +338,7 @@ var tests =
     { method: "POST", withUpload: large, testAbort: false, testRedirectError: false, testNetworkError: false,
       expectedEvents: [{target: XHR, type: "loadstart", optional: false},
                        {target: UPLOAD, type: "loadstart", optional: false},
+                       {target: XHR, type: "uploadprogress", optional: true},
                        {target: UPLOAD, type: "progress", optional: true},
                        {target: UPLOAD, type: "load", optional: false},
                        {target: UPLOAD, type: "loadend", optional: false},
@@ -351,6 +355,7 @@ var tests =
     { method: "POST", withUpload: large, testAbort: false, testRedirectError: true, testNetworkError: false,
       expectedEvents: [{target: XHR, type: "loadstart", optional: false},
                        {target: UPLOAD, type: "loadstart", optional: false},
+                       {target: XHR, type: "uploadprogress", optional: true},
                        {target: UPLOAD, type: "progress", optional: true},
                        {target: XHR, type: "error", optional: false},
                        {target: XHR, type: "loadend", optional: false},
@@ -359,6 +364,7 @@ var tests =
     { method: "POST", withUpload: large, testAbort: false, testRedirectError: false, testNetworkError: true,
       expectedEvents: [{target: XHR, type: "loadstart", optional: false},
                        {target: UPLOAD, type: "loadstart", optional: false},
+                       {target: XHR, type: "uploadprogress", optional: true},
                        {target: UPLOAD, type: "progress", optional: true},
                        {target: XHR, type: "error", optional: false},
                        {target: XHR, type: "loadend", optional: false},

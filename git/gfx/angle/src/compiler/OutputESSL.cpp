@@ -6,12 +6,8 @@
 
 #include "compiler/OutputESSL.h"
 
-TOutputESSL::TOutputESSL(TInfoSinkBase& objSink,
-                         ShArrayIndexClampingStrategy clampingStrategy,
-                         ShHashFunction64 hashFunction,
-                         NameMap& nameMap,
-                         TSymbolTable& symbolTable)
-    : TOutputGLSLBase(objSink, clampingStrategy, hashFunction, nameMap, symbolTable)
+TOutputESSL::TOutputESSL(TInfoSinkBase& objSink)
+    : TOutputGLSLBase(objSink)
 {
 }
 

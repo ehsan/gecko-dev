@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2001
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "mozilla/ModuleUtils.h"
 #include "nsDialogParamBlock.h"
@@ -60,22 +92,22 @@ NS_DEFINE_NAMED_CID(NS_BASECOMMANDCONTROLLER_CID);
 
 static const mozilla::Module::CIDEntry kEmbeddingCIDs[] = {
 #ifdef MOZ_XUL
-    { &kNS_DIALOGPARAMBLOCK_CID, false, nullptr, nsDialogParamBlockConstructor },
+    { &kNS_DIALOGPARAMBLOCK_CID, false, NULL, nsDialogParamBlockConstructor },
 #ifdef NS_PRINTING
-    { &kNS_PRINTINGPROMPTSERVICE_CID, false, nullptr, nsPrintingPromptServiceConstructor },
+    { &kNS_PRINTINGPROMPTSERVICE_CID, false, NULL, nsPrintingPromptServiceConstructor },
 #endif
 #endif
-    { &kNS_WINDOWWATCHER_CID, false, nullptr, nsWindowWatcherConstructor },
-    { &kNS_FIND_CID, false, nullptr, nsFindConstructor },
-    { &kNS_WEB_BROWSER_FIND_CID, false, nullptr, nsWebBrowserFindConstructor },
-    { &kNS_APPSTARTUPNOTIFIER_CID, false, nullptr, nsAppStartupNotifierConstructor },
-    { &kNS_WEBBROWSERPERSIST_CID, false, nullptr, nsWebBrowserPersistConstructor },
-    { &kNS_CONTROLLERCOMMANDTABLE_CID, false, nullptr, nsControllerCommandTableConstructor },
-    { &kNS_COMMAND_MANAGER_CID, false, nullptr, nsCommandManagerConstructor },
-    { &kNS_COMMAND_PARAMS_CID, false, nullptr, nsCommandParamsConstructor },
-    { &kNS_CONTROLLER_COMMAND_GROUP_CID, false, nullptr, nsControllerCommandGroupConstructor },
-    { &kNS_BASECOMMANDCONTROLLER_CID, false, nullptr, nsBaseCommandControllerConstructor },
-    { nullptr }
+    { &kNS_WINDOWWATCHER_CID, false, NULL, nsWindowWatcherConstructor },
+    { &kNS_FIND_CID, false, NULL, nsFindConstructor },
+    { &kNS_WEB_BROWSER_FIND_CID, false, NULL, nsWebBrowserFindConstructor },
+    { &kNS_APPSTARTUPNOTIFIER_CID, false, NULL, nsAppStartupNotifierConstructor },
+    { &kNS_WEBBROWSERPERSIST_CID, false, NULL, nsWebBrowserPersistConstructor },
+    { &kNS_CONTROLLERCOMMANDTABLE_CID, false, NULL, nsControllerCommandTableConstructor },
+    { &kNS_COMMAND_MANAGER_CID, false, NULL, nsCommandManagerConstructor },
+    { &kNS_COMMAND_PARAMS_CID, false, NULL, nsCommandParamsConstructor },
+    { &kNS_CONTROLLER_COMMAND_GROUP_CID, false, NULL, nsControllerCommandGroupConstructor },
+    { &kNS_BASECOMMANDCONTROLLER_CID, false, NULL, nsBaseCommandControllerConstructor },
+    { NULL }
 };
 
 static const mozilla::Module::ContractIDEntry kEmbeddingContracts[] = {
@@ -95,7 +127,7 @@ static const mozilla::Module::ContractIDEntry kEmbeddingContracts[] = {
     { NS_COMMAND_PARAMS_CONTRACTID, &kNS_COMMAND_PARAMS_CID },
     { NS_CONTROLLER_COMMAND_GROUP_CONTRACTID, &kNS_CONTROLLER_COMMAND_GROUP_CID },
     { NS_BASECOMMANDCONTROLLER_CONTRACTID, &kNS_BASECOMMANDCONTROLLER_CID },
-    { nullptr }
+    { NULL }
 };
 
 static const mozilla::Module kEmbeddingModule = {

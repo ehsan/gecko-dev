@@ -1,11 +1,42 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  * vim: sw=2 ts=2 et :
  */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-#include "mozilla/DebugOnly.h"
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Plugin App.
+ *
+ * The Initial Developer of the Original Code is
+ *   Ben Turner <bent.mozilla@gmail.com>
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Jim Mathies <jmathies@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "WindowsMessageLoop.h"
 #include "RPCChannel.h"
@@ -70,10 +101,6 @@ using namespace mozilla::ipc::windows;
 
 // pulled from widget's nsAppShell
 extern const PRUnichar* kAppShellEventId;
-#if defined(ACCESSIBILITY)
-// pulled from accessibility's win utils
-extern const PRUnichar* kPropNameTabContent;
-#endif
 
 namespace {
 
@@ -83,17 +110,18 @@ const wchar_t kOldWndProcProp[] = L"MozillaIPCOldWndProc";
 enum { WM_XP_THEMECHANGED = 0x031A };
 
 PRUnichar gAppMessageWindowName[256] = { 0 };
-int32_t gAppMessageWindowNameLength = 0;
+PRInt32 gAppMessageWindowNameLength = 0;
 
-nsTArray<HWND>* gNeuteredWindows = nullptr;
+nsTArray<HWND>* gNeuteredWindows = nsnull;
 
 typedef nsTArray<nsAutoPtr<DeferredMessage> > DeferredMessageArray;
-DeferredMessageArray* gDeferredMessages = nullptr;
+DeferredMessageArray* gDeferredMessages = nsnull;
 
 HHOOK gDeferredGetMsgHook = NULL;
 HHOOK gDeferredCallWndProcHook = NULL;
 
 DWORD gUIThreadId = 0;
+int gEventLoopDepth = 0;
 static UINT sAppShellGeckoMsgId;
 
 LRESULT CALLBACK
@@ -124,11 +152,11 @@ DeferredMessageHook(int nCode,
 
     // Unset the global and make sure we delete it when we're done here.
     nsAutoPtr<DeferredMessageArray> messages(gDeferredMessages);
-    gDeferredMessages = nullptr;
+    gDeferredMessages = nsnull;
 
     // Run all the deferred messages in order.
-    uint32_t count = messages->Length();
-    for (uint32_t index = 0; index < count; index++) {
+    PRUint32 count = messages->Length();
+    for (PRUint32 index = 0; index < count; index++) {
       messages->ElementAt(index)->Run();
     }
   }
@@ -160,7 +188,7 @@ ProcessOrDeferMessage(HWND hwnd,
                       WPARAM wParam,
                       LPARAM lParam)
 {
-  DeferredMessage* deferred = nullptr;
+  DeferredMessage* deferred = nsnull;
 
   // Most messages ask for 0 to be returned if the message is processed.
   LRESULT res = 0;
@@ -191,7 +219,6 @@ ProcessOrDeferMessage(HWND hwnd,
     }
 
     case WM_DEVICECHANGE:
-    case WM_POWERBROADCAST:
     case WM_NCACTIVATE: // Intentional fall-through.
     case WM_SETCURSOR: {
       // Friggin unconventional return value...
@@ -280,10 +307,10 @@ ProcessOrDeferMessage(HWND hwnd,
       } else {
         // Unknown messages only
 #ifdef DEBUG
-        nsAutoCString log("Received \"nonqueued\" message ");
+        nsCAutoString log("Received \"nonqueued\" message ");
         log.AppendInt(uMsg);
         log.AppendLiteral(" during a synchronous IPC message for window ");
-        log.AppendInt((int64_t)hwnd);
+        log.AppendInt((PRInt64)hwnd);
 
         wchar_t className[256] = { 0 };
         if (GetClassNameW(hwnd, className, sizeof(className) - 1) > 0) {
@@ -352,14 +379,6 @@ WindowIsDeferredWindow(HWND hWnd)
     return false;
   }
 
-#if defined(ACCESSIBILITY)
-  // Tab content creates a window that responds to accessible WM_GETOBJECT
-  // calls. This window can safely be ignored.
-  if (::GetPropW(hWnd, kPropNameTabContent)) {
-    return false;
-  }
-#endif
-
   // Common mozilla windows we must defer messages to.
   nsDependentString className(buffer, length);
   if (StringBeginsWith(className, NS_LITERAL_STRING("Mozilla")) ||
@@ -391,7 +410,7 @@ WindowIsDeferredWindow(HWND hWnd)
     nsCOMPtr<nsIXULAppInfo> appInfo =
       do_GetService("@mozilla.org/xre/app-info;1");
     if (appInfo) {
-      nsAutoCString appName;
+      nsCAutoString appName;
       if (NS_SUCCEEDED(appInfo->GetName(appName))) {
         appName.Append("MessageWindow");
         nsDependentString windowName(gAppMessageWindowName);
@@ -464,7 +483,7 @@ RestoreWindowProcedure(HWND hWnd)
     NS_ASSERTION(oldWndProc != (LONG_PTR)NeuteredWindowProc,
                  "This shouldn't be possible!");
 
-    DebugOnly<LONG_PTR> currentWndProc =
+    LONG_PTR currentWndProc =
       SetWindowLongPtr(hWnd, GWLP_WNDPROC, oldWndProc);
     NS_ASSERTION(currentWndProc == (LONG_PTR)NeuteredWindowProc,
                  "This should never be switched out from under us!");
@@ -507,8 +526,8 @@ UnhookNeuteredWindows()
 {
   if (!gNeuteredWindows)
     return;
-  uint32_t count = gNeuteredWindows->Length();
-  for (uint32_t index = 0; index < count; index++) {
+  PRUint32 count = gNeuteredWindows->Length();
+  for (PRUint32 index = 0; index < count; index++) {
     RestoreWindowProcedure(gNeuteredWindows->ElementAt(index));
   }
   gNeuteredWindows->Clear();
@@ -540,7 +559,7 @@ struct TimeoutData
 
 void
 InitTimeoutData(TimeoutData* aData,
-                int32_t aTimeoutMs)
+                int32 aTimeoutMs)
 {
   aData->startTicks = GetTickCount();
   if (!aData->startTicks) {
@@ -662,7 +681,7 @@ RPCChannel::SpinInternalEventLoop()
 
     // Don't get wrapped up in here if the child connection dies.
     {
-      MonitorAutoLock lock(*mMonitor);
+      MonitorAutoLock lock(mMonitor);
       if (!Connected()) {
         return;
       }
@@ -699,7 +718,7 @@ RPCChannel::SpinInternalEventLoop()
 bool
 SyncChannel::WaitForNotify()
 {
-  mMonitor->AssertCurrentThreadOwns();
+  mMonitor.AssertCurrentThreadOwns();
 
   // Initialize global objects used in deferred messaging.
   Init();
@@ -707,11 +726,11 @@ SyncChannel::WaitForNotify()
   NS_ASSERTION(mTopFrame && !mTopFrame->mRPC,
                "Top frame is not a sync frame!");
 
-  MonitorAutoUnlock unlock(*mMonitor);
+  MonitorAutoUnlock unlock(mMonitor);
 
-  bool timedout = false;
+  bool retval = true;
 
-  UINT_PTR timerId = 0;
+  UINT_PTR timerId = NULL;
   TimeoutData timeoutData = { 0 };
 
   if (mTimeoutMs != kNoTimeout) {
@@ -737,7 +756,7 @@ SyncChannel::WaitForNotify()
       MSG msg = { 0 };
       // Don't get wrapped up in here if the child connection dies.
       {
-        MonitorAutoLock lock(*mMonitor);
+        MonitorAutoLock lock(mMonitor);
         if (!Connected()) {
           break;
         }
@@ -763,7 +782,7 @@ SyncChannel::WaitForNotify()
 
       if (TimeoutHasExpired(timeoutData)) {
         // A timeout was specified and we've passed it. Break out.
-        timedout = true;
+        retval = false;
         break;
       }
 
@@ -815,15 +834,15 @@ SyncChannel::WaitForNotify()
 
   SyncChannel::SetIsPumpingMessages(false);
 
-  return WaitResponse(timedout);
+  return retval;
 }
 
 bool
 RPCChannel::WaitForNotify()
 {
-  mMonitor->AssertCurrentThreadOwns();
+  mMonitor.AssertCurrentThreadOwns();
 
-  if (!StackDepth()) {
+  if (!StackDepth() && !mBlockedOnParent) {
     // There is currently no way to recover from this condition.
     NS_RUNTIMEABORT("StackDepth() is 0 in call to RPCChannel::WaitForNotify!");
   }
@@ -834,11 +853,11 @@ RPCChannel::WaitForNotify()
   NS_ASSERTION(mTopFrame && mTopFrame->mRPC,
                "Top frame is not a sync frame!");
 
-  MonitorAutoUnlock unlock(*mMonitor);
+  MonitorAutoUnlock unlock(mMonitor);
 
-  bool timedout = false;
+  bool retval = true;
 
-  UINT_PTR timerId = 0;
+  UINT_PTR timerId = NULL;
   TimeoutData timeoutData = { 0 };
 
   // windowHook is used as a flag variable for the loop below: if it is set
@@ -858,7 +877,7 @@ RPCChannel::WaitForNotify()
 
         if (timerId) {
           KillTimer(NULL, timerId);
-          timerId = 0;
+          timerId = NULL;
         }
 
         // Used by widget to assert on incoming native events
@@ -897,7 +916,7 @@ RPCChannel::WaitForNotify()
 
     // Don't get wrapped up in here if the child connection dies.
     {
-      MonitorAutoLock lock(*mMonitor);
+      MonitorAutoLock lock(mMonitor);
       if (!Connected()) {
         break;
       }
@@ -917,7 +936,7 @@ RPCChannel::WaitForNotify()
 
     if (TimeoutHasExpired(timeoutData)) {
       // A timeout was specified and we've passed it. Break out.
-      timedout = true;
+      retval = false;
       break;
     }
 
@@ -955,13 +974,13 @@ RPCChannel::WaitForNotify()
 
   SyncChannel::SetIsPumpingMessages(false);
 
-  return WaitResponse(timedout);
+  return retval;
 }
 
 void
 SyncChannel::NotifyWorkerThread()
 {
-  mMonitor->AssertCurrentThreadOwns();
+  mMonitor.AssertCurrentThreadOwns();
   NS_ASSERTION(mEvent, "No signal event to set, this is really bad!");
   if (!SetEvent(mEvent)) {
     NS_WARNING("Failed to set NotifyWorkerThread event!");
@@ -1043,7 +1062,7 @@ DeferredSettingChangeMessage::DeferredSettingChangeMessage(HWND aHWnd,
   }
   else {
     lParamString = NULL;
-    lParam = 0;
+    lParam = NULL;
   }
 }
 

@@ -11,7 +11,7 @@ function run_test() {
   //        593407 which will clean that up. After that, use
   //        the commented out line below it.
   messageHandler = cps.wrappedJSObject;
-  //messageHandler = cps.QueryInterface(Ci.nsIMessageListener);
+  //messageHandler = cps.QueryInterface(Ci.nsIFrameMessageListener);
 
   // Cannot get values
   do_check_false(messageHandler.receiveMessage({
@@ -21,13 +21,13 @@ function run_test() {
   // Cannot set general values
   messageHandler.receiveMessage({ name: "ContentPref:setPref",
     json: { group: 'group2', name: 'name', value: 'someValue' } });
-  do_check_eq(cps.getPref('group', 'name', null), undefined);
+  do_check_eq(cps.getPref('group', 'name'), undefined);
 
   // Can set whitelisted values
   do_check_true(messageHandler.receiveMessage({ name: "ContentPref:setPref",
     json: { group: 'group2', name: 'browser.upload.lastDir',
             value: 'someValue' } }).succeeded);
-  do_check_eq(cps.getPref('group2', 'browser.upload.lastDir', null), 'someValue');
+  do_check_eq(cps.getPref('group2', 'browser.upload.lastDir'), 'someValue');
 
   // Prepare for child tests
 
@@ -55,7 +55,7 @@ function run_test() {
   };
 
   var mM = Cc["@mozilla.org/parentprocessmessagemanager;1"].
-           getService(Ci.nsIMessageListenerManager);
+           getService(Ci.nsIFrameMessageManager);
   mM.addMessageListener("ContentPref:setPref", messageProxy);
   mM.addMessageListener("ContentPref:getPref", messageProxy);
   mM.addMessageListener("ContentPref:QUIT", messageProxy);

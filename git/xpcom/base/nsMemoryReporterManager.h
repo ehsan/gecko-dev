@@ -1,36 +1,48 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsIMemoryReporter.h"
+#include "nsCOMArray.h"
 #include "mozilla/Mutex.h"
-#include "mozilla/Attributes.h"
-#include "nsString.h"
-#include "nsTHashtable.h"
-#include "nsHashKeys.h"
 
 using mozilla::Mutex;
+
+class nsMemoryReporter : public nsIMemoryReporter
+{
+public:
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIMEMORYREPORTER
+
+  nsMemoryReporter(nsACString& process,
+                   nsACString& path, 
+                   PRInt32 kind,
+                   PRInt32 units,
+                   PRInt64 amount,
+                   nsACString& desc);
+
+  ~nsMemoryReporter();
+
+protected:
+  nsCString mProcess;
+  nsCString mPath;
+  PRInt32   mKind;
+  PRInt32   mUnits;
+  PRInt64   mAmount;
+  nsCString mDesc;
+};
+
 
 class nsMemoryReporterManager : public nsIMemoryReporterManager
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
-  NS_DECL_NSIMEMORYREPORTERMANAGER
+    NS_DECL_ISUPPORTS
+    NS_DECL_NSIMEMORYREPORTERMANAGER
 
-  nsMemoryReporterManager();
-  virtual ~nsMemoryReporterManager();
+    nsMemoryReporterManager();
+    virtual ~nsMemoryReporterManager();
 
 private:
-  nsresult RegisterReporterHelper(nsIMemoryReporter *reporter, bool aForce);
-  nsresult RegisterMultiReporterHelper(nsIMemoryMultiReporter *reporter,
-                                       bool aForce);
-
-  nsTHashtable<nsISupportsHashKey> mReporters;
-  nsTHashtable<nsISupportsHashKey> mMultiReporters;
-  Mutex mMutex;
-  bool mIsRegistrationBlocked;
+    nsCOMArray<nsIMemoryReporter>      mReporters;
+    nsCOMArray<nsIMemoryMultiReporter> mMultiReporters;
+    Mutex                              mMutex;
 };
 
 #define NS_MEMORY_REPORTER_MANAGER_CID \

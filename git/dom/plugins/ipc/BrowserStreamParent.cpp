@@ -1,8 +1,4 @@
 /* -*- Mode: C++; c-basic-offset: 2; indent-tabs-mode: nil; tab-width: 8 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
 
 #include "BrowserStreamParent.h"
 #include "PluginInstanceParent.h"
@@ -52,11 +48,11 @@ BrowserStreamParent::AnswerNPN_RequestRead(const IPCByteRanges& ranges,
   if (!mStream)
     return false;
 
-  if (ranges.size() > INT32_MAX)
+  if (ranges.size() > PR_INT32_MAX)
     return false;
 
   nsAutoArrayPtr<NPByteRange> rp(new NPByteRange[ranges.size()]);
-  for (uint32_t i = 0; i < ranges.size(); ++i) {
+  for (PRUint32 i = 0; i < ranges.size(); ++i) {
     rp[i].offset = ranges[i].offset;
     rp[i].length = ranges[i].length;
     rp[i].next = &rp[i + 1];

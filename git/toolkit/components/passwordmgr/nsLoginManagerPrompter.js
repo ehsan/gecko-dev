@@ -1,6 +1,41 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2007
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Justin Dolske <dolske@mozilla.com> (original author)
+ *  Ehsan Akhgari <ehsan.akhgari@gmail.com>
+ *  Frank Yan <fyan@mozilla.com>
+ *  Margaret Leibovic <margaret.leibovic@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 
 const Cc = Components.classes;
@@ -9,7 +44,6 @@ const Cr = Components.results;
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
-Components.utils.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
 
 /*
  * LoginManagerPromptFactory
@@ -246,15 +280,13 @@ LoginManagerPrompter.prototype = {
 
     // Whether we are in private browsing mode
     get _inPrivateBrowsing() {
-      if (this._window) {
-        return PrivateBrowsingUtils.isWindowPrivate(this._window);
-      } else {
-        // If we don't that we're in private browsing mode if the caller did
-        // not provide a window.  The callers which really care about this
-        // will indeed pass down a window to us, and for those who don't,
-        // we can just assume that we don't want to save the entered login
-        // information.
-        return true;
+      // The Private Browsing service might not be available.
+      try {
+        var pbs = Cc["@mozilla.org/privatebrowsing;1"].
+                  getService(Ci.nsIPrivateBrowsingService);
+        return pbs.privateBrowsingEnabled;
+      } catch (e) {
+        return false;
       }
     },
 
@@ -783,11 +815,11 @@ LoginManagerPrompter.prototype = {
         if (aLogin.username) {
             var displayUser = this._sanitizeUsername(aLogin.username);
             notificationText  = this._getLocalizedString(
-                                        "rememberPasswordMsg",
+                                        "rememberPasswordText",
                                         [displayUser, displayHost]);
         } else {
             notificationText  = this._getLocalizedString(
-                                        "rememberPasswordMsgNoUsername",
+                                        "rememberPasswordTextNoUsername",
                                         [displayHost]);
         }
 
@@ -804,7 +836,6 @@ LoginManagerPrompter.prototype = {
                 accessKey: rememberButtonAccessKey,
                 callback: function(aNotifyObj, aButton) {
                     pwmgr.addLogin(aLogin);
-                    browser.focus();
                 }
             };
 
@@ -815,7 +846,6 @@ LoginManagerPrompter.prototype = {
                     accessKey: neverButtonAccessKey,
                     callback: function(aNotifyObj, aButton) {
                         pwmgr.setLoginSavingEnabled(aLogin.hostname, false);
-                        browser.focus();
                     }
                 }
             ];
@@ -823,7 +853,7 @@ LoginManagerPrompter.prototype = {
             var notifyWin = this._getNotifyWindow();
             var chromeWin = this._getChromeWindow(notifyWin).wrappedJSObject;
             var browser = chromeWin.gBrowser.
-                                    getBrowserForDocument(notifyWin.top.document);
+                                    getBrowserForDocument(this._window.top.document);
 
             aNotifyObj.show(browser, "password-save", notificationText,
                             "password-notification-icon", mainAction,
@@ -917,11 +947,11 @@ LoginManagerPrompter.prototype = {
         if (aLogin.username) {
             var displayUser = this._sanitizeUsername(aLogin.username);
             dialogText = this._getLocalizedString(
-                                 "rememberPasswordMsg",
+                                 "rememberPasswordText",
                                  [displayUser, displayHost]);
         } else {
             dialogText = this._getLocalizedString(
-                                 "rememberPasswordMsgNoUsername",
+                                 "rememberPasswordTextNoUsername",
                                  [displayHost]);
 
         }
@@ -986,15 +1016,13 @@ LoginManagerPrompter.prototype = {
      */
     _showChangeLoginNotification : function (aNotifyObj, aOldLogin, aNewPassword) {
         var notificationText;
-        if (aOldLogin.username) {
-            var displayUser = this._sanitizeUsername(aOldLogin.username);
+        if (aOldLogin.username)
             notificationText  = this._getLocalizedString(
-                                          "updatePasswordMsg",
-                                          [displayUser]);
-        } else {
+                                          "updatePasswordText",
+                                          [aOldLogin.username]);
+        else
             notificationText  = this._getLocalizedString(
-                                          "updatePasswordMsgNoUser");
-        }
+                                          "updatePasswordTextNoUser");
 
         var changeButtonText =
               this._getLocalizedString("notifyBarUpdateButtonText");
@@ -1021,7 +1049,7 @@ LoginManagerPrompter.prototype = {
             var notifyWin = this._getNotifyWindow();
             var chromeWin = this._getChromeWindow(notifyWin).wrappedJSObject;
             var browser = chromeWin.gBrowser.
-                                    getBrowserForDocument(notifyWin.top.document);
+                                    getBrowserForDocument(this._window.top.document);
 
             aNotifyObj.show(browser, "password-change", notificationText,
                             "password-notification-icon", mainAction,
@@ -1072,11 +1100,11 @@ LoginManagerPrompter.prototype = {
         var dialogText;
         if (aOldLogin.username)
             dialogText  = this._getLocalizedString(
-                                    "updatePasswordMsg",
+                                    "updatePasswordText",
                                     [aOldLogin.username]);
         else
             dialogText  = this._getLocalizedString(
-                                    "updatePasswordMsgNoUser");
+                                    "updatePasswordTextNoUser");
 
         var dialogTitle = this._getLocalizedString(
                                     "passwordChangeTitle");
@@ -1193,7 +1221,7 @@ LoginManagerPrompter.prototype = {
                 // disabled, and if so use the opener window. But if the window
                 // has been used to visit other pages (ie, has a history),
                 // assume it'll stick around and *don't* use the opener.
-                if (chromeDoc.getAttribute("chromehidden") &&
+                if (chromeDoc.hasAttribute("chromehidden") &&
                     webnav.sessionHistory.count == 1) {
                     this.log("Using opener window for notification bar.");
                     notifyWin = notifyWin.opener;
@@ -1482,4 +1510,4 @@ LoginManagerPrompter.prototype = {
 
 
 var component = [LoginManagerPromptFactory, LoginManagerPrompter];
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory(component);
+var NSGetFactory = XPCOMUtils.generateNSGetFactory(component);

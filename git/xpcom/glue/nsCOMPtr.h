@@ -1,7 +1,41 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Scott Collins <scc@mozilla.org> (original author)
+ *   L. David Baron <dbaron@dbaron.org>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsCOMPtr_h___
 #define nsCOMPtr_h___
@@ -19,15 +53,11 @@
                        -- scc
 */
 
-#include "mozilla/Attributes.h"
-#include "mozilla/TypeTraits.h"
-#include "mozilla/Assertions.h"
-#include "mozilla/NullPtr.h"
 
   // Wrapping includes can speed up compiles (see "Large Scale C++ Software Design")
 #ifndef nsDebug_h___
 #include "nsDebug.h"
-  // for |NS_ABORT_IF_FALSE|, |NS_ASSERTION|
+  // for |NS_PRECONDITION|
 #endif
 
 #ifndef nsISupportsUtils_h__
@@ -39,8 +69,6 @@
 #include "nscore.h"
   // for |NS_COM_GLUE|
 #endif
-
-#include "nsCycleCollectionNoteChild.h"
 
 
 /*
@@ -63,7 +91,7 @@
 
 #define NSCAP_FEATURE_USE_BASE
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
   #define NSCAP_FEATURE_TEST_DONTQUERY_CASES
   #undef NSCAP_FEATURE_USE_BASE
 //#define NSCAP_FEATURE_TEST_NONNULL_QUERY_SUCCEEDS
@@ -79,7 +107,7 @@
   #undef NSCAP_FEATURE_TEST_DONTQUERY_CASES
 #endif
 
-#ifdef __GNUC__
+#if __GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 3)
   // Our use of nsCOMPtr_base::mRawPtr violates the C++ standard's aliasing
   // rules. Mark it with the may_alias attribute so that gcc 3.3 and higher
   // don't reorder instructions based on aliasing assumptions for
@@ -146,17 +174,6 @@ struct already_AddRefed
       |nsCOMPtr_helper|.
     */
   {
-#ifdef MOZ_HAVE_CXX11_NULLPTR
-    /* We use decltype(nullptr) instead of std::nullptr_t because the standard
-     * library might be old, and to save including <cstddef>.  All compilers
-     * that support nullptr seem to support decltype. */
-    already_AddRefed(decltype(nullptr) aNullPtr)
-      : mRawPtr(nullptr)
-    {
-    }
-
-    explicit
-#endif
     already_AddRefed( T* aRawPtr )
         : mRawPtr(aRawPtr)
       {
@@ -185,37 +202,31 @@ struct already_AddRefed
     {
       U* tmp = mRawPtr;
       mRawPtr = NULL;
-      return already_AddRefed<U>(tmp);
-    }
-
-    /**
-     * This helper provides a static_cast replacement for already_AddRefed, so
-     * if you have
-     *
-     *   already_AddRefed<Parent> F();
-     *
-     * you can write
-     *
-     *   already_AddRefed<Child>
-     *   G()
-     *   {
-     *     return F().downcast<Child>();
-     *   }
-     *
-     * instead of
-     *
-     *     return dont_AddRef(static_cast<Child*>(F().get()));
-     */
-    template<class U>
-    already_AddRefed<U> downcast()
-    {
-      U* tmp = static_cast<U*>(mRawPtr);
-      mRawPtr = nullptr;
-      return already_AddRefed<U>(tmp);
+      return tmp;
     }
 
     T* mRawPtr;
   };
+
+template <class T>
+inline
+const already_AddRefed<T>
+getter_AddRefs( T* aRawPtr )
+    /*
+      ...makes typing easier, because it deduces the template type, e.g., 
+      you write |dont_AddRef(fooP)| instead of |already_AddRefed<IFoo>(fooP)|.
+    */
+  {
+    return already_AddRefed<T>(aRawPtr);
+  }
+
+template <class T>
+inline
+const already_AddRefed<T>
+getter_AddRefs( const already_AddRefed<T> aAlreadyAddRefedPtr )
+  {
+    return aAlreadyAddRefedPtr;
+  }
 
 template <class T>
 inline
@@ -265,8 +276,9 @@ class nsCOMPtr_helper
 
 class
   NS_COM_GLUE
-  MOZ_STACK_CLASS
-nsQueryInterface MOZ_FINAL
+  NS_STACK_CLASS
+  NS_FINAL_CLASS
+nsQueryInterface
   {
     public:
       explicit
@@ -417,18 +429,46 @@ nsCOMPtr_base
   {
     public:
 
+      template <class T>
+      class
+        NS_FINAL_CLASS
+        NS_STACK_CLASS
+      nsDerivedSafe : public T
+          /*
+            No client should ever see or have to type the name of this class.  It is the
+            artifact that makes it a compile-time error to call |AddRef| and |Release|
+            on a |nsCOMPtr|.  DO NOT USE THIS TYPE DIRECTLY IN YOUR CODE.
+
+            See |nsCOMPtr::operator->| and |nsRefPtr::operator->|.
+          */
+        {
+          private:
+            using T::AddRef;
+            using T::Release;
+            
+            ~nsDerivedSafe(); // NOT TO BE IMPLEMENTED
+            /* 
+              This dtor is added to make this class compatible with GCC 4.6.
+              If the destructor for T is private, nsDerivedSafe's unimplemented destructor 
+              will be implicitly-declared by the compiler as deleted.
+              Therefore this explicit dtor exists to avoid that deletion. See bug 689301.
+            */
+
+          protected:
+            nsDerivedSafe(); // NOT TO BE IMPLEMENTED
+              /*
+                This ctor exists to avoid compile errors and warnings about nsDerivedSafe using the
+                default ctor but inheriting classes without an empty ctor.  See bug 209667.
+              */
+        };
+
       nsCOMPtr_base( nsISupports* rawPtr = 0 )
           : mRawPtr(rawPtr)
         {
           // nothing else to do here
         }
 
-      NS_COM_GLUE NS_CONSTRUCTOR_FASTCALL ~nsCOMPtr_base()
-        {
-          NSCAP_LOG_RELEASE(this, mRawPtr);
-            if ( mRawPtr )
-              NSCAP_RELEASE(this, mRawPtr);
-        }
+      NS_COM_GLUE NS_CONSTRUCTOR_FASTCALL ~nsCOMPtr_base();
 
       NS_COM_GLUE void NS_FASTCALL   assign_with_AddRef( nsISupports* );
       NS_COM_GLUE void NS_FASTCALL   assign_from_qi( const nsQueryInterface, const nsIID& );
@@ -466,7 +506,9 @@ nsCOMPtr_base
 // template <class T> class nsGetterAddRefs;
 
 template <class T>
-class nsCOMPtr MOZ_FINAL
+class
+  NS_FINAL_CLASS
+nsCOMPtr
 #ifdef NSCAP_FEATURE_USE_BASE
     : private nsCOMPtr_base
 #endif
@@ -568,18 +610,6 @@ class nsCOMPtr MOZ_FINAL
           NSCAP_ASSERT_NO_QUERY_NEEDED();
         }
 
-      template<typename U>
-      nsCOMPtr( const already_AddRefed<U>& aSmartPtr )
-            : NSCAP_CTOR_BASE(static_cast<T*>(aSmartPtr.mRawPtr))
-          // construct from |dont_AddRef(expr)|
-        {
-          // But make sure that U actually inherits from T
-          static_assert(mozilla::IsBaseOf<T, U>::value,
-                        "U is not a subclass of T");
-          NSCAP_LOG_ASSIGNMENT(this, static_cast<T*>(aSmartPtr.mRawPtr));
-          NSCAP_ASSERT_NO_QUERY_NEEDED();
-        }
-
       nsCOMPtr( const nsQueryInterface qi )
             : NSCAP_CTOR_BASE(0)
           // construct from |do_QueryInterface(expr)|
@@ -658,15 +688,11 @@ class nsCOMPtr MOZ_FINAL
           return *this;
         }
 
-      template<typename U>
       nsCOMPtr<T>&
-      operator=( const already_AddRefed<U>& rhs )
+      operator=( const already_AddRefed<T>& rhs )
           // assign from |dont_AddRef(expr)|
         {
-          // Make sure that U actually inherits from T
-          static_assert(mozilla::IsBaseOf<T, U>::value,
-                        "U is not a subclass of T");
-          assign_assuming_AddRef(static_cast<T*>(rhs.mRawPtr));
+          assign_assuming_AddRef(rhs.mRawPtr);
           NSCAP_ASSERT_NO_QUERY_NEEDED();
           return *this;
         }
@@ -773,21 +799,18 @@ class nsCOMPtr MOZ_FINAL
         {
           T* temp = 0;
           swap(temp);
-          return already_AddRefed<T>(temp);
+          return temp;
         }
 
-      template <typename I>
       void
-      forget( I** rhs )
+      forget( T** rhs NS_OUTPARAM )
           // Set the target of rhs to the value of mRawPtr and null out mRawPtr.
           // Useful to avoid unnecessary AddRef/Release pairs with "out"
-          // parameters where rhs bay be a T** or an I** where I is a base class
-          // of T.
+          // parameters.
         {
           NS_ASSERTION(rhs, "Null pointer passed to forget!");
-          NSCAP_LOG_RELEASE(this, mRawPtr);
-          *rhs = get();
-          mRawPtr = 0;
+          *rhs = 0;
+          swap(*rhs);
         }
 
       T*
@@ -813,11 +836,11 @@ class nsCOMPtr MOZ_FINAL
           return get();
         }
 
-      T*
+      nsCOMPtr_base::nsDerivedSafe<T>*
       operator->() const
         {
-          NS_ABORT_IF_FALSE(mRawPtr != 0, "You can't dereference a NULL nsCOMPtr with operator->().");
-          return get();
+          NS_PRECONDITION(mRawPtr != 0, "You can't dereference a NULL nsCOMPtr with operator->().");
+          return reinterpret_cast<nsCOMPtr_base::nsDerivedSafe<T>*> (get());
         }
 
       nsCOMPtr<T>*
@@ -840,7 +863,7 @@ class nsCOMPtr MOZ_FINAL
       T&
       operator*() const
         {
-          NS_ABORT_IF_FALSE(mRawPtr != 0, "You can't dereference a NULL nsCOMPtr with operator*().");
+          NS_PRECONDITION(mRawPtr != 0, "You can't dereference a NULL nsCOMPtr with operator*().");
           return *get();
         }
 
@@ -867,7 +890,7 @@ class nsCOMPtr MOZ_FINAL
     without hassles, through intermediary code that doesn't know the exact type.
   */
 
-template <>
+NS_SPECIALIZE_TEMPLATE
 class nsCOMPtr<nsISupports>
     : private nsCOMPtr_base
   {
@@ -1080,11 +1103,11 @@ class nsCOMPtr<nsISupports>
         {
           nsISupports* temp = 0;
           swap(temp);
-          return already_AddRefed<nsISupports>(temp);
+          return temp;
         }
 
       void
-      forget( nsISupports** rhs )
+      forget( nsISupports** rhs NS_OUTPARAM )
           // Set the target of rhs to the value of mRawPtr and null out mRawPtr.
           // Useful to avoid unnecessary AddRef/Release pairs with "out"
           // parameters.
@@ -1120,11 +1143,11 @@ class nsCOMPtr<nsISupports>
           return get();
         }
 
-      nsISupports*
+      nsDerivedSafe<nsISupports>*
       operator->() const
         {
-          NS_ABORT_IF_FALSE(mRawPtr != 0, "You can't dereference a NULL nsCOMPtr with operator->().");
-          return get();
+          NS_PRECONDITION(mRawPtr != 0, "You can't dereference a NULL nsCOMPtr with operator->().");
+          return reinterpret_cast<nsCOMPtr_base::nsDerivedSafe<nsISupports>*> (get());
         }
 
       nsCOMPtr<nsISupports>*
@@ -1148,7 +1171,7 @@ class nsCOMPtr<nsISupports>
       nsISupports&
       operator*() const
         {
-          NS_ABORT_IF_FALSE(mRawPtr != 0, "You can't dereference a NULL nsCOMPtr with operator*().");
+          NS_PRECONDITION(mRawPtr != 0, "You can't dereference a NULL nsCOMPtr with operator*().");
           return *get();
         }
 
@@ -1163,23 +1186,6 @@ class nsCOMPtr<nsISupports>
 #endif
         }
   };
-
-template <typename T>
-inline void
-ImplCycleCollectionUnlink(nsCOMPtr<T>& aField)
-{
-  aField = nullptr;
-}
-
-template <typename T>
-inline void
-ImplCycleCollectionTraverse(nsCycleCollectionTraversalCallback& aCallback,
-                            nsCOMPtr<T>& aField,
-                            const char* aName,
-                            uint32_t aFlags = 0)
-{
-  CycleCollectionNoteChild(aCallback, aField.get(), aName, aFlags);
-}
 
 #ifndef NSCAP_FEATURE_USE_BASE
 template <class T>
@@ -1355,7 +1361,7 @@ class nsGetterAddRefs
   };
 
 
-template <>
+NS_SPECIALIZE_TEMPLATE
 class nsGetterAddRefs<nsISupports>
   {
     public:
@@ -1476,6 +1482,15 @@ operator!=( const U* lhs, const nsCOMPtr<T>& rhs )
   // better conversion for the other argument, define additional
   // |operator==| without the |const| on the raw pointer.
   // See bug 65664 for details.
+
+// This is defined by an autoconf test, but VC++ also has a bug that
+// prevents us from using these.  (It also, fortunately, has the bug
+// that we don't need them either.)
+#if defined(_MSC_VER) && (_MSC_VER < 1310)
+#ifndef NSCAP_DONT_PROVIDE_NONCONST_OPEQ
+#define NSCAP_DONT_PROVIDE_NONCONST_OPEQ
+#endif
+#endif
 
 #ifndef NSCAP_DONT_PROVIDE_NONCONST_OPEQ
 template <class T, class U>

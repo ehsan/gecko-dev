@@ -17,8 +17,6 @@
   <script type="application/javascript"
           src="../common.js" />
   <script type="application/javascript"
-          src="../role.js" />
-  <script type="application/javascript"
           src="../states.js" />
   <script type="application/javascript"
           src="../events.js" />
@@ -28,6 +26,8 @@
     ////////////////////////////////////////////////////////////////////////////
     // Test
 
+    // gA11yEventDumpID = "debug";
+
     /**
      * Event queue invoker object to test accessible states for XUL tree
      * accessible.
@@ -35,13 +35,11 @@
     function statesChecker(aTreeID, aView)
     {
       this.DOMNode = getNode(aTreeID);
-
-      this.invoke = function statesChecker_invoke()
+      this.invoke = function invoke()
       {
         this.DOMNode.treeBoxObject.view = aView;
       }
-
-      this.check = function statesChecker_check()
+      this.check = function check()
       {
         var tree = getAccessible(this.DOMNode);
 
@@ -74,14 +72,11 @@
           testStates(checkboxCell, STATE_CHECKABLE | STATE_CHECKED);
         }
       }
-
-      this.getID = function statesChecker_getID()
+      this.getID = function getID()
       {
-        return "tree processor for " + prettyName(aTreeID);
+        "tree processor for " + prettyName(aTreeID);
       }
     }
-
-    gA11yEventDumpToConsole = true; // debug stuff
 
     var gQueue = null;
 
@@ -95,13 +90,8 @@
       gQueue.invoke(); // Will call SimpleTest.finish();
     }
 
-    if (MAC && (navigator.userAgent.indexOf("Mac OS X 10.6") != -1)) {
-      todo(false,
-           "Re-enable on Mac OS 10.6 after fixing bug 845095 - intermittent orange");
-    } else {
     SimpleTest.waitForExplicitFinish();
     addA11yLoadEvent(doTest);
-    }
   ]]>
   </script>
 

@@ -1,21 +1,54 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * vim: sw=4 ts=4 et :
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Plugin App.
+ *
+ * The Initial Developer of the Original Code is
+ *   Chris Jones <jones.chris.g@gmail.com>
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef ipc_glue_RPCChannel_h
 #define ipc_glue_RPCChannel_h 1
 
 #include <stdio.h>
 
-#include <deque>
+// FIXME/cjones probably shouldn't depend on STL
+#include <queue>
 #include <stack>
 #include <vector>
 
 #include "base/basictypes.h"
 
-#include "nsISupportsImpl.h"
+#include "nsAtomicRefcnt.h"
 
 #include "mozilla/ipc/SyncChannel.h"
 #include "nsAutoPtr.h"
@@ -46,13 +79,12 @@ public:
         virtual void OnChannelError() = 0;
         virtual Result OnMessageReceived(const Message& aMessage) = 0;
         virtual void OnProcessingError(Result aError) = 0;
-        virtual int32_t GetProtocolTypeId() = 0;
         virtual bool OnReplyTimeout() = 0;
         virtual Result OnMessageReceived(const Message& aMessage,
                                          Message*& aReply) = 0;
         virtual Result OnCallReceived(const Message& aMessage,
                                       Message*& aReply) = 0;
-        virtual void OnChannelConnected(int32_t peer_pid) {}
+        virtual void OnChannelConnected(int32 peer_pid) {};
 
         virtual void OnEnteredCxxStack()
         {
@@ -86,20 +118,56 @@ public:
 
     virtual ~RPCChannel();
 
-    void Clear() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    void Clear();
 
     // Make an RPC to the other side of the channel
     bool Call(Message* msg, Message* reply);
 
     // RPCChannel overrides these so that the async and sync messages
     // can be counted against mStackFrames
-    virtual bool Send(Message* msg) MOZ_OVERRIDE;
-    virtual bool Send(Message* msg, Message* reply) MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool Send(Message* msg);
+    NS_OVERRIDE
+    virtual bool Send(Message* msg, Message* reply);
+
+    // Asynchronously, send the child a message that puts it in such a
+    // state that it can't send messages to the parent unless the
+    // parent sends a message to it first.  The child stays in this
+    // state until the parent calls |UnblockChild()|.
+    //
+    // It is an error to
+    //  - call this on the child side of the channel.
+    //  - nest |BlockChild()| calls
+    //  - call this when the child is already blocked on a sync or RPC
+    //    in-/out- message/call
+    //
+    // Return true iff successful.
+    bool BlockChild();
+
+    // Asynchronously undo |BlockChild()|.
+    //
+    // It is an error to
+    //  - call this on the child side of the channel
+    //  - call this without a matching |BlockChild()|
+    //
+    // Return true iff successful.
+    bool UnblockChild();
 
     // Return true iff this has code on the C++ stack.
     bool IsOnCxxStack() const {
         return !mCxxStackFrames.empty();
     }
+
+    NS_OVERRIDE
+    virtual bool OnSpecialMessage(uint16 id, const Message& msg);
+
+    // Override the SyncChannel handler so we can dispatch RPC
+    // messages.  Called on the IO thread only.
+    NS_OVERRIDE
+    virtual void OnMessageReceived(const Message& msg);
+    NS_OVERRIDE
+    virtual void OnChannelError();
 
     /**
      * If there is a pending RPC message, process all pending messages.
@@ -118,18 +186,15 @@ protected:
     void SpinInternalEventLoop();
 #endif
 
-protected:
-    virtual void OnMessageReceivedFromLink(const Message& msg) MOZ_OVERRIDE;
-    virtual void OnChannelErrorFromLink() MOZ_OVERRIDE;
-
-private:
+  private:
     // Called on worker thread only
 
     RPCListener* Listener() const {
-        return static_cast<RPCListener*>(mListener.get());
+        return static_cast<RPCListener*>(mListener);
     }
 
-    virtual bool ShouldDeferNotifyMaybeError() const MOZ_OVERRIDE {
+    NS_OVERRIDE
+    virtual bool ShouldDeferNotifyMaybeError() const {
         return IsOnCxxStack();
     }
 
@@ -158,6 +223,9 @@ private:
 
     void Incall(const Message& call, size_t stackDepth);
     void DispatchIncall(const Message& call);
+
+    void BlockOnParent();
+    void UnblockFromParent();
 
     // This helper class managed RPCChannel.mCxxStackDepth on behalf
     // of RPCChannel.  When the stack depth is incremented from zero
@@ -196,7 +264,7 @@ private:
             return mMsg->is_rpc() && OUT_MESSAGE == mDirection;
         }
 
-        void Describe(int32_t* id, const char** dir, const char** sems,
+        void Describe(int32* id, const char** dir, const char** sems,
                       const char** name) const
         {
             *id = mMsg->routing_id();
@@ -209,7 +277,7 @@ private:
         const Message* mMsg;
     };
 
-    class MOZ_STACK_CLASS CxxStackFrame
+    class NS_STACK_CLASS CxxStackFrame
     {
     public:
 
@@ -257,7 +325,7 @@ private:
 
     // Called from both threads
     size_t StackDepth() const {
-        mMonitor->AssertCurrentThreadOwns();
+        mMonitor.AssertCurrentThreadOwns();
         return mStack.size();
     }
 
@@ -266,8 +334,8 @@ private:
                     const char* type="rpc", bool reply=false) const;
 
     // This method is only safe to call on the worker thread, or in a
-    // debugger with all threads paused.
-    void DumpRPCStack(const char* const pfx="") const;
+    // debugger with all threads paused.  |outfile| defaults to stdout.
+    void DumpRPCStack(FILE* outfile=NULL, const char* const pfx="") const;
 
     // 
     // Queue of all incoming messages, except for replies to sync
@@ -309,13 +377,8 @@ private:
     // sent us another blocking message, because it's blocked on a
     // reply from us.
     //
-    typedef std::deque<Message> MessageQueue;
+    typedef std::queue<Message> MessageQueue;
     MessageQueue mPending;
-
-    // List of async and sync messages that have been received while waiting
-    // for an urgent reply, that need to be deferred until that reply has been
-    // received.
-    MessageQueue mNonUrgentDeferred;
 
     // 
     // Stack of all the RPC out-calls on which this RPCChannel is
@@ -367,6 +430,9 @@ private:
     //
     size_t mRemoteStackDepthGuess;
 
+    // True iff the parent has put us in a |BlockChild()| state.
+    bool mBlockedOnParent;
+
     // Approximation of Sync/RPCChannel-code frames on the C++ stack.
     // It can only be interpreted as the implication
     //
@@ -392,15 +458,22 @@ private:
     {
       public:
         RefCountedTask(CancelableTask* aTask)
-        : mTask(aTask) {}
+        : mTask(aTask)
+        , mRefCnt(0) {}
         ~RefCountedTask() { delete mTask; }
         void Run() { mTask->Run(); }
         void Cancel() { mTask->Cancel(); }
-
-        NS_INLINE_DECL_THREADSAFE_REFCOUNTING(RefCountedTask)
+        void AddRef() {
+            NS_AtomicIncrementRefcnt(mRefCnt);
+        }
+        void Release() {
+            if (NS_AtomicDecrementRefcnt(mRefCnt) == 0)
+                delete this;
+        }
 
       private:
         CancelableTask* mTask;
+        nsrefcnt mRefCnt;
     };
 
     //

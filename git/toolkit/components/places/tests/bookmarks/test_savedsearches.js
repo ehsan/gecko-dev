@@ -1,47 +1,103 @@
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is Google Inc.
+ * Portions created by the Initial Developer are Copyright (C) 2005
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Darin Fisher <darin@meer.net>
+ *  Dietrich Ayala <dietrich@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
+
+// Get bookmark service
+try {
+  var bmsvc = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].getService(Ci.nsINavBookmarksService);
+} catch(ex) {
+  do_throw("Could not get nav-bookmarks-service\n");
+}
+
+// Get history service
+try {
+  var histsvc = Cc["@mozilla.org/browser/nav-history-service;1"].getService(Ci.nsINavHistoryService);
+} catch(ex) {
+  do_throw("Could not get history service\n");
+} 
+
+// Get annotation service
+try {
+  var annosvc= Cc["@mozilla.org/browser/annotation-service;1"].getService(Ci.nsIAnnotationService);
+} catch(ex) {
+  do_throw("Could not get annotation service\n");
+} 
+
+// Get global history service
+try {
+  var bhist = Cc["@mozilla.org/browser/global-history;2"].getService(Ci.nsIBrowserHistory);
+} catch(ex) {
+  do_throw("Could not get history service\n");
+} 
 
 // get bookmarks root id
-var root = PlacesUtils.bookmarksMenuFolderId;
-
-// a search term that matches a default bookmark
-const searchTerm = "about";
-
-var testRoot;
+var root = bmsvc.bookmarksMenuFolder;
 
 // main
 function run_test() {
+  // a search term that matches a default bookmark
+  var searchTerm = "about";
+
   // create a folder to hold all the tests
   // this makes the tests more tolerant of changes to the default bookmarks set
   // also, name it using the search term, for testing that containers that match don't show up in query results
-  testRoot = PlacesUtils.bookmarks.createFolder(
-    root, searchTerm, PlacesUtils.bookmarks.DEFAULT_INDEX);
+  var testRoot = bmsvc.createFolder(root, searchTerm, bmsvc.DEFAULT_INDEX);
 
-  run_next_test();
-}
+  /******************************************
+  * saved searches - bookmarks 
+  ******************************************/
 
-add_test(function test_savedsearches_bookmarks() {
   // add a bookmark that matches the search term
-  var bookmarkId = PlacesUtils.bookmarks.insertBookmark(
-    root, uri("http://foo.com"), PlacesUtils.bookmarks.DEFAULT_INDEX,
-    searchTerm);
+  var bookmarkId = bmsvc.insertBookmark(root, uri("http://foo.com"), bmsvc.DEFAULT_INDEX, searchTerm);
 
   // create a saved-search that matches a default bookmark
-  var searchId = PlacesUtils.bookmarks.insertBookmark(
-    testRoot, uri("place:terms=" + searchTerm + "&excludeQueries=1&expandQueries=1&queryType=1"),
-    PlacesUtils.bookmarks.DEFAULT_INDEX, searchTerm);
+  var searchId = bmsvc.insertBookmark(testRoot,
+                                      uri("place:terms=" + searchTerm + "&excludeQueries=1&expandQueries=1&queryType=1"),
+                                      bmsvc.DEFAULT_INDEX, searchTerm);
 
   // query for the test root, expandQueries=0
   // the query should show up as a regular bookmark
   try {
-    var options = PlacesUtils.history.getNewQueryOptions();
+    var options = histsvc.getNewQueryOptions();
     options.expandQueries = 0;
-    var query = PlacesUtils.history.getNewQuery();
+    var query = histsvc.getNewQuery();
     query.setFolders([testRoot], 1);
-    var result = PlacesUtils.history.executeQuery(query, options);
+    var result = histsvc.executeQuery(query, options);
     var rootNode = result.root;
     rootNode.containerOpen = true;
     var cc = rootNode.childCount;
@@ -64,11 +120,11 @@ add_test(function test_savedsearches_bookmarks() {
   // query for the test root, expandQueries=1
   // the query should show up as a query container, with 1 child
   try {
-    var options = PlacesUtils.history.getNewQueryOptions();
+    var options = histsvc.getNewQueryOptions();
     options.expandQueries = 1;
-    var query = PlacesUtils.history.getNewQuery();
+    var query = histsvc.getNewQuery();
     query.setFolders([testRoot], 1);
-    var result = PlacesUtils.history.executeQuery(query, options);
+    var result = histsvc.executeQuery(query, options);
     var rootNode = result.root;
     rootNode.containerOpen = true;
     var cc = rootNode.childCount;
@@ -92,23 +148,19 @@ add_test(function test_savedsearches_bookmarks() {
       do_check_eq(item.itemId, bookmarkId);
 
       // XXX - FAILING - test live-update of query results - add a bookmark that matches the query
-      //var tmpBmId = PlacesUtils.bookmarks.insertBookmark(
-      //  root, uri("http://" + searchTerm + ".com"),
-      //  PlacesUtils.bookmarks.DEFAULT_INDEX, searchTerm + "blah");
+      //var tmpBmId = bmsvc.insertBookmark(root, uri("http://" + searchTerm + ".com"), bmsvc.DEFAULT_INDEX, searchTerm + "blah");
       //do_check_eq(query.childCount, 2);
 
       // XXX - test live-update of query results - delete a bookmark that matches the query
-      //PlacesUtils.bookmarks.removeItem(tmpBMId);
+      //bmsvc.removeItem(tmpBMId);
       //do_check_eq(query.childCount, 1);
 
       // test live-update of query results - add a folder that matches the query
-      PlacesUtils.bookmarks.createFolder(
-        root, searchTerm + "zaa", PlacesUtils.bookmarks.DEFAULT_INDEX);
+      bmsvc.createFolder(root, searchTerm + "zaa", bmsvc.DEFAULT_INDEX);
       do_check_eq(node.childCount, 1);
       // test live-update of query results - add a query that matches the query
-      PlacesUtils.bookmarks.insertBookmark(
-        root, uri("place:terms=foo&excludeQueries=1&expandQueries=1&queryType=1"),
-        PlacesUtils.bookmarks.DEFAULT_INDEX, searchTerm + "blah");
+      bmsvc.insertBookmark(root, uri("place:terms=foo&excludeQueries=1&expandQueries=1&queryType=1"),
+                           bmsvc.DEFAULT_INDEX, searchTerm + "blah");
       do_check_eq(node.childCount, 1);
     }
     rootNode.containerOpen = false;
@@ -118,29 +170,29 @@ add_test(function test_savedsearches_bookmarks() {
   }
 
   // delete the bookmark search
-  PlacesUtils.bookmarks.removeItem(searchId);
+  bmsvc.removeItem(searchId);
 
-  run_next_test();
-});
+  /******************************************
+  * saved searches - history 
+  ******************************************/
 
-add_task(function test_savedsearches_history() {
   // add a visit that matches the search term
   var testURI = uri("http://" + searchTerm + ".com");
-  yield promiseAddVisits({ uri: testURI, title: searchTerm });
+  bhist.addPageWithDetails(testURI, searchTerm, Date.now() * 1000);
 
   // create a saved-search that matches the visit we added
-  var searchId = PlacesUtils.bookmarks.insertBookmark(testRoot,
-    uri("place:terms=" + searchTerm + "&excludeQueries=1&expandQueries=1&queryType=0"),
-    PlacesUtils.bookmarks.DEFAULT_INDEX, searchTerm);
+  var searchId = bmsvc.insertBookmark(testRoot,
+                                      uri("place:terms=" + searchTerm + "&excludeQueries=1&expandQueries=1&queryType=0"),
+                                      bmsvc.DEFAULT_INDEX, searchTerm);
 
   // query for the test root, expandQueries=1
   // the query should show up as a query container, with 1 child
   try {
-    var options = PlacesUtils.history.getNewQueryOptions();
+    var options = histsvc.getNewQueryOptions();
     options.expandQueries = 1;
-    var query = PlacesUtils.history.getNewQuery();
+    var query = histsvc.getNewQuery();
     query.setFolders([testRoot], 1);
-    var result = PlacesUtils.history.executeQuery(query, options);
+    var result = histsvc.executeQuery(query, options);
     var rootNode = result.root;
     rootNode.containerOpen = true;
     var cc = rootNode.childCount;
@@ -166,23 +218,18 @@ add_task(function test_savedsearches_history() {
       do_check_eq(item.uri, testURI.spec); // history visit
 
       // test live-update of query results - add a history visit that matches the query
-      yield promiseAddVisits({
-        uri: uri("http://foo.com"),
-        title: searchTerm + "blah"
-      });
+      bhist.addPageWithDetails(uri("http://foo.com"), searchTerm + "blah", Date.now() * 1000);
       do_check_eq(node.childCount, 2);
 
       // test live-update of query results - delete a history visit that matches the query
-      PlacesUtils.history.removePage(uri("http://foo.com"));
+      bhist.removePage(uri("http://foo.com"));
       do_check_eq(node.childCount, 1);
       node.containerOpen = false;
     }
 
     // test live-update of moved queries
-    var tmpFolderId = PlacesUtils.bookmarks.createFolder(
-      testRoot, "foo", PlacesUtils.bookmarks.DEFAULT_INDEX);
-    PlacesUtils.bookmarks.moveItem(
-      searchId, tmpFolderId, PlacesUtils.bookmarks.DEFAULT_INDEX);
+    var tmpFolderId = bmsvc.createFolder(testRoot, "foo", bmsvc.DEFAULT_INDEX); 
+    bmsvc.moveItem(searchId, tmpFolderId, bmsvc.DEFAULT_INDEX);
     var tmpFolderNode = rootNode.getChild(0);
     do_check_eq(tmpFolderNode.itemId, tmpFolderId);
     tmpFolderNode.QueryInterface(Ci.nsINavHistoryContainerResultNode);
@@ -190,11 +237,11 @@ add_task(function test_savedsearches_history() {
     do_check_eq(tmpFolderNode.childCount, 1);
 
     // test live-update of renamed queries
-    PlacesUtils.bookmarks.setItemTitle(searchId, "foo");
+    bmsvc.setItemTitle(searchId, "foo");
     do_check_eq(tmpFolderNode.title, "foo");
 
     // test live-update of deleted queries
-    PlacesUtils.bookmarks.removeItem(searchId);
+    bmsvc.removeItem(searchId);
     try {
       var tmpFolderNode = root.getChild(1);
       do_throw("query was not removed");
@@ -206,4 +253,4 @@ add_task(function test_savedsearches_history() {
   catch(ex) {
     do_throw("expandQueries=1 bookmarks query: " + ex);
   }
-});
+}

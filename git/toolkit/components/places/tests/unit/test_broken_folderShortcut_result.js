@@ -1,13 +1,7 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-function run_test()
-{
-  run_next_test();
-}
-
-add_task(function test_execute()
-{
+function run_test() {
   PlacesUtils.bookmarks.insertBookmark(
     PlacesUtils.unfiledBookmarksFolderId, NetUtil.newURI("http://1.moz.org/"),
     PlacesUtils.bookmarks.DEFAULT_INDEX, "Bookmark 1"
@@ -26,7 +20,10 @@ add_task(function test_execute()
   );
 
   // Add also a simple visit.
-  yield promiseAddVisits(uri(("http://3.moz.org/")));
+  PlacesUtils.history.addVisit(
+    NetUtil.newURI("http://3.moz.org/"), Date.now() * 1000, null,
+    PlacesUtils.history.TRANSITION_TYPED, false, 0
+  );
 
   // Query containing a broken folder shortcuts among results.
   let query = PlacesUtils.history.getNewQuery();
@@ -76,4 +73,4 @@ add_task(function test_execute()
   root.containerOpen = true;
   do_check_eq(root.childCount, 0);
   root.containerOpen = false;
-});
+}

@@ -15,11 +15,8 @@
 
 /** Test for HTMLOLElement attributes reflection **/
 
-// .reversed (boolean)
-reflectBoolean({
-  element: document.createElement("ol"),
-  attribute: "reversed",
-})
+// TODO: .reversed (boolean), bug 601912
+todo("reversed" in document.createElement("ol"), "reversed is not yet implemented");
 
 // .start
 reflectInt({
@@ -29,17 +26,7 @@ reflectInt({
   defaultValue: 1,
 });
 
-// .type
-reflectString({
-  element: document.createElement("ol"),
-  attribute: "type"
-});
-
-// .compact
-reflectBoolean({
-  element: document.createElement("ol"),
-  attribute: "compact",
-})
+// TODO: .type (String)
 
 // Additional tests for ol.start behavior when li elements are added
 var ol = document.createElement("ol");

@@ -1,7 +1,40 @@
 /* -*- Mode: IDL; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Android NPAPI support code
+ *
+ * The Initial Developer of the Original Code is
+ * the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Doug Turner <dougt@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "base/basictypes.h"
 
@@ -17,37 +50,10 @@
 #define ASSIGN(obj, name)   (obj)->name = anp_system_##name
 
 const char*
-anp_system_getApplicationDataDirectory(NPP instance)
-{
-  static const char *dir = NULL;
-  static const char *privateDir = NULL;
-
-  bool isPrivate = false;
-
-  if (!dir) {
-    dir = getenv("ANDROID_PLUGIN_DATADIR");
-  }
-
-  if (!privateDir) {
-    privateDir = getenv("ANDROID_PLUGIN_DATADIR_PRIVATE");
-  }
-
-  if (!instance) {
-    return dir;
-  }
-
-  nsNPAPIPluginInstance* pinst = static_cast<nsNPAPIPluginInstance*>(instance->ndata);
-  if (pinst && NS_SUCCEEDED(pinst->IsPrivateBrowsing(&isPrivate)) && isPrivate) {
-    return privateDir;
-  }
-
-  return dir;
-}
-
-const char*
 anp_system_getApplicationDataDirectory()
 {
-  return anp_system_getApplicationDataDirectory(nullptr);
+  LOG("getApplicationDataDirectory return /data/data/org.mozilla.%s", MOZ_APP_NAME);
+  return "/data/data/org.mozilla." MOZ_APP_NAME;
 }
 
 jclass anp_system_loadJavaClass(NPP instance, const char* className)
@@ -55,9 +61,6 @@ jclass anp_system_loadJavaClass(NPP instance, const char* className)
   LOG("%s", __PRETTY_FUNCTION__);
 
   JNIEnv* env = GetJNIForThread();
-  if (!env)
-    return nullptr;
-
   jclass cls = env->FindClass("org/mozilla/gecko/GeckoAppShell");
   jmethodID method = env->GetStaticMethodID(cls,
                                             "loadPluginClass",
@@ -73,37 +76,11 @@ jclass anp_system_loadJavaClass(NPP instance, const char* className)
   jstring jclassName = env->NewStringUTF(className);
   jstring jlibName = env->NewStringUTF(libName.get());
   jobject obj = env->CallStaticObjectMethod(cls, method, jclassName, jlibName);
-  env->DeleteLocalRef(jlibName);
-  env->DeleteLocalRef(jclassName);
-  env->DeleteLocalRef(cls);
   return reinterpret_cast<jclass>(obj);
-}
-
-void anp_system_setPowerState(NPP instance, ANPPowerState powerState)
-{
-  nsNPAPIPluginInstance* pinst = nsNPAPIPluginInstance::GetFromNPP(instance);
-
-  if (pinst) {
-    pinst->SetWakeLock(powerState == kScreenOn_ANPPowerState);
-  }
 }
 
 void InitSystemInterface(ANPSystemInterfaceV0 *i) {
   _assert(i->inSize == sizeof(*i));
   ASSIGN(i, getApplicationDataDirectory);
   ASSIGN(i, loadJavaClass);
-}
-
-void InitSystemInterfaceV1(ANPSystemInterfaceV1 *i) {
-  _assert(i->inSize == sizeof(*i));
-  ASSIGN(i, getApplicationDataDirectory);
-  ASSIGN(i, loadJavaClass);
-  ASSIGN(i, setPowerState);
-}
-
-void InitSystemInterfaceV2(ANPSystemInterfaceV2 *i) {
-  _assert(i->inSize == sizeof(*i));
-  ASSIGN(i, getApplicationDataDirectory);
-  ASSIGN(i, loadJavaClass);
-  ASSIGN(i, setPowerState);
 }

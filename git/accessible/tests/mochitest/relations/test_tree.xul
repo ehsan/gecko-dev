@@ -24,7 +24,7 @@
     ////////////////////////////////////////////////////////////////////////////
     // Test
 
-    function doTest()
+    function doTestRelations()
     {
       var treeNode = getNode("tree");
 
@@ -47,20 +47,18 @@
       var treeitem6 = treeitem5.nextSibling;
       testRelation(treeitem6, RELATION_NODE_CHILD_OF, [tree]);
 
-      testRelation(tree, RELATION_NODE_PARENT_OF,
-                   [treeitem1, treeitem2, treeitem5, treeitem6]);
-      testRelation(treeitem2, RELATION_NODE_PARENT_OF,
-                   [treeitem3, treeitem4]);
-
-      // treeitems and treecells shouldn't pick up relations from tree
-      testRelation(treeitem1, RELATION_LABELLED_BY, null);
-      testRelation(treeitem1.firstChild, RELATION_LABELLED_BY, null);
-
       SimpleTest.finish();
     }
 
+    function doTest()
+    {
+      var treeNode = getNode("tree");
+      waitForEvent(EVENT_REORDER, treeNode, doTestRelations);
+      treeNode.view = new nsTreeTreeView();
+    }
+
     SimpleTest.waitForExplicitFinish();
-    addA11yXULTreeLoadEvent(doTest, "tree", new nsTreeTreeView());
+    addA11yLoadEvent(doTest);
   ]]>
   </script>
 
@@ -69,18 +67,8 @@
       <a target="_blank"
          href="https://bugzilla.mozilla.org/show_bug.cgi?id=503727"
          title="Reorganize implementation of XUL tree accessibility">
-        Bug 503727
-      </a>
-      <a target="_blank"
-         href="https://bugzilla.mozilla.org/show_bug.cgi?id=527461"
-         title="Implement RELATION_NODE_PARENT_OF">
-        Bug 527461
-      </a>
-      <a target="_blank"
-         href="https://bugzilla.mozilla.org/show_bug.cgi?id=691248"
-         title="XUL tree items shouldn't pick up relations from XUL tree">
-        Bug 691248
-      </a>
+        Mozilla Bug 503727
+      </a><br/>
       <p id="display"></p>
       <div id="content" style="display: none">
       </div>
@@ -89,11 +77,9 @@
     </body>
 
     <vbox flex="1">
-      <label control="tree" value="It's a tree"/>
       <tree id="tree" flex="1">
         <treecols>
           <treecol id="col" flex="1" primary="true" label="column"/>
-          <treecol id="col2" flex="1" label="column2"/>
         </treecols>
         <treechildren/>
       </tree>

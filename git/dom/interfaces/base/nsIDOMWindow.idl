@@ -1,20 +1,65 @@
 /* -*- Mode: IDL; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Vidur Apparao <vidur@netscape.com> (original author)
+ *   Johnny Stenback <jst@netscape.com>
+ *   Neil Deakin <enndeakin@sympatico.ca>
+ *   Ms2ger <ms2ger@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "domstubs.idl"
 
-interface nsIFrameRequestCallback;
+interface nsIAnimationFrameListener;
 interface nsIControllers;
 interface nsIDOMBlob;
 interface nsIDOMLocation;
 interface nsIDOMMediaQueryList;
 interface nsIDOMOfflineResourceList;
+interface nsIDOMPerformance;
 interface nsIDOMStorage;
+interface nsIDOMStorageList;
 interface nsIPrompt;
 interface nsISelection;
 interface nsIVariant;
+
+[scriptable, uuid(8fc58f56-f769-4368-a098-edd08550cf1a)]
+interface nsIDOMMozURLProperty : nsISupports
+{
+  DOMString createObjectURL(in nsIDOMBlob blob);
+  void revokeObjectURL(in DOMString URL);
+};
 
 /**
  * The nsIDOMWindow interface is the primary interface for a DOM
@@ -25,7 +70,7 @@ interface nsIVariant;
  * @see <http://www.whatwg.org/html/#window>
  */
 
-[scriptable, uuid(db8ea3c8-6997-460a-8715-0a1cbf20f15d)]
+[scriptable, uuid(3f5b2af2-604e-4253-8d25-6d3cafc13a69)]
 interface nsIDOMWindow : nsISupports
 {
   // the current browsing context
@@ -53,16 +98,13 @@ interface nsIDOMWindow : nsISupports
 
 
   /* [replaceable] locationbar */
-  /* BarProp */
-  readonly attribute nsISupports                        locationbar;
+  readonly attribute nsIDOMBarProp                      locationbar;
 
   /* [replaceable] menubar */
-  /* BarProp */
-  readonly attribute nsISupports                        menubar;
+  readonly attribute nsIDOMBarProp                      menubar;
 
   /* [replaceable] personalbar */
-  /* BarProp */
-  readonly attribute nsISupports                        personalbar;
+  readonly attribute nsIDOMBarProp                      personalbar;
 
   /**
    * Accessor for the object that controls whether or not scrollbars
@@ -70,16 +112,13 @@ interface nsIDOMWindow : nsISupports
    *
    * This attribute is "replaceable" in JavaScript
    */
-  /* BarProp */
-  readonly attribute nsISupports                        scrollbars;
+  readonly attribute nsIDOMBarProp                      scrollbars;
 
   /* [replaceable] statusbar */
-  /* BarProp */
-  readonly attribute nsISupports                        statusbar;
+  readonly attribute nsIDOMBarProp                      statusbar;
 
   /* [replaceable] toolbar */
-  /* BarProp */
-  readonly attribute nsISupports                        toolbar;
+  readonly attribute nsIDOMBarProp                      toolbar;
 
   /* [replaceable] */
            attribute DOMString                          status;
@@ -95,90 +134,24 @@ interface nsIDOMWindow : nsISupports
   readonly attribute unsigned long                      length;
 
   /**
-   * |top| gets the root of the window hierarchy.
+   * Accessor for the root of this hierarchy of windows. This root may
+   * be the window itself if there is no parent, or if the parent is
+   * of different type (i.e. this does not cross chrome-content
+   * boundaries).
    *
-   * This function does not cross chrome-content boundaries, so if this
-   * window's parent is of a different type, |top| will return this window.
-   *
-   * When script reads the top property, we run GetScriptableTop, which
-   * will not cross an <iframe mozbrowser> boundary.
-   *
-   * In contrast, C++ calls to GetTop are forwarded to GetRealTop, which
-   * ignores <iframe mozbrowser> boundaries.
-   *
-   * This property is "replaceable" in JavaScript.
-   */
-  [binaryname(ScriptableTop)]
+   * This property is "replaceable" in JavaScript */
   readonly attribute nsIDOMWindow                       top;
-
-  /**
-   * You shouldn't need to call this function directly; call GetTop instead.
-   */
-  [noscript]
-  readonly attribute nsIDOMWindow                       realTop;
-
-  %{C++
-  nsresult GetTop(nsIDOMWindow **aWindow)
-  {
-    return GetRealTop(aWindow);
-  }
-  %}
-
-  /**
-   * |parent| gets this window's parent window.  If this window has no parent,
-   * we return the window itself.
-   *
-   * This property does not cross chrome-content boundaries, so if this
-   * window's parent is of a different type, we return the window itself as its
-   * parent.
-   *
-   * When script reads the property (or when C++ calls ScriptableTop), this
-   * property does not cross <iframe mozbrowser> boundaries.  In contrast, when
-   * C++ calls GetParent, we ignore the mozbrowser attribute.
-   */
-  [binaryname(ScriptableParent)]
-  readonly attribute nsIDOMWindow                       parent;
-
-  /**
-   * You shouldn't need to read this property directly; call GetParent instead.
-   */
-  [noscript]
-  readonly attribute nsIDOMWindow                       realParent;
-
-  %{C++
-  inline nsresult GetParent(nsIDOMWindow **aWindow)
-  {
-    return GetRealParent(aWindow);
-  }
-  %}
 
            attribute nsIDOMWindow                       opener;
 
   /**
-   * |frameElement| gets this window's <iframe> or <frame> element, if it has
-   * one.
-   *
-   * When script reads this property (or when C++ calls
-   * ScriptableFrameElement), we return |null| if the window is inside an
-   * <iframe mozbrowser>.  In contrast, when C++ calls GetFrameElement, we
-   * ignore the mozbrowser attribute.
+   * Accessor for this window's parent window, or the window itself if
+   * there is no parent, or if the parent is of different type
+   * (i.e. this does not cross chrome-content boundaries).
    */
-  [binaryname(ScriptableFrameElement)]
+  readonly attribute nsIDOMWindow                       parent;
+
   readonly attribute nsIDOMElement                      frameElement;
-
-  /**
-   * You shouldn't need to read this property directly; call GetFrameElement
-   * instead.
-   */
-  [noscript]
-  readonly attribute nsIDOMElement                      realFrameElement;
-
-  %{C++
-  inline nsresult GetFrameElement(nsIDOMElement **aElement)
-  {
-    return GetRealFrameElement(aElement);
-  }
-  %}
 
 
   // the user agent
@@ -191,8 +164,8 @@ interface nsIDOMWindow : nsISupports
 
 
   // user prompts
-  void                      alert([optional, Null(Stringify)] in DOMString text);
-  boolean                   confirm([optional] in DOMString text);
+  void                      alert(in DOMString text);
+  boolean                   confirm(in DOMString text);
 
   // prompt() should return a null string if cancel is pressed
   DOMString                 prompt([optional] in DOMString aMessage,
@@ -200,7 +173,6 @@ interface nsIDOMWindow : nsISupports
 
   void                      print();
 
-  [optional_argc]
   nsIVariant                showModalDialog(in DOMString aURI,
                                             [optional] in nsIVariant aArgs,
                                             [optional] in DOMString aOptions);
@@ -225,8 +197,7 @@ interface nsIDOMWindow : nsISupports
    * @see <http://www.whatwg.org/html/#dom-window-postmessage>
    */
   [implicit_jscontext, binaryname(PostMessageMoz)]
-    void postMessage(in jsval message, in DOMString targetOrigin,
-                     [optional] in jsval transfer);
+    void postMessage(in jsval message, in DOMString targetOrigin);
 
 
   // WindowBase64
@@ -317,8 +288,6 @@ interface nsIDOMWindow : nsISupports
    */
   nsIDOMCSSStyleDeclaration getComputedStyle(in nsIDOMElement elt, 
                                              [optional] in DOMString pseudoElt);
-  nsIDOMCSSStyleDeclaration getDefaultComputedStyle(in nsIDOMElement elt,
-                                                    [optional] in DOMString pseudoElt);
 
 
   // Mozilla extensions
@@ -360,13 +329,13 @@ interface nsIDOMWindow : nsISupports
   void                      sizeToContent();
 
   /* [replaceable] content */
-  [noscript] readonly attribute nsIDOMWindow            content;
+  readonly attribute nsIDOMWindow                       content;
 
   /* [replaceable] prompter */
   [noscript] readonly attribute nsIPrompt               prompter;
 
   readonly attribute boolean                            closed;
-
+  // http://wiki.whatwg.org/wiki/Crypto
   readonly attribute nsIDOMCrypto                       crypto;
   readonly attribute nsIDOMPkcs11                       pkcs11;
 
@@ -374,9 +343,10 @@ interface nsIDOMWindow : nsISupports
   /* [replaceable] controllers */
   readonly attribute nsIControllers                     controllers;
 
+           attribute DOMString                          defaultStatus;
+
   readonly attribute float                              mozInnerScreenX;
   readonly attribute float                              mozInnerScreenY;
-  readonly attribute float                              devicePixelRatio;
 
   /* The maximum offset that the window can be scrolled to
      (i.e., the document width/height minus the scrollport width/height) */
@@ -447,25 +417,23 @@ interface nsIDOMWindow : nsISupports
    *
    * @see <http://dvcs.w3.org/hg/webperf/raw-file/tip/specs/RequestAnimationFrame/Overview.html>
    */
-  // Argument is optional only so we can warn when it's null
-  long
-    mozRequestAnimationFrame([optional] in nsIFrameRequestCallback aCallback);
-  // jsval because we want a WebIDL callback here
-  [implicit_jscontext]
-  long requestAnimationFrame(in jsval aCallback);
-
-  /**
-   * Cancel a refresh callback.
-   */
-  void mozCancelAnimationFrame(in long aHandle);
-  // Backwards-compat shim for now to make Google maps work
-  void mozCancelRequestAnimationFrame(in long aHandle);
-  void cancelAnimationFrame(in long aHandle);
+  void
+    mozRequestAnimationFrame([optional] in nsIAnimationFrameListener aListener);
 
   /**
    * The current animation start time in milliseconds since the epoch.
    */
   readonly attribute long long mozAnimationStartTime;
+
+  /**
+   * @see <http://dev.w3.org/2006/webapi/FileAPI/#creating-revoking>
+   */
+  readonly attribute nsIDOMMozURLProperty URL;
+
+  /**
+   * Global storage, accessible by domain.
+   */
+  readonly attribute nsIDOMStorageList globalStorage;
 
   /**
    * HTML5 event attributes that only apply to windows and <body>/<frameset>
@@ -494,12 +462,6 @@ interface nsIDOMWindow : nsISupports
    */
   [implicit_jscontext] attribute jsval ondevicemotion;
   [implicit_jscontext] attribute jsval ondeviceorientation;
-  [implicit_jscontext] attribute jsval ondeviceproximity;
-  [implicit_jscontext] attribute jsval onuserproximity;
-  [implicit_jscontext] attribute jsval ondevicelight;
-
-  [implicit_jscontext] attribute jsval onmouseenter;
-  [implicit_jscontext] attribute jsval onmouseleave;
 };
 
 [scriptable, uuid(2146c906-57f7-486c-a1b4-8cdb57ef577f)]
@@ -508,12 +470,12 @@ interface nsIDOMWindowPerformance : nsISupports
   /**
    * A namespace to hold performance related data and statistics.
    */
-  readonly attribute nsISupports performance;
+  readonly attribute nsIDOMPerformance performance;
 };
 
 /**
  * Empty interface for compatibility with older versions.
  * @deprecated Use nsIDOMWindow instead
  */
-[scriptable, uuid(ad5768c7-8668-4cd4-bcac-3d0a400d50be)]
+[scriptable, uuid(8614bdb7-5b07-4d00-a7ba-4d44697a343d)]
 interface nsIDOMWindowInternal : nsIDOMWindow {};

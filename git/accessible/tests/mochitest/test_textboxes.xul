@@ -30,7 +30,10 @@
                "", // value
                "", // description
                ROLE_ENTRY, // role
-               1, // actionCount
+               (STATE_FOCUSABLE), // state
+               (EXT_STATE_EDITABLE), // extState
+               (STATE_READONLY), // absentState
+               1, // numActions
                "activate",  // ActionName
                "Activate"); // ActionDescription
 
@@ -41,7 +44,10 @@
                "", // value
                "", // description
                ROLE_ENTRY, // role
-               1, // actionCount
+               (STATE_FOCUSABLE), // state
+               (EXT_STATE_EDITABLE), // extState
+               (STATE_READONLY), // absentState
+               1, // numActions
                "activate",  // ActionName
                "Activate"); // ActionDescription
 
@@ -52,7 +58,10 @@
                "I have some text", // value
                "", // description
                ROLE_ENTRY, // role
-               1, // actionCount
+               (STATE_FOCUSABLE), // state
+               (EXT_STATE_EDITABLE), // extState
+               (STATE_READONLY), // absentState
+               1, // numActions
                "activate",  // ActionName
                "Activate"); // ActionDescription
 
@@ -63,7 +72,10 @@
                "", // value
                "", // description
                ROLE_PASSWORD_TEXT, // role
-               1, // actionCount
+               (STATE_FOCUSABLE), // state
+               (EXT_STATE_EDITABLE), // extState
+               (STATE_READONLY), // absentState
+               1, // numActions
                "activate",  // ActionName
                "Activate"); // ActionDescription
 
@@ -74,7 +86,10 @@
                "", // value
                "", // description
                ROLE_ENTRY, // role
-               1, // actionCount
+               (STATE_FOCUSABLE), // state
+               (EXT_STATE_EDITABLE | EXT_STATE_MULTI_LINE), // extState
+               (STATE_READONLY), // absentState
+               1, // numActions
                "activate",  // ActionName
                "Activate"); // ActionDescription
 
@@ -85,7 +100,10 @@
                "", // value
                "", // description
                ROLE_ENTRY, // role
-               1, // actionCount
+               (STATE_FOCUSABLE), // state
+               (EXT_STATE_EDITABLE | EXT_STATE_MULTI_LINE), // extState
+               (STATE_READONLY), // absentState
+               1, // numActions
                "activate",  // ActionName
                "Activate"); // ActionDescription
 
@@ -96,7 +114,10 @@
                "I also have some text.", // value
                "", // description
                ROLE_ENTRY, // role
-               1, // actionCount
+               (STATE_FOCUSABLE), // state
+               (EXT_STATE_EDITABLE | EXT_STATE_MULTI_LINE), // extState
+               (STATE_READONLY), // absentState
+               1, // numActions
                "activate",  // ActionName
                "Activate"); // ActionDescription
 
@@ -107,7 +128,10 @@
                "You cannot change me.", // value
                "", // description
                ROLE_ENTRY, // role
-               1, // actionCount
+               (STATE_FOCUSABLE | STATE_READONLY), // state
+               (0), // extState
+               (0), // absentState
+               1, // numActions
                "activate",  // ActionName
                "Activate"); // ActionDescription
 
@@ -118,7 +142,10 @@
                "You cannot change me, either.", // value
                "", // description
                ROLE_ENTRY, // role
-               1, // actionCount
+               (STATE_FOCUSABLE | STATE_READONLY), // state
+               (EXT_STATE_MULTI_LINE), // extState
+               (0), // absentState
+               1, // numActions
                "activate",  // ActionName
                "Activate"); // ActionDescription
 
@@ -130,7 +157,10 @@
                "", // value
                "", // description
                ROLE_ENTRY, // role
-               1, // actionCount
+               (STATE_FOCUSABLE), // state
+               (EXT_STATE_SUPPORTS_AUTOCOMPLETION), // extState
+               (0), // absentState
+               1, // numActions
                "activate",  // ActionName
                "Activate"); // ActionDescription
 
@@ -141,7 +171,10 @@
                "", // value
                "", // description
                ROLE_ENTRY, // role
-               1, // actionCount
+               (STATE_FOCUSABLE), // state
+               (0), // extState
+               (0), // absentState
+               1, // numActions
                "activate",  // ActionName
                "Activate"); // ActionDescription
       testStates("searchfield", 0, 0, 0, EXT_STATE_SUPPORTS_AUTOCOMPLETION);

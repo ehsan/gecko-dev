@@ -1,21 +1,50 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   David Hyatt <hyatt@netscape.com> (Original Author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsXBLProtoImplMethod_h__
 #define nsXBLProtoImplMethod_h__
 
-#include "mozilla/Attributes.h"
 #include "nsIAtom.h"
 #include "nsString.h"
 #include "jsapi.h"
+#include "nsIContent.h"
 #include "nsString.h"
-#include "nsXBLMaybeCompiled.h"
 #include "nsXBLProtoImplMember.h"
-#include "nsXBLSerialize.h"
-
-class nsIContent;
 
 struct nsXBLParameter {
   nsXBLParameter* mNext;
@@ -24,7 +53,7 @@ struct nsXBLParameter {
   nsXBLParameter(const nsAString& aName) {
     MOZ_COUNT_CTOR(nsXBLParameter);
     mName = ToNewCString(aName);
-    mNext = nullptr;
+    mNext = nsnull;
   }
 
   ~nsXBLParameter() {
@@ -40,8 +69,8 @@ struct nsXBLUncompiledMethod {
   nsXBLTextWithLineNumber mBodyText;
 
   nsXBLUncompiledMethod() :
-    mParameters(nullptr),
-    mLastParameter(nullptr),
+    mParameters(nsnull),
+    mLastParameter(nsnull),
     mBodyText()
   {
     MOZ_COUNT_CTOR(nsXBLUncompiledMethod);
@@ -52,8 +81,8 @@ struct nsXBLUncompiledMethod {
     delete mParameters;
   }
 
-  int32_t GetParameterCount() {
-    int32_t result = 0;
+  PRInt32 GetParameterCount() {
+    PRInt32 result = 0;
     for (nsXBLParameter* curr = mParameters; curr; curr=curr->mNext)
       result++;
     return result;
@@ -74,7 +103,7 @@ struct nsXBLUncompiledMethod {
     mLastParameter = param;
   }
 
-  void SetLineNumber(uint32_t aLineNumber) {
+  void SetLineNumber(PRUint32 aLineNumber) {
     mBodyText.SetLineNumber(aLineNumber);
   }
 };
@@ -88,46 +117,44 @@ public:
   void AppendBodyText(const nsAString& aBody);
   void AddParameter(const nsAString& aName);
 
-  void SetLineNumber(uint32_t aLineNumber);
+  void SetLineNumber(PRUint32 aLineNumber);
   
-  virtual nsresult InstallMember(JSContext* aCx,
-                                 JS::Handle<JSObject*> aTargetClassObject) MOZ_OVERRIDE;
+  virtual nsresult InstallMember(nsIScriptContext* aContext,
+                                 nsIContent* aBoundElement, 
+                                 void* aScriptObject,
+                                 void* aTargetClassObject,
+                                 const nsCString& aClassStr);
   virtual nsresult CompileMember(nsIScriptContext* aContext,
                                  const nsCString& aClassStr,
-                                 JS::Handle<JSObject*> aClassObject) MOZ_OVERRIDE;
+                                 void* aClassObject);
 
-  virtual void Trace(const TraceCallbacks& aCallbacks, void *aClosure) MOZ_OVERRIDE;
+  virtual void Trace(TraceCallback aCallback, void *aClosure) const;
 
-  nsresult Read(nsIScriptContext* aContext, nsIObjectInputStream* aStream);
-  virtual nsresult Write(nsIScriptContext* aContext, nsIObjectOutputStream* aStream) MOZ_OVERRIDE;
-
-  bool IsCompiled() const
+  PRBool IsCompiled() const
   {
-    return mMethod.IsCompiled();
+    return !(mUncompiledMethod & BIT_UNCOMPILED);
   }
-
   void SetUncompiledMethod(nsXBLUncompiledMethod* aUncompiledMethod)
   {
-    mMethod.SetUncompiled(aUncompiledMethod);
+    mUncompiledMethod = PRUptrdiff(aUncompiledMethod) | BIT_UNCOMPILED;
   }
-
   nsXBLUncompiledMethod* GetUncompiledMethod() const
   {
-    return mMethod.GetUncompiled();
+    PRUptrdiff unmasked = mUncompiledMethod & ~BIT_UNCOMPILED;
+    return reinterpret_cast<nsXBLUncompiledMethod*>(unmasked);
   }
 
 protected:
-  void SetCompiledMethod(JSObject* aCompiledMethod)
-  {
-    mMethod.SetJSFunction(aCompiledMethod);
-  }
+  enum { BIT_UNCOMPILED = 1 << 0 };
 
-  JSObject* GetCompiledMethod() const
-  {
-    return mMethod.GetJSFunction();
-  }
+  union {
+    PRUptrdiff mUncompiledMethod; // An object that represents the method before being compiled.
+    JSObject* mJSMethodObject;    // The JS object for the method (after compilation)
+  };
 
-  JS::Heap<nsXBLMaybeCompiled<nsXBLUncompiledMethod> > mMethod;
+#ifdef DEBUG
+  PRBool mIsCompiled;
+#endif
 };
 
 class nsXBLProtoImplAnonymousMethod : public nsXBLProtoImplMethod {
@@ -141,15 +168,13 @@ public:
   // Override InstallMember; these methods never get installed as members on
   // binding instantiations (though they may hang out in mMembers on the
   // prototype implementation).
-  virtual nsresult InstallMember(JSContext* aCx,
-                                 JS::Handle<JSObject*> aTargetClassObject) MOZ_OVERRIDE {
+  virtual nsresult InstallMember(nsIScriptContext* aContext,
+                                 nsIContent* aBoundElement, 
+                                 void* aScriptObject,
+                                 void* aTargetClassObject,
+                                 const nsCString& aClassStr) {
     return NS_OK;
   }
-
-  using nsXBLProtoImplMethod::Write;
-  nsresult Write(nsIScriptContext* aContext,
-                 nsIObjectOutputStream* aStream,
-                 XBLBindingSerializeDetails aType);
 };
 
 #endif // nsXBLProtoImplMethod_h__

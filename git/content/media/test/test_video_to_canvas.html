@@ -9,6 +9,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=486646
   <script type="text/javascript" src="/MochiKit/MochiKit.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
+  <script type="text/javascript" src="use_large_cache.js"></script>
   <script type="text/javascript" src="manifest.js"></script>
 </head>
 <body>
@@ -36,11 +37,12 @@ function loaded(e) {
   v._finished = true;
   v.parentNode.removeChild(v);
   manager.finished(v.token);
+  return false;
 }
 
 function startTest(test, token) {
-  var type = getMajorMimeType(test.type);
-  if (type != "video")
+  var isVideo = /^video/.test(test.type) ? true : false;
+  if (!isVideo)
     return;
   
   var v = document.createElement('video');
@@ -55,11 +57,8 @@ function startTest(test, token) {
   document.body.appendChild(v);
 }
 
-SimpleTest.waitForExplicitFinish();
-SpecialPowers.pushPrefEnv({"set": [["media.cache_size", 40000]]}, beginTest);
-function beginTest() {
-  manager.runTests(gSmallTests, startTest);
-}
+manager.runTests(gSmallTests, startTest);
+
 
 </script>
 </pre>

@@ -1,8 +1,41 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  *
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code, released
+ * March 31, 1998.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998-1999
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * A base class which implements nsIStyleSheetLinkingElement and can
@@ -12,10 +45,9 @@
 
 #include "nsStyleLinkElement.h"
 
-#include "mozilla/css/Loader.h"
-#include "mozilla/dom/Element.h"
-#include "nsCSSStyleSheet.h"
 #include "nsIContent.h"
+#include "mozilla/css/Loader.h"
+#include "nsCSSStyleSheet.h"
 #include "nsIDocument.h"
 #include "nsIDOMComment.h"
 #include "nsIDOMNode.h"
@@ -26,48 +58,35 @@
 #include "nsXPCOMCIDInternal.h"
 #include "nsUnicharInputStream.h"
 #include "nsContentUtils.h"
-#include "nsStyleUtil.h"
-
-using namespace mozilla;
-using namespace mozilla::dom;
 
 nsStyleLinkElement::nsStyleLinkElement()
-  : mDontLoadStyle(false)
-  , mUpdatesEnabled(true)
+  : mDontLoadStyle(PR_FALSE)
+  , mUpdatesEnabled(PR_TRUE)
   , mLineNumber(1)
 {
 }
 
 nsStyleLinkElement::~nsStyleLinkElement()
 {
-  nsStyleLinkElement::SetStyleSheet(nullptr);
-}
-
-void
-nsStyleLinkElement::Unlink()
-{
-  mStyleSheet = nullptr;
-}
-
-void
-nsStyleLinkElement::Traverse(nsCycleCollectionTraversalCallback &cb)
-{
-  nsStyleLinkElement* tmp = this;
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mStyleSheet);
+  nsStyleLinkElement::SetStyleSheet(nsnull);
 }
 
 NS_IMETHODIMP 
-nsStyleLinkElement::SetStyleSheet(nsCSSStyleSheet* aStyleSheet)
+nsStyleLinkElement::SetStyleSheet(nsIStyleSheet* aStyleSheet)
 {
-  if (mStyleSheet) {
-    mStyleSheet->SetOwningNode(nullptr);
+  nsRefPtr<nsCSSStyleSheet> cssSheet = do_QueryObject(mStyleSheet);
+  if (cssSheet) {
+    cssSheet->SetOwningNode(nsnull);
   }
 
   mStyleSheet = aStyleSheet;
-  if (mStyleSheet) {
-    nsCOMPtr<nsINode> node = do_QueryObject(this);
+  cssSheet = do_QueryObject(mStyleSheet);
+  if (cssSheet) {
+    nsCOMPtr<nsIDOMNode> node;
+    CallQueryInterface(this,
+                       static_cast<nsIDOMNode**>(getter_AddRefs(node)));
     if (node) {
-      mStyleSheet->SetOwningNode(node);
+      cssSheet->SetOwningNode(node);
     }
   }
     
@@ -84,7 +103,7 @@ nsStyleLinkElement::GetStyleSheet(nsIStyleSheet*& aStyleSheet)
 }
 
 NS_IMETHODIMP 
-nsStyleLinkElement::InitStyleLinkElement(bool aDontLoadStyle)
+nsStyleLinkElement::InitStyleLinkElement(PRBool aDontLoadStyle)
 {
   mDontLoadStyle = aDontLoadStyle;
 
@@ -94,12 +113,20 @@ nsStyleLinkElement::InitStyleLinkElement(bool aDontLoadStyle)
 NS_IMETHODIMP
 nsStyleLinkElement::GetSheet(nsIDOMStyleSheet** aSheet)
 {
-  NS_IF_ADDREF(*aSheet = mStyleSheet);
+  NS_ENSURE_ARG_POINTER(aSheet);
+  *aSheet = nsnull;
+
+  if (mStyleSheet) {
+    CallQueryInterface(mStyleSheet, aSheet);
+  }
+
+  // Always return NS_OK to avoid throwing JS exceptions if mStyleSheet 
+  // is not a nsIDOMStyleSheet
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsStyleLinkElement::SetEnableUpdates(bool aEnableUpdates)
+nsStyleLinkElement::SetEnableUpdates(PRBool aEnableUpdates)
 {
   mUpdatesEnabled = aEnableUpdates;
 
@@ -121,176 +148,72 @@ nsStyleLinkElement::OverrideBaseURI(nsIURI* aNewBaseURI)
 }
 
 /* virtual */ void
-nsStyleLinkElement::SetLineNumber(uint32_t aLineNumber)
+nsStyleLinkElement::SetLineNumber(PRUint32 aLineNumber)
 {
   mLineNumber = aLineNumber;
 }
 
-uint32_t ToLinkMask(const nsAString& aLink)
-{ 
-  if (aLink.EqualsLiteral("prefetch"))
-     return PREFETCH;
-  else if (aLink.EqualsLiteral("dns-prefetch"))
-     return DNS_PREFETCH;
-  else if (aLink.EqualsLiteral("stylesheet"))
-    return STYLESHEET;
-  else if (aLink.EqualsLiteral("next"))
-    return NEXT;
-  else if (aLink.EqualsLiteral("alternate"))
-    return ALTERNATE;
-  else 
-    return 0;
-}
-
-uint32_t nsStyleLinkElement::ParseLinkTypes(const nsAString& aTypes)
+void nsStyleLinkElement::ParseLinkTypes(const nsAString& aTypes,
+                                        nsTArray<nsString>& aResult)
 {
-  uint32_t linkMask = 0;
   nsAString::const_iterator start, done;
   aTypes.BeginReading(start);
   aTypes.EndReading(done);
   if (start == done)
-    return linkMask;
+    return;
 
   nsAString::const_iterator current(start);
-  bool inString = !nsContentUtils::IsHTMLWhitespace(*current);
+  PRBool inString = !nsCRT::IsAsciiSpace(*current);
   nsAutoString subString;
-  
+
   while (current != done) {
-    if (nsContentUtils::IsHTMLWhitespace(*current)) {
+    if (nsCRT::IsAsciiSpace(*current)) {
       if (inString) {
-        nsContentUtils::ASCIIToLower(Substring(start, current), subString);
-        linkMask |= ToLinkMask(subString);
-        inString = false;
+        ToLowerCase(Substring(start, current), subString);
+        aResult.AppendElement(subString);
+        inString = PR_FALSE;
       }
     }
     else {
       if (!inString) {
         start = current;
-        inString = true;
+        inString = PR_TRUE;
       }
     }
     ++current;
   }
   if (inString) {
-    nsContentUtils::ASCIIToLower(Substring(start, current), subString);
-    linkMask |= ToLinkMask(subString);
+    ToLowerCase(Substring(start, current), subString);
+    aResult.AppendElement(subString);
   }
-  return linkMask;
 }
 
 NS_IMETHODIMP
 nsStyleLinkElement::UpdateStyleSheet(nsICSSLoaderObserver* aObserver,
-                                     bool* aWillNotify,
-                                     bool* aIsAlternate)
+                                     PRBool* aWillNotify,
+                                     PRBool* aIsAlternate)
 {
-  return DoUpdateStyleSheet(nullptr, aObserver, aWillNotify, aIsAlternate,
-                            false);
+  return DoUpdateStyleSheet(nsnull, aObserver, aWillNotify, aIsAlternate,
+                            PR_FALSE);
 }
 
 nsresult
 nsStyleLinkElement::UpdateStyleSheetInternal(nsIDocument *aOldDocument,
-                                             bool aForceUpdate)
+                                             PRBool aForceUpdate)
 {
-  bool notify, alternate;
-  return DoUpdateStyleSheet(aOldDocument, nullptr, &notify, &alternate,
+  PRBool notify, alternate;
+  return DoUpdateStyleSheet(aOldDocument, nsnull, &notify, &alternate,
                             aForceUpdate);
-}
-
-static bool
-IsScopedStyleElement(nsIContent* aContent)
-{
-  // This is quicker than, say, QIing aContent to nsStyleLinkElement
-  // and then calling its virtual GetStyleSheetInfo method to find out
-  // if it is scoped.
-  return (aContent->IsHTML(nsGkAtoms::style) ||
-          aContent->IsSVG(nsGkAtoms::style)) &&
-         aContent->HasAttr(kNameSpaceID_None, nsGkAtoms::scoped);
-}
-
-static void
-SetIsElementInStyleScopeFlagOnSubtree(Element* aElement)
-{
-  if (aElement->IsElementInStyleScope()) {
-    return;
-  }
-
-  aElement->SetIsElementInStyleScope();
-
-  nsIContent* n = aElement->GetNextNode(aElement);
-  while (n) {
-    if (n->IsElementInStyleScope()) {
-      n = n->GetNextNonChildNode(aElement);
-    } else {
-      if (n->IsElement()) {
-        n->SetIsElementInStyleScope();
-      }
-      n = n->GetNextNode(aElement);
-    }
-  }
-}
-
-static bool
-HasScopedStyleSheetChild(nsIContent* aContent)
-{
-  for (nsIContent* n = aContent->GetFirstChild(); n; n = n->GetNextSibling()) {
-    if (IsScopedStyleElement(n)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-// Called when aElement has had a <style scoped> child removed.
-static void
-UpdateIsElementInStyleScopeFlagOnSubtree(Element* aElement)
-{
-  NS_ASSERTION(aElement->IsElementInStyleScope(),
-               "only call UpdateIsElementInStyleScopeFlagOnSubtree on a "
-               "subtree that has IsElementInStyleScope boolean flag set");
-
-  if (HasScopedStyleSheetChild(aElement)) {
-    return;
-  }
-
-  aElement->ClearIsElementInStyleScope();
-
-  nsIContent* n = aElement->GetNextNode(aElement);
-  while (n) {
-    if (HasScopedStyleSheetChild(n)) {
-      n = n->GetNextNonChildNode(aElement);
-    } else {
-      if (n->IsElement()) {
-        n->ClearIsElementInStyleScope();
-      }
-      n = n->GetNextNode(aElement);
-    }
-  }
-}
-
-static Element*
-GetScopeElement(nsIStyleSheet* aSheet)
-{
-  nsRefPtr<nsCSSStyleSheet> cssStyleSheet = do_QueryObject(aSheet);
-  if (!cssStyleSheet) {
-    return nullptr;
-  }
-
-  return cssStyleSheet->GetScopeElement();
 }
 
 nsresult
 nsStyleLinkElement::DoUpdateStyleSheet(nsIDocument *aOldDocument,
                                        nsICSSLoaderObserver* aObserver,
-                                       bool* aWillNotify,
-                                       bool* aIsAlternate,
-                                       bool aForceUpdate)
+                                       PRBool* aWillNotify,
+                                       PRBool* aIsAlternate,
+                                       PRBool aForceUpdate)
 {
-  *aWillNotify = false;
-
-  nsCOMPtr<nsIContent> thisContent;
-  CallQueryInterface(this, getter_AddRefs(thisContent));
-
-  Element* oldScopeElement = GetScopeElement(mStyleSheet);
+  *aWillNotify = PR_FALSE;
 
   if (mStyleSheet && aOldDocument) {
     // We're removing the link element from the document, unload the
@@ -300,19 +223,17 @@ nsStyleLinkElement::DoUpdateStyleSheet(nsIDocument *aOldDocument,
     aOldDocument->BeginUpdate(UPDATE_STYLE);
     aOldDocument->RemoveStyleSheet(mStyleSheet);
     aOldDocument->EndUpdate(UPDATE_STYLE);
-    nsStyleLinkElement::SetStyleSheet(nullptr);
-    if (oldScopeElement) {
-      UpdateIsElementInStyleScopeFlagOnSubtree(oldScopeElement);
-    }
+    nsStyleLinkElement::SetStyleSheet(nsnull);
   }
 
-  NS_ENSURE_TRUE(thisContent, NS_ERROR_FAILURE);
-
-  // When static documents are created, stylesheets are cloned manually.
-  if (mDontLoadStyle || !mUpdatesEnabled ||
-      thisContent->OwnerDoc()->IsStaticDocument()) {
+  if (mDontLoadStyle || !mUpdatesEnabled) {
     return NS_OK;
   }
+
+  nsCOMPtr<nsIContent> thisContent;
+  QueryInterface(NS_GET_IID(nsIContent), getter_AddRefs(thisContent));
+
+  NS_ENSURE_TRUE(thisContent, NS_ERROR_FAILURE);
 
   nsCOMPtr<nsIDocument> doc = thisContent->GetDocument();
 
@@ -320,13 +241,13 @@ nsStyleLinkElement::DoUpdateStyleSheet(nsIDocument *aOldDocument,
     return NS_OK;
   }
 
-  bool isInline;
+  PRBool isInline;
   nsCOMPtr<nsIURI> uri = GetStyleSheetURL(&isInline);
 
   if (!aForceUpdate && mStyleSheet && !isInline && uri) {
     nsIURI* oldURI = mStyleSheet->GetSheetURI();
     if (oldURI) {
-      bool equal;
+      PRBool equal;
       nsresult rv = oldURI->Equals(uri, &equal);
       if (NS_SUCCEEDED(rv) && equal) {
         return NS_OK; // We already loaded this stylesheet
@@ -338,7 +259,7 @@ nsStyleLinkElement::DoUpdateStyleSheet(nsIDocument *aOldDocument,
     doc->BeginUpdate(UPDATE_STYLE);
     doc->RemoveStyleSheet(mStyleSheet);
     doc->EndUpdate(UPDATE_STYLE);
-    nsStyleLinkElement::SetStyleSheet(nullptr);
+    nsStyleLinkElement::SetStyleSheet(nsnull);
   }
 
   if (!uri && !isInline) {
@@ -346,36 +267,24 @@ nsStyleLinkElement::DoUpdateStyleSheet(nsIDocument *aOldDocument,
   }
 
   nsAutoString title, type, media;
-  bool isScoped;
-  bool isAlternate;
+  PRBool isAlternate;
 
-  GetStyleSheetInfo(title, type, media, &isScoped, &isAlternate);
+  GetStyleSheetInfo(title, type, media, &isAlternate);
 
   if (!type.LowerCaseEqualsLiteral("text/css")) {
     return NS_OK;
   }
 
-  Element* scopeElement = isScoped ? thisContent->GetParentElement() : nullptr;
-  if (scopeElement) {
-    NS_ASSERTION(isInline, "non-inline style must not have scope element");
-    SetIsElementInStyleScopeFlagOnSubtree(scopeElement);
-  }
-
-  bool doneLoading = false;
+  PRBool doneLoading = PR_FALSE;
   nsresult rv = NS_OK;
   if (isInline) {
     nsAutoString text;
-    nsContentUtils::GetNodeTextContent(thisContent, false, text);
-
-    if (!nsStyleUtil::CSPAllowsInlineStyle(thisContent->NodePrincipal(),
-                                           doc->GetDocumentURI(),
-                                           mLineNumber, text, &rv))
-      return rv;
+    nsContentUtils::GetNodeTextContent(thisContent, PR_FALSE, text);
 
     // Parse the style sheet.
     rv = doc->CSSLoader()->
       LoadInlineStyle(thisContent, text, mLineNumber, title, media,
-                      scopeElement, aObserver, &doneLoading, &isAlternate);
+                      aObserver, &doneLoading, &isAlternate);
   }
   else {
     // XXXbz clone the URI here to work around content policies modifying URIs.
@@ -383,14 +292,14 @@ nsStyleLinkElement::DoUpdateStyleSheet(nsIDocument *aOldDocument,
     uri->Clone(getter_AddRefs(clonedURI));
     NS_ENSURE_TRUE(clonedURI, NS_ERROR_OUT_OF_MEMORY);
     rv = doc->CSSLoader()->
-      LoadStyleLink(thisContent, clonedURI, title, media, isAlternate,
-                    GetCORSMode(), aObserver, &isAlternate);
+      LoadStyleLink(thisContent, clonedURI, title, media, isAlternate, aObserver,
+                    &isAlternate);
     if (NS_FAILED(rv)) {
       // Don't propagate LoadStyleLink() errors further than this, since some
       // consumers (e.g. nsXMLContentSink) will completely abort on innocuous
       // things like a stylesheet load being blocked by the security system.
-      doneLoading = true;
-      isAlternate = false;
+      doneLoading = PR_TRUE;
+      isAlternate = PR_FALSE;
       rv = NS_OK;
     }
   }
@@ -401,41 +310,4 @@ nsStyleLinkElement::DoUpdateStyleSheet(nsIDocument *aOldDocument,
   *aIsAlternate = isAlternate;
 
   return NS_OK;
-}
-
-void
-nsStyleLinkElement::UpdateStyleSheetScopedness(bool aIsNowScoped)
-{
-  if (!mStyleSheet) {
-    return;
-  }
-
-  nsCOMPtr<nsIContent> thisContent;
-  CallQueryInterface(this, getter_AddRefs(thisContent));
-
-  Element* oldScopeElement = mStyleSheet->GetScopeElement();
-  Element* newScopeElement = aIsNowScoped ?
-                               thisContent->GetParentElement() :
-                               nullptr;
-
-  if (oldScopeElement == newScopeElement) {
-    return;
-  }
-
-  nsIDocument* document = thisContent->GetOwnerDocument();
-
-  document->BeginUpdate(UPDATE_STYLE);
-  document->RemoveStyleSheet(mStyleSheet);
-
-  mStyleSheet->SetScopeElement(newScopeElement);
-
-  document->AddStyleSheet(mStyleSheet);
-  document->EndUpdate(UPDATE_STYLE);
-
-  if (oldScopeElement) {
-    UpdateIsElementInStyleScopeFlagOnSubtree(oldScopeElement);
-  }
-  if (newScopeElement) {
-    SetIsElementInStyleScopeFlagOnSubtree(newScopeElement);
-  }
 }

@@ -16,7 +16,6 @@ var tests = [
  [ {endNode:1}, [0,4], "012345678", "" ],
  [ {endNode:1}, [0,4], "01234567", "8" ],
  [ {endNode:1}, [1,4], "0", "12345678" ],
- [ {startOffset:1,endNode:1}, [0,0], "0", "12345678" ],
  [ {endNode:2}, [1,4], "0", "12345", "678" ],
 ]
 
@@ -75,12 +74,24 @@ function test_merge(f,t) {
   f.contentDocument.body.normalize();
 }
 
+function repaint_selection(win) {
+  let a = new Array;
+  let sel = win.getSelection();
+  for (let i = 0; i < sel.rangeCount; ++i) {
+    a[i] = sel.getRangeAt(i);
+  }
+  sel.removeAllRanges();
+  for (let i = 0; i < a.length; ++i) {
+    sel.addRange(a[i]);
+  }
+}
+
 function createFrame(run,t) {
   let f = document.createElement('iframe');
   f.setAttribute('height','22');
   f.setAttribute('frameborder','0');
   f.setAttribute('width','200');
   f.src = 'data:text/html,<body style="margin:0;padding:0">';
-  f.onload = function () { try { run(f, t); } finally { ++tests_done; } }
+  f.onload = function () { try { run(f, t); repaint_selection(f.contentWindow);} finally { ++tests_done; } }
   return f;
 }

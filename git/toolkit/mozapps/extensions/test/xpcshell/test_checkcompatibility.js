@@ -62,14 +62,22 @@ profileDir.append("extensions");
 var gIsNightly = false;
 
 function run_test() {
-  do_test_pending("checkcompatibility.js");
+  do_test_pending();
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "2.2.3", "2");
 
   ADDONS.forEach(function(a) {
     writeInstallRDFForExtension(a, profileDir);
   });
 
-  gIsNightly = isNightlyChannel();
+  var channel = "default";
+  try {
+    channel = Services.prefs.getCharPref("app.update.channel");
+  }
+  catch (e) { }
+
+  gIsNightly = channel != "aurora" &&
+               channel != "beta" &&
+               channel != "release";
 
   startupManager();
 
@@ -130,7 +138,7 @@ function run_test_1() {
                                function([a1, a2, a3, a4, a5]) {
     check_state(false, a1, a2, a3, a4, a5);
 
-    do_execute_soon(run_test_2);
+    run_test_2();
   });
 }
 
@@ -151,7 +159,7 @@ function run_test_2() {
                                function([a1, a2, a3, a4, a5]) {
     check_state(true, a1, a2, a3, a4, a5);
 
-    do_execute_soon(run_test_3);
+    run_test_3();
   });
 }
 
@@ -170,7 +178,7 @@ function run_test_3() {
                                function([a1, a2, a3, a4, a5]) {
     check_state(true, a1, a2, a3, a4, a5);
 
-    do_execute_soon(run_test_4);
+    run_test_4();
   });
 }
 
@@ -191,6 +199,6 @@ function run_test_4() {
                                function([a1, a2, a3, a4, a5]) {
     check_state(false, a1, a2, a3, a4, a5);
 
-    do_test_finished("checkcompatibility.js");
+    do_test_finished();
   });
 }

@@ -1,11 +1,42 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Application Update Service.
+ *
+ * The Initial Developer of the Original Code is
+ * Robert Strong <robert.bugzilla@gmail.com>.
+ *
+ * Portions created by the Initial Developer are Copyright (C) 2008
+ * the Mozilla Foundation <http://www.mozilla.org/>. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK *****
  */
 
 /* General Update Check Update XML Tests */
-
-const TEST_ID = "0020";
 
 var gNextRunFunc;
 var gExpectedCount;
@@ -13,12 +44,9 @@ var gExpectedCount;
 function run_test() {
   do_test_pending();
   do_register_cleanup(end_test);
-
-  adjustGeneralPaths();
-
   removeUpdateDirsAndFiles();
   setUpdateURLOverride();
-  setUpdateChannel("test_channel");
+  setUpdateChannel();
   // The mock XMLHttpRequest is MUCH faster
   overrideXHR(callHandleEvent);
   standardInit();
@@ -59,7 +87,7 @@ function callHandleEvent() {
     gXHR.responseXML = null;
   }
   var e = { target: gXHR };
-  gXHR.onload(e);
+  gXHR.onload.handleEvent(e);
 }
 
 // update xml not found
@@ -86,8 +114,7 @@ function run_test_pt02() {
                                       "http://details/",
                                       "http://billboard/",
                                       "http://license/", "true",
-                                      "true", "345600", "true", "4.1a1pre",
-                                      "5.1a1pre",
+                                      "true", "true", "4.1a1pre", "5.1a1pre",
                                       "custom1_attr=\"custom1 value\"",
                                       "custom2_attr=\"custom2 value\"");
   gResponseBody = getRemoteUpdatesXMLString(updates);
@@ -123,7 +150,7 @@ function check_test_pt02() {
   do_check_eq(bestUpdate.licenseURL, "http://license/");
   do_check_true(bestUpdate.showPrompt);
   do_check_true(bestUpdate.showNeverForVersion);
-  do_check_eq(bestUpdate.promptWaitTime, "345600");
+  do_check_true(bestUpdate.showSurvey);
   do_check_eq(bestUpdate.serviceURL, URL_HOST + "update.xml?force=1");
   do_check_eq(bestUpdate.channel, "test_channel");
   do_check_false(bestUpdate.isCompleteUpdate);
@@ -183,8 +210,8 @@ function run_test_pt03() {
                                       null, null,
                                       "5.1a1pre", "20080811053724",
                                       "http://details/",
-                                      null, null, null, null, "691200",
-                                      null, "version 4.1a1pre", "4.1a1pre");
+                                      null, null, null, null, null,
+                                      "version 4.1a1pre", "4.1a1pre");
   gResponseBody = getRemoteUpdatesXMLString(updates);
   gUpdateChecker.checkForUpdates(updateCheckListener, true);
 }
@@ -203,7 +230,7 @@ function check_test_pt03() {
   do_check_eq(bestUpdate.licenseURL, null);
   do_check_true(bestUpdate.showPrompt);
   do_check_true(bestUpdate.showNeverForVersion);
-  do_check_eq(bestUpdate.promptWaitTime, "691200");
+  do_check_false(bestUpdate.showSurvey);
   do_check_eq(bestUpdate.serviceURL, URL_HOST + "update.xml?force=1");
   do_check_eq(bestUpdate.channel, "test_channel");
   do_check_false(bestUpdate.isCompleteUpdate);

@@ -1,7 +1,41 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is TransforMiiX XSLT processor code.
+ *
+ * The Initial Developer of the Original Code is
+ * The MITRE Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1999
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Keith Visco <kvisco@ziplink.net> (Original Author)
+ *   Lidong <lidong520@263.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * XML utility classes
@@ -14,22 +48,21 @@
 #include "txStringUtils.h"
 #include "txNamespaceMap.h"
 #include "txXPathTreeWalker.h"
-#include "nsContentUtils.h"
 
 nsresult
 txExpandedName::init(const nsAString& aQName, txNamespaceMap* aResolver,
-                     bool aUseDefault)
+                     MBool aUseDefault)
 {
     const nsAFlatString& qName = PromiseFlatString(aQName);
     const PRUnichar* colon;
-    bool valid = XMLUtils::isValidQName(qName, &colon);
+    PRBool valid = XMLUtils::isValidQName(qName, &colon);
     if (!valid) {
         return NS_ERROR_FAILURE;
     }
 
     if (colon) {
         nsCOMPtr<nsIAtom> prefix = do_GetAtom(Substring(qName.get(), colon));
-        int32_t namespaceID = aResolver->lookupNamespace(prefix);
+        PRInt32 namespaceID = aResolver->lookupNamespace(prefix);
         if (namespaceID == kNameSpaceID_Unknown)
             return NS_ERROR_FAILURE;
         mNamespaceID = namespaceID;
@@ -39,7 +72,7 @@ txExpandedName::init(const nsAString& aQName, txNamespaceMap* aResolver,
         mLocalName = do_GetAtom(Substring(colon + 1, end));
     }
     else {
-        mNamespaceID = aUseDefault ? aResolver->lookupNamespace(nullptr) :
+        mNamespaceID = aUseDefault ? aResolver->lookupNamespace(nsnull) :
                                      kNameSpaceID_None;
         mLocalName = do_GetAtom(aQName);
     }
@@ -53,7 +86,7 @@ txExpandedName::init(const nsAString& aQName, txNamespaceMap* aResolver,
 // static
 nsresult
 XMLUtils::splitExpatName(const PRUnichar *aExpatName, nsIAtom **aPrefix,
-                         nsIAtom **aLocalName, int32_t* aNameSpaceID)
+                         nsIAtom **aLocalName, PRInt32* aNameSpaceID)
 {
     /**
      *  Expat can send the following:
@@ -62,8 +95,8 @@ XMLUtils::splitExpatName(const PRUnichar *aExpatName, nsIAtom **aPrefix,
      *    namespaceURI<separator>localName<separator>prefix
      */
 
-    const PRUnichar *uriEnd = nullptr;
-    const PRUnichar *nameEnd = nullptr;
+    const PRUnichar *uriEnd = nsnull;
+    const PRUnichar *nameEnd = nsnull;
     const PRUnichar *pos;
     for (pos = aExpatName; *pos; ++pos) {
         if (*pos == kExpatSeparatorChar) {
@@ -88,24 +121,24 @@ XMLUtils::splitExpatName(const PRUnichar *aExpatName, nsIAtom **aPrefix,
         nameStart = (uriEnd + 1);
         if (nameEnd)  {
             const PRUnichar *prefixStart = nameEnd + 1;
-            *aPrefix = NS_NewAtom(Substring(prefixStart, pos)).get();
+            *aPrefix = NS_NewAtom(Substring(prefixStart, pos));
             if (!*aPrefix) {
                 return NS_ERROR_OUT_OF_MEMORY;
             }
         }
         else {
             nameEnd = pos;
-            *aPrefix = nullptr;
+            *aPrefix = nsnull;
         }
     }
     else {
         *aNameSpaceID = kNameSpaceID_None;
         nameStart = aExpatName;
         nameEnd = pos;
-        *aPrefix = nullptr;
+        *aPrefix = nsnull;
     }
 
-    *aLocalName = NS_NewAtom(Substring(nameStart, nameEnd)).get();
+    *aLocalName = NS_NewAtom(Substring(nameStart, nameEnd));
 
     return *aLocalName ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
@@ -116,7 +149,7 @@ XMLUtils::splitQName(const nsAString& aName, nsIAtom** aPrefix,
 {
     const nsAFlatString& qName = PromiseFlatString(aName);
     const PRUnichar* colon;
-    bool valid = XMLUtils::isValidQName(qName, &colon);
+    PRBool valid = XMLUtils::isValidQName(qName, &colon);
     if (!valid) {
         return NS_ERROR_FAILURE;
     }
@@ -125,31 +158,43 @@ XMLUtils::splitQName(const nsAString& aName, nsIAtom** aPrefix,
         const PRUnichar *end;
         qName.EndReading(end);
 
-        *aPrefix = NS_NewAtom(Substring(qName.get(), colon)).get();
-        *aLocalName = NS_NewAtom(Substring(colon + 1, end)).get();
+        *aPrefix = NS_NewAtom(Substring(qName.get(), colon));
+        *aLocalName = NS_NewAtom(Substring(colon + 1, end));
     }
     else {
-        *aPrefix = nullptr;
-        *aLocalName = NS_NewAtom(aName).get();
+        *aPrefix = nsnull;
+        *aLocalName = NS_NewAtom(aName);
     }
 
     return NS_OK;
 }
 
+const nsDependentSubstring XMLUtils::getLocalPart(const nsAString& src)
+{
+    // Anything after ':' is the local part of the name
+    PRInt32 idx = src.FindChar(':');
+    if (idx == kNotFound) {
+        return Substring(src, 0, src.Length());
+    }
+
+    NS_ASSERTION(idx > 0, "This QName looks invalid.");
+    return Substring(src, idx + 1, src.Length() - (idx + 1));
+}
+
 /**
  * Returns true if the given string has only whitespace characters
  */
-bool XMLUtils::isWhitespace(const nsAFlatString& aText)
+PRBool XMLUtils::isWhitespace(const nsAFlatString& aText)
 {
     nsAFlatString::const_char_iterator start, end;
     aText.BeginReading(start);
     aText.EndReading(end);
     for ( ; start != end; ++start) {
         if (!isWhitespace(*start)) {
-            return false;
+            return PR_FALSE;
         }
     }
-    return true;
+    return PR_TRUE;
 }
 
 /**
@@ -158,8 +203,8 @@ bool XMLUtils::isWhitespace(const nsAFlatString& aText)
 void XMLUtils::normalizePIValue(nsAString& piValue)
 {
     nsAutoString origValue(piValue);
-    uint32_t origLength = origValue.Length();
-    uint32_t conversionLoop = 0;
+    PRUint32 origLength = origValue.Length();
+    PRUint32 conversionLoop = 0;
     PRUnichar prevCh = 0;
     piValue.Truncate();
 
@@ -185,27 +230,20 @@ void XMLUtils::normalizePIValue(nsAString& piValue)
 }
 
 //static
-bool XMLUtils::isValidQName(const nsAFlatString& aQName,
-                            const PRUnichar** aColon)
-{
-  return NS_SUCCEEDED(nsContentUtils::CheckQName(aQName, true, aColon));
-}
-
-//static
-bool XMLUtils::getXMLSpacePreserve(const txXPathNode& aNode)
+MBool XMLUtils::getXMLSpacePreserve(const txXPathNode& aNode)
 {
     nsAutoString value;
     txXPathTreeWalker walker(aNode);
     do {
         if (walker.getAttr(nsGkAtoms::space, kNameSpaceID_XML, value)) {
             if (TX_StringEqualsAtom(value, nsGkAtoms::preserve)) {
-                return true;
+                return PR_TRUE;
             }
             if (TX_StringEqualsAtom(value, nsGkAtoms::_default)) {
-                return false;
+                return PR_FALSE;
             }
         }
     } while (walker.moveToParent());
 
-    return false;
+    return PR_FALSE;
 }

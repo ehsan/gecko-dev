@@ -1,7 +1,40 @@
 /* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Ervin Yan <ervin.yan@sun.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 #include "nsISO2022CNToUnicode.h"
 #include "nsUCSupport.h"
 #include "nsICharsetConverterManager.h"
@@ -9,7 +42,7 @@
 
 static NS_DEFINE_CID(kCharsetConverterManagerCID, NS_ICHARSETCONVERTERMANAGER_CID);
 
-NS_IMETHODIMP nsISO2022CNToUnicode::GB2312_To_Unicode(unsigned char *aSrc, int32_t aSrcLength, PRUnichar * aDest, int32_t * aDestLength)
+NS_IMETHODIMP nsISO2022CNToUnicode::GB2312_To_Unicode(unsigned char *aSrc, PRInt32 aSrcLength, PRUnichar * aDest, PRInt32 * aDestLength)
 {
     nsresult rv;
 
@@ -32,7 +65,7 @@ NS_IMETHODIMP nsISO2022CNToUnicode::GB2312_To_Unicode(unsigned char *aSrc, int32
     return rv;
 }
 
-NS_IMETHODIMP nsISO2022CNToUnicode::EUCTW_To_Unicode(unsigned char *aSrc, int32_t aSrcLength, PRUnichar * aDest, int32_t * aDestLength)
+NS_IMETHODIMP nsISO2022CNToUnicode::EUCTW_To_Unicode(unsigned char *aSrc, PRInt32 aSrcLength, PRUnichar * aDest, PRInt32 * aDestLength)
 {
     nsresult rv;
 
@@ -55,14 +88,14 @@ NS_IMETHODIMP nsISO2022CNToUnicode::EUCTW_To_Unicode(unsigned char *aSrc, int32_
     return(rv);
 }
 
-NS_IMETHODIMP nsISO2022CNToUnicode::Convert(const char * aSrc, int32_t * aSrcLen, PRUnichar * aDest, int32_t * aDestLen)
+NS_IMETHODIMP nsISO2022CNToUnicode::Convert(const char * aSrc, PRInt32 * aSrcLen, PRUnichar * aDest, PRInt32 * aDestLen)
 {
   const unsigned char * srcEnd = (unsigned char *)aSrc + *aSrcLen;
   const unsigned char * src = (unsigned char *) aSrc;
   PRUnichar* destEnd = aDest + *aDestLen;
   PRUnichar* dest = aDest;
   nsresult rv;
-  int32_t aLen; 
+  PRInt32 aLen; 
 
   while ((src < srcEnd))
   {
@@ -72,7 +105,7 @@ NS_IMETHODIMP nsISO2022CNToUnicode::Convert(const char * aSrc, int32_t * aSrcLen
         if(ESC == *src) {
            mState = eState_ESC;
         } else {
-           if (CHECK_OVERRUN(dest, destEnd, 1))
+           if(dest+1 >= destEnd)
               goto error1;
            *dest++ = (0x80 & *src) ? 0xFFFD : (PRUnichar) *src;
 
@@ -84,7 +117,7 @@ NS_IMETHODIMP nsISO2022CNToUnicode::Convert(const char * aSrc, int32_t * aSrcLen
         if('$' == *src) {
            mState = eState_ESC_24;
         } else {
-           if (CHECK_OVERRUN(dest, destEnd, 2))
+           if(dest+2 >= destEnd)
               goto error1;
            *dest++ = (PRUnichar) ESC;
            *dest++ = (0x80 & *src) ? 0xFFFD : (PRUnichar) *src;
@@ -101,7 +134,7 @@ NS_IMETHODIMP nsISO2022CNToUnicode::Convert(const char * aSrc, int32_t * aSrcLen
         } else if('+' == *src) {
            mState = eState_ESC_24_2B;
         } else {
-           if (CHECK_OVERRUN(dest, destEnd, 3))
+           if(dest+3 >= destEnd)
               goto error1;
            *dest++ = (PRUnichar) ESC;
            *dest++ = (PRUnichar) '$';
@@ -117,7 +150,7 @@ NS_IMETHODIMP nsISO2022CNToUnicode::Convert(const char * aSrc, int32_t * aSrcLen
         } else if('G' == *src) {
            mState = eState_ESC_24_29_G;
         } else {
-           if (CHECK_OVERRUN(dest, destEnd, 4))
+           if(dest+4 >= destEnd)
               goto error1;
            *dest++ = (PRUnichar) ESC;
            *dest++ = (PRUnichar) '$';
@@ -133,7 +166,7 @@ NS_IMETHODIMP nsISO2022CNToUnicode::Convert(const char * aSrc, int32_t * aSrcLen
            mState = eState_GB2312_1980;
            mRunLength = 0;
         } else {
-           if (CHECK_OVERRUN(dest, destEnd, 5))
+           if(dest+5 >= destEnd)
               goto error1;
            *dest++ = (PRUnichar) ESC;
            *dest++ = (PRUnichar) '$';
@@ -149,7 +182,7 @@ NS_IMETHODIMP nsISO2022CNToUnicode::Convert(const char * aSrc, int32_t * aSrcLen
         if(SI == *src) { // Shift-In (SI)
            mState = eState_ESC_24_29_A_SO_SI;
            if (mRunLength == 0) {
-              if (CHECK_OVERRUN(dest, destEnd, 1))
+              if(dest+1 >= destEnd)
                  goto error1;
               *dest++ = 0xFFFD;
            }
@@ -161,7 +194,7 @@ NS_IMETHODIMP nsISO2022CNToUnicode::Convert(const char * aSrc, int32_t * aSrcLen
               mData = *src;
               mState = eState_GB2312_1980_2ndbyte;
            } else {
-              if (CHECK_OVERRUN(dest, destEnd, 1))
+              if(dest+1 >= destEnd)
                  goto error1;
               *dest++ = (0x80 & *src) ? 0xFFFD : (PRUnichar) *src;
            }
@@ -171,7 +204,7 @@ NS_IMETHODIMP nsISO2022CNToUnicode::Convert(const char * aSrc, int32_t * aSrcLen
       case eState_GB2312_1980_2ndbyte:  // ESC $ ) A SO
         if(0x20 < *src && *src < 0x7f) {
            unsigned char gb[2];
-           int32_t gbLen = 2;
+           PRInt32 gbLen = 2;
 
            gb[0] = mData | 0x80;
            gb[1] = *src | 0x80;
@@ -187,7 +220,7 @@ NS_IMETHODIMP nsISO2022CNToUnicode::Convert(const char * aSrc, int32_t * aSrcLen
 
            dest += aLen;
         } else {
-           if (CHECK_OVERRUN(dest, destEnd, 2))
+           if(dest+2 >= destEnd)
               goto error1;
            *dest++ = (PRUnichar) mData;
            *dest++ = (0x80 & *src) ? 0xFFFD : (PRUnichar) *src;
@@ -202,7 +235,7 @@ NS_IMETHODIMP nsISO2022CNToUnicode::Convert(const char * aSrc, int32_t * aSrcLen
         } else if(ESC == *src) {
            mState = eState_ESC;
         } else {
-           if (CHECK_OVERRUN(dest, destEnd, 1))
+           if(dest+1 >= destEnd)
               goto error1;
            *dest++ = (0x80 & *src) ? 0xFFFD : (PRUnichar) *src;
 
@@ -215,7 +248,7 @@ NS_IMETHODIMP nsISO2022CNToUnicode::Convert(const char * aSrc, int32_t * aSrcLen
            mState = eState_CNS11643_1;
            mRunLength = 0;
         } else {
-           if (CHECK_OVERRUN(dest, destEnd, 5))
+           if(dest+5 >= destEnd)
               goto error1;
            *dest++ = (PRUnichar) ESC;
            *dest++ = (PRUnichar) '$';
@@ -231,7 +264,7 @@ NS_IMETHODIMP nsISO2022CNToUnicode::Convert(const char * aSrc, int32_t * aSrcLen
         if(SI == *src) { // Shift-In (SI)
            mState = eState_ESC_24_29_G_SO_SI;
            if (mRunLength == 0) {
-              if (CHECK_OVERRUN(dest, destEnd, 1))
+              if(dest+1 >= destEnd)
                  goto error1;
               *dest++ = 0xFFFD;
            }
@@ -243,7 +276,7 @@ NS_IMETHODIMP nsISO2022CNToUnicode::Convert(const char * aSrc, int32_t * aSrcLen
               mData = *src;
               mState = eState_CNS11643_1_2ndbyte;
            } else {
-              if (CHECK_OVERRUN(dest, destEnd, 1))
+              if(dest+1 >= destEnd)
                  goto error1;
               *dest++ = (0x80 & *src) ? 0xFFFD : (PRUnichar) *src;
            }
@@ -253,7 +286,7 @@ NS_IMETHODIMP nsISO2022CNToUnicode::Convert(const char * aSrc, int32_t * aSrcLen
       case eState_CNS11643_1_2ndbyte:  // ESC $ ) G SO
         if(0x20 < *src && *src < 0x7f) {
            unsigned char cns[4];
-           int32_t cnsLen = 2;
+           PRInt32 cnsLen = 2;
 
            cns[0] = mData | 0x80;
            cns[1] = *src | 0x80;
@@ -269,7 +302,7 @@ NS_IMETHODIMP nsISO2022CNToUnicode::Convert(const char * aSrc, int32_t * aSrcLen
 
            dest += aLen;
         } else {
-           if (CHECK_OVERRUN(dest, destEnd, 2))
+           if(dest+2 >= destEnd)
               goto error1;
            *dest++ = (PRUnichar) mData;
            *dest++ = (0x80 & *src) ? 0xFFFD : (PRUnichar) *src;
@@ -284,7 +317,7 @@ NS_IMETHODIMP nsISO2022CNToUnicode::Convert(const char * aSrc, int32_t * aSrcLen
         } else if(ESC == *src) {
            mState = eState_ESC;
         } else {
-           if (CHECK_OVERRUN(dest, destEnd, 1))
+           if(dest+1 >= destEnd)
               goto error1;
            *dest++ = (0x80 & *src) ? 0xFFFD : (PRUnichar) *src;
 
@@ -296,7 +329,7 @@ NS_IMETHODIMP nsISO2022CNToUnicode::Convert(const char * aSrc, int32_t * aSrcLen
         if('H' == *src) {
            mState = eState_ESC_24_2A_H;
         } else {
-           if (CHECK_OVERRUN(dest, destEnd, 4))
+           if(dest+4 >= destEnd)
               goto error1;
            *dest++ = (PRUnichar) ESC;
            *dest++ = (PRUnichar) '$';
@@ -311,7 +344,7 @@ NS_IMETHODIMP nsISO2022CNToUnicode::Convert(const char * aSrc, int32_t * aSrcLen
         if(ESC == *src) {
            mState = eState_ESC_24_2A_H_ESC;
         } else {
-           if (CHECK_OVERRUN(dest, destEnd, 5))
+           if(dest+5 >= destEnd)
               goto error1;
            *dest++ = (PRUnichar) ESC;
            *dest++ = (PRUnichar) '$';
@@ -330,7 +363,7 @@ NS_IMETHODIMP nsISO2022CNToUnicode::Convert(const char * aSrc, int32_t * aSrcLen
         } else if('$' == *src) {
            mState = eState_ESC_24;
         } else {
-           if (CHECK_OVERRUN(dest, destEnd, 6))
+           if(dest+6 >= destEnd)
               goto error1;
            *dest++ = (PRUnichar) ESC;
            *dest++ = (PRUnichar) '$';
@@ -347,7 +380,7 @@ NS_IMETHODIMP nsISO2022CNToUnicode::Convert(const char * aSrc, int32_t * aSrcLen
         if(SI == *src) { // Shift-In (SI)
            mState = eState_ESC_24_2A_H_ESC_SS2_SI;
            if (mRunLength == 0) {
-              if (CHECK_OVERRUN(dest, destEnd, 1))
+              if(dest+1 >= destEnd)
                  goto error1;
               *dest++ = 0xFFFD;
            }
@@ -359,7 +392,7 @@ NS_IMETHODIMP nsISO2022CNToUnicode::Convert(const char * aSrc, int32_t * aSrcLen
               mData = *src;
               mState = eState_CNS11643_2_2ndbyte;
            } else {
-              if (CHECK_OVERRUN(dest, destEnd, 1))
+              if(dest+1 >= destEnd)
                  goto error1;
               *dest++ = (0x80 & *src) ? 0xFFFD : (PRUnichar) *src;
            }
@@ -369,7 +402,7 @@ NS_IMETHODIMP nsISO2022CNToUnicode::Convert(const char * aSrc, int32_t * aSrcLen
       case eState_CNS11643_2_2ndbyte:   // ESC $ * H ESC SS2
         if(0x20 < *src && *src < 0x7f) {
            unsigned char cns[4];
-           int32_t cnsLen = 4;
+           PRInt32 cnsLen = 4;
  
            cns[0] = (unsigned char) MBYTE;
            cns[1] = (unsigned char) (PMASK + 2);
@@ -387,7 +420,7 @@ NS_IMETHODIMP nsISO2022CNToUnicode::Convert(const char * aSrc, int32_t * aSrcLen
 
            dest += aLen;
         } else {
-           if (CHECK_OVERRUN(dest, destEnd, 2))
+           if(dest+2 >= destEnd)
               goto error1;
            *dest++ = (PRUnichar) mData;
            *dest++ = (0x80 & *src) ? 0xFFFD : (PRUnichar) *src;
@@ -399,7 +432,7 @@ NS_IMETHODIMP nsISO2022CNToUnicode::Convert(const char * aSrc, int32_t * aSrcLen
         if(ESC == *src) {
            mState = eState_ESC_24_2A_H_ESC_SS2_SI_ESC;
         } else {
-           if (CHECK_OVERRUN(dest, destEnd, 1))
+           if(dest+1 >= destEnd)
               goto error1;
            *dest++ = (0x80 & *src) ? 0xFFFD : (PRUnichar) *src;
 
@@ -414,7 +447,7 @@ NS_IMETHODIMP nsISO2022CNToUnicode::Convert(const char * aSrc, int32_t * aSrcLen
         } else if('$' == *src) {
            mState = eState_ESC_24;
         } else {
-           if (CHECK_OVERRUN(dest, destEnd, 1))
+           if(dest+1 >= destEnd)
               goto error1;
            *dest++ = (0x80 & *src) ? 0xFFFD : (PRUnichar) *src;
 
@@ -427,7 +460,7 @@ NS_IMETHODIMP nsISO2022CNToUnicode::Convert(const char * aSrc, int32_t * aSrcLen
             mState = eState_ESC_24_2B_I;
             mPlaneID = *src - 'I' + 3;
         } else {
-           if (CHECK_OVERRUN(dest, destEnd, 4))
+           if(dest+4 >= destEnd)
               goto error1;
            *dest++ = (PRUnichar) ESC;
            *dest++ = (PRUnichar) '$';
@@ -442,7 +475,7 @@ NS_IMETHODIMP nsISO2022CNToUnicode::Convert(const char * aSrc, int32_t * aSrcLen
         if(ESC == *src) {
            mState = eState_ESC_24_2B_I_ESC;
         } else {
-           if (CHECK_OVERRUN(dest, destEnd, 5))
+           if(dest+5 >= destEnd)
               goto error1;
            *dest++ = (PRUnichar) ESC;
            *dest++ = (PRUnichar) '$';
@@ -461,7 +494,7 @@ NS_IMETHODIMP nsISO2022CNToUnicode::Convert(const char * aSrc, int32_t * aSrcLen
         } else if('$' == *src) {
            mState = eState_ESC_24;
         } else {
-           if (CHECK_OVERRUN(dest, destEnd, 6))
+           if(dest+6 >= destEnd)
               goto error1;
            *dest++ = (PRUnichar) ESC;
            *dest++ = (PRUnichar) '$';
@@ -478,7 +511,7 @@ NS_IMETHODIMP nsISO2022CNToUnicode::Convert(const char * aSrc, int32_t * aSrcLen
         if(SI == *src) { // Shift-In (SI)
            mState = eState_ESC_24_2B_I_ESC_SS3_SI;
            if (mRunLength == 0) {
-              if (CHECK_OVERRUN(dest, destEnd, 1))
+              if(dest+1 >= destEnd)
                  goto error1;
               *dest++ = 0xFFFD;
            }
@@ -490,7 +523,7 @@ NS_IMETHODIMP nsISO2022CNToUnicode::Convert(const char * aSrc, int32_t * aSrcLen
               mData = *src;
               mState = eState_CNS11643_3_2ndbyte;
            } else {
-              if (CHECK_OVERRUN(dest, destEnd, 1))
+              if(dest+1 >= destEnd)
                  goto error1;
               *dest++ = (0x80 & *src) ? 0xFFFD : (PRUnichar) *src;
            }
@@ -501,7 +534,7 @@ NS_IMETHODIMP nsISO2022CNToUnicode::Convert(const char * aSrc, int32_t * aSrcLen
       case eState_CNS11643_3_2ndbyte:  // ESC $ + I ESC SS3
         if(0x20 < *src && *src < 0x7f) {
            unsigned char cns[4];
-           int32_t cnsLen = 4;
+           PRInt32 cnsLen = 4;
 
            cns[0] = (unsigned char) MBYTE;
            cns[1] = (unsigned char) (PMASK + mPlaneID);
@@ -519,7 +552,7 @@ NS_IMETHODIMP nsISO2022CNToUnicode::Convert(const char * aSrc, int32_t * aSrcLen
 
            dest += aLen;
         } else {
-           if (CHECK_OVERRUN(dest, destEnd, 2))
+           if(dest+2 >= destEnd)
               goto error1;
            *dest++ = (PRUnichar) mData;
            *dest++ = (0x80 & *src) ? 0xFFFD : (PRUnichar) *src;
@@ -531,7 +564,7 @@ NS_IMETHODIMP nsISO2022CNToUnicode::Convert(const char * aSrc, int32_t * aSrcLen
         if(ESC == *src) {
            mState = eState_ESC_24_2B_I_ESC_SS3_SI_ESC;
         } else {
-           if (CHECK_OVERRUN(dest, destEnd, 1))
+           if(dest+1 >= destEnd)
               goto error1;
            *dest++ = (0x80 & *src) ? 0xFFFD : (PRUnichar) *src;
 
@@ -546,7 +579,7 @@ NS_IMETHODIMP nsISO2022CNToUnicode::Convert(const char * aSrc, int32_t * aSrcLen
         } else if('$' == *src) {
            mState = eState_ESC_24;
         } else {
-           if (CHECK_OVERRUN(dest, destEnd, 1))
+           if(dest+1 >= destEnd)
               goto error1;
            *dest++ = (0x80 & *src) ? 0xFFFD : (PRUnichar) *src;
 
@@ -567,6 +600,10 @@ NS_IMETHODIMP nsISO2022CNToUnicode::Convert(const char * aSrc, int32_t * aSrcLen
 
 error1:
   *aDestLen = dest-aDest;
+  src++;
+  if ((mState == eState_ASCII) && (src == srcEnd)) {
+    return NS_OK;
+  }
   *aSrcLen = src - (const unsigned char*)aSrc;
   return NS_OK_UDEC_MOREOUTPUT;
 

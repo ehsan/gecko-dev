@@ -1,9 +1,4 @@
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
-Cu.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 
 var httpserv;
 
@@ -18,18 +13,17 @@ TestListener.prototype.onStopRequest = function(request, context, status) {
 }
 
 function run_test() {
-  httpserv = new HttpServer();
+  httpserv = new nsHttpServer();
 
   httpserv.registerPathHandler("/bug412945", bug412945);
 
-  httpserv.start(-1);
+  httpserv.start(4444);
 
   // make request
   var channel =
       Components.classes["@mozilla.org/network/io-service;1"].
       getService(Components.interfaces.nsIIOService).
-      newChannel("http://localhost:" + httpserv.identity.primaryPort +
-                 "/bug412945", null, null);
+      newChannel("http://localhost:4444/bug412945", null, null);
 
   channel.QueryInterface(Components.interfaces.nsIHttpChannel);
   channel.requestMethod = "post";

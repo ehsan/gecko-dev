@@ -43,7 +43,7 @@ var tests = [
   },
   {
     copyVal: "<example.co>m",
-    copyExpected: "example.co"
+    copyExpected: "http://example.co"
   },
   {
     copyVal: "e<x>ample.com",
@@ -51,21 +51,7 @@ var tests = [
   },
   {
     copyVal: "<e>xample.com",
-    copyExpected: "e"
-  },
-
-  {
-    loadURL: "http://example.com/foo",
-    expectedURL: "example.com/foo",
-    copyExpected: "http://example.com/foo"
-  },
-  {
-    copyVal: "<example.com>/foo",
-    copyExpected: "http://example.com"
-  },
-  {
-    copyVal: "<example>.com/foo",
-    copyExpected: "example"
+    copyExpected: "http://e"
   },
 
   // Test that userPass is stripped out

@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=79:
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Copyright (C) 2009 Apple Inc. All rights reserved.
@@ -27,15 +27,15 @@
  * 
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef assembler_assembler_RepatchBuffer_h
-#define assembler_assembler_RepatchBuffer_h
+#ifndef RepatchBuffer_h
+#define RepatchBuffer_h
 
 #include "assembler/wtf/Platform.h"
 
 #if ENABLE_ASSEMBLER
 
-#include "assembler/assembler/MacroAssembler.h"
-#include "assembler/moco/MocoStubs.h" //MOCO
+#include <assembler/MacroAssembler.h>
+#include <moco/MocoStubs.h> //MOCO
 
 namespace JSC {
 
@@ -110,9 +110,9 @@ public:
         MacroAssembler::repatchInt32(dataLabel32, value);
     }
 
-    void repatch(CodeLocationDataLabelPtr dataLabelPtr, const void* value)
+    void repatch(CodeLocationDataLabelPtr dataLabelPtr, void* value)
     {
-        MacroAssembler::repatchPointer(dataLabelPtr, (void*) value);
+        MacroAssembler::repatchPointer(dataLabelPtr, value);
     }
 
     void repatchLoadPtrToLEA(CodeLocationInstruction instruction)
@@ -160,4 +160,4 @@ protected:
 
 #endif // ENABLE(ASSEMBLER)
 
-#endif /* assembler_assembler_RepatchBuffer_h */
+#endif // RepatchBuffer_h

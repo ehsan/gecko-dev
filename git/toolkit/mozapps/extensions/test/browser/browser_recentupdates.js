@@ -75,7 +75,8 @@ add_test(function() {
   function check_order(expected) {
     var items = updatesList.getElementsByTagName("richlistitem");
     var possible = ["addon1@tests.mozilla.org", "addon2@tests.mozilla.org", "addon3@tests.mozilla.org"];
-    for (let item of items) {
+    for (let i = 0; i < items.length; i++) {
+      let item = items[i];
       let itemId = item.mAddon.id;
       if (possible.indexOf(itemId) == -1)
         continue; // skip over any other addons, such as shipped addons that would update on every build

@@ -1,8 +1,40 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set ts=8 et sw=2 tw=80: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Corporation code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Oleg Romashin <romaxa@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include <stdlib.h>
 #include <QTimer>
@@ -21,9 +53,9 @@ nsNativeAppSupportQt::activityChanged(MeeGo::QmActivity::Activity activity)
         return;
 
     if (MeeGo::QmActivity::Inactive == activity) {
-        os->NotifyObservers(nullptr, "system-idle", nullptr);
+        os->NotifyObservers(nsnull, "system-idle", nsnull);
     } else {
-        os->NotifyObservers(nullptr, "system-active", nullptr);
+        os->NotifyObservers(nsnull, "system-active", nsnull);
     }
 }
 
@@ -36,13 +68,13 @@ nsNativeAppSupportQt::displayStateChanged(MeeGo::QmDisplayState::DisplayState st
 
     switch (state) {
     case MeeGo::QmDisplayState::On:
-        os->NotifyObservers(nullptr, "system-display-on", nullptr);
+        os->NotifyObservers(nsnull, "system-display-on", nsnull);
         break;
     case MeeGo::QmDisplayState::Off:
-        os->NotifyObservers(nullptr, "system-display-off", nullptr);
+        os->NotifyObservers(nsnull, "system-display-dimmed", nsnull);
         break;
     case MeeGo::QmDisplayState::Dimmed:
-        os->NotifyObservers(nullptr, "system-display-dimmed", nullptr);
+        os->NotifyObservers(nsnull, "system-display-off", nsnull);
         break;
     default:
         NS_WARNING("Unknown display state");
@@ -58,10 +90,10 @@ void nsNativeAppSupportQt::deviceModeChanged(MeeGo::QmDeviceMode::DeviceMode mod
 
     switch (mode) {
     case MeeGo::QmDeviceMode::DeviceMode::Normal:
-        os->NotifyObservers(nullptr, "profile-change-net-restore", nullptr);
+        os->NotifyObservers(nsnull, "profile-change-net-restore", nsnull);
         break;
     case MeeGo::QmDeviceMode::DeviceMode::Flight:
-        os->NotifyObservers(nullptr, "profile-change-net-teardown", nullptr);
+        os->NotifyObservers(nsnull, "profile-change-net-teardown", nsnull);
         break;
     case MeeGo::QmDeviceMode::DeviceMode::Error:
     default:
@@ -79,7 +111,7 @@ void nsNativeAppSupportQt::RefreshStates()
 #endif
 
 NS_IMETHODIMP
-nsNativeAppSupportQt::Start(bool* aRetVal)
+nsNativeAppSupportQt::Start(PRBool* aRetVal)
 {
   NS_ASSERTION(gAppData, "gAppData must not be null.");
 
@@ -91,7 +123,7 @@ nsNativeAppSupportQt::Start(bool* aRetVal)
   QTimer::singleShot(0, this, SLOT(RefreshStates()));
 #endif
 
-  *aRetVal = true;
+  *aRetVal = PR_TRUE;
 #ifdef MOZ_ENABLE_LIBCONIC
   g_type_init();
 #endif
@@ -106,7 +138,7 @@ nsNativeAppSupportQt::Start(bool* aRetVal)
      defined in your desktop file.  If it doesn't, the OSSO
      system will happily kill your process.
   */
-  nsAutoCString applicationName;
+  nsCAutoString applicationName;
   if (gAppData->vendor) {
       applicationName.Append(gAppData->vendor);
       applicationName.Append(".");
@@ -116,11 +148,11 @@ nsNativeAppSupportQt::Start(bool* aRetVal)
 
   m_osso_context = osso_initialize(applicationName.get(),
                                    gAppData->version ? gAppData->version : "1.0",
-                                   true,
-                                   nullptr);
+                                   PR_TRUE,
+                                   nsnull);
 
   /* Check that initilialization was ok */
-  if (m_osso_context == nullptr) {
+  if (m_osso_context == nsnull) {
       return NS_ERROR_FAILURE;
   }
 #endif
@@ -129,15 +161,15 @@ nsNativeAppSupportQt::Start(bool* aRetVal)
 }
 
 NS_IMETHODIMP
-nsNativeAppSupportQt::Stop(bool* aResult)
+nsNativeAppSupportQt::Stop(PRBool* aResult)
 {
   NS_ENSURE_ARG(aResult);
-  *aResult = true;
+  *aResult = PR_TRUE;
 
 #if (MOZ_PLATFORM_MAEMO == 5)
   if (m_osso_context) {
     osso_deinitialize(m_osso_context);
-    m_osso_context = nullptr;
+    m_osso_context = nsnull;
   }
 #endif
 

@@ -1,12 +1,45 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is MathML DOM code.
+ *
+ * The Initial Developer of the Original Code is
+ * mozilla.org.
+ * Portions created by the Initial Developer are Copyright (C) 2007
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *    Vlad Sukhoy <vladimir.sukhoy@gmail.com> (original developer)
+ *    Daniel Kraft <d@domob.eu> (nsMathMLElement patch, attachment 262925)
+ *    Frederic Wang <fred.wang@free.fr>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsMathMLElement.h"
-#include "base/compiler_specific.h"
-#include "mozilla/Util.h"
+#include "nsDOMClassInfoID.h" // for eDOMClassInfo_MathElement_id.
 #include "nsGkAtoms.h"
 #include "nsCRT.h"
 #include "nsRuleData.h"
@@ -17,103 +50,55 @@
 #include "nsEventStates.h"
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
+#include "nsDOMClassInfoID.h"
 #include "mozAutoDocUpdate.h"
-#include "nsIScriptError.h"
-#include "nsContentUtils.h"
-
-#include "mozilla/dom/ElementBinding.h"
-
-using namespace mozilla;
-using namespace mozilla::dom;
 
 //----------------------------------------------------------------------
 // nsISupports methods:
 
+DOMCI_NODE_DATA(MathMLElement, nsMathMLElement)
+
 NS_INTERFACE_TABLE_HEAD(nsMathMLElement)
-  NS_INTERFACE_TABLE_INHERITED4(nsMathMLElement,
-                                nsIDOMNode,
-                                nsIDOMElement,
-                                nsILink,
-                                Link)
+  NS_NODE_OFFSET_AND_INTERFACE_TABLE_BEGIN(nsMathMLElement)
+    NS_INTERFACE_TABLE_ENTRY(nsMathMLElement, nsIDOMNode)
+    NS_INTERFACE_TABLE_ENTRY(nsMathMLElement, nsIDOMElement)
+    NS_INTERFACE_TABLE_ENTRY(nsMathMLElement, nsILink)
+    NS_INTERFACE_TABLE_ENTRY(nsMathMLElement, Link)
+  NS_OFFSET_AND_INTERFACE_TABLE_END
   NS_ELEMENT_INTERFACE_TABLE_TO_MAP_SEGUE
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(MathMLElement)
 NS_ELEMENT_INTERFACE_MAP_END
 
 NS_IMPL_ADDREF_INHERITED(nsMathMLElement, nsMathMLElementBase)
 NS_IMPL_RELEASE_INHERITED(nsMathMLElement, nsMathMLElementBase)
 
-static nsresult 
-WarnDeprecated(const PRUnichar* aDeprecatedAttribute, 
-               const PRUnichar* aFavoredAttribute, nsIDocument* aDocument)
-{
-  const PRUnichar *argv[] = 
-    { aDeprecatedAttribute, aFavoredAttribute };
-  return nsContentUtils::
-          ReportToConsole(nsIScriptError::warningFlag, "MathML", aDocument,
-                          nsContentUtils::eMATHML_PROPERTIES,
-                          "DeprecatedSupersededBy", argv, 2);
-}
-
-static nsresult 
-ReportLengthParseError(const nsString& aValue, nsIDocument* aDocument)
-{
-  const PRUnichar *arg = aValue.get();
-  return nsContentUtils::
-         ReportToConsole(nsIScriptError::errorFlag, "MathML", aDocument,
-                         nsContentUtils::eMATHML_PROPERTIES,
-                         "LengthParsingError", &arg, 1);
-}
-
-static nsresult
-ReportParseErrorNoTag(const nsString& aValue, 
-                      nsIAtom*        aAtom,
-                      nsIDocument*    aDocument)
-{
-  const PRUnichar *argv[] = 
-    { aValue.get(), aAtom->GetUTF16String() };
-  return nsContentUtils::
-         ReportToConsole(nsIScriptError::errorFlag, "MathML", aDocument,
-                         nsContentUtils::eMATHML_PROPERTIES,
-                         "AttributeParsingErrorNoTag", argv, 2);
-}
-
-nsMathMLElement::nsMathMLElement(already_AddRefed<nsINodeInfo> aNodeInfo)
-: nsMathMLElementBase(aNodeInfo),
-  ALLOW_THIS_IN_INITIALIZER_LIST(Link(this)),
-  mIncrementScriptLevel(false)
-{
-}
-
 nsresult
 nsMathMLElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                             nsIContent* aBindingParent,
-                            bool aCompileEventHandlers)
+                            PRBool aCompileEventHandlers)
 {
   static const char kMathMLStyleSheetURI[] = "resource://gre-resources/mathml.css";
 
-  Link::ResetLinkState(false, Link::ElementHasHref());
+  Link::ResetLinkState(false);
 
   nsresult rv = nsMathMLElementBase::BindToTree(aDocument, aParent,
                                                 aBindingParent,
                                                 aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (aDocument) {
-    aDocument->RegisterPendingLinkUpdate(this);
-    
-    if (!aDocument->GetMathMLEnabled()) {
-      // Enable MathML and setup the style sheet during binding, not element
-      // construction, because we could move a MathML element from the document
-      // that created it to another document.
-      aDocument->SetMathMLEnabled();
-      aDocument->EnsureCatalogStyleSheet(kMathMLStyleSheetURI);
+  if (aDocument && !aDocument->GetMathMLEnabled()) {
+    // Enable MathML and setup the style sheet during binding, not element
+    // construction, because we could move a MathML element from the document
+    // that created it to another document.
+    aDocument->SetMathMLEnabled();
+    aDocument->EnsureCatalogStyleSheet(kMathMLStyleSheetURI);
 
-      // Rebuild style data for the presshell, because style system
-      // optimizations may have taken place assuming MathML was disabled.
-      // (See nsRuleNode::CheckSpecifiedProperties.)
-      nsCOMPtr<nsIPresShell> shell = aDocument->GetShell();
-      if (shell) {
-        shell->GetPresContext()->PostRebuildAllStyleDataEvent(nsChangeHint(0));
-      }
+    // Rebuild style data for the presshell, because style system
+    // optimizations may have taken place assuming MathML was disabled.
+    // (See nsRuleNode::CheckSpecifiedProperties.)
+    nsCOMPtr<nsIPresShell> shell = aDocument->GetShell();
+    if (shell) {
+      shell->GetPresContext()->PostRebuildAllStyleDataEvent(nsChangeHint(0));
     }
   }
 
@@ -121,35 +106,22 @@ nsMathMLElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 }
 
 void
-nsMathMLElement::UnbindFromTree(bool aDeep, bool aNullParent)
+nsMathMLElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 {
   // If this link is ever reinserted into a document, it might
   // be under a different xml:base, so forget the cached state now.
-  Link::ResetLinkState(false, Link::ElementHasHref());
-  
-  nsIDocument* doc = GetCurrentDoc();
-  if (doc) {
-    doc->UnregisterPendingLinkUpdate(this);
-  }
+  Link::ResetLinkState(false);
 
   nsMathMLElementBase::UnbindFromTree(aDeep, aNullParent);
 }
 
-bool
-nsMathMLElement::ParseAttribute(int32_t aNamespaceID,
+PRBool
+nsMathMLElement::ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
                                 nsAttrValue& aResult)
 {
   if (aNamespaceID == kNameSpaceID_None) {
-    if (Tag() == nsGkAtoms::math && aAttribute == nsGkAtoms::mode) {
-      WarnDeprecated(nsGkAtoms::mode->GetUTF16String(),
-                     nsGkAtoms::display->GetUTF16String(), OwnerDoc());
-    }
-    if (aAttribute == nsGkAtoms::color) {
-      WarnDeprecated(nsGkAtoms::color->GetUTF16String(),
-                     nsGkAtoms::mathcolor_->GetUTF16String(), OwnerDoc());
-    }
     if (aAttribute == nsGkAtoms::color ||
         aAttribute == nsGkAtoms::mathcolor_ ||
         aAttribute == nsGkAtoms::background ||
@@ -162,79 +134,55 @@ nsMathMLElement::ParseAttribute(int32_t aNamespaceID,
                                              aValue, aResult);
 }
 
-static Element::MappedAttributeEntry sMtableStyles[] = {
-  { &nsGkAtoms::width },
-  { nullptr }
-};
-
-static Element::MappedAttributeEntry sTokenStyles[] = {
+static nsGenericElement::MappedAttributeEntry sTokenStyles[] = {
   { &nsGkAtoms::mathsize_ },
   { &nsGkAtoms::fontsize_ },
   { &nsGkAtoms::color },
   { &nsGkAtoms::fontfamily_ },
-  { nullptr }
+  { nsnull }
 };
 
-static Element::MappedAttributeEntry sEnvironmentStyles[] = {
+static nsGenericElement::MappedAttributeEntry sEnvironmentStyles[] = {
   { &nsGkAtoms::scriptlevel_ },
   { &nsGkAtoms::scriptminsize_ },
   { &nsGkAtoms::scriptsizemultiplier_ },
   { &nsGkAtoms::background },
-  { nullptr }
+  { nsnull }
 };
 
-static Element::MappedAttributeEntry sCommonPresStyles[] = {
+static nsGenericElement::MappedAttributeEntry sCommonPresStyles[] = {
   { &nsGkAtoms::mathcolor_ },
   { &nsGkAtoms::mathbackground_ },
-  { nullptr }
+  { nsnull }
 };
 
-static Element::MappedAttributeEntry sDirStyles[] = {
-  { &nsGkAtoms::dir },
-  { nullptr }
-};
-
-bool
+PRBool
 nsMathMLElement::IsAttributeMapped(const nsIAtom* aAttribute) const
 {
-  static const MappedAttributeEntry* const mtableMap[] = {
-    sMtableStyles,
-    sCommonPresStyles
-  };
   static const MappedAttributeEntry* const tokenMap[] = {
     sTokenStyles,
-    sCommonPresStyles,
-    sDirStyles
+    sCommonPresStyles
   };
   static const MappedAttributeEntry* const mstyleMap[] = {
     sTokenStyles,
     sEnvironmentStyles,
-    sCommonPresStyles,
-    sDirStyles
+    sCommonPresStyles
   };
   static const MappedAttributeEntry* const commonPresMap[] = {
     sCommonPresStyles
   };
-  static const MappedAttributeEntry* const mrowMap[] = {
-    sCommonPresStyles,
-    sDirStyles
-  };
-
+  
   // We don't support mglyph (yet).
   nsIAtom* tag = Tag();
   if (tag == nsGkAtoms::ms_ || tag == nsGkAtoms::mi_ ||
       tag == nsGkAtoms::mn_ || tag == nsGkAtoms::mo_ ||
       tag == nsGkAtoms::mtext_ || tag == nsGkAtoms::mspace_)
-    return FindAttributeDependence(aAttribute, tokenMap);
+    return FindAttributeDependence(aAttribute, tokenMap,
+                                   NS_ARRAY_LENGTH(tokenMap));
   if (tag == nsGkAtoms::mstyle_ ||
       tag == nsGkAtoms::math)
-    return FindAttributeDependence(aAttribute, mstyleMap);
-
-  if (tag == nsGkAtoms::mtable_)
-    return FindAttributeDependence(aAttribute, mtableMap);
-
-  if (tag == nsGkAtoms::mrow_)
-    return FindAttributeDependence(aAttribute, mrowMap);
+    return FindAttributeDependence(aAttribute, mstyleMap,
+                                   NS_ARRAY_LENGTH(mstyleMap));
 
   if (tag == nsGkAtoms::maction_ ||
       tag == nsGkAtoms::maligngroup_ ||
@@ -248,19 +196,22 @@ nsMathMLElement::IsAttributeMapped(const nsIAtom* aAttribute) const
       tag == nsGkAtoms::mphantom_ ||
       tag == nsGkAtoms::mprescripts_ ||
       tag == nsGkAtoms::mroot_ ||
+      tag == nsGkAtoms::mrow_ ||
       tag == nsGkAtoms::msqrt_ ||
       tag == nsGkAtoms::msub_ ||
       tag == nsGkAtoms::msubsup_ ||
       tag == nsGkAtoms::msup_ ||
+      tag == nsGkAtoms::mtable_ ||
       tag == nsGkAtoms::mtd_ ||
       tag == nsGkAtoms::mtr_ ||
       tag == nsGkAtoms::munder_ ||
       tag == nsGkAtoms::munderover_ ||
       tag == nsGkAtoms::none) {
-    return FindAttributeDependence(aAttribute, commonPresMap);
+    return FindAttributeDependence(aAttribute, commonPresMap,
+                                   NS_ARRAY_LENGTH(commonPresMap));
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 nsMapRuleToAttributesFunc
@@ -272,131 +223,66 @@ nsMathMLElement::GetAttributeMappingFunction() const
   return &MapMathMLAttributesInto;
 }
 
-/* static */ bool
-nsMathMLElement::ParseNamedSpaceValue(const nsString& aString,
-                                      nsCSSValue&     aCSSValue,
-                                      uint32_t        aFlags)
-{
-   int32_t i = 0;
-   // See if it is one of the 'namedspace' (ranging -7/18em, -6/18, ... 7/18em)
-   if (aString.EqualsLiteral("veryverythinmathspace")) {
-     i = 1;
-   } else if (aString.EqualsLiteral("verythinmathspace")) {
-     i = 2;
-   } else if (aString.EqualsLiteral("thinmathspace")) {
-     i = 3;
-   } else if (aString.EqualsLiteral("mediummathspace")) {
-     i = 4;
-   } else if (aString.EqualsLiteral("thickmathspace")) {
-     i = 5;
-   } else if (aString.EqualsLiteral("verythickmathspace")) {
-     i = 6;
-   } else if (aString.EqualsLiteral("veryverythickmathspace")) {
-     i = 7;
-   } else if (aFlags & PARSE_ALLOW_NEGATIVE) {
-     if (aString.EqualsLiteral("negativeveryverythinmathspace")) {
-       i = -1;
-     } else if (aString.EqualsLiteral("negativeverythinmathspace")) {
-       i = -2;
-     } else if (aString.EqualsLiteral("negativethinmathspace")) {
-       i = -3;
-     } else if (aString.EqualsLiteral("negativemediummathspace")) {
-       i = -4;
-     } else if (aString.EqualsLiteral("negativethickmathspace")) {
-       i = -5;
-     } else if (aString.EqualsLiteral("negativeverythickmathspace")) {
-       i = -6;
-     } else if (aString.EqualsLiteral("negativeveryverythickmathspace")) {
-       i = -7;
-     }
-   }
-   if (0 != i) { 
-     aCSSValue.SetFloatValue(float(i)/float(18), eCSSUnit_EM);
-     return true;
-   }
-   
-   return false;
-}
- 
-// The REC says:
-//
-// "Most presentation elements have attributes that accept values representing
-// lengths to be used for size, spacing or similar properties. The syntax of a
-// length is specified as
-//
-// number | number unit | namedspace
-//
-// There should be no space between the number and the unit of a length."
-// 
-// "A trailing '%' represents a percent of the default value. The default
-// value, or how it is obtained, is listed in the table of attributes for each
-// element. [...] A number without a unit is intepreted as a multiple of the
-// default value."
-//
-// "The possible units in MathML are:
-//  
-// Unit Description
-// em   an em (font-relative unit traditionally used for horizontal lengths)
-// ex   an ex (font-relative unit traditionally used for vertical lengths)
-// px   pixels, or size of a pixel in the current display
-// in   inches (1 inch = 2.54 centimeters)
-// cm   centimeters
-// mm   millimeters
-// pt   points (1 point = 1/72 inch)
-// pc   picas (1 pica = 12 points)
-// %    percentage of default value"
-//
-// The numbers are defined that way:
-// - unsigned-number: "a string of decimal digits with up to one decimal point
-//   (U+002E), representing a non-negative terminating decimal number (a type of
-//   rational number)"
-// - number: "an optional prefix of '-' (U+002D), followed by an unsigned
-//   number, representing a terminating decimal number (a type of rational
-//   number)"
-//
-/* static */ bool
+// ================
+// Utilities for parsing and retrieving numeric values
+
+/*
+The REC says:
+  An explicit plus sign ('+') is not allowed as part of a numeric value
+  except when it is specifically listed in the syntax (as a quoted '+'
+  or "+"),
+
+  Units allowed
+  ID  Description
+  em  ems (font-relative unit traditionally used for horizontal lengths)
+  ex  exs (font-relative unit traditionally used for vertical lengths)
+  px  pixels, or pixel size of a "typical computer display"
+  in  inches (1 inch = 2.54 centimeters)
+  cm  centimeters
+  mm  millimeters
+  pt  points (1 point = 1/72 inch)
+  pc  picas (1 pica = 12 points)
+  %   percentage of default value
+
+Implementation here:
+  The numeric value is valid only if it is of the form [-] nnn.nnn
+  [h/v-unit]
+*/
+
+/* static */ PRBool
 nsMathMLElement::ParseNumericValue(const nsString& aString,
                                    nsCSSValue&     aCSSValue,
-                                   uint32_t        aFlags,
-                                   nsIDocument*    aDocument)
+                                   PRUint32        aFlags)
 {
   nsAutoString str(aString);
   str.CompressWhitespace(); // aString is const in this code...
 
-  int32_t stringLength = str.Length();
-  if (!stringLength) {
-    if (!(aFlags & PARSE_SUPPRESS_WARNINGS)) {
-      ReportLengthParseError(aString, aDocument);
-    }
-    return false;
-  }
-
-  if (ParseNamedSpaceValue(aString, aCSSValue, aFlags)) {
-    return true;
-  }
+  PRInt32 stringLength = str.Length();
+  if (!stringLength)
+    return PR_FALSE;
 
   nsAutoString number, unit;
 
   // see if the negative sign is there
-  int32_t i = 0;
+  PRInt32 i = 0;
   PRUnichar c = str[0];
   if (c == '-') {
     number.Append(c);
     i++;
+
+    // skip any space after the negative sign
+    if (i < stringLength && nsCRT::IsAsciiSpace(str[i]))
+      i++;
   }
 
   // Gather up characters that make up the number
-  bool gotDot = false;
+  PRBool gotDot = PR_FALSE;
   for ( ; i < stringLength; i++) {
     c = str[i];
-    if (gotDot && c == '.') {
-      if (!(aFlags & PARSE_SUPPRESS_WARNINGS)) {
-        ReportLengthParseError(aString, aDocument);
-      }
-      return false;  // two dots encountered
-    }
+    if (gotDot && c == '.')
+      return PR_FALSE;  // two dots encountered
     else if (c == '.')
-      gotDot = true;
+      gotDot = PR_TRUE;
     else if (!nsCRT::IsAsciiDigit(c)) {
       str.Right(unit, stringLength - i);
       // some authors leave blanks before the unit, but that shouldn't
@@ -407,53 +293,30 @@ nsMathMLElement::ParseNumericValue(const nsString& aString,
   }
 
   // Convert number to floating point
-  nsresult errorCode;
+  PRInt32 errorCode;
   float floatValue = number.ToFloat(&errorCode);
-  if (NS_FAILED(errorCode)) {
-    if (!(aFlags & PARSE_SUPPRESS_WARNINGS)) {
-      ReportLengthParseError(aString, aDocument);
-    }
-    return false;
-  }
-  if (floatValue < 0 && !(aFlags & PARSE_ALLOW_NEGATIVE)) {
-    if (!(aFlags & PARSE_SUPPRESS_WARNINGS)) {
-      ReportLengthParseError(aString, aDocument);
-    }
-    return false;
-  }
+  if (NS_FAILED(errorCode))
+    return PR_FALSE;
+  if (floatValue < 0 && !(aFlags & PARSE_ALLOW_NEGATIVE))
+    return PR_FALSE;
 
   nsCSSUnit cssUnit;
   if (unit.IsEmpty()) {
     if (aFlags & PARSE_ALLOW_UNITLESS) {
       // no explicit unit, this is a number that will act as a multiplier
-      if (!(aFlags & PARSE_SUPPRESS_WARNINGS)) {
-        nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                        "MathML", aDocument,
-                                        nsContentUtils::eMATHML_PROPERTIES,
-                                        "UnitlessValuesAreDeprecated");
-      }
-      if (aFlags & CONVERT_UNITLESS_TO_PERCENT) {
-        aCSSValue.SetPercentValue(floatValue);
-        return true;
-      }
-      else
-        cssUnit = eCSSUnit_Number;
+      cssUnit = eCSSUnit_Number;
     } else {
       // We are supposed to have a unit, but there isn't one.
       // If the value is 0 we can just call it "pixels" otherwise
       // this is illegal.
-      if (floatValue != 0.0) {
-        if (!(aFlags & PARSE_SUPPRESS_WARNINGS)) {
-          ReportLengthParseError(aString, aDocument);
-        }
-        return false;
-      }
+      if (floatValue != 0.0)
+        return PR_FALSE;
       cssUnit = eCSSUnit_Pixel;
     }
   }
   else if (unit.EqualsLiteral("%")) {
     aCSSValue.SetPercentValue(floatValue / 100.0f);
-    return true;
+    return PR_TRUE;
   }
   else if (unit.EqualsLiteral("em")) cssUnit = eCSSUnit_EM;
   else if (unit.EqualsLiteral("ex")) cssUnit = eCSSUnit_XHeight;
@@ -463,15 +326,11 @@ nsMathMLElement::ParseNumericValue(const nsString& aString,
   else if (unit.EqualsLiteral("mm")) cssUnit = eCSSUnit_Millimeter;
   else if (unit.EqualsLiteral("pt")) cssUnit = eCSSUnit_Point;
   else if (unit.EqualsLiteral("pc")) cssUnit = eCSSUnit_Pica;
-  else { // unexpected unit
-    if (!(aFlags & PARSE_SUPPRESS_WARNINGS)) {
-      ReportLengthParseError(aString, aDocument);
-    }
-    return false;
-  }
+  else // unexpected unit
+    return PR_FALSE;
 
   aCSSValue.SetFloatValue(floatValue, cssUnit);
-  return true;
+  return PR_TRUE;
 }
 
 void
@@ -479,14 +338,6 @@ nsMathMLElement::MapMathMLAttributesInto(const nsMappedAttributes* aAttributes,
                                          nsRuleData* aData)
 {
   if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Font)) {
-    // scriptsizemultiplier
-    //
-    // "Specifies the multiplier to be used to adjust font size due to changes
-    // in scriptlevel.
-    //
-    // values: number
-    // default: 0.71
-    //
     const nsAttrValue* value =
       aAttributes->GetAttr(nsGkAtoms::scriptsizemultiplier_);
     nsCSSValue* scriptSizeMultiplier =
@@ -497,55 +348,22 @@ nsMathMLElement::MapMathMLAttributesInto(const nsMappedAttributes* aAttributes,
       str.CompressWhitespace();
       // MathML numbers can't have leading '+'
       if (str.Length() > 0 && str.CharAt(0) != '+') {
-        nsresult errorCode;
+        PRInt32 errorCode;
         float floatValue = str.ToFloat(&errorCode);
         // Negative scriptsizemultipliers are not parsed
         if (NS_SUCCEEDED(errorCode) && floatValue >= 0.0f) {
           scriptSizeMultiplier->SetFloatValue(floatValue, eCSSUnit_Number);
-        } else {
-          ReportParseErrorNoTag(str,
-                                nsGkAtoms::scriptsizemultiplier_,
-                                aData->mPresContext->Document());
         }
       }
     }
 
-    // scriptminsize
-    //
-    // "Specifies the minimum font size allowed due to changes in scriptlevel.
-    // Note that this does not limit the font size due to changes to mathsize."
-    //
-    // values: length
-    // default: 8pt
-    //
-    // We don't allow negative values.
-    // Unitless and percent values give a multiple of the default value.
-    //
     value = aAttributes->GetAttr(nsGkAtoms::scriptminsize_);
     nsCSSValue* scriptMinSize = aData->ValueForScriptMinSize();
     if (value && value->Type() == nsAttrValue::eString &&
         scriptMinSize->GetUnit() == eCSSUnit_Null) {
-      ParseNumericValue(value->GetStringValue(), *scriptMinSize,
-                        PARSE_ALLOW_UNITLESS | CONVERT_UNITLESS_TO_PERCENT,
-                        aData->mPresContext->Document());
-
-      if (scriptMinSize->GetUnit() == eCSSUnit_Percent) {
-        scriptMinSize->SetFloatValue(8.0 * scriptMinSize->GetPercentValue(),
-                                     eCSSUnit_Point);
-      }
+      ParseNumericValue(value->GetStringValue(), *scriptMinSize, 0);
     }
 
-    // scriptlevel
-    // 
-    // "Changes the scriptlevel in effect for the children. When the value is
-    // given without a sign, it sets scriptlevel to the specified value; when a
-    // sign is given, it increments ("+") or decrements ("-") the current
-    // value. (Note that large decrements can result in negative values of
-    // scriptlevel, but these values are considered legal.)"
-    //
-    // values: ( "+" | "-" )? unsigned-integer
-    // default: inherited
-    //
     value = aAttributes->GetAttr(nsGkAtoms::scriptlevel_);
     nsCSSValue* scriptLevel = aData->ValueForScriptLevel();
     if (value && value->Type() == nsAttrValue::eString &&
@@ -553,8 +371,8 @@ nsMathMLElement::MapMathMLAttributesInto(const nsMappedAttributes* aAttributes,
       nsAutoString str(value->GetStringValue());
       str.CompressWhitespace();
       if (str.Length() > 0) {
-        nsresult errorCode;
-        int32_t intValue = str.ToInteger(&errorCode);
+        PRInt32 errorCode;
+        PRInt32 intValue = str.ToInteger(&errorCode);
         if (NS_SUCCEEDED(errorCode)) {
           // This is kind of cheesy ... if the scriptlevel has a sign,
           // then it's a relative value and we store the nsCSSValue as an
@@ -566,61 +384,29 @@ nsMathMLElement::MapMathMLAttributesInto(const nsMappedAttributes* aAttributes,
           } else {
             scriptLevel->SetFloatValue(intValue, eCSSUnit_Number);
           }
-        } else {
-          ReportParseErrorNoTag(str,
-                                nsGkAtoms::scriptlevel_,
-                                aData->mPresContext->Document());
         }
       }
     }
 
-    // mathsize
-    //
-    // "Specifies the size to display the token content. The values 'small' and
-    // 'big' choose a size smaller or larger than the current font size, but
-    // leave the exact proportions unspecified; 'normal' is allowed for
-    // completeness, but since it is equivalent to '100%' or '1em', it has no
-    // effect."
-    //
-    // values: "small" | "normal" | "big" | length
-    // default: inherited
-    //
-    // fontsize
-    //
-    // "Specified the size for the token. Deprecated in favor of mathsize."
-    //
-    // values: length
-    // default: inherited
-    //
-    // In both cases, we don't allow negative values.
-    // Unitless values give a multiple of the default value.
-    //  
-    bool parseSizeKeywords = true;
+    PRBool parseSizeKeywords = PR_TRUE;
     value = aAttributes->GetAttr(nsGkAtoms::mathsize_);
     if (!value) {
-      parseSizeKeywords = false;
+      parseSizeKeywords = PR_FALSE;
       value = aAttributes->GetAttr(nsGkAtoms::fontsize_);
-      if (value) {
-        WarnDeprecated(nsGkAtoms::fontsize_->GetUTF16String(),
-                       nsGkAtoms::mathsize_->GetUTF16String(),
-                       aData->mPresContext->Document());
-      }
     }
     nsCSSValue* fontSize = aData->ValueForFontSize();
     if (value && value->Type() == nsAttrValue::eString &&
         fontSize->GetUnit() == eCSSUnit_Null) {
       nsAutoString str(value->GetStringValue());
-      if (!ParseNumericValue(str, *fontSize, PARSE_SUPPRESS_WARNINGS |
-                             PARSE_ALLOW_UNITLESS | CONVERT_UNITLESS_TO_PERCENT,
-                             nullptr)
-          && parseSizeKeywords) {
+      if (!ParseNumericValue(str, *fontSize, 0) &&
+          parseSizeKeywords) {
         static const char sizes[3][7] = { "small", "normal", "big" };
-        static const int32_t values[NS_ARRAY_LENGTH(sizes)] = {
+        static const PRInt32 values[NS_ARRAY_LENGTH(sizes)] = {
           NS_STYLE_FONT_SIZE_SMALL, NS_STYLE_FONT_SIZE_MEDIUM,
           NS_STYLE_FONT_SIZE_LARGE
         };
         str.CompressWhitespace();
-        for (uint32_t i = 0; i < ArrayLength(sizes); ++i) {
+        for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(sizes); ++i) {
           if (str.EqualsASCII(sizes[i])) {
             fontSize->SetIntValue(values[i], eCSSUnit_Enumerated);
             break;
@@ -629,55 +415,19 @@ nsMathMLElement::MapMathMLAttributesInto(const nsMappedAttributes* aAttributes,
       }
     }
 
-    // fontfamily
-    //
-    // "Should be the name of a font that may be available to a MathML renderer,
-    // or a CSS font specification; See Section 6.5 Using CSS with MathML and
-    // CSS for more information. Deprecated in favor of mathvariant."
-    //
-    // values: string
-    // 
     value = aAttributes->GetAttr(nsGkAtoms::fontfamily_);
     nsCSSValue* fontFamily = aData->ValueForFontFamily();
-    if (value) {
-      WarnDeprecated(nsGkAtoms::fontfamily_->GetUTF16String(),
-                     nsGkAtoms::mathvariant_->GetUTF16String(),
-                     aData->mPresContext->Document());
-    }
     if (value && value->Type() == nsAttrValue::eString &&
         fontFamily->GetUnit() == eCSSUnit_Null) {
       fontFamily->SetStringValue(value->GetStringValue(), eCSSUnit_Families);
     }
   }
 
-  // mathbackground
-  // 
-  // "Specifies the background color to be used to fill in the bounding box of
-  // the element and its children. The default, 'transparent', lets the
-  // background color, if any, used in the current rendering context to show
-  // through."
-  // 
-  // values: color | "transparent" 
-  // default: "transparent"
-  //
-  // background
-  //
-  // "Specified the background color to be used to fill in the bounding box of
-  // the element and its children. Deprecated in favor of mathbackground."
-  //
-  // values: color | "transparent"
-  // default: "transparent"
-  //
   if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Background)) {
     const nsAttrValue* value =
       aAttributes->GetAttr(nsGkAtoms::mathbackground_);
     if (!value) {
       value = aAttributes->GetAttr(nsGkAtoms::background);
-      if (value) {
-        WarnDeprecated(nsGkAtoms::background->GetUTF16String(),
-                       nsGkAtoms::mathbackground_->GetUTF16String(),
-                       aData->mPresContext->Document());
-      }
     }
     nsCSSValue* backgroundColor = aData->ValueForBackgroundColor();
     if (value && backgroundColor->GetUnit() == eCSSUnit_Null) {
@@ -688,32 +438,10 @@ nsMathMLElement::MapMathMLAttributesInto(const nsMappedAttributes* aAttributes,
     }
   }
 
-  // mathcolor
-  //
-  // "Specifies the foreground color to use when drawing the components of this
-  // element, such as the content for token elements or any lines, surds, or
-  // other decorations. It also establishes the default mathcolor used for
-  // child elements when used on a layout element."
-  //
-  // values: color
-  // default: inherited
-  //
-  // color
-  // 
-  // "Specified the color for the token. Deprecated in favor of mathcolor." 
-  //
-  // values: color
-  // default: inherited
-  //
   if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Color)) {
     const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::mathcolor_);
     if (!value) {
       value = aAttributes->GetAttr(nsGkAtoms::color);
-      if (value) {
-        WarnDeprecated(nsGkAtoms::color->GetUTF16String(),
-                       nsGkAtoms::mathcolor_->GetUTF16String(),
-                       aData->mPresContext->Document());
-      }
     }
     nscolor color;
     nsCSSValue* colorValue = aData->ValueForColor();
@@ -722,64 +450,12 @@ nsMathMLElement::MapMathMLAttributesInto(const nsMappedAttributes* aAttributes,
       colorValue->SetColorValue(color);
     }
   }
-
-  if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Position)) {
-    // width: value
-    nsCSSValue* width = aData->ValueForWidth();
-    if (width->GetUnit() == eCSSUnit_Null) {
-      const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::width);
-      // This does not handle auto and unitless values
-      if (value && value->Type() == nsAttrValue::eString) {
-        ParseNumericValue(value->GetStringValue(), *width, 0,
-                          aData->mPresContext->Document());
-      }
-    }
-  }
-
-  // dir
-  //
-  // Overall Directionality of Mathematics Formulas:
-  // "The overall directionality for a formula, basically the direction of the
-  // Layout Schemata, is specified by the dir attribute on the containing math
-  // element (see Section 2.2 The Top-Level math Element). The default is ltr.
-  // [...] The overall directionality is usually set on the math, but may also 
-  // be switched for individual subformula by using the dir attribute on mrow
-  // or mstyle elements." 
-  //
-  // Bidirectional Layout in Token Elements:
-  // "Specifies the initial directionality for text within the token:
-  // ltr (Left To Right) or rtl (Right To Left). This attribute should only be
-  // needed in rare cases involving weak or neutral characters;
-  // see Section 3.1.5.1 Overall Directionality of Mathematics Formulas for
-  // further discussion. It has no effect on mspace."
-  //
-  // values: "ltr" | "rtl"
-  // default: inherited
-  //
-  if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Visibility)) {
-    const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::dir);
-    nsCSSValue* direction = aData->ValueForDirection();
-    if (value && value->Type() == nsAttrValue::eString &&
-        direction->GetUnit() == eCSSUnit_Null) {
-      nsAutoString str(value->GetStringValue());
-      static const char dirs[][4] = { "ltr", "rtl" };
-      static const int32_t dirValues[NS_ARRAY_LENGTH(dirs)] = {
-        NS_STYLE_DIRECTION_LTR, NS_STYLE_DIRECTION_RTL
-      };
-      for (uint32_t i = 0; i < ArrayLength(dirs); ++i) {
-        if (str.EqualsASCII(dirs[i])) {
-          direction->SetIntValue(dirValues[i], eCSSUnit_Enumerated);
-          break;
-        }
-      }
-    }
-  }
 }
 
 nsresult
 nsMathMLElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
-  nsresult rv = Element::PreHandleEvent(aVisitor);
+  nsresult rv = nsGenericElement::PreHandleEvent(aVisitor);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return PreHandleEventForLinks(aVisitor);
@@ -800,15 +476,15 @@ nsMathMLElement::IntrinsicState() const
     (mIncrementScriptLevel ? NS_EVENT_STATE_INCREMENT_SCRIPT_LEVEL : nsEventStates());
 }
 
-bool
-nsMathMLElement::IsNodeOfType(uint32_t aFlags) const
+PRBool
+nsMathMLElement::IsNodeOfType(PRUint32 aFlags) const
 {
   return !(aFlags & ~eCONTENT);
 }
 
 void
-nsMathMLElement::SetIncrementScriptLevel(bool aIncrementScriptLevel,
-                                         bool aNotify)
+nsMathMLElement::SetIncrementScriptLevel(PRBool aIncrementScriptLevel,
+                                         PRBool aNotify)
 {
   if (aIncrementScriptLevel == mIncrementScriptLevel)
     return;
@@ -819,25 +495,25 @@ nsMathMLElement::SetIncrementScriptLevel(bool aIncrementScriptLevel,
   UpdateState(true);
 }
 
-bool
-nsMathMLElement::IsFocusable(int32_t *aTabIndex, bool aWithMouse)
+PRBool
+nsMathMLElement::IsFocusable(PRInt32 *aTabIndex, PRBool aWithMouse)
 {
   nsCOMPtr<nsIURI> uri;
   if (IsLink(getter_AddRefs(uri))) {
     if (aTabIndex) {
       *aTabIndex = ((sTabFocusModel & eTabFocus_linksMask) == 0 ? -1 : 0);
     }
-    return true;
+    return PR_TRUE;
   }
 
   if (aTabIndex) {
     *aTabIndex = -1;
   }
 
-  return false;
+  return PR_FALSE;
 }
 
-bool
+PRBool
 nsMathMLElement::IsLink(nsIURI** aURI) const
 {
   // http://www.w3.org/TR/2010/REC-MathML3-20101021/chapter6.html#interf.link
@@ -847,18 +523,18 @@ nsMathMLElement::IsLink(nsIURI** aURI) const
       tag == nsGkAtoms::none         ||
       tag == nsGkAtoms::malignmark_  ||
       tag == nsGkAtoms::maligngroup_) {
-    *aURI = nullptr;
-    return false;
+    *aURI = nsnull;
+    return PR_FALSE;
   }
 
-  bool hasHref = false;
+  PRBool hasHref = PR_FALSE;
   const nsAttrValue* href = mAttrsAndChildren.GetAttr(nsGkAtoms::href,
                                                       kNameSpaceID_None);
   if (href) {
     // MathML href
     // The REC says: "When user agents encounter MathML elements with both href
     // and xlink:href attributes, the href attribute should take precedence."
-    hasHref = true;
+    hasHref = PR_TRUE;
   } else {
     // To be a clickable XLink for styling and interaction purposes, we require:
     //
@@ -868,16 +544,16 @@ nsMathMLElement::IsLink(nsIURI** aURI) const
     //   xlink:actuate - must be unset or set to "" or "onRequest"
     //
     // For any other values, we're either not a *clickable* XLink, or the end
-    // result is poorly specified. Either way, we return false.
+    // result is poorly specified. Either way, we return PR_FALSE.
     
     static nsIContent::AttrValuesArray sTypeVals[] =
-      { &nsGkAtoms::_empty, &nsGkAtoms::simple, nullptr };
+      { &nsGkAtoms::_empty, &nsGkAtoms::simple, nsnull };
     
     static nsIContent::AttrValuesArray sShowVals[] =
-      { &nsGkAtoms::_empty, &nsGkAtoms::_new, &nsGkAtoms::replace, nullptr };
+      { &nsGkAtoms::_empty, &nsGkAtoms::_new, &nsGkAtoms::replace, nsnull };
     
     static nsIContent::AttrValuesArray sActuateVals[] =
-      { &nsGkAtoms::_empty, &nsGkAtoms::onRequest, nullptr };
+      { &nsGkAtoms::_empty, &nsGkAtoms::onRequest, nsnull };
     
     // Optimization: check for href first for early return
     href = mAttrsAndChildren.GetAttr(nsGkAtoms::href,
@@ -892,7 +568,7 @@ nsMathMLElement::IsLink(nsIURI** aURI) const
         FindAttrValueIn(kNameSpaceID_XLink, nsGkAtoms::actuate,
                         sActuateVals, eCaseMatters) !=
         nsIContent::ATTR_VALUE_NO_MATCH) {
-      hasHref = true;
+      hasHref = PR_TRUE;
     }
   }
 
@@ -902,13 +578,13 @@ nsMathMLElement::IsLink(nsIURI** aURI) const
     nsAutoString hrefStr;
     href->ToString(hrefStr); 
     nsContentUtils::NewURIWithDocumentCharset(aURI, hrefStr,
-                                              OwnerDoc(), baseURI);
+                                              GetOwnerDoc(), baseURI);
     // must promise out param is non-null if we return true
     return !!*aURI;
   }
 
-  *aURI = nullptr;
-  return false;
+  *aURI = nsnull;
+  return PR_FALSE;
 }
 
 void
@@ -923,7 +599,7 @@ nsMathMLElement::GetLinkTarget(nsAString& aTarget)
   if (aTarget.IsEmpty()) {
 
     static nsIContent::AttrValuesArray sShowVals[] =
-      { &nsGkAtoms::_new, &nsGkAtoms::replace, nullptr };
+      { &nsGkAtoms::_new, &nsGkAtoms::replace, nsnull };
     
     switch (FindAttrValueIn(kNameSpaceID_XLink, nsGkAtoms::show,
                             sShowVals, eCaseMatters)) {
@@ -933,21 +609,36 @@ nsMathMLElement::GetLinkTarget(nsAString& aTarget)
     case 1:
       return;
     }
-    OwnerDoc()->GetBaseTarget(aTarget);
+    nsIDocument* ownerDoc = GetOwnerDoc();
+    if (ownerDoc) {
+      ownerDoc->GetBaseTarget(aTarget);
+    }
   }
+}
+
+nsLinkState
+nsMathMLElement::GetLinkState() const
+{
+  return Link::GetLinkState();
+}
+
+void
+nsMathMLElement::RequestLinkStateUpdate()
+{
+  UpdateLinkState(Link::LinkState());
 }
 
 already_AddRefed<nsIURI>
 nsMathMLElement::GetHrefURI() const
 {
   nsCOMPtr<nsIURI> hrefURI;
-  return IsLink(getter_AddRefs(hrefURI)) ? hrefURI.forget() : nullptr;
+  return IsLink(getter_AddRefs(hrefURI)) ? hrefURI.forget() : nsnull;
 }
 
 nsresult
-nsMathMLElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+nsMathMLElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                          nsIAtom* aPrefix, const nsAString& aValue,
-                         bool aNotify)
+                         PRBool aNotify)
 {
   nsresult rv = nsMathMLElementBase::SetAttr(aNameSpaceID, aName, aPrefix,
                                            aValue, aNotify);
@@ -960,19 +651,15 @@ nsMathMLElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
   if (aName == nsGkAtoms::href &&
       (aNameSpaceID == kNameSpaceID_None ||
        aNameSpaceID == kNameSpaceID_XLink)) {
-    if (aNameSpaceID == kNameSpaceID_XLink) {
-      WarnDeprecated(NS_LITERAL_STRING("xlink:href").get(),
-                     NS_LITERAL_STRING("href").get(), OwnerDoc());
-    }
-    Link::ResetLinkState(!!aNotify, true);
+    Link::ResetLinkState(!!aNotify);
   }
 
   return rv;
 }
 
 nsresult
-nsMathMLElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttr,
-                           bool aNotify)
+nsMathMLElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttr,
+                           PRBool aNotify)
 {
   nsresult rv = nsMathMLElementBase::UnsetAttr(aNameSpaceID, aAttr, aNotify);
 
@@ -984,16 +671,8 @@ nsMathMLElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttr,
   if (aAttr == nsGkAtoms::href &&
       (aNameSpaceID == kNameSpaceID_None ||
        aNameSpaceID == kNameSpaceID_XLink)) {
-    // Note: just because we removed a single href attr doesn't mean there's no href,
-    // since there are 2 possible namespaces.
-    Link::ResetLinkState(!!aNotify, Link::ElementHasHref());
+    Link::ResetLinkState(!!aNotify);
   }
 
   return rv;
-}
-
-JSObject*
-nsMathMLElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
-{
-  return ElementBinding::Wrap(aCx, aScope, this);
 }

@@ -43,7 +43,6 @@ function filter(node) {
       ex = e;
     }
     ++testCount;
-    is(ex.name, "InvalidStateError", "Should have thrown an exception!");
     is(ex.code, DOMException.INVALID_STATE_ERR, "Should have thrown an exception!");
     recurse = false;
   }
@@ -55,7 +54,8 @@ function filter(node) {
   it = document.createNodeIterator(
     document.getElementById("nodes"),
     NodeFilter.SHOW_ELEMENT,
-    filter
+    filter,
+    false
   );
   while (it.nextNode());
 })();
@@ -64,14 +64,16 @@ function filter(node) {
   it = document.createTreeWalker(
     document.getElementById("nodes"),
     NodeFilter.SHOW_ELEMENT,
-    filter
+    filter,
+    false
   );
   while(it.nextNode());
 
   it = document.createTreeWalker(
     document.getElementById("nodes"),
     NodeFilter.SHOW_ELEMENT,
-    filter
+    filter,
+    false
   );
   it.firstChild();
   while(it.nextSibling());
@@ -79,7 +81,8 @@ function filter(node) {
   it = document.createTreeWalker(
     document.getElementById("nodes"),
     NodeFilter.SHOW_ELEMENT,
-    filter
+    filter,
+    false
   );
   it.lastChild();
   while(it.previousSibling());

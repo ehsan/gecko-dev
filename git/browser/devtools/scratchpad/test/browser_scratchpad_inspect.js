@@ -2,54 +2,63 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
+// Reference to the Scratchpad chrome window object.
+let gScratchpadWindow;
+
 function test()
 {
   waitForExplicitFinish();
 
   gBrowser.selectedTab = gBrowser.addTab();
-  gBrowser.selectedBrowser.addEventListener("load", function onLoad() {
-    gBrowser.selectedBrowser.removeEventListener("load", onLoad, true);
-    openScratchpad(runTests);
+  gBrowser.selectedBrowser.addEventListener("load", function() {
+    gBrowser.selectedBrowser.removeEventListener("load", arguments.callee, true);
+
+    gScratchpadWindow = Scratchpad.openScratchpad();
+    gScratchpadWindow.addEventListener("load", runTests, false);
   }, true);
 
-  content.location = "data:text/html;charset=utf8,<p>test inspect() in Scratchpad</p>";
+  content.location = "data:text/html,<title>foobarBug636725</title>" +
+    "<p>test inspect() in Scratchpad";
 }
 
 function runTests()
 {
+  gScratchpadWindow.removeEventListener("load", arguments.callee, false);
+
   let sp = gScratchpadWindow.Scratchpad;
 
-  sp.setText("({ a: 'foobarBug636725' })");
+  sp.setText("document");
 
-  sp.inspect().then(function() {
-    let sidebar = sp.sidebar;
-    ok(sidebar.visible, "sidebar is open");
+  sp.inspect();
 
+  let propPanel = document.querySelector(".scratchpad_propertyPanel");
+  ok(propPanel, "property panel is open");
 
+  propPanel.addEventListener("popupshown", function() {
+    propPanel.removeEventListener("popupshown", arguments.callee, false);
+
+    let tree = propPanel.querySelector("tree");
+    ok(tree, "property panel tree found");
+
+    let column = tree.columns[0];
     let found = false;
 
-    outer: for (let scope in sidebar.variablesView) {
-      for (let [, obj] in scope) {
-        for (let [, prop] in obj) {
-          if (prop.name == "a" && prop.value == "foobarBug636725") {
-            found = true;
-            break outer;
-          }
-        }
+    for (let i = 0; i < tree.view.rowCount; i++) {
+      let cell = tree.view.getCellText(i, column);
+      if (cell == 'title: "foobarBug636725"') {
+        found = true;
+        break;
       }
     }
+    ok(found, "found the document.title property");
 
-    ok(found, "found the property");
+    executeSoon(function() {
+      propPanel.hidePopup();
 
-    let tabbox = sidebar._sidebar._tabbox;
-    is(tabbox.width, 300, "Scratchpad sidebar width is correct");
-    ok(!tabbox.hasAttribute("hidden"), "Scratchpad sidebar visible");
-    sidebar.hide();
-    ok(tabbox.hasAttribute("hidden"), "Scratchpad sidebar hidden");
-    sp.inspect().then(function() {
-      is(tabbox.width, 300, "Scratchpad sidebar width is still correct");
-      ok(!tabbox.hasAttribute("hidden"), "Scratchpad sidebar visible again");
+      gScratchpadWindow.close();
+      gScratchpadWindow = null;
+      gBrowser.removeCurrentTab();
       finish();
     });
-  });
+  }, false);
 }

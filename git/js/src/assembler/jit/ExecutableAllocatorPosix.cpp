@@ -23,15 +23,13 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
  */
 
-#include "assembler/jit/ExecutableAllocator.h"
+#include "ExecutableAllocator.h"
 
 #if ENABLE_ASSEMBLER && WTF_OS_UNIX && !WTF_OS_SYMBIAN
 
 #include <sys/mman.h>
 #include <unistd.h>
-
-#include "assembler/wtf/Assertions.h"
-#include "assembler/wtf/VMTags.h"
+#include <wtf/VMTags.h>
 
 namespace JSC {
 

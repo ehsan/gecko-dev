@@ -4,5 +4,5 @@
 })();
 
 this.__defineSetter__("l", function() { gc() });
-this.watch("l", function(x) { yield {} });
+this.watch("l", function(x) { yield #1={} });
 l = true;

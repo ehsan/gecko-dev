@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK *****
  * This Original Code has been modified by IBM Corporation.
  * Modifications made by IBM described herein are
  * Copyright (c) International Business Machines
@@ -22,6 +54,7 @@
 #define nsHashtable_h__
 
 #include "pldhash.h"
+#include "prlock.h"
 #include "nscore.h"
 #include "nsString.h"
 #include "nsISupportsBase.h"
@@ -32,7 +65,6 @@ class nsIObjectOutputStream;
 
 class nsHashtable;
 class nsStringKey;
-struct PRLock;
 
 class nsHashKey {
   protected:
@@ -49,8 +81,8 @@ class nsHashKey {
     // nsHashKey pointer.
 
     virtual ~nsHashKey(void);
-    virtual uint32_t HashCode(void) const = 0;
-    virtual bool Equals(const nsHashKey *aKey) const = 0;
+    virtual PRUint32 HashCode(void) const = 0;
+    virtual PRBool Equals(const nsHashKey *aKey) const = 0;
     virtual nsHashKey *Clone() const = 0;
     virtual nsresult Write(nsIObjectOutputStream* aStream) const;
 
@@ -76,11 +108,11 @@ class nsHashKey {
 
 // Return values for nsHashtableEnumFunc
 enum {
-    kHashEnumerateStop      = false,
-    kHashEnumerateNext      = true
+    kHashEnumerateStop      = PR_FALSE,
+    kHashEnumerateNext      = PR_TRUE
 };
 
-typedef bool
+typedef PRBool
 (* nsHashtableEnumFunc)(nsHashKey *aKey, void *aData, void* aClosure);
 
 typedef nsresult
@@ -100,14 +132,14 @@ class nsHashtable {
     // members  
     PRLock*         mLock;
     PLDHashTable    mHashtable;
-    bool            mEnumerating;
+    PRBool          mEnumerating;
 
   public:
-    nsHashtable(uint32_t aSize = 16, bool threadSafe = false);
+    nsHashtable(PRUint32 aSize = 16, PRBool threadSafe = PR_FALSE);
     virtual ~nsHashtable();
 
-    int32_t Count(void) { return mHashtable.entryCount; }
-    bool Exists(nsHashKey *aKey);
+    PRInt32 Count(void) { return mHashtable.entryCount; }
+    PRBool Exists(nsHashKey *aKey);
     void *Put(nsHashKey *aKey, void *aData);
     void *Get(nsHashKey *aKey);
     void *Remove(nsHashKey *aKey);
@@ -136,17 +168,17 @@ class nsObjectHashtable : public nsHashtable {
                       void* cloneElementClosure,
                       nsHashtableEnumFunc destroyElementFun,
                       void* destroyElementClosure,
-                      uint32_t aSize = 16, bool threadSafe = false);
+                      PRUint32 aSize = 16, PRBool threadSafe = PR_FALSE);
     ~nsObjectHashtable();
 
     nsHashtable *Clone();
     void Reset();
-    bool RemoveAndDelete(nsHashKey *aKey);
+    PRBool RemoveAndDelete(nsHashKey *aKey);
 
   protected:
     static PLDHashOperator CopyElement(PLDHashTable* table,
                                        PLDHashEntryHdr* hdr,
-                                       uint32_t i, void *arg);
+                                       PRUint32 i, void *arg);
     
     nsHashtableCloneElementFunc mCloneElementFun;
     void*                       mCloneElementClosure;
@@ -163,21 +195,21 @@ class nsSupportsHashtable
   : private nsHashtable
 {
   public:
-    nsSupportsHashtable(uint32_t aSize = 16, bool threadSafe = false)
+    nsSupportsHashtable(PRUint32 aSize = 16, PRBool threadSafe = PR_FALSE)
       : nsHashtable(aSize, threadSafe) {}
     ~nsSupportsHashtable();
 
-    int32_t Count(void) {
+    PRInt32 Count(void) {
         return nsHashtable::Count();
     }
-    bool Exists(nsHashKey *aKey) {
+    PRBool Exists(nsHashKey *aKey) {
         return nsHashtable::Exists (aKey);
     }
-    bool Put(nsHashKey *aKey,
+    PRBool Put(nsHashKey *aKey,
                nsISupports *aData,
-               nsISupports **value = nullptr);
+               nsISupports **value = nsnull);
     nsISupports* Get(nsHashKey *aKey);
-    bool Remove(nsHashKey *aKey, nsISupports **value = nullptr);
+    PRBool Remove(nsHashKey *aKey, nsISupports **value = nsnull);
     nsHashtable *Clone();
     void Enumerate(nsHashtableEnumFunc aEnumFunc, void* aClosure = NULL) {
         nsHashtable::Enumerate(aEnumFunc, aClosure);
@@ -185,10 +217,10 @@ class nsSupportsHashtable
     void Reset();
 
   private:
-    static bool ReleaseElement(nsHashKey *, void *, void *);
+    static PRBool ReleaseElement(nsHashKey *, void *, void *);
     static PLDHashOperator EnumerateCopy(PLDHashTable*,
                                          PLDHashEntryHdr* hdr,
-                                         uint32_t i, void *arg);
+                                         PRUint32 i, void *arg);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -220,11 +252,11 @@ class nsISupportsKey : public nsHashKey {
         NS_IF_RELEASE(mKey);
     }
     
-    uint32_t HashCode(void) const {
+    PRUint32 HashCode(void) const {
         return NS_PTR_TO_INT32(mKey);
     }
 
-    bool Equals(const nsHashKey *aKey) const {
+    PRBool Equals(const nsHashKey *aKey) const {
         NS_ASSERTION(aKey->GetKeyType() == SupportsKey, "mismatched key types");
         return (mKey == ((nsISupportsKey *) aKey)->mKey);
     }
@@ -235,33 +267,31 @@ class nsISupportsKey : public nsHashKey {
 
     nsISupportsKey(nsIObjectInputStream* aStream, nsresult *aResult);
     nsresult Write(nsIObjectOutputStream* aStream) const;
-
-    nsISupports* GetValue() { return mKey; }
 };
 
 
 class nsPRUint32Key : public nsHashKey {
 protected:
-    uint32_t mKey;
+    PRUint32 mKey;
 public:
-    nsPRUint32Key(uint32_t key) {
+    nsPRUint32Key(PRUint32 key) {
 #ifdef DEBUG
         mKeyType = PRUint32Key;
 #endif
         mKey = key;
     }
 
-    uint32_t HashCode(void) const {
+    PRUint32 HashCode(void) const {
         return mKey;
     }
 
-    bool Equals(const nsHashKey *aKey) const {
+    PRBool Equals(const nsHashKey *aKey) const {
         return mKey == ((const nsPRUint32Key *) aKey)->mKey;
     }
     nsHashKey *Clone() const {
         return new nsPRUint32Key(mKey);
     }
-    uint32_t GetValue() { return mKey; }
+    PRUint32 GetValue() { return mKey; }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -285,11 +315,11 @@ class nsVoidKey : public nsHashKey {
         mKey = key;
     }
     
-    uint32_t HashCode(void) const {
+    PRUint32 HashCode(void) const {
         return NS_PTR_TO_INT32(mKey);
     }
 
-    bool Equals(const nsHashKey *aKey) const {
+    PRBool Equals(const nsHashKey *aKey) const {
         NS_ASSERTION(aKey->GetKeyType() == VoidKey, "mismatched key types");
         return (mKey == ((const nsVoidKey *) aKey)->mKey);
     }
@@ -315,13 +345,13 @@ class nsCStringKey : public nsHashKey {
     };
 
     nsCStringKey(const nsCStringKey& aStrKey);
-    nsCStringKey(const char* str, int32_t strLen = -1, Ownership own = OWN_CLONE);
+    nsCStringKey(const char* str, PRInt32 strLen = -1, Ownership own = OWN_CLONE);
     nsCStringKey(const nsAFlatCString& str);
     nsCStringKey(const nsACString& str);
     ~nsCStringKey(void);
 
-    uint32_t HashCode(void) const;
-    bool Equals(const nsHashKey* aKey) const;
+    PRUint32 HashCode(void) const;
+    PRBool Equals(const nsHashKey* aKey) const;
     nsHashKey* Clone() const;
     nsCStringKey(nsIObjectInputStream* aStream, nsresult *aResult);
     nsresult Write(nsIObjectOutputStream* aStream) const;
@@ -329,11 +359,11 @@ class nsCStringKey : public nsHashKey {
     // For when the owner of the hashtable wants to peek at the actual
     // string in the key. No copy is made, so be careful.
     const char* GetString() const { return mStr; }
-    uint32_t GetStringLength() const { return mStrLen; }
+    PRUint32 GetStringLength() const { return mStrLen; }
 
   protected:
     char*       mStr;
-    uint32_t    mStrLen;
+    PRUint32    mStrLen;
     Ownership   mOwnership;
 };
 
@@ -349,13 +379,13 @@ class nsStringKey : public nsHashKey {
     };
 
     nsStringKey(const nsStringKey& aKey);
-    nsStringKey(const PRUnichar* str, int32_t strLen = -1, Ownership own = OWN_CLONE);
+    nsStringKey(const PRUnichar* str, PRInt32 strLen = -1, Ownership own = OWN_CLONE);
     nsStringKey(const nsAFlatString& str);
     nsStringKey(const nsAString& str);
     ~nsStringKey(void);
 
-    uint32_t HashCode(void) const;
-    bool Equals(const nsHashKey* aKey) const;
+    PRUint32 HashCode(void) const;
+    PRBool Equals(const nsHashKey* aKey) const;
     nsHashKey* Clone() const;
     nsStringKey(nsIObjectInputStream* aStream, nsresult *aResult);
     nsresult Write(nsIObjectOutputStream* aStream) const;
@@ -363,11 +393,11 @@ class nsStringKey : public nsHashKey {
     // For when the owner of the hashtable wants to peek at the actual
     // string in the key. No copy is made, so be careful.
     const PRUnichar* GetString() const { return mStr; }
-    uint32_t GetStringLength() const { return mStrLen; }
+    PRUint32 GetStringLength() const { return mStrLen; }
 
   protected:
     PRUnichar*  mStr;
-    uint32_t    mStrLen;
+    PRUint32    mStrLen;
     Ownership   mOwnership;
 };
 

@@ -6,7 +6,6 @@
  * here must be in strict JSON format, as it will get parsed by the Python
  * testrunner (no single quotes, extra comma's, etc).
  */
-EnableEngines(["forms"]);
 
 var phases = { "phase1": "profile1",
                "phase2": "profile2",
@@ -50,7 +49,7 @@ var formdata2 = [
 Phase('phase1', [
   [Formdata.add, formdata1],
   [Formdata.verify, formdata1],
-  [Sync]
+  [Sync, SYNC_WIPE_SERVER]
 ]);
 
 Phase('phase2', [
@@ -60,7 +59,7 @@ Phase('phase2', [
 
 Phase('phase3', [
   [Sync],
-  [Windows.add, { private: true }],
+  [SetPrivateBrowsing, true],
   [Formdata.add, formdata2],
   [Formdata.verify, formdata2],
   [Sync],

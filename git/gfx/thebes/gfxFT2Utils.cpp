@@ -1,14 +1,49 @@
 /* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Foundation code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Vladimir Vukicevic <vladimir@mozilla.com>
+ *   Masayuki Nakano <masayuki@d-toybox.com>
+ *   Behdad Esfahbod <behdad@gnome.org>
+ *   Mats Palmgren <mats.palmgren@bredband.net>
+ *   Karl Tomlinson <karlt+@karlt.net>, Mozilla Corporation
+ *   Takuro Ashie <ashie@clear-code.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "gfxFT2FontBase.h"
 #include "gfxFT2Utils.h"
-#include "mozilla/Likely.h"
 #include FT_TRUETYPE_TAGS_H
 #include FT_TRUETYPE_TABLES_H
-#include <algorithm>
 
 #ifdef HAVE_FONTCONFIG_FCFREETYPE_H
 #include <fontconfig/fcfreetype.h>
@@ -35,7 +70,7 @@ ScaleRoundDesignUnits(FT_Short aDesignMetric, FT_Fixed aScale)
 static void
 SnapLineToPixels(gfxFloat& aOffset, gfxFloat& aSize)
 {
-    gfxFloat snappedSize = std::max(floor(aSize + 0.5), 1.0);
+    gfxFloat snappedSize = NS_MAX(floor(aSize + 0.5), 1.0);
     // Correct offset for change in size
     gfxFloat offset = aOffset - 0.5 * (aSize - snappedSize);
     // Snap offset
@@ -45,12 +80,12 @@ SnapLineToPixels(gfxFloat& aOffset, gfxFloat& aSize)
 
 void
 gfxFT2LockedFace::GetMetrics(gfxFont::Metrics* aMetrics,
-                             uint32_t* aSpaceGlyph)
+                             PRUint32* aSpaceGlyph)
 {
-    NS_PRECONDITION(aMetrics != nullptr, "aMetrics must not be NULL");
-    NS_PRECONDITION(aSpaceGlyph != nullptr, "aSpaceGlyph must not be NULL");
+    NS_PRECONDITION(aMetrics != NULL, "aMetrics must not be NULL");
+    NS_PRECONDITION(aSpaceGlyph != NULL, "aSpaceGlyph must not be NULL");
 
-    if (MOZ_UNLIKELY(!mFace)) {
+    if (NS_UNLIKELY(!mFace)) {
         // No face.  This unfortunate situation might happen if the font
         // file is (re)moved at the wrong time.
         aMetrics->emHeight = mGfxFont->GetStyle()->size;
@@ -117,12 +152,10 @@ gfxFT2LockedFace::GetMetrics(gfxFont::Metrics* aMetrics,
 
         // maxAscent/maxDescent get used for frame heights, and some fonts
         // don't have the HHEA table ascent/descent set (bug 279032).
-        // We use NS_round here to parallel the pixel-rounded values that
-        // freetype gives us for ftMetrics.ascender/descender.
-        aMetrics->maxAscent =
-            std::max(aMetrics->maxAscent, NS_round(aMetrics->emAscent));
-        aMetrics->maxDescent =
-            std::max(aMetrics->maxDescent, NS_round(aMetrics->emDescent));
+        if (aMetrics->emAscent > aMetrics->maxAscent)
+            aMetrics->maxAscent = aMetrics->emAscent;
+        if (aMetrics->emDescent > aMetrics->maxDescent)
+            aMetrics->maxDescent = aMetrics->emDescent;
     } else {
         aMetrics->emAscent = aMetrics->maxAscent;
         aMetrics->emDescent = aMetrics->maxDescent;
@@ -168,10 +201,10 @@ gfxFT2LockedFace::GetMetrics(gfxFont::Metrics* aMetrics,
         gfxFloat avgCharWidth =
             ScaleRoundDesignUnits(os2->xAvgCharWidth, ftMetrics.x_scale);
         aMetrics->aveCharWidth =
-            std::max(aMetrics->aveCharWidth, avgCharWidth);
+            NS_MAX(aMetrics->aveCharWidth, avgCharWidth);
     }
     aMetrics->aveCharWidth =
-        std::max(aMetrics->aveCharWidth, aMetrics->zeroOrAveCharWidth);
+        NS_MAX(aMetrics->aveCharWidth, aMetrics->zeroOrAveCharWidth);
     if (aMetrics->aveCharWidth == 0.0) {
         aMetrics->aveCharWidth = aMetrics->spaceWidth;
     }
@@ -180,7 +213,7 @@ gfxFT2LockedFace::GetMetrics(gfxFont::Metrics* aMetrics,
     }
     // Apparently hinting can mean that max_advance is not always accurate.
     aMetrics->maxAdvance =
-        std::max(aMetrics->maxAdvance, aMetrics->aveCharWidth);
+        NS_MAX(aMetrics->maxAdvance, aMetrics->aveCharWidth);
 
     // gfxFont::Metrics::underlineOffset is the position of the top of the
     // underline.
@@ -225,7 +258,7 @@ gfxFT2LockedFace::GetMetrics(gfxFont::Metrics* aMetrics,
     if (os2 && os2->ySuperscriptYOffset) {
         gfxFloat val = ScaleRoundDesignUnits(os2->ySuperscriptYOffset,
                                              ftMetrics.y_scale);
-        aMetrics->superscriptOffset = std::max(1.0, val);
+        aMetrics->superscriptOffset = NS_MAX(1.0, val);
     } else {
         aMetrics->superscriptOffset = aMetrics->xHeight;
     }
@@ -235,7 +268,7 @@ gfxFT2LockedFace::GetMetrics(gfxFont::Metrics* aMetrics,
                                              ftMetrics.y_scale);
         // some fonts have the incorrect sign. 
         val = fabs(val);
-        aMetrics->subscriptOffset = std::max(1.0, val);
+        aMetrics->subscriptOffset = NS_MAX(1.0, val);
     } else {
         aMetrics->subscriptOffset = aMetrics->xHeight;
     }
@@ -257,7 +290,7 @@ gfxFT2LockedFace::GetMetrics(gfxFont::Metrics* aMetrics,
 
     // Text input boxes currently don't work well with lineHeight
     // significantly less than maxHeight (with Verdana, for example).
-    lineHeight = floor(std::max(lineHeight, aMetrics->maxHeight) + 0.5);
+    lineHeight = floor(NS_MAX(lineHeight, aMetrics->maxHeight) + 0.5);
     aMetrics->externalLeading =
         lineHeight - aMetrics->internalLeading - aMetrics->emHeight;
 
@@ -268,10 +301,10 @@ gfxFT2LockedFace::GetMetrics(gfxFont::Metrics* aMetrics,
     aMetrics->emDescent = aMetrics->emHeight - aMetrics->emAscent;
 }
 
-uint32_t
-gfxFT2LockedFace::GetGlyph(uint32_t aCharCode)
+PRUint32
+gfxFT2LockedFace::GetGlyph(PRUint32 aCharCode)
 {
-    if (MOZ_UNLIKELY(!mFace))
+    if (NS_UNLIKELY(!mFace))
         return 0;
 
 #ifdef HAVE_FONTCONFIG_FCFREETYPE_H
@@ -296,12 +329,12 @@ typedef FT_UInt (*GetCharVariantFunction)(FT_Face  face,
                                           FT_ULong charcode,
                                           FT_ULong variantSelector);
 
-uint32_t
-gfxFT2LockedFace::GetUVSGlyph(uint32_t aCharCode, uint32_t aVariantSelector)
+PRUint32
+gfxFT2LockedFace::GetUVSGlyph(PRUint32 aCharCode, PRUint32 aVariantSelector)
 {
     NS_PRECONDITION(aVariantSelector, "aVariantSelector should not be NULL");
 
-    if (MOZ_UNLIKELY(!mFace))
+    if (NS_UNLIKELY(!mFace))
         return 0;
 
     // This function is available from FreeType 2.3.6 (June 2008).
@@ -320,10 +353,35 @@ gfxFT2LockedFace::GetUVSGlyph(uint32_t aCharCode, uint32_t aVariantSelector)
     return (*sGetCharVariantPtr)(mFace, aCharCode, aVariantSelector);
 }
 
-uint32_t
+PRBool
+gfxFT2LockedFace::GetFontTable(PRUint32 aTag, FallibleTArray<PRUint8>& aBuffer)
+{
+    if (!mFace || !FT_IS_SFNT(mFace))
+        return PR_FALSE;
+
+    FT_ULong length = 0;
+    // TRUETYPE_TAG is defined equivalent to FT_MAKE_TAG
+    FT_Error error = FT_Load_Sfnt_Table(mFace, aTag, 0, NULL, &length);
+    if (error != 0)
+        return PR_FALSE;
+
+    if (NS_UNLIKELY(length > static_cast<FallibleTArray<PRUint8>::size_type>(-1))
+        || NS_UNLIKELY(!aBuffer.SetLength(length)))
+        return PR_FALSE;
+        
+    error = FT_Load_Sfnt_Table(mFace, aTag, 0, aBuffer.Elements(), &length);
+    if (NS_UNLIKELY(error != 0)) {
+        aBuffer.Clear();
+        return PR_FALSE;
+    }
+
+    return PR_TRUE;
+}
+
+PRUint32
 gfxFT2LockedFace::GetCharExtents(char aChar, cairo_text_extents_t* aExtents)
 {
-    NS_PRECONDITION(aExtents != nullptr, "aExtents must not be NULL");
+    NS_PRECONDITION(aExtents != NULL, "aExtents must not be NULL");
 
     if (!mFace)
         return 0;
@@ -340,12 +398,12 @@ gfxFT2LockedFace::CharVariantFunction
 gfxFT2LockedFace::FindCharVariantFunction()
 {
     // This function is available from FreeType 2.3.6 (June 2008).
-    PRLibrary *lib = nullptr;
+    PRLibrary *lib = nsnull;
     CharVariantFunction function =
         reinterpret_cast<CharVariantFunction>
         (PR_FindFunctionSymbolAndLibrary("FT_Face_GetCharVariantIndex", &lib));
     if (!lib) {
-        return nullptr;
+        return nsnull;
     }
 
     FT_Int major;
@@ -358,7 +416,7 @@ gfxFT2LockedFace::FindCharVariantFunction()
     // indicates FT_CONFIG_OPTION_OLD_INTERNALS.
     if (major == 2 && minor == 4 && patch < 4 &&
         PR_FindFunctionSymbol(lib, "FT_Alloc")) {
-        function = nullptr;
+        function = nsnull;
     }
 
     // Decrement the reference count incremented in
