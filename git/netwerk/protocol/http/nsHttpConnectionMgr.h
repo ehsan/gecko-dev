@@ -42,7 +42,6 @@
 #include "nsHttpConnectionInfo.h"
 #include "nsHttpConnection.h"
 #include "nsHttpTransaction.h"
-#include "NullHttpTransaction.h"
 #include "nsTArray.h"
 #include "nsThreadUtils.h"
 #include "nsClassHashtable.h"
@@ -57,8 +56,6 @@
 #include "nsIX509Cert3.h"
 
 class nsHttpPipeline;
-
-class nsIHttpUpgradeListener;
 
 //-----------------------------------------------------------------------------
 
@@ -134,27 +131,10 @@ public:
     // transport service is not available when the connection manager is down.
     nsresult GetSocketThreadTarget(nsIEventTarget **);
 
-    // called to indicate a transaction for the connectionInfo is likely coming
-    // soon. The connection manager may use this information to start a TCP
-    // and/or SSL level handshake for that resource immediately so that it is
-    // ready when the transaction is submitted. No obligation is taken on by the
-    // connection manager, nor is the submitter obligated to actually submit a
-    // real transaction for this connectionInfo.
-    nsresult SpeculativeConnect(nsHttpConnectionInfo *,
-                                nsIInterfaceRequestor *,
-                                nsIEventTarget *);
-
     // called when a connection is done processing a transaction.  if the 
     // connection can be reused then it will be added to the idle list, else
     // it will be closed.
     nsresult ReclaimConnection(nsHttpConnection *conn);
-
-    // called by the main thread to execute the taketransport() logic on the
-    // socket thread after a 101 response has been received and the socket
-    // needs to be transferred to an expectant upgrade listener such as
-    // websockets.
-    nsresult CompleteUpgrade(nsAHttpConnection *aConn,
-                             nsIHttpUpgradeListener *aUpgradeListener);
 
     // called to update a parameter after the connection manager has already
     // been initialized.
@@ -403,8 +383,7 @@ private:
         NS_DECL_NSITIMERCALLBACK
 
         nsHalfOpenSocket(nsConnectionEntry *ent,
-                         nsAHttpTransaction *trans,
-                         PRUint8 caps);
+                         nsHttpTransaction *trans);
         ~nsHalfOpenSocket();
         
         nsresult SetupStreams(nsISocketTransport **,
@@ -417,27 +396,14 @@ private:
         void     CancelBackupTimer();
         void     Abandon();
         
-        nsAHttpTransaction *Transaction() { return mTransaction; }
-
-        bool IsSpeculative() { return mSpeculative; }
-        void SetSpeculative(bool val) { mSpeculative = val; }
+        nsHttpTransaction *Transaction() { return mTransaction; }
 
     private:
         nsConnectionEntry              *mEnt;
-        nsRefPtr<nsAHttpTransaction>   mTransaction;
+        nsRefPtr<nsHttpTransaction>    mTransaction;
         nsCOMPtr<nsISocketTransport>   mSocketTransport;
         nsCOMPtr<nsIAsyncOutputStream> mStreamOut;
         nsCOMPtr<nsIAsyncInputStream>  mStreamIn;
-        PRUint8                        mCaps;
-
-        // mSpeculative is set if the socket was created from
-        // SpeculativeConnect(). It is cleared when a transaction would normally
-        // start a new connection from scratch but instead finds this one in
-        // the half open list and claims it for its own use. (which due to
-        // the vagaries of scheduling from the pending queue might not actually
-        // match up - but it prevents a speculative connection from opening
-        // more connections that are needed.)
-        bool                           mSpeculative;
 
         mozilla::TimeStamp             mPrimarySynStarted;
         mozilla::TimeStamp             mBackupSynStarted;
@@ -489,25 +455,16 @@ private:
     nsresult DispatchTransaction(nsConnectionEntry *,
                                  nsHttpTransaction *,
                                  nsHttpConnection *);
-    nsresult DispatchAbstractTransaction(nsConnectionEntry *,
-                                         nsAHttpTransaction *,
-                                         PRUint8,
-                                         nsHttpConnection *,
-                                         PRInt32);
     nsresult BuildPipeline(nsConnectionEntry *,
                            nsAHttpTransaction *,
                            nsHttpPipeline **);
-    bool     RestrictConnections(nsConnectionEntry *);
     nsresult ProcessNewTransaction(nsHttpTransaction *);
     nsresult EnsureSocketThreadTargetIfOnline();
     void     ClosePersistentConnections(nsConnectionEntry *ent);
-    nsresult CreateTransport(nsConnectionEntry *, nsAHttpTransaction *,
-                             PRUint8, bool);
+    nsresult CreateTransport(nsConnectionEntry *, nsHttpTransaction *);
     void     AddActiveConn(nsHttpConnection *, nsConnectionEntry *);
     void     StartedConnect();
     void     RecvdConnect();
-
-    nsConnectionEntry *GetOrCreateConnectionEntry(nsHttpConnectionInfo *);
 
     bool     MakeNewConnection(nsConnectionEntry *ent,
                                nsHttpTransaction *trans);
@@ -585,9 +542,7 @@ private:
     void OnMsgCancelTransaction    (PRInt32, void *);
     void OnMsgProcessPendingQ      (PRInt32, void *);
     void OnMsgPruneDeadConnections (PRInt32, void *);
-    void OnMsgSpeculativeConnect   (PRInt32, void *);
     void OnMsgReclaimConnection    (PRInt32, void *);
-    void OnMsgCompleteUpgrade      (PRInt32, void *);
     void OnMsgUpdateParam          (PRInt32, void *);
     void OnMsgClosePersistentConnections (PRInt32, void *);
     void OnMsgProcessFeedback      (PRInt32, void *);

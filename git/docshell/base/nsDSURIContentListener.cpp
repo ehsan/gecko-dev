@@ -68,8 +68,7 @@ nsDSURIContentListener::nsDSURIContentListener(nsDocShell* aDocShell)
   if (NS_UNLIKELY(!initializedPrefCache)) {
     // Lock the pref so that the user's changes to it, if any, are ignored.
     nsIPrefBranch *root = Preferences::GetRootBranch();
-    if (XRE_GetProcessType() != GeckoProcessType_Content)
-      root->LockPref("b2g.ignoreXFrameOptions");
+    root->LockPref("b2g.ignoreXFrameOptions");
 
     Preferences::AddBoolVarCache(&sIgnoreXFrameOptions, "b2g.ignoreXFrameOptions");
     initializedPrefCache = true;

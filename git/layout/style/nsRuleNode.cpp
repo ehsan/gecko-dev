@@ -2903,34 +2903,16 @@ nsRuleNode::SetFont(nsPresContext* aPresContext, nsStyleContext* aContext,
   // font-feature-settings
   const nsCSSValue* featureSettingsValue =
     aRuleData->ValueForFontFeatureSettings();
-
-  switch (featureSettingsValue->GetUnit()) {
-  case eCSSUnit_Null:
-    break;
-
-  case eCSSUnit_Normal:
-  case eCSSUnit_Initial:
-    aFont->mFont.fontFeatureSettings.Clear();
-    break;
-
-  case eCSSUnit_Inherit:
+  if (eCSSUnit_Inherit == featureSettingsValue->GetUnit()) {
     aCanStoreInRuleTree = false;
-    aFont->mFont.fontFeatureSettings = aParentFont->mFont.fontFeatureSettings;
-    break;
-
-  case eCSSUnit_System_Font:
-    aFont->mFont.fontFeatureSettings = systemFont.fontFeatureSettings;
-    break;
-
-  case eCSSUnit_PairList:
-  case eCSSUnit_PairListDep:
-    ComputeFontFeatures(featureSettingsValue->GetPairListValue(),
-                        aFont->mFont.fontFeatureSettings);
-    break;
-
-  default:
-    NS_ABORT_IF_FALSE(false, "unexpected value unit");
-    break;
+    aFont->mFont.featureSettings = aParentFont->mFont.featureSettings;
+  } else if (eCSSUnit_Normal == featureSettingsValue->GetUnit() ||
+             eCSSUnit_Initial == featureSettingsValue->GetUnit()) {
+    aFont->mFont.featureSettings.Truncate();
+  } else if (eCSSUnit_System_Font == featureSettingsValue->GetUnit()) {
+    aFont->mFont.featureSettings = systemFont.featureSettings;
+  } else if (eCSSUnit_String == featureSettingsValue->GetUnit()) {
+    featureSettingsValue->GetStringValue(aFont->mFont.featureSettings);
   }
 
   // font-language-override
@@ -3002,36 +2984,6 @@ nsRuleNode::SetFont(nsPresContext* aPresContext, nsStyleContext* aContext,
     SetFactor(*sizeAdjustValue, aFont->mFont.sizeAdjust,
               aCanStoreInRuleTree, aParentFont->mFont.sizeAdjust, 0.0f,
               SETFCT_NONE);
-}
-
-/* static */ void
-nsRuleNode::ComputeFontFeatures(const nsCSSValuePairList *aFeaturesList,
-                                nsTArray<gfxFontFeature>& aFeatureSettings)
-{
-  aFeatureSettings.Clear();
-  for (const nsCSSValuePairList* p = aFeaturesList; p; p = p->mNext) {
-    gfxFontFeature feat = {0, 0};
-
-    NS_ABORT_IF_FALSE(aFeaturesList->mXValue.GetUnit() == eCSSUnit_String,
-                      "unexpected value unit");
-
-    // tag is a 4-byte ASCII sequence
-    nsAutoString tag;
-    p->mXValue.GetStringValue(tag);
-    if (tag.Length() != 4) {
-      continue;
-    }
-    // parsing validates that these are ASCII chars
-    // tags are always big-endian
-    feat.mTag = (tag[0] << 24) | (tag[1] << 16) | (tag[2] << 8)  | tag[3];
-
-    // value
-    NS_ASSERTION(p->mYValue.GetUnit() == eCSSUnit_Integer,
-                 "should have found an integer unit");
-    feat.mValue = p->mYValue.GetIntValue();
-
-    aFeatureSettings.AppendElement(feat);
-  }
 }
 
 // This should die (bug 380915).
@@ -3669,7 +3621,7 @@ nsRuleNode::ComputeUserInterfaceData(void* aStartStruct,
       // that's invalid.
       NS_ABORT_IF_FALSE(cursorUnit == eCSSUnit_List ||
                         cursorUnit == eCSSUnit_ListDep,
-                        nsPrintfCString("unrecognized cursor unit %d",
+                        nsPrintfCString(64, "unrecognized cursor unit %d",
                                         cursorUnit).get());
       const nsCSSValueList* list = cursorValue->GetListValue();
       const nsCSSValueList* list2 = list;
@@ -4068,7 +4020,8 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
       transition->SetProperty(eCSSPropertyExtra_no_properties);
     } else if (property.list) {
       NS_ABORT_IF_FALSE(property.list->mValue.GetUnit() == eCSSUnit_Ident,
-                        nsPrintfCString("Invalid transition property unit %d",
+                        nsPrintfCString(64,
+                                        "Invalid transition property unit %d",
                                         property.list->mValue.GetUnit()).get());
 
       nsDependentString
@@ -4235,7 +4188,7 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
         }
         default:
           NS_ABORT_IF_FALSE(false,
-            nsPrintfCString("Invalid animation-name unit %d",
+            nsPrintfCString(64, "Invalid animation-name unit %d",
                                 animName.list->mValue.GetUnit()).get());
       }
     }
@@ -4270,7 +4223,8 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
       animation->SetDirection(NS_STYLE_ANIMATION_DIRECTION_NORMAL);
     } else if (animDirection.list) {
       NS_ABORT_IF_FALSE(animDirection.list->mValue.GetUnit() == eCSSUnit_Enumerated,
-                        nsPrintfCString("Invalid animation-direction unit %d",
+                        nsPrintfCString(64,
+                                        "Invalid animation-direction unit %d",
                                         animDirection.list->mValue.GetUnit()).get());
 
       animation->SetDirection(animDirection.list->mValue.GetIntValue());
@@ -4288,7 +4242,8 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
       animation->SetFillMode(NS_STYLE_ANIMATION_FILL_MODE_NONE);
     } else if (animFillMode.list) {
       NS_ABORT_IF_FALSE(animFillMode.list->mValue.GetUnit() == eCSSUnit_Enumerated,
-                        nsPrintfCString("Invalid animation-fill-mode unit %d",
+                        nsPrintfCString(64,
+                                        "Invalid animation-fill-mode unit %d",
                                         animFillMode.list->mValue.GetUnit()).get());
 
       animation->SetFillMode(animFillMode.list->mValue.GetIntValue());
@@ -4306,7 +4261,8 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
       animation->SetPlayState(NS_STYLE_ANIMATION_PLAY_STATE_RUNNING);
     } else if (animPlayState.list) {
       NS_ABORT_IF_FALSE(animPlayState.list->mValue.GetUnit() == eCSSUnit_Enumerated,
-                        nsPrintfCString("Invalid animation-play-state unit %d",
+                        nsPrintfCString(64,
+                                        "Invalid animation-play-state unit %d",
                                         animPlayState.list->mValue.GetUnit()).get());
 
       animation->SetPlayState(animPlayState.list->mValue.GetIntValue());
@@ -5146,7 +5102,7 @@ SetBackgroundList(nsStyleContext* aStyleContext,
 
   default:
     NS_ABORT_IF_FALSE(false,
-                      nsPrintfCString("unexpected unit %d",
+                      nsPrintfCString(32, "unexpected unit %d",
                                       aValue.GetUnit()).get());
   }
 
@@ -5221,7 +5177,7 @@ SetBackgroundPairList(nsStyleContext* aStyleContext,
 
   default:
     NS_ABORT_IF_FALSE(false,
-                      nsPrintfCString("unexpected unit %d",
+                      nsPrintfCString(32, "unexpected unit %d",
                                       aValue.GetUnit()).get());
   }
 
@@ -5517,7 +5473,7 @@ nsRuleNode::ComputeBorderData(void* aStartStruct,
 
   default:
     NS_ABORT_IF_FALSE(false,
-                      nsPrintfCString("unrecognized shadow unit %d",
+                      nsPrintfCString(64, "unrecognized shadow unit %d",
                                       boxShadowValue->GetUnit()).get());
   }
 
@@ -6368,7 +6324,7 @@ nsRuleNode::ComputeContentData(void* aStartStruct,
 
   default:
     NS_ABORT_IF_FALSE(false,
-                      nsPrintfCString("unrecognized content unit %d",
+                      nsPrintfCString(64, "unrecognized content unit %d",
                                       contentValue->GetUnit()).get());
   }
 

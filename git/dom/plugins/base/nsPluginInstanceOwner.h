@@ -52,12 +52,10 @@
 #include "nsCOMPtr.h"
 #include "nsIPluginInstanceOwner.h"
 #include "nsIPluginTagInfo.h"
-#include "nsIPrivacyTransitionObserver.h"
 #include "nsIDOMEventListener.h"
 #include "nsIScrollPositionListener.h"
 #include "nsPluginHost.h"
 #include "nsPluginNativeWindow.h"
-#include "nsWeakReference.h"
 #include "gfxRect.h"
 
 // X.h defines KeyPress
@@ -105,9 +103,7 @@ namespace mozilla {
 class nsPluginInstanceOwner : public nsIPluginInstanceOwner,
                               public nsIPluginTagInfo,
                               public nsIDOMEventListener,
-                              public nsIScrollPositionListener,
-                              public nsIPrivacyTransitionObserver,
-                              public nsSupportsWeakReference
+                              public nsIScrollPositionListener
 {
 public:
   nsPluginInstanceOwner();
@@ -115,7 +111,6 @@ public:
   
   NS_DECL_ISUPPORTS
   NS_DECL_NSIPLUGININSTANCEOWNER
-  NS_DECL_NSIPRIVACYTRANSITIONOBSERVER
   
   NS_IMETHOD GetURL(const char *aURL, const char *aTarget,
                     nsIInputStream *aPostStream, 

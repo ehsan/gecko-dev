@@ -11,32 +11,6 @@ function open_ctypes_test_lib()
 }
 
 /**
- * A weak set of CDataFinalizer values that need to be cleaned up before
- * proceeding to the next test.
- */
-function ResourceCleaner() {
-  this._map = new WeakMap();
-}
-ResourceCleaner.prototype = {
-  add: function ResourceCleaner_add(v) {
-    this._map.set(v);
-    return v;
-  },
-  cleanup: function ResourceCleaner_cleanup() {
-    let keys = Components.utils.nondeterministicGetWeakMapKeys(this._map);
-    keys.forEach((function cleaner(k) {
-      try {
-        k.dispose();
-      } catch (x) {
-        // This can fail if |forget|/|dispose| has been called manually
-        // during the test. This is normal.
-      }
-      this._map.delete(k);
-    }).bind(this));
-  }
-};
-
-/**
  * Simple wrapper for tests that require cleanup.
  */
 function ResourceTester(start, stop) {
@@ -45,18 +19,15 @@ function ResourceTester(start, stop) {
 }
 ResourceTester.prototype = {
   launch: function(size, test, args) {
-    trigger_gc();
-    let cleaner = new ResourceCleaner();
+    Components.utils.forceGC();
     this._start(size);
     try {
-      test(size, args, cleaner);
+      test(size, args);
     } catch (x) {
-      cleaner.cleanup();
       this._stop();
       throw x;
     }
-    trigger_gc();
-    cleaner.cleanup();
+    Components.utils.forceGC();
     this._stop();
   }
 };
@@ -105,19 +76,4 @@ function structural_check_eq_aux(a, b) {
       structural_check_eq_aux(av, bv);
     }
   );
-}
-
-function trigger_gc() {
-  dump("Triggering garbage-collection");
-  Components.utils.forceGC();
-}
-
-function must_throw(f) {
-  let has_thrown = false;
-  try {
-    f();
-  } catch (x) {
-    has_thrown = true;
-  }
-  do_check_true(has_thrown);
 }

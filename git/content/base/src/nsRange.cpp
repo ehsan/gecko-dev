@@ -83,6 +83,9 @@ nsresult NS_NewContentSubtreeIterator(nsIContentIterator** aInstancePtrResult);
     if (!nsContentUtils::CanCallerAccess(node_)) {                                 \
       return NS_ERROR_DOM_SECURITY_ERR;                                            \
     }                                                                              \
+    if (mIsDetached) {                                                             \
+      return NS_ERROR_DOM_INVALID_STATE_ERR;                                       \
+    }                                                                              \
   PR_END_MACRO
 
 static void InvalidateAllFrames(nsINode* aNode)
@@ -650,6 +653,9 @@ nsRange::IsPointInRange(nsIDOMNode* aParent, PRInt32 aOffset, bool* aResult)
 NS_IMETHODIMP
 nsRange::ComparePoint(nsIDOMNode* aParent, PRInt32 aOffset, PRInt16* aResult)
 {
+  if (mIsDetached)
+    return NS_ERROR_DOM_INVALID_STATE_ERR;
+
   // our range is in a good state?
   if (!mIsPositioned) 
     return NS_ERROR_NOT_INITIALIZED;
@@ -749,7 +755,8 @@ nsRange::DoSetRange(nsINode* aStartN, PRInt32 aStartOffset,
       if (newCommonAncestor) {
         RegisterCommonAncestor(newCommonAncestor);
       } else {
-        NS_ASSERTION(!mIsPositioned, "unexpected disconnected nodes");
+        NS_ASSERTION(mIsDetached || !mIsPositioned,
+                     "unexpected disconnected nodes");
         mInSelection = false;
       }
     }
@@ -837,6 +844,8 @@ nsRange::GetEndOffset(PRInt32* aEndOffset)
 NS_IMETHODIMP
 nsRange::GetCollapsed(bool* aIsCollapsed)
 {
+  if(mIsDetached)
+    return NS_ERROR_DOM_INVALID_STATE_ERR;
   if (!mIsPositioned)
     return NS_ERROR_NOT_INITIALIZED;
 
@@ -849,6 +858,8 @@ NS_IMETHODIMP
 nsRange::GetCommonAncestorContainer(nsIDOMNode** aCommonParent)
 {
   *aCommonParent = nsnull;
+  if(mIsDetached)
+    return NS_ERROR_DOM_INVALID_STATE_ERR;
   if (!mIsPositioned)
     return NS_ERROR_NOT_INITIALIZED;
 
@@ -1038,6 +1049,8 @@ nsRange::SetEndAfter(nsIDOMNode* aSibling)
 NS_IMETHODIMP
 nsRange::Collapse(bool aToStart)
 {
+  if(mIsDetached)
+    return NS_ERROR_DOM_INVALID_STATE_ERR;
   if (!mIsPositioned)
     return NS_ERROR_NOT_INITIALIZED;
 
@@ -1489,6 +1502,9 @@ nsresult nsRange::CutContents(nsIDOMDocumentFragment** aFragment)
     *aFragment = nsnull;
   }
 
+  if (IsDetached())
+    return NS_ERROR_DOM_INVALID_STATE_ERR;
+
   nsresult rv;
 
   nsCOMPtr<nsIDocument> doc = mStartParent->OwnerDoc();
@@ -1766,6 +1782,8 @@ nsRange::CompareBoundaryPoints(PRUint16 aHow, nsIDOMRange* aOtherRange,
   nsRange* otherRange = static_cast<nsRange*>(aOtherRange);
   NS_ENSURE_TRUE(otherRange, NS_ERROR_NULL_POINTER);
 
+  if(mIsDetached || otherRange->IsDetached())
+    return NS_ERROR_DOM_INVALID_STATE_ERR;
   if (!mIsPositioned || !otherRange->IsPositioned())
     return NS_ERROR_NOT_INITIALIZED;
 
@@ -1865,6 +1883,9 @@ nsRange::CloneParentsBetween(nsIDOMNode *aAncestor,
 NS_IMETHODIMP
 nsRange::CloneContents(nsIDOMDocumentFragment** aReturn)
 {
+  if (IsDetached())
+    return NS_ERROR_DOM_INVALID_STATE_ERR;
+
   nsresult res;
   nsCOMPtr<nsIDOMNode> commonAncestor;
   res = GetCommonAncestorContainer(getter_AddRefs(commonAncestor));
@@ -2057,6 +2078,9 @@ nsRange::CloneContents(nsIDOMDocumentFragment** aReturn)
 nsresult
 nsRange::CloneRange(nsRange** aReturn) const
 {
+  if(mIsDetached)
+    return NS_ERROR_DOM_INVALID_STATE_ERR;
+
   if (aReturn == 0)
     return NS_ERROR_NULL_POINTER;
 
@@ -2240,6 +2264,9 @@ nsRange::SurroundContents(nsIDOMNode* aNewParent)
 NS_IMETHODIMP
 nsRange::ToString(nsAString& aReturn)
 { 
+  if(mIsDetached)
+    return NS_ERROR_DOM_INVALID_STATE_ERR;
+
   // clear the string
   aReturn.Truncate();
   
@@ -2331,8 +2358,17 @@ nsRange::ToString(nsAString& aReturn)
 NS_IMETHODIMP
 nsRange::Detach()
 {
-  // No-op, but still set mIsDetached for telemetry (bug 702948)
+  if(mIsDetached)
+    return NS_ERROR_DOM_INVALID_STATE_ERR;
+
+  if (IsInSelection()) {
+    ::InvalidateAllFrames(GetRegisteredCommonAncestor());
+  }
+
   mIsDetached = true;
+
+  DoSetRange(nsnull, 0, nsnull, 0, nsnull);
+  
   return NS_OK;
 }
 

@@ -2558,13 +2558,13 @@ PluginInstanceChild::AnswerHandleKeyEvent(const nsKeyEvent& aKeyEvent,
     AssertPluginThread();
 #if defined(MOZ_WIDGET_QT) && (MOZ_PLATFORM_MAEMO == 6)
     Qt::KeyboardModifiers modifier;
-    if (aKeyEvent.IsShift())
+    if (aKeyEvent.isShift)
         modifier |= Qt::ShiftModifier;
-    if (aKeyEvent.IsControl())
+    if (aKeyEvent.isControl)
         modifier |= Qt::ControlModifier;
-    if (aKeyEvent.IsAlt())
+    if (aKeyEvent.isAlt)
         modifier |= Qt::AltModifier;
-    if (aKeyEvent.IsMeta())
+    if (aKeyEvent.isMeta)
         modifier |= Qt::MetaModifier;
 
     QEvent::Type type;

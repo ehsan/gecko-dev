@@ -556,7 +556,7 @@ abstract public class GeckoApp
             int sh = tab.getMinScreenshotHeight();
             int dw = tab.getThumbnailWidth();
             int dh = tab.getThumbnailHeight();
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createScreenshotEvent(tab.getId(), 0, 0, sw, sh, 0, 0, dw, dh, GeckoAppShell.SCREENSHOT_THUMBNAIL));
+            GeckoAppShell.sendEventToGecko(GeckoEvent.createScreenshotEvent(tab.getId(), sw, sh, dw, dh));
         }
     }
     
@@ -1193,8 +1193,7 @@ abstract public class GeckoApp
         tab.updateURL(uri);
         tab.setState(Tab.STATE_LOADING);
         tab.updateSecurityMode("unknown");
-        if (Tabs.getInstance().isSelectedTab(tab))
-            getLayerController().getView().getRenderer().resetCheckerboard();
+
         mMainHandler.post(new Runnable() {
             public void run() {
                 if (Tabs.getInstance().isSelectedTab(tab)) {
@@ -1224,11 +1223,6 @@ abstract public class GeckoApp
         GeckoAppShell.getHandler().postDelayed(new Runnable() {
             public void run() {
                 getAndProcessThumbnailForTab(tab);
-                if (Tabs.getInstance().isSelectedTab(tab)) {
-                    GeckoAppShell.sendEventToGecko(GeckoEvent.createStartPaintListentingEvent(tab.getId()));
-                    GeckoAppShell.screenshotWholePage(tab);
-                }
-
             }
         }, 500);
     }
@@ -2158,7 +2152,6 @@ abstract public class GeckoApp
         if (checkLaunchState(LaunchState.GeckoRunning))
             GeckoAppShell.onLowMemory();
         super.onLowMemory();
-        GeckoAppShell.geckoEventSync();
     }
 
     @Override
@@ -2682,12 +2675,10 @@ abstract public class GeckoApp
     static abstract class FilePickerResultHandler implements ActivityResultHandler {
         String handleActivityResult(int resultCode, Intent data) {
             if (data == null && resultCode != RESULT_OK)
-                return "";
+                return null;
             Uri uri = data.getData();
-            if ("file".equals(uri.getScheme())) {
-                String path = uri.getPath();
-                return path == null ? "" : path;
-            }
+            if ("file".equals(uri.getScheme()))
+                return uri.getPath();
             try {
                 ContentResolver cr = GeckoApp.mAppContext.getContentResolver();
                 Cursor cursor = cr.query(uri, new String[] { OpenableColumns.DISPLAY_NAME },
@@ -2722,12 +2713,11 @@ abstract public class GeckoApp
                     len = is.read(buf);
                 }
                 fos.close();
-                String path = file.getAbsolutePath();
-                return path == null ? "" : path;
+                return file.getAbsolutePath();
             } catch (Exception e) {
                 Log.e(LOGTAG, "showing file picker", e);
             }
-            return "";
+            return null;
         }
     }
 

@@ -40,7 +40,6 @@
 
 // NOTE: alphabetically ordered
 #include "Accessible-inl.h"
-#include "ApplicationAccessibleWrap.h"
 #include "ARIAGridAccessibleWrap.h"
 #ifdef MOZ_ACCESSIBILITY_ATK
 #include "AtkSocketAccessible.h"
@@ -49,6 +48,7 @@
 #include "nsAccessiblePivot.h"
 #include "nsAccUtils.h"
 #include "nsARIAMap.h"
+#include "nsApplicationAccessibleWrap.h"
 #include "nsIAccessibleProvider.h"
 #include "nsHTMLCanvasAccessible.h"
 #include "nsHTMLImageMapAccessible.h"
@@ -427,16 +427,6 @@ nsAccessibilityService::CreateHTMLTableCellAccessible(nsIContent* aContent,
 }
 
 already_AddRefed<nsAccessible>
-nsAccessibilityService::CreateHTMLTableRowAccessible(nsIContent* aContent,
-                                                     nsIPresShell* aPresShell)
-{
-  nsAccessible* accessible =
-    new nsEnumRoleAccessible(aContent, GetDocAccessible(aPresShell), roles::ROW);
-  NS_ADDREF(accessible);
-  return accessible;
-}
-
-already_AddRefed<nsAccessible>
 nsAccessibilityService::CreateHTMLTextAccessible(nsIContent* aContent,
                                                  nsIPresShell* aPresShell)
 {
@@ -678,7 +668,7 @@ nsAccessibilityService::RecreateAccessible(nsIPresShell* aPresShell,
 // nsIAccessibleRetrieval
 
 NS_IMETHODIMP
-nsAccessibilityService::GetApplicationAccessible(nsIAccessible** aAccessibleApplication)
+nsAccessibilityService::GetApplicationAccessible(nsIAccessible **aAccessibleApplication)
 {
   NS_ENSURE_ARG_POINTER(aAccessibleApplication);
 
@@ -1694,6 +1684,13 @@ nsAccessibilityService::CreateHTMLAccessibleByMarkup(nsIFrame* aFrame,
     return accessible;
   }
 
+  if (tag == nsGkAtoms::tr) {
+    nsAccessible* accessible = new nsEnumRoleAccessible(aContent, aDoc,
+                                                        roles::ROW);
+    NS_IF_ADDREF(accessible);
+    return accessible;
+  }
+
   if (nsCoreUtils::IsHTMLTableHeader(aContent)) {
     nsAccessible* accessible = new nsHTMLTableHeaderCellAccessibleWrap(aContent,
                                                                        aDoc);
@@ -1724,7 +1721,7 @@ nsAccessible*
 nsAccessibilityService::AddNativeRootAccessible(void* aAtkAccessible)
  {
 #ifdef MOZ_ACCESSIBILITY_ATK
-  ApplicationAccessible* applicationAcc =
+  nsApplicationAccessible* applicationAcc =
     nsAccessNode::GetApplicationAccessible();
   if (!applicationAcc)
     return nsnull;
@@ -1745,7 +1742,7 @@ void
 nsAccessibilityService::RemoveNativeRootAccessible(nsAccessible* aAccessible)
 {
 #ifdef MOZ_ACCESSIBILITY_ATK
-  ApplicationAccessible* applicationAcc =
+  nsApplicationAccessible* applicationAcc =
     nsAccessNode::GetApplicationAccessible();
 
   if (applicationAcc)

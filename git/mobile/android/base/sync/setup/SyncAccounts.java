@@ -228,25 +228,12 @@ public class SyncAccounts {
     return account;
   }
 
-  public static void setIsSyncable(Account account, boolean isSyncable) {
+  protected static void setSyncAutomatically(Account account) {
+    ContentResolver.setMasterSyncAutomatically(true);
     String authority = BrowserContract.AUTHORITY;
-    ContentResolver.setIsSyncable(account, authority, isSyncable ? 1 : 0);
-  }
-
-  public static void setSyncAutomatically(Account account, boolean syncAutomatically) {
-    if (syncAutomatically) {
-      ContentResolver.setMasterSyncAutomatically(true);
-    }
-
-    String authority = BrowserContract.AUTHORITY;
-    Logger.debug(LOG_TAG, "Setting authority " + authority + " to " +
-                          (syncAutomatically ? "" : "not ") + "sync automatically.");
-    ContentResolver.setSyncAutomatically(account, authority, syncAutomatically);
-  }
-
-  public static void setSyncAutomatically(Account account) {
-    setSyncAutomatically(account, true);
-    setIsSyncable(account, true);
+    Logger.debug(LOG_TAG, "Setting authority " + authority + " to sync automatically.");
+    ContentResolver.setSyncAutomatically(account, authority, true);
+    ContentResolver.setIsSyncable(account, authority, 1);
   }
 
   protected static void setClientRecord(Context context, AccountManager accountManager, Account account,

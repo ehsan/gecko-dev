@@ -154,23 +154,6 @@ MakeGraphiteLangTag(PRUint32 aTag)
     return grLangTag;
 }
 
-struct GrFontFeatures {
-    gr_face        *mFace;
-    gr_feature_val *mFeatures;
-};
-
-static PLDHashOperator
-AddFeature(const PRUint32& aTag, PRUint32& aValue, void *aUserArg)
-{
-    GrFontFeatures *f = static_cast<GrFontFeatures*>(aUserArg);
-
-    const gr_feature_ref* fref = gr_face_find_fref(f->mFace, aTag);
-    if (fref) {
-        gr_fref_set_feature_value(fref, aValue, f->mFeatures);
-    }
-    return PL_DHASH_NEXT;
-}
-
 bool
 gfxGraphiteShaper::ShapeWord(gfxContext      *aContext,
                              gfxShapedWord   *aShapedWord,
@@ -214,21 +197,32 @@ gfxGraphiteShaper::ShapeWord(gfxContext      *aContext,
     }
     gr_feature_val *grFeatures = gr_face_featureval_for_lang(mGrFace, grLang);
 
-    nsDataHashtable<nsUint32HashKey,PRUint32> mergedFeatures;
+    if (aShapedWord->DisableLigatures()) {
+        const gr_feature_ref* fref =
+            gr_face_find_fref(mGrFace, TRUETYPE_TAG('l','i','g','a'));
+        if (fref) {
+            gr_fref_set_feature_value(fref, 0, grFeatures);
+        }
+    }
 
-    if (MergeFontFeatures(style->featureSettings, entry->mFeatureSettings,
-                          aShapedWord->DisableLigatures(), mergedFeatures)) {
-        // enumerate result and insert into Graphite feature list
-        GrFontFeatures f = {mGrFace, grFeatures};
-        mergedFeatures.Enumerate(AddFeature, &f);
+    const nsTArray<gfxFontFeature> *features = &style->featureSettings;
+    if (features->IsEmpty()) {
+        features = &entry->mFeatureSettings;
+    }
+    for (PRUint32 i = 0; i < features->Length(); ++i) {
+        const gr_feature_ref* fref =
+            gr_face_find_fref(mGrFace, (*features)[i].mTag);
+        if (fref) {
+            gr_fref_set_feature_value(fref, (*features)[i].mValue, grFeatures);
+        }
     }
 
     gr_segment *seg = gr_make_seg(mGrFont, mGrFace, 0, grFeatures,
                                   gr_utf16, aText, aShapedWord->Length(),
                                   aShapedWord->IsRightToLeft());
-
-    gr_featureval_destroy(grFeatures);
-
+    if (features) {
+        gr_featureval_destroy(grFeatures);
+    }
     if (!seg) {
         return false;
     }

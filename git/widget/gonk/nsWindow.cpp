@@ -681,8 +681,6 @@ nsScreenGonk::SetRotation(PRUint32 aRotation)
                                sVirtualBounds.height,
                                !i);
 
-    nsAppShell::NotifyScreenRotation();
-
     return NS_OK;
 }
 

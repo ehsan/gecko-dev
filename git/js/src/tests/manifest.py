@@ -4,6 +4,7 @@
 
 import os, os.path, re, sys
 from subprocess import *
+from datetime import datetime
 
 from tests import TestCase
 
@@ -49,10 +50,10 @@ class XULInfo:
 
         path = None
         for dir in dirs:
-            _path = os.path.join(dir, 'config/autoconf.mk')
-            if os.path.isfile(_path):
-                path = _path
-                break
+          _path = os.path.join(dir, 'config/autoconf.mk')
+          if os.path.isfile(_path):
+              path = _path
+              break
 
         if path == None:
             print ("Can't find config/autoconf.mk on a directory containing the JS shell"

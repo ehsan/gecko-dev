@@ -97,8 +97,7 @@ public class GeckoEvent {
     private static final int UNUSED2_EVENT = 26;
     private static final int SCREENORIENTATION_CHANGED = 27;
     private static final int COMPOSITOR_PAUSE = 28;
-    private static final int COMPOSITOR_RESUME = 29;
-    private static final int PAINT_LISTEN_START_EVENT = 30;
+    private static final int COMPOSITOR_RESUME = 29;     
 
     public static final int IME_COMPOSITION_END = 0;
     public static final int IME_COMPOSITION_BEGIN = 1;
@@ -479,27 +478,18 @@ public class GeckoEvent {
         return event;
     }
 
-    public static GeckoEvent createScreenshotEvent(int tabId, int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh, int token) {
+    public static GeckoEvent createScreenshotEvent(int tabId, int sw, int sh, int dw, int dh) {
         GeckoEvent event = new GeckoEvent(SCREENSHOT);
-        event.mPoints = new Point[4];
-        event.mPoints[0] = new Point(sx, sy);
-        event.mPoints[1] = new Point(sw, sh);
-        event.mPoints[2] = new Point(dx, dy);
-        event.mPoints[3] = new Point(dw, dh);
+        event.mPoints = new Point[2];
+        event.mPoints[0] = new Point(sw, sh);
+        event.mPoints[1] = new Point(dw, dh);
         event.mMetaState = tabId;
-        event.mFlags = token;
         return event;
     }
 
     public static GeckoEvent createScreenOrientationEvent(short aScreenOrientation) {
         GeckoEvent event = new GeckoEvent(SCREENORIENTATION_CHANGED);
         event.mScreenOrientation = aScreenOrientation;
-        return event;
-    }
-
-    public static GeckoEvent createStartPaintListentingEvent(int tabId) {
-        GeckoEvent event = new GeckoEvent(PAINT_LISTEN_START_EVENT);
-        event.mMetaState = tabId;
         return event;
     }
 }

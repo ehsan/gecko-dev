@@ -184,8 +184,7 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
                               new String[] { Combined._ID,
                                              Combined.URL,
                                              Combined.TITLE,
-                                             Combined.FAVICON,
-                                             Combined.BOOKMARK_ID },
+                                             Combined.FAVICON },
                               constraint,
                               limit,
                               null);
@@ -270,14 +269,13 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
     }
 
     public Cursor getRecentHistory(ContentResolver cr, int limit) {
-        Cursor c = cr.query(combinedUriWithLimit(limit),
-                            new String[] { Combined._ID,
-                                           Combined.BOOKMARK_ID,
-                                           Combined.URL,
-                                           Combined.TITLE,
-                                           Combined.FAVICON,
-                                           Combined.DATE_LAST_VISITED,
-                                           Combined.VISITS },
+        Cursor c = cr.query(historyUriWithLimit(limit),
+                            new String[] { History._ID,
+                                           History.URL,
+                                           History.TITLE,
+                                           History.FAVICON,
+                                           History.DATE_LAST_VISITED,
+                                           History.VISITS },
                             History.DATE_LAST_VISITED + " > 0",
                             null,
                             History.DATE_LAST_VISITED + " DESC");

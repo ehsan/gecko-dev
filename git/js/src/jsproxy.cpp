@@ -466,9 +466,9 @@ ParsePropertyDescriptorObject(JSContext *cx, JSObject *obj, jsid id, const Value
     if (!d || !d->initialize(cx, v))
         return false;
     desc->obj = obj;
-    desc->value = d->hasValue() ? d->value() : UndefinedValue();
-    JS_ASSERT(!(d->attributes() & JSPROP_SHORTID));
-    desc->attrs = d->attributes();
+    desc->value = d->value;
+    JS_ASSERT(!(d->attrs & JSPROP_SHORTID));
+    desc->attrs = d->attrs;
     desc->getter = d->getter();
     desc->setter = d->setter();
     desc->shortid = 0;
@@ -1251,8 +1251,6 @@ proxy_DeleteSpecial(JSContext *cx, JSObject *obj, SpecialId sid, Value *rval, JS
 static void
 proxy_TraceObject(JSTracer *trc, JSObject *obj)
 {
-    // NB: If you add new slots here, make sure to change
-    // js::NukeChromeCrossCompartmentWrappers to cope.
     GetProxyHandler(obj)->trace(trc, obj);
     MarkCrossCompartmentSlot(trc, &obj->getReservedSlotRef(JSSLOT_PROXY_PRIVATE), "private");
     MarkCrossCompartmentSlot(trc, &obj->getReservedSlotRef(JSSLOT_PROXY_EXTRA + 0), "extra0");
@@ -1262,8 +1260,6 @@ proxy_TraceObject(JSTracer *trc, JSObject *obj)
 static void
 proxy_TraceFunction(JSTracer *trc, JSObject *obj)
 {
-    // NB: If you add new slots here, make sure to change
-    // js::NukeChromeCrossCompartmentWrappers to cope.
     MarkCrossCompartmentSlot(trc, &GetCall(obj), "call");
     MarkCrossCompartmentSlot(trc, &GetFunctionProxyConstruct(obj), "construct");
     proxy_TraceObject(trc, obj);

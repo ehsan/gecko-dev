@@ -93,13 +93,19 @@ struct ParamTraits<nsInputEvent>
   static void Write(Message* aMsg, const paramType& aParam)
   {
     WriteParam(aMsg, static_cast<nsGUIEvent>(aParam));
-    WriteParam(aMsg, aParam.modifiers);
+    WriteParam(aMsg, aParam.isShift);
+    WriteParam(aMsg, aParam.isControl);
+    WriteParam(aMsg, aParam.isAlt);
+    WriteParam(aMsg, aParam.isMeta);
   }
 
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
   {
     return ReadParam(aMsg, aIter, static_cast<nsGUIEvent*>(aResult)) &&
-           ReadParam(aMsg, aIter, &aResult->modifiers);
+           ReadParam(aMsg, aIter, &aResult->isShift) &&
+           ReadParam(aMsg, aIter, &aResult->isControl) &&
+           ReadParam(aMsg, aIter, &aResult->isAlt) &&
+           ReadParam(aMsg, aIter, &aResult->isMeta);
   }
 };
 
@@ -112,7 +118,6 @@ struct ParamTraits<nsMouseEvent_base>
   {
     WriteParam(aMsg, static_cast<nsInputEvent>(aParam));
     WriteParam(aMsg, aParam.button);
-    WriteParam(aMsg, aParam.buttons);
     WriteParam(aMsg, aParam.pressure);
     WriteParam(aMsg, aParam.inputSource);
   }
@@ -121,7 +126,6 @@ struct ParamTraits<nsMouseEvent_base>
   {
     return ReadParam(aMsg, aIter, static_cast<nsInputEvent*>(aResult)) &&
            ReadParam(aMsg, aIter, &aResult->button) &&
-           ReadParam(aMsg, aIter, &aResult->buttons) &&
            ReadParam(aMsg, aIter, &aResult->pressure) &&
            ReadParam(aMsg, aIter, &aResult->inputSource);
   }

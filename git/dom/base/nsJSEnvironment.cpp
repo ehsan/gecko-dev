@@ -1543,6 +1543,8 @@ nsJSContext::CompileScript(const PRUnichar* aText,
   if (!script) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
+  NS_ASSERTION(aScriptObject.getScriptTypeID()==JAVASCRIPT,
+               "Expecting JS script object holder");
   return aScriptObject.set(script);
 }
 
@@ -1735,6 +1737,8 @@ nsJSContext::CompileEventHandler(nsIAtom *aName,
   }
 
   JSObject *handler = ::JS_GetFunctionObject(fun);
+  NS_ASSERTION(aHandler.getScriptTypeID()==JAVASCRIPT,
+               "Expecting JS script object holder");
   return aHandler.set(handler);
 }
 

@@ -62,7 +62,6 @@
 #include "nsLayoutUtils.h"
 #include "nsINameSpaceManager.h"
 #include "nsBlockFrame.h"
-#include "sampler.h"
 
 #include "gfxContext.h"
 
@@ -1571,7 +1570,6 @@ nsCSSBorderRenderer::DrawBorders()
     DrawBorderSides(SIDE_BITS_ALL);
     SN("---------------- (1)");
   } else {
-    SAMPLE_LABEL("nsCSSBorderRenderer", "DrawBorders::multipass");
     /* We have more than one pass to go.  Draw the corners separately from the sides. */
 
     /*

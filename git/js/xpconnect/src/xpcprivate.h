@@ -537,11 +537,16 @@ public:
     virtual void NotifyEnterCycleCollectionThread();
     virtual void NotifyLeaveCycleCollectionThread();
     virtual void NotifyEnterMainThread();
-    virtual nsresult BeginCycleCollection(nsCycleCollectionTraversalCallback &cb);
+    virtual nsresult BeginCycleCollection(nsCycleCollectionTraversalCallback &cb,
+                                          bool explainExpectedLiveGarbage);
     virtual nsresult FinishTraverse();
+    virtual nsresult FinishCycleCollection();
     virtual nsCycleCollectionParticipant *ToParticipant(void *p);
     virtual bool NeedCollect();
     virtual void Collect(PRUint32 reason, PRUint32 kind);
+#ifdef DEBUG_CC
+    virtual void PrintAllReferencesTo(void *p);
+#endif
 
     XPCCallContext *GetCycleCollectionContext()
     {
@@ -593,6 +598,9 @@ private:
     // an 'after' notification without getting an 'on' notification. If we don't
     // watch out for this, we'll do an unmatched |pop| on the context stack.
     PRUint16                   mEventDepth;
+#ifdef DEBUG_CC
+    PLDHashTable             mJSRoots;
+#endif
     nsAutoPtr<XPCCallContext> mCycleCollectionContext;
 
     typedef nsBaseHashtable<nsPtrHashKey<void>, nsISupports*, nsISupports*> ScopeSet;
@@ -787,9 +795,9 @@ public:
         return gNewDOMBindingsEnabled;
     }
 
-    bool ExperimentalBindingsEnabled()
+    bool ParisBindingsEnabled()
     {
-        return gExperimentalBindingsEnabled;
+        return gParisBindingsEnabled;
     }
 
     size_t SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf);
@@ -804,7 +812,7 @@ private:
     static void WatchdogMain(void *arg);
 
     static bool gNewDOMBindingsEnabled;
-    static bool gExperimentalBindingsEnabled;
+    static bool gParisBindingsEnabled;
 
     static const char* mStrings[IDX_TOTAL_COUNT];
     jsid mStrIDs[IDX_TOTAL_COUNT];
@@ -1302,13 +1310,12 @@ public:
     XPCCallContext &GetXPCCallContext()
     {
         if (!mCcx) {
-            XPCCallContext *data = mData.addr();
             mCcxToDestroy = mCcx =
-                new (data) XPCCallContext(mCallerLanguage, mCx,
-                                          mCallBeginRequest == CALL_BEGINREQUEST,
-                                          mObj,
-                                          mFlattenedJSObject, mWrapper,
-                                          mTearOff);
+                new (mData) XPCCallContext(mCallerLanguage, mCx,
+                                           mCallBeginRequest == CALL_BEGINREQUEST,
+                                           mObj,
+                                           mFlattenedJSObject, mWrapper,
+                                           mTearOff);
             if (!mCcx->IsValid()) {
                 NS_ERROR("This is not supposed to fail!");
             }
@@ -1336,7 +1343,7 @@ private:
     JSObject *mFlattenedJSObject;
     XPCWrappedNative *mWrapper;
     XPCWrappedNativeTearOff *mTearOff;
-    mozilla::AlignedStorage2<XPCCallContext> mData;
+    char mData[sizeof(XPCCallContext)];
 };
 
 /***************************************************************************
@@ -1622,9 +1629,9 @@ public:
         return mNewDOMBindingsEnabled;
     }
 
-    JSBool ExperimentalBindingsEnabled()
+    JSBool ParisBindingsEnabled()
     {
-        return mExperimentalBindingsEnabled;
+        return mParisBindingsEnabled;
     }
 
 protected:
@@ -1668,7 +1675,7 @@ private:
     nsDataHashtable<nsDepCharHashKey, JSObject*> mCachedDOMPrototypes;
 
     JSBool mNewDOMBindingsEnabled;
-    JSBool mExperimentalBindingsEnabled;
+    JSBool mParisBindingsEnabled;
 };
 
 /***************************************************************************/

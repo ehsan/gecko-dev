@@ -50,17 +50,15 @@ typedef struct JSProperty JSProperty;
 namespace js {
 
 /*
- * ArrayBufferObject
+ * ArrayBuffer
  *
- * This class holds the underlying raw buffer that the various ArrayBufferView
- * subclasses (DataView and the TypedArrays) access. It can be created
- * explicitly and passed to an ArrayBufferView subclass, or can be created
- * implicitly by constructing a TypedArray with a size.
+ * This class holds the underlying raw buffer that the TypedArray
+ * subclasses access.  It can be created explicitly and passed to a
+ * TypedArray subclass, or can be created implicitly by constructing a
+ * TypedArray with a size.
  */
-class ArrayBufferObject : public JSObject
-{
-  public:
-    static Class protoClass;
+struct ArrayBuffer {
+    static Class slowClass;
     static JSPropertySpec jsprops[];
     static JSFunctionSpec jsfuncs[];
 
@@ -70,10 +68,16 @@ class ArrayBufferObject : public JSObject
 
     static JSBool class_constructor(JSContext *cx, unsigned argc, Value *vp);
 
-    static JSObject *create(JSContext *cx, uint32_t nbytes, uint8_t *contents = NULL);
+    static JSObject *create(JSContext *cx, int32_t nbytes, uint8_t *contents = NULL);
 
-    static JSObject *createSlice(JSContext *cx, ArrayBufferObject &arrayBuffer,
+    static JSObject *createSlice(JSContext *cx, JSObject *arrayBuffer,
                                  uint32_t begin, uint32_t end);
+
+    ArrayBuffer()
+    {
+    }
+
+    ~ArrayBuffer();
 
     static void
     obj_trace(JSTracer *trc, JSObject *obj);
@@ -163,19 +167,6 @@ class ArrayBufferObject : public JSObject
 
     static JSObject *
     getArrayBuffer(JSObject *obj);
-
-    bool
-    allocateSlots(JSContext *cx, uint32_t size, uint8_t *contents = NULL);
-
-    inline uint32_t byteLength() const;
-
-    inline uint8_t * dataPointer() const;
-
-   /*
-     * Check if the arrayBuffer contains any data. This will return false for
-     * ArrayBuffer.prototype and neutered ArrayBuffers.
-     */
-    inline bool hasData() const;
 };
 
 /*
@@ -220,9 +211,9 @@ struct TypedArray {
     // and MUST NOT be used to construct new objects.
     static Class fastClasses[TYPE_MAX];
 
-    // These are the proto/original classes, used
+    // These are the slow/original classes, used
     // fo constructing new objects
-    static Class protoClasses[TYPE_MAX];
+    static Class slowClasses[TYPE_MAX];
 
     static JSPropertySpec jsprops[];
 
@@ -256,7 +247,7 @@ struct TypedArray {
     static uint32_t getByteOffset(JSObject *obj);
     static uint32_t getByteLength(JSObject *obj);
     static uint32_t getType(JSObject *obj);
-    static ArrayBufferObject * getBuffer(JSObject *obj);
+    static JSObject * getBuffer(JSObject *obj);
     static void * getDataOffset(JSObject *obj);
 
   public:

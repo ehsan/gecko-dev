@@ -183,16 +183,7 @@ public:
 
     static void RemovePluginView(void* surface);
 
-    /* These are defined in mobile/android/base/GeckoAppShell.java */
-    enum {
-        SCREENSHOT_THUMBNAIL = 0,
-        SCREENSHOT_WHOLE_PAGE = 1,
-        SCREENSHOT_UPDATE = 2
-    };
-
-    nsresult TakeScreenshot(nsIDOMWindow *window, PRInt32 srcX, PRInt32 srcY, PRInt32 srcW, PRInt32 srcH, PRInt32 dstW, PRInt32 dstH, PRInt32 tabId, float scale, PRInt32 token);
-
-    static void NotifyPaintedRect(float top, float left, float bottom, float right);
+    nsresult TakeScreenshot(nsIDOMWindow *window, PRInt32 srcX, PRInt32 srcY, PRInt32 srcW, PRInt32 srcH, PRInt32 dstW, PRInt32 dstH, PRInt32 tabId, float scale);
 
     void AcknowledgeEventSync();
 
@@ -533,7 +524,6 @@ protected:
     jmethodID jCheckUriVisited;
     jmethodID jMarkUriVisited;
     jmethodID jRemovePluginView;
-    jmethodID jNotifyPaintedRect;
 
     jmethodID jNumberOfMessages;
     jmethodID jSendMessage;

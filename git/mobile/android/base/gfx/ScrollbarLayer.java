@@ -141,7 +141,7 @@ public class ScrollbarLayer extends TileLayer {
     };
 
     private ScrollbarLayer(LayerRenderer renderer, CairoImage image, boolean vertical, ByteBuffer buffer) {
-        super(image, TileLayer.PaintMode.NORMAL);
+        super(false, image);
         mVertical = vertical;
         mBuffer = buffer;
         mRenderer = renderer;

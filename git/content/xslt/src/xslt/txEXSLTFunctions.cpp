@@ -687,6 +687,7 @@ txEXSLTFunctionCall::evaluate(txIEvalContext *aContext,
             // http://exslt.org/date/functions/date-time/
             // format: YYYY-MM-DDTTHH:MM:SS.sss+00:00
             char formatstr[] = "%04hd-%02ld-%02ldT%02ld:%02ld:%02ld.%03ld%c%02ld:%02ld";
+            const size_t max = sizeof("YYYY-MM-DDTHH:MM:SS.sss+00:00");
             
             PRExplodedTime prtime;
             PR_ExplodeTime(PR_Now(), PR_LocalTimeParameters, &prtime);
@@ -701,7 +702,7 @@ txEXSLTFunctionCall::evaluate(txIEvalContext *aContext,
             rv = aContext->recycler()->getStringResult(&strRes);
             NS_ENSURE_SUCCESS(rv, rv);
             
-            CopyASCIItoUTF16(nsPrintfCString(formatstr,
+            CopyASCIItoUTF16(nsPrintfCString(max, formatstr,
               prtime.tm_year, prtime.tm_month + 1, prtime.tm_mday,
               prtime.tm_hour, prtime.tm_min, prtime.tm_sec,
               prtime.tm_usec / 10000,

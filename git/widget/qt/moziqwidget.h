@@ -41,7 +41,6 @@
 #include <QApplication>
 #include <QGraphicsWidget>
 #include <QGraphicsView>
-#include <QtOpenGL/QGLWidget>
 
 #include "nsCOMPtr.h"
 
@@ -150,7 +149,6 @@ public:
      : QGraphicsView (new QGraphicsScene(), aParent)
      , mEventHandler(this)
      , mTopLevelWidget(NULL)
-     , mGLWidget(0)
     {
         setMouseTracking(true);
         setFrameShape(QFrame::NoFrame);
@@ -160,18 +158,6 @@ public:
     {
         scene()->addItem(aTopLevel);
         mTopLevelWidget = aTopLevel;
-    }
-
-    void setGLWidgetEnabled(bool aEnabled)
-    {
-        if (aEnabled) {
-            mGLWidget = new QGLWidget();
-            setViewport(mGLWidget);
-        } else {
-            delete mGLWidget;
-            mGLWidget = 0;
-            setViewport(new QWidget());
-        }
     }
 
 protected:
@@ -194,18 +180,9 @@ protected:
             QGraphicsView::closeEvent(aEvent);
     }
 
-    virtual void paintEvent(QPaintEvent* aEvent)
-    {
-        if (mGLWidget) {
-            mGLWidget->makeCurrent();
-        }
-        QGraphicsView::paintEvent(aEvent);
-    }
-
 private:
     MozQGraphicsViewEvents mEventHandler;
     IMozQWidget* mTopLevelWidget;
-    QGLWidget* mGLWidget;
 };
 
 #ifdef MOZ_ENABLE_MEEGOTOUCH

@@ -66,7 +66,8 @@ static const size_t kNodeInfoPoolSizes[] = {
   sizeof(nsNodeInfo)
 };
 
-static const PRInt32 kNodeInfoPoolInitialSize = sizeof(nsNodeInfo) * 64;
+static const PRInt32 kNodeInfoPoolInitialSize = 
+  (NS_SIZE_IN_HEAP(sizeof(nsNodeInfo))) * 64;
 
 // static
 nsFixedSizeAllocator* nsNodeInfo::sNodeInfoPool = nsnull;

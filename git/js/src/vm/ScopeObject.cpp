@@ -218,7 +218,7 @@ CallObject::createForFunction(JSContext *cx, StackFrame *fp)
     JS_ASSERT(fp->isNonEvalFunctionFrame());
     JS_ASSERT(!fp->hasCallObj());
 
-    RootedVarObject scopeChain(cx, fp->scopeChain());
+    RootedVarObject scopeChain(cx, &fp->scopeChain());
     JS_ASSERT_IF(scopeChain->isWith() || scopeChain->isBlock() || scopeChain->isCall(),
                  scopeChain->getPrivate() != fp);
 
@@ -250,7 +250,9 @@ CallObject::createForFunction(JSContext *cx, StackFrame *fp)
 CallObject *
 CallObject::createForStrictEval(JSContext *cx, StackFrame *fp)
 {
-    CallObject *callobj = create(cx, fp->script(), fp->scopeChain(), RootedVarObject(cx));
+    CallObject *callobj = create(cx, fp->script(),
+                                 RootedVarObject(cx, &fp->scopeChain()),
+                                 RootedVarObject(cx));
     if (!callobj)
         return NULL;
 
@@ -419,7 +421,8 @@ DeclEnvObject::create(JSContext *cx, StackFrame *fp)
 
     RootedVarShape emptyDeclEnvShape(cx);
     emptyDeclEnvShape = EmptyShape::getInitialShape(cx, &DeclEnvClass, NULL,
-                                                    &fp->global(), FINALIZE_KIND);
+                                                    &fp->scopeChain().global(),
+                                                    FINALIZE_KIND);
     if (!emptyDeclEnvShape)
         return NULL;
 
@@ -428,7 +431,7 @@ DeclEnvObject::create(JSContext *cx, StackFrame *fp)
         return NULL;
 
     obj->setPrivate(fp);
-    if (!obj->asScope().setEnclosingScope(cx, fp->scopeChain()))
+    if (!obj->asScope().setEnclosingScope(cx, RootedVarObject(cx, &fp->scopeChain())))
         return NULL;
 
     return &obj->asDeclEnv();
@@ -714,7 +717,7 @@ ClonedBlockObject::create(JSContext *cx, StaticBlockObject &block, StackFrame *f
         return NULL;
 
     /* Set the parent if necessary, as for call objects. */
-    JSObject &global = fp->global();
+    JSObject &global = fp->scopeChain().global();
     if (&global != obj->getParent()) {
         JS_ASSERT(obj->getParent() == NULL);
         if (!obj->setParent(cx, &global))

@@ -180,12 +180,7 @@ public class Utils {
   }
 
   public static String millisecondsToDecimalSecondsString(long ms) {
-    return millisecondsToDecimalSeconds(ms).toString();
-  }
-
-  // For dumping into JSON without quotes.
-  public static BigDecimal millisecondsToDecimalSeconds(long ms) {
-    return new BigDecimal(ms).movePointLeft(3);
+    return new BigDecimal(ms).movePointLeft(3).toString();
   }
 
   // This lives until Bug 708956 lands, and we don't have to do it any more.

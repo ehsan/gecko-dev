@@ -370,46 +370,43 @@ TelemetryPing.prototype = {
     let e = mgr.enumerateReporters();
     while (e.hasMoreElements()) {
       let mr = e.getNext().QueryInterface(Ci.nsIMemoryReporter);
-      let id, mrPath, mrAmount, mrUnits;
-      try {
-        mrPath = mr.path;
-        id = MEM_HISTOGRAMS[mrPath];
-        if (!id) {
-          continue;
-        }
-        mrAmount = mr.amount;
-        mrUnits = mr.units;
-      } catch (ex) {
+      let id = MEM_HISTOGRAMS[mr.path];
+      if (!id) {
+        continue;
+      }
+      // mr.amount is expensive to read in some cases, so get it only once.
+      let amount = mr.amount;
+      if (amount == -1) {
         continue;
       }
 
       let val;
-      if (mrUnits == Ci.nsIMemoryReporter.UNITS_BYTES) {
-        val = Math.floor(mrAmount / 1024);
+      if (mr.units == Ci.nsIMemoryReporter.UNITS_BYTES) {
+        val = Math.floor(amount / 1024);
       }
-      else if (mrUnits == Ci.nsIMemoryReporter.UNITS_COUNT) {
-        val = mrAmount;
+      else if (mr.units == Ci.nsIMemoryReporter.UNITS_COUNT) {
+        val = amount;
       }
-      else if (mrUnits == Ci.nsIMemoryReporter.UNITS_COUNT_CUMULATIVE) {
+      else if (mr.units == Ci.nsIMemoryReporter.UNITS_COUNT_CUMULATIVE) {
         // If the reporter gives us a cumulative count, we'll report the
         // difference in its value between now and our previous ping.
 
-        if (!(mrPath in this._prevValues)) {
+        if (!(mr.path in this._prevValues)) {
           // If this is the first time we're reading this reporter, store its
           // current value but don't report it in the telemetry ping, so we
           // ignore the effect startup had on the reporter.
-          this._prevValues[mrPath] = mrAmount;
+          this._prevValues[mr.path] = amount;
           continue;
         }
 
-        val = mrAmount - this._prevValues[mrPath];
-        this._prevValues[mrPath] = mrAmount;
+        val = amount - this._prevValues[mr.path];
+        this._prevValues[mr.path] = amount;
       }
       else {
-        NS_ASSERT(false, "Can't handle memory reporter with units " + mrUnits);
+        NS_ASSERT(false, "Can't handle memory reporter with units " + mr.units);
         continue;
       }
-      this.addValue(mrPath, id, val);
+      this.addValue(mr.path, id, val);
     }
   },
 

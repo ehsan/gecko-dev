@@ -96,7 +96,8 @@
 
       // This is the intial size of the allocator, in bytes. We'll
       // assume that we want to start with space for 1024 Foo objects.
-      static const PRInt32 kInitialPoolSize = sizeof(Foo) * 1024;
+      static const PRInt32 kInitialPoolSize =
+        NS_SIZE_IN_HEAP(sizeof(Foo)) * 1024;
 
       // Initialize (or re-initialize) the pool
       pool.Init("TheFooPool", kBucketSizes, kNumBuckets, kInitialPoolSize);
@@ -130,6 +131,8 @@
 #include "nscore.h"
 #include "nsError.h"
 #include "plarena.h"
+
+#define NS_SIZE_IN_HEAP(_size) (_size)
 
 class nsFixedSizeAllocator
 {

@@ -52,6 +52,7 @@ TEST_FILES = \
   browser.js \
   js-test-driver-end.js \
   user.js \
+  jstests.list \
   e4x/ \
   ecma/ \
   ecma_2/ \

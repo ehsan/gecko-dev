@@ -551,82 +551,22 @@ KeymapWrapper::InitInputEvent(nsInputEvent& aInputEvent,
 {
     KeymapWrapper* keymapWrapper = GetInstance();
 
-    aInputEvent.modifiers = 0;
-    // DOM Meta key should be TRUE only on Mac.  We need to discuss this
-    // issue later.
-    if (keymapWrapper->AreModifiersActive(SHIFT, aModifierState)) {
-        aInputEvent.modifiers |= MODIFIER_SHIFT;
-    }
-    if (keymapWrapper->AreModifiersActive(CTRL, aModifierState)) {
-        aInputEvent.modifiers |= MODIFIER_CONTROL;
-    }
-    if (keymapWrapper->AreModifiersActive(ALT, aModifierState)) {
-        aInputEvent.modifiers |= MODIFIER_ALT;
-    }
-    if (keymapWrapper->AreModifiersActive(SUPER, aModifierState) ||
-        keymapWrapper->AreModifiersActive(HYPER, aModifierState)) {
-        aInputEvent.modifiers |= MODIFIER_WIN;
-    }
-    if (keymapWrapper->AreModifiersActive(ALTGR, aModifierState)) {
-        aInputEvent.modifiers |= MODIFIER_ALTGRAPH;
-    }
-    if (keymapWrapper->AreModifiersActive(CAPS_LOCK, aModifierState)) {
-        aInputEvent.modifiers |= MODIFIER_CAPSLOCK;
-    }
-    if (keymapWrapper->AreModifiersActive(NUM_LOCK, aModifierState)) {
-        aInputEvent.modifiers |= MODIFIER_NUMLOCK;
-    }
-    if (keymapWrapper->AreModifiersActive(SCROLL_LOCK, aModifierState)) {
-        aInputEvent.modifiers |= MODIFIER_SCROLL;
-    }
+    aInputEvent.isShift =
+        keymapWrapper->AreModifiersActive(SHIFT, aModifierState);
+    aInputEvent.isControl =
+        keymapWrapper->AreModifiersActive(CTRL, aModifierState);
+    aInputEvent.isAlt =
+        keymapWrapper->AreModifiersActive(ALT, aModifierState);
+    // XXX DOM Meta key should be TRUE only on Mac.  We need to discuss this
+    //     issue later.
+    aInputEvent.isMeta = false;
 
     PR_LOG(gKeymapWrapperLog, PR_LOG_DEBUG,
-        ("KeymapWrapper(%p): InitInputEvent, aModifierState=0x%08X, "
-         "aInputEvent.modifiers=0x%04X (Shift: %s, Control: %s, Alt: %s, "
-         "Win: %s, AltGr: %s, CapsLock: %s, NumLock: %s, ScrollLock: %s)",
-         keymapWrapper, aModifierState, aInputEvent.modifiers,
-         GetBoolName(aInputEvent.modifiers & MODIFIER_SHIFT),
-         GetBoolName(aInputEvent.modifiers & MODIFIER_CONTROL),
-         GetBoolName(aInputEvent.modifiers & MODIFIER_ALT),
-         GetBoolName(aInputEvent.modifiers & MODIFIER_WIN),
-         GetBoolName(aInputEvent.modifiers & MODIFIER_ALTGRAPH),
-         GetBoolName(aInputEvent.modifiers & MODIFIER_CAPSLOCK),
-         GetBoolName(aInputEvent.modifiers & MODIFIER_NUMLOCK),
-         GetBoolName(aInputEvent.modifiers & MODIFIER_SCROLL)));
-
-    switch(aInputEvent.eventStructType) {
-        case NS_MOUSE_EVENT:
-        case NS_MOUSE_SCROLL_EVENT:
-        case NS_DRAG_EVENT:
-        case NS_SIMPLE_GESTURE_EVENT:
-        case NS_MOZTOUCH_EVENT:
-            break;
-        default:
-            return;
-    }
-
-    nsMouseEvent_base& mouseEvent = static_cast<nsMouseEvent_base&>(aInputEvent);
-    mouseEvent.buttons = 0;
-    if (aModifierState & GDK_BUTTON1_MASK) {
-        mouseEvent.buttons |= nsMouseEvent::eLeftButtonFlag;
-    }
-    if (aModifierState & GDK_BUTTON3_MASK) {
-        mouseEvent.buttons |= nsMouseEvent::eRightButtonFlag;
-    }
-    if (aModifierState & GDK_BUTTON2_MASK) {
-        mouseEvent.buttons |= nsMouseEvent::eMiddleButtonFlag;
-    }
-
-    PR_LOG(gKeymapWrapperLog, PR_LOG_DEBUG,
-        ("KeymapWrapper(%p): InitInputEvent, aInputEvent has buttons, "
-         "aInputEvent.buttons=0x%04X (Left: %s, Right: %s, Middle: %s, "
-         "4th (BACK): %s, 5th (FORWARD): %s)",
-         keymapWrapper, mouseEvent.buttons,
-         GetBoolName(mouseEvent.buttons & nsMouseEvent::eLeftButtonFlag),
-         GetBoolName(mouseEvent.buttons & nsMouseEvent::eRightButtonFlag),
-         GetBoolName(mouseEvent.buttons & nsMouseEvent::eMiddleButtonFlag),
-         GetBoolName(mouseEvent.buttons & nsMouseEvent::e4thButtonFlag),
-         GetBoolName(mouseEvent.buttons & nsMouseEvent::e5thButtonFlag)));
+        ("KeymapWrapper(%p): InitInputEvent, aModifierState=0x%08X "
+         "aKeyEvent={ isShift=%s, isControl=%s, isAlt=%s, isMeta=%s }",
+         keymapWrapper, aModifierState,
+         GetBoolName(aInputEvent.isShift), GetBoolName(aInputEvent.isControl),
+         GetBoolName(aInputEvent.isAlt), GetBoolName(aInputEvent.isMeta)));
 }
 
 /* static */ PRUint32
@@ -782,8 +722,8 @@ KeymapWrapper::InitKeyEvent(nsKeyEvent& aKeyEvent,
          ((aKeyEvent.message == NS_KEY_DOWN) ? "NS_KEY_DOWN" :
                (aKeyEvent.message == NS_KEY_PRESS) ? "NS_KEY_PRESS" :
                                                       "NS_KEY_UP"),
-         GetBoolName(aKeyEvent.IsShift()), GetBoolName(aKeyEvent.IsControl()),
-         GetBoolName(aKeyEvent.IsAlt()), GetBoolName(aKeyEvent.IsMeta())));
+         GetBoolName(aKeyEvent.isShift), GetBoolName(aKeyEvent.isControl),
+         GetBoolName(aKeyEvent.isAlt), GetBoolName(aKeyEvent.isMeta)));
 
     if (aKeyEvent.message == NS_KEY_PRESS) {
         keymapWrapper->InitKeypressEvent(aKeyEvent, aGdkKeyEvent);
@@ -902,7 +842,7 @@ KeymapWrapper::InitKeypressEvent(nsKeyEvent& aKeyEvent,
 
     // If Ctrl or Alt or Meta is pressed, we need to append the key details
     // for handling shortcut key.  Otherwise, we have no additional work.
-    if (!aKeyEvent.IsControl() && !aKeyEvent.IsAlt() && !aKeyEvent.IsMeta()) {
+    if (!aKeyEvent.isControl && !aKeyEvent.isAlt && !aKeyEvent.isMeta) {
         PR_LOG(gKeymapWrapperLog, PR_LOG_ALWAYS,
             ("KeymapWrapper(%p): InitKeypressEvent, "
              "keyCode=0x%02X, charCode=0x%08X",
@@ -993,8 +933,8 @@ KeymapWrapper::InitKeypressEvent(nsKeyEvent& aKeyEvent,
 
     nsAlternativeCharCode altLatinCharCodes(0, 0);
     PRUint32 unmodifiedCh =
-        aKeyEvent.IsShift() ? altCharCodes.mShiftedCharCode :
-                              altCharCodes.mUnshiftedCharCode;
+        aKeyEvent.isShift ? altCharCodes.mShiftedCharCode :
+                            altCharCodes.mUnshiftedCharCode;
 
     // unshifted charcode of found keyboard layout.
     PRUint32 ch = GetCharCodeFor(aGdkKeyEvent, baseState, minGroup);
@@ -1014,9 +954,9 @@ KeymapWrapper::InitKeypressEvent(nsKeyEvent& aKeyEvent,
     // replace the charCode to Latin char if Alt and Meta keys are not
     // pressed. (Alt should be sent the localized char for accesskey
     // like handling of Web Applications.)
-    ch = aKeyEvent.IsShift() ? altLatinCharCodes.mShiftedCharCode :
-                               altLatinCharCodes.mUnshiftedCharCode;
-    if (ch && !(aKeyEvent.IsAlt() || aKeyEvent.IsMeta()) &&
+    ch = aKeyEvent.isShift ? altLatinCharCodes.mShiftedCharCode :
+                             altLatinCharCodes.mUnshiftedCharCode;
+    if (ch && !(aKeyEvent.isAlt || aKeyEvent.isMeta) &&
         aKeyEvent.charCode == unmodifiedCh) {
         aKeyEvent.charCode = ch;
     }

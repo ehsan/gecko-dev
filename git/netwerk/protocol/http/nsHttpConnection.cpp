@@ -73,7 +73,6 @@ using namespace mozilla::net;
 
 nsHttpConnection::nsHttpConnection()
     : mTransaction(nsnull)
-    , mIdleTimeout(0)
     , mConsiderReusedAfterInterval(0)
     , mConsiderReusedAfterEpoch(0)
     , mCurrentBytesRead(0)
@@ -415,9 +414,10 @@ nsHttpConnection::SetupNPN(PRUint8 caps)
         mNPNComplete = true;
 
         if (mConnInfo->UsingSSL() &&
-            !mConnInfo->UsingHttpProxy()) {
-            LOG(("nsHttpConnection::SetupNPN Setting up "
-                 "Next Protocol Negotiation"));
+            !(caps & NS_HTTP_DISALLOW_SPDY) &&
+            !mConnInfo->UsingHttpProxy() &&
+            gHttpHandler->IsSpdyEnabled()) {
+            LOG(("nsHttpConnection::Init Setting up SPDY Negotiation"));
             nsCOMPtr<nsISupports> securityInfo;
             nsresult rv =
                 mSocketTransport->GetSecurityInfo(getter_AddRefs(securityInfo));
@@ -430,12 +430,7 @@ nsHttpConnection::SetupNPN(PRUint8 caps)
                 return;
 
             nsTArray<nsCString> protocolArray;
-            if (gHttpHandler->IsSpdyEnabled() &&
-                !(caps & NS_HTTP_DISALLOW_SPDY)) {
-                LOG(("nsHttpConnection::SetupNPN Allow SPDY NPN selection"));
-                protocolArray.AppendElement(NS_LITERAL_CSTRING("spdy/2"));
-            }
-
+            protocolArray.AppendElement(NS_LITERAL_CSTRING("spdy/2"));
             protocolArray.AppendElement(NS_LITERAL_CSTRING("http/1.1"));
             if (NS_SUCCEEDED(ssl->SetNPNList(protocolArray))) {
                 LOG(("nsHttpConnection::Init Setting up SPDY Negotiation OK"));
@@ -826,7 +821,7 @@ nsHttpConnection::OnHeadersAvailable(nsAHttpTransaction *trans,
             if (cp)
                 mIdleTimeout = PR_SecondsToInterval((PRUint32) atoi(cp + 8));
             else
-                mIdleTimeout = gHttpHandler->IdleTimeout();
+                mIdleTimeout = gHttpHandler->SpdyTimeout();
 
             cp = PL_strcasestr(val, "max=");
             if (cp) {
@@ -1255,7 +1250,7 @@ nsHttpConnection::OnSocketWritable()
             rv, n, mSocketOutCondition));
 
         // XXX some streams return NS_BASE_STREAM_CLOSED to indicate EOF.
-        if (rv == NS_BASE_STREAM_CLOSED && !mTransaction->IsDone()) {
+        if (rv == NS_BASE_STREAM_CLOSED) {
             rv = NS_OK;
             n = 0;
         }

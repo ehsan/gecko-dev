@@ -115,16 +115,6 @@ class Handle
         ptr = reinterpret_cast<const T *>(handle.address());
     }
 
-    /*
-     * Get a handle to a location that may not be a Root or RootedVar, but is
-     * marked and updated by the GC.
-     */
-    static Handle fromMarkedLocation(const T *p) {
-        Handle h;
-        h.ptr = p;
-        return h;
-    }
-
     /* Get a handle from a rooted stack location, with implicit coercion. */
     template <typename S> inline Handle(const Root<S> &root);
     template <typename S> inline Handle(const RootedVar<S> &root);
@@ -135,8 +125,6 @@ class Handle
     T operator ->() { return value(); }
 
   private:
-    Handle() {}
-
     const T *ptr;
     T value() { return *ptr; }
 

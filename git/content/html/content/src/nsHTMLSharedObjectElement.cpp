@@ -151,11 +151,6 @@ public:
     return static_cast<nsXPCClassInfo*>(GetClassInfoInternal());
   }
   nsIClassInfo* GetClassInfoInternal();
-
-  virtual nsIDOMNode* AsDOMNode()
-  {
-    return static_cast<nsIDOMHTMLAppletElement*>(this);
-  }
 private:
   /**
    * Calls LoadObject with the correct arguments to start the plugin load.

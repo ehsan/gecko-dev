@@ -311,8 +311,6 @@ public:
   void MaybeLoadSVGImage();
 
   virtual nsXPCClassInfo* GetClassInfo();
-
-  virtual nsIDOMNode* AsDOMNode() { return this; }
 private:
   // Invalidate users of the filter containing this element.
   void Invalidate();

@@ -573,7 +573,8 @@ nsHTMLInputElement::nsHTMLInputElement(already_AddRefed<nsINodeInfo> aNodeInfo,
   , mCanShowInvalidUI(true)
 {
   mInputData.mState = new nsTextEditorState(this);
-
+  NS_ADDREF(mInputData.mState);
+  
   if (!gUploadLastDir)
     nsHTMLInputElement::InitUploadLastDir();
 
@@ -604,8 +605,7 @@ nsHTMLInputElement::FreeData()
     mInputData.mValue = nsnull;
   } else {
     UnbindFromFrame(nsnull);
-    delete mInputData.mState;
-    mInputData.mState = nsnull;
+    NS_IF_RELEASE(mInputData.mState);
   }
 }
 
@@ -630,7 +630,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsHTMLInputElement,
                                                   nsGenericHTMLFormElement)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mControllers)
   if (tmp->IsSingleLineTextControl(false)) {
-    tmp->mInputData.mState->Traverse(cb);
+    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mInputData.mState, nsTextEditorState)
   }
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mFiles)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mFileList)
@@ -643,9 +643,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsHTMLInputElement,
   if (tmp->mFileList) {
     tmp->mFileList->Disconnect();
     tmp->mFileList = nsnull;
-  }
-  if (tmp->IsSingleLineTextControl(false)) {
-    tmp->mInputData.mState->Unlink();
   }
   //XXX should unlink more?
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
@@ -2139,8 +2136,8 @@ nsHTMLInputElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
             } // switch
           }
           if (aVisitor.mEvent->message == NS_KEY_PRESS &&
-              mType == NS_FORM_INPUT_RADIO && !keyEvent->IsAlt() &&
-              !keyEvent->IsControl() && !keyEvent->IsMeta()) {
+              mType == NS_FORM_INPUT_RADIO && !keyEvent->isAlt &&
+              !keyEvent->isControl && !keyEvent->isMeta) {
             bool isMovingBack = false;
             switch (keyEvent->keyCode) {
               case NS_VK_UP: 
@@ -2399,6 +2396,7 @@ nsHTMLInputElement::HandleTypeChange(PRUint8 aNewType)
   if (isNewTypeSingleLine && !isCurrentTypeSingleLine) {
     FreeData();
     mInputData.mState = new nsTextEditorState(this);
+    NS_ADDREF(mInputData.mState);
   } else if (isCurrentTypeSingleLine && !isNewTypeSingleLine) {
     FreeData();
   }

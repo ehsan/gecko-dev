@@ -230,7 +230,7 @@ public class LayerView extends SurfaceView implements SurfaceHolder.Callback {
     }
 
 
-    public LayerRenderer getRenderer() {
+    public GLSurfaceView.Renderer getRenderer() {
         return mRenderer;
     }
 

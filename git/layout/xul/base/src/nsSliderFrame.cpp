@@ -548,9 +548,9 @@ nsSliderFrame::HandleEvent(nsPresContext* aPresContext,
                 nsMouseEvent::eLeftButton &&
 #ifdef XP_MACOSX
               // On Mac the option key inverts the scroll-to-here preference.
-              (static_cast<nsMouseEvent*>(aEvent)->IsAlt() != GetScrollToClick())) ||
+              (static_cast<nsMouseEvent*>(aEvent)->isAlt != GetScrollToClick())) ||
 #else
-              (static_cast<nsMouseEvent*>(aEvent)->IsShift() != GetScrollToClick())) ||
+              (static_cast<nsMouseEvent*>(aEvent)->isShift != GetScrollToClick())) ||
 #endif
              (gMiddlePref && aEvent->message == NS_MOUSE_BUTTON_DOWN &&
               static_cast<nsMouseEvent*>(aEvent)->button ==
@@ -1003,9 +1003,9 @@ nsSliderFrame::HandlePress(nsPresContext* aPresContext,
 {
 #ifdef XP_MACOSX
   // On Mac the option key inverts the scroll-to-here preference.
-  if (((nsMouseEvent *)aEvent)->IsAlt() != GetScrollToClick())
+  if (((nsMouseEvent *)aEvent)->isAlt != GetScrollToClick())
 #else
-  if (((nsMouseEvent *)aEvent)->IsShift() != GetScrollToClick())
+  if (((nsMouseEvent *)aEvent)->isShift != GetScrollToClick())
 #endif
     return NS_OK;
 

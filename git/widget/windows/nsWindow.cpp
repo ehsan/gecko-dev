@@ -3595,7 +3595,10 @@ bool nsWindow::DispatchKeyEvent(PRUint32 aEventType, WORD aCharCode,
           IS_VK_DOWN(VK_RSHIFT) ? 'S' : ' '));
 #endif
 
-  aModKeyState.InitInputEvent(event);
+  event.isShift   = aModKeyState.mIsShiftDown;
+  event.isControl = aModKeyState.mIsControlDown;
+  event.isMeta    = false;
+  event.isAlt     = aModKeyState.mIsAltDown;
 
   NPEvent pluginEvent;
   if (aMsg && PluginHasFocus()) {
@@ -3792,8 +3795,10 @@ bool nsWindow::DispatchMouseEvent(PRUint32 aEventType, WPARAM wParam,
     InitEvent(event, &eventPoint);
   }
 
-  nsModifierKeyState modifierKeyState;
-  modifierKeyState.InitInputEvent(event);
+  event.isShift   = IS_VK_DOWN(NS_VK_SHIFT);
+  event.isControl = IS_VK_DOWN(NS_VK_CONTROL);
+  event.isMeta    = false;
+  event.isAlt     = IS_VK_DOWN(NS_VK_ALT);
   event.button    = aButton;
   event.inputSource = aInputSource;
 
@@ -3996,8 +4001,10 @@ nsWindow::DispatchAccessibleEvent(PRUint32 aEventType)
   nsAccessibleEvent event(true, aEventType, this);
   InitEvent(event, nsnull);
 
-  nsModifierKeyState modifierKeyState;
-  modifierKeyState.InitInputEvent(event);
+  event.isShift   = IS_VK_DOWN(NS_VK_SHIFT);
+  event.isControl = IS_VK_DOWN(NS_VK_CONTROL);
+  event.isMeta    = false;
+  event.isAlt     = IS_VK_DOWN(NS_VK_ALT);
 
   DispatchWindowEvent(&event);
 
@@ -5079,8 +5086,6 @@ bool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
           nsMouseEvent event(true, NS_MOUSE_ACTIVATE, this,
                              nsMouseEvent::eReal);
           InitEvent(event);
-          nsModifierKeyState modifierKeyState;
-          modifierKeyState.InitInputEvent(event);
           DispatchWindowEvent(&event);
           if (sSwitchKeyboardLayout && mLastKeyboardLayout)
             ActivateKeyboardLayout(mLastKeyboardLayout, 0);
@@ -6148,8 +6153,6 @@ bool nsWindow::OnTouch(WPARAM wParam, LPARAM lParam)
       touchPoint.ScreenToClient(mWnd);
 
       nsMozTouchEvent touchEvent(true, msg, this, pInputs[i].dwID);
-      nsModifierKeyState modifierKeyState;
-      modifierKeyState.InitInputEvent(touchEvent);
       touchEvent.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
       touchEvent.refPoint = touchPoint;
 
@@ -6175,9 +6178,10 @@ bool nsWindow::OnGesture(WPARAM wParam, LPARAM lParam)
 
     nsEventStatus status;
 
-    nsModifierKeyState modifierKeyState;
-    modifierKeyState.InitInputEvent(event);
-
+    event.isShift   = IS_VK_DOWN(NS_VK_SHIFT);
+    event.isControl = IS_VK_DOWN(NS_VK_CONTROL);
+    event.isMeta    = false;
+    event.isAlt     = IS_VK_DOWN(NS_VK_ALT);
     event.button    = 0;
     event.time      = ::GetMessageTime();
     event.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
@@ -6215,8 +6219,10 @@ bool nsWindow::OnGesture(WPARAM wParam, LPARAM lParam)
   }
   
   // Polish up and send off the new event
-  nsModifierKeyState modifierKeyState;
-  modifierKeyState.InitInputEvent(event);
+  event.isShift   = IS_VK_DOWN(NS_VK_SHIFT);
+  event.isControl = IS_VK_DOWN(NS_VK_CONTROL);
+  event.isMeta    = false;
+  event.isAlt     = IS_VK_DOWN(NS_VK_ALT);
   event.button    = 0;
   event.time      = ::GetMessageTime();
   event.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
@@ -7921,80 +7927,20 @@ nsWindow::DealWithPopups(HWND inWnd, UINT inMsg, WPARAM inWParam, LPARAM inLPara
  **************************************************************/
 
 // nsModifierKeyState used in various character processing. 
-void
-nsModifierKeyState::Update()
+nsModifierKeyState::nsModifierKeyState()
 {
-  mIsShiftDown   = IS_VK_DOWN(VK_SHIFT);
-  mIsControlDown = IS_VK_DOWN(VK_CONTROL);
-  mIsAltDown     = IS_VK_DOWN(VK_MENU);
-  mIsWinDown     = IS_VK_DOWN(VK_LWIN) || IS_VK_DOWN(VK_RWIN);
-
-  mIsCapsLocked   = (::GetKeyState(VK_CAPITAL) & 1);
-  mIsNumLocked    = (::GetKeyState(VK_NUMLOCK) & 1);
-  mIsScrollLocked = (::GetKeyState(VK_SCROLL) & 1);
+  mIsShiftDown   = IS_VK_DOWN(NS_VK_SHIFT);
+  mIsControlDown = IS_VK_DOWN(NS_VK_CONTROL);
+  mIsAltDown     = IS_VK_DOWN(NS_VK_ALT);
 }
 
 void
 nsModifierKeyState::InitInputEvent(nsInputEvent& aInputEvent) const
 {
-  aInputEvent.modifiers = 0;
-  if (mIsShiftDown) {
-    aInputEvent.modifiers |= MODIFIER_SHIFT;
-  }
-  if (mIsControlDown) {
-    aInputEvent.modifiers |= MODIFIER_CONTROL;
-  }
-  if (mIsAltDown) {
-    aInputEvent.modifiers |= MODIFIER_ALT;
-  }
-  if (mIsWinDown) {
-    aInputEvent.modifiers |= MODIFIER_WIN;
-  }
-  if (mIsCapsLocked) {
-    aInputEvent.modifiers |= MODIFIER_CAPSLOCK;
-  }
-  if (mIsNumLocked) {
-    aInputEvent.modifiers |= MODIFIER_NUMLOCK;
-  }
-  if (mIsScrollLocked) {
-    aInputEvent.modifiers |= MODIFIER_SCROLL;
-  }
-  // If both Control key and Alt key are pressed, it means AltGr is pressed.
-  // Ideally, we should check whether the current keyboard layout has AltGr
-  // or not.  However, setting AltGr flags for keyboard which doesn't have
-  // AltGr must not be serious bug.  So, it should be OK for now.
-  if (mIsControlDown && mIsAltDown) {
-    aInputEvent.modifiers |= MODIFIER_ALTGRAPH;
-  }
-
-  switch(aInputEvent.eventStructType) {
-    case NS_MOUSE_EVENT:
-    case NS_MOUSE_SCROLL_EVENT:
-    case NS_DRAG_EVENT:
-    case NS_SIMPLE_GESTURE_EVENT:
-    case NS_MOZTOUCH_EVENT:
-      break;
-    default:
-      return;
-  }
-
-  nsMouseEvent_base& mouseEvent = static_cast<nsMouseEvent_base&>(aInputEvent);
-  mouseEvent.buttons = 0;
-  if (::GetKeyState(VK_LBUTTON) < 0) {
-    mouseEvent.buttons |= nsMouseEvent::eLeftButtonFlag;
-  }
-  if (::GetKeyState(VK_RBUTTON) < 0) {
-    mouseEvent.buttons |= nsMouseEvent::eRightButtonFlag;
-  }
-  if (::GetKeyState(VK_MBUTTON) < 0) {
-    mouseEvent.buttons |= nsMouseEvent::eMiddleButtonFlag;
-  }
-  if (::GetKeyState(VK_XBUTTON1) < 0) {
-    mouseEvent.buttons |= nsMouseEvent::e4thButtonFlag;
-  }
-  if (::GetKeyState(VK_XBUTTON2) < 0) {
-    mouseEvent.buttons |= nsMouseEvent::e5thButtonFlag;
-  }
+  aInputEvent.isShift   = mIsShiftDown;
+  aInputEvent.isControl = mIsControlDown;
+  aInputEvent.isMeta    = false;
+  aInputEvent.isAlt     = mIsAltDown;
 }
 
 // Note that the result of GetTopLevelWindow method can be different from the

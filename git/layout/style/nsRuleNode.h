@@ -60,7 +60,6 @@ class nsCSSValue;
 struct nsCSSRect;
 
 class nsStyleCoord;
-class nsCSSValuePairList;
 
 template <nsStyleStructID MinIndex, nsStyleStructID Count>
 class FixedStyleStructArray
@@ -748,9 +747,6 @@ public:
   bool NodeHasCachedData(const nsStyleStructID aSID) {
     return !!mStyleData.GetStyleData(aSID);
   }
-
-  static void ComputeFontFeatures(const nsCSSValuePairList *aFeaturesList,
-                                  nsTArray<gfxFontFeature>& aFeatureSettings);
 };
 
 #endif

@@ -165,6 +165,39 @@ XULContentSinkImpl::ContextStack::GetTopChildren(nsPrototypeArray** aChildren)
     return NS_OK;
 }
 
+nsresult
+XULContentSinkImpl::ContextStack::GetTopNodeScriptType(PRUint32 *aScriptType)
+{
+    if (mDepth == 0)
+        return NS_ERROR_UNEXPECTED;
+
+    // This would be much simpler if nsXULPrototypeNode itself
+    // stored the language ID - but text elements don't need it!
+    nsresult rv = NS_OK;
+    nsRefPtr<nsXULPrototypeNode> node;
+    rv = GetTopNode(node);
+    if (NS_FAILED(rv)) return rv;
+    switch (node->mType) {
+        case nsXULPrototypeNode::eType_Element: {
+            nsXULPrototypeElement *parent =
+                reinterpret_cast<nsXULPrototypeElement*>(node.get());
+            *aScriptType = nsIProgrammingLanguage::JAVASCRIPT;
+            break;
+        }
+        case nsXULPrototypeNode::eType_Script: {
+            nsXULPrototypeScript *parent =
+                reinterpret_cast<nsXULPrototypeScript*>(node.get());
+            *aScriptType = parent->mScriptObject.mLangID;
+            break;
+        }
+        default: {
+            NS_WARNING("Unexpected parent node type");
+            rv = NS_ERROR_UNEXPECTED;
+        }
+    }
+    return rv;
+}
+
 void
 XULContentSinkImpl::ContextStack::Clear()
 {
@@ -876,9 +909,10 @@ nsresult
 XULContentSinkImpl::OpenScript(const PRUnichar** aAttributes,
                                const PRUint32 aLineNumber)
 {
-  PRUint32 langID = nsIProgrammingLanguage::JAVASCRIPT;
+  PRUint32 langID;
+  nsresult rv = mContextStack.GetTopNodeScriptType(&langID);
+  if (NS_FAILED(rv)) return rv;
   PRUint32 version = 0;
-  nsresult rv;
 
   // Look for SRC attribute and look for a LANGUAGE attribute
   nsAutoString src;
@@ -930,7 +964,7 @@ XULContentSinkImpl::OpenScript(const PRUnichar** aAttributes,
           } else {
               // Use the script object factory to locate the language.
               nsCOMPtr<nsIScriptRuntime> runtime;
-              rv = NS_GetJSRuntime(getter_AddRefs(runtime));
+              rv = NS_GetScriptRuntime(mimeType, getter_AddRefs(runtime));
               if (NS_FAILED(rv) || runtime == nsnull) {
                   // Failed to get the explicitly specified language
                   NS_WARNING("Failed to find a scripting language");
@@ -949,7 +983,7 @@ XULContentSinkImpl::OpenScript(const PRUnichar** aAttributes,
               // no version specified - version remains the default.
             } else {
               nsCOMPtr<nsIScriptRuntime> runtime;
-              rv = NS_GetJSRuntime(getter_AddRefs(runtime));
+              rv = NS_GetScriptRuntimeByID(langID, getter_AddRefs(runtime));
               if (NS_FAILED(rv))
                 return rv;
               rv = runtime->ParseVersion(versionName, &version);
@@ -993,7 +1027,6 @@ XULContentSinkImpl::OpenScript(const PRUnichar** aAttributes,
       }
       aAttributes += 2;
   }
-
   // Not all script languages have a "sandbox" concept.  At time of
   // writing, Python is the only other language, and it does not.
   // For such languages, neither any inline script nor remote script are
@@ -1009,14 +1042,13 @@ XULContentSinkImpl::OpenScript(const PRUnichar** aAttributes,
       langID = nsIProgrammingLanguage::UNKNOWN;
       NS_WARNING("Non JS language called from non chrome - ignored");
   }
-
   // Don't process scripts that aren't known
   if (langID != nsIProgrammingLanguage::UNKNOWN) {
       nsIScriptGlobalObject* globalObject = nsnull; // borrowed reference
       if (doc)
           globalObject = doc->GetScriptGlobalObject();
       nsRefPtr<nsXULPrototypeScript> script =
-          new nsXULPrototypeScript(aLineNumber, version);
+          new nsXULPrototypeScript(langID, aLineNumber, version);
       if (! script)
           return NS_ERROR_OUT_OF_MEMORY;
 

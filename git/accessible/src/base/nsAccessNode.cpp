@@ -38,9 +38,9 @@
 
 #include "nsAccessNode.h"
 
-#include "ApplicationAccessibleWrap.h"
 #include "nsAccessibilityService.h"
 #include "nsAccUtils.h"
+#include "nsApplicationAccessibleWrap.h"
 #include "nsCoreUtils.h"
 #include "nsRootAccessible.h"
 
@@ -67,7 +67,7 @@ nsIStringBundle *nsAccessNode::gStringBundle = 0;
 
 bool nsAccessNode::gIsFormFillEnabled = false;
 
-ApplicationAccessible* nsAccessNode::gApplicationAccessible = nsnull;
+nsApplicationAccessible *nsAccessNode::gApplicationAccessible = nsnull;
 
 /*
  * Class nsAccessNode
@@ -130,16 +130,18 @@ nsAccessNode::Shutdown()
   mDoc = nsnull;
 }
 
-ApplicationAccessible*
+nsApplicationAccessible*
 nsAccessNode::GetApplicationAccessible()
 {
   NS_ASSERTION(!nsAccessibilityService::IsShutdown(),
                "Accessibility wasn't initialized!");
 
   if (!gApplicationAccessible) {
-    ApplicationAccessibleWrap::PreCreate();
+    nsApplicationAccessibleWrap::PreCreate();
 
-    gApplicationAccessible = new ApplicationAccessibleWrap();
+    gApplicationAccessible = new nsApplicationAccessibleWrap();
+    if (!gApplicationAccessible)
+      return nsnull;
 
     // Addref on create. Will Release in ShutdownXPAccessibility()
     NS_ADDREF(gApplicationAccessible);
@@ -198,7 +200,7 @@ void nsAccessNode::ShutdownXPAccessibility()
 
   // Release gApplicationAccessible after everything else is shutdown
   // so we don't accidently create it again while tearing down root accessibles
-  ApplicationAccessibleWrap::Unload();
+  nsApplicationAccessibleWrap::Unload();
   if (gApplicationAccessible) {
     gApplicationAccessible->Shutdown();
     NS_RELEASE(gApplicationAccessible);

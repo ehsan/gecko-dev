@@ -39,7 +39,6 @@
 #include "nsWeakReference.h"
 
 #include "nsIDOMWindowUtils.h"
-#include "nsEvent.h"
 
 class nsGlobalWindow;
 class nsIPresShell;
@@ -74,6 +73,4 @@ protected:
                                   PRInt32 aModifiers,
                                   bool aIgnoreRootScrollFrame,
                                   bool aToWindow);
-
-  static mozilla::widget::Modifiers GetWidgetModifiers(PRInt32 aModifiers);
 };

@@ -64,7 +64,7 @@
 
 struct JSCompartment;
 
-extern void
+extern "C" void
 js_TraceXML(JSTracer *trc, JSXML* thing);
 
 #if JS_STACK_GROWTH_DIRECTION > 0
@@ -1382,7 +1382,7 @@ MaybeGC(JSContext *cx);
 extern void
 ShrinkGCBuffers(JSRuntime *rt);
 
-extern JS_FRIEND_API(void)
+extern void
 PrepareForFullGC(JSRuntime *rt);
 
 /*

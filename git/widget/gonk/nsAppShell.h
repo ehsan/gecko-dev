@@ -98,7 +98,6 @@ public:
     void NotifyNativeEvent();
 
     static void NotifyScreenInitialized();
-    static void NotifyScreenRotation();
 
 protected:
     virtual ~nsAppShell();

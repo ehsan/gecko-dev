@@ -147,8 +147,6 @@ public:
   nsSVGOrientType* GetOrientType() { return &mOrientType; }
 
   virtual nsXPCClassInfo* GetClassInfo();
-
-  virtual nsIDOMNode* AsDOMNode() { return this; }
 protected:
 
   virtual bool ParseAttribute(PRInt32 aNameSpaceID, nsIAtom* aName,

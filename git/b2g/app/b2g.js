@@ -425,10 +425,9 @@ pref("browser.link.open_newwindow", 3);
 // 2: don't divert window.open with features
 pref("browser.link.open_newwindow.restriction", 0);
 
-// Enable browser frames, but not OOP.
+// Enable browser frame
 pref("dom.mozBrowserFramesEnabled", true);
 pref("dom.mozBrowserFramesWhitelist", "http://homescreen.gaiamobile.org,http://browser.gaiamobile.org");
-pref("dom.ipc.tabs.disabled", true);
 
 // Temporary permission hack for WebSMS
 pref("dom.sms.enabled", true);
@@ -475,6 +474,15 @@ pref("dom.power.whitelist", "http://homescreen.gaiamobile.org,http://settings.ga
 pref("full-screen-api.enabled", true);
 
 pref("media.volume.steps", 10);
+
+// Data connection settings. These will eventually live in the
+// navigator.settings API, or even in a database where we can look
+// it up automatically (bug 729440), but for this will have to do.
+pref("ril.data.enabled", false);
+pref("ril.data.roaming.enabled", false);
+pref("ril.data.apn", "");
+pref("ril.data.user", "");
+pref("ril.data.passwd", "");
 
 //Enable/disable marionette server, set listening port
 pref("marionette.defaultPrefs.enabled", true);

@@ -72,21 +72,32 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsXULTreeGridAccessible,
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeGridAccessible: nsIAccessibleTable implementation
 
-PRUint32
-nsXULTreeGridAccessible::ColCount()
+NS_IMETHODIMP
+nsXULTreeGridAccessible::GetColumnCount(PRInt32 *aColumnCount)
 {
-  return nsCoreUtils::GetSensibleColumnCount(mTree);
+  NS_ENSURE_ARG_POINTER(aColumnCount);
+  *aColumnCount = 0;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  *aColumnCount = nsCoreUtils::GetSensibleColumnCount(mTree);
+  return NS_OK;
 }
 
-PRUint32
-nsXULTreeGridAccessible::RowCount()
+NS_IMETHODIMP
+nsXULTreeGridAccessible::GetRowCount(PRInt32* aRowCount)
 {
-  if (!mTreeView)
-    return 0;
+  NS_ENSURE_ARG_POINTER(aRowCount);
+  *aRowCount = 0;
 
-  PRInt32 rowCount = 0;
-  mTreeView->GetRowCount(&rowCount);
-  return rowCount >= 0 ? rowCount : 0;
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  if (!mTreeView)
+    return NS_OK;
+
+  return mTreeView->GetRowCount(aRowCount);
 }
 
 NS_IMETHODIMP
@@ -545,17 +556,23 @@ nsXULTreeGridAccessible::SelectColumn(PRInt32 aColumnIndex)
   return NS_OK;
 }
 
-void
-nsXULTreeGridAccessible::UnselectRow(PRUint32 aRowIdx)
+NS_IMETHODIMP
+nsXULTreeGridAccessible::UnselectRow(PRInt32 aRowIndex)
 {
   if (!mTreeView)
-    return;
+    return NS_ERROR_INVALID_ARG;
 
   nsCOMPtr<nsITreeSelection> selection;
   mTreeView->GetSelection(getter_AddRefs(selection));
-  
-  if (selection)
-    selection->ClearRange(aRowIdx, aRowIdx);
+  NS_ENSURE_STATE(selection);
+
+  return selection->ClearRange(aRowIndex, aRowIndex);
+}
+
+NS_IMETHODIMP
+nsXULTreeGridAccessible::UnselectColumn(PRInt32 aColumnIndex)
+{
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

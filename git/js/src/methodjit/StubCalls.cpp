@@ -51,9 +51,7 @@
 #include "jsbool.h"
 #include "assembler/assembler/MacroAssemblerCodeRef.h"
 #include "jstypes.h"
-
 #include "vm/Debugger.h"
-#include "vm/NumericConversions.h"
 #include "vm/String.h"
 #include "methodjit/Compiler.h"
 #include "methodjit/StubCalls.h"
@@ -87,7 +85,7 @@ using namespace JSC;
 void JS_FASTCALL
 stubs::BindName(VMFrame &f, PropertyName *name)
 {
-    JSObject *obj = FindIdentifierBase(f.cx, f.fp()->scopeChain(), name);
+    JSObject *obj = FindIdentifierBase(f.cx, &f.fp()->scopeChain(), name);
     if (!obj)
         THROW();
     f.regs.sp[0].setObject(*obj);
@@ -96,7 +94,7 @@ stubs::BindName(VMFrame &f, PropertyName *name)
 JSObject * JS_FASTCALL
 stubs::BindGlobalName(VMFrame &f)
 {
-    return &f.fp()->global();
+    return &f.fp()->scopeChain().global();
 }
 
 template<JSBool strict>
@@ -345,7 +343,7 @@ stubs::DefFun(VMFrame &f, JSFunction *fun_)
          * FIXME: bug 476950, although debugger users may also demand some kind
          * of scope link for debugger-assisted eval-in-frame.
          */
-        obj2 = fp->scopeChain();
+        obj2 = &fp->scopeChain();
     } else {
         obj2 = GetScopeChain(cx, fp);
         if (!obj2)
@@ -996,7 +994,7 @@ stubs::RegExp(VMFrame &f, JSObject *regex)
      * Push a regexp object cloned from the regexp literal object mapped by the
      * bytecode at pc.
      */
-    JSObject *proto = f.fp()->global().getOrCreateRegExpPrototype(f.cx);
+    JSObject *proto = f.fp()->scopeChain().global().getOrCreateRegExpPrototype(f.cx);
     if (!proto)
         THROW();
     JS_ASSERT(proto);
@@ -1013,7 +1011,7 @@ stubs::Lambda(VMFrame &f, JSFunction *fun_)
 
     RootedVarObject parent(f.cx);
     if (fun->isNullClosure()) {
-        parent = f.fp()->scopeChain();
+        parent = &f.fp()->scopeChain();
     } else {
         parent = GetScopeChain(f.cx, f.fp());
         if (!parent)
@@ -1255,7 +1253,7 @@ stubs::EnterBlock(VMFrame &f, JSObject *obj)
      * anything else we should have popped off fp->scopeChain() when we left its
      * static scope.
      */
-    JSObject *obj2 = fp->scopeChain();
+    JSObject *obj2 = &fp->scopeChain();
     while (obj2->isWith())
         obj2 = &obj2->asWith().enclosingScope();
     if (obj2->isBlock() &&
@@ -1284,7 +1282,7 @@ stubs::LeaveBlock(VMFrame &f)
      * cloned onto fp->scopeChain(), clear its private data, move its locals from
      * the stack into the clone, and pop it off the chain.
      */
-    JSObject &obj = *fp->scopeChain();
+    JSObject &obj = fp->scopeChain();
     if (obj.getProto() == &blockObj)
         obj.asClonedBlock().put(cx);
 
@@ -1736,7 +1734,7 @@ stubs::ConvertToTypedInt(JSContext *cx, Value *vp)
     if (vp->isDouble()) {
         if (Clamped)
             return ClampDoubleToUint8(vp->toDouble());
-        return ToInt32(vp->toDouble());
+        return js_DoubleToECMAInt32(vp->toDouble());
     }
 
     if (vp->isNull() || vp->isObject() || vp->isUndefined())

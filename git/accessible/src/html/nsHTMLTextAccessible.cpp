@@ -259,9 +259,6 @@ nsHTMLLIAccessible::Shutdown()
 role
 nsHTMLLIAccessible::NativeRole()
 {
-  if (mContent->Tag() == nsGkAtoms::dt)
-    return roles::TERM;
-
   return roles::LISTITEM;
 }
 
@@ -413,9 +410,6 @@ NS_IMPL_ISUPPORTS_INHERITED0(nsHTMLListAccessible, nsHyperTextAccessible)
 role
 nsHTMLListAccessible::NativeRole()
 {
-  if (mContent->Tag() == nsGkAtoms::dl)
-    return roles::DEFINITION_LIST;
-
   return roles::LIST;
 }
 

@@ -49,6 +49,7 @@
 #include "MediaResource.h"
 #include "nsMathUtils.h"
 #include "prlog.h"
+#include "nsIPrivateBrowsingService.h"
 #include "mozilla/Preferences.h"
 #include "FileBlockCache.h"
 
@@ -122,7 +123,7 @@ void nsMediaCacheFlusher::Init()
   nsCOMPtr<nsIObserverService> observerService =
     mozilla::services::GetObserverService();
   if (observerService) {
-    observerService->AddObserver(gMediaCacheFlusher, "last-pb-context-exited", true);
+    observerService->AddObserver(gMediaCacheFlusher, NS_PRIVATE_BROWSING_SWITCH_TOPIC, true);
   }
 }
 
@@ -373,7 +374,8 @@ protected:
 NS_IMETHODIMP
 nsMediaCacheFlusher::Observe(nsISupports *aSubject, char const *aTopic, PRUnichar const *aData)
 {
-  if (strcmp(aTopic, "last-pb-context-exited") == 0) {
+  if (strcmp(aTopic, NS_PRIVATE_BROWSING_SWITCH_TOPIC) == 0 &&
+      NS_LITERAL_STRING(NS_PRIVATE_BROWSING_LEAVE).Equals(aData)) {
     nsMediaCache::Flush();
   }
   return NS_OK;

@@ -255,10 +255,10 @@ nsXBLJSClass::Destroy()
 
 // Constructors/Destructors
 nsXBLBinding::nsXBLBinding(nsXBLPrototypeBinding* aBinding)
-  : mIsStyleBinding(true),
-    mMarkedForDeath(false),
-    mPrototypeBinding(aBinding),
-    mInsertionPointTable(nsnull)
+  : mPrototypeBinding(aBinding),
+    mInsertionPointTable(nsnull),
+    mIsStyleBinding(true),
+    mMarkedForDeath(false)
 {
   NS_ASSERTION(mPrototypeBinding, "Must have a prototype binding!");
   // Grab a ref to the document info so the prototype binding won't die

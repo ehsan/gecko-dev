@@ -695,7 +695,6 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
       mouseEvent->context = oldMouseEvent->context;
       mouseEvent->relatedTarget = oldMouseEvent->relatedTarget;
       mouseEvent->button = oldMouseEvent->button;
-      mouseEvent->buttons = oldMouseEvent->buttons;
       mouseEvent->pressure = oldMouseEvent->pressure;
       mouseEvent->inputSource = oldMouseEvent->inputSource;
       newEvent = mouseEvent;
@@ -713,7 +712,6 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
       dragEvent->acceptActivation = oldDragEvent->acceptActivation;
       dragEvent->relatedTarget = oldDragEvent->relatedTarget;
       dragEvent->button = oldDragEvent->button;
-      dragEvent->buttons = oldDragEvent->buttons;
       static_cast<nsMouseEvent*>(dragEvent)->inputSource =
         static_cast<nsMouseEvent*>(oldDragEvent)->inputSource;
       newEvent = dragEvent;
@@ -755,7 +753,6 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
       mouseScrollEvent->delta = oldMouseScrollEvent->delta;
       mouseScrollEvent->relatedTarget = oldMouseScrollEvent->relatedTarget;
       mouseScrollEvent->button = oldMouseScrollEvent->button;
-      mouseScrollEvent->buttons = oldMouseScrollEvent->buttons;
       static_cast<nsMouseEvent_base*>(mouseScrollEvent)->inputSource =
         static_cast<nsMouseEvent_base*>(oldMouseScrollEvent)->inputSource;
       newEvent = mouseScrollEvent;
@@ -893,14 +890,10 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
     }
     case NS_MOZTOUCH_EVENT:
     {
-      nsMozTouchEvent* oldMozTouchEvent = static_cast<nsMozTouchEvent*>(mEvent);
-      nsMozTouchEvent* mozTouchEvent =
-        new nsMozTouchEvent(false, msg, nsnull,
-                            static_cast<nsMozTouchEvent*>(mEvent)->streamId);
-      NS_ENSURE_TRUE(mozTouchEvent, NS_ERROR_OUT_OF_MEMORY);
+      newEvent = new nsMozTouchEvent(false, msg, nsnull,
+                                     static_cast<nsMozTouchEvent*>(mEvent)->streamId);
+      NS_ENSURE_TRUE(newEvent, NS_ERROR_OUT_OF_MEMORY);
       isInputEvent = true;
-      mozTouchEvent->buttons = oldMozTouchEvent->buttons;
-      newEvent = mozTouchEvent;
       break;
     }
     case NS_TOUCH_EVENT:
@@ -923,7 +916,10 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
   if (isInputEvent) {
     nsInputEvent* oldInputEvent = static_cast<nsInputEvent*>(mEvent);
     nsInputEvent* newInputEvent = static_cast<nsInputEvent*>(newEvent);
-    newInputEvent->modifiers = oldInputEvent->modifiers;
+    newInputEvent->isShift = oldInputEvent->isShift;
+    newInputEvent->isControl = oldInputEvent->isControl;
+    newInputEvent->isAlt = oldInputEvent->isAlt;
+    newInputEvent->isMeta = oldInputEvent->isMeta;
   }
 
   newEvent->target                 = mEvent->target;

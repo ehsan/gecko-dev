@@ -58,7 +58,6 @@ EXPORTS	= \
 	gfxFailure.h \
 	gfxFont.h \
 	gfxFontConstants.h \
-	gfxFontFeatures.h \
 	gfxFontUtils.h \
 	gfxFontTest.h \
 	gfxImageSurface.h \

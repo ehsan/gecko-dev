@@ -64,6 +64,7 @@ class nsCSSStyleSheet;
 
 struct CacheScriptEntry
 {
+    PRUint32    mScriptTypeID; // the script language ID.
     JSScript*   mScriptObject; // the script object.
 };
 
@@ -106,8 +107,8 @@ public:
     nsXULPrototypeDocument* GetPrototype(nsIURI* aURI);
     nsresult PutPrototype(nsXULPrototypeDocument* aDocument);
 
-    JSScript* GetScript(nsIURI* aURI);
-    nsresult PutScript(nsIURI* aURI, JSScript* aScriptObject);
+    JSScript* GetScript(nsIURI* aURI, PRUint32* langID);
+    nsresult PutScript(nsIURI* aURI, PRUint32 langID, JSScript* aScriptObject);
 
     nsXBLDocumentInfo* GetXBLDocumentInfo(nsIURI* aURL) {
         return mXBLDocTable.GetWeak(aURL);

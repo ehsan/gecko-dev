@@ -42,7 +42,6 @@
 #include "nsIDOMUIEvent.h"
 #include "nsDOMEvent.h"
 #include "nsLayoutUtils.h"
-#include "nsEvent.h"
 
 class nsDOMUIEvent : public nsDOMEvent,
                      public nsIDOMUIEvent
@@ -151,10 +150,6 @@ protected:
   bool mIsPointerLocked;
   nsIntPoint mLastScreenPoint;
   nsIntPoint mLastClientPoint;
-
-  typedef mozilla::widget::Modifiers Modifiers;
-  static Modifiers ComputeModifierState(const nsAString& aModifiersList);
-  bool GetModifierStateInternal(const nsAString& aKey);
 };
 
 #define NS_FORWARD_TO_NSDOMUIEVENT \
