@@ -306,7 +306,7 @@ nsHttpHandler::Init()
     if (NS_FAILED(rv)) return rv;
 
 #ifdef ANDROID
-    mProductSub.AssignLiteral(MOZILLA_UAVERSION);
+    mProductSub.AssignLiteral(MOZ_APP_UA_VERSION);
 #else
     mProductSub.AssignLiteral(MOZ_UA_BUILDID);
 #endif
