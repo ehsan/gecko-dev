@@ -1,0 +1,4 @@
+changeset 94d5173fa1cd9979498b225419d8b8c42a6e9955
+manifest 3358ca8a4c9c7b4ddf947813972ac0cc6fd598e4
+extra source:82f4a13fc4f100f187f1845c2cb9ebf615467970
+files dom/base/nsCopySupport.cpp
