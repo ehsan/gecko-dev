@@ -103,9 +103,9 @@ struct __jitstats {
 #define JITSTAT(x) uint64 x;
 #include "jitstats.tbl"
 #undef JITSTAT
-} stat = { 0LL, };
+} jitstats = { 0LL, };
 
-JS_STATIC_ASSERT(sizeof(stat) % sizeof(uint64) == 0);
+JS_STATIC_ASSERT(sizeof(jitstats) % sizeof(uint64) == 0);
 
 enum jitstat_ids {
 #define JITSTAT(x) STAT ## x ## ID,
@@ -139,7 +139,7 @@ jitstats_getProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
 
     uint64 result = 0;
     switch (index) {
-#define JITSTAT(x) case STAT ## x ## ID: result = stat.x; break;
+#define JITSTAT(x) case STAT ## x ## ID: result = jitstats.x; break;
 #include "jitstats.tbl"
 #undef JITSTAT
     default:
@@ -173,7 +173,7 @@ js_InitJITStatsClass(JSContext *cx, JSObject *glob)
     JS_InitClass(cx, glob, NULL, &jitstats_class, NULL, 0, jitstats_props, NULL, NULL, NULL);
 }
 
-#define AUDIT(x) (stat.x++)
+#define AUDIT(x) (jitstats.x++)
 #else
 #define AUDIT(x) ((void)0)
 #endif
@@ -2608,7 +2608,7 @@ js_ExecuteTree(JSContext* cx, Fragment** treep, uintN& inlineCallCount,
     int slots = FlushNativeGlobalFrame(cx, exit_gslots, gslots, globalTypeMap, global);
     if (slots < 0)
         return NULL;
-    JS_ASSERT(globalFrameSize == STOBJ_NSLOTS(globalObj));
+    JS_ASSERT_IF(ngslots != 0, globalFrameSize == STOBJ_NSLOTS(globalObj));
     JS_ASSERT(*(uint64*)&global[globalFrameSize] == 0xdeadbeefdeadbeefLL);
 
     /* write back native stack frame */
@@ -2819,7 +2819,7 @@ js_InitJIT(JSTraceMonitor *tm)
         tm->globalTypeMap = new (&gc) TypeMap();
     }
 #if !defined XP_WIN
-    debug_only(memset(&stat, 0, sizeof(stat)));
+    debug_only(memset(&jitstats, 0, sizeof(jitstats)));
 #endif
 }
 
@@ -2830,12 +2830,12 @@ js_FinishJIT(JSTraceMonitor *tm)
     printf("recorder: started(%llu), aborted(%llu), completed(%llu), different header(%llu), "
            "trees trashed(%llu), slot promoted(%llu), unstable loop variable(%llu), "
            "breaks(%llu), returns(%llu)\n",
-           stat.recorderStarted, stat.recorderAborted, stat.traceCompleted,
-           stat.returnToDifferentLoopHeader, stat.treesTrashed, stat.slotPromoted,
-           stat.unstableLoopVariable, stat.breakLoopExits, stat.returnLoopExits);
+           jitstats.recorderStarted, jitstats.recorderAborted, jitstats.traceCompleted,
+           jitstats.returnToDifferentLoopHeader, jitstats.treesTrashed, jitstats.slotPromoted,
+           jitstats.unstableLoopVariable, jitstats.breakLoopExits, jitstats.returnLoopExits);
     printf("monitor: triggered(%llu), exits(%llu), type mismatch(%llu), "
-           "global mismatch(%llu)\n", stat.traceTriggered, stat.sideExitIntoInterpreter,
-           stat.typeMapMismatchAtEntry, stat.globalShapeMismatchAtEntry);
+           "global mismatch(%llu)\n", jitstats.traceTriggered, jitstats.sideExitIntoInterpreter,
+           jitstats.typeMapMismatchAtEntry, jitstats.globalShapeMismatchAtEntry);
 #endif
     if (tm->fragmento != NULL) {
         JS_ASSERT(tm->globalSlots && tm->globalTypeMap);
@@ -4094,8 +4094,20 @@ TraceRecorder::record_JSOP_MOD()
     jsval& r = stackval(-1);
     jsval& l = stackval(-2);
     if (isNumber(l) && isNumber(r)) {
-        LIns* args[] = { get(&r), get(&l) };
-        set(&l, lir->insCall(F_dmod, args));
+        LIns* l_ins = get(&l);
+        LIns* r_ins = get(&r);
+        LIns* x;
+        /* We can't demote this in a filter since we need the actual values of l and r. */
+        if (isPromote(l_ins) && isPromote(r_ins) && asNumber(l) >= 0 && asNumber(r) > 0) {
+            LIns* args[] = { ::demote(lir, r_ins), ::demote(lir, l_ins) };
+            x = lir->insCall(F_imod, args);
+            guard(false, lir->ins2(LIR_eq, x, lir->insImm(-1)), BRANCH_EXIT);
+            x = lir->ins1(LIR_i2f, x);
+        } else {
+            LIns* args[] = { r_ins, l_ins };
+            x = lir->insCall(F_dmod, args);
+        }
+        set(&l, x);
         return true;
     }
     return false;
@@ -4834,6 +4846,7 @@ TraceRecorder::record_JSOP_CALL()
 
     jsval& tval = stackval(0 - (argc + 1));
     LIns* this_ins = get(&tval);
+
     if (this_ins->isconstp() && !this_ins->constvalp() && !guardShapelessCallee(fval))
         return false;
 
@@ -6016,14 +6029,15 @@ TraceRecorder::record_JSOP_ARGCNT()
 }
 
 bool
+TraceRecorder::record_DefLocalFunSetSlot(uint32 slot, JSObject* obj)
+{
+    var(slot, INS_CONSTPTR(obj));
+    return true;
+}
+
+bool
 TraceRecorder::record_JSOP_DEFLOCALFUN()
 {
-    JSFunction* fun;
-    JSFrameRegs& regs = *cx->fp->regs;
-    JSScript* script = cx->fp->script;
-    LOAD_FUNCTION(SLOTNO_LEN); // needs script, regs, fun
-
-    var(GET_SLOTNO(regs.pc), INS_CONSTPTR(FUN_OBJECT(fun)));
     return true;
 }
 
@@ -6131,7 +6145,7 @@ TraceRecorder::record_JSOP_GETGVAR()
     if (!lazilyImportGlobalSlot(slot))
          ABORT_TRACE("lazy import of global slot failed");
 
-    stack(0, get(&STOBJ_GET_SLOT(cx->fp->scopeChain, slot)));
+    stack(0, get(&STOBJ_GET_SLOT(globalObj, slot)));
     return true;
 }
 
@@ -6147,7 +6161,7 @@ TraceRecorder::record_JSOP_SETGVAR()
     if (!lazilyImportGlobalSlot(slot))
          ABORT_TRACE("lazy import of global slot failed");
 
-    set(&STOBJ_GET_SLOT(cx->fp->scopeChain, slot), stack(-1));
+    set(&STOBJ_GET_SLOT(globalObj, slot), stack(-1));
     return true;
 }
 
@@ -6163,7 +6177,7 @@ TraceRecorder::record_JSOP_INCGVAR()
     if (!lazilyImportGlobalSlot(slot))
          ABORT_TRACE("lazy import of global slot failed");
 
-    return inc(STOBJ_GET_SLOT(cx->fp->scopeChain, slot), 1);
+    return inc(STOBJ_GET_SLOT(globalObj, slot), 1);
 }
 
 bool
@@ -6178,7 +6192,7 @@ TraceRecorder::record_JSOP_DECGVAR()
     if (!lazilyImportGlobalSlot(slot))
          ABORT_TRACE("lazy import of global slot failed");
 
-    return inc(STOBJ_GET_SLOT(cx->fp->scopeChain, slot), -1);
+    return inc(STOBJ_GET_SLOT(globalObj, slot), -1);
 }
 
 bool
@@ -6193,7 +6207,7 @@ TraceRecorder::record_JSOP_GVARINC()
     if (!lazilyImportGlobalSlot(slot))
          ABORT_TRACE("lazy import of global slot failed");
 
-    return inc(STOBJ_GET_SLOT(cx->fp->scopeChain, slot), 1, false);
+    return inc(STOBJ_GET_SLOT(globalObj, slot), 1, false);
 }
 
 bool
@@ -6208,7 +6222,7 @@ TraceRecorder::record_JSOP_GVARDEC()
     if (!lazilyImportGlobalSlot(slot))
          ABORT_TRACE("lazy import of global slot failed");
 
-    return inc(STOBJ_GET_SLOT(cx->fp->scopeChain, slot), -1, false);
+    return inc(STOBJ_GET_SLOT(globalObj, slot), -1, false);
 }
 
 bool
