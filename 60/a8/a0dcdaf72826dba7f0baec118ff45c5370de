@@ -1,0 +1,3 @@
+changeset 3e6571e74e0105d4b3fb2bcbaacc49bb10ec311d
+manifest fb9d3b5c5260ec652f315e1c4b335989d1b59858
+files js/src/jit-test/tests/ion/bug1057598.js

@@ -1,0 +1,4 @@
+changeset fb06fa0600ab95db48212a237c79b650cac213c5
+manifest 03e445ab4f3e48cb83ca754d1bca411e091fbec6
+extra rebase_source:f7f82c851d3f281a0494086002792da853d6f5dc
+files browser/extensions/pdfjs/content/web/viewer.css

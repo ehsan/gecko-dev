@@ -1,0 +1,3 @@
+changeset 6454e62689f13956b2ae5bcefee9e4c621df0e5f
+manifest f8ab36566011fcf558af6ce2785d652df85a6eba
+files testing/web-platform/tests/workers/interfaces/WorkerGlobalScope/close/sending-messages.html

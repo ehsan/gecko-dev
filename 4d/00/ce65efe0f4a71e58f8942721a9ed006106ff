@@ -1,0 +1,3 @@
+changeset cb0fd5d9a263a01a871e2fdbbd4bd23818f60ce4
+manifest 894db3b4323afb7727ce537378603035ead30ceb
+files dom/plugins/ipc/BrowserStreamParent.cpp

@@ -1,0 +1,3 @@
+changeset d67013733acba5f356fbe75ac7d1cf6594104d29
+manifest 18a837ac873bbe23aa26a332d8c560472196a5aa
+files security/manager/ssl/src/nsNSSCallbacks.cpp

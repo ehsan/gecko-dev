@@ -1,0 +1,3 @@
+changeset 9eb6a0741123aea12b8085c8e668717dedc8592e
+manifest eaa57c5196b80a120f138778a70abc83eca09f5c
+files js/src/xpconnect/wrappers/WrapperFactory.cpp

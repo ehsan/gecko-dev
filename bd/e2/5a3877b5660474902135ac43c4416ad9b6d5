@@ -1,0 +1,3 @@
+changeset 8dfe78bce537aa02f1bff509e2002ad3a0c0541c
+manifest ac5da9ee32e7dd4c4e461416bb048f32008e69bf
+files dom/indexedDB/test/browser_perwindow_privateBrowsing.js

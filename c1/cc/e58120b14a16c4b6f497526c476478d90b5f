@@ -1,0 +1,4 @@
+changeset 7499e60e458b47ecee1fb5a164136c1335a97382
+manifest 3b14bd27ad7ff92606e2cf24fb5007f22b8393ba
+extra rebase_source:30fd5e958d996623c95d7dec80bdb4eb4c2a522e
+files content/base/test/test_CSP_bug888172.html

@@ -1,0 +1,4 @@
+changeset eae3687c8ce2d49a1002ee6582942057f717f758
+manifest c0f63e4925ece7a05370ebd1c666202561c1cc50
+extra branch:SEA2_22b2_RELBRANCH
+files extensions/spellcheck/src/mozInlineSpellChecker.cpp

@@ -1,0 +1,3 @@
+changeset 6f6ec57ce6b9a8c450b2558e968248ad56fb5d2f
+manifest c906825bf74f2c76f26248d9a485165536366b7c
+files browser/devtools/sourceeditor/test/browser_css_autocompletion.js

@@ -1,0 +1,3 @@
+changeset 3720d4e9348fdd9e4fa8cae0c89a89ba2c63d8e4
+manifest aac81d049a65543ce10a014a03bd0b1a3f82f322
+files uriloader/prefetch/nsOfflineCacheUpdateService.cpp

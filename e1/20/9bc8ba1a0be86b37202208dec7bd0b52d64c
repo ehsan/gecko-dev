@@ -1,0 +1,3 @@
+changeset 79b650cd094429b209cc1b54ad942e9b7948b0d6
+manifest 6f71827967766012caaa2c5f701ee8e243c18803
+files mobile/android/stumbler/java/org/mozilla/mozstumbler/service/uploadthread/UploadAlarmReceiver.java

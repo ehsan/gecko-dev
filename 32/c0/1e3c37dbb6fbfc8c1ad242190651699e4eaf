@@ -1,0 +1,3 @@
+changeset 6516775f1fd68b1d2815c5f0c3cd3b3d1402972f
+manifest 1a37f09487724a70d33c5077730aa2c5bcfe7ad5
+files browser/devtools/webconsole/test/browser_webconsole_bug_598357_jsterm_output.js

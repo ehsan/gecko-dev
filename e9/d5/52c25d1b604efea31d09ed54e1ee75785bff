@@ -1,0 +1,4 @@
+changeset c4fb0dcfb8ad384ec4e74829d4d19313d8a93f94
+manifest 67087df3f6232463daf9811d11f1f4660780beaf
+extra rebase_source:5a46f5ee7ff3a29b11b7ac3342883b323b6b06d5
+files browser/modules/test/browser_UITour_loop.js

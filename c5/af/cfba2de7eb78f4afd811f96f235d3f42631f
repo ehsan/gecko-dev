@@ -1,0 +1,4 @@
+changeset 8a133b6bd90966dcea7544f69e30f74f2665cb6a
+manifest fb379ffc959916a6cea9075e9e8d6dfc57c4413e
+extra branch:COMM110_2012020102_RELBRANCH
+files security/manager/ssl/src/SSLServerCertVerification.cpp

@@ -1,0 +1,3 @@
+changeset 44872d625d2176ff32a2bf20fe12f771a470ce04
+manifest 8cea5322b035a2ad6b2167b4792656b63ed6cf10
+files security/manager/ssl/src/TransportSecurityInfo.cpp

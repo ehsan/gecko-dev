@@ -1,0 +1,3 @@
+changeset 645d232705b36072db63680804960e9578fbbc99
+manifest c77658ec0c202f7d7f4b557c7aaac0c633235c41
+files media/webrtc/trunk/webrtc/modules/desktop_capture/desktop_device_info.cc

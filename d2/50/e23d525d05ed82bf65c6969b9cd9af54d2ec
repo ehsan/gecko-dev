@@ -1,0 +1,4 @@
+changeset 371e802df4dcdde15da1a0e8db71c2b172b103b4
+manifest 395295d572c849b5028cb64e5efdd7330d371cdc
+extra histedit_source:ba0f340ec5cf30301dc674f227b7c84b4e6dbd0b
+files js/src/jsapi-tests/testJitMoveEmitterCycles.cpp

@@ -1,0 +1,4 @@
+changeset b57f0af03f78b8254ee36e3a057c415320d25b1f
+manifest 20c7ecc731e9317ee44c4617170d9a47c6aa4586
+extra histedit_source:b778e1190cfe809b32d797b1bd40b3aaa97bf6cf
+files content/xul/document/src/XULDocument.cpp

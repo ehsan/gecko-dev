@@ -1,0 +1,4 @@
+changeset 08a50378d37ccbdb94f3df66ba0e493de87b2276
+manifest 6060adf4a87781cd472fcd0f7e55da439d01b270
+extra branch:GECKO50_2011060814_RELBRANCH
+files ipc/testshell/XPCShellEnvironment.cpp

@@ -1,0 +1,3 @@
+changeset 33e1556c7b0d1d884fa8070b7dd5673532d8423f
+manifest 88bad893f96dba602654396f8771a6aae2df1461
+files browser/devtools/webconsole/test/browser_webconsole_bug_630733_response_redirect_headers.js

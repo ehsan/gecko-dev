@@ -1,0 +1,3 @@
+changeset 3ad2e6c8d185454dd55a845ec18e9a6ffc1607a6
+manifest b6fea8c4d716cac0adc9d8b50f3d9db68df3aa93
+files dom/bluetooth/tests/marionette/test_dom_BluetoothManager_enabled.js

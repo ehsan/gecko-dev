@@ -1,0 +1,4 @@
+changeset 611896e7d5931edfc12f3697c18f322bbbb0f7b4
+manifest c04ec39eda3f0871a7b95e74d41a51f70cb359fe
+extra rebase_source:43dd6384041dd759fc1a2c526898f2d92183cc04
+files toolkit/components/startup/nsAppStartup.cpp

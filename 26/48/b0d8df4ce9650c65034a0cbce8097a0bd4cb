@@ -1,0 +1,3 @@
+changeset b30d5dfe04211e9d138f570a56e889dab81d24bc
+manifest bc0d33c9ce4d2ed25e2bbcf0edc351f63c2ad15c
+files mobile/android/services/manifests/SyncAndroidManifest_activities.xml.in

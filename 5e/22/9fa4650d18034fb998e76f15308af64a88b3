@@ -1,0 +1,3 @@
+changeset 5f4afc920176a1f4626f238cb261cc1520b7018c
+manifest 1f404ff6754b27be018e01e2f5e660f4d8cb47a5
+files browser/devtools/webconsole/test/browser_webconsole_bug_594477_clickable_output.js

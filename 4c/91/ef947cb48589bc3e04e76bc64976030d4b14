@@ -1,0 +1,4 @@
+changeset 5dfea367b8b91b5bef609914932f309f6e35c4f3
+manifest 489c0944f9a8170510fb7a155e43c21696c0f89b
+extra source:6f78648a91a0d6fe147c7c907255bf2964a51bfa
+files mobile/android/base/fxa/authenticator/AccountPickler.java

@@ -1,0 +1,3 @@
+changeset deb83f2f75faf0dc402e934cb5f52d3539e87e08
+manifest 65eee0bf4592e9e44a24c2729d74db0123f9669d
+files services/sync/tests/unit/test_browserid_identity.js

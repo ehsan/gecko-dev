@@ -1,0 +1,3 @@
+changeset 9ebc7ee50a9c87f8f1401f5c39db31f4c08d718b
+manifest d3cd95210911e5093038091135ba62fa104badbc
+files browser/base/content/test/general/browser_urlbarTrimURLs.js

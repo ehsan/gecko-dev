@@ -1,0 +1,4 @@
+changeset ac0dae3c304183f86600cebc7fd04225f2b4e521
+manifest 13bd110a64b22889c807bd1bdd693ce51f890710
+extra branch:SEAMONKEY_2_2b1_RELBRANCH
+files toolkit/mozapps/installer/packager.mk

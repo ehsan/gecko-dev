@@ -1,0 +1,3 @@
+changeset 88e02ab1cc6cd12858ff54fec4bb82511387d99f
+manifest 783565e7cece5d630b3f97a52136a14ca8892e6b
+files mozglue/linker/CustomElf.cpp

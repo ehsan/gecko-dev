@@ -1,0 +1,4 @@
+changeset ba55146f4519a362a763e549a417adb8b4459299
+manifest 067ee5594346803adc02b02b3eec921f5b0c55c8
+extra rebase_source:dff4177db53141f67476f44b1177d78e69bf066c
+files js/src/vm/Stack-inl.h

@@ -1,0 +1,3 @@
+changeset 606f7891e3c437852c6b29f741d075ad7df65a69
+manifest 1c50c72e8ef3df60ac82f8f4a1abcf7abb7d35bb
+files dom/workers/test/promise_worker.js

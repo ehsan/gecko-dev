@@ -1,0 +1,4 @@
+changeset 48f5308b2d46efee41e965d9e0cecabfe71aea50
+manifest 4613e46eca4d5c5b3c53c48665574cba3aa3ce6b
+author enndeakin@gmail.com
+files content/events/src/nsEventStateManager.cpp

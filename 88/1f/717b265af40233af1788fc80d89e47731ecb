@@ -1,0 +1,3 @@
+changeset 66518d59cdbdd8250f47a5dc270fa83de7e00262
+manifest c248609c7f3a7c813a00a032eb39549831f6b6ed
+files browser/components/tabview/test/browser_tabview_bug595601.js

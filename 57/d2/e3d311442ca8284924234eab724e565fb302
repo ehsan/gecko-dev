@@ -1,0 +1,3 @@
+changeset 382eea58c0f48eed25113b6620359fe768cc3891
+manifest bcafc0874eacf3cda183af3064fa810e72af88c6
+files xpcom/io/nsNativeCharsetUtils.cpp

@@ -1,0 +1,3 @@
+changeset c9f397f91cce5888ce4ddb846e8f68f126e31d1b
+manifest d001b75b3eda1358d189f4b3c53d53554021eae3
+files toolkit/mozapps/installer/windows/nsis/preprocess-locale.py

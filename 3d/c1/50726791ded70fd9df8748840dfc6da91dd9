@@ -1,0 +1,3 @@
+changeset b278a705d16067b9d814ff0416e4672c13a7e898
+manifest 177dc7849c6eab414d4af0f1479448fb3a9013a3
+files browser/devtools/styleeditor/test/browser_styleeditor_sourcemap_watching.js

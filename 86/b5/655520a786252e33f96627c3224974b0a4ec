@@ -1,0 +1,4 @@
+changeset b1ec5d08e4662f984cb7ed53aae252a2403301e3
+manifest 4ae1a1da4d4775ffd8a7a7f6db92a830411af6bb
+author andrew.quartey@gmail.com
+files dom/base/nsGlobalWindow.cpp

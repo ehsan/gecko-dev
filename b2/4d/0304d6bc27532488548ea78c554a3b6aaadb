@@ -1,0 +1,3 @@
+changeset ee09df3331d066e0b4b4f83ca6fe81d5c29f00f9
+manifest 5fcc3ca75c0f7c275246200b313f077c03fe0511
+files media/webrtc/trunk/webrtc/modules/video_capture/windows/video_capture_ds.cc

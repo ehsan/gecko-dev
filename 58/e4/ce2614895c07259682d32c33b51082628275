@@ -1,0 +1,4 @@
+changeset 252c3ab238d0fdfd16ee73040451942a3a6a0603
+manifest bf38b2376e00170edb032fcdfb690007faf7161e
+extra amend_source:5082be5161cbb2c02301f5647a578be484afe860
+files gfx/thebes/gfxWindowsPlatform.cpp

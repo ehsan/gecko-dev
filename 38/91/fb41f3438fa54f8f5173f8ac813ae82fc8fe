@@ -1,0 +1,4 @@
+changeset c1f5c2acfb756b7a597d7619a44d68d2eff875e0
+manifest 98c390ccd77f7bef4bdd52d3aa9ba1f19fb6e518
+extra branch:MOBILE70_2011083111_RELBRANCH
+files security/manager/ssl/src/nsNSSCallbacks.cpp
