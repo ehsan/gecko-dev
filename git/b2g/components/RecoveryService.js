@@ -66,12 +66,7 @@ RecoveryService.prototype = {
 #ifdef MOZ_WIDGET_GONK
     // If this succeeds, then the device reboots and this never returns
     if (librecovery.factoryReset() != 0) {
-      log("Error: Factory reset failed. Trying again after clearing cache.");
-    }
-    var cache = Cc["@mozilla.org/netwerk/cache-storage-service;1"].getService(Ci.nsICacheStorageService);
-    cache.clear();
-    if (librecovery.factoryReset() != 0) {
-      log("Error: Factory reset failed again");
+      log("Error: Factory reset failed");
     }
 #endif
     throw Cr.NS_ERROR_FAILURE;
@@ -81,12 +76,7 @@ RecoveryService.prototype = {
 #ifdef MOZ_WIDGET_GONK
     // If this succeeds, then the device reboots and this never returns
     if (librecovery.installFotaUpdate(updatePath, updatePath.length) != 0) {
-      log("Error: FOTA install failed. Trying again after clearing cache.");
-    }
-    var cache = Cc["@mozilla.org/netwerk/cache-storage-service;1"].getService(Ci.nsICacheStorageService);
-    cache.clear();
-    if (librecovery.installFotaUpdate(updatePath, updatePath.length) != 0) {
-      log("Error: FOTA install failed again");
+      log("Error: FOTA install failed");
     }
 #endif
     throw Cr.NS_ERROR_FAILURE;

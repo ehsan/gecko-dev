@@ -37,7 +37,6 @@
 #include "mozilla/dom/devicestorage/DeviceStorageRequestParent.h"
 #include "mozilla/dom/GeolocationBinding.h"
 #include "mozilla/dom/telephony/TelephonyParent.h"
-#include "mozilla/dom/FileSystemRequestParent.h"
 #include "SmsParent.h"
 #include "mozilla/hal_sandbox/PHalParent.h"
 #include "mozilla/ipc/BackgroundChild.h"
@@ -1862,7 +1861,7 @@ ContentParent::RecvGetShowPasswordSetting(bool* showPassword)
 #ifdef MOZ_WIDGET_ANDROID
     NS_ASSERTION(AndroidBridge::Bridge() != nullptr, "AndroidBridge is not available");
 
-    *showPassword = GeckoAppShell::GetShowPasswordSetting();
+    *showPassword = mozilla::widget::android::GeckoAppShell::GetShowPasswordSetting();
 #endif
     return true;
 }
@@ -2257,24 +2256,6 @@ bool
 ContentParent::DeallocPDeviceStorageRequestParent(PDeviceStorageRequestParent* doomed)
 {
   DeviceStorageRequestParent *parent = static_cast<DeviceStorageRequestParent*>(doomed);
-  NS_RELEASE(parent);
-  return true;
-}
-
-PFileSystemRequestParent*
-ContentParent::AllocPFileSystemRequestParent(const FileSystemParams& aParams)
-{
-  nsRefPtr<FileSystemRequestParent> result = new FileSystemRequestParent();
-  if (!result->Dispatch(this, aParams)) {
-    return nullptr;
-  }
-  return result.forget().get();
-}
-
-bool
-ContentParent::DeallocPFileSystemRequestParent(PFileSystemRequestParent* doomed)
-{
-  FileSystemRequestParent* parent = static_cast<FileSystemRequestParent*>(doomed);
   NS_RELEASE(parent);
   return true;
 }
