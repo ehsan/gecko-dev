@@ -184,13 +184,10 @@ let UI = {
   update: function(button, location) {
     button.disabled = true;
     let project = AppProjects.get(location);
-
-    // Update the manifest editor view, in case the manifest was modified
-    // outside of the app manager.  This can happen in parallel with the other
-    // steps.
-    this._showManifestEditor(project);
-
-    this.validate(project)
+    this.manifestEditor.save()
+        .then(() => {
+          return this.validate(project);
+        })
         .then(() => {
            // Install the app to the device if we are connected,
            // and there is no error
@@ -211,11 +208,6 @@ let UI = {
           alert(message);
           this.connection.log(message);
         });
-  },
-
-  saveManifest: function(button) {
-    button.disabled = true;
-    this.manifestEditor.save().then(() => button.disabled = false);
   },
 
   reload: function (project) {
@@ -368,15 +360,25 @@ let UI = {
       loop(0);
       return deferred.promise;
     };
+    let onTargetReady = (target) => {
+      // Finally, when it's finally opened, display the toolbox
+      let deferred = promise.defer();
+      gDevTools.showToolbox(target,
+                            null,
+                            devtools.Toolbox.HostType.WINDOW).then(toolbox => {
+        this.connection.once(Connection.Events.DISCONNECTED, () => {
+          toolbox.destroy();
+        });
+        deferred.resolve(toolbox);
+      });
+      return deferred.promise;
+    };
 
     // First try to open the app
     this.start(project)
         .then(null, onFailedToStart)
         .then(onStarted)
-        .then((target) =>
-          top.UI.openAndShowToolboxForTarget(target,
-                                             project.manifest.name,
-                                             project.icon))
+        .then(onTargetReady)
         .then(() => {
            // And only when the toolbox is opened, release the button
            button.disabled = false;
@@ -436,9 +438,6 @@ let UI = {
   },
 
   _showManifestEditor: function(project) {
-    if (this.manifestEditor) {
-      this.manifestEditor.destroy();
-    }
     let editorContainer = document.querySelector("#lense .manifest-editor");
     this.manifestEditor = new ManifestEditor(project);
     return this.manifestEditor.show(editorContainer);

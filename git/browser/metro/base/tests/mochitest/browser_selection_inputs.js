@@ -8,6 +8,7 @@
 let gWindow = null;
 var gInput = null;
 
+const kMarkerOffsetY = 12;
 const kCommonWaitMs = 7000;
 const kCommonPollMs = 200;
 

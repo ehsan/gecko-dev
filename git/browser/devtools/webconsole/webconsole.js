@@ -2721,7 +2721,7 @@ WebConsoleFrame.prototype = {
     locationNode.href = isScratchpad ? "#" : fullURL;
     locationNode.draggable = false;
     locationNode.setAttribute("title", aSourceURL);
-    locationNode.className = "location theme-link devtools-monospace";
+    locationNode.className = "location devtools-monospace";
 
     // Make the location clickable.
     this._addMessageLinkCallback(locationNode, () => {
