@@ -20,7 +20,6 @@ function test() {
 
   var win = openDialog(location, "", "chrome,all,dialog=no");
   win.addEventListener("load", function () {
-    win.removeEventListener("load", arguments.calle, false);
     browserWindowsCount(2);
     win.close();
     browserWindowsCount(1);

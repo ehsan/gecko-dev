@@ -35,17 +35,14 @@ function test()
 {
   addTab(TEST_URI);
 
-  let initialLoad = true;
+  browser.addEventListener("load", function(aEvent) {
+    browser.removeEventListener(aEvent.type, arguments.callee, true);
 
-  browser.addEventListener("load", function () {
-    if (initialLoad) {
-      openConsole();
-      HUDService.lastFinishedRequestCallback = requestDoneCallback;
-      content.location.reload();
-      initialLoad = false;
-    } else {
-      browser.removeEventListener("load", arguments.callee, true);
-      performTest();
-    }
+    openConsole();
+
+    HUDService.lastFinishedRequestCallback = requestDoneCallback;
+
+    browser.addEventListener("load", performTest, true);
+    content.location.reload();
   }, true);
 }

@@ -713,8 +713,8 @@ TraceScopeJSObjects(JSTracer *trc, XPCWrappedNativeScope* scope)
     }
 }
 
-static void
-TraceForValidWrapper(JSTracer *trc, XPCWrappedNative* wrapper)
+void
+xpc_TraceForValidWrapper(JSTracer *trc, XPCWrappedNative* wrapper)
 {
     // NOTE: It might be nice to also do the wrapper->Mark() call here too
     // when we are called during the marking phase of JS GC to mark the
@@ -743,34 +743,22 @@ TraceForValidWrapper(JSTracer *trc, XPCWrappedNative* wrapper)
 }
 
 static void
-MarkWrappedNative(JSTracer *trc, JSObject *obj, bool helper)
+XPC_WN_Shared_Trace(JSTracer *trc, JSObject *obj)
 {
     JSObject *obj2;
-
-    // Pass null for the first JSContext* parameter  to skip any security
-    // checks and to avoid potential state change there.
     XPCWrappedNative* wrapper =
-        XPCWrappedNative::GetWrappedNativeOfJSObject(nsnull, obj, nsnull, &obj2);
+        XPCWrappedNative::GetWrappedNativeOfJSObject(trc->context, obj, nsnull,
+                                                     &obj2);
 
     if(wrapper)
     {
         if(wrapper->IsValid())
-        {
-            if(helper)
-                wrapper->GetScriptableCallback()->Trace(wrapper, trc, obj);
-             TraceForValidWrapper(trc, wrapper);
-        }
+             xpc_TraceForValidWrapper(trc, wrapper);
     }
     else if(obj2)
     {
         GetSlimWrapperProto(obj2)->TraceJS(trc);
     }
-}
-
-static void
-XPC_WN_Shared_Trace(JSTracer *trc, JSObject *obj)
-{
-    MarkWrappedNative(trc, obj, false);
 }
 
 static JSBool
@@ -1110,7 +1098,22 @@ XPC_WN_Helper_Finalize(JSContext *cx, JSObject *obj)
 static void
 XPC_WN_Helper_Trace(JSTracer *trc, JSObject *obj)
 {
-    MarkWrappedNative(trc, obj, true);
+    JSObject *obj2;
+    XPCWrappedNative* wrapper =
+        XPCWrappedNative::GetWrappedNativeOfJSObject(trc->context, obj, nsnull,
+                                                     &obj2);
+    if(wrapper)
+    {
+        if(wrapper->IsValid())
+        {
+            wrapper->GetScriptableCallback()->Trace(wrapper, trc, obj);
+            xpc_TraceForValidWrapper(trc, wrapper);
+        }
+    }
+    else if(obj2)
+    {
+        GetSlimWrapperProto(obj2)->TraceJS(trc);
+    }
 }
 
 static JSBool

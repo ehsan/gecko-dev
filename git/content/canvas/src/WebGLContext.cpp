@@ -64,7 +64,9 @@
 
 #include "gfxCrashReporterUtils.h"
 
+#ifdef MOZ_SVG
 #include "nsSVGEffects.h"
+#endif
 
 #include "prenv.h"
 
@@ -275,7 +277,9 @@ WebGLContext::Invalidate()
     if (!mCanvasElement)
         return;
 
+#ifdef MOZ_SVG
     nsSVGEffects::InvalidateDirectRenderingObservers(HTMLCanvasElement());
+#endif
 
     mInvalidated = PR_TRUE;
     HTMLCanvasElement()->InvalidateCanvasContent(nsnull);
@@ -297,6 +301,9 @@ WebGLContext::GetCanvas(nsIDOMHTMLCanvasElement **canvas)
 NS_IMETHODIMP
 WebGLContext::SetCanvasElement(nsHTMLCanvasElement* aParentCanvas)
 {
+    if (aParentCanvas && !SafeToCreateCanvas3DContext(aParentCanvas))
+        return NS_ERROR_FAILURE;
+
     mCanvasElement = aParentCanvas;
 
     return NS_OK;
@@ -361,8 +368,6 @@ WebGLContext::SetContextOptions(nsIPropertyBag *aOptions)
 NS_IMETHODIMP
 WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
 {
-    /*** early success return cases ***/
-  
     if (mCanvasElement) {
         HTMLCanvasElement()->InvalidateCanvas();
     }
@@ -388,36 +393,7 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
         return NS_OK;
     }
 
-    /*** end of early success return cases ***/
-
     ScopedGfxFeatureReporter reporter("WebGL");
-
-    // At this point we know that the old context is not going to survive, even though we still don't
-    // know if creating the new context will succeed.
-    DestroyResourcesAndContext();
-
-    // Get some prefs for some preferred/overriden things
-    nsCOMPtr<nsIPrefBranch> prefService = do_GetService(NS_PREFSERVICE_CONTRACTID);
-    NS_ENSURE_TRUE(prefService != nsnull, NS_ERROR_FAILURE);
-
-    PRBool forceOSMesa = PR_FALSE;
-    PRBool preferEGL = PR_FALSE;
-    PRBool preferOpenGL = PR_FALSE;
-    PRBool forceEnabled = PR_FALSE;
-    PRBool disabled = PR_FALSE;
-    PRBool verbose = PR_FALSE;
-
-    prefService->GetBoolPref("webgl.force_osmesa", &forceOSMesa);
-    prefService->GetBoolPref("webgl.prefer-egl", &preferEGL);
-    prefService->GetBoolPref("webgl.prefer-native-gl", &preferOpenGL);
-    prefService->GetBoolPref("webgl.force-enabled", &forceEnabled);
-    prefService->GetBoolPref("webgl.disabled", &disabled);
-    prefService->GetBoolPref("webgl.verbose", &verbose);
-
-    if (disabled)
-        return NS_ERROR_FAILURE;
-
-    mVerbose = verbose;
 
     // We're going to create an entirely new context.  If our
     // generation is not 0 right now (that is, if this isn't the first
@@ -429,6 +405,10 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
     // resource handles created from older context generations.
     if (!(mGeneration+1).valid())
         return NS_ERROR_FAILURE; // exit without changing the value of mGeneration
+
+    // We're going to recreate our context, so make sure we clean up
+    // after ourselves.
+    DestroyResourcesAndContext();
 
     gl::ContextFormat format(gl::ContextFormat::BasicRGBA32);
     if (mOptions.depth) {
@@ -452,6 +432,22 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
         format.minAlpha = 0;
     }
 
+    nsCOMPtr<nsIPrefBranch> prefService = do_GetService(NS_PREFSERVICE_CONTRACTID);
+    NS_ENSURE_TRUE(prefService != nsnull, NS_ERROR_FAILURE);
+
+    PRBool verbose = PR_FALSE;
+    prefService->GetBoolPref("webgl.verbose", &verbose);
+    mVerbose = verbose;
+
+    // Get some prefs for some preferred/overriden things
+    PRBool forceOSMesa = PR_FALSE;
+    PRBool preferEGL = PR_FALSE;
+    PRBool preferOpenGL = PR_FALSE;
+    PRBool forceEnabled = PR_FALSE;
+    prefService->GetBoolPref("webgl.force_osmesa", &forceOSMesa);
+    prefService->GetBoolPref("webgl.prefer-egl", &preferEGL);
+    prefService->GetBoolPref("webgl.prefer-native-gl", &preferOpenGL);
+    prefService->GetBoolPref("webgl.force-enabled", &forceEnabled);
     if (PR_GetEnv("MOZ_WEBGL_PREFER_EGL")) {
         preferEGL = PR_TRUE;
     }

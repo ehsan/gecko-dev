@@ -1833,7 +1833,7 @@ stubs::DecGlobalName(VMFrame &f, JSAtom *atom)
 template void JS_FASTCALL stubs::DecGlobalName<true>(VMFrame &f, JSAtom *atom);
 template void JS_FASTCALL stubs::DecGlobalName<false>(VMFrame &f, JSAtom *atom);
 
-static bool JS_ALWAYS_INLINE
+static bool JS_FASTCALL
 InlineGetProp(VMFrame &f)
 {
     JSContext *cx = f.cx;

@@ -878,6 +878,31 @@ nsCSSSelectorList::Clone(PRBool aDeep) const
 namespace mozilla {
 namespace css {
 
+class StyleRule;
+
+class ImportantRule : public nsIStyleRule {
+public:
+  ImportantRule(Declaration *aDeclaration);
+
+  NS_DECL_ISUPPORTS
+
+  // nsIStyleRule interface
+  virtual void MapRuleInfoInto(nsRuleData* aRuleData);
+#ifdef DEBUG
+  virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
+#endif
+
+protected:
+  virtual ~ImportantRule();
+
+  // Not an owning reference; the StyleRule that owns this
+  // ImportantRule also owns the mDeclaration, and any rule node
+  // pointing to this rule keeps that StyleRule alive as well.
+  Declaration* mDeclaration;
+
+  friend class css::StyleRule;
+};
+
 ImportantRule::ImportantRule(Declaration* aDeclaration)
   : mDeclaration(aDeclaration)
 {
@@ -1281,6 +1306,11 @@ NS_INTERFACE_MAP_END
 
 NS_IMPL_ADDREF_INHERITED(StyleRule, Rule)
 NS_IMPL_RELEASE_INHERITED(StyleRule, Rule)
+
+nsIStyleRule* StyleRule::GetImportantRule()
+{
+  return mImportantRule;
+}
 
 void
 StyleRule::RuleMatched()

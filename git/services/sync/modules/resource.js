@@ -46,7 +46,6 @@ const Ci = Components.interfaces;
 const Cr = Components.results;
 const Cu = Components.utils;
 
-Cu.import("resource://services-sync/async.js");
 Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/ext/Observers.js");
 Cu.import("resource://services-sync/ext/Preferences.js");
@@ -145,11 +144,6 @@ function AsyncResource(uri) {
 AsyncResource.prototype = {
   _logName: "Net.Resource",
 
-  // ** {{{ AsyncResource.serverTime }}} **
-  //
-  // Caches the latest server timestamp (X-Weave-Timestamp header).
-  serverTime: null,
-
   // The string to use as the base User-Agent in Sync requests.
   // These strings will look something like
   // 
@@ -167,7 +161,7 @@ AsyncResource.prototype = {
   // Wait 5 minutes before killing a request.
   ABORT_TIMEOUT: 300000,
 
-  // ** {{{ AsyncResource.authenticator }}} **
+  // ** {{{ Resource.authenticator }}} **
   //
   // Getter and setter for the authenticator module
   // responsible for this particular resource. The authenticator
@@ -183,7 +177,7 @@ AsyncResource.prototype = {
     this._authenticator = value;
   },
 
-  // ** {{{ AsyncResource.headers }}} **
+  // ** {{{ Resource.headers }}} **
   //
   // Headers to be included when making a request for the resource.
   // Note: Header names should be all lower case, there's no explicit
@@ -198,7 +192,7 @@ AsyncResource.prototype = {
     this._headers[header.toLowerCase()] = value;
   },
 
-  // ** {{{ AsyncResource.uri }}} **
+  // ** {{{ Resource.uri }}} **
   //
   // URI representing this resource.
   get uri() {
@@ -211,7 +205,7 @@ AsyncResource.prototype = {
       this._uri = value;
   },
 
-  // ** {{{ AsyncResource.spec }}} **
+  // ** {{{ Resource.spec }}} **
   //
   // Get the string representation of the URI.
   get spec() {
@@ -220,7 +214,7 @@ AsyncResource.prototype = {
     return null;
   },
 
-  // ** {{{ AsyncResource.data }}} **
+  // ** {{{ Resource.data }}} **
   //
   // Get and set the data encapulated in the resource.
   _data: null,
@@ -229,7 +223,7 @@ AsyncResource.prototype = {
     this._data = value;
   },
 
-  // ** {{{ AsyncResource._createRequest }}} **
+  // ** {{{ Resource._createRequest }}} **
   //
   // This method returns a new IO Channel for requests to be made
   // through. It is never called directly, only {{{_doRequest}}} uses it
@@ -447,13 +441,18 @@ Resource.prototype = {
 
   __proto__: AsyncResource.prototype,
 
+  // ** {{{ Resource.serverTime }}} **
+  //
+  // Caches the latest server timestamp (X-Weave-Timestamp header).
+  serverTime: null,
+
   // ** {{{ Resource._request }}} **
   //
   // Perform a particular HTTP request on the resource. This method
   // is never called directly, but is used by the high-level
   // {{{get}}}, {{{put}}}, {{{post}}} and {{delete}} methods.
   _request: function Res__request(action, data) {
-    let cb = Async.makeSyncCallback();
+    let cb = Utils.makeSyncCallback();
     function callback(error, ret) {
       if (error)
         cb.throw(error);
@@ -463,7 +462,7 @@ Resource.prototype = {
     // The channel listener might get a failure code
     try {
       this._doRequest(action, data, callback);
-      return Async.waitForSyncCallback(cb);
+      return Utils.waitForSyncCallback(cb);
     } catch(ex) {
       // Combine the channel stack with this request stack.  Need to create
       // a new error object for that.
@@ -531,7 +530,7 @@ ChannelListener.prototype = {
 
     // Save the latest server timestamp when possible.
     try {
-      AsyncResource.serverTime = channel.getResponseHeader("X-Weave-Timestamp") - 0;
+      Resource.serverTime = channel.getResponseHeader("X-Weave-Timestamp") - 0;
     }
     catch(ex) {}
 
@@ -546,9 +545,8 @@ ChannelListener.prototype = {
     this.abortTimer.clear();
 
     let success = Components.isSuccessCode(status);
-    let uri = channel && channel.URI && channel.URI.spec || "<unknown>";
     this._log.trace("Channel for " + channel.requestMethod + " " +
-                    uri + ": isSuccessCode(" + status + ")? " +
+                    channel.URI.spec + ": isSuccessCode(" + status + ")? " +
                     success);
 
     if (this._data == '')
@@ -565,7 +563,7 @@ ChannelListener.prototype = {
     }
 
     this._log.trace("Channel: flags = " + channel.loadFlags +
-                    ", URI = " + uri +
+                    ", URI = " + channel.URI.spec +
                     ", HTTP success? " + channel.requestSucceeded);
     this._onComplete(null, this._data);
   },

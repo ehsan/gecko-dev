@@ -3045,8 +3045,7 @@ nsNavBookmarks::OnEndUpdateBatch()
 NS_IMETHODIMP
 nsNavBookmarks::OnVisit(nsIURI* aURI, PRInt64 aVisitId, PRTime aTime,
                         PRInt64 aSessionID, PRInt64 aReferringID,
-                        PRUint32 aTransitionType, const nsACString& aGUID,
-                        PRUint32* aAdded)
+                        PRUint32 aTransitionType, PRUint32* aAdded)
 {
   // If the page is bookmarked, notify observers for each associated bookmark.
   ItemVisitData visitData;
@@ -3064,14 +3063,14 @@ nsNavBookmarks::OnVisit(nsIURI* aURI, PRInt64 aVisitId, PRTime aTime,
 
 
 NS_IMETHODIMP
-nsNavBookmarks::OnBeforeDeleteURI(nsIURI* aURI, const nsACString& aGUID)
+nsNavBookmarks::OnBeforeDeleteURI(nsIURI* aURI)
 {
   return NS_OK;
 }
 
 
 NS_IMETHODIMP
-nsNavBookmarks::OnDeleteURI(nsIURI* aURI, const nsACString& aGUID)
+nsNavBookmarks::OnDeleteURI(nsIURI* aURI)
 {
 #ifdef DEBUG
   nsNavHistory* history = nsNavHistory::GetHistoryService();
@@ -3149,8 +3148,7 @@ nsNavBookmarks::OnPageChanged(nsIURI* aURI, PRUint32 aWhat,
 
 
 NS_IMETHODIMP
-nsNavBookmarks::OnDeleteVisits(nsIURI* aURI, PRTime aVisitTime,
-                               const nsACString& aGUID)
+nsNavBookmarks::OnDeleteVisits(nsIURI* aURI, PRTime aVisitTime)
 {
   // Notify "cleartime" only if all visits to the page have been removed.
   if (!aVisitTime) {

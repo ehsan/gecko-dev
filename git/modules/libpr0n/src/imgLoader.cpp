@@ -157,12 +157,6 @@ public:
 
   NS_DECL_ISUPPORTS
 
-  NS_IMETHOD GetProcess(char **process)
-  {
-    *process = strdup("");
-    return NS_OK;
-  }
-
   NS_IMETHOD GetPath(char **memoryPath)
   {
     if (mType == ChromeUsedRaw) {
@@ -1815,8 +1809,8 @@ NS_IMETHODIMP imgLoader::LoadImageWithChannel(nsIChannel *channel, imgIDecoderOb
   nsCOMPtr<nsILoadGroup> loadGroup;
   channel->GetLoadGroup(getter_AddRefs(loadGroup));
 
-  // Filter out any load flags not from nsIRequest
-  requestFlags &= nsIRequest::LOAD_REQUESTMASK;
+  // XXX: It looks like the wrong load flags are being passed in...
+  requestFlags &= 0xFFFF;
 
   nsresult rv = NS_OK;
   if (request) {

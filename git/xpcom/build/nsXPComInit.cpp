@@ -56,7 +56,6 @@
 #include "nsBinaryStream.h"
 #include "nsStorageStream.h"
 #include "nsPipe.h"
-#include "nsScriptableBase64Encoder.h"
 
 #include "nsMemoryImpl.h"
 #include "nsDebugImpl.h"
@@ -206,7 +205,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsBinaryOutputStream)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsBinaryInputStream)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsStorageStream)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsVersionComparatorImpl)
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsScriptableBase64Encoder)
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsVariant)
 

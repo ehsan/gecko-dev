@@ -70,7 +70,6 @@ pref("extensions.blocklist.interval", 86400);
 pref("extensions.blocklist.level", 2);
 pref("extensions.blocklist.url", "https://addons.mozilla.org/blocklist/3/%APP_ID%/%APP_VERSION%/%PRODUCT%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/%PING_COUNT%/%TOTAL_PING_COUNT%/%DAYS_SINCE_LAST_PING%/");
 pref("extensions.blocklist.detailsURL", "https://www.mozilla.com/%LOCALE%/blocklist/");
-pref("extensions.blocklist.itemURL", "https://addons.mozilla.org/%LOCALE%/%APP%/blocked/%blockID%");
 
 pref("extensions.update.autoUpdateDefault", true);
 
@@ -265,7 +264,7 @@ pref("browser.urlbar.doubleClickSelectsAll", true);
 #else
 pref("browser.urlbar.doubleClickSelectsAll", false);
 #endif
-pref("browser.urlbar.autoFill", false);
+pref("browser.urlbar.autoFill", true);
 // 0: Match anywhere (e.g., middle of words)
 // 1: Match on word boundaries and then try matching anywhere
 // 2: Match only on word boundaries (e.g., after / or .)
@@ -863,9 +862,6 @@ pref("breakpad.reportURL", "http://crash-stats.mozilla.com/report/index/");
 
 // base URL for web-based support pages
 pref("app.support.baseURL", "http://support.mozilla.com/1/firefox/%VERSION%/%OS%/%LOCALE%/");
-
-// URL for web-based support page on how to upgrade a graphics driver
-pref("app.support.updateGraphicsDriverURL", "http://support.mozilla.com/%LOCALE%/kb/how-do-i-upgrade-my-graphics-drivers");
 
 // Name of alternate about: page for certificate errors (when undefined, defaults to about:neterror)
 pref("security.alternate_certificate_error_page", "certerror");

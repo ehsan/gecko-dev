@@ -59,7 +59,6 @@ _BROWSER_FILES = \
                  browser_tabview_bug590606.js \
                  browser_tabview_bug591706.js \
                  browser_tabview_bug594958.js \
-                 browser_tabview_bug595020.js \
                  browser_tabview_bug595191.js \
                  browser_tabview_bug595436.js \
                  browser_tabview_bug595518.js \
@@ -114,10 +113,8 @@ _BROWSER_FILES = \
                  browser_tabview_bug626368.js \
                  browser_tabview_bug626525.js \
                  browser_tabview_bug626791.js \
-                 browser_tabview_bug627239.js \
                  browser_tabview_bug627288.js \
                  browser_tabview_bug627736.js \
-                 browser_tabview_bug628061.js \
                  browser_tabview_bug628165.js \
                  browser_tabview_bug628270.js \
                  browser_tabview_bug629189.js \
@@ -141,13 +138,10 @@ _BROWSER_FILES = \
                  browser_tabview_bug648882.js \
                  browser_tabview_bug649006.js \
                  browser_tabview_bug649307.js \
-                 browser_tabview_bug649319.js \
                  browser_tabview_bug650573.js \
                  browser_tabview_bug651311.js \
                  browser_tabview_bug654941.js \
-                 browser_tabview_bug655269.js \
                  browser_tabview_bug656778.js \
-                 browser_tabview_bug656913.js \
                  browser_tabview_dragdrop.js \
                  browser_tabview_exit_button.js \
                  browser_tabview_expander.js \

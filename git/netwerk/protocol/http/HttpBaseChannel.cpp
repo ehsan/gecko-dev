@@ -87,10 +87,6 @@ HttpBaseChannel::HttpBaseChannel()
 
   // grab a reference to the handler to ensure that it doesn't go away.
   NS_ADDREF(gHttpHandler);
-
-  // Subfields of unions cannot be targeted in an initializer list
-  mSelfAddr.raw.family = PR_AF_UNSPEC;
-  mPeerAddr.raw.family = PR_AF_UNSPEC;
 }
 
 HttpBaseChannel::~HttpBaseChannel()
@@ -499,15 +495,6 @@ HttpBaseChannel::ExplicitSetUploadStream(nsIInputStream *aStream,
 
   mUploadStreamHasHeaders = aStreamHasHeaders;
   mUploadStream = aStream;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-HttpBaseChannel::GetUploadStreamHasHeaders(PRBool *hasHeaders)
-{
-  NS_ENSURE_ARG(hasHeaders);
-
-  *hasHeaders = mUploadStreamHasHeaders;
   return NS_OK;
 }
 
@@ -1029,7 +1016,7 @@ HttpBaseChannel::SetRedirectionLimit(PRUint32 value)
 {
   ENSURE_CALLED_BEFORE_ASYNC_OPEN();
 
-  mRedirectionLimit = NS_MIN<PRUint32>(value, 0xff);
+  mRedirectionLimit = PR_MIN(value, 0xff);
   return NS_OK;
 }
 

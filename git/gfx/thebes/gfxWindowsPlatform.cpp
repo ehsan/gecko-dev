@@ -95,11 +95,6 @@ public:
 
     NS_DECL_ISUPPORTS
 
-    NS_IMETHOD GetProcess(char **process) {
-        *process = strdup("");
-        return NS_OK;
-    }
-
     NS_IMETHOD GetPath(char **memoryPath) {
         *memoryPath = strdup("gfx-d2d-surfacecache");
         return NS_OK;
@@ -131,11 +126,6 @@ public:
     { }
 
     NS_DECL_ISUPPORTS
-
-    NS_IMETHOD GetProcess(char **process) {
-        *process = strdup("");
-        return NS_OK;
-    }
 
     NS_IMETHOD GetPath(char **memoryPath) {
         *memoryPath = strdup("gfx-d2d-surfacevram");
@@ -268,10 +258,16 @@ gfxWindowsPlatform::~gfxWindowsPlatform()
 void
 gfxWindowsPlatform::UpdateRenderMode()
 {
-/* Pick the default render mode for
- * desktop.
+/* Pick the default render mode differently between
+ * desktop, Windows Mobile, and Windows CE.
  */
+#if defined(WINCE_WINDOWS_MOBILE)
+    mRenderMode = RENDER_IMAGE_DDRAW16;
+#elif defined(WINCE)
+    mRenderMode = RENDER_DDRAW_GL;
+#else
     mRenderMode = RENDER_GDI;
+#endif
 
     OSVERSIONINFOA versionInfo;
     versionInfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFOA);

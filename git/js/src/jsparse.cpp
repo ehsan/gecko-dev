@@ -252,7 +252,7 @@ Parser::newObjectBox(JSObject *obj)
     JSObjectBox *objbox;
     JS_ARENA_ALLOCATE_TYPE(objbox, JSObjectBox, &context->tempPool);
     if (!objbox) {
-        js_ReportOutOfMemory(context);
+        js_ReportOutOfScriptQuota(context);
         return NULL;
     }
     objbox->traceLink = traceListHead;
@@ -278,7 +278,7 @@ Parser::newFunctionBox(JSObject *obj, JSParseNode *fn, JSTreeContext *tc)
     JSFunctionBox *funbox;
     JS_ARENA_ALLOCATE_TYPE(funbox, JSFunctionBox, &context->tempPool);
     if (!funbox) {
-        js_ReportOutOfMemory(context);
+        js_ReportOutOfScriptQuota(context);
         return NULL;
     }
     funbox->traceLink = traceListHead;
@@ -682,7 +682,7 @@ NewOrRecycledNode(JSTreeContext *tc)
 
         JS_ARENA_ALLOCATE_TYPE(pn, JSParseNode, &cx->tempPool);
         if (!pn)
-            js_ReportOutOfMemory(cx);
+            js_ReportOutOfScriptQuota(cx);
     } else {
         tc->parser->nodeList = pn->pn_next;
     }
@@ -926,8 +926,10 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
     if (!compiler.init(chars, length, filename, lineno, version))
         return NULL;
 
-    JS_InitArenaPool(&codePool, "code", 1024, sizeof(jsbytecode));
-    JS_InitArenaPool(&notePool, "note", 1024, sizeof(jssrcnote));
+    JS_InitArenaPool(&codePool, "code", 1024, sizeof(jsbytecode),
+                     &cx->scriptStackQuota);
+    JS_InitArenaPool(&notePool, "note", 1024, sizeof(jssrcnote),
+                     &cx->scriptStackQuota);
 
     Parser &parser = compiler.parser;
     TokenStream &tokenStream = parser.tokenStream;
@@ -1146,11 +1148,8 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
     }
 #endif
 
-    {
-        AutoShapeRooter shapeRoot(cx, script->bindings.lastShape());
-        if (!defineGlobals(cx, globalScope, script))
-            goto late_error;
-    }
+    if (!defineGlobals(cx, globalScope, script))
+        goto late_error;
 
   out:
     JS_FinishArenaPool(&codePool);
@@ -1821,8 +1820,10 @@ Compiler::compileFunctionBody(JSContext *cx, JSFunction *fun, JSPrincipals *prin
 
     /* No early return from after here until the js_FinishArenaPool calls. */
     JSArenaPool codePool, notePool;
-    JS_InitArenaPool(&codePool, "code", 1024, sizeof(jsbytecode));
-    JS_InitArenaPool(&notePool, "note", 1024, sizeof(jssrcnote));
+    JS_InitArenaPool(&codePool, "code", 1024, sizeof(jsbytecode),
+                     &cx->scriptStackQuota);
+    JS_InitArenaPool(&notePool, "note", 1024, sizeof(jssrcnote),
+                     &cx->scriptStackQuota);
 
     Parser &parser = compiler.parser;
     TokenStream &tokenStream = parser.tokenStream;

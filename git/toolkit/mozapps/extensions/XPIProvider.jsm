@@ -60,7 +60,7 @@ const PREF_EM_DSS_ENABLED             = "extensions.dss.enabled";
 const PREF_DSS_SWITCHPENDING          = "extensions.dss.switchPending";
 const PREF_DSS_SKIN_TO_SELECT         = "extensions.lastSelectedSkin";
 const PREF_GENERAL_SKINS_SELECTEDSKIN = "general.skins.selectedSkin";
-const PREF_EM_CHECK_COMPATIBILITY_BASE = "extensions.checkCompatibility";
+const PREF_EM_CHECK_COMPATIBILITY     = "extensions.checkCompatibility";
 const PREF_EM_CHECK_UPDATE_SECURITY   = "extensions.checkUpdateSecurity";
 const PREF_EM_UPDATE_URL              = "extensions.update.url";
 const PREF_EM_ENABLED_ADDONS          = "extensions.enabledAddons";
@@ -118,21 +118,13 @@ const TOOLKIT_ID                      = "toolkit@mozilla.org";
 
 const BRANCH_REGEXP                   = /^([^\.]+\.[0-9]+[a-z]*).*/gi;
 
-const DB_SCHEMA                       = 5;
+const DB_SCHEMA                       = 4;
 const REQ_VERSION                     = 2;
-
-#ifdef MOZ_COMPATABILITY_NIGHTLY
-const PREF_EM_CHECK_COMPATIBILITY = PREF_EM_CHECK_COMPATIBILITY_BASE +
-                                    ".nightly";
-#else
-const PREF_EM_CHECK_COMPATIBILITY = PREF_EM_CHECK_COMPATIBILITY_BASE + "." +
-                                    Services.appinfo.version.replace(BRANCH_REGEXP, "$1");
-#endif
 
 // Properties that exist in the install manifest
 const PROP_METADATA      = ["id", "version", "type", "internalName", "updateURL",
-                            "updateKey", "optionsURL", "optionsType", "aboutURL",
-                            "iconURL", "icon64URL"];
+                            "updateKey", "optionsURL", "aboutURL", "iconURL",
+                            "icon64URL"];
 const PROP_LOCALE_SINGLE = ["name", "description", "creator", "homepageURL"];
 const PROP_LOCALE_MULTI  = ["developers", "translators", "contributors"];
 const PROP_TARGETAPP     = ["id", "minVersion", "maxVersion"];
@@ -675,10 +667,8 @@ function loadManifestFromRDF(aUri, aStream) {
     addon.type = addon.internalName ? "theme" : "extension";
   }
   else {
-    let type = addon.type;
-    addon.type = null;
     for (let name in TYPES) {
-      if (TYPES[name] == type) {
+      if (TYPES[name] == addon.type) {
         addon.type = name;
         break;
       }
@@ -700,17 +690,11 @@ function loadManifestFromRDF(aUri, aStream) {
   // Only read the bootstrapped property for extensions
   if (addon.type == "extension") {
     addon.bootstrap = getRDFProperty(ds, root, "bootstrap") == "true";
-    if (addon.optionsType &&
-        addon.optionsType != AddonManager.OPTIONS_TYPE_DIALOG &&
-        addon.optionsType != AddonManager.OPTIONS_TYPE_INLINE) {
-      throw new Error("Install manifest specifies unknown type: " + addon.optionsType);
-    }
   }
   else {
-    // Only extensions are allowed to provide an optionsURL, optionsType or aboutURL. For
+    // Only extensions are allowed to provide an optionsURL or aboutURL. For
     // all other types they are silently ignored
     addon.optionsURL = null;
-    addon.optionsType = null;
     addon.aboutURL = null;
 
     if (addon.type == "theme") {
@@ -1396,6 +1380,9 @@ var XPIProvider = {
   // will be the same as currentSkin when it is the skin to be used when the
   // application is restarted
   selectedSkin: null,
+  // The name of the checkCompatibility preference for the current application
+  // version
+  checkCompatibilityPref: null,
   // The value of the checkCompatibility preference
   checkCompatibility: true,
   // The value of the checkUpdateSecurity preference
@@ -1529,13 +1516,15 @@ var XPIProvider = {
     this.selectedSkin = this.currentSkin;
     this.applyThemeChange();
 
-    this.checkCompatibility = Prefs.getBoolPref(PREF_EM_CHECK_COMPATIBILITY,
+    var version = Services.appinfo.version.replace(BRANCH_REGEXP, "$1");
+    this.checkCompatibilityPref = PREF_EM_CHECK_COMPATIBILITY + "." + version;
+    this.checkCompatibility = Prefs.getBoolPref(this.checkCompatibilityPref,
                                                 true)
     this.checkUpdateSecurity = Prefs.getBoolPref(PREF_EM_CHECK_UPDATE_SECURITY,
                                                  true)
     this.enabledAddons = [];
 
-    Services.prefs.addObserver(PREF_EM_CHECK_COMPATIBILITY, this, false);
+    Services.prefs.addObserver(this.checkCompatibilityPref, this, false);
     Services.prefs.addObserver(PREF_EM_CHECK_UPDATE_SECURITY, this, false);
 
     let flushCaches = this.checkForChanges(aAppChanged, aOldAppVersion,
@@ -1624,7 +1613,7 @@ var XPIProvider = {
   shutdown: function XPI_shutdown() {
     LOG("shutdown");
 
-    Services.prefs.removeObserver(PREF_EM_CHECK_COMPATIBILITY, this);
+    Services.prefs.removeObserver(this.checkCompatibilityPref, this);
     Services.prefs.removeObserver(PREF_EM_CHECK_UPDATE_SECURITY, this);
 
     this.bootstrappedAddons = {};
@@ -2181,8 +2170,7 @@ var XPIProvider = {
    *         When performing recovery after startup this will be an array of
    *         persistent descriptors of add-ons that are known to be active,
    *         otherwise it will be null
-   * @return a boolean indicating if a change requiring flushing the caches was
-   *         detected
+   * @return true if a change requiring a restart was detected
    */
   processFileChanges: function XPI_processFileChanges(aState, aManifests,
                                                       aUpdateCompatibility,
@@ -2206,7 +2194,7 @@ var XPIProvider = {
      *         ran
      * @param  aAddonState
      *         The new state of the add-on
-     * @return a boolean indicating if flushing caches is required to complete
+     * @return true if restarting the application is required to complete
      *         changing this add-on
      */
     function updateMetadata(aInstallLocation, aOldAddon, aAddonState) {
@@ -2278,37 +2266,6 @@ var XPIProvider = {
     }
 
     /**
-     * Updates an add-on's descriptor for when the add-on has moved in the
-     * filesystem but hasn't changed in any other way.
-     *
-     * @param  aInstallLocation
-     *         The install location containing the add-on
-     * @param  aOldAddon
-     *         The AddonInternal as it appeared the last time the application
-     *         ran
-     * @param  aAddonState
-     *         The new state of the add-on
-     * @return a boolean indicating if flushing caches is required to complete
-     *         changing this add-on
-     */
-    function updateDescriptor(aInstallLocation, aOldAddon, aAddonState) {
-      LOG("Add-on " + aOldAddon.id + " moved to " + aAddonState.descriptor);
-
-      aOldAddon._descriptor = aAddonState.descriptor;
-      aOldAddon.visible = !(aOldAddon.id in visibleAddons);
-
-      // Update the database
-      XPIDatabase.setAddonDescriptor(aOldAddon, aAddonState.descriptor);
-      if (aOldAddon.visible) {
-        visibleAddons[aOldAddon.id] = aOldAddon;
-
-        return true;
-      }
-
-      return false;
-    }
-
-    /**
      * Called when no change has been detected for an add-on's metadata. The
      * add-on may have become visible due to other add-ons being removed or
      * the add-on may need to be updated when the application version has
@@ -2321,8 +2278,8 @@ var XPIProvider = {
      *         ran
      * @param  aAddonState
      *         The new state of the add-on
-     * @return a boolean indicating if flushing caches is required to complete
-     *         changing this add-on
+     * @return a boolean indicating if restarting the application is required
+     *         to complete changing this add-on
      */
     function updateVisibilityAndCompatibility(aInstallLocation, aOldAddon,
                                               aAddonState) {
@@ -2431,8 +2388,8 @@ var XPIProvider = {
      * @param  aOldAddon
      *         The AddonInternal as it appeared the last time the application
      *         ran
-     * @return a boolean indicating if flushing caches is required to complete
-     *         changing this add-on
+     * @return a boolean indicating if restarting the application is required
+     *         to complete changing this add-on
      */
     function removeMetadata(aInstallLocation, aOldAddon) {
       // This add-on has disappeared
@@ -2465,8 +2422,8 @@ var XPIProvider = {
      * @param  aMigrateData
      *         If during startup the database had to be upgraded this will
      *         contain data that used to be held about this add-on
-     * @return a boolean indicating if flushing caches is required to complete
-     *         changing this add-on
+     * @return a boolean indicating if restarting the application is required
+     *         to complete changing this add-on
      */
     function addMetadata(aInstallLocation, aId, aAddonState, aMigrateData) {
       LOG("New add-on " + aId + " installed in " + aInstallLocation.name);
@@ -2638,17 +2595,15 @@ var XPIProvider = {
               XPIProvider.inactiveAddonIDs.push(aOldAddon.id);
 
             // The add-on has changed if the modification time has changed, or
-            // we have an updated manifest for it. Also reload the metadata for
-            // add-ons in the application directory when the application version
-            // has changed
+            // the directory it is installed in has changed or we have an
+            // updated manifest for it. Also reload the metadata for add-ons
+            // in the application directory when the application version has
+            // changed
             if (aOldAddon.id in aManifests[installLocation.name] ||
                 aOldAddon.updateDate != addonState.mtime ||
+                aOldAddon._descriptor != addonState.descriptor ||
                 (aUpdateCompatibility && installLocation.name == KEY_APP_GLOBAL)) {
               changed = updateMetadata(installLocation, aOldAddon, addonState) ||
-                        changed;
-            }
-            else if (aOldAddon._descriptor != addonState.descriptor) {
-              changed = updateDescriptor(installLocation, aOldAddon, addonState) ||
                         changed;
             }
             else {
@@ -3164,9 +3119,9 @@ var XPIProvider = {
    */
   observe: function XPI_observe(aSubject, aTopic, aData) {
     switch (aData) {
-    case PREF_EM_CHECK_COMPATIBILITY:
+    case this.checkCompatibilityPref:
     case PREF_EM_CHECK_UPDATE_SECURITY:
-      this.checkCompatibility = Prefs.getBoolPref(PREF_EM_CHECK_COMPATIBILITY,
+      this.checkCompatibility = Prefs.getBoolPref(this.checkCompatibilityPref,
                                                   true);
       this.checkUpdateSecurity = Prefs.getBoolPref(PREF_EM_CHECK_UPDATE_SECURITY,
                                                    true);
@@ -3715,11 +3670,11 @@ var XPIProvider = {
 };
 
 const FIELDS_ADDON = "internal_id, id, location, version, type, internalName, " +
-                     "updateURL, updateKey, optionsURL, optionsType, aboutURL, " +
-                     "iconURL, icon64URL, defaultLocale, visible, active, " +
-                     "userDisabled, appDisabled, pendingUninstall, descriptor, " +
-                     "installDate, updateDate, applyBackgroundUpdates, bootstrap, " +
-                     "skinnable, size, sourceURI, releaseNotesURI, softDisabled";
+                     "updateURL, updateKey, optionsURL, aboutURL, iconURL, " +
+                     "icon64URL, defaultLocale, visible, active, userDisabled, " +
+                     "appDisabled, pendingUninstall, descriptor, installDate, " +
+                     "updateDate, applyBackgroundUpdates, bootstrap, skinnable, " +
+                     "size, sourceURI, releaseNotesURI, softDisabled";
 
 /**
  * A helper function to log an SQL error.
@@ -3859,8 +3814,8 @@ var XPIDatabase = {
 
     addAddonMetadata_addon: "INSERT INTO addon VALUES (NULL, :id, :location, " +
                             ":version, :type, :internalName, :updateURL, " +
-                            ":updateKey, :optionsURL, :optionsType, :aboutURL, " +
-                            ":iconURL, :icon64URL, :locale, :visible, :active, " +
+                            ":updateKey, :optionsURL, :aboutURL, :iconURL, " +
+                            ":icon64URL, :locale, :visible, :active, " +
                             ":userDisabled, :appDisabled, :pendingUninstall, " +
                             ":descriptor, :installDate, :updateDate, " +
                             ":applyBackgroundUpdates, :bootstrap, :skinnable, " +
@@ -3915,8 +3870,6 @@ var XPIDatabase = {
                         "softDisabled=:softDisabled, " +
                         "pendingUninstall=:pendingUninstall, " +
                         "applyBackgroundUpdates=:applyBackgroundUpdates WHERE " +
-                        "internal_id=:internal_id",
-    setAddonDescriptor: "UPDATE addon SET descriptor=:descriptor WHERE " +
                         "internal_id=:internal_id",
     updateTargetApplications: "UPDATE targetApplication SET " +
                               "minVersion=:minVersion, maxVersion=:maxVersion " +
@@ -4370,9 +4323,9 @@ var XPIDatabase = {
                                   "internal_id INTEGER PRIMARY KEY AUTOINCREMENT, " +
                                   "id TEXT, location TEXT, version TEXT, " +
                                   "type TEXT, internalName TEXT, updateURL TEXT, " +
-                                  "updateKey TEXT, optionsURL TEXT, " +
-                                  "optionsType TEXT, aboutURL TEXT, iconURL TEXT, " +
-                                  "icon64URL TEXT, defaultLocale INTEGER, " +
+                                  "updateKey TEXT, optionsURL TEXT, aboutURL TEXT, " +
+                                  "iconURL TEXT, icon64URL TEXT, " +
+                                  "defaultLocale INTEGER, " +
                                   "visible INTEGER, active INTEGER, " +
                                   "userDisabled INTEGER, appDisabled INTEGER, " +
                                   "pendingUninstall INTEGER, descriptor TEXT, " +
@@ -5165,23 +5118,7 @@ var XPIDatabase = {
   },
 
   /**
-   * Synchronously sets the file descriptor for an add-on.
-   *
-   * @param  aAddon
-   *         The DBAddonInternal being updated
-   * @param  aProperties
-   *         A dictionary of properties to set
-   */
-  setAddonDescriptor: function XPIDB_setAddonDescriptor(aAddon, aDescriptor) {
-    let stmt = this.getStatement("setAddonDescriptor");
-    stmt.params.internal_id = aAddon._internal_id;
-    stmt.params.descriptor = aDescriptor;
-
-    executeStatement(stmt);
-  },
-
-  /**
-   * Synchronously updates an add-on's active flag in the database.
+   * Synchronously pdates an add-on's active flag in the database.
    *
    * @param  aAddon
    *         The DBAddonInternal to update
@@ -6687,12 +6624,6 @@ AddonInternal.prototype = {
     return bs.getAddonBlocklistState(this.id, this.version);
   },
 
-  get blocklistURL() {
-    let bs = Cc["@mozilla.org/extensions/blocklist;1"].
-             getService(Ci.nsIBlocklistService);
-    return bs.getAddonBlocklistURL(this.id, this.version);
-  },
-
   applyCompatibilityUpdate: function(aUpdate, aSyncCompatibility) {
     this.targetApplications.forEach(function(aTargetApp) {
       aUpdate.targetApplications.forEach(function(aUpdateTarget) {
@@ -6847,7 +6778,7 @@ function AddonWrapper(aAddon) {
   }
 
   ["id", "version", "type", "isCompatible", "isPlatformCompatible",
-   "providesUpdatesSecurely", "blocklistState", "blocklistURL", "appDisabled",
+   "providesUpdatesSecurely", "blocklistState", "appDisabled",
    "softDisabled", "skinnable", "size"].forEach(function(aProp) {
      this.__defineGetter__(aProp, function() aAddon[aProp]);
   }, this);
@@ -6864,9 +6795,11 @@ function AddonWrapper(aAddon) {
     });
   }, this);
 
-  this.__defineGetter__("aboutURL", function() {
-    return this.isActive ? aAddon["aboutURL"] : null;
-  });
+  ["optionsURL", "aboutURL"].forEach(function(aProp) {
+    this.__defineGetter__(aProp, function() {
+      return this.isActive ? aAddon[aProp] : null;
+    });
+  }, this);
 
   ["installDate", "updateDate"].forEach(function(aProp) {
     this.__defineGetter__(aProp, function() new Date(aAddon[aProp]));
@@ -6881,46 +6814,21 @@ function AddonWrapper(aAddon) {
     });
   }, this);
 
-  // Maps iconURL, icon64URL and optionsURL to the properties of the same name
-  // or icon.png, icon64.png and options.xul in the add-on's files.
-  ["icon", "icon64", "options"].forEach(function(aProp) {
+  // Maps iconURL and icon64URL to the properties of the same name or icon.png
+  // and icon64.png in the add-on's files.
+  ["icon", "icon64"].forEach(function(aProp) {
     this.__defineGetter__(aProp + "URL", function() {
       if (this.isActive && aAddon[aProp + "URL"])
         return aAddon[aProp + "URL"];
 
-      switch (aProp) {
-        case "icon":
-        case "icon64":
-          if (this.hasResource(aProp + ".png"))
-            return this.getResourceURI(aProp + ".png").spec;
-          break;
-        case "options":
-          if (this.isActive && this.hasResource(aProp + ".xul"))
-            return this.getResourceURI(aProp + ".xul").spec;
-          break;
-      }
+      if (this.hasResource(aProp + ".png"))
+        return this.getResourceURI(aProp + ".png").spec;
 
       if (aAddon._repositoryAddon)
         return aAddon._repositoryAddon[aProp + "URL"];
 
       return null;
     }, this);
-  }, this);
-
-  this.__defineGetter__("optionsType", function() {
-    if (!this.isActive)
-      return null;
-
-    if (aAddon.optionsType)
-      return aAddon.optionsType;
-
-    if (this.hasResource("options.xul"))
-      return AddonManager.OPTIONS_TYPE_INLINE;
-
-    if (this.optionsURL)
-      return AddonManager.OPTIONS_TYPE_DIALOG;
-
-    return null;
   }, this);
 
   PROP_LOCALE_SINGLE.forEach(function(aProp) {
@@ -7300,7 +7208,7 @@ DirectoryInstallLocation.prototype = {
         linkedDirectory.initWithPath(line.value);
       }
       catch (e) {
-        linkedDirectory.setRelativeDescriptor(aFile.parent, line.value);
+        linkedDirectory.setRelativeDescriptor(file.parent, line.value);
       }
 
       if (!linkedDirectory.exists()) {

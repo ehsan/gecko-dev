@@ -88,9 +88,9 @@
 #include "nsFrameList.h"
 #include "nsListControlFrame.h"
 #include "nsHTMLInputElement.h"
+#ifdef MOZ_SVG
 #include "nsSVGUtils.h"
-#include "nsMathMLAtoms.h"
-#include "nsMathMLOperators.h"
+#endif
 
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
@@ -100,6 +100,11 @@
 #include "nsXULTooltipListener.h"
 
 #include "inDOMView.h"
+#endif
+
+#ifdef MOZ_MATHML
+#include "nsMathMLAtoms.h"
+#include "nsMathMLOperators.h"
 #endif
 
 #include "nsHTMLEditor.h"
@@ -121,6 +126,7 @@
 #include "nsContentSink.h"
 #include "nsFrameMessageManager.h"
 #include "nsRefreshDriver.h"
+#include "CanvasImageCache.h"
 
 #include "nsHyphenationManager.h"
 
@@ -182,7 +188,11 @@ nsLayoutStatics::Initialize()
     return rv;
   }
 
-  nsCSSRendering::Init();
+  rv = nsCSSRendering::Init();
+  if (NS_FAILED(rv)) {
+    NS_ERROR("Could not initialize nsCSSRendering");
+    return rv;
+  }
 
   rv = nsTextFrameTextRunCache::Init();
   if (NS_FAILED(rv)) {
@@ -207,7 +217,9 @@ nsLayoutStatics::Initialize()
 
 #endif
 
+#ifdef MOZ_MATHML
   nsMathMLOperators::AddRefTable();
+#endif
 
   nsEditProperty::RegisterAtoms();
   nsTextServicesDocument::RegisterAtoms();
@@ -280,6 +292,7 @@ nsLayoutStatics::Initialize()
 void
 nsLayoutStatics::Shutdown()
 {
+  CanvasImageCache::Shutdown();
   nsFrameScriptExecutor::Shutdown();
   nsFocusManager::Shutdown();
 #ifdef MOZ_XUL
@@ -317,13 +330,17 @@ nsLayoutStatics::Shutdown()
   nsSprocketLayout::Shutdown();
 #endif
 
+#ifdef MOZ_MATHML
   nsMathMLOperators::ReleaseTable();
+#endif
 
   nsCSSFrameConstructor::ReleaseGlobals();
   nsFloatManager::Shutdown();
   nsImageFrame::ReleaseGlobals();
 
   nsCSSScanner::ReleaseGlobals();
+
+  NS_IF_RELEASE(nsRuleNode::gLangService);
 
   nsTextFragment::Shutdown();
 

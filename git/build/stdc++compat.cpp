@@ -41,21 +41,8 @@
 #include <string>
 #endif
 
-
-/* GLIBCXX_3.4.8  is from gcc 4.1.1 (111691)
-   GLIBCXX_3.4.9  is from gcc 4.2.0 (111690)
-   GLIBCXX_3.4.10 is from gcc 4.3.0 (126287)
-   GLIBCXX_3.4.11 is from gcc 4.4.0 (133006)
-   GLIBCXX_3.4.12 is from gcc 4.4.1 (147138)
-   GLIBCXX_3.4.13 is from gcc 4.4.2 (151127)
-   GLIBCXX_3.4.14 is from gcc 4.5.0 (151126)
-   GLIBCXX_3.4.15 is from gcc 4.6.0 (160071)
-   GLIBCXX_3.4.16 is form gcc 4.6.1 (172240) */
-
-#define GLIBCXX_VERSION(a, b, c) (((a) << 16) | ((b) << 8) | (c))
-
 namespace std {
-#if MOZ_LIBSTDCXX_VERSION >= GLIBCXX_VERSION(3, 4, 9)
+#if (__GNUC__ == 4) && (__GNUC_MINOR__ >= 2)
     /* Instantiate these templates to avoid GLIBCXX_3.4.9 symbol versions */
     template ostream& ostream::_M_insert(double);
     template ostream& ostream::_M_insert(long);
@@ -64,7 +51,7 @@ namespace std {
     template istream& istream::_M_extract(double&);
 #endif
 #ifdef DEBUG
-#if MOZ_LIBSTDCXX_VERSION >= GLIBCXX_VERSION(3, 4, 14)
+#if (__GNUC__ == 4) && (__GNUC_MINOR__ >= 5)
     /* Instantiate these templates to avoid GLIBCXX_3.4.14 symbol versions
      * in debug builds */
     template char *string::_S_construct_aux_2(size_type, char, allocator<char> const&);
@@ -83,7 +70,7 @@ namespace std {
 }
 
 namespace std __attribute__((visibility("default"))) {
-#if MOZ_LIBSTDCXX_VERSION >= GLIBCXX_VERSION(3, 4, 14)
+#if (__GNUC__ == 4) && (__GNUC_MINOR__ >= 5)
     /* Hack to avoid GLIBCXX_3.4.14 symbol versions */
     struct _List_node_base
     {
@@ -95,7 +82,7 @@ namespace std __attribute__((visibility("default"))) {
                       _List_node_base * const __last) throw();
 
 /* Hack to avoid GLIBCXX_3.4.15 symbol versions */
-#if MOZ_LIBSTDCXX_VERSION >= GLIBCXX_VERSION(3, 4, 15)
+#if (__GNUC__ == 4) && (__GNUC_MINOR__ >= 6)
         static void swap(_List_node_base& __x, _List_node_base& __y) throw ();
     };
 
@@ -111,7 +98,7 @@ namespace std __attribute__((visibility("default"))) {
         void _M_transfer(_List_node_base * const __first,
                          _List_node_base * const __last) throw();
 
-#if MOZ_LIBSTDCXX_VERSION >= GLIBCXX_VERSION(3, 4, 15)
+#if (__GNUC__ == 4) && (__GNUC_MINOR__ >= 6)
         static void swap(_List_node_base& __x, _List_node_base& __y) throw ();
 #endif
     };
@@ -137,7 +124,7 @@ namespace std __attribute__((visibility("default"))) {
                                                  (std::_List_node_base * const)__last);
     }
 
-#if MOZ_LIBSTDCXX_VERSION >= GLIBCXX_VERSION(3, 4, 15)
+#if (__GNUC__ == 4) && (__GNUC_MINOR__ >= 6)
     void
     _List_node_base::swap(_List_node_base& __x, _List_node_base& __y) throw ()
     {
@@ -147,9 +134,9 @@ namespace std __attribute__((visibility("default"))) {
 }
 #endif
 
-#endif /*MOZ_LIBSTDCXX_VERSION >= GLIBCXX_VERSION(3, 4, 14)*/
+#endif /* (__GNUC__ == 4) && (__GNUC_MINOR__ >= 5) */
 
-#if MOZ_LIBSTDCXX_VERSION >= GLIBCXX_VERSION(3, 4, 11)
+#if (__GNUC__ == 4) && (__GNUC_MINOR__ >= 4)
     /* Hack to avoid GLIBCXX_3.4.11 symbol versions
        An inline definition of ctype<char>::_M_widen_init() used to be in
        locale_facets.h before GCC 4.4, but moved out of headers in more

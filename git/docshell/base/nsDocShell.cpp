@@ -52,6 +52,7 @@
 #include "mozilla/dom/Element.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
+#include "nsIDOMNSDocument.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMStorageObsolete.h"
 #include "nsIDOMStorage.h"
@@ -1726,20 +1727,17 @@ nsDocShell::GetChromeEventHandler(nsIDOMEventTarget** aChromeEventHandler)
     return NS_OK;
 }
 
-/* void setCurrentURI (in nsIURI uri); */
+/* [noscript] void setCurrentURI (in nsIURI uri); */
 NS_IMETHODIMP
 nsDocShell::SetCurrentURI(nsIURI *aURI)
 {
-    // Note that securityUI will set STATE_IS_INSECURE, even if
-    // the scheme of |aURI| is "https".
-    SetCurrentURI(aURI, nsnull, PR_TRUE,
-                  nsIWebProgressListener2::LOCATION_CHANGE_NORMAL);
+    SetCurrentURI(aURI, nsnull, PR_TRUE);
     return NS_OK;
 }
 
 PRBool
 nsDocShell::SetCurrentURI(nsIURI *aURI, nsIRequest *aRequest,
-                          PRBool aFireOnLocationChange, PRUint32 aLocationFlags)
+                          PRBool aFireOnLocationChange)
 {
 #ifdef PR_LOGGING
     if (gDocShellLeakLog && PR_LOG_TEST(gDocShellLeakLog, PR_LOG_DEBUG)) {
@@ -1783,7 +1781,7 @@ nsDocShell::SetCurrentURI(nsIURI *aURI, nsIRequest *aRequest,
     }
 
     if (aFireOnLocationChange) {
-        FireOnLocationChange(this, aRequest, aURI, aLocationFlags);
+        FireOnLocationChange(this, aRequest, aURI);
     }
     return !aFireOnLocationChange;
 }
@@ -3948,10 +3946,6 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI *aURI,
             // Channel refused to load from an unrecognized content type.
             error.AssignLiteral("unsafeContentType");
             break;
-        case NS_ERROR_CORRUPTED_CONTENT:
-            // Broken Content Detected. e.g. Content-MD5 check failure.
-            error.AssignLiteral("corruptedContentError");
-            break;
         }
     }
 
@@ -5877,8 +5871,7 @@ nsDocShell::OnStateChange(nsIWebProgress * aProgress, nsIRequest * aRequest,
                 // a new DOM here.
                 rv = AddToSessionHistory(uri, wcwgChannel, nsnull, PR_FALSE,
                                          getter_AddRefs(mLSHE));
-                SetCurrentURI(uri, aRequest, PR_TRUE,
-                              nsIWebProgressListener2::LOCATION_CHANGE_NORMAL);
+                SetCurrentURI(uri, aRequest, PR_TRUE);
                 // Save history state of the previous page
                 rv = PersistLayoutHistoryState();
                 // We'll never get an Embed() for this load, so just go ahead
@@ -6132,7 +6125,6 @@ nsDocShell::EndPageLoad(nsIWebProgress * aProgress,
     //
     if (url && NS_FAILED(aStatus)) {
         if (aStatus == NS_ERROR_FILE_NOT_FOUND ||
-            aStatus == NS_ERROR_CORRUPTED_CONTENT ||
             aStatus == NS_ERROR_INVALID_CONTENT_ENCODING) {
             DisplayLoadError(aStatus, url, nsnull, aChannel);
             return NS_OK;
@@ -6532,8 +6524,7 @@ nsDocShell::CreateAboutBlankContentViewer(nsIPrincipal* aPrincipal,
         viewer->SetContainer(static_cast<nsIContentViewerContainer *>(this));
         Embed(viewer, "", 0);
 
-        SetCurrentURI(blankDoc->GetDocumentURI(), nsnull, PR_TRUE,
-                      nsIWebProgressListener2::LOCATION_CHANGE_NORMAL);
+        SetCurrentURI(blankDoc->GetDocumentURI(), nsnull, PR_TRUE);
         rv = mIsBeingDestroyed ? NS_ERROR_NOT_AVAILABLE : NS_OK;
       }
     }
@@ -6947,9 +6938,9 @@ nsDocShell::RestoreFromHistory()
         mSavingOldViewer = CanSavePresentation(mLoadType, request, doc);
     }
 
-    nsCOMPtr<nsIMarkupDocumentViewer> oldMUDV(
+    nsCOMPtr<nsIMarkupDocumentViewer_MOZILLA_2_0_BRANCH> oldMUDV(
         do_QueryInterface(mContentViewer));
-    nsCOMPtr<nsIMarkupDocumentViewer> newMUDV(
+    nsCOMPtr<nsIMarkupDocumentViewer_MOZILLA_2_0_BRANCH> newMUDV(
         do_QueryInterface(viewer));
     PRInt32 minFontSize = 0;
     float textZoom = 1.0f;
@@ -7184,8 +7175,7 @@ nsDocShell::RestoreFromHistory()
         // is still mLSHE or whether it's now mOSHE.
         nsCOMPtr<nsIURI> uri;
         origLSHE->GetURI(getter_AddRefs(uri));
-        SetCurrentURI(uri, document->GetChannel(), PR_TRUE,
-                      nsIWebProgressListener2::LOCATION_CHANGE_NORMAL);
+        SetCurrentURI(uri, document->GetChannel(), PR_TRUE);
     }
 
     // This is the end of our CreateContentViewer() replacement.
@@ -7524,8 +7514,7 @@ nsDocShell::CreateContentViewer(const char *aContentType,
     }
 
     if (onLocationChangeNeeded) {
-      FireOnLocationChange(this, request, mCurrentURI,
-                           nsIWebProgressListener2::LOCATION_CHANGE_NORMAL);
+      FireOnLocationChange(this, request, mCurrentURI);
     }
   
     return NS_OK;
@@ -7601,10 +7590,10 @@ nsDocShell::SetupNewViewer(nsIContentViewer * aNewViewer)
     float pageZoom;
     PRBool styleDisabled;
     // |newMUDV| also serves as a flag to set the data from the above vars
-    nsCOMPtr<nsIMarkupDocumentViewer> newMUDV;
+    nsCOMPtr<nsIMarkupDocumentViewer_MOZILLA_2_0_BRANCH> newMUDV;
 
     if (mContentViewer || parent) {
-        nsCOMPtr<nsIMarkupDocumentViewer> oldMUDV;
+        nsCOMPtr<nsIMarkupDocumentViewer_MOZILLA_2_0_BRANCH> oldMUDV;
         if (mContentViewer) {
             // Get any interesting state from old content viewer
             // XXX: it would be far better to just reuse the document viewer ,
@@ -7857,56 +7846,6 @@ nsDocShell::CheckLoadingPermissions()
 //*****************************************************************************
 // nsDocShell: Site Loading
 //*****************************************************************************   
-namespace
-{
-
-// Callback used by CopyFavicon to inform the favicon service that one URI
-// (mNewURI) has the same favicon URI (OnFaviconDataAvailable's aFaviconURI) as
-// another.
-class nsCopyFaviconCallback : public nsIFaviconDataCallback
-{
-public:
-    NS_DECL_ISUPPORTS
-
-    nsCopyFaviconCallback(nsIURI *aNewURI)
-      : mNewURI(aNewURI)
-    {
-    }
-
-    NS_IMETHODIMP
-    OnFaviconDataAvailable(nsIURI *aFaviconURI, PRUint32 aDataLen,
-                           const PRUint8 *aData, const nsACString &aMimeType)
-    {
-        NS_ASSERTION(aDataLen == 0,
-                     "We weren't expecting the callback to deliver data.");
-        nsCOMPtr<mozIAsyncFavicons> favSvc =
-            do_GetService("@mozilla.org/browser/favicon-service;1");
-        NS_ENSURE_STATE(favSvc);
-
-        return favSvc->SetAndFetchFaviconForPage(mNewURI, aFaviconURI,
-                                                 PR_FALSE, nsnull);
-    }
-
-private:
-    nsCOMPtr<nsIURI> mNewURI;
-};
-
-NS_IMPL_ISUPPORTS1(nsCopyFaviconCallback, nsIFaviconDataCallback)
-
-// Tell the favicon service that aNewURI has the same favicon as aOldURI.
-void CopyFavicon(nsIURI *aOldURI, nsIURI *aNewURI)
-{
-    nsCOMPtr<mozIAsyncFavicons> favSvc =
-        do_GetService("@mozilla.org/browser/favicon-service;1");
-    if (favSvc) {
-        nsCOMPtr<nsIFaviconDataCallback> callback =
-            new nsCopyFaviconCallback(aNewURI);
-        favSvc->GetFaviconURLForPage(aOldURI, callback);
-    }
-}
-
-} // anonymous namespace
-
 class InternalLoadEvent : public nsRunnable
 {
 public:
@@ -8297,14 +8236,12 @@ nsDocShell::InternalLoad(nsIURI * aURI,
         aLoadType == LOAD_LINK) {
 
         // Split mCurrentURI and aURI on the '#' character.  Make sure we read
-        // the return values of SplitURIAtHash; if it fails, we don't want to
-        // allow a short-circuited navigation.
+        // the return values of SplitURIAtHash; it might fail because
+        // mCurrentURI is null, for instance, and we don't want to allow a
+        // short-circuited navigation in that case.
         nsCAutoString curBeforeHash, curHash, newBeforeHash, newHash;
         nsresult splitRv1, splitRv2;
-        splitRv1 = mCurrentURI ?
-            nsContentUtils::SplitURIAtHash(mCurrentURI,
-                                           curBeforeHash, curHash) :
-            NS_ERROR_FAILURE;
+        splitRv1 = nsContentUtils::SplitURIAtHash(mCurrentURI, curBeforeHash, curHash);
         splitRv2 = nsContentUtils::SplitURIAtHash(aURI, newBeforeHash, newHash);
 
         PRBool sameExceptHashes = NS_SUCCEEDED(splitRv1) &&
@@ -8363,11 +8300,13 @@ nsDocShell::InternalLoad(nsIURI * aURI,
             GetCurScrollPos(ScrollOrientation_X, &cx);
             GetCurScrollPos(ScrollOrientation_Y, &cy);
 
-            // We scroll whenever we're not doing a history load.  Note that
-            // sometimes we might scroll even if we don't fire a hashchange
-            // event!  See bug 653741.
-            if (!aSHEntry) {
-                rv = ScrollToAnchor(curHash, newHash, aLoadType);
+            // We scroll the window precisely when we fire a hashchange event.
+            if (doHashchange) {
+                // Take the '#' off the hashes before passing them to
+                // ScrollToAnchor.
+                nsDependentCSubstring curHashName(curHash, 1);
+                nsDependentCSubstring newHashName(newHash, 1);
+                rv = ScrollToAnchor(curHashName, newHashName, aLoadType);
                 NS_ENSURE_SUCCESS(rv, rv);
             }
 
@@ -8392,11 +8331,6 @@ nsDocShell::InternalLoad(nsIURI * aURI,
             // Pass true for aCloneSHChildren, since we're not
             // changing documents here, so all of our subframes are
             // still relevant to the new session history entry.
-            //
-            // It also makes OnNewURI(...) set LOCATION_CHANGE_SAME_DOCUMENT
-            // flag on firing onLocationChange(...).
-            // Anyway, aCloneSHChildren param is simply reflecting
-            // doShortCircuitedLoad in this scope.
             OnNewURI(aURI, nsnull, owner, mLoadType, PR_TRUE, PR_TRUE, PR_TRUE);
 
             nsCOMPtr<nsIInputStream> postData;
@@ -8513,10 +8447,6 @@ nsDocShell::InternalLoad(nsIURI * aURI,
                   window->DispatchAsyncHashchange(oldURI, aURI);
                 }
             }
-
-            // Inform the favicon service that the favicon for oldURI also
-            // applies to aURI.
-            CopyFavicon(oldURI, aURI);
 
             return NS_OK;
         }
@@ -9167,20 +9097,16 @@ nsDocShell::ScrollToAnchor(nsACString & aCurHash, nsACString & aNewHash,
         return NS_OK;
     }
 
-    // Take the '#' off aNewHash to get the ref name.  (aNewHash might be empty,
-    // but that's fine.)
-    nsDependentCSubstring newHashName(aNewHash, 1);
-
     // Both the new and current URIs refer to the same page. We can now
     // browse to the hash stored in the new URI.
 
-    if (!newHashName.IsEmpty()) {
+    if (!aNewHash.IsEmpty()) {
         // anchor is there, but if it's a load from history,
         // we don't have any anchor jumping to do
         PRBool scroll = aLoadType != LOAD_HISTORY &&
                         aLoadType != LOAD_RELOAD_NORMAL;
 
-        char *str = ToNewCString(newHashName);
+        char *str = ToNewCString(aNewHash);
         if (!str) {
             return NS_ERROR_OUT_OF_MEMORY;
         }
@@ -9222,7 +9148,7 @@ nsDocShell::ScrollToAnchor(nsACString & aCurHash, nsACString & aNewHash,
             nsXPIDLString uStr;
 
             rv = textToSubURI->UnEscapeAndConvert(PromiseFlatCString(aCharset).get(),
-                                                  PromiseFlatCString(newHashName).get(),
+                                                  PromiseFlatCString(aNewHash).get(),
                                                   getter_Copies(uStr));
             NS_ENSURE_SUCCESS(rv, rv);
 
@@ -9462,9 +9388,9 @@ nsDocShell::OnNewURI(nsIURI * aURI, nsIChannel * aChannel, nsISupports* aOwner,
         }
     }
 
-    // If this was a history load or a refresh,
-    // update the index in SH. 
-    if (rootSH && (mLoadType & (LOAD_CMD_HISTORY | LOAD_CMD_RELOAD))) {
+    // If this was a history load, update the index in 
+    // SH. 
+    if (rootSH && (mLoadType & LOAD_CMD_HISTORY)) {
         nsCOMPtr<nsISHistoryInternal> shInternal(do_QueryInterface(rootSH));
         if (shInternal) {
             rootSH->GetIndex(&mPreviousTransIndex);
@@ -9476,14 +9402,8 @@ nsDocShell::OnNewURI(nsIURI * aURI, nsIChannel * aChannel, nsISupports* aOwner,
 #endif
         }
     }
-
-    // aCloneSHChildren exactly means "we are not loading a new document".
-    PRUint32 locationFlags = aCloneSHChildren?
-        PRUint32(nsIWebProgressListener2::LOCATION_CHANGE_SAME_DOCUMENT) :
-        PRUint32(nsIWebProgressListener2::LOCATION_CHANGE_NORMAL);
     PRBool onLocationChangeNeeded = SetCurrentURI(aURI, aChannel,
-                                                  aFireOnLocationChange,
-                                                  locationFlags);
+                                                  aFireOnLocationChange);
     // Make sure to store the referrer from the channel, if any
     SetupReferrerFromChannel(aChannel);
     return onLocationChangeNeeded;
@@ -9516,6 +9436,43 @@ nsDocShell::SetReferrerURI(nsIURI * aURI)
 //*****************************************************************************
 // nsDocShell: Session History
 //*****************************************************************************
+
+namespace
+{
+    // Callback used in nsDocShell::AddState.  When we change URIs with
+    // push/replaceState, we use this callback to ensure that Places associates
+    // a favicon with the new URI.
+    class nsAddStateFaviconCallback : public nsIFaviconDataCallback
+    {
+    public:
+        NS_DECL_ISUPPORTS
+
+        nsAddStateFaviconCallback(nsIURI *aNewURI)
+          : mNewURI(aNewURI)
+        {
+        }
+
+        NS_IMETHODIMP
+        OnFaviconDataAvailable(nsIURI *aFaviconURI, PRUint32 aDataLen,
+                               const PRUint8 *aData, const nsACString &aMimeType)
+        {
+            NS_ASSERTION(aDataLen == 0,
+                         "We weren't expecting the callback to deliver data.");
+            nsCOMPtr<mozIAsyncFavicons> favSvc =
+                do_GetService("@mozilla.org/browser/favicon-service;1");
+            NS_ENSURE_STATE(favSvc);
+
+            return favSvc->SetAndFetchFaviconForPage(mNewURI, aFaviconURI,
+                                                     PR_FALSE, nsnull);
+        }
+
+    private:
+        nsCOMPtr<nsIURI> mNewURI;
+    };
+
+    NS_IMPL_ISUPPORTS1(nsAddStateFaviconCallback, nsIFaviconDataCallback)
+
+} // anonymous namespace
 
 NS_IMETHODIMP
 nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
@@ -9787,15 +9744,8 @@ nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
     // gets updated and the back button is enabled, but we only need to
     // explicitly call FireOnLocationChange if we're not calling SetCurrentURI,
     // since SetCurrentURI will call FireOnLocationChange for us.
-    //
-    // Both SetCurrentURI(...) and FireDummyOnLocationChange() pass
-    // nsnull for aRequest param to FireOnLocationChange(...). Such an update
-    // notification is allowed only when we know docshell is not loading a new
-    // document and it requires LOCATION_CHANGE_SAME_DOCUMENT flag. Otherwise,
-    // FireOnLocationChange(...) breaks security UI.
     if (!equalURIs) {
-        SetCurrentURI(newURI, nsnull, PR_TRUE,
-                      nsIWebProgressListener2::LOCATION_CHANGE_SAME_DOCUMENT);
+        SetCurrentURI(newURI, nsnull, PR_TRUE);
         document->SetDocumentURI(newURI);
 
         AddURIVisit(newURI, oldURI, oldURI, 0);
@@ -9814,7 +9764,13 @@ nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
 
         // Inform the favicon service that our old favicon applies to this new
         // URI.
-        CopyFavicon(oldURI, newURI);
+        nsCOMPtr<mozIAsyncFavicons> favSvc =
+            do_GetService("@mozilla.org/browser/favicon-service;1");
+        if (favSvc) {
+            nsCOMPtr<nsIFaviconDataCallback> callback =
+                new nsAddStateFaviconCallback(newURI);
+            favSvc->GetFaviconURLForPage(oldURI, callback);
+        }
     }
     else {
         FireDummyOnLocationChange();
@@ -10221,6 +10177,7 @@ struct NS_STACK_CLASS CloneAndReplaceData
 nsDocShell::CloneAndReplaceChild(nsISHEntry *aEntry, nsDocShell *aShell,
                                  PRInt32 aEntryIndex, void *aData)
 {
+    nsresult result = NS_OK;
     nsCOMPtr<nsISHEntry> dest;
 
     CloneAndReplaceData *data = static_cast<CloneAndReplaceData*>(aData);
@@ -10230,44 +10187,55 @@ nsDocShell::CloneAndReplaceChild(nsISHEntry *aEntry, nsDocShell *aShell,
     nsCOMPtr<nsISHContainer> container =
       do_QueryInterface(data->destTreeParent);
     if (!aEntry) {
-        if (container) {
-            container->AddChild(nsnull, aEntryIndex);
-        }
-        return NS_OK;
+      if (container) {
+        container->AddChild(nsnull, aEntryIndex);
+      }
+      return NS_OK;
     }
     
     PRUint32 srcID;
     aEntry->GetID(&srcID);
 
-    nsresult rv = NS_OK;
     if (srcID == cloneID) {
         // Replace the entry
         dest = replaceEntry;
+        dest->SetIsSubFrame(PR_TRUE);
+
+        if (data->cloneChildren) {
+            // Walk the children
+            CloneAndReplaceData childData(cloneID, replaceEntry,
+                                          data->cloneChildren, dest);
+            result = WalkHistoryEntries(aEntry, aShell,
+                                        CloneAndReplaceChild, &childData);
+            if (NS_FAILED(result))
+                return result;
+        }
     } else {
         // Clone the SHEntry...
-        rv = aEntry->Clone(getter_AddRefs(dest));
-        NS_ENSURE_SUCCESS(rv, rv);
-    }
-    dest->SetIsSubFrame(PR_TRUE);
+        result = aEntry->Clone(getter_AddRefs(dest));
+        if (NS_FAILED(result))
+            return result;
 
-    if (srcID != cloneID || data->cloneChildren) {
+        // This entry is for a subframe navigation
+        dest->SetIsSubFrame(PR_TRUE);
+
         // Walk the children
         CloneAndReplaceData childData(cloneID, replaceEntry,
                                       data->cloneChildren, dest);
-        rv = WalkHistoryEntries(aEntry, aShell,
-                                CloneAndReplaceChild, &childData);
-        NS_ENSURE_SUCCESS(rv, rv);
-    }
+        result = WalkHistoryEntries(aEntry, aShell,
+                                    CloneAndReplaceChild, &childData);
+        if (NS_FAILED(result))
+            return result;
 
-    if (srcID != cloneID && aShell) {
-        aShell->SwapHistoryEntries(aEntry, dest);
+        if (aShell)
+            aShell->SwapHistoryEntries(aEntry, dest);
     }
 
     if (container)
         container->AddChild(dest, aEntryIndex);
 
     data->resultEntry = dest;
-    return rv;
+    return result;
 }
 
 /* static */ nsresult
@@ -10708,9 +10676,7 @@ nsDocShell::ConfirmRepost(PRBool * aRepost)
   if (NS_FAILED(rv)) return rv;
 
   PRInt32 buttonPressed;
-  // The actual value here is irrelevant, but we can't pass an invalid
-  // PRBool through XPConnect.
-  PRBool checkState = PR_FALSE;
+  PRBool checkState;
   rv = prompter->
          ConfirmEx(nsnull, msgString.get(),
                    (nsIPrompt::BUTTON_POS_0 * nsIPrompt::BUTTON_TITLE_IS_STRING) +

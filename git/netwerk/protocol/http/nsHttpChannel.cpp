@@ -138,6 +138,9 @@ nsHttpChannel::nsHttpChannel()
     LOG(("Creating nsHttpChannel [this=%p]\n", this));
     mChannelCreationTime = PR_Now();
     mChannelCreationTimestamp = mozilla::TimeStamp::Now();
+    // Subfields of unions cannot be targeted in an initializer list
+    mSelfAddr.raw.family = PR_AF_UNSPEC;
+    mPeerAddr.raw.family = PR_AF_UNSPEC;
 }
 
 nsHttpChannel::~nsHttpChannel()
@@ -2553,14 +2556,8 @@ nsHttpChannel::CheckCache()
     PRBool doValidation = PR_FALSE;
     PRBool canAddImsHeader = PR_TRUE;
 
-    // Cached entry is not the entity we request (see bug #633743)
-    if (ResponseWouldVary()) {
-        LOG(("Validating based on Vary headers returning TRUE\n"));
-        canAddImsHeader = PR_FALSE;
-        doValidation = PR_TRUE;
-    }
-    // If the LOAD_FROM_CACHE flag is set, any cached data can simply be used
-    else if (mLoadFlags & LOAD_FROM_CACHE) {
+    // If the LOAD_FROM_CACHE flag is set, any cached data can simply be used.
+    if (mLoadFlags & LOAD_FROM_CACHE) {
         LOG(("NOT validating based on LOAD_FROM_CACHE load flag\n"));
         doValidation = PR_FALSE;
     }
@@ -2592,6 +2589,12 @@ nsHttpChannel::CheckCache()
         doValidation = PR_TRUE;
     }
 
+    else if (ResponseWouldVary()) {
+        LOG(("Validating based on Vary headers returning TRUE\n"));
+        canAddImsHeader = PR_FALSE;
+        doValidation = PR_TRUE;
+    }
+    
     else if (MustValidateBasedOnQueryUrl()) {
         LOG(("Validating based on RFC 2616 section 13.9 "
              "(query-url w/o explicit expiration-time)\n"));
@@ -2716,6 +2719,9 @@ nsHttpChannel::CheckCache()
                 mRequestHead.SetHeader(nsHttp::If_None_Match,
                                        nsDependentCString(val));
         }
+
+        // We don't need this info anymore
+        CleanRedirectCacheChainIfNecessary();
     }
 
     LOG(("nsHTTPChannel::CheckCache exit [this=%p doValidation=%d]\n", this, doValidation));

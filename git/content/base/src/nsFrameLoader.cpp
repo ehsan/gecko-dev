@@ -83,7 +83,7 @@
 #include "nsISHistory.h"
 #include "nsISHistoryInternal.h"
 #include "nsIDocShellHistory.h"
-#include "nsIDOMHTMLDocument.h"
+#include "nsIDOMNSHTMLDocument.h"
 #include "nsIXULWindow.h"
 #include "nsIEditor.h"
 #include "nsIEditorDocShell.h"
@@ -113,8 +113,6 @@
 #include "ContentParent.h"
 #include "TabParent.h"
 #include "mozilla/layout/RenderFrameParent.h"
-
-#include "mozilla/Preferences.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -820,7 +818,7 @@ nsFrameLoader::Show(PRInt32 marginWidth, PRInt32 marginHeight,
   nsCOMPtr<nsIPresShell> presShell;
   mDocShell->GetPresShell(getter_AddRefs(presShell));
   if (presShell) {
-    nsCOMPtr<nsIDOMHTMLDocument> doc =
+    nsCOMPtr<nsIDOMNSHTMLDocument> doc =
       do_QueryInterface(presShell->GetDocument());
 
     if (doc) {
@@ -838,7 +836,7 @@ nsFrameLoader::Show(PRInt32 marginWidth, PRInt32 marginHeight,
         doc->SetDesignMode(NS_LITERAL_STRING("off"));
         doc->SetDesignMode(NS_LITERAL_STRING("on"));
       } else {
-        // Re-initialize the presentation for contenteditable documents
+        // Re-initialie the presentation for contenteditable documents
         nsCOMPtr<nsIEditorDocShell> editorDocshell = do_QueryInterface(mDocShell);
         if (editorDocshell) {
           PRBool editable = PR_FALSE,
@@ -1348,8 +1346,8 @@ nsFrameLoader::ShouldUseRemoteProcess()
     return false;
   }
 
-  PRBool remoteDisabled =
-    Preferences::GetBool("dom.ipc.tabs.disabled", PR_FALSE);
+  PRBool remoteDisabled = nsContentUtils::GetBoolPref("dom.ipc.tabs.disabled",
+                                                      PR_FALSE);
   if (remoteDisabled) {
     return false;
   }
@@ -1368,7 +1366,8 @@ nsFrameLoader::ShouldUseRemoteProcess()
     return true;
   }
 
-  PRBool remoteEnabled = Preferences::GetBool("dom.ipc.tabs.enabled", PR_FALSE);
+  PRBool remoteEnabled = nsContentUtils::GetBoolPref("dom.ipc.tabs.enabled",
+                                                     PR_FALSE);
   return (bool) remoteEnabled;
 }
 

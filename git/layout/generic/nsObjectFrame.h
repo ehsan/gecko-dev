@@ -44,7 +44,6 @@
 #include <windows.h>
 #endif
 
-#include "nsPluginInstanceOwner.h"
 #include "nsIObjectFrame.h"
 #include "nsFrame.h"
 #include "nsRegion.h"
@@ -57,9 +56,12 @@
 class nsIAccessible;
 #endif
 
+class nsPluginInstanceOwner;
 class nsPluginHost;
+class nsIPluginInstance;
 class nsPresContext;
 class nsDisplayPlugin;
+class nsIDOMElement;
 class nsIOSurface;
 class PluginBackgroundSink;
 

@@ -367,12 +367,6 @@ public:
     return aContent->NodeInfo()->Equals(nsAccessibilityAtoms::th) ||
       aContent->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::scope);
   }
-
-  /**
-   * Check the visibility across both parent content and chrome.
-   */
-  static bool CheckVisibilityInParentChain(nsIFrame* aFrame);
-
 };
 
 

@@ -45,8 +45,8 @@
 #include "AndroidBridge.h"
 #include "nsAppShell.h"
 #include "nsOSHelperAppService.h"
+#include "nsIPrefService.h"
 #include "nsWindow.h"
-#include "mozilla/Preferences.h"
 
 #ifdef DEBUG
 #define ALOG_BRIDGE(args...) ALOG(args)
@@ -249,26 +249,29 @@ AndroidBridge::NotifyIMEEnabled(int aState, const nsAString& aTypeHint,
     args[1].l = JNI()->NewString(typeHint.get(), typeHint.Length());
     args[2].l = JNI()->NewString(actionHint.get(), actionHint.Length());
     args[3].z = false;
-
-    PRInt32 landscapeFS;
-    if (NS_SUCCEEDED(Preferences::GetInt(IME_FULLSCREEN_PREF, &landscapeFS))) {
-        if (landscapeFS == 1) {
-            args[3].z = true;
-        } else if (landscapeFS == -1){
-            if (NS_SUCCEEDED(
-                  Preferences::GetInt(IME_FULLSCREEN_THRESHOLD_PREF,
-                                      &landscapeFS))) {
-                // the threshold is hundreths of inches, so convert the 
-                // threshold to pixels and multiply the height by 100
-                if (nsWindow::GetAndroidScreenBounds().height  * 100 < 
-                    landscapeFS * Bridge()->GetDPI()) {
-                    args[3].z = true;
+    nsCOMPtr<nsIPrefBranch> prefs = 
+        do_GetService(NS_PREFSERVICE_CONTRACTID);
+    if (prefs) {
+        PRInt32 landscapeFS;
+        nsresult rv = prefs->GetIntPref(IME_FULLSCREEN_PREF, &landscapeFS);
+        if (NS_SUCCEEDED(rv)) {
+            if (landscapeFS == 1) {
+                args[3].z = true;
+            } else if (landscapeFS == -1){
+                rv = prefs->GetIntPref(IME_FULLSCREEN_THRESHOLD_PREF, 
+                                       &landscapeFS);
+                if (NS_SUCCEEDED(rv)) {
+                    // the threshold is hundreths of inches, so convert the 
+                    // threshold to pixels and multiply the height by 100
+                    if (nsWindow::GetAndroidScreenBounds().height  * 100 < 
+                        landscapeFS * Bridge()->GetDPI())
+                        args[3].z = true;
                 }
-            }
 
+            }
         }
     }
-
+    
     JNI()->CallStaticVoidMethodA(sBridge->mGeckoAppShellClass,
                                  sBridge->jNotifyIMEEnabled, args);
 }
@@ -387,9 +390,9 @@ AndroidBridge::GetHandlersForMimeType(const char *aMimeType,
     NS_ConvertUTF8toUTF16 wMimeType(aMimeType);
     jstring jstrMimeType =
         mJNIEnv->NewString(wMimeType.get(), wMimeType.Length());
-
-    jstring jstrAction = mJNIEnv->NewString(nsPromiseFlatString(aAction).get(),
-                                            aAction.Length());
+    const PRUnichar* wAction;
+    PRUint32 actionLen = NS_StringGetData(aAction, &wAction);
+    jstring jstrAction = mJNIEnv->NewString(wAction, actionLen);
 
     jobject obj = mJNIEnv->CallStaticObjectMethod(mGeckoAppShellClass,
                                                   jGetHandlersForMimeType,
@@ -420,8 +423,9 @@ AndroidBridge::GetHandlersForURL(const char *aURL,
     AutoLocalJNIFrame jniFrame;
     NS_ConvertUTF8toUTF16 wScheme(aURL);
     jstring jstrScheme = mJNIEnv->NewString(wScheme.get(), wScheme.Length());
-    jstring jstrAction = mJNIEnv->NewString(nsPromiseFlatString(aAction).get(),
-                                            aAction.Length());
+    const PRUnichar* wAction;
+    PRUint32 actionLen = NS_StringGetData(aAction, &wAction);
+    jstring jstrAction = mJNIEnv->NewString(wAction, actionLen);
 
     jobject obj = mJNIEnv->CallStaticObjectMethod(mGeckoAppShellClass,
                                                   jGetHandlersForURL,
@@ -450,18 +454,21 @@ AndroidBridge::OpenUriExternal(const nsACString& aUriSpec, const nsACString& aMi
     AutoLocalJNIFrame jniFrame;
     NS_ConvertUTF8toUTF16 wUriSpec(aUriSpec);
     NS_ConvertUTF8toUTF16 wMimeType(aMimeType);
+    const PRUnichar* wPackageName;
+    PRUint32 packageNameLen = NS_StringGetData(aPackageName, &wPackageName);
+    const PRUnichar* wClassName;
+    PRUint32 classNameLen = NS_StringGetData(aClassName, &wClassName);
+    const PRUnichar* wAction;
+    PRUint32 actionLen = NS_StringGetData(aAction, &wAction);
+    const PRUnichar* wTitle;
+    PRUint32 titleLen = NS_StringGetData(aTitle, &wTitle);
 
     jstring jstrUri = mJNIEnv->NewString(wUriSpec.get(), wUriSpec.Length());
     jstring jstrType = mJNIEnv->NewString(wMimeType.get(), wMimeType.Length());
-
-    jstring jstrPackage = mJNIEnv->NewString(nsPromiseFlatString(aPackageName).get(),
-                                             aPackageName.Length());
-    jstring jstrClass = mJNIEnv->NewString(nsPromiseFlatString(aClassName).get(),
-                                           aClassName.Length());
-    jstring jstrAction = mJNIEnv->NewString(nsPromiseFlatString(aAction).get(),
-                                            aAction.Length());
-    jstring jstrTitle = mJNIEnv->NewString(nsPromiseFlatString(aTitle).get(),
-                                           aTitle.Length());
+    jstring jstrPackage = mJNIEnv->NewString(wPackageName, packageNameLen);
+    jstring jstrClass = mJNIEnv->NewString(wClassName, classNameLen);
+    jstring jstrAction = mJNIEnv->NewString(wAction, actionLen);
+    jstring jstrTitle = mJNIEnv->NewString(wTitle, titleLen);
 
     return mJNIEnv->CallStaticBooleanMethod(mGeckoAppShellClass,
                                             jOpenUriExternal,
@@ -528,9 +535,10 @@ void
 AndroidBridge::SetClipboardText(const nsAString& aText)
 {
     ALOG_BRIDGE("AndroidBridge::SetClipboardText");
-    AutoLocalJNIFrame jniFrame;
-    jstring jstr = mJNIEnv->NewString(nsPromiseFlatString(aText).get(),
-                                      aText.Length());
+
+    const PRUnichar* wText;
+    PRUint32 wTextLen = NS_StringGetData(aText, &wText);
+    jstring jstr = mJNIEnv->NewString(wText, wTextLen);
     mJNIEnv->CallStaticObjectMethod(mGeckoAppShellClass, jSetClipboardText, jstr);
 }
 
@@ -669,7 +677,6 @@ void
 AndroidBridge::SetSelectedLocale(const nsAString& aLocale)
 {
     ALOG_BRIDGE("AndroidBridge::SetSelectedLocale");
-    AutoLocalJNIFrame jniFrame;
     jstring jLocale = GetJNIForThread()->NewString(PromiseFlatString(aLocale).get(), aLocale.Length());
     GetJNIForThread()->CallStaticVoidMethod(mGeckoAppShellClass, jSetSelectedLocale, jLocale);
 }
@@ -848,7 +855,6 @@ jclass GetGeckoAppShellClass()
 void
 AndroidBridge::ScanMedia(const nsAString& aFile, const nsACString& aMimeType)
 {
-    AutoLocalJNIFrame jniFrame;
     jstring jstrFile = mJNIEnv->NewString(nsPromiseFlatString(aFile).get(), aFile.Length());
 
     nsString mimeType2;

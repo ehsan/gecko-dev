@@ -92,11 +92,8 @@ nsNativeTheme::GetContentState(nsIFrame* aFrame, PRUint8 aWidgetType)
   if (!shell)
     return nsEventStates();
 
-  nsIContent* frameContent = aFrame->GetContent();
-  nsEventStates flags;
-  if (frameContent->IsElement()) {
-    flags = frameContent->AsElement()->State();
-  }
+  nsEventStateManager* esm = shell->GetPresContext()->EventStateManager();
+  nsEventStates flags = esm->GetContentState(aFrame->GetContent(), PR_TRUE);
   
   if (isXULCheckboxRadio && aWidgetType == NS_THEME_RADIO) {
     if (IsFocused(aFrame))
@@ -519,7 +516,7 @@ nsNativeTheme::QueueAnimatedContentForRefresh(nsIContent* aContent,
                "aMinimumFrameRate must be less than 1000!");
 
   PRUint32 timeout = PRUint32(NS_floor(1000 / aMinimumFrameRate));
-  timeout = NS_MIN(mAnimatedContentTimeout, timeout);
+  timeout = PR_MIN(mAnimatedContentTimeout, timeout);
 
   if (!mAnimatedContentTimer) {
     mAnimatedContentTimer = do_CreateInstance(NS_TIMER_CONTRACTID);

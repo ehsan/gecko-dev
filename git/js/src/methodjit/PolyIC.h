@@ -383,8 +383,7 @@ struct PICInfo : public BasePolyIC {
         SETMETHOD,  // JSOP_SETMETHOD
         NAME,       // JSOP_NAME
         BIND,       // JSOP_BINDNAME
-        XNAME,      // JSOP_GETXPROP
-        CALLNAME    // JSOP_CALLNAME
+        XNAME       // JSOP_GETXPROP
     };
 
     union {
@@ -461,7 +460,7 @@ struct PICInfo : public BasePolyIC {
         return kind == BIND;
     }
     inline bool isScopeName() const {
-        return kind == NAME || kind == CALLNAME || kind == XNAME;
+        return kind == NAME || kind == XNAME;
     }
     inline RegisterID typeReg() {
         JS_ASSERT(isGet());
@@ -504,7 +503,7 @@ struct PICInfo : public BasePolyIC {
         bindNameLabels_ = labels;
     }
     void setLabels(const ic::ScopeNameLabels &labels) {
-        JS_ASSERT(kind == NAME || kind == CALLNAME || kind == XNAME);
+        JS_ASSERT(kind == NAME || kind == XNAME);
         scopeNameLabels_ = labels;
     }
 #endif
@@ -522,7 +521,7 @@ struct PICInfo : public BasePolyIC {
         return bindNameLabels_;
     }
     ScopeNameLabels &scopeNameLabels() {
-        JS_ASSERT(kind == NAME || kind == CALLNAME || kind == XNAME);
+        JS_ASSERT(kind == NAME || kind == XNAME);
         return scopeNameLabels_;
     }
 
@@ -547,7 +546,6 @@ void JS_FASTCALL GetProp(VMFrame &f, ic::PICInfo *);
 void JS_FASTCALL SetProp(VMFrame &f, ic::PICInfo *);
 void JS_FASTCALL CallProp(VMFrame &f, ic::PICInfo *);
 void JS_FASTCALL Name(VMFrame &f, ic::PICInfo *);
-void JS_FASTCALL CallName(VMFrame &f, ic::PICInfo *);
 void JS_FASTCALL XName(VMFrame &f, ic::PICInfo *);
 void JS_FASTCALL BindName(VMFrame &f, ic::PICInfo *);
 void JS_FASTCALL GetElement(VMFrame &f, ic::GetElementIC *);

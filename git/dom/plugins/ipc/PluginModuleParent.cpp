@@ -39,8 +39,8 @@
 #ifdef MOZ_WIDGET_GTK2
 #include <glib.h>
 #elif XP_MACOSX
-#include "PluginInterposeOSX.h"
 #include "PluginUtilsOSX.h"
+#include "PluginInterposeOSX.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
 #endif
@@ -51,7 +51,6 @@
 
 #include "base/process_util.h"
 
-#include "mozilla/Preferences.h"
 #include "mozilla/unused.h"
 #include "mozilla/ipc/SyncChannel.h"
 #include "mozilla/plugins/PluginModuleParent.h"
@@ -59,6 +58,7 @@
 #include "PluginIdentifierParent.h"
 
 #include "nsAutoPtr.h"
+#include "nsContentUtils.h"
 #include "nsCRT.h"
 #ifdef MOZ_CRASHREPORTER
 #include "nsExceptionHandler.h"
@@ -71,7 +71,6 @@ using base::KillProcess;
 using mozilla::PluginLibrary;
 using mozilla::ipc::SyncChannel;
 
-using namespace mozilla;
 using namespace mozilla::plugins;
 
 static const char kTimeoutPref[] = "dom.ipc.plugins.timeoutSecs";
@@ -91,7 +90,7 @@ PluginModuleParent::LoadModule(const char* aFilePath)
 {
     PLUGIN_LOG_DEBUG_FUNCTION;
 
-    PRInt32 prefSecs = Preferences::GetInt(kLaunchTimeoutPref, 0);
+    PRInt32 prefSecs = nsContentUtils::GetIntPref(kLaunchTimeoutPref, 0);
 
     // Block on the child process being launched and initialized.
     nsAutoPtr<PluginModuleParent> parent(new PluginModuleParent(aFilePath));
@@ -126,7 +125,7 @@ PluginModuleParent::PluginModuleParent(const char* aFilePath)
         NS_ERROR("Out of memory");
     }
 
-    Preferences::RegisterCallback(TimeoutChanged, kTimeoutPref, this);
+    nsContentUtils::RegisterPrefCallback(kTimeoutPref, TimeoutChanged, this);
 }
 
 PluginModuleParent::~PluginModuleParent()
@@ -151,7 +150,7 @@ PluginModuleParent::~PluginModuleParent()
         mSubprocess = nsnull;
     }
 
-    Preferences::UnregisterCallback(TimeoutChanged, kTimeoutPref, this);
+    nsContentUtils::UnregisterPrefCallback(kTimeoutPref, TimeoutChanged, this);
 }
 
 #ifdef MOZ_CRASHREPORTER
@@ -224,7 +223,7 @@ PluginModuleParent::TimeoutChanged(const char* aPref, void* aModule)
     NS_ABORT_IF_FALSE(!strcmp(aPref, kTimeoutPref),
                       "unexpected pref callback");
 
-    PRInt32 timeoutSecs = Preferences::GetInt(kTimeoutPref, 0);
+    PRInt32 timeoutSecs = nsContentUtils::GetIntPref(kTimeoutPref, 0);
     int32 timeoutMs = (timeoutSecs > 0) ? (1000 * timeoutSecs) :
                       SyncChannel::kNoTimeout;
 
@@ -923,6 +922,18 @@ PluginModuleParent::NPP_GetSitesWithData(InfallibleTArray<nsCString>& result)
 
     return NS_OK;
 }
+
+#if defined(XP_MACOSX)
+nsresult
+PluginModuleParent::IsRemoteDrawingCoreAnimation(NPP instance, PRBool *aDrawing)
+{
+    PluginInstanceParent* i = InstCast(instance);
+    if (!i)
+        return NS_ERROR_FAILURE;
+
+    return i->IsRemoteDrawingCoreAnimation(aDrawing);
+}
+#endif
 
 bool
 PluginModuleParent::AnswerNPN_GetValue_WithBoolReturn(const NPNVariable& aVariable,

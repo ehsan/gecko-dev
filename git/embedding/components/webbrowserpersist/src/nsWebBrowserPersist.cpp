@@ -77,6 +77,7 @@
 #include "nsIDOMComment.h"
 #include "nsIDOMNamedNodeMap.h"
 #include "nsIDOMNodeList.h"
+#include "nsIDOMNSDocument.h"
 #include "nsIWebProgressListener.h"
 #include "nsIAuthPrompt.h"
 #include "nsIPrompt.h"
@@ -107,8 +108,10 @@
 #include "nsIDOMHTMLTextAreaElement.h"
 #include "nsIDOMHTMLDocument.h"
 #include "nsIDOMText.h"
+#ifdef MOZ_SVG
 #include "nsIDOMSVGImageElement.h"
 #include "nsIDOMSVGScriptElement.h"
+#endif // MOZ_SVG
 #ifdef MOZ_MEDIA
 #include "nsIDOMHTMLSourceElement.h"
 #include "nsIDOMHTMLMediaElement.h"
@@ -1464,9 +1467,15 @@ nsWebBrowserPersist::GetDocEncoderContentType(nsIDOMDocument *aDocument, const P
     else
     {
         // Get the content type from the document
-        nsAutoString type;
-        if (NS_SUCCEEDED(aDocument->GetContentType(type)) && !type.IsEmpty())
-            contentType.Assign(type);
+        nsCOMPtr<nsIDOMNSDocument> nsDoc = do_QueryInterface(aDocument);
+        if (nsDoc)
+        {
+            nsAutoString type;
+            if (NS_SUCCEEDED(nsDoc->GetContentType(type)) && !type.IsEmpty())
+            {
+                contentType.Assign(type);
+            }
+        }
     }
 
     // Check that an encoder actually exists for the desired output type. The
@@ -2767,12 +2776,14 @@ nsresult nsWebBrowserPersist::OnWalkDOMNode(nsIDOMNode *aNode)
         return NS_OK;
     }
 
+#ifdef MOZ_SVG
     nsCOMPtr<nsIDOMSVGImageElement> nodeAsSVGImage = do_QueryInterface(aNode);
     if (nodeAsSVGImage)
     {
         StoreURIAttributeNS(aNode, "http://www.w3.org/1999/xlink", "href");
         return NS_OK;
     }
+#endif // MOZ_SVG
 
 #ifdef MOZ_MEDIA
     nsCOMPtr<nsIDOMHTMLMediaElement> nodeAsMedia = do_QueryInterface(aNode);
@@ -2824,12 +2835,14 @@ nsresult nsWebBrowserPersist::OnWalkDOMNode(nsIDOMNode *aNode)
         return NS_OK;
     }
 
+#ifdef MOZ_SVG
     nsCOMPtr<nsIDOMSVGScriptElement> nodeAsSVGScript = do_QueryInterface(aNode);
     if (nodeAsSVGScript)
     {
         StoreURIAttributeNS(aNode, "http://www.w3.org/1999/xlink", "href");
         return NS_OK;
     }
+#endif // MOZ_SVG
 
     nsCOMPtr<nsIDOMHTMLEmbedElement> nodeAsEmbed = do_QueryInterface(aNode);
     if (nodeAsEmbed)
@@ -3162,6 +3175,7 @@ nsWebBrowserPersist::CloneNodeWithFixedUpAttributes(
     }
 #endif // MOZ_MEDIA
 
+#ifdef MOZ_SVG
     nsCOMPtr<nsIDOMSVGImageElement> nodeAsSVGImage = do_QueryInterface(aNodeIn);
     if (nodeAsSVGImage)
     {
@@ -3179,6 +3193,7 @@ nsWebBrowserPersist::CloneNodeWithFixedUpAttributes(
         }
         return rv;
     }
+#endif // MOZ_SVG
 
     nsCOMPtr<nsIDOMHTMLScriptElement> nodeAsScript = do_QueryInterface(aNodeIn);
     if (nodeAsScript)
@@ -3191,6 +3206,7 @@ nsWebBrowserPersist::CloneNodeWithFixedUpAttributes(
         return rv;
     }
 
+#ifdef MOZ_SVG
     nsCOMPtr<nsIDOMSVGScriptElement> nodeAsSVGScript = do_QueryInterface(aNodeIn);
     if (nodeAsSVGScript)
     {
@@ -3201,6 +3217,7 @@ nsWebBrowserPersist::CloneNodeWithFixedUpAttributes(
         }
         return rv;
     }
+#endif // MOZ_SVG
 
     nsCOMPtr<nsIDOMHTMLEmbedElement> nodeAsEmbed = do_QueryInterface(aNodeIn);
     if (nodeAsEmbed)

@@ -42,6 +42,7 @@
 
 #include "nsXULPrototypeCache.h"
 
+#include "nsContentUtils.h"
 #include "plstr.h"
 #include "nsXULPrototypeDocument.h"
 #include "nsCSSStyleSheet.h"
@@ -62,10 +63,6 @@
 
 #include "jsxdrapi.h"
 
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
-
 static NS_DEFINE_CID(kXULPrototypeCacheCID, NS_XULPROTOTYPECACHE_CID);
 
 static PRBool gDisableXULCache = PR_FALSE; // enabled by default
@@ -77,7 +74,7 @@ static int
 DisableXULCacheChangedCallback(const char* aPref, void* aClosure)
 {
     gDisableXULCache =
-        Preferences::GetBool(kDisableXULCachePref, gDisableXULCache);
+        nsContentUtils::GetBoolPref(kDisableXULCachePref, gDisableXULCache);
 
     // Flush the cache, regardless
     nsXULPrototypeCache* cache = nsXULPrototypeCache::GetInstance();
@@ -135,9 +132,10 @@ NS_NewXULPrototypeCache(nsISupports* aOuter, REFNSIID aIID, void** aResult)
 
     // XXX Ignore return values.
     gDisableXULCache =
-        Preferences::GetBool(kDisableXULCachePref, gDisableXULCache);
-    Preferences::RegisterCallback(DisableXULCacheChangedCallback,
-                                  kDisableXULCachePref);
+        nsContentUtils::GetBoolPref(kDisableXULCachePref, gDisableXULCache);
+    nsContentUtils::RegisterPrefCallback(kDisableXULCachePref,
+                                         DisableXULCacheChangedCallback,
+                                         nsnull);
 
     nsresult rv = result->QueryInterface(aIID, aResult);
 
@@ -598,7 +596,8 @@ FastLoadPrefChangedCallback(const char* aPref, void* aClosure)
 {
     PRBool wasEnabled = !gDisableXULFastLoad;
     gDisableXULFastLoad =
-        Preferences::GetBool(kDisableXULFastLoadPref, gDisableXULFastLoad);
+        nsContentUtils::GetBoolPref(kDisableXULFastLoadPref,
+                                    gDisableXULFastLoad);
 
     if (wasEnabled && gDisableXULFastLoad) {
         static NS_DEFINE_CID(kXULPrototypeCacheCID, NS_XULPROTOTYPECACHE_CID);
@@ -610,8 +609,8 @@ FastLoadPrefChangedCallback(const char* aPref, void* aClosure)
     }
 
     gChecksumXULFastLoadFile =
-        Preferences::GetBool(kChecksumXULFastLoadFilePref,
-                             gChecksumXULFastLoadFile);
+        nsContentUtils::GetBoolPref(kChecksumXULFastLoadFilePref,
+                                    gChecksumXULFastLoadFile);
 
     return 0;
 }
@@ -726,14 +725,17 @@ nsXULPrototypeCache::StartFastLoad(nsIURI* aURI)
         return NS_ERROR_FAILURE;
 
     gDisableXULFastLoad =
-        Preferences::GetBool(kDisableXULFastLoadPref, gDisableXULFastLoad);
+        nsContentUtils::GetBoolPref(kDisableXULFastLoadPref,
+                                    gDisableXULFastLoad);
     gChecksumXULFastLoadFile =
-        Preferences::GetBool(kChecksumXULFastLoadFilePref,
-                             gChecksumXULFastLoadFile);
-    Preferences::RegisterCallback(FastLoadPrefChangedCallback,
-                                  kDisableXULFastLoadPref);
-    Preferences::RegisterCallback(FastLoadPrefChangedCallback,
-                                  kChecksumXULFastLoadFilePref);
+        nsContentUtils::GetBoolPref(kChecksumXULFastLoadFilePref,
+                                    gChecksumXULFastLoadFile);
+    nsContentUtils::RegisterPrefCallback(kDisableXULFastLoadPref,
+                                         FastLoadPrefChangedCallback,
+                                         nsnull);
+    nsContentUtils::RegisterPrefCallback(kChecksumXULFastLoadFilePref,
+                                         FastLoadPrefChangedCallback,
+                                         nsnull);
 
     if (gDisableXULFastLoad)
         return NS_ERROR_NOT_AVAILABLE;

@@ -92,17 +92,18 @@
 #include "nsCOMPtr.h"
 #include "nsListControlFrame.h"
 #include "ImageLayers.h"
-#include "mozilla/arm.h"
 #include "mozilla/dom/Element.h"
 #include "nsCanvasFrame.h"
 #include "gfxDrawable.h"
 #include "gfxUtils.h"
 #include "nsDataHashtable.h"
 
+#ifdef MOZ_SVG
 #include "nsSVGUtils.h"
 #include "nsSVGIntegrationUtils.h"
 #include "nsSVGForeignObjectFrame.h"
 #include "nsSVGOuterSVGFrame.h"
+#endif
 
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
@@ -1776,11 +1777,13 @@ struct BoxToBorderRect : public nsLayoutUtils::BoxCallback {
     : mRelativeTo(aRelativeTo), mCallback(aCallback) {}
 
   virtual void AddBox(nsIFrame* aFrame) {
+#ifdef MOZ_SVG
     nsRect r;
     nsIFrame* outer = nsSVGUtils::GetOuterSVGFrameAndCoveredRegion(aFrame, &r);
     if (outer) {
       mCallback->AddRect(r + outer->GetOffsetTo(mRelativeTo));
     } else
+#endif
       mCallback->AddRect(nsRect(aFrame->GetOffsetTo(mRelativeTo), aFrame->GetSize()));
   }
 };
@@ -3058,12 +3061,12 @@ nsLayoutUtils::GetClosestLayer(nsIFrame* aFrame)
 GraphicsFilter
 nsLayoutUtils::GetGraphicsFilterForFrame(nsIFrame* aForFrame)
 {
-  GraphicsFilter defaultFilter = gfxPattern::FILTER_GOOD;
 #ifdef MOZ_GFX_OPTIMIZE_MOBILE
-  if (!mozilla::supports_neon()) {
-    defaultFilter = gfxPattern::FILTER_NEAREST;
-  }
+  GraphicsFilter defaultFilter = gfxPattern::FILTER_NEAREST;
+#else
+  GraphicsFilter defaultFilter = gfxPattern::FILTER_GOOD;
 #endif
+#ifdef MOZ_SVG
   nsIFrame *frame = nsCSSRendering::IsCanvasFrame(aForFrame) ?
     nsCSSRendering::FindBackgroundStyleFrame(aForFrame) : aForFrame;
 
@@ -3077,6 +3080,9 @@ nsLayoutUtils::GetGraphicsFilterForFrame(nsIFrame* aForFrame)
   default:
     return defaultFilter;
   }
+#else
+  return defaultFilter;
+#endif
 }
 
 /**
@@ -3648,6 +3654,7 @@ nsLayoutUtils::GetTextRunFlagsForStyle(nsStyleContext* aStyleContext,
   if (IsNonzeroCoord(aStyleText->mLetterSpacing)) {
     result |= gfxTextRunFactory::TEXT_DISABLE_OPTIONAL_LIGATURES;
   }
+#ifdef MOZ_SVG
   switch (aStyleContext->GetStyleSVG()->mTextRendering) {
   case NS_STYLE_TEXT_RENDERING_OPTIMIZESPEED:
     result |= gfxTextRunFactory::TEXT_OPTIMIZE_SPEED;
@@ -3661,6 +3668,7 @@ nsLayoutUtils::GetTextRunFlagsForStyle(nsStyleContext* aStyleContext,
   default:
     break;
   }
+#endif
   return result;
 }
 

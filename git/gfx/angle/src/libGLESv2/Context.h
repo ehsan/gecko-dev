@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2002-2011 The ANGLE Project Authors. All rights reserved.
+// Copyright (c) 2002-2010 The ANGLE Project Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -18,11 +18,9 @@
 #include <d3d9.h>
 
 #include <map>
-#include <hash_map>
 
 #include "common/angleutils.h"
 #include "libGLESv2/ResourceManager.h"
-#include "libGLESv2/HandleAllocator.h"
 #include "libGLESv2/RefCountObject.h"
 
 namespace egl
@@ -48,7 +46,6 @@ class Renderbuffer;
 class RenderbufferStorage;
 class Colorbuffer;
 class Depthbuffer;
-class StreamingIndexBuffer;
 class Stencilbuffer;
 class DepthStencilbuffer;
 class VertexDataManager;
@@ -62,9 +59,9 @@ enum
     MAX_VERTEX_UNIFORM_VECTORS = 256 - 2,   // 256 is the minimum for SM2, and in practice the maximum for DX9. Reserve space for dx_HalfPixelSize and dx_DepthRange.
     MAX_VARYING_VECTORS_SM2 = 8,
     MAX_VARYING_VECTORS_SM3 = 10,
+    MAX_COMBINED_TEXTURE_IMAGE_UNITS = 16,
+    MAX_VERTEX_TEXTURE_IMAGE_UNITS = 0,
     MAX_TEXTURE_IMAGE_UNITS = 16,
-    MAX_VERTEX_TEXTURE_IMAGE_UNITS_VTF = 4,   // For devices supporting vertex texture fetch
-    MAX_COMBINED_TEXTURE_IMAGE_UNITS_VTF = MAX_TEXTURE_IMAGE_UNITS + MAX_VERTEX_TEXTURE_IMAGE_UNITS_VTF,    
     MAX_FRAGMENT_UNIFORM_VECTORS_SM2 = 32 - 3,    // Reserve space for dx_Viewport, dx_Depth, and dx_DepthRange. dx_PointOrLines and dx_FrontCCW use separate bool registers.
     MAX_FRAGMENT_UNIFORM_VECTORS_SM3 = 224 - 3,
     MAX_DRAW_BUFFERS = 1,
@@ -206,7 +203,7 @@ struct State
     bool colorMaskAlpha;
     bool depthMask;
 
-    unsigned int activeSampler;   // Active texture unit selector - GL_TEXTURE0
+    int activeSampler;   // Active texture unit selector - GL_TEXTURE0
     BindingPointer<Buffer> arrayBuffer;
     BindingPointer<Buffer> elementArrayBuffer;
     GLuint readFramebuffer;
@@ -215,32 +212,10 @@ struct State
     GLuint currentProgram;
 
     VertexAttribute vertexAttribute[MAX_VERTEX_ATTRIBS];
-    BindingPointer<Texture> samplerTexture[TEXTURE_TYPE_COUNT][MAX_COMBINED_TEXTURE_IMAGE_UNITS_VTF];
+    BindingPointer<Texture> samplerTexture[SAMPLER_TYPE_COUNT][MAX_TEXTURE_IMAGE_UNITS];
 
     GLint unpackAlignment;
     GLint packAlignment;
-};
-
-// Helper class to construct and cache vertex declarations
-class VertexDeclarationCache
-{
-  public:
-    VertexDeclarationCache();
-    ~VertexDeclarationCache();
-
-    GLenum applyDeclaration(TranslatedAttribute attributes[], Program *program);
-
-  private:
-    UINT mMaxLru;
-
-    enum { NUM_VERTEX_DECL_CACHE_ENTRIES = 16 };
-
-    struct VertexDeclCacheEntry
-    {
-        D3DVERTEXELEMENT9 cachedElements[MAX_VERTEX_ATTRIBS + 1];
-        UINT lruCount;
-        IDirect3DVertexDeclaration9 *vertexDeclaration;
-    } mVertexDeclCache[NUM_VERTEX_DECL_CACHE_ENTRIES];
 };
 
 class Context
@@ -323,7 +298,7 @@ class Context
     void setColorMask(bool red, bool green, bool blue, bool alpha);
     void setDepthMask(bool mask);
 
-    void setActiveSampler(unsigned int active);
+    void setActiveSampler(int active);
 
     GLuint getReadFramebufferHandle() const;
     GLuint getDrawFramebufferHandle() const;
@@ -395,7 +370,7 @@ class Context
     Program *getCurrentProgram();
     Texture2D *getTexture2D();
     TextureCubeMap *getTextureCubeMap();
-    Texture *getSamplerTexture(unsigned int sampler, TextureType type);
+    Texture *getSamplerTexture(unsigned int sampler, SamplerType type);
     Framebuffer *getReadFramebuffer();
     Framebuffer *getDrawFramebuffer();
 
@@ -404,6 +379,13 @@ class Context
     bool getBooleanv(GLenum pname, GLboolean *params);
 
     bool getQueryParameterInfo(GLenum pname, GLenum *type, unsigned int *numParams);
+
+    bool applyRenderTarget(bool ignoreViewport);
+    void applyState(GLenum drawMode);
+    GLenum applyVertexBuffer(GLint first, GLsizei count);
+    GLenum applyIndexBuffer(const void *indices, GLsizei count, GLenum mode, GLenum type, TranslatedIndexData *indexInfo);
+    void applyShaders();
+    void applyTextures();
 
     void readPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, void* pixels);
     void clear(GLbitfield mask);
@@ -426,8 +408,6 @@ class Context
 
     bool supportsShaderModel3() const;
     int getMaximumVaryingVectors() const;
-    unsigned int getMaximumVertexTextureImageUnits() const;
-    unsigned int getMaximumCombinedTextureImageUnits() const;
     int getMaximumFragmentUniformVectors() const;
     int getMaximumRenderbufferDimension() const;
     int getMaximumTextureDimension() const;
@@ -447,7 +427,6 @@ class Context
     bool supportsLuminanceTextures() const;
     bool supportsLuminanceAlphaTextures() const;
     bool supports32bitIndices() const;
-    bool supportsNonPower2Texture() const;
 
     void blitFramebuffer(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, 
                          GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1,
@@ -460,38 +439,30 @@ class Context
   private:
     DISALLOW_COPY_AND_ASSIGN(Context);
 
-    bool applyRenderTarget(bool ignoreViewport);
-    void applyState(GLenum drawMode);
-    GLenum applyVertexBuffer(GLint first, GLsizei count);
-    GLenum applyIndexBuffer(const void *indices, GLsizei count, GLenum mode, GLenum type, TranslatedIndexData *indexInfo);
-    void applyShaders();
-    void applyTextures();
-    void applyTextures(SamplerType type);
+    void lookupAttributeMapping(TranslatedAttribute *attributes);
 
     void detachBuffer(GLuint buffer);
     void detachTexture(GLuint texture);
     void detachFramebuffer(GLuint framebuffer);
     void detachRenderbuffer(GLuint renderbuffer);
 
-    Texture *getIncompleteTexture(TextureType type);
+    Texture *getIncompleteTexture(SamplerType type);
 
     bool cullSkipsDraw(GLenum drawMode);
     bool isTriangleMode(GLenum drawMode);
 
     const egl::Config *const mConfig;
 
-    State mState;
+    State   mState;
 
     BindingPointer<Texture2D> mTexture2DZero;
     BindingPointer<TextureCubeMap> mTextureCubeMapZero;
 
-    typedef stdext::hash_map<GLuint, Framebuffer*> FramebufferMap;
+    typedef std::map<GLuint, Framebuffer*> FramebufferMap;
     FramebufferMap mFramebufferMap;
-    HandleAllocator mFramebufferHandleAllocator;
 
-    typedef stdext::hash_map<GLuint, Fence*> FenceMap;
+    typedef std::map<GLuint, Fence*> FenceMap;
     FenceMap mFenceMap;
-    HandleAllocator mFenceHandleAllocator;
 
     void initExtensionString();
     std::string mExtensionString;
@@ -500,10 +471,8 @@ class Context
     IndexDataManager *mIndexDataManager;
 
     Blit *mBlit;
-
-    StreamingIndexBuffer *mClosingIB;
     
-    BindingPointer<Texture> mIncompleteTextures[TEXTURE_TYPE_COUNT];
+    BindingPointer<Texture> mIncompleteTextures[SAMPLER_TYPE_COUNT];
 
     // Recorded errors
     bool mInvalidEnum;
@@ -514,17 +483,13 @@ class Context
 
     bool mHasBeenCurrent;
 
-    unsigned int mAppliedTextureSerialPS[MAX_TEXTURE_IMAGE_UNITS];
-    unsigned int mAppliedTextureSerialVS[MAX_VERTEX_TEXTURE_IMAGE_UNITS_VTF];
-    unsigned int mAppliedProgramSerial;
+    unsigned int mAppliedProgram;
     unsigned int mAppliedRenderTargetSerial;
     unsigned int mAppliedDepthbufferSerial;
     unsigned int mAppliedStencilbufferSerial;
     bool mDepthStencilInitialized;
 
     bool mSupportsShaderModel3;
-    bool mSupportsVertexTexture;
-    bool mSupportsNonPower2Texture;
     int  mMaxRenderbufferDimension;
     int  mMaxTextureDimension;
     int  mMaxCubeTextureDimension;
@@ -562,8 +527,6 @@ class Context
     D3DCAPS9 mDeviceCaps;
 
     ResourceManager *mResourceManager;
-
-    VertexDeclarationCache mVertexDeclarationCache;
 };
 }
 
@@ -575,7 +538,6 @@ void glDestroyContext(gl::Context *context);
 void glMakeCurrent(gl::Context *context, egl::Display *display, egl::Surface *surface);
 gl::Context *glGetCurrentContext();
 __eglMustCastToProperFunctionPointerType __stdcall glGetProcAddress(const char *procname);
-void __stdcall glBindTexImage(egl::Surface *surface);
 }
 
 #endif   // INCLUDE_CONTEXT_H_

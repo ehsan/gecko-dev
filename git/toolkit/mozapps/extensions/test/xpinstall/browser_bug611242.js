@@ -6,8 +6,6 @@ function loadURI(aUri, aCallback) {
     if (gBrowser.selectedBrowser.currentURI.spec != aUri)
       return;
 
-    gBrowser.selectedBrowser.removeEventListener("load", arguments.callee, true);
-
     aCallback();
   }, true);
 

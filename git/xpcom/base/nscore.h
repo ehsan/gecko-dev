@@ -258,11 +258,11 @@
  * Deprecated declarations.
  */
 #if (__GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 1))
-# define MOZ_DEPRECATED __attribute__((deprecated))
+# define NS_DEPRECATED __attribute__((deprecated))
 #elif defined(_MSC_VER) && (_MSC_VER >= 1300)
-# define MOZ_DEPRECATED __declspec(deprecated)
+# define NS_DEPRECATED __declspec(deprecated)
 #else
-# define MOZ_DEPRECATED
+# define NS_DEPRECATED
 #endif
 
 /**

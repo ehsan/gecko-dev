@@ -80,27 +80,16 @@ function page_shown() {
 
 function pfs_loaded() {
   info("PFS loaded");
-  var docEle = gPFS.document.documentElement;
-
-  var onwizardfinish = function () {
+  gPFS.document.documentElement.addEventListener("pageshow", page_shown, false);
+  gPFS.document.documentElement.addEventListener("wizardfinish", function() {
     info("wizardfinish event");
-  };
-  var onwizardnext = function () {
+  }, false);
+  gPFS.document.documentElement.addEventListener("wizardnext", function() {
     info("wizardnext event");
-  };
-
-  docEle.addEventListener("pageshow", page_shown, false);
-  docEle.addEventListener("wizardfinish", onwizardfinish, false);
-  docEle.addEventListener("wizardnext", onwizardnext, false);
-
+  }, false);
   gPFS.addEventListener("unload", function() {
     info("unload event");
-    gPFS.removeEventListener("unload", arguments.callee, false);
-    docEle.removeEventListener("pageshow", page_shown, false);
-    docEle.removeEventListener("wizardfinish", onwizardfinish, false);
-    docEle.removeEventListener("wizardnext", onwizardnext, false);
   }, false);
-
   page_shown();
 }
 
@@ -123,21 +112,14 @@ function prepare_test_1() {
 }
 
 function test_1_start() {
-  gPFS.removeEventListener("load", test_1_start, false);
-
   pfs_loaded();
-  gPFS.addEventListener("unload", function () {
-    gPFS.removeEventListener("unload", arguments.callee, false);
-    prepare_test_2();
-  }, false);
+  gPFS.addEventListener("unload", prepare_test_2, false);
   gSeenAvailable = false;
 
-  gPFS.document.documentElement.wizardPages[1].addEventListener("pageshow", function(e) {
-    e.currentTarget.removeEventListener(e.type, arguments.callee, false);
+  gPFS.document.documentElement.wizardPages[1].addEventListener("pageshow", function() {
     executeSoon(test_1_available);
   }, false);
-  gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function(e) {
-    e.currentTarget.removeEventListener(e.type, arguments.callee, false);
+  gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function() {
     executeSoon(test_1_complete);
   }, false);
 }
@@ -180,21 +162,14 @@ function prepare_test_2() {
 }
 
 function test_2_start() {
-  gPFS.removeEventListener("load", test_2_start, false);
-
   pfs_loaded();
-  gPFS.addEventListener("unload", function () {
-    gPFS.removeEventListener("unload", arguments.callee, false);
-    prepare_test_3();
-  }, false);
+  gPFS.addEventListener("unload", prepare_test_3, false);
   gSeenAvailable = false;
 
-  gPFS.document.documentElement.wizardPages[1].addEventListener("pageshow", function(e) {
-    e.currentTarget.removeEventListener(e.type, arguments.callee, false);
+  gPFS.document.documentElement.wizardPages[1].addEventListener("pageshow", function() {
     executeSoon(test_2_available);
   }, false);
-  gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function(e) {
-    e.currentTarget.removeEventListener(e.type, arguments.callee, false);
+  gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function() {
     executeSoon(test_2_complete);
   }, false);
 }
@@ -241,21 +216,14 @@ function prepare_test_3() {
 }
 
 function test_3_start() {
-  gPFS.removeEventListener("load", test_3_start, false);
-
   pfs_loaded();
-  gPFS.addEventListener("unload", function () {
-    gPFS.removeEventListener("unload", arguments.callee, false);
-    prepare_test_4();
-  }, false);
+  gPFS.addEventListener("unload", prepare_test_4, false);
   gSeenAvailable = false;
 
-  gPFS.document.documentElement.wizardPages[1].addEventListener("pageshow", function(e) {
-    e.currentTarget.removeEventListener(e.type, arguments.callee, false);
+  gPFS.document.documentElement.wizardPages[1].addEventListener("pageshow", function() {
     executeSoon(test_3_available);
   }, false);
-  gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function(e) {
-    e.currentTarget.removeEventListener(e.type, arguments.callee, false);
+  gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function() {
     executeSoon(test_3_complete);
   }, false);
 }
@@ -302,21 +270,14 @@ function prepare_test_4() {
 }
 
 function test_4_start() {
-  gPFS.removeEventListener("load", test_4_start, false);
-
   pfs_loaded();
-  gPFS.addEventListener("unload", function () {
-    gPFS.removeEventListener("unload", arguments.callee, false);
-    prepare_test_5();
-  }, false);
+  gPFS.addEventListener("unload", prepare_test_5, false);
   gSeenAvailable = false;
 
-  gPFS.document.documentElement.wizardPages[1].addEventListener("pageshow", function(e) {
-    e.currentTarget.removeEventListener(e.type, arguments.callee, false);
+  gPFS.document.documentElement.wizardPages[1].addEventListener("pageshow", function() {
     executeSoon(test_4_available);
   }, false);
-  gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function(e) {
-    e.currentTarget.removeEventListener(e.type, arguments.callee, false);
+  gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function() {
     executeSoon(test_4_complete);
   }, false);
 }
@@ -360,21 +321,14 @@ function prepare_test_5() {
 }
 
 function test_5_start() {
-  gPFS.removeEventListener("load", test_5_start, false);
-
   pfs_loaded();
-  gPFS.addEventListener("unload", function () {
-    gPFS.removeEventListener("unload", arguments.callee, false);
-    prepare_test_6();
-  }, false);
+  gPFS.addEventListener("unload", prepare_test_6, false);
   gSeenAvailable = false;
 
-  gPFS.document.documentElement.wizardPages[1].addEventListener("pageshow", function(e) {
-    e.currentTarget.removeEventListener(e.type, arguments.callee, false);
+  gPFS.document.documentElement.wizardPages[1].addEventListener("pageshow", function() {
     executeSoon(test_5_available);
   }, false);
-  gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function(e) {
-    e.currentTarget.removeEventListener(e.type, arguments.callee, false);
+  gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function() {
     executeSoon(test_5_complete);
   }, false);
 }
@@ -424,21 +378,14 @@ function prepare_test_6() {
 }
 
 function test_6_start() {
-  gPFS.removeEventListener("load", test_6_start, false);
-
   pfs_loaded();
-  gPFS.addEventListener("unload", function () {
-    gPFS.removeEventListener("unload", arguments.callee, false);
-    prepare_test_7();
-  }, false);
+  gPFS.addEventListener("unload", prepare_test_7, false);
   gSeenAvailable = false;
 
-  gPFS.document.documentElement.wizardPages[1].addEventListener("pageshow", function(e) {
-    e.currentTarget.removeEventListener(e.type, arguments.callee, false);
+  gPFS.document.documentElement.wizardPages[1].addEventListener("pageshow", function() {
     executeSoon(test_6_available);
   }, false);
-  gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function(e) {
-    e.currentTarget.removeEventListener(e.type, arguments.callee, false);
+  gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function() {
     executeSoon(test_6_complete);
   }, false);
 }
@@ -485,21 +432,14 @@ function prepare_test_7() {
 }
 
 function test_7_start() {
-  gPFS.removeEventListener("load", test_7_start, false);
-
   pfs_loaded();
-  gPFS.addEventListener("unload", function () {
-    gPFS.removeEventListener("unload", arguments.callee, false);
-    prepare_test_8();
-  }, false);
+  gPFS.addEventListener("unload", prepare_test_8, false);
   gSeenAvailable = false;
 
-  gPFS.document.documentElement.wizardPages[1].addEventListener("pageshow", function(e) {
-    e.currentTarget.removeEventListener(e.type, arguments.callee, false);
+  gPFS.document.documentElement.wizardPages[1].addEventListener("pageshow", function() {
     executeSoon(test_7_available);
   }, false);
-  gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function(e) {
-    e.currentTarget.removeEventListener(e.type, arguments.callee, false);
+  gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function() {
     executeSoon(test_7_complete);
   }, false);
 }
@@ -553,21 +493,14 @@ function prepare_test_8() {
 }
 
 function test_8_start() {
-  gPFS.removeEventListener("load", test_8_start, false);
-
   pfs_loaded();
-  gPFS.addEventListener("unload", function () {
-    gPFS.removeEventListener("unload", arguments.callee, false);
-    prepare_test_9();
-  }, false);
+  gPFS.addEventListener("unload", prepare_test_9, false);
   gSeenAvailable = false;
 
-  gPFS.document.documentElement.wizardPages[1].addEventListener("pageshow", function(e) {
-    e.currentTarget.removeEventListener(e.type, arguments.callee, false);
+  gPFS.document.documentElement.wizardPages[1].addEventListener("pageshow", function() {
     executeSoon(test_8_available);
   }, false);
-  gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function(e) {
-    e.currentTarget.removeEventListener(e.type, arguments.callee, false);
+  gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function() {
     executeSoon(test_8_complete);
   }, false);
 }
@@ -616,20 +549,13 @@ function prepare_test_9() {
 }
 
 function test_9_start() {
-  gPFS.removeEventListener("load", test_9_start, false);
-
   pfs_loaded();
-  gPFS.addEventListener("unload", function () {
-    gPFS.removeEventListener("unload", arguments.callee, false);
-    prepare_test_10();
-  }, false);
+  gPFS.addEventListener("unload", prepare_test_10, false);
 
-  gPFS.document.documentElement.wizardPages[1].addEventListener("pageshow", function(e) {
-    e.currentTarget.removeEventListener(e.type, arguments.callee, false);
+  gPFS.document.documentElement.wizardPages[1].addEventListener("pageshow", function() {
     ok(false, "Should not have found plugins to install");
   }, false);
-  gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function(e) {
-    e.currentTarget.removeEventListener(e.type, arguments.callee, false);
+  gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function() {
     executeSoon(test_9_complete);
   }, false);
 }
@@ -662,20 +588,13 @@ function prepare_test_10() {
 }
 
 function test_10_start() {
-  gPFS.removeEventListener("load", test_10_start, false);
-
   pfs_loaded();
-  gPFS.addEventListener("unload", function () {
-    gPFS.removeEventListener("unload", arguments.callee, false);
-    prepare_test_11();
-  }, false);
+  gPFS.addEventListener("unload", prepare_test_11, false);
 
-  gPFS.document.documentElement.wizardPages[1].addEventListener("pageshow", function(e) {
-    e.currentTarget.removeEventListener(e.type, arguments.callee, false);
+  gPFS.document.documentElement.wizardPages[1].addEventListener("pageshow", function() {
     ok(false, "Should not have found plugins to install");
   }, false);
-  gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function(e) {
-    e.currentTarget.removeEventListener(e.type, arguments.callee, false);
+  gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function() {
     executeSoon(test_10_complete);
   }, false);
 }
@@ -708,20 +627,13 @@ function prepare_test_11() {
 }
 
 function test_11_start() {
-  gPFS.removeEventListener("load", test_11_start, false);
-
   pfs_loaded();
-  gPFS.addEventListener("unload", function () {
-    gPFS.removeEventListener("unload", arguments.callee, false);
-    finishTest();
-  }, false);
+  gPFS.addEventListener("unload", finishTest, false);
 
-  gPFS.document.documentElement.wizardPages[1].addEventListener("pageshow", function(e) {
-    e.currentTarget.removeEventListener(e.type, arguments.callee, false);
+  gPFS.document.documentElement.wizardPages[1].addEventListener("pageshow", function() {
     ok(false, "Should not have found plugins to install");
   }, false);
-  gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function(e) {
-    e.currentTarget.removeEventListener(e.type, arguments.callee, false);
+  gPFS.document.documentElement.wizardPages[4].addEventListener("pageshow", function() {
     executeSoon(test_11_complete);
   }, false);
 }

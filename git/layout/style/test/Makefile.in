@@ -48,6 +48,14 @@ MODULE		= layout
 DIRS +=		chrome \
 		$(NULL)
 
+# XXX Yuck.  We can't transfer everything from autoconf to HOST_CFLAGS,
+# but it would be nice to pick up anything affecting nsCSSPropList.h
+# automatically.
+ifdef MOZ_SVG
+HOST_CFLAGS	+= -DMOZ_SVG=1
+HOST_CXXFLAGS	+= -DMOZ_SVG=1
+endif
+
 HOST_CPPSRCS	= \
 		ListCSSProperties.cpp \
 		$(NULL)
@@ -88,7 +96,6 @@ _TEST_FILES =	test_acid3_test46.html \
 		test_bug74880.html \
 		test_bug98997.html \
 		test_bug160403.html \
-		test_bug200089.html \
 		test_bug221428.html \
 		test_bug229915.html \
 		test_bug302186.html \

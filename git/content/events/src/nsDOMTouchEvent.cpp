@@ -41,9 +41,6 @@
 #include "nsIClassInfo.h"
 #include "nsIXPCScriptable.h"
 #include "nsContentUtils.h"
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 DOMCI_DATA(Touch, nsDOMTouch)
 
@@ -326,7 +323,7 @@ nsDOMTouchEvent::PrefEnabled()
   static PRBool sPrefValue = PR_FALSE;
   if (!sDidCheckPref) {
     sDidCheckPref = PR_TRUE;
-    sPrefValue = Preferences::GetBool("dom.w3c_touch_events.enabled", PR_FALSE);
+    sPrefValue = nsContentUtils::GetBoolPref("dom.w3c_touch_events.enabled", PR_FALSE);
     if (sPrefValue) {
       nsContentUtils::InitializeTouchEventTable();
     }

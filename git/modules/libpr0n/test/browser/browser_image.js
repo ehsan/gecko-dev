@@ -1,5 +1,4 @@
 waitForExplicitFinish();
-requestLongerTimeout(2); // see bug 660123 -- this test is slow on Mac.
 
 // A hold on the current timer, so it doens't get GCed out from
 // under us

@@ -1,3 +1,4 @@
+conformance/canvas-test.html
 conformance/gl-getshadersource.html
 conformance/gl-object-get-calls.html
 conformance/texture-npot.html

@@ -594,9 +594,9 @@ nsBaseDragService::DrawDragForImage(nsPresContext* aPresContext,
   if (destSize.width > maxWidth || destSize.height > maxHeight) {
     float scale = 1.0;
     if (destSize.width > maxWidth)
-      scale = NS_MIN(scale, float(maxWidth) / destSize.width);
+      scale = PR_MIN(scale, float(maxWidth) / destSize.width);
     if (destSize.height > maxHeight)
-      scale = NS_MIN(scale, float(maxHeight) / destSize.height);
+      scale = PR_MIN(scale, float(maxHeight) / destSize.height);
 
     destSize.width = NSToIntFloor(float(destSize.width) * scale);
     destSize.height = NSToIntFloor(float(destSize.height) * scale);
