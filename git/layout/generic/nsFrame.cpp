@@ -3644,13 +3644,13 @@ nsIFrame::AreAncestorViewsVisible() const
 }
 
 nsIWidget*
-nsIFrame::GetNearestWidget() const
+nsIFrame::GetWindow() const
 {
   return GetClosestView()->GetNearestWidget(nsnull);
 }
 
 nsIWidget*
-nsIFrame::GetNearestWidget(nsPoint& aOffset) const
+nsIFrame::GetWindowOffset(nsPoint& aOffset) const
 {
   nsPoint offsetToView;
   nsPoint offsetToWidget;

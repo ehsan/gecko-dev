@@ -1404,40 +1404,27 @@ nsNSElementTearoff::GetClassList(nsIDOMDOMTokenList** aResult)
   return NS_OK;
 }
 
-void
-nsGenericElement::SetCapture(PRBool aRetargetToElement)
+NS_IMETHODIMP
+nsNSElementTearoff::SetCapture(PRBool aRetargetToElement)
 {
   // If there is already an active capture, ignore this request. This would
   // occur if a splitter, frame resizer, etc had already captured and we don't
   // want to override those.
-  if (nsIPresShell::GetCapturingContent())
-    return;
+  nsCOMPtr<nsIDOMNode> node = do_QueryInterface(nsIPresShell::GetCapturingContent());
+  if (node)
+    return NS_OK;
 
-  nsIPresShell::SetCapturingContent(this, CAPTURE_PREVENTDRAG |
+  nsIPresShell::SetCapturingContent(mContent, CAPTURE_PREVENTDRAG |
     (aRetargetToElement ? CAPTURE_RETARGETTOELEMENT : 0));
-}
-
-NS_IMETHODIMP
-nsNSElementTearoff::SetCapture(PRBool aRetargetToElement)
-{
-  mContent->SetCapture(aRetargetToElement);
-
   return NS_OK;
-}
-
-void
-nsGenericElement::ReleaseCapture()
-{
-  if (nsIPresShell::GetCapturingContent() == this) {
-    nsIPresShell::SetCapturingContent(nsnull, 0);
-  }
 }
 
 NS_IMETHODIMP
 nsNSElementTearoff::ReleaseCapture()
 {
-  mContent->ReleaseCapture();
-
+  if (nsIPresShell::GetCapturingContent() == mContent) {
+    nsIPresShell::SetCapturingContent(nsnull, 0);
+  }
   return NS_OK;
 }
 
@@ -3316,7 +3303,7 @@ nsGenericElement::SetSMILOverrideStyleRule(nsICSSStyleRule* aStyleRule,
     if (doc) {
       nsCOMPtr<nsIPresShell> shell = doc->GetShell();
       if (shell) {
-        shell->RestyleForAnimation(this, eRestyle_Self);
+        shell->RestyleForAnimation(this);
       }
     }
   }

@@ -252,12 +252,16 @@ window[chromehidden~="toolbar"] toolbar:not(.toolbar-primary):not(.chromeclass-m
 }
 
 /*  Full Screen UI */
-
 #fullscr-toggler {
+  display: none;
+  min-height: 1px;
   height: 1px;
   background: black;
+  border-style: none;
+  -moz-appearance: none;
 }
 
+#navigator-toolbox[inFullscreen="true"] > #fullscr-toggler,
 #nav-bar[mode="text"] > #window-controls > toolbarbutton > .toolbarbutton-icon {
   display: -moz-box;
 }
@@ -323,7 +327,6 @@ window[chromehidden~="toolbar"] toolbar:not(.toolbar-primary):not(.chromeclass-m
   display: none;
 }
 
-#notification-popup-box[anchorid="geo-notification-icon"] > #geo-notification-icon,
-#notification-popup-box[anchorid="addons-notification-icon"] > #addons-notification-icon {
+#notification-popup-box[anchorid="geo-notification-icon"] > #geo-notification-icon {
   display: -moz-box;
 }

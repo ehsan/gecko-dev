@@ -527,28 +527,31 @@ nsAccUtils::GetTextAccessibleFromSelection(nsISelection *aSelection,
   nsCOMPtr<nsINode> focusNode(do_QueryInterface(focusDOMNode));
   nsCOMPtr<nsINode> resultNode =
     nsCoreUtils::GetDOMNodeFromDOMPoint(focusNode, focusOffset);
-  nsCOMPtr<nsIWeakReference> weakShell(nsCoreUtils::GetWeakShellFor(resultNode));
 
   // Get text accessible containing the result node.
-  nsAccessible* accessible =
-    GetAccService()->GetAccessibleOrContainer(resultNode, weakShell);
-  if (!accessible) {
-    NS_NOTREACHED("No nsIAccessibleText for selection change event!");
-    return nsnull;
+  while (resultNode) {
+    // Make sure to get the correct starting node for selection events inside
+    // XBL content trees.
+    resultNode = GetAccService()->GetRelevantContentNodeFor(resultNode);
+    if (!resultNode->IsNodeOfType(nsINode::eTEXT)) {
+      nsAccessible *accessible = GetAccService()->GetAccessible(resultNode);
+      if (accessible) {
+        nsHyperTextAccessible *textAcc = nsnull;
+        CallQueryInterface(accessible, &textAcc);
+        if (textAcc) {
+          if (aNode)
+            NS_ADDREF(*aNode = resultNode);
+
+          return textAcc;
+        }
+      }
+    }
+
+    resultNode = resultNode->GetNodeParent();
   }
 
-  do {
-    nsHyperTextAccessible* textAcc = nsnull;
-    CallQueryInterface(accessible, &textAcc);
-    if (textAcc) {
-      if (aNode)
-        NS_ADDREF(*aNode = accessible->GetNode());
+  NS_NOTREACHED("No nsIAccessibleText for selection change event!");
 
-      return textAcc;
-    }
-  } while (accessible = accessible->GetParent());
-
-  NS_NOTREACHED("We must reach document accessible implementing nsIAccessibleText!");
   return nsnull;
 }
 
@@ -631,8 +634,7 @@ nsIntPoint
 nsAccUtils::GetScreenCoordsForParent(nsAccessNode *aAccessNode)
 {
   nsAccessible *parent =
-    GetAccService()->GetContainerAccessible(aAccessNode->GetNode(),
-                                            aAccessNode->GetWeakShell());
+    GetAccService()->GetContainerAccessible(aAccessNode->GetNode(), PR_TRUE);
   if (!parent)
     return nsIntPoint(0, 0);
 
@@ -811,6 +813,12 @@ nsAccUtils::MustPrune(nsIAccessible *aAccessible)
     role == nsIAccessibleRole::ROLE_SLIDER ||
     role == nsIAccessibleRole::ROLE_PROGRESSBAR ||
     role == nsIAccessibleRole::ROLE_SEPARATOR;
+}
+
+PRBool
+nsAccUtils::IsNodeRelevant(nsINode *aNode)
+{
+  return aNode == GetAccService()->GetRelevantContentNodeFor(aNode);
 }
 
 nsresult

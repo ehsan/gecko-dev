@@ -476,10 +476,8 @@ void nsViewManager::ProcessPendingUpdates(nsView* aView, PRBool aDoInvalidate)
       }
       nsRegion r = *dirtyRegion;
       r.MoveBy(aView->GetOffsetTo(nearestViewWithWidget));
-      nsViewManager* widgetVM = nearestViewWithWidget->GetViewManager();
-      widgetVM->
-        UpdateWidgetArea(nearestViewWithWidget,
-                         nearestViewWithWidget->GetWidget(), r, nsnull);
+      UpdateWidgetArea(nearestViewWithWidget,
+                       nearestViewWithWidget->GetWidget(), r, nsnull);
       dirtyRegion->SetEmpty();
     }
   }
@@ -558,9 +556,8 @@ nsViewManager::UpdateViewAfterScroll(nsIView *aView,
   nsRegion update(aUpdateRegion);
   update.MoveBy(offset);
 
-  nsViewManager* displayRootVM = displayRoot->GetViewManager();
-  displayRootVM->UpdateWidgetArea(displayRoot, displayRoot->GetWidget(),
-                                  update, nsnull);
+  UpdateWidgetArea(displayRoot, displayRoot->GetWidget(),
+                   update, nsnull);
   // FlushPendingInvalidates();
 
   Composite();
@@ -662,8 +659,7 @@ nsViewManager::UpdateWidgetArea(nsView *aWidgetView, nsIWidget* aWidget,
       if (view && visible && !IsWidgetDrawnByPlugin(childWidget, view)) {
         // Don't mess with views that are in completely different view
         // manager trees
-        nsViewManager* viewManager = view->GetViewManager();
-        if (viewManager->RootViewManager() == RootViewManager()) {
+        if (view->GetViewManager()->RootViewManager() == RootViewManager()) {
           // get the damage region into view's coordinate system
           nsRegion damage = intersection;
 
@@ -671,8 +667,7 @@ nsViewManager::UpdateWidgetArea(nsView *aWidgetView, nsIWidget* aWidget,
           damage.MoveBy(-offset);
 
           // Update the child and it's children
-          viewManager->
-            UpdateWidgetArea(view, childWidget, damage, aIgnoreWidgetView);
+          UpdateWidgetArea(view, childWidget, damage, aIgnoreWidgetView);
 
           // GetBounds should compensate for chrome on a toplevel widget
           nsIntRect bounds;
@@ -699,7 +694,7 @@ nsViewManager::UpdateWidgetArea(nsView *aWidgetView, nsIWidget* aWidget,
 
     const nsRect* r;
     for (nsRegionRectIterator iter(leftOver); (r = iter.Next());) {
-      nsIntRect bounds = ViewToWidget(aWidgetView, *r);
+      nsIntRect bounds = ViewToWidget(aWidgetView, aWidgetView, *r);
       aWidget->Invalidate(bounds, PR_FALSE);
     }
   }
@@ -717,13 +712,12 @@ NS_IMETHODIMP nsViewManager::UpdateView(nsIView *aView, const nsRect &aRect, PRU
   }
 
   nsView* displayRoot = GetDisplayRootFor(view);
-  nsViewManager* displayRootVM = displayRoot->GetViewManager();
   // Propagate the update to the displayRoot, since iframes, for example,
   // can overlap each other and be translucent.  So we have to possibly
   // invalidate our rect in each of the widgets we have lying about.
   damagedRect.MoveBy(view->GetOffsetTo(displayRoot));
-  displayRootVM->UpdateWidgetArea(displayRoot, displayRoot->GetWidget(),
-                                  nsRegion(damagedRect), nsnull);
+  UpdateWidgetArea(displayRoot, displayRoot->GetWidget(),
+                   nsRegion(damagedRect), nsnull);
 
   RootViewManager()->IncrementUpdateCount();
 
@@ -1552,16 +1546,22 @@ NS_IMETHODIMP nsViewManager::ForceUpdate()
   return NS_OK;
 }
 
-nsIntRect nsViewManager::ViewToWidget(nsView *aView, const nsRect &aRect) const
+nsIntRect nsViewManager::ViewToWidget(nsView *aView, nsView* aWidgetView, const nsRect &aRect) const
 {
-  NS_ASSERTION(aView->GetViewManager() == this, "wrong view manager");
-
-  // intersect aRect with bounds of aView, to prevent generating any illegal rectangles.
-  nsRect bounds = aView->GetDimensions();
-  nsRect rect;
-  rect.IntersectRect(aRect, bounds);
-
+  nsRect rect = aRect;
+  while (aView != aWidgetView) {
+    aView->ConvertToParentCoords(&rect.x, &rect.y);
+    aView = aView->GetParent();
+  }
+  
+  // intersect aRect with bounds of aWidgetView, to prevent generating any illegal rectangles.
+  nsRect bounds;
+  aWidgetView->GetDimensions(bounds);
+  rect.IntersectRect(rect, bounds);
   // account for the view's origin not lining up with the widget's
+  rect.x -= bounds.x;
+  rect.y -= bounds.y;
+
   rect += aView->ViewToWidgetOffset();
 
   // finally, convert to device coordinates.

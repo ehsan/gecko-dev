@@ -2395,8 +2395,8 @@ nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
     nsRefPtr<gfxContext> paintCtx = ctx;
 
 #ifdef MOZ_DFB
-    gfxPlatformGtk::SetGdkDrawable(ctx->OriginalSurface(),
-                                   GDK_DRAWABLE(mGdkWindow));
+    gfxPlatformGtk::GetPlatform()->SetGdkDrawable(ctx->OriginalSurface(),
+                                                  GDK_DRAWABLE(mGdkWindow));
 
     // clip to the update region
     ctx->NewPath();
@@ -6743,9 +6743,7 @@ nsWindow::GetSurfaceForGdkDrawable(GdkDrawable* aDrawable,
                                    const nsIntSize& aSize)
 {
     GdkVisual* visual = gdk_drawable_get_visual(aDrawable);
-    Screen* xScreen =
-        gdk_x11_screen_get_xscreen(gdk_drawable_get_screen(aDrawable));
-    Display* xDisplay = DisplayOfScreen(xScreen);
+    Display* xDisplay = gdk_x11_drawable_get_xdisplay(aDrawable);
     Drawable xDrawable = gdk_x11_drawable_get_xid(aDrawable);
 
     gfxASurface* result = nsnull;
@@ -6771,7 +6769,7 @@ nsWindow::GetSurfaceForGdkDrawable(GdkDrawable* aDrawable,
                 break;
         }
 
-        result = new gfxXlibSurface(xScreen, xDrawable, pf,
+        result = new gfxXlibSurface(xDisplay, xDrawable, pf,
                                     gfxIntSize(aSize.width, aSize.height));
     }
 

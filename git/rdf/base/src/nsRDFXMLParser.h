@@ -50,7 +50,7 @@
  */
 class nsRDFXMLParser : public nsIRDFXMLParser {
 public:
-    static nsresult
+    static NS_IMETHODIMP
     Create(nsISupports* aOuter, REFNSIID aIID, void** aResult);
 
     NS_DECL_ISUPPORTS

@@ -48,6 +48,8 @@ function Prompter() {
 }
 
 Prompter.prototype = {
+    classDescription : "Prompter",
+    contractID       : "@mozilla.org/prompter;1",
     classID          : Components.ID("{1c978d25-b37f-43a8-a2d6-0c7a239ead87}"),
     QueryInterface   : XPCOMUtils.generateQI([Ci.nsIPromptFactory, Ci.nsIPromptService, Ci.nsIPromptService2]),
 
@@ -680,6 +682,8 @@ ModalPrompter.prototype = {
 function AuthPromptAdapterFactory() {
 }
 AuthPromptAdapterFactory.prototype = {
+    classDescription : "AuthPromptAdapterFactory",
+    contractID       : "@mozilla.org/network/authprompt-adapter-factory;1",
     classID          : Components.ID("{6e134924-6c3a-4d86-81ac-69432dd971dc}"),
     QueryInterface   : XPCOMUtils.generateQI([Ci.nsIAuthPromptAdapterFactory]),
 
@@ -733,7 +737,12 @@ AuthPromptAdapter.prototype = {
 function EmbedPrompter() {
 }
 EmbedPrompter.prototype = new Prompter();
+EmbedPrompter.prototype.classDescription = "EmbedPrompter";
+EmbedPrompter.prototype.contractID       = "@mozilla.org/embedcomp/prompt-service;1"; // NS_PROMPTSERVICE_CONTRACTID
 EmbedPrompter.prototype.classID          = Components.ID("{7ad1b327-6dfa-46ec-9234-f2a620ea7e00}");
 
+
 var component = [Prompter, EmbedPrompter, AuthPromptAdapterFactory];
-var NSGetFactory = XPCOMUtils.generateNSGetFactory(component);
+function NSGetModule (compMgr, fileSpec) {
+    return XPCOMUtils.generateModule(component);
+}

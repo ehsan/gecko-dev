@@ -512,7 +512,7 @@ NS_NewWindowsRegKey(nsIWindowsRegKey **result)
 
 //-----------------------------------------------------------------------------
 
-nsresult
+NS_METHOD
 nsWindowsRegKeyConstructor(nsISupports *delegate, const nsIID &iid,
                            void **result)
 {

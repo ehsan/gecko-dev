@@ -72,7 +72,7 @@ public:
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIXULPrototypeCache, NS_IXULPROTOTYPECACHE_IID)
 
-nsresult
+NS_IMETHODIMP
 NS_NewXULPrototypeCache(nsISupports* aOuter, REFNSIID aIID, void** aResult);
 
 

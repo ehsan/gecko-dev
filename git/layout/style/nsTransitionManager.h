@@ -67,10 +67,8 @@ public:
    * StyleContextChanged 
    *
    * To be called from nsFrameManager::ReResolveStyleContext when the
-   * style of an element has changed, to initiate transitions from
-   * that style change.  For style contexts with :before and :after
-   * pseudos, aElement is expected to be the generated before/after
-   * element.
+   * style of an element has changed, to initiate transitions from that
+   * style change.
    *
    * It may return a "cover rule" (see CoverTransitionStartStyleRule) to
    * cover up some of the changes for the duration of the restyling of

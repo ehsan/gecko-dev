@@ -36,7 +36,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/ModuleUtils.h"
+#include "nsIGenericFactory.h"
+#include "nsIModule.h"
 #include "nsCOMPtr.h"
 #include "nsGfxCIID.h"
 
@@ -55,8 +56,7 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsThebesRenderingContext)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsThebesRegion)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsThebesFontEnumerator)
 
-static nsresult
-nsScriptableRegionConstructor(nsISupports *aOuter, REFNSIID aIID, void **aResult)
+static NS_IMETHODIMP nsScriptableRegionConstructor(nsISupports *aOuter, REFNSIID aIID, void **aResult)
 {
   nsresult rv;
 
@@ -97,54 +97,46 @@ nsScriptableRegionConstructor(nsISupports *aOuter, REFNSIID aIID, void **aResult
   return rv;
 }
 
-NS_DEFINE_NAMED_CID(NS_FONT_METRICS_CID);
-NS_DEFINE_NAMED_CID(NS_FONT_ENUMERATOR_CID);
-NS_DEFINE_NAMED_CID(NS_DEVICE_CONTEXT_CID);
-NS_DEFINE_NAMED_CID(NS_RENDERING_CONTEXT_CID);
-NS_DEFINE_NAMED_CID(NS_REGION_CID);
-NS_DEFINE_NAMED_CID(NS_SCRIPTABLE_REGION_CID);
-
-static const mozilla::Module::CIDEntry kThebesCIDs[] = {
-    { &kNS_FONT_METRICS_CID, false, NULL, nsThebesFontMetricsConstructor },
-    { &kNS_FONT_ENUMERATOR_CID, false, NULL, nsThebesFontEnumeratorConstructor },
-    { &kNS_DEVICE_CONTEXT_CID, false, NULL, nsThebesDeviceContextConstructor },
-    { &kNS_RENDERING_CONTEXT_CID, false, NULL, nsThebesRenderingContextConstructor },
-    { &kNS_REGION_CID, false, NULL, nsThebesRegionConstructor },
-    { &kNS_SCRIPTABLE_REGION_CID, false, NULL, nsScriptableRegionConstructor },
-    { NULL }
-};
-
-static const mozilla::Module::ContractIDEntry kThebesContracts[] = {
-    { "@mozilla.org/gfx/fontmetrics;1", &kNS_FONT_METRICS_CID },
-    { "@mozilla.org/gfx/fontenumerator;1", &kNS_FONT_ENUMERATOR_CID },
-    { "@mozilla.org/gfx/devicecontext;1", &kNS_DEVICE_CONTEXT_CID },
-    { "@mozilla.org/gfx/renderingcontext;1", &kNS_RENDERING_CONTEXT_CID },
-    { "@mozilla.org/gfx/region/nsThebes;1", &kNS_REGION_CID },
-    { "@mozilla.org/gfx/region;1", &kNS_SCRIPTABLE_REGION_CID },
-    { NULL }
+static const nsModuleComponentInfo components[] =
+{
+  { "Thebes nsFontMetrics",
+    NS_FONT_METRICS_CID,
+    "@mozilla.org/gfx/fontmetrics;1",
+    nsThebesFontMetricsConstructor },
+  { "Thebes Font Enumerator",
+    NS_FONT_ENUMERATOR_CID,
+    "@mozilla.org/gfx/fontenumerator;1",
+    nsThebesFontEnumeratorConstructor },
+  { "Thebes Device Context",
+    NS_DEVICE_CONTEXT_CID,
+    "@mozilla.org/gfx/devicecontext;1",
+    nsThebesDeviceContextConstructor },
+  { "Thebes Rendering Context",
+    NS_RENDERING_CONTEXT_CID,
+    "@mozilla.org/gfx/renderingcontext;1",
+    nsThebesRenderingContextConstructor },
+  { "Thebes Region",
+    NS_REGION_CID,
+    "@mozilla.org/gfx/region/nsThebes;1",
+    nsThebesRegionConstructor },
+  { "Scriptable Region",
+    NS_SCRIPTABLE_REGION_CID,
+    "@mozilla.org/gfx/region;1",
+    nsScriptableRegionConstructor },
 };
 
 static nsresult
-nsThebesGfxModuleCtor()
+nsThebesGfxModuleCtor(nsIModule *self)
 {
     return gfxPlatform::Init();
 }
 
 static void
-nsThebesGfxModuleDtor()
+nsThebesGfxModuleDtor(nsIModule *self)
 {
     nsThebesDeviceContext::Shutdown();
     gfxPlatform::Shutdown();
 }
 
-static const mozilla::Module kThebesModule = {
-    mozilla::Module::kVersion,
-    kThebesCIDs,
-    kThebesContracts,
-    NULL,
-    NULL,
-    nsThebesGfxModuleCtor,
-    nsThebesGfxModuleDtor
-};
-
-NSMODULE_DEFN(nsGfxModule) = &kThebesModule;
+NS_IMPL_NSGETMODULE_WITH_CTOR_DTOR(nsGfxModule, components,
+                                   nsThebesGfxModuleCtor, nsThebesGfxModuleDtor)

@@ -38,6 +38,7 @@
 
 /**
  * Root idl declarations to be used by all.
+ * @status FROZEN
  */
 
 %{C++

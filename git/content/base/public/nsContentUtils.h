@@ -485,8 +485,6 @@ public:
 
   static imgILoader* GetImgLoader()
   {
-    if (!sImgLoaderInitialized)
-      InitImgLoader();
     return sImgLoader;
   }
 
@@ -1690,10 +1688,6 @@ private:
   // For old compatibility of RegisterPrefCallback
   static nsCOMArray<nsPrefOldCallback> *sPrefCallbackList;
 
-  static bool sImgLoaderInitialized;
-  static void InitImgLoader();
-
-  // The following two members are initialized lazily
   static imgILoader* sImgLoader;
   static imgICache* sImgCache;
 

@@ -53,7 +53,7 @@ public:
     virtual ~nsDataHandler();
 
     // Define a Create method to be used with a factory:
-    static nsresult
+    static NS_METHOD
     Create(nsISupports* aOuter, const nsIID& aIID, void* *aResult);
 
     // Parse a data: URI and return the individual parts

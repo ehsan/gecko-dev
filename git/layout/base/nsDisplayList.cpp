@@ -431,7 +431,7 @@ void nsDisplayList::PaintForFrame(nsDisplayListBuilder* aBuilder,
     nsIFrame* referenceFrame = aBuilder->ReferenceFrame();
     NS_ASSERTION(referenceFrame == nsLayoutUtils::GetDisplayRootFrame(referenceFrame),
                  "Reference frame must be a display root for us to use the layer manager");
-    nsIWidget* window = referenceFrame->GetNearestWidget();
+    nsIWidget* window = referenceFrame->GetWindow();
     if (window) {
       layerManager = window->GetLayerManager();
     }

@@ -95,6 +95,7 @@ public:
 
   virtual nsAccessible* GetChildAt(PRUint32 aIndex);
   virtual PRInt32 GetChildCount();
+  virtual PRInt32 GetIndexOf(nsIAccessible *aChild);
 
   // nsXULTreeItemAccessibleBase
   virtual nsAccessible* GetCellAccessible(nsITreeColumn *aColumn);
@@ -160,7 +161,8 @@ public:
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
-  virtual PRInt32 GetIndexInParent() { return GetColumnIndex(); }
+
+  virtual nsAccessible* GetParent();
 
   // nsXULTreeGridCellAccessible
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_XULTREEGRIDCELLACCESSIBLE_IMPL_CID)

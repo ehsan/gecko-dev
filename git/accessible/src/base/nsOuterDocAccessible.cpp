@@ -200,8 +200,10 @@ nsOuterDocAccessible::AppendChild(nsAccessible *aAccessible)
   NS_ASSERTION(!mChildren.Length(),
                "Previous child document of outerdoc accessible wasn't removed!");
 
-  if (!nsAccessible::AppendChild(aAccessible))
+  if (!mChildren.AppendElement(aAccessible))
     return PR_FALSE;
+
+  aAccessible->SetParent(this);
 
   NS_LOG_ACCDOCCREATE("append document to outerdoc",
                       aAccessible->GetDocumentNode())
@@ -223,12 +225,12 @@ nsOuterDocAccessible::RemoveChild(nsAccessible *aAccessible)
                        child->GetDocumentNode())
   NS_LOG_ACCDOCDESTROY_ACCADDRESS("outerdoc", this)
 
-  PRBool wasRemoved = nsAccessible::RemoveChild(child);
+  mChildren.RemoveElement(child);
 
   NS_ASSERTION(!mChildren.Length(),
                "This child document of outerdoc accessible wasn't removed!");
 
-  return wasRemoved;
+  return PR_TRUE;
 }
 
 

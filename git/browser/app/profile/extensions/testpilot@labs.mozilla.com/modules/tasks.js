@@ -203,7 +203,6 @@ var TestPilotTask = {
   },
 
   onDetailPageOpened: function TestPilotTask_onDetailPageOpened(){
-    // TODO fold this into loadPage()?
   },
 
   checkDate: function TestPilotTask_checkDate() {
@@ -445,9 +444,14 @@ TestPilotExperiment.prototype = {
   },
 
   experimentIsRunning: function TestPilotExperiment_isRunning() {
-    // bug 575767
-    return (this._status == TaskConstants.STATUS_STARTING ||
-            this._status == TaskConstants.STATUS_IN_PROGRESS);
+    if (this._optInRequired) {
+      return (this._status == TaskConstants.STATUS_STARTING ||
+              this._status == TaskConstants.STATUS_IN_PROGRESS);
+    } else {
+      // Tests that don't require extra opt-in should start running even
+      // if you haven't seen them yet.
+      return (this._status < TaskConstants.STATUS_FINISHED);
+    }
   },
 
   // Pass events along to handlers:
@@ -595,23 +599,11 @@ TestPilotExperiment.prototype = {
       }
     }
 
-    // If the notify-on-new-study pref is turned off, and the test doesn't
-    // require opt-in, then it can jump straight ahead to STARTING.
+    // No-opt-in required tests skip PENDING and go straight to STARTING.
     if (!this._optInRequired &&
-        !Application.prefs.getValue("extensions.testpilot.popup.showOnNewStudy",
-                                    false) &&
-        (this._status == TaskConstants.STATUS_NEW ||
-         this._status == TaskConstants.STATUS_PENDING)) {
-      this._logger.info("Skipping pending and going straight to starting.");
-      this.changeStatus(TaskConstants.STATUS_STARTING, true);
-    }
-
-    // If a study is STARTING, and we're in the right date range,
-    // then start it, and move it to IN_PROGRESS.
-    if ( this._status == TaskConstants.STATUS_STARTING &&
+        this._status < TaskConstants.STATUS_STARTING &&
         currentDate >= this._startDate &&
         currentDate <= this._endDate) {
-      this._logger.info("Study now starting.");
       let uuidGenerator =
         Cc["@mozilla.org/uuid-generator;1"].getService(Ci.nsIUUIDGenerator);
       let uuid = uuidGenerator.generateUUID().toString();

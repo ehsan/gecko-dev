@@ -49,7 +49,7 @@
 #include "nsIXPConnect.h"
 #include "nsIServiceManager.h"
 #include "nsIComponentManager.h"
-#include "mozilla/ModuleUtils.h"
+#include "nsIGenericFactory.h"
 #include "nscore.h"
 #include "nsCOMPtr.h"
 #include "nsAString.h"

@@ -68,7 +68,6 @@
 #include "nsWeakReference.h"
 #include <stdio.h> // for FILE definition
 #include "nsRefreshDriver.h"
-#include "nsChangeHint.h"
 
 class nsIContent;
 class nsIDocument;
@@ -435,8 +434,7 @@ public:
   virtual NS_HIDDEN_(nsresult) RecreateFramesFor(nsIContent* aContent) = 0;
 
   void PostRecreateFramesFor(mozilla::dom::Element* aElement);
-  void RestyleForAnimation(mozilla::dom::Element* aElement,
-                           nsRestyleHint aHint);
+  void RestyleForAnimation(mozilla::dom::Element* aElement);
 
   /**
    * Determine if it is safe to flush all pending notifications

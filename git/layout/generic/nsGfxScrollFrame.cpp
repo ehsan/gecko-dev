@@ -1661,8 +1661,7 @@ void nsGfxScrollFrameInner::ScrollVisual(nsIntPoint aPixDelta)
   // Only update plugin configurations if we're going to scroll the
   // root widget. Otherwise we must be in a popup or some other situation
   // where we don't actually support windows plugins.
-  if (rootPresContext->FrameManager()->GetRootFrame()->GetNearestWidget() ==
-        nearestWidget) {
+  if (rootPresContext->FrameManager()->GetRootFrame()->GetWindow() == nearestWidget) {
     rootPresContext->GetPluginGeometryUpdates(mOuter, &configurations);
   }
 
@@ -1744,7 +1743,7 @@ void nsGfxScrollFrameInner::ScrollVisual(nsIntPoint aPixDelta)
     }
 
     nsIFrame* presContextRootFrame = presContext->FrameManager()->GetRootFrame();
-    if (nearestWidget == presContextRootFrame->GetNearestWidget()) {
+    if (nearestWidget == presContextRootFrame->GetWindow()) {
       nsPoint offsetToPresContext = mOuter->GetOffsetTo(presContextRootFrame);
       blitRectsRegion.MoveBy(-nearestWidgetOffset + offsetToPresContext);
       repaintRegion.MoveBy(-offsetToDisplayRoot + offsetToPresContext);
