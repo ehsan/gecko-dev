@@ -216,6 +216,11 @@ sendMouseEvent(UserInputData& data, nsEventStatus status)
         msg = NS_MOUSE_BUTTON_UP;
         break;
     default:
+        msg = NS_EVENT_NULL;
+        break;
+    }
+
+    if (msg == NS_EVENT_NULL) {
         return;
     }
 
@@ -295,7 +300,8 @@ sendTouchEvent(UserInputData& data, bool* captured)
         msg = NS_TOUCH_CANCEL;
         break;
     default:
-        return nsEventStatus_eIgnore;
+        msg = NS_EVENT_NULL;
+        break;
     }
 
     WidgetTouchEvent event(true, msg, nullptr);

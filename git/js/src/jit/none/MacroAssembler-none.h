@@ -14,8 +14,6 @@
 namespace js {
 namespace jit {
 
-class MDefinition;
-
 static MOZ_CONSTEXPR_VAR Register StackPointer = { 0 };
 static MOZ_CONSTEXPR_VAR Register FramePointer = { 0 };
 static MOZ_CONSTEXPR_VAR Register ReturnReg = { 0 };

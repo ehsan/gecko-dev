@@ -131,7 +131,7 @@ enum UCollationResult {
 };
 
 static int32_t
-ucol_countAvailable()
+ucol_countAvailable(void)
 {
     MOZ_CRASH("ucol_countAvailable: Intl API disabled");
 }
@@ -206,7 +206,7 @@ enum UNumberFormatTextAttribute {
 };
 
 static int32_t
-unum_countAvailable()
+unum_countAvailable(void)
 {
     MOZ_CRASH("unum_countAvailable: Intl API disabled");
 }
@@ -345,7 +345,7 @@ enum UDateFormatStyle {
 };
 
 static int32_t
-udat_countAvailable()
+udat_countAvailable(void)
 {
     MOZ_CRASH("udat_countAvailable: Intl API disabled");
 }
@@ -430,7 +430,7 @@ CreateDefaultOptions(JSContext *cx, MutableHandleValue defaultOptions)
 // CountAvailable and GetAvailable describe the signatures used for ICU API
 // to determine available locales for various functionality.
 typedef int32_t
-(* CountAvailable)();
+(* CountAvailable)(void);
 
 typedef const char *
 (* GetAvailable)(int32_t localeIndex);

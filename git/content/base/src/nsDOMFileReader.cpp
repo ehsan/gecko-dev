@@ -107,7 +107,9 @@ nsDOMFileReader::Init()
   // Instead of grabbing some random global from the context stack,
   // let's use the default one (junk scope) for now.
   // We should move away from this Init...
-  BindToOwner(xpc::GetNativeForGlobal(xpc::PrivilegedJunkScope()));
+  nsCOMPtr<nsIGlobalObject> global = xpc::GetJunkScopeGlobal();
+  NS_ENSURE_TRUE(global, NS_ERROR_FAILURE);
+  BindToOwner(global);
   return NS_OK;
 }
 
