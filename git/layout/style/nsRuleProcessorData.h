@@ -289,24 +289,23 @@ struct MOZ_STACK_CLASS TreeMatchContext {
   };
 
   /* Helper class for tracking whether we're skipping the ApplyStyleFixups
-   * code for special cases where child element style is modified based on
-   * parent display value.
+   * code for flex/grid items.
    *
-   * The optional second parameter aSkipParentDisplayBasedStyleFixup allows
+   * The optional second parameter aSkipFlexOrGridItemStyleFixup allows
    * this class to be instantiated but only conditionally activated (e.g.
    * in cases where we may or may not want to be skipping flex/grid-item
    * style fixup for a particular chunk of code).
    */
-  class MOZ_STACK_CLASS AutoParentDisplayBasedStyleFixupSkipper {
+  class MOZ_STACK_CLASS AutoFlexOrGridItemStyleFixupSkipper {
   public:
-    AutoParentDisplayBasedStyleFixupSkipper(TreeMatchContext& aTreeMatchContext,
-                                     bool aSkipParentDisplayBasedStyleFixup = true
+    AutoFlexOrGridItemStyleFixupSkipper(TreeMatchContext& aTreeMatchContext,
+                                     bool aSkipFlexOrGridItemStyleFixup = true
                                      MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : mAutoRestorer(aTreeMatchContext.mSkippingParentDisplayBasedStyleFixup)
+      : mAutoRestorer(aTreeMatchContext.mSkippingFlexOrGridItemStyleFixup)
     {
       MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-      if (aSkipParentDisplayBasedStyleFixup) {
-        aTreeMatchContext.mSkippingParentDisplayBasedStyleFixup = true;
+      if (aSkipFlexOrGridItemStyleFixup) {
+        aTreeMatchContext.mSkippingFlexOrGridItemStyleFixup = true;
       }
     }
 
@@ -364,11 +363,10 @@ struct MOZ_STACK_CLASS TreeMatchContext {
   // Whether this document is using PB mode
   bool mUsingPrivateBrowsing;
 
-  // Whether we're currently skipping the part of ApplyStyleFixups that changes
-  // style of child elements based on their parent's display value
-  // (e.g. for children of elements that have a mandatory frame-type for which
-  // we ignore "display:flex/grid").
-  bool mSkippingParentDisplayBasedStyleFixup;
+  // Whether we're currently skipping the flex/grid item chunk of
+  // ApplyStyleFixups when resolving style (e.g. for children of elements that
+  // have a mandatory frame-type for which we ignore "display:flex/grid").
+  bool mSkippingFlexOrGridItemStyleFixup;
 
   // Whether this TreeMatchContext is being used with an nsCSSRuleProcessor
   // for an HTML5 scoped style sheet.
@@ -400,7 +398,7 @@ struct MOZ_STACK_CLASS TreeMatchContext {
     , mIsHTMLDocument(aDocument->IsHTML())
     , mCompatMode(aDocument->GetCompatibilityMode())
     , mUsingPrivateBrowsing(false)
-    , mSkippingParentDisplayBasedStyleFixup(false)
+    , mSkippingFlexOrGridItemStyleFixup(false)
     , mForScopedStyle(false)
     , mCurrentStyleScope(nullptr)
   {

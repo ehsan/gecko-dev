@@ -34,7 +34,6 @@
 </panel>
 
 <panel id="animatepanel" type="arrow"
-       onpopupshown="animatedPopupShown = true;"
        onpopuphidden="animatedPopupHidden = true; runNextTest.next();">
   <label value="Animate Closed" height="40"/>
 </panel>
@@ -47,7 +46,6 @@ SimpleTest.waitForExplicitFinish();
 var expectedAnchor = null;
 var expectedSide = "", expectedAnchorEdge = "", expectedPack = "", expectedAlignment = "";
 var zoomFactor = 1;
-var animatedPopupShown = false;
 var animatedPopupHidden = false;
 var runNextTest;
 
@@ -186,11 +184,7 @@ function nextTest()
       transitions++;
       // Two properties transition so continue on the second one finishing.
       if (!(transitions % 2)) {
-        ok(animatedPopupShown, "popupshown now fired")
         SimpleTest.executeSoon(() => runNextTest.next());
-      }
-      else {
-        ok(!animatedPopupShown, "popupshown not fired yet")
       }
     }
 
@@ -199,7 +193,6 @@ function nextTest()
     $("animatepanel").openPopup($("topleft"), "after_start", 0, 0, false, false, null, "start");
     yield;
     window.removeEventListener("transitionend", transitionEnded, false);
-
     synthesizeKey("VK_ESCAPE", { });
     ok(!animatedPopupHidden, "animated popup not hidden yet");
     yield;

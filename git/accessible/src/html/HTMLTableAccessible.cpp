@@ -38,7 +38,6 @@
 #include "nsTableOuterFrame.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 using namespace mozilla::a11y;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -870,10 +869,15 @@ HTMLTableAccessible::Description(nsString& aDescription)
 bool
 HTMLTableAccessible::HasDescendant(const nsAString& aTagName, bool aAllowEmpty)
 {
-  nsCOMPtr<nsIHTMLCollection> elements =
-    mContent->AsElement()->GetElementsByTagName(aTagName);
+  nsCOMPtr<nsIDOMElement> tableElt(do_QueryInterface(mContent));
+  NS_ENSURE_TRUE(tableElt, false);
 
-  Element* foundItem = elements->Item(0);
+  nsCOMPtr<nsIDOMHTMLCollection> nodeList;
+  tableElt->GetElementsByTagName(aTagName, getter_AddRefs(nodeList));
+  NS_ENSURE_TRUE(nodeList, false);
+
+  nsCOMPtr<nsIDOMNode> foundItem;
+  nodeList->Item(0, getter_AddRefs(foundItem));
   if (!foundItem)
     return false;
 
@@ -882,10 +886,11 @@ HTMLTableAccessible::HasDescendant(const nsAString& aTagName, bool aAllowEmpty)
 
   // Make sure that the item we found has contents and either has multiple
   // children or the found item is not a whitespace-only text node.
-  if (foundItem->GetChildCount() > 1)
+  nsCOMPtr<nsIContent> foundItemContent = do_QueryInterface(foundItem);
+  if (foundItemContent->GetChildCount() > 1)
     return true; // Treat multiple child nodes as non-empty
 
-  nsIContent *innerItemContent = foundItem->GetFirstChild();
+  nsIContent *innerItemContent = foundItemContent->GetFirstChild();
   if (innerItemContent && !innerItemContent->TextIsOnlyWhitespace())
     return true;
 
@@ -896,7 +901,8 @@ HTMLTableAccessible::HasDescendant(const nsAString& aTagName, bool aAllowEmpty)
   // caption element only. On another hand we create accessible object for
   // the first entry of caption element (see
   // HTMLTableAccessible::CacheChildren).
-  return !!elements->Item(1);
+  nodeList->Item(1, getter_AddRefs(foundItem));
+  return !!foundItem;
 }
 
 bool

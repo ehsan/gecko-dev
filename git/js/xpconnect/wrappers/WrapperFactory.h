@@ -53,6 +53,7 @@ class WrapperFactory {
     static JSObject *Rewrap(JSContext *cx,
                             JS::HandleObject existing,
                             JS::HandleObject obj,
+                            JS::HandleObject wrappedProto,
                             JS::HandleObject parent,
                             unsigned flags);
 

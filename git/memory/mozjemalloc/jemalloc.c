@@ -247,7 +247,6 @@
 #define __crtInitCritSecAndSpinCount InitializeCriticalSectionAndSpinCount
 #include <io.h>
 #include <windows.h>
-#include <intrin.h>
 
 #pragma warning( disable: 4267 4996 4146 )
 

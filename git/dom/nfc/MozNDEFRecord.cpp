@@ -79,7 +79,7 @@ MozNDEFRecord::Constructor(const GlobalObject& aGlobal,
     return nullptr;
   }
 
-  nsRefPtr<MozNDEFRecord> ndefrecord = new MozNDEFRecord(aGlobal.Context(),
+  nsRefPtr<MozNDEFRecord> ndefrecord = new MozNDEFRecord(aGlobal.GetContext(),
                                                          win, aTnf, aType, aId,
                                                          aPayload);
   if (!ndefrecord) {
