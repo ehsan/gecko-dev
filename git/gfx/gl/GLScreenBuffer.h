@@ -22,6 +22,9 @@
 #include "mozilla/gfx/2D.h"
 #include "mozilla/gfx/Point.h"
 
+// Forwards:
+class gfxImageSurface;
+
 namespace mozilla {
     namespace gfx {
         class SurfaceStream;

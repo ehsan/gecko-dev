@@ -32,30 +32,49 @@
  *
  ******* END LICENSE BLOCK *******/
 
-/* string replacement list class */
-#ifndef _REPLIST_HXX_
-#define _REPLIST_HXX_
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
 
-#include "hunvisapi.h"
+#include "filemgr.hxx"
 
-#include "w_char.hxx"
+int FileMgr::fail(const char * err, const char * par) {
+    fprintf(stderr, err, par);
+    return -1;
+}
 
-class LIBHUNSPELL_DLL_EXPORTED RepList
+FileMgr::FileMgr(const char * file, const char * key) {
+    linenum = 0;
+    hin = NULL;
+    fin = fopen(file, "r");
+    if (!fin) {
+        // check hzipped file
+        char * st = (char *) malloc(strlen(file) + strlen(HZIP_EXTENSION) + 1);
+        if (st) {
+            strcpy(st, file);
+            strcat(st, HZIP_EXTENSION);
+            hin = new Hunzip(st, key);
+            free(st);
+        }
+    }    
+    if (!fin && !hin) fail(MSG_OPEN, file);
+}
+
+FileMgr::~FileMgr()
 {
-protected:
-    replentry ** dat;
-    int size;
-    int pos;
+    if (fin) fclose(fin);
+    if (hin) delete hin;
+}
 
-public:
-    RepList(int n);
-    ~RepList();
+char * FileMgr::getline() {
+    const char * l;
+    linenum++;
+    if (fin) return fgets(in, BUFSIZE - 1, fin);
+    if (hin && (l = hin->getline())) return strcpy(in, l);
+    linenum--;
+    return NULL;
+}
 
-    int get_pos();
-    int add(char * pat1, char * pat2);
-    replentry * item(int n);
-    int near(const char * word);
-    int match(const char * word, int n);
-    int conv(const char * word, char * dest);
-};
-#endif
+int FileMgr::getlinenum() {
+    return linenum;
+}

@@ -83,17 +83,17 @@ public:
   SVGTransform* GetParentObject() const;
   virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE;
 
-  float A() const { return static_cast<float>(GetMatrix()._11); }
+  float A() const { return static_cast<float>(GetMatrix().xx); }
   void SetA(float aA, ErrorResult& rv);
-  float B() const { return static_cast<float>(GetMatrix()._12); }
+  float B() const { return static_cast<float>(GetMatrix().yx); }
   void SetB(float aB, ErrorResult& rv);
-  float C() const { return static_cast<float>(GetMatrix()._21); }
+  float C() const { return static_cast<float>(GetMatrix().xy); }
   void SetC(float aC, ErrorResult& rv);
-  float D() const { return static_cast<float>(GetMatrix()._22); }
+  float D() const { return static_cast<float>(GetMatrix().yy); }
   void SetD(float aD, ErrorResult& rv);
-  float E() const { return static_cast<float>(GetMatrix()._31); }
+  float E() const { return static_cast<float>(GetMatrix().x0); }
   void SetE(float aE, ErrorResult& rv);
-  float F() const { return static_cast<float>(GetMatrix()._32); }
+  float F() const { return static_cast<float>(GetMatrix().y0); }
   void SetF(float aF, ErrorResult& rv);
   already_AddRefed<SVGMatrix> Multiply(SVGMatrix& aMatrix);
   already_AddRefed<SVGMatrix> Inverse(ErrorResult& aRv);

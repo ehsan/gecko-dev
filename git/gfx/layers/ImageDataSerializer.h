@@ -14,6 +14,8 @@
 #include "mozilla/gfx/Point.h"          // for IntSize
 #include "mozilla/gfx/Types.h"          // for SurfaceFormat
 
+class gfxImageSurface;
+
 namespace mozilla {
 namespace gfx {
 class DataSourceSurface;
@@ -34,6 +36,7 @@ public:
   gfx::IntSize GetSize() const;
   gfx::SurfaceFormat GetFormat() const;
   TemporaryRef<gfx::DataSourceSurface> GetAsSurface();
+  TemporaryRef<gfxImageSurface> GetAsThebesSurface();
   TemporaryRef<gfx::DrawTarget> GetAsDrawTarget(gfx::BackendType aBackend);
 
   static uint32_t ComputeMinBufferSize(gfx::IntSize aSize,
