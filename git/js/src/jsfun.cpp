@@ -379,21 +379,22 @@ js::XDRInterpretedFunction(XDRState<mode> *xdr, HandleObject enclosingScope, Han
             }
             return false;
         }
-        if (fun->atom() || fun->hasGuessedAtom())
+        if (fun->atom())
             firstword |= HasAtom;
         if (fun->isStarGenerator())
             firstword |= IsStarGenerator;
         script = fun->getOrCreateScript(cx);
         if (!script)
             return false;
-        atom = fun->displayAtom();
+        atom = fun->atom();
         flagsword = (fun->nargs() << 16) | fun->flags();
-    }
 
-    if (!xdr->codeUint32(&firstword))
-        return false;
+        if (!xdr->codeUint32(&firstword))
+            return false;
+    } else {
+        if (!xdr->codeUint32(&firstword))
+            return false;
 
-    if (mode == XDR_DECODE) {
         JSObject *proto = nullptr;
         if (firstword & IsStarGenerator) {
             proto = cx->global()->getOrCreateStarGeneratorFunctionPrototype(cx);
@@ -426,6 +427,8 @@ js::XDRInterpretedFunction(XDRState<mode> *xdr, HandleObject enclosingScope, Han
         if (!JSFunction::setTypeForScriptedFunction(cx, fun))
             return false;
         JS_ASSERT(fun->nargs() == fun->nonLazyScript()->bindings.numArgs());
+        RootedScript script(cx, fun->nonLazyScript());
+        CallNewScriptHook(cx, script, fun);
         objp.set(fun);
     }
 

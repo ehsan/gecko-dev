@@ -382,10 +382,8 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
         // Adapted from CNavDTD
         nsCOMPtr<nsIFormProcessor> theFormProcessor =
           do_GetService(kFormProcessorCID, &rv);
-        if (NS_FAILED(rv)) {
-          return NS_OK;
-        }
-
+        NS_ENSURE_SUCCESS(rv, rv);
+        
         nsTArray<nsString> theContent;
         nsAutoString theAttribute;
          

@@ -54,7 +54,7 @@ TemporaryRef<DataSourceSurface>
 SourceSurfaceD2DTarget::GetDataSurface()
 {
   RefPtr<DataSourceSurfaceD2DTarget> dataSurf =
-    new DataSourceSurfaceD2DTarget(mFormat);
+    new DataSourceSurfaceD2DTarget();
 
   D3D10_TEXTURE2D_DESC desc;
   mTexture->GetDesc(&desc);
@@ -193,8 +193,8 @@ SourceSurfaceD2DTarget::MarkIndependent()
   }
 }
 
-DataSourceSurfaceD2DTarget::DataSourceSurfaceD2DTarget(SurfaceFormat aFormat)
-  : mFormat(aFormat)
+DataSourceSurfaceD2DTarget::DataSourceSurfaceD2DTarget()
+  : mFormat(FORMAT_B8G8R8A8)
   , mMapped(false)
 {
 }

@@ -947,7 +947,8 @@ WebappsActor.prototype = {
     let manifestURL;
     switch(event.type) {
       case "appwillopen":
-        manifestURL = event.detail.manifestURL;
+        let frame = event.target;
+        manifestURL = frame.getAttribute("mozapp")
 
         // Ignore the event if we already received an appwillopen for this app
         // (appwillopen is also fired when the app has been moved to background

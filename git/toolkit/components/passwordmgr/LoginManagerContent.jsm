@@ -13,7 +13,7 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
 
-var gEnabled = false, gDebug = false, gAutofillForms = true , gOverrideAutocompleteAttribute = false; // these mirror signon.* prefs
+var gEnabled = false, gDebug = false, gAutofillForms = true; // these mirror signon.* prefs
 
 function log(...pieces) {
     function generateLogMessage(args) {
@@ -71,7 +71,6 @@ var observer = {
         gDebug = Services.prefs.getBoolPref("signon.debug");
         gEnabled = Services.prefs.getBoolPref("signon.rememberSignons");
         gAutofillForms = Services.prefs.getBoolPref("signon.autofillForms");
-        gOverrideAutocompleteAttribute = Services.prefs.getBoolPref("signon.overrideAutocomplete");
     },
 };
 
@@ -357,13 +356,10 @@ var LoginManagerContent = {
      * specified form input.
      */
     _isAutocompleteDisabled :  function (element) {
-        if (gOverrideAutocompleteAttribute)
-            return false; 
-
         if (element && element.hasAttribute("autocomplete") &&
             element.getAttribute("autocomplete").toLowerCase() == "off")
             return true;
-        
+
         return false;
     },
 

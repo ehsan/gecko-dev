@@ -604,7 +604,6 @@ MMathFunction::FunctionName(Function function)
       case Trunc:  return "Trunc";
       case Cbrt:   return "Cbrt";
       case Floor:  return "Floor";
-      case Ceil:   return "Ceil";
       case Round:  return "Round";
       default:
         MOZ_ASSUME_UNREACHABLE("Unknown math function");
@@ -669,10 +668,9 @@ MStringLength::foldsTo(TempAllocator &alloc, bool useValueNumbers)
 {
     if ((type() == MIRType_Int32) && (string()->isConstant())) {
         Value value = string()->toConstant()->value();
-        JSAtom *atom = &value.toString()->asAtom();
+        size_t length = JS_GetStringLength(value.toString());
 
-        AutoThreadSafeAccess ts(atom);
-        return MConstant::New(alloc, Int32Value(atom->length()));
+        return MConstant::New(alloc, Int32Value(length));
     }
 
     return this;
@@ -2513,7 +2511,6 @@ MBeta::printOpcode(FILE *fp) const
 bool
 MNewObject::shouldUseVM() const
 {
-    AutoThreadSafeAccess ts(templateObject());
     return templateObject()->hasSingletonType() ||
            templateObject()->hasDynamicSlots();
 }

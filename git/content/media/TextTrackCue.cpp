@@ -40,7 +40,7 @@ TextTrackCue::SetDefaultCueSettings()
   mPauseOnExit = false;
   mSnapToLines = true;
   mLine = WEBVTT_AUTO;
-  mAlign = AlignSetting::Middle;
+  mAlign = TextTrackCueAlign::Middle;
   mVertical = DirectionSetting::_empty;
 }
 

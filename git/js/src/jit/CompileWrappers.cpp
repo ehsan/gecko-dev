@@ -231,7 +231,7 @@ CompileCompartment::hasObjectMetadataCallback()
     return compartment()->hasObjectMetadataCallback();
 }
 
-#ifdef JS_THREADSAFE
+#ifdef JS_WORKER_THREADS
 AutoLockForCompilation::AutoLockForCompilation(CompileCompartment *compartment
                                                MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL)
 {

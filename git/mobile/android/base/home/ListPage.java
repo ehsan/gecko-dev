@@ -6,22 +6,17 @@
 package org.mozilla.gecko.home;
 
 import org.mozilla.gecko.R;
-import org.mozilla.gecko.db.BrowserContract;
-import org.mozilla.gecko.db.BrowserContract.HomeListItems;
 import org.mozilla.gecko.home.HomePager.OnUrlOpenListener;
 import org.mozilla.gecko.home.HomeConfig.PageEntry;
 
 import android.app.Activity;
-import android.content.ContentResolver;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.database.Cursor;
-import android.net.Uri;
 import android.os.Bundle;
 import android.support.v4.app.LoaderManager.LoaderCallbacks;
 import android.support.v4.content.Loader;
 import android.support.v4.widget.CursorAdapter;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -33,8 +28,6 @@ import java.util.EnumSet;
  * Fragment that displays custom lists.
  */
 public class ListPage extends HomeFragment {
-    private static final String LOGTAG = "GeckoListPage";
-
     // Cursor loader ID for the lists
     private static final int LOADER_ID_LIST = 0;
 
@@ -139,27 +132,14 @@ public class ListPage extends HomeFragment {
      * Cursor loader for the lists.
      */
     private static class HomeListLoader extends SimpleCursorLoader {
-        private String mProviderId;
-
-        public HomeListLoader(Context context, String providerId) {
+        public HomeListLoader(Context context) {
             super(context);
-            mProviderId = providerId;
         }
 
         @Override
         public Cursor loadCursor() {
-            final ContentResolver cr = getContext().getContentResolver();
-
-            // XXX: Use the test URI for static fake data
-            final Uri fakeItemsUri = HomeListItems.CONTENT_FAKE_URI.buildUpon().
-                appendQueryParameter(BrowserContract.PARAM_PROFILE, "default").build();
-
-            final String selection = HomeListItems.PROVIDER_ID + " = ?";
-            final String[] selectionArgs = new String[] { mProviderId };
-
-            Log.i(LOGTAG, "Loading fake data for list provider: " + mProviderId);
-
-            return cr.query(fakeItemsUri, null, selection, selectionArgs, null);
+            // Do nothing
+            return null;
         }
     }
 
@@ -189,7 +169,7 @@ public class ListPage extends HomeFragment {
     private class CursorLoaderCallbacks implements LoaderCallbacks<Cursor> {
         @Override
         public Loader<Cursor> onCreateLoader(int id, Bundle args) {
-            return new HomeListLoader(getActivity(), mPageEntry.getId());
+            return new HomeListLoader(getActivity());
         }
 
         @Override

@@ -77,15 +77,8 @@ JS_FRIEND_API(JSObject *)
 js::UncheckedUnwrap(JSObject *wrapped, bool stopAtOuter, unsigned *flagsp)
 {
     unsigned flags = 0;
-    while (true) {
-        AutoThreadSafeAccess ts0(wrapped);
-        AutoThreadSafeAccess ts1(wrapped->typeRaw());
-        AutoThreadSafeAccess ts2(wrapped->lastProperty());
-        if (!wrapped->is<WrapperObject>() ||
-            JS_UNLIKELY(stopAtOuter && wrapped->getClass()->ext.innerObject))
-        {
-            break;
-        }
+    while (wrapped->is<WrapperObject>() &&
+           !JS_UNLIKELY(stopAtOuter && wrapped->getClass()->ext.innerObject)) {
         flags |= Wrapper::wrapperHandler(wrapped)->flags();
         wrapped = wrapped->as<ProxyObject>().private_().toObjectOrNull();
     }

@@ -735,8 +735,8 @@ struct JSRuntime : public JS::shadow::Runtime,
     enum RuntimeLock {
         ExclusiveAccessLock,
         WorkerThreadStateLock,
-        CompilationLock,
         OperationCallbackLock,
+        CompilationLock,
         GCLock
     };
 #ifdef DEBUG
@@ -792,7 +792,8 @@ struct JSRuntime : public JS::shadow::Runtime,
 #endif
     }
 
-#ifdef JS_THREADSAFE
+#if defined(JS_THREADSAFE) && defined(JS_ION)
+# define JS_WORKER_THREADS
 
     js::WorkerThreadState *workerThreadState;
 
@@ -840,11 +841,11 @@ struct JSRuntime : public JS::shadow::Runtime,
     void setUsedByExclusiveThread(JS::Zone *zone);
     void clearUsedByExclusiveThread(JS::Zone *zone);
 
-#endif // JS_THREADSAFE
+#endif // JS_THREADSAFE && JS_ION
 
 #ifdef DEBUG
     bool currentThreadHasExclusiveAccess() {
-#ifdef JS_THREADSAFE
+#ifdef JS_WORKER_THREADS
         return (!numExclusiveThreads && mainThreadHasExclusiveAccess) ||
                exclusiveAccessOwner == PR_GetCurrentThread();
 #else
@@ -854,7 +855,7 @@ struct JSRuntime : public JS::shadow::Runtime,
 #endif // DEBUG
 
     bool exclusiveThreadsPresent() const {
-#ifdef JS_THREADSAFE
+#ifdef JS_WORKER_THREADS
         return numExclusiveThreads > 0;
 #else
         return false;
@@ -862,14 +863,14 @@ struct JSRuntime : public JS::shadow::Runtime,
     }
 
     void addCompilationThread() {
-#ifdef JS_THREADSAFE
+#ifdef JS_WORKER_THREADS
         numCompilationThreads++;
 #else
         MOZ_ASSUME_UNREACHABLE("No threads");
 #endif
     }
     void removeCompilationThread() {
-#ifdef JS_THREADSAFE
+#ifdef JS_WORKER_THREADS
         JS_ASSERT(numCompilationThreads);
         numCompilationThreads--;
 #else
@@ -878,7 +879,7 @@ struct JSRuntime : public JS::shadow::Runtime,
     }
 
     bool compilationThreadsPresent() const {
-#ifdef JS_THREADSAFE
+#ifdef JS_WORKER_THREADS
         return numCompilationThreads > 0;
 #else
         return false;
@@ -887,7 +888,7 @@ struct JSRuntime : public JS::shadow::Runtime,
 
 #ifdef DEBUG
     bool currentThreadHasCompilationLock() {
-#ifdef JS_THREADSAFE
+#ifdef JS_WORKER_THREADS
         return (!numCompilationThreads && mainThreadHasCompilationLock) ||
                compilationLockOwner == PR_GetCurrentThread();
 #else
@@ -2139,7 +2140,7 @@ class AutoEnterIonCompilation
 class AutoProtectHeapForIonCompilation
 {
   public:
-#ifdef JS_CAN_CHECK_THREADSAFE_ACCESSES
+#if defined(DEBUG) && !defined(XP_WIN)
     JSRuntime *runtime;
 
     AutoProtectHeapForIonCompilation(JSRuntime *rt MOZ_GUARD_OBJECT_NOTIFIER_PARAM);
