@@ -38,7 +38,6 @@
 # include <process.h>
 # include <windows.h>
 # include <shlwapi.h>
-# include "nsWindowsHelpers.h"
 # define getcwd(path, size) _getcwd(path, size)
 # define getpid() GetCurrentProcessId()
 #elif defined(XP_OS2)
@@ -534,13 +533,7 @@ SwitchToUpdatedApp(nsIFile *greDir, nsIFile *updateDir, nsIFile *statusFile,
   // just needs to replace the update directory.
   pid.AppendLiteral("/replace");
 
-  int immersiveArgc = 0;
-#ifdef XP_WIN
-  if (IsRunningInWindowsMetro()) {
-    immersiveArgc = 1;
-  }
-#endif
-  int argc = appArgc + 5 + immersiveArgc;
+  int argc = appArgc + 5;
   char **argv = new char*[argc + 1];
   if (!argv)
     return;
@@ -553,11 +546,7 @@ SwitchToUpdatedApp(nsIFile *greDir, nsIFile *updateDir, nsIFile *statusFile,
     argv[5] = (char*) appFilePath.get();
     for (int i = 1; i < appArgc; ++i)
       argv[5 + i] = appArgv[i];
-#ifdef XP_WIN
-    if (immersiveArgc) {
-      argv[argc - 1] = "-ServerName:DefaultBrowserServer";
-    }
-#endif
+    argc = 5 + appArgc;
     argv[argc] = NULL;
   } else {
     argc = 4;
@@ -818,14 +807,8 @@ ApplyUpdate(nsIFile *greDir, nsIFile *updateDir, nsIFile *statusFile,
 #endif
   }
 
-  int immersiveArgc = 0;
-#ifdef XP_WIN
-  if (IsRunningInWindowsMetro()) {
-    immersiveArgc = 1;
-  }
-#endif
-  int argc = appArgc + 5 + immersiveArgc;
-  char **argv = new char*[argc + 1 ];
+  int argc = appArgc + 5;
+  char **argv = new char*[argc + 1];
   if (!argv)
     return;
   argv[0] = (char*) updaterPath.get();
@@ -837,11 +820,7 @@ ApplyUpdate(nsIFile *greDir, nsIFile *updateDir, nsIFile *statusFile,
     argv[5] = (char*) appFilePath.get();
     for (int i = 1; i < appArgc; ++i)
       argv[5 + i] = appArgv[i];
-#ifdef XP_WIN
-    if (immersiveArgc) {
-      argv[argc - 1] = "-ServerName:DefaultBrowserServer";
-    }
-#endif
+    argc = 5 + appArgc;
     argv[argc] = NULL;
   } else {
     argc = 4;

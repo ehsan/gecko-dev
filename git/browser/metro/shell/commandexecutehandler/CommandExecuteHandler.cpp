@@ -36,6 +36,7 @@
 static const WCHAR* kFirefoxExe = L"firefox.exe";
 static const WCHAR* kMetroFirefoxExe = L"firefox.exe";
 static const WCHAR* kDefaultMetroBrowserIDPathKey = L"FirefoxURL";
+static const WCHAR* kDemoMetroBrowserIDPathKey = L"Mozilla.Firefox.URL";
 
 template <class T>void SafeRelease(T **ppT)
 {
@@ -301,6 +302,9 @@ public:
       if (SUCCEEDED(hr)) {
         Log(L"registeredApp=%s", registeredApp);
         result = !wcsicmp(registeredApp, kDefaultMetroBrowserIDPathKey);
+        if (!result) {
+          result = !wcsicmp(registeredApp, kDemoMetroBrowserIDPathKey);
+        }
         CoTaskMemFree(registeredApp);
       } else {
         result = false;
