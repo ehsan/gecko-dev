@@ -933,7 +933,8 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
                         : NULL;
 
     JS_ASSERT_IF(globalObj, globalObj->isNative());
-    JS_ASSERT_IF(globalObj, JSCLASS_HAS_GLOBAL_FLAG_AND_SLOTS(globalObj->getClass()));
+    JS_ASSERT_IF(globalObj, (globalObj->getClass()->flags & JSCLASS_GLOBAL_FLAGS) ==
+                            JSCLASS_GLOBAL_FLAGS);
 
     /* Null script early in case of error, to reduce our code footprint. */
     script = NULL;

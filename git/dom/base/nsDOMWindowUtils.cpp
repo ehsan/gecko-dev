@@ -37,7 +37,7 @@
 
 #include "nsIDocShell.h"
 #include "nsPresContext.h"
-#include "nsDOMClassInfoID.h"
+#include "nsDOMClassInfo.h"
 #include "nsDOMError.h"
 #include "nsIDOMNSEvent.h"
 #include "nsIPrivateDOMEvent.h"

@@ -1395,7 +1395,7 @@ JS_PUBLIC_API(void *)
 JS_GetCompartmentPrivate(JSContext *cx, JSCompartment *compartment)
 {
     CHECK_REQUEST(cx);
-    return js_GetCompartmentPrivate(compartment);
+    return compartment->data;
 }
 
 JS_PUBLIC_API(JSBool)
@@ -4409,15 +4409,6 @@ JS_ObjectIsCallable(JSContext *cx, JSObject *obj)
     return obj->isCallable();
 }
 
-JS_PUBLIC_API(JSBool)
-JS_IsNativeFunction(JSObject *funobj, JSNative call)
-{
-    if (!funobj->isFunction())
-        return false;
-    JSFunction *fun = funobj->getFunctionPrivate();
-    return fun->isNative() && fun->native() == call;
-}
-
 static JSBool
 js_generic_native_method_dispatcher(JSContext *cx, uintN argc, Value *vp)
 {
@@ -6266,12 +6257,6 @@ JS_ScheduleGC(JSContext *cx, uint32 count, JSBool compartment)
     cx->runtime->gcDebugCompartmentGC = !!compartment;
 }
 #endif
-
-JS_FRIEND_API(void *)
-js_GetCompartmentPrivate(JSCompartment *compartment)
-{
-    return compartment->data;
-}
 
 /************************************************************************/
 
