@@ -174,10 +174,7 @@ public:
 
   virtual void SetAcquireFence(const android::sp<android::Fence>& aAcquireFence);
 
-  /**
-   * Return a acquireFence's Fence and clear a reference to the Fence.
-   */
-  virtual android::sp<android::Fence> GetAndResetAcquireFence();
+  virtual android::sp<android::Fence> GetAcquireFence();
 
   virtual void WaitAcquireFenceSyncComplete();
 

@@ -452,42 +452,26 @@ hb_ot_substitute (hb_ot_shape_context_t *c)
 /* Position */
 
 static inline void
-adjust_mark_offsets (hb_glyph_position_t *pos)
-{
-  pos->x_offset -= pos->x_advance;
-  pos->y_offset -= pos->y_advance;
-}
-
-static inline void
-zero_mark_width (hb_glyph_position_t *pos)
-{
-  pos->x_advance = 0;
-  pos->y_advance = 0;
-}
-
-static inline void
-zero_mark_widths_by_unicode (hb_buffer_t *buffer, bool adjust_offsets)
+zero_mark_widths_by_unicode (hb_buffer_t *buffer)
 {
   unsigned int count = buffer->len;
   for (unsigned int i = 0; i < count; i++)
     if (_hb_glyph_info_get_general_category (&buffer->info[i]) == HB_UNICODE_GENERAL_CATEGORY_NON_SPACING_MARK)
     {
-      if (adjust_offsets)
-        adjust_mark_offsets (&buffer->pos[i]);
-      zero_mark_width (&buffer->pos[i]);
+      buffer->pos[i].x_advance = 0;
+      buffer->pos[i].y_advance = 0;
     }
 }
 
 static inline void
-zero_mark_widths_by_gdef (hb_buffer_t *buffer, bool adjust_offsets)
+zero_mark_widths_by_gdef (hb_buffer_t *buffer)
 {
   unsigned int count = buffer->len;
   for (unsigned int i = 0; i < count; i++)
     if (_hb_glyph_info_is_mark (&buffer->info[i]))
     {
-      if (adjust_offsets)
-        adjust_mark_offsets (&buffer->pos[i]);
-      zero_mark_width (&buffer->pos[i]);
+      buffer->pos[i].x_advance = 0;
+      buffer->pos[i].y_advance = 0;
     }
 }
 
@@ -517,19 +501,16 @@ hb_ot_position_complex (hb_ot_shape_context_t *c)
 {
   bool ret = false;
   unsigned int count = c->buffer->len;
-  bool has_positioning = hb_ot_layout_has_positioning (c->face);
-  bool adjust_offsets_when_zeroing = !(has_positioning || c->plan->shaper->fallback_position ||
-                                       HB_DIRECTION_IS_BACKWARD (c->buffer->props.direction));
 
   switch (c->plan->shaper->zero_width_marks)
   {
     case HB_OT_SHAPE_ZERO_WIDTH_MARKS_BY_GDEF_EARLY:
-      zero_mark_widths_by_gdef (c->buffer, adjust_offsets_when_zeroing);
+      zero_mark_widths_by_gdef (c->buffer);
       break;
 
     /* Not currently used for any shaper:
     case HB_OT_SHAPE_ZERO_WIDTH_MARKS_BY_UNICODE_EARLY:
-      zero_mark_widths_by_unicode (c->buffer, adjust_offsets_when_zeroing);
+      zero_mark_widths_by_unicode (c->buffer);
       break;
     */
 
@@ -540,7 +521,7 @@ hb_ot_position_complex (hb_ot_shape_context_t *c)
       break;
   }
 
-  if (has_positioning)
+  if (hb_ot_layout_has_positioning (c->face))
   {
     hb_glyph_info_t *info = c->buffer->info;
     hb_glyph_position_t *pos = c->buffer->pos;
@@ -569,11 +550,11 @@ hb_ot_position_complex (hb_ot_shape_context_t *c)
   switch (c->plan->shaper->zero_width_marks)
   {
     case HB_OT_SHAPE_ZERO_WIDTH_MARKS_BY_UNICODE_LATE:
-      zero_mark_widths_by_unicode (c->buffer, adjust_offsets_when_zeroing);
+      zero_mark_widths_by_unicode (c->buffer);
       break;
 
     case HB_OT_SHAPE_ZERO_WIDTH_MARKS_BY_GDEF_LATE:
-      zero_mark_widths_by_gdef (c->buffer, adjust_offsets_when_zeroing);
+      zero_mark_widths_by_gdef (c->buffer);
       break;
 
     default:

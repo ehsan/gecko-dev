@@ -77,7 +77,7 @@ Quote(JSContext *cx, StringBuffer &sb, JSString *str)
                 break;
         } while (++i < len);
         if (i > mark) {
-            if (!sb.appendSubstring(str, mark, i - mark))
+            if (!sb.append(&buf[mark], i - mark))
                 return false;
             if (i == len)
                 break;
@@ -105,11 +105,8 @@ Quote(JSContext *cx, StringBuffer &sb, JSString *str)
                 return false;
             JS_ASSERT((c >> 4) < 10);
             uint8_t x = c >> 4, y = c % 16;
-            if (!sb.append(Latin1Char('0' + x)) ||
-                !sb.append(Latin1Char(y < 10 ? '0' + y : 'a' + (y - 10))))
-            {
+            if (!sb.append('0' + x) || !sb.append(y < 10 ? '0' + y : 'a' + (y - 10)))
                 return false;
-            }
         }
     }
 
@@ -149,7 +146,7 @@ WriteIndent(JSContext *cx, StringifyContext *scx, uint32_t limit)
         if (!scx->sb.append('\n'))
             return false;
         for (uint32_t i = 0; i < limit; i++) {
-            if (!scx->sb.append(scx->gap.rawTwoByteBegin(), scx->gap.rawTwoByteEnd()))
+            if (!scx->sb.append(scx->gap.begin(), scx->gap.end()))
                 return false;
         }
     }
@@ -478,7 +475,11 @@ Str(JSContext *cx, const Value &v, StringifyContext *scx)
                 return scx->sb.append("null");
         }
 
-        return NumberValueToStringBuffer(cx, v, scx->sb);
+        StringBuffer sb(cx);
+        if (!NumberValueToStringBuffer(cx, v, sb))
+            return false;
+
+        return scx->sb.append(sb.begin(), sb.length());
     }
 
     /* Step 10. */
@@ -631,8 +632,8 @@ js_Stringify(JSContext *cx, MutableHandleValue vp, JSObject *replacer_, Value sp
         if (!str)
             return false;
         JS::Anchor<JSString *> anchor(str);
-        size_t len = Min(size_t(10), str->length());
-        if (!gap.appendSubstring(str, 0, len))
+        size_t len = Min(size_t(10), space.toString()->length());
+        if (!gap.append(str->chars(), len))
             return false;
     } else {
         /* Step 8. */
@@ -772,13 +773,12 @@ Revive(JSContext *cx, HandleValue reviver, MutableHandleValue vp)
     return Walk(cx, obj, id, reviver, vp);
 }
 
-template <typename CharT>
 bool
-js::ParseJSONWithReviver(JSContext *cx, mozilla::Range<const CharT> chars,
+js::ParseJSONWithReviver(JSContext *cx, ConstTwoByteChars chars, size_t length,
                          HandleValue reviver, MutableHandleValue vp)
 {
     /* 15.12.2 steps 2-3. */
-    JSONParser<CharT> parser(cx, chars);
+    JSONParser parser(cx, chars, length);
     if (!parser.parse(vp))
         return false;
 
@@ -787,14 +787,6 @@ js::ParseJSONWithReviver(JSContext *cx, mozilla::Range<const CharT> chars,
         return Revive(cx, reviver, vp);
     return true;
 }
-
-template bool
-js::ParseJSONWithReviver(JSContext *cx, mozilla::Range<const Latin1Char> chars,
-                         HandleValue reviver, MutableHandleValue vp);
-
-template bool
-js::ParseJSONWithReviver(JSContext *cx, mozilla::Range<const jschar> chars,
-                         HandleValue reviver, MutableHandleValue vp);
 
 #if JS_HAS_TOSOURCE
 static bool
@@ -819,22 +811,17 @@ json_parse(JSContext *cx, unsigned argc, Value *vp)
     if (!str)
         return false;
 
-    JSFlatString *flat = str->ensureFlat(cx);
+    Rooted<JSFlatString*> flat(cx, str->ensureFlat(cx));
     if (!flat)
         return false;
 
     JS::Anchor<JSString *> anchor(flat);
 
-    AutoStableStringChars flatChars(cx, flat);
-    if (!flatChars.init())
-        return false;
-
     RootedValue reviver(cx, args.get(1));
 
     /* Steps 2-5. */
-    return flatChars.isLatin1()
-           ? ParseJSONWithReviver(cx, flatChars.latin1Range(), reviver, args.rval())
-           : ParseJSONWithReviver(cx, flatChars.twoByteRange(), reviver, args.rval());
+    return ParseJSONWithReviver(cx, ConstTwoByteChars(flat->chars(), flat->length()),
+                                flat->length(), reviver, args.rval());
 }
 
 /* ES5 15.12.3. */

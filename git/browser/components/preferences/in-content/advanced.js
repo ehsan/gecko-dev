@@ -304,12 +304,10 @@ var gAdvancedPane = {
 
     actualSizeLabel.textContent = prefStrBundle.getString("actualDiskCacheSizeCalculated");
 
-    try {
-      var cacheService =
-        Components.classes["@mozilla.org/netwerk/cache-storage-service;1"]
-                  .getService(Components.interfaces.nsICacheStorageService);
-      cacheService.asyncGetDiskConsumption(this.observer);
-    } catch (e) {}
+    var cacheService =
+      Components.classes["@mozilla.org/netwerk/cache-storage-service;1"]
+                .getService(Components.interfaces.nsICacheStorageService);
+    cacheService.asyncGetDiskConsumption(this.observer);
   },
 
   // Retrieves the amount of space currently used by offline cache
@@ -326,13 +324,11 @@ var gAdvancedPane = {
       }
     };
 
-    try {
-      var cacheService =
-        Components.classes["@mozilla.org/netwerk/cache-storage-service;1"]
-                  .getService(Components.interfaces.nsICacheStorageService);
-      var storage = cacheService.appCacheStorage(LoadContextInfo.default, null);
-      storage.asyncVisitStorage(visitor, false);
-    } catch (e) {}
+    var cacheService =
+      Components.classes["@mozilla.org/netwerk/cache-storage-service;1"]
+                .getService(Components.interfaces.nsICacheStorageService);
+    var storage = cacheService.appCacheStorage(LoadContextInfo.default, null);
+    storage.asyncVisitStorage(visitor, false);
   },
 
   updateCacheSizeUI: function (smartSizeEnabled)
@@ -376,9 +372,9 @@ var gAdvancedPane = {
    */
   clearCache: function ()
   {
+    var cache = Components.classes["@mozilla.org/netwerk/cache-storage-service;1"]
+                                 .getService(Components.interfaces.nsICacheStorageService);
     try {
-      var cache = Components.classes["@mozilla.org/netwerk/cache-storage-service;1"]
-                            .getService(Components.interfaces.nsICacheStorageService);
       cache.clear();
     } catch(ex) {}
     this.updateActualCacheSize();

@@ -11,7 +11,7 @@ SeekableZStream::Init(const void *buf, size_t length)
 {
   const SeekableZStreamHeader *header = SeekableZStreamHeader::validate(buf);
   if (!header) {
-    ERROR("Not a seekable zstream");
+    LOG("Not a seekable zstream");
     return false;
   }
 
@@ -33,7 +33,7 @@ SeekableZStream::Init(const void *buf, size_t length)
       (lastChunkSize == 0) ||
       (lastChunkSize > chunkSize) ||
       (length < totalSize)) {
-    ERROR("Malformed or broken seekable zstream");
+    LOG("Malformed or broken seekable zstream");
     return false;
   }
 
@@ -58,7 +58,7 @@ bool
 SeekableZStream::DecompressChunk(void *where, size_t chunk, size_t length)
 {
   if (chunk >= offsetTable.numElements()) {
-    ERROR("DecompressChunk: chunk #%" PRIdSize " out of range [0-%" PRIdSize ")",
+    LOG("DecompressChunk: chunk #%" PRIdSize " out of range [0-%" PRIdSize ")",
         chunk, offsetTable.numElements());
     return false;
   }
@@ -82,21 +82,21 @@ SeekableZStream::DecompressChunk(void *where, size_t chunk, size_t length)
 
   /* Decompress chunk */
   if (inflateInit2(&zStream, windowBits) != Z_OK) {
-    ERROR("inflateInit failed: %s", zStream.msg);
+    LOG("inflateInit failed: %s", zStream.msg);
     return false;
   }
   if (dictionary && inflateSetDictionary(&zStream, dictionary,
                                          dictionary.numElements()) != Z_OK) {
-    ERROR("inflateSetDictionary failed: %s", zStream.msg);
+    LOG("inflateSetDictionary failed: %s", zStream.msg);
     return false;
   }
   if (inflate(&zStream, (length == chunkLen) ? Z_FINISH : Z_SYNC_FLUSH)
       != (length == chunkLen) ? Z_STREAM_END : Z_OK) {
-    ERROR("inflate failed: %s", zStream.msg);
+    LOG("inflate failed: %s", zStream.msg);
     return false;
   }
   if (inflateEnd(&zStream) != Z_OK) {
-    ERROR("inflateEnd failed: %s", zStream.msg);
+    LOG("inflateEnd failed: %s", zStream.msg);
     return false;
   }
   if (filter)

@@ -45,7 +45,6 @@ using mozilla::MinNumberValue;
 using mozilla::NegativeInfinity;
 using mozilla::PodCopy;
 using mozilla::PositiveInfinity;
-using mozilla::Range;
 using mozilla::RangedPtr;
 
 using JS::AutoCheckCannotGC;
@@ -176,15 +175,14 @@ ComputeAccurateBinaryBaseInteger(const CharT *start, const CharT *end, int base)
     return value;
 }
 
-template <typename CharT>
 double
-js::ParseDecimalNumber(const Range<const CharT> chars)
+js::ParseDecimalNumber(const JS::TwoByteChars chars)
 {
     MOZ_ASSERT(chars.length() > 0);
     uint64_t dec = 0;
-    RangedPtr<const CharT> s = chars.start(), end = chars.end();
+    RangedPtr<jschar> s = chars.start(), end = chars.end();
     do {
-        CharT c = *s;
+        jschar c = *s;
         MOZ_ASSERT('0' <= c && c <= '9');
         uint8_t digit = c - '0';
         uint64_t next = dec * 10 + digit;
@@ -194,12 +192,6 @@ js::ParseDecimalNumber(const Range<const CharT> chars)
     } while (++s < end);
     return static_cast<double>(dec);
 }
-
-template double
-js::ParseDecimalNumber(const Range<const Latin1Char> chars);
-
-template double
-js::ParseDecimalNumber(const Range<const jschar> chars);
 
 template <typename CharT>
 bool
@@ -1470,7 +1462,7 @@ js::NumberValueToStringBuffer(JSContext *cx, const Value &v, StringBuffer &sb)
      * even if jschars are UTF-8, all chars should map to one jschar.
      */
     JS_ASSERT(!cbuf.dbuf && cstrlen < cbuf.sbufSize);
-    return sb.append(cstr, cstrlen);
+    return sb.appendInflated(cstr, cstrlen);
 }
 
 template <typename CharT>

@@ -159,8 +159,7 @@ class SimpleClientTiledThebesLayer : public ThebesLayer,
   typedef ThebesLayer Base;
 
 public:
-  SimpleClientTiledThebesLayer(ClientLayerManager* const aManager,
-                               ClientLayerManager::ThebesLayerCreationHint aCreationHint = LayerManager::NONE);
+  SimpleClientTiledThebesLayer(ClientLayerManager* const aManager);
   ~SimpleClientTiledThebesLayer();
 
   // Thebes Layer

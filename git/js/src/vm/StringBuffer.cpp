@@ -6,32 +6,28 @@
 
 #include "vm/StringBuffer.h"
 
-#include "mozilla/Range.h"
-
 #include "jsobjinlines.h"
 
 #include "vm/String-inl.h"
 
 using namespace js;
 
-using mozilla::Range;
-
-template <typename CharT, class Buffer>
-static CharT *
-ExtractWellSized(ExclusiveContext *cx, Buffer &cb)
+jschar *
+StringBuffer::extractWellSized()
 {
     size_t capacity = cb.capacity();
     size_t length = cb.length();
 
-    CharT *buf = cb.extractRawBuffer();
+    jschar *buf = cb.extractRawBuffer();
     if (!buf)
         return nullptr;
 
     /* For medium/big buffers, avoid wasting more than 1/4 of the memory. */
     JS_ASSERT(capacity >= length);
-    if (length > Buffer::sMaxInlineStorage && capacity - length > length / 4) {
-        size_t bytes = sizeof(CharT) * (length + 1);
-        CharT *tmp = (CharT *)cx->realloc_(buf, bytes);
+    if (length > CharBuffer::sMaxInlineStorage && capacity - length > length / 4) {
+        size_t bytes = sizeof(jschar) * (length + 1);
+        ExclusiveContext *cx = context();
+        jschar *tmp = (jschar *)cx->realloc_(buf, bytes);
         if (!tmp) {
             js_free(buf);
             return nullptr;
@@ -42,84 +38,45 @@ ExtractWellSized(ExclusiveContext *cx, Buffer &cb)
     return buf;
 }
 
-jschar *
-StringBuffer::stealChars()
-{
-    if (isLatin1() && !inflateChars())
-        return nullptr;
-
-    return ExtractWellSized<jschar>(cx, twoByteChars());
-}
-
-bool
-StringBuffer::inflateChars()
-{
-    MOZ_ASSERT(isLatin1());
-
-    TwoByteCharBuffer twoByte(cx);
-    if (!twoByte.append(latin1Chars().begin(), latin1Chars().length()))
-        return false;
-
-    cb.destroy();
-    cb.construct<TwoByteCharBuffer>(Move(twoByte));
-    return true;
-}
-
-template <typename CharT, class Buffer>
-static JSFlatString *
-FinishStringFlat(ExclusiveContext *cx, StringBuffer &sb, Buffer &cb)
-{
-    size_t len = sb.length();
-    if (!sb.append('\0'))
-        return nullptr;
-
-    ScopedJSFreePtr<CharT> buf(ExtractWellSized<CharT>(cx, cb));
-    if (!buf)
-        return nullptr;
-
-    JSFlatString *str = js_NewString<CanGC>(cx, buf.get(), len);
-    if (!str)
-        return nullptr;
-
-    buf.forget();
-    return str;
-}
-
 JSFlatString *
 StringBuffer::finishString()
 {
-    size_t len = length();
-    if (len == 0)
+    ExclusiveContext *cx = context();
+    if (cb.empty())
         return cx->names().empty;
 
-    if (!JSString::validateLength(cx, len))
+    size_t length = cb.length();
+    if (!JSString::validateLength(cx, length))
         return nullptr;
 
-    JS_STATIC_ASSERT(JSFatInlineString::MAX_LENGTH_TWO_BYTE < TwoByteCharBuffer::InlineLength);
-    JS_STATIC_ASSERT(JSFatInlineString::MAX_LENGTH_LATIN1 < Latin1CharBuffer::InlineLength);
+    JS_STATIC_ASSERT(JSFatInlineString::MAX_LENGTH_TWO_BYTE < CharBuffer::InlineLength);
+    if (JSFatInlineString::twoByteLengthFits(length))
+        return NewFatInlineString<CanGC>(cx, TwoByteChars(cb.begin(), length));
 
-    if (isLatin1()) {
-        if (JSFatInlineString::latin1LengthFits(len))
-            return NewFatInlineString<CanGC>(cx, Range<const Latin1Char>(latin1Chars().begin(), len));
-    } else {
-        if (JSFatInlineString::twoByteLengthFits(len))
-            return NewFatInlineString<CanGC>(cx, Range<const jschar>(twoByteChars().begin(), len));
-    }
+    if (!cb.append('\0'))
+        return nullptr;
 
-    return isLatin1()
-        ? FinishStringFlat<Latin1Char>(cx, *this, latin1Chars())
-        : FinishStringFlat<jschar>(cx, *this, twoByteChars());
+    jschar *buf = extractWellSized();
+    if (!buf)
+        return nullptr;
+
+    JSFlatString *str = js_NewString<CanGC>(cx, buf, length);
+    if (!str)
+        js_free(buf);
+    return str;
 }
 
 JSAtom *
 StringBuffer::finishAtom()
 {
-    size_t len = length();
-    if (len == 0)
+    ExclusiveContext *cx = context();
+
+    size_t length = cb.length();
+    if (length == 0)
         return cx->names().empty;
 
-    JSAtom *atom = AtomizeChars(cx, twoByteChars().begin(), len);
-    twoByteChars().clear();
+    JSAtom *atom = AtomizeChars(cx, cb.begin(), length);
+    cb.clear();
     return atom;
 }
 

@@ -22,7 +22,6 @@
 #include "mozilla/CheckedInt.h"
 #include "mozilla/FloatingPoint.h"
 #include "mozilla/PodOperations.h"
-#include "mozilla/Range.h"
 #include "mozilla/TypeTraits.h"
 
 #include <ctype.h>
@@ -72,7 +71,6 @@ using mozilla::IsNegativeZero;
 using mozilla::IsSame;
 using mozilla::PodCopy;
 using mozilla::PodEqual;
-using mozilla::Range;
 using mozilla::SafeCast;
 
 using JS::AutoCheckCannotGC;
@@ -262,8 +260,6 @@ str_unescape(JSContext *cx, unsigned argc, Value *vp)
 
     /* Step 3. */
     StringBuffer sb(cx);
-    if (str->hasTwoByteChars() && !sb.ensureTwoByteChars())
-        return false;
 
     /*
      * Note that the spec algorithm has been optimized to avoid building
@@ -311,7 +307,7 @@ str_unescape(JSContext *cx, unsigned argc, Value *vp)
             building = true;                        \
             if (!sb.reserve(length))                \
                 return false;                       \
-            sb.infallibleAppend(chars, k);          \
+            sb.infallibleAppend(chars, chars + k);  \
         }                                           \
     JS_END_MACRO
 
@@ -702,7 +698,8 @@ ToLowerCase(JSContext *cx, JSLinearString *str)
         const CharT *chars = str->chars<CharT>(nogc);
         for (size_t i = 0; i < length; i++) {
             jschar c = unicode::ToLowerCase(chars[i]);
-            MOZ_ASSERT_IF((IsSame<CharT, Latin1Char>::value), c <= 0xff);
+            if (IsSame<CharT, Latin1Char>::value)
+                MOZ_ASSERT(c <= 0xff);
             newChars[i] = c;
         }
         newChars[length] = 0;
@@ -931,7 +928,7 @@ str_normalize(JSContext *cx, unsigned argc, Value *vp)
         return false;
     UErrorCode status = U_ZERO_ERROR;
     int32_t size = unorm_normalize(srcChars, srcLen, form, 0,
-                                   JSCharToUChar(chars.rawTwoByteBegin()), SB_LENGTH,
+                                   JSCharToUChar(chars.begin()), SB_LENGTH,
                                    &status);
     if (status == U_BUFFER_OVERFLOW_ERROR) {
         if (!chars.resize(size))
@@ -941,7 +938,7 @@ str_normalize(JSContext *cx, unsigned argc, Value *vp)
         int32_t finalSize =
 #endif
         unorm_normalize(srcChars, srcLen, form, 0,
-                        JSCharToUChar(chars.rawTwoByteBegin()), size,
+                        JSCharToUChar(chars.begin()), size,
                         &status);
         MOZ_ASSERT(size == finalSize || U_FAILURE(status), "unorm_normalize behaved inconsistently");
     }
@@ -1701,6 +1698,16 @@ str_lastIndexOf(JSContext *cx, unsigned argc, Value *vp)
     }
 
     args.rval().setInt32(res);
+    return true;
+}
+
+static bool
+EqualCharsLatin1TwoByte(const Latin1Char *s1, const jschar *s2, size_t len)
+{
+    for (const Latin1Char *s1end = s1 + len; s1 < s1end; s1++, s2++) {
+        if (jschar(*s1) != *s2)
+            return false;
+    }
     return true;
 }
 
@@ -2756,8 +2763,7 @@ FindReplaceLength(JSContext *cx, RegExpStatics *res, ReplaceData &rdata, size_t 
 
 /*
  * Precondition: |rdata.sb| already has necessary growth space reserved (as
- * derived from FindReplaceLength), and has been inflated to TwoByte if
- * necessary.
+ * derived from FindReplaceLength).
  */
 static void
 DoReplace(RegExpStatics *res, ReplaceData &rdata)
@@ -2779,7 +2785,8 @@ DoReplace(RegExpStatics *res, ReplaceData &rdata)
             JSSubString sub;
             size_t skip;
             if (InterpretDollar(res, dp, ep, rdata, &sub, &skip)) {
-                rdata.sb.infallibleAppend(sub.chars, sub.length);
+                len = sub.length;
+                rdata.sb.infallibleAppend(sub.chars, len);
                 cp += skip;
                 dp += skip;
             } else {
@@ -2816,24 +2823,13 @@ ReplaceRegExp(JSContext *cx, RegExpStatics *res, ReplaceData &rdata)
         js_ReportAllocationOverflow(cx);
         return false;
     }
-
-    /*
-     * Inflate the buffer now if needed, to avoid (fallible) Latin1 to TwoByte
-     * inflation later on.
-     */
-    JSLinearString &str = rdata.str->asLinear();  /* flattened for regexp */
-    if (str.hasTwoByteChars() || rdata.repstr->hasTwoByteChars()) {
-        if (!rdata.sb.ensureTwoByteChars())
-            return false;
-    }
-
     if (!rdata.sb.reserve(newlen.value()))
         return false;
 
-    /* Append skipped-over portion of the search value. */
+    JSLinearString &str = rdata.str->asLinear();  /* flattened for regexp */
     const jschar *left = str.chars() + leftoff;
-    rdata.sb.infallibleAppend(left, leftlen);
 
+    rdata.sb.infallibleAppend(left, leftlen); /* skipped-over portion of the search value */
     DoReplace(res, rdata);
     return true;
 }
@@ -2941,21 +2937,19 @@ BuildDollarReplacement(JSContext *cx, JSString *textstrArg, JSLinearString *reps
      * Note that dollar vars _could_ make the resulting text smaller than this.
      */
     StringBuffer newReplaceChars(cx);
-    if (repstr->hasTwoByteChars() && !newReplaceChars.ensureTwoByteChars())
-        return false;
-
     if (!newReplaceChars.reserve(textstr->length() - fm.patternLength() + repstr->length()))
         return false;
 
     JS_ASSERT(firstDollarIndex < repstr->length());
+    const jschar *firstDollar = repstr->chars() + firstDollarIndex;
 
     /* Move the pre-dollar chunk in bulk. */
-    newReplaceChars.infallibleAppend(repstr->chars(), firstDollarIndex);
+    newReplaceChars.infallibleAppend(repstr->chars(), firstDollar);
 
     /* Move the rest char-by-char, interpreting dollars as we encounter them. */
     const jschar *textchars = textstr->chars();
     const jschar *repstrLimit = repstr->chars() + repstr->length();
-    for (const jschar *it = repstr->chars() + firstDollarIndex; it < repstrLimit; ++it) {
+    for (const jschar *it = firstDollar; it < repstrLimit; ++it) {
         if (*it != '$' || it == repstrLimit - 1) {
             if (!newReplaceChars.append(*it))
                 return false;
@@ -4237,12 +4231,6 @@ js_NewString<CanGC>(ThreadSafeContext *cx, jschar *chars, size_t length);
 template JSFlatString *
 js_NewString<NoGC>(ThreadSafeContext *cx, jschar *chars, size_t length);
 
-template JSFlatString *
-js_NewString<CanGC>(ThreadSafeContext *cx, Latin1Char *chars, size_t length);
-
-template JSFlatString *
-js_NewString<NoGC>(ThreadSafeContext *cx, Latin1Char *chars, size_t length);
-
 JSLinearString *
 js_NewDependentString(JSContext *cx, JSString *baseArg, size_t start, size_t length)
 {
@@ -4271,90 +4259,51 @@ js_NewDependentString(JSContext *cx, JSString *baseArg, size_t start, size_t len
     return JSDependentString::new_(cx, base, start, length);
 }
 
-template <typename CharT>
-static void
-CopyCharsMaybeInflate(jschar *dest, const CharT *src, size_t len);
-
-template <>
-void
-CopyCharsMaybeInflate(jschar *dest, const jschar *src, size_t len)
-{
-    PodCopy(dest, src, len);
-}
-
-template <>
-void
-CopyCharsMaybeInflate(jschar *dest, const Latin1Char *src, size_t len)
-{
-    CopyAndInflateChars(dest, src, len);
-}
-
-template <AllowGC allowGC, typename CharT>
+template <AllowGC allowGC>
 JSFlatString *
-js_NewStringCopyN(ThreadSafeContext *cx, const CharT *s, size_t n)
+js_NewStringCopyN(ExclusiveContext *cx, const jschar *s, size_t n)
 {
-    if (EnableLatin1Strings) {
-        if (JSFatInlineString::lengthFits<CharT>(n))
-            return NewFatInlineString<allowGC>(cx, Range<const CharT>(s, n));
-
-        ScopedJSFreePtr<CharT> news(cx->pod_malloc<CharT>(n + 1));
-        if (!news)
-            return nullptr;
-
-        PodCopy(news.get(), s, n);
-        news[n] = 0;
-
-        JSFlatString *str = js_NewString<allowGC>(cx, news.get(), n);
-        if (!str)
-            return nullptr;
-
-        news.forget();
-        return str;
-    }
-
     if (JSFatInlineString::twoByteLengthFits(n))
-        return NewFatInlineString<allowGC>(cx, Range<const CharT>(s, n));
+        return NewFatInlineString<allowGC>(cx, TwoByteChars(s, n));
 
-    ScopedJSFreePtr<jschar> news(cx->pod_malloc<jschar>(n + 1));
+    jschar *news = cx->pod_malloc<jschar>(n + 1);
     if (!news)
         return nullptr;
-
-    CopyCharsMaybeInflate(news.get(), s, n);
+    js_strncpy(news, s, n);
     news[n] = 0;
-
-    JSFlatString *str = js_NewString<allowGC>(cx, news.get(), n);
+    JSFlatString *str = js_NewString<allowGC>(cx, news, n);
     if (!str)
-        return nullptr;
-
-    news.forget();
+        js_free(news);
     return str;
 }
 
 template JSFlatString *
-js_NewStringCopyN<CanGC>(ThreadSafeContext *cx, const jschar *s, size_t n);
+js_NewStringCopyN<CanGC>(ExclusiveContext *cx, const jschar *s, size_t n);
 
 template JSFlatString *
-js_NewStringCopyN<NoGC>(ThreadSafeContext *cx, const jschar *s, size_t n);
+js_NewStringCopyN<NoGC>(ExclusiveContext *cx, const jschar *s, size_t n);
 
-template JSFlatString *
-js_NewStringCopyN<CanGC>(ThreadSafeContext *cx, const Latin1Char *s, size_t n);
-
-template JSFlatString *
-js_NewStringCopyN<NoGC>(ThreadSafeContext *cx, const Latin1Char *s, size_t n);
-
-template <>
+template <AllowGC allowGC>
 JSFlatString *
-js_NewStringCopyN<CanGC>(ThreadSafeContext *cx, const char *s, size_t n)
+js_NewStringCopyN(ThreadSafeContext *cx, const char *s, size_t n)
 {
-    return js_NewStringCopyN<CanGC>(cx, reinterpret_cast<const Latin1Char *>(s), n);
+    if (JSFatInlineString::twoByteLengthFits(n))
+        return NewFatInlineString<allowGC>(cx, JS::Latin1Chars(s, n));
+
+    jschar *chars = InflateString(cx, s, &n);
+    if (!chars)
+        return nullptr;
+    JSFlatString *str = js_NewString<allowGC>(cx, chars, n);
+    if (!str)
+        js_free(chars);
+    return str;
 }
 
-template <>
-JSFlatString *
-js_NewStringCopyN<NoGC>(ThreadSafeContext *cx, const char *s, size_t n)
-{
-    return js_NewStringCopyN<NoGC>(cx, reinterpret_cast<const Latin1Char *>(s), n);
-}
+template JSFlatString *
+js_NewStringCopyN<CanGC>(ThreadSafeContext *cx, const char *s, size_t n);
+
+template JSFlatString *
+js_NewStringCopyN<NoGC>(ThreadSafeContext *cx, const char *s, size_t n);
 
 template <AllowGC allowGC>
 JSFlatString *
@@ -4362,7 +4311,7 @@ js_NewStringCopyZ(ExclusiveContext *cx, const jschar *s)
 {
     size_t n = js_strlen(s);
     if (JSFatInlineString::twoByteLengthFits(n))
-        return NewFatInlineString<allowGC>(cx, Range<const jschar>(s, n));
+        return NewFatInlineString<allowGC>(cx, TwoByteChars(s, n));
 
     size_t m = (n + 1) * sizeof(jschar);
     jschar *news = (jschar *) cx->malloc_(m);

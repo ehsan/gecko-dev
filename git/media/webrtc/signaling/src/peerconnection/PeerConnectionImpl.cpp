@@ -489,6 +489,7 @@ PeerConnectionImpl::PeerConnectionImpl(const GlobalObject* aGlobal)
   , mWindow(nullptr)
   , mIdentity(nullptr)
   , mSTSThread(nullptr)
+  , mLoadManager(nullptr)
   , mMedia(nullptr)
   , mNumAudioStreams(0)
   , mNumVideoStreams(0)
@@ -536,6 +537,10 @@ PeerConnectionImpl::~PeerConnectionImpl()
       destructorSafeDestroyNSSReference();
       shutdown(calledFromObject);
     }
+  }
+  if (mLoadManager) {
+      mozilla::LoadManagerDestroy(mLoadManager);
+      mLoadManager = nullptr;
   }
 #endif
 
@@ -871,6 +876,12 @@ PeerConnectionImpl::Initialize(PeerConnectionObserver& aObserver,
     CSFLogError(logTag, "%s: unable to get fingerprint", __FUNCTION__);
     return res;
   }
+
+#ifdef MOZILLA_INTERNAL_API
+  if (mozilla::Preferences::GetBool("media.navigator.load_adapt", false)) {
+    mLoadManager = mozilla::LoadManagerBuild();
+  }
+#endif
 
   return NS_OK;
 }
