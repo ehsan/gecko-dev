@@ -1347,7 +1347,7 @@ if [ "$MOZ_HELP_VIEWER" ]; then
     "
   else
     add_makefiles "
-      toolkit/themes/windows/help/Makefile
+      toolkit/themes/winstripe/help/Makefile
     "
     if [ "$MOZ_WIDGET_TOOLKIT" = "gtk2" -o "$MOZ_WIDGET_TOOLKIT" = "qt" ]; then
       add_makefiles "
