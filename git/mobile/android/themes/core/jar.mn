@@ -1,4 +1,8 @@
 #filter substitution
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 
 chrome.jar:
 % skin browser classic/1.0 %skin/
@@ -46,3 +50,5 @@ chrome.jar:
   skin/images/row-bg-light.png              (images/row-bg-light.png)
   skin/images/row-bg-normal.png             (images/row-bg-normal.png)
   skin/images/addons-amo-hdpi.png           (images/addons-amo-hdpi.png)
+  skin/images/handle-start.png              (images/handle-start.png)
+  skin/images/handle-end.png                (images/handle-end.png)

@@ -1,43 +1,7 @@
 /* -*- Mode: c++; c-basic-offset: 4; indent-tabs-mode: nil; tab-width: 40; -*- */
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is mozilla.org code.
- *
- * The Initial Developer of the Original Code is
- *   Mozilla Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2010
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Vladimir Vukicevic <vladimir@pobox.com>
- *   Mark Steele <mwsteele@gmail.com>
- *   Bas Schouten <bschouten@mozilla.com>
- *   Jeff Gilbert <jgilbert@mozilla.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef GLCONTEXT_H_
 #define GLCONTEXT_H_
@@ -130,7 +94,8 @@ public:
     enum Flags {
         NoFlags          = 0x0,
         UseNearestFilter = 0x1,
-        NeedsYFlip       = 0x2
+        NeedsYFlip       = 0x2,
+        ForceSingleTile  = 0x4
     };
 
     typedef gfxASurface::gfxContentType ContentType;
@@ -589,7 +554,8 @@ public:
 
     enum ContextFlags {
         ContextFlagsNone = 0x0,
-        ContextFlagsGlobal = 0x1
+        ContextFlagsGlobal = 0x1,
+        ContextFlagsMesaLLVMPipe = 0x2
     };
 
     enum GLContextType {
@@ -746,6 +712,7 @@ public:
     bool CanUploadSubTextures();
     bool CanUploadNonPowerOfTwo();
     bool WantsSmallTiles();
+    virtual bool HasLockSurface() { return false; }
 
     /**
      * If this context wraps a double-buffered target, swap the back
@@ -846,7 +813,7 @@ public:
      */
     virtual bool ResizeOffscreen(const gfxIntSize& aNewSize) {
         if (mOffscreenDrawFBO || mOffscreenReadFBO)
-            return ResizeOffscreenFBO(aNewSize, mOffscreenReadFBO != 0);
+            return ResizeOffscreenFBOs(aNewSize, mOffscreenReadFBO != 0);
         return false;
     }
 
@@ -1111,7 +1078,7 @@ private:
                 // Assume IEEE 754 precision
                 range[0] = 127;
                 range[1] = 127;
-                *precision = 0;
+                *precision = 23;
                 break;
             case LOCAL_GL_LOW_INT:
             case LOCAL_GL_MEDIUM_INT:
@@ -1397,6 +1364,10 @@ public:
      * \param aPixelBuffer Pass true to upload texture data with an
      *  offset from the base data (generally for pixel buffer objects), 
      *  otherwise textures are upload with an absolute pointer to the data.
+     * \param aTextureUnit, the texture unit used temporarily to upload the
+     *  surface. This testure may be overridden, clients should not rely on
+     *  the contents of this texture after this call or even on this
+     *  texture unit being active.
      * \return Shader program needed to render this texture.
      */
     ShaderProgramType UploadSurfaceToTexture(gfxASurface *aSurface, 
@@ -1404,7 +1375,8 @@ public:
                                              GLuint& aTexture,
                                              bool aOverwrite = false,
                                              const nsIntPoint& aSrcPoint = nsIntPoint(0, 0),
-                                             bool aPixelBuffer = false);
+                                             bool aPixelBuffer = false,
+                                             GLenum aTextureUnit = LOCAL_GL_TEXTURE0);
 
     
     void TexImage2D(GLenum target, GLint level, GLint internalformat, 
@@ -1522,6 +1494,10 @@ public:
         EXT_unpack_subimage,
         OES_standard_derivatives,
         EXT_texture_filter_anisotropic,
+        EXT_texture_compression_s3tc,
+        EXT_texture_compression_dxt1,
+        ANGLE_texture_compression_dxt3,
+        ANGLE_texture_compression_dxt5,
         EXT_framebuffer_blit,
         ANGLE_framebuffer_blit,
         EXT_framebuffer_multisample,
@@ -1647,30 +1623,62 @@ protected:
     // Helper to create/resize an offscreen FBO,
     // for offscreen implementations that use FBOs.
     // Note that it does -not- clear the resized buffers.
-    bool ResizeOffscreenFBO(const gfxIntSize& aSize, const bool aUseReadFBO, const bool aDisableAA);
-    bool ResizeOffscreenFBO(const gfxIntSize& aSize, const bool aUseReadFBO) {
-        if (ResizeOffscreenFBO(aSize, aUseReadFBO, false))
-            return true;
-
-        if (!mCreationFormat.samples) {
-            NS_WARNING("ResizeOffscreenFBO failed to resize non-AA context!");
+    bool ResizeOffscreenFBOs(const ContextFormat& aCF, const gfxIntSize& aSize, const bool aNeedsReadBuffer);
+    bool ResizeOffscreenFBOs(const gfxIntSize& aSize, const bool aNeedsReadBuffer) {
+        if (!IsOffscreenSizeAllowed(aSize))
             return false;
-        } else {
-            NS_WARNING("ResizeOffscreenFBO failed to resize AA context! Falling back to no AA...");
+
+        ContextFormat format(mCreationFormat);
+
+        if (format.samples) {
+            // AA path
+            if (ResizeOffscreenFBOs(format, aSize, aNeedsReadBuffer))
+                return true;
+
+            NS_WARNING("ResizeOffscreenFBOs failed to resize an AA context! Falling back to no AA...");
+            format.samples = 0;
         }
 
-        if (DebugMode()) {
-            printf_stderr("Requested level of multisampling is unavailable, continuing without multisampling\n");
-        }
-
-        if (ResizeOffscreenFBO(aSize, aUseReadFBO, true))
+        if (ResizeOffscreenFBOs(format, aSize, aNeedsReadBuffer))
             return true;
 
-        NS_WARNING("ResizeOffscreenFBO failed to resize AA context even without AA!");
+        NS_WARNING("ResizeOffscreenFBOs failed to resize non-AA context!");
         return false;
     }
 
-    void DeleteOffscreenFBO();
+    struct GLFormats {
+        GLFormats()
+            : texColor(0)
+            , texColorType(0)
+            , rbColor(0)
+            , depthStencil(0)
+            , depth(0)
+            , stencil(0)
+            , samples(0)
+        {}
+
+        GLenum texColor;
+        GLenum texColorType;
+        GLenum rbColor;
+        GLenum depthStencil;
+        GLenum depth;
+        GLenum stencil;
+        GLsizei samples;
+    };
+
+    GLFormats ChooseGLFormats(ContextFormat& aCF);
+    void CreateTextureForOffscreen(const GLFormats& aFormats, const gfxIntSize& aSize,
+                                   GLuint& texture);
+    void CreateRenderbuffersForOffscreen(const GLContext::GLFormats& aFormats, const gfxIntSize& aSize,
+                                         GLuint& colorMSRB, GLuint& depthRB, GLuint& stencilRB);
+    bool AssembleOffscreenFBOs(const GLuint colorMSRB,
+                               const GLuint depthRB,
+                               const GLuint stencilRB,
+                               const GLuint texture,
+                               GLuint& drawFBO,
+                               GLuint& readFBO);
+
+    void DeleteOffscreenFBOs();
 
     GLuint mOffscreenDrawFBO;
     GLuint mOffscreenReadFBO;
@@ -2087,6 +2095,18 @@ public:
     void fColorMask(realGLboolean red, realGLboolean green, realGLboolean blue, realGLboolean alpha) {
         BEFORE_GL_CALL;
         mSymbols.fColorMask(red, green, blue, alpha);
+        AFTER_GL_CALL;
+    }
+
+    void fCompressedTexImage2D(GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLint border, GLsizei imageSize, const GLvoid *pixels) {
+        BEFORE_GL_CALL;
+        mSymbols.fCompressedTexImage2D(target, level, internalformat, width, height, border, imageSize, pixels);
+        AFTER_GL_CALL;
+    }
+
+    void fCompressedTexSubImage2D(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLsizei imageSize, const GLvoid *pixels) {
+        BEFORE_GL_CALL;
+        mSymbols.fCompressedTexSubImage2D(target, level, xoffset, yoffset, width, height, format, imageSize, pixels);
         AFTER_GL_CALL;
     }
 

@@ -1,40 +1,8 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * vim: sw=4 ts=4 et :
- * ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla Plugin App.
- *
- * The Initial Developer of the Original Code is
- *   Chris Jones <jones.chris.g@gmail.com>
- * Portions created by the Initial Developer are Copyright (C) 2009
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifdef MOZ_WIDGET_GTK2
 #include <glib.h>
@@ -134,12 +102,14 @@ PluginModuleParent::PluginModuleParent(const char* aFilePath)
     , mNPNIface(NULL)
     , mPlugin(NULL)
     , mTaskFactory(this)
+#ifdef MOZ_CRASHREPORTER_INJECTOR
+    , mFlashProcess1(0)
+    , mFlashProcess2(0)
+#endif
 {
     NS_ASSERTION(mSubprocess, "Out of memory!");
 
-    if (!mIdentifiers.Init()) {
-        NS_ERROR("Out of memory");
-    }
+    mIdentifiers.Init();
 
     Preferences::RegisterCallback(TimeoutChanged, kChildTimeoutPref, this);
     Preferences::RegisterCallback(TimeoutChanged, kParentTimeoutPref, this);
@@ -160,6 +130,13 @@ PluginModuleParent::~PluginModuleParent()
         mSubprocess->Delete();
         mSubprocess = nsnull;
     }
+
+#ifdef MOZ_CRASHREPORTER_INJECTOR
+    if (mFlashProcess1)
+        CrashReporter::UnregisterInjectorCallback(mFlashProcess1);
+    if (mFlashProcess2)
+        CrashReporter::UnregisterInjectorCallback(mFlashProcess2);
+#endif
 
     Preferences::UnregisterCallback(TimeoutChanged, kChildTimeoutPref, this);
     Preferences::UnregisterCallback(TimeoutChanged, kParentTimeoutPref, this);
@@ -185,9 +162,12 @@ PluginModuleParent::WriteExtraDataForMinidump(CrashReporter::AnnotationTable& no
     notes.Put(CS("PluginName"), CS(""));
     notes.Put(CS("PluginVersion"), CS(""));
 
-    const nsString& hangID = CrashReporter()->HangID();
-    if (!hangID.IsEmpty())
-        notes.Put(CS("HangID"), NS_ConvertUTF16toUTF8(hangID));
+    CrashReporterParent* crashReporter = CrashReporter();
+    if (crashReporter) {
+        const nsString& hangID = crashReporter->HangID();
+        if (!hangID.IsEmpty())
+            notes.Put(CS("HangID"), NS_ConvertUTF16toUTF8(hangID));
+    }
 }
 #endif  // MOZ_CRASHREPORTER
 
@@ -220,17 +200,19 @@ bool
 PluginModuleParent::ShouldContinueFromReplyTimeout()
 {
 #ifdef MOZ_CRASHREPORTER
-    CrashReporterParent* crashReporter = CrashReporter();
-    if (crashReporter->GeneratePairedMinidump(this)) {
-        mBrowserDumpID = crashReporter->ParentDumpID();
-        mPluginDumpID = crashReporter->ChildDumpID();
-        PLUGIN_LOG_DEBUG(
-                ("generated paired browser/plugin minidumps: %s/%s (ID=%s)",
-                 NS_ConvertUTF16toUTF8(mBrowserDumpID).get(),
-                 NS_ConvertUTF16toUTF8(mPluginDumpID).get(),
-                 NS_ConvertUTF16toUTF8(crashReporter->HangID()).get()));
-    } else {
-        NS_WARNING("failed to capture paired minidumps from hang");
+    if (mPluginDumpID.IsEmpty()) {
+        CrashReporterParent* crashReporter = CrashReporter();
+        if (crashReporter->GeneratePairedMinidump(this)) {
+            mBrowserDumpID = crashReporter->ParentDumpID();
+            mPluginDumpID = crashReporter->ChildDumpID();
+            PLUGIN_LOG_DEBUG(
+                    ("generated paired browser/plugin minidumps: %s/%s (ID=%s)",
+                     NS_ConvertUTF16toUTF8(mBrowserDumpID).get(),
+                     NS_ConvertUTF16toUTF8(mPluginDumpID).get(),
+                     NS_ConvertUTF16toUTF8(crashReporter->HangID()).get()));
+        } else {
+            NS_WARNING("failed to capture paired minidumps from hang");
+        }
     }
 #endif
 
@@ -251,7 +233,6 @@ PluginModuleParent::ShouldContinueFromReplyTimeout()
 CrashReporterParent*
 PluginModuleParent::CrashReporter()
 {
-    MOZ_ASSERT(ManagedPCrashReporterParent().Length() > 0);
     return static_cast<CrashReporterParent*>(ManagedPCrashReporterParent()[0]);
 }
 #endif
@@ -268,13 +249,17 @@ PluginModuleParent::ActorDestroy(ActorDestroyReason why)
         notes.Init(4);
         WriteExtraDataForMinidump(notes);
         
-        if (crashReporter->GenerateCrashReport(this, &notes)) {
+        if (!mPluginDumpID.IsEmpty() && !mBrowserDumpID.IsEmpty()) {
+            crashReporter->GenerateHangCrashReport(&notes);
+        }
+        else if (!mPluginDumpID.IsEmpty()) {
+            // Nothing to do, we've already written this minidump in
+            // PluginModuleParent::OnCrash
+        }
+        else if (crashReporter->GenerateCrashReport(this, &notes)) {
             mPluginDumpID = crashReporter->ChildDumpID();
             PLUGIN_LOG_DEBUG(("got child minidump: %s",
                               NS_ConvertUTF16toUTF8(mPluginDumpID).get()));
-        }
-        else if (!mPluginDumpID.IsEmpty() && !mBrowserDumpID.IsEmpty()) {
-            crashReporter->GenerateHangCrashReport(&notes);
         }
         else {
             NS_WARNING("[PluginModuleParent::ActorDestroy] abnormal shutdown without minidump!");
@@ -750,9 +735,6 @@ PluginModuleParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* pFuncs
     }
 
     uint32_t flags = 0;
-    if (mozilla::Preferences::GetBool("plugin.allow.asyncdrawing", false)) {
-      flags |= kAllowAsyncDrawing;
-    }
 
     if (!CallNP_Initialize(flags, error)) {
         return NS_ERROR_FAILURE;
@@ -779,9 +761,9 @@ PluginModuleParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPError* error)
     }
 
     uint32_t flags = 0;
-    if (mozilla::Preferences::GetBool("plugin.allow.asyncdrawing", false)) {
-      flags |= kAllowAsyncDrawing;
-    }
+#ifdef XP_WIN
+    flags |= kAllowAsyncDrawing;
+#endif
 
     if (!CallNP_Initialize(flags, error))
         return NS_ERROR_FAILURE;
@@ -795,7 +777,11 @@ PluginModuleParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPError* error)
 
     if (NS_SUCCEEDED(mozilla::widget::GetAudioSessionData(id, sessionName,
                                                           iconPath)))
-        SendSetAudioSessionData(id, sessionName, iconPath);
+        unused << SendSetAudioSessionData(id, sessionName, iconPath);
+#endif
+
+#ifdef MOZ_CRASHREPORTER_INJECTOR
+    InitializeInjector();
 #endif
 
     return NS_OK;
@@ -1046,7 +1032,7 @@ void
 PluginModuleParent::ProcessRemoteNativeEventsInRPCCall()
 {
 #if defined(OS_WIN)
-    SendProcessNativeEventsInRPCCall();
+    unused << SendProcessNativeEventsInRPCCall();
     return;
 #endif
     NS_NOTREACHED(
@@ -1199,3 +1185,98 @@ PluginModuleParent::RecvNPN_ReloadPlugins(const bool& aReloadPages)
     mozilla::plugins::parent::_reloadplugins(aReloadPages);
     return true;
 }
+
+#ifdef MOZ_CRASHREPORTER_INJECTOR
+
+// We only add the crash reporter to subprocess which have the filename
+// FlashPlayerPlugin*
+#define FLASH_PROCESS_PREFIX "FLASHPLAYERPLUGIN"
+
+static DWORD
+GetFlashChildOfPID(DWORD pid, HANDLE snapshot)
+{
+    PROCESSENTRY32 entry = {
+        sizeof(entry)
+    };
+    for (BOOL ok = Process32First(snapshot, &entry);
+         ok;
+         ok = Process32Next(snapshot, &entry)) {
+        if (entry.th32ParentProcessID == pid) {
+            nsString name(entry.szExeFile);
+            ToUpperCase(name);
+            if (StringBeginsWith(name, NS_LITERAL_STRING(FLASH_PROCESS_PREFIX))) {
+                return entry.th32ProcessID;
+            }
+        }
+    }
+    return 0;
+}
+
+// We only look for child processes of the Flash plugin, NPSWF*
+#define FLASH_PLUGIN_PREFIX "NPSWF"
+
+void
+PluginModuleParent::InitializeInjector()
+{
+    if (!Preferences::GetBool("dom.ipc.plugins.flash.subprocess.crashreporter.enabled", false))
+        return;
+
+    nsCString path(Process()->GetPluginFilePath().c_str());
+    ToUpperCase(path);
+    PRInt32 lastSlash = path.RFindCharInSet("\\/");
+    if (kNotFound == lastSlash)
+        return;
+
+    if (!StringBeginsWith(Substring(path, lastSlash + 1),
+                          NS_LITERAL_CSTRING(FLASH_PLUGIN_PREFIX)))
+        return;
+
+    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (INVALID_HANDLE_VALUE == snapshot)
+        return;
+
+    DWORD pluginProcessPID = GetProcessId(Process()->GetChildProcessHandle());
+    mFlashProcess1 = GetFlashChildOfPID(pluginProcessPID, snapshot);
+    if (mFlashProcess1) {
+        InjectCrashReporterIntoProcess(mFlashProcess1, this);
+
+        mFlashProcess2 = GetFlashChildOfPID(mFlashProcess1, snapshot);
+        if (mFlashProcess2) {
+            InjectCrashReporterIntoProcess(mFlashProcess2, this);
+        }
+    }
+}
+
+void
+PluginModuleParent::OnCrash(DWORD processID, const nsAString& aDumpID)
+{
+    if (!mPluginDumpID.IsEmpty()) {
+        // One process has already crashed: we assume that the first-to-crash
+        // is the interesting one
+        return;
+    }
+
+    mPluginDumpID = aDumpID;
+
+    CrashReporter::AnnotationTable notes;
+    notes.Init(4);
+    WriteExtraDataForMinidump(notes);
+    notes.Put(NS_LITERAL_CSTRING("ProcessType"), NS_LITERAL_CSTRING("plugin"));
+    if (processID == mFlashProcess1) {
+        notes.Put(NS_LITERAL_CSTRING("FlashProcessDump"),
+                  NS_LITERAL_CSTRING("Broker"));
+    }
+    else if (processID == mFlashProcess2) {
+        notes.Put(NS_LITERAL_CSTRING("FlashProcessDump"),
+                  NS_LITERAL_CSTRING("Sandbox"));
+    }
+    else {
+        NS_ERROR("Got minidump for Flash process neither broker nor sandbox.");
+    }
+    CrashReporter::AppendExtraData(aDumpID, notes);
+
+    GetIPCChannel()->CloseWithError();
+    KillProcess(OtherProcess(), 1, false);
+}
+
+#endif // MOZ_CRASHREPORTER_INJECTOR

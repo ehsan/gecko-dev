@@ -1,39 +1,7 @@
 /* -*- Mode: Java; c-basic-offset: 4; tab-width: 20; indent-tabs-mode: nil; -*-
- * ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla Android code.
- *
- * The Initial Developer of the Original Code is Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2011-2012
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Gian-Carlo Pascutto <gpascutto@mozilla.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 package org.mozilla.gecko;
 
@@ -45,6 +13,7 @@ import org.mozilla.gecko.db.BrowserContract.Images;
 import org.mozilla.gecko.db.BrowserContract.Passwords;
 import org.mozilla.gecko.db.BrowserContract.URLColumns;
 import org.mozilla.gecko.db.BrowserContract.SyncColumns;
+import org.mozilla.gecko.db.LocalBrowserDB;
 import org.mozilla.gecko.sqlite.SQLiteBridge;
 import org.mozilla.gecko.sqlite.SQLiteBridgeException;
 import org.mozilla.gecko.sync.setup.SyncAccounts;
@@ -104,6 +73,7 @@ public class ProfileMigrator {
     private Runnable mLongOperationStartCallback;
     private boolean mLongOperationStartRun;
     private Runnable mLongOperationStopCallback;
+    private LocalBrowserDB mDB;
 
     // Default number of history entries to migrate in one run.
     private static final int DEFAULT_HISTORY_MIGRATE_COUNT = 2000;
@@ -710,9 +680,9 @@ public class ProfileMigrator {
             File cacheFile = GeckoAppShell.getCacheDir(mContext);
             File[] files = cacheFile.listFiles();
             if (files != null) {
-                Iterator cacheFiles = Arrays.asList(files).iterator();
+                Iterator<File> cacheFiles = Arrays.asList(files).iterator();
                 while (cacheFiles.hasNext()) {
-                    File libFile = (File)cacheFiles.next();
+                    File libFile = cacheFiles.next();
                     if (libFile.getName().endsWith(".so")) {
                         libFile.delete();
                     }
@@ -741,32 +711,15 @@ public class ProfileMigrator {
         public PlacesRunnable(File profileDir, int limit) {
             mProfileDir = profileDir;
             mMaxEntries = limit;
-        }
-
-        protected Uri getBookmarksUri() {
-            Uri.Builder uriBuilder = Bookmarks.CONTENT_URI.buildUpon()
-                .appendQueryParameter(BrowserContract.PARAM_SHOW_DELETED, "1");
-            return uriBuilder.build();
-        }
-
-        protected Uri getHistoryUri() {
-            Uri.Builder uriBuilder = History.CONTENT_URI.buildUpon()
-                .appendQueryParameter(BrowserContract.PARAM_SHOW_DELETED, "1");
-            return uriBuilder.build();
-
-        }
-
-        protected Uri getImagesUri() {
-            Uri.Builder uriBuilder = Images.CONTENT_URI.buildUpon()
-                .appendQueryParameter(BrowserContract.PARAM_SHOW_DELETED, "1");
-            return uriBuilder.build();
+            mDB = new LocalBrowserDB(GeckoProfile.get(mContext).getName());
         }
 
         private long getFolderId(String guid) {
             Cursor c = null;
 
             try {
-                c = mCr.query(getBookmarksUri(),
+                // Uses default profile
+                c = mCr.query(Bookmarks.CONTENT_URI,
                               new String[] { Bookmarks._ID },
                               Bookmarks.GUID + " = ?",
                               new String [] { guid },
@@ -854,72 +807,7 @@ public class ProfileMigrator {
 
         protected void updateBrowserHistory(String url, String title,
                                             long date, int visits) {
-            Cursor cursor = null;
-
-            try {
-                final String[] projection = new String[] {
-                    History._ID,
-                    History.VISITS,
-                    History.DATE_LAST_VISITED
-                };
-
-                cursor = mCr.query(getHistoryUri(),
-                                   projection,
-                                   History.URL + " = ?",
-                                   new String[] { url },
-                                   null);
-
-                ContentValues values = new ContentValues();
-                ContentProviderOperation.Builder builder = null;
-                // Restore deleted record if possible
-                values.put(History.IS_DELETED, 0);
-
-                if (cursor.moveToFirst()) {
-                    int visitsCol = cursor.getColumnIndexOrThrow(History.VISITS);
-                    int dateCol = cursor.getColumnIndexOrThrow(History.DATE_LAST_VISITED);
-                    int oldVisits = cursor.getInt(visitsCol);
-                    long oldDate = cursor.getLong(dateCol);
-
-                    values.put(History.VISITS, oldVisits + visits);
-                    if (title != null) {
-                        values.put(History.TITLE, title);
-                    }
-                    // Only update last visited if newer.
-                    if (date > oldDate) {
-                        values.put(History.DATE_LAST_VISITED, date);
-                    }
-
-                    int idCol = cursor.getColumnIndexOrThrow(History._ID);
-                    // We use default profile anyway
-                    Uri historyUri = ContentUris.withAppendedId(getHistoryUri(),
-                                                                cursor.getLong(idCol));
-
-                    // Update
-                    builder = ContentProviderOperation.newUpdate(historyUri);
-                    // URL should be unique and we should hit it
-                    builder.withExpectedCount(1);
-                    builder.withValues(values);
-                } else {
-                    values.put(History.URL, url);
-                    values.put(History.VISITS, visits);
-                    if (title != null) {
-                        values.put(History.TITLE, title);
-                    } else {
-                        values.put(History.TITLE, url);
-                    }
-                    values.put(History.DATE_LAST_VISITED, date);
-
-                    // Insert
-                    builder = ContentProviderOperation.newInsert(getHistoryUri());
-                    builder.withValues(values);
-                }
-
-                // Queue the operation
-                mOperations.add(builder.build());
-            } finally {
-                if (cursor != null)
-                    cursor.close();
-            }
+            mDB.updateHistoryInBatch(mCr, mOperations, url, title, date, visits);
         }
 
         protected BitmapDrawable decodeImageData(byte[] data) {
@@ -947,57 +835,21 @@ public class ProfileMigrator {
                 }
             }
             try {
-                ContentValues values = new ContentValues();
+                byte[] newData = null;
 
                 // Recompress decoded images to PNG.
                 if (image != null) {
                     Bitmap bitmap = image.getBitmap();
                     ByteArrayOutputStream stream = new ByteArrayOutputStream();
                     bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream);
-                    values.put(Images.FAVICON, stream.toByteArray());
+                    newData = stream.toByteArray();
                 } else {
                     // PNG images can be passed directly. Well, aside
                     // from having to convert them into a byte[].
-                    values.put(Images.FAVICON, data);
+                    newData = data;
                 }
 
-                values.put(Images.URL, url);
-                values.put(Images.FAVICON_URL, faviconUrl);
-                // Restore deleted record if possible
-                values.put(Images.IS_DELETED, 0);
-                if (faviconGuid != null) {
-                    values.put(Images.GUID, faviconGuid);
-                }
-
-                Cursor cursor = null;
-                ContentProviderOperation.Builder builder = null;
-                try {
-                    cursor = mCr.query(getImagesUri(),
-                                       null,
-                                       Images.URL + " = ?",
-                                       new String[] { url },
-                                       null);
-
-                    if (cursor != null && cursor.moveToFirst()) {
-                        // Update
-                        builder = ContentProviderOperation.newUpdate(getImagesUri());
-                        // URL should be unique and we should hit it
-                        builder.withExpectedCount(1);
-                        builder.withValues(values);
-                        builder.withSelection(Images.URL + " = ?",
-                                              new String[] { url });
-                    } else {
-                        // Insert
-                        builder = ContentProviderOperation.newInsert(getImagesUri());
-                        builder.withValues(values);
-                    }
-                } finally {
-                    if (cursor != null)
-                        cursor.close();
-                }
-
-                // Queue the operation
-                mOperations.add(builder.build());
+                mDB.updateFaviconInBatch(mCr, mOperations, url, faviconUrl, faviconGuid, newData);
             } catch (SQLException e) {
                 Log.i(LOGTAG, "Migrating favicon failed: " + mime + " URL: " + url
                       + " error:" + e.getMessage());
@@ -1113,81 +965,17 @@ public class ProfileMigrator {
                                    long parent, long added,
                                    long modified, long position,
                                    String keyword, int type) {
-            ContentValues values = new ContentValues();
-            if (title == null && url != null) {
-                title = url;
-            }
-            if (title != null) {
-                values.put(Bookmarks.TITLE, title);
-            }
-            if (url != null) {
-                values.put(Bookmarks.URL, url);
-            }
-            if (guid != null) {
-                values.put(SyncColumns.GUID, guid);
-            }
-            if (keyword != null) {
-                values.put(Bookmarks.KEYWORD, keyword);
-            }
-            values.put(SyncColumns.DATE_CREATED, added);
-            values.put(SyncColumns.DATE_MODIFIED, modified);
-            values.put(Bookmarks.POSITION, position);
-            // Restore deleted record if possible
-            values.put(Bookmarks.IS_DELETED, 0);
+            // Translate the parent pointer if needed
             if (mRerootMap.containsKey(parent)) {
                 parent = mRerootMap.get(parent);
             }
-            values.put(Bookmarks.PARENT, parent);
-
             // The bookmark can only be one of three valid types
-            values.put(Bookmarks.TYPE, type == PLACES_TYPE_BOOKMARK ? Bookmarks.TYPE_BOOKMARK :
-                                       type == PLACES_TYPE_FOLDER ? Bookmarks.TYPE_FOLDER :
-                                       Bookmarks.TYPE_SEPARATOR);
-
-            Cursor cursor = null;
-            ContentProviderOperation.Builder builder = null;
-
-            if (url != null) {
-                try {
-                    final String[] projection = new String[] {
-                        Bookmarks._ID,
-                        Bookmarks.URL
-                    };
-
-                    // Check if the boomark exists
-                    cursor = mCr.query(getBookmarksUri(),
-                                       projection,
-                                       Bookmarks.URL + " = ?",
-                                       new String[] { url },
-                                       null);
-
-                    if (cursor.moveToFirst()) {
-                        int idCol = cursor.getColumnIndexOrThrow(Bookmarks._ID);
-                        // We use default profile anyway
-                        Uri bookmarkUri = ContentUris.withAppendedId(getBookmarksUri(),
-                                                                     cursor.getLong(idCol));
-                        // Update
-                        builder = ContentProviderOperation.newUpdate(bookmarkUri);
-                        // URL should be unique and we should hit it
-                        builder.withExpectedCount(1);
-                        builder.withValues(values);
-                    } else {
-                        // Insert
-                        builder = ContentProviderOperation.newInsert(getBookmarksUri());
-                        builder.withValues(values);
-                    }
-                } finally {
-                    if (cursor != null)
-                        cursor.close();
-                }
-            } else {
-                // Insert
-                builder = ContentProviderOperation.newInsert(getBookmarksUri());
-                builder.withValues(values);
-            }
-
-            // Queue the operation
-            mOperations.add(builder.build());
+            int newtype = (type == PLACES_TYPE_BOOKMARK ? Bookmarks.TYPE_BOOKMARK :
+                           type == PLACES_TYPE_FOLDER ? Bookmarks.TYPE_FOLDER :
+                           Bookmarks.TYPE_SEPARATOR);
+            mDB.updateBookmarkInBatch(mCr, mOperations,
+                                      url, title, guid, parent, added,
+                                      modified, position, keyword, newtype);
         }
 
         protected void migrateBookmarks(SQLiteBridge db) {

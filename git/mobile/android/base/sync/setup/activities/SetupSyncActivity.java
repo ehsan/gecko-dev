@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this file,
- * You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 package org.mozilla.gecko.sync.setup.activities;
 
@@ -180,7 +180,7 @@ public class SetupSyncActivity extends AccountAuthenticatorActivity {
   public void manualClickHandler(View target) {
     Intent accountIntent = new Intent(this, AccountActivity.class);
     accountIntent.setFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
-    startActivity(accountIntent);
+    startActivityForResult(accountIntent, 0);
     overridePendingTransition(0, 0);
   }
 
@@ -591,5 +591,14 @@ public class SetupSyncActivity extends AccountAuthenticatorActivity {
         }
       }
     });
+  }
+
+  @Override
+  public void onActivityResult(int requestCode, int resultCode, Intent data) {
+    switch (resultCode) {
+    case Activity.RESULT_OK:
+      // Setup completed in manual setup.
+      finish();
+    }
   }
 }
