@@ -78,7 +78,7 @@ private:
     bool mInitialized;
     PRLibrary *mOGLLibrary;
     NSOpenGLPixelFormat *mPixelFormat;
-};
+}; 
 
 CGLLibrary sCGLLibrary;
 
@@ -151,10 +151,7 @@ GLContextCGL::IsCurrent() {
 }
 
 GLenum
-GLContextCGL::GetPreferredARGB32Format() const
-{
-    return LOCAL_GL_BGRA;
-}
+GLContextCGL::GetPreferredARGB32Format() { return LOCAL_GL_BGRA; }
 
 bool
 GLContextCGL::SetupLookupFunction()
@@ -163,13 +160,13 @@ GLContextCGL::SetupLookupFunction()
 }
 
 bool
-GLContextCGL::IsDoubleBuffered() const
+GLContextCGL::IsDoubleBuffered()
 {
   return gUseDoubleBufferedWindows;
 }
 
 bool
-GLContextCGL::SupportsRobustness() const
+GLContextCGL::SupportsRobustness()
 {
     return false;
 }
@@ -182,6 +179,12 @@ GLContextCGL::SwapBuffers()
   return true;
 }
 
+
+bool
+GLContextCGL::ResizeOffscreen(const gfx::IntSize& aNewSize)
+{
+    return ResizeScreenBuffer(aNewSize);
+}
 
 static GLContextCGL *
 GetGlobalContextCGL()
@@ -280,7 +283,7 @@ GLContextProviderCGL::GetGlobalContext()
         if (!gGlobalContext || !static_cast<GLContextCGL*>(gGlobalContext.get())->Init()) {
             NS_WARNING("Couldn't init gGlobalContext.");
             gGlobalContext = nullptr;
-            return nullptr;
+            return nullptr; 
         }
     }
 

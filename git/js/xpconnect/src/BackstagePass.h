@@ -53,7 +53,7 @@ private:
   JS::TenuredHeap<JSObject*> mGlobal;
 };
 
-nsresult
+NS_EXPORT nsresult
 NS_NewBackstagePass(BackstagePass** ret);
 
 #endif // BackstagePass_h__

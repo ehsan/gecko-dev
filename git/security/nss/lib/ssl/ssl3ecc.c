@@ -30,7 +30,7 @@
 
 #include <stdio.h>
 
-#ifndef NSS_DISABLE_ECC
+#ifdef NSS_ENABLE_ECC
 
 #ifndef PK11_SETATTRS
 #define PK11_SETATTRS(x,id,v,l) (x)->type = (id); \
@@ -1258,4 +1258,4 @@ loser:
     return SECFailure;
 }
 
-#endif /* NSS_DISABLE_ECC */
+#endif /* NSS_ENABLE_ECC */

@@ -1364,7 +1364,7 @@ secu_PrintAttribute(FILE *out, SEC_PKCS7Attribute *attr, char *m, int level)
     }
 }
 
-#ifndef NSS_DISABLE_ECC
+#ifdef NSS_ENABLE_ECC
 static void
 secu_PrintECPublicKey(FILE *out, SECKEYPublicKey *pk, char *m, int level)
 {
@@ -1382,7 +1382,7 @@ secu_PrintECPublicKey(FILE *out, SECKEYPublicKey *pk, char *m, int level)
 	SECU_PrintObjectID(out, &curveOID, "Curve", level +1);
     }
 }
-#endif /* NSS_DISABLE_ECC */
+#endif /* NSS_ENABLE_ECC */
 
 void
 SECU_PrintRSAPublicKey(FILE *out, SECKEYPublicKey *pk, char *m, int level)
@@ -1426,7 +1426,7 @@ secu_PrintSubjectPublicKeyInfo(FILE *out, PLArenaPool *arena,
 	    SECU_PrintDSAPublicKey(out, pk, "DSA Public Key", level +1);
 	    break;
 
-#ifndef NSS_DISABLE_ECC
+#ifdef NSS_ENABLE_ECC
 	case ecKey:
 	    secu_PrintECPublicKey(out, pk, "EC Public Key", level +1);
 	    break;

@@ -67,8 +67,7 @@ class ArrayBufferObject : public JSObject
 
     static bool class_constructor(JSContext *cx, unsigned argc, Value *vp);
 
-    static ArrayBufferObject *create(JSContext *cx, uint32_t nbytes, bool clear = true,
-                                     NewObjectKind newKind = GenericObject);
+    static ArrayBufferObject *create(JSContext *cx, uint32_t nbytes, bool clear = true);
 
     static JSObject *createSlice(JSContext *cx, Handle<ArrayBufferObject*> arrayBuffer,
                                  uint32_t begin, uint32_t end);
