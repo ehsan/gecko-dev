@@ -204,18 +204,17 @@ nsresult nsWebShellWindow::Initialize(nsIXULWindow* aParent,
   // top-level chrome window case. See bug 789773.
   nsCOMPtr<nsIScriptSecurityManager> ssm =
     do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID, &rv);
-  if (ssm) { // Sometimes this happens really early  See bug 793370.
-    nsCOMPtr<nsIPrincipal> principal;
-    ssm->GetSubjectPrincipal(getter_AddRefs(principal));
-    if (!principal) {
-      ssm->GetSystemPrincipal(getter_AddRefs(principal));
-    }
-    rv = mDocShell->CreateAboutBlankContentViewer(principal);
-    NS_ENSURE_SUCCESS(rv, rv);
-    nsCOMPtr<nsIDocument> doc = do_GetInterface(mDocShell);
-    NS_ENSURE_TRUE(!!doc, NS_ERROR_FAILURE);
-    doc->SetIsInitialDocument(true);
+  MOZ_ASSERT(NS_SUCCEEDED(rv) && ssm);
+  nsCOMPtr<nsIPrincipal> principal;
+  ssm->GetSubjectPrincipal(getter_AddRefs(principal));
+  if (!principal) {
+    ssm->GetSystemPrincipal(getter_AddRefs(principal));
   }
+  rv = mDocShell->CreateAboutBlankContentViewer(principal);
+  NS_ENSURE_SUCCESS(rv, rv);
+  nsCOMPtr<nsIDocument> doc = do_GetInterface(mDocShell);
+  NS_ENSURE_TRUE(!!doc, NS_ERROR_FAILURE);
+  doc->SetIsInitialDocument(true);
 
   if (nullptr != aUrl)  {
     nsCString tmpStr;
