@@ -198,9 +198,24 @@ public:
       return NS_OK;
     }
 
-    // Do not autofocus if an sub-window is focused.
     nsPIDOMWindow* window = document->GetWindow();
-    if (window && window->GetFocusedNode()) {
+    if (!window) {
+      return NS_OK;
+    }
+
+    // Trying to found the top window (equivalent to window.top).
+    nsCOMPtr<nsIDOMWindow> top;
+    window->GetTop(getter_AddRefs(top));
+    if (top) {
+      window = static_cast<nsPIDOMWindow*>(top.get());
+    }
+
+    if (window->GetFocusedNode()) {
+      return NS_OK;
+    }
+
+    nsCOMPtr<nsIDocument> topDoc = do_QueryInterface(window->GetExtantDocument());
+    if (topDoc && topDoc->GetReadyStateEnum() == nsIDocument::READYSTATE_COMPLETE) {
       return NS_OK;
     }
 
@@ -2491,8 +2506,6 @@ nsGenericHTMLFormElement::BindToTree(nsIDocument* aDocument,
   // the document should not be already loaded and the "browser.autofocus"
   // preference should be 'true'.
   if (AcceptAutofocus() && HasAttr(kNameSpaceID_None, nsGkAtoms::autofocus) &&
-      aDocument &&
-      aDocument->GetReadyStateEnum() != nsIDocument::READYSTATE_COMPLETE &&
       nsContentUtils::GetBoolPref("browser.autofocus", PR_TRUE)) {
     nsCOMPtr<nsIRunnable> event = new nsAutoFocusEvent(this);
     rv = NS_DispatchToCurrentThread(event);

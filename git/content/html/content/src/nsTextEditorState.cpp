@@ -879,12 +879,16 @@ nsTextInputListener::EditAction()
   // no undo items; JS could change the value and we'd still need to save it)
   mFrame->SetValueChanged(PR_TRUE);
 
-  // Fire input event
-  mFrame->FireOnInput();
-
   if (!mSettingValue) {
     mTxtCtrlElement->OnValueChanged(PR_TRUE);
   }
+
+  // Fire input event
+  nsCOMPtr<nsIEditor_MOZILLA_2_0_BRANCH> editor20 = do_QueryInterface(editor);
+  NS_ASSERTION(editor20, "Something is very wrong!");
+  PRBool trusted = PR_FALSE;
+  editor20->GetLastKeypressEventTrusted(&trusted);
+  mFrame->FireOnInput(trusted);
 
   return NS_OK;
 }

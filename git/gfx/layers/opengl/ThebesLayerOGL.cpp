@@ -181,17 +181,16 @@ ThebesLayerBufferOGL::RenderTo(const nsIntPoint& aOffset,
   if (!mTexImage)
     return;
 
-  // Note BGR: Cairo's image surfaces are always in what
-  // OpenGL and our shaders consider BGR format.
-  ColorTextureLayerProgram *program =
-    aManager->GetBasicLayerProgram(mLayer->CanUseOpaqueSurface(),
-                                   mTexImage->IsRGB());
-
   gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
 
   if (!mTexImage->InUpdate() || !mTexImage->EndUpdate()) {
     gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexImage->Texture());
   }
+
+  // Note BGR: Cairo's image surfaces are always in what
+  // OpenGL and our shaders consider BGR format.
+  ColorTextureLayerProgram *program =
+    aManager->GetColorTextureLayerProgram(mTexImage->GetShaderProgramType());
 
   float xres = mLayer->GetXResolution();
   float yres = mLayer->GetYResolution();
@@ -642,12 +641,7 @@ ShadowBufferOGL::Upload(gfxASurface* aUpdate, const nsIntRegion& aUpdated,
   // NB: this gfxContext must not escape EndUpdate() below
   nsIntRegion scaledDestRegion(nsIntRect(destRect.pos.x, destRect.pos.y,
                                          destRect.size.width, destRect.size.height));
-  nsRefPtr<gfxContext> dest = mTexImage->BeginUpdate(scaledDestRegion);
-
-  dest->SetOperator(gfxContext::OPERATOR_SOURCE);
-  dest->DrawSurface(aUpdate, aUpdate->GetSize());
-
-  mTexImage->EndUpdate();
+  mTexImage->DirectUpdate(aUpdate, scaledDestRegion);
 
   mBufferRect = aRect;
   mBufferRotation = aRotation;

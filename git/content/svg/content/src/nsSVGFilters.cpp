@@ -63,7 +63,7 @@
 #include "nsImageLoadingContent.h"
 #include "imgIContainer.h"
 #include "nsNetUtil.h"
-#include "nsSVGPreserveAspectRatio.h"
+#include "SVGAnimatedPreserveAspectRatio.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsSVGFilterElement.h"
 #include "nsSVGString.h"
@@ -650,9 +650,6 @@ nsSVGFEGaussianBlurElement::GetDXY(PRUint32 *aDX, PRUint32 *aDY,
   if (stdX < 0 || stdY < 0)
     return NS_ERROR_FAILURE;
 
-  if (stdX == 0 || stdY == 0)
-    return NS_ERROR_UNEXPECTED;
-
   // If the box size is greater than twice the temporary surface size
   // in an axis, then each pixel will be set to the average of all the
   // other pixel values.
@@ -775,8 +772,6 @@ nsSVGFEGaussianBlurElement::Filter(nsSVGFilterInstance* aInstance,
 {
   PRUint32 dx, dy;
   nsresult rv = GetDXY(&dx, &dy, *aInstance);
-  if (rv == NS_ERROR_UNEXPECTED) // zero std deviation
-    return NS_OK;
   if (NS_FAILED(rv))
     return rv;
 
@@ -5346,7 +5341,7 @@ protected:
   virtual PRBool OperatesOnSRGB(nsSVGFilterInstance*,
                                 PRInt32, Image*) { return PR_TRUE; }
 
-  virtual nsSVGPreserveAspectRatio *GetPreserveAspectRatio();
+  virtual SVGAnimatedPreserveAspectRatio *GetPreserveAspectRatio();
   virtual StringAttributesInfo GetStringInfo();
   virtual void DidAnimateString(PRUint8 aAttrEnum);
 
@@ -5354,7 +5349,7 @@ protected:
   nsSVGString mStringAttributes[2];
   static StringInfo sStringInfo[2];
 
-  nsSVGPreserveAspectRatio mPreserveAspectRatio;
+  SVGAnimatedPreserveAspectRatio mPreserveAspectRatio;
 };
 
 nsSVGElement::StringInfo nsSVGFEImageElement::sStringInfo[2] =
@@ -5569,7 +5564,7 @@ nsSVGFEImageElement::ComputeTargetBBox(const nsTArray<nsIntRect>& aSourceBBoxes,
 //----------------------------------------------------------------------
 // nsSVGElement methods
 
-nsSVGPreserveAspectRatio *
+SVGAnimatedPreserveAspectRatio *
 nsSVGFEImageElement::GetPreserveAspectRatio()
 {
   return &mPreserveAspectRatio;

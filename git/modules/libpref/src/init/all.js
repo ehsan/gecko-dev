@@ -189,8 +189,6 @@ pref("gfx.color_management.mode", 2);
 pref("gfx.color_management.display_profile", "");
 pref("gfx.color_management.rendering_intent", 0);
 
-pref("gfx.3d_video.enabled", false);
-
 pref("gfx.downloadable_fonts.enabled", true);
 pref("gfx.downloadable_fonts.sanitize", true);
 #ifdef XP_MACOSX
@@ -740,8 +738,7 @@ pref("network.http.qos", 0);
 // The number of milliseconds after sending a SYN for an HTTP connection,
 // to wait before trying a different connection. 0 means do not use a second
 // connection.
-// Temporarily Disabled for 4.0 Beta 8 - bug 614677
-pref("network.http.connection-retry-timeout", 0);
+pref("network.http.connection-retry-timeout", 250);
 
 // default values for FTP
 // in a DSCP environment this should be 40 (0x28, or AF11), per RFC-4594,
