@@ -357,6 +357,18 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
         JS_ASSERT(cond == Equal || cond == NotEqual);
         return testDouble(cond, Operand(address));
     }
+
+
+    Condition testUndefined(Condition cond, const Operand &operand) {
+        JS_ASSERT(cond == Equal || cond == NotEqual);
+        cmpl(ToType(operand), ImmTag(JSVAL_TAG_UNDEFINED));
+        return cond;
+    }
+    Condition testUndefined(Condition cond, const Address &addr) {
+        return testUndefined(cond, Operand(addr));
+    }
+
+
     Condition testUndefined(Condition cond, const ValueOperand &value) {
         return testUndefined(cond, value.typeReg());
     }
@@ -500,6 +512,7 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
     }
 
     Condition testNegativeZero(const FloatRegister &reg, const Register &scratch);
+    Condition testNegativeZeroFloat32(const FloatRegister &reg, const Register &scratch);
 
     /////////////////////////////////////////////////////////////////
     // Common interface.
@@ -1059,7 +1072,7 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
     // Save an exit frame (which must be aligned to the stack pointer) to
     // ThreadData::ionTop of the main thread.
     void linkExitFrame() {
-        movl(StackPointer, Operand(AbsoluteAddress(&GetIonContext()->runtime->mainThread.ionTop)));
+        movl(StackPointer, Operand(AbsoluteAddress(GetIonContext()->runtime->addressOfIonTop())));
     }
 
     void callWithExitFrame(IonCode *target, Register dynStack) {

@@ -29,7 +29,7 @@ MacroAssemblerX86::getDouble(double d)
     size_t doubleIndex;
     DoubleMap::AddPtr p = doubleMap_.lookupForAdd(d);
     if (p) {
-        doubleIndex = p->value;
+        doubleIndex = p->value();
     } else {
         doubleIndex = doubles_.length();
         enoughMemory_ &= doubles_.append(Double(d));
@@ -75,7 +75,7 @@ MacroAssemblerX86::getFloat(float f)
     size_t floatIndex;
     FloatMap::AddPtr p = floatMap_.lookupForAdd(f);
     if (p) {
-        floatIndex = p->value;
+        floatIndex = p->value();
     } else {
         floatIndex = floats_.length();
         enoughMemory_ &= floats_.append(Float(f));
@@ -406,4 +406,12 @@ MacroAssemblerX86::testNegativeZero(const FloatRegister &reg, const Register &sc
 
     bind(&nonZero);
     return Zero;
+}
+
+Assembler::Condition
+MacroAssemblerX86::testNegativeZeroFloat32(const FloatRegister &reg, const Register &scratch)
+{
+    movd(reg, scratch);
+    cmpl(scratch, Imm32(1));
+    return Overflow;
 }
