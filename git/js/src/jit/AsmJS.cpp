@@ -5990,11 +5990,9 @@ static const RegisterSet AllRegsExceptSP =
                 FloatRegisterSet(FloatRegisters::AllMask));
 #if defined(JS_CODEGEN_ARM)
 // The ARM system ABI also includes d15 in the non volatile float registers.
-// Also exclude lr (a.k.a. r14) as we preserve it manually)
 static const RegisterSet NonVolatileRegs =
-    RegisterSet(GeneralRegisterSet(Registers::NonVolatileMask &
-                                   ~(uint32_t(1) << Registers::lr)),
-                FloatRegisterSet(FloatRegisters::NonVolatileMask | (1 << FloatRegisters::d15)));
+    RegisterSet(GeneralRegisterSet(Registers::NonVolatileMask),
+                    FloatRegisterSet(FloatRegisters::NonVolatileMask | (1 << FloatRegisters::d15)));
 #else
 static const RegisterSet NonVolatileRegs =
     RegisterSet(GeneralRegisterSet(Registers::NonVolatileMask),
@@ -6019,7 +6017,7 @@ LoadJSContextFromActivation(MacroAssembler &masm, Register activation, Register 
 static void
 AssertStackAlignment(MacroAssembler &masm)
 {
-    JS_ASSERT((AlignmentAtAsmJSPrologue + masm.framePushed()) % StackAlignment == 0);
+    JS_ASSERT((AlignmentAtPrologue + masm.framePushed()) % StackAlignment == 0);
 #ifdef DEBUG
     Label ok;
     JS_ASSERT(IsPowerOfTwo(StackAlignment));
@@ -6044,7 +6042,7 @@ StackDecrementForCall(MacroAssembler &masm, unsigned bytesToPush)
 {
     // Include extra padding so that, after pushing the bytesToPush,
     // the stack is aligned for a call instruction.
-    unsigned alreadyPushed = AlignmentAtAsmJSPrologue + masm.framePushed();
+    unsigned alreadyPushed = AlignmentAtPrologue + masm.framePushed();
     return AlignBytes(alreadyPushed + bytesToPush, StackAlignment) - alreadyPushed;
 }
 
@@ -6080,14 +6078,6 @@ GenerateEntry(ModuleCompiler &m, const AsmJSModule::ExportedFunction &exportedFu
     // NB: GenerateExits assumes that masm.framePushed() == 0 before
     // PushRegsInMask(NonVolatileRegs).
     masm.setFramePushed(0);
-
-#if defined(JS_CODEGEN_ARM)
-    // Push lr without incrementing masm.framePushed since this push is
-    // accounted for by AlignmentAtAsmJSPrologue. The masm.ret at the end will
-    // pop.
-    masm.push(lr);
-#endif // JS_CODEGEN_ARM
-
     masm.PushRegsInMask(NonVolatileRegs);
     JS_ASSERT(masm.framePushed() == FramePushedAfterSave);
 
@@ -6184,7 +6174,7 @@ GenerateEntry(ModuleCompiler &m, const AsmJSModule::ExportedFunction &exportedFu
     JS_ASSERT(masm.framePushed() == 0);
 
     masm.move32(Imm32(true), ReturnReg);
-    masm.ret();
+    masm.abiret();
     return true;
 }
 
@@ -6338,12 +6328,8 @@ GenerateFFIInterpreterExit(ModuleCompiler &m, const ModuleCompiler::ExitDescript
     masm.align(CodeAlignment);
     m.setInterpExitOffset(exitIndex);
     masm.setFramePushed(0);
-
 #if defined(JS_CODEGEN_ARM)
-    // Push lr without incrementing masm.framePushed since this push is
-    // accounted for by AlignmentAtAsmJSPrologue. The masm.ret at the end will
-    // pop.
-    masm.push(lr);
+    masm.Push(lr);
 #endif
 
     MIRType typeArray[] = { MIRType_Pointer,   // cx
@@ -6360,7 +6346,7 @@ GenerateFFIInterpreterExit(ModuleCompiler &m, const ModuleCompiler::ExitDescript
     masm.reserveStack(stackDec);
 
     // Fill the argument array.
-    unsigned offsetToCallerStackArgs = AlignmentAtAsmJSPrologue + masm.framePushed();
+    unsigned offsetToCallerStackArgs = AlignmentAtPrologue + masm.framePushed();
     unsigned offsetToArgv = StackArgBytes(invokeArgTypes) + MaybeRetAddr;
     Register scratch = ABIArgGenerator::NonArgReturnVolatileReg0;
     FillArgumentArray(m, exit.sig().args(), offsetToArgv, offsetToCallerStackArgs, scratch);
@@ -6513,16 +6499,14 @@ GenerateFFIIonExit(ModuleCompiler &m, const ModuleCompiler::ExitDescriptor &exit
 #if defined(JS_CODEGEN_X64)
     masm.Push(HeapReg);
 #elif defined(JS_CODEGEN_ARM)
-    // Push lr without incrementing masm.framePushed since this push is
-    // accounted for by AlignmentAtAsmJSPrologue. The masm.ret at the end will
-    // pop.
-    masm.push(lr);
-
-    // The GlobalReg (r10) and HeapReg (r11) also need to be restored before
-    // returning to asm.js code.
+    // The lr register holds the return address and needs to be saved.  The GlobalReg
+    // (r10) and HeapReg (r11) also need to be restored before returning to asm.js code.
     // The NANReg also needs to be restored, but is a constant and is reloaded before
     // returning to asm.js code.
-    masm.PushRegsInMask(GeneralRegisterSet((1<<GlobalReg.code()) | (1<<HeapReg.code())));
+    masm.PushRegsInMask(RegisterSet(GeneralRegisterSet((1<<GlobalReg.code()) |
+                                                       (1<<HeapReg.code()) |
+                                                       (1<<lr.code())),
+                                    FloatRegisterSet(uint32_t(0))));
 #endif
 
     // The stack frame is used for the call into Ion and also for calls into C for OOL
@@ -6716,14 +6700,18 @@ GenerateFFIIonExit(ModuleCompiler &m, const ModuleCompiler::ExitDescriptor &exit
 
     masm.bind(&done);
     masm.freeStack(stackDec);
-#if defined(JS_CODEGEN_X64)
-    masm.Pop(HeapReg);
-#endif
 #if defined(JS_CODEGEN_ARM)
     masm.ma_vimm(GenericNaN(), NANReg);
-    masm.PopRegsInMask(GeneralRegisterSet((1<<GlobalReg.code()) | (1<<HeapReg.code())));
-#endif
+    masm.PopRegsInMask(RegisterSet(GeneralRegisterSet((1<<GlobalReg.code()) |
+                                                      (1<<HeapReg.code()) |
+                                                      (1<<pc.code())),
+                                   FloatRegisterSet(uint32_t(0))));
+#else
+# if defined(JS_CODEGEN_X64)
+    masm.Pop(HeapReg);
+# endif
     masm.ret();
+#endif
     JS_ASSERT(masm.framePushed() == 0);
 
     // oolConvert
@@ -6762,6 +6750,10 @@ GenerateStackOverflowExit(ModuleCompiler &m, Label *throwLabel)
     MacroAssembler &masm = m.masm();
     masm.align(CodeAlignment);
     masm.bind(&m.stackOverflowLabel());
+
+    // The overflow check always occurs before the initial function-specific
+    // stack-size adjustment. See CodeGenerator::generateAsmJSPrologue.
+    masm.setFramePushed(AlignmentMidPrologue - AlignmentAtPrologue);
 
     MIRTypeVector argTypes(m.cx());
     argTypes.infallibleAppend(MIRType_Pointer); // cx
@@ -6932,7 +6924,7 @@ GenerateThrowExit(ModuleCompiler &m, Label *throwLabel)
     JS_ASSERT(masm.framePushed() == 0);
 
     masm.mov(ImmWord(0), ReturnReg);
-    masm.ret();
+    masm.abiret();
 
     return !masm.oom();
 }

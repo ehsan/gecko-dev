@@ -12067,7 +12067,7 @@ nsIDocument::Constructor(const GlobalObject& aGlobal,
                       prin->GetPrincipal(),
                       true,
                       global,
-                      DocumentFlavorPlain);
+                      DocumentFlavorLegacyGuess);
   if (NS_FAILED(res)) {
     rv.Throw(res);
     return nullptr;

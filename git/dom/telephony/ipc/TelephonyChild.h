@@ -9,16 +9,16 @@
 #include "mozilla/dom/telephony/TelephonyCommon.h"
 #include "mozilla/dom/telephony/PTelephonyChild.h"
 #include "mozilla/dom/telephony/PTelephonyRequestChild.h"
-#include "nsITelephonyService.h"
+#include "nsITelephonyProvider.h"
 
 BEGIN_TELEPHONY_NAMESPACE
 
-class TelephonyIPCService;
+class TelephonyIPCProvider;
 
 class TelephonyChild : public PTelephonyChild
 {
 public:
-  TelephonyChild(TelephonyIPCService* aService);
+  TelephonyChild(TelephonyIPCProvider* aProvider);
 
 protected:
   virtual ~TelephonyChild();
@@ -57,7 +57,7 @@ protected:
                                  const uint16_t& aNotification) MOZ_OVERRIDE;
 
 private:
-  nsRefPtr<TelephonyIPCService> mService;
+  nsRefPtr<TelephonyIPCProvider> mProvider;
 };
 
 class TelephonyRequestChild : public PTelephonyRequestChild

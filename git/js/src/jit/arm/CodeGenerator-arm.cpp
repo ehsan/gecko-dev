@@ -53,7 +53,7 @@ CodeGeneratorARM::generateAsmJSPrologue(Label *stackOverflowLabel)
 {
     JS_ASSERT(gen->compilingAsmJS());
 
-    masm.push(lr);
+    masm.Push(lr);
 
     // The asm.js over-recursed handler wants to be able to assume that SP
     // points to the return address, so perform the check after pushing lr but
@@ -85,12 +85,18 @@ CodeGeneratorARM::generateEpilogue()
     }
 #endif
 
-    if (gen->compilingAsmJS())
+    if (gen->compilingAsmJS()) {
+        // Pop the stack we allocated at the start of the function.
         masm.freeStack(frameDepth_);
-    else
+        masm.Pop(pc);
+        JS_ASSERT(masm.framePushed() == 0);
+        //masm.as_bkpt();
+    } else {
+        // Pop the stack we allocated at the start of the function.
         masm.freeStack(frameSize());
-    JS_ASSERT(masm.framePushed() == 0);
-    masm.pop(pc);
+        JS_ASSERT(masm.framePushed() == 0);
+        masm.ma_pop(pc);
+    }
     masm.dumpPool();
     return true;
 }
@@ -1041,8 +1047,14 @@ CodeGeneratorARM::toMoveOperand(const LAllocation *a) const
         return MoveOperand(ToRegister(a));
     if (a->isFloatReg())
         return MoveOperand(ToFloatRegister(a));
+    JS_ASSERT((ToStackOffset(a) & 3) == 0);
     int32_t offset = ToStackOffset(a);
-    JS_ASSERT((offset & 3) == 0);
+
+    // The way the stack slots work, we assume that everything from depth == 0 downwards is writable
+    // however, since our frame is included in this, ensure that the frame gets skipped
+    if (gen->compilingAsmJS())
+        offset -= AlignmentMidPrologue;
+
     return MoveOperand(StackPointer, offset);
 }
 

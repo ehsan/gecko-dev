@@ -8852,9 +8852,9 @@ IonBuilder::getPropTryCommonGetter(bool *emitted, MDefinition *obj, PropertyName
     if (isDOM && testShouldDOMCall(objTypes, commonGetter, JSJitInfo::Getter)) {
         const JSJitInfo *jitinfo = commonGetter->jitInfo();
         MInstruction *get;
-        if (jitinfo->isAlwaysInSlot) {
+        if (jitinfo->isInSlot) {
             // We can't use MLoadFixedSlot here because it might not have the
-            // right aliasing behavior; we want to alias DOM setters as needed.
+            // right aliasing behavior; we want to alias DOM setters.
             get = MGetDOMMember::New(alloc(), jitinfo, obj, guard);
         } else {
             get = MGetDOMProperty::New(alloc(), jitinfo, obj, guard);

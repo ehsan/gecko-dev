@@ -4082,19 +4082,12 @@ js_NewDependentString(JSContext *cx, JSString *baseArg, size_t start, size_t len
     if (start == 0 && length == base->length())
         return base;
 
-    if (base->hasTwoByteChars()) {
-        AutoCheckCannotGC nogc;
-        const jschar *chars = base->twoByteChars(nogc) + start;
-        if (JSLinearString *staticStr = cx->staticStrings().lookup(chars, length))
-            return staticStr;
-    } else {
-        AutoCheckCannotGC nogc;
-        const Latin1Char *chars = base->latin1Chars(nogc) + start;
-        if (JSLinearString *staticStr = cx->staticStrings().lookup(chars, length))
-            return staticStr;
-    }
+    const jschar *chars = base->chars() + start;
 
-    return JSDependentString::new_(cx, base, start, length);
+    if (JSLinearString *staticStr = cx->staticStrings().lookup(chars, length))
+        return staticStr;
+
+    return JSDependentString::new_(cx, base, chars, length);
 }
 
 template <AllowGC allowGC>

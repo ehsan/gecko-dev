@@ -390,9 +390,7 @@ ContainerRender(ContainerT* aContainer,
 #ifdef MOZ_DUMP_PAINTING
     if (gfxUtils::sDumpPainting) {
       RefPtr<gfx::DataSourceSurface> surf = surface->Dump(aManager->GetCompositor());
-      if (surf) {
-        WriteSnapshotToDumpFile(aContainer, surf);
-      }
+      WriteSnapshotToDumpFile(aContainer, surf);
     }
 #endif
 

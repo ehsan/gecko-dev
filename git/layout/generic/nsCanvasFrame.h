@@ -195,9 +195,6 @@ public:
   }
 
   NS_DISPLAY_DECL_NAME("CanvasBackgroundColor", TYPE_CANVAS_BACKGROUND_COLOR)
-#ifdef MOZ_DUMP_PAINTING
-  virtual void WriteDebugInfo(nsACString& aTo) MOZ_OVERRIDE;
-#endif
 
 private:
   nscolor mColor;

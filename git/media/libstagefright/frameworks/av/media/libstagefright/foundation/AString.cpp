@@ -325,7 +325,7 @@ AString StringPrintf(const char *format, ...) {
     va_start(ap, format);
 
     char *buffer;
-#ifdef WIN32
+#ifdef _MSC_VER
     int n = vsnprintf(NULL, 0, format, ap);
     buffer = new char[n+1];
     vsnprintf(buffer, n+1, format, ap);

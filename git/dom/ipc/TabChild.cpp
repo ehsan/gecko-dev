@@ -1257,12 +1257,10 @@ TabChild::BrowserFrameProvideWindow(nsIDOMWindow* aOpener,
   context.openerChild() = this;
   context.isBrowserElement() = IsBrowserElement();
 
-  ContentChild* cc = static_cast<ContentChild*>(Manager());
   unused << Manager()->SendPBrowserConstructor(
       // We release this ref in DeallocPBrowserChild
       nsRefPtr<TabChild>(newChild).forget().take(),
-      IPCTabContext(context, mScrolling), /* chromeFlags */ 0,
-      cc->GetID(), cc->IsForApp(), cc->IsForBrowser());
+      IPCTabContext(context, mScrolling), /* chromeFlags */ 0);
 
   nsAutoCString spec;
   if (aURI) {
@@ -2009,7 +2007,7 @@ TabChild::RecvRealTouchEvent(const WidgetTouchEvent& aEvent,
   }
 
   nsCOMPtr<nsPIDOMWindow> outerWindow = do_GetInterface(WebNavigation());
-  nsCOMPtr<nsPIDOMWindow> innerWindow = outerWindow ? outerWindow->GetCurrentInnerWindow() : nullptr;
+  nsCOMPtr<nsPIDOMWindow> innerWindow = outerWindow->GetCurrentInnerWindow();
 
   if (!innerWindow || (!innerWindow->HasTouchEventListeners() &&
                        !innerWindow->MayHaveTouchCaret())) {

@@ -1086,7 +1086,7 @@ GCRuntime::GCRuntime(JSRuntime *rt) :
     sweepKindIndex(0),
     abortSweepAfterCurrentGroup(false),
     arenasAllocatedDuringSweep(nullptr),
-#ifdef JS_GC_MARKING_VALIDATION
+#ifdef DEBUG
     markingValidator(nullptr),
 #endif
     interFrameGC(0),
@@ -3159,10 +3159,6 @@ class js::gc::MarkingValidator
     BitmapMap map;
 };
 
-#endif // DEBUG
-
-#ifdef JS_GC_MARKING_VALIDATION
-
 js::gc::MarkingValidator::MarkingValidator(GCRuntime *gc)
   : gc(gc),
     initialized(false)
@@ -3351,12 +3347,12 @@ js::gc::MarkingValidator::validate()
     }
 }
 
-#endif // JS_GC_MARKING_VALIDATION
+#endif
 
 void
 GCRuntime::computeNonIncrementalMarkingForValidation()
 {
-#ifdef JS_GC_MARKING_VALIDATION
+#ifdef DEBUG
     JS_ASSERT(!markingValidator);
     if (isIncremental && validate)
         markingValidator = js_new<MarkingValidator>(this);
@@ -3368,7 +3364,7 @@ GCRuntime::computeNonIncrementalMarkingForValidation()
 void
 GCRuntime::validateIncrementalMarking()
 {
-#ifdef JS_GC_MARKING_VALIDATION
+#ifdef DEBUG
     if (markingValidator)
         markingValidator->validate();
 #endif
@@ -3377,7 +3373,7 @@ GCRuntime::validateIncrementalMarking()
 void
 GCRuntime::finishMarkingValidation()
 {
-#ifdef JS_GC_MARKING_VALIDATION
+#ifdef DEBUG
     js_delete(markingValidator);
     markingValidator = nullptr;
 #endif
@@ -3386,7 +3382,7 @@ GCRuntime::finishMarkingValidation()
 static void
 AssertNeedsBarrierFlagsConsistent(JSRuntime *rt)
 {
-#ifdef JS_GC_MARKING_VALIDATION
+#ifdef DEBUG
     bool anyNeedsBarrier = false;
     for (ZonesIter zone(rt, WithAtoms); !zone.done(); zone.next())
         anyNeedsBarrier |= zone->needsBarrier();

@@ -374,22 +374,10 @@ bool GetScreenEnabled()
   RETURN_PROXY_IF_SANDBOXED(GetScreenEnabled(), false);
 }
 
-void SetScreenEnabled(bool aEnabled)
+void SetScreenEnabled(bool enabled)
 {
   AssertMainThread();
-  PROXY_IF_SANDBOXED(SetScreenEnabled(aEnabled));
-}
-
-bool GetKeyLightEnabled()
-{
-  AssertMainThread();
-  RETURN_PROXY_IF_SANDBOXED(GetKeyLightEnabled(), false);
-}
-
-void SetKeyLightEnabled(bool aEnabled)
-{
-  AssertMainThread();
-  PROXY_IF_SANDBOXED(SetKeyLightEnabled(aEnabled));
+  PROXY_IF_SANDBOXED(SetScreenEnabled(enabled));
 }
 
 bool GetCpuSleepAllowed()
@@ -402,10 +390,10 @@ bool GetCpuSleepAllowed()
   RETURN_PROXY_IF_SANDBOXED(GetCpuSleepAllowed(), true);
 }
 
-void SetCpuSleepAllowed(bool aAllowed)
+void SetCpuSleepAllowed(bool allowed)
 {
   AssertMainThread();
-  PROXY_IF_SANDBOXED(SetCpuSleepAllowed(aAllowed));
+  PROXY_IF_SANDBOXED(SetCpuSleepAllowed(allowed));
 }
 
 double GetScreenBrightness()
@@ -414,10 +402,10 @@ double GetScreenBrightness()
   RETURN_PROXY_IF_SANDBOXED(GetScreenBrightness(), 0);
 }
 
-void SetScreenBrightness(double aBrightness)
+void SetScreenBrightness(double brightness)
 {
   AssertMainThread();
-  PROXY_IF_SANDBOXED(SetScreenBrightness(clamped(aBrightness, 0.0, 1.0)));
+  PROXY_IF_SANDBOXED(SetScreenBrightness(clamped(brightness, 0.0, 1.0)));
 }
 
 bool SetLight(LightType light, const LightConfiguration& aConfig)
