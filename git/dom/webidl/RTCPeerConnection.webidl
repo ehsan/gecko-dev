@@ -61,7 +61,6 @@ dictionary MediaConstraintSet {
   boolean OfferToReceiveAudio;
   boolean OfferToReceiveVideo;
   boolean MozDontOfferDataChannel;
-  boolean MozBundleOnly;
 };
 
 // MediaConstraint = single-property-subset of MediaConstraintSet

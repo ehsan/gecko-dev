@@ -181,20 +181,15 @@ nsJPEGDecoder::FinishInternal()
    * XXXbholley - It seems wrong that this should be necessary, but at the
    * moment I'm just folding the contents of Flush() into Close() so that
    * we can get rid of it.
-   *
-   * XXX(seth): It'd be great to get rid of this. For now, we treat this as a
-   * write to a synchronous decoder, which means that this must be called only
-   * on the main thread. (That's asserted in Decoder::Finish and
-   * Decoder::FinishSharedDecoder.)
    */
   if ((mState != JPEG_DONE && mState != JPEG_SINK_NON_JPEG_TRAILER) &&
       (mState != JPEG_ERROR) &&
       !IsSizeDecode())
-    this->Write(nullptr, 0, DECODE_SYNC);
+    this->Write(nullptr, 0);
 }
 
 void
-nsJPEGDecoder::WriteInternal(const char *aBuffer, uint32_t aCount, DecodeStrategy)
+nsJPEGDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
 {
   mSegment = (const JOCTET *)aBuffer;
   mSegmentLen = aCount;

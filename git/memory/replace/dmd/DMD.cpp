@@ -2299,9 +2299,9 @@ void foo()
 static void
 UseItOrLoseIt(void* a)
 {
-  char buf[64];
-  sprintf(buf, "%p\n", a);
-  fwrite(buf, 1, strlen(buf) + 1, stderr);
+  if (a == 0) {
+    fprintf(stderr, "UseItOrLoseIt: %p\n", a);
+  }
 }
 
 // The output from this should be compared against test-expected.dmd.  It's
@@ -2315,11 +2315,11 @@ RunTestMode(FILE* fp)
   // The first part of this test requires sampling to be disabled.
   gOptions->SetSampleBelowSize(1);
 
-  // Dump 1.  Zero for everything.
+  // 0th Dump.  Zero for everything.
   Dump(writer);
 
-  // Dump 2: 1 freed, 9 out of 10 unreported.
-  // Dump 3: still present and unreported.
+  // 1st Dump: 1 freed, 9 out of 10 unreported.
+  // 2nd Dump: still present and unreported.
   int i;
   char* a;
   for (i = 0; i < 10; i++) {
@@ -2329,94 +2329,94 @@ RunTestMode(FILE* fp)
   free(a);
 
   // Min-sized block.
-  // Dump 2: reported.
-  // Dump 3: thrice-reported.
+  // 1st Dump: reported.
+  // 2nd Dump: thrice-reported.
   char* a2 = (char*) malloc(0);
   Report(a2);
 
   // Operator new[].
-  // Dump 2: reported.
-  // Dump 3: reportedness carries over, due to ReportOnAlloc.
+  // 1st Dump: reported.
+  // 2nd Dump: reportedness carries over, due to ReportOnAlloc.
   char* b = new char[10];
   ReportOnAlloc(b);
 
   // ReportOnAlloc, then freed.
-  // Dump 2: freed, irrelevant.
-  // Dump 3: freed, irrelevant.
+  // 1st Dump: freed, irrelevant.
+  // 2nd Dump: freed, irrelevant.
   char* b2 = new char;
   ReportOnAlloc(b2);
   free(b2);
 
-  // Dump 2: reported 4 times.
-  // Dump 3: freed, irrelevant.
+  // 1st Dump: reported 4 times.
+  // 2nd Dump: freed, irrelevant.
   char* c = (char*) calloc(10, 3);
   Report(c);
   for (int i = 0; i < 3; i++) {
     Report(c);
   }
 
-  // Dump 2: ignored.
-  // Dump 3: irrelevant.
+  // 1st Dump: ignored.
+  // 2nd Dump: irrelevant.
   Report((void*)(intptr_t)i);
 
   // jemalloc rounds this up to 8192.
-  // Dump 2: reported.
-  // Dump 3: freed.
+  // 1st Dump: reported.
+  // 2nd Dump: freed.
   char* e = (char*) malloc(4096);
   e = (char*) realloc(e, 4097);
   Report(e);
 
   // First realloc is like malloc;  second realloc is shrinking.
-  // Dump 2: reported.
-  // Dump 3: re-reported.
+  // 1st Dump: reported.
+  // 2nd Dump: re-reported.
   char* e2 = (char*) realloc(nullptr, 1024);
   e2 = (char*) realloc(e2, 512);
   Report(e2);
 
   // First realloc is like malloc;  second realloc creates a min-sized block.
   // XXX: on Windows, second realloc frees the block.
-  // Dump 2: reported.
-  // Dump 3: freed, irrelevant.
+  // 1st Dump: reported.
+  // 2nd Dump: freed, irrelevant.
   char* e3 = (char*) realloc(nullptr, 1023);
 //e3 = (char*) realloc(e3, 0);
   MOZ_ASSERT(e3);
   Report(e3);
 
-  // Dump 2: freed, irrelevant.
-  // Dump 3: freed, irrelevant.
+  // 1st Dump: freed, irrelevant.
+  // 2nd Dump: freed, irrelevant.
   char* f = (char*) malloc(64);
   free(f);
 
-  // Dump 2: ignored.
-  // Dump 3: irrelevant.
+  // 1st Dump: ignored.
+  // 2nd Dump: irrelevant.
   Report((void*)(intptr_t)0x0);
 
-  // Dump 2: mixture of reported and unreported.
-  // Dump 3: all unreported.
+  // 1st Dump: mixture of reported and unreported.
+  // 2nd Dump: all unreported.
   foo();
   foo();
 
-  // Dump 2: twice-reported.
-  // Dump 3: twice-reported.
+  // 1st Dump: twice-reported.
+  // 2nd Dump: twice-reported.
   char* g1 = (char*) malloc(77);
   ReportOnAlloc(g1);
   ReportOnAlloc(g1);
 
-  // Dump 2: twice-reported.
-  // Dump 3: once-reported.
+  // 1st Dump: twice-reported.
+  // 2nd Dump: once-reported.
   char* g2 = (char*) malloc(78);
   Report(g2);
   ReportOnAlloc(g2);
 
-  // Dump 2: twice-reported.
-  // Dump 3: once-reported.
+  // 1st Dump: twice-reported.
+  // 2nd Dump: once-reported.
   char* g3 = (char*) malloc(79);
   ReportOnAlloc(g3);
   Report(g3);
 
   // All the odd-ball ones.
-  // Dump 2: all unreported.
-  // Dump 3: all freed, irrelevant.
+  // 1st Dump: all unreported.
+  // 2nd Dump: all freed, irrelevant.
   // XXX: no memalign on Mac
 //void* x = memalign(64, 65);           // rounds up to 128
 //UseItOrLoseIt(x);
@@ -2429,7 +2429,7 @@ RunTestMode(FILE* fp)
 //UseItOrLoseIt(z);
 //aligned_alloc(64, 256);               // XXX: C11 only
 
-  // Dump 2.
+  // 1st Dump.
   Dump(writer);
 
   //---------
@@ -2444,7 +2444,7 @@ RunTestMode(FILE* fp)
 //free(y);
 //free(z);
 
-  // Dump 3.
+  // 2nd Dump.
   Dump(writer);
 
   //---------
@@ -2508,7 +2508,6 @@ RunTestMode(FILE* fp)
   // At the end we're 64 bytes into the current sample so we report ~1,424
   // bytes of allocation overall, which is 64 less than the real value 1,488.
 
-  // Dump 4.
   Dump(writer);
 }
 
@@ -2516,21 +2515,12 @@ RunTestMode(FILE* fp)
 // Stress testing microbenchmark
 //---------------------------------------------------------------------------
 
-// This stops otherwise-unused variables from being optimized away.
-static void
-UseItOrLoseIt2(void* a)
-{
-  if (a == (void*)0x42) {
-    printf("UseItOrLoseIt2\n");
-  }
-}
-
 MOZ_NEVER_INLINE static void
 stress5()
 {
   for (int i = 0; i < 10; i++) {
     void* x = malloc(64);
-    UseItOrLoseIt2(x);
+    UseItOrLoseIt(x);
     if (i & 1) {
       free(x);
     }

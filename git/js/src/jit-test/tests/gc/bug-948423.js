@@ -1,6 +1,3 @@
-if (!this.hasOwnProperty("TypedObject"))
-  quit();
-
 var ArrayType = TypedObject.ArrayType;
 var StructType = TypedObject.StructType;
 var uint8 = TypedObject.uint8;

@@ -140,7 +140,7 @@ class Assembler : public AssemblerX86Shared
     }
     void addPendingJump(JmpSrc src, ImmPtr target, Relocation::Kind kind) {
         enoughMemory_ &= jumps_.append(RelativePatch(src.offset(), target.value, kind));
-        if (kind == Relocation::JITCODE)
+        if (kind == Relocation::IONCODE)
             writeRelocation(src);
     }
 
@@ -156,7 +156,7 @@ class Assembler : public AssemblerX86Shared
     using AssemblerX86Shared::push;
     using AssemblerX86Shared::pop;
 
-    static void TraceJumpRelocations(JSTracer *trc, JitCode *code, CompactBufferReader &reader);
+    static void TraceJumpRelocations(JSTracer *trc, IonCode *code, CompactBufferReader &reader);
 
     // Copy the assembly code to the given buffer, and perform any pending
     // relocations relying on the target address.
@@ -339,15 +339,15 @@ class Assembler : public AssemblerX86Shared
         addPendingJump(src, target, reloc);
     }
 
-    void jmp(JitCode *target) {
-        jmp(ImmPtr(target->raw()), Relocation::JITCODE);
+    void jmp(IonCode *target) {
+        jmp(ImmPtr(target->raw()), Relocation::IONCODE);
     }
-    void j(Condition cond, JitCode *target) {
-        j(cond, ImmPtr(target->raw()), Relocation::JITCODE);
+    void j(Condition cond, IonCode *target) {
+        j(cond, ImmPtr(target->raw()), Relocation::IONCODE);
     }
-    void call(JitCode *target) {
+    void call(IonCode *target) {
         JmpSrc src = masm.call();
-        addPendingJump(src, ImmPtr(target->raw()), Relocation::JITCODE);
+        addPendingJump(src, ImmPtr(target->raw()), Relocation::IONCODE);
     }
     void call(ImmWord target) {
         call(ImmPtr((void*)target.value));
@@ -366,10 +366,10 @@ class Assembler : public AssemblerX86Shared
 
     // Emit a CALL or CMP (nop) instruction. ToggleCall can be used to patch
     // this instruction.
-    CodeOffsetLabel toggledCall(JitCode *target, bool enabled) {
+    CodeOffsetLabel toggledCall(IonCode *target, bool enabled) {
         CodeOffsetLabel offset(size());
         JmpSrc src = enabled ? masm.call() : masm.cmp_eax();
-        addPendingJump(src, ImmPtr(target->raw()), Relocation::JITCODE);
+        addPendingJump(src, ImmPtr(target->raw()), Relocation::IONCODE);
         JS_ASSERT(size() - offset.offset() == ToggledCallSize());
         return offset;
     }

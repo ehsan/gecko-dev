@@ -507,7 +507,6 @@ public:
     static int  GetPrefLayoutFrameRate();
     static bool GetPrefLayersDump();
     static bool GetPrefLayersScrollGraph();
-    static bool GetPrefLayersEnableTiles();
 
     static bool OffMainThreadCompositionRequired();
 

@@ -102,7 +102,7 @@ struct BaselineScript
 
   private:
     // Code pointer containing the actual method.
-    HeapPtr<JitCode> method_;
+    HeapPtr<IonCode> method_;
 
     // For heavyweight scripts, template objects to use for the call object and
     // decl env object (linked via the call object's enclosing scope).
@@ -232,10 +232,10 @@ struct BaselineScript
         return &fallbackStubSpace_;
     }
 
-    JitCode *method() const {
+    IonCode *method() const {
         return method_;
     }
-    void setMethod(JitCode *code) {
+    void setMethod(IonCode *code) {
         JS_ASSERT(!method_);
         method_ = code;
     }

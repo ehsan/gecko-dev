@@ -163,30 +163,29 @@ MacroAssemblerX86::setupUnalignedABICall(uint32_t args, const Register &scratch)
 }
 
 void
-MacroAssemblerX86::passABIArg(const MoveOperand &from, MoveOp::Type type)
+MacroAssemblerX86::passABIArg(const MoveOperand &from)
 {
     ++passedArgs_;
     MoveOperand to = MoveOperand(StackPointer, stackForCall_);
-    switch (type) {
-      case MoveOp::FLOAT32: stackForCall_ += sizeof(float); break;
-      case MoveOp::DOUBLE:  stackForCall_ += sizeof(double); break;
-      case MoveOp::INT32:   stackForCall_ += sizeof(int32_t); break;
-      case MoveOp::GENERAL: stackForCall_ += sizeof(intptr_t); break;
-      default: MOZ_ASSUME_UNREACHABLE("Unexpected argument type");
+    if (from.isDouble()) {
+        stackForCall_ += sizeof(double);
+        enoughMemory_ &= moveResolver_.addMove(from, to, MoveOp::DOUBLE);
+    } else {
+        stackForCall_ += sizeof(int32_t);
+        enoughMemory_ &= moveResolver_.addMove(from, to, MoveOp::GENERAL);
     }
-    enoughMemory_ &= moveResolver_.addMove(from, to, type);
 }
 
 void
 MacroAssemblerX86::passABIArg(const Register &reg)
 {
-    passABIArg(MoveOperand(reg), MoveOp::GENERAL);
+    passABIArg(MoveOperand(reg));
 }
 
 void
-MacroAssemblerX86::passABIArg(const FloatRegister &reg, MoveOp::Type type)
+MacroAssemblerX86::passABIArg(const FloatRegister &reg)
 {
-    passABIArg(MoveOperand(reg), type);
+    passABIArg(MoveOperand(reg));
 }
 
 void
@@ -197,7 +196,7 @@ MacroAssemblerX86::callWithABIPre(uint32_t *stackAdjust)
 
     if (dynamicAlignment_) {
         *stackAdjust = stackForCall_
-                     + ComputeByteAlignment(stackForCall_ + sizeof(intptr_t),
+                     + ComputeByteAlignment(stackForCall_ + STACK_SLOT_SIZE,
                                             StackAlignment);
     } else {
         *stackAdjust = stackForCall_
@@ -231,18 +230,19 @@ MacroAssemblerX86::callWithABIPre(uint32_t *stackAdjust)
 }
 
 void
-MacroAssemblerX86::callWithABIPost(uint32_t stackAdjust, MoveOp::Type result)
+MacroAssemblerX86::callWithABIPost(uint32_t stackAdjust, Result result)
 {
     freeStack(stackAdjust);
-    if (result == MoveOp::DOUBLE) {
+    if (result == DOUBLE) {
         reserveStack(sizeof(double));
         fstp(Operand(esp, 0));
         loadDouble(Operand(esp, 0), ReturnFloatReg);
         freeStack(sizeof(double));
-    } else if (result == MoveOp::FLOAT32) {
+    }
+    if (result == FLOAT) {
         reserveStack(sizeof(float));
         fstp32(Operand(esp, 0));
-        loadFloat32(Operand(esp, 0), ReturnFloatReg);
+        loadFloat(Operand(esp, 0), ReturnFloatReg);
         freeStack(sizeof(float));
     }
     if (dynamicAlignment_)
@@ -253,7 +253,7 @@ MacroAssemblerX86::callWithABIPost(uint32_t stackAdjust, MoveOp::Type result)
 }
 
 void
-MacroAssemblerX86::callWithABI(void *fun, MoveOp::Type result)
+MacroAssemblerX86::callWithABI(void *fun, Result result)
 {
     uint32_t stackAdjust;
     callWithABIPre(&stackAdjust);
@@ -262,7 +262,7 @@ MacroAssemblerX86::callWithABI(void *fun, MoveOp::Type result)
 }
 
 void
-MacroAssemblerX86::callWithABI(AsmJSImmPtr fun, MoveOp::Type result)
+MacroAssemblerX86::callWithABI(AsmJSImmPtr fun, Result result)
 {
     uint32_t stackAdjust;
     callWithABIPre(&stackAdjust);
@@ -271,7 +271,7 @@ MacroAssemblerX86::callWithABI(AsmJSImmPtr fun, MoveOp::Type result)
 }
 
 void
-MacroAssemblerX86::callWithABI(const Address &fun, MoveOp::Type result)
+MacroAssemblerX86::callWithABI(const Address &fun, Result result)
 {
     uint32_t stackAdjust;
     callWithABIPre(&stackAdjust);
@@ -291,7 +291,7 @@ MacroAssemblerX86::handleFailureWithHandler(void *handler)
     passABIArg(eax);
     callWithABI(handler);
 
-    JitCode *excTail = GetIonContext()->runtime->jitRuntime()->getExceptionTail();
+    IonCode *excTail = GetIonContext()->runtime->jitRuntime()->getExceptionTail();
     jmp(excTail);
 }
 

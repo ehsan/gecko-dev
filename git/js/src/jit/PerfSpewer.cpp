@@ -185,7 +185,7 @@ PerfSpewer::endBasicBlock(MacroAssembler &masm)
     if (!PerfBlockEnabled())
         return true;
 
-    masm.bind(&basicBlocks_.back().end);
+    masm.bind(&basicBlocks_[basicBlocks_.length() - 1].end);
     return true;
 }
 
@@ -201,7 +201,7 @@ PerfSpewer::noteEndInlineCode(MacroAssembler &masm)
 
 void
 PerfSpewer::writeProfile(JSScript *script,
-                         JitCode *code,
+                         IonCode *code,
                          MacroAssembler &masm)
 {
     if (PerfFuncEnabled()) {
@@ -289,7 +289,7 @@ PerfSpewer::writeProfile(JSScript *script,
 }
 
 void
-js::jit::writePerfSpewerBaselineProfile(JSScript *script, JitCode *code)
+js::jit::writePerfSpewerBaselineProfile(JSScript *script, IonCode *code)
 {
     if (!PerfEnabled())
         return;
@@ -308,7 +308,7 @@ js::jit::writePerfSpewerBaselineProfile(JSScript *script, JitCode *code)
 }
 
 void
-js::jit::writePerfSpewerJitCodeProfile(JitCode *code, const char *msg)
+js::jit::writePerfSpewerIonCodeProfile(IonCode *code, const char *msg)
 {
     if (!code || !PerfEnabled())
         return;
@@ -372,7 +372,7 @@ js::jit::writePerfSpewerAsmJSBlocksMap(uintptr_t baseAddress, size_t funcStartOf
                                        const char *filename, const char *funcName,
                                        const js::jit::BasicBlocksVector &basicBlocks)
 {
-    if (!PerfBlockEnabled() || basicBlocks.empty())
+    if (!PerfBlockEnabled() || basicBlocks.length() == 0)
         return;
 
     if (!lockPerfMap())

@@ -5,5 +5,3 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 DEFINES['MOZ_DISTRIBUTION_ID_UNQUOTED'] = CONFIG['MOZ_DISTRIBUTION_ID']
-
-JAR_MANIFESTS += ['jar.mn']

@@ -927,12 +927,11 @@ Recompile(JSContext *cx)
     RootedScript script(cx, iter.script());
     JS_ASSERT(script->hasIonScript());
 
-    if (!IsIonEnabled(cx))
-        return true;
-
     MethodStatus status = Recompile(cx, script, nullptr, nullptr, isConstructing);
     if (status == Method_Error)
         return false;
+
+    JS_ASSERT(script->hasIonScript());
 
     return true;
 }

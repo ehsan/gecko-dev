@@ -2288,7 +2288,7 @@ nsHTMLEditor::GetElementOrParentByTagName(const nsAString& aTagName, nsIDOMNode 
 
     // Try to get the actual selected node
     if (anchorNode->HasChildNodes() && anchorNode->IsContent()) {
-      uint32_t offset = selection->AnchorOffset();
+      int32_t offset = selection->GetAnchorOffset();
       current = anchorNode->GetChildAt(offset);
     }
     // anchor node is probably a text node - just use that

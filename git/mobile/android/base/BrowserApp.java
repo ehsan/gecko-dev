@@ -535,6 +535,7 @@ abstract public class BrowserApp extends GeckoApp
         registerEventListener("Telemetry:Gather");
         registerEventListener("Settings:Show");
         registerEventListener("Updater:Launch");
+        registerEventListener("Reader:GoToReadingList");
 
         Distribution.init(this);
         JavaAddonManager.getInstance().init(getApplicationContext());
@@ -845,6 +846,7 @@ abstract public class BrowserApp extends GeckoApp
         unregisterEventListener("Telemetry:Gather");
         unregisterEventListener("Settings:Show");
         unregisterEventListener("Updater:Launch");
+        unregisterEventListener("Reader:GoToReadingList");
 
         if (AppConstants.MOZ_ANDROID_BEAM && Build.VERSION.SDK_INT >= 14) {
             NfcAdapter nfc = NfcAdapter.getDefaultAdapter(this);
@@ -1202,6 +1204,8 @@ abstract public class BrowserApp extends GeckoApp
                 startActivity(settingsIntent);
             } else if (event.equals("Updater:Launch")) {
                 handleUpdaterLaunch();
+            } else if (event.equals("Reader:GoToReadingList")) {
+                openReadingList();
             } else if (event.equals("Prompt:ShowTop")) {
                 // Bring this activity to front so the prompt is visible..
                 Intent bringToFrontIntent = new Intent();
@@ -1218,8 +1222,7 @@ abstract public class BrowserApp extends GeckoApp
 
     @Override
     public void addTab() {
-        // Always load about:home when opening a new tab.
-        Tabs.getInstance().loadUrl(AboutPages.HOME, Tabs.LOADURL_NEW_TAB);
+        super.loadHomePage(Tabs.LOADURL_NEW_TAB);
     }
 
     @Override
@@ -1390,6 +1393,10 @@ abstract public class BrowserApp extends GeckoApp
         return (mHomePager != null && mHomePager.isVisible());
     }
 
+    private void openReadingList() {
+        super.loadHomePage(Tabs.LOADURL_READING_LIST);
+    }
+
     /* Favicon stuff. */
     private static OnFaviconLoadedListener sFaviconLoadedListener = new OnFaviconLoadedListener() {
         @Override
@@ -1408,15 +1415,7 @@ abstract public class BrowserApp extends GeckoApp
 
         int flags = (tab.isPrivate() || tab.getErrorType() != Tab.ErrorType.NONE) ? 0 : LoadFaviconTask.FLAG_PERSIST;
         int id = Favicons.getFaviconForSize(tab.getURL(), tab.getFaviconURL(), tabFaviconSize, flags, sFaviconLoadedListener);
-
         tab.setFaviconLoadId(id);
-        if (id != Favicons.LOADED &&
-            Tabs.getInstance().isSelectedTab(tab)) {
-            // We're loading the current tab's favicon from somewhere
-            // other than the cache.
-            // Display the globe favicon until then.
-            mBrowserToolbar.showDefaultFavicon();
-        }
     }
 
     private void maybeCancelFaviconLoad(Tab tab) {
@@ -1608,8 +1607,7 @@ abstract public class BrowserApp extends GeckoApp
         }
 
         if (isAboutHome(tab)) {
-            final String pageId = AboutPages.getPageIdFromAboutHomeUrl(tab.getURL());
-            showHomePager(pageId);
+            showHomePager(tab.getAboutHomePage());
 
             if (isDynamicToolbarEnabled()) {
                 // Show the toolbar.
@@ -1634,8 +1632,8 @@ abstract public class BrowserApp extends GeckoApp
         }
     }
 
-    private void showHomePager(String pageId) {
-        showHomePagerWithAnimator(pageId, null);
+    private void showHomePager(HomePager.Page page) {
+        showHomePagerWithAnimator(page, null);
     }
 
     private void showHomePagerWithAnimator(PropertyAnimator animator) {
@@ -1644,7 +1642,7 @@ abstract public class BrowserApp extends GeckoApp
         showHomePagerWithAnimator(null, animator);
     }
 
-    private void showHomePagerWithAnimator(String pageId, PropertyAnimator animator) {
+    private void showHomePagerWithAnimator(HomePager.Page page, PropertyAnimator animator) {
         if (isHomePagerVisible()) {
             return;
         }
@@ -1665,7 +1663,7 @@ abstract public class BrowserApp extends GeckoApp
 
         mHomePager.show(getSupportLoaderManager(),
                         getSupportFragmentManager(),
-                        pageId, animator);
+                        page, animator);
 
         // Hide the web content so it cannot be focused by screen readers.
         hideWebContentOnPropertyAnimationEnd(animator);
@@ -2061,7 +2059,6 @@ abstract public class BrowserApp extends GeckoApp
 
         Tab tab = Tabs.getInstance().getSelectedTab();
         MenuItem bookmark = aMenu.findItem(R.id.bookmark);
-        MenuItem back = aMenu.findItem(R.id.back);
         MenuItem forward = aMenu.findItem(R.id.forward);
         MenuItem share = aMenu.findItem(R.id.share);
         MenuItem saveAsPDF = aMenu.findItem(R.id.save_as_pdf);
@@ -2077,7 +2074,6 @@ abstract public class BrowserApp extends GeckoApp
 
         if (tab == null || tab.getURL() == null) {
             bookmark.setEnabled(false);
-            back.setEnabled(false);
             forward.setEnabled(false);
             share.setEnabled(false);
             saveAsPDF.setEnabled(false);
@@ -2090,7 +2086,6 @@ abstract public class BrowserApp extends GeckoApp
         bookmark.setChecked(tab.isBookmark());
         bookmark.setIcon(tab.isBookmark() ? R.drawable.ic_menu_bookmark_remove : R.drawable.ic_menu_bookmark_add);
 
-        back.setEnabled(tab.canDoBack());
         forward.setEnabled(tab.canDoForward());
         desktopMode.setChecked(tab.getDesktopMode());
         desktopMode.setIcon(tab.getDesktopMode() ? R.drawable.ic_menu_desktop_mode_on : R.drawable.ic_menu_desktop_mode_off);
@@ -2217,13 +2212,6 @@ abstract public class BrowserApp extends GeckoApp
             tab = Tabs.getInstance().getSelectedTab();
             if (tab != null)
                 tab.doReload();
-            return true;
-        }
-
-        if (itemId == R.id.back) {
-            tab = Tabs.getInstance().getSelectedTab();
-            if (tab != null)
-                tab.doBack();
             return true;
         }
 

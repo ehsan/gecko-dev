@@ -9,8 +9,6 @@ const { Cc, Ci, Cu, Cr } = require("chrome");
 const promise = require("sdk/core/promise");
 const EventEmitter = require("devtools/shared/event-emitter");
 
-const { DevToolsUtils } = Cu.import("resource://gre/modules/devtools/DevToolsUtils.jsm", {});
-
 function DebuggerPanel(iframeWindow, toolbox) {
   this.panelWin = iframeWindow;
   this._toolbox = toolbox;
@@ -59,7 +57,8 @@ DebuggerPanel.prototype = {
         return this;
       })
       .then(null, function onError(aReason) {
-        DevToolsUtils.reportException("DebuggerPane.prototype.open", aReason);
+        Cu.reportError("DebuggerPanel open failed. " +
+                       aReason.error + ": " + aReason.message);
       });
   },
 

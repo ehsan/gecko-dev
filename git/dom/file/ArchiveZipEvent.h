@@ -25,7 +25,7 @@ class ArchiveZipItem : public ArchiveItem
 public:
   ArchiveZipItem(const char* aFilename,
                  const ZipCentral& aCentralStruct,
-                 const nsACString& aEncoding);
+                 const nsAString& aEncoding);
   virtual ~ArchiveZipItem();
 
   nsresult GetFilename(nsString& aFilename) MOZ_OVERRIDE;
@@ -46,7 +46,7 @@ private: // data
   nsString mFilenameU;
   ZipCentral mCentralStruct;
 
-  nsCString mEncoding;
+  nsString mEncoding;
 };
 
 /**
@@ -56,12 +56,12 @@ class ArchiveReaderZipEvent : public ArchiveReaderEvent
 {
 public:
   ArchiveReaderZipEvent(ArchiveReader* aArchiveReader,
-                        const nsACString& aEncoding);
+                        const nsAString& aEncoding);
 
   nsresult Exec() MOZ_OVERRIDE;
 
 private:
-  nsCString mEncoding;
+  nsString mEncoding;
 };
 
 END_FILE_NAMESPACE

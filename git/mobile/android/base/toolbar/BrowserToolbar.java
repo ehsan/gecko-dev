@@ -962,11 +962,6 @@ public class BrowserToolbar extends GeckoRelativeLayout
         setTitle(title);
     }
 
-    public void showDefaultFavicon() {
-        mFavicon.setImageResource(R.drawable.favicon);
-        mLastFavicon = null;
-    }
-
     private void setFavicon(Bitmap image) {
         Log.d(LOGTAG, "setFavicon(" + image + ")");
         if (Tabs.getInstance().getSelectedTab().getState() == Tab.STATE_LOADING) {

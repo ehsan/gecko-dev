@@ -1284,6 +1284,8 @@ endif # SDK_BINARY
 ################################################################################
 # CHROME PACKAGING
 
+JAR_MANIFEST := $(srcdir)/jar.mn
+
 chrome::
 	$(MAKE) realchrome
 	$(LOOP_OVER_PARALLEL_DIRS)
@@ -1292,7 +1294,7 @@ chrome::
 
 $(FINAL_TARGET)/chrome: $(call mkdir_deps,$(FINAL_TARGET)/chrome)
 
-ifneq (,$(JAR_MANIFEST))
+ifneq (,$(wildcard $(JAR_MANIFEST)))
 ifndef NO_DIST_INSTALL
 
 ifdef XPI_NAME
@@ -1318,13 +1320,6 @@ libs realchrome:: $(FINAL_TARGET)/chrome
 	  $(MAKE_JARS_FLAGS) $(XULPPFLAGS) $(DEFINES) $(ACDEFINES) \
 	  $(JAR_MANIFEST))
 
-endif
-
-# This is a temporary check to ensure patches relying on the old behavior
-# of silently picking up jar.mn files continue to work.
-else # No JAR_MANIFEST
-ifneq (,$(wildcard $(srcdir)/jar.mn))
-$(error $(srcdir) contains a jar.mn file but this file is not declared in a JAR_MANIFESTS variable in a moz.build file)
 endif
 endif
 

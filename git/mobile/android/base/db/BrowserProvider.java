@@ -21,6 +21,7 @@ import org.mozilla.gecko.db.BrowserContract.Thumbnails;
 import org.mozilla.gecko.db.BrowserContract.URLColumns;
 import org.mozilla.gecko.db.PerProfileDatabases.DatabaseHelperFactory;
 import org.mozilla.gecko.gfx.BitmapUtils;
+import org.mozilla.gecko.mozglue.RobocopTarget;
 import org.mozilla.gecko.sync.Utils;
 import org.mozilla.gecko.util.GeckoJarReader;
 import org.mozilla.gecko.util.ThreadUtils;
@@ -1951,6 +1952,11 @@ public class BrowserProvider extends ContentProvider {
             if (c != null)
                 c.close();
         }
+    }
+
+    @RobocopTarget
+    public String getDatabasePath(String profile, boolean isTest) {
+        return mDatabases.getDatabasePathForProfile(profile, isTest);
     }
 
     private SQLiteDatabase getReadableDatabase(Uri uri) {

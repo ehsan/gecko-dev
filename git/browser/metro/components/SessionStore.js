@@ -15,9 +15,6 @@ XPCOMUtils.defineLazyServiceGetter(this, "CrashReporter",
   "@mozilla.org/xre/app-info;1", "nsICrashReporter");
 #endif
 
-XPCOMUtils.defineLazyServiceGetter(this, "gUUIDGenerator",
-  "@mozilla.org/uuid-generator;1", "nsIUUIDGenerator");
-
 XPCOMUtils.defineLazyGetter(this, "NetUtil", function() {
   Cu.import("resource://gre/modules/NetUtil.jsm");
   return NetUtil;
@@ -42,8 +39,6 @@ SessionStore.prototype = {
                                          Ci.nsISupportsWeakReference]),
 
   _windows: {},
-  _selectedWindow: 1,
-  _orderedWindows: [],
   _lastSaveTime: 0,
   _lastSessionTime: 0,
   _interval: 10000,
@@ -289,8 +284,8 @@ SessionStore.prototype = {
     if (aWindow.document.documentElement.getAttribute("windowtype") != "navigator:browser" || this._loadState == STATE_QUITTING)
       return;
 
-    // Assign it a unique identifier and create its data object
-    aWindow.__SSID = "window" + gUUIDGenerator.generateUUID().toString();
+    // Assign it a unique identifier (timestamp) and create its data object
+    aWindow.__SSID = "window" + Date.now();
     this._windows[aWindow.__SSID] = { tabs: [], selected: 0, _closedTabs: [] };
 
     // Perform additional initialization when the first window is loading
@@ -477,9 +472,9 @@ SessionStore.prototype = {
     });
 
     let data = { windows: [] };
-    for (let i = 0; i < this._orderedWindows.length; i++)
-      data.windows.push(this._windows[this._orderedWindows[i]]);
-    data.selectedWindow = this._selectedWindow;
+    let index;
+    for (index in this._windows)
+      data.windows.push(this._windows[index]);
     return data;
   },
 
@@ -729,24 +724,11 @@ SessionStore.prototype = {
 
         let window = Services.wm.getMostRecentWindow("navigator:browser");
 
-        this._selectedWindow = data.selectedWindow;
-        let windowIndex = this._selectedWindow - 1;
-        let tabs = data.windows[windowIndex].tabs;
-        let selected = data.windows[windowIndex].selected;
+        let tabs = data.windows[0].tabs;
+        let selected = data.windows[0].selected;
 
-        // Move all window data from sessionstore.js to this._windows.
-        for (let i = 0; i < data.windows.length; i++) {
-          let SSID;
-          if (i != windowIndex) {
-            SSID = "window" + gUUIDGenerator.generateUUID().toString();
-            this._windows[SSID] = data.windows[i];
-          } else {
-            SSID = window.__SSID;
-            this._windows[SSID]._closedTabs =
-              this._windows[SSID]._closedTabs.concat(data.windows[windowIndex]._closedTabs);
-          }
-          this._orderedWindows.push(SSID);
-        }
+        if (data.windows[0]._closedTabs)
+          this._windows[window.__SSID]._closedTabs = data.windows[0]._closedTabs;
 
         if (selected > tabs.length) // Clamp the selected index if it's bogus
           selected = 1;

@@ -34,5 +34,3 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] in ('windows', 'cocoa'):
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] in ('windows', 'gtk2', 'gtk3'):
     DEFINES['MENUBAR_CAN_AUTOHIDE'] = 1
-
-JAR_MANIFESTS += ['jar.mn']

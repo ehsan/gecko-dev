@@ -260,10 +260,10 @@ StatsTable::StatsTable(const std::string& name, int max_threads,
   // TODO(port): clean up this error reporting.
 #if defined(OS_WIN)
   if (!impl_)
-    CHROMIUM_LOG(ERROR) << "StatsTable did not initialize:" << GetLastError();
+    LOG(ERROR) << "StatsTable did not initialize:" << GetLastError();
 #elif defined(OS_POSIX)
   if (!impl_)
-    CHROMIUM_LOG(ERROR) << "StatsTable did not initialize:" << strerror(errno);
+    LOG(ERROR) << "StatsTable did not initialize:" << strerror(errno);
 #endif
 }
 

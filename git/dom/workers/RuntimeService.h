@@ -96,6 +96,9 @@ private:
   // Only used on the main thread.
   nsCOMPtr<nsITimer> mIdleThreadTimer;
 
+  nsCString mDetectorName;
+  nsCString mSystemCharset;
+
   static JSSettings sDefaultJSSettings;
   static bool sDefaultPreferences[WORKERPREF_COUNT];
 
@@ -149,6 +152,18 @@ public:
 
   void
   ForgetSharedWorker(WorkerPrivate* aWorkerPrivate);
+
+  const nsACString&
+  GetDetectorName() const
+  {
+    return mDetectorName;
+  }
+
+  const nsACString&
+  GetSystemCharset() const
+  {
+    return mSystemCharset;
+  }
 
   const NavigatorStrings&
   GetNavigatorStrings() const

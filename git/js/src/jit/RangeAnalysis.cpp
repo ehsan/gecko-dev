@@ -413,9 +413,7 @@ Range::intersect(TempAllocator &alloc, const Range *lhs, const Range *rhs, bool 
     // Instead, we should use it to eliminate the dead block.
     // (Bug 765127)
     if (newUpper < newLower) {
-        // If both ranges can be NaN, the result can still be NaN.
-        if (!lhs->canBeNaN() || !rhs->canBeNaN())
-            *emptyRange = true;
+        *emptyRange = true;
         return nullptr;
     }
 
@@ -2042,7 +2040,7 @@ RangeAnalysis::analyze()
 bool
 RangeAnalysis::addRangeAssertions()
 {
-    if (!js_JitOptions.checkRangeAnalysis)
+    if (!js_IonOptions.checkRangeAnalysis)
         return true;
 
     // Check the computed range for this instruction, if the option is set. Note
