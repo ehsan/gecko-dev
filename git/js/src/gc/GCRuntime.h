@@ -320,8 +320,7 @@ class GCRuntime
     void startGC(JSGCInvocationKind gckind, JS::gcreason::Reason reason, int64_t millis = 0);
     void gcSlice(JS::gcreason::Reason reason, int64_t millis = 0);
     void finishGC(JS::gcreason::Reason reason);
-    void startDebugGC(JSGCInvocationKind gckind, SliceBudget &budget);
-    void debugGCSlice(SliceBudget &budget);
+    void gcDebugSlice(SliceBudget &budget);
 
     void runDebugGC();
     inline void poke();
@@ -520,7 +519,7 @@ class GCRuntime
 #endif
 
     template <AllowGC allowGC>
-    static void *refillFreeListFromAnyThread(ExclusiveContext *cx, AllocKind thingKind);
+    static void *refillFreeListFromAnyThread(ThreadSafeContext *cx, AllocKind thingKind);
     static void *refillFreeListInGC(Zone *zone, AllocKind thingKind);
 
     // Free certain LifoAlloc blocks from the background sweep thread.
@@ -543,6 +542,7 @@ class GCRuntime
     template <AllowGC allowGC>
     static void *refillFreeListFromMainThread(JSContext *cx, AllocKind thingKind);
     static void *refillFreeListOffMainThread(ExclusiveContext *cx, AllocKind thingKind);
+    static void *refillFreeListPJS(ForkJoinContext *cx, AllocKind thingKind);
 
     /*
      * Return the list of chunks that can be released outside the GC lock.
@@ -810,9 +810,10 @@ class GCRuntime
 #ifdef JSGC_COMPACTING
     /*
      * Some code cannot tolerate compacting GC so it can be disabled with this
-     * counter.
+     * counter.  This can happen from code executing in a ThreadSafeContext so
+     * we make it atomic.
      */
-    unsigned compactingDisabled;
+    mozilla::Atomic<uint32_t, mozilla::ReleaseAcquire> compactingDisabled;
 #endif
 
     /*

@@ -25,8 +25,8 @@ class InternalHeaders;
 class Promise;
 
 class Response MOZ_FINAL : public nsISupports
-                         , public FetchBody<Response>
                          , public nsWrapperCache
+                         , public FetchBody<Response>
 {
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(Response)

@@ -75,8 +75,12 @@ static const uint32_t GRAY = 1;
  */
 const uintptr_t ChunkLocationBitNursery = 1;       // Standard GGC nursery
 const uintptr_t ChunkLocationBitTenuredHeap = 2;   // Standard GGC tenured generation
+const uintptr_t ChunkLocationBitPJSNewspace = 4;   // The PJS generational GC's allocation space
+const uintptr_t ChunkLocationBitPJSFromspace = 8;  // The PJS generational GC's fromspace (during GC)
 
-const uintptr_t ChunkLocationAnyNursery = ChunkLocationBitNursery;
+const uintptr_t ChunkLocationAnyNursery = ChunkLocationBitNursery |
+                                          ChunkLocationBitPJSNewspace |
+                                          ChunkLocationBitPJSFromspace;
 
 #ifdef JS_DEBUG
 /* When downcasting, ensure we are actually the right type. */

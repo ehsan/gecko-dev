@@ -51,6 +51,9 @@ class CompileRuntime
 #endif
 
     const void *addressOfInterruptUint32();
+    const void *addressOfInterruptParUint32();
+
+    const void *addressOfThreadPool();
 
     const JitRuntime *jitRuntime();
 
@@ -90,7 +93,7 @@ class CompileZone
 
     const void *addressOfNeedsIncrementalBarrier();
 
-    // arenas.getFreeList(allocKind)
+    // allocator.arenas.getFreeList(allocKind)
     const void *addressOfFreeListFirst(gc::AllocKind allocKind);
     const void *addressOfFreeListLast(gc::AllocKind allocKind);
 };

@@ -2469,19 +2469,19 @@ let DefaultBrowserCheck = {
       let promptTitle = shellBundle.getString("setDefaultBrowserTitle");
       let promptMessage = shellBundle.getFormattedString("setDefaultBrowserMessage",
                                                          [brandShortName]);
-      let askLabel = shellBundle.getFormattedString("setDefaultBrowserDontAsk",
-                                                    [brandShortName]);
+      let dontAskLabel = shellBundle.getFormattedString("setDefaultBrowserDontAsk",
+                                                        [brandShortName]);
 
       let ps = Services.prompt;
-      let shouldAsk = { value: true };
+      let dontAsk = { value: false };
       let buttonFlags = (ps.BUTTON_TITLE_IS_STRING * ps.BUTTON_POS_0) +
                         (ps.BUTTON_TITLE_IS_STRING * ps.BUTTON_POS_1) +
                         ps.BUTTON_POS_0_DEFAULT;
       let rv = ps.confirmEx(win, promptTitle, promptMessage, buttonFlags,
-                            yesButton, notNowButton, null, askLabel, shouldAsk);
+                            yesButton, notNowButton, null, dontAskLabel, dontAsk);
       if (rv == 0) {
         this.setAsDefault();
-      } else if (!shouldAsk.value) {
+      } else if (dontAsk.value) {
         ShellService.shouldCheckDefaultBrowser = false;
       }
     }
@@ -2502,7 +2502,7 @@ let DefaultBrowserCheck = {
 let E10SUINotification = {
   // Increase this number each time we want to roll out an
   // e10s testing period to Nightly users.
-  CURRENT_NOTICE_COUNT: 4,
+  CURRENT_NOTICE_COUNT: 3,
   CURRENT_PROMPT_PREF: "browser.displayedE10SPrompt.1",
   PREVIOUS_PROMPT_PREF: "browser.displayedE10SPrompt",
 

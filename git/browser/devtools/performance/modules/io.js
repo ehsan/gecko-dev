@@ -18,8 +18,7 @@ loader.lazyImporter(this, "NetUtil",
 // It isn't, of course, a definitive verification, but a Good Enough™
 // approximation before continuing the import. Don't localize this.
 const PERF_TOOL_SERIALIZER_IDENTIFIER = "Recorded Performance Data";
-const PERF_TOOL_SERIALIZER_LEGACY_VERSION = 1;
-const PERF_TOOL_SERIALIZER_CURRENT_VERSION = 2;
+const PERF_TOOL_SERIALIZER_VERSION = 1;
 
 /**
  * Helpers for importing/exporting JSON.
@@ -52,7 +51,7 @@ let PerformanceIO = {
     let deferred = promise.defer();
 
     recordingData.fileType = PERF_TOOL_SERIALIZER_IDENTIFIER;
-    recordingData.version = PERF_TOOL_SERIALIZER_CURRENT_VERSION;
+    recordingData.version = PERF_TOOL_SERIALIZER_VERSION;
 
     let string = JSON.stringify(recordingData);
     let inputStream = this.getUnicodeConverter().convertToInputStream(string);
@@ -89,12 +88,9 @@ let PerformanceIO = {
         deferred.reject(new Error("Unrecognized recording data file."));
         return;
       }
-      if (!isValidSerializerVersion(recordingData.version)) {
+      if (recordingData.version != PERF_TOOL_SERIALIZER_VERSION) {
         deferred.reject(new Error("Unsupported recording data file version."));
         return;
-      }
-      if (recordingData.version === PERF_TOOL_SERIALIZER_LEGACY_VERSION) {
-        recordingData = convertLegacyData(recordingData);
       }
       deferred.resolve(recordingData);
     });
@@ -104,49 +100,3 @@ let PerformanceIO = {
 };
 
 exports.PerformanceIO = PerformanceIO;
-
-/**
- * Returns a boolean indicating whether or not the passed in `version`
- * is supported by this serializer.
- *
- * @param number version
- * @return boolean
- */
-function isValidSerializerVersion (version) {
-  return !!~[
-    PERF_TOOL_SERIALIZER_LEGACY_VERSION,
-    PERF_TOOL_SERIALIZER_CURRENT_VERSION
-  ].indexOf(version);
-}
-
-
-/**
- * Takes recording data (with version `1`, from the original profiler tool), and
- * massages the data to be line with the current performance tool's property names
- * and values.
- *
- * @param object legacyData
- * @return object
- */
-function convertLegacyData (legacyData) {
-  let { profilerData, ticksData, recordingDuration } = legacyData;
-
-  // The `profilerData` stays, and the previously unrecorded fields
-  // just are empty arrays.
-  let data = {
-    markers: [],
-    frames: [],
-    memory: [],
-    ticks: ticksData,
-    profilerData: profilerData,
-    // Data from the original profiler won't contain `interval` fields,
-    // but a recording duration, as well as the current time, which can be used
-    // to infer the interval startTime and endTime.
-    interval: {
-      startTime: profilerData.currentTime - recordingDuration,
-      endTime: profilerData.currentTime
-    }
-  };
-
-  return data;
-}

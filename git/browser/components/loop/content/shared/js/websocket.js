@@ -87,9 +87,7 @@ loop.CallConnectionWebSocket = (function() {
      * should we call this.
      */
     close: function() {
-      if (this.socket) {
-        this.socket.close();
-      }
+      this.socket.close();
     },
 
     _clearConnectionFlags: function() {

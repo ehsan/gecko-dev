@@ -276,13 +276,6 @@ let AppManager = exports.AppManager = {
     // A regular comparison still sees a difference when equal in some cases
     if (JSON.stringify(this._selectedProject) !==
         JSON.stringify(value)) {
-
-      let cancelled = false;
-      this.update("before-project", { cancel: () => { cancelled = true; } });
-      if (cancelled)  {
-        return;
-      }
-
       this._selectedProject = value;
 
       // Clear out tab store's selected state, if any
@@ -310,10 +303,6 @@ let AppManager = exports.AppManager = {
   removeSelectedProject: function() {
     let location = this.selectedProject.location;
     AppManager.selectedProject = null;
-    // If the user cancels the removeProject operation, don't remove the project
-    if (AppManager.selectedProject != null) {
-      return;
-    }
     return AppProjects.remove(location);
   },
 

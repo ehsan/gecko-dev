@@ -1035,6 +1035,7 @@ struct DefaultHasher<AbstractFramePtr> {
 /*****************************************************************************/
 
 class InterpreterActivation;
+class ForkJoinActivation;
 class AsmJSActivation;
 
 namespace jit {
@@ -1062,7 +1063,7 @@ class Activation
     // data structures instead.
     size_t hideScriptedCallerCount_;
 
-    enum Kind { Interpreter, Jit, AsmJS };
+    enum Kind { Interpreter, Jit, ForkJoin, AsmJS };
     Kind kind_;
 
     inline Activation(JSContext *cx, Kind kind_);
@@ -1087,6 +1088,9 @@ class Activation
     bool isJit() const {
         return kind_ == Jit;
     }
+    bool isForkJoin() const {
+        return kind_ == ForkJoin;
+    }
     bool isAsmJS() const {
         return kind_ == AsmJS;
     }
@@ -1102,6 +1106,10 @@ class Activation
     jit::JitActivation *asJit() const {
         MOZ_ASSERT(isJit());
         return (jit::JitActivation *)this;
+    }
+    ForkJoinActivation *asForkJoin() const {
+        MOZ_ASSERT(isForkJoin());
+        return (ForkJoinActivation *)this;
     }
     AsmJSActivation *asAsmJS() const {
         MOZ_ASSERT(isAsmJS());

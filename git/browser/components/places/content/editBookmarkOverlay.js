@@ -877,21 +877,16 @@ var gEditItemOverlay = {
     switch (aEvent.type) {
     case "CheckboxStateChange":
       // Update the tags field when items are checked/unchecked in the listbox
-      let tags = this._getTagsArrayFromTagField();
-      let tagCheckbox = aEvent.target;
+      var tags = this._getTagsArrayFromTagField();
 
-      let curTagIndex = tags.indexOf(tagCheckbox.label);
-
-      let tagsSelector = this._element("tagsSelector");
-      tagsSelector.selectedItem = tagCheckbox;
-
-      if (tagCheckbox.checked) {
-        if (curTagIndex == -1)
-          tags.push(tagCheckbox.label);
+      if (aEvent.target.checked) {
+        if (tags.indexOf(aEvent.target.label) == -1)
+          tags.push(aEvent.target.label);
       }
       else {
-        if (curTagIndex != -1)
-          tags.splice(curTagIndex, 1);
+        var indexOfItem = tags.indexOf(aEvent.target.label);
+        if (indexOfItem != -1)
+          tags.splice(indexOfItem, 1);
       }
       this._element("tagsField").value = tags.join(", ");
       this._updateTags();

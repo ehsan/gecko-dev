@@ -1088,6 +1088,3 @@ pref("dom.mozSettings.SettingsService.verbose.enabled", false);
 // IndexedDB transactions to be opened as readonly or keep everything as
 // readwrite.
 pref("dom.mozSettings.allowForceReadOnly", false);
-
-// RequestSync API is enabled by default on B2G.
-pref("dom.requestSync.enabled", true);

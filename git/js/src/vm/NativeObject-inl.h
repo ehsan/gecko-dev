@@ -131,6 +131,7 @@ inline void
 NativeObject::ensureDenseInitializedLengthNoPackedCheck(ExclusiveContext *cx, uint32_t index,
                                                         uint32_t extra)
 {
+    MOZ_ASSERT(cx->isThreadLocal(this));
     MOZ_ASSERT(!denseElementsAreCopyOnWrite());
 
     /*
@@ -165,6 +166,7 @@ NativeObject::EnsureDenseResult
 NativeObject::extendDenseElements(ExclusiveContext *cx,
                                   uint32_t requiredCapacity, uint32_t extra)
 {
+    MOZ_ASSERT(cx->isThreadLocal(this));
     MOZ_ASSERT(!denseElementsAreCopyOnWrite());
 
     /*

@@ -10,7 +10,6 @@
 #include "nscore.h"
 #include "pldhash.h"
 #include "nsDebug.h"
-#include "mozilla/Assertions.h"
 #include "mozilla/MemoryChecking.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/Move.h"
@@ -288,16 +287,6 @@ public:
   size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
   {
     return SizeOfIncludingThis(BasicSizeOfEntryExcludingThisFun, aMallocSizeOf);
-  }
-
-  /**
-   * Swap the elements in this hashtable with the elements in aOther.
-   */
-  void SwapElements(nsTHashtable<EntryType>& aOther)
-  {
-    MOZ_ASSERT_IF(this->mTable.ops && aOther.mTable.ops,
-                  this->mTable.ops == aOther.mTable.ops);
-    mozilla::Swap(this->mTable, aOther.mTable);
   }
 
 #ifdef DEBUG

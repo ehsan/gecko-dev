@@ -45,7 +45,7 @@ public:
     nsresult mResponseResult;
 
     StateData()
-    : mStatus(0), mReadyState(0), mResponse(JS::UndefinedValue()),
+    : mStatus(0), mReadyState(0), mResponse(JSVAL_VOID),
       mResponseTextResult(NS_OK), mStatusResult(NS_OK),
       mResponseResult(NS_OK)
     { }

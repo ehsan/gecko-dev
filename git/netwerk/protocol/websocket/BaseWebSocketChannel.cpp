@@ -10,7 +10,6 @@
 #include "nsILoadGroup.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsAutoPtr.h"
-#include "nsProxyRelease.h"
 #include "nsStandardURL.h"
 
 #if defined(PR_LOGGING)
@@ -283,27 +282,6 @@ BaseWebSocketChannel::RetargetDeliveryTo(nsIEventTarget* aTargetThread)
   mTargetThread = do_QueryInterface(aTargetThread);
   MOZ_ASSERT(mTargetThread);
   return NS_OK;
-}
-
-BaseWebSocketChannel::ListenerAndContextContainer::ListenerAndContextContainer(
-                                               nsIWebSocketListener* aListener,
-                                               nsISupports* aContext)
-  : mListener(aListener)
-  , mContext(aContext)
-{
-  MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(mListener);
-}
-
-BaseWebSocketChannel::ListenerAndContextContainer::~ListenerAndContextContainer()
-{
-  MOZ_ASSERT(mListener);
-
-  nsCOMPtr<nsIThread> mainThread;
-  NS_GetMainThread(getter_AddRefs(mainThread));
-
-  NS_ProxyRelease(mainThread, mListener, false);
-  NS_ProxyRelease(mainThread, mContext, false);
 }
 
 } // namespace net

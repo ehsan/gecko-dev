@@ -280,12 +280,12 @@ public:
   explicit AutoLockCompositableHost(CompositableHost* aHost)
     : mHost(aHost)
   {
-    mSucceeded = (mHost && mHost->Lock());
+    mSucceeded = mHost->Lock();
   }
 
   ~AutoLockCompositableHost()
   {
-    if (mSucceeded && mHost) {
+    if (mSucceeded) {
       mHost->Unlock();
     }
   }

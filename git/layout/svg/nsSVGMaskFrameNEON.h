@@ -11,10 +11,8 @@
 using namespace mozilla::gfx;
 
 void
-ComputesRGBLuminanceMask_NEON(const uint8_t *aSourceData,
-                              int32_t aSourceStride,
-                              uint8_t *aDestData,
-                              int32_t aDestStride,
+ComputesRGBLuminanceMask_NEON(uint8_t *aData,
+                              int32_t aStride,
                               const IntSize &aSize,
                               float aOpacity);
 

@@ -82,8 +82,6 @@ public:
 
   virtual nsRefPtr<ShutdownPromise> Shutdown() MOZ_OVERRIDE;
 
-  virtual bool IsAsync() const MOZ_OVERRIDE { return true; }
-
 private:
 
   bool InitDemuxer();

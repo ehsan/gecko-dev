@@ -968,18 +968,29 @@ js_GetErrorMessage(void *userRef, const unsigned errorNumber)
     return nullptr;
 }
 
-ExclusiveContext::ExclusiveContext(JSRuntime *rt, PerThreadData *pt, ContextKind kind)
+ThreadSafeContext::ThreadSafeContext(JSRuntime *rt, PerThreadData *pt, ContextKind kind)
   : ContextFriendFields(rt),
-    helperThread_(nullptr),
     contextKind_(kind),
     perThreadData(pt),
-    arenas_(nullptr),
-    enterCompartmentDepth_(0)
+    allocator_(nullptr)
 {
 }
 
+bool
+ThreadSafeContext::isForkJoinContext() const
+{
+    return contextKind_ == Context_ForkJoin;
+}
+
+ForkJoinContext *
+ThreadSafeContext::asForkJoinContext()
+{
+    MOZ_ASSERT(isForkJoinContext());
+    return reinterpret_cast<ForkJoinContext *>(this);
+}
+
 void
-ExclusiveContext::recoverFromOutOfMemory()
+ThreadSafeContext::recoverFromOutOfMemory()
 {
     // If this is not a JSContext, there's nothing to do.
     if (JSContext *maybecx = maybeJSContext()) {
@@ -1187,7 +1198,7 @@ JSContext::mark(JSTracer *trc)
 }
 
 void *
-ExclusiveContext::stackLimitAddressForJitCode(StackKind kind)
+ThreadSafeContext::stackLimitAddressForJitCode(StackKind kind)
 {
 #if defined(JS_ARM_SIMULATOR) || defined(JS_MIPS_SIMULATOR)
     return runtime_->mainThread.addressOfSimulatorStackLimit();
@@ -1218,7 +1229,7 @@ JS::AutoCheckRequestDepth::AutoCheckRequestDepth(JSContext *cx)
 }
 
 JS::AutoCheckRequestDepth::AutoCheckRequestDepth(ContextFriendFields *cxArg)
-    : cx(static_cast<ExclusiveContext *>(cxArg)->maybeJSContext())
+    : cx(static_cast<ThreadSafeContext *>(cxArg)->maybeJSContext())
 {
     if (cx) {
         MOZ_ASSERT(cx->runtime()->requestDepth || cx->runtime()->isHeapBusy());

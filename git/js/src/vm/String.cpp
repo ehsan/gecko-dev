@@ -481,15 +481,15 @@ js::ConcatStrings(ExclusiveContext *cx,
         return nullptr;
 
     bool isLatin1 = left->hasLatin1Chars() && right->hasLatin1Chars();
-    bool canUseInline = isLatin1
-                        ? JSInlineString::lengthFits<Latin1Char>(wholeLength)
-                        : JSInlineString::lengthFits<char16_t>(wholeLength);
-    if (canUseInline && cx->isJSContext()) {
+    bool canUseFatInline = isLatin1
+                           ? JSFatInlineString::latin1LengthFits(wholeLength)
+                           : JSFatInlineString::twoByteLengthFits(wholeLength);
+    if (canUseFatInline && cx->isJSContext()) {
         Latin1Char *latin1Buf;
         char16_t *twoByteBuf;
         JSInlineString *str = isLatin1
-            ? AllocateInlineString<allowGC>(cx, wholeLength, &latin1Buf)
-            : AllocateInlineString<allowGC>(cx, wholeLength, &twoByteBuf);
+            ? AllocateFatInlineString<allowGC>(cx, wholeLength, &latin1Buf)
+            : AllocateFatInlineString<allowGC>(cx, wholeLength, &twoByteBuf);
         if (!str)
             return nullptr;
 
@@ -877,11 +877,11 @@ CanStoreCharsAsLatin1(const Latin1Char *s, size_t length)
 
 template <AllowGC allowGC>
 static MOZ_ALWAYS_INLINE JSInlineString *
-NewInlineStringDeflated(ExclusiveContext *cx, mozilla::Range<const char16_t> chars)
+NewFatInlineStringDeflated(ExclusiveContext *cx, mozilla::Range<const char16_t> chars)
 {
     size_t len = chars.length();
     Latin1Char *storage;
-    JSInlineString *str = AllocateInlineString<allowGC>(cx, len, &storage);
+    JSInlineString *str = AllocateFatInlineString<allowGC>(cx, len, &storage);
     if (!str)
         return nullptr;
 
@@ -897,8 +897,8 @@ template <AllowGC allowGC>
 static JSFlatString *
 NewStringDeflated(ExclusiveContext *cx, const char16_t *s, size_t n)
 {
-    if (JSInlineString::lengthFits<Latin1Char>(n))
-        return NewInlineStringDeflated<allowGC>(cx, mozilla::Range<const char16_t>(s, n));
+    if (JSFatInlineString::latin1LengthFits(n))
+        return NewFatInlineStringDeflated<allowGC>(cx, mozilla::Range<const char16_t>(s, n));
 
     ScopedJSFreePtr<Latin1Char> news(cx->pod_malloc<Latin1Char>(n + 1));
     if (!news)
@@ -939,9 +939,9 @@ js::NewStringDontDeflate(ExclusiveContext *cx, CharT *chars, size_t length)
         }
     }
 
-    if (JSInlineString::lengthFits<CharT>(length)) {
+    if (JSFatInlineString::lengthFits<CharT>(length)) {
         JSInlineString *str =
-            NewInlineString<allowGC>(cx, mozilla::Range<const CharT>(chars, length));
+            NewFatInlineString<allowGC>(cx, mozilla::Range<const CharT>(chars, length));
         if (!str)
             return nullptr;
 
@@ -1007,8 +1007,8 @@ template <AllowGC allowGC, typename CharT>
 JSFlatString *
 NewStringCopyNDontDeflate(ExclusiveContext *cx, const CharT *s, size_t n)
 {
-    if (JSInlineString::lengthFits<CharT>(n))
-        return NewInlineString<allowGC>(cx, mozilla::Range<const CharT>(s, n));
+    if (JSFatInlineString::lengthFits<CharT>(n))
+        return NewFatInlineString<allowGC>(cx, mozilla::Range<const CharT>(s, n));
 
     ScopedJSFreePtr<CharT> news(cx->pod_malloc<CharT>(n + 1));
     if (!news)
