@@ -20,10 +20,7 @@ class CxxCodeGen(CodePrinter, Visitor):
         self.write(ws.ws)
 
     def visitCppDirective(self, cd):
-        if cd.rest:
-            self.println('#%s %s'% (cd.directive, cd.rest))
-        else:
-            self.println('#%s'% (cd.directive))
+        self.println('#%s %s'% (cd.directive, cd.rest))
 
     def visitNamespace(self, ns):
         self.println('namespace '+ ns.name +' {')

@@ -3165,12 +3165,6 @@ nsRect nsDisplayWrapList::GetComponentAlphaBounds(nsDisplayListBuilder* aBuilder
   return bounds;
 }
 
-void
-nsDisplayWrapList::SetVisibleRect(const nsRect& aRect)
-{
-  mVisibleRect = aRect;
-}
-
 static nsresult
 WrapDisplayList(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame,
                 nsDisplayList* aList, nsDisplayWrapper* aWrapper) {
@@ -4363,7 +4357,6 @@ void
 nsDisplayTransform::Init(nsDisplayListBuilder* aBuilder)
 {
   mStoredList.SetClip(aBuilder, DisplayItemClip::NoClip());
-  mStoredList.SetVisibleRect(mChildrenVisibleRect);
   mPrerender = ShouldPrerenderTransformedContent(aBuilder, mFrame);
   if (mPrerender) {
     bool snap;
@@ -4760,11 +4753,7 @@ nsDisplayTransform::ShouldPrerenderTransformedContent(nsDisplayListBuilder* aBui
   refSize += nsSize(refSize.width / 8, refSize.height / 8);
   nsSize frameSize = aFrame->GetVisualOverflowRectRelativeToSelf().Size();
   if (frameSize <= refSize) {
-    nscoord max = aFrame->PresContext()->DevPixelsToAppUnits(4096);
-    nsRect visual = aFrame->GetVisualOverflowRect();
-    if (visual.width <= max && visual.height <= max) {
-      return true;
-    }
+    return true;
   }
 
   if (aLogAnimations) {

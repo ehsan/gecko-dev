@@ -29,6 +29,7 @@
 
 #include "pkix/nullptr.h"
 #include "pkix/Result.h"
+#include "prlog.h"
 #include "stdint.h"
 
 namespace mozilla { namespace pkix {
@@ -282,7 +283,8 @@ public:
   Result GetInput(const Mark& mark, /*out*/ Input& item)
   {
     if (&mark.input != this || mark.mark > input) {
-      return NotReached("invalid mark", Result::FATAL_ERROR_INVALID_ARGS);
+      PR_NOT_REACHED("invalid mark");
+      return Result::FATAL_ERROR_INVALID_ARGS;
     }
     return item.Init(mark.mark, static_cast<uint16_t>(input - mark.mark));
   }

@@ -47,8 +47,6 @@ RemoteOpenFileParent::OpenSendCloseDelete()
                     path.get());
     } else {
       fileDescriptor = FileDescriptor(fd);
-      // FileDescriptor does a dup() internally, so we need to close our fd
-      close(fd);
     }
   }
 

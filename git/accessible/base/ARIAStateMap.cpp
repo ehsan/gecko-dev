@@ -19,18 +19,39 @@ using namespace mozilla::a11y::aria;
  */
 struct EnumTypeData
 {
+  EnumTypeData(nsIAtom* aAttrName,
+               nsIAtom** aValue1, uint64_t aState1,
+               nsIAtom** aValue2, uint64_t aState2,
+               nsIAtom** aValue3 = 0, uint64_t aState3 = 0) :
+    mState1(aState1), mState2(aState2), mState3(aState3), mDefaultState(0),
+    mAttrName(aAttrName), mValue1(aValue1), mValue2(aValue2), mValue3(aValue3),
+    mNullValue(nullptr)
+  { }
+
+  EnumTypeData(nsIAtom* aAttrName, uint64_t aDefaultState,
+               nsIAtom** aValue1, uint64_t aState1) :
+    mState1(aState1), mState2(0), mState3(0), mDefaultState(aDefaultState),
+    mAttrName(aAttrName), mValue1(aValue1), mValue2(nullptr), mValue3(nullptr),
+    mNullValue(nullptr)
+  { }
+
+  // States applied if corresponding enum values are matched.
+  const uint64_t mState1;
+  const uint64_t mState2;
+  const uint64_t mState3;
+
+  // Default state if no one enum value is matched.
+  const uint64_t mDefaultState;
+
   // ARIA attribute name.
   nsIAtom* const mAttrName;
 
   // States if the attribute value is matched to the enum value. Used as
-  // nsIContent::AttrValuesArray, last item must be nullptr.
-  nsIAtom* const* const mValues[4];
-
-  // States applied if corresponding enum values are matched.
-  const uint64_t mStates[3];
-
-  // States to clear in case of match.
-  const uint64_t mClearState;
+  // nsIContent::AttrValuesArray.
+  nsIAtom* const* const mValue1;
+  nsIAtom* const* const mValue2;
+  nsIAtom* const* const mValue3;
+  nsIAtom* const* const mNullValue;
 };
 
 enum ETokenType
@@ -87,15 +108,11 @@ aria::MapToState(EStateRule aRule, dom::Element* aElement, uint64_t* aState)
   switch (aRule) {
     case eARIAAutoComplete:
     {
-      static const EnumTypeData data = {
+      static const EnumTypeData data(
         nsGkAtoms::aria_autocomplete,
-        { &nsGkAtoms::inlinevalue,
-          &nsGkAtoms::list,
-          &nsGkAtoms::both, nullptr },
-        { states::SUPPORTS_AUTOCOMPLETION,
-          states::HASPOPUP | states::SUPPORTS_AUTOCOMPLETION,
-          states::HASPOPUP | states::SUPPORTS_AUTOCOMPLETION }, 0
-      };
+        &nsGkAtoms::inlinevalue, states::SUPPORTS_AUTOCOMPLETION,
+        &nsGkAtoms::list, states::HASPOPUP | states::SUPPORTS_AUTOCOMPLETION,
+        &nsGkAtoms::both, states::HASPOPUP | states::SUPPORTS_AUTOCOMPLETION);
 
       MapEnumType(aElement, aState, data);
       return true;
@@ -103,13 +120,10 @@ aria::MapToState(EStateRule aRule, dom::Element* aElement, uint64_t* aState)
 
     case eARIABusy:
     {
-      static const EnumTypeData data = {
+      static const EnumTypeData data(
         nsGkAtoms::aria_busy,
-        { &nsGkAtoms::_true,
-          &nsGkAtoms::error, nullptr },
-        { states::BUSY,
-          states::INVALID }, 0
-      };
+        &nsGkAtoms::_true, states::BUSY,
+        &nsGkAtoms::error, states::INVALID);
 
       MapEnumType(aElement, aState, data);
       return true;
@@ -207,16 +221,23 @@ aria::MapToState(EStateRule aRule, dom::Element* aElement, uint64_t* aState)
 
     case eARIAOrientation:
     {
-      static const EnumTypeData data = {
-        nsGkAtoms::aria_orientation,
-        { &nsGkAtoms::horizontal,
-          &nsGkAtoms::vertical, nullptr },
-        { states::HORIZONTAL,
-          states::VERTICAL },
-        states::HORIZONTAL | states::VERTICAL
-      };
+      if (aElement->AttrValueIs(kNameSpaceID_None, nsGkAtoms::aria_orientation,
+                                NS_LITERAL_STRING("horizontal"), eCaseMatters)) {
+        *aState &= ~states::VERTICAL;
+        *aState |= states::HORIZONTAL;
+      } else if (aElement->AttrValueIs(kNameSpaceID_None,
+                                       nsGkAtoms::aria_orientation,
+                                       NS_LITERAL_STRING("vertical"),
+                                       eCaseMatters)) {
+        *aState &= ~states::HORIZONTAL;
+        *aState |= states::VERTICAL;
+      } else {
+        NS_ASSERTION(!(*aState & (states::HORIZONTAL | states::VERTICAL)),
+                     "orientation state on role with default aria-orientation!");
+        *aState |= GetRoleMap(aElement)->Is(nsGkAtoms::scrollbar) ?
+          states::VERTICAL : states::HORIZONTAL;
+      }
 
-      MapEnumType(aElement, aState, data);
       return true;
     }
 
@@ -326,17 +347,19 @@ static void
 MapEnumType(dom::Element* aElement, uint64_t* aState, const EnumTypeData& aData)
 {
   switch (aElement->FindAttrValueIn(kNameSpaceID_None, aData.mAttrName,
-                                    aData.mValues, eCaseMatters)) {
+                                    &aData.mValue1, eCaseMatters)) {
     case 0:
-      *aState = (*aState & ~aData.mClearState) | aData.mStates[0];
+      *aState |= aData.mState1;
       return;
     case 1:
-      *aState = (*aState & ~aData.mClearState) | aData.mStates[1];
+      *aState |= aData.mState2;
       return;
     case 2:
-      *aState = (*aState & ~aData.mClearState) | aData.mStates[2];
+      *aState |= aData.mState3;
       return;
   }
+
+  *aState |= aData.mDefaultState;
 }
 
 static void
