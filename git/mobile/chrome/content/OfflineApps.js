@@ -23,7 +23,7 @@ var OfflineApps = {
 
     let host = currentURI.asciiHost;
     let notificationID = "offline-app-requested-" + host;
-    let notificationBox = Browser.getNotificationBox(aTarget);
+    let notificationBox = Browser.getNotificationBox();
 
     let notification = notificationBox.getNotificationWithValue(notificationID);
     let strings = Strings.browser;

@@ -51,11 +51,8 @@ _TEST_FILES = \
 		test_bug366682.html \
 		test_bug372345.html \
 		test_bug410986.html \
-		test_bug414526.html \
-		test_bug417418.html \
 		test_bug432225.html \
 		test_bug439808.html \
- 		test_bug449243.html \
 		test_bug455992.html \
 		test_bug456244.html \
 		test_bug478725.html \
@@ -79,7 +76,6 @@ _TEST_FILES = \
 		test_bug622371.html \
 		test_bug629845.html \
 		test_bug640321.html \
-		test_bug668599.html \
 		test_CF_HTML_clipboard.html \
 		test_contenteditable_focus.html \
 		test_htmleditor_keyevent_handling.html \

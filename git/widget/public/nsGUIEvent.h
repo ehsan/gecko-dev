@@ -157,7 +157,7 @@ class nsHashKey;
 
 #define NS_EVENT_FLAG_EXCEPTION_THROWN    0x10000
 
-#define NS_EVENT_FLAG_PREVENT_MULTIPLE_ACTIONS 0x20000
+#define NS_EVENT_FLAG_PREVENT_ANCHOR_ACTIONS 0x20000
 
 #define NS_EVENT_RETARGET_TO_NON_NATIVE_ANONYMOUS 0x40000
 
@@ -1385,18 +1385,10 @@ public:
     // line.  If mMouseScrollEvent is a page scroll event, the unit of this
     // value is page.
     PRInt32 mComputedScrollAmount;
-    PRInt32 mComputedScrollAction;
   } mReply;
 
   enum {
     NOT_FOUND = PR_UINT32_MAX
-  };
-
-  // values of mComputedScrollAction
-  enum {
-    SCROLL_ACTION_NONE,
-    SCROLL_ACTION_LINE,
-    SCROLL_ACTION_PAGE
   };
 };
 

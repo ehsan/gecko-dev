@@ -276,11 +276,7 @@ nsSOCKSSocketInfo::ConnectToProxy(PRFileDesc *fd)
         }
     }
 
-    PRInt32 addresses = 0;
     do {
-        if (addresses++)
-            mDnsRec->ReportUnusable(mProxyPort);
-        
         rv = mDnsRec->GetNextAddr(mProxyPort, &mInternalProxyAddr);
         // No more addresses to try? If so, we'll need to bail
         if (NS_FAILED(rv)) {

@@ -1528,7 +1528,7 @@ nsHTMLDocument::Open(const nsAString& aContentTypeOrUrl,
 
   // When called with 3 or more arguments, document.open() calls window.open().
   if (aOptionalArgCount > 2) {
-    nsCOMPtr<nsIDOMWindow> window = GetWindowInternal();
+    nsCOMPtr<nsIDOMWindowInternal> window = GetWindowInternal();
     if (!window) {
       return NS_OK;
     }
@@ -2585,12 +2585,7 @@ nsHTMLDocument::DeferredContentEditableCountChange(nsIContent *aElement)
         NS_ENSURE_SUCCESS(rv, );
 
         rv = range->SelectNode(node);
-        if (NS_FAILED(rv)) {
-          // The node might be detached from the document at this point,
-          // which would cause this call to fail.  In this case, we can
-          // safely ignore the contenteditable count change.
-          return;
-        }
+        NS_ENSURE_SUCCESS(rv, );
 
         nsCOMPtr<nsIInlineSpellChecker> spellChecker;
         rv = editor->GetInlineSpellChecker(PR_FALSE,
@@ -2946,7 +2941,7 @@ nsHTMLDocument::EditingStateChanged()
 
   if (updateState) {
     nsAutoScriptBlocker scriptBlocker;
-    NotifyEditableStateChange(this, this, designMode);
+    NotifyEditableStateChange(this, this, !designMode);
   }
 
   // Resync the editor's spellcheck state.

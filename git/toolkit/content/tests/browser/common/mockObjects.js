@@ -51,7 +51,30 @@
  *        Components.interfaces.nsIFilePicker).
  */
 
-function MockObjectRegisterer(aContractID, aReplacementCtor) {
+netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+
+if (Cc === undefined) { 
+  var Cc = Components.classes;
+}
+
+if (Ci === undefined) {
+  var Ci = Components.interfaces;
+}
+
+if (Cu === undefined) {
+  var Cu = Components.utils;
+}
+
+if (Cr === undefined) {
+  var Cr = Components.results;
+}
+
+if (Cm === undefined) {
+  var Cm = Components.manager;
+}
+
+function MockObjectRegisterer(aContractID, aReplacementCtor)
+{
   this._contractID = aContractID;
   this._replacementCtor = aReplacementCtor;
 }
@@ -65,7 +88,7 @@ MockObjectRegisterer.prototype = {
    * to ensure that unregister() is called.
    */
   register: function MOR_register() {
-    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
     if (this._originalCID)
       throw new Exception("Invalid object state when calling register()");
 
@@ -74,7 +97,7 @@ MockObjectRegisterer.prototype = {
     this._mockFactory = {
       createInstance: function MF_createInstance(aOuter, aIid) {
         if (aOuter != null)
-          throw Components.results.NS_ERROR_NO_AGGREGATION;
+          throw Cr.NS_ERROR_NO_AGGREGATION;
         return new providedConstructor().QueryInterface(aIid);
       }
     };
@@ -83,7 +106,7 @@ MockObjectRegisterer.prototype = {
       getService(Components.interfaces.nsIUUIDGenerator).generateUUID();
 
     // Preserve the original CID
-    var componentRegistrar = Components.manager.QueryInterface(Components.interfaces.nsIComponentRegistrar);
+    var componentRegistrar = Cm.QueryInterface(Ci.nsIComponentRegistrar);
     this._originalCID = componentRegistrar.contractIDToCID(this._contractID);
 
     // Replace the original factory with the mock one.
@@ -97,12 +120,12 @@ MockObjectRegisterer.prototype = {
    * Restores the original factory.
    */
   unregister: function MOR_unregister() {
-    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
     if (!this._originalCID)
       throw new Exception("Invalid object state when calling unregister()");
 
     // Free references to the mock factory.
-    var componentRegistrar = Components.manager.QueryInterface(Components.interfaces.nsIComponentRegistrar);
+    var componentRegistrar = Cm.QueryInterface(Ci.nsIComponentRegistrar);
     componentRegistrar.unregisterFactory(this._cid,
                                          this._mockFactory);
 

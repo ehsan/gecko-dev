@@ -381,12 +381,7 @@ struct FPRegisters {
     typedef JSC::MacroAssembler::FPRegisterID FPRegisterID;
 
 #if defined(JS_CPU_X86) || defined(JS_CPU_X64)
-#ifdef _WIN64
-    /* xmm0-xmm5 are scratch register on Win64 ABI */
-    static const uint32 TotalFPRegisters = 6;
-#else
     static const uint32 TotalFPRegisters = 8;
-#endif
     static const uint32 TempFPRegs =
           (1 << JSC::X86Registers::xmm0)
         | (1 << JSC::X86Registers::xmm1)
@@ -394,11 +389,8 @@ struct FPRegisters {
         | (1 << JSC::X86Registers::xmm3)
         | (1 << JSC::X86Registers::xmm4)
         | (1 << JSC::X86Registers::xmm5)
-#ifndef _WIN64
         | (1 << JSC::X86Registers::xmm6)
-        | (1 << JSC::X86Registers::xmm7)
-#endif
-        ;
+        | (1 << JSC::X86Registers::xmm7);
     /* FIXME: Temporary hack until FPRegister allocation exists. */
     static const FPRegisterID First  = JSC::X86Registers::xmm0;
     static const FPRegisterID Second = JSC::X86Registers::xmm1;

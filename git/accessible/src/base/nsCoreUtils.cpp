@@ -46,8 +46,9 @@
 #include "nsIDOMDocument.h"
 #include "nsIDOMHTMLDocument.h"
 #include "nsIDOMHTMLElement.h"
+#include "nsIDOMNodeList.h"
 #include "nsIDOMRange.h"
-#include "nsIDOMWindow.h"
+#include "nsIDOMWindowInternal.h"
 #include "nsIDOMXULElement.h"
 #include "nsIDocShell.h"
 #include "nsIContentViewer.h"
@@ -66,7 +67,6 @@
 #include "nsContentCID.h"
 #include "nsComponentManagerUtils.h"
 #include "nsIInterfaceRequestorUtils.h"
-#include "mozilla/dom/Element.h"
 
 static NS_DEFINE_IID(kRangeCID, NS_RANGE_CID);
 
@@ -427,11 +427,12 @@ nsCoreUtils::GetScreenCoordsForWindow(nsINode *aNode)
 
   nsCOMPtr<nsIDOMWindow> window;
   domDoc->GetDefaultView(getter_AddRefs(window));
-  if (!window)
+  nsCOMPtr<nsIDOMWindowInternal> windowInter(do_QueryInterface(window));
+  if (!windowInter)
     return coords;
 
-  window->GetScreenX(&coords.x);
-  window->GetScreenY(&coords.y);
+  windowInter->GetScreenX(&coords.x);
+  windowInter->GetScreenY(&coords.y);
   return coords;
 }
 
@@ -478,26 +479,6 @@ nsCoreUtils::IsContentDocument(nsIDocument *aDocument)
   PRInt32 contentType;
   docShellTreeItem->GetItemType(&contentType);
   return (contentType == nsIDocShellTreeItem::typeContent);
-}
-
-bool
-nsCoreUtils::IsTabDocument(nsIDocument* aDocumentNode)
-{
-  nsCOMPtr<nsISupports> container = aDocumentNode->GetContainer();
-  nsCOMPtr<nsIDocShellTreeItem> treeItem(do_QueryInterface(container));
-
-  nsCOMPtr<nsIDocShellTreeItem> parentTreeItem;
-  treeItem->GetParent(getter_AddRefs(parentTreeItem));
-
-  // Tab document running in own process doesn't have parent.
-  if (XRE_GetProcessType() == GeckoProcessType_Content)
-    return !parentTreeItem;
-
-  // Parent of docshell for tab document running in chrome process is root.
-  nsCOMPtr<nsIDocShellTreeItem> rootTreeItem;
-  treeItem->GetRootTreeItem(getter_AddRefs(rootTreeItem));
-
-  return parentTreeItem == rootTreeItem;
 }
 
 PRBool

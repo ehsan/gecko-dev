@@ -64,7 +64,7 @@ void
 nsRootAccessibleWrap::DocumentActivated(nsDocAccessible* aDocument)
 {
   if (nsWinUtils::IsWindowEmulationFor(kDolphinModuleHandle) &&
-      nsCoreUtils::IsTabDocument(aDocument->GetDocumentNode())) {
+      nsWinUtils::IsTabDocument(aDocument->GetDocumentNode())) {
     PRUint32 count = mChildDocuments.Length();
     for (PRUint32 idx = 0; idx < count; idx++) {
       nsDocAccessible* childDoc = mChildDocuments[idx];

@@ -149,12 +149,16 @@ nsSVGFE::SetupScalingFilter(nsSVGFilterInstance *aInstance,
     return result;
   }
 
-  float kernelX = aInstance->GetPrimitiveNumber(nsSVGUtils::X,
-                                                aKernelUnitLength,
-                                                nsSVGNumberPair::eFirst);
-  float kernelY = aInstance->GetPrimitiveNumber(nsSVGUtils::Y,
-                                                aKernelUnitLength,
-                                                nsSVGNumberPair::eSecond);
+  float kernelX, kernelY;
+  nsSVGLength2 val;
+  val.Init(nsSVGUtils::X, 0xff,
+           aKernelUnitLength->GetAnimValue(nsSVGNumberPair::eFirst),
+           nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER);
+  kernelX = aInstance->GetPrimitiveLength(&val);
+  val.Init(nsSVGUtils::Y, 0xff,
+           aKernelUnitLength->GetAnimValue(nsSVGNumberPair::eSecond),
+           nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER);
+  kernelY = aInstance->GetPrimitiveLength(&val);
   if (kernelX <= 0 || kernelY <= 0)
     return result;
 
@@ -647,12 +651,16 @@ nsresult
 nsSVGFEGaussianBlurElement::GetDXY(PRUint32 *aDX, PRUint32 *aDY,
                                    const nsSVGFilterInstance& aInstance)
 {
-  float stdX = aInstance.GetPrimitiveNumber(nsSVGUtils::X,
-                                            &mNumberPairAttributes[STD_DEV],
-                                            nsSVGNumberPair::eFirst);
-  float stdY = aInstance.GetPrimitiveNumber(nsSVGUtils::Y,
-                                            &mNumberPairAttributes[STD_DEV],
-                                            nsSVGNumberPair::eSecond);
+  float stdX = mNumberPairAttributes[STD_DEV].GetAnimValue(nsSVGNumberPair::eFirst);
+  float stdY = mNumberPairAttributes[STD_DEV].GetAnimValue(nsSVGNumberPair::eSecond);
+
+  nsSVGLength2 val;
+  val.Init(nsSVGUtils::X, 0xff, stdX, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER);
+  stdX = aInstance.GetPrimitiveLength(&val);
+
+  val.Init(nsSVGUtils::Y, 0xff, stdY, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER);
+  stdY = aInstance.GetPrimitiveLength(&val);
+  
   if (stdX < 0 || stdY < 0)
     return NS_ERROR_FAILURE;
 
@@ -2558,10 +2566,18 @@ NS_IMETHODIMP nsSVGFEOffsetElement::GetDy(nsIDOMSVGAnimatedNumber * *aDy)
 nsIntPoint
 nsSVGFEOffsetElement::GetOffset(const nsSVGFilterInstance& aInstance)
 {
-  return nsIntPoint(PRInt32(aInstance.GetPrimitiveNumber(
-                              nsSVGUtils::X, &mNumberAttributes[DX])),
-                    PRInt32(aInstance.GetPrimitiveNumber(
-                              nsSVGUtils::Y, &mNumberAttributes[DY])));
+  nsIntPoint offset;
+  float fltX, fltY;
+  nsSVGLength2 val;
+
+  GetAnimatedNumberValues(&fltX, &fltY, nsnull);
+  val.Init(nsSVGUtils::X, 0xff, fltX, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER);
+  offset.x = PRInt32(aInstance.GetPrimitiveLength(&val));
+
+  val.Init(nsSVGUtils::Y, 0xff, fltY, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER);
+  offset.y = PRInt32(aInstance.GetPrimitiveLength(&val));
+
+  return offset;
 }
 
 nsresult
@@ -3682,20 +3698,19 @@ nsSVGFEMorphologyElement::ComputeChangeBBox(const nsTArray<nsIntRect>& aSourceCh
 
 void
 nsSVGFEMorphologyElement::GetRXY(PRInt32 *aRX, PRInt32 *aRY,
-                                 const nsSVGFilterInstance& aInstance)
+        const nsSVGFilterInstance& aInstance)
 {
+  float rx = mNumberPairAttributes[RADIUS].GetAnimValue(nsSVGNumberPair::eFirst);
+  float ry = mNumberPairAttributes[RADIUS].GetAnimValue(nsSVGNumberPair::eSecond);
+  nsSVGLength2 val;
+  val.Init(nsSVGUtils::X, 0xff, rx, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER);
   // Subtract an epsilon here because we don't want a value that's just
   // slightly larger than an integer to round up to the next integer; it's
   // probably meant to be the integer it's close to, modulo machine precision
   // issues.
-  *aRX = NSToIntCeil(aInstance.GetPrimitiveNumber(nsSVGUtils::X,
-                                                  &mNumberPairAttributes[RADIUS],
-                                                  nsSVGNumberPair::eFirst) -
-                     MORPHOLOGY_EPSILON);
-  *aRY = NSToIntCeil(aInstance.GetPrimitiveNumber(nsSVGUtils::Y,
-                                                  &mNumberPairAttributes[RADIUS],
-                                                  nsSVGNumberPair::eSecond) -
-                     MORPHOLOGY_EPSILON);
+  *aRX = NSToIntCeil(aInstance.GetPrimitiveLength(&val) - MORPHOLOGY_EPSILON);
+  val.Init(nsSVGUtils::Y, 0xff, ry, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER);
+  *aRY = NSToIntCeil(aInstance.GetPrimitiveLength(&val) - MORPHOLOGY_EPSILON);
 }
 
 nsresult
@@ -5842,8 +5857,7 @@ nsSVGFEDisplacementMapElement::Filter(nsSVGFilterInstance *instance,
                                       const Image* aTarget,
                                       const nsIntRect& rect)
 {
-  float scale = instance->GetPrimitiveNumber(nsSVGUtils::XY,
-                                             &mNumberAttributes[SCALE]);
+  float scale = mNumberAttributes[SCALE].GetAnimValue();
   if (scale == 0.0f) {
     CopyRect(aTarget, aSources[0], rect);
     return NS_OK;
@@ -5856,6 +5870,10 @@ nsSVGFEDisplacementMapElement::Filter(nsSVGFilterInstance *instance,
   PRUint8* displacementData = aSources[1]->mImage->Data();
   PRUint8* targetData = aTarget->mImage->Data();
   PRUint32 stride = aTarget->mImage->Stride();
+
+  nsSVGLength2 val;
+  val.Init(nsSVGUtils::XY, 0xff, scale, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER);
+  scale = instance->GetPrimitiveLength(&val);
 
   static const PRUint16 channelMap[5] = {
                              0,

@@ -91,6 +91,7 @@
 #include "nsIURIFixup.h"
 #include "nsCDefaultURIFixup.h"
 #include "nsIChromeRegistry.h"
+#include "nsPrintfCString.h"
 #include "nsIContentSecurityPolicy.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "mozilla/Preferences.h"
@@ -2711,7 +2712,7 @@ nsScriptSecurityManager::CheckConfirmDialog(JSContext* cx, nsIPrincipal* aPrinci
         nsIScriptContext *scriptContext = GetScriptContext(cx);
         if (scriptContext)
         {
-            nsCOMPtr<nsIDOMWindow> domWin =
+            nsCOMPtr<nsIDOMWindowInternal> domWin =
                 do_QueryInterface(scriptContext->GetGlobalObject());
             if (domWin)
                 domWin->GetPrompter(getter_AddRefs(prompter));

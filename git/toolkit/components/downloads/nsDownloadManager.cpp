@@ -44,7 +44,7 @@
 
 #include "mozIStorageService.h"
 #include "nsIAlertsService.h"
-#include "nsIDOMWindow.h"
+#include "nsIDOMWindowInternal.h"
 #include "nsIDownloadHistory.h"
 #include "nsIDownloadManagerUI.h"
 #include "nsIMIMEService.h"
@@ -2105,7 +2105,7 @@ nsDownloadManager::ConfirmCancelDownloads(PRInt32 aCount,
 
   // Get Download Manager window, to be parent of alert.
   nsCOMPtr<nsIWindowMediator> wm = do_GetService(NS_WINDOWMEDIATOR_CONTRACTID);
-  nsCOMPtr<nsIDOMWindow> dmWindow;
+  nsCOMPtr<nsIDOMWindowInternal> dmWindow;
   if (wm) {
     wm->GetMostRecentWindow(NS_LITERAL_STRING("Download:Manager").get(),
                             getter_AddRefs(dmWindow));
@@ -3085,7 +3085,7 @@ nsDownload::FailDownload(nsresult aStatus, const PRUnichar *aMessage)
   nsCOMPtr<nsIWindowMediator> wm =
     do_GetService(NS_WINDOWMEDIATOR_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
-  nsCOMPtr<nsIDOMWindow> dmWindow;
+  nsCOMPtr<nsIDOMWindowInternal> dmWindow;
   rv = wm->GetMostRecentWindow(NS_LITERAL_STRING("Download:Manager").get(),
                                getter_AddRefs(dmWindow));
   NS_ENSURE_SUCCESS(rv, rv);

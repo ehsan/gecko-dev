@@ -175,11 +175,13 @@ nsLinkableAccessible::DoAction(PRUint8 aIndex)
     nsAccessibleWrap::DoAction(aIndex);
 }
 
-KeyBinding
-nsLinkableAccessible::AccessKey() const
+NS_IMETHODIMP
+nsLinkableAccessible::GetKeyboardShortcut(nsAString& aKeyboardShortcut)
 {
-  return mActionAcc ?
-    mActionAcc->AccessKey() : nsAccessible::AccessKey();
+  aKeyboardShortcut.Truncate();
+
+  return mActionAcc ? mActionAcc->GetKeyboardShortcut(aKeyboardShortcut) :
+    nsAccessible::GetKeyboardShortcut(aKeyboardShortcut);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

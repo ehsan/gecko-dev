@@ -822,8 +822,10 @@ template void JS_FASTCALL stubs::DefFun<false>(VMFrame &f, JSFunction *fun);
             cond = cmp OP 0;                                                  \
         } else {                                                              \
             double l, r;                                                      \
-            if (!ToNumber(cx, lval, &l) || !ToNumber(cx, rval, &r))           \
+            if (!ValueToNumber(cx, lval, &l) ||                               \
+                !ValueToNumber(cx, rval, &r)) {                               \
                 THROWV(JS_FALSE);                                             \
+            }                                                                 \
             cond = JSDOUBLE_COMPARE(l, OP, r, false);                         \
         }                                                                     \
         regs.sp[-2].setBoolean(cond);                                         \
@@ -945,8 +947,10 @@ StubEqualityOp(VMFrame &f)
                 cond = equal == EQ;
             } else {
                 double l, r;
-                if (!ToNumber(cx, lval, &l) || !ToNumber(cx, rval, &r))
+                if (!ValueToNumber(cx, lval, &l) ||
+                    !ValueToNumber(cx, rval, &r)) {
                     return false;
+                }
 
                 if (EQ)
                     cond = JSDOUBLE_COMPARE(l, ==, r, false);
@@ -1030,7 +1034,7 @@ stubs::Add(VMFrame &f)
 
         } else {
             double l, r;
-            if (!ToNumber(cx, lval, &l) || !ToNumber(cx, rval, &r))
+            if (!ValueToNumber(cx, lval, &l) || !ValueToNumber(cx, rval, &r))
                 THROW();
             l += r;
             regs.sp[-2].setNumber(l);
@@ -1054,8 +1058,10 @@ stubs::Sub(VMFrame &f)
     JSContext *cx = f.cx;
     FrameRegs &regs = f.regs;
     double d1, d2;
-    if (!ToNumber(cx, regs.sp[-2], &d1) || !ToNumber(cx, regs.sp[-1], &d2))
+    if (!ValueToNumber(cx, regs.sp[-2], &d1) ||
+        !ValueToNumber(cx, regs.sp[-1], &d2)) {
         THROW();
+    }
     double d = d1 - d2;
     regs.sp[-2].setNumber(d);
 }
@@ -1066,8 +1072,10 @@ stubs::Mul(VMFrame &f)
     JSContext *cx = f.cx;
     FrameRegs &regs = f.regs;
     double d1, d2;
-    if (!ToNumber(cx, regs.sp[-2], &d1) || !ToNumber(cx, regs.sp[-1], &d2))
+    if (!ValueToNumber(cx, regs.sp[-2], &d1) ||
+        !ValueToNumber(cx, regs.sp[-1], &d2)) {
         THROW();
+    }
     double d = d1 * d2;
     regs.sp[-2].setNumber(d);
 }
@@ -1080,8 +1088,10 @@ stubs::Div(VMFrame &f)
     FrameRegs &regs = f.regs;
 
     double d1, d2;
-    if (!ToNumber(cx, regs.sp[-2], &d1) || !ToNumber(cx, regs.sp[-1], &d2))
+    if (!ValueToNumber(cx, regs.sp[-2], &d1) ||
+        !ValueToNumber(cx, regs.sp[-1], &d2)) {
         THROW();
+    }
     if (d2 == 0) {
         const Value *vp;
 #ifdef XP_WIN
@@ -1118,8 +1128,10 @@ stubs::Mod(VMFrame &f)
         regs.sp[-2].setInt32(mod);
     } else {
         double d1, d2;
-        if (!ToNumber(cx, regs.sp[-2], &d1) || !ToNumber(cx, regs.sp[-1], &d2))
+        if (!ValueToNumber(cx, regs.sp[-2], &d1) ||
+            !ValueToNumber(cx, regs.sp[-1], &d2)) {
             THROW();
+        }
         if (d2 == 0) {
             regs.sp[-2].setDouble(js_NaN);
         } else {
@@ -1222,7 +1234,7 @@ void JS_FASTCALL
 stubs::Neg(VMFrame &f)
 {
     double d;
-    if (!ToNumber(f.cx, f.regs.sp[-1], &d))
+    if (!ValueToNumber(f.cx, f.regs.sp[-1], &d))
         THROW();
     d = -d;
     f.regs.sp[-1].setNumber(d);
@@ -1511,7 +1523,7 @@ ObjIncOp(VMFrame &f, JSObject *obj, jsid id)
     } else {
         Value v;
         double d;
-        if (!ToNumber(cx, ref, &d))
+        if (!ValueToNumber(cx, ref, &d))
             return false;
         if (POST) {
             ref.setDouble(d);
@@ -2098,12 +2110,12 @@ stubs::InitMethod(VMFrame &f, JSAtom *atom)
 }
 
 void JS_FASTCALL
-stubs::IterNext(VMFrame &f, int32 offset)
+stubs::IterNext(VMFrame &f)
 {
-    JS_ASSERT(f.regs.sp - offset >= f.fp()->base());
-    JS_ASSERT(f.regs.sp[-offset].isObject());
+    JS_ASSERT(f.regs.sp - 1 >= f.fp()->base());
+    JS_ASSERT(f.regs.sp[-1].isObject());
 
-    JSObject *iterobj = &f.regs.sp[-offset].toObject();
+    JSObject *iterobj = &f.regs.sp[-1].toObject();
     f.regs.sp[0].setNull();
     f.regs.sp++;
     if (!js_IteratorNext(f.cx, iterobj, &f.regs.sp[-1]))
@@ -2447,7 +2459,7 @@ stubs::Unbrand(VMFrame &f)
 void JS_FASTCALL
 stubs::Pos(VMFrame &f)
 {
-    if (!ToNumber(f.cx, &f.regs.sp[-1]))
+    if (!ValueToNumber(f.cx, &f.regs.sp[-1]))
         THROW();
 }
 

@@ -278,20 +278,15 @@ Service::getSynchronousPref()
 }
 
 Service::Service()
-: mMutex("Service::mMutex"),
-  mSqliteVFS(nsnull)
+: mMutex("Service::mMutex")
 {
 }
 
 Service::~Service()
 {
-  int rc = sqlite3_vfs_unregister(mSqliteVFS);
-  if (rc != SQLITE_OK)
-    NS_WARNING("Failed to unregister sqlite vfs wrapper.");
-
   // Shutdown the sqlite3 API.  Warn if shutdown did not turn out okay, but
   // there is nothing actionable we can do in that case.
-  rc = ::sqlite3_quota_shutdown();
+  int rc = ::sqlite3_quota_shutdown();
   if (rc != SQLITE_OK)
     NS_WARNING("sqlite3 did not shutdown cleanly.");
 
@@ -303,8 +298,6 @@ Service::~Service()
   NS_ASSERTION(shutdownObserved, "Shutdown was not observed!");
 
   gService = nsnull;
-  delete mSqliteVFS;
-  mSqliteVFS = nsnull;
 }
 
 void
@@ -313,8 +306,6 @@ Service::shutdown()
   NS_IF_RELEASE(sXPConnect);
 }
 
-sqlite3_vfs* ConstructTelemetryVFS();
- 
 nsresult
 Service::initialize()
 {
@@ -329,15 +320,7 @@ Service::initialize()
   if (rc != SQLITE_OK)
     return convertResultCode(rc);
 
-  mSqliteVFS = ConstructTelemetryVFS();
-  if (mSqliteVFS) {
-    rc = sqlite3_vfs_register(mSqliteVFS, 1);
-    if (rc != SQLITE_OK)
-      return convertResultCode(rc);
-  } else {
-    NS_WARNING("Failed to register telemetry VFS");
-  }
-  rc = ::sqlite3_quota_initialize("telemetry-vfs", 0);
+  rc = ::sqlite3_quota_initialize(NULL, 0);
   if (rc != SQLITE_OK)
     return convertResultCode(rc);
 

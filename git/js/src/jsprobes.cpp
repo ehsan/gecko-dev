@@ -65,13 +65,13 @@ bool
 Probes::controlProfilers(JSContext *cx, bool toState)
 {
     JSBool ok = JS_TRUE;
-#if defined(MOZ_CALLGRIND) || defined(MOZ_VTUNE)
+#if defined(MOZ_SHARK) || defined(MOZ_CALLGRIND) || defined(MOZ_VTUNE)
     jsval dummy;
 #endif
 
     if (! ProfilingActive && toState) {
-#if defined(MOZ_SHARK) && defined(__APPLE__)
-        if (!Shark::Start())
+#ifdef MOZ_SHARK
+        if (! js_StartShark(cx, 0, &dummy))
             ok = JS_FALSE;
 #endif
 #ifdef MOZ_CALLGRIND
@@ -83,8 +83,9 @@ Probes::controlProfilers(JSContext *cx, bool toState)
             ok = JS_FALSE;
 #endif
     } else if (ProfilingActive && ! toState) {
-#if defined(MOZ_SHARK) && defined(__APPLE__)
-        Shark::Stop();
+#ifdef MOZ_SHARK
+        if (! js_StopShark(cx, 0, &dummy))
+            ok = JS_FALSE;
 #endif
 #ifdef MOZ_CALLGRIND
         if (! js_StopCallgrind(cx, 0, &dummy))
@@ -166,7 +167,7 @@ Probes::handleFunctionReturn(JSContext *cx, JSFunction *fun, JSScript *script)
 bool
 Probes::startProfiling()
 {
-#if defined(MOZ_SHARK) && defined(__APPLE__)
+#ifdef MOZ_SHARK
     if (Shark::Start())
         return true;
 #endif
@@ -176,7 +177,7 @@ Probes::startProfiling()
 void
 Probes::stopProfiling()
 {
-#if defined(MOZ_SHARK) && defined(__APPLE__)
+#ifdef MOZ_SHARK
     Shark::Stop();
 #endif
 }

@@ -81,6 +81,7 @@
 #include "nsIWindowWatcher.h"
 #include "nsIURI.h"
 #include "nsIDOMCSSStyleDeclaration.h"
+#include "nsITimelineService.h"
 #include "nsAppShellCID.h"
 #include "nsReadableUtils.h"
 #include "nsStyleConsts.h"
@@ -199,8 +200,8 @@ NS_IMETHODIMP nsXULWindow::GetInterface(const nsIID& aIID, void** aSink)
     if (NS_FAILED(rv)) return rv;
     return mAuthPrompter->QueryInterface(aIID, aSink);
   }
-  if (aIID.Equals(NS_GET_IID(nsIDOMWindow))) {
-    return GetWindowDOMWindow(reinterpret_cast<nsIDOMWindow**>(aSink));
+  if (aIID.Equals(NS_GET_IID(nsIDOMWindowInternal))) {
+    return GetWindowDOMWindow(reinterpret_cast<nsIDOMWindowInternal**>(aSink));
   }   
   if (aIID.Equals(NS_GET_IID(nsIWebBrowserChrome)) && 
     NS_SUCCEEDED(EnsureContentTreeOwner()) &&
@@ -791,12 +792,15 @@ NS_IMETHODIMP nsXULWindow::GetVisibility(PRBool* aVisibility)
 
 NS_IMETHODIMP nsXULWindow::SetVisibility(PRBool aVisibility)
 {
+  NS_TIMELINE_ENTER("nsXULWindow::SetVisibility.");
   if (!mChromeLoaded) {
     mShowAfterLoad = aVisibility;
+    NS_TIMELINE_LEAVE("nsXULWindow::SetVisibility");
     return NS_OK;
   }
 
   if (mDebuting) {
+    NS_TIMELINE_LEAVE("nsXULWindow::SetVisibility");
     return NS_OK;
   }
   mDebuting = PR_TRUE;  // (Show / Focus is recursive)
@@ -825,6 +829,7 @@ NS_IMETHODIMP nsXULWindow::SetVisibility(PRBool aVisibility)
   }
 
   mDebuting = PR_FALSE;
+  NS_TIMELINE_LEAVE("nsXULWindow::SetVisibility");
   return NS_OK;
 }
 
@@ -966,7 +971,7 @@ NS_IMETHODIMP nsXULWindow::EnsurePrompter()
   if (mPrompter)
     return NS_OK;
    
-  nsCOMPtr<nsIDOMWindow> ourWindow;
+  nsCOMPtr<nsIDOMWindowInternal> ourWindow;
   nsresult rv = GetWindowDOMWindow(getter_AddRefs(ourWindow));
   if (NS_SUCCEEDED(rv)) {
     nsCOMPtr<nsIWindowWatcher> wwatch = 
@@ -982,7 +987,7 @@ NS_IMETHODIMP nsXULWindow::EnsureAuthPrompter()
   if (mAuthPrompter)
     return NS_OK;
       
-  nsCOMPtr<nsIDOMWindow> ourWindow;
+  nsCOMPtr<nsIDOMWindowInternal> ourWindow;
   nsresult rv = GetWindowDOMWindow(getter_AddRefs(ourWindow));
   if (NS_SUCCEEDED(rv)) {
     nsCOMPtr<nsIWindowWatcher> wwatch(do_GetService(NS_WINDOWWATCHER_CONTRACTID));
@@ -1153,7 +1158,7 @@ PRBool nsXULWindow::LoadSizeFromXUL()
 
   if (gotSize) {
     // constrain to screen size
-    nsCOMPtr<nsIDOMWindow> domWindow;
+    nsCOMPtr<nsIDOMWindowInternal> domWindow;
     GetWindowDOMWindow(getter_AddRefs(domWindow));
     if (domWindow) {
       nsCOMPtr<nsIDOMScreen> screen;
@@ -1243,7 +1248,7 @@ PRBool nsXULWindow::LoadMiscPersistentAttributesFromXUL()
     }
 
     if (sizeMode == nsSizeMode_Fullscreen) {
-      nsCOMPtr<nsIDOMWindow> ourWindow;
+      nsCOMPtr<nsIDOMWindowInternal> ourWindow;
       GetWindowDOMWindow(getter_AddRefs(ourWindow));
       ourWindow->SetFullScreen(PR_TRUE);
     } else {
@@ -1553,7 +1558,7 @@ NS_IMETHODIMP nsXULWindow::SavePersistentAttributes()
   return NS_OK;
 }
 
-NS_IMETHODIMP nsXULWindow::GetWindowDOMWindow(nsIDOMWindow** aDOMWindow)
+NS_IMETHODIMP nsXULWindow::GetWindowDOMWindow(nsIDOMWindowInternal** aDOMWindow)
 {
   NS_ENSURE_STATE(mDocShell);
 
@@ -1743,6 +1748,7 @@ NS_IMETHODIMP nsXULWindow::CreateNewWindow(PRInt32 aChromeFlags,
 NS_IMETHODIMP nsXULWindow::CreateNewChromeWindow(PRInt32 aChromeFlags,
    nsIAppShell* aAppShell, nsIXULWindow **_retval)
 {
+  NS_TIMELINE_ENTER("nsXULWindow::CreateNewChromeWindow");
   nsCOMPtr<nsIAppShellService> appShell(do_GetService(NS_APPSHELLSERVICE_CONTRACTID));
   NS_ENSURE_TRUE(appShell, NS_ERROR_FAILURE);
 
@@ -1759,12 +1765,15 @@ NS_IMETHODIMP nsXULWindow::CreateNewChromeWindow(PRInt32 aChromeFlags,
   *_retval = newWindow;
   NS_ADDREF(*_retval);
 
+  NS_TIMELINE_LEAVE("nsXULWindow::CreateNewChromeWindow done");
   return NS_OK;
 }
 
 NS_IMETHODIMP nsXULWindow::CreateNewContentWindow(PRInt32 aChromeFlags,
    nsIAppShell* aAppShell, nsIXULWindow **_retval)
 {
+  NS_TIMELINE_ENTER("nsXULWindow::CreateNewContentWindow");
+
   nsCOMPtr<nsIAppShellService> appShell(do_GetService(NS_APPSHELLSERVICE_CONTRACTID));
   NS_ENSURE_TRUE(appShell, NS_ERROR_FAILURE);
 
@@ -1818,6 +1827,7 @@ NS_IMETHODIMP nsXULWindow::CreateNewContentWindow(PRInt32 aChromeFlags,
   *_retval = newWindow;
   NS_ADDREF(*_retval);
 
+  NS_TIMELINE_LEAVE("nsXULWindow::CreateNewContentWindow");
   return NS_OK;
 }
 

@@ -452,7 +452,7 @@ static nsRect GetDisplayPortBounds(nsDisplayListBuilder* aBuilder,
 {
   nsIFrame* frame = aItem->GetUnderlyingFrame();
   nscoord auPerDevPixel = frame->PresContext()->AppUnitsPerDevPixel();
-  gfx3DMatrix transform;
+  gfxMatrix transform;
 
   if (!aIgnoreTransform) {
     transform = nsLayoutUtils::GetTransformToAncestor(frame,
@@ -2353,7 +2353,7 @@ gfxPoint GetDeltaToMozTransformOrigin(const nsIFrame* aFrame,
  * translates from local coordinate space to transform coordinate space, then
  * hands it back.
  */
-gfx3DMatrix
+gfxMatrix
 nsDisplayTransform::GetResultingTransformMatrix(const nsIFrame* aFrame,
                                                 const nsPoint &aOrigin,
                                                 float aFactor,
@@ -2378,40 +2378,25 @@ nsDisplayTransform::GetResultingTransformMatrix(const nsIFrame* aFrame,
                    nsDisplayTransform::GetFrameBoundsForTransform(aFrame));
 
   /* Get the matrix, then change its basis to factor in the origin. */
-  PRBool dummy;
   return nsLayoutUtils::ChangeMatrixBasis
-    (newOrigin + toMozOrigin, 
-     nsStyleTransformMatrix::ReadTransforms(disp->mSpecifiedTransform,
-                                            aFrame->GetStyleContext(),
-                                            aFrame->PresContext(),
-                                            dummy, bounds, aFactor));
-}
-
-const gfx3DMatrix&
-nsDisplayTransform::GetTransform(float aFactor)
-{
-  if (mTransform.IsIdentity() || mCachedFactor != aFactor) {
-    mTransform =
-      GetResultingTransformMatrix(mFrame, ToReferenceFrame(),
-                                  aFactor,
-                                  nsnull);
-    mCachedFactor = aFactor;
-  }
-  return mTransform;
+    (newOrigin + toMozOrigin, disp->mTransform.GetThebesMatrix(bounds, aFactor));
 }
 
 already_AddRefed<Layer> nsDisplayTransform::BuildLayer(nsDisplayListBuilder *aBuilder,
                                                        LayerManager *aManager,
                                                        const ContainerParameters& aContainerParameters)
 {
-  const gfx3DMatrix& newTransformMatrix = 
-    GetTransform(mFrame->PresContext()->AppUnitsPerDevPixel());
+  gfxMatrix newTransformMatrix =
+    GetResultingTransformMatrix(mFrame, ToReferenceFrame(),
+                                 mFrame->PresContext()->AppUnitsPerDevPixel(),
+                                nsnull);
   if (newTransformMatrix.IsSingular())
     return nsnull;
 
+  gfx3DMatrix matrix = gfx3DMatrix::From2D(newTransformMatrix);
   return aBuilder->LayerBuilder()->
     BuildContainerLayerFor(aBuilder, aManager, mFrame, this, *mStoredList.GetList(),
-                           aContainerParameters, &newTransformMatrix);
+                           aContainerParameters, &matrix);
 }
 
 nsDisplayItem::LayerState
@@ -2434,18 +2419,9 @@ PRBool nsDisplayTransform::ComputeVisibility(nsDisplayListBuilder *aBuilder,
 {
   /* As we do this, we need to be sure to
    * untransform the visible rect, since we want everything that's painting to
-   * think that it's painting in its original rectangular coordinate space.
-   * If we can't untransform, take the entire overflow rect */
-  nsRect untransformedVisibleRect;
-  if (!UntransformRect(mVisibleRect, 
-                       mFrame, 
-                       aBuilder->ToReferenceFrame(mFrame), 
-                       &untransformedVisibleRect)) 
-  {
-    untransformedVisibleRect = mFrame->GetVisualOverflowRectRelativeToSelf() +  
-                               aBuilder->ToReferenceFrame(mFrame);
-  }
-  nsRegion untransformedVisible = untransformedVisibleRect;
+   * think that it's painting in its original rectangular coordinate space. */
+  nsRegion untransformedVisible =
+    UntransformRect(mVisibleRect, mFrame, ToReferenceFrame());
   // Call RecomputeVisiblity instead of ComputeVisibilty since
   // nsDisplayItem::ComputeVisibility should only be called from
   // nsDisplayList::ComputeVisibility (which sets mVisibleRect on the item)
@@ -2471,8 +2447,9 @@ void nsDisplayTransform::HitTest(nsDisplayListBuilder *aBuilder,
    * 4. Pass that rect down through to the list's version of HitTest.
    */
   float factor = nsPresContext::AppUnitsPerCSSPixel();
-  gfx3DMatrix matrix = GetTransform(factor);
-
+  gfxMatrix matrix =
+    GetResultingTransformMatrix(mFrame, ToReferenceFrame(),
+                                factor, nsnull);
   if (matrix.IsSingular())
     return;
 
@@ -2554,17 +2531,12 @@ nsRegion nsDisplayTransform::GetOpaqueRegion(nsDisplayListBuilder *aBuilder,
   if (aForceTransparentSurface) {
     *aForceTransparentSurface = PR_FALSE;
   }
-  nsRect untransformedVisible;
-  if (!UntransformRect(mVisibleRect, mFrame, ToReferenceFrame(), &untransformedVisible)) {
-      return nsRegion();
-  }
-  
-  const gfx3DMatrix& matrix = GetTransform(nsPresContext::AppUnitsPerCSSPixel());
-                
+  const nsStyleDisplay* disp = mFrame->GetStyleDisplay();
+  nsRect untransformedVisible =
+    UntransformRect(mVisibleRect, mFrame, ToReferenceFrame());
   nsRegion result;
-  gfxMatrix matrix2d;
-  if (matrix.Is2D(&matrix2d) &&
-      matrix2d.PreservesAxisAlignedRectangles() &&
+  if (disp->mTransform.GetMainMatrixEntry(1) == 0.0f &&
+      disp->mTransform.GetMainMatrixEntry(2) == 0.0f &&
       mStoredList.GetOpaqueRegion(aBuilder).Contains(untransformedVisible)) {
     result = mVisibleRect;
   }
@@ -2577,17 +2549,13 @@ nsRegion nsDisplayTransform::GetOpaqueRegion(nsDisplayListBuilder *aBuilder,
  */
 PRBool nsDisplayTransform::IsUniform(nsDisplayListBuilder *aBuilder, nscolor* aColor)
 {
-  nsRect untransformedVisible;
-  if (!UntransformRect(mVisibleRect, mFrame, ToReferenceFrame(), &untransformedVisible)) {
-    return PR_FALSE;
-  }
-  const gfx3DMatrix& matrix = GetTransform(nsPresContext::AppUnitsPerCSSPixel());
-
-  gfxMatrix matrix2d;
-  return matrix.Is2D(&matrix2d) &&
-         matrix2d.PreservesAxisAlignedRectangles() &&
-         mStoredList.GetVisibleRect().Contains(untransformedVisible) &&
-         mStoredList.IsUniform(aBuilder, aColor);
+  const nsStyleDisplay* disp = mFrame->GetStyleDisplay();
+  nsRect untransformedVisible =
+    UntransformRect(mVisibleRect, mFrame, ToReferenceFrame());
+  return disp->mTransform.GetMainMatrixEntry(1) == 0.0f &&
+    disp->mTransform.GetMainMatrixEntry(2) == 0.0f &&
+    mStoredList.GetVisibleRect().Contains(untransformedVisible) &&
+    mStoredList.IsUniform(aBuilder, aColor);
 }
 
 /* If UNIFIED_CONTINUATIONS is defined, we can merge two display lists that
@@ -2676,10 +2644,9 @@ nsRect nsDisplayTransform::TransformRectOut(const nsRect &aUntransformedBounds,
      factor);
 }
 
-PRBool nsDisplayTransform::UntransformRect(const nsRect &aUntransformedBounds,
+nsRect nsDisplayTransform::UntransformRect(const nsRect &aUntransformedBounds,
                                            const nsIFrame* aFrame,
-                                           const nsPoint &aOrigin,
-                                           nsRect* aOutRect)
+                                           const nsPoint &aOrigin)
 {
   NS_PRECONDITION(aFrame, "Can't take the transform based on a null frame!");
   NS_PRECONDITION(aFrame->GetStyleDisplay()->HasTransform(),
@@ -2690,17 +2657,15 @@ PRBool nsDisplayTransform::UntransformRect(const nsRect &aUntransformedBounds,
    * empty rect.
    */
   float factor = nsPresContext::AppUnitsPerCSSPixel();
-  gfx3DMatrix matrix = GetResultingTransformMatrix(aFrame, aOrigin, factor, nsnull);
-  if (matrix.IsSingular() || !matrix.Is2D())
-    return PR_FALSE;
+  gfxMatrix matrix = GetResultingTransformMatrix(aFrame, aOrigin, factor, nsnull);
+  if (matrix.IsSingular())
+    return nsRect();
 
   /* We want to untransform the matrix, so invert the transformation first! */
   matrix.Invert();
 
-  *aOutRect = nsLayoutUtils::MatrixTransformRect(aUntransformedBounds, matrix,
-                                                 factor);
-
-  return PR_TRUE;
+  return nsLayoutUtils::MatrixTransformRect(aUntransformedBounds, matrix,
+                                            factor);
 }
 
 nsDisplaySVGEffects::nsDisplaySVGEffects(nsDisplayListBuilder* aBuilder,

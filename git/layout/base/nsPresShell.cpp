@@ -133,6 +133,7 @@
 #include "nsIAttribute.h"
 #include "nsIGlobalHistory2.h"
 #include "nsDisplayList.h"
+#include "nsIRegion.h"
 #include "nsRegion.h"
 #include "nsRenderingContext.h"
 
@@ -235,6 +236,7 @@ using namespace mozilla;
 using namespace mozilla::dom;
 using namespace mozilla::layers;
 
+PRBool nsIPresShell::gIsAccessibilityActive = PR_FALSE;
 CapturingContentInfo nsIPresShell::gCaptureInfo =
   { PR_FALSE /* mAllowed */,     PR_FALSE /* mRetargetToElement */,
     PR_FALSE /* mPreventDrag */, nsnull /* mContent */ };
@@ -1843,6 +1845,9 @@ PresShell::Init(nsIDocument* aDocument,
 #ifdef MOZ_XUL
       os->AddObserver(this, "chrome-flush-skin-caches", PR_FALSE);
 #endif
+#ifdef ACCESSIBILITY
+      os->AddObserver(this, "a11y-init-or-shutdown", PR_FALSE);
+#endif
     }
   }
 
@@ -1928,6 +1933,9 @@ PresShell::Destroy()
       os->RemoveObserver(this, "user-sheet-removed");
 #ifdef MOZ_XUL
       os->RemoveObserver(this, "chrome-flush-skin-caches");
+#endif
+#ifdef ACCESSIBILITY
+      os->RemoveObserver(this, "a11y-init-or-shutdown");
 #endif
     }
   }
@@ -6178,14 +6186,6 @@ PresShell::Paint(nsIView*           aViewToPaint,
 void
 nsIPresShell::SetCapturingContent(nsIContent* aContent, PRUint8 aFlags)
 {
-  // If SetCapturingContent() is called during dragging mouse for selection,
-  // we should abort current transaction.
-  nsRefPtr<nsFrameSelection> fs =
-    nsFrameSelection::GetMouseDownFrameSelection();
-  if (fs) {
-    fs->AbortDragForSelection();
-  }
-
   NS_IF_RELEASE(gCaptureInfo.mContent);
 
   // only set capturing content if allowed or the CAPTURE_IGNOREALLOWED flag
@@ -6983,6 +6983,9 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsIView *aView,
       accEvent->mAccessible =
         accService->GetRootDocumentAccessible(this, nsContentUtils::IsSafeToRunScript());
 
+      // Ensure this is set in case a11y was activated before any
+      // nsPresShells existed to observe "a11y-init-or-shutdown" topic
+      gIsAccessibilityActive = PR_TRUE;
       return NS_OK;
     }
   }
@@ -8229,6 +8232,12 @@ PresShell::Observe(nsISupports* aSubject,
     return NS_OK;
   }
 
+#ifdef ACCESSIBILITY
+  if (!nsCRT::strcmp(aTopic, "a11y-init-or-shutdown")) {
+    gIsAccessibilityActive = aData && *aData == '1';
+    return NS_OK;
+  }
+#endif
   NS_WARNING("unrecognized topic in PresShell::Observe");
   return NS_ERROR_FAILURE;
 }
@@ -9319,12 +9328,6 @@ nsIFrame* nsIPresShell::GetAbsoluteContainingBlock(nsIFrame *aFrame)
 }
 
 #ifdef ACCESSIBILITY
-bool
-nsIPresShell::IsAccessibilityActive()
-{
-  return GetAccService() != nsnull;
-}
-
 nsAccessibilityService*
 nsIPresShell::AccService()
 {

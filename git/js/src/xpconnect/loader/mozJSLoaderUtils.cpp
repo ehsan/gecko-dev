@@ -160,7 +160,7 @@ ReadCachedScript(StartupCache* cache, nsACString &uri, JSContext *cx, JSObject *
     }
 
     nsCOMPtr<nsIObjectInputStream> ois;
-    rv = NewObjectInputStreamFromBuffer(buf, len, getter_AddRefs(ois));
+    rv = NS_NewObjectInputStreamFromBuffer(buf, len, getter_AddRefs(ois));
     NS_ENSURE_SUCCESS(rv, rv);
     buf.forget();
 
@@ -174,9 +174,9 @@ WriteCachedScript(StartupCache* cache, nsACString &uri, JSContext *cx, JSObject 
 
     nsCOMPtr<nsIObjectOutputStream> oos;
     nsCOMPtr<nsIStorageStream> storageStream;
-    rv = NewObjectOutputWrappedStorageStream(getter_AddRefs(oos),
-                                             getter_AddRefs(storageStream),
-                                             true);
+    rv = NS_NewObjectOutputWrappedStorageStream(getter_AddRefs(oos),
+                                                getter_AddRefs(storageStream),
+                                                true);
     NS_ENSURE_SUCCESS(rv, rv);
 
     rv = WriteScriptToStream(cx, scriptObj, oos);
@@ -185,7 +185,8 @@ WriteCachedScript(StartupCache* cache, nsACString &uri, JSContext *cx, JSObject 
 
     nsAutoArrayPtr<char> buf;
     PRUint32 len;
-    rv = NewBufferFromStorageStream(storageStream, getter_Transfers(buf), &len);
+    rv = NS_NewBufferFromStorageStream(storageStream, getter_Transfers(buf),
+                                       &len);
     NS_ENSURE_SUCCESS(rv, rv);
 
     rv = cache->PutBuffer(PromiseFlatCString(uri).get(), buf, len);

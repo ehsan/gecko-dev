@@ -264,9 +264,9 @@ function InitAndStartRefTests()
       logFile = prefs.getCharPref("reftest.logFile");
       if (logFile) {
         try {
-          var mfl = new MozillaFileLogger(logFile);
+          MozillaFileLogger.init(logFile);
           // Set to mirror to stdout as well as the file
-          gDumpLog = function (msg) {dump(msg); mfl.log(msg);};
+          gDumpLog = function (msg) {dump(msg); MozillaFileLogger.log(msg);};
         }
         catch(e) {
           // If there is a problem, just use stdout

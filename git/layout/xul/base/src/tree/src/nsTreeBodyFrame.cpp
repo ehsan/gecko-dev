@@ -90,6 +90,7 @@
 #include "nsTreeUtils.h"
 #include "nsChildIterator.h"
 #include "nsITheme.h"
+#include "nsITimelineService.h"
 #include "imgIRequest.h"
 #include "imgIContainer.h"
 #include "imgIContainerObserver.h"
@@ -683,7 +684,8 @@ nsTreeBodyFrame::InvalidateColumn(nsITreeColumn* aCol)
     return NS_ERROR_INVALID_ARG;
 
 #ifdef ACCESSIBILITY
-  if (nsIPresShell::IsAccessibilityActive())
+  nsIPresShell *presShell = PresContext()->PresShell();
+  if (presShell->IsAccessibilityActive())
     FireInvalidateEvent(-1, -1, aCol, aCol);
 #endif
 
@@ -705,7 +707,8 @@ nsTreeBodyFrame::InvalidateRow(PRInt32 aIndex)
     return NS_OK;
 
 #ifdef ACCESSIBILITY
-  if (nsIPresShell::IsAccessibilityActive())
+  nsIPresShell *presShell = PresContext()->PresShell();
+  if (presShell->IsAccessibilityActive())
     FireInvalidateEvent(aIndex, aIndex, nsnull, nsnull);
 #endif
 
@@ -726,7 +729,8 @@ nsTreeBodyFrame::InvalidateCell(PRInt32 aIndex, nsITreeColumn* aCol)
     return NS_OK;
 
 #ifdef ACCESSIBILITY
-  if (nsIPresShell::IsAccessibilityActive())
+  nsIPresShell *presShell = PresContext()->PresShell();
+  if (presShell->IsAccessibilityActive())
     FireInvalidateEvent(aIndex, aIndex, aCol, aCol);
 #endif
 
@@ -769,7 +773,8 @@ nsTreeBodyFrame::InvalidateRange(PRInt32 aStart, PRInt32 aEnd)
     aEnd = last;
 
 #ifdef ACCESSIBILITY
-  if (nsIPresShell::IsAccessibilityActive()) {
+  nsIPresShell *presShell = PresContext()->PresShell();
+  if (presShell->IsAccessibilityActive()) {
     PRInt32 end =
       mRowCount > 0 ? ((mRowCount <= aEnd) ? mRowCount - 1 : aEnd) : 0;
     FireInvalidateEvent(aStart, end, nsnull, nsnull);
@@ -806,7 +811,8 @@ nsTreeBodyFrame::InvalidateColumnRange(PRInt32 aStart, PRInt32 aEnd, nsITreeColu
     aEnd = last;
 
 #ifdef ACCESSIBILITY
-  if (nsIPresShell::IsAccessibilityActive()) {
+  nsIPresShell *presShell = PresContext()->PresShell();
+  if (presShell->IsAccessibilityActive()) {
     PRInt32 end =
       mRowCount > 0 ? ((mRowCount <= aEnd) ? mRowCount - 1 : aEnd) : 0;
     FireInvalidateEvent(aStart, end, aCol, aCol);
@@ -1817,7 +1823,8 @@ nsTreeBodyFrame::RowCountChanged(PRInt32 aIndex, PRInt32 aCount)
     return NS_OK; // Nothing to do.
 
 #ifdef ACCESSIBILITY
-  if (nsIPresShell::IsAccessibilityActive())
+  nsIPresShell *presShell = PresContext()->PresShell();
+  if (presShell->IsAccessibilityActive())
     FireRowCountChangedEvent(aIndex, aCount);
 #endif
 
@@ -3609,6 +3616,9 @@ nsTreeBodyFrame::PaintText(PRInt32              aRowIndex,
     fontMet->GetStrikeout(offset, size);
     aRenderingContext.FillRect(textRect.x, textRect.y + baseline - offset, textRect.width, size);
   }
+#ifdef MOZ_TIMELINE
+  NS_TIMELINE_START_TIMER("Render Outline Text");
+#endif
   PRUint8 direction = aTextRTL ? NS_STYLE_DIRECTION_RTL :
                                  NS_STYLE_DIRECTION_LTR;
 
@@ -3625,6 +3635,10 @@ nsTreeBodyFrame::PaintText(PRInt32              aRowIndex,
     ctx->Paint(opacity);
   }
 
+#ifdef MOZ_TIMELINE
+  NS_TIMELINE_STOP_TIMER("Render Outline Text");
+  NS_TIMELINE_MARK_TIMER("Render Outline Text");
+#endif
 }
 
 void

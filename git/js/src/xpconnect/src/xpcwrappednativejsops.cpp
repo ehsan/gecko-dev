@@ -898,8 +898,7 @@ js::Class XPC_WN_NoHelper_JSClass = {
         nsnull, // outerObject
         nsnull, // innerObject
         nsnull, // iteratorObject
-        nsnull, // unused
-        true,   // isWrappedNative
+        nsnull, // wrappedObject
     },
    
     // ObjectOps
@@ -1553,8 +1552,6 @@ XPCNativeScriptableShared::PopulateJSClass(JSBool isGlobal)
 
     if(!(mFlags & nsIXPCScriptable::WANT_OUTER_OBJECT))
         mCanBeSlim = JS_TRUE;
-
-    mJSClass.base.ext.isWrappedNative = true;
 }
 
 /***************************************************************************/

@@ -760,7 +760,7 @@ JSObject::principals(JSContext *cx)
     JSSecurityCallbacks *cb = JS_GetSecurityCallbacks(cx);
     if (JSObjectPrincipalsFinder finder = cb ? cb->findObjectPrincipals : NULL)
         return finder(cx, this);
-    return cx->compartment ? cx->compartment->principals : NULL;
+    return NULL;
 }
 
 inline uint32
@@ -1102,7 +1102,8 @@ NewBuiltinClassInstance(JSContext *cx, Class *clasp, gc::FinalizeKind kind)
     JSObject *global;
     if (!cx->hasfp()) {
         global = cx->globalObject;
-        if (!NULLABLE_OBJ_TO_INNER_OBJECT(cx, global))
+        OBJ_TO_INNER_OBJECT(cx, global);
+        if (!global)
             return NULL;
     } else {
         global = cx->fp()->scopeChain().getGlobal();
@@ -1356,9 +1357,10 @@ CopyInitializerObject(JSContext *cx, JSObject *baseobj)
 }
 
 inline bool
-DefineConstructorAndPrototype(JSContext *cx, GlobalObject *global,
+DefineConstructorAndPrototype(JSContext *cx, JSObject *global,
                               JSProtoKey key, JSFunction *ctor, JSObject *proto)
 {
+    JS_ASSERT(global->isGlobal());
     JS_ASSERT(!global->nativeEmpty()); /* reserved slots already allocated */
     JS_ASSERT(ctor);
     JS_ASSERT(proto);

@@ -32,9 +32,6 @@ function createGroupItemWithTabs(win, width, height, padding, urls, animate) {
     ok(newItem.container, "Created element "+t+":"+newItem.container);
     ++t;
   });
-  // to set one of tabItem to be active since we load tabs into a group 
-  // in a non-standard flow.
-  contentWindow.UI.setActive(groupItem);
   return groupItem;
 }
 
@@ -48,15 +45,15 @@ function createGroupItemWithBlankTabs(win, width, height, padding, numNewTabs, a
 
 // ----------
 function closeGroupItem(groupItem, callback) {
-  groupItem.addSubscriber("close", function onClose() {
-    groupItem.removeSubscriber("close", onClose);
+  groupItem.addSubscriber(groupItem, "close", function () {
+    groupItem.removeSubscriber(groupItem, "close");
     if ("function" == typeof callback)
       executeSoon(callback);
   });
 
   if (groupItem.getChildren().length) {
-    groupItem.addSubscriber("groupHidden", function onHide() {
-      groupItem.removeSubscriber("groupHidden", onHide);
+    groupItem.addSubscriber(groupItem, "groupHidden", function () {
+      groupItem.removeSubscriber(groupItem, "groupHidden");
       groupItem.closeHidden();
     });
   }
@@ -136,13 +133,11 @@ function showTabView(callback, win) {
   win = win || window;
 
   if (win.TabView.isVisible()) {
-    waitForFocus(callback, win);
+    callback();
     return;
   }
 
-  whenTabViewIsShown(function() {
-    waitForFocus(callback, win);
-  }, win);
+  whenTabViewIsShown(callback, win);
   win.TabView.show();
 }
 
@@ -168,8 +163,8 @@ function whenTabViewIsHidden(callback, win) {
     return;
   }
 
-  win.addEventListener('tabviewhidden', function onHidden() {
-    win.removeEventListener('tabviewhidden', onHidden, false);
+  win.addEventListener('tabviewhidden', function () {
+    win.removeEventListener('tabviewhidden', arguments.callee, false);
     callback();
   }, false);
 }
@@ -183,8 +178,8 @@ function whenTabViewIsShown(callback, win) {
     return;
   }
 
-  win.addEventListener('tabviewshown', function onShown() {
-    win.removeEventListener('tabviewshown', onShown, false);
+  win.addEventListener('tabviewshown', function () {
+    win.removeEventListener('tabviewshown', arguments.callee, false);
     callback();
   }, false);
 }
@@ -227,8 +222,8 @@ function whenSearchIsEnabled(callback, win) {
     return;
   }
 
-  contentWindow.addEventListener("tabviewsearchenabled", function onSearchEnabled() {
-    contentWindow.removeEventListener("tabviewsearchenabled", onSearchEnabled, false);
+  contentWindow.addEventListener("tabviewsearchenabled", function () {
+    contentWindow.removeEventListener("tabviewsearchenabled", arguments.callee, false);
     callback();
   }, false);
 }
@@ -243,8 +238,8 @@ function whenSearchIsDisabled(callback, win) {
     return;
   }
 
-  contentWindow.addEventListener("tabviewsearchdisabled", function onSearchDisabled() {
-    contentWindow.removeEventListener("tabviewsearchdisabled", onSearchDisabled, false);
+  contentWindow.addEventListener("tabviewsearchdisabled", function () {
+    contentWindow.removeEventListener("tabviewsearchdisabled", arguments.callee, false);
     callback();
   }, false);
 }
@@ -257,8 +252,8 @@ function hideGroupItem(groupItem, callback) {
     return;
   }
 
-  groupItem.addSubscriber("groupHidden", function onHide() {
-    groupItem.removeSubscriber("groupHidden", onHide);
+  groupItem.addSubscriber(groupItem, "groupHidden", function () {
+    groupItem.removeSubscriber(groupItem, "groupHidden");
     callback();
   });
   groupItem.closeAll();
@@ -271,8 +266,8 @@ function unhideGroupItem(groupItem, callback) {
     return;
   }
 
-  groupItem.addSubscriber("groupShown", function onShown() {
-    groupItem.removeSubscriber("groupShown", onShown);
+  groupItem.addSubscriber(groupItem, "groupShown", function () {
+    groupItem.removeSubscriber(groupItem, "groupShown");
     callback();
   });
   groupItem._unhide();
@@ -347,8 +342,8 @@ function restoreTab(callback, index, win) {
     return;
   }
 
-  tab._tabViewTabItem.addSubscriber("reconnected", function onReconnected() {
-    tab._tabViewTabItem.removeSubscriber("reconnected", onReconnected);
+  tab._tabViewTabItem.addSubscriber(tab, "reconnected", function onReconnected() {
+    tab._tabViewTabItem.removeSubscriber(tab, "reconnected");
     finalize();
   });
 }

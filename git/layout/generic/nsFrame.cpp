@@ -1423,10 +1423,7 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
    */
   if ((mState & NS_FRAME_MAY_BE_TRANSFORMED) &&
       disp->HasTransform()) {
-    /* If we have a complex transform, just grab the entire overflow rect instead. */
-    if (!nsDisplayTransform::UntransformRect(dirtyRect, this, nsPoint(0, 0), &dirtyRect)) {
-      dirtyRect = GetVisualOverflowRectRelativeToSelf();
-    }
+    dirtyRect = nsDisplayTransform::UntransformRect(dirtyRect, this, nsPoint(0, 0));
     inTransform = PR_TRUE;
   }
 
@@ -2189,8 +2186,6 @@ nsFrame::HandlePress(nsPresContext* aPresContext,
                      nsEventStatus*  aEventStatus)
 {
   NS_ENSURE_ARG_POINTER(aEventStatus);
-  NS_ASSERTION(aPresContext == PresContext(),
-               "HandlePress called with different presContext");
   if (nsEventStatus_eConsumeNoDefault == *aEventStatus) {
     return NS_OK;
   }
@@ -2311,20 +2306,11 @@ nsFrame::HandlePress(nsPresContext* aPresContext,
     // In table selection mode, a nearest scrollable frame should capture the
     // mouse events.
     if (captureMouse) {
-      // NOTE: we must have set a content to capture already.  The content is
-      // selection root of this frame.  Therefore, when there is no scrollable
-      // frame, we don't need to reset the capturing content.
-      NS_ASSERTION(nsIPresShell::GetCapturingContent() != nsnull,
-                   "Someone must have captured mouse event already");
       nsIScrollableFrame* scrollableFrame =
         FindNearestScrollableFrameForSelection(this);
-      if (scrollableFrame) {
-        nsIFrame* frame = do_QueryFrame(scrollableFrame);
-        nsIContent* contentToCaptureForTableSelection =
-          GetContentToCaptureForSelection(frame->GetContent());
-        nsIPresShell::SetCapturingContent(contentToCaptureForTableSelection,
-                                          CAPTURE_IGNOREALLOWED);
-      }
+      nsIFrame* frame = do_QueryFrame(scrollableFrame);
+      nsIPresShell::SetCapturingContent(frame->GetContent(),
+                                        CAPTURE_IGNOREALLOWED);
     }
     fs->SetMouseDownState(PR_TRUE);
     return fs->HandleTableSelection(parentContent, contentOffset, target, me);
@@ -2568,9 +2554,6 @@ nsFrame::HandleDrag(nsPresContext* aPresContext,
     return NS_OK; // not selecting now
   }
 
-  NS_ASSERTION(target->PresContext()->PresShell() == fs->GetShell(),
-               "A different presShell received mouse move event during drag");
-
   // Stop auto scrolling, first.
   fs->StopAutoScrollTimer();
 
@@ -2578,11 +2561,6 @@ nsFrame::HandleDrag(nsPresContext* aPresContext,
                                             static_cast<nsMouseEvent*>(aEvent),
                                             aEventStatus);
 }
-
-static const char kPrefName_EdgeWidth[] =
-  "layout.selection.drag.autoscroll.edge_width";
-static const char kPrefName_EdgeScrollAmount[] =
-  "layout.selection.drag.autoscroll.edge_scroll_amount";
 
 nsresult
 nsFrame::ExpandSelectionByMouseMove(nsFrameSelection* aFrameSelection,
@@ -2593,11 +2571,8 @@ nsFrame::ExpandSelectionByMouseMove(nsFrameSelection* aFrameSelection,
 #ifdef DEBUG
   nsFrameSelection* draggingFrameSelection =
     nsFrameSelection::GetMouseDownFrameSelection();
-  nsFrameSelection* selectionFrameForSelectingByMouse =
-    GetFrameSelectionForSelectingByMouse();
-  NS_ASSERTION(draggingFrameSelection,
-               "dragging FrameSelection must not be NULL");
-  NS_ASSERTION(draggingFrameSelection == selectionFrameForSelectingByMouse,
+  NS_ASSERTION(draggingFrameSelection &&
+               draggingFrameSelection == GetConstFrameSelection(),
                "aFrameSelection must be handling current drag for selection");
 #endif
 
@@ -2647,6 +2622,14 @@ nsFrame::ExpandSelectionByMouseMove(nsFrameSelection* aFrameSelection,
       FindNearestScrollableFrameForSelection(selectionRoot->GetPrimaryFrame(),
                                              selectionRoot);
     while (scrollableFrame) {
+      // We don't need to scroll the selection root frame when the mouse cursor
+      // is on its edge because selection root frame will be scrolled when the
+      // mouse cursor is outside of the frame.  And user may want slower scroll
+      // than the "on edge" scroll speed.
+      if (selectionRootScrollableFrame == scrollableFrame) {
+        break;
+      }
+
       nsPoint scrollTo;
       if (IsOnScrollableFrameEdge(scrollableFrame, aEvent, scrollTo)) {
         aFrameSelection->StartAutoScrollTimer(
@@ -2671,33 +2654,6 @@ nsFrame::ExpandSelectionByMouseMove(nsFrameSelection* aFrameSelection,
                "The found scrollable frame doesn't have scrolled frame");
   nsPoint scrollTo =
     nsLayoutUtils::GetEventCoordinatesRelativeTo(aEvent, scrolledFrame);
-
-  // We should set minimum scroll speed same as the on-edge scrolling speed.
-  // E.g., while mouse cursor is on the edge, scrolling speed is always same.
-  nsPoint currentScrollPos = scrollableFrame->GetScrollPosition();
-  nsRect visibleRectOfScrolledFrame = scrollableFrame->GetScrollPortRect();
-  visibleRectOfScrolledFrame.MoveTo(currentScrollPos);
-  if (visibleRectOfScrolledFrame.Contains(scrollTo)) {
-    return NS_OK; // scroll wouldn't happen actually
-  }
-  PRInt32 minAmountPixel =
-    NS_MAX(Preferences::GetInt(kPrefName_EdgeScrollAmount), 1);
-  nscoord minAmountApp = PresContext()->DevPixelsToAppUnits(minAmountPixel);
-  if (visibleRectOfScrolledFrame.x > scrollTo.x) {
-    scrollTo.x =
-      NS_MIN(visibleRectOfScrolledFrame.x - minAmountApp, scrollTo.x);
-  } else if (visibleRectOfScrolledFrame.XMost() < scrollTo.x) {
-    scrollTo.x =
-      NS_MAX(visibleRectOfScrolledFrame.XMost() + minAmountApp, scrollTo.x);
-  }
-  if (visibleRectOfScrolledFrame.y > scrollTo.y) {
-    scrollTo.y =
-      NS_MIN(visibleRectOfScrolledFrame.y - minAmountApp, scrollTo.y);
-  } else if (visibleRectOfScrolledFrame.YMost() < scrollTo.y) {
-    scrollTo.y =
-      NS_MAX(visibleRectOfScrolledFrame.YMost() + minAmountApp, scrollTo.y);
-  }
-
   aFrameSelection->StartAutoScrollTimer(scrolledFrame, scrollTo,
                                         kAutoScrollTimerDelay);
 
@@ -2768,11 +2724,6 @@ nsFrame::IsOnScrollableFrameEdge(nsIScrollableFrame* aScrollableFrame,
   nsIFrame* scrollableFrame = do_QueryFrame(aScrollableFrame);
   nsPoint ptInScrollableFrame =
     nsLayoutUtils::GetEventCoordinatesRelativeTo(aEvent, scrollableFrame);
-  nsRect scrollableFrameRect(scrollableFrame->GetRect());
-  scrollableFrameRect.MoveTo(0, 0);
-  if (!scrollableFrameRect.Contains(ptInScrollableFrame)) {
-    return PR_FALSE; // cursor is outside of the frame.
-  }
   nsPoint scrollPosition = aScrollableFrame->GetScrollPosition();
   nsRect scrollRange = aScrollableFrame->GetScrollRange();
   nsRect scrollPort = aScrollableFrame->GetScrollPortRect();
@@ -2786,6 +2737,8 @@ nsFrame::IsOnScrollableFrameEdge(nsIScrollableFrame* aScrollableFrame,
   // The edge width (or height) is defined by pref, however, if the value
   // is too thick for the frame, we should use 1/4 width (or height) of
   // the frame.
+  static const char kPrefName_EdgeWidth[] =
+    "layout.selection.drag.autoscroll.inner_frame.edge_width";
   nsPresContext* pc = PresContext();
   PRInt32 edgePixel = Preferences::GetInt(kPrefName_EdgeWidth);
   nscoord edgeApp = pc->DevPixelsToAppUnits(edgePixel);
@@ -2797,8 +2750,10 @@ nsFrame::IsOnScrollableFrameEdge(nsIScrollableFrame* aScrollableFrame,
   // The scrolling mouse is defined by pref, however, if the amount is
   // too big for the frame, we should use 1/2 width (or height) of the
   // frame.
+  static const char kPrefName_ScrollAmount[] =
+    "layout.selection.drag.autoscroll.inner_frame.amount";
   PRInt32 scrollAmountPixel =
-    NS_MAX(Preferences::GetInt(kPrefName_EdgeScrollAmount), 1);
+    NS_MAX(Preferences::GetInt(kPrefName_ScrollAmount), 1);
   nscoord scrollAmountApp = pc->DevPixelsToAppUnits(scrollAmountPixel);
 
   nscoord scrollAmountH =
@@ -2842,12 +2797,12 @@ nsFrame::HandleRelease(nsPresContext* aPresContext,
                        nsGUIEvent* aEvent,
                        nsEventStatus* aEventStatus)
 {
-  // NOTE: You don't need to release mouse capture here. It'll be done
-  // in PresShell automatically.  If you need to do it here, you must
-  // do it after nsFrame::EndSelectionChangeByMouse() because we need
-  // to call nsFrameSelection::SetMouseDownState(PR_FALSE) first.
-  // If we release mouse event capture first, it doesn't cause
-  // MOUSEUP_REASON selection change event.
+  nsCOMPtr<nsIContent> captureContent = nsIPresShell::GetCapturingContent();
+
+  // We can unconditionally stop capturing because
+  // we should never be capturing when the mouse button is up
+  nsIPresShell::SetCapturingContent(nsnull, 0);
+
   nsFrame* targetFrame;
   nsRefPtr<nsFrameSelection> fs =
     FindDraggingFrameSelection(aPresContext->PresShell(), &targetFrame);
@@ -4518,7 +4473,7 @@ nsIFrame::InvalidateInternal(const nsRect& aDamageRect, nscoord aX, nscoord aY,
   InvalidateInternalAfterResize(aDamageRect, aX, aY, aFlags);
 }
 
-gfx3DMatrix
+gfxMatrix
 nsIFrame::GetTransformMatrix(nsIFrame **aOutAncestor)
 {
   NS_PRECONDITION(aOutAncestor, "Need a place to put the ancestor!");
@@ -4540,14 +4495,13 @@ nsIFrame::GetTransformMatrix(nsIFrame **aOutAncestor)
     nsPoint delta = GetOffsetToCrossDoc(*aOutAncestor);
     PRInt32 scaleFactor = PresContext()->AppUnitsPerDevPixel();
 
-    gfx3DMatrix result =
+    gfxMatrix result =
       nsDisplayTransform::GetResultingTransformMatrix(this, nsPoint(0, 0),
                                                       scaleFactor);
     /* Combine the raw transform with a translation to our parent. */
-    result = result * gfx3DMatrix::Translation
-      (NSAppUnitsToFloatPixels(delta.x, scaleFactor),
-       NSAppUnitsToFloatPixels(delta.y, scaleFactor),
-       0.0f);
+    result *= gfxMatrix().Translate
+      (gfxPoint(NSAppUnitsToFloatPixels(delta.x, scaleFactor),
+                NSAppUnitsToFloatPixels(delta.y, scaleFactor)));
     return result;
   }
   
@@ -4560,7 +4514,7 @@ nsIFrame::GetTransformMatrix(nsIFrame **aOutAncestor)
    * the identity matrix.
    */
   if (!*aOutAncestor)
-    return gfx3DMatrix();
+    return gfxMatrix();
   
   /* Keep iterating while the frame can't possibly be transformed. */
   while (!(*aOutAncestor)->IsTransformed()) {
@@ -4579,10 +4533,9 @@ nsIFrame::GetTransformMatrix(nsIFrame **aOutAncestor)
    */
   nsPoint delta = GetOffsetToCrossDoc(*aOutAncestor);
   PRInt32 scaleFactor = PresContext()->AppUnitsPerDevPixel();
-  return gfx3DMatrix().Translation
-    (NSAppUnitsToFloatPixels(delta.x, scaleFactor),
-     NSAppUnitsToFloatPixels(delta.y, scaleFactor),
-     0.0f);
+  return gfxMatrix().Translate
+    (gfxPoint(NSAppUnitsToFloatPixels(delta.x, scaleFactor),
+              NSAppUnitsToFloatPixels(delta.y, scaleFactor)));
 }
 
 void

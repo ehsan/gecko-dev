@@ -59,7 +59,7 @@ const MEM_HISTOGRAMS = {
   "explicit/layout/all": "MEMORY_LAYOUT_ALL",
   "explicit/images/content/used/uncompressed":
     "MEMORY_IMAGES_CONTENT_USED_UNCOMPRESSED",
-  "heap-allocated": "MEMORY_HEAP_ALLOCATED",
+  "heap-used": "MEMORY_HEAP_USED",
   "page-faults-hard": "PAGE_FAULTS_HARD"
 };
 
@@ -186,12 +186,10 @@ function getSimpleMeasurements() {
     // uptime in minutes
     uptime: Math.round((new Date() - si.process) / 60000)
   }
-  if (si.process) {
-    for each (let field in ["main", "firstPaint", "sessionRestored"]) {
-      if (!(field in si))
-        continue;
-      ret[field] = si[field] - si.process
-    }
+  for each (let field in ["main", "firstPaint", "sessionRestored"]) {
+    if (!(field in si))
+      continue;
+    ret[field] = si[field] - si.process
   }
   return ret;
 }
@@ -238,11 +236,8 @@ TelemetryPing.prototype = {
         val = Math.floor(mr.amount / 1024);
       }
       else if (mr.units == Ci.nsIMemoryReporter.UNITS_COUNT) {
-        val = mr.amount;
-      }
-      else if (mr.units == Ci.nsIMemoryReporter.UNITS_COUNT_CUMULATIVE) {
-        // If the reporter gives us a cumulative count, we'll report the
-        // difference in its value between now and our previous ping.
+        // If the reporter gives us a count, we'll report the difference in its
+        // value between now and our previous ping.
 
         // Read mr.amount just once so our arithmetic is consistent.
         let curVal = mr.amount;

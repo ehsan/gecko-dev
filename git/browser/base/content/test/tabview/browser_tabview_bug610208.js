@@ -160,13 +160,13 @@ function test() {
 
     ok(groupItem.isStacked(), 'testExpandedMode: group is stacked');
 
-    groupItem.addSubscriber('expanded', function onGroupExpanded() {
-      groupItem.removeSubscriber('expanded', onGroupExpanded);
+    groupItem.addSubscriber(groupItem, 'expanded', function () {
+      groupItem.removeSubscriber(groupItem, 'expanded');
       onExpanded();
     });
 
-    groupItem.addSubscriber('collapsed', function onGroupCollapsed() {
-      groupItem.removeSubscriber('collapsed', onGroupCollapsed);
+    groupItem.addSubscriber(groupItem, 'collapsed', function () {
+      groupItem.removeSubscriber(groupItem, 'collapsed');
       onCollapsed();
     });
 

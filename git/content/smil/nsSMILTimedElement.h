@@ -409,7 +409,7 @@ protected:
   void              ClearSpecs(TimeValueSpecList& aSpecs,
                                InstanceTimeList& aInstances,
                                RemovalTestFunction aRemove);
-  void              ClearIntervals();
+  void              ClearIntervalProgress();
   void              DoSampleAt(nsSMILTime aContainerTime, PRBool aEndOnly);
 
   /**
@@ -505,7 +505,7 @@ protected:
   void              UpdateCurrentInterval(PRBool aForceChangeNotice = PR_FALSE);
   void              SampleSimpleTime(nsSMILTime aActiveTime);
   void              SampleFillValue();
-  nsresult          AddInstanceTimeFromCurrentTime(nsSMILTime aCurrentTime,
+  void              AddInstanceTimeFromCurrentTime(nsSMILTime aCurrentTime,
                         double aOffsetSeconds, PRBool aIsBegin);
   void              RegisterMilestone();
   PRBool            GetNextMilestone(nsSMILMilestone& aNextMilestone) const;

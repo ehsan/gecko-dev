@@ -128,8 +128,6 @@ const TAB_EVENTS = ["TabOpen", "TabClose", "TabSelect", "TabShow", "TabHide",
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-// debug.js adds NS_ASSERT. cf. bug 669196
-Cu.import("resource://gre/modules/debug.js");
 
 XPCOMUtils.defineLazyGetter(this, "NetUtil", function() {
   Cu.import("resource://gre/modules/NetUtil.jsm");
@@ -306,31 +304,33 @@ SessionStoreService.prototype = {
     this._sessionFileBackup.append("sessionstore.bak");
 
     // get string containing session state
+    var iniString;
     var ss = Cc["@mozilla.org/browser/sessionstartup;1"].
              getService(Ci.nsISessionStartup);
     try {
       if (ss.doRestore() ||
           ss.sessionType == Ci.nsISessionStartup.DEFER_SESSION)
-        this._initialState = ss.state;
+        iniString = ss.state;
     }
     catch(ex) { dump(ex + "\n"); } // no state to restore, which is ok
 
-    if (this._initialState) {
+    if (iniString) {
       try {
         // If we're doing a DEFERRED session, then we want to pull pinned tabs
         // out so they can be restored.
         if (ss.sessionType == Ci.nsISessionStartup.DEFER_SESSION) {
-          let [iniState, remainingState] = this._prepDataForDeferredRestore(this._initialState);
+          let [iniState, remainingState] = this._prepDataForDeferredRestore(iniString);
           // If we have a iniState with windows, that means that we have windows
           // with app tabs to restore.
           if (iniState.windows.length)
             this._initialState = iniState;
-          else
-            this._initialState = null;
           if (remainingState.windows.length)
             this._lastSessionState = remainingState;
         }
         else {
+          // parse the session state into JS objects
+          this._initialState = JSON.parse(iniString);
+
           let lastSessionCrashed =
             this._initialState.session && this._initialState.session.state &&
             this._initialState.session.state == STATE_RUNNING_STR;
@@ -342,7 +342,7 @@ SessionStoreService.prototype = {
               // replace the crashed session with a restore-page-only session
               let pageData = {
                 url: "about:sessionrestore",
-                formdata: { "#sessionData": JSON.stringify(this._initialState) }
+                formdata: { "#sessionData": iniString }
               };
               this._initialState = { windows: [{ tabs: [{ entries: [pageData] }] }] };
             }
@@ -811,7 +811,7 @@ SessionStoreService.prototype = {
           // We'll cheat a little bit and reuse _prepDataForDeferredRestore
           // even though it wasn't built exactly for this.
           let [appTabsState, normalTabsState] =
-            this._prepDataForDeferredRestore({ windows: [closedWindowState] });
+            this._prepDataForDeferredRestore(JSON.stringify({ windows: [closedWindowState] }));
 
           // These are our pinned tabs, which we should restore
           if (appTabsState.windows.length) {
@@ -1671,31 +1671,10 @@ SessionStoreService.prototype = {
       tabData.index = history.index + 1;
     }
     else if (history && history.count > 0) {
-      try {
-        for (var j = 0; j < history.count; j++) {
-          let entry = this._serializeHistoryEntry(history.getEntryAtIndex(j, false),
-                                                  aFullData, aTab.pinned);
-          tabData.entries.push(entry);
-        }
-        // If we make it through the for loop, then we're ok and we should clear
-        // any indicator of brokenness.
-        delete aTab.__SS_broken_history;
-      }
-      catch (ex) {
-        // In some cases, getEntryAtIndex will throw. This seems to be due to
-        // history.count being higher than it should be. By doing this in a
-        // try-catch, we'll update history to where it breaks, assert for
-        // non-release builds, and still save sessionstore.js. We'll track if
-        // we've shown the assert for this tab so we only show it once.
-        // cf. bug 669196.
-        if (!aTab.__SS_broken_history) {
-          // First Focus the window & tab we're having trouble with.
-          aTab.ownerDocument.defaultView.focus();
-          aTab.ownerDocument.defaultView.gBrowser.selectedTab = aTab;
-          NS_ASSERT(false, "SessionStore failed gathering complete history " +
-                           "for the focused window/tab. See bug 669196.");
-          aTab.__SS_broken_history = true;
-        }
+      for (var j = 0; j < history.count; j++) {
+        let entry = this._serializeHistoryEntry(history.getEntryAtIndex(j, false),
+                                                aFullData, aTab.pinned);
+        tabData.entries.push(entry);
       }
       tabData.index = history.index + 1;
 
@@ -3815,11 +3794,12 @@ SessionStoreService.prototype = {
    * this._lastSessionState and will be kept in case the user explicitly wants
    * to restore the previous session (publicly exposed as restoreLastSession).
    *
-   * @param state
-   *        The state, presumably from nsISessionStartup.state
+   * @param stateString
+   *        The state string, presumably from nsISessionStartup.state
    * @returns [defaultState, state]
    */
-  _prepDataForDeferredRestore: function sss__prepDataForDeferredRestore(state) {
+  _prepDataForDeferredRestore: function sss__prepDataForDeferredRestore(stateString) {
+    let state = JSON.parse(stateString);
     let defaultState = { windows: [], selectedWindow: 1 };
 
     state.selectedWindow = state.selectedWindow || 1;

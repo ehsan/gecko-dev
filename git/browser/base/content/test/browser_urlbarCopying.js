@@ -2,21 +2,18 @@
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
 const trimPref = "browser.urlbar.trimURLs";
-const phishyUserPassPref = "network.http.phishy-userpass-length";
 
 function test() {
 
-  let tab = gBrowser.selectedTab = gBrowser.addTab();
+  gBrowser.selectedTab = gBrowser.addTab();
 
   registerCleanupFunction(function () {
-    gBrowser.removeTab(tab);
+    gBrowser.removeCurrentTab();
     Services.prefs.clearUserPref(trimPref);
-    Services.prefs.clearUserPref(phishyUserPassPref);
     URLBarSetURI();
   });
 
   Services.prefs.setBoolPref(trimPref, true);
-  Services.prefs.setIntPref(phishyUserPassPref, 32); // avoid prompting about phishing
 
   waitForExplicitFinish();
 
@@ -35,6 +32,7 @@ var tests = [
     copyExpected: "e"
   },
 
+
   // pageproxystate="valid" from this point on (due to the load)
   {
     loadURL: "http://example.com/",
@@ -52,13 +50,6 @@ var tests = [
   {
     copyVal: "<e>xample.com",
     copyExpected: "http://e"
-  },
-
-  // Test that userPass is stripped out
-  {
-    loadURL: "http://user:pass@mochi.test:8888/browser/browser/base/content/test/authenticate.sjs?user=user&pass=pass",
-    expectedURL: "mochi.test:8888/browser/browser/base/content/test/authenticate.sjs?user=user&pass=pass",
-    copyExpected: "http://mochi.test:8888/browser/browser/base/content/test/authenticate.sjs?user=user&pass=pass"
   },
 
   // Test escaping

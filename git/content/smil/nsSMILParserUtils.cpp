@@ -314,7 +314,9 @@ ParseAccessKey(const nsAString& aSpec, nsSMILTimeValueSpecParams& aResult)
 const PRUnichar*
 GetTokenEnd(const nsAString& aStr, PRBool aBreakOnDot)
 {
-  const PRUnichar* tokenEnd = aStr.BeginReading();
+  const PRUnichar* start;
+  const PRUnichar* tokenEnd;
+  start = tokenEnd = aStr.BeginReading();
   const PRUnichar* const end = aStr.EndReading();
   PRBool escape = PR_FALSE;
   while (tokenEnd != end) {

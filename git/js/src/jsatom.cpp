@@ -344,7 +344,7 @@ js_FinishAtomState(JSRuntime *rt)
     }
 
     for (AtomSet::Range r = state->atoms.all(); !r.empty(); r.popFront())
-        r.front().asPtr()->finalize(rt);
+        r.front().toAtom()->finalize(rt);
 
 #ifdef JS_THREADSAFE
     js_FinishLock(&state->lock);
@@ -388,16 +388,16 @@ js_TraceAtomState(JSTracer *trc)
     if (rt->gcKeepAtoms) {
         for (AtomSet::Range r = state->atoms.all(); !r.empty(); r.popFront()) {
             JS_SET_TRACING_INDEX(trc, "locked_atom", number++);
-            MarkString(trc, r.front().asPtr());
+            MarkString(trc, r.front().toAtom());
         }
     } else {
         for (AtomSet::Range r = state->atoms.all(); !r.empty(); r.popFront()) {
             AtomStateEntry entry = r.front();
-            if (!entry.isTagged())
+            if (!entry.isInterned())
                 continue;
 
             JS_SET_TRACING_INDEX(trc, "interned_atom", number++);
-            MarkString(trc, entry.asPtr());
+            MarkString(trc, entry.toAtom());
         }
     }
 }
@@ -410,13 +410,13 @@ js_SweepAtomState(JSContext *cx)
     for (AtomSet::Enum e(state->atoms); !e.empty(); e.popFront()) {
         AtomStateEntry entry = e.front();
 
-        if (entry.isTagged()) {
+        if (entry.isInterned()) {
             /* Pinned or interned key cannot be finalized. */
-            JS_ASSERT(!IsAboutToBeFinalized(cx, entry.asPtr()));
+            JS_ASSERT(!IsAboutToBeFinalized(cx, entry.toAtom()));
             continue;
         }
         
-        if (IsAboutToBeFinalized(cx, entry.asPtr()))
+        if (IsAboutToBeFinalized(cx, entry.toAtom()))
             e.removeFront();
     }
 }
@@ -432,7 +432,24 @@ AtomIsInterned(JSContext *cx, JSAtom *atom)
     if (!p)
         return false;
 
-    return p->isTagged();
+    return p->isInterned();
+}
+
+/*
+ * This call takes ownership of 'chars' if ATOM_NOCOPY is set.
+ * Non-branching code sequence to put the intern flag on |entryRef| if
+ * |intern| is true.
+ *
+ * Conceptually, we have compressed a HashMap<JSAtom *, uint> into a
+ * HashMap<size_t>. Here, we promise that we are only changing the "value" of
+ * the HashMap entry, so the const_cast is safe.
+ */
+static void
+MakeInterned(const AutoLockAtomsCompartment &, const AtomStateEntry &entryRef, InternBehavior ib)
+{
+    AtomStateEntry *entry = const_cast<AtomStateEntry *>(&entryRef);
+    AtomStateEntry::makeInterned(entry, ib);
+    JS_ASSERT(InternBehavior(entryRef.isInterned()) >= ib);
 }
 
 enum OwnCharsBehavior
@@ -462,8 +479,8 @@ AtomizeInline(JSContext *cx, const jschar **pchars, size_t length,
     AtomSet::AddPtr p = atoms.lookupForAdd(AtomHasher::Lookup(chars, length));
 
     if (p) {
-        JSAtom *atom = p->asPtr();
-        p->setTagged(bool(ib));
+        JSAtom *atom = p->toAtom();
+        MakeInterned(lock, *p, ib);
         return atom;
     }
 
@@ -492,7 +509,7 @@ AtomizeInline(JSContext *cx, const jschar **pchars, size_t length,
      * collision!
      */
     AtomHasher::Lookup lookup(chars, length);
-    if (!atoms.relookupOrAdd(p, lookup, AtomStateEntry((JSAtom *) key, bool(ib)))) {
+    if (!atoms.relookupOrAdd(p, lookup, AtomStateEntry(key, ib))) {
         JS_ReportOutOfMemory(cx); /* SystemAllocPolicy does not report */
         return NULL;
     }
@@ -522,9 +539,9 @@ js_AtomizeString(JSContext *cx, JSString *str, InternBehavior ib)
         AtomSet &atoms = cx->runtime->atomState.atoms;
         AtomSet::Ptr p = atoms.lookup(AtomHasher::Lookup(&atom));
         JS_ASSERT(p); /* Non-static atom must exist in atom state set. */
-        JS_ASSERT(p->asPtr() == &atom);
+        JS_ASSERT(p->toAtom() == &atom);
         JS_ASSERT(ib == InternAtom);
-        p->setTagged(bool(ib));
+        MakeInterned(lock, *p, ib);
         return &atom;
     }
 
@@ -600,7 +617,7 @@ js_GetExistingStringAtom(JSContext *cx, const jschar *chars, size_t length)
         return atom;
     AutoLockAtomsCompartment lock(cx);
     AtomSet::Ptr p = cx->runtime->atomState.atoms.lookup(AtomHasher::Lookup(chars, length));
-    return p ? p->asPtr() : NULL;
+    return p ? p->toAtom() : NULL;
 }
 
 #ifdef DEBUG
@@ -614,9 +631,9 @@ js_DumpAtoms(JSContext *cx, FILE *fp)
     for (AtomSet::Range r = state->atoms.all(); !r.empty(); r.popFront()) {
         AtomStateEntry entry = r.front();
         fprintf(fp, "%3u ", number++);
-        JSAtom *key = entry.asPtr();
+        JSAtom *key = entry.toAtom();
         FileEscapedString(fp, key, '"');
-        if (entry.isTagged())
+        if (entry.isInterned())
             fputs(" interned", fp);
         putc('\n', fp);
     }

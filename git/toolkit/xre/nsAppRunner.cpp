@@ -60,6 +60,7 @@
 #endif // MOZ_WIDGET_QT
 
 #include "mozilla/dom/ContentParent.h"
+using mozilla::dom::ContentParent;
 
 #include "nsAppRunner.h"
 #include "nsUpdateDriver.h"
@@ -105,6 +106,7 @@
 #include "nsIServiceManager.h"
 #include "nsIStringBundle.h"
 #include "nsISupportsPrimitives.h"
+#include "nsITimelineService.h"
 #include "nsIToolkitChromeRegistry.h"
 #include "nsIToolkitProfile.h"
 #include "nsIToolkitProfileService.h"
@@ -252,8 +254,6 @@ static char **gQtOnlyArgv;
 #include "nsGTKToolkit.h"
 #endif
 #include "BinaryPath.h"
-
-using mozilla::dom::ContentParent;
 
 // Save literal putenv string to environment variable.
 static void
@@ -1445,12 +1445,6 @@ RemoteCommandLine(const char* aDesktopStartupID)
 }
 #endif // MOZ_ENABLE_XREMOTE
 
-void
-XRE_InitOmnijar(nsILocalFile* greOmni, nsILocalFile* appOmni)
-{
-  mozilla::Omnijar::Init(greOmni, appOmni);
-}
-
 nsresult
 XRE_GetBinaryPath(const char* argv0, nsILocalFile* *aResult)
 {
@@ -2424,7 +2418,7 @@ static nsGTKToolkit* GetGTKToolkit()
   nsCOMPtr<nsIAppShellService> svc = do_GetService(NS_APPSHELLSERVICE_CONTRACTID);
   if (!svc)
     return nsnull;
-  nsCOMPtr<nsIDOMWindow> window;
+  nsCOMPtr<nsIDOMWindowInternal> window;
   svc->GetHiddenDOMWindow(getter_AddRefs(window));
   if (!window)
     return nsnull;
@@ -2627,6 +2621,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 
   nsresult rv;
   ArgResult ar;
+  NS_TIMELINE_MARK("enter main");
 
 #ifdef DEBUG
   if (PR_GetEnv("XRE_MAIN_BREAK"))
@@ -3398,11 +3393,13 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
         }
 
         {
+          NS_TIMELINE_ENTER("startupNotifier");
           nsCOMPtr<nsIObserver> startupNotifier
             (do_CreateInstance(NS_APPSTARTUPNOTIFIER_CONTRACTID, &rv));
           NS_ENSURE_SUCCESS(rv, 1);
 
           startupNotifier->Observe(nsnull, APPSTARTUP_TOPIC, nsnull);
+          NS_TIMELINE_LEAVE("startupNotifier");
         }
 
         NS_TIME_FUNCTION_MARK("Finished startupNotifier");
@@ -3494,7 +3491,9 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
         if (!shuttingDown) {
           NS_TIME_FUNCTION_MARK("Next: CreateHiddenWindow");
 
+          NS_TIMELINE_ENTER("appStartup->CreateHiddenWindow");
           rv = appStartup->CreateHiddenWindow();
+          NS_TIMELINE_LEAVE("appStartup->CreateHiddenWindow");
           NS_ENSURE_SUCCESS(rv, 1);
 
           MOZ_SPLASHSCREEN_UPDATE(50);
@@ -3574,7 +3573,9 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 
         MOZ_SPLASHSCREEN_UPDATE(90);
         {
+          NS_TIMELINE_ENTER("appStartup->Run");
           rv = appStartup->Run();
+          NS_TIMELINE_LEAVE("appStartup->Run");
           if (NS_FAILED(rv)) {
             NS_ERROR("failed to run appstartup");
             gLogConsoleErrors = PR_TRUE;
@@ -3603,6 +3604,11 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 #endif /* MOZ_ENABLE_XREMOTE */
         }
 
+#ifdef MOZ_TIMELINE
+        // Make sure we print this out even if timeline is runtime disabled
+        if (NS_FAILED(NS_TIMELINE_LEAVE("main1")))
+          NS_TimelineForceMark("...main1");
+#endif
       }
     }
 

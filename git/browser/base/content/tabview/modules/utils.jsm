@@ -45,8 +45,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-"use strict";
-
 // **********
 // Title: utils.js
 
@@ -371,11 +369,10 @@ Range.prototype = {
       // little graph. It goes from near 0 at x=0 to near 1 at x=1
       // smoothly and beautifully.
       // http://www.wolframalpha.com/input/?i=.5+%2B+.5+*+tanh%28%284+*+x%29+-+2%29
-      let tanh = function tanh(x) {
+      function tanh(x) {
         var e = Math.exp(x);
         return (e - 1/e) / (e + 1/e);
-      };
-
+      }
       return .5 - .5 * tanh(2 - 4 * proportion);
     }
 
@@ -408,8 +405,10 @@ Subscribable.prototype = {
   // ----------
   // Function: addSubscriber
   // The given callback will be called when the Subscribable fires the given event.
-  addSubscriber: function Subscribable_addSubscriber(eventName, callback) {
+  // The refObject is used to facilitate removal if necessary.
+  addSubscriber: function Subscribable_addSubscriber(refObject, eventName, callback) {
     try {
+      Utils.assertThrow(refObject, "refObject");
       Utils.assertThrow(typeof callback == "function", "callback must be a function");
       Utils.assertThrow(eventName && typeof eventName == "string",
           "eventName must be a non-empty string");
@@ -424,17 +423,28 @@ Subscribable.prototype = {
     if (!this.subscribers[eventName])
       this.subscribers[eventName] = [];
 
-    let subscribers = this.subscribers[eventName];
-    if (subscribers.indexOf(callback) == -1)
-      subscribers.push(callback);
+    var subs = this.subscribers[eventName];
+    var existing = subs.filter(function(element) {
+      return element.refObject == refObject;
+    });
+
+    if (existing.length) {
+      Utils.assert(existing.length == 1, 'should only ever be one');
+      existing[0].callback = callback;
+    } else {
+      subs.push({
+        refObject: refObject,
+        callback: callback
+      });
+    }
   },
 
   // ----------
   // Function: removeSubscriber
-  // Removes the subscriber associated with the event for the given callback.
-  removeSubscriber: function Subscribable_removeSubscriber(eventName, callback) {
+  // Removes the callback associated with refObject for the given event.
+  removeSubscriber: function Subscribable_removeSubscriber(refObject, eventName) {
     try {
-      Utils.assertThrow(typeof callback == "function", "callback must be a function");
+      Utils.assertThrow(refObject, "refObject");
       Utils.assertThrow(eventName && typeof eventName == "string",
           "eventName must be a non-empty string");
     } catch(e) {
@@ -445,11 +455,9 @@ Subscribable.prototype = {
     if (!this.subscribers || !this.subscribers[eventName])
       return;
 
-    let subscribers = this.subscribers[eventName];
-    let index = subscribers.indexOf(callback);
-
-    if (index > -1)
-      subscribers.splice(index, 1);
+    this.subscribers[eventName] = this.subscribers[eventName].filter(function(element) {
+      return element.refObject != refObject;
+    });
   },
 
   // ----------
@@ -467,10 +475,10 @@ Subscribable.prototype = {
     if (!this.subscribers || !this.subscribers[eventName])
       return;
 
-    let subsCopy = this.subscribers[eventName].concat();
-    subsCopy.forEach(function (callback) {
+    var subsCopy = this.subscribers[eventName].concat();
+    subsCopy.forEach(function(object) {
       try {
-        callback(this, eventInfo);
+        object.callback(this, eventInfo);
       } catch(e) {
         Utils.log(e);
       }

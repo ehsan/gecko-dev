@@ -375,7 +375,7 @@ struct JSRuntime {
     uint32              protoHazardShape;
 
     /* Garbage collector state, used by jsgc.c. */
-    js::GCChunkSet      gcUserChunkSet;
+    js::GCChunkSet      gcChunkSet;
     js::GCChunkSet      gcSystemChunkSet;
 
     js::RootedValueMap  gcRootsHash;
@@ -1143,7 +1143,7 @@ struct JSContext
     /* Random number generator state, used by jsmath.cpp. */
     int64               rngSeed;
 
-    /* Location to stash the iteration value between JSOP_MOREITER and JSOP_ITERNEXT. */
+    /* Location to stash the iteration value between JSOP_MOREITER and JSOP_FOR*. */
     js::Value           iterValue;
 
 #ifdef JS_TRACER

@@ -57,6 +57,7 @@
 #include "nsFrameManager.h"
 
 // for focus
+#include "nsIDOMWindowInternal.h"
 #include "nsIScrollableFrame.h"
 #include "nsIDocShell.h"
 

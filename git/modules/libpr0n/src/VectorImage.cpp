@@ -157,7 +157,7 @@ SVGDrawingCallback::operator()(gfxContext* aContext,
   nsCOMPtr<nsIPresShell> presShell;
   if (NS_FAILED(mSVGDocumentWrapper->GetPresShell(getter_AddRefs(presShell)))) {
     NS_WARNING("Unable to draw -- presShell lookup failed");
-    return PR_FALSE;
+    return NS_ERROR_FAILURE;
   }
   NS_ABORT_IF_FALSE(presShell, "GetPresShell succeeded but returned null");
 

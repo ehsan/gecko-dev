@@ -79,6 +79,7 @@
 #include "nsTextFragment.h"
 #include "nsCSSRuleProcessor.h"
 #include "nsCrossSiteListenerProxy.h"
+#include "nsDOMThreadService.h"
 #include "nsHTMLDNSPrefetch.h"
 #include "nsHtml5Module.h"
 #include "nsCrossSiteListenerProxy.h"
@@ -175,7 +176,11 @@ nsLayoutStatics::Initialize()
     return rv;
   }
 
-  nsCellMap::Init();
+  rv = nsCellMap::Init();
+  if (NS_FAILED(rv)) {
+    NS_ERROR("Could not initialize nsCellMap");
+    return rv;
+  }
 
   nsCSSRendering::Init();
 
@@ -338,6 +343,8 @@ nsLayoutStatics::Shutdown()
 
   nsHTMLEditor::Shutdown();
   nsTextServicesDocument::Shutdown();
+
+  nsDOMThreadService::Shutdown();
 
 #ifdef MOZ_SYDNEYAUDIO
   nsAudioStream::ShutdownLibrary();

@@ -121,7 +121,7 @@ XPIDLSRCS	= \
 		nsIXMLHttpRequest.idl \
 		nsIContentSecurityPolicy.idl \
 		nsIFrameMessageManager.idl \
-		nsIMozWebSocket.idl \
+		nsIWebSocket.idl \
 		nsIEventSource.idl \
 		$(NULL)
 
