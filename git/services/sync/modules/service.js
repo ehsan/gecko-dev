@@ -19,7 +19,6 @@
  *
  * Contributor(s):
  *  Dan Mills <thunder@mozilla.com>
- *  Myk Melez <myk@mozilla.org>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -131,6 +130,8 @@ function WeaveSvc() {
     this._log.info("Weave Sync disabled");
     return;
   }
+
+  this._setSchedule(this.schedule);
 }
 WeaveSvc.prototype = {
 
@@ -138,7 +139,6 @@ WeaveSvc.prototype = {
   _lock: Wrap.lock,
   _localLock: Wrap.localLock,
   _osPrefix: "weave:service:",
-  _loggedIn: false,
 
   __os: null,
   get _os() {
@@ -464,14 +464,11 @@ WeaveSvc.prototype = {
 
     this._loggedIn = true;
 
-    this._setSchedule(this.schedule);
-
     self.done(true);
   },
 
   logout: function WeaveSync_logout() {
     this._log.info("Logging out");
-    this._disableSchedule();
     this._loggedIn = false;
     ID.get('WeaveID').setTempPassword(null); // clear cached password
     ID.get('WeaveCryptoID').setTempPassword(null); // and passphrase
@@ -537,6 +534,10 @@ WeaveSvc.prototype = {
       this._notify(engines[i].name + "-engine:sync",
                    this._syncEngine, engines[i]).async(this, self.cb);
       yield;
+      if (engines[i].name == "bookmarks") { // FIXME
+        Engines.get("bookmarks").syncMounts(self.cb);
+        yield;
+      }
     }
   },
 
@@ -565,9 +566,8 @@ WeaveSvc.prototype = {
       if (!(engine.name in this._syncThresholds))
         this._syncThresholds[engine.name] = INITIAL_THRESHOLD;
 
-      let score = engine._tracker.score;
-      if (score >= this._syncThresholds[engine.name]) {
-        this._log.debug(engine.name + " score " + score +
+      if (engine._tracker.score >= this._syncThresholds[engine.name]) {
+        this._log.debug(engine.name + " score " + engine._tracker.score +
                         " reaches threshold " +
                         this._syncThresholds[engine.name] + "; syncing");
         this._notify(engine.name + "-engine:sync",
@@ -582,9 +582,14 @@ WeaveSvc.prototype = {
         // overloaded, we'll contribute to the problem by trying to sync
         // repeatedly at the maximum rate.
         this._syncThresholds[engine.name] = INITIAL_THRESHOLD;
+
+        if (engine.name == "bookmarks") { // FIXME
+          Engines.get("bookmarks").syncMounts(self.cb);
+          yield;
+        }
       }
       else {
-        this._log.debug(engine.name + " score " + score +
+        this._log.debug(engine.name + " score " + engine._tracker.score +
                         " does not reach threshold " +
                         this._syncThresholds[engine.name] + "; not syncing");
 
@@ -659,27 +664,23 @@ WeaveSvc.prototype = {
        Implementation, as well as the interpretation of what 'guid' means,
        is left up to the engine for the specific dataType. */
 
+    // TODO who is listening for the share-bookmarks message?
     let messageName = "share-" + dataType;
-    /* so for instance, if dataType is "bookmarks" then a message
-     "share-bookmarks" will be sent out to any observers who are listening
-     for it.  As far as I know, there aren't currently any listeners for
-     "share-bookmarks" but we'll send it out just in case. */
-    dump( "This fails with an Exception: cannot aquire internal lock.\n" );
+    // so for instance, if dataType is "bookmarks" then a message
+    // "share-bookmarks" will be sent out to any observers who are listening
+    // for it.
     this._lock(this._notify(messageName,
                             this._shareData,
                             dataType,
                             guid,
                             username)).async(this, onComplete);
   },
-
-  _shareData: function WeaveSync__shareData(dataType, 
-					    guid,
-					    username) {
+  _shareBookmarks: function WeaveSync__shareBookmarks(dataType,
+                                                      guid,
+                                                      username) {
     let self = yield;
-    if (!Engines.get(dataType).enabled) {
-      this._log.warn( "Can't share disabled data type: " + dataType );
+    if (Engines.get(dataType).enabled)
       return;
-    }
     Engines.get(dataType).share(self.cb, guid, username);
     let ret = yield;
     self.done(ret);

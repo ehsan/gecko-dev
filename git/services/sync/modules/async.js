@@ -93,8 +93,7 @@ Generator.prototype = {
   get cb() {
     let caller = Components.stack.caller;
     this._outstandingCbs++;
-    this._log.trace(this.name + ": self.cb generated at " +
-                    caller.filename + ":" + caller.lineNumber);
+    this._log.trace(this.name + ": cb generated at:\n" + formatFrame(caller));
     let self = this, cb = function(data) { self.cont(data); };
     cb.parentGenerator = this;
     return cb;
@@ -167,11 +166,10 @@ Generator.prototype = {
     }
   },
 
-  _detectDeadlock: function AsyncGen_detectDeadlock() {
+  _detectDeadlock: function AsyncGen__detectDeadlock() {
     if (this._outstandingCbs == 0)
       this._log.warn("Async method '" + this.name +
-                     "' may have yielded without an " +
-                     "outstanding callback.");
+                     "' may have yielded without an outstanding callback.");
   },
 
   run: function AsyncGen_run() {
@@ -189,7 +187,7 @@ Generator.prototype = {
 
   cont: function AsyncGen_cont(data) {
     this._outstandingCbs--;
-    this._log.trace(this.name + ": self.cb() called, resuming coroutine.");
+    this._log.trace(this.name + ": resuming coroutine.");
     this._continued = true;
     try {
       this.generator.send(data);
@@ -221,7 +219,7 @@ Generator.prototype = {
     let self = this;
     let cb = function() { self._done(retval); };
     this._log.trace(this.name + ": done() called.");
-    if (this._outstandingCbs > 0)
+    if (!this._exception && this._outstandingCbs > 0)
       this._log.warn("Async method '" + this.name +
                      "' may have outstanding callbacks.");
     this._timer = Utils.makeTimerForCall(cb);
