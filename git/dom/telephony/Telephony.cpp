@@ -65,17 +65,18 @@ public:
 class Telephony::EnumerationAck : public nsRunnable
 {
   nsRefPtr<Telephony> mTelephony;
+  nsString mType;
 
 public:
-  EnumerationAck(Telephony* aTelephony)
-  : mTelephony(aTelephony)
+  EnumerationAck(Telephony* aTelephony, const nsAString& aType)
+  : mTelephony(aTelephony), mType(aType)
   {
     MOZ_ASSERT(mTelephony);
   }
 
   NS_IMETHOD Run()
   {
-    mTelephony->NotifyEvent(NS_LITERAL_STRING("ready"));
+    mTelephony->NotifyEvent(mType);
     return NS_OK;
   }
 };
@@ -467,8 +468,11 @@ Telephony::ConferenceGroup() const
 void
 Telephony::EventListenerAdded(nsIAtom* aType)
 {
-  if (aType == nsGkAtoms::onready) {
-    EnqueueEnumerationAck();
+  if (aType == nsGkAtoms::oncallschanged) {
+    // Fire oncallschanged on the next tick if the calls array is ready.
+    EnqueueEnumerationAck(NS_LITERAL_STRING("callschanged"));
+  } else if (aType == nsGkAtoms::onready) {
+    EnqueueEnumerationAck(NS_LITERAL_STRING("ready"));
   }
 }
 
@@ -567,6 +571,10 @@ Telephony::EnumerateCallStateComplete()
 
   if (NS_FAILED(NotifyEvent(NS_LITERAL_STRING("ready")))) {
     NS_WARNING("Failed to notify ready!");
+  }
+
+  if (NS_FAILED(NotifyCallsChanged(nullptr))) {
+    NS_WARNING("Failed to notify calls changed!");
   }
 
   if (NS_FAILED(mService->RegisterListener(mListener))) {
@@ -696,13 +704,13 @@ Telephony::DispatchCallEvent(const nsAString& aType,
 }
 
 void
-Telephony::EnqueueEnumerationAck()
+Telephony::EnqueueEnumerationAck(const nsAString& aType)
 {
   if (!mEnumerated) {
     return;
   }
 
-  nsCOMPtr<nsIRunnable> task = new EnumerationAck(this);
+  nsCOMPtr<nsIRunnable> task = new EnumerationAck(this, aType);
   if (NS_FAILED(NS_DispatchToCurrentThread(task))) {
     NS_WARNING("Failed to dispatch to current thread!");
   }

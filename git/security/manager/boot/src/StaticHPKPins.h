@@ -1040,10 +1040,9 @@ static const TransportSecurityPreload kPublicKeyPinningPreloadList[] = {
   { "media.mozilla.com", true, false, true, -1, &kPinset_mozilla },
   { "mobile.twitter.com", true, false, false, -1, &kPinset_twitterCom },
   { "oauth.twitter.com", true, false, false, -1, &kPinset_twitterCom },
-  { "passwords.google.com", true, false, false, -1, &kPinset_google_root_pems },
   { "pinningtest.appspot.com", true, false, false, -1, &kPinset_test },
   { "platform.twitter.com", true, false, false, -1, &kPinset_twitterCDN },
-  { "play.google.com", true, false, false, -1, &kPinset_google_root_pems },
+  { "play.google.com", false, false, false, -1, &kPinset_google_root_pems },
   { "plus.google.com", true, false, false, -1, &kPinset_google_root_pems },
   { "plus.sandbox.google.com", true, false, false, -1, &kPinset_google_root_pems },
   { "profiles.google.com", true, false, false, -1, &kPinset_google_root_pems },
@@ -1089,8 +1088,8 @@ static const TransportSecurityPreload kPublicKeyPinningPreloadList[] = {
   { "ytimg.com", true, false, false, -1, &kPinset_google_root_pems },
 };
 
-// Pinning Preload List Length = 332;
+// Pinning Preload List Length = 331;
 
 static const int32_t kUnknownId = -1;
 
-static const PRTime kPreloadPKPinsExpirationTime = INT64_C(1422478437605000);
+static const PRTime kPreloadPKPinsExpirationTime = INT64_C(1422094197058000);
