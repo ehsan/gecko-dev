@@ -322,6 +322,24 @@ GLContext::InitWithPrefix(const char *prefix, PRBool trygl)
 
         fGetIntegerv(LOCAL_GL_VIEWPORT, v);
         mViewportStack.AppendElement(nsIntRect(v[0], v[1], v[2], v[3]));
+
+        const char *glVendorString = (const char *)fGetString(LOCAL_GL_VENDOR);
+        mVendor = DoesVendorStringMatch(glVendorString, "Intel")  ? VendorIntel
+                : DoesVendorStringMatch(glVendorString, "NVIDIA") ? VendorNVIDIA
+                : DoesVendorStringMatch(glVendorString, "ATI")    ? VendorATI
+                : VendorOther;
+
+#ifdef DEBUG
+        static bool once = false;
+        if (!once) {
+            once = true;
+            printf_stderr("OpenGL vendor recognized as: %s\n", mVendor == VendorIntel ? "Intel"
+                                                             : mVendor == VendorNVIDIA ? "NVIDIA"
+                                                             : mVendor == VendorATI ? "ATI"
+                                                             : mVendor == VendorOther ? "<other>"
+                                                             : "!!! bad mVendor value !!!");
+        }
+#endif
     }
 
     return mInitialized;
@@ -352,7 +370,11 @@ GLContext::InitExtensions()
     const GLubyte *extensions = fGetString(LOCAL_GL_EXTENSIONS);
     char *exts = strdup((char *)extensions);
 
+#ifdef DEBUG
     static bool once = false;
+#else
+    const bool once = true;
+#endif
 
     if (!once) {
         printf_stderr("GL extensions: %s\n", exts);
@@ -382,7 +404,9 @@ GLContext::InitExtensions()
 
     free(exts);
 
+#ifdef DEBUG
     once = true;
+#endif
 }
 
 PRBool

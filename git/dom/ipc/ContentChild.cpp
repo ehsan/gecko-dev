@@ -57,6 +57,8 @@
 #include "nsServiceManagerUtils.h"
 #include "nsXULAppAPI.h"
 #include "nsWeakReference.h"
+#include "nsIScriptError.h"
+#include "nsIConsoleService.h"
 
 #include "History.h"
 #include "nsDocShellCID.h"
@@ -74,6 +76,7 @@
 using namespace mozilla::ipc;
 using namespace mozilla::net;
 using namespace mozilla::places;
+using namespace mozilla::docshell;
 
 namespace mozilla {
 namespace dom {
@@ -112,6 +115,59 @@ private:
     nsString mData;
 };
 
+class ConsoleListener : public nsIConsoleListener
+{
+public:
+    ConsoleListener(ContentChild* aChild)
+    : mChild(aChild) {}
+
+    NS_DECL_ISUPPORTS
+    NS_DECL_NSICONSOLELISTENER
+
+private:
+    ContentChild* mChild;
+    friend class ContentChild;
+};
+
+NS_IMPL_ISUPPORTS1(ConsoleListener, nsIConsoleListener)
+
+NS_IMETHODIMP
+ConsoleListener::Observe(nsIConsoleMessage* aMessage)
+{
+    if (!mChild)
+        return NS_OK;
+    
+    nsCOMPtr<nsIScriptError> scriptError = do_QueryInterface(aMessage);
+    if (scriptError) {
+        nsString msg, sourceName, sourceLine;
+        nsXPIDLCString category;
+        PRUint32 lineNum, colNum, flags;
+
+        nsresult rv = scriptError->GetErrorMessage(msg);
+        NS_ENSURE_SUCCESS(rv, rv);
+        rv = scriptError->GetSourceName(sourceName);
+        NS_ENSURE_SUCCESS(rv, rv);
+        rv = scriptError->GetSourceLine(sourceLine);
+        NS_ENSURE_SUCCESS(rv, rv);
+        rv = scriptError->GetCategory(getter_Copies(category));
+        NS_ENSURE_SUCCESS(rv, rv);
+        rv = scriptError->GetLineNumber(&lineNum);
+        NS_ENSURE_SUCCESS(rv, rv);
+        rv = scriptError->GetColumnNumber(&colNum);
+        NS_ENSURE_SUCCESS(rv, rv);
+        rv = scriptError->GetFlags(&flags);
+        NS_ENSURE_SUCCESS(rv, rv);
+        mChild->SendScriptError(msg, sourceName, sourceLine,
+                               lineNum, colNum, flags, category);
+        return NS_OK;
+    }
+
+    nsXPIDLString msg;
+    nsresult rv = aMessage->GetMessageMoz(getter_Copies(msg));
+    NS_ENSURE_SUCCESS(rv, rv);
+    mChild->SendConsoleMessage(msg);
+    return NS_OK;
+}
 
 ContentChild* ContentChild::sSingleton;
 
@@ -144,6 +200,20 @@ ContentChild::Init(MessageLoop* aIOLoop,
     sSingleton = this;
 
     return true;
+}
+
+void
+ContentChild::InitXPCOM()
+{
+    nsCOMPtr<nsIConsoleService> svc(do_GetService(NS_CONSOLESERVICE_CONTRACTID));
+    if (!svc) {
+        NS_WARNING("Couldn't acquire console service");
+        return;
+    }
+
+    mConsoleListener = new ConsoleListener(this);
+    if (NS_FAILED(svc->RegisterListener(mConsoleListener)))
+        NS_WARNING("Couldn't register console listener for child process");
 }
 
 PBrowserChild*
@@ -253,6 +323,13 @@ ContentChild::ActorDestroy(ActorDestroyReason why)
 #endif
 
     mAlertObservers.Clear();
+    
+    nsCOMPtr<nsIConsoleService> svc(do_GetService(NS_CONSOLESERVICE_CONTRACTID));
+    if (svc) {
+        svc->UnregisterListener(mConsoleListener);
+        mConsoleListener->mChild = nsnull;
+    }
+
     XRE_ShutdownChildProcess();
 }
 
@@ -293,10 +370,14 @@ ContentChild::AddRemoteAlertObserver(const nsString& aData,
 }
 
 bool
-ContentChild::RecvPreferenceUpdate(const nsCString& aPref)
+ContentChild::RecvPreferenceUpdate(const PrefTuple& aPref)
 {
     nsCOMPtr<nsIPrefServiceInternal> prefs = do_GetService("@mozilla.org/preferences-service;1");
-    prefs->ReadPrefBuffer(aPref);
+    if (!prefs)
+        return false;
+
+    prefs->SetPreference(&aPref);
+
     return true;
 }
 

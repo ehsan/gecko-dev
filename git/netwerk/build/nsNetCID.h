@@ -403,6 +403,18 @@
     {0x8c, 0xda, 0x00, 0x60, 0xb0, 0xfc, 0x14, 0xa3} \
 }
 
+#define NS_PARTIALLOCALFILEINPUTSTREAM_CLASSNAME \
+    "nsPartialFileInputStream"
+#define NS_PARTIALLOCALFILEINPUTSTREAM_CONTRACTID \
+    "@mozilla.org/network/partial-file-input-stream;1"
+#define NS_PARTIALLOCALFILEINPUTSTREAM_CID           \
+{ /* 8738afd6-162a-418d-a99b-75b3a6b10a56 */         \
+    0x8738afd6,                                      \
+    0x162a,                                          \
+    0x418d,                                          \
+    {0xa9, 0x9b, 0x75, 0xb3, 0xa6, 0xb1, 0x0a, 0x56} \
+}
+
 #define NS_BUFFEREDINPUTSTREAM_CLASSNAME \
     "nsBufferedInputStream"
 #define NS_BUFFEREDINPUTSTREAM_CONTRACTID \
@@ -498,6 +510,19 @@
     0x04e2,                                          \
     0x4f74,                                          \
    {0x8e, 0x1c, 0xd1, 0xaf, 0x79, 0xdf, 0xd1, 0x2f}  \
+}
+
+#define NS_APPLICATIONCACHE_CLASSNAME \
+    "nsApplicationCache"
+#define NS_APPLICATIONCACHE_CONTRACTID \
+    "@mozilla.org/network/application-cache;1"
+
+#define NS_APPLICATIONCACHE_CID             \
+{ /* 463440c5-baad-4f3c-9e50-0b107abe7183 */ \
+    0x463440c5, \
+    0xbaad, \
+    0x4f3c, \
+   {0x9e, 0x50, 0xb, 0x10, 0x7a, 0xbe, 0x71, 0x83 } \
 }
 
 /******************************************************************************

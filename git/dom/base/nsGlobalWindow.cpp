@@ -104,7 +104,9 @@
 #include "nsIHTMLDocument.h"
 #include "nsIDOMHTMLDocument.h"
 #include "nsIDOMHTMLElement.h"
+#ifndef MOZ_DISABLE_DOMCRYPTO
 #include "nsIDOMCrypto.h"
+#endif
 #include "nsIDOMDocument.h"
 #include "nsIDOM3Document.h"
 #include "nsIDOMNSDocument.h"
@@ -237,6 +239,7 @@ using mozilla::TimeStamp;
 using mozilla::TimeDuration;
 
 nsIDOMStorageList *nsGlobalWindow::sGlobalStorageList  = nsnull;
+nsGlobalWindow::WindowByIdTable *nsGlobalWindow::sOuterWindowsById = nsnull;
 
 static nsIEntropyCollector *gEntropyCollector          = nsnull;
 static PRInt32              gRefCnt                    = 0;
@@ -391,10 +394,10 @@ static PRBool               gDOMWindowDumpEnabled      = PR_FALSE;
 static NS_DEFINE_CID(kXULControllersCID, NS_XULCONTROLLERS_CID);
 
 static const char sJSStackContractID[] = "@mozilla.org/js/xpc/ContextStack;1";
-
+#ifndef MOZ_DISABLE_DOMCRYPTO
 static const char kCryptoContractID[] = NS_CRYPTO_CONTRACTID;
 static const char kPkcs11ContractID[] = NS_PKCS11_CONTRACTID;
-
+#endif
 static const char sPopStatePrefStr[] = "browser.history.allowPopState";
 
 static PRBool
@@ -648,7 +651,10 @@ nsPIDOMWindow::nsPIDOMWindow(nsPIDOMWindow *aOuterWindow)
   mIsHandlingResizeEvent(PR_FALSE), mIsInnerWindow(aOuterWindow != nsnull),
   mMayHavePaintEventListener(PR_FALSE), mMayHaveTouchEventListener(PR_FALSE),
   mMayHaveAudioAvailableEventListener(PR_FALSE), mIsModalContentWindow(PR_FALSE),
-  mIsActive(PR_FALSE), mInnerWindow(nsnull), mOuterWindow(aOuterWindow) {}
+  mIsActive(PR_FALSE), mInnerWindow(nsnull), mOuterWindow(aOuterWindow),
+  // Make sure no actual window ends up with mWindowID == 0
+  mWindowID(++gNextWindowID)
+ {}
 
 nsPIDOMWindow::~nsPIDOMWindow() {}
 
@@ -696,7 +702,6 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
 #endif
     mCleanedUp(PR_FALSE),
     mCallCleanUpAfterModalDialogCloses(PR_FALSE),
-    mWindowID(gNextWindowID++),
     mDialogAbuseCount(0),
     mDialogDisabled(PR_FALSE)
 {
@@ -736,6 +741,18 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
     Freeze();
 
     mObserver = nsnull;
+
+    if (!sOuterWindowsById) {
+      sOuterWindowsById = new WindowByIdTable();
+      if (!sOuterWindowsById->Init()) {
+        delete sOuterWindowsById;
+        sOuterWindowsById = nsnull;
+      }
+    }
+
+    if (sOuterWindowsById) {
+      sOuterWindowsById->Put(mWindowID, this);
+    }
   }
 
   // We could have failed the first time through trying
@@ -788,8 +805,13 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
 
 nsGlobalWindow::~nsGlobalWindow()
 {
+  if (sOuterWindowsById) {
+    sOuterWindowsById->Remove(mWindowID);
+  }
   if (!--gRefCnt) {
     NS_IF_RELEASE(gEntropyCollector);
+    delete sOuterWindowsById;
+    sOuterWindowsById = nsnull;
   }
 #ifdef DEBUG
   nsCAutoString url;
@@ -1652,12 +1674,12 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
   NS_ENSURE_TRUE(scx, NS_ERROR_NOT_INITIALIZED);
 
   JSContext *cx = (JSContext *)scx->GetNativeContext();
-
+#ifndef MOZ_DISABLE_DOMCRYPTO
   // clear smartcard events, our document has gone away.
   if (mCrypto) {
     mCrypto->SetEnableSmartCardEvents(PR_FALSE);
   }
-
+#endif
   if (!mDocument) {
     // First document load.
 
@@ -3060,13 +3082,13 @@ nsGlobalWindow::GetApplicationCache(nsIDOMOfflineResourceList **aApplicationCach
 }
 
 NS_IMETHODIMP
-nsGlobalWindow::CreateBlobURL(nsIDOMFile* aFile, nsAString& aURL)
+nsGlobalWindow::CreateBlobURL(nsIDOMBlob* aBlob, nsAString& aURL)
 {
-  FORWARD_TO_INNER(CreateBlobURL, (aFile, aURL), NS_ERROR_UNEXPECTED);
+  FORWARD_TO_INNER(CreateBlobURL, (aBlob, aURL), NS_ERROR_UNEXPECTED);
 
   NS_ENSURE_STATE(mDoc);
 
-  nsresult rv = aFile->GetInternalUrl(mDoc->NodePrincipal(), aURL);
+  nsresult rv = aBlob->GetInternalUrl(mDoc->NodePrincipal(), aURL);
   NS_ENSURE_SUCCESS(rv, rv);
 
   mDoc->RegisterFileDataUri(NS_LossyConvertUTF16toASCII(aURL));
@@ -3091,6 +3113,9 @@ nsGlobalWindow::RevokeBlobURL(const nsAString& aURL)
 NS_IMETHODIMP
 nsGlobalWindow::GetCrypto(nsIDOMCrypto** aCrypto)
 {
+#ifdef MOZ_DISABLE_DOMCRYPTO
+  return NS_ERROR_NOT_IMPLEMENTED;
+#else
   FORWARD_TO_OUTER(GetCrypto, (aCrypto), NS_ERROR_NOT_INITIALIZED);
 
   if (!mCrypto) {
@@ -3100,6 +3125,7 @@ nsGlobalWindow::GetCrypto(nsIDOMCrypto** aCrypto)
   NS_IF_ADDREF(*aCrypto = mCrypto);
 
   return NS_OK;
+#endif
 }
 
 NS_IMETHODIMP
@@ -8083,6 +8109,22 @@ nsGlobalWindow::Observe(nsISupports* aSubject, const char* aTopic,
 
     PRBool defaultActionEnabled;
     DispatchEvent((nsIDOMStorageEvent *)event, &defaultActionEnabled);
+
+    return NS_OK;
+  }
+
+  if (!nsCRT::strcmp(aTopic, "offline-cache-update-added")) {
+    if (mApplicationCache)
+      return NS_OK;
+
+    // Instantiate the application object now. It observes update belonging to
+    // this window's document and correctly updates the applicationCache object
+    // state.
+    nsCOMPtr<nsIDOMOfflineResourceList> applicationCache;
+    GetApplicationCache(getter_AddRefs(applicationCache));
+    nsCOMPtr<nsIObserver> observer = do_QueryInterface(applicationCache);
+    if (observer)
+      observer->Observe(aSubject, aTopic, aData);
 
     return NS_OK;
   }

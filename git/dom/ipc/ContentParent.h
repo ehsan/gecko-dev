@@ -125,7 +125,7 @@ private:
             const PRInt64& aContentLength);
     virtual bool DeallocPExternalHelperApp(PExternalHelperAppParent* aService);
 
-    virtual bool RecvReadPrefs(nsCString* prefs);
+    virtual bool RecvReadPrefsArray(nsTArray<PrefTuple> *retValue);
 
     virtual bool RecvTestPermission(const IPC::URI&  aUri,
                                     const nsCString& aType,
@@ -156,6 +156,15 @@ private:
 
     virtual bool RecvGeolocationStart();
     virtual bool RecvGeolocationStop();
+
+    virtual bool RecvConsoleMessage(const nsString& aMessage);
+    virtual bool RecvScriptError(const nsString& aMessage,
+                                 const nsString& aSourceName,
+                                 const nsString& aSourceLine,
+                                 const PRUint32& aLineNumber,
+                                 const PRUint32& aColNumber,
+                                 const PRUint32& aFlags,
+                                 const nsCString& aCategory);
 
     mozilla::Monitor mMonitor;
 

@@ -212,6 +212,7 @@ class StartRequestEvent : public ChildChannelEvent
   StartRequestEvent(HttpChannelChild* child,
                     const nsHttpResponseHead& responseHead,
                     const PRBool& useResponseHead,
+                    const RequestHeaderTuples& requestHeaders,
                     const PRBool& isFromCache,
                     const PRBool& cacheEntryAvailable,
                     const PRUint32& cacheExpirationTime,
@@ -219,6 +220,7 @@ class StartRequestEvent : public ChildChannelEvent
                     const nsCString& securityInfoSerialization)
   : mChild(child)
   , mResponseHead(responseHead)
+  , mRequestHeaders(requestHeaders)
   , mUseResponseHead(useResponseHead)
   , mIsFromCache(isFromCache)
   , mCacheEntryAvailable(cacheEntryAvailable)
@@ -229,24 +231,42 @@ class StartRequestEvent : public ChildChannelEvent
 
   void Run() 
   { 
-    mChild->OnStartRequest(mResponseHead, mUseResponseHead, mIsFromCache, 
-                           mCacheEntryAvailable, mCacheExpirationTime, 
-                           mCachedCharset, mSecurityInfoSerialization);
+    mChild->OnStartRequest(mResponseHead, mUseResponseHead, mRequestHeaders,
+                           mIsFromCache, mCacheEntryAvailable,
+                           mCacheExpirationTime, mCachedCharset,
+                           mSecurityInfoSerialization);
   }
  private:
   HttpChannelChild* mChild;
   nsHttpResponseHead mResponseHead;
-  PRBool mUseResponseHead;
-  PRBool mIsFromCache;
-  PRBool mCacheEntryAvailable;
+  RequestHeaderTuples mRequestHeaders;
+  PRPackedBool mUseResponseHead;
+  PRPackedBool mIsFromCache;
+  PRPackedBool mCacheEntryAvailable;
   PRUint32 mCacheExpirationTime;
   nsCString mCachedCharset;
   nsCString mSecurityInfoSerialization;
 };
 
+bool
+HttpChannelChild::RecvAssociateApplicationCache(const nsCString &groupID,
+                                                const nsCString &clientID)
+{
+  nsresult rv;
+  mApplicationCache = do_CreateInstance(
+    NS_APPLICATIONCACHE_CONTRACTID, &rv);
+  if (NS_FAILED(rv))
+    return true;
+
+  mLoadedFromApplicationCache = PR_TRUE;
+  mApplicationCache->InitAsHandle(groupID, clientID);
+  return true;
+}
+
 bool 
 HttpChannelChild::RecvOnStartRequest(const nsHttpResponseHead& responseHead,
                                      const PRBool& useResponseHead,
+                                     const RequestHeaderTuples& requestHeaders,
                                      const PRBool& isFromCache,
                                      const PRBool& cacheEntryAvailable,
                                      const PRUint32& cacheExpirationTime,
@@ -255,11 +275,12 @@ HttpChannelChild::RecvOnStartRequest(const nsHttpResponseHead& responseHead,
 {
   if (ShouldEnqueue()) {
     EnqueueEvent(new StartRequestEvent(this, responseHead, useResponseHead,
+                                       requestHeaders,
                                        isFromCache, cacheEntryAvailable,
                                        cacheExpirationTime, cachedCharset,
                                        securityInfoSerialization));
   } else {
-    OnStartRequest(responseHead, useResponseHead, isFromCache,
+    OnStartRequest(responseHead, useResponseHead, requestHeaders, isFromCache,
                    cacheEntryAvailable, cacheExpirationTime, cachedCharset,
                    securityInfoSerialization);
   }
@@ -269,6 +290,7 @@ HttpChannelChild::RecvOnStartRequest(const nsHttpResponseHead& responseHead,
 void 
 HttpChannelChild::OnStartRequest(const nsHttpResponseHead& responseHead,
                                  const PRBool& useResponseHead,
+                                 const RequestHeaderTuples& requestHeaders,
                                  const PRBool& isFromCache,
                                  const PRBool& cacheEntryAvailable,
                                  const PRUint32& cacheExpirationTime,
@@ -291,6 +313,13 @@ HttpChannelChild::OnStartRequest(const nsHttpResponseHead& responseHead,
   mCachedCharset = cachedCharset;
 
   AutoEventEnqueuer ensureSerialDispatch(this);
+
+  // replace our request headers with what actually got sent in the parent
+  mRequestHead.ClearHeaders();
+  for (PRUint32 i = 0; i < requestHeaders.Length(); i++) {
+    mRequestHead.Headers().SetHeader(nsHttp::ResolveAtom(requestHeaders[i].mHeader),
+                                     requestHeaders[i].mValue);
+  }
 
   nsresult rv = mListener->OnStartRequest(this, mListenerContext);
   if (NS_FAILED(rv)) {
@@ -790,8 +819,15 @@ HttpChannelChild::Resume()
   NS_ENSURE_TRUE(mSuspendCount > 0, NS_ERROR_UNEXPECTED);
   SendResume();
   mSuspendCount--;
-  if (!mSuspendCount)
+  if (!mSuspendCount) {
+    // If we were suspended outside of an event handler (bug 595972) we'll
+    // consider ourselves unqueued. This is a legal state of affairs but
+    // FlushEventQueue() can't easily ensure this fact, so we'll do some
+    // fudging to set the invariants correctly.    
+    if (mQueuePhase == PHASE_UNQUEUED)
+      mQueuePhase = PHASE_FINISHED_QUEUEING;
     FlushEventQueue();
+  }
   return NS_OK;
 }
 
@@ -885,6 +921,22 @@ HttpChannelChild::AsyncOpen(nsIStreamListener *listener, nsISupports *aContext)
     return NS_OK;
   }
 
+  nsCString appCacheClientId;
+  if (mInheritApplicationCache) {
+    // Pick up an application cache from the notification
+    // callbacks if available
+    nsCOMPtr<nsIApplicationCacheContainer> appCacheContainer;
+    GetCallback(appCacheContainer);
+
+    if (appCacheContainer) {
+      nsCOMPtr<nsIApplicationCache> appCache;
+      rv = appCacheContainer->GetApplicationCache(getter_AddRefs(appCache));
+      if (NS_SUCCEEDED(rv) && appCache) {
+        appCache->GetClientID(appCacheClientId);
+      }
+    }
+  }
+
   //
   // Send request to the chrome process...
   //
@@ -909,7 +961,8 @@ HttpChannelChild::AsyncOpen(nsIStreamListener *listener, nsISupports *aContext)
                 mRequestHeaders, mRequestHead.Method(), uploadStreamData,
                 uploadStreamInfo, mPriority, mRedirectionLimit,
                 mAllowPipelining, mForceAllowThirdPartyCookie, mSendResumeAt,
-                mStartPos, mEntityID);
+                mStartPos, mEntityID, mChooseApplicationCache, 
+                appCacheClientId);
 
   return NS_OK;
 }
@@ -1054,13 +1107,16 @@ HttpChannelChild::SetNewListener(nsIStreamListener *listener,
 NS_IMETHODIMP
 HttpChannelChild::GetApplicationCache(nsIApplicationCache **aApplicationCache)
 {
-  DROP_DEAD();
+  NS_IF_ADDREF(*aApplicationCache = mApplicationCache);
+  return NS_OK;
 }
 NS_IMETHODIMP
 HttpChannelChild::SetApplicationCache(nsIApplicationCache *aApplicationCache)
 {
-  // FIXME: redirects call. so stub OK for now. Fix in bug 536295.  
-  return NS_ERROR_NOT_IMPLEMENTED;
+  NS_ENSURE_TRUE(!mWasOpened, NS_ERROR_ALREADY_OPENED);
+
+  mApplicationCache = aApplicationCache;
+  return NS_OK;
 }
 
 //-----------------------------------------------------------------------------
@@ -1068,34 +1124,43 @@ HttpChannelChild::SetApplicationCache(nsIApplicationCache *aApplicationCache)
 //-----------------------------------------------------------------------------
 
 NS_IMETHODIMP
-HttpChannelChild::GetLoadedFromApplicationCache(PRBool *retval)
+HttpChannelChild::GetLoadedFromApplicationCache(PRBool *aLoadedFromApplicationCache)
 {
-  // FIXME: stub for bug 536295
-  *retval = 0;
+  *aLoadedFromApplicationCache = mLoadedFromApplicationCache;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-HttpChannelChild::GetInheritApplicationCache(PRBool *aInheritApplicationCache)
+HttpChannelChild::GetInheritApplicationCache(PRBool *aInherit)
 {
-  DROP_DEAD();
+  *aInherit = mInheritApplicationCache;
+  return NS_OK;
 }
 NS_IMETHODIMP
-HttpChannelChild::SetInheritApplicationCache(PRBool aInheritApplicationCache)
+HttpChannelChild::SetInheritApplicationCache(PRBool aInherit)
 {
-  // FIXME: Browser calls this early, so stub OK for now. Fix in bug 536295.  
+  mInheritApplicationCache = aInherit;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-HttpChannelChild::GetChooseApplicationCache(PRBool *aChooseApplicationCache)
+HttpChannelChild::GetChooseApplicationCache(PRBool *aChoose)
 {
-  DROP_DEAD();
+  *aChoose = mChooseApplicationCache;
+  return NS_OK;
 }
+
 NS_IMETHODIMP
-HttpChannelChild::SetChooseApplicationCache(PRBool aChooseApplicationCache)
+HttpChannelChild::SetChooseApplicationCache(PRBool aChoose)
 {
-  // FIXME: Browser calls this early, so stub OK for now. Fix in bug 536295.  
+  mChooseApplicationCache = aChoose;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+HttpChannelChild::MarkOfflineCacheEntryAsForeign()
+{
+  SendMarkOfflineCacheEntryAsForeign();
   return NS_OK;
 }
 

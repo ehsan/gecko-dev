@@ -86,7 +86,9 @@
 #include "nsIScriptSecurityManager.h"
 #include "nsIEventListenerManager.h"
 #include "nsIDOMDocument.h"
+#ifndef MOZ_DISABLE_DOMCRYPTO
 #include "nsIDOMCrypto.h"
+#endif
 #include "nsIPrincipal.h"
 #include "nsPluginArray.h"
 #include "nsMimeTypeArray.h"
@@ -141,6 +143,10 @@ class nsRunnable;
 
 class nsDOMOfflineResourceList;
 class nsGeolocation;
+
+#ifdef MOZ_DISABLE_DOMCRYPTO
+class nsIDOMCrypto;
+#endif
 
 extern nsresult
 NS_CreateJSTimeoutHandler(nsGlobalWindow *aWindow,
@@ -531,6 +537,10 @@ public:
     return mSerial;
   }
 
+  static nsGlobalWindow* GetOuterWindowWithId(PRUint64 aWindowID) {
+    return sOuterWindowsById ? sOuterWindowsById->Get(aWindowID) : nsnull;
+  }
+
 protected:
   // Object Management
   virtual ~nsGlobalWindow();
@@ -845,9 +855,9 @@ protected:
   nsString                      mDefaultStatus;
   // index 0->language_id 1, so index MAX-1 == language_id MAX
   nsGlobalWindowObserver*       mObserver;
-
+#ifndef MOZ_DISABLE_DOMCRYPTO
   nsCOMPtr<nsIDOMCrypto>        mCrypto;
-
+#endif
   nsCOMPtr<nsIDOMStorage>      mLocalStorage;
   nsCOMPtr<nsIDOMStorage>      mSessionStorage;
 
@@ -899,10 +909,6 @@ protected:
 
   nsCOMPtr<nsIIDBFactory> mIndexedDB;
 
-  // A unique (as long as our 64-bit counter doesn't roll over) id for
-  // this window.
-  PRUint64 mWindowID;
-
   // In the case of a "trusted" dialog (@see PopupControlState), we
   // set this counter to ensure a max of MAX_DIALOG_LIMIT
   PRUint32                      mDialogAbuseCount;
@@ -919,6 +925,9 @@ protected:
   friend class nsDOMWindowUtils;
   friend class PostMessageEvent;
   static nsIDOMStorageList* sGlobalStorageList;
+
+  typedef nsDataHashtable<nsUint64HashKey, nsGlobalWindow*> WindowByIdTable;
+  static WindowByIdTable* sOuterWindowsById;
 };
 
 /*

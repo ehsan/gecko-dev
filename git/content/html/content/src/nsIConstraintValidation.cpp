@@ -45,6 +45,8 @@
 #include "nsHTMLFormElement.h"
 
 
+const PRUint16 nsIConstraintValidation::sContentSpecifiedMaxLengthMessage = 256;
+
 nsIConstraintValidation::nsIConstraintValidation()
   : mValidityBitField(0)
   , mValidity(nsnull)
@@ -78,8 +80,23 @@ nsIConstraintValidation::GetValidationMessage(nsAString& aValidationMessage)
   aValidationMessage.Truncate();
 
   if (IsCandidateForConstraintValidation() && !IsValid()) {
-    if (GetValidityState(VALIDITY_STATE_CUSTOM_ERROR)) {
+    nsCOMPtr<nsIContent> content = do_QueryInterface(this);
+    NS_ASSERTION(content, "This class should be inherited by HTML elements only!");
+
+    nsAutoString authorMessage;
+    content->GetAttr(kNameSpaceID_None, nsGkAtoms::x_moz_errormessage,
+                     authorMessage);
+
+    if (!authorMessage.IsEmpty()) {
+      aValidationMessage.Assign(authorMessage);
+      if (aValidationMessage.Length() > sContentSpecifiedMaxLengthMessage) {
+        aValidationMessage.Truncate(sContentSpecifiedMaxLengthMessage);
+      }
+    } else if (GetValidityState(VALIDITY_STATE_CUSTOM_ERROR)) {
       aValidationMessage.Assign(mCustomValidity);
+      if (aValidationMessage.Length() > sContentSpecifiedMaxLengthMessage) {
+        aValidationMessage.Truncate(sContentSpecifiedMaxLengthMessage);
+      }
     } else if (GetValidityState(VALIDITY_STATE_TOO_LONG)) {
       GetValidationMessage(aValidationMessage, VALIDITY_STATE_TOO_LONG);
     } else if (GetValidityState(VALIDITY_STATE_VALUE_MISSING)) {

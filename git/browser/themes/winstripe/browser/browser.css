@@ -274,20 +274,19 @@
   list-style-image: url("chrome://browser/skin/Privacy-16.png");
 }
 
-#appmenu_unsortedBookmarks {
-  list-style-image: url("chrome://browser/skin/places/unsortedBookmarks.png");
-}
-
 #appmenu_addons {
   list-style-image: url("chrome://mozapps/skin/extensions/extensionGeneric-16.png");
 }
 
+#BMB_subscribeToPage:not([disabled]),
+#BMB_subscribeToPageMenu,
 #appmenu_subscribeToPage:not([disabled]),
 #appmenu_subscribeToPageMenu {
   list-style-image: url("chrome://browser/skin/feeds/feed-icons-16.png");
   -moz-image-region: rect(0px 16px 16px 0px);
 }
 
+#BMB_bookmarkThisPage,
 #appmenu_bookmarkThisPage {
   list-style-image: url("chrome://browser/skin/places/bookmark.png");
   -moz-image-region: rect(0 16px 16px 0);
@@ -1086,62 +1085,6 @@ html|*.urlbar-input:-moz-lwtheme:-moz-placeholder,
   margin: 0;
 }
 
-/* urlbar progress */
-
-.tab-progress,
-#urlbar-progress {
-  -moz-appearance: none;
-  min-height: 0px;
-  height: 3px;
-  border: 0;
-  margin: -2px 0 -1px;
-  background-color: transparent;
-}
-
-.tab-progress[busy][stalled][value="0"],
-#urlbar-progress[busy][stalled][value="0"] {
-  /* TODO: add connecting state (bug 596812) */
-}
-
-.tab-progress > .progress-bar,
-#urlbar-progress > .progress-bar {
-  -moz-appearance: none;
-  min-width: 3px;
-  border-top: 1px solid rgba(100,100,100,.1);
-  border-bottom: 1px solid rgba(0,0,0,.2);
-  background-color: Highlight;
-  background-image: -moz-linear-gradient(left, rgba(255,255,255,.1) 50%,
-                                               rgba(255,255,255,.4) 90%,
-                                               rgba(255,255,255,.8));
-}
-
-.tab-progress > .progress-bar:-moz-locale-dir(rtl),
-#urlbar-progress > .progress-bar:-moz-locale-dir(rtl) {
-  background-image: -moz-linear-gradient(right, rgba(255,255,255,.1) 50%,
-                                                rgba(255,255,255,.4) 90%,
-                                                rgba(255,255,255,.8));
-}
-
-.tab-progress > .progress-remainder,
-#urlbar-progress > .progress-remainder {
-  border-top: 1px solid rgba(100,100,100,.1);
-  border-bottom: 1px solid rgba(0,0,0,.2);
-  background-image: -moz-linear-gradient(right, ThreeDShadow 80%, ThreeDLightShadow);
-}
-
-.tab-progress > .progress-remainder:-moz-locale-dir(rtl),
-#urlbar-progress > .progress-remainder:-moz-locale-dir(rtl) {
-  background-image: -moz-linear-gradient(left, ThreeDShadow 80%, ThreeDLightShadow);
-}
-
-.urlbar-contents {
-  -moz-margin-end: -2px;
-}
-
-.urlbar-history-dropmarker {
-  -moz-margin-end: 2px;
-}
-
 /* identity box */
 
 #identity-box {
@@ -1560,6 +1503,7 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
                     -moz-radial-gradient(40% 3px, circle cover, rgba(255,255,255,1) 2%, rgba(186,221,251,.75) 25%, rgba(127,179,255,.5) 50%, rgba(127,179,255,.25));
 }
 
+.tab-throbber,
 .tab-icon-image {
   width: 16px;
   height: 16px;
@@ -1568,10 +1512,19 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   -moz-margin-end: 3px;
 }
 
+.tab-throbber {
+  list-style-image: url("chrome://browser/skin/tabbrowser/connecting.png");
+}
+
+.tab-throbber[progress] {
+  list-style-image: url("chrome://browser/skin/tabbrowser/loading.png");
+}
+
 .tabbrowser-tab[pinned] {
   min-height: 16px; /* corresponds to the max. height of non-textual tab contents, i.e. the favicon */
 }
 
+.tab-throbber[pinned],
 .tab-icon-image[pinned] {
   -moz-margin-start: 2px;
   -moz-margin-end: 2px;
@@ -1992,12 +1945,14 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
 
 /* Bookmarks roots menu-items */
 #bookmarksToolbarFolderMenu,
-#BMB_bookmarksToolbarFolderMenu {
+#appmenu_bookmarksToolbar,
+#BMB_bookmarksToolbar {
   list-style-image: url("chrome://browser/skin/places/bookmarksToolbar.png");
   -moz-image-region: auto;
 }
 
-#BMB_unsortedBookmarksFolderMenu {
+#appmenu_unsortedBookmarks,
+#BMB_unsortedBookmarks {
   list-style-image: url("chrome://browser/skin/places/unsortedBookmarks.png");
   -moz-image-region: auto;
 }
