@@ -76,12 +76,11 @@ Recompiler::PatchableAddress
 Recompiler::findPatch(JITScript *jit, void **location)
 { 
     uint8* codeStart = (uint8 *)jit->code.m_code.executableAddress();
-    CallSite *callSites_ = jit->callSites();
     for (uint32 i = 0; i < jit->nCallSites; i++) {
-        if (callSites_[i].codeOffset + codeStart == *location) {
+        if (jit->callSites[i].codeOffset + codeStart == *location) {
             PatchableAddress result;
             result.location = location;
-            result.callSite = callSites_[i];
+            result.callSite = jit->callSites[i];
             return result;
         }
     }
@@ -188,9 +187,8 @@ Recompiler::recompile()
 bool
 Recompiler::saveTraps(JITScript *jit, Vector<CallSite> *sites)
 {
-    CallSite *callSites_ = jit->callSites();
     for (uint32 i = 0; i < jit->nCallSites; i++) {
-        CallSite &site = callSites_[i];
+        CallSite &site = jit->callSites[i];
         if (site.isTrap() && !sites->append(site))
             return false;
     }

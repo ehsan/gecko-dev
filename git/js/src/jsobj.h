@@ -316,10 +316,6 @@ struct JSObject : js::gc::Cell {
      * for DictionaryProperties assert that the scope is in dictionary mode and
      * any reachable properties are flagged as dictionary properties.
      *
-     * For native objects, this field is always a Shape. For non-native objects,
-     * it points to the singleton sharedNonNative JSObjectMap, whose shape field
-     * is SHAPELESS.
-     *
      * NB: these private methods do *not* update this scope's shape to track
      * lastProp->shape after they finish updating the linked list in the case
      * where lastProp is updated. It is up to calling code in jsscope.cpp to
@@ -1743,15 +1739,6 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, uintN defineHow,
 extern JSBool
 js_SetNativeAttributes(JSContext *cx, JSObject *obj, js::Shape *shape,
                        uintN attrs);
-
-/*
- * Hack fix for bug 611653: Do not use for any other purpose.
- *
- * Unbrand and set all slot values to undefined (except reserved slots that
- * are not used for cached prototypes).
- */
-JS_FRIEND_API(void)
-js_UnbrandAndClearSlots(JSContext *cx, JSObject *obj);
 
 namespace js {
 

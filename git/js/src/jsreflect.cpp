@@ -135,7 +135,7 @@ char const *callbackNames[] = {
     NULL
 };
 
-typedef AutoValueVector NodeVector;
+typedef Vector<Value, 8> NodeVector;
 
 /*
  * JSParseNode is a somewhat intricate data structure, and its invariants have
@@ -915,17 +915,12 @@ NodeBuilder::tryStatement(Value body, NodeVector &catches, Value finally,
                callback(cb, body, handler, opt(finally), pos, dst);
     }
 
-    switch (catches.length()) {
-      case 0:
+    if (catches.empty())
         handler.setNull();
-        break;
-      case 1:
+    else if (catches.length() == 1)
         handler = catches[0];
-        break;
-      default:
-        if (!newArray(catches, &handler))
-            return false;
-    }
+    else if (!newArray(catches, &handler))
+        return false;
 
     return newNode(AST_TRY_STMT, pos,
                    "block", body,

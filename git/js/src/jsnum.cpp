@@ -333,11 +333,9 @@ num_parseFloat(JSContext *cx, uintN argc, Value *vp)
 static jsdouble FASTCALL
 ParseFloat(JSContext* cx, JSString* str)
 {
-    TraceMonitor *tm = JS_TRACE_MONITOR_ON_TRACE(cx);
-
     const jschar *bp = str->getChars(cx);
     if (!bp) {
-        SetBuiltinError(tm);
+        SetBuiltinError(cx);
         return js_NaN;
     }
     const jschar *end = bp + str->length();
@@ -477,18 +475,16 @@ num_parseInt(JSContext *cx, uintN argc, Value *vp)
 static jsdouble FASTCALL
 ParseInt(JSContext* cx, JSString* str)
 {
-    TraceMonitor *tm = JS_TRACE_MONITOR_ON_TRACE(cx);
-
     const jschar *start = str->getChars(cx);
     if (!start) {
-        SetBuiltinError(tm);
+        SetBuiltinError(cx);
         return js_NaN;
     }
     const jschar *end = start + str->length();
 
     jsdouble d;
     if (!ParseIntStringHelper(cx, start, end, 0, true, &d)) {
-        SetBuiltinError(tm);
+        SetBuiltinError(cx);
         return js_NaN;
     }
     return d;

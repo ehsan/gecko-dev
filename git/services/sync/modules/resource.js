@@ -142,9 +142,6 @@ function AsyncResource(uri) {
 AsyncResource.prototype = {
   _logName: "Net.Resource",
 
-  // Wait 5 minutes before killing a request
-  ABORT_TIMEOUT: 300000,
-
   // ** {{{ Resource.authenticator }}} **
   //
   // Getter and setter for the authenticator module
@@ -273,7 +270,7 @@ AsyncResource.prototype = {
     // Setup a channel listener so that the actual network operation
     // is performed asynchronously.
     let listener = new ChannelListener(this._onComplete, this._onProgress,
-                                       this._log, this.ABORT_TIMEOUT);
+                                       this._log);
     channel.requestMethod = action;
     channel.asyncOpen(listener, null);
   },
@@ -414,10 +411,8 @@ Resource.prototype = {
     try {
       return doRequest(action, data, callback);
     } catch(ex) {
-      // Combine the channel stack with this request stack.  Need to create
-      // a new error object for that.
+      // Combine the channel stack with this request stack
       let error = Error(ex.message);
-      error.result = ex.result;
       let chanStack = [];
       if (ex.stack)
         chanStack = ex.stack.trim().split(/\n/).slice(1);
@@ -471,14 +466,15 @@ Resource.prototype = {
 //
 // This object implements the {{{nsIStreamListener}}} interface
 // and is called as the network operation proceeds.
-function ChannelListener(onComplete, onProgress, logger, timeout) {
+function ChannelListener(onComplete, onProgress, logger) {
   this._onComplete = onComplete;
   this._onProgress = onProgress;
   this._log = logger;
-  this._timeout = timeout;
   this.delayAbort();
 }
 ChannelListener.prototype = {
+  // Wait 5 minutes before killing a request
+  ABORT_TIMEOUT: 300000,
 
   onStartRequest: function Channel_onStartRequest(channel) {
     channel.QueryInterface(Ci.nsIHttpChannel);
@@ -501,13 +497,9 @@ ChannelListener.prototype = {
     if (this._data == '')
       this._data = null;
 
-    // Throw the failure code and stop execution.  Use Components.Exception()
-    // instead of Error() so the exception is QI-able and can be passed across
-    // XPCOM borders while preserving the status code.
+    // Throw the failure code name (and stop execution)
     if (!Components.isSuccessCode(status)) {
-      let message = Components.Exception("", status).name;
-      let error = Components.Exception(message, status);
-      this._onComplete(error);
+      this._onComplete(Error(Components.Exception("", status).name));
       return;
     }
 
@@ -543,15 +535,14 @@ ChannelListener.prototype = {
    * Create or push back the abort timer that kills this request
    */
   delayAbort: function delayAbort() {
-    Utils.delay(this.abortRequest, this._timeout, this, "abortTimer");
+    Utils.delay(this.abortRequest, this.ABORT_TIMEOUT, this, "abortTimer");
   },
 
   abortRequest: function abortRequest() {
     // Ignore any callbacks if we happen to get any now
     this.onStopRequest = function() {};
-    let error = Components.Exception("Aborting due to channel inactivity.",
-                                     Cr.NS_ERROR_NET_TIMEOUT);
-    this._onComplete(error);
+    this.onDataAvailable = function() {};
+    this._onComplete(Error("Aborting due to channel inactivity."));
   }
 };
 

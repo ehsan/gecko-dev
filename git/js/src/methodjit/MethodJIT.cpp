@@ -801,94 +801,6 @@ js::mjit::JaegerShotAtSafePoint(JSContext *cx, void *safePoint)
     return CheckStackAndEnterMethodJIT(cx, cx->fp(), safePoint);
 }
 
-NativeMapEntry *
-JITScript::nmap() const
-{
-    return (NativeMapEntry *)((char*)this + sizeof(JITScript));
-}
-
-char *
-JITScript::nmapSectionLimit() const
-{
-    return (char *)nmap() + sizeof(NativeMapEntry) * nNmapPairs;
-}
-
-#ifdef JS_MONOIC
-ic::MICInfo *
-JITScript::mics() const
-{
-    return (ic::MICInfo *)nmapSectionLimit();
-}
-
-ic::CallICInfo *
-JITScript::callICs() const
-{
-    return (ic::CallICInfo *)((char *)mics() + sizeof(ic::MICInfo) * nMICs);
-}
-
-ic::EqualityICInfo *
-JITScript::equalityICs() const
-{
-    return (ic::EqualityICInfo *)((char *)callICs() + sizeof(ic::CallICInfo) * nCallICs);
-}
-
-ic::TraceICInfo *
-JITScript::traceICs() const
-{
-    return (ic::TraceICInfo *)((char *)equalityICs() + sizeof(ic::EqualityICInfo) * nEqualityICs);
-}
-
-char *
-JITScript::monoICSectionsLimit() const
-{
-    return (char *)traceICs() + sizeof(ic::TraceICInfo) * nTraceICs;
-}
-#else   // JS_MONOIC
-char *
-JITScript::monoICSectionsLimit() const
-{
-    return nmapSectionsLimit();
-}
-#endif  // JS_MONOIC
-
-#ifdef JS_POLYIC
-ic::GetElementIC *
-JITScript::getElems() const
-{
-    return (ic::GetElementIC *)monoICSectionsLimit();
-}
-
-ic::SetElementIC *
-JITScript::setElems() const
-{
-    return (ic::SetElementIC *)((char *)getElems() + sizeof(ic::GetElementIC) * nGetElems);
-}
-
-ic::PICInfo *
-JITScript::pics() const
-{
-    return (ic::PICInfo *)((char *)setElems() + sizeof(ic::SetElementIC) * nSetElems);
-}
-
-char *
-JITScript::polyICSectionsLimit() const
-{
-    return (char *)pics() + sizeof(ic::PICInfo) * nPICs;
-}
-#else   // JS_POLYIC
-char *
-JITScript::polyICSectionsLimit() const
-{
-    return monoICSectionsLimit();
-}
-#endif  // JS_POLYIC
-
-js::mjit::CallSite *
-JITScript::callSites() const
-{
-    return (js::mjit::CallSite *)polyICSectionsLimit();
-}
-
 template <typename T>
 static inline void Destroy(T &t)
 {
@@ -905,15 +817,12 @@ mjit::JITScript::~JITScript()
     code.m_executablePool->release();
 
 #if defined JS_POLYIC
-    ic::GetElementIC *getElems_ = getElems();
-    ic::SetElementIC *setElems_ = setElems();
-    ic::PICInfo *pics_ = pics();
-    for (uint32 i = 0; i < nGetElems; i++)
-        Destroy(getElems_[i]);
-    for (uint32 i = 0; i < nSetElems; i++)
-        Destroy(setElems_[i]);
     for (uint32 i = 0; i < nPICs; i++)
-        Destroy(pics_[i]);
+        Destroy(pics[i]);
+    for (uint32 i = 0; i < nGetElems; i++)
+        Destroy(getElems[i]);
+    for (uint32 i = 0; i < nSetElems; i++)
+        Destroy(setElems[i]);
 #endif
 
 #if defined JS_MONOIC
@@ -924,9 +833,8 @@ mjit::JITScript::~JITScript()
         (*pExecPool)->release();
     }
     
-    ic::CallICInfo *callICs_ = callICs();
     for (uint32 i = 0; i < nCallICs; i++)
-        callICs_[i].releasePools();
+        callICs[i].releasePools();
 #endif
 }
 
@@ -1016,14 +924,15 @@ mjit::GetCallTargetCount(JSScript *script, jsbytecode *pc)
     ic::PICInfo *pic;
     
     if (mjit::JITScript *jit = script->getJIT(false)) {
-        pic = (ic::PICInfo *)bsearch(pc, jit->pics(), jit->nPICs, sizeof(ic::PICInfo),
+        pic = (ic::PICInfo *)bsearch(pc, jit->pics, jit->nPICs, sizeof(jit->pics[0]),
                                      PICPCComparator);
         if (pic)
             return pic->stubsGenerated + 1; /* Add 1 for the inline path. */
     }
     
     if (mjit::JITScript *jit = script->getJIT(true)) {
-        pic = (ic::PICInfo *)bsearch(pc, jit->pics(), jit->nPICs, sizeof(ic::PICInfo),
+        pic = (ic::PICInfo *)bsearch(pc, jit->pics,
+                                     jit->nPICs, sizeof(jit->pics[0]),
                                      PICPCComparator);
         if (pic)
             return pic->stubsGenerated + 1; /* Add 1 for the inline path. */
@@ -1038,31 +947,3 @@ mjit::GetCallTargetCount(JSScript *script, jsbytecode *pc)
     return 1;
 }
 #endif
-
-jsbytecode *
-JITScript::nativeToPC(void *returnAddress) const
-{
-    size_t low = 0;
-    size_t high = nCallICs;
-    js::mjit::ic::CallICInfo *callICs_ = callICs();
-    while (high > low + 1) {
-        /* Could overflow here on a script with 2 billion calls. Oh well. */
-        size_t mid = (high + low) / 2;
-        void *entry = callICs_[mid].funGuard.executableAddress();
-
-        /*
-         * Use >= here as the return address of the call is likely to be
-         * the start address of the next (possibly IC'ed) operation.
-         */
-        if (entry >= returnAddress)
-            high = mid;
-        else
-            low = mid;
-    }
-
-    js::mjit::ic::CallICInfo &ic = callICs_[low];
-
-    JS_ASSERT((uint8*)ic.funGuard.executableAddress() + ic.joinPointOffset == returnAddress);
-    return ic.pc;
-}
-

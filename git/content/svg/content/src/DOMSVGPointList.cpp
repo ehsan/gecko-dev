@@ -86,8 +86,10 @@ DOMSVGPointList::GetDOMWrapperIfExists(void *aList)
 
 DOMSVGPointList::~DOMSVGPointList()
 {
-  // There are now no longer any references to us held by script or list items.
-  // Note we must use GetAnimValKey/GetBaseValKey here, NOT InternalList()!
+  // We no longer have any list items, and there are no script references to
+  // us.
+  //
+  // Do NOT use InternalList() as the key here! That's different!
   void *key = mIsAnimValList ?
     InternalAList().GetAnimValKey() :
     InternalAList().GetBaseValKey();
@@ -268,9 +270,8 @@ DOMSVGPointList::InsertItemBefore(nsIDOMSVGPoint *aNewItem,
   InternalList().InsertItem(aIndex, domItem->ToSVGPoint());
   mItems.InsertElementAt(aIndex, domItem.get());
 
-  // This MUST come after the insertion into InternalList(), or else under the
-  // insertion into InternalList() the values read from domItem would be bad
-  // data from InternalList() itself!:
+  // This MUST come after the insertion into InternalList(), or else the data
+  // read from domItem would be bad data from InternalList() itself!
   domItem->InsertingIntoList(this, aIndex, IsAnimValList());
 
   for (PRUint32 i = aIndex + 1; i < Length(); ++i) {
@@ -319,7 +320,7 @@ DOMSVGPointList::ReplaceItem(nsIDOMSVGPoint *aNewItem,
   InternalList()[aIndex] = domItem->ToSVGPoint();
   mItems[aIndex] = domItem;
 
-  // This MUST come after the ToSVGPoint() call, otherwise that call
+  // This MUST come after the assignment to InternalList, otherwise that call
   // would end up reading bad data from InternalList()!
   domItem->InsertingIntoList(this, aIndex, IsAnimValList());
 

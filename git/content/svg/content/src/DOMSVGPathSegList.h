@@ -160,7 +160,12 @@ private:
     : mElement(aElement)
     , mIsAnimValList(aIsAnimValList)
   {
-    InternalListWillChangeTo(InternalList()); // Sync mItems
+    // This call populates mItems with the same number of items as there are
+    // segments contained in the internal list. We ignore OOM failure since
+    // being out of sync is safe so long as we have *fewer* items than our
+    // internal list.
+
+    InternalListWillChangeTo(InternalList());
   }
 
   ~DOMSVGPathSegList();

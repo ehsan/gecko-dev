@@ -418,7 +418,7 @@ let UI = {
       let self = this;
       this._activeTab.addSubscriber(this, "close", function(closedTabItem) {
         if (self._activeTab == closedTabItem)
-          self.setActiveTab(null);
+          self._activeTab = null;
       });
 
       this._activeTab.makeActive();

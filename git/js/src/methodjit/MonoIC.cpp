@@ -1039,9 +1039,8 @@ JITScript::purgeMICs()
 
     Repatcher repatch(this);
 
-    ic::MICInfo *mics_ = mics();
     for (uint32 i = 0; i < nMICs; i++) {
-        ic::MICInfo &mic = mics_[i];
+        ic::MICInfo &mic = mics[i];
         switch (mic.kind) {
           case ic::MICInfo::SET:
           case ic::MICInfo::GET:
@@ -1082,9 +1081,8 @@ JITScript::nukeScriptDependentICs()
 
     Repatcher repatcher(this);
 
-    ic::CallICInfo *callICs_ = callICs();
     for (uint32 i = 0; i < nCallICs; i++) {
-        ic::CallICInfo &ic = callICs_[i];
+        ic::CallICInfo &ic = callICs[i];
         if (!ic.fastGuardedObject)
             continue;
         repatcher.repatch(ic.funGuard, NULL);
@@ -1106,9 +1104,8 @@ JITScript::sweepCallICs(JSContext *cx, bool purgeAll)
      * alive pools that we are trying to destroy (see JSCompartment::sweep).
      */
 
-    ic::CallICInfo *callICs_ = callICs();
     for (uint32 i = 0; i < nCallICs; i++) {
-        ic::CallICInfo &ic = callICs_[i];
+        ic::CallICInfo &ic = callICs[i];
 
         /*
          * If the object is unreachable, we're guaranteed not to be currently
@@ -1147,9 +1144,8 @@ JITScript::sweepCallICs(JSContext *cx, bool purgeAll)
         /* Purge ICs generating stubs into execPools. */
         uint32 released = 0;
 
-        ic::EqualityICInfo *equalityICs_ = equalityICs();
         for (uint32 i = 0; i < nEqualityICs; i++) {
-            ic::EqualityICInfo &ic = equalityICs_[i];
+            ic::EqualityICInfo &ic = equalityICs[i];
             if (!ic.generated)
                 continue;
 

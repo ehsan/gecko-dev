@@ -201,7 +201,7 @@ NewArguments(JSContext *cx, JSObject *parent, uint32 argc, JSObject &callee)
                   : &js_ArgumentsClass,
                   proto, parent, NULL, false);
 
-    argsobj->setMap(cx->compartment->emptyArgumentsShape);
+    argsobj->setMap(cx->runtime->emptyArgumentsShape);
 
     argsobj->setArgsLength(argc);
     argsobj->setArgsData(data);
@@ -580,16 +580,14 @@ ArgSetter(JSContext *cx, JSObject *obj, jsid id, Value *vp)
     }
 
     /*
-     * For simplicity we use delete/define to replace the property with one
+     * For simplicity we use delete/set to replace the property with one
      * backed by the default Object getter and setter. Note that we rely on
      * args_delProperty to clear the corresponding reserved slot so the GC can
-     * collect its value. Note also that we must define the property instead
-     * of setting it in case the user has changed the prototype to an object
-     * that has a setter for this id.
+     * collect its value.
      */
     AutoValueRooter tvr(cx);
     return js_DeleteProperty(cx, obj, id, tvr.addr(), false) &&
-           js_DefineProperty(cx, obj, id, vp, NULL, NULL, JSPROP_ENUMERATE);
+           js_SetProperty(cx, obj, id, vp, false);
 }
 
 static JSBool
@@ -991,7 +989,7 @@ NewDeclEnvObject(JSContext *cx, JSStackFrame *fp)
         return NULL;
 
     envobj->init(cx, &js_DeclEnvClass, NULL, &fp->scopeChain(), fp, false);
-    envobj->setMap(cx->compartment->emptyDeclEnvShape);
+    envobj->setMap(cx->runtime->emptyDeclEnvShape);
     return envobj;
 }
 
@@ -1289,11 +1287,9 @@ SetCallVar(JSContext *cx, JSObject *obj, jsid id, Value *vp)
      * outer tree is illegal, and runtime would fall off trace.
      */
 #ifdef JS_TRACER
-    if (JS_ON_TRACE(cx)) {
-        TraceMonitor *tm = JS_TRACE_MONITOR_ON_TRACE(cx);
-        if (tm->recorder && tm->tracecx)
-            AbortRecording(cx, "upvar write in nested tree");
-    }
+    TraceMonitor *tm = &JS_TRACE_MONITOR(cx);
+    if (tm->recorder && tm->tracecx)
+        AbortRecording(cx, "upvar write in nested tree");
 #endif
 
     Value *varp;
