@@ -889,6 +889,34 @@ function resultRows(aStatement) {
 }
 
 /**
+  * Returns the timestamp of the most recently modified file in a directory,
+  * or simply the file's own timestamp if it is not a directory.
+  * 
+  * @param aFile
+  * A non-null nsIFile object
+  * @return Epoch time, as described above. 0 for an empty directory.
+  */
+function recursiveLastModifiedTime(aFile) {
+  if (aFile.isFile())
+    return aFile.lastModifiedTime;
+
+  if (aFile.isDirectory()) {
+    let entries = aFile.directoryEntries.QueryInterface(Ci.nsIDirectoryEnumerator);
+    let entry, time;
+    let maxTime = aFile.lastModifiedTime;
+    while (entry = entries.nextFile) {
+      time = recursiveLastModifiedTime(entry);
+      maxTime = Math.max(time, maxTime);
+    }
+    entries.close();
+    return maxTime;
+  }
+  
+  // If the file is something else, just ignore it.
+  return 0;
+}
+
+/**
  * A helpful wrapper around the prefs service that allows for default values
  * when requested values aren't set.
  */
@@ -1282,6 +1310,11 @@ var XPIProvider = {
         !(Services.appinfo instanceof Ci.nsICrashReporter))
       return;
 
+    // In safe mode no add-ons are loaded so we should not include them in the
+    // crash report
+    if (Services.appinfo.inSafeMode)
+      return;
+
     let data = this.enabledAddons;
     for (let id in this.bootstrappedAddons)
       data += (data ? "," : "") + id + ":" + this.bootstrappedAddons[id].version;
@@ -1291,9 +1324,10 @@ var XPIProvider = {
     }
     catch (e) { }
   },
-
+  
   /**
-   * Gets the add-on states for an install location.
+   * Gets the add-on states for an install location. 
+   * This function may be expensive because of the recursiveLastModifiedTime call.
    *
    * @param  location
    *         The install location to retrieve the add-on states for
@@ -1308,7 +1342,7 @@ var XPIProvider = {
       let id = aLocation.getIDForLocation(file);
       addonStates[id] = {
         descriptor: file.persistentDescriptor,
-        mtime: file.lastModifiedTime
+        mtime: recursiveLastModifiedTime(file)
       };
     });
 
@@ -1318,7 +1352,7 @@ var XPIProvider = {
   /**
    * Gets an array of install location states which uniquely describes all
    * installed add-ons with the add-on's InstallLocation name and last modified
-   * time.
+   * time. This function may be expensive because of the getAddonStates() call.
    *
    * @return an array of add-on states for each install location. Each state
    *         is an object with a name property holding the location's name and
@@ -1456,7 +1490,8 @@ var XPIProvider = {
   /**
    * Compares the add-ons that are currently installed to those that were
    * known to be installed when the application last ran and applies any
-   * changes found to the database.
+   * changes found to the database. Also sends "startupcache-invalidate" signal to 
+   * observerservice if it detects that data may have changed.
    *
    * @param  aState
    *         The array of current install location states
@@ -1864,6 +1899,12 @@ var XPIProvider = {
     // Cache the new install location states
     cache = JSON.stringify(this.getInstallLocationStates());
     Services.prefs.setCharPref(PREF_INSTALL_CACHE, cache);
+    
+    if (changed) {
+      // Init this, so it will get the notification.
+      let xulPrototypeCache = Cc["@mozilla.org/xul/xul-prototype-cache;1"].getService(Ci.nsISupports);
+      Services.obs.notifyObservers(null, "startupcache-invalidate", null);
+    }
     return changed;
   },
 
@@ -2240,6 +2281,10 @@ var XPIProvider = {
     }
     this.selectedSkin = newSkin;
 
+    // Flush the preferences to disk so they don't get out of sync with the
+    // database
+    Services.prefs.savePrefFile(null);
+
     // Mark the previous theme as disabled. This won't cause recursion since
     // only enabled calls notifyAddonChanged.
     if (previousTheme)
@@ -2300,6 +2345,11 @@ var XPIProvider = {
     if (!this.extensionsActive)
       return false;
 
+    // If the application is in safe mode then any change can be made without
+    // restarting
+    if (Services.appinfo.inSafeMode)
+      return false;
+
     // Anything that is active is already enabled
     if (aAddon.active)
       return false;
@@ -2330,6 +2380,11 @@ var XPIProvider = {
     // If the platform couldn't have activated up extensions then we can make
     // changes without any restart.
     if (!this.extensionsActive)
+      return false;
+
+    // If the application is in safe mode then any change can be made without
+    // restarting
+    if (Services.appinfo.inSafeMode)
       return false;
 
     // Anything that isn't active is already disabled
@@ -2373,6 +2428,11 @@ var XPIProvider = {
     if (!this.extensionsActive)
       return false;
 
+    // If the application is in safe mode then any change can be made without
+    // restarting
+    if (Services.appinfo.inSafeMode)
+      return false;
+
     // Add-ons that are already installed don't require a restart to install.
     // This wouldn't normally be called for an already installed add-on (except
     // for forming the operationsRequiringRestart flags) so is really here as
@@ -2413,6 +2473,11 @@ var XPIProvider = {
     // If the platform couldn't have activated up extensions then we can make
     // changes without any restart.
     if (!this.extensionsActive)
+      return false;
+
+    // If the application is in safe mode then any change can be made without
+    // restarting
+    if (Services.appinfo.inSafeMode)
       return false;
 
     // If the add-on can be disabled without a restart then it can also be
@@ -2507,6 +2572,10 @@ var XPIProvider = {
    */
   callBootstrapMethod: function XPI_callBootstrapMethod(aId, aVersion, aFile,
                                                         aMethod, aReason) {
+    // Never call any bootstrap methods in safe mode
+    if (Services.appinfo.inSafeMode)
+      return;
+
     // Load the scope if it hasn't already been loaded
     if (!(aId in this.bootstrapScopes))
       this.loadBootstrapScope(aId, aFile, aVersion);
@@ -4288,19 +4357,25 @@ AddonInstall.prototype = {
       let stagedJSON = stagedAddon.clone();
       stagedAddon.append(this.addon.id);
       stagedJSON.append(this.addon.id + ".json");
-      if (stagedAddon.exists())
+      if (stagedAddon.exists()) {
         stagedAddon.remove(true);
+      }
+      else {
+        stagedAddon.leafName += ".xpi";
+        if (stagedAddon.exists())
+          stagedAddon.remove(false);
+      }
       if (stagedJSON.exists())
         stagedJSON.remove(true);
       this.state = AddonManager.STATE_CANCELLED;
       XPIProvider.removeActiveInstall(this);
 
-      AddonManagerPrivate.callAddonListeners("onOperationCancelled", createWrapper(this.addon));
-
       if (this.existingAddon) {
         delete this.existingAddon.pendingUpgrade;
         this.existingAddon.pendingUpgrade = null;
       }
+
+      AddonManagerPrivate.callAddonListeners("onOperationCancelled", createWrapper(this.addon));
 
       AddonManagerPrivate.callInstallListeners("onInstallCancelled",
                                                this.listeners, this.wrapper);
@@ -4589,8 +4664,8 @@ AddonInstall.prototype = {
 
       this.channel = NetUtil.newChannel(this.sourceURI);
       this.channel.notificationCallbacks = this;
-      this.channel.QueryInterface(Ci.nsIHttpChannelInternal)
-                  .forceAllowThirdPartyCookie = true;
+      if (this.channel instanceof Ci.nsIHttpChannelInternal)
+        this.channel.forceAllowThirdPartyCookie = true;
       this.channel.asyncOpen(listener, null);
 
       Services.obs.addObserver(this, "network:offline-about-to-go-offline", false);
@@ -4725,7 +4800,7 @@ AddonInstall.prototype = {
         let binary = this.crypto.finish(false);
         let hash = [toHexString(binary.charCodeAt(i)) for (i in binary)].join("")
         this.crypto = null;
-        if (this.hash && hash != this.hash) {
+        if (this.hash && hash.toLowerCase() != this.hash.toLowerCase()) {
           this.downloadFailed(AddonManager.ERROR_INCORRECT_HASH,
                               "Downloaded file hash (" + hash +
                               ") did not match provided hash (" + this.hash + ")");
@@ -4936,7 +5011,7 @@ AddonInstall.prototype = {
 
         // Update the metadata in the database
         this.addon._installLocation = this.installLocation;
-        this.addon.updateDate = file.lastModifiedTime;
+        this.addon.updateDate = recursiveLastModifiedTime(file);
         this.addon.visible = true;
         if (isUpgrade) {
           XPIDatabase.updateAddonMetadata(this.existingAddon, this.addon,
@@ -5557,7 +5632,7 @@ function AddonWrapper(aAddon) {
 
   ["optionsURL", "aboutURL"].forEach(function(aProp) {
     this.__defineGetter__(aProp, function() {
-      return aAddon.active ? aAddon[aProp] : null;
+      return this.isActive ? aAddon[aProp] : null;
     });
   }, this);
 
@@ -5578,7 +5653,7 @@ function AddonWrapper(aAddon) {
   // and icon64.png in the add-on's files.
   ["icon", "icon64"].forEach(function(aProp) {
     this.__defineGetter__(aProp + "URL", function() {
-      if (aAddon.active && aAddon[aProp + "URL"])
+      if (this.isActive && aAddon[aProp + "URL"])
         return aAddon[aProp + "URL"];
 
       if (this.hasResource(aProp + ".png"))
@@ -5768,7 +5843,12 @@ function AddonWrapper(aAddon) {
     return permissions;
   });
 
-  this.__defineGetter__("isActive", function() aAddon.active);
+  this.__defineGetter__("isActive", function() {
+    if (Services.appinfo.inSafeMode)
+      return false;
+    return aAddon.active;
+  });
+
   this.__defineSetter__("userDisabled", function(val) {
     if (val == aAddon.userDisabled)
       return val;

@@ -92,6 +92,7 @@
 #include "nsNetCID.h"
 #include "mozilla/Services.h"
 #include "mozilla/dom/Element.h"
+#include "nsGenericElement.h"
 
 using namespace mozilla::dom;
 
@@ -101,6 +102,10 @@ static PRBool gSupportVisitedPseudo = PR_TRUE;
 
 static NS_DEFINE_CID(kLookAndFeelCID, NS_LOOKANDFEEL_CID);
 static nsTArray< nsCOMPtr<nsIAtom> >* sSystemMetrics = 0;
+
+#ifdef XP_WIN
+PRUint8 nsCSSRuleProcessor::sWinThemeId = nsILookAndFeel::eWindowsTheme_Generic;
+#endif
 
 /**
  * A struct representing a given CSS rule and a particular selector
@@ -1035,6 +1040,36 @@ InitSystemMetrics()
     sSystemMetrics->AppendElement(nsGkAtoms::maemo_classic);
   }
 
+#ifdef XP_WIN
+  if (NS_SUCCEEDED(lookAndFeel->GetMetric(nsILookAndFeel::eMetric_WindowsThemeIdentifier,
+                                          metricResult))) {
+    nsCSSRuleProcessor::SetWindowsThemeIdentifier(static_cast<PRUint8>(metricResult));
+    switch(metricResult) {
+      case nsILookAndFeel::eWindowsTheme_Aero:
+        sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_aero);
+        break;
+      case nsILookAndFeel::eWindowsTheme_LunaBlue:
+        sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_luna_blue);
+        break;
+      case nsILookAndFeel::eWindowsTheme_LunaOlive:
+        sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_luna_olive);
+        break;
+      case nsILookAndFeel::eWindowsTheme_LunaSilver:
+        sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_luna_silver);
+        break;
+      case nsILookAndFeel::eWindowsTheme_Royale:
+        sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_royale);
+        break;
+      case nsILookAndFeel::eWindowsTheme_Zune:
+        sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_zune);
+        break;
+      case nsILookAndFeel::eWindowsTheme_Generic:
+        sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_generic);
+        break;
+    }
+  }
+#endif
+
   return PR_TRUE;
 }
 
@@ -1061,6 +1096,16 @@ nsCSSRuleProcessor::HasSystemMetric(nsIAtom* aMetric)
   }
   return sSystemMetrics->IndexOf(aMetric) != sSystemMetrics->NoIndex;
 }
+
+#ifdef XP_WIN
+/* static */ PRUint8
+nsCSSRuleProcessor::GetWindowsThemeIdentifier()
+{
+  if (!sSystemMetrics)
+    InitSystemMetrics();
+  return sWinThemeId;
+}
+#endif
 
 RuleProcessorData::RuleProcessorData(nsPresContext* aPresContext,
                                      Element* aElement, 
@@ -2030,6 +2075,21 @@ static PRBool SelectorMatches(RuleProcessorData &data,
         }
         break;
 
+      case nsCSSPseudoClasses::ePseudoClass_mozTableBorderNonzero:
+        {
+          if (!data.mIsHTMLContent || data.mContentTag != nsGkAtoms::table) {
+            return PR_FALSE;
+          }
+          nsGenericElement *ge = static_cast<nsGenericElement*>(data.mElement);
+          const nsAttrValue *val = ge->GetParsedAttr(nsGkAtoms::border);
+          if (!val ||
+              (val->Type() == nsAttrValue::eInteger &&
+               val->GetIntegerValue() == 0)) {
+            return PR_FALSE;
+          }
+        }
+        break;
+
       default:
         NS_ABORT_IF_FALSE(PR_FALSE, "How did that happen?");
       }
@@ -2645,20 +2705,6 @@ PRBool IsStateSelector(nsCSSSelector& aSelector)
   return PR_FALSE;
 }
 
-inline
-void AddSelectorDocumentStates(nsCSSSelector& aSelector, PRUint32* aStateMask)
-{
-  for (nsPseudoClassList* pseudoClass = aSelector.mPseudoClassList;
-       pseudoClass; pseudoClass = pseudoClass->mNext) {
-    if (pseudoClass->mAtom == nsCSSPseudoClasses::mozLocaleDir) {
-      *aStateMask |= NS_DOCUMENT_STATE_RTL_LOCALE;
-    }
-    else if (pseudoClass->mAtom == nsCSSPseudoClasses::mozWindowInactive) {
-      *aStateMask |= NS_DOCUMENT_STATE_WINDOW_INACTIVE;
-    }
-  }
-}
-
 static PRBool
 AddSelector(RuleCascadeData* aCascade,
             // The part between combinators at the top level of the selector
@@ -2666,8 +2712,32 @@ AddSelector(RuleCascadeData* aCascade,
             // The part we should look through (might be in :not or :-moz-any())
             nsCSSSelector* aSelectorPart)
 {
-  // Track the selectors that depend on document states.
-  AddSelectorDocumentStates(*aSelectorPart, &aCascade->mSelectorDocumentStates);
+  // Track both document states and attribute dependence in pseudo-classes.
+  for (nsPseudoClassList* pseudoClass = aSelectorPart->mPseudoClassList;
+       pseudoClass; pseudoClass = pseudoClass->mNext) {
+    switch (pseudoClass->mType) {
+      case nsCSSPseudoClasses::ePseudoClass_mozLocaleDir: {
+        aCascade->mSelectorDocumentStates |= NS_DOCUMENT_STATE_RTL_LOCALE;
+        break;
+      }
+      case nsCSSPseudoClasses::ePseudoClass_mozWindowInactive: {
+        aCascade->mSelectorDocumentStates |= NS_DOCUMENT_STATE_WINDOW_INACTIVE;
+        break;
+      }
+      case nsCSSPseudoClasses::ePseudoClass_mozTableBorderNonzero: {
+        nsTArray<nsCSSSelector*> *array =
+          aCascade->AttributeListFor(nsGkAtoms::border);
+        if (!array) {
+          return PR_FALSE;
+        }
+        array->AppendElement(aSelectorInTopLevel);
+        break;
+      }
+      default: {
+        break;
+      }
+    }
+  }
 
   // Build mStateSelectors.
   if (IsStateSelector(*aSelectorPart))
@@ -2704,8 +2774,7 @@ AddSelector(RuleCascadeData* aCascade,
     }
     array->AppendElement(aSelectorInTopLevel);
     if (attr->mLowercaseAttr != attr->mCasedAttr) {
-      nsTArray<nsCSSSelector*> *array =
-        aCascade->AttributeListFor(attr->mLowercaseAttr);
+      array = aCascade->AttributeListFor(attr->mLowercaseAttr);
       if (!array) {
         return PR_FALSE;
       }

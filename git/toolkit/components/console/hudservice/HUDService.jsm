@@ -619,6 +619,8 @@ function NetworkPanel(aParent, aHttpActivity)
     flex: "1"
   });
 
+  let self = this;
+
   // Destroy the panel when it's closed.
   this.panel.addEventListener("popuphidden", function onPopupHide() {
     self.panel.removeEventListener("popuphidden", onPopupHide, false);
@@ -627,10 +629,14 @@ function NetworkPanel(aParent, aHttpActivity)
     self.browser = null;
     self.document = null;
     self.httpActivity = null;
+
+    if (self.linkNode) {
+      self.linkNode._panelOpen = false;
+      self.linkNode = null;
+    }
   }, false);
 
   // Set the document object and update the content once the panel is loaded.
-  let self = this;
   this.panel.addEventListener("load", function onLoad() {
     self.panel.removeEventListener("load", onLoad, true)
     self.document = self.browser.contentWindow.document;
@@ -1774,6 +1780,7 @@ HUD_SERVICE.prototype =
     }
     delete displays[id];
     delete this.displayRegistry[id];
+    delete this.uriRegistry[uri];
   },
 
   /**
@@ -2141,6 +2148,7 @@ HUD_SERVICE.prototype =
     let doc = aNode.ownerDocument;
     let parent = doc.getElementById("mainPopupSet");
     let netPanel = new NetworkPanel(parent, aHttpActivity);
+    netPanel.linkNode = aNode;
 
     let panel = netPanel.panel;
     panel.openPopup(aNode, "after_pointer", 0, 0, false, false);
@@ -2239,9 +2247,23 @@ HUD_SERVICE.prototype =
             // Make the network span clickable.
             let linkNode = loggedNode.messageNode;
             linkNode.setAttribute("aria-haspopup", "true");
-            linkNode.onclick = function() {
-              self.openNetworkPanel(linkNode, httpActivity);
-            }
+            linkNode.addEventListener("mousedown", function(aEvent) {
+              this._startX = aEvent.clientX;
+              this._startY = aEvent.clientY;
+            }, false);
+
+            linkNode.addEventListener("click", function(aEvent) {
+              if (aEvent.detail != 1 || aEvent.button != 0 ||
+                  (this._startX != aEvent.clientX &&
+                   this._startY != aEvent.clientY)) {
+                return;
+              }
+
+              if (!this._panelOpen) {
+                self.openNetworkPanel(this, httpActivity);
+                this._panelOpen = true;
+              }
+            }, false);
           }
           else {
             // Iterate over all currently ongoing requests. If aChannel can't
@@ -4066,8 +4088,10 @@ JSTerm.prototype = {
     buttons.push({
       label: HUDService.getStr("close.button"),
       accesskey: HUDService.getStr("close.accesskey"),
+      class: "jsPropertyPanelCloseButton",
       oncommand: function () {
         propPanel.destroy();
+        aAnchor._panelOpen = false;
       }
     });
 
@@ -4104,9 +4128,24 @@ JSTerm.prototype = {
     node.setAttribute("class", "jsterm-output-line hud-clickable");
     node.setAttribute("aria-haspopup", "true");
     node.setAttribute("crop", "end");
-    node.onclick = function() {
-      self.openPropertyPanel(aEvalString, aOutputObject, node);
-    }
+
+    node.addEventListener("mousedown", function(aEvent) {
+      this._startX = aEvent.clientX;
+      this._startY = aEvent.clientY;
+    }, false);
+
+    node.addEventListener("click", function(aEvent) {
+      if (aEvent.detail != 1 || aEvent.button != 0 ||
+          (this._startX != aEvent.clientX &&
+           this._startY != aEvent.clientY)) {
+        return;
+      }
+
+      if (!this._panelOpen) {
+        self.openPropertyPanel(aEvalString, aOutputObject, this);
+        this._panelOpen = true;
+      }
+    }, false);
 
     // TODO: format the aOutputObject and don't just use the
     // aOuputObject.toString() function: [object object] -> Object {prop, ...}
@@ -4285,20 +4324,19 @@ JSTerm.prototype = {
             // If there are more than one possible completion, pressing tab
             // means taking the next completion, shift_tab means taking
             // the previous completion.
+            var completionResult;
             if (aEvent.shiftKey) {
-              self.complete(self.COMPLETE_BACKWARD);
+              completionResult = self.complete(self.COMPLETE_BACKWARD);
             }
             else {
-              self.complete(self.COMPLETE_FORWARD);
+              completionResult = self.complete(self.COMPLETE_FORWARD);
             }
-            var bool = aEvent.cancelable;
-            if (bool) {
+            if (completionResult) {
+              if (aEvent.cancelable) {
               aEvent.preventDefault();
             }
-            else {
-              // noop
-            }
             aEvent.target.focus();
+            }
             break;
           case 8:
             // backspace key
@@ -4409,7 +4447,8 @@ JSTerm.prototype = {
    *          the inputNode.value is set to this value and the selection is set
    *          from the current cursor position to the end of the completed text.
    *
-   * @returns void
+   * @returns boolean true if there existed a completion for the current input,
+   *          or false otherwise.
    */
   complete: function JSTF_complete(type)
   {
@@ -4417,7 +4456,7 @@ JSTerm.prototype = {
     let inputValue = inputNode.value;
     // If the inputNode has no value, then don't try to complete on it.
     if (!inputValue) {
-      return;
+      return false;
     }
     let selStart = inputNode.selectionStart, selEnd = inputNode.selectionEnd;
 
@@ -4431,7 +4470,7 @@ JSTerm.prototype = {
     // Only complete if the selection is at the end of the input.
     if (selEnd != inputValue.length) {
       this.lastCompletion = null;
-      return;
+      return false;
     }
 
     // Remove the selected text from the inputValue.
@@ -4459,7 +4498,7 @@ JSTerm.prototype = {
       // Look up possible completion values.
       let completion = this.propertyProvider(this.sandbox.window, inputValue);
       if (!completion) {
-        return;
+        return false;
       }
       matches = completion.matches;
       matchIndexToUse = 0;
@@ -4499,7 +4538,11 @@ JSTerm.prototype = {
       else {
         inputNode.setSelectionRange(selEnd, selEnd);
       }
+
+      return completionStr ? true : false;
     }
+
+    return false;
   }
 };
 
