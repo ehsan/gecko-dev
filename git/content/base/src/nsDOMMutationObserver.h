@@ -152,7 +152,7 @@ protected:
   nsMutationReceiverBase(nsINode* aRegisterTarget,
                          nsMutationReceiverBase* aParent)
   : mTarget(nsnull), mObserver(nsnull), mParent(aParent),
-    mRegisterTarget(aRegisterTarget), mKungFuDeathGrip(aParent->Target())
+    mRegisterTarget(aRegisterTarget)
   {
     NS_ASSERTION(mParent->Subtree(), "Should clone a non-subtree observer!");
     mRegisterTarget->AddMutationObserver(this);
@@ -195,9 +195,6 @@ protected:
   // This is different than mTarget when dealing with transient observers.
   nsINode*                           mRegisterTarget;
   nsCOMArray<nsMutationReceiverBase> mTransientReceivers;
-  // While we have transient receivers, keep the original mutation receiver
-  // alive so it doesn't go away and disconnect all its transient receivers.
-  nsCOMPtr<nsINode>                  mKungFuDeathGrip;
   
 private:
   bool                               mSubtree;
@@ -319,8 +316,6 @@ protected:
   friend class nsAutoMutationBatch;
   nsMutationReceiver* GetReceiverFor(nsINode* aNode, bool aMayCreate);
   void RemoveReceiver(nsMutationReceiver* aReceiver);
-
-  already_AddRefed<nsIVariant> TakeRecords();
 
   void GetAllSubtreeObserversFor(nsINode* aNode,
                                  nsTArray<nsMutationReceiver*>& aObservers);
