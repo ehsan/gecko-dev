@@ -61,6 +61,9 @@ struct nsIntRect;
 #define ENABLE_IME_MOUSE_HANDLING 1
 #endif // WINCE
 
+#define NS_WM_IMEFIRST WM_IME_SETCONTEXT
+#define NS_WM_IMELAST  WM_IME_KEYUP
+
 class nsIMEContext
 {
 public:
@@ -123,6 +126,8 @@ public:
 
   static void NotifyEndStatusChange() { sIsStatusChanged = PR_FALSE; }
 
+  static PRBool CanOptimizeKeyAndIMEMessages(MSG *aNextKeyOrIMEMessage);
+
 protected:
   static void EnsureHandlerInstance();
 
@@ -137,6 +142,14 @@ protected:
 
   nsIMM32Handler();
   ~nsIMM32Handler();
+
+  // The result of following On*Event methods means "The message was processed,
+  // don't process the message in the caller (nsWindow)".
+#ifdef ENABLE_IME_MOUSE_HANDLING
+  PRBool OnMouseEvent(nsWindow* aWindow, LPARAM lParam, int aAction);
+#endif // ENABLE_IME_MOUSE_HANDLING
+  static PRBool OnKeyDownEvent(nsWindow* aWindow, WPARAM wParam, LPARAM lParam,
+                               PRBool &aEatMessage);
 
   // The result of On* methods mean "eat this message" when it's TRUE.
   PRBool OnIMEStartComposition(nsWindow* aWindow);
@@ -164,6 +177,7 @@ protected:
   PRBool HandleReconvert(nsWindow* aWindow, LPARAM lParam, LRESULT *oResult);
   PRBool HandleQueryCharPosition(nsWindow* aWindow, LPARAM lParam,
                                  LRESULT *oResult);
+  PRBool HandleDocumentFeed(nsWindow* aWindow, LPARAM lParam, LRESULT *oResult);
 
   /**
    *  ResolveIMECaretPos
@@ -196,6 +210,19 @@ protected:
                                           nsIntRect &aCharRect);
   PRBool GetCaretRect(nsWindow* aWindow, nsIntRect &aCaretRect);
   void GetCompositionString(const nsIMEContext &aIMEContext, DWORD aIndex);
+  /**
+   *  Get the current target clause of composition string.
+   *  If there are one or more characters whose attribute is ATTR_TARGET_*,
+   *  this returns the first character's offset and its length.
+   *  Otherwise, e.g., the all characters are ATTR_INPUT, this returns
+   *  the composition string range because the all is the current target.
+   *
+   *  aLength can be null (default), but aOffset must not be null.
+   *
+   *  The aOffset value is offset in the contents.  So, when you need offset
+   *  in the composition string, you need to subtract mCompositionStart from it.
+   */
+  PRBool GetTargetClauseRange(PRUint32 *aOffset, PRUint32 *aLength = nsnull);
   void DispatchTextEvent(nsWindow* aWindow, const nsIMEContext &aIMEContext,
                          PRBool aCheckAttr = PR_TRUE);
   void SetTextRangeList(nsTArray<nsTextRange> &aTextRangeList);
@@ -215,16 +242,13 @@ protected:
 
   static PRPackedBool sIsComposingOnPlugin;
   static PRPackedBool sIsStatusChanged;
+  static PRPackedBool sIsIME;
+  static PRPackedBool sIsIMEOpening;
 
 #ifndef WINCE
   static UINT sCodePage;
   static DWORD sIMEProperty;
 #endif // #ifndef WINCE
-
-#ifdef ENABLE_IME_MOUSE_HANDLING
-  PRBool OnMouseEvent(nsWindow* aWindow, LPARAM lParam, int aAction);
-#endif // ENABLE_IME_MOUSE_HANDLING
-
 };
 
 #endif // nsIMM32Handler_h__

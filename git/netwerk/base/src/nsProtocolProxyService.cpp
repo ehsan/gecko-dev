@@ -338,8 +338,7 @@ nsProtocolProxyService::Init()
     }
 
     // register for shutdown notification so we can clean ourselves up properly.
-    nsCOMPtr<nsIObserverService> obs =
-            do_GetService("@mozilla.org/observer-service;1");
+    nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
     if (obs)
         obs->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, PR_FALSE);
 
@@ -406,6 +405,8 @@ nsProtocolProxyService::PrefsChanged(nsIPrefBranch *prefBranch,
 
         if (mProxyConfig == eProxyConfig_System) {
             mSystemProxySettings = do_GetService(NS_SYSTEMPROXYSETTINGS_CONTRACTID);
+            if (!mSystemProxySettings)
+                mProxyConfig = eProxyConfig_Direct;
         } else {
             mSystemProxySettings = nsnull;
         }
@@ -721,7 +722,7 @@ nsProtocolProxyService::DisableProxy(nsProxyInfo *pi)
     dsec += pi->mTimeout;
 
     // NOTE: The classic codebase would increase the timeout value
-    //       incrementally each time a subsequent failure occured.
+    //       incrementally each time a subsequent failure occurred.
     //       We could do the same, but it would require that we not
     //       remove proxy entries in IsProxyDisabled or otherwise
     //       change the way we are recording disabled proxies.
@@ -1239,14 +1240,8 @@ nsProtocolProxyService::Resolve_Internal(nsIURI *uri,
 
     if (mSystemProxySettings) {
         nsCAutoString PACURI;
-        if (NS_SUCCEEDED(mSystemProxySettings->GetPACURI(PACURI)) &&
-            !PACURI.IsEmpty()) {
-            // Switch to new PAC file if that setting has changed. If the setting
-            // hasn't changed, ConfigureFromPAC will exit early.
-            nsresult rv = ConfigureFromPAC(PACURI, PR_FALSE);
-            if (NS_FAILED(rv))
-                return rv;
-        } else {
+        if (NS_FAILED(mSystemProxySettings->GetPACURI(PACURI)) ||
+            PACURI.IsEmpty()) {
             nsCAutoString proxy;
             nsresult rv = mSystemProxySettings->GetProxyForURI(uri, proxy);
             if (NS_SUCCEEDED(rv)) {
@@ -1256,13 +1251,19 @@ nsProtocolProxyService::Resolve_Internal(nsIURI *uri,
             // no proxy, stop search
             return NS_OK;
         }
+
+        // Switch to new PAC file if that setting has changed. If the setting
+        // hasn't changed, ConfigureFromPAC will exit early.
+        nsresult rv = ConfigureFromPAC(PACURI, PR_FALSE);
+        if (NS_FAILED(rv))
+            return rv;
     }
 
     // if proxies are enabled and this host:port combo is supposed to use a
     // proxy, check for a proxy.
     if (mProxyConfig == eProxyConfig_Direct ||
-            (mProxyConfig == eProxyConfig_Manual &&
-             !CanUseProxy(uri, info.defaultPort)))
+        (mProxyConfig == eProxyConfig_Manual &&
+         !CanUseProxy(uri, info.defaultPort)))
         return NS_OK;
 
     // Proxy auto config magic...

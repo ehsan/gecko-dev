@@ -13,8 +13,8 @@
   border: none;
 }
 
-#placesToolbar > toolbarbutton > image,
-#placesToolbar > toolbarbutton > label {
+#placesToolbar > toolbarbutton > .toolbarbutton-icon,
+#placesToolbar > toolbarbutton > .toolbarbutton-text {
   margin: 0;
   padding: 0;
 }
@@ -89,28 +89,47 @@
   padding-bottom: 1px;
 }
 
-#placesMenu > menu > label {
+#placesMenu > menu > .menubar-text {
   -moz-padding-end: 8px;
   background: url(chrome://global/skin/arrow/arrow-dn.gif) right center no-repeat;
 }
 
-#placesMenu:-moz-locale-dir(rtl) > menu > label {
+#placesMenu > menu > .menubar-text:-moz-locale-dir(rtl) {
   background-position: left center;
+}
+
+/* organize, view and maintenance buttons icons */
+#organizeButton, 
+#viewMenu, 
+#maintenanceButton {
+  list-style-image: url("chrome://browser/skin/places/libraryToolbar.png");
 }
 
 /* organize button */
 #organizeButton {
-  list-style-image: url("chrome://browser/skin/places/organize.png");
+  -moz-image-region: rect(0px, 16px, 16px, 0px);
+}
+#organizeButton:hover,
+#organizeButton[open="true"] {
+  -moz-image-region: rect(16px, 16px, 32px, 0px);
 }
 
 /* view button */
 #viewMenu {
-  list-style-image: url("chrome://browser/skin/places/view.png");
+  -moz-image-region: rect(0px, 32px, 16px, 16px);
+}
+#viewMenu:hover,
+#viewMenu[open="true"] {
+  -moz-image-region: rect(16px, 32px, 32px, 16px);
 }
 
 /* maintenance button */
 #maintenanceButton {
-  list-style-image: url("chrome://browser/skin/places/importAndBackup.png");
+  -moz-image-region: rect(0px, 48px, 16px, 32px);
+}
+#maintenanceButton:hover,
+#maintenanceButton[open="true"] {
+  -moz-image-region: rect(16px, 48px, 32px, 32px);
 }
 
 /* Root View */
@@ -153,74 +172,6 @@
   border: 0px;
 }
 
-%ifdef PLACES_QUERY_BUILDER
-/* Calendar */
-.history-calendar {
-  margin: 0px 0px 7px 6px;
-}
-
-.calendar-box {
-  -moz-appearance: listbox;
-  border: 1px solid black;
-  background-color: white;
-}
-.calendar-header {
-  background-color: #EEE;
-}
-.calendar-month-jump {
-  cursor: pointer;
-  padding-left: 6px;
-  padding-right: 6px;
-}
-.calendar-month-jump:hover {
-  background-color: #DDD;
-}
-.calendar-grid {
-  padding-left: 8px;
-  padding-right: 8px;
-  padding-bottom: 4px;
-}
-.calendar-grid label { /* everything in the calendar grid */
-  padding: 4px;
-  margin: 0px;
-  text-align: center;
-  font-size: 80%;
-}
-.calendar-month-title {
-  text-align: center;
-}
-.calendar-day-header {
-  border-bottom: 1px solid #888;
-}
-.calendar-day { /* just days (excluding the day headers) */
-  cursor: w-resize;
-  color: white;
-  background-color:white;
-}
-.calendar-day:hover {
-  background-color: #DDD;
-}
-.calendar-day[selected="true"] {
-  cursor: w-resize;
-  background-color: #8C8;
-}
-.calendar-day[selected="true"]:hover {
-  background-color: #6A6;
-}
-.calendar-day[month="this"] {
-  color: black;
-}
-.calendar-day[month="other"] {
-  color: #888;
-}
-
-#advancedSearchRows {
-  border-bottom: 2px solid;
-  -moz-border-bottom-colors: ThreeDHighlight ThreeDShadow;
-  padding: 3px 3px 3px 0px;
-}
-%endif
-
 #infoBoxExpanderLabel {
   -moz-padding-start: 2px;
 }
@@ -239,13 +190,12 @@
   margin: 0 1px;
 }
 
-#organizerScopeBar > toolbarbutton > label,
-#organizerScopeBar > toolbarbutton > image {
+#organizerScopeBar > toolbarbutton > .toolbarbutton-icon {
   padding: 0;
   margin: 0;
 }
 
-#organizerScopeBar .toolbarbutton-text {
+#organizerScopeBar > toolbarbutton > .toolbarbutton-text {
    margin: 0;
    padding: 2px 5px;
 }

@@ -61,6 +61,7 @@
 #include "nsIXMLContentSink.h"
 #include "nsContentCID.h"
 #include "nsXMLDocument.h"
+#include "mozilla/FunctionTimer.h"
 #include "nsGkAtoms.h"
 #include "nsIMemory.h"
 #include "nsIObserverService.h"
@@ -119,43 +120,8 @@ IsAncestorBinding(nsIDocument* aDocument,
     if (!binding) {
       continue;
     }
-    PRBool equal;
-    nsresult rv;
-    nsCOMPtr<nsIURL> childBindingURL = do_QueryInterface(aChildBindingURI);
-    nsCAutoString childRef;
-    if (childBindingURL &&
-        NS_SUCCEEDED(childBindingURL->GetRef(childRef)) &&
-        childRef.IsEmpty()) {
-      // If the child URL has no ref, we need to strip away the ref from the
-      // URI we're comparing it to, since the child URL will end up pointing
-      // to the first binding defined at its URI, and that could be the same
-      // binding that's referred to more specifically by the already attached
-      // binding's URI via its ref.
 
-      // This means we'll get false positives if someone refers to the first
-      // binding at a given URI without a ref and also binds a parent or child
-      // to a different binding at that URI *with* a ref, but that shouldn't
-      // ever be necessary so we don't need to support it.
-      nsCOMPtr<nsIURI> compareURI;
-      rv = binding->PrototypeBinding()->BindingURI()->Clone(getter_AddRefs(compareURI));
-      NS_ENSURE_SUCCESS(rv, PR_TRUE); // assume the worst
-
-      nsCOMPtr<nsIURL> compareURL = do_QueryInterface(compareURI, &rv);
-      NS_ENSURE_SUCCESS(rv, PR_TRUE); // assume the worst
-      
-      rv = compareURL->SetRef(EmptyCString());
-      NS_ENSURE_SUCCESS(rv, PR_TRUE); // assume the worst
-
-      rv = compareURL->Equals(aChildBindingURI, &equal);
-    } else {
-      // Just compare the URIs
-      rv = binding->PrototypeBinding()->BindingURI()->Equals(aChildBindingURI,
-                                                             &equal);
-    }
-
-    NS_ENSURE_SUCCESS(rv, PR_TRUE); // assume the worst
-
-    if (equal) {
+    if (binding->PrototypeBinding()->CompareBindingURI(aChildBindingURI)) {
       ++bindingRecursion;
       if (bindingRecursion < NS_MAX_XBL_BINDING_RECURSION) {
         continue;
@@ -250,7 +216,7 @@ public:
     // will happen.
     nsIPresShell *shell = doc->GetPrimaryShell();
     if (shell) {
-      nsIFrame* childFrame = shell->GetPrimaryFrameFor(mBoundElement);
+      nsIFrame* childFrame = mBoundElement->GetPrimaryFrame();
       if (!childFrame) {
         // Check to see if it's in the undisplayed content map.
         nsStyleContext* sc =
@@ -472,7 +438,8 @@ nsXBLStreamListener::Load(nsIDOMEvent* aEvent)
     nsIURI* documentURI = bindingDocument->GetDocumentURI();
     bindingManager->RemoveLoadingDocListener(documentURI);
 
-    if (!bindingDocument->GetRootContent()) {
+    if (!bindingDocument->GetRootElement()) {
+      // FIXME: How about an error console warning?
       NS_WARNING("*** XBL doc with no root element! Something went horribly wrong! ***");
       return NS_ERROR_FAILURE;
     }
@@ -483,7 +450,15 @@ nsXBLStreamListener::Load(nsIDOMEvent* aEvent)
       xblDocBindingManager->GetXBLDocumentInfo(documentURI);
     xblDocBindingManager->RemoveXBLDocumentInfo(info); // Break the self-imposed cycle.
     if (!info) {
-      NS_ERROR("An XBL file is malformed.  Did you forget the XBL namespace on the bindings tag?");
+      if (IsChromeOrResourceURI(documentURI)) {
+        NS_WARNING("An XBL file is malformed. Did you forget the XBL namespace on the bindings tag?");
+      }
+      nsContentUtils::ReportToConsole(nsContentUtils::eXBL_PROPERTIES,
+                                      "MalformedXBL",
+                                      nsnull, 0, documentURI,
+                                      EmptyString(), 0, 0,
+                                      nsIScriptError::warningFlag,
+                                      "XBL");
       return NS_ERROR_FAILURE;
     }
 
@@ -599,9 +574,7 @@ nsXBLService::LoadBindings(nsIContent* aContent, nsIURI* aURL,
       }
       else {
         // See if the URIs match.
-        nsIURI* uri = styleBinding->PrototypeBinding()->BindingURI();
-        PRBool equal;
-        if (NS_SUCCEEDED(uri->Equals(aURL, &equal)) && equal)
+        if (styleBinding->PrototypeBinding()->CompareBindingURI(aURL))
           return NS_OK;
         FlushStyleBindings(aContent);
         binding = nsnull;
@@ -657,23 +630,27 @@ nsXBLService::LoadBindings(nsIContent* aContent, nsIURI* aURL,
     }
   }
 
-  // Set the binding's bound element.
-  newBinding->SetBoundElement(aContent);
+  {
+    nsAutoScriptBlocker scriptBlocker;
 
-  // Tell the binding to build the anonymous content.
-  newBinding->GenerateAnonymousContent();
+    // Set the binding's bound element.
+    newBinding->SetBoundElement(aContent);
 
-  // Tell the binding to install event handlers
-  newBinding->InstallEventHandlers();
+    // Tell the binding to build the anonymous content.
+    newBinding->GenerateAnonymousContent();
 
-  // Set up our properties
-  rv = newBinding->InstallImplementation();
-  NS_ENSURE_SUCCESS(rv, rv);
+    // Tell the binding to install event handlers
+    newBinding->InstallEventHandlers();
 
-  // Figure out if we have any scoped sheets.  If so, we do a second resolve.
-  *aResolveStyle = newBinding->HasStyleSheets();
+    // Set up our properties
+    rv = newBinding->InstallImplementation();
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    // Figure out if we have any scoped sheets.  If so, we do a second resolve.
+    *aResolveStyle = newBinding->HasStyleSheets();
   
-  newBinding.swap(*aBinding);
+    newBinding.swap(*aBinding);
+  }
 
   return NS_OK; 
 }
@@ -883,8 +860,6 @@ nsXBLService::GetBinding(nsIContent* aBoundElement, nsIURI* aURI,
   if (!aURI)
     return NS_ERROR_FAILURE;
 
-  NS_ENSURE_TRUE(aDontExtendURIs.AppendElement(aURI), NS_ERROR_OUT_OF_MEMORY);
-
   nsCAutoString ref;
   nsCOMPtr<nsIURL> url(do_QueryInterface(aURI));
   if (url)
@@ -913,6 +888,14 @@ nsXBLService::GetBinding(nsIContent* aBoundElement, nsIURI* aURI,
   NS_ASSERTION(protoBinding, "Unable to locate an XBL binding.");
   if (!protoBinding)
     return NS_ERROR_FAILURE;
+
+  NS_ENSURE_TRUE(aDontExtendURIs.AppendElement(protoBinding->BindingURI()),
+                 NS_ERROR_OUT_OF_MEMORY);
+  nsCOMPtr<nsIURI> altBindingURI = protoBinding->AlternateBindingURI();
+  if (altBindingURI) {
+    NS_ENSURE_TRUE(aDontExtendURIs.AppendElement(altBindingURI),
+                   NS_ERROR_OUT_OF_MEMORY);
+  }
 
   nsCOMPtr<nsIContent> child = protoBinding->GetBindingElement();
 
@@ -1018,7 +1001,7 @@ nsXBLService::GetBinding(nsIContent* aBoundElement, nsIURI* aURI,
         nsCOMPtr<nsIURI> bindingURI;
         rv = NS_NewURI(getter_AddRefs(bindingURI), value,
                        doc->GetDocumentCharacterSet().get(),
-                       doc->GetBaseURI());
+                       doc->GetDocBaseURI());
         NS_ENSURE_SUCCESS(rv, rv);
         
         PRUint32 count = aDontExtendURIs.Length();
@@ -1243,6 +1226,8 @@ nsXBLService::FetchBindingDocument(nsIContent* aBoundElement, nsIDocument* aBoun
                                    nsIURI* aDocumentURI, nsIURI* aBindingURI, 
                                    PRBool aForceSyncLoad, nsIDocument** aResult)
 {
+  NS_TIME_FUNCTION;
+
   nsresult rv = NS_OK;
   // Initialize our out pointer to nsnull
   *aResult = nsnull;
@@ -1348,7 +1333,7 @@ NS_NewXBLService(nsIXBLService** aResult)
 
   // Register the first (and only) nsXBLService as a memory pressure observer
   // so it can flush the LRU list in low-memory situations.
-  nsCOMPtr<nsIObserverService> os = do_GetService("@mozilla.org/observer-service;1");
+  nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
   if (os)
     os->AddObserver(result, "memory-pressure", PR_TRUE);
 

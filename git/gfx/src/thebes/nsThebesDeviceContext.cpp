@@ -47,6 +47,7 @@
 #include "nsIServiceManager.h"
 #include "nsIPrefService.h"
 #include "nsCRT.h"
+#include "mozilla/Services.h"
 
 #include "nsThebesDeviceContext.h"
 #include "nsThebesRenderingContext.h"
@@ -56,25 +57,6 @@
 #include "nsIWidget.h"
 #include "nsIView.h"
 #include "nsILookAndFeel.h"
-
-#ifdef MOZ_ENABLE_GTK2
-// for getenv
-#include <cstdlib>
-// for round
-#include <cmath>
-
-#include <gtk/gtk.h>
-#include <gdk/gdk.h>
-
-#include "nsFont.h"
-
-#include <pango/pango.h>
-#ifdef MOZ_X11
-#include <gdk/gdkx.h>
-#include <pango/pangox.h>
-#endif /* MOZ_X11 */
-#include <pango/pango-fontmap.h>
-#endif /* GTK2 */
 
 #include "gfxImageSurface.h"
 
@@ -106,17 +88,11 @@ static nsSystemFontsMac *gSystemFonts = nsnull;
 #elif defined(MOZ_WIDGET_QT)
 #include "nsSystemFontsQt.h"
 static nsSystemFontsQt *gSystemFonts = nsnull;
+#elif defined(ANDROID)
+#include "nsSystemFontsAndroid.h"
+static nsSystemFontsAndroid *gSystemFonts = nsnull;
 #else
 #error Need to declare gSystemFonts!
-#endif
-
-#if defined(MOZ_ENABLE_GTK2) && defined(MOZ_X11)
-extern "C" {
-static int x11_error_handler (Display *dpy, XErrorEvent *err) {
-    NS_ASSERTION(PR_FALSE, "X Error");
-    return 0;
-}
-}
 #endif
 
 #ifdef PR_LOGGING
@@ -130,7 +106,7 @@ public:
     ~nsFontCache();
 
     nsresult Init(nsIDeviceContext* aContext);
-    nsresult GetMetricsFor(const nsFont& aFont, nsIAtom* aLangGroup,
+    nsresult GetMetricsFor(const nsFont& aFont, nsIAtom* aLanguage,
                            gfxUserFontSet* aUserFontSet,
                            nsIFontMetrics*& aMetrics);
 
@@ -168,7 +144,7 @@ nsFontCache::Init(nsIDeviceContext* aContext)
 }
 
 nsresult
-nsFontCache::GetMetricsFor(const nsFont& aFont, nsIAtom* aLangGroup,
+nsFontCache::GetMetricsFor(const nsFont& aFont, nsIAtom* aLanguage,
   gfxUserFontSet* aUserFontSet, nsIFontMetrics*& aMetrics)
 {
     // First check our cache
@@ -180,9 +156,9 @@ nsFontCache::GetMetricsFor(const nsFont& aFont, nsIAtom* aLangGroup,
         fm = mFontMetrics[i];
         nsIThebesFontMetrics* tfm = static_cast<nsIThebesFontMetrics*>(fm);
         if (fm->Font().Equals(aFont) && tfm->GetUserFontSet() == aUserFontSet) {
-            nsCOMPtr<nsIAtom> langGroup;
-            fm->GetLangGroup(getter_AddRefs(langGroup));
-            if (aLangGroup == langGroup.get()) {
+            nsCOMPtr<nsIAtom> language;
+            fm->GetLanguage(getter_AddRefs(language));
+            if (aLanguage == language.get()) {
                 if (i != n) {
                     // promote it to the end of the cache
                     mFontMetrics.RemoveElementAt(i);
@@ -200,7 +176,7 @@ nsFontCache::GetMetricsFor(const nsFont& aFont, nsIAtom* aLangGroup,
     aMetrics = nsnull;
     nsresult rv = CreateFontMetricsInstance(&fm);
     if (NS_FAILED(rv)) return rv;
-    rv = fm->Init(aFont, aLangGroup, mContext, aUserFontSet);
+    rv = fm->Init(aFont, aLanguage, mContext, aUserFontSet);
     if (NS_SUCCEEDED(rv)) {
         // the mFontMetrics list has the "head" at the end, because append
         // is cheaper than insert
@@ -219,7 +195,7 @@ nsFontCache::GetMetricsFor(const nsFont& aFont, nsIAtom* aLangGroup,
     Compact();
     rv = CreateFontMetricsInstance(&fm);
     if (NS_FAILED(rv)) return rv;
-    rv = fm->Init(aFont, aLangGroup, mContext, aUserFontSet);
+    rv = fm->Init(aFont, aLanguage, mContext, aUserFontSet);
     if (NS_SUCCEEDED(rv)) {
         mFontMetrics.AppendElement(fm);
         aMetrics = fm;
@@ -335,7 +311,7 @@ static PRBool DeleteValue(nsHashKey* aKey, void* aValue, void* closure)
 
 nsThebesDeviceContext::~nsThebesDeviceContext()
 {
-    nsCOMPtr<nsIObserverService> obs(do_GetService("@mozilla.org/observer-service;1"));
+    nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
     if (obs)
         obs->RemoveObserver(this, "memory-pressure");
 
@@ -377,22 +353,22 @@ NS_IMETHODIMP nsThebesDeviceContext::FontMetricsDeleted(const nsIFontMetrics* aF
 }
 
 void
-nsThebesDeviceContext::GetLocaleLangGroup(void)
+nsThebesDeviceContext::GetLocaleLanguage(void)
 {
-    if (!mLocaleLangGroup) {
+    if (!mLocaleLanguage) {
         nsCOMPtr<nsILanguageAtomService> langService;
         langService = do_GetService(NS_LANGUAGEATOMSERVICE_CONTRACTID);
         if (langService) {
-            mLocaleLangGroup = langService->GetLocaleLanguageGroup();
+            mLocaleLanguage = langService->GetLocaleLanguage();
         }
-        if (!mLocaleLangGroup) {
-            mLocaleLangGroup = do_GetAtom("x-western");
+        if (!mLocaleLanguage) {
+            mLocaleLanguage = do_GetAtom("x-western");
         }
     }
 }
 
 NS_IMETHODIMP nsThebesDeviceContext::GetMetricsFor(const nsFont& aFont,
-  nsIAtom* aLangGroup, gfxUserFontSet* aUserFontSet, nsIFontMetrics*& aMetrics)
+  nsIAtom* aLanguage, gfxUserFontSet* aUserFontSet, nsIFontMetrics*& aMetrics)
 {
     if (nsnull == mFontCache) {
         nsresult rv = CreateFontCache();
@@ -401,15 +377,16 @@ NS_IMETHODIMP nsThebesDeviceContext::GetMetricsFor(const nsFont& aFont,
             return rv;
         }
         // XXX temporary fix for performance problem -- erik
-        GetLocaleLangGroup();
+        GetLocaleLanguage();
     }
 
-    // XXX figure out why aLangGroup is NULL sometimes
-    if (!aLangGroup) {
-        aLangGroup = mLocaleLangGroup;
+    // XXX figure out why aLanguage is NULL sometimes
+    //      -> see nsPageFrame.cpp:511
+    if (!aLanguage) {
+        aLanguage = mLocaleLanguage;
     }
 
-    return mFontCache->GetMetricsFor(aFont, aLangGroup, aUserFontSet, aMetrics);
+    return mFontCache->GetMetricsFor(aFont, aLanguage, aUserFontSet, aMetrics);
 }
 
 NS_IMETHODIMP nsThebesDeviceContext::GetMetricsFor(const nsFont& aFont,
@@ -423,9 +400,9 @@ NS_IMETHODIMP nsThebesDeviceContext::GetMetricsFor(const nsFont& aFont,
             return rv;
         }
         // XXX temporary fix for performance problem -- erik
-        GetLocaleLangGroup();
+        GetLocaleLanguage();
     }
-    return mFontCache->GetMetricsFor(aFont, mLocaleLangGroup, aUserFontSet,
+    return mFontCache->GetMetricsFor(aFont, mLocaleLanguage, aUserFontSet,
                                      aMetrics);
 }
 
@@ -647,11 +624,12 @@ nsThebesDeviceContext::SetDPI()
                 break;
 #ifdef XP_WIN
             case gfxASurface::SurfaceTypeWin32:
-            case gfxASurface::SurfaceTypeWin32Printing:
+            case gfxASurface::SurfaceTypeWin32Printing: {
                 PRInt32 OSVal = GetDeviceCaps(GetPrintHDC(), LOGPIXELSY);
                 dpi = 144;
                 mPrintingScale = float(OSVal) / dpi;
                 break;
+            }
 #endif
 #ifdef XP_OS2
             case gfxASurface::SurfaceTypeOS2:
@@ -660,6 +638,9 @@ nsThebesDeviceContext::SetDPI()
                     dpi = lDPI;
                 break;
 #endif
+            default:
+                NS_NOTREACHED("Unexpected printing surface type");
+                break;
         }
         dotsArePixels = PR_FALSE;
     } else {
@@ -676,7 +657,13 @@ nsThebesDeviceContext::SetDPI()
             }
         }
 
-        dpi = gfxPlatform::GetDPI();        
+        dpi = gfxPlatform::GetDPI();
+
+#ifdef MOZ_ENABLE_GTK2
+        if (prefDPI < 0) // Clamp the minimum dpi to 96dpi
+            dpi = PR_MAX(dpi, 96);
+#endif
+ 
         if (prefDPI > 0 && !mPrintingSurface)
             dpi = prefDPI;
     }
@@ -726,18 +713,9 @@ nsThebesDeviceContext::Init(nsIWidget *aWidget)
 
     // register as a memory-pressure observer to free font resources
     // in low-memory situations.
-    nsCOMPtr<nsIObserverService> obs(do_GetService("@mozilla.org/observer-service;1"));
+    nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
     if (obs)
         obs->AddObserver(this, "memory-pressure", PR_TRUE);
-
-#if defined(MOZ_ENABLE_GTK2) && defined(MOZ_X11)
-    if (getenv ("MOZ_X_SYNC")) {
-        PR_LOG (gThebesGFXLog, PR_LOG_DEBUG, ("+++ Enabling XSynchronize\n"));
-        XSynchronize (gdk_x11_get_default_xdisplay(), True);
-        XSetErrorHandler(x11_error_handler);
-    }
-
-#endif
 
     mScreenManager = do_GetService("@mozilla.org/gfx/screenmanager;1");
 
@@ -854,6 +832,8 @@ nsThebesDeviceContext::GetSystemFont(nsSystemFontID aID, nsFont *aFont) const
         gSystemFonts = new nsSystemFontsMac();
 #elif defined(MOZ_WIDGET_QT)
         gSystemFonts = new nsSystemFontsQt();
+#elif defined(ANDROID)
+        gSystemFonts = new nsSystemFontsAndroid();
 #else
 #error Need to know how to create gSystemFonts, fix me!
 #endif
@@ -895,13 +875,6 @@ nsThebesDeviceContext::GetDepth(PRUint32& aDepth)
     }
 
     aDepth = mDepth;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsThebesDeviceContext::ConvertPixel(nscolor aColor, PRUint32 & aPixel)
-{
-    aPixel = aColor;
     return NS_OK;
 }
 

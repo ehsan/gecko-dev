@@ -37,6 +37,11 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsXULMenuAccessible.h"
+
+#include "nsAccessibilityService.h"
+#include "nsAccUtils.h"
+#include "nsXULFormControlAccessible.h"
+
 #include "nsIDOMElement.h"
 #include "nsIDOMXULElement.h"
 #include "nsIMutableArray.h"
@@ -50,7 +55,6 @@
 #include "nsIPresShell.h"
 #include "nsIContent.h"
 #include "nsGUIEvent.h"
-#include "nsXULFormControlAccessible.h"
 #include "nsILookAndFeel.h"
 #include "nsWidgetsCID.h"
 
@@ -85,13 +89,11 @@ nsresult nsXULSelectableAccessible::ChangeSelection(PRInt32 aIndex, PRUint8 aMet
   if (!mSelectControl) {
     return NS_ERROR_FAILURE;
   }
-  nsCOMPtr<nsIAccessible> childAcc;
-  GetChildAt(aIndex, getter_AddRefs(childAcc));
-  nsCOMPtr<nsIAccessNode> accNode = do_QueryInterface(childAcc);
-  NS_ENSURE_TRUE(accNode, NS_ERROR_FAILURE);
+  nsAccessible* child = GetChildAt(aIndex);
+  NS_ENSURE_TRUE(child, NS_ERROR_FAILURE);
 
   nsCOMPtr<nsIDOMNode> childNode;
-  accNode->GetDOMNode(getter_AddRefs(childNode));
+  child->GetDOMNode(getter_AddRefs(childNode));
   nsCOMPtr<nsIDOMXULSelectControlItemElement> item(do_QueryInterface(childNode));
   NS_ENSURE_TRUE(item, NS_ERROR_FAILURE);
 
@@ -122,9 +124,6 @@ NS_IMETHODIMP nsXULSelectableAccessible::GetSelectedChildren(nsIArray **aChildre
     return NS_ERROR_FAILURE;
   }
 
-  nsCOMPtr<nsIAccessibilityService> accService = GetAccService();
-  NS_ENSURE_TRUE(accService, NS_ERROR_FAILURE);
-
   nsCOMPtr<nsIMutableArray> selectedAccessibles =
     do_CreateInstance(NS_ARRAY_CONTRACTID);
   NS_ENSURE_STATE(selectedAccessibles);
@@ -132,7 +131,6 @@ NS_IMETHODIMP nsXULSelectableAccessible::GetSelectedChildren(nsIArray **aChildre
   // For XUL multi-select control
   nsCOMPtr<nsIDOMXULMultiSelectControlElement> xulMultiSelect =
     do_QueryInterface(mSelectControl);
-  nsCOMPtr<nsIAccessible> selectedAccessible;
   if (xulMultiSelect) {
     PRInt32 length = 0;
     xulMultiSelect->GetSelectedCount(&length);
@@ -140,10 +138,11 @@ NS_IMETHODIMP nsXULSelectableAccessible::GetSelectedChildren(nsIArray **aChildre
       nsCOMPtr<nsIDOMXULSelectControlItemElement> selectedItem;
       xulMultiSelect->GetSelectedItem(index, getter_AddRefs(selectedItem));
       nsCOMPtr<nsIDOMNode> selectedNode(do_QueryInterface(selectedItem));
-      accService->GetAccessibleInWeakShell(selectedNode, mWeakShell,
-                                           getter_AddRefs(selectedAccessible));
-      if (selectedAccessible)
-        selectedAccessibles->AppendElement(selectedAccessible, PR_FALSE);
+      nsAccessible *selectedAcc =
+        GetAccService()->GetAccessibleInWeakShell(selectedNode, mWeakShell);
+      if (selectedAcc)
+        selectedAccessibles->AppendElement(static_cast<nsIAccessible*>(selectedAcc),
+                                           PR_FALSE);
     }
   }
   else {  // Single select?
@@ -151,10 +150,11 @@ NS_IMETHODIMP nsXULSelectableAccessible::GetSelectedChildren(nsIArray **aChildre
     mSelectControl->GetSelectedItem(getter_AddRefs(selectedItem));
     nsCOMPtr<nsIDOMNode> selectedNode(do_QueryInterface(selectedItem));
     if(selectedNode) {
-      accService->GetAccessibleInWeakShell(selectedNode, mWeakShell,
-                                           getter_AddRefs(selectedAccessible));
-      if (selectedAccessible)
-        selectedAccessibles->AppendElement(selectedAccessible, PR_FALSE);
+      nsAccessible *selectedAcc =
+        GetAccService()->GetAccessibleInWeakShell(selectedNode, mWeakShell);
+      if (selectedAcc)
+        selectedAccessibles->AppendElement(static_cast<nsIAccessible*>(selectedAcc),
+                                           PR_FALSE);
     }
   }
 
@@ -184,18 +184,16 @@ NS_IMETHODIMP nsXULSelectableAccessible::RefSelection(PRInt32 aIndex, nsIAccessi
   if (aIndex == 0)
     mSelectControl->GetSelectedItem(getter_AddRefs(selectedItem));
 
-  if (selectedItem) {
-    nsCOMPtr<nsIAccessibilityService> accService = GetAccService();
-    if (accService) {
-      accService->GetAccessibleInWeakShell(selectedItem, mWeakShell, aAccessible);
-      if (*aAccessible) {
-        NS_ADDREF(*aAccessible);
-        return NS_OK;
-      }
-    }
-  }
+  if (!selectedItem)
+    return NS_ERROR_FAILURE;
 
-  return NS_ERROR_FAILURE;
+  nsAccessible *selectedAcc =
+    GetAccService()->GetAccessibleInWeakShell(selectedItem, mWeakShell);
+  if (!selectedAcc)
+    return NS_ERROR_FAILURE;
+
+  NS_ADDREF(*aAccessible = selectedAcc);
+  return NS_OK;
 }
 
 NS_IMETHODIMP nsXULSelectableAccessible::GetSelectionCount(PRInt32 *aSelectionCount)
@@ -273,7 +271,7 @@ nsresult
 nsXULMenuitemAccessible::Init()
 {
   nsresult rv = nsAccessibleWrap::Init();
-  nsXULMenupopupAccessible::GenerateMenu(mDOMNode);
+  nsCoreUtils::GeneratePopupTree(mDOMNode);
   return rv;
 }
 
@@ -338,18 +336,17 @@ nsXULMenuitemAccessible::GetStateInternal(PRUint32 *aState,
 
     // Is collapsed?
     PRBool isCollapsed = PR_FALSE;
-    nsCOMPtr<nsIAccessible> parentAccessible(GetParent());
-    if (nsAccUtils::State(parentAccessible) & nsIAccessibleStates::STATE_INVISIBLE)
+    nsAccessible* parentAcc = GetParent();
+    if (nsAccUtils::State(parentAcc) & nsIAccessibleStates::STATE_INVISIBLE)
       isCollapsed = PR_TRUE;
-    
+
     if (isSelected) {
       *aState |= nsIAccessibleStates::STATE_SELECTED;
-      
+
       // Selected and collapsed?
       if (isCollapsed) {
         // Set selected option offscreen/invisible according to combobox state
-        nsCOMPtr<nsIAccessible> grandParentAcc;
-        parentAccessible->GetParent(getter_AddRefs(grandParentAcc));
+        nsAccessible* grandParentAcc = parentAcc->GetParent();
         NS_ENSURE_TRUE(grandParentAcc, NS_ERROR_FAILURE);
         NS_ASSERTION(nsAccUtils::Role(grandParentAcc) == nsIAccessibleRole::ROLE_COMBOBOX,
                      "grandparent of combobox listitem is not combobox");
@@ -357,8 +354,8 @@ nsXULMenuitemAccessible::GetStateInternal(PRUint32 *aState,
         grandParentAcc->GetState(&grandParentState, &grandParentExtState);
         *aState &= ~(nsIAccessibleStates::STATE_OFFSCREEN |
                      nsIAccessibleStates::STATE_INVISIBLE);
-        *aState |= grandParentState & nsIAccessibleStates::STATE_OFFSCREEN |
-                   grandParentState & nsIAccessibleStates::STATE_INVISIBLE;
+        *aState |= (grandParentState & nsIAccessibleStates::STATE_OFFSCREEN) |
+                   (grandParentState & nsIAccessibleStates::STATE_INVISIBLE);
         if (aExtraState) {
           *aExtraState |=
             grandParentExtState & nsIAccessibleStates::EXT_STATE_OPAQUE;
@@ -423,9 +420,9 @@ nsXULMenuitemAccessible::GetKeyboardShortcut(nsAString& aAccessKey)
     if (accesskey.IsEmpty())
       return NS_OK;
 
-    nsCOMPtr<nsIAccessible> parentAccessible(GetParent());
-    if (parentAccessible) {
-      if (nsAccUtils::RoleInternal(parentAccessible) ==
+    nsAccessible* parentAcc = GetParent();
+    if (parentAcc) {
+      if (nsAccUtils::RoleInternal(parentAcc) ==
           nsIAccessibleRole::ROLE_MENUBAR) {
         // If top level menu item, add Alt+ or whatever modifier text to string
         // No need to cache pref service, this happens rarely
@@ -502,17 +499,18 @@ nsXULMenuitemAccessible::GetRoleInternal(PRUint32 *aRole)
   return NS_OK;
 }
 
-nsresult
-nsXULMenuitemAccessible::GetAttributesInternal(nsIPersistentProperties *aAttributes)
+PRInt32
+nsXULMenuitemAccessible::GetLevelInternal()
 {
-  NS_ENSURE_ARG_POINTER(aAttributes);
-  NS_ENSURE_TRUE(mDOMNode, NS_ERROR_FAILURE);
+  return nsAccUtils::GetLevelForXULContainerItem(mDOMNode);
+}
 
-  nsresult rv = nsAccessible::GetAttributesInternal(aAttributes);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsAccUtils::SetAccAttrsForXULContainerItem(mDOMNode, aAttributes);
-  return NS_OK;
+void
+nsXULMenuitemAccessible::GetPositionAndSizeInternal(PRInt32 *aPosInSet,
+                                                    PRInt32 *aSetSize)
+{
+  nsAccUtils::GetPositionAndSizeForXULContainerItem(mDOMNode, aPosInSet,
+                                                    aSetSize);
 }
 
 PRBool
@@ -642,46 +640,6 @@ nsXULMenupopupAccessible::GetStateInternal(PRUint32 *aState,
   return NS_OK;
 }
 
-already_AddRefed<nsIDOMNode>
-nsXULMenupopupAccessible::FindInNodeList(nsIDOMNodeList *aNodeList, 
-                                         nsIAtom *aAtom, PRUint32 aNameSpaceID)
-{
-  PRUint32 numChildren;
-  if (!aNodeList || NS_FAILED(aNodeList->GetLength(&numChildren))) {
-    return nsnull;
-  }
-  nsCOMPtr<nsIDOMNode> childNode;
-  for (PRUint32 childIndex = 0; childIndex < numChildren; childIndex++) {
-    aNodeList->Item(childIndex, getter_AddRefs(childNode));
-    nsCOMPtr<nsIContent> content = do_QueryInterface(childNode);
-    if (content && content->NodeInfo()->Equals(aAtom, kNameSpaceID_XUL)) {
-      nsIDOMNode *matchNode = childNode;
-      NS_ADDREF(matchNode);
-      return matchNode;
-    }
-  }
-  return nsnull;
-}
-
-void nsXULMenupopupAccessible::GenerateMenu(nsIDOMNode *aNode)
-{
-  // Set menugenerated="true" on the menupopup node to generate the
-  // sub-menu items if they have not been generated
-  nsCOMPtr<nsIDOMNodeList> nodeList;
-  aNode->GetChildNodes(getter_AddRefs(nodeList));
-
-  nsCOMPtr<nsIDOMNode> menuPopup = FindInNodeList(nodeList, nsAccessibilityAtoms::menupopup,
-                                                  kNameSpaceID_XUL);
-  nsCOMPtr<nsIDOMElement> popupElement(do_QueryInterface(menuPopup));
-  if (popupElement) {
-    nsAutoString attr;
-    popupElement->GetAttribute(NS_LITERAL_STRING("menugenerated"), attr);
-    if (!attr.EqualsLiteral("true")) {
-      popupElement->SetAttribute(NS_LITERAL_STRING("menugenerated"), NS_LITERAL_STRING("true"));
-    }
-  }
-}
-
 nsresult
 nsXULMenupopupAccessible::GetNameInternal(nsAString& aName)
 {
@@ -704,15 +662,23 @@ nsXULMenupopupAccessible::GetRoleInternal(PRUint32 *aRole)
   nsCOMPtr<nsIAccessible> parent;
   GetParent(getter_AddRefs(parent));
   if (parent) {
-    // Some widgets like the search bar have several popups, owned by buttons
     PRUint32 role = nsAccUtils::Role(parent);
     if (role == nsIAccessibleRole::ROLE_COMBOBOX ||
-        role == nsIAccessibleRole::ROLE_PUSHBUTTON ||
         role == nsIAccessibleRole::ROLE_AUTOCOMPLETE) {
       *aRole = nsIAccessibleRole::ROLE_COMBOBOX_LIST;
       return NS_OK;
+
+    } else if (role == nsIAccessibleRole::ROLE_PUSHBUTTON) {
+      // Some widgets like the search bar have several popups, owned by buttons.
+      nsCOMPtr<nsIAccessible> grandParent;
+      parent->GetParent(getter_AddRefs(grandParent));
+      if (role == nsIAccessibleRole::ROLE_AUTOCOMPLETE) {
+        *aRole = nsIAccessibleRole::ROLE_COMBOBOX_LIST;
+        return NS_OK;
+      }
     }
   }
+
   *aRole = nsIAccessibleRole::ROLE_MENUPOPUP;
   return NS_OK;
 }

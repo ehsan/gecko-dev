@@ -63,24 +63,18 @@ function test() {
       return -1;
   }
 
-  let os = Cc["@mozilla.org/observer-service;1"].
-           getService(Ci.nsIObserverService);
   function waitForFileExistence(aMessage, aDoNext) {
     const TOPIC = "sessionstore-state-write-complete";
-    let observer = {
-      observe: function(aSubject, aTopic, aData)
-      {
-        // Remove the observer so we do not leak.
-        os.removeObserver(this, TOPIC);
+    Services.obs.addObserver(function (aSubject, aTopic, aData) {
+      // Remove the observer so we do not leak.
+      Services.obs.removeObserver(arguments.callee, TOPIC);
 
-        // Check that the file exists.
-        ok(getSessionstoreFile().exists(), aMessage);
+      // Check that the file exists.
+      ok(getSessionstoreFile().exists(), aMessage);
 
-        // Run our next set of work.
-        aDoNext();
-      }
-    };
-    os.addObserver(observer, TOPIC, false);
+      // Run our next set of work.
+      aDoNext();
+    }, TOPIC, false);
   }
 
   function actualTest() {
@@ -119,7 +113,7 @@ function test() {
           this.removeEventListener("load", arguments.callee, true);
 
           // private browsing session, add new tab: (C)
-          const testURL_C = "http://localhost:8888/";
+          const testURL_C = "http://mochi.test:8888/";
           let tab_C = gBrowser.addTab(testURL_C);
 
           tab_C.linkedBrowser.addEventListener("load", function (aEvent) {
@@ -135,7 +129,8 @@ function test() {
             gBrowser.removeTab(tab_A);
 
             // record the timestamp of sessionstore.js at the end of the private session
-            gPrefService.clearUserPref("browser.sessionstore.interval");
+            if (gPrefService.prefHasUserValue("browser.sessionstore.interval"))
+              gPrefService.clearUserPref("browser.sessionstore.interval");
             gPrefService.setIntPref("browser.sessionstore.interval", 0);
             let endPBModeTimeStamp = getSessionstorejsModificationTime();
 

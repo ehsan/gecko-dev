@@ -60,7 +60,6 @@
 #include "nsHashtable.h"
 #include "nsAutoLock.h"
 #include "nsIZipReader.h"
-#include "nsIJAR.h"
 #include "nsZipArchive.h"
 #include "nsIPrincipal.h"
 #include "nsISignatureVerifier.h"
@@ -85,14 +84,12 @@ typedef enum
   JAR_NOT_SIGNED          = 7
 } JARManifestStatusType;
 
-PRTime GetModTime(PRUint16 aDate, PRUint16 aTime);
-
 /*-------------------------------------------------------------------------
  * Class nsJAR declaration. 
  * nsJAR serves as an XPCOM wrapper for nsZipArchive with the addition of 
  * JAR manifest file parsing. 
  *------------------------------------------------------------------------*/
-class nsJAR : public nsIZipReader, public nsIJAR
+class nsJAR : public nsIZipReader
 {
   // Allows nsJARInputStream to call the verification functions
   friend class nsJARInputStream;
@@ -107,8 +104,6 @@ class nsJAR : public nsIZipReader, public nsIJAR
     NS_DECL_ISUPPORTS
 
     NS_DECL_NSIZIPREADER
-
-    NS_DECL_NSIJAR
 
     nsresult GetJarPath(nsACString& aResult);
 
@@ -146,9 +141,6 @@ class nsJAR : public nsIZipReader, public nsIJAR
     PRInt64                  mMtime;
     PRInt32                  mTotalItemsInManifest;
     
-    //-- Private functions
-    PRFileDesc* OpenFile();
-
     nsresult ParseManifest();
     void     ReportError(const char* aFilename, PRInt16 errorCode);
     nsresult LoadEntry(const char* aFilename, char** aBuf, 
@@ -184,9 +176,8 @@ private:
     PRUint32     mSize;             /* size in original file */
     PRUint32     mRealsize;         /* inflated size */
     PRUint32     mCrc32;
-    PRUint16     mDate;
-    PRUint16     mTime;
-    PRUint8      mCompression;
+    PRTime       mLastModTime;
+    PRUint16     mCompression;
     PRPackedBool mIsDirectory; 
     PRPackedBool mIsSynthetic;
 };
@@ -203,13 +194,14 @@ public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIUTF8STRINGENUMERATOR
 
-    nsJAREnumerator(nsZipFind *aFind) : mFind(aFind), mCurr(nsnull) { 
+    nsJAREnumerator(nsZipFind *aFind) : mFind(aFind), mName(nsnull) { 
       NS_ASSERTION(mFind, "nsJAREnumerator: Missing zipFind.");
     }
 
 private:
     nsZipFind    *mFind;
-    const char*   mCurr;    // pointer to an name owned by mArchive -- DON'T delete
+    const char*   mName;    // pointer to an name owned by mArchive -- DON'T delete
+    PRUint16      mNameLen;
 
     ~nsJAREnumerator() { delete mFind; }
 };

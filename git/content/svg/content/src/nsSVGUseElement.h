@@ -96,6 +96,7 @@ public:
 
   // for nsSVGUseFrame's nsIAnonymousContentCreator implementation.
   nsIContent* CreateAnonymousContent();
+  nsIContent* GetAnonymousContent() const { return mClone; }
   void DestroyAnonymousContent();
 
   // nsSVGElement specializations:
@@ -112,8 +113,8 @@ protected:
   public:
     SourceReference(nsSVGUseElement* aContainer) : mContainer(aContainer) {}
   protected:
-    virtual void ContentChanged(nsIContent* aFrom, nsIContent* aTo) {
-      nsReferencedElement::ContentChanged(aFrom, aTo);
+    virtual void ElementChanged(Element* aFrom, Element* aTo) {
+      nsReferencedElement::ElementChanged(aFrom, aTo);
       if (aFrom) {
         aFrom->RemoveMutationObserver(mContainer);
       }

@@ -50,6 +50,14 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <math.h>
+#include "jsapi.h"
+#include "jsdhash.h"
+#include "jsprf.h"
+#include "prprf.h"
+#include "jsinterp.h"
+#include "jscntxt.h"
+#include "jsdbgapi.h"
+#include "jsgc.h"
 #include "nscore.h"
 #include "nsXPCOM.h"
 #include "nsAutoPtr.h"
@@ -74,14 +82,6 @@
 #include "nsIModule.h"
 #include "nsAutoLock.h"
 #include "nsXPTCUtils.h"
-#include "jsapi.h"
-#include "jsdhash.h"
-#include "jsprf.h"
-#include "prprf.h"
-#include "jsinterp.h"
-#include "jscntxt.h"
-#include "jsdbgapi.h"
-#include "jsgc.h"
 #include "xptinfo.h"
 #include "xpcforwards.h"
 #include "xpclog.h"
@@ -96,6 +96,7 @@
 #include "nsReadableUtils.h"
 #include "nsXPIDLString.h"
 #include "nsAutoJSValHolder.h"
+#include "mozilla/AutoRestore.h"
 
 #include "nsThreadUtils.h"
 #include "nsIJSContextStack.h"
@@ -124,10 +125,6 @@
 
 #ifdef XPC_USE_SECURITY_CHECKED_COMPONENT
 #include "nsISecurityCheckedComponent.h"
-#endif
-
-#ifdef XPC_TOOLS_SUPPORT
-#include "nsIXPCToolsProfiler.h"
 #endif
 
 #include "nsIThreadInternal.h"
@@ -305,7 +302,7 @@ static inline void xpc_NotifyAll(XPCLock* lock)
 // Note that xpconnect only makes *one* monitor and *mostly* holds it locked
 // only through very small critical sections.
 
-class XPCAutoLock : public nsAutoLockBase {
+class NS_STACK_CLASS XPCAutoLock : public nsAutoLockBase {
 public:
 
     static XPCLock* NewLock(const char* name)
@@ -313,7 +310,7 @@ public:
     static void     DestroyLock(XPCLock* lock)
                         {nsAutoMonitor::DestroyMonitor(lock);}
 
-    XPCAutoLock(XPCLock* lock)
+    XPCAutoLock(XPCLock* lock MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
 #ifdef DEBUG_jband
         : nsAutoLockBase(lock ? (void*) lock : (void*) this, eAutoMonitor),
 #else
@@ -321,6 +318,7 @@ public:
 #endif
           mLock(lock)
     {
+        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
         if(mLock)
             PR_EnterMonitor(mLock);
     }
@@ -339,6 +337,7 @@ public:
 
 private:
     XPCLock*  mLock;
+    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 
     // Not meant to be implemented. This makes it a compiler error to
     // construct or assign an XPCAutoLock object incorrectly.
@@ -358,12 +357,13 @@ private:
 
 /************************************************/
 
-class XPCAutoUnlock : public nsAutoUnlockBase {
+class NS_STACK_CLASS XPCAutoUnlock : public nsAutoUnlockBase {
 public:
-    XPCAutoUnlock(XPCLock* lock)
+    XPCAutoUnlock(XPCLock* lock MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
         : nsAutoUnlockBase(lock),
           mLock(lock)
     {
+        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
         if(mLock)
         {
 #ifdef DEBUG
@@ -382,6 +382,7 @@ public:
 
 private:
     XPCLock*  mLock;
+    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 
     // Not meant to be implemented. This makes it a compiler error to
     // construct or assign an XPCAutoUnlock object incorrectly.
@@ -397,34 +398,6 @@ private:
         return nsnull;
     }
     static void operator delete(void* /*memory*/) {}
-};
-
-// A helper class to deal with temporary JS contexts. It destroys the context
-// when it goes out of scope.
-class XPCAutoJSContext
-{
-public:
-    XPCAutoJSContext(JSContext *aContext, PRBool aGCOnDestroy)
-        : mContext(aContext), mGCOnDestroy(aGCOnDestroy)
-    {
-    }
-
-    ~XPCAutoJSContext()
-    {
-        if(!mContext)
-            return;
-
-        if(mGCOnDestroy)
-            JS_DestroyContext(mContext);
-        else
-            JS_DestroyContextNoGC(mContext);
-    }
-
-    operator JSContext * () {return mContext;}
-
-private:
-    JSContext *mContext;
-    PRBool mGCOnDestroy;
 };
 
 /***************************************************************************
@@ -577,11 +550,6 @@ private:
 #endif
     PRBool                   mCycleCollecting;
 
-#ifdef XPC_TOOLS_SUPPORT
-    nsCOMPtr<nsIXPCToolsProfiler> mProfiler;
-    nsCOMPtr<nsILocalFile>        mProfilerOutputFile;
-#endif
-
 #ifndef XPCONNECT_STANDALONE
     typedef nsBaseHashtable<nsVoidPtrHashKey, nsISupports*, nsISupports*> ScopeSet;
     ScopeSet mScopes;
@@ -692,7 +660,6 @@ public:
         IDX_ITEM                    ,
         IDX_PROTO                   ,
         IDX_ITERATOR                ,
-        IDX_PARENT                  ,
         IDX_EXPOSEDPROPS            ,
         IDX_TOTAL_COUNT // just a count of the above
     };
@@ -757,6 +724,9 @@ private:
 public:
 #endif
 
+    void AddGCCallback(JSGCCallback cb);
+    void RemoveGCCallback(JSGCCallback cb);
+
 private:
     XPCJSRuntime(); // no implementation
     XPCJSRuntime(nsXPConnect* aXPConnect);
@@ -794,6 +764,7 @@ private:
     uintN mUnrootedGlobalCount;
     PRCondVar *mWatchdogWakeup;
     PRThread *mWatchdogThread;
+    nsTArray<JSGCCallback> extraGCCallbacks;
 };
 
 /***************************************************************************/
@@ -936,8 +907,8 @@ public:
     { SetIsVoid(PR_TRUE); }
 
     explicit XPCReadableJSStringWrapper(JSString *str) :
-        nsDependentString((const PRUnichar *)::JS_GetStringChars(str),
-                          ::JS_GetStringLength(str))
+        nsDependentString(reinterpret_cast<const PRUnichar *>(::JS_GetStringChars(str)),
+                          str->length())
     { }
 };
 
@@ -1352,7 +1323,7 @@ xpc_InitWrappedNativeJSOps();
 inline JSBool
 DebugCheckWrapperClass(JSObject* obj)
 {
-    NS_ASSERTION(IS_WRAPPER_CLASS(STOBJ_GET_CLASS(obj)),
+    NS_ASSERTION(IS_WRAPPER_CLASS(obj->getClass()),
                  "Forgot to check if this is a wrapper?");
     return JS_TRUE;
 }
@@ -1363,27 +1334,45 @@ DebugCheckWrapperClass(JSObject* obj)
 // also holds a pointer to its XPCWrappedNativeProto in a reserved slot, we can
 // check that slot for a non-void value to distinguish between the two.
 
-// Only use these macros if IS_WRAPPER_CLASS(STOBJ_GET_CLASS(obj)) is true.
+// Only use these macros if IS_WRAPPER_CLASS(obj->getClass()) is true.
 #define IS_WN_WRAPPER_OBJECT(obj)                                             \
     (DebugCheckWrapperClass(obj) &&                                           \
-     JSVAL_IS_VOID(STOBJ_GET_SLOT(obj, JSSLOT_START(STOBJ_GET_CLASS(obj)))))
+     JSVAL_IS_VOID(obj->getSlot(JSSLOT_START(obj->getClass()))))
 #define IS_SLIM_WRAPPER_OBJECT(obj)                                           \
     (DebugCheckWrapperClass(obj) &&                                           \
-     !JSVAL_IS_VOID(STOBJ_GET_SLOT(obj, JSSLOT_START(STOBJ_GET_CLASS(obj)))))
+     !JSVAL_IS_VOID(obj->getSlot(JSSLOT_START(obj->getClass()))))
 
-// Use these macros if IS_WRAPPER_CLASS(STOBJ_GET_CLASS(obj)) might be false.
-// Avoid calling them if IS_WRAPPER_CLASS(STOBJ_GET_CLASS(obj)) can only be
+// Use these macros if IS_WRAPPER_CLASS(obj->getClass()) might be false.
+// Avoid calling them if IS_WRAPPER_CLASS(obj->getClass()) can only be
 // true, as we'd do a redundant call to IS_WRAPPER_CLASS.
 #define IS_WN_WRAPPER(obj)                                                    \
-    (IS_WRAPPER_CLASS(STOBJ_GET_CLASS(obj)) && IS_WN_WRAPPER_OBJECT(obj))
+    (IS_WRAPPER_CLASS(obj->getClass()) && IS_WN_WRAPPER_OBJECT(obj))
 #define IS_SLIM_WRAPPER(obj)                                                  \
-    (IS_WRAPPER_CLASS(STOBJ_GET_CLASS(obj)) && IS_SLIM_WRAPPER_OBJECT(obj))
+    (IS_WRAPPER_CLASS(obj->getClass()) && IS_SLIM_WRAPPER_OBJECT(obj))
 
 // Comes from xpcwrappednativeops.cpp
 extern void
 xpc_TraceForValidWrapper(JSTracer *trc, XPCWrappedNative* wrapper);
 
 /***************************************************************************/
+
+namespace XPCWrapper {
+
+enum WrapperType {
+    UNKNOWN         = 0,
+    NONE            = 0,
+    XPCNW_IMPLICIT  = 1 << 0,
+    XPCNW_EXPLICIT  = 1 << 1,
+    XPCNW           = (XPCNW_IMPLICIT | XPCNW_EXPLICIT),
+    SJOW            = 1 << 2,
+    // SJOW must be the last wrapper type that can be returned to chrome.
+
+    XOW             = 1 << 3,
+    COW             = 1 << 4,
+    SOW             = 1 << 5
+};
+
+}
 
 /***************************************************************************/
 // XPCWrappedNativeScope is one-to-one with a JS global object.
@@ -1487,6 +1476,14 @@ public:
 
     JSBool
     IsValid() const {return mRuntime != nsnull;}
+
+    /**
+     * Figures out what type of wrapper to create for obj if it were injected
+     * into 'this's scope.
+     */
+    XPCWrapper::WrapperType
+    GetWrapperFor(JSContext *cx, JSObject *obj, XPCWrapper::WrapperType hint,
+                  XPCWrappedNative **wn);
 
     static JSBool
     IsDyingScope(XPCWrappedNativeScope *scope);
@@ -1926,19 +1923,28 @@ public:
 // was a big problem when wrappers are reparented to different scopes (and
 // thus different protos (the DOM does this).
 
+struct XPCNativeScriptableSharedJSClass : public JSExtendedClass
+{
+    PRUint32 interfacesBitmap;
+};
+
 class XPCNativeScriptableShared
 {
 public:
     const XPCNativeScriptableFlags& GetFlags() const {return mFlags;}
+    PRUint32                        GetInterfacesBitmap() const
+        {return mJSClass.interfacesBitmap;}
     JSClass*                        GetJSClass() {return &mJSClass.base;}
     JSClass*                        GetSlimJSClass()
         {if(mCanBeSlim) return GetJSClass(); return nsnull;}
 
-    XPCNativeScriptableShared(JSUint32 aFlags = 0, char* aName = nsnull)
+    XPCNativeScriptableShared(JSUint32 aFlags, char* aName,
+                              PRUint32 interfacesBitmap)
         : mFlags(aFlags),
           mCanBeSlim(JS_FALSE)
         {memset(&mJSClass, 0, sizeof(mJSClass));
          mJSClass.base.name = aName;  // take ownership
+         mJSClass.interfacesBitmap = interfacesBitmap;
          MOZ_COUNT_CTOR(XPCNativeScriptableShared);}
 
     ~XPCNativeScriptableShared()
@@ -1957,7 +1963,7 @@ public:
 
 private:
     XPCNativeScriptableFlags mFlags;
-    JSExtendedClass          mJSClass;
+    XPCNativeScriptableSharedJSClass mJSClass;
     JSBool                   mCanBeSlim;
 };
 
@@ -1977,6 +1983,9 @@ public:
 
     const XPCNativeScriptableFlags&
     GetFlags() const      {return mShared->GetFlags();}
+
+    PRUint32
+    GetInterfacesBitmap() const {return mShared->GetInterfacesBitmap();}
 
     JSClass*
     GetJSClass()          {return mShared->GetJSClass();}
@@ -2020,16 +2029,23 @@ private:
 // it abstracts out the scriptable interface pointer and the flags. After
 // creation these are factored differently using XPCNativeScriptableInfo.
 
-class XPCNativeScriptableCreateInfo
+class NS_STACK_CLASS XPCNativeScriptableCreateInfo
 {
 public:
 
     XPCNativeScriptableCreateInfo(const XPCNativeScriptableInfo& si)
-        : mCallback(si.GetCallback()), mFlags(si.GetFlags()) {}
+        : mCallback(si.GetCallback()), mFlags(si.GetFlags()),
+          mInterfacesBitmap(si.GetInterfacesBitmap()) {}
 
-    XPCNativeScriptableCreateInfo(nsIXPCScriptable* callback = nsnull,
-                                  XPCNativeScriptableFlags flags = 0)
-        : mCallback(callback), mFlags(flags) {}
+    XPCNativeScriptableCreateInfo(already_AddRefed<nsIXPCScriptable> callback,
+                                  XPCNativeScriptableFlags flags,
+                                  PRUint32 interfacesBitmap)
+        : mCallback(callback), mFlags(flags),
+          mInterfacesBitmap(interfacesBitmap) {}
+
+    XPCNativeScriptableCreateInfo()
+        : mFlags(0), mInterfacesBitmap(0) {}
+
 
     nsIXPCScriptable*
     GetCallback() const {return mCallback;}
@@ -2037,18 +2053,24 @@ public:
     const XPCNativeScriptableFlags&
     GetFlags() const      {return mFlags;}
 
-    void
-    SetCallback(nsIXPCScriptable* callback) {mCallback = callback;}
+    PRUint32
+    GetInterfacesBitmap() const     {return mInterfacesBitmap;}
+
     void
     SetCallback(already_AddRefed<nsIXPCScriptable> callback)
-      {mCallback = callback;}
+        {mCallback = callback;}
 
     void
     SetFlags(const XPCNativeScriptableFlags& flags)  {mFlags = flags;}
 
+    void
+    SetInterfacesBitmap(PRUint32 interfacesBitmap)
+        {mInterfacesBitmap = interfacesBitmap;}
+
 private:
     nsCOMPtr<nsIXPCScriptable>  mCallback;
     XPCNativeScriptableFlags    mFlags;
+    PRUint32                    mInterfacesBitmap;
 };
 
 /***********************************************/
@@ -2234,7 +2256,7 @@ extern JSBool MorphSlimWrapper(JSContext *cx, JSObject *obj);
 static inline XPCWrappedNativeProto*
 GetSlimWrapperProto(JSObject *obj)
 {
-  jsval v = STOBJ_GET_SLOT(obj, JSSLOT_START(STOBJ_GET_CLASS(obj)));
+  jsval v = obj->getSlot(JSSLOT_START(obj->getClass()));
   return static_cast<XPCWrappedNativeProto*>(JSVAL_TO_PRIVATE(v));
 }
 
@@ -2602,9 +2624,9 @@ public:
     char* ToString(XPCCallContext& ccx,
                    XPCWrappedNativeTearOff* to = nsnull) const;
 
-    static nsresult GatherProtoScriptableCreateInfo(
+    static void GatherProtoScriptableCreateInfo(
                         nsIClassInfo* classInfo,
-                        XPCNativeScriptableCreateInfo* sciProto);
+                        XPCNativeScriptableCreateInfo& sciProto);
 
     JSBool HasExternalReference() const {return mRefCnt > 1;}
 
@@ -2676,11 +2698,11 @@ private:
                                 XPCWrappedNativeTearOff* to);
 
 public:
-    static nsresult GatherScriptableCreateInfo(
+    static const XPCNativeScriptableCreateInfo& GatherScriptableCreateInfo(
                         nsISupports* obj,
                         nsIClassInfo* classInfo,
-                        XPCNativeScriptableCreateInfo* sciProto,
-                        XPCNativeScriptableCreateInfo* sciWrapper);
+                        XPCNativeScriptableCreateInfo& sciProto,
+                        XPCNativeScriptableCreateInfo& sciWrapper);
 
 private:
     union
@@ -2981,7 +3003,7 @@ public:
      * @param s the native object we're working with
      * @param type the type of object that s is
      * @param iid the interface of s that we want
-     * @param scope the default scope to put on the new JSObject's __parent__
+     * @param scope the default scope to put on the new JSObject's parent
      *        chain
      * @param pErr [out] relevant error code, if any.
      */    
@@ -3012,8 +3034,7 @@ public:
      * @param Interface the interface of src that we want
      * @param cache the wrapper cache for src (may be null, in which case src
      *              will be QI'ed to get the cache)
-     * @param scope the default scope to put on the new JSObject's __parent__
-     *        chain
+     * @param scope the default scope to put on the new JSObject's parent chain
      * @param allowNativeWrapper if true, this method may wrap the resulting
      *        JSObject in an XPCNativeWrapper and return that, as needed.
      * @param isGlobal
@@ -3068,8 +3089,7 @@ public:
      * @param type the type of objects in the array
      * @param iid the interface of each object in the array that we want
      * @param count the number of items in the array
-     * @param scope the default scope to put on the new JSObjects' __parent__
-     *        chain
+     * @param scope the default scope to put on the new JSObjects' parent chain
      * @param pErr [out] relevant error code, if any.
      */    
     static JSBool NativeArray2JS(XPCLazyCallContext& ccx,
@@ -3517,8 +3537,6 @@ public:
     void TraceJS(JSTracer* trc);
     void MarkAutoRootsAfterJSFinalize();
 
-    jsuword GetStackLimit() const { return mStackLimit; }
-
     static void InitStatics()
         { gLock = nsnull; gThreads = nsnull; gTLSIndex = BAD_TLS_INDEX; }
 
@@ -3550,8 +3568,6 @@ private:
     nsIException*        mException;
     JSBool               mExceptionManagerNotAvailable;
     AutoMarkingPtr*      mAutoRoots;
-
-    jsuword              mStackLimit;
 
 #ifdef XPC_CHECK_WRAPPER_THREADSAFETY
     JSUint32             mWrappedNativeThreadsafetyReportDepth;
@@ -3770,11 +3786,14 @@ private:
 /***************************************************************************/
 // XXX allowing for future notifications to XPCCallContext
 
-class AutoJSRequest
+class NS_STACK_CLASS AutoJSRequest
 {
 public:
-    AutoJSRequest(XPCCallContext& aCCX)
-      : mCCX(aCCX), mCX(aCCX.GetJSContext()) {BeginRequest();}
+    AutoJSRequest(XPCCallContext& aCCX MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
+      : mCCX(aCCX), mCX(aCCX.GetJSContext()) {
+        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
+        BeginRequest();
+    }
     ~AutoJSRequest() {EndRequest();}
 
     void EndRequest() {
@@ -3793,13 +3812,18 @@ private:
 private:
     XPCCallContext& mCCX;
     JSContext* mCX;
+    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
-class AutoJSSuspendRequest
+class NS_STACK_CLASS AutoJSSuspendRequest
 {
 public:
-    AutoJSSuspendRequest(XPCCallContext& aCCX)
-      : mCX(aCCX.GetJSContext()) {SuspendRequest();}
+    AutoJSSuspendRequest(XPCCallContext& aCCX
+                         MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
+      : mCX(aCCX.GetJSContext()) {
+        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
+        SuspendRequest();
+    }
     ~AutoJSSuspendRequest() {ResumeRequest();}
 
     void ResumeRequest() {
@@ -3818,13 +3842,18 @@ private:
 private:
     JSContext* mCX;
     jsrefcount mDepth;
+    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
-class AutoJSSuspendRequestWithNoCallContext
+class NS_STACK_CLASS AutoJSSuspendRequestWithNoCallContext
 {
 public:
-    AutoJSSuspendRequestWithNoCallContext(JSContext *aCX)
-      : mCX(aCX) {SuspendRequest();}
+    AutoJSSuspendRequestWithNoCallContext(JSContext *aCX
+                                          MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
+      : mCX(aCX) {
+        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
+        SuspendRequest();
+    }
     ~AutoJSSuspendRequestWithNoCallContext() {ResumeRequest();}
 
     void ResumeRequest() {
@@ -3843,13 +3872,18 @@ private:
 private:
     JSContext* mCX;
     jsrefcount mDepth;
+    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
-class AutoJSSuspendNonMainThreadRequest
+class NS_STACK_CLASS AutoJSSuspendNonMainThreadRequest
 {
 public:
-    AutoJSSuspendNonMainThreadRequest(JSContext *aCX)
-        : mCX(aCX) {SuspendRequest();}
+    AutoJSSuspendNonMainThreadRequest(JSContext *aCX
+                                      MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
+        : mCX(aCX) {
+        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
+        SuspendRequest();
+    }
     ~AutoJSSuspendNonMainThreadRequest() {ResumeRequest();}
 
     void ResumeRequest() {
@@ -3869,15 +3903,21 @@ private:
 
     JSContext *mCX;
     jsrefcount mDepth;
+    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
         
 
 /*****************************************/
 
-class AutoJSRequestWithNoCallContext
+class NS_STACK_CLASS AutoJSRequestWithNoCallContext
 {
 public:
-    AutoJSRequestWithNoCallContext(JSContext* aCX) : mCX(aCX) {BeginRequest();}
+    AutoJSRequestWithNoCallContext(JSContext* aCX
+                                   MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
+        : mCX(aCX) {
+        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
+        BeginRequest();
+    }
     ~AutoJSRequestWithNoCallContext() {EndRequest();}
 
     void EndRequest() {
@@ -3895,16 +3935,20 @@ private:
     }
 private:
     JSContext* mCX;
+    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 /***************************************************************************/
-class AutoJSErrorAndExceptionEater
+class NS_STACK_CLASS AutoJSErrorAndExceptionEater
 {
 public:
-    AutoJSErrorAndExceptionEater(JSContext* aCX)
+    AutoJSErrorAndExceptionEater(JSContext* aCX
+                                 MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
         : mCX(aCX),
           mOldErrorReporter(JS_SetErrorReporter(mCX, nsnull)),
-          mOldExceptionState(JS_SaveExceptionState(mCX)) {}
+          mOldExceptionState(JS_SaveExceptionState(mCX)) {
+        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
+    }
     ~AutoJSErrorAndExceptionEater()
     {
         JS_SetErrorReporter(mCX, mOldErrorReporter);
@@ -3914,22 +3958,25 @@ private:
     JSContext*        mCX;
     JSErrorReporter   mOldErrorReporter;
     JSExceptionState* mOldExceptionState;
+    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 /******************************************************************************
  * Handles pre/post script processing and the setting/resetting the error
  * reporter
  */
-class AutoScriptEvaluate
+class NS_STACK_CLASS AutoScriptEvaluate
 {
 public:
     /**
      * Saves the JSContext as well as initializing our state
      * @param cx The JSContext, this can be null, we don't do anything then
      */
-    AutoScriptEvaluate(JSContext * cx)
+    AutoScriptEvaluate(JSContext * cx MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
          : mJSContext(cx), mState(0), mErrorReporterSet(PR_FALSE),
-           mEvaluated(PR_FALSE), mContextHasThread(0) {}
+           mEvaluated(PR_FALSE), mContextHasThread(0) {
+        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
+    }
 
     /**
      * Does the pre script evaluation and sets the error reporter if given
@@ -3949,6 +3996,7 @@ private:
     PRBool mErrorReporterSet;
     PRBool mEvaluated;
     jsword mContextHasThread;
+    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 
     // No copying or assignment allowed
     AutoScriptEvaluate(const AutoScriptEvaluate &);
@@ -3956,13 +4004,16 @@ private:
 };
 
 /***************************************************************************/
-class AutoResolveName
+class NS_STACK_CLASS AutoResolveName
 {
 public:
-    AutoResolveName(XPCCallContext& ccx, jsval name)
+    AutoResolveName(XPCCallContext& ccx, jsval name
+                    MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
         : mTLS(ccx.GetThreadData()),
           mOld(mTLS->SetResolveName(name)),
-          mCheck(name) {}
+          mCheck(name) {
+        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
+    }
     ~AutoResolveName()
         {
 #ifdef DEBUG
@@ -3976,6 +4027,7 @@ private:
     XPCPerThreadData* mTLS;
     jsval mOld;
     jsval mCheck;
+    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 /***************************************************************************/
@@ -4194,6 +4246,10 @@ public:
 
     static XPCVariant* newVariant(XPCCallContext& ccx, jsval aJSVal);
 
+    /**
+     * nsIVariant exposes a GetAsJSVal() method, which also returns mJSVal.
+     * But if you can, you should call this one, since it can be inlined.
+     */
     jsval GetJSVal() const {return mJSVal;}
 
     XPCVariant(XPCCallContext& ccx, jsval aJSVal);
@@ -4203,8 +4259,7 @@ public:
      *
      * @param ccx the context for the whole procedure
      * @param variant the variant to convert
-     * @param scope the default scope to put on the new JSObject's __parent__
-     *        chain
+     * @param scope the default scope to put on the new JSObject's parent chain
      * @param pErr [out] relevant error code, if any.
      * @param pJSVal [out] the resulting jsval.
      */    
@@ -4337,31 +4392,6 @@ xpc_SameScope(XPCWrappedNativeScope *objectscope,
 
 nsISupports *
 XPC_GetIdentityObject(JSContext *cx, JSObject *obj);
-
-PRBool
-IsXPCSafeJSObjectWrapperClass(JSClass *clazz);
-
-JSObject *
-XPC_SJOW_GetUnsafeObject(JSObject *obj);
-
-JSBool
-XPC_SJOW_Construct(JSContext *cx, JSObject *obj, uintN, jsval *argv,
-                   jsval *rval);
-
-PRBool
-XPC_SJOW_AttachNewConstructorObject(XPCCallContext &ccx,
-                                    JSObject *aGlobalObject);
-
-JSBool
-XPC_XOW_WrapObject(JSContext *cx, JSObject *parent, jsval *vp,
-                   XPCWrappedNative *wn = nsnull);
-
-JSBool
-XPC_SOW_WrapObject(JSContext *cx, JSObject *parent, jsval v,
-                   jsval *vp);
-
-JSBool
-XPC_COW_WrapObject(JSContext *cx, JSObject *parent, jsval v, jsval *vp);
 
 #ifdef XPC_IDISPATCH_SUPPORT
 

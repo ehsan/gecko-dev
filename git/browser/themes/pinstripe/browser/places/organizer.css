@@ -33,7 +33,7 @@
   border-top: @sidebarItemGraphiteFocusedBorderTop@;
 }
 
-window:not([active="true"]) #placesList > treechildren::-moz-tree-row(selected) {
+#placesList > treechildren:-moz-window-inactive::-moz-tree-row(selected) {
   background: @sidebarItemInactiveBackground@;
   border-top: @sidebarItemInactiveBorderTop@;
 }
@@ -103,14 +103,14 @@ window:not([active="true"]) #placesList > treechildren::-moz-tree-row(selected) 
                    inset 0 0 0 20px @toolbarbuttonPressedBackgroundColor@;
 }
 
-:root:not([active]) #placesToolbar > toolbarbutton {
+#placesToolbar > toolbarbutton:-moz-window-inactive {
   border-color: @toolbarbuttonInactiveBorderColor@;
   background-image: @toolbarbuttonInactiveBackgroundImage@;
 }
 
 #placesToolbar > toolbarbutton[disabled="true"] > .toolbarbutton-icon,
-:root:not([active]) #placesToolbar > toolbarbutton > .toolbarbutton-icon,
-:root:not([active]) #placesToolbar > toolbarbutton > .toolbarbutton-menu-dropmarker {
+#placesToolbar > toolbarbutton > .toolbarbutton-icon:-moz-window-inactive,
+#placesToolbar > toolbarbutton > .toolbarbutton-menu-dropmarker:-moz-window-inactive {
   opacity: 0.5; /* remove the second and third selector when we support click-through (bug 392188) */
 }
 
@@ -124,6 +124,7 @@ window:not([active="true"]) #placesList > treechildren::-moz-tree-row(selected) 
 
 #placesToolbar > toolbarbutton[type="menu"] > .toolbarbutton-menu-dropmarker {
   list-style-image: url("chrome://browser/skin/places/folderDropArrow.png");
+  -moz-image-region: rect(0, 7px, 5px, 0);
   padding: 0;
   margin-top: 1px;
   -moz-margin-end: 3px;
@@ -176,7 +177,7 @@ window:not([active="true"]) #placesList > treechildren::-moz-tree-row(selected) 
 
 /* Search field */
 
-:root:not([active="true"]) #searchFilter {
+#searchFilter:-moz-window-inactive {
   opacity: 0.7; /* remove this when we support click-through (bug 392188) */
 }
 
@@ -199,7 +200,7 @@ window:not([active="true"]) #placesList > treechildren::-moz-tree-row(selected) 
   border: 0px;
 }
 
-#places:not([active="true"]) > #placesView > #placesList {
+#placesList:-moz-window-inactive {
   background-color: #e8e8e8;
 }
 
@@ -368,98 +369,6 @@ window:not([active="true"]) #placesList > treechildren::-moz-tree-row(selected) 
   -moz-box-shadow: @focusRingShadow@, @roundButtonPressedShadow@;
 }
 
-%ifdef PLACES_QUERY_BUILDER
-/* Calendar */
-.history-calendar {
-  margin: 0px 0px 7px 6px;
-}
-
-.calendar-box {
-  -moz-appearance: listbox;
-  border:1px solid black;
-  background-color:white;
-}
-.calendar-header {
-  background-color:#EEE;
-}
-.calendar-month-jump {
-  cursor:pointer;
-  padding-left:6px;
-  padding-right:6px;
-}
-.calendar-month-jump:hover {
-  background-color:#DDD;
-}
-.calendar-grid {
-  padding-left:8px;
-  padding-right:8px;
-  padding-bottom:4px;
-}
-.calendar-grid label { /* everything in the calendar grid */
-  padding:4px;
-  margin:0px;
-  text-align:center;
-  font-size:80%;
-}
-.calendar-month-title {
-  text-align:center;
-}
-.calendar-day-header {
-  border-bottom:1px solid #888;
-}
-.calendar-day { /* just days (excluding the day headers) */
-  cursor:w-resize;
-  color:white;
-  background-color:white;
-}
-.calendar-day:hover {
-  background-color:#DDD;
-}
-.calendar-day[selected="true"] {
-  cursor:w-resize;
-  background-color:#8C8;
-}
-.calendar-day[selected="true"]:hover {
-  background-color:#6A6;
-}
-.calendar-day[month="this"] {
-  color:black;
-}
-.calendar-day[month="other"] {
-  color:#888;
-}
-
-.advancedSearchPlus,
-.advancedSearchMinus {
-  width: 18px;
-  height: 18px;
-  -moz-appearance: none;
-  -moz-margin-start: 2px;
-}
-
-.advancedSearchPlus .button-text,
-.advancedSearchMinus  .button-text {
-    display: none;
-} 
-
-.advancedSearchPlus {
-  background: url("chrome://browser/skin/places/plus.png") no-repeat left center;
-} 
-
-.advancedSearchPlus:active {
-   background: url("chrome://browser/skin/places/plus-active.png") no-repeat left center;
-} 
-
-.advancedSearchMinus {
-  background: url("chrome://browser/skin/places/minus.png") no-repeat left center;
-}
-
-.advancedSearchMinus:active {
-  background: url("chrome://browser/skin/places/minus-active.png") no-repeat left center;
-}
-
-%endif
-
 /**** expanders ****/
 
 .expander-up,
@@ -484,10 +393,6 @@ window:not([active="true"]) #placesList > treechildren::-moz-tree-row(selected) 
 
 .expander-up:hover:active {
   list-style-image: url("chrome://browser/skin/places/expander-open-active.png") !important;
-}
-
-.no-margin-button {
-  min-width:0em;
 }
 
 /**
@@ -517,6 +422,6 @@ window:not([active="true"]) #placesList > treechildren::-moz-tree-row(selected) 
   color: GrayText;
 }
 
-#editBookmarkPanelGrid > rows > row > label {
-  text-align: right !important;
+.editBMPanel_rowLabel {
+  text-align: end;
 }

@@ -114,7 +114,7 @@ function test() {
 
   const testURL = "chrome://mochikit/content/browser/" +
   "browser/components/sessionstore/test/browser/browser_248970_b_sample.html";
-  const testURL2 = "http://localhost:8888/browser/" +
+  const testURL2 = "http://mochi.test:8888/browser/" +
   "browser/components/sessionstore/test/browser/browser_248970_b_sample.html";
 
   // get closed tab count
@@ -129,7 +129,7 @@ function test() {
   let state = { entries: [{ url: testURL }], extData: { key: value } };
 
   // public session, add new tab: (A)
-  tab_A = gBrowser.addTab(testURL);
+  let tab_A = gBrowser.addTab(testURL);
   ss.setTabState(tab_A, state.toSource());
   tab_A.linkedBrowser.addEventListener("load", function(aEvent) {
     this.removeEventListener("load", arguments.callee, true);
@@ -166,7 +166,7 @@ function test() {
       let state1 = { entries: [{ url: testURL2 }], extData: { key1: value1 } };
 
       // private browsing session, new tab: (B)
-      tab_B = gBrowser.addTab(testURL2);
+      let tab_B = gBrowser.addTab(testURL2);
       ss.setTabState(tab_B, state1.toSource());
       tab_B.linkedBrowser.addEventListener("load", function(aEvent) {
         this.removeEventListener("load", arguments.callee, true);
@@ -197,7 +197,8 @@ function test() {
           ok(!pb.privateBrowsingEnabled, "private browsing disabled");
 
           // cleanup
-          gPrefService.clearUserPref("browser.privatebrowsing.keep_current_session");
+          if (gPrefService.prefHasUserValue("browser.privatebrowsing.keep_current_session"))
+            gPrefService.clearUserPref("browser.privatebrowsing.keep_current_session");
           finish();
         }, true);
       }, true);

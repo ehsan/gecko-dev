@@ -58,6 +58,7 @@ class nsIPluginHost;
 class nsIPluginInstance;
 class nsPresContext;
 class nsDisplayPlugin;
+class nsIDOMElement;
 
 #define nsObjectFrameSuper nsFrame
 
@@ -89,6 +90,12 @@ public:
                           nsGUIEvent* aEvent,
                           nsEventStatus* aEventStatus);
 
+#ifdef XP_MACOSX
+  NS_IMETHOD HandlePress(nsPresContext* aPresContext,
+                         nsGUIEvent*    aEvent,
+                         nsEventStatus* aEventStatus);
+#endif
+
   virtual nsIAtom* GetType() const;
 
   virtual PRBool IsFrameOfType(PRUint32 aFlags) const
@@ -102,7 +109,7 @@ public:
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 
-  virtual void Destroy();
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
 
@@ -220,14 +227,34 @@ protected:
 
   nsIWidget* GetWidget() { return mWidget; }
 
+  nsresult SetAbsoluteScreenPosition(nsIDOMElement* element,
+                                     nsIDOMClientRect* position,
+                                     nsIDOMClientRect* clip);
+
+  void NotifyPluginReflowObservers();
+
   friend class nsPluginInstanceOwner;
   friend class nsDisplayPlugin;
 
 private:
+  
+  class PluginEventNotifier : public nsRunnable {
+  public:
+    PluginEventNotifier(const nsString &aEventType) : 
+      mEventType(aEventType) {}
+    
+    NS_IMETHOD Run();
+  private:
+    nsString mEventType;
+  };
+  
   nsRefPtr<nsPluginInstanceOwner> mInstanceOwner;
   nsIView*                        mInnerView;
   nsCOMPtr<nsIWidget>             mWidget;
   nsIntRect                       mWindowlessRect;
+#ifdef XP_WIN
+  PRUint32                        mDoublePassEvent;
+#endif
 
   // For assertions that make it easier to determine if a crash is due
   // to the underlying problem described in bug 136927, and to prevent
@@ -254,7 +281,8 @@ public:
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
   virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
-                                   nsRegion* aVisibleRegion);
+                                   nsRegion* aVisibleRegion,
+                                   nsRegion* aVisibleRegionBeforeMove);
 
   NS_DISPLAY_DECL_NAME("Plugin")
 

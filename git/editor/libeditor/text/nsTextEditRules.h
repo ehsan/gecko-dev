@@ -44,6 +44,7 @@
 #include "nsIDOMNode.h"
 
 #include "nsEditRules.h"
+#include "nsITimer.h"
 
 /** Object that encapsulates HTML text-specific editing rules.
   *  
@@ -56,24 +57,23 @@
   * 2. Selection must not be explicitly set by the rule method.  
   *    Any manipulation of Selection must be done by the editor.
   */
-class nsTextEditRules : public nsIEditRules
+class nsTextEditRules : public nsIEditRules, public nsITimerCallback
 {
 public:
+  NS_DECL_NSITIMERCALLBACK
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_CLASS(nsTextEditRules)
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsTextEditRules, nsIEditRules)
   
               nsTextEditRules();
   virtual     ~nsTextEditRules();
 
   // nsIEditRules methods
-  NS_IMETHOD Init(nsPlaintextEditor *aEditor, PRUint32 aFlags);
+  NS_IMETHOD Init(nsPlaintextEditor *aEditor);
   NS_IMETHOD DetachEditor();
   NS_IMETHOD BeforeEdit(PRInt32 action, nsIEditor::EDirection aDirection);
   NS_IMETHOD AfterEdit(PRInt32 action, nsIEditor::EDirection aDirection);
   NS_IMETHOD WillDoAction(nsISelection *aSelection, nsRulesInfo *aInfo, PRBool *aCancel, PRBool *aHandled);
   NS_IMETHOD DidDoAction(nsISelection *aSelection, nsRulesInfo *aInfo, nsresult aResult);
-  NS_IMETHOD GetFlags(PRUint32 *aFlags);
-  NS_IMETHOD SetFlags(PRUint32 aFlags);
   NS_IMETHOD DocumentIsEmpty(PRBool *aDocumentIsEmpty);
 
   // nsTextEditRules action id's
@@ -110,6 +110,42 @@ public:
   
 public:
   nsresult ResetIMETextPWBuf();
+
+  /**
+   * Handles the newline characters either according to aNewLineHandling
+   * or to the default system prefs if aNewLineHandling is negative.
+   *
+   * @param aString the string to be modified in place.
+   * @param aNewLineHandling determine the desired type of newline handling:
+   *        * negative values:
+   *          handle newlines according to platform defaults.
+   *        * nsIPlaintextEditor::eNewlinesReplaceWithSpaces:
+   *          replace newlines with spaces.
+   *        * nsIPlaintextEditor::eNewlinesStrip:
+   *          remove newlines from the string.
+   *        * nsIPlaintextEditor::eNewlinesReplaceWithCommas:
+   *          replace newlines with commas.
+   *        * nsIPlaintextEditor::eNewlinesStripSurroundingWhitespace:
+   *          collapse newlines and surrounding whitespace characters and
+   *          remove them from the string.
+   *        * nsIPlaintextEditor::eNewlinesPasteIntact:
+   *          only remove the leading and trailing newlines.
+   *        * nsIPlaintextEditor::eNewlinesPasteToFirst or any other value:
+   *          remove the first newline and all characters following it.
+   */
+  static void HandleNewLines(nsString &aString, PRInt32 aNewLineHandling);
+
+  /**
+   * Prepare a string buffer for being displayed as the contents of a password
+   * field.  This function uses the platform-specific character for representing
+   * characters entered into password fields.
+   *
+   * @param aOutString the output string.  When this function returns,
+   *        aOutString will contain aLength password characters.
+   * @param aLength the number of password characters that aOutString should
+   *        contain.
+   */
+  static nsresult FillBufWithPWChars(nsAString *aOutString, PRInt32 aLength);
 
 protected:
 
@@ -183,10 +219,6 @@ protected:
                                      const nsAString          *aInString,
                                      nsAString                *aOutString,
                                      PRInt32                   aMaxLength);
-  
-  /** Echo's the insertion text into the password buffer, and converts
-      insertion text to '*'s */                                        
-  nsresult EchoInsertionToPWBuff(PRInt32 aStart, PRInt32 aEnd, nsAString *aOutString);
 
   /** Remove IME composition text from password buffer */
   nsresult RemoveIMETextFromPWBuf(PRUint32 &aStart, nsAString *aIMEString);
@@ -199,6 +231,37 @@ protected:
                                      nsIEditor::EDirection aAction,
                                      PRBool               *aCancel);
 
+  nsresult HideLastPWInput();
+
+  PRBool IsPasswordEditor() const
+  {
+    return mEditor ? mEditor->IsPasswordEditor() : PR_FALSE;
+  }
+  PRBool IsSingleLineEditor() const
+  {
+    return mEditor ? mEditor->IsSingleLineEditor() : PR_FALSE;
+  }
+  PRBool IsPlaintextEditor() const
+  {
+    return mEditor ? mEditor->IsPlaintextEditor() : PR_FALSE;
+  }
+  PRBool IsReadonly() const
+  {
+    return mEditor ? mEditor->IsReadonly() : PR_FALSE;
+  }
+  PRBool IsDisabled() const
+  {
+    return mEditor ? mEditor->IsDisabled() : PR_FALSE;
+  }
+  PRBool IsMailEditor() const
+  {
+    return mEditor ? mEditor->IsMailEditor() : PR_FALSE;
+  }
+  PRBool DontEchoPassword() const
+  {
+    return mEditor ? mEditor->DontEchoPassword() : PR_FALSE;
+  }
+
   // data members
   nsPlaintextEditor   *mEditor;        // note that we do not refcount the editor
   nsString             mPasswordText;  // a buffer we use to store the real value of password editors
@@ -207,7 +270,6 @@ protected:
   nsCOMPtr<nsIDOMNode> mBogusNode;     // magic node acts as placeholder in empty doc
   nsCOMPtr<nsIDOMNode> mCachedSelectionNode;    // cached selected node
   PRInt32              mCachedSelectionOffset;  // cached selected offset
-  PRUint32             mFlags;
   PRUint32             mActionNesting;
   PRPackedBool         mLockRulesSniffing;
   PRPackedBool         mDidExplicitlySetInterline;
@@ -216,6 +278,9 @@ protected:
                                                // adjacent to the caret without
                                                // moving the caret first.
   PRInt32              mTheAction;     // the top level editor action
+  nsCOMPtr<nsITimer>   mTimer;
+  PRUint32             mLastStart, mLastLength;
+
   // friends
   friend class nsAutoLockRulesSniffing;
 

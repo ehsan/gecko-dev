@@ -22,6 +22,12 @@
   -moz-binding: url("chrome://global/content/bindings/general.xml#root-element");
 }
 
+%ifdef XP_MACOSX
+:root[drawintitlebar="true"] {
+  padding-top: 22px;
+}
+%endif
+
 :root:-moz-locale-dir(rtl) {
   direction: rtl;
 }
@@ -138,7 +144,8 @@ button[type="menu-button"] {
 
 %ifdef MOZ_WIDGET_GTK2
 /********* detection of system setting to use icons in buttons ***********/
-.button-icon:not(:-moz-system-metric(images-in-buttons)) {
+button[label]:not([label=""]) > .button-box > .button-icon:not(:-moz-system-metric(images-in-buttons)),
+button[label]:not([label=""]) > .button-box > .box-inherit > .button-icon:not(:-moz-system-metric(images-in-buttons)) {
   display: none;
 }
 %endif
@@ -246,6 +253,18 @@ toolbar {
   -moz-binding: url("chrome://global/content/bindings/toolbar.xml#toolbar");
 }
 
+toolbox[customizing="true"] > toolbar[customizable="true"][collapsed="true"] {
+  /* Some apps, e.g. Firefox, use 'collapsed' to hide toolbars.
+     Override it while customizing. */
+  visibility: visible;
+}
+
+toolbox[customizing="true"] > toolbar[customizable="true"][hidden="true"] {
+  /* Some apps, e.g. SeaMonkey, use 'hidden' to hide toolbars.
+     Override it while customizing. */
+  display: -moz-box;
+}
+
 %ifdef XP_MACOSX
 toolbar[type="menubar"] {
   min-height: 0 !important;
@@ -259,8 +278,8 @@ toolbar[type="menubar"][autohide="true"] {
   overflow: hidden;
 }
 
-toolbar[type="menubar"][autohide="true"]:not([customizable="true"])[inactive="true"],
-toolbox:not([customizing="true"]) > toolbar[type="menubar"][autohide="true"][customizable="true"][inactive="true"]:not([customized="true"]) {
+toolbar[type="menubar"][autohide="true"][inactive="true"]:not([customizable="true"]),
+toolbox:not([customizing="true"]) > toolbar[type="menubar"][autohide="true"][inactive="true"][customizable="true"] {
   min-height: 0 !important;
   height: 0 !important;
   -moz-appearance: none !important;
@@ -343,12 +362,13 @@ menuitem.menuitem-non-iconic {
 
 %ifdef MOZ_WIDGET_GTK2
 /********* detection of system setting to use icons in menus ***********/
-menuitem:not([type]):not(:-moz-system-metric(images-in-menus)) > .menu-iconic-left {
-  visibility: hidden;
-}
-
-menu:not(:-moz-system-metric(images-in-menus)) > .menu-iconic-left {
-  visibility: hidden;
+@media not all and (-moz-images-in-menus) {
+  menuitem:not([type]):not(.menuitem-with-favicon) > .menu-iconic-left {
+    visibility: hidden;
+  }
+  menu > .menu-iconic-left {
+    visibility: hidden;
+  }
 }
 %endif
 
@@ -686,6 +706,14 @@ textbox[multiline="true"] {
 
 .textbox-input-box {
   -moz-binding: url("chrome://global/content/bindings/textbox.xml#input-box");
+}
+
+html|textarea.textbox-textarea {
+  -moz-resize: none;
+}
+
+textbox[resizable="true"] > .textbox-input-box > html|textarea.textbox-textarea {
+  -moz-resize: both;
 }
 
 .textbox-input-box[spellcheck="true"] {

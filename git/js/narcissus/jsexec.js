@@ -110,9 +110,9 @@ var global = {
         var s = {object: global, parent: null};
         return new FunctionObject(f, s);
     },
-    Array: function Array(dummy) {
+    Array: function (dummy) {
         // Array when called as a function acts as a constructor.
-        return GLOBAL.Array.apply(this, arguments);
+        return Array.apply(this, arguments);
     },
     String: function String(s) {
         // Called as function or constructor: convert argument to string type.
@@ -167,13 +167,17 @@ gSp.toString = function () { return this.value; };
 gSp.valueOf  = function () { return this.value; };
 global.String.fromCharCode = String.fromCharCode;
 
-var XCp = ExecutionContext.prototype;
-ExecutionContext.current = XCp.caller = XCp.callee = null;
-XCp.scope = {object: global, parent: null};
-XCp.thisObject = global;
-XCp.result = undefined;
-XCp.target = null;
-XCp.ecmaStrictMode = false;
+ExecutionContext.current = null;
+
+ExecutionContext.prototype = {
+    caller: null,
+    callee: null,
+    scope: {object: global, parent: null},
+    thisObject: global,
+    result: undefined,
+    target: null,
+    ecma3OnlyMode: false
+};
 
 function Reference(base, propertyName, node) {
     this.base = base;
@@ -355,7 +359,7 @@ function execute(n, x) {
         v = getValue(s);
 
         // ECMA deviation to track extant browser JS implementation behavior.
-        t = (v == null && !x.ecmaStrictMode) ? v : toObject(v, s, n.object);
+        t = (v == null && !x.ecma3OnlyMode) ? v : toObject(v, s, n.object);
         a = [];
         for (i in t)
             a.push(i);

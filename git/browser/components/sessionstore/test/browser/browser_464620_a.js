@@ -39,7 +39,7 @@ function test() {
   
   waitForExplicitFinish();
   
-  let testURL = "http://localhost:8888/browser/" +
+  let testURL = "http://mochi.test:8888/browser/" +
     "browser/components/sessionstore/test/browser/browser_464620_a.html";
   
   var frameCount = 0;
@@ -54,6 +54,7 @@ function test() {
       frameCount = 0;
       let tab2 = gBrowser.duplicateTab(tab);
       tab2.linkedBrowser.addEventListener("464620_a", function(aEvent) {
+        tab2.linkedBrowser.removeEventListener("464620_a", arguments.callee, true);
         is(aEvent.data, "done", "XSS injection was attempted");
         
         // let form restoration complete and take into account the

@@ -46,10 +46,15 @@
 #include "jstypes.h"
 #include "jsstdint.h"
 #include "jsutil.h"
+#include "jstl.h"
 
 #ifdef WIN32
 #    include <windows.h>
+#else
+#    include <signal.h>
 #endif
+
+using namespace js;
 
 /*
  * Checks the assumption that JS_FUNC_TO_DATA_PTR and JS_DATA_TO_FUNC_PTR
@@ -60,13 +65,20 @@ JS_STATIC_ASSERT(sizeof(void *) == sizeof(void (*)()));
 JS_PUBLIC_API(void) JS_Assert(const char *s, const char *file, JSIntn ln)
 {
     fprintf(stderr, "Assertion failure: %s, at %s:%d\n", s, file, ln);
+    fflush(stderr);
 #if defined(WIN32)
     DebugBreak();
     exit(3);
-#elif defined(XP_OS2) || (defined(__GNUC__) && defined(__i386))
-    asm("int $3");
+#elif defined(__APPLE__)
+    /*
+     * On Mac OS X, Breakpad ignores signals. Only real Mach exceptions are
+     * trapped.
+     */
+    *((int *) NULL) = 0;  /* To continue from here in GDB: "return" then "continue". */
+    raise(SIGABRT);  /* In case above statement gets nixed by the optimizer. */
+#else
+    raise(SIGABRT);  /* To continue from here in GDB: "signal 0". */
 #endif
-    abort();
 }
 
 #ifdef JS_BASIC_STATS
@@ -133,7 +145,7 @@ JS_BasicStatsAccum(JSBasicStats *bs, uint32 val)
             if (newscale != oldscale) {
                 uint32 newhist[11], newbin;
 
-                memset(newhist, 0, sizeof newhist);
+                PodArrayZero(newhist);
                 for (bin = 0; bin <= 10; bin++) {
                     newbin = ValToBin(newscale, BinToVal(oldscale, bin));
                     newhist[newbin] += bs->hist[bin];

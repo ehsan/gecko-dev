@@ -39,7 +39,6 @@
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
-#include "nsPresContext.h"
 #include "nsIFrame.h"
 #include "nsIFormControlFrame.h"
 #include "nsIEventStateManager.h"
@@ -114,6 +113,8 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLOptGroupElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLOptGroupElement, nsGenericElement)
 
 
+DOMCI_DATA(HTMLOptGroupElement, nsHTMLOptGroupElement)
+
 // QueryInterface implementation for nsHTMLOptGroupElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLOptGroupElement)
   NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLOptGroupElement,
@@ -186,7 +187,6 @@ nsHTMLOptGroupElement::InsertChildAt(nsIContent* aKid,
 nsresult
 nsHTMLOptGroupElement::RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent)
 {
-  NS_ASSERTION(aMutationEvent, "Someone tried to inhibit mutation events on optgroup child removal.");
   nsSafeOptionListMutation safeMutation(GetSelect(), this, nsnull, aIndex);
   nsresult rv = nsGenericHTMLElement::RemoveChildAt(aIndex, aNotify, aMutationEvent);
   if (NS_FAILED(rv)) {

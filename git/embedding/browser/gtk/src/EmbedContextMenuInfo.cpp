@@ -165,9 +165,10 @@ EmbedContextMenuInfo::GetFormControlType(nsIDOMEvent* aEvent)
     if (!presShell)
       return NS_OK;
     nsCOMPtr<nsIContent> tgContent = do_QueryInterface(mEventTarget);
-	nsIFrame* frame = nsnull;
+    nsIFrame* frame = nsnull;
 #if defined(FIXED_BUG347731) || !defined(MOZ_ENABLE_LIBXUL)
-    frame = presShell->GetPrimaryFrameFor(tgContent);
+    frame = tgContent->GetDocument() == presShell->GetDocument() ?
+      tgContent->GetPrimaryFrame() : nsnull;
     if (frame)
       mFormRect = frame->GetScreenRectExternal();
 #endif
@@ -216,7 +217,9 @@ EmbedContextMenuInfo::SetFormControlType(nsIDOMEventTarget *originalTarget)
         break;
       case NS_FORM_INPUT_SUBMIT:
         break;
+      case NS_FORM_INPUT_SEARCH:
       case NS_FORM_INPUT_TEXT:
+      case NS_FORM_INPUT_TEL:
         mEmbedCtxType |= GTK_MOZ_EMBED_CTX_INPUT;
         break;
       case NS_FORM_LABEL:
@@ -233,6 +236,8 @@ EmbedContextMenuInfo::SetFormControlType(nsIDOMEventTarget *originalTarget)
         mEmbedCtxType |= GTK_MOZ_EMBED_CTX_INPUT;
         break;
       case NS_FORM_OBJECT:
+        break;
+      case NS_FORM_OUTPUT:
         break;
       default:
         break;
@@ -415,7 +420,7 @@ EmbedContextMenuInfo::CheckDomHtmlNode(nsIDOMNode *aNode)
     if (NS_SUCCEEDED(rv) && area) {
       PRBool aNoHref = PR_FALSE;
       rv = area->GetNoHref(&aNoHref);
-      if (aNoHref == PR_FALSE)
+      if (!aNoHref)
         rv = area->GetHref(mCtxHref);
       else
         rv = area->GetTarget(mCtxHref);
@@ -595,8 +600,8 @@ EmbedContextMenuInfo::UpdateContextData(nsIDOMEvent *aDOMEvent)
 #if defined(FIXED_BUG347731) || !defined(MOZ_ENABLE_LIBXUL)
   if (mEmbedCtxType & GTK_MOZ_EMBED_CTX_RICHEDIT)
     frame = presShell->GetRootFrame();
-  else {
-    frame = presShell->GetPrimaryFrameFor(tgContent);
+  else if (tgContent->GetDocument() == presShell->GetDocument()) {
+    frame = tgContent->GetPrimaryFrame();
   }
   if (frame) {
     mFormRect = frame->GetScreenRectExternal();

@@ -46,6 +46,9 @@
 #include "nsContentCreatorFunctions.h"
 #include "nsContentPolicyUtils.h"
 #include "nsIPropertyBag2.h"
+#include "mozilla/dom/Element.h"
+
+using namespace mozilla::dom;
 
 class nsPluginDocument : public nsMediaDocument,
                          public nsIPluginDocument
@@ -138,7 +141,7 @@ nsPluginStreamListener::SetupPlugin()
   // nsObjectFrame does that at the end of reflow.
   shell->FlushPendingNotifications(Flush_Layout);
 
-  nsIFrame* frame = shell->GetPrimaryFrameFor(embed);
+  nsIFrame* frame = embed->GetPrimaryFrame();
   if (!frame) {
     mPluginDoc->AllowNormalInstantiation();
     return NS_OK;
@@ -274,7 +277,7 @@ nsPluginDocument::CreateSyntheticPluginDocument()
   NS_ENSURE_SUCCESS(rv, rv);
   // then attach our plugin
 
-  nsIContent* body = GetBodyContent();
+  Element* body = GetBodyElement();
   if (!body) {
     NS_WARNING("no body on plugin document!");
     return NS_ERROR_FAILURE;
@@ -341,15 +344,8 @@ nsPluginDocument::Print()
 {
   NS_ENSURE_TRUE(mPluginContent, NS_ERROR_FAILURE);
 
-  nsIPresShell *shell = GetPrimaryShell();
-  if (!shell) {
-    return NS_OK;
-  }
-
-  nsIFrame* frame = shell->GetPrimaryFrameFor(mPluginContent);
-  NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
-
-  nsIObjectFrame* objectFrame = do_QueryFrame(frame);
+  nsIObjectFrame* objectFrame =
+    do_QueryFrame(mPluginContent->GetPrimaryFrame());
   if (objectFrame) {
     nsCOMPtr<nsIPluginInstance> pi;
     objectFrame->GetPluginInstance(*getter_AddRefs(pi));

@@ -14,7 +14,7 @@
  *
  * The Original Code is Thebes gfx.
  *
- * The Initial Developer of the Original Code is Mozilla Corporation.
+ * The Initial Developer of the Original Code is Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2007
  * the Initial Developer. All Rights Reserved.
  *
@@ -116,6 +116,10 @@ gfxWindowsNativeDrawing::BeginNativeDrawing()
         if (mRenderState == RENDER_STATE_INIT) {
             mRenderState = RENDER_STATE_ALPHA_RECOVERY_BLACK;
 
+            // We round out our native rect here, that way the snapping will
+            // happen correctly.
+            mNativeRect.RoundOut();
+
             // we only do the scale bit if we can do an axis aligned
             // scale; otherwise we scale (if necessary) after
             // rendering with cairo.  Note that if we're doing alpha recovery,
@@ -151,11 +155,8 @@ gfxWindowsNativeDrawing::BeginNativeDrawing()
     if (mRenderState == RENDER_STATE_NATIVE_DRAWING) {
         // we can just do native drawing directly to the context's surface
 
-        // Need to force the clip to be set
-        mContext->UpdateSurfaceClip();
-
         // grab the DC
-        mDC = mWinSurface->GetDC();
+        mDC = mWinSurface->GetDCWithClip(mContext);
 
         // do we need to use SetWorldTransform?
         if (mTransformType != TRANSLATION_ONLY) {
@@ -203,6 +204,23 @@ gfxWindowsNativeDrawing::BeginNativeDrawing()
         NS_ERROR("Bogus render state!");
         return nsnull;
     }
+}
+
+PRBool
+gfxWindowsNativeDrawing::IsDoublePass()
+{
+    nsRefPtr<gfxASurface> surf = mContext->CurrentSurface(&mDeviceOffset.x, &mDeviceOffset.y);
+    if (!surf || surf->CairoStatus())
+        return false;
+    if (surf->GetType() != gfxASurface::SurfaceTypeWin32 &&
+	surf->GetType() != gfxASurface::SurfaceTypeWin32Printing) {
+	return PR_TRUE;
+    }
+    if ((surf->GetContentType() != gfxASurface::CONTENT_COLOR ||
+         (surf->GetContentType() == gfxASurface::CONTENT_COLOR_ALPHA &&
+          !(mNativeDrawFlags & CAN_DRAW_TO_COLOR_ALPHA))))
+        return PR_TRUE;
+    return PR_FALSE;
 }
 
 PRBool

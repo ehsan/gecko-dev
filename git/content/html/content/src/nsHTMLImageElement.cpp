@@ -42,7 +42,6 @@
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"
-#include "nsIPresShell.h"
 #include "nsMappedAttributes.h"
 #include "nsIJSNativeInitializer.h"
 #include "nsSize.h"
@@ -148,6 +147,8 @@ public:
   virtual PRInt32 IntrinsicState() const;
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
+  nsresult CopyInnerTo(nsGenericElement* aDest) const;
+
   void MaybeLoadImage();
 protected:
   nsPoint GetXY();
@@ -190,6 +191,8 @@ nsHTMLImageElement::~nsHTMLImageElement()
 NS_IMPL_ADDREF_INHERITED(nsHTMLImageElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLImageElement, nsGenericElement)
 
+
+DOMCI_DATA(HTMLImageElement, nsHTMLImageElement)
 
 // QueryInterface implementation for nsHTMLImageElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLImageElement)
@@ -553,9 +556,13 @@ nsHTMLImageElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 
   if (HasAttr(kNameSpaceID_None, nsGkAtoms::src)) {
     ClearBrokenState();
-    nsContentUtils::AddScriptRunner(
-      new nsRunnableMethod<nsHTMLImageElement>(this,
-                                               &nsHTMLImageElement::MaybeLoadImage));
+    // If loading is temporarily disabled, don't even launch MaybeLoadImage.
+    // Otherwise MaybeLoadImage may run later when someone has reenabled
+    // loading.
+    if (LoadingEnabled()) {
+      nsContentUtils::AddScriptRunner(
+        NS_NewRunnableMethod(this, &nsHTMLImageElement::MaybeLoadImage));
+    }
   }
 
   return rv;
@@ -653,4 +660,11 @@ nsHTMLImageElement::GetNaturalWidth(PRInt32* aNaturalWidth)
   return NS_OK;
 }
 
-
+nsresult
+nsHTMLImageElement::CopyInnerTo(nsGenericElement* aDest) const
+{
+  if (aDest->GetOwnerDoc()->IsStaticDocument()) {
+    CreateStaticImageClone(static_cast<nsHTMLImageElement*>(aDest));
+  }
+  return nsGenericHTMLElement::CopyInnerTo(aDest);
+}

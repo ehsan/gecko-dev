@@ -69,14 +69,16 @@
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cr = Components.results;
-Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
+const Cu = Components.utils;
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/Services.jsm");
 
 const STATE_RUNNING_STR = "running";
+const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 megabytes
 
 function debug(aMsg) {
   aMsg = ("SessionStartup: " + aMsg).replace(/\S{80}/g, "$&\n");
-  Cc["@mozilla.org/consoleservice;1"].getService(Ci.nsIConsoleService)
-                                     .logStringMessage(aMsg);
+  Services.console.logStringMessage(aMsg);
 }
 
 /* :::::::: The Service ::::::::::::::: */
@@ -126,8 +128,8 @@ SessionStartup.prototype = {
     
     try {
       // parse the session state into JS objects
-      var s = new Components.utils.Sandbox("about:blank");
-      var initialState = Components.utils.evalInSandbox("(" + this._iniString + ")", s);
+      var s = new Cu.Sandbox("about:blank");
+      var initialState = Cu.evalInSandbox("(" + this._iniString + ")", s);
     }
     catch (ex) { debug("The session file is invalid: " + ex); } 
     
@@ -145,10 +147,8 @@ SessionStartup.prototype = {
 
     if (this._sessionType != Ci.nsISessionStartup.NO_SESSION) {
       // wait for the first browser window to open
-      var observerService = Cc["@mozilla.org/observer-service;1"].
-                            getService(Ci.nsIObserverService);
-      observerService.addObserver(this, "domwindowopened", true);
-      observerService.addObserver(this, "browser:purge-session-history", true);
+      Services.obs.addObserver(this, "domwindowopened", true);
+      Services.obs.addObserver(this, "browser:purge-session-history", true);
     }
   },
 
@@ -156,23 +156,20 @@ SessionStartup.prototype = {
    * Handle notifications
    */
   observe: function sss_observe(aSubject, aTopic, aData) {
-    var observerService = Cc["@mozilla.org/observer-service;1"].
-                          getService(Ci.nsIObserverService);
-
     switch (aTopic) {
     case "app-startup": 
-      observerService.addObserver(this, "final-ui-startup", true);
-      observerService.addObserver(this, "quit-application", true);
+      Services.obs.addObserver(this, "final-ui-startup", true);
+      Services.obs.addObserver(this, "quit-application", true);
       break;
     case "final-ui-startup": 
-      observerService.removeObserver(this, "final-ui-startup");
-      observerService.removeObserver(this, "quit-application");
+      Services.obs.removeObserver(this, "final-ui-startup");
+      Services.obs.removeObserver(this, "quit-application");
       this.init();
       break;
     case "quit-application":
       // no reason for initializing at this point (cf. bug 409115)
-      observerService.removeObserver(this, "final-ui-startup");
-      observerService.removeObserver(this, "quit-application");
+      Services.obs.removeObserver(this, "final-ui-startup");
+      Services.obs.removeObserver(this, "quit-application");
       break;
     case "domwindowopened":
       var window = aSubject;
@@ -187,7 +184,7 @@ SessionStartup.prototype = {
       this._iniString = null;
       this._sessionType = Ci.nsISessionStartup.NO_SESSION;
       // no need in repeating this, since startup state won't change
-      observerService.removeObserver(this, "browser:purge-session-history");
+      Services.obs.removeObserver(this, "browser:purge-session-history");
       break;
     }
   },
@@ -220,10 +217,8 @@ SessionStartup.prototype = {
     if (aWindow.arguments && aWindow.arguments[0] &&
         aWindow.arguments[0] == defaultArgs)
       aWindow.arguments[0] = null;
-    
-    var observerService = Cc["@mozilla.org/observer-service;1"].
-                          getService(Ci.nsIObserverService);
-    observerService.removeObserver(this, "domwindowopened");
+
+    Services.obs.removeObserver(this, "domwindowopened");
   },
 
 /* ........ Public API ................*/
@@ -263,11 +258,9 @@ SessionStartup.prototype = {
     var stateString = Cc["@mozilla.org/supports-string;1"].
                         createInstance(Ci.nsISupportsString);
     stateString.data = this._readFile(aFile) || "";
-    
-    var observerService = Cc["@mozilla.org/observer-service;1"].
-                          getService(Ci.nsIObserverService);
-    observerService.notifyObservers(stateString, "sessionstore-state-read", "");
-    
+
+    Services.obs.notifyObservers(stateString, "sessionstore-state-read", "");
+
     return stateString.data;
   },
 
@@ -284,19 +277,21 @@ SessionStartup.prototype = {
       stream.init(aFile, 0x01, 0, 0);
       var cvstream = Cc["@mozilla.org/intl/converter-input-stream;1"].
                      createInstance(Ci.nsIConverterInputStream);
-      cvstream.init(stream, "UTF-8", 1024, Ci.nsIConverterInputStream.DEFAULT_REPLACEMENT_CHARACTER);
-      
-      var content = "";
+
+      var fileSize = stream.available();
+      if (fileSize > MAX_FILE_SIZE)
+        throw "SessionStartup: sessionstore.js was not processed because it was too large.";
+
+      cvstream.init(stream, "UTF-8", fileSize, Ci.nsIConverterInputStream.DEFAULT_REPLACEMENT_CHARACTER);
       var data = {};
-      while (cvstream.readString(4096, data)) {
-        content += data.value;
-      }
+      cvstream.readString(fileSize, data);
+      var content = data.value;
       cvstream.close();
-      
+
       return content.replace(/\r\n?/g, "\n");
     }
-    catch (ex) { Components.utils.reportError(ex); }
-    
+    catch (ex) { Cu.reportError(ex); }
+
     return null;
   },
 

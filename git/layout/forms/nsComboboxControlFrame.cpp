@@ -54,11 +54,11 @@
 #include "nsIDOMHTMLSelectElement.h" 
 #include "nsIDOMHTMLOptionElement.h" 
 #include "nsIDOMNSHTMLOptionCollectn.h" 
+#include "nsPIDOMWindow.h"
 #include "nsIPresShell.h"
 #include "nsIDeviceContext.h"
 #include "nsIView.h"
 #include "nsIViewManager.h"
-#include "nsIScrollableView.h"
 #include "nsEventDispatcher.h"
 #include "nsIEventStateManager.h"
 #include "nsIEventListenerManager.h"
@@ -90,6 +90,7 @@
 #include "nsDisplayList.h"
 #include "nsITheme.h"
 #include "nsThemeConstants.h"
+#include "nsPLDOMEvent.h"
 
 NS_IMETHODIMP
 nsComboboxControlFrame::RedisplayTextEvent::Run()
@@ -296,22 +297,7 @@ NS_QUERYFRAME_HEAD(nsComboboxControlFrame)
   NS_QUERYFRAME_ENTRY(nsIAnonymousContentCreator)
   NS_QUERYFRAME_ENTRY(nsISelectControlFrame)
   NS_QUERYFRAME_ENTRY(nsIStatefulFrame)
-  NS_QUERYFRAME_ENTRY(nsIScrollableViewProvider)
 NS_QUERYFRAME_TAIL_INHERITING(nsBlockFrame)
-
-NS_IMPL_QUERY_INTERFACE1(nsComboboxControlFrame, nsIRollupListener)
-
-NS_IMETHODIMP_(nsrefcnt)
-nsComboboxControlFrame::AddRef()
-{
-  return 2;
-}
-
-NS_IMETHODIMP_(nsrefcnt)
-nsComboboxControlFrame::Release()
-{
-  return 1;
-}
 
 #ifdef ACCESSIBILITY
 NS_IMETHODIMP nsComboboxControlFrame::GetAccessible(nsIAccessible** aAccessible)
@@ -426,7 +412,7 @@ nsComboboxControlFrame::ShowList(PRBool aShowList)
     if (view) {
       nsIWidget* widget = view->GetWidget();
       if (widget)
-        widget->CaptureRollupEvents(this, mDroppedDown, mDroppedDown);
+        widget->CaptureRollupEvents(this, nsnull, mDroppedDown, mDroppedDown);
     }
   }
 
@@ -824,9 +810,12 @@ nsComboboxControlFrame::HandleRedisplayTextEvent()
   // ActuallyDisplayText, since that flushes out the content sink by
   // calling SetText on a DOM node with aNotify set to true.  See bug
   // 289730.
+  nsWeakFrame weakThis(this);
   PresContext()->Document()->
     FlushPendingNotifications(Flush_ContentAndNotify);
-  
+  if (!weakThis.IsAlive())
+    return;
+
   // Redirect frame insertions during this method (see GetContentInsertionFrame())
   // so that any reframing that the frame constructor forces upon us is inserted
   // into the correct parent (mDisplayFrame). See bug 282607.
@@ -890,6 +879,7 @@ nsComboboxControlFrame::AddOption(PRInt32 aIndex)
 NS_IMETHODIMP
 nsComboboxControlFrame::RemoveOption(PRInt32 aIndex)
 {
+  nsWeakFrame weakThis(this);
   if (mListControlFrame->GetNumberOfOptions() > 0) {
     if (aIndex < mDisplayedIndex) {
       --mDisplayedIndex;
@@ -903,19 +893,11 @@ nsComboboxControlFrame::RemoveOption(PRInt32 aIndex)
     RedisplayText(-1);
   }
 
+  if (!weakThis.IsAlive())
+    return NS_OK;
+
   nsListControlFrame* lcf = static_cast<nsListControlFrame*>(mDropdownFrame);
   return lcf->RemoveOption(aIndex);
-}
-
-NS_IMETHODIMP
-nsComboboxControlFrame::GetOptionSelected(PRInt32 aIndex, PRBool* aValue)
-{
-  NS_ASSERTION(mDropdownFrame, "No dropdown frame!");
-
-  nsISelectControlFrame* listFrame = do_QueryFrame(mDropdownFrame);
-  NS_ASSERTION(listFrame, "No list frame!");
-
-  return listFrame->GetOptionSelected(aIndex, aValue);
 }
 
 NS_IMETHODIMP
@@ -1050,6 +1032,13 @@ nsComboboxControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
   return NS_OK;
 }
 
+void
+nsComboboxControlFrame::AppendAnonymousContentTo(nsBaseContentList& aElements)
+{
+  aElements.MaybeAppendElement(mDisplayContent);
+  aElements.MaybeAppendElement(mButtonContent);
+}
+
 // XXXbz this is a for-now hack.  Now that display:inline-block works,
 // need to revisit this.
 class nsComboboxDisplayFrame : public nsBlockFrame {
@@ -1155,9 +1144,8 @@ nsComboboxControlFrame::CreateFrameFor(nsIContent*      aContent)
   // create the style contexts for the anonymous block frame and text frame
   nsRefPtr<nsStyleContext> styleContext;
   styleContext = styleSet->
-    ResolvePseudoStyleFor(mContent, 
-                          nsCSSAnonBoxes::mozDisplayComboboxControlFrame,
-                          mStyleContext);
+    ResolveAnonymousBoxStyle(nsCSSAnonBoxes::mozDisplayComboboxControlFrame,
+                             mStyleContext);
   if (NS_UNLIKELY(!styleContext)) {
     return nsnull;
   }
@@ -1182,28 +1170,29 @@ nsComboboxControlFrame::CreateFrameFor(nsIContent*      aContent)
   }
 
   // Create a text frame and put it inside the block frame
-  mTextFrame = NS_NewTextFrame(shell, textStyleContext);
-  if (NS_UNLIKELY(!mTextFrame)) {
+  nsIFrame* textFrame = NS_NewTextFrame(shell, textStyleContext);
+  if (NS_UNLIKELY(!textFrame)) {
     return nsnull;
   }
 
   // initialize the text frame
-  rv = mTextFrame->Init(aContent, mDisplayFrame, nsnull);
+  rv = textFrame->Init(aContent, mDisplayFrame, nsnull);
   if (NS_FAILED(rv)) {
     mDisplayFrame->Destroy();
     mDisplayFrame = nsnull;
-    mTextFrame->Destroy();
-    mTextFrame = nsnull;
+    textFrame->Destroy();
+    textFrame = nsnull;
     return nsnull;
   }
+  mDisplayContent->SetPrimaryFrame(textFrame);
 
-  nsFrameList textList(mTextFrame, mTextFrame);
+  nsFrameList textList(textFrame, textFrame);
   mDisplayFrame->SetInitialChildList(nsnull, textList);
   return mDisplayFrame;
 }
 
 void
-nsComboboxControlFrame::Destroy()
+nsComboboxControlFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   // Revoke any pending RedisplayTextEvent
   mRedisplayTextEvent.Revoke();
@@ -1219,16 +1208,16 @@ nsComboboxControlFrame::Destroy()
       if (view) {
         nsIWidget* widget = view->GetWidget();
         if (widget)
-          widget->CaptureRollupEvents(this, PR_FALSE, PR_TRUE);
+          widget->CaptureRollupEvents(this, nsnull, PR_FALSE, PR_TRUE);
       }
     }
   }
 
   // Cleanup frames in popup child list
-  mPopupFrames.DestroyFrames();
+  mPopupFrames.DestroyFramesFrom(aDestructRoot);
   nsContentUtils::DestroyAnonymousContent(&mDisplayContent);
   nsContentUtils::DestroyAnonymousContent(&mButtonContent);
-  nsBlockFrame::Destroy();
+  nsBlockFrame::DestroyFrom(aDestructRoot);
 }
 
 
@@ -1367,14 +1356,21 @@ nsComboboxControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  nsPresContext *presContext = PresContext();
-  const nsStyleDisplay *disp = GetStyleDisplay();
-  if ((!IsThemed(disp) ||
-       !presContext->GetTheme()->ThemeDrawsFocusForWidget(presContext, this, disp->mAppearance)) &&
-      mDisplayFrame && IsVisibleForPainting(aBuilder)) {
-    nsresult rv = aLists.Content()->AppendNewToTop(new (aBuilder)
-                                                   nsDisplayComboboxFocus(this));
-    NS_ENSURE_SUCCESS(rv, rv);
+  // draw a focus indicator only when focus rings should be drawn
+  nsIDocument* doc = mContent->GetCurrentDoc();
+  if (doc) {
+    nsPIDOMWindow* window = doc->GetWindow();
+    if (window && window->ShouldShowFocusRing()) {
+      nsPresContext *presContext = PresContext();
+      const nsStyleDisplay *disp = GetStyleDisplay();
+      if ((!IsThemed(disp) ||
+           !presContext->GetTheme()->ThemeDrawsFocusForWidget(presContext, this, disp->mAppearance)) &&
+          mDisplayFrame && IsVisibleForPainting(aBuilder)) {
+        nsresult rv = aLists.Content()->AppendNewToTop(new (aBuilder)
+                                                       nsDisplayComboboxFocus(this));
+        NS_ENSURE_SUCCESS(rv, rv);
+      }
+    }
   }
 
   return DisplaySelectionOverlay(aBuilder, aLists);
@@ -1421,21 +1417,6 @@ void nsComboboxControlFrame::PaintFocus(nsIRenderingContext& aRenderingContext,
   aRenderingContext.PopState();
 }
 
-//----------------------------------------------------------------------
-  //nsIScrollableViewProvider
-//----------------------------------------------------------------------
-nsIScrollableView* nsComboboxControlFrame::GetScrollableView()
-{
-  if (!mDropdownFrame)
-    return nsnull;
-
-  nsIScrollableFrame* scrollable = do_QueryFrame(mDropdownFrame);
-  if (!scrollable)
-    return nsnull;
-
-  return scrollable->GetScrollableView();
-}
-
 //---------------------------------------------------------
 // gets the content (an option) by index and then set it as
 // being selected or not selected
@@ -1467,18 +1448,9 @@ nsComboboxControlFrame::OnOptionSelected(PRInt32 aIndex, PRBool aSelected)
 void nsComboboxControlFrame::FireValueChangeEvent()
 {
   // Fire ValueChange event to indicate data value of combo box has changed
-  nsCOMPtr<nsIDOMEvent> event;
-  nsPresContext* presContext = PresContext();
-  if (NS_SUCCEEDED(nsEventDispatcher::CreateEvent(presContext, nsnull,
-                                                  NS_LITERAL_STRING("Events"),
-                                                  getter_AddRefs(event)))) {
-    event->InitEvent(NS_LITERAL_STRING("ValueChange"), PR_TRUE, PR_TRUE);
-
-    nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(event));
-    privateEvent->SetTrusted(PR_TRUE);
-    nsEventDispatcher::DispatchDOMEvent(mContent, nsnull, event, nsnull,
-                                        nsnull);
-  }
+  nsContentUtils::AddScriptRunner(
+    new nsPLDOMEvent(mContent, NS_LITERAL_STRING("ValueChange"), PR_TRUE,
+                     PR_FALSE));
 }
 
 void

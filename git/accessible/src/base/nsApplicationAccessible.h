@@ -44,7 +44,10 @@
 #define __NS_APPLICATION_ACCESSIBLE_H__
 
 #include "nsAccessibleWrap.h"
+#include "nsIAccessibleApplication.h"
+
 #include "nsIMutableArray.h"
+#include "nsIXULAppInfo.h"
 
 /**
  * nsApplicationAccessible is for the whole application of Mozilla.
@@ -56,41 +59,54 @@
  * the nsApplicationAccessible instance.
  */
 
-class nsApplicationAccessible: public nsAccessibleWrap
+class nsApplicationAccessible: public nsAccessibleWrap,
+                               public nsIAccessibleApplication
 {
 public:
   nsApplicationAccessible();
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsApplicationAccessible,
-                                           nsAccessible)
 
-  // nsAccessNode
-  virtual nsresult Init();
+  // nsIAccessNode
+  NS_IMETHOD GetRootDocument(nsIAccessibleDocument **aRootDocument);
 
   // nsIAccessible
-  NS_IMETHOD GetName(nsAString & aName);
+  NS_IMETHOD GetName(nsAString& aName);
+  NS_IMETHOD GetDescription(nsAString& aValue);
   NS_IMETHOD GetRole(PRUint32 *aRole);
-  NS_IMETHOD GetParent(nsIAccessible * *aParent);
-  NS_IMETHOD GetNextSibling(nsIAccessible * *aNextSibling);
-  NS_IMETHOD GetPreviousSibling(nsIAccessible **aPreviousSibling);
-  NS_IMETHOD GetIndexInParent(PRInt32 *aIndexInParent);
-  NS_IMETHOD GetChildAt(PRInt32 aChildNum, nsIAccessible **aChild);
+  NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
+
+  NS_IMETHOD GetParent(nsIAccessible **aAccessible);
+
+  // nsIAccessibleApplication
+  NS_DECL_NSIACCESSIBLEAPPLICATION
+
+  // nsAccessNode
+  virtual PRBool IsDefunct();
+  virtual nsresult Init();
+  virtual nsresult Shutdown();
 
   // nsAccessible
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
+  virtual nsAccessible* GetParent();
+
+  virtual void InvalidateChildren();
 
   // nsApplicationAccessible
   virtual nsresult AddRootAccessible(nsIAccessible *aRootAccWrap);
   virtual nsresult RemoveRootAccessible(nsIAccessible *aRootAccWrap);
 
 protected:
+
   // nsAccessible
   virtual void CacheChildren();
+  virtual nsAccessible* GetSiblingAtOffset(PRInt32 aOffset,
+                                           nsresult *aError = nsnull);
 
-  nsCOMPtr<nsIMutableArray> mChildren;
+private:
+  nsCOMPtr<nsIXULAppInfo> mAppInfo;
 };
 
 #endif

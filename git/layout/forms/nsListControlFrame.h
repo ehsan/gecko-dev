@@ -103,7 +103,7 @@ public:
   NS_IMETHOD DidReflow(nsPresContext*           aPresContext, 
                        const nsHTMLReflowState*  aReflowState, 
                        nsDidReflowStatus         aStatus);
-  virtual void Destroy();
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
@@ -188,7 +188,6 @@ public:
   // nsISelectControlFrame
   NS_IMETHOD AddOption(PRInt32 index);
   NS_IMETHOD RemoveOption(PRInt32 index);
-  NS_IMETHOD GetOptionSelected(PRInt32 aIndex, PRBool* aValue);
   NS_IMETHOD DoneAddingChildren(PRBool aIsDone);
 
   /**
@@ -270,6 +269,11 @@ public:
    * Return whether the list is in dropdown mode.
    */
   PRBool IsInDropDownMode() const;
+
+  /**
+   * Dropdowns need views
+   */
+  virtual PRBool NeedsView() { return IsInDropDownMode(); }
 
   /**
    * Frees statics owned by this class.

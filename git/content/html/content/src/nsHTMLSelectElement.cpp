@@ -42,11 +42,11 @@
 #include "nsContentCreatorFunctions.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
-#include "nsPresContext.h"
 #include "nsLayoutUtils.h"
 #include "nsMappedAttributes.h"
 #include "nsIForm.h"
-#include "nsIFormSubmission.h"
+#include "nsFormSubmission.h"
+#include "nsIFormProcessor.h"
 
 #include "nsIDOMHTMLOptGroupElement.h"
 #include "nsIOptionElement.h"
@@ -59,13 +59,13 @@
 
 // Notify/query select frame for selectedIndex
 #include "nsIDocument.h"
-#include "nsIPresShell.h"
 #include "nsIFormControlFrame.h"
 #include "nsIComboboxControlFrame.h"
 #include "nsIListControlFrame.h"
 #include "nsIFrame.h"
 
 #include "nsDOMError.h"
+#include "nsServiceManagerUtils.h"
 #include "nsRuleData.h"
 #include "nsEventDispatcher.h"
 
@@ -170,6 +170,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_ADDREF_INHERITED(nsHTMLSelectElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLSelectElement, nsGenericElement)
 
+
+DOMCI_DATA(HTMLSelectElement, nsHTMLSelectElement)
 
 // QueryInterface implementation for nsHTMLSelectElement
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLSelectElement)
@@ -744,7 +746,7 @@ nsHTMLSelectElement::SetLength(PRUint32 aLength)
       rv = AppendChild(node, getter_AddRefs(tmpNode));
       NS_ENSURE_SUCCESS(rv, rv);
 
-      if (i < ((PRInt32)aLength - 1)) {
+      if (i + 1 < aLength) {
         nsCOMPtr<nsIDOMNode> newNode;
 
         rv = node->CloneNode(PR_TRUE, getter_AddRefs(newNode));
@@ -1200,10 +1202,12 @@ nsHTMLSelectElement::SetValue(const nsAString& aValue)
 }
 
 
+NS_IMPL_BOOL_ATTR(nsHTMLSelectElement, Autofocus, autofocus)
 NS_IMPL_BOOL_ATTR(nsHTMLSelectElement, Disabled, disabled)
 NS_IMPL_BOOL_ATTR(nsHTMLSelectElement, Multiple, multiple)
 NS_IMPL_STRING_ATTR(nsHTMLSelectElement, Name, name)
-NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLSelectElement, Size, size, 0)
+NS_IMPL_POSITIVE_INT_ATTR_DEFAULT_VALUE(nsHTMLSelectElement, Size, size,
+                                        GetDefaultSize())
 NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLSelectElement, TabIndex, tabindex, 0)
 
 NS_IMETHODIMP
@@ -1365,7 +1369,7 @@ nsHTMLSelectElement::ParseAttribute(PRInt32 aNamespaceID,
                                     nsAttrValue& aResult)
 {
   if (aAttribute == nsGkAtoms::size && kNameSpaceID_None == aNamespaceID) {
-    return aResult.ParseIntWithBounds(aValue, 0);
+    return aResult.ParsePositiveIntValue(aValue);
   }
   return nsGenericHTMLElement::ParseAttribute(aNamespaceID, aAttribute, aValue,
                                               aResult);
@@ -1582,8 +1586,10 @@ nsHTMLSelectElement::Reset()
   return NS_OK;
 }
 
+static NS_DEFINE_CID(kFormProcessorCID, NS_FORMPROCESSOR_CID);
+
 NS_IMETHODIMP
-nsHTMLSelectElement::SubmitNamesValues(nsIFormSubmission* aFormSubmission,
+nsHTMLSelectElement::SubmitNamesValues(nsFormSubmission* aFormSubmission,
                                        nsIContent* aSubmitElement)
 {
   nsresult rv = NS_OK;
@@ -1601,7 +1607,8 @@ nsHTMLSelectElement::SubmitNamesValues(nsIFormSubmission* aFormSubmission,
   // Get the name (if no name, no submit)
   //
   nsAutoString name;
-  if (!GetAttr(kNameSpaceID_None, nsGkAtoms::name, name)) {
+  GetAttr(kNameSpaceID_None, nsGkAtoms::name, name);
+  if (name.IsEmpty()) {
     return NS_OK;
   }
 
@@ -1610,6 +1617,13 @@ nsHTMLSelectElement::SubmitNamesValues(nsIFormSubmission* aFormSubmission,
   //
   PRUint32 len;
   GetLength(&len);
+
+  nsAutoString mozType;
+  nsCOMPtr<nsIFormProcessor> keyGenProcessor;
+  if (GetAttr(kNameSpaceID_None, nsGkAtoms::_moz_type, mozType) &&
+      mozType.EqualsLiteral("-mozilla-keygen")) {
+    keyGenProcessor = do_GetService(kFormProcessorCID, &rv);
+  }
 
   for (PRUint32 optIndex = 0; optIndex < len; optIndex++) {
     // Don't send disabled options
@@ -1636,7 +1650,15 @@ nsHTMLSelectElement::SubmitNamesValues(nsIFormSubmission* aFormSubmission,
     rv = optionElement->GetValue(value);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = aFormSubmission->AddNameValuePair(this, name, value);
+    if (keyGenProcessor) {
+      nsAutoString tmp(value);
+      rv = keyGenProcessor->ProcessValue(this, name, tmp);
+      if (NS_SUCCEEDED(rv)) {
+        value = tmp;
+      }
+    }
+
+    rv = aFormSubmission->AddNameValuePair(name, value);
   }
 
   return NS_OK;
@@ -1788,6 +1810,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 // nsISupports
 
+DOMCI_DATA(HTMLOptionsCollection, nsHTMLOptionCollection)
+
 // QueryInterface implementation for nsHTMLOptionCollection
 NS_INTERFACE_TABLE_HEAD(nsHTMLOptionCollection)
   NS_INTERFACE_TABLE4(nsHTMLOptionCollection,
@@ -1796,7 +1820,7 @@ NS_INTERFACE_TABLE_HEAD(nsHTMLOptionCollection)
                       nsIDOMHTMLOptionsCollection,
                       nsIDOMHTMLCollection)
   NS_INTERFACE_TABLE_TO_MAP_SEGUE_CYCLE_COLLECTION(nsHTMLOptionCollection)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(HTMLOptionsCollection)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(HTMLOptionsCollection)
 NS_INTERFACE_MAP_END
 
 
@@ -1944,4 +1968,50 @@ nsHTMLOptionCollection::GetSelect(nsIDOMHTMLSelectElement **aReturn)
 {
   NS_IF_ADDREF(*aReturn = mSelect);
   return NS_OK;
+}
+
+NS_IMETHODIMP
+nsHTMLOptionCollection::Add(nsIDOMHTMLOptionElement *aOption,
+                            PRInt32 aIndex, PRUint8 optional_argc)
+{
+  if (!aOption) {
+    return NS_ERROR_INVALID_ARG;
+  }
+
+  if (aIndex < -1) {
+    return NS_ERROR_DOM_INDEX_SIZE_ERR;
+  }
+
+  if (!mSelect) {
+    return NS_ERROR_NOT_INITIALIZED;
+  }
+
+  PRUint32 length;
+  GetLength(&length);
+
+  if (optional_argc == 0 || aIndex == -1 || aIndex > (PRInt32)length) {
+    // IE appends in these cases
+    aIndex = length;
+  }
+
+  nsCOMPtr<nsIDOMNode> beforeNode;
+  Item(aIndex, getter_AddRefs(beforeNode));
+
+  nsCOMPtr<nsIDOMHTMLOptionElement> beforeElement =
+    do_QueryInterface(beforeNode);
+
+  return mSelect->Add(aOption, beforeElement);
+}
+
+NS_IMETHODIMP
+nsHTMLOptionCollection::Remove(PRInt32 aIndex)
+{
+  NS_ENSURE_TRUE(mSelect, NS_ERROR_UNEXPECTED);
+
+  PRUint32 len = 0;
+  mSelect->GetLength(&len);
+  if (aIndex < 0 || (PRUint32)aIndex >= len)
+    aIndex = 0;
+
+  return mSelect->Remove(aIndex);
 }

@@ -94,6 +94,7 @@ Stopwatch vsTimer;
 // viewsource.css; the setting is remembered between invocations using a pref.
 static const char kBodyId[] = "viewsource";
 static const char kBodyClassWrap[] = "wrap";
+static const char kBodyTabSize[] = "-moz-tab-size: ";
 
 NS_IMPL_ISUPPORTS1(CViewSourceHTML, nsIDTD)
 
@@ -197,6 +198,7 @@ CViewSourceHTML::CViewSourceHTML()
 {
   mSyntaxHighlight = PR_FALSE;
   mWrapLongLines = PR_FALSE;
+  mTabSize = -1;
   nsCOMPtr<nsIPrefBranch> prefBranch(do_GetService(NS_PREFSERVICE_CONTRACTID));
   if (prefBranch) {
     PRBool temp;
@@ -206,6 +208,9 @@ CViewSourceHTML::CViewSourceHTML()
 
     rv = prefBranch->GetBoolPref("view_source.wrap_long_lines", &temp);
     mWrapLongLines = NS_SUCCEEDED(rv) ? temp : PR_FALSE;
+
+    rv = prefBranch->GetIntPref("view_source.tab_size", &temp);
+    mTabSize = NS_SUCCEEDED(rv) ? temp : -1;
   }
 
   mSink = 0;
@@ -401,6 +406,13 @@ NS_IMETHODIMP CViewSourceHTML::BuildModel(nsITokenizer* aTokenizer,
             AddAttrToNode(bodyNode, theAllocator,
                           NS_LITERAL_STRING("class"),
                           NS_ConvertASCIItoUTF16(kBodyClassWrap));
+          }
+          if (mTabSize >= 0) {
+            nsAutoString styleValue = NS_ConvertASCIItoUTF16(kBodyTabSize);
+            styleValue.AppendInt(mTabSize);
+            AddAttrToNode(bodyNode, theAllocator,
+                          NS_LITERAL_STRING("style"),
+                          styleValue);
           }
           result = mSink->OpenContainer(bodyNode);
           if(NS_SUCCEEDED(result)) mHasOpenBody=PR_TRUE;
@@ -948,6 +960,8 @@ PRBool CViewSourceHTML::IsUrlAttribute(const nsAString& tagName,
 
   PRBool isHref = trimmedAttrName.LowerCaseEqualsLiteral("href");
   PRBool isSrc = !isHref && trimmedAttrName.LowerCaseEqualsLiteral("src");
+  PRBool isXLink = !isHref && !isSrc &&
+    mDocType == eXML && trimmedAttrName.EqualsLiteral("xlink:href");
 
   // If this is the HREF attribute of a BASE element, then update the base URI.
   // This doesn't feel like the ideal place for this, but the alternatives don't
@@ -959,7 +973,7 @@ PRBool CViewSourceHTML::IsUrlAttribute(const nsAString& tagName,
     SetBaseURI(expandedBaseSpec);
   }
 
-  return isHref || isSrc;
+  return isHref || isSrc || isXLink;
 }
 
 void CViewSourceHTML::WriteHrefAttribute(nsTokenAllocator* allocator,

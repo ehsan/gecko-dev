@@ -59,8 +59,8 @@
 #include "nsDOMDocumentType.h"
 #include "nsHTMLParts.h"
 #include "nsCRT.h"
-#include "nsICSSLoader.h"
-#include "nsICSSStyleSheet.h"
+#include "nsCSSStyleSheet.h"
+#include "nsCSSLoader.h"
 #include "nsGkAtoms.h"
 #include "nsContentUtils.h"
 #include "nsIScriptContext.h"
@@ -95,14 +95,14 @@
 #include "nsIDOMProcessingInstruction.h"
 #include "nsNodeUtils.h"
 #include "nsIScriptGlobalObject.h"
+#include "nsIHTMLDocument.h"
 #include "nsEventDispatcher.h"
 #include "mozAutoDocUpdate.h"
+#include "nsMimeTypes.h"
 
 #ifdef MOZ_SVG
 #include "nsGUIEvent.h"
 #endif
-
-#define kXSLType "text/xsl"
 
 // XXX Open Issues:
 // 1) what's not allowed - We need to figure out which HTML tags
@@ -139,8 +139,7 @@ NS_NewXMLContentSink(nsIXMLContentSink** aResult,
 
 nsXMLContentSink::nsXMLContentSink()
   : mConstrainSize(PR_TRUE),
-    mPrettyPrintXML(PR_TRUE),
-    mAllowAutoXLinks(PR_TRUE)
+    mPrettyPrintXML(PR_TRUE)
 {
 }
 
@@ -320,7 +319,7 @@ nsXMLContentSink::DidBuildModel(PRBool aTerminated)
         nsCOMPtr<nsIDOMProcessingInstruction> pi = do_QueryInterface(child);
         CheckXSLTParamPI(pi, mXSLTProcessor, mDocument);
       }
-      else if (child->IsNodeOfType(nsINode::eELEMENT)) {
+      else if (child->IsElement()) {
         // Only honor PIs in the prolog
         break;
       }
@@ -384,6 +383,11 @@ nsXMLContentSink::OnDocumentCreated(nsIDocument* aResultDocument)
 {
   NS_ENSURE_ARG(aResultDocument);
 
+  nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(aResultDocument);
+  if (htmlDoc) {
+    htmlDoc->SetDocWriteDisabled(PR_TRUE);
+  }
+
   nsCOMPtr<nsIContentViewer> contentViewer;
   mDocShell->GetContentViewer(getter_AddRefs(contentViewer));
   if (contentViewer) {
@@ -425,6 +429,10 @@ nsXMLContentSink::OnTransformDone(nsresult aResult,
     // Transform succeeded or it failed and we have an error
     // document to display.
     mDocument = aResultDocument;
+    nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(mDocument);
+    if (htmlDoc) {
+      htmlDoc->SetDocWriteDisabled(PR_FALSE);
+    }
   }
 
   originalDocument->ScriptLoader()->RemoveObserver(this);
@@ -433,13 +441,13 @@ nsXMLContentSink::OnTransformDone(nsresult aResult,
   // into the document.  
   // XXX do we need to notify for things like PIs?  Or just the
   // documentElement?
-  nsIContent *rootContent = mDocument->GetRootContent();
-  if (rootContent) {
-    NS_ASSERTION(mDocument->IndexOf(rootContent) != -1,
-                 "rootContent not in doc?");
+  nsIContent *rootElement = mDocument->GetRootElement();
+  if (rootElement) {
+    NS_ASSERTION(mDocument->IndexOf(rootElement) != -1,
+                 "rootElement not in doc?");
     mDocument->BeginUpdate(UPDATE_CONTENT_MODEL);
-    nsNodeUtils::ContentInserted(mDocument, rootContent,
-                                 mDocument->IndexOf(rootContent));
+    nsNodeUtils::ContentInserted(mDocument, rootElement,
+                                 mDocument->IndexOf(rootElement));
     mDocument->EndUpdate(UPDATE_CONTENT_MODEL);
   }
   
@@ -454,7 +462,7 @@ nsXMLContentSink::OnTransformDone(nsresult aResult,
 }
 
 NS_IMETHODIMP
-nsXMLContentSink::StyleSheetLoaded(nsICSSStyleSheet* aSheet,
+nsXMLContentSink::StyleSheetLoaded(nsCSSStyleSheet* aSheet,
                                    PRBool aWasAlternate,
                                    nsresult aStatus)
 {
@@ -515,9 +523,6 @@ nsXMLContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
     ) {
     nsCOMPtr<nsIScriptElement> sele = do_QueryInterface(content);
     sele->SetScriptLineNumber(aLineNumber);
-    if (aNodeInfo->Equals(nsGkAtoms::script, kNameSpaceID_SVG)) {
-      sele->WillCallDoneAddingChildren();
-    }
     mConstrainSize = PR_FALSE;
   }
 
@@ -627,13 +632,7 @@ nsXMLContentSink::CloseElement(nsIContent* aContent)
     return rv;
   }
   
-  if (nodeInfo->Equals(nsGkAtoms::base, kNameSpaceID_XHTML) &&
-      !mHasProcessedBase) {
-    // The first base wins
-    ProcessBASETag(aContent);
-    mHasProcessedBase = PR_TRUE;
-  }
-  else if (nodeInfo->Equals(nsGkAtoms::meta, kNameSpaceID_XHTML) &&
+  if (nodeInfo->Equals(nsGkAtoms::meta, kNameSpaceID_XHTML) &&
            // Need to check here to make sure this meta tag does not set
            // mPrettyPrintXML to false when we have a special root!
            (!mPrettyPrintXML || !mPrettyPrintHasSpecialRoot)) {
@@ -739,9 +738,9 @@ nsXMLContentSink::ProcessStyleLink(nsIContent* aElement,
     return NS_OK; // Do not load stylesheets when loading as data
 
   NS_ConvertUTF16toUTF8 type(aType);
-  if (type.EqualsIgnoreCase(kXSLType) ||
-      type.EqualsIgnoreCase(kXMLTextContentType) ||
-      type.EqualsIgnoreCase(kXMLApplicationContentType)) {
+  if (type.EqualsIgnoreCase(TEXT_XSL) ||
+      type.EqualsIgnoreCase(TEXT_XML) ||
+      type.EqualsIgnoreCase(APPLICATION_XML)) {
     if (aAlternate) {
       // don't load alternate XSLT
       return NS_OK;
@@ -751,7 +750,8 @@ nsXMLContentSink::ProcessStyleLink(nsIContent* aElement,
       return NS_OK;
 
     nsCOMPtr<nsIURI> url;
-    rv = NS_NewURI(getter_AddRefs(url), aHref, nsnull, mDocumentBaseURI);
+    rv = NS_NewURI(getter_AddRefs(url), aHref, nsnull,
+                   mDocument->GetDocBaseURI());
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Do security check
@@ -791,32 +791,6 @@ nsXMLContentSink::ProcessStyleLink(nsIContent* aElement,
   
   return rv;
 }
-
-void
-nsXMLContentSink::ProcessBASETag(nsIContent* aContent)
-{
-  NS_ASSERTION(aContent, "missing base-element");
-
-  if (mDocument) {
-    nsAutoString value;
-  
-    if (aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::target, value)) {
-      mDocument->SetBaseTarget(value);
-    }
-
-    if (aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::href, value)) {
-      nsCOMPtr<nsIURI> baseURI;
-      nsresult rv = NS_NewURI(getter_AddRefs(baseURI), value);
-      if (NS_SUCCEEDED(rv)) {
-        rv = mDocument->SetBaseURI(baseURI); // The document checks if it is legal to set this base
-        if (NS_SUCCEEDED(rv)) {
-          mDocumentBaseURI = mDocument->GetBaseURI();
-        }
-      }
-    }
-  }
-}
-
 
 NS_IMETHODIMP 
 nsXMLContentSink::SetDocumentCharset(nsACString& aCharset)
@@ -980,7 +954,6 @@ nsXMLContentSink::SetDocElement(PRInt32 aNameSpaceID,
     if (mPrettyPrintXML) {
       // In this case, disable script execution, stylesheet
       // loading, and auto XLinks since we plan to prettyprint.
-      mAllowAutoXLinks = PR_FALSE;
       mDocument->ScriptLoader()->SetEnabled(PR_FALSE);
       if (mCSSLoader) {
         mCSSLoader->SetEnabled(PR_FALSE);
@@ -990,7 +963,7 @@ nsXMLContentSink::SetDocElement(PRInt32 aNameSpaceID,
 
   mDocElement = aContent;
   NS_ADDREF(mDocElement);
-  nsresult rv = mDocument->AppendChildTo(mDocElement, PR_TRUE);
+  nsresult rv = mDocument->AppendChildTo(mDocElement, NotifyForDocElement());
   if (NS_FAILED(rv)) {
     // If we return PR_FALSE here, the caller will bail out because it won't
     // find a parent content node to append to, which is fine.
@@ -1284,9 +1257,9 @@ nsXMLContentSink::HandleDoctypeDecl(const nsAString & aSubset,
     // exit codes, error are not fatal here, just that the stylesheet won't apply
     nsCOMPtr<nsIURI> uri(do_QueryInterface(aCatalogData));
     if (uri) {
-      nsCOMPtr<nsICSSStyleSheet> sheet;
+      nsRefPtr<nsCSSStyleSheet> sheet;
       mCSSLoader->LoadSheetSync(uri, PR_TRUE, PR_TRUE, getter_AddRefs(sheet));
-      
+
 #ifdef NS_DEBUG
       nsCAutoString uriStr;
       uri->GetSpec(uriStr);
@@ -1537,17 +1510,6 @@ nsXMLContentSink::AddAttributes(const PRUnichar** aAtts,
     aContent->SetAttr(nameSpaceID, localName, prefix,
                       nsDependentString(aAtts[1]), PR_FALSE);
     aAtts += 2;
-  }
-
-  // Give autoloading links a chance to fire
-  if (mDocShell && mAllowAutoXLinks) {
-    nsresult rv = aContent->MaybeTriggerAutoLink(mDocShell);
-    if (rv == NS_XML_AUTOLINK_REPLACE ||
-        rv == NS_XML_AUTOLINK_UNDEFINED) {
-      // If we do not terminate the parse, we just keep generating link trigger
-      // events. We want to parse only up to the first replace link, and stop.
-      mParser->Terminate();
-    }
   }
 
   return NS_OK;

@@ -92,6 +92,7 @@ static NS_DEFINE_IID(kCDragServiceCID,  NS_DRAGSERVICE_CID);
 
 // Rollup Listener - static variable defintions
 static nsIRollupListener * gRollupListener           = nsnull;
+static nsIMenuRollup     * gMenuRollup               = nsnull;
 static nsIWidget         * gRollupWidget             = nsnull;
 static PRBool              gRollupConsumeRollupEvent = PR_FALSE;
 // Tracking last activated BWindow
@@ -173,6 +174,8 @@ void nsIMEBeOS::RunIME(uint32 *args, nsWindow *target, BView *fView)
 		break;
 
 	case B_INPUT_METHOD_LOCATION_REQUEST:
+// XXX NS_COMPOSITION_QUERY was dropped, use content query content events to get the caret rect.
+#if 0
 		if (fView && fView->LockLooper()) 
 		{
 			BPoint caret(imeCaret);
@@ -191,13 +194,16 @@ void nsIMEBeOS::RunIME(uint32 *args, nsWindow *target, BView *fView)
 			imeMessenger.SendMessage(&reply);
 			fView->UnlockLooper();
 		}
+#endif
 		break;
 
 	case B_INPUT_METHOD_STARTED:
 		imeTarget = target;
 		DispatchIME(NS_COMPOSITION_START);
+// XXX NS_COMPOSITION_QUERY was dropped, use content query content events to get the caret rect.
+#if 0
 		DispatchIME(NS_COMPOSITION_QUERY);
-
+#endif
 		msg.FindMessenger("be:reply_to", &imeMessenger);
 		break;
 	
@@ -256,12 +262,15 @@ void nsIMEBeOS::DispatchIME(PRUint32 what)
 	DispatchWindowEvent(&compEvent);
 	imeState = what;
 
+// XXX NS_COMPOSITION_QUERY was dropped, use content query content events to get the caret rect.
+#if 0
 	if (what == NS_COMPOSITION_QUERY) 
 	{
 		imeCaret.Set(compEvent.theReply.mCursorPosition.x,
 		           compEvent.theReply.mCursorPosition.y);
 		imeHeight = compEvent.theReply.mCursorPosition.height+4;
 	}
+#endif
 }
 
 PRBool nsIMEBeOS::DispatchWindowEvent(nsGUIEvent* event)
@@ -670,7 +679,7 @@ NS_METHOD nsWindow::Show(PRBool bState)
 	//and Show() checks. BeBook:
 	// If Hide() is called more than once, you'll need to call Show()
 	// an equal number of times for the window to become visible again.
-	if (bState == PR_FALSE)
+	if (!bState)
 	{
 		if (mView->Window() && !mView->Window()->IsHidden())
 			mView->Window()->Hide();
@@ -704,7 +713,10 @@ NS_METHOD nsWindow::CaptureMouse(PRBool aCapture)
 //-------------------------------------------------------------------------
 // Capture Roolup Events
 //-------------------------------------------------------------------------
-NS_METHOD nsWindow::CaptureRollupEvents(nsIRollupListener * aListener, PRBool aDoCapture, PRBool aConsumeRollupEvent)
+NS_METHOD nsWindow::CaptureRollupEvents(nsIRollupListener * aListener,
+                                        nsIMenuRollup * aMenuRollup,
+                                        PRBool aDoCapture,
+                                        PRBool aConsumeRollupEvent)
 {
 	if (!mEnabled)
 		return NS_OK;
@@ -716,16 +728,18 @@ NS_METHOD nsWindow::CaptureRollupEvents(nsIRollupListener * aListener, PRBool aD
 		// assure that remains true.
 		NS_ASSERTION(!gRollupWidget, "rollup widget reassigned before release");
 		gRollupConsumeRollupEvent = aConsumeRollupEvent;
-		NS_IF_RELEASE(gRollupListener);
 		NS_IF_RELEASE(gRollupWidget);
 		gRollupListener = aListener;
-		NS_ADDREF(aListener);
+		NS_IF_RELEASE(gMenuRollup);
+		gMenuRollup = aMenuRollup;
+		NS_IF_ADDREF(aMenuRollup);
 		gRollupWidget = this;
 		NS_ADDREF(this);
 	} 
 	else 
 	{
-		NS_IF_RELEASE(gRollupListener);
+		gRollupListener == nsnull;
+    NS_IF_RELEASE(gMenuRollup);
 		NS_IF_RELEASE(gRollupWidget);
 	}
 
@@ -775,11 +789,10 @@ nsWindow::DealWithPopups(uint32 methodID, nsPoint pos)
 		// want to rollup if the click is in a parent menu of the current submenu.
 		if (rollup) 
 		{
-			nsCOMPtr<nsIMenuRollup> menuRollup ( do_QueryInterface(gRollupListener) );
-			if ( menuRollup ) 
+			if ( gMenuRollup ) 
 			{
 				nsAutoTArray<nsIWidget*, 5> widgetChain;
-				menuRollup->GetSubmenuWidgetChain(&widgetChain);
+				gMenuRollup->GetSubmenuWidgetChain(&widgetChain);
 
 				for ( PRUint32 i = 0; i < widgetChain.Length(); ++i ) 
 				{
@@ -912,6 +925,9 @@ void nsWindow::HideKids(PRBool state)
 //-------------------------------------------------------------------------
 nsresult nsWindow::Move(PRInt32 aX, PRInt32 aY)
 {
+	if (mWindowType == eWindowType_toplevel || mWindowType == eWindowType_dialog)
+		SetSizeMode(nsSizeMode_Normal);
+
 	// Only perform this check for non-popup windows, since the positioning can
 	// in fact change even when the x/y do not.  We always need to perform the
 	// check. See bug #97805 for details.
@@ -1078,7 +1094,7 @@ NS_METHOD nsWindow::SetFocus(PRBool aRaise)
 	if (mView && mView->LockLooper())
 	{
 		if (mView->Window() && 
-		    aRaise == PR_TRUE &&
+		    aRaise &&
 		    eWindowType_popup != mWindowType && 
 			  !mView->Window()->IsActive() && 
 			  gLastActiveWindow != mView->Window())

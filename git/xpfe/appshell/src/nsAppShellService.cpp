@@ -75,6 +75,7 @@
 #include "nsIPlatformCharset.h"
 #include "nsICharsetConverterManager.h"
 #include "nsIUnicodeDecoder.h"
+#include "nsIChromeRegistry.h"
 
 // Default URL for the hidden window, can be overridden by a pref on Mac
 #define DEFAULT_HIDDENWINDOW_URL "resource://gre-resources/hiddenWindow.html"
@@ -82,6 +83,7 @@
 class nsIAppShell;
 
 nsAppShellService::nsAppShellService() : 
+  mXPCOMWillShutDown(PR_FALSE),
   mXPCOMShuttingDown(PR_FALSE),
   mModalWindowCount(0),
   mApplicationProvidedHiddenWindow(PR_FALSE)
@@ -89,8 +91,10 @@ nsAppShellService::nsAppShellService() :
   nsCOMPtr<nsIObserverService> obs
     (do_GetService("@mozilla.org/observer-service;1"));
 
-  if (obs)
+  if (obs) {
+    obs->AddObserver(this, "xpcom-will-shutdown", PR_FALSE);
     obs->AddObserver(this, "xpcom-shutdown", PR_FALSE);
+  }
 }
 
 nsAppShellService::~nsAppShellService()
@@ -297,6 +301,7 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
                                        nsWebShellWindow **aResult)
 {
   *aResult = nsnull;
+  NS_ENSURE_STATE(!mXPCOMWillShutDown);
 
   nsCOMPtr<nsIXULWindow> parent;
   if (aChromeMask & nsIWebBrowserChrome::CHROME_DEPENDENT)
@@ -369,6 +374,16 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
   }
 
   PRBool center = aChromeMask & nsIWebBrowserChrome::CHROME_CENTER_SCREEN;
+
+  nsCOMPtr<nsIXULChromeRegistry> reg =
+    mozilla::services::GetXULChromeRegistryService();
+  if (reg) {
+    nsCAutoString package;
+    package.AssignLiteral("global");
+    PRBool isRTL = PR_FALSE;
+    reg->IsLocaleRTL(package, &isRTL);
+    widgetInitData.mRTL = isRTL;
+  }
 
   nsresult rv = window->Initialize(parent, center ? aParent : nsnull,
                                    aAppShell, aUrl,
@@ -562,12 +577,16 @@ NS_IMETHODIMP
 nsAppShellService::Observe(nsISupports* aSubject, const char *aTopic,
                            const PRUnichar *aData)
 {
-  NS_ASSERTION(!strcmp(aTopic, "xpcom-shutdown"), "Unexpected observer topic!");
-
-  mXPCOMShuttingDown = PR_TRUE;
-  if (mHiddenWindow) {
-    ClearXPConnectSafeContext();
-    mHiddenWindow->Destroy();
+  if (!strcmp(aTopic, "xpcom-will-shutdown")) {
+    mXPCOMWillShutDown = PR_TRUE;
+  } else if (!strcmp(aTopic, "xpcom-shutdown")) {
+    mXPCOMShuttingDown = PR_TRUE;
+    if (mHiddenWindow) {
+      ClearXPConnectSafeContext();
+      mHiddenWindow->Destroy();
+    }
+  } else {
+    NS_ERROR("Unexpected observer topic!");
   }
 
   return NS_OK;

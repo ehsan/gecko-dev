@@ -104,6 +104,8 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLTableCellElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLTableCellElement, nsGenericElement) 
 
 
+DOMCI_DATA(HTMLTableCellElement, nsHTMLTableCellElement)
+
 // QueryInterface implementation for nsHTMLTableCellElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLTableCellElement)
   NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLTableCellElement,
@@ -314,7 +316,7 @@ nsHTMLTableCellElement::ParseAttribute(PRInt32 aNamespaceID,
       return aResult.ParseColor(aValue, GetOwnerDoc());
     }
     if (aAttribute == nsGkAtoms::scope) {
-      return aResult.ParseEnumValue(aValue, kCellScopeTable);
+      return aResult.ParseEnumValue(aValue, kCellScopeTable, PR_FALSE);
     }
     if (aAttribute == nsGkAtoms::valign) {
       return ParseTableVAlignValue(aValue, aResult);
@@ -371,7 +373,15 @@ void MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
     if (aData->mTextData->mWhiteSpace.GetUnit() == eCSSUnit_Null) {
       // nowrap: enum
       if (aAttributes->GetAttr(nsGkAtoms::nowrap)) {
-        aData->mTextData->mWhiteSpace.SetIntValue(NS_STYLE_WHITESPACE_NOWRAP, eCSSUnit_Enumerated);
+        // See if our width is not a nonzero integer width.
+        const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::width);
+        nsCompatibility mode = aData->mPresContext->CompatibilityMode();
+        if (!value || value->Type() != nsAttrValue::eInteger ||
+            value->GetIntegerValue() == 0 ||
+            eCompatibility_NavQuirks != mode) {
+          aData->mTextData->mWhiteSpace.SetIntValue(NS_STYLE_WHITESPACE_NOWRAP, eCSSUnit_Enumerated);
+        }
+        
       }
     }
   }

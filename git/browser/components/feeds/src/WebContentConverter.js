@@ -401,6 +401,18 @@ WebContentConverterRegistrar.prototype = {
   registerProtocolHandler: 
   function WCCR_registerProtocolHandler(aProtocol, aURIString, aTitle, aContentWindow) {
     LOG("registerProtocolHandler(" + aProtocol + "," + aURIString + "," + aTitle + ")");
+
+    if (Cc["@mozilla.org/privatebrowsing;1"].
+        getService(Ci.nsIPrivateBrowsingService).
+        privateBrowsingEnabled) {
+      // Inside the private browsing mode, we don't want to alert the user to save
+      // a protocol handler.  We log it to the error console so that web developers
+      // would have some way to tell what's going wrong.
+      Cc["@mozilla.org/consoleservice;1"].
+      getService(Ci.nsIConsoleService).
+      logStringMessage("Web page denied access to register a protocol handler inside private browsing mode");
+      return;
+    }
     
     // First, check to make sure this isn't already handled internally (we don't
     // want to let them take over, say "chrome").
@@ -806,7 +818,7 @@ WebContentConverterRegistrar.prototype = {
      * branch and stop cycling once that's true.  This doesn't fix the case
      * where a user manually removes a reader, but that's not supported yet!
      */
-    var vals = branch.getChildList("", {});
+    var vals = branch.getChildList("");
     if (vals.length == 0)
       return;
 
@@ -832,7 +844,7 @@ WebContentConverterRegistrar.prototype = {
         getService(Ci.nsIPrefService);
 
     var kids = ps.getBranch(PREF_CONTENTHANDLERS_BRANCH)
-                 .getChildList("", {});
+                 .getChildList("");
 
     // first get the numbers of the providers by getting all ###.uri prefs
     var nums = [];
@@ -857,7 +869,7 @@ WebContentConverterRegistrar.prototype = {
     // so that getWebContentHandlerByURI can return successfully.
     try {
       var autoBranch = ps.getBranch(PREF_CONTENTHANDLERS_AUTO);
-      var childPrefs = autoBranch.getChildList("", { });
+      var childPrefs = autoBranch.getChildList("");
       for (var i = 0; i < childPrefs.length; ++i) {
         var type = childPrefs[i];
         var uri = autoBranch.getCharPref(type);

@@ -14,7 +14,7 @@
  *
  * The Original Code is mozila.org code.
  *
- * The Initial Developer of the Original Code is Mozilla Corporation
+ * The Initial Developer of the Original Code is Mozilla Foundation
  * Portions created by the Initial Developer are Copyright (C) 2008
  * the Initial Developer. All Rights Reserved.
  *
@@ -43,6 +43,7 @@
 #include "nsIContent.h"
 
 #define FOCUSMETHOD_MASK 0xF000
+#define FOCUSMETHODANDRING_MASK 0xF0F000
 
 #define FOCUSMANAGER_CONTRACTID "@mozilla.org/focus-manager;1"
 
@@ -81,6 +82,11 @@ public:
    * pointer filled in to an out-parameter).
    */
   nsIContent* GetFocusedContent() { return mFocusedContent; }
+
+  /**
+   * Called when content has been removed.
+   */
+  nsresult ContentRemoved(nsIDocument* aDocument, nsIContent* aContent);
 
   /**
    * Returns the content node that would be focused if aWindow was in an
@@ -150,12 +156,21 @@ protected:
    * the active top-level window and navigate down the currently focused
    * elements for each frame in the tree to get to aNewWindow.
    */
-  void AdjustWindowFocus(nsPIDOMWindow* aNewWindow);
+  void AdjustWindowFocus(nsPIDOMWindow* aNewWindow, PRBool aCheckPermission);
 
   /**
    * Returns true if aWindow is visible.
    */
   PRBool IsWindowVisible(nsPIDOMWindow* aWindow);
+
+  /**
+   * Returns true if aContent is a root element and not focusable.
+   * I.e., even if aContent is editable root element, this returns true when
+   * the document is in designMode.
+   *
+   * @param aContent must not be null and must be in a document.
+   */
+  PRBool IsNonFocusableRoot(nsIContent* aContent);
 
   /**
    * Checks and returns aContent if it may be focused, another content node if
@@ -316,6 +331,9 @@ protected:
    * node, in the case of recursive or looping calls.
    *
    * aStartContent is the starting point for this call of this method.
+   * If aStartContent doesn't have visual representation, the next content
+   * object, which does have a primary frame, will be used as a start.
+   * If that content object is focusable, the method may return it.
    *
    * aForward should be true for forward navigation or false for backward
    * navigation.

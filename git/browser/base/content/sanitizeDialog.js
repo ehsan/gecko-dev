@@ -92,6 +92,8 @@ var gSanitizePromptDialog = {
     if (this.selectedTimespan === Sanitizer.TIMESPAN_EVERYTHING) {
       this.prepareWarning();
       this.warningBox.hidden = false;
+      document.title =
+        this.bundleBrowser.getString("sanitizeDialog2.everything.title");
     }
     else
       this.warningBox.hidden = true;
@@ -159,7 +161,7 @@ var gSanitizePromptDialog = {
     // which does not include date and time.  See bug 480169 comment 48.
 
     var warningStringID;
-    if (this.hasCustomizedItemSelection()) {
+    if (this.hasNonSelectedItems()) {
       warningStringID = "sanitizeSelectedWarning";
       if (!aDontShowItemList)
         this.showItemList();
@@ -231,11 +233,11 @@ var gSanitizePromptDialog = {
   /**
    * Check if all of the history items have been selected like the default status.
    */
-  hasCustomizedItemSelection: function () {
+  hasNonSelectedItems: function () {
     let checkboxes = document.querySelectorAll("#itemList > [preference]");
     for (let i = 0; i < checkboxes.length; ++i) {
       let pref = document.getElementById(checkboxes[i].getAttribute("preference"));
-      if (pref.value != pref.defaultValue)
+      if (!pref.value)
         return true;
     }
     return false;
@@ -420,7 +422,7 @@ var gSanitizePromptDialog = {
 
     var view = gContiguousSelectionTreeHelper.setTree(this.placesTree,
                                                       new PlacesTreeView());
-    result.viewer = view;
+    result.addObserver(view, false);
     this.initDurationDropdown();
   },
 
@@ -527,8 +529,8 @@ var gSanitizePromptDialog = {
    */
   unload: function ()
   {
-    var view = this.placesTree.view;
-    view.QueryInterface(Ci.nsINavHistoryResultViewer).result.viewer = null;
+    let result = this.placesTree.getResult();
+    result.removeObserver(this.placesTree.view);
     this.placesTree.view = null;
   },
 

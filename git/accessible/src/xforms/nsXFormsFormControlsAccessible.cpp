@@ -38,6 +38,8 @@
 
 #include "nsXFormsFormControlsAccessible.h"
 
+#include "nsTextEquivUtils.h"
+
 // nsXFormsLabelAccessible
 
 nsXFormsLabelAccessible::
@@ -130,10 +132,11 @@ nsXFormsTriggerAccessible::GetActionName(PRUint8 aIndex, nsAString& aName)
 NS_IMETHODIMP
 nsXFormsTriggerAccessible::DoAction(PRUint8 aIndex)
 {
-  if (aIndex == eAction_Click)
-    return DoCommand();
+  if (aIndex != eAction_Click)
+    return NS_ERROR_INVALID_ARG;
 
-  return NS_ERROR_INVALID_ARG;
+  DoCommand();
+  return NS_OK;
 }
 
 // nsXFormsInputAccessible
@@ -246,7 +249,8 @@ nsXFormsInputBooleanAccessible::DoAction(PRUint8 aIndex)
   if (aIndex != eAction_Click)
     return NS_ERROR_INVALID_ARG;
 
-  return DoCommand();
+  DoCommand();
+  return NS_OK;
 }
 
 // nsXFormsInputDateAccessible

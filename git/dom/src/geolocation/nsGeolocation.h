@@ -13,7 +13,7 @@
  *
  * The Original Code is Geolocation.
  *
- * The Initial Developer of the Original Code is Mozilla Corporation
+ * The Initial Developer of the Original Code is Mozilla Foundation
  * Portions created by the Initial Developer are Copyright (C) 2008
  * the Initial Developer. All Rights Reserved.
  *
@@ -175,7 +175,9 @@ public:
 
   NS_DECL_CYCLE_COLLECTION_CLASS(nsGeolocation)
 
-  nsGeolocation(nsIDOMWindow* contentDom);
+  nsGeolocation();
+
+  nsresult Init(nsIDOMWindow* contentDom=nsnull);
 
   // Called by the geolocation device to notify that a location has changed.
   void Update(nsIDOMGeoPosition* aPosition);
@@ -196,7 +198,7 @@ public:
   nsIWeakReference* GetOwner() { return mOwner; }
 
   // Check to see if the widnow still exists
-  PRBool OwnerStillExists();
+  PRBool WindowOwnerStillExists();
 
 private:
 

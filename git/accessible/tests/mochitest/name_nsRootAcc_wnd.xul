@@ -1,6 +1,12 @@
 <?xml version="1.0"?>
 <?xml-stylesheet href="chrome://global/skin" type="text/css"?>
-<?xml-stylesheet href="chrome://browser/content/browser.css" type="text/css"?>
+
+<!-- Firefox tabbrowser -->
+<?xml-stylesheet href="chrome://browser/content/browser.css"
+                 type="text/css"?>
+<!-- Seamonkey tabbrowser -->
+<?xml-stylesheet href="chrome://navigator/content/navigator.css"
+                 type="text/css"?>
 
 <window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
 
@@ -16,12 +22,17 @@
       gOpenerWnd.SimpleTest.is(aExpected, aActual, aMsg);
     }
 
-    // Hack to make xul:tabbrowser work.
+    // Hacks to make xul:tabbrowser work.
+    var handleDroppedLink = null; // needed for tabbrowser usage
+
+    Components.utils.import("resource://gre/modules/Services.jsm");
     var XULBrowserWindow = {
       isBusy: false,
       setOverLink: function (link, b) {
       }
-    }
+    };
+
+    gFindBarInitialized = false;
 
     ////////////////////////////////////////////////////////////////////////////
     // Invoker implementation.
@@ -29,14 +40,14 @@
     function switchTabSelectChecker(aInvoker)
     {
       this.type = "select";
-      this.target getter = function() { return aInvoker.getTabsElm(); }
+      Object.defineProperty(this, "target", { get: function() { return aInvoker.getTabsElm(); }});
       this.getID = function() { return "switch tab, select event"; }
     }
 
     function switchTabFocusChecker(aInvoker)
     {
       this.type = gOpenerWnd.EVENT_FOCUS;
-      this.target getter = function() { return aInvoker.getContentDoc(); }
+      Object.defineProperty(this, "target", { get: function() { return aInvoker.getContentDoc(); }});
       this.check = function(aEvent)
       {
         is(gOpenerWnd.getAccessible(document).name, "about:mozilla" + aEvent.accessible.name,
@@ -74,10 +85,10 @@
 
     const Ci = Components.interfaces;
 
-    function onload()
+    function doTest()
     {
       var tabBrowser = document.getElementById("content");
-      tabBrowser.loadURI("about:");
+      tabBrowser.loadURI("about:robots");
       tabBrowser.addTab("about:mozilla");
 
       gQueue = new gOpenerWnd.eventQueue();
@@ -85,6 +96,8 @@
       gQueue.onFinish = function() { window.close(); }
       gQueue.invoke();
     }
+
+    gOpenerWnd.addA11yLoadEvent(doTest);
   ]]>
   </script>
 
@@ -98,6 +111,15 @@
     </menu>
   </menubar>
 
-  <tabbrowser type="content-primary" flex="1" id="content"/>
+  <tabs id="tabbrowser-tabs" class="tabbrowser-tabs"
+        tabbrowser="content"
+        flex="1"
+        setfocus="false">
+    <tab class="tabbrowser-tab" selected="true"/>
+  </tabs>
+  <tabbrowser id="content"
+              type="content-primary"
+              tabcontainer="tabbrowser-tabs"
+              flex="1"/>
 
 </window>

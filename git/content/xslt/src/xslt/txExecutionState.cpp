@@ -99,10 +99,13 @@ txExecutionState::txExecutionState(txStylesheet* aStylesheet,
       mKeyHash(aStylesheet->getKeyMap()),
       mDisableLoads(aDisableLoads)
 {
+    MOZ_COUNT_CTOR(txExecutionState);
 }
 
 txExecutionState::~txExecutionState()
 {
+    MOZ_COUNT_DTOR(txExecutionState);
+
     delete mResultHandler;
     delete mLocalVariables;
     delete mEvalContext;
@@ -271,9 +274,9 @@ txExecutionState::getVariable(PRInt32 aNamespace, nsIAtom* aLName,
         txVariableMap* oldVars = mLocalVariables;
         mLocalVariables = nsnull;
         rv = var->mExpr->evaluate(getEvalContext(), &aResult);
-        NS_ENSURE_SUCCESS(rv, rv);
-
         mLocalVariables = oldVars;
+
+        NS_ENSURE_SUCCESS(rv, rv);
     }
     else {
         nsAutoPtr<txRtfHandler> rtfHandler(new txRtfHandler);
@@ -461,22 +464,19 @@ txExecutionState::retrieveDocument(const nsAString& aUri)
         return nsnull;
     }
 
-    if (!entry->mDocument) {
+    if (!entry->mDocument && !entry->LoadingFailed()) {
         // open URI
         nsAutoString errMsg;
         // XXX we should get the loader from the actual node
         // triggering the load, but this will do for the time being
-        nsresult rv;
-        rv = txParseDocumentFromURI(aUri, *mLoadedDocuments.mSourceDocument,
-                                    errMsg,
-                                    getter_Transfers(entry->mDocument));
+        entry->mLoadResult =
+            txParseDocumentFromURI(aUri, *mLoadedDocuments.mSourceDocument,
+                                   errMsg, getter_Transfers(entry->mDocument));
 
-        if (NS_FAILED(rv) || !entry->mDocument) {
-            mLoadedDocuments.RawRemoveEntry(entry);
+        if (entry->LoadingFailed()) {
             receiveError(NS_LITERAL_STRING("Couldn't load document '") +
-                         aUri + NS_LITERAL_STRING("': ") + errMsg, rv);
-
-            return nsnull;
+                         aUri + NS_LITERAL_STRING("': ") + errMsg,
+                         entry->mLoadResult);
         }
     }
 

@@ -4275,18 +4275,28 @@ function testInterpreterReentry2() {
     var b = {};
     var c = false;
     var d = {};
-    this.__defineGetter__('e', function(){});
-    for (let f in this) print(f);
-    [1 for each (g in this) for each (h in [])]
+    try {
+        this.__defineGetter__('e', function(){});
+        for (let f in this) print(f);
+        [1 for each (g in this) for each (h in [])]
+    }
+    catch(ex) {
+        print('testInterpreterReentry2: ' + ex);
+    }
     return 1;
 }
 testInterpreterReentry2.expected = 1;
 test(testInterpreterReentry2);
 
 function testInterpreterReentry3() {
-    for (let i=0;i<5;++i) this["y" + i] = function(){};
-    this.__defineGetter__('e', function (x2) { yield; });
-    [1 for each (a in this) for (b in {})];
+    try {
+        for (let i=0;i<5;++i) this["y" + i] = function(){};
+        this.__defineGetter__('e', function (x2) { yield; });
+        [1 for each (a in this) for (b in {})];
+    }
+    catch(ex) {
+        print('testInterpreterReentry3: ' + ex);
+    }
     return 1;
 }
 testInterpreterReentry3.expected = 1;
@@ -5280,20 +5290,22 @@ test(testConstructorBail);
 
 function testNewArrayCount()
 {
+  function count(a) { var n = 0; for (var p in a) n++; return n; }
   var a = [];
   for (var i = 0; i < 5; i++)
     a = [0];
-  assertEq(a.__count__, 1);
+  assertEq(count(a), 1);
   for (var i = 0; i < 5; i++)
     a = [0, , 2];
-  assertEq(a.__count__, 2);
+  assertEq(count(a), 2);
 }
 test(testNewArrayCount);
 
 function testNewArrayCount2() {
+    function count(a) { var n = 0; for (var p in a) n++; return n; }
     var x = 0;
     for (var i = 0; i < 10; ++i)
-        x = new Array(1,2,3).__count__;
+        x = count(new Array(1,2,3));
     return x;
 }
 testNewArrayCount2.expected = 3;

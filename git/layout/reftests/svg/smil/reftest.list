@@ -4,7 +4,6 @@
 #   - Stacking of additive=[sum|replace] animations
 #   - Stacking of additive animations, w/ "hybrid case of to-animation"
 #   - Repeating animations, w/ & w/out accumulate=sum
-#   - <set>
 #   - Interpolation between different units (e.g. font-size attr, 3em to 50px)
 #   - Correct behavior for em/ex font-size animations, when context changes
 #      (with change happening 1. when completed/frozen and 2. when animating)
@@ -17,6 +16,9 @@
 
 # animation sort-order tests
 include sort/reftest.list
+
+# set tests
+include set/reftest.list
 
 # style tests
 include style/reftest.list
@@ -42,6 +44,9 @@ include restart/reftest.list
 # pause tests
 include pause/reftest.list
 
+# syncbase tests
+include syncbase/reftest.list
+
 # General tests
 == anim-discrete-values-1.svg      anim-standard-ref.svg
 == anim-discrete-replace-sum-1.svg anim-standard-ref.svg
@@ -56,7 +61,7 @@ include pause/reftest.list
 fails == anim-fillcolor-1.svg      anim-standard-ref.svg # bug 436296
 == anim-fillopacity-1none.svg anim-standard-ref.svg
 == anim-fillopacity-1css.svg  anim-standard-ref.svg
-fails == anim-fillopacity-1xml.svg  anim-standard-ref.svg # bug 436276
+== anim-fillopacity-1xml.svg  anim-standard-ref.svg
 
 == anim-height-done-1a.svg anim-standard-ref.svg
 == anim-height-done-1b.svg anim-standard-ref.svg
@@ -67,6 +72,36 @@ fails == anim-fillopacity-1xml.svg  anim-standard-ref.svg # bug 436276
 == anim-height-interp-5.svg anim-height-interp-5-ref.svg
 == anim-height-interp-6.svg anim-height-interp-6-ref.svg
 
+# animate some <length> attributes:
+== anim-filter-primitive-size-01.svg lime.svg
+== anim-filter-size-01.svg lime.svg
+
+# animate some <number> attributes:
+== anim-feOffset-01.svg lime.svg
+== anim-offset-01.svg lime.svg
+== anim-pathLength-01.svg anim-pathLength-01-ref.svg
+
+# animate some <integer> attributes:
+== anim-feTurbulence-numOctaves-01.svg anim-feTurbulence-numOctaves-01-ref.svg
+
+# animate some <angle> attributes:
+== anim-marker-orient-01.svg lime.svg
+
+# animate some enumeration attributes:
+== anim-feComposite-operator-01.svg lime.svg
+== anim-filter-filterUnits-01.svg lime.svg
+
+# animate some boolean attributes:
+== anim-feConvolveMatrix-preserveAlpha-01.svg lime.svg
+
+# animate some viewBox attributes
+== anim-svg-viewBox-01.svg lime.svg
+== anim-svg-viewBox-02.svg lime.svg
+
+# animate some preserveAspectRatio attributes
+== anim-feImage-preserveAspectRatio-01.svg lime.svg
+== anim-svg-preserveAspectRatio-01.svg lime.svg
+
 == anim-remove-1.svg anim-standard-ref.svg
 == anim-remove-2.svg anim-standard-ref.svg
 == anim-remove-3.svg anim-standard-ref.svg
@@ -74,6 +109,8 @@ fails == anim-fillopacity-1xml.svg  anim-standard-ref.svg # bug 436276
 == anim-remove-5.svg anim-standard-ref.svg
 == anim-remove-6.svg anim-standard-ref.svg
 == anim-remove-7.svg anim-standard-ref.svg
+== anim-remove-8css.svg anim-standard-ref.svg
+== anim-remove-8xml.svg anim-standard-ref.svg
 == anim-retarget-1.svg anim-standard-ref.svg
 == anim-retarget-2.svg anim-standard-ref.svg
 == anim-retarget-3.svg anim-standard-ref.svg
@@ -84,7 +121,7 @@ fails == anim-fillopacity-1xml.svg  anim-standard-ref.svg # bug 436276
 == anim-retarget-8.svg anim-standard-ref.svg
 
 fails == anim-strokecolor-1.svg anim-standard-ref.svg # bug 436296
-fails == anim-strokewidth-1xml.svg anim-standard-ref.svg # bug 436267
+== anim-strokewidth-1xml.svg anim-standard-ref.svg
 
 == anim-targethref-1.svg anim-standard-ref.svg
 == anim-targethref-2.svg anim-standard-ref.svg
@@ -116,3 +153,25 @@ fails == anim-strokewidth-1xml.svg anim-standard-ref.svg # bug 436267
 == anim-y-interp-4.svg anim-y-interp-4-ref.svg
 == anim-y-interp-5.svg anim-y-interp-5-ref.svg
 == anim-y-interp-6.svg anim-y-interp-6-ref.svg
+
+== api-sanity-1.svg lime.svg
+
+== freeze-applied-late-1.svg anim-standard-ref.svg
+== freeze-applied-late-2.svg anim-standard-ref.svg
+== freeze-applied-late-3.svg anim-standard-ref.svg
+== freeze-applied-late-4.svg anim-standard-ref.svg
+
+== inactivate-with-active-unchanged-1.svg anim-standard-ref.svg
+== inactivate-with-active-unchanged-2.svg anim-standard-ref.svg
+
+# interaction between xml mapped attributes and their css equivalents
+== mapped-attr-vs-css-prop-1.svg lime.svg
+
+== smil-transitions-interaction-1a.svg lime.svg
+== smil-transitions-interaction-1b.svg lime.svg
+== smil-transitions-interaction-2a.svg lime.svg
+== smil-transitions-interaction-2b.svg lime.svg
+== smil-transitions-interaction-3a.svg lime.svg
+== smil-transitions-interaction-3b.svg lime.svg
+== smil-transitions-interaction-4a.svg lime.svg
+== smil-transitions-interaction-4b.svg lime.svg

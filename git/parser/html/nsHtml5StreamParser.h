@@ -49,11 +49,16 @@
 #include "nsHtml5UTF16Buffer.h"
 #include "nsIInputStream.h"
 #include "nsICharsetAlias.h"
+#include "mozilla/Mutex.h"
+#include "nsHtml5AtomTable.h"
+#include "nsHtml5Speculation.h"
+#include "nsITimer.h"
+#include "nsICharsetDetector.h"
 
 class nsHtml5Parser;
 
 #define NS_HTML5_STREAM_PARSER_READ_BUFFER_SIZE 1024
-#define NS_HTML5_STREAM_PARSER_SNIFFING_BUFFER_SIZE 512
+#define NS_HTML5_STREAM_PARSER_SNIFFING_BUFFER_SIZE 1024
 
 enum eBomState {
   /**
@@ -91,15 +96,28 @@ enum eBomState {
   BOM_SNIFFING_OVER = 5
 };
 
+enum eHtml5StreamState {
+  STREAM_NOT_STARTED = 0,
+  STREAM_BEING_READ = 1,
+  STREAM_ENDED = 2
+};
+
 class nsHtml5StreamParser : public nsIStreamListener,
                             public nsICharsetDetectionObserver {
+
+  friend class nsHtml5RequestStopper;
+  friend class nsHtml5DataAvailable;
+  friend class nsHtml5StreamParserContinuation;
+  friend class nsHtml5TimerKungFu;
+
   public:
     NS_DECL_AND_IMPL_ZEROING_OPERATOR_NEW
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
     NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsHtml5StreamParser, nsIStreamListener)
 
-    nsHtml5StreamParser(nsHtml5Tokenizer* aTokenizer,
-                        nsHtml5TreeOpExecutor* aExecutor,
+    static void InitializeStatics();
+
+    nsHtml5StreamParser(nsHtml5TreeOpExecutor* aExecutor,
                         nsHtml5Parser* aOwner);
                         
     virtual ~nsHtml5StreamParser();
@@ -116,6 +134,7 @@ class nsHtml5StreamParser : public nsIStreamListener,
     NS_IMETHOD Notify(const char* aCharset, nsDetectionConfident aConf);
 
     // EncodingDeclarationHandler
+    // http://hg.mozilla.org/projects/htmlparser/file/tip/src/nu/validator/htmlparser/common/EncodingDeclarationHandler.java
     /**
      * Tree builder uses this to report a late <meta charset>
      */
@@ -131,42 +150,91 @@ class nsHtml5StreamParser : public nsIStreamListener,
      *  @param   aCharsetSource the source of the charset
      */
     inline void SetDocumentCharset(const nsACString& aCharset, PRInt32 aSource) {
+      NS_PRECONDITION(mStreamState == STREAM_NOT_STARTED,
+                      "SetDocumentCharset called too late.");
+      NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
       mCharset = aCharset;
       mCharsetSource = aSource;
     }
     
     inline void SetObserver(nsIRequestObserver* aObserver) {
+      NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
       mObserver = aObserver;
     }
-    
+
     nsresult GetChannel(nsIChannel** aChannel);
 
-    inline void Block() {
-      mBlocked = PR_TRUE;
-    }
-    
-    inline void Unblock() {
-      mBlocked = PR_FALSE;
-    }
+    /**
+     * The owner parser must call this after script execution
+     * when no scripts are executing and the document.written 
+     * buffer has been exhausted.
+     */
+    void ContinueAfterScripts(nsHtml5Tokenizer* aTokenizer, 
+                              nsHtml5TreeBuilder* aTreeBuilder,
+                              PRBool aLastWasCR);
 
-    inline void Suspend() {
-      mSuspending = PR_TRUE;
-    }
+    /**
+     * Continues the stream parser if the charset switch failed.
+     */
+    void ContinueAfterFailedCharsetSwitch();
 
-    void ParseUntilSuspend();
-    
-    PRBool IsDone() {
-      return mDone;
+    void Terminate() {
+      mozilla::MutexAutoLock autoLock(mTerminatedMutex);
+      mTerminated = PR_TRUE;
     }
     
+    void DropTimer();
+
   private:
 
-    static NS_METHOD ParserWriteFunc(nsIInputStream* aInStream,
-                                     void* aHtml5StreamParser,
-                                     const char* aFromSegment,
-                                     PRUint32 aToOffset,
-                                     PRUint32 aCount,
-                                     PRUint32* aWriteCount);
+#ifdef DEBUG
+    PRBool IsParserThread() {
+      PRBool ret;
+      mThread->IsOnCurrentThread(&ret);
+      return ret;
+    }
+#endif
+
+    /**
+     * Marks the stream parser as interrupted. If you ever add calls to this
+     * method, be sure to review Uninterrupt usage very, very carefully to
+     * avoid having a previous in-flight runnable cancel your Interrupt()
+     * call on the other thread too soon.
+     */
+    void Interrupt() {
+      mozilla::MutexAutoLock autoLock(mTerminatedMutex);
+      mInterrupted = PR_TRUE;
+    }
+
+    void Uninterrupt() {
+      NS_ASSERTION(IsParserThread(), "Wrong thread!");
+      mTokenizerMutex.AssertCurrentThreadOwns();
+      // Not acquiring mTerminatedMutex because mTokenizerMutex is already
+      // held at this point and is already stronger.
+      mInterrupted = PR_FALSE;      
+    }
+
+    /**
+     * Flushes the tree ops from the tree builder and disarms the flush
+     * timer.
+     */
+    void FlushTreeOpsAndDisarmTimer();
+
+    void ParseAvailableData();
+    
+    void DoStopRequest();
+    
+    void DoDataAvailable(PRUint8* aBuffer, PRUint32 aLength);
+
+    PRBool IsTerminatedOrInterrupted() {
+      mozilla::MutexAutoLock autoLock(mTerminatedMutex);
+      return mTerminated || mInterrupted;
+    }
+
+    PRBool IsTerminated() {
+      mozilla::MutexAutoLock autoLock(mTerminatedMutex);
+      return mTerminated;
+    }
 
     /**
      * True when there is a Unicode decoder already
@@ -250,6 +318,17 @@ class nsHtml5StreamParser : public nsIStreamListener,
     nsresult SetupDecodingFromBom(const char* aCharsetName,
                                   const char* aDecoderCharsetName);
 
+    /**
+     * Callback for mFlushTimer.
+     */
+    static void TimerCallback(nsITimer* aTimer, void* aClosure);
+
+    /**
+     * Parser thread entry point for (maybe) flushing the ops and posting
+     * a flush runnable back on the main thread.
+     */
+    void TimerFlush();
+
     nsCOMPtr<nsIRequest>          mRequest;
     nsCOMPtr<nsIRequestObserver>  mObserver;
 
@@ -289,11 +368,16 @@ class nsHtml5StreamParser : public nsIStreamListener,
      */
     nsCString                     mCharset;
 
+    /**
+     * Whether reparse is forbidden
+     */
+    PRBool                        mReparseForbidden;
+
     // Portable parser objects
     /**
      * The first buffer in the pending UTF-16 buffer queue
      */
-    nsHtml5UTF16Buffer*           mFirstBuffer; // manually managed strong ref
+    nsRefPtr<nsHtml5UTF16Buffer>  mFirstBuffer;
 
     /**
      * The last buffer in the pending UTF-16 buffer queue
@@ -309,14 +393,28 @@ class nsHtml5StreamParser : public nsIStreamListener,
     /**
      * The HTML5 tree builder
      */
-    nsHtml5TreeBuilder*           mTreeBuilder;
+    nsAutoPtr<nsHtml5TreeBuilder> mTreeBuilder;
 
     /**
      * The HTML5 tokenizer
      */
-    nsHtml5Tokenizer*             mTokenizer;
+    nsAutoPtr<nsHtml5Tokenizer>   mTokenizer;
 
-    nsCOMPtr<nsHtml5Parser>       mOwner;
+    /**
+     * Makes sure the main thread can't mess the tokenizer state while it's
+     * tokenizing. This mutex also protects the current speculation.
+     */
+    mozilla::Mutex                mTokenizerMutex;
+
+    /**
+     * The scoped atom table
+     */
+    nsHtml5AtomTable              mAtomTable;
+
+    /**
+     * The owner parser.
+     */
+    nsRefPtr<nsHtml5Parser>       mOwner;
 
     /**
      * Whether the last character tokenized was a carriage return (for CRLF)
@@ -324,27 +422,79 @@ class nsHtml5StreamParser : public nsIStreamListener,
     PRBool                        mLastWasCR;
 
     /**
-     * The parser is blocking on a script
+     * For tracking stream life cycle
      */
-    PRBool                        mBlocked;
+    eHtml5StreamState             mStreamState;
+    
+    /**
+     * Whether we are speculating.
+     */
+    PRBool                        mSpeculating;
 
     /**
-     * The event loop will spin ASAP
+     * Whether the tokenizer has reached EOF. (Reset when stream rewinded.)
      */
-    PRBool                        mSuspending;
+    PRBool                        mAtEOF;
 
     /**
-     * Whether the stream parser is done
+     * The speculations. The mutex protects the nsTArray itself.
+     * To access the queue of current speculation, mTokenizerMutex must be 
+     * obtained.
+     * The current speculation is the last element
      */
-    PRBool                        mDone;
+    nsTArray<nsAutoPtr<nsHtml5Speculation> >  mSpeculations;
+    mozilla::Mutex                            mSpeculationMutex;
 
-#ifdef DEBUG
     /**
-     * For asserting stream life cycle
+     * True to terminate early; protected by mTerminatedMutex
      */
-    eStreamState                  mStreamListenerState;
-#endif
+    PRBool                        mTerminated;
+    PRBool                        mInterrupted;
+    mozilla::Mutex                mTerminatedMutex;
+    
+    /**
+     * The thread this stream parser runs on.
+     */
+    nsCOMPtr<nsIThread>           mThread;
+    
+    nsCOMPtr<nsIRunnable>         mExecutorFlusher;
+    
+    nsCOMPtr<nsIRunnable>         mLoadFlusher;
 
+    /**
+     * The chardet instance if chardet is enabled.
+     */
+    nsCOMPtr<nsICharsetDetector>  mChardet;
+
+    /**
+     * Timer for flushing tree ops once in a while when not speculating.
+     */
+    nsCOMPtr<nsITimer>            mFlushTimer;
+
+    /**
+     * Keeps track whether mFlushTimer has been armed. Unfortunately,
+     * nsITimer doesn't enable querying this from the timer itself.
+     */
+    PRBool                        mFlushTimerArmed;
+
+    /**
+     * False initially and true after the timer has fired at least once.
+     */
+    PRBool                        mFlushTimerEverFired;
+
+    /**
+     * The pref html5.flushtimer.initialdelay: Time in milliseconds between
+     * the time a network buffer is seen and the timer firing when the
+     * timer hasn't fired previously in this parse.
+     */
+    static PRInt32                sTimerInitialDelay;
+
+    /**
+     * The pref html5.flushtimer.subsequentdelay: Time in milliseconds between
+     * the time a network buffer is seen and the timer firing when the
+     * timer has already fired previously in this parse.
+     */
+    static PRInt32                sTimerSubsequentDelay;
 };
 
 #endif // nsHtml5StreamParser_h__

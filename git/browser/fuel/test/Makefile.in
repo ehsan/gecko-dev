@@ -13,7 +13,7 @@
 #
 # The Original Code is FUEL.
 #
-# The Initial Developer of the Original Code is Mozilla Corporation.
+# The Initial Developer of the Original Code is Mozilla Foundation.
 # Portions created by the Initial Developer are Copyright (C) 2006
 # the Initial Developer. All Rights Reserved.
 #
@@ -50,7 +50,6 @@ _BROWSER_FILES =browser_Application.js \
 		browser_ApplicationQuitting.js \
 		browser_Bookmarks.js \
 		browser_Browser.js \
-		browser_Extensions.js \
 		ContentA.html \
 		ContentB.html \
 		ContentWithFrames.html \

@@ -46,7 +46,7 @@
 #include "nsScriptLoader.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
-#include "nsICSSLoader.h"
+#include "nsCSSLoader.h"
 #include "nsStyleConsts.h"
 #include "nsStyleLinkElement.h"
 #include "nsINodeInfo.h"
@@ -95,7 +95,6 @@
 #include "nsNodeUtils.h"
 #include "nsIDOMNode.h"
 #include "nsThreadUtils.h"
-#include "nsPresShellIterator.h"
 #include "nsPIDOMWindow.h"
 #include "mozAutoDocUpdate.h"
 #include "nsIWebNavigation.h"
@@ -104,6 +103,7 @@
 #include "nsICacheEntryDescriptor.h"
 #include "nsGenericHTMLElement.h"
 #include "nsHTMLDNSPrefetch.h"
+#include "nsISupportsPrimitives.h"
 
 PRLogModuleInfo* gContentSinkLogModuleInfo;
 
@@ -191,15 +191,15 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 nsContentSink::nsContentSink()
 {
   // We have a zeroing operator new
-  NS_ASSERTION(mLayoutStarted == PR_FALSE, "What?");
-  NS_ASSERTION(mDynamicLowerValue == PR_FALSE, "What?");
-  NS_ASSERTION(mParsing == PR_FALSE, "What?");
+  NS_ASSERTION(!mLayoutStarted, "What?");
+  NS_ASSERTION(!mDynamicLowerValue, "What?");
+  NS_ASSERTION(!mParsing, "What?");
   NS_ASSERTION(mLastSampledUserEventTime == 0, "What?");
   NS_ASSERTION(mDeflectedCount == 0, "What?");
-  NS_ASSERTION(mDroppedTimer == PR_FALSE, "What?");
+  NS_ASSERTION(!mDroppedTimer, "What?");
   NS_ASSERTION(mInMonolithicContainer == 0, "What?");
   NS_ASSERTION(mInNotification == 0, "What?");
-  NS_ASSERTION(mDeferredLayoutStart == PR_FALSE, "What?");
+  NS_ASSERTION(!mDeferredLayoutStart, "What?");
 
 #ifdef NS_DEBUG
   if (!gContentSinkLogModuleInfo) {
@@ -215,6 +215,60 @@ nsContentSink::~nsContentSink()
     // been removed in DidBuildModel if everything worked right.
     mDocument->RemoveObserver(this);
   }
+}
+
+PRBool  nsContentSink::sNotifyOnTimer;
+PRInt32 nsContentSink::sBackoffCount;
+PRInt32 nsContentSink::sNotificationInterval;
+PRInt32 nsContentSink::sInteractiveDeflectCount;
+PRInt32 nsContentSink::sPerfDeflectCount;
+PRInt32 nsContentSink::sPendingEventMode;
+PRInt32 nsContentSink::sEventProbeRate;
+PRInt32 nsContentSink::sInteractiveParseTime;
+PRInt32 nsContentSink::sPerfParseTime;
+PRInt32 nsContentSink::sInteractiveTime;
+PRInt32 nsContentSink::sInitialPerfTime;
+PRInt32 nsContentSink::sEnablePerfMode;
+PRBool  nsContentSink::sCanInterruptParser;
+
+void
+nsContentSink::InitializeStatics()
+{
+  nsContentUtils::AddBoolPrefVarCache("content.notify.ontimer",
+                                      &sNotifyOnTimer, PR_TRUE);
+  // -1 means never.
+  nsContentUtils::AddIntPrefVarCache("content.notify.backoffcount",
+                                     &sBackoffCount, -1);
+  // The gNotificationInterval has a dramatic effect on how long it
+  // takes to initially display content for slow connections.
+  // The current value provides good
+  // incremental display of content without causing an increase
+  // in page load time. If this value is set below 1/10 of second
+  // it starts to impact page load performance.
+  // see bugzilla bug 72138 for more info.
+  nsContentUtils::AddIntPrefVarCache("content.notify.interval",
+                                     &sNotificationInterval,
+                                     120000);
+  nsContentUtils::AddIntPrefVarCache("content.sink.interactive_deflect_count",
+                                     &sInteractiveDeflectCount, 0);
+  nsContentUtils::AddIntPrefVarCache("content.sink.perf_deflect_count",
+                                     &sPerfDeflectCount, 200);
+  nsContentUtils::AddIntPrefVarCache("content.sink.pending_event_mode",
+                                     &sPendingEventMode, 1);
+  nsContentUtils::AddIntPrefVarCache("content.sink.event_probe_rate",
+                                     &sEventProbeRate, 1);
+  nsContentUtils::AddIntPrefVarCache("content.sink.interactive_parse_time",
+                                     &sInteractiveParseTime, 3000);
+  nsContentUtils::AddIntPrefVarCache("content.sink.perf_parse_time",
+                                     &sPerfParseTime, 360000);
+  nsContentUtils::AddIntPrefVarCache("content.sink.interactive_time",
+                                     &sInteractiveTime, 750000);
+  nsContentUtils::AddIntPrefVarCache("content.sink.initial_perf_time",
+                                     &sInitialPerfTime, 2000000);
+  nsContentUtils::AddIntPrefVarCache("content.sink.enable_perf_mode",
+                                     &sEnablePerfMode, 0);
+  nsContentUtils::AddBoolPrefVarCache("content.interrupt.parsing",
+                                      &sCanInterruptParser, PR_TRUE);
 }
 
 nsresult
@@ -233,13 +287,12 @@ nsContentSink::Init(nsIDocument* aDoc,
   mDocument = aDoc;
 
   mDocumentURI = aURI;
-  mDocumentBaseURI = aURI;
   mDocShell = do_QueryInterface(aContainer);
   if (mDocShell) {
     PRUint32 loadType = 0;
     mDocShell->GetLoadType(&loadType);
-    mChangeScrollPosWhenScrollingToRef =
-      ((loadType & nsIDocShell::LOAD_CMD_HISTORY) == 0);
+    mDocument->SetChangeScrollPosWhenScrollingToRef(
+      (loadType & nsIDocShell::LOAD_CMD_HISTORY) == 0);
   }
 
   // use this to avoid a circular reference sink->document->scriptloader->sink
@@ -256,56 +309,21 @@ nsContentSink::Init(nsIDocument* aDoc,
 
   mNodeInfoManager = aDoc->NodeInfoManager();
 
-  mNotifyOnTimer =
-    nsContentUtils::GetBoolPref("content.notify.ontimer", PR_TRUE);
+  mBackoffCount = sBackoffCount;
 
-  // -1 means never
-  mBackoffCount =
-    nsContentUtils::GetIntPref("content.notify.backoffcount", -1);
-
-  // The mNotificationInterval has a dramatic effect on how long it
-  // takes to initially display content for slow connections.
-  // The current value provides good
-  // incremental display of content without causing an increase
-  // in page load time. If this value is set below 1/10 of second
-  // it starts to impact page load performance.
-  // see bugzilla bug 72138 for more info.
-  mNotificationInterval =
-    nsContentUtils::GetIntPref("content.notify.interval", 120000);
-
-  mInteractiveDeflectCount =
-    nsContentUtils::GetIntPref("content.sink.interactive_deflect_count", 0);
-  mPerfDeflectCount =
-    nsContentUtils::GetIntPref("content.sink.perf_deflect_count", 200);
-  mPendingEventMode =
-    nsContentUtils::GetIntPref("content.sink.pending_event_mode", 1);
-  mEventProbeRate =
-    nsContentUtils::GetIntPref("content.sink.event_probe_rate", 1);
-  mInteractiveParseTime =
-    nsContentUtils::GetIntPref("content.sink.interactive_parse_time", 3000);
-  mPerfParseTime =
-    nsContentUtils::GetIntPref("content.sink.perf_parse_time", 360000);
-  mInteractiveTime =
-    nsContentUtils::GetIntPref("content.sink.interactive_time", 750000);
-  mInitialPerfTime =
-    nsContentUtils::GetIntPref("content.sink.initial_perf_time", 2000000);
-  mEnablePerfMode =
-    nsContentUtils::GetIntPref("content.sink.enable_perf_mode", 0);
-
-  if (mEnablePerfMode != 0) {
-    mDynamicLowerValue = mEnablePerfMode == 1;
+  if (sEnablePerfMode != 0) {
+    mDynamicLowerValue = sEnablePerfMode == 1;
     FavorPerformanceHint(!mDynamicLowerValue, 0);
   }
 
-  mCanInterruptParser =
-    nsContentUtils::GetBoolPref("content.interrupt.parsing", PR_TRUE);
+  mCanInterruptParser = sCanInterruptParser;
 
   return NS_OK;
 
 }
 
 NS_IMETHODIMP
-nsContentSink::StyleSheetLoaded(nsICSSStyleSheet* aSheet,
+nsContentSink::StyleSheetLoaded(nsCSSStyleSheet* aSheet,
                                 PRBool aWasAlternate,
                                 nsresult aStatus)
 {
@@ -360,6 +378,9 @@ nsContentSink::ScriptAvailable(nsresult aResult,
     return NS_OK;
   }
 
+  NS_ASSERTION(!aElement->GetScriptDeferred(), "defer script was in mScriptElements");
+  NS_ASSERTION(!aElement->GetScriptAsync(), "async script was in mScriptElements");
+
   if (mParser && !mParser->IsParserEnabled()) {
     // make sure to unblock the parser before evaluating the script,
     // we must unblock the parser even if loading the script failed or
@@ -394,13 +415,16 @@ nsContentSink::ScriptEvaluated(nsresult aResult,
                                nsIScriptElement *aElement,
                                PRBool aIsInline)
 {
-  mDeflectedCount = mPerfDeflectCount;
+  mDeflectedCount = sPerfDeflectCount;
 
   // Check if this is the element we were waiting for
   PRInt32 count = mScriptElements.Count();
   if (count == 0 || aElement != mScriptElements[count - 1]) {
     return NS_OK;
   }
+
+  NS_ASSERTION(!aElement->GetScriptDeferred(), "defer script was in mScriptElements");
+  NS_ASSERTION(!aElement->GetScriptAsync(), "async script was in mScriptElements");
 
   // Pop the script element stack
   mScriptElements.RemoveObjectAt(count - 1); 
@@ -440,8 +464,8 @@ nsContentSink::ProcessHTTPHeaders(nsIChannel* aChannel)
                  "Already dispatched an event?");
 
     mProcessLinkHeaderEvent =
-      new nsNonOwningRunnableMethod<nsContentSink>(this,
-                                           &nsContentSink::DoProcessLinkHeader);
+      NS_NewNonOwningRunnableMethod(this,
+        &nsContentSink::DoProcessLinkHeader);
     rv = NS_DispatchToCurrentThread(mProcessLinkHeaderEvent.get());
     if (NS_FAILED(rv)) {
       mProcessLinkHeaderEvent.Forget();
@@ -527,11 +551,9 @@ nsContentSink::ProcessHeaderData(nsIAtom* aHeader, const nsAString& aValue,
     if (NS_SUCCEEDED(mParser->GetChannel(getter_AddRefs(channel)))) {
       nsCOMPtr<nsIHttpChannel> httpChannel(do_QueryInterface(channel));
       if (httpChannel) {
-        const char* header;
-        (void)aHeader->GetUTF8String(&header);
-        (void)httpChannel->SetResponseHeader(nsDependentCString(header),
-                                             NS_ConvertUTF16toUTF8(aValue),
-                                             PR_TRUE);
+        httpChannel->SetResponseHeader(nsAtomCString(aHeader),
+                                       NS_ConvertUTF16toUTF8(aValue),
+                                       PR_TRUE);
       }
     }
   }
@@ -778,7 +800,8 @@ nsContentSink::ProcessStyleLink(nsIContent* aElement,
   }
 
   nsCOMPtr<nsIURI> url;
-  nsresult rv = NS_NewURI(getter_AddRefs(url), aHref, nsnull, mDocumentBaseURI);
+  nsresult rv = NS_NewURI(getter_AddRefs(url), aHref, nsnull,
+                          mDocument->GetDocBaseURI());
   
   if (NS_FAILED(rv)) {
     // The URI is bad, move along, don't propagate the error (for now)
@@ -887,7 +910,7 @@ nsContentSink::PrefetchHref(const nsAString &aHref,
     nsCOMPtr<nsIURI> uri;
     NS_NewURI(getter_AddRefs(uri), aHref,
               charset.IsEmpty() ? nsnull : PromiseFlatCString(charset).get(),
-              mDocumentBaseURI);
+              mDocument->GetDocBaseURI());
     if (uri) {
       nsCOMPtr<nsIDOMNode> domNode = do_QueryInterface(aSource);
       prefetchService->PrefetchURI(uri, mDocumentURI, domNode, aExplicit);
@@ -928,14 +951,15 @@ nsContentSink::GetChannelCacheKey(nsIChannel* aChannel, nsACString& aCacheKey)
   nsCOMPtr<nsICachingChannel> cachingChannel = do_QueryInterface(aChannel, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsISupports> token;
-  rv = cachingChannel->GetCacheToken(getter_AddRefs(token));
+  nsCOMPtr<nsISupports> cacheKey;
+  rv = cachingChannel->GetCacheKey(getter_AddRefs(cacheKey));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsICacheEntryDescriptor> descriptor = do_QueryInterface(token, &rv);
+  nsCOMPtr<nsISupportsCString> cacheKeyString = 
+        do_QueryInterface(cacheKey, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = descriptor->GetKey(aCacheKey);
+  rv = cacheKeyString->GetData(aCacheKey);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
@@ -1072,7 +1096,7 @@ void
 nsContentSink::ProcessOfflineManifest(nsIContent *aElement)
 {
   // Only check the manifest for root document nodes.
-  if (aElement != mDocument->GetRootContent()) {
+  if (aElement != mDocument->GetRootElement()) {
     return;
   }
 
@@ -1082,11 +1106,22 @@ nsContentSink::ProcessOfflineManifest(nsIContent *aElement)
     return;
   }
 
-  nsresult rv;
-
   // Check for a manifest= attribute.
   nsAutoString manifestSpec;
   aElement->GetAttr(kNameSpaceID_None, nsGkAtoms::manifest, manifestSpec);
+  ProcessOfflineManifest(manifestSpec);
+}
+
+void
+nsContentSink::ProcessOfflineManifest(const nsAString& aManifestSpec)
+{
+  // Don't bother processing offline manifest for documents
+  // without a docshell
+  if (!mDocShell) {
+    return;
+  }
+
+  nsresult rv;
 
   // Grab the application cache the document was loaded from, if any.
   nsCOMPtr<nsIApplicationCache> applicationCache;
@@ -1110,7 +1145,7 @@ nsContentSink::ProcessOfflineManifest(nsIContent *aElement)
     }
   }
 
-  if (manifestSpec.IsEmpty() && !applicationCache) {
+  if (aManifestSpec.IsEmpty() && !applicationCache) {
     // Not loaded from an application cache, and no manifest
     // attribute.  Nothing to do here.
     return;
@@ -1119,12 +1154,12 @@ nsContentSink::ProcessOfflineManifest(nsIContent *aElement)
   CacheSelectionAction action = CACHE_SELECTION_NONE;
   nsCOMPtr<nsIURI> manifestURI;
 
-  if (manifestSpec.IsEmpty()) {
+  if (aManifestSpec.IsEmpty()) {
     action = CACHE_SELECTION_RESELECT_WITHOUT_MANIFEST;
   }
   else {
     nsContentUtils::NewURIWithDocumentCharset(getter_AddRefs(manifestURI),
-                                              manifestSpec, mDocument,
+                                              aManifestSpec, mDocument,
                                               mDocumentURI);
     if (!manifestURI) {
       return;
@@ -1200,78 +1235,7 @@ nsContentSink::ProcessOfflineManifest(nsIContent *aElement)
 void
 nsContentSink::ScrollToRef()
 {
-  if (mRef.IsEmpty()) {
-    return;
-  }
-
-  if (mScrolledToRefAlready) {
-    return;
-  }
-
-  char* tmpstr = ToNewCString(mRef);
-  if (!tmpstr) {
-    return;
-  }
-
-  nsUnescape(tmpstr);
-  nsCAutoString unescapedRef;
-  unescapedRef.Assign(tmpstr);
-  nsMemory::Free(tmpstr);
-
-  nsresult rv = NS_ERROR_FAILURE;
-  // We assume that the bytes are in UTF-8, as it says in the spec:
-  // http://www.w3.org/TR/html4/appendix/notes.html#h-B.2.1
-  NS_ConvertUTF8toUTF16 ref(unescapedRef);
-
-  nsPresShellIterator iter(mDocument);
-  nsCOMPtr<nsIPresShell> shell;
-  while ((shell = iter.GetNextShell())) {
-    // Check an empty string which might be caused by the UTF-8 conversion
-    if (!ref.IsEmpty()) {
-      // Note that GoToAnchor will handle flushing layout as needed.
-      rv = shell->GoToAnchor(ref, mChangeScrollPosWhenScrollingToRef);
-    } else {
-      rv = NS_ERROR_FAILURE;
-    }
-
-    // If UTF-8 URI failed then try to assume the string as a
-    // document's charset.
-
-    if (NS_FAILED(rv)) {
-      const nsACString &docCharset = mDocument->GetDocumentCharacterSet();
-
-      rv = nsContentUtils::ConvertStringFromCharset(docCharset, unescapedRef, ref);
-
-      if (NS_SUCCEEDED(rv) && !ref.IsEmpty())
-        rv = shell->GoToAnchor(ref, mChangeScrollPosWhenScrollingToRef);
-    }
-    if (NS_SUCCEEDED(rv)) {
-      mScrolledToRefAlready = PR_TRUE;
-    }
-  }
-}
-
-nsresult
-nsContentSink::RefreshIfEnabled(nsIViewManager* vm)
-{
-  if (!vm) {
-    // vm might be null if the shell got Destroy() called already
-    return NS_OK;
-  }
-
-  NS_ENSURE_TRUE(mDocShell, NS_ERROR_FAILURE);
-
-  nsCOMPtr<nsIContentViewer> contentViewer;
-  mDocShell->GetContentViewer(getter_AddRefs(contentViewer));
-  if (contentViewer) {
-    PRBool enabled;
-    contentViewer->GetEnableRendering(&enabled);
-    if (enabled) {
-      vm->EnableRefresh(NS_VMREFRESH_IMMEDIATE);
-    }
-  }
-
-  return NS_OK;
+  mDocument->ScrollToRef();
 }
 
 void
@@ -1303,59 +1267,25 @@ nsContentSink::StartLayout(PRBool aIgnorePendingSheets)
   mLastNotificationTime = PR_Now();
 
   mDocument->SetMayStartLayout(PR_TRUE);
-  nsPresShellIterator iter(mDocument);
-  nsCOMPtr<nsIPresShell> shell;
-  while ((shell = iter.GetNextShell())) {
-    // Make sure we don't call InitialReflow() for a shell that has
-    // already called it. This can happen when the layout frame for
-    // an iframe is constructed *between* the Embed() call for the
-    // docshell in the iframe, and the content sink's call to OpenBody().
-    // (Bug 153815)
-
-    if (shell->DidInitialReflow()) {
-      // XXX: The assumption here is that if something already
-      // called InitialReflow() on this shell, it also did some of
-      // the setup below, so we do nothing and just move on to the
-      // next shell in the list.
-
-      continue;
-    }
-
+  nsCOMPtr<nsIPresShell> shell = mDocument->GetPrimaryShell();
+  // Make sure we don't call InitialReflow() for a shell that has
+  // already called it. This can happen when the layout frame for
+  // an iframe is constructed *between* the Embed() call for the
+  // docshell in the iframe, and the content sink's call to OpenBody().
+  // (Bug 153815)
+  if (shell && !shell->DidInitialReflow()) {
     nsRect r = shell->GetPresContext()->GetVisibleArea();
     nsCOMPtr<nsIPresShell> shellGrip = shell;
     nsresult rv = shell->InitialReflow(r.width, r.height);
     if (NS_FAILED(rv)) {
       return;
     }
-
-    // Now trigger a refresh
-    RefreshIfEnabled(shell->GetViewManager());
   }
 
   // If the document we are loading has a reference or it is a
   // frameset document, disable the scroll bars on the views.
 
-  if (mDocumentURI) {
-    nsCAutoString ref;
-
-    // Since all URI's that pass through here aren't URL's we can't
-    // rely on the nsIURI implementation for providing a way for
-    // finding the 'ref' part of the URI, we'll haveto revert to
-    // string routines for finding the data past '#'
-
-    mDocumentURI->GetSpec(ref);
-
-    nsReadingIterator<char> start, end;
-
-    ref.BeginReading(start);
-    ref.EndReading(end);
-
-    if (FindCharInReadable('#', start, end)) {
-      ++start; // Skip over the '#'
-
-      mRef = Substring(start, end);
-    }
-  }
+  mDocument->SetScrollToRef(mDocumentURI);
 }
 
 void
@@ -1372,7 +1302,9 @@ nsContentSink::NotifyAppend(nsIContent* aContainer, PRUint32 aStartIndex)
   {
     // Scope so we call EndUpdate before we decrease mInNotification
     MOZ_AUTO_DOC_UPDATE(mDocument, UPDATE_CONTENT_MODEL, !mBeganUpdate);
-    nsNodeUtils::ContentAppended(aContainer, aStartIndex);
+    nsNodeUtils::ContentAppended(aContainer,
+                                 aContainer->GetChildAt(aStartIndex),
+                                 aStartIndex);
     mLastNotificationTime = PR_Now();
   }
 
@@ -1425,7 +1357,7 @@ nsContentSink::Notify(nsITimer *timer)
 PRBool
 nsContentSink::IsTimeToNotify()
 {
-  if (!mNotifyOnTimer || !mLayoutStarted || !mBackoffCount ||
+  if (!sNotifyOnTimer || !mLayoutStarted || !mBackoffCount ||
       mInMonolithicContainer) {
     return PR_FALSE;
   }
@@ -1459,7 +1391,7 @@ nsContentSink::WillInterruptImpl()
 #ifndef SINK_NO_INCREMENTAL
   if (WaitForPendingSheets()) {
     mDeferredFlushTags = PR_TRUE;
-  } else if (mNotifyOnTimer && mLayoutStarted) {
+  } else if (sNotifyOnTimer && mLayoutStarted) {
     if (mBackoffCount && !mInMonolithicContainer) {
       PRInt64 now = PR_Now();
       PRInt64 interval = GetNotificationInterval();
@@ -1538,12 +1470,12 @@ nsContentSink::DidProcessATokenImpl()
     return NS_OK;
   }
 
-  // Increase before comparing to mEventProbeRate
+  // Increase before comparing to gEventProbeRate
   ++mDeflectedCount;
 
   // Check if there's a pending event
-  if (mPendingEventMode != 0 && !mHasPendingEvent &&
-      (mDeflectedCount % mEventProbeRate) == 0) {
+  if (sPendingEventMode != 0 && !mHasPendingEvent &&
+      (mDeflectedCount % sEventProbeRate) == 0) {
     nsIViewManager* vm = shell->GetViewManager();
     NS_ENSURE_TRUE(vm, NS_ERROR_FAILURE);
     nsCOMPtr<nsIWidget> widget;
@@ -1551,14 +1483,14 @@ nsContentSink::DidProcessATokenImpl()
     mHasPendingEvent = widget && widget->HasPendingInputEvent();
   }
 
-  if (mHasPendingEvent && mPendingEventMode == 2) {
+  if (mHasPendingEvent && sPendingEventMode == 2) {
     return NS_ERROR_HTMLPARSER_INTERRUPTED;
   }
 
   // Have we processed enough tokens to check time?
   if (!mHasPendingEvent &&
-      mDeflectedCount < (mDynamicLowerValue ? mInteractiveDeflectCount :
-                                              mPerfDeflectCount)) {
+      mDeflectedCount < PRUint32(mDynamicLowerValue ? sInteractiveDeflectCount :
+                                                      sPerfDeflectCount)) {
     return NS_OK;
   }
 
@@ -1587,7 +1519,7 @@ void
 nsContentSink::BeginUpdate(nsIDocument *aDocument, nsUpdateType aUpdateType)
 {
   // Remember nested updates from updates that we started.
-  if (mInNotification && mUpdatesInNotification < 2) {
+  if (mInNotification > 0 && mUpdatesInNotification < 2) {
     ++mUpdatesInNotification;
   }
 
@@ -1706,15 +1638,15 @@ nsContentSink::WillParseImpl(void)
 
   PRUint32 currentTime = PR_IntervalToMicroseconds(PR_IntervalNow());
 
-  if (mEnablePerfMode == 0) {
+  if (sEnablePerfMode == 0) {
     nsIViewManager* vm = shell->GetViewManager();
     NS_ENSURE_TRUE(vm, NS_ERROR_FAILURE);
     PRUint32 lastEventTime;
     vm->GetLastUserEventTime(lastEventTime);
 
     PRBool newDynLower =
-      (currentTime - mBeginLoadTime) > mInitialPerfTime &&
-      (currentTime - lastEventTime) < mInteractiveTime;
+      (currentTime - mBeginLoadTime) > PRUint32(sInitialPerfTime) &&
+      (currentTime - lastEventTime) < PRUint32(sInteractiveTime);
     
     if (mDynamicLowerValue != newDynLower) {
       FavorPerformanceHint(!newDynLower, 0);
@@ -1726,7 +1658,7 @@ nsContentSink::WillParseImpl(void)
   mHasPendingEvent = PR_FALSE;
 
   mCurrentParseEndTime = currentTime +
-    (mDynamicLowerValue ? mInteractiveParseTime : mPerfParseTime);
+    (mDynamicLowerValue ? sInteractiveParseTime : sPerfParseTime);
 
   return NS_OK;
 }
@@ -1740,7 +1672,7 @@ nsContentSink::WillBuildModelImpl()
     mBeginLoadTime = PR_IntervalToMicroseconds(PR_IntervalNow());
   }
 
-  mScrolledToRefAlready = PR_FALSE;
+  mDocument->ResetScrolledToRefAlready();
 
   if (mProcessLinkHeaderEvent.get()) {
     mProcessLinkHeaderEvent.Revoke();
@@ -1752,15 +1684,17 @@ nsContentSink::WillBuildModelImpl()
 void
 nsContentSink::ContinueInterruptedParsingIfEnabled()
 {
+  // This shouldn't be called in the HTML5 case.
   if (mParser && mParser->IsParserEnabled()) {
     mParser->ContinueInterruptedParsing();
   }
 }
 
+// Overridden in the HTML5 case
 void
 nsContentSink::ContinueInterruptedParsingAsync()
 {
-  nsCOMPtr<nsIRunnable> ev = new nsRunnableMethod<nsContentSink>(this,
+  nsCOMPtr<nsIRunnable> ev = NS_NewRunnableMethod(this,
     &nsContentSink::ContinueInterruptedParsingIfEnabled);
 
   NS_DispatchToCurrentThread(ev);
@@ -1789,6 +1723,9 @@ nsIAtom** const kDefaultAllowedTags [] = {
   &nsGkAtoms::acronym,
   &nsGkAtoms::address,
   &nsGkAtoms::area,
+#ifdef MOZ_MEDIA
+  &nsGkAtoms::audio,
+#endif
   &nsGkAtoms::b,
   &nsGkAtoms::bdo,
   &nsGkAtoms::big,
@@ -1841,6 +1778,9 @@ nsIAtom** const kDefaultAllowedTags [] = {
   &nsGkAtoms::samp,
   &nsGkAtoms::select,
   &nsGkAtoms::small,
+#ifdef MOZ_MEDIA
+  &nsGkAtoms::source,
+#endif
   &nsGkAtoms::span,
   &nsGkAtoms::strike,
   &nsGkAtoms::strong,
@@ -1858,6 +1798,9 @@ nsIAtom** const kDefaultAllowedTags [] = {
   &nsGkAtoms::u,
   &nsGkAtoms::ul,
   &nsGkAtoms::var,
+#ifdef MOZ_MEDIA
+  &nsGkAtoms::video,
+#endif
   nsnull
 };
 
@@ -1870,6 +1813,10 @@ nsIAtom** const kDefaultAllowedAttributes [] = {
   &nsGkAtoms::align,
   &nsGkAtoms::alt,
   &nsGkAtoms::autocomplete,
+#ifdef MOZ_MEDIA
+  &nsGkAtoms::autobuffer,
+  &nsGkAtoms::autoplay,
+#endif
   &nsGkAtoms::axis,
   &nsGkAtoms::background,
   &nsGkAtoms::bgcolor,
@@ -1886,6 +1833,9 @@ nsIAtom** const kDefaultAllowedAttributes [] = {
   &nsGkAtoms::cols,
   &nsGkAtoms::colspan,
   &nsGkAtoms::color,
+#ifdef MOZ_MEDIA
+  &nsGkAtoms::controls,
+#endif
   &nsGkAtoms::compact,
   &nsGkAtoms::coords,
   &nsGkAtoms::datetime,
@@ -1904,6 +1854,10 @@ nsIAtom** const kDefaultAllowedAttributes [] = {
   &nsGkAtoms::label,
   &nsGkAtoms::lang,
   &nsGkAtoms::longdesc,
+#ifdef MOZ_MEDIA
+  &nsGkAtoms::loopend,
+  &nsGkAtoms::loopstart,
+#endif
   &nsGkAtoms::maxlength,
   &nsGkAtoms::media,
   &nsGkAtoms::method,
@@ -1912,7 +1866,15 @@ nsIAtom** const kDefaultAllowedAttributes [] = {
   &nsGkAtoms::nohref,
   &nsGkAtoms::noshade,
   &nsGkAtoms::nowrap,
+#ifdef MOZ_MEDIA
+  &nsGkAtoms::pixelratio,
+  &nsGkAtoms::playbackrate,
+  &nsGkAtoms::playcount,
+#endif
   &nsGkAtoms::pointSize,
+#ifdef MOZ_MEDIA
+  &nsGkAtoms::poster,
+#endif
   &nsGkAtoms::prompt,
   &nsGkAtoms::readonly,
   &nsGkAtoms::rel,

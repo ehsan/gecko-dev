@@ -156,7 +156,9 @@ protected:
 #define LL_GOTLINEBOX                  0x00001000
 #define LL_INFIRSTLETTER               0x00002000
 #define LL_HASBULLET                   0x00004000
-#define LL_LASTFLAG                    LL_HASBULLET
+#define LL_DIRTYNEXTLINE               0x00008000
+#define LL_LINEATSTART                 0x00010000
+#define LL_LASTFLAG                    LL_LINEATSTART
 
   void SetFlag(PRUint32 aFlag, PRBool aValue)
   {
@@ -187,11 +189,21 @@ public:
 
   /**
    * @return true if so far during reflow no non-empty content has been
-   * placed in the line
+   * placed in the line (according to nsIFrame::IsEmpty())
    */
   PRBool LineIsEmpty() const
   {
     return GetFlag(LL_LINEISEMPTY);
+  }
+
+  /**
+   * @return true if so far during reflow no non-empty leaf content
+   * (non-collapsed whitespace, replaced element, inline-block, etc) has been
+   * placed in the line
+   */
+  PRBool LineAtStart() const
+  {
+    return GetFlag(LL_LINEATSTART);
   }
 
   PRBool LineIsBreakable() const;
@@ -244,6 +256,15 @@ public:
 
   void SetInFirstLine(PRBool aSetting) {
     SetFlag(LL_INFIRSTLINE, aSetting);
+  }
+
+  // Calling this during block reflow ensures that the next line of inlines
+  // will be marked dirty, if there is one.
+  void SetDirtyNextLine() {
+    SetFlag(LL_DIRTYNEXTLINE, PR_TRUE);
+  }
+  PRBool GetDirtyNextLine() {
+    return GetFlag(LL_DIRTYNEXTLINE);
   }
 
   //----------------------------------------
@@ -536,7 +557,7 @@ protected:
 #endif
   PLArenaPool mArena; // Per span and per frame data, 4 byte aligned
 
-  PRUint16 mFlags;
+  PRUint32 mFlags;
 
   PRUint8 mTextAlign;
 

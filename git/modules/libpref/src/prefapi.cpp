@@ -332,8 +332,6 @@ pref_savePref(PLDHashTable *table, PLDHashEntryHdr *heh, PRUint32 i, void *arg)
                           pref->userPref,
                           (PrefType) PREF_TYPE(pref)))
         sourcePref = &pref->userPref;
-    else if (PREF_IS_LOCKED(pref))
-        sourcePref = &pref->defaultPref;
     else
         // do not save default prefs that haven't changed
         return PL_DHASH_NEXT;
@@ -551,6 +549,7 @@ PREF_ClearUserPref(const char *pref_name)
     if (!gHashTable.ops)
         return NS_ERROR_NOT_INITIALIZED;
 
+    nsresult rv = NS_ERROR_UNEXPECTED;
     PrefHashEntry* pref = pref_HashTableLookup(pref_name);
     if (pref && PREF_HAS_USER_VALUE(pref))
     {
@@ -566,8 +565,9 @@ PREF_ClearUserPref(const char *pref_name)
 
         pref_DoCallback(pref_name);
         gDirty = PR_TRUE;
+        rv = NS_OK;
     }
-    return NS_OK;
+    return rv;
 }
 
 static PLDHashOperator
@@ -788,7 +788,7 @@ PRBool
 PREF_PrefIsLocked(const char *pref_name)
 {
     PRBool result = PR_FALSE;
-    if (gIsAnyPrefLocked) {
+    if (gIsAnyPrefLocked && gHashTable.ops) {
         PrefHashEntry* pref = pref_HashTableLookup(pref_name);
         if (pref && PREF_IS_LOCKED(pref))
             result = PR_TRUE;

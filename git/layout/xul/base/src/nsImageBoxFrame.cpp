@@ -55,7 +55,6 @@
 #include "nsHTMLParts.h"
 #include "nsString.h"
 #include "nsLeafFrame.h"
-#include "nsPresContext.h"
 #include "nsIRenderingContext.h"
 #include "nsIPresShell.h"
 #include "nsIDocument.h"
@@ -117,7 +116,7 @@ nsImageBoxFrameEvent::Run()
     return NS_OK;
   }
 
-  nsCOMPtr<nsPresContext> pres_context = pres_shell->GetPresContext();
+  nsRefPtr<nsPresContext> pres_context = pres_shell->GetPresContext();
   if (!pres_context) {
     return NS_OK;
   }
@@ -204,7 +203,7 @@ nsImageBoxFrame::MarkIntrinsicWidthsDirty()
 }
 
 void
-nsImageBoxFrame::Destroy()
+nsImageBoxFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   // Release image loader first so that it's refcnt can go to zero
   if (mImageRequest)
@@ -213,7 +212,7 @@ nsImageBoxFrame::Destroy()
   if (mListener)
     reinterpret_cast<nsImageBoxListener*>(mListener.get())->SetFrame(nsnull); // set the frame to null so we don't send messages to a dead object.
 
-  nsLeafBoxFrame::Destroy();
+  nsLeafBoxFrame::DestroyFrom(aDestructRoot);
 }
 
 
@@ -279,7 +278,7 @@ nsImageBoxFrame::UpdateImage()
     if (!(appearance && nsBox::gTheme && 
           nsBox::gTheme->ThemeSupportsWidget(nsnull, this, appearance))) {
       // get the list-style-image
-      imgIRequest *styleRequest = GetStyleList()->mListStyleImage;
+      imgIRequest *styleRequest = GetStyleList()->GetListStyleImage();
       if (styleRequest) {
         styleRequest->Clone(mListener, getter_AddRefs(mImageRequest));
       }
@@ -417,8 +416,8 @@ nsImageBoxFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
   nsCOMPtr<nsIURI> oldURI, newURI;
   if (mImageRequest)
     mImageRequest->GetURI(getter_AddRefs(oldURI));
-  if (myList->mListStyleImage)
-    myList->mListStyleImage->GetURI(getter_AddRefs(newURI));
+  if (myList->GetListStyleImage())
+    myList->GetListStyleImage()->GetURI(getter_AddRefs(newURI));
   PRBool equal;
   if (newURI == oldURI ||   // handles null==null
       (newURI && oldURI &&
@@ -457,7 +456,8 @@ nsImageBoxFrame::GetPrefSize(nsBoxLayoutState& aState)
   else
     size = mImageSize;
   AddBorderAndPadding(size);
-  nsIBox::AddCSSPrefSize(aState, this, size);
+  PRBool widthSet, heightSet;
+  nsIBox::AddCSSPrefSize(this, size, widthSet, heightSet);
 
   nsSize minSize = GetMinSize(aState);
   nsSize maxSize = GetMaxSize(aState);  
@@ -472,7 +472,8 @@ nsImageBoxFrame::GetMinSize(nsBoxLayoutState& aState)
   nsSize size(0,0);
   DISPLAY_MIN_SIZE(this, size);
   AddBorderAndPadding(size);
-  nsIBox::AddCSSMinSize(aState, this, size);
+  PRBool widthSet, heightSet;
+  nsIBox::AddCSSMinSize(aState, this, size, widthSet, heightSet);
   return size;
 }
 

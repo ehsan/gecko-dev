@@ -238,8 +238,7 @@ nsXMLPrettyPrinter::AttributeChanged(nsIDocument* aDocument,
                                      nsIContent* aContent,
                                      PRInt32 aNameSpaceID,
                                      nsIAtom* aAttribute,
-                                     PRInt32 aModType,
-                                     PRUint32 aStateMask)
+                                     PRInt32 aModType)
 {
     MaybeUnhook(aContent);
 }
@@ -247,6 +246,7 @@ nsXMLPrettyPrinter::AttributeChanged(nsIDocument* aDocument,
 void
 nsXMLPrettyPrinter::ContentAppended(nsIDocument* aDocument,
                                     nsIContent* aContainer,
+                                    nsIContent* aFirstNewContent,
                                     PRInt32 aNewIndexInContainer)
 {
     MaybeUnhook(aContainer);

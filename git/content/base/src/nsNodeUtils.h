@@ -14,7 +14,7 @@
  *
  * The Original Code is Mozilla.org code.
  *
- * The Initial Developer of the Original Code is Mozilla Corporation.
+ * The Initial Developer of the Original Code is Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2006
  * the Initial Developer. All Rights Reserved.
  *
@@ -40,17 +40,15 @@
 
 #include "nsDOMAttributeMap.h"
 #include "nsIDOMNode.h"
-#include "nsIMutationObserver.h"
+#include "nsINode.h"
 
+struct CharacterDataChangeInfo;
 struct JSContext;
 struct JSObject;
-class nsINode;
-class nsNodeInfoManager;
 class nsIVariant;
 class nsIDOMUserDataHandler;
 template<class E> class nsCOMArray;
 class nsCycleCollectionTraversalCallback;
-struct CharacterDataChangeInfo;
 
 class nsNodeUtils
 {
@@ -92,22 +90,22 @@ public:
    * @param aNameSpaceID  Namespace of changed attribute
    * @param aAttribute    Local-name of changed attribute
    * @param aModType      Type of change (add/change/removal)
-   * @param aStateMask    States which changed
    * @see nsIMutationObserver::AttributeChanged
    */
   static void AttributeChanged(nsIContent* aContent,
                                PRInt32 aNameSpaceID,
                                nsIAtom* aAttribute,
-                               PRInt32 aModType,
-                               PRUint32 aStateMask);
+                               PRInt32 aModType);
 
   /**
    * Send ContentAppended notifications to nsIMutationObservers
    * @param aContainer           Node into which new child/children were added
+   * @param aFirstNewContent     First new child
    * @param aNewIndexInContainer Index of first new child
    * @see nsIMutationObserver::ContentAppended
    */
   static void ContentAppended(nsIContent* aContainer,
+                              nsIContent* aFirstNewContent,
                               PRInt32 aNewIndexInContainer);
 
   /**
@@ -195,44 +193,14 @@ public:
                         JSObject *aNewScope,
                         nsCOMArray<nsINode> &aNodesWithProperties)
   {
-    nsCOMPtr<nsIDOMNode> dummy;
-    return CloneAndAdopt(aNode, PR_FALSE, PR_TRUE, aNewNodeInfoManager, aCx,
-                         aOldScope, aNewScope, aNodesWithProperties,
-                         getter_AddRefs(dummy));
+    nsresult rv = CloneAndAdopt(aNode, PR_FALSE, PR_TRUE, aNewNodeInfoManager,
+                                aCx, aOldScope, aNewScope, aNodesWithProperties,
+                                nsnull);
+
+    nsMutationGuard::DidMutate();
+
+    return rv;
   }
-
-  /**
-   * Associate an object aData to aKey on node aNode. If aData is null any
-   * previously registered object and UserDataHandler associated to aKey on
-   * aNode will be removed.
-   * Should only be used to implement the DOM Level 3 UserData API.
-   *
-   * @param aNode canonical nsINode pointer of the node to add aData to
-   * @param aKey the key to associate the object to
-   * @param aData the object to associate to aKey on aNode (may be nulll)
-   * @param aHandler the UserDataHandler to call when the node is
-   *                 cloned/deleted/imported/renamed (may be nulll)
-   * @param aResult [out] the previously registered object for aKey on aNode, if
-   *                      any
-   * @return whether adding the object and UserDataHandler succeeded
-   */
-  static nsresult SetUserData(nsINode *aNode, const nsAString &aKey,
-                              nsIVariant *aData,
-                              nsIDOMUserDataHandler *aHandler,
-                              nsIVariant **aResult);
-
-  /**
-   * Get the UserData object registered for a Key on node aNode, if any.
-   * Should only be used to implement the DOM Level 3 UserData API.
-   *
-   * @param aNode canonical nsINode pointer of the node to get UserData for
-   * @param aKey the key to get UserData for
-   * @param aResult [out] the previously registered object for aKey on aNode, if
-   *                      any
-   * @return whether getting the object and UserDataHandler succeeded
-   */
-  static nsresult GetUserData(nsINode *aNode, const nsAString &aKey,
-                              nsIVariant **aResult);
 
   /**
    * Call registered userdata handlers for operation aOperation for the nodes in
@@ -311,8 +279,8 @@ private:
    *                             descendants) with properties. If aClone is
    *                             PR_TRUE every node will be followed by its
    *                             clone.
-   * @param aResult *aResult will contain the cloned node (if aClone is
-   *                PR_TRUE).
+   * @param aResult If aClone is PR_FALSE then aResult must be null, else
+   *                *aResult will contain the cloned node.
    */
   static nsresult CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
                                 nsNodeInfoManager *aNewNodeInfoManager,
@@ -321,6 +289,10 @@ private:
                                 nsCOMArray<nsINode> &aNodesWithProperties,
                                 nsIDOMNode **aResult)
   {
+    NS_ASSERTION(!aClone == !aResult,
+                 "aResult must be null when adopting and non-null when "
+                 "cloning");
+
     nsCOMPtr<nsINode> clone;
     nsresult rv = CloneAndAdopt(aNode, aClone, aDeep, aNewNodeInfoManager,
                                 aCx, aOldScope, aNewScope, aNodesWithProperties,
@@ -336,6 +308,8 @@ private:
    * @param aParent If aClone is PR_TRUE the cloned node will be appended to
    *                aParent's children. May be null. If not null then aNode
    *                must be an nsIContent.
+   * @param aResult If aClone is PR_TRUE then *aResult will contain the cloned
+   *                node.
    */
   static nsresult CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
                                 nsNodeInfoManager *aNewNodeInfoManager,

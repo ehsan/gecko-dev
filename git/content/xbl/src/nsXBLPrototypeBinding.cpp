@@ -65,7 +65,6 @@
 #include "nsFixedSizeAllocator.h"
 #include "xptinfo.h"
 #include "nsIInterfaceInfoManager.h"
-#include "nsIPresShell.h"
 #include "nsIDocumentObserver.h"
 #include "nsGkAtoms.h"
 #include "nsXBLProtoImpl.h"
@@ -74,7 +73,6 @@
 
 #include "nsIScriptContext.h"
 
-#include "nsICSSLoader.h"
 #include "nsIStyleRuleProcessor.h"
 #include "nsXBLResourceLoader.h"
 
@@ -208,27 +206,12 @@ public:
     nsXBLInsertionPointEntry::ReleasePool();
   }
 
-  nsrefcnt AddRef() {
-    ++mRefCnt;
-    NS_LOG_ADDREF(this, mRefCnt, "nsXBLInsertionPointEntry", sizeof(nsXBLInsertionPointEntry));
-    return mRefCnt;
-  }
-
-  nsrefcnt Release() {
-    --mRefCnt;
-    NS_LOG_RELEASE(this, mRefCnt, "nsXBLInsertionPointEntry");
-    if (mRefCnt == 0) {
-      Destroy(this);
-      return 0;
-    }
-    return mRefCnt;
-  }
+  NS_INLINE_DECL_REFCOUNTING(nsXBLInsertionPointEntry)
 
 protected:
   nsCOMPtr<nsIContent> mInsertionParent;
   nsCOMPtr<nsIContent> mDefaultContent;
   PRUint32 mInsertionIndex;
-  nsAutoRefCnt mRefCnt;
 
   nsXBLInsertionPointEntry(nsIContent* aParent)
     : mInsertionParent(aParent),
@@ -313,7 +296,8 @@ nsXBLPrototypeBinding::nsXBLPrototypeBinding()
 nsresult
 nsXBLPrototypeBinding::Init(const nsACString& aID,
                             nsIXBLDocumentInfo* aInfo,
-                            nsIContent* aElement)
+                            nsIContent* aElement,
+                            PRBool aFirstBinding)
 {
   if (!kAttrPool || !nsXBLInsertionPointEntry::PoolInited()) {
     return NS_ERROR_OUT_OF_MEMORY;
@@ -325,13 +309,28 @@ nsXBLPrototypeBinding::Init(const nsACString& aID,
   // The binding URI might not be a nsIURL (e.g. for data: URIs). In that case,
   // we always use the first binding, so we don't need to keep track of the ID.
   nsCOMPtr<nsIURL> bindingURL = do_QueryInterface(mBindingURI);
-  if (bindingURL)
+  if (bindingURL) {
+    if (aFirstBinding) {
+      rv = mBindingURI->Clone(getter_AddRefs(mAlternateBindingURI));
+      NS_ENSURE_SUCCESS(rv, rv);
+    }
     bindingURL->SetRef(aID);
+  }
 
   mXBLDocInfoWeak = aInfo;
 
   SetBindingElement(aElement);
   return NS_OK;
+}
+
+PRBool nsXBLPrototypeBinding::CompareBindingURI(nsIURI* aURI) const
+{
+  PRBool equal = PR_FALSE;
+  mBindingURI->Equals(aURI, &equal);
+  if (!equal && mAlternateBindingURI) {
+    mAlternateBindingURI->Equals(aURI, &equal);
+  }
+  return equal;
 }
 
 static PRIntn
@@ -712,7 +711,7 @@ nsXBLPrototypeBinding::InstantiateInsertionPoints(nsXBLBinding* aBinding)
 nsIContent*
 nsXBLPrototypeBinding::GetInsertionPoint(nsIContent* aBoundElement,
                                          nsIContent* aCopyRoot,
-                                         nsIContent* aChild,
+                                         const nsIContent* aChild,
                                          PRUint32* aIndex)
 {
   if (!mInsertionPointTable)
@@ -1047,7 +1046,7 @@ nsXBLPrototypeBinding::GetRuleProcessor()
   return nsnull;
 }
 
-nsCOMArray<nsICSSStyleSheet>*
+nsXBLPrototypeResources::sheet_array_type*
 nsXBLPrototypeBinding::GetStyleSheets()
 {
   if (mResources) {

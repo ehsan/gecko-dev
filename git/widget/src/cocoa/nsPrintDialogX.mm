@@ -43,6 +43,8 @@
 #include "nsServiceManagerUtils.h"
 #include "nsIWebProgressListener.h"
 #include "nsIStringBundle.h"
+#include "nsIWebBrowserPrint.h"
+#include "nsCRT.h"
 
 #import <Cocoa/Cocoa.h>
 #include "nsObjCExceptions.h"
@@ -64,7 +66,8 @@ nsPrintDialogServiceX::Init()
 }
 
 NS_IMETHODIMP
-nsPrintDialogServiceX::Show(nsIDOMWindow *aParent, nsIPrintSettings *aSettings)
+nsPrintDialogServiceX::Show(nsIDOMWindow *aParent, nsIPrintSettings *aSettings,
+                            nsIWebBrowserPrint *aWebBrowserPrint)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
@@ -73,6 +76,24 @@ nsPrintDialogServiceX::Show(nsIDOMWindow *aParent, nsIPrintSettings *aSettings)
   nsCOMPtr<nsPrintSettingsX> settingsX(do_QueryInterface(aSettings));
   if (!settingsX)
     return NS_ERROR_FAILURE;
+
+  // Set the print job title
+  PRUnichar** docTitles;
+  PRUint32 titleCount;
+  nsresult rv = aWebBrowserPrint->EnumerateDocumentNames(&titleCount, &docTitles);
+  if (NS_SUCCEEDED(rv) && titleCount > 0) {
+    CFStringRef cfTitleString = CFStringCreateWithCharacters(NULL, docTitles[0], nsCRT::strlen(docTitles[0]));
+    if (cfTitleString) {
+      ::PMPrintSettingsSetJobName(settingsX->GetPMPrintSettings(), cfTitleString);
+      CFRelease(cfTitleString);
+    }
+    for (PRInt32 i = titleCount - 1; i >= 0; i--) {
+      NS_Free(docTitles[i]);
+    }
+    NS_Free(docTitles);
+    docTitles = NULL;
+    titleCount = 0;
+  }
 
   NSPrintInfo* printInfo = settingsX->GetCocoaPrintInfo();
 
@@ -86,13 +107,8 @@ nsPrintDialogServiceX::Show(nsIDOMWindow *aParent, nsIPrintSettings *aSettings)
   NSPrintPanel* panel = [NSPrintPanel printPanel];
   PrintPanelAccessoryController* viewController =
     [[PrintPanelAccessoryController alloc] initWithSettings:aSettings];
-#ifdef NS_LEOPARD_AND_LATER
   [panel addAccessoryController:viewController];
   [viewController release];
-#else
-  [panel setAccessoryView:[viewController view]];
-  [[viewController view] release];
-#endif
 
   // Show the dialog.
   nsCocoaUtils::PrepareForNativeAppModalDialog();
@@ -118,7 +134,7 @@ nsPrintDialogServiceX::Show(nsIDOMWindow *aParent, nsIPrintSettings *aSettings)
     OSStatus status = ::PMGetFirstPage(nativePrintSettings, &firstPage);
     if (status == noErr) {
       status = ::PMGetLastPage(nativePrintSettings, &lastPage);
-      if (status == noErr && lastPage != LONG_MAX) {
+      if (status == noErr && lastPage != PR_UINT32_MAX) {
         aSettings->SetPrintRange(nsIPrintSettings::kRangeSpecifiedPageRange);
         aSettings->SetStartPageRange(firstPage);
         aSettings->SetEndPageRange(lastPage);
@@ -577,7 +593,6 @@ static const char sHeaderFooterTags[][4] =  {"", "&T", "&U", "&D", "&P", "&PT"};
           [mFooterRightList titleOfSelectedItem]]]]];
 }
 
-#ifdef NS_LEOPARD_AND_LATER
 - (NSArray*)localizedSummaryItems
 {
   return [NSArray arrayWithObjects:
@@ -604,7 +619,6 @@ static const char sHeaderFooterTags[][4] =  {"", "&T", "&U", "&D", "&P", "&PT"};
       [self footerSummaryValue], NSPrintPanelAccessorySummaryItemDescriptionKey, nil],
     nil];
 }
-#endif
 
 @end
 
@@ -614,11 +628,8 @@ static const char sHeaderFooterTags[][4] =  {"", "&T", "&U", "&D", "&P", "&PT"};
 
 - (id)initWithSettings:(nsIPrintSettings*)aSettings
 {
-#ifdef NS_LEOPARD_AND_LATER
   [super initWithNibName:nil bundle:nil];
-#else
-  [super init];
-#endif
+
   NSView* accView = [[PrintPanelAccessoryView alloc] initWithSettings:aSettings];
   [self setView:accView];
   [accView release];
@@ -630,27 +641,9 @@ static const char sHeaderFooterTags[][4] =  {"", "&T", "&U", "&D", "&P", "&PT"};
   return [(PrintPanelAccessoryView*)[self view] exportSettings];
 }
 
-#ifdef NS_LEOPARD_AND_LATER
 - (NSArray *)localizedSummaryItems
 {
   return [(PrintPanelAccessoryView*)[self view] localizedSummaryItems];
 }
-#else
-- (void)setView:(NSView*)aView
-{
-  mView = [aView retain];
-}
-
-- (NSView*)view
-{
-  return mView;
-}
-
-- (void)dealloc
-{
-  [mView release];
-  [super dealloc];
-}
-#endif
 
 @end

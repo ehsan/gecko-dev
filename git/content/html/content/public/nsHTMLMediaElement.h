@@ -35,6 +35,9 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
+#if !defined(nsHTMLMediaElement_h__)
+#define nsHTMLMediaElement_h__
+
 #include "nsIDOMHTMLMediaElement.h"
 #include "nsGenericHTMLElement.h"
 #include "nsMediaDecoder.h"
@@ -43,6 +46,8 @@
 #include "nsIDOMRange.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsILoadGroup.h"
+#include "nsIObserver.h"
+#include "ImageLayers.h"
 
 // Define to output information on decoding and painting framerate
 /* #define DEBUG_FRAME_RATE 1 */
@@ -50,8 +55,11 @@
 typedef PRUint16 nsMediaNetworkState;
 typedef PRUint16 nsMediaReadyState;
 
-class nsHTMLMediaElement : public nsGenericHTMLElement
+class nsHTMLMediaElement : public nsGenericHTMLElement,
+                           public nsIObserver
 {
+  typedef mozilla::layers::ImageContainer ImageContainer;
+
 public:
   nsHTMLMediaElement(nsINodeInfo *aNodeInfo, PRBool aFromParser = PR_FALSE);
   virtual ~nsHTMLMediaElement();
@@ -59,15 +67,17 @@ public:
   /**
    * This is used when the browser is constructing a video element to play
    * a channel that we've already started loading. The src attribute and
-   * <source> children are ignored. 
+   * <source> children are ignored.
    * @param aChannel the channel to use
    * @param aListener returns a stream listener that should receive
    * notifications for the stream
-   */ 
+   */
   nsresult LoadWithChannel(nsIChannel *aChannel, nsIStreamListener **aListener);
 
   // nsIDOMHTMLMediaElement
   NS_DECL_NSIDOMHTMLMEDIAELEMENT
+
+  NS_DECL_NSIOBSERVER
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -88,6 +98,8 @@ public:
   virtual nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                            nsIAtom* aPrefix, const nsAString& aValue,
                            PRBool aNotify);
+  virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttr,
+                             PRBool aNotify);
 
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
@@ -97,7 +109,12 @@ public:
 
   virtual PRBool IsDoneAddingChildren();
   virtual nsresult DoneAddingChildren(PRBool aHaveNotified);
-  virtual void DestroyContent();
+
+  /**
+   * Call this to reevaluate whether we should start/stop due to our owner
+   * document being active or inactive.
+   */
+  void NotifyOwnerDocumentActivityChanged();
 
   // Called by the video decoder object, on the main thread,
   // when it has read the metadata containing video dimensions,
@@ -148,11 +165,13 @@ public:
   // (no data has arrived for a while).
   void DownloadStalled();
 
-  // Draw the latest video data. See nsMediaDecoder for 
-  // details.
-  void Paint(gfxContext* aContext,
-             gfxPattern::GraphicsFilter aFilter,
-             const gfxRect& aRect);
+  // Called by the media decoder and the video frame to get the
+  // ImageContainer containing the video data.
+  ImageContainer* GetImageContainer();
+
+  // Called by the video frame to get the print surface, if this is
+  // a static document and we're not actually playing video
+  gfxASurface* GetPrintSurface() { return mPrintSurface; }
 
   // Dispatch events
   nsresult DispatchSimpleEvent(const nsAString& aName);
@@ -180,6 +199,9 @@ public:
   // events can be fired.
   void ChangeReadyState(nsMediaReadyState aState);
 
+  // Return true if we can activate autoplay assuming enough data has arrived.
+  PRBool CanActivateAutoplay();
+
   // Notify that enough data has arrived to start autoplaying.
   // If the element is 'autoplay' and is ready to play back (not paused,
   // autoplay pref enabled, etc), it should start playing back.
@@ -203,11 +225,6 @@ public:
   // Update the visual size of the media. Called from the decoder on the
   // main thread when/if the size changes.
   void UpdateMediaSize(nsIntSize size);
-
-  // Handle moving into and out of the bfcache by pausing and playing
-  // as needed.
-  void Freeze();
-  void Thaw();
 
   // Returns true if we can handle this MIME type.
   // If it returns true, then it also returns a null-terminated list
@@ -258,12 +275,13 @@ public:
    */
   already_AddRefed<nsILoadGroup> GetDocumentLoadGroup();
 
-  /** 
+  /**
    * Returns PR_TRUE if the media has played or completed a seek.
    * Used by video frame to determine whether to paint the poster.
    */
-  PRBool GetPlayedOrSeeked() { return mHasPlayedOrSeeked; }
+  PRBool GetPlayedOrSeeked() const { return mHasPlayedOrSeeked; }
 
+  nsresult CopyInnerTo(nsGenericElement* aDest) const;
 protected:
   class MediaLoadListener;
   class LoadNextSourceEvent;
@@ -277,16 +295,16 @@ protected:
   void SetPlayedOrSeeked(PRBool aValue);
 
   /**
-   * Create a decoder for the given aMIMEType. Returns false if we
+   * Create a decoder for the given aMIMEType. Returns null if we
    * were unable to create the decoder.
    */
-  PRBool CreateDecoder(const nsACString& aMIMEType);
+  already_AddRefed<nsMediaDecoder> CreateDecoder(const nsACString& aMIMEType);
 
   /**
    * Initialize a decoder as a clone of an existing decoder in another
    * element.
    */
-  nsresult InitializeDecoderAsClone(nsMediaDecoder* aOriginal); 
+  nsresult InitializeDecoderAsClone(nsMediaDecoder* aOriginal);
 
   /**
    * Initialize a decoder to load the given channel. The decoder's stream
@@ -298,7 +316,7 @@ protected:
   /**
    * Finish setting up the decoder after Load() has been called on it.
    */
-  nsresult FinishDecoderSetup();
+  nsresult FinishDecoderSetup(nsMediaDecoder* aDecoder);
 
   /**
    * Execute the initial steps of the load algorithm that ensure existing
@@ -330,7 +348,7 @@ protected:
    * Sends an async event to call LoadFromSourceChildren().
    */
   void QueueLoadFromSourceTask();
- 
+
   /**
    * Media selection algorithm.
    */
@@ -371,7 +389,21 @@ protected:
                              nsIChannel *aNewChannel,
                              PRUint32 aFlags);
 
+  /**
+   * Call this to reevaluate whether we should be holding a self-reference.
+   */
+  void AddRemoveSelfReference();
+
+  /**
+   * Called asynchronously to release a self-reference to this element.
+   */
+  void DoRemoveSelfReference();
+
   nsRefPtr<nsMediaDecoder> mDecoder;
+
+  // A reference to the ImageContainer which contains the current frame
+  // of video to display.
+  nsRefPtr<ImageContainer> mImageContainer;
 
   // Holds a reference to the first channel we open to the media resource.
   // Once the decoder is created, control over the channel passes to the
@@ -395,7 +427,7 @@ protected:
   // we're bound to when loading starts.
   nsCOMPtr<nsIDocument> mLoadBlockedDoc;
 
-  // Media loading flags. See: 
+  // Media loading flags. See:
   //   http://www.whatwg.org/specs/web-apps/current-work/#video)
   nsMediaNetworkState mNetworkState;
   nsMediaReadyState mReadyState;
@@ -404,13 +436,13 @@ protected:
     // Not waiting for any src/<source>.
     NOT_WAITING,
     // No src or <source> children, load is waiting at load algorithm step 1.
-    WAITING_FOR_SRC_OR_SOURCE, 
+    WAITING_FOR_SRC_OR_SOURCE,
     // No src at load time, and all <source> children don't resolve or
     // give network errors during fetch, waiting for more <source> children
     // to be added.
-    WAITING_FOR_SOURCE 
+    WAITING_FOR_SOURCE
   };
-  
+
   // When the load algorithm is waiting for more src/<source>, this denotes
   // what type of waiting we're doing.
   LoadAlgorithmState mLoadWaitStatus;
@@ -432,7 +464,7 @@ protected:
 
   // Indicates whether current playback is a result of user action
   // (ie. calling of the Play method), or automatic playback due to
-  // the 'autoplay' attribute being set. A true value indicates the 
+  // the 'autoplay' attribute being set. A true value indicates the
   // latter case.
   // The 'autoplay' HTML attribute indicates that the video should
   // start playing when loaded. The 'autoplay' attribute of the object
@@ -441,7 +473,7 @@ protected:
   // is a result of the autoplay attribute.
   PRPackedBool mAutoplaying;
 
-  // Indicates whether |autoplay| will actually autoplay based on the pref 
+  // Indicates whether |autoplay| will actually autoplay based on the pref
   // media.autoplay.enabled
   PRPackedBool mAutoplayEnabled;
 
@@ -462,11 +494,9 @@ protected:
   // to raise the 'waiting' event as per 4.7.1.8 in HTML 5 specification.
   PRPackedBool mPlayingBeforeSeek;
 
-  // PR_TRUE if the video was paused before Freeze was called. This is checked
-  // to ensure that the playstate doesn't change when the user goes Forward/Back
-  // from the bfcache.
-  PRPackedBool mPausedBeforeFreeze;
-  
+  // PR_TRUE iff this element is paused because the document is inactive
+  PRPackedBool mPausedForInactiveDocument;
+
   // PR_TRUE if we've reported a "waiting" event since the last
   // readyState change to HAVE_CURRENT_DATA.
   PRPackedBool mWaitingFired;
@@ -499,4 +529,17 @@ protected:
   // PR_TRUE if we've played or completed a seek. We use this to determine
   // when the poster frame should be shown.
   PRPackedBool mHasPlayedOrSeeked;
+
+  // PR_TRUE if we've added a reference to ourselves to keep the element
+  // alive while no-one is referencing it but the element may still fire
+  // events of its own accord.
+  PRPackedBool mHasSelfReference;
+
+  // PR_TRUE if we've received a notification that the engine is shutting
+  // down.
+  PRPackedBool mShuttingDown;
+
+  nsRefPtr<gfxASurface> mPrintSurface;
 };
+
+#endif

@@ -38,8 +38,8 @@
 #include "gfxPlatformGtk.h"
 #define gfxToolkitPlatform gfxPlatformGtk
 #elif defined(MOZ_WIDGET_QT)
-#include "gfxQtPlatform.h"
 #include <qfontinfo.h>
+#include "gfxQtPlatform.h"
 #define gfxToolkitPlatform gfxQtPlatform
 #elif defined(XP_WIN)
 #ifdef WINCE
@@ -47,14 +47,22 @@
 #endif
 #include "gfxWindowsPlatform.h"
 #define gfxToolkitPlatform gfxWindowsPlatform
+#include "gfxFT2FontList.h"
+#elif defined(ANDROID)
+#include "gfxAndroidPlatform.h"
+#define gfxToolkitPlatform gfxAndroidPlatform
 #endif
+
 #include "gfxTypes.h"
 #include "gfxFT2Fonts.h"
+#include "gfxFT2FontBase.h"
+#include "gfxFT2Utils.h"
 #include <locale.h>
 #include "cairo-ft.h"
 #include FT_TRUETYPE_TAGS_H
 #include FT_TRUETYPE_TABLES_H
 #include "gfxFontUtils.h"
+#include "gfxAtoms.h"
 #include "nsTArray.h"
 #include "nsUnicodeRange.h"
 #include "nsIPrefService.h"
@@ -69,17 +77,11 @@ static PRLogModuleInfo *gFontLog = PR_NewLogModule("ft2fonts");
 static const char *sCJKLangGroup[] = {
     "ja",
     "ko",
-    "zh-CN",
-    "zh-HK",
-    "zh-TW"
+    "zh-cn",
+    "zh-hk",
+    "zh-tw"
 };
-
 #define COUNT_OF_CJK_LANG_GROUP 5
-#define CJK_LANG_JA    sCJKLangGroup[0]
-#define CJK_LANG_KO    sCJKLangGroup[1]
-#define CJK_LANG_ZH_CN sCJKLangGroup[2]
-#define CJK_LANG_ZH_HK sCJKLangGroup[3]
-#define CJK_LANG_ZH_TW sCJKLangGroup[4]
 
 // rounding and truncation functions for a Freetype floating point number
 // (FT26Dot6) stored in a 32bit integer with high 26 bits for the integer
@@ -93,25 +95,17 @@ static const char *sCJKLangGroup[] = {
  * FontEntry
  */
 
-FontEntry::FontEntry(const FontEntry& aFontEntry) :
-    gfxFontEntry(aFontEntry)
-{
-    mFTFace = aFontEntry.mFTFace;
-    if (aFontEntry.mFontFace)
-        mFontFace = cairo_font_face_reference(aFontEntry.mFontFace);
-    else
-        mFontFace = nsnull;
-}
-
 FontEntry::~FontEntry()
 {
     // Do nothing for mFTFace here since FTFontDestroyFunc is called by cairo.
     mFTFace = nsnull;
 
+#ifndef ANDROID
     if (mFontFace) {
         cairo_font_face_destroy(mFontFace);
         mFontFace = nsnull;
     }
+#endif
 }
 
 /* static */
@@ -229,7 +223,11 @@ FontEntry::CairoFontFace()
         FT_Face face;
         FT_New_Face(gfxToolkitPlatform::GetPlatform()->GetFTLibrary(), mFilename.get(), mFTFontIndex, &face);
         mFTFace = face;
+#ifdef MOZ_GFX_OPTIMIZE_MOBILE
+        mFontFace = cairo_ft_font_face_create_for_ft_face(face, FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING);
+#else
         mFontFace = cairo_ft_font_face_create_for_ft_face(face, 0);
+#endif
         FTUserFontData *userFontData = new FTUserFontData(face, nsnull);
         cairo_font_face_set_user_data(mFontFace, &key,
                                       userFontData, FTFontDestroyFunc);
@@ -265,7 +263,7 @@ FontEntry::ReadCMAP()
 
     PRPackedBool unicodeFont;
     PRPackedBool symbolFont;
-    return gfxFontUtils::ReadCMAP(buf, len, mCharacterMap,
+    return gfxFontUtils::ReadCMAP(buf, len, mCharacterMap, mUVSOffset,
                                   unicodeFont, symbolFont);
 }
 
@@ -322,7 +320,7 @@ gfxFT2FontGroup::FontCallback(const nsAString& fontName,
 }
 
 gfxFT2FontGroup::gfxFT2FontGroup(const nsAString& families,
-                               const gfxFontStyle *aStyle)
+                                 const gfxFontStyle *aStyle)
     : gfxFontGroup(families, aStyle)
 {
 #ifdef DEBUG_pavlov
@@ -333,9 +331,9 @@ gfxFT2FontGroup::gfxFT2FontGroup(const nsAString& families,
 
     if (familyArray.Length() == 0) {
         nsAutoString prefFamilies;
-        gfxToolkitPlatform::GetPlatform()->GetPrefFonts(aStyle->langGroup.get(), prefFamilies, nsnull);
+        gfxToolkitPlatform::GetPlatform()->GetPrefFonts(aStyle->language, prefFamilies, nsnull);
         if (!prefFamilies.IsEmpty()) {
-            ForEachFont(prefFamilies, aStyle->langGroup, FontCallback, &familyArray);
+            ForEachFont(prefFamilies, aStyle->language, FontCallback, &familyArray);
         }
     }
     if (familyArray.Length() == 0) {
@@ -359,6 +357,8 @@ gfxFT2FontGroup::gfxFT2FontGroup(const nsAString& families,
         LOGFONTW logFont;
         if (hGDI && ::GetObjectW(hGDI, sizeof(logFont), &logFont))
             familyArray.AppendElement(nsDependentString(logFont.lfFaceName));
+#elif defined(ANDROID)
+        familyArray.AppendElement(NS_LITERAL_STRING("Droid Sans"));
 #else
 #error "Platform not supported"
 #endif
@@ -482,8 +482,8 @@ AddFontNameToArray(const nsAString& aName,
 
 void
 gfxFT2FontGroup::FamilyListToArrayList(const nsString& aFamilies,
-                                       const nsCString& aLangGroup,
-                                       nsTArray<nsRefPtr<FontEntry> > *aFontEntryList)
+                                       nsIAtom *aLangGroup,
+                                       nsTArray<nsRefPtr<gfxFontEntry> > *aFontEntryList)
 {
     nsAutoTArray<nsString, 15> fonts;
     ForEachFont(aFamilies, aLangGroup, AddFontNameToArray, &fonts);
@@ -491,17 +491,18 @@ gfxFT2FontGroup::FamilyListToArrayList(const nsString& aFamilies,
     PRUint32 len = fonts.Length();
     for (PRUint32 i = 0; i < len; ++i) {
         const nsString& str = fonts[i];
-        nsRefPtr<FontEntry> fe = gfxToolkitPlatform::GetPlatform()->FindFontEntry(str, mStyle);
+        nsRefPtr<gfxFontEntry> fe = (gfxToolkitPlatform::GetPlatform()->FindFontEntry(str, mStyle));
         aFontEntryList->AppendElement(fe);
     }
 }
 
-void gfxFT2FontGroup::GetPrefFonts(const char *aLangGroup, nsTArray<nsRefPtr<FontEntry> >& aFontEntryList) {
+void gfxFT2FontGroup::GetPrefFonts(nsIAtom *aLangGroup, nsTArray<nsRefPtr<gfxFontEntry> >& aFontEntryList)
+{
     NS_ASSERTION(aLangGroup, "aLangGroup is null");
     gfxToolkitPlatform *platform = gfxToolkitPlatform::GetPlatform();
-    nsAutoTArray<nsRefPtr<FontEntry>, 5> fonts;
-    /* this lookup has to depend on weight and style */
-    nsCAutoString key(aLangGroup);
+    nsAutoTArray<nsRefPtr<gfxFontEntry>, 5> fonts;
+    nsCAutoString key;
+    aLangGroup->ToUTF8String(key);
     key.Append("-");
     key.AppendInt(GetStyle()->style);
     key.Append("-");
@@ -512,8 +513,7 @@ void gfxFT2FontGroup::GetPrefFonts(const char *aLangGroup, nsTArray<nsRefPtr<Fon
         if (fontString.IsEmpty())
             return;
 
-        FamilyListToArrayList(fontString, nsDependentCString(aLangGroup),
-                                      &fonts);
+        FamilyListToArrayList(fontString, aLangGroup, &fonts);
 
         platform->SetPrefFontEntries(key, fonts);
     }
@@ -530,7 +530,7 @@ static PRInt32 GetCJKLangGroupIndex(const char *aLangGroup) {
 }
 
 // this function assigns to the array passed in.
-void gfxFT2FontGroup::GetCJKPrefFonts(nsTArray<nsRefPtr<FontEntry> >& aFontEntryList) {
+void gfxFT2FontGroup::GetCJKPrefFonts(nsTArray<nsRefPtr<gfxFontEntry> >& aFontEntryList) {
     gfxToolkitPlatform *platform = gfxToolkitPlatform::GetPlatform();
 
     nsCAutoString key("x-internal-cjk-");
@@ -576,8 +576,10 @@ void gfxFT2FontGroup::GetCJKPrefFonts(nsTArray<nsRefPtr<FontEntry> >& aFontEntry
                 nsCAutoString lang(Substring(start, p));
                 lang.CompressWhitespace(PR_FALSE, PR_TRUE);
                 PRInt32 index = GetCJKLangGroupIndex(lang.get());
-                if (index >= 0)
-                    GetPrefFonts(sCJKLangGroup[index], aFontEntryList);
+                if (index >= 0) {
+                    nsCOMPtr<nsIAtom> atom = do_GetAtom(sCJKLangGroup[index]);
+                    GetPrefFonts(atom, aFontEntryList);
+                }
                 p++;
             }
         }
@@ -585,48 +587,48 @@ void gfxFT2FontGroup::GetCJKPrefFonts(nsTArray<nsRefPtr<FontEntry> >& aFontEntry
         // Add the system locale
 #ifdef XP_WIN
         switch (::GetACP()) {
-            case 932: GetPrefFonts(CJK_LANG_JA, aFontEntryList); break;
-            case 936: GetPrefFonts(CJK_LANG_ZH_CN, aFontEntryList); break;
-            case 949: GetPrefFonts(CJK_LANG_KO, aFontEntryList); break;
-            // XXX Don't we need to append CJK_LANG_ZH_HK if the codepage is 950?
-            case 950: GetPrefFonts(CJK_LANG_ZH_TW, aFontEntryList); break;
+            case 932: GetPrefFonts(gfxAtoms::ja, aFontEntryList); break;
+            case 936: GetPrefFonts(gfxAtoms::zh_cn, aFontEntryList); break;
+            case 949: GetPrefFonts(gfxAtoms::ko, aFontEntryList); break;
+            // XXX Don't we need to append gfxAtoms::zh_hk if the codepage is 950?
+            case 950: GetPrefFonts(gfxAtoms::zh_tw, aFontEntryList); break;
         }
 #else
         const char *ctype = setlocale(LC_CTYPE, NULL);
         if (ctype) {
             if (!PL_strncasecmp(ctype, "ja", 2)) {
-                GetPrefFonts(CJK_LANG_JA, aFontEntryList);
+                GetPrefFonts(gfxAtoms::ja, aFontEntryList);
             } else if (!PL_strncasecmp(ctype, "zh_cn", 5)) {
-                GetPrefFonts(CJK_LANG_ZH_CN, aFontEntryList);
+                GetPrefFonts(gfxAtoms::zh_cn, aFontEntryList);
             } else if (!PL_strncasecmp(ctype, "zh_hk", 5)) {
-                GetPrefFonts(CJK_LANG_ZH_HK, aFontEntryList);
+                GetPrefFonts(gfxAtoms::zh_hk, aFontEntryList);
             } else if (!PL_strncasecmp(ctype, "zh_tw", 5)) {
-                GetPrefFonts(CJK_LANG_ZH_TW, aFontEntryList);
+                GetPrefFonts(gfxAtoms::zh_tw, aFontEntryList);
             } else if (!PL_strncasecmp(ctype, "ko", 2)) {
-                GetPrefFonts(CJK_LANG_KO, aFontEntryList);
+                GetPrefFonts(gfxAtoms::ko, aFontEntryList);
             }
         }
 #endif
 
         // last resort...
-        GetPrefFonts(CJK_LANG_JA, aFontEntryList);
-        GetPrefFonts(CJK_LANG_KO, aFontEntryList);
-        GetPrefFonts(CJK_LANG_ZH_CN, aFontEntryList);
-        GetPrefFonts(CJK_LANG_ZH_HK, aFontEntryList);
-        GetPrefFonts(CJK_LANG_ZH_TW, aFontEntryList);
+        GetPrefFonts(gfxAtoms::ja, aFontEntryList);
+        GetPrefFonts(gfxAtoms::ko, aFontEntryList);
+        GetPrefFonts(gfxAtoms::zh_cn, aFontEntryList);
+        GetPrefFonts(gfxAtoms::zh_hk, aFontEntryList);
+        GetPrefFonts(gfxAtoms::zh_tw, aFontEntryList);
 
         platform->SetPrefFontEntries(key, aFontEntryList);
     }
 }
 
 already_AddRefed<gfxFT2Font>
-gfxFT2FontGroup::WhichFontSupportsChar(const nsTArray<nsRefPtr<FontEntry> >& aFontEntryList, PRUint32 aCh)
+gfxFT2FontGroup::WhichFontSupportsChar(const nsTArray<nsRefPtr<gfxFontEntry> >& aFontEntryList, PRUint32 aCh)
 {
     for (PRUint32 i = 0; i < aFontEntryList.Length(); i++) {
-        nsRefPtr<FontEntry> fe = aFontEntryList[i];
+        gfxFontEntry *fe = aFontEntryList[i].get();
         if (fe->HasCharacter(aCh)) {
             nsRefPtr<gfxFT2Font> font =
-                gfxFT2Font::GetOrMakeFont(fe, &mStyle);
+                gfxFT2Font::GetOrMakeFont(static_cast<FontEntry*>(fe), &mStyle);
             return font.forget();
         }
     }
@@ -641,9 +643,9 @@ gfxFT2FontGroup::WhichPrefFontSupportsChar(PRUint32 aCh)
 
     nsRefPtr<gfxFT2Font> selectedFont;
 
-    // check out the style's language group
-    nsAutoTArray<nsRefPtr<FontEntry>, 5> fonts;
-    GetPrefFonts(mStyle.langGroup.get(), fonts);
+    // check out the style's language
+    nsAutoTArray<nsRefPtr<gfxFontEntry>, 5> fonts;
+    GetPrefFonts(mStyle.language, fonts);
     selectedFont = WhichFontSupportsChar(fonts, aCh);
 
     // otherwise search prefs
@@ -656,15 +658,15 @@ gfxFT2FontGroup::WhichPrefFontSupportsChar(PRUint32 aCh)
                 PR_LOG(gFontLog, PR_LOG_DEBUG, (" - Trying to find fonts for: CJK"));
             }
 
-            nsAutoTArray<nsRefPtr<FontEntry>, 15> fonts;
+            nsAutoTArray<nsRefPtr<gfxFontEntry>, 15> fonts;
             GetCJKPrefFonts(fonts);
             selectedFont = WhichFontSupportsChar(fonts, aCh);
         } else {
-            const char *langGroup = LangGroupFromUnicodeRange(unicodeRange);
+            nsIAtom *langGroup = LangGroupFromUnicodeRange(unicodeRange);
             if (langGroup) {
-                PR_LOG(gFontLog, PR_LOG_DEBUG, (" - Trying to find fonts for: %s", langGroup));
+                PR_LOG(gFontLog, PR_LOG_DEBUG, (" - Trying to find fonts for: %s", nsAtomCString(langGroup).get()));
 
-                nsAutoTArray<nsRefPtr<FontEntry>, 5> fonts;
+                nsAutoTArray<nsRefPtr<gfxFontEntry>, 5> fonts;
                 GetPrefFonts(langGroup, fonts);
                 selectedFont = WhichFontSupportsChar(fonts, aCh);
             }
@@ -682,12 +684,22 @@ gfxFT2FontGroup::WhichPrefFontSupportsChar(PRUint32 aCh)
 already_AddRefed<gfxFont>
 gfxFT2FontGroup::WhichSystemFontSupportsChar(PRUint32 aCh)
 {
+#ifdef XP_WIN
+    FontEntry *fe = static_cast<FontEntry*>
+        (gfxPlatformFontList::PlatformFontList()->FindFontForChar(aCh, GetFontAt(0)));
+    if (fe) {
+        nsRefPtr<gfxFT2Font> f = gfxFT2Font::GetOrMakeFont(fe, &mStyle);
+        nsRefPtr<gfxFont> font = f.get();
+        return font.forget();
+    }
+#else
     nsRefPtr<gfxFont> selectedFont;
     nsRefPtr<gfxFT2Font> refFont = GetFontAt(0);
     gfxToolkitPlatform *platform = gfxToolkitPlatform::GetPlatform();
     selectedFont = platform->FindFontForChar(aCh, refFont);
     if (selectedFont)
         return selectedFont.forget();
+#endif
     return nsnull;
 }
 
@@ -711,8 +723,8 @@ gfxFT2FontGroup::AddRange(gfxTextRun *aTextRun, gfxFT2Font *font, const PRUnicha
 {
     const PRUint32 appUnitsPerDevUnit = aTextRun->GetAppUnitsPerDevUnit();
     // we'll pass this in/figure it out dynamically, but at this point there can be only one face.
-    gfxFT2Font::FaceLock faceLock(font);
-    FT_Face face = faceLock.Face();
+    gfxFT2LockedFace faceLock(font);
+    FT_Face face = faceLock.get();
 
     gfxTextRun::CompressedGlyph g;
 
@@ -803,33 +815,14 @@ gfxFT2FontGroup::AddRange(gfxTextRun *aTextRun, gfxFT2Font *font, const PRUnicha
     }
 }
 
-/*
- * Stack-based face lock helper
- */
-gfxFT2Font::FaceLock::FaceLock(gfxFT2Font *font)
-{
-    mScaledFont = font->CairoScaledFont();
-    mFace = cairo_ft_scaled_font_lock_face(mScaledFont);
-}
-
-gfxFT2Font::FaceLock::~FaceLock()
-{
-    cairo_ft_scaled_font_unlock_face(mScaledFont);
-}
-
 /**
  * gfxFT2Font
  */
-gfxFT2Font::gfxFT2Font(FontEntry *aFontEntry,
-                     const gfxFontStyle *aFontStyle)
-    : gfxFont(aFontEntry, aFontStyle),
-      mScaledFont(nsnull),
-      mHasSpaceGlyph(PR_FALSE),
-      mSpaceGlyph(0),
-      mHasMetrics(PR_FALSE),
-      mAdjustedSize(0)
+gfxFT2Font::gfxFT2Font(cairo_scaled_font_t *aCairoFont,
+                       FontEntry *aFontEntry,
+                       const gfxFontStyle *aFontStyle)
+    : gfxFT2FontBase(aCairoFont, aFontEntry, aFontStyle)
 {
-    mFontEntry = aFontEntry;
     NS_ASSERTION(mFontEntry, "Unable to find font entry for font.  Something is whack.");
 
     mCharGlyphCache.Init(64);
@@ -837,155 +830,6 @@ gfxFT2Font::gfxFT2Font(FontEntry *aFontEntry,
 
 gfxFT2Font::~gfxFT2Font()
 {
-    if (mScaledFont) {
-        cairo_scaled_font_destroy(mScaledFont);
-        mScaledFont = nsnull;
-    }
-}
-
-const gfxFont::Metrics&
-gfxFT2Font::GetMetrics()
-{
-    if (mHasMetrics)
-        return mMetrics;
-
-    mMetrics.emHeight = GetStyle()->size;
-
-    gfxFT2Font::FaceLock faceLock(this);
-    FT_Face face = faceLock.Face();
-
-    if (!face) {
-        // Abort here already, otherwise we crash in the following
-        // this can happen if the font-size requested is zero.
-        // The metrics will be incomplete, but then we don't care.
-        return mMetrics;
-    }
-
-    mMetrics.emHeight = GetStyle()->size;
-
-    FT_UInt gid; // glyph ID
-
-    const double emUnit = 1.0 * face->units_per_EM;
-    const double xScale = face->size->metrics.x_ppem / emUnit;
-    const double yScale = face->size->metrics.y_ppem / emUnit;
-
-    // cache properties of space
-    GetSpaceGlyph();
-
-    // properties of 'x', also use its width as average width
-    gid = FT_Get_Char_Index(face, 'x'); // select the glyph
-    if (gid) {
-        // Load glyph into glyph slot. Here, use no_scale to get font units.
-        FT_Load_Glyph(face, gid, FT_LOAD_NO_SCALE);
-        mMetrics.xHeight = face->glyph->metrics.height * yScale;
-        mMetrics.aveCharWidth = face->glyph->metrics.width * xScale;
-    } else {
-        // this font doesn't have an 'x'...
-        // fake these metrics using a fraction of the font size
-        mMetrics.xHeight = mMetrics.emHeight * 0.5;
-        mMetrics.aveCharWidth = mMetrics.emHeight * 0.5;
-    }
-
-    // compute an adjusted size if we need to
-    if (mAdjustedSize == 0 && GetStyle()->sizeAdjust != 0) {
-        gfxFloat aspect = mMetrics.xHeight / GetStyle()->size;
-        mAdjustedSize = GetStyle()->GetAdjustedSize(aspect);
-        mMetrics.emHeight = mAdjustedSize;
-    }
-
-    // now load the OS/2 TrueType table to load access some more properties
-    TT_OS2 *os2 = (TT_OS2 *)FT_Get_Sfnt_Table(face, ft_sfnt_os2);
-    if (os2 && os2->version != 0xFFFF) { // should be there if not old Mac font
-        // if we are here we can improve the avgCharWidth
-        mMetrics.aveCharWidth = os2->xAvgCharWidth * xScale;
-
-        mMetrics.superscriptOffset = os2->ySuperscriptYOffset * yScale;
-        mMetrics.superscriptOffset = PR_MAX(1, mMetrics.superscriptOffset);
-        // some fonts have the incorrect sign (from gfxPangoFonts)
-        mMetrics.subscriptOffset   = fabs(os2->ySubscriptYOffset * yScale);
-        mMetrics.subscriptOffset   = PR_MAX(1, fabs(mMetrics.subscriptOffset));
-        mMetrics.strikeoutOffset   = os2->yStrikeoutPosition * yScale;
-        mMetrics.strikeoutSize     = os2->yStrikeoutSize * yScale;
-    } else {
-        // use fractions of emHeight instead of xHeight for these to be more robust
-        mMetrics.superscriptOffset = mMetrics.emHeight * 0.5;
-        mMetrics.subscriptOffset   = mMetrics.emHeight * 0.2;
-        mMetrics.strikeoutOffset   = mMetrics.emHeight * 0.3;
-        mMetrics.strikeoutSize     = face->underline_thickness * yScale;
-    }
-    // seems that underlineOffset really has to be negative
-    mMetrics.underlineOffset = face->underline_position * yScale;
-    mMetrics.underlineSize   = face->underline_thickness * yScale;
-
-    // descents are negative in FT but Thebes wants them positive
-    mMetrics.emAscent        = face->ascender * yScale;
-    mMetrics.emDescent       = -face->descender * yScale;
-    mMetrics.maxHeight       = face->height * yScale;
-    mMetrics.maxAscent       = face->bbox.yMax * yScale;
-    mMetrics.maxDescent      = -face->bbox.yMin * yScale;
-    mMetrics.maxAdvance      = face->max_advance_width * xScale;
-    // leading are not available directly (only for WinFNTs)
-    double lineHeight = mMetrics.maxAscent + mMetrics.maxDescent;
-    if (lineHeight > mMetrics.emHeight) {
-        mMetrics.internalLeading = lineHeight - mMetrics.emHeight;
-    } else {
-        mMetrics.internalLeading = 0;
-    }
-    mMetrics.externalLeading = 0; // normal value for OS/2 fonts, too
-
-    SanitizeMetrics(&mMetrics, PR_FALSE);
-
-    /*
-    printf("gfxOS2Font[%#x]::GetMetrics():\n"
-           "  emHeight=%f == %f=gfxFont::style.size == %f=adjSz\n"
-           "  maxHeight=%f  xHeight=%f\n"
-           "  aveCharWidth=%f==xWidth  spaceWidth=%f\n"
-           "  supOff=%f SubOff=%f   strOff=%f strSz=%f\n"
-           "  undOff=%f undSz=%f    intLead=%f extLead=%f\n"
-           "  emAsc=%f emDesc=%f maxH=%f\n"
-           "  maxAsc=%f maxDes=%f maxAdv=%f\n",
-           (unsigned)this,
-           mMetrics.emHeight, GetStyle()->size, mAdjustedSize,
-           mMetrics.maxHeight, mMetrics.xHeight,
-           mMetrics.aveCharWidth, mMetrics.spaceWidth,
-           mMetrics.superscriptOffset, mMetrics.subscriptOffset,
-           mMetrics.strikeoutOffset, mMetrics.strikeoutSize,
-           mMetrics.underlineOffset, mMetrics.underlineSize,
-           mMetrics.internalLeading, mMetrics.externalLeading,
-           mMetrics.emAscent, mMetrics.emDescent, mMetrics.maxHeight,
-           mMetrics.maxAscent, mMetrics.maxDescent, mMetrics.maxAdvance
-          );
-    */
-
-    // XXX mMetrics.height needs to be set.
-
-    mHasMetrics = PR_TRUE;
-    return mMetrics;
-}
-
-
-nsString
-gfxFT2Font::GetUniqueName()
-{
-    return GetName();
-}
-
-PRUint32
-gfxFT2Font::GetSpaceGlyph()
-{
-    NS_ASSERTION (GetStyle()->size != 0, "forgot to short-circuit a text run with zero-sized font?");
-
-    if (!mHasSpaceGlyph) {
-        const CachedGlyphData *gdata = GetGlyphDataForChar(' ');
-
-        mSpaceGlyph = gdata->glyphIndex;
-        NS_ASSERTION(mSpaceGlyph != 0, "Font has no space glyph!");
-
-        mMetrics.spaceWidth = MOZ_FT_TRUNC(gdata->xAdvance);
-        mHasSpaceGlyph = PR_TRUE;
-    }
-
-    return mSpaceGlyph;
 }
 
 cairo_font_face_t *
@@ -998,59 +842,50 @@ gfxFT2Font::CairoFontFace()
     return GetFontEntry()->CairoFontFace();
 }
 
-cairo_scaled_font_t *
-gfxFT2Font::CairoScaledFont()
+static cairo_scaled_font_t *
+CreateScaledFont(FontEntry *aFontEntry, const gfxFontStyle *aStyle)
 {
-    if (!mScaledFont) {
-        cairo_matrix_t sizeMatrix;
-        cairo_matrix_t identityMatrix;
+    cairo_scaled_font_t *scaledFont = NULL;
 
-        // XXX deal with adjusted size
-        cairo_matrix_init_scale(&sizeMatrix, mStyle.size, mStyle.size);
-        cairo_matrix_init_identity(&identityMatrix);
+    cairo_matrix_t sizeMatrix;
+    cairo_matrix_t identityMatrix;
 
-        // synthetic oblique by skewing via the font matrix
-        PRBool needsOblique = (!mFontEntry->mItalic && (mStyle.style & (FONT_STYLE_ITALIC | FONT_STYLE_OBLIQUE)));
+    // XXX deal with adjusted size
+    cairo_matrix_init_scale(&sizeMatrix, aStyle->size, aStyle->size);
+    cairo_matrix_init_identity(&identityMatrix);
 
-        if (needsOblique) {
-            const double kSkewFactor = 0.25;
+    // synthetic oblique by skewing via the font matrix
+    PRBool needsOblique = (!aFontEntry->mItalic && (aStyle->style & (FONT_STYLE_ITALIC | FONT_STYLE_OBLIQUE)));
 
-            cairo_matrix_t style;
-            cairo_matrix_init(&style,
-                              1,                //xx
-                              0,                //yx
-                              -1 * kSkewFactor,  //xy
-                              1,                //yy
-                              0,                //x0
-                              0);               //y0
-            cairo_matrix_multiply(&sizeMatrix, &sizeMatrix, &style);
-        }
+    if (needsOblique) {
+        const double kSkewFactor = 0.25;
 
-        cairo_font_options_t *fontOptions = cairo_font_options_create();
-        mScaledFont = cairo_scaled_font_create(CairoFontFace(), &sizeMatrix,
-                                               &identityMatrix, fontOptions);
-        cairo_font_options_destroy(fontOptions);
+        cairo_matrix_t style;
+        cairo_matrix_init(&style,
+                          1,                //xx
+                          0,                //yx
+                          -1 * kSkewFactor,  //xy
+                          1,                //yy
+                          0,                //x0
+                          0);               //y0
+        cairo_matrix_multiply(&sizeMatrix, &sizeMatrix, &style);
     }
 
-    NS_ASSERTION(mAdjustedSize == 0.0 ||
-                 cairo_scaled_font_status(mScaledFont) == CAIRO_STATUS_SUCCESS,
+    cairo_font_options_t *fontOptions = cairo_font_options_create();
+
+#ifdef MOZ_GFX_OPTIMIZE_MOBILE
+    cairo_font_options_set_hint_metrics(fontOptions, CAIRO_HINT_METRICS_OFF);
+#endif
+
+    scaledFont = cairo_scaled_font_create(aFontEntry->CairoFontFace(),
+                                          &sizeMatrix,
+                                          &identityMatrix, fontOptions);
+    cairo_font_options_destroy(fontOptions);
+
+    NS_ASSERTION(cairo_scaled_font_status(scaledFont) == CAIRO_STATUS_SUCCESS,
                  "Failed to make scaled font");
 
-    return mScaledFont;
-}
-
-PRBool
-gfxFT2Font::SetupCairoFont(gfxContext *aContext)
-{
-    cairo_scaled_font_t *scaledFont = CairoScaledFont();
-
-    if (cairo_scaled_font_status(scaledFont) != CAIRO_STATUS_SUCCESS) {
-        // Don't cairo_set_scaled_font as that would propagate the error to
-        // the cairo_t, precluding any further drawing.
-        return PR_FALSE;
-    }
-    cairo_set_scaled_font(aContext->GetCairo(), scaledFont);
-    return PR_TRUE;
+    return scaledFont;
 }
 
 /**
@@ -1061,7 +896,8 @@ gfxFT2Font::SetupCairoFont(gfxContext *aContext)
 already_AddRefed<gfxFT2Font>
 gfxFT2Font::GetOrMakeFont(const nsAString& aName, const gfxFontStyle *aStyle)
 {
-    FontEntry *fe = gfxToolkitPlatform::GetPlatform()->FindFontEntry(aName, *aStyle);
+    FontEntry *fe = static_cast<FontEntry*>
+        (gfxToolkitPlatform::GetPlatform()->FindFontEntry(aName, *aStyle));
     if (!fe) {
         NS_WARNING("Failed to find font entry for font!");
         return nsnull;
@@ -1076,7 +912,9 @@ gfxFT2Font::GetOrMakeFont(FontEntry *aFontEntry, const gfxFontStyle *aStyle)
 {
     nsRefPtr<gfxFont> font = gfxFontCache::GetCache()->Lookup(aFontEntry->Name(), aStyle);
     if (!font) {
-        font = new gfxFT2Font(aFontEntry, aStyle);
+        cairo_scaled_font_t *scaledFont = CreateScaledFont(aFontEntry, aStyle);
+        font = new gfxFT2Font(scaledFont, aFontEntry, aStyle);
+        cairo_scaled_font_destroy(scaledFont);
         if (!font)
             return nsnull;
         gfxFontCache::GetCache()->AddNew(font);
@@ -1089,8 +927,8 @@ gfxFT2Font::GetOrMakeFont(FontEntry *aFontEntry, const gfxFontStyle *aStyle)
 void
 gfxFT2Font::FillGlyphDataForChar(PRUint32 ch, CachedGlyphData *gd)
 {
-    gfxFT2Font::FaceLock faceLock(this);
-    FT_Face face = faceLock.Face();
+    gfxFT2LockedFace faceLock(this);
+    FT_Face face = faceLock.get();
 
     FT_UInt gid = FT_Get_Char_Index(face, ch);
 
@@ -1101,7 +939,11 @@ gfxFT2Font::FillGlyphDataForChar(PRUint32 ch, CachedGlyphData *gd)
         return;
     }
 
+#ifdef MOZ_GFX_OPTIMIZE_MOBILE
+    FT_Error err = FT_Load_Glyph(face, gid, FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING);
+#else
     FT_Error err = FT_Load_Glyph(face, gid, FT_LOAD_DEFAULT);
+#endif
 
     if (err) {
         // hmm, this is weird, we failed to load a glyph that we had?

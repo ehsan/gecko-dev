@@ -130,6 +130,8 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
+  nsresult CopyInnerTo(nsGenericElement* aDest) const;
+
   void StartObjectLoad() { StartObjectLoad(PR_TRUE); }
 
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsHTMLSharedObjectElement,
@@ -215,6 +217,9 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_ADDREF_INHERITED(nsHTMLSharedObjectElement, nsGenericElement) 
 NS_IMPL_RELEASE_INHERITED(nsHTMLSharedObjectElement, nsGenericElement) 
 
+DOMCI_DATA(HTMLAppletElement, nsHTMLSharedObjectElement)
+DOMCI_DATA(HTMLEmbedElement, nsHTMLSharedObjectElement)
+
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLSharedObjectElement)
   NS_HTML_CONTENT_INTERFACE_TABLE_AMBIGUOUS_BEGIN(nsHTMLSharedObjectElement,
                                                   nsIDOMHTMLAppletElement)
@@ -236,8 +241,8 @@ NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLSharedObjectElement)
 #ifdef MOZ_SVG
   NS_INTERFACE_MAP_ENTRY_IF_TAG(nsIDOMGetSVGDocument, embed)
 #endif
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO_IF_TAG(HTMLAppletElement, applet)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO_IF_TAG(HTMLEmbedElement, embed)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_IF_TAG(HTMLAppletElement, applet)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_IF_TAG(HTMLEmbedElement, embed)
 NS_HTML_CONTENT_INTERFACE_MAP_END
 
 NS_IMPL_ELEMENT_CLONE(nsHTMLSharedObjectElement)
@@ -255,9 +260,9 @@ nsHTMLSharedObjectElement::BindToTree(nsIDocument *aDocument,
 
   // If we already have all the children, start the load.
   if (mIsDoneAddingChildren) {
-    nsContentUtils::AddScriptRunner(
-      new nsRunnableMethod<nsHTMLSharedObjectElement>(this,
-                                                      &nsHTMLSharedObjectElement::StartObjectLoad));
+    void (nsHTMLSharedObjectElement::*start)() =
+      &nsHTMLSharedObjectElement::StartObjectLoad;
+    nsContentUtils::AddScriptRunner(NS_NewRunnableMethod(this, start));
   }
 
   return NS_OK;
@@ -459,4 +464,17 @@ nsHTMLSharedObjectElement::DestroyContent()
 {
   RemovedFromDocument();
   nsGenericHTMLElement::DestroyContent();
+}
+
+nsresult
+nsHTMLSharedObjectElement::CopyInnerTo(nsGenericElement* aDest) const
+{
+  nsresult rv = nsGenericHTMLElement::CopyInnerTo(aDest);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (aDest->GetOwnerDoc()->IsStaticDocument()) {
+    CreateStaticClone(static_cast<nsHTMLSharedObjectElement*>(aDest));
+  }
+
+  return rv;
 }

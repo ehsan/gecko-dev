@@ -44,6 +44,7 @@
 #include "nsCSSProperty.h"
 #include "nsIStyleRuleProcessor.h"
 #include "nsRefreshDriver.h"
+#include "nsCSSPseudoElements.h"
 
 class nsStyleContext;
 class nsPresContext;
@@ -51,15 +52,16 @@ class nsCSSPropertySet;
 struct nsTransition;
 struct ElementTransitions;
 
-/**
- * Must be created only as a sub-object of an nsPresContext (since its
- * reference counting methods assume that).
- */
 class nsTransitionManager : public nsIStyleRuleProcessor,
                             public nsARefreshObserver {
 public:
   nsTransitionManager(nsPresContext *aPresContext);
   ~nsTransitionManager();
+
+  /**
+   * Notify the transition manager that the pres context is going away.
+   */
+  void Disconnect();
 
   /**
    * StyleContextChanged 
@@ -76,20 +78,24 @@ public:
    * returned cover rule as the most specific rule.
    */
   already_AddRefed<nsIStyleRule>
-    StyleContextChanged(nsIContent *aElement,
+    StyleContextChanged(mozilla::dom::Element *aElement,
                         nsStyleContext *aOldStyleContext,
                         nsStyleContext *aNewStyleContext);
 
   // nsISupports
-  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_ISUPPORTS
 
   // nsIStyleRuleProcessor
   NS_IMETHOD RulesMatching(ElementRuleProcessorData* aData);
-  NS_IMETHOD RulesMatching(PseudoRuleProcessorData* aData);
-  NS_IMETHOD HasStateDependentStyle(StateRuleProcessorData* aData,
-                                    nsReStyleHint* aResult);
-  NS_IMETHOD HasAttributeDependentStyle(AttributeRuleProcessorData* aData,
-                                        nsReStyleHint* aResult);
+  NS_IMETHOD RulesMatching(PseudoElementRuleProcessorData* aData);
+  NS_IMETHOD RulesMatching(AnonBoxRuleProcessorData* aData);
+#ifdef MOZ_XUL
+  NS_IMETHOD RulesMatching(XULTreeRuleProcessorData* aData);
+#endif
+  virtual nsRestyleHint HasStateDependentStyle(StateRuleProcessorData* aData);
+  virtual PRBool HasDocumentStateDependentStyle(StateRuleProcessorData* aData);
+  virtual nsRestyleHint
+    HasAttributeDependentStyle(AttributeRuleProcessorData* aData);
   NS_IMETHOD MediumFeaturesChanged(nsPresContext* aPresContext,
                                    PRBool* aRulesChanged);
 
@@ -101,21 +107,22 @@ private:
 
   void ConsiderStartingTransition(nsCSSProperty aProperty,
                                   const nsTransition& aTransition,
-                                  nsIContent *aElement,
+                                  mozilla::dom::Element *aElement,
                                   ElementTransitions *&aElementTransitions,
                                   nsStyleContext *aOldStyleContext,
                                   nsStyleContext *aNewStyleContext,
                                   PRBool *aStartedAny,
                                   nsCSSPropertySet *aWhichStarted);
-  ElementTransitions* GetElementTransitions(nsIContent *aElement,
-                                            nsIAtom *aPseudo,
+  ElementTransitions* GetElementTransitions(mozilla::dom::Element *aElement,
+                                            nsCSSPseudoElements::Type aPseudoType,
                                             PRBool aCreateIfNeeded);
   void AddElementTransitions(ElementTransitions* aElementTransitions);
   void TransitionsRemoved();
-  nsresult WalkTransitionRule(RuleProcessorData* aData, nsIAtom *aPseudo);
+  nsresult WalkTransitionRule(RuleProcessorData* aData,
+			      nsCSSPseudoElements::Type aPseudoType);
 
   PRCList mElementTransitions;
-  nsPresContext *mPresContext;
+  nsPresContext *mPresContext; // weak (non-null from ctor to Disconnect)
 };
 
 #endif /* !defined(nsTransitionManager_h_) */

@@ -64,11 +64,50 @@
 #include "NativeSparc.h"
 #elif defined(NANOJIT_X64)
 #include "NativeX64.h"
+#elif defined(NANOJIT_MIPS)
+#include "NativeMIPS.h"
 #else
 #error "unknown nanojit architecture"
 #endif
 
+#ifndef NJ_USES_IMMD_POOL
+#  define NJ_USES_IMMD_POOL 0
+#endif
+
+#ifndef NJ_JTBL_SUPPORTED
+#  define NJ_JTBL_SUPPORTED 0
+#endif
+
+#ifndef NJ_EXPANDED_LOADSTORE_SUPPORTED
+#  define NJ_EXPANDED_LOADSTORE_SUPPORTED 0
+#endif
+
+#ifndef NJ_F2I_SUPPORTED
+#  define NJ_F2I_SUPPORTED 0
+#endif
+
+#ifndef NJ_SOFTFLOAT_SUPPORTED
+#  define NJ_SOFTFLOAT_SUPPORTED 0
+#endif
+
+
+#if NJ_SOFTFLOAT_SUPPORTED
+    #define CASESF(x)   case x
+#else
+    #define CASESF(x)
+#endif
+
 namespace nanojit {
+
+    inline Register nextreg(Register r) {
+        return Register(r+1);
+    }
+
+    inline Register prevreg(Register r) {
+        return Register(r-1);
+    }
+
+
     class Fragment;
     struct SideExit;
     struct SwitchInfo;
@@ -101,40 +140,27 @@ namespace nanojit {
     };
 }
 
-    #ifdef NJ_STACK_GROWTH_UP
-        #define stack_direction(n)   n
-    #else
-        #define stack_direction(n)  -n
-    #endif
+    #define isSPorFP(r)     ( (r)==SP || (r)==FP )
 
-    #define isSPorFP(r)        ( (r)==SP || (r)==FP )
-
-    #ifdef MOZ_NO_VARADIC_MACROS
+    #ifdef NJ_NO_VARIADIC_MACROS
         static void asm_output(const char *f, ...) {}
         #define gpn(r)                    regNames[(r)]
-        #define fpn(r)                    regNames[(r)]
     #elif defined(NJ_VERBOSE)
+        // Used for printing native instructions.  Like Assembler::outputf(),
+        // but only outputs if LC_Native is set.  Also prepends the output
+        // with the address of the current native instruction.
         #define asm_output(...) do { \
-            counter_increment(native); \
-            if (_logc->lcbits & LC_Assembly) { \
+            if (_logc->lcbits & LC_Native) { \
                 outline[0]='\0'; \
-                if (outputAddr) \
-                   VMPI_sprintf(outline, "%010lx   ", (unsigned long)_nIns); \
-                else \
-                   VMPI_memset(outline, (int)' ', 10+3); \
+               VMPI_sprintf(outline, "%010lx   ", (unsigned long)_nIns); \
                 sprintf(&outline[13], ##__VA_ARGS__); \
-                Assembler::outputAlign(outline, 35); \
-                _allocator.formatRegisters(outline, _thisfrag); \
-                Assembler::output_asm(outline); \
-                outputAddr=(_logc->lcbits & LC_NoCodeAddrs) ? false : true;    \
+                output(); \
             } \
         } while (0) /* no semi */
-        #define gpn(r)                    regNames[(r)]
-        #define fpn(r)                    regNames[(r)]
+        #define gpn(r)                  regNames[(r)]
     #else
         #define asm_output(...)
         #define gpn(r)
-        #define fpn(r)
     #endif /* NJ_VERBOSE */
 
 #endif // __nanojit_Native__

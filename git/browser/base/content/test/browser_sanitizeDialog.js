@@ -51,15 +51,13 @@
  */
 
 Cc["@mozilla.org/moz/jssubscript-loader;1"].
-  getService(Components.interfaces.mozIJSSubScriptLoader).
+  getService(Ci.mozIJSSubScriptLoader).
   loadSubScript("chrome://mochikit/content/MochiKit/packed.js");
 
 Cc["@mozilla.org/moz/jssubscript-loader;1"].
-  getService(Components.interfaces.mozIJSSubScriptLoader).
+  getService(Ci.mozIJSSubScriptLoader).
   loadSubScript("chrome://browser/content/sanitize.js");
 
-const winWatch = Cc["@mozilla.org/embedcomp/window-watcher;1"].
-                 getService(Ci.nsIWindowWatcher);
 const dm = Cc["@mozilla.org/download-manager;1"].
            getService(Ci.nsIDownloadManager);
 const bhist = Cc["@mozilla.org/browser/global-history;2"].
@@ -303,8 +301,8 @@ var gAllTests = [
   function () {
     let wh = new WindowHelper();
     wh.onload = function () {
-      // Reset the check boxes and select "Everything"
-      this.resetCheckboxes();
+      // Check all items and select "Everything"
+      this.checkAllCheckboxes();
       this.selectDuration(Sanitizer.TIMESPAN_EVERYTHING);
 
       // Hide details
@@ -317,11 +315,10 @@ var gAllTests = [
   function () {
     let wh = new WindowHelper();
     wh.onload = function () {
-      // Details should remain closed because the items selection is the same
-      // as the default state.
+      // Details should remain closed because all items are checked.
       this.checkDetails(false);
 
-      // Modify the default items state
+      // Uncheck history.
       this.checkPrefCheckbox("history", false);
       this.acceptDialog();
     };
@@ -330,8 +327,20 @@ var gAllTests = [
   function () {
     let wh = new WindowHelper();
     wh.onload = function () {
-      // Details should be open because the items selection is not the same
-      // as the default state.
+      // Details should be open because not all items are checked.
+      this.checkDetails(true);
+
+      // Modify the Site Preferences item state (bug 527820)
+      this.checkAllCheckboxes();
+      this.checkPrefCheckbox("siteSettings", false);
+      this.acceptDialog();
+    };
+    wh.open();
+  },
+  function () {
+    let wh = new WindowHelper();
+    wh.onload = function () {
+      // Details should be open because not all items are checked.
       this.checkDetails(true);
 
       // Hide details
@@ -344,8 +353,7 @@ var gAllTests = [
   function () {
     let wh = new WindowHelper();
     wh.onload = function () {
-      // Details should be open because the items selection is not the same
-      // as the default state.
+      // Details should be open because not all items are checked.
       this.checkDetails(true);
 
       // Select another duration
@@ -442,8 +450,10 @@ WindowHelper.prototype = {
        "Details button should be " + dir + " because item list is " +
        (hidden ? "" : "not ") + "hidden");
     let height = 0;
-    if (!hidden)
+    if (!hidden) {
+      ok(list.boxObject.height > 30, "listbox has sufficient size")
       height += list.boxObject.height;
+    }
     if (this.isWarningPanelVisible())
       height += this.getWarningPanel().boxObject.height;
     ok(height < this.win.innerHeight,
@@ -469,14 +479,14 @@ WindowHelper.prototype = {
   },
 
   /**
-   * Resets the checkboxes to their default state.
+   * Makes sure all the checkboxes are checked.
    */
-  resetCheckboxes: function () {
+  checkAllCheckboxes: function () {
     var cb = this.win.document.querySelectorAll("#itemList > [preference]");
     ok(cb.length > 1, "found checkboxes for preferences");
     for (var i = 0; i < cb.length; ++i) {
       var pref = this.win.document.getElementById(cb[i].getAttribute("preference"));
-      if (pref.value != pref.defaultValue)
+      if (!pref.value)
         cb[i].click();
     }
   },
@@ -526,75 +536,73 @@ WindowHelper.prototype = {
   open: function () {
     let wh = this;
 
-    let windowObserver = {
-      observe: function(aSubject, aTopic, aData) {
-        if (aTopic !== "domwindowopened")
+    function windowObserver(aSubject, aTopic, aData) {
+      if (aTopic != "domwindowopened")
+        return;
+
+      Services.ww.unregisterNotification(windowObserver);
+
+      var loaded = false;
+      let win = aSubject.QueryInterface(Ci.nsIDOMWindow);
+
+      win.addEventListener("load", function onload(event) {
+        win.removeEventListener("load", onload, false);
+
+        if (win.name !== "SanitizeDialog")
           return;
 
-        winWatch.unregisterNotification(this);
+        wh.win = win;
+        loaded = true;
 
-        var loaded = false;
-        let win = aSubject.QueryInterface(Ci.nsIDOMWindow);
-
-        win.addEventListener("load", function onload(event) {
-          win.removeEventListener("load", onload, false);
-
-          if (win.name !== "SanitizeDialog")
-            return;
-
-          wh.win = win;
-          loaded = true;
-
-          executeSoon(function () {
-            // Some exceptions that reach here don't reach the test harness, but
-            // ok()/is() do...
-            try {
-              wh.onload();
-            }
-            catch (exc) {
-              win.close();
-              ok(false, "Unexpected exception: " + exc + "\n" + exc.stack);
-              finish();
-            }
-          });
-        }, false);
-
-        win.addEventListener("unload", function onunload(event) {
-          if (win.name !== "SanitizeDialog") {
-            win.removeEventListener("unload", onunload, false);
-            return;
+        executeSoon(function () {
+          // Some exceptions that reach here don't reach the test harness, but
+          // ok()/is() do...
+          try {
+            wh.onload();
           }
+          catch (exc) {
+            win.close();
+            ok(false, "Unexpected exception: " + exc + "\n" + exc.stack);
+            finish();
+          }
+        });
+      }, false);
 
-          // Why is unload fired before load?
-          if (!loaded)
-            return;
-
+      win.addEventListener("unload", function onunload(event) {
+        if (win.name !== "SanitizeDialog") {
           win.removeEventListener("unload", onunload, false);
-          wh.win = win;
+          return;
+        }
 
-          executeSoon(function () {
-            // Some exceptions that reach here don't reach the test harness, but
-            // ok()/is() do...
-            try {
-              if (wh.onunload)
-                wh.onunload();
-              doNextTest();
-            }
-            catch (exc) {
-              win.close();
-              ok(false, "Unexpected exception: " + exc + "\n" + exc.stack);
-              finish();
-            }
-          });
-        }, false);
-      }
-    };
-    winWatch.registerNotification(windowObserver);
-    winWatch.openWindow(null,
-                        "chrome://browser/content/sanitize.xul",
-                        "SanitizeDialog",
-                        "chrome,titlebar,dialog,centerscreen,modal",
-                        null);
+        // Why is unload fired before load?
+        if (!loaded)
+          return;
+
+        win.removeEventListener("unload", onunload, false);
+        wh.win = win;
+
+        executeSoon(function () {
+          // Some exceptions that reach here don't reach the test harness, but
+          // ok()/is() do...
+          try {
+            if (wh.onunload)
+              wh.onunload();
+            doNextTest();
+          }
+          catch (exc) {
+            win.close();
+            ok(false, "Unexpected exception: " + exc + "\n" + exc.stack);
+            finish();
+          }
+        });
+      }, false);
+    }
+    Services.ww.registerNotification(windowObserver);
+    Services.ww.openWindow(null,
+                           "chrome://browser/content/sanitize.xul",
+                           "SanitizeDialog",
+                           "chrome,titlebar,dialog,centerscreen,modal",
+                           null);
   },
 
   /**

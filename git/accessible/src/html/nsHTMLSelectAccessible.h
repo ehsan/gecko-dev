@@ -45,8 +45,6 @@
 #include "nsIDOMHTMLOptionsCollection.h"
 #include "nsIDOMHTMLOptionElement.h"
 #include "nsIDOMNode.h"
-#include "nsIAccessibilityService.h"
-#include "nsAccessibleTreeWalker.h"
 
 class nsIMutableArray;
 
@@ -104,10 +102,10 @@ protected:
 
     void CalcSelectionCount(PRInt32 *aSelectionCount);
     void Select(PRBool aSelect);
-    void AddAccessibleIfSelected(nsIAccessibilityService *aAccService, 
-                                 nsIMutableArray *aSelectedAccessibles, 
+    void AddAccessibleIfSelected(nsIMutableArray *aSelectedAccessibles, 
                                  nsPresContext *aContext);
-    PRBool GetAccessibleIfSelected(PRInt32 aIndex, nsIAccessibilityService *aAccService, nsPresContext *aContext, nsIAccessible **_retval);
+    PRBool GetAccessibleIfSelected(PRInt32 aIndex, nsPresContext *aContext,
+                                   nsIAccessible **aAccessible);
 
     PRBool Advance();
   };
@@ -130,18 +128,16 @@ public:
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
 protected:
-  void CacheChildren();
 
-  already_AddRefed<nsIAccessible>
-    AccessibleForOption(nsIAccessibilityService *aAccService,
-                        nsIContent *aContent,
-                        nsIAccessible *aLastGoodAccessible,
-                        PRInt32 *aChildCount);
-  already_AddRefed<nsIAccessible>
-    CacheOptSiblings(nsIAccessibilityService *aAccService,
-                     nsIContent *aParentContent,
-                     nsIAccessible *aLastGoodAccessible,
-                     PRInt32 *aChildCount);
+  // nsAccessible
+  virtual void CacheChildren();
+
+  // nsHTMLSelectListAccessible
+
+  /**
+   * Recursive helper for CacheChildren().
+   */
+  void CacheOptSiblings(nsIContent *aParentContent);
 };
 
 /*
@@ -164,7 +160,10 @@ public:
   virtual nsresult GetNameInternal(nsAString& aName);
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
-  virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
+
+  virtual PRInt32 GetLevelInternal();
+  virtual void GetPositionAndSizeInternal(PRInt32 *aPosInSet,
+                                          PRInt32 *aSetSize);
 
   nsIFrame*  GetBoundsFrame();
   static nsresult GetFocusedOptionNode(nsIDOMNode *aListNode, nsIDOMNode **aFocusedOptionNode);
@@ -201,7 +200,8 @@ public:
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
 protected:
-  void CacheChildren();
+  // nsAccessible
+  virtual void CacheChildren();
 };
 
 /** ------------------------------------------------------ */
@@ -236,66 +236,19 @@ public:
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
 protected:
-  void CacheChildren();
+  // nsAccessible
+  virtual void CacheChildren();
 
-  already_AddRefed<nsIAccessible> GetFocusedOptionAccessible();
+  // nsHTMLComboboxAccessible
+
+  /**
+   * Return focused option accessible.
+   */
+  nsAccessible *GetFocusedOptionAccessible();
 
 private:
   nsRefPtr<nsHTMLComboboxListAccessible> mListAccessible;
 };
-
-#ifdef COMBO_BOX_WITH_THREE_CHILDREN
-/*
- * A class the represents the text field in the Select to the left
- *     of the drop down button
- */
-class nsHTMLComboboxTextFieldAccessible  : public nsHTMLTextFieldAccessible
-{
-public:
-  
-  nsHTMLComboboxTextFieldAccessible(nsIAccessible* aParent, nsIDOMNode* aDOMNode, nsIWeakReference* aShell);
-  virtual ~nsHTMLComboboxTextFieldAccessible() {}
-
-  /* ----- nsIAccessible ----- */
-  NS_IMETHOD GetUniqueID(void **aUniqueID);
-
-  virtual void GetBoundsRect(nsRect& aBounds, nsIFrame** aBoundingFrame);
-
-protected:
-  void CacheChildren();
-};
-
-/**
-  * A class that represents the button inside the Select to the
-  *     right of the text field
-  */
-class nsHTMLComboboxButtonAccessible  : public nsLeafAccessible
-{
-public:
-  enum { eAction_Click = 0 };
-
-  nsHTMLComboboxButtonAccessible(nsIAccessible* aParent, nsIDOMNode* aDOMNode, nsIWeakReference* aShell);
-  virtual ~nsHTMLComboboxButtonAccessible() {}
-
-  // nsIAccessible
-  NS_IMETHOD DoAction(PRUint8 index);
-  NS_IMETHOD GetNumActions(PRUint8 *_retval);
-  NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
-  NS_IMETHOD GetParent(nsIAccessible **_retval);
-  NS_IMETHOD GetName(nsAString& aName);
-
-  // nsIAccessNode
-  NS_IMETHOD GetUniqueID(void **aUniqueID);
-
-  // nsAccessible
-  virtual nsresult GetRoleInternal(PRUint32 *aRole);
-  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
-  
-protected:
-  virtual void GetBoundsRect(nsRect& aBounds, nsIFrame** aBoundingFrame);
-};
-
-#endif
 
 /*
  * A class that represents the window that lives to the right
@@ -312,7 +265,6 @@ public:
   virtual ~nsHTMLComboboxListAccessible() {}
 
   // nsIAccessible
-  NS_IMETHOD GetParent(nsIAccessible **aParent);
   NS_IMETHOD GetUniqueID(void **aUniqueID);
 
   // nsAccessNode
@@ -321,6 +273,7 @@ public:
   // nsAccessible
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
   virtual void GetBoundsRect(nsRect& aBounds, nsIFrame** aBoundingFrame);
+  virtual nsAccessible* GetParent();
 };
 
 #endif

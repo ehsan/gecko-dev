@@ -161,7 +161,7 @@ nsHTMLEditor::RelativeChangeElementZIndex(nsIDOMElement * aElement,
   nsresult res = GetElementZIndex(aElement, &zIndex);
   if (NS_FAILED(res)) return res;
 
-  zIndex = PR_MAX(zIndex + aChange, 0);
+  zIndex = NS_MAX(zIndex + aChange, 0);
   SetElementZIndex(aElement, zIndex);
   *aReturn = zIndex;
 
@@ -272,7 +272,8 @@ nsHTMLEditor::CreateGrabber(nsIDOMNode * aParentNode, nsIDOMElement ** aReturn)
 
   // add the mouse listener so we can detect a click on a resizer
   nsCOMPtr<nsIDOMEventTarget> evtTarget(do_QueryInterface(*aReturn));
-  evtTarget->AddEventListener(NS_LITERAL_STRING("mousedown"), mMouseListenerP, PR_FALSE);
+  evtTarget->AddEventListener(NS_LITERAL_STRING("mousedown"),
+                              mEventListener, PR_FALSE);
 
   return res;
 }
@@ -312,7 +313,9 @@ nsHTMLEditor::HideGrabber()
 
   // get the presshell's document observer interface.
   nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
-  if (!ps) return NS_ERROR_NOT_INITIALIZED;
+  // We allow the pres shell to be null; when it is, we presume there
+  // are no document observers to notify, but we still want to
+  // UnbindFromTree.
 
   nsCOMPtr<nsIDOMNode> parentNode;
   res = mGrabber->GetParentNode(getter_AddRefs(parentNode));
@@ -497,7 +500,7 @@ nsHTMLEditor::SetFinalPosition(PRInt32 aX, PRInt32 aY)
 }
 
 void
-nsHTMLEditor::AddPositioningOffet(PRInt32 & aX, PRInt32 & aY)
+nsHTMLEditor::AddPositioningOffset(PRInt32 & aX, PRInt32 & aY)
 {
   // Get the positioning offset
   nsresult res;
@@ -541,7 +544,7 @@ nsHTMLEditor::AbsolutelyPositionElement(nsIDOMElement * aElement,
                                   NS_LITERAL_STRING("absolute"),
                                   PR_FALSE);
 
-    AddPositioningOffet(x, y);
+    AddPositioningOffset(x, y);
     SnapToGrid(x, y);
     SetElementPosition(aElement, x, y);
 

@@ -134,7 +134,7 @@ nsTableCaptionFrame::GetParentStyleContextFrame(nsPresContext* aPresContext,
     if (innerFrame) {
       *aProviderFrame =
         nsFrame::CorrectStyleParentFrame(innerFrame,
-                                         GetStyleContext()->GetPseudoType());
+                                         GetStyleContext()->GetPseudo());
       *aIsChild = PR_FALSE;
       return NS_OK;
     }
@@ -211,10 +211,10 @@ nsTableOuterFrame::IsContainingBlock() const
 }
 
 void
-nsTableOuterFrame::Destroy()
+nsTableOuterFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
-  mCaptionFrames.DestroyFrames();
-  nsHTMLContainerFrame::Destroy();
+  mCaptionFrames.DestroyFramesFrom(aDestructRoot);
+  nsHTMLContainerFrame::DestroyFrom(aDestructRoot);
 }
 
 nsFrameList
@@ -452,11 +452,11 @@ nsTableOuterFrame::InitChildReflowState(nsPresContext&    aPresContext,
 // get the margin and padding data. nsHTMLReflowState doesn't handle the
 // case of auto margins
 void
-nsTableOuterFrame::GetMargin(nsPresContext*           aPresContext,
-                             const nsHTMLReflowState& aOuterRS,
-                             nsIFrame*                aChildFrame,
-                             nscoord                  aAvailWidth,
-                             nsMargin&                aMargin)
+nsTableOuterFrame::GetChildMargin(nsPresContext*           aPresContext,
+                                  const nsHTMLReflowState& aOuterRS,
+                                  nsIFrame*                aChildFrame,
+                                  nscoord                  aAvailWidth,
+                                  nsMargin&                aMargin)
 {
   // construct a reflow state to compute margin and padding. Auto margins
   // will not be computed at this time.
@@ -701,71 +701,6 @@ nsTableOuterFrame::SetDesiredSize(PRUint8         aCaptionSide,
 
 }
 
-// XXX This is now unused, but it probably should be used!
-void
-nsTableOuterFrame::BalanceLeftRightCaption(PRUint8         aCaptionSide,
-                                           const nsMargin& aInnerMargin,
-                                           const nsMargin& aCaptionMargin,
-                                           nscoord&        aInnerWidth, 
-                                           nscoord&        aCaptionWidth)
-{
-  
-  /* balance the caption and inner table widths to ensure space for percent widths
-  *  Percent widths for captions or the inner table frame can determine how much of the
-  *  available width is used and how the available width is distributed between those frames
-  *  The inner table frame has already a quite sophisticated treatment of percentage widths 
-  *  (see BasicTableLayoutStrategy.cpp). So it acts as master in the below computations.
-  *  There are four possible scenarios 
-  *  a) None of the frames have a percentage width - then the aInnerWidth and aCaptionwidth will not change
-  *  b) Only the inner frame has a percentage width - this is handled in BasicTableLayoutStrategy.cpp, 
-  *     both widths will not change
-  *  c) Only the caption has a percentage width - then the overall width (ow) will be different depending on
-  *     the caption side. For the left side
-  *     ow = aCaptionMargin.left + aCaptionWidth + aCaptionMargin.right + aInnerwidth + aInnerMargin.right
-  *     aCaptionWidth = capPercent * ow
-  *     solving this equation for aCaptionWidth gives:
-  *     aCaptionWidth = capPercent/(1-capPercent) * 
-  *                      (aCaptionMargin.left + aCaptionMargin.right + aInnerwidth + aInnerMargin.right)
-  *     this result will cause problems for capPercent >= 1, in these cases the algorithm will now bail out
-  *     a similar expression can be found for the right case
-  *  d) both frames have percent widths in this case the caption width will be the inner width multiplied 
-  *     by the weight capPercent/innerPercent
-  */
-    
-
-  float capPercent   = -1.0;
-  float innerPercent = -1.0;
-  const nsStylePosition* position = mCaptionFrame->GetStylePosition();
-  if (eStyleUnit_Percent == position->mWidth.GetUnit()) {
-    capPercent = position->mWidth.GetPercentValue();
-    if (capPercent >= 1.0)
-      return;
-  }
-
-  position = mInnerTableFrame->GetStylePosition();
-  if (eStyleUnit_Percent == position->mWidth.GetUnit()) {
-    innerPercent = position->mWidth.GetPercentValue();
-    if (innerPercent >= 1.0)
-      return;
-  }
-
-  if ((capPercent <= 0.0) && (innerPercent <= 0.0))
-    return;
-
-  
-  if (innerPercent <= 0.0) {
-    if (NS_STYLE_CAPTION_SIDE_LEFT == aCaptionSide) 
-      aCaptionWidth= (nscoord) ((capPercent / (1.0 - capPercent)) * (aCaptionMargin.left + aCaptionMargin.right + 
-                                                          aInnerWidth + aInnerMargin.right));
-    else
-      aCaptionWidth= (nscoord) ((capPercent / (1.0 - capPercent)) * (aCaptionMargin.left + aCaptionMargin.right + 
-                                                          aInnerWidth + aInnerMargin.left)); 
-  } 
-  else {
-    aCaptionWidth = (nscoord) ((capPercent / innerPercent) * aInnerWidth);
-  }
-}
-
 nsresult 
 nsTableOuterFrame::GetCaptionOrigin(PRUint32         aCaptionSide,
                                     const nsSize&    aContainBlockSize,
@@ -963,8 +898,8 @@ nsTableOuterFrame::OuterBeginReflowChild(nsPresContext*           aPresContext,
       availHeight = NS_UNCONSTRAINEDSIZE;
     } else {
       nsMargin margin;
-      GetMargin(aPresContext, aOuterRS, aChildFrame, aOuterRS.availableWidth,
-                margin);
+      GetChildMargin(aPresContext, aOuterRS, aChildFrame,
+                     aOuterRS.availableWidth, margin);
     
       NS_ASSERTION(NS_UNCONSTRAINEDSIZE != margin.top, "No unconstrainedsize arithmetic, please");
       availHeight -= margin.top;

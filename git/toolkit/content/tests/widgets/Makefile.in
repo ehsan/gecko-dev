@@ -50,10 +50,14 @@ _TEST_FILES = 	test_bug360220.xul \
 		test_bug382990.xul \
 		test_bug457632.xul \
 		test_bug460942.xul \
+		test_bug509732.xul \
+		test_bug557987.xul\
+		test_bug562554.xul \
 		test_button.xul \
 		test_closemenu_attribute.xul \
 		test_colorpicker_popup.xul \
 		test_deck.xul \
+		test_menuitem_blink.xul \
 		test_menulist_keynav.xul \
 		test_menulist_null_value.xul \
 		test_popup_coords.xul \
@@ -78,6 +82,7 @@ _TEST_FILES = 	test_bug360220.xul \
 		test_datepicker.xul \
 		test_timepicker.xul \
 		test_tree.xul \
+		test_tree_view.xul \
 		test_tree_single.xul \
 		test_tree_hier.xul \
 		test_tree_hier_cell.xul \
@@ -86,6 +91,7 @@ _TEST_FILES = 	test_bug360220.xul \
 		test_textbox_emptytext.xul \
 		test_textbox_number.xul \
 		test_textbox_search.xul \
+		test_toolbar.xul \
 		xul_selectcontrol.js \
 		test_popupincontent.xul \
 		test_panelfrommenu.xul \
@@ -102,7 +108,7 @@ _TEST_FILES = 	test_bug360220.xul \
 		test_menu.xul \
 		test_menu_hide.xul \
 		test_mousecapture.xul \
-		test_focus.xul \
+		test_mousecapture_area.html \
 		test_focus_anons.xul \
 		test_tabindex.xul \
 		test_mousescroll.xul \
@@ -110,9 +116,9 @@ _TEST_FILES = 	test_bug360220.xul \
 		test_sorttemplate.xul \
 		test_contextmenu_list.xul \
 		test_videocontrols.html \
+		test_richlist_direction.xul \
 		test_videocontrols_video_direction.html \
 		test_videocontrols_audio_direction.html \
-		test_richlist_direction.xul \
 		videocontrols_direction-1-ref.html \
 		videocontrols_direction-1a.html \
 		videocontrols_direction-1b.html \
@@ -127,8 +133,7 @@ _TEST_FILES = 	test_bug360220.xul \
 		videocontrols_direction-2e.html \
 		videocontrols_direction_test.js \
 		use_large_cache.js \
-		audio.oga \
-		black.ogv \
+		audio.wav \
 		video.ogg \
 		videomask.css \
 		$(NULL)

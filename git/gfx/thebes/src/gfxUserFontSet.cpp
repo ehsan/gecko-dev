@@ -14,7 +14,7 @@
  *
  * The Original Code is thebes gfx code.
  *
- * The Initial Developer of the Original Code is Mozilla Corporation.
+ * The Initial Developer of the Original Code is Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2008-2009
  * the Initial Developer. All Rights Reserved.
  *
@@ -79,7 +79,13 @@ gfxProxyFontEntry::gfxProxyFontEntry(const nsTArray<gfxFontFaceSrc>& aFontFaceSr
 
 gfxProxyFontEntry::~gfxProxyFontEntry()
 {
+}
 
+gfxFont*
+gfxProxyFontEntry::CreateFontInstance(const gfxFontStyle *aFontStyle, PRBool aNeedsBold)
+{
+    // cannot create an actual font for a proxy entry
+    return nsnull;
 }
 
 gfxUserFontSet::gfxUserFontSet()

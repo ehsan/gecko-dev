@@ -59,15 +59,20 @@ pref("general.warnOnAboutConfig", true);
 pref("browser.bookmarks.max_backups",       5);
 
 pref("browser.cache.disk.enable",           true);
+#ifndef WINCE
 pref("browser.cache.disk.capacity",         51200);
+#else
+pref("browser.cache.disk.capacity",         20000);
+#endif
 pref("browser.cache.memory.enable",         true);
 //pref("browser.cache.memory.capacity",     -1);
 // -1 = determine dynamically, 0 = none, n = memory capacity in kilobytes
-pref("browser.cache.disk_cache_ssl",        false);
+pref("browser.cache.disk_cache_ssl",        true);
 // 0 = once-per-session, 1 = each-time, 2 = never, 3 = when-appropriate/automatically
 pref("browser.cache.check_doc_frequency",   3);
 
 pref("browser.cache.offline.enable",           true);
+#ifndef WINCE
 // offline cache capacity in kilobytes
 pref("browser.cache.offline.capacity",         512000);
 
@@ -78,6 +83,12 @@ pref("offline-apps.quota.max",        204800);
 // the user should be warned if offline app disk usage exceeds this amount
 // (in kilobytes)
 pref("offline-apps.quota.warn",        51200);
+#else
+// Limited disk space on WinCE, tighten limits.
+pref("browser.cache.offline.capacity", 15000);
+pref("offline-apps.quota.max",          7000);
+pref("offline-apps.quota.warn",         4000);
+#endif
 
 // Fastback caching - if this pref is negative, then we calculate the number
 // of content viewers to cache based on the amount of available memory.
@@ -105,6 +116,9 @@ pref("browser.underline_anchors",           true);
 pref("browser.blink_allowed",               true);
 pref("browser.enable_automatic_image_resizing", false);
 pref("browser.enable_click_image_resizing", true);
+
+// See http://dev.w3.org/html5/spec/forms.html#attr-fe-autofocus
+pref("browser.autofocus", true);
 
 // See http://whatwg.org/specs/web-apps/current-work/#ping
 pref("browser.send_pings", false);
@@ -159,6 +173,12 @@ pref("gfx.color_management.rendering_intent", 0);
 
 pref("gfx.downloadable_fonts.enabled", true);
 
+#ifdef XP_WIN
+#ifndef WINCE
+pref("gfx.font_rendering.directwrite.enabled", false);
+#endif
+#endif
+
 pref("accessibility.browsewithcaret", false);
 pref("accessibility.warn_on_browsewithcaret", true);
 
@@ -172,6 +192,10 @@ pref("accessibility.browsewithcaret_shortcut.enabled", true);
 // unless accessibility.tabfocus is set by the user.
 pref("accessibility.tabfocus", 7);
 pref("accessibility.tabfocus_applies_to_xul", false);
+
+// Forcibly disable a11y on win32, even if something attempts
+// to enable it.
+pref("accessibility.win32.force_disabled", false);
 
 // On OS X, we follow the "Click in the scrollbar to:" system preference
 // unless this preference was set manually
@@ -205,13 +229,8 @@ pref("accessibility.typeaheadfind.prefillwithselection", true);
 // use Mac OS X Appearance panel text smoothing setting when rendering text, disabled by default
 pref("gfx.use_text_smoothing_setting", false);
 
-pref("browser.history_expire_days", 9);
-
 // loading and rendering of framesets and iframes
 pref("browser.frames.enabled", true);
-
-// form submission
-pref("browser.forms.submit.backwards_compatible", true);
 
 // Number of characters to consider emphasizing for rich autocomplete results
 pref("toolkit.autocomplete.richBoundaryCutoff", 200);
@@ -313,8 +332,7 @@ pref("extensions.spellcheck.inline.max-misspellings", 500);
 // belong in comm-central/editor/ui/composer.js
 
 pref("editor.use_custom_colors", false);
-pref("editor.htmlWrapColumn", 72);
-pref("editor.singleLine.pasteNewlines",     1);
+pref("editor.singleLine.pasteNewlines",      2);
 pref("editor.quotesPreformatted",            false);
 pref("editor.use_css",                       true);
 pref("editor.css.default_length_unit",       "px");
@@ -505,7 +523,6 @@ pref("dom.disable_window_open_feature.titlebar",    false);
 pref("dom.disable_window_open_feature.close",       false);
 pref("dom.disable_window_open_feature.toolbar",     false);
 pref("dom.disable_window_open_feature.location",    false);
-pref("dom.disable_window_open_feature.directories", false);
 pref("dom.disable_window_open_feature.personalbar", false);
 pref("dom.disable_window_open_feature.menubar",     false);
 pref("dom.disable_window_open_feature.scrollbars",  false);
@@ -538,6 +555,9 @@ pref("dom.event.contextmenu.enabled",       true);
 
 pref("javascript.enabled",                  true);
 pref("javascript.options.strict",           false);
+#ifdef DEBUG
+pref("javascript.options.strict.debug",     true);
+#endif
 pref("javascript.options.relimit",          false);
 pref("javascript.options.jit.content",      true);
 pref("javascript.options.jit.chrome",       true);
@@ -720,7 +740,10 @@ pref("network.IDN.whitelist.jp", true);
 pref("network.IDN.whitelist.kr", true);
 pref("network.IDN.whitelist.li", true);
 pref("network.IDN.whitelist.lt", true);
+pref("network.IDN.whitelist.lu", true);
 pref("network.IDN.whitelist.no", true);
+pref("network.IDN.whitelist.nu", true);
+pref("network.IDN.whitelist.nz", true);
 pref("network.IDN.whitelist.pl", true);
 pref("network.IDN.whitelist.pr", true);
 pref("network.IDN.whitelist.se", true);
@@ -730,12 +753,21 @@ pref("network.IDN.whitelist.tm", true);
 pref("network.IDN.whitelist.tw", true);
 pref("network.IDN.whitelist.vn", true);
 
-// non-ccTLDs
+// IDN ccTLDs
+// sa, Saudi Arabia, .<al-Saudiah>
+pref("network.IDN.whitelist.xn--mgberp4a5d4ar", true); 
+// ru, Russian Federation, .<RF>
+pref("network.IDN.whitelist.xn--p1ai", true);
+// jo, Jordan, .<Al-Ordon>
+pref("network.IDN.whitelist.xn--mgbayh7gpa", true);
+
+// gTLDs
 pref("network.IDN.whitelist.biz", true);
 pref("network.IDN.whitelist.cat", true);
 pref("network.IDN.whitelist.info", true);
 pref("network.IDN.whitelist.museum", true);
 pref("network.IDN.whitelist.org", true);
+pref("network.IDN.whitelist.tel", true);
 
 // NOTE: Before these can be removed, one of bug 414812's tests must be updated
 //       or it will likely fail!  Please CC jwalden+bmo on the bug associated
@@ -822,6 +854,15 @@ pref("network.auth.use-sspi", true);
 
 #endif
 
+// Controls which NTLM authentication implementation we default to. True forces
+// the use of our generic (internal) NTLM authentication implementation vs. any
+// native implementation provided by the os. This pref is for diagnosing issues
+// with native NTLM. (See bug 520607 for details.) Using generic NTLM authentication
+// can expose the user to reflection attack vulnerabilities. Do not change this
+// unless you know what you're doing!
+// This pref should be removed 6 months after the release of firefox 3.6. 
+pref("network.auth.force-generic-ntlm", false);
+
 // The following prefs are used to enable automatic use of the operating
 // system's NTLM implementation to silently authenticate the user with their
 // Window's domain logon.  The trusted-uris pref follows the format of the
@@ -839,16 +880,7 @@ pref("network.ntlm.send-lm-response", false);
 
 pref("permissions.default.image",           1); // 1-Accept, 2-Deny, 3-dontAcceptForeign
 
-#ifndef XP_MACOSX
-#ifdef XP_UNIX
 pref("network.proxy.type",                  5);
-#else
-pref("network.proxy.type",                  0);
-#endif
-#else
-pref("network.proxy.type",                  0);
-#endif
-
 pref("network.proxy.ftp",                   "");
 pref("network.proxy.ftp_port",              0);
 pref("network.proxy.gopher",                "");
@@ -865,6 +897,7 @@ pref("network.proxy.no_proxies_on",         "localhost, 127.0.0.1");
 pref("network.proxy.failover_timeout",      1800); // 30 minutes
 pref("network.online",                      true); //online/offline
 pref("network.cookie.cookieBehavior",       0); // 0-Accept, 1-dontAcceptForeign, 2-dontUse
+pref("network.cookie.thirdparty.sessionOnly", true);
 pref("network.cookie.lifetimePolicy",       0); // accept normally, 1-askBeforeAccepting, 2-acceptForSession,3-acceptForNDays
 pref("network.cookie.alwaysAcceptSessionCookies", false);
 pref("network.cookie.prefsMigrated",        false);
@@ -926,6 +959,8 @@ pref("security.checkloaduri", true);
 pref("security.xpconnect.plugin.unrestricted", true);
 // security-sensitive dialogs should delay button enabling. In milliseconds.
 pref("security.dialog_enable_delay", 2000);
+
+pref("security.csp.enable", true);
 
 // Modifier key prefs: default to Windows settings,
 // menu access key = alt, accelerator key = control.
@@ -1056,13 +1091,6 @@ pref("bidi.direction", 1);
 // 3 = visualtexttypeBidi
 pref("bidi.texttype", 1);
 // ------------------
-//  Controls Text Mode
-// ------------------
-// 1 = logicalcontrolstextmodeBidiCmd
-// 2 = visualcontrolstextmodeBidi <-- NO LONGER SUPPORTED
-// 3 = containercontrolstextmodeBidi *
-pref("bidi.controlstextmode", 1);
-// ------------------
 //  Numeral Style
 // ------------------
 // 0 = nominalnumeralBidi *
@@ -1164,12 +1192,6 @@ pref("browser.popups.showPopupBlocker", true);
 // See http://bugzilla.mozilla.org/show_bug.cgi?id=169483 for further details...
 pref("viewmanager.do_doublebuffering", true);
 
-// which files will be selected for roaming by default.
-// See sroaming/content/prefs/all.js
-pref("roaming.default.files", "bookmarks.html,abook.mab,cookies.txt");
-// display some general warning to the user about making backups, security etc.
-pref("roaming.showInitialWarning", true);
-
 // whether use prefs from system
 pref("config.use_system_prefs", false);
 
@@ -1201,8 +1223,27 @@ pref("editor.positioning.offset",            0);
 pref("dom.max_chrome_script_run_time", 20);
 pref("dom.max_script_run_time", 10);
 
+// How long a plugin is allowed to process a synchronous IPC message
+// before we consider it "hung".
+//
+// NB: chosen to match dom.max_script_run_time by default
+#ifndef DEBUG
+pref("dom.ipc.plugins.timeoutSecs", 10);
+#else
+// No timeout in DEBUG builds
+pref("dom.ipc.plugins.timeoutSecs", 0);
+#endif
+
+#ifndef XP_MACOSX
+#ifdef XP_UNIX
+// Linux plugins using Xt instead of Xembed don't work out-of-process yet.
+pref("dom.ipc.plugins.enabled.libvlcplugin.so", false);
+pref("dom.ipc.plugins.enabled.nppdf.so", false);
+#endif
+#endif
+
 pref("svg.enabled", true);
-pref("svg.smil.enabled", false);
+pref("svg.smil.enabled", true);
 
 pref("font.minimum-size.ar", 0);
 pref("font.minimum-size.x-armn", 0);
@@ -1229,6 +1270,7 @@ pref("font.minimum-size.x-orya", 0);
 pref("font.minimum-size.x-sinh", 0);
 pref("font.minimum-size.x-tamil", 0);
 pref("font.minimum-size.x-telu", 0);
+pref("font.minimum-size.x-tibt", 0);
 pref("font.minimum-size.th", 0);
 pref("font.minimum-size.tr", 0);
 pref("font.minimum-size.x-cans", 0);
@@ -1432,6 +1474,13 @@ pref("font.name-list.serif.x-sinh", "Iskoola Pota, AksharUnicode");
 pref("font.name-list.sans-serif.x-sinh", "Iskoola Pota, AksharUnicode");
 pref("font.name-list.monospace.x-sinh", "Iskoola Pota, AksharUnicode");
 
+pref("font.name.serif.x-tibt", "Tibetan Machine Uni");
+pref("font.name.sans-serif.x-tibt", "Tibetan Machine Uni");
+pref("font.name.monospace.x-tibt", "Tibetan Machine Uni");
+pref("font.name-list.serif.x-tibt", "Tibetan Machine Uni, Jomolhari, Microsoft Himalaya");
+pref("font.name-list.sans-serif.x-tibt", "Tibetan Machine Uni, Jomolhari, Microsoft Himalaya");
+pref("font.name-list.monospace.x-tibt", "Tibetan Machine Uni, Jomolhari, Microsoft Himalaya");
+
 pref("font.default.ar", "sans-serif");
 pref("font.size.variable.ar", 16);
 pref("font.size.fixed.ar", 13);
@@ -1533,6 +1582,10 @@ pref("font.default.x-sinh", "serif");
 pref("font.size.variable.x-sinh", 16);
 pref("font.size.fixed.x-sinh", 13);
 
+pref("font.default.x-tibt", "serif");
+pref("font.size.variable.x-tibt", 16);
+pref("font.size.fixed.x-tibt", 13);
+
 pref("font.default.x-unicode", "serif");
 pref("font.size.variable.x-unicode", 16);
 pref("font.size.fixed.x-unicode", 13);
@@ -1555,6 +1608,14 @@ pref("font.size.fixed.zh-HK", 16);
 
 // We have special support for Monotype Symbol on Windows.
 pref("font.mathfont-family", "STIXNonUnicode, STIXSize1, STIXGeneral, Symbol, DejaVu Sans, Cambria Math");
+
+// cleartype settings - false implies default system settings 
+
+// use cleartype rendering for downloadable fonts (win xp only)
+pref("gfx.font_rendering.cleartype.use_for_downloadable_fonts", true);
+
+// use cleartype rendering for all fonts always (win xp only)
+pref("gfx.font_rendering.cleartype.always_use_for_content", false);
 
 pref("ui.key.menuAccessKeyFocuses", true);
 
@@ -1620,10 +1681,19 @@ pref("intl.enable_tsf_support", false);
 pref("intl.tsf.on_layout_change_interval", 100);
 #endif
 
+#ifdef WINCE
+// bug 506798 - can't type in bookmarks panel on WinCE
+pref("ui.panel.default_level_parent", true);
+#else
 // See bug 448927, on topmost panel, some IMEs are not usable on Windows.
 pref("ui.panel.default_level_parent", false);
+#endif
 
 pref("mousewheel.system_scroll_override_on_root_content.enabled", true);
+
+// If your mouse drive sends WM_*SCROLL messages when you turn your mouse wheel,
+// set this to true.  Then, gecko processes them as mouse wheel messages.
+pref("mousewheel.emulate_at_wm_scroll", false);
 
 // Bug 514927
 // Enables or disabled the TrackPoint hack, -1 is autodetect, 0 is off,
@@ -1637,11 +1707,6 @@ pref("ui.trackpoint_hack.enabled", -1);
 pref("browser.drag_out_of_frame_style", 1);
 pref("ui.key.saveLink.shift", false); // true = shift, false = meta
 pref("ui.click_hold_context_menus", false);
-
-#ifndef __LP64__
-// whether to always use ATSUI for text even if CoreText is available
-pref("gfx.force_atsui_text", false);
-#endif
 
 // default fonts (in UTF8 and using canonical names)
 // to determine canonical font names, use a debug build and 
@@ -1851,6 +1916,14 @@ pref("font.name-list.serif.x-tamil", "InaiMathi");
 pref("font.name-list.sans-serif.x-tamil", "InaiMathi");
 pref("font.name-list.monospace.x-tamil", "InaiMathi");
 
+// Kailasa ships with mac os x >= 10.5
+pref("font.name.serif.x-tibt", "Kailasa");
+pref("font.name.sans-serif.x-tibt", "Kailasa");
+pref("font.name.monospace.x-tibt", "Kailasa");
+pref("font.name-list.serif.x-tibt", "Kailasa");
+pref("font.name-list.sans-serif.x-tibt", "Kailasa");
+pref("font.name-list.monospace.x-tibt", "Kailasa");
+
 pref("font.name.serif.x-unicode", "Times");
 pref("font.name.sans-serif.x-unicode", "Helvetica");
 pref("font.name.monospace.x-unicode", "Courier");
@@ -1995,6 +2068,10 @@ pref("font.default.x-sinh", "serif");
 pref("font.size.variable.x-sinh", 16);
 pref("font.size.fixed.x-sinh", 13);
 
+pref("font.default.x-tibt", "serif");
+pref("font.size.variable.x-tibt", 16);
+pref("font.size.fixed.x-tibt", 13);
+
 pref("font.default.x-unicode", "serif");
 pref("font.size.variable.x-unicode", 16);
 pref("font.size.fixed.x-unicode", 13);
@@ -2025,8 +2102,6 @@ pref("font.single-face-list", "Osaka-Mono");
 // optimization hint for fonts with localized names to be read in at startup, otherwise read in at lookup miss
 // names are canonical family names (typically English names)
 pref("font.preload-names-list", "Hiragino Kaku Gothic Pro,Hiragino Mincho Pro,STSong");
-
-pref("browser.urlbar.clickAtEndSelects", false);
 
 // Override the Windows settings: no menu key, meta accelerator key. ctrl for general access key in HTML/XUL
 // Use 17 for Ctrl, 18 for Option, 224 for Cmd, 0 for none
@@ -2362,7 +2437,6 @@ pref("network.hosts.smtp_server", "localhost");
 pref("network.hosts.pop_server", "pop");
 pref("network.protocol-handler.warn-external.file", false);
 pref("browser.drag_out_of_frame_style", 1);
-pref("editor.singleLine.pasteNewlines", 0);
 
 // Middle-mouse handling
 pref("middlemouse.paste", true);
@@ -2607,6 +2681,10 @@ pref("font.default.x-sinh", "serif");
 pref("font.size.variable.x-sinh", 16);
 pref("font.size.fixed.x-sinh", 13);
 
+pref("font.default.x-tibt", "serif");
+pref("font.size.variable.x-tibt", 16);
+pref("font.size.fixed.x-tibt", 13);
+
 /* PostScript print module prefs */
 // pref("print.postscript.enabled",      true);
 pref("print.postscript.paper_size",    "letter");
@@ -2630,74 +2708,6 @@ pref("mousewheel.system_scroll_override_on_root_content.enabled", false);
 #endif
 #endif
 
-#if MOZ_WIDGET_TOOLKIT==photon
-
-// font names
-pref("font.name.serif.x-western", "serif");
-pref("font.name.sans-serif.x-western", "sans-serif");
-pref("font.name.monospace.x-western", "monospace");
-pref("font.name.cursive.x-western", "cursive");
-pref("font.name.fantasy.x-western", "fantasy");
-
-pref("font.name.serif.el", "serif");
-pref("font.name.sans-serif.el", "sans-serif");
-pref("font.name.monospace.el", "monospace");
-
-pref("font.name.serif.he", "serif");
-pref("font.name.sans-serif.he", "sans-serif");
-pref("font.name.monospace.he", "monospace");
-
-pref("font.name.serif.ja", "serif");
-pref("font.name.sans-serif.ja", "sans-serif");
-pref("font.name.monospace.ja", "monospace");
-
-pref("font.name.serif.ko", "serif");
-pref("font.name.sans-serif.ko", "sans-serif");
-pref("font.name.monospace.ko", "monospace");
-
-pref("font.name.serif.tr", "serif");
-pref("font.name.sans-serif.tr", "sans-serif");
-pref("font.name.monospace.tr", "monospace");
-
-pref("font.name.serif.x-baltic", "serif");
-pref("font.name.sans-serif.x-baltic", "sans-serif");
-pref("font.name.monospace.x-baltic", "monospace");
-
-pref("font.name.serif.x-central-euro", "serif");
-pref("font.name.sans-serif.x-central-euro", "sans-serif");
-pref("font.name.monospace.x-central-euro", "monospace");
-
-pref("font.name.serif.x-cyrillic", "serif");
-pref("font.name.sans-serif.x-cyrillic", "sans-serif");
-pref("font.name.monospace.x-cyrillic", "monospace");
-
-pref("font.name.serif.x-unicode", "serif");
-pref("font.name.sans-serif.x-unicode", "sans-serif");
-pref("font.name.monospace.x-unicode", "monospace");
-
-pref("font.name.serif.x-user-def", "serif");
-pref("font.name.sans-serif.x-user-def", "sans-serif");
-pref("font.name.monospace.x-user-def", "monospace");
-
-pref("font.name.serif.zh-CN", "serif");
-pref("font.name.sans-serif.zh-CN", "sans-serif");
-pref("font.name.monospace.zh-CN", "monospace");
-
-pref("font.size.variable.x-western", 14);
-pref("font.size.fixed.x-western", 12);
-
-pref("applications.telnet", "pterm telnet %h %p");
-pref("applications.tn3270", "pterm tn3270 %h");
-pref("applications.rlogin", "pterm rlogin %h");
-pref("applications.rlogin_with_user", "pterm rlogin %h -l %u");
-
-// print_extra_margin enables platforms to specify an extra gap or margin
-// around the content of the page for Print Preview only
-pref("print.print_extra_margin", 90); // twips (90 twips is an eigth of an inch)
-
-# photon
-#endif
-
 #if OS_ARCH==OpenVMS
 
 pref("mail.use_builtin_movemail", false);
@@ -2714,7 +2724,7 @@ pref("applications.rlogin_with_user", "create /term /detach \"rlogin %h -l %u\""
 
 /* PostScript module specific (see unix.js for additional configuration details) */
 pref("print.postscript.print_command", "print /delete");
-/* Print module independant */
+/* Print module independent */
 pref("print.print_command", "print /delete");
 pref("print.print_color", false);
 
@@ -2757,12 +2767,15 @@ pref("signon.rememberSignons",              true);
 pref("signon.SignonFileName",               "signons.txt"); // obsolete 
 pref("signon.SignonFileName2",              "signons2.txt"); // obsolete
 pref("signon.SignonFileName3",              "signons3.txt"); // obsolete
-pref("signon.autofillForms",                true); 
-pref("signon.debug",                        false); // logs to Error Console
+pref("signon.autofillForms",                true);
+pref("signon.autologin.proxy",              false);
+pref("signon.debug",                        false);
 
 // Satchel (Form Manager) prefs
 pref("browser.formfill.debug",            false);
 pref("browser.formfill.enable",           true);
+pref("browser.formfill.expire_days",      180);
+pref("browser.formfill.saveHttpsForms",   true);
 pref("browser.formfill.agedWeight",       2);
 pref("browser.formfill.bucketSize",       1);
 pref("browser.formfill.maxTimeGroupings", 25);
@@ -2803,8 +2816,44 @@ pref("mozilla.widget.disable-native-theme", true);
 pref("gfx.color_management.mode", 0);
 #endif
 
+// Initialize default render-mode.
+pref("mozilla.widget.render-mode", -1);
+
+// Initialize default accelerated layers
+pref("mozilla.widget.accelerated-layers", true);
+
+#ifdef XP_WIN
+#ifndef WINCE
+pref("mozilla.layers.prefer-opengl", false);
+#endif
+#endif
+
 // Enable/Disable the geolocation API for content
 pref("geo.enabled", true);
 
+// Enable/Disable the orientation API for content
+pref("accelerometer.enabled", true);
+
 // Enable/Disable HTML5 parser
-pref("html5.enable", false);
+pref("html5.enable", true);
+// Toggle which thread the HTML5 parser uses for stream parsing
+pref("html5.offmainthread", true);
+// Time in milliseconds between the time a network buffer is seen and the 
+// timer firing when the timer hasn't fired previously in this parse in the 
+// off-the-main-thread HTML5 parser.
+pref("html5.flushtimer.initialdelay", 120);
+// Time in milliseconds between the time a network buffer is seen and the 
+// timer firing when the timer has already fired previously in this parse.
+pref("html5.flushtimer.subsequentdelay", 120);
+
+// Push/Pop/Replace State prefs
+pref("browser.history.allowPushState", true);
+pref("browser.history.allowReplaceState", true);
+pref("browser.history.allowPopState", true);
+pref("browser.history.maxStateObjectSize", 655360);
+
+// XPInstall prefs
+pref("xpinstall.whitelist.required", true);
+
+pref("network.buffer.cache.count", 24);
+pref("network.buffer.cache.size",  32768);

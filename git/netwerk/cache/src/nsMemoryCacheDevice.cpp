@@ -107,7 +107,7 @@ nsMemoryCacheDevice::Shutdown()
     for (int i = kQueueCount - 1; i >= 0; --i) {
         entry = (nsCacheEntry *)PR_LIST_HEAD(&mEvictionList[i]);
         while (entry != &mEvictionList[i]) {
-            NS_ASSERTION(entry->IsInUse() == PR_FALSE, "### shutting down with active entries");
+            NS_ASSERTION(!entry->IsInUse(), "### shutting down with active entries");
             next = (nsCacheEntry *)PR_NEXT_LINK(entry);
             PR_REMOVE_AND_INIT_LINK(entry);
         
@@ -190,10 +190,10 @@ nsMemoryCacheDevice::DeactivateEntry(nsCacheEntry * entry)
 nsresult
 nsMemoryCacheDevice::BindEntry(nsCacheEntry * entry)
 {
-	if (!entry->IsDoomed()) {
- 	    NS_ASSERTION(PR_CLIST_IS_EMPTY(entry),"entry is already on a list!");
-	
-		// append entry to the eviction list
+    if (!entry->IsDoomed()) {
+        NS_ASSERTION(PR_CLIST_IS_EMPTY(entry),"entry is already on a list!");
+
+        // append entry to the eviction list
         PR_APPEND_LINK(entry, &mEvictionList[EvictionList(entry, 0)]);
 
         // add entry to hashtable of mem cache entries
@@ -202,15 +202,15 @@ nsMemoryCacheDevice::BindEntry(nsCacheEntry * entry)
             PR_REMOVE_AND_INIT_LINK(entry);
             return rv;
         }
-	}
 
-    // add size of entry to memory totals
-    ++mEntryCount;
-    if (mMaxEntryCount < mEntryCount) mMaxEntryCount = mEntryCount;
+        // add size of entry to memory totals
+        ++mEntryCount;
+        if (mMaxEntryCount < mEntryCount) mMaxEntryCount = mEntryCount;
 
-    mTotalSize += entry->Size();
-    EvictEntriesIfNecessary();
-    
+        mTotalSize += entry->Size();
+        EvictEntriesIfNecessary();
+    }
+
     return NS_OK;
 }
 

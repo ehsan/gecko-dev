@@ -37,10 +37,10 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "jsd_xpc.h"
 #include "jsdbgapi.h"
 #include "jscntxt.h"
 #include "jsfun.h"
+#include "jsd_xpc.h"
 
 #include "nsIXPConnect.h"
 #include "nsIGenericFactory.h"
@@ -245,10 +245,10 @@ jsds_RemoveEphemeral (LiveEphemeral **listHead, LiveEphemeral *item)
  * utility functions for filters
  *******************************************************************************/
 void
-jsds_FreeFilter (FilterRecord *filter)
+jsds_FreeFilter (FilterRecord *rec)
 {
-    NS_IF_RELEASE (filter->filterObject);
-    delete filter;
+    NS_IF_RELEASE (rec->filterObject);
+    PR_Free (rec);
 }
 
 /* copies appropriate |filter| attributes into |rec|.
@@ -1220,6 +1220,67 @@ jsdScript::GetFunctionName(nsACString &_rval)
 }
 
 NS_IMETHODIMP
+jsdScript::GetParameterNames(PRUint32* count, PRUnichar*** paramNames)
+{
+    ASSERT_VALID_EPHEMERAL;
+    JSContext *cx = JSD_GetDefaultJSContext (mCx);
+    if (!cx) {
+        NS_WARNING("No default context !?");
+        return NS_ERROR_FAILURE;
+    }
+    JSFunction *fun = JSD_GetJSFunction (mCx, mScript);
+
+    JSAutoRequest ar(cx);
+
+    if (!fun || !fun->hasLocalNames() || fun->nargs == 0) {
+        *count = 0;
+        *paramNames = nsnull;
+        return NS_OK;
+    }
+
+    PRUnichar **ret =
+        static_cast<PRUnichar**>(NS_Alloc(fun->nargs * sizeof(PRUnichar*)));
+    if (!ret)
+        return NS_ERROR_OUT_OF_MEMORY;
+
+    void *mark = JS_ARENA_MARK(&cx->tempPool);
+    jsuword *names = js_GetLocalNameArray(cx, fun, &cx->tempPool);
+    if (!names) {
+        NS_Free(ret);
+        return NS_ERROR_OUT_OF_MEMORY;
+    }
+
+    nsresult rv = NS_OK;
+    for (uintN i = 0; i < fun->nargs; ++i) {
+        JSAtom *atom = JS_LOCAL_NAME_TO_ATOM(names[i]);
+        if (!atom) {
+            ret[i] = 0;
+        } else {
+            jsval atomVal = ATOM_KEY(atom);
+            if (!JSVAL_IS_STRING(atomVal)) {
+                NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(i, ret);
+                rv = NS_ERROR_UNEXPECTED;
+                break;
+            }
+            JSString *str = JSVAL_TO_STRING(atomVal);
+            ret[i] = NS_strndup(reinterpret_cast<PRUnichar*>(JS_GetStringChars(str)),
+                                JS_GetStringLength(str));
+            if (!ret[i]) {
+                NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(i, ret);
+                rv = NS_ERROR_OUT_OF_MEMORY;
+                break;
+            }
+        }
+    }
+    JS_ARENA_RELEASE(&cx->tempPool, mark);
+    if (NS_FAILED(rv))
+        return rv;
+    *count = fun->nargs;
+    *paramNames = ret;
+    return NS_OK;
+}
+
+NS_IMETHODIMP
 jsdScript::GetFunctionObject(jsdIValue **_rval)
 {
     JSFunction *fun = JSD_GetJSFunction(mCx, mScript);
@@ -1911,6 +1972,15 @@ jsdStackFrame::Eval (const nsAString &bytes, const nsACString &fileName,
     estate = JS_SaveExceptionState (cx);
     JS_ClearPendingException (cx);
 
+    nsresult rv;
+    nsCOMPtr<nsIJSContextStack> stack = do_GetService("@mozilla.org/js/xpc/ContextStack;1", &rv);
+    if (NS_SUCCEEDED(rv))
+        rv = stack->Push(cx);
+    if (NS_FAILED(rv)) {
+        JS_RestoreExceptionState (cx, estate);
+        return rv;
+    }
+
     *_rval = JSD_AttemptUCScriptInStackFrame (mCx, mThreadState,
                                               mStackFrameInfo,
                                               char_bytes, bytes.Length(),
@@ -1924,6 +1994,14 @@ jsdStackFrame::Eval (const nsAString &bytes, const nsACString &fileName,
     }
 
     JS_RestoreExceptionState (cx, estate);
+
+#ifdef DEBUG
+    JSContext* poppedCX;
+    rv = stack->Pop(&poppedCX);
+    NS_ASSERTION(NS_SUCCEEDED(rv) && poppedCX == cx, "bad pop");
+#else
+    (void) stack->Pop(nsnull);
+#endif
 
     JSDValue *jsdv = JSD_NewValue (mCx, jv);
     if (!jsdv)
@@ -2595,6 +2673,7 @@ jsdService::Pause(PRUint32 *_rval)
         JSD_ClearDebugBreakHook (mCx);
         JSD_ClearTopLevelHook (mCx);
         JSD_ClearFunctionHook (mCx);
+        JSD_DebuggerPause (mCx);
     }
 
     if (_rval)
@@ -2616,6 +2695,7 @@ jsdService::UnPause(PRUint32 *_rval)
      * was turned off while we were paused.
      */
     if (--mPauseLevel == 0 && mOn) {
+        JSD_DebuggerUnpause (mCx);
         if (mErrorHook)
             JSD_SetErrorReporter (mCx, jsds_ErrorHookProc, NULL);
         if (mThrowHook)
@@ -2938,7 +3018,13 @@ jsdService::WrapValue(jsdIValue **_rval)
     if (NS_FAILED(rv))
         return rv;
 
-    JSDValue *jsdv = JSD_NewValue (mCx, argv[0]);
+    return WrapJSValue(argv[0], _rval);
+}
+
+NS_IMETHODIMP
+jsdService::WrapJSValue(jsval value, jsdIValue** _rval)
+{
+    JSDValue *jsdv = JSD_NewValue(mCx, value);
     if (!jsdv)
         return NS_ERROR_FAILURE;
     

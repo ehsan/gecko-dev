@@ -13,7 +13,7 @@
  *
  * The Original Code is Geolocation.
  *
- * The Initial Developer of the Original Code is Mozilla Corporation
+ * The Initial Developer of the Original Code is Mozilla Foundation
  * Portions created by the Initial Developer are Copyright (C) 2008
  * the Initial Developer. All Rights Reserved.
  *
@@ -68,7 +68,7 @@ class nsWifiListener
     mHasSentData = PR_FALSE;
   }
   ~nsWifiListener() {}
-  
+
   nsCOMPtr<nsIWifiListener> mListener;
   PRBool mHasSentData;
 };

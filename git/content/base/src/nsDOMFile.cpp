@@ -59,11 +59,15 @@
 #include "nsIUnicodeDecoder.h"
 #include "nsNetCID.h"
 #include "nsNetUtil.h"
+#include "nsIUUIDGenerator.h"
+#include "nsFileDataProtocolHandler.h"
 
 #include "plbase64.h"
 #include "prmem.h"
 
 // nsDOMFile implementation
+
+DOMCI_DATA(File, nsDOMFile)
 
 NS_INTERFACE_MAP_BEGIN(nsDOMFile)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMFile)
@@ -109,6 +113,16 @@ nsDOMFile::GetName(nsAString &aFileName)
 }
 
 NS_IMETHODIMP
+nsDOMFile::GetMozFullPath(nsAString &aFileName)
+{
+  if (nsContentUtils::IsCallerTrustedForCapability("UniversalFileRead")) {
+    return mFile->GetPath(aFileName);
+  }
+  aFileName.Truncate();
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 nsDOMFile::GetSize(PRUint64 *aFileSize)
 {
   PRInt64 fileSize;
@@ -125,7 +139,7 @@ nsDOMFile::GetSize(PRUint64 *aFileSize)
 }
 
 NS_IMETHODIMP
-nsDOMFile::GetMediaType(nsAString &aMediaType)
+nsDOMFile::GetType(nsAString &aType)
 {
   if (!mContentType.Length()) {
     nsresult rv;
@@ -133,18 +147,52 @@ nsDOMFile::GetMediaType(nsAString &aMediaType)
       do_GetService(NS_MIMESERVICE_CONTRACTID, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsCAutoString mediaType;
-    rv = mimeService->GetTypeFromFile(mFile, mediaType);
+    nsCAutoString mimeType;
+    rv = mimeService->GetTypeFromFile(mFile, mimeType);
     if (NS_FAILED(rv)) {
-      SetDOMStringToNull(aMediaType);
+      aType.Truncate();
       return NS_OK;
     }
 
-    AppendUTF8toUTF16(mediaType, mContentType);
+    AppendUTF8toUTF16(mimeType, mContentType);
   }
 
-  aMediaType = mContentType;
+  aType = mContentType;
 
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDOMFile::GetUrl(nsAString& aURL)
+{
+  if (mURL.IsEmpty()) {
+    nsresult rv;
+    nsCOMPtr<nsIUUIDGenerator> uuidgen =
+      do_GetService("@mozilla.org/uuid-generator;1", &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+  
+    nsID id;
+    rv = uuidgen->GenerateUUIDInPlace(&id);
+    NS_ENSURE_SUCCESS(rv, rv);
+  
+    char chars[NSID_LENGTH];
+    id.ToProvidedString(chars);
+    
+    nsCString url = NS_LITERAL_CSTRING(FILEDATA_SCHEME ":") +
+                    Substring(chars + 1, chars + NSID_LENGTH - 2);
+
+    nsCOMPtr<nsIDocument> doc = do_QueryReferent(mRelatedDoc);
+    if (doc) {
+      doc->RegisterFileDataUri(url);
+      nsFileDataProtocolHandler::AddFileDataEntry(url, mFile,
+                                                  doc->NodePrincipal());
+    }
+
+    CopyASCIItoUTF16(url, mURL);
+  }
+
+  aURL = mURL;
+  
   return NS_OK;
 }
 
@@ -417,6 +465,8 @@ nsDOMFile::ConvertStream(nsIInputStream *aStream,
 
 // nsDOMFileList implementation
 
+DOMCI_DATA(FileList, nsDOMFileList)
+
 NS_INTERFACE_MAP_BEGIN(nsDOMFileList)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMFileList)
   NS_INTERFACE_MAP_ENTRY(nsIDOMFileList)
@@ -443,6 +493,8 @@ nsDOMFileList::Item(PRUint32 aIndex, nsIDOMFile **aFile)
 }
 
 // nsDOMFileError implementation
+
+DOMCI_DATA(FileError, nsDOMFileError)
 
 NS_INTERFACE_MAP_BEGIN(nsDOMFileError)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMFileError)

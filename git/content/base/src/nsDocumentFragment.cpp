@@ -182,6 +182,7 @@ NS_NewDocumentFragment(nsIDOMDocumentFragment** aInstancePtrResult,
 nsDocumentFragment::nsDocumentFragment(nsINodeInfo *aNodeInfo)
   : nsGenericElement(aNodeInfo)
 {
+  UnsetFlags(NODE_IS_ELEMENT);
 }
 
 nsDocumentFragment::~nsDocumentFragment()
@@ -194,11 +195,13 @@ nsDocumentFragment::IsNodeOfType(PRUint32 aFlags) const
   return !(aFlags & ~(eCONTENT | eDOCUMENT_FRAGMENT));
 }
 
+DOMCI_DATA(DocumentFragment, nsDocumentFragment)
+
 // QueryInterface implementation for nsDocumentFragment
 NS_INTERFACE_TABLE_HEAD(nsDocumentFragment)
   NS_NODE_INTERFACE_TABLE2(nsDocumentFragment, nsIDOMNode,
                            nsIDOMDocumentFragment)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(DocumentFragment)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(DocumentFragment)
 NS_INTERFACE_MAP_END_INHERITING(nsGenericElement)
 
 

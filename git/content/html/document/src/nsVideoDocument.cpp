@@ -41,6 +41,9 @@
 #include "nsContentCreatorFunctions.h"
 #include "nsHTMLMediaElement.h"
 #include "nsIDocShellTreeItem.h"
+#include "mozilla/dom/Element.h"
+
+using namespace mozilla::dom;
 
 class nsVideoDocument : public nsMediaDocument
 {
@@ -100,7 +103,7 @@ nsVideoDocument::CreateSyntheticVideoDocument(nsIChannel* aChannel,
   nsresult rv = nsMediaDocument::CreateSyntheticDocument();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsIContent* body = GetBodyContent();
+  Element* body = GetBodyElement();
   if (!body) {
     NS_WARNING("no body on video document!");
     return NS_ERROR_FAILURE;
@@ -121,13 +124,7 @@ nsVideoDocument::CreateSyntheticVideoDocument(nsIChannel* aChannel,
   element->LoadWithChannel(aChannel, aListener);
   UpdateTitle(aChannel);
 
-  nsCOMPtr<nsISupports> container = GetContainer();
-  nsCOMPtr<nsIDocShellTreeItem> docShellAsItem(do_QueryInterface(container));
-  nsCOMPtr<nsIDocShellTreeItem> sameTypeParent;
-  if (docShellAsItem) {
-    docShellAsItem->GetSameTypeParent(getter_AddRefs(sameTypeParent));
-  }
-  if (sameTypeParent) {
+  if (nsContentUtils::IsChildOfSameType(this)) {
     // Video documents that aren't toplevel should fill their frames and
     // not have margins
     element->SetAttr(kNameSpaceID_None, nsGkAtoms::style,

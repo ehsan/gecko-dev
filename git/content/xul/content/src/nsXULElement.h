@@ -55,7 +55,6 @@
 #include "nsIAtom.h"
 #include "nsINodeInfo.h"
 #include "nsIControllers.h"
-#include "nsICSSParser.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIDOM3EventTarget.h"
@@ -74,7 +73,7 @@
 #include "nsAttrAndChildArray.h"
 #include "nsGkAtoms.h"
 #include "nsAutoPtr.h"
-#include "nsGenericElement.h"
+#include "nsStyledElement.h"
 #include "nsDOMScriptObjectHolder.h"
 #include "nsIFrameLoader.h"
 
@@ -302,23 +301,6 @@ public:
     // (eg, when a node from an overlay ends up in our document, that node
     // must use its original script language, not our document's default.
     PRUint16                 mScriptTypeID;
-    static void ReleaseGlobals()
-    {
-        NS_IF_RELEASE(sCSSParser);
-    }
-
-protected:
-    static nsICSSParser* GetCSSParser()
-    {
-        if (!sCSSParser) {
-            CallCreateInstance(kCSSParserCID, &sCSSParser);
-            if (sCSSParser) {
-                sCSSParser->SetQuirkMode(PR_FALSE);
-            }
-        }
-        return sCSSParser;
-    }
-    static nsICSSParser* sCSSParser;
 };
 
 class nsXULDocument;
@@ -468,7 +450,7 @@ public:
 
 class nsScriptEventHandlerOwnerTearoff;
 
-class nsXULElement : public nsGenericElement, public nsIDOMXULElement
+class nsXULElement : public nsStyledElement, public nsIDOMXULElement
 {
 public:
 
@@ -497,7 +479,7 @@ protected:
 public:
     static nsresult
     Create(nsXULPrototypeElement* aPrototype, nsIDocument* aDocument,
-           PRBool aIsScriptable, nsIContent** aResult);
+           PRBool aIsScriptable, mozilla::dom::Element** aResult);
 
     // nsISupports
     NS_DECL_ISUPPORTS_INHERITED
@@ -513,8 +495,6 @@ public:
                                 PRBool aCompileEventHandlers);
     virtual void UnbindFromTree(PRBool aDeep, PRBool aNullParent);
     virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent = PR_TRUE);
-    virtual nsIAtom *GetIDAttributeName() const;
-    virtual nsIAtom *GetClassAttributeName() const;
     virtual PRBool GetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                            nsAString& aResult) const;
     virtual PRBool HasAttr(PRInt32 aNameSpaceID, nsIAtom* aName) const;
@@ -543,16 +523,16 @@ public:
 
     virtual void PerformAccesskey(PRBool aKeyCausesActivation,
                                   PRBool aIsTrustedEvent);
+    nsresult ClickWithInputSource(PRUint16 aInputSource);
 
     virtual nsIContent *GetBindingParent() const;
     virtual PRBool IsNodeOfType(PRUint32 aFlags) const;
-    virtual PRBool IsFocusable(PRInt32 *aTabIndex = nsnull);
+    virtual PRBool IsFocusable(PRInt32 *aTabIndex = nsnull, PRBool aWithMouse = PR_FALSE);
     virtual nsIAtom* GetID() const;
     virtual const nsAttrValue* DoGetClasses() const;
 
     NS_IMETHOD WalkContentStyleRules(nsRuleWalker* aRuleWalker);
     virtual nsICSSStyleRule* GetInlineStyleRule();
-    NS_IMETHOD SetInlineStyleRule(nsICSSStyleRule* aStyleRule, PRBool aNotify);
     virtual nsChangeHint GetAttributeChangeHint(const nsIAtom* aAttribute,
                                                 PRInt32 aModType) const;
     NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
@@ -581,6 +561,7 @@ public:
     nsresult GetStyle(nsIDOMCSSStyleDeclaration** aStyle);
 
     nsresult GetFrameLoader(nsIFrameLoader** aFrameLoader);
+    already_AddRefed<nsFrameLoader> GetFrameLoader();
     nsresult SwapFrameLoaders(nsIFrameLoaderOwner* aOtherOwner);
 
     virtual void RecompileScriptEventListeners();
@@ -682,10 +663,13 @@ protected:
                         PRBool aCompileEventHandlers);
     void MaybeAddPopupListener(nsIAtom* aLocalName);
 
+    nsIWidget* GetWindowWidget();
 
     nsresult HideWindowChrome(PRBool aShouldHide);
 
     void SetTitlebarColor(nscolor aColor, PRBool aActive);
+
+    void SetDrawsInTitlebar(PRBool aState);
 
     const nsAttrName* InternalGetExistingAttrNameFromQName(const nsAString& aStr) const;
 

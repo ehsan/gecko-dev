@@ -82,6 +82,11 @@ ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
         ../system/mac/$(LIB_PREFIX)neckosystem_s.$(LIB_SUFFIX)
 endif
 
+ifdef MOZ_ENABLE_LIBCONIC
+    SHARED_LIBRARY_LIBS += \
+        ../system/maemo/$(LIB_PREFIX)neckosystem_s.$(LIB_SUFFIX)
+endif
+
 LOCAL_INCLUDES	= \
 		-I$(srcdir)/../base/src \
 		-I$(srcdir)/../dns/src \
@@ -107,6 +112,10 @@ ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
     LOCAL_INCLUDES += -I$(srcdir)/../system/mac
 endif
 
+ifdef MOZ_ENABLE_LIBCONIC
+    LOCAL_INCLUDES += -I$(srcdir)/../system/maemo
+endif
+
 ifdef NECKO_COOKIES
 SHARED_LIBRARY_LIBS += \
 		../cookie/src/$(LIB_PREFIX)neckocookie_s.$(LIB_SUFFIX) \
@@ -119,6 +128,11 @@ SHARED_LIBRARY_LIBS += \
 		../wifi/src/$(LIB_PREFIX)neckowifi_s.$(LIB_SUFFIX) \
                 $(NULL)
 LOCAL_INCLUDES	+= -I$(srcdir)/../wifi/src
+
+ifeq ($(OS_ARCH),SunOS)
+OS_LIBS += $(GLIB_LIBS)
+endif
+
 endif
 
 
@@ -141,6 +155,13 @@ EXTRA_DSO_LDOPTS += \
 	$(NULL)
 endif
 
+ifdef MOZ_ENABLE_LIBCONIC
+EXTRA_DSO_LDOPTS += \
+		$(LIBCONIC_LIBS) \
+		$(MOZ_DBUS_LIBS) \
+		$(NULL)
+endif
+
 ifeq ($(OS_ARCH),AIX)
 EXTRA_DSO_LDOPTS += -lodm -lcfg
 endif
@@ -149,6 +170,10 @@ include $(topsrcdir)/config/rules.mk
 
 ifeq ($(OS_ARCH),WINNT)
 OS_LIBS	+= $(call EXPAND_LIBNAME,ole32 shell32)
+endif
+
+ifeq ($(OS_ARCH),WINCE)
+OS_LIBS	+= $(call EXPAND_LIBNAME,cellcore ws2)
 endif
 
 DEFINES += -DIMPL_NS_NET

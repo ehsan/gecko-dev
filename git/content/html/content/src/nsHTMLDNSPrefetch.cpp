@@ -53,9 +53,11 @@
 #include "nsGkAtoms.h"
 #include "nsIDocument.h"
 #include "nsThreadUtils.h"
-#include "nsGenericHTMLElement.h"
 #include "nsITimer.h"
 #include "nsIObserverService.h"
+#include "mozilla/dom/Link.h"
+
+using namespace mozilla::dom;
 
 static NS_DEFINE_CID(kDNSServiceCID, NS_DNSSERVICE_CID);
 PRBool sDisablePrefetchHTTPSPref;
@@ -125,7 +127,7 @@ nsHTMLDNSPrefetch::IsAllowed (nsIDocument *aDocument)
 }
 
 nsresult
-nsHTMLDNSPrefetch::Prefetch(nsGenericHTMLElement *aElement, PRUint16 flags)
+nsHTMLDNSPrefetch::Prefetch(Link *aElement, PRUint16 flags)
 {
   if (!(sInitialized && sPrefetches && sDNSService && sDNSListener))
     return NS_ERROR_NOT_AVAILABLE;
@@ -134,19 +136,19 @@ nsHTMLDNSPrefetch::Prefetch(nsGenericHTMLElement *aElement, PRUint16 flags)
 }
 
 nsresult
-nsHTMLDNSPrefetch::PrefetchLow(nsGenericHTMLElement *aElement)
+nsHTMLDNSPrefetch::PrefetchLow(Link *aElement)
 {
   return Prefetch(aElement, nsIDNSService::RESOLVE_PRIORITY_LOW);
 }
 
 nsresult
-nsHTMLDNSPrefetch::PrefetchMedium(nsGenericHTMLElement *aElement)
+nsHTMLDNSPrefetch::PrefetchMedium(Link *aElement)
 {
   return Prefetch(aElement, nsIDNSService::RESOLVE_PRIORITY_MEDIUM);
 }
 
 nsresult
-nsHTMLDNSPrefetch::PrefetchHigh(nsGenericHTMLElement *aElement)
+nsHTMLDNSPrefetch::PrefetchHigh(Link *aElement)
 {
   return Prefetch(aElement, 0);
 }
@@ -229,7 +231,7 @@ nsHTMLDNSPrefetch::nsDeferrals::Flush()
 }
 
 nsresult
-nsHTMLDNSPrefetch::nsDeferrals::Add(PRUint16 flags, nsGenericHTMLElement *aElement)
+nsHTMLDNSPrefetch::nsDeferrals::Add(PRUint16 flags, Link *aElement)
 {
   // The FIFO has no lock, so it can only be accessed on main thread
   NS_ASSERTION(NS_IsMainThread(), "nsDeferrals::Add must be on main thread");
@@ -238,7 +240,7 @@ nsHTMLDNSPrefetch::nsDeferrals::Add(PRUint16 flags, nsGenericHTMLElement *aEleme
     return NS_ERROR_DNS_LOOKUP_QUEUE_FULL;
     
   mEntries[mHead].mFlags = flags;
-  mEntries[mHead].mElement = aElement;
+  mEntries[mHead].mElement = do_GetWeakReference(aElement);
   mHead = (mHead + 1) & sMaxDeferredMask;
 
   if (!mActiveLoaderCount && !mTimerArmed && mTimer) {
@@ -257,13 +259,13 @@ nsHTMLDNSPrefetch::nsDeferrals::SubmitQueue()
   if (!sDNSService) return;
 
   while (mHead != mTail) {
-
-    if (mEntries[mTail].mElement->GetOwnerDoc()) {
-      nsCOMPtr<nsIURI> hrefURI;
-      hrefURI = mEntries[mTail].mElement->GetHrefURIForAnchors();
+    nsCOMPtr<nsIContent> content = do_QueryReferent(mEntries[mTail].mElement);
+    if (content && content->GetOwnerDoc()) {
+      nsCOMPtr<Link> link = do_QueryInterface(content);
+      nsCOMPtr<nsIURI> hrefURI(link ? link->GetURI() : nsnull);
       if (hrefURI)
         hrefURI->GetAsciiHost(hostName);
-      
+
       if (!hostName.IsEmpty()) {
         nsCOMPtr<nsICancelable> tmpOutstanding;
 
@@ -293,10 +295,9 @@ nsHTMLDNSPrefetch::nsDeferrals::Activate()
     progress->AddProgressListener(this, nsIWebProgress::NOTIFY_STATE_DOCUMENT);
 
   // Register as an observer for xpcom shutdown events so we can drop any element refs
-  nsresult rv;
   nsCOMPtr<nsIObserverService> observerService =
-    do_GetService("@mozilla.org/observer-service;1", &rv);
-  if (NS_SUCCEEDED(rv))
+    mozilla::services::GetObserverService();
+  if (observerService)
     observerService->AddObserver(this, "xpcom-shutdown", PR_TRUE);
 }
 

@@ -1,7 +1,7 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et cindent: */
 /* ***** BEGIN LICENSE BLOCK *****
- * Version: ML 1.1/GPL 2.0/LGPL 2.1
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
@@ -46,8 +46,6 @@
 #include "nsIDOMHTMLMediaElement.h"
 #include "nsNetUtil.h"
 #include "nsHTMLMediaElement.h"
-#include "nsIObserver.h"
-#include "nsIObserverService.h"
 #include "nsAutoLock.h"
 #include "nsIRenderingContext.h"
 #include "gfxContext.h"
@@ -72,8 +70,7 @@ nsMediaDecoder::nsMediaDecoder() :
   mProgressTime(),
   mDataTime(),
   mVideoUpdateLock(nsnull),
-  mFramerate(0.0),
-  mAspectRatio(1.0),
+  mPixelAspectRatio(1.0),
   mSizeChanged(PR_FALSE),
   mShuttingDown(PR_FALSE)
 {
@@ -122,29 +119,29 @@ void nsMediaDecoder::Invalidate()
     return;
 
   nsIFrame* frame = mElement->GetPrimaryFrame();
-  
+
   {
     nsAutoLock lock(mVideoUpdateLock);
     if (mSizeChanged) {
       nsIntSize scaledSize(mRGBWidth, mRGBHeight);
       // Apply the aspect ratio to produce the intrinsic size we report
       // to the element.
-      if (mAspectRatio > 1.0) {
+      if (mPixelAspectRatio > 1.0) {
         // Increase the intrinsic width
         scaledSize.width =
-          ConditionDimension(mAspectRatio*scaledSize.width, scaledSize.width);
+          ConditionDimension(mPixelAspectRatio*scaledSize.width, scaledSize.width);
       } else {
         // Increase the intrinsic height
         scaledSize.height =
-          ConditionDimension(scaledSize.height/mAspectRatio, scaledSize.height);
+          ConditionDimension(scaledSize.height/mPixelAspectRatio, scaledSize.height);
       }
       mElement->UpdateMediaSize(scaledSize);
 
       mSizeChanged = PR_FALSE;
       if (frame) {
-        nsPresContext* presContext = frame->PresContext();      
+        nsPresContext* presContext = frame->PresContext();
         nsIPresShell *presShell = presContext->PresShell();
-        presShell->FrameNeedsReflow(frame, 
+        presShell->FrameNeedsReflow(frame,
                                     nsIPresShell::eStyleChange,
                                     NS_FRAME_IS_DIRTY);
       }
@@ -199,7 +196,7 @@ nsresult nsMediaDecoder::StartProgress()
 
   mProgressTimer = do_CreateInstance("@mozilla.org/timer;1");
   return mProgressTimer->InitWithFuncCallback(ProgressCallback,
-                                              this, 
+                                              this,
                                               PROGRESS_MS,
                                               nsITimer::TYPE_REPEATING_SLACK);
 }
@@ -215,78 +212,20 @@ nsresult nsMediaDecoder::StopProgress()
   return rv;
 }
 
-void nsMediaDecoder::SetRGBData(PRInt32 aWidth, PRInt32 aHeight, float aFramerate,
-                                float aAspectRatio, unsigned char* aRGBBuffer)
+void nsMediaDecoder::SetVideoData(const gfxIntSize& aSize,
+                                  float aPixelAspectRatio,
+                                  Image* aImage)
 {
   nsAutoLock lock(mVideoUpdateLock);
 
-  if (mRGBWidth != aWidth || mRGBHeight != aHeight ||
-      mAspectRatio != aAspectRatio) {
-    mRGBWidth = aWidth;
-    mRGBHeight = aHeight;
-    mAspectRatio = aAspectRatio;
+  if (mRGBWidth != aSize.width || mRGBHeight != aSize.height ||
+      mPixelAspectRatio != aPixelAspectRatio) {
+    mRGBWidth = aSize.width;
+    mRGBHeight = aSize.height;
+    mPixelAspectRatio = aPixelAspectRatio;
     mSizeChanged = PR_TRUE;
   }
-  mFramerate = aFramerate;
-  mRGB = aRGBBuffer;
-}
-
-void nsMediaDecoder::Paint(gfxContext* aContext,
-                           gfxPattern::GraphicsFilter aFilter,
-                           const gfxRect& aRect)
-{
-  nsAutoLock lock(mVideoUpdateLock);
-
-  if (!mRGB)
-    return;
-
-  nsRefPtr<gfxImageSurface> imgSurface =
-      new gfxImageSurface(mRGB,
-                          gfxIntSize(mRGBWidth, mRGBHeight),
-                          mRGBWidth * 4,
-                          gfxASurface::ImageFormatRGB24);
-  if (!imgSurface)
-    return;
-
-  nsRefPtr<gfxASurface> surface(imgSurface);
-
-#if defined(XP_MACOSX)
-  nsRefPtr<gfxQuartzImageSurface> quartzSurface =
-    new gfxQuartzImageSurface(imgSurface);
-  if (!quartzSurface)
-    return;
-
-  surface = quartzSurface;
-#endif
-
-  nsRefPtr<gfxPattern> pat = new gfxPattern(surface);
-  if (!pat)
-    return;
-
-  // Make the source image fill the rectangle completely
-  pat->SetMatrix(gfxMatrix().Scale(mRGBWidth/aRect.Width(), mRGBHeight/aRect.Height()));
-
-  pat->SetFilter(aFilter);
-
-  // Set PAD mode so that when the video is being scaled, we do not sample
-  // outside the bounds of the video image.
-  gfxPattern::GraphicsExtend extend = gfxPattern::EXTEND_PAD;
-
-  // PAD is slow with X11 and Quartz surfaces, so prefer speed over correctness
-  // and use NONE.
-  nsRefPtr<gfxASurface> target = aContext->CurrentSurface();
-  gfxASurface::gfxSurfaceType type = target->GetType();
-  if (type == gfxASurface::SurfaceTypeXlib ||
-      type == gfxASurface::SurfaceTypeXcb ||
-      type == gfxASurface::SurfaceTypeQuartz) {
-    extend = gfxPattern::EXTEND_NONE;
+  if (mImageContainer && aImage) {
+    mImageContainer->SetCurrentImage(aImage);
   }
-
-  pat->SetExtend(extend);
-
-  /* Draw RGB surface onto frame */
-  aContext->NewPath();
-  aContext->PixelSnappedRectangleAndSetPattern(aRect, pat);
-  aContext->Fill();
 }
-

@@ -86,10 +86,6 @@ RETRIEVE_WINDOWS_INSTALLER = 1
 
 MOZ_LANGPACK_EID=langpack-$(AB_CD)@firefox.mozilla.org
 
-ifeq (,$(filter-out pref,$(MOZ_EXTENSIONS)))
-DEFINES += -DEXTENSION_PREF
-endif
-
 PREF_JS_EXPORTS = $(firstword $(wildcard $(LOCALE_SRCDIR)/firefox-l10n.js) \
                        $(srcdir)/en-US/firefox-l10n.js )
 
@@ -340,9 +336,9 @@ l10n-upload-%: AB_CD=$*
 l10n-upload-%:
 	$(PYTHON) $(topsrcdir)/build/upload.py --base-path $(DIST) "$(DIST)/$(PACKAGE)" $(DIST)/$(LANGPACK)
 ifdef MOZ_MAKE_COMPLETE_MAR
-	$(PYTHON) $(topsrcdir)/build/upload.py --base-path $(DIST) $(DIST)/$(COMPLETE_MAR)
+	$(PYTHON) $(topsrcdir)/build/upload.py --base-path $(DIST) $(DIST)/$(COMPLETE_MAR) $(call QUOTED_WILDCARD,$(wildcard $(DIST)/$(PARTIAL_MAR)))
 endif
-ifeq (WINNT, $(OS_ARCH))
+ifneq (,$(filter WINNT WINCE,$(OS_ARCH)))
 	$(PYTHON) $(topsrcdir)/build/upload.py --base-path $(DIST) "$(INSTALLER_PACKAGE)"
 endif
 

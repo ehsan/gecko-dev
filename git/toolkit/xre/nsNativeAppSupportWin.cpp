@@ -343,7 +343,6 @@ private:
     static void ActivateLastWindow();
     static nsresult OpenWindow( const char *urlstr, const char *args );
     static nsresult OpenBrowserWindow();
-    static nsresult ReParent( nsISupports *window, HWND newParent );
     static void     SetupSysTrayIcon();
     static void     RemoveSysTrayIcon();
 
@@ -580,7 +579,14 @@ struct MessageWindow {
         _wgetcwd(cwd, MAX_PATH);
 
         // Construct a narrow UTF8 buffer <commandline>\0<workingdir>\0
+#ifdef WINCE
+        // For WinCE, we're stuck with providing our own argv[0] for the remote
+        // command-line.
+        NS_ConvertUTF16toUTF8 utf8buffer(L"dummy ");
+        AppendUTF16toUTF8(cmd, utf8buffer);
+#else
         NS_ConvertUTF16toUTF8 utf8buffer(cmd);
+#endif
         utf8buffer.Append('\0');
         AppendUTF16toUTF8(cwd, utf8buffer);
         utf8buffer.Append('\0');
@@ -658,7 +664,7 @@ private:
  *        If not, then this is the first instance of Mozilla.  In
  *        that case, we create and set up the message window.
  *
- *        The checking for existance of the message window must
+ *        The checking for existence of the message window must
  *        be protected by use of a mutex semaphore.
  */
 NS_IMETHODIMP
@@ -856,8 +862,7 @@ nsNativeAppSupportWin::Enable()
 {
     mCanHandleRequests = PR_TRUE;
 
-    nsCOMPtr<nsIObserverService> obs
-        (do_GetService("@mozilla.org/observer-service;1"));
+    nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
     if (obs) {
         obs->AddObserver(this, "quit-application", PR_FALSE);
     } else {

@@ -54,6 +54,8 @@
 
 #include "nsCellMap.h"//table cell navigation
 
+using namespace mozilla;
+
 nsTableRowGroupFrame::nsTableRowGroupFrame(nsStyleContext* aContext):
   nsHTMLContainerFrame(aContext)
 {
@@ -102,7 +104,7 @@ PRInt32 nsTableRowGroupFrame::GetStartRowIndex()
   if (-1 == result) {
     nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
     if (tableFrame) {
-      return tableFrame->GetStartRowIndex(*this);
+      return tableFrame->GetStartRowIndex(this);
     }
   }
       
@@ -253,7 +255,7 @@ nsTableRowGroupFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   if (!IsVisibleInSelection(aBuilder))
     return NS_OK;
 
-  PRBool isRoot = aBuilder->IsAtRootOfPseudoStackingContext() || IsScrolled();
+  PRBool isRoot = aBuilder->IsAtRootOfPseudoStackingContext();
   nsDisplayTableItem* item = nsnull;
   if (isRoot) {
     // This background is created regardless of whether this frame is
@@ -319,11 +321,9 @@ nsTableRowGroupFrame::InitChildReflowState(nsPresContext&     aPresContext,
   nsMargin padding(0,0,0,0);
   nsMargin* pCollapseBorder = nsnull;
   if (aBorderCollapse) {
-    if (aReflowState.frame) {
-      nsTableRowFrame *rowFrame = do_QueryFrame(aReflowState.frame);
-      if (rowFrame) {
-        pCollapseBorder = rowFrame->GetBCBorderWidth(collapseBorder);
-      }
+    nsTableRowFrame *rowFrame = do_QueryFrame(aReflowState.frame);
+    if (rowFrame) {
+      pCollapseBorder = rowFrame->GetBCBorderWidth(collapseBorder);
     }
   }
   aReflowState.Init(&aPresContext, -1, -1, pCollapseBorder, &padding);
@@ -363,7 +363,8 @@ nsTableRowGroupFrame::ReflowChildren(nsPresContext*         aPresContext,
 
   // XXXldb Should we really be checking this rather than available height?
   // (Think about multi-column layout!)
-  PRBool isPaginated = aPresContext->IsPaginated();
+  PRBool isPaginated = aPresContext->IsPaginated() && 
+                       NS_UNCONSTRAINEDSIZE != aReflowState.availSize.height;
 
   PRBool haveRow = PR_FALSE;
   PRBool reflowAllKids = aReflowState.reflowState.ShouldReflowAllKids() ||
@@ -459,7 +460,7 @@ nsTableRowGroupFrame::ReflowChildren(nsPresContext*         aPresContext,
       if (isPaginated && aPageBreakBeforeEnd && !*aPageBreakBeforeEnd) {
         nsTableRowFrame* nextRow = rowFrame->GetNextRow();
         if (nextRow) {
-          *aPageBreakBeforeEnd = nsTableFrame::PageBreakAfter(*kidFrame, nextRow);
+          *aPageBreakBeforeEnd = nsTableFrame::PageBreakAfter(kidFrame, nextRow);
         }
       }
     } else {
@@ -678,8 +679,7 @@ nsTableRowGroupFrame::CalculateRowHeights(nsPresContext*           aPresContext,
             // get the height of the cell 
             nsSize cellFrameSize = cellFrame->GetSize();
             nsSize cellDesSize = cellFrame->GetDesiredSize();
-            rowFrame->CalculateCellActualSize(cellFrame, cellDesSize.width, 
-                                              cellDesSize.height, cellDesSize.width);
+            rowFrame->CalculateCellActualHeight(cellFrame, cellDesSize.height);
             cellFrameSize.height = cellDesSize.height;
             if (cellFrame->HasVerticalAlignBaseline()) {
               // to ensure that a spanning cell with a long descender doesn't
@@ -1269,7 +1269,7 @@ nsTableRowGroupFrame::SplitRowGroup(nsPresContext*           aPresContext,
       prevRowFrame = rowFrame;
       // see if there is a page break after the row
       nsTableRowFrame* nextRow = rowFrame->GetNextRow();
-      if (nextRow && nsTableFrame::PageBreakAfter(*rowFrame, nextRow)) {
+      if (nextRow && nsTableFrame::PageBreakAfter(rowFrame, nextRow)) {
         PushChildren(aPresContext, nextRow, rowFrame);
         aStatus = NS_FRAME_NOT_COMPLETE;
         break;
@@ -1325,9 +1325,9 @@ nsTableRowGroupFrame::Reflow(nsPresContext*           aPresContext,
   // See if all the frames fit. Do not try to split anything if we're
   // not paginated ... we can't split across columns yet.
   if (aReflowState.mFlags.mTableIsSplittable &&
+      NS_UNCONSTRAINEDSIZE != aReflowState.availableHeight &&
       (NS_FRAME_NOT_COMPLETE == aStatus || splitDueToPageBreak || 
-       (NS_UNCONSTRAINEDSIZE != aReflowState.availableHeight &&
-       aDesiredSize.height > aReflowState.availableHeight))) {
+       aDesiredSize.height > aReflowState.availableHeight)) {
     // Nope, find a place to split the row group 
     PRBool specialReflow = (PRBool)aReflowState.mFlags.mSpecialHeightReflow;
     ((nsHTMLReflowState::ReflowStateFlags&)aReflowState.mFlags).mSpecialHeightReflow = PR_FALSE;
@@ -1409,7 +1409,7 @@ nsTableRowGroupFrame::AppendFrames(nsIAtom*        aListName,
   if (rows.Length() > 0) {
     nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
     if (tableFrame) {
-      tableFrame->AppendRows(*this, rowIndex, rows);
+      tableFrame->AppendRows(this, rowIndex, rows);
       PresContext()->PresShell()->
         FrameNeedsReflow(this, nsIPresShell::eTreeChange,
                          NS_FRAME_HAS_DIRTY_CHILDREN);
@@ -1463,7 +1463,7 @@ nsTableRowGroupFrame::InsertFrames(nsIAtom*        aListName,
   if (numRows > 0) {
     nsTableRowFrame* prevRow = (nsTableRowFrame *)nsTableFrame::GetFrameAtOrBefore(this, aPrevFrame, nsGkAtoms::tableRowFrame);
     PRInt32 rowIndex = (prevRow) ? prevRow->GetRowIndex() + 1 : startRowIndex;
-    tableFrame->InsertRows(*this, rows, rowIndex, PR_TRUE);
+    tableFrame->InsertRows(this, rows, rowIndex, PR_TRUE);
 
     PresContext()->PresShell()->
       FrameNeedsReflow(this, nsIPresShell::eTreeChange,
@@ -1570,7 +1570,25 @@ nsTableRowGroupFrame::GetType() const
   return nsGkAtoms::tableRowGroupFrame;
 }
 
+/** find page break before the first row **/
+PRBool 
+nsTableRowGroupFrame::HasInternalBreakBefore() const
+{
+ nsIFrame* firstChild = mFrames.FirstChild(); 
+  if (!firstChild)
+    return PR_FALSE;
+  return firstChild->GetStyleDisplay()->mBreakBefore;
+}
 
+/** find page break after the last row **/
+PRBool 
+nsTableRowGroupFrame::HasInternalBreakAfter() const
+{
+  nsIFrame* lastChild = mFrames.LastChild(); 
+  if (!lastChild)
+    return PR_FALSE;
+  return lastChild->GetStyleDisplay()->mBreakAfter;
+}
 /* ----- global methods ----- */
 
 nsIFrame*
@@ -1696,13 +1714,6 @@ nsTableRowGroupFrame::FindLineContaining(nsIFrame* aFrame)
   return rowFrame->GetRowIndex() - GetStartRowIndex();
 }
 
-PRInt32
-nsTableRowGroupFrame::FindLineAt(nscoord  aY)
-{
-  NS_NOTREACHED("Not implemented");
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
 #ifdef IBMBIDI
 NS_IMETHODIMP
 nsTableRowGroupFrame::CheckLineOrder(PRInt32                  aLine,
@@ -1813,11 +1824,12 @@ nsTableRowGroupFrame::GetNextSiblingOnLine(nsIFrame*& aFrame,
 //end nsLineIterator methods
 
 static void
-DestroyFrameCursorData(void* aObject, nsIAtom* aPropertyName,
-                       void* aPropertyValue, void* aData)
+DestroyFrameCursorData(void* aPropertyValue)
 {
   delete static_cast<nsTableRowGroupFrame::FrameCursorData*>(aPropertyValue);
 }
+
+NS_DECLARE_FRAME_PROPERTY(RowCursorProperty, DestroyFrameCursorData)
 
 void
 nsTableRowGroupFrame::ClearRowCursor()
@@ -1826,7 +1838,7 @@ nsTableRowGroupFrame::ClearRowCursor()
     return;
 
   RemoveStateBits(NS_ROWGROUP_HAS_ROW_CURSOR);
-  DeleteProperty(nsGkAtoms::rowCursorProperty);
+  Properties().Delete(RowCursorProperty());
 }
 
 nsTableRowGroupFrame::FrameCursorData*
@@ -1850,12 +1862,7 @@ nsTableRowGroupFrame::SetupRowCursor()
   FrameCursorData* data = new FrameCursorData();
   if (!data)
     return nsnull;
-  nsresult rv = SetProperty(nsGkAtoms::rowCursorProperty, data,
-                            DestroyFrameCursorData);
-  if (NS_FAILED(rv)) {
-    delete data;
-    return nsnull;
-  }
+  Properties().Set(RowCursorProperty(), data);
   AddStateBits(NS_ROWGROUP_HAS_ROW_CURSOR);
   return data;
 }
@@ -1867,7 +1874,7 @@ nsTableRowGroupFrame::GetFirstRowContaining(nscoord aY, nscoord* aOverflowAbove)
     return nsnull;
 
   FrameCursorData* property = static_cast<FrameCursorData*>
-                                         (GetProperty(nsGkAtoms::rowCursorProperty));
+    (Properties().Get(RowCursorProperty()));
   PRUint32 cursorIndex = property->mCursorIndex;
   PRUint32 frameCount = property->mFrames.Length();
   if (cursorIndex >= frameCount)

@@ -49,18 +49,23 @@
 
 #include "nsIFrame.h"
 #include "nsIDocShellTreeItem.h"
-#include "nsIArray.h"
+#include "nsIDOMCSSStyleDeclaration.h"
+#include "nsIDOMDOMStringList.h"
 #include "nsIMutableArray.h"
 #include "nsPoint.h"
+#include "nsTArray.h"
 
+/**
+ * Core utils.
+ */
 class nsCoreUtils
 {
 public:
   /**
-   * Return true if the given node has registered event listener of the given
-   * type.
+   * Return true if the given node has registered click, mousedown or mouseup
+   * event listeners.
    */
-  static PRBool HasListener(nsIContent *aContent, const nsAString& aEventType);
+  static PRBool HasClickListener(nsIContent *aContent);
 
   /**
    * Dispatch click event to XUL tree cell.
@@ -124,8 +129,8 @@ public:
   /**
    * Return DOM node for the given DOM point.
    */
-  static already_AddRefed<nsIDOMNode> GetDOMNodeFromDOMPoint(nsIDOMNode *aNode,
-                                                             PRUint32 aOffset);
+  static nsINode *GetDOMNodeFromDOMPoint(nsINode *aNode, PRUint32 aOffset);
+
   /**
    * Return the nsIContent* to check for ARIA attributes on -- this may not
    * always be the DOM node for the accessible. Specifically, for doc
@@ -140,19 +145,23 @@ public:
   /**
    * Is the first passed in node an ancestor of the second?
    * Note: A node is not considered to be the ancestor of itself.
-   * @param aPossibleAncestorNode -- node to test for ancestor-ness of aPossibleDescendantNode
-   * @param aPossibleDescendantNode -- node to test for descendant-ness of aPossibleAncestorNode
-   * @return PR_TRUE if aPossibleAncestorNode is an ancestor of aPossibleDescendantNode
+   *
+   * @param  aPossibleAncestorNode   [in] node to test for ancestor-ness of
+   *                                   aPossibleDescendantNode
+   * @param  aPossibleDescendantNode [in] node to test for descendant-ness of
+   *                                   aPossibleAncestorNode
+   * @return PR_TRUE                  if aPossibleAncestorNode is an ancestor of
+   *                                   aPossibleDescendantNode
    */
-   static PRBool IsAncestorOf(nsIDOMNode *aPossibleAncestorNode,
-                              nsIDOMNode *aPossibleDescendantNode);
+   static PRBool IsAncestorOf(nsINode *aPossibleAncestorNode,
+                              nsINode *aPossibleDescendantNode);
 
   /**
    * Are the first node and the second siblings?
+   *
    * @return PR_TRUE if aDOMNode1 and aDOMNode2 have same parent
    */
-   static PRBool AreSiblings(nsIDOMNode *aDOMNode1,
-                             nsIDOMNode *aDOMNode2);
+   static PRBool AreSiblings(nsINode *aNode1, nsINode *aNode2);
 
   /**
    * Helper method to scroll range into view, used for implementation of
@@ -234,7 +243,12 @@ public:
   /**
    * Return presShell for the document containing the given DOM node.
    */
-  static already_AddRefed<nsIPresShell> GetPresShellFor(nsIDOMNode *aNode);
+  static nsIPresShell *GetPresShellFor(nsIDOMNode *aNode)
+  {
+    nsCOMPtr<nsINode> node(do_QueryInterface(aNode));
+    nsIDocument *document = node->GetOwnerDoc();
+    return document ? document->GetPrimaryShell() : nsnull;
+  }
 
   /**
    * Return document node for the given document shell tree item.
@@ -249,6 +263,13 @@ public:
    * @return          PR_TRUE if there is an ID set for this node
    */
   static PRBool GetID(nsIContent *aContent, nsAString& aID);
+
+  /**
+   * Convert attribute value of the given node to positive integer. If no
+   * attribute or wrong value then false is returned.
+   */
+  static PRBool GetUIntAttr(nsIContent *aContent, nsIAtom *aAttr,
+                            PRInt32 *aUInt);
 
   /**
    * Check if the given element is XLink.
@@ -413,7 +434,7 @@ public:
   /**
    * Return sensible columns count for the given tree box object.
    */
-  static PRUint32 GetSensiblecolumnCount(nsITreeBoxObject *aTree);
+  static PRUint32 GetSensibleColumnCount(nsITreeBoxObject *aTree);
 
   /**
    * Return sensible column at the given index for the given tree box object.
@@ -446,6 +467,36 @@ public:
     return aContent->NodeInfo()->Equals(nsAccessibilityAtoms::th) ||
       aContent->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::scope);
   }
+
+  /**
+   * Generates frames for popup subtree.
+   *
+   * @param aNode    [in] DOM node containing the menupopup element as a child
+   * @param aIsAnon  [in] specifies whether popup should be searched inside of
+   *                  anonymous or explicit content
+   */
+  static void GeneratePopupTree(nsIDOMNode *aNode, PRBool aIsAnon = PR_FALSE);
+};
+
+
+/**
+ * nsIDOMDOMStringList implementation.
+ */
+class nsAccessibleDOMStringList : public nsIDOMDOMStringList
+{
+public:
+  nsAccessibleDOMStringList() {};
+  virtual ~nsAccessibleDOMStringList() {};
+
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIDOMDOMSTRINGLIST
+
+  PRBool Add(const nsAString& aName) {
+    return mNames.AppendElement(aName) != nsnull;
+  }
+
+private:
+  nsTArray<nsString> mNames;
 };
 
 #endif

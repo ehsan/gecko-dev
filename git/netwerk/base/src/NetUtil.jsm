@@ -53,6 +53,8 @@ const Ci = Components.interfaces;
 const Cc = Components.classes;
 const Cr = Components.results;
 
+const PR_UINT32_MAX = 0xffffffff;
+
 ////////////////////////////////////////////////////////////////////////////////
 //// NetUtil Object
 
@@ -126,29 +128,120 @@ const NetUtil = {
     },
 
     /**
-     * Constructs a new URI for the given spec, character set, and base URI.
+     * Asynchronously opens a source and fetches the response.  A source can be
+     * an nsIURI, nsIFile, string spec, or nsIChannel.  The provided callback
+     * will get an input stream containing the response, and the result code.
      *
-     * @param aSpec
-     *        The spec for the desired URI.
-     * @param aOriginCharset [optional]
-     *        The character set for the URI.
-     * @param aBaseURI [optional]
-     *        The base URI for the spec.
-     *
-     * @return an nsIURI object.
+     * @param aSource
+     *        The nsIURI, nsIFile, string spec, or nsIChannel to open.
+     * @param aCallback
+     *        The callback function that will be notified upon completion.  It
+     *        will get two arguments:
+     *        1) An nsIInputStream containing the data from the channel, if any.
+     *        2) The status code from opening the source.
      */
-    newURI: function NetUtil_newURI(aSpec, aOriginCharset, aBaseURI)
+    asyncFetch: function NetUtil_asyncOpen(aSource, aCallback)
     {
-        if (!aSpec) {
+        if (!aSource || !aCallback) {
             let exception = new Components.Exception(
-                "Must have a non-null spec",
+                "Must have a source and a callback",
                 Cr.NS_ERROR_INVALID_ARG,
                 Components.stack.caller
             );
             throw exception;
         }
 
-        return this.ioService.newURI(aSpec, aOriginCharset, aBaseURI);
+        // Create a pipe that will create our output stream that we can use once
+        // we have gotten all the data.
+        let pipe = Cc["@mozilla.org/pipe;1"].
+                   createInstance(Ci.nsIPipe);
+        pipe.init(true, true, 0, PR_UINT32_MAX, null);
+
+        // Create a listener that will give data to the pipe's output stream.
+        let listener = Cc["@mozilla.org/network/simple-stream-listener;1"].
+                       createInstance(Ci.nsISimpleStreamListener);
+        listener.init(pipe.outputStream, {
+            onStartRequest: function(aRequest, aContext) {},
+            onStopRequest: function(aRequest, aContext, aStatusCode) {
+                pipe.outputStream.close();
+                aCallback(pipe.inputStream, aStatusCode);
+            }
+        });
+
+        let channel = aSource;
+        if (!(channel instanceof Ci.nsIChannel)) {
+            channel = this.newChannel(aSource);
+        }
+
+        channel.asyncOpen(listener, null);
+    },
+
+    /**
+     * Constructs a new URI for the given spec, character set, and base URI, or
+     * an nsIFile.
+     *
+     * @param aTarget
+     *        The string spec for the desired URI or an nsIFile.
+     * @param aOriginCharset [optional]
+     *        The character set for the URI.  Only used if aTarget is not an
+     *        nsIFile.
+     * @param aBaseURI [optional]
+     *        The base URI for the spec.  Only used if aTarget is not an
+     *        nsIFile.
+     *
+     * @return an nsIURI object.
+     */
+    newURI: function NetUtil_newURI(aTarget, aOriginCharset, aBaseURI)
+    {
+        if (!aTarget) {
+            let exception = new Components.Exception(
+                "Must have a non-null string spec or nsIFile object",
+                Cr.NS_ERROR_INVALID_ARG,
+                Components.stack.caller
+            );
+            throw exception;
+        }
+
+        if (aTarget instanceof Ci.nsIFile) {
+            return this.ioService.newFileURI(aTarget);
+        }
+
+        return this.ioService.newURI(aTarget, aOriginCharset, aBaseURI);
+    },
+
+    /**
+     * Constructs a new channel for the given spec, character set, and base URI,
+     * or nsIURI, or nsIFile.
+     *
+     * @param aWhatToLoad
+     *        The string spec for the desired URI, an nsIURI, or an nsIFile.
+     * @param aOriginCharset [optional]
+     *        The character set for the URI.  Only used if aWhatToLoad is a
+     *        string.
+     * @param aBaseURI [optional]
+     *        The base URI for the spec.  Only used if aWhatToLoad is a string.
+     *
+     * @return an nsIChannel object.
+     */
+    newChannel: function NetUtil_newChannel(aWhatToLoad, aOriginCharset,
+                                            aBaseURI)
+    {
+        if (!aWhatToLoad) {
+            let exception = new Components.Exception(
+                "Must have a non-null string spec, nsIURI, or nsIFile object",
+                Cr.NS_ERROR_INVALID_ARG,
+                Components.stack.caller
+            );
+            throw exception;
+        }
+
+        let uri = aWhatToLoad;
+        if (!(aWhatToLoad instanceof Ci.nsIURI)) {
+            // We either have a string or an nsIFile that we'll need a URI for.
+            uri = this.newURI(aWhatToLoad, aOriginCharset, aBaseURI);
+        }
+
+        return this.ioService.newChannelFromURI(uri);
     },
 
     /**

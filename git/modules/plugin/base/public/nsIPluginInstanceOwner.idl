@@ -38,6 +38,7 @@
 #include "nsISupports.idl"
 #include "nspluginroot.idl"
 #include "nsIPlugin.idl"
+#include "nsIInputStream.idl"
 
 interface nsIPluginInstance;
 interface nsIDocument;
@@ -49,7 +50,7 @@ class nsPluginEvent;
 
 [ref] native nsIPluginInstanceRef(nsIPluginInstance*);
 
-[uuid(0E0E465C-C081-4E43-B2DF-D4DCA6B8E8CF)]
+[uuid(B48DC23E-C20B-4292-974E-E8FF97B9F1CC)]
 interface nsIPluginInstanceOwner : nsISupports
 {
   /**
@@ -61,6 +62,13 @@ interface nsIPluginInstanceOwner : nsISupports
    * Get the instance associated with this owner.
    */
   void getInstance(in nsIPluginInstanceRef aInstance);
+
+%{C++
+  // make getter_AddRefs work
+  inline nsresult GetInstance(nsIPluginInstance** aInstance) {
+    return GetInstance(*aInstance);
+  }
+%}
 
   /**
    * Get a handle to the window structure of the owner.
@@ -88,9 +96,8 @@ interface nsIPluginInstanceOwner : nsISupports
    */
   NS_IMETHOD
   GetURL(const char *aURL, const char *aTarget, 
-         void *aPostData, PRUint32 aPostDataLen, 
-         void *aHeadersData, PRUint32 aHeadersDataLen, 
-         PRBool aIsFile = PR_FALSE) = 0;
+         nsIInputStream *aPostStream,
+         void *aHeadersData, PRUint32 aHeadersDataLen) = 0;
 %}
 
   /**
@@ -134,5 +141,11 @@ interface nsIPluginInstanceOwner : nsISupports
   virtual NPError ShowNativeContextMenu(NPMenu* menu, void* event) = 0;
   virtual NPBool  ConvertPoint(double sourceX, double sourceY, NPCoordinateSpace sourceSpace,
                                double *destX, double *destY, NPCoordinateSpace destSpace) = 0;
+%}
+
+  void setEventModel(in PRInt32 eventModel);
+
+%{C++
+  virtual void SendIdleEvent() = 0;
 %}
 };

@@ -45,10 +45,6 @@ MODULE = crashreporter
 LIBXUL_LIBRARY = 1
 LIBRARY_NAME = exception_handler_s
 
-
-DIRS = \
-	$(NULL)
-
 ifeq  ($(OS_ARCH),WINNT)
 DIRS += \
   google-breakpad/src/common/windows \
@@ -77,7 +73,9 @@ DIRS += \
   google-breakpad/src/common \
   google-breakpad/src/common/linux \
   google-breakpad/src/client \
+  google-breakpad/src/client/linux/crash_generation \
   google-breakpad/src/client/linux/handler \
+  google-breakpad/src/client/linux/minidump_writer \
   google-breakpad/src/tools/linux/dump_syms \
   $(NULL)
 endif
@@ -109,8 +107,12 @@ CPPSRCS = \
 
 FORCE_STATIC_LIB = 1
 
+EXTRA_JS_MODULES = \
+  CrashSubmit.jsm \
+  $(NULL)
+
 ifdef ENABLE_TESTS
-DIRS += test
+TOOL_DIRS = test
 endif
 
 include $(topsrcdir)/config/rules.mk

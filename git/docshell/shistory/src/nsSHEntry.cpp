@@ -75,6 +75,7 @@ protected:
 
 static HistoryTracker *gHistoryTracker = nsnull;
 static PRUint32 gEntryID = 0;
+static PRUint64 gEntryDocIdentifier = 0;
 
 nsresult nsSHEntry::Startup()
 {
@@ -104,6 +105,7 @@ nsSHEntry::nsSHEntry()
   : mLoadType(0)
   , mID(gEntryID++)
   , mPageIdentifier(mID)
+  , mDocIdentifier(gEntryDocIdentifier++)
   , mScrollPositionX(0)
   , mScrollPositionY(0)
   , mIsFrameNavigation(PR_FALSE)
@@ -125,6 +127,7 @@ nsSHEntry::nsSHEntry(const nsSHEntry &other)
   , mLoadType(0)         // XXX why not copy?
   , mID(other.mID)
   , mPageIdentifier(other.mPageIdentifier)
+  , mDocIdentifier(other.mDocIdentifier)
   , mScrollPositionX(0)  // XXX why not copy?
   , mScrollPositionY(0)  // XXX why not copy?
   , mIsFrameNavigation(other.mIsFrameNavigation)
@@ -246,7 +249,7 @@ nsSHEntry::SetContentViewer(nsIContentViewer *aViewer)
     // the contentviewer
     mDocument = do_QueryInterface(domDoc);
     if (mDocument) {
-      mDocument->SetShellsHidden(PR_TRUE);
+      mDocument->SetShellHidden(PR_TRUE);
       mDocument->AddMutationObserver(this);
     }
   }
@@ -393,6 +396,30 @@ NS_IMETHODIMP nsSHEntry::SetPageIdentifier(PRUint32 aPageIdentifier)
   return NS_OK;
 }
 
+NS_IMETHODIMP nsSHEntry::GetDocIdentifier(PRUint64 * aResult)
+{
+  *aResult = mDocIdentifier;
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsSHEntry::SetDocIdentifier(PRUint64 aDocIdentifier)
+{
+  // This ensures that after a session restore, gEntryDocIdentifier is greater
+  // than all SHEntries' docIdentifiers, which ensures that we'll never repeat
+  // a doc identifier.
+  if (aDocIdentifier >= gEntryDocIdentifier)
+    gEntryDocIdentifier = aDocIdentifier + 1;
+
+  mDocIdentifier = aDocIdentifier;
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsSHEntry::SetUniqueDocIdentifier()
+{
+  mDocIdentifier = gEntryDocIdentifier++;
+  return NS_OK;
+}
+
 NS_IMETHODIMP nsSHEntry::GetIsSubFrame(PRBool * aFlag)
 {
   *aFlag = mIsFrameNavigation;
@@ -470,7 +497,7 @@ nsSHEntry::Create(nsIURI * aURI, const nsAString &aTitle,
   mCacheKey = aCacheKey;
   mContentType = aContentType;
   mOwner = aOwner;
-    
+
   // Set the LoadType by default to loadHistory during creation
   mLoadType = (PRUint32) nsIDocShellLoadInfo::loadHistory;
 
@@ -594,8 +621,8 @@ nsSHEntry::AddChild(nsISHEntry * aChild, PRInt32 aOffset)
   if (aOffset < mChildren.Count()) {
     nsISHEntry* oldChild = mChildren.ObjectAt(aOffset);
     if (oldChild && oldChild != aChild) {
-      NS_ERROR("Adding child where we already have a child?  "
-               "This will likely misbehave");
+      NS_WARNING("Adding child where we already have a child?  "
+                 "This will likely misbehave");
       oldChild->SetParent(nsnull);
     }
   }
@@ -685,7 +712,7 @@ nsSHEntry::DropPresentationState()
   nsRefPtr<nsSHEntry> kungFuDeathGrip = this;
 
   if (mDocument) {
-    mDocument->SetShellsHidden(PR_FALSE);
+    mDocument->SetShellHidden(PR_FALSE);
     mDocument->RemoveMutationObserver(this);
     mDocument = nsnull;
   }
@@ -765,16 +792,16 @@ nsSHEntry::AttributeChanged(nsIDocument* aDocument,
                             nsIContent* aContent,
                             PRInt32 aNameSpaceID,
                             nsIAtom* aAttribute,
-                            PRInt32 aModType,
-                            PRUint32 aStateMask)
+                            PRInt32 aModType)
 {
   DocumentMutated();
 }
 
 void
 nsSHEntry::ContentAppended(nsIDocument* aDocument,
-                        nsIContent* aContainer,
-                        PRInt32 aNewIndexInContainer)
+                           nsIContent* aContainer,
+                           nsIContent* aFirstNewContent,
+                           PRInt32 /* unused */)
 {
   DocumentMutated();
 }
@@ -783,7 +810,7 @@ void
 nsSHEntry::ContentInserted(nsIDocument* aDocument,
                            nsIContent* aContainer,
                            nsIContent* aChild,
-                           PRInt32 aIndexInContainer)
+                           PRInt32 /* unused */)
 {
   DocumentMutated();
 }
@@ -865,5 +892,19 @@ PRBool
 nsSHEntry::HasDetachedEditor()
 {
   return mEditorData != nsnull;
+}
+
+NS_IMETHODIMP
+nsSHEntry::GetStateData(nsAString &aStateData)
+{
+  aStateData.Assign(mStateData);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsSHEntry::SetStateData(const nsAString &aDataStr)
+{
+  mStateData.Assign(aDataStr);
+  return NS_OK;
 }
 

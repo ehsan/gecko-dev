@@ -49,6 +49,7 @@
 #include "nsIComponentManager.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
+#include "nsIDOM3Document.h"
 #include "nsIDOMXULDocument.h"
 #include "nsIDOMWindow.h"
 #include "nsIDOMElement.h"
@@ -73,6 +74,8 @@
 #include "nsIServiceManager.h"
 #include "nsAutoPtr.h"
 #include "nsFocusManager.h"
+#include "Layers.h"
+#include "gfxContext.h"
 
 // for painting the background window
 #include "nsIRenderingContext.h"
@@ -88,6 +91,8 @@
 
 // PSM2 includes
 #include "nsISecureBrowserUI.h"
+
+using namespace mozilla::layers;
 
 static NS_DEFINE_IID(kWindowCID, NS_WINDOW_CID);
 static NS_DEFINE_CID(kChildCID, NS_CHILD_CID);
@@ -1599,6 +1604,7 @@ NS_IMETHODIMP nsWebBrowser::ScrollByPages(PRInt32 aNumPages)
 
 NS_IMETHODIMP nsWebBrowser::SetDocShell(nsIDocShell* aDocShell)
 {
+     nsCOMPtr<nsIDocShell> kungFuDeathGrip(mDocShell);
      if(aDocShell)
      {
          NS_ENSURE_TRUE(!mDocShell, NS_ERROR_FAILURE);
@@ -1660,16 +1666,30 @@ NS_IMETHODIMP nsWebBrowser::EnsureDocShellTreeOwner()
    return NS_OK;
 }
 
+static void DrawThebesLayer(ThebesLayer* aLayer,
+                            gfxContext* aContext,
+                            const nsIntRegion& aRegionToDraw,
+                            void* aCallbackData)
+{
+  nscolor* color = static_cast<nscolor*>(aCallbackData);
+  aContext->NewPath();
+  aContext->SetColor(gfxRGBA(*color));
+  nsIntRect dirtyRect = aRegionToDraw.GetBounds();
+  aContext->Rectangle(gfxRect(dirtyRect.x, dirtyRect.y, dirtyRect.width, dirtyRect.height));
+  aContext->Fill();  
+}
+
 /* static */
 nsEventStatus nsWebBrowser::HandleEvent(nsGUIEvent *aEvent)
 {
   nsWebBrowser  *browser = nsnull;
   void          *data = nsnull;
+  nsIWidget     *widget = aEvent->widget;
 
-  if (!aEvent->widget)
+  if (!widget)
     return nsEventStatus_eIgnore;
 
-  aEvent->widget->GetClientData(data);
+  widget->GetClientData(data);
   if (!data)
     return nsEventStatus_eIgnore;
 
@@ -1678,41 +1698,50 @@ nsEventStatus nsWebBrowser::HandleEvent(nsGUIEvent *aEvent)
   switch(aEvent->message) {
 
   case NS_PAINT: {
-      nsPaintEvent *paintEvent = static_cast<nsPaintEvent *>(aEvent);
-      nsIRenderingContext *rc = paintEvent->renderingContext;
-      nscolor oldColor;
-      rc->GetColor(oldColor);
-      rc->SetColor(browser->mBackgroundColor);
-      
-      nsCOMPtr<nsIDeviceContext> dx;
-      rc->GetDeviceContext(*getter_AddRefs(dx));
-      PRInt32 appUnitsPerDevPixel = dx->AppUnitsPerDevPixel();
+      LayerManager* layerManager = widget->GetLayerManager();
+      NS_ASSERTION(layerManager, "Must be in paint event");
 
-      nsIRegion *region = paintEvent->region;
-      if (region) {
-          nsRegionRectSet *rects = nsnull;
-          region->GetRects(&rects);
-          if (rects) {
-              for (PRUint32 i = 0; i < rects->mNumRects; ++i) {
-                  nsRect r(rects->mRects[i].x*appUnitsPerDevPixel,
-                           rects->mRects[i].y*appUnitsPerDevPixel,
-                           rects->mRects[i].width*appUnitsPerDevPixel,
-                           rects->mRects[i].height*appUnitsPerDevPixel);
-                  rc->FillRect(r);
-              }
-
-              region->FreeRects(rects);
-          }
-      } else if (paintEvent->rect) {
-          nsRect r(paintEvent->rect->x*appUnitsPerDevPixel,
-                   paintEvent->rect->y*appUnitsPerDevPixel,
-                   paintEvent->rect->width*appUnitsPerDevPixel,
-                   paintEvent->rect->height*appUnitsPerDevPixel);
-          rc->FillRect(r);
+      layerManager->BeginTransaction();
+      nsRefPtr<ThebesLayer> root = layerManager->CreateThebesLayer();
+      nsPaintEvent* paintEvent = static_cast<nsPaintEvent*>(aEvent);
+      nsIntRect dirtyRect = paintEvent->region.GetBounds();
+      if (root) {
+          root->SetVisibleRegion(dirtyRect);
+          layerManager->SetRoot(root);
       }
-      rc->SetColor(oldColor);
+      layerManager->EndTransaction(DrawThebesLayer, &browser->mBackgroundColor);
       return nsEventStatus_eConsumeDoDefault;
     }
+
+  case NS_ACTIVATE: {
+#if defined(DEBUG_smaug)
+    nsCOMPtr<nsIDOMDocument> domDocument = do_GetInterface(browser->mDocShell);
+    nsAutoString documentURI;
+    if (domDocument) {
+      nsCOMPtr<nsIDOM3Document> d3 = do_QueryInterface(domDocument);
+      d3->GetDocumentURI(documentURI);
+    }
+    printf("nsWebBrowser::NS_ACTIVATE %p %s\n", (void*)browser,
+           NS_ConvertUTF16toUTF8(documentURI).get());
+#endif
+    browser->Activate();
+    break;
+  }
+
+  case NS_DEACTIVATE: {
+#if defined(DEBUG_smaug)
+    nsCOMPtr<nsIDOMDocument> domDocument = do_GetInterface(browser->mDocShell);
+    nsAutoString documentURI;
+    if (domDocument) {
+      nsCOMPtr<nsIDOM3Document> d3 = do_QueryInterface(domDocument);
+      d3->GetDocumentURI(documentURI);
+    }
+    printf("nsWebBrowser::NS_DEACTIVATE %p %s\n", (void*)browser,
+           NS_ConvertUTF16toUTF8(documentURI).get());
+#endif
+    browser->Deactivate();
+    break;
+  }
 
   default:
     break;

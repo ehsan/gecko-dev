@@ -64,6 +64,7 @@ class nsDOMWorkerTimeout;
 class nsICancelable;
 class nsIDOMEventListener;
 class nsIEventTarget;
+class nsIRunnable;
 class nsIScriptGlobalObject;
 class nsIXPConnectWrappedNative;
 
@@ -79,6 +80,12 @@ class nsDOMWorkerScope : public nsDOMWorkerMessageHandler,
 public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIDOMEVENTTARGET
+  // nsIDOMNSEventTarget
+  NS_IMETHOD AddEventListener(const nsAString& aType,
+                              nsIDOMEventListener* aListener,
+                              PRBool aUseCapture,
+                              PRBool aWantsUntrusted,
+                              PRUint8 optional_argc);
   NS_DECL_NSIWORKERGLOBALSCOPE
   NS_DECL_NSIWORKERSCOPE
   NS_DECL_NSIXPCSCRIPTABLE
@@ -99,7 +106,7 @@ private:
 };
 
 class nsDOMWorker : public nsDOMWorkerMessageHandler,
-                    public nsIWorker,
+                    public nsIChromeWorker,
                     public nsITimerCallback,
                     public nsIJSNativeInitializer,
                     public nsIXPCScriptable
@@ -112,29 +119,37 @@ class nsDOMWorker : public nsDOMWorkerMessageHandler,
   friend class nsDOMWorkerXHR;
   friend class nsDOMWorkerXHRProxy;
   friend class nsReportErrorRunnable;
+  friend class nsDOMFireEventRunnable;
 
   friend JSBool DOMWorkerOperationCallback(JSContext* aCx);
   friend void DOMWorkerErrorReporter(JSContext* aCx,
                                      const char* aMessage,
                                      JSErrorReport* aReport);
 
-#ifdef DEBUG
-  // For fun assertions.
-  friend class nsDOMFireEventRunnable;
-#endif
-
 public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIDOMEVENTTARGET
+  // nsIDOMNSEventTarget
+  NS_IMETHOD AddEventListener(const nsAString& aType,
+                              nsIDOMEventListener* aListener,
+                              PRBool aUseCapture,
+                              PRBool aWantsUntrusted,
+                              PRUint8 optional_argc);
   NS_DECL_NSIABSTRACTWORKER
   NS_DECL_NSIWORKER
+  NS_DECL_NSICHROMEWORKER
   NS_DECL_NSITIMERCALLBACK
+  NS_DECL_NSICLASSINFO
   NS_DECL_NSIXPCSCRIPTABLE
 
   static nsresult NewWorker(nsISupports** aNewObject);
+  static nsresult NewChromeWorker(nsISupports** aNewObject);
+
+  enum WorkerPrivilegeModel { CONTENT, CHROME };
 
   nsDOMWorker(nsDOMWorker* aParent,
-              nsIXPConnectWrappedNative* aParentWN);
+              nsIXPConnectWrappedNative* aParentWN,
+              WorkerPrivilegeModel aModel);
 
   NS_IMETHOD Initialize(nsISupports* aOwner,
                         JSContext* aCx,
@@ -153,7 +168,9 @@ public:
   void Suspend();
   void Resume();
 
+  // This just calls IsCanceledNoLock with an autolock around the call.
   PRBool IsCanceled();
+
   PRBool IsClosing();
   PRBool IsSuspended();
 
@@ -180,6 +197,10 @@ public:
 #ifdef DEBUG
   PRIntervalTime GetExpirationTime();
 #endif
+
+  PRBool IsPrivileged() {
+    return mPrivilegeModel == CHROME;
+  }
 
   /**
    * Use this chart to help figure out behavior during each of the closing
@@ -235,10 +256,7 @@ public:
 private:
   ~nsDOMWorker();
 
-  nsresult PostMessageInternal(const nsAString& aMessage,
-                               PRBool aIsJSON,
-                               PRBool aIsPrimitive,
-                               PRBool aToInner);
+  nsresult PostMessageInternal(PRBool aToInner);
 
   PRBool CompileGlobalObject(JSContext* aCx);
 
@@ -279,12 +297,22 @@ private:
     return mLocation;
   }
 
+  PRBool QueueSuspendedRunnable(nsIRunnable* aRunnable);
+
+  // Determines if the worker should be considered "canceled". See the large
+  // comment in the implementation for more details.
+  PRBool IsCanceledNoLock();
+
 private:
 
   // mParent will live as long as mParentWN but only mParentWN will keep the JS
   // reflection alive, so we only hold one strong reference to mParentWN.
   nsDOMWorker* mParent;
   nsCOMPtr<nsIXPConnectWrappedNative> mParentWN;
+
+  // Whether or not this worker has chrome privileges. Never changed after the
+  // worker is created.
+  WorkerPrivilegeModel mPrivilegeModel;
 
   PRLock* mLock;
 
@@ -317,6 +345,8 @@ private:
   nsCOMPtr<nsITimer> mKillTimer;
 
   nsCOMPtr<nsIWorkerLocation> mLocation;
+
+  nsTArray<nsCOMPtr<nsIRunnable> > mQueuedRunnables;
 
   PRPackedBool mSuspended;
   PRPackedBool mCompileAttempted;

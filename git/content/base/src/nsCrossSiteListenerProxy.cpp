@@ -52,7 +52,7 @@
 #include "nsGkAtoms.h"
 #include "nsWhitespaceTokenizer.h"
 #include "nsIChannelEventSink.h"
-#include "nsCommaSeparatedTokenizer.h"
+#include "nsCharSeparatedTokenizer.h"
 #include "nsXMLHttpRequest.h"
 
 static PRBool gDisableCORS = PR_FALSE;
@@ -159,7 +159,7 @@ nsCrossSiteListenerProxy::OnStartRequest(nsIRequest* aRequest,
       nsCOMPtr<nsIChannel> channel = do_QueryInterface(aRequest);
       if (channel) {
       nsCOMPtr<nsIURI> uri;
-        channel->GetURI(getter_AddRefs(uri));
+        NS_GetFinalChannelURI(channel, getter_AddRefs(uri));
         if (uri) {
           nsXMLHttpRequest::sAccessControlCache->
             RemoveEntries(uri, mRequestingPrincipal);
@@ -245,7 +245,13 @@ nsCrossSiteListenerProxy::CheckRequestApproved(nsIRequest* aRequest,
     PRBool succeeded;
     rv = http->GetRequestSucceeded(&succeeded);
     NS_ENSURE_SUCCESS(rv, rv);
-    NS_ENSURE_TRUE(succeeded, NS_ERROR_DOM_BAD_URI);
+    if (!succeeded) {
+      PRUint32 responseStatus;
+      rv = http->GetResponseStatus(&responseStatus);
+      NS_ENSURE_SUCCESS(rv, rv);
+      NS_ENSURE_TRUE(mAllowedHTTPErrors.Contains(responseStatus),
+                     NS_ERROR_DOM_BAD_URI);
+    }
   }
 
   // Check the Access-Control-Allow-Origin header
@@ -285,7 +291,7 @@ nsCrossSiteListenerProxy::CheckRequestApproved(nsIRequest* aRequest,
                             headerVal);
     PRBool foundMethod = mPreflightMethod.EqualsLiteral("GET") ||
       mPreflightMethod.EqualsLiteral("POST");
-    nsCCommaSeparatedTokenizer methodTokens(headerVal);
+    nsCCharSeparatedTokenizer methodTokens(headerVal, ',');
     while(methodTokens.hasMoreTokens()) {
       const nsDependentCSubstring& method = methodTokens.nextToken();
       if (method.IsEmpty()) {
@@ -304,7 +310,7 @@ nsCrossSiteListenerProxy::CheckRequestApproved(nsIRequest* aRequest,
     http->GetResponseHeader(NS_LITERAL_CSTRING("Access-Control-Allow-Headers"),
                             headerVal);
     nsTArray<nsCString> headers;
-    nsCCommaSeparatedTokenizer headerTokens(headerVal);
+    nsCCharSeparatedTokenizer headerTokens(headerVal, ',');
     while(headerTokens.hasMoreTokens()) {
       const nsDependentCSubstring& header = headerTokens.nextToken();
       if (header.IsEmpty()) {
@@ -375,7 +381,7 @@ nsCrossSiteListenerProxy::OnChannelRedirect(nsIChannel *aOldChannel,
     if (NS_FAILED(rv)) {
       if (nsXMLHttpRequest::sAccessControlCache) {
         nsCOMPtr<nsIURI> oldURI;
-        aOldChannel->GetURI(getter_AddRefs(oldURI));
+        NS_GetFinalChannelURI(aOldChannel, getter_AddRefs(oldURI));
         if (oldURI) {
           nsXMLHttpRequest::sAccessControlCache->
             RemoveEntries(oldURI, mRequestingPrincipal);
@@ -404,7 +410,7 @@ nsresult
 nsCrossSiteListenerProxy::UpdateChannel(nsIChannel* aChannel)
 {
   nsCOMPtr<nsIURI> uri, originalURI;
-  nsresult rv = aChannel->GetURI(getter_AddRefs(uri));
+  nsresult rv = NS_GetFinalChannelURI(aChannel, getter_AddRefs(uri));
   NS_ENSURE_SUCCESS(rv, rv);
   rv = aChannel->GetOriginalURI(getter_AddRefs(originalURI));
   NS_ENSURE_SUCCESS(rv, rv);  

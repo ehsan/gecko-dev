@@ -78,6 +78,8 @@ XPCOM_GLUE_SRC_CPPSRCS = $(addprefix $(topsrcdir)/xpcom/glue/, $(XPCOM_GLUE_SRC_
 XPCOM_GLUENS_SRC_LCPPSRCS =      \
   BlockingResourceBase.cpp       \
   DeadlockDetector.cpp           \
+  SSE.cpp                        \
+  unused.cpp                     \
   nsAutoLock.cpp                 \
   nsGenericFactory.cpp           \
   nsProxyRelease.cpp             \

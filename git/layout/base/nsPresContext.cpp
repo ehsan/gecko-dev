@@ -95,6 +95,8 @@
 #include "nsIDOMEventTarget.h"
 #include "nsObjectFrame.h"
 #include "nsTransitionManager.h"
+#include "mozilla/dom/Element.h"
+#include "nsIFrameMessageManager.h"
 
 #ifdef MOZ_SMIL
 #include "nsSMILAnimationController.h"
@@ -115,6 +117,7 @@
 
 using mozilla::TimeDuration;
 using mozilla::TimeStamp;
+using namespace mozilla::dom;
 
 static nscolor
 MakeColorPref(const char *colstr)
@@ -204,9 +207,7 @@ nsPresContext::nsPresContext(nsIDocument* aDocument, nsPresContextType aType)
                         NS_FONT_STRETCH_NORMAL, 0, 0),
     mDefaultFantasyFont("fantasy", NS_FONT_STYLE_NORMAL,
                         NS_FONT_VARIANT_NORMAL, NS_FONT_WEIGHT_NORMAL,
-                        NS_FONT_STRETCH_NORMAL, 0, 0),
-    mCanPaginatedScroll(PR_FALSE),
-    mIsRootPaginatedDocument(PR_FALSE), mSupressResizeReflow(PR_FALSE)
+                        NS_FONT_STRETCH_NORMAL, 0, 0)
 {
   // NOTE! nsPresContext::operator new() zeroes out all members, so don't
   // bother initializing members to 0.
@@ -253,13 +254,18 @@ nsPresContext::nsPresContext(nsIDocument* aDocument, nsPresContextType aType)
 
 nsPresContext::~nsPresContext()
 {
-  for (PRUint32 i = 0; i < IMAGE_LOAD_TYPE_COUNT; ++i)
-    mImageLoaders[i].Enumerate(destroy_loads, nsnull);
-
   NS_PRECONDITION(!mShell, "Presshell forgot to clear our mShell pointer");
   SetShell(nsnull);
 
-  delete mTransitionManager;
+  if (mTransitionManager) {
+    mTransitionManager->Disconnect();
+  }
+
+  // Disconnect the refresh driver *after* the transition manager, which
+  // needs it.
+  if (mRefreshDriver) {
+    mRefreshDriver->Disconnect();
+  }
 
   if (mEventManager) {
     // unclear if these are needed, but can't hurt
@@ -311,13 +317,13 @@ nsPresContext::~nsPresContext()
 
   NS_IF_RELEASE(mDeviceContext);
   NS_IF_RELEASE(mLookAndFeel);
-  NS_IF_RELEASE(mLangGroup);
+  NS_IF_RELEASE(mLanguage);
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsPresContext)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsPresContext)
-   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIObserver)
+   NS_INTERFACE_MAP_ENTRY(nsISupports)
    NS_INTERFACE_MAP_ENTRY(nsIObserver)
 NS_INTERFACE_MAP_END
 
@@ -341,7 +347,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsPresContext)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_RAWPTR(mDeviceContext); // worth bothering?
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_RAWPTR(mEventManager);
   // NS_IMPL_CYCLE_COLLECTION_TRAVERSE_RAWPTR(mLookAndFeel); // a service
-  // NS_IMPL_CYCLE_COLLECTION_TRAVERSE_RAWPTR(mLangGroup); // an atom
+  // NS_IMPL_CYCLE_COLLECTION_TRAVERSE_RAWPTR(mLanguage); // an atom
 
   for (PRUint32 i = 0; i < IMAGE_LOAD_TYPE_COUNT; ++i)
     tmp->mImageLoaders[i].Enumerate(TraverseImageLoader, &cb);
@@ -364,12 +370,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsPresContext)
   }
 
   // NS_RELEASE(tmp->mLookAndFeel); // a service
-  // NS_RELEASE(tmp->mLangGroup); // an atom
-
-  for (PRUint32 i = 0; i < IMAGE_LOAD_TYPE_COUNT; ++i) {
-    tmp->mImageLoaders[i].Enumerate(destroy_loads, nsnull);
-    tmp->mImageLoaders[i].Clear();
-  }
+  // NS_RELEASE(tmp->mLanguage); // an atom
 
   // NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mTheme); // a service
   // NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mLangService); // a service
@@ -432,9 +433,20 @@ nsPresContext::GetFontPreferences()
   mDefaultVariableFont.size = CSSPixelsToAppUnits(16);
   mDefaultFixedFont.size = CSSPixelsToAppUnits(13);
 
-  const char *langGroup = "x-western"; // Assume x-western is safe...
-  if (mLangGroup) {
-    mLangGroup->GetUTF8String(&langGroup);
+  // the font prefs are based on langGroup, not actual language
+  nsCAutoString langGroup;
+  if (mLanguage && mLangService) {
+    nsresult rv;
+    nsIAtom *group = mLangService->GetLanguageGroup(mLanguage, &rv);
+    if (NS_SUCCEEDED(rv) && group) {
+      group->ToUTF8String(langGroup);
+    }
+    else {
+      langGroup.AssignLiteral("x-western"); // Assume x-western is safe...
+    }
+  }
+  else {
+    langGroup.AssignLiteral("x-western"); // Assume x-western is safe...
   }
 
   nsCAutoString pref;
@@ -729,11 +741,6 @@ nsPresContext::GetUserPreferences()
   SET_BIDI_OPTION_TEXTTYPE(bidiOptions, prefInt);
 
   prefInt =
-    nsContentUtils::GetIntPref(IBMBIDI_CONTROLSTEXTMODE_STR,
-                               GET_BIDI_OPTION_CONTROLSTEXTMODE(bidiOptions));
-  SET_BIDI_OPTION_CONTROLSTEXTMODE(bidiOptions, prefInt);
-
-  prefInt =
     nsContentUtils::GetIntPref(IBMBIDI_NUMERAL_STR,
                                GET_BIDI_OPTION_NUMERAL(bidiOptions));
   SET_BIDI_OPTION_NUMERAL(bidiOptions, prefInt);
@@ -844,7 +851,7 @@ nsPresContext::UpdateAfterPreferencesChanged()
 nsresult
 nsPresContext::Init(nsIDeviceContext* aDeviceContext)
 {
-  NS_ASSERTION(!(mInitialized == PR_TRUE), "attempt to reinit pres context");
+  NS_ASSERTION(!mInitialized, "attempt to reinit pres context");
   NS_ENSURE_ARG(aDeviceContext);
 
   mDeviceContext = aDeviceContext;
@@ -873,6 +880,12 @@ nsPresContext::Init(nsIDeviceContext* aDeviceContext)
   NS_ADDREF(mEventManager);
 
   mTransitionManager = new nsTransitionManager(this);
+  if (!mTransitionManager)
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  mRefreshDriver = new nsRefreshDriver(this);
+  if (!mRefreshDriver)
+    return NS_ERROR_OUT_OF_MEMORY;
 
   mLangService = do_GetService(NS_LANGUAGEATOMSERVICE_CONTRACTID);
 
@@ -978,6 +991,15 @@ nsPresContext::SetShell(nsIPresShell* aShell)
         UpdateCharSet(doc->GetDocumentCharacterSet());
       }
     }
+  } else {
+    // Destroy image loaders now that the presshell is going away.
+    // This is important since imageloaders can have pointers to frames and
+    // we don't want those pointers to outlive the destruction of the frame
+    // arena.
+    for (PRUint32 i = 0; i < IMAGE_LOAD_TYPE_COUNT; ++i) {
+      mImageLoaders[i].Enumerate(destroy_loads, nsnull);
+      mImageLoaders[i].Clear();
+    }
   }
 }
 
@@ -985,14 +1007,15 @@ void
 nsPresContext::UpdateCharSet(const nsAFlatCString& aCharSet)
 {
   if (mLangService) {
-    NS_IF_RELEASE(mLangGroup);
-    mLangGroup = mLangService->LookupCharSet(aCharSet.get()).get();  // addrefs
+    NS_IF_RELEASE(mLanguage);
+    mLanguage = mLangService->LookupCharSet(aCharSet.get()).get();  // addrefs
+    // this will be a language group (or script) code rather than a true language code
 
     // bug 39570: moved from nsLanguageAtomService::LookupCharSet()
 #if !defined(XP_BEOS) 
-    if (mLangGroup == nsGkAtoms::Unicode) {
-      NS_RELEASE(mLangGroup);
-      NS_IF_ADDREF(mLangGroup = mLangService->GetLocaleLanguageGroup()); 
+    if (mLanguage == nsGkAtoms::Unicode) {
+      NS_RELEASE(mLanguage);
+      NS_IF_ADDREF(mLanguage = mLangService->GetLocaleLanguage()); 
     }
 #endif
     GetFontPreferences();
@@ -1035,7 +1058,7 @@ nsPresContext::Observe(nsISupports* aSubject,
 
 // We may want to replace this with something faster, maybe caching the root prescontext
 nsRootPresContext*
-nsPresContext::RootPresContext()
+nsPresContext::GetRootPresContext()
 {
   nsPresContext* pc = this;
   for (;;) {
@@ -1049,7 +1072,7 @@ nsPresContext::RootPresContext()
         }
       }
     }
-    return static_cast<nsRootPresContext*>(pc);
+    return pc->IsRoot() ? static_cast<nsRootPresContext*>(pc) : nsnull;
   }
 }
 
@@ -1114,8 +1137,8 @@ void
 nsPresContext::SetSMILAnimations(nsIDocument *aDoc, PRUint16 aNewMode,
                                  PRUint16 aOldMode)
 {
-  nsSMILAnimationController *controller = aDoc->GetAnimationController();
-  if (controller) {
+  if (aDoc->HasAnimationController()) {
+    nsSMILAnimationController* controller = aDoc->GetAnimationController();
     switch (aNewMode)
     {
       case imgIContainer::kNormalAnimMode:
@@ -1130,13 +1153,6 @@ nsPresContext::SetSMILAnimations(nsIDocument *aDoc, PRUint16 aNewMode,
         break;
     }
   }
-}
-
-void
-nsPresContext::SMILOverrideStyleChanged(nsIContent* aContent)
-{
-  mShell->FrameConstructor()->PostRestyleEvent(aContent, eReStyle_Self,
-                                               NS_STYLE_HINT_NONE);
 }
 #endif // MOZ_SMIL
 
@@ -1160,9 +1176,9 @@ nsPresContext::SetImageAnimationModeInternal(PRUint16 aMode)
   if (mShell != nsnull) {
     nsIDocument *doc = mShell->GetDocument();
     if (doc) {
-      nsIContent *rootContent = doc->GetRootContent();
-      if (rootContent) {
-        SetImgAnimations(rootContent, aMode);
+      Element *rootElement = doc->GetRootElement();
+      if (rootElement) {
+        SetImgAnimations(rootElement, aMode);
       }
 
 #ifdef MOZ_SMIL
@@ -1184,7 +1200,7 @@ already_AddRefed<nsIFontMetrics>
 nsPresContext::GetMetricsFor(const nsFont& aFont, PRBool aUseUserFontSet)
 {
   nsIFontMetrics* metrics = nsnull;
-  mDeviceContext->GetMetricsFor(aFont, mLangGroup,
+  mDeviceContext->GetMetricsFor(aFont, mLanguage,
                                 aUseUserFontSet ? GetUserFontSet() : nsnull,
                                 metrics);
   return metrics;
@@ -1229,7 +1245,7 @@ nsPresContext::GetDefaultFont(PRUint8 aFontID) const
 void
 nsPresContext::SetFullZoom(float aZoom)
 {
-  if (!mShell || mFullZoom == aZoom || !IsDynamic()) {
+  if (!mShell || mFullZoom == aZoom) {
     return;
   }
   // Re-fetch the view manager's window dimensions in case there's a deferred
@@ -1242,7 +1258,7 @@ nsPresContext::SetFullZoom(float aZoom)
     mDeviceContext->FlushFontCache();
   }
 
-  NS_ASSERTION(mSupressResizeReflow == PR_FALSE, "two zooms happening at the same time? impossible!");
+  NS_ASSERTION(!mSupressResizeReflow, "two zooms happening at the same time? impossible!");
   mSupressResizeReflow = PR_TRUE;
 
   mFullZoom = aZoom;
@@ -1264,6 +1280,9 @@ nsPresContext::SetImageLoaders(nsIFrame* aTargetFrame,
                                ImageLoadType aType,
                                nsImageLoader* aImageLoaders)
 {
+  NS_ASSERTION(mShell || !aImageLoaders,
+               "Shouldn't add new image loader after the shell is gone");
+
   nsRefPtr<nsImageLoader> oldLoaders;
   mImageLoaders[aType].Get(aTargetFrame, getter_AddRefs(oldLoaders));
 
@@ -1316,6 +1335,7 @@ void
 nsPresContext::SetContainer(nsISupports* aHandler)
 {
   mContainer = do_GetWeakReference(aHandler);
+  InvalidateIsChromeCache();
   if (mContainer) {
     GetDocumentColorPreferences();
   }
@@ -1338,27 +1358,6 @@ nsPresContext::GetContainerExternal() const
 }
 
 #ifdef IBMBIDI
-PRBool
-nsPresContext::BidiEnabledInternal() const
-{
-  PRBool bidiEnabled = PR_FALSE;
-  NS_ASSERTION(mShell, "PresShell must be set on PresContext before calling nsPresContext::GetBidiEnabled");
-  if (mShell) {
-    nsIDocument *doc = mShell->GetDocument();
-    NS_ASSERTION(doc, "PresShell has no document in nsPresContext::GetBidiEnabled");
-    if (doc) {
-      bidiEnabled = doc->GetBidiEnabled();
-    }
-  }
-  return bidiEnabled;
-}
-
-PRBool
-nsPresContext::BidiEnabledExternal() const
-{
-  return BidiEnabledInternal();
-}
-
 void
 nsPresContext::SetBidiEnabled() const
 {
@@ -1417,7 +1416,31 @@ nsPresContext::GetBidi() const
 {
   return Document()->GetBidiOptions();
 }
+
+PRUint32
+nsPresContext::GetBidiMemoryUsed()
+{
+  if (!mBidiUtils)
+    return 0;
+
+  return mBidiUtils->EstimateMemoryUsed();
+}
+
 #endif //IBMBIDI
+
+PRBool
+nsPresContext::IsTopLevelWindowInactive()
+{
+  nsCOMPtr<nsIDocShellTreeItem> treeItem(do_QueryReferent(mContainer));
+  if (!treeItem)
+    return PR_FALSE;
+
+  nsCOMPtr<nsIDocShellTreeItem> rootItem;
+  treeItem->GetRootTreeItem(getter_AddRefs(rootItem));
+  nsCOMPtr<nsPIDOMWindow> domWindow(do_GetInterface(rootItem));
+
+  return domWindow && !domWindow->IsActive();
+}
 
 nsITheme*
 nsPresContext::GetTheme()
@@ -1439,8 +1462,7 @@ nsPresContext::ThemeChanged()
     sThemeChanged = PR_TRUE;
 
     nsCOMPtr<nsIRunnable> ev =
-      new nsRunnableMethod<nsPresContext>(this,
-                                          &nsPresContext::ThemeChangedInternal);
+      NS_NewRunnableMethod(this, &nsPresContext::ThemeChangedInternal);
     if (NS_SUCCEEDED(NS_DispatchToCurrentThread(ev))) {
       mPendingThemeChanged = PR_TRUE;
     }
@@ -1468,6 +1490,9 @@ nsPresContext::ThemeChangedInternal()
   // This will force the system metrics to be generated the next time they're used
   nsCSSRuleProcessor::FreeSystemMetrics();
 
+  // Changes to system metrics can change media queries on them.
+  MediaFeatureValuesChanged(PR_TRUE);
+
   // Changes in theme can change system colors (whose changes are
   // properly reflected in computed style data), system fonts (whose
   // changes are not), and -moz-appearance (whose changes likewise are
@@ -1481,8 +1506,7 @@ nsPresContext::SysColorChanged()
   if (!mPendingSysColorChanged) {
     sLookAndFeelChanged = PR_TRUE;
     nsCOMPtr<nsIRunnable> ev =
-      new nsRunnableMethod<nsPresContext>(this,
-                                          &nsPresContext::SysColorChangedInternal);
+      NS_NewRunnableMethod(this, &nsPresContext::SysColorChangedInternal);
     if (NS_SUCCEEDED(NS_DispatchToCurrentThread(ev))) {
       mPendingSysColorChanged = PR_TRUE;
     }
@@ -1536,7 +1560,8 @@ void
 nsPresContext::MediaFeatureValuesChanged(PRBool aCallerWillRebuildStyleData)
 {
   mPendingMediaFeatureValuesChanged = PR_FALSE;
-  if (mShell->StyleSet()->MediumFeaturesChanged(this) &&
+  if (mShell &&
+      mShell->StyleSet()->MediumFeaturesChanged(this) &&
       !aCallerWillRebuildStyleData) {
     RebuildAllStyleData(nsChangeHint(0));
   }
@@ -1547,8 +1572,7 @@ nsPresContext::PostMediaFeatureValuesChangedEvent()
 {
   if (!mPendingMediaFeatureValuesChanged) {
     nsCOMPtr<nsIRunnable> ev =
-      new nsRunnableMethod<nsPresContext>(this,
-                         &nsPresContext::HandleMediaFeatureValuesChangedEvent);
+      NS_NewRunnableMethod(this, &nsPresContext::HandleMediaFeatureValuesChangedEvent);
     if (NS_SUCCEEDED(NS_DispatchToCurrentThread(ev))) {
       mPendingMediaFeatureValuesChanged = PR_TRUE;
     }
@@ -1589,7 +1613,7 @@ nsPresContext::EnsureVisible()
     // Make sure this is the content viewer we belong with
     nsCOMPtr<nsIDocumentViewer> docV(do_QueryInterface(cv));
     if (docV) {
-      nsCOMPtr<nsPresContext> currentPresContext;
+      nsRefPtr<nsPresContext> currentPresContext;
       docV->GetPresContext(getter_AddRefs(currentPresContext));
       if (currentPresContext == this) {
         // OK, this is us.  We want to call Show() on the content viewer.
@@ -1612,7 +1636,7 @@ nsPresContext::CountReflows(const char * aName, nsIFrame * aFrame)
 #endif
 
 PRBool
-nsPresContext::IsChrome() const
+nsPresContext::IsChromeSlow() const
 {
   PRBool isChrome = PR_FALSE;
   nsCOMPtr<nsISupports> container = GetContainer();
@@ -1627,7 +1651,15 @@ nsPresContext::IsChrome() const
       }
     }
   }
-  return isChrome;
+  mIsChrome = isChrome;
+  mIsChromeIsCached = PR_TRUE;
+  return mIsChrome;
+}
+
+void
+nsPresContext::InvalidateIsChromeCacheExternal()
+{
+  InvalidateIsChromeCacheInternal();
 }
 
 /* virtual */ PRBool
@@ -1809,15 +1841,8 @@ nsPresContext::GetUserFontSetInternal()
     // that's a bad thing to do, and the caller was responsible for
     // flushing first.  If we're not (e.g., in frame construction), it's
     // ok.
-#ifdef DEBUG
-    {
-      PRBool inReflow;
-      NS_ASSERTION(!userFontSetGottenBefore ||
-                   (NS_SUCCEEDED(mShell->IsReflowLocked(&inReflow)) &&
-                    !inReflow),
-                   "FlushUserFontSet should have been called first");
-    }
-#endif
+    NS_ASSERTION(!userFontSetGottenBefore || !mShell->IsReflowLocked(),
+                 "FlushUserFontSet should have been called first");
     FlushUserFontSet();
   }
 
@@ -1926,8 +1951,7 @@ nsPresContext::RebuildUserFontSet()
   // change reflow).
   if (!mPostedFlushUserFontSet) {
     nsCOMPtr<nsIRunnable> ev =
-      new nsRunnableMethod<nsPresContext>(this,
-                                     &nsPresContext::HandleRebuildUserFontSet);
+      NS_NewRunnableMethod(this, &nsPresContext::HandleRebuildUserFontSet);
     if (NS_SUCCEEDED(NS_DispatchToCurrentThread(ev))) {
       mPostedFlushUserFontSet = PR_TRUE;
     }
@@ -1953,6 +1977,25 @@ nsPresContext::UserFontSetUpdated()
   //      reuse of cached data even when no style rules have changed.
 
   PostRebuildAllStyleDataEvent(NS_STYLE_HINT_REFLOW);
+}
+
+PRBool
+nsPresContext::EnsureSafeToHandOutCSSRules()
+{
+  nsCSSStyleSheet::EnsureUniqueInnerResult res =
+    mShell->StyleSet()->EnsureUniqueInnerOnCSSSheets();
+  if (res == nsCSSStyleSheet::eUniqueInner_AlreadyUnique) {
+    // Nothing to do.
+    return PR_TRUE;
+  }
+  if (res == nsCSSStyleSheet::eUniqueInner_CloneFailed) {
+    return PR_FALSE;
+  }
+
+  NS_ABORT_IF_FALSE(res == nsCSSStyleSheet::eUniqueInner_ClonedInner,
+                    "unexpected result");
+  RebuildAllStyleData(nsChangeHint(0));
+  return PR_TRUE;
 }
 
 void
@@ -2014,7 +2057,22 @@ MayHavePaintEventListener(nsPIDOMWindow* aInnerWindow)
   if (!chromeEventHandler)
     return PR_FALSE;
 
-  nsCOMPtr<nsINode> node = do_QueryInterface(chromeEventHandler);
+  nsIEventListenerManager* manager = nsnull;
+  nsCOMPtr<nsINode> node;
+  nsCOMPtr<nsIInProcessContentFrameMessageManager> mm =
+    do_QueryInterface(chromeEventHandler);
+  if (mm) {
+    nsCOMPtr<nsPIDOMEventTarget> target = do_QueryInterface(mm);
+    if (target && (manager = target->GetListenerManager(PR_FALSE)) &&
+        manager->MayHavePaintEventListener()) {
+      return PR_TRUE;
+    }
+    node = mm->GetOwnerContent();
+  }
+
+  if (!node) {
+    node = do_QueryInterface(chromeEventHandler);
+  }
   if (node)
     return MayHavePaintEventListener(node->GetOwnerDoc()->GetInnerWindow());
 
@@ -2022,7 +2080,7 @@ MayHavePaintEventListener(nsPIDOMWindow* aInnerWindow)
   if (window)
     return MayHavePaintEventListener(window);
 
-  nsIEventListenerManager* manager =
+  manager =
     chromeEventHandler->GetListenerManager(PR_FALSE);
   if (manager && manager->MayHavePaintEventListener())
     return PR_TRUE;
@@ -2050,8 +2108,7 @@ nsPresContext::NotifyInvalidation(const nsRect& aRect, PRUint32 aFlags)
   if (!IsDOMPaintEventPending()) {
     // No event is pending. Dispatch one now.
     nsCOMPtr<nsIRunnable> ev =
-      new nsRunnableMethod<nsPresContext>(this,
-                                          &nsPresContext::FireDOMPaintEvent);
+      NS_NewRunnableMethod(this, &nsPresContext::FireDOMPaintEvent);
     NS_DispatchToCurrentThread(ev);
   }
 
@@ -2062,6 +2119,44 @@ nsPresContext::NotifyInvalidation(const nsRect& aRect, PRUint32 aFlags)
 
   request->mRect = aRect;
   request->mFlags = aFlags;
+}
+
+void
+nsPresContext::NotifyInvalidateRegion(const nsRegion& aRegion,
+                                      nsPoint aOffset, PRUint32 aFlags)
+{
+  const nsRect* r;
+  for (nsRegionRectIterator iter(aRegion); (r = iter.Next());) {
+    NotifyInvalidation(*r + aOffset, aFlags);
+  }
+}
+
+void
+nsPresContext::NotifyInvalidateForScrolling(const nsRegion& aBlitRegion,
+                                            const nsRegion& aInvalidateRegion)
+{
+  nsPresContext* pc = this;
+  PRUint32 crossDocFlags = 0;
+  nsIFrame* rootFrame = FrameManager()->GetRootFrame();
+  nsPoint offset(0,0);
+  while (pc) {
+    if (pc->MayHavePaintEventListener()) {
+      pc->NotifyInvalidateRegion(aBlitRegion, offset,
+                                 nsIFrame::INVALIDATE_REASON_SCROLL_BLIT | crossDocFlags);
+      pc->NotifyInvalidateRegion(aInvalidateRegion, offset,
+                                 nsIFrame::INVALIDATE_REASON_SCROLL_REPAINT | crossDocFlags);
+    }
+    crossDocFlags = nsIFrame::INVALIDATE_CROSS_DOC;
+
+    nsIFrame* rootParentFrame = nsLayoutUtils::GetCrossDocParentFrame(rootFrame);
+    if (!rootParentFrame)
+      break;
+
+    pc = rootParentFrame->PresContext();
+    nsIFrame* nextRootFrame = pc->PresShell()->FrameManager()->GetRootFrame();
+    offset += rootFrame->GetOffsetTo(nextRootFrame);
+    rootFrame = nextRootFrame;
+  }
 }
 
 PRBool
@@ -2352,11 +2447,6 @@ nsRootPresContext::GetPluginGeometryUpdates(nsIFrame* aChangedSubtree,
   nsRect bounds;
   if (bounds.IntersectRect(closure.mAffectedPluginBounds,
                            closure.mRootFrame->GetRect())) {
-    // It's OK to disable GetUsedX assertions because after a reflow,
-    // any changed geometry will cause UpdatePluginGeometry to happen
-    // again.
-    nsAutoDisableGetUsedXAssertions disableAssertions;
-
     nsDisplayListBuilder builder(closure.mRootFrame, PR_FALSE, PR_FALSE);
     builder.SetAccurateVisibleRegions();
     nsDisplayList list;
@@ -2375,7 +2465,7 @@ nsRootPresContext::GetPluginGeometryUpdates(nsIFrame* aChangedSubtree,
 #endif
 
     nsRegion visibleRegion(bounds);
-    list.ComputeVisibility(&builder, &visibleRegion);
+    list.ComputeVisibility(&builder, &visibleRegion, nsnull);
 
 #ifdef DEBUG
     if (gDumpPluginList) {

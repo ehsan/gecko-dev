@@ -11,8 +11,11 @@ toolkit.jar:
    content/global/textbox.css                 (textbox.css)
    content/global/menulist.css                (menulist.css)
 *  content/global/about.xhtml                 (about.xhtml)
+*  content/global/aboutAbout.xhtml            (aboutAbout.xhtml)
 *  content/global/aboutRights.xhtml           (aboutRights.xhtml)
 *  content/global/aboutRights-unbranded.xhtml (aboutRights-unbranded.xhtml)
+*  content/global/aboutSupport.js
+*  content/global/aboutSupport.xhtml
    content/global/directionDetector.html
    content/global/plugins.html
    content/global/plugins.css
@@ -33,8 +36,8 @@ toolkit.jar:
 *+ content/global/finddialog.js               (finddialog.js)
 *+ content/global/finddialog.xul              (finddialog.xul)
 *+ content/global/findUtils.js                (findUtils.js)
+   content/global/filepicker.properties       (filepicker.properties)
 *+ content/global/globalOverlay.js            (globalOverlay.js)
-*+ content/global/inlineSpellCheckUI.js       (inlineSpellCheckUI.js)
 +  content/global/mozilla.xhtml               (mozilla.xhtml)
 *+ content/global/nsDragAndDrop.js            (nsDragAndDrop.js)
 +  content/global/selectDialog.js             (selectDialog.js)

@@ -62,6 +62,7 @@ class nsILayoutHistoryState;
 class nsIEditor;
 struct nsRect;
 struct nsSize;
+class nsHTMLFormElement;
 
 typedef nsMappedAttributeElement nsGenericHTMLElementBase;
 
@@ -142,7 +143,7 @@ public:
   nsresult GetOffsetParent(nsIDOMElement** aOffsetParent);
   virtual nsresult GetInnerHTML(nsAString& aInnerHTML);
   virtual nsresult SetInnerHTML(const nsAString& aInnerHTML);
-  nsresult ScrollIntoView(PRBool aTop);
+  nsresult ScrollIntoView(PRBool aTop, PRUint8 optional_argc);
   // Declare Focus(), Blur(), GetTabIndex(), SetTabIndex(), GetSpellcheck(),
   // SetSpellcheck(), and GetDraggable() such that classes that inherit interfaces
   // with those methods properly override them
@@ -155,6 +156,7 @@ public:
   NS_IMETHOD GetDraggable(PRBool* aDraggable);
   NS_IMETHOD SetDraggable(PRBool aDraggable);
   nsresult GetContentEditable(nsAString &aContentEditable);
+  nsresult GetIsContentEditable(PRBool* aContentEditable);
   nsresult SetContentEditable(const nsAString &aContentEditable);
 
   // Implementation for nsIContent
@@ -173,8 +175,7 @@ public:
                            PRBool aNotify);
   virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                              PRBool aNotify);
-  virtual PRBool IsNodeOfType(PRUint32 aFlags) const;
-  virtual PRBool IsFocusable(PRInt32 *aTabIndex = nsnull)
+  virtual PRBool IsFocusable(PRInt32 *aTabIndex = nsnull, PRBool aWithMouse = PR_FALSE)
   {
     PRBool isFocusable = PR_FALSE;
     IsHTMLFocusable(&isFocusable, aTabIndex);
@@ -197,9 +198,6 @@ public:
   nsresult PostHandleEventForAnchors(nsEventChainPostVisitor& aVisitor);
   PRBool IsHTMLLink(nsIURI** aURI) const;
 
-  // Used by A, AREA, LINK, and STYLE.
-  already_AddRefed<nsIURI> GetHrefURIForAnchors() const;
-
   // As above, but makes sure to return a URI object that we can mutate with
   // impunity without changing our current URI.  That is, if the URI is cached
   // it clones it and returns the clone.
@@ -209,8 +207,6 @@ public:
   void Compact() { mAttrsAndChildren.Compact(); }
 
   virtual void UpdateEditableState();
-
-  already_AddRefed<nsIURI> GetBaseURI() const;
 
   virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
@@ -231,21 +227,13 @@ public:
   void GetBaseTarget(nsAString& aBaseTarget) const;
 
   /**
-   * Get the primary form control frame for this content (see
-   * GetFormControlFrameFor)
+   * Get the primary form control frame for this element.  Same as
+   * GetPrimaryFrame(), except it QI's to nsIFormControlFrame.
    *
-   * @param aFlushContent whether to flush the content sink
-   * @return the primary form control frame (or null)
+   * @param aFlush whether to flush out frames so that they're up to date.
+   * @return the primary frame as nsIFormControlFrame
    */
-  nsIFormControlFrame* GetFormControlFrame(PRBool aFlushContent)
-  {
-    nsIDocument* doc = GetCurrentDoc();
-    if (!doc) {
-      return nsnull;
-    }
-
-    return GetFormControlFrameFor(this, doc, aFlushContent);
-  }
+  nsIFormControlFrame* GetFormControlFrame(PRBool aFlushFrames);
 
   //----------------------------------------
 
@@ -444,19 +432,6 @@ public:
   static void MapScrollingAttributeInto(const nsMappedAttributes* aAttributes,
                                         nsRuleData* aData);
   /**
-   * Get the primary form control frame for a piece of content.  Same as
-   * GetPrimaryFrameFor, except it QI's to nsIFormControlFrame.
-   *
-   * @param aContent the content to get the primary frame for
-   * @param aDocument the document for this content
-   * @param aFlushContent whether to flush the content sink, which creates
-   *        frames for content that do not already have it.  EXPENSIVE.
-   * @return the primary frame as nsIFormControlFrame
-   */
-  static nsIFormControlFrame* GetFormControlFrameFor(nsIContent* aContent,
-                                                     nsIDocument* aDocument,
-                                                     PRBool aFlushContent);
-  /**
    * Get the presentation state for a piece of content, or create it if it does
    * not exist.  Generally used by SaveState().
    *
@@ -506,7 +481,7 @@ public:
    *        returned.  This is needed to handle cases when HTML elements have a
    *        current form that they're not descendants of.
    */
-  already_AddRefed<nsIDOMHTMLFormElement> FindForm(nsIForm* aCurrentForm = nsnull);
+  nsHTMLFormElement* FindForm(nsHTMLFormElement* aCurrentForm = nsnull);
 
   virtual void RecompileScriptEventListeners();
 
@@ -515,24 +490,6 @@ public:
    * @param doc the document
    */
   static PRBool InNavQuirksMode(nsIDocument* aDoc);
-
-  // Helper functions for <a> and <area>
-  void SetHrefToURI(nsIURI* aURI);
-  nsresult SetProtocolInHrefURI(const nsAString &aProtocol);
-  nsresult SetHostInHrefURI(const nsAString &aHost);
-  nsresult SetHostnameInHrefURI(const nsAString &aHostname);
-  nsresult SetPathnameInHrefURI(const nsAString &aPathname);
-  nsresult SetSearchInHrefURI(const nsAString &aSearch);
-  nsresult SetPortInHrefURI(const nsAString &aPort);
-  nsresult SetHashInHrefURI(const nsAString &aHash);
-
-  nsresult GetProtocolFromHrefURI(nsAString& aProtocol);
-  nsresult GetHostFromHrefURI(nsAString& aHost);
-  nsresult GetHostnameFromHrefURI(nsAString& aHostname);
-  nsresult GetPathnameFromHrefURI(nsAString& aPathname);
-  nsresult GetSearchFromHrefURI(nsAString& aSearch);
-  nsresult GetPortFromHrefURI(nsAString& aPort);
-  nsresult GetHashFromHrefURI(nsAString& aHash);
 
   /**
    * Locate an nsIEditor rooted at this content node, if there is one.
@@ -705,6 +662,19 @@ protected:
   NS_HIDDEN_(nsresult) GetURIListAttr(nsIAtom* aAttr, nsAString& aResult);
 
   /**
+   * Helper method for NS_IMPL_ENUM_ATTR_DEFAULT_VALUE.
+   * Gets the enum value string of an attribute and using a default value if
+   * the attribute is missing or the string is an invalid enum value.
+   *
+   * @param aType     the name of the attribute.
+   * @param aDefault  the default value if the attribute is missing or invalid.
+   * @param aResult   string corresponding to the value [out].
+   */
+  NS_HIDDEN_(nsresult) GetEnumAttr(nsIAtom* aAttr,
+                                   const char* aDefault,
+                                   nsAString& aResult);
+
+  /**
    * Locates the nsIEditor associated with this node.  In general this is
    * equivalent to GetEditorInternal(), but for designmode or contenteditable,
    * this may need to get an editor that's not actually on this element's
@@ -761,6 +731,9 @@ protected:
     return value > 0 ? eTrue : (value == 0 ? eFalse : eInherit);
   }
 
+  // Used by A, AREA, LINK, and STYLE.
+  already_AddRefed<nsIURI> GetHrefURIForAnchors() const;
+
 private:
   /**
    * Returns whether this element is an editable root. There are two types of
@@ -816,6 +789,12 @@ public:
   
   virtual PRBool IsSubmitControl() const;
 
+          PRBool IsTextControl(PRBool aExcludePassword) const;
+
+          PRBool IsSingleLineTextControl(PRBool aExcludePassword) const;
+
+          PRBool IsLabelableControl() const;
+
   // nsIContent
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
@@ -833,6 +812,14 @@ protected:
 
   virtual nsresult AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                 const nsAString* aValue, PRBool aNotify);
+
+  /**
+   * Returns if the element should react on autofocus attribute.
+   */
+  virtual PRBool AcceptAutofocus() const
+  {
+    return PR_FALSE;
+  }
 
   /**
    * Returns true if the control can be disabled
@@ -855,7 +842,7 @@ protected:
   FocusTristate FocusState();
 
   /** The form that contains this control */
-  nsIForm* mForm;
+  nsHTMLFormElement* mForm;
 };
 
 // If this flag is set on an nsGenericHTMLFormElement, that means that we have
@@ -916,6 +903,8 @@ public:
                            PRBool aNotify);
   virtual void DestroyContent();
 
+  nsresult CopyInnerTo(nsGenericElement* aDest) const;
+
   // nsIDOMNSHTMLElement 
   NS_IMETHOD GetTabIndex(PRInt32 *aTabIndex);
   NS_IMETHOD SetTabIndex(PRInt32 aTabIndex);
@@ -930,7 +919,7 @@ protected:
   nsresult LoadSrc();
   nsresult GetContentDocument(nsIDOMDocument** aContentDocument);
 
-  nsCOMPtr<nsIFrameLoader> mFrameLoader;
+  nsRefPtr<nsFrameLoader> mFrameLoader;
 };
 
 //----------------------------------------------------------------------
@@ -1076,6 +1065,73 @@ NS_NewHTML##_elementName##Element(nsINodeInfo *aNodeInfo, PRBool aFromParser)\
   }
 
 /**
+ * A macro to implement the getter and setter for a given content
+ * property that needs to set a non-negative integer. The method
+ * uses the generic GetAttr and SetAttr methods. This macro is much
+ * like the NS_IMPL_INT_ATTR macro except we throw an exception if
+ * the set value is negative.
+ */
+#define NS_IMPL_NON_NEGATIVE_INT_ATTR(_class, _method, _atom)             \
+  NS_IMPL_NON_NEGATIVE_INT_ATTR_DEFAULT_VALUE(_class, _method, _atom, -1)
+
+#define NS_IMPL_NON_NEGATIVE_INT_ATTR_DEFAULT_VALUE(_class, _method, _atom, _default)  \
+  NS_IMETHODIMP                                                           \
+  _class::Get##_method(PRInt32* aValue)                                   \
+  {                                                                       \
+    return GetIntAttr(nsGkAtoms::_atom, _default, aValue);                \
+  }                                                                       \
+  NS_IMETHODIMP                                                           \
+  _class::Set##_method(PRInt32 aValue)                                    \
+  {                                                                       \
+    if (aValue < 0) {                                                     \
+      return NS_ERROR_DOM_INDEX_SIZE_ERR;                                 \
+    }                                                                     \
+    return SetIntAttr(nsGkAtoms::_atom, aValue);                          \
+  }
+
+/**
+ * A macro to implement the getter and setter for a given content
+ * property that needs to set an enumerated string. The method
+ * uses a specific GetEnumAttr and the generic SetAttrHelper methods.
+ */
+#define NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(_class, _method, _atom, _default) \
+  NS_IMETHODIMP                                                           \
+  _class::Get##_method(nsAString& aValue)                                 \
+  {                                                                       \
+    return GetEnumAttr(nsGkAtoms::_atom, _default, aValue);               \
+  }                                                                       \
+  NS_IMETHODIMP                                                           \
+  _class::Set##_method(const nsAString& aValue)                           \
+  {                                                                       \
+    return SetAttrHelper(nsGkAtoms::_atom, aValue);                       \
+  }
+
+/**
+ * A macro to implement the getter and setter for a given content
+ * property that needs to set a positive integer. The method uses
+ * the generic GetAttr and SetAttr methods. This macro is much like
+ * the NS_IMPL_NON_NEGATIVE_INT_ATTR macro except the exception is
+ * thrown also when the value is equal to 0.
+ */
+#define NS_IMPL_POSITIVE_INT_ATTR(_class, _method, _atom)                 \
+  NS_IMPL_POSITIVE_INT_ATTR_DEFAULT_VALUE(_class, _method, _atom, 1)
+
+#define NS_IMPL_POSITIVE_INT_ATTR_DEFAULT_VALUE(_class, _method, _atom, _default)  \
+  NS_IMETHODIMP                                                           \
+  _class::Get##_method(PRInt32* aValue)                                   \
+  {                                                                       \
+    return GetIntAttr(nsGkAtoms::_atom, _default, aValue);                \
+  }                                                                       \
+  NS_IMETHODIMP                                                           \
+  _class::Set##_method(PRInt32 aValue)                                    \
+  {                                                                       \
+    if (aValue <= 0) {                                                    \
+      return NS_ERROR_DOM_INDEX_SIZE_ERR;                                 \
+    }                                                                     \
+    return SetIntAttr(nsGkAtoms::_atom, aValue);                          \
+  }
+
+/**
  * QueryInterface() implementation helper macros
  */
 
@@ -1108,7 +1164,7 @@ NS_NewHTML##_elementName##Element(nsINodeInfo *aNodeInfo, PRBool aFromParser)\
   NS_ELEMENT_INTERFACE_MAP_END
 
 #define NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(_class)                \
-    NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(_class)                          \
+    NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(_class)                              \
   NS_HTML_CONTENT_INTERFACE_MAP_END
 
 #define NS_INTERFACE_MAP_ENTRY_IF_TAG(_interface, _tag)                       \
@@ -1116,9 +1172,10 @@ NS_NewHTML##_elementName##Element(nsINodeInfo *aNodeInfo, PRBool aFromParser)\
                                      mNodeInfo->Equals(nsGkAtoms::_tag))
 
 
-#define NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO_IF_TAG(_class, _tag)         \
+#define NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_IF_TAG(_class, _tag)             \
   if (mNodeInfo->Equals(nsGkAtoms::_tag) &&                                   \
-      aIID.Equals(NS_GET_IID(nsIClassInfo))) {                                \
+      (aIID.Equals(NS_GET_IID(nsIClassInfo)) ||                               \
+       aIID.Equals(NS_GET_IID(nsXPCClassInfo)))) {                            \
     foundInterface = NS_GetDOMClassInfoInstance(eDOMClassInfo_##_class##_id); \
     if (!foundInterface) {                                                    \
       *aInstancePtr = nsnull;                                                 \
@@ -1213,6 +1270,14 @@ nsGenericHTMLElement*                                             \
 NS_NewHTML##_elementName##Element(nsINodeInfo *aNodeInfo,         \
                                   PRBool aFromParser = PR_FALSE);
 
+#define NS_DECLARE_NS_NEW_HTML_ELEMENT_AS_SHARED(_elementName)    \
+inline nsGenericHTMLElement*                                      \
+NS_NewHTML##_elementName##Element(nsINodeInfo *aNodeInfo,         \
+                                  PRBool aFromParser = PR_FALSE)  \
+{                                                                 \
+  return NS_NewHTMLSharedElement(aNodeInfo, aFromParser);         \
+}
+
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Shared)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(SharedList)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(SharedObject)
@@ -1234,9 +1299,9 @@ NS_DECLARE_NS_NEW_HTML_ELEMENT(Form)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Frame)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(FrameSet)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(HR)
-NS_DECLARE_NS_NEW_HTML_ELEMENT(Head)
+NS_DECLARE_NS_NEW_HTML_ELEMENT_AS_SHARED(Head)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Heading)
-NS_DECLARE_NS_NEW_HTML_ELEMENT(Html)
+NS_DECLARE_NS_NEW_HTML_ELEMENT_AS_SHARED(Html)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(IFrame)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Image)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Input)
@@ -1249,6 +1314,7 @@ NS_DECLARE_NS_NEW_HTML_ELEMENT(Meta)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Object)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(OptGroup)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Option)
+NS_DECLARE_NS_NEW_HTML_ELEMENT(Output)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Paragraph)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Pre)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Script)

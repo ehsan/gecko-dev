@@ -13,7 +13,7 @@
  *
  * The Original Code is Geolocation.
  *
- * The Initial Developer of the Original Code is Mozilla Corporation
+ * The Initial Developer of the Original Code is Mozilla Foundation
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
@@ -39,7 +39,7 @@
 [scriptable, uuid(E28E614F-8F86-44FF-BCF5-5F18225834A0)]
 interface nsIWifiAccessPoint : nsISupports
 {
-  
+
   /*
    * The mac address of the WiFi node.  The format of this string is:
    * XX-XX-XX-XX-XX-XX

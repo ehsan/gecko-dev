@@ -48,7 +48,7 @@
 #if defined(XP_WIN)
 #include <windows.h>
 #elif defined(XP_MACOSX)
-#include <Carbon/Carbon.h>
+#include <CoreServices/CoreServices.h>
 #elif defined(MOZ_WIDGET_GTK2)
 #include <gtk/gtk.h>
 #endif
@@ -65,7 +65,6 @@
 #include "nsNetCID.h"
 #include "nsNetUtil.h"
 #include "nsReadableUtils.h"
-#include "nsStaticAtom.h"
 #include "nsString.h"
 #include "nsUnicharUtils.h"
 #include "nsWidgetsCID.h"
@@ -76,8 +75,7 @@
 
 #include "nsIAtom.h"
 #include "nsICommandLine.h"
-#include "nsICSSLoader.h"
-#include "nsICSSStyleSheet.h"
+#include "nsCSSStyleSheet.h"
 #include "nsIConsoleService.h"
 #include "nsIDirectoryService.h"
 #include "nsIDocument.h"
@@ -113,7 +111,6 @@
 #include "nsIXPConnect.h"
 #include "nsIXULAppInfo.h"
 #include "nsIXULRuntime.h"
-#include "nsPresShellIterator.h"
 
 #define UILOCALE_CMD_LINE_ARG "UILocale"
 
@@ -121,7 +118,6 @@
 #define SELECTED_LOCALE_PREF "general.useragent.locale"
 #define SELECTED_SKIN_PREF   "general.skins.selectedSkin"
 
-static NS_DEFINE_CID(kCSSLoaderCID, NS_CSS_LOADER_CID);
 static NS_DEFINE_CID(kLookAndFeelCID, NS_LOOKANDFEEL_CID);
 
 nsChromeRegistry* nsChromeRegistry::gChromeRegistry;
@@ -512,51 +508,28 @@ nsChromeRegistry::Init()
   if (!prefs) {
     NS_WARNING("Could not get pref service!");
   }
-
-  PRBool useLocalePref = PR_TRUE;
-
-  if (prefs) {
-    // check the pref first
-    PRBool matchOS = PR_FALSE;
-    rv = prefs->GetBoolPref(MATCH_OS_LOCALE_PREF, &matchOS);
-
-    // match os locale
-    if (NS_SUCCEEDED(rv) && matchOS) {
-      // compute lang and region code only when needed!
-      nsCAutoString uiLocale;
-      rv = getUILangCountry(uiLocale);
-      if (NS_SUCCEEDED(rv)) {
-        useLocalePref = PR_FALSE;
-        mSelectedLocale = uiLocale;
-      }
-    }
-  }
-      
-  if (prefs) {
+  else {
     nsXPIDLCString provider;
-
     rv = prefs->GetCharPref(SELECTED_SKIN_PREF, getter_Copies(provider));
     if (NS_SUCCEEDED(rv))
       mSelectedSkin = provider;
 
+    SelectLocaleFromPref(prefs);
+
     nsCOMPtr<nsIPrefBranch2> prefs2 (do_QueryInterface(prefs));
-
-    if (prefs2)
+    if (prefs2) {
+      rv = prefs2->AddObserver(MATCH_OS_LOCALE_PREF, this, PR_TRUE);
+      rv = prefs2->AddObserver(SELECTED_LOCALE_PREF, this, PR_TRUE);
       rv = prefs2->AddObserver(SELECTED_SKIN_PREF, this, PR_TRUE);
-
-    if (useLocalePref) {
-      rv = prefs->GetCharPref(SELECTED_LOCALE_PREF, getter_Copies(provider));
-      if (NS_SUCCEEDED(rv))
-        mSelectedLocale = provider;
-      
-      if (prefs2)
-        prefs2->AddObserver(SELECTED_LOCALE_PREF, this, PR_TRUE);
     }
   }
 
-  nsCOMPtr<nsIObserverService> obsService (do_GetService("@mozilla.org/observer-service;1"));
-  if (obsService)
+  nsCOMPtr<nsIObserverService> obsService =
+    mozilla::services::GetObserverService();
+  if (obsService) {
     obsService->AddObserver(this, "command-line-startup", PR_TRUE);
+    obsService->AddObserver(this, "profile-initial-state", PR_TRUE);
+  }
 
   CheckForNewChrome();
 
@@ -789,6 +762,37 @@ nsChromeRegistry::GetSelectedLocale(const nsACString& aPackage, nsACString& aLoc
 }
 
 NS_IMETHODIMP
+nsChromeRegistry::IsLocaleRTL(const nsACString& package, PRBool *aResult)
+{
+  *aResult = PR_FALSE;
+
+  nsCAutoString locale;
+  GetSelectedLocale(package, locale);
+  if (locale.Length() < 2)
+    return NS_OK;
+
+  // first check the intl.uidirection.<locale> preference, and if that is not
+  // set, check the same preference but with just the first two characters of
+  // the locale. If that isn't set, default to left-to-right.
+  nsCAutoString prefString = NS_LITERAL_CSTRING("intl.uidirection.") + locale;
+  nsCOMPtr<nsIPrefBranch> prefBranch (do_GetService(NS_PREFSERVICE_CONTRACTID));
+  if (!prefBranch)
+    return NS_OK;
+  
+  nsXPIDLCString dir;
+  prefBranch->GetCharPref(prefString.get(), getter_Copies(dir));
+  if (dir.IsEmpty()) {
+    PRInt32 hyphen = prefString.FindChar('-');
+    if (hyphen >= 1) {
+      nsCAutoString shortPref(Substring(prefString, 0, hyphen));
+      prefBranch->GetCharPref(shortPref.get(), getter_Copies(dir));
+    }
+  }
+  *aResult = dir.EqualsLiteral("rtl");
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 nsChromeRegistry::GetLocalesForPackage(const nsACString& aPackage,
                                        nsIUTF8StringEnumerator* *aResult)
 {
@@ -859,10 +863,6 @@ static void FlushSkinBindingsForWindow(nsIDOMWindowInternal* aWindow)
 // XXXbsmedberg: move this to nsIWindowMediator
 NS_IMETHODIMP nsChromeRegistry::RefreshSkins()
 {
-  nsCOMPtr<nsICSSLoader> cssLoader(do_CreateInstance(kCSSLoaderCID));
-  if (!cssLoader)
-    return NS_OK;
-
   nsCOMPtr<nsIWindowMediator> windowMediator
     (do_GetService(NS_WINDOWMEDIATOR_CONTRACTID));
   if (!windowMediator)
@@ -884,7 +884,7 @@ NS_IMETHODIMP nsChromeRegistry::RefreshSkins()
   }
 
   FlushSkinCaches();
-  
+
   windowMediator->GetEnumerator(nsnull, getter_AddRefs(windowEnumerator));
   windowEnumerator->HasMoreElements(&more);
   while (more) {
@@ -893,7 +893,7 @@ NS_IMETHODIMP nsChromeRegistry::RefreshSkins()
     if (protoWindow) {
       nsCOMPtr<nsIDOMWindowInternal> domWindow = do_QueryInterface(protoWindow);
       if (domWindow)
-        RefreshWindow(domWindow, cssLoader);
+        RefreshWindow(domWindow);
     }
     windowEnumerator->HasMoreElements(&more);
   }
@@ -905,7 +905,7 @@ void
 nsChromeRegistry::FlushSkinCaches()
 {
   nsCOMPtr<nsIObserverService> obsSvc =
-    do_GetService("@mozilla.org/observer-service;1");
+    mozilla::services::GetObserverService();
   NS_ASSERTION(obsSvc, "Couldn't get observer service.");
 
   obsSvc->NotifyObservers(static_cast<nsIChromeRegistry*>(this),
@@ -921,8 +921,7 @@ static PRBool IsChromeURI(nsIURI* aURI)
 }
 
 // XXXbsmedberg: move this to windowmediator
-nsresult nsChromeRegistry::RefreshWindow(nsIDOMWindowInternal* aWindow,
-                                         nsICSSLoader* aCSSLoader)
+nsresult nsChromeRegistry::RefreshWindow(nsIDOMWindowInternal* aWindow)
 {
   // Deal with our subframes first.
   nsCOMPtr<nsIDOMWindowCollection> frames;
@@ -934,7 +933,7 @@ nsresult nsChromeRegistry::RefreshWindow(nsIDOMWindowInternal* aWindow,
     nsCOMPtr<nsIDOMWindow> childWin;
     frames->Item(j, getter_AddRefs(childWin));
     nsCOMPtr<nsIDOMWindowInternal> childInt(do_QueryInterface(childWin));
-    RefreshWindow(childInt, aCSSLoader);
+    RefreshWindow(childInt);
   }
 
   nsresult rv;
@@ -949,9 +948,8 @@ nsresult nsChromeRegistry::RefreshWindow(nsIDOMWindowInternal* aWindow,
     return NS_OK;
 
   // Deal with the agent sheets first.  Have to do all the style sets by hand.
-  nsPresShellIterator iter(document);
-  nsCOMPtr<nsIPresShell> shell;
-  while ((shell = iter.GetNextShell())) {
+  nsCOMPtr<nsIPresShell> shell = document->GetPrimaryShell();
+  if (shell) {
     // Reload only the chrome URL agent style sheets.
     nsCOMArray<nsIStyleSheet> agentSheets;
     rv = shell->GetAgentStyleSheets(agentSheets);
@@ -961,15 +959,13 @@ nsresult nsChromeRegistry::RefreshWindow(nsIDOMWindowInternal* aWindow,
     for (PRInt32 l = 0; l < agentSheets.Count(); ++l) {
       nsIStyleSheet *sheet = agentSheets[l];
 
-      nsCOMPtr<nsIURI> uri;
-      rv = sheet->GetSheetURI(getter_AddRefs(uri));
-      if (NS_FAILED(rv)) return rv;
+      nsIURI* uri = sheet->GetSheetURI();
 
       if (IsChromeURI(uri)) {
         // Reload the sheet.
-        nsCOMPtr<nsICSSStyleSheet> newSheet;
-        rv = aCSSLoader->LoadSheetSync(uri, PR_TRUE, PR_TRUE,
-                                       getter_AddRefs(newSheet));
+        nsRefPtr<nsCSSStyleSheet> newSheet;
+        rv = document->LoadChromeSheetSync(uri, PR_TRUE,
+                                           getter_AddRefs(newSheet));
         if (NS_FAILED(rv)) return rv;
         if (newSheet) {
           rv = newAgentSheets.AppendObject(newSheet) ? NS_OK : NS_ERROR_FAILURE;
@@ -997,25 +993,24 @@ nsresult nsChromeRegistry::RefreshWindow(nsIDOMWindowInternal* aWindow,
   for (i = 0; i < count; i++) {
     // Get the style sheet
     nsIStyleSheet *styleSheet = document->GetStyleSheetAt(i);
-    
+
     if (!oldSheets.AppendObject(styleSheet)) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
   }
 
-  // Iterate over our old sheets and kick off a sync load of the new 
+  // Iterate over our old sheets and kick off a sync load of the new
   // sheet if and only if it's a chrome URL.
   for (i = 0; i < count; i++) {
-    nsCOMPtr<nsICSSStyleSheet> sheet = do_QueryInterface(oldSheets[i]);
+    nsRefPtr<nsCSSStyleSheet> sheet = do_QueryObject(oldSheets[i]);
     nsIURI* uri = sheet ? sheet->GetOriginalURI() : nsnull;
 
     if (uri && IsChromeURI(uri)) {
       // Reload the sheet.
-      nsCOMPtr<nsICSSStyleSheet> newSheet;
+      nsRefPtr<nsCSSStyleSheet> newSheet;
       // XXX what about chrome sheets that have a title or are disabled?  This
       // only works by sheer dumb luck.
-      // XXXbz this should really use the document's CSSLoader!
-      aCSSLoader->LoadSheetSync(uri, getter_AddRefs(newSheet));
+      document->LoadChromeSheetSync(uri, PR_FALSE, getter_AddRefs(newSheet));
       // Even if it's null, we put in in there.
       newSheets.AppendObject(newSheet);
     }
@@ -1034,7 +1029,7 @@ void
 nsChromeRegistry::FlushAllCaches()
 {
   nsCOMPtr<nsIObserverService> obsSvc =
-    do_GetService("@mozilla.org/observer-service;1");
+    mozilla::services::GetObserverService();
   NS_ASSERTION(obsSvc, "Couldn't get observer service.");
 
   obsSvc->NotifyObservers((nsIChromeRegistry*) this,
@@ -1159,22 +1154,6 @@ nsChromeRegistry::CheckForNewChrome()
   mStyleHash.Clear();
   mOverrideTable.Clear();
 
-  nsCOMPtr<nsIURI> manifestURI;
-  rv = NS_NewURI(getter_AddRefs(manifestURI),
-                 NS_LITERAL_CSTRING("resource:///chrome/app-chrome.manifest"));
-
-  nsCOMPtr<nsIFileURL> manifestFileURL (do_QueryInterface(manifestURI));
-  NS_ASSERTION(manifestFileURL, "Not a nsIFileURL!");
-  NS_ENSURE_TRUE(manifestFileURL, NS_ERROR_UNEXPECTED);
-
-  nsCOMPtr<nsIFile> manifest;
-  manifestFileURL->GetFile(getter_AddRefs(manifest));
-  NS_ENSURE_TRUE(manifest, NS_ERROR_FAILURE);
-
-  PRBool exists;
-  rv = manifest->Exists(&exists);
-  NS_ENSURE_SUCCESS(rv, rv);
-
   nsCOMPtr<nsIProperties> dirSvc (do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID));
   NS_ENSURE_TRUE(dirSvc, NS_ERROR_FAILURE);
 
@@ -1194,6 +1173,7 @@ nsChromeRegistry::CheckForNewChrome()
       return rv;
   }
 
+  PRBool exists;
   nsCOMPtr<nsISupports> next;
   while (NS_SUCCEEDED(chromeML->HasMoreElements(&exists)) && exists) {
     chromeML->GetNext(getter_AddRefs(next));
@@ -1291,6 +1271,32 @@ nsChromeRegistry::WrappersEnabled(nsIURI *aURI)
          entry->flags & PackageEntry::XPCNATIVEWRAPPERS;
 }
 
+nsresult
+nsChromeRegistry::SelectLocaleFromPref(nsIPrefBranch* prefs)
+{
+  nsresult rv;
+  PRBool matchOSLocale = PR_FALSE, userLocaleOverride = PR_FALSE;
+  prefs->PrefHasUserValue(SELECTED_LOCALE_PREF, &userLocaleOverride);
+  rv = prefs->GetBoolPref(MATCH_OS_LOCALE_PREF, &matchOSLocale);
+
+  if (NS_SUCCEEDED(rv) && matchOSLocale && !userLocaleOverride) {
+    // compute lang and region code only when needed!
+    nsCAutoString uiLocale;
+    rv = getUILangCountry(uiLocale);
+    if (NS_SUCCEEDED(rv))
+      mSelectedLocale = uiLocale;
+  }
+  else {
+    nsXPIDLCString provider;
+    rv = prefs->GetCharPref(SELECTED_LOCALE_PREF, getter_Copies(provider));
+    if (NS_SUCCEEDED(rv)) {
+      mSelectedLocale = provider;
+    }
+  }
+
+  return rv;
+}
+
 NS_IMETHODIMP nsChromeRegistry::Observe(nsISupports *aSubject, const char *aTopic, const PRUnichar *someData)
 {
   nsresult rv = NS_OK;
@@ -1301,20 +1307,22 @@ NS_IMETHODIMP nsChromeRegistry::Observe(nsISupports *aSubject, const char *aTopi
 
     NS_ConvertUTF16toUTF8 pref(someData);
 
-    nsXPIDLCString provider;
-    rv = prefs->GetCharPref(pref.get(), getter_Copies(provider));
-    if (NS_FAILED(rv)) {
-      NS_ERROR("Couldn't get new locale or skin pref!");
-      return rv;
+    if (pref.EqualsLiteral(MATCH_OS_LOCALE_PREF) ||
+        pref.EqualsLiteral(SELECTED_LOCALE_PREF)) {
+      rv = SelectLocaleFromPref(prefs);
+      if (NS_SUCCEEDED(rv) && mProfileLoaded)
+        FlushAllCaches();
     }
+    else if (pref.EqualsLiteral(SELECTED_SKIN_PREF)) {
+      nsXPIDLCString provider;
+      rv = prefs->GetCharPref(pref.get(), getter_Copies(provider));
+      if (NS_FAILED(rv)) {
+        NS_ERROR("Couldn't get new locale pref!");
+        return rv;
+      }
 
-    if (pref.EqualsLiteral(SELECTED_SKIN_PREF)) {
       mSelectedSkin = provider;
       RefreshSkins();
-    }
-    else if (pref.EqualsLiteral(SELECTED_LOCALE_PREF)) {
-      mSelectedLocale = provider;
-      FlushAllCaches();
     } else {
       NS_ERROR("Unexpected pref!");
     }
@@ -1333,6 +1341,9 @@ NS_IMETHODIMP nsChromeRegistry::Observe(nsISupports *aSubject, const char *aTopi
         }
       }
     }
+  }
+  else if (!strcmp("profile-initial-state", aTopic)) {
+    mProfileLoaded = PR_TRUE;
   }
   else {
     NS_ERROR("Unexpected observer topic!");

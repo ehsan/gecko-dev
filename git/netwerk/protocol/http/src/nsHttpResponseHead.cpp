@@ -163,7 +163,7 @@ nsHttpResponseHead::Parse(char *block)
 }
 
 void
-nsHttpResponseHead::ParseStatusLine(char *line)
+nsHttpResponseHead::ParseStatusLine(const char *line)
 {
     //
     // Parse Status-Line:: HTTP-Version SP Status-Code SP Reason-Phrase CRLF
@@ -198,7 +198,7 @@ nsHttpResponseHead::ParseStatusLine(char *line)
 }
 
 void
-nsHttpResponseHead::ParseHeaderLine(char *line)
+nsHttpResponseHead::ParseHeaderLine(const char *line)
 {
     nsHttpAtom hdr = {0};
     char *val;
@@ -488,7 +488,6 @@ nsHttpResponseHead::Reset()
     mContentLength = LL_MAXUINT;
     mCacheControlNoStore = PR_FALSE;
     mCacheControlNoCache = PR_FALSE;
-    mCacheControlPublic = PR_FALSE;
     mPragmaNoCache = PR_FALSE;
     mStatusText.Truncate();
     mContentType.Truncate();
@@ -535,7 +534,10 @@ nsHttpResponseHead::GetMaxAgeValue(PRUint32 *result)
     if (!p)
         return NS_ERROR_NOT_AVAILABLE;
 
-    *result = (PRUint32) atoi(p + 8);
+    int maxAgeValue = atoi(p + 8);
+    if (maxAgeValue < 0)
+        maxAgeValue = 0;
+    *result = PRUint32(maxAgeValue);
     return NS_OK;
 }
 
@@ -638,7 +640,6 @@ nsHttpResponseHead::ParseCacheControl(const char *val)
         // clear flags
         mCacheControlNoCache = PR_FALSE;
         mCacheControlNoStore = PR_FALSE;
-        mCacheControlPublic = PR_FALSE;
         return;
     }
 
@@ -650,10 +651,6 @@ nsHttpResponseHead::ParseCacheControl(const char *val)
     // search header value for occurrence of "no-store" 
     if (nsHttp::FindToken(val, "no-store", HTTP_HEADER_VALUE_SEPS))
         mCacheControlNoStore = PR_TRUE;
-
-    // search header value for occurrence of "public" 
-    if (nsHttp::FindToken(val, "public", HTTP_HEADER_VALUE_SEPS))
-        mCacheControlPublic = PR_TRUE;
 }
 
 void

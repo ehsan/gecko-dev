@@ -5,6 +5,7 @@ load 307314-1.svg
 load 308615-1.svg
 load 308917-1.svg
 load 310436-1.svg
+load 313737-1.xml
 load 322185-1.svg
 load 322215-1.svg
 load 323704-1.svg
@@ -47,7 +48,7 @@ load 384637-1.svg
 load 384728-1.svg
 load 385246-1.svg
 load 385246-2.svg
-load 385840-1.svg # asserts (bug 385845)
+asserts(1) load 385840-1.svg # bug 385845
 load 385852-1.svg
 load 386475-1.xhtml
 load 386566-1.svg
@@ -67,14 +68,20 @@ load 459666-1.html
 load 461289-1.svg
 load 464374-1.svg
 load 466585-1.svg
+load 467323-1.svg
 load 470124-1.svg
 load 474700-1.svg
 load 472782-1.svg
 load 475181-1.svg
 load 475193-1.html
+load 477935-1.html
 load 478128-1.svg
 load 492186-1.svg
 load 508247-1.svg
 load 512890-1.svg
 load 515288-1.html
+load 522394-1.svg
+load 522394-2.svg
+load 522394-3.svg
 load extref-test-1.xhtml
+load 566216-1.svg

@@ -87,6 +87,8 @@
 #include "jsdbgapi.h"
 #endif
 
+#include "mozilla/FunctionTimer.h"
+
 static const char kJSRuntimeServiceContractID[] = "@mozilla.org/js/xpc/RuntimeService;1";
 static const char kXPConnectServiceContractID[] = "@mozilla.org/js/xpc/XPConnect;1";
 static const char kObserverServiceContractID[] = "@mozilla.org/observer-service;1";
@@ -186,13 +188,13 @@ Dump(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     JSString *str;
     if (!argc)
         return JS_TRUE;
-    
+
     str = JS_ValueToString(cx, argv[0]);
     if (!str)
         return JS_FALSE;
 
-    char *bytes = JS_GetStringBytes(str);
-    fputs(bytes, stderr);
+    jschar *chars = JS_GetStringChars(str);
+    fputs(NS_ConvertUTF16toUTF8(reinterpret_cast<const PRUnichar*>(chars)).get(), stderr);
     return JS_TRUE;
 }
 
@@ -221,10 +223,10 @@ Atob(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     char *base64Str = JS_GetStringBytes(str);
 
     PRUint32 bin_dataLength = (PRUint32)base64StrLength;
-    if (base64Str[base64StrLength - 1] == '=') {
-        if (base64Str[base64StrLength - 2] == '=')
+    if (base64StrLength >= 1 && base64Str[base64StrLength - 1] == '=') {
+        if (base64StrLength >= 2 && base64Str[base64StrLength - 2] == '=')
             bin_dataLength -= 2;
-        else  
+        else
             --bin_dataLength;
     }
     bin_dataLength = (PRUint32)((PRUint64)bin_dataLength * 3) / 4;
@@ -309,11 +311,14 @@ public:
 
     operator JSContext*() const {return mContext;}
 
-    JSCLContextHelper(); // not implemnted
 private:
     JSContext* mContext;
     intN       mContextThread;
     nsIThreadJSContextStack* mContextStack;
+
+    // prevent copying and assignment
+    JSCLContextHelper(const JSCLContextHelper &); // not implemented
+    const JSCLContextHelper& operator=(const JSCLContextHelper &); // not implemented
 };
 
 
@@ -324,10 +329,12 @@ public:
         {mContext = cx; mOldReporter = JS_SetErrorReporter(cx, reporter);}
     ~JSCLAutoErrorReporterSetter()
         {JS_SetErrorReporter(mContext, mOldReporter);} 
-    JSCLAutoErrorReporterSetter(); // not implemented
 private:
     JSContext* mContext;
     JSErrorReporter mOldReporter;
+    // prevent copying and assignment
+    JSCLAutoErrorReporterSetter(const JSCLAutoErrorReporterSetter &); // not implemented
+    const JSCLAutoErrorReporterSetter& operator=(const JSCLAutoErrorReporterSetter &); // not implemented
 };
 
 static nsresult
@@ -574,6 +581,8 @@ NS_IMPL_ISUPPORTS3(mozJSComponentLoader,
 nsresult
 mozJSComponentLoader::ReallyInit()
 {
+    NS_TIME_FUNCTION;
+
     nsresult rv;
 
     /*
@@ -603,21 +612,7 @@ mozJSComponentLoader::ReallyInit()
     JS_SetVersion(mContext, JSVERSION_LATEST);
 
     // Limit C stack consumption to a reasonable 512K
-    int stackDummy;
-    const jsuword kStackSize = 0x80000;
-    jsuword stackLimit, currentStackAddr = (jsuword)&stackDummy;
-
-#if JS_STACK_GROWTH_DIRECTION < 0
-    stackLimit = (currentStackAddr > kStackSize)
-                 ? currentStackAddr - kStackSize
-                 : 0;
-#else
-    stackLimit = (currentStackAddr + kStackSize > currentStackAddr)
-                 ? currentStackAddr + kStackSize
-                 : (jsuword) -1;
-#endif
-    
-    JS_SetThreadStackLimit(mContext, stackLimit);
+    JS_SetNativeStackQuota(mContext, 512 * 1024);
 
 #ifndef XPCONNECT_STANDALONE
     nsCOMPtr<nsIScriptSecurityManager> secman = 
@@ -670,6 +665,13 @@ mozJSComponentLoader::LoadModule(nsILocalFile* aComponentFile,
                                  nsIModule* *aResult)
 {
     nsresult rv;
+
+#ifdef NS_FUNCTION_TIMER
+    nsAutoString path__(NS_LITERAL_STRING("N/A"));
+    aComponentFile->GetPath(path__);
+    NS_TIME_FUNCTION_FMT("%s (line %d) (file: %s)", MOZ_FUNCTION_NAME,
+                         __LINE__, nsPromiseFlatCString(NS_LossyConvertUTF16toASCII(path__)).BeginReading());
+#endif
 
     nsCAutoString leafName;
     aComponentFile->GetNativeLeafName(leafName);
@@ -959,23 +961,6 @@ mozJSComponentLoader::StartFastLoad(nsIFastLoadService *flSvc)
 
                 nsCOMPtr<nsIFastLoadReadControl>
                     readControl(do_QueryInterface(mFastLoadInput));
-                if (readControl) {
-                    // Verify checksum, using the FastLoadService's
-                    // checksum cache to avoid computing more than once
-                    // per session.
-                    PRUint32 checksum;
-                    rv = readControl->GetChecksum(&checksum);
-                    if (NS_SUCCEEDED(rv)) {
-                        PRUint32 verified;
-                        rv = flSvc->ComputeChecksum(mFastLoadFile,
-                                                    readControl, &verified);
-                        if (NS_SUCCEEDED(rv) && verified != checksum) {
-                            LOG(("Incorrect checksum detected"));
-                            rv = NS_ERROR_FAILURE;
-                        }
-                    }
-                }
-
                 if (NS_SUCCEEDED(rv)) {
                     /* Get the JS bytecode version number and validate it. */
                     PRUint32 version;
@@ -1440,6 +1425,9 @@ mozJSComponentLoader::Import(const nsACString & registryLocation)
 {
     // This function should only be called from JS.
     nsresult rv;
+
+    NS_TIME_FUNCTION_FMT("%s (line %d) (file: %s)", MOZ_FUNCTION_NAME,
+                         __LINE__, registryLocation.BeginReading());
 
     nsCOMPtr<nsIXPConnect> xpc =
         do_GetService(kXPConnectServiceContractID, &rv);

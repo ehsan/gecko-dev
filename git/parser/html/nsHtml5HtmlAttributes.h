@@ -31,6 +31,7 @@
 
 #include "prtypes.h"
 #include "nsIAtom.h"
+#include "nsHtml5AtomTable.h"
 #include "nsString.h"
 #include "nsINameSpaceManager.h"
 #include "nsIContent.h"
@@ -43,6 +44,8 @@
 #include "nsHtml5Atoms.h"
 #include "nsHtml5ByteReadable.h"
 #include "nsIUnicodeDecoder.h"
+#include "nsAHtml5TreeBuilderState.h"
+#include "nsHtml5Macros.h"
 
 class nsHtml5StreamParser;
 
@@ -83,7 +86,7 @@ class nsHtml5HtmlAttributes
     PRBool contains(nsHtml5AttributeName* name);
     void adjustForMath();
     void adjustForSvg();
-    nsHtml5HtmlAttributes* cloneAttributes();
+    nsHtml5HtmlAttributes* cloneAttributes(nsHtml5AtomTable* interner);
     static void initializeStatics();
     static void releaseStatics();
 };

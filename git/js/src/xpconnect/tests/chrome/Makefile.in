@@ -47,6 +47,10 @@ _CHROME_FILES = \
 		test_bug500931.xul \
 		bug503926.xul \
 		test_bug503926.xul \
+		test_bug533596.xul \
+		test_evalInSandbox.xul \
+		test_sandboxImport.xul \
+		test_wrappers.xul \
 		$(NULL)
 
 libs:: $(_CHROME_FILES)

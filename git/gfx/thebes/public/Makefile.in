@@ -9,9 +9,9 @@ include $(DEPTH)/config/autoconf.mk
 MODULE		= thebes
 
 
-EXPORTS		= 	gfxASurface.h \
+EXPORTS		= 	gfx3DMatrix.h \
+			gfxASurface.h \
 			gfxAlphaRecovery.h \
-			gfxBlur.h \
 			gfxColor.h \
 			gfxContext.h \
 			gfxFont.h \
@@ -30,7 +30,16 @@ EXPORTS		= 	gfxASurface.h \
 			gfxTextRunWordCache.h \
 			gfxUtils.h \
 			gfxUserFontSet.h \
+			GLDefs.h \
+			GLContext.h \
+			GLContextProvider.h \
 			$(NULL)
+
+ifdef MOZ_IPC
+EXPORTS		+= \
+			gfxSharedImageSurface.h \
+			$(NULL)
+endif
 
 EXPORTS += gfxFontTest.h
 
@@ -38,17 +47,28 @@ ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
 EXPORTS	+=	gfxWindowsPlatform.h \
 		gfxWindowsSurface.h \
 		gfxWindowsNativeDrawing.h \
+		WGLLibrary.h \
 		$(NULL)
 EXPORTS +=	gfxPDFSurface.h
 
 ifdef WINCE
 EXPORTS +=	gfxFT2Fonts.h \
+		gfxFT2FontBase.h \
 		gfxDDrawSurface.h \
 		$(NULL)
 else
-EXPORTS +=	gfxWindowsFonts.h 
+EXPORTS +=  gfxDWriteFonts.h
+EXPORTS +=  gfxD2DSurface.h
 endif
 
+endif
+
+ifeq ($(MOZ_WIDGET_TOOLKIT),android)
+EXPORTS += \
+	gfxAndroidPlatform.h \
+	gfxFT2Fonts.h \
+	gfxFT2FontBase.h \
+	$(NULL)
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
@@ -67,15 +87,21 @@ ifdef MOZ_DFB
 EXPORTS += gfxDirectFBSurface.h
 endif
 
-EXPORTS +=  gfxPlatformGtk.h gfxGdkNativeRenderer.h
-EXPORTS +=	gfxPDFSurface.h gfxPSSurface.h
+EXPORTS += gfxPlatformGtk.h gfxGdkNativeRenderer.h
+EXPORTS += gfxPDFSurface.h gfxPSSurface.h
+EXPORTS += gfxFT2FontBase.h
 
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
+ifdef MOZ_PANGO
+EXPORTS += gfxPangoFonts.h
+else
+EXPORTS += gfxFT2Fonts.h
+endif
 EXPORTS += gfxQtPlatform.h gfxQPainterSurface.h
 EXPORTS += gfxXlibSurface.h gfxQtNativeRenderer.h
-EXPORTS += gfxFT2Fonts.h
+EXPORTS += gfxFT2FontBase.h
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),os2)
@@ -89,6 +115,7 @@ endif
 ifeq ($(MOZ_WIDGET_TOOLKIT),beos)
 EXPORTS	+=	gfxBeOSSurface.h gfxBeOSPlatform.h
 EXPORTS +=	gfxPangoFonts.h
+EXPORTS +=	gfxFT2FontBase.h
 EXPORTS +=	gfxPDFSurface.h
 endif
 
@@ -97,14 +124,9 @@ EXPORTS +=	gfxPlatformMac.h \
 		gfxQuartzSurface.h \
 		gfxQuartzImageSurface.h \
 		gfxQuartzPDFSurface.h \
-		gfxAtsuiFonts.h \
 		gfxQuartzNativeDrawing.h \
 		$(NULL)
 
-endif
-
-ifdef MOZ_CORETEXT
-EXPORTS += gfxCoreTextFonts.h
 endif
 
 include $(topsrcdir)/config/rules.mk

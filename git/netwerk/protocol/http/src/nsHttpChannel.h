@@ -370,6 +370,8 @@ private:
     // True when we need to authenticate to proxy, i.e. when we get 407
     // response. Used in OnAuthAvailable and OnAuthCancelled callbacks.
     PRUint32                          mProxyAuth                : 1;
+    PRUint32                          mTriedProxyAuth           : 1;
+    PRUint32                          mTriedHostAuth            : 1;
     PRUint32                          mSuppressDefensiveAuth    : 1;
     PRUint32                          mResuming                 : 1;
     PRUint32                          mInitedCacheEntry         : 1;
@@ -385,6 +387,10 @@ private:
     PRUint32                          mLoadedFromApplicationCache : 1;
     PRUint32                          mTracingEnabled           : 1;
     PRUint32                          mForceAllowThirdPartyCookie : 1;
+    // True if consumer added its own If-None-Match or If-Modified-Since
+    // headers. In such a case we must not override them in the cache code
+    // and also we want to pass possible 304 code response through.
+    PRUint32                          mCustomConditionalRequest : 1;
 
     class nsContentEncodings : public nsIUTF8StringEnumerator
     {

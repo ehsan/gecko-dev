@@ -46,6 +46,11 @@
 #include "nsLiteralString.h"
 #include "nsNetCID.h"
 #include "nsXPCOM.h"
+#include "mozilla/Services.h"
+
+#if defined(XP_WIN) && !defined(WINCE)
+#include <ole2.h>
+#endif
 
 #define NS_MOZ_DATA_FROM_PRIVATEBROWSING "application/x-moz-private-browsing"
 
@@ -54,12 +59,12 @@ NS_IMPL_ISUPPORTS2(nsClipboardPrivacyHandler, nsIObserver, nsISupportsWeakRefere
 nsresult
 nsClipboardPrivacyHandler::Init()
 {
-  nsresult rv;
   nsCOMPtr<nsIObserverService> observerService =
-    do_GetService("@mozilla.org/observer-service;1", &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = observerService->AddObserver(this, NS_PRIVATE_BROWSING_SWITCH_TOPIC, PR_TRUE);
-  return rv;
+    mozilla::services::GetObserverService();
+  if (!observerService)
+    return NS_ERROR_FAILURE;
+  return observerService->AddObserver(this, NS_PRIVATE_BROWSING_SWITCH_TOPIC,
+                                      PR_TRUE);
 }
 
 /**
@@ -105,6 +110,14 @@ nsClipboardPrivacyHandler::Observe(nsISupports *aSubject, char const *aTopic, PR
                                            nsIClipboard::kGlobalClipboard,
                                            &haveFlavors);
     if (NS_SUCCEEDED(rv) && haveFlavors) {
+#if defined(XP_WIN) && !defined(WINCE)
+      // Workaround for bug 518412.  On Windows 7 x64, there is a bug
+      // in handling clipboard data without any formats between
+      // 32-bit/64-bit boundaries, which could lead Explorer to crash.
+      // We work around the problem by clearing the clipboard using
+      // the usual Win32 API.
+      NS_ENSURE_TRUE(SUCCEEDED(::OleSetClipboard(NULL)), NS_ERROR_FAILURE);
+#else
       // Empty the native clipboard by copying an empty transferable
       nsCOMPtr<nsITransferable> nullData =
         do_CreateInstance("@mozilla.org/widget/transferable;1", &rv);
@@ -112,6 +125,7 @@ nsClipboardPrivacyHandler::Observe(nsISupports *aSubject, char const *aTopic, PR
       rv = clipboard->SetData(nullData, nsnull,
                               nsIClipboard::kGlobalClipboard);
       NS_ENSURE_SUCCESS(rv, rv);
+#endif
     }
   }
 

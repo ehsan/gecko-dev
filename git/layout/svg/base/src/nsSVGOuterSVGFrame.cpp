@@ -44,7 +44,6 @@
 #include "nsDisplayList.h"
 #include "nsStubMutationObserver.h"
 #include "gfxContext.h"
-#include "nsPresShellIterator.h"
 #include "nsIContentViewer.h"
 #include "nsIDocShell.h"
 #include "nsIDOMDocument.h"
@@ -86,30 +85,25 @@ nsSVGMutationObserver::AttributeChanged(nsIDocument *aDocument,
                                         nsIContent *aContent,
                                         PRInt32 aNameSpaceID,
                                         nsIAtom *aAttribute,
-                                        PRInt32 aModType,
-                                        PRUint32 aStateMask)
+                                        PRInt32 aModType)
 {
   if (aNameSpaceID != kNameSpaceID_XML || aAttribute != nsGkAtoms::space) {
     return;
   }
 
-  nsPresShellIterator iter(aDocument);
-  nsCOMPtr<nsIPresShell> shell;
-  while ((shell = iter.GetNextShell())) {
-    nsIFrame *frame = shell->GetPrimaryFrameFor(aContent);
-    if (!frame) {
-      continue;
-    }
-
-    // is the content a child of a text element
-    nsSVGTextContainerFrame *containerFrame = do_QueryFrame(frame);
-    if (containerFrame) {
-      containerFrame->NotifyGlyphMetricsChange();
-      continue;
-    }
-    // if not, are there text elements amongst its descendents
-    UpdateTextFragmentTrees(frame);
+  nsIFrame* frame = aContent->GetPrimaryFrame();
+  if (!frame) {
+    return;
   }
+
+  // is the content a child of a text element
+  nsSVGTextContainerFrame* containerFrame = do_QueryFrame(frame);
+  if (containerFrame) {
+    containerFrame->NotifyGlyphMetricsChange();
+    return;
+  }
+  // if not, are there text elements amongst its descendents
+  UpdateTextFragmentTrees(frame);
 }
 
 //----------------------------------------------------------------------
@@ -170,13 +164,12 @@ nsSVGOuterSVGFrame::Init(nsIContent* aContent,
   nsIDocument* doc = mContent->GetCurrentDoc();
   if (doc) {
     // we only care about our content's zoom and pan values if it's the root element
-    if (doc->GetRootContent() == mContent) {
+    if (doc->GetRootElement() == mContent) {
       mIsRootContent = PR_TRUE;
     }
-    // AddMutationObserver checks that the observer is not already added.
     // sSVGMutationObserver has the same lifetime as the document so does
     // not need to be removed
-    doc->AddMutationObserver(&sSVGMutationObserver);
+    doc->AddMutationObserverUnlessExists(&sSVGMutationObserver);
   }
 
   SuspendRedraw();  // UnsuspendRedraw is in DidReflow
@@ -289,9 +282,7 @@ nsSVGOuterSVGFrame::GetIntrinsicRatio()
     return ratio;
   }
 
-  if (content->HasAttr(kNameSpaceID_None, nsGkAtoms::viewBox)) {
-    // XXXjwatt we need to fix our viewBox code so that we can tell whether the
-    // viewBox attribute specifies a valid rect or not.
+  if (content->mViewBox.IsValid()) {
     const nsSVGViewBoxRect viewbox = content->mViewBox.GetAnimValue();
     float viewBoxWidth = viewbox.width;
     float viewBoxHeight = viewbox.height;
@@ -438,19 +429,32 @@ public:
   }
 #endif
 
-  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
-                            HitTestState* aState);
+  virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
+                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames);
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
   NS_DISPLAY_DECL_NAME("SVGEventReceiver")
 };
 
-nsIFrame*
-nsDisplaySVG::HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
-                      HitTestState* aState)
+void
+nsDisplaySVG::HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
+                      HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames)
 {
-  return static_cast<nsSVGOuterSVGFrame*>(mFrame)->
-    GetFrameForPoint(aPt - aBuilder->ToReferenceFrame(mFrame));
+  nsSVGOuterSVGFrame *outerSVGFrame = static_cast<nsSVGOuterSVGFrame*>(mFrame);
+  nsRect rectAtOrigin = aRect - aBuilder->ToReferenceFrame(mFrame);
+  nsRect thisRect(nsPoint(0,0), outerSVGFrame->GetSize());
+  if (!thisRect.Intersects(rectAtOrigin))
+    return;
+
+  nsPoint rectCenter(rectAtOrigin.x + rectAtOrigin.width / 2,
+                     rectAtOrigin.y + rectAtOrigin.height / 2);
+
+  nsIFrame* frame = nsSVGUtils::HitTestChildren(
+    outerSVGFrame, rectCenter + outerSVGFrame->GetPosition() -
+                   outerSVGFrame->GetContentRect().TopLeft());
+  if (frame) {
+    aOutFrames->AppendElement(frame);
+  }
 }
 
 void
@@ -512,7 +516,8 @@ nsSVGOuterSVGFrame::GetFrameForPoint(const nsPoint& aPoint)
     return nsnull;
   }
 
-  return nsSVGUtils::HitTestChildren(this, aPoint);
+  return nsSVGUtils::HitTestChildren(
+    this, aPoint + GetPosition() - GetContentRect().TopLeft());
 }
 
 //----------------------------------------------------------------------
@@ -536,11 +541,8 @@ nsSVGOuterSVGFrame::Paint(nsIRenderingContext& aRenderingContext,
   // initialize Mozilla rendering context
   aRenderingContext.PushState();
 
-  nsMargin bp = GetUsedBorderAndPadding();
-  ApplySkipSides(bp);
-
   nsRect viewportRect = GetContentRect();
-  nsPoint viewportOffset = aPt + nsPoint(bp.left, bp.top);
+  nsPoint viewportOffset = aPt + viewportRect.TopLeft() - GetPosition();
   viewportRect.MoveTo(viewportOffset);
 
   nsRect clipRect;

@@ -14,7 +14,7 @@
  *
  * The Original Code is Mozilla Corporation code.
  *
- * The Initial Developer of the Original Code is Mozilla Corporation.
+ * The Initial Developer of the Original Code is Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2006-2009
  * the Initial Developer. All Rights Reserved.
  *
@@ -45,10 +45,6 @@
 #include "nsRefPtrHashtable.h"
 
 #include "gfxPlatformFontList.h"
-#ifdef MOZ_CORETEXT
-#include "gfxCoreTextFonts.h"
-#endif
-#include "gfxAtsuiFonts.h"
 #include "gfxPlatform.h"
 
 #include <Carbon/Carbon.h>
@@ -78,6 +74,8 @@ protected:
 
     virtual nsresult GetFontTable(PRUint32 aTableTag, nsTArray<PRUint8>& aBuffer);
 
+    virtual gfxFont* CreateFontInstance(const gfxFontStyle *aFontStyle, PRBool aNeedsBold);
+
     ATSFontRef mATSFontRef;
     PRPackedBool mATSFontRefInitialized;
 };
@@ -85,7 +83,7 @@ protected:
 class gfxMacPlatformFontList : public gfxPlatformFontList {
 public:
     static gfxMacPlatformFontList* PlatformFontList() {
-        return (gfxMacPlatformFontList*)sPlatformFontList;
+        return static_cast<gfxMacPlatformFontList*>(sPlatformFontList);
     }
 
     static PRInt32 AppleWeightToCSSWeight(PRInt32 aAppleWeight);
@@ -97,7 +95,7 @@ public:
     virtual gfxFontEntry* LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
                                           const nsAString& aFontName);
     
-    virtual gfxFontEntry* MakePlatformFont(const gfxFontEntry *aProxyEntry,
+    virtual gfxFontEntry* MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
                                            const PRUint8 *aFontData, PRUint32 aLength);
 
     void ClearPrefFonts() { mPrefFonts.Clear(); }

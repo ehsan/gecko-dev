@@ -41,17 +41,10 @@
 
 #include "nsISupports.idl"
 
-%{C++
-#include "nsTArray.h"
-#include "prtypes.h"
-%}
-
 interface nsIFile;
 interface nsIURI;
 interface nsITransaction;
 interface nsINavHistoryBatchCallback;
-
-[ptr] native PRInt64Array(nsTArray<PRInt64>);
 
 /**
  * Observer for bookmark changes.
@@ -201,7 +194,7 @@ interface nsINavBookmarkObserver : nsISupports
  * folders.  A URI in history can be contained in one or more such folders.
  */
 
-[scriptable, uuid(3b6ff5c5-0ab4-4aab-b1be-d569763a6ce0)]
+[scriptable, uuid(573f99bd-988c-4253-836f-4ce009d33ac6)]
 interface nsINavBookmarksService : nsISupports
 {
   /**
@@ -506,6 +499,9 @@ interface nsINavBookmarksService : nsISupports
    * in this case "mozilla.org".
    *
    * If there is no bookmarked page found, it will return NULL.
+   *
+   * @note The function will only return bookmarks in the first 3 levels of
+   *       redirection (1 -> 2 -> 3 -> aURI).
    */
   nsIURI getBookmarkedURIFor(in nsIURI aURI);
 
@@ -524,16 +520,8 @@ interface nsINavBookmarksService : nsISupports
   /**
    * Returns the list of bookmark ids that contain the given URI.
    */
-  void getBookmarkIdsForURI(in nsIURI aURI, out unsigned long count,
+  void getBookmarkIdsForURI(in nsIURI aURI, [optional] out unsigned long count,
                             [array, retval, size_is(count)] out long long bookmarks);
-
-  /**
-   * TArray version of getBookmarksIdForURI for ease of use in C++ code.
-   * Pass in a reference to a TArray; it will get cleared and filled with
-   * the resulting list of folder IDs.
-   */
-  [noscript] void getBookmarkIdsForURITArray(in nsIURI aURI,
-                                           in PRInt64Array aResult);
 
   /**
    * Associates the given keyword with the given bookmark.

@@ -37,21 +37,15 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
+#ifndef __UXThemeData_h__
+#define __UXThemeData_h__
 #include <windows.h>
+#include <uxtheme.h>
+
 #include "nscore.h"
 
 #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
 #include <dwmapi.h>
-#endif
-
-#if defined(WINCE) || (MOZ_WINSDK_TARGETVER == MOZ_NTDDI_WS03)
-struct MARGINS
-{
-  int cxLeftWidth;
-  int cxRightWidth;
-  int cyTopHeight;
-  int cyBottomHeight;
-};
 #endif
 
 // These window messages are not defined in dwmapi.h
@@ -198,3 +192,4 @@ public:
   }
 #endif // MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
 };
+#endif // __UXThemeData_h__

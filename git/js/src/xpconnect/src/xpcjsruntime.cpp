@@ -43,6 +43,8 @@
 #include "xpcprivate.h"
 #include "dom_quickstubs.h"
 
+#include "mozilla/FunctionTimer.h"
+
 /***************************************************************************/
 
 const char* XPCJSRuntime::mStrings[] = {
@@ -62,7 +64,6 @@ const char* XPCJSRuntime::mStrings[] = {
     "item",                 // IDX_ITEM
     "__proto__",            // IDX_PROTO
     "__iterator__",         // IDX_ITERATOR
-    "__parent__",           // IDX_PARENT
     "__exposedProps__"      // IDX_EXPOSEDPROPS
 };
 
@@ -444,7 +445,8 @@ void XPCJSRuntime::UnrootContextGlobals()
     {
         NS_ASSERTION(!JS_HAS_OPTION(acx, JSOPTION_UNROOTED_GLOBAL),
                      "unrooted global should be set only during CC");
-        if(nsXPConnect::GetXPConnect()->GetRequestDepth(acx) == 0)
+        if(XPCPerThreadData::IsMainThread(acx) &&
+           nsXPConnect::GetXPConnect()->GetRequestDepth(acx) == 0)
         {
             JS_ClearNewbornRoots(acx);
             if(acx->globalObject)
@@ -767,6 +769,12 @@ JSBool XPCJSRuntime::GCCallback(JSContext *cx, JSGCStatus status)
         }
     }
 
+    nsTArray<JSGCCallback> callbacks(self->extraGCCallbacks);
+    for (PRUint32 i = 0; i < callbacks.Length(); ++i) {
+        if (!callbacks[i](cx, status))
+            return JS_FALSE;
+    }
+
     return JS_TRUE;
 }
 
@@ -1061,6 +1069,7 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
         JS_NewDHashTable(JS_DHashGetStubOps(), nsnull,
                          sizeof(JSDHashEntryStub), 128);
 #endif
+    NS_TIME_FUNCTION;
 
     DOM_InitInterfaces();
 
@@ -1133,6 +1142,8 @@ XPCJSRuntime::newXPCJSRuntime(nsXPConnect* aXPConnect)
 JSBool
 XPCJSRuntime::OnJSContextNew(JSContext *cx)
 {
+    NS_TIME_FUNCTION;
+
     // if it is our first context then we need to generate our string ids
     JSBool ok = JS_TRUE;
     if(!mStrIDs[0])
@@ -1162,8 +1173,8 @@ XPCJSRuntime::OnJSContextNew(JSContext *cx)
     if (!xpc)
         return JS_FALSE;
 
-    JS_SetThreadStackLimit(cx, tls->GetStackLimit());
-    JS_SetScriptStackQuota(cx, 100*1024*1024);
+    JS_SetNativeStackQuota(cx, 512 * 1024);
+    JS_SetScriptStackQuota(cx, 100 * 1024 * 1024);
     return JS_TRUE;
 }
 
@@ -1319,4 +1330,21 @@ XPCRootSetElem::RemoveFromRootSet(JSRuntime* rt)
     mSelfp = nsnull;
     mNext = nsnull;
 #endif
+}
+
+void
+XPCJSRuntime::AddGCCallback(JSGCCallback cb)
+{
+    NS_ASSERTION(cb, "null callback");
+    extraGCCallbacks.AppendElement(cb);
+}
+
+void
+XPCJSRuntime::RemoveGCCallback(JSGCCallback cb)
+{
+    NS_ASSERTION(cb, "null callback");
+    PRBool found = extraGCCallbacks.RemoveElement(cb);
+    if (!found) {
+        NS_ERROR("Removing a callback which was never added.");
+    }
 }

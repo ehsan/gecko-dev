@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -53,35 +53,30 @@
 #include "winbase.h"
 
 #include "nsString.h"
+#include "nsILocalFile.h"
 
 /* Local helper functions */
 
-static char* GetKeyValue(TCHAR* verbuf, TCHAR* key)
+static char* GetKeyValue(WCHAR* verbuf, WCHAR* key)
 {
-  TCHAR *buf = NULL;
+  WCHAR *buf = NULL;
   UINT blen;
 
-  ::VerQueryValue(verbuf, key, (void **)&buf, &blen);
+  ::VerQueryValueW(verbuf, key, (void **)&buf, &blen);
 
   if (buf) {
-#ifdef UNICODE
-    // the return value needs to always be a char *, regardless
-    // of whether we're UNICODE or not
     return PL_strdup(NS_ConvertUTF16toUTF8(buf).get());
-#else
-    return PL_strdup(buf);
-#endif
   }
 
   return nsnull;
 }
 
-static char* GetVersion(TCHAR* verbuf)
+static char* GetVersion(WCHAR* verbuf)
 {
   VS_FIXEDFILEINFO *fileInfo;
   UINT fileInfoLen;
 
-  ::VerQueryValue(verbuf, TEXT("\\"), (void **)&fileInfo, &fileInfoLen);
+  ::VerQueryValueW(verbuf, L"\\", (void **)&fileInfo, &fileInfoLen);
 
   if (fileInfo) {
     return PR_smprintf("%ld.%ld.%ld.%ld",
@@ -163,41 +158,88 @@ static void FreeStringArray(PRUint32 variants, char ** array)
   PR_Free(array);
 }
 
+PRBool CanLoadPlugin(const char* binaryPath)
+{
+#if defined(_M_IX86) || defined(_M_X64) || defined(_M_IA64)
+  PRBool canLoad = PR_FALSE;
+
+  int len = MultiByteToWideChar(CP_UTF8, 0, binaryPath, -1, NULL, 0);
+  WCHAR *wBinaryPath = new WCHAR[len];
+  MultiByteToWideChar(CP_UTF8, 0, binaryPath, -1, wBinaryPath, len);
+  HANDLE file = CreateFileW(wBinaryPath, GENERIC_READ,
+                            FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
+                            OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+  delete[] wBinaryPath;
+  if (file != INVALID_HANDLE_VALUE) {
+    HANDLE map = CreateFileMappingW(file, NULL, PAGE_READONLY, 0,
+                                    GetFileSize(file, NULL), NULL);
+    if (map != NULL) {
+      LPVOID mapView = MapViewOfFile(map, FILE_MAP_READ, 0, 0, 0);
+      if (mapView != NULL) {
+        if (((IMAGE_DOS_HEADER*)mapView)->e_magic == IMAGE_DOS_SIGNATURE) {
+          long peImageHeaderStart = (((IMAGE_DOS_HEADER*)mapView)->e_lfanew);
+          if (peImageHeaderStart != 0L) {
+            DWORD arch = (((IMAGE_NT_HEADERS*)((LPBYTE)mapView + peImageHeaderStart))->FileHeader.Machine);
+#ifdef _M_IX86
+            canLoad = (arch == IMAGE_FILE_MACHINE_I386);
+#elif defined(_M_X64)
+            canLoad = (arch == IMAGE_FILE_MACHINE_AMD64);
+#elif defined(_M_IA64)
+            canLoad = (arch == IMAGE_FILE_MACHINE_IA64);
+#endif
+          }
+        }
+        UnmapViewOfFile(mapView);
+      }
+      CloseHandle(map);
+    }
+    CloseHandle(file);
+  }
+
+  return canLoad;
+#else
+  // Assume correct binaries for unhandled cases.
+  return PR_TRUE;
+#endif
+}
+
 /* nsPluginsDir implementation */
 
+// The file name must be in the form "np*.dll"
 PRBool nsPluginsDir::IsPluginFile(nsIFile* file)
 {
-  PRBool ret = PR_FALSE;
   nsCAutoString path;
   if (NS_FAILED(file->GetNativePath(path)))
     return PR_FALSE;
 
-  const char *pathname = path.get();
-  const char* filename;
-  char* extension;
-  PRUint32 len;
+  const char *cPath = path.get();
+
   // this is most likely a path, so skip to the filename
-  filename = PL_strrchr(pathname, '\\');
+  const char* filename = PL_strrchr(cPath, '\\');
   if (filename)
     ++filename;
   else
-    filename = pathname;
+    filename = cPath;
 
-  len = PL_strlen(filename);
-  // the filename must be: "np*.dll"
-  extension = PL_strrchr(filename, '.');
+  char* extension = PL_strrchr(filename, '.');
   if (extension)
     ++extension;
 
-  if (len > 5) {
-    if (!PL_strncasecmp(filename, "np", 2) && !PL_strcasecmp(extension, "dll")) {
+  PRUint32 fullLength = PL_strlen(filename);
+  PRUint32 extLength = PL_strlen(extension);
+  if (fullLength >= 7 && extLength == 3) {
+    if (!PL_strncasecmp(filename, "np", 2) && !PL_strncasecmp(extension, "dll", 3)) {
       // don't load OJI-based Java plugins
-      if (!PL_strncasecmp(filename, "npoji", 5))
+      if (!PL_strncasecmp(filename, "npoji", 5) ||
+          !PL_strncasecmp(filename, "npjava", 6))
         return PR_FALSE;
-      return PR_TRUE;
+
+      // Check this last since it involves opening the file.
+      return CanLoadPlugin(cPath);
     }
   }
-  return ret;
+
+  return PR_FALSE;
 }
 
 /* nsPluginFile implementation */
@@ -219,47 +261,44 @@ nsPluginFile::~nsPluginFile()
  */
 nsresult nsPluginFile::LoadPlugin(PRLibrary* &outLibrary)
 {
-  // How can we convert to a full path names for using with NSPR?
-  if (!mPlugin)
+  nsCOMPtr<nsILocalFile> plugin = do_QueryInterface(mPlugin);
+
+  if (!plugin)
     return NS_ERROR_NULL_POINTER;
 
-  nsCAutoString temp;
-  mPlugin->GetNativePath(temp);
-
 #ifndef WINCE
-  char* index;
-  char* pluginFolderPath = PL_strdup(temp.get());
+  nsAutoString pluginFolderPath;
+  plugin->GetPath(pluginFolderPath);
 
-  index = PL_strrchr(pluginFolderPath, '\\');
-  if (!index) {
-    PL_strfree(pluginFolderPath);
+  PRInt32 idx = pluginFolderPath.RFindChar('\\');
+  if (kNotFound == idx)
     return NS_ERROR_FILE_INVALID_PATH;
-  }
-  *index = 0;
+
+  pluginFolderPath.SetLength(idx);
 
   BOOL restoreOrigDir = FALSE;
-  char aOrigDir[MAX_PATH + 1];
-  DWORD dwCheck = ::GetCurrentDirectory(sizeof(aOrigDir), aOrigDir);
+  WCHAR aOrigDir[MAX_PATH + 1];
+  DWORD dwCheck = GetCurrentDirectoryW(MAX_PATH, aOrigDir);
   NS_ASSERTION(dwCheck <= MAX_PATH + 1, "Error in Loading plugin");
 
   if (dwCheck <= MAX_PATH + 1) {
-    restoreOrigDir = ::SetCurrentDirectory(pluginFolderPath);
+    restoreOrigDir = SetCurrentDirectoryW(pluginFolderPath.get());
     NS_ASSERTION(restoreOrigDir, "Error in Loading plugin");
   }
 #endif
 
-  outLibrary = PR_LoadLibrary(temp.get());
+  nsresult rv = plugin->Load(&outLibrary);
+  if (NS_FAILED(rv))
+      outLibrary = NULL;
 
 #ifndef WINCE    
   if (restoreOrigDir) {
-    BOOL bCheck = ::SetCurrentDirectory(aOrigDir);
+    BOOL bCheck = SetCurrentDirectoryW(aOrigDir);
     NS_ASSERTION(bCheck, "Error in Loading plugin");
   }
-
-  PL_strfree(pluginFolderPath);
 #endif
 
-  return NS_OK;
+  return rv;
 }
 
 /**
@@ -269,54 +308,48 @@ nsresult nsPluginFile::GetPluginInfo(nsPluginInfo& info)
 {
   nsresult rv = NS_OK;
   DWORD zerome, versionsize;
-  TCHAR* verbuf = nsnull;
-
-  const TCHAR* path;
+  WCHAR* verbuf = nsnull;
 
   if (!mPlugin)
     return NS_ERROR_NULL_POINTER;
 
-  nsCAutoString fullPath;
-  if (NS_FAILED(rv = mPlugin->GetNativePath(fullPath)))
+  nsAutoString fullPath;
+  if (NS_FAILED(rv = mPlugin->GetPath(fullPath)))
     return rv;
 
-  nsCAutoString fileName;
-  if (NS_FAILED(rv = mPlugin->GetNativeLeafName(fileName)))
+  nsAutoString fileName;
+  if (NS_FAILED(rv = mPlugin->GetLeafName(fileName)))
     return rv;
 
-#ifdef UNICODE
-  NS_ConvertASCIItoUTF16 utf16Path(fullPath);
-  path = utf16Path.get();
-  versionsize = ::GetFileVersionInfoSizeW((TCHAR*)path, &zerome);
+#ifdef WINCE
+    // WinCe takes a non const file path string, while desktop take a const
+  LPWSTR lpFilepath = const_cast<LPWSTR>(fullPath.get());
 #else
-  path = fullPath.get();
-  versionsize = ::GetFileVersionInfoSize((TCHAR*)path, &zerome);
+  LPCWSTR lpFilepath = fullPath.get();
 #endif
 
+  versionsize = ::GetFileVersionInfoSizeW(lpFilepath, &zerome);
+
   if (versionsize > 0)
-    verbuf = (TCHAR*)PR_Malloc(versionsize);
+    verbuf = (WCHAR*)PR_Malloc(versionsize);
   if (!verbuf)
     return NS_ERROR_OUT_OF_MEMORY;
 
-#ifdef UNICODE
-  if (::GetFileVersionInfoW((LPWSTR)path, NULL, versionsize, verbuf))
-#else
-  if (::GetFileVersionInfo(path, NULL, versionsize, verbuf))
-#endif
+  if (::GetFileVersionInfoW(lpFilepath, NULL, versionsize, verbuf))
   {
-    info.fName = GetKeyValue(verbuf, TEXT("\\StringFileInfo\\040904E4\\ProductName"));
-    info.fDescription = GetKeyValue(verbuf, TEXT("\\StringFileInfo\\040904E4\\FileDescription"));
+    info.fName = GetKeyValue(verbuf, L"\\StringFileInfo\\040904E4\\ProductName");
+    info.fDescription = GetKeyValue(verbuf, L"\\StringFileInfo\\040904E4\\FileDescription");
 
-    char *mimeType = GetKeyValue(verbuf, TEXT("\\StringFileInfo\\040904E4\\MIMEType"));
-    char *mimeDescription = GetKeyValue(verbuf, TEXT("\\StringFileInfo\\040904E4\\FileOpenName"));
-    char *extensions = GetKeyValue(verbuf, TEXT("\\StringFileInfo\\040904E4\\FileExtents"));
+    char *mimeType = GetKeyValue(verbuf, L"\\StringFileInfo\\040904E4\\MIMEType");
+    char *mimeDescription = GetKeyValue(verbuf, L"\\StringFileInfo\\040904E4\\FileOpenName");
+    char *extensions = GetKeyValue(verbuf, L"\\StringFileInfo\\040904E4\\FileExtents");
 
     info.fVariantCount = CalculateVariantCount(mimeType);
     info.fMimeTypeArray = MakeStringArray(info.fVariantCount, mimeType);
     info.fMimeDescriptionArray = MakeStringArray(info.fVariantCount, mimeDescription);
     info.fExtensionArray = MakeStringArray(info.fVariantCount, extensions);
-    info.fFullPath = PL_strdup(fullPath.get());
-    info.fFileName = PL_strdup(fileName.get());
+    info.fFullPath = PL_strdup(NS_ConvertUTF16toUTF8(fullPath).get());
+    info.fFileName = PL_strdup(NS_ConvertUTF16toUTF8(fileName).get());
     info.fVersion = GetVersion(verbuf);
 
     PL_strfree(mimeType);

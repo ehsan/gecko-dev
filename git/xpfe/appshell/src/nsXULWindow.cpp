@@ -143,13 +143,15 @@ nsXULWindow::nsXULWindow(PRUint32 aChromeFlags)
     mCenterAfterLoad(PR_FALSE),
     mIsHiddenWindow(PR_FALSE),
     mLockedUntilChromeLoad(PR_FALSE),
+    mIgnoreXULSize(PR_FALSE),
+    mIgnoreXULPosition(PR_FALSE),
     mContextFlags(0),
     mBlurSuppressionLevel(0),
     mPersistentAttributesDirty(0),
     mPersistentAttributesMask(0),
     mChromeFlags(aChromeFlags),
     // best guess till we have a widget
-    mAppPerDev(nsPresContext::AppUnitsPerCSSPixel()) 
+    mAppPerDev(nsPresContext::AppUnitsPerCSSPixel())
 {
 }
 
@@ -261,15 +263,6 @@ NS_IMETHODIMP nsXULWindow::SetZLevel(PRUint32 aLevel)
     }
   }
 
-  // disallow user script
-  nsCOMPtr<nsIScriptSecurityManager> secMan =
-           do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID);
-  if (!secMan)
-    return NS_ERROR_FAILURE;
-  PRBool inChrome;
-  if (NS_FAILED(secMan->SubjectPrincipalIsSystem(&inChrome)) || !inChrome)
-    return NS_ERROR_FAILURE;
-
   // do it
   mediator->SetZLevel(this, aLevel);
   PersistentAttributesDirty(PAD_MISC);
@@ -277,11 +270,9 @@ NS_IMETHODIMP nsXULWindow::SetZLevel(PRUint32 aLevel)
 
   nsCOMPtr<nsIContentViewer> cv;
   mDocShell->GetContentViewer(getter_AddRefs(cv));
-  nsCOMPtr<nsIDocumentViewer> dv(do_QueryInterface(cv));
-  if (dv) {
-    nsCOMPtr<nsIDocument> doc;
-    dv->GetDocument(getter_AddRefs(doc));
-    nsCOMPtr<nsIDOMDocumentEvent> docEvent(do_QueryInterface(doc));
+  if (cv) {
+    nsCOMPtr<nsIDOMDocumentEvent> docEvent(
+      do_QueryInterface(cv->GetDocument()));
     if (docEvent) {
       nsCOMPtr<nsIDOMEvent> event;
       docEvent->CreateEvent(NS_LITERAL_STRING("Events"), getter_AddRefs(event));
@@ -291,7 +282,7 @@ NS_IMETHODIMP nsXULWindow::SetZLevel(PRUint32 aLevel)
         nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(event));
         privateEvent->SetTrusted(PR_TRUE);
 
-        nsCOMPtr<nsIDOMEventTarget> targ(do_QueryInterface(doc));
+        nsCOMPtr<nsIDOMEventTarget> targ(do_QueryInterface(docEvent));
         if (targ) {
           PRBool defaultActionEnabled;
           targ->DispatchEvent(event, &defaultActionEnabled);
@@ -547,6 +538,7 @@ NS_IMETHODIMP nsXULWindow::Destroy()
   }
   if (mWindow) {
     mWindow->SetClientData(0); // nsWebShellWindow hackery
+    mWindow->Destroy();
     mWindow = nsnull;
   }
 
@@ -569,12 +561,15 @@ NS_IMETHODIMP nsXULWindow::Destroy()
 
 NS_IMETHODIMP nsXULWindow::SetPosition(PRInt32 aX, PRInt32 aY)
 {
-  /* any attempt to set the window's size or position overrides the window's
-     zoom state. this is important when these two states are competing while
-     the window is being opened. but it should probably just always be so. */
-  mWindow->SetSizeMode(nsSizeMode_Normal);
-    
+  // Don't reset the window's size mode here - platforms that don't want to move
+  // maximized windows should reset it in their respective Move implementation.
   NS_ENSURE_SUCCESS(mWindow->Move(aX, aY), NS_ERROR_FAILURE);
+  if (!mChromeLoaded) {
+    // If we're called before the chrome is loaded someone obviously wants this
+    // window at this position. We don't persist this one-time position.
+    mIgnoreXULPosition = PR_TRUE;
+    return NS_OK;
+  }
   PersistentAttributesDirty(PAD_POSITION);
   SavePersistentAttributes();
   return NS_OK;
@@ -595,6 +590,12 @@ NS_IMETHODIMP nsXULWindow::SetSize(PRInt32 aCX, PRInt32 aCY, PRBool aRepaint)
   mIntrinsicallySized = PR_FALSE;
 
   NS_ENSURE_SUCCESS(mWindow->Resize(aCX, aCY, aRepaint), NS_ERROR_FAILURE);
+  if (!mChromeLoaded) {
+    // If we're called before the chrome is loaded someone obviously wants this
+    // window at this size. We don't persist this one-time size.
+    mIgnoreXULSize = PR_TRUE;
+    return NS_OK;
+  }
   PersistentAttributesDirty(PAD_SIZE);
   SavePersistentAttributes();
   return NS_OK;
@@ -616,6 +617,13 @@ NS_IMETHODIMP nsXULWindow::SetPositionAndSize(PRInt32 aX, PRInt32 aY,
   mIntrinsicallySized = PR_FALSE;
 
   NS_ENSURE_SUCCESS(mWindow->Resize(aX, aY, aCX, aCY, aRepaint), NS_ERROR_FAILURE);
+  if (!mChromeLoaded) {
+    // If we're called before the chrome is loaded someone obviously wants this
+    // window at this size and position. We don't persist this one-time setting.
+    mIgnoreXULPosition = PR_TRUE;
+    mIgnoreXULSize = PR_TRUE;
+    return NS_OK;
+  }
   PersistentAttributesDirty(PAD_POSITION | PAD_SIZE);
   SavePersistentAttributes();
   return NS_OK;
@@ -787,7 +795,12 @@ NS_IMETHODIMP nsXULWindow::SetVisibility(PRBool aVisibility)
   // the window good enough?
   nsCOMPtr<nsIBaseWindow> shellAsWin(do_QueryInterface(mDocShell));
   shellAsWin->SetVisibility(aVisibility);
-  mWindow->Show(aVisibility);
+  // Store locally so it doesn't die on us. 'Show' can result in the window
+  // being closed with nsXULWindow::Destroy being called. That would set
+  // mWindow to null and posibly destroy the nsIWidget while its Show method
+  // is on the stack. We need to keep it alive until Show finishes.
+  nsCOMPtr<nsIWidget> window = mWindow;
+  window->Show(aVisibility);
 
   nsCOMPtr<nsIWindowMediator> windowMediator(do_GetService(NS_WINDOWMEDIATOR_CONTRACTID));
   if (windowMediator)
@@ -978,7 +991,8 @@ void nsXULWindow::OnChromeLoaded()
     mChromeLoaded = PR_TRUE;
     ApplyChromeFlags();
     SyncAttributesToWidget();
-    LoadSizeFromXUL();
+    if (!mIgnoreXULSize)
+      LoadSizeFromXUL();
     if (mIntrinsicallySized) {
       // (if LoadSizeFromXUL set the size, mIntrinsicallySized will be false)
       nsCOMPtr<nsIContentViewer> cv;
@@ -988,7 +1002,7 @@ void nsXULWindow::OnChromeLoaded()
         markupViewer->SizeToContent();
     }
 
-    PRBool positionSet = PR_TRUE;
+    PRBool positionSet = !mIgnoreXULPosition;
     nsCOMPtr<nsIXULWindow> parentWindow(do_QueryReferent(mParentWindow));
 #if defined(XP_UNIX) && !defined(XP_MACOSX)
     // don't override WM placement on unix for independent, top-level windows
@@ -1004,8 +1018,11 @@ void nsXULWindow::OnChromeLoaded()
     if (mCenterAfterLoad && !positionSet)
       Center(parentWindow, parentWindow ? PR_FALSE : PR_TRUE, PR_FALSE);
 
-    if (mShowAfterLoad)
+    if (mShowAfterLoad) {
       SetVisibility(PR_TRUE);
+      // At this point the window may have been closed during Show(), so
+      // nsXULWindow::Destroy may already have been called. Take care!
+    }
   }
   mPersistentAttributesMask |= PAD_POSITION | PAD_SIZE | PAD_MISC;
 }
@@ -1112,7 +1129,7 @@ PRBool nsXULWindow::LoadSizeFromXUL()
   if (NS_SUCCEEDED(rv)) {
     temp = sizeString.ToInteger(&errorCode);
     if (NS_SUCCEEDED(errorCode) && temp > 0) {
-      specWidth = CSSToDevPixels(PR_MAX(temp, 100), appPerDev);
+      specWidth = CSSToDevPixels(NS_MAX(temp, 100), appPerDev);
       gotSize = PR_TRUE;
     }
   }
@@ -1120,7 +1137,7 @@ PRBool nsXULWindow::LoadSizeFromXUL()
   if (NS_SUCCEEDED(rv)) {
     temp = sizeString.ToInteger(&errorCode);
     if (NS_SUCCEEDED(errorCode) && temp > 0) {
-      specHeight = CSSToDevPixels(PR_MAX(temp, 100), appPerDev);
+      specHeight = CSSToDevPixels(NS_MAX(temp, 100), appPerDev);
       gotSize = PR_TRUE;
     }
   }
@@ -1358,6 +1375,13 @@ void nsXULWindow::SyncAttributesToWidget()
     mWindow->HideWindowChrome(PR_TRUE);
   }
 
+  // "accelerated" attribute
+  PRBool isAccelerated;
+  rv = windowElement->HasAttribute(NS_LITERAL_STRING("accelerated"), &isAccelerated);
+  if (NS_SUCCEEDED(rv)) {
+    mWindow->SetAcceleratedRendering(isAccelerated);
+  }
+
   // "windowtype" attribute
   rv = windowElement->GetAttribute(NS_LITERAL_STRING("windowtype"), attr);
   if (NS_SUCCEEDED(rv) && !attr.IsEmpty()) {
@@ -1525,12 +1549,7 @@ NS_IMETHODIMP nsXULWindow::GetWindowDOMElement(nsIDOMElement** aDOMElement)
   mDocShell->GetContentViewer(getter_AddRefs(cv));
   NS_ENSURE_TRUE(cv, NS_ERROR_FAILURE);
 
-  nsCOMPtr<nsIDocumentViewer> docv(do_QueryInterface(cv));
-  NS_ENSURE_TRUE(docv, NS_ERROR_FAILURE);
-
-  nsCOMPtr<nsIDocument> doc;
-  docv->GetDocument(getter_AddRefs(doc));
-  nsCOMPtr<nsIDOMDocument> domdoc(do_QueryInterface(doc));
+  nsCOMPtr<nsIDOMDocument> domdoc(do_QueryInterface(cv->GetDocument()));
   NS_ENSURE_TRUE(domdoc, NS_ERROR_FAILURE);
 
   domdoc->GetDocumentElement(aDOMElement);
@@ -1664,8 +1683,8 @@ NS_IMETHODIMP nsXULWindow::SizeShellTo(nsIDocShellTreeItem* aShellItem,
     // desired docshell size --- that's not likely to work. This whole
     // function assumes that the outer docshell is adding some constant
     // "border" chrome to aShellItem.
-    winCX = PR_MAX(winCX + widthDelta, aCX);
-    winCY = PR_MAX(winCY + heightDelta, aCY);
+    winCX = NS_MAX(winCX + widthDelta, aCX);
+    winCY = NS_MAX(winCY + heightDelta, aCY);
     SetSize(winCX, winCY, PR_TRUE);
   }
 

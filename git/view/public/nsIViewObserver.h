@@ -47,8 +47,8 @@ class nsIRenderingContext;
 class nsGUIEvent;
 
 #define NS_IVIEWOBSERVER_IID  \
-  { 0xc85d474d, 0x316e, 0x491c, \
-    { 0x8b, 0xc5, 0x24, 0xba, 0xb7, 0xbb, 0x68, 0x9e } }
+  { 0xac43a985, 0xcae6, 0x499d, \
+    { 0xae, 0x8f, 0x9c, 0x92, 0xec, 0x6f, 0x2c, 0x47 } }
 
 class nsIViewObserver : public nsISupports
 {
@@ -59,46 +59,23 @@ public:
   /* called when the observer needs to paint. This paints the entire
    * frame subtree rooted at the view, including frame subtrees from
    * subdocuments.
-   * @param aRenderingContext rendering context to paint to; the origin
-   * of the view is painted at (0,0) in the rendering context's current
-   * transform. For best results this should transform to pixel-aligned
-   * coordinates.
+   * @param aViewToPaint the view for the widget that is being painted
    * @param aDirtyRegion the region to be painted, in the coordinates of
-   * aRootView
+   * aViewToPaint
+   * @param aPaintDefaultBackground just paint the default background,
+   * don't try to paint any content. This is set when the observer
+   * needs to paint something, but the view tree is unstable, so it
+   * must *not* paint, or even examine, the frame subtree rooted at the
+   * view.  (It is, however, safe to inspect the state of the view itself,
+   * and any associated widget.) The name illustrates the expected behavior,
+   * which is to paint some default background color over the dirty region.
    * @return error status
    */
-  NS_IMETHOD Paint(nsIView*             aRootView,
-                   nsIRenderingContext* aRenderingContext,
-                   const nsRegion&      aDirtyRegion) = 0;
-
-  /* called when the observer needs to paint something, but the view
-   * tree is unstable, so it must *not* paint, or even examine, the
-   * frame subtree rooted at the view.  (It is, however, safe to inspect
-   * the state of the view itself, and any associated widget.)  The name
-   * illustrates the expected behavior, which is to paint some default
-   * background color over the dirty rect.
-   *
-   * @param aRenderingContext rendering context to paint to; the origin
-   * of the view is painted at (0,0) in the rendering context's current
-   * transform. For best results this should transform to pixel-aligned
-   * coordinates.
-   * @param aDirtyRect the rectangle to be painted, in the coordinates
-   * of aRootView
-   * @return error status
-   */
-  NS_IMETHOD PaintDefaultBackground(nsIView*             aRootView,
-                                    nsIRenderingContext* aRenderingContext,
-                                    const nsRect&        aDirtyRect) = 0;
-
-  /**
-   * @see nsLayoutUtils::ComputeRepaintRegionForCopy
-   */
-  NS_IMETHOD ComputeRepaintRegionForCopy(nsIView*      aRootView,
-                                         nsIView*      aMovingView,
-                                         nsPoint       aDelta,
-                                         const nsRect& aUpdateRect,
-                                         nsRegion*     aBlitRegion,
-                                         nsRegion*     aRepaintRegion) = 0;
+  NS_IMETHOD Paint(nsIView*        aDisplayRoot,
+                   nsIView*        aViewToPaint,
+                   nsIWidget*      aWidgetToPaint,
+                   const nsRegion& aDirtyRegion,
+                   PRBool          aPaintDefaultBackground) = 0;
 
   /* called when the observer needs to handle an event
    * @param aView  - where to start processing the event; the root view,
@@ -135,20 +112,6 @@ public:
    * and geometry changes if it wants to.
    */
   NS_IMETHOD_(void) WillPaint() = 0;
-
-  /**
-   * Notify the observer that it should invalidate the frame bounds for
-   * the frame associated with this view, due to scrolling.
-   */
-  NS_IMETHOD_(void) InvalidateFrameForScrolledView(nsIView *aView) = 0;
-
-  /**
-   * Notify the observer that some areas of the root view have been
-   * invalidated/blitted due to scrolling. A bitblit-scroll occurred
-   * so we can be sure that rootView->NeedsInvalidateFrameOnScroll is false.
-   */
-  NS_IMETHOD_(void) NotifyInvalidateForScrolledView(const nsRegion& aBlitRegion,
-                                                    const nsRegion& aInvalidateRegion) = 0;
 
   /**
    * Dispatch the given synthesized mouse move event, and if

@@ -58,7 +58,6 @@
 #include "nsCSSProps.h"
 
 #include "nsCOMPtr.h"
-#include "nsIPresShell.h"
 #include "nsIFrame.h"
 #include "nsHTMLReflowState.h"
 #include "prenv.h"
@@ -782,7 +781,6 @@ nsChangeHint nsStyleColumn::MaxDifference()
 }
 #endif
 
-#ifdef MOZ_SVG
 // --------------------
 // nsStyleSVG
 //
@@ -1060,8 +1058,6 @@ PRBool nsStyleSVGPaint::operator==(const nsStyleSVGPaint& aOther) const
   return mPaint.mColor == aOther.mPaint.mColor;
 }
 
-#endif // MOZ_SVG
-
 
 // --------------------
 // nsStylePosition
@@ -1098,33 +1094,46 @@ nsStylePosition::nsStylePosition(const nsStylePosition& aSource)
 
 nsChangeHint nsStylePosition::CalcDifference(const nsStylePosition& aOther) const
 {
-  if (mZIndex != aOther.mZIndex) {
-    // FIXME: Bug 507764.  Why do we need reflow here?
-    return NS_STYLE_HINT_REFLOW;
+  nsChangeHint hint =
+    (mZIndex == aOther.mZIndex) ? NS_STYLE_HINT_NONE : nsChangeHint_RepaintFrame;
+
+  if (mBoxSizing != aOther.mBoxSizing) {
+    // Can affect both widths and heights; just a bad scene.
+    return NS_CombineHint(hint, nsChangeHint_ReflowFrame);
   }
-  
+
+  if (mHeight != aOther.mHeight ||
+      mMinHeight != aOther.mMinHeight ||
+      mMaxHeight != aOther.mMaxHeight) {
+    // Height changes can affect descendant intrinsic sizes due to replaced
+    // elements with percentage heights in descendants which also have
+    // percentage heights.  And due to our not-so-great computation of mVResize
+    // in nsHTMLReflowState, they do need to force reflow of the whole subtree.
+    // XXXbz due to XUL caching heights as well, height changes also need to
+    // clear ancestor intrinsics!
+    return NS_CombineHint(hint, nsChangeHint_ReflowFrame);
+  }
+
   if ((mWidth == aOther.mWidth) &&
       (mMinWidth == aOther.mMinWidth) &&
-      (mMaxWidth == aOther.mMaxWidth) &&
-      (mHeight == aOther.mHeight) &&
-      (mMinHeight == aOther.mMinHeight) &&
-      (mMaxHeight == aOther.mMaxHeight) &&
-      (mBoxSizing == aOther.mBoxSizing)) {
+      (mMaxWidth == aOther.mMaxWidth)) {
     if (mOffset == aOther.mOffset) {
-      return NS_STYLE_HINT_NONE;
+      return hint;
     } else {
       // Offset changes only affect positioned content, and can't affect any
       // intrinsic widths.  They also don't need to force reflow of
       // descendants.
-      return nsChangeHint_NeedReflow;
+      return NS_CombineHint(hint, nsChangeHint_NeedReflow);
     }
   }
 
-  // None of our differences can affect descendant intrinsic sizes and none of
-  // them need to force children to reflow.
-  return NS_SubtractHint(nsChangeHint_ReflowFrame,
-                         NS_CombineHint(nsChangeHint_ClearDescendantIntrinsics,
-                                        nsChangeHint_NeedDirtyReflow));
+  // None of our width differences can affect descendant intrinsic
+  // sizes and none of them need to force children to reflow.
+  return
+    NS_CombineHint(hint,
+                   NS_SubtractHint(nsChangeHint_ReflowFrame,
+                                   NS_CombineHint(nsChangeHint_ClearDescendantIntrinsics,
+                                                  nsChangeHint_NeedDirtyReflow)));
 }
 
 #ifdef DEBUG
@@ -1276,26 +1285,26 @@ nsChangeHint nsStyleColor::MaxDifference()
 PRBool
 nsStyleGradient::operator==(const nsStyleGradient& aOther) const
 {
-  NS_ABORT_IF_FALSE(mIsRadial || (mStartRadius == 0 && mEndRadius == 0),
-                    "incorrect unused radius values");
-  NS_ABORT_IF_FALSE(aOther.mIsRadial ||
-                    (aOther.mStartRadius == 0 && aOther.mEndRadius == 0),
-                    "incorrect unused radius values");
+  NS_ABORT_IF_FALSE(mSize == NS_STYLE_GRADIENT_SIZE_FARTHEST_CORNER ||
+                    mShape != NS_STYLE_GRADIENT_SHAPE_LINEAR,
+                    "incorrect combination of shape and size");
+  NS_ABORT_IF_FALSE(aOther.mSize == NS_STYLE_GRADIENT_SIZE_FARTHEST_CORNER ||
+                    aOther.mShape != NS_STYLE_GRADIENT_SHAPE_LINEAR,
+                    "incorrect combination of shape and size");
 
-  if (mIsRadial != aOther.mIsRadial ||
-      mStartX != aOther.mStartX ||
-      mStartY != aOther.mStartY ||
-      mStartRadius != aOther.mStartRadius ||
-      mEndX != aOther.mEndX ||
-      mEndY != aOther.mEndY ||
-      mEndRadius != aOther.mEndRadius)
+  if (mShape != aOther.mShape ||
+      mSize != aOther.mSize ||
+      mRepeating != aOther.mRepeating ||
+      mBgPosX != aOther.mBgPosX ||
+      mBgPosY != aOther.mBgPosY ||
+      mAngle != aOther.mAngle)
     return PR_FALSE;
 
   if (mStops.Length() != aOther.mStops.Length())
     return PR_FALSE;
 
   for (PRUint32 i = 0; i < mStops.Length(); i++) {
-    if (mStops[i].mPosition != aOther.mStops[i].mPosition ||
+    if (mStops[i].mLocation != aOther.mStops[i].mLocation ||
         mStops[i].mColor != aOther.mStops[i].mColor)
       return PR_FALSE;
   }
@@ -1304,15 +1313,10 @@ nsStyleGradient::operator==(const nsStyleGradient& aOther) const
 }
 
 nsStyleGradient::nsStyleGradient(void)
-  : mIsRadial(PR_FALSE)
-  , mStartRadius(0)
-  , mEndRadius(0)
-  , mRefCnt(0)
+  : mShape(NS_STYLE_GRADIENT_SHAPE_LINEAR)
+  , mSize(NS_STYLE_GRADIENT_SIZE_FARTHEST_CORNER)
+  , mRepeating(PR_FALSE)
 {
-  mStartX.SetCoordValue(0);
-  mStartY.SetCoordValue(0);
-  mEndX.SetCoordValue(0);
-  mEndY.SetCoordValue(0);
 }
 
 // --------------------
@@ -1800,6 +1804,7 @@ nsStyleDisplay::nsStyleDisplay()
   mBreakAfter = PR_FALSE;
   mOverflowX = NS_STYLE_OVERFLOW_VISIBLE;
   mOverflowY = NS_STYLE_OVERFLOW_VISIBLE;
+  mResize = NS_STYLE_RESIZE_NONE;
   mClipFlags = NS_STYLE_CLIP_AUTO;
   mClip.SetRect(0,0,0,0);
   mOpacity = 1.0f;
@@ -1835,6 +1840,7 @@ nsStyleDisplay::nsStyleDisplay(const nsStyleDisplay& aSource)
   mBreakAfter = aSource.mBreakAfter;
   mOverflowX = aSource.mOverflowX;
   mOverflowY = aSource.mOverflowY;
+  mResize = aSource.mResize;
   mClipFlags = aSource.mClipFlags;
   mClip = aSource.mClip;
   mOpacity = aSource.mOpacity;
@@ -1858,7 +1864,8 @@ nsChangeHint nsStyleDisplay::CalcDifference(const nsStyleDisplay& aOther) const
       || mDisplay != aOther.mDisplay
       || (mFloats == NS_STYLE_FLOAT_NONE) != (aOther.mFloats == NS_STYLE_FLOAT_NONE)
       || mOverflowX != aOther.mOverflowX
-      || mOverflowY != aOther.mOverflowY)
+      || mOverflowY != aOther.mOverflowY
+      || mResize != aOther.mResize)
     NS_UpdateHint(hint, nsChangeHint_ReconstructFrame);
 
   if (mFloats != aOther.mFloats) {
@@ -1908,15 +1915,16 @@ nsChangeHint nsStyleDisplay::CalcDifference(const nsStyleDisplay& aOther) const
         break;
       }
   }
-  
-  // Note:  Our current behavior for handling changes to transition
+
+  // Note:  Our current behavior for handling changes to the
+  // transition-duration, transition-delay, and transition-timing-function
   // properties is to do nothing.  In other words, the transition
   // property that matters is what it is when the transition begins, and
   // we don't stop a transition later because the transition property
   // changed.
-  // FIXME:  Need to test for this and write it in the spec, if it's
-  // compatible with other browsers.  Test for behavior at
-  // http://dbaron.org/css/test/2009/transitions/dynamic-transition-change
+  // We do handle changes to transition-property, but we don't need to
+  // bother with anything here, since the transition manager is notified
+  // of any style context change anyway.
   
   return hint;
 }
@@ -1943,7 +1951,21 @@ nsStyleVisibility::nsStyleVisibility(nsPresContext* aPresContext)
   else
     mDirection = NS_STYLE_DIRECTION_LTR;
 
-  mLangGroup = aPresContext->GetLangGroup();
+  nsAutoString language;
+  aPresContext->Document()->GetContentLanguage(language);
+  language.StripWhitespace();
+
+  // Content-Language may be a comma-separated list of language codes,
+  // in which case the HTML5 spec says to treat it as unknown
+  if (!language.IsEmpty() &&
+      language.FindChar(PRUnichar(',')) == kNotFound) {
+    mLanguage = do_GetAtom(language);
+  } else {
+    // we didn't find a (usable) Content-Language, so we fall back
+    // to whatever the presContext guessed from the charset
+    mLanguage = aPresContext->GetLanguageFromCharset();
+  }
+
   mVisible = NS_STYLE_VISIBILITY_VISIBLE;
   mPointerEvents = NS_STYLE_POINTER_EVENTS_AUTO;
 }
@@ -1953,14 +1975,14 @@ nsStyleVisibility::nsStyleVisibility(const nsStyleVisibility& aSource)
   MOZ_COUNT_CTOR(nsStyleVisibility);
   mDirection = aSource.mDirection;
   mVisible = aSource.mVisible;
-  mLangGroup = aSource.mLangGroup;
+  mLanguage = aSource.mLanguage;
   mPointerEvents = aSource.mPointerEvents;
 } 
 
 nsChangeHint nsStyleVisibility::CalcDifference(const nsStyleVisibility& aOther) const
 {
   if ((mDirection == aOther.mDirection) &&
-      (mLangGroup == aOther.mLangGroup)) {
+      (mLanguage == aOther.mLanguage)) {
     if ((mVisible == aOther.mVisible)) {
       return NS_STYLE_HINT_NONE;
     }
@@ -2294,26 +2316,6 @@ nsChangeHint nsStyleTextReset::MaxDifference()
 }
 #endif
 
-// --------------------
-// nsCSSShadowArray
-// nsCSSShadowItem
-//
-
-nsrefcnt
-nsCSSShadowArray::Release()
-{
-  if (mRefCnt == PR_UINT32_MAX) {
-    NS_WARNING("refcount overflow, leaking object");
-    return mRefCnt;
-  }
-  mRefCnt--;
-  if (mRefCnt == 0) {
-    delete this;
-    return 0;
-  }
-  return mRefCnt;
-}
-
 // Allowed to return one of NS_STYLE_HINT_NONE, NS_STYLE_HINT_REFLOW
 // or NS_STYLE_HINT_VISUAL. Currently we just return NONE or REFLOW, though.
 // XXXbz can this not return a more specific hint?  If that's ever
@@ -2361,12 +2363,12 @@ nsStyleText::nsStyleText(const nsStyleText& aSource)
     mTextTransform(aSource.mTextTransform),
     mWhiteSpace(aSource.mWhiteSpace),
     mWordWrap(aSource.mWordWrap),
+    mTabSize(aSource.mTabSize),
     mLetterSpacing(aSource.mLetterSpacing),
     mLineHeight(aSource.mLineHeight),
     mTextIndent(aSource.mTextIndent),
     mWordSpacing(aSource.mWordSpacing),
-    mTextShadow(aSource.mTextShadow),
-    mTabSize(aSource.mTabSize)
+    mTextShadow(aSource.mTextShadow)
 {
   MOZ_COUNT_CTOR(nsStyleText);
 }

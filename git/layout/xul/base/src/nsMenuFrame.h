@@ -56,13 +56,11 @@
 #include "nsITimer.h"
 #include "nsIDOMText.h"
 #include "nsIContent.h"
-#include "nsIScrollableViewProvider.h"
 
 nsIFrame* NS_NewMenuFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 nsIFrame* NS_NewMenuItemFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
 class nsMenuBarFrame;
-class nsIScrollableView;
 
 #define NS_STATE_ACCELTEXT_IS_DERIVED  NS_STATE_BOX_CHILD_RESERVED
 
@@ -104,8 +102,7 @@ private:
 };
 
 class nsMenuFrame : public nsBoxFrame, 
-                    public nsIMenuFrame,
-                    public nsIScrollableViewProvider
+                    public nsIMenuFrame
 {
 public:
   nsMenuFrame(nsIPresShell* aShell, nsStyleContext* aContext);
@@ -126,8 +123,6 @@ public:
   NS_IMETHOD SetDebug(nsBoxLayoutState& aState, PRBool aDebug);
 #endif
 
-  NS_IMETHOD IsActive(PRBool& aResult) { aResult = PR_TRUE; return NS_OK; }
-
   // The following methods are all overridden so that the menupopup
   // can be stored in a separate list, so that it doesn't impact reflow of the
   // actual menu item at all.
@@ -135,7 +130,7 @@ public:
   NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
                                  nsFrameList&    aChildList);
   virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
-  virtual void Destroy();
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   // Overridden to prevent events from going to children of the menu.
   NS_IMETHOD BuildDisplayListForChildren(nsDisplayListBuilder*   aBuilder,
@@ -161,6 +156,8 @@ public:
 
   NS_IMETHOD SelectMenu(PRBool aActivateFlag);
 
+  virtual nsIScrollableFrame* GetScrollTargetFrame();
+
   /**
    * NOTE: OpenMenu will open the menu asynchronously.
    */
@@ -185,10 +182,6 @@ public:
   const nsAString& GetRadioGroupName() { return mGroupName; }
   nsMenuType GetMenuType() { return mType; }
   nsMenuPopupFrame* GetPopup() { return mPopupFrame; }
-
-  // nsIScrollableViewProvider methods
-
-  virtual nsIScrollableView* GetScrollableView();
 
   // nsMenuFrame methods 
 
@@ -260,6 +253,12 @@ protected:
 
   PRBool SizeToPopup(nsBoxLayoutState& aState, nsSize& aSize);
 
+  PRBool ShouldBlink();
+  void StartBlinking(nsGUIEvent *aEvent, PRBool aFlipChecked);
+  void StopBlinking();
+  void CreateMenuCommandEvent(nsGUIEvent *aEvent, PRBool aFlipChecked);
+  void PassMenuCommandEventToPopupManager();
+
 protected:
 #ifdef DEBUG_LAYOUT
   nsresult SetDebug(nsBoxLayoutState& aState, nsIFrame* aList, PRBool aDebug);
@@ -279,6 +278,10 @@ protected:
   nsRefPtr<nsMenuTimerMediator> mTimerMediator;
 
   nsCOMPtr<nsITimer> mOpenTimer;
+  nsCOMPtr<nsITimer> mBlinkTimer;
+
+  PRUint8 mBlinkState; // 0: not blinking, 1: off, 2: on
+  nsRefPtr<nsXULMenuCommandEvent> mDelayedMenuCommandEvent;
 
   nsString mGroupName;
   

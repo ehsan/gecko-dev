@@ -42,10 +42,10 @@
 ** setting _WIN32_WINNT to NT 4.0 for winsock.h, winbase.h, winnt.h.
 */ 
 #ifndef  _WIN32_WINNT
-    #define _WIN32_WINNT 0x0400
-#elif   (_WIN32_WINNT < 0x0400)
+    #define _WIN32_WINNT 0x0403
+#elif   (_WIN32_WINNT < 0x0403)
     #undef  _WIN32_WINNT
-    #define _WIN32_WINNT 0x0400
+    #define _WIN32_WINNT 0x0403
 #endif /* _WIN32_WINNT */
 
 #include <windows.h>
@@ -66,9 +66,9 @@
 #define _PR_SI_SYSNAME        "WINNT"
 #if defined(_M_IX86) || defined(_X86_)
 #define _PR_SI_ARCHITECTURE   "x86"
-#elif defined(_AMD64_)
+#elif defined(_M_X64) || defined(_M_AMD64) || defined(_AMD64_)
 #define _PR_SI_ARCHITECTURE   "x86-64"
-#elif defined(_IA64_)
+#elif defined(_M_IA64) || defined(_IA64_)
 #define _PR_SI_ARCHITECTURE   "ia64"
 #else
 #error unknown processor architecture
@@ -466,6 +466,7 @@ extern  struct _MDLock              _pr_ioq_lock;
 #define _MD_UNBLOCK_CLOCK_INTERRUPTS()
 #define _MD_EARLY_INIT                _PR_MD_EARLY_INIT
 #define _MD_FINAL_INIT()
+#define _MD_EARLY_CLEANUP()
 #define _MD_INIT_CPUS()
 #define _MD_INIT_RUNNING_CPU(cpu)
 

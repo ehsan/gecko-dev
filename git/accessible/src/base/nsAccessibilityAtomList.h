@@ -61,6 +61,9 @@ ACCESSIBILITY_ATOM(col, "col")
 ACCESSIBILITY_ATOM(_empty, "")
 ACCESSIBILITY_ATOM(_false, "false")
 ACCESSIBILITY_ATOM(image, "image")
+ACCESSIBILITY_ATOM(menu, "menu")
+ACCESSIBILITY_ATOM(menuButton, "menu-button")
+ACCESSIBILITY_ATOM(menugenerated, "menugenerated")
 ACCESSIBILITY_ATOM(password, "password")
 ACCESSIBILITY_ATOM(reset, "reset")
 ACCESSIBILITY_ATOM(row, "row")
@@ -125,12 +128,12 @@ ACCESSIBILITY_ATOM(listhead, "listhead") // XUL
 ACCESSIBILITY_ATOM(listheader, "listheader") // XUL
 ACCESSIBILITY_ATOM(map, "map")
 ACCESSIBILITY_ATOM(math, "math")
-ACCESSIBILITY_ATOM(menu, "menu")    // XUL
 ACCESSIBILITY_ATOM(menupopup, "menupopup")     // XUL
 ACCESSIBILITY_ATOM(object, "object")
 ACCESSIBILITY_ATOM(ol, "ol")
 ACCESSIBILITY_ATOM(optgroup, "optgroup")
 ACCESSIBILITY_ATOM(option, "option")
+ACCESSIBILITY_ATOM(panel, "panel") // XUL
 ACCESSIBILITY_ATOM(q, "q")
 ACCESSIBILITY_ATOM(select, "select")
 ACCESSIBILITY_ATOM(select1, "select1") // XForms
@@ -150,6 +153,7 @@ ACCESSIBILITY_ATOM(toolbarspring, "toolbarspring")   // XUL
 ACCESSIBILITY_ATOM(toolbarspacer, "toolbarspacer")   // XUL
 ACCESSIBILITY_ATOM(tooltip, "tooltip")   // XUL
 ACCESSIBILITY_ATOM(tr, "tr")
+ACCESSIBILITY_ATOM(tree, "tree")
 ACCESSIBILITY_ATOM(ul, "ul")
 
   // Alphabetical list of attributes (DOM)
@@ -164,6 +168,7 @@ ACCESSIBILITY_ATOM(_class, "class")
 ACCESSIBILITY_ATOM(cycles, "cycles") // used for XUL cycler attribute
 ACCESSIBILITY_ATOM(curpos, "curpos") // XUL
 ACCESSIBILITY_ATOM(data, "data")
+ACCESSIBILITY_ATOM(_default, "default") // XUL button
 ACCESSIBILITY_ATOM(draggable, "draggable")
 ACCESSIBILITY_ATOM(droppable, "droppable")   // XUL combo box
 ACCESSIBILITY_ATOM(editable, "editable")
@@ -190,13 +195,16 @@ ACCESSIBILITY_ATOM(selected, "selected")
 ACCESSIBILITY_ATOM(summary, "summary")
 ACCESSIBILITY_ATOM(tabindex, "tabindex")
 ACCESSIBILITY_ATOM(title, "title")
+ACCESSIBILITY_ATOM(toolbarname, "toolbarname")
 ACCESSIBILITY_ATOM(tooltiptext, "tooltiptext")
 ACCESSIBILITY_ATOM(type, "type")
+ACCESSIBILITY_ATOM(usemap, "usemap")
 ACCESSIBILITY_ATOM(value, "value")
 
   // Alphabetical list of object attributes
 ACCESSIBILITY_ATOM(checkable, "checkable")
 ACCESSIBILITY_ATOM(display, "display")
+ACCESSIBILITY_ATOM(eventFromInput, "event-from-input")
 ACCESSIBILITY_ATOM(textAlign, "text-align")
 ACCESSIBILITY_ATOM(textIndent, "text-indent")
 
@@ -237,6 +245,7 @@ ACCESSIBILITY_ATOM(aria_level, "aria-level")
 ACCESSIBILITY_ATOM(aria_live, "aria-live")
 ACCESSIBILITY_ATOM(aria_multiline, "aria-multiline")
 ACCESSIBILITY_ATOM(aria_multiselectable, "aria-multiselectable")
+ACCESSIBILITY_ATOM(aria_orientation, "aria-orientation")
 ACCESSIBILITY_ATOM(aria_owns, "aria-owns")
 ACCESSIBILITY_ATOM(aria_posinset, "aria-posinset")
 ACCESSIBILITY_ATOM(aria_pressed, "aria-pressed")
@@ -255,6 +264,8 @@ ACCESSIBILITY_ATOM(aria_valuetext, "aria-valuetext")
 // a form property used to obtain the default label
 // of an HTML button from the button frame
 ACCESSIBILITY_ATOM(defaultLabel, "defaultLabel")
+// the attribute specifying the editor's bogus br node
+ACCESSIBILITY_ATOM(mozeditorbogusnode, "_moz_editor_bogus_node")
 
 // Object attributes
 ACCESSIBILITY_ATOM(tableCellIndex, "table-cell-index")

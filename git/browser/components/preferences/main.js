@@ -378,8 +378,7 @@ var gMainPane = {
    */
   _getDownloadsFolder: function (aFolder)
   {
-    switch(aFolder)
-    {
+    switch (aFolder) {
       case "Desktop":
         var fileLoc = Components.classes["@mozilla.org/file/directory_service;1"]
                                     .getService(Components.interfaces.nsIProperties);
@@ -440,7 +439,7 @@ var gMainPane = {
   getFolderListPref: function ()
   {
     var folderListPref = document.getElementById("browser.download.folderList");
-    switch(folderListPref.value) {
+    switch (folderListPref.value) {
       case 0: // Desktop
       case 1: // Downloads
         return folderListPref.value;
@@ -462,18 +461,6 @@ var gMainPane = {
    */
   showAddonsMgr: function ()
   {
-    const EMTYPE = "Extension:Manager";
-    var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
-                       .getService(Components.interfaces.nsIWindowMediator);
-    var theEM = wm.getMostRecentWindow(EMTYPE);
-    if (theEM) {
-      theEM.focus();
-      theEM.showView("extensions");
-      return;
-    }
-
-    const EMURL = "chrome://mozapps/content/extensions/extensions.xul";
-    const EMFEATURES = "chrome,menubar,extra-chrome,toolbar,dialog=no,resizable";
-    window.openDialog(EMURL, "", EMFEATURES, "extensions");
+    openUILinkIn("about:addons", "window");
   }
 };

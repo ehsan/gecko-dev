@@ -40,12 +40,14 @@
 #include "nsString.h"
 #include "jArray.h"
 #include "nsHtml5Portability.h"
+#include "nsContentUtils.h"
 
 nsIAtom*
-nsHtml5Portability::newLocalNameFromBuffer(PRUnichar* buf, PRInt32 offset, PRInt32 length)
+nsHtml5Portability::newLocalNameFromBuffer(PRUnichar* buf, PRInt32 offset, PRInt32 length, nsHtml5AtomTable* interner)
 {
   NS_ASSERTION(!offset, "The offset should always be zero here.");
-  return NS_NewAtom(nsDependentSubstring(buf, buf + length));
+  NS_ASSERTION(interner, "Didn't get an atom service.");
+  return interner->GetAtom(nsDependentSubstring(buf, buf + length));
 }
 
 nsString*
@@ -95,34 +97,35 @@ nsHtml5Portability::newCharArrayFromString(nsString* string)
   return arr;
 }
 
+nsIAtom*
+nsHtml5Portability::newLocalFromLocal(nsIAtom* local, nsHtml5AtomTable* interner)
+{
+  NS_PRECONDITION(local, "Atom was null.");
+  NS_PRECONDITION(interner, "Atom table was null");
+  if (!local->IsStaticAtom()) {
+    nsAutoString str;
+    local->ToString(str);
+    local = interner->GetAtom(str);
+  }
+  return local;
+}
+
 void
 nsHtml5Portability::releaseString(nsString* str)
 {
   delete str;
 }
 
+// XXX useless code
 void
 nsHtml5Portability::retainLocal(nsIAtom* local)
 {
-  NS_IF_ADDREF(local);
 }
 
+// XXX useless code
 void
 nsHtml5Portability::releaseLocal(nsIAtom* local)
 {
-  NS_IF_RELEASE(local);
-}
-
-void
-nsHtml5Portability::retainElement(nsIContent* element)
-{
-  NS_IF_ADDREF(element);
-}
-
-void
-nsHtml5Portability::releaseElement(nsIContent* element)
-{
-  NS_IF_RELEASE(element);
 }
 
 PRBool
@@ -180,12 +183,23 @@ nsHtml5Portability::literalEqualsString(const char* literal, nsString* string)
 jArray<PRUnichar,PRInt32>
 nsHtml5Portability::isIndexPrompt()
 {
-  // XXX making this localizable is bug 500631
-  const char* literal = "This is a searchable index. Insert your search keywords here: ";
-  jArray<PRUnichar,PRInt32> arr = jArray<PRUnichar,PRInt32>(62);
-  for (PRInt32 i = 0; i < 62; ++i) {
-    arr[i] = literal[i];
+  nsXPIDLString prompt;
+  nsresult rv =
+      nsContentUtils::GetLocalizedString(nsContentUtils::eFORMS_PROPERTIES,
+                                         "IsIndexPromptWithSpace", prompt);
+  PRUint32 len = prompt.Length();
+  if (NS_FAILED(rv) || !len) {
+    // jArray doesn't support dynamically-allocated zero-length arrays
+    // and this method has no way to signal an error. Let's return
+    // the REPLACEMENT CHARACTER to avoid crashing on null pointer.
+    jArray<PRUnichar,PRInt32> arr = jArray<PRUnichar,PRInt32>(1);
+    arr[0] = 0xFFFD;
+    return arr;
   }
+  jArray<PRUnichar,PRInt32> arr = jArray<PRUnichar,PRInt32>(len);
+  PRUnichar* arrAsPtr = arr;
+  const PRUnichar* strAsPtr = prompt.BeginReading();
+  memcpy(arrAsPtr, strAsPtr, len * sizeof(PRUnichar));
   return arr;
 }
 

@@ -45,6 +45,12 @@
 #include "xpcom-config.h"
 #endif
 
+/* Definitions of functions and operators that allocate memory. */
+#if !defined(XPCOM_GLUE) && !defined(NS_NO_XPCOM) && !defined(MOZ_NO_MOZALLOC)
+#  include "mozilla/mozalloc.h"
+#  include "mozilla/mozalloc_macro_wrappers.h"
+#endif
+
 /**
  * Incorporate the core NSPR data types which XPCOM uses.
  */
@@ -356,9 +362,15 @@ typedef PRUint32 nsrefcnt;
 #endif
 
 /**
- * The preferred symbol for null.
+ * The preferred symbol for null.  Make sure this is the same size as
+ * void* on the target.  See bug 547964.
  */
-#define nsnull 0
+#if defined(_WIN64)
+# define nsnull 0LL
+#else
+# define nsnull 0L
+#endif
+
 
 #include "nsError.h"
 
@@ -464,6 +476,10 @@ typedef PRUint32 nsrefcnt;
   */
 #if defined(XPCOM_GLUE) && !defined(XPCOM_GLUE_USE_NSPR)
 #define XPCOM_GLUE_AVOID_NSPR
+#endif
+
+#if defined(HAVE_THREAD_TLS_KEYWORD)
+#define NS_TLS __thread
 #endif
 
 /**

@@ -14,7 +14,7 @@
  *
  * The Original Code is Mozilla code.
  *
- * The Initial Developer of the Original Code is Mozilla Corporation
+ * The Initial Developer of the Original Code is Mozilla Foundation
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
@@ -38,6 +38,9 @@
 #include "nsDOMScrollAreaEvent.h"
 #include "nsGUIEvent.h"
 #include "nsClientRect.h"
+#include "nsDOMClassInfoID.h"
+#include "nsIClassInfo.h"
+#include "nsIXPCScriptable.h"
 
 nsDOMScrollAreaEvent::nsDOMScrollAreaEvent(nsPresContext *aPresContext,
                                            nsScrollAreaEvent *aEvent)
@@ -59,9 +62,11 @@ nsDOMScrollAreaEvent::~nsDOMScrollAreaEvent()
 NS_IMPL_ADDREF_INHERITED(nsDOMScrollAreaEvent, nsDOMUIEvent)
 NS_IMPL_RELEASE_INHERITED(nsDOMScrollAreaEvent, nsDOMUIEvent)
 
+DOMCI_DATA(ScrollAreaEvent, nsDOMScrollAreaEvent)
+
 NS_INTERFACE_MAP_BEGIN(nsDOMScrollAreaEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMScrollAreaEvent)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(ScrollAreaEvent)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(ScrollAreaEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMUIEvent)
 
 

@@ -45,7 +45,7 @@
 #include "nsContentUtils.h"
 #include "plstr.h"
 #include "nsXULPrototypeDocument.h"
-#include "nsICSSStyleSheet.h"
+#include "nsCSSStyleSheet.h"
 #include "nsIScriptRuntime.h"
 #include "nsIServiceManager.h"
 #include "nsIURI.h"
@@ -140,7 +140,8 @@ NS_NewXULPrototypeCache(nsISupports* aOuter, REFNSIID aIID, void** aResult)
 
     nsresult rv = result->QueryInterface(aIID, aResult);
 
-    nsCOMPtr<nsIObserverService> obsSvc(do_GetService("@mozilla.org/observer-service;1"));
+    nsCOMPtr<nsIObserverService> obsSvc =
+        mozilla::services::GetObserverService();
     if (obsSvc && NS_SUCCEEDED(rv)) {
         nsXULPrototypeCache *p = result;
         obsSvc->AddObserver(p, "chrome-flush-skin-caches", PR_FALSE);
@@ -242,15 +243,12 @@ nsXULPrototypeCache::PutPrototype(nsXULPrototypeDocument* aDocument)
 }
 
 nsresult
-nsXULPrototypeCache::PutStyleSheet(nsICSSStyleSheet* aStyleSheet)
+nsXULPrototypeCache::PutStyleSheet(nsCSSStyleSheet* aStyleSheet)
 {
-    nsCOMPtr<nsIURI> uri;
-    nsresult rv = aStyleSheet->GetSheetURI(getter_AddRefs(uri));
-    if (NS_FAILED(rv))
-        return rv;
+    nsIURI* uri = aStyleSheet->GetSheetURI();
 
-   NS_ENSURE_TRUE(mStyleSheetTable.Put(uri, aStyleSheet),
-                  NS_ERROR_OUT_OF_MEMORY);
+    NS_ENSURE_TRUE(mStyleSheetTable.Put(uri, aStyleSheet),
+                   NS_ERROR_OUT_OF_MEMORY);
 
     return NS_OK;
 }
@@ -344,12 +342,10 @@ FlushSkinXBL(nsIURI* aKey, nsCOMPtr<nsIXBLDocumentInfo>& aDocInfo, void* aClosur
 }
 
 static PLDHashOperator
-FlushSkinSheets(nsIURI* aKey, nsCOMPtr<nsICSSStyleSheet>& aSheet, void* aClosure)
+FlushSkinSheets(nsIURI* aKey, nsRefPtr<nsCSSStyleSheet>& aSheet, void* aClosure)
 {
-  nsCOMPtr<nsIURI> uri;
-  aSheet->GetSheetURI(getter_AddRefs(uri));
   nsCAutoString str;
-  uri->GetPath(str);
+  aSheet->GetSheetURI()->GetPath(str);
 
   PLDHashOperator ret = PL_DHASH_NEXT;
 
@@ -755,9 +751,10 @@ nsXULPrototypeCache::StartFastLoad(nsIURI* aURI)
         return NS_ERROR_OUT_OF_MEMORY;
     fastLoadService->SetFileIO(io);
 
-    nsCOMPtr<nsIXULChromeRegistry> chromeReg(do_GetService(NS_CHROMEREGISTRY_CONTRACTID, &rv));
-    if (NS_FAILED(rv))
-        return rv;
+    nsCOMPtr<nsIXULChromeRegistry> chromeReg =
+        mozilla::services::GetXULChromeRegistryService();
+    if (!chromeReg)
+        return NS_ERROR_FAILURE;
 
     // XXXbe we assume the first package's locale is the same as the locale of
     // all subsequent packages of FastLoaded chrome URIs....
@@ -778,29 +775,6 @@ nsXULPrototypeCache::StartFastLoad(nsIURI* aURI)
         rv = fastLoadService->NewInputStream(file, getter_AddRefs(objectInput));
 
         if (NS_SUCCEEDED(rv)) {
-            if (gChecksumXULFastLoadFile) {
-                nsCOMPtr<nsIFastLoadReadControl>
-                    readControl(do_QueryInterface(objectInput));
-                if (readControl) {
-                    // Verify checksum, using the fastLoadService's checksum
-                    // cache to avoid computing more than once per session.
-                    PRUint32 checksum;
-                    rv = readControl->GetChecksum(&checksum);
-                    if (NS_SUCCEEDED(rv)) {
-                        PRUint32 verified;
-                        rv = fastLoadService->ComputeChecksum(file,
-                                                               readControl,
-                                                               &verified);
-                        if (NS_SUCCEEDED(rv) && verified != checksum) {
-#ifdef DEBUG
-                            printf("bad FastLoad file checksum\n");
-#endif
-                            rv = NS_ERROR_FAILURE;
-                        }
-                    }
-                }
-            }
-
             if (NS_SUCCEEDED(rv)) {
                 // Get the XUL fastload file version number, which should be
                 // decremented whenever the XUL-specific file format changes

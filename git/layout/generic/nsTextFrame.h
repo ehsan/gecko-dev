@@ -60,10 +60,6 @@
 class nsTextPaintStyle;
 class PropertyProvider;
 
-// This bit is set while the frame is registered as a blinking frame or if
-// frame is within a non-dynamic PresContext.
-#define TEXT_BLINK_ON_OR_PRINTING  0x20000000
-
 // This state bit is set on frames that have some non-collapsed characters after
 // reflow
 #define TEXT_HAS_NONCOLLAPSED_CHARACTERS 0x80000000
@@ -88,7 +84,7 @@ public:
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
 
-  virtual void Destroy();
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
   
   NS_IMETHOD GetCursor(const nsPoint& aPoint,
                        nsIFrame::Cursor& aCursor);
@@ -180,7 +176,7 @@ public:
   NS_IMETHOD CheckVisibility(nsPresContext* aContext, PRInt32 aStartIndex, PRInt32 aEndIndex, PRBool aRecurse, PRBool *aFinished, PRBool *_retval);
   
   // Update offsets to account for new length. This may clear mTextRun.
-  void SetLength(PRInt32 aLength);
+  void SetLength(PRInt32 aLength, nsLineLayout* aLineLayout);
   
   NS_IMETHOD GetOffsets(PRInt32 &start, PRInt32 &end)const;
   
@@ -311,6 +307,8 @@ public:
                                      SelectionDetails* aDetails,
                                      SelectionType aSelectionType);
 
+  virtual nscolor GetCaretColorAt(PRInt32 aOffset);
+
   PRInt16 GetSelectionStatus(PRInt16* aSelectionFlags);
 
 #ifdef DEBUG
@@ -369,16 +367,8 @@ public:
   TrimmedOffsets GetTrimmedOffsets(const nsTextFragment* aFrag,
                                    PRBool aTrimAfter);
 
-  const nsTextFragment* GetFragment() const
-  {
-    return !(GetStateBits() & TEXT_BLINK_ON_OR_PRINTING) ?
-      mContent->GetText() : GetFragmentInternal();
-  }
-
 protected:
   virtual ~nsTextFrame();
-
-  const nsTextFragment* GetFragmentInternal() const;
 
   nsIFrame*   mNextContinuation;
   // The key invariant here is that mContentOffset never decreases along

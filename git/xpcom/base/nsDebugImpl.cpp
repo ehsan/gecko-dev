@@ -50,6 +50,10 @@
 #include "prenv.h"
 #include "pratom.h"
 
+#ifdef ANDROID
+#include <android/log.h>
+#endif
+
 #if defined(XP_BEOS)
 /* For DEBUGGER macros */
 #include <Debug.h>
@@ -72,8 +76,13 @@
 #include "nsString.h"
 #endif
 
+#include "mozilla/mozalloc_abort.h"
+
 static void
 Abort(const char *aMsg);
+
+static void
+RealBreak();
 
 static void
 Break(const char *aMsg);
@@ -304,6 +313,10 @@ NS_DebugBreak(PRUint32 aSeverity, const char *aStr, const char *aExpr,
      fprintf(stderr, "\07");
 #endif
 
+#ifdef ANDROID
+   __android_log_print(ANDROID_LOG_INFO, "Gecko", "%s", buf.buffer);
+#endif
+
    // Write the message to stderr
    fprintf(stderr, "%s\n", buf.buffer);
    fflush(stderr);
@@ -317,6 +330,9 @@ NS_DebugBreak(PRUint32 aSeverity, const char *aStr, const char *aExpr,
      return;
 
    case NS_DEBUG_ABORT:
+#if defined(DEBUG) && defined(_WIN32)
+     RealBreak();
+#endif
      nsTraceRefcntImpl::WalkTheStack(stderr);
      Abort(buf.buffer);
      return;
@@ -351,41 +367,35 @@ NS_DebugBreak(PRUint32 aSeverity, const char *aStr, const char *aExpr,
      return;
 
    case NS_ASSERT_TRAP:
+   case NS_ASSERT_UNINITIALIZED: // Default to "trap" behavior
      Break(buf.buffer);
+     return;
    }   
 }
 
 static void
 Abort(const char *aMsg)
 {
+  mozalloc_abort(aMsg);
+}
+
+static void
+RealBreak()
+{
 #if defined(_WIN32)
-
 #ifndef WINCE
-  //This should exit us
-  raise(SIGABRT);
+  ::DebugBreak();
 #endif
-  //If we are ignored exit this way..
-  _exit(3);
-#elif defined(XP_UNIX)
-  PR_Abort();
+#elif defined(XP_OS2)
+   asm("int $3");
 #elif defined(XP_BEOS)
-  {
-#ifndef DEBUG_cls
-	DEBUGGER(aMsg);
-#endif
-  }
+#elif defined(XP_MACOSX)
+   raise(SIGTRAP);
+#elif defined(__GNUC__) && (defined(__i386__) || defined(__i386) || defined(__x86_64__))
+   asm("int $3");
 #else
-  // Don't know how to abort on this platform! call Break() instead
-  Break(aMsg);
+   // don't know how to break on this platform
 #endif
-
-  // Still haven't aborted?  Try dereferencing null.
-  // (Written this way to lessen the likelihood of it being optimized away.)
-  gAssertionCount += *((PRInt32 *) 0); // TODO annotation saying we know 
-                                       // this is crazy
-
-  // Still haven't aborted?  Try _exit().
-  PR_ProcessExit(127);
 }
 
 // Abort() calls this function, don't call it!
@@ -448,8 +458,7 @@ Break(const char *aMsg)
     }
   }
 
-  ::DebugBreak();
-
+  RealBreak();
 #endif // WINCE
 #elif defined(XP_OS2)
    char msg[1200];
@@ -472,17 +481,18 @@ Break(const char *aMsg)
    if (( code == MBID_ENTER ) || (code == MBID_ERROR))
      return;
 
-   asm("int $3");
+   RealBreak();
 #elif defined(XP_BEOS)
    DEBUGGER(aMsg);
+   RealBreak();
 #elif defined(XP_MACOSX)
    /* Note that we put this Mac OS X test above the GNUC/x86 test because the
     * GNUC/x86 test is also true on Intel Mac OS X and we want the PPC/x86
     * impls to be the same.
     */
-   raise(SIGTRAP);
+   RealBreak();
 #elif defined(__GNUC__) && (defined(__i386__) || defined(__i386) || defined(__x86_64__))
-   asm("int $3");
+   RealBreak();
 #else
    // don't know how to break on this platform
 #endif
@@ -526,3 +536,12 @@ NS_ErrorAccordingToNSPR()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifdef XP_WIN
+NS_COM PRBool sXPCOMHasLoadedNewDLLs = PR_FALSE;
+
+NS_EXPORT void
+NS_SetHasLoadedNewDLLs()
+{
+  sXPCOMHasLoadedNewDLLs = PR_TRUE;
+}
+#endif

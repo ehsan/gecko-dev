@@ -40,6 +40,8 @@
 
 #include "nsHyperTextAccessibleWrap.h"
 
+#include "nsEventShell.h"
+
 NS_IMPL_ISUPPORTS_INHERITED0(nsHyperTextAccessibleWrap,
                              nsHyperTextAccessible)
 
@@ -49,10 +51,9 @@ IMPL_IUNKNOWN_INHERITED2(nsHyperTextAccessibleWrap,
                          CAccessibleEditableText);
 
 nsresult
-nsHyperTextAccessibleWrap::FireAccessibleEvent(nsIAccessibleEvent *aEvent)
+nsHyperTextAccessibleWrap::HandleAccEvent(nsAccEvent *aEvent)
 {
-  PRUint32 eventType;
-  aEvent->GetEventType(&eventType);
+  PRUint32 eventType = aEvent->GetEventType();
 
   if (eventType == nsIAccessibleEvent::EVENT_TEXT_REMOVED ||
       eventType == nsIAccessibleEvent::EVENT_TEXT_INSERTED) {
@@ -74,7 +75,7 @@ nsHyperTextAccessibleWrap::FireAccessibleEvent(nsIAccessibleEvent *aEvent)
     }
   }
 
-  return nsHyperTextAccessible::FireAccessibleEvent(aEvent);
+  return nsHyperTextAccessible::HandleAccEvent(aEvent);
 }
 
 nsresult

@@ -42,6 +42,7 @@
 #include "nsAppStartup.h"
 
 #include "nsIAppShellService.h"
+#include "nsPIDOMWindow.h"
 #include "nsIDOMWindowInternal.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsILocalFile.h"
@@ -67,7 +68,9 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsWidgetsCID.h"
 #include "nsAppShellCID.h"
-#include "nsXPFEComponentsCID.h"
+#include "mozilla/Services.h"
+
+#include "mozilla/FunctionTimer.h"
 
 static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 
@@ -98,22 +101,29 @@ nsAppStartup::nsAppStartup() :
   mRunning(PR_FALSE),
   mShuttingDown(PR_FALSE),
   mAttemptingQuit(PR_FALSE),
-  mRestart(PR_FALSE)
+  mRestart(PR_FALSE),
+  mNeedsRestart(PR_FALSE)
 { }
 
 
 nsresult
 nsAppStartup::Init()
 {
+  NS_TIME_FUNCTION;
   nsresult rv;
 
   // Create widget application shell
   mAppShell = do_GetService(kAppShellCID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIObserverService> os
-    (do_GetService("@mozilla.org/observer-service;1", &rv));
-  NS_ENSURE_SUCCESS(rv, rv);
+  NS_TIME_FUNCTION_MARK("Got AppShell service");
+
+  nsCOMPtr<nsIObserverService> os =
+    mozilla::services::GetObserverService();
+  if (!os)
+    return NS_ERROR_FAILURE;
+
+  NS_TIME_FUNCTION_MARK("Got Observer service");
 
   os->AddObserver(this, "quit-application-forced", PR_TRUE);
   os->AddObserver(this, "profile-change-teardown", PR_TRUE);
@@ -231,14 +241,32 @@ nsAppStartup::Quit(PRUint32 aMode)
 #endif
   }
 
-  mShuttingDown = PR_TRUE;
-  if (!mRestart) 
-      mRestart = (aMode & eRestart) != 0;
-
   nsCOMPtr<nsIObserverService> obsService;
   if (ferocity == eAttemptQuit || ferocity == eForceQuit) {
 
-    obsService = do_GetService("@mozilla.org/observer-service;1");
+    nsCOMPtr<nsISimpleEnumerator> windowEnumerator;
+    nsCOMPtr<nsIWindowMediator> mediator (do_GetService(NS_WINDOWMEDIATOR_CONTRACTID));
+    if (mediator) {
+      mediator->GetEnumerator(nsnull, getter_AddRefs(windowEnumerator));
+      if (windowEnumerator) {
+        PRBool more;
+        while (windowEnumerator->HasMoreElements(&more), more) {
+          nsCOMPtr<nsISupports> window;
+          windowEnumerator->GetNext(getter_AddRefs(window));
+          nsCOMPtr<nsPIDOMWindow> domWindow(do_QueryInterface(window));
+          if (domWindow) {
+            if (!domWindow->CanClose())
+              return NS_OK;
+          }
+        }
+      }
+    }
+
+    mShuttingDown = PR_TRUE;
+    if (!mRestart)
+      mRestart = (aMode & eRestart) != 0;
+
+    obsService = mozilla::services::GetObserverService();
 
     if (!mAttemptingQuit) {
       mAttemptingQuit = PR_TRUE;
@@ -256,12 +284,8 @@ nsAppStartup::Quit(PRUint32 aMode)
        opens a new window. Ugh. I know. */
     CloseAllWindows();
 
-    nsCOMPtr<nsIWindowMediator> mediator
-      (do_GetService(NS_WINDOWMEDIATOR_CONTRACTID));
     if (mediator) {
       if (ferocity == eAttemptQuit) {
-        nsCOMPtr<nsISimpleEnumerator> windowEnumerator;
-
         ferocity = eForceQuit; // assume success
 
         /* Were we able to immediately close all windows? if not, eAttemptQuit
@@ -351,10 +375,10 @@ nsAppStartup::CloseAllWindows()
     if (NS_FAILED(windowEnumerator->GetNext(getter_AddRefs(isupports))))
       break;
 
-    nsCOMPtr<nsIDOMWindowInternal> window = do_QueryInterface(isupports);
-    NS_ASSERTION(window, "not an nsIDOMWindowInternal");
+    nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(isupports);
+    NS_ASSERTION(window, "not an nsPIDOMWindow");
     if (window)
-      window->Close();
+      window->ForceClose();
   }
 }
 
@@ -386,6 +410,23 @@ NS_IMETHODIMP
 nsAppStartup::GetShuttingDown(PRBool *aResult)
 {
   *aResult = mShuttingDown;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsAppStartup::GetNeedsRestart(PRBool *aResult)
+{
+  *aResult = mNeedsRestart;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsAppStartup::SetNeedsRestart(PRBool aNeedsRestart)
+{
+  if (mRunning)
+    return NS_ERROR_UNEXPECTED;
+
+  mNeedsRestart = aNeedsRestart;
   return NS_OK;
 }
 

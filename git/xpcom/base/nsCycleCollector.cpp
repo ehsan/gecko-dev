@@ -138,12 +138,14 @@
 #include "prtime.h"
 #include "nsPrintfCString.h"
 #include "nsTArray.h"
+#include "mozilla/FunctionTimer.h"
 #include "nsIObserverService.h"
 #include "nsIConsoleService.h"
 #include "nsServiceManagerUtils.h"
 #include "nsThreadUtils.h"
 #include "nsTPtrArray.h"
 #include "nsTArray.h"
+#include "mozilla/Services.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -166,6 +168,15 @@
 #else
 #define SHUTDOWN_COLLECTIONS(params) DEFAULT_SHUTDOWN_COLLECTIONS
 #endif
+
+#define CC_RUNTIME_ABORT_IF_FALSE(_expr, _msg)                                \
+  PR_BEGIN_MACRO                                                              \
+    if (!(_expr)) {                                                           \
+      NS_ERROR(_msg);                                                         \
+      int *foo = (int*)nsnull;                                                \
+      *foo = 42;                                                              \
+    }                                                                         \
+  PR_END_MACRO
 
 // Various parameters of this collector can be tuned using environment
 // variables.
@@ -376,6 +387,7 @@ public:
             { return mPointer != aOther.mPointer; }
 
     private:
+        friend class EdgePool;
         PtrInfoOrBlock *mPointer;
     };
 
@@ -413,6 +425,7 @@ public:
         Block **mNextBlockPtr;
     };
 
+    void CheckIterator(Iterator &aIterator);
 };
 
 #ifdef DEBUG_CC
@@ -620,6 +633,8 @@ public:
         PtrInfo *mNext, *mBlockEnd, *&mLast;
     };
 
+    void CheckPtrInfo(PtrInfo *aPtrInfo);
+
 private:
     Block *mBlocks;
     PtrInfo *mLast;
@@ -749,10 +764,12 @@ public:
             if (!(PRUword(e->mObject) & PRUword(1))) {
                 // This is a real entry (rather than something on the
                 // free list).
-                nsXPCOMCycleCollectionParticipant *cp;
-                ToParticipant(e->mObject, &cp);
+                if (e->mObject) {
+                    nsXPCOMCycleCollectionParticipant *cp;
+                    ToParticipant(e->mObject, &cp);
 
-                cp->UnmarkPurple(e->mObject);
+                    cp->UnmarkPurple(e->mObject);
+                }
 
                 if (--mCount == 0)
                     break;
@@ -893,7 +910,7 @@ nsPurpleBuffer::SelectPointers(GCGraphBuilder &aBuilder)
             if (!(PRUword(e->mObject) & PRUword(1))) {
                 // This is a real entry (rather than something on the
                 // free list).
-                if (AddPurpleRoot(aBuilder, e->mObject)) {
+                if (!e->mObject || AddPurpleRoot(aBuilder, e->mObject)) {
 #ifdef DEBUG_CC
                     mNormalObjects.RemoveEntry(e->mObject);
 #endif
@@ -1019,18 +1036,36 @@ struct nsCycleCollector
 };
 
 
+struct DoWalkDebugInfo
+{
+    PtrInfo *mCurrentPI;
+    EdgePool::Iterator mFirstChild;
+    EdgePool::Iterator mLastChild;
+    EdgePool::Iterator mCurrentChild;
+};
+
+/**
+ * GraphWalker is templatized over a Visitor class that must provide
+ * the following two methods:
+ *
+ * PRBool ShouldVisitNode(PtrInfo const *pi);
+ * void VisitNode(PtrInfo *pi);
+ */
+template <class Visitor>
 class GraphWalker
 {
 private:
+    Visitor mVisitor;
+    DoWalkDebugInfo *mDebugInfo;
+
     void DoWalk(nsDeque &aQueue);
 
 public:
     void Walk(PtrInfo *s0);
     void WalkFromRoots(GCGraph &aGraph);
-
-    // Provided by concrete walker subtypes.
-    virtual PRBool ShouldVisitNode(PtrInfo const *pi) = 0;
-    virtual void VisitNode(PtrInfo *pi) = 0;
+    // copy-constructing the visitor should be cheap, and less
+    // indirection than using a reference
+    GraphWalker(const Visitor aVisitor) : mVisitor(aVisitor) {}
 };
 
 
@@ -1122,7 +1157,7 @@ Fault(const char *msg, const void *ptr=nsnull)
     // Report to observers off an event so we don't run JS under GC
     // (which is where we might be right now).
     nsCOMPtr<nsIRunnable> ev = new CCRunnableFaultReport(str);
-    NS_DispatchToCurrentThread(ev);
+    NS_DispatchToMainThread(ev);
 }
 
 #ifdef DEBUG_CC
@@ -1156,7 +1191,15 @@ Fault(const char *msg, PtrInfo *pi)
 }
 #endif
 
-
+static inline void
+AbortIfOffMainThreadIfCheckFast()
+{
+#if defined(XP_WIN) || defined(NS_TLS)
+    if (!NS_IsMainThread()) {
+        NS_RUNTIMEABORT("Main-thread-only object used off the main thread");
+    }
+#endif
+}
 
 static nsISupports *
 canonicalize(nsISupports *in)
@@ -1192,16 +1235,18 @@ nsCycleCollectionXPCOMRuntime::ToParticipant(void *p)
 }
 
 
+template <class Visitor>
 void
-GraphWalker::Walk(PtrInfo *s0)
+GraphWalker<Visitor>::Walk(PtrInfo *s0)
 {
     nsDeque queue;
     queue.Push(s0);
     DoWalk(queue);
 }
 
+template <class Visitor>
 void
-GraphWalker::WalkFromRoots(GCGraph& aGraph)
+GraphWalker<Visitor>::WalkFromRoots(GCGraph& aGraph)
 {
     nsDeque queue;
     NodePool::Enumerator etor(aGraph.mNodes);
@@ -1212,18 +1257,71 @@ GraphWalker::WalkFromRoots(GCGraph& aGraph)
 }
 
 void
-GraphWalker::DoWalk(nsDeque &aQueue)
+EdgePool::CheckIterator(Iterator &aIterator)
+{
+    PtrInfoOrBlock *iteratorPos = aIterator.mPointer;
+    CC_RUNTIME_ABORT_IF_FALSE(iteratorPos, "Iterator's pos is null.");
+
+    PtrInfoOrBlock *start = &mSentinelAndBlocks[0];
+    size_t sentinelOffset = 0;
+    PtrInfoOrBlock *end;
+    Block *nextBlockPtr;
+    do {
+        end = start + sentinelOffset;
+        nextBlockPtr = (end + 1)->block;
+        // We must be in a block of edges or on a sentinel.
+        if (iteratorPos >= start && iteratorPos <= end)
+            break;
+        sentinelOffset = Block::BlockSize - 2;
+    } while ((start = nextBlockPtr ? nextBlockPtr->Start() : nsnull));
+    CC_RUNTIME_ABORT_IF_FALSE(start, "Iterator doesn't point into EdgePool.");
+
+    // If the ptrInfo is null we need to be on the sentinel.
+    CC_RUNTIME_ABORT_IF_FALSE(iteratorPos->ptrInfo || iteratorPos == end,
+                              "iteratorPos points to null, but it's not a "
+                              "sentinel!");
+}
+
+void
+NodePool::CheckPtrInfo(PtrInfo *aPtrInfo)
+{
+    // Find out if pi is null.
+    CC_RUNTIME_ABORT_IF_FALSE(aPtrInfo, "Pointer is null.");
+
+    // Find out if pi is a dangling pointer.
+    Block *block = mBlocks;
+    do {
+        if(aPtrInfo >= &block->mEntries[0] &&
+           aPtrInfo <= &block->mEntries[BlockSize - 1])
+           break;
+    } while ((block = block->mNext));
+    CC_RUNTIME_ABORT_IF_FALSE(block, "Pointer is outside blocks.");
+}
+
+template <class Visitor>
+void
+GraphWalker<Visitor>::DoWalk(nsDeque &aQueue)
 {
     // Use a aQueue to match the breadth-first traversal used when we
     // built the graph, for hopefully-better locality.
+    DoWalkDebugInfo debugInfo;
+    mDebugInfo = &debugInfo;
+
     while (aQueue.GetSize() > 0) {
         PtrInfo *pi = static_cast<PtrInfo*>(aQueue.PopFront());
 
-        if (this->ShouldVisitNode(pi)) {
-            this->VisitNode(pi);
+        sCollector->mGraph.mNodes.CheckPtrInfo(pi);
+
+        debugInfo.mCurrentPI = pi;
+        if (mVisitor.ShouldVisitNode(pi)) {
+            mVisitor.VisitNode(pi);
+            debugInfo.mFirstChild = pi->mFirstChild;
+            debugInfo.mLastChild = pi->mLastChild;
+            debugInfo.mCurrentChild = pi->mFirstChild;
             for (EdgePool::Iterator child = pi->mFirstChild,
                                 child_end = pi->mLastChild;
-                 child != child_end; ++child) {
+                 child != child_end; ++child, debugInfo.mCurrentChild = child) {
+                sCollector->mGraph.mEdges.CheckIterator(child);
                 aQueue.Push(*child);
             }
         }
@@ -1281,6 +1379,7 @@ public:
     GCGraphBuilder(GCGraph &aGraph,
                    nsCycleCollectionLanguageRuntime **aRuntimes);
     ~GCGraphBuilder();
+    bool Initialized();
 
     PRUint32 Count() const { return mPtrToNodeMap.entryCount; }
 
@@ -1332,6 +1431,12 @@ GCGraphBuilder::~GCGraphBuilder()
 {
     if (mPtrToNodeMap.ops)
         PL_DHashTableFinish(&mPtrToNodeMap);
+}
+
+bool
+GCGraphBuilder::Initialized()
+{
+    return !!mPtrToNodeMap.ops;
 }
 
 PtrInfo*
@@ -1575,7 +1680,7 @@ nsPurpleBuffer::NoteAll(GCGraphBuilder &builder)
         for (nsPurpleBufferEntry *e = b->mEntries,
                               *eEnd = e + NS_ARRAY_LENGTH(b->mEntries);
             e != eEnd; ++e) {
-            if (!(PRUword(e->mObject) & PRUword(1))) {
+            if (!(PRUword(e->mObject) & PRUword(1)) && e->mObject) {
                 builder.NoteXPCOMRoot(e->mObject);
             }
         }
@@ -1608,9 +1713,10 @@ nsCycleCollector::MarkRoots(GCGraphBuilder &builder)
 ////////////////////////////////////////////////////////////////////////
 
 
-struct ScanBlackWalker : public GraphWalker
+struct ScanBlackVisitor
 {
-    ScanBlackWalker(PRUint32 &aWhiteNodeCount) : mWhiteNodeCount(aWhiteNodeCount)
+    ScanBlackVisitor(PRUint32 &aWhiteNodeCount)
+        : mWhiteNodeCount(aWhiteNodeCount)
     {
     }
 
@@ -1633,9 +1739,9 @@ struct ScanBlackWalker : public GraphWalker
 };
 
 
-struct scanWalker : public GraphWalker
+struct scanVisitor
 {
-    scanWalker(PRUint32 &aWhiteNodeCount) : mWhiteNodeCount(aWhiteNodeCount)
+    scanVisitor(PRUint32 &aWhiteNodeCount) : mWhiteNodeCount(aWhiteNodeCount)
     {
     }
 
@@ -1656,9 +1762,9 @@ struct scanWalker : public GraphWalker
             sCollector->mStats.mSetColorWhite++;
 #endif
         } else {
-            ScanBlackWalker(mWhiteNodeCount).Walk(pi);
+            GraphWalker<ScanBlackVisitor>(ScanBlackVisitor(mWhiteNodeCount)).Walk(pi);
             NS_ASSERTION(pi->mColor == black,
-                         "Why didn't ScanBlackWalker make pi black?");
+                         "Why didn't ScanBlackVisitor make pi black?");
         }
     }
 
@@ -1673,7 +1779,7 @@ nsCycleCollector::ScanRoots()
     // On the assumption that most nodes will be black, it's
     // probably faster to use a GraphWalker than a
     // NodePool::Enumerator.
-    scanWalker(mWhiteNodeCount).WalkFromRoots(mGraph); 
+    GraphWalker<scanVisitor>(scanVisitor(mWhiteNodeCount)).WalkFromRoots(mGraph); 
 
 #ifdef DEBUG_CC
     // Sanity check: scan should have colored all grey nodes black or
@@ -2205,6 +2311,8 @@ nsCycleCollector_isScanSafe(nsISupports *s)
 PRBool
 nsCycleCollector::Suspect(nsISupports *n)
 {
+    AbortIfOffMainThreadIfCheckFast();
+
     // Re-entering ::Suspect during collection used to be a fault, but
     // we are canonicalizing nsISupports pointers using QI, so we will
     // see some spurious refcount traffic here. 
@@ -2214,7 +2322,6 @@ nsCycleCollector::Suspect(nsISupports *n)
 
     NS_ASSERTION(nsCycleCollector_isScanSafe(n),
                  "suspected a non-scansafe pointer");
-    NS_ASSERTION(NS_IsMainThread(), "trying to suspect from non-main thread");
 
     if (mParams.mDoNothing)
         return PR_FALSE;
@@ -2244,6 +2351,8 @@ nsCycleCollector::Suspect(nsISupports *n)
 PRBool
 nsCycleCollector::Forget(nsISupports *n)
 {
+    AbortIfOffMainThreadIfCheckFast();
+
     // Re-entering ::Forget during collection used to be a fault, but
     // we are canonicalizing nsISupports pointers using QI, so we will
     // see some spurious refcount traffic here. 
@@ -2251,8 +2360,6 @@ nsCycleCollector::Forget(nsISupports *n)
     if (mScanInProgress)
         return PR_FALSE;
 
-    NS_ASSERTION(NS_IsMainThread(), "trying to forget from non-main thread");
-    
     if (mParams.mDoNothing)
         return PR_TRUE; // it's as good as forgotten
 
@@ -2278,6 +2385,8 @@ nsCycleCollector::Forget(nsISupports *n)
 nsPurpleBufferEntry*
 nsCycleCollector::Suspect2(nsISupports *n)
 {
+    AbortIfOffMainThreadIfCheckFast();
+
     // Re-entering ::Suspect during collection used to be a fault, but
     // we are canonicalizing nsISupports pointers using QI, so we will
     // see some spurious refcount traffic here. 
@@ -2287,7 +2396,6 @@ nsCycleCollector::Suspect2(nsISupports *n)
 
     NS_ASSERTION(nsCycleCollector_isScanSafe(n),
                  "suspected a non-scansafe pointer");
-    NS_ASSERTION(NS_IsMainThread(), "trying to suspect from non-main thread");
 
     if (mParams.mDoNothing)
         return nsnull;
@@ -2318,6 +2426,8 @@ nsCycleCollector::Suspect2(nsISupports *n)
 PRBool
 nsCycleCollector::Forget2(nsPurpleBufferEntry *e)
 {
+    AbortIfOffMainThreadIfCheckFast();
+
     // Re-entering ::Forget during collection used to be a fault, but
     // we are canonicalizing nsISupports pointers using QI, so we will
     // see some spurious refcount traffic here. 
@@ -2325,8 +2435,6 @@ nsCycleCollector::Forget2(nsPurpleBufferEntry *e)
     if (mScanInProgress)
         return PR_FALSE;
 
-    NS_ASSERTION(NS_IsMainThread(), "trying to forget from non-main thread");
-    
 #ifdef DEBUG_CC
     mStats.mForgetNode++;
 
@@ -2388,6 +2496,8 @@ nsCycleCollector::Collect(PRUint32 aTryCollections)
     if (mCollectionInProgress)
         return 0;
 
+    NS_TIME_FUNCTION;
+
 #ifdef COLLECT_TIME_DEBUG
     printf("cc: Starting nsCycleCollector::Collect(%d)\n", aTryCollections);
     PRTime start = PR_Now();
@@ -2396,10 +2506,9 @@ nsCycleCollector::Collect(PRUint32 aTryCollections)
     mCollectionInProgress = PR_TRUE;
 
     nsCOMPtr<nsIObserverService> obs =
-      do_GetService("@mozilla.org/observer-service;1");
-    if (obs) {
+        mozilla::services::GetObserverService();
+    if (obs)
         obs->NotifyObservers(nsnull, "cycle-collector-begin", nsnull);
-    }
 
     mFollowupCollection = PR_FALSE;
     mCollectedObjects = 0;
@@ -2474,6 +2583,8 @@ nsCycleCollector::BeginCollection()
         return PR_FALSE;
 
     GCGraphBuilder builder(mGraph, mRuntimes);
+    if (!builder.Initialized())
+        return PR_FALSE;
 
 #ifdef COLLECT_TIME_DEBUG
     PRTime now = PR_Now();
@@ -2665,16 +2776,16 @@ AddExpectedGarbage(nsVoidPtrHashKey *p, void *arg)
     return PL_DHASH_NEXT;
 }
 
-struct SetSCCWalker : public GraphWalker
+struct SetSCCVisitor
 {
-    SetSCCWalker(PRUint32 aIndex) : mIndex(aIndex) {}
+    SetSCCVisitor(PRUint32 aIndex) : mIndex(aIndex) {}
     PRBool ShouldVisitNode(PtrInfo const *pi) { return pi->mSCCIndex == 0; }
     void VisitNode(PtrInfo *pi) { pi->mSCCIndex = mIndex; }
 private:
     PRUint32 mIndex;
 };
 
-struct SetNonRootGreyWalker : public GraphWalker
+struct SetNonRootGreyVisitor
 {
     PRBool ShouldVisitNode(PtrInfo const *pi) { return pi->mColor == white; }
     void VisitNode(PtrInfo *pi) { pi->mColor = grey; }
@@ -2910,7 +3021,7 @@ nsCycleCollector::ExplainLiveExpectedGarbage()
                     PRUint32 currentSCC = 1;
 
                     while (DFSPostOrder.GetSize() > 0) {
-                        SetSCCWalker(currentSCC).Walk((PtrInfo*)DFSPostOrder.PopFront());
+                        GraphWalker<SetSCCVisitor>(SetSCCVisitor(currentSCC)).Walk((PtrInfo*)DFSPostOrder.PopFront());
                         ++currentSCC;
                     }
                 }
@@ -2927,7 +3038,7 @@ nsCycleCollector::ExplainLiveExpectedGarbage()
                                             child_end = pi->mLastChild;
                              child != child_end; ++child) {
                             if ((*child)->mSCCIndex != pi->mSCCIndex) {
-                                SetNonRootGreyWalker().Walk(*child);
+                                GraphWalker<SetNonRootGreyVisitor>(SetNonRootGreyVisitor()).Walk(*child);
                             }
                         }
                     }

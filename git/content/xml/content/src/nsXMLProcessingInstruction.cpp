@@ -89,6 +89,8 @@ nsXMLProcessingInstruction::~nsXMLProcessingInstruction()
 }
 
 
+DOMCI_DATA(ProcessingInstruction, nsXMLProcessingInstruction)
+
 // QueryInterface implementation for nsXMLProcessingInstruction
 NS_INTERFACE_TABLE_HEAD(nsXMLProcessingInstruction)
   NS_NODE_OFFSET_AND_INTERFACE_TABLE_BEGIN(nsXMLProcessingInstruction)
@@ -97,7 +99,7 @@ NS_INTERFACE_TABLE_HEAD(nsXMLProcessingInstruction)
                              nsIDOMProcessingInstruction)
   NS_OFFSET_AND_INTERFACE_TABLE_END
   NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(ProcessingInstruction)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(ProcessingInstruction)
 NS_INTERFACE_MAP_END_INHERITING(nsGenericDOMDataNode)
 
 
@@ -138,13 +140,6 @@ PRBool
 nsXMLProcessingInstruction::IsNodeOfType(PRUint32 aFlags) const
 {
   return !(aFlags & ~(eCONTENT | ePROCESSING_INSTRUCTION | eDATA_NODE));
-}
-
-// virtual
-PRBool
-nsXMLProcessingInstruction::MayHaveFrame() const
-{
-  return PR_FALSE;
 }
 
 NS_IMETHODIMP

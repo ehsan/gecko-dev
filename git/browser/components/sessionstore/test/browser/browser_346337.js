@@ -51,7 +51,8 @@ function test() {
     "//textarea[1]":              "",
     "//textarea[2]":              "Some text... " + Math.random(),
     "//textarea[3]":              "Some more text\n" + new Date(),
-    "//input[@type='file']":      "/dev/null"
+    "//input[@type='file'][1]":   ["/dev/null"],
+    "//input[@type='file'][2]":   ["/dev/null", "/dev/stdin"]
   };
   
   function getElementByXPath(aTab, aQuery) {
@@ -68,6 +69,8 @@ function test() {
       node.checked = aValue;
     else if (typeof aValue == "number")
       node.selectedIndex = aValue;
+    else if (node instanceof Ci.nsIDOMHTMLInputElement && node.type == "file")
+      node.mozSetFileNameArray(aValue, aValue.length);
     else
       Array.forEach(node.options, function(aOpt, aIx)
                                     (aOpt.selected = aValue.indexOf(aIx) > -1));
@@ -77,9 +80,15 @@ function test() {
     let node = getElementByXPath(aTab, aQuery);
     if (!node)
       return false;
-    if (node instanceof Ci.nsIDOMHTMLInputElement)
+    if (node instanceof Ci.nsIDOMHTMLInputElement) {
+      if (node.type == "file") {
+        let fileNames = node.mozGetFileNameArray();
+        return fileNames.length == aValue.length &&
+               Array.every(fileNames, function(aFile) aValue.indexOf(aFile) >= 0);
+      }
       return aValue == (node.type == "checkbox" || node.type == "radio" ?
                         node.checked : node.value);
+    }
     if (node instanceof Ci.nsIDOMHTMLTextAreaElement)
       return aValue == node.value;
     if (!node.multiple)
@@ -122,10 +131,11 @@ function test() {
             ok(!compareFormValue(tab, xpath, fieldList[xpath]),
                "The value for \"" + xpath + "\" was correctly discarded");
         
-        gPrefService.clearUserPref("browser.sessionstore.privacy_level");
+        if (gPrefService.prefHasUserValue("browser.sessionstore.privacy_level"))
+          gPrefService.clearUserPref("browser.sessionstore.privacy_level");
         // undoCloseTab can reuse a single blank tab, so we have to
         // make sure not to close the window when closing our last tab
-        if (tabbrowser.tabContainer.childNodes.length == 1)
+        if (tabbrowser.tabs.length == 1)
           tabbrowser.addTab();
         tabbrowser.removeTab(tab);
         finish();

@@ -40,8 +40,8 @@
 #include "nsIDOMSVGStopElement.h"
 #include "nsSVGAnimatedNumberList.h"
 #include "nsSVGNumber2.h"
+#include "nsSVGUtils.h"
 #include "nsGenericHTMLElement.h"
-#include "prdtoa.h"
 
 typedef nsSVGStylableElement nsSVGStopElementBase;
 
@@ -90,10 +90,12 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(Stop)
 NS_IMPL_ADDREF_INHERITED(nsSVGStopElement,nsSVGStopElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGStopElement,nsSVGStopElementBase)
 
+DOMCI_DATA(SVGStopElement, nsSVGStopElement)
+
 NS_INTERFACE_TABLE_HEAD(nsSVGStopElement)
   NS_NODE_INTERFACE_TABLE4(nsSVGStopElement, nsIDOMNode, nsIDOMElement,
                            nsIDOMSVGElement, nsIDOMSVGStopElement)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGStopElement)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGStopElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGStopElementBase)
 
 //----------------------------------------------------------------------
@@ -136,21 +138,12 @@ nsSVGStopElement::ParseAttribute(PRInt32 aNamespaceID,
 {
   if (aNamespaceID == kNameSpaceID_None) {
     if (aAttribute == nsGkAtoms::offset) {
-      NS_ConvertUTF16toUTF8 value(aValue);
-      const char *str = value.get();
-
-      char *rest;
-      float offset = float(PR_strtod(str, &rest));
-      if (str != rest && NS_FloatIsFinite(offset)) {
-        if (*rest == '%') {
-          offset /= 100;
-          ++rest;
-        }
-        if (*rest == '\0') {
-          mOffset.SetBaseValue(offset, this, PR_FALSE);
-          aResult.SetTo(aValue);
-          return PR_TRUE;
-        }
+      float offset = 0;
+      PRBool ok = nsSVGUtils::NumberFromString(aValue, &offset, PR_TRUE);
+      if (ok) {
+        mOffset.SetBaseValue(offset, this, PR_FALSE);
+        aResult.SetTo(aValue);
+        return PR_TRUE;
       }
     }
   }

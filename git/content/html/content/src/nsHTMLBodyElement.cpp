@@ -47,8 +47,6 @@
 #include "nsIDocument.h"
 #include "nsIHTMLDocument.h"
 #include "nsHTMLStyleSheet.h"
-#include "nsIHTMLCSSStyleSheet.h"
-#include "nsICSSStyleRule.h"
 #include "nsIContentViewer.h"
 #include "nsIMarkupDocumentViewer.h"
 #include "nsMappedAttributes.h"
@@ -297,6 +295,8 @@ nsHTMLBodyElement::~nsHTMLBodyElement()
 
 NS_IMPL_ADDREF_INHERITED(nsHTMLBodyElement, nsGenericElement) 
 NS_IMPL_RELEASE_INHERITED(nsHTMLBodyElement, nsGenericElement) 
+
+DOMCI_DATA(HTMLBodyElement, nsHTMLBodyElement)
 
 // QueryInterface implementation for nsHTMLBodyElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLBodyElement)

@@ -49,10 +49,13 @@ function run_test() {
   testFile.remove(false);
   do_check_false(testFile.exists());
 
-  startAUS();
+  standardInit();
 
-  // Check if the update dir can be written to
-  dump("Testing: nsIApplicationUpdateService:canUpdate\n");
-  do_check_true(gAUS.canUpdate);
+  // Check if available updates can be checked for
+  dump("Testing: nsIApplicationUpdateService:canCheckForUpdates\n");
+  do_check_true(gAUS.canCheckForUpdates);
+  // Check if updates can be applied
+  dump("Testing: nsIApplicationUpdateService:canApplyUpdates\n");
+  do_check_true(gAUS.canApplyUpdates);
   cleanUp();
 }

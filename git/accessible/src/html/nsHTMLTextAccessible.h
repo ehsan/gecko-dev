@@ -50,7 +50,10 @@ class nsHTMLTextAccessible : public nsTextAccessibleWrap
 {
 public:
   nsHTMLTextAccessible(nsIDOMNode* aDomNode, nsIWeakReference* aShell);
-  
+
+  // nsISupports
+  NS_DECL_ISUPPORTS_INHERITED
+
   // nsIAccessible
   NS_IMETHOD GetName(nsAString& aName);
 
@@ -80,22 +83,16 @@ public:
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
-class nsHTMLLabelAccessible : public nsTextAccessible 
+class nsHTMLLabelAccessible : public nsHyperTextAccessibleWrap
 {
 public:
   nsHTMLLabelAccessible(nsIDOMNode* aDomNode, nsIWeakReference* aShell);
 
   NS_DECL_ISUPPORTS_INHERITED
 
-  // nsIAccessible
-  NS_IMETHOD GetFirstChild(nsIAccessible **aFirstChild);
-  NS_IMETHOD GetLastChild(nsIAccessible **aLastChild);
-  NS_IMETHOD GetChildCount(PRInt32 *aAccChildCount);
-
   // nsAccessible
   virtual nsresult GetNameInternal(nsAString& aName);
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
-  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
 class nsHTMLListBulletAccessible : public nsLeafAccessible
@@ -109,7 +106,6 @@ public:
 
   // nsIAccessible
   NS_IMETHOD GetName(nsAString& aName);
-  NS_IMETHOD GetParent(nsIAccessible **aParent);
 
   // nsAccessNode
   virtual nsresult Shutdown();
@@ -119,6 +115,8 @@ public:
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
   virtual nsresult AppendTextTo(nsAString& aText, PRUint32 aStartOffset,
                                 PRUint32 aLength);
+
+  virtual nsAccessible* GetParent();
 
 protected:
   // XXX: Ideally we'd get the bullet text directly from the bullet frame via
@@ -136,16 +134,22 @@ public:
   nsHTMLListAccessible(nsIDOMNode *aDOMNode, nsIWeakReference* aShell):
     nsHyperTextAccessibleWrap(aDOMNode, aShell) { }
 
+  // nsISupports
+  NS_DECL_ISUPPORTS_INHERITED
+
   // nsAccessible
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
-class nsHTMLLIAccessible : public nsLinkableAccessible
+class nsHTMLLIAccessible : public nsHyperTextAccessibleWrap
 {
 public:
   nsHTMLLIAccessible(nsIDOMNode *aDOMNode, nsIWeakReference* aShell, 
                      const nsAString& aBulletText);
+
+  // nsISupports
+  NS_DECL_ISUPPORTS_INHERITED
 
   // nsIAccessible
   NS_IMETHOD GetBounds(PRInt32 *x, PRInt32 *y, PRInt32 *width, PRInt32 *height);
@@ -158,8 +162,10 @@ public:
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
 protected:
-  void CacheChildren();  // Include bullet accessible
+  // nsAccessible
+  virtual void CacheChildren();
 
+private:
   nsRefPtr<nsHTMLListBulletAccessible> mBulletAccessible;
 };
 

@@ -74,12 +74,15 @@ CPPSRCS		= \
 		nsEventDispatcher.cpp \
 		nsIMEStateManager.cpp \
 		nsContentEventHandler.cpp \
+		nsEventListenerService.cpp \
 		nsDOMProgressEvent.cpp \
 		nsDOMDataTransfer.cpp \
 		nsDOMNotifyPaintEvent.cpp \
 		nsDOMSimpleGestureEvent.cpp \
 		nsDOMEventTargetHelper.cpp \
 		nsDOMScrollAreaEvent.cpp \
+		nsDOMTransitionEvent.cpp \
+		nsDOMPopStateEvent.cpp \
 		$(NULL)
 
 # we don't want the shared lib, but we want to force the creation of a static lib.
@@ -99,3 +102,9 @@ LOCAL_INCLUDES	= \
              $(NULL)
 
 DEFINES += -D_IMPL_NS_LAYOUT
+
+ifdef MOZ_JSDEBUGGER
+DEFINES += -DMOZ_JSDEBUGGER
+endif
+
+

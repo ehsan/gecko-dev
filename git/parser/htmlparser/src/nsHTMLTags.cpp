@@ -199,6 +199,8 @@ static const PRUnichar sHTMLTagUnicodeName_optgroup[] =
   {'o', 'p', 't', 'g', 'r', 'o', 'u', 'p', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_option[] =
   {'o', 'p', 't', 'i', 'o', 'n', '\0'};
+static const PRUnichar sHTMLTagUnicodeName_output[] =
+  {'o', 'u', 't', 'p', 'u', 't', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_p[] =
   {'p', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_param[] =
@@ -316,12 +318,19 @@ HTMLTagsHashCodeAtom(const void *key)
 
 #define NS_HTMLTAG_NAME_MAX_LENGTH 10
 
+#define HTML_TAG(_tag, _classname) NS_STATIC_ATOM_BUFFER(Atombuffer_##_tag, #_tag)
+#define HTML_OTHER(_tag)
+#include "nsHTMLTagList.h"
+#undef HTML_TAG
+#undef HTML_OTHER
+
+
 // static
 nsresult
 nsHTMLTags::AddRefTable(void)
 {
   // static array of tag StaticAtom structs
-#define HTML_TAG(_tag, _classname) { #_tag, &nsHTMLTags::sTagAtomTable[eHTMLTag_##_tag - 1] },
+#define HTML_TAG(_tag, _classname) NS_STATIC_ATOM(Atombuffer_##_tag, &nsHTMLTags::sTagAtomTable[eHTMLTag_##_tag - 1]),
 #define HTML_OTHER(_tag)
   static const nsStaticAtom sTagAtoms_info[] = {
 #include "nsHTMLTagList.h"
@@ -361,12 +370,12 @@ nsHTMLTags::AddRefTable(void)
 
 
 
-#ifdef DEBUG
+#if defined(DEBUG) && defined(NS_STATIC_ATOM_USE_WIDE_STRINGS)
     {
       // let's verify that all names in the the table are lowercase...
       for (i = 0; i < NS_HTML_TAG_MAX; ++i) {
-        nsCAutoString temp1(sTagAtoms_info[i].mString);
-        nsCAutoString temp2(sTagAtoms_info[i].mString);
+        nsAutoString temp1((PRUnichar*)sTagAtoms_info[i].mStringBuffer->Data());
+        nsAutoString temp2((PRUnichar*)sTagAtoms_info[i].mStringBuffer->Data());
         ToLowerCase(temp1);
         NS_ASSERTION(temp1.Equals(temp2), "upper case char in table");
       }
@@ -375,7 +384,7 @@ nsHTMLTags::AddRefTable(void)
       // correct.
       for (i = 0; i < NS_HTML_TAG_MAX; ++i) {
         nsAutoString temp1(sTagUnicodeTable[i]);
-        nsAutoString temp2; temp2.AssignWithConversion(sTagAtoms_info[i].mString);
+        nsAutoString temp2((PRUnichar*)sTagAtoms_info[i].mStringBuffer->Data());
         NS_ASSERTION(temp1.Equals(temp2), "Bad unicode tag name!");
       }
 
@@ -383,7 +392,7 @@ nsHTMLTags::AddRefTable(void)
       PRUint32 maxTagNameLength = 0;
       for (i = 0; i < NS_HTML_TAG_MAX; ++i) {
         PRUint32 len = nsCRT::strlen(sTagUnicodeTable[i]);
-        maxTagNameLength = PR_MAX(len, maxTagNameLength);        
+        maxTagNameLength = NS_MAX(len, maxTagNameLength);        
       }
       NS_ASSERTION(maxTagNameLength == NS_HTMLTAG_NAME_MAX_LENGTH,
                    "NS_HTMLTAG_NAME_MAX_LENGTH not set correctly!");

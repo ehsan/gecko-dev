@@ -40,17 +40,30 @@
 #define GFX_PLATFORM_QT_H
 
 #include "gfxPlatform.h"
+#include "nsAutoRef.h"
 #include "nsDataHashtable.h"
 #include "nsTArray.h"
 
+class gfxFontconfigUtils;
+#ifndef MOZ_PANGO
 typedef struct FT_LibraryRec_ *FT_Library;
 
-class gfxFontconfigUtils;
 class FontFamily;
 class FontEntry;
+#endif
 
 class THEBES_API gfxQtPlatform : public gfxPlatform {
 public:
+
+    enum RenderMode {
+        /* Use QPainter surfaces */
+        RENDER_QPAINTER = 0,
+        /* Use offscreen buffer for rendering with image or xlib gfx backend */
+        RENDER_BUFFERED,
+        /* max */
+        RENDER_MODE_MAX
+    };
+
     gfxQtPlatform();
     virtual ~gfxQtPlatform();
 
@@ -61,7 +74,7 @@ public:
     already_AddRefed<gfxASurface> CreateOffscreenSurface(const gfxIntSize& size,
                                                          gfxASurface::gfxImageFormat imageFormat);
 
-    nsresult GetFontList(const nsACString& aLangGroup,
+    nsresult GetFontList(nsIAtom *aLangGroup,
                          const nsACString& aGenericFamily,
                          nsTArray<nsString>& aListOfFonts);
 
@@ -77,23 +90,58 @@ public:
                                   const gfxFontStyle *aStyle,
                                   gfxUserFontSet* aUserFontSet);
 
+#ifdef MOZ_PANGO
+    /**
+     * Look up a local platform font using the full font face name (needed to
+     * support @font-face src local() )
+     */
+    virtual gfxFontEntry* LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
+                                          const nsAString& aFontName);
+
+    /**
+     * Activate a platform font (needed to support @font-face src url() )
+     *
+     */
+    virtual gfxFontEntry* MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
+                                           const PRUint8 *aFontData,
+                                           PRUint32 aLength);
+
+    /**
+     * Check whether format is supported on a platform or not (if unclear,
+     * returns true).
+     */
+    virtual PRBool IsFontFormatSupported(nsIURI *aFontURI,
+                                         PRUint32 aFormatFlags);
+#endif
+
+#ifndef MOZ_PANGO
     FontFamily *FindFontFamily(const nsAString& aName);
     FontEntry *FindFontEntry(const nsAString& aFamilyName, const gfxFontStyle& aFontStyle);
     already_AddRefed<gfxFont> FindFontForChar(PRUint32 aCh, gfxFont *aFont);
-    PRBool GetPrefFontEntries(const nsCString& aLangGroup, nsTArray<nsRefPtr<FontEntry> > *aFontEntryList);
-    void SetPrefFontEntries(const nsCString& aLangGroup, nsTArray<nsRefPtr<FontEntry> >& aFontEntryList);
+    PRBool GetPrefFontEntries(const nsCString& aLangGroup, nsTArray<nsRefPtr<gfxFontEntry> > *aFontEntryList);
+    void SetPrefFontEntries(const nsCString& aLangGroup, nsTArray<nsRefPtr<gfxFontEntry> >& aFontEntryList);
+#endif
 
+    void ClearPrefFonts() { mPrefFonts.Clear(); }
+
+#ifndef MOZ_PANGO
     FT_Library GetFTLibrary();
+#endif
 
-    static PRInt32 GetPlatformDPI() {
-        return 96;
-    }
+    RenderMode GetRenderMode() { return mRenderMode; }
+    void SetRenderMode(RenderMode rmode) { mRenderMode = rmode; }
 
 protected:
     static gfxFontconfigUtils *sFontconfigUtils;
+    void InitDisplayCaps();
 
 private:
     virtual qcms_profile *GetPlatformCMSOutputProfile();
+
+    // TODO: unify this with mPrefFonts (NB: holds families, not fonts) in gfxPlatformFontList
+    nsDataHashtable<nsCStringHashKey, nsTArray<nsRefPtr<gfxFontEntry> > > mPrefFonts;
+
+    RenderMode mRenderMode;
 };
 
 #endif /* GFX_PLATFORM_QT_H */

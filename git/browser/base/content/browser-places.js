@@ -229,7 +229,7 @@ var StarUI = {
   function SU_panelShown(aEvent) {
     if (aEvent.target == this.panel) {
       if (!this._element("editBookmarkPanelContent").hidden) {
-        fieldToFocus = "editBMPanel_" +
+        let fieldToFocus = "editBMPanel_" +
           gPrefService.getCharPref("browser.bookmarks.editDialog.firstEditField");
         var elt = this._element(fieldToFocus);
         elt.focus();
@@ -411,7 +411,7 @@ var PlacesCommandHook = {
 
       var parent = aParent != undefined ?
                    aParent : PlacesUtils.unfiledBookmarksFolderId;
-      var descAnno = { name: DESCRIPTION_ANNO, value: description };
+      var descAnno = { name: PlacesUIUtils.DESCRIPTION_ANNO, value: description };
       var txn = PlacesUIUtils.ptm.createItem(uri, parent, -1,
                                              title, null, [descAnno]);
       PlacesUIUtils.ptm.doTransaction(txn);
@@ -546,9 +546,7 @@ var PlacesCommandHook = {
    *          UnfiledBookmarks and Tags.
    */
   showPlacesOrganizer: function PCH_showPlacesOrganizer(aLeftPaneRoot) {
-    var wm = Cc["@mozilla.org/appshell/window-mediator;1"].
-             getService(Ci.nsIWindowMediator);
-    var organizer = wm.getMostRecentWindow("Places:Organizer");
+    var organizer = Services.wm.getMostRecentWindow("Places:Organizer");
     if (!organizer) {
       // No currently open places window, so open one with the specified mode.
       openDialog("chrome://browser/content/places/places.xul", 
@@ -570,15 +568,19 @@ var PlacesCommandHook = {
   }
 };
 
-// Helper object for the history menu.
-var HistoryMenu = {
-  get _ss() {
-    delete this._ss;
-    return this._ss = Cc["@mozilla.org/browser/sessionstore;1"].
-                      getService(Ci.nsISessionStore);
-  },
+// View for the history menu.
+function HistoryMenu(aPopupShowingEvent) {
+  XPCOMUtils.defineLazyServiceGetter(this, "_ss",
+                                     "@mozilla.org/browser/sessionstore;1",
+                                     "nsISessionStore");
+  PlacesMenu.call(this, aPopupShowingEvent,
+                  "place:redirectsMode=2&sort=4&maxResults=10");
+}
 
-  toggleRecentlyClosedTabs: function PHM_toggleRecentlyClosedTabs() {
+HistoryMenu.prototype = {
+  __proto__: PlacesMenu.prototype,
+
+  toggleRecentlyClosedTabs: function HM_toggleRecentlyClosedTabs() {
     // enable/disable the Recently Closed Tabs sub menu
     var undoPopup = document.getElementById("historyUndoPopup");
 
@@ -634,9 +636,17 @@ var HistoryMenu = {
           iconURL = "moz-anno:favicon:" + iconURL;
         m.setAttribute("image", iconURL);
       }
-      m.setAttribute("class", "menuitem-iconic bookmark-item");
+      m.setAttribute("class", "menuitem-iconic bookmark-item menuitem-with-favicon");
       m.setAttribute("value", i);
       m.setAttribute("oncommand", "undoCloseTab(" + i + ");");
+
+      // Set the targetURI attribute so it will be shown in tooltip and statusbar.
+      // SessionStore uses one-based indexes, so we need to normalize them.
+      let tabData = undoItems[i].state;
+      let activeIndex = (tabData.index || tabData.entries.length) - 1;
+      if (activeIndex >= 0 && tabData.entries[activeIndex])
+        m.setAttribute("targetURI", tabData.entries[activeIndex].url);
+
       m.addEventListener("click", this._undoCloseMiddleClick, false);
       if (i == 0)
         m.setAttribute("key", "key_undoCloseTab");
@@ -708,8 +718,15 @@ var HistoryMenu = {
           iconURL = "moz-anno:favicon:" + iconURL;
         m.setAttribute("image", iconURL);
       }
-      m.setAttribute("class", "menuitem-iconic bookmark-item");
+      m.setAttribute("class", "menuitem-iconic bookmark-item menuitem-with-favicon");
       m.setAttribute("oncommand", "undoCloseWindow(" + i + ");");
+
+      // Set the targetURI attribute so it will be shown in tooltip and statusbar.
+      // SessionStore uses one-based indexes, so we need to normalize them.
+      let activeIndex = (selectedTab.index || selectedTab.entries.length) - 1;
+      if (activeIndex >= 0 && selectedTab.entries[activeIndex])
+        m.setAttribute("targetURI", selectedTab.entries[activeIndex].url);
+
       if (i == 0)
         m.setAttribute("key", "key_undoCloseWindow");
       undoPopup.appendChild(m);
@@ -725,18 +742,14 @@ var HistoryMenu = {
       "for (var i = 0; i < " + undoItems.length + "; i++) undoCloseWindow();");
   },
 
-  /**
-   * popupshowing handler for the history menu.
-   * @param aEvent
-   *        The popupshowing event.
-   */
-  onPopupShowing: function PHM_onPopupShowing(aEvent) {
+  _onPopupShowing: function HM__onPopupShowing(aEvent) {
+    PlacesMenu.prototype._onPopupShowing.apply(this, arguments);
+
     // Don't handle events for submenus.
     if (aEvent.target != aEvent.currentTarget)
       return;
 
-    var menuPopup = aEvent.target;
-    var resultNode = menuPopup.getResultNode();
+    let resultNode = this.result.root;
     resultNode.containerOpen = true;
     document.getElementById("endHistorySeparator").hidden =
       resultNode.childCount == 0;
@@ -745,20 +758,12 @@ var HistoryMenu = {
     this.toggleRecentlyClosedWindows();
   },
 
-  /**
-   * popuphidden handler for the history menu.
-   * @param aEvent
-   *        The popuphidden event.
-   */
-  onPopupHidden: function PHM_onPopupHidden(aEvent) {
-    // Don't handle events for submenus.
-    if (aEvent.target != aEvent.currentTarget)
-      return;
-
-    var menuPopup = aEvent.target;
-    var resultNode = menuPopup.getResultNode();
-    if (resultNode.containerOpen)
-      resultNode.containerOpen = false;
+  _onCommand: function HM__onCommand(aEvent) {
+    let placesNode = aEvent.target._placesNode;
+    if (placesNode) {
+      PlacesUIUtils.markPageAsTyped(placesNode.uri);
+      openUILink(placesNode.uri, aEvent, false, true);
+    }
   }
 };
 
@@ -797,12 +802,12 @@ var BookmarksEventHandler = {
       }
     }
 
-    if (target.node && PlacesUtils.nodeIsContainer(target.node)) {
+    if (target._placesNode && PlacesUtils.nodeIsContainer(target._placesNode)) {
       // Don't open the root folder in tabs when the empty area on the toolbar
       // is middle-clicked or when a non-bookmark item except for Open in Tabs)
       // in a bookmarks menupopup is middle-clicked.
       if (target.localName == "menu" || target.localName == "toolbarbutton")
-        PlacesUIUtils.openContainerNodeInTabs(target.node, aEvent);
+        PlacesUIUtils.openContainerNodeInTabs(target._placesNode, aEvent);
     }
     else if (aEvent.button == 1) {
       // left-clicks with modifier are already served by onCommand
@@ -819,109 +824,14 @@ var BookmarksEventHandler = {
    */
   onCommand: function BM_onCommand(aEvent) {
     var target = aEvent.originalTarget;
-    if (target.node)
-      PlacesUIUtils.openNodeWithEvent(target.node, aEvent);
-  },
-
-  /**
-   * Handler for popupshowing event for an item in bookmarks toolbar or menu.
-   * If the item isn't the main bookmarks menu, add an "Open All in Tabs"
-   * menuitem to the bottom of the popup.
-   * @param event 
-   *        DOMEvent for popupshowing
-   */
-  onPopupShowing: function BM_onPopupShowing(event) {
-    var target = event.originalTarget;
-    if (!target.hasAttribute("placespopup"))
-      return;
-
-    // Check if the popup contains at least 2 menuitems with places nodes
-    var numNodes = 0;
-    var hasMultipleURIs = false;
-    var currentChild = target.firstChild;
-    while (currentChild) {
-      if (currentChild.localName == "menuitem" && currentChild.node) {
-        if (++numNodes == 2) {
-          hasMultipleURIs = true;
-          break;
-        }
-      }
-      currentChild = currentChild.nextSibling;
-    }
-
-    var itemId = target._resultNode.itemId;
-    var siteURIString = "";
-    if (itemId != -1 && PlacesUtils.itemIsLivemark(itemId)) {
-      var siteURI = PlacesUtils.livemarks.getSiteURI(itemId);
-      if (siteURI)
-        siteURIString = siteURI.spec;
-    }
-
-    if (!siteURIString && target._endOptOpenSiteURI) {
-        target.removeChild(target._endOptOpenSiteURI);
-        target._endOptOpenSiteURI = null;
-    }
-
-    if (!hasMultipleURIs && target._endOptOpenAllInTabs) {
-      target.removeChild(target._endOptOpenAllInTabs);
-      target._endOptOpenAllInTabs = null;
-    }
-
-    if (!(hasMultipleURIs || siteURIString)) {
-      // we don't have to show any option
-      if (target._endOptSeparator) {
-        target.removeChild(target._endOptSeparator);
-        target._endOptSeparator = null;
-        target._endMarker = -1;
-      }
-      return;
-    }
-
-    if (!target._endOptSeparator) {
-      // create a separator before options
-      target._endOptSeparator = document.createElement("menuseparator");
-      target._endOptSeparator.className = "bookmarks-actions-menuseparator";
-      target._endMarker = target.childNodes.length;
-      target.appendChild(target._endOptSeparator);
-    }
-
-    if (siteURIString && !target._endOptOpenSiteURI) {
-      // Add "Open (Feed Name)" menuitem if it's a livemark with a siteURI
-      target._endOptOpenSiteURI = document.createElement("menuitem");
-      target._endOptOpenSiteURI.className = "openlivemarksite-menuitem";
-      target._endOptOpenSiteURI.setAttribute("siteURI", siteURIString);
-      target._endOptOpenSiteURI.setAttribute("oncommand",
-          "openUILink(this.getAttribute('siteURI'), event);");
-      // If a user middle-clicks this item we serve the oncommand event
-      // We are using checkForMiddleClick because of Bug 246720
-      // Note: stopPropagation is needed to avoid serving middle-click 
-      // with BT_onClick that would open all items in tabs
-      target._endOptOpenSiteURI.setAttribute("onclick",
-          "checkForMiddleClick(this, event); event.stopPropagation();");
-      target._endOptOpenSiteURI.setAttribute("label",
-          PlacesUIUtils.getFormattedString("menuOpenLivemarkOrigin.label",
-          [target.parentNode.getAttribute("label")]));
-      target.appendChild(target._endOptOpenSiteURI);
-    }
-
-    if (hasMultipleURIs && !target._endOptOpenAllInTabs) {
-        // Add the "Open All in Tabs" menuitem if there are
-        // at least two menuitems with places result nodes.
-        target._endOptOpenAllInTabs = document.createElement("menuitem");
-        target._endOptOpenAllInTabs.className = "openintabs-menuitem";
-        target._endOptOpenAllInTabs.setAttribute("oncommand",
-            "PlacesUIUtils.openContainerNodeInTabs(this.parentNode._resultNode, event);");
-        target._endOptOpenAllInTabs.setAttribute("onclick",
-            "checkForMiddleClick(this, event); event.stopPropagation();");
-        target._endOptOpenAllInTabs.setAttribute("label",
-            gNavigatorBundle.getString("menuOpenAllInTabs.label"));
-        target.appendChild(target._endOptOpenAllInTabs);
-    }
+    if (target._placesNode)
+      PlacesUIUtils.openNodeWithEvent(target._placesNode, aEvent);
   },
 
   fillInBHTooltip: function(aDocument, aEvent) {
     var node;
     var cropped = false;
+    var targetURI;
 
     if (aDocument.tooltipNode.localName == "treechildren") {
       var tree = aDocument.tooltipNode.parentNode;
@@ -933,18 +843,28 @@ var BookmarksEventHandler = {
       node = tree.view.nodeForTreeIndex(row.value);
       cropped = tbo.isCellCropped(row.value, column.value);
     }
-    else
-      node = aDocument.tooltipNode.node;
+    else {
+      // Check whether the tooltipNode is a Places node.
+      // In such a case use it, otherwise check for targetURI attribute.
+      var tooltipNode = aDocument.tooltipNode;
+      if (tooltipNode._placesNode)
+        node = tooltipNode._placesNode;
+      else {
+        // This is a static non-Places node.
+        targetURI = tooltipNode.getAttribute("targetURI");
+      }
+    }
 
-    if (!node)
+    if (!node && !targetURI)
       return false;
 
-    var title = node.title;
-    var url;
+    // Show node.label as tooltip's title for non-Places nodes.
+    var title = node ? node.title : tooltipNode.label;
 
-    // Show URL only for URI-type nodes.
-    if (PlacesUtils.nodeIsURI(node))
-      url = node.uri;
+    // Show URL only for Places URI-nodes or nodes with a targetURI attribute.
+    var url;
+    if (targetURI || PlacesUtils.nodeIsURI(node))
+      url = targetURI || node.uri;
 
     // Show tooltip for containers only if their title is cropped.
     if (!cropped && !url)
@@ -966,71 +886,26 @@ var BookmarksEventHandler = {
 };
 
 /**
- * Drag and Drop handling specifically for the Bookmarks Menu item in the
- * top level menu bar
+ * Drag and Drop handler for the Bookmarks menu in the top level menu bar.
  */
-var BookmarksMenuDropHandler = {
-  /**
-   * Need to tell the session to update the state of the cursor as we drag
-   * over the Bookmarks Menu to show the "can drop" state vs. the "no drop"
-   * state.
-   */
-  onDragOver: function BMDH_onDragOver(event, flavor, session) {
-    if (!this.canDrop(event, session))
-      event.dataTransfer.effectAllowed = "none";
-  },
-
-  /**
-   * Advertises the set of data types that can be dropped on the Bookmarks
-   * Menu
-   * @returns a FlavourSet object per nsDragAndDrop parlance.
-   */
-  getSupportedFlavours: function BMDH_getSupportedFlavours() {
-    var view = document.getElementById("bookmarksMenuPopup");
-    return view.getSupportedFlavours();
-  },
-
-  /**
-   * Determine whether or not the user can drop on the Bookmarks Menu.
-   * @param   event
-   *          A dragover event
-   * @param   session
-   *          The active DragSession
-   * @returns true if the user can drop onto the Bookmarks Menu item, false 
-   *          otherwise.
-   */
-  canDrop: function BMDH_canDrop(event, session) {
-    PlacesControllerDragHelper.currentDataTransfer = event.dataTransfer;
-
-    var ip = new InsertionPoint(PlacesUtils.bookmarksMenuFolderId, -1);  
-    return ip && PlacesControllerDragHelper.canDrop(ip);
-  },
-
-  /**
-   * Called when the user drops onto the top level Bookmarks Menu item.
-   * @param   event
-   *          A drop event
-   * @param   data
-   *          Data that was dropped
-   * @param   session
-   *          The active DragSession
-   */
-  onDrop: function BMDH_onDrop(event, data, session) {
-    PlacesControllerDragHelper.currentDataTransfer = event.dataTransfer;
-
-  // Put the item at the end of bookmark menu
-    var ip = new InsertionPoint(PlacesUtils.bookmarksMenuFolderId, -1,
+let BookmarksMenuDropHandler = {
+  onDragOver: function BMDH_onDragOver(event) {
+    let ip = new InsertionPoint(PlacesUtils.bookmarksMenuFolderId,
+                                PlacesUtils.bookmarks.DEFAULT_INDEX,
                                 Ci.nsITreeView.DROP_ON);
-    PlacesControllerDragHelper.onDrop(ip);
+    if (ip && PlacesControllerDragHelper.canDrop(ip, event.dataTransfer))
+      event.preventDefault();
+
+    event.stopPropagation();
   },
 
-  /**
-   * Called when drop target leaves the menu or after a drop.
-   * @param   aEvent
-   *          A drop event
-   */
-  onDragExit: function BMDH_onDragExit(event, session) {
-    PlacesControllerDragHelper.currentDataTransfer = null;
+  onDrop: function BMDH_onDrop(event) {
+    // Put the item at the end of bookmark menu.
+    let ip = new InsertionPoint(PlacesUtils.bookmarksMenuFolderId,
+                                PlacesUtils.bookmarks.DEFAULT_INDEX,
+                                Ci.nsITreeView.DROP_ON);
+    PlacesControllerDragHelper.onDrop(ip, event.dataTransfer);
+    event.stopPropagation();
   }
 };
 
@@ -1218,4 +1093,36 @@ var PlacesStarButton = {
 
   onItemVisited: function() { },
   onItemMoved: function() { }
+};
+
+// This object handles the initlization and uninitlization of the bookmarks
+// toolbar.  updateState is called when the browser window is opened and
+// after closing the toolbar customization dialog.
+let PlacesToolbarHelper = {
+  _place: "place:folder=TOOLBAR",
+  _cachedElt: null,
+
+  onBrowserWindowClose: function PTH_onBrowserWindowClose() {
+    if (this._cachedElt)
+      this._cachedElt._placesView.uninit();
+  },
+
+  updateState: function PTH_updateState() {
+    let currentElt = document.getElementById("PlacesToolbar");
+
+    // Bail out if the state has not changed.
+    if (currentElt == this._cachedElt)
+      return;
+
+    if (!this._cachedElt) {
+      // The toolbar has been added.
+      new PlacesToolbar(this._place);
+      this._cachedElt = currentElt;
+    }
+    else {
+      // The toolbar has been removed.
+      this._cachedElt._placesView.uninit();
+      this._cachedElt = null;
+    }
+  }
 };

@@ -46,14 +46,12 @@
 #include "nsIDocument.h"
 #include "nsIDocumentViewer.h"
 #include "nsIURL.h"
-#include "nsICSSStyleSheet.h"
 #include "nsNodeInfo.h"
 #include "nsNodeInfoManager.h"
 #include "nsString.h"
 #include "nsContentCID.h"
 #include "prprf.h"
 #include "nsNetUtil.h"
-#include "nsICSSLoader.h"
 #include "nsCRT.h"
 #include "nsIViewSourceChannel.h"
 #ifdef MOZ_MEDIA
@@ -62,6 +60,9 @@
 
 #include "imgILoader.h"
 #include "nsIParser.h"
+#include "nsMimeTypes.h"
+
+#include "mozilla/FunctionTimer.h"
 
 // plugins
 #include "nsIPluginHost.h"
@@ -88,32 +89,35 @@ NS_NewDocumentViewer(nsIDocumentViewer** aResult);
 // XXXbz if you change the MIME types here, be sure to update
 // nsIParser.h and DetermineParseMode in nsParser.cpp accordingly.
 static const char* const gHTMLTypes[] = {
-  "text/html",
-  "text/plain",
-  "text/css",
-  "text/javascript",
-  "text/ecmascript",
-  "application/javascript",
-  "application/ecmascript",
-  "application/x-javascript",
+  TEXT_HTML,
+  TEXT_PLAIN,
+  TEXT_CSS,
+  TEXT_JAVASCRIPT,
+  TEXT_ECMASCRIPT,
+  APPLICATION_JAVASCRIPT,
+  APPLICATION_ECMASCRIPT,
+  APPLICATION_XJAVASCRIPT,
 #ifdef MOZ_VIEW_SOURCE
-  "application/x-view-source", //XXX I wish I could just use nsMimeTypes.h here
+  VIEWSOURCE_CONTENT_TYPE,
 #endif
-  "application/xhtml+xml",
+  APPLICATION_XHTML_XML,
   0
 };
   
 static const char* const gXMLTypes[] = {
-  "text/xml",
-  "application/xml",
-  "application/rdf+xml",
-  "text/rdf",
+  TEXT_XML,
+  APPLICATION_XML,
+#ifdef MOZ_MATHML
+  APPLICATION_MATHML_XML,
+#endif
+  APPLICATION_RDF_XML,
+  TEXT_RDF,
   0
 };
 
 #ifdef MOZ_SVG
 static const char* const gSVGTypes[] = {
-  "image/svg+xml",
+  IMAGE_SVG_XML,
   0
 };
 
@@ -121,8 +125,8 @@ PRBool NS_SVGEnabled();
 #endif
 
 static const char* const gXULTypes[] = {
-  "application/vnd.mozilla.xul+xml",
-  "mozilla.application/cached-xul",
+  TEXT_XUL,
+  APPLICATION_CACHED_XUL,
   0
 };
 
@@ -162,6 +166,16 @@ nsContentDLF::CreateInstance(const char* aCommand,
                              nsIStreamListener** aDocListener,
                              nsIContentViewer** aDocViewer)
 {
+#ifdef NS_FUNCTION_TIMER
+  nsCAutoString channelURL__("N/A");
+  nsCOMPtr<nsIURI> url__;
+  if (aChannel && NS_SUCCEEDED(aChannel->GetURI(getter_AddRefs(url__)))) {
+    url__->GetSpec(channelURL__);
+  }
+  NS_TIME_FUNCTION_FMT("%s (line %d) (url: %s)", MOZ_FUNCTION_NAME,
+                       __LINE__, channelURL__.get());
+#endif
+
   // Declare "type" here.  This is because although the variable itself only
   // needs limited scope, we need to use the raw string memory -- as returned
   // by "type.get()" farther down in the function.
@@ -183,7 +197,7 @@ nsContentDLF::CreateInstance(const char* aCommand,
     PRInt32 typeIndex;
     for (typeIndex = 0; gHTMLTypes[typeIndex] && !knownType; ++typeIndex) {
       if (type.Equals(gHTMLTypes[typeIndex]) &&
-          !type.EqualsLiteral("application/x-view-source")) {
+          !type.EqualsLiteral(VIEWSOURCE_CONTENT_TYPE)) {
         knownType = PR_TRUE;
       }
     }
@@ -217,11 +231,11 @@ nsContentDLF::CreateInstance(const char* aCommand,
       // Also note the lifetime of "type" allows us to safely use "get()" here.
       aContentType = type.get();
     } else {
-      viewSourceChannel->SetContentType(NS_LITERAL_CSTRING("text/plain"));
+      viewSourceChannel->SetContentType(NS_LITERAL_CSTRING(TEXT_PLAIN));
     }
-  } else if (0 == PL_strcmp("application/x-view-source", aContentType)) {
-    aChannel->SetContentType(NS_LITERAL_CSTRING("text/plain"));
-    aContentType = "text/plain";
+  } else if (0 == PL_strcmp(VIEWSOURCE_CONTENT_TYPE, aContentType)) {
+    aChannel->SetContentType(NS_LITERAL_CSTRING(TEXT_PLAIN));
+    aContentType = TEXT_PLAIN;
   }
 #endif
   // Try html
@@ -308,6 +322,8 @@ nsContentDLF::CreateInstanceForDocument(nsISupports* aContainer,
                                         const char *aCommand,
                                         nsIContentViewer** aDocViewerResult)
 {
+  NS_TIME_FUNCTION;
+
   nsresult rv = NS_ERROR_FAILURE;  
 
   do {
@@ -330,6 +346,8 @@ nsContentDLF::CreateBlankDocument(nsILoadGroup *aLoadGroup,
                                   nsIPrincipal* aPrincipal,
                                   nsIDocument **aDocument)
 {
+  NS_TIME_FUNCTION;
+
   *aDocument = nsnull;
 
   nsresult rv = NS_ERROR_FAILURE;
@@ -404,6 +422,8 @@ nsContentDLF::CreateDocument(const char* aCommand,
                              nsIStreamListener** aDocListener,
                              nsIContentViewer** aDocViewer)
 {
+  NS_TIME_FUNCTION;
+
   nsresult rv = NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIURI> aURL;
@@ -460,6 +480,8 @@ nsContentDLF::CreateXULDocument(const char* aCommand,
                                 nsIStreamListener** aDocListener,
                                 nsIContentViewer** aDocViewer)
 {
+  NS_TIME_FUNCTION;
+
   nsresult rv;
   nsCOMPtr<nsIDocument> doc = do_CreateInstance(kXULDocumentCID, &rv);
   if (NS_FAILED(rv)) return rv;
@@ -558,6 +580,8 @@ nsContentDLF::RegisterDocumentFactories(nsIComponentManager* aCompMgr,
                                         const char *aType,
                                         const nsModuleComponentInfo* aInfo)
 {
+  NS_TIME_FUNCTION;
+
   nsresult rv;
 
   nsCOMPtr<nsICategoryManager> catmgr(do_GetService(NS_CATEGORYMANAGER_CONTRACTID, &rv));
@@ -583,6 +607,8 @@ nsContentDLF::UnregisterDocumentFactories(nsIComponentManager* aCompMgr,
                                           const char* aRegistryLocation,
                                           const nsModuleComponentInfo* aInfo)
 {
+  NS_TIME_FUNCTION;
+
   nsresult rv;
   nsCOMPtr<nsICategoryManager> catmgr(do_GetService(NS_CATEGORYMANAGER_CONTRACTID, &rv));
   if (NS_FAILED(rv)) return rv;

@@ -268,8 +268,18 @@ nsSVGPathGeometryFrame::UpdateCoveredRegion()
   // # If the stroke is very thin, cairo won't paint any stroke, and so the
   //   stroke bounds that it will return will be empty.
 
-  if (HasStroke(&context)) {
+  if (HasStroke()) {
     SetupCairoStrokeGeometry(&context);
+    if (extent.Width() <= 0 && extent.Height() <= 0) {
+      // If 'extent' is empty, its position will not be set. Although
+      // GetUserStrokeExtent gets the extents wrong we can still use it
+      // to get the device space position of zero length stroked paths.
+      extent = context.GetUserStrokeExtent();
+      extent.pos.x += extent.size.width / 2;
+      extent.pos.y += extent.size.height / 2;
+      extent.size.width = 0;
+      extent.size.height = 0;
+    }
     extent = nsSVGUtils::PathExtentsToMaxStrokeExtents(extent, this);
   } else if (GetStyleSVG()->mFill.mType == eStyleSVGPaintType_None) {
     extent = gfxRect(0, 0, 0, 0);
@@ -381,12 +391,15 @@ nsSVGPathGeometryFrame::GetMarkerProperties(nsSVGPathGeometryFrame *aFrame)
 
   MarkerProperties result;
   const nsStyleSVG *style = aFrame->GetStyleSVG();
-  result.mMarkerStart = nsSVGEffects::GetMarkerProperty(
-                          style->mMarkerStart, aFrame, nsGkAtoms::marker_start);
-  result.mMarkerMid = nsSVGEffects::GetMarkerProperty(
-                        style->mMarkerMid, aFrame, nsGkAtoms::marker_mid);
-  result.mMarkerEnd = nsSVGEffects::GetMarkerProperty(
-                        style->mMarkerEnd, aFrame, nsGkAtoms::marker_end);
+  result.mMarkerStart =
+    nsSVGEffects::GetMarkerProperty(style->mMarkerStart, aFrame,
+                                    nsSVGEffects::MarkerBeginProperty());
+  result.mMarkerMid =
+    nsSVGEffects::GetMarkerProperty(style->mMarkerMid, aFrame,
+                                    nsSVGEffects::MarkerMiddleProperty());
+  result.mMarkerEnd =
+    nsSVGEffects::GetMarkerProperty(style->mMarkerEnd, aFrame,
+                                    nsSVGEffects::MarkerEndProperty());
   return result;
 }
 
@@ -424,11 +437,6 @@ nsSVGPathGeometryFrame::Render(nsSVGRenderState *aContext)
 
   PRUint16 renderMode = aContext->GetRenderMode();
 
-  /* save/restore the state so we don't screw up the xform */
-  gfx->Save();
-
-  GeneratePath(gfx);
-
   switch (GetStyleSVG()->mShapeRendering) {
   case NS_STYLE_SHAPE_RENDERING_OPTIMIZESPEED:
   case NS_STYLE_SHAPE_RENDERING_CRISPEDGES:
@@ -439,7 +447,14 @@ nsSVGPathGeometryFrame::Render(nsSVGRenderState *aContext)
     break;
   }
 
+  /* save/restore the state so we don't screw up the xform */
+  gfx->Save();
+
+  GeneratePath(gfx);
+
   if (renderMode != nsSVGRenderState::NORMAL) {
+    gfx->Restore();
+
     if (GetClipRule() == NS_STYLE_FILL_RULE_EVENODD)
       gfx->SetFillRule(gfxContext::FILL_RULE_EVEN_ODD);
     else
@@ -450,7 +465,6 @@ nsSVGPathGeometryFrame::Render(nsSVGRenderState *aContext)
       gfx->Fill();
       gfx->NewPath();
     }
-    gfx->Restore();
 
     return;
   }

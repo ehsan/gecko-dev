@@ -52,30 +52,12 @@ pref("general.startup.browser", true);
 
 pref("browser.chromeURL","chrome://browser/content/");
 pref("browser.hiddenWindowChromeURL", "chrome://browser/content/hiddenWindow.xul");
-pref("xpinstall.dialog.confirm", "chrome://mozapps/content/xpinstall/xpinstallConfirm.xul");
-pref("xpinstall.dialog.progress.skin", "chrome://mozapps/content/extensions/extensions.xul");
-pref("xpinstall.dialog.progress.chrome", "chrome://mozapps/content/extensions/extensions.xul");
-pref("xpinstall.dialog.progress.type.skin", "Extension:Manager");
-pref("xpinstall.dialog.progress.type.chrome", "Extension:Manager");
 
-// Developers can set this to |true| if they are constantly changing files in their 
-// extensions directory so that the extension system does not constantly think that
-// their extensions are being updated and thus reregistered every time the app is
-// started.
-pref("extensions.ignoreMTimeChanges", false);
 // Enables some extra Extension System Logging (can reduce performance)
 pref("extensions.logging.enabled", false);
-// Hides the install button in the add-ons mgr
-pref("extensions.hideInstallButton", true);
 
-// Preferences for the Get Add-ons pane
-pref("extensions.getAddons.showPane", true);
-pref("extensions.getAddons.browseAddons", "https://%LOCALE%.add-ons.mozilla.com/%LOCALE%/%APP%");
-pref("extensions.getAddons.maxResults", 5);
-pref("extensions.getAddons.recommended.browseURL", "https://%LOCALE%.add-ons.mozilla.com/%LOCALE%/%APP%/recommended");
-pref("extensions.getAddons.recommended.url", "https://services.addons.mozilla.org/%LOCALE%/%APP%/api/%API_VERSION%/list/featured/all/10/%OS%/%VERSION%");
-pref("extensions.getAddons.search.browseURL", "https://%LOCALE%.add-ons.mozilla.com/%LOCALE%/%APP%/search?q=%TERMS%");
-pref("extensions.getAddons.search.url", "https://services.addons.mozilla.org/%LOCALE%/%APP%/api/%API_VERSION%/search/%TERMS%/all/10/%OS%/%VERSION%");
+// Preferences for AMO integration
+pref("extensions.webservice.discoverURL", "https://services.addons.mozilla.org/%LOCALE%/%APP%/discovery/%VERSION%/%OS%");
 
 // Blocklist preferences
 pref("extensions.blocklist.enabled", true);
@@ -87,7 +69,7 @@ pref("extensions.blocklist.url", "https://addons.mozilla.org/blocklist/3/%APP_ID
 pref("extensions.blocklist.detailsURL", "https://www.mozilla.com/%LOCALE%/blocklist/");
 
 // Dictionary download preference
-pref("browser.dictionaries.download.url", "https://%LOCALE%.add-ons.mozilla.com/%LOCALE%/firefox/%VERSION%/dictionaries/");
+pref("browser.dictionaries.download.url", "https://addons.mozilla.org/%LOCALE%/%APP%/dictionaries/");
 
 // Update Timer Manager preferences
 // Interval: When all registered timers should be checked (in milliseconds)
@@ -165,9 +147,7 @@ pref("extensions.update.url", "https://versioncheck.addons.mozilla.org/update/Ve
 pref("extensions.update.interval", 86400);  // Check for updates to Extensions and 
                                             // Themes every day
 // Non-symmetric (not shared by extensions) extension-specific [update] preferences
-pref("extensions.getMoreExtensionsURL", "https://%LOCALE%.add-ons.mozilla.com/%LOCALE%/%APP%/%VERSION%/extensions/");
-pref("extensions.getMoreThemesURL", "https://%LOCALE%.add-ons.mozilla.com/%LOCALE%/%APP%/%VERSION%/themes/");
-pref("extensions.getMorePluginsURL", "https://%LOCALE%.add-ons.mozilla.com/%LOCALE%/%APP%/%VERSION%/plugins/");
+pref("extensions.getMoreThemesURL", "https://addons.mozilla.org/%LOCALE%/%APP%/getpersonas");
 pref("extensions.dss.enabled", false);          // Dynamic Skin Switching                                               
 pref("extensions.dss.switchPending", false);    // Non-dynamic switch pending after next
                                                 // restart.
@@ -177,6 +157,8 @@ pref("extensions.{972ce4c6-7e08-4474-a285-3208198ce6fd}.description", "chrome://
 
 pref("xpinstall.whitelist.add", "addons.mozilla.org");
 pref("xpinstall.whitelist.add.36", "getpersonas.com");
+
+pref("lightweightThemes.update.enabled", true);
 
 pref("keyword.enabled", true);
 pref("keyword.URL", "chrome://browser-region/locale/region.properties");
@@ -199,7 +181,7 @@ pref("browser.shell.checkDefaultBrowser", true);
 // 0 = blank, 1 = home (browser.startup.homepage), 2 = last visited page, 3 = resume previous browser session
 // The behavior of option 3 is detailed at: http://wiki.mozilla.org/Session_Restore
 pref("browser.startup.page",                1);
-pref("browser.startup.homepage",            "resource:/browserconfig.properties");
+pref("browser.startup.homepage",            "chrome://branding/locale/browserconfig.properties");
 
 pref("browser.enable_automatic_image_resizing", true);
 pref("browser.chrome.site_icons", true);
@@ -240,6 +222,7 @@ pref("browser.urlbar.delay", 50);
 pref("browser.urlbar.restrict.history", "^");
 pref("browser.urlbar.restrict.bookmark", "*");
 pref("browser.urlbar.restrict.tag", "+");
+pref("browser.urlbar.restrict.openpage", "%");
 pref("browser.urlbar.restrict.typed", "~");
 pref("browser.urlbar.match.title", "#");
 pref("browser.urlbar.match.url", "@");
@@ -247,7 +230,8 @@ pref("browser.urlbar.match.url", "@");
 // The default behavior for the urlbar can be configured to use any combination
 // of the restrict or match filters with each additional filter restricting
 // more (intersection). Add the following values to set the behavior as the
-// default: 1: history, 2: bookmark, 4: tag, 8: title, 16: url, 32: typed
+// default: 1: history, 2: bookmark, 4: tag, 8: title, 16: url, 32: typed,
+//          64: javascript, 128: tabs
 // E.g., 0 = show all results (no filtering), 1 = only visited pages in history,
 // 2 = only bookmarks, 3 = visited bookmarks, 1+16 = history matching in the url
 pref("browser.urlbar.default.behavior", 0);
@@ -262,8 +246,7 @@ pref("browser.download.useDownloadDir", true);
 
 #ifdef WINCE
 pref("browser.download.folderList", 2);
-// Bug 499807: use Hard Disk filesystem because Desktop is short on space.
-pref("browser.download.dir", "\\Hard Disk");
+pref("browser.download.dir", "\\Storage Card");
 #else
 pref("browser.download.folderList", 1);
 #endif
@@ -280,7 +263,7 @@ pref("browser.download.manager.scanWhenDone", true);
 pref("browser.download.manager.resumeOnWakeDelay", 10000);
 
 // search engines URL
-pref("browser.search.searchEnginesURL",      "https://%LOCALE%.add-ons.mozilla.com/%LOCALE%/firefox/%VERSION%/search-engines/");
+pref("browser.search.searchEnginesURL",      "https://addons.mozilla.org/%LOCALE%/%APP%/search-engines/");
 
 // pointer to the default engine name
 pref("browser.search.defaultenginename",      "chrome://browser-region/locale/region.properties");
@@ -302,7 +285,7 @@ pref("browser.search.update", true);
 pref("browser.search.update.log", false);
 
 // Check whether we need to perform engine updates every 6 hours
-pref("browser.search.updateinterval", 6);
+pref("browser.search.update.interval", 21600);
 
 // Whether or not microsummary and generator updates are enabled
 pref("browser.microsummary.enabled", true);
@@ -311,11 +294,7 @@ pref("browser.microsummary.updateGenerators", true);
 // enable search suggestions by default
 pref("browser.search.suggest.enabled", true);
 
-pref("browser.history.showSessions", false);
 pref("browser.sessionhistory.max_entries", 50);
-pref("browser.history_expire_days", 180);
-pref("browser.history_expire_days_min", 90);
-pref("browser.history_expire_sites", 40000);
 
 // handle links targeting new windows
 // 0=default window, 1=current window/tab, 2=new window, 3=new tab in most recent window
@@ -338,7 +317,6 @@ pref("browser.tabs.warnOnClose", true);
 pref("browser.tabs.warnOnOpen", true);
 pref("browser.tabs.maxOpenBeforeWarn", 15);
 pref("browser.tabs.loadInBackground", true);
-pref("browser.tabs.loadFolderAndReplace", true);
 pref("browser.tabs.opentabfor.middleclick", true);
 pref("browser.tabs.loadDivertedInBackground", false);
 pref("browser.tabs.loadBookmarksInBackground", false);
@@ -364,10 +342,6 @@ pref("browser.allTabs.previews", false);
 pref("browser.ctrlTab.previews", false);
 pref("browser.ctrlTab.recentlyUsedLimit", 7);
 
-// Default bookmark sorting
-pref("browser.bookmarks.sort.direction", "descending");
-pref("browser.bookmarks.sort.resource", "rdf:http://home.netscape.com/NC-rdf#Name");
-
 // By default, do not export HTML at shutdown.
 // If true, at shutdown the bookmarks in your menu and toolbar will
 // be exported as HTML to the bookmarks.html file.
@@ -377,7 +351,7 @@ pref("browser.bookmarks.autoExportHTML",          false);
 // keep in {PROFILEDIR}/bookmarkbackups. Special values:
 // -1: unlimited
 //  0: no backups created (and deletes all existing backups)
-pref("browser.bookmarks.max_backups",             5);
+pref("browser.bookmarks.max_backups",             10);
 
 // Scripts & Windows prefs
 pref("dom.disable_open_during_load",              true);
@@ -447,8 +421,6 @@ pref("privacy.sanitize.sanitizeOnShutdown", false);
 pref("privacy.sanitize.migrateFx3Prefs",    false);
 
 pref("network.proxy.share_proxy_settings",  false); // use the same proxy settings for all protocols
-
-pref("network.cookie.cookieBehavior", 0); // 0-Accept, 1-dontAcceptForeign, 2-dontUse
 
 // l12n and i18n
 pref("intl.accept_languages", "chrome://global/locale/intl.properties");
@@ -561,9 +533,6 @@ pref("accessibility.typeaheadfind", false);
 pref("accessibility.typeaheadfind.timeout", 5000);
 pref("accessibility.typeaheadfind.linksonly", false);
 pref("accessibility.typeaheadfind.flashBar", 1);
-
-// Disable the default plugin for firefox
-pref("plugin.default_plugin_disabled", true);
 
 // plugin finder service url
 pref("pfs.datasource.url", "https://pfs.mozilla.org/plugins/PluginFinderService.php?mimetype=%PLUGIN_MIMETYPE%&appID=%APP_ID%&appVersion=%APP_VERSION%&clientOS=%CLIENT_OS%&chromeLocale=%CHROME_LOCALE%&appRelease=%APP_RELEASE%");
@@ -700,7 +669,6 @@ pref("browser.safebrowsing.dataProvider", 0);
 
 // Does the provider name need to be localizable?
 pref("browser.safebrowsing.provider.0.name", "Google");
-pref("browser.safebrowsing.provider.0.lookupURL", "http://safebrowsing.clients.google.com/safebrowsing/lookup?sourceid=firefox-antiphish&features=TrustRank&client={moz:client}&appver={moz:version}&");
 pref("browser.safebrowsing.provider.0.keyURL", "https://sb-ssl.google.com/safebrowsing/newkey?client={moz:client}&appver={moz:version}&pver=2.2");
 pref("browser.safebrowsing.provider.0.reportURL", "http://safebrowsing.clients.google.com/safebrowsing/report?");
 pref("browser.safebrowsing.provider.0.gethashURL", "http://safebrowsing.clients.google.com/safebrowsing/gethash?client={moz:client}&appver={moz:version}&pver=2.2");
@@ -713,8 +681,8 @@ pref("browser.safebrowsing.provider.0.reportMalwareURL", "http://{moz:locale}.ma
 pref("browser.safebrowsing.provider.0.reportMalwareErrorURL", "http://{moz:locale}.malware-error.mozilla.com/?hl={moz:locale}");
 
 // FAQ URLs
-pref("browser.safebrowsing.warning.infoURL", "http://%LOCALE%.www.mozilla.com/%LOCALE%/firefox/phishing-protection/");
-pref("browser.geolocation.warning.infoURL", "http://%LOCALE%.www.mozilla.com/%LOCALE%/firefox/geolocation/");
+pref("browser.safebrowsing.warning.infoURL", "http://www.mozilla.com/%LOCALE%/%APP%/phishing-protection/");
+pref("browser.geolocation.warning.infoURL", "http://www.mozilla.com/%LOCALE%/%APP%/geolocation/");
 
 // Name of the about: page contributed by safebrowsing to handle display of error
 // pages on phishing/malware hits.  (bug 399233)
@@ -759,11 +727,15 @@ pref("browser.rights.3.shown", false);
 pref("browser.rights.override", true);
 #endif
 
+#ifdef WINCE
+pref("browser.sessionstore.resume_from_crash", false);
+#else
 pref("browser.sessionstore.resume_from_crash", true);
+#endif
 pref("browser.sessionstore.resume_session_once", false);
 
 // minimal interval between two save operations in milliseconds
-pref("browser.sessionstore.interval", 10000);
+pref("browser.sessionstore.interval", 15000);
 // maximum amount of POSTDATA to be saved in bytes per history entry (-1 = all of it)
 // (NB: POSTDATA will be saved either entirely or not at all)
 pref("browser.sessionstore.postdata", 0);
@@ -781,6 +753,15 @@ pref("browser.sessionstore.max_resumed_crashes", 1);
 
 // allow META refresh by default
 pref("accessibility.blockautorefresh", false);
+
+// Whether history is enabled or not.
+pref("places.history.enabled", true);
+
+// The percentage of system memory that the Places database can use.  Out of the
+// allowed cache size it will at most use the size of the database file.
+// Changes to this value are effective after an application restart.
+// Acceptable values are between 0 and 50.
+pref("places.database.cache_to_memory_percentage", 6);
 
 // the (maximum) number of the recent visits to sample
 // when calculating frecency
@@ -801,6 +782,7 @@ pref("places.frecency.defaultBucketWeight", 10);
 
 // bonus (in percent) for visit transition types for frecency calculations
 pref("places.frecency.embedVisitBonus", 0);
+pref("places.frecency.framedLinkVisitBonus", 0);
 pref("places.frecency.linkVisitBonus", 100);
 pref("places.frecency.typedVisitBonus", 2000);
 pref("places.frecency.bookmarkVisitBonus", 75);
@@ -838,9 +820,6 @@ pref("browser.zoom.siteSpecific", true);
 // Whether or not to update background tabs to the current zoom level.
 pref("browser.zoom.updateBackgroundTabs", true);
 
-// replace newlines with spaces when pasting into <input type="text"> fields
-pref("editor.singleLine.pasteNewlines", 2);
-
 // The breakpad report server to link to in about:crashes
 pref("breakpad.reportURL", "http://crash-stats.mozilla.com/report/index/");
 
@@ -862,6 +841,7 @@ pref("browser.bookmarks.editDialog.firstEditField", "namePicker");
 
 // base url for the wifi geolocation network provider
 pref("geo.wifi.uri", "https://www.google.com/loc/json");
+pref("geo.wifi.protocol", 0);
 
 #ifdef WINCE
 
@@ -901,6 +881,23 @@ pref("toolbar.customization.usesheet", true);
 pref("toolbar.customization.usesheet", false);
 #endif
 
+// The default for this pref reflects whether the build is capable of IPC.
+// (Turning it on in a no-IPC build will have no effect.)
+#ifdef XP_MACOSX
+// OSX still has only partial support for IPC.  Note that the PowerPC
+// and x86 builds must generate identical copies of this file, so we
+// can't make the prefs indicate that IPC is not available at all in
+// PowerPC builds.
+pref("dom.ipc.plugins.enabled", false);
+// These plug-ins will run OOP by default
+pref("dom.ipc.plugins.enabled.flash player.plugin", true);
+pref("dom.ipc.plugins.enabled.javaplugin2_npapi.plugin", true);
+#elifdef MOZ_IPC
+pref("dom.ipc.plugins.enabled", true);
+#else
+pref("dom.ipc.plugins.enabled", false);
+#endif
+
 #ifdef XP_WIN
 #ifndef WINCE
 pref("browser.taskbar.previews.enable", true);
@@ -911,5 +908,6 @@ pref("browser.taskbar.lists.frequent.enabled", true);
 pref("browser.taskbar.lists.recent.enabled", false);
 pref("browser.taskbar.lists.maxListItemCount", 7);
 pref("browser.taskbar.lists.tasks.enabled", true);
+pref("browser.taskbar.lists.refreshInSeconds", 30);
 #endif
 #endif

@@ -104,7 +104,7 @@ static void FindBodyElement(nsIContent* aParent, nsIContent** aResult)
       // There are nesting tree elements. Only the innermost should
       // find the treechilren.
       break;
-    } else if (content->IsNodeOfType(nsINode::eELEMENT) &&
+    } else if (content->IsElement() &&
                !ni->Equals(nsGkAtoms::_template, kNameSpaceID_XUL)) {
       FindBodyElement(content, aResult);
       if (*aResult)
@@ -127,13 +127,10 @@ nsTreeBoxObject::GetTreeBody()
   // Iterate over our content model children looking for the body.
   nsCOMPtr<nsIContent> content;
   FindBodyElement(frame->GetContent(), getter_AddRefs(content));
-
-  nsIPresShell* shell = GetPresShell(PR_FALSE);
-  if (!shell) {
+  if (!content)
     return nsnull;
-  }
 
-  frame = shell->GetPrimaryFrameFor(content);
+  frame = content->GetPrimaryFrame();
   if (!frame)
      return nsnull;
 

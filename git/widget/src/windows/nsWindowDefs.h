@@ -53,6 +53,10 @@
  * 
  **************************************************************/
 
+// A magic APP message that can be sent to quit, sort of like a QUERYENDSESSION/ENDSESSION,
+// but without the query.
+#define MOZ_WM_APP_QUIT                   (WM_APP+0x0300)
+
 // GetWindowsVersion constants
 #define WIN2K_VERSION                     0x500
 #define WINXP_VERSION                     0x501
@@ -72,6 +76,10 @@
 
 #ifndef WM_MOUSEHWHEEL
 #define WM_MOUSEHWHEEL                    0x020E
+#endif
+
+#ifndef WM_MOUSELEAVE
+#define WM_MOUSELEAVE                     0x02A3
 #endif
 
 #ifndef SPI_GETWHEELSCROLLCHARS
@@ -153,6 +161,18 @@
 #define ERROR 0
 #endif
 #endif // defined(WINCE)
+
+//Tablet PC Mouse Input Source
+#if !defined(WINCE)
+#define TABLET_INK_SIGNATURE 0xFFFFFF00
+#define TABLET_INK_CHECK     0xFF515700
+#define TABLET_INK_TOUCH     0x00000080
+#define MOUSE_INPUT_SOURCE() GetMouseInputSource()
+#else
+#define MOUSE_INPUT_SOURCE() nsIDOMNSMouseEvent::MOZ_SOURCE_MOUSE
+#endif
+
+
 
 /**************************************************************
  *

@@ -49,11 +49,14 @@
 #include "nsIDragService.h"
 #include "nsIScriptableRegion.h"
 #include "nsContentUtils.h"
+#include "nsIContent.h"
 
 NS_IMPL_CYCLE_COLLECTION_2(nsDOMDataTransfer, mDragTarget, mDragImage)
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsDOMDataTransfer)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsDOMDataTransfer)
+
+DOMCI_DATA(DataTransfer, nsDOMDataTransfer)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsDOMDataTransfer)
   NS_INTERFACE_MAP_ENTRY(nsIDOMDataTransfer)
@@ -83,6 +86,7 @@ nsDOMDataTransfer::nsDOMDataTransfer()
 nsDOMDataTransfer::nsDOMDataTransfer(PRUint32 aEventType, PRUint32 aAction)
   : mEventType(aEventType),
     mDropEffect(nsIDragService::DRAGDROP_ACTION_NONE),
+    mCursorState(PR_FALSE),
     mReadOnly(PR_TRUE),
     mIsExternal(PR_TRUE),
     mUserCancelled(PR_FALSE),
@@ -99,6 +103,7 @@ nsDOMDataTransfer::nsDOMDataTransfer(PRUint32 aEventType, PRUint32 aAction)
 
 nsDOMDataTransfer::nsDOMDataTransfer(PRUint32 aEventType,
                                      const PRUint32 aEffectAllowed,
+                                     PRBool aCursorState,
                                      PRBool aIsExternal,
                                      PRBool aUserCancelled,
                                      nsTArray<nsTArray<TransferItem> >& aItems,
@@ -108,6 +113,7 @@ nsDOMDataTransfer::nsDOMDataTransfer(PRUint32 aEventType,
   : mEventType(aEventType),
     mDropEffect(nsIDragService::DRAGDROP_ACTION_NONE),
     mEffectAllowed(aEffectAllowed),
+    mCursorState(aCursorState),
     mReadOnly(PR_TRUE),
     mIsExternal(aIsExternal),
     mUserCancelled(aUserCancelled),
@@ -251,7 +257,13 @@ nsDOMDataTransfer::GetFiles(nsIDOMFileList** aFileList)
       if (!file)
         continue;
 
-      nsRefPtr<nsDOMFile> domFile = new nsDOMFile(file);
+      nsCOMPtr<nsIDocument> targetDoc;
+      nsCOMPtr<nsINode> targetNode = do_QueryInterface(mDragTarget);
+      if (targetNode) {
+        targetDoc = targetNode->GetOwnerDoc();
+      }
+
+      nsRefPtr<nsDOMFile> domFile = new nsDOMFile(file, targetDoc);
       NS_ENSURE_TRUE(domFile, NS_ERROR_OUT_OF_MEMORY);
 
       if (!mFiles->Append(domFile))
@@ -380,6 +392,24 @@ nsDOMDataTransfer::SetMozCursor(const nsAString& aCursorState)
   // Lock the cursor to an arrow during the drag.
   mCursorState = aCursorState.EqualsLiteral("default");
 
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDOMDataTransfer::GetMozSourceNode(nsIDOMNode** aSourceNode)
+{
+  *aSourceNode = nsnull;
+
+  nsCOMPtr<nsIDragSession> dragSession = nsContentUtils::GetDragSession();
+  if (!dragSession)
+    return NS_OK;
+
+  nsCOMPtr<nsIDOMNode> sourceNode;
+  dragSession->GetSourceNode(getter_AddRefs(sourceNode));
+  if (sourceNode && !nsContentUtils::CanCallerAccess(sourceNode))
+    return NS_OK;
+
+  sourceNode.swap(*aSourceNode);
   return NS_OK;
 }
 
@@ -530,6 +560,10 @@ nsDOMDataTransfer::SetDragImage(nsIDOMElement* aImage, PRInt32 aX, PRInt32 aY)
   if (mReadOnly)
     return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR;
 
+  if (aImage) {
+    nsCOMPtr<nsIContent> content = do_QueryInterface(aImage);
+    NS_ENSURE_TRUE(content, NS_ERROR_INVALID_ARG);
+  }
   mDragImage = aImage;
   mDragImageX = aX;
   mDragImageY = aY;
@@ -554,8 +588,9 @@ nsDOMDataTransfer::Clone(PRUint32 aEventType, PRBool aUserCancelled,
                          nsIDOMDataTransfer** aNewDataTransfer)
 {
   nsDOMDataTransfer* newDataTransfer =
-    new nsDOMDataTransfer(aEventType, mEffectAllowed, mIsExternal, aUserCancelled,
-                          mItems, mDragImage, mDragImageX, mDragImageY);
+    new nsDOMDataTransfer(aEventType, mEffectAllowed, mCursorState,
+                          mIsExternal, aUserCancelled, mItems,
+                          mDragImage, mDragImageX, mDragImageY);
   NS_ENSURE_TRUE(newDataTransfer, NS_ERROR_OUT_OF_MEMORY);
 
   *aNewDataTransfer = newDataTransfer;
@@ -669,16 +704,19 @@ nsDOMDataTransfer::ConvertFromVariant(nsIVariant* aVariant,
   }
 
   PRUnichar* chrs;
-  nsresult rv = aVariant->GetAsWString(&chrs);
+  PRUint32 len = 0;
+  nsresult rv = aVariant->GetAsWStringWithSize(&len, &chrs);
   if (NS_FAILED(rv))
     return PR_FALSE;
+
+  nsAutoString str;
+  str.Adopt(chrs, len);
 
   nsCOMPtr<nsISupportsString>
     strSupports(do_CreateInstance(NS_SUPPORTS_STRING_CONTRACTID));
   if (!strSupports)
     return PR_FALSE;
 
-  nsAutoString str(chrs);
   strSupports->SetData(str);
 
   *aSupports = strSupports;
@@ -782,13 +820,7 @@ nsDOMDataTransfer::CacheExternalFormats()
   // asked for, as it may be time consuming for the source application to
   // generate it.
 
-  nsCOMPtr<nsIDragService> dragService =
-    do_GetService("@mozilla.org/widget/dragservice;1");
-  if (!dragService)
-    return;
-
-  nsCOMPtr<nsIDragSession> dragSession;
-  dragService->GetCurrentSession(getter_AddRefs(dragSession));
+  nsCOMPtr<nsIDragSession> dragSession = nsContentUtils::GetDragSession();
   if (!dragSession)
     return;
 
@@ -846,13 +878,7 @@ nsDOMDataTransfer::FillInExternalDragData(TransferItem& aItem, PRUint32 aIndex)
     else if (strcmp(format, "text/uri-list") == 0)
       format = kURLDataMime;
 
-    nsCOMPtr<nsIDragService> dragService =
-      do_GetService("@mozilla.org/widget/dragservice;1");
-    if (!dragService)
-      return;
-
-    nsCOMPtr<nsIDragSession> dragSession;
-    dragService->GetCurrentSession(getter_AddRefs(dragSession));
+    nsCOMPtr<nsIDragSession> dragSession = nsContentUtils::GetDragSession();
     if (!dragSession)
       return;
 

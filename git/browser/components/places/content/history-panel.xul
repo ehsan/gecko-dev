@@ -60,9 +60,9 @@
       onload="HistorySidebarInit();"
       onunload="SidebarUtils.clearURLFromStatusBar();">
 
-  <script type="application/x-javascript" 
+  <script type="application/javascript" 
           src="chrome://browser/content/bookmarks/sidebarUtils.js"/>
-  <script type="application/x-javascript" 
+  <script type="application/javascript" 
           src="chrome://browser/content/places/history-panel.js"/>
 
   <commandset id="editMenuCommands"/>
@@ -80,8 +80,9 @@
   <!-- Bookmarks and history tooltip -->
   <tooltip id="bhTooltip"/>
 
-  <hbox align="center">
-    <label value="&find.label;" accesskey="&find.accesskey;" 
+  <hbox id="sidebar-search-container" align="center">
+    <label id="sidebar-search-label"
+           value="&find.label;" accesskey="&find.accesskey;" 
            control="search-box"/>
     <textbox id="search-box" flex="1" type="search" class="compact"
              aria-controls="historyTree"

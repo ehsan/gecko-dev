@@ -51,7 +51,11 @@ MODULE_NAME	= nsPluginModule
 GRE_MODULE	= 1
 LIBXUL_LIBRARY = 1
 
+EXPORTS_NAMESPACES = mozilla
 
+EXPORTS_mozilla = \
+  PluginPRLibrary.h \
+  $(NULL)
 
 CPPSRCS		= \
 		nsNPAPIPlugin.cpp \
@@ -59,6 +63,8 @@ CPPSRCS		= \
 		nsPluginHost.cpp \
 		nsPluginModule.cpp \
 		nsJSNPRuntime.cpp \
+		nsPluginTags.cpp \
+		PluginPRLibrary.cpp \
 		$(NULL)
 
 ifeq ($(OS_ARCH), BeOS)
@@ -78,12 +84,15 @@ ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 	CPPSRCS += nsPluginsDirDarwin.cpp
 	CPPSRCS += nsPluginNativeWindow.cpp
 else
-ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
 	CPPSRCS += nsPluginsDirUnix.cpp
+ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
 	CPPSRCS += nsPluginNativeWindowGtk2.cpp
 else
-	CPPSRCS += nsPluginsDirUnix.cpp
+ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
+	CPPSRCS += nsPluginNativeWindowQt.cpp
+else
 	CPPSRCS += nsPluginNativeWindow.cpp
+endif
 endif
 endif
 endif
@@ -111,6 +120,10 @@ ifndef WINCE
 ENABLE_CXX_EXCEPTIONS = 1
 endif
 
+include $(topsrcdir)/config/config.mk
+ifdef MOZ_IPC
+include $(topsrcdir)/ipc/chromium/chromium-config.mk
+endif
 include $(topsrcdir)/config/rules.mk
 
 ifeq ($(OS_ARCH),WINNT)
@@ -122,8 +135,14 @@ DEFINES		+= -DGENERIC_MOTIF_REDEFINES
 OS_CXXFLAGS	+= -Wc,warn=disa=NOSIMPINT
 endif
 
+CXXFLAGS         += $(TK_CFLAGS)
+EXTRA_DSO_LDOPTS += $(TK_LIBS)
+
 ifdef MOZ_ENABLE_GTK2
-CXXFLAGS        += $(MOZ_GTK2_CFLAGS)
-CFLAGS          += $(MOZ_GTK2_CFLAGS)
-EXTRA_DSO_LDOPTS += -lgtkxtbin $(XLDFLAGS) $(XT_LIBS) $(MOZ_GTK2_LIBS) $(XLIBS) $(XEXT_LIBS) $(XCOMPOSITE_LIBS)
+EXTRA_DSO_LDOPTS += -lgtkxtbin $(XLDFLAGS) $(XT_LIBS) $(XLIBS) $(XEXT_LIBS) $(XCOMPOSITE_LIBS)
 endif           #MOZ_ENABLE_GTK2
+
+ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
+EXTRA_DSO_LDOPTS += $(XEXT_LIBS) $(XCOMPOSITE_LIBS)
+endif
+

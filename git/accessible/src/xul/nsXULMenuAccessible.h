@@ -40,7 +40,6 @@
 #define _nsXULMenuAccessible_H_
 
 #include "nsAccessibleWrap.h"
-#include "nsAccessibleTreeWalker.h"
 #include "nsIAccessibleSelectable.h"
 #include "nsIDOMXULSelectCntrlEl.h"
 
@@ -92,7 +91,9 @@ public:
   virtual nsresult GetNameInternal(nsAString& aName);
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
-  virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
+  virtual PRInt32 GetLevelInternal();
+  virtual void GetPositionAndSizeInternal(PRInt32 *aPosInSet,
+                                          PRInt32 *aSetSize);
 
   virtual PRBool GetAllowsAnonChildAccessibles();
 };
@@ -113,6 +114,10 @@ public:
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
+
+/**
+ * Used for XUL menupopup and panel.
+ */
 class nsXULMenupopupAccessible : public nsXULSelectableAccessible
 {
 public:
@@ -122,11 +127,6 @@ public:
   virtual nsresult GetNameInternal(nsAString& aName);
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
-
-  // nsXULMenupopupAccessible
-  static already_AddRefed<nsIDOMNode> FindInNodeList(nsIDOMNodeList *aNodeList,
-                                                     nsIAtom *aAtom, PRUint32 aNameSpaceID);
-  static void GenerateMenu(nsIDOMNode *aNode);
 };
 
 class nsXULMenubarAccessible : public nsAccessibleWrap

@@ -14,7 +14,7 @@
  *
  * The Original Code is Thebes gfx.
  *
- * The Initial Developer of the Original Code is Mozilla Corporation.
+ * The Initial Developer of the Original Code is Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2008
  * the Initial Developer. All Rights Reserved.
  *
@@ -39,7 +39,7 @@
 
 #include "gfxQuartzNativeDrawing.h"
 #include "gfxQuartzSurface.h"
-
+#include "cairo-quartz.h"
 // see cairo-quartz-surface.c for the complete list of these
 enum {
     kPrivateCGCompositeSourceOver = 2
@@ -82,16 +82,12 @@ gfxQuartzNativeDrawing::BeginNativeDrawing()
         return nsnull;
     }
 
-    // Need to force the clip to be set
-    mContext->UpdateSurfaceClip();
-
     // grab the CGContextRef
-    mCGContext = mQuartzSurface->GetCGContext();
+    mCGContext = cairo_quartz_get_cg_context_with_clip(mContext->GetCairo());
     if (!mCGContext)
         return nsnull;
 
     gfxMatrix m = mContext->CurrentMatrix();
-    CGContextSaveGState(mCGContext);
     CGContextTranslateCTM(mCGContext, deviceOffset.x, deviceOffset.y);
 
     // I -think- that this context will always have an identity
@@ -124,8 +120,7 @@ gfxQuartzNativeDrawing::EndNativeDrawing()
 {
     NS_ASSERTION(mQuartzSurface, "EndNativeDrawing called without BeginNativeDrawing");
 
-    // we drew directly to a shared CGContextRef; restore previous context state
-    CGContextRestoreGState(mCGContext);
+    cairo_quartz_finish_cg_context_with_clip(mContext->GetCairo());
     mQuartzSurface->MarkDirty();
     mQuartzSurface = nsnull;
 }

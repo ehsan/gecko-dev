@@ -65,353 +65,25 @@
 #include "jsxdrapi.h"
 #endif
 
+#include "jsobjinlines.h"
 #include "jsscriptinlines.h"
 
-#if JS_HAS_SCRIPT_OBJECT
+using namespace js;
 
-static const char js_script_exec_str[]    = "Script.prototype.exec";
-static const char js_script_compile_str[] = "Script.prototype.compile";
+static const jsbytecode emptyScriptCode[] = {JSOP_STOP, SRC_NULL};
 
-/*
- * This routine requires that obj has been locked previously.
- */
-static jsint
-GetScriptExecDepth(JSContext *cx, JSObject *obj)
-{
-    jsval v;
-
-    JS_ASSERT(JS_IS_OBJ_LOCKED(cx, obj));
-    v = LOCKED_OBJ_GET_SLOT(obj, JSSLOT_START(&js_ScriptClass));
-    return JSVAL_TO_INT(v);
-}
-
-static void
-AdjustScriptExecDepth(JSContext *cx, JSObject *obj, jsint delta)
-{
-    jsint execDepth;
-
-    JS_LOCK_OBJ(cx, obj);
-    execDepth = GetScriptExecDepth(cx, obj);
-    LOCKED_OBJ_SET_SLOT(obj, JSSLOT_START(&js_ScriptClass),
-                        INT_TO_JSVAL(execDepth + delta));
-    JS_UNLOCK_OBJ(cx, obj);
-}
-
-#if JS_HAS_TOSOURCE
-static JSBool
-script_toSource(JSContext *cx, uintN argc, jsval *vp)
-{
-    JSObject *obj;
-    uint32 indent;
-    JSScript *script;
-    size_t i, j, k, n;
-    char buf[16];
-    jschar *s, *t;
-    JSString *str;
-
-    obj = JS_THIS_OBJECT(cx, vp);
-    if (!JS_InstanceOf(cx, obj, &js_ScriptClass, vp + 2))
-        return JS_FALSE;
-
-    indent = 0;
-    if (argc != 0) {
-        indent = js_ValueToECMAUint32(cx, &vp[2]);
-        if (JSVAL_IS_NULL(vp[2]))
-            return JS_FALSE;
-    }
-
-    script = (JSScript *) obj->getPrivate();
-
-    /* Let n count the source string length, j the "front porch" length. */
-    j = JS_snprintf(buf, sizeof buf, "(new %s(", js_ScriptClass.name);
-    n = j + 2;
-    if (!script) {
-        /* Let k count the constructor argument string length. */
-        k = 0;
-        s = NULL;               /* quell GCC overwarning */
-    } else {
-        str = JS_DecompileScript(cx, script, "Script.prototype.toSource",
-                                 (uintN)indent);
-        if (!str)
-            return JS_FALSE;
-        str = js_QuoteString(cx, str, '\'');
-        if (!str)
-            return JS_FALSE;
-        str->getCharsAndLength(s, k);
-        n += k;
-    }
-
-    /* Allocate the source string and copy into it. */
-    t = (jschar *) cx->malloc((n + 1) * sizeof(jschar));
-    if (!t)
-        return JS_FALSE;
-    for (i = 0; i < j; i++)
-        t[i] = buf[i];
-    for (j = 0; j < k; i++, j++)
-        t[i] = s[j];
-    t[i++] = ')';
-    t[i++] = ')';
-    t[i] = 0;
-
-    /* Create and return a JS string for t. */
-    str = JS_NewUCString(cx, t, n);
-    if (!str) {
-        cx->free(t);
-        return JS_FALSE;
-    }
-    *vp = STRING_TO_JSVAL(str);
-    return JS_TRUE;
-}
-#endif /* JS_HAS_TOSOURCE */
-
-static JSBool
-script_toString(JSContext *cx, uintN argc, jsval *vp)
-{
-    uint32 indent;
-    JSObject *obj;
-    JSScript *script;
-    JSString *str;
-
-    indent = 0;
-    if (argc != 0) {
-        indent = js_ValueToECMAUint32(cx, &vp[2]);
-        if (JSVAL_IS_NULL(vp[2]))
-            return JS_FALSE;
-    }
-
-    obj = JS_THIS_OBJECT(cx, vp);
-    if (!JS_InstanceOf(cx, obj, &js_ScriptClass, vp + 2))
-        return JS_FALSE;
-    script = (JSScript *) obj->getPrivate();
-    if (!script) {
-        *vp = STRING_TO_JSVAL(cx->runtime->emptyString);
-        return JS_TRUE;
-    }
-
-    str = JS_DecompileScript(cx, script, "Script.prototype.toString",
-                             (uintN)indent);
-    if (!str)
-        return JS_FALSE;
-    *vp = STRING_TO_JSVAL(str);
-    return JS_TRUE;
-}
-
-static JSBool
-script_compile_sub(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
-                   jsval *rval)
-{
-    JSString *str;
-    JSObject *scopeobj;
-    JSScript *script, *oldscript;
-    JSStackFrame *caller;
-    const char *file;
-    uintN line;
-    JSPrincipals *principals;
-    uint32 tcflags;
-    jsint execDepth;
-
-    /* Make sure obj is a Script object. */
-    if (!JS_InstanceOf(cx, obj, &js_ScriptClass, argv))
-        return JS_FALSE;
-
-    /* If no args, leave private undefined and return early. */
-    if (argc == 0)
-        goto out;
-
-    /* Otherwise, the first arg is the script source to compile. */
-    str = js_ValueToString(cx, argv[0]);
-    if (!str)
-        return JS_FALSE;
-    argv[0] = STRING_TO_JSVAL(str);
-
-    scopeobj = NULL;
-    if (argc >= 2) {
-        if (!js_ValueToObject(cx, argv[1], &scopeobj))
-            return JS_FALSE;
-        argv[1] = OBJECT_TO_JSVAL(scopeobj);
-    }
-
-    /* Compile using the caller's scope chain, which js_Invoke passes to fp. */
-    caller = js_GetScriptedCaller(cx, NULL);
-    JS_ASSERT(!caller || cx->fp->scopeChain == caller->scopeChain);
-
-    if (caller) {
-        if (!scopeobj) {
-            scopeobj = js_GetScopeChain(cx, caller);
-            if (!scopeobj)
-                return JS_FALSE;
-        }
-
-        principals = JS_EvalFramePrincipals(cx, cx->fp, caller);
-        file = js_ComputeFilename(cx, caller, principals, &line);
-    } else {
-        file = NULL;
-        line = 0;
-        principals = NULL;
-    }
-
-    /* Ensure we compile this script with the right (inner) principals. */
-    scopeobj = js_CheckScopeChainValidity(cx, scopeobj, js_script_compile_str);
-    if (!scopeobj)
-        return JS_FALSE;
-
-    /*
-     * Compile the new script using the caller's scope chain, a la eval().
-     * Unlike jsobj.c:obj_eval, however, we do not pass TCF_COMPILE_N_GO in
-     * tcflags and use NULL for the callerFrame argument, because compilation
-     * is here separated from execution, and the run-time scope chain may not
-     * match the compile-time. TCF_COMPILE_N_GO is tested in jsemit.c and
-     * jsparse.c to optimize based on identity of run- and compile-time scope.
-     */
-    tcflags = 0;
-    script = JSCompiler::compileScript(cx, scopeobj, NULL, principals, tcflags,
-                                       str->chars(), str->length(),
-                                       NULL, file, line);
-    if (!script)
-        return JS_FALSE;
-
-    JS_LOCK_OBJ(cx, obj);
-    execDepth = GetScriptExecDepth(cx, obj);
-
-    /*
-     * execDepth must be 0 to allow compilation here, otherwise the JSScript
-     * struct can be released while running.
-     */
-    if (execDepth > 0) {
-        JS_UNLOCK_OBJ(cx, obj);
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
-                             JSMSG_COMPILE_EXECED_SCRIPT);
-        return JS_FALSE;
-    }
-
-    /* Swap script for obj's old script, if any. */
-    oldscript = (JSScript*) obj->getPrivate();
-    obj->setPrivate(script);
-    JS_UNLOCK_OBJ(cx, obj);
-
-    if (oldscript)
-        js_DestroyScript(cx, oldscript);
-
-    script->u.object = obj;
-    js_CallNewScriptHook(cx, script, NULL);
-
-out:
-    /* Return the object. */
-    *rval = OBJECT_TO_JSVAL(obj);
-    return JS_TRUE;
-}
-
-static JSBool
-script_compile(JSContext *cx, uintN argc, jsval *vp)
-{
-    return script_compile_sub(cx, JS_THIS_OBJECT(cx, vp), argc, vp + 2, vp);
-}
-
-static JSBool
-script_exec_sub(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
-                jsval *rval)
-{
-    JSObject *scopeobj;
-    JSStackFrame *caller;
-    JSPrincipals *principals;
-    JSScript *script;
-    JSBool ok;
-
-    if (!JS_InstanceOf(cx, obj, &js_ScriptClass, argv))
-        return JS_FALSE;
-
-    scopeobj = NULL;
-    if (argc != 0) {
-        if (!js_ValueToObject(cx, argv[0], &scopeobj))
-            return JS_FALSE;
-        argv[0] = OBJECT_TO_JSVAL(scopeobj);
-    }
-
-    /*
-     * Emulate eval() by using caller's this, var object, sharp array, etc.,
-     * all propagated by js_Execute via a non-null fourth (down) argument to
-     * js_Execute.  If there is no scripted caller, js_Execute uses its second
-     * (chain) argument to set the exec frame's varobj, thisv, and scopeChain.
-     *
-     * Unlike eval, which the compiler detects, Script.prototype.exec may be
-     * called from a lightweight function, or even from native code (in which
-     * case fp->varobj and fp->scopeChain are null).  If exec is called from
-     * a lightweight function, we will need to get a Call object representing
-     * its frame, to act as the var object and scope chain head.
-     */
-    caller = js_GetScriptedCaller(cx, NULL);
-    if (caller && !caller->varobj) {
-        /* Called from a lightweight function. */
-        JS_ASSERT(caller->fun && !JSFUN_HEAVYWEIGHT_TEST(caller->fun->flags));
-
-        /* Scope chain links from Call object to caller's scope chain. */
-        if (!js_GetCallObject(cx, caller))
-            return JS_FALSE;
-    }
-
-    if (!scopeobj) {
-        /* No scope object passed in: try to use the caller's scope chain. */
-        if (caller) {
-            /*
-             * Load caller->scopeChain after the conditional js_GetCallObject
-             * call above, which resets scopeChain as well as varobj.
-             */
-            scopeobj = js_GetScopeChain(cx, caller);
-            if (!scopeobj)
-                return JS_FALSE;
-        } else {
-            /*
-             * Called from native code, so we don't know what scope object to
-             * use.  We could use the caller's scope chain (see above), but Script.prototype.exec
-             * might be a shared/sealed "superglobal" method.  A more general
-             * approach would use cx->globalObject, which will be the same as
-             * exec.__parent__ in the non-superglobal case.  In the superglobal
-             * case it's the right object: the global, not the superglobal.
-             */
-            scopeobj = cx->globalObject;
-        }
-    }
-
-    scopeobj = js_CheckScopeChainValidity(cx, scopeobj, js_script_exec_str);
-    if (!scopeobj)
-        return JS_FALSE;
-
-    /* Keep track of nesting depth for the script. */
-    AdjustScriptExecDepth(cx, obj, 1);
-
-    /* Must get to out label after this */
-    script = (JSScript *) obj->getPrivate();
-    if (!script) {
-        ok = JS_FALSE;
-        goto out;
-    }
-
-    /* Belt-and-braces: check that this script object has access to scopeobj. */
-    principals = script->principals;
-    ok = js_CheckPrincipalsAccess(cx, scopeobj, principals,
-                                  CLASS_ATOM(cx, Script));
-    if (!ok)
-        goto out;
-
-    ok = js_Execute(cx, scopeobj, script, caller, JSFRAME_EVAL, rval);
-
-out:
-    AdjustScriptExecDepth(cx, obj, -1);
-    return ok;
-}
-
-static JSBool
-script_exec(JSContext *cx, uintN argc, jsval *vp)
-{
-    return script_exec_sub(cx, JS_THIS_OBJECT(cx, vp), argc, vp + 2, vp);
-}
-
-#endif /* JS_HAS_SCRIPT_OBJECT */
+/* static */ const JSScript JSScript::emptyScriptConst = {
+    const_cast<jsbytecode*>(emptyScriptCode),
+    1, JSVERSION_DEFAULT, 0, 0, 0, 0, 0, true, false, false, false,
+    const_cast<jsbytecode*>(emptyScriptCode),
+    {0, NULL}, NULL, 0, 0, 0, NULL
+};
 
 #if JS_HAS_XDR
 
 JSBool
-js_XDRScript(JSXDRState *xdr, JSScript **scriptp, JSBool *hasMagic)
+js_XDRScript(JSXDRState *xdr, JSScript **scriptp, bool needMutableScript,
+             JSBool *hasMagic)
 {
     JSContext *cx;
     JSScript *script, *oldscript;
@@ -420,7 +92,6 @@ js_XDRScript(JSXDRState *xdr, JSScript **scriptp, JSBool *hasMagic)
     uint32 length, lineno, nslots, magic;
     uint32 natoms, nsrcnotes, ntrynotes, nobjects, nupvars, nregexps, i;
     uint32 prologLength, version;
-    JSTempValueRooter tvr;
     JSPrincipals *principals;
     uint32 encodeable;
     JSBool filenameWasSaved;
@@ -450,8 +121,47 @@ js_XDRScript(JSXDRState *xdr, JSScript **scriptp, JSBool *hasMagic)
     if (hasMagic)
         *hasMagic = JS_TRUE;
 
+    /*
+     * Since the shortest possible script has JSOP_STOP as its only bytecode,
+     * encode only the length 0 for the emptyScript singleton, and return the
+     * emptyScript instead of a new script when decoding a script of length 0.
+     */
+    if (xdr->mode == JSXDR_ENCODE)
+        length = (script == JSScript::emptyScript()) ? 0 : script->length;
+    if (!JS_XDRUint32(xdr, &length))
+        return JS_FALSE;
+    if (length == 0) {
+        if (xdr->mode == JSXDR_ENCODE) {
+            JS_ASSERT(*scriptp == JSScript::emptyScript());
+            return JS_TRUE;
+        }
+
+        /* Decoding: check whether we need a mutable empty script. */
+        if (cx->debugHooks->newScriptHook)
+            needMutableScript = true;
+        if (needMutableScript) {
+            /*
+             * We need a mutable empty script but the encoder serialized only
+             * the shorthand (0 length word) for us. Make a new mutable empty
+             * script here and return it immediately.
+             */
+            script = js_NewScript(cx, 1, 1, 0, 0, 0, 0, 0);
+            if (!script)
+                return JS_FALSE;
+
+            script->version = JSVERSION_DEFAULT;
+            script->noScriptRval = true;
+            script->code[0] = JSOP_STOP;
+            script->code[1] = SRC_NULL;
+            *scriptp = script;
+            return JS_TRUE;
+        }
+
+        *scriptp = JSScript::emptyScript();
+        return JS_TRUE;
+    }
+
     if (xdr->mode == JSXDR_ENCODE) {
-        length = script->length;
         prologLength = script->main - script->code;
         JS_ASSERT((int16)script->version != JSVERSION_UNKNOWN);
         version = (uint32)script->version | (script->nfixed << 16);
@@ -477,8 +187,6 @@ js_XDRScript(JSXDRState *xdr, JSScript **scriptp, JSBool *hasMagic)
             ntrynotes = script->trynotes()->length;
     }
 
-    if (!JS_XDRUint32(xdr, &length))
-        return JS_FALSE;
     if (!JS_XDRUint32(xdr, &prologLength))
         return JS_FALSE;
     if (!JS_XDRUint32(xdr, &version))
@@ -501,6 +209,8 @@ js_XDRScript(JSXDRState *xdr, JSScript **scriptp, JSBool *hasMagic)
     if (!JS_XDRUint32(xdr, &nregexps))
         return JS_FALSE;
 
+    AutoScriptRooter tvr(cx, NULL);
+
     if (xdr->mode == JSXDR_DECODE) {
         script = js_NewScript(cx, length, nsrcnotes, natoms, nobjects, nupvars,
                               nregexps, ntrynotes);
@@ -514,7 +224,7 @@ js_XDRScript(JSXDRState *xdr, JSScript **scriptp, JSBool *hasMagic)
         /* If we know nsrcnotes, we allocated space for notes in script. */
         notes = script->notes();
         *scriptp = script;
-        JS_PUSH_TEMP_ROOT_SCRIPT(cx, script, &tvr);
+        tvr.setScript(script);
     }
 
     /*
@@ -600,11 +310,11 @@ js_XDRScript(JSXDRState *xdr, JSScript **scriptp, JSBool *hasMagic)
         JSObject **objp = &script->objects()->vector[i];
         uint32 isBlock;
         if (xdr->mode == JSXDR_ENCODE) {
-            JSClass *clasp = STOBJ_GET_CLASS(*objp);
+            JSClass *clasp = (*objp)->getClass();
             JS_ASSERT(clasp == &js_FunctionClass ||
                       clasp == &js_BlockClass);
             isBlock = (clasp == &js_BlockClass) ? 1 : 0;
-         }
+        }
         if (!JS_XDRUint32(xdr, &isBlock))
             goto error;
         if (isBlock == 0) {
@@ -657,13 +367,10 @@ js_XDRScript(JSXDRState *xdr, JSScript **scriptp, JSBool *hasMagic)
     }
 
     xdr->script = oldscript;
-    if (xdr->mode == JSXDR_DECODE)
-        JS_POP_TEMP_ROOT(cx, &tvr);
     return JS_TRUE;
 
   error:
     if (xdr->mode == JSXDR_DECODE) {
-        JS_POP_TEMP_ROOT(cx, &tvr);
         if (script->filename && !filenameWasSaved) {
             cx->free((void *) script->filename);
             script->filename = NULL;
@@ -675,197 +382,7 @@ js_XDRScript(JSXDRState *xdr, JSScript **scriptp, JSBool *hasMagic)
     return JS_FALSE;
 }
 
-#if JS_HAS_SCRIPT_OBJECT && JS_HAS_XDR_FREEZE_THAW
-/*
- * These cannot be exposed to web content, and chrome does not need them, so
- * we take them out of the Mozilla client altogether.  Fortunately, there is
- * no way to serialize a native function (see fun_xdrObject in jsfun.c).
- */
-
-static JSBool
-script_freeze(JSContext *cx, uintN argc, jsval *vp)
-{
-    JSObject *obj;
-    JSXDRState *xdr;
-    JSScript *script;
-    JSBool ok, hasMagic;
-    uint32 len;
-    void *buf;
-    JSString *str;
-
-    obj = JS_THIS_OBJECT(cx, vp);
-    if (!JS_InstanceOf(cx, obj, &js_ScriptClass, vp + 2))
-        return JS_FALSE;
-    script = (JSScript *) obj->getPrivate();
-    if (!script)
-        return JS_TRUE;
-
-    /* create new XDR */
-    xdr = JS_XDRNewMem(cx, JSXDR_ENCODE);
-    if (!xdr)
-        return JS_FALSE;
-
-    /* write  */
-    ok = js_XDRScript(xdr, &script, &hasMagic);
-    if (!ok)
-        goto out;
-    if (!hasMagic) {
-        *vp = JSVAL_VOID;
-        goto out;
-    }
-
-    buf = JS_XDRMemGetData(xdr, &len);
-    if (!buf) {
-        ok = JS_FALSE;
-        goto out;
-    }
-
-    JS_ASSERT((jsword)buf % sizeof(jschar) == 0);
-    len /= sizeof(jschar);
-#if IS_BIG_ENDIAN
-  {
-    jschar *chars;
-    uint32 i;
-
-    /* Swap bytes in Unichars to keep frozen strings machine-independent. */
-    chars = (jschar *)buf;
-    for (i = 0; i < len; i++)
-        chars[i] = JSXDR_SWAB16(chars[i]);
-  }
-#endif
-    str = JS_NewUCStringCopyN(cx, (jschar *)buf, len);
-    if (!str) {
-        ok = JS_FALSE;
-        goto out;
-    }
-
-    *vp = STRING_TO_JSVAL(str);
-
-out:
-    JS_XDRDestroy(xdr);
-    return ok;
-}
-
-static JSBool
-script_thaw(JSContext *cx, uintN argc, jsval *vp)
-{
-    JSObject *obj;
-    JSXDRState *xdr;
-    JSString *str;
-    void *buf;
-    uint32 len;
-    jsval v;
-    JSScript *script, *oldscript;
-    JSBool ok, hasMagic;
-    jsint execDepth;
-
-    obj = JS_THIS_OBJECT(cx, vp);
-    if (!JS_InstanceOf(cx, obj, &js_ScriptClass, vp + 2))
-        return JS_FALSE;
-
-    if (argc == 0)
-        return JS_TRUE;
-    str = js_ValueToString(cx, vp[2]);
-    if (!str)
-        return JS_FALSE;
-    vp[2] = STRING_TO_JSVAL(str);
-
-    /* create new XDR */
-    xdr = JS_XDRNewMem(cx, JSXDR_DECODE);
-    if (!xdr)
-        return JS_FALSE;
-
-    str->getCharsAndLength(buf, len);
-#if IS_BIG_ENDIAN
-  {
-    jschar *from, *to;
-    uint32 i;
-
-    /* Swap bytes in Unichars to keep frozen strings machine-independent. */
-    from = (jschar *)buf;
-    to = (jschar *) cx->malloc(len * sizeof(jschar));
-    if (!to) {
-        JS_XDRDestroy(xdr);
-        return JS_FALSE;
-    }
-    for (i = 0; i < len; i++)
-        to[i] = JSXDR_SWAB16(from[i]);
-    buf = (char *)to;
-  }
-#endif
-    len *= sizeof(jschar);
-    JS_XDRMemSetData(xdr, buf, len);
-
-    /* XXXbe should magic mismatch be error, or false return value? */
-    ok = js_XDRScript(xdr, &script, &hasMagic);
-    if (!ok)
-        goto out;
-    if (!hasMagic) {
-        *vp = JSVAL_FALSE;
-        goto out;
-    }
-
-    JS_LOCK_OBJ(cx, obj);
-    execDepth = GetScriptExecDepth(cx, obj);
-
-    /*
-     * execDepth must be 0 to allow compilation here, otherwise the JSScript
-     * struct can be released while running.
-     */
-    if (execDepth > 0) {
-        JS_UNLOCK_OBJ(cx, obj);
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
-                             JSMSG_COMPILE_EXECED_SCRIPT);
-        goto out;
-    }
-
-    /* Swap script for obj's old script, if any. */
-    oldscript = (JSScript *) obj->getPrivate();
-    obj->setPrivate(script);
-    JS_UNLOCK_OBJ(cx, obj);
-
-    if (oldscript)
-        js_DestroyScript(cx, oldscript);
-
-    script->u.object = obj;
-    js_CallNewScriptHook(cx, script, NULL);
-
-out:
-    /*
-     * We reset the buffer to be NULL so that it doesn't free the chars
-     * memory owned by str (vp[2]).
-     */
-    JS_XDRMemSetData(xdr, NULL, 0);
-    JS_XDRDestroy(xdr);
-#if IS_BIG_ENDIAN
-    cx->free(buf);
-#endif
-    *vp = JSVAL_TRUE;
-    return ok;
-}
-
-static const char js_thaw_str[] = "thaw";
-
-#endif /* JS_HAS_SCRIPT_OBJECT && JS_HAS_XDR_FREEZE_THAW */
 #endif /* JS_HAS_XDR */
-
-#if JS_HAS_SCRIPT_OBJECT
-
-static JSFunctionSpec script_methods[] = {
-#if JS_HAS_TOSOURCE
-    JS_FN(js_toSource_str,   script_toSource,   0,0),
-#endif
-    JS_FN(js_toString_str,   script_toString,   0,0),
-    JS_FN("compile",         script_compile,    2,0),
-    JS_FN("exec",            script_exec,       1,0),
-#if JS_HAS_XDR_FREEZE_THAW
-    JS_FN("freeze",          script_freeze,     0,0),
-    JS_FN(js_thaw_str,       script_thaw,       1,0),
-#endif /* JS_HAS_XDR_FREEZE_THAW */
-    JS_FS_END
-};
-
-#endif /* JS_HAS_SCRIPT_OBJECT */
 
 static void
 script_finalize(JSContext *cx, JSObject *obj)
@@ -873,16 +390,6 @@ script_finalize(JSContext *cx, JSObject *obj)
     JSScript *script = (JSScript *) obj->getPrivate();
     if (script)
         js_DestroyScript(cx, script);
-}
-
-static JSBool
-script_call(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
-{
-#if JS_HAS_SCRIPT_OBJECT
-    return script_exec_sub(cx, JSVAL_TO_OBJECT(argv[-2]), argc, argv, rval);
-#else
-    return JS_FALSE;
-#endif
 }
 
 static void
@@ -893,80 +400,15 @@ script_trace(JSTracer *trc, JSObject *obj)
         js_TraceScript(trc, script);
 }
 
-#if !JS_HAS_SCRIPT_OBJECT
-#define JSProto_Script  JSProto_Object
-#endif
-
-JS_FRIEND_DATA(JSClass) js_ScriptClass = {
-    js_Script_str,
-    JSCLASS_HAS_PRIVATE | JSCLASS_HAS_RESERVED_SLOTS(1) |
-    JSCLASS_MARK_IS_TRACE | JSCLASS_HAS_CACHED_PROTO(JSProto_Script),
+JSClass js_ScriptClass = {
+    "Script",
+    JSCLASS_HAS_PRIVATE |
+    JSCLASS_MARK_IS_TRACE | JSCLASS_HAS_CACHED_PROTO(JSProto_Object),
     JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,
     JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   script_finalize,
-    NULL,             NULL,             script_call,      NULL,/*XXXbe xdr*/
+    NULL,             NULL,             NULL,             NULL,/*XXXbe xdr*/
     NULL,             NULL,             JS_CLASS_TRACE(script_trace), NULL
 };
-
-#if JS_HAS_SCRIPT_OBJECT
-
-static JSBool
-Script(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
-{
-    /* If not constructing, replace obj with a new Script object. */
-    if (!JS_IsConstructing(cx)) {
-        obj = js_NewObject(cx, &js_ScriptClass, NULL, NULL);
-        if (!obj)
-            return JS_FALSE;
-
-        /*
-         * script_compile_sub does not use rval to root its temporaries so we
-         * can use it to root obj.
-         */
-        *rval = OBJECT_TO_JSVAL(obj);
-    }
-
-    if (!JS_SetReservedSlot(cx, obj, 0, INT_TO_JSVAL(0)))
-        return JS_FALSE;
-
-    return script_compile_sub(cx, obj, argc, argv, rval);
-}
-
-#if JS_HAS_SCRIPT_OBJECT && JS_HAS_XDR_FREEZE_THAW
-
-static JSBool
-script_static_thaw(JSContext *cx, uintN argc, jsval *vp)
-{
-    JSObject *obj;
-
-    obj = js_NewObject(cx, &js_ScriptClass, NULL, NULL);
-    if (!obj)
-        return JS_FALSE;
-    vp[1] = OBJECT_TO_JSVAL(obj);
-    if (!script_thaw(cx, argc, vp))
-        return JS_FALSE;
-    *vp = OBJECT_TO_JSVAL(obj);
-    return JS_TRUE;
-}
-
-static JSFunctionSpec script_static_methods[] = {
-    JS_FN(js_thaw_str,       script_static_thaw,     1,0),
-    JS_FS_END
-};
-
-#else  /* !JS_HAS_SCRIPT_OBJECT || !JS_HAS_XDR_FREEZE_THAW */
-
-#define script_static_methods   NULL
-
-#endif /* !JS_HAS_SCRIPT_OBJECT || !JS_HAS_XDR_FREEZE_THAW */
-
-JSObject *
-js_InitScriptClass(JSContext *cx, JSObject *obj)
-{
-    return JS_InitClass(cx, obj, NULL, &js_ScriptClass, Script, 1,
-                        NULL, script_methods, NULL, script_static_methods);
-}
-
-#endif /* JS_HAS_SCRIPT_OBJECT */
 
 /*
  * Shared script filename management.
@@ -1263,7 +705,7 @@ js_script_filename_marker(JSHashEntry *he, intN i, void *arg)
 }
 
 void
-js_MarkScriptFilenames(JSRuntime *rt, JSBool keepAtoms)
+js_MarkScriptFilenames(JSRuntime *rt)
 {
     JSCList *head, *link;
     ScriptFilenamePrefix *sfp;
@@ -1271,7 +713,7 @@ js_MarkScriptFilenames(JSRuntime *rt, JSBool keepAtoms)
     if (!rt->scriptFilenameTable)
         return;
 
-    if (keepAtoms) {
+    if (rt->gcKeepAtoms) {
         JS_HashTableEnumerateEntries(rt->scriptFilenameTable,
                                      js_script_filename_marker,
                                      rt);
@@ -1385,7 +827,7 @@ js_NewScript(JSContext *cx, uint32 length, uint32 nsrcnotes, uint32 natoms,
     script = (JSScript *) cx->malloc(size);
     if (!script)
         return NULL;
-    memset(script, 0, sizeof(JSScript));
+    PodZero(script);
     script->length = length;
     script->version = cx->version;
 
@@ -1485,6 +927,62 @@ js_NewScriptFromCG(JSContext *cx, JSCodeGenerator *cg)
 
     mainLength = CG_OFFSET(cg);
     prologLength = CG_PROLOG_OFFSET(cg);
+
+    if (prologLength + mainLength <= 3) {
+        /*
+         * Check very short scripts to see whether they are "empty" and return
+         * the const empty-script singleton if so. We are deliberately flexible
+         * about whether JSOP_TRACE is in the prolog.
+         */
+        jsbytecode *pc = prologLength ? CG_PROLOG_BASE(cg) : CG_BASE(cg);
+
+        if (JSOp(*pc) == JSOP_TRACE) {
+            ++pc;
+            if (pc == CG_PROLOG_BASE(cg) + prologLength)
+                pc = CG_BASE(cg);
+        }
+        if ((cg->flags & TCF_NO_SCRIPT_RVAL) && JSOp(*pc) == JSOP_FALSE)
+            ++pc;
+
+        if (JSOp(*pc) == JSOP_STOP &&
+            !cx->debugHooks->newScriptHook &&
+            !(cg->flags & TCF_NEED_MUTABLE_SCRIPT))
+        {
+            /*
+             * We can probably use the immutable empty script singleton, just
+             * one hard case (nupvars != 0) may stand in our way.
+             */
+            JSScript *empty = JSScript::emptyScript();
+
+            if (cg->flags & TCF_IN_FUNCTION) {
+                fun = cg->fun;
+                JS_ASSERT(FUN_INTERPRETED(fun) && !FUN_SCRIPT(fun));
+                if (fun->u.i.nupvars != 0) {
+                    /*
+                     * FIXME: upvar uses that were all optimized away may leave
+                     * fun->u.i.nupvars non-zero, and since that count is added
+                     * into fun->countLocalNames() in order to discriminate the
+                     * fun->u.i.names union, we cannot force fun->u.i.nupvars
+                     * to 0 to match JSScript::emptyScript()->upvars()->length.
+                     * So we skip the empty script optimization.
+                     *
+                     * Fixing this requires the compiler to track upvar uses as
+                     * it analyzes and optimizes closures, and subsequently as
+                     * the emitter performs useless expression elimination.
+                     */
+                    goto skip_empty;
+                }
+                js_FreezeLocalNames(cx, fun);
+                fun->u.i.script = empty;
+            }
+
+            JS_RUNTIME_METER(cx->runtime, liveEmptyScripts);
+            JS_RUNTIME_METER(cx->runtime, totalEmptyScripts);
+            return empty;
+        }
+    }
+
+  skip_empty:
     CG_COUNT_FINAL_SRCNOTES(cg, nsrcnotes);
     script = js_NewScript(cx, prologLength + mainLength, nsrcnotes,
                           cg->atomList.count, cg->objectList.length,
@@ -1499,12 +997,12 @@ js_NewScriptFromCG(JSContext *cx, JSCodeGenerator *cg)
     memcpy(script->main, CG_BASE(cg), mainLength * sizeof(jsbytecode));
     nfixed = (cg->flags & TCF_IN_FUNCTION)
              ? cg->fun->u.i.nvars
-             : cg->ngvars + cg->regexpList.length + cg->sharpSlots();
+             : cg->ngvars + cg->sharpSlots();
     JS_ASSERT(nfixed < SLOTNO_LIMIT);
     script->nfixed = (uint16) nfixed;
     js_InitAtomMap(cx, &script->atomMap, &cg->atomList);
 
-    filename = cg->compiler->tokenStream.filename;
+    filename = cg->parser->tokenStream.getFilename();
     if (filename) {
         script->filename = js_SaveScriptFilename(cx, filename);
         if (!script->filename)
@@ -1512,13 +1010,12 @@ js_NewScriptFromCG(JSContext *cx, JSCodeGenerator *cg)
     }
     script->lineno = cg->firstLine;
     if (script->nfixed + cg->maxStackDepth >= JS_BIT(16)) {
-        js_ReportCompileErrorNumber(cx, CG_TS(cg), NULL, JSREPORT_ERROR,
-                                    JSMSG_NEED_DIET, "script");
+        ReportCompileErrorNumber(cx, CG_TS(cg), NULL, JSREPORT_ERROR, JSMSG_NEED_DIET, "script");
         goto bad;
     }
     script->nslots = script->nfixed + cg->maxStackDepth;
-    script->staticLevel = cg->staticLevel;
-    script->principals = cg->compiler->principals;
+    script->staticLevel = uint16(cg->staticLevel);
+    script->principals = cg->parser->principals;
     if (script->principals)
         JSPRINCIPALS_HOLD(cx, script->principals);
 
@@ -1534,6 +1031,8 @@ js_NewScriptFromCG(JSContext *cx, JSCodeGenerator *cg)
         script->noScriptRval = true;
     if (cg->hasSharps())
         script->hasSharps = true;
+    if (cg->flags & TCF_STRICT_MODE_CODE)
+        script->strictModeCode = true;
 
     if (cg->upvarList.count != 0) {
         JS_ASSERT(cg->upvarList.count <= cg->upvarMap.length);
@@ -1552,8 +1051,10 @@ js_NewScriptFromCG(JSContext *cx, JSCodeGenerator *cg)
     if (cg->flags & TCF_IN_FUNCTION) {
         fun = cg->fun;
         JS_ASSERT(FUN_INTERPRETED(fun) && !FUN_SCRIPT(fun));
-        JS_ASSERT_IF(script->upvarsOffset != 0,
-                     script->upvars()->length == fun->u.i.nupvars);
+        if (script->upvarsOffset != 0)
+            JS_ASSERT(script->upvars()->length == fun->u.i.nupvars);
+        else
+            fun->u.i.nupvars = 0;
 
         js_FreezeLocalNames(cx, fun);
         fun->u.i.script = script;
@@ -1566,6 +1067,8 @@ js_NewScriptFromCG(JSContext *cx, JSCodeGenerator *cg)
 
     /* Tell the debugger about this compiled script. */
     js_CallNewScriptHook(cx, script, fun);
+    JS_RUNTIME_METER(cx->runtime, liveScripts);
+    JS_RUNTIME_METER(cx->runtime, totalScripts);
     return script;
 
 bad:
@@ -1576,20 +1079,23 @@ bad:
 JS_FRIEND_API(void)
 js_CallNewScriptHook(JSContext *cx, JSScript *script, JSFunction *fun)
 {
+    JS_ASSERT(script != JSScript::emptyScript());
+
     JSNewScriptHook hook;
 
     hook = cx->debugHooks->newScriptHook;
     if (hook) {
-        JS_KEEP_ATOMS(cx->runtime);
+        AutoKeepAtoms keep(cx->runtime);
         hook(cx, script->filename, script->lineno, script, fun,
              cx->debugHooks->newScriptHookData);
-        JS_UNKEEP_ATOMS(cx->runtime);
     }
 }
 
 JS_FRIEND_API(void)
 js_CallDestroyScriptHook(JSContext *cx, JSScript *script)
 {
+    JS_ASSERT(script != JSScript::emptyScript());
+
     JSDestroyScriptHook hook;
 
     hook = cx->debugHooks->destroyScriptHook;
@@ -1600,6 +1106,11 @@ js_CallDestroyScriptHook(JSContext *cx, JSScript *script)
 void
 js_DestroyScript(JSContext *cx, JSScript *script)
 {
+    if (script == JSScript::emptyScript()) {
+        JS_RUNTIME_UNMETER(cx->runtime, liveEmptyScripts);
+        return;
+    }
+
     js_CallDestroyScriptHook(cx, script);
     JS_ClearScriptTraps(cx, script);
 
@@ -1622,10 +1133,10 @@ js_DestroyScript(JSContext *cx, JSScript *script)
      * regenerating shapes, so we don't have to purge fragments if the GC is
      * currently running.
      *
-     * JS_THREADSAFE note: js_PurgePropertyCacheForScript purges only the
-     * current thread's property cache, so a script not owned by a function
-     * or object, which hands off lifetime management for that script to the
-     * GC, must be used by only one thread over its lifetime.
+     * JS_THREADSAFE note: The code below purges only the current thread's
+     * property cache, so a script not owned by a function or object, which
+     * hands off lifetime management for that script to the GC, must be used by
+     * only one thread over its lifetime.
      *
      * This should be an API-compatible change, since a script is never safe
      * against premature GC if shared among threads without a rooted object
@@ -1641,7 +1152,7 @@ js_DestroyScript(JSContext *cx, JSScript *script)
         JSStackFrame *fp = js_GetTopStackFrame(cx);
 
         if (!(fp && (fp->flags & JSFRAME_EVAL))) {
-            js_PurgePropertyCacheForScript(cx, script);
+            JS_PROPERTY_CACHE(cx).purgeForScript(script);
 
 #ifdef CHECK_SCRIPT_OWNER
             JS_ASSERT(script->owner == cx->thread);
@@ -1650,10 +1161,12 @@ js_DestroyScript(JSContext *cx, JSScript *script)
     }
 
 #ifdef JS_TRACER
-    js_PurgeScriptFragments(cx, script);
+    PurgeScriptFragments(cx, script);
 #endif
 
     cx->free(script);
+
+    JS_RUNTIME_UNMETER(cx->runtime, liveScripts);
 }
 
 void
@@ -1672,7 +1185,7 @@ js_TraceScript(JSTracer *trc, JSScript *script)
         v = ATOM_KEY(vector[i]);
         if (JSVAL_IS_TRACEABLE(v)) {
             JS_SET_TRACING_INDEX(trc, "atomMap", i);
-            JS_CallTracer(trc, JSVAL_TO_TRACEABLE(v), JSVAL_TRACE_KIND(v));
+            js_CallGCMarker(trc, JSVAL_TO_TRACEABLE(v), JSVAL_TRACE_KIND(v));
         }
     }
 
@@ -1683,7 +1196,7 @@ js_TraceScript(JSTracer *trc, JSScript *script)
             --i;
             if (objarray->vector[i]) {
                 JS_SET_TRACING_INDEX(trc, "objects", i);
-                JS_CallTracer(trc, objarray->vector[i], JSTRACE_OBJECT);
+                js_CallGCMarker(trc, objarray->vector[i], JSTRACE_OBJECT);
             }
         } while (i != 0);
     }
@@ -1695,14 +1208,14 @@ js_TraceScript(JSTracer *trc, JSScript *script)
             --i;
             if (objarray->vector[i]) {
                 JS_SET_TRACING_INDEX(trc, "regexps", i);
-                JS_CallTracer(trc, objarray->vector[i], JSTRACE_OBJECT);
+                js_CallGCMarker(trc, objarray->vector[i], JSTRACE_OBJECT);
             }
         } while (i != 0);
     }
 
     if (script->u.object) {
         JS_SET_TRACING_NAME(trc, "object");
-        JS_CallTracer(trc, script->u.object, JSTRACE_OBJECT);
+        js_CallGCMarker(trc, script->u.object, JSTRACE_OBJECT);
     }
 
     if (IS_GC_MARKING_TRACER(trc) && script->filename)
@@ -1800,7 +1313,7 @@ js_GetSrcNoteCached(JSContext *cx, JSScript *script, jsbytecode *pc)
 uintN
 js_FramePCToLineNumber(JSContext *cx, JSStackFrame *fp)
 {
-    return js_PCToLineNumber(cx, fp->script, fp->imacpc ? fp->imacpc : fp->regs->pc);
+    return js_PCToLineNumber(cx, fp->script, fp->imacpc ? fp->imacpc : fp->pc(cx));
 }
 
 uintN

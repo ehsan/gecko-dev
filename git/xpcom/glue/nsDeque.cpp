@@ -116,7 +116,7 @@ nsDeque::~nsDeque() {
 
   Erase();
   if (mData && (mData!=mBuffer)) {
-    delete [] mData;
+    free(mData);
   }
   mData=0;
   SetDeallocator(0);
@@ -169,17 +169,14 @@ nsDeque& nsDeque::Erase() {
  * If the deque actually overflows, there's very little we can do.
  * Perhaps this function should return PRBool/nsresult indicating success/failure.
  *
- * @return  capacity of the deque
- *          If the deque did not grow,
- *          and you knew its capacity beforehand,
- *          then this would be a way to indicate the failure.
+ * @return  whether growing succeeded
  */
 PRBool nsDeque::GrowCapacity() {
   PRInt32 theNewSize=mCapacity<<2;
   NS_ASSERTION(theNewSize>mCapacity, "Overflow");
   if (theNewSize<=mCapacity)
     return PR_FALSE;
-  void** temp=new void*[theNewSize];
+  void** temp=(void**)malloc(theNewSize * sizeof(void*));
   if (!temp)
     return PR_FALSE;
 
@@ -192,7 +189,7 @@ PRBool nsDeque::GrowCapacity() {
   memcpy(temp + (mCapacity - mOrigin), mData, sizeof(void*) * mOrigin);
 
   if (mData != mBuffer) {
-    delete [] mData;
+    free(mData);
   }
 
   mCapacity=theNewSize;

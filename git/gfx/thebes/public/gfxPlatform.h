@@ -61,10 +61,14 @@ class gfxUserFontSet;
 class gfxFontEntry;
 class gfxProxyFontEntry;
 class gfxPlatformFontList;
+class gfxTextRun;
 class nsIURI;
+class nsIAtom;
+class nsIPrefBranch;
 
 // pref lang id's for font prefs
 // !!! needs to match the list of pref font.default.xx entries listed in all.js !!!
+// !!! don't use as bit mask, this may grow larger !!!
 
 enum eFontPrefLang {
     eFontPrefLang_Western     =  0,
@@ -96,14 +100,15 @@ enum eFontPrefLang {
     eFontPrefLang_Telugu      = 26,
     eFontPrefLang_Kannada     = 27,
     eFontPrefLang_Sinhala     = 28,
+    eFontPrefLang_Tibetan     = 29,
 
-    eFontPrefLang_LangCount   = 29, // except Others and UserDefined.
+    eFontPrefLang_LangCount   = 30, // except Others and UserDefined.
 
-    eFontPrefLang_Others      = 29, // x-unicode
-    eFontPrefLang_UserDefined = 30,
+    eFontPrefLang_Others      = 30, // x-unicode
+    eFontPrefLang_UserDefined = 31,
 
-    eFontPrefLang_CJKSet      = 31, // special code for CJK set
-    eFontPrefLang_AllCount    = 32
+    eFontPrefLang_CJKSet      = 32, // special code for CJK set
+    eFontPrefLang_AllCount    = 33
 };
 
 enum eCMSMode {
@@ -115,6 +120,8 @@ enum eCMSMode {
 
 // when searching through pref langs, max number of pref langs
 const PRUint32 kMaxLenPrefLangList = 32;
+
+#define UNINITIALIZED_VALUE  (-1)
 
 class THEBES_API gfxPlatform {
 public:
@@ -150,12 +157,14 @@ public:
      * Font bits
      */
 
+    virtual void SetupClusterBoundaries(gfxTextRun *aTextRun, const PRUnichar *aString);
+
     /**
      * Fill aListOfFonts with the results of querying the list of font names
      * that correspond to the given language group or generic font family
      * (or both, or neither).
      */
-    virtual nsresult GetFontList(const nsACString& aLangGroup,
+    virtual nsresult GetFontList(nsIAtom *aLangGroup,
                                  const nsACString& aGenericFamily,
                                  nsTArray<nsString>& aListOfFonts);
 
@@ -229,8 +238,11 @@ public:
     // check whether format is supported on a platform or not (if unclear, returns true)
     virtual PRBool IsFontFormatSupported(nsIURI *aFontURI, PRUint32 aFormatFlags) { return PR_FALSE; }
 
-    void GetPrefFonts(const char *aLangGroup, nsString& array, PRBool aAppendUnicode = PR_TRUE);
+    void GetPrefFonts(nsIAtom *aLanguage, nsString& array, PRBool aAppendUnicode = PR_TRUE);
 
+    // in some situations, need to make decisions about ambiguous characters, may need to look at multiple pref langs
+    void GetLangPrefs(eFontPrefLang aPrefLangs[], PRUint32 &aLen, eFontPrefLang aCharLang, eFontPrefLang aPageLang);
+    
     /**
      * Iterate over pref fonts given a list of lang groups.  For a single lang
      * group, multiple pref fonts are possible.  If error occurs, returns PR_FALSE,
@@ -242,12 +254,18 @@ public:
                                   PrefFontCallback aCallback,
                                   void *aClosure);
 
-    // convert a lang group string to enum constant (i.e. "zh-TW" ==> eFontPrefLang_ChineseTW)
+    // convert a lang group to enum constant (i.e. "zh-TW" ==> eFontPrefLang_ChineseTW)
     static eFontPrefLang GetFontPrefLangFor(const char* aLang);
+
+    // convert a lang group atom to enum constant
+    static eFontPrefLang GetFontPrefLangFor(nsIAtom *aLang);
 
     // convert a enum constant to lang group string (i.e. eFontPrefLang_ChineseTW ==> "zh-TW")
     static const char* GetPrefLangName(eFontPrefLang aLang);
    
+    // map a Unicode range (based on char code) to a font language for Preferences
+    static eFontPrefLang GetFontPrefLangFor(PRUint8 aUnicodeRange);
+
     // returns true if a pref lang is CJK
     static PRBool IsLangCJK(eFontPrefLang aLang);
     
@@ -314,18 +332,29 @@ public:
         return sDPI;
     }
 
+    virtual void FontsPrefsChanged(nsIPrefBranch *aPrefBranch, const char *aPref);
+
 protected:
-    gfxPlatform() { }
+    gfxPlatform();
     virtual ~gfxPlatform();
 
+    static PRBool GetBoolPref(const char *aPref, PRBool aDefault);
+
+    void AppendCJKPrefLangs(eFontPrefLang aPrefLangs[], PRUint32 &aLen, 
+                            eFontPrefLang aCharLang, eFontPrefLang aPageLang);
+                                               
     /**
      * Initialize any needed display metrics (such as DPI)
      */
     virtual void InitDisplayCaps();
     static PRInt32 sDPI;
 
+    PRBool  mAllowDownloadableFonts;
+
 private:
     virtual qcms_profile* GetPlatformCMSOutputProfile();
+
+    nsTArray<PRUint32> mCJKPrefLangs;
 
     nsCOMPtr<nsIObserver> overrideObserver;
 };

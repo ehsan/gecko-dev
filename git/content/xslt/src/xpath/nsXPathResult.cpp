@@ -91,12 +91,15 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsXPathResult, nsIDOMXPathResult)
 NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsXPathResult, nsIDOMXPathResult)
+
+DOMCI_DATA(XPathResult, nsXPathResult)
+
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsXPathResult)
     NS_INTERFACE_MAP_ENTRY(nsIDOMXPathResult)
     NS_INTERFACE_MAP_ENTRY(nsIMutationObserver)
     NS_INTERFACE_MAP_ENTRY(nsIXPathResult)
     NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMXPathResult)
-    NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(XPathResult)
+    NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(XPathResult)
 NS_INTERFACE_MAP_END
 
 void
@@ -247,8 +250,7 @@ nsXPathResult::AttributeChanged(nsIDocument* aDocument,
                                 nsIContent* aContent,
                                 PRInt32 aNameSpaceID,
                                 nsIAtom* aAttribute,
-                                PRInt32 aModType,
-                                PRUint32 aStateMask)
+                                PRInt32 aModType)
 {
     Invalidate(aContent);
 }
@@ -256,6 +258,7 @@ nsXPathResult::AttributeChanged(nsIDocument* aDocument,
 void
 nsXPathResult::ContentAppended(nsIDocument* aDocument,
                                nsIContent* aContainer,
+                               nsIContent* aFirstNewContent,
                                PRInt32 aNewIndexInContainer)
 {
     Invalidate(aContainer);

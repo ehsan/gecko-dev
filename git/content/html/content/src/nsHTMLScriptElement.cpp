@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 #include "nsIDOMHTMLScriptElement.h"
+#include "nsIDOMNSHTMLScriptElement.h"
 #include "nsIDOMEventTarget.h"
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
@@ -304,6 +305,7 @@ nsHTMLScriptEventHandler::Invoke(nsISupports *aTargetObject,
 
 class nsHTMLScriptElement : public nsGenericHTMLElement,
                             public nsIDOMHTMLScriptElement,
+                            public nsIDOMNSHTMLScriptElement,
                             public nsScriptElement
 {
 public:
@@ -322,15 +324,14 @@ public:
   // nsIDOMHTMLElement
   NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
 
-  // nsIDOMHTMLScriptElement
   NS_DECL_NSIDOMHTMLSCRIPTELEMENT
+  NS_DECL_NSIDOMNSHTMLSCRIPTELEMENT
 
   // nsIScriptElement
   virtual void GetScriptType(nsAString& type);
-  virtual already_AddRefed<nsIURI> GetScriptURI();
   virtual void GetScriptText(nsAString& text);
   virtual void GetScriptCharset(nsAString& charset);
-  virtual PRBool GetScriptDeferred();
+  virtual void FreezeUriAsyncDefer();
 
   // nsIContent
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
@@ -376,12 +377,15 @@ nsHTMLScriptElement::~nsHTMLScriptElement()
 NS_IMPL_ADDREF_INHERITED(nsHTMLScriptElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLScriptElement, nsGenericElement)
 
+DOMCI_DATA(HTMLScriptElement, nsHTMLScriptElement)
+
 // QueryInterface implementation for nsHTMLScriptElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLScriptElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE4(nsHTMLScriptElement,
+  NS_HTML_CONTENT_INTERFACE_TABLE5(nsHTMLScriptElement,
                                    nsIDOMHTMLScriptElement,
                                    nsIScriptLoaderObserver,
                                    nsIScriptElement,
+                                   nsIDOMNSHTMLScriptElement,
                                    nsIMutationObserver)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLScriptElement,
                                                nsGenericHTMLElement)
@@ -389,7 +393,7 @@ NS_INTERFACE_TABLE_HEAD(nsHTMLScriptElement)
     foundInterface = static_cast<nsIScriptEventHandler*>
                                 (mScriptEventHandler);
   else
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(HTMLScriptElement)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(HTMLScriptElement)
 NS_HTML_CONTENT_INTERFACE_MAP_END
 
 
@@ -450,6 +454,7 @@ nsHTMLScriptElement::SetText(const nsAString& aValue)
 
 NS_IMPL_STRING_ATTR(nsHTMLScriptElement, Charset, charset)
 NS_IMPL_BOOL_ATTR(nsHTMLScriptElement, Defer, defer)
+NS_IMPL_BOOL_ATTR(nsHTMLScriptElement, Async, async)
 NS_IMPL_URI_ATTR(nsHTMLScriptElement, Src, src)
 NS_IMPL_STRING_ATTR(nsHTMLScriptElement, Type, type)
 NS_IMPL_STRING_ATTR(nsHTMLScriptElement, HtmlFor, _for)
@@ -472,7 +477,14 @@ nsresult
 nsHTMLScriptElement::DoneAddingChildren(PRBool aHaveNotified)
 {
   mDoneAddingChildren = PR_TRUE;
-  return MaybeProcessScript();
+  nsresult rv = MaybeProcessScript();
+  if (!mIsEvaluated) {
+    // Need to thaw the script uri here to allow another script to cause
+    // execution later.
+    mFrozen = PR_FALSE;
+    mUri = nsnull;
+  }
+  return rv;
 }
 
 PRBool
@@ -490,20 +502,6 @@ nsHTMLScriptElement::GetScriptType(nsAString& type)
   GetType(type);
 }
 
-// variation of this code in nsSVGScriptElement - check if changes
-// need to be transfered when modifying
-
-already_AddRefed<nsIURI>
-nsHTMLScriptElement::GetScriptURI()
-{
-  nsIURI *uri = nsnull;
-  nsAutoString src;
-  GetSrc(src);
-  if (!src.IsEmpty())
-    NS_NewURI(&uri, src);
-  return uri;
-}
-
 void
 nsHTMLScriptElement::GetScriptText(nsAString& text)
 {
@@ -516,20 +514,35 @@ nsHTMLScriptElement::GetScriptCharset(nsAString& charset)
   GetCharset(charset);
 }
 
-PRBool
-nsHTMLScriptElement::GetScriptDeferred()
+void
+nsHTMLScriptElement::FreezeUriAsyncDefer()
 {
-  PRBool defer;
-  GetDefer(&defer);
-  nsCOMPtr<nsIURI> uri = GetScriptURI();
+  if (mFrozen) {
+    return;
+  }
+  
+  // variation of this code in nsSVGScriptElement - check if changes
+  // need to be transfered when modifying
+  if (HasAttr(kNameSpaceID_None, nsGkAtoms::src)) {
+    nsAutoString src;
+    GetSrc(src);
+    NS_NewURI(getter_AddRefs(mUri), src);
 
-  return defer && uri;
+    PRBool defer, async;
+    GetAsync(&async);
+    GetDefer(&defer);
+
+    mDefer = !async && defer;
+    mAsync = async;
+  }
+  
+  mFrozen = PR_TRUE;
 }
 
 PRBool
 nsHTMLScriptElement::HasScriptContent()
 {
-  return HasAttr(kNameSpaceID_None, nsGkAtoms::src) ||
+  return (mFrozen ? !!mUri : HasAttr(kNameSpaceID_None, nsGkAtoms::src)) ||
          nsContentUtils::HasNonEmptyTextContent(this);
 }
 

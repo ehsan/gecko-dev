@@ -122,16 +122,18 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsNavHistoryQuery, NS_NAVHISTORYQUERY_IID)
 class nsNavHistoryQueryOptions : public nsINavHistoryQueryOptions
 {
 public:
-  nsNavHistoryQueryOptions() : mSort(0), mResultType(0),
-                               mExcludeItems(PR_FALSE),
-                               mExcludeQueries(PR_FALSE),
-                               mExcludeReadOnlyFolders(PR_FALSE),
-                               mExpandQueries(PR_TRUE),
-                               mIncludeHidden(PR_FALSE),
-                               mRedirectsMode(nsINavHistoryQueryOptions::REDIRECTS_MODE_ALL),
-                               mShowSessions(PR_FALSE),
-                               mMaxResults(0),
-                               mQueryType(nsINavHistoryQueryOptions::QUERY_TYPE_HISTORY)
+  nsNavHistoryQueryOptions()
+  : mSort(0)
+  , mResultType(0)
+  , mExcludeItems(PR_FALSE)
+  , mExcludeQueries(PR_FALSE)
+  , mExcludeReadOnlyFolders(PR_FALSE)
+  , mExpandQueries(PR_TRUE)
+  , mIncludeHidden(PR_FALSE)
+  , mRedirectsMode(nsINavHistoryQueryOptions::REDIRECTS_MODE_ALL)
+  , mMaxResults(0)
+  , mQueryType(nsINavHistoryQueryOptions::QUERY_TYPE_HISTORY)
+  , mAsyncEnabled(PR_FALSE)
   { }
 
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_NAVHISTORYQUERYOPTIONS_IID)
@@ -147,9 +149,9 @@ public:
   PRBool ExpandQueries() const { return mExpandQueries; }
   PRBool IncludeHidden() const { return mIncludeHidden; }
   PRUint16 RedirectsMode() const { return mRedirectsMode; }
-  PRBool ShowSessions() const { return mShowSessions; }
   PRUint32 MaxResults() const { return mMaxResults; }
   PRUint16 QueryType() const { return mQueryType; }
+  PRBool AsyncEnabled() const { return mAsyncEnabled; }
 
   nsresult Clone(nsNavHistoryQueryOptions **aResult);
 
@@ -172,12 +174,11 @@ private:
   PRPackedBool mExpandQueries;
   PRPackedBool mIncludeHidden;
   PRUint16 mRedirectsMode;
-  PRPackedBool mShowSessions;
   PRUint32 mMaxResults;
   PRUint16 mQueryType;
+  PRBool mAsyncEnabled;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsNavHistoryQueryOptions, NS_NAVHISTORYQUERYOPTIONS_IID)
 
 #endif // nsNavHistoryQuery_h_
-

@@ -227,7 +227,8 @@ main(int argc, char **argv)
     if (flen > 0) {
         size_t rv = fread(whole, 1, flen, in);
         if (rv < flen) {
-            fprintf(stderr, "short read (%d vs %d)! ouch!\n", rv, flen);
+            fprintf(stderr, "short read (%u vs %u)! ouch!\n",
+                    (unsigned int)rv, (unsigned int)flen);
             goto out;
         }
         if (ferror(in) != 0 || fclose(in) != 0)
@@ -404,7 +405,7 @@ XPT_DumpInterfaceDirectoryEntry(XPTCursor *cursor,
         fprintf(stdout, "%*sNamespace:                       %s\n", 
                 indent, " ", ide->name_space ? ide->name_space : "none");
         fprintf(stdout, "%*sAddress of interface descriptor: %p\n", 
-                indent, " ", ide->interface_descriptor);
+                indent, " ", (void*)(ide->interface_descriptor));
 
         fprintf(stdout, "%*sDescriptor:\n", indent, " ");
     
@@ -571,7 +572,13 @@ XPT_DumpMethodDescriptor(XPTHeader *header, XPTMethodDescriptor *md,
             fprintf(stdout, "TRUE\n");
         else 
             fprintf(stdout, "FALSE\n");
-        
+
+        fprintf(stdout, "%*sWants Optional Argc?        ", indent, " ");
+        if (XPT_MD_WANTS_OPT_ARGC(md->flags))
+            fprintf(stdout, "TRUE\n");
+        else 
+            fprintf(stdout, "FALSE\n");
+
         fprintf(stdout, "%*s# of arguments:   %d\n", indent, " ", md->num_args);
         fprintf(stdout, "%*sParameter Descriptors:\n", indent, " ");
         
@@ -595,12 +602,13 @@ XPT_DumpMethodDescriptor(XPTHeader *header, XPTMethodDescriptor *md,
         if (!XPT_GetStringForType(header, &md->result->type, id, &param_type)) {
             return PR_FALSE;
         }
-        fprintf(stdout, "%*s%c%c%c%c%c %s %s(", indent - 6, " ",
+        fprintf(stdout, "%*s%c%c%c%c%c%c %s %s(", indent - 6, " ",
                 XPT_MD_IS_GETTER(md->flags) ? 'G' : ' ',
                 XPT_MD_IS_SETTER(md->flags) ? 'S' : ' ',
                 XPT_MD_IS_HIDDEN(md->flags) ? 'H' : ' ',
                 XPT_MD_IS_NOTXPCOM(md->flags) ? 'N' : ' ',
                 XPT_MD_IS_CTOR(md->flags) ? 'C' : ' ',
+                XPT_MD_WANTS_OPT_ARGC(md->flags) ? 'O' : ' ',
                 param_type, md->name);
         for (i=0; i<md->num_args; i++) {
             if (i!=0) {

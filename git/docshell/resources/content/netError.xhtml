@@ -63,7 +63,7 @@
          toolkit/components/places/src/nsFaviconService.h should be updated. -->
     <link rel="icon" type="image/png" id="favicon" href="chrome://global/skin/icons/warning-16.png"/>
 
-    <script type="application/x-javascript"><![CDATA[
+    <script type="application/javascript"><![CDATA[
       // Error url MUST be formatted like this:
       //   moz-neterror:page?e=error&u=url&d=desc
       //
@@ -120,7 +120,7 @@
           location.reload();
         } catch (e) {
           // We probably tried to reload a URI that caused an exception to
-          // occur;  e.g. a non-existent file.
+          // occur;  e.g. a nonexistent file.
         }
 
         buttonEl.disabled = true;
@@ -313,6 +313,7 @@
         <h1 id="et_nssFailure2">&nssFailure2.title;</h1>
         <h1 id="et_nssBadCert">&nssBadCert.title;</h1>
         <h1 id="et_malwareBlocked">&malwareBlocked.title;</h1>
+        <h1 id="et_cspFrameAncestorBlocked">&cspFrameAncestorBlocked.title;</h1>
       </div>
       <div id="errorDescriptionsContainer">
         <div id="ed_generic">&generic.longDesc;</div>
@@ -335,6 +336,7 @@
         <div id="ed_nssFailure2">&nssFailure2.longDesc;</div>
         <div id="ed_nssBadCert">&nssBadCert.longDesc2;</div>
         <div id="ed_malwareBlocked">&malwareBlocked.longDesc;</div>
+        <div id="ed_cspFrameAncestorBlocked">&cspFrameAncestorBlocked.longDesc;</div>
       </div>
     </div>
 
@@ -376,7 +378,7 @@
     - an onload handler. This is because error pages are loaded as
     - LOAD_BACKGROUND, which means that onload handlers will not be executed.
     -->
-    <script type="application/x-javascript">initPage();</script>
+    <script type="application/javascript">initPage();</script>
 
   </body>
 </html>

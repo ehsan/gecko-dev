@@ -13,7 +13,7 @@
 #
 # The Original Code is mozilla.org build system.
 #
-# The Initial Developer of the Original Code is Mozilla Corporation
+# The Initial Developer of the Original Code is Mozilla Foundation
 # Portions created by the Initial Developer are Copyright (C) 2009
 # the Initial Developer. All Rights Reserved.
 #
@@ -60,6 +60,11 @@ CPPSRCS	+= nsWifiScannerWin.cpp
 else
 ifeq ($(OS_ARCH),Linux)
 CPPSRCS	+= nsWifiScannerUnix.cpp
+else
+ifeq ($(OS_ARCH),SunOS)
+CPPSRCS += nsWifiScannerSolaris.cpp
+OS_INCLUDES += $(GLIB_CFLAGS)
+endif # solaris
 endif # linux
 endif # windows
 endif # mac

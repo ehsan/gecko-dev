@@ -39,7 +39,7 @@
 #include "nsIGenericFactory.h"
 
 #include "nsBrowserCompsCID.h"
-#include "nsPlacesImportExportService.h"
+#include "DirectoryProvider.h"
 
 #if defined(XP_WIN)
 #include "nsWindowsShellService.h"
@@ -84,7 +84,7 @@ using namespace mozilla::browser;
 
 /////////////////////////////////////////////////////////////////////////////
 
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsPlacesImportExportService)
+NS_GENERIC_FACTORY_CONSTRUCTOR(DirectoryProvider)
 #if defined(XP_WIN)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsWindowsShellService)
 #elif defined(XP_MACOSX)
@@ -124,6 +124,14 @@ NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsPrivateBrowsingServiceWrapper, Init)
 
 static const nsModuleComponentInfo components[] =
 {
+  { "Browser Directory Provider",
+    NS_BROWSERDIRECTORYPROVIDER_CID,
+    NS_BROWSERDIRECTORYPROVIDER_CONTRACTID,
+    DirectoryProviderConstructor,
+    DirectoryProvider::Register,
+    DirectoryProvider::Unregister
+  },
+
 #if defined(XP_WIN)
   { "Browser Shell Service",
     NS_SHELLSERVICE_CID,
@@ -137,12 +145,6 @@ static const nsModuleComponentInfo components[] =
     nsGNOMEShellServiceConstructor },
 
 #endif
-
-
-  { "Places Import/Export Service",
-    NS_PLACESIMPORTEXPORTSERVICE_CID,
-    NS_PLACESIMPORTEXPORTSERVICE_CONTRACTID,
-    nsPlacesImportExportServiceConstructor},
 
   { "Feed Sniffer",
     NS_FEEDSNIFFER_CID,
@@ -185,11 +187,6 @@ static const nsModuleComponentInfo components[] =
   { "about:sessionrestore",
     NS_BROWSER_ABOUT_REDIRECTOR_CID,
     NS_ABOUT_MODULE_CONTRACTID_PREFIX "sessionrestore",
-    AboutRedirector::Create },
-
-  { "about:support",
-    NS_BROWSER_ABOUT_REDIRECTOR_CID,
-    NS_ABOUT_MODULE_CONTRACTID_PREFIX "support",
     AboutRedirector::Create },
 
 #ifndef WINCE

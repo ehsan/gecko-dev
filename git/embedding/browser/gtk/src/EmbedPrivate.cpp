@@ -67,9 +67,6 @@
 // For seting scrollbar visibilty
 #include "nsIDOMBarProp.h"
 
-// for the focus hacking we need to do
-#include "nsIFocusController.h"
-
 // app component registration
 #include "nsIGenericFactory.h"
 #include "nsIComponentRegistrar.h"
@@ -437,7 +434,8 @@ EmbedPrivate::LoadCurrentURI(void)
     nsAutoPopupStatePusher popupStatePusher(piWin, openAllowed);
 
     mNavigation->LoadURI(NS_ConvertUTF8toUTF16(mURI).get(), // URI string
-                         nsIWebNavigation::LOAD_FLAGS_NONE, // Load flags
+                         nsIWebNavigation::LOAD_FLAGS_NONE | // Load flags
+                         nsIWebNavigation::LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP,  // Allow keyword.URL.. functionality
                          nsnull,                            // Referring URI
                          nsnull,                            // Post data
                          nsnull);                           // extra headers

@@ -16,14 +16,13 @@
 <!ENTITY productHelp.accesskey    "H">
 <!ENTITY helpForIEUsers.label     "For Internet Explorer Users">
 <!ENTITY helpForIEUsers.accesskey "I">
-<!ENTITY openHelp.commandkey      "VK_F1">
 <!ENTITY helpMac.commandkey       "?">
 
 <!ENTITY helpReleaseNotes.label         "Release Notes">
 <!ENTITY helpReleaseNotes.accesskey     "N">
 
-<!ENTITY helpTroubleshooting.label      "Troubleshooting Information…">
-<!ENTITY helpTroubleshooting.accesskey  "T">
+<!ENTITY helpTroubleshootingInfo.label      "Troubleshooting Information">
+<!ENTITY helpTroubleshootingInfo.accesskey  "T">
 
 <!ENTITY updateCmd.label                "Check for Updates…">
 

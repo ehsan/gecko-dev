@@ -34,9 +34,20 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+function browserWindowsCount() {
+  let count = 0;
+  let e = Services.wm.getEnumerator("navigator:browser");
+  while (e.hasMoreElements()) {
+    if (!e.getNext().closed)
+      ++count;
+  }
+  return count;
+}
+
 function test() {
   // test that cookies are stored and restored correctly by sessionstore,
   // bug 423132.
+  is(browserWindowsCount(), 1, "Only one browser window should be open initially");
 
   // test setup
   waitForExplicitFinish();
@@ -50,7 +61,7 @@ function test() {
   // the interval pref to 0
   gPrefService.setIntPref("browser.sessionstore.interval", 0);
 
-  const testURL = "http://localhost:8888/browser/" +
+  const testURL = "http://mochi.test:8888/browser/" +
     "browser/components/sessionstore/test/browser/browser_423132_sample.html";
 
   // open a new window
@@ -97,9 +108,11 @@ function test() {
       is(cookie.path, cookie2.path, "cookie path successfully restored");
 
       // clean up
-      gPrefService.clearUserPref("browser.sessionstore.interval");
+      if (gPrefService.prefHasUserValue("browser.sessionstore.interval"))
+        gPrefService.clearUserPref("browser.sessionstore.interval");
       cs.removeAll();
       newWin.close();
+      is(browserWindowsCount(), 1, "Only one browser window should be open eventually");
       finish();
     }, true);
   }, false);

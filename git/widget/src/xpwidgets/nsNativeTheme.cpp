@@ -51,6 +51,7 @@
 #include "nsThemeConstants.h"
 #include "nsIComponentManager.h"
 #include "nsIDOMNSHTMLInputElement.h"
+#include "nsPIDOMWindow.h"
 
 nsNativeTheme::nsNativeTheme()
 {
@@ -88,13 +89,39 @@ nsNativeTheme::GetContentState(nsIFrame* aFrame, PRUint8 aWidgetType)
   if (!shell)
     return 0;
 
-  PRInt32 flags = 0;
-  shell->GetPresContext()->EventStateManager()->GetContentState(aFrame->GetContent(), flags);
+  nsIEventStateManager* esm = shell->GetPresContext()->EventStateManager();
+  PRInt32 flags = esm->GetContentState(aFrame->GetContent(), PR_TRUE);
   
   if (isXULCheckboxRadio && aWidgetType == NS_THEME_RADIO) {
     if (IsFocused(aFrame))
       flags |= NS_EVENT_STATE_FOCUS;
   }
+
+  // On Windows and Mac, only draw focus rings if they should be shown. This
+  // means that focus rings are only shown once the keyboard has been used to
+  // focus something in the window.
+#if defined(XP_MACOSX)
+  // Mac always draws focus rings for textboxes and lists.
+  if (aWidgetType == NS_THEME_TEXTFIELD ||
+      aWidgetType == NS_THEME_TEXTFIELD_MULTILINE ||
+      aWidgetType == NS_THEME_SEARCHFIELD ||
+      aWidgetType == NS_THEME_LISTBOX) {
+    return flags;
+  }
+#endif
+#if defined(XP_WIN)
+  // On Windows, focused buttons are always drawn as such by the native theme.
+  if (aWidgetType == NS_THEME_BUTTON)
+    return flags;
+#endif    
+#if defined(XP_MACOSX) || defined(XP_WIN)
+  nsIDocument* doc = aFrame->GetContent()->GetOwnerDoc();
+  if (doc) {
+    nsPIDOMWindow* window = doc->GetWindow();
+    if (window && !window->ShouldShowFocusRing())
+      flags &= ~NS_EVENT_STATE_FOCUS;
+  }
+#endif
   
   return flags;
 }

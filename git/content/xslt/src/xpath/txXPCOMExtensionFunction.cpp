@@ -212,10 +212,9 @@ LookupFunction(const char *aContractID, nsIAtom* aName, nsIID &aIID,
     // foo-bar becomes fooBar). Note that if there are any names that already
     // have uppercase letters they might cause false matches (both fooBar and
     // foo-bar matching fooBar).
-    const char *name;
-    aName->GetUTF8String(&name);
+    const PRUnichar *name = aName->GetUTF16String();
     nsCAutoString methodName;
-    char letter;
+    PRUnichar letter;
     PRBool upperNext = PR_FALSE;
     while ((letter = *name)) {
         if (letter == '-') {
@@ -479,7 +478,11 @@ txXPCOMExtensionFunctionCall::evaluate(txIEvalContext* aContext,
             }
             case eNUMBER:
             {
-                invokeParam.val.d = evaluateToNumber(expr, aContext);
+                double dbl;
+                rv = evaluateToNumber(mParams[0], aContext, &dbl);
+                NS_ENSURE_SUCCESS(rv, rv);
+
+                invokeParam.val.d = dbl;
                 break;
             }
             case eSTRING:

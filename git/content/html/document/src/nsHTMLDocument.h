@@ -101,6 +101,8 @@ public:
                                      nsIContentSink* aSink = nsnull);
   virtual void StopDocumentLoad();
 
+  virtual void BeginLoad();
+
   virtual void EndLoad();
 
   virtual nsresult AddImageMap(nsIDOMHTMLMapElement* aMap);
@@ -136,9 +138,6 @@ public:
   // nsIDOMNode interface
   NS_FORWARD_NSIDOMNODE(nsDocument::)
 
-  // nsIDOM3Node interface
-  NS_IMETHOD GetBaseURI(nsAString& aBaseURI);
-
   // nsIDOMHTMLDocument interface
   NS_IMETHOD GetTitle(nsAString & aTitle);
   NS_IMETHOD SetTitle(const nsAString & aTitle);
@@ -161,6 +160,17 @@ public:
                                nsIDOMNodeList **_retval);
   virtual nsresult GetDocumentAllResult(const nsAString& aID,
                                         nsISupports** aResult);
+  nsIContent *GetBody(nsresult *aResult);
+  already_AddRefed<nsContentList> GetElementsByName(const nsAString & aName)
+  {
+    nsString* elementNameData = new nsString(aName);
+
+    return NS_GetFuncStringContentList(this,
+                                       MatchNameAttribute,
+                                       nsContentUtils::DestroyMatchString,
+                                       elementNameData,
+                                       *elementNameData);
+  }
 
   // nsIDOMNSHTMLDocument interface
   NS_DECL_NSIDOMNSHTMLDOCUMENT
@@ -177,8 +187,13 @@ public:
   virtual PRInt32 GetNumFormsSynchronous();
   virtual void TearingDownEditor(nsIEditor *aEditor);
   virtual void SetIsXHTML(PRBool aXHTML) { mIsRegularHTML = !aXHTML; }
+  virtual void SetDocWriteDisabled(PRBool aDisabled)
+  {
+    mDisableDocWrite = aDisabled;
+  }
 
   nsresult ChangeContentEditableCount(nsIContent *aElement, PRInt32 aChange);
+  void DeferredContentEditableCountChange(nsIContent *aElement);
 
   virtual EditingState GetEditingState()
   {
@@ -191,7 +206,7 @@ public:
   }
 
   virtual nsIContent* GetBodyContentExternal();
-  
+
   class nsAutoEditingState {
   public:
     nsAutoEditingState(nsHTMLDocument* aDoc, EditingState aState)
@@ -210,7 +225,7 @@ public:
 
   void EndUpdate(nsUpdateType aUpdateType);
 
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsHTMLDocument, nsDocument)
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsHTMLDocument, nsDocument)
 
   virtual already_AddRefed<nsIParser> GetFragmentParser() {
     return mFragmentParser.forget();
@@ -224,6 +239,12 @@ public:
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   virtual NS_HIDDEN_(void) RemovedFromDocShell();
+
+  virtual mozilla::dom::Element *GetElementById(const nsAString& aElementId,
+                                                nsresult *aResult)
+  {
+    return nsDocument::GetElementById(aElementId, aResult);
+  }
 
 protected:
   nsresult GetBodySize(PRInt32* aWidth,
@@ -337,6 +358,8 @@ protected:
   PRPackedBool mIsFrameset;
 
   PRPackedBool mTooDeepWriteRecursion;
+
+  PRPackedBool mDisableDocWrite;
 
   nsCOMPtr<nsIWyciwygChannel> mWyciwygChannel;
 

@@ -42,6 +42,7 @@
 #include "nsISMILAttr.h"
 #include "nsGkAtoms.h"
 #include "nsString.h"
+#include "nsSMILTargetIdentifier.h"
 #include "nsSMILTimeValue.h"
 #include "nsSMILKeySpline.h"
 #include "nsSMILValue.h"
@@ -85,7 +86,7 @@ public:
    *                   parsed result.
    * @param aParseResult  Outparam used for reporting parse errors. Will be set
    *                      to NS_OK if everything succeeds.
-   * @returns PR_TRUE if aAttribute is a recognized animation-related
+   * @return  PR_TRUE if aAttribute is a recognized animation-related
    *          attribute; PR_FALSE otherwise.
    */
   virtual PRBool SetAttr(nsIAtom* aAttribute, const nsAString& aValue,
@@ -139,8 +140,8 @@ public:
    * the animation function that it should no longer add its result to the
    * animation sandwich.
    *
-   * @param aIsFrozen True if this animation should continue to contribute to
-   *                  the animation sandwich using the most recent sample
+   * @param aIsFrozen PR_TRUE if this animation should continue to contribute
+   *                  to the animation sandwich using the most recent sample
    *                  parameters.
    */
   void Inactivate(PRBool aIsFrozen);
@@ -179,7 +180,7 @@ public:
    * Indicates if the animation is currently active or frozen. Inactive
    * animations will not contribute to the composed result.
    *
-   * @return  True if the animation is active or frozen, false otherwise.
+   * @return  PR_TRUE if the animation is active or frozen, PR_FALSE otherwise.
    */
   PRBool IsActiveOrFrozen() const
   {
@@ -207,12 +208,44 @@ public:
    * time it was composited. This allows rendering to be performed only when
    * necessary, particularly when no animations are active.
    *
-   * Note that the caller is responsible for determining if the animation target
-   * has changed.
+   * Note that the caller is responsible for determining if the animation
+   * target has changed (with help from my UpdateCachedTarget() method).
    *
-   * @return  True if the animation parameters have changed, false otherwise.
+   * @return  PR_TRUE if the animation parameters have changed, PR_FALSE
+   *          otherwise.
    */
   PRBool HasChanged() const;
+
+  /**
+   * This method lets us clear the 'HasChanged' flag for inactive animations
+   * after we've reacted to their change to the 'inactive' state, so that we
+   * won't needlessly recompose their targets in every sample.
+   *
+   * This should only be called on an animation function that is inactive and
+   * that returns PR_TRUE from HasChanged().
+   */
+  void ClearHasChanged()
+  {
+    NS_ABORT_IF_FALSE(HasChanged(),
+                      "clearing mHasChanged flag, when it's already PR_FALSE");
+    NS_ABORT_IF_FALSE(!IsActiveOrFrozen(),
+                      "clearing mHasChanged flag for active animation");
+    mHasChanged = PR_FALSE;
+  }
+
+  /**
+   * Updates the cached record of our animation target, and returns a boolean
+   * that indicates whether the target has changed since the last call to this
+   * function. (This lets nsSMILCompositor check whether its animation
+   * functions have changed value or target since the last sample.  If none of
+   * them have, then the compositor doesn't need to do anything.)
+   *
+   * @param aNewTarget A nsSMILTargetIdentifier representing the animation
+   *                   target of this function for this sample.
+   * @return  PR_TRUE if |aNewTarget| is different from the old cached value;
+   *          otherwise, PR_FALSE.
+   */
+  PRBool UpdateCachedTarget(const nsSMILTargetIdentifier& aNewTarget);
 
   // Comparator utility class, used for sorting nsSMILAnimationFunctions
   class Comparator {
@@ -263,9 +296,9 @@ protected:
   void     UnsetKeySplines();
 
   // Helpers
-  nsresult InterpolateResult(const nsSMILValueArray& aValues,
-                             nsSMILValue& aResult,
-                             nsSMILValue& aBaseValue);
+  virtual nsresult InterpolateResult(const nsSMILValueArray& aValues,
+                                     nsSMILValue& aResult,
+                                     nsSMILValue& aBaseValue);
   nsresult AccumulateResult(const nsSMILValueArray& aValues,
                             nsSMILValue& aResult);
 
@@ -288,15 +321,82 @@ protected:
                                      nsAString& aResult) const;
 
   PRBool   ParseAttr(nsIAtom* aAttName, const nsISMILAttr& aSMILAttr,
-                     nsSMILValue& aResult) const;
-  nsresult GetValues(const nsISMILAttr& aSMILAttr,
-                     nsSMILValueArray& aResult);
-  void     UpdateValuesArray();
-  PRBool   IsToAnimation() const;
-  PRBool   IsAdditive() const;
-  void     CheckKeyTimes(PRUint32 aNumValues);
-  void     CheckKeySplines(PRUint32 aNumValues);
+                     nsSMILValue& aResult, PRBool& aCanCacheSoFar) const;
 
+  virtual nsresult GetValues(const nsISMILAttr& aSMILAttr,
+                             nsSMILValueArray& aResult);
+
+  virtual void CheckValueListDependentAttrs(PRUint32 aNumValues);
+  void         CheckKeyTimes(PRUint32 aNumValues);
+  void         CheckKeySplines(PRUint32 aNumValues);
+
+  // When GetValues() returns a single-value array, this method indicates
+  // whether that single value can be understood to be a static value, to be
+  // set for the full animation duration.
+  virtual PRBool TreatSingleValueAsStatic() const {
+    return HasAttr(nsGkAtoms::values);
+  }
+
+  inline PRBool IsToAnimation() const {
+    return !HasAttr(nsGkAtoms::values) &&
+            HasAttr(nsGkAtoms::to) &&
+           !HasAttr(nsGkAtoms::from);
+  }
+
+  inline PRBool IsAdditive() const {
+    /*
+     * Animation is additive if:
+     *
+     * (1) additive = "sum" (GetAdditive() == true), or
+     * (2) it is 'by animation' (by is set, from and values are not)
+     *
+     * Although animation is not additive if it is 'to animation'
+     */
+    PRBool isByAnimation = (!HasAttr(nsGkAtoms::values) &&
+                             HasAttr(nsGkAtoms::by) &&
+                            !HasAttr(nsGkAtoms::from));
+    return !IsToAnimation() && (GetAdditive() || isByAnimation);
+  }
+
+  // Setters for error flags
+  // These correspond to bit-indices in mErrorFlags, for tracking parse errors
+  // in these attributes, when those parse errors should block us from doing
+  // animation.
+  enum AnimationAttributeIdx {
+    BF_ACCUMULATE  = 0,
+    BF_ADDITIVE    = 1,
+    BF_CALC_MODE   = 2,
+    BF_KEY_TIMES   = 3,
+    BF_KEY_SPLINES = 4,
+    BF_KEY_POINTS  = 5 // <animateMotion> only
+  };
+
+  inline void SetAccumulateErrorFlag(PRBool aNewValue) {
+    SetErrorFlag(BF_ACCUMULATE, aNewValue);
+  }
+  inline void SetAdditiveErrorFlag(PRBool aNewValue) {
+    SetErrorFlag(BF_ADDITIVE, aNewValue);
+  }
+  inline void SetCalcModeErrorFlag(PRBool aNewValue) {
+    SetErrorFlag(BF_CALC_MODE, aNewValue);
+  }
+  inline void SetKeyTimesErrorFlag(PRBool aNewValue) {
+    SetErrorFlag(BF_KEY_TIMES, aNewValue);
+  }
+  inline void SetKeySplinesErrorFlag(PRBool aNewValue) {
+    SetErrorFlag(BF_KEY_SPLINES, aNewValue);
+  }
+  inline void SetKeyPointsErrorFlag(PRBool aNewValue) {
+    SetErrorFlag(BF_KEY_POINTS, aNewValue);
+  }
+  // Helper method -- based on SET_BOOLBIT in nsHTMLInputElement.cpp
+  inline void SetErrorFlag(AnimationAttributeIdx aField, PRBool aValue) {
+    if (aValue) {
+      mErrorFlags |=  (0x01 << aField);
+    } else {
+      mErrorFlags &= ~(0x01 << aField);
+    }
+  }
 
   // Members
   // -------
@@ -321,6 +421,7 @@ protected:
   PRUint32                      mRepeatIteration;
   PRPackedBool                  mLastValue;
   PRPackedBool                  mHasChanged;
+  PRPackedBool                  mValueNeedsReparsingEverySample;
 
   nsSMILTime                    mBeginTime; // document time
 
@@ -359,6 +460,11 @@ protected:
   // @see
   // http://www.w3.org/TR/2001/REC-smil-animation-20010904/#FromToByAndAdditive
   nsSMILValue                   mFrozenValue;
+
+  // Allows us to check whether an animation function has changed target from
+  // sample to sample (because if neither target nor animated value have
+  // changed, we don't have to do anything).
+  nsSMILWeakTargetIdentifier    mLastTarget;
 };
 
 #endif // NS_SMILANIMATIONFUNCTION_H_

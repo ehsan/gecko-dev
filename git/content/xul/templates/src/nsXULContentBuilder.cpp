@@ -483,17 +483,14 @@ nsXULContentBuilder::BuildContentFromTemplate(nsIContent *aTemplateNode,
                ("nsXULContentBuilder::BuildContentFromTemplate (is unique: %d)",
                aIsUnique));
 
-        const char *tmpln, *resn, *realn;
-        aTemplateNode->Tag()->GetUTF8String(&tmpln);
-        aResourceNode->Tag()->GetUTF8String(&resn);
-        aRealNode->Tag()->GetUTF8String(&realn);
-
         nsAutoString id;
         aChild->GetId(id);
 
         PR_LOG(gXULTemplateLog, PR_LOG_ALWAYS,
                ("Tags: [Template: %s  Resource: %s  Real: %s] for id %s",
-               tmpln, resn, realn, NS_ConvertUTF16toUTF8(id).get()));
+                nsAtomCString(aTemplateNode->Tag()).get(), 
+                nsAtomCString(aResourceNode->Tag()).get(),
+                nsAtomCString(aRealNode->Tag()).get(), NS_ConvertUTF16toUTF8(id).get()));
     }
 #endif
 
@@ -562,11 +559,9 @@ nsXULContentBuilder::BuildContentFromTemplate(nsIContent *aTemplateNode,
 
 #ifdef PR_LOGGING
         if (PR_LOG_TEST(gXULTemplateLog, PR_LOG_DEBUG)) {
-            const char *tagname;
-            tag->GetUTF8String(&tagname);
             PR_LOG(gXULTemplateLog, PR_LOG_DEBUG,
                    ("xultemplate[%p]     building %s %s %s",
-                    this, tagname,
+                    this, nsAtomCString(tag).get(),
                     (isGenerationElement ? "[resource]" : ""),
                     (isUnique ? "[unique]" : "")));
         }
@@ -1105,7 +1100,9 @@ nsXULContentBuilder::CreateContainerContents(nsIContent* aElement,
     if (aNotifyAtEnd && container) {
         MOZ_AUTO_DOC_UPDATE(container->GetCurrentDoc(), UPDATE_CONTENT_MODEL,
                             PR_TRUE);
-        nsNodeUtils::ContentAppended(container, newIndexInContainer);
+        nsNodeUtils::ContentAppended(container,
+                                     container->GetChildAt(newIndexInContainer),
+                                     newIndexInContainer);
     }
 
     NS_IF_RELEASE(container);
@@ -1211,6 +1208,9 @@ nsXULContentBuilder::CreateContainerContentsForQuerySet(nsIContent* aElement,
             rv = ReplaceMatch(removematch->mResult, nsnull, nsnull, aElement);
             if (NS_FAILED(rv))
                 return rv;
+
+            if (mFlags & eLoggingEnabled)
+                OutputMatchToLog(resultid, removematch, PR_FALSE);
         }
 
         if (generateContent) {
@@ -1242,6 +1242,9 @@ nsXULContentBuilder::CreateContainerContentsForQuerySet(nsIContent* aElement,
                                          aContainer, aNewIndexInContainer);
             }
         }
+
+        if (mFlags & eLoggingEnabled)
+            OutputMatchToLog(resultid, newmatch, PR_TRUE);
 
         if (prevmatch) {
             prevmatch->mNext = newmatch;
@@ -1345,7 +1348,7 @@ nsXULContentBuilder::RemoveGeneratedContent(nsIContent* aElement)
             //     it should be moved outside the inner loop. Bug 297290.
             if (element->NodeInfo()->Equals(nsGkAtoms::_template,
                                             kNameSpaceID_XUL) ||
-                !element->IsNodeOfType(nsINode::eELEMENT))
+                !element->IsElement())
                 continue;
 
             // If the element is in the template map, then we
@@ -1566,8 +1569,7 @@ nsXULContentBuilder::AttributeChanged(nsIDocument* aDocument,
                                       nsIContent*  aContent,
                                       PRInt32      aNameSpaceID,
                                       nsIAtom*     aAttribute,
-                                      PRInt32      aModType,
-                                      PRUint32     aStateMask)
+                                      PRInt32      aModType)
 {
     // Handle "open" and "close" cases. We do this handling before
     // we've notified the observer, so that content is already created
@@ -1591,7 +1593,7 @@ nsXULContentBuilder::AttributeChanged(nsIDocument* aDocument,
 
     // Pass along to the generic template builder.
     nsXULTemplateBuilder::AttributeChanged(aDocument, aContent, aNameSpaceID,
-                                           aAttribute, aModType, aStateMask);
+                                           aAttribute, aModType);
 }
 
 void
