@@ -75,7 +75,7 @@ class nsIContent;
 class nsIViewManager;
 class nsNodeInfoManager;
 class nsScriptLoader;
-class nsIOfflineCacheUpdate;
+class nsIOfflineCacheSession;
 
 #ifdef NS_DEBUG
 
@@ -168,8 +168,9 @@ protected:
                                     const nsSubstring& aMedia);
 
   void PrefetchHref(const nsAString &aHref, nsIContent *aSource,
-                    PRBool aExplicit);
-  nsresult AddOfflineResource(const nsAString &aHref, nsIContent *aSource);
+                    PRBool aExplicit, PRBool aOffline);
+  nsresult GetOfflineCacheSession(nsIOfflineCacheSession **aSession);
+  nsresult AddOfflineResource(const nsAString &aHref);
 
   void ScrollToRef();
   nsresult RefreshIfEnabled(nsIViewManager* vm);
@@ -261,7 +262,7 @@ protected:
   PRPackedBool mNotifyOnTimer;
 
   // For saving <link rel="offline-resource"> links
-  nsCOMPtr<nsIOfflineCacheUpdate> mOfflineCacheUpdate;
+  nsCOMPtr<nsIOfflineCacheSession> mOfflineCacheSession;
 
   // Have we already called BeginUpdate for this set of content changes?
   PRUint8 mBeganUpdate : 1;
@@ -277,6 +278,8 @@ protected:
   PRUint8 mDeferredLayoutStart : 1;
   // true if an <link rel="offline-resource"> nodes have been encountered.
   PRUint8 mHaveOfflineResources : 1;
+  // true if offline-resource links should be saved to the offline cache
+  PRUint8 mSaveOfflineResources : 1;
   // If true, we deferred notifications until sheets load
   PRUint8 mDeferredFlushTags : 1;
   

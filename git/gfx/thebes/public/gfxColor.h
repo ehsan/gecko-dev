@@ -38,9 +38,7 @@
 #ifndef GFX_COLOR_H
 #define GFX_COLOR_H
 
-#ifdef MOZILLA_INTERNAL_API
 #include "nsPrintfCString.h"
-#endif
 
 #include "gfxTypes.h"
 
@@ -191,7 +189,6 @@ struct THEBES_API gfxRGBA {
         }
     }
 
-#ifdef MOZILLA_INTERNAL_API
     /**
      * Convert this color to a hex value. For example, for rgb(255,0,0),
      * this will return FF0000.
@@ -202,7 +199,6 @@ struct THEBES_API gfxRGBA {
         nsPrintfCString hex(8, "%02x%02x%02x", PRUint8(r*255.0), PRUint8(g*255.0), PRUint8(b*255.0));
         result.Assign(hex);
     }
-#endif
 
 };
 

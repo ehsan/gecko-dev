@@ -201,7 +201,7 @@
                      ondragexit="nsDragAndDrop.dragExit(event, homeButtonObserver);"
                      onclick="BrowserHomeClick(event);"/>
 
-      <toolbaritem id="urlbar-container" align="center" flex="400" persist="width"
+      <toolbaritem id="urlbar-container" align="center" flex="400"
                    title="&locationItem.title;" class="chromeclass-location">
         <hbox id="urlbar-button-box" flex="1">
             <textbox id="urlbar" flex="1"
@@ -213,8 +213,10 @@
                      tabscrolling="true"
                      showcommentcolumn="true"
                      enablehistory="true"
-                     maxrows="10"
+#ifndef MOZILLA_1_8_BRANCH
+# bug 23485
                      newlines="stripsurroundingwhitespace"
+#endif
                      oninput="gBrowser.userTypedValue = this.value"
                      ontextentered="return handleURLBarCommand(param);"
                      ontextreverted="return handleURLBarRevert();">
@@ -286,7 +288,7 @@
 
       <toolbaritem id="search-container" title="&searchItem.title;" 
                    align="center" class="chromeclass-toolbar-additional"
-                   flex="100" persist="width">
+                   flex="100">
         <searchbar id="searchbar" flex="1" chromedir="&locale.dir;"/>
       </toolbaritem>
 
@@ -366,9 +368,9 @@
              fullscreentoolbar="true" mode="icons" 
              customizable="true"
 #ifdef XP_MACOSX
-             defaultset="back-button,forward-button,reload-button,stop-button,home-button,urlbar-container,go-container,splitter,search-container,throbber-box"
+             defaultset="back-button,forward-button,reload-button,stop-button,home-button,urlbar-container,go-container,search-container,throbber-box"
 #else
-             defaultset="back-button,forward-button,reload-button,stop-button,home-button,urlbar-container,go-container,splitter,search-container,fullscreenflex,window-controls"
+             defaultset="back-button,forward-button,reload-button,stop-button,home-button,urlbar-container,go-container,search-container,fullscreenflex,window-controls"
 #endif
              context="toolbar-context-menu">
 #ifndef XP_MACOSX

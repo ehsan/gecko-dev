@@ -60,7 +60,7 @@
 #include "nsEventListenerManager.h"
 #include "nsFrame.h"
 #include "nsGenericElement.h"  // for nsDOMEventRTTearoff
-#include "nsStyledElement.h"
+#include "nsGenericHTMLElement.h"
 #include "nsGlobalWindow.h"
 #include "nsGkAtoms.h"
 #include "nsImageFrame.h"
@@ -79,10 +79,10 @@
 #include "nsCellMap.h"
 #include "nsTextFrameTextRunCache.h"
 #include "nsCCUncollectableMarker.h"
+#include "nsXULPopupManager.h"
 #include "nsTextFragment.h"
 
 #ifdef MOZ_XUL
-#include "nsXULPopupManager.h"
 #include "nsXULContentUtils.h"
 #include "nsXULElement.h"
 #include "nsXULPrototypeCache.h"
@@ -220,13 +220,11 @@ nsLayoutStatics::Initialize()
     return rv;
   }
 
-#ifdef MOZ_XUL
   rv = nsXULPopupManager::Init();
   if (NS_FAILED(rv)) {
     NS_ERROR("Could not initialize nsXULPopupManager");
     return rv;
   }
-#endif
 
   return NS_OK;
 }
@@ -234,9 +232,7 @@ nsLayoutStatics::Initialize()
 void
 nsLayoutStatics::Shutdown()
 {
-#ifdef MOZ_XUL
   nsXULPopupManager::Shutdown();
-#endif
   nsDOMStorageManager::Shutdown();
   txMozillaXSLTProcessor::Shutdown();
   nsDOMAttribute::Shutdown();
@@ -280,7 +276,7 @@ nsLayoutStatics::Shutdown()
 
   NS_IF_RELEASE(nsContentDLF::gUAStyleSheet);
   NS_IF_RELEASE(nsRuleNode::gLangService);
-  nsStyledElement::Shutdown();
+  nsGenericHTMLElement::Shutdown();
 
   nsTextFragment::Shutdown();
 

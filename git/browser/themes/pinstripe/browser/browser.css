@@ -840,12 +840,6 @@ toolbar[iconsize="small"] #paste-button:hover:active {
   margin: 0 3px;
   /*XXX Gecko 1.9 quirk*/
   -moz-padding-start: 1px;
-  color: -moz-fieldtext;
-}
-
-#urlbar[level="high"] .formatted-url ,
-#urlbar[level="low"] .formatted-url {
-  color: black;
 }
 
 .formatted-url * {
@@ -854,12 +848,36 @@ toolbar[iconsize="small"] #paste-button:hover:active {
   cursor: text;
 }
 
-.formatted-url-ellipsis {
-  -moz-margin-start: 1px;
+.formatted-url-contents {
+  color: graytext;
 }
 
-.formatted-url-prePath {
-  -moz-box-pack: center;
+.formatted-url-domain {
+  color: -moz-fieldtext;
+}
+
+#urlbar[level="high"] .formatted-url-contents ,
+#urlbar[level="low"] .formatted-url-contents {
+  color: rgb(150, 150, 130);
+}
+
+#urlbar[level="low"] .formatted-url-domain ,
+#urlbar[level="high"] .formatted-url-domain {
+  color: black;
+}
+
+.formatted-url-ellipsis {
+  -moz-margin-start: .3em;
+}
+
+#urlbar[protocolhidden="true"] .formatted-url-prePath > .formatted-url-subdomain {
+  -moz-box-flex: 1;
+  text-align: right;
+}
+
+#urlbar[protocolhidden="true"] .formatted-url-prePath > .formatted-url-port {
+  -moz-box-flex: 1;
+  text-align: left;
 }
 
 #urlbar[level="high"] > .autocomplete-textbox-container,
@@ -966,11 +984,6 @@ statusbarpanel#statusbar-display {
 }
 
 /* ----- AUTOCOMPLETE ----- */
-
-.autocomplete-treebody::-moz-tree-image(favicon, treecolAutoCompleteValue) {
-  width: 16px;
-  height: 16px;
-}
 
 .autocomplete-treebody::-moz-tree-cell-text(treecolAutoCompleteComment) {
   color: #555566;
@@ -1233,7 +1246,7 @@ tabpanels.plain {
 }
 
 .toolbar-drop-indicator-bar {
-  visibility: hidden;
+  display: none;
   height: 16px;
   margin-bottom: -16px;
   margin-left: 4px;
@@ -1241,7 +1254,7 @@ tabpanels.plain {
 }
 
 .toolbar-drop-indicator-bar[dragging="true"] {
-  visibility: visible;
+  display: -moz-box;
 }
 
 toolbarbutton.bookmark-item[dragover="true"][open="true"] {

@@ -131,7 +131,7 @@
 #include "nsPIDOMWindow.h"
 #include "nsDOMAttributeMap.h"
 #include "nsDOMCSSDeclaration.h"
-#include "nsStyledElement.h"
+#include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsXULContentUtils.h"
 #include "nsNodeUtils.h"
@@ -1069,7 +1069,8 @@ nsXULElement::ParseAttribute(PRInt32 aNamespaceID,
     // Any changes should be made to both functions.
     if (aNamespaceID == kNameSpaceID_None) {
         if (aAttribute == nsGkAtoms::style) {
-            nsStyledElement::ParseStyleAttribute(this, aValue, aResult);
+            nsGenericHTMLElement::ParseStyleAttribute(this, PR_TRUE, aValue,
+                                                      aResult);
             return PR_TRUE;
         }
 

@@ -160,6 +160,8 @@ function run_test() {
   var title = histsvc.getPageTitle(uri("http://mozilla.com"));
   do_check_eq(title, "mozilla.com");
 
+  // XXXTest nsIBrowserHistory impl
+
   // query for the visit
   var options = histsvc.getNewQueryOptions();
   options.maxResults = 1;

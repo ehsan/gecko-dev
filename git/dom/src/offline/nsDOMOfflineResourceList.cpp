@@ -46,8 +46,6 @@
 #include "nsICacheSession.h"
 #include "nsICacheService.h"
 #include "nsIOfflineCacheSession.h"
-#include "nsIOfflineCacheUpdate.h"
-#include "nsIDOMLoadStatus.h"
 #include "nsAutoPtr.h"
 #include "nsContentUtils.h"
 
@@ -167,6 +165,16 @@ nsDOMOfflineResourceList::Add(const nsAString& aURI)
   rv = NS_NewURI(getter_AddRefs(requestedURI), aURI);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  // only http/https urls will work offline
+  PRBool match;
+  rv = requestedURI->SchemeIs("http", &match);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!match) {
+    rv = requestedURI->SchemeIs("https", &match);
+    NS_ENSURE_SUCCESS(rv, rv);
+    if (!match) return NS_ERROR_DOM_BAD_URI;
+  }
+
   PRUint32 length;
   rv = GetLength(&length);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -177,20 +185,23 @@ nsDOMOfflineResourceList::Add(const nsAString& aURI)
 
   ClearCachedKeys();
 
-  nsCOMPtr<nsIOfflineCacheUpdate> update =
-    do_CreateInstance(NS_OFFLINECACHEUPDATE_CONTRACTID, &rv);
+  nsCAutoString key;
+  rv = GetCacheKey(requestedURI, key);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = update->Init(PR_TRUE, mHostPort, NS_LITERAL_CSTRING(""), mURI);
+  rv = mCacheSession->AddOwnedKey(mHostPort,
+                                  NS_LITERAL_CSTRING(""),
+                                  key);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = update->AddURI(requestedURI, nsnull);
+  nsCOMPtr<nsIPrefetchService> prefetchService =
+    do_GetService(NS_PREFETCHSERVICE_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = update->Schedule();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_OK;
+  return prefetchService->PrefetchURIForOfflineUse(requestedURI,
+                                                   mURI,
+                                                   nsnull,
+                                                   PR_TRUE);
 }
 
 NS_IMETHODIMP
@@ -243,17 +254,28 @@ nsDOMOfflineResourceList::Refresh()
   nsresult rv = Init();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIOfflineCacheUpdate> update =
-    do_CreateInstance(NS_OFFLINECACHEUPDATE_CONTRACTID, &rv);
+  rv = CacheKeys();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = update->Init(PR_FALSE, mHostPort, NS_LITERAL_CSTRING(""), mURI);
+  // try to start fetching it now, but it's not fatal if it fails
+  nsCOMPtr<nsIPrefetchService> prefetchService =
+    do_GetService(NS_PREFETCHSERVICE_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = update->Schedule();
-  NS_ENSURE_SUCCESS(rv, rv);
+  for (PRUint32 i = 0; i < gCachedKeysCount; i++) {
+    // this will fail if the URI is not absolute
+    nsCOMPtr<nsIURI> requestedURI;
+    nsresult rv = NS_NewURI(getter_AddRefs(requestedURI), gCachedKeys[i]);
+    NS_ENSURE_SUCCESS(rv, rv);
 
-  return rv;
+    rv = prefetchService->PrefetchURIForOfflineUse(requestedURI,
+                                                   mURI,
+                                                   nsnull,
+                                                   PR_TRUE);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+
+  return NS_OK;
 }
 
 nsresult

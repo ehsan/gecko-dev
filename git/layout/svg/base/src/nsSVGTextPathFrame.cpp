@@ -87,9 +87,10 @@ NS_NewSVGTextPathFrame(nsIPresShell* aPresShell, nsIContent* aContent,
     return nsnull;
   }
   
-  nsCOMPtr<nsIDOMSVGTextPathElement> textPath = do_QueryInterface(aContent);
-  if (!textPath) {
-    NS_ERROR("Can't create frame! Content is not an SVG textPath");
+  nsCOMPtr<nsIDOMSVGTextPathElement> tpath_elem = do_QueryInterface(aContent);
+  if (!tpath_elem) {
+    NS_ERROR("Trying to construct an SVGTextPathFrame for a "
+             "content element that doesn't support the right interfaces");
     return nsnull;
   }
 
@@ -185,8 +186,7 @@ nsSVGTextPathFrame::GetDy()
 // nsSVGTextPathFrame methods:
 
 nsIFrame *
-nsSVGTextPathFrame::GetPathFrame()
-{
+nsSVGTextPathFrame::GetPathFrame() {
   nsIFrame *path = nsnull;
 
   nsAutoString str;
@@ -205,8 +205,7 @@ nsSVGTextPathFrame::GetPathFrame()
 }
 
 already_AddRefed<gfxFlattenedPath>
-nsSVGTextPathFrame::GetFlattenedPath()
-{
+nsSVGTextPathFrame::GetFlattenedPath() {
   nsIFrame *path = GetPathFrame();
   if (!path)
     return nsnull;

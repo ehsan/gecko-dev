@@ -499,8 +499,7 @@ nsWindowWatcher::OpenWindowJSInternal(nsIDOMWindow *aParent,
                                   windowIsNew = PR_FALSE,
                                   windowNeedsName = PR_FALSE,
                                   windowIsModal = PR_FALSE,
-                                  uriToLoadIsChrome = PR_FALSE,
-                                  windowIsModalContentDialog = PR_FALSE;
+                                  uriToLoadIsChrome = PR_FALSE;
   PRUint32                        chromeFlags;
   nsAutoString                    name;             // string version of aName
   nsCAutoString                   features;         // string version of aFeatures
@@ -545,14 +544,6 @@ nsWindowWatcher::OpenWindowJSInternal(nsIDOMWindow *aParent,
   // no extant window? make a new one.
 
   nsCOMPtr<nsIDOMChromeWindow> chromeParent(do_QueryInterface(aParent));
-
-  // If we're not called through our JS version of the API, and we got
-  // a modal option, treat the window we're opening as a modal content
-  // window.
-  if (!aCalledFromJS && argv &&
-      WinHasOption(features.get(), "modal", 0, nsnull)) {
-    windowIsModalContentDialog = PR_TRUE;
-  }
 
   // Make sure we call CalculateChromeFlags() *before* we push the
   // callee context onto the context stack so that
@@ -728,7 +719,7 @@ nsWindowWatcher::OpenWindowJSInternal(nsIDOMWindow *aParent,
     }
   }
 
-  if ((aDialog || windowIsModalContentDialog) && argv) {
+  if (aDialog && argv) {
     // Set the args on the new object.
     nsCOMPtr<nsIScriptGlobalObject> scriptGlobal(do_QueryInterface(*_retval));
     NS_ENSURE_TRUE(scriptGlobal, NS_ERROR_UNEXPECTED);
@@ -908,7 +899,7 @@ nsWindowWatcher::OpenWindowJSInternal(nsIDOMWindow *aParent,
   if (isNewToplevelWindow)
     SizeOpenedDocShellItem(newDocShellItem, aParent, sizeSpec);
 
-  if (windowIsModal || windowIsModalContentDialog) {
+  if (windowIsModal) {
     nsCOMPtr<nsIDocShellTreeOwner> newTreeOwner;
     newDocShellItem->GetTreeOwner(getter_AddRefs(newTreeOwner));
     nsCOMPtr<nsIWebBrowserChrome> newChrome(do_GetInterface(newTreeOwner));
@@ -1367,7 +1358,6 @@ void nsWindowWatcher::CheckWindowName(nsString& aName)
  * @param aDialog affects the assumptions made about unnamed features
  * @return the chrome bitmask
  */
-// static
 PRUint32 nsWindowWatcher::CalculateChromeFlags(const char *aFeatures,
                                                PRBool aFeaturesSpecified,
                                                PRBool aDialog,
@@ -1376,9 +1366,9 @@ PRUint32 nsWindowWatcher::CalculateChromeFlags(const char *aFeatures,
 {
    if(!aFeaturesSpecified || !aFeatures) {
       if(aDialog)
-         return nsIWebBrowserChrome::CHROME_ALL | 
-                nsIWebBrowserChrome::CHROME_OPENAS_DIALOG | 
-                nsIWebBrowserChrome::CHROME_OPENAS_CHROME;
+         return   nsIWebBrowserChrome::CHROME_ALL | 
+                  nsIWebBrowserChrome::CHROME_OPENAS_DIALOG | 
+                  nsIWebBrowserChrome::CHROME_OPENAS_CHROME;
       else
          return nsIWebBrowserChrome::CHROME_ALL;
    }
@@ -1514,7 +1504,7 @@ PRUint32 nsWindowWatcher::CalculateChromeFlags(const char *aFeatures,
        prevents untrusted script from opening modal windows in general
        while still allowing alerts and the like. */
     if (!aChromeURL)
-      chromeFlags &= ~nsIWebBrowserChrome::CHROME_OPENAS_CHROME;
+      chromeFlags &= ~(nsIWebBrowserChrome::CHROME_MODAL | nsIWebBrowserChrome::CHROME_OPENAS_CHROME);
   }
 
   if (!(chromeFlags & nsIWebBrowserChrome::CHROME_OPENAS_CHROME)) {
@@ -1525,7 +1515,6 @@ PRUint32 nsWindowWatcher::CalculateChromeFlags(const char *aFeatures,
   return chromeFlags;
 }
 
-// static
 PRInt32
 nsWindowWatcher::WinHasOption(const char *aOptions, const char *aName,
                               PRInt32 aDefault, PRBool *aPresenceFlag)
@@ -1746,7 +1735,6 @@ nsWindowWatcher::ReadyOpenedDocShellItem(nsIDocShellTreeItem *aOpenedItem,
   return rv;
 }
 
-// static
 void
 nsWindowWatcher::CalcSizeSpec(const char* aFeatures, SizeSpec& aResult)
 {

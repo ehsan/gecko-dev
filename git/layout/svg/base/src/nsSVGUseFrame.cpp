@@ -94,9 +94,11 @@ public:
 nsIFrame*
 NS_NewSVGUseFrame(nsIPresShell* aPresShell, nsIContent* aContent, nsStyleContext* aContext)
 {
-  nsCOMPtr<nsIDOMSVGUseElement> use = do_QueryInterface(aContent);
-  if (!use) {
-    NS_ERROR("Can't create frame! Content is not an SVG use!");
+  nsCOMPtr<nsIDOMSVGTransformable> transformable = do_QueryInterface(aContent);
+  if (!transformable) {
+#ifdef DEBUG
+    printf("warning: trying to construct an SVGUseFrame for a content element that doesn't support the right interfaces\n");
+#endif
     return nsnull;
   }
 

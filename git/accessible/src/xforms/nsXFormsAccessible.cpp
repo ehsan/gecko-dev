@@ -364,7 +364,12 @@ nsXFormsEditableAccessible::GetEditor()
 void
 nsXFormsEditableAccessible::SetEditor(nsIEditor *aEditor)
 {
+  if (mEditor)
+    mEditor->RemoveEditActionListener(this);
+
   mEditor = aEditor;
+  if (mEditor)
+    mEditor->AddEditActionListener(this);
 }
 
 // nsXFormsSelectableAccessible

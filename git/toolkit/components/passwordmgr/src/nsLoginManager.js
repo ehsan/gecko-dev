@@ -1280,10 +1280,6 @@ UserAutoCompleteResult.prototype = {
         return "";
     },
 
-    getImageAt : function (index) {
-        return "";
-    },
-
     removeValueAt : function (index, removeFromDB) {
         if (index < 0 || index >= this.logins.length)
             throw "Index out of range.";

@@ -287,7 +287,7 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
     nsReflowStatus  status;
 
     kidReflowState.SetComputedWidth(kidReflowState.availableWidth);
-    //kidReflowState.SetComputedHeight(kidReflowState.availableHeight);
+    //kidReflowState.mComputedHeight = kidReflowState.availableHeight;
     PR_PL(("AV W: %d   H: %d\n", kidReflowState.availableWidth, kidReflowState.availableHeight));
 
     // Set the shared data into the page frame before reflow

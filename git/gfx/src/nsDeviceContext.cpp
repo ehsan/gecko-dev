@@ -57,9 +57,6 @@ DeviceContextImpl::DeviceContextImpl()
 {
   mAppUnitsPerDevPixel = -1;
   mAppUnitsPerInch = -1;
-  mAppUnitsPerDevNotScaledPixel = -1;
-  mPixelScale = 1.0f;
-
   mFontCache = nsnull;
   mWidget = nsnull;
   mFontAliasTable = nsnull;

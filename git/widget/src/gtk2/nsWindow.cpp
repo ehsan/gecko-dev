@@ -904,6 +904,18 @@ nsWindow::SetBackgroundColor(const nscolor &aColor)
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 
+nsIFontMetrics*
+nsWindow::GetFont(void)
+{
+    return nsnull;
+}
+
+NS_IMETHODIMP
+nsWindow::SetFont(const nsFont &aFont)
+{
+    return NS_ERROR_NOT_IMPLEMENTED;
+}
+
 NS_IMETHODIMP
 nsWindow::SetCursor(nsCursor aCursor)
 {
@@ -1392,22 +1404,7 @@ nsWindow::WidgetToScreen(const nsRect& aOldRect, nsRect& aNewRect)
 NS_IMETHODIMP
 nsWindow::ScreenToWidget(const nsRect& aOldRect, nsRect& aNewRect)
 {
-    gint x = 0, y = 0;
-
-    if (mContainer) {
-        gdk_window_get_root_origin(GTK_WIDGET(mContainer)->window,
-                                   &x, &y);
-    }
-    else if (mDrawingarea) {
-        gdk_window_get_origin(mDrawingarea->inner_window, &x, &y);
-    }
-
-    aNewRect.x = aOldRect.x - x;
-    aNewRect.y = aOldRect.y - y;
-    aNewRect.width = aOldRect.width;
-    aNewRect.height = aOldRect.height;
-
-    return NS_OK;
+    return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
@@ -2016,9 +2013,6 @@ nsWindow::OnButtonPressEvent(GtkWidget *aWidget, GdkEventButton *aEvent)
 
     PRUint16 domButton;
     switch (aEvent->button) {
-    case 1:
-        domButton = nsMouseEvent::eLeftButton;
-        break;
     case 2:
         domButton = nsMouseEvent::eMiddleButton;
         break;
@@ -2026,7 +2020,8 @@ nsWindow::OnButtonPressEvent(GtkWidget *aWidget, GdkEventButton *aEvent)
         domButton = nsMouseEvent::eRightButton;
         break;
     default:
-        return;
+        domButton = nsMouseEvent::eLeftButton;
+        break;
     }
 
     nsMouseEvent event(PR_TRUE, NS_MOUSE_BUTTON_DOWN, this, nsMouseEvent::eReal);
@@ -2052,17 +2047,21 @@ nsWindow::OnButtonReleaseEvent(GtkWidget *aWidget, GdkEventButton *aEvent)
     mLastButtonReleaseTime = aEvent->time;
 
     switch (aEvent->button) {
-    case 1:
-        domButton = nsMouseEvent::eLeftButton;
-        break;
     case 2:
         domButton = nsMouseEvent::eMiddleButton;
         break;
     case 3:
         domButton = nsMouseEvent::eRightButton;
         break;
-    default:
+        // don't send events for these types
+    case 4:
+    case 5:
         return;
+        break;
+        // default including button 1 is left button up
+    default:
+        domButton = nsMouseEvent::eLeftButton;
+        break;
     }
 
     nsMouseEvent event(PR_TRUE, NS_MOUSE_BUTTON_UP, this, nsMouseEvent::eReal);

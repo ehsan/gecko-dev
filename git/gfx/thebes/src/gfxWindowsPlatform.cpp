@@ -54,8 +54,6 @@
 
 #include <string>
 
-#include "lcms.h"
-
 //#define DEBUG_CMAP_SIZE 1
 
 /* Define this if we want to update the unicode range bitsets based
@@ -743,25 +741,4 @@ gfxWindowsPlatform::FindFontEntry(const nsAString& aName)
         return nsnull;
     }
     return fe.get();
-}
-
-cmsHPROFILE
-gfxWindowsPlatform::GetPlatformCMSOutputProfile()
-{
-    WCHAR str[1024+1];
-    DWORD size = 1024;
-
-    HDC dc = GetDC(nsnull);
-    GetICMProfileW(dc, &size, (LPWSTR)&str);
-    ReleaseDC(nsnull, dc);
-
-    cmsHPROFILE profile =
-        cmsOpenProfileFromFile(NS_ConvertUTF16toUTF8(str).get(), "r");
-#ifdef DEBUG_tor
-    if (profile)
-        fprintf(stderr,
-                "ICM profile read from %s successfully\n",
-                NS_ConvertUTF16toUTF8(str).get());
-#endif
-    return profile;
 }

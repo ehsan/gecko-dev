@@ -102,15 +102,15 @@
               xmlns:aaa="http://www.w3.org/2005/07/aaa">
       <caption label="&history.label;"/>
 
-      <hbox align="center">
+      <hbox id="historyBox" align="center">
         <checkbox id="rememberHistoryDays"
                   label="&rememberBefore.label;"
                   accesskey="&rememberBefore.accesskey;"
                   oncommand="gPrivacyPane.onchangeHistoryDaysCheck();"
-                  aaa:labelledby="rememberHistoryDays historyDays rememberAfter"/>
+                  aaa:labelledby="historyBox"/>
         <textbox id="historyDays" size="3"
-                 aaa:labelledby="rememberHistoryDays historyDays rememberAfter"/>
-        <label id="rememberAfter"> &rememberAfter.label;</label>
+                 aaa:labelledby="historyBox"/>
+        <label>&rememberAfter.label;</label>
       </hbox>
       <checkbox id="rememberForms"
                 label="&rememberForms.label;"

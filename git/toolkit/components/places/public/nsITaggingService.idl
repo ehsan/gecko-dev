@@ -75,8 +75,7 @@ interface nsITaggingService : nsISupports
    * Retrieves all URLs tagged with the given tag.
    *
    * @param aTag
-   *        tag name
-   * @returns Array of uris tagged with aTag.
+   *        Array of uris tagged with aTag.
    */
   nsIVariant getURIsForTag(in AString aTag);
 
@@ -85,7 +84,7 @@ interface nsITaggingService : nsISupports
    *
    * @param aURI
    *        a URL.
-   * @returns array of tags (sorted by name).
+   * @returns array of tags.
    */
   nsIVariant getTagsForURI(in nsIURI aURI);
 };

@@ -40,7 +40,7 @@
 #include "txStylesheetCompileHandlers.h"
 #include "txAtoms.h"
 #include "txURIUtils.h"
-#include "nsWhitespaceTokenizer.h"
+#include "txTokenizer.h"
 #include "txStylesheet.h"
 #include "txInstructions.h"
 #include "txToplevelItems.h"
@@ -274,7 +274,7 @@ txStylesheetCompiler::startElementInternal(PRInt32 aNamespaceID,
             rv = ensureNewElementContext();
             NS_ENSURE_SUCCESS(rv, rv);
 
-            nsWhitespaceTokenizer tok(attr->mValue);
+            txTokenizer tok(attr->mValue);
             while (tok.hasMoreTokens()) {
                 PRInt32 namespaceID = mElementContext->mMappings->
                     lookupNamespaceWithDefault(tok.nextToken());

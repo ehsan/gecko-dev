@@ -3005,14 +3005,16 @@ HTMLContentSink::ProcessLINKTag(const nsIParserNode& aNode)
           nsAutoString hrefVal;
           element->GetAttr(kNameSpaceID_None, nsGkAtoms::href, hrefVal);
           if (!hrefVal.IsEmpty()) {
-            PrefetchHref(hrefVal, element, hasPrefetch);
+            PrefetchHref(hrefVal, element, hasPrefetch, PR_FALSE);
           }
         }
         if (linkTypes.IndexOf(NS_LITERAL_STRING("offline-resource")) != -1) {
           nsAutoString hrefVal;
           element->GetAttr(kNameSpaceID_None, nsGkAtoms::href, hrefVal);
           if (!hrefVal.IsEmpty()) {
-            AddOfflineResource(hrefVal, element);
+            AddOfflineResource(hrefVal);
+            if (mSaveOfflineResources)
+              PrefetchHref(hrefVal, element, PR_TRUE, PR_TRUE);
           }
         }
       }

@@ -361,7 +361,6 @@ BasicTableLayoutStrategy::ComputeColumnIntrinsicWidths(nsIRenderingContext* aRen
             nscoord totalSPref = 0, totalSMin = 0; // total existing widths
             nscoord totalSNonPctPref = 0; // total pref width of columns
                                           // without percentage widths
-            nscoord totalSAutoPref = 0; // total pref width of auto-width cols
             PRInt32 nonPctCount = 0; // # of columns without percentage widths
             PRInt32 scol, scol_end;
             for (scol = col, scol_end = col + colSpan;
@@ -378,20 +377,25 @@ BasicTableLayoutStrategy::ComputeColumnIntrinsicWidths(nsIRenderingContext* aRen
                     info.prefCoord -= spacing;
                 }
 
-                totalSPref += scolFrame->GetPrefCoord();
-                totalSMin += scolFrame->GetMinCoord();
-                if (!scolFrame->GetHasSpecifiedCoord()) {
-                    totalSAutoPref += scolFrame->GetPrefCoord();
+                nscoord curPref;
+                if (info.hasSpecifiedWidth &&
+                    !scolFrame->GetHasSpecifiedCoord()) {
+                    curPref = scolFrame->GetMinCoord();
+                } else {
+                    curPref = scolFrame->GetPrefCoord();
                 }
+
+                totalSPref += curPref;
+                totalSMin += scolFrame->GetMinCoord();
                 float scolPct = scolFrame->GetPrefPercent();
                 if (scolPct == 0.0f) {
-                    totalSNonPctPref += scolFrame->GetPrefCoord();
+                    totalSNonPctPref += curPref;
                     ++nonPctCount;
                 } else {
                     info.prefPercent -= scolPct;
                 }
                 info.minCoord -= scolFrame->GetMinCoord();
-                info.prefCoord -= scolFrame->GetPrefCoord();
+                info.prefCoord -= curPref;
             }
 
             if (info.minCoord < 0)
@@ -426,6 +430,14 @@ BasicTableLayoutStrategy::ComputeColumnIntrinsicWidths(nsIRenderingContext* aRen
                     continue;
                 }
 
+                nscoord curPref;
+                if (info.hasSpecifiedWidth &&
+                    !scolFrame->GetHasSpecifiedCoord()) {
+                    curPref = scolFrame->GetMinCoord();
+                } else {
+                    curPref = scolFrame->GetPrefCoord();
+                }
+
                 // the percentage width (only to columns that don't
                 // already have percentage widths, in proportion to
                 // the existing pref widths)
@@ -441,7 +453,7 @@ BasicTableLayoutStrategy::ComputeColumnIntrinsicWidths(nsIRenderingContext* aRen
                         // Group so we're multiplying by 1.0f when we need
                         // to use up info.prefPercent.
                         allocatedPct = info.prefPercent *
-                                           (float(scolFrame->GetPrefCoord()) /
+                                           (float(curPref) /
                                             float(totalSNonPctPref));
                     } else {
                         // distribute equally when all pref widths are 0
@@ -454,8 +466,7 @@ BasicTableLayoutStrategy::ComputeColumnIntrinsicWidths(nsIRenderingContext* aRen
                 // existing pref width
                 float minRatio = 0.0f;
                 if (minWithinPref > 0) {
-                    minRatio = float(scolFrame->GetPrefCoord() -
-                                     scolFrame->GetMinCoord()) /
+                    minRatio = float(curPref - scolFrame->GetMinCoord()) /
                                float(totalSPref - totalSMin);
                 }
 
@@ -463,21 +474,12 @@ BasicTableLayoutStrategy::ComputeColumnIntrinsicWidths(nsIRenderingContext* aRen
                 // proportion to the existing pref widths)
                 float coordRatio; // for both min and pref
                 if (spanHasPref) {
-                    if (scolFrame->GetPrefCoord() == 0) {
+                    if (curPref == 0) {
                         // We might have already subtracted all of
                         // totalSPref.
                         coordRatio = 0.0f;
-                    } else if (totalSAutoPref == 0) {
-                        // No auto-width cols left -- dividing up totalSPref
-                        coordRatio = float(scolFrame->GetPrefCoord()) /
-                                     float(totalSPref);
-                    } else if (!scolFrame->GetHasSpecifiedCoord()) {
-                        // There are auto-width cols left, and this is one
-                        coordRatio = float(scolFrame->GetPrefCoord()) /
-                                     float(totalSAutoPref);
                     } else {
-                        // There are auto-width cols left, and this isn't one
-                        coordRatio = 0.0f;
+                        coordRatio = float(curPref) / float(totalSPref);
                     }
                 } else {
                     // distribute equally when all pref widths are 0
@@ -494,7 +496,7 @@ BasicTableLayoutStrategy::ComputeColumnIntrinsicWidths(nsIRenderingContext* aRen
                     NSToCoordRound(float(info.prefCoord) * coordRatio);
                 nscoord spanMin = scolFrame->GetMinCoord() +
                         allocatedMinWithinPref + allocatedMinOutsidePref;
-                nscoord spanPref = scolFrame->GetPrefCoord() + allocatedPref;
+                nscoord spanPref = curPref + allocatedPref;
                 scolFrame->AddSpanCoords(spanMin, spanPref,
                                          info.hasSpecifiedWidth);
 
@@ -505,13 +507,10 @@ BasicTableLayoutStrategy::ComputeColumnIntrinsicWidths(nsIRenderingContext* aRen
                 minOutsidePref -= allocatedMinOutsidePref;
                 info.prefCoord -= allocatedPref;
                 info.prefPercent -= allocatedPct;
-                totalSPref -= scolFrame->GetPrefCoord();
+                totalSPref -= curPref;
                 totalSMin -= scolFrame->GetMinCoord();
-                if (!scolFrame->GetHasSpecifiedCoord()) {
-                    totalSAutoPref -= scolFrame->GetPrefCoord();
-                }                
                 if (scolFrame->GetPrefPercent() == 0.0f) {
-                    totalSNonPctPref -= scolFrame->GetPrefCoord();
+                    totalSNonPctPref -= curPref;
                     --nonPctCount;
                 }
             }

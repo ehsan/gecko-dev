@@ -45,15 +45,7 @@
            extends="chrome://global/content/bindings/menu.xml#menuitem-base">
 
     <implementation implements="nsIDOMXULContainerElement">
-      <property name="open" onget="return this.hasAttribute('open');">
-        <setter><![CDATA[
-          this.boxObject.QueryInterface(Components.interfaces.nsIMenuBoxObject)
-              .openMenu(val);
-          return val;
-        ]]></setter>
-      </property>
-
-      <!-- nsIDOMXULContainerElement interface -->
+    <!-- nsIDOMXULContainerElement interface -->
       <method name="appendItem">
         <parameter name="aLabel"/>
         <parameter name="aValue"/>

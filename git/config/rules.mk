@@ -764,6 +764,78 @@ endif # !NO_DIST_INSTALL
 	+$(LOOP_OVER_DIRS)
 
 ##############################################
+install:: $(SUBMAKEFILES) $(MAKE_DIRS)
+	+$(LOOP_OVER_DIRS)
+	+$(LOOP_OVER_TOOL_DIRS)
+
+ifndef NO_INSTALL
+ifneq (,$(EXPORTS))
+install:: $(EXPORTS)
+	$(SYSINSTALL) $(IFLAGS1) $^ $(DESTDIR)$(includedir)/$(MODULE)
+endif
+
+ifneq (,$(SDK_HEADERS))
+install:: $(SDK_HEADERS)
+	$(SYSINSTALL) $(IFLAGS1) $^ $(DESTDIR)$(includedir)/$(MODULE)
+endif
+endif
+
+install:: $(SHARED_LIBRARY) $(IMPORT_LIBRARY) $(LIBRARY) $(PROGRAM) $(SIMPLE_PROGRAMS) $(JAVA_LIBRARY)
+ifndef NO_INSTALL
+#ifdef LIBRARY
+#ifndef IS_COMPONENT
+#ifdef MRE_DIST
+#	$(SYSINSTALL) $(IFLAGS1) $(LIBRARY) $(DESTDIR)$(mredir)
+#else
+#	$(SYSINSTALL) $(IFLAGS1) $(LIBRARY) $(DESTDIR)$(mozappdir)
+#endif
+#endif # !IS_COMPONENT
+#endif # LIBRARY
+ifdef SHARED_LIBRARY
+ifdef IS_COMPONENT
+ifdef MRE_DIST
+	$(SYSINSTALL) $(IFLAGS2) $(SHARED_LIBRARY) $(IMPORT_LIBRARY) $(DESTDIR)$(mredir)/components
+else
+	$(SYSINSTALL) $(IFLAGS2) $(SHARED_LIBRARY) $(IMPORT_LIBRARY) $(DESTDIR)$(mozappdir)/components
+endif
+else
+ifdef MRE_DIST
+	$(SYSINSTALL) $(IFLAGS2) $(SHARED_LIBRARY) $(IMPORT_LIBRARY) $(DESTDIR)$(mredir)
+else
+	$(SYSINSTALL) $(IFLAGS2) $(SHARED_LIBRARY) $(IMPORT_LIBRARY) $(DESTDIR)$(mozappdir)
+endif
+endif
+endif # SHARED_LIBRARY
+ifdef PROGRAM
+ifdef MRE_DIST
+	$(SYSINSTALL) $(IFLAGS2) $(PROGRAM) $(DESTDIR)$(mredir)
+else
+	$(SYSINSTALL) $(IFLAGS2) $(PROGRAM) $(DESTDIR)$(mozappdir)
+endif
+endif # PROGRAM
+ifdef SIMPLE_PROGRAMS
+ifdef MRE_DIST
+	$(SYSINSTALL) $(IFLAGS2) $(SIMPLE_PROGRAMS) $(DESTDIR)$(mredir)
+else
+	$(SYSINSTALL) $(IFLAGS2) $(SIMPLE_PROGRAMS) $(DESTDIR)$(mozappdir)
+endif
+endif # SIMPLE_PROGRAMS
+ifdef JAVA_LIBRARY
+ifdef IS_COMPONENT
+ifdef MRE_DIST
+	$(SYSINSTALL) $(IFLAGS2) $(JAVA_LIBRARY) $(DESTDIR)$(mredir)/components
+else
+	$(SYSINSTALL) $(IFLAGS2) $(JAVA_LIBRARY) $(DESTDIR)$(mozappdir)/components
+endif
+else
+ifdef MRE_DIST
+	$(SYSINSTALL) $(IFLAGS2) $(JAVA_LIBRARY) $(DESTDIR)$(mredir)
+else
+	$(SYSINSTALL) $(IFLAGS2) $(JAVA_LIBRARY) $(DESTDIR)$(mozappdir)
+endif
+endif
+endif # JAVA_LIBRARY
+endif # NO_INSTALL
 
 checkout:
 	$(MAKE) -C $(topsrcdir) -f client.mk checkout
@@ -920,7 +992,7 @@ else
 ifeq (WINNT_,$(HOST_OS_ARCH)_$(GNU_CC))
 	$(HOST_LD) -NOLOGO -OUT:$@ -PDB:$(PDBFILE) $< $(WIN32_EXE_LDFLAGS) $(HOST_LIBS) $(HOST_EXTRA_LIBS)
 else
-ifdef HOST_CPPSRCS
+ifneq (,$(HOST_CPPSRCS)$(USE_HOST_CXX))
 	$(HOST_CXX) $(HOST_OUTOPTION)$@ $(HOST_CXXFLAGS) $(INCLUDES) $< $(HOST_LIBS) $(HOST_EXTRA_LIBS)
 else
 	$(HOST_CC) $(HOST_OUTOPTION)$@ $(HOST_CFLAGS) $(INCLUDES) $< $(HOST_LIBS) $(HOST_EXTRA_LIBS)
@@ -1397,6 +1469,7 @@ endif # NO_DIST_INSTALL
 ################################################################################
 # Copy each element of PREF_JS_EXPORTS
 
+ifneq ($(PREF_JS_EXPORTS),)
 ifdef GRE_MODULE
 PREF_DIR = greprefs
 else
@@ -1407,7 +1480,6 @@ PREF_DIR = defaults/pref
 endif
 endif
 
-ifneq ($(PREF_JS_EXPORTS),)
 # on win32, pref files need CRLF line endings... see bug 206029
 ifeq (WINNT,$(OS_ARCH))
 PREF_PPFLAGS = --line-endings=crlf
@@ -1421,6 +1493,17 @@ libs:: $(PREF_JS_EXPORTS)
 	  dest=$(FINAL_TARGET)/$(PREF_DIR)/`basename $$i`; \
 	  $(RM) -f $$dest; \
 	  $(PYTHON) $(topsrcdir)/config/Preprocessor.py $(PREF_PPFLAGS) $(DEFINES) $(ACDEFINES) $(XULPPFLAGS) $$i > $$dest; \
+	done
+endif
+
+ifndef NO_INSTALL
+install:: $(PREF_JS_EXPORTS)
+	if test ! -d $(DESTDIR)$(mozappdir)/$(PREF_DIR); then $(NSINSTALL) -D $(DESTDIR)$(mozappdir)/$(PREF_DIR); fi
+	$(EXIT_ON_ERROR)  \
+	for i in $(PREF_JS_EXPORTS); do \
+	  dest=$(DESTDIR)$(mozappdir)/$(PREF_DIR)/`basename $$i`; \
+	  $(RM) -f $$dest; \
+	  $(PYTHON) $(topsrcdir)/config/Preprocessor.py $(DEFINES) $(ACDEFINES) $(XULPPFLAGS) $$i > $$dest; \
 	done
 endif
 endif
@@ -1437,6 +1520,10 @@ export:: $(AUTOCFG_JS_EXPORTS) $(FINAL_TARGET)/defaults/autoconfig
 	$(INSTALL) $(IFLAGS1) $^
 endif
 
+install:: $(AUTOCFG_JS_EXPORTS)
+ifndef NO_INSTALL
+	$(SYSINSTALL) $(IFLAGS1) $^ $(DESTDIR)$(mozappdir)/defaults/autoconfig
+endif
 endif 
 ################################################################################
 # Export the elements of $(XPIDLSRCS) & $(SDK_XPIDLSRCS), 
@@ -1495,6 +1582,14 @@ ifndef NO_DIST_INSTALL
 	$(INSTALL) $(IFLAGS1) $(XPIDL_GEN_DIR)/$(XPIDL_MODULE).xpt $(FINAL_TARGET)/components
 endif
 
+install:: $(XPIDL_GEN_DIR)/$(XPIDL_MODULE).xpt
+ifndef NO_INSTALL
+ifdef MRE_DIST
+	$(SYSINSTALL) $(IFLAGS1) $(XPIDL_GEN_DIR)/$(XPIDL_MODULE).xpt $(DESTDIR)$(mredir)/components
+else 
+	$(SYSINSTALL) $(IFLAGS1) $(XPIDL_GEN_DIR)/$(XPIDL_MODULE).xpt $(DESTDIR)$(mozappdir)/components
+endif 
+endif # NO_INSTALL
 endif # NO_GEN_XPT
 
 GARBAGE_DIRS		+= $(XPIDL_GEN_DIR)
@@ -1510,6 +1605,15 @@ export:: $(XPIDLSRCS) $(IDL_DIR)
 export:: $(patsubst %.idl,$(XPIDL_GEN_DIR)/%.h, $(XPIDLSRCS)) $(PUBLIC)
 	$(INSTALL) $(IFLAGS1) $^ 
 endif # NO_DIST_INSTALL
+
+
+ifndef NO_INSTALL
+install:: $(XPIDLSRCS)
+	$(SYSINSTALL) $(IFLAGS1) $^ $(DESTDIR)$(idldir)
+
+install:: $(patsubst %.idl,$(XPIDL_GEN_DIR)/%.h, $(XPIDLSRCS))
+	$(SYSINSTALL) $(IFLAGS1) $^ $(DESTDIR)$(includedir)/$(MODULE)
+endif
 
 endif # XPIDLSRCS
 
@@ -1555,6 +1659,14 @@ export:: $(patsubst %.idl,$(XPIDL_GEN_DIR)/%.h, $(SDK_XPIDLSRCS)) $(SDK_PUBLIC)
 	$(INSTALL) $(IFLAGS1) $^
 endif
 
+ifndef NO_INSTALL
+install:: $(SDK_XPIDLSRCS)
+	$(SYSINSTALL) $(IFLAGS1) $^ $(DESTDIR)$(idldir)
+
+install:: $(patsubst %.idl,$(XPIDL_GEN_DIR)/%.h, $(SDK_XPIDLSRCS))
+	$(SYSINSTALL) $(IFLAGS1) $^ $(DESTDIR)$(includedir)/$(MODULE)
+endif
+
 endif # SDK_XPIDLSRCS
 
 
@@ -1594,7 +1706,7 @@ $(JAVA_INSTALL_DIR):
 	$(NSINSTALL) -D $@
 
 export:: $(JAVA_DIST_DIR) $(JAVADEPFILES) $(JAVA_INSTALL_DIR)
-	(cd $(JAVA_GEN_DIR) && tar $(TAR_CREATE_FLAGS) - .) | (cd $(JAVA_INSTALL_DIR) && tar -xf -)
+	(cd $(JAVA_GEN_DIR) && tar $(TAR_CREATE_FLAGS) - *) | (cd $(JAVA_INSTALL_DIR) && tar -xf -)
 
 endif # XPIDLSRCS || SDK_XPIDLSRCS
 endif # MOZ_JAVAXPCOM
@@ -1607,6 +1719,10 @@ ifndef NO_DIST_INSTALL
 	$(INSTALL) $(IFLAGS1) $^ $(FINAL_TARGET)/components
 endif
 
+install:: $(EXTRA_COMPONENTS)
+ifndef NO_INSTALL
+	$(SYSINSTALL) $(IFLAGS1) $^ $(DESTDIR)$(mozappdir)/components
+endif
 endif
 
 ifdef EXTRA_PP_COMPONENTS
@@ -1620,6 +1736,15 @@ ifndef NO_DIST_INSTALL
 	done
 endif
 
+install:: $(EXTRA_PP_COMPONENTS)
+ifndef NO_INSTALL
+	$(EXIT_ON_ERROR) \
+	for i in $^; do \
+	  dest=$(DESTDIR)$(mozappdir)/components/`basename $$i`; \
+	  $(RM) -f $$dest; \
+	  $(PYTHON) $(topsrcdir)/config/Preprocessor.py $(DEFINES) $(ACDEFINES) $(XULPPFLAGS) $$i > $$dest; \
+	done
+endif
 endif
 
 ################################################################################
@@ -1630,6 +1755,10 @@ ifndef NO_DIST_INSTALL
 	$(INSTALL) $(IFLAGS1) $^ $(FINAL_TARGET)/modules
 endif
 
+install:: $(EXTRA_JS_MODULES)
+ifndef NO_INSTALL
+	$(SYSINSTALL) $(IFLAGS1) $^ $(DESTDIR)$(mozappdir)/modules
+endif
 endif
 
 ifdef EXTRA_PP_JS_MODULES
@@ -1643,6 +1772,15 @@ ifndef NO_DIST_INSTALL
 	done
 endif
 
+install:: $(EXTRA_PP_JS_MODULES)
+ifndef NO_INSTALL
+	$(EXIT_ON_ERROR) \
+	for i in $^; do \
+	  dest=$(DESTDIR)$(mozappdir)/modules/`basename $$i`; \
+	  $(RM) -f $$dest; \
+	  $(PYTHON) $(topsrcdir)/config/Preprocessor.py $(DEFINES) $(ACDEFINES) $(XULPPFLAGS) $$i > $$dest; \
+	done
+endif
 endif
 
 ################################################################################
@@ -1690,6 +1828,23 @@ ifndef NO_DIST_INSTALL
 	    $(JAR_MANIFEST) | \
 	  $(PERL) -I$(MOZILLA_DIR)/config $(MOZILLA_DIR)/config/make-jars.pl \
 	    -d $(MAKE_JARS_TARGET)/chrome -j $(FINAL_TARGET)/chrome \
+	    $(MAKE_JARS_FLAGS) -- "$(XULPPFLAGS) $(DEFINES) $(ACDEFINES)"; \
+	fi
+endif
+
+install:: $(CHROME_DEPS)
+ifneq (,$(filter flat symlink,$(MOZ_CHROME_FILE_FORMAT)))
+	$(error Flat chrome is for debugging only, and should not be used with the install target.)
+endif
+ifndef NO_INSTALL
+	@$(EXIT_ON_ERROR) \
+	if test -f $(JAR_MANIFEST); then \
+	  if test ! -d $(DESTDIR)$(mozappdir)/chrome; then $(NSINSTALL) -D $(DESTDIR)$(mozappdir)/chrome; fi; \
+	  if test ! -d $(MAKE_JARS_TARGET)/chrome; then $(NSINSTALL) -D $(MAKE_JARS_TARGET)/chrome; fi; \
+	  $(PYTHON) $(MOZILLA_DIR)/config/Preprocessor.py $(XULPPFLAGS) $(DEFINES) $(ACDEFINES) \
+	    $(JAR_MANIFEST) | \
+	  $(PERL) -I$(MOZILLA_DIR)/config $(MOZILLA_DIR)/config/make-jars.pl \
+	    -d $(MAKE_JARS_TARGET)/chrome -j $(DESTDIR)$(mozappdir)/chrome \
 	    $(MAKE_JARS_FLAGS) -- "$(XULPPFLAGS) $(DEFINES) $(ACDEFINES)"; \
 	fi
 endif
@@ -1761,8 +1916,11 @@ endif
 libs::
 	$(RM) -rf "$(DIST)/bin/extensions/$(INSTALL_EXTENSION_ID)"
 	$(NSINSTALL) -D "$(DIST)/bin/extensions/$(INSTALL_EXTENSION_ID)"
-	cd $(FINAL_TARGET) && tar $(TAR_CREATE_FLAGS) - . | (cd "../../bin/extensions/$(INSTALL_EXTENSION_ID)" && tar -xf -)
+	cd $(FINAL_TARGET) && tar $(TAR_CREATE_FLAGS) - * | (cd "../../bin/extensions/$(INSTALL_EXTENSION_ID)" && tar -xf -)
 
+install::
+	$(NSINSTALL) -D "$(DESTDIR)$(mozappdir)/extensions/$(INSTALL_EXTENSION_ID)"
+	cd $(FINAL_TARGET) && tar $(TAR_CREATE_FLAGS) - * | (cd "$(DESTDIR)$(mozappdir)/extensions/$(INSTALL_EXTENSION_ID)" && tar -xf -)
 endif
 
 ifneq (,$(filter flat symlink,$(MOZ_CHROME_FILE_FORMAT)))
@@ -1973,14 +2131,6 @@ endif
 ################################################################################
 # Special gmake rules.
 ################################################################################
-
-
-#
-# Disallow parallel builds with MSVC < 8
-#
-ifneq (,$(filter 1200 1300 1310,$(_MSC_VER)))
-.NOTPARALLEL:
-endif
 
 #
 # Re-define the list of default suffixes, so gmake won't have to churn through

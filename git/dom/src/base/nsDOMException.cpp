@@ -43,7 +43,6 @@
 #include "nsDOMException.h"
 #include "nsIDOMDOMException.h"
 #include "nsIDOMRangeException.h"
-#include "nsIDOMFileException.h"
 #ifdef MOZ_SVG
 #include "nsIDOMSVGException.h"
 #endif
@@ -195,23 +194,6 @@ IMPL_INTERNAL_DOM_EXCEPTION_TAIL(nsXPathException, nsIDOMXPathException,
 
 NS_IMETHODIMP
 nsXPathException::GetCode(PRUint16* aCode)
-{
-  NS_ENSURE_ARG_POINTER(aCode);
-  nsresult result;
-  GetResult(&result);
-  *aCode = NS_ERROR_GET_CODE(result);
-
-  return NS_OK;
-}
-
-IMPL_INTERNAL_DOM_EXCEPTION_HEAD(nsDOMFileException, nsIDOMFileException)
-  NS_DECL_NSIDOMFILEEXCEPTION
-IMPL_INTERNAL_DOM_EXCEPTION_TAIL(nsDOMFileException, nsIDOMFileException,
-                                 FileException, NS_ERROR_MODULE_DOM_FILE,
-                                 NSResultToNameAndMessage)
-
-NS_IMETHODIMP
-nsDOMFileException::GetCode(PRUint16* aCode)
 {
   NS_ENSURE_ARG_POINTER(aCode);
   nsresult result;

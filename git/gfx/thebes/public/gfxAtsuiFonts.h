@@ -93,7 +93,10 @@ protected:
 
     void InitMetrics(ATSUFontID aFontID, ATSFontRef aFontRef);
 
-    virtual PRBool SetupCairoFont(cairo_t *aCR);
+    virtual void SetupCairoFont(cairo_t *aCR)
+    {
+        cairo_set_scaled_font (aCR, CairoScaledFont());
+    }
 };
 
 class THEBES_API gfxAtsuiFontGroup : public gfxFontGroup {

@@ -46,7 +46,6 @@
 #endif
 
 #include "cairo.h"
-#include "lcms.h"
 
 #include "gfxContext.h"
 
@@ -54,7 +53,7 @@
 #include "gfxMatrix.h"
 #include "gfxASurface.h"
 #include "gfxPattern.h"
-#include "gfxPlatform.h"
+
 
 
 gfxContext::gfxContext(gfxASurface *surface) :
@@ -607,27 +606,6 @@ gfxContext::GetClipExtents()
 void
 gfxContext::SetColor(const gfxRGBA& c)
 {
-    if (gfxPlatform::IsCMSEnabled()) {
-        cmsHTRANSFORM transform = gfxPlatform::GetCMSRGBTransform();
-        if (transform) {
-#ifdef IS_LITTLE_ENDIAN
-            PRUint32 packed = c.Packed(gfxRGBA::PACKED_ABGR);
-            cmsDoTransform(transform,
-                           (PRUint8 *)&packed, (PRUint8 *)&packed,
-                           1);
-            gfxRGBA cms(packed, gfxRGBA::PACKED_ABGR);
-#else
-            PRUint32 packed = c.Packed(gfxRGBA::PACKED_ARGB);
-            cmsDoTransform(transform,
-                           (PRUint8 *)&packed + 1, (PRUint8 *)&packed + 1,
-                           1);
-            gfxRGBA cms(packed, gfxRGBA::PACKED_ARGB);
-#endif
-            cairo_set_source_rgba(mCairo, cms.r, cms.g, cms.b, cms.a);
-            return;
-        }
-    }
-
     cairo_set_source_rgba(mCairo, c.r, c.g, c.b, c.a);
 }
 
@@ -665,7 +643,7 @@ gfxContext::GetPattern()
     else
         wrapper = new gfxPattern(gfxRGBA(0,0,0,0));
 
-    NS_IF_ADDREF(wrapper);
+    NS_ADDREF(wrapper);
     return wrapper;
 }
 
@@ -703,8 +681,7 @@ gfxContext::PopGroup()
 {
     cairo_pattern_t *pat = cairo_pop_group(mCairo);
     gfxPattern *wrapper = new gfxPattern(pat);
-    cairo_pattern_destroy(pat);
-    NS_IF_ADDREF(wrapper);
+    NS_ADDREF(wrapper);
     return wrapper;
 }
 

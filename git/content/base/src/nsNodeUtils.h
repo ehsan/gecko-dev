@@ -49,7 +49,7 @@ class nsNodeInfoManager;
 class nsIVariant;
 class nsIDOMUserDataHandler;
 template<class E> class nsCOMArray;
-class nsCycleCollectionTraversalCallback;
+struct nsCycleCollectionTraversalCallback;
 struct CharacterDataChangeInfo;
 
 class nsNodeUtils

@@ -406,14 +406,12 @@ nsImageDocument::GetImageRequest(imgIRequest** aImageRequest)
 NS_IMETHODIMP
 nsImageDocument::ShrinkToFit()
 {
-  // Keep image content alive while changing the attributes.
-  nsCOMPtr<nsIContent> imageContent = mImageContent;
   nsCOMPtr<nsIDOMHTMLImageElement> image = do_QueryInterface(mImageContent);
   image->SetWidth(PR_MAX(1, NSToCoordFloor(GetRatio() * mImageWidth)));
   image->SetHeight(PR_MAX(1, NSToCoordFloor(GetRatio() * mImageHeight)));
   
-  imageContent->SetAttr(kNameSpaceID_None, nsGkAtoms::style,
-                        NS_LITERAL_STRING("cursor: -moz-zoom-in"), PR_TRUE);
+  mImageContent->SetAttr(kNameSpaceID_None, nsGkAtoms::style,
+                         NS_LITERAL_STRING("cursor: -moz-zoom-in"), PR_TRUE);
   
   mImageIsResized = PR_TRUE;
   
@@ -461,17 +459,15 @@ nsImageDocument::RestoreImageTo(PRInt32 aX, PRInt32 aY)
 NS_IMETHODIMP
 nsImageDocument::RestoreImage()
 {
-  // Keep image content alive while changing the attributes.
-  nsCOMPtr<nsIContent> imageContent = mImageContent;
-  imageContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::width, PR_TRUE);
-  imageContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::height, PR_TRUE);
+  mImageContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::width, PR_TRUE);
+  mImageContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::height, PR_TRUE);
   
   if (mImageIsOverflowing) {
-    imageContent->SetAttr(kNameSpaceID_None, nsGkAtoms::style,
-                          NS_LITERAL_STRING("cursor: -moz-zoom-out"), PR_TRUE);
+    mImageContent->SetAttr(kNameSpaceID_None, nsGkAtoms::style,
+                           NS_LITERAL_STRING("cursor: -moz-zoom-out"), PR_TRUE);
   }
   else {
-    imageContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::style, PR_TRUE);
+    mImageContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::style, PR_TRUE);
   }
   
   mImageIsResized = PR_FALSE;
@@ -604,39 +600,33 @@ nsImageDocument::CreateSyntheticDocument()
 nsresult
 nsImageDocument::CheckOverflowing(PRBool changeState)
 {
-  /* Create a scope so that the style context gets destroyed before we might
-   * call ClearStyleDataAndReflow.  Also, holding onto pointers to the
-   * presentatation through style resolution is potentially dangerous.
-   */
-  {
-    nsIPresShell *shell = GetPrimaryShell();
-    if (!shell) {
-      return NS_OK;
-    }
-
-    nsPresContext *context = shell->GetPresContext();
-    nsRect visibleArea = context->GetVisibleArea();
-
-    nsCOMPtr<nsIContent> content = do_QueryInterface(mBodyContent);
-    if (!content) {
-      NS_WARNING("no body on image document!");
-      return NS_ERROR_FAILURE;
-    }
-
-    nsRefPtr<nsStyleContext> styleContext =
-      context->StyleSet()->ResolveStyleFor(content, nsnull);
-
-    nsMargin m;
-    if (styleContext->GetStyleMargin()->GetMargin(m))
-      visibleArea.Deflate(m);
-    m = styleContext->GetStyleBorder()->GetBorder();
-    visibleArea.Deflate(m);
-    if (styleContext->GetStylePadding()->GetPadding(m))
-      visibleArea.Deflate(m);
-
-    mVisibleWidth = nsPresContext::AppUnitsToIntCSSPixels(visibleArea.width);
-    mVisibleHeight = nsPresContext::AppUnitsToIntCSSPixels(visibleArea.height);
+  nsIPresShell *shell = GetPrimaryShell();
+  if (!shell) {
+    return NS_OK;
   }
+
+  nsPresContext *context = shell->GetPresContext();
+  nsRect visibleArea = context->GetVisibleArea();
+
+  nsCOMPtr<nsIContent> content = do_QueryInterface(mBodyContent);
+  if (!content) {
+    NS_WARNING("no body on image document!");
+    return NS_ERROR_FAILURE;
+  }
+
+  nsRefPtr<nsStyleContext> styleContext =
+    context->StyleSet()->ResolveStyleFor(content, nsnull);
+
+  nsMargin m;
+  if (styleContext->GetStyleMargin()->GetMargin(m))
+    visibleArea.Deflate(m);
+  m = styleContext->GetStyleBorder()->GetBorder();
+  visibleArea.Deflate(m);
+  if (styleContext->GetStylePadding()->GetPadding(m))
+    visibleArea.Deflate(m);
+
+  mVisibleWidth = nsPresContext::AppUnitsToIntCSSPixels(visibleArea.width);
+  mVisibleHeight = nsPresContext::AppUnitsToIntCSSPixels(visibleArea.height);
 
   PRBool imageWasOverflowing = mImageIsOverflowing;
   mImageIsOverflowing =

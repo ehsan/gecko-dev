@@ -49,10 +49,9 @@ interface nsIHandlerService : nsISupports
    * Note: if preferred action is undefined or invalid, then we assume
    * the default value nsIHandlerInfo::useHelperApp.
    *
-   * FIXME: also store any changes to the list of possible handlers
-   * (once we support possible handlers).
+   * FIXME: also store any changes to the list of possible handlers.
    *
-   * @param aHandlerInfo  the handler info object
+   * @param aHandlerInfo  {nsIHandlerInfo}  the handler info object
    */
   void store(in nsIHandlerInfo aHandlerInfo);
 };

@@ -224,7 +224,7 @@ nsPluginDirServiceProvider::GetFile(const char *prop, PRBool *persistant,
 
   NS_ENSURE_ARG(prop);
   *_retval = nsnull;
-  *persistant = PR_FALSE;
+  *persistant = PR_TRUE;
 
   nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
   if (!prefs) {

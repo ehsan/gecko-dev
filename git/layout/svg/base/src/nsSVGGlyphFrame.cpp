@@ -78,6 +78,12 @@ NS_NewSVGGlyphFrame(nsIPresShell* aPresShell, nsIContent* aContent, nsIFrame* pa
   return new (aPresShell) nsSVGGlyphFrame(aContext);
 }
 
+nsSVGGlyphFrame::nsSVGGlyphFrame(nsStyleContext* aContext)
+    : nsSVGGlyphFrameBase(aContext),
+      mWhitespaceHandling(COMPRESS_WHITESPACE)
+{
+}
+
 //----------------------------------------------------------------------
 // nsISupports methods
 
@@ -101,6 +107,9 @@ nsSVGGlyphFrame::CharacterDataChanged(nsPresContext*  aPresContext,
 nsresult
 nsSVGGlyphFrame::UpdateGraphic(PRBool suppressInvalidation)
 {
+  if (GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)
+    return NS_OK;
+
   nsSVGTextContainerFrame *containerFrame =
     static_cast<nsSVGTextContainerFrame *>(mParent);
   if (containerFrame)
@@ -461,6 +470,8 @@ nsSVGGlyphFrame::UpdateCoveredRegion()
 NS_IMETHODIMP
 nsSVGGlyphFrame::InitialUpdate()
 {
+  nsresult rv = UpdateGraphic();
+
   NS_ASSERTION(!(mState & NS_FRAME_IN_REFLOW),
                "We don't actually participate in reflow");
   
@@ -468,7 +479,7 @@ nsSVGGlyphFrame::InitialUpdate()
   mState &= ~(NS_FRAME_FIRST_REFLOW | NS_FRAME_IS_DIRTY |
               NS_FRAME_HAS_DIRTY_CHILDREN);
   
-  return NS_OK;
+  return rv;
 }  
 
 NS_IMETHODIMP
@@ -1340,10 +1351,8 @@ nsSVGGlyphFrame::GetTextRun(gfxContext *aCtx, const nsString &aText)
   if (!mFontGroup)
     return nsnull;
 
-  PRUint32 flags = nsLayoutUtils::GetTextRunFlagsForStyle(GetStyleContext(),
-      GetStyleText(), GetStyleFont());
   return gfxTextRunCache::MakeTextRun(aText.get(), aText.Length(),
-      mFontGroup, aCtx, 1, flags);
+      mFontGroup, aCtx, 1, 0);
 }
 
 //----------------------------------------------------------------------

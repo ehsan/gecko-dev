@@ -581,7 +581,9 @@ nsAutoCompleteController::GetCommentAt(PRInt32 aIndex, nsAString & _retval)
   mResults->GetElementAt(searchIndex, getter_AddRefs(result));
   NS_ENSURE_TRUE(result, NS_ERROR_FAILURE);
 
-  return result->GetCommentAt(rowIndex, _retval);
+  result->GetCommentAt(rowIndex, _retval);
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -596,22 +598,9 @@ nsAutoCompleteController::GetStyleAt(PRInt32 aIndex, nsAString & _retval)
   mResults->GetElementAt(searchIndex, getter_AddRefs(result));
   NS_ENSURE_TRUE(result, NS_ERROR_FAILURE);
 
-  return result->GetStyleAt(rowIndex, _retval);
-}
+  result->GetStyleAt(rowIndex, _retval);
 
-NS_IMETHODIMP
-nsAutoCompleteController::GetImageAt(PRInt32 aIndex, nsAString & _retval)
-{
-  PRInt32 searchIndex;
-  PRInt32 rowIndex;
-  RowIndexToSearch(aIndex, &searchIndex, &rowIndex);
-  NS_ENSURE_TRUE(searchIndex >= 0 && rowIndex >= 0, NS_ERROR_FAILURE);
-  
-  nsCOMPtr<nsIAutoCompleteResult> result;
-  mResults->GetElementAt(searchIndex, getter_AddRefs(result));
-  NS_ENSURE_TRUE(result, NS_ERROR_FAILURE);
-
-  return result->GetImageAt(rowIndex, _retval);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -737,12 +726,6 @@ nsAutoCompleteController::GetColumnProperties(nsITreeColumn* col, nsISupportsArr
 NS_IMETHODIMP
 nsAutoCompleteController::GetImageSrc(PRInt32 row, nsITreeColumn* col, nsAString& _retval)
 {
-  const PRUnichar* colID;
-  col->GetIdConst(&colID);
-
-  if (NS_LITERAL_STRING("treecolAutoCompleteValue").Equals(colID))
-    return GetImageAt(row, _retval);
-
   return NS_OK;
 }
 

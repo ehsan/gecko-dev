@@ -55,7 +55,6 @@ REQUIRES	= xpcom \
 		  dom \
 		  content \
 		  gfx \
-		  thebes \
 		  widget \
 		  view \
 		  webshell \

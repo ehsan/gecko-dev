@@ -15,7 +15,7 @@ bin/.autoreg
 [@AB_CD@]
 bin/chrome/@AB_CD@.jar
 bin/chrome/@AB_CD@.manifest
-bin/@PREF_DIR@/firefox-l10n.js
+bin/defaults/pref/firefox-l10n.js
 bin/defaults/existing-profile-defaults.js
 ; If you add a new directory you must explicitly call addDirectory in ab-CD.jst
 bin/browserconfig.properties
@@ -234,8 +234,6 @@ bin/components/nsLivemarkService.js
 bin/components/nsTaggingService.js
 bin/components/nsDefaultCLH.js
 bin/components/nsContentPrefService.js
-bin/components/nsContentDispatchChooser.js
-bin/components/nsHandlerService.js
 
 ; Modules
 bin/modules/*
@@ -268,7 +266,7 @@ bin/chrome/toolkit.manifest
 bin/chrome/icons/default/default.xpm
 bin/chrome/reporter.manifest
 bin/chrome/reporter.jar
-bin/@PREF_DIR@/reporter.js
+bin/defaults/pref/reporter.js
 
 ; shell icons
 bin/icons/*.xpm
@@ -276,9 +274,9 @@ bin/icons/*.png
 
 ; [Default Preferences]
 ; All the pref files must be part of base to prevent migration bugs
-bin/@PREF_DIR@/firefox.js
-bin/@PREF_DIR@/firefox-branding.js
-bin/@PREF_DIR@/channel-prefs.js
+bin/defaults/pref/firefox.js
+bin/defaults/pref/firefox-branding.js
+bin/defaults/pref/channel-prefs.js
 bin/greprefs/all.js
 bin/greprefs/security-prefs.js
 bin/greprefs/xpinstall.js
@@ -348,7 +346,6 @@ bin/libsoftokn3.so
 bin/libfreebl3.chk
 bin/libfreebl3.so
 bin/libssl3.so
-bin/libnssdbm3.so
 bin/chrome/pipnss.jar
 bin/chrome/pippki.jar
 bin/chrome/pippki.manifest

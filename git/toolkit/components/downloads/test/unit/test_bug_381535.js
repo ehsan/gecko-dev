@@ -73,7 +73,7 @@ function test_count_entries()
 function test_download_data()
 {
   var stmt = dm.DBConnection.createStatement("SELECT COUNT(*), source, target," +
-                                             "state, startTime," +
+                                             "iconURL, state, startTime," +
                                              "endTime " +
                                              "FROM moz_downloads " +
                                              "WHERE name = ?1");
@@ -83,10 +83,11 @@ function test_download_data()
   do_check_eq(1, stmt.getInt32(0));
   do_check_eq("http://www.google.com/", stmt.getUTF8String(1));
   do_check_eq("file:///Users/jruderman/Desktop/download/Google.htm", stmt.getUTF8String(2));
-  do_check_eq(1, stmt.getInt32(3));
+  do_check_eq("", stmt.getString(3));
+  do_check_eq(1, stmt.getInt32(4));
   
   // Actual check of dates being the same
-  do_check_eq(stmt.getInt64(4), stmt.getInt64(5));
+  do_check_eq(stmt.getInt64(5), stmt.getInt64(6));
 
   stmt.reset();
 }

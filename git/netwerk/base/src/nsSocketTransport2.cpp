@@ -69,7 +69,6 @@
 #include "nsINSSErrorsService.h"
 #include "nsIPipe.h"
 #include "nsIProgrammingLanguage.h"
-#include "nsIClassInfoImpl.h"
 
 #if defined(XP_WIN)
 #include "nsNativeConnectionHelper.h"

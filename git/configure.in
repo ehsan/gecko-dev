@@ -126,7 +126,6 @@ GCONF_VERSION=1.2.1
 LIBGNOME_VERSION=2.0
 STARTUP_NOTIFICATION_VERSION=0.8
 DBUS_VERSION=0.60
-LCMS_VERSION=1.17
 
 MSMANIFEST_TOOL=
 
@@ -3873,7 +3872,7 @@ fi
 if test -n "$MOZ_NATIVE_NSS"; then
    NSS_LIBS="$NSS_LIBS -lcrmf"
 else
-   NSS_CFLAGS='-I$(LIBXUL_DIST)/include/nss'
+   NSS_CFLAGS='-I$(LIBXUL_DIST)/public/nss'
    NSS_DEP_LIBS='\\\
         $(LIBXUL_DIST)/lib/$(LIB_PREFIX)crmf.$(LIB_SUFFIX) \\\
         $(LIBXUL_DIST)/lib/$(DLL_PREFIX)smime'$NSS_VERSION'$(DLL_SUFFIX) \\\
@@ -4064,7 +4063,7 @@ MOZ_BRANDING_DIRECTORY=
 MOZ_CALENDAR=
 MOZ_DBGRINFO_MODULES=
 MOZ_ENABLE_CANVAS=1
-MOZ_EXTENSIONS_ALL=" wallet xml-rpc help venkman inspector irc typeaheadfind gnomevfs sroaming datetime finger cview layout-debug tasks sql xforms schema-validation reporter"
+MOZ_EXTENSIONS_ALL=" wallet help p3p venkman inspector irc typeaheadfind gnomevfs sroaming datetime finger cview layout-debug tasks sql xforms schema-validation reporter"
 MOZ_FEEDS=1
 MOZ_IMG_DECODERS_DEFAULT="png gif jpeg bmp xbm icon"
 MOZ_IMG_ENCODERS_DEFAULT="png jpeg"
@@ -4106,6 +4105,7 @@ MOZ_PYTHON_VER_DOTTED=
 MOZ_RDF=1
 MOZ_REFLOW_PERF=
 MOZ_SAFE_BROWSING=
+MOZ_SINGLE_PROFILE=
 MOZ_SPELLCHECK=1
 MOZ_STATIC_MAIL_BUILD=
 MOZ_STORAGE=1
@@ -4117,8 +4117,6 @@ MOZ_URL_CLASSIFIER=
 MOZ_USE_NATIVE_UCONV=
 MOZ_V1_STRING_ABI=
 MOZ_VIEW_SOURCE=1
-MOZ_WEBSERVICES=
-MOZ_XMLEXTRAS=1
 MOZ_XPFE_COMPONENTS=1
 MOZ_XPINSTALL=1
 MOZ_XSLT_STANDALONE=
@@ -4233,6 +4231,7 @@ basic)
   MOZ_PREF_EXTENSIONS=
   MOZ_PROFILELOCKING=
   MOZ_PROFILESHARING=
+  MOZ_SINGLE_PROFILE=1
   MOZ_SPELLCHECK=
   MOZ_SVG=
   MOZ_UNIVERSALCHARDET=
@@ -4280,6 +4279,7 @@ minimal)
   MOZ_PREF_EXTENSIONS=
   MOZ_PROFILELOCKING=
   MOZ_PROFILESHARING=
+  MOZ_SINGLE_PROFILE=1
   MOZ_SPELLCHECK=
   MOZ_STORAGE=
   MOZ_SVG=
@@ -4405,6 +4405,7 @@ AC_SUBST(MOZ_XULRUNNER)
 AC_DEFINE_UNQUOTED(MOZ_BUILD_APP,$MOZ_BUILD_APP)
 
 if test "$MOZ_XUL_APP"; then
+  MOZ_SINGLE_PROFILE=1
   MOZ_PROFILESHARING=
   AC_DEFINE(MOZ_XUL_APP)
 fi
@@ -5091,6 +5092,14 @@ if test "$MOZ_XPINSTALL"; then
 fi
 
 dnl ========================================================
+dnl Single profile support off by default
+dnl ========================================================
+MOZ_ARG_ENABLE_BOOL(single-profile,
+[  --enable-single-profile Enable single profile support ],
+    MOZ_SINGLE_PROFILE=1,
+    MOZ_SINGLE_PROFILE= )
+
+dnl ========================================================
 dnl xpcom js loader support on by default
 dnl ========================================================
 MOZ_ARG_DISABLE_BOOL(jsloader,
@@ -5161,6 +5170,9 @@ MOZ_ARG_DISABLE_BOOL(xpcom-obsolete,
     MOZ_NO_XPCOM_OBSOLETE=)
 
 if test -n "$MOZ_NO_XPCOM_OBSOLETE"; then
+if test -z "$MOZ_SINGLE_PROFILE"; then
+    AC_MSG_ERROR([Building without xpcom-obsolete isn't support when building full profile support.])
+fi
     AC_DEFINE(MOZ_NO_XPCOM_OBSOLETE)
 fi
 
@@ -5213,22 +5225,6 @@ MOZ_ARG_DISABLE_BOOL(inspector-apis,
 [  --disable-inspector-apis Disable the DOM inspection APIs ],
     MOZ_NO_INSPECTOR_APIS=1,
     MOZ_NO_INSPECTOR_APIS= )
-
-dnl ========================================================
-dnl XMLExtras
-dnl ========================================================
-MOZ_ARG_DISABLE_BOOL(xmlextras,
-[  --disable-xmlextras Disable XMLExtras such as XPointer support ],
-    MOZ_XMLEXTRAS=,
-    MOZ_XMLEXTRAS=1 )
-
-dnl ========================================================
-dnl Webservices
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(webservices,
-[  --enable-webservices Enable Webservices/SOAP support ],
-    MOZ_WEBSERVICES=1,
-    MOZ_WEBSERVICES= )
 
 dnl ========================================================
 dnl Pref extensions (autoconfig and system-pref)
@@ -5315,7 +5311,7 @@ dnl ========================================================
 
 if (test "$OS_ARCH" = "WINNT" -a -z "$GNU_CC" \
     || test "$OS_ARCH" = "Darwin" \
-    || test "$OS_ARCH" = "Linux" -a "$CPU_ARCH" = "x86") \
+    || test "$OS_ARCH" = "Linux") \
    && test -z "$HAVE_64BIT_OS"; then
    MOZ_AIRBAG=1
 fi
@@ -5431,19 +5427,9 @@ if test `echo "$MOZ_EXTENSIONS" | grep -c auth` -ne 0; then
     MOZ_EXTENSIONS=`echo $MOZ_EXTENSIONS | sed -e 's|auth||g'`
 fi
 
-if test `echo "$MOZ_EXTENSIONS" | grep -c xmlextras` -ne 0; then
-    AC_MSG_WARN([xmlextras is no longer an extension, use --disable-xmlextras to disable.])
-    MOZ_EXTENSIONS=`echo $MOZ_EXTENSIONS | sed -e 's|xmlextras||g'`
-fi
-
 if test `echo "$MOZ_EXTENSIONS" | grep -c 'cookie\|permissions'` -ne 0; then
     AC_MSG_WARN([cookie and permissions are no longer extensions, use --disable-permissions to disable.])
     MOZ_EXTENSIONS=`echo $MOZ_EXTENSIONS | sed -e 's|cookie||g; s|permissions||g'`
-fi
-
-if test `echo "$MOZ_EXTENSIONS" | grep -c webservices` -ne 0; then
-    AC_MSG_WARN([webservices is no longer an extension, use --disable-webservices to disable.])
-    MOZ_EXTENSIONS=`echo $MOZ_EXTENSIONS | sed -e 's|webservices||g'`
 fi
 
 if test `echo "$MOZ_EXTENSIONS" | grep -c pref` -ne 0; then
@@ -6943,7 +6929,6 @@ if test "$MOZ_SVG" -o "$MOZ_ENABLE_CANVAS" -o "$MOZ_ENABLE_CAIRO_GFX" ; then
        # Define macros for cairo-features.h
        if test "$MOZ_X11"; then
            XLIB_SURFACE_FEATURE="#define CAIRO_HAS_XLIB_SURFACE 1"
-           XLIB_XRENDER_SURFACE_FEATURE="#define CAIRO_HAS_XLIB_XRENDER_SURFACE 1"
            PS_SURFACE_FEATURE="#define CAIRO_HAS_PS_SURFACE 1"
            PDF_SURFACE_FEATURE="#define CAIRO_HAS_PDF_SURFACE 1"
            FT_FONT_FEATURE="#define CAIRO_HAS_FT_FONT 1"
@@ -6990,7 +6975,6 @@ if test "$MOZ_SVG" -o "$MOZ_ENABLE_CANVAS" -o "$MOZ_ENABLE_CAIRO_GFX" ; then
        AC_SUBST(PDF_SURFACE_FEATURE)
        AC_SUBST(SVG_SURFACE_FEATURE)
        AC_SUBST(XLIB_SURFACE_FEATURE)
-       AC_SUBST(XLIB_XRENDER_SURFACE_FEATURE)
        AC_SUBST(QUARTZ_SURFACE_FEATURE)
        AC_SUBST(NQUARTZ_SURFACE_FEATURE)
        AC_SUBST(XCB_SURFACE_FEATURE)
@@ -7036,35 +7020,6 @@ fi
 AC_SUBST(MOZ_TREE_CAIRO)
 AC_SUBST(MOZ_CAIRO_CFLAGS)
 AC_SUBST(MOZ_CAIRO_LIBS)
-
-dnl ========================================================
-dnl Check for lcms
-dnl ========================================================
-
-MOZ_NATIVE_LCMS=
-MOZ_ARG_ENABLE_BOOL(system-lcms,
-[ --enable-system-lcms Use system lcms (located with pkgconfig)],
-MOZ_NATIVE_LCMS=1,
-MOZ_NATIVE_LCMS= )
-
-if test -z "$MOZ_NATIVE_LCMS"
-then
-    LCMS_CFLAGS=
-    if test "$OS_ARCH" = "WINNT"; then
-        if test -z "$BUILD_STATIC_LIBS" -a -z "$MOZ_ENABLE_LIBXUL"; then
-            LCMS_CFLAGS=-DLCMS_DLL
-        fi
-        LCMS_LIBS='$(LIBXUL_DIST)/lib/mozlcms.lib'
-    else
-        LCMS_LIBS='-L$(LIBXUL_DIST)/bin -lmozlcms'
-    fi
-else
-    PKG_CHECK_MODULES(LCMS, lcms >= $LCMS_VERSION)
-fi
-
-AC_SUBST(MOZ_NATIVE_LCMS)
-AC_SUBST(LCMS_CFLAGS)
-AC_SUBST(LCMS_LIBS)
 
 dnl ========================================================
 dnl disable xul
@@ -7388,9 +7343,7 @@ AC_SUBST(MOZ_AUTH_EXTENSION)
 AC_SUBST(MOZ_MATHML)
 AC_SUBST(MOZ_PERMISSIONS)
 AC_SUBST(MOZ_XTF)
-AC_SUBST(MOZ_XMLEXTRAS)
 AC_SUBST(MOZ_NO_INSPECTOR_APIS)
-AC_SUBST(MOZ_WEBSERVICES)
 AC_SUBST(MOZ_PREF_EXTENSIONS)
 AC_SUBST(MOZ_SVG)
 AC_SUBST(MOZ_SVG_FOREIGNOBJECT)
@@ -7464,6 +7417,7 @@ AC_SUBST(MOZ_UNIVERSALCHARDET)
 AC_SUBST(ACCESSIBILITY)
 AC_SUBST(MOZ_XPINSTALL)
 AC_SUBST(MOZ_VIEW_SOURCE)
+AC_SUBST(MOZ_SINGLE_PROFILE)
 AC_SUBST(MOZ_SPELLCHECK)
 AC_SUBST(MOZ_XPFE_COMPONENTS)
 AC_SUBST(MOZ_USER_DIR)

@@ -55,8 +55,6 @@ import re
 import shutil
 import time
 import sys
-import subprocess
-import utils
 
 import ffprocess
 import ffprofile
@@ -67,8 +65,6 @@ if platform.system() == "Linux":
     from tp_linux import *
 elif platform.system() == "Windows":
     from tp_win32 import *
-elif platform.system() == "Darwin":
-    from tp_mac import *
 
 
 # Regular expression to get stats for page load test (Tp)
@@ -109,11 +105,10 @@ def RunPltTests(profile_configs,
   plt_results = []
   results_string = []
   for pconfig in profile_configs:
-    utils.debug("running pageload tests")
+    print "in tp"
     print pconfig
     sys.stdout.flush()
     rstring = ""
-    utils.setEnvironmentVars(pconfig[6])
     # Create the new profile
     profile_dir = ffprofile.CreateTempProfileDir(pconfig[5],
                                                  pconfig[0],
@@ -132,10 +127,9 @@ def RunPltTests(profile_configs,
     timeout = 10000
     total_time = 0
     output = ''
-    url = config.TP_URL + '?quit=1&cycles=' + str(num_cycles)
+    url = config.TP_URL + '?cycles=' + str(num_cycles)
     command_line = ffprocess.GenerateFirefoxCommandLine(pconfig[2], profile_dir, url)
-    process = subprocess.Popen(command_line, stdout=subprocess.PIPE, universal_newlines=True, shell=True, bufsize=0, env=os.environ)
-    handle = process.stdout
+    handle = os.popen(command_line)
     # give firefox a chance to open
     time.sleep(1)
 
@@ -190,8 +184,6 @@ def RunPltTests(profile_configs,
     # file into it.
     ffprofile.MakeDirectoryContentsWritable(profile_dir)
     shutil.rmtree(profile_dir)
-    
-    utils.restoreEnvironmentVars()
     
     counter_data.append(counts)
     results_string.append(rstring)

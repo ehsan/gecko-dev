@@ -820,10 +820,19 @@ Function preComponents
 FunctionEnd
 
 Function leaveComponents
-  ${MUI_INSTALLOPTIONS_READ} $R0 "components.ini" "Field 2" "State"
-  ; State will be 1 for checked and 0 for unchecked so we can use that to set
-  ; the section flags for installation.
-  SectionSetFlags 1 $R0
+  ; If DOMi exists then it will be Field 2.
+  StrCpy $R1 2
+  ${If} ${FileExists} "$EXEDIR\optional\extensions\inspector@mozilla.org"
+    ${MUI_INSTALLOPTIONS_READ} $R0 "components.ini" "Field $R1" "State"
+    ; State will be 1 for checked and 0 for unchecked so we can use that to set
+    ; the section flags for installation.
+    SectionSetFlags 1 $R0
+    IntOp $R1 $R1 + 1
+  ${Else}
+    SectionSetFlags 1 0 ; Disable install for DOMi
+  ${EndIf}
+
+  SectionSetFlags 2 0 ; Disable install of TalkBack
 FunctionEnd
 
 Function preDirectory
@@ -1062,4 +1071,7 @@ Function .onInit
     ; Hide DOMi in the components page if it isn't available.
     SectionSetText 1 ""
   ${EndIf}
+
+  ; Hide Talkback in the components page
+  SectionSetText 2 ""
 FunctionEnd

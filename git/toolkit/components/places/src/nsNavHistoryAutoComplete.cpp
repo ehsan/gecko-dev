@@ -106,7 +106,6 @@
 #include "mozIStorageFunction.h"
 #include "mozStorageCID.h"
 #include "mozStorageHelper.h"
-#include "nsFaviconService.h"
 
 #define NS_AUTOCOMPLETESIMPLERESULT_CONTRACTID \
   "@mozilla.org/autocomplete/simple-result;1"
@@ -162,13 +161,10 @@ nsresult NormalizeAutocompleteInput(const nsAString& aInput,
 struct AutoCompleteIntermediateResult
 {
   AutoCompleteIntermediateResult(const nsString& aUrl, const nsString& aTitle,
-                                 const nsString& aImage,
                                  PRInt32 aVisitCount, PRInt32 aPriority) :
-    url(aUrl), title(aTitle), image(aImage), 
-    visitCount(aVisitCount), priority(aPriority) {}
+    url(aUrl), title(aTitle), visitCount(aVisitCount), priority(aPriority) {}
   nsString url;
   nsString title;
-  nsString image;
   PRInt32 visitCount;
   PRInt32 priority;
 };
@@ -275,9 +271,8 @@ nsNavHistory::CreateAutoCompleteQuery()
   if (mAutoCompleteOnlyTyped) {
     sql = NS_LITERAL_CSTRING(
         "SELECT p.url, p.title, p.visit_count, p.typed, "
-          "(SELECT b.fk FROM moz_bookmarks b WHERE b.fk = p.id), f.url "
+          "(SELECT b.fk FROM moz_bookmarks b WHERE b.fk = p.id) "
         "FROM moz_places p "
-        "LEFT OUTER JOIN moz_favicons f ON p.favicon_id = f.id "
         "WHERE p.url >= ?1 AND p.url < ?2 "
         "AND p.typed = 1 "
         "ORDER BY p.visit_count DESC "
@@ -285,9 +280,8 @@ nsNavHistory::CreateAutoCompleteQuery()
   } else {
     sql = NS_LITERAL_CSTRING(
         "SELECT p.url, p.title, p.visit_count, p.typed, "
-          "(SELECT b.fk FROM moz_bookmarks b WHERE b.fk = p.id), f.url "
+          "(SELECT b.fk FROM moz_bookmarks b WHERE b.fk = p.id) "
         "FROM moz_places p "
-        "LEFT OUTER JOIN moz_favicons f ON p.favicon_id = f.id "
         "WHERE p.url >= ?1 AND p.url < ?2 "
         "AND (p.hidden <> 1 OR p.typed = 1) "
         "ORDER BY p.visit_count DESC "
@@ -362,6 +356,7 @@ nsNavHistory::StopSearch()
   return NS_OK;
 }
 
+
 // nsNavHistory::AutoCompleteTypedSearch
 //
 //    Called when there is no search string. This happens when you press
@@ -377,9 +372,8 @@ nsresult nsNavHistory::AutoCompleteTypedSearch(
   // need to get more than the required minimum number since some will be dupes
   nsCOMPtr<mozIStorageStatement> dbSelectStatement;
   nsCString sql = NS_LITERAL_CSTRING(
-      "SELECT h.url, title, f.url "
+      "SELECT url, title "
       "FROM moz_historyvisits v JOIN moz_places h ON v.place_id = h.id "
-      "LEFT OUTER JOIN moz_favicons f ON h.favicon_id = f.id " 
       "WHERE h.typed = 1 ORDER BY visit_date DESC LIMIT ");
   sql.AppendInt(AUTOCOMPLETE_MAX_PER_TYPED * 3);
   nsresult rv = mDBConn->CreateStatement(sql, getter_AddRefs(dbSelectStatement));
@@ -390,26 +384,18 @@ nsresult nsNavHistory::AutoCompleteTypedSearch(
   if (! urls.Init(500))
     return NS_ERROR_OUT_OF_MEMORY;
 
-  nsFaviconService* faviconService = nsFaviconService::GetFaviconService();
-  NS_ENSURE_TRUE(faviconService, NS_ERROR_OUT_OF_MEMORY);
-
   PRInt32 dummy;
   PRInt32 count = 0;
   PRBool hasMore = PR_FALSE;
   while (count < AUTOCOMPLETE_MAX_PER_TYPED &&
          NS_SUCCEEDED(dbSelectStatement->ExecuteStep(&hasMore)) && hasMore) {
-    nsAutoString entryURL, entryTitle, entryImage;
+    nsAutoString entryURL, entryTitle;
     dbSelectStatement->GetString(0, entryURL);
     dbSelectStatement->GetString(1, entryTitle);
-    dbSelectStatement->GetString(2, entryImage);
 
     if (! urls.Get(entryURL, &dummy)) {
       // new item
-      nsCAutoString faviconSpec;
-      faviconService->GetFaviconSpecForIconString(
-        NS_ConvertUTF16toUTF8(entryImage), faviconSpec);
-      rv = result->AppendMatch(entryURL, entryTitle, 
-        NS_ConvertUTF8toUTF16(faviconSpec), NS_LITERAL_STRING("favicon"));
+      rv = result->AppendMatch(entryURL, entryTitle);
       NS_ENSURE_SUCCESS(rv, rv);
 
       urls.Put(entryURL, 1);
@@ -504,32 +490,19 @@ nsNavHistory::AutoCompleteFullHistorySearch(const nsAString& aSearchString,
                                AUTOCOMPLETE_MATCHES_SCHEME_PENALTY, &matches);
   }
 
-  nsFaviconService* faviconService = nsFaviconService::GetFaviconService();
-  NS_ENSURE_TRUE(faviconService, NS_ERROR_OUT_OF_MEMORY);
-
   // fill into result
   if (matches.Length() > 0) {
     // sort according to priorities
     AutoCompleteResultComparator comparator(this);
     matches.Sort(comparator);
 
-    nsCAutoString faviconSpec;
-    faviconService->GetFaviconSpecForIconString(
-      NS_ConvertUTF16toUTF8(matches[0].image), faviconSpec);
-    rv = aResult->AppendMatch(matches[0].url, matches[0].title, 
-                              NS_ConvertUTF8toUTF16(faviconSpec), 
-                              NS_LITERAL_STRING("favicon"));
+    rv = aResult->AppendMatch(matches[0].url, matches[0].title);
     NS_ENSURE_SUCCESS(rv, rv);
-
     for (i = 1; i < matches.Length(); i ++) {
       // only add ones that are NOT the same as the previous one. It's possible
       // to get duplicates from the queries.
       if (!matches[i].url.Equals(matches[i-1].url)) {
-        faviconService->GetFaviconSpecForIconString(
-          NS_ConvertUTF16toUTF8(matches[i].image), faviconSpec);
-        rv = aResult->AppendMatch(matches[i].url, matches[i].title, 
-                                  NS_ConvertUTF8toUTF16(faviconSpec),  
-                                  NS_LITERAL_STRING("favicon"));
+        rv = aResult->AppendMatch(matches[i].url, matches[i].title);
         NS_ENSURE_SUCCESS(rv, rv);
       }
     }
@@ -614,7 +587,7 @@ nsNavHistory::AutoCompleteQueryOnePrefix(const nsString& aSearchString,
     NS_ENSURE_SUCCESS(rv, rv);
 
     PRBool hasMore;
-    nsAutoString url, title, image;
+    nsAutoString url, title;
     while (NS_SUCCEEDED(mDBAutoCompleteQuery->ExecuteStep(&hasMore)) && hasMore) {
       mDBAutoCompleteQuery->GetString(0, url);
       mDBAutoCompleteQuery->GetString(1, title);
@@ -622,9 +595,8 @@ nsNavHistory::AutoCompleteQueryOnePrefix(const nsString& aSearchString,
       PRInt32 priority = ComputeAutoCompletePriority(url, visitCount,
           mDBAutoCompleteQuery->AsInt32(3) > 0,
           mDBAutoCompleteQuery->AsInt32(4) > 0) + aPriorityDelta;
-      mDBAutoCompleteQuery->GetString(5, image);
       aResult->AppendElement(AutoCompleteIntermediateResult(
-          url, title, image, visitCount, priority));
+          url, title, visitCount, priority));
     }
   }
   return NS_OK;

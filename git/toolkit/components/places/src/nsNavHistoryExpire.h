@@ -53,7 +53,6 @@ public:
   ~nsNavHistoryExpire();
 
   void OnAddURI(PRTime aNow);
-  void OnDeleteURI();
   void OnQuit();
   nsresult ClearHistory();
   void OnExpirationChanged();
@@ -87,7 +86,6 @@ protected:
   nsresult DoPartialExpiration();
 
   nsresult ExpireItems(PRUint32 aNumToExpire, PRBool* aKeepGoing);
-  nsresult ExpireAnnotations(mozIStorageConnection* aConnection);
 
   // parts of ExpireItems
   nsresult FindVisits(PRTime aExpireThreshold, PRUint32 aNumToExpire,

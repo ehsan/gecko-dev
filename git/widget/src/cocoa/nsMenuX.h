@@ -82,8 +82,6 @@ public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSICHANGEOBSERVER
 
-    id GetNativeMenuItem();
-
     // nsIMenuListener methods
     nsEventStatus MenuItemSelected(const nsMenuEvent & aMenuEvent); 
     nsEventStatus MenuSelected(const nsMenuEvent & aMenuEvent); 
@@ -162,7 +160,6 @@ protected:
     PRInt16                     mMacMenuID;
     NSMenu*                     mMacMenu;               // strong ref, we own it
     MenuDelegate*               mMenuDelegate;          // strong ref, we keep this around to get events for us
-    NSMenuItem*                 mNativeMenuItem;        // strong ref, we own
     PRPackedBool                mIsEnabled;
     PRPackedBool                mDestroyHandlerCalled;
     PRPackedBool                mNeedsRebuild;

@@ -533,7 +533,7 @@ private:
 
     nsRefPtr<FontEntry> mFontEntry;
     
-    virtual PRBool SetupCairoFont(cairo_t *aCR);
+    virtual void SetupCairoFont(cairo_t *aCR);
 };
 
 /**********************************************************************

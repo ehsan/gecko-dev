@@ -46,7 +46,6 @@
 #include "nsBlockBandData.h"
 #include "nsLineBox.h"
 #include "nsFrameList.h"
-#include "nsContainerFrame.h"
 
 class nsBlockFrame;
 
@@ -60,8 +59,7 @@ class nsBlockFrame;
 #define BRS_HAVELINEADJACENTTOTOP 0x00000020
 // Set when the block has the equivalent of NS_BLOCK_SPACE_MGR
 #define BRS_SPACE_MGR             0x00000040
-#define BRS_ISOVERFLOWCONTAINER   0x00000100
-#define BRS_LASTFLAG              BRS_ISOVERFLOWCONTAINER
+#define BRS_LASTFLAG              BRS_SPACE_MGR
 
 class nsBlockReflowState {
 public:
@@ -125,9 +123,6 @@ public:
     nsMargin result = mReflowState.mComputedBorderPadding;
     if (!(mFlags & BRS_ISFIRSTINFLOW)) {
       result.top = 0;
-      if (mFlags & BRS_ISOVERFLOWCONTAINER) {
-        result.bottom = 0;
-      }
     }
     return result;
   }
@@ -200,9 +195,6 @@ public:
   // to the overflow-out-of-flow list when the placeholders are appended to
   // the overflow lines.
   nsFrameList mOverflowPlaceholders;
-
-  // Track child overflow continuations.
-  nsOverflowContinuationTracker mOverflowTracker;
 
   //----------------------------------------
 

@@ -62,7 +62,8 @@ function initFeedTab()
   }
 
   var feedListbox = document.getElementById("feedListbox");
-  document.getElementById("feedTab").hidden = feedListbox.getRowCount() == 0;
+  if (feedListbox.getRowCount() > 0)
+    document.getElementById("feedTab").hidden = false;
 }
 
 function onSubscribeFeed()

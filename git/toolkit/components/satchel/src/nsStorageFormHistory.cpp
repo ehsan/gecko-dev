@@ -101,8 +101,6 @@ public:
   { return mResult->GetCommentAt(aIndex, _result); }
   NS_IMETHOD GetStyleAt(PRInt32 aIndex, nsAString &_result)
   { return mResult->GetStyleAt(aIndex, _result); }
-  NS_IMETHOD GetImageAt(PRInt32 aIndex, nsAString &_result)
-  { return mResult->GetImageAt(aIndex, _result); }
   NS_IMETHOD RemoveValueAt(PRInt32 aRowIndex, PRBool aRemoveFromDB);
   NS_FORWARD_NSIAUTOCOMPLETESIMPLERESULT(mResult->)
 
@@ -622,7 +620,7 @@ nsFormHistory::AutoCompleteSearch(const nsAString &aInputName,
       // filters out irrelevant results
       if(StringBeginsWith(entryString, aInputValue,
                           nsCaseInsensitiveStringComparator())) {
-        result->AppendMatch(entryString, EmptyString(), EmptyString(), EmptyString());
+        result->AppendMatch(entryString, EmptyString());
         ++count;
       }
     }

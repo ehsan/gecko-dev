@@ -39,8 +39,7 @@
 #define nsICanvasElement_h___
 
 #include "nsISupports.h"
-
-class nsIFrame;
+#include "nsIFrame.h"
 
 // {C234660C-BD06-493e-8583-939A5A158B37}
 #define NS_ICANVASELEMENT_IID \

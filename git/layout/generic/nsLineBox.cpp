@@ -142,10 +142,10 @@ ListFloats(FILE* out, PRInt32 aIndent, const nsFloatCacheList& aFloats)
   while (fc) {
     nsFrame::IndentBy(out, aIndent);
     nsPlaceholderFrame* ph = fc->mPlaceholder;
-    if (ph) {
+    if (nsnull != ph) {
       fprintf(out, "placeholder@%p ", static_cast<void*>(ph));
       nsIFrame* frame = ph->GetOutOfFlowFrame();
-      if (frame) {
+      if (nsnull != frame) {
         nsIFrameDebug*  frameDebug;
 
         if (NS_SUCCEEDED(frame->QueryInterface(NS_GET_IID(nsIFrameDebug), (void**)&frameDebug))) {
@@ -157,9 +157,6 @@ ListFloats(FILE* out, PRInt32 aIndent, const nsFloatCacheList& aFloats)
               fc->mRegion.x, fc->mRegion.y,
               fc->mRegion.width, fc->mRegion.height);
 
-      if (!frame) {
-        fputs("\n###!!! NULL out-of-flow frame", out);
-      }
       fprintf(out, "\n");
     }
     fc = fc->Next();

@@ -111,7 +111,6 @@ SDK_HEADERS = \
 		nsVersionComparator.h \
 		nsIClassInfoImpl.h \
 		nsTObserverArray.h \
-		nsCycleCollectionParticipant.h \
 		$(NULL)
 
 EXPORTS = \

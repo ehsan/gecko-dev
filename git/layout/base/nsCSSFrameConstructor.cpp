@@ -1861,7 +1861,6 @@ nsCSSFrameConstructor::CreateAttributeContent(nsIContent* aParentContent,
                                               PRInt32 aAttrNamespace,
                                               nsIAtom* aAttrName,
                                               nsStyleContext* aStyleContext,
-                                              nsCOMArray<nsIContent>& aGeneratedContent,
                                               nsIContent** aNewContent,
                                               nsIFrame** aNewFrame)
 {
@@ -1885,12 +1884,6 @@ nsCSSFrameConstructor::CreateAttributeContent(nsIContent* aParentContent,
   // Create a text frame and initialize it
   nsIFrame* textFrame = NS_NewTextFrame(mPresShell, aStyleContext);
   rv = textFrame->Init(content, aParentFrame, nsnull);
-  if (NS_SUCCEEDED(rv)) {
-    if (NS_UNLIKELY(!aGeneratedContent.AppendObject(content))) {
-      rv = NS_ERROR_OUT_OF_MEMORY;
-    }
-  }
-
   if (NS_FAILED(rv)) {
     content->UnbindFromTree();
     textFrame->Destroy();
@@ -1909,7 +1902,6 @@ nsCSSFrameConstructor::CreateGeneratedFrameFor(nsIFrame*             aParentFram
                                                nsStyleContext*       aStyleContext,
                                                const nsStyleContent* aStyleContent,
                                                PRUint32              aContentIndex,
-                                               nsCOMArray<nsIContent>& aGeneratedContent,
                                                nsIFrame**            aFrame)
 {
   *aFrame = nsnull;  // initialize OUT parameter
@@ -1958,15 +1950,13 @@ nsCSSFrameConstructor::CreateGeneratedFrameFor(nsIFrame*             aParentFram
     // Create an image frame and initialize it
     nsIFrame* imageFrame = NS_NewImageFrame(mPresShell, aStyleContext);
     if (NS_UNLIKELY(!imageFrame)) {
-      content->UnbindFromTree();
       return NS_ERROR_OUT_OF_MEMORY;
     }
 
     rv = imageFrame->Init(content, aParentFrame, nsnull);
-    if (NS_FAILED(rv) || NS_UNLIKELY(!aGeneratedContent.AppendObject(content))) {
-      content->UnbindFromTree();
+    if (NS_FAILED(rv)) {
       imageFrame->Destroy();
-      return NS_FAILED(rv) ? rv : NS_ERROR_OUT_OF_MEMORY;
+      return rv == NS_ERROR_FRAME_REPLACED ? NS_OK : rv;
     }
 
     // Return the image frame
@@ -2007,7 +1997,7 @@ nsCSSFrameConstructor::CreateGeneratedFrameFor(nsIFrame*             aParentFram
 
         nsresult rv =
           CreateAttributeContent(aContent, aParentFrame, attrNameSpace,
-                                 attrName, aStyleContext, aGeneratedContent,
+                                 attrName, aStyleContext,
                                  getter_AddRefs(content), aFrame);
         NS_ENSURE_SUCCESS(rv, rv);
       }
@@ -2085,15 +2075,15 @@ nsCSSFrameConstructor::CreateGeneratedFrameFor(nsIFrame*             aParentFram
         if (aContent->HasAttr(kNameSpaceID_None, nsGkAtoms::alt)) {
           rv = CreateAttributeContent(aContent, aParentFrame,
                                       kNameSpaceID_None, nsGkAtoms::alt,
-                                      aStyleContext, aGeneratedContent,
-                                      getter_AddRefs(content), aFrame);
+                                      aStyleContext, getter_AddRefs(content),
+                                      aFrame);
         } else if (aContent->IsNodeOfType(nsINode::eHTML) &&
                    aContent->NodeInfo()->Equals(nsGkAtoms::input)) {
           if (aContent->HasAttr(kNameSpaceID_None, nsGkAtoms::value)) {
             rv = CreateAttributeContent(aContent, aParentFrame,
                                         kNameSpaceID_None, nsGkAtoms::value,
-                                        aStyleContext, aGeneratedContent,
-                                        getter_AddRefs(content), aFrame);
+                                        aStyleContext, getter_AddRefs(content),
+                                        aFrame);
           } else {
             nsXPIDLString temp;
             rv = nsContentUtils::GetLocalizedString(nsContentUtils::eFORMS_PROPERTIES,
@@ -2148,10 +2138,6 @@ nsCSSFrameConstructor::CreateGeneratedFrameFor(nsIFrame*             aParentFram
         textFrame->Init(textContent, aParentFrame, nsnull);
 
         content = textContent;
-        if (NS_UNLIKELY(!aGeneratedContent.AppendObject(content))) {
-          NS_NOTREACHED("this OOM case isn't handled very well");
-          return NS_ERROR_OUT_OF_MEMORY;
-        }
       } else {
         // XXX The quotes/counters code doesn't like the text pointer
         // being null in case of dynamic changes!
@@ -2201,7 +2187,6 @@ nsCSSFrameConstructor::CreateGeneratedContentFrame(nsFrameConstructorState& aSta
     // the 'display' property
     nsIFrame*     containerFrame;
     nsFrameItems  childFrames;
-    nsresult rv;
 
     const PRUint8 disp = pseudoStyleContext->GetStyleDisplay()->mDisplay;
     if (disp == NS_STYLE_DISPLAY_BLOCK ||
@@ -2213,30 +2198,13 @@ nsCSSFrameConstructor::CreateGeneratedContentFrame(nsFrameConstructorState& aSta
       containerFrame = NS_NewBlockFrame(mPresShell, pseudoStyleContext, flags);
     } else {
       containerFrame = NS_NewInlineFrame(mPresShell, pseudoStyleContext);
-    }
-
-    if (NS_UNLIKELY(!containerFrame)) {
-      return PR_FALSE;
-    }
+    }        
     InitAndRestoreFrame(aState, aContent, aFrame, nsnull, containerFrame);
     // XXXbz should we be passing in a non-null aContentParentFrame?
     nsHTMLContainerFrame::CreateViewForFrame(containerFrame, nsnull, PR_FALSE);
 
     // Mark the frame as being associated with generated content
     containerFrame->AddStateBits(NS_FRAME_GENERATED_CONTENT);
-
-    // Create an array to hold all the generated content created for this
-    // frame below in CreateGeneratedFrameFor. No destructor function is
-    // specified because the property is only set here and is removed in
-    // a single place - nsContainerFrame::Destroy.
-    nsCOMArray<nsIContent>* generatedContent = new nsCOMArray<nsIContent>;
-    rv = containerFrame->SetProperty(nsGkAtoms::generatedContent,
-                                     generatedContent);
-    if (NS_UNLIKELY(!generatedContent) || NS_FAILED(rv)) {
-      containerFrame->Destroy(); // this also destroys the created view
-      delete generatedContent;
-      return PR_FALSE;
-    }
 
     // Create another pseudo style context to use for all the generated child
     // frames
@@ -2252,12 +2220,12 @@ nsCSSFrameConstructor::CreateGeneratedContentFrame(nsFrameConstructorState& aSta
       nsIFrame* frame;
 
       // Create a frame
-      rv = CreateGeneratedFrameFor(containerFrame,
-                                   aContent, textStyleContext,
-                                   styleContent, contentIndex,
-                                   *generatedContent, &frame);
+      nsresult result;
+      result = CreateGeneratedFrameFor(containerFrame,
+                                       aContent, textStyleContext,
+                                       styleContent, contentIndex, &frame);
       // Non-elements can't possibly have a view, so don't bother checking
-      if (NS_SUCCEEDED(rv) && frame) {
+      if (NS_SUCCEEDED(result) && frame) {
         // Add it to the list of child frames
         childFrames.AddChild(frame);
       }
@@ -3447,14 +3415,21 @@ nsCSSFrameConstructor::AdjustParentFrame(nsFrameConstructorState&     aState,
   // tableCaptionFrame, otherwise the inner table frame is the parent
   // (bug 341858).
   nsIAtom* parentType = aParentFrame->GetType();
-  NS_ASSERTION(parentType != nsGkAtoms::tableOuterFrame,
-               "Shouldn't be happening");
-  if (parentType == nsGkAtoms::tableColGroupFrame) {
+  if (parentType == nsGkAtoms::tableOuterFrame) {
     childIsSpecialContent = IsSpecialContent(aChildContent, aTag, aNameSpaceID,
                                              aChildStyle);
     if (childIsSpecialContent ||
-        (aChildStyle->GetStyleDisplay()->mDisplay !=
-         NS_STYLE_DISPLAY_TABLE_COLUMN)) {
+       (aChildStyle->GetStyleDisplay()->mDisplay !=
+       NS_STYLE_DISPLAY_TABLE_CAPTION)) {
+      aParentFrame = aParentFrame->GetContentInsertionFrame();
+    }
+  }
+  else if (parentType == nsGkAtoms::tableColGroupFrame) {
+    childIsSpecialContent = IsSpecialContent(aChildContent, aTag, aNameSpaceID,
+                                             aChildStyle);
+    if (childIsSpecialContent ||
+       (aChildStyle->GetStyleDisplay()->mDisplay !=
+        NS_STYLE_DISPLAY_TABLE_COLUMN)) {
       aSuppressFrame = PR_TRUE;
       return NS_OK;
     }
@@ -3896,7 +3871,7 @@ nsCSSFrameConstructor::ConstructTableColFrame(nsFrameConstructorState& aState,
       if (NS_UNLIKELY(!newCol)) {
         return NS_ERROR_OUT_OF_MEMORY;
       }
-      InitAndRestoreFrame(aState, aContent, parentFrame, nsnull, newCol, PR_FALSE);
+      InitAndRestoreFrame(aState, aContent, parentFrame, nsnull, newCol);
       ((nsTableColFrame*)newCol)->SetColType(eColAnonymousCol);
       lastCol->SetNextSibling(newCol);
       lastCol = newCol;
@@ -4639,12 +4614,7 @@ nsCSSFrameConstructor::ConstructPageFrame(nsIPresShell*   aPresShell,
 
   // Initialize the page content frame and force it to have a view. Also make it the
   // containing block for fixed elements which are repeated on every page.
-  nsIFrame* prevPageContentFrame = nsnull;
-  if (aPrevPageFrame) {
-    prevPageContentFrame = aPrevPageFrame->GetFirstChild(nsnull);
-    NS_ASSERTION(prevPageContentFrame, "missing page content frame");
-  }
-  aPageContentFrame->Init(nsnull, aPageFrame, prevPageContentFrame);
+  aPageContentFrame->Init(nsnull, aPageFrame, nsnull);
   mFixedContainingBlock = aPageContentFrame;
 
   aPageFrame->SetInitialChildList(nsnull, aPageContentFrame);
@@ -6532,7 +6502,14 @@ nsCSSFrameConstructor::ConstructFrameByDisplayType(nsFrameConstructorState& aSta
     {
       // aParentFrame may be an inner table frame rather than an outer frame 
       // In this case we need to get the outer frame.
-      nsIFrame* parentFrame = AdjustCaptionParentFrame(aParentFrame);
+      nsIFrame* parentFrame = aParentFrame;
+      nsIFrame* outerFrame = aParentFrame->GetParent();
+      if (outerFrame) {
+        if ((nsGkAtoms::tableOuterFrame == outerFrame->GetType()) &&
+            (nsGkAtoms::tableFrame == parentFrame->GetType())) {
+          parentFrame = outerFrame;
+        }
+      }
       rv = ConstructTableCaptionFrame(aState, aContent, parentFrame,
                                       aStyleContext, aNameSpaceID, aFrameItems,
                                       newFrame, aHasPseudoParent);
@@ -6809,8 +6786,8 @@ nsCSSFrameConstructor::ConstructMathMLFrame(nsFrameConstructorState& aState,
     InitAndRestoreFrame(aState, aContent, newFrame, nsnull, blockFrame);
 
     // then, create the table frame itself
-    nsRefPtr<nsStyleContext> tableContext =
-      ResolveStyleContext(blockFrame, aContent);
+    nsRefPtr<nsStyleContext> tableContext;
+    tableContext = styleSet->ResolveStyleFor(aContent, blockContext);
 
     nsFrameItems tempItems;
     nsIFrame* outerTable;
@@ -8242,6 +8219,7 @@ ShouldIgnoreSelectChild(nsIContent* aContainer)
   return PR_FALSE;
 }
 
+// For tables, returns the inner table, if the child is not a caption. 
 // For fieldsets, returns the area frame, if the child is not a legend. 
 static nsIFrame*
 GetAdjustedParentFrame(nsIFrame*       aParentFrame,
@@ -8249,13 +8227,17 @@ GetAdjustedParentFrame(nsIFrame*       aParentFrame,
                        nsIContent*     aParentContent,
                        PRInt32         aChildIndex)
 {
-  NS_PRECONDITION(nsGkAtoms::tableOuterFrame != aParentFrameType,
-                  "Shouldn't be happening!");
-  
   nsIContent *childContent = aParentContent->GetChildAt(aChildIndex);
   nsIFrame* newParent = nsnull;
 
-  if (nsGkAtoms::fieldSetFrame == aParentFrameType) {
+  if (nsGkAtoms::tableOuterFrame == aParentFrameType) {
+    nsCOMPtr<nsIDOMHTMLTableCaptionElement> captionContent(do_QueryInterface(childContent));
+    // If the parent frame is an outer table, use the innner table
+    // as the parent unless the new content is a caption.
+    if (!captionContent) 
+      newParent = aParentFrame->GetFirstChild(nsnull);
+  }
+  else if (nsGkAtoms::fieldSetFrame == aParentFrameType) {
     // If the parent is a fieldSet, use the fieldSet's area frame as the
     // parent unless the new content is a legend. 
     nsCOMPtr<nsIDOMHTMLLegendElement> legendContent(do_QueryInterface(childContent));
@@ -8478,7 +8460,7 @@ nsCSSFrameConstructor::ContentAppended(nsIContent*     aContainer,
   parentFrame = parentFrame->GetLastContinuation();
 
   nsIAtom* frameType = parentFrame->GetType();
-  // Deal with fieldsets
+  // Deal with inner/outer tables, fieldsets
   parentFrame = ::GetAdjustedParentFrame(parentFrame, frameType,
                                          aContainer, aNewIndexInContainer);
 
@@ -8539,6 +8521,14 @@ nsCSSFrameConstructor::ContentAppended(nsIContent*     aContainer,
         }
         newFrame = tempItems.childList;
       }
+    }
+    else if (nsGkAtoms::tableColGroupFrame == frameType) {
+      nsRefPtr<nsStyleContext> childStyleContext;
+      childStyleContext = ResolveStyleContext(parentFrame, childContent);
+      if (childStyleContext->GetStyleDisplay()->mDisplay != NS_STYLE_DISPLAY_TABLE_COLUMN)
+        continue; //don't create anything else than columns below a colgroup
+      ConstructFrame(state, childContent, parentFrame, frameItems);
+      newFrame = frameItems.lastChild;
     }
     else {
       // Construct a child frame (that does not have a table as parent)
@@ -8720,12 +8710,10 @@ nsCSSFrameConstructor::NeedSpecialFrameReframe(nsIContent*     aParent1,
             aParentFrame = prevParent;
           }
         }
-        else {
-          // The child has no next sibling, so we can't find the ending inline
-          // frame (which might not exist in this case anyway!), but aChild
-          // should go in there.  Force a reframe.
-          // XXXbz wouldn't getting prevParent's special sibling work, with
-          // reframing only needed if that's null?
+        else { 
+          // there is no ending enline frame (which should never happen) but aChild needs to go 
+          // there, so for now just bail and force a reframe.
+          NS_ASSERTION(PR_FALSE, "no last inline frame");
           return PR_TRUE;
         }
       }
@@ -8941,16 +8929,16 @@ nsCSSFrameConstructor::ContentInserted(nsIContent*            aContainer,
   // otherwise use the next sibling.
   if (prevSibling) {
     if (!handleSpecialFrame)
-      parentFrame = prevSibling->GetParent()->GetContentInsertionFrame();
+      parentFrame = prevSibling->GetParent();
   }
   else if (nextSibling) {
     if (!handleSpecialFrame)
-      parentFrame = nextSibling->GetParent()->GetContentInsertionFrame();
+      parentFrame = nextSibling->GetParent();
   }
   else {
     // No previous or next sibling, so treat this like an appended frame.
     isAppend = PR_TRUE;
-    // Deal with fieldsets
+    // Deal with inner/outer tables, fieldsets
     parentFrame = ::GetAdjustedParentFrame(parentFrame, parentFrame->GetType(),
                                            aContainer, aIndexInContainer);
     parentFrame =
@@ -9085,6 +9073,12 @@ nsCSSFrameConstructor::ContentInserted(nsIContent*            aContainer,
       }
     }
   }
+  else if (NS_STYLE_DISPLAY_TABLE_COLUMN_GROUP == parentDisplay->mDisplay) {
+      nsRefPtr<nsStyleContext> childStyleContext;
+      childStyleContext = ResolveStyleContext(parentFrame, aChild);
+      if (childStyleContext->GetStyleDisplay()->mDisplay != NS_STYLE_DISPLAY_TABLE_COLUMN)
+        return NS_OK; //don't create anything else than columns below a colgroup  
+  }
 
   // if the container is a table and a caption will be appended, it needs to be
   // put in the outer table frame's additional child list.
@@ -9107,12 +9101,12 @@ nsCSSFrameConstructor::ContentInserted(nsIContent*            aContainer,
   if (!state.mPseudoFrames.IsEmpty())
     ProcessPseudoFrames(state, frameItems);
 
-  // If the parent of our current prevSibling is different from the frame we'll
-  // actually use as the parent, then the calculated insertion point is now
-  // invalid and as it is unknown where to insert correctly we append instead
-  // (bug 341858).
-  if (prevSibling && frameItems.childList &&
-      frameItems.childList->GetParent() != prevSibling->GetParent()) {
+  // If the final parent frame (decided by AdjustParentFrame()) is different
+  // from the parent of the insertion point we calculated above then
+  // parentFrame/prevSibling/appendAfterFrame are now invalid and  as it is
+  // unknown where to insert correctly we append instead (bug 341858).
+  if (frameItems.childList &&
+      frameItems.childList->GetParent() != parentFrame) {
     prevSibling = nsnull;
     isAppend = PR_TRUE;
     parentFrame =
@@ -9185,10 +9179,9 @@ nsCSSFrameConstructor::ContentInserted(nsIContent*            aContainer,
     if (NS_SUCCEEDED(rv) && newCaptionFrame) {
       nsIFrame* outerTableFrame;
       if (GetCaptionAdjustedParent(parentFrame, newCaptionFrame, &outerTableFrame)) {
-        // If the parent of our current prevSibling is different from the frame
-        // we'll actually use as the parent, then the calculated insertion
-        // point is now invalid (bug 341382).
-        if (prevSibling && prevSibling->GetParent() != outerTableFrame) {
+        // If we did adjust the parent then the calculated insertion point is
+        // now invalid (bug 341382).
+        if (parentFrame != outerTableFrame) {
           prevSibling = nsnull;
         }
         // If the parent is not a outer table frame we will try to add frames
@@ -9406,17 +9399,6 @@ nsCSSFrameConstructor::RemoveMappingsForFrameSubtree(nsIFrame* aRemovedFrame)
   return ::DeletingFrameSubtree(mPresShell->FrameManager(), aRemovedFrame);
 }
 
-static void UnregisterPlaceholderChain(nsFrameManager* frameManager,
-                                       nsPlaceholderFrame* placeholderFrame)
-{
-  // Remove the mapping from the frame to its placeholder
-  nsPlaceholderFrame* curFrame = placeholderFrame;
-  do {
-    frameManager->UnregisterPlaceholderFrame(curFrame);
-    curFrame = static_cast<nsPlaceholderFrame*>(curFrame->GetNextContinuation());
-  } while (curFrame);
-}
-
 nsresult
 nsCSSFrameConstructor::ContentRemoved(nsIContent*     aContainer,
                                       nsIContent*     aChild,
@@ -9554,8 +9536,9 @@ nsCSSFrameConstructor::ContentRemoved(nsIContent*     aContainer,
       nsPlaceholderFrame* placeholderFrame =
         frameManager->GetPlaceholderFrameFor(childFrame);
       NS_ASSERTION(placeholderFrame, "No placeholder for out-of-flow?");
-
-      UnregisterPlaceholderChain(frameManager, placeholderFrame);
+      
+      // Remove the mapping from the frame to its placeholder
+      frameManager->UnregisterPlaceholderFrame(placeholderFrame);
 
       // Now we remove the out-of-flow frame
       // XXX has to be done first for now: for floats, the block's line list
@@ -10742,6 +10725,8 @@ nsCSSFrameConstructor::FindFrameWithContent(nsFrameManager*  aFrameManager,
               kidFrame = parentFrame->GetFirstChild(listName);
               // Leave |aParentFrame| as-is, since the only time we'll
               // reuse it is if the hint fails.
+              NS_ASSERTION(!kidFrame || parentFrame->GetContent() == aParentContent,
+                           "next-in-flow has different content");
             }
           }
 #ifdef NOISY_FINDFRAME
@@ -12083,8 +12068,9 @@ nsCSSFrameConstructor::RemoveFloatingFirstLetterFrames(
   printf("RemoveFloatingFirstLetterFrames: textContent=%p oldTextFrame=%p newTextFrame=%p\n",
          textContent.get(), textFrame, newTextFrame);
 #endif
-
-  UnregisterPlaceholderChain(aFrameManager, placeholderFrame);
+  // Should we call DeletingFrameSubtree on the placeholder instead
+  // and skip this call?
+  aFrameManager->UnregisterPlaceholderFrame(placeholderFrame);
 
   // Remove the float frame
   ::DeletingFrameSubtree(aFrameManager, floatFrame);
@@ -12092,7 +12078,6 @@ nsCSSFrameConstructor::RemoveFloatingFirstLetterFrames(
                              floatFrame);
 
   // Remove placeholder frame
-  ::DeletingFrameSubtree(aFrameManager, placeholderFrame);
   aFrameManager->RemoveFrame(parentFrame, nsnull, placeholderFrame);
 
   // Insert text frame in its place
@@ -12840,13 +12825,14 @@ nsresult nsCSSFrameConstructor::RemoveFixedItems(const nsFrameConstructorState& 
       if (fixedChild) {
         // Remove the placeholder so it doesn't end up sitting about pointing
         // to the removed fixed frame.
-        nsPlaceholderFrame *placeholderFrame =
-          aState.mFrameManager->GetPlaceholderFrameFor(fixedChild);
+        nsIFrame *placeholderFrame;
+        mPresShell->GetPlaceholderFrameFor(fixedChild, &placeholderFrame);
         NS_ASSERTION(placeholderFrame, "no placeholder for fixed-pos frame");
         NS_ASSERTION(placeholderFrame->GetType() ==
                      nsGkAtoms::placeholderFrame,
                      "Wrong type");
-        UnregisterPlaceholderChain(aState.mFrameManager, placeholderFrame);
+        aState.mFrameManager->UnregisterPlaceholderFrame(
+          static_cast<nsPlaceholderFrame*>(placeholderFrame));
         nsIFrame* placeholderParent = placeholderFrame->GetParent();
         ::DeletingFrameSubtree(aState.mFrameManager, placeholderFrame);
         rv = aState.mFrameManager->RemoveFrame(placeholderParent, nsnull,
@@ -13046,7 +13032,6 @@ nsCSSFrameConstructor::LazyGenerateChildrenEvent::Run()
   // this is hard-coded to handle only menu popup frames
   nsIFrame* frame = mPresShell->GetPrimaryFrameFor(mContent);
   if (frame && frame->GetType() == nsGkAtoms::menuPopupFrame) {
-#ifdef MOZ_XUL
     // it is possible that the frame is different than the one that requested
     // the lazy generation, but as long as it's a popup frame that hasn't
     // generated its children yet, that's OK.
@@ -13056,7 +13041,6 @@ nsCSSFrameConstructor::LazyGenerateChildrenEvent::Run()
 
     // indicate that the children have been generated
     menuPopupFrame->SetGeneratedChildren();
-#endif
 
     nsFrameItems childItems;
     nsFrameConstructorState state(mPresShell, nsnull, nsnull, nsnull);

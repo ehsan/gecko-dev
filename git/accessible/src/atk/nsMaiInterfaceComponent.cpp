@@ -69,7 +69,7 @@ refAccessibleAtPointCB(AtkComponent *aComponent,
                        AtkCoordType aCoordType)
 {
     nsAccessibleWrap *accWrap = GetAccessibleWrap(ATK_OBJECT(aComponent));
-    if (!accWrap || nsAccessibleWrap::MustPrune(accWrap))
+    if (!accWrap)
         return nsnull;
 
     // or ATK_XY_SCREEN  what is definition this in nsIAccessible ???

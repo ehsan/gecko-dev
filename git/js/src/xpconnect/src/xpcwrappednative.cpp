@@ -44,7 +44,6 @@
 #include "xpcprivate.h"
 #include "nsCRT.h"
 #include "XPCNativeWrapper.h"
-#include "XPCWrapper.h"
 
 /***************************************************************************/
 
@@ -599,7 +598,7 @@ XPCWrappedNative::XPCWrappedNative(nsISupports* aIdentity,
       mSet(aProto->GetSet()),
       mFlatJSObject((JSObject*)JSVAL_ONE), // non-null to pass IsValid() test
       mScriptableInfo(nsnull),
-      mWrapper(nsnull)
+      mNativeWrapper(nsnull)
 {
     NS_ADDREF(mIdentity = aIdentity);
 
@@ -618,7 +617,7 @@ XPCWrappedNative::XPCWrappedNative(nsISupports* aIdentity,
       mSet(aSet),
       mFlatJSObject((JSObject*)JSVAL_ONE), // non-null to pass IsValid() test
       mScriptableInfo(nsnull),
-      mWrapper(nsnull)
+      mNativeWrapper(nsnull)
 {
     NS_ADDREF(mIdentity = aIdentity);
 
@@ -788,20 +787,6 @@ XPCWrappedNative::GatherScriptableCreateInfo(
     }
 
     return NS_OK;
-}
-
-void
-XPCWrappedNative::TraceOtherWrapper(JSTracer* trc)
-{
-    // Note: This isn't wrapped by a MapLock, however, this is normally called
-    // during GC, where nobody should be playing with the wrapper map anyway,
-    // so this should be OK.
-    JSObject *otherWrapper = GetScope()->GetWrapperMap()->Find(mFlatJSObject);
-    if(otherWrapper)
-    {
-        JS_CALL_OBJECT_TRACER(trc, otherWrapper,
-                              "XPCWrappedNative::mOtherWrapper");
-    }
 }
 
 JSBool
@@ -1014,8 +999,6 @@ XPCWrappedNative::FlatJSObjectFinalized(JSContext *cx, JSObject *obj)
             to->SetInterface(nsnull);
         }
     }
-
-    GetScope()->GetWrapperMap()->Remove(mFlatJSObject);
 
     //This makes IsValid return false from now on...
     mFlatJSObject = nsnull;
@@ -1336,13 +1319,6 @@ return_tearoff:
             return wrapper;
         }
 
-        // Unwrap any XPCCrossOriginWrappers and SafeJSObjectWrappers.
-        JSObject *unsafeObj;
-        if(clazz == &sXPC_XOW_JSClass.base &&
-           (unsafeObj = XPCWrapper::Unwrap(cx, cur)))
-            return GetWrappedNativeOfJSObject(cx, unsafeObj, funobj, pobj2,
-                                              pTearOff);
-
         if(XPCNativeWrapper::IsNativeWrapperClass(clazz))
         {
             if(pobj2)
@@ -1351,6 +1327,7 @@ return_tearoff:
             return XPCNativeWrapper::GetWrappedNative(cx, cur);
         }
 
+        JSObject *unsafeObj;
         if(IsXPCSafeJSObjectWrapperClass(clazz) &&
            (unsafeObj = JS_GetParent(cx, cur)))
             return GetWrappedNativeOfJSObject(cx, unsafeObj, funobj, pobj2,

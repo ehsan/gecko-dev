@@ -45,7 +45,6 @@
 #include "nsContentSink.h"
 #include "nsScriptLoader.h"
 #include "nsIDocument.h"
-#include "nsIDOMDocument.h"
 #include "nsICSSLoader.h"
 #include "nsStyleConsts.h"
 #include "nsStyleLinkElement.h"
@@ -73,8 +72,7 @@
 #include "nsICache.h"
 #include "nsICacheService.h"
 #include "nsICacheSession.h"
-#include "nsIOfflineCacheUpdate.h"
-#include "nsIDOMLoadStatus.h"
+#include "nsIOfflineCacheSession.h"
 #include "nsICookieService.h"
 #include "nsIPrompt.h"
 #include "nsServiceManagerUtils.h"
@@ -681,12 +679,14 @@ nsContentSink::ProcessLink(nsIContent* aElement,
   PRBool hasPrefetch = (linkTypes.IndexOf(NS_LITERAL_STRING("prefetch")) != -1);
   // prefetch href if relation is "next" or "prefetch"
   if (hasPrefetch || linkTypes.IndexOf(NS_LITERAL_STRING("next")) != -1) {
-    PrefetchHref(aHref, aElement, hasPrefetch);
+    PrefetchHref(aHref, aElement, hasPrefetch, PR_FALSE);
   }
 
   // fetch href into the offline cache if relation is "offline-resource"
   if (linkTypes.IndexOf(NS_LITERAL_STRING("offline-resource")) != -1) {
-    AddOfflineResource(aHref, aElement);
+    AddOfflineResource(aHref);
+    if (mSaveOfflineResources)
+      PrefetchHref(aHref, aElement, PR_TRUE, PR_TRUE);
   }
 
   // is it a stylesheet link?
@@ -771,7 +771,8 @@ nsContentSink::ProcessMETATag(nsIContent* aContent)
 void
 nsContentSink::PrefetchHref(const nsAString &aHref,
                             nsIContent *aSource,
-                            PRBool aExplicit)
+                            PRBool aExplicit,
+                            PRBool aOffline)
 {
   //
   // SECURITY CHECK: disable prefetching from mailnews!
@@ -815,13 +816,45 @@ nsContentSink::PrefetchHref(const nsAString &aHref,
               mDocumentBaseURI);
     if (uri) {
       nsCOMPtr<nsIDOMNode> domNode = do_QueryInterface(aSource);
-      prefetchService->PrefetchURI(uri, mDocumentURI, domNode, aExplicit);
+      if (aOffline)
+        prefetchService->PrefetchURIForOfflineUse(uri,
+                                                  mDocumentURI,
+                                                  domNode,
+                                                  aExplicit);
+      else
+        prefetchService->PrefetchURI(uri, mDocumentURI, domNode, aExplicit);
     }
   }
 }
 
 nsresult
-nsContentSink::AddOfflineResource(const nsAString &aHref, nsIContent *aSource)
+nsContentSink::GetOfflineCacheSession(nsIOfflineCacheSession **aSession)
+{
+  if (!mOfflineCacheSession) {
+    nsresult rv;
+    nsCOMPtr<nsICacheService> serv =
+      do_GetService(NS_CACHESERVICE_CONTRACTID, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    nsCOMPtr<nsICacheSession> session;
+    rv = serv->CreateSession("HTTP-offline",
+                             nsICache::STORE_OFFLINE,
+                             nsICache::STREAM_BASED,
+                             getter_AddRefs(session));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    mOfflineCacheSession =
+      do_QueryInterface(session, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+
+  NS_ADDREF(*aSession = mOfflineCacheSession);
+
+  return NS_OK;
+}
+
+nsresult
+nsContentSink::AddOfflineResource(const nsAString &aHref)
 {
   PRBool match;
   nsresult rv;
@@ -830,8 +863,17 @@ nsContentSink::AddOfflineResource(const nsAString &aHref, nsIContent *aSource)
   if (!innerURI)
     return NS_ERROR_FAILURE;
 
+  nsCAutoString ownerHost;
+  rv = innerURI->GetHostPort(ownerHost);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCAutoString ownerSpec;
+  rv = mDocumentURI->GetSpec(ownerSpec);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   if (!mHaveOfflineResources) {
     mHaveOfflineResources = PR_TRUE;
+    mSaveOfflineResources = PR_FALSE;
 
     // only let http and https urls add offline resources
     nsresult rv = innerURI->SchemeIs("http", &match);
@@ -844,29 +886,18 @@ nsContentSink::AddOfflineResource(const nsAString &aHref, nsIContent *aSource)
         return NS_OK;
     }
 
-    // create updater
-    mOfflineCacheUpdate =
-      do_CreateInstance(NS_OFFLINECACHEUPDATE_CONTRACTID, &rv);
+    nsCOMPtr<nsIOfflineCacheSession> session;
+    rv = GetOfflineCacheSession(getter_AddRefs(session));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsCAutoString ownerDomain;
-    rv = innerURI->GetHostPort(ownerDomain);
+    // we're going to replace the list, clear it out
+    rv = session->SetOwnedKeys(ownerHost, ownerSpec, 0, nsnull);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsCAutoString ownerSpec;
-    rv = mDocumentURI->GetSpec(ownerSpec);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = mOfflineCacheUpdate->Init(PR_FALSE, ownerDomain,
-                                   ownerSpec, mDocumentURI);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    // Kick off this update when the document is done loading
-    nsCOMPtr<nsIDOMDocument> doc = do_QueryInterface(mDocument);
-    mOfflineCacheUpdate->ScheduleOnDocumentStop(doc);
+    mSaveOfflineResources = PR_TRUE;
   }
 
-  if (!mOfflineCacheUpdate) return NS_OK;
+  if (!mSaveOfflineResources) return NS_OK;
 
   const nsACString &charset = mDocument->GetDocumentCharacterSet();
   nsCOMPtr<nsIURI> uri;
@@ -875,9 +906,38 @@ nsContentSink::AddOfflineResource(const nsAString &aHref, nsIContent *aSource)
                  mDocumentBaseURI);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIDOMNode> domNode = do_QueryInterface(aSource);
+  // only http and https urls can be marked as offline resources
+  rv = uri->SchemeIs("http", &match);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  return mOfflineCacheUpdate->AddURI(uri, domNode);
+  if (!match) {
+    rv = uri->SchemeIs("https", &match);
+    NS_ENSURE_SUCCESS(rv, rv);
+    if (!match)
+      return NS_OK;
+  }
+
+  nsCAutoString spec;
+  rv = uri->GetSpec(spec);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsIOfflineCacheSession> offlineCacheSession;
+  rv = GetOfflineCacheSession(getter_AddRefs(offlineCacheSession));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // url fragments aren't used in cache keys
+  nsCAutoString::const_iterator specStart, specEnd;
+  spec.BeginReading(specStart);
+  spec.EndReading(specEnd);
+  if (FindCharInReadable('#', specStart, specEnd)) {
+    spec.BeginReading(specEnd);
+    offlineCacheSession->AddOwnedKey(ownerHost, ownerSpec,
+                                     Substring(specEnd, specStart));
+  } else {
+    offlineCacheSession->AddOwnedKey(ownerHost, ownerSpec, spec);
+  }
+
+  return NS_OK;
 }
 
 void

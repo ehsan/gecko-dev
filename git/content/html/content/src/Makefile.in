@@ -69,7 +69,6 @@ REQUIRES	= xpcom \
 		  imglib2 \
 		  mimetype \
 		  exthandler \
-		  chardet \
 		  uconv \
 		  intl \
 		  plugin \

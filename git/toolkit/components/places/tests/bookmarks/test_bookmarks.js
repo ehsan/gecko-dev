@@ -104,7 +104,7 @@ var observer = {
 };
 bmsvc.addObserver(observer, false);
 
-// get bookmarks root id
+// get bookmarks root index
 var root = bmsvc.bookmarksRoot;
 
 // index at which items should begin
@@ -397,6 +397,12 @@ function run_test() {
   var u = bmsvc.getURIForKeyword("bar");
   do_check_eq("http://keywordtest.com/", u.spec);
 
+  // test getBookmarkIdsForURI
+  var newId8 = bmsvc.insertBookmark(testRoot, uri("http://foo8.com/"),
+                                    bmsvc.DEFAULT_INDEX, "");
+  var b = bmsvc.getBookmarkIdsForURI(uri("http://foo8.com/"), {});
+  do_check_eq(b[0], newId8);
+
   // test removeFolderChildren
   // 1) add/remove each child type (bookmark, separator, folder)
   var tmpFolder = bmsvc.createFolder(testRoot, "removeFolderChildren", bmsvc.DEFAULT_INDEX);
@@ -543,7 +549,7 @@ function run_test() {
                                      bmsvc.DEFAULT_INDEX, "");
   do_check_eq(observer._itemAddedId, newId13);
   do_check_eq(observer._itemAddedParent, testRoot);
-  do_check_eq(observer._itemAddedIndex, 12);
+  do_check_eq(observer._itemAddedIndex, 13);
 
   // set bookmark title
   bmsvc.setItemTitle(newId13, "ZZZXXXYYY");
@@ -565,6 +571,7 @@ function run_test() {
     options.excludeQueries = 1;
     options.queryType = Ci.nsINavHistoryQueryOptions.QUERY_TYPE_BOOKMARKS;
     var query = histsvc.getNewQuery();
+    query.onlyBookmarked = true;
     query.searchTerms = "ZZZXXXYYY";
     var result = histsvc.executeQuery(query, options);
     var rootNode = result.root;
@@ -587,6 +594,7 @@ function run_test() {
     options.excludeQueries = 1;
     options.queryType = Ci.nsINavHistoryQueryOptions.QUERY_TYPE_BOOKMARKS;
     var query = histsvc.getNewQuery();
+    query.onlyBookmarked = true;
     query.searchTerms = "ZZZXXXYYY";
     var result = histsvc.executeQuery(query, options);
     var rootNode = result.root;

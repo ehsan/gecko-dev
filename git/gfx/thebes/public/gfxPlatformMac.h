@@ -63,9 +63,6 @@ public:
                          const nsACString& aGenericFamily,
                          nsStringArray& aListOfFonts);
     nsresult UpdateFontList();
-
-private:
-    virtual cmsHPROFILE GetPlatformCMSOutputProfile();
 };
 
 #endif /* GFX_PLATFORM_MAC_H */

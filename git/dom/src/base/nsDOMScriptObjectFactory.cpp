@@ -212,10 +212,9 @@ nsDOMScriptObjectFactory::GetIDForScriptType(const nsAString &aLanguageName,
 
 NS_IMETHODIMP
 nsDOMScriptObjectFactory::NewScriptGlobalObject(PRBool aIsChrome,
-                                                PRBool aIsModalContentWindow,
                                                 nsIScriptGlobalObject **aGlobal)
 {
-  return NS_NewScriptGlobalObject(aIsChrome, aIsModalContentWindow, aGlobal);
+  return NS_NewScriptGlobalObject(aIsChrome, aGlobal);
 }
 
 NS_IMETHODIMP_(nsISupports *)
@@ -351,8 +350,6 @@ nsDOMScriptObjectFactory::GetException(nsresult result,
       return NS_NewXPathException(result, aDefaultException, _retval);
     case NS_ERROR_MODULE_XPCONNECT:
       return CreateXPConnectException(result, aDefaultException, _retval);
-    case NS_ERROR_MODULE_DOM_FILE:
-      return NS_NewFileException(result, aDefaultException, _retval);
     default:
       return NS_NewDOMException(result, aDefaultException, _retval);
   }

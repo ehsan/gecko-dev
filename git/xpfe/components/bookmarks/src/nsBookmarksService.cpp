@@ -58,11 +58,11 @@
 #include "nsRDFCID.h"
 #include "nsISupportsPrimitives.h"
 #include "rdf.h"
-#include "nsCRTGlue.h"
+#include "nsCRT.h"
 #include "nsEnumeratorUtils.h"
+#include "nsEscape.h"
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsDirectoryServiceDefs.h"
-#include "nsDirectoryServiceUtils.h"
 #include "nsUnicharUtils.h"
 
 #include "nsISound.h"
@@ -97,17 +97,6 @@
 #include "nsUnicharUtils.h"
 #include "nsAutoBuffer.h"
 
-// Tempoarary defines while we convert to the frozen API
-#ifdef MOZILLA_INTERNAL_API
-#include "nsEscape.h"
-#define CaseInsensitiveCompare nsCaseInsensitiveStringComparator()
-#endif
-
-#if defined(XP_WIN) || defined(XP_OS2)
-#define NS_LINEBREAK "\015\012"
-#else
-#define NS_LINEBREAK "\012"
-#endif
 
 #ifdef XP_WIN
 #include <shlobj.h>
@@ -800,7 +789,7 @@ BookmarkParser::ProcessLine(nsIRDFContainer *container, nsIRDFResource *nodeType
         rv = ParseMetaTag(line, getter_AddRefs(mUnicodeDecoder));
     }
     else if ((offset = line.Find(kOpenHeading, PR_TRUE)) >= 0 &&
-         NS_IsAsciiDigit(line.CharAt(offset + 2)))
+         nsCRT::IsAsciiDigit(line.CharAt(offset + 2)))
     {
         // XXX Ignore <H1> so that bookmarks root _is_ <H1>
         if (line.CharAt(offset + 2) != PRUnichar('1'))
@@ -1089,7 +1078,7 @@ BookmarkParser::ParseBookmarkInfo(BookmarkField *fields, PRBool isBookmarkFlag,
     // loop over attributes
     while((attrStart < lineLen) && (aLine[attrStart] != '>'))
     {
-        while(NS_IsAsciiWhitespace(aLine[attrStart]))   ++attrStart;
+        while(nsCRT::IsAsciiSpace(aLine[attrStart]))   ++attrStart;
 
         PRBool  fieldFound = PR_FALSE;
 
@@ -1139,7 +1128,7 @@ BookmarkParser::ParseBookmarkInfo(BookmarkField *fields, PRBool isBookmarkFlag,
         {
             // skip to next attribute
             while((attrStart < lineLen) && (aLine[attrStart] != '>') &&
-                (!NS_IsAsciiWhitespace(aLine[attrStart])))
+                (!nsCRT::IsAsciiSpace(aLine[attrStart])))
             {
                 ++attrStart;
             }
@@ -1172,7 +1161,7 @@ BookmarkParser::ParseBookmarkInfo(BookmarkField *fields, PRBool isBookmarkFlag,
         PRBool isIEFavoriteRoot = PR_FALSE;
         if (!mIEFavoritesRoot.IsEmpty())
         {
-            if (!strcmp(mIEFavoritesRoot.get(), bookmarkURI))
+            if (!nsCRT::strcmp(mIEFavoritesRoot.get(), bookmarkURI))
             {
                 mFoundIEFavoritesRoot = PR_TRUE;
                 isIEFavoriteRoot = PR_TRUE;
@@ -1429,7 +1418,7 @@ BookmarkParser::ParseBookmarkSeparator(const nsString &aLine, const nsCOMPtr<nsI
     attrStart += sizeof(kSeparator)-1;
 
     while((attrStart < lineLen) && (aLine[attrStart] != '>')) {
-        while(NS_IsAsciiWhitespace(aLine[attrStart]))
+        while(nsCRT::IsAsciiSpace(aLine[attrStart]))
             ++attrStart;
 
         if (aLine.Find(kNameEquals, PR_TRUE, attrStart, 1) == attrStart) {
@@ -1682,7 +1671,7 @@ nsBookmarksService::Init()
         
         // determine what the name of the Personal Toolbar Folder is...
         // first from user preference, then string bundle, then hard-coded default
-        nsCString prefValue;
+        nsXPIDLCString prefValue;
         rv = prefBranch->GetCharPref("custtoolbar.personal_toolbar_folder", getter_Copies(prefValue));
         if (NS_SUCCEEDED(rv) && !prefValue.IsEmpty())
         {
@@ -1709,7 +1698,7 @@ nsBookmarksService::Init()
     nsCOMPtr<nsIProfile> profileService(do_GetService(NS_PROFILE_CONTRACTID,&useProfile));
     if (NS_SUCCEEDED(useProfile))
     {
-        nsString currentProfileName;
+        nsXPIDLString        currentProfileName;
     
         useProfile = profileService->GetCurrentProfile(getter_Copies(currentProfileName));
         if (NS_SUCCEEDED(useProfile))
@@ -2143,7 +2132,7 @@ nsBookmarksService::OnStopRequest(nsIRequest* request, nsISupports *ctxt,
                             currentETagLit->GetValueConst(&currentETagStr);
                             if ((currentETagStr) &&
                                 !eTagValue.Equals(nsDependentString(currentETagStr),
-                                                  CaseInsensitiveCompare))
+                                                  nsCaseInsensitiveStringComparator()))
                             {
                                 changedFlag = PR_TRUE;
                             }
@@ -2189,7 +2178,7 @@ nsBookmarksService::OnStopRequest(nsIRequest* request, nsISupports *ctxt,
                     currentLastModLit->GetValueConst(&currentLastModStr);
                     if ((currentLastModStr) &&
                         !lastModValue.Equals(nsDependentString(currentLastModStr),
-                                             CaseInsensitiveCompare))
+                                             nsCaseInsensitiveStringComparator()))
                     {
                         changedFlag = PR_TRUE;
                     }
@@ -2233,7 +2222,7 @@ nsBookmarksService::OnStopRequest(nsIRequest* request, nsISupports *ctxt,
                     currentContentLengthLit->GetValueConst(&currentContentLengthStr);
                     if ((currentContentLengthStr) &&
                         !contentLengthValue.Equals(nsDependentString(currentContentLengthStr),
-                                                   CaseInsensitiveCompare))
+                                                   nsCaseInsensitiveStringComparator()))
                     {
                         changedFlag = PR_TRUE;
                     }
@@ -2311,7 +2300,7 @@ nsBookmarksService::OnStopRequest(nsIRequest* request, nsISupports *ctxt,
             // update icon?
             if (FindInReadable(NS_LITERAL_STRING("icon"),
                                schedule,
-                               CaseInsensitiveCompare))
+                               nsCaseInsensitiveStringComparator()))
             {
                 nsCOMPtr<nsIRDFLiteral> statusLiteral;
                 if (NS_SUCCEEDED(rv = gRDF->GetLiteral(NS_LITERAL_STRING("new").get(), getter_AddRefs(statusLiteral))))
@@ -2333,7 +2322,7 @@ nsBookmarksService::OnStopRequest(nsIRequest* request, nsISupports *ctxt,
             // play a sound?
             if (FindInReadable(NS_LITERAL_STRING("sound"),
                                schedule,
-                               CaseInsensitiveCompare))
+                               nsCaseInsensitiveStringComparator()))
             {
                 nsCOMPtr<nsISound> soundInterface =
                         do_CreateInstance("@mozilla.org/sound;1", &rv);
@@ -2349,7 +2338,7 @@ nsBookmarksService::OnStopRequest(nsIRequest* request, nsISupports *ctxt,
             // show an alert?
             if (FindInReadable(NS_LITERAL_STRING("alert"),
                                schedule,
-                               CaseInsensitiveCompare))
+                               nsCaseInsensitiveStringComparator()))
             {
                 nsCOMPtr<nsIPrompt> prompter;
                 NS_QueryNotificationCallbacks(channel, prompter);
@@ -2424,7 +2413,7 @@ nsBookmarksService::OnStopRequest(nsIRequest* request, nsISupports *ctxt,
             if ((openURLFlag == PR_TRUE) ||
                 FindInReadable(NS_LITERAL_STRING("open"),
                                schedule,
-                               CaseInsensitiveCompare))
+                               nsCaseInsensitiveStringComparator()))
             {
                 if (NS_SUCCEEDED(rv))
                 {
@@ -2444,7 +2433,7 @@ nsBookmarksService::OnStopRequest(nsIRequest* request, nsISupports *ctxt,
 
                         suppArray->AppendElement(suppString);
 
-                        nsCString chromeUrl;
+                        nsXPIDLCString chromeUrl;
                         nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID, &rv));
                         if (NS_SUCCEEDED(rv))
                         {
@@ -2454,7 +2443,7 @@ nsBookmarksService::OnStopRequest(nsIRequest* request, nsISupports *ctxt,
                         {
                             chromeUrl.AssignLiteral("chrome://navigator/content/navigator.xul");
                         }
-                        wwatch->OpenWindow(0, chromeUrl.get(), "_blank",
+                        wwatch->OpenWindow(0, chromeUrl, "_blank",
                                            "chrome,dialog=no,all", suppArray,
                                            getter_AddRefs(newWindow));
                     }
@@ -2482,12 +2471,12 @@ NS_IMETHODIMP nsBookmarksService::Observe(nsISupports *aSubject, const char *aTo
 {
     nsresult rv = NS_OK;
 
-    if (!strcmp(aTopic, "profile-before-change"))
+    if (!nsCRT::strcmp(aTopic, "profile-before-change"))
     {
         // The profile has not changed yet.
         rv = Flush();
     
-        if (!NS_strcmp(someData, NS_LITERAL_STRING("shutdown-cleanse").get()))
+        if (!nsCRT::strcmp(someData, NS_LITERAL_STRING("shutdown-cleanse").get()))
         {
             if (mBookmarksFile)
             {
@@ -2495,12 +2484,12 @@ NS_IMETHODIMP nsBookmarksService::Observe(nsISupports *aSubject, const char *aTo
             }
         }
     }    
-    else if (mBookmarksFile && !strcmp(aTopic, "profile-after-change"))
+    else if (mBookmarksFile && !nsCRT::strcmp(aTopic, "profile-after-change"))
     {
         // The profile has already changed.
         rv = LoadBookmarks();
     }
-    else if (!strcmp(aTopic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID))
+    else if (!nsCRT::strcmp(aTopic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID))
     {
         rv = Flush();
         if (NS_SUCCEEDED(rv))
@@ -2722,7 +2711,7 @@ nsBookmarksService::Compare(const void* aElement1, const void* aElement2, void* 
             else {
                 result = ::Compare(nsDependentString(value1),
                                    nsDependentString(value2),
-                                   CaseInsensitiveCompare);
+                                   nsCaseInsensitiveStringComparator());
             }
 
             return result * sortInfo->mDirection;
@@ -3415,7 +3404,7 @@ nsBookmarksService::RequestCharset(nsIWebNavigation* aWebNavigation,
                 if (charsetLiteral) {
                     const PRUnichar* charset;
                     charsetLiteral->GetValueConst(&charset);
-                    LossyCopyUTF16toASCII(nsDependentString(charset), aResult);
+                    LossyCopyUTF16toASCII(charset, aResult);
                     
                     return NS_OK;
                 }
@@ -3856,7 +3845,7 @@ nsBookmarksService::ParseFavoritesFolder(nsIFile* aDirectory, nsIRDFResource* aP
             NS_NAMED_LITERAL_STRING(lnkExt, ".lnk");
             PRInt32 lnkExtStart = bookmarkName.Length() - lnkExt.Length();
             if (StringEndsWith(bookmarkName, lnkExt,
-                  CaseInsensitiveCompare))
+                  nsCaseInsensitiveStringComparator()))
                 bookmarkName.Truncate(lnkExtStart);
 
             nsCOMPtr<nsIRDFResource> bookmark;
@@ -3995,7 +3984,7 @@ nsBookmarksService::GetTransactionManager(nsITransactionManager** aTransactionMa
 NS_IMETHODIMP
 nsBookmarksService::GetURI(char* *aURI)
 {
-    *aURI = NS_strdup("rdf:bookmarks");
+    *aURI = nsCRT::strdup("rdf:bookmarks");
     if (! *aURI)
         return NS_ERROR_OUT_OF_MEMORY;
 
@@ -4828,7 +4817,7 @@ nsBookmarksService::exportBookmarks(nsISupportsArray *aArguments)
     rv = NS_NewLocalFile(nsDependentString(pathUni), PR_TRUE, getter_AddRefs(file));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    if (NS_LITERAL_STRING("RDF").Equals(format, CaseInsensitiveCompare))
+    if (NS_LITERAL_STRING("RDF").Equals(format, nsCaseInsensitiveStringComparator()))
     {
         nsCOMPtr<nsIURI> uri;
         nsresult rv = NS_NewFileURI(getter_AddRefs(uri), file);

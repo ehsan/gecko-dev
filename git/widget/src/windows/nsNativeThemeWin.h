@@ -136,7 +136,6 @@ private:
   HANDLE mTreeViewTheme;
   HANDLE mComboBoxTheme;
   HANDLE mHeaderTheme;
-  HANDLE mMenuTheme;
 
   BOOL mFlatMenus;
   OSVERSIONINFO mOsVersion;

@@ -42,9 +42,8 @@
 interface nsIPrompt;
 interface nsIControllers;
 interface nsIDOMLocation;
-interface nsIVariant;
 
-[scriptable, uuid(0d12a345-3fe2-491e-af0d-bcfd5c4baa03)]
+[scriptable, uuid(f914492c-0138-4123-a634-6ef8e3f126f8)]
 interface nsIDOMWindowInternal : nsIDOMWindow2
 {
   readonly attribute nsIDOMWindowInternal        window;
@@ -196,8 +195,4 @@ interface nsIDOMWindowInternal : nsIDOMWindow2
   DOMString                 btoa(in DOMString aBase64Data);
 
   readonly attribute nsIDOMElement               frameElement;
-
-  nsIVariant                showModalDialog(in DOMString aURI,
-                                            [optional] in nsIVariant aArgs,
-                                            [optional] in DOMString aOptions);
 };

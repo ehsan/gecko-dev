@@ -266,15 +266,13 @@ public:
                         PRBool aShift,
                         PRBool aControl,
                         PRBool aAlt,
-                        PRBool aMeta,
-                        PRBool aUserInput)
+                        PRBool aMeta)
     : mMenu(aMenu),
       mIsTrusted(aIsTrusted),
       mShift(aShift),
       mControl(aControl),
       mAlt(aAlt),
-      mMeta(aMeta),
-      mUserInput(aUserInput)
+      mMeta(aMeta)
   {
     NS_ASSERTION(aMenu, "null menu supplied to nsXULMenuCommandEvent constructor");
   }
@@ -288,7 +286,6 @@ private:
   PRBool mControl;
   PRBool mAlt;
   PRBool mMeta;
-  PRBool mUserInput;
 };
 
 class nsXULPopupManager : public nsIDOMKeyListener,
@@ -517,29 +514,15 @@ public:
 
   /**
    * Handles navigation for menu accelkeys. Returns true if the key has
-   * been handled. If aFrame is specified, then the key is handled by that
-   * popup, otherwise if aFrame is null, the key is handled by the active
-   * popup or menubar.
+   * been handled.
    */
-  PRBool HandleShortcutNavigation(nsIDOMKeyEvent* aKeyEvent,
-                                  nsMenuPopupFrame* aFrame);
+  PRBool HandleShortcutNavigation(nsIDOMKeyEvent* aKeyEvent);
 
   /**
    * Handles cursor navigation within a menu. Returns true if the key has
    * been handled.
    */
   PRBool HandleKeyboardNavigation(PRUint32 aKeyCode);
-
-  /**
-   * Handle keyboard navigation within a menu popup specified by aFrame.
-   * Returns true if the key was handled and that other default handling
-   * should not occur.
-   */
-  PRBool HandleKeyboardNavigationInPopup(nsMenuPopupFrame* aFrame,
-                                         nsNavigationDirection aDir)
-  {
-    return HandleKeyboardNavigationInPopup(nsnull, aFrame, aDir);
-  }
 
   NS_IMETHODIMP HandleEvent(nsIDOMEvent* aEvent) { return NS_OK; }
 
@@ -576,8 +559,6 @@ protected:
   /**
    * Fire a popupshowing event on the popup aPopup and then open the popup.
    *
-   * The caller must keep a strong reference to aPopup.
-   *
    * aPopup - the popup node to open
    * aMenu - should be set to the parent menu if this is a popup associated
    *         with a menu. Otherwise, should be null.
@@ -599,8 +580,6 @@ protected:
    * closing of popups. This allows a menulist inside a non-menu to close up
    * the menu but not close up the panel it is contained within.
    *
-   * The caller must keep a strong reference to aPopup, aNextPopup and aLastPopup.
-   *
    * aPopup - the popup to hide
    * aNextPopup - the next popup to hide
    * aLastPopup - the last popup in the chain to hide
@@ -615,28 +594,10 @@ protected:
                             PRBool aIsMenu,
                             PRBool aDeselectMenu);
 
-  /**
-   * Handle keyboard navigation within a menu popup specified by aItem.
-   */
-  PRBool HandleKeyboardNavigationInPopup(nsMenuChainItem* aItem,
-                                         nsNavigationDirection aDir)
-  {
-    return HandleKeyboardNavigationInPopup(aItem, aItem->Frame(), aDir);
-  }
-
-private:
-  /**
-   * Handle keyboard navigation within a menu popup aFrame. If aItem is
-   * supplied, then it is expected to have a frame equal to aFrame.
-   * If aItem is non-null, then the navigation may be redirected to
-   * an open submenu if one exists. Returns true if the key was
-   * handled and that other default handling should not occur.
-   */
-  PRBool HandleKeyboardNavigationInPopup(nsMenuChainItem* aItem,
-                                         nsMenuPopupFrame* aFrame,
+  // handle keyboard navigation within a menu popup. Returns true if the
+  // key was handled and that other default handling should not occur.
+  PRBool HandleKeyboardNavigationInPopup(nsMenuChainItem* item,
                                          nsNavigationDirection aDir);
-
-protected:
 
   /**
    * Set mouse capturing for the current popup. This traps mouse clicks that

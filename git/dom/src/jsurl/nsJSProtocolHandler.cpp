@@ -522,12 +522,7 @@ nsJSChannel::IsPending(PRBool *aResult)
 NS_IMETHODIMP
 nsJSChannel::GetStatus(nsresult *aResult)
 {
-    if (NS_SUCCEEDED(mStatus) && mOpenedStreamChannel) {
-        return mStreamChannel->GetStatus(aResult);
-    }
-    
     *aResult = mStatus;
-        
     return NS_OK;
 }
 
@@ -628,12 +623,7 @@ nsJSChannel::AsyncOpen(nsIStreamListener *aListener, nsISupports *aContext)
     nsCOMPtr<nsILoadGroup> loadGroup;
     mStreamChannel->GetLoadGroup(getter_AddRefs(loadGroup));
     if (loadGroup) {
-        nsresult rv = loadGroup->AddRequest(this, nsnull);
-        if (NS_FAILED(rv)) {
-            mIsActive = PR_FALSE;
-            CleanupStrongRefs();
-            return rv;
-        }
+        loadGroup->AddRequest(this, nsnull);
     }
 
     mDocumentOnloadBlockedOn =
@@ -794,19 +784,6 @@ nsJSChannel::EvaluateScript()
         // mStreamChannel will call OnStartRequest and OnStopRequest on
         // us, so we'll be sure to call them on our listener.
         mOpenedStreamChannel = PR_TRUE;
-
-        // Now readd ourselves to the loadgroup so we can receive
-        // cancellation notifications.
-        mIsActive = PR_TRUE;
-        if (loadGroup) {
-            mStatus = loadGroup->AddRequest(this, nsnull);
-
-            // If AddRequest failed, that's OK.  The key is to make sure we get
-            // cancelled if needed, and that call just canceled us if it
-            // failed.  We'll still get notified by the stream channel when it
-            // finishes.
-        }
-        
     } else if (mIsAsync) {
         NotifyListener();
     }
@@ -974,23 +951,8 @@ nsJSChannel::OnStopRequest(nsIRequest* aRequest,
     nsCOMPtr<nsIStreamListener> listener = mListener;
 
     CleanupStrongRefs();
-
-    // Make sure aStatus matches what GetStatus() returns
-    if (NS_FAILED(mStatus)) {
-        aStatus = mStatus;
-    }
     
-    nsresult rv = listener->OnStopRequest(this, aContext, aStatus);
-
-    nsCOMPtr<nsILoadGroup> loadGroup;
-    mStreamChannel->GetLoadGroup(getter_AddRefs(loadGroup));
-    if (loadGroup) {
-        loadGroup->RemoveRequest(this, nsnull, mStatus);
-    }
-
-    mIsActive = PR_FALSE;
-
-    return rv;
+    return listener->OnStopRequest(this, aContext, aStatus);
 }
 
 NS_IMETHODIMP

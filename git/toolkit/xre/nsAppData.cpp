@@ -40,7 +40,6 @@
 #include "nsILocalFile.h"
 #include "nsAppRunner.h"
 #include "nsCRTGlue.h"
-#include "nsAutoPtr.h"
 
 void
 SetAllocatedString(const char *&str, const char *newvalue)
@@ -115,27 +114,19 @@ XRE_CreateAppData(nsILocalFile* aINIFile, nsXREAppData **aAppData)
 {
   NS_ENSURE_ARG(aINIFile && aAppData);
 
-  nsAutoPtr<ScopedAppData> data(new ScopedAppData());
+  nsXREAppData *data = new ScopedAppData();
   if (!data)
     return NS_ERROR_OUT_OF_MEMORY;
 
   nsresult rv = XRE_ParseAppData(aINIFile, data);
-  if (NS_FAILED(rv))
-    return rv;
-
-  if (!data->directory) {
-    nsCOMPtr<nsIFile> appDir;
-    rv = aINIFile->GetParent(getter_AddRefs(appDir));
-    if (NS_FAILED(rv))
-      return rv;
-
-    rv = CallQueryInterface(appDir, &data->directory);
-    if (NS_FAILED(rv))
-      return rv;
+  if (NS_FAILED(rv)) {
+    delete data;
+  }
+  else {
+    *aAppData = data;
   }
 
-  *aAppData = data.forget();
-  return NS_OK;
+  return rv;
 }
 
 struct ReadString {

@@ -79,7 +79,7 @@ BrowserGlue.prototype = {
         cs.reset();
         break;
       case "quit-application-requested":
-        this._onQuitRequest(subject, data);
+        this._onQuitRequest(subject);
         break;
       case "quit-application-granted":
         if (this._saveSession) {
@@ -187,7 +187,7 @@ BrowserGlue.prototype = {
     }
   },
 
-  _onQuitRequest: function(aCancelQuit, aQuitType)
+  _onQuitRequest: function(aCancelQuit)
   {
     var wm = Cc["@mozilla.org/appshell/window-mediator;1"].
              getService(Ci.nsIWindowMediator);
@@ -206,9 +206,6 @@ BrowserGlue.prototype = {
     this._saveSession = false;
     if (pagecount < 2)
       return;
-
-    if (aQuitType != "restart")
-      aQuitType = "quit";
 
     var prefBranch = Cc["@mozilla.org/preferences-service;1"].
                      getService(Ci.nsIPrefBranch);
@@ -229,33 +226,28 @@ BrowserGlue.prototype = {
       var brandBundle = bundleService.createBundle("chrome://branding/locale/brand.properties");
 
       var appName = brandBundle.GetStringFromName("brandShortName");
-      var quitDialogTitle = quitBundle.formatStringFromName(aQuitType + "DialogTitle",
-                                                              [appName], 1);
-      var quitTitle = quitBundle.GetStringFromName(aQuitType + "Title");
+      var quitDialogTitle = quitBundle.formatStringFromName("quitDialogTitle",
+                                                            [appName], 1);
+      var quitTitle = quitBundle.GetStringFromName("quitTitle");
       var cancelTitle = quitBundle.GetStringFromName("cancelTitle");
       var saveTitle = quitBundle.GetStringFromName("saveTitle");
       var neverAskText = quitBundle.GetStringFromName("neverAsk");
 
-      var message;
-      if (aQuitType == "restart")
-        message = quitBundle.formatStringFromName("messageRestart",
-                                                  [appName], 1);
-      else if (windowcount == 1)
-        message = quitBundle.formatStringFromName("messageNoWindows",
-                                                  [appName], 1);
+      if (windowcount == 1)
+        var message = quitBundle.formatStringFromName("messageNoWindows",
+                                                      [appName], 1);
       else
-        message = quitBundle.formatStringFromName("message",
-                                                  [appName], 1);
+        var message = quitBundle.formatStringFromName("message",
+                                                      [appName], 1);
 
       var promptService = Cc["@mozilla.org/embedcomp/prompt-service;1"].
                           getService(Ci.nsIPromptService);
 
       var flags = promptService.BUTTON_TITLE_IS_STRING * promptService.BUTTON_POS_0 +
                   promptService.BUTTON_TITLE_IS_STRING * promptService.BUTTON_POS_1 +
+                  promptService.BUTTON_TITLE_IS_STRING * promptService.BUTTON_POS_2 +
                   promptService.BUTTON_POS_0_DEFAULT;
       var neverAsk = {value:false};
-      if (aQuitType != "restart")
-        flags += promptService.BUTTON_TITLE_IS_STRING * promptService.BUTTON_POS_2;
       buttonChoice = promptService.confirmEx(null, quitDialogTitle, message,
                                    flags, quitTitle, cancelTitle, saveTitle,
                                    neverAskText, neverAsk);

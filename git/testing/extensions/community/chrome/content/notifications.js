@@ -1,44 +1,3 @@
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is the Mozilla Community QA Extension
- *
- * The Initial Developer of the Original Code is the Mozilla Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2007
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *  Zach Lipton <zach@zachlipton.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
-* ***** END LICENSE BLOCK ***** */
-
-
-document.addEventListener('load', function() {
-	window.setInterval(qaNotifications.updateNotificationStore(), 3600000);
-}, false)
-
 var qaNotifications = {
 	storageService : Components.classes["@mozilla.org/storage/service;1"]
                         .getService(Ci.mozIStorageService),
@@ -69,26 +28,18 @@ var qaNotifications = {
    		  serializedJSData string)");
    	},
    	
-   	updateNotificationStore : function() {
+   	checkNotificationStatus : function() {
    		var req = new XMLHttpRequest();
    		var url = qaPref.getPref('qa.extension.hermes.url', 'char');
    		req.open('GET', url, true);
    		req.onreadystatechange = function(evt) {
    			if (req.readyState == 4 && req.status == 200) {
-   				if (req.responseXML.getElementsByTagName('notifications') == null)
-					return;
-				var notifs = req.responseXML.getElementsByTagName('notification');
-				for (var i=0; i<notifs.length; i++) {
-					var notif = notifs[i];
-					notif = new Notification('xml', notif);
-					notif.serializeToDb();
-				}    
+   				var notif = new Notification('xml', req.responseXML);
+   				notif.serializeToDbIfNotExists();
    			}
    		};
    		req.send(null);
-   	},
    	
-   	checkNotificationStatus : function() { 	
    		// see if we are elegible for notification:
    		var time = qaPref.getPref(qaPref.prefBase+'.lastNotificationCheckTime', 'int');
    		var interval = qaPref.getPref(qaPref.prefBase+'.minNotificationCheckInterval', 'int');
@@ -147,7 +98,7 @@ function Notification(type, data) {
 		this.notificationClass = data.notificationClass;
 		this.type = data.type;
 		this.headline = data.headline;
-		this.datetime = MochiKit.DateTime.isoTimestamp(data.datetime);
+		this.datetime = data.datetime;
 		this.place = data.place;
 		this.infotext = data.infotext;
 		this.infolinktext = data.infolinktext;
@@ -155,27 +106,33 @@ function Notification(type, data) {
 		this.golinktext = data.golinktext;
 		this.golinkhref = data.golinkhref;
 	} else if (type == 'xml') {
-		var notif = data;
-		this.id = notif.getAttribute('id');
-		this.notificationClass = notif.getAttribute('class');
-		this.type = notif.getAttribute('type');
-		if (notif.getElementsByTagName('headline')[0] != null)
-			this.headline = notif.getElementsByTagName('headline')[0].textContent;
-		
-		// eventinfo
-		if (this.notificationClass == 'event') {
-			var eventInfo = notif.getElementsByTagName('eventinfo')[0];
-			this.datetime = MochiKit.DateTime.isoTimestamp(
-				eventInfo.getElementsByTagName('datetime')[0].textContent);
-			this.place = eventInfo.getElementsByTagName('place')[0].textContent;
+		if (data.getElementsByTagName('notifications') == null)
+			return;
+		var notifs = data.getElementsByTagName('notification');
+		for (var i=0; i<notifs.length; i++) {
+			var notif = notifs[i];
+				
+			this.id = notif.getAttribute('id');
+			this.notificationClass = notif.getAttribute('class');
+			this.type = notif.getAttribute('type');
+			if (notif.getElementsByTagName('headline')[0] != null)
+				this.headline = notif.getElementsByTagName('headline')[0].textContent;
+			
+			// eventinfo
+			if (this.notificationClass == 'event') {
+				var eventInfo = notif.getElementsByTagName('eventinfo')[0];
+				this.datetime = MochiKit.DateTime.isoTimestamp(
+					eventInfo.getElementsByTagName('datetime')[0].textContent);
+				this.place = eventInfo.getElementsByTagName('place')[0].textContent;
+			}
+			this.infotext = notif.getElementsByTagName('infotext')[0].textContent;
+			this.infolinktext = notif.getElementsByTagName('infolink')[0].textContent;
+			this.infolinkhref = notif.getElementsByTagName('infolink')[0]
+				.getAttribute('href');
+			this.golinktext = notif.getElementsByTagName('golink')[0].textContent;
+			this.golinkhref = notif.getElementsByTagName('golink')[0]
+				.getAttribute('href');
 		}
-		this.infotext = notif.getElementsByTagName('infotext')[0].textContent;
-		this.infolinktext = notif.getElementsByTagName('infolink')[0].textContent;
-		this.infolinkhref = notif.getElementsByTagName('infolink')[0]
-			.getAttribute('href');
-		this.golinktext = notif.getElementsByTagName('golink')[0].textContent;
-		this.golinkhref = notif.getElementsByTagName('golink')[0]
-			.getAttribute('href');
 	}
 }
 
@@ -196,7 +153,7 @@ Notification.prototype = {
 	hasHadSecondNotification : false,
 	serializedJSData : null,
 	
-	serializeToDb: function() {
+	serializeToDbIfNotExists : function() {
 		var query = qaNotifications.db.createStatement("SELECT id FROM notifications \
 			WHERE id = ?1");
 		query.bindStringParameter(0, this.id);
@@ -205,9 +162,8 @@ Notification.prototype = {
 			foundRow = 1;
 		}
 		query.reset();
-		if (foundRow == 1) { // it's already been inserted, so update
+		if (foundRow == 1) // it's already been inserted
 			return;
-		}
 		
 		var sth = qaNotifications.db.createStatement("INSERT into notifications \
 			values (?1, ?2, ?3, ?4, ?5)");
@@ -215,41 +171,14 @@ Notification.prototype = {
 		sth.bindStringParameter(1, this.datetime);
 		sth.bindStringParameter(2, this.hasHadFirstNotification);
 		sth.bindStringParameter(3, this.hasHadSecondNotification);
-		
-		// avoid having serialized data inside serialized data:
-		this.serializedJSData = null; 
-		var jsData = MochiKit.Base.serializeJSON(this);
-		sth.bindStringParameter(4, jsData);
-	
+		sth.bindStringParameter(4, MochiKit.Base.serializeJSON(this));
 		sth.execute();
 	},
 	displayToBox : function() {
 		$('qa-notify-header').value=this.headline;
-		
-		if ($('qa-notify-text').firstChild)
-			$('qa-notify-text').removeChild($('qa-notify-text').firstChild);
-		$('qa-notify-text').appendChild(document.createTextNode(this.infotext));
-		
+		$('qa-notify-text').value=this.infotext;
 		$('qa-notify-infolink').value=this.infolinktext;
 		$('qa-notify-infolink').href=this.infolinkhref;
-		$('qa-notify-infolink').style.display = '';
-		
-		if (this.notificationClass == 'event') {
-			var inprogress = 0;
-			$('qa-notify-event-datetime').value=this.datetime;
-			$('qa-notify-event-place').value=this.place;	
-			$('qa-notify-event').style.display = '';
-			$('qa-notify-inprogress').style.display = 'none';
-			
-			$('qa-notify-getstartedlink').value=this.golinktext;
-			$('qa-notify-getstartedlink').href=this.golinkhref;
-			
-			if (inprogress == 1) {
-				$('qa-notify-inprogress').style.display = '';
-				$('qa-notify-getstartedlink').style.display = '';
-				$('qa-notify-infolink').style.display = 'none';
-			}
-		}
 	},
 	okToShow : function() {
 		var prefs = qaNotifications.getNotificationSettings();

@@ -53,16 +53,14 @@ import shutil
 import tempfile
 import time
 
-import utils
 import ffprocess
 import config
 
 if platform.system() == "Linux":
-    from ffprofile_unix import *
+    from ffprofile_linux import *
 elif platform.system() == "Windows":
     from ffprofile_win32 import *
-elif platform.system() == "Darwin":
-    from ffprofile_unix import *
+
 
 def PrefString(name, value, newline):
   """Helper function to create a pref string for Firefox profile prefs.js
@@ -152,6 +150,5 @@ def InitializeNewProfile(firefox_path, profile_dir):
     time.sleep(5)
     if not ffprocess.ProcessesWithNameExist("firefox"):
       return
-  utils.debug("terminating firefox process")
+
   ffprocess.TerminateAllProcesses("firefox")
-  ffprocess.SyncAndSleep()

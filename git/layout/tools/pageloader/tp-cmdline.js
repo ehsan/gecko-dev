@@ -88,6 +88,7 @@ PageLoaderCmdLineHandler.prototype =
       args.doRender = cmdLine.handleFlag("tprender", false);
       args.width = cmdLine.handleFlagWithParam("tpwidth", false);
       args.height = cmdLine.handleFlagWithParam("tpheight", false);
+      args.prefix = cmdLine.handleFlagWithParam("tpprefix", false);
       args.offline = cmdLine.handleFlag("tpoffline", false);
     }
     catch (e) {
@@ -115,6 +116,7 @@ PageLoaderCmdLineHandler.prototype =
   "  -tprender          Run render-only benchmark for each page\n" +
   "  -tpwidth width     Width of window\n" +
   "  -tpheight height   Height of window\n" +
+  "  -tpprefix prefix   Add 'prefix' to the start of each line in the manifest\n" +
   "  -tpoffline         Force offline mode\n"
 };
 

@@ -493,7 +493,7 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
     // always give the legend as much size as it wants
     legendReflowState.
       SetComputedWidth(mLegendFrame->GetPrefWidth(aReflowState.rendContext));
-    legendReflowState.SetComputedHeight(NS_INTRINSICSIZE);
+    legendReflowState.mComputedHeight = NS_INTRINSICSIZE;
 
     nsHTMLReflowMetrics legendDesiredSize;
 
@@ -555,9 +555,9 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
 
     // set the rect. make sure we add the margin back in.
     contentRect.SetRect(borderPadding.left,borderPadding.top + mLegendSpace,kidDesiredSize.width ,kidDesiredSize.height);
-    if (aReflowState.ComputedHeight() != NS_INTRINSICSIZE &&
-        borderPadding.top + mLegendSpace+kidDesiredSize.height > aReflowState.ComputedHeight()) {
-      kidDesiredSize.height = aReflowState.ComputedHeight()-(borderPadding.top + mLegendSpace);
+    if (aReflowState.mComputedHeight != NS_INTRINSICSIZE &&
+        borderPadding.top + mLegendSpace+kidDesiredSize.height > aReflowState.mComputedHeight) {
+      kidDesiredSize.height = aReflowState.mComputedHeight-(borderPadding.top + mLegendSpace);
     }
 
     FinishReflowChild(mContentFrame, aPresContext, &kidReflowState, 
@@ -620,18 +620,18 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
   }
 
   // Return our size and our result
-  if (aReflowState.ComputedHeight() == NS_INTRINSICSIZE) {
+  if (aReflowState.mComputedHeight == NS_INTRINSICSIZE) {
     aDesiredSize.height = mLegendSpace + 
-                          borderPadding.TopBottom() +
-                          contentRect.height;
+                          borderPadding.top +
+                          contentRect.height +
+                          borderPadding.bottom;
   } else {
-    nscoord min = borderPadding.TopBottom() + mLegendRect.height;
-    aDesiredSize.height =
-      aReflowState.ComputedHeight() + borderPadding.TopBottom();
+    nscoord min = borderPadding.top + borderPadding.bottom + mLegendRect.height;
+    aDesiredSize.height = aReflowState.mComputedHeight + borderPadding.top + borderPadding.bottom;
     if (aDesiredSize.height < min)
       aDesiredSize.height = min;
   }
-  aDesiredSize.width = contentRect.width + borderPadding.LeftRight();
+  aDesiredSize.width = contentRect.width + borderPadding.left + borderPadding.right;
   aDesiredSize.mOverflowArea = nsRect(0, 0, aDesiredSize.width, aDesiredSize.height);
   if (mLegendFrame)
     ConsiderChildOverflow(aDesiredSize.mOverflowArea, mLegendFrame);

@@ -149,10 +149,8 @@
   }
   else {
     id delegate = [window delegate];
-    if ([delegate respondsToSelector:@selector(sendFocusEvent:)]) {
-      [delegate sendFocusEvent:NS_GOTFOCUS];
-      [delegate sendFocusEvent:NS_ACTIVATE];
-    }
+    if ([delegate respondsToSelector:@selector(sendGotFocusAndActivate)])
+      [delegate sendGotFocusAndActivate];
   }
 }
 
@@ -165,10 +163,8 @@
   }
   else {
     id delegate = [window delegate];
-    if ([delegate respondsToSelector:@selector(sendFocusEvent:)]) {
-      [delegate sendFocusEvent:NS_LOSTFOCUS];
-      [delegate sendFocusEvent:NS_DEACTIVATE];
-    }
+    if ([delegate respondsToSelector:@selector(sendLostFocusAndDeactivate)])
+      [delegate sendLostFocusAndDeactivate];
   }
 }
 

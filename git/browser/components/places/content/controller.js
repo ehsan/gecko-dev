@@ -40,6 +40,7 @@
 const NHRVO = Ci.nsINavHistoryResultViewObserver;
 
 // XXXmano: we should move most/all of these constants to PlacesUtils
+const ORGANIZER_ROOT_HISTORY_UNSORTED = "place:type=1";
 const ORGANIZER_ROOT_BOOKMARKS = "place:folder=2&group=3&excludeItems=1&queryType=1";
 const ORGANIZER_SUBSCRIPTIONS_QUERY = "place:annotation=livemark%2FfeedURI";
 
@@ -460,7 +461,7 @@ PlacesController.prototype = {
    *    "bookmark"          node is a bookamrk
    *    "folder"            node is a folder
    *    "query"             node is a query
-   *    "dynamiccontainer"  node is a dynamic container
+   *    "remotecontainer"   node is a remote container
    *    "separator"         node is a separator line
    *    "host"              node is a host
    *    "mutable"           node can have items inserted or reordered
@@ -496,12 +497,16 @@ PlacesController.prototype = {
         case Ci.nsINavHistoryResultNode.RESULT_TYPE_QUERY:
           nodeData["query"] = true;
           break;
-        case Ci.nsINavHistoryResultNode.RESULT_TYPE_DYNAMIC_CONTAINER:
-          nodeData["dynamiccontainer"] = true;
+        case Ci.nsINavHistoryResultNode.RESULT_TYPE_REMOTE_CONTAINER:
+          nodeData["remotecontainer"] = true;
           break;
         case Ci.nsINavHistoryResultNode.RESULT_TYPE_FOLDER:
           nodeData["folder"] = true;
           uri = PlacesUtils.bookmarks.getFolderURI(node.itemId);
+
+          // See nodeIsRemoteContainer
+          if (asContainer(node).remoteContainerType != "")
+            nodeData["remotecontainer"] = true;
           break;
         case Ci.nsINavHistoryResultNode.RESULT_TYPE_HOST:
           nodeData["host"] = true;
@@ -1165,8 +1170,7 @@ PlacesController.prototype = {
 
       var data = new TransferData();
       function addData(type, overrideURI) {
-        data.addDataForFlavour(type, PlacesUtils._wrapString(
-                               PlacesUtils.wrapNode(node, type, overrideURI)));
+        data.addDataForFlavour(type, PlacesUtils._wrapString(PlacesUtils.wrapNode(node, type, overrideURI)));
       }
 
       function addURIData(overrideURI) {
@@ -1175,17 +1179,29 @@ PlacesController.prototype = {
         addData(PlacesUtils.TYPE_HTML, overrideURI);
       }
 
-      // This order is _important_! It controls how this and other 
-      // applications select data to be inserted based on type.
-      addData(PlacesUtils.TYPE_X_MOZ_PLACE);
-      
-      var uri;
-      
-      // Allow dropping the feed uri of live-bookmark folders
-      if (PlacesUtils.nodeIsLivemarkContainer(node))
-        uri = PlacesUtils.livemarks.getFeedURI(node.itemId).spec;
-      
-      addURIData(uri);
+      if (PlacesUtils.nodeIsFolder(node) || PlacesUtils.nodeIsQuery(node)) {
+        // Look up this node's place: URI in the annotation service to see if 
+        // it is a special, non-movable folder. 
+        // XXXben: TODO
+
+        addData(PlacesUtils.TYPE_X_MOZ_PLACE_CONTAINER);
+
+        // Allow dropping the feed uri of live-bookmark folders
+        if (PlacesUtils.nodeIsLivemarkContainer(node)) {
+          var uri = PlacesUtils.livemarks.getFeedURI(node.itemId);
+          addURIData(uri.spec);
+        }
+
+      }
+      else if (PlacesUtils.nodeIsSeparator(node)) {
+        addData(PlacesUtils.TYPE_X_MOZ_PLACE_SEPARATOR);
+      }
+      else {
+        // This order is _important_! It controls how this and other 
+        // applications select data to be inserted based on type. 
+        addData(PlacesUtils.TYPE_X_MOZ_PLACE);
+        addURIData();
+      }
       dataSet.push(data);
     }
     return dataSet;
@@ -1459,10 +1475,7 @@ var PlacesControllerDragHelper = {
     var xferable = this._initTransferable(session, targetView, 
                                           insertionPoint.orientation);
     var dropCount = session.numDropItems;
-    
-    var movedCount = 0;
-    
-    for (var i = 0; i < dropCount; ++i) {
+    for (var i = dropCount - 1; i >= 0; --i) {
       session.getData(xferable, i);
     
       var data = { }, flavor = { };
@@ -1472,20 +1485,9 @@ var PlacesControllerDragHelper = {
       // There's only ever one in the D&D case. 
       var unwrapped = PlacesUtils.unwrapNodes(data.value.data, 
                                               flavor.value)[0];
-      var index = insertionPoint.index;
-      
-      // Adjust insertion index to prevent reversal of dragged items. When you
-      // drag multiple elts upward: need to increment index or each successive
-      // elt will be inserted at the same index, each above the previous.
-      if ((index != -1) && ((index < unwrapped.index) ||
-                           (unwrapped.folder && (index < unwrapped.folder.index)))) {
-        index = index + movedCount;
-        movedCount++;
-      }
-        
-      transactions.push(PlacesUtils.makeTransaction(unwrapped,
-                        flavor.value, insertionPoint.itemId,
-                        index, copy));
+      transactions.push(PlacesUtils.makeTransaction(unwrapped, 
+                        flavor.value, insertionPoint.itemId, 
+                        insertionPoint.index, copy));
     }
 
     var txn = PlacesUtils.ptm.aggregateTransactions("DropItems", transactions);

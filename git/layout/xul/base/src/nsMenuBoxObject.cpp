@@ -165,15 +165,10 @@ NS_IMETHODIMP nsMenuBoxObject::HandleKeyPress(nsIDOMKeyEvent* aKeyEvent, PRBool*
     case NS_VK_DOWN:
     case NS_VK_HOME:
     case NS_VK_END:
-    {
-      nsNavigationDirection theDirection;
-      NS_DIRECTION_FROM_KEY_CODE(popupFrame, theDirection, keyCode);
-      *aHandledFlag =
-        pm->HandleKeyboardNavigationInPopup(popupFrame, theDirection);
+      *aHandledFlag = pm->HandleKeyboardNavigation(keyCode);
       return NS_OK;
-    }
     default:
-      *aHandledFlag = pm->HandleShortcutNavigation(aKeyEvent, popupFrame);
+      *aHandledFlag = pm->HandleShortcutNavigation(aKeyEvent);
       return NS_OK;
   }
 }

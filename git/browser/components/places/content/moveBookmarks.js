@@ -73,7 +73,7 @@ var gMoveBookmarksDialog = {
         continue;
 
       transactions.push(new
-        PlacesUtils.ptm.moveItem(this._nodes[i].itemId, selectedFolderID, -1));
+        PlacesUtils.txn.moveItem(this._nodes[i].itemId, selectedFolderId, -1));
     }
 
     if (transactions.length != 0) {

@@ -52,36 +52,24 @@ class nsIFrame;
 class nsPresContext;
 
 /**
- * This class contains the logic for being an absolute containing block.  This
- * class is used within viewport frames (for frames representing content with
- * fixed position) and blocks (for frames representing absolutely positioned
- * content), since each set of frames is absolutely positioned with respect to
- * its parent.
+ * This class contains the logic for being an absolute containing block.
  *
  * There is no principal child list, just a named child list which contains
- * the absolutely positioned frames.
+ * the absolutely positioned frames
  *
  * All functions include as the first argument the frame that is delegating
- * the request.
+ * the request
  *
- * @see nsGkAtoms::absoluteList and nsGkAtoms::fixedList
+ * @see nsGkAtoms::absoluteList
  */
 class nsAbsoluteContainingBlock
 {
 public:
-  nsAbsoluteContainingBlock(nsIAtom* aChildListName)
-#ifdef DEBUG
-    : mChildListName(aChildListName)
-#endif
-  {
-    NS_ASSERTION(mChildListName == nsGkAtoms::absoluteList ||
-                 mChildListName == nsGkAtoms::fixedList,
-                 "should either represent position:fixed or absolute content");
-  }
+  nsAbsoluteContainingBlock() { }          // useful for debugging
 
-#ifdef DEBUG
-  nsIAtom* GetChildListName() const { return mChildListName; }
-#endif
+  virtual ~nsAbsoluteContainingBlock() { } // useful for debugging
+
+  virtual nsIAtom* GetChildListName() const { return nsGkAtoms::absoluteList; }
 
   nsresult FirstChild(const nsIFrame* aDelegatingFrame,
                       nsIAtom*        aListName,
@@ -147,8 +135,6 @@ protected:
   nsFrameList mAbsoluteFrames;  // additional named child list
 
 #ifdef DEBUG
-  nsIAtom* const mChildListName; // nsGkAtoms::fixedList or nsGkAtoms::absoluteList
-
   // helper routine for debug printout
   void PrettyUC(nscoord aSize,
                 char*   aBuf);

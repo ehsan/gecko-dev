@@ -54,6 +54,7 @@
 
 #if defined(XP_WIN)
 #include "nsWindowsHooks.h"
+#include "nsUrlWidget.h"
 #endif // Windows
 
 #endif // MOZ_SUITE
@@ -91,6 +92,7 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsDownloadProxy)
 
 #if defined(XP_WIN)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsWindowsHooks)
+NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsUrlWidget, Init)
 #endif // Windows
 
 #endif // MOZ_SUITE
@@ -160,6 +162,8 @@ static const nsModuleComponentInfo components[] = {
        RelatedLinksHandlerImplConstructor},
 
 #ifdef XP_WIN
+    { NS_IURLWIDGET_CLASSNAME, NS_IURLWIDGET_CID,
+      NS_IURLWIDGET_CONTRACTID, nsUrlWidgetConstructor },
     { NS_IWINDOWSHOOKS_CLASSNAME, NS_IWINDOWSHOOKS_CID,
       NS_IWINDOWSHOOKS_CONTRACTID, nsWindowsHooksConstructor },
 #endif // XP_WIN

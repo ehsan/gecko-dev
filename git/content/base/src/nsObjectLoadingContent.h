@@ -277,12 +277,9 @@ class nsObjectLoadingContent : public nsImageLoadingContent
 
     /**
      * Gets the frame that's associated with this content node in
-     * presentation 0.  If aFlushLayout is true, this function will
-     * flush layout before trying to get the frame.  This is needed
-     * in some cases by plug-ins to ensure that NPP_SetWindow() gets
-     * called (from nsObjectFrame::DidReflow).
+     * presentation 0.
      */
-    nsIObjectFrame* GetFrame(PRBool aFlushLayout);
+    nsIObjectFrame* GetFrame();
 
     /**
      * Instantiates the plugin. This differs from GetFrame()->Instantiate() in

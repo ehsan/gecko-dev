@@ -45,13 +45,10 @@ typedef nsSVGDisplayContainerFrame nsSVGGFrameBase;
 
 class nsSVGGFrame : public nsSVGGFrameBase
 {
-  friend nsIFrame*
-  NS_NewSVGGFrame(nsIPresShell* aPresShell, nsIContent* aContent, nsStyleContext* aContext);
-protected:
+public:
   nsSVGGFrame(nsStyleContext* aContext) :
     nsSVGGFrameBase(aContext), mPropagateTransform(PR_TRUE) {}
 
-public:
   /**
    * Get the "type" of the frame
    *
@@ -65,6 +62,10 @@ public:
     return MakeFrameName(NS_LITERAL_STRING("SVGG"), aResult);
   }
 #endif
+
+protected:
+  friend nsIFrame*
+  NS_NewSVGGFrame(nsIPresShell* aPresShell, nsIContent* aContent, nsStyleContext* aContext);
 
   // nsIFrame interface:
   NS_IMETHOD DidSetStyleContext();

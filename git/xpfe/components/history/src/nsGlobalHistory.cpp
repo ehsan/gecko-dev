@@ -2588,7 +2588,8 @@ nsGlobalHistory::OpenDB()
   rv = NS_GetSpecialDirectory(NS_APP_HISTORY_50_FILE, getter_AddRefs(historyFile));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr <nsIMdbFactoryService> factoryfactory = do_GetService(NS_MORK_CONTRACTID, &rv);
+  nsCOMPtr<nsIMdbFactoryFactory> factoryfactory =
+      do_CreateInstance(NS_MORK_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = factoryfactory->GetMdbFactory(&gMdbFactory);
@@ -4178,14 +4179,6 @@ nsGlobalHistory::GetCommentAt(PRInt32 aIndex, nsAString& aValue)
 
 NS_IMETHODIMP
 nsGlobalHistory::GetStyleAt(PRInt32 aIndex, nsAString& aValue)
-{
-  NS_ENSURE_ARG(aIndex >= 0 && aIndex < mResults.Count());
-  aValue.Truncate();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsGlobalHistory::GetImageAt(PRInt32 aIndex, nsAString& aValue)
 {
   NS_ENSURE_ARG(aIndex >= 0 && aIndex < mResults.Count());
   aValue.Truncate();

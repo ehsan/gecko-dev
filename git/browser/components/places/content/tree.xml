@@ -109,7 +109,7 @@
         <parameter name="optionsFilter"/>
         <body><![CDATA[
           // preserve grouping
-          var queryNode = asQuery(this.getResultNode());
+          var queryNode = asQuery(this.getResult().root);
           var options = queryNode.queryOptions.clone();
           if (optionsFilter)
             options = optionsFilter.filter(queryNode.getQueries({}), options, 
@@ -438,12 +438,9 @@
         <getter><![CDATA[
           // there is no insertion point for history queries
           // so bail out now and save a lot of work when updating commands
-          var resultNode = this.getResultNode();
-          if (PlacesUtils.nodeIsQuery(resultNode)) {
-            var options = asQuery(resultNode).queryOptions;
-            if (options.queryType == options.QUERY_TYPE_HISTORY) 
-              return null;
-          }
+          var options = asQuery(this.getResult().root).queryOptions;
+          if (options.queryType == options.QUERY_TYPE_HISTORY)
+            return null;
 
           var orientation = NHRVO.DROP_AFTER;
           // If there is no selection, insert at the end of the container. 
@@ -794,7 +791,7 @@
             return foundNode;
           }
           var folder = null;
-          var root = asContainer(this.getResultNode());
+          var root = asContainer(this.getResult().root);
           if (PlacesUtils.nodeIsFolder(root) && 
               root.itemId == insertionPoint.itemId)
             folder = root;

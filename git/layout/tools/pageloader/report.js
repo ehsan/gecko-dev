@@ -113,10 +113,7 @@ function getArrayStats(ary) {
     r.median = sorted_ary[(sorted_ary.length-1)/2]; 
   }else{
     var n = Math.floor(sorted_ary.length / 2);
-    if (n >= sorted_ary.length)
-      r.median = sorted_ary[n];
-    else
-      r.median = (sorted_ary[n] + sorted_ary[n + 1]) / 2;
+    r.median = (sorted_ary[n] + sorted_ary[n + 1]) / 2;
   }
 
   // ignore max value when computing mean and stddev
@@ -164,10 +161,6 @@ function strPad(o, len, left) {
   return str;
 }
 
-function strPadFixed0(n, len, left) {
-  return strPad(n.toFixed(0), len, left);
-}
-
 Report.prototype.getReport = function(format) {
   // avg and avg median are cumulative for all the pages
   var avgs = new Array();
@@ -181,7 +174,7 @@ Report.prototype.getReport = function(format) {
 
   var report;
 
-  var prefixLen = findCommonPrefixLength(this.pages);
+  var prefixLen = findCommonPrefixLength(pages);
 
   if (format == "js") {
     // output "simple" js format;
@@ -189,7 +182,7 @@ Report.prototype.getReport = function(format) {
     report = "([";
     for (var i = 0; i < this.timeVals.length; i++) {
       var stats = getArrayStats(this.timeVals[i]);
-      report += uneval({ page: this.pages[i].substr(prefixLen), value: stats.mean, stddev: stats.stdd});
+      report += uneval({ page: pages[i].substr(prefixLen), value: stats.mean, stddev: stats.stdd});
       report += ",";
     }
     report += "])";
@@ -201,15 +194,7 @@ Report.prototype.getReport = function(format) {
     report += "    " + strPad("Page", 40, false) + strPad("mean") + strPad("stdd") + strPad("min") + strPad("max") + "raw" + "\n";
     for (var i = 0; i < this.timeVals.length; i++) {
       var stats = getArrayStats(this.timeVals[i]);
-      report +=
-        strPad(i, 4, true) +
-        strPad(this.pages[i].substr(prefixLen), 40, false) +
-        strPadFixed(stats.mean) +
-        strPadFixed(stats.stdd) +
-        strPadFixed(stats.min) +
-        strPadFixed(stats.max) +
-        this.timeVals[i] +
-        "\n";
+      report += strPad(i, 4, true) + strPad(pages[i].substr(prefixLen), 40, false) + strPad(stats.mean.toFixed(0)) + strPad(stats.stdd.toFixed(0)) + strPad(stats.min.toFixed(0)) + strPad(stats.max.toFixed(0)) + this.timeVals[i] + "\n";
     }
     report += "============================================================\n";
   } else if (format == "tinderbox") {
@@ -221,7 +206,7 @@ Report.prototype.getReport = function(format) {
       var r = getArrayStats(this.timeVals[i]);
       report += '|'+
         i + ';'+
-        this.pages[i].substr(prefixLen) + ';'+
+        pages[i].substr(prefixLen) + ';'+
         r.median + ';'+
         r.mean + ';'+
         r.min + ';'+

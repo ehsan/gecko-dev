@@ -185,14 +185,13 @@ nsNativeTheme::GetCheckedOrSelected(nsIFrame* aFrame, PRBool aCheckSelected)
 }
 
 static void
-ConvertBorderToAppUnits(nsPresContext* aPresContext, const nsMargin &aSource, nsMargin &aDest)
+ConvertMarginToAppUnits(const nsMargin &aSource, nsMargin &aDest)
 {
-  PRInt32 cp2a = nsPresContext::AppUnitsPerCSSPixel();
-  PRInt32 dp2a = aPresContext->AppUnitsPerDevPixel();
-  aDest.top = NS_ROUND_BORDER_TO_PIXELS(NSIntPixelsToAppUnits(aSource.top, cp2a), dp2a);
-  aDest.left = NS_ROUND_BORDER_TO_PIXELS(NSIntPixelsToAppUnits(aSource.left, cp2a), dp2a);
-  aDest.bottom = NS_ROUND_BORDER_TO_PIXELS(NSIntPixelsToAppUnits(aSource.bottom, cp2a), dp2a);
-  aDest.right = NS_ROUND_BORDER_TO_PIXELS(NSIntPixelsToAppUnits(aSource.right, cp2a), dp2a);;
+  PRInt32 p2a = nsPresContext::AppUnitsPerCSSPixel();
+  aDest.top = NSIntPixelsToAppUnits(aSource.top, p2a);
+  aDest.left = NSIntPixelsToAppUnits(aSource.left, p2a);
+  aDest.bottom = NSIntPixelsToAppUnits(aSource.bottom, p2a);
+  aDest.right = NSIntPixelsToAppUnits(aSource.right, p2a);
 }
 
 PRBool
@@ -217,7 +216,7 @@ nsNativeTheme::IsWidgetStyled(nsPresContext* aPresContext, nsIFrame* aFrame,
       switch (aWidgetType) {
       case NS_THEME_BUTTON:
         if (IsDisabled(aFrame)) {
-          ConvertBorderToAppUnits(aPresContext, sButtonDisabledBorderSize, defaultBorderSize);
+          ConvertMarginToAppUnits(sButtonDisabledBorderSize, defaultBorderSize);
           defaultBorderStyle = sButtonInactiveBorderStyle;
           lookAndFeel->GetColor(sButtonDisabledBorderColorID,
                                 defaultBorderColor);
@@ -225,7 +224,7 @@ nsNativeTheme::IsWidgetStyled(nsPresContext* aPresContext, nsIFrame* aFrame,
                                 defaultBGColor);
         } else {
           PRInt32 contentState = GetContentState(aFrame, aWidgetType);
-          ConvertBorderToAppUnits(aPresContext, sButtonBorderSize, defaultBorderSize);
+          ConvertMarginToAppUnits(sButtonBorderSize, defaultBorderSize);
           if (contentState & NS_EVENT_STATE_HOVER &&
               contentState & NS_EVENT_STATE_ACTIVE)
             defaultBorderStyle = sButtonActiveBorderStyle;
@@ -241,7 +240,7 @@ nsNativeTheme::IsWidgetStyled(nsPresContext* aPresContext, nsIFrame* aFrame,
       case NS_THEME_TEXTFIELD:
       case NS_THEME_TEXTFIELD_MULTILINE:
         defaultBorderStyle = sTextfieldBorderStyle;
-        ConvertBorderToAppUnits(aPresContext, sTextfieldBorderSize, defaultBorderSize);
+        ConvertMarginToAppUnits(sTextfieldBorderSize, defaultBorderSize);
         lookAndFeel->GetColor(sTextfieldBorderColorID, defaultBorderColor);
         defaultBGTransparent = sTextfieldBGTransparent;
         if (!defaultBGTransparent) {
@@ -254,7 +253,7 @@ nsNativeTheme::IsWidgetStyled(nsPresContext* aPresContext, nsIFrame* aFrame,
 
       case NS_THEME_LISTBOX:
         defaultBorderStyle = sListboxBorderStyle;
-        ConvertBorderToAppUnits(aPresContext, sListboxBorderSize, defaultBorderSize);
+        ConvertMarginToAppUnits(sListboxBorderSize, defaultBorderSize);
         lookAndFeel->GetColor(sListboxBorderColorID, defaultBorderColor);
         defaultBGTransparent = sListboxBGTransparent;
         if (!defaultBGTransparent) {
@@ -267,7 +266,7 @@ nsNativeTheme::IsWidgetStyled(nsPresContext* aPresContext, nsIFrame* aFrame,
 
       case NS_THEME_DROPDOWN:
         defaultBorderStyle = sComboboxBorderStyle;
-        ConvertBorderToAppUnits(aPresContext, sComboboxBorderSize, defaultBorderSize);
+        ConvertMarginToAppUnits(sComboboxBorderSize, defaultBorderSize);
         lookAndFeel->GetColor(sComboboxBorderColorID, defaultBorderColor);
         defaultBGTransparent = sComboboxBGTransparent;
         if (!defaultBGTransparent) {

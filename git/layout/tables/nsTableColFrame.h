@@ -276,7 +276,7 @@ public:
    * the primary variables.
    */
   void AccumulateSpanIntrinsics() {
-    AddCoords(mSpanMinCoord, mSpanPrefCoord, mHasSpecifiedCoord && mSpanHasSpecifiedCoord);
+    AddCoords(mSpanMinCoord, mSpanPrefCoord, mSpanHasSpecifiedCoord);
     AddPrefPercent(mSpanPrefPercent);
   }
 

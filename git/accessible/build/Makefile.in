@@ -79,7 +79,6 @@ endif
 
 EXTRA_DSO_LIBS = \
 	gkgfx \
-	thebes \
 	$(NULL)
 
 EXTRA_DSO_LDOPTS =           \

@@ -377,8 +377,9 @@ nsThebesImage::Draw(nsIRenderingContext &aContext,
       destRect.pos.x += (srcRect.pos.x - aSourceRect.pos.x)*xscale;
       destRect.pos.y += (srcRect.pos.y - aSourceRect.pos.y)*yscale;
 
-      destRect.size.width  = srcRect.size.width * xscale;
-      destRect.size.height = srcRect.size.height * yscale;
+      // use '+ 1 - *scale' to get rid of rounding errors
+      destRect.size.width  = (srcRect.size.width)*xscale + 1 - xscale;
+      destRect.size.height = (srcRect.size.height)*yscale + 1 - yscale;
     }
 
     // Reject over-wide or over-tall images.
@@ -481,8 +482,20 @@ nsThebesImage::ThebesDrawTile(gfxContext *thebesContext,
     // so we can hold on to this for a bit longer; might not be needed
     nsRefPtr<gfxPattern> pat;
 
-    PRBool doSnap = !(thebesContext->CurrentMatrix().HasNonTranslation());
+    gfxMatrix savedCTM(thebesContext->CurrentMatrix());
+    PRBool doSnap = !(savedCTM.HasNonTranslation());
     PRBool hasPadding = ((xPadding != 0) || (yPadding != 0));
+
+    // If we need to snap, we need to round the CTM as well;
+    // otherwise, we may have non-integer pixels in the translation,
+    // which will affect the rendering of images (since the current CTM
+    // is what's used at the time of a SetPattern call).
+    if (doSnap) {
+        gfxMatrix roundedCTM(savedCTM);
+        roundedCTM.x0 = ::floor(roundedCTM.x0 + 0.5);
+        roundedCTM.y0 = ::floor(roundedCTM.y0 + 0.5);
+        thebesContext->SetMatrix(roundedCTM);
+    }
 
     nsRefPtr<gfxASurface> tmpSurfaceGrip;
 
@@ -505,6 +518,7 @@ nsThebesImage::ThebesDrawTile(gfxContext *thebesContext,
             surface = new gfxImageSurface(gfxIntSize(width, height),
                                           gfxASurface::ImageFormatARGB32);
             if (!surface || surface->CairoStatus()) {
+                thebesContext->SetMatrix(savedCTM);
                 return NS_ERROR_OUT_OF_MEMORY;
             }
 
@@ -528,14 +542,19 @@ nsThebesImage::ThebesDrawTile(gfxContext *thebesContext,
         gfxMatrix patMat;
         gfxPoint p0;
 
-        p0.x = - floor(offset.x + 0.5);
-        p0.y = - floor(offset.y + 0.5);
+        if (offset.x > width || offset.y > height) {
+            p0.x = - floor(fmod(offset.x, gfxFloat(width)) + 0.5);
+            p0.y = - floor(fmod(offset.y, gfxFloat(height)) + 0.5);
+        } else {
+            p0.x = - floor(offset.x + 0.5);
+            p0.y = - floor(offset.y + 0.5);
+        }
         // Scale factor to account for CSS pixels; note that the offset (and 
         // therefore p0) is in device pixels, while the width and height are in
         // CSS pixels.
-        gfxFloat scale = gfxFloat(dx->AppUnitsPerDevPixel()) /
-                         gfxFloat(nsIDeviceContext::AppUnitsPerCSSPixel());
-        patMat.Scale(scale, scale);
+        gfxFloat scale = gfxFloat(nsIDeviceContext::AppUnitsPerCSSPixel()) / 
+                         gfxFloat(dx->AppUnitsPerDevPixel());
+        patMat.Scale(1.0 / scale, 1.0 / scale);
         patMat.Translate(p0);
 
         pat = new gfxPattern(surface);
@@ -543,7 +562,7 @@ nsThebesImage::ThebesDrawTile(gfxContext *thebesContext,
         pat->SetMatrix(patMat);
 
 #ifndef XP_MACOSX
-        if (scale < 1.0) {
+        if (scale > 1.0) {
             // See bug 324698.  This is a workaround.  See comments
             // by the earlier SetFilter call.
             pat->SetFilter(0);
@@ -558,6 +577,8 @@ nsThebesImage::ThebesDrawTile(gfxContext *thebesContext,
     thebesContext->Fill();
 
     thebesContext->SetColor(gfxRGBA(0,0,0,0));
+    if (doSnap)
+        thebesContext->SetMatrix(savedCTM);
 
     return NS_OK;
 }

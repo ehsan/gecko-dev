@@ -64,7 +64,6 @@ const char* XPCJSRuntime::mStrings[] = {
     , "COMObject"           // IDX_COMOBJECT
     , "supports"            // IDX_ACTIVEX_SUPPORTS
 #endif
-    , "__proto__"           // IDX_PROTO
 };
 
 /***************************************************************************/

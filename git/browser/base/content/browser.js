@@ -1097,11 +1097,7 @@ function delayedStartup()
 
   // Initialize the microsummary service by retrieving it, prompting its factory
   // to create its singleton, whose constructor initializes the service.
-  try {
-    Cc["@mozilla.org/microsummary/service;1"].getService(Ci.nsIMicrosummaryService);
-  } catch (ex) {
-    Components.utils.reportError("Failed to init microsummary service:\n" + ex);
-  }
+  Cc["@mozilla.org/microsummary/service;1"].getService(Ci.nsIMicrosummaryService);
 
   // Initialize the content pref event sink and the text zoom setting.
   // We do this before the session restore service gets initialized so we can
@@ -1111,7 +1107,7 @@ function delayedStartup()
     TextZoom.init();
   }
   catch(ex) {
-    Components.utils.reportError("Failed to init content pref service:\n" + ex);
+    Components.utils.reportError(ex);
   }
 
   // initialize the session-restore service (in case it's not already running)
@@ -2176,7 +2172,7 @@ var urlbarObserver = {
       // The URL bar automatically handles inputs with newline characters,
       // so we can get away with treating text/x-moz-url flavours as text/unicode.
       if (url) {
-        nsDragAndDrop.dragDropSecurityCheck(aEvent, aDragSession, url);
+        getBrowser().dragDropSecurityCheck(aEvent, aDragSession, url);
 
         try {
           gURLBar.value = url;
@@ -2521,7 +2517,7 @@ var newTabButtonObserver = {
       var postData = {};
       var url = getShortcutOrURI(draggedText, postData);
       if (url) {
-        nsDragAndDrop.dragDropSecurityCheck(aEvent, aDragSession, url);
+        getBrowser().dragDropSecurityCheck(aEvent, aDragSession, url);
         // allow third-party services to fixup this URL
         openNewTabWith(url, null, postData.value, aEvent, true);
       }
@@ -2557,7 +2553,7 @@ var newWindowButtonObserver = {
       var postData = {};
       var url = getShortcutOrURI(draggedText, postData);
       if (url) {
-        nsDragAndDrop.dragDropSecurityCheck(aEvent, aDragSession, url);
+        getBrowser().dragDropSecurityCheck(aEvent, aDragSession, url);
         // allow third-party services to fixup this URL
         openNewWindowWith(url, null, postData.value, true);
       }
@@ -2593,7 +2589,7 @@ var goButtonObserver = {
       var postData = {};
       var url = getShortcutOrURI(draggedText, postData);
       try {
-        nsDragAndDrop.dragDropSecurityCheck(aEvent, aDragSession, url);
+        getBrowser().dragDropSecurityCheck(aEvent, aDragSession, url);
         urlSecurityCheck(url,
                          gBrowser.contentPrincipal,
                          Ci.nsIScriptSecurityManager.DISALLOW_INHERIT_PRINCIPAL);
@@ -2632,7 +2628,7 @@ var DownloadsButtonDNDObserver = {
     var split = aXferData.data.split("\n");
     var url = split[0];
     if (url != aXferData.data) {  //do nothing, not a valid URL
-      nsDragAndDrop.dragDropSecurityCheck(aEvent, aDragSession, url);
+      getBrowser().dragDropSecurityCheck(aEvent, aDragSession, url);
 
       var name = split[1];
       saveURL(url, name, null, true, true);
@@ -3429,7 +3425,7 @@ nsBrowserStatusHandler.prototype =
       }
       else {
         for (var tooltipWindow =
-               document.tooltipNode.ownerDocument.defaultView;
+               document.tooltipNode.target.ownerDocument.defaultView;
              tooltipWindow != tooltipWindow.parent;
              tooltipWindow = tooltipWindow.parent) {
           if (tooltipWindow == aWebProgress.DOMWindow) {
@@ -3623,17 +3619,7 @@ nsBrowserStatusHandler.prototype =
     const wpl = Components.interfaces.nsIWebProgressListener;
     this.securityButton.removeAttribute("label");
 
-    const wpl_security_bits = wpl.STATE_IS_SECURE |
-                              wpl.STATE_IS_BROKEN |
-                              wpl.STATE_IS_INSECURE |
-                              wpl.STATE_SECURE_HIGH |
-                              wpl.STATE_SECURE_MED |
-                              wpl.STATE_SECURE_LOW;
-
-    /* aState is defined as a bitmask that may be extended in the future.
-     * We filter out any unknown bits before testing for known values.
-     */
-    switch (aState & wpl_security_bits) {
+    switch (aState) {
       case wpl.STATE_IS_SECURE | wpl.STATE_SECURE_HIGH:
         this.securityButton.setAttribute("level", "high");
         if (this.urlBar)
@@ -3643,7 +3629,6 @@ nsBrowserStatusHandler.prototype =
             gBrowser.contentWindow.location.host);
         } catch(exception) {}
         break;
-      case wpl.STATE_IS_SECURE | wpl.STATE_SECURE_MED:
       case wpl.STATE_IS_SECURE | wpl.STATE_SECURE_LOW:
         this.securityButton.setAttribute("level", "low");
         if (this.urlBar)
@@ -4339,7 +4324,7 @@ var contentAreaDNDObserver = {
           /^\s*(javascript|data):/.test(url))
         return;
 
-      nsDragAndDrop.dragDropSecurityCheck(aEvent, aDragSession, url);
+      getBrowser().dragDropSecurityCheck(aEvent, aDragSession, url);
 
       switch (document.documentElement.getAttribute('windowtype')) {
         case "navigator:browser":

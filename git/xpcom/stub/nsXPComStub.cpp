@@ -114,9 +114,7 @@ static const XPCOMFunctions kFrozenFunctions = {
     &NS_LogCOMPtrRelease_P,
     &NS_GetXPTCallStub_P,
     &NS_DestroyXPTCallStub_P,
-    &NS_InvokeByIndex_P,
-    &NS_CycleCollectorSuspect_P,
-    &NS_CycleCollectorForget_P
+    &NS_InvokeByIndex_P
 };
 
 EXPORT_XPCOM_API(nsresult)
@@ -506,18 +504,4 @@ EXPORT_XPCOM_API(nsresult)
 NS_UTF16ToCString(const nsAString &aSrc, nsCStringEncoding aDestEncoding, nsACString &aDest)
 {
   return NS_UTF16ToCString_P(aSrc, aDestEncoding, aDest);
-}
-
-#undef NS_CycleCollectorSuspect
-EXPORT_XPCOM_API(PRBool)
-NS_CycleCollectorSuspect(nsISupports* obj)
-{
-  return NS_CycleCollectorSuspect_P(obj);
-}
-
-#undef NS_CycleCollectorForget
-EXPORT_XPCOM_API(PRBool)
-NS_CycleCollectorForget(nsISupports* obj)
-{
-  return NS_CycleCollectorForget_P(obj);
 }

@@ -47,6 +47,7 @@
 menupopup,
 popup,
 panel {
+  -moz-appearance: menupopup;
   border: 3px solid transparent;
   -moz-border-top-colors   : ThreeDLightShadow ThreeDHighlight ThreeDFace;
   -moz-border-left-colors  : ThreeDLightShadow ThreeDHighlight ThreeDFace;
@@ -55,13 +56,6 @@ panel {
   padding: 0px;
   min-width: 1px;
   background: Menu;
-}
-
-menupopup,
-/* auto complete popups don't render well as vista menus */
-popup:not([type="autocomplete"])
-{
-  -moz-appearance: menupopup;
 }
 
 menupopup > menu > menupopup,
@@ -99,7 +93,6 @@ tooltip[titletip="true"] {
 
 menulist > menupopup,
 .menulist-menupopup {
-  -moz-appearance: none;
   border-width: 1px;
   -moz-border-top-colors: -moz-FieldText;
   -moz-border-right-colors: -moz-FieldText;
@@ -109,3 +102,4 @@ menulist > menupopup,
   min-width: 0px;
   background-color: -moz-Field;
 }
+

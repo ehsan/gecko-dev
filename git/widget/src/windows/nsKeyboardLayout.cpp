@@ -329,7 +329,6 @@ void KeyboardLayout::LoadLayout ()
 #ifndef WINCE
   PRUint32 shiftState;
   BYTE kbdState [256];
-  BYTE originalKbdState [256];
   PRUint16 shiftStatesWithDeadKeys = 0;     // Bitfield with all shift states that have at least one dead-key.
   PRUint16 shiftStatesWithBaseChars = 0;    // Bitfield with all shift states that produce any possible dead-key base characters.
 
@@ -341,7 +340,9 @@ void KeyboardLayout::LoadLayout ()
 
   ReleaseDeadKeyTables ();
 
-  ::GetKeyboardState (originalKbdState);
+#ifndef DEBUG
+  PRBool keyboardInputAlreadyBlocked = !::BlockInput (PR_TRUE);
+#endif
 
   // For each shift state gather all printable characters that are produced
   // for normal case when no any dead-key is active.
@@ -416,7 +417,10 @@ void KeyboardLayout::LoadLayout ()
     }
   }
 
-  ::SetKeyboardState (originalKbdState);
+#ifndef DEBUG
+  if (!keyboardInputAlreadyBlocked)
+    ::BlockInput (PR_FALSE);
+#endif
 #endif
 }
 

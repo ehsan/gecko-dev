@@ -111,7 +111,7 @@ public:
   NS_IMETHOD GetParent(nsIAccessible **aParentAccessible);
 
   // nsPIAccessible
-  NS_IMETHOD AppendTextTo(nsAString& aText, PRUint32 aStartOffset, PRUint32 aLength);
+  NS_IMETHOD GetContentText(nsAString& aText);
 
 protected:
   // XXX: Ideally we'd get the bullet text directly from the bullet frame via

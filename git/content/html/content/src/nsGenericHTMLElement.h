@@ -38,7 +38,7 @@
 #ifndef nsGenericHTMLElement_h___
 #define nsGenericHTMLElement_h___
 
-#include "nsStyledElement.h"
+#include "nsGenericElement.h"
 #include "nsIDOMHTMLElement.h"
 #include "nsINameSpaceManager.h"  // for kNameSpaceID_None
 #include "nsIFormControl.h"
@@ -70,16 +70,15 @@ struct nsRuleData;
 typedef void (*nsMapRuleToAttributesFunc)(const nsMappedAttributes* aAttributes, 
                                           nsRuleData* aData);
 
-typedef nsStyledElement nsGenericHTMLElementBase;
 
 /**
  * A common superclass for HTML elements
  */
-class nsGenericHTMLElement : public nsGenericHTMLElementBase
+class nsGenericHTMLElement : public nsGenericElement
 {
 public:
   nsGenericHTMLElement(nsINodeInfo *aNodeInfo)
-    : nsGenericHTMLElementBase(aNodeInfo)
+    : nsGenericElement(aNodeInfo)
   {
   }
 
@@ -139,11 +138,7 @@ public:
   // nsIDOMNSHTMLElement methods. Note that these are non-virtual
   // methods, implementations are expected to forward calls to these
   // methods.
-  // Forward to GetStyle which is protected in the super-class
-  inline nsresult GetStyle(nsIDOMCSSStyleDeclaration** aStyle)
-  {
-    return nsGenericHTMLElementBase::GetStyle(aStyle);
-  }
+  nsresult GetStyle(nsIDOMCSSStyleDeclaration** aStyle);
   nsresult GetOffsetTop(PRInt32* aOffsetTop);
   nsresult GetOffsetLeft(PRInt32* aOffsetLeft);
   nsresult GetOffsetWidth(PRInt32* aOffsetWidth);
@@ -245,7 +240,12 @@ public:
 
   virtual void UpdateEditableState();
 
+  virtual const nsAttrValue* GetClasses() const;
+  virtual nsIAtom *GetIDAttributeName() const;
+  virtual nsIAtom *GetClassAttributeName() const;
   NS_IMETHOD WalkContentStyleRules(nsRuleWalker* aRuleWalker);
+  virtual nsICSSStyleRule* GetInlineStyleRule();
+  NS_IMETHOD SetInlineStyleRule(nsICSSStyleRule* aStyleRule, PRBool aNotify);
   already_AddRefed<nsIURI> GetBaseURI() const;
 
   virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
@@ -369,6 +369,24 @@ public:
    */
   static PRBool ParseScrollingValue(const nsAString& aString,
                                     nsAttrValue& aResult);
+
+  /**
+   * Create the style struct from the style attr.  Used when an element is first
+   * put into a document.  Only has an effect if the old value is a string.
+   */
+  nsresult  ReparseStyleAttribute(void);
+  /**
+   * Parse a style attr value into a CSS rulestruct (or, if there is no
+   * document, leave it as a string) and return as nsAttrValue.
+   * Note: this function is used by other classes than nsGenericHTMLElement
+   *
+   * @param aValue the value to parse
+   * @param aResult the resulting HTMLValue [OUT]
+   */
+  static void ParseStyleAttribute(nsIContent* aContent,
+                                  PRBool aCaseSensitive,
+                                  const nsAString& aValue,
+                                  nsAttrValue& aResult);
 
   /*
    * Attribute Mapping Helpers
@@ -509,13 +527,10 @@ public:
    * piece of content.
    *
    * @param aContent the content to generate the key for
-   * @param aRead if true, won't return a layout history state (and won't
-   *              generate a key) if the layout history state is empty.
    * @param aState the history state object (out param)
    * @param aKey the key (out param)
    */
   static nsresult GetLayoutHistoryAndKey(nsGenericHTMLElement* aContent,
-                                         PRBool aRead,
                                          nsILayoutHistoryState** aState,
                                          nsACString& aKey);
   /**
@@ -859,6 +874,14 @@ public:
   virtual PRInt32 IntrinsicState() const;
 
 protected:
+  /**
+   * Find the form for this element and set aFormControl's form to it
+   * (aFormControl is passed in to avoid QI)
+   *
+   * @param aFormControl the form control to set the form for
+   */
+  void FindAndSetForm();
+
   virtual nsresult BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                  const nsAString* aValue, PRBool aNotify);
 

@@ -35,13 +35,12 @@
  * ***** END LICENSE BLOCK ***** */
 
 function run_test() {
-  // It doesn't matter whether or not this nsIFile is actually executable,
-  // only that it has a path and exists.  Since we don't know any executable
-  // that exists on all platforms (except possibly the application being
-  // tested, but there doesn't seem to be a way to get a reference to that
-  // from the directory service), we use the temporary directory itself.
-  var executable = HandlerServiceTest._dirSvc.get("TmpD", Ci.nsIFile);
-
+  // It doesn't matter whether or not this executable exists or is executable,
+  // only that it'll QI to nsIFile and has a path attribute, which the service
+  // expects.
+  var executable = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsILocalFile);
+  executable.initWithPath("/usr/bin/test");
+  
   var localHandler = {
     name: "Local Handler",
     executable: executable,
@@ -80,12 +79,6 @@ function run_test() {
 
   var handlerInfo = mimeSvc.getFromTypeAndExtension("nonexistent/type", null);
 
-  // Make sure it's also an nsIHandlerInfo.
-  do_check_true(handlerInfo instanceof Ci.nsIHandlerInfo);
-
-  do_check_eq(handlerInfo.type, "nonexistent/type");
-
-  // Deprecated property, but we should still make sure it's set correctly.
   do_check_eq(handlerInfo.MIMEType, "nonexistent/type");
 
   // These three properties are the ones the handler service knows how to store.
@@ -93,13 +86,9 @@ function run_test() {
   do_check_eq(handlerInfo.preferredApplicationHandler, null);
   do_check_true(handlerInfo.alwaysAskBeforeHandling);
 
-  // These properties are initialized to default values by the service,
-  // so we might as well make sure they're initialized to the right defaults.
   do_check_eq(handlerInfo.description, "");
   do_check_eq(handlerInfo.hasDefaultHandler, false);
   do_check_eq(handlerInfo.defaultDescription, "");
-
-  // FIXME: test a default protocol handler.
 
 
   //**************************************************************************//
@@ -124,34 +113,10 @@ function run_test() {
   var preferredHandler = handlerInfo.preferredApplicationHandler;
   do_check_eq(typeof preferredHandler, "object");
   do_check_eq(preferredHandler.name, "Local Handler");
-  do_check_true(preferredHandler instanceof Ci.nsILocalHandlerApp);
-  preferredHandler.QueryInterface(Ci.nsILocalHandlerApp);
-  do_check_eq(preferredHandler.executable.path, localHandler.executable.path);
+  var localHandler = preferredHandler.QueryInterface(Ci.nsILocalHandlerApp);
+  do_check_eq(localHandler.executable.path, "/usr/bin/test");
 
   do_check_false(handlerInfo.alwaysAskBeforeHandling);
-
-  // Make sure we can store and retrieve a handler info object with no preferred
-  // handler.
-  var noPreferredHandlerInfo =
-    mimeSvc.getFromTypeAndExtension("nonexistent/no-preferred-handler", null);
-  handlerSvc.store(noPreferredHandlerInfo);
-  noPreferredHandlerInfo =
-    mimeSvc.getFromTypeAndExtension("nonexistent/no-preferred-handler", null);
-  do_check_eq(noPreferredHandlerInfo.preferredApplicationHandler, null);
-
-  // Make sure that the handler service removes an existing handler record
-  // if we store a handler info object with no preferred handler.
-  var removePreferredHandlerInfo =
-    mimeSvc.getFromTypeAndExtension("nonexistent/rem-preferred-handler", null);
-  removePreferredHandlerInfo.preferredApplicationHandler = localHandler;
-  handlerSvc.store(removePreferredHandlerInfo);
-  removePreferredHandlerInfo =
-    mimeSvc.getFromTypeAndExtension("nonexistent/rem-preferred-handler", null);
-  removePreferredHandlerInfo.preferredApplicationHandler = null;
-  handlerSvc.store(removePreferredHandlerInfo);
-  removePreferredHandlerInfo =
-    mimeSvc.getFromTypeAndExtension("nonexistent/rem-preferred-handler", null);
-  do_check_eq(removePreferredHandlerInfo.preferredApplicationHandler, null);
 
   // FIXME: test round trip integrity for a protocol.
   // FIXME: test round trip integrity for a handler info with a web handler.

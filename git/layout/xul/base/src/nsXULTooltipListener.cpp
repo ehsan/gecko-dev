@@ -58,9 +58,7 @@
 #include "nsIScriptContext.h"
 #include "nsPIDOMWindow.h"
 #include "nsContentUtils.h"
-#ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
-#endif
 #include "nsIRootBox.h"
 
 nsXULTooltipListener* nsXULTooltipListener::mInstance = nsnull;
@@ -509,6 +507,7 @@ nsXULTooltipListener::LaunchTooltip()
     // Because of mutation events, mCurrentTooltip can be null.
     return;
   }
+#endif
 
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
   if (pm) {
@@ -517,20 +516,16 @@ nsXULTooltipListener::LaunchTooltip()
     if (!pm->IsPopupOpen(mCurrentTooltip))
       mCurrentTooltip = nsnull;
   }
-#endif
-
 }
 
 nsresult
 nsXULTooltipListener::HideTooltip()
 {
-#ifdef MOZ_XUL
   if (mCurrentTooltip) {
     nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
     if (pm)
       pm->HidePopup(mCurrentTooltip, PR_FALSE, PR_FALSE, PR_FALSE);
   }
-#endif
 
   DestroyTooltip();
   return NS_OK;

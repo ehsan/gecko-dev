@@ -48,21 +48,19 @@ const NS_LOCALFILEINPUTSTREAM_CONTRACTID =
           "@mozilla.org/network/file-input-stream;1";
 const NS_SCRIPTSECURITYMANAGER_CONTRACTID =
           "@mozilla.org/scriptsecuritymanager;1";
-const NS_REFTESTHELPER_CONTRACTID =
-          "@mozilla.org/reftest-helper;1";
 
 const LOAD_FAILURE_TIMEOUT = 10000; // ms
 
 var gBrowser;
-var gCanvas1, gCanvas2;
+var gCanvas;
 var gURLs;
 var gState;
+var gPart1Key;
 var gFailureTimeout;
 var gServer;
 var gCount = 0;
 
 var gIOService;
-var gReftestHelper;
 
 const EXPECTED_PASS = 0;
 const EXPECTED_FAIL = 1;
@@ -77,21 +75,10 @@ function OnRefTestLoad()
 
     gBrowser.addEventListener("load", OnDocumentLoad, true);
 
-     try {
-        gReftestHelper = CC[NS_REFTESTHELPER_CONTRACTID].getService(CI.nsIReftestHelper);
-    } catch (e) {
-        gReftestHelper = null;
-    }
-
+    gCanvas = document.createElementNS(XHTML_NS, "canvas");
     var windowElem = document.documentElement;
-
-    gCanvas1 = document.createElementNS(XHTML_NS, "canvas");
-    gCanvas1.setAttribute("width", windowElem.getAttribute("width"));
-    gCanvas1.setAttribute("height", windowElem.getAttribute("height"));
-
-    gCanvas2 = document.createElementNS(XHTML_NS, "canvas");
-    gCanvas2.setAttribute("width", windowElem.getAttribute("width"));
-    gCanvas2.setAttribute("height", windowElem.getAttribute("height"));
+    gCanvas.setAttribute("width", windowElem.getAttribute("width"));
+    gCanvas.setAttribute("height", windowElem.getAttribute("height"));
 
     gIOService = CC[IO_SERVICE_CONTRACTID].getService(CI.nsIIOService);
 
@@ -101,9 +88,7 @@ function OnRefTestLoad()
             gServer.start(HTTP_SERVER_PORT);
         StartCurrentTest();
     } catch (ex) {
-        //gBrowser.loadURI('data:text/plain,' + ex);
-        dump("REFTEST EXCEPTION: " + ex);
-        DoneTests();
+        gBrowser.loadURI('data:text/plain,' + ex);
     }
 }
 
@@ -275,10 +260,15 @@ function DoneTests()
     goQuitApplication();
 }
 
-function CanvasToURL(canvas)
+function IFrameToKey()
 {
-    var ctx = whichCanvas.getContext("2d");
-    return canvas.toDataURL();
+    var ctx = gCanvas.getContext("2d");
+    /* XXX This needs to be rgb(255,255,255) because otherwise we get
+     * black bars at the bottom of every test that are different size
+     * for the first test and the rest (scrollbar-related??) */
+    ctx.drawWindow(gBrowser.contentWindow, 0, 0,
+                   gCanvas.width, gCanvas.height, "rgb(255,255,255)");
+    return gCanvas.toDataURL();
 }
 
 function OnDocumentLoad(event)
@@ -345,24 +335,12 @@ function OnDocumentLoad(event)
 function DocumentLoaded()
 {
     clearTimeout(gFailureTimeout);
-
-    var canvas;
-
-    if (gState == 1)
-        canvas = gCanvas1;
-    else
-        canvas = gCanvas2;
-
-    /* XXX This needs to be rgb(255,255,255) because otherwise we get
-     * black bars at the bottom of every test that are different size
-     * for the first test and the rest (scrollbar-related??) */
-    canvas.getContext("2d").drawWindow(gBrowser.contentWindow, 0, 0,
-                                       canvas.width, canvas.height, "rgb(255,255,255)");
-
+    var key = IFrameToKey();
     switch (gState) {
         case 1:
-            // First document has been loaded.
-            // Proceed to load the second document.
+            // First document has been loaded. Save its key and
+            // proceed to load the second document.
+            gPart1Key = key;
 
             StartCurrentURI(2);
             break;
@@ -370,22 +348,9 @@ function DocumentLoaded()
             // Both documents have been loaded. Compare the renderings and see
             // if the comparison result matches the expected result specified
             // in the manifest.
-
-            // number of different pixels
-            var differences;
+            
             // whether the two renderings match:
-            var equal;
-
-            if (gReftestHelper) {
-                differences = gReftestHelper.compareCanvas(gCanvas1, gCanvas2);
-                equal = (differences == 0);
-            } else {
-                differences = -1;
-                var k1 = gCanvas1.toDataURL();
-                var k2 = gCanvas2.toDataURL();
-                equal = (k1 == k2);
-            }
-
+            var equal = (key == gPart1Key);
             // whether the comparison result matches what is in the manifest
             var test_passed = (equal == gURLs[0].equal);
             // what is expected on this platform (PASS, FAIL, or RANDOM)
@@ -407,11 +372,11 @@ function DocumentLoaded()
             result += gURLs[0].prettyPath; // the URL being tested
             dump(result + "\n");
             if (!test_passed && expected == EXPECTED_PASS) {
-                dump("REFTEST   IMAGE 1 (TEST): " + gCanvas1.toDataURL() + "\n");
-                dump("REFTEST   IMAGE 2 (REFERENCE): " + gCanvas2.toDataURL() + "\n");
-                dump("REFTEST number of differing pixels: " + differences + "\n");
+                dump("REFTEST   IMAGE 1 (TEST): " + gPart1Key + "\n");
+                dump("REFTEST   IMAGE 2 (REFERENCE): " + key + "\n");
             }
 
+            gPart1Key = undefined;
             gURLs.shift();
             StartCurrentTest();
             break;

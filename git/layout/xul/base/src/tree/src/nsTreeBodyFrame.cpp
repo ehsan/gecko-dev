@@ -106,8 +106,7 @@
 #include "nsBidiPresUtils.h"
 #endif
 
-// horizontal ellipsis (U+2026)
-#define ELLIPSIS PRUnichar(0x2026)
+#define ELLIPSIS "..."
 
 static NS_DEFINE_CID(kWidgetCID, NS_CHILD_CID);
 
@@ -1347,7 +1346,7 @@ nsTreeBodyFrame::AdjustForCellText(nsAutoString& aText,
     if (ellipsisWidth > width)
       aText.SetLength(0);
     else if (ellipsisWidth == width)
-      aText.Assign(ELLIPSIS);
+      aText.AssignLiteral(ELLIPSIS);
     else {
       // We will be drawing an ellipsis, thank you very much.
       // Subtract out the required width of the ellipsis.
@@ -1372,7 +1371,7 @@ nsTreeBodyFrame::AdjustForCellText(nsAutoString& aText,
             twidth += cwidth;
           }
           aText.Truncate(i);
-          aText.Append(ELLIPSIS);
+          aText.AppendLiteral(ELLIPSIS);
         }
         break;
 
@@ -1392,7 +1391,7 @@ nsTreeBodyFrame::AdjustForCellText(nsAutoString& aText,
 
           nsAutoString copy;
           aText.Right(copy, length-1-i);
-          aText.Assign(ELLIPSIS);
+          aText.AssignLiteral(ELLIPSIS);
           aText += copy;
         }
         break;
@@ -1420,9 +1419,7 @@ nsTreeBodyFrame::AdjustForCellText(nsAutoString& aText,
             rightStr.Insert(ch, 0);
             --rightPos;
           }
-          aText = leftStr;
-          aText.Append(ELLIPSIS);
-          aText += rightStr;
+          aText = leftStr + NS_LITERAL_STRING(ELLIPSIS) + rightStr;
         }
         break;
       }
@@ -4093,20 +4090,6 @@ nsTreeBodyFrame::ClearStyleAndImageCaches()
   mStyleCache.Clear();
   mImageCache.EnumerateRead(CancelImageRequest, nsnull);
   mImageCache.Clear();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsTreeBodyFrame::DidSetStyleContext()
-{
-  // Clear the style cache; the pointers are no longer even valid
-  mStyleCache.Clear();
-  // XXX The following is hacky, but it's not incorrect,
-  // and appears to fix a few bugs with style changes, like text zoom and
-  // dpi changes
-  mIndentation = GetIndentation();
-  mRowHeight = GetRowHeight();
-  mStringWidth = -1;
   return NS_OK;
 }
 

@@ -47,7 +47,7 @@ DIRS		= idl locales
 ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 DIRS		+= osxspell
 else
-DIRS		+= hunspell
+DIRS		+= myspell
 endif
 
 DIRS += src

@@ -78,7 +78,6 @@
 #include "nsITimer.h"
 #include "nsIWebBrowserChrome.h"
 #include "nsPIDOMWindow.h"
-#include "nsIDOMModalContentWindow.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIEventListenerManager.h"
 #include "nsIDOMDocument.h"
@@ -97,7 +96,6 @@
 #include "nsIDOMStorageWindow.h"
 #include "nsIDOMOfflineResourceList.h"
 #include "nsPIDOMEventTarget.h"
-#include "nsIArray.h"
 
 #define DEFAULT_HOME_PAGE "www.mozilla.org"
 #define PREF_BROWSER_STARTUP_HOMEPAGE "browser.startup.homepage"
@@ -108,6 +106,7 @@ class nsIContent;
 class nsPresContext;
 class nsIDOMEvent;
 class nsIScrollableView;
+class nsIArray;
 
 class nsBarProp;
 class nsLocation;
@@ -401,11 +400,6 @@ public:
     return  mCreatingInnerWindow;
   }
 
-  PRBool IsChromeWindow() const
-  {
-    return mIsChrome;
-  }
-
   nsresult Observe(nsISupports* aSubject, const char* aTopic,
                    const PRUnichar* aData);
 
@@ -648,10 +642,7 @@ protected:
   // Indicates whether we're in the middle of creating an initializing
   // a new inner window object.
   PRPackedBool                  mCreatingInnerWindow : 1;
-
-  // Fast way to tell if this is a chrome window (without having to QI).
-  PRPackedBool                  mIsChrome : 1;
-
+  
   nsCOMPtr<nsIScriptContext>    mContext;
   nsCOMPtr<nsIDOMWindowInternal> mOpener;
   nsCOMPtr<nsIControllers>      mControllers;
@@ -729,7 +720,6 @@ public:
   nsGlobalChromeWindow(nsGlobalWindow *aOuterWindow)
     : nsGlobalWindow(aOuterWindow)
   {
-    mIsChrome = PR_TRUE;
   }
 
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsGlobalChromeWindow,
@@ -738,31 +728,6 @@ public:
 protected:
   nsCOMPtr<nsIBrowserDOMWindow> mBrowserDOMWindow;
 };
-
-/*
- * nsGlobalModalWindow inherits from nsGlobalWindow. It is the global
- * object created for a modal content windows only (i.e. not modal
- * chrome dialogs).
- */
-class nsGlobalModalWindow : public nsGlobalWindow,
-                            public nsIDOMModalContentWindow
-{
-public:
-  nsGlobalModalWindow(nsGlobalWindow *aOuterWindow)
-    : nsGlobalWindow(aOuterWindow)
-  {
-    mIsModalContentWindow = PR_TRUE;
-  }
-
-  NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_NSIDOMMODALCONTENTWINDOW
-
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsGlobalModalWindow, nsGlobalWindow)
-
-protected:
-  nsCOMPtr<nsIVariant> mReturnValue;
-};
-
 
 //*****************************************************************************
 // nsNavigator: Script "navigator" object
@@ -847,8 +812,7 @@ protected:
 };
 
 /* factory function */
-nsresult
-NS_NewScriptGlobalObject(PRBool aIsChrome, PRBool aIsModalContentWindow,
-                         nsIScriptGlobalObject **aResult);
+nsresult NS_NewScriptGlobalObject(PRBool aIsChrome,
+                                  nsIScriptGlobalObject **aResult);
 
 #endif /* nsGlobalWindow_h___ */

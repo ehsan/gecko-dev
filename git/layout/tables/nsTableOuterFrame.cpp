@@ -325,12 +325,6 @@ nsTableOuterFrame::InsertFrames(nsIAtom*        aListName,
                  "inserting non-caption frame into captionList");
     mCaptionFrames.InsertFrames(nsnull, aPrevFrame, aFrameList);
     mCaptionFrame = mCaptionFrames.FirstChild();
-
-    // Reflow the new caption frame. It's already marked dirty, so
-    // just tell the pres shell.
-    PresContext()->PresShell()->
-      FrameNeedsReflow(this, nsIPresShell::eTreeChange,
-                       NS_FRAME_HAS_DIRTY_CHILDREN);
     return NS_OK;
   }
   else {
@@ -517,7 +511,7 @@ GetContainingBlockSize(const nsHTMLReflowState& aOuterRS)
     if (NS_UNCONSTRAINEDSIZE == size.width) {
       size.width = 0;
     }
-    size.height = containRS->ComputedHeight();
+    size.height = containRS->mComputedHeight;
     if (NS_UNCONSTRAINEDSIZE == size.height) {
       size.height = 0;
     }

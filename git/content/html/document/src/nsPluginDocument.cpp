@@ -96,7 +96,7 @@ nsPluginStreamListener::OnStartRequest(nsIRequest* request, nsISupports *ctxt)
     return rv;
   }
 
-  nsCOMPtr<nsIContent> embed = mPluginDoc->GetPluginContent();
+  nsIContent* embed = mPluginDoc->GetPluginContent();
 
   // Now we have a frame for our <embed>, start the load
   nsIPresShell* shell = mDocument->GetPrimaryShell();
@@ -104,11 +104,6 @@ nsPluginStreamListener::OnStartRequest(nsIRequest* request, nsISupports *ctxt)
     // Can't instantiate w/o a shell
     return NS_BINDING_ABORTED;
   }
-
-  // Flush out layout before we go to instantiate, because some
-  // plug-ins depend on NPP_SetWindow() being called early enough and
-  // nsObjectFrame does that at the end of reflow.
-  shell->FlushPendingNotifications(Flush_Layout);
 
   nsIFrame* frame = shell->GetPrimaryFrameFor(embed);
   if (!frame) {

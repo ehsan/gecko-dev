@@ -106,7 +106,7 @@ NS_IMPL_ISUPPORTS4(nsMenuX, nsIMenu, nsIMenuListener, nsIChangeObserver, nsISupp
 
 
 nsMenuX::nsMenuX()
-: mParent(nsnull), mManager(nsnull), mMacMenuID(0), mMacMenu(nil), mNativeMenuItem(nil),
+: mParent(nsnull), mManager(nsnull), mMacMenuID(0), mMacMenu(nil),
   mIsEnabled(PR_TRUE), mDestroyHandlerCalled(PR_FALSE),
   mNeedsRebuild(PR_TRUE), mConstructed(PR_FALSE), mVisible(PR_TRUE),
   mXBLAttached(PR_FALSE)
@@ -124,7 +124,6 @@ nsMenuX::~nsMenuX()
 
   [mMacMenu release];
   [mMenuDelegate release];
-  [mNativeMenuItem release];
   
   // alert the change notifier we don't care no more
   mManager->Unregister(mMenuContent);
@@ -169,7 +168,7 @@ nsMenuX::Create(nsISupports * aParent, const nsAString &aLabel, const nsAString 
   MenuConstruct(fake, nsnull, nsnull, nsnull);
   
   if (menu)
-    mIcon = new nsMenuItemIconX(static_cast<nsIMenu*>(this), menu, mMenuContent, nsnull);
+    mIcon = new nsMenuItemIconX(static_cast<nsIMenu*>(this), menu, mMenuContent);
 
   return NS_OK;
 }
@@ -297,14 +296,15 @@ nsresult nsMenuX::AddMenu(nsIMenu * aMenu)
   PRBool enabled;
   aMenu->GetEnabled(&enabled);
   NSString *newCocoaLabelString = MenuHelpersX::CreateTruncatedCocoaLabel(label);
-  mNativeMenuItem = [[NSMenuItem alloc] initWithTitle:newCocoaLabelString action:nil keyEquivalent:@""];
-  [mNativeMenuItem setEnabled:enabled];
-  [mMacMenu addItem:mNativeMenuItem];
+  NSMenuItem* newNativeMenuItem = [[NSMenuItem alloc] initWithTitle:newCocoaLabelString action:nil keyEquivalent:@""];
+  [newNativeMenuItem setEnabled:enabled];
+  [mMacMenu addItem:newNativeMenuItem];
   [newCocoaLabelString release];
+  [newNativeMenuItem release];
   
   NSMenu* childMenu;
   if (aMenu->GetNativeData((void**)&childMenu) == NS_OK)
-    [mNativeMenuItem setSubmenu:childMenu];
+    [newNativeMenuItem setSubmenu:childMenu];
 
   return NS_OK;
 }
@@ -541,7 +541,7 @@ nsEventStatus nsMenuX::MenuConstruct(
 
   gConstructingMenu = PR_FALSE;
   mNeedsRebuild = PR_FALSE;
-  // printf("Done building, mMenuItemsArray.Count() = %d \n", mMenuItemsArray.Count());
+  // printf("Done building, mMenuItemVoidArray.Count() = %d \n", mMenuItemVoidArray.Count());
   
   return nsEventStatus_eIgnore;
 }
@@ -1028,13 +1028,6 @@ nsMenuX::GetMenuRefAndItemIndexForMenuItem(nsISupports* aMenuItem,
   }
   
   return NS_ERROR_FAILURE;
-}
-
-
-id
-nsMenuX::GetNativeMenuItem()
-{
-  return mNativeMenuItem;
 }
 
 

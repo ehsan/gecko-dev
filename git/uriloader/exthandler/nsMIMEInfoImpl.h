@@ -74,7 +74,6 @@ class nsMIMEInfoBase : public nsIMIMEInfo {
     NS_IMETHOD AppendExtension(const nsACString & aExtension);
     NS_IMETHOD GetPrimaryExtension(nsACString & aPrimaryExtension);
     NS_IMETHOD SetPrimaryExtension(const nsACString & aPrimaryExtension);
-    NS_IMETHOD GetType(nsACString & aType);
     NS_IMETHOD GetMIMEType(nsACString & aMIMEType);
     NS_IMETHOD GetDescription(nsAString & aDescription);
     NS_IMETHOD SetDescription(const nsAString & aDescription);
@@ -92,18 +91,12 @@ class nsMIMEInfoBase : public nsIMIMEInfo {
     NS_IMETHOD GetAlwaysAskBeforeHandling(PRBool *aAlwaysAskBeforeHandling);
     NS_IMETHOD SetAlwaysAskBeforeHandling(PRBool aAlwaysAskBeforeHandling); 
 
-    enum HandlerClass {
-      eMIMEInfo,
-      eProtocolInfo
-    };
-
     // nsMIMEInfoBase methods
     nsMIMEInfoBase(const char *aMIMEType = "") NS_HIDDEN;
     nsMIMEInfoBase(const nsACString& aMIMEType) NS_HIDDEN;
-    nsMIMEInfoBase(const nsACString& aType, HandlerClass aClass) NS_HIDDEN;
     virtual ~nsMIMEInfoBase();        // must be virtual, as the the base class's Release should call the subclass's destructor
 
-    void SetMIMEType(const nsACString & aMIMEType) { mType = aMIMEType; }
+    void SetMIMEType(const nsACString & aMIMEType) { mMIMEType = aMIMEType; }
 
     void SetDefaultDescription(const nsString& aDesc) { mDefaultAppDescription = aDesc; }
 
@@ -133,23 +126,16 @@ class nsMIMEInfoBase : public nsIMIMEInfo {
     virtual NS_HIDDEN_(nsresult) LaunchDefaultWithFile(nsIFile* aFile) = 0;
 
     /**
-     * Loads the URI with the OS default app.
-     *
-     * @param aURI The URI to pass off to the OS.
-     */
-    virtual NS_HIDDEN_(nsresult) LoadUriInternal(nsIURI *aURI) = 0;
-
-    /**
-     * This method can be used to launch the file or URI with a single 
-     * argument (typically either a file path or a URI spec).  This is 
+     * This method can be used to launch the file using nsIProcess, with the
+     * path of the file being the first parameter to the executable. This is
      * meant as a helper method for implementations of
-     * LaunchWithURI/LaunchDefaultWithFile.
+     * LaunchWithFile/LaunchDefaultWithFile.
+     * Neither aApp nor aFile may be null.
      *
-     * @param aApp The application to launch (may not be null)
-     * @param aArg The argument to pass on the command line
+     * @param aApp The application to launch
+     * @param aFile The file to open in the application
      */
-    static NS_HIDDEN_(nsresult) LaunchWithIProcess(nsIFile* aApp,
-                                                   const nsCString &aArg);
+    static NS_HIDDEN_(nsresult) LaunchWithIProcess(nsIFile* aApp, nsIFile* aFile);
 
     /**
      * Used to launch a web-based handler with this URI.
@@ -172,8 +158,7 @@ class nsMIMEInfoBase : public nsIMIMEInfo {
     nsCStringArray         mExtensions; ///< array of file extensions associated w/ this MIME obj
     nsString               mDescription; ///< human readable description
     PRUint32               mMacType, mMacCreator; ///< Mac file type and creator
-    nsCString              mType;
-    HandlerClass           mClass;
+    nsCString              mMIMEType;
     nsCOMPtr<nsIHandlerApp> mPreferredApplication;
     nsHandlerInfoAction    mPreferredAction; ///< preferred action to associate with this type
     nsString               mPreferredAppDescription;
@@ -194,8 +179,6 @@ class nsMIMEInfoImpl : public nsMIMEInfoBase {
   public:
     nsMIMEInfoImpl(const char *aMIMEType = "") : nsMIMEInfoBase(aMIMEType) {}
     nsMIMEInfoImpl(const nsACString& aMIMEType) : nsMIMEInfoBase(aMIMEType) {}
-    nsMIMEInfoImpl(const nsACString& aType, HandlerClass aClass) :
-      nsMIMEInfoBase(aType, aClass) {}
     virtual ~nsMIMEInfoImpl() {}
 
     // nsIMIMEInfo methods
@@ -208,7 +191,6 @@ class nsMIMEInfoImpl : public nsMIMEInfoBase {
      * App Services; the default application is immutable after it is first set.
      */
     void SetDefaultApplication(nsIFile* aApp) { if (!mDefaultApplication) mDefaultApplication = aApp; }
-
   protected:
     // nsMIMEInfoBase methods
     /**
@@ -217,11 +199,6 @@ class nsMIMEInfoImpl : public nsMIMEInfoBase {
      */
     virtual NS_HIDDEN_(nsresult) LaunchDefaultWithFile(nsIFile* aFile);
 
-    /**
-     * Loads the URI with the OS default app.  This should be overridden by each
-     * OS's implementation.
-     */
-    virtual NS_HIDDEN_(nsresult) LoadUriInternal(nsIURI *aURI) = 0;
 
     nsCOMPtr<nsIFile>      mDefaultApplication; ///< default application associated with this type.
 };

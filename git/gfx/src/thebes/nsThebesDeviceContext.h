@@ -116,8 +116,6 @@ public:
 
     virtual PRBool CheckDPIChange();
 
-    virtual PRBool SetPixelScale(float aScale);
-
     nsNativeWidget GetWidget() { return mWidget; }
 #ifdef XP_WIN
     HDC GetPrintHDC() {
@@ -144,7 +142,6 @@ protected:
     void ComputeFullAreaUsingScreen(nsRect *outRect);
     void FindScreen(nsIScreen **outScreen);
     void CalcPrintingSize();
-    void UpdateScaledAppUnits();
 
     PRUint32 mDepth;
 

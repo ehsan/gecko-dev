@@ -589,11 +589,15 @@ nsUnknownContentTypeDialog.prototype = {
     _blurred: false,
     _delayExpired: false, 
     onBlur: function(aEvent) {
+      if (aEvent.target != this.mDialog.document)
+        return;
       this._blurred = true;
       this.mDialog.document.documentElement.getButton("accept").disabled = true;
     },
     
     onFocus: function(aEvent) {
+      if (aEvent.target != this.mDialog.document)
+        return;
       this._blurred = false;
       if (this._delayExpired) {
         var script = "document.documentElement.getButton('accept').disabled = false";
@@ -673,13 +677,7 @@ nsUnknownContentTypeDialog.prototype = {
       }
     
       // Fill in helper app info, if there is any.
-      try {
-        this.chosenApp =
-          this.mLauncher.MIMEInfo.preferredApplicationHandler
-              .QueryInterface(Components.interfaces.nsILocalHandlerApp);
-      } catch (e) {
-        this.chosenApp = null;
-      }
+      this.chosenApp = this.mLauncher.MIMEInfo.preferredApplicationHandler;
       // Initialize "default application" field.
       this.initDefaultApp();
 

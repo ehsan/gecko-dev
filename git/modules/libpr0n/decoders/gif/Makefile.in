@@ -54,7 +54,6 @@ REQUIRES	= xpcom \
 		  thebes \
 		  cairo \
 		  imglib2 \
-		  $(LCMS_REQUIRES) \
 		  $(NULL)
 
 CPPSRCS		= nsGIFDecoder2.cpp

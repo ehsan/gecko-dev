@@ -713,9 +713,6 @@ NS_IMETHODIMP nsWebBrowserPersist::OnStopRequest(
     OutputData *data = (OutputData *) mOutputMap.Get(&key);
     if (data)
     {
-        if (NS_SUCCEEDED(mPersistResult) && NS_FAILED(status))
-            SendErrorStatusChange(PR_TRUE, status, request, data->mFile);
-
 #if defined(XP_OS2)
         // delete 'data';  this will close the stream and let
         // us tag the file it created with its source URI
@@ -776,7 +773,7 @@ NS_IMETHODIMP nsWebBrowserPersist::OnStopRequest(
     if (completed)
     {
         // we're all done, do our cleanup
-        EndDownload(status);
+        EndDownload(NS_OK);
     }
 
     if (mProgressListener)

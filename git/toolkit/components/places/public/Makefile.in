@@ -53,7 +53,7 @@ XPIDLSRCS  = \
   nsINavHistoryService.idl \
   nsINavBookmarksService.idl \
   nsILivemarkService.idl \
-  nsIDynamicContainer.idl \
+  nsIRemoteContainer.idl \
   nsITaggingService.idl  \
   $(NULL)
 

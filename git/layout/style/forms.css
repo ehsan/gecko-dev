@@ -96,7 +96,7 @@ input {
 }
 
 input > .anonymous-div {
-  white-space: pre;
+  white-space : nowrap;
 }
 
 textarea {
