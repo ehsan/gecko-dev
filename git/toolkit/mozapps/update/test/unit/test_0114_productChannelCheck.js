@@ -11,15 +11,15 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is the GCLI.
+ * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- * The Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2012
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Joe Walker <jwalker@mozilla.com> (original author)
+ *   Brian R. Bondy <netzen@gmail.com> (Original Author)
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -33,42 +33,33 @@
  * the provisions above, a recipient may use your version of this file under
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
- * ***** END LICENSE BLOCK ***** */
+ * ***** END LICENSE BLOCK *****
+ */
 
-.gclichrome-output {
-  max-width: 350px;
+/* Test product/channel MAR security check */
+
+const TEST_ID = "0114";
+
+// We don't actually care if the MAR has any data, we only care about the
+// application return code and update.status result.
+const TEST_FILES = [];
+
+const MAR_CHANNEL_MISMATCH_ERROR = "22";
+
+function run_test() {
+  // Setup a wrong channel MAR file
+  do_register_cleanup(cleanupUpdaterTest);
+  setupUpdaterTest(MAR_WRONG_CHANNEL_FILE);
+
+  // Apply the MAR
+  let exitValue = runUpdate();
+  logTestInfo("testing updater binary process exitValue for failure when " +
+              "applying a wrong product and channel MAR file");
+  // Make sure the updater executed successfully
+  do_check_eq(exitValue, 0);
+  let updatesDir = do_get_file(TEST_ID + UPDATES_DIR_SUFFIX);
+
+  //Make sure we get a version downgrade error
+  let updateStatus = readStatusFile(updatesDir);
+  do_check_eq(updateStatus.split(": ")[1], MAR_CHANNEL_MISMATCH_ERROR);
 }
-
-.gclichrome-tooltip {
-  max-width: 350px;
-}
-
-.gcli-help-name {
-  text-align: end;
-}
-
-.gcli-help-synopsis {
-  cursor: pointer;
-  display: inline-block;
-}
-
-.gcli-help-synopsis:before {
-  content: '\bb';
-}
-
-.gcli-menu-option {
-  overflow: hidden;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.gcli-menu-template {
-  border-collapse: collapse;
-  width: 100%;
-}
-
-.gcli-menu-error {
-  overflow: hidden;
-  white-space: nowrap;
-}
-
