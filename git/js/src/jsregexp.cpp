@@ -353,38 +353,6 @@ typedef struct REGlobalData {
     size_t backTrackLimit;          /* upper limit on backtrack states */
 } REGlobalData;
 
-void
-JSRegExpStatics::clearRoots()
-{
-    input = NULL;
-    cx->runtime->gcPoke = JS_TRUE;
-}
-
-bool
-JSRegExpStatics::copy(const JSRegExpStatics& other)
-{
-    clearRoots();
-    input = other.input;
-    multiline = other.multiline;
-    lastMatch = other.lastMatch;
-    lastParen = other.lastParen;
-    leftContext = other.leftContext;
-    rightContext = other.rightContext;
-    if (!parens.resize(other.parens.length()))
-        return false;
-    memcpy(parens.begin(), other.parens.begin(), sizeof(JSSubString) * parens.length());
-    return true;
-}
-
-void
-JSRegExpStatics::clear()
-{
-    clearRoots();
-    multiline = false;
-    lastMatch = lastParen = leftContext = rightContext = js_EmptySubString;
-    parens.clear();
-}
-
 /*
  * 1. If IgnoreCase is false, return ch.
  * 2. Let u be ch converted to upper case as if by calling
@@ -4897,10 +4865,11 @@ js_ExecuteRegExp(JSContext *cx, JSRegExp *re, JSString *str, size_t *indexp,
 
     const jschar *cp, *ep;
     size_t i, length, start;
+    JSSubString *morepar;
     JSBool ok;
     JSRegExpStatics *res;
     ptrdiff_t matchlen;
-    uintN num;
+    uintN num, morenum;
     JSString *parstr, *matchstr;
     JSObject *obj;
 
@@ -5004,22 +4973,45 @@ js_ExecuteRegExp(JSContext *cx, JSRegExp *re, JSString *str, size_t *indexp,
 
     res = &cx->regExpStatics;
     res->input = str;
-    if (!res->parens.resize(re->parenCount)) {
-        ok = JS_FALSE;
-        goto out;
-    }
+    res->parenCount = uint16(re->parenCount);
     if (re->parenCount == 0) {
         res->lastParen = js_EmptySubString;
     } else {
         for (num = 0; num < re->parenCount; num++) {
-            JSSubString *sub = &res->parens[num];
             parsub = &result->parens[num];
-            if (parsub->index == -1) {
-                sub->chars = NULL;
-                sub->length = 0;
+            if (num < 9) {
+                if (parsub->index == -1) {
+                    res->parens[num].chars = NULL;
+                    res->parens[num].length = 0;
+                } else {
+                    res->parens[num].chars = gData.cpbegin + parsub->index;
+                    res->parens[num].length = parsub->length;
+                }
             } else {
-                sub->chars = gData.cpbegin + parsub->index;
-                sub->length = parsub->length;
+                morenum = num - 9;
+                morepar = res->moreParens;
+                if (!morepar) {
+                    res->moreLength = 10;
+                    morepar = (JSSubString*)
+                        cx->malloc(10 * sizeof(JSSubString));
+                } else if (morenum >= res->moreLength) {
+                    res->moreLength += 10;
+                    morepar = (JSSubString*)
+                        cx->realloc(morepar,
+                                    res->moreLength * sizeof(JSSubString));
+                }
+                if (!morepar) {
+                    ok = JS_FALSE;
+                    goto out;
+                }
+                res->moreParens = morepar;
+                if (parsub->index == -1) {
+                    morepar[morenum].chars = NULL;
+                    morepar[morenum].length = 0;
+                } else {
+                    morepar[morenum].chars = gData.cpbegin + parsub->index;
+                    morepar[morenum].length = parsub->length;
+                }
             }
             if (test)
                 continue;
@@ -5217,9 +5209,14 @@ JS_FRIEND_API(void)
 js_SaveAndClearRegExpStatics(JSContext *cx, JSRegExpStatics *statics,
                              AutoValueRooter *tvr)
 {
-    statics->copy(cx->regExpStatics);
+    *statics = cx->regExpStatics;
     if (statics->input)
         tvr->setString(statics->input);
+    /*
+     * Prevent JS_ClearRegExpStatics from freeing moreParens, since we've only
+     * moved it elsewhere (into statics->moreParens).
+     */
+    cx->regExpStatics.moreParens = NULL;
     JS_ClearRegExpStatics(cx);
 }
 
@@ -5228,7 +5225,8 @@ js_RestoreRegExpStatics(JSContext *cx, JSRegExpStatics *statics,
                         AutoValueRooter *tvr)
 {
     /* Clear/free any new JSRegExpStatics data before clobbering. */
-    cx->regExpStatics.copy(*statics);
+    JS_ClearRegExpStatics(cx);
+    cx->regExpStatics = *statics;
 }
 
 void
@@ -5280,7 +5278,7 @@ regexp_static_getProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
         sub = &res->rightContext;
         break;
       default:
-        sub = (size_t(slot) < res->parens.length()) ? &res->parens[slot] : &js_EmptySubString;
+        sub = REGEXP_PAREN_SUBSTRING(res, slot);
         break;
     }
     str = js_NewStringCopyN(cx, sub->chars, sub->length);

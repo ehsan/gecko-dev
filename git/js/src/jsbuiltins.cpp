@@ -102,6 +102,10 @@ js_imod(int32 a, int32 b)
 }
 JS_DEFINE_CALLINFO_2(extern, INT32, js_imod, INT32, INT32, 1, ACC_NONE)
 
+/* The following boxing/unboxing primitives we can't emit inline because
+   they either interact with the GC and depend on Spidermonkey's 32-bit
+   integer representation. */
+
 jsval FASTCALL
 js_BoxDouble(JSContext* cx, jsdouble d)
 {
@@ -111,7 +115,7 @@ js_BoxDouble(JSContext* cx, jsdouble d)
     JS_ASSERT(JS_ON_TRACE(cx));
     jsval v; /* not rooted but ok here because we know GC won't run */
     if (!js_NewDoubleInRootedValue(cx, d, &v))
-        return JSVAL_NULL;
+        return JSVAL_ERROR_COOKIE;
     return v;
 }
 JS_DEFINE_CALLINFO_2(extern, JSVAL, js_BoxDouble, CONTEXT, DOUBLE, 1, ACC_NONE)
@@ -125,7 +129,7 @@ js_BoxInt32(JSContext* cx, int32 i)
     jsval v; /* not rooted but ok here because we know GC won't run */
     jsdouble d = (jsdouble)i;
     if (!js_NewDoubleInRootedValue(cx, d, &v))
-        return JSVAL_NULL;
+        return JSVAL_ERROR_COOKIE;
     return v;
 }
 JS_DEFINE_CALLINFO_2(extern, JSVAL, js_BoxInt32, CONTEXT, INT32, 1, ACC_NONE)

@@ -84,7 +84,10 @@
 #include "jsxml.h"
 #endif
 
+#ifdef INCLUDE_MOZILLA_DTRACE
 #include "jsdtracef.h"
+#endif
+
 #include "jscntxtinlines.h"
 #include "jsobjinlines.h"
 
@@ -2517,7 +2520,10 @@ FinalizeObject(JSContext *cx, JSObject *obj, unsigned thingKind)
     if (clasp->finalize)
         clasp->finalize(cx, obj);
 
-    DTrace::finalizeObject(obj);
+#ifdef INCLUDE_MOZILLA_DTRACE
+    if (JAVASCRIPT_OBJECT_FINALIZE_ENABLED())
+        jsdtrace_object_finalize(obj);
+#endif
 
     if (JS_LIKELY(obj->isNative())) {
         JSScope *scope = obj->scope();
@@ -2875,7 +2881,7 @@ SweepDoubles(JSRuntime *rt)
 
 namespace js {
 
-JS_FRIEND_API(void)
+void
 BackgroundSweepTask::replenishAndFreeLater(void *ptr)
 {
     JS_ASSERT(freeCursor == freeCursorEnd);
@@ -3405,7 +3411,7 @@ FireGCEnd(JSContext *cx, JSGCInvocationKind gckind)
      * interlock mechanism here.
      */
     if (gckind != GC_SET_SLOT_REQUEST && callback) {
-        Conditionally<AutoUnlockGC> unlockIf(!!(gckind & GC_LOCK_HELD), rt);
+        Conditionally<AutoUnlockGC> unlockIf(gckind & GC_LOCK_HELD, rt);
 
         (void) callback(cx, JSGC_END);
 
