@@ -40,8 +40,8 @@
 #
 
 var dialog;
-var gPrintBundle;
 var gPrintSettings = null;
+var gStringBundle  = null;
 var gPrintSettingsInterface  = Components.interfaces.nsIPrintSettings;
 var gPaperArray;
 var gPlexArray;
@@ -95,8 +95,6 @@ function getDoubleStr(val, dec)
 //---------------------------------------------------
 function initDialog()
 {
-  gPrintBundle = document.getElementById("printBundle");
-
   dialog = new Object;
 
   dialog.paperList       = document.getElementById("paperList");
@@ -164,7 +162,7 @@ paperListElement.prototype =
             var itemNode = document.createElement("menuitem");
             var label;
             try {
-              label = gPrintBundle.getString(paperObj.name);
+              label = gStringBundle.GetStringFromName(paperObj.name)
             } 
             catch (e) {
               /* No name in string bundle ? Then build one manually (this
@@ -272,6 +270,8 @@ function createPaperArray()
 //---------------------------------------------------
 function createPaperSizeList(selectedInx)
 {
+  gStringBundle = srGetStrBundle("chrome://global/locale/printPageSetup.properties");
+
   var selectElement = new paperListElement(dialog.paperList);
   selectElement.clearPaperList();
 
@@ -308,7 +308,7 @@ plexListElement.prototype =
             var itemNode = document.createElement("menuitem");
             var label;
             try {
-              label = gPrintBundle.getString(plexObj.name);
+              label = gStringBundle.GetStringFromName(plexObj.name)
             } 
             catch (e) {
               /* No name in string bundle ? Then build one manually (this
@@ -381,6 +381,8 @@ function createPlexArray()
 //---------------------------------------------------
 function createPlexNameList(selectedInx)
 {
+  gStringBundle = srGetStrBundle("chrome://global/locale/printPageSetup.properties");
+
   var selectElement = new plexListElement(dialog.plexList);
   selectElement.clearPlexList();
 
@@ -417,7 +419,7 @@ resolutionListElement.prototype =
             var itemNode = document.createElement("menuitem");
             var label;
             try {
-              label = gPrintBundle.getString(resolutionObj.name);
+              label = gStringBundle.GetStringFromName(resolutionObj.name)
             } 
             catch (e) {
               /* No name in string bundle ? Then build one manually (this
@@ -490,6 +492,8 @@ function createResolutionArray()
 //---------------------------------------------------
 function createResolutionNameList(selectedInx)
 {
+  gStringBundle = srGetStrBundle("chrome://global/locale/printPageSetup.properties");
+
   var selectElement = new resolutionListElement(dialog.resolutionList);
   selectElement.clearResolutionList();
 
@@ -526,7 +530,7 @@ colorspaceListElement.prototype =
             var itemNode = document.createElement("menuitem");
             var label;
             try {
-              label = gPrintBundle.getString(colorspaceObj.name);
+              label = gStringBundle.GetStringFromName(colorspaceObj.name)
             } 
             catch (e) {
               /* No name in string bundle ? Then build one manually (this
@@ -599,6 +603,8 @@ function createColorspaceArray()
 //---------------------------------------------------
 function createColorspaceNameList(selectedInx)
 {
+  gStringBundle = srGetStrBundle("chrome://global/locale/printPageSetup.properties");
+
   var selectElement = new colorspaceListElement(dialog.colorspaceList);
   selectElement.clearColorspaceList();
 

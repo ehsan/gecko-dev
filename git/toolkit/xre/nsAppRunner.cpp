@@ -2831,9 +2831,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 
     // display_name is owned by gdk.
     const char *display_name = gdk_get_display_arg_name();
-    if (display_name) {
-      SaveWordToEnv("DISPLAY", nsDependentCString(display_name));
-    } else {
+    if (!display_name) {
       display_name = PR_GetEnv("DISPLAY");
       if (!display_name) {
         PR_fprintf(PR_STDERR, "Error: no display specified\n");
