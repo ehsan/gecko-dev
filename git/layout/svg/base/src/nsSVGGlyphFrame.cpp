@@ -692,7 +692,7 @@ nsSVGGlyphFrame::GetCharacterPositions(nsTArray<CharacterPosition>* aCharacterPo
                                        float aMetricsScale)
 {
   PRUint32 strLength = mTextRun->GetLength();
-  NS_ABORT_IF_FALSE(strLength > 0, "no text");
+  NS_ASSERTION(strLength > 0, "no text");
 
   const gfxFloat radPerDeg = M_PI / 180.0;
 
@@ -1419,11 +1419,7 @@ nsSVGGlyphFrame::GetCharNumAtPosition(nsIDOMSVGPoint *point)
 NS_IMETHODIMP_(nsISVGGlyphFragmentLeaf *)
 nsSVGGlyphFrame::GetFirstGlyphFragment()
 {
-  nsISVGGlyphFragmentLeaf *leaf = this;
-  while (leaf && leaf->IsTextEmpty()) {
-    leaf = leaf->GetNextGlyphFragment();
-  }
-  return leaf;
+  return this;
 }
 
 NS_IMETHODIMP_(nsISVGGlyphFragmentLeaf *)
@@ -1448,8 +1444,6 @@ NS_IMETHODIMP_(PRBool)
 nsSVGGlyphFrame::EndsWithWhitespace() const
 {
   const nsTextFragment* text = mContent->GetText();
-  NS_ABORT_IF_FALSE(text->GetLength() > 0, "text expected");
-
   return NS_IsAsciiWhitespace(text->CharAt(text->GetLength() - 1));
 }
 

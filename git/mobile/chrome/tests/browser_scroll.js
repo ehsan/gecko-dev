@@ -13,7 +13,6 @@ function test() {
     executeSoon(function() {
       let rect = Elements.browsers.getBoundingClientRect();
       is(rect.top, 0, "Titlebar is hidden.");
-      finish();
     });
   });
 }

@@ -69,6 +69,10 @@ EXPORTS = \
 		nsToken.h                   \
 		$(NULL)
 
+SDK_HEADERS = \
+		nsParserDataListener.h      \
+		$(NULL)
+
 ifdef MOZ_DEBUG
 EXPORTS += \
 		nsILoggingSink.h \

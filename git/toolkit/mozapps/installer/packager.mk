@@ -233,7 +233,6 @@ DIST_FILES = \
   components \
   defaults \
   modules \
-  hyphenation \
   res \
   lib \
   lib.id \
