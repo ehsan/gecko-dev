@@ -2035,10 +2035,7 @@ nsFocusManager::SetCaretVisible(nsIPresShell* aPresShell,
     nsISelection* domSelection = docFrameSelection->
       GetSelection(nsISelectionController::SELECTION_NORMAL);
     if (domSelection) {
-      // First, hide the caret to prevent attempting to show it in SetCaretDOMSelection
-      caret->SetCaretVisible(PR_FALSE);
-
-      // Tell the caret which selection to use
+      // First, tell the caret which selection to use
       caret->SetCaretDOMSelection(domSelection);
 
       // In content, we need to set the caret. The only special case is edit

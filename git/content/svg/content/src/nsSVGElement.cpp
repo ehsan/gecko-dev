@@ -76,7 +76,6 @@
 #include "nsSVGString.h"
 #include "SVGAnimatedNumberList.h"
 #include "SVGAnimatedLengthList.h"
-#include "SVGAnimatedPointList.h"
 #include "SVGAnimatedPathSegList.h"
 #include "nsIDOMSVGUnitTypes.h"
 #include "nsIDOMSVGPointList.h"
@@ -186,10 +185,7 @@ nsSVGElement::Init()
     numberListInfo.Reset(i);
   }
 
-  // No need to reset SVGPointList since the default value is always the same
-  // (an empty list).
-
-  // No need to reset SVGPathData since the default value is always the same
+  // No need to reset SVGPathData since the default value in always the same
   // (an empty list).
 
   StringAttributesInfo stringInfo = GetStringInfo();
@@ -398,22 +394,6 @@ nsSVGElement::ParseAttribute(PRInt32 aNamespaceID,
           }
           foundMatch = PR_TRUE;
           break;
-        }
-      }
-    }
-
-    if (!foundMatch) {
-      // Check for SVGAnimatedPointList attribute
-      if (GetPointListAttrName() == aAttribute) {
-        SVGAnimatedPointList* pointList = GetAnimatedPointList();
-        if (pointList) {
-          rv = pointList->SetBaseValueString(aValue);
-          if (NS_FAILED(rv)) {
-            ReportAttributeParseFailure(GetOwnerDoc(), aAttribute, aValue);
-            // The spec says we parse everything up to the failure, so we don't
-            // call pointList->ClearBaseValue()
-          }
-          foundMatch = PR_TRUE;
         }
       }
     }
@@ -639,18 +619,6 @@ nsSVGElement::UnsetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
           DidChangeNumberList(i, PR_FALSE);
           foundMatch = PR_TRUE;
           break;
-        }
-      }
-    }
-
-    if (!foundMatch) {
-      // Check if this is a point list attribute going away
-      if (GetPointListAttrName() == aName) {
-        SVGAnimatedPointList *pointList = GetAnimatedPointList();
-        if (pointList) {
-          pointList->ClearBaseValue();
-          DidChangePointList(PR_FALSE);
-          foundMatch = PR_TRUE;
         }
       }
     }
@@ -1381,13 +1349,9 @@ nsSVGElement::UpdateAnimatedContentStyleRule()
     animContentStyleRule(mappedAttrParser.CreateStyleRule());
 
   if (animContentStyleRule) {
-#ifdef DEBUG
-    nsresult rv =
-#endif
-      SetProperty(SMIL_MAPPED_ATTR_ANIMVAL,
-                  SMIL_MAPPED_ATTR_STYLERULE_ATOM,
-                  animContentStyleRule.get(),
-                  ReleaseStyleRule);
+    nsresult rv = SetProperty(SMIL_MAPPED_ATTR_ANIMVAL,
+                              SMIL_MAPPED_ATTR_STYLERULE_ATOM,
+                              animContentStyleRule.get(), ReleaseStyleRule);
     animContentStyleRule.forget();
     NS_ABORT_IF_FALSE(rv == NS_OK,
                       "SetProperty failed (or overwrote something)");
@@ -1717,38 +1681,9 @@ nsSVGElement::GetAnimatedNumberList(nsIAtom *aAttrName)
 }
 
 void
-nsSVGElement::DidChangePointList(PRBool aDoSetAttr)
-{
-  NS_ABORT_IF_FALSE(GetPointListAttrName(), "Changing non-existent point list?");
-
-  if (!aDoSetAttr)
-    return;
-
-  nsAutoString newStr;
-  GetAnimatedPointList()->GetBaseValue().GetValueAsString(newStr);
-
-  SetAttr(kNameSpaceID_None, GetPointListAttrName(), newStr, PR_TRUE);
-}
-
-void
-nsSVGElement::DidAnimatePointList()
-{
-  NS_ABORT_IF_FALSE(GetPointListAttrName(),
-                    "Animating non-existent path data?");
-
-  nsIFrame* frame = GetPrimaryFrame();
-
-  if (frame) {
-    frame->AttributeChanged(kNameSpaceID_None,
-                            GetPointListAttrName(),
-                            nsIDOMMutationEvent::MODIFICATION);
-  }
-}
-
-void
 nsSVGElement::DidChangePathSegList(PRBool aDoSetAttr)
 {
-  NS_ABORT_IF_FALSE(GetPathDataAttrName(), "Changing non-existent path data?");
+  NS_ABORT_IF_FALSE(GetPathDataAttrName(), "Changing non-existant path data?");
 
   if (!aDoSetAttr)
     return;
@@ -1763,7 +1698,7 @@ void
 nsSVGElement::DidAnimatePathSegList()
 {
   NS_ABORT_IF_FALSE(GetPathDataAttrName(),
-                    "Animating non-existent path data?");
+                    "Animatinging non-existant path data?");
 
   nsIFrame* frame = GetPrimaryFrame();
 
@@ -2450,16 +2385,6 @@ nsSVGElement::GetAnimatedAttr(PRInt32 aNamespaceID, nsIAtom* aName)
       if (aNamespaceID == info.mStringInfo[i].mNamespaceID &&
           aName == *info.mStringInfo[i].mName) {
         return info.mStrings[i].ToSMILAttr(this);
-      }
-    }
-  }
-
-  // PointLists:
-  {
-    if (GetPointListAttrName() == aName) {
-      SVGAnimatedPointList *pointList = GetAnimatedPointList();
-      if (pointList) {
-        return pointList->ToSMILAttr(this);
       }
     }
   }

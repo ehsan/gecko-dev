@@ -3680,13 +3680,12 @@ nsHtml5Tokenizer::emitDoctypeToken(PRInt32 pos)
   systemIdentifier = nsnull;
 }
 
-PRBool 
+void 
 nsHtml5Tokenizer::internalEncodingDeclaration(nsString* internalCharset)
 {
   if (encodingDeclarationHandler) {
-    return encodingDeclarationHandler->internalEncodingDeclaration(internalCharset);
+    encodingDeclarationHandler->internalEncodingDeclaration(internalCharset);
   }
-  return PR_FALSE;
 }
 
 void 

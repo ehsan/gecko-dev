@@ -932,13 +932,6 @@ namespace JSC {
             return m_buffer.sizeOfConstantPool();
         }
 
-#ifdef DEBUG
-        void allowPoolFlush(bool allowFlush)
-        {
-            m_buffer.allowPoolFlush(allowFlush);
-        }
-#endif
-
         JmpDst label()
         {
             JmpDst label(m_buffer.size());

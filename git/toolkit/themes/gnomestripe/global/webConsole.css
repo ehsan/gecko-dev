@@ -46,10 +46,6 @@
   -moz-transition: height 100ms;
 }
 
-.hud-splitter {
-  box-shadow: 0 -1px 0 0 ThreeDShadow inset, 0 0 0 10px -moz-Dialog inset;
-}
-
 .hud-outer-wrapper {
   width: 100%;
   height: 100%;
@@ -199,19 +195,6 @@
 
 .jsterm-input-node > .textbox-input-box > .textbox-textarea {
   overflow-x: hidden;
-}
-
-.jsterm-complete-node {
-    font-family: monospace;
-    font-size: 9pt;
-    border: none;
-    padding: 0px 0px 0px 16px;
-    -moz-appearance: none;
-}
-
-.jsterm-complete-node textarea {
-    overflow-x: hidden;
-    color: #AAA;
 }
 
 .jsterm-output-line {

@@ -257,12 +257,10 @@ nsDragService::InvokeDragSession(nsIDOMNode *aDOMNode,
           if (!SetAlphaPixmap(surface, context, offsetX, offsetY, dragRect)) {
             GdkPixbuf* dragPixbuf =
               nsImageToPixbuf::SurfaceToPixbuf(surface, dragRect.width, dragRect.height);
-            if (dragPixbuf) {
+            if (dragPixbuf)
               gtk_drag_set_icon_pixbuf(context, dragPixbuf, offsetX, offsetY);
-              g_object_unref(dragPixbuf);
-            } else {
+            else
               needsFallbackIcon = PR_TRUE;
-            }
           }
         } else {
           needsFallbackIcon = PR_TRUE;

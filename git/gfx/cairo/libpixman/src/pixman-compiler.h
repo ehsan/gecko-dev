@@ -65,7 +65,7 @@
 #endif
 
 /* In libxul builds we don't ever want to export pixman symbols */
-#ifdef MOZ_ENABLE_LIBXUL
+#ifdef cairo_public
 #   define PIXMAN_EXPORT cairo_public
 #else
 
@@ -79,7 +79,7 @@
 #   define PIXMAN_EXPORT
 #endif
 
-#endif /* MOZ_ENABLE_LIBXUL */
+#endif /* cairo_public */
 
 /* TLS */
 #if defined(PIXMAN_NO_TLS)

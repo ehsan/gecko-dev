@@ -275,7 +275,7 @@ class nsHtml5Tokenizer
     }
 
   public:
-    PRBool internalEncodingDeclaration(nsString* internalCharset);
+    void internalEncodingDeclaration(nsString* internalCharset);
   private:
     void emitOrAppendTwo(const PRUnichar* val, PRInt32 returnState);
     void emitOrAppendOne(const PRUnichar* val, PRInt32 returnState);

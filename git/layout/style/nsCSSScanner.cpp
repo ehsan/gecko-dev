@@ -263,7 +263,9 @@ nsCSSScanner::nsCSSScanner()
   : mInputStream(nsnull)
   , mReadPointer(nsnull)
   , mLowLevelError(NS_OK)
+#ifdef MOZ_SVG
   , mSVGMode(PR_FALSE)
+#endif
 #ifdef CSS_REPORT_PARSE_ERRORS
   , mError(mErrorBuf, NS_ARRAY_LENGTH(mErrorBuf), 0)
 #endif
@@ -781,7 +783,7 @@ nsCSSScanner::Next(nsCSSToken& aToken)
       EatWhiteSpace();
       return PR_TRUE;
     }
-    if (ch == '/' && !IsSVGMode()) {
+    if (ch == '/') {
       PRInt32 nextChar = Peek();
       if (nextChar == '*') {
         (void) Read();
@@ -1161,6 +1163,7 @@ nsCSSScanner::ParseNumber(PRInt32 c, nsCSSToken& aToken)
   }
 
   PRBool gotE = PR_FALSE;
+#ifdef MOZ_SVG
   if (IsSVGMode() && (c == 'e' || c == 'E')) {
     PRInt32 nextChar = Peek();
     PRInt32 expSignChar = 0;
@@ -1187,6 +1190,7 @@ nsCSSScanner::ParseNumber(PRInt32 c, nsCSSToken& aToken)
       }
     }
   }
+#endif
 
   nsCSSTokenType type = eCSSToken_Number;
 

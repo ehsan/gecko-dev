@@ -76,6 +76,8 @@
 #include "nsXULAppAPI.h"
 #endif
 
+static nsOfflineCacheUpdateService *gOfflineCacheUpdateService = nsnull;
+
 static const PRUint32 kRescheduleLimit = 3;
 
 #if defined(PR_LOGGING)
@@ -1500,7 +1502,7 @@ nsOfflineCacheUpdate::ManifestCheckCompleted(nsresult aStatus,
         // In a rare case the manifest will not be modified on the next refetch
         // transfer all master document URIs to the new update to ensure that
         // all documents refering it will be properly cached.
-        for (PRInt32 i = 0; i < mDocumentURIs.Count(); i++) {
+        for (PRUint32 i = 0; i < mDocumentURIs.Count(); i++) {
             newUpdate->StickDocument(mDocumentURIs[i]);
         }
 
@@ -1770,7 +1772,7 @@ nsOfflineCacheUpdate::ScheduleImplicit()
     rv = update->InitPartial(mManifestURI, clientID, mDocumentURI);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    for (PRInt32 i = 0; i < mDocumentURIs.Count(); i++) {
+    for (PRUint32 i = 0; i < mDocumentURIs.Count(); i++) {
         rv = update->AddURI(mDocumentURIs[i], 
               nsIApplicationCache::ITEM_IMPLICIT);
         NS_ENSURE_SUCCESS(rv, rv);

@@ -5911,8 +5911,7 @@ BEGIN_CASE(JSOP_NEWARRAY)
     unsigned count = GET_UINT24(regs.pc);
     JSObject *obj = js_NewArrayObject(cx, count, NULL);
 
-    /* Avoid ensureDenseArrayElements to skip sparse array checks there. */
-    if (!obj || !obj->ensureSlots(cx, count))
+    if (!obj || !obj->ensureDenseArrayElements(cx, count))
         goto error;
 
     PUSH_OBJECT(*obj);

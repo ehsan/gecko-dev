@@ -66,6 +66,8 @@ public:
 
   // nsIContent interface
   NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
+  PRBool ParseAttribute(PRInt32 aNamespaceID, nsIAtom* aAttribute,
+                        const nsAString& aValue, nsAttrValue& aResult);
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
@@ -78,9 +80,8 @@ protected:
   static NumberInfo sNumberInfo;
 };
 
-nsSVGElement::NumberInfo nsSVGStopElement::sNumberInfo =
-{ &nsGkAtoms::offset, 0, PR_TRUE };
-
+nsSVGElement::NumberInfo nsSVGStopElement::sNumberInfo = { &nsGkAtoms::offset, 
+                                                           0 };
 NS_IMPL_NS_NEW_SVG_ELEMENT(Stop)
 
 //----------------------------------------------------------------------
@@ -127,6 +128,27 @@ nsSVGElement::NumberAttributesInfo
 nsSVGStopElement::GetNumberInfo()
 {
   return NumberAttributesInfo(&mOffset, &sNumberInfo, 1);
+}
+
+PRBool
+nsSVGStopElement::ParseAttribute(PRInt32 aNamespaceID,
+								 nsIAtom* aAttribute,
+								 const nsAString& aValue,
+								 nsAttrValue& aResult)
+{
+  if (aNamespaceID == kNameSpaceID_None) {
+    if (aAttribute == nsGkAtoms::offset) {
+      float offset = 0;
+      PRBool ok = nsSVGUtils::NumberFromString(aValue, &offset, PR_TRUE);
+      if (ok) {
+        mOffset.SetBaseValue(offset, this, PR_FALSE);
+        aResult.SetTo(aValue);
+        return PR_TRUE;
+      }
+    }
+  }
+  return nsSVGElement::ParseAttribute(aNamespaceID, aAttribute,
+                                      aValue, aResult);
 }
 
 //----------------------------------------------------------------------

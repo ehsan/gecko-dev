@@ -152,6 +152,7 @@ using namespace js;
  * Supporting functions - ECMA 15.9.1.*
  */
 
+#define HalfTimeDomain  8.64e15
 #define HoursPerDay     24.0
 #define MinutesPerDay   (HoursPerDay * MinutesPerHour)
 #define MinutesPerHour  60.0
@@ -480,6 +481,10 @@ msFromTime(jsdouble t)
         result += (intN)msPerSecond;
     return result;
 }
+
+#define TIMECLIP(d) ((JSDOUBLE_IS_FINITE(d) \
+                      && !((d < 0 ? -d : d) > HalfTimeDomain)) \
+                     ? js_DoubleToInteger(d + (+0.)) : js_NaN)
 
 /**
  * end of ECMA 'support' functions

@@ -240,7 +240,6 @@ void DEBUG_CheckWrapperThreadSafety(const XPCWrappedNative* wrapper);
 #define XPC_NATIVE_JSCLASS_MAP_SIZE         32
 #define XPC_THIS_TRANSLATOR_MAP_SIZE         8
 #define XPC_NATIVE_WRAPPER_MAP_SIZE         16
-#define XPC_WRAPPER_MAP_SIZE                16
 
 /***************************************************************************/
 // data declarations...
@@ -324,7 +323,7 @@ typedef nsDataHashtableMT<nsISupportsHashKey, JSCompartment *> XPCMTCompartmentM
 typedef nsDataHashtable<xpc::PtrAndPrincipalHashKey, JSCompartment *> XPCCompartmentMap;
 
 /***************************************************************************/
-// Useful macros...
+// useful macros...
 
 #define XPC_STRING_GETTER_BODY(dest, src) \
     NS_ENSURE_ARG_POINTER(dest); \
@@ -2698,6 +2697,7 @@ public:
     void SetNeedsSOW() { mWrapperWord |= NEEDS_SOW; }
     JSBool NeedsCOW() { return !!(mWrapperWord & NEEDS_COW); }
     void SetNeedsCOW() { mWrapperWord |= NEEDS_COW; }
+    JSBool NeedsXOW() { return !!(mWrapperWord & NEEDS_XOW); }
 
     JSObject* GetWrapper()
     {
@@ -2707,9 +2707,11 @@ public:
     {
         PRWord needsSOW = NeedsSOW() ? NEEDS_SOW : 0;
         PRWord needsCOW = NeedsCOW() ? NEEDS_COW : 0;
+        PRWord needsXOW = NeedsXOW() ? NEEDS_XOW : 0;
         mWrapperWord = PRWord(obj) |
                          needsSOW |
-                         needsCOW;
+                         needsCOW |
+                         needsXOW;
     }
 
     void NoteTearoffs(nsCycleCollectionTraversalCallback& cb);
@@ -2748,11 +2750,18 @@ private:
     enum {
         NEEDS_SOW = JS_BIT(0),
         NEEDS_COW = JS_BIT(1),
+        NEEDS_XOW = JS_BIT(2),
 
-        LAST_FLAG = NEEDS_COW,
+        LAST_FLAG = NEEDS_XOW,
 
         FLAG_MASK = 0x7
     };
+
+protected:
+    void SetNeedsXOW() {
+        NS_ASSERTION(mWrapperWord == 0, "It's too late to call this");
+        mWrapperWord = NEEDS_XOW;
+    }
 
 private:
 
@@ -2794,6 +2803,39 @@ private:
 public:
     nsCOMPtr<nsIThread>          mThread; // Don't want to overload _mOwningThread
 #endif
+};
+
+class XPCWrappedNativeWithXOW : public XPCWrappedNative
+{
+public:
+    XPCWrappedNativeWithXOW(already_AddRefed<nsISupports> aIdentity,
+                            XPCWrappedNativeProto* aProto)
+        : XPCWrappedNative(aIdentity, aProto),
+          mXOW(nsnull)
+    {
+        SetNeedsXOW();
+    }
+    XPCWrappedNativeWithXOW(already_AddRefed<nsISupports> aIdentity,
+                            XPCWrappedNativeScope* aScope,
+                            XPCNativeSet* aSet)
+        : XPCWrappedNative(aIdentity, aScope, aSet),
+          mXOW(nsnull)
+    {
+        SetNeedsXOW();
+    }
+
+    JSObject *GetXOW()
+    {
+        return mXOW;
+    }
+
+    void SetXOW(JSObject *xow)
+    {
+        mXOW = xow;
+    }
+
+private:
+    JSObject *mXOW;
 };
 
 /***************************************************************************
@@ -4442,28 +4484,22 @@ struct CompartmentPrivate
     : key(key),
       ptr(nsnull),
       wantXrays(wantXrays),
-      cycleCollectionEnabled(cycleCollectionEnabled),
-      waiverWrapperMap(nsnull)
+      cycleCollectionEnabled(cycleCollectionEnabled)
   {
   }
-
   CompartmentPrivate(nsISupports *ptr, bool wantXrays, bool cycleCollectionEnabled)
     : key(nsnull),
       ptr(ptr),
       wantXrays(wantXrays),
-      cycleCollectionEnabled(cycleCollectionEnabled),
-      waiverWrapperMap(nsnull)
+      cycleCollectionEnabled(cycleCollectionEnabled)
   {
   }
-
-  ~CompartmentPrivate();
 
   // NB: key and ptr are mutually exclusive.
   nsAutoPtr<PtrAndPrincipalHashKey> key;
   nsCOMPtr<nsISupports> ptr;
   bool wantXrays;
   bool cycleCollectionEnabled;
-  JSObject2JSObjectMap *waiverWrapperMap;
 };
 
 inline bool

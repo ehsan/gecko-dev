@@ -1078,8 +1078,7 @@ nsCanvasRenderingContext2D::SetDimensions(PRInt32 width, PRInt32 height)
             nsRefPtr<LayerManager> layerManager = nsnull;
 
             if (ownerDoc)
-              layerManager =
-                nsContentUtils::PersistentLayerManagerForDocument(ownerDoc);
+              layerManager = nsContentUtils::LayerManagerForDocument(ownerDoc);
 
             if (layerManager) {
               surface = layerManager->CreateOptimalSurface(gfxIntSize(width, height), format);
@@ -3885,9 +3884,7 @@ nsCanvasRenderingContext2D::PutImageData()
 
 NS_IMETHODIMP
 nsCanvasRenderingContext2D::PutImageData_explicit(PRInt32 x, PRInt32 y, PRUint32 w, PRUint32 h,
-                                                  unsigned char *aData, PRUint32 aDataLen,
-                                                  PRBool hasDirtyRect, PRInt32 dirtyX, PRInt32 dirtyY,
-                                                  PRInt32 dirtyWidth, PRInt32 dirtyHeight)
+                                                  unsigned char *aData, PRUint32 aDataLen)
 {
     if (!mValid)
         return NS_ERROR_FAILURE;
@@ -3895,49 +3892,8 @@ nsCanvasRenderingContext2D::PutImageData_explicit(PRInt32 x, PRInt32 y, PRUint32
     if (w == 0 || h == 0)
         return NS_ERROR_DOM_SYNTAX_ERR;
 
-    gfxRect dirtyRect;
-    gfxRect imageDataRect(0, 0, w, h);
-
-    if (hasDirtyRect) {
-        // fix up negative dimensions
-        if (dirtyWidth < 0) {
-            NS_ENSURE_TRUE(dirtyWidth != INT_MIN, NS_ERROR_DOM_INDEX_SIZE_ERR);
-
-            CheckedInt32 checkedDirtyX = CheckedInt32(dirtyX) + dirtyWidth;
-
-            if (!checkedDirtyX.valid())
-                return NS_ERROR_DOM_INDEX_SIZE_ERR;
-
-            dirtyX = checkedDirtyX.value();
-            dirtyWidth = -(int32)dirtyWidth;
-        }
-
-        if (dirtyHeight < 0) {
-            NS_ENSURE_TRUE(dirtyHeight != INT_MIN, NS_ERROR_DOM_INDEX_SIZE_ERR);
-
-            CheckedInt32 checkedDirtyY = CheckedInt32(dirtyY) + dirtyHeight;
-
-            if (!checkedDirtyY.valid())
-                return NS_ERROR_DOM_INDEX_SIZE_ERR;
-
-            dirtyY = checkedDirtyY.value();
-            dirtyHeight = -(int32)dirtyHeight;
-        }
-
-        // bound the dirty rect within the imageData rectangle
-        dirtyRect = imageDataRect.Intersect(gfxRect(dirtyX, dirtyY, dirtyWidth, dirtyHeight));
-
-        if (dirtyRect.Width() <= 0 || dirtyRect.Height() <= 0)
-            return NS_OK;
-    } else {
-        dirtyRect = imageDataRect;
-    }
-
-    dirtyRect.MoveBy(gfxPoint(x, y));
-    dirtyRect = gfxRect(0, 0, mWidth, mHeight).Intersect(dirtyRect);
-
-    if (dirtyRect.Width() <= 0 || dirtyRect.Height() <= 0)
-        return NS_OK;
+    if (!CanvasUtils::CheckSaneSubrectSize (x, y, w, h, mWidth, mHeight))
+        return NS_ERROR_DOM_SYNTAX_ERR;
 
     PRUint32 len = w * h * 4;
     if (aDataLen != len)
@@ -3983,13 +3939,14 @@ nsCanvasRenderingContext2D::PutImageData_explicit(PRInt32 x, PRInt32 y, PRUint32
     mThebes->ResetClip();
 
     mThebes->IdentityMatrix();
+    mThebes->Translate(gfxPoint(x, y));
     mThebes->NewPath();
-    mThebes->Rectangle(dirtyRect);
-    mThebes->SetSource(imgsurf, gfxPoint(x, y));
+    mThebes->Rectangle(gfxRect(0, 0, w, h));
+    mThebes->SetSource(imgsurf, gfxPoint(0, 0));
     mThebes->SetOperator(gfxContext::OPERATOR_SOURCE);
     mThebes->Fill();
 
-    return Redraw(dirtyRect);
+    return Redraw(gfxRect(x, y, w, h));
 }
 
 NS_IMETHODIMP

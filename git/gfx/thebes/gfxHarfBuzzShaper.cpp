@@ -1,5 +1,5 @@
-/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -14,8 +14,7 @@
  *
  * The Original Code is Mozilla Corporation code.
  *
- * The Initial Developer of the Original Code is
- * the Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corporation.
  * Portions created by the Initial Developer are Copyright (C) 2009-2010
  * the Initial Developer. All Rights Reserved.
  *
@@ -870,10 +869,8 @@ gfxHarfBuzzShaper::InitTextRun(gfxContext *aContext,
         hb_buffer_reverse(buffer);
     }
 
-#ifdef DEBUG
-    nsresult rv =
-#endif
-    SetGlyphsFromRun(aContext, aTextRun, buffer, aRunStart, aRunLength);
+    nsresult rv = SetGlyphsFromRun(aContext, aTextRun, buffer,
+                                   aRunStart, aRunLength);
     NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "failed to store glyphs into textrun");
     hb_buffer_destroy(buffer);
     hb_font_destroy(font);
@@ -1070,20 +1067,20 @@ gfxHarfBuzzShaper::SetGlyphsFromRun(gfxContext *aContext,
         // and endCharIndex to the limit (position beyond the last char),
         // adjusting for the offset of the stringRange relative to the textRun.
         PRInt32 baseCharIndex, endCharIndex;
-        while (charEnd < PRInt32(aRunLength) && charToGlyph[charEnd] == NO_GLYPH)
+        while (charEnd < aRunLength && charToGlyph[charEnd] == NO_GLYPH)
             charEnd++;
         baseCharIndex = charStart;
         endCharIndex = charEnd;
 
         // Then we check if the clump falls outside our actual string range;
         // if so, just go to the next.
-        if (baseCharIndex >= PRInt32(aRunLength)) {
+        if (baseCharIndex >= aRunLength) {
             glyphStart = glyphEnd;
             charStart = charEnd;
             continue;
         }
         // Ensure we won't try to go beyond the valid length of the textRun's text
-        endCharIndex = NS_MIN<PRInt32>(endCharIndex, aRunLength);
+        endCharIndex = PR_MIN(endCharIndex, aRunLength);
 
         // Now we're ready to set the glyph info in the textRun
         PRInt32 glyphsInClump = glyphEnd - glyphStart;
@@ -1165,8 +1162,7 @@ gfxHarfBuzzShaper::SetGlyphsFromRun(gfxContext *aContext,
 
         // the rest of the chars in the group are ligature continuations,
         // no associated glyphs
-        while (++baseCharIndex != endCharIndex &&
-               baseCharIndex < PRInt32(aRunLength)) {
+        while (++baseCharIndex != endCharIndex && baseCharIndex < aRunLength) {
             gfxTextRun::CompressedGlyph g;
             g.SetComplex(inOrder &&
                          aTextRun->IsClusterStart(aTextRunOffset + baseCharIndex),

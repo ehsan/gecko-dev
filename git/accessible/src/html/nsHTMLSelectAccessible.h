@@ -196,7 +196,6 @@ public:
   // nsAccessible
   virtual PRUint32 NativeRole();
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
-  virtual void InvalidateChildren();
 
 protected:
   // nsAccessible
