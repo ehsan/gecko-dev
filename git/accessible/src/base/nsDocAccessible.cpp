@@ -85,8 +85,7 @@ nsIAtom *nsDocAccessible::gLastFocusedFrameType = nsnull;
 //-----------------------------------------------------
 nsDocAccessible::nsDocAccessible(nsIDOMNode *aDOMNode, nsIWeakReference* aShell):
   nsHyperTextAccessibleWrap(aDOMNode, aShell), mWnd(nsnull),
-  mScrollPositionChangedTicks(0), mIsContentLoaded(PR_FALSE),
-  mIsLoadCompleteFired(PR_FALSE), mInFlushPendingEvents(PR_FALSE)
+  mScrollPositionChangedTicks(0), mIsContentLoaded(PR_FALSE), mIsLoadCompleteFired(PR_FALSE)
 {
   // For GTK+ native window, we do nothing here.
   if (!mDOMNode)
@@ -590,10 +589,7 @@ NS_IMETHODIMP nsDocAccessible::Shutdown()
       mEventsToFire.Clear();
       // Make sure we release the kung fu death grip which is always
       // there when there are still events left to be fired
-      // If FlushPendingEvents() is in call stack,
-      // kung fu death grip will be released there.
-      if (!mInFlushPendingEvents)
-        NS_RELEASE_THIS();
+      NS_RELEASE_THIS();
     }
   }
 
@@ -1509,7 +1505,6 @@ nsDocAccessible::FireDelayedAccessibleEvent(nsIAccessibleEvent *aEvent)
 
 NS_IMETHODIMP nsDocAccessible::FlushPendingEvents()
 {
-  mInFlushPendingEvents = PR_TRUE;
   PRUint32 length = mEventsToFire.Count();
   NS_ASSERTION(length, "How did we get here without events to fire?");
   nsCOMPtr<nsIPresShell> presShell = GetPresShell();
@@ -1630,8 +1625,7 @@ NS_IMETHODIMP nsDocAccessible::FlushPendingEvents()
 #endif
           nsCOMPtr<nsIAccessibleCaretMoveEvent> caretMoveEvent =
             new nsAccCaretMoveEvent(accessible, caretOffset);
-          if (!caretMoveEvent)
-            break; // Out of memory, break out to release kung fu death grip
+          NS_ENSURE_TRUE(caretMoveEvent, NS_ERROR_OUT_OF_MEMORY);
 
           FireAccessibleEvent(caretMoveEvent);
 
@@ -1667,7 +1661,6 @@ NS_IMETHODIMP nsDocAccessible::FlushPendingEvents()
   // After a flood of events, reset so that user input flag is off
   nsAccEvent::ResetLastInputState();
 
-  mInFlushPendingEvents = PR_FALSE;
   return NS_OK;
 }
 

@@ -548,7 +548,6 @@ struct nsCSSXUL : public nsCSSStruct  {
   nsCSSValue  mBoxOrient;
   nsCSSValue  mBoxPack;
   nsCSSValue  mBoxOrdinal;
-  nsCSSValue  mStackSizing;
 private:
   nsCSSXUL(const nsCSSXUL& aOther); // NOT IMPLEMENTED
 };

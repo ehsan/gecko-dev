@@ -62,8 +62,6 @@ include $(topsrcdir)/config/insure.mk
 endif
 endif
 
-COMMA = ,
-
 # Sanity check some variables
 CHECK_VARS := \
  XPI_NAME \
@@ -524,26 +522,10 @@ endif
 # The entire tree should be subject to static analysis using the XPCOM
 # script. Additional scripts may be added by specific subdirectories.
 
-DEHYDRA_SCRIPT = $(topsrcdir)/xpcom/analysis/static-checking.js
-
-DEHYDRA_MODULES = \
-  $(topsrcdir)/xpcom/analysis/stack.js \
-  $(NULL)
-
-TREEHYDRA_MODULES = \
-  $(topsrcdir)/xpcom/analysis/outparams.js \
-  $(NULL)
-
-DEHYDRA_ARGS = \
-  --topsrcdir=$(topsrcdir) \
-  --objdir=$(DEPTH) \
-  --dehydra-modules=$(subst $(NULL) ,$(COMMA),$(strip $(DEHYDRA_MODULES))) \
-  --treehydra-modules=$(subst $(NULL) ,$(COMMA),$(strip $(TREEHYDRA_MODULES))) \
-  $(NULL)
-
-DEHYDRA_FLAGS = -fplugin=$(DEHYDRA_PATH) -fplugin-arg="$(DEHYDRA_SCRIPT) $(DEHYDRA_ARGS)"
+DEHYDRA_SCRIPTS = $(topsrcdir)/xpcom/analysis/static-checking.js
 
 ifdef DEHYDRA_PATH
+DEHYDRA_FLAGS = -fplugin=$(DEHYDRA_PATH) $(foreach script,$(DEHYDRA_SCRIPTS),-fplugin-arg=$(script))
 OS_CXXFLAGS += $(DEHYDRA_FLAGS)
 endif
 
@@ -798,7 +780,6 @@ endif
 #
 # Include any personal overrides the user might think are needed.
 #
--include $(topsrcdir)/$(MOZ_BUILD_APP)/app-config.mk
 -include $(MY_CONFIG)
 
 ######################################################################

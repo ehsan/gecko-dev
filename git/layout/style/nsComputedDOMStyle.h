@@ -133,7 +133,6 @@ private:
   nsresult GetTop(nsIDOMCSSValue** aValue);
   nsresult GetRight(nsIDOMCSSValue** aValue);
   nsresult GetBottom(nsIDOMCSSValue** aValue);
-  nsresult GetStackSizing(nsIDOMCSSValue** aValue);
 
   /* Font properties */
   nsresult GetColor(nsIDOMCSSValue** aValue);
@@ -236,7 +235,6 @@ private:
   nsresult GetTextDecoration(nsIDOMCSSValue** aValue);
   nsresult GetTextIndent(nsIDOMCSSValue** aValue);
   nsresult GetTextTransform(nsIDOMCSSValue** aValue);
-  nsresult GetTextShadow(nsIDOMCSSValue** aValue);
   nsresult GetLetterSpacing(nsIDOMCSSValue** aValue);
   nsresult GetWordSpacing(nsIDOMCSSValue** aValue);
   nsresult GetWhiteSpace(nsIDOMCSSValue** aValue);

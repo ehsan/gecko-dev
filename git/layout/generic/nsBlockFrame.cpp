@@ -570,15 +570,7 @@ nsBlockFrame::GetAdditionalChildListName(PRInt32 aIndex) const
 /* virtual */ PRBool
 nsBlockFrame::IsContainingBlock() const
 {
-  // The block wrappers we use to wrap blocks inside inlines aren't
-  // described in the CSS spec.  We need to make them not be containing
-  // blocks for the cases where we care about the 'direction' property
-  // of an element's containing block.
-  // Since the parent of such a block is either a normal block or
-  // another such pseudo, this shouldn't cause anything bad to happen.
-  nsIAtom *pseudoType = GetStyleContext()->GetPseudoType();
-  return pseudoType != nsCSSAnonBoxes::mozAnonymousBlock &&
-         pseudoType != nsCSSAnonBoxes::mozAnonymousPositionedBlock;
+  return PR_TRUE;
 }
 
 /* virtual */ PRBool

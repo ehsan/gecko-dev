@@ -10,31 +10,9 @@ function treehydra_enabled() {
   return this.hasOwnProperty('TREE_CODE');
 }
 
-include('unstable/getopt.js');
-[options, args] = getopt();
-
-// XXXbugfix: when you pass arguments to -fplugin-arg, include_path[0] is bad
-sys.include_path[0] = options.topsrcdir + "/xpcom/analysis";
-sys.include_path.push(options.topsrcdir);
-
-let modules = [];
-
-function LoadModules(modulelist)
-{
-  if (modulelist == "")
-    return;
-
-  let modulenames = modulelist.split(',');
-  for each (let modulename in modulenames) {
-    let module = { __proto__: this };
-    include(modulename, module);
-    modules.push(module);
-  }
+if (treehydra_enabled()) {
+  include('outparams.js');
 }
-
-LoadModules(options['dehydra-modules']);
-if (treehydra_enabled())
-  LoadModules(options['treehydra-modules']);
 
 /**
  * gClassMap maps class names to an object with the following properties:
@@ -60,10 +38,6 @@ function process_type(c)
 {
   if (c.kind == 'class' || c.kind == 'struct')
     get_class(c, true);
-
-  for each (let module in modules)
-    if (module.hasOwnProperty('process_type'))
-      module.process_type(c);
 }
 
 /**
@@ -226,28 +200,27 @@ function unwrapArray(t)
 
 function process_function(f, stmts)
 {
-  for each (let module in modules)
-    if (module.hasOwnProperty('process_function'))
-      module.process_function(f, stmts);
-}
+  var stmt;
+  function getLocation()
+  {
+    if (stmt.loc)
+      return stmt.loc;
 
-function process_tree(fndecl)
-{
-  for each (let module in modules)
-    if (module.hasOwnProperty('process_tree'))
-      module.process_tree(fndecl);
-}
+    return f.loc;
+  }
 
-function process_var(decl)
-{
-  for each (let module in modules)
-    if (module.hasOwnProperty('process_var'))
-      module.process_var(decl);
-}
+  function processVar(v)
+  {
+    if (v.isConstructor &&
+        v.fieldOf &&
+        get_class(v.methodOf, false).stack &&
+        v.fieldOf.type.isPointer) {
+      error(getLocation() + ": constructed object of type '" +
+            v.methodOf.name + "' not on the stack.");
+    }
+  }
 
-function input_end()
-{
-  for each (let module in modules)
-    if (module.hasOwnProperty('input_end'))
-      module.input_end();
+  for each (stmt in stmts) {
+    iter(processVar, stmt.statements);
+  }
 }

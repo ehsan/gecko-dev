@@ -1741,9 +1741,7 @@ static PRBool SelectorMatchesTree(RuleProcessorData& aPrevData,
       data = prevdata->mParentData;
       if (!data) {
         nsIContent *content = prevdata->mContent->GetParent();
-        // GetParent could return a document fragment; we only want
-        // element parents.
-        if (content && content->IsNodeOfType(nsINode::eELEMENT)) {
+        if (content) {
           data = new (prevdata->mPresContext)
                       RuleProcessorData(prevdata->mPresContext, content,
                                         prevdata->mRuleWalker,
