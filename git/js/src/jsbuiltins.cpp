@@ -303,6 +303,17 @@ js_String_p_replace_str3(JSContext* cx, JSString* str, JSString* patstr, JSStrin
     return JSVAL_TO_STRING(vp[0]);
 }
 
+JSString* FASTCALL
+js_String_p_split(JSContext* cx, JSString* str, JSString* sepstr)
+{
+    // FIXME: optimize by calling into a lower level exported from jsstr.cpp.
+    jsval vp[3] = { JSVAL_NULL, STRING_TO_JSVAL(str), STRING_TO_JSVAL(sepstr) };
+    if (!js_str_split(cx, 2, vp))
+        return NULL;
+    JS_ASSERT(JSVAL_IS_STRING(vp[0]));
+    return JSVAL_TO_STRING(vp[0]);
+}
+
 jsdouble FASTCALL
 js_StringToNumber(JSContext* cx, JSString* str)
 {
@@ -585,6 +596,18 @@ js_ObjectToString(JSContext* cx, JSObject* obj)
         return NULL;
     JS_ASSERT(JSVAL_IS_STRING(v));
     return JSVAL_TO_STRING(v);
+}
+
+jsval FASTCALL
+js_FastEval(JSContext* cx, JSObject* eval, JSObject* obj, JSString *str)
+{
+    // FIXME: want a truly fast, frame-free js_EvalHelper in jsobj.cpp
+    jsval fval = OBJECT_TO_JSVAL(eval);
+    jsval arg = STRING_TO_JSVAL(str);
+    jsval rval;
+    if (!js_InternalCall(cx, obj, fval, 1, &arg, &rval))
+        return JSVAL_ERROR_COOKIE;
+    return rval;
 }
 
 JSObject* FASTCALL
