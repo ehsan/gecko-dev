@@ -3043,18 +3043,11 @@ nsDOMDeviceStorage::GetRootDirectoryForFile(const nsAString& aName, nsIFile** aR
   return ds->mRootDirectory->Clone(aRootDirectory);
 }
 
-bool
-nsDOMDeviceStorage::Default()
-{
+NS_IMETHODIMP
+nsDOMDeviceStorage::GetDefault(bool* aDefault) {
   nsString defaultStorageName;
   GetWritableStorageName(mStorageType, defaultStorageName);
-  return mStorageName.Equals(defaultStorageName);
-}
-
-NS_IMETHODIMP
-nsDOMDeviceStorage::GetDefault(bool* aDefault)
-{
-  *aDefault = Default();
+  *aDefault = mStorageName.Equals(defaultStorageName);
   return NS_OK;
 }
 

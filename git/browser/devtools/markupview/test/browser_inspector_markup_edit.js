@@ -255,7 +255,14 @@ function test() {
     var target = TargetFactory.forTab(gBrowser.selectedTab);
     gDevTools.showToolbox(target, "inspector").then(function(toolbox) {
       inspector = toolbox.getCurrentPanel();
-      startTests();
+      runTests();
+    });
+  }
+
+  function runTests() {
+    inspector.selection.once("new-node", startTests);
+    executeSoon(function() {
+      inspector.selection.setNode(doc.body);
     });
   }
 

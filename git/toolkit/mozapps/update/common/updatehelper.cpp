@@ -769,7 +769,12 @@ IsUnpromptedElevation(BOOL &isUnpromptedElevation)
 
     // Hand off focus rights to the out-of-process activation server. Without
     // this the metro interface won't launch.
-    CoAllowSetForegroundWindow(activateMgr, NULL);
+    hr = CoAllowSetForegroundWindow(activateMgr, NULL);
+    if (FAILED(hr)) {
+      activateMgr->Release();
+      CoUninitialize();
+      return hr;
+    }
 
     // Launch default browser in Metro
     DWORD processID;

@@ -122,18 +122,16 @@ InspectorPanel.prototype = {
 
       // All the components are initialized. Let's select a node.
       if (this.target.isLocalTab) {
-        this._selection.setNode(
-            this._getDefaultNodeForSelection(this.browser.contentDocument));
+        let root = this.browser.contentDocument.documentElement;
+        this._selection.setNode(root);
       } else if (this.target.window) {
-        this._selection.setNode(
-            this._getDefaultNodeForSelection(this.target.window.document));
+        let root = this.target.window.document.documentElement;
+        this._selection.setNode(root);
       }
 
       if (this.highlighter) {
         this.highlighter.unlock();
       }
-
-      this.markup.expandNode(this.selection.node);
 
       this.emit("ready");
       deferred.resolve(this);
@@ -143,16 +141,6 @@ InspectorPanel.prototype = {
     this.setupSidebar();
 
     return deferred.promise;
-  },
-
-  /**
-   * Select node for default selection
-   */
-  _getDefaultNodeForSelection : function(document) {
-    // if available set body node as default selected node
-    // else set documentElement
-    var defaultNode = document.body || document.documentElement;
-    return defaultNode;
   },
 
   /**
@@ -265,26 +253,21 @@ InspectorPanel.prototype = {
     this.selection.setNode(null);
     this._destroyMarkup();
     this.isDirty = false;
+    let self = this;
 
-    let onDOMReady = function() {
+    function onDOMReady() {
       newWindow.removeEventListener("DOMContentLoaded", onDOMReady, true);
 
-      if (this._destroyed) {
+      if (self._destroyed) {
         return;
       }
 
-      if (!this.selection.node) {
-        let defaultNode = this._getDefaultNodeForSelection(newWindow.document);
-        this.selection.setNode(defaultNode, "navigateaway");
+      if (!self.selection.node) {
+        self.selection.setNode(newWindow.document.documentElement, "navigateaway");
       }
-      this._initMarkup();
-
-      this.once("markuploaded", () => {
-        this.markup.expandNode(this.selection.node);
-      });
-
-      this.setupSearchBox();
-    }.bind(this);
+      self._initMarkup();
+      self.setupSearchBox();
+    }
 
     if (newWindow.document.readyState == "loading") {
       newWindow.addEventListener("DOMContentLoaded", onDOMReady, true);

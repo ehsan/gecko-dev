@@ -35,12 +35,24 @@ function test()
     inspector = aInspector;
 
     executeSoon(function() {
-      inspector.selection.once("new-node", highlightHeaderNode);
+      inspector.selection.once("new-node", highlightBodyNode);
       // Test that navigating around without a selected node gets us to the
-      // head element.
-      node = doc.querySelector("h1");
+      // body element.
+      node = doc.querySelector("body");
       let bc = inspector.breadcrumbs;
       bc.nodeHierarchy[bc.currentIndex].button.focus();
+      EventUtils.synthesizeKey("VK_RIGHT", { });
+    });
+  }
+
+  function highlightBodyNode()
+  {
+    is(inspector.selection.node, node, "selected body element");
+
+    executeSoon(function() {
+      inspector.selection.once("new-node", highlightHeaderNode);
+      // Test that moving to the child works.
+      node = doc.querySelector("h1");
       EventUtils.synthesizeKey("VK_RIGHT", { });
     });
   }
