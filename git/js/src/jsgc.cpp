@@ -2732,15 +2732,9 @@ GCRuntime::unprotectRelocatedArenas(ArenaHeader *relocatedList)
 void
 GCRuntime::releaseRelocatedArenas(ArenaHeader *relocatedList)
 {
-    AutoLockGC lock(rt);
-    releaseRelocatedArenasWithoutUnlocking(relocatedList, lock);
-    expireChunksAndArenas(true, lock);
-}
-
-void
-GCRuntime::releaseRelocatedArenasWithoutUnlocking(ArenaHeader *relocatedList, const AutoLockGC &lock)
-{
     // Release the relocated arenas, now containing only forwarding pointers
+    AutoLockGC lock(rt);
+
     unsigned count = 0;
     while (relocatedList) {
         ArenaHeader *aheader = relocatedList;
@@ -2765,6 +2759,8 @@ GCRuntime::releaseRelocatedArenasWithoutUnlocking(ArenaHeader *relocatedList, co
         releaseArena(aheader, lock);
         ++count;
     }
+
+    expireChunksAndArenas(true, lock);
 }
 
 #endif // JSGC_COMPACTING
@@ -6409,13 +6405,6 @@ GCRuntime::onOutOfMallocMemory(const AutoLockGC &lock)
 {
     // Throw away any excess chunks we have lying around.
     freeEmptyChunks(rt, lock);
-
-    // Release any relocated areans we may be holding on to.
-#if defined(JSGC_COMPACTING) && defined(DEBUG)
-    unprotectRelocatedArenas(relocatedArenasToRelease);
-    releaseRelocatedArenasWithoutUnlocking(relocatedArenasToRelease, lock);
-    relocatedArenasToRelease = nullptr;
-#endif
 
     // Immediately decommit as many arenas as possible in the hopes that this
     // might let the OS scrape together enough pages to satisfy the failing

@@ -1266,6 +1266,7 @@ CallTraceCallbackOnNonHeap(T *v, const TraceCallbacks &aCallbacks, const char *a
     MOZ_ASSERT(!IsInsideNursery(cell));
     JS::Heap<T> *asHeapT = reinterpret_cast<JS::Heap<T>*>(v);
     aCallbacks.Trace(asHeapT, aName, aClosure);
+    MOZ_ASSERT(GCMethods<T>::asGCThingOrNull(*v) == cell);
 }
 
 } /* namespace gc */

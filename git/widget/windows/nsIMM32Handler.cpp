@@ -489,7 +489,12 @@ nsIMM32Handler::OnIMEEndComposition(nsWindow* aWindow,
      NS_ConvertUTF16toUTF8(mCompositionString).get(),
      mCompositionString.IsEmpty() ? "" : ", but canceling it..."));
 
-  HandleEndComposition(aWindow, &EmptyString());
+  mCompositionString.Truncate();
+
+  nsIMEContext IMEContext(aWindow->GetWindowHandle());
+  DispatchCompositionChangeEvent(aWindow, IMEContext, false);
+
+  HandleEndComposition(aWindow);
 
   return true;
 }
@@ -948,6 +953,7 @@ nsIMM32Handler::HandleStartComposition(nsWindow* aWindow,
   }
 
   mCompositionStart = selection.mReply.mOffset;
+  mLastDispatchedCompositionString.Truncate();
 
   WidgetCompositionEvent event(true, NS_COMPOSITION_START, aWindow);
   aWindow->InitEvent(event, &point);
@@ -1006,12 +1012,13 @@ nsIMM32Handler::HandleComposition(nsWindow* aWindow,
       HandleStartComposition(aWindow, aIMEContext);
     }
 
-    GetCompositionString(aIMEContext, GCS_RESULTSTR, mCompositionString);
+    GetCompositionString(aIMEContext, GCS_RESULTSTR);
 
     PR_LOG(gIMM32Log, PR_LOG_ALWAYS,
       ("IMM32: HandleComposition, GCS_RESULTSTR\n"));
 
-    HandleEndComposition(aWindow, &mCompositionString);
+    DispatchCompositionChangeEvent(aWindow, aIMEContext, false);
+    HandleEndComposition(aWindow);
 
     if (!IS_COMPOSING_LPARAM(lParam)) {
       return ShouldDrawCompositionStringOurselves();
@@ -1032,31 +1039,27 @@ nsIMM32Handler::HandleComposition(nsWindow* aWindow,
   PR_LOG(gIMM32Log, PR_LOG_ALWAYS,
     ("IMM32: HandleComposition, GCS_COMPSTR\n"));
 
-  nsAutoString previousCompositionString(mCompositionString);
-  GetCompositionString(aIMEContext, GCS_COMPSTR, mCompositionString);
+  GetCompositionString(aIMEContext, GCS_COMPSTR);
 
   if (!IS_COMPOSING_LPARAM(lParam)) {
     PR_LOG(gIMM32Log, PR_LOG_ALWAYS,
       ("IMM32: HandleComposition, lParam doesn't indicate composing, "
-       "mCompositionString=\"%s\", previousCompositionString=\"%s\"",
+       "mCompositionString=\"%s\", mLastDispatchedCompositionString=\"%s\"",
        NS_ConvertUTF16toUTF8(mCompositionString).get(),
-       NS_ConvertUTF16toUTF8(previousCompositionString).get()));
+       NS_ConvertUTF16toUTF8(mLastDispatchedCompositionString).get()));
 
     // If composition string isn't changed, we can trust the lParam.
     // So, we need to do nothing.
-    if (previousCompositionString == mCompositionString) {
+    if (mLastDispatchedCompositionString == mCompositionString) {
       return ShouldDrawCompositionStringOurselves();
     }
 
     // IME may send WM_IME_COMPOSITION without composing lParam values
     // when composition string becomes empty (e.g., using Backspace key).
     // If composition string is empty, we should dispatch a compositionchange
-    // event with empty string and clear the clause information.
+    // event with empty string.
     if (mCompositionString.IsEmpty()) {
-      mClauseArray.Clear();
-      mAttributeArray.Clear();
-      mCursorPosition = 0;
-      DispatchCompositionChangeEvent(aWindow, aIMEContext);
+      DispatchCompositionChangeEvent(aWindow, aIMEContext, false);
       return ShouldDrawCompositionStringOurselves();
     }
 
@@ -1202,8 +1205,7 @@ nsIMM32Handler::HandleComposition(nsWindow* aWindow,
 }
 
 void
-nsIMM32Handler::HandleEndComposition(nsWindow* aWindow,
-                                     const nsAString* aCommitString)
+nsIMM32Handler::HandleEndComposition(nsWindow* aWindow)
 {
   NS_PRECONDITION(mIsComposing,
     "HandleEndComposition is called but mIsComposing is FALSE");
@@ -1211,26 +1213,23 @@ nsIMM32Handler::HandleEndComposition(nsWindow* aWindow,
     "HandleComposition should not be called when a plug-in has focus");
 
   PR_LOG(gIMM32Log, PR_LOG_ALWAYS,
-    ("IMM32: HandleEndComposition(aWindow=0x%p, aCommitString=0x%p (\"%s\"))",
-     aWindow, aCommitString,
-     aCommitString ? NS_ConvertUTF16toUTF8(*aCommitString).get() : ""));
+    ("IMM32: HandleEndComposition\n"));
+
+  WidgetCompositionEvent event(true, NS_COMPOSITION_END, aWindow);
+  nsIntPoint point(0, 0);
 
   if (mNativeCaretIsCreated) {
     ::DestroyCaret();
     mNativeCaretIsCreated = false;
   }
 
-  uint32_t message =
-    aCommitString ? NS_COMPOSITION_COMMIT : NS_COMPOSITION_COMMIT_AS_IS;
-  WidgetCompositionEvent compositionCommitEvent(true, message, aWindow);
-  nsIntPoint point(0, 0);
-  aWindow->InitEvent(compositionCommitEvent, &point);
-  if (aCommitString) {
-    compositionCommitEvent.mData = *aCommitString;
-  }
-  aWindow->DispatchWindowEvent(&compositionCommitEvent);
+  aWindow->InitEvent(event, &point);
+  // The last dispatched composition string must be the committed string.
+  event.mData = mLastDispatchedCompositionString;
+  aWindow->DispatchWindowEvent(&event);
   mIsComposing = false;
   mComposingWindow = nullptr;
+  mLastDispatchedCompositionString.Truncate();
 }
 
 static void
@@ -1514,6 +1513,7 @@ nsIMM32Handler::CommitCompositionOnPreviousWindow(nsWindow* aWindow)
     nsIMEContext IMEContext(mComposingWindow->GetWindowHandle());
     NS_ASSERTION(IMEContext.IsValid(), "IME context must be valid");
 
+    DispatchCompositionChangeEvent(mComposingWindow, IMEContext, false);
     HandleEndComposition(mComposingWindow);
     return true;
   }
@@ -1567,15 +1567,18 @@ GetRangeTypeName(uint32_t aRangeType)
 
 void
 nsIMM32Handler::DispatchCompositionChangeEvent(nsWindow* aWindow,
-                                               const nsIMEContext& aIMEContext)
+                                               const nsIMEContext &aIMEContext,
+                                               bool aCheckAttr)
 {
   NS_ASSERTION(mIsComposing, "conflict state");
   PR_LOG(gIMM32Log, PR_LOG_ALWAYS,
-    ("IMM32: DispatchCompositionChangeEvent"));
+    ("IMM32: DispatchCompositionChangeEvent, aCheckAttr=%s\n",
+     aCheckAttr ? "TRUE": "FALSE"));
 
-  // If we don't need to draw composition string ourselves, we don't need to
-  // fire compositionchange event during composing.
-  if (!ShouldDrawCompositionStringOurselves()) {
+  // If we don't need to draw composition string ourselves and this is not
+  // commit event (i.e., under composing), we don't need to fire
+  // compositionchange event during composing.
+  if (aCheckAttr && !ShouldDrawCompositionStringOurselves()) {
     // But we need to adjust composition window pos and native caret pos, here.
     SetIMERelatedWindowsPos(aWindow, aIMEContext);
     return;
@@ -1589,8 +1592,11 @@ nsIMM32Handler::DispatchCompositionChangeEvent(nsWindow* aWindow,
 
   aWindow->InitEvent(event, &point);
 
-  event.mRanges = CreateTextRangeArray();
-  event.mData = mCompositionString;
+  if (aCheckAttr) {
+    event.mRanges = CreateTextRangeArray();
+  }
+
+  event.mData = mLastDispatchedCompositionString = mCompositionString;
 
   aWindow->DispatchWindowEvent(&event);
 
@@ -1613,9 +1619,7 @@ nsIMM32Handler::CreateTextRangeArray()
   nsRefPtr<TextRangeArray> textRangeArray = new TextRangeArray();
 
   TextRange range;
-  if (mCompositionString.IsEmpty()) {
-    // Don't append clause information if composition string is empty.
-  } else if (mClauseArray.Length() == 0) {
+  if (mClauseArray.Length() == 0) {
     // Some IMEs don't return clause array information, then, we assume that
     // all characters in the composition string are in one clause.
     range.mStartOffset = 0;
@@ -1680,16 +1684,12 @@ nsIMM32Handler::CreateTextRangeArray()
 
 void
 nsIMM32Handler::GetCompositionString(const nsIMEContext &aIMEContext,
-                                     DWORD aIndex,
-                                     nsAString& aCompositionString) const
+                                     DWORD aIndex)
 {
-  aCompositionString.Truncate();
-
   // Retrieve the size of the required output buffer.
   long lRtn = ::ImmGetCompositionStringW(aIMEContext.get(), aIndex, nullptr, 0);
   if (lRtn < 0 ||
-      !aCompositionString.SetLength((lRtn / sizeof(WCHAR)) + 1,
-                                    mozilla::fallible_t())) {
+      !mCompositionString.SetLength((lRtn / sizeof(WCHAR)) + 1, mozilla::fallible_t())) {
     PR_LOG(gIMM32Log, PR_LOG_ALWAYS,
       ("IMM32: GetCompositionString, FAILED by OOM\n"));
     return; // Error or out of memory.
@@ -1697,13 +1697,13 @@ nsIMM32Handler::GetCompositionString(const nsIMEContext &aIMEContext,
 
   // Actually retrieve the composition string information.
   lRtn = ::ImmGetCompositionStringW(aIMEContext.get(), aIndex,
-                                    (LPVOID)aCompositionString.BeginWriting(),
+                                    (LPVOID)mCompositionString.BeginWriting(),
                                     lRtn + sizeof(WCHAR));
-  aCompositionString.SetLength(lRtn / sizeof(WCHAR));
+  mCompositionString.SetLength(lRtn / sizeof(WCHAR));
 
   PR_LOG(gIMM32Log, PR_LOG_ALWAYS,
-    ("IMM32: GetCompositionString, SUCCEEDED aCompositionString=\"%s\"\n",
-     NS_ConvertUTF16toUTF8(aCompositionString).get()));
+    ("IMM32: GetCompositionString, SUCCEEDED mCompositionString=\"%s\"\n",
+     NS_ConvertUTF16toUTF8(mCompositionString).get()));
 }
 
 bool

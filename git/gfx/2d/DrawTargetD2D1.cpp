@@ -816,22 +816,17 @@ DrawTargetD2D1::Init(const IntSize &aSize, SurfaceFormat aFormat)
   props.pixelFormat = D2DPixelFormat(aFormat);
   props.colorContext = nullptr;
   props.bitmapOptions = D2D1_BITMAP_OPTIONS_TARGET;
-  hr = mDC->CreateBitmap(D2DIntSize(aSize), nullptr, 0, props, (ID2D1Bitmap1**)byRef(mBitmap));
+  mDC->CreateBitmap(D2DIntSize(aSize), nullptr, 0, props, (ID2D1Bitmap1**)byRef(mBitmap));
 
   if (FAILED(hr)) {
-    gfxCriticalError() << *this << ": Error " << hexa(hr) << " failed to create new Bitmap. Size: " << aSize;
+    gfxWarning() << *this << ": Error " << hexa(hr) << " failed to create new CommandList.";
     return false;
   }
 
   props.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
   props.pixelFormat.format = DXGI_FORMAT_B8G8R8A8_UNORM;
 
-  hr = mDC->CreateBitmap(D2DIntSize(aSize), nullptr, 0, props, (ID2D1Bitmap1**)byRef(mTempBitmap));
-
-  if (FAILED(hr)) {
-    gfxCriticalError() << *this << ": Error " << hexa(hr) << " failed to create new TempBitmap. Size: " << aSize;
-    return false;
-  }
+  mDC->CreateBitmap(D2DIntSize(aSize), nullptr, 0, props, (ID2D1Bitmap1**)byRef(mTempBitmap));
 
   mDC->SetTarget(mBitmap);
 

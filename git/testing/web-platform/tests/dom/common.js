@@ -5,6 +5,7 @@
 
 // Everything is done in functions in this test harness, so we have to declare
 // all the variables before use to make sure they can be reused.
+var selection;
 var testDiv, paras, detachedDiv, detachedPara1, detachedPara2,
 	foreignDoc, foreignPara1, foreignPara2, xmlDoc, xmlElement,
 	detachedXmlElement, detachedTextNode, foreignTextNode,
@@ -16,6 +17,7 @@ var testDiv, paras, detachedDiv, detachedPara1, detachedPara2,
 var testRangesShort, testRanges, testPoints, testNodesShort, testNodes;
 
 function setupRangeTests() {
+	selection = getSelection();
 	testDiv = document.querySelector("#test");
 	if (testDiv) {
 		testDiv.parentNode.removeChild(testDiv);

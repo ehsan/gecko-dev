@@ -9593,22 +9593,7 @@ nsDocument::MaybePreLoadImage(nsIURI* uri, const nsAString &aCrossOriginAttr,
   // the "real" load occurs. Unpinned in DispatchContentLoadedEvents and
   // unlink
   if (NS_SUCCEEDED(rv)) {
-    mPreloadingImages.Put(uri, request.forget());
-  }
-}
-
-void
-nsDocument::ForgetImagePreload(nsIURI* aURI)
-{
-  // Checking count is faster than hashing the URI in the common
-  // case of empty table.
-  if (mPreloadingImages.Count() != 0) {
-    nsCOMPtr<imgIRequest> req;
-    mPreloadingImages.Remove(aURI, getter_AddRefs(req));
-    if (req) {
-      // Make sure to cancel the request so imagelib knows it's gone.
-      req->CancelAndForgetObserver(NS_BINDING_ABORTED);
-    }
+    mPreloadingImages.AppendObject(request);
   }
 }
 

@@ -1,10 +1,13 @@
 from cgi import escape
 import gzip as gzip_module
+import logging
 import re
 import time
 import types
 import uuid
 from cStringIO import StringIO
+
+logger = logging.getLogger("wptserve")
 
 
 def resolve_content(response):
@@ -286,7 +289,7 @@ class ReplacementTokenizer(object):
         token = token[1:-1]
         try:
             token = int(token)
-        except ValueError:
+        except:
             token = unicode(token, "utf8")
         return ("index", token)
 
@@ -308,9 +311,9 @@ class FirstWrapper(object):
 
     def __getitem__(self, key):
         try:
-            return self.params.first(key)
+          return self.params.first(key)
         except KeyError:
-            return ""
+          return ""
 
 
 @pipe()
@@ -439,7 +442,7 @@ def gzip(request, response):
 
     out = StringIO()
     with gzip_module.GzipFile(fileobj=out, mode="w") as f:
-        f.write(content)
+      f.write(content)
     response.content = out.getvalue()
 
     response.headers.set("Content-Length", len(response.content))

@@ -11882,7 +11882,6 @@ class CGResolveSystemBinding(CGAbstractMethod):
     def definition_body(self):
         descriptors = self.config.getDescriptors(hasInterfaceObject=True,
                                                  isExposedInSystemGlobals=True,
-                                                 workers=False,
                                                  register=True,
                                                  skipGen=False)
 

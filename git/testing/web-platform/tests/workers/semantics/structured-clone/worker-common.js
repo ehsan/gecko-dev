@@ -9,9 +9,8 @@ function check_true(actual, msg) {
   return true;
 }
 
-function check_Blob(msg, input, port, expect_File, orig_input) {
+function check_Blob(msg, input, port, expect_File) {
   expect_File = !!expect_File;
-  orig_input = orig_input || input;
   try {
     var expected;
     switch (msg) {
@@ -65,7 +64,7 @@ function check_Blob(msg, input, port, expect_File, orig_input) {
               check_true(view.getUint8(i) === expected[i], 'view.getUint8('+i+') === expected['+i+']')
             }
             if (log.length === 0) {
-              port.postMessage(orig_input);
+              port.postMessage(input);
             } else {
               port.postMessage('FAIL '+log);
             }
@@ -725,7 +724,7 @@ function check(input, port) {
       case 'Array Blob object, Blob NUL':
         if (check_true(input instanceof Array, 'input instanceof Array') &&
             check_true(input.length === 1, 'input.length === 1')) {
-          check_Blob(msg.substr('Array Blob object, '.length), input[0], port, false, input);
+          check_Blob(msg.substr('Array Blob object, '.length), input[0], port);
           // no postMessage or close here, check_Blob takes care of that
         }
         break;
@@ -743,7 +742,7 @@ function check(input, port) {
               i++;
             }
             if (check_true(i === 1, 'i === 1')) {
-              check_Blob(msg.substr('Object Blob object, '.length), input['x'], port, false, input);
+              check_Blob(msg.substr('Object Blob object, '.length), input['x'], port);
               // no postMessage or close here, check_Blob takes care of that
             }
           }

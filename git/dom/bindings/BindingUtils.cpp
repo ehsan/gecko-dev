@@ -459,7 +459,7 @@ CreateInterfaceObject(JSContext* cx, JS::Handle<JSObject*> global,
     }
 
     if (!JS_DefineProperty(cx, constructor, "length", ctorNargs,
-                           JSPROP_READONLY)) {
+                           JSPROP_READONLY | JSPROP_PERMANENT)) {
       return nullptr;
     }
 
@@ -2089,9 +2089,7 @@ ConstructJSImplementation(JSContext* aCx, const char* aContractId,
     nsresult rv;
     nsCOMPtr<nsISupports> implISupports = do_CreateInstance(aContractId, &rv);
     if (!implISupports) {
-      nsPrintfCString msg("Failed to get JS implementation for contract \"%s\"",
-                          aContractId);
-      NS_WARNING(msg.get());
+      NS_WARNING("Failed to get JS implementation for contract");
       aRv.Throw(rv);
       return;
     }
