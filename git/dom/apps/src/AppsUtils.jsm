@@ -90,9 +90,7 @@ this.AppsUtils = {
       packageHash: aApp.packageHash,
       staged: aApp.staged,
       installerAppId: aApp.installerAppId || Ci.nsIScriptSecurityManager.NO_APP_ID,
-      installerIsBrowser: !!aApp.installerIsBrowser,
-      storeId: aApp.storeId || "",
-      storeVersion: aApp.storeVersion || 0
+      installerIsBrowser: !!aApp.installerIsBrowser
     };
   },
 
@@ -121,17 +119,6 @@ this.AppsUtils = {
     debug("getAppLocalIdByManifestURL " + aManifestURL);
     for (let id in aApps) {
       if (aApps[id].manifestURL == aManifestURL) {
-        return aApps[id].localId;
-      }
-    }
-
-    return Ci.nsIScriptSecurityManager.NO_APP_ID;
-  },
-
-  getAppLocalIdByStoreId: function(aApps, aStoreId) {
-    debug("getAppLocalIdByStoreId:" + aStoreId);
-    for (let id in aApps) {
-      if (aApps[id].storeId == aStoreId) {
         return aApps[id].localId;
       }
     }
