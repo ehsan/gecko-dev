@@ -70,7 +70,8 @@ void
 MediaEngineGonkVideoSource::NotifyPull(MediaStreamGraph* aGraph,
                                        SourceMediaStream* aSource,
                                        TrackID aID,
-                                       StreamTime aDesiredTime)
+                                       StreamTime aDesiredTime,
+                                       StreamTime& aLastEndTime)
 {
   VideoSegment segment;
 
@@ -81,7 +82,7 @@ MediaEngineGonkVideoSource::NotifyPull(MediaStreamGraph* aGraph,
 
   // Note: we're not giving up mImage here
   nsRefPtr<layers::Image> image = mImage;
-  StreamTime delta = aDesiredTime - aSource->GetEndOfAppendedData(aID);
+  StreamTime delta = aDesiredTime - aLastEndTime;
   LOGFRAME(("NotifyPull, desired = %ld, delta = %ld %s", (int64_t) aDesiredTime,
             (int64_t) delta, image ? "" : "<null>"));
 
@@ -101,7 +102,9 @@ MediaEngineGonkVideoSource::NotifyPull(MediaStreamGraph* aGraph,
     segment.AppendFrame(image.forget(), delta, size);
     // This can fail if either a) we haven't added the track yet, or b)
     // we've removed or finished the track.
-    aSource->AppendToTrack(aID, &(segment));
+    if (aSource->AppendToTrack(aID, &(segment))) {
+      aLastEndTime = aDesiredTime;
+    }
   }
 }
 

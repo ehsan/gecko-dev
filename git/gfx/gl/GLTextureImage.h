@@ -58,7 +58,7 @@ public:
     enum Flags {
         NoFlags          = 0x0,
         UseNearestFilter = 0x1,
-        OriginBottomLeft = 0x2,
+        NeedsYFlip       = 0x2,
         DisallowBigImage = 0x4
     };
 
@@ -381,8 +381,7 @@ CreateBasicTextureImage(GLContext* aGL,
   * |aWrapMode| (usually GL_CLAMP_TO_EDGE or GL_REPEAT) and by
   * default, GL_LINEAR filtering.  Specify
   * |aFlags=UseNearestFilter| for GL_NEAREST filtering. Specify
-  * |aFlags=OriginBottomLeft| if the image is origin-bottom-left, instead of the
-  * default origin-top-left. Return
+  * |aFlags=NeedsYFlip| if the image is flipped. Return
   * nullptr if creating the TextureImage fails.
   *
   * The returned TextureImage may only be used with this GLContext.
