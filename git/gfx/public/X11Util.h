@@ -53,8 +53,6 @@
 #  error Unknown toolkit
 #endif 
 
-#include "nsDebug.h"
-
 namespace mozilla {
 
 /**
@@ -77,27 +75,20 @@ DefaultXDisplay()
 template<typename T>
 struct ScopedXFree
 {
-  ScopedXFree() : mPtr(NULL) {}
   ScopedXFree(T* aPtr) : mPtr(aPtr) {}
 
-  ~ScopedXFree() { Assign(NULL); }
-
-  ScopedXFree& operator=(T* aPtr) { Assign(aPtr); return *this; }
+  ~ScopedXFree()
+  {
+    if (mPtr)
+      XFree(mPtr);
+  }
 
   operator T*() const { return get(); }
   T* operator->() const { return get(); }
   T* get() const { return mPtr; }
 
+
 private:
-  void Assign(T* aPtr)
-  {
-    NS_ASSERTION(!mPtr || mPtr != aPtr, "double-XFree() imminent");
-
-    if (mPtr)
-      XFree(mPtr);
-    mPtr = aPtr;
-  }
-
   T* mPtr;
 
   // disable these

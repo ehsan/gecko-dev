@@ -524,9 +524,9 @@
   <menu id="bookmarksMenu"
         label="&bookmarksMenu.label;"
         accesskey="&bookmarksMenu.accesskey;"
-        ondragenter="PlacesMenuDNDHandler.onDragEnter(event);"
-        ondragover="PlacesMenuDNDHandler.onDragOver(event);"
-        ondrop="PlacesMenuDNDHandler.onDrop(event);">
+        ondragenter="PlacesMenuDNDController.onBookmarksMenuDragEnter(event);"
+        ondragover="BookmarksMenuDropHandler.onDragOver(event);"
+        ondrop="BookmarksMenuDropHandler.onDrop(event);">
     <menupopup id="bookmarksMenuPopup"
 #ifndef XP_MACOSX
                placespopup="true"

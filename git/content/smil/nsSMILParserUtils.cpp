@@ -548,26 +548,26 @@ public:
   SMILValueParser(const nsISMILAnimationElement* aSrcElement,
                   const nsISMILAttr* aSMILAttr,
                   nsTArray<nsSMILValue>* aValuesArray,
-                  PRBool* aPreventCachingOfSandwich) :
+                  PRBool* aCanCache) :
     mSrcElement(aSrcElement),
     mSMILAttr(aSMILAttr),
     mValuesArray(aValuesArray),
-    mPreventCachingOfSandwich(aPreventCachingOfSandwich)
+    mCanCache(aCanCache)
   {}
 
   virtual nsresult Parse(const nsAString& aValueStr) {
     nsSMILValue newValue;
-    PRBool tmpPreventCachingOfSandwich;
-    nsresult rv = mSMILAttr->ValueFromString(aValueStr, mSrcElement, newValue,
-                                             tmpPreventCachingOfSandwich);
+    PRBool tmpCanCache;
+    nsresult rv = mSMILAttr->ValueFromString(aValueStr, mSrcElement,
+                                             newValue, tmpCanCache);
     if (NS_FAILED(rv))
       return rv;
 
     if (!mValuesArray->AppendElement(newValue)) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
-    if (tmpPreventCachingOfSandwich) {
-      *mPreventCachingOfSandwich = PR_TRUE;
+    if (!tmpCanCache) {
+      *mCanCache = PR_FALSE;
     }
     return NS_OK;
   }
@@ -575,7 +575,7 @@ protected:
   const nsISMILAnimationElement* mSrcElement;
   const nsISMILAttr* mSMILAttr;
   nsTArray<nsSMILValue>* mValuesArray;
-  PRBool* mPreventCachingOfSandwich;
+  PRBool* mCanCache;
 };
 
 nsresult
@@ -583,12 +583,12 @@ nsSMILParserUtils::ParseValues(const nsAString& aSpec,
                                const nsISMILAnimationElement* aSrcElement,
                                const nsISMILAttr& aAttribute,
                                nsTArray<nsSMILValue>& aValuesArray,
-                               PRBool& aPreventCachingOfSandwich)
+                               PRBool& aCanCache)
 {
   // Assume all results can be cached, until we find one that can't.
-  aPreventCachingOfSandwich = PR_FALSE;
+  aCanCache = PR_TRUE;
   SMILValueParser valueParser(aSrcElement, &aAttribute,
-                              &aValuesArray, &aPreventCachingOfSandwich);
+                              &aValuesArray, &aCanCache);
   return ParseValuesGeneric(aSpec, valueParser);
 }
 

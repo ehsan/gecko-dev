@@ -37,17 +37,19 @@
 #ifdef MOZ_WIDGET_GTK2
 #include <gdk/gdk.h>
 #include <gdk/gdkx.h>
+// we're using default display for now
 #define GET_NATIVE_WINDOW(aWidget) GDK_WINDOW_XID((GdkWindow *) aWidget->GetNativeData(NS_NATIVE_WINDOW))
+#define DISPLAY gdk_x11_get_default_xdisplay
 #elif defined(MOZ_WIDGET_QT)
 #include <QWidget>
 #include <QX11Info>
+// we're using default display for now
 #define GET_NATIVE_WINDOW(aWidget) static_cast<QWidget*>(aWidget->GetNativeData(NS_NATIVE_SHELLWIDGET))->handle()
+#define DISPLAY QX11Info().display
 #endif
 
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
-
-#include "mozilla/X11Util.h"
 
 #include "GLContextProvider.h"
 #include "nsDebug.h"
@@ -114,8 +116,7 @@ ctxErrorHandler(Display *dpy, XErrorEvent *ev)
 class GLContextGLX : public GLContext
 {
 public:
-    static already_AddRefed<GLContextGLX>
-    CreateGLContext(Display *display, GLXDrawable drawable, GLXFBConfig cfg, PRBool pbuffer)
+    static GLContextGLX *CreateGLContext(Display *display, GLXDrawable drawable, GLXFBConfig cfg, PRBool pbuffer)
     {
         int db = 0, err;
         err = sGLXLibrary.xGetFBConfigAttrib(display, cfg,
@@ -143,16 +144,16 @@ public:
             return nsnull;
         }
 
-        nsRefPtr<GLContextGLX> glContext(new GLContextGLX(display, 
-                                                          drawable, 
-                                                          context,
-                                                          pbuffer,
-                                                          db));
+        GLContextGLX *glContext = new GLContextGLX(display, 
+                                                   drawable, 
+                                                   context,
+                                                   pbuffer,
+                                                   db);
         if (!glContext->Init()) {
             return nsnull;
         }
 
-        return glContext.forget();
+        return glContext;
     }
 
     ~GLContextGLX()
@@ -272,7 +273,7 @@ GLContextProvider::CreateForWindow(nsIWidget *aWidget)
     const char *vendor = sGLXLibrary.xQueryServerString(display, xscreen, GLX_VENDOR);
     PRBool isATI = vendor && strstr(vendor, "ATI");
     int numConfigs;
-    ScopedXFree<GLXFBConfig> cfgs;
+    GLXFBConfig *cfgs;
     if (isATI) {
         const int attribs[] = {
             GLX_DOUBLEBUFFER, False,
@@ -308,7 +309,7 @@ GLContextProvider::CreateForWindow(nsIWidget *aWidget)
     printf("[GLX] widget has VisualID 0x%lx\n", widgetVisualID);
 #endif
 
-    ScopedXFree<XVisualInfo> vi;
+    XVisualInfo *vi = NULL;
     if (isATI) {
         XVisualInfo vinfo_template;
         int nvisuals;
@@ -323,25 +324,33 @@ GLContextProvider::CreateForWindow(nsIWidget *aWidget)
 
     int matchIndex = -1;
     for (int i = 0; i < numConfigs; i++) {
-        ScopedXFree<XVisualInfo> info(sGLXLibrary.xGetVisualFromFBConfig(display, cfgs[i]));
+        XVisualInfo *info = sGLXLibrary.xGetVisualFromFBConfig(display, cfgs[i]);
         if (!info) {
             continue;
         }
         if (isATI) {
             if (AreCompatibleVisuals(vi, info)) {
                 matchIndex = i;
+                XFree(info);
                 break;
             }
         } else {
             if (widgetVisualID == info->visualid) {
                 matchIndex = i;
+                XFree(info);
                 break;
             }
         }
+        XFree(info);
+    }
+
+    if (isATI) {
+        XFree(vi);
     }
 
     if (matchIndex == -1) {
         NS_WARNING("[GLX] Couldn't find a FBConfig matching widget visual");
+        XFree(cfgs);
         return nsnull;
     }
 
@@ -349,7 +358,9 @@ GLContextProvider::CreateForWindow(nsIWidget *aWidget)
                                                                      window,
                                                                      cfgs[matchIndex],
                                                                      PR_FALSE);
-    return glContext.forget();
+    XFree(cfgs);
+
+    return glContext.forget().get();
 }
 
 already_AddRefed<GLContext>
@@ -368,7 +379,7 @@ GLContextProvider::CreatePBuffer(const gfxIntSize &aSize, const ContextFormat& a
     } while(0)
 
     int numFormats;
-    Display *display = DefaultXDisplay();
+    Display *display = DISPLAY();
     int xscreen = DefaultScreen(display);
 
     A2_(GLX_DOUBLEBUFFER, False);
@@ -381,15 +392,15 @@ GLContextProvider::CreatePBuffer(const gfxIntSize &aSize, const ContextFormat& a
     A2_(GLX_DEPTH_SIZE, aFormat.depth);
     A1_(0);
 
-    ScopedXFree<GLXFBConfig> cfg(sGLXLibrary.xChooseFBConfig(display,
-                                                             xscreen,
-                                                             attribs.Elements(),
-                                                             &numFormats));
+    GLXFBConfig *cfg = sGLXLibrary.xChooseFBConfig(display,
+                                                   xscreen,
+                                                   attribs.Elements(),
+                                                   &numFormats);
+
     if (!cfg) {
         return nsnull;
     }
-    NS_ASSERTION(numFormats > 0,
-                 "glXChooseFBConfig() failed to match our requested format and violated its spec (!)");
+    NS_ASSERTION(numFormats > 0, "");
    
     nsTArray<int> pbattribs;
     pbattribs.AppendElement(GLX_PBUFFER_WIDTH);
@@ -404,6 +415,7 @@ GLContextProvider::CreatePBuffer(const gfxIntSize &aSize, const ContextFormat& a
                                                     pbattribs.Elements());
 
     if (pbuffer == 0) {
+        XFree(cfg);
         return nsnull;
     }
 
@@ -411,7 +423,13 @@ GLContextProvider::CreatePBuffer(const gfxIntSize &aSize, const ContextFormat& a
                                                                      pbuffer,
                                                                      cfg[0],
                                                                      PR_TRUE);
-    return glContext.forget();
+    XFree(cfg);
+
+    if (!glContext) {
+        return nsnull;
+    }
+
+    return glContext.forget().get();
 }
 
 already_AddRefed<GLContext>

@@ -1098,8 +1098,6 @@ function BrowserStartup() {
 
   TabsOnTop.syncCommand();
 
-  BookmarksMenuButton.init();
-
   setTimeout(delayedStartup, 0, isLoadingBlank, mustLoadSidebar);
 }
 
@@ -3336,8 +3334,6 @@ function BrowserCustomizeToolbar()
 
   CombinedStopReload.uninit();
 
-  BookmarksMenuButton.customizeStart();
-
   var customizeURL = "chrome://global/content/customizeToolbar.xul";
   gCustomizeSheet = getBoolPref("toolbar.customization.usesheet", false);
 
@@ -3400,7 +3396,6 @@ function BrowserToolboxCustomizeDone(aToolboxChanged) {
   }
 
   PlacesToolbarHelper.updateState();
-  BookmarksMenuButton.customizeDone();
 
   UpdateUrlbarSearchSplitterState();
 
@@ -4605,8 +4600,6 @@ function onViewToolbarCommand(aEvent) {
   toolbar.setAttribute(hidingAttribute,
                        aEvent.originalTarget.getAttribute("checked") != "true");
   document.persist(toolbar.id, hidingAttribute);
-
-  BookmarksMenuButton.updatePosition();
 
 #ifdef MENUBAR_CAN_AUTOHIDE
   updateAppButtonDisplay();
