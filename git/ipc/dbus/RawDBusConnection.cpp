@@ -20,6 +20,9 @@
 #define CHROMIUM_LOG(args...)  printf(args);
 #endif
 
+/* TODO: Remove BlueZ constant */
+#define BLUEZ_DBUS_BASE_IFC "org.bluez"
+
 namespace mozilla {
 namespace ipc {
 
@@ -331,7 +334,6 @@ bool RawDBusConnection::SendWithReply(DBusReplyCallback aCallback,
 bool RawDBusConnection::SendWithReply(DBusReplyCallback aCallback,
                                       void* aData,
                                       int aTimeout,
-                                      const char* aDestination,
                                       const char* aPath,
                                       const char* aIntf,
                                       const char* aFunc,
@@ -342,7 +344,7 @@ bool RawDBusConnection::SendWithReply(DBusReplyCallback aCallback,
   va_list args;
 
   va_start(args, aFirstArgType);
-  DBusMessage* msg = BuildDBusMessage(aDestination, aPath, aIntf, aFunc,
+  DBusMessage* msg = BuildDBusMessage(aPath, aIntf, aFunc,
                                       aFirstArgType, args);
   va_end(args);
 
@@ -353,16 +355,14 @@ bool RawDBusConnection::SendWithReply(DBusReplyCallback aCallback,
   return SendWithReply(aCallback, aData, aTimeout, msg);
 }
 
-DBusMessage* RawDBusConnection::BuildDBusMessage(const char* aDestination,
-                                                 const char* aPath,
+DBusMessage* RawDBusConnection::BuildDBusMessage(const char* aPath,
                                                  const char* aIntf,
                                                  const char* aFunc,
                                                  int aFirstArgType,
                                                  va_list aArgs)
 {
-  DBusMessage* msg = dbus_message_new_method_call(aDestination,
-                                                  aPath, aIntf,
-                                                  aFunc);
+  DBusMessage* msg = dbus_message_new_method_call(BLUEZ_DBUS_BASE_IFC,
+                                                  aPath, aIntf, aFunc);
   if (!msg) {
     CHROMIUM_LOG("Could not allocate D-Bus message object!");
     return nullptr;

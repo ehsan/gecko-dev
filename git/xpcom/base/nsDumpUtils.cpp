@@ -11,7 +11,7 @@
 #include <errno.h>
 #include "mozilla/Services.h"
 #include "nsIObserverService.h"
-#include "mozilla/ClearOnShutdown.h"
+ #include "mozilla/ClearOnShutdown.h"
 
 #if defined(XP_LINUX) || defined(__FreeBSD__) // {
 #include "mozilla/Preferences.h"
@@ -19,8 +19,6 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-
-using namespace mozilla;
 
 /*
  * The following code supports triggering a registered callback upon
@@ -120,26 +118,25 @@ SignalPipeWatcher::GetSingleton()
   return sSingleton;
 }
 
-void
-SignalPipeWatcher::RegisterCallback(uint8_t aSignal,
+/* static */ void
+SignalPipeWatcher::RegisterCallback(const uint8_t aSignal,
                                     PipeCallback aCallback)
 {
-  MutexAutoLock lock(mSignalInfoLock);
-
-  for (SignalInfoArray::index_type i = 0; i < mSignalInfo.Length(); i++)
+  for (SignalInfoArray::index_type i = 0; 
+       i < SignalPipeWatcher::mSignalInfo.Length(); i++)
   {
-    if (mSignalInfo[i].mSignal == aSignal) {
+    if (SignalPipeWatcher::mSignalInfo[i].mSignal == aSignal) {
       LOG("Register Signal(%d) callback failed! (DUPLICATE)", aSignal);
       return;
     }
   }
-  SignalInfo signalInfo = { aSignal, aCallback };
-  mSignalInfo.AppendElement(signalInfo);
-  RegisterSignalHandler(signalInfo.mSignal);
+  SignalInfo aSignalInfo = { aSignal, aCallback };
+  SignalPipeWatcher::mSignalInfo.AppendElement(aSignalInfo);
+  SignalPipeWatcher::RegisterSignalHandler(aSignalInfo.mSignal);
 }
 
-void
-SignalPipeWatcher::RegisterSignalHandler(uint8_t aSignal)
+/* static */ void
+SignalPipeWatcher::RegisterSignalHandler(const uint8_t aSignal)
 {
   struct sigaction action;
   memset(&action, 0, sizeof(action));
@@ -151,11 +148,10 @@ SignalPipeWatcher::RegisterSignalHandler(uint8_t aSignal)
       LOG("SignalPipeWatcher failed to register sig %d.", aSignal);
     }
   } else {
-    MutexAutoLock lock(mSignalInfoLock);
-    for (SignalInfoArray::index_type i = 0; i < mSignalInfo.Length(); i++) {
-      if (sigaction(mSignalInfo[i].mSignal, &action, nullptr)) {
+    for (SignalInfoArray::index_type i = 0; i < SignalPipeWatcher::mSignalInfo.Length(); i++) {
+      if (sigaction(SignalPipeWatcher::mSignalInfo[i].mSignal, &action, nullptr)) {
         LOG("SignalPipeWatcher failed to register signal(%d) "
-            "dump signal handler.", mSignalInfo[i].mSignal);
+            "dump signal handler.",SignalPipeWatcher::mSignalInfo[i].mSignal);
       }
     }
   }
@@ -163,9 +159,8 @@ SignalPipeWatcher::RegisterSignalHandler(uint8_t aSignal)
 
 SignalPipeWatcher::~SignalPipeWatcher()
 {
-  if (sDumpPipeWriteFd != -1) {
-    StopWatching();
-  }
+  if (sDumpPipeWriteFd != -1)
+    SignalPipeWatcher::StopWatching();
 }
 
 int SignalPipeWatcher::OpenFd()
@@ -187,7 +182,7 @@ int SignalPipeWatcher::OpenFd()
   int readFd = pipeFds[0];
   sDumpPipeWriteFd = pipeFds[1];
 
-  RegisterSignalHandler();
+  SignalPipeWatcher::RegisterSignalHandler();
   return readFd;
 }
 
@@ -220,13 +215,10 @@ void SignalPipeWatcher::OnFileCanReadWithoutBlocking(int aFd)
     return;
   }
 
-  {
-    MutexAutoLock lock(mSignalInfoLock);
-    for (SignalInfoArray::index_type i = 0; i < mSignalInfo.Length(); i++) {
-      if(signum == mSignalInfo[i].mSignal) {
-        mSignalInfo[i].mCallback(signum);
-        return;
-      }
+  for (SignalInfoArray::index_type i = 0; i < SignalPipeWatcher::mSignalInfo.Length(); i++) {
+    if(signum == SignalPipeWatcher::mSignalInfo[i].mSignal) {
+      SignalPipeWatcher::mSignalInfo[i].mCallback(signum);
+      return;
     }
   }
   LOG("SignalPipeWatcher got unexpected signum.");
@@ -265,26 +257,25 @@ FifoWatcher::MaybeCreate()
   }
 
   // The FifoWatcher is held alive by the observer service.
-  if (!sSingleton) {
-    GetSingleton();
+  if (!FifoWatcher::sSingleton) {
+    FifoWatcher::GetSingleton();
   }
   return true;
 }
 
 void
-FifoWatcher::RegisterCallback(const nsCString& aCommand, FifoCallback aCallback)
+FifoWatcher::RegisterCallback(const nsCString& aCommand,FifoCallback aCallback)
 {
-  MutexAutoLock lock(mFifoInfoLock);
-
-  for (FifoInfoArray::index_type i = 0; i < mFifoInfo.Length(); i++)
+  for (FifoInfoArray::index_type i = 0;
+       i < FifoWatcher::mFifoInfo.Length(); i++)
   {
-    if (mFifoInfo[i].mCommand.Equals(aCommand)) {
+    if (FifoWatcher::mFifoInfo[i].mCommand.Equals(aCommand)) {
       LOG("Register command(%s) callback failed! (DUPLICATE)", aCommand.get());
       return;
     }
   }
   FifoInfo aFifoInfo = { aCommand, aCallback };
-  mFifoInfo.AppendElement(aFifoInfo);
+  FifoWatcher::mFifoInfo.AppendElement(aFifoInfo);
 }
 
 FifoWatcher::~FifoWatcher()
@@ -401,15 +392,11 @@ void FifoWatcher::OnFileCanReadWithoutBlocking(int aFd)
   // it'll actually write "foo\n" to the fifo.
   inputStr.Trim("\b\t\r\n");
 
-  {
-    MutexAutoLock lock(mFifoInfoLock);
-
-    for (FifoInfoArray::index_type i = 0; i < mFifoInfo.Length(); i++) {
-      const nsCString commandStr = mFifoInfo[i].mCommand;
-      if(inputStr == commandStr.get()) {
-        mFifoInfo[i].mCallback(inputStr);
-        return;
-      }
+  for (FifoInfoArray::index_type i = 0; i < FifoWatcher::mFifoInfo.Length(); i++) {
+    const nsCString commandStr = FifoWatcher::mFifoInfo[i].mCommand;
+    if(inputStr == commandStr.get()) {
+      FifoWatcher::mFifoInfo[i].mCallback(inputStr);
+      return;
     }
   }
   LOG("Got unexpected value from fifo; ignoring it.");

@@ -68,7 +68,6 @@ WEBIDL_FILES = [
     'CSSValueList.webidl',
     'DataContainerEvent.webidl',
     'DataStore.webidl',
-    'DataStoreImpl.webidl',
     'DataTransfer.webidl',
     'DedicatedWorkerGlobalScope.webidl',
     'DelayNode.webidl',

@@ -23,7 +23,6 @@ function createRootActor(aConnection)
 {
   let parameters = {
     tabList: new MobileTabList(aConnection),
-    addonList: new BrowserAddonList(aConnection),
     globalActorFactories: DebuggerServer.globalActorFactories,
     onShutdown: sendShutdownEvent
   };

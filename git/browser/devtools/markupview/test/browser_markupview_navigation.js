@@ -113,6 +113,14 @@ function pressKey(key) {
   }
 }
 
+function waitForChildrenUpdated(inspector) {
+  let def = promise.defer();
+  inspector.markup._waitForChildren().then(() => {
+    executeSoon(def.resolve);
+  });
+  return def.promise;
+}
+
 function checkSelectedNode(key, className, inspector) {
   let node = inspector.selection.node;
 
