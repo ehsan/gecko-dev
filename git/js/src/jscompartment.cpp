@@ -176,9 +176,8 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
 
         /* Translate StopIteration singleton. */
         if (obj->isStopIteration()) {
-            RootedObject null(cx);
             RootedValue vvp(cx, *vp);
-            bool result = js_FindClassObject(cx, null, JSProto_StopIteration, &vvp);
+            bool result = js_FindClassObject(cx, NullPtr(), JSProto_StopIteration, &vvp);
             *vp = vvp;
             return result;
         }
@@ -472,30 +471,35 @@ JSCompartment::discardJitCode(FreeOp *fop)
 void
 JSCompartment::sweep(FreeOp *fop, bool releaseTypes)
 {
-    sweepCrossCompartmentWrappers();
-
-    /* Remove dead references held weakly by the compartment. */
-
-    sweepBaseShapeTable();
-    sweepInitialShapeTable();
-    sweepNewTypeObjectTable(newTypeObjects);
-    sweepNewTypeObjectTable(lazyTypeObjects);
-
-    if (emptyTypeObject && !IsTypeObjectMarked(emptyTypeObject.unsafeGet()))
-        emptyTypeObject = NULL;
-
-    sweepBreakpoints(fop);
-
     {
-        gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_DISCARD_CODE);
+        gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_SWEEP_DISCARD_CODE);
         discardJitCode(fop);
     }
 
-    if (global_ && !IsObjectMarked(&global_))
-        global_ = NULL;
+    /* This function includes itself in PHASE_SWEEP_TABLES. */
+    sweepCrossCompartmentWrappers();
 
-    /* JIT code can hold references on RegExpShared, so sweep regexps after clearing code. */
-    regExps.sweep(rt);
+    {
+        gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_SWEEP_TABLES);
+
+        /* Remove dead references held weakly by the compartment. */
+
+        sweepBaseShapeTable();
+        sweepInitialShapeTable();
+        sweepNewTypeObjectTable(newTypeObjects);
+        sweepNewTypeObjectTable(lazyTypeObjects);
+
+        if (emptyTypeObject && !IsTypeObjectMarked(emptyTypeObject.unsafeGet()))
+            emptyTypeObject = NULL;
+
+        sweepBreakpoints(fop);
+
+        if (global_ && !IsObjectMarked(&global_))
+            global_ = NULL;
+
+        /* JIT code can hold references on RegExpShared, so sweep regexps after clearing code. */
+        regExps.sweep(rt);
+    }
 
     if (!activeAnalysis && !gcPreserveCode) {
         gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_DISCARD_ANALYSIS);
@@ -548,6 +552,11 @@ JSCompartment::sweep(FreeOp *fop, bool releaseTypes)
                 script->clearAnalysis();
             }
         }
+
+        {
+            gcstats::AutoPhase ap2(rt->gcStats, gcstats::PHASE_FREE_TI_ARENA);
+            oldAlloc.freeAll();
+        }
     }
 
     active = false;
@@ -561,6 +570,8 @@ JSCompartment::sweep(FreeOp *fop, bool releaseTypes)
 void
 JSCompartment::sweepCrossCompartmentWrappers()
 {
+    gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_SWEEP_TABLES);
+
     /* Remove dead wrappers from the table. */
     for (WrapperMap::Enum e(crossCompartmentWrappers); !e.empty(); e.popFront()) {
         CrossCompartmentKey key = e.front().key;
