@@ -775,8 +775,10 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
   if (parent) {
     rv = parent->GetContentViewer(getter_AddRefs(parentContentViewer));
     NS_ENSURE_SUCCESS(rv, rv);
-    if (parentContentViewer) {
-      parentDocument = parentContentViewer->GetDocument();
+    nsCOMPtr<nsIDocumentViewer> docViewer =
+      do_QueryInterface(parentContentViewer);
+    if (docViewer) {
+      docViewer->GetDocument(getter_AddRefs(parentDocument));
     }
   }
 

@@ -905,7 +905,7 @@ nsExternalResourceMap::AddExternalResource(nsIURI* aURI,
   
   nsCOMPtr<nsIDocument> doc;
   if (aViewer) {
-    doc = aViewer->GetDocument();
+    aViewer->GetDocument(getter_AddRefs(doc));
     NS_ASSERTION(doc, "Must have a document");
 
     nsCOMPtr<nsIXULDocument> xulDoc = do_QueryInterface(doc);
