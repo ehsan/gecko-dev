@@ -64,21 +64,6 @@ NSSCleanupAutoPtrClass(void, PR_FREEIF)
 
 static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
 
-void
-getSiteKey(const nsACString & hostName, uint16_t port,
-           /*out*/ nsCSubstring & key)
-{
-  key = hostName;
-  key.AppendASCII(":");
-  key.AppendInt(port);
-}
-
-void
-getSiteKey(const nsNSSSocketInfo & socketInfo, /*out*/ nsCSubstring & key)
-{
-  getSiteKey(socketInfo.GetHostName(), socketInfo.GetPort(), key);
-}
-
 /* SSM_UserCertChoice: enum for cert choice info */
 typedef enum {ASK, AUTO} SSM_UserCertChoice;
 
@@ -93,6 +78,8 @@ nsNSSSocketInfo::nsNSSSocketInfo(SharedSSLState& aState, uint32_t providerFlags)
     mCertVerificationState(before_cert_verification),
     mSharedState(aState),
     mForSTARTTLS(false),
+    mSSL3Enabled(false),
+    mTLSEnabled(false),
     mHandshakePending(true),
     mHasCleartextPhase(false),
     mHandshakeInProgress(false),
@@ -114,8 +101,6 @@ nsNSSSocketInfo::nsNSSSocketInfo(SharedSSLState& aState, uint32_t providerFlags)
     mSocketCreationTimestamp(TimeStamp::Now()),
     mPlaintextBytesRead(0)
 {
-  mTLSVersionRange.min = 0;
-  mTLSVersionRange.max = 0;
 }
 
 NS_IMPL_ISUPPORTS_INHERITED2(nsNSSSocketInfo, TransportSecurityInfo,
@@ -344,7 +329,7 @@ nsNSSSocketInfo::JoinConnection(const nsACString & npnProtocol,
 
   // If this is the same hostname then the certicate status does not
   // need to be considered. They are joinable.
-  if (hostname.Equals(GetHostName())) {
+  if (GetHostName() && hostname.Equals(GetHostName())) {
     *_retval = true;
     return NS_OK;
   }
@@ -609,11 +594,24 @@ bool nsNSSSocketInfo::HandshakeTimeout()
 
 void nsSSLIOLayerHelpers::Cleanup()
 {
-  mTLSIntoleranceInfo.Clear();
+  if (mTLSIntolerantSites) {
+    delete mTLSIntolerantSites;
+    mTLSIntolerantSites = nullptr;
+  }
+
+  if (mTLSTolerantSites) {
+    delete mTLSTolerantSites;
+    mTLSTolerantSites = nullptr;
+  }
 
   if (mRenegoUnrestrictedSites) {
     delete mRenegoUnrestrictedSites;
     mRenegoUnrestrictedSites = nullptr;
+  }
+
+  if (mutex) {
+    delete mutex;
+    mutex = nullptr;
   }
 }
 
@@ -643,6 +641,12 @@ nsHandleSSLError(nsNSSSocketInfo *socketInfo,
   if (NS_FAILED(rv))
     return;
 
+  nsXPIDLCString hostName;
+  socketInfo->GetHostName(getter_Copies(hostName));
+
+  int32_t port;
+  socketInfo->GetPort(&port);
+
   // Try to get a nsISSLErrorListener implementation from the socket consumer.
   nsCOMPtr<nsIInterfaceRequestor> cb;
   socketInfo->GetNotificationCallbacks(getter_AddRefs(cb));
@@ -650,11 +654,10 @@ nsHandleSSLError(nsNSSSocketInfo *socketInfo,
     nsCOMPtr<nsISSLErrorListener> sel = do_GetInterface(cb);
     if (sel) {
       nsIInterfaceRequestor *csi = static_cast<nsIInterfaceRequestor*>(socketInfo);
-
-      nsCString hostWithPortString;
-      getSiteKey(socketInfo->GetHostName(), socketInfo->GetPort(),
-                 hostWithPortString);
-
+      nsCString hostWithPortString = hostName;
+      hostWithPortString.AppendLiteral(":");
+      hostWithPortString.AppendInt(port);
+    
       bool suppressMessage = false; // obsolete, ignored
       rv = sel->NotifySSLError(csi, err, hostWithPortString, &suppressMessage);
     }
@@ -736,104 +739,58 @@ nsSSLIOLayerConnect(PRFileDesc* fd, const PRNetAddr* addr,
 }
 
 void
-nsSSLIOLayerHelpers::rememberTolerantAtVersion(const nsACString & hostName,
-                                               int16_t port, uint16_t tolerant)
+nsSSLIOLayerHelpers::getSiteKey(nsNSSSocketInfo *socketInfo, nsCSubstring &key)
 {
-  nsCString key;
-  getSiteKey(hostName, port, key);
+  int32_t port;
+  socketInfo->GetPort(&port);
 
-  MutexAutoLock lock(mutex);
+  nsXPIDLCString host;
+  socketInfo->GetHostName(getter_Copies(host));
 
-  IntoleranceEntry entry;
-  if (mTLSIntoleranceInfo.Get(key, &entry)) {
-    entry.AssertInvariant();
-    entry.tolerant = std::max(entry.tolerant, tolerant);
-    if (entry.intolerant != 0 && entry.intolerant <= entry.tolerant) {
-      entry.intolerant = entry.tolerant + 1;
-    }
-  } else {
-    entry.tolerant = tolerant;
-    entry.intolerant = 0;
-  }
-
-  entry.AssertInvariant();
-
-  mTLSIntoleranceInfo.Put(key, entry);
+  key = host + NS_LITERAL_CSTRING(":") + nsPrintfCString("%d", port);
 }
 
-// returns true if we should retry the handshake
+// Call this function to report a site that is possibly TLS intolerant.
+// This function will return true, if the given socket is currently using TLS,
+// and it's allowed to retry. Retrying only makes sense if an older
+// protocol is enabled.
 bool
-nsSSLIOLayerHelpers::rememberIntolerantAtVersion(const nsACString & hostName,
-                                                 int16_t port,
-                                                 uint16_t minVersion,
-                                                 uint16_t intolerant)
+nsSSLIOLayerHelpers::rememberPossibleTLSProblemSite(nsNSSSocketInfo *socketInfo)
 {
-  nsCString key;
-  getSiteKey(hostName, port, key);
+  nsAutoCString key;
+  getSiteKey(socketInfo, key);
 
-  MutexAutoLock lock(mutex);
-
-  if (intolerant <= minVersion) {
-    // We can't fall back any further. Assume that intolerance isn't the issue.
-    IntoleranceEntry entry;
-    if (mTLSIntoleranceInfo.Get(key, &entry)) {
-      entry.AssertInvariant();
-      entry.intolerant = 0;
-      entry.AssertInvariant();
-      mTLSIntoleranceInfo.Put(key, entry);
-    }
-
+  if (!socketInfo->IsTLSEnabled()) {
+    // We did not offer TLS but failed with an intolerant error using
+    // a different protocol. To give TLS a try on next connection attempt again
+    // drop this site from the list of intolerant sites. TLS failure might be 
+    // caused only by a traffic congestion while the server is TLS tolerant.
+    removeIntolerantSite(key);
     return false;
   }
 
-  IntoleranceEntry entry;
-  if (mTLSIntoleranceInfo.Get(key, &entry)) {
-    entry.AssertInvariant();
-    if (intolerant <= entry.tolerant) {
-      // We already know the server is tolerant at an equal or higher version.
-      return false;
-    }
-    if ((entry.intolerant != 0 && intolerant >= entry.intolerant)) {
-      // We already know that the server is intolerant at a lower version.
-      return true;
-    }
-  } else {
-    entry.tolerant = 0;
+  if (socketInfo->IsSSL3Enabled()) {
+    // Add this site to the list of TLS intolerant sites.
+    addIntolerantSite(key);
   }
-
-  entry.intolerant = intolerant;
-  entry.AssertInvariant();
-  mTLSIntoleranceInfo.Put(key, entry);
-
-  return true;
+  else {
+    return false; // doesn't make sense to retry
+  }
+  
+  return socketInfo->IsTLSEnabled();
 }
 
 void
-nsSSLIOLayerHelpers::adjustForTLSIntolerance(const nsACString & hostName,
-                                             int16_t port,
-                                             /*in/out*/ SSLVersionRange & range)
+nsSSLIOLayerHelpers::rememberTolerantSite(nsNSSSocketInfo *socketInfo)
 {
-  IntoleranceEntry entry;
+  if (!socketInfo->IsTLSEnabled())
+    return;
 
-  {
-    nsCString key;
-    getSiteKey(hostName, port, key);
+  nsAutoCString key;
+  getSiteKey(socketInfo, key);
 
-    MutexAutoLock lock(mutex);
-    if (!mTLSIntoleranceInfo.Get(key, &entry)) {
-      return;
-    }
-  }
-
-  entry.AssertInvariant();
-
-  if (entry.intolerant != 0) {
-    // We've tried connecting at a higher range but failed, so try at the
-    // version we haven't tried yet, unless we have reached the minimum.
-    if (range.min < entry.intolerant) {
-      range.max = entry.intolerant - 1;
-    }
-  }
+  MutexAutoLock lock(*mutex);
+  nsSSLIOLayerHelpers::mTLSTolerantSites->PutEntry(key);
 }
 
 bool nsSSLIOLayerHelpers::nsSSLIOLayerInitialized = false;
@@ -1080,11 +1037,8 @@ int32_t checkHandshake(int32_t bytesTransfered, bool wasReading,
       if (!wantRetry // no decision yet
           && isTLSIntoleranceError(err, socketInfo->GetHasCleartextPhase()))
       {
-        SSLVersionRange range = socketInfo->GetTLSVersionRange();
-        wantRetry = socketInfo->SharedState().IOLayerHelpers()
-                      .rememberIntolerantAtVersion(socketInfo->GetHostName(),
-                                                   socketInfo->GetPort(),
-                                                   range.min, range.max);
+        nsSSLIOLayerHelpers& helpers = socketInfo->SharedState().IOLayerHelpers();
+        wantRetry = helpers.rememberPossibleTLSProblemSite(socketInfo);
       }
     }
     
@@ -1112,19 +1066,13 @@ int32_t checkHandshake(int32_t bytesTransfered, bool wasReading,
       if (!wantRetry // no decision yet
           && !socketInfo->GetHasCleartextPhase()) // mirror PR_CONNECT_RESET_ERROR treament
       {
-        SSLVersionRange range = socketInfo->GetTLSVersionRange();
-        wantRetry = socketInfo->SharedState().IOLayerHelpers()
-                        .rememberIntolerantAtVersion(socketInfo->GetHostName(),
-                                                     socketInfo->GetPort(),
-                                                     range.min, range.max);
+        nsSSLIOLayerHelpers& helpers = socketInfo->SharedState().IOLayerHelpers();
+        wantRetry = helpers.rememberPossibleTLSProblemSite(socketInfo);
       }
     }
   }
 
   if (wantRetry) {
-    PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
-           ("[%p] checkHandshake: will retry with lower max TLS version\n",
-            ssl_layer_fd));
     // We want to cause the network layer to retry the connection.
     PR_SetError(PR_CONNECT_RESET_ERROR, 0);
     if (wasReading)
@@ -1205,11 +1153,12 @@ nsSSLIOLayerPoll(PRFileDesc * fd, int16_t in_flags, int16_t *out_flags)
 }
 
 nsSSLIOLayerHelpers::nsSSLIOLayerHelpers()
-: mutex("nsSSLIOLayerHelpers.mutex")
+: mutex(nullptr)
+, mTLSIntolerantSites(nullptr)
+, mTLSTolerantSites(nullptr)
 , mRenegoUnrestrictedSites(nullptr)
 , mTreatUnsafeNegotiationAsBroken(false)
 , mWarnLevelMissingRFC5746(1)
-, mTLSIntoleranceInfo(16)
 , mFalseStartRequireNPN(true)
 , mFalseStartRequireForwardSecrecy(false)
 {
@@ -1432,20 +1381,11 @@ static int32_t PlaintextRecv(PRFileDesc *fd, void *buf, int32_t amount,
 
 nsSSLIOLayerHelpers::~nsSSLIOLayerHelpers()
 {
-  // mPrefObserver will only be set if this->Init was called. The GTest tests
-  // do not call Init.
-  if (mPrefObserver) {
-    Preferences::RemoveObserver(mPrefObserver,
-      "security.ssl.renego_unrestricted_hosts");
-    Preferences::RemoveObserver(mPrefObserver,
-        "security.ssl.treat_unsafe_negotiation_as_broken");
-    Preferences::RemoveObserver(mPrefObserver,
-        "security.ssl.warn_missing_rfc5746");
-    Preferences::RemoveObserver(mPrefObserver,
-        "security.ssl.false_start.require-npn");
-    Preferences::RemoveObserver(mPrefObserver,
-        "security.ssl.false_start.require-forward-secrecy");
-  }
+  Preferences::RemoveObserver(mPrefObserver, "security.ssl.renego_unrestricted_hosts");
+  Preferences::RemoveObserver(mPrefObserver, "security.ssl.treat_unsafe_negotiation_as_broken");
+  Preferences::RemoveObserver(mPrefObserver, "security.ssl.warn_missing_rfc5746");
+  Preferences::RemoveObserver(mPrefObserver, "security.ssl.false_start.require-npn");
+  Preferences::RemoveObserver(mPrefObserver, "security.ssl.false_start.require-forward-secrecy");
 }
 
 nsresult nsSSLIOLayerHelpers::Init()
@@ -1492,7 +1432,16 @@ nsresult nsSSLIOLayerHelpers::Init()
     nsSSLPlaintextLayerMethods.recv = PlaintextRecv;
   }
 
-  mRenegoUnrestrictedSites = new nsTHashtable<nsCStringHashKey>(16);
+  mutex = new Mutex("nsSSLIOLayerHelpers.mutex");
+
+  mTLSIntolerantSites = new nsTHashtable<nsCStringHashKey>(1);
+
+  // Initialize the tolerant site hashtable to 16 items at the start seems
+  // reasonable as most servers are TLS tolerant. We just want to lower 
+  // the rate of hashtable array reallocation.
+  mTLSTolerantSites = new nsTHashtable<nsCStringHashKey>(16);
+
+  mRenegoUnrestrictedSites = new nsTHashtable<nsCStringHashKey>(1);
 
   nsCString unrestricted_hosts;
   Preferences::GetCString("security.ssl.renego_unrestricted_hosts", &unrestricted_hosts);
@@ -1530,19 +1479,40 @@ nsresult nsSSLIOLayerHelpers::Init()
 void nsSSLIOLayerHelpers::clearStoredData()
 {
   mRenegoUnrestrictedSites->Clear();
-  mTLSIntoleranceInfo.Clear();
+  mTLSTolerantSites->Clear();
+  mTLSIntolerantSites->Clear();
+}
+
+void nsSSLIOLayerHelpers::addIntolerantSite(const nsCString &str)
+{
+  MutexAutoLock lock(*mutex);
+  // Remember intolerant site only if it is not known as tolerant
+  if (!mTLSTolerantSites->Contains(str))
+    mTLSIntolerantSites->PutEntry(str);
+}
+
+void nsSSLIOLayerHelpers::removeIntolerantSite(const nsCString &str)
+{
+  MutexAutoLock lock(*mutex);
+  mTLSIntolerantSites->RemoveEntry(str);
+}
+
+bool nsSSLIOLayerHelpers::isKnownAsIntolerantSite(const nsCString &str)
+{
+  MutexAutoLock lock(*mutex);
+  return mTLSIntolerantSites->Contains(str);
 }
 
 void nsSSLIOLayerHelpers::setRenegoUnrestrictedSites(const nsCString &str)
 {
-  MutexAutoLock lock(mutex);
+  MutexAutoLock lock(*mutex);
   
   if (mRenegoUnrestrictedSites) {
     delete mRenegoUnrestrictedSites;
     mRenegoUnrestrictedSites = nullptr;
   }
 
-  mRenegoUnrestrictedSites = new nsTHashtable<nsCStringHashKey>();
+  mRenegoUnrestrictedSites = new nsTHashtable<nsCStringHashKey>(1);
   if (!mRenegoUnrestrictedSites)
     return;
   
@@ -1558,31 +1528,31 @@ void nsSSLIOLayerHelpers::setRenegoUnrestrictedSites(const nsCString &str)
 
 bool nsSSLIOLayerHelpers::isRenegoUnrestrictedSite(const nsCString &str)
 {
-  MutexAutoLock lock(mutex);
+  MutexAutoLock lock(*mutex);
   return mRenegoUnrestrictedSites->Contains(str);
 }
 
 void nsSSLIOLayerHelpers::setTreatUnsafeNegotiationAsBroken(bool broken)
 {
-  MutexAutoLock lock(mutex);
+  MutexAutoLock lock(*mutex);
   mTreatUnsafeNegotiationAsBroken = broken;
 }
 
 bool nsSSLIOLayerHelpers::treatUnsafeNegotiationAsBroken()
 {
-  MutexAutoLock lock(mutex);
+  MutexAutoLock lock(*mutex);
   return mTreatUnsafeNegotiationAsBroken;
 }
 
 void nsSSLIOLayerHelpers::setWarnLevelMissingRFC5746(int32_t level)
 {
-  MutexAutoLock lock(mutex);
+  MutexAutoLock lock(*mutex);
   mWarnLevelMissingRFC5746 = level;
 }
 
 int32_t nsSSLIOLayerHelpers::getWarnLevelMissingRFC5746()
 {
-  MutexAutoLock lock(mutex);
+  MutexAutoLock lock(*mutex);
   return mWarnLevelMissingRFC5746;
 }
 
@@ -2639,31 +2609,31 @@ nsSSLIOLayerSetOptions(PRFileDesc *fd, bool forSTARTTLS,
   nsAutoCString key;
   key = nsDependentCString(host) + NS_LITERAL_CSTRING(":") + nsPrintfCString("%d", port);
 
-  SSLVersionRange range;
-  if (SSL_VersionRangeGet(fd, &range) != SECSuccess) {
-    return NS_ERROR_FAILURE;
-  }
+  if (infoObject->SharedState().IOLayerHelpers().isKnownAsIntolerantSite(key)) {
+    if (SECSuccess != SSL_OptionSet(fd, SSL_ENABLE_TLS, false))
+      return NS_ERROR_FAILURE;
 
-  infoObject->SharedState().IOLayerHelpers()
-    .adjustForTLSIntolerance(infoObject->GetHostName(), infoObject->GetPort(),
-                             range);
-  PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
-         ("[%p] nsSSLIOLayerSetOptions: using TLS version range (0x%04x,0x%04x)\n",
-          fd, static_cast<unsigned int>(range.min),
-              static_cast<unsigned int>(range.max)));
-
-  if (SSL_VersionRangeSet(fd, &range) != SECSuccess) {
-    return NS_ERROR_FAILURE;
-  }
-  infoObject->SetTLSVersionRange(range);
-
-  // If min == max, then we don't need the intolerance timeout since we have no
-  // lower version to fall back to.
-  if (range.min == range.max) {
     infoObject->SetAllowTLSIntoleranceTimeout(false);
+      
+    // We assume that protocols that use the STARTTLS mechanism should support
+    // modern hellos. For other protocols, if we suspect a site 
+    // does not support TLS, let's also use V2 hellos.
+    // One advantage of this approach, if a site only supports the older
+    // hellos, it is more likely that we will get a reasonable error code
+    // on our single retry attempt.
   }
 
-  bool enabled = infoObject->SharedState().IsOCSPStaplingEnabled();
+  PRBool enabled;
+  if (SECSuccess != SSL_OptionGet(fd, SSL_ENABLE_SSL3, &enabled)) {
+    return NS_ERROR_FAILURE;
+  }
+  infoObject->SetSSL3Enabled(enabled);
+  if (SECSuccess != SSL_OptionGet(fd, SSL_ENABLE_TLS, &enabled)) {
+    return NS_ERROR_FAILURE;
+  }
+  infoObject->SetTLSEnabled(enabled);
+
+  enabled = infoObject->SharedState().IsOCSPStaplingEnabled();
   if (SECSuccess != SSL_OptionSet(fd, SSL_ENABLE_OCSP_STAPLING, enabled)) {
     return NS_ERROR_FAILURE;
   }

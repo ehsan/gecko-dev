@@ -92,8 +92,8 @@ gfxPlatformFontList::MemoryReporter::CollectReports
     sizes.mFontTableCacheSize = 0;
     sizes.mCharMapsSize = 0;
 
-    gfxPlatformFontList::PlatformFontList()->AddSizeOfIncludingThis(&FontListMallocSizeOf,
-                                                                    &sizes);
+    gfxPlatformFontList::PlatformFontList()->SizeOfIncludingThis(&FontListMallocSizeOf,
+                                                                 &sizes);
 
     aCb->Callback(EmptyCString(),
                   NS_LITERAL_CSTRING("explicit/gfx/font-list"),
@@ -763,7 +763,7 @@ SizeOfFamilyEntryExcludingThis(const nsAString&               aKey,
                                void*                          aUserArg)
 {
     FontListSizes *sizes = static_cast<FontListSizes*>(aUserArg);
-    aFamily->AddSizeOfExcludingThis(aMallocSizeOf, sizes);
+    aFamily->SizeOfExcludingThis(aMallocSizeOf, sizes);
 
     sizes->mFontListSize += aKey.SizeOfExcludingThisIfUnshared(aMallocSizeOf);
 
@@ -833,8 +833,8 @@ SizeOfSharedCmapExcludingThis(CharMapHashKey*   aHashEntry,
 }
 
 void
-gfxPlatformFontList::AddSizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
-                                            FontListSizes* aSizes) const
+gfxPlatformFontList::SizeOfExcludingThis(MallocSizeOf   aMallocSizeOf,
+                                         FontListSizes* aSizes) const
 {
     aSizes->mFontListSize +=
         mFontFamilies.SizeOfExcludingThis(SizeOfFamilyEntryExcludingThis,
@@ -872,9 +872,9 @@ gfxPlatformFontList::AddSizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
 }
 
 void
-gfxPlatformFontList::AddSizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
-                                            FontListSizes* aSizes) const
+gfxPlatformFontList::SizeOfIncludingThis(MallocSizeOf   aMallocSizeOf,
+                                         FontListSizes* aSizes) const
 {
     aSizes->mFontListSize += aMallocSizeOf(this);
-    AddSizeOfExcludingThis(aMallocSizeOf, aSizes);
+    SizeOfExcludingThis(aMallocSizeOf, aSizes);
 }

@@ -299,7 +299,7 @@ CertErrorRunnable::CheckCertOverrides()
   mInfoObject->GetPort(&port);
 
   nsCString hostWithPortString;
-  hostWithPortString.AppendASCII(mInfoObject->GetHostNameRaw());
+  hostWithPortString.AppendASCII(mInfoObject->GetHostName());
   hostWithPortString.AppendLiteral(":");
   hostWithPortString.AppendInt(port);
 
@@ -315,7 +315,7 @@ CertErrorRunnable::CheckCertOverrides()
     = do_GetService(NS_SSSERVICE_CONTRACTID, &nsrv);
   if (NS_SUCCEEDED(nsrv)) {
     nsrv = sss->IsSecureHost(nsISiteSecurityService::HEADER_HSTS,
-                             mInfoObject->GetHostNameRaw(),
+                             mInfoObject->GetHostName(),
                              mProviderFlags,
                              &strictTransportSecurityEnabled);
   }
@@ -413,7 +413,7 @@ CertErrorRunnable::CheckCertOverrides()
                                         OverridableCertErrorMessage);
 
   LogInvalidCertError(mInfoObject,
-                      mInfoObject->GetHostName(),
+                      nsDependentCString(mInfoObject->GetHostName()),
                       hostWithPortString,
                       port,
                       result->mErrorCode,
@@ -510,7 +510,7 @@ CreateCertErrorRunnable(PRErrorCode defaultErrorCodeToReport,
   }
 
   // Check the name field against the desired hostname.
-  if (CERT_VerifyCertName(cert, infoObject->GetHostNameRaw()) != SECSuccess) {
+  if (CERT_VerifyCertName(cert, infoObject->GetHostName()) != SECSuccess) {
     collected_errors |= nsICertOverrideService::ERROR_MISMATCH;
     errorCodeMismatch = SSL_ERROR_BAD_CERT_DOMAIN;
   }
@@ -883,7 +883,7 @@ AuthCertificate(TransportSecurityInfo * infoObject, CERTCertificate * cert,
 
   CERTCertList *verifyCertChain = nullptr;
   SECOidTag evOidPolicy;
-  rv = PSM_SSL_PKIX_AuthCertificate(cert, infoObject, infoObject->GetHostNameRaw(),
+  rv = PSM_SSL_PKIX_AuthCertificate(cert, infoObject, infoObject->GetHostName(),
                                     &verifyCertChain, &evOidPolicy);
 
   // We want to remember the CA certs in the temp db, so that the application can find the

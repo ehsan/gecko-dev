@@ -102,15 +102,11 @@ Finder.prototype = {
       this._notify(Ci.nsITypeAheadFind.FIND_NOTFOUND, false, false);
   },
 
-  enableSelection: function() {
-    this._fastFind.setSelectionModeAndRepaint(Ci.nsISelectionController.SELECTION_ON);
-  },
-
   removeSelection: function() {
     let fastFind = this._fastFind;
 
     fastFind.collapseSelection();
-    this.enableSelection();
+    fastFind.setSelectionModeAndRepaint(Ci.nsISelectionController.SELECTION_ON);
 
     this._restoreOriginalOutline();
   },

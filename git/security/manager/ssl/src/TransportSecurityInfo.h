@@ -49,9 +49,9 @@ public:
   nsresult SetSecurityState(uint32_t aState);
   nsresult SetShortSecurityDescription(const PRUnichar *aText);
 
-  const nsACString & GetHostName() const { return mHostName; }
-  const char * GetHostNameRaw() const { return mHostName.get(); }
-
+  const char * GetHostName() const {
+    return mHostName.get();
+  }
   nsresult GetHostName(char **aHostName);
   nsresult SetHostName(const char *aHostName);
 

@@ -39,7 +39,6 @@ EXPORTS_mozilla_FILES += \
   MSIntTypes.h \
   Move.h \
   NullPtr.h \
-  NumericLimits.h \
   PodOperations.h \
   Poison.h \
   Range.h \

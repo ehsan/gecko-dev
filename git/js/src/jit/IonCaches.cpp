@@ -3499,7 +3499,7 @@ GenerateSetDenseElement(JSContext *cx, MacroAssembler &masm, IonCache::StubAttac
         masm.branch32(Assembler::Below, initLength, index, &outOfBounds);
 
         // if (initLength == index)
-        Label markElem, postBarrier;
+        Label markElem, storeElem;
         masm.branch32(Assembler::NotEqual, initLength, index, &markElem);
         {
             // Increase initialize length.
@@ -3516,7 +3516,7 @@ GenerateSetDenseElement(JSContext *cx, MacroAssembler &masm, IonCache::StubAttac
 
             // Restore the index.
             masm.bumpKey(&newLength, -1);
-            masm.jump(&postBarrier);
+            masm.jump(&storeElem);
         }
         // else
         {
@@ -3527,12 +3527,12 @@ GenerateSetDenseElement(JSContext *cx, MacroAssembler &masm, IonCache::StubAttac
         }
 
         // Call post barrier if necessary, and recalculate elements pointer if it got cobbered.
-        masm.bind(&postBarrier);
         Register postBarrierScratch = elements;
         if (masm.maybeCallPostBarrier(object, value, postBarrierScratch))
             masm.loadPtr(Address(object, JSObject::offsetOfElements()), elements);
 
         // Store the value.
+        masm.bind(&storeElem);
         masm.storeConstantOrRegister(value, target);
     }
     attacher.jumpRejoin(masm);

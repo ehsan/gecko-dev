@@ -4611,9 +4611,9 @@ def wrapTypeIntoCurrentCompartment(type, value, isMember=True):
 
     if type.isObject():
         if isMember:
-            value = "JS::MutableHandleObject::fromMarkedLocation(&%s)" % value
+            value = "&%s" % value
         else:
-            value = "&" + value
+            value = value + ".address()"
         return CGGeneric("if (!JS_WrapObject(cx, %s)) {\n"
                          "  return false;\n"
                          "}" % value)
@@ -9905,7 +9905,7 @@ class CGJSImplClass(CGBindingImplClass):
                 "\n"
                 "// Now define it on our chrome object\n"
                 "JSAutoCompartment ac(aCx, mImpl->Callback());\n"
-                "if (!JS_WrapObject(aCx, &obj)) {\n"
+                "if (!JS_WrapObject(aCx, obj.address())) {\n"
                 "  return nullptr;\n"
                 "}\n"
                 'if (!JS_DefineProperty(aCx, mImpl->Callback(), "__DOM_IMPL__", JS::ObjectValue(*obj), nullptr, nullptr, 0)) {\n'

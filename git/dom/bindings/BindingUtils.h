@@ -1268,7 +1268,7 @@ WrapCallThisObject(JSContext* cx, JS::Handle<JSObject*> scope, const T& p)
   }
 
   // But all that won't necessarily put things in the compartment of cx.
-  if (!JS_WrapObject(cx, &obj)) {
+  if (!JS_WrapObject(cx, obj.address())) {
     return nullptr;
   }
 

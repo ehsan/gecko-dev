@@ -565,10 +565,10 @@ gfxGDIFont::GetGlyphWidth(gfxContext *aCtx, uint16_t aGID)
 }
 
 void
-gfxGDIFont::AddSizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
-                                   FontCacheSizes* aSizes) const
+gfxGDIFont::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+                                FontCacheSizes*   aSizes) const
 {
-    gfxFont::AddSizeOfExcludingThis(aMallocSizeOf, aSizes);
+    gfxFont::SizeOfExcludingThis(aMallocSizeOf, aSizes);
     aSizes->mFontInstances += aMallocSizeOf(mMetrics);
     if (mGlyphWidths) {
         aSizes->mFontInstances +=
@@ -577,9 +577,9 @@ gfxGDIFont::AddSizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
 }
 
 void
-gfxGDIFont::AddSizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
-                                   FontCacheSizes* aSizes) const
+gfxGDIFont::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+                                FontCacheSizes*   aSizes) const
 {
     aSizes->mFontInstances += aMallocSizeOf(this);
-    AddSizeOfExcludingThis(aMallocSizeOf, aSizes);
+    SizeOfExcludingThis(aMallocSizeOf, aSizes);
 }

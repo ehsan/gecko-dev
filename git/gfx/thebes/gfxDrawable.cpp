@@ -188,10 +188,6 @@ gfxPatternDrawable::gfxPatternDrawable(gfxPattern* aPattern,
 {
 }
 
-gfxPatternDrawable::~gfxPatternDrawable()
-{
-}
-
 class DrawingCallbackFromDrawable : public gfxDrawingCallback {
 public:
     DrawingCallbackFromDrawable(gfxDrawable* aDrawable)

@@ -159,7 +159,7 @@ BEGIN_TEST(testDebugger_debuggerObjectVsDebugMode)
     }
 
     JS::RootedObject debuggeeWrapper(cx, debuggee);
-    CHECK(JS_WrapObject(cx, &debuggeeWrapper));
+    CHECK(JS_WrapObject(cx, debuggeeWrapper.address()));
     JS::RootedValue v(cx, JS::ObjectValue(*debuggeeWrapper));
     CHECK(JS_SetProperty(cx, global, "debuggee", v));
 
@@ -197,7 +197,7 @@ BEGIN_TEST(testDebugger_newScriptHook)
     }
 
     JS::RootedObject gWrapper(cx, g);
-    CHECK(JS_WrapObject(cx, &gWrapper));
+    CHECK(JS_WrapObject(cx, gWrapper.address()));
     JS::RootedValue v(cx, JS::ObjectValue(*gWrapper));
     CHECK(JS_SetProperty(cx, global, "g", v));
 

@@ -542,14 +542,14 @@ LIRGenerator::visitGetDynamicName(MGetDynamicName *ins)
 }
 
 bool
-LIRGenerator::visitFilterArgumentsOrEval(MFilterArgumentsOrEval *ins)
+LIRGenerator::visitFilterArguments(MFilterArguments *ins)
 {
     MDefinition *string = ins->getString();
     JS_ASSERT(string->type() == MIRType_String);
 
-    LFilterArgumentsOrEval *lir = new LFilterArgumentsOrEval(useFixed(string, CallTempReg0),
-                                                             tempFixed(CallTempReg1),
-                                                             tempFixed(CallTempReg2));
+    LFilterArguments *lir = new LFilterArguments(useFixed(string, CallTempReg0),
+                                                 tempFixed(CallTempReg1),
+                                                 tempFixed(CallTempReg2));
 
     return assignSnapshot(lir) && add(lir, ins) && assignSafepoint(lir, ins);
 }
@@ -2706,7 +2706,6 @@ LIRGenerator::visitAssertRange(MAssertRange *ins)
     LInstruction *lir = nullptr;
 
     switch (input->type()) {
-      case MIRType_Boolean:
       case MIRType_Int32:
         lir = new LAssertRangeI(useRegisterAtStart(input));
         break;

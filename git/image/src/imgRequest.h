@@ -72,9 +72,6 @@ public:
   // won't be sufficient.
   void CancelAndAbort(nsresult aStatus);
 
-  // Called or dispatched by cancel for main thread only execution.
-  void ContinueCancel(nsresult aStatus);
-
   // Methods that get forwarded to the Image, or deferred until it's
   // instantiated.
   nsresult LockImage();

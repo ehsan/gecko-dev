@@ -1305,20 +1305,20 @@ class LGetDynamicName : public LCallInstructionHelper<BOX_PIECES, 2, 3>
     }
 };
 
-class LFilterArgumentsOrEval : public LCallInstructionHelper<0, 1, 2>
+class LFilterArguments : public LCallInstructionHelper<0, 1, 2>
 {
   public:
-    LIR_HEADER(FilterArgumentsOrEval)
+    LIR_HEADER(FilterArguments)
 
-    LFilterArgumentsOrEval(const LAllocation &string, const LDefinition &temp1, const LDefinition &temp2)
+    LFilterArguments(const LAllocation &string, const LDefinition &temp1, const LDefinition &temp2)
     {
         setOperand(0, string);
         setTemp(0, temp1);
         setTemp(1, temp2);
     }
 
-    MFilterArgumentsOrEval *mir() const {
-        return mir_->toFilterArgumentsOrEval();
+    MFilterArguments *mir() const {
+        return mir_->toFilterArguments();
     }
 
     const LAllocation *getString() {
@@ -2027,8 +2027,8 @@ class LBitOpI : public LInstructionHelper<1, 2, 0>
     { }
 
     const char *extraName() const {
-        if (bitop() == JSOP_URSH && mir_->toUrsh()->bailoutsDisabled())
-            return "ursh:BailoutsDisabled";
+        if (bitop() == JSOP_URSH && mir_->toUrsh()->canOverflow())
+            return "UrshCanOverflow";
         return js_CodeName[op_];
     }
 

@@ -771,7 +771,6 @@ protected:
     int32_t                    mLoadedTransIndex;
 
     uint32_t                   mSandboxFlags;
-    nsWeakPtr                  mOnePermittedSandboxedNavigator;
 
     // mFullscreenAllowed stores how we determine whether fullscreen is allowed
     // when GetFullscreenAllowed() is called. Fullscreen is allowed in a
@@ -880,10 +879,6 @@ private:
                                 nsISupports* aRequestor,
                                 nsIDocShellTreeItem* aOriginalRequestor,
                                 nsIDocShellTreeItem** _retval);
-
-    // Check whether accessing item is sandboxed from the target item.
-    static bool IsSandboxedFrom(nsIDocShellTreeItem* aTargetItem,
-                                nsIDocShellTreeItem* aAccessingItem);
 
 #ifdef DEBUG
     // We're counting the number of |nsDocShells| to help find leaks

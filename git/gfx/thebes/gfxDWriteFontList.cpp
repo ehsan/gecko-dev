@@ -214,20 +214,20 @@ gfxDWriteFontFamily::LocalizedName(nsAString &aLocalizedName)
 }
 
 void
-gfxDWriteFontFamily::AddSizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
-                                            FontListSizes* aSizes) const
+gfxDWriteFontFamily::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
+                                         FontListSizes*    aSizes) const
 {
-    gfxFontFamily::AddSizeOfExcludingThis(aMallocSizeOf, aSizes);
+    gfxFontFamily::SizeOfExcludingThis(aMallocSizeOf, aSizes);
     // TODO:
     // This doesn't currently account for |mDWFamily|
 }
 
 void
-gfxDWriteFontFamily::AddSizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
-                                            FontListSizes* aSizes) const
+gfxDWriteFontFamily::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
+                                         FontListSizes*    aSizes) const
 {
     aSizes->mFontListSize += aMallocSizeOf(this);
-    AddSizeOfExcludingThis(aMallocSizeOf, aSizes);
+    SizeOfExcludingThis(aMallocSizeOf, aSizes);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -556,20 +556,20 @@ gfxDWriteFontEntry::IsCJKFont()
 }
 
 void
-gfxDWriteFontEntry::AddSizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
-                                           FontListSizes* aSizes) const
+gfxDWriteFontEntry::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
+                                        FontListSizes*    aSizes) const
 {
-    gfxFontEntry::AddSizeOfExcludingThis(aMallocSizeOf, aSizes);
+    gfxFontEntry::SizeOfExcludingThis(aMallocSizeOf, aSizes);
     // TODO:
     // This doesn't currently account for the |mFont| and |mFontFile| members
 }
 
 void
-gfxDWriteFontEntry::AddSizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
-                                           FontListSizes* aSizes) const
+gfxDWriteFontEntry::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
+                                        FontListSizes*    aSizes) const
 {
     aSizes->mFontListSize += aMallocSizeOf(this);
-    AddSizeOfExcludingThis(aMallocSizeOf, aSizes);
+    SizeOfExcludingThis(aMallocSizeOf, aSizes);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1218,10 +1218,10 @@ gfxDWriteFontList::ResolveFontName(const nsAString& aFontName,
 }
 
 void
-gfxDWriteFontList::AddSizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
-                                          FontListSizes* aSizes) const
+gfxDWriteFontList::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
+                                       FontListSizes*    aSizes) const
 {
-    gfxPlatformFontList::AddSizeOfExcludingThis(aMallocSizeOf, aSizes);
+    gfxPlatformFontList::SizeOfExcludingThis(aMallocSizeOf, aSizes);
 
     aSizes->mFontListSize +=
         mFontSubstitutes.SizeOfExcludingThis(SizeOfFamilyNameEntryExcludingThis,
@@ -1236,11 +1236,11 @@ gfxDWriteFontList::AddSizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
 }
 
 void
-gfxDWriteFontList::AddSizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
-                                          FontListSizes* aSizes) const
+gfxDWriteFontList::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
+                                       FontListSizes*    aSizes) const
 {
     aSizes->mFontListSize += aMallocSizeOf(this);
-    AddSizeOfExcludingThis(aMallocSizeOf, aSizes);
+    SizeOfExcludingThis(aMallocSizeOf, aSizes);
 }
 
 static HRESULT GetFamilyName(IDWriteFont *aFont, nsString& aFamilyName)
