@@ -116,7 +116,9 @@ ContentParent::GetSingleton(PRBool aForceNew)
                     }
                 }
                 obs->AddObserver(
-                  parent, NS_IPC_IOSERVICE_SET_OFFLINE_TOPIC, PR_FALSE); 
+                  parent, NS_IPC_IOSERVICE_SET_OFFLINE_TOPIC, PR_FALSE);
+
+                obs->AddObserver(parent, "memory-pressure", PR_FALSE); 
             }
             nsCOMPtr<nsIThreadInternal>
                 threadInt(do_QueryInterface(NS_GetCurrentThread()));
@@ -193,6 +195,12 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
                 CrashReporter::AnnotationTable notes;
                 notes.Init();
                 notes.Put(NS_LITERAL_CSTRING("ProcessType"), NS_LITERAL_CSTRING("content"));
+
+                char startTime[32];
+                sprintf(startTime, "%lld", static_cast<PRInt64>(mProcessStartTime));
+                notes.Put(NS_LITERAL_CSTRING("StartupTime"),
+                          nsDependentCString(startTime));
+
                 // TODO: Additional per-process annotations.
                 CrashReporter::AppendExtraData(dumpID, notes);
             }
@@ -232,6 +240,7 @@ ContentParent::ContentParent()
     , mRunToCompletionDepth(0)
     , mShouldCallUnblockChild(false)
     , mIsAlive(true)
+    , mProcessStartTime(time(NULL))
 {
     NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
     mSubprocess = new GeckoChildProcessHost(GeckoProcessType_Content);
@@ -354,8 +363,12 @@ ContentParent::Observe(nsISupports* aSubject,
     if (!mIsAlive || !mSubprocess)
         return NS_OK;
 
+    // listening for memory pressure event
+    if (!strcmp(aTopic, "memory-pressure")) {
+        SendFlushMemory(nsDependentString(aData));
+    }
     // listening for remotePrefs...
-    if (!strcmp(aTopic, "nsPref:changed")) {
+    else if (!strcmp(aTopic, "nsPref:changed")) {
         // We know prefs are ASCII here.
         NS_LossyConvertUTF16toASCII strData(aData);
 

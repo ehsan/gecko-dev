@@ -45,7 +45,7 @@ WEAVE_ID:                              "@weave_id@",
 // Version of the data format this client supports. The data format describes
 // how records are packaged; this is separate from the Server API version and
 // the per-engine cleartext formats.
-STORAGE_VERSION:                       4,
+STORAGE_VERSION:                       5,
 
 UPDATED_DEV_URL:                       "https://services.mozilla.com/sync/updated/?version=@weave_version@&channel=@xpi_type@",
 UPDATED_REL_URL:                       "http://www.mozilla.com/firefox/sync/updated.html",
@@ -76,6 +76,11 @@ MULTI_DESKTOP_SYNC:                    60 * 60 * 1000, // 1 hour
 MULTI_MOBILE_SYNC:                     5 * 60 * 1000, // 5 minutes
 PARTIAL_DATA_SYNC:                     60 * 1000, // 1 minute
 
+// HMAC event handling timeout.
+// 10 minutes: a compromise between the multi-desktop sync interval
+// and the mobile sync interval.
+HMAC_EVENT_INTERVAL:                   600000,
+
 // 50 is hardcoded here because of URL length restrictions.
 // (GUIDs can be up to 64 chars long)
 MOBILE_BATCH_SIZE:                     50,
@@ -101,6 +106,8 @@ PERMS_DIRECTORY:                       0755,
 // FIXME: Record size limit is 256k (new cluster), so this can be quite large!
 // (Bug 569295)
 MAX_UPLOAD_RECORDS:                    100,
+MAX_HISTORY_UPLOAD:                    5000,
+MAX_HISTORY_DOWNLOAD:                  5000,
 
 // Top-level statuses:
 STATUS_OK:                             "success.status_ok",
@@ -142,6 +149,16 @@ ENGINE_DOWNLOAD_FAIL:                  "error.engine.reason.record_download_fail
 ENGINE_UNKNOWN_FAIL:                   "error.engine.reason.unknown_fail",
 ENGINE_METARECORD_DOWNLOAD_FAIL:       "error.engine.reason.metarecord_download_fail",
 ENGINE_METARECORD_UPLOAD_FAIL:         "error.engine.reason.metarecord_upload_fail",
+
+JPAKE_ERROR_CHANNEL:                   "jpake.error.channel",
+JPAKE_ERROR_NETWORK:                   "jpake.error.network",
+JPAKE_ERROR_SERVER:                    "jpake.error.server",
+JPAKE_ERROR_TIMEOUT:                   "jpake.error.timeout",
+JPAKE_ERROR_INTERNAL:                  "jpake.error.internal",
+JPAKE_ERROR_INVALID:                   "jpake.error.invalid",
+JPAKE_ERROR_NODATA:                    "jpake.error.nodata",
+JPAKE_ERROR_KEYMISMATCH:               "jpake.error.keymismatch",
+JPAKE_ERROR_WRONGMESSAGE:              "jpake.error.wrongmessage",
 
 // Ways that a sync can be disabled (messages only to be printed in debug log)
 kSyncWeaveDisabled:                    "Weave is disabled",

@@ -1223,7 +1223,8 @@ toolbar[iconsize="small"] #feed-button {
   font-size: inherit;
 }
 
-.ac-url-text {
+.ac-url-text,
+.ac-action-text {
   color: -moz-nativehyperlinktext;
 }
 
@@ -1235,7 +1236,9 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   color: GrayText;
 }
 
-.ac-comment[selected="true"], .ac-url-text[selected="true"] {
+.ac-comment[selected="true"],
+.ac-url-text[selected="true"],
+.ac-action-text[selected="true"] {
   color: inherit !important;
 }
 
@@ -1710,7 +1713,8 @@ toolbar[mode="text"] toolbarbutton.chevron > .toolbarbutton-icon {
 
 /* Application menu toolbar button */
 
-#appmenu-toolbar-button > .toolbarbutton-text {
+#appmenu-toolbar-button > .toolbarbutton-text,
+#appmenu-toolbar-button > .toolbarbutton-menu-dropmarker {
   margin-top: -2px !important;
   margin-bottom: -2px !important;
 }
@@ -1773,6 +1777,7 @@ panel[dimmed="true"] {
   -moz-appearance: none;
 }
 
-browser[tabmodalPromptShowing] {
-  filter: url("chrome://browser/skin/effects.svg#blurAndDesaturate");
+/* Add-on bar close button */
+#addonbar-closebutton {
+  list-style-image: url("moz-icon://stock/gtk-close?size=menu");
 }

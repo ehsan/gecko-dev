@@ -233,10 +233,16 @@ SafeMoveOperation.prototype = {
   },
 
   _moveDirEntry: function(aDirEntry, aTargetDirectory) {
-    if (aDirEntry.isDirectory())
-      this._moveDirectory(aDirEntry, aTargetDirectory);
-    else
-      this._moveFile(aDirEntry, aTargetDirectory);
+    try {
+      if (aDirEntry.isDirectory())
+        this._moveDirectory(aDirEntry, aTargetDirectory);
+      else
+        this._moveFile(aDirEntry, aTargetDirectory);
+    }
+    catch (e) {
+      ERROR("Failure moving " + aDirEntry.path + " to " + aTargetDirectory.path);
+      throw e;
+    }
   },
 
   /**
@@ -254,7 +260,6 @@ SafeMoveOperation.prototype = {
       this._moveDirEntry(aFile, aTargetDirectory);
     }
     catch (e) {
-      ERROR("Failure moving " + aFile.path + " to " + aTargetDirectory.path);
       this.rollback();
       throw e;
     }
@@ -1064,8 +1069,10 @@ function recursiveRemove(aFile) {
     return;
   }
   catch (e) {
-    if (!aFile.isDirectory())
+    if (!aFile.isDirectory()) {
+      ERROR("Failed to remove file " + aFile.path, e);
       throw e;
+    }
   }
 
   let entry;
@@ -1666,7 +1673,7 @@ var XPIProvider = {
         }
         catch (e) {
           // Non-critical, just saves some perf on startup if we clean this up.
-          LOG("Error removing XPI staging dir " + stagedXPIDir.path + ": " + e);
+          LOG("Error removing XPI staging dir " + stagedXPIDir.path, e);
         }
       }
 
@@ -1769,7 +1776,7 @@ var XPIProvider = {
       }
       catch (e) {
         // Non-critical, just saves some perf on startup if we clean this up.
-        LOG("Error removing staging dir " + stagingDir.path + ": " + e);
+        LOG("Error removing staging dir " + stagingDir.path, e);
       }
     });
     return changed;
@@ -4936,6 +4943,9 @@ AddonInstall.prototype = {
       break;
     case AddonManager.STATE_INSTALLED:
       LOG("Cancelling install of " + this.addon.id);
+      let xpi = this.installLocation.getStagingDir();
+      xpi.append(this.addon.id + ".xpi");
+      Services.obs.notifyObservers(xpi, "flush-cache-entry", null);
       cleanStagingDir(this.installLocation.getStagingDir(),
                       [this.addon.id, this.addon.id + ".xpi",
                        this.addon.id + ".json"]);
@@ -6466,7 +6476,9 @@ function AddonWrapper(aAddon) {
     }
     if (aAddon._installLocation) {
       if (!aAddon._installLocation.locked) {
-        permissions |= AddonManager.PERM_CAN_UPGRADE;
+        if (!aAddon._installLocation.isLinkedAddon(aAddon.id))
+          permissions |= AddonManager.PERM_CAN_UPGRADE;
+
         if (!aAddon.pendingUninstall)
           permissions |= AddonManager.PERM_CAN_UNINSTALL;
       }
@@ -6610,6 +6622,7 @@ function DirectoryInstallLocation(aName, aDirectory, aScope, aLocked) {
   this._scope = aScope
   this._IDToFileMap = {};
   this._FileToIDMap = {};
+  this._linkedAddons = [];
 
   if (!aDirectory.exists())
     return;
@@ -6679,7 +6692,7 @@ DirectoryInstallLocation.prototype = {
     let entry;
     while (entry = entries.nextFile) {
       // Should never happen really
-      if (!entry instanceof Ci.nsILocalFile)
+      if (!(entry instanceof Ci.nsILocalFile))
         continue;
 
       let id = entry.leafName;
@@ -6704,7 +6717,9 @@ DirectoryInstallLocation.prototype = {
         newEntry = this._readDirectoryFromFile(entry);
         if (!newEntry)
           continue;
+
         entry = newEntry;
+        this._linkedAddons.push(id);
       }
 
       this._IDToFileMap[id] = entry;
@@ -6930,6 +6945,17 @@ DirectoryInstallLocation.prototype = {
     if (aId in this._IDToFileMap)
       return this._IDToFileMap[aId].clone().QueryInterface(Ci.nsILocalFile);
     throw new Error("Unknown add-on ID " + aId);
+  },
+
+  /**
+   * Returns true if the given addon was installed in this location by a text
+   * file pointing to its real path.
+   *
+   * @param aId
+   *        The ID of the addon
+   */
+  isLinkedAddon: function(aId) {
+    return this._linkedAddons.indexOf(aId) != -1;
   }
 };
 
@@ -7075,6 +7101,13 @@ WinRegInstallLocation.prototype = {
     if (aId in this._IDToFileMap)
       return this._IDToFileMap[aId].clone().QueryInterface(Ci.nsILocalFile);
     throw new Error("Unknown add-on ID");
+  },
+
+  /**
+   * @see DirectoryInstallLocation
+   */
+  isLinkedAddon: function(aId) {
+    return true;
   }
 };
 #endif

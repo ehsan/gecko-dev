@@ -306,7 +306,7 @@ OMNIJAR_FILES	= \
   greprefs.js \
   $(NULL)
 
-NON_OMNIJAR_FILES = \
+NON_OMNIJAR_FILES += \
   chrome/icons/\* \
   defaults/pref/channel-prefs.js \
   res/cursors/\* \
@@ -389,7 +389,6 @@ NO_PKG_FILES += \
 	nsinstall \
 	viewer \
 	TestGtkEmbed \
-	bloaturls.txt \
 	codesighs* \
 	elf-dynstr-gc \
 	mangle* \

@@ -213,6 +213,7 @@
   #appmenuPrimaryPane {
     background-color: rgba(255,255,255,0.5);
     padding: 2px;
+    -moz-border-end: none;
   }
   #appmenuSecondaryPane {
     background-color: #f1f5fb;
@@ -642,9 +643,9 @@ toolbar[mode="full"] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
   min-width: 57px;
 }
 
-#TabsToolbar .toolbarbutton-1,
-#TabsToolbar .toolbarbutton-1 > .toolbarbutton-menubutton-button,
-#TabsToolbar .toolbarbutton-1 > .toolbarbutton-menubutton-dropmarker {
+:-moz-any(#TabsToolbar, #addon-bar) .toolbarbutton-1,
+:-moz-any(#TabsToolbar, #addon-bar) .toolbarbutton-1 > .toolbarbutton-menubutton-button,
+:-moz-any(#TabsToolbar, #addon-bar) .toolbarbutton-1 > .toolbarbutton-menubutton-dropmarker {
   -moz-appearance: toolbarbutton;
 %ifdef WINSTRIPE_AERO
   margin: -2px 0 -1px;
@@ -671,7 +672,7 @@ toolbar[mode="full"] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
 }
 %endif
 
-#TabsToolbar .toolbarbutton-1 > .toolbarbutton-menubutton-dropmarker {
+:-moz-any(#TabsToolbar, #addon-bar) .toolbarbutton-1 > .toolbarbutton-menubutton-dropmarker {
   -moz-appearance: none;
 }
 
@@ -1249,12 +1250,14 @@ html|*.urlbar-input:-moz-lwtheme:-moz-placeholder,
   font-size: inherit;
 }
 
-.ac-url-text {
+.ac-url-text,
+.ac-action-text {
   color: -moz-nativehyperlinktext;
 }
 
 %ifndef WINSTRIPE_AERO
-.ac-url-text:-moz-system-metric(windows-default-theme) {
+.ac-url-text:-moz-system-metric(windows-default-theme),
+.ac-action-text:-moz-system-metric(windows-default-theme) {
   color: #006600;
 }
 %endif
@@ -1267,7 +1270,9 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   color: GrayText;
 }
 
-.ac-comment[selected="true"], .ac-url-text[selected="true"] {
+.ac-comment[selected="true"],
+.ac-url-text[selected="true"],
+.ac-action-text[selected="true"] {
   color: inherit !important;
 }
 
@@ -2122,6 +2127,19 @@ panel[dimmed="true"] {
   -moz-appearance: none;
 }
 
-browser[tabmodalPromptShowing] {
-  filter: url("chrome://browser/skin/effects.svg#blurAndDesaturate");
+/* Add-on bar close button */
+#addonbar-closebutton {
+  border: none;
+  padding: 3px 5px;
+  list-style-image: url("chrome://global/skin/icons/close.png");
+  -moz-appearance: none;
+  -moz-image-region: rect(0, 16px, 16px, 0);
+}
+
+#addonbar-closebutton:hover {
+  -moz-image-region: rect(0, 32px, 16px, 16px);
+}
+
+#addonbar-closebutton:hover:active {
+  -moz-image-region: rect(0, 48px, 16px, 32px);
 }
