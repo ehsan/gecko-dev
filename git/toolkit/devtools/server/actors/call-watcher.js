@@ -79,7 +79,7 @@ let FunctionCallActor = protocol.ActorClass({
       name: name,
       stack: stack,
       args: args,
-      result: result
+      return: result
     };
 
     this.meta = {

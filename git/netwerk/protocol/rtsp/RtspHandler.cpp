@@ -4,7 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "RtspChannelChild.h"
+#include "RtspChannel.h"
 #include "RtspHandler.h"
 #include "nsILoadGroup.h"
 #include "nsIInterfaceRequestor.h"
@@ -68,13 +68,13 @@ NS_IMETHODIMP
 RtspHandler::NewChannel(nsIURI *aURI, nsIChannel **aResult)
 {
   bool isRtsp = false;
-  nsRefPtr<RtspChannelChild> rtspChannel;
+  nsRefPtr<RtspChannel> rtspChannel;
 
   nsresult rv = aURI->SchemeIs("rtsp", &isRtsp);
   NS_ENSURE_SUCCESS(rv, rv);
   NS_ENSURE_TRUE(isRtsp, NS_ERROR_UNEXPECTED);
 
-  rtspChannel = new RtspChannelChild();
+  rtspChannel = new RtspChannel();
 
   rv = rtspChannel->Init(aURI);
   NS_ENSURE_SUCCESS(rv, rv);

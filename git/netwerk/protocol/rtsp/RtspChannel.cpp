@@ -4,7 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "RtspChannelChild.h"
+#include "RtspChannel.h"
 #include "nsIURI.h"
 #include "nsAutoPtr.h"
 #include "nsStandardURL.h"
@@ -12,16 +12,16 @@
 namespace mozilla {
 namespace net {
 
-NS_IMPL_ISUPPORTS_INHERITED1(RtspChannelChild,
+NS_IMPL_ISUPPORTS_INHERITED1(RtspChannel,
                              nsBaseChannel,
                              nsIChannel)
 
 //-----------------------------------------------------------------------------
-// RtspChannelChild::nsIChannel
+// RtspChannel::nsIChannel
 //-----------------------------------------------------------------------------
 
 NS_IMETHODIMP
-RtspChannelChild::AsyncOpen(nsIStreamListener *aListener, nsISupports *aContext)
+RtspChannel::AsyncOpen(nsIStreamListener *aListener, nsISupports *aContext)
 {
   MOZ_ASSERT(aListener);
 
@@ -42,14 +42,14 @@ RtspChannelChild::AsyncOpen(nsIStreamListener *aListener, nsISupports *aContext)
 }
 
 NS_IMETHODIMP
-RtspChannelChild::GetContentType(nsACString& aContentType)
+RtspChannel::GetContentType(nsACString& aContentType)
 {
   aContentType.AssignLiteral("RTSP");
   return NS_OK;
 }
 
 NS_IMETHODIMP
-RtspChannelChild::Init(nsIURI* aUri)
+RtspChannel::Init(nsIURI* aUri)
 {
   MOZ_ASSERT(aUri);
 

@@ -8,7 +8,6 @@
 #include "mozilla/mozalloc.h"
 #include "mozilla/RefPtr.h"
 #include "mozilla/MemoryReporting.h"
-#include "mozilla/NullPtr.h"
 
 /* VolatileBuffer
  *
@@ -79,18 +78,11 @@ private:
 class VolatileBufferPtr_base {
 public:
   VolatileBufferPtr_base(VolatileBuffer* vbuf) : mVBuf(vbuf) {
-    if (vbuf) {
-      mPurged = !vbuf->Lock(&mMapping);
-    } else {
-      mMapping = nullptr;
-      mPurged = false;
-    }
+    mPurged = !vbuf->Lock(&mMapping);
   }
 
   ~VolatileBufferPtr_base() {
-    if (mVBuf) {
-      mVBuf->Unlock();
-    }
+    mVBuf->Unlock();
   }
 
   bool WasBufferPurged() const {

@@ -28,6 +28,7 @@ BRANDING_FILES = \
 	branding.nsi \
 	appname.bmp \
 	bgintro.bmp \
+	bgplain.bmp \
 	clock.bmp \
 	particles.bmp \
 	pencil.bmp \
