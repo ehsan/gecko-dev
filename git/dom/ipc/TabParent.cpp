@@ -200,7 +200,6 @@ TabParent::TabParent(const TabContext& aContext)
   , mDimensions(0, 0)
   , mOrientation(0)
   , mDPI(0)
-  , mDefaultScale(0)
   , mShown(false)
   , mUpdatedDimensions(false)
   , mMarkedDestroying(false)
@@ -217,7 +216,7 @@ void
 TabParent::SetOwnerElement(nsIDOMElement* aElement)
 {
   mFrameElement = aElement;
-  TryCacheDPIAndScale();
+  TryCacheDPI();
 }
 
 void
@@ -1044,22 +1043,11 @@ TabParent::RecvSetInputContext(const int32_t& aIMEEnabled,
 bool
 TabParent::RecvGetDPI(float* aValue)
 {
-  TryCacheDPIAndScale();
+  TryCacheDPI();
 
   NS_ABORT_IF_FALSE(mDPI > 0,
                     "Must not ask for DPI before OwnerElement is received!");
   *aValue = mDPI;
-  return true;
-}
-
-bool
-TabParent::RecvGetDefaultScale(double* aValue)
-{
-  TryCacheDPIAndScale();
-
-  NS_ABORT_IF_FALSE(mDefaultScale > 0,
-                    "Must not ask for scale before OwnerElement is received!");
-  *aValue = mDefaultScale;
   return true;
 }
 
@@ -1382,7 +1370,7 @@ TabParent::GetFrameLoader() const
 }
 
 void
-TabParent::TryCacheDPIAndScale()
+TabParent::TryCacheDPI()
 {
   if (mDPI > 0) {
     return;
@@ -1402,7 +1390,6 @@ TabParent::TryCacheDPIAndScale()
 
   if (widget) {
     mDPI = widget->GetDPI();
-    mDefaultScale = widget->GetDefaultScale();
   }
 }
 
