@@ -2062,6 +2062,10 @@ namespace nanojit
             frag->fragEntry = 0;
             frag->loopEntry = 0;
         }
+        else
+        {
+            CodeAlloc::moveAll(frag->codeList, assm->codeList);
+        }
 
         /* BEGIN decorative postamble */
         verbose_only( if (anyVerb) {

@@ -98,11 +98,8 @@ namespace nanojit {
     class Assembler;
     class CodeAlloc;
     class Fragment;
+    class Fragmento;
     class LirBuffer;
-#ifdef DEBUG
-    class LabelMap;
-#endif
-    extern "C++" { template<typename K, typename V, typename H> class HashMap; }
 }
 class TraceRecorder;
 class VMAllocator;
@@ -116,12 +113,6 @@ typedef Queue<uint16> SlotList;
 
 #define FRAGMENT_TABLE_SIZE 512
 struct VMFragment;
-
-#ifdef __cplusplus
-struct REHashKey;
-struct REHashFn;
-typedef nanojit::HashMap<REHashKey, nanojit::Fragment*, REHashFn> REHashMap;
-#endif
 
 #define MONITOR_N_GLOBAL_STATES 4
 struct GlobalState {
@@ -150,13 +141,10 @@ struct JSTraceMonitor {
     JSContext               *tracecx;
 
     CLS(nanojit::LirBuffer) lirbuf;
+    CLS(nanojit::Fragmento) fragmento;
     CLS(VMAllocator)        allocator;   // A chunk allocator for LIR.
     CLS(nanojit::CodeAlloc) codeAlloc;   // A general allocator for native code.
     CLS(nanojit::Assembler) assembler;
-#ifdef DEBUG
-    CLS(nanojit::LabelMap)  labels;
-#endif
-
     CLS(TraceRecorder)      recorder;
     jsval                   *reservedDoublePool;
     jsval                   *reservedDoublePoolPtr;
@@ -192,10 +180,7 @@ struct JSTraceMonitor {
     CLS(nanojit::CodeAlloc) reCodeAlloc;
     CLS(nanojit::Assembler) reAssembler;
     CLS(nanojit::LirBuffer) reLirBuf;
-    CLS(REHashMap)          reFragments;
-#ifdef DEBUG
-    CLS(nanojit::LabelMap)  reLabels;
-#endif
+    CLS(nanojit::Fragmento) reFragmento;
 
     /* Keep a list of recorders we need to abort on cache flush. */
     CLS(TraceRecorder)      abortStack;
