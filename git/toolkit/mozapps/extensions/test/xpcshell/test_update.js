@@ -83,20 +83,20 @@ function run_test_1() {
   AddonManager.getAddonByID("addon1@tests.mozilla.org", function(a1) {
     do_check_neq(a1, null);
     do_check_eq(a1.version, "1.0");
-    do_check_eq(a1.applyBackgroundUpdates, AddonManager.AUTOUPDATE_DEFAULT);
+    do_check_true(a1.applyBackgroundUpdates);
     do_check_eq(a1.releaseNotesURI, null);
 
-    a1.applyBackgroundUpdates = AddonManager.AUTOUPDATE_DEFAULT;
+    a1.applyBackgroundUpdates = true;
 
     prepare_test({
       "addon1@tests.mozilla.org": [
         ["onPropertyChanged", ["applyBackgroundUpdates"]]
       ]
     });
-    a1.applyBackgroundUpdates = AddonManager.AUTOUPDATE_DISABLE;
+    a1.applyBackgroundUpdates = false;
     check_test_completed();
 
-    a1.applyBackgroundUpdates = AddonManager.AUTOUPDATE_DISABLE;
+    a1.applyBackgroundUpdates = false;
 
     prepare_test({}, [
       "onNewInstall",
@@ -104,53 +104,28 @@ function run_test_1() {
 
     a1.findUpdates({
       onNoCompatibilityUpdateAvailable: function(addon) {
-        do_throw("Should not have seen onNoCompatibilityUpdateAvailable notification");
+        do_throw("Should not have seen no compatibility update");
       },
 
       onUpdateAvailable: function(addon, install) {
         ensure_test_completed();
 
-        AddonManager.getAllInstalls(function(aInstalls) {
-          do_check_eq(aInstalls.length, 1);
-          do_check_eq(aInstalls[0], install);
+        do_check_eq(addon, a1);
+        do_check_eq(install.name, addon.name);
+        do_check_eq(install.version, "2.0");
+        do_check_eq(install.state, AddonManager.STATE_AVAILABLE);
+        do_check_eq(install.existingAddon, addon);
+        do_check_eq(install.releaseNotesURI.spec, "http://example.com/updateInfo.xhtml");
 
-          do_check_eq(addon, a1);
-          do_check_eq(install.name, addon.name);
-          do_check_eq(install.version, "2.0");
-          do_check_eq(install.state, AddonManager.STATE_AVAILABLE);
-          do_check_eq(install.existingAddon, addon);
-          do_check_eq(install.releaseNotesURI.spec, "http://example.com/updateInfo.xhtml");
-
-          // Verify that another update check returns the same AddonInstall
-          a1.findUpdates({
-            onNoCompatibilityUpdateAvailable: function(addon) {
-              do_throw("Should not have seen onNoCompatibilityUpdateAvailable notification");
-            },
-
-            onUpdateAvailable: function(newAddon, newInstall) {
-              AddonManager.getAllInstalls(function(aInstalls) {
-                do_check_eq(aInstalls.length, 1);
-                do_check_eq(aInstalls[0], install);
-                do_check_eq(newAddon, addon);
-                do_check_eq(newInstall, install);
-
-                prepare_test({}, [
-                  "onDownloadStarted",
-                  "onDownloadEnded",
-                ], check_test_1);
-                install.install();
-              });
-            },
-
-            onNoUpdateAvailable: function(addon) {
-              do_throw("Should not have seen onNoUpdateAvailable notification");
-            }
-          }, AddonManager.UPDATE_WHEN_USER_REQUESTED);
-        });
+        prepare_test({}, [
+          "onDownloadStarted",
+          "onDownloadEnded",
+        ], check_test_1);
+        install.install();
       },
 
       onNoUpdateAvailable: function(addon) {
-        do_throw("Should not have seen onNoUpdateAvailable notification");
+        do_throw("Should have seen an update");
       }
     }, AddonManager.UPDATE_WHEN_USER_REQUESTED);
   });
@@ -159,39 +134,19 @@ function run_test_1() {
 function check_test_1(install) {
   ensure_test_completed();
   do_check_eq(install.state, AddonManager.STATE_DOWNLOADED);
-  run_test_2(install);
-  return false;
+  run_test_2();
 }
 
 // Continue installing the update.
-function run_test_2(install) {
-  // Verify that another update check returns no new update
-  install.existingAddon.findUpdates({
-    onNoCompatibilityUpdateAvailable: function(addon) {
-      do_throw("Should not have seen onNoCompatibilityUpdateAvailable notification");
-    },
-
-    onUpdateAvailable: function(addon, install) {
-      do_throw("Should find no available update when one is already downloading");
-    },
-
-    onNoUpdateAvailable: function(addon) {
-      AddonManager.getAllInstalls(function(aInstalls) {
-        do_check_eq(aInstalls.length, 1);
-        do_check_eq(aInstalls[0], install);
-
-        prepare_test({
-          "addon1@tests.mozilla.org": [
-            "onInstalling"
-          ]
-        }, [
-          "onInstallStarted",
-          "onInstallEnded",
-        ], check_test_2);
-        install.install();
-      });
-    }
-  }, AddonManager.UPDATE_WHEN_USER_REQUESTED);
+function run_test_2() {
+  prepare_test({
+    "addon1@tests.mozilla.org": [
+      "onInstalling"
+    ]
+  }, [
+    "onInstallStarted",
+    "onInstallEnded",
+  ], check_test_2);
 }
 
 function check_test_2() {
@@ -214,7 +169,7 @@ function check_test_2() {
       do_check_neq(a1, null);
       do_check_eq(a1.version, "2.0");
       do_check_true(isExtensionInAddonsList(profileDir, a1.id));
-      do_check_eq(a1.applyBackgroundUpdates, AddonManager.AUTOUPDATE_DISABLE);
+      do_check_false(a1.applyBackgroundUpdates);
       do_check_eq(a1.releaseNotesURI.spec, "http://example.com/updateInfo.xhtml");
 
       a1.uninstall();
@@ -466,7 +421,7 @@ function run_test_7() {
     }, [
       "onExternalInstall"
     ], check_test_7);
-
+  
     // Fake a timer event to cause a background update and wait for the magic to
     // happen
     gInternalManager.notify(null);
@@ -847,7 +802,7 @@ function run_test_14() {
   restartManager();
 
   AddonManager.getAddonByID("addon8@tests.mozilla.org", function(a8) {
-    a8.applyBackgroundUpdates = AddonManager.AUTOUPDATE_DISABLE;
+    a8.applyBackgroundUpdates = false;
 
     // The background update check will find updates for both add-ons but only
     // proceed to install one of them.
@@ -891,7 +846,7 @@ function run_test_14() {
         do_throw("Should not have seen onInstallCancelled event");
       },
     });
-
+  
     // Fake a timer event
     gInternalManager.notify(null);
   });

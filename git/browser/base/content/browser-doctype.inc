@@ -19,7 +19,5 @@
 <!ENTITY % safebrowsingDTD SYSTEM "chrome://browser/locale/safebrowsing/phishing-afterload-warning-message.dtd">
 %safebrowsingDTD;
 #endif
-<!ENTITY % aboutHomeDTD SYSTEM "chrome://browser/locale/aboutHome.dtd">
-%aboutHomeDTD;
 ]>
 

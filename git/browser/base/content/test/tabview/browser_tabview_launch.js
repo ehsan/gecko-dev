@@ -45,24 +45,26 @@ function test() {
     if (tabViewShownCount == 1) {
       document.getElementById("menu_tabview").doCommand();
     } else if (tabViewShownCount == 2) {
-      let utils = window.QueryInterface(Ci.nsIInterfaceRequestor).
-                        getInterface(Ci.nsIDOMWindowUtils);
-      let keyCode = 0;
-      let charCode;
-      let eventObject;
-      if (navigator.platform.indexOf("Mac") != -1) {
-        charCode = 160;
-        eventObject = { altKey: true };
-       } else {
-        charCode = 32;
-        eventObject = { ctrlKey: true };
+       var utils = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor).
+                        getInterface(Components.interfaces.nsIDOMWindowUtils);
+      if (utils) {
+        var keyCode = 0;
+        var charCode;
+        var eventObject;
+        if (navigator.platform.indexOf("Mac") != -1) {
+          charCode = 160;
+          eventObject = { altKey: true };
+        } else {
+          charCode = 32;
+          eventObject = { ctrlKey: true };
+        }
+        var modifiers = EventUtils._parseModifiers(eventObject);
+        var keyDownDefaultHappened =
+            utils.sendKeyEvent("keydown", keyCode, charCode, modifiers);
+        utils.sendKeyEvent("keypress", keyCode, charCode, modifiers,
+                             !keyDownDefaultHappened);
+        utils.sendKeyEvent("keyup", keyCode, charCode, modifiers);
       }
-      let modifiers = EventUtils._parseModifiers(eventObject);
-      let keyDownDefaultHappened =
-        utils.sendKeyEvent("keydown", keyCode, charCode, modifiers);
-      utils.sendKeyEvent("keypress", keyCode, charCode, modifiers,
-                         !keyDownDefaultHappened);
-      utils.sendKeyEvent("keyup", keyCode, charCode, modifiers);
     } else if (tabViewShownCount == 3) {
       window.removeEventListener("tabviewshown", onTabViewShown, false);
       window.removeEventListener("tabviewhidden", onTabViewHidden, false);
@@ -70,10 +72,9 @@ function test() {
     }
   }
   let onTabViewShown = function() {
-    // add the count to the message so we can track things more easily.
-    ok(TabView.isVisible(), "Tab View is visible. Count: " + tabViewShownCount);
+    ok(TabView.isVisible(), "Tab View is visible");
     tabViewShownCount++
-    executeSoon(function() { TabView.toggle(); });
+    TabView.toggle();
   }
   window.addEventListener("tabviewshown", onTabViewShown, false);
   window.addEventListener("tabviewhidden", onTabViewHidden, false);
@@ -82,5 +83,5 @@ function test() {
 
   let button = document.getElementById("tabview-button");
   ok(button, "Tab View button exists");
-  button.doCommand();
+  EventUtils.synthesizeMouse(button, 1, 1, {});
 }

@@ -208,8 +208,6 @@ gfxMacFont::InitTextRun(gfxContext *aContext,
 #endif
     }
 
-    aTextRun->AdjustAdvancesForSyntheticBold(aRunStart, aRunLength);
-
     return ok;
 }
 

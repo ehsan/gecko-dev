@@ -33,8 +33,6 @@ public class StateSnapshot<T> implements TreeBuilderState<T> {
 
     private final T headPointer;
 
-    private final T deepTreeSurrogateParent;
-
     private final int mode;
 
     private final int originalMode;
@@ -58,12 +56,11 @@ public class StateSnapshot<T> implements TreeBuilderState<T> {
      * @param mode 
      */
     StateSnapshot(StackNode<T>[] stack,
-            StackNode<T>[] listOfActiveFormattingElements, T formPointer, T headPointer, T deepTreeSurrogateParent, int mode, int originalMode, boolean framesetOk, boolean inForeign, boolean needToDropLF, boolean quirks) {
+            StackNode<T>[] listOfActiveFormattingElements, T formPointer, T headPointer, int mode, int originalMode, boolean framesetOk, boolean inForeign, boolean needToDropLF, boolean quirks) {
         this.stack = stack;
         this.listOfActiveFormattingElements = listOfActiveFormattingElements;
         this.formPointer = formPointer;
         this.headPointer = headPointer;
-        this.deepTreeSurrogateParent = deepTreeSurrogateParent;
         this.mode = mode;
         this.originalMode = originalMode;
         this.framesetOk = framesetOk;
@@ -102,15 +99,6 @@ public class StateSnapshot<T> implements TreeBuilderState<T> {
         return headPointer;
     }
 
-    /**
-     * Returns the deepTreeSurrogateParent.
-     * 
-     * @return the deepTreeSurrogateParent
-     */
-    public T getDeepTreeSurrogateParent() {
-        return deepTreeSurrogateParent;
-    }
-    
     /**
      * Returns the mode.
      * 

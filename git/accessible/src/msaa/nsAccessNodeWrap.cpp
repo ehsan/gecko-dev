@@ -46,7 +46,6 @@
 #include "nsApplicationAccessibleWrap.h"
 #include "nsCoreUtils.h"
 #include "nsRootAccessible.h"
-#include "nsWinUtils.h"
 
 #include "nsAttrName.h"
 #include "nsIDocument.h"
@@ -64,7 +63,6 @@
 HINSTANCE nsAccessNodeWrap::gmAccLib = nsnull;
 HINSTANCE nsAccessNodeWrap::gmUserLib = nsnull;
 LPFNACCESSIBLEOBJECTFROMWINDOW nsAccessNodeWrap::gmAccessibleObjectFromWindow = nsnull;
-LPFNLRESULTFROMOBJECT nsAccessNodeWrap::gmLresultFromObject = NULL;
 LPFNNOTIFYWINEVENT nsAccessNodeWrap::gmNotifyWinEvent = nsnull;
 LPFNGETGUITHREADINFO nsAccessNodeWrap::gmGetGUIThreadInfo = nsnull;
 
@@ -571,14 +569,7 @@ void nsAccessNodeWrap::InitAccessibility()
   }
 
   DoATSpecificProcessing();
-
-  // Register window class that'll be used for document accessibles associated
-  // with tabs.
-  if (nsWinUtils::IsWindowEmulationEnabled()) {
-    nsWinUtils::RegisterNativeWindow(kClassNameTabContent);
-    sHWNDCache.Init(4);
-  }
-
+  
   nsAccessNode::InitXPAccessibility();
 }
 
@@ -586,11 +577,6 @@ void nsAccessNodeWrap::ShutdownAccessibility()
 {
   NS_IF_RELEASE(gTextEvent);
   ::DestroyCaret();
-
-  // Unregister window call that's used for document accessibles associated
-  // with tabs.
-  if (nsWinUtils::IsWindowEmulationEnabled())
-    ::UnregisterClassW(kClassNameTabContent, GetModuleHandle(NULL));
 
   nsAccessNode::ShutdownXPAccessibility();
 }
@@ -638,7 +624,7 @@ GetHRESULT(nsresult aResult)
 
 PRBool nsAccessNodeWrap::IsOnlyMsaaCompatibleJawsPresent()
 {
-  HMODULE jhookhandle = ::GetModuleHandleW(kJAWSModuleHandle);
+  HMODULE jhookhandle = ::GetModuleHandleW(L"jhook");
   if (!jhookhandle)
     return PR_FALSE;  // No JAWS, or some other screen reader, use IA2
 
@@ -669,10 +655,10 @@ PRBool nsAccessNodeWrap::IsOnlyMsaaCompatibleJawsPresent()
 
 void nsAccessNodeWrap::TurnOffNewTabSwitchingForJawsAndWE()
 {
-  HMODULE srHandle = ::GetModuleHandleW(kJAWSModuleHandle);
+  HMODULE srHandle = ::GetModuleHandleW(L"jhook");
   if (!srHandle) {
     // No JAWS, try Window-Eyes
-    srHandle = ::GetModuleHandleW(kWEModuleHandle);
+    srHandle = ::GetModuleHandleW(L"gwm32inc");
     if (!srHandle) {
       // no screen reader we're interested in. Bail out.
       return;
@@ -707,50 +693,4 @@ void nsAccessNodeWrap::DoATSpecificProcessing()
     gIsIA2Disabled  = PR_TRUE;
 
   TurnOffNewTabSwitchingForJawsAndWE();
-}
-
-nsRefPtrHashtable<nsVoidPtrHashKey, nsDocAccessible> nsAccessNodeWrap::sHWNDCache;
-
-LRESULT CALLBACK
-nsAccessNodeWrap::WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
-{
-  switch (msg) {
-    case WM_GETOBJECT:
-    {
-      if (lParam == OBJID_CLIENT) {
-        nsDocAccessible* document = sHWNDCache.GetWeak(static_cast<void*>(hWnd));
-        if (document) {
-          IAccessible* msaaAccessible = NULL;
-          document->GetNativeInterface((void**)&msaaAccessible); // does an addref
-          if (msaaAccessible) {
-            LRESULT result = LresultFromObject(IID_IAccessible, wParam,
-                                               msaaAccessible); // does an addref
-            msaaAccessible->Release(); // release extra addref
-            return result;
-          }
-        }
-      }
-      return 0;
-    }
-  }
-
-  return ::DefWindowProcW(hWnd, msg, wParam, lParam);
-}
-
-STDMETHODIMP_(LRESULT)
-nsAccessNodeWrap::LresultFromObject(REFIID riid, WPARAM wParam, LPUNKNOWN pAcc)
-{
-  // open the dll dynamically
-  if (!gmAccLib)
-    gmAccLib =::LoadLibraryW(L"OLEACC.DLL");
-
-  if (gmAccLib) {
-    if (!gmLresultFromObject)
-      gmLresultFromObject = (LPFNLRESULTFROMOBJECT)GetProcAddress(gmAccLib,"LresultFromObject");
-
-    if (gmLresultFromObject)
-      return gmLresultFromObject(riid, wParam, pAcc);
-  }
-
-  return 0;
 }

@@ -342,7 +342,7 @@ nsSVGFilterInstance::BuildSourceImages()
     nsRefPtr<gfxASurface> offscreen =
       gfxPlatform::GetPlatform()->CreateOffscreenSurface(
               gfxIntSize(mSurfaceRect.width, mSurfaceRect.height),
-              gfxASurface::CONTENT_COLOR_ALPHA);
+              gfxASurface::ImageFormatARGB32);
     if (!offscreen || offscreen->CairoStatus())
       return NS_ERROR_OUT_OF_MEMORY;
     offscreen->SetDeviceOffset(gfxPoint(-mSurfaceRect.x, -mSurfaceRect.y));

@@ -514,7 +514,7 @@ PlanarYCbCrImageOGL::SetData(const PlanarYCbCrImage::Data &aData)
       // YV12 format
     width_shift = 1;
     height_shift = 1;
-    mType = gfx::YV12;
+    mType = gfx::YV16;
   } else {
     NS_ERROR("YCbCr format not supported");
   }

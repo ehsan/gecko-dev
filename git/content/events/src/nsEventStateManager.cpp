@@ -185,8 +185,6 @@ static PRUint32 sESMInstanceCount = 0;
 static PRInt32 sChromeAccessModifier = 0, sContentAccessModifier = 0;
 PRInt32 nsEventStateManager::sUserInputEventDepth = 0;
 PRBool nsEventStateManager::sNormalLMouseEventInProcess = PR_FALSE;
-nsEventStateManager* nsEventStateManager::sActiveESM = nsnull;
-nsIDocument* nsEventStateManager::sMouseOverDocument = nsnull;
 
 static PRUint32 gMouseOrKeyboardEventCounter = 0;
 static nsITimer* gUserInteractionTimer = nsnull;
@@ -855,14 +853,8 @@ nsEventStateManager::Init()
 
 nsEventStateManager::~nsEventStateManager()
 {
-  if (sActiveESM == this) {
-    sActiveESM = nsnull;
-  }
   if (mClickHoldContextMenu)
     KillClickHoldTimer();
-
-  if (mDocument == sMouseOverDocument)
-    sMouseOverDocument = nsnull;
 
   --sESMInstanceCount;
   if(sESMInstanceCount == 0) {
@@ -2921,7 +2913,7 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
             if (par)
               activeContent = par;
           }
-          SetGlobalActiveContent(this, activeContent);
+          SetContentState(activeContent, NS_EVENT_STATE_ACTIVE);
         }
       }
       else {
@@ -2933,7 +2925,7 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
     break;
   case NS_MOUSE_BUTTON_UP:
     {
-      SetGlobalActiveContent(this, nsnull);
+      SetContentState(nsnull, NS_EVENT_STATE_ACTIVE);
       if (IsMouseEventReal(aEvent)) {
         if (!mCurrentTarget) {
           nsIFrame* targ;
@@ -3414,10 +3406,6 @@ nsEventStateManager::SetCursor(PRInt32 aCursor, imgIContainer* aContainer,
                                float aHotspotX, float aHotspotY,
                                nsIWidget* aWidget, PRBool aLockCursor)
 {
-  EnsureDocument(mPresContext);
-  NS_ENSURE_TRUE(mDocument, NS_ERROR_FAILURE);
-  sMouseOverDocument = mDocument.get();
-
   nsCursor c;
 
   NS_ENSURE_TRUE(aWidget, NS_ERROR_FAILURE);
@@ -4720,17 +4708,4 @@ nsEventStateManager::DoContentCommandScrollEvent(nsContentCommandEvent* aEvent)
   // The caller may want synchronous scrolling.
   sf->ScrollBy(pt, scrollUnit, nsIScrollableFrame::INSTANT);
   return NS_OK;
-}
-
-void
-nsEventStateManager::SetGlobalActiveContent(nsEventStateManager* aNewESM,
-                                            nsIContent* aContent)
-{
-  if (sActiveESM && aNewESM != sActiveESM) {
-    sActiveESM->SetContentState(nsnull, NS_EVENT_STATE_ACTIVE);
-  }
-  sActiveESM = aNewESM;
-  if (sActiveESM) {
-    sActiveESM->SetContentState(aContent, NS_EVENT_STATE_ACTIVE);
-  }
 }

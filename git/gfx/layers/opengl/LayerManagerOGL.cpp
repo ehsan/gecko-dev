@@ -55,8 +55,6 @@
 #include "nsIServiceManager.h"
 #include "nsIConsoleService.h"
 
-#include "nsIGfxInfo.h"
-
 namespace mozilla {
 namespace layers {
 
@@ -150,29 +148,7 @@ LayerManagerOGL::Initialize(GLContext *aExistingContext)
     if (mGLContext)
       CleanupResources();
 
-    nsCOMPtr<nsIGfxInfo> gfxInfo = do_GetService("@mozilla.org/gfx/info;1");
-    if (gfxInfo) {
-      PRInt32 status;
-      if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_OPENGL_LAYERS, &status))) {
-        if (status != nsIGfxInfo::FEATURE_STATUS_UNKNOWN &&
-            status != nsIGfxInfo::FEATURE_AVAILABLE) {
-          NS_WARNING("OpenGL-accelerated layers are not supported on this system.");
-          return PR_FALSE;
-        }
-      }
-    }
-
-    mGLContext = nsnull;
-
-#ifdef XP_WIN
-    if (PR_GetEnv("MOZ_LAYERS_PREFER_EGL")) {
-      printf_stderr("Trying GL layers...\n");
-      mGLContext = gl::GLContextProviderEGL::CreateForWindow(mWidget);
-    }
-#endif
-
-    if (!mGLContext)
-      mGLContext = gl::GLContextProvider::CreateForWindow(mWidget);
+    mGLContext = gl::GLContextProvider::CreateForWindow(mWidget);
 
     if (!mGLContext) {
       NS_WARNING("Failed to create LayerManagerOGL context");
@@ -494,6 +470,17 @@ LayerManagerOGL::RememberImageContainer(ImageContainer *aContainer)
   mImageContainers.AppendElement(aContainer);
 }
 
+void
+LayerManagerOGL::MakeCurrent()
+{
+  if (mDestroyed) {
+    NS_WARNING("Call on destroyed layer manager");
+    return;
+  }
+
+  mGLContext->MakeCurrent();
+}
+
 LayerOGL*
 LayerManagerOGL::RootLayer() const
 {
@@ -515,26 +502,10 @@ LayerManagerOGL::Render()
 
   nsIntRect rect;
   mWidget->GetClientBounds(rect);
-
   GLint width = rect.width;
   GLint height = rect.height;
 
-  // We can't draw anything to something with no area
-  // so just return
-  if (width == 0 || height == 0)
-    return;
-
-  // If the widget size changed, we have to force a MakeCurrent
-  // to make sure that GL sees the updated widget size.
-  if (mWidgetSize.width != width ||
-      mWidgetSize.height != height)
-  {
-    MakeCurrent(PR_TRUE);
-    mWidgetSize.width = width;
-    mWidgetSize.height = height;
-  } else {
-    MakeCurrent();
-  }
+  MakeCurrent();
 
   DEBUG_GL_ERROR_CHECK(mGLContext);
 
@@ -548,6 +519,14 @@ LayerManagerOGL::Render()
 
   DEBUG_GL_ERROR_CHECK(mGLContext);
 
+#if 0
+  // XXX for whatever reason, scissor is not working -- even with no
+  // cliprect set, so we go through the 0,0,w,h path, any updates
+  // after the initial render end up failing the scissor rectangle.  I
+  // have no idea why.  We disable it for now, because it's not actually
+  // helping us with anything -- we draw to a specific location in the
+  // front buffer as it is.
+
   const nsIntRect *clipRect = mRoot->GetClipRect();
 
   if (clipRect) {
@@ -558,11 +537,11 @@ LayerManagerOGL::Render()
   }
 
   mGLContext->fEnable(LOCAL_GL_SCISSOR_TEST);
+#else
+  mGLContext->fDisable(LOCAL_GL_SCISSOR_TEST);
+#endif
 
   DEBUG_GL_ERROR_CHECK(mGLContext);
-
-  mGLContext->fClearColor(0.0, 0.0, 0.0, 0.0);
-  mGLContext->fClear(LOCAL_GL_COLOR_BUFFER_BIT | LOCAL_GL_DEPTH_BUFFER_BIT);
 
   // Render our layers.
   RootLayer()->RenderLayer(mGLContext->IsDoubleBuffered() ? 0 : mBackBufferFBO,
@@ -727,9 +706,6 @@ LayerManagerOGL::SetupBackBuffer(int aWidth, int aHeight)
                                     mFBOTextureTarget,
                                     mBackBufferTexture,
                                     0);
-
-  NS_ASSERTION(mGLContext->fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER) ==
-               LOCAL_GL_FRAMEBUFFER_COMPLETE, "Error setting up framebuffer.");
 
   mBackBufferSize.width = aWidth;
   mBackBufferSize.height = aHeight;

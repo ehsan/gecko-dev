@@ -44,19 +44,6 @@
 namespace mozilla {
 namespace layers {
 
-static nsIntSize
-ScaledSize(const nsIntSize& aSize, float aXScale, float aYScale)
-{
-  if (aXScale == 1.0 && aYScale == 1.0) {
-    return aSize;
-  }
-
-  gfxRect rect(0, 0, aSize.width, aSize.height);
-  rect.Scale(aXScale, aYScale);
-  rect.RoundOut();
-  return nsIntSize(rect.size.width, rect.size.height);
-}
-
 nsIntRect
 ThebesLayerBuffer::GetQuadrantRectangle(XSide aXSide, YSide aYSide)
 {
@@ -80,9 +67,7 @@ ThebesLayerBuffer::GetQuadrantRectangle(XSide aXSide, YSide aYSide)
  */
 void
 ThebesLayerBuffer::DrawBufferQuadrant(gfxContext* aTarget,
-                                      XSide aXSide, YSide aYSide,
-                                      float aOpacity,
-                                      float aXRes, float aYRes)
+                                      XSide aXSide, YSide aYSide, float aOpacity)
 {
   // The rectangle that we're going to fill. Basically we're going to
   // render the buffer at mBufferRect + quadrantTranslation to get the
@@ -94,26 +79,9 @@ ThebesLayerBuffer::DrawBufferQuadrant(gfxContext* aTarget,
     return;
 
   aTarget->NewPath();
-  aTarget->Rectangle(gfxRect(fillRect.x, fillRect.y,
-                             fillRect.width, fillRect.height),
+  aTarget->Rectangle(gfxRect(fillRect.x, fillRect.y, fillRect.width, fillRect.height),
                      PR_TRUE);
-
-  gfxPoint quadrantTranslation(quadrantRect.x, quadrantRect.y);
-  nsRefPtr<gfxPattern> pattern = new gfxPattern(mBuffer);
-
-#ifdef MOZ_GFX_OPTIMIZE_MOBILE
-  gfxPattern::GraphicsFilter filter = gfxPattern::FILTER_NEAREST;
-  pattern->SetFilter(filter);
-#endif
-
-  // Transform from user -> buffer space.
-  gfxMatrix transform;
-  transform.Scale(aXRes, aYRes);
-  transform.Translate(-quadrantTranslation);
-
-  pattern->SetMatrix(transform);
-  aTarget->SetPattern(pattern);
-
+  aTarget->SetSource(mBuffer, gfxPoint(quadrantRect.x, quadrantRect.y));
   if (aOpacity != 1.0) {
     aTarget->Save();
     aTarget->Clip();
@@ -125,15 +93,14 @@ ThebesLayerBuffer::DrawBufferQuadrant(gfxContext* aTarget,
 }
 
 void
-ThebesLayerBuffer::DrawBufferWithRotation(gfxContext* aTarget, float aOpacity,
-                                          float aXRes, float aYRes)
+ThebesLayerBuffer::DrawBufferWithRotation(gfxContext* aTarget, float aOpacity)
 {
   // Draw four quadrants. We could use REPEAT_, but it's probably better
   // not to, to be performance-safe.
-  DrawBufferQuadrant(aTarget, LEFT, TOP, aOpacity, aXRes, aYRes);
-  DrawBufferQuadrant(aTarget, RIGHT, TOP, aOpacity, aXRes, aYRes);
-  DrawBufferQuadrant(aTarget, LEFT, BOTTOM, aOpacity, aXRes, aYRes);
-  DrawBufferQuadrant(aTarget, RIGHT, BOTTOM, aOpacity, aXRes, aYRes);
+  DrawBufferQuadrant(aTarget, LEFT, TOP, aOpacity);
+  DrawBufferQuadrant(aTarget, RIGHT, TOP, aOpacity);
+  DrawBufferQuadrant(aTarget, LEFT, BOTTOM, aOpacity);
+  DrawBufferQuadrant(aTarget, RIGHT, BOTTOM, aOpacity);
 }
 
 static void
@@ -147,27 +114,15 @@ WrapRotationAxis(PRInt32* aRotationPoint, PRInt32 aSize)
 }
 
 ThebesLayerBuffer::PaintState
-ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
-                              float aXResolution, float aYResolution)
+ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType)
 {
   PaintState result;
 
   result.mRegionToDraw.Sub(aLayer->GetVisibleRegion(), aLayer->GetValidRegion());
 
-  float curXRes = aLayer->GetXResolution();
-  float curYRes = aLayer->GetYResolution();
-  if (mBuffer &&
-      (aContentType != mBuffer->GetContentType() ||
-       aXResolution != curXRes || aYResolution != curYRes)) {
+  if (mBuffer && aContentType != mBuffer->GetContentType()) {
     // We're effectively clearing the valid region, so we need to draw
     // the entire visible region now.
-    //
-    // XXX/cjones: a possibly worthwhile optimization to keep in mind
-    // is to re-use buffers when the resolution and visible region
-    // have changed in such a way that the buffer size stays the same.
-    // It might make even more sense to allocate buffers from a
-    // recyclable pool, so that we could keep this logic simple and
-    // still get back the same buffer.
     result.mRegionToDraw = aLayer->GetVisibleRegion();
     result.mRegionToInvalidate = aLayer->GetValidRegion();
     Clear();
@@ -178,16 +133,10 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
   nsIntRect drawBounds = result.mRegionToDraw.GetBounds();
 
   nsIntRect visibleBounds = aLayer->GetVisibleRegion().GetBounds();
-  nsIntSize destBufferDims = ScaledSize(visibleBounds.Size(),
-                                        aXResolution, aYResolution);
   nsRefPtr<gfxASurface> destBuffer;
   nsIntRect destBufferRect;
-  PRBool bufferDimsChanged = PR_FALSE;
 
-  if (BufferSizeOkFor(destBufferDims)) {
-    NS_ASSERTION(curXRes == aXResolution && curYRes == aYResolution,
-                 "resolution changes must Clear()!");
-
+  if (BufferSizeOkFor(visibleBounds.Size())) {
     // The current buffer is big enough to hold the visible area.
     if (mBufferRect.Contains(visibleBounds)) {
       // We don't need to adjust mBufferRect.
@@ -220,10 +169,7 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
           // We can't do a real self-copy because the buffer is rotated.
           // So allocate a new buffer for the destination.
           destBufferRect = visibleBounds;
-          destBufferDims = ScaledSize(destBufferRect.Size(),
-                                      aXResolution, aYResolution);
-          bufferDimsChanged = PR_TRUE;
-          destBuffer = CreateBuffer(aContentType, destBufferDims);
+          destBuffer = CreateBuffer(aContentType, destBufferRect.Size());
           if (!destBuffer)
             return result;
         }
@@ -241,10 +187,7 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
   } else {
     // The buffer's not big enough, so allocate a new one
     destBufferRect = visibleBounds;
-    destBufferDims = ScaledSize(destBufferRect.Size(),
-                                aXResolution, aYResolution);
-    bufferDimsChanged = PR_TRUE;
-    destBuffer = CreateBuffer(aContentType, destBufferDims);
+    destBuffer = CreateBuffer(aContentType, destBufferRect.Size());
     if (!destBuffer)
       return result;
   }
@@ -259,19 +202,13 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
       nsRefPtr<gfxContext> tmpCtx = new gfxContext(destBuffer);
       nsIntPoint offset = -destBufferRect.TopLeft();
       tmpCtx->SetOperator(gfxContext::OPERATOR_SOURCE);
-      tmpCtx->Scale(aXResolution, aYResolution);
       tmpCtx->Translate(gfxPoint(offset.x, offset.y));
-      NS_ASSERTION(curXRes == aXResolution && curYRes == aYResolution,
-                   "resolution changes must Clear()!");
-      DrawBufferWithRotation(tmpCtx, 1.0, aXResolution, aYResolution);
+      DrawBufferWithRotation(tmpCtx, 1.0);
     }
 
     mBuffer = destBuffer.forget();
     mBufferRect = destBufferRect;
     mBufferRotation = nsIntPoint(0,0);
-  }
-  if (bufferDimsChanged) {
-    mBufferDims = destBufferDims;
   }
 
   nsIntRegion invalidate;
@@ -287,7 +224,6 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
   YSide sideY = drawBounds.YMost() <= yBoundary ? BOTTOM : TOP;
   nsIntRect quadrantRect = GetQuadrantRectangle(sideX, sideY);
   NS_ASSERTION(quadrantRect.Contains(drawBounds), "Messed up quadrants");
-  result.mContext->Scale(aXResolution, aYResolution);
   result.mContext->Translate(-gfxPoint(quadrantRect.x, quadrantRect.y));
 
   gfxUtils::ClipToRegion(result.mContext, result.mRegionToDraw);

@@ -121,9 +121,10 @@ const PROP_TARGETAPP     = ["id", "minVersion", "maxVersion"];
 
 // Properties that only exist in the database
 const DB_METADATA        = ["installDate", "updateDate", "size", "sourceURI",
-                            "releaseNotesURI", "applyBackgroundUpdates"];
+                            "releaseNotesURI"];
 const DB_BOOL_METADATA   = ["visible", "active", "userDisabled", "appDisabled",
-                            "pendingUninstall", "bootstrap", "skinnable"];
+                            "pendingUninstall", "applyBackgroundUpdates",
+                            "bootstrap", "skinnable"];
 
 const BOOTSTRAP_REASONS = {
   APP_STARTUP     : 1,
@@ -522,7 +523,7 @@ function loadManifestFromRDF(aUri, aStream) {
 
   addon.appDisabled = !isUsableAddon(addon);
 
-  addon.applyBackgroundUpdates = AddonManager.AUTOUPDATE_DEFAULT;
+  addon.applyBackgroundUpdates = true;
 
   return addon;
 }
@@ -555,7 +556,7 @@ function loadManifestFromDir(aDir) {
   let file = aDir.clone();
   file.append(FILE_INSTALL_MANIFEST);
   if (!file.exists() || !file.isFile())
-    throw new Error("Directory " + aDir.path + " does not contain a valid " +
+    throw new Error("Directory " + dir.path + " does not contain a valid " +
                     "install manifest");
 
   let fis = Cc["@mozilla.org/network/file-input-stream;1"].
@@ -1919,31 +1920,22 @@ var XPIProvider = {
       migrateData = XPIDatabase.migrateData(schema);
     }
 
-    // If the database exists then the previous file cache can be trusted
-    // otherwise create an empty database
-    let db = FileUtils.getFile(KEY_PROFILEDIR, [FILE_DATABASE], true);
-    if (db.exists()) {
-      cache = Prefs.getCharPref(PREF_INSTALL_CACHE, null);
-    }
-    else {
-      try {
+    XPIDatabase.beginTransaction();
+
+    // Catch any errors during the main startup and rollback the database changes
+    try {
+      // If the database exists then the previous file cache can be trusted
+      // otherwise create an empty database
+      let db = FileUtils.getFile(KEY_PROFILEDIR, [FILE_DATABASE], true);
+      if (db.exists()) {
+        cache = Prefs.getCharPref(PREF_INSTALL_CACHE, null);
+      }
+      else {
         LOG("Database is missing, recreating");
         XPIDatabase.openConnection();
         XPIDatabase.createSchema();
       }
-      catch (e) {
-        try {
-          db.remove(true);
-        }
-        catch (e) {
-        }
-        return;
-      }
-    }
 
-    // Catch any errors during the main startup and rollback the database changes
-    XPIDatabase.beginTransaction();
-    try {
       // Load the list of bootstrapped add-ons first so processFileChanges can
       // modify it
       this.bootstrappedAddons = JSON.parse(Prefs.getCharPref(PREF_BOOTSTRAP_ADDONS,
@@ -3244,8 +3236,6 @@ var XPIDatabase = {
       ERROR("Failed to create database schema");
       logSQLError(this.connection.lastError, this.connection.lastErrorString);
       this.rollbackTransaction();
-      this.connection.close();
-      this.connection = null;
       throw e;
     }
   },
@@ -3948,8 +3938,8 @@ var XPIDatabase = {
     let stmt = this.getStatement("setAddonProperties");
     stmt.params.internal_id = aAddon._internal_id;
 
-    ["userDisabled", "appDisabled",
-     "pendingUninstall"].forEach(function(aProp) {
+    ["userDisabled", "appDisabled", "pendingUninstall",
+     "applyBackgroundUpdates"].forEach(function(aProp) {
       if (aProp in aProperties) {
         stmt.params[aProp] = convertBoolean(aProperties[aProp]);
         aAddon[aProp] = aProperties[aProp];
@@ -3958,14 +3948,6 @@ var XPIDatabase = {
         stmt.params[aProp] = convertBoolean(aAddon[aProp]);
       }
     });
-
-    if ("applyBackgroundUpdates" in aProperties) {
-      stmt.params.applyBackgroundUpdates = aProperties.applyBackgroundUpdates;
-      aAddon.applyBackgroundUpdates = aProperties.applyBackgroundUpdates;
-    }
-    else {
-      stmt.params.applyBackgroundUpdates = aAddon.applyBackgroundUpdates;
-    }
 
     executeStatement(stmt);
   },
@@ -4096,11 +4078,6 @@ function AddonInstall(aCallback, aInstallLocation, aUrl, aHash, aName, aType,
   this.listeners = [];
   this.existingAddon = aExistingAddon;
   this.error = 0;
-  if (aLoadGroup)
-    this.window = aLoadGroup.notificationCallbacks
-                            .getInterface(Ci.nsIDOMWindow);
-  else
-    this.window = null;
 
   if (aUrl instanceof Ci.nsIFileURL) {
     this.file = aUrl.file.QueryInterface(Ci.nsILocalFile);
@@ -4984,7 +4961,7 @@ AddonInstall.prototype = {
     if (iid.equals(Ci.nsIAuthPrompt2)) {
       var factory = Cc["@mozilla.org/prompter;1"].
                     getService(Ci.nsIPromptFactory);
-      return factory.getPrompt(this.window, Ci.nsIAuthPrompt);
+      return factory.getPrompt(null, Ci.nsIAuthPrompt);
     }
     else if (iid.equals(Ci.nsIChannelEventSink)) {
       return this;
@@ -5160,30 +5137,10 @@ UpdateChecker.prototype = {
   syncCompatibility: null,
 
   /**
-   * Calls a method on the listener passing any number of arguments and
-   * consuming any exceptions.
-   *
-   * @param  aMethod
-   *         The method to call on the listener
-   */
-  callListener: function(aMethod) {
-    if (!(aMethod in this.listener))
-      return;
-
-    let args = Array.slice(arguments, 1);
-    try {
-      this.listener[aMethod].apply(this.listener, args);
-    }
-    catch (e) {
-      LOG("Exception calling UpdateListener method " + aMethod + ": " + e);
-    }
-  },
-
-  /**
    * Called when AddonUpdateChecker completes the update check
    *
-   * @param  updates
-   *         The list of update details for the add-on
+   * @param   updates
+   *          The list of update details for the add-on
    */
   onUpdateCheckComplete: function UC_onUpdateCheckComplete(aUpdates) {
     let AUC = AddonUpdateChecker;
@@ -5208,64 +5165,57 @@ UpdateChecker.prototype = {
                                                 this.platformVersion);
     }
 
-    if (compatUpdate)
-      this.callListener("onCompatibilityUpdateAvailable", createWrapper(this.addon));
-    else
-      this.callListener("onNoCompatibilityUpdateAvailable", createWrapper(this.addon));
-
-    function sendUpdateAvailableMessages(aSelf, aInstall) {
-      if (aInstall) {
-        aSelf.callListener("onUpdateAvailable", createWrapper(aSelf.addon),
-                           aInstall.wrapper);
-      }
-      else {
-        aSelf.callListener("onNoUpdateAvailable", createWrapper(aSelf.addon));
-      }
-      aSelf.callListener("onUpdateFinished", createWrapper(aSelf.addon),
-                         AddonManager.UPDATE_STATUS_NO_ERROR);
+    if (compatUpdate) {
+      if ("onCompatibilityUpdateAvailable" in this.listener)
+        this.listener.onCompatibilityUpdateAvailable(createWrapper(this.addon));
+    }
+    else if ("onNoCompatibilityUpdateAvailable" in this.listener) {
+      this.listener.onNoCompatibilityUpdateAvailable(createWrapper(this.addon));
     }
 
     let update = AUC.getNewestCompatibleUpdate(aUpdates,
                                                this.appVersion,
                                                this.platformVersion);
-
     if (update && Services.vc.compare(this.addon.version, update.version) < 0) {
-      for (let i = 0; i < XPIProvider.installs.length; i++) {
-        // Skip installs that don't match the available update
-        if (XPIProvider.installs[i].existingAddon != this.addon ||
-            XPIProvider.installs[i].version != update.version)
-          continue;
-
-        // If the existing install has not yet started downloading then send an
-        // available update notification. If it is already downloading then
-        // don't send any available update notification
-        if (XPIProvider.installs[i].state == AddonManager.STATE_AVAILABLE)
-          sendUpdateAvailableMessages(this, XPIProvider.installs[i]);
-        else
-          sendUpdateAvailableMessages(this, null);
-        return;
+      if ("onUpdateAvailable" in this.listener) {
+        let self = this;
+        AddonInstall.createUpdate(function(install) {
+          self.listener.onUpdateAvailable(createWrapper(self.addon),
+                                          install.wrapper);
+          if ("onUpdateFinished" in self.listener) {
+            self.listener.onUpdateFinished(createWrapper(self.addon),
+                                           AddonManager.UPDATE_STATUS_NO_ERROR);
+          }
+        }, this.addon, update);
       }
-
-      let self = this;
-      AddonInstall.createUpdate(function(aInstall) {
-        sendUpdateAvailableMessages(self, aInstall);
-      }, this.addon, update);
+      else if ("onUpdateFinished" in this.listener) {
+        this.listener.onUpdateFinished(createWrapper(this.addon),
+                                       AddonManager.UPDATE_STATUS_NO_ERROR);
+      }
     }
     else {
-      sendUpdateAvailableMessages(this, null);
+      if ("onNoUpdateAvailable" in this.listener)
+        this.listener.onNoUpdateAvailable(createWrapper(this.addon));
+      if ("onUpdateFinished" in this.listener) {
+        this.listener.onUpdateFinished(createWrapper(this.addon),
+                                       AddonManager.UPDATE_STATUS_NO_ERROR);
+      }
     }
   },
 
   /**
    * Called when AddonUpdateChecker fails the update check
    *
-   * @param  aError
+   * @param  error
    *         An error status
    */
   onUpdateCheckError: function UC_onUpdateCheckError(aError) {
-    this.callListener("onNoCompatibilityUpdateAvailable", createWrapper(this.addon));
-    this.callListener("onNoUpdateAvailable", createWrapper(this.addon));
-    this.callListener("onUpdateFinished", createWrapper(this.addon), aError);
+    if ("onNoCompatibilityUpdateAvailable" in this.listener)
+      this.listener.onNoCompatibilityUpdateAvailable(createWrapper(this.addon));
+    if ("onNoUpdateAvailable" in this.listener)
+      this.listener.onNoUpdateAvailable(createWrapper(this.addon));
+    if ("onUpdateFinished" in this.listener)
+      this.listener.onUpdateFinished(createWrapper(this.addon), aError);
   }
 };
 
@@ -5666,13 +5616,6 @@ function AddonWrapper(aAddon) {
     return aAddon.applyBackgroundUpdates;
   });
   this.__defineSetter__("applyBackgroundUpdates", function(val) {
-    if (val != AddonManager.AUTOUPDATE_DEFAULT &&
-        val != AddonManager.AUTOUPDATE_DISABLE &&
-        val != AddonManager.AUTOUPDATE_ENABLE) {
-      val = val ? AddonManager.AUTOUPDATE_DEFAULT :
-                  AddonManager.AUTOUPDATE_DISABLE;
-    }
-
     if (val == aAddon.applyBackgroundUpdates)
       return val;
 
@@ -6202,10 +6145,8 @@ WinRegInstallLocation.prototype = {
                 createInstance(Ci.nsILocalFile);
       file.initWithPath(aKey.readStringValue(id));
 
-      if (!file.exists()) {
+      if (!file.exists())
         WARN("Ignoring missing add-on in " + file.path);
-        continue;
-      }
 
       this._IDToFileMap[id] = file;
       this._FileToIDMap[file.path] = id;

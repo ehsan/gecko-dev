@@ -816,8 +816,8 @@ const gFormSubmitObserver = {
     }
 
     // Don't show the popup if the current tab doesn't contain the invalid form.
-    if (gBrowser.contentDocument !=
-        aFormElement.ownerDocument.defaultView.top.document) {
+    if (gBrowser.selectedTab.linkedBrowser.contentDocument !=
+        aFormElement.ownerDocument) {
       return;
     }
 
@@ -2327,6 +2327,56 @@ function BrowserPageInfo(doc, initialTab, imageElement) {
                     "chrome,toolbar,dialog=no,resizable", args);
 }
 
+#ifdef DEBUG
+// Initialize the LeakDetector class.
+function LeakDetector(verbose)
+{
+  this.verbose = verbose;
+}
+
+const NS_LEAKDETECTOR_CONTRACTID = "@mozilla.org/xpcom/leakdetector;1";
+
+if (NS_LEAKDETECTOR_CONTRACTID in Components.classes) {
+  try {
+    LeakDetector.prototype = Components.classes[NS_LEAKDETECTOR_CONTRACTID]
+                                       .createInstance(Components.interfaces.nsILeakDetector);
+  } catch (err) {
+    LeakDetector.prototype = Object.prototype;
+  }
+} else {
+  LeakDetector.prototype = Object.prototype;
+}
+
+var leakDetector = new LeakDetector(false);
+
+// Dumps current set of memory leaks.
+function dumpMemoryLeaks()
+{
+  leakDetector.dumpLeaks();
+}
+
+// Traces all objects reachable from the chrome document.
+function traceChrome()
+{
+  leakDetector.traceObject(document, leakDetector.verbose);
+}
+
+// Traces all objects reachable from the content document.
+function traceDocument()
+{
+  // keep the chrome document out of the dump.
+  leakDetector.markObject(document, true);
+  leakDetector.traceObject(content, leakDetector.verbose);
+  leakDetector.markObject(document, false);
+}
+
+// Controls whether or not we do verbose tracing.
+function traceVerbose(verbose)
+{
+  leakDetector.verbose = (verbose == "true");
+}
+#endif
+
 function URLBarSetURI(aURI) {
   var value = gBrowser.userTypedValue;
   var valid = false;
@@ -2929,6 +2979,8 @@ function openHomeDialog(aURL)
       str.data = aURL;
       gPrefService.setComplexValue("browser.startup.homepage",
                                    Components.interfaces.nsISupportsString, str);
+      var homeButton = document.getElementById("home-button");
+      homeButton.setAttribute("tooltiptext", aURL);
     } catch (ex) {
       dump("Failed to set the home page.\n"+ex+"\n");
     }
@@ -3181,8 +3233,32 @@ const BrowserSearch = {
 
     if (hidden)
       browser.hiddenEngines = engines;
-    else
+    else {
       browser.engines = engines;
+      if (browser == gBrowser.selectedBrowser)
+        this.updateSearchButton();
+    }
+  },
+
+  /**
+   * Update the browser UI to show whether or not additional engines are
+   * available when a page is loaded or the user switches tabs to a page that
+   * has search engines.
+   */
+  updateSearchButton: function() {
+    var searchBar = this.searchBar;
+
+    // The search bar binding might not be applied even though the element is
+    // in the document (e.g. when the navigation toolbar is hidden), so check
+    // for .searchButton specifically.
+    if (!searchBar || !searchBar.searchButton)
+      return;
+
+    var engines = gBrowser.selectedBrowser.engines;
+    if (engines && engines.length > 0)
+      searchBar.searchButton.setAttribute("addengines", "true");
+    else
+      searchBar.searchButton.removeAttribute("addengines");
   },
 
   /**
@@ -3934,6 +4010,7 @@ var XULBrowserWindow = {
   defaultStatus: "",
   jsStatus: "",
   jsDefaultStatus: "",
+  overLink: "",
   startTime: 0,
   statusText: "",
   isBusy: false,
@@ -3952,7 +4029,7 @@ var XULBrowserWindow = {
 
   get statusMeter () {
     delete this.statusMeter;
-    return this.statusMeter = document.getElementById("urlbar-progress");
+    return this.statusMeter = document.getElementById("statusbar-icon");
   },
   get stopCommand () {
     delete this.stopCommand;
@@ -4016,16 +4093,16 @@ var XULBrowserWindow = {
     this.updateStatusField();
   },
 
-  setOverLink: function (link) {
+  setOverLink: function (link, b) {
     // Encode bidirectional formatting characters.
     // (RFC 3987 sections 3.2 and 4.1 paragraph 6)
-    link = link.replace(/[\u200e\u200f\u202a\u202b\u202c\u202d\u202e]/g,
-                        encodeURIComponent);
-    gURLBar.setOverLink(link);
+    this.overLink = link.replace(/[\u200e\u200f\u202a\u202b\u202c\u202d\u202e]/g,
+                                 encodeURIComponent);
+    this.updateStatusField();
   },
 
   updateStatusField: function () {
-    var text = this.status || this.jsStatus || this.jsDefaultStatus || this.defaultStatus;
+    var text = this.overLink || this.status || this.jsStatus || this.jsDefaultStatus || this.defaultStatus;
 
     // check the current value so we don't trigger an attribute change
     // and cause needless (slow!) UI updates
@@ -4088,7 +4165,7 @@ var XULBrowserWindow = {
           this._progressCollapseTimer = 0;
         }
         else
-          this.statusMeter.collapsed = false;
+          this.statusMeter.parentNode.collapsed = false;
 
         // XXX: This needs to be based on window activity...
         this.stopCommand.removeAttribute("disabled");
@@ -4152,7 +4229,7 @@ var XULBrowserWindow = {
 
         // Turn the progress meter and throbber off.
         this._progressCollapseTimer = setTimeout(function (self) {
-          self.statusMeter.collapsed = true;
+          self.statusMeter.parentNode.collapsed = true;
           self._progressCollapseTimer = 0;
         }, 100, this);
 
@@ -4289,6 +4366,7 @@ var XULBrowserWindow = {
 
   asyncUpdateUI: function () {
     FeedHandler.updateFeeds();
+    BrowserSearch.updateSearchButton();
   },
 
   onStatusChange: function (aWebProgress, aRequest, aStatus, aMessage) {
@@ -4923,10 +5001,7 @@ var gHomeButton = {
     if (homeButton) {
       var homePage = this.getHomePage();
       homePage = homePage.replace(/\|/g,', ');
-      if (homePage.toLowerCase() == "about:home")
-        homeButton.setAttribute("tooltiptext", homeButton.getAttribute("aboutHomeOverrideTooltip"));
-      else
-        homeButton.setAttribute("tooltiptext", homePage);
+      homeButton.setAttribute("tooltiptext", homePage);
     }
   },
 
@@ -6630,7 +6705,23 @@ function convertFromUnicode(charset, str)
  */
 var FeedHandler = {
   /**
-   * Called when the user clicks on the Subscribe to This Page... menu item.
+   * The click handler for the Feed icon in the location bar. Opens the
+   * subscription page if user is not given a choice of feeds.
+   * (Otherwise the list of available feeds will be presented to the
+   * user in a popup menu.)
+   */
+  onFeedButtonClick: function(event) {
+    event.stopPropagation();
+
+    if (event.target.hasAttribute("feed") &&
+        event.eventPhase == Event.AT_TARGET &&
+        (event.button == 0 || event.button == 1)) {
+        this.subscribeToFeed(null, event);
+    }
+  },
+
+  /**
+   * Called when the user clicks on the Feed icon in the location bar.
    * Builds a menu of unique feeds associated with the page, and if there
    * is only one, shows the feed inline in the browser window.
    * @param   menuPopup
@@ -6654,6 +6745,13 @@ var FeedHandler = {
 
     while (menuPopup.firstChild)
       menuPopup.removeChild(menuPopup.firstChild);
+
+    if (feeds.length == 1) {
+      var feedButton = document.getElementById("feed-button");
+      if (feedButton)
+        feedButton.setAttribute("feed", feeds[0].href);
+      return false;
+    }
 
     // Build the menu showing the available feed choices for viewing.
     for (var i = 0; i < feeds.length; ++i) {
@@ -6726,16 +6824,30 @@ var FeedHandler = {
    * a page is loaded or the user switches tabs to a page that has feeds.
    */
   updateFeeds: function() {
+    var feedButton = document.getElementById("feed-button");
+
     var feeds = gBrowser.selectedBrowser.feeds;
     if (!feeds || feeds.length == 0) {
+      if (feedButton) {
+        feedButton.collapsed = true;
+        feedButton.removeAttribute("feed");
+      }
       this._feedMenuitem.setAttribute("disabled", "true");
       this._feedMenupopup.setAttribute("hidden", "true");
       this._feedMenuitem.removeAttribute("hidden");
     } else {
+      if (feedButton)
+        feedButton.collapsed = false;
+
       if (feeds.length > 1) {
         this._feedMenuitem.setAttribute("hidden", "true");
         this._feedMenupopup.removeAttribute("hidden");
+        if (feedButton)
+          feedButton.removeAttribute("feed");
       } else {
+        if (feedButton)
+          feedButton.setAttribute("feed", feeds[0].href);
+
         this._feedMenuitem.setAttribute("feed", feeds[0].href);
         this._feedMenuitem.removeAttribute("disabled");
         this._feedMenuitem.removeAttribute("hidden");
@@ -6756,6 +6868,12 @@ var FeedHandler = {
       browserForLink.feeds = [];
 
     browserForLink.feeds.push({ href: link.href, title: link.title });
+
+    if (browserForLink == gBrowser.selectedBrowser) {
+      var feedButton = document.getElementById("feed-button");
+      if (feedButton)
+        feedButton.collapsed = false;
+    }
   }
 };
 

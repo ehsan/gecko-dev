@@ -112,13 +112,6 @@ nsSMILAnimationController::Init(nsIDocument* aDoc)
 
   // Keep track of document, so we can traverse its set of animation elements
   mDocument = aDoc;
-  nsRefreshDriver* refreshDriver = GetRefreshDriverForDoc(mDocument);
-  if (refreshDriver) {
-    mStartTime = refreshDriver->MostRecentRefresh();
-  } else {
-    mStartTime = mozilla::TimeStamp::Now();
-  }
-  mCurrentSampleTime = mStartTime;
 
   Begin();
 
@@ -158,7 +151,8 @@ nsSMILAnimationController::Resume(PRUint32 aType)
 nsSMILTime
 nsSMILAnimationController::GetParentTime() const
 {
-  return (nsSMILTime)(mCurrentSampleTime - mStartTime).ToMilliseconds();
+  // Our parent time is wallclock time
+  return PR_Now() / PR_USEC_PER_MSEC;
 }
 
 //----------------------------------------------------------------------
@@ -170,13 +164,9 @@ NS_IMPL_RELEASE(nsSMILAnimationController)
 void
 nsSMILAnimationController::WillRefresh(mozilla::TimeStamp aTime)
 {
-  // Although we never expect aTime to go backwards, when we initialise the
-  // animation controller, if we can't get hold of a refresh driver we
-  // initialise mCurrentSampleTime to Now(). It may be possible that after
-  // doing so we get sampled by a refresh driver whose most recent refresh time
-  // predates when we were initialised, so to be safe we make sure to take the
-  // most recent time here.
-  mCurrentSampleTime = NS_MAX(mCurrentSampleTime, aTime);
+  // XXXdholbert Eventually we should be sampling based on aTime. For now,
+  // though, we keep track of the time on our own, and we just use
+  // nsRefreshDriver for scheduling samples.
   Sample();
 }
 

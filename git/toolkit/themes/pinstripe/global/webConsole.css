@@ -40,7 +40,6 @@
 
 .hud-box {
     border-bottom: 1px solid #aaa;
-    text-shadow: none;
 }
 
 .hud-group label {
@@ -178,14 +177,10 @@
 
 .hud-console-filter-toolbar {
     background: @scopeBarBackground@ !important;
-    border-bottom: @scopeBarSeparatorBorder@ !important;
+    border-bottom: @scopeBarSeparatorBorder@;
     padding: 0px 1px;
     -moz-appearance: none !important;
     -moz-box-align: center;
-}
-
-.hud-console-filter-toolbar:-moz-lwtheme {
-    border-top: @scopeBarSeparatorBorder@ !important;
 }
 
 .jsterm-close-button {

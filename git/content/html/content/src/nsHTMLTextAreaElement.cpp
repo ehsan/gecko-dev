@@ -131,8 +131,6 @@ public:
   NS_IMETHOD SaveState();
   virtual PRBool RestoreState(nsPresState* aState);
 
-  virtual void FieldSetDisabledChanged(PRInt32 aStates);
-
   virtual PRInt32 IntrinsicState() const;
 
   // nsITextControlElemet
@@ -162,11 +160,6 @@ public:
   NS_IMETHOD_(void) OnValueChanged(PRBool aNotify);
 
   // nsIContent
-  virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
-                               nsIContent* aBindingParent,
-                               PRBool aCompileEventHandlers);
-  virtual void UnbindFromTree(PRBool aDeep = PR_TRUE,
-                              PRBool aNullParent = PR_TRUE);
   virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
@@ -418,7 +411,7 @@ nsHTMLTextAreaElement::IsHTMLFocusable(PRBool aWithMouse,
   }
 
   // disabled textareas are not focusable
-  *aIsFocusable = !IsDisabled();
+  *aIsFocusable = !HasAttr(kNameSpaceID_None, nsGkAtoms::disabled);
   return PR_FALSE;
 }
 
@@ -650,8 +643,10 @@ nsHTMLTextAreaElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
   // Do not process any DOM events if the element is disabled
   aVisitor.mCanHandle = PR_FALSE;
-  if (IsDisabled()) {
-    return NS_OK;
+  PRBool disabled;
+  nsresult rv = GetDisabled(&disabled);
+  if (NS_FAILED(rv) || disabled) {
+    return rv;
   }
 
   nsIFormControlFrame* formControlFrame = GetFormControlFrame(PR_FALSE);
@@ -891,9 +886,13 @@ nsHTMLTextAreaElement::SubmitNamesValues(nsFormSubmission* aFormSubmission)
 {
   nsresult rv = NS_OK;
 
+  //
   // Disabled elements don't submit
-  if (IsDisabled()) {
-    return NS_OK;
+  //
+  PRBool disabled;
+  rv = GetDisabled(&disabled);
+  if (NS_FAILED(rv) || disabled) {
+    return rv;
   }
 
   //
@@ -952,9 +951,9 @@ nsHTMLTextAreaElement::SaveState()
       rv = GetPrimaryPresState(this, &state);
     }
     if (state) {
-      // We do not want to save the real disabled state but the disabled
-      // attribute.
-      state->SetDisabled(HasAttr(kNameSpaceID_None, nsGkAtoms::disabled));
+      PRBool disabled;
+      GetDisabled(&disabled);
+      state->SetDisabled(disabled);
     }
   }
   return rv;
@@ -1004,34 +1003,6 @@ nsHTMLTextAreaElement::IntrinsicState() const
   }
 
   return state;
-}
-
-nsresult
-nsHTMLTextAreaElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
-                                  nsIContent* aBindingParent,
-                                  PRBool aCompileEventHandlers)
-{
-  nsresult rv = nsGenericHTMLFormElement::BindToTree(aDocument, aParent,
-                                                     aBindingParent,
-                                                     aCompileEventHandlers);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // If there is a disabled fieldset in the parent chain, the element is now
-  // barred from constraint validation and can't suffer from value missing.
-  UpdateValueMissingValidityState();
-  UpdateBarredFromConstraintValidation();
-
-  return rv;
-}
-
-void
-nsHTMLTextAreaElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
-{
-  nsGenericHTMLFormElement::UnbindFromTree(aDeep, aNullParent);
-
-  // We might be no longer disabled because of parent chain changed.
-  UpdateValueMissingValidityState();
-  UpdateBarredFromConstraintValidation();
 }
 
 nsresult
@@ -1154,7 +1125,8 @@ nsHTMLTextAreaElement::CopyInnerTo(nsGenericElement* aDest) const
 PRBool
 nsHTMLTextAreaElement::IsMutable() const
 {
-  return (!HasAttr(kNameSpaceID_None, nsGkAtoms::readonly) && !IsDisabled());
+  return (!HasAttr(kNameSpaceID_None, nsGkAtoms::readonly) &&
+          !HasAttr(kNameSpaceID_None, nsGkAtoms::disabled));
 }
 
 // nsIConstraintValidation
@@ -1220,7 +1192,8 @@ nsHTMLTextAreaElement::UpdateBarredFromConstraintValidation()
 {
   SetBarredFromConstraintValidation(HasAttr(kNameSpaceID_None,
                                             nsGkAtoms::readonly) ||
-                                    IsDisabled());
+                                    HasAttr(kNameSpaceID_None,
+                                            nsGkAtoms::disabled));
 }
 
 nsresult
@@ -1387,15 +1360,5 @@ nsHTMLTextAreaElement::OnValueChanged(PRBool aNotify)
                                               NS_EVENT_STATE_MOZ_PLACEHOLDER);
     }
   }
-}
-
-void
-nsHTMLTextAreaElement::FieldSetDisabledChanged(PRInt32 aStates)
-{
-  UpdateValueMissingValidityState();
-  UpdateBarredFromConstraintValidation();
-
-  aStates |= NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID;
-  nsGenericHTMLFormElement::FieldSetDisabledChanged(aStates);
 }
 

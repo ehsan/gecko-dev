@@ -191,7 +191,7 @@ PluginPRLibrary::AsyncSetWindow(NPP instance, NPWindow* window)
 {
   nsNPAPIPluginInstance* inst = (nsNPAPIPluginInstance*)instance->ndata;
   NS_ENSURE_TRUE(inst, NS_ERROR_NULL_POINTER);
-  return NS_ERROR_NOT_IMPLEMENTED;
+  return inst->AsyncSetWindow(window);
 }
 
 nsresult
@@ -199,7 +199,7 @@ PluginPRLibrary::NotifyPainted(NPP instance)
 {
   nsNPAPIPluginInstance* inst = (nsNPAPIPluginInstance*)instance->ndata;
   NS_ENSURE_TRUE(inst, NS_ERROR_NULL_POINTER);
-  return NS_ERROR_NOT_IMPLEMENTED;
+  return inst->NotifyPainted();
 }
 
 nsresult
@@ -211,13 +211,5 @@ PluginPRLibrary::GetSurface(NPP instance, gfxASurface** aSurface)
   return NS_OK;
 }
 
-nsresult
-PluginPRLibrary::UseAsyncPainting(NPP instance, PRBool* aIsAsync)
-{
-  nsNPAPIPluginInstance* inst = (nsNPAPIPluginInstance*)instance->ndata;
-  NS_ENSURE_TRUE(inst, NS_ERROR_NULL_POINTER);
-  *aIsAsync = PR_FALSE;
-  return NS_OK;
-}
 
 } // namespace mozilla

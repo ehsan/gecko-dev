@@ -21,7 +21,7 @@
 var gNotificationBox;
 
 function completeAnimation(nextTest) {
-  if (!gNotificationBox._animating) {
+  if (!gNotificationBox._timer) {
     nextTest();
     return;
   }

@@ -516,8 +516,7 @@ function do_get_profile() {
   let provider = {
     getFile: function(prop, persistent) {
       persistent.value = true;
-      if (prop == "ProfD" || prop == "ProfLD" || prop == "ProfDS" ||
-          prop == "ProfLDS" || prop == "TmpD") {
+      if (prop == "ProfD" || prop == "ProfLD" || prop == "ProfDS") {
         return file.clone();
       }
       throw Components.results.NS_ERROR_FAILURE;

@@ -1109,7 +1109,7 @@ nsCanvasRenderingContext2D::SetDimensions(PRInt32 width, PRInt32 height)
               surface = layerManager->CreateOptimalSurface(gfxIntSize(width, height), format);
             } else {
               surface = gfxPlatform::GetPlatform()->
-                CreateOffscreenSurface(gfxIntSize(width, height), gfxASurface::ContentFromFormat(format));
+                CreateOffscreenSurface(gfxIntSize(width, height), format);
             }
         }
 
@@ -1121,7 +1121,7 @@ nsCanvasRenderingContext2D::SetDimensions(PRInt32 width, PRInt32 height)
 #ifdef MOZ_X11
             if (surface->GetType() == gfxASurface::SurfaceTypeXlib) {
                 mBackSurface =
-                    gfxPlatform::GetPlatform()->CreateOffscreenSurface(size, gfxASurface::ContentFromFormat(format));
+                    gfxPlatform::GetPlatform()->CreateOffscreenSurface(size, format);
                 NS_ABORT_IF_FALSE(mBackSurface->GetType() ==
                                   gfxASurface::SurfaceTypeXlib, "need xlib surface");
                 mIsBackSurfaceReadable = PR_TRUE;
@@ -3745,14 +3745,12 @@ nsCanvasRenderingContext2D::DrawWindow(nsIDOMWindow* aWindow, float aX, float aY
              nsPresContext::CSSPixelsToAppUnits(aY),
              nsPresContext::CSSPixelsToAppUnits(aW),
              nsPresContext::CSSPixelsToAppUnits(aH));
-    PRUint32 renderDocFlags = (nsIPresShell::RENDER_IGNORE_VIEWPORT_SCROLLING |
-                               nsIPresShell::RENDER_DOCUMENT_RELATIVE);
+    PRUint32 renderDocFlags = nsIPresShell::RENDER_IGNORE_VIEWPORT_SCROLLING;
     if (flags & nsIDOMCanvasRenderingContext2D::DRAWWINDOW_DRAW_CARET) {
         renderDocFlags |= nsIPresShell::RENDER_CARET;
     }
     if (flags & nsIDOMCanvasRenderingContext2D::DRAWWINDOW_DRAW_VIEW) {
-        renderDocFlags &= ~(nsIPresShell::RENDER_IGNORE_VIEWPORT_SCROLLING |
-                            nsIPresShell::RENDER_DOCUMENT_RELATIVE);
+        renderDocFlags &= ~nsIPresShell::RENDER_IGNORE_VIEWPORT_SCROLLING;
     }
     if (flags & nsIDOMCanvasRenderingContext2D::DRAWWINDOW_USE_WIDGET_LAYERS) {
         renderDocFlags |= nsIPresShell::RENDER_USE_WIDGET_LAYERS;

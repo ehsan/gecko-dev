@@ -161,10 +161,9 @@ gfxPlatformGtk::~gfxPlatformGtk()
 
 already_AddRefed<gfxASurface>
 gfxPlatformGtk::CreateOffscreenSurface(const gfxIntSize& size,
-                                       gfxASurface::gfxContentType contentType)
+                                       gfxASurface::gfxImageFormat imageFormat)
 {
     nsRefPtr<gfxASurface> newSurface = nsnull;
-    gfxASurface::gfxImageFormat imageFormat = gfxASurface::FormatFromContent(contentType);
 #ifdef MOZ_X11
     // XXX we really need a different interface here, something that passes
     // in more context, including the display and/or target surface type that
@@ -173,7 +172,7 @@ gfxPlatformGtk::CreateOffscreenSurface(const gfxIntSize& size,
     if (gdkScreen) {
 
         // try to optimize it for 16bpp default screen
-        if (gfxASurface::CONTENT_COLOR == contentType
+        if (gfxASurface::ImageFormatRGB24 == imageFormat
             && 16 == gdk_visual_get_system()->depth)
             imageFormat = gfxASurface::ImageFormatRGB16_565;
 

@@ -46,7 +46,7 @@
 var MODULE_NAME = 'PrefsAPI';
 
 const RELATIVE_ROOT = '.'
-const MODULE_REQUIRES = ['ModalDialogAPI', 'UtilsAPI'];
+const MODULE_REQUIRES = ['ModalDialogAPI'];
 
 const gTimeout = 5000;
 
@@ -140,16 +140,6 @@ preferencesDialog.prototype = {
   },
 
   /**
-   * Gets all the needed external DTD urls as an array
-   *
-   * @returns Array of external DTD urls
-   * @type [string]
-   */
-  getDtds : function preferencesDialog_getDtds() {
-    return null;
-  },
-
-  /**
    * Retrieve an UI element based on the given spec
    *
    * @param {object} spec
@@ -200,8 +190,8 @@ preferencesDialog.prototype = {
  * Preferences object to simplify the access to the nsIPrefBranch.
  */
 var preferences = {
-  _prefService : Cc["@mozilla.org/preferences-service;1"].
-                 getService(Ci.nsIPrefService),
+  _branch : Cc["@mozilla.org/preferences-service;1"].
+            getService(Ci.nsIPrefBranch),
 
   /**
    * Use branch to access low level functions of nsIPrefBranch
@@ -209,28 +199,8 @@ var preferences = {
    * @return Instance of the preferences branch
    * @type nsIPrefBranch
    */
-  get prefBranch() {
-    return this._prefService.QueryInterface(Ci.nsIPrefBranch);
-  },
-
-  /**
-   * Use defaultPrefBranch to access low level functions of the default branch
-   *
-   * @return Instance of the preferences branch
-   * @type nsIPrefBranch
-   */
-  get defaultPrefBranch() {
-    return this._prefService.getDefaultBranch("");
-  },
-
-  /**
-   * Use prefService to access low level functions of nsIPrefService
-   *
-   * @return Instance of the pref service
-   * @type nsIPrefService
-   */
-  get prefService() {
-    return this._prefService;
+  get branch() {
+    return this._branch;
   },
 
   /**
@@ -243,7 +213,7 @@ var preferences = {
    **/
   clearUserPref : function preferences_clearUserPref(prefName) {
     try {
-      this.prefBranch.clearUserPref(prefName);
+      this._branch.clearUserPref(prefName);
       return true;
     } catch (e) {
       return false;
@@ -257,32 +227,18 @@ var preferences = {
    *        The preference to get the value of.
    * @param {boolean/number/string} defaultValue
    *        The default value if preference cannot be found.
-   * @param {boolean/number/string} defaultBranch
-   *        If true the value will be read from the default branch (optional)
-   * @param {string} interfaceType
-   *        Interface to use for the complex value (optional)
-   *        (nsILocalFile, nsISupportsString, nsIPrefLocalizedString)
-   *
    * @return The value of the requested preference
-   * @type boolean/int/string/complex
+   * @type boolean/int/string
    */
-  getPref : function preferences_getPref(prefName, defaultValue, defaultBranch,
-                                         interfaceType) {
+  getPref : function preferences_getPref(prefName, defaultValue) {
     try {
-      branch = defaultBranch ? this.defaultPrefBranch : this.prefBranch;
-
-      // If interfaceType has been set, handle it differently
-      if (interfaceType != undefined) {
-        return branch.getComplexValue(prefName, interfaceType);
-      }
-
       switch (typeof defaultValue) {
         case ('boolean'):
-          return branch.getBoolPref(prefName);
+          return this._branch.getBoolPref(prefName);
         case ('string'):
-          return branch.getCharPref(prefName);
+          return this._branch.getCharPref(prefName);
         case ('number'):
-          return branch.getIntPref(prefName);
+          return this._branch.getIntPref(prefName);
         default:
           return undefined;
       }
@@ -296,29 +252,26 @@ var preferences = {
    *
    * @param {string} prefName
    *        The preference to set the value of.
-   * @param {boolean/number/string/complex} value
+   * @param {boolean/number/string} value
    *        The value to set the preference to.
-   * @param {string} interfaceType
-   *        Interface to use for the complex value
-   *        (nsILocalFile, nsISupportsString, nsIPrefLocalizedString)
    *
    * @return Returns if the value was successfully set.
    * @type boolean
    */
-  setPref : function preferences_setPref(prefName, value, interfaceType) {
+  setPref : function preferences_setPref(name, value) {
     try {
       switch (typeof value) {
         case ('boolean'):
-          this.prefBranch.setBoolPref(prefName, value);
+          this._branch.setBoolPref(name, value);
           break;
         case ('string'):
-          this.prefBranch.setCharPref(prefName, value);
+          this._branch.setCharPref(name, value);
           break;
         case ('number'):
-          this.prefBranch.setIntPref(prefName, value);
+          this._branch.setIntPref(name, value);
           break;
         default:
-          this.prefBranch.setComplexValue(prefName, interfaceType, value);
+          return false;
       }
     } catch(e) {
       return false;
@@ -338,6 +291,8 @@ var preferences = {
  */
 function openPreferencesDialog(callback, launcher)
 {
+  var prefCtrl = null;
+
   if(!callback)
     throw new Error("No callback given for Preferences Dialog");
 
@@ -351,23 +306,22 @@ function openPreferencesDialog(callback, launcher)
   // Launch the preference dialog
   if (launcher) {
     launcher();
-  } else {
-    mozmill.getPreferencesController();
-  }
 
-  // Get the window type of the preferences window depending on the application
-  var prefWindowType = null;
-  switch (mozmill.Application) {
-    case "Thunderbird":
-      prefWindowType = "Mail:Preferences";
-      break;
-    default:
-      prefWindowType = "Browser:Preferences";
+    // Now that we've launched the dialog, wait a bit for the window
+    mozmill.controller.sleep(500);
+    var win = Cc["@mozilla.org/appshell/window-mediator;1"]
+                 .getService(Ci.nsIWindowMediator).getMostRecentWindow(null);
+    prefCtrl = new mozmill.controller.MozMillController(win);
+  } else {
+    prefCtrl = new mozmill.getPreferencesController();
   }
 
   // If the dialog is not modal, run the callback directly
   if (!mozmill.isWindows) {
-    var utilsAPI = collector.getModule('UtilsAPI');
-    utilsAPI.handleWindow("type", prefWindowType, callback);
+    prefCtrl.sleep(500);
+    callback(prefCtrl);
   }
+
+  // Wait a bit to make sure window has been closed
+  mozmill.controller.sleep(500);
 }

@@ -151,13 +151,7 @@ public:
   /**
    * Helper methods.
    */
-  void MakeCurrent(PRBool aForce = PR_FALSE) {
-    if (mDestroyed) {
-      NS_WARNING("Call on destroyed layer manager");
-      return;
-    }
-    mGLContext->MakeCurrent(aForce);
-  }
+  void MakeCurrent();
 
   ColorTextureLayerProgram *GetRGBALayerProgram() {
     return static_cast<ColorTextureLayerProgram*>(mPrograms[RGBALayerProgramType]);
@@ -320,8 +314,6 @@ public:
 private:
   /** Widget associated with this layer manager */
   nsIWidget *mWidget;
-  nsIntSize mWidgetSize;
-
   /** 
    * Context target, NULL when drawing directly to our swap chain.
    */

@@ -122,8 +122,6 @@ private:
   void WalkTransitionRule(RuleProcessorData* aData,
                           nsCSSPseudoElements::Type aPseudoType);
 
-  void RemoveAllTransitions();
-
   PRCList mElementTransitions;
   nsPresContext *mPresContext; // weak (non-null from ctor to Disconnect)
 };

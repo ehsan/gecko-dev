@@ -20,7 +20,6 @@ var gServer;
 var gAddonInstalled = false;
 
 function test() {
-  requestLongerTimeout(2);
   // Turn on searching for this test
   Services.prefs.setIntPref(PREF_SEARCH_MAXRESULTS, 15);
 
@@ -62,7 +61,7 @@ function test() {
 
   installs.forEach(function(aInstall) { aInstall.install(); });
 
-  open_manager("addons://list/extension", function(aWindow) {
+  open_manager(null, function(aWindow) {
     gManagerWindow = aWindow;
     gCategoryUtilities = new CategoryUtilities(gManagerWindow);
     run_next_test();

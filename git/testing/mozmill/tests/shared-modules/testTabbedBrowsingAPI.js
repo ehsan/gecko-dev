@@ -41,22 +41,15 @@
  * @version 1.0.0
  */
 
-const MODULE_NAME = 'TabbedBrowsingAPI';
+var MODULE_NAME = 'TabbedBrowsingAPI';
 
-// Include necessary modules
-const RELATIVE_ROOT = '.';
-const MODULE_REQUIRES = ['PrefsAPI', 'UtilsAPI'];
+const gTimeout = 5000;
 
-const TIMEOUT = 5000;
+const tabsBrowser = '/id("main-window")/id("browser")/id("appcontent")/id("content")';
+const tabsStrip = tabsBrowser + '/anon({"anonid":"tabbox"})/anon({"anonid":"strip"})';
+const tabsContainer = tabsStrip + '/anon({"anonid":"tabcontainer"})/anon({"class":"tabs-stack"})/{"class":"tabs-container"}';
+const tabsArrowScrollbox = tabsContainer + '/anon({"anonid":"arrowscrollbox"})';
 
-const PREF_TABS_ANIMATE = "browser.tabs.animate";
-
-const TABS_VIEW = '/id("main-window")/id("tab-view-deck")/{"flex":"1"}';
-const TABS_BROWSER = TABS_VIEW + '/id("browser")/id("appcontent")/id("content")';
-const TABS_TOOLBAR = TABS_VIEW + '/id("navigator-toolbox")/id("TabsToolbar")';
-const TABS_TABS = TABS_TOOLBAR + '/id("tabbrowser-tabs")';
-const TABS_ARROW_SCROLLBOX = TABS_TABS + '/anon({"anonid":"arrowscrollbox"})';
-const TABS_STRIP = TABS_ARROW_SCROLLBOX + '/anon({"anonid":"scrollbox"})/anon({"flex":"1"})';
 
 /**
  * Close all tabs and open about:blank
@@ -80,9 +73,6 @@ function tabBrowser(controller)
 {
   this._controller = controller;
   this._tabs = this.getElement({type: "tabs"});
-
-  this._UtilsAPI = collector.getModule('UtilsAPI');
-  this._PrefsAPI = collector.getModule('PrefsAPI');
 }
 
 /**
@@ -134,9 +124,8 @@ tabBrowser.prototype = {
    */
   closeAllTabs : function tabBrowser_closeAllTabs()
   {
-    while (this._controller.tabs.length > 1) {
+    while (this._controller.tabs.length > 1)
       this.closeTab({type: "menu"});
-    }
 
     this._controller.open("about:blank");
     this._controller.waitForPageLoad();
@@ -151,14 +140,6 @@ tabBrowser.prototype = {
    *        inactive tab can be closed.
    */
   closeTab : function tabBrowser_closeTab(event) {
-    // Disable tab closing animation for default behavior
-    this._PrefsAPI.preferences.setPref(PREF_TABS_ANIMATE, false);
-
-    // Add event listener to wait until the tab has been closed
-    var self = { closed: false };
-    function checkTabClosed() { self.closed = true; }
-    this._controller.window.addEventListener("TabClose", checkTabClosed, false);
-
     switch (event.type) {
       case "closeButton":
         var button = this.getElement({type: "tabs_tabCloseButton",
@@ -174,33 +155,11 @@ tabBrowser.prototype = {
         this._controller.middleClick(tab);
         break;
       case "shortcut":
-        var cmdKey = this._UtilsAPI.getEntity(this.getDtds(), "closeCmd.key");
-        this._controller.keypress(null, cmdKey, {accelKey: true});
+        this._controller.keypress(null, "w", {accelKey: true});
         break;
       default:
         throw new Error(arguments.callee.name + ": Unknown event - " + event.type);
     }
-
-    try {
-      this._controller.waitForEval("subject.tab.closed == true", TIMEOUT, 100,
-                                   {tab: self});
-    } finally {
-      this._controller.window.removeEventListener("TabClose", checkTabClosed, false);
-      this._PrefsAPI.preferences.clearUserPref(PREF_TABS_ANIMATE);
-    }
-  },
-
-  /**
-   * Gets all the needed external DTD urls as an array
-   *
-   * @returns Array of external DTD urls
-   * @type [string]
-   */
-  getDtds : function tabBrowser_getDtds() {
-    var dtds = ["chrome://browser/locale/browser.dtd",
-                "chrome://browser/locale/tabbrowser.dtd",
-                "chrome://global/locale/global.dtd"];
-    return dtds;
   },
 
   /**
@@ -224,27 +183,35 @@ tabBrowser.prototype = {
        */
       case "tabs":
         elem = new elementslib.Lookup(this._controller.window.document,
-                                      TABS_TABS);
+                                      tabsStrip + '/anon({"anonid":"tabcontainer"})');
         break;
       case "tabs_allTabsButton":
         elem = new elementslib.Lookup(this._controller.window.document,
-                                      TABS_TOOLBAR + '/id("alltabs-button")');
+                                      tabsContainer + '/{"pack":"end"}/anon({"anonid":"alltabs-button"})');
         break;
       case "tabs_allTabsPopup":
-        elem = new elementslib.Lookup(this._controller.window.document, TABS_TOOLBAR +
-                                      '/id("alltabs-button")/id("alltabs-popup")');
+        elem = new elementslib.Lookup(this._controller.window.document,
+                                      tabsContainer + '/{"pack":"end"}/anon({"anonid":"alltabs-button"})' +
+                                      '/anon({"anonid":"alltabs-popup"})');
+        break;
+      case "tabs_animateBox":
+        elem = new elementslib.Lookup(this._controller.window.document, tabsContainer +
+                                      '/{"pack":"end"}/anon({"anonid":"alltabs-box-animate"})');
+        break;
+      case "tabs_container":
+        elem = new elementslib.Lookup(this._controller.window.document, tabsContainer);
         break;
       case "tabs_newTabButton":
         elem = new elementslib.Lookup(this._controller.window.document,
-                                      TABS_ARROW_SCROLLBOX + '/anon({"class":"tabs-newtab-button"})');
+                                      tabsArrowScrollbox + '/anon({"class":"tabs-newtab-button"})');
         break;
       case "tabs_scrollButton":
         elem = new elementslib.Lookup(controller.window.document,
-                                      TABS_ARROW_SCROLLBOX +
+                                      tabsArrowScrollbox +
                                       '/anon({"anonid":"scrollbutton-' + spec.subtype + '"})');
         break;
       case "tabs_strip":
-        elem = new elementslib.Lookup(this._controller.window.document, TABS_STRIP);
+        elem = new elementslib.Lookup(this._controller.window.document, tabsStrip);
         break;
       case "tabs_tab":
         switch (spec.subtype) {
@@ -261,7 +228,7 @@ tabBrowser.prototype = {
         break;
       case "tabs_tabPanel":
         var panelId = spec.value.getNode().getAttribute("linkedpanel");
-        elem = new elementslib.Lookup(this._controller.window.document, TABS_BROWSER +
+        elem = new elementslib.Lookup(this._controller.window.document, tabsBrowser +
                                       '/anon({"anonid":"tabbox"})/anon({"anonid":"panelcontainer"})' +
                                       '/{"id":"' + panelId + '"}');
         break;
@@ -310,44 +277,6 @@ tabBrowser.prototype = {
   },
 
   /**
-   * Open element (link) in a new tab
-   *
-   * @param {object} event
-   *        The event specifies how to open the element in a new tab
-   *        (contextMenu, middleClick)
-   */
-  openInNewTab : function tabBrowser_openInNewTab(event) {
-    // Disable tab closing animation for default behavior
-    this._PrefsAPI.preferences.setPref(PREF_TABS_ANIMATE, false);
-
-    // Add event listener to wait until the tab has been opened
-    var self = { opened: false };
-    function checkTabOpened() { self.opened = true; }
-    this._controller.window.addEventListener("TabOpen", checkTabOpened, false);
-
-    switch (event.type) {
-      case "contextMenu":
-        var contextMenuItem = new elementslib.ID(this._controller.window.document,
-                                                 "context-openlinkintab");
-        this._controller.rightClick(event.target);
-        this._controller.click(contextMenuItem);
-        this._UtilsAPI.closeContentAreaContextMenu(this._controller);
-        break;
-      case "middleClick":
-        this._controller.middleClick(event.target);
-        break;
-    }
-
-    try {
-      this._controller.waitForEval("subject.tab.opened == true", TIMEOUT, 100,
-                                   {tab: self});
-    } finally {
-      this._controller.window.removeEventListener("TabOpen", checkTabOpened, false);
-      this._PrefsAPI.preferences.clearUserPref(PREF_TABS_ANIMATE);
-    }
-  },
-
-  /**
    * Open a new tab
    *
    * @param {object} event
@@ -355,22 +284,13 @@ tabBrowser.prototype = {
    *        new tab button, or double click on the tabstrip)
    */
   openTab : function tabBrowser_openTab(event) {
-    // Disable tab closing animation for default behavior
-    this._PrefsAPI.preferences.setPref(PREF_TABS_ANIMATE, false);
-
-    // Add event listener to wait until the tab has been opened
-    var self = { opened: false };
-    function checkTabOpened() { self.opened = true; }
-    this._controller.window.addEventListener("TabOpen", checkTabOpened, false);
-
     switch (event.type) {
       case "menu":
         var menuitem = new elementslib.Elem(this._controller.menus['file-menu'].menu_newNavigatorTab);
         this._controller.click(menuitem);
         break;
       case "shortcut":
-        var cmdKey = this._UtilsAPI.getEntity(this.getDtds(), "tabCmd.commandkey");
-        this._controller.keypress(null, cmdKey, {accelKey: true});
+        this._controller.keypress(null, "t", {accelKey: true});
         break;
       case "newTabButton":
         var newTabButton = this.getElement({type: "tabs_newTabButton"});
@@ -378,28 +298,13 @@ tabBrowser.prototype = {
         break;
       case "tabStrip":
         var tabStrip = this.getElement({type: "tabs_strip"});
-        
-        // RTL-locales need to be treated separately
-        if (this._UtilsAPI.getEntity(this.getDtds(), "locale.dir") == "rtl") {
-          // XXX: Workaround until bug 537968 has been fixed
-          this._controller.click(tabStrip, 100, 3);
-          // Todo: Calculate the correct x position
-          this._controller.doubleClick(tabStrip, 100, 3);
-        } else {
-          // XXX: Workaround until bug 537968 has been fixed
-          this._controller.click(tabStrip, tabStrip.getNode().clientWidth - 100, 3);
-          // Todo: Calculate the correct x position
-          this._controller.doubleClick(tabStrip, tabStrip.getNode().clientWidth - 100, 3);
-        }
-        break;
-    }
 
-    try {
-      this._controller.waitForEval("subject.tab.opened == true", TIMEOUT, 100,
-                                   {tab: self});
-    } finally {
-      this._controller.window.removeEventListener("TabOpen", checkTabOpened, false);
-      this._PrefsAPI.preferences.clearUserPref(PREF_TABS_ANIMATE);
+        // XXX: Workaround until bug 537968 has been fixed
+        this._controller.click(tabStrip, tabStrip.getNode().clientWidth - 100, 3);
+
+        // Todo: Calculate the correct x position
+        this._controller.doubleClick(tabStrip, tabStrip.getNode().clientWidth - 100, 3);
+        break;
     }
   }
 }

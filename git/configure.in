@@ -8028,15 +8028,6 @@ else
     _DEFINES_CFLAGS='$(ACDEFINES) -D_MOZILLA_CONFIG_H_ -DMOZILLA_CLIENT'
     _DEFINES_CXXFLAGS='$(ACDEFINES) -D_MOZILLA_CONFIG_H_ -DMOZILLA_CLIENT'
   else
-    echo '#include <stdio.h>' > dummy-hello.c
-    changequote(,)
-    CL_INCLUDES_PREFIX=`"${CC}" -showIncludes -c -Fonul dummy-hello.c 2>&1 | sed -ne 's/^\([^:]*:[^:]*:\).*stdio.h$/\1/p'`
-    changequote([,])
-    if test -z "$CL_INCLUDES_PREFIX"; then
-        AC_MSG_ERROR([Cannot find cl -showIncludes prefix.])
-    fi
-    AC_SUBST(CL_INCLUDES_PREFIX)
-    rm -f dummy-hello.c
     _topsrcdirwin=`cd \`dirname $0\`; pwd -W`
     dnl cl.py provides dependency generation for MSVC
     CC_WRAPPER="$PYTHON -O $_topsrcdirwin/build/cl.py"
@@ -8364,12 +8355,6 @@ MOZ_ARG_ENABLE_BOOL(system-cairo,
 MOZ_TREE_CAIRO=,
 MOZ_TREE_CAIRO=1 )
 
-MOZ_TREE_PIXMAN=1
-MOZ_ARG_ENABLE_BOOL(system-pixman,
-[ --enable-system-pixman Use system pixman (located with pkgconfig)],
-MOZ_TREE_PIXMAN=,
-MOZ_TREE_PIXMAN=1 )
-
 # Check for headers defining standard int types.
 AC_CHECK_HEADERS(stdint.h inttypes.h sys/int_types.h)
 
@@ -8501,16 +8486,7 @@ if test "$MOZ_TREE_CAIRO"; then
     AC_SUBST(PNG_FUNCTIONS_FEATURE)
     AC_SUBST(QT_SURFACE_FEATURE)
 
-    MOZ_CAIRO_LIBS='$(call EXPAND_LIBNAME_PATH,mozcairo,$(DEPTH)/gfx/cairo/cairo/src)'" $CAIRO_FT_LIBS"
-
-    if test "$MOZ_TREE_PIXMAN"; then
-        MOZ_CAIRO_LIBS="$MOZ_CAIRO_LIBS"' $(call EXPAND_LIBNAME_PATH,mozlibpixman,$(DEPTH)/gfx/cairo/libpixman/src)'
-    else
-        PKG_CHECK_MODULES(PIXMAN, pixman-1 >= 0.17.3)
-        MOZ_CAIRO_CFLAGS="$MOZ_CAIRO_CFLAGS $PIXMAN_CFLAGS"
-        MOZ_CAIRO_LIBS="$MOZ_CAIRO_LIBS $PIXMAN_LIBS"
-    fi
-
+    MOZ_CAIRO_LIBS='$(call EXPAND_LIBNAME_PATH,mozcairo,$(DEPTH)/gfx/cairo/cairo/src) $(call EXPAND_LIBNAME_PATH,mozlibpixman,$(DEPTH)/gfx/cairo/libpixman/src)'" $CAIRO_FT_LIBS"
     if test "$MOZ_X11"; then
         MOZ_CAIRO_LIBS="$MOZ_CAIRO_LIBS $XLDFLAGS -lXrender -lfreetype -lfontconfig"
     fi
@@ -8532,7 +8508,6 @@ fi
 AC_SUBST(MOZ_TREE_CAIRO)
 AC_SUBST(MOZ_CAIRO_CFLAGS)
 AC_SUBST(MOZ_CAIRO_LIBS)
-AC_SUBST(MOZ_TREE_PIXMAN)
 
 dnl ========================================================
 dnl qcms
@@ -9006,20 +8981,6 @@ if test "$USING_HCC"; then
    CXX="$CXX '$_OLDCXX'"
    AC_SUBST(CC)
    AC_SUBST(CXX)
-fi
-
-AC_MSG_CHECKING([for posix_fallocate])       
-AC_TRY_LINK([#define _XOPEN_SOURCE 600
-  #include <fcntl.h>],
-                 [posix_fallocate(0, 0, 0);],
-                 [ac_cv___posix_fallocate=true],
-                 [ac_cv___posix_fallocate=false])
-
-if test "$ac_cv___posix_fallocate" = true ; then
-  AC_DEFINE(HAVE_POSIX_FALLOCATE)
-  AC_MSG_RESULT(yes)
-else
-  AC_MSG_RESULT(no)
 fi
 
 dnl Check for missing components

@@ -143,9 +143,6 @@ public:
     static void      ReleaseObject_Locked(nsISupports *    object,
                                           nsIEventTarget * target = nsnull);
 
-    static nsresult DispatchToCacheIOThread(nsIRunnable* event);
-
-
     /**
      * Methods called by nsCacheProfilePrefObserver
      */
@@ -170,7 +167,6 @@ private:
     friend class nsCacheServiceAutoLock;
     friend class nsOfflineCacheDevice;
     friend class nsProcessRequestEvent;
-    friend class nsSetSmartSizeEvent;
 
     /**
      * Internal Methods

@@ -790,14 +790,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         if (typeof item.setResizable == 'function')
           item.setResizable(false);
 
-        // if it is visually active, set it as the active tab.
-        if (iQ(item.container).hasClass("focus"))
-          this.setActiveTab(item);
-
-        // if it matches the selected tab or no active tab and the browser 
-        // tab is hidden, the active group item would be set.
-        if (item.tab == gBrowser.selectedTab || 
-            (!GroupItems.getActiveGroupItem() && !item.tab.hidden))
+        if (item.tab == gBrowser.selectedTab)
           GroupItems.setActiveGroupItem(this);
       }
 
@@ -842,7 +835,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         this._children.splice(index, 1);
 
       if (item == this._activeTab) {
-        if (this._children.length > 0)
+        if (this._children.length)
           this._activeTab = this._children[0];
         else
           this._activeTab = null;
@@ -889,7 +882,6 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   addAppTab: function GroupItem_addAppTab(xulTab) {
     let self = this;
 
-    // add the icon
     let icon = xulTab.image || Utils.defaultFaviconURL;
     let $appTab = iQ("<img>")
       .addClass("appTabIcon")
@@ -905,29 +897,9 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         UI.goToTab(iQ(this).data("xulTab"));
       });
 
-    // adjust the tray
     let columnWidth = $appTab.width();
     if (parseInt(this.$appTabTray.css("width")) != columnWidth) {
       this.$appTabTray.css({width: columnWidth});
-      this.arrange();
-    }
-  },
-
-  // ----------
-  // Removes the given xul:tab as an app tab in this group's apptab tray
-  removeAppTab: function GroupItem_removeAppTab(xulTab) {
-    // remove the icon
-    iQ(".appTabIcon", this.$appTabTray).each(function(icon) {
-      let $icon = iQ(icon);
-      if ($icon.data("xulTab") != xulTab)
-        return;
-        
-      $icon.remove();
-    });
-    
-    // adjust the tray
-    if (!iQ(".appTabIcon", this.$appTabTray).length) {
-      this.$appTabTray.css({width: 0});
       this.arrange();
     }
   },
@@ -1530,14 +1502,12 @@ let GroupItems = {
   // ----------
   // Function: uninit
   uninit : function GroupItems_uninit () {
-    // call our cleanup functions
     this._cleanupFunctions.forEach(function(func) {
       func();
     });
 
     this._cleanupFunctions = [];
 
-    // additional clean up
     this.groupItems = null;
   },
 
@@ -1557,22 +1527,6 @@ let GroupItems = {
         if (iconUrl != $icon.attr("src"))
           $icon.attr("src", iconUrl);
       });
-    });
-  },
-
-  // ----------
-  // when a tab becomes pinned, add it to the app tab tray in all groups
-  handleTabPin: function GroupItems_handleTabPin(xulTab) {
-    this.groupItems.forEach(function(groupItem) {
-      groupItem.addAppTab(xulTab);
-    });
-  },
-
-  // ----------
-  // when a tab becomes unpinned, remove it from the app tab tray in all groups
-  handleTabUnpin: function GroupItems_handleTabUnpin(xulTab) {
-    this.groupItems.forEach(function(groupItem) {
-      groupItem.removeAppTab(xulTab);
     });
   },
 

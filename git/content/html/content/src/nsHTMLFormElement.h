@@ -284,15 +284,6 @@ public:
   bool CheckValidFormSubmission();
 
   virtual nsXPCClassInfo* GetClassInfo();
-
-  /**
-   * Walk over the form elements and call SubmitNamesValues() on them to get
-   * their data pumped into the FormSubmitter.
-   *
-   * @param aFormSubmission the form submission object
-   */
-  nsresult WalkFormElements(nsFormSubmission* aFormSubmission);
-
 protected:
   class RemoveElementRunnable;
   friend class RemoveElementRunnable;
@@ -347,6 +338,13 @@ protected:
    * @param aFormSubmission the submission object
    */
   nsresult SubmitSubmission(nsFormSubmission* aFormSubmission);
+  /**
+   * Walk over the form elements and call SubmitNamesValues() on them to get
+   * their data pumped into the FormSubmitter.
+   *
+   * @param aFormSubmission the form submission object
+   */
+  nsresult WalkFormElements(nsFormSubmission* aFormSubmission);
 
   /**
    * Notify any submit observers of the submit.

@@ -178,10 +178,24 @@ nsDOMFile::GetInternalStream(nsIInputStream **aStream)
 }
 
 NS_IMETHODIMP
-nsDOMFile::GetInternalUrl(nsIPrincipal* aPrincipal, nsAString& aURL)
+nsDOMFile::GetUrl(nsAString& aURL)
 {
-  NS_ENSURE_STATE(aPrincipal);
+  if (mURL.IsEmpty()) {
+    GetInternalUrl(mURL);
 
+    nsCOMPtr<nsIDocument> doc = do_QueryReferent(mRelatedDoc);
+    NS_LossyConvertUTF16toASCII shortURL(mURL);
+    doc->RegisterFileDataUri(shortURL);
+  }
+
+  aURL = mURL;
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDOMFile::GetInternalUrl(nsAString& aURL)
+{
   nsresult rv;
   nsCOMPtr<nsIUUIDGenerator> uuidgen =
     do_GetService("@mozilla.org/uuid-generator;1", &rv);
@@ -197,8 +211,12 @@ nsDOMFile::GetInternalUrl(nsIPrincipal* aPrincipal, nsAString& aURL)
   nsCString url = NS_LITERAL_CSTRING(FILEDATA_SCHEME ":") +
     Substring(chars + 1, chars + NSID_LENGTH - 2);
 
-  nsFileDataProtocolHandler::AddFileDataEntry(url, this,
-                                              aPrincipal);
+  nsCOMPtr<nsIDocument> doc = do_QueryReferent(mRelatedDoc);
+  if (doc) {
+    nsFileDataProtocolHandler::AddFileDataEntry(url,
+                                                this,
+                                                doc->NodePrincipal());
+  }
 
   CopyASCIItoUTF16(url, aURL);
   
@@ -481,15 +499,10 @@ nsDOMFile::ConvertStream(nsIInputStream *aStream,
 }
 
 // nsDOMMemoryFile Implementation
-nsDOMMemoryFile::~nsDOMMemoryFile()
-{
-  PR_Free(mInternalData);
-}
-
 NS_IMETHODIMP
 nsDOMMemoryFile::GetName(nsAString &aFileName)
 {
-  aFileName = mName;
+  aFileName.Truncate();
   return NS_OK;
 }
 
@@ -512,16 +525,10 @@ nsDOMMemoryFile::GetInternalStream(nsIInputStream **aStream)
 }
 
 NS_IMETHODIMP
-nsDOMMemoryFile::GetMozFullPath(nsAString &aFileName)
-{
-  aFileName.Truncate();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsDOMMemoryFile::GetMozFullPathInternal(nsAString &aFilename)
 {
-  return GetName(aFilename);
+  aFilename.Truncate();
+  return NS_OK;
 }
 
 // nsDOMFileList implementation
@@ -573,11 +580,10 @@ nsDOMFileError::GetCode(PRUint16* aCode)
   return NS_OK;
 }
 
-nsDOMFileInternalUrlHolder::nsDOMFileInternalUrlHolder(nsIDOMFile* aFile,
-                                                       nsIPrincipal* aPrincipal
+nsDOMFileInternalUrlHolder::nsDOMFileInternalUrlHolder(nsIDOMFile* aFile
                                                        MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL) {
   MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
-  aFile->GetInternalUrl(aPrincipal, mUrl);
+  aFile->GetInternalUrl(mUrl);
 }
  
 nsDOMFileInternalUrlHolder::~nsDOMFileInternalUrlHolder() {

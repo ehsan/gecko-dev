@@ -185,7 +185,7 @@ already_AddRefed<gfxSurfaceDrawable>
 gfxCallbackDrawable::MakeSurfaceDrawable(const gfxPattern::GraphicsFilter aFilter)
 {
     nsRefPtr<gfxASurface> surface =
-        gfxPlatform::GetPlatform()->CreateOffscreenSurface(mSize, gfxASurface::CONTENT_COLOR_ALPHA);
+        gfxPlatform::GetPlatform()->CreateOffscreenSurface(mSize, gfxASurface::ImageFormatARGB32);
     if (!surface || surface->CairoStatus() != 0)
         return nsnull;
 

@@ -45,8 +45,6 @@
 #include "nsIServiceManager.h"
 #include "nsIPrefService.h"
 #include "gfxWindowsPlatform.h"
-#include "nsIGfxInfo.h"
-
 #ifdef CAIRO_HAS_D2D_SURFACE
 #include "gfxD2DSurface.h"
 #endif
@@ -54,19 +52,26 @@
 namespace mozilla {
 namespace layers {
 
-DeviceManagerD3D9 *LayerManagerD3D9::mDefaultDeviceManager = nsnull;
+DeviceManagerD3D9 *LayerManagerD3D9::mDeviceManager = nsnull;
 
 LayerManagerD3D9::LayerManagerD3D9(nsIWidget *aWidget)
   : mIs3DEnabled(PR_FALSE)
 {
-  mWidget = aWidget;
-  mCurrentCallbackInfo.Callback = NULL;
-  mCurrentCallbackInfo.CallbackData = NULL;
+    mWidget = aWidget;
+    mCurrentCallbackInfo.Callback = NULL;
+    mCurrentCallbackInfo.CallbackData = NULL;
 }
 
 LayerManagerD3D9::~LayerManagerD3D9()
 {
-  Destroy();
+  /* Important to release this first since it also holds a reference to the
+   * device manager
+   */
+  mSwapChain = nsnull;
+
+  if (mDeviceManager && mDeviceManager->Release() == 0) {
+    mDeviceManager = nsnull;
+  }
 }
 
 PRBool
@@ -74,32 +79,19 @@ LayerManagerD3D9::Initialize()
 {
   /* Check the user preference for whether 3d video is enabled or not */ 
   nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID); 
-  prefs->GetBoolPref("gfx.3d_video.enabled", &mIs3DEnabled);
+  prefs->GetBoolPref("gfx.3d_video.enabled", &mIs3DEnabled); 
 
-  nsCOMPtr<nsIGfxInfo> gfxInfo = do_GetService("@mozilla.org/gfx/info;1");
-  if (gfxInfo) {
-    PRInt32 status;
-    if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_DIRECT3D_9_LAYERS, &status))) {
-      if (status != nsIGfxInfo::FEATURE_STATUS_UNKNOWN &&
-          status != nsIGfxInfo::FEATURE_AVAILABLE)
-      {
-        NS_WARNING("Direct3D 9-accelerated layers are not supported on this system.");
-        return PR_FALSE;
-      }
-    }
-  }
-
-  if (!mDefaultDeviceManager) {
+  if (!mDeviceManager) {
     mDeviceManager = new DeviceManagerD3D9;
+    mDeviceManager->AddRef();
 
     if (!mDeviceManager->Init()) {
+      mDeviceManager->Release();
       mDeviceManager = nsnull;
       return PR_FALSE;
     }
-
-    mDefaultDeviceManager = mDeviceManager;
   } else {
-    mDeviceManager = mDefaultDeviceManager;
+    mDeviceManager->AddRef();
   }
 
   mSwapChain = mDeviceManager->
@@ -116,22 +108,6 @@ void
 LayerManagerD3D9::SetClippingRegion(const nsIntRegion &aClippingRegion)
 {
   mClippingRegion = aClippingRegion;
-}
-
-void
-LayerManagerD3D9::Destroy()
-{
-  if (!IsDestroyed()) {
-    if (mRoot) {
-      static_cast<LayerD3D9*>(mRoot->ImplData())->LayerManagerDestroyed();
-    }
-    /* Important to release this first since it also holds a reference to the
-     * device manager
-     */
-    mSwapChain = nsnull;
-    mDeviceManager = nsnull;
-  }
-  LayerManager::Destroy();
 }
 
 void

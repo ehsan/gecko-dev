@@ -24,7 +24,6 @@
  * Michael Yoshitaka Erlewine <mitcho@mitcho.com>
  * Ehsan Akhgari <ehsan@mozilla.com>
  * Raymond Lee <raymond@appcoast.com>
- * Sean Dunn <seanedunn@yahoo.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -49,9 +48,9 @@ let Keys = { meta: false };
 // Class: UI
 // Singleton top-level UI manager.
 let UI = {
-  // Variable: _frameInitialized
+  // Variable: _frameInitalized
   // True if the Tab View UI frame has been initialized.
-  _frameInitialized: false,
+  _frameInitalized: false,
 
   // Variable: _pageBounds
   // Stores the page bounds.
@@ -83,10 +82,6 @@ let UI = {
   // Variable: _eventListeners
   // Keeps track of event listeners added to the AllTabs object.
   _eventListeners: {},
-
-  // Variable: _cleanupFunctions
-  // An array of functions to be called at uninit time
-  _cleanupFunctions: [],
 
   // ----------
   // Function: init
@@ -230,28 +225,14 @@ let UI = {
       Services.obs.addObserver(observer, "quit-application-requested", false);
 
       // ___ Done
-      this._frameInitialized = true;
+      this._frameInitalized = true;
       this._save();
-
-      // fire an iframe initialized event so everyone knows tab view is 
-      // initialized.
-      let event = document.createEvent("Events");
-      event.initEvent("tabviewframeinitialized", true, false);
-      dispatchEvent(event);
     } catch(e) {
       Utils.log(e);
     }
   },
 
   uninit: function UI_uninit() {
-    // call our cleanup functions
-    this._cleanupFunctions.forEach(function(func) {
-      func();
-    });
-
-    this._cleanupFunctions = [];
-
-    // additional clean up
     TabItems.uninit();
     GroupItems.uninit();
     Storage.uninit();
@@ -261,16 +242,6 @@ let UI = {
     this._pageBounds = null;
     this._reorderTabItemsOnShow = null;
     this._reorderTabsOnHide = null;
-    this._frameInitialized = false;
-  },
-
-  // Function: blurAll
-  // Blurs any currently focused element
-  //
-  blurAll: function UI_blurAll() {
-    iQ(":focus").each(function(element) {
-      element.blur();
-    });
   },
 
   // ----------
@@ -448,13 +419,6 @@ let UI = {
       } else {
         // if not closing the last tab
         if (gBrowser.tabs.length > 1) {
-          // Don't return to TabView if there are any app tabs
-          for (let a = 0; a < gBrowser.tabs.length; a++) {
-            let theTab = gBrowser.tabs[a]; 
-            if (theTab.pinned && gBrowser._removingTabs.indexOf(theTab) == -1) 
-              return;
-          }
-
           var groupItem = GroupItems.getActiveGroupItem();
 
           // 1) Only go back to the TabView tab when there you close the last
@@ -465,7 +429,7 @@ let UI = {
           // Can't use timeout here because user would see a flicker of
           // switching to another tab before the TabView interface shows up.
           if ((groupItem && groupItem._children.length == 1) ||
-              (groupItem == null && gBrowser.visibleTabs.length <= 1)) {
+              (groupItem == null && gBrowser.visibleTabs.length == 1)) {
             // for the tab focus event to pick up.
             self._closedLastVisibleTab = true;
             // remove the zoom prep.
@@ -495,28 +459,6 @@ let UI = {
 
     for (let name in this._eventListeners)
       AllTabs.register(name, this._eventListeners[name]);
-
-    // Start watching for tab pin events, and set up our uninit for same.
-    function handleTabPin(event) {
-      TabItems.handleTabPin(event.originalTarget);
-      GroupItems.handleTabPin(event.originalTarget);
-    }
-
-    gBrowser.tabContainer.addEventListener("TabPinned", handleTabPin, false);
-    this._cleanupFunctions.push(function() {
-      gBrowser.tabContainer.removeEventListener("TabPinned", handleTabPin, false);
-    });
-
-    // Start watching for tab unpin events, and set up our uninit for same.
-    function handleTabUnpin(event) {
-      TabItems.handleTabUnpin(event.originalTarget);
-      GroupItems.handleTabUnpin(event.originalTarget);
-    }
-
-    gBrowser.tabContainer.addEventListener("TabUnpinned", handleTabUnpin, false);
-    this._cleanupFunctions.push(function() {
-      gBrowser.tabContainer.removeEventListener("TabUnpinned", handleTabUnpin, false);
-    });
   },
 
   // ----------
@@ -640,7 +582,7 @@ let UI = {
 
       function getClosestTabBy(norm) {
         var centers =
-          [[item.bounds.center(), item]
+          [[item.bounds.center(), item] 
              for each(item in TabItems.getItems()) if (!item.parent || !item.parent.hidden)];
         var myCenter = self.getActiveTab().bounds.center();
         var matches = centers
@@ -958,8 +900,6 @@ let UI = {
       activeTab = gBrowser.selectedTab.tabItem;
     if (activeTab)
       activeTab.zoomIn();
-    
-    this.blurAll();
   },
 
   // ----------
@@ -1057,7 +997,7 @@ let UI = {
   // Function: _save
   // Saves the data for this object to persistent storage
   _save: function UI__save() {
-    if (!this._frameInitialized)
+    if (!this._frameInitalized)
       return;
 
     var data = {

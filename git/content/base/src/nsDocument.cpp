@@ -1774,40 +1774,7 @@ IdentifierMapEntryTraverse(nsIdentifierMapEntry *aEntry, void *aArg)
   return PL_DHASH_NEXT;
 }
 
-static const char* kNSURIs[] = {
-  " ([none])",
-  " (xmlns)",
-  " (xml)",
-  " (xhtml)",
-  " (XLink)",
-  " (XSLT)",
-  " (XBL)",
-  " (MathML)",
-  " (RDF)",
-  " (XUL)"
-};
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsDocument)
-  if (NS_UNLIKELY(cb.WantDebugInfo())) {
-    char name[72];
-    PRUint32 nsid = tmp->GetDefaultNamespaceID();
-    nsCAutoString uri;
-    if (tmp->mDocumentURI)
-      tmp->mDocumentURI->GetSpec(uri);
-    if (nsid < NS_ARRAY_LENGTH(kNSURIs)) {
-      PR_snprintf(name, sizeof(name), "nsDocument%s %s", kNSURIs[nsid],
-                  uri.get());
-    }
-    else {
-      PR_snprintf(name, sizeof(name), "nsDocument %s", uri.get());
-    }
-    cb.DescribeNode(RefCounted, tmp->mRefCnt.get(), sizeof(nsDocument), name);
-  }
-  else {
-    cb.DescribeNode(RefCounted, tmp->mRefCnt.get(), sizeof(nsDocument),
-                    "nsDocument");
-  }
-
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDocument)
   // Always need to traverse script objects, so do that before we check
   // if we're uncollectable.
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
@@ -2399,44 +2366,6 @@ nsresult nsDocument::CheckFrameOptions()
     if (thisWindow == topWindow)
       return NS_OK;
 
-    // Find the top docshell in our parent chain that doesn't have the system
-    // principal and use it for the principal comparison.  Finding the top
-    // content-type docshell doesn't work because some chrome documents are
-    // loaded in content docshells (see bug 593387).
-    nsIPrincipal* thisPrincipal = NodePrincipal();
-    nsCOMPtr<nsIDocShellTreeItem> thisDocShellItem(do_QueryInterface(docShell));
-    nsCOMPtr<nsIDocShellTreeItem> parentDocShellItem,
-                                  curDocShellItem = thisDocShellItem;
-    nsCOMPtr<nsIDocument> topDoc;
-    nsIScriptSecurityManager *ssm = nsContentUtils::GetSecurityManager();
-    if (!ssm)
-      return NS_ERROR_CONTENT_BLOCKED;
-
-    // Traverse up the parent chain to the top docshell that doesn't have
-    // a system principal
-    curDocShellItem->GetParent(getter_AddRefs(parentDocShellItem));
-    while (parentDocShellItem) {
-      PRBool system = PR_FALSE;
-      topDoc = do_GetInterface(parentDocShellItem);
-      if (topDoc) {
-        if (NS_SUCCEEDED(ssm->IsSystemPrincipal(topDoc->NodePrincipal(),
-                                                &system)) && system) {
-          break;
-        }
-      }
-      else {
-        return NS_ERROR_CONTENT_BLOCKED;
-      }
-      curDocShellItem = parentDocShellItem;
-      curDocShellItem->GetParent(getter_AddRefs(parentDocShellItem));
-    }
-
-    // If this document has the top non-SystemPrincipal docshell it is not being
-    // framed or it is being framed by a chrome document, which we allow.
-    nsCOMPtr<nsIDocShellTreeItem> item(do_QueryInterface(docShell));
-    if (curDocShellItem == thisDocShellItem)
-      return NS_OK;
-
     // If the value of the header is DENY, then the document
     // should never be permitted to load as a subdocument.
     if (xfoHeaderValue.LowerCaseEqualsLiteral("deny")) {
@@ -2449,10 +2378,11 @@ nsresult nsDocument::CheckFrameOptions()
       nsCOMPtr<nsIURI> uri = static_cast<nsIDocument*>(this)->GetDocumentURI();
       nsCOMPtr<nsIDOMDocument> topDOMDoc;
       topWindow->GetDocument(getter_AddRefs(topDOMDoc));
-      topDoc = do_QueryInterface(topDOMDoc);
+      nsCOMPtr<nsIDocument> topDoc = do_QueryInterface(topDOMDoc);
       if (topDoc) {
         nsCOMPtr<nsIURI> topUri = topDoc->GetDocumentURI();
-        nsresult rv = ssm->CheckSameOriginURI(uri, topUri, PR_TRUE);
+        nsresult rv = nsContentUtils::GetSecurityManager()->
+          CheckSameOriginURI(uri, topUri, PR_TRUE);
 
         if (NS_FAILED(rv)) {
           framingAllowed = false;
@@ -2848,19 +2778,6 @@ nsDocument::GetActiveElement(nsIDOMElement **aElement)
 
   // If we couldn't get a BODY, return the root element.
   return GetDocumentElement(aElement);
-}
-
-NS_IMETHODIMP
-nsDocument::GetCurrentScript(nsIDOMElement **aElement)
-{
-  nsIScriptElement* script = mScriptLoader->GetCurrentScript();
-  if (script) {
-    return CallQueryInterface(script, aElement);
-  }
-  
-  *aElement = nsnull;
-
-  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -4457,9 +4374,7 @@ nsDocument::CreateElement(const nsAString& aTagName,
     ToLowerCase(aTagName, lcTagName);
   }
 
-  rv = CreateElem(needsLowercase ? static_cast<const nsAString&>(lcTagName)
-                                 : aTagName,
-                  nsnull,
+  rv = CreateElem(needsLowercase ? lcTagName : aTagName, nsnull,
                   IsHTML() ? kNameSpaceID_XHTML : GetDefaultNamespaceID(),
                   PR_TRUE, aReturn);
   return rv;
@@ -4646,12 +4561,18 @@ nsDocument::CreateEntityReference(const nsAString& aName,
 already_AddRefed<nsContentList>
 nsDocument::GetElementsByTagName(const nsAString& aTagname)
 {
-  nsAutoString lowercaseName;
-  nsContentUtils::ASCIIToLower(aTagname, lowercaseName);
-  nsCOMPtr<nsIAtom> xmlAtom = do_GetAtom(aTagname);
-  nsCOMPtr<nsIAtom> htmlAtom = do_GetAtom(lowercaseName);
+  nsCOMPtr<nsIAtom> nameAtom = do_GetAtom(aTagname);
+  if (IsHTML()) {
+    nsAutoString tmp(aTagname);
+    ToLowerCase(tmp); // HTML elements are lower case internally.
+    nameAtom = do_GetAtom(tmp);
+  }
+  else {
+    nameAtom = do_GetAtom(aTagname);
+  }
+  NS_ENSURE_TRUE(nameAtom, nsnull);
 
-  return NS_GetContentList(this, kNameSpaceID_Unknown, htmlAtom, xmlAtom);
+  return NS_GetContentList(this, nameAtom, kNameSpaceID_Unknown);
 }
 
 NS_IMETHODIMP
@@ -4680,8 +4601,9 @@ nsDocument::GetElementsByTagNameNS(const nsAString& aNamespaceURI,
   }
 
   nsCOMPtr<nsIAtom> nameAtom = do_GetAtom(aLocalName);
+  NS_ENSURE_TRUE(nameAtom, nsnull);
 
-  return NS_GetContentList(this, nameSpaceId, nameAtom);
+  return NS_GetContentList(this, nameAtom, nameSpaceId);
 }
 
 NS_IMETHODIMP
@@ -5248,7 +5170,9 @@ nsDocument::GetTitleContent(PRUint32 aNamespace)
     return nsnull;
 
   nsRefPtr<nsContentList> list =
-    NS_GetContentList(this, aNamespace, nsGkAtoms::title);
+    NS_GetContentList(this, nsGkAtoms::title, aNamespace);
+  if (!list)
+    return nsnull;
 
   return list->Item(0, PR_FALSE);
 }
@@ -5889,7 +5813,7 @@ nsDocument::CloneNode(PRBool aDeep, nsIDOMNode** aReturn)
 NS_IMETHODIMP
 nsDocument::Normalize()
 {
-  for (PRUint32 i = 0; i < mChildren.ChildCount(); ++i) {
+  for (PRInt32 i = 0; i < mChildren.ChildCount(); ++i) {
     nsCOMPtr<nsIDOMNode> node(do_QueryInterface(mChildren.ChildAt(i)));
     node->Normalize();
   }
@@ -7449,14 +7373,16 @@ nsDocument::OnPageShow(PRBool aPersisted,
   if (aPersisted && root) {
     // Send out notifications that our <link> elements are attached.
     nsRefPtr<nsContentList> links = NS_GetContentList(root,
-                                                      kNameSpaceID_Unknown,
-                                                      nsGkAtoms::link);
+                                                      nsGkAtoms::link,
+                                                      kNameSpaceID_Unknown);
 
-    PRUint32 linkCount = links->Length(PR_TRUE);
-    for (PRUint32 i = 0; i < linkCount; ++i) {
-      nsCOMPtr<nsILink> link = do_QueryInterface(links->Item(i, PR_FALSE));
-      if (link) {
-        link->LinkAdded();
+    if (links) {
+      PRUint32 linkCount = links->Length(PR_TRUE);
+      for (PRUint32 i = 0; i < linkCount; ++i) {
+        nsCOMPtr<nsILink> link = do_QueryInterface(links->Item(i, PR_FALSE));
+        if (link) {
+          link->LinkAdded();
+        }
       }
     }
   }
@@ -7501,14 +7427,16 @@ nsDocument::OnPageHide(PRBool aPersisted,
   Element* root = GetRootElement();
   if (aPersisted && root) {
     nsRefPtr<nsContentList> links = NS_GetContentList(root,
-                                                      kNameSpaceID_Unknown,
-                                                      nsGkAtoms::link);
+                                                      nsGkAtoms::link,
+                                                      kNameSpaceID_Unknown);
 
-    PRUint32 linkCount = links->Length(PR_TRUE);
-    for (PRUint32 i = 0; i < linkCount; ++i) {
-      nsCOMPtr<nsILink> link = do_QueryInterface(links->Item(i, PR_FALSE));
-      if (link) {
-        link->LinkRemoved();
+    if (links) {
+      PRUint32 linkCount = links->Length(PR_TRUE);
+      for (PRUint32 i = 0; i < linkCount; ++i) {
+        nsCOMPtr<nsILink> link = do_QueryInterface(links->Item(i, PR_FALSE));
+        if (link) {
+          link->LinkRemoved();
+        }
       }
     }
   }
@@ -7960,15 +7888,9 @@ nsDocument::GetCurrentContentSink()
 }
 
 void
-nsDocument::RegisterFileDataUri(const nsACString& aUri)
+nsDocument::RegisterFileDataUri(nsACString& aUri)
 {
   mFileDataUris.AppendElement(aUri);
-}
-
-void
-nsDocument::UnregisterFileDataUri(const nsACString& aUri)
-{
-  mFileDataUris.RemoveElement(aUri);
 }
 
 void

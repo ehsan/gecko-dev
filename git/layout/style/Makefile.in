@@ -116,6 +116,7 @@ CPPSRCS		= \
 		nsCSSProps.cpp \
 		nsCSSPseudoClasses.cpp \
 		nsCSSPseudoElements.cpp \
+		nsCSSRule.cpp \
 		nsCSSRuleProcessor.cpp \
 		nsCSSRules.cpp \
 		nsCSSScanner.cpp \

@@ -307,7 +307,7 @@ NS_IMETHODIMP
 nsCCMemoryPressureObserver::Observe(nsISupports* aSubject, const char* aTopic,
                                     const PRUnichar* aData)
 {
-  nsJSContext::CC(nsnull);
+  nsJSContext::CC();
   return NS_OK;
 }
 
@@ -1377,8 +1377,7 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_END
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsJSContext)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mGlobalWrapperRef)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsJSContext)
-  NS_IMPL_CYCLE_COLLECTION_DESCRIBE(nsJSContext, tmp->GetCCRefcnt())
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_REFCNT(nsJSContext, tmp->GetCCRefcnt())
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mGlobalWrapperRef)
   NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mContext");
   nsContentUtils::XPConnect()->NoteJSContext(tmp->mContext, cb);
@@ -3513,7 +3512,7 @@ nsJSContext::ScriptExecuted()
 
 //static
 void
-nsJSContext::CC(nsICycleCollectorListener *aListener)
+nsJSContext::CC()
 {
   NS_TIME_FUNCTION_MIN(1.0);
 
@@ -3528,7 +3527,7 @@ nsJSContext::CC(nsICycleCollectorListener *aListener)
   // nsCycleCollector_collect() no longer forces a JS garbage collection,
   // so we have to do it ourselves here.
   nsContentUtils::XPConnect()->GarbageCollect();
-  sCollectedObjectsCounts = nsCycleCollector_collect(aListener);
+  sCollectedObjectsCounts = nsCycleCollector_collect();
   sCCSuspectedCount = nsCycleCollector_suspectedCount();
   sSavedGCCount = JS_GetGCParameter(nsJSRuntime::sRuntime, JSGC_NUMBER);
 #ifdef DEBUG_smaug
@@ -3616,7 +3615,7 @@ nsJSContext::IntervalCC()
 {
   if ((PR_Now() - sPreviousCCTime) >=
       PRTime(NS_MIN_CC_INTERVAL * PR_USEC_PER_MSEC)) {
-    nsJSContext::CC(nsnull);
+    nsJSContext::CC();
     return PR_TRUE;
   }
 #ifdef DEBUG_smaug

@@ -107,8 +107,6 @@ public:
   /*
    * LayerManager implementation.
    */
-  virtual void Destroy();
-
   void BeginTransaction();
 
   void BeginTransactionWithTarget(gfxContext* aTarget);
@@ -145,7 +143,6 @@ public:
 
   virtual LayersBackend GetBackendType() { return LAYERS_D3D9; }
   virtual void GetBackendName(nsAString& name) { name.AssignLiteral("Direct3D 9"); }
-  bool DeviceWasRemoved() { return deviceManager()->DeviceWasRemoved(); }
 
   /*
    * Helper methods.
@@ -169,8 +166,8 @@ public:
   PRBool Is3DEnabled() { return mIs3DEnabled; } 
 
   static void OnDeviceManagerDestroy(DeviceManagerD3D9 *aDeviceManager) {
-    if(aDeviceManager == mDefaultDeviceManager)
-      mDefaultDeviceManager = nsnull;
+    if(aDeviceManager == mDeviceManager)
+      mDeviceManager = nsnull;
   }
 
 #ifdef MOZ_LAYERS_HAVE_LOG
@@ -178,11 +175,8 @@ public:
 #endif // MOZ_LAYERS_HAVE_LOG
 
 private:
-  /* Default device manager instance */
-  static DeviceManagerD3D9 *mDefaultDeviceManager;
-
-  /* Device manager instance for this layer manager */
-  nsRefPtr<DeviceManagerD3D9> mDeviceManager;
+  /* Device manager instance */
+  static DeviceManagerD3D9 *mDeviceManager;
 
   /* Swap chain associated with this layer manager */
   nsRefPtr<SwapChainD3D9> mSwapChain;
@@ -239,15 +233,7 @@ public:
 
   virtual void RenderLayer() = 0;
 
-  /* This function may be used on device resets to clear all VRAM resources
-   * that a layer might be using.
-   */
-  virtual void CleanResources() {}
-
   IDirect3DDevice9 *device() const { return mD3DManager->device(); }
-
-  /* Called by the layer manager when it's destroyed */
-  virtual void LayerManagerDestroyed() {}
 protected:
   LayerManagerD3D9 *mD3DManager;
 };

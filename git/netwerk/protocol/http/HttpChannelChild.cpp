@@ -139,6 +139,7 @@ NS_INTERFACE_MAP_BEGIN(HttpChannelChild)
   NS_INTERFACE_MAP_ENTRY(nsIHttpChannel)
   NS_INTERFACE_MAP_ENTRY(nsIHttpChannelInternal)
   NS_INTERFACE_MAP_ENTRY(nsICacheInfoChannel)
+  NS_INTERFACE_MAP_ENTRY(nsIEncodedChannel)
   NS_INTERFACE_MAP_ENTRY(nsIResumableChannel)
   NS_INTERFACE_MAP_ENTRY(nsISupportsPriority)
   NS_INTERFACE_MAP_ENTRY(nsIProxiedChannel)
@@ -293,17 +294,12 @@ HttpChannelChild::OnStartRequest(const nsHttpResponseHead& responseHead,
   AutoEventEnqueuer ensureSerialDispatch(this);
 
   nsresult rv = mListener->OnStartRequest(this, mListenerContext);
-  if (NS_FAILED(rv)) {
+  if (NS_SUCCEEDED(rv)) {
+    if (mResponseHead)
+      SetCookie(mResponseHead->PeekHeader(nsHttp::Set_Cookie));
+  } else {
     Cancel(rv);
-    return;
   }
-
-  if (mResponseHead)
-    SetCookie(mResponseHead->PeekHeader(nsHttp::Set_Cookie));
-
-  rv = ApplyContentConversions();
-  if (NS_FAILED(rv))
-    Cancel(rv);
 }
 
 class DataAvailableEvent : public ChildChannelEvent
@@ -992,6 +988,29 @@ HttpChannelChild::IsFromCache(PRBool *value)
 
   *value = mIsFromCache;
   return NS_OK;
+}
+
+//-----------------------------------------------------------------------------
+// HttpChannelChild::nsIEncodedChannel
+//-----------------------------------------------------------------------------
+
+NS_IMETHODIMP
+HttpChannelChild::GetContentEncodings(nsIUTF8StringEnumerator **result)
+{
+  DROP_DEAD();
+}
+
+/* attribute boolean applyConversion; */
+NS_IMETHODIMP
+HttpChannelChild::GetApplyConversion(PRBool *aApplyConversion)
+{
+  DROP_DEAD();
+}
+
+NS_IMETHODIMP
+HttpChannelChild::SetApplyConversion(PRBool aApplyConversion)
+{
+  DROP_DEAD();
 }
 
 //-----------------------------------------------------------------------------

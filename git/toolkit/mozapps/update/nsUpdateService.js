@@ -53,8 +53,6 @@ const Cr = Components.results;
 
 const PREF_APP_UPDATE_AUTO                = "app.update.auto";
 const PREF_APP_UPDATE_BACKGROUND_INTERVAL = "app.update.download.backgroundInterval";
-const PREF_APP_UPDATE_BACKGROUNDERRORS    = "app.update.backgroundErrors";
-const PREF_APP_UPDATE_BACKGROUNDMAXERRORS = "app.update.backgroundMaxErrors";
 const PREF_APP_UPDATE_CERTS_BRANCH        = "app.update.certs.";
 const PREF_APP_UPDATE_CERT_CHECKATTRS     = "app.update.cert.checkAttributes";
 const PREF_APP_UPDATE_CERT_ERRORS         = "app.update.cert.errors";
@@ -99,11 +97,7 @@ const KEY_UPDROOT         = "UpdRootD";
 const DIR_UPDATES         = "updates";
 const FILE_UPDATE_STATUS  = "update.status";
 const FILE_UPDATE_VERSION = "update.version";
-#ifdef ANDROID
-const FILE_UPDATE_ARCHIVE = "update.apk";
-#else
 const FILE_UPDATE_ARCHIVE = "update.mar";
-#endif
 const FILE_UPDATE_LOG     = "update.log"
 const FILE_UPDATES_DB     = "updates.xml";
 const FILE_UPDATE_ACTIVE  = "active-update.xml";
@@ -126,7 +120,6 @@ const ELEVATION_CANCELED = 9;
 
 const CERT_ATTR_CHECK_FAILED_NO_UPDATE  = 100;
 const CERT_ATTR_CHECK_FAILED_HAS_UPDATE = 101;
-const BACKGROUNDCHECK_MULTIPLE_FAILURES = 110;
 
 const DOWNLOAD_CHUNK_SIZE           = 300000; // bytes
 const DOWNLOAD_BACKGROUND_INTERVAL  = 600;    // seconds
@@ -723,9 +716,6 @@ UpdatePatch.prototype = {
     var patch = updates.createElementNS(URI_UPDATE_NS, "patch");
     patch.setAttribute("type", this.type);
     patch.setAttribute("URL", this.URL);
-    // finalURL is not available until after the download has started
-    if (this.finalURL)
-      patch.setAttribute("finalURL", this.finalURL);
     patch.setAttribute("hashFunction", this.hashFunction);
     patch.setAttribute("hashValue", this.hashValue);
     patch.setAttribute("size", this.size);
@@ -1292,25 +1282,16 @@ UpdateService.prototype = {
         LOG("UpdateService:notify:listener - error during background update: " +
             update.statusText);
 
-        var maxErrors;
-        var errCount;
-        if (update.errorCode == CERT_ATTR_CHECK_FAILED_NO_UPDATE ||
-            update.errorCode == CERT_ATTR_CHECK_FAILED_HAS_UPDATE) {
-          errCount = getPref("getIntPref", PREF_APP_UPDATE_CERT_ERRORS, 0);
-          errCount++;
-          Services.prefs.setIntPref(PREF_APP_UPDATE_CERT_ERRORS, errCount);
-          maxErrors = getPref("getIntPref", PREF_APP_UPDATE_CERT_MAXERRORS, 5);
-        }
-        else {
-          update.errorCode = BACKGROUNDCHECK_MULTIPLE_FAILURES;
-          errCount = getPref("getIntPref", PREF_APP_UPDATE_BACKGROUNDERRORS, 0);
-          errCount++;
-          Services.prefs.setIntPref(PREF_APP_UPDATE_BACKGROUNDERRORS, errCount);
-          maxErrors = getPref("getIntPref", PREF_APP_UPDATE_BACKGROUNDMAXERRORS,
-                              10);
-        }
+        if (!update.errorCode ||
+            update.errorCode != CERT_ATTR_CHECK_FAILED_NO_UPDATE &&
+            update.errorCode != CERT_ATTR_CHECK_FAILED_HAS_UPDATE)
+          return;
 
-        if (errCount >= maxErrors) {
+        var errCount = getPref("getIntPref", PREF_APP_UPDATE_CERT_ERRORS, 0);
+        errCount++;
+        Services.prefs.setIntPref(PREF_APP_UPDATE_CERT_ERRORS, errCount);
+
+        if (errCount >= getPref("getIntPref", PREF_APP_UPDATE_CERT_MAXERRORS, 5)) {
           var prompter = Cc["@mozilla.org/updates/update-prompt;1"].
                          createInstance(Ci.nsIUpdatePrompt);
           prompter.showUpdateError(update);
@@ -2172,9 +2153,6 @@ Checker.prototype = {
       if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_CERT_ERRORS))
         Services.prefs.clearUserPref(PREF_APP_UPDATE_CERT_ERRORS);
 
-      if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_BACKGROUNDERRORS))
-        Services.prefs.clearUserPref(PREF_APP_UPDATE_BACKGROUNDERRORS);
-
       // Tell the Update Service about the updates
       this._callback.onCheckComplete(event.target, updates, updates.length);
     }
@@ -2532,13 +2510,7 @@ Downloader.prototype = {
    */
   onStartRequest: function Downloader_onStartRequest(request, context) {
     if (request instanceof Ci.nsIIncrementalDownload)
-      LOG("Downloader:onStartRequest - original URI spec: " + request.URI.spec +
-          ", final URI spec: " + request.finalURI.spec);
-    // Always set finalURL in onStartRequest since it can change.
-    this._patch.finalURL = request.finalURI.spec;
-    var um = Cc["@mozilla.org/updates/update-manager;1"].
-             getService(Ci.nsIUpdateManager);
-    um.saveUpdates();
+      LOG("Downloader:onStartRequest - spec: " + request.URI.spec);
 
     var listenerCount = this._listeners.length;
     for (var i = 0; i < listenerCount; ++i)
@@ -2602,8 +2574,8 @@ Downloader.prototype = {
    */
   onStopRequest: function  Downloader_onStopRequest(request, context, status) {
     if (request instanceof Ci.nsIIncrementalDownload)
-      LOG("Downloader:onStopRequest - original URI spec: " + request.URI.spec +
-          ", final URI spec: " + request.finalURI.spec + ", status: " + status);
+      LOG("Downloader:onStopRequest - spec: " + request.URI.spec +
+          ", status: " + status);
 
     var state = this._patch.state;
     var shouldShowPrompt = false;
@@ -2612,7 +2584,7 @@ Downloader.prototype = {
       if (this._verifyDownload()) {
         state = STATE_PENDING;
 
-        // We only need to explicitly show the prompt if this is a background
+        // We only need to explicitly show the prompt if this is a backround
         // download, since otherwise some kind of UI is already visible and
         // that UI will notify.
         if (this.background)
@@ -2779,8 +2751,7 @@ UpdatePrompt.prototype = {
    * See nsIUpdateService.idl
    */
   showUpdateAvailable: function UP_showUpdateAvailable(update) {
-    if (getPref("getBoolPref", PREF_APP_UPDATE_SILENT, false) ||
-        this._getUpdateWindow())
+    if (!this._enabled || this._getUpdateWindow())
       return;
 
     var stringsPrefix = "updateAvailable_" + update.type + ".";
@@ -2798,7 +2769,7 @@ UpdatePrompt.prototype = {
    */
   showUpdateDownloaded: function UP_showUpdateDownloaded(update, background) {
     if (background) {
-      if (getPref("getBoolPref", PREF_APP_UPDATE_SILENT, false))
+      if (!this._enabled)
         return;
 
       var stringsPrefix = "updateDownloaded_" + update.type + ".";
@@ -2819,9 +2790,8 @@ UpdatePrompt.prototype = {
    * See nsIUpdateService.idl
    */
   showUpdateInstalled: function UP_showUpdateInstalled() {
-    if (getPref("getBoolPref", PREF_APP_UPDATE_SILENT, false) ||
-        !getPref("getBoolPref", PREF_APP_UPDATE_SHOW_INSTALLED_UI, false) ||
-        this._getUpdateWindow())
+    if (!this._enabled || this._getUpdateWindow() ||
+        !getPref("getBoolPref", PREF_APP_UPDATE_SHOW_INSTALLED_UI, false))
       return;
 
     var page = "installed";
@@ -2844,8 +2814,13 @@ UpdatePrompt.prototype = {
    * See nsIUpdateService.idl
    */
   showUpdateError: function UP_showUpdateError(update) {
-    if (getPref("getBoolPref", PREF_APP_UPDATE_SILENT, false))
+    if (update.errorCode &&
+        (update.errorCode == CERT_ATTR_CHECK_FAILED_NO_UPDATE ||
+         update.errorCode == CERT_ATTR_CHECK_FAILED_HAS_UPDATE)) {
+      this._showUIWhenIdle(null, URI_UPDATE_PROMPT_DIALOG, null,
+                           UPDATE_WINDOW_NAME, null, update);
       return;
+    }
 
     // In some cases, we want to just show a simple alert dialog:
     if (update.state == STATE_FAILED && update.errorCode == WRITE_ERROR) {
@@ -2854,19 +2829,10 @@ UpdatePrompt.prototype = {
                                                     [Services.appinfo.name,
                                                      Services.appinfo.name], 2);
       Services.ww.getNewPrompter(null).alert(title, text);
-      return;
+    } else {
+      this._showUI(null, URI_UPDATE_PROMPT_DIALOG, null, UPDATE_WINDOW_NAME,
+                   "errors", update);
     }
-
-    if (update.errorCode == CERT_ATTR_CHECK_FAILED_NO_UPDATE ||
-        update.errorCode == CERT_ATTR_CHECK_FAILED_HAS_UPDATE ||
-        update.errorCode == BACKGROUNDCHECK_MULTIPLE_FAILURES) {
-      this._showUIWhenIdle(null, URI_UPDATE_PROMPT_DIALOG, null,
-                           UPDATE_WINDOW_NAME, null, update);
-      return;
-    }
-
-    this._showUI(null, URI_UPDATE_PROMPT_DIALOG, null, UPDATE_WINDOW_NAME,
-                 "errors", update);
   },
 
   /**
@@ -2875,6 +2841,13 @@ UpdatePrompt.prototype = {
   showUpdateHistory: function UP_showUpdateHistory(parent) {
     this._showUI(parent, URI_UPDATE_HISTORY_DIALOG, "modal,dialog=yes",
                  "Update:History", null, null);
+  },
+
+  /**
+   * Whether or not we are enabled (i.e. not in Silent mode)
+   */
+  get _enabled() {
+    return !getPref("getBoolPref", PREF_APP_UPDATE_SILENT, false);
   },
 
   /**

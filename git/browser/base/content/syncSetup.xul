@@ -107,14 +107,16 @@
         <column class="inputColumn" flex="1"/>
       </columns>
       <rows>
-        <row id="emailRow" align="center">
-          <label value="&setup.emailAddress.label;"
-                 accesskey="&setup.emailAddress.accesskey;"
-                 control="weaveEmail"/>
-          <textbox id="weaveEmail"
-                   onchange="gSyncSetup.onEmailChange()"/>
+        <row id="usernameRow" align="center">
+          <label value="&signIn.username.label;"
+                 accesskey="&signIn.username.accesskey;"
+                 control="weaveUsername"/>
+          <textbox id="weaveUsername"
+                   onchange="gSyncSetup.onUsernameChange()"/>
         </row>
-        <row id="emailFeedbackRow" align="center" hidden="true">
+        <row id="usernameFeedbackRow"
+              align="center"
+              hidden="true">
           <spacer/>
           <hbox>
             <image class="statusIcon"/>
@@ -138,6 +140,20 @@
                    onchange="gSyncSetup.onPasswordChange()"/>
         </row>
         <row id="passwordFeedbackRow" align="center" hidden="true">
+          <spacer/>
+          <hbox>
+            <image class="statusIcon"/>
+            <label class="status" value=" "/>
+          </hbox>
+        </row>
+        <row id="emailRow" align="center">
+          <label value="&setup.emailAddress.label;"
+                 accesskey="&setup.emailAddress.accesskey;"
+                 control="weaveEmail"/>
+          <textbox id="weaveEmail"
+                   onchange="gSyncSetup.onEmailChange()"/>
+        </row>
+        <row id="emailFeedbackRow" align="center" hidden="true">
           <spacer/>
           <hbox>
             <image class="statusIcon"/>
@@ -292,16 +308,16 @@
             <textbox id="existingServerURL"
                      onchange="gSyncSetup.checkFields(event)"/>
           </row>
-          <row id="existingAccountRow" align="center">
-            <label id="existingAccountLabel"
-                   value="&signIn.account.label;"
-                   accesskey="&signIn.account.accesskey;"
-                   control="existingAccount"/>
-            <textbox id="existingAccountName"
+          <row id="existingUsernameRow" align="center">
+            <label id="existingUsernameLabel"
+                   value="&signIn.username.label;"
+                   accesskey="&signIn.username.accesskey;"
+                   control="existingUsername"/>
+            <textbox id="existingUsername"
                      oninput="gSyncSetup.checkFields(event)"
                      onchange="gSyncSetup.checkFields(event)"/>
           </row>
-          <row id="existingAccountFeedbackRow" align="center" hidden="true">
+          <row id="existingUsernameFeedbackRow" align="center" hidden="true">
             <spacer/>
             <hbox>
               <image class="statusIcon"/>

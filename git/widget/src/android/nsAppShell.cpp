@@ -80,6 +80,8 @@ nsAppShell::nsAppShell()
     : mQueueLock(nsnull),
       mCondLock(nsnull),
       mQueueCond(nsnull),
+      mPausedLock(nsnull),
+      mPaused(nsnull),
       mNumDraws(0)
 {
     gAppShell = this;
@@ -112,7 +114,9 @@ nsAppShell::Init()
 
     mQueueLock = PR_NewLock();
     mCondLock = PR_NewLock();
+    mPausedLock = PR_NewLock();
     mQueueCond = PR_NewCondVar(mCondLock);
+    mPaused = PR_NewCondVar(mPausedLock);
 
     mObserversHash.Init();
 
@@ -259,6 +263,9 @@ nsAppShell::ProcessNextNativeEvent(PRBool mayWait)
         if (prefs)
             prefs->SavePrefFile(nsnull);
 
+        // The OS is sending us to the background, block this thread until 
+        // onResume is called to signal that we're back in the foreground
+        PR_WaitCondVar(mPaused, PR_INTERVAL_NO_TIMEOUT);
         break;
     }
 
@@ -356,6 +363,10 @@ nsAppShell::RemoveNextEvent()
 void
 nsAppShell::OnResume()
 {
+    PR_Lock(mPausedLock);
+    PR_NotifyCondVar(mPaused);
+    PR_Unlock(mPausedLock);
+
 }
 
 nsresult

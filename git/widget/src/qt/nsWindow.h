@@ -200,6 +200,7 @@ public:
 
     NS_IMETHODIMP      SetIMEEnabled(PRUint32 aState);
     NS_IMETHODIMP      GetIMEEnabled(PRUint32* aState);
+    NS_IMETHOD         SetAcceleratedRendering(PRBool aEnabled);
 
     //
     // utility methods
@@ -231,7 +232,6 @@ public:
     // called to check and see if a widget's dimensions are sane
     PRBool AreBoundsSane(void);
 
-    NS_IMETHOD         ReparentNativeWidget(nsIWidget* aNewParent);
 protected:
     nsCOMPtr<nsIWidget> mParent;
     // Is this a toplevel window?
@@ -315,6 +315,7 @@ protected:
 
     void               ThemeChanged(void);
 
+    virtual LayerManager* GetLayerManager();
     gfxASurface*       GetThebesSurface();
 
 private:

@@ -43,7 +43,6 @@
 #include "nsPrintfCString.h"
 #include "nsIPrefService.h" 
 #include "Nv3DVUtils.h"
-#include "plstr.h"
 
 namespace mozilla {
 namespace layers {
@@ -182,7 +181,6 @@ SwapChainD3D9::Reset()
 
 DeviceManagerD3D9::DeviceManagerD3D9()
   : mHasDynamicTextures(false)
-  , mDeviceWasRemoved(false)
 {
 }
 
@@ -258,19 +256,6 @@ DeviceManagerD3D9::Init()
     if (!mD3D9) {
       return false;
     }
-  }
-
-  D3DADAPTER_IDENTIFIER9 ident;
-  hr = mD3D9->GetAdapterIdentifier(D3DADAPTER_DEFAULT, 0, &ident);
-
-  if (FAILED(hr)) {
-    return false;
-  }
-
-  if (!PL_strncasecmp(ident.Driver, "nvumdshim.dll", PL_strlen(ident.Driver))) {
-    // XXX - This is a device using NVidia Optimus. We have no idea how to do
-    // interop here so let's fail and use BasicLayers. See bug 597320.
-    return false;
   }
 
   D3DPRESENT_PARAMETERS pp;
@@ -507,13 +492,6 @@ DeviceManagerD3D9::VerifyReadyForRendering()
   if (SUCCEEDED(hr)) {
     if (IsD3D9Ex()) {
       hr = mDeviceEx->CheckDeviceState(mFocusWnd);
-
-      if (hr == D3DERR_DEVICEREMOVED) {
-        mDeviceWasRemoved = true;
-        LayerManagerD3D9::OnDeviceManagerDestroy(this);
-        return false;
-      }
-
       if (FAILED(hr)) {
         D3DPRESENT_PARAMETERS pp;
         memset(&pp, 0, sizeof(D3DPRESENT_PARAMETERS));
@@ -527,6 +505,7 @@ DeviceManagerD3D9::VerifyReadyForRendering()
         pp.hDeviceWindow = mFocusWnd;
         
         hr = mDeviceEx->ResetEx(&pp, NULL);
+        // Handle D3DERR_DEVICEREMOVED!
         if (FAILED(hr)) {
           return false;
         }
@@ -535,8 +514,12 @@ DeviceManagerD3D9::VerifyReadyForRendering()
     return true;
   }
 
-  for(unsigned int i = 0; i < mLayersWithResources.Length(); i++) {
-    mLayersWithResources[i]->CleanResources();
+  if (hr != D3DERR_DEVICENOTRESET) {
+    return false;
+  }
+
+  for(unsigned int i = 0; i < mThebesLayers.Length(); i++) {
+    mThebesLayers[i]->CleanResources();
   }
   for(unsigned int i = 0; i < mSwapChains.Length(); i++) {
     mSwapChains[i]->Reset();
@@ -555,13 +538,7 @@ DeviceManagerD3D9::VerifyReadyForRendering()
 
   hr = mDevice->Reset(&pp);
 
-  if (hr == D3DERR_DEVICELOST) {
-    return false;
-  }
-
   if (FAILED(hr)) {
-    mDeviceWasRemoved = true;
-    LayerManagerD3D9::OnDeviceManagerDestroy(this);
     return false;
   }
 

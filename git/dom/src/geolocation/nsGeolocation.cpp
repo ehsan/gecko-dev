@@ -35,7 +35,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #ifdef MOZ_IPC
-#include "nsContentPermissionHelper.h"
+#include "nsGeolocationOOP.h"
 #include "nsXULAppAPI.h"
 
 #include "mozilla/dom/PBrowserChild.h"
@@ -257,6 +257,14 @@ nsresult
 nsGeolocationRequest::Init()
 {
   // This method is called before the user has given permission for this request.
+
+  // check to see if we have a geolocation provider, if not, notify an error and bail.
+  nsRefPtr<nsGeolocationService> geoService = nsGeolocationService::GetInstance();
+  if (!geoService->HasGeolocationProvider()) {
+    NotifyError(nsIDOMGeoPositionError::POSITION_UNAVAILABLE);
+    return NS_ERROR_FAILURE;
+  }
+
   return NS_OK;
 }
 
@@ -735,17 +743,22 @@ nsGeolocationService::GetCachedPosition()
   return mLastPosition;
 }
 
+PRBool
+nsGeolocationService::HasGeolocationProvider()
+{
+  return mProviders.Count() > 0;
+}
+
 nsresult
 nsGeolocationService::StartDevice()
 {
   if (!sGeoEnabled)
     return NS_ERROR_NOT_AVAILABLE;
 
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    ContentChild* cpc = ContentChild::GetSingleton();
-    cpc->SendGeolocationStart();
-    return NS_OK;
-  }
+  if (!HasGeolocationProvider())
+    return NS_ERROR_NOT_AVAILABLE;
+  
+  // if we have one, start it up.
 
   // Start them up!
   nsresult rv = NS_ERROR_NOT_AVAILABLE;
@@ -787,19 +800,13 @@ nsGeolocationService::SetDisconnectTimer()
 void 
 nsGeolocationService::StopDevice()
 {
+  for (PRUint32 i = mProviders.Count() - 1; i != PRUint32(-1); --i) {
+    mProviders[i]->Shutdown();
+  }
+
   if(mDisconnectTimer) {
     mDisconnectTimer->Cancel();
     mDisconnectTimer = nsnull;
-  }
-
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    ContentChild* cpc = ContentChild::GetSingleton();
-    cpc->SendGeolocationStop();
-    return; // bail early
-  }
-
-  for (PRUint32 i = mProviders.Count() - 1; i != PRUint32(-1); --i) {
-    mProviders[i]->Shutdown();
   }
 }
 
@@ -1131,3 +1138,117 @@ nsGeolocation::RegisterRequestWithPrompt(nsGeolocationRequest* request)
   NS_DispatchToMainThread(ev);
 }
 
+#if !defined(WINCE_WINDOWS_MOBILE) && !defined(MOZ_MAEMO_LIBLOCATION) && !defined(ANDROID)
+DOMCI_DATA(GeoPositionCoords, void)
+DOMCI_DATA(GeoPosition, void)
+#endif
+
+#ifdef MOZ_IPC
+nsGeolocationRequestProxy::nsGeolocationRequestProxy()
+{
+  MOZ_COUNT_CTOR(nsGeolocationRequestProxy);
+}
+
+nsGeolocationRequestProxy::~nsGeolocationRequestProxy()
+{
+  MOZ_COUNT_DTOR(nsGeolocationRequestProxy);
+}
+
+nsresult
+nsGeolocationRequestProxy::Init(mozilla::dom::GeolocationRequestParent* parent)
+{
+  NS_ASSERTION(parent, "null parent");
+  mParent = parent;
+
+  nsCOMPtr<nsIContentPermissionPrompt> prompt = do_GetService(NS_CONTENT_PERMISSION_PROMPT_CONTRACTID);
+  if (!prompt) {
+    return NS_ERROR_FAILURE;
+  }
+
+  (void) prompt->Prompt(this);
+  return NS_OK;
+}
+
+NS_IMPL_ISUPPORTS1(nsGeolocationRequestProxy, nsIContentPermissionRequest);
+
+NS_IMETHODIMP
+nsGeolocationRequestProxy::GetType(nsACString & aType)
+{
+  aType = "geolocation";
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsGeolocationRequestProxy::GetWindow(nsIDOMWindow * *aRequestingWindow)
+{
+  NS_ENSURE_ARG_POINTER(aRequestingWindow);
+  *aRequestingWindow = nsnull;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsGeolocationRequestProxy::GetUri(nsIURI * *aRequestingURI)
+{
+  NS_ENSURE_ARG_POINTER(aRequestingURI);
+  NS_ASSERTION(mParent, "No parent for request");
+
+  NS_ADDREF(*aRequestingURI = mParent->mURI);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsGeolocationRequestProxy::GetElement(nsIDOMElement * *aRequestingElement)
+{
+  NS_ENSURE_ARG_POINTER(aRequestingElement);
+  NS_ASSERTION(mParent && mParent->mElement.get(), "No parent for request");
+  NS_ADDREF(*aRequestingElement = mParent->mElement);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsGeolocationRequestProxy::Cancel()
+{
+  NS_ASSERTION(mParent, "No parent for request");
+  unused << mozilla::dom::GeolocationRequestParent::Send__delete__(mParent, false);
+  mParent = nsnull;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsGeolocationRequestProxy::Allow()
+{
+  NS_ASSERTION(mParent, "No parent for request");
+  unused << mozilla::dom::GeolocationRequestParent::Send__delete__(mParent, true);
+  mParent = nsnull;
+  return NS_OK;
+}
+
+namespace mozilla {
+namespace dom {
+
+GeolocationRequestParent::GeolocationRequestParent(nsIDOMElement *element, const IPC::URI& uri)
+{
+  MOZ_COUNT_CTOR(GeolocationRequestParent);
+  
+  mURI       = uri;
+  mElement   = element;
+}
+
+GeolocationRequestParent::~GeolocationRequestParent()
+{
+  MOZ_COUNT_DTOR(GeolocationRequestParent);
+}
+  
+bool
+GeolocationRequestParent::Recvprompt()
+{
+  mProxy = new nsGeolocationRequestProxy();
+  NS_ASSERTION(mProxy, "Alloc of request proxy failed");
+  if (NS_FAILED(mProxy->Init(this)))
+    mProxy->Cancel();
+  return true;
+}
+
+} // namespace dom
+} // namespace mozilla
+#endif

@@ -610,17 +610,18 @@ nsCommandLine::EnumerateHandlers(EnumerateHandlersCallback aCallback, void *aClo
   while (NS_SUCCEEDED(strenum->HasMore(&hasMore)) && hasMore) {
     strenum->GetNext(entry);
 
-    nsCString contractID;
+    nsXPIDLCString contractID;
     rv = catman->GetCategoryEntry("command-line-handler",
 				  entry.get(),
 				  getter_Copies(contractID));
-    if (NS_FAILED(rv))
+    if (!contractID)
       continue;
 
     nsCOMPtr<nsICommandLineHandler> clh(do_GetService(contractID.get()));
     if (!clh) {
       LogConsoleMessage(NS_LITERAL_STRING("Contract ID '%s' was registered as a command line handler for entry '%s', but could not be created."),
-                        contractID.get(), entry.get());
+                                          contractID.get(),
+                                          entry.get());
       continue;
     }
 

@@ -152,7 +152,6 @@
 
 #include "nsCSSParser.h"
 #include "nsTPtrArray.h"
-#include "prprf.h"
 
 #ifdef MOZ_SVG
 #include "nsSVGFeatures.h"
@@ -1365,9 +1364,8 @@ nsGenericElement::GetChildrenList()
   NS_ENSURE_TRUE(slots, nsnull);
 
   if (!slots->mChildrenList) {
-    slots->mChildrenList = new nsContentList(this, kNameSpaceID_Wildcard, 
-                                             nsGkAtoms::_asterix, nsGkAtoms::_asterix,
-                                             PR_FALSE);
+    slots->mChildrenList = new nsContentList(this, nsGkAtoms::_asterix,
+                                             kNameSpaceID_Wildcard, PR_FALSE);
   }
 
   return slots->mChildrenList;
@@ -2496,13 +2494,12 @@ nsresult
 nsGenericElement::GetElementsByTagName(const nsAString& aTagname,
                                        nsIDOMNodeList** aReturn)
 {
-  nsAutoString lowercaseName;
-  nsContentUtils::ASCIIToLower(aTagname, lowercaseName);
-  nsCOMPtr<nsIAtom> XMLAtom = do_GetAtom(aTagname);
-  nsCOMPtr<nsIAtom> HTMLAtom = do_GetAtom(lowercaseName);
+  nsCOMPtr<nsIAtom> nameAtom = do_GetAtom(aTagname);
+  NS_ENSURE_TRUE(nameAtom, NS_ERROR_OUT_OF_MEMORY);
 
-  nsContentList *list = NS_GetContentList(this, kNameSpaceID_Unknown, 
-                                          HTMLAtom, XMLAtom).get();
+  nsContentList *list = NS_GetContentList(this, nameAtom,
+                                          kNameSpaceID_Unknown).get();
+  NS_ENSURE_TRUE(list, NS_ERROR_OUT_OF_MEMORY);
 
   // transfer ref to aReturn
   *aReturn = list;
@@ -2629,8 +2626,10 @@ nsGenericElement::GetElementsByTagNameNS(const nsAString& aNamespaceURI,
   }
 
   nsCOMPtr<nsIAtom> nameAtom = do_GetAtom(aLocalName);
+  NS_ENSURE_TRUE(nameAtom, NS_ERROR_OUT_OF_MEMORY);
 
-  nsContentList *list = NS_GetContentList(this, nameSpaceId, nameAtom).get();
+  nsContentList *list = NS_GetContentList(this, nameAtom, nameSpaceId).get();
+  NS_ENSURE_TRUE(list, NS_ERROR_OUT_OF_MEMORY);
 
   // transfer ref to aReturn
   *aReturn = list;
@@ -4372,41 +4371,7 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsGenericElement)
   NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
-static const char* kNSURIs[] = {
-  " ([none])",
-  " (xmlns)",
-  " (xml)",
-  " (xhtml)",
-  " (XLink)",
-  " (XSLT)",
-  " (XBL)",
-  " (MathML)",
-  " (RDF)",
-  " (XUL)",
-  " (SVG)",
-  " (XML Events)"
-};
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsGenericElement)
-  if (NS_UNLIKELY(cb.WantDebugInfo())) {
-    char name[72];
-    PRUint32 nsid = tmp->GetNameSpaceID();
-    nsAtomCString localName(tmp->NodeInfo()->NameAtom());
-    if (nsid < NS_ARRAY_LENGTH(kNSURIs)) {
-      PR_snprintf(name, sizeof(name), "nsGenericElement%s %s", kNSURIs[nsid],
-                  localName.get());
-    }
-    else {
-      PR_snprintf(name, sizeof(name), "nsGenericElement %s", localName.get());
-    }
-    cb.DescribeNode(RefCounted, tmp->mRefCnt.get(), sizeof(nsGenericElement),
-                    name);
-  }
-  else {
-    cb.DescribeNode(RefCounted, tmp->mRefCnt.get(), sizeof(nsGenericElement),
-                    "nsGenericElement");
-  }
-
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGenericElement)
   // Always need to traverse script objects, so do that before we check
   // if we're uncollectable.
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS

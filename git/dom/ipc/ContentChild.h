@@ -52,7 +52,6 @@ struct OverrideMapping;
 namespace mozilla {
 namespace dom {
 
-class AlertObserver;
 class PrefObserver;
 
 class ContentChild : public PContentChild
@@ -83,14 +82,6 @@ public:
     virtual PNeckoChild* AllocPNecko();
     virtual bool DeallocPNecko(PNeckoChild*);
 
-    virtual PExternalHelperAppChild *AllocPExternalHelperApp(
-            const IPC::URI& uri,
-            const nsCString& aMimeContentType,
-            const nsCString& aContentDisposition,
-            const bool& aForceSave,
-            const PRInt64& aContentLength);
-    virtual bool DeallocPExternalHelperApp(PExternalHelperAppChild *aService);
-
     virtual bool RecvRegisterChrome(const nsTArray<ChromePackage>& packages,
                                     const nsTArray<ResourceMapping>& resources,
                                     const nsTArray<OverrideMapping>& overrides);
@@ -110,31 +101,14 @@ public:
                                       const nsCString& aPrefRoot, 
                                       nsIObserver* aObserver);
 
-    // auto remove when alertfinished is received.
-    nsresult AddRemoteAlertObserver(const nsString& aData, nsIObserver* aObserver);
-
     virtual bool RecvNotifyRemotePrefObserver(const nsCString& aDomain);
     
-    virtual bool RecvNotifyAlertsObserver(const nsCString& aType, const nsString& aData);
-
     virtual bool RecvAsyncMessage(const nsString& aMsg, const nsString& aJSON);
-
-    virtual bool RecvGeolocationUpdate(const GeoPosition& somewhere);
 
 private:
     NS_OVERRIDE
     virtual void ActorDestroy(ActorDestroyReason why);
 
-    NS_OVERRIDE
-    virtual void ProcessingError(Result what);
-
-    /**
-     * Exit *now*.  Do not shut down XPCOM, do not pass Go, do not run
-     * static destructors, do not collect $200.
-     */
-    NS_NORETURN void QuickExit();
-
-    nsTArray<nsAutoPtr<AlertObserver> > mAlertObservers;
     nsTArray<nsAutoPtr<PrefObserver> > mPrefObservers;
     bool mDead;
 

@@ -39,7 +39,7 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-/* $Id: ssl3con.c,v 1.142.2.4 2010/09/01 19:47:11 wtc%google.com Exp $ */
+/* $Id: ssl3con.c,v 1.142.2.1 2010/07/31 04:33:52 wtc%google.com Exp $ */
 
 #include "cert.h"
 #include "ssl.h"
@@ -2847,11 +2847,7 @@ ssl3_DeriveMasterSecret(sslSocket *ss, PK11SymKey *pms)
     }
 
     if (pms || !pwSpec->master_secret) {
-	if (isDH) {
-	    master_params.pVersion                     = NULL;
-	} else {
-	    master_params.pVersion                     = &pms_version;
-	}
+	master_params.pVersion                     = &pms_version;
 	master_params.RandomInfo.pClientRandom     = cr;
 	master_params.RandomInfo.ulClientRandomLen = SSL3_RANDOM_LENGTH;
 	master_params.RandomInfo.pServerRandom     = sr;
@@ -5306,10 +5302,8 @@ ssl3_HandleServerKeyExchange(sslSocket *ss, SSL3Opaque *b, PRUint32 length)
     	if (rv != SECSuccess) {
 	    goto loser;		/* malformed. */
 	}
-	if (dh_p.len < 512/8) {
-	    errCode = SSL_ERROR_WEAK_SERVER_EPHEMERAL_DH_KEY;
+	if (dh_p.len < 512/8)
 	    goto alert_loser;
-	}
     	rv = ssl3_ConsumeHandshakeVariable(ss, &dh_g, 2, &b, &length);
     	if (rv != SECSuccess) {
 	    goto loser;		/* malformed. */
