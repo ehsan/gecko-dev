@@ -712,11 +712,9 @@ let emulator = (function() {
    * @param connectedCallback [optional]
    *        A callback function which is called when conference state becomes
    *        connected.
-   * @param twice [optional]
-   *        To send conference request twice. It is only used for special test.
    * @return A deferred promise.
    */
-  function addCallsToConference(callsToAdd, connectedCallback, twice) {
+  function addCallsToConference(callsToAdd, connectedCallback) {
     log("Add " + callsToAdd.length + " calls into conference.");
 
     let deferred = Promise.defer();
@@ -757,13 +755,10 @@ let emulator = (function() {
     });
 
     // Cannot use apply() through webidl, so just separate the cases to handle.
-    let requestCount = twice ? 2 : 1;
-    for (let i = 0; i < requestCount; ++i) {
-      if (callsToAdd.length == 2) {
-        conference.add(callsToAdd[0], callsToAdd[1]);
-      } else {
-        conference.add(callsToAdd[0]);
-      }
+    if (callsToAdd.length == 2) {
+      conference.add(callsToAdd[0], callsToAdd[1]);
+    } else {
+      conference.add(callsToAdd[0]);
     }
 
     return deferred.promise;

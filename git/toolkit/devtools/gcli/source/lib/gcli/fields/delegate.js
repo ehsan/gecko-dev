@@ -17,7 +17,10 @@
 'use strict';
 
 var util = require('../util/util');
+
 var Field = require('./fields').Field;
+var fields = require('./fields');
+
 
 /**
  * A field that works with delegate types by delaying resolution until that
@@ -38,7 +41,7 @@ DelegateField.prototype = Object.create(Field.prototype);
 DelegateField.prototype.update = function() {
   var subtype = this.type.getType(this.options.requisition.executionContext);
   if (typeof subtype.parse !== 'function') {
-    subtype = this.options.requisition.system.types.createType(subtype);
+    subtype = this.options.requisition.types.createType(subtype);
   }
 
   // It's not clear that we can compare subtypes in this way.
@@ -52,8 +55,7 @@ DelegateField.prototype.update = function() {
   }
 
   this.subtype = subtype;
-  var fields = this.options.requisition.system.fields;
-  this.field = fields.get(subtype, this.options);
+  this.field = fields.getField(subtype, this.options);
 
   util.clearElement(this.element);
   this.element.appendChild(this.field.element);

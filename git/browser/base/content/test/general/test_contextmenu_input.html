@@ -52,12 +52,11 @@ function runTest(testNum) {
                           "context-inspect",     true]);
         closeContextMenu();
         input.setAttribute('spellcheck', 'true');
-        // Invoke context menu for next test and wait for spell check to finish
-        openContextMenuFor(input, false, true);
+        openContextMenuFor(input); // Invoke context menu for next test.
         break;
 
     case 3:
-        var value = false;
+        var value = SpecialPowers.Services.appinfo.OS != "Darwin";
         // Context menu for spell-check input.
         checkContextMenu(["context-undo",        value,
                           "---",                 null,
@@ -70,7 +69,7 @@ function runTest(testNum) {
                           "---",                 null,
                           "spell-check-enabled", true,
                           "spell-dictionaries",  true,
-                              ["spell-check-dictionary-en-US", true,
+                              [/*"spell-check-dictionary-en-US", true,*/
                                "---",                          null,
                                "spell-add-dictionaries",       true], null,
                           "---",                 null,
@@ -78,16 +77,15 @@ function runTest(testNum) {
 
         closeContextMenu();
         input.removeAttribute('spellcheck');
-        // Invoke context menu for next test and wait for spell check to finish
-        openContextMenuFor(inputspellwrong, false, true);
+        openContextMenuFor(inputspellwrong); // Invoke context menu for next test.
         break;
 
     case 4:
-        var value = false;
+        var value = SpecialPowers.Services.appinfo.OS != "Darwin";
         // Context menu for spell-check input with a unknwon word.
-        checkContextMenu(["*prodigality",        true, // spelling suggestion
-                          "spell-add-to-dictionary", true,
-                          "---",                 null,
+        checkContextMenu([/*"*prodigality",        true,*/ // spelling suggestion
+                          /*"spell-add-to-dictionary", true,*/
+                          /*"---",                 null,*/
                           "context-undo",        value,
                           "---",                 null,
                           "context-cut",         value,
@@ -99,19 +97,18 @@ function runTest(testNum) {
                           "---",                 null,
                           "spell-check-enabled", true,
                           "spell-dictionaries",  true,
-                              ["spell-check-dictionary-en-US", true,
+                              [/*"spell-check-dictionary-en-US", true,*/
                                "---",                          null,
                                "spell-add-dictionaries",       true], null,
                           "---",                 null,
                           "context-inspect",     true]);
 
         closeContextMenu();
-        // Invoke context menu for next test and wait for spell check to finish
-        openContextMenuFor(inputspellcorrect, false, true);
+        openContextMenuFor(inputspellcorrect); // Invoke context menu for next test.
         break;
 
     case 5:
-        var value = false;
+        var value = SpecialPowers.Services.appinfo.OS != "Darwin";
         // Context menu for spell-check input with a known word.
         checkContextMenu(["context-undo",        value,
                           "---",                 null,
@@ -124,7 +121,7 @@ function runTest(testNum) {
                           "---",                 null,
                           "spell-check-enabled", true,
                           "spell-dictionaries",  true,
-                              ["spell-check-dictionary-en-US", true,
+                              [/*"spell-check-dictionary-en-US", true,*/
                                "---",                          null,
                                "spell-add-dictionaries",       true], null,
                           "---",                 null,

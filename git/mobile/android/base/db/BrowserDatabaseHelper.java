@@ -16,7 +16,6 @@ import org.mozilla.gecko.db.BrowserContract.Favicons;
 import org.mozilla.gecko.db.BrowserContract.History;
 import org.mozilla.gecko.db.BrowserContract.Obsolete;
 import org.mozilla.gecko.db.BrowserContract.ReadingListItems;
-import org.mozilla.gecko.db.BrowserContract.SearchHistory;
 import org.mozilla.gecko.db.BrowserContract.Thumbnails;
 import org.mozilla.gecko.sync.Utils;
 
@@ -35,7 +34,7 @@ import android.util.Log;
 final class BrowserDatabaseHelper extends SQLiteOpenHelper {
 
     private static final String LOGTAG = "GeckoBrowserDBHelper";
-    public static final int DATABASE_VERSION = 20;
+    public static final int DATABASE_VERSION = 19;
     public static final String DATABASE_NAME = "browser.db";
 
     final protected Context mContext;
@@ -759,20 +758,6 @@ final class BrowserDatabaseHelper extends SQLiteOpenHelper {
 
         createOrUpdateAllSpecialFolders(db);
         createReadingListTable(db);
-        createSearchHistoryTable(db);
-    }
-
-    private void createSearchHistoryTable(SQLiteDatabase db) {
-        debug("Creating " + SearchHistory.TABLE_NAME + " table");
-
-        db.execSQL("CREATE TABLE " + SearchHistory.TABLE_NAME + "(" +
-                    SearchHistory._ID + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                    SearchHistory.QUERY + " TEXT UNIQUE NOT NULL, " +
-                    SearchHistory.DATE_LAST_VISITED + " INTEGER, " +
-                    SearchHistory.VISITS + " INTEGER ) ");
-
-        db.execSQL("CREATE INDEX idx_search_history_last_visited ON " +
-                SearchHistory.TABLE_NAME + "(" + SearchHistory.DATE_LAST_VISITED + ")");
     }
 
     private void createReadingListTable(SQLiteDatabase db) {
@@ -1415,10 +1400,6 @@ final class BrowserDatabaseHelper extends SQLiteOpenHelper {
                    " WHERE " + Bookmarks.TYPE + " IS NULL");
     }
 
-    private void upgradeDatabaseFrom19to20(SQLiteDatabase db) {
-        createSearchHistoryTable(db);
-    }
-
     private void createV19CombinedView(SQLiteDatabase db) {
         db.execSQL("DROP VIEW IF EXISTS " + VIEW_COMBINED);
         db.execSQL("DROP VIEW IF EXISTS " + VIEW_COMBINED_WITH_FAVICONS);
@@ -1505,10 +1486,6 @@ final class BrowserDatabaseHelper extends SQLiteOpenHelper {
 
                 case 19:
                     upgradeDatabaseFrom18to19(db);
-                    break;
-
-                case 20:
-                    upgradeDatabaseFrom19to20(db);
                     break;
             }
         }
@@ -1623,4 +1600,3 @@ final class BrowserDatabaseHelper extends SQLiteOpenHelper {
         }
     }
 }
-

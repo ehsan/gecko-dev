@@ -22,6 +22,11 @@ var Promise = require('../util/promise').Promise;
 var RESOLVED = Promise.resolve(true);
 
 /**
+ * This is where we cache the languages that we know about
+ */
+var languages = {};
+
+/**
  * This is the base implementation for all languages
  */
 var baseLanguage = {
@@ -114,48 +119,40 @@ var baseLanguage = {
 };
 
 /**
- * A manager for the registered Languages
- */
-function Languages() {
-  // This is where we cache the languages that we know about
-  this._registered = {};
-}
-
-/**
  * Add a new language to the cache
  */
-Languages.prototype.add = function(language) {
-  this._registered[language.name] = language;
+exports.addLanguage = function(language) {
+  languages[language.name] = language;
 };
 
 /**
  * Remove an existing language from the cache
  */
-Languages.prototype.remove = function(language) {
+exports.removeLanguage = function(language) {
   var name = typeof language === 'string' ? language : language.name;
-  delete this._registered[name];
+  delete languages[name];
 };
 
 /**
  * Get access to the list of known languages
  */
-Languages.prototype.getAll = function() {
-  return Object.keys(this._registered).map(function(name) {
-    return this._registered[name];
-  }.bind(this));
+exports.getLanguages = function() {
+  return Object.keys(languages).map(function(name) {
+    return languages[name];
+  });
 };
 
 /**
- * Find a previously registered language
+ * Find a type, previously registered using #addType()
  */
-Languages.prototype.createLanguage = function(name, terminal) {
+exports.createLanguage = function(name, terminal) {
   if (name == null) {
-    name = Object.keys(this._registered)[0];
+    name = Object.keys(languages)[0];
   }
 
-  var language = (typeof name === 'string') ? this._registered[name] : name;
+  var language = (typeof name === 'string') ? languages[name] : name;
   if (!language) {
-    console.error('Known languages: ' + Object.keys(this._registered).join(', '));
+    console.error('Known languages: ' + Object.keys(languages).join(', '));
     throw new Error('Unknown language: \'' + name + '\'');
   }
 
@@ -174,5 +171,3 @@ Languages.prototype.createLanguage = function(name, terminal) {
     return Promise.resolve(newInstance);
   }
 };
-
-exports.Languages = Languages;

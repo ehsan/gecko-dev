@@ -124,7 +124,6 @@ public:
   IMPL_EVENT_HANDLER(deliveryerror)
   IMPL_EVENT_HANDLER(readsuccess)
   IMPL_EVENT_HANDLER(readerror)
-  IMPL_EVENT_HANDLER(deleted)
 
 private:
   ~MobileMessageManager() {}
@@ -148,9 +147,6 @@ private:
   DispatchTrustedSmsEventToSelf(const char* aTopic,
                                 const nsAString& aEventName,
                                 nsISupports* aMsg);
-
-  nsresult
-  DispatchTrustedDeletedEventToSelf(nsISupports* aDeletedInfo);
 
   /**
    * Helper to get message ID from SMS/MMS Message object

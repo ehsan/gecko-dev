@@ -76,12 +76,6 @@ InlineSpellChecker.prototype = {
     return (this.mInlineSpellChecker != null);
   },
 
-  get initialSpellCheckPending() {
-    return !!(this.mInlineSpellChecker &&
-              !this.mInlineSpellChecker.spellChecker &&
-              this.mInlineSpellChecker.spellCheckPending);
-  },
-
   // Whether spellchecking is enabled in the current box
   get enabled()
   {

@@ -120,5 +120,4 @@ interface MozMobileMessageManager : EventTarget
   attribute EventHandler ondeliveryerror;
   attribute EventHandler onreadsuccess;
   attribute EventHandler onreaderror;
-  attribute EventHandler ondeleted;
 };

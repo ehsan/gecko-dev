@@ -31,13 +31,15 @@ exports.items = [
     prompt: '>',
 
     constructor: function(terminal) {
-      this.document = terminal.document;
+      this.terminal = terminal;
+      this.document = this.terminal.document;
       this.focusManager = terminal.focusManager;
 
       this.updateHints();
     },
 
     destroy: function() {
+      this.terminal = undefined;
       this.document = undefined;
     },
 

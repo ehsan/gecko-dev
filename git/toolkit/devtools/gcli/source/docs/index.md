@@ -104,7 +104,7 @@ There are 3 basic steps in using GCLI in your system.
    is needed to get started.
 
         require([ 'gcli/index' ], function(gcli) {
-          gcli.add(...);         // Register custom commands/types/etc
+          gcli.addCommand(...); // Register custom commands
           gcli.createTerminal(); // Create a user interface
         });
 
