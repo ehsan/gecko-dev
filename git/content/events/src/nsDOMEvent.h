@@ -161,14 +161,7 @@ public:
     eDOMEvents_durationchange,
     eDOMEvents_volumechange,
 #endif
-    eDOMEvents_afterpaint,
-    eDOMEvents_MozSwipeGesture,
-    eDOMEvents_MozMagnifyGestureStart,
-    eDOMEvents_MozMagnifyGestureUpdate,
-    eDOMEvents_MozMagnifyGesture,
-    eDOMEvents_MozRotateGestureStart,
-    eDOMEvents_MozRotateGestureUpdate,
-    eDOMEvents_MozRotateGesture
+    eDOMEvents_afterpaint
   };
 
   nsDOMEvent(nsPresContext* aPresContext, nsEvent* aEvent);
