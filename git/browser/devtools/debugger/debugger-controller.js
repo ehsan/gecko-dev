@@ -724,8 +724,7 @@ SourceScripts.prototype = {
       return;
     }
 
-    // Use JS mode for files with .js and .jsm extensions.
-    if (/\.jsm?$/.test(this._trimUrlQuery(aUrl))) {
+    if (this._trimUrlQuery(aUrl).slice(-3) == ".js") {
       DebuggerView.editor.setMode(SourceEditor.MODES.JAVASCRIPT);
     } else {
       DebuggerView.editor.setMode(SourceEditor.MODES.HTML);
