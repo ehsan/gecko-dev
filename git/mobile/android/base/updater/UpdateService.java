@@ -208,6 +208,7 @@ public class UpdateService extends IntentService {
 
         Log.i(LOGTAG, "update available, buildID = " + info.buildID);
 
+        int connectionType = netInfo.getType();
         int autoDownloadPolicy = getAutoDownloadPolicy();
 
 
@@ -216,11 +217,12 @@ public class UpdateService extends IntentService {
          *
          * - We have a FORCE_DOWNLOAD flag passed in
          * - The preference is set to 'always'
-         * - The preference is set to 'wifi' and we are using a non-metered network (i.e. the user is OK with large data transfers occuring)
+         * - The preference is set to 'wifi' and we are actually using wifi (or regular ethernet)
          */
         boolean shouldStartDownload = hasFlag(flags, UpdateServiceHelper.FLAG_FORCE_DOWNLOAD) ||
             autoDownloadPolicy == UpdateServiceHelper.AUTODOWNLOAD_ENABLED ||
-            (autoDownloadPolicy == UpdateServiceHelper.AUTODOWNLOAD_WIFI && !mConnectivityManager.isActiveNetworkMetered());
+            (autoDownloadPolicy == UpdateServiceHelper.AUTODOWNLOAD_WIFI &&
+             (connectionType == ConnectivityManager.TYPE_WIFI || connectionType == ConnectivityManager.TYPE_ETHERNET));
 
         if (!shouldStartDownload) {
             Log.i(LOGTAG, "not initiating automatic update download due to policy " + autoDownloadPolicy);

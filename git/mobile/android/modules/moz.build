@@ -20,7 +20,6 @@ EXTRA_JS_MODULES += [
     'NetErrorHelper.jsm',
     'Notifications.jsm',
     'OrderedBroadcast.jsm',
-    'PageActions.jsm',
     'Prompt.jsm',
     'Sanitizer.jsm',
     'SharedPreferences.jsm',

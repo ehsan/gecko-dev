@@ -37,7 +37,6 @@ class DeviceRunner(BaseRunner):
 
         process_args = {'stream': sys.stdout,
                         'processOutputLine': self.on_output,
-                        'onFinish': self.on_finish,
                         'onTimeout': self.on_timeout }
         process_args.update(kwargs.get('process_args') or {})
 
@@ -121,9 +120,6 @@ class DeviceRunner(BaseRunner):
             msg = "%s with no output" % msg
 
         print(msg % (self.last_test, timeout))
-        self.check_for_crashes()
-
-    def on_finish(self):
         self.check_for_crashes()
 
     def check_for_crashes(self):

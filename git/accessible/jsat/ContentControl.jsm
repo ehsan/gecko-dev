@@ -425,12 +425,7 @@ this.ContentControl.prototype = {
 
       let sentToChild = this.sendToChild(vc, {
         name: 'AccessFu:AutoMove',
-        json: {
-          moveMethod: aOptions.moveMethod,
-          moveToFocused: aOptions.moveToFocused,
-          noOpIfOnScreen: true,
-          forcePresent: true
-        }
+        json: aOptions
       });
 
       if (!moved && !sentToChild) {
