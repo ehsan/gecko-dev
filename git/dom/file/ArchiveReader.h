@@ -42,7 +42,7 @@ public:
               const ArchiveReaderOptions& aOptions, ErrorResult& aError);
 
   ArchiveReader(nsIDOMBlob* aBlob, nsPIDOMWindow* aWindow,
-                const nsACString& aEncoding);
+                const nsString& aEncoding);
 
   nsIDOMWindow* GetParentObject() const
   {
@@ -107,7 +107,7 @@ protected:
     nsresult status;
   } mData;
 
-  nsCString mEncoding;
+  nsString mEncoding;
 };
 
 END_FILE_NAMESPACE

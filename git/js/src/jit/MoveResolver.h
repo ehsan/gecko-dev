@@ -18,39 +18,38 @@ namespace jit {
 // guaranteed that Operand looks like this on all ISAs.
 class MoveOperand
 {
-  public:
     enum Kind {
-        // A register in the "integer", aka "general purpose", class.
         REG,
-        // A register in the "float" register class.
         FLOAT_REG,
-        // A memory region.
-        MEMORY,
-        // The address of a memory region.
+        ADDRESS,
+        FLOAT_ADDRESS,
         EFFECTIVE_ADDRESS
     };
 
-  private:
     Kind kind_;
     uint32_t code_;
     int32_t disp_;
 
   public:
+    enum AddressKind {
+        MEMORY = ADDRESS,
+        EFFECTIVE = EFFECTIVE_ADDRESS,
+        FLOAT = FLOAT_ADDRESS
+    };
+
     MoveOperand()
     { }
     explicit MoveOperand(const Register &reg) : kind_(REG), code_(reg.code())
     { }
     explicit MoveOperand(const FloatRegister &reg) : kind_(FLOAT_REG), code_(reg.code())
     { }
-    MoveOperand(const Register &reg, int32_t disp, Kind kind = MEMORY)
-        : kind_(kind),
+    MoveOperand(const Register &reg, int32_t disp, AddressKind addrKind = MEMORY)
+        : kind_((Kind) addrKind),
         code_(reg.code()),
         disp_(disp)
     {
-        JS_ASSERT(isMemoryOrEffectiveAddress());
-
         // With a zero offset, this is a plain reg-to-reg move.
-        if (disp == 0 && kind_ == EFFECTIVE_ADDRESS)
+        if (disp == 0 && addrKind == EFFECTIVE)
             kind_ = REG;
     }
     MoveOperand(const MoveOperand &other)
@@ -64,14 +63,17 @@ class MoveOperand
     bool isGeneralReg() const {
         return kind_ == REG;
     }
+    bool isDouble() const {
+        return kind_ == FLOAT_REG || kind_ == FLOAT_ADDRESS;
+    }
     bool isMemory() const {
-        return kind_ == MEMORY;
+        return kind_ == ADDRESS;
+    }
+    bool isFloatAddress() const {
+        return kind_ == FLOAT_ADDRESS;
     }
     bool isEffectiveAddress() const {
         return kind_ == EFFECTIVE_ADDRESS;
-    }
-    bool isMemoryOrEffectiveAddress() const {
-        return isMemory() || isEffectiveAddress();
     }
     Register reg() const {
         JS_ASSERT(isGeneralReg());
@@ -82,11 +84,10 @@ class MoveOperand
         return FloatRegister::FromCode(code_);
     }
     Register base() const {
-        JS_ASSERT(isMemoryOrEffectiveAddress());
+        JS_ASSERT(isMemory() || isEffectiveAddress() || isFloatAddress());
         return Register::FromCode(code_);
     }
     int32_t disp() const {
-        JS_ASSERT(isMemoryOrEffectiveAddress());
         return disp_;
     }
 
@@ -95,7 +96,7 @@ class MoveOperand
             return false;
         if (code_ != other.code_)
             return false;
-        if (isMemoryOrEffectiveAddress())
+        if (isMemory() || isEffectiveAddress())
             return disp_ == other.disp_;
         return true;
     }
@@ -113,24 +114,22 @@ class MoveOp
     bool cycle_;
 
   public:
-    enum Type {
+    enum Kind {
         GENERAL,
-        INT32,
-        FLOAT32,
         DOUBLE
     };
 
   protected:
-    Type type_;
+    Kind kind_;
 
   public:
     MoveOp()
     { }
-    MoveOp(const MoveOperand &from, const MoveOperand &to, Type type)
+    MoveOp(const MoveOperand &from, const MoveOperand &to, Kind kind)
       : from_(from),
         to_(to),
         cycle_(false),
-        type_(type)
+        kind_(kind)
     { }
 
     bool inCycle() const {
@@ -142,8 +141,8 @@ class MoveOp
     const MoveOperand &to() const {
         return to_;
     }
-    Type type() const {
-        return type_;
+    Kind kind() const {
+        return kind_;
     }
 };
 
@@ -157,8 +156,8 @@ class MoveResolver
     {
         PendingMove()
         { }
-        PendingMove(const MoveOperand &from, const MoveOperand &to, Type type)
-          : MoveOp(from, to, type)
+        PendingMove(const MoveOperand &from, const MoveOperand &to, Kind kind)
+          : MoveOp(from, to, kind)
         { }
 
         void setInCycle() {
@@ -194,7 +193,7 @@ class MoveResolver
     //
     // After calling addMove() for each parallel move, resolve() performs the
     // cycle resolution algorithm. Calling addMove() again resets the resolver.
-    bool addMove(const MoveOperand &from, const MoveOperand &to, MoveOp::Type type);
+    bool addMove(const MoveOperand &from, const MoveOperand &to, MoveOp::Kind kind);
     bool resolve();
 
     size_t numMoves() const {

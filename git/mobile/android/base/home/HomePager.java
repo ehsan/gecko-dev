@@ -11,6 +11,7 @@ import org.mozilla.gecko.animation.ViewHelper;
 import org.mozilla.gecko.home.HomeAdapter.OnAddPageListener;
 import org.mozilla.gecko.home.HomeConfig.PageEntry;
 import org.mozilla.gecko.home.HomeConfig.PageType;
+import org.mozilla.gecko.mozglue.RobocopTarget;
 import org.mozilla.gecko.util.HardwareUtils;
 
 import android.content.Context;
@@ -45,7 +46,35 @@ public class HomePager extends ViewPager {
     private final HomeConfig mConfig;
     private ConfigLoaderCallbacks mConfigLoaderCallbacks;
 
-    private String mInitialPageId;
+    private Page mInitialPage;
+
+    // List of pages in order.
+    @RobocopTarget
+    public enum Page {
+        HISTORY,
+        TOP_SITES,
+        BOOKMARKS,
+        READING_LIST;
+
+        static Page valueOf(PageType page) {
+            switch(page) {
+                case TOP_SITES:
+                    return Page.TOP_SITES;
+
+                case BOOKMARKS:
+                    return Page.BOOKMARKS;
+
+                case HISTORY:
+                    return Page.HISTORY;
+
+                case READING_LIST:
+                    return Page.READING_LIST;
+
+                default:
+                    throw new IllegalArgumentException("Could not convert unrecognized PageType");
+            }
+        }
+    }
 
     // This is mostly used by UI tests to easily fetch
     // specific list views at runtime.
@@ -157,17 +186,17 @@ public class HomePager extends ViewPager {
     public void redisplay(LoaderManager lm, FragmentManager fm) {
         final HomeAdapter adapter = (HomeAdapter) getAdapter();
 
-        // If mInitialPageId is non-null, this means the HomePager hasn't
+        // If mInitialPage is non-null, this means the HomePager hasn't
         // finished loading its config yet. Simply re-show() with the
         // current target page.
-        final String currentPageId;
-        if (mInitialPageId != null) {
-            currentPageId = mInitialPageId;
+        final Page currentPage;
+        if (mInitialPage != null) {
+            currentPage = mInitialPage;
         } else {
-            currentPageId = adapter.getPageIdAtPosition(getCurrentItem());
+            currentPage = adapter.getPageAtPosition(getCurrentItem());
         }
 
-        show(lm, fm, currentPageId, null);
+        show(lm, fm, currentPage, null);
     }
 
     /**
@@ -175,9 +204,9 @@ public class HomePager extends ViewPager {
      *
      * @param fm FragmentManager for the adapter
      */
-    public void show(LoaderManager lm, FragmentManager fm, String pageId, PropertyAnimator animator) {
+    public void show(LoaderManager lm, FragmentManager fm, Page page, PropertyAnimator animator) {
         mLoaded = true;
-        mInitialPageId = pageId;
+        mInitialPage = page;
 
         // Only animate on post-HC devices, when a non-null animator is given
         final boolean shouldAnimate = (animator != null && Build.VERSION.SDK_INT >= 11);
@@ -285,9 +314,9 @@ public class HomePager extends ViewPager {
 
         // Use the default page as defined in the HomePager's configuration
         // if the initial page wasn't explicitly set by the show() caller.
-        if (mInitialPageId != null) {
-            setCurrentItem(adapter.getItemPosition(mInitialPageId), false);
-            mInitialPageId = null;
+        if (mInitialPage != null) {
+            setCurrentItem(adapter.getItemPosition(mInitialPage), false);
+            mInitialPage = null;
         } else {
             for (int i = 0; i < count; i++) {
                 final PageEntry pageEntry = pageEntries.get(i);

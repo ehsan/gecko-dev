@@ -63,12 +63,6 @@ Wrap(JSContext *cx, JS::HandleObject existing, JS::HandleObject obj,
     return js::Wrapper::New(cx, obj, parent, &js::CrossCompartmentWrapper::singleton);
 }
 
-static const JSWrapObjectCallbacks WrapObjectCallbacks = {
-    Wrap,
-    SameCompartmentWrap,
-    PreWrap
-};
-
 BEGIN_TEST(testBug604087)
 {
     JS::RootedObject outerObj(cx, js::Wrapper::New(cx, global, global, &OuterWrapper::singleton));
@@ -96,7 +90,7 @@ BEGIN_TEST(testBug604087)
         CHECK(next);
     }
 
-    JS_SetWrapObjectCallbacks(JS_GetRuntime(cx), &WrapObjectCallbacks);
+    JS_SetWrapObjectCallbacks(JS_GetRuntime(cx), Wrap, SameCompartmentWrap, PreWrap);
     CHECK(JS_TransplantObject(cx, outerObj, next));
     return true;
 }
