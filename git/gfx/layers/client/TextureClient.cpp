@@ -210,7 +210,9 @@ BufferTextureClient::UpdateYCbCr(const PlanarYCbCrImage::Data& aData)
 }
 
 bool
-BufferTextureClient::AllocateForYCbCr(gfx::IntSize aYSize, gfx::IntSize aCbCrSize)
+BufferTextureClient::AllocateForYCbCr(gfx::IntSize aYSize,
+                                      gfx::IntSize aCbCrSize,
+                                      StereoMode aStereoMode)
 {
   size_t bufSize = YCbCrImageDataSerializer::ComputeMinBufferSize(aYSize,
                                                                   aCbCrSize);
@@ -219,7 +221,8 @@ BufferTextureClient::AllocateForYCbCr(gfx::IntSize aYSize, gfx::IntSize aCbCrSiz
   }
   YCbCrImageDataSerializer serializer(GetBuffer());
   serializer.InitializeBufferInfo(aYSize,
-                                  aCbCrSize);
+                                  aCbCrSize,
+                                  aStereoMode);
   return true;
 }
 
@@ -273,7 +276,7 @@ DeprecatedTextureClientShmem::ReleaseResources()
   }
 }
 
-void
+bool
 DeprecatedTextureClientShmem::EnsureAllocated(gfx::IntSize aSize,
                                     gfxASurface::gfxContentType aContentType)
 {
@@ -290,6 +293,7 @@ DeprecatedTextureClientShmem::EnsureAllocated(gfx::IntSize aSize,
       NS_WARNING("creating SurfaceDescriptor failed!");
     }
   }
+  return true;
 }
 
 void
@@ -401,11 +405,12 @@ DeprecatedTextureClientShmemYCbCr::SetDescriptorFromReply(const SurfaceDescripto
   }
 }
 
-void
+bool
 DeprecatedTextureClientShmemYCbCr::EnsureAllocated(gfx::IntSize aSize,
                                          gfxASurface::gfxContentType aType)
 {
   NS_RUNTIMEABORT("not enough arguments to do this (need both Y and CbCr sizes)");
+  return false;
 }
 
 
@@ -417,7 +422,7 @@ DeprecatedTextureClientTile::DeprecatedTextureClientTile(CompositableForwarder* 
   mTextureInfo.mDeprecatedTextureHostFlags = TEXTURE_HOST_TILED;
 }
 
-void
+bool
 DeprecatedTextureClientTile::EnsureAllocated(gfx::IntSize aSize, gfxASurface::gfxContentType aType)
 {
   if (!mSurface ||
@@ -428,6 +433,7 @@ DeprecatedTextureClientTile::EnsureAllocated(gfx::IntSize aSize, gfxASurface::gf
     mSurface = new gfxReusableSurfaceWrapper(tmpTile);
     mContentType = aType;
   }
+  return true;
 }
 
 gfxImageSurface*
@@ -549,7 +555,8 @@ bool AutoLockYCbCrClient::EnsureDeprecatedTextureClient(PlanarYCbCrImage* aImage
 
   YCbCrImageDataSerializer serializer(shmem.get<uint8_t>());
   serializer.InitializeBufferInfo(data->mYSize,
-                                  data->mCbCrSize);
+                                  data->mCbCrSize,
+                                  data->mStereoMode);
 
   *mDescriptor = YCbCrImage(shmem, 0);
 
