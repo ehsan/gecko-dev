@@ -6,7 +6,7 @@
 package org.mozilla.gecko.home;
 
 import org.mozilla.gecko.home.HomeConfig.PanelConfig;
-import org.mozilla.gecko.home.HomeConfig.OnReloadListener;
+import org.mozilla.gecko.home.HomeConfig.OnChangeListener;
 
 import android.content.Context;
 import android.support.v4.content.AsyncTaskLoader;
@@ -17,11 +17,8 @@ public class HomeConfigLoader extends AsyncTaskLoader<HomeConfig.State> {
     private final HomeConfig mConfig;
     private HomeConfig.State mConfigState;
 
-    private final Context mContext;
-
     public HomeConfigLoader(Context context, HomeConfig homeConfig) {
         super(context);
-        mContext = context;
         mConfig = homeConfig;
     }
 
@@ -38,7 +35,7 @@ public class HomeConfigLoader extends AsyncTaskLoader<HomeConfig.State> {
         }
 
         mConfigState = configState;
-        mConfig.setOnReloadListener(new ForceReloadListener());
+        mConfig.setOnChangeListener(new ForceLoadChangeListener());
 
         if (isStarted()) {
             super.deliverResult(configState);
@@ -74,12 +71,12 @@ public class HomeConfigLoader extends AsyncTaskLoader<HomeConfig.State> {
         onStopLoading();
 
         mConfigState = null;
-        mConfig.setOnReloadListener(null);
+        mConfig.setOnChangeListener(null);
     }
 
-    private class ForceReloadListener implements OnReloadListener {
+    private class ForceLoadChangeListener implements OnChangeListener {
         @Override
-        public void onReload() {
+        public void onChange() {
             onContentChanged();
         }
     }

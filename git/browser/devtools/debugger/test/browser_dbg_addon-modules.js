@@ -15,9 +15,7 @@ function onMessage(event) {
         gTitle = json.data.value;
         break;
     }
-  } catch(e) {
-    DevToolsUtils.reportException("onMessage", e);
-  }
+  } catch(e) { Cu.reportError(e); }
 }
 
 function test() {
@@ -84,15 +82,15 @@ function testSources(expectSecondModule) {
 
       if (url.indexOf("resource://browser_dbg_addon4/test.jsm") === 0) {
         is(label, "test.jsm", "correct label for addon code");
-        is(group, "browser_dbg_addon4@tests.mozilla.org", "addon module is in the add-on's group");
+        is(group, "resource://browser_dbg_addon4", "addon module is in its own group");
         foundAddonModule = true;
       } else if (url.indexOf("resource://browser_dbg_addon4/test2.jsm") === 0) {
         is(label, "test2.jsm", "correct label for addon code");
-        is(group, "browser_dbg_addon4@tests.mozilla.org", "addon module is in the add-on's group");
+        is(group, "resource://browser_dbg_addon4", "addon module is in its own group");
         foundAddonModule2 = true;
       } else if (url.endsWith("/browser_dbg_addon4@tests.mozilla.org.xpi!/bootstrap.js")) {
         is(label, "bootstrap.js", "correct label for bootstrap code");
-        is(group, "browser_dbg_addon4@tests.mozilla.org", "addon bootstrap script is in the add-on's group");
+        is(group, "jar:", "addon bootstrap script is in its own group");
         foundAddonBootstrap = true;
       } else {
         ok(false, "Saw an unexpected source: " + url);
@@ -106,8 +104,9 @@ function testSources(expectSecondModule) {
     is(gTitle, "Debugger - Test add-on with JS Modules", "Saw the right toolbox title.");
 
     let groups = gDebugger.document.querySelectorAll(".side-menu-widget-group-title .name");
-    is(groups[0].value, "browser_dbg_addon4@tests.mozilla.org", "Add-on code should be the first group");
-    is(groups.length, 1, "Should be only one group.");
+    is(groups[0].value, "jar:", "Add-on bootstrap should be the first group");
+    is(groups[1].value, "resource://browser_dbg_addon4", "Add-on code should be the second group");
+    is(groups.length, 2, "Should be only two groups.");
 
     deferred.resolve();
   });
@@ -131,7 +130,6 @@ registerCleanupFunction(function() {
   gThreadClient = null;
   gDebugger = null;
   gSources = null;
-  while (gBrowser.tabs.length > 1) {
+  while (gBrowser.tabs.length > 1)
     gBrowser.removeCurrentTab();
-  }
 });
