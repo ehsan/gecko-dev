@@ -28,11 +28,9 @@
 #include "nsIImageLoadingContent.h"
 #include "imgIContainer.h"
 #include "imgIRequest.h"
-#include "ImageRegion.h"
 #include "nsRegion.h"
 #include "nsXULPopupManager.h"
 #include "nsMenuPopupFrame.h"
-#include "SVGImageContext.h"
 #include "mozilla/MouseEvents.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/gfx/2D.h"
@@ -42,9 +40,8 @@
 #include <algorithm>
 
 using namespace mozilla;
-using namespace mozilla::dom;
 using namespace mozilla::gfx;
-using namespace mozilla::image;
+using namespace mozilla::dom;
 
 #define DRAGIMAGES_PREF "nglayout.enable_drag_images"
 
@@ -632,9 +629,12 @@ nsBaseDragService::DrawDragForImage(nsPresContext* aPresContext,
     if (!ctx)
       return NS_ERROR_FAILURE;
 
-    imgContainer->Draw(ctx, destSize, ImageRegion::Create(destSize),
-                       imgIContainer::FRAME_CURRENT,
-                       GraphicsFilter::FILTER_GOOD, Nothing(),
+    gfxRect outRect(0, 0, destSize.width, destSize.height);
+    gfxMatrix scale =
+      gfxMatrix().Scale(srcSize.width/outRect.Width(), srcSize.height/outRect.Height());
+    nsIntRect imgSize(0, 0, srcSize.width, srcSize.height);
+    imgContainer->Draw(ctx, GraphicsFilter::FILTER_GOOD, scale, outRect, imgSize,
+                       destSize, nullptr, imgIContainer::FRAME_CURRENT,
                        imgIContainer::FLAG_SYNC_DECODE);
     *aSurface = dt->Snapshot();
   } else {

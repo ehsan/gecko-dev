@@ -615,7 +615,7 @@ GetDisplayAttrStr(const TF_DISPLAYATTRIBUTE &aDispAttr)
 #endif // #ifdef PR_LOGGING
 
 nsTextStore::nsTextStore()
-  : mLockedContent(mComposition, mSelection)
+  : mContent(mComposition, mSelection)
   , mEditCookie(0)
   , mIPProfileCookie(TF_INVALID_COOKIE)
   , mLangProfileCookie(TF_INVALID_COOKIE)
@@ -815,7 +815,7 @@ nsTextStore::Destroy(void)
     CommitCompositionInternal(false);
   }
 
-  mLockedContent.Clear();
+  mContent.Clear();
   mSelection.MarkDirty();
 
   if (mWidget) {
@@ -1099,13 +1099,13 @@ nsTextStore::FlushPendingActions()
 {
   if (!mWidget || mWidget->Destroyed()) {
     mPendingActions.Clear();
-    mLockedContent.Clear();
+    mContent.Clear();
     mPendingOnSelectionChange = false;
     mPendingOnLayoutChange = false;
     return;
   }
 
-  mLockedContent.Clear();
+  mContent.Clear();
 
   nsRefPtr<nsWindowBase> kungFuDeathGrip(mWidget);
   for (uint32_t i = 0; i < mPendingActions.Length(); i++) {
@@ -1410,60 +1410,32 @@ nsTextStore::GetSelection(ULONG ulIndex,
 }
 
 nsTextStore::Content&
-nsTextStore::LockedContent()
+nsTextStore::CurrentContent()
 {
-  MOZ_ASSERT(IsReadLocked(),
-             "LockedContent must be called only during the document is locked");
-  if (!IsReadLocked()) {
-    mLockedContent.Clear();
-    return mLockedContent;
-  }
-
   Selection& currentSel = CurrentSelection();
   if (currentSel.IsDirty()) {
-    mLockedContent.Clear();
-    return mLockedContent;
+    mContent.Clear();
+    return mContent;
   }
 
-  if (!mLockedContent.IsInitialized()) {
-    nsAutoString text;
-    if (NS_WARN_IF(!GetCurrentText(text))) {
-      mLockedContent.Clear();
-      return mLockedContent;
-    }
+  if (!mContent.IsInitialized()) {
+    MOZ_ASSERT(mWidget && !mWidget->Destroyed());
 
-    mLockedContent.Init(text);
+    WidgetQueryContentEvent queryText(true, NS_QUERY_TEXT_CONTENT, mWidget);
+    queryText.InitForQueryTextContent(0, UINT32_MAX);
+    mWidget->InitEvent(queryText);
+    mWidget->DispatchWindowEvent(&queryText);
+    NS_ENSURE_TRUE(queryText.mSucceeded, mContent);
+
+    mContent.Init(queryText.mReply.mString);
   }
 
   PR_LOG(sTextStoreLog, PR_LOG_DEBUG,
-         ("TSF: 0x%p   nsTextStore::LockedContent(): "
-          "mLockedContent={ mText.Length()=%d }",
-          this, mLockedContent.Text().Length()));
+         ("TSF: 0x%p   nsTextStore::CurrentContent(): "
+          "mContent={ mText.Length()=%d }",
+          this, mContent.Text().Length()));
 
-  return mLockedContent;
-}
-
-bool
-nsTextStore::GetCurrentText(nsAString& aTextContent)
-{
-  if (mLockedContent.IsInitialized()) {
-    aTextContent = mLockedContent.Text();
-    return true;
-  }
-
-  MOZ_ASSERT(mWidget && !mWidget->Destroyed());
-
-  WidgetQueryContentEvent queryText(true, NS_QUERY_TEXT_CONTENT, mWidget);
-  queryText.InitForQueryTextContent(0, UINT32_MAX);
-  mWidget->InitEvent(queryText);
-  mWidget->DispatchWindowEvent(&queryText);
-  if (NS_WARN_IF(!queryText.mSucceeded)) {
-    aTextContent.Truncate();
-    return false;
-  }
-
-  aTextContent = queryText.mReply.mString;
-  return true;
+  return mContent;
 }
 
 nsTextStore::Selection&
@@ -2040,28 +2012,28 @@ nsTextStore::GetText(LONG acpStart,
     prgRunInfo->type = TS_RT_PLAIN;
   }
 
-  Content& lockedContent = LockedContent();
-  if (!lockedContent.IsInitialized()) {
+  Content& currentContent = CurrentContent();
+  if (!currentContent.IsInitialized()) {
     PR_LOG(sTextStoreLog, PR_LOG_ERROR,
            ("TSF: 0x%p   nsTextStore::GetText() FAILED due to "
-            "LockedContent() failure", this));
+            "CurrentContent() failure", this));
     return E_FAIL;
   }
-  if (lockedContent.Text().Length() < static_cast<uint32_t>(acpStart)) {
+  if (currentContent.Text().Length() < static_cast<uint32_t>(acpStart)) {
     PR_LOG(sTextStoreLog, PR_LOG_ERROR,
            ("TSF: 0x%p   nsTextStore::GetText() FAILED due to "
             "acpStart is larger offset than the actual text length", this));
     return TS_E_INVALIDPOS;
   }
   if (acpEnd != -1 &&
-      lockedContent.Text().Length() < static_cast<uint32_t>(acpEnd)) {
+      currentContent.Text().Length() < static_cast<uint32_t>(acpEnd)) {
     PR_LOG(sTextStoreLog, PR_LOG_ERROR,
            ("TSF: 0x%p   nsTextStore::GetText() FAILED due to "
             "acpEnd is larger offset than the actual text length", this));
     return TS_E_INVALIDPOS;
   }
   uint32_t length = (acpEnd == -1) ?
-    lockedContent.Text().Length() - static_cast<uint32_t>(acpStart) :
+    currentContent.Text().Length() - static_cast<uint32_t>(acpStart) :
     static_cast<uint32_t>(acpEnd - acpStart);
   if (cchPlainReq && cchPlainReq - 1 < length) {
     length = cchPlainReq - 1;
@@ -2069,7 +2041,7 @@ nsTextStore::GetText(LONG acpStart,
   if (length) {
     if (pchPlain && cchPlainReq) {
       const char16_t* startChar =
-        lockedContent.Text().BeginReading() + acpStart;
+        currentContent.Text().BeginReading() + acpStart;
       memcpy(pchPlain, startChar, length * sizeof(*pchPlain));
       pchPlain[length] = 0;
       *pcchPlainOut = length;
@@ -2480,14 +2452,14 @@ nsTextStore::GetEndACP(LONG *pacp)
     return E_INVALIDARG;
   }
 
-  Content& lockedContent = LockedContent();
-  if (!lockedContent.IsInitialized()) {
+  Content& currentContent = CurrentContent();
+  if (!currentContent.IsInitialized()) {
     PR_LOG(sTextStoreLog, PR_LOG_ERROR,
            ("TSF: 0x%p   nsTextStore::GetEndACP() FAILED due to "
-            "LockedContent() failure", this));
+            "CurrentContent() failure", this));
     return E_FAIL;
   }
-  *pacp = static_cast<LONG>(lockedContent.Text().Length());
+  *pacp = static_cast<LONG>(currentContent.Text().Length());
   return S_OK;
 }
 
@@ -2532,7 +2504,7 @@ nsTextStore::GetACPFromPoint(TsViewCookie vcView,
     return E_INVALIDARG;
   }
 
-  if (mLockedContent.IsLayoutChanged()) {
+  if (mContent.IsLayoutChanged()) {
     PR_LOG(sTextStoreLog, PR_LOG_ERROR,
            ("TSF: 0x%p   nsTextStore::GetACPFromPoint() FAILED due to "
             "layout not recomputed", this));
@@ -2599,7 +2571,7 @@ nsTextStore::GetTextExt(TsViewCookie vcView,
       (sDoNotReturnNoLayoutErrorToEasyChangjei &&
        mActiveTIPKeyboardDescription.Equals(TIP_NAME_EASY_CHANGJEI)) &&
       mComposition.IsComposing() &&
-      mLockedContent.IsLayoutChangedAfter(acpEnd) &&
+      mContent.IsLayoutChangedAfter(acpEnd) &&
       mComposition.mStart < acpEnd) {
     acpEnd = mComposition.mStart;
     acpStart = std::min(acpStart, acpEnd);
@@ -2608,7 +2580,7 @@ nsTextStore::GetTextExt(TsViewCookie vcView,
             "acpStart=%d, acpEnd=%d", this, acpStart, acpEnd));
   }
 
-  if (mLockedContent.IsLayoutChangedAfter(acpEnd)) {
+  if (mContent.IsLayoutChangedAfter(acpEnd)) {
     PR_LOG(sTextStoreLog, PR_LOG_ERROR,
            ("TSF: 0x%p   nsTextStore::GetTextExt() FAILED due to "
             "layout not recomputed at %d", this, acpEnd));
@@ -2945,15 +2917,15 @@ nsTextStore::InsertTextAtSelectionInternal(const nsAString &aInsertStr,
           this, NS_ConvertUTF16toUTF8(aInsertStr).get(), aTextChange,
           GetBoolName(mComposition.IsComposing())));
 
-  Content& lockedContent = LockedContent();
-  if (!lockedContent.IsInitialized()) {
+  Content& currentContent = CurrentContent();
+  if (!currentContent.IsInitialized()) {
     PR_LOG(sTextStoreLog, PR_LOG_ERROR,
            ("TSF: 0x%p   nsTextStore::InsertTextAtSelectionInternal() failed "
-            "due to LockedContent() failure()", this));
+            "due to CurrentContent() failure()", this));
     return false;
   }
 
-  TS_SELECTION_ACP oldSelection = lockedContent.Selection().ACP();
+  TS_SELECTION_ACP oldSelection = currentContent.Selection().ACP();
   if (!mComposition.IsComposing()) {
     // Use a temporary composition to contain the text
     PendingAction* compositionStart = mPendingActions.AppendElement();
@@ -2967,12 +2939,12 @@ nsTextStore::InsertTextAtSelectionInternal(const nsAString &aInsertStr,
     compositionEnd->mData = aInsertStr;
   }
 
-  lockedContent.ReplaceSelectedTextWith(aInsertStr);
+  currentContent.ReplaceSelectedTextWith(aInsertStr);
 
   if (aTextChange) {
     aTextChange->acpStart = oldSelection.acpStart;
     aTextChange->acpOldEnd = oldSelection.acpEnd;
-    aTextChange->acpNewEnd = lockedContent.Selection().EndOffset();
+    aTextChange->acpNewEnd = currentContent.Selection().EndOffset();
   }
 
   PR_LOG(sTextStoreLog, PR_LOG_DEBUG,
@@ -3023,11 +2995,11 @@ nsTextStore::RecordCompositionStartAction(ITfCompositionView* pComposition,
     return hr;
   }
 
-  Content& lockedContent = LockedContent();
-  if (!lockedContent.IsInitialized()) {
+  Content& currentContent = CurrentContent();
+  if (!currentContent.IsInitialized()) {
     PR_LOG(sTextStoreLog, PR_LOG_ERROR,
            ("TSF: 0x%p   nsTextStore::RecordCompositionStartAction() FAILED "
-            "due to LockedContent() failure", this));
+            "due to CurrentContent() failure", this));
     return E_FAIL;
   }
 
@@ -3052,7 +3024,7 @@ nsTextStore::RecordCompositionStartAction(ITfCompositionView* pComposition,
     }
   }
 
-  lockedContent.StartComposition(pComposition, *action);
+  currentContent.StartComposition(pComposition, *action);
 
   PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
          ("TSF: 0x%p   nsTextStore::RecordCompositionStartAction() succeeded: "
@@ -3082,14 +3054,14 @@ nsTextStore::RecordCompositionEndAction()
   action->mType = PendingAction::COMPOSITION_END;
   action->mData = mComposition.mString;
 
-  Content& lockedContent = LockedContent();
-  if (!lockedContent.IsInitialized()) {
+  Content& currentContent = CurrentContent();
+  if (!currentContent.IsInitialized()) {
     PR_LOG(sTextStoreLog, PR_LOG_ERROR,
            ("TSF: 0x%p   nsTextStore::RecordCompositionEndAction() FAILED due "
-            "to LockedContent() failure", this));
+            "to CurrentContent() failure", this));
     return E_FAIL;
   }
-  lockedContent.EndComposition(*action);
+  currentContent.EndComposition(*action);
 
   PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
          ("TSF: 0x%p   nsTextStore::RecordCompositionEndAction(), succeeded",

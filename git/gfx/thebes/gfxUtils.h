@@ -25,9 +25,6 @@ namespace mozilla {
 namespace layers {
 struct PlanarYCbCrData;
 }
-namespace image {
-class ImageRegion;
-}
 }
 
 class gfxUtils {
@@ -38,7 +35,6 @@ public:
     typedef mozilla::gfx::Matrix Matrix;
     typedef mozilla::gfx::SourceSurface SourceSurface;
     typedef mozilla::gfx::SurfaceFormat SurfaceFormat;
-    typedef mozilla::image::ImageRegion ImageRegion;
 
     /*
      * Premultiply or Unpremultiply aSourceSurface, writing the result
@@ -75,13 +71,16 @@ public:
      * will tweak the rects and transforms that it gets from the pixel snapping
      * algorithm before passing them on to this method.
      */
-    static void DrawPixelSnapped(gfxContext*        aContext,
-                                 gfxDrawable*       aDrawable,
-                                 const gfxSize&     aImageSize,
-                                 const ImageRegion& aRegion,
+    static void DrawPixelSnapped(gfxContext*      aContext,
+                                 gfxDrawable*     aDrawable,
+                                 const gfxMatrix& aUserSpaceToImageSpace,
+                                 const gfxRect&   aSubimage,
+                                 const gfxRect&   aSourceRect,
+                                 const gfxRect&   aImageRect,
+                                 const gfxRect&   aFill,
                                  const mozilla::gfx::SurfaceFormat aFormat,
-                                 GraphicsFilter     aFilter,
-                                 uint32_t           aImageFlags = imgIContainer::FLAG_NONE);
+                                 GraphicsFilter aFilter,
+                                 uint32_t         aImageFlags = imgIContainer::FLAG_NONE);
 
     /**
      * Clip aContext to the region aRegion.

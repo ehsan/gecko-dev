@@ -157,7 +157,7 @@ class AutoTraceLog;
 template <class T>
 class ContinuousSpace {
     T *data_;
-    uint32_t size_;
+    uint32_t next_;
     uint32_t capacity_;
 
   public:
@@ -167,7 +167,7 @@ class ContinuousSpace {
 
     bool init() {
         capacity_ = 64;
-        size_ = 0;
+        next_ = 0;
         data_ = (T *) js_malloc(capacity_ * sizeof(T));
         if (!data_)
             return false;
@@ -184,24 +184,28 @@ class ContinuousSpace {
     }
 
     uint32_t size() {
-        return size_;
+        return next_;
     }
 
-    bool empty() {
-        return size_ == 0;
+    uint32_t nextId() {
+        return next_;
     }
 
-    uint32_t lastEntryId() {
-        MOZ_ASSERT(!empty());
-        return size_ - 1;
+    T &next() {
+        return data()[next_];
     }
 
-    T &lastEntry() {
-        return data()[lastEntryId()];
+    uint32_t currentId() {
+        MOZ_ASSERT(next_ > 0);
+        return next_ - 1;
+    }
+
+    T &current() {
+        return data()[currentId()];
     }
 
     bool hasSpaceForAdd(uint32_t count = 1) {
-        if (size_ + count <= capacity_)
+        if (next_ + count <= capacity_)
             return true;
         return false;
     }
@@ -211,8 +215,8 @@ class ContinuousSpace {
             return true;
 
         uint32_t nCapacity = capacity_ * 2;
-        if (size_ + count > nCapacity)
-            nCapacity = size_ + count;
+        if (next_ + count > nCapacity)
+            nCapacity = next_ + count;
         T *entries = (T *) js_realloc(data_, nCapacity * sizeof(T));
 
         if (!entries)
@@ -225,27 +229,27 @@ class ContinuousSpace {
     }
 
     T &operator[](size_t i) {
-        MOZ_ASSERT(i < size_);
+        MOZ_ASSERT(i < next_);
         return data()[i];
     }
 
     void push(T &data) {
-        MOZ_ASSERT(size_ < capacity_);
-        data()[size_++] = data;
+        MOZ_ASSERT(next_ < capacity_);
+        data()[next_++] = data;
     }
 
     T &pushUninitialized() {
-        MOZ_ASSERT(size_ < capacity_);
-        return data()[size_++];
+        MOZ_ASSERT(next_ < capacity_);
+        return data()[next_++];
     }
 
     void pop() {
-        MOZ_ASSERT(!empty());
-        size_--;
+        MOZ_ASSERT(next_ > 0);
+        next_--;
     }
 
     void clear() {
-        size_ = 0;
+        next_ = 0;
     }
 };
 

@@ -728,15 +728,11 @@ nsRangeFrame::AttributeChanged(int32_t  aNameSpaceID,
   return nsContainerFrame::AttributeChanged(aNameSpaceID, aAttribute, aModType);
 }
 
-LogicalSize
+nsSize
 nsRangeFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
-                              WritingMode aWM,
-                              const LogicalSize& aCBSize,
-                              nscoord aAvailableISize,
-                              const LogicalSize& aMargin,
-                              const LogicalSize& aBorder,
-                              const LogicalSize& aPadding,
-                              bool aShrinkWrap)
+                              nsSize aCBSize, nscoord aAvailableWidth,
+                              nsSize aMargin, nsSize aBorder,
+                              nsSize aPadding, bool aShrinkWrap)
 {
   nscoord oneEm = NSToCoordRound(StyleFont()->mFont.size *
                                  nsLayoutUtils::FontSizeInflationFor(this)); // 1em
@@ -744,10 +740,9 @@ nsRangeFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
   // frameSizeOverride values just gets us to fall back to being horizontal
   // (the actual values are irrelevant, as long as width > height):
   nsSize frameSizeOverride(10,1);
-  bool isInlineOriented = IsHorizontal(&frameSizeOverride);
+  bool isHorizontal = IsHorizontal(&frameSizeOverride);
 
-  const WritingMode wm = GetWritingMode();
-  LogicalSize autoSize(wm);
+  nsSize autoSize;
 
   // nsFrame::ComputeSize calls GetMinimumWidgetSize to prevent us from being
   // given too small a size when we're natively themed. If we're themed, we set
@@ -755,15 +750,15 @@ nsRangeFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
   // GetMinimumWidgetSize check to correct that dimension to the natural
   // thickness of a slider in the current theme.
 
-  if (isInlineOriented) {
-    autoSize.ISize(wm) = LONG_SIDE_TO_SHORT_SIDE_RATIO * oneEm;
-    autoSize.BSize(wm) = IsThemed() ? 0 : oneEm;
+  if (isHorizontal) {
+    autoSize.width = LONG_SIDE_TO_SHORT_SIDE_RATIO * oneEm;
+    autoSize.height = IsThemed() ? 0 : oneEm;
   } else {
-    autoSize.ISize(wm) = IsThemed() ? 0 : oneEm;
-    autoSize.BSize(wm) = LONG_SIDE_TO_SHORT_SIDE_RATIO * oneEm;
+    autoSize.width = IsThemed() ? 0 : oneEm;
+    autoSize.height = LONG_SIDE_TO_SHORT_SIDE_RATIO * oneEm;
   }
 
-  return autoSize.ConvertTo(aWM, wm);
+  return autoSize;
 }
 
 nscoord

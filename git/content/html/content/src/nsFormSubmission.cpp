@@ -798,7 +798,7 @@ GetSubmitCharset(nsGenericHTMLElement* aForm,
   }
   // if there are no accept-charset or all the charset are not supported
   // Get the charset from document
-  nsIDocument* doc = aForm->GetComposedDoc();
+  nsIDocument* doc = aForm->GetDocument();
   if (doc) {
     oCharset = doc->GetDocumentCharacterSet();
   }

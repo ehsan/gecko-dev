@@ -24,12 +24,20 @@ if CONFIG['MOZ_ENABLE_GIO']:
         'nsGSettingsService.cpp',
     ]
 
-XPCOMBinaryComponent('mozgnome')
+LIBRARY_NAME = 'mozgnome'
 
 FAIL_ON_WARNINGS = True
+IS_COMPONENT = True
 
 LOCAL_INCLUDES += [
     '/toolkit/components/build/',
+]
+
+USE_LIBS += [
+    'mozalloc',
+    'nspr',
+    'xpcomglue_s',
+    'xul',
 ]
 
 CXXFLAGS += CONFIG['MOZ_GCONF_CFLAGS']

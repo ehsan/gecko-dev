@@ -171,11 +171,7 @@ public:
   // status code from that attempt. Clears mNewFrameData.
   virtual nsresult AllocateFrame();
 
-  already_AddRefed<imgFrame> GetCurrentFrame() const
-  {
-    nsRefPtr<imgFrame> frame = mCurrentFrame;
-    return frame.forget();
-  }
+  imgFrame* GetCurrentFrame() const { return mCurrentFrame; }
 
 protected:
 
@@ -234,7 +230,7 @@ protected:
    *
    */
   RasterImage &mImage;
-  nsRefPtr<imgFrame> mCurrentFrame;
+  imgFrame* mCurrentFrame;
   RefPtr<imgDecoderObserver> mObserver;
   ImageMetadata mImageMetadata;
 

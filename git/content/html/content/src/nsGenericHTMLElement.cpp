@@ -291,8 +291,7 @@ static const nsAttrValue::EnumTable kDirTable[] = {
 void
 nsGenericHTMLElement::GetAccessKeyLabel(nsString& aLabel)
 {
-  //XXXsmaug We shouldn't need PresContext for this.
-  nsPresContext *presContext = GetPresContext(eForComposedDoc);
+  nsPresContext *presContext = GetPresContext();
 
   if (presContext) {
     nsAutoString suffix;
@@ -1112,12 +1111,12 @@ nsGenericHTMLElement::GetFormControlFrame(bool aFlushFrames)
   return nullptr;
 }
 
+// XXX This creates a dependency between content and frames
 nsPresContext*
-nsGenericHTMLElement::GetPresContext(PresContextFor aFor)
+nsGenericHTMLElement::GetPresContext()
 {
   // Get the document
-  nsIDocument* doc = (aFor == eForComposedDoc) ?
-    GetComposedDoc() : GetUncomposedDoc();
+  nsIDocument* doc = GetDocument();
   if (doc) {
     // Get presentation shell.
     nsIPresShell *presShell = doc->GetShell();
@@ -2710,7 +2709,7 @@ nsGenericHTMLElement::RegUnRegAccessKey(bool aDoReg)
   }
 
   // We have an access key, so get the ESM from the pres context.
-  nsPresContext* presContext = GetPresContext(eForUncomposedDoc);
+  nsPresContext *presContext = GetPresContext();
 
   if (presContext) {
     EventStateManager* esm = presContext->EventStateManager();
@@ -2728,7 +2727,7 @@ void
 nsGenericHTMLElement::PerformAccesskey(bool aKeyCausesActivation,
                                        bool aIsTrustedEvent)
 {
-  nsPresContext* presContext = GetPresContext(eForUncomposedDoc);
+  nsPresContext *presContext = GetPresContext();
   if (!presContext)
     return;
 
@@ -2942,7 +2941,7 @@ nsGenericHTMLFormElementWithState::GenerateStateKey()
     return NS_OK;
   }
 
-  nsIDocument* doc = GetUncomposedDoc();
+  nsIDocument* doc = GetDocument();
   if (!doc) {
     return NS_OK;
   }
@@ -2990,7 +2989,7 @@ nsGenericHTMLFormElementWithState::GetPrimaryPresState()
 already_AddRefed<nsILayoutHistoryState>
 nsGenericHTMLFormElementWithState::GetLayoutHistory(bool aRead)
 {
-  nsCOMPtr<nsIDocument> doc = GetUncomposedDoc();
+  nsCOMPtr<nsIDocument> doc = GetDocument();
   if (!doc) {
     return nullptr;
   }

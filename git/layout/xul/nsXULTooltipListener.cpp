@@ -331,7 +331,7 @@ nsXULTooltipListener::CheckTreeBodyMove(nsIDOMMouseEvent* aMouseEvent)
 
   // get the boxObject of the documentElement of the document the tree is in
   nsCOMPtr<nsIBoxObject> bx;
-  nsIDocument* doc = sourceNode->GetComposedDoc();
+  nsIDocument* doc = sourceNode->GetDocument();
   if (doc) {
     ErrorResult ignored;
     bx = doc->GetBoxObjectFor(doc->GetRootElement(), ignored);
@@ -387,12 +387,11 @@ nsXULTooltipListener::ShowTooltip()
     return NS_ERROR_FAILURE; // the target node doesn't need a tooltip
 
   // set the node in the document that triggered the tooltip and show it
-  nsCOMPtr<nsIDOMXULDocument> xulDoc =
-    do_QueryInterface(tooltipNode->GetComposedDoc());
+  nsCOMPtr<nsIDOMXULDocument> xulDoc(do_QueryInterface(tooltipNode->GetDocument()));
   if (xulDoc) {
     // Make sure the target node is still attached to some document. 
     // It might have been deleted.
-    if (sourceNode->IsInComposedDoc()) {
+    if (sourceNode->GetDocument()) {
 #ifdef MOZ_XUL
       if (!mIsSourceTree) {
         mLastTreeRow = -1;
@@ -414,7 +413,7 @@ nsXULTooltipListener::ShowTooltip()
                                              this, false, false);
 
       // listen for mousedown, mouseup, keydown, and DOMMouseScroll events at document level
-      nsIDocument* doc = sourceNode->GetComposedDoc();
+      nsIDocument* doc = sourceNode->GetDocument();
       if (doc) {
         // Probably, we should listen to untrusted events for hiding tooltips
         // on content since tooltips might disturb something of web
@@ -556,7 +555,7 @@ nsXULTooltipListener::FindTooltip(nsIContent* aTarget, nsIContent** aTooltip)
     return NS_ERROR_NULL_POINTER;
 
   // before we go on, make sure that target node still has a window
-  nsIDocument *document = aTarget->GetComposedDoc();
+  nsIDocument *document = aTarget->GetDocument();
   if (!document) {
     NS_WARNING("Unable to retrieve the tooltip node document.");
     return NS_ERROR_FAILURE;
@@ -596,10 +595,8 @@ nsXULTooltipListener::FindTooltip(nsIContent* aTarget, nsIContent** aTooltip)
     return NS_OK;
   }
 
-  if (!tooltipId.IsEmpty() && aTarget->IsInUncomposedDoc()) {
+  if (!tooltipId.IsEmpty()) {
     // tooltip must be an id, use getElementById to find it
-    //XXXsmaug If aTarget is in shadow dom, should we use
-    //         ShadowRoot::GetElementById()?
     nsCOMPtr<nsIContent> tooltipEl = document->GetElementById(tooltipId);
 
     if (tooltipEl) {
@@ -661,7 +658,7 @@ nsXULTooltipListener::DestroyTooltip()
     mCurrentTooltip = nullptr;
 
     // clear out the tooltip node on the document
-    nsCOMPtr<nsIDocument> doc = currentTooltip->GetComposedDoc();
+    nsCOMPtr<nsIDocument> doc = currentTooltip->GetDocument();
     if (doc) {
       // remove the mousedown and keydown listener from document
       doc->RemoveSystemEventListener(NS_LITERAL_STRING("DOMMouseScroll"), this,

@@ -324,56 +324,16 @@ nsListBoxBodyFrame::GetPrefSize(nsBoxLayoutState& aBoxLayoutState)
 
 ///////////// nsIScrollbarMediator ///////////////
 
-void
-nsListBoxBodyFrame::ScrollByPage(nsScrollbarFrame* aScrollbar, int32_t aDirection)
-{
-  MOZ_ASSERT(aScrollbar != nullptr);
-  UpdateIndex(aDirection);
-  aScrollbar->SetIncrementToPage(aDirection);
-  aScrollbar->MoveToNewPosition();
-}
-
-void
-nsListBoxBodyFrame::ScrollByWhole(nsScrollbarFrame* aScrollbar, int32_t aDirection)
-{
-  MOZ_ASSERT(aScrollbar != nullptr); 
-  UpdateIndex(aDirection);
-  aScrollbar->SetIncrementToWhole(aDirection);
-  aScrollbar->MoveToNewPosition();
-}
-
-void
-nsListBoxBodyFrame::ScrollByLine(nsScrollbarFrame* aScrollbar, int32_t aDirection)
-{
-  MOZ_ASSERT(aScrollbar != nullptr); 
-  UpdateIndex(aDirection);
-  aScrollbar->SetIncrementToLine(aDirection);
-  aScrollbar->MoveToNewPosition();
-}
-
-void
-nsListBoxBodyFrame::RepeatButtonScroll(nsScrollbarFrame* aScrollbar)
-{
-  int32_t increment = aScrollbar->GetIncrement();
-  if (increment < 0) {
-    UpdateIndex(-1);
-  } else if (increment > 0) {
-    UpdateIndex(1);
-  }
-  aScrollbar->MoveToNewPosition();
-}
-
-void
-nsListBoxBodyFrame::ThumbMoved(nsScrollbarFrame* aScrollbar,
-                               nscoord aOldPos,
-                               nscoord aNewPos)
+NS_IMETHODIMP
+nsListBoxBodyFrame::PositionChanged(nsScrollbarFrame* aScrollbar, int32_t aOldIndex, int32_t& aNewIndex)
 { 
   if (mScrolling || mRowHeight == 0)
-    return;
+    return NS_OK;
 
-  nscoord oldTwipIndex;
+  nscoord oldTwipIndex, newTwipIndex;
   oldTwipIndex = mCurrentIndex*mRowHeight;
-  int32_t twipDelta = aNewPos > oldTwipIndex ? aNewPos - oldTwipIndex : oldTwipIndex - aNewPos;
+  newTwipIndex = nsPresContext::CSSPixelsToAppUnits(aNewIndex);
+  int32_t twipDelta = newTwipIndex > oldTwipIndex ? newTwipIndex - oldTwipIndex : oldTwipIndex - newTwipIndex;
 
   int32_t rowDelta = twipDelta / mRowHeight;
   int32_t remainder = twipDelta % mRowHeight;
@@ -381,11 +341,11 @@ nsListBoxBodyFrame::ThumbMoved(nsScrollbarFrame* aScrollbar,
     rowDelta++;
 
   if (rowDelta == 0)
-    return;
+    return NS_OK;
 
   // update the position to be row based.
 
-  int32_t newIndex = aNewPos > oldTwipIndex ? mCurrentIndex + rowDelta : mCurrentIndex - rowDelta;
+  int32_t newIndex = newTwipIndex > oldTwipIndex ? mCurrentIndex + rowDelta : mCurrentIndex - rowDelta;
   //aNewIndex = newIndex*mRowHeight/mOnePixel;
 
   nsListScrollSmoother* smoother = GetSmoother();
@@ -396,11 +356,11 @@ nsListBoxBodyFrame::ThumbMoved(nsScrollbarFrame* aScrollbar,
 
      smoother->Stop();
 
-     smoother->mDelta = aNewPos > oldTwipIndex ? rowDelta : -rowDelta;
+     smoother->mDelta = newTwipIndex > oldTwipIndex ? rowDelta : -rowDelta;
 
      smoother->Start();
 
-     return;
+     return NS_OK;
   }
 
   smoother->Stop();
@@ -410,16 +370,17 @@ nsListBoxBodyFrame::ThumbMoved(nsScrollbarFrame* aScrollbar,
   
   if (mCurrentIndex < 0) {
     mCurrentIndex = 0;
-    return;
+    return NS_OK;
   }
-  InternalPositionChanged(aNewPos < oldTwipIndex, rowDelta);
+
+  return InternalPositionChanged(newTwipIndex < oldTwipIndex, rowDelta);
 }
 
-void
+NS_IMETHODIMP
 nsListBoxBodyFrame::VisibilityChanged(bool aVisible)
 {
   if (mRowHeight == 0)
-    return;
+    return NS_OK;
 
   int32_t lastPageTopRow = GetRowCount() - (GetAvailableHeight() / mRowHeight);
   if (lastPageTopRow < 0)
@@ -429,30 +390,27 @@ nsListBoxBodyFrame::VisibilityChanged(bool aVisible)
     mCurrentIndex = lastPageTopRow;
     InternalPositionChanged(true, delta);
   }
+
+  return NS_OK;
 }
 
-nsIFrame*
-nsListBoxBodyFrame::GetScrollbarBox(bool aVertical)
+NS_IMETHODIMP
+nsListBoxBodyFrame::ScrollbarButtonPressed(nsScrollbarFrame* aScrollbar, int32_t aOldIndex, int32_t aNewIndex)
 {
-  nsIScrollableFrame* scrollFrame = nsLayoutUtils::GetScrollableFrameFor(this);
-  return scrollFrame ? scrollFrame->GetScrollbarBox(true) : nullptr;
-}
-
-void
-nsListBoxBodyFrame::UpdateIndex(int32_t aDirection)
-{
-  if (aDirection == 0)
-    return;
-  if (aDirection < 0)
+  if (aOldIndex == aNewIndex)
+    return NS_OK;
+  if (aNewIndex < aOldIndex)
     mCurrentIndex--;
   else mCurrentIndex++;
   if (mCurrentIndex < 0) {
     mCurrentIndex = 0;
-    return;
+    return NS_OK;
   }
-  InternalPositionChanged(aDirection < 0, 1);
+  InternalPositionChanged(aNewIndex < aOldIndex, 1);
+
+  return NS_OK;
 }
- 
+
 ///////////// nsIReflowCallback ///////////////
 
 bool
@@ -801,7 +759,7 @@ nsListBoxBodyFrame::ScrollToIndex(int32_t aRowIndex)
   // This change has to happen immediately.
   // Flush any pending reflow commands.
   // XXXbz why, exactly?
-  mContent->GetComposedDoc()->FlushPendingNotifications(Flush_Layout);
+  mContent->GetDocument()->FlushPendingNotifications(Flush_Layout);
 
   return NS_OK;
 }
@@ -874,7 +832,7 @@ nsListBoxBodyFrame::DoInternalPositionChanged(bool aUp, int32_t aDelta)
   PRTime start = PR_Now();
 
   nsWeakFrame weakThis(this);
-  mContent->GetComposedDoc()->FlushPendingNotifications(Flush_Layout);
+  mContent->GetDocument()->FlushPendingNotifications(Flush_Layout);
   if (!weakThis.IsAlive()) {
     return NS_OK;
   }

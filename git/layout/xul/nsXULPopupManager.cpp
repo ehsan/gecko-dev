@@ -1752,11 +1752,11 @@ nsXULPopupManager::UpdateKeyboardListeners()
   nsMenuChainItem* item = GetTopVisibleMenu();
   if (item) {
     if (!item->IgnoreKeys())
-      newTarget = item->Content()->GetComposedDoc();
+      newTarget = item->Content()->GetDocument();
     isForMenu = item->PopupType() == ePopupTypeMenu;
   }
   else if (mActiveMenuBar) {
-    newTarget = mActiveMenuBar->GetContent()->GetComposedDoc();
+    newTarget = mActiveMenuBar->GetContent()->GetDocument();
     isForMenu = true;
   }
 

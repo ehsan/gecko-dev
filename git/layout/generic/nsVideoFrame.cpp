@@ -482,15 +482,13 @@ nsVideoFrame::GetFrameName(nsAString& aResult) const
 }
 #endif
 
-LogicalSize
-nsVideoFrame::ComputeSize(nsRenderingContext *aRenderingContext,
-                          WritingMode aWM,
-                          const LogicalSize& aCBSize,
-                          nscoord aAvailableISize,
-                          const LogicalSize& aMargin,
-                          const LogicalSize& aBorder,
-                          const LogicalSize& aPadding,
-                          uint32_t aFlags)
+nsSize nsVideoFrame::ComputeSize(nsRenderingContext *aRenderingContext,
+                                     nsSize aCBSize,
+                                     nscoord aAvailableWidth,
+                                     nsSize aMargin,
+                                     nsSize aBorder,
+                                     nsSize aPadding,
+                                     uint32_t aFlags)
 {
   nsSize size = GetVideoIntrinsicSize(aRenderingContext);
 
@@ -501,7 +499,7 @@ nsVideoFrame::ComputeSize(nsRenderingContext *aRenderingContext,
   // Only video elements have an intrinsic ratio.
   nsSize intrinsicRatio = HasVideoElement() ? size : nsSize(0, 0);
 
-  return nsLayoutUtils::ComputeSizeWithIntrinsicDimensions(aWM, aRenderingContext,
+  return nsLayoutUtils::ComputeSizeWithIntrinsicDimensions(aRenderingContext,
                                                            this,
                                                            intrinsicSize,
                                                            intrinsicRatio,

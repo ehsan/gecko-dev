@@ -85,12 +85,13 @@ FrameAnimator::AdvanceFrame(TimeStamp aTime)
   int32_t timeout = 0;
 
   RefreshResult ret;
-  nsRefPtr<imgFrame> nextFrame = mFrameBlender.RawGetFrame(nextFrameIndex);
 
   // If we're done decoding, we know we've got everything we're going to get.
   // If we aren't, we only display fully-downloaded frames; everything else
   // gets delayed.
-  bool canDisplay = mDoneDecoding || (nextFrame && nextFrame->ImageComplete());
+  bool canDisplay = mDoneDecoding ||
+                    (mFrameBlender.RawGetFrame(nextFrameIndex) &&
+                     mFrameBlender.RawGetFrame(nextFrameIndex)->ImageComplete());
 
   if (!canDisplay) {
     // Uh oh, the frame we want to show is currently being decoded (partial)
@@ -137,14 +138,10 @@ FrameAnimator::AdvanceFrame(TimeStamp aTime)
     ret.dirtyRect = mFirstFrameRefreshArea;
   } else {
     // Change frame
-    if (nextFrameIndex != currentFrameIndex + 1) {
-      nextFrame = mFrameBlender.RawGetFrame(nextFrameIndex);
-    }
-
     if (!mFrameBlender.DoBlend(&ret.dirtyRect, currentFrameIndex, nextFrameIndex)) {
       // something went wrong, move on to next
       NS_WARNING("FrameAnimator::AdvanceFrame(): Compositing of frame failed");
-      nextFrame->SetCompositingFailed(true);
+      mFrameBlender.RawGetFrame(nextFrameIndex)->SetCompositingFailed(true);
       mCurrentAnimationFrameTime = GetCurrentImgFrameEndTime();
       mCurrentAnimationFrameIndex = nextFrameIndex;
 
@@ -152,7 +149,7 @@ FrameAnimator::AdvanceFrame(TimeStamp aTime)
       return ret;
     }
 
-    nextFrame->SetCompositingFailed(false);
+    mFrameBlender.RawGetFrame(nextFrameIndex)->SetCompositingFailed(false);
   }
 
   mCurrentAnimationFrameTime = GetCurrentImgFrameEndTime();

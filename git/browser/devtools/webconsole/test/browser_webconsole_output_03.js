@@ -73,10 +73,10 @@ let inputTests = [
   // 7
   {
     input: "document.body.attributes",
-    output: "NamedNodeMap [  ]",
-    printOutput: "[object NamedNodeMap]",
+    output: "MozNamedAttrMap [  ]",
+    printOutput: "[object MozNamedAttrMap]",
     inspectable: true,
-    variablesViewLabel: "NamedNodeMap[0]",
+    variablesViewLabel: "MozNamedAttrMap[0]",
   },
 
   // 8
@@ -137,11 +137,11 @@ let inputTests = [
   // 14
   {
     input: "document.body.attributes",
-    output: 'NamedNodeMap [ class="test1 tezt2", id="foobarid", ' +
+    output: 'MozNamedAttrMap [ class="test1 tezt2", id="foobarid", ' +
             'data-preview="zuzu&quot;&lt;a&gt;foo" ]',
-    printOutput: "[object NamedNodeMap]",
+    printOutput: "[object MozNamedAttrMap]",
     inspectable: true,
-    variablesViewLabel: "NamedNodeMap[3]",
+    variablesViewLabel: "MozNamedAttrMap[3]",
   },
 
   // 15

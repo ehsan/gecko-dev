@@ -810,7 +810,7 @@ nsXULTreeBuilder::ToggleOpenState(int32_t aIndex)
         bool isOpen;
         IsContainerOpen(aIndex, &isOpen);
 
-        nsIDocument* doc = mRoot->GetComposedDoc();
+        nsIDocument* doc = mRoot->GetDocument();
         if (!doc) {
             return NS_ERROR_FAILURE;
         }
@@ -1288,7 +1288,7 @@ nsXULTreeBuilder::RebuildAll()
 {
     NS_ENSURE_TRUE(mRoot, NS_ERROR_NOT_INITIALIZED);
 
-    nsCOMPtr<nsIDocument> doc = mRoot->GetComposedDoc();
+    nsCOMPtr<nsIDocument> doc = mRoot->GetDocument();
 
     // Bail out early if we are being torn down.
     if (!doc)
@@ -1710,7 +1710,7 @@ nsXULTreeBuilder::IsContainerOpen(nsIXULTemplateResult *aResult)
     return false;
   }
 
-  nsIDocument* doc = mRoot->GetComposedDoc();
+  nsIDocument* doc = mRoot->GetDocument();
   if (!doc) {
     return false;
   }

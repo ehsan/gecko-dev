@@ -115,7 +115,6 @@
     _(AbsI)                         \
     _(AbsD)                         \
     _(AbsF)                         \
-    _(ClzI)                         \
     _(SqrtD)                        \
     _(SqrtF)                        \
     _(Atan2D)                       \

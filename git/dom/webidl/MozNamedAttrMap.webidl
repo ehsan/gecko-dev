@@ -3,7 +3,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-interface NamedNodeMap {
+/**
+ * This is a temporary, non-standard interface, to ease the transition to a
+ * world where Attr no longer inherits from Node.
+ */
+interface MozNamedAttrMap {
   getter Attr? getNamedItem(DOMString name);
   [Throws]
   Attr? setNamedItem(Attr arg);

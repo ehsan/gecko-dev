@@ -234,15 +234,10 @@ nsSVGOuterSVGFrame::GetIntrinsicRatio()
   return nsSVGOuterSVGFrameBase::GetIntrinsicRatio();
 }
 
-/* virtual */
-LogicalSize
+/* virtual */ nsSize
 nsSVGOuterSVGFrame::ComputeSize(nsRenderingContext *aRenderingContext,
-                                WritingMode aWM,
-                                const LogicalSize& aCBSize,
-                                nscoord aAvailableISize,
-                                const LogicalSize& aMargin,
-                                const LogicalSize& aBorder,
-                                const LogicalSize& aPadding,
+                                nsSize aCBSize, nscoord aAvailableWidth,
+                                nsSize aMargin, nsSize aBorder, nsSize aPadding,
                                 uint32_t aFlags)
 {
   if (IsRootOfImage() || IsRootOfReplacedElementSubDoc()) {
@@ -254,18 +249,18 @@ nsSVGOuterSVGFrame::ComputeSize(nsRenderingContext *aRenderingContext,
     return aCBSize;
   }
 
-  LogicalSize cbSize = aCBSize;
+  nsSize cbSize = aCBSize;
   IntrinsicSize intrinsicSize = GetIntrinsicSize();
 
   if (!mContent->GetParent()) {
     // We're the root of the outermost browsing context, so we need to scale
     // cbSize by the full-zoom so that SVGs with percentage width/height zoom:
 
-    NS_ASSERTION(aCBSize.ISize(aWM) != NS_AUTOHEIGHT &&
-                 aCBSize.BSize(aWM) != NS_AUTOHEIGHT,
+    NS_ASSERTION(aCBSize.width  != NS_AUTOHEIGHT &&
+                 aCBSize.height != NS_AUTOHEIGHT,
                  "root should not have auto-width/height containing block");
-    cbSize.ISize(aWM) *= PresContext()->GetFullZoom();
-    cbSize.BSize(aWM) *= PresContext()->GetFullZoom();
+    cbSize.width  *= PresContext()->GetFullZoom();
+    cbSize.height *= PresContext()->GetFullZoom();
 
     // We also need to honour the width and height attributes' default values
     // of 100% when we're the root of a browsing context.  (GetIntrinsicSize()
@@ -283,12 +278,12 @@ nsSVGOuterSVGFrame::ComputeSize(nsRenderingContext *aRenderingContext,
                         "intrinsic width");
       float val = width.GetAnimValInSpecifiedUnits() / 100.0f;
       if (val < 0.0f) val = 0.0f;
-      intrinsicSize.width.SetCoordValue(val * cbSize.Width(aWM));
+      intrinsicSize.width.SetCoordValue(val * cbSize.width);
     }
 
     nsSVGLength2 &height =
       content->mLengthAttributes[SVGSVGElement::ATTR_HEIGHT];
-    NS_ASSERTION(aCBSize.BSize(aWM) != NS_AUTOHEIGHT,
+    NS_ASSERTION(aCBSize.height != NS_AUTOHEIGHT,
                  "root should not have auto-height containing block");
     if (height.IsPercentage()) {
       NS_ABORT_IF_FALSE(intrinsicSize.height.GetUnit() == eStyleUnit_None,
@@ -296,7 +291,7 @@ nsSVGOuterSVGFrame::ComputeSize(nsRenderingContext *aRenderingContext,
                         "intrinsic height");
       float val = height.GetAnimValInSpecifiedUnits() / 100.0f;
       if (val < 0.0f) val = 0.0f;
-      intrinsicSize.height.SetCoordValue(val * cbSize.Height(aWM));
+      intrinsicSize.height.SetCoordValue(val * cbSize.height);
     }
     NS_ABORT_IF_FALSE(intrinsicSize.height.GetUnit() == eStyleUnit_Coord &&
                       intrinsicSize.width.GetUnit() == eStyleUnit_Coord,
@@ -304,13 +299,10 @@ nsSVGOuterSVGFrame::ComputeSize(nsRenderingContext *aRenderingContext,
                       "we lack an intrinsic height or width.");
   }
 
-  return nsLayoutUtils::ComputeSizeWithIntrinsicDimensions(aWM,
+  return nsLayoutUtils::ComputeSizeWithIntrinsicDimensions(
                             aRenderingContext, this,
-                            intrinsicSize, GetIntrinsicRatio(),
-                            cbSize,
-                            aMargin,
-                            aBorder,
-                            aPadding);
+                            intrinsicSize, GetIntrinsicRatio(), cbSize,
+                            aMargin, aBorder, aPadding);
 }
 
 void

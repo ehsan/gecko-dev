@@ -396,6 +396,12 @@ nsXULCommandDispatcher::UpdateCommands(const nsAString& aEventName)
   for (int32_t u = 0; u < updaters.Count(); u++) {
     nsIContent* content = updaters[u];
 
+    nsCOMPtr<nsIDocument> document = content->GetDocument();
+
+    NS_ASSERTION(document != nullptr, "element has no document");
+    if (! document)
+      continue;
+
 #ifdef DEBUG
     if (PR_LOG_TEST(gCommandLog, PR_LOG_NOTICE)) {
       nsAutoCString aeventnameC; 
@@ -407,8 +413,18 @@ nsXULCommandDispatcher::UpdateCommands(const nsAString& aEventName)
     }
 #endif
 
-    WidgetEvent event(true, NS_XUL_COMMAND_UPDATE);
-    EventDispatcher::Dispatch(content, nullptr, &event);
+    nsCOMPtr<nsIPresShell> shell = document->GetShell();
+    if (shell) {
+      // Retrieve the context in which our DOM event will fire.
+      nsRefPtr<nsPresContext> context = shell->GetPresContext();
+
+      // Handle the DOM event
+      nsEventStatus status = nsEventStatus_eIgnore;
+
+      WidgetEvent event(true, NS_XUL_COMMAND_UPDATE);
+
+      EventDispatcher::Dispatch(content, context, &event, nullptr, &status);
+    }
   }
   return NS_OK;
 }
