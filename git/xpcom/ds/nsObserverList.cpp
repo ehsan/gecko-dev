@@ -99,21 +99,19 @@ nsObserverList::FillObserverArray(nsCOMArray<nsIObserver> &aArray)
 {
     aArray.SetCapacity(mObservers.Length());
 
-    nsTArray<ObserverRef> observers(mObservers);
-
-    for (PRInt32 i = observers.Length() - 1; i >= 0; --i) {
-        if (observers[i].isWeakRef) {
-            nsCOMPtr<nsIObserver> o(do_QueryReferent(observers[i].asWeak()));
+    for (PRInt32 i = mObservers.Length() - 1; i >= 0; --i) {
+        if (mObservers[i].isWeakRef) {
+            nsCOMPtr<nsIObserver> o(do_QueryReferent(mObservers[i].asWeak()));
             if (o) {
                 aArray.AppendObject(o);
             }
             else {
                 // the object has gone away, remove the weakref
-                mObservers.RemoveElement(observers[i].asWeak());
+                mObservers.RemoveElementAt(i);
             }
         }
         else {
-            aArray.AppendObject(observers[i].asObserver());
+            aArray.AppendObject(mObservers[i].asObserver());
         }
     }
 }

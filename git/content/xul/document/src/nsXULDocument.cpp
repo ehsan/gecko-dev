@@ -4759,7 +4759,6 @@ nsXULDocument::GetDocumentLWTheme()
             content->GetAttr(kNameSpaceID_None, nsGkAtoms::lwtheme, hasLWTheme) &&
             !(hasLWTheme.IsEmpty()) &&
             hasLWTheme.EqualsLiteral("true")) {
-            mDocLWTheme = Doc_Theme_Neutral;
             nsAutoString lwTheme;
             content->GetAttr(kNameSpaceID_None, nsGkAtoms::lwthemetextcolor, lwTheme);
             if (!(lwTheme.IsEmpty())) {

@@ -190,10 +190,6 @@ public:
 
   PRMonitor* Monitor() { return mMonitor; }
 
-  /**
-   * An iterator that makes it easy to iterate through all streams that
-   * have a given resource ID and are not closed.
-   */
   class ResourceStreamIterator {
   public:
     ResourceStreamIterator(PRInt64 aResourceID) :
@@ -203,7 +199,7 @@ public:
       while (mNext < gMediaCache->mStreams.Length()) {
         nsMediaCacheStream* stream = gMediaCache->mStreams[mNext];
         ++mNext;
-        if (stream->GetResourceID() == mResourceID && !stream->IsClosed())
+        if (stream->GetResourceID() == mResourceID)
           return stream;
       }
       return nsnull;
@@ -1200,7 +1196,7 @@ nsMediaCache::Update()
           nsMediaCacheStream* other = mStreams[j];
           if (other->mResourceID == stream->mResourceID &&
               !other->mCacheSuspended &&
-              other->mChannelOffset/BLOCK_SIZE == desiredOffset/BLOCK_SIZE) {
+              other->mChannelOffset/BLOCK_SIZE == stream->mChannelOffset/BLOCK_SIZE) {
             // This block is already going to be read by the other stream.
             // So don't try to read it from this stream as well.
             enableReading = PR_FALSE;

@@ -1,17 +1,16 @@
 <!DOCTYPE html>
 <html class="reftest-wait">
 <head>
-<body style="white-space:pre"> FG 
- JK 
+<body style="white-space:pre">EFGH
+IJKL
 <script>
-document.body.offsetTop;
 var t = document.body.firstChild;
 var sel = window.getSelection();
 sel.collapse(t, 1);
 sel.extend(t, 3);
 
 function doTest() {
-  t.insertData(0, ' BC \n');
+  t.insertData(0, 'ABCD\n');
   document.documentElement.removeAttribute('class');
 }
 document.addEventListener("MozReftestInvalidate", doTest, false);

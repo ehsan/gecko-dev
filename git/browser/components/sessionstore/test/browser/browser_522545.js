@@ -35,21 +35,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-function browserWindowsCount() {
-  let count = 0;
-  let e = Cc["@mozilla.org/appshell/window-mediator;1"]
-            .getService(Ci.nsIWindowMediator)
-            .getEnumerator("navigator:browser");
-  while (e.hasMoreElements()) {
-    if (!e.getNext().closed)
-      ++count;
-  }
-  return count;
-}
-
 function test() {
   /** Test for Bug 522545 **/
-  is(browserWindowsCount(), 1, "Only one browser window should be open initially");
 
   waitForExplicitFinish();
 
@@ -300,17 +287,12 @@ function test() {
                test_getBrowserState_lotsOfTabsOpening,
                test_getBrowserState_userTypedValue, test_userTypedClearLoadURI];
   let originalState = ss.getBrowserState();
-  info(JSON.parse(originalState).windows.length);
-  info(originalState);
   function runNextTest() {
     if (tests.length) {
       tests.shift().call();
     } else {
       ss.setBrowserState(originalState);
-      executeSoon(function () {
-        is(browserWindowsCount(), 1, "Only one browser window should be open eventually");
-        finish();
-      });
+      executeSoon(finish);
     }
   }
 

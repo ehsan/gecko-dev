@@ -219,6 +219,7 @@ nsViewManager::~nsViewManager()
     NS_IF_RELEASE(gCleanupContext);
   }
 
+  NS_IF_RELEASE(mContext);
   mObserver = nsnull;
 }
 
@@ -259,6 +260,7 @@ NS_IMETHODIMP nsViewManager::Init(nsIDeviceContext* aContext)
     return NS_ERROR_ALREADY_INITIALIZED;
   }
   mContext = aContext;
+  NS_ADDREF(mContext);
 
   mRefreshEnabled = PR_TRUE;
 
@@ -449,7 +451,6 @@ void nsViewManager::Refresh(nsView *aView, nsIRenderingContext *aContext,
   }  
 
   {
-    nsAutoScriptBlocker scriptBlocker;
     SetPainting(PR_TRUE);
 
     nsCOMPtr<nsIRenderingContext> localcx;
@@ -896,6 +897,12 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent,
     case NS_PAINT:
       {
         nsPaintEvent *event = static_cast<nsPaintEvent*>(aEvent);
+
+        // We don't want script to execute anywhere in here. Since
+        // the widget layer has already set up a DC for painting,
+        // scripted changes to the widget tree (or accidental changes
+        // induced by script) can make painting very confused.
+        nsAutoScriptBlocker scriptBlocker;
 
         if (!aView || !mContext)
           break;

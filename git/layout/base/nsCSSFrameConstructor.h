@@ -1046,7 +1046,6 @@ protected:
                                             nsStyleContext*  aStyleContext,
                                             nsIFrame*        aParentFrame,
                                             nsIFrame*        aPrevInFlow,
-                                            nsFrameState     aTypeBit,
                                             nsIFrame**       aPlaceholderFrame);
 
 private:

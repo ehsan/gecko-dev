@@ -6644,9 +6644,7 @@ void nsBlockFrame::CollectFloats(nsIFrame* aFrame, nsFrameList& aList,
   while (aFrame) {
     // Don't descend into float containing blocks.
     if (!aFrame->IsFloatContainingBlock()) {
-      nsIFrame *outOfFlowFrame =
-        aFrame->GetType() == nsGkAtoms::placeholderFrame ?
-          nsLayoutUtils::GetFloatFromPlaceholder(aFrame) : nsnull;
+      nsIFrame *outOfFlowFrame = nsLayoutUtils::GetFloatFromPlaceholder(aFrame);
       if (outOfFlowFrame) {
         // Make sure that its parent is us. Otherwise we don't want
         // to mess around with it because it belongs to someone

@@ -367,7 +367,7 @@ public: // NOT in nsIViewManager, so private to the view module
   // pending updates.
   void PostPendingUpdate() { RootViewManager()->mHasPendingUpdates = PR_TRUE; }
 private:
-  nsCOMPtr<nsIDeviceContext> mContext;
+  nsIDeviceContext  *mContext;
   nsIViewObserver   *mObserver;
   nsIScrollableView *mRootScrollable;
   nsIntPoint        mMouseLocation; // device units, relative to mRootView

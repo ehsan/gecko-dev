@@ -34,24 +34,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-function browserWindowsCount() {
-  let count = 0;
-  let e = Cc["@mozilla.org/appshell/window-mediator;1"]
-            .getService(Ci.nsIWindowMediator)
-            .getEnumerator("navigator:browser");
-  while (e.hasMoreElements()) {
-    if (!e.getNext().closed)
-      ++count;
-  }
-  return count;
-}
-
 function test() {
   /** Test for Bug 484108 **/
-  is(browserWindowsCount(), 1, "Only one browser window should be open initially");
-
-  let ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
-  waitForExplicitFinish();
 
   // builds the tests state based on a few parameters
   function buildTestState(num, selected) {
@@ -80,6 +64,10 @@ function test() {
     }
     return expected;
   }
+
+  // test setup
+  let ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
+  waitForExplicitFinish();
 
   // the number of tests we're running
   let numTests = 4;
@@ -123,7 +111,6 @@ function test() {
         if (++completedTests == numTests) {
           this.window.removeEventListener("load", this, false);
           this.window.removeEventListener("SSTabRestoring", this, false);
-          is(browserWindowsCount(), 1, "Only one browser window should be open eventually");
           finish();
         }
       },

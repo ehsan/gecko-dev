@@ -370,7 +370,8 @@ nsDOMUIEvent::GetIsChar(PRBool* aIsChar)
 
 NS_METHOD nsDOMUIEvent::GetCompositionReply(nsTextEventReply** aReply)
 {
-  if((mEvent->message == NS_COMPOSITION_START))
+  if((mEvent->message == NS_COMPOSITION_START) ||
+     (mEvent->message == NS_COMPOSITION_QUERY))
   {
     *aReply = &(static_cast<nsCompositionEvent*>(mEvent)->theReply);
     return NS_OK;

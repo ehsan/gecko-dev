@@ -1550,14 +1550,8 @@ nsIPresShell::GetVerifyReflowFlags()
 #endif
 }
 
-/* virtual */ void
-nsIPresShell::AddWeakFrameExternal(nsWeakFrame* aWeakFrame)
-{
-  AddWeakFrameInternal(aWeakFrame);
-}
-
 void
-nsIPresShell::AddWeakFrameInternal(nsWeakFrame* aWeakFrame)
+nsIPresShell::AddWeakFrame(nsWeakFrame* aWeakFrame)
 {
   if (aWeakFrame->GetFrame()) {
     aWeakFrame->GetFrame()->AddStateBits(NS_FRAME_EXTERNAL_REFERENCE);
@@ -1566,14 +1560,8 @@ nsIPresShell::AddWeakFrameInternal(nsWeakFrame* aWeakFrame)
   mWeakFrames = aWeakFrame;
 }
 
-/* virtual */ void
-nsIPresShell::RemoveWeakFrameExternal(nsWeakFrame* aWeakFrame)
-{
-  RemoveWeakFrameInternal(aWeakFrame);
-}
-
 void
-nsIPresShell::RemoveWeakFrameInternal(nsWeakFrame* aWeakFrame)
+nsIPresShell::RemoveWeakFrame(nsWeakFrame* aWeakFrame)
 {
   if (mWeakFrames == aWeakFrame) {
     mWeakFrames = aWeakFrame->GetPreviousWeakFrame();
