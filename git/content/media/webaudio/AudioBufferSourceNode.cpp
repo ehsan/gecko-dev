@@ -185,33 +185,32 @@ public:
   void CopyFromInputBufferWithResampling(AudioNodeStream* aStream,
                                          AudioChunk* aOutput,
                                          uint32_t aChannels,
-                                         uint32_t aOffsetWithinBlock,
-                                         uint32_t& aFramesWritten,
-                                         uint32_t aBufferOffset,
-                                         uint32_t aBufferMax) {
+                                         uintptr_t aSourceOffset,
+                                         uintptr_t aBufferOffset,
+                                         uint32_t aAvailableInInputBuffer,
+                                         uint32_t& aFramesWritten) {
     // TODO: adjust for mStop (see bug 913854 comment 9).
-    uint32_t availableInOutputBuffer = WEBAUDIO_BLOCK_SIZE - aOffsetWithinBlock;
+    uint32_t availableInOutputBuffer = WEBAUDIO_BLOCK_SIZE - aBufferOffset;
     SpeexResamplerState* resampler = Resampler(aStream, aChannels);
     MOZ_ASSERT(aChannels > 0);
 
-    if (aBufferOffset < aBufferMax) {
-      uint32_t availableInInputBuffer = aBufferMax - aBufferOffset;
+    if (aAvailableInInputBuffer) {
       // Limit the number of input samples copied and possibly
       // format-converted for resampling by estimating how many will be used.
       // This may be a little small when filling the resampler with initial
       // data, but we'll get called again and it will work out.
       uint32_t num, den;
       speex_resampler_get_ratio(resampler, &num, &den);
-      uint32_t inputLimit = std::min(availableInInputBuffer,
+      uint32_t inputLimit = std::min(aAvailableInInputBuffer,
                                      availableInOutputBuffer * den / num + 10);
       for (uint32_t i = 0; true; ) {
         uint32_t inSamples = inputLimit;
-        const float* inputData = mBuffer->GetData(i) + aBufferOffset;
+        const float* inputData = mBuffer->GetData(i) + aSourceOffset;
 
         uint32_t outSamples = availableInOutputBuffer;
         float* outputData =
           static_cast<float*>(const_cast<void*>(aOutput->mChannelData[i])) +
-          aOffsetWithinBlock;
+          aBufferOffset;
 
         WebAudioUtils::SpeexResamplerProcess(resampler, i,
                                              inputData, &inSamples,
@@ -220,7 +219,7 @@ public:
           mPosition += inSamples;
           MOZ_ASSERT(mPosition <= mDuration || mLoop);
           aFramesWritten = outSamples;
-          if (inSamples == availableInInputBuffer && !mLoop) {
+          if (inSamples == aAvailableInInputBuffer && !mLoop) {
             // If the available output space were unbounded then the input
             // latency would always be the correct amount of extra input to
             // provide in order to advance the output position to align with
@@ -243,7 +242,7 @@ public:
         uint32_t outSamples = availableInOutputBuffer;
         float* outputData =
           static_cast<float*>(const_cast<void*>(aOutput->mChannelData[i])) +
-          aOffsetWithinBlock;
+          aBufferOffset;
 
         // AudioDataValue* for aIn selects the function that does not try to
         // copy and format-convert input data.
@@ -313,7 +312,6 @@ public:
                                     aBufferMax - aBufferOffset),
                            mStop - *aCurrentPosition);
     if (numFrames == WEBAUDIO_BLOCK_SIZE && !ShouldResample(aStream->SampleRate())) {
-      MOZ_ASSERT(aBufferOffset < aBufferMax);
       BorrowFromInputBuffer(aOutput, aChannels, aBufferOffset);
       *aOffsetWithinBlock += numFrames;
       *aCurrentPosition += numFrames;
@@ -323,14 +321,16 @@ public:
         AllocateAudioBlock(aChannels, aOutput);
       }
       if (!ShouldResample(aStream->SampleRate())) {
-        MOZ_ASSERT(aBufferOffset < aBufferMax);
         CopyFromInputBuffer(aOutput, aChannels, aBufferOffset, *aOffsetWithinBlock, numFrames);
         *aOffsetWithinBlock += numFrames;
         *aCurrentPosition += numFrames;
         mPosition += numFrames;
       } else {
-        uint32_t framesWritten;
-        CopyFromInputBufferWithResampling(aStream, aOutput, aChannels, *aOffsetWithinBlock, framesWritten, aBufferOffset, aBufferMax);
+        uint32_t framesWritten, availableInInputBuffer;
+
+        availableInInputBuffer = aBufferMax - aBufferOffset;
+
+        CopyFromInputBufferWithResampling(aStream, aOutput, aChannels, aBufferOffset, *aOffsetWithinBlock, availableInInputBuffer, framesWritten);
         *aOffsetWithinBlock += framesWritten;
         *aCurrentPosition += framesWritten;
       }

@@ -839,7 +839,6 @@ const Class PropertyIteratorObject::class_ = {
     nullptr,                 /* hasInstance */
     nullptr,                 /* construct   */
     trace,
-    JS_NULL_CLASS_SPEC,
     {
         nullptr,             /* outerObject    */
         nullptr,             /* innerObject    */
@@ -1496,7 +1495,6 @@ const Class LegacyGeneratorObject::class_ = {
     nullptr,                 /* hasInstance */
     nullptr,                 /* construct   */
     TraceGenerator<LegacyGeneratorObject>,
-    JS_NULL_CLASS_SPEC,
     {
         nullptr,             /* outerObject    */
         nullptr,             /* innerObject    */
@@ -1519,7 +1517,6 @@ const Class StarGeneratorObject::class_ = {
     nullptr,                 /* hasInstance */
     nullptr,                 /* construct   */
     TraceGenerator<StarGeneratorObject>,
-    JS_NULL_CLASS_SPEC,
     {
         nullptr,             /* outerObject    */
         nullptr,             /* innerObject    */

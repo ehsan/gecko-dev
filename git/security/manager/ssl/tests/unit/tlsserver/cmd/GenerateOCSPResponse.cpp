@@ -55,7 +55,6 @@ const static OCSPResponseName kOCSPResponseNameList[] = {
   { "resp-unsigned",   ORTNeedsSig},       // the response needs a signature
   { "unauthorized",    ORTUnauthorized},   // the responder does not know about
                                            //   the cert
-  { "bad-signature",   ORTBadSignature},   // the response has a bad signature
 };
 
 

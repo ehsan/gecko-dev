@@ -221,10 +221,6 @@ this.DOMIdentity = {
     return this._serviceContexts.get(this._mmContexts.get(targetMM));
   },
 
-  hasContextForMM: function(targetMM) {
-    return this._mmContexts.has(targetMM);
-  },
-
   /*
    * Delete the RPWatchContext object for a given message manager.  Removes the
    * mapping both from _serviceContexts and _mmContexts.
@@ -348,10 +344,6 @@ this.DOMIdentity = {
   },
 
   _childProcessShutdown: function DOMIdentity__childProcessShutdown(targetMM) {
-    if (!this.hasContextForMM(targetMM)) {
-      return;
-    }
-
     this.getContextForMM(targetMM).RP.childProcessShutdown(targetMM);
     this.deleteContextForMM(targetMM);
 

@@ -42,7 +42,6 @@ const js::Class HasCustomIterClass = {
     nullptr, /* hasInstance */
     nullptr, /* construct */
     nullptr, /* mark */
-    JS_NULL_CLASS_SPEC,
     {
         nullptr,     /* outerObject */
         nullptr,     /* innerObject */

@@ -38,9 +38,9 @@ InnermostStaticScope(JSScript *script, jsbytecode *pc)
     JS_ASSERT(script->containsPC(pc));
     JS_ASSERT(JOF_OPTYPE(*pc) == JOF_SCOPECOORD);
 
-    NestedScopeObject *scope = script->getStaticScope(pc);
-    if (scope)
-        return scope;
+    StaticBlockObject *block = script->getBlockScope(pc);
+    if (block)
+        return block;
     return script->functionNonDelazifying();
 }
 
@@ -543,7 +543,6 @@ const Class WithObject::class_ = {
     nullptr,                 /* hasInstance */
     nullptr,                 /* construct   */
     nullptr,                 /* trace       */
-    JS_NULL_CLASS_SPEC,
     JS_NULL_CLASS_EXT,
     {
         with_LookupGeneric,
@@ -722,7 +721,7 @@ js::XDRStaticBlockObject(XDRState<mode> *xdr, HandleObject enclosingScope,
         obj = StaticBlockObject::create(cx);
         if (!obj)
             return false;
-        obj->initEnclosingNestedScope(enclosingScope);
+        obj->initEnclosingStaticScope(enclosingScope);
         *objp = obj;
     }
 
@@ -807,8 +806,8 @@ js::XDRStaticBlockObject(XDRState<XDR_ENCODE> *, HandleObject, StaticBlockObject
 template bool
 js::XDRStaticBlockObject(XDRState<XDR_DECODE> *, HandleObject, StaticBlockObject **);
 
-static JSObject *
-CloneStaticBlockObject(JSContext *cx, HandleObject enclosingScope, Handle<StaticBlockObject*> srcBlock)
+JSObject *
+js::CloneStaticBlockObject(JSContext *cx, HandleObject enclosingScope, Handle<StaticBlockObject*> srcBlock)
 {
     /* NB: Keep this in sync with XDRStaticBlockObject. */
 
@@ -816,7 +815,7 @@ CloneStaticBlockObject(JSContext *cx, HandleObject enclosingScope, Handle<Static
     if (!clone)
         return nullptr;
 
-    clone->initEnclosingNestedScope(enclosingScope);
+    clone->initEnclosingStaticScope(enclosingScope);
     clone->setStackDepth(srcBlock->stackDepth());
 
     /* Shape::Range is reverse order, so build a list in forward order. */
@@ -842,14 +841,6 @@ CloneStaticBlockObject(JSContext *cx, HandleObject enclosingScope, Handle<Static
     return clone;
 }
 
-JSObject *
-js::CloneNestedScopeObject(JSContext *cx, HandleObject enclosingScope, Handle<NestedScopeObject*> srcBlock)
-{
-    JS_ASSERT(srcBlock->is<StaticBlockObject>());
-    Rooted<StaticBlockObject *> blockObj(cx, &srcBlock->as<StaticBlockObject>());
-    return CloneStaticBlockObject(cx, enclosingScope, blockObj);
-}
-
 /*****************************************************************************/
 
 // Any name atom for a function which will be added as a DeclEnv object to the
@@ -865,7 +856,7 @@ ScopeIter::ScopeIter(const ScopeIter &si, JSContext *cx
   : cx(cx),
     frame_(si.frame_),
     cur_(cx, si.cur_),
-    staticScope_(cx, si.staticScope_),
+    block_(cx, si.block_),
     type_(si.type_),
     hasScopeObject_(si.hasScopeObject_)
 {
@@ -877,7 +868,7 @@ ScopeIter::ScopeIter(JSObject &enclosingScope, JSContext *cx
   : cx(cx),
     frame_(NullFramePtr()),
     cur_(cx, &enclosingScope),
-    staticScope_(cx, nullptr),
+    block_(cx, nullptr),
     type_(Type(-1))
 {
     MOZ_GUARD_OBJECT_NOTIFIER_INIT;
@@ -888,7 +879,7 @@ ScopeIter::ScopeIter(AbstractFramePtr frame, jsbytecode *pc, JSContext *cx
   : cx(cx),
     frame_(frame),
     cur_(cx, frame.scopeChain()),
-    staticScope_(cx, frame.script()->getStaticScope(pc))
+    block_(cx, frame.script()->getBlockScope(pc))
 {
     assertSameCompartment(cx, frame);
     settle();
@@ -900,7 +891,7 @@ ScopeIter::ScopeIter(const ScopeIterVal &val, JSContext *cx
   : cx(cx),
     frame_(val.frame_),
     cur_(cx, val.cur_),
-    staticScope_(cx, val.staticScope_),
+    block_(cx, val.block_),
     type_(val.type_),
     hasScopeObject_(val.hasScopeObject_)
 {
@@ -929,7 +920,7 @@ ScopeIter::operator++()
         frame_ = NullFramePtr();
         break;
       case Block:
-        staticScope_ = staticScope_->as<StaticBlockObject>().enclosingBlock();
+        block_ = block_->enclosingBlock();
         if (hasScopeObject_)
             cur_ = &cur_->as<ClonedBlockObject>().enclosingScope();
         settle();
@@ -952,7 +943,7 @@ void
 ScopeIter::settle()
 {
     /*
-     * Given an iterator state (cur_, staticScope_), figure out which (potentially
+     * Given an iterator state (cur_, block_), figure out which (potentially
      * optimized) scope the iterator should report. Thus, the result is a pair
      * (type_, hasScopeObject_) where hasScopeObject_ indicates whether the
      * scope object has been optimized away and does not exist on the scope
@@ -975,18 +966,16 @@ ScopeIter::settle()
      * show up in scope iteration and fall into the final non-scope case.
      */
     if (frame_.isNonEvalFunctionFrame() && !frame_.fun()->isHeavyweight()) {
-        if (staticScope_) {
-            JS_ASSERT(staticScope_->is<StaticBlockObject>());
+        if (block_) {
             type_ = Block;
-            hasScopeObject_ = staticScope_->as<StaticBlockObject>().needsClone();
+            hasScopeObject_ = block_->needsClone();
         } else {
             type_ = Call;
             hasScopeObject_ = false;
         }
     } else if (frame_.isNonStrictDirectEvalFrame() && cur_ == frame_.evalPrevScopeChain(cx)) {
-        if (staticScope_) {
-            JS_ASSERT(staticScope_->is<StaticBlockObject>());
-            JS_ASSERT(!staticScope_->as<StaticBlockObject>().needsClone());
+        if (block_) {
+            JS_ASSERT(!block_->needsClone());
             type_ = Block;
             hasScopeObject_ = false;
         } else {
@@ -1000,16 +989,14 @@ ScopeIter::settle()
         frame_ = NullFramePtr();
     } else if (cur_->is<WithObject>()) {
         JS_ASSERT_IF(frame_.isFunctionFrame(), frame_.fun()->isHeavyweight());
-        JS_ASSERT_IF(staticScope_, staticScope_->as<StaticBlockObject>().needsClone());
-        JS_ASSERT_IF(staticScope_,
-                     staticScope_->as<StaticBlockObject>().stackDepth() <
-                     cur_->as<WithObject>().stackDepth());
+        JS_ASSERT_IF(block_, block_->needsClone());
+        JS_ASSERT_IF(block_, block_->stackDepth() < cur_->as<WithObject>().stackDepth());
         type_ = With;
         hasScopeObject_ = true;
-    } else if (staticScope_) {
+    } else if (block_) {
         type_ = Block;
-        hasScopeObject_ = staticScope_->as<StaticBlockObject>().needsClone();
-        JS_ASSERT_IF(hasScopeObject_, cur_->as<ClonedBlockObject>().staticBlock() == *staticScope_);
+        hasScopeObject_ = block_->needsClone();
+        JS_ASSERT_IF(hasScopeObject_, cur_->as<ClonedBlockObject>().staticBlock() == *block_);
     } else if (cur_->is<CallObject>()) {
         CallObject &callobj = cur_->as<CallObject>();
         type_ = callobj.isForEval() ? StrictEvalScope : Call;
@@ -1026,7 +1013,7 @@ ScopeIter::settle()
 ScopeIterKey::hash(ScopeIterKey si)
 {
     /* hasScopeObject_ is determined by the other fields. */
-    return size_t(si.frame_.raw()) ^ size_t(si.cur_) ^ size_t(si.staticScope_) ^ si.type_;
+    return size_t(si.frame_.raw()) ^ size_t(si.cur_) ^ size_t(si.block_) ^ si.type_;
 }
 
 /* static */ bool
@@ -1036,7 +1023,7 @@ ScopeIterKey::match(ScopeIterKey si1, ScopeIterKey si2)
     return si1.frame_ == si2.frame_ &&
            (!si1.frame_ ||
             (si1.cur_   == si2.cur_   &&
-             si1.staticScope_ == si2.staticScope_ &&
+             si1.block_ == si2.block_ &&
              si1.type_  == si2.type_));
 }
 
@@ -1050,8 +1037,8 @@ void ScopeIterVal::staticAsserts() {
                   "ScopeIterVal must be same size of ScopeIterKey");
     static_assert(offsetof(ScopeIterVal, cur_) == offsetof(ScopeIterKey, cur_),
                   "ScopeIterVal.cur_ must alias ScopeIterKey.cur_");
-    static_assert(offsetof(ScopeIterVal, staticScope_) == offsetof(ScopeIterKey, staticScope_),
-                  "ScopeIterVal.staticScope_ must alias ScopeIterKey.staticScope_");
+    static_assert(offsetof(ScopeIterVal, block_) == offsetof(ScopeIterKey, block_),
+                  "ScopeIterVal.block_ must alias ScopeIterKey.block_");
 }
 
 /*****************************************************************************/
@@ -1684,13 +1671,13 @@ DebugScopes::checkHashTablesAfterMovingGC(JSRuntime *runtime)
     }
     for (MissingScopeMap::Range r = missingScopes.all(); !r.empty(); r.popFront()) {
         JS_ASSERT(!IsInsideNursery(rt, r.front().key().cur()));
-        JS_ASSERT(!IsInsideNursery(rt, r.front().key().staticScope()));
+        JS_ASSERT(!IsInsideNursery(rt, r.front().key().block()));
         JS_ASSERT(!IsInsideNursery(rt, r.front().value().get()));
     }
     for (LiveScopeMap::Range r = liveScopes.all(); !r.empty(); r.popFront()) {
         JS_ASSERT(!IsInsideNursery(rt, r.front().key()));
         JS_ASSERT(!IsInsideNursery(rt, r.front().value().cur_.get()));
-        JS_ASSERT(!IsInsideNursery(rt, r.front().value().staticScope_.get()));
+        JS_ASSERT(!IsInsideNursery(rt, r.front().value().block_.get()));
     }
 }
 #endif

@@ -924,7 +924,7 @@ PopBlockScope(JSContext *cx, BaselineFrame *frame)
 bool
 DebugLeaveBlock(JSContext *cx, BaselineFrame *frame, jsbytecode *pc)
 {
-    JS_ASSERT(frame->script()->baselineScript()->debugMode());
+    JS_ASSERT(cx->compartment()->debugMode());
 
     DebugScopes::onPopBlock(cx, frame, pc);
 
@@ -937,14 +937,10 @@ InitBaselineFrameForOsr(BaselineFrame *frame, StackFrame *interpFrame, uint32_t 
     return frame->initForOsr(interpFrame, numStackValues);
 }
 
-JSObject *CreateDerivedTypedObj(JSContext *cx, HandleObject descr,
+JSObject *CreateDerivedTypedObj(JSContext *cx, HandleObject type,
                                 HandleObject owner, int32_t offset)
 {
-    JS_ASSERT(descr->is<SizedTypeDescr>());
-    JS_ASSERT(owner->is<TypedDatum>());
-    Rooted<SizedTypeDescr*> descr1(cx, &descr->as<SizedTypeDescr>());
-    Rooted<TypedDatum*> owner1(cx, &owner->as<TypedDatum>());
-    return TypedObject::createDerived(cx, descr1, owner1, offset);
+    return TypedObject::createDerived(cx, type, owner, offset);
 }
 
 JSString *
