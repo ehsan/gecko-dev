@@ -17,6 +17,7 @@
 #include <android/log.h>
 #include <fcntl.h>
 #include <sysutils/NetlinkEvent.h>
+#include <cutils/properties.h>
 
 #include "base/message_loop.h"
 
@@ -239,9 +240,7 @@ class SwitchEventObserver MOZ_FINAL : public IUeventObserver
 
 public:
   NS_INLINE_DECL_REFCOUNTING(SwitchEventObserver)
-  SwitchEventObserver()
-    : mEnableCount(0),
-    mHeadphonesFromInputDev(false)
+  SwitchEventObserver() : mEnableCount(0)
   {
     Init();
   }
@@ -310,12 +309,6 @@ public:
       NS_DispatchToMainThread(new SwitchEventRunnable(info.mEvent));
     }
   }
-
-  bool GetHeadphonesFromInputDev()
-  {
-    return mHeadphonesFromInputDev;
-  }
-
 private:
   class EventInfo
   {
@@ -332,18 +325,15 @@ private:
   EventInfo mEventInfo[NUM_SWITCH_DEVICE];
   size_t mEnableCount;
   SwitchHandlerArray mHandler;
-  bool mHeadphonesFromInputDev;
 
   void Init()
   {
-    RefPtr<SwitchHandlerHeadphone> switchHeadPhone =
-      new SwitchHandlerHeadphone(SWITCH_HEADSET_DEVPATH);
+    char value[PROPERTY_VALUE_MAX];
+    property_get("ro.moz.devinputjack", value, "0");
+    bool headphonesFromInputDev = !strcmp(value, "1");
 
-    // If the initial state is unknown, it means the headphone event is from input dev
-    mHeadphonesFromInputDev = switchHeadPhone->GetState() == SWITCH_STATE_UNKNOWN ? true : false;
-
-    if (!mHeadphonesFromInputDev) {
-      mHandler.AppendElement(switchHeadPhone);
+    if (!headphonesFromInputDev) {
+      mHandler.AppendElement(new SwitchHandlerHeadphone(SWITCH_HEADSET_DEVPATH));
     } else {
       // If headphone status will be notified from input dev then initialize
       // status to "off" and wait for event notification.
@@ -468,12 +458,5 @@ void NotifySwitchStateFromInputDevice(SwitchDevice aDevice, SwitchState aState)
       FROM_HERE,
       NewRunnableFunction(NotifySwitchStateIOThread, aDevice, aState));
 }
-
-bool IsHeadphoneEventFromInputDev()
-{
-  InitializeResourceIfNeed();
-  return sSwitchObserver->GetHeadphonesFromInputDev();
-}
-
 } // hal_impl
 } //mozilla

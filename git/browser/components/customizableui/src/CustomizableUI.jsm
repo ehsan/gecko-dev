@@ -782,7 +782,7 @@ let CustomizableUIInternal = {
       }
 
       if (!widgetNode || !container.contains(widgetNode)) {
-        INFO("Widget " + aWidgetId + " not found, unable to remove from " + aArea);
+        INFO("Widget not found, unable to remove");
         continue;
       }
 
