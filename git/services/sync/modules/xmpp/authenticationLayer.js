@@ -1,10 +1,8 @@
 const EXPORTED_SYMBOLS = [ "PlainAuthenticator", "Md5DigestAuthenticator" ];
 
-var Cc = Components.classes;
-var Ci = Components.interfaces;
-var Cu = Components.utils;
-
-Cu.import("resource://weave/log4moz.js");
+function LOG(aMsg) {
+  dump("Weave::AuthenticationLayer: " + aMsg + "\n");
+}
 
 if (typeof(atob) == 'undefined') {
   // This code was written by Tyler Akins and has been placed in the
@@ -369,6 +367,7 @@ PlainAuthenticator.prototype = {
       this._jid = jidNodes[0].firstChild.nodeValue;
       // TODO: Does the client need to do anything special with its new
       // "client@host.com/resourceID"  full JID?
+      LOG( "JID set to " + this._jid );
 
       // If we still need to do session, then we're not done yet:
       if ( this._needSession ) {
