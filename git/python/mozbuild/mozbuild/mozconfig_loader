@@ -36,11 +36,7 @@ echo "------BEGIN_BEFORE_SOURCE"
 set
 echo "------END_BEFORE_SOURCE"
 
-topsrcdir=$1
-
-. $2
-
-unset topsrcdir
+. $1
 
 echo "------BEGIN_AFTER_SOURCE"
 set
