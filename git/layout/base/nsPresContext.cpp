@@ -385,10 +385,6 @@ static const char* const kGenericFont[] = {
   ".fantasy."
 };
 
-// whether no native theme service exists;
-// if this gets set to true, we'll stop asking for it.
-static PRBool sNoTheme = PR_FALSE;
-
 // Set to true when LookAndFeelChanged needs to be called.  This is used
 // because the look and feel is a service, so there's no need to notify it from
 // more than one prescontext.
@@ -1391,10 +1387,10 @@ nsPresContext::GetBidi() const
 nsITheme*
 nsPresContext::GetTheme()
 {
-  if (!sNoTheme && !mTheme) {
+  if (!mNoTheme && !mTheme) {
     mTheme = do_GetService("@mozilla.org/chrome/chrome-native-theme;1");
     if (!mTheme)
-      sNoTheme = PR_TRUE;
+      mNoTheme = PR_TRUE;
   }
 
   return mTheme;
