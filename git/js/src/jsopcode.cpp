@@ -2715,8 +2715,9 @@ Decompile(SprintStack *ss, jsbytecode *pc, int nb)
              */
             uint32_t format = cs->format;
             bool matchPC = false;
-            if (StackFrame *fp = js_GetScriptedCaller(cx, NULL)) {
-                jsbytecode *npc = fp->pcQuadratic(cx);
+            FrameRegsIter iter(cx);
+            if (!iter.done()) {
+                jsbytecode *npc = iter.pc();
                 if (pc == npc) {
                     matchPC = true;
                 } else if (format & JOF_DECOMPOSE) {
@@ -5675,7 +5676,8 @@ js_DecompileValueGenerator(JSContext *cx, int spindex, jsval v,
         goto do_fallback;
 
     fp = js_GetTopStackFrame(cx, FRAME_EXPAND_ALL);
-    script = cx->stack.currentScript(&pc);
+    script = fp->script();
+    pc = cx->regs().pc;
     JS_ASSERT(script->code <= pc && pc < script->code + script->length);
 
     if (pc < script->main())
