@@ -111,8 +111,8 @@ public:
   bool operator==(const nsOverflowAreas& aOther) const {
     // Scrollable overflow is a point-set rectangle and visual overflow
     // is a pixel-set rectangle.
-    return VisualOverflow().IsEqualInterior(aOther.VisualOverflow()) &&
-           ScrollableOverflow().IsEqualEdges(aOther.ScrollableOverflow());
+    return VisualOverflow() == aOther.VisualOverflow() &&
+           ScrollableOverflow().IsExactEqual(aOther.ScrollableOverflow());
   }
 
   bool operator!=(const nsOverflowAreas& aOther) const {

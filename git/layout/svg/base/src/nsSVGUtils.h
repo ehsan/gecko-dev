@@ -72,6 +72,7 @@ class gfxASurface;
 class gfxPattern;
 class gfxImageSurface;
 struct gfxSize;
+struct gfxIntSize;
 struct nsStyleFont;
 class nsSVGEnum;
 class nsISVGChildFrame;

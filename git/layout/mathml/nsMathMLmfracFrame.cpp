@@ -613,7 +613,7 @@ void nsDisplayMathMLSlash::Paint(nsDisplayListBuilder* aBuilder,
  
   // draw the slash as a parallelogram 
   gfxContext *gfxCtx = aCtx->ThebesContext();
-  gfxPoint delta = gfxPoint(presContext->AppUnitsToGfxUnits(mThickness), 0);
+  gfxSize delta = gfxSize(presContext->AppUnitsToGfxUnits(mThickness), 0);
   gfxCtx->NewPath();
   gfxCtx->MoveTo(rect.BottomLeft());
   gfxCtx->LineTo(rect.BottomLeft() + delta);

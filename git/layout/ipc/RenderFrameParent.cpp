@@ -488,8 +488,8 @@ BuildBackgroundPatternFor(ContainerLayer* aContainer,
   gfxRect localContentVis(t.Transform(contentVis));
   // Round *in* here because this area is punched out of the background
   localContentVis.RoundIn();
-  nsIntRect localIntContentVis(localContentVis.X(), localContentVis.Y(),
-                               localContentVis.Width(), localContentVis.Height());
+  nsIntRect localIntContentVis(localContentVis.pos.x, localContentVis.pos.y,
+                               localContentVis.size.width, localContentVis.size.height);
 
   // Get the frame's rect
   nscoord auPerDevPixel = aFrame->PresContext()->AppUnitsPerDevPixel();

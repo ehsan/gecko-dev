@@ -2584,7 +2584,7 @@ nsComputedDOMStyle::DoGetBorderImage()
     NS_FOR_CSS_SIDES(side) {
       nsROCSSPrimitiveValue *borderWidth = GetROCSSPrimitiveValue();
       valueList->AppendCSSValue(borderWidth);
-      nscoord width = GetStyleBorder()->mBorderImageWidth.Side(side);
+      nscoord width = GetStyleBorder()->mBorderImageWidth.side(side);
       borderWidth->SetAppUnits(width);
     }
   }
@@ -3114,7 +3114,7 @@ nsComputedDOMStyle::GetPaddingWidthFor(mozilla::css::Side aSide)
   } else {
     AssertFlushedPendingReflows();
 
-    val->SetAppUnits(mInnerFrame->GetUsedPadding().Side(aSide));
+    val->SetAppUnits(mInnerFrame->GetUsedPadding().side(aSide));
   }
 
   return val;
@@ -3187,7 +3187,7 @@ nsComputedDOMStyle::GetBorderWidthFor(mozilla::css::Side aSide)
   nscoord width;
   if (mInnerFrame) {
     AssertFlushedPendingReflows();
-    width = mInnerFrame->GetUsedBorder().Side(aSide);
+    width = mInnerFrame->GetUsedBorder().side(aSide);
   } else {
     width = GetStyleBorder()->GetActualBorderWidth(aSide);
   }
@@ -3222,7 +3222,7 @@ nsComputedDOMStyle::GetMarginWidthFor(mozilla::css::Side aSide)
   } else {
     AssertFlushedPendingReflows();
 
-    val->SetAppUnits(mInnerFrame->GetUsedMargin().Side(aSide));
+    val->SetAppUnits(mInnerFrame->GetUsedMargin().side(aSide));
   }
 
   return val;

@@ -310,7 +310,7 @@ nsHyperTextAccessible::GetPosAndText(PRInt32& aStartOffset, PRInt32& aEndOffset,
     *aEndFrame = nsnull;
   }
   if (aBoundsRect) {
-    aBoundsRect->SetEmpty();
+    aBoundsRect->Empty();
   }
   if (aStartAcc)
     *aStartAcc = nsnull;

@@ -3296,15 +3296,16 @@ const BrowserSearch = {
         win.BrowserSearch.webSearch();
       } else {
         // If there are no open browser windows, open a new one
-        function observer(subject, topic, data) {
-          if (subject == win) {
-            BrowserSearch.webSearch();
-            Services.obs.removeObserver(observer, "browser-delayed-startup-finished");
-          }
+
+        // This needs to be in a timeout so that we don't end up refocused
+        // in the url bar
+        function webSearchCallback() {
+          setTimeout(BrowserSearch.webSearch, 0);
         }
+
         win = window.openDialog("chrome://browser/content/", "_blank",
                                 "chrome,all,dialog=no", "about:blank");
-        Services.obs.addObserver(observer, "browser-delayed-startup-finished", false); 
+        win.addEventListener("load", webSearchCallback, false);
       }
       return;
     }

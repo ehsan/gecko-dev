@@ -3170,6 +3170,7 @@ NS_IMETHODIMP XPCWrappedNative::GetJSObjectPrototype(JSObject * *aJSObjectProtot
     return NS_OK;
 }
 
+#ifndef XPCONNECT_STANDALONE
 nsIPrincipal*
 XPCWrappedNative::GetObjectPrincipal() const
 {
@@ -3181,6 +3182,7 @@ XPCWrappedNative::GetObjectPrincipal() const
 #endif
     return principal;
 }
+#endif
 
 /* readonly attribute nsIXPConnect XPConnect; */
 NS_IMETHODIMP XPCWrappedNative::GetXPConnect(nsIXPConnect * *aXPConnect)

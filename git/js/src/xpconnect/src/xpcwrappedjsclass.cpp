@@ -582,6 +582,7 @@ GetContextFromObject(JSObject *obj)
     return nsnull;
 }
 
+#ifndef XPCONNECT_STANDALONE
 class SameOriginCheckedComponent : public nsISecurityCheckedComponent
 {
 public:
@@ -639,6 +640,8 @@ SameOriginCheckedComponent::CanSetProperty(const nsIID * iid,
     *_retval = NS_strdup("sameOrigin");
     return *_retval ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
+
+#endif
 
 NS_IMETHODIMP
 nsXPCWrappedJSClass::DelegatedQueryInterface(nsXPCWrappedJS* self,
@@ -741,6 +744,7 @@ nsXPCWrappedJSClass::DelegatedQueryInterface(nsXPCWrappedJS* self,
 
     // else we do the more expensive stuff...
 
+#ifndef XPCONNECT_STANDALONE
     // Before calling out, ensure that we're not about to claim to implement
     // nsISecurityCheckedComponent for an untrusted object. Doing so causes
     // problems. See bug 352882.
@@ -791,6 +795,7 @@ nsXPCWrappedJSClass::DelegatedQueryInterface(nsXPCWrappedJS* self,
             return NS_OK;
         }
     }
+#endif
 
     // check if the JSObject claims to implement this interface
     JSObject* jsobj = CallQueryInterfaceOnJSObject(ccx, self->GetJSObject(),

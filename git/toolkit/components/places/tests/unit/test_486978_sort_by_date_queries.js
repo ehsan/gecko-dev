@@ -58,10 +58,12 @@ function add_visit(aURI, aTime) {
   return visitId;
 }
 
+var gTests = [];
+
 /**
  * Tests that sorting date query by none will sort by title asc.
  */
-add_test(function() {
+gTests.push(function() {
   var options = hs.getNewQueryOptions();
   options.resultType = options.RESULTS_AS_DATE_QUERY;
   // This should sort by title asc.
@@ -87,7 +89,7 @@ add_test(function() {
 /**
  * Tests that sorting date query by date will sort accordingly.
  */
-add_test(function() {
+gTests.push(function() {
   var options = hs.getNewQueryOptions();
   options.resultType = options.RESULTS_AS_DATE_QUERY;
   // This should sort by title asc.
@@ -113,7 +115,7 @@ add_test(function() {
 /**
  * Tests that sorting date site query by date will still sort by title asc.
  */
-add_test(function() {
+gTests.push(function() {
   var options = hs.getNewQueryOptions();
   options.resultType = options.RESULTS_AS_DATE_SITE_QUERY;
   // This should sort by title asc.

@@ -1094,7 +1094,7 @@ nsCaret::UpdateCaretRects(nsIFrame* aFrame, PRInt32 aFrameOffset)
     mCaretRect.x -= mCaretRect.width;
 
 #ifdef IBMBIDI
-  mHookRect.SetEmpty();
+  mHookRect.Empty();
 
   // Simon -- make a hook to draw to the left or right of the caret to show keyboard language direction
   PRBool isCaretRTL = PR_FALSE;

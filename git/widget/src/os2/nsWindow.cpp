@@ -1045,7 +1045,7 @@ void nsWindow::SetPluginClipRegion(const Configuration& aConfiguration)
 
   // If nothing has changed, exit.
   if (!StoreWindowClipRegion(aConfiguration.mClipRegion) &&
-      mBounds.IsEqualInterior(aConfiguration.mBounds)) {
+      mBounds == aConfiguration.mBounds) {
     return;
   }
 
