@@ -30,7 +30,6 @@
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "nsContentUtils.h"
 #include "nsHostObjectProtocolHandler.h"
-#include <algorithm>
 
 #ifdef PR_LOGGING
 PRLogModuleInfo* gMediaResourceLog;
@@ -1309,7 +1308,7 @@ public:
     MutexAutoLock lock(mLock);
 
     EnsureSizeInitialized();
-    return std::max(aOffset, mSize);
+    return NS_MAX(aOffset, mSize);
   }
   virtual bool    IsDataCachedToEndOfResource(int64_t aOffset) { return true; }
   virtual bool    IsSuspendedByCache(MediaResource** aActiveResource)

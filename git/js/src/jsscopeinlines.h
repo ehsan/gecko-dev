@@ -496,33 +496,19 @@ BaseShape::markChildren(JSTracer *trc)
 /*
  * Property lookup hooks on objects are required to return a non-NULL shape to
  * signify that the property has been found. For cases where the property is
- * not actually represented by a Shape, use a dummy value. This includes all
- * properties of non-native objects, and dense elements for native objects.
- * Use separate APIs for these two cases.
+ * not actually represented by a Shape (dense elements, properties of
+ * non-native objects), use a dummy value.
  */
-
 static inline void
-MarkNonNativePropertyFound(MutableHandleShape propp)
-{
-    propp.set(reinterpret_cast<Shape*>(1));
-}
-
-static inline void
-MarkDenseElementFound(MutableHandleShape propp)
+MarkImplicitPropertyFound(MutableHandleShape propp)
 {
     propp.set(reinterpret_cast<Shape*>(1));
 }
 
 static inline bool
-IsImplicitDenseElement(HandleShape prop)
+IsImplicitProperty(HandleShape prop)
 {
     return prop.get() == reinterpret_cast<Shape*>(1);
-}
-
-static inline uint8_t
-GetShapeAttributes(HandleShape shape)
-{
-    return IsImplicitDenseElement(shape) ? JSPROP_ENUMERATE : shape->attributes();
 }
 
 } /* namespace js */

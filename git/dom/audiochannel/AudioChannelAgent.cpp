@@ -20,9 +20,6 @@ AudioChannelAgent::AudioChannelAgent()
 
 AudioChannelAgent::~AudioChannelAgent()
 {
-  if (mIsRegToService) {
-    StopPlaying();
-  }
 }
 
 /* readonly attribute long audioChannelType; */
@@ -69,7 +66,7 @@ NS_IMETHODIMP AudioChannelAgent::StartPlaying(bool *_retval)
 {
   AudioChannelService *service = AudioChannelService::GetAudioChannelService();
   if (mAudioChannelType == AUDIO_AGENT_CHANNEL_ERROR ||
-      service == nullptr || mIsRegToService) {
+      service == nullptr) {
     return NS_ERROR_FAILURE;
   }
 
@@ -84,7 +81,7 @@ NS_IMETHODIMP AudioChannelAgent::StartPlaying(bool *_retval)
 NS_IMETHODIMP AudioChannelAgent::StopPlaying(void)
 {
   if (mAudioChannelType == AUDIO_AGENT_CHANNEL_ERROR ||
-      !mIsRegToService) {
+      mIsRegToService == false) {
     return NS_ERROR_FAILURE;
   }
 

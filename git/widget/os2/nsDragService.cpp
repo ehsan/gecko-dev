@@ -22,7 +22,6 @@
 #include "nsIDocument.h"
 #include "nsGUIEvent.h"
 #include "nsISelection.h"
-#include <algorithm>
 
 // --------------------------------------------------------------------------
 // Local defines
@@ -625,7 +624,7 @@ nsresult  nsDragService::GetUrlAndTitle(nsISupports *aGenericData,
 
   if (++lineIndex && lineIndex != (int)strData.Length() &&
       !strUrl.Equals(Substring(strData, lineIndex, strData.Length()))) {
-    uint32_t strLth = std::min((int)strData.Length()-lineIndex, MAXTITLELTH);
+    uint32_t strLth = NS_MIN((int)strData.Length()-lineIndex, MAXTITLELTH);
     nsAutoString strTitle;
     strData.Mid(strTitle, lineIndex, strLth);
     if (!UnicodeToCodepage(strTitle, aTargetName))

@@ -14,7 +14,6 @@
 
 #include "nsILineIterator.h"
 #include "nsIFrame.h"
-#include <algorithm>
 
 class nsLineBox;
 class nsFloatCache;
@@ -347,8 +346,8 @@ private:
     mFrames = new nsTHashtable< nsPtrHashKey<nsIFrame> >();
     mFlags.mHasHashedFrames = 1;
     uint32_t minSize =
-      std::max(kMinChildCountForHashtable, uint32_t(PL_DHASH_MIN_SIZE));
-    mFrames->Init(std::max(count, minSize));
+      NS_MAX(kMinChildCountForHashtable, uint32_t(PL_DHASH_MIN_SIZE));
+    mFrames->Init(NS_MAX(count, minSize));
     for (nsIFrame* f = mFirstChild; count-- > 0; f = f->GetNextSibling()) {
       mFrames->PutEntry(f);
     }

@@ -9,13 +9,10 @@
 #include "cairo-xlib.h"
 #include "cairo-xlib-xrender.h"
 #include <X11/Xlibint.h>	/* For XESetCloseDisplay */
-#undef max // Xlibint.h defines this and it breaks std::max
-#undef min // Xlibint.h defines this and it breaks std::min
 
 #include "nsTArray.h"
 #include "nsAlgorithm.h"
 #include "mozilla/Preferences.h"
-#include <algorithm>
 
 using namespace mozilla;
 
@@ -110,7 +107,7 @@ CreatePixmap(Screen *screen, const gfxIntSize& size, unsigned int depth,
     // X gives us a fatal error if we try to create a pixmap of width
     // or height 0
     return XCreatePixmap(dpy, relatedDrawable,
-                         std::max(1, size.width), std::max(1, size.height),
+                         NS_MAX(1, size.width), NS_MAX(1, size.height),
                          depth);
 }
 

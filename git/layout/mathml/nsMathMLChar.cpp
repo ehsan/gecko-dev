@@ -32,7 +32,6 @@
 #include "nsMathMLChar.h"
 #include <cstdlib> // for std::abs(int/long)
 #include <cmath> // for std::abs(float/double)
-#include <algorithm>
 
 using namespace mozilla;
 
@@ -754,7 +753,7 @@ IsSizeOK(nsPresContext* aPresContext, nscoord a, nscoord b, uint32_t aHint)
   // i.e. within 10% and within 5pt
   bool isNearer = false;
   if (aHint & (NS_STRETCH_NEARER | NS_STRETCH_LARGEOP)) {
-    float c = std::max(float(b) * NS_MATHML_DELIMITER_FACTOR,
+    float c = NS_MAX(float(b) * NS_MATHML_DELIMITER_FACTOR,
                      float(b) - nsPresContext::
                      CSSPointsToAppUnits(NS_MATHML_DELIMITER_SHORTFALL_POINTS));
     isNearer = bool(float(std::abs(b - a)) <= (float(b) - c));
@@ -1591,7 +1590,7 @@ nsMathMLChar::GetMaxWidth(nsPresContext* aPresContext,
   StretchInternal(aPresContext, aRenderingContext, direction, container,
                   bm, aStretchHint | NS_STRETCH_MAXWIDTH);
 
-  return std::max(bm.width, bm.rightBearing) - std::min(0, bm.leftBearing);
+  return NS_MAX(bm.width, bm.rightBearing) - NS_MIN(0, bm.leftBearing);
 }
 
 class nsDisplayMathMLSelectionRect : public nsDisplayItem {
@@ -2106,11 +2105,11 @@ nsMathMLChar::PaintVertically(nsPresContext*      aPresContext,
 
     for (i = 0; i < bottom; ++i) {
       // Make sure not to draw outside the character
-      nscoord dy = std::max(end[i], aRect.y);
-      nscoord fillEnd = std::min(start[i+1], aRect.YMost());
+      nscoord dy = NS_MAX(end[i], aRect.y);
+      nscoord fillEnd = NS_MIN(start[i+1], aRect.YMost());
       while (dy < fillEnd) {
         clipRect.y = dy;
-        clipRect.height = std::min(bm.ascent + bm.descent, fillEnd - dy);
+        clipRect.height = NS_MIN(bm.ascent + bm.descent, fillEnd - dy);
         AutoPushClipRect clip(aRenderingContext, clipRect);
         dy += bm.ascent;
         aRenderingContext.DrawString(chGlue.code, chGlue.Length(), dx, dy);
@@ -2308,11 +2307,11 @@ nsMathMLChar::PaintHorizontally(nsPresContext*      aPresContext,
 
     for (i = 0; i < right; ++i) {
       // Make sure not to draw outside the character
-      nscoord dx = std::max(end[i], aRect.x);
-      nscoord fillEnd = std::min(start[i+1], aRect.XMost());
+      nscoord dx = NS_MAX(end[i], aRect.x);
+      nscoord fillEnd = NS_MIN(start[i+1], aRect.XMost());
       while (dx < fillEnd) {
         clipRect.x = dx;
-        clipRect.width = std::min(bm.rightBearing - bm.leftBearing, fillEnd - dx);
+        clipRect.width = NS_MIN(bm.rightBearing - bm.leftBearing, fillEnd - dx);
         AutoPushClipRect clip(aRenderingContext, clipRect);
         dx -= bm.leftBearing;
         aRenderingContext.DrawString(chGlue.code, chGlue.Length(), dx, dy);

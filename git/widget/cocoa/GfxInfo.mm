@@ -12,7 +12,6 @@
 #include "nsUnicharUtils.h"
 #include "nsCocoaFeatures.h"
 #include "mozilla/Preferences.h"
-#include <algorithm>
 
 #import <Foundation/Foundation.h>
 #import <IOKit/IOKitLib.h>
@@ -117,7 +116,7 @@ GfxInfo::Init()
   if (CGLQueryRendererInfo(0xffffffff, &renderer, &rendererCount) != kCGLNoError)
     return rv;
 
-  rendererCount = (GLint) std::min(rendererCount, (GLint) ArrayLength(mRendererIDs));
+  rendererCount = (GLint) NS_MIN(rendererCount, (GLint) ArrayLength(mRendererIDs));
   for (GLint i = 0; i < rendererCount; i++) {
     GLint prop = 0;
 

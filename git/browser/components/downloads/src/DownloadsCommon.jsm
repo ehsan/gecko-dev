@@ -57,8 +57,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
                                   "resource://gre/modules/PrivateBrowsingUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "RecentWindow",
                                   "resource:///modules/RecentWindow.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
-                                  "resource://gre/modules/PlacesUtils.jsm");
 
 const nsIDM = Ci.nsIDownloadManager;
 
@@ -988,13 +986,9 @@ DownloadsDataCtor.prototype = {
       dataItem._download = aDownload;
     }
 
-    for (let view of this._views) {
-      try {
-        view.getViewItem(dataItem).onStateChange(aOldState);
-      } catch (ex) {
-        Cu.reportError(ex);
-      }
-    }
+    this._views.forEach(
+      function (view) view.getViewItem(dataItem).onStateChange(aOldState)
+    );
 
     if (isNew && !dataItem.newDownloadNotified) {
       dataItem.newDownloadNotified = true;
@@ -1004,24 +998,6 @@ DownloadsDataCtor.prototype = {
     // This is a final state of which we are only notified once.
     if (dataItem.done) {
       this._notifyDownloadEvent("finish");
-    }
-
-    // TODO Bug 830415: this isn't the right place to set these annotation.
-    // It should be set it in places' nsIDownloadHistory implementation.
-    if (!this._isPrivate && !dataItem.inProgress) {
-      let downloadMetaData = { state: dataItem.state,
-                               endTime: dataItem.endTime };
-      if (dataItem.done)
-        downloadMetaData.fileSize = dataItem.maxBytes;
-
-      try {
-        PlacesUtils.annotations.setPageAnnotation(
-          NetUtil.newURI(dataItem.uri), "downloads/metaData", JSON.stringify(downloadMetaData), 0,
-          PlacesUtils.annotations.EXPIRE_WITH_HISTORY);
-      }
-      catch(ex) {
-        Cu.reportError(ex);
-      }
     }
   },
 

@@ -13,7 +13,6 @@
 */
 
 #include "TestCommon.h"
-#include <algorithm>
 
 #define FORCE_PR_LOG
 #include <stdio.h>
@@ -483,7 +482,7 @@ InputTestConsumer::OnDataAvailable(nsIRequest *request,
   URLLoadInfo* info = (URLLoadInfo*)context;
 
   while (aLength) {
-    size = std::min<uint32_t>(aLength, sizeof(buf));
+    size = NS_MIN<uint32_t>(aLength, sizeof(buf));
 
     rv = aIStream->Read(buf, size, &amt);
     if (NS_FAILED(rv)) {

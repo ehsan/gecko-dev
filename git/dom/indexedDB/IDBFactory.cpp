@@ -42,7 +42,6 @@
 #include "Key.h"
 
 #include "ipc/IndexedDBChild.h"
-#include <algorithm>
 
 USING_INDEXEDDB_NAMESPACE
 
@@ -446,7 +445,7 @@ IDBFactory::LoadDatabaseInformation(mozIStorageConnection* aConnection,
   int64_t version = 0;
   rv = stmt->GetInt64(0, &version);
 
-  *aVersion = std::max<int64_t>(version, 0);
+  *aVersion = NS_MAX<int64_t>(version, 0);
 
   return rv;
 }

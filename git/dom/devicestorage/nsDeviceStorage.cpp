@@ -46,7 +46,6 @@
 #include "nsCExternalHandlerService.h"
 #include "nsIPermissionManager.h"
 #include "nsIStringBundle.h"
-#include <algorithm>
 
 // Microsoft's API Name hackery sucks
 #undef CreateEvent
@@ -442,7 +441,7 @@ DeviceStorageFile::Write(nsIInputStream* aInputStream)
   while (bufSize) {
     uint32_t wrote;
     rv = bufferedOutputStream->WriteFrom(aInputStream,
-                                         static_cast<uint32_t>(std::min<uint64_t>(bufSize, UINT32_MAX)),
+                                         static_cast<uint32_t>(NS_MIN<uint64_t>(bufSize, UINT32_MAX)),
                                          &wrote);
     if (NS_FAILED(rv)) {
       break;

@@ -17,7 +17,6 @@
 
 #include "nsIProperties.h"
 #include "nsISupportsPrimitives.h"
-#include <algorithm>
 
 namespace mozilla {
 namespace image {
@@ -511,7 +510,7 @@ nsICODecoder::WriteInternal(const char* aBuffer, uint32_t aCount)
         }
 
         while (mCurLine > 0 && aCount > 0) {
-          uint32_t toCopy = std::min(rowSize - mRowBytes, aCount);
+          uint32_t toCopy = NS_MIN(rowSize - mRowBytes, aCount);
           if (toCopy) {
             memcpy(mRow + mRowBytes, aBuffer, toCopy);
             aCount -= toCopy;

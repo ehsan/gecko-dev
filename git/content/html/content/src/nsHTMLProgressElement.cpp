@@ -8,7 +8,6 @@
 #include "nsAttrValue.h"
 #include "nsAttrValueInlines.h"
 #include "nsEventStateManager.h"
-#include <algorithm>
 
 using namespace mozilla::dom;
 
@@ -134,7 +133,7 @@ nsHTMLProgressElement::GetValue(double* aValue)
   double max;
   GetMax(&max);
 
-  *aValue = std::min(*aValue, max);
+  *aValue = NS_MIN(*aValue, max);
 
   return NS_OK;
 }

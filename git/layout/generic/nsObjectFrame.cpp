@@ -68,7 +68,6 @@
 #include "nsIScrollableFrame.h"
 #include "mozilla/Preferences.h"
 #include "sampler.h"
-#include <algorithm>
 
 // headers for plugin scriptability
 #include "nsIScriptGlobalObject.h"
@@ -531,8 +530,8 @@ nsObjectFrame::GetDesiredSize(nsPresContext* aPresContext,
     // exceed the maximum size of X coordinates.  See bug #225357 for
     // more information.  In theory Gtk2 can handle large coordinates,
     // but underlying plugins can't.
-    aMetrics.height = std::min(aPresContext->DevPixelsToAppUnits(INT16_MAX), aMetrics.height);
-    aMetrics.width = std::min(aPresContext->DevPixelsToAppUnits(INT16_MAX), aMetrics.width);
+    aMetrics.height = NS_MIN(aPresContext->DevPixelsToAppUnits(INT16_MAX), aMetrics.height);
+    aMetrics.width = NS_MIN(aPresContext->DevPixelsToAppUnits(INT16_MAX), aMetrics.width);
 #endif
   }
 

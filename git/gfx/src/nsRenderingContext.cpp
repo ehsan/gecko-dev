@@ -6,7 +6,6 @@
 #include "nsRenderingContext.h"
 #include "nsBoundingMetrics.h"
 #include "nsRegion.h"
-#include <algorithm>
 
 // XXXTodo: rename FORM_TWIPS to FROM_APPUNITS
 #define FROM_TWIPS(_x)  ((gfxFloat)((_x)/(mP2A)))
@@ -45,7 +44,7 @@ static int32_t FindSafeLength(const char *aString, uint32_t aLength,
                               uint32_t aMaxChunkLength)
 {
     // Since it's ASCII, we don't need to worry about clusters or RTL
-    return std::min(aLength, aMaxChunkLength);
+    return NS_MIN(aLength, aMaxChunkLength);
 }
 
 //////////////////////////////////////////////////////////////////////
@@ -419,7 +418,7 @@ nsRenderingContext::GetMaxChunkLength()
 {
     if (!mFontMetrics)
         return 1;
-    return std::min(mFontMetrics->GetMaxStringLength(), MAX_GFX_TEXT_BUF_SIZE);
+    return NS_MIN(mFontMetrics->GetMaxStringLength(), MAX_GFX_TEXT_BUF_SIZE);
 }
 
 nscoord

@@ -1740,8 +1740,8 @@ StackIter::isConstructing() const
     return false;
 }
 
-AbstractFramePtr
-StackIter::abstractFramePtr() const
+TaggedFramePtr
+StackIter::taggedFramePtr() const
 {
     switch (data_.state_) {
       case DONE:
@@ -1750,12 +1750,12 @@ StackIter::abstractFramePtr() const
         break;
       case SCRIPTED:
         JS_ASSERT(interpFrame());
-        return AbstractFramePtr(interpFrame());
+        return TaggedFramePtr(interpFrame());
       case NATIVE:
         break;
     }
     JS_NOT_REACHED("Unexpected state");
-    return AbstractFramePtr();
+    return TaggedFramePtr();
 }
 
 void
@@ -2136,17 +2136,17 @@ AllFramesIter::settleOnNewState()
     state_ = fp_ ? SCRIPTED : DONE;
 }
 
-AbstractFramePtr
-AllFramesIter::abstractFramePtr() const
+TaggedFramePtr
+AllFramesIter::taggedFramePtr() const
 {
     switch (state_) {
       case SCRIPTED:
-        return AbstractFramePtr(interpFrame());
+        return TaggedFramePtr(interpFrame());
       case ION:
         break;
       case DONE:
         break;
     }
     JS_NOT_REACHED("Unexpected state");
-    return AbstractFramePtr();
+    return TaggedFramePtr();
 }

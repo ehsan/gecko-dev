@@ -8,7 +8,6 @@
 #include "nspr.h"
 
 #include "nsIFileStreams.h"       // New Necko file streams
-#include <algorithm>
 
 #ifdef XP_OS2
 #include "nsILocalFileOS2.h"
@@ -833,7 +832,7 @@ nsWebBrowserPersist::OnDataAvailable(
         {
             readError = true;
             rv = aIStream->Read(buffer,
-                                std::min(uint32_t(sizeof(buffer)), bytesRemaining),
+                                NS_MIN(uint32_t(sizeof(buffer)), bytesRemaining),
                                 &bytesRead);
             if (NS_SUCCEEDED(rv))
             {

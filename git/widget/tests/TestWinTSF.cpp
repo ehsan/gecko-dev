@@ -20,7 +20,6 @@
 #include <richedit.h>
 
 #include "TestHarness.h"
-#include <algorithm>
 
 #define WM_USER_TSF_TEXTCHANGE  (WM_USER + 0x100)
 
@@ -701,8 +700,8 @@ public: // ITfReadOnlyProperty
         if (targetStart > end || targetEnd < start)
           continue;
         // Otherwise, shrink to the target range.
-        start = std::max(targetStart, start);
-        end = std::min(targetEnd, end);
+        start = NS_MAX(targetStart, start);
+        end = NS_MIN(targetEnd, end);
       }
       nsRefPtr<TSFRangeImpl> range = new TSFRangeImpl(start, end - start);
       NS_ENSURE_TRUE(range, E_OUTOFMEMORY);
@@ -921,8 +920,8 @@ public: // ITfCompositionView
       LONG tmpStart, tmpEnd;
       HRESULT hr = GetRegularExtent(mAttrProp->mRanges[i], tmpStart, tmpEnd);
       NS_ENSURE_TRUE(SUCCEEDED(hr), hr);
-      start = std::min(start, tmpStart);
-      end = std::max(end, tmpEnd);
+      start = NS_MIN(start, tmpStart);
+      end = NS_MAX(end, tmpEnd);
     }
     nsRefPtr<TSFRangeImpl> range = new TSFRangeImpl();
     NS_ENSURE_TRUE(range, E_OUTOFMEMORY);

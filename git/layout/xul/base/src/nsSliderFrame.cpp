@@ -38,7 +38,6 @@
 #include "nsDisplayList.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/LookAndFeel.h"
-#include <algorithm>
 
 using namespace mozilla;
 
@@ -373,7 +372,7 @@ nsSliderFrame::DoLayout(nsBoxLayoutState& aState)
   int32_t maxPos = GetMaxPosition(scrollbar);
   int32_t pageIncrement = GetPageIncrement(scrollbar);
 
-  maxPos = std::max(minPos, maxPos);
+  maxPos = NS_MAX(minPos, maxPos);
   curPos = clamped(curPos, minPos, maxPos);
 
   nscoord& availableLength = IsHorizontal() ? clientRect.width : clientRect.height;
@@ -381,7 +380,7 @@ nsSliderFrame::DoLayout(nsBoxLayoutState& aState)
 
   if ((pageIncrement + maxPos - minPos) > 0 && thumbBox->GetFlex(aState) > 0) {
     float ratio = float(pageIncrement) / float(maxPos - minPos + pageIncrement);
-    thumbLength = std::max(thumbLength, NSToCoordRound(availableLength * ratio));
+    thumbLength = NS_MAX(thumbLength, NSToCoordRound(availableLength * ratio));
   }
 
   // Round the thumb's length to device pixels.
@@ -667,7 +666,7 @@ nsSliderFrame::CurrentPositionChanged(nsPresContext* aPresContext,
   int32_t minPos = GetMinPosition(scrollbar);
   int32_t maxPos = GetMaxPosition(scrollbar);
 
-  maxPos = std::max(minPos, maxPos);
+  maxPos = NS_MAX(minPos, maxPos);
   curPos = clamped(curPos, minPos, maxPos);
 
   // get the thumb's rect

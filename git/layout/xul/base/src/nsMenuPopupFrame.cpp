@@ -49,7 +49,6 @@
 #include "nsDisplayList.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/LookAndFeel.h"
-#include <algorithm>
 
 using namespace mozilla;
 
@@ -1069,7 +1068,7 @@ nsMenuPopupFrame::FlipOrResize(nscoord& aScreenPoint, nscoord aSize,
   if (popupSize <= 0 || aSize < popupSize) {
     popupSize = aSize;
   }
-  return std::min(popupSize, aScreenEnd - aScreenPoint);
+  return NS_MIN(popupSize, aScreenEnd - aScreenPoint);
 }
 
 nsresult
@@ -1326,8 +1325,8 @@ nsMenuPopupFrame::GetConstraintRect(const nsRect& aAnchorRect,
     // anchor is located.
     nsRect rect = mInContentShell ? aRootScreenRect : aAnchorRect;
     // nsIScreenManager::ScreenForRect wants the coordinates in CSS pixels
-    int32_t width = std::max(1, nsPresContext::AppUnitsToIntCSSPixels(rect.width));
-    int32_t height = std::max(1, nsPresContext::AppUnitsToIntCSSPixels(rect.height));
+    int32_t width = NS_MAX(1, nsPresContext::AppUnitsToIntCSSPixels(rect.width));
+    int32_t height = NS_MAX(1, nsPresContext::AppUnitsToIntCSSPixels(rect.height));
     sm->ScreenForRect(nsPresContext::AppUnitsToIntCSSPixels(rect.x),
                       nsPresContext::AppUnitsToIntCSSPixels(rect.y),
                       width, height, getter_AddRefs(screen));

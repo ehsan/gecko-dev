@@ -73,18 +73,16 @@ JS_SetRuntimeDebugMode(JSRuntime *rt, JSBool debug)
 }
 
 JSTrapStatus
-js::ScriptDebugPrologue(JSContext *cx, AbstractFramePtr frame)
+js::ScriptDebugPrologue(JSContext *cx, StackFrame *fp)
 {
-    JS_ASSERT_IF(frame.isStackFrame(), frame.asStackFrame() == cx->fp());
+    JS_ASSERT(fp == cx->fp());
 
-    if (frame.isFramePushedByExecute()) {
+    if (fp->isFramePushedByExecute()) {
         if (JSInterpreterHook hook = cx->runtime->debugHooks.executeHook)
-            frame.setHookData(hook(cx, Jsvalify(frame.asStackFrame()), true, 0,
-                                   cx->runtime->debugHooks.executeHookData));
+            fp->setHookData(hook(cx, Jsvalify(fp), true, 0, cx->runtime->debugHooks.executeHookData));
     } else {
         if (JSInterpreterHook hook = cx->runtime->debugHooks.callHook)
-            frame.setHookData(hook(cx, Jsvalify(frame.asStackFrame()), true, 0,
-                                   cx->runtime->debugHooks.callHookData));
+            fp->setHookData(hook(cx, Jsvalify(fp), true, 0, cx->runtime->debugHooks.callHookData));
     }
 
     Value rval;
@@ -99,7 +97,7 @@ js::ScriptDebugPrologue(JSContext *cx, AbstractFramePtr frame)
         cx->clearPendingException();
         break;
       case JSTRAP_RETURN:
-        frame.setReturnValue(rval);
+        fp->setReturnValue(rval);
         break;
       default:
         JS_NOT_REACHED("bad Debugger::onEnterFrame JSTrapStatus value");
@@ -108,18 +106,18 @@ js::ScriptDebugPrologue(JSContext *cx, AbstractFramePtr frame)
 }
 
 bool
-js::ScriptDebugEpilogue(JSContext *cx, AbstractFramePtr frame, bool okArg)
+js::ScriptDebugEpilogue(JSContext *cx, StackFrame *fp, bool okArg)
 {
-    JS_ASSERT_IF(frame.isStackFrame(), frame.asStackFrame() == cx->fp());
+    JS_ASSERT(fp == cx->fp());
     JSBool ok = okArg;
 
-    if (void *hookData = frame.maybeHookData()) {
-        if (frame.isFramePushedByExecute()) {
+    if (void *hookData = fp->maybeHookData()) {
+        if (fp->isFramePushedByExecute()) {
             if (JSInterpreterHook hook = cx->runtime->debugHooks.executeHook)
-                hook(cx, Jsvalify(frame.asStackFrame()), false, &ok, hookData);
+                hook(cx, Jsvalify(fp), false, &ok, hookData);
         } else {
             if (JSInterpreterHook hook = cx->runtime->debugHooks.callHook)
-                hook(cx, Jsvalify(frame.asStackFrame()), false, &ok, hookData);
+                hook(cx, Jsvalify(fp), false, &ok, hookData);
         }
     }
 

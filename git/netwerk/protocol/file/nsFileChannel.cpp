@@ -20,7 +20,6 @@
 
 #include "nsIFileURL.h"
 #include "nsIMIMEService.h"
-#include <algorithm>
 
 //-----------------------------------------------------------------------------
 
@@ -86,7 +85,7 @@ nsFileCopyEvent::DoCopy()
     if (NS_FAILED(rv))
       break;
 
-    int32_t num = std::min((int32_t) len, chunk);
+    int32_t num = NS_MIN((int32_t) len, chunk);
 
     uint32_t result;
     rv = mSource->ReadSegments(NS_CopySegmentToStream, mDest, num, &result);

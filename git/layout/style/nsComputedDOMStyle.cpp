@@ -47,7 +47,6 @@
 #include "mozilla/dom/Element.h"
 #include "CSSCalc.h"
 #include "nsWrapperCacheInlines.h"
-#include <algorithm>
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -3807,7 +3806,7 @@ nsComputedDOMStyle::SetValueToCoord(nsROCSSPrimitiveValue* aValue,
             (this->*aPercentageBaseGetter)(percentageBase)) {
           nscoord val = NSCoordSaturatingMultiply(percentageBase,
                                                   aCoord.GetPercentValue());
-          aValue->SetAppUnits(std::max(aMinAppUnits, std::min(val, aMaxAppUnits)));
+          aValue->SetAppUnits(NS_MAX(aMinAppUnits, NS_MIN(val, aMaxAppUnits)));
         } else {
           aValue->SetPercent(aCoord.GetPercentValue());
         }
@@ -3821,7 +3820,7 @@ nsComputedDOMStyle::SetValueToCoord(nsROCSSPrimitiveValue* aValue,
     case eStyleUnit_Coord:
       {
         nscoord val = aCoord.GetCoordValue();
-        aValue->SetAppUnits(std::max(aMinAppUnits, std::min(val, aMaxAppUnits)));
+        aValue->SetAppUnits(NS_MAX(aMinAppUnits, NS_MIN(val, aMaxAppUnits)));
       }
       break;
 
@@ -3848,7 +3847,7 @@ nsComputedDOMStyle::SetValueToCoord(nsROCSSPrimitiveValue* aValue,
                             "parser should have rejected value");
           val = 0;
         }
-        aValue->SetAppUnits(std::max(aMinAppUnits, std::min(val, aMaxAppUnits)));
+        aValue->SetAppUnits(NS_MAX(aMinAppUnits, NS_MIN(val, aMaxAppUnits)));
       } else if (aPercentageBaseGetter &&
                  (this->*aPercentageBaseGetter)(percentageBase)) {
         nscoord val =
@@ -3858,7 +3857,7 @@ nsComputedDOMStyle::SetValueToCoord(nsROCSSPrimitiveValue* aValue,
                             "parser should have rejected value");
           val = 0;
         }
-        aValue->SetAppUnits(std::max(aMinAppUnits, std::min(val, aMaxAppUnits)));
+        aValue->SetAppUnits(NS_MAX(aMinAppUnits, NS_MIN(val, aMaxAppUnits)));
       } else {
         nsStyleCoord::Calc *calc = aCoord.GetCalcValue();
         SetValueToCalc(calc, aValue);

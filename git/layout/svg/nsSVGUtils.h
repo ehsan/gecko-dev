@@ -25,7 +25,6 @@
 #include "nsRect.h"
 #include "nsStyleStruct.h"
 #include "mozilla/Constants.h"
-#include <algorithm>
 
 class gfxASurface;
 class gfxContext;
@@ -558,8 +557,8 @@ public:
    */
   static int32_t ClampToInt(double aVal)
   {
-    return NS_lround(std::max(double(INT32_MIN),
-                            std::min(double(INT32_MAX), aVal)));
+    return NS_lround(NS_MAX(double(INT32_MIN),
+                            NS_MIN(double(INT32_MAX), aVal)));
   }
 
   static nscolor GetFallbackOrPaintColor(gfxContext *aContext,

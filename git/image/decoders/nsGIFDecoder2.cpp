@@ -47,7 +47,6 @@ mailing address.
 #include "gfxColor.h"
 #include "gfxPlatform.h"
 #include "qcms.h"
-#include <algorithm>
 
 namespace mozilla {
 namespace image {
@@ -596,7 +595,7 @@ nsGIFDecoder2::WriteInternal(const char *aBuffer, uint32_t aCount)
                (mGIFStruct.bytes_in_hold) ? mGIFStruct.hold : nullptr;
   if (p) {
     // Add what we have sofar to the block
-    uint32_t l = std::min(len, mGIFStruct.bytes_to_consume);
+    uint32_t l = NS_MIN(len, mGIFStruct.bytes_to_consume);
     memcpy(p+mGIFStruct.bytes_in_hold, buf, l);
 
     if (l < mGIFStruct.bytes_to_consume) {
@@ -784,17 +783,17 @@ nsGIFDecoder2::WriteInternal(const char *aBuffer, uint32_t aCount)
         switch (*q) {
         case GIF_GRAPHIC_CONTROL_LABEL:
           mGIFStruct.state = gif_control_extension;
-          mGIFStruct.bytes_to_consume = std::max(mGIFStruct.bytes_to_consume, 4u);
+          mGIFStruct.bytes_to_consume = NS_MAX(mGIFStruct.bytes_to_consume, 4u);
           break;
 
         case GIF_APPLICATION_EXTENSION_LABEL:
           mGIFStruct.state = gif_application_extension;
-          mGIFStruct.bytes_to_consume = std::max(mGIFStruct.bytes_to_consume, 11u);
+          mGIFStruct.bytes_to_consume = NS_MAX(mGIFStruct.bytes_to_consume, 11u);
           break;
 
         case GIF_PLAIN_TEXT_LABEL:
           mGIFStruct.state = gif_skip_block;
-          mGIFStruct.bytes_to_consume = std::max(mGIFStruct.bytes_to_consume, 12u);
+          mGIFStruct.bytes_to_consume = NS_MAX(mGIFStruct.bytes_to_consume, 12u);
           break;
 
         case GIF_COMMENT_LABEL:

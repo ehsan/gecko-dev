@@ -10,7 +10,6 @@
 #include "cairo.h"
 #include "mozilla/gfx/2D.h"
 #include "gfx2DGlue.h"
-#include <algorithm>
 
 using namespace mozilla::gfx;
 
@@ -204,7 +203,7 @@ CopyForStride(unsigned char* aDest, unsigned char* aSrc, const gfxIntSize& aSize
     if (aDestStride == aSrcStride) {
         memcpy (aDest, aSrc, aSrcStride * aSize.height);
     } else {
-        int lineSize = std::min(aDestStride, aSrcStride);
+        int lineSize = NS_MIN(aDestStride, aSrcStride);
         for (int i = 0; i < aSize.height; i++) {
             unsigned char* src = aSrc + aSrcStride * i;
             unsigned char* dst = aDest + aDestStride * i;

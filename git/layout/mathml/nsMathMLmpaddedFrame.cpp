@@ -12,7 +12,6 @@
 #include "nsStyleConsts.h"
 
 #include "nsMathMLmpaddedFrame.h"
-#include <algorithm>
 
 //
 // <mpadded> -- adjust space around content - implementation
@@ -382,21 +381,21 @@ nsMathMLmpaddedFrame::Place(nsRenderingContext& aRenderingContext,
              ? NS_MATHML_PSEUDO_UNIT_WIDTH : mWidthPseudoUnit;
   UpdateValue(mWidthSign, pseudoUnit, mWidth,
               mBoundingMetrics, width);
-  width = std::max(0, width);
+  width = NS_MAX(0, width);
 
   // update "height" (this is the ascent in the terminology of the REC)
   pseudoUnit = (mHeightPseudoUnit == NS_MATHML_PSEUDO_UNIT_ITSELF)
              ? NS_MATHML_PSEUDO_UNIT_HEIGHT : mHeightPseudoUnit;
   UpdateValue(mHeightSign, pseudoUnit, mHeight,
               mBoundingMetrics, height);
-  height = std::max(0, height);
+  height = NS_MAX(0, height);
 
   // update "depth" (this is the descent in the terminology of the REC)
   pseudoUnit = (mDepthPseudoUnit == NS_MATHML_PSEUDO_UNIT_ITSELF)
              ? NS_MATHML_PSEUDO_UNIT_DEPTH : mDepthPseudoUnit;
   UpdateValue(mDepthSign, pseudoUnit, mDepth,
               mBoundingMetrics, depth);
-  depth = std::max(0, depth);
+  depth = NS_MAX(0, depth);
 
   // update lspace
   if (mLeadingSpacePseudoUnit != NS_MATHML_PSEUDO_UNIT_ITSELF) {

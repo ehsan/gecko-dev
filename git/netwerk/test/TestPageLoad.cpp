@@ -17,7 +17,6 @@
 #include "plstr.h"
 #include "nsCOMArray.h"
 #include "nsIComponentRegistrar.h"
-#include <algorithm>
 
 namespace TestPageLoad {
 
@@ -174,7 +173,7 @@ MyListener::OnDataAvailable(nsIRequest *req, nsISupports *ctxt,
       rv = stream->ReadSegments(streamParse, nullptr, count, &bytesRead);
     } else {
       while (count) {
-        uint32_t amount = std::min<uint32_t>(count, sizeof(buf));
+        uint32_t amount = NS_MIN<uint32_t>(count, sizeof(buf));
         rv = stream->Read(buf, amount, &bytesRead);  
         count -= bytesRead;
       }

@@ -7,7 +7,6 @@
 #define GLCONTEXT_H_
 
 #include <stdio.h>
-#include <algorithm>
 #if defined(XP_UNIX)
 #include <stdint.h>
 #endif
@@ -1586,8 +1585,8 @@ protected:
                             TextureImage::Flags aFlags = TextureImage::NoFlags);
 
     bool IsOffscreenSizeAllowed(const gfxIntSize& aSize) const {
-        int32_t biggerDimension = std::max(aSize.width, aSize.height);
-        int32_t maxAllowed = std::min(mMaxRenderbufferSize, mMaxTextureSize);
+        int32_t biggerDimension = NS_MAX(aSize.width, aSize.height);
+        int32_t maxAllowed = NS_MIN(mMaxRenderbufferSize, mMaxTextureSize);
         return biggerDimension <= maxAllowed;
     }
 

@@ -47,7 +47,6 @@
 #include "TransactionThreadPool.h"
 
 #include "IndexedDatabaseInlines.h"
-#include <algorithm>
 
 // The amount of time, in milliseconds, that our IO thread will stay alive
 // after the last event it processes.
@@ -902,7 +901,7 @@ IndexedDatabaseManager::OnDatabaseClosed(IDBDatabase* aDatabase)
 uint32_t
 IndexedDatabaseManager::GetIndexedDBQuotaMB()
 {
-  return uint32_t(std::max(gIndexedDBQuotaMB, 0));
+  return uint32_t(NS_MAX(gIndexedDBQuotaMB, 0));
 }
 
 nsresult

@@ -35,7 +35,6 @@
 #include "nsThemeConstants.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/LookAndFeel.h"
-#include <algorithm>
 
 // The bidi indicator hangs off the caret to one side, to show which
 // direction the typing is in. It needs to be at least 2x2 to avoid looking like 
@@ -215,7 +214,7 @@ nsCaret::Metrics nsCaret::ComputeMetrics(nsIFrame* aFrame, int32_t aOffset, nsco
     caretWidth += nsPresContext::CSSPixelsToAppUnits(1);
   }
   nscoord bidiIndicatorSize = nsPresContext::CSSPixelsToAppUnits(kMinBidiIndicatorPixels);
-  bidiIndicatorSize = std::max(caretWidth, bidiIndicatorSize);
+  bidiIndicatorSize = NS_MAX(caretWidth, bidiIndicatorSize);
 
   // Round them to device pixels. Always round down, except that anything
   // between 0 and 1 goes up to 1 so we don't let the caret disappear.
@@ -777,8 +776,8 @@ nsCaret::GetCaretFrameForNodeOffset(nsIContent*             aContentNode,
 
         if ((levelBefore != levelAfter) || (aBidiLevel != levelBefore))
         {
-          aBidiLevel = std::max(aBidiLevel, std::min(levelBefore, levelAfter));                                  // rule c3
-          aBidiLevel = std::min(aBidiLevel, std::max(levelBefore, levelAfter));                                  // rule c4
+          aBidiLevel = NS_MAX(aBidiLevel, NS_MIN(levelBefore, levelAfter));                                  // rule c3
+          aBidiLevel = NS_MIN(aBidiLevel, NS_MAX(levelBefore, levelAfter));                                  // rule c4
           if (aBidiLevel == levelBefore                                                                      // rule c1
               || (aBidiLevel > levelBefore && aBidiLevel < levelAfter && !((aBidiLevel ^ levelBefore) & 1))    // rule c5
               || (aBidiLevel < levelBefore && aBidiLevel > levelAfter && !((aBidiLevel ^ levelBefore) & 1)))  // rule c9

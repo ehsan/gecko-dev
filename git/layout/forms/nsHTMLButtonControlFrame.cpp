@@ -30,7 +30,6 @@
 #include "nsIDOMHTMLInputElement.h"
 #include "nsStyleSet.h"
 #include "nsDisplayList.h"
-#include <algorithm>
 
 using namespace mozilla;
 
@@ -277,12 +276,12 @@ nsHTMLButtonControlFrame::ReflowButtonContents(nsPresContext* aPresContext,
     NS_ASSERTION(extraright >=0, "How'd that happen?");
     
     // Do not allow the extras to be bigger than the relevant padding
-    extraleft = std::min(extraleft, aReflowState.mComputedPadding.left);
-    extraright = std::min(extraright, aReflowState.mComputedPadding.right);
+    extraleft = NS_MIN(extraleft, aReflowState.mComputedPadding.left);
+    extraright = NS_MIN(extraright, aReflowState.mComputedPadding.right);
     xoffset -= extraleft;
     availSize.width += extraleft + extraright;
   }
-  availSize.width = std::max(availSize.width,0);
+  availSize.width = NS_MAX(availSize.width,0);
   
   nsHTMLReflowState reflowState(aPresContext, aReflowState, aFirstKid,
                                 availSize);
@@ -296,7 +295,7 @@ nsHTMLButtonControlFrame::ReflowButtonContents(nsPresContext* aPresContext,
   // XXXbz this assumes border-box sizing.
   nscoord minInternalHeight = aReflowState.mComputedMinHeight -
     aReflowState.mComputedBorderPadding.TopBottom();
-  minInternalHeight = std::max(minInternalHeight, 0);
+  minInternalHeight = NS_MAX(minInternalHeight, 0);
 
   // center child vertically
   nscoord yoff = 0;

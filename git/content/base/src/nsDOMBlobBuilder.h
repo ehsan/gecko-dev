@@ -10,7 +10,6 @@
 
 #include "mozilla/CheckedInt.h"
 #include "mozilla/Attributes.h"
-#include <algorithm>
 
 class nsDOMMultipartFile : public nsDOMFile,
                            public nsIJSNativeInitializer
@@ -134,7 +133,7 @@ protected:
 
     // Start at 1 or we'll loop forever.
     CheckedUint32 bufferLen =
-      std::max<uint32_t>(static_cast<uint32_t>(mDataBufferLen), 1);
+      NS_MAX<uint32_t>(static_cast<uint32_t>(mDataBufferLen), 1);
     while (bufferLen.isValid() && bufferLen.value() < mDataLen + aSize)
       bufferLen *= 2;
 

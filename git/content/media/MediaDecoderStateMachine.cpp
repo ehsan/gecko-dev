@@ -23,7 +23,6 @@
 
 #include "prenv.h"
 #include "mozilla/Preferences.h"
-#include <algorithm>
 
 namespace mozilla {
 
@@ -627,8 +626,8 @@ void MediaDecoderStateMachine::SendStreamData()
       mediaStream->EndTrack(TRACK_AUDIO);
       stream->mHaveSentFinishAudio = true;
     }
-    minLastAudioPacketTime = std::min(minLastAudioPacketTime, stream->mLastAudioPacketTime);
-    endPosition = std::max(endPosition,
+    minLastAudioPacketTime = NS_MIN(minLastAudioPacketTime, stream->mLastAudioPacketTime);
+    endPosition = NS_MAX(endPosition,
         TicksToTimeRoundDown(mInfo.mAudioRate, stream->mAudioFramesWritten));
   }
 
@@ -673,7 +672,7 @@ void MediaDecoderStateMachine::SendStreamData()
       mediaStream->EndTrack(TRACK_VIDEO);
       stream->mHaveSentFinishVideo = true;
     }
-    endPosition = std::max(endPosition,
+    endPosition = NS_MAX(endPosition,
         TicksToTimeRoundDown(RATE_VIDEO, stream->mNextVideoTime - stream->mInitialTime));
   }
 
@@ -692,7 +691,7 @@ void MediaDecoderStateMachine::SendStreamData()
   if (mAudioCaptured) {
     // Discard audio packets that are no longer needed.
     int64_t audioPacketTimeToDiscard =
-        std::min(minLastAudioPacketTime, mStartTime + mCurrentFrameTime);
+        NS_MIN(minLastAudioPacketTime, mStartTime + mCurrentFrameTime);
     while (true) {
       nsAutoPtr<AudioData> a(mReader->AudioQueue().PopFront());
       if (!a)
@@ -876,8 +875,8 @@ void MediaDecoderStateMachine::DecodeLoop()
           !HasLowUndecodedData())
       {
         lowAudioThreshold =
-          std::min(THRESHOLD_FACTOR * DurationToUsecs(decodeTime), AMPLE_AUDIO_USECS);
-        ampleAudioThreshold = std::max(THRESHOLD_FACTOR * lowAudioThreshold,
+          NS_MIN(THRESHOLD_FACTOR * DurationToUsecs(decodeTime), AMPLE_AUDIO_USECS);
+        ampleAudioThreshold = NS_MAX(THRESHOLD_FACTOR * lowAudioThreshold,
                                      ampleAudioThreshold);
         LOG(PR_LOG_DEBUG,
             ("Slow video decode, set lowAudioThreshold=%lld ampleAudioThreshold=%lld",
@@ -1084,7 +1083,7 @@ void MediaDecoderStateMachine::AudioLoop()
       // we pushed to the audio hardware. We must push silence into the audio
       // hardware so that the next audio chunk begins playback at the correct
       // time.
-      missingFrames = std::min<int64_t>(UINT32_MAX, missingFrames.value());
+      missingFrames = NS_MIN<int64_t>(UINT32_MAX, missingFrames.value());
       LOG(PR_LOG_DEBUG, ("%p Decoder playing %d frames of silence",
                          mDecoder.get(), int32_t(missingFrames.value())));
       framesWritten = PlaySilence(static_cast<uint32_t>(missingFrames.value()),
@@ -1138,7 +1137,7 @@ void MediaDecoderStateMachine::AudioLoop()
                mState != DECODER_STATE_SHUTDOWN)
         {
           const int64_t DRAIN_BLOCK_USECS = 100000;
-          Wait(std::min(mAudioEndTime - position, DRAIN_BLOCK_USECS));
+          Wait(NS_MIN(mAudioEndTime - position, DRAIN_BLOCK_USECS));
           oldPosition = position;
           position = GetMediaTime();
         }
@@ -1182,7 +1181,7 @@ uint32_t MediaDecoderStateMachine::PlaySilence(uint32_t aFrames,
   NS_ASSERTION(OnAudioThread(), "Only call on audio thread.");
   NS_ASSERTION(!mAudioStream->IsPaused(), "Don't play when paused");
   uint32_t maxFrames = SILENCE_BYTES_CHUNK / aChannels / sizeof(AudioDataValue);
-  uint32_t frames = std::min(aFrames, maxFrames);
+  uint32_t frames = NS_MIN(aFrames, maxFrames);
   WriteSilence(mAudioStream, frames);
   // Dispatch events to the DOM for the audio just written.
   mEventManager.QueueWrittenAudioData(nullptr, frames * aChannels,
@@ -1495,7 +1494,7 @@ void MediaDecoderStateMachine::NotifyDataArrived(const char* aBuffer,
       double end = 0;
       buffered.End(length - 1, &end);
       ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-      mEndTime = std::max<int64_t>(mEndTime, end * USECS_PER_S);
+      mEndTime = NS_MAX<int64_t>(mEndTime, end * USECS_PER_S);
     }
   }
 }
@@ -1529,8 +1528,8 @@ void MediaDecoderStateMachine::Seek(double aTime)
   // Bound the seek time to be inside the media range.
   NS_ASSERTION(mStartTime != -1, "Should know start time by now");
   NS_ASSERTION(mEndTime != -1, "Should know end time by now");
-  mSeekTime = std::min(mSeekTime, mEndTime);
-  mSeekTime = std::max(mStartTime, mSeekTime);
+  mSeekTime = NS_MIN(mSeekTime, mEndTime);
+  mSeekTime = NS_MAX(mStartTime, mSeekTime);
   mBasePosition = mSeekTime;
   LOG(PR_LOG_DEBUG, ("%p Changed state to SEEKING (to %f)", mDecoder.get(), aTime));
   mState = DECODER_STATE_SEEKING;
@@ -2191,7 +2190,7 @@ nsresult MediaDecoderStateMachine::RunStateMachine()
       StopAudioThread();
       if (mDecoder->GetState() == MediaDecoder::PLAY_STATE_PLAYING) {
         int64_t videoTime = HasVideo() ? mVideoFrameEndTime : 0;
-        int64_t clockTime = std::max(mEndTime, std::max(videoTime, GetAudioClock()));
+        int64_t clockTime = NS_MAX(mEndTime, NS_MAX(videoTime, GetAudioClock()));
         UpdatePlaybackPosition(clockTime);
         nsCOMPtr<nsIRunnable> event =
           NS_NewRunnableMethod(mDecoder, &MediaDecoder::PlaybackEnded);
@@ -2404,7 +2403,7 @@ void MediaDecoderStateMachine::AdvanceFrame()
   // advance the clock to after the media end time.
   if (mVideoFrameEndTime != -1 || mAudioEndTime != -1) {
     // These will be non -1 if we've displayed a video frame, or played an audio frame.
-    clock_time = std::min(clock_time, std::max(mVideoFrameEndTime, mAudioEndTime));
+    clock_time = NS_MIN(clock_time, NS_MAX(mVideoFrameEndTime, mAudioEndTime));
     if (clock_time > GetMediaTime()) {
       // Only update the playback position if the clock time is greater
       // than the previous playback position. The audio clock can
@@ -2426,7 +2425,7 @@ void MediaDecoderStateMachine::AdvanceFrame()
 void MediaDecoderStateMachine::Wait(int64_t aUsecs) {
   NS_ASSERTION(OnAudioThread(), "Only call on the audio thread");
   mDecoder->GetReentrantMonitor().AssertCurrentThreadIn();
-  TimeStamp end = TimeStamp::Now() + UsecsToDuration(std::max<int64_t>(USECS_PER_MS, aUsecs));
+  TimeStamp end = TimeStamp::Now() + UsecsToDuration(NS_MAX<int64_t>(USECS_PER_MS, aUsecs));
   TimeStamp now;
   while ((now = TimeStamp::Now()) < end &&
          mState != DECODER_STATE_SHUTDOWN &&
@@ -2640,7 +2639,7 @@ nsresult MediaDecoderStateMachine::ScheduleStateMachine(int64_t aUsecs) {
   if (mState == DECODER_STATE_SHUTDOWN) {
     return NS_ERROR_FAILURE;
   }
-  aUsecs = std::max<int64_t>(aUsecs, 0);
+  aUsecs = NS_MAX<int64_t>(aUsecs, 0);
 
   TimeStamp timeout = TimeStamp::Now() + UsecsToDuration(aUsecs);
   if (!mTimeout.IsNull()) {

@@ -12,7 +12,6 @@
 #include "nsRenderingContext.h"
 
 #include "nsMathMLmrootFrame.h"
-#include <algorithm>
 
 //
 // <msqrt> and <mroot> -- form a radical - implementation
@@ -287,16 +286,16 @@ nsMathMLmrootFrame::Reflow(nsPresContext*          aPresContext,
   // the baseline will be that of the base.
   mBoundingMetrics.ascent = bmBase.ascent + psi + ruleThickness;
   mBoundingMetrics.descent = 
-    std::max(bmBase.descent,
+    NS_MAX(bmBase.descent,
            (bmSqr.ascent + bmSqr.descent - mBoundingMetrics.ascent));
   mBoundingMetrics.width = bmSqr.width + bmBase.width;
   mBoundingMetrics.leftBearing = bmSqr.leftBearing;
   mBoundingMetrics.rightBearing = bmSqr.width + 
-    std::max(bmBase.width, bmBase.rightBearing); // take also care of the rule
+    NS_MAX(bmBase.width, bmBase.rightBearing); // take also care of the rule
 
   aDesiredSize.ascent = mBoundingMetrics.ascent + leading;
   aDesiredSize.height = aDesiredSize.ascent +
-    std::max(baseSize.height - baseSize.ascent,
+    NS_MAX(baseSize.height - baseSize.ascent,
            mBoundingMetrics.descent + ruleThickness);
   aDesiredSize.width = mBoundingMetrics.width;
 
@@ -325,9 +324,9 @@ nsMathMLmrootFrame::Reflow(nsPresContext*          aPresContext,
 
   mBoundingMetrics.width = dxSqr + bmSqr.width + bmBase.width;
   mBoundingMetrics.leftBearing = 
-    std::min(dxIndex + bmIndex.leftBearing, dxSqr + bmSqr.leftBearing);
+    NS_MIN(dxIndex + bmIndex.leftBearing, dxSqr + bmSqr.leftBearing);
   mBoundingMetrics.rightBearing = dxSqr + bmSqr.width +
-    std::max(bmBase.width, bmBase.rightBearing);
+    NS_MAX(bmBase.width, bmBase.rightBearing);
 
   aDesiredSize.width = mBoundingMetrics.width;
   aDesiredSize.mBoundingMetrics = mBoundingMetrics;

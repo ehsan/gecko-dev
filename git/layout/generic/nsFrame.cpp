@@ -59,7 +59,6 @@
 #include "nsINameSpaceManager.h"
 #include "nsIPercentHeightObserver.h"
 #include "nsStyleStructInlines.h"
-#include <algorithm>
 
 #ifdef IBMBIDI
 #include "nsBidiPresUtils.h"
@@ -1154,7 +1153,7 @@ nsIFrame::ComputeBorderRadii(const nsStyleCorners& aBorderRadius,
 
     // avoid floating point division in the normal case
     if (length < sum)
-      ratio = std::min(ratio, double(length)/sum);
+      ratio = NS_MIN(ratio, double(length)/sum);
   }
   if (ratio < 1.0) {
     NS_FOR_CSS_HALF_CORNERS(corner) {
@@ -1172,8 +1171,8 @@ nsIFrame::InsetBorderRadii(nscoord aRadii[8], const nsMargin &aOffsets)
     nscoord offset = aOffsets.Side(side);
     uint32_t hc1 = NS_SIDE_TO_HALF_CORNER(side, false, false);
     uint32_t hc2 = NS_SIDE_TO_HALF_CORNER(side, true, false);
-    aRadii[hc1] = std::max(0, aRadii[hc1] - offset);
-    aRadii[hc2] = std::max(0, aRadii[hc2] - offset);
+    aRadii[hc1] = NS_MAX(0, aRadii[hc1] - offset);
+    aRadii[hc2] = NS_MAX(0, aRadii[hc2] - offset);
   }
 }
 
@@ -3764,7 +3763,7 @@ void
 nsIFrame::InlineMinWidthData::ForceBreak(nsRenderingContext *aRenderingContext)
 {
   currentLine -= trailingWhitespace;
-  prevLines = std::max(prevLines, currentLine);
+  prevLines = NS_MAX(prevLines, currentLine);
   currentLine = trailingWhitespace = 0;
 
   for (uint32_t i = 0, i_end = floats.Length(); i != i_end; ++i) {
@@ -3828,7 +3827,7 @@ nsIFrame::InlinePrefWidthData::ForceBreak(nsRenderingContext *aRenderingContext)
       // Negative-width floats don't change the available space so they
       // shouldn't change our intrinsic line width either.
       floats_cur =
-        NSCoordSaturatingAdd(floats_cur, std::max(0, floatWidth));
+        NSCoordSaturatingAdd(floats_cur, NS_MAX(0, floatWidth));
     }
 
     nscoord floats_cur =
@@ -3843,7 +3842,7 @@ nsIFrame::InlinePrefWidthData::ForceBreak(nsRenderingContext *aRenderingContext)
 
   currentLine =
     NSCoordSaturatingSubtract(currentLine, trailingWhitespace, nscoord_MAX);
-  prevLines = std::max(prevLines, currentLine);
+  prevLines = NS_MAX(prevLines, currentLine);
   currentLine = trailingWhitespace = 0;
   skipWhitespace = true;
 }
@@ -3872,8 +3871,8 @@ AddCoord(const nsStyleCoord& aStyle,
       const nsStyleCoord::Calc *calc = aStyle.GetCalcValue();
       if (aClampNegativeToZero) {
         // This is far from ideal when one is negative and one is positive.
-        *aCoord += std::max(calc->mLength, 0);
-        *aPercent += std::max(calc->mPercent, 0.0f);
+        *aCoord += NS_MAX(calc->mLength, 0);
+        *aPercent += NS_MAX(calc->mPercent, 0.0f);
       } else {
         *aCoord += calc->mLength;
         *aPercent += calc->mPercent;
@@ -4020,7 +4019,7 @@ nsFrame::ComputeSize(nsRenderingContext *aRenderingContext,
       nsLayoutUtils::ComputeWidthValue(aRenderingContext, this,
         aCBSize.width, boxSizingAdjust.width, boxSizingToMarginEdgeWidth,
         stylePos->mMaxWidth);
-    result.width = std::min(maxWidth, result.width);
+    result.width = NS_MIN(maxWidth, result.width);
   }
 
   nscoord minWidth;
@@ -4038,7 +4037,7 @@ nsFrame::ComputeSize(nsRenderingContext *aRenderingContext,
     // container explicitly considers them during space distribution.
     minWidth = 0;
   }
-  result.width = std::max(minWidth, result.width);
+  result.width = NS_MAX(minWidth, result.width);
 
   // Compute height
   // (but not if we're auto-height or if we recieved the "eUseAutoHeight"
@@ -4059,7 +4058,7 @@ nsFrame::ComputeSize(nsRenderingContext *aRenderingContext,
         nsLayoutUtils::ComputeHeightValue(aCBSize.height, 
                                           boxSizingAdjust.height,
                                           stylePos->mMaxHeight);
-      result.height = std::min(maxHeight, result.height);
+      result.height = NS_MIN(maxHeight, result.height);
     }
 
     if (!nsLayoutUtils::IsAutoHeight(stylePos->mMinHeight, aCBSize.height) &&
@@ -4068,7 +4067,7 @@ nsFrame::ComputeSize(nsRenderingContext *aRenderingContext,
         nsLayoutUtils::ComputeHeightValue(aCBSize.height, 
                                           boxSizingAdjust.height, 
                                           stylePos->mMinHeight);
-      result.height = std::max(minHeight, result.height);
+      result.height = NS_MAX(minHeight, result.height);
     }
   }
 
@@ -4095,8 +4094,8 @@ nsFrame::ComputeSize(nsRenderingContext *aRenderingContext,
       result.width = size.width;
   }
 
-  result.width = std::max(0, result.width);
-  result.height = std::max(0, result.height);
+  result.width = NS_MAX(0, result.width);
+  result.height = NS_MAX(0, result.height);
 
   return result;
 }
@@ -5138,7 +5137,7 @@ ComputeOutlineAndEffectsRect(nsIFrame* aFrame,
       }
 
       nscoord offset = outline->mOutlineOffset;
-      nscoord inflateBy = std::max(width + offset, 0);
+      nscoord inflateBy = NS_MAX(width + offset, 0);
       // FIXME (bug 599652): We probably want outline to be drawn around
       // something smaller than the visual overflow rect (perhaps the
       // scrollable overflow rect is correct).  When we change that, we
@@ -7930,9 +7929,9 @@ nsFrame::BoxReflow(nsBoxLayoutState&        aState,
 
     // This may not do very much useful, but it's probably worth trying.
     if (parentSize.width != NS_INTRINSICSIZE)
-      parentReflowState.SetComputedWidth(std::max(parentSize.width, 0));
+      parentReflowState.SetComputedWidth(NS_MAX(parentSize.width, 0));
     if (parentSize.height != NS_INTRINSICSIZE)
-      parentReflowState.SetComputedHeight(std::max(parentSize.height, 0));
+      parentReflowState.SetComputedHeight(NS_MAX(parentSize.height, 0));
     parentReflowState.mComputedMargin.SizeTo(0, 0, 0, 0);
     // XXX use box methods
     parentFrame->GetPadding(parentReflowState.mComputedPadding);
@@ -7971,7 +7970,7 @@ nsFrame::BoxReflow(nsBoxLayoutState&        aState,
     if (aWidth != NS_INTRINSICSIZE) {
       nscoord computedWidth =
         aWidth - reflowState.mComputedBorderPadding.LeftRight();
-      computedWidth = std::max(computedWidth, 0);
+      computedWidth = NS_MAX(computedWidth, 0);
       reflowState.SetComputedWidth(computedWidth);
     }
 
@@ -7984,7 +7983,7 @@ nsFrame::BoxReflow(nsBoxLayoutState&        aState,
       if (aHeight != NS_INTRINSICSIZE) {
         nscoord computedHeight =
           aHeight - reflowState.mComputedBorderPadding.TopBottom();
-        computedHeight = std::max(computedHeight, 0);
+        computedHeight = NS_MAX(computedHeight, 0);
         reflowState.SetComputedHeight(computedHeight);
       } else {
         reflowState.SetComputedHeight(

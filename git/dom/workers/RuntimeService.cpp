@@ -40,7 +40,6 @@
 #include "WorkerPrivate.h"
 
 #include "OSFileConstants.h"
-#include <algorithm>
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -1091,7 +1090,7 @@ RuntimeService::Init()
 
   int32_t maxPerDomain = Preferences::GetInt(PREF_WORKERS_MAX_PER_DOMAIN,
                                              MAX_WORKERS_PER_DOMAIN);
-  gMaxWorkersPerDomain = std::max(0, maxPerDomain);
+  gMaxWorkersPerDomain = NS_MAX(0, maxPerDomain);
 
   mDetectorName = Preferences::GetLocalizedCString("intl.charset.detector");
 

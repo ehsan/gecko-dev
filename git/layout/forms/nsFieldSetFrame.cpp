@@ -12,7 +12,6 @@
 #include "nsIDOMHTMLFieldSetElement.h"
 #include "nsIDOMHTMLLegendElement.h"
 #include "nsCSSRendering.h"
-#include <algorithm>
 //#include "nsIDOMHTMLCollection.h"
 #include "nsIContent.h"
 #include "nsIFrame.h"
@@ -332,7 +331,7 @@ nsFieldSetFrame::GetIntrinsicWidth(nsRenderingContext* aRenderingContext,
                                            aType);
   }
       
-  return std::max(legendWidth, contentWidth);
+  return NS_MAX(legendWidth, contentWidth);
 }
 
 
@@ -482,15 +481,15 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
     // by the amount of content-height the legend is eating up, unless our
     // height is unconstrained (in which case the child's will be too).
     if (aReflowState.ComputedHeight() != NS_UNCONSTRAINEDSIZE) {
-      kidReflowState.SetComputedHeight(std::max(0, aReflowState.ComputedHeight() - mLegendSpace));
+      kidReflowState.SetComputedHeight(NS_MAX(0, aReflowState.ComputedHeight() - mLegendSpace));
     }
 
     kidReflowState.mComputedMinHeight =
-      std::max(0, aReflowState.mComputedMinHeight - mLegendSpace);
+      NS_MAX(0, aReflowState.mComputedMinHeight - mLegendSpace);
 
     if (aReflowState.mComputedMaxHeight != NS_UNCONSTRAINEDSIZE) {
       kidReflowState.mComputedMaxHeight =
-        std::max(0, aReflowState.mComputedMaxHeight - mLegendSpace);
+        NS_MAX(0, aReflowState.mComputedMaxHeight - mLegendSpace);
     }
 
     nsHTMLReflowMetrics kidDesiredSize(aDesiredSize.mFlags);

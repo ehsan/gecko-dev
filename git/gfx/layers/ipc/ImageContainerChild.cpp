@@ -73,33 +73,12 @@ void ImageContainerChild::SetIdleNow()
   mImageQueue.Clear();
 }
 
-void ImageContainerChild::SetIdleSync(Monitor* aBarrier, bool* aDone)
-{
-  MonitorAutoLock autoMon(*aBarrier);
-
-  SetIdleNow();
-  *aDone = true;
-  aBarrier->NotifyAll();
-}
-
-void ImageContainerChild::SetIdle()
+void ImageContainerChild::DispatchSetIdle()
 {
   if (mStop) return;
 
-  if (InImageBridgeChildThread()) {
-    return SetIdleNow();
-  }
-
-  Monitor barrier("SetIdle Lock");
-  MonitorAutoLock autoMon(barrier);
-  bool done = false;
-
   GetMessageLoop()->PostTask(FROM_HERE, 
-                    NewRunnableMethod(this, &ImageContainerChild::SetIdleSync, &barrier, &done));
-
-  while (!done) {
-    barrier.Wait();
-  }
+                    NewRunnableMethod(this, &ImageContainerChild::SetIdleNow));
 }
 
 void ImageContainerChild::StopChildAndParent()

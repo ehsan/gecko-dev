@@ -13,7 +13,6 @@
 #include "mozilla/css/ErrorReporter.h"
 #include "mozilla/Likely.h"
 #include "mozilla/Util.h"
-#include <algorithm>
 
 using mozilla::ArrayLength;
 
@@ -952,9 +951,9 @@ nsCSSScanner::ParseNumber(int32_t c, nsCSSToken& aToken)
   } else if (!gotDot) {
     // Clamp values outside of integer range.
     if (sign > 0) {
-      aToken.mInteger = int32_t(std::min(intPart, double(INT32_MAX)));
+      aToken.mInteger = int32_t(NS_MIN(intPart, double(INT32_MAX)));
     } else {
-      aToken.mInteger = int32_t(std::max(-intPart, double(INT32_MIN)));
+      aToken.mInteger = int32_t(NS_MAX(-intPart, double(INT32_MIN)));
     }
     aToken.mIntegerValid = true;
   }

@@ -12,7 +12,6 @@
 #include "nsStaticAtom.h"
 #include "nsUnicharUtils.h"
 #include "mozilla/HashFunctions.h"
-#include <algorithm>
 
 using namespace mozilla;
 
@@ -396,7 +395,7 @@ nsHTMLTags::AddRefTable(void)
       uint32_t maxTagNameLength = 0;
       for (i = 0; i < NS_HTML_TAG_MAX; ++i) {
         uint32_t len = NS_strlen(sTagUnicodeTable[i]);
-        maxTagNameLength = std::max(len, maxTagNameLength);        
+        maxTagNameLength = NS_MAX(len, maxTagNameLength);        
       }
       NS_ASSERTION(maxTagNameLength == NS_HTMLTAG_NAME_MAX_LENGTH,
                    "NS_HTMLTAG_NAME_MAX_LENGTH not set correctly!");

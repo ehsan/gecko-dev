@@ -10,7 +10,7 @@
 #define FORCE_PR_LOG
 #endif
 
-#include <cstdarg>
+#include <stdarg.h>
 
 #include "prlog.h"
 #ifdef ANDROID

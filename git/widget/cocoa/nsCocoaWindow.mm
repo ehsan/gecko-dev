@@ -36,7 +36,6 @@
 #include "qcms.h"
 
 #include "mozilla/Preferences.h"
-#include <algorithm>
 
 namespace mozilla {
 namespace layers {
@@ -1045,8 +1044,8 @@ NS_IMETHODIMP nsCocoaWindow::ConstrainPosition(bool aAllowSlop,
   NSRect frame = [mWindow frame];
 
   // zero size rects confuse the screen manager
-  width = std::max<int32_t>(frame.size.width, 1);
-  height = std::max<int32_t>(frame.size.height, 1);
+  width = NS_MAX<int32_t>(frame.size.width, 1);
+  height = NS_MAX<int32_t>(frame.size.height, 1);
 
   nsCOMPtr<nsIScreenManager> screenMgr = do_GetService("@mozilla.org/gfx/screenmanager;1");
   if (screenMgr) {
@@ -1101,10 +1100,10 @@ void nsCocoaWindow::SetSizeConstraints(const SizeConstraints& aConstraints)
 
   SizeConstraints c = aConstraints;
   c.mMinSize.width =
-    std::max(nsCocoaUtils::CocoaPointsToDevPixels(rect.size.width, scaleFactor),
+    NS_MAX(nsCocoaUtils::CocoaPointsToDevPixels(rect.size.width, scaleFactor),
            c.mMinSize.width);
   c.mMinSize.height =
-    std::max(nsCocoaUtils::CocoaPointsToDevPixels(rect.size.height, scaleFactor),
+    NS_MAX(nsCocoaUtils::CocoaPointsToDevPixels(rect.size.height, scaleFactor),
            c.mMinSize.height);
 
   NSSize minSize = {
@@ -1506,12 +1505,12 @@ nsCocoaWindow::BackingScaleFactorChanged()
       NSToIntRound(mSizeConstraints.mMinSize.height * scaleFactor);
     if (mSizeConstraints.mMaxSize.width < NS_MAXSIZE) {
       mSizeConstraints.mMaxSize.width =
-        std::min(NS_MAXSIZE,
+        NS_MIN(NS_MAXSIZE,
                NSToIntRound(mSizeConstraints.mMaxSize.width * scaleFactor));
     }
     if (mSizeConstraints.mMaxSize.height < NS_MAXSIZE) {
       mSizeConstraints.mMaxSize.height =
-        std::min(NS_MAXSIZE,
+        NS_MIN(NS_MAXSIZE,
                NSToIntRound(mSizeConstraints.mMaxSize.height * scaleFactor));
     }
   }

@@ -13,7 +13,6 @@
 
 #include "mozilla/LinkedList.h"
 #include "mozilla/CheckedInt.h"
-#include <algorithm>
 
 namespace mozilla {
 
@@ -154,7 +153,7 @@ protected:
     FakeBlackStatus mFakeBlackStatus;
 
     void EnsureMaxLevelWithCustomImagesAtLeast(size_t aMaxLevelWithCustomImages) {
-        mMaxLevelWithCustomImages = std::max(mMaxLevelWithCustomImages, aMaxLevelWithCustomImages);
+        mMaxLevelWithCustomImages = NS_MAX(mMaxLevelWithCustomImages, aMaxLevelWithCustomImages);
         mImageInfos.EnsureLengthAtLeast((mMaxLevelWithCustomImages + 1) * mFacesCount);
     }
 

@@ -20,7 +20,6 @@
 
 #include "nsView.h"
 #include "nsAsyncDOMEvent.h"
-#include <algorithm>
 
 // Print Options
 #include "nsIPrintSettings.h"
@@ -2560,13 +2559,13 @@ nsPrintEngine::DoPrint(nsPrintObject * aPO)
             if (startRect.y < 0) {
               // Reduce height to be the height of the positive-territory
               // region of original rect
-              startRect.height = std::max(0, startRect.YMost());
+              startRect.height = NS_MAX(0, startRect.YMost());
               startRect.y = 0;
             }
             if (endRect.y < 0) {
               // Reduce height to be the height of the positive-territory
               // region of original rect
-              endRect.height = std::max(0, endRect.YMost());
+              endRect.height = NS_MAX(0, endRect.YMost());
               endRect.y = 0;
             }
             NS_ASSERTION(endRect.y >= startRect.y,

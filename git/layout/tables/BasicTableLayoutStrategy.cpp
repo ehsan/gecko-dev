@@ -15,7 +15,6 @@
 #include "nsLayoutUtils.h"
 #include "nsGkAtoms.h"
 #include "SpanningCellSorter.h"
-#include <algorithm>
 
 using namespace mozilla;
 using namespace mozilla::layout;
@@ -160,7 +159,7 @@ GetWidthInfo(nsRenderingContext *aRenderingContext,
                                           nsGkAtoms::nowrap)) {
             minCoord = w;
         }
-        prefCoord = std::max(w, minCoord);
+        prefCoord = NS_MAX(w, minCoord);
     } else if (unit == eStyleUnit_Percent) {
         prefPercent = width.GetPercentValue();
     } else if (unit == eStyleUnit_Enumerated && aIsCell) {

@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /*
- * Implementation of DOMTokenList specified by HTML5.
+ * Implementation of nsIDOMDOMTokenList specified by HTML5.
  */
 
 #include "nsDOMTokenList.h"
@@ -31,9 +31,14 @@ nsDOMTokenList::~nsDOMTokenList() { }
 
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_0(nsDOMTokenList)
 
+DOMCI_DATA(DOMTokenList, nsDOMTokenList)
+
 NS_INTERFACE_TABLE_HEAD(nsDOMTokenList)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
+  NS_INTERFACE_TABLE1(nsDOMTokenList,
+                      nsIDOMDOMTokenList)
   NS_INTERFACE_TABLE_TO_MAP_SEGUE_CYCLE_COLLECTION(nsDOMTokenList)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(DOMTokenList)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsDOMTokenList)
@@ -65,6 +70,14 @@ nsDOMTokenList::Length()
   return attr->GetAtomCount();
 }
 
+NS_IMETHODIMP
+nsDOMTokenList::GetLength(uint32_t *aLength)
+{
+  *aLength = Length();
+
+  return NS_OK;
+}
+
 void
 nsDOMTokenList::IndexedGetter(uint32_t aIndex, bool& aFound, nsAString& aResult)
 {
@@ -76,6 +89,13 @@ nsDOMTokenList::IndexedGetter(uint32_t aIndex, bool& aFound, nsAString& aResult)
   } else {
     aFound = false;
   }
+}
+
+NS_IMETHODIMP
+nsDOMTokenList::MozItem(uint32_t aIndex, nsAString& aResult)
+{
+  Item(aIndex, aResult);
+  return NS_OK;
 }
 
 nsresult
@@ -108,6 +128,14 @@ nsDOMTokenList::Contains(const nsAString& aToken, ErrorResult& aError)
 
   const nsAttrValue* attr = GetParsedAttr();
   return attr && attr->Contains(aToken);
+}
+
+NS_IMETHODIMP
+nsDOMTokenList::Contains(const nsAString& aToken, bool* aResult)
+{
+  ErrorResult rv;
+  *aResult = Contains(aToken, rv);
+  return rv.ErrorCode();
 }
 
 void
@@ -149,6 +177,14 @@ nsDOMTokenList::Add(const nsAString& aToken, ErrorResult& aError)
   }
 
   AddInternal(attr, aToken);
+}
+
+NS_IMETHODIMP
+nsDOMTokenList::Add(const nsAString& aToken)
+{
+  ErrorResult rv;
+  Add(aToken, rv);
+  return rv.ErrorCode();
 }
 
 void
@@ -229,6 +265,14 @@ nsDOMTokenList::Remove(const nsAString& aToken, ErrorResult& aError)
   RemoveInternal(attr, aToken);
 }
 
+NS_IMETHODIMP
+nsDOMTokenList::Remove(const nsAString& aToken)
+{
+  ErrorResult rv;
+  Remove(aToken, rv);
+  return rv.ErrorCode();
+}
+
 bool
 nsDOMTokenList::Toggle(const nsAString& aToken, ErrorResult& aError)
 {
@@ -248,6 +292,14 @@ nsDOMTokenList::Toggle(const nsAString& aToken, ErrorResult& aError)
   return true;
 }
 
+NS_IMETHODIMP
+nsDOMTokenList::Toggle(const nsAString& aToken, bool* aResult)
+{
+  ErrorResult rv;
+  *aResult = Toggle(aToken, rv);
+  return rv.ErrorCode();
+}
+
 void
 nsDOMTokenList::Stringify(nsAString& aResult)
 {
@@ -257,6 +309,13 @@ nsDOMTokenList::Stringify(nsAString& aResult)
   }
 
   mElement->GetAttr(kNameSpaceID_None, mAttrAtom, aResult);
+}
+
+NS_IMETHODIMP
+nsDOMTokenList::ToString(nsAString& aResult)
+{
+  Stringify(aResult);
+  return NS_OK;
 }
 
 JSObject*

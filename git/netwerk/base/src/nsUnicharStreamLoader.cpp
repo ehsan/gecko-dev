@@ -9,7 +9,6 @@
 #include "nsIInputStream.h"
 #include "nsICharsetConverterManager.h"
 #include "nsIServiceManager.h"
-#include <algorithm>
 
 #define SNIFFING_BUFFER_SIZE 512 // specified in draft-abarth-mime-sniff-06
 
@@ -133,7 +132,7 @@ nsUnicharStreamLoader::OnDataAvailable(nsIRequest *aRequest,
     // wait for more data.
 
     uint32_t haveRead = mRawData.Length();
-    uint32_t toRead = std::min(SNIFFING_BUFFER_SIZE - haveRead, aCount);
+    uint32_t toRead = NS_MIN(SNIFFING_BUFFER_SIZE - haveRead, aCount);
     uint32_t n;
     char *here = mRawData.BeginWriting() + haveRead;
 

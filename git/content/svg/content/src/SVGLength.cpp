@@ -14,7 +14,6 @@
 #include "nsMathUtils.h"
 #include "SVGContentUtils.h"
 #include <limits>
-#include <algorithm>
 
 namespace mozilla {
 
@@ -194,7 +193,7 @@ SVGLength::GetUserUnitsPerPercent(const nsSVGElement *aElement, uint8_t aAxis)
   if (aElement) {
     dom::SVGSVGElement *viewportElement = aElement->GetCtx();
     if (viewportElement) {
-      return std::max(viewportElement->GetLength(aAxis) / 100.0f, 0.0f);
+      return NS_MAX(viewportElement->GetLength(aAxis) / 100.0f, 0.0f);
     }
   }
   return std::numeric_limits<float>::quiet_NaN();

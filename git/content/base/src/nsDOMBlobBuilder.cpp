@@ -15,7 +15,6 @@
 #include "nsJSUtils.h"
 #include "nsContentUtils.h"
 #include "nsIScriptError.h"
-#include <algorithm>
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -95,7 +94,7 @@ nsDOMMultipartFile::CreateSlice(uint64_t aStart, uint64_t aLength,
     NS_ENSURE_SUCCESS(rv, nullptr);
 
     if (skipStart < l) {
-      uint64_t upperBound = std::min<uint64_t>(l - skipStart, length);
+      uint64_t upperBound = NS_MIN<uint64_t>(l - skipStart, length);
 
       nsCOMPtr<nsIDOMBlob> firstBlob;
       rv = blob->Slice(skipStart, skipStart + upperBound,
@@ -134,7 +133,7 @@ nsDOMMultipartFile::CreateSlice(uint64_t aStart, uint64_t aLength,
     } else {
       blobs.AppendElement(blob);
     }
-    length -= std::min<uint64_t>(l, length);
+    length -= NS_MIN<uint64_t>(l, length);
   }
 
   // we can create our blob now

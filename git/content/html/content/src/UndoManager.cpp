@@ -252,19 +252,11 @@ UndoTextChanged::RedoTransaction()
   }
 
   if (mChange.mAppend) {
-    // Text length should match the change start unless there was a
-    // mutation exterior to the UndoManager in which case we do nothing.
-    if (text.Length() == mChange.mChangeStart) {
-      mContent->AppendText(mRedoValue.get(), mRedoValue.Length(), true);
-    }
+    mContent->AppendText(mRedoValue.get(), mRedoValue.Length(), true);
   } else {
     int32_t numReplaced = mChange.mChangeEnd - mChange.mChangeStart;
-    // The length of the text should be at least as long as the replacement
-    // offset + replaced length, otherwise there was an external mutation.
-    if (mChange.mChangeStart + numReplaced <= text.Length()) {
-      text.Replace(mChange.mChangeStart, numReplaced, mRedoValue);
-      mContent->SetText(text, true);
-    }
+    text.Replace(mChange.mChangeStart, numReplaced, mRedoValue);
+    mContent->SetText(text, true);
   }
 
   return NS_OK;
@@ -283,17 +275,9 @@ UndoTextChanged::UndoTransaction()
   }
 
   if (mChange.mAppend) {
-    // The text should at least as long as the redo value in the case
-    // of an append, otherwise there was an external mutation.
-    if (mRedoValue.Length() <= text.Length()) {
-      text.Truncate(text.Length() - mRedoValue.Length());
-    }
+    text.Truncate(text.Length() - mRedoValue.Length());
   } else {
-    // The length of the text should be at least as long as the replacement
-    // offset + replacement length, otherwise there was an external mutation.
-    if (mChange.mChangeStart + mChange.mReplaceLength <= text.Length()) {
-      text.Replace(mChange.mChangeStart, mChange.mReplaceLength, mUndoValue);
-    }
+    text.Replace(mChange.mChangeStart, mRedoValue.Length(), mUndoValue);
   }
   mContent->SetText(text, true);
 
@@ -304,12 +288,7 @@ void
 UndoTextChanged::SaveRedoState()
 {
   const nsTextFragment* text = mContent->GetText();
-  mRedoValue.Truncate();
-  // The length of the text should be at least as long as the replacement
-  // offset + replacement length, otherwise there was an external mutation.
-  if (mChange.mChangeStart + mChange.mReplaceLength <= text->GetLength()) {
-    text->AppendTo(mRedoValue, mChange.mChangeStart, mChange.mReplaceLength);
-  }
+  text->AppendTo(mRedoValue, mChange.mChangeStart, mChange.mReplaceLength);
 }
 
 /////////////////////////////////////////////////

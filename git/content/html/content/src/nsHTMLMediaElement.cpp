@@ -76,7 +76,6 @@
 #include "nsIPowerManagerService.h"
 #include <cstdlib> // for std::abs(int/long)
 #include <cmath> // for std::abs(float/double)
-#include <algorithm>
 
 #ifdef MOZ_OGG
 #include "OggDecoder.h"
@@ -1313,10 +1312,10 @@ NS_IMETHODIMP nsHTMLMediaElement::SetCurrentTime(double aCurrentTime)
   }
 
   // Clamp the time to [0, duration] as required by the spec.
-  double clampedTime = std::max(0.0, aCurrentTime);
+  double clampedTime = NS_MAX(0.0, aCurrentTime);
   double duration = mDecoder->GetDuration();
   if (duration >= 0) {
-    clampedTime = std::min(clampedTime, duration);
+    clampedTime = NS_MIN(clampedTime, duration);
   }
 
   mPlayingBeforeSeek = IsPotentiallyPlaying();

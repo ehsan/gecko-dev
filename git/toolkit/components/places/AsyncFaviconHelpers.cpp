@@ -18,7 +18,6 @@
 #include "nsPrintfCString.h"
 #include "nsStreamUtils.h"
 #include "nsIPrivateBrowsingChannel.h"
-#include <algorithm>
 #if !(defined(MOZ_PER_WINDOW_PRIVATE_BROWSING)) && defined(DEBUG)
 #include "nsIPrivateBrowsingService.h"
 #endif
@@ -312,7 +311,7 @@ GetExpirationTimeFromChannel(nsIChannel* aChannel)
       rv = cacheEntry->GetExpirationTime(&seconds);
       if (NS_SUCCEEDED(rv)) {
         // Set the expiration, but make sure we honor our cap.
-        expiration = PR_Now() + std::min((PRTime)seconds * PR_USEC_PER_SEC,
+        expiration = PR_Now() + NS_MIN((PRTime)seconds * PR_USEC_PER_SEC,
                                        MAX_FAVICON_EXPIRATION);
       }
     }
