@@ -10,7 +10,6 @@
 #define jscntxt_h
 
 #include "mozilla/LinkedList.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/PodOperations.h"
 
 #include <string.h>
@@ -1443,7 +1442,7 @@ struct JSRuntime : public JS::shadow::Runtime,
         return jitHardening;
     }
 
-    void sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf, JS::RuntimeSizes *runtime);
+    void sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf, JS::RuntimeSizes *runtime);
 
   private:
 
@@ -1934,7 +1933,7 @@ struct JSContext : js::ThreadSafeContext,
      */
     bool runningWithTrustedPrincipals() const;
 
-    JS_FRIEND_API(size_t) sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf) const;
+    JS_FRIEND_API(size_t) sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf) const;
 
     void mark(JSTracer *trc);
 

@@ -10,7 +10,6 @@
 #define jsgc_h
 
 #include "mozilla/DebugOnly.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/Util.h"
 
 #include "jsalloc.h"
@@ -25,11 +24,11 @@
 #include "js/HashTable.h"
 #include "js/Vector.h"
 
-class JSAtom;
+struct JSAtom;
 struct JSCompartment;
-class JSFunction;
-class JSFlatString;
-class JSLinearString;
+struct JSFunction;
+struct JSFlatString;
+struct JSLinearString;
 
 namespace js {
 
@@ -258,8 +257,9 @@ struct ArenaList {
     void insert(ArenaHeader *arena);
 };
 
-class ArenaLists
+struct ArenaLists
 {
+  private:
     /*
      * For each arena kind its free list is represented as the first span with
      * free things. Initially all the spans are initialized as empty. After we
@@ -683,7 +683,7 @@ class GCHelperThread {
 
     bool              backgroundAllocation;
 
-    friend class js::gc::ArenaLists;
+    friend struct js::gc::ArenaLists;
 
     void
     replenishAndFreeLater(void *ptr);
@@ -919,7 +919,7 @@ struct MarkStack {
         return true;
     }
 
-    size_t sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf) const {
+    size_t sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf) const {
         size_t n = 0;
         if (stack != ballast)
             n += mallocSizeOf(stack);
@@ -1089,7 +1089,7 @@ struct GCMarker : public JSTracer {
 
     static void GrayCallback(JSTracer *trc, void **thing, JSGCTraceKind kind);
 
-    size_t sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf) const;
+    size_t sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf) const;
 
     MarkStack<uintptr_t> stack;
 

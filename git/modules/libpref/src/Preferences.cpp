@@ -3,7 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/ContentChild.h"
 
 #include "mozilla/Attributes.h"
@@ -165,7 +164,7 @@ NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(PreferencesMallocSizeOf)
 static size_t
 SizeOfObserverEntryExcludingThis(ValueObserverHashKey* aKey,
                                  const nsRefPtr<ValueObserver>& aData,
-                                 mozilla::MallocSizeOf aMallocSizeOf,
+                                 nsMallocSizeOfFun aMallocSizeOf,
                                  void*)
 {
   size_t n = 0;

@@ -4151,7 +4151,10 @@ IonBuilder::inlineCalls(CallInfo &callInfo, AutoObjectVector &targets,
             return false;
 
         // Create a function MConstant to use in the entry ResumePoint.
-        MConstant *funcDef = MConstant::New(ObjectValue(*target));
+        // Note that guarding is on the original function pointer even
+        // if there is a clone, since cloning occurs at the callsite.
+        JSFunction *original = &originals[i]->as<JSFunction>();
+        MConstant *funcDef = MConstant::New(ObjectValue(*original));
         funcDef->setFoldedUnchecked();
         dispatchBlock->add(funcDef);
 
@@ -4198,10 +4201,7 @@ IonBuilder::inlineCalls(CallInfo &callInfo, AutoObjectVector &targets,
         setCurrent(dispatchBlock);
 
         // Connect the inline path to the returnBlock.
-        //
-        // Note that guarding is on the original function pointer even
-        // if there is a clone, since cloning occurs at the callsite.
-        dispatch->addCase(&originals[i]->as<JSFunction>(), inlineBlock);
+        dispatch->addCase(original, inlineBlock);
 
         MDefinition *retVal = inlineReturnBlock->peek(-1);
         retPhi->addInput(retVal);
@@ -6978,7 +6978,7 @@ IonBuilder::jsop_length_fastPath()
         types::StackTypeSet *objTypes = obj->resultTypeSet();
 
         if (objTypes &&
-            objTypes->getKnownClass() == &ArrayObject::class_ &&
+            objTypes->getKnownClass() == &ArrayClass &&
             !objTypes->hasObjectFlags(cx, types::OBJECT_FLAG_LENGTH_OVERFLOW))
         {
             current->pop();
@@ -7038,55 +7038,33 @@ IonBuilder::jsop_arguments_length()
 bool
 IonBuilder::jsop_arguments_getelem()
 {
-    JS_ASSERT(!info().argsObjAliasesFormals());
+    if (inliningDepth_ != 0)
+        return abort("NYI inlined get argument element");
 
-    // Get the argument id
     MDefinition *idx = current->pop();
 
     // Type Inference has guaranteed this is an optimized arguments object.
     MDefinition *args = current->pop();
     args->setFoldedUnchecked();
 
+    // To ensure that we are not looking above the number of actual arguments.
+    MArgumentsLength *length = MArgumentsLength::New();
+    current->add(length);
 
-    // When we are not inlining, we can just get the arguments from the stack.
-    if (inliningDepth_ == 0) {
-        // To ensure that we are not looking above the number of actual arguments.
-        MArgumentsLength *length = MArgumentsLength::New();
-        current->add(length);
+    // Ensure idx is an integer.
+    MInstruction *index = MToInt32::New(idx);
+    current->add(index);
 
-        // Ensure idx is an integer.
-        MInstruction *index = MToInt32::New(idx);
-        current->add(index);
+    // Bailouts if we read more than the number of actual arguments.
+    index = addBoundsCheck(index, length);
 
-        // Bailouts if we read more than the number of actual arguments.
-        index = addBoundsCheck(index, length);
+    // Load the argument from the actual arguments.
+    MGetArgument *load = MGetArgument::New(index);
+    current->add(load);
+    current->push(load);
 
-        // Load the argument from the actual arguments.
-        MGetArgument *load = MGetArgument::New(index);
-        current->add(load);
-        current->push(load);
-
-        types::StackTypeSet *types = types::TypeScript::BytecodeTypes(script(), pc);
-        return pushTypeBarrier(load, types, true);
-    }
-
-    // When the id is constant, we can just return the corresponding inlined argument
-    if (idx->isConstant() && idx->toConstant()->value().isInt32()) {
-        JS_ASSERT(inliningDepth_ > 0);
-
-        int32_t id = idx->toConstant()->value().toInt32();
-        idx->setFoldedUnchecked();
-
-        if (id < (int32_t)inlineCallInfo_->argc() && id >= 0)
-            current->push(inlineCallInfo_->getArg(id));
-        else
-            pushConstant(UndefinedValue());
-
-        return true;
-    }
-
-    // inlined not constant not supported, yet.
-    return abort("NYI inlined not constant get argument element");
+    types::StackTypeSet *types = types::TypeScript::BytecodeTypes(script(), pc);
+    return pushTypeBarrier(load, types, true);
 }
 
 bool
@@ -7100,8 +7078,8 @@ IonBuilder::jsop_rest()
 {
     // We don't know anything about the callee.
     if (inliningDepth_ == 0) {
-        // Get an empty template array that doesn't have a pc-tracked type.
-        JSObject *templateObject = NewDenseUnallocatedArray(cx, 0, NULL, TenuredObject);
+        // Get an empty template array.
+        JSObject *templateObject = getNewArrayTemplateObject(0);
         if (!templateObject)
             return false;
 
@@ -7120,7 +7098,7 @@ IonBuilder::jsop_rest()
     unsigned numActuals = inlineCallInfo_->argv().length();
     unsigned numFormals = info().nargs() - 1;
     unsigned numRest = numActuals > numFormals ? numActuals - numFormals : 0;
-    JSObject *templateObject = NewDenseUnallocatedArray(cx, numRest, NULL, TenuredObject);
+    JSObject *templateObject = getNewArrayTemplateObject(numRest);
 
     MNewArray *array = new MNewArray(numRest, templateObject, MNewArray::NewArray_Allocating);
     current->add(array);
@@ -7133,6 +7111,15 @@ IonBuilder::jsop_rest()
     MElements *elements = MElements::New(array);
     current->add(elements);
 
+    types::TypeObject *arrayType = templateObject->type();
+    types::HeapTypeSet *elemTypes = NULL;
+    Vector<MInstruction *> setElemCalls(cx);
+    if (!arrayType->unknownProperties()) {
+        elemTypes = arrayType->getProperty(cx, JSID_VOID, false);
+        if (!elemTypes)
+            return false;
+    }
+
     // Unroll the argument copy loop. We don't need to do any bounds or hole
     // checking here.
     MConstant *index;
@@ -7140,15 +7127,34 @@ IonBuilder::jsop_rest()
         index = MConstant::New(Int32Value(i - numFormals));
         current->add(index);
 
+        MInstruction *store;
         MDefinition *arg = inlineCallInfo_->argv()[i];
-        MStoreElement *store = MStoreElement::New(elements, index, arg,
-                                                  /* needsHoleCheck = */ false);
+        if (elemTypes && !TypeSetIncludes(elemTypes, arg->type(), arg->resultTypeSet())) {
+            elemTypes->addFreeze(cx);
+            store = MCallSetElement::New(array, index, arg);
+            if (!setElemCalls.append(store))
+                return false;
+        } else {
+            store = MStoreElement::New(elements, index, arg, /* needsHoleCheck = */ false);
+        }
+
         current->add(store);
     }
 
     MSetInitializedLength *initLength = MSetInitializedLength::New(elements, index);
     current->add(initLength);
+
     current->push(array);
+
+    // The reason this loop of resumeAfters is here and not above is because
+    // resume points check the stack depth at its callsite in IonBuilder
+    // matches the expected stack depth at the point where we would bail back
+    // to in the interpreter. So we can't call resumeAfter until after we have
+    // pushed the array onto the stack.
+    for (unsigned i = 0; i < setElemCalls.length(); i++) {
+        if (!resumeAfter(setElemCalls[i]))
+            return false;
+    }
 
     return true;
 }

@@ -13,7 +13,6 @@
 #include "nsIComponentRegistrar.h"
 #include "nsIServiceManager.h"
 #include "nsIFile.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/Module.h"
 #include "mozilla/ModuleLoader.h"
 #include "mozilla/Mutex.h"
@@ -312,7 +311,7 @@ public:
 
     nsTArray<PendingServiceInfo> mPendingServices;
 
-    size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf);
+    size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf);
 
 private:
     ~nsComponentManagerImpl();
@@ -337,7 +336,7 @@ struct nsFactoryEntry
 
     already_AddRefed<nsIFactory> GetFactory();
 
-    size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf);
+    size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf);
 
     const mozilla::Module::CIDEntry* mCIDEntry;
     nsComponentManagerImpl::KnownModule* mModule;

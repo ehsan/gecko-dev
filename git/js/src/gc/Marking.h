@@ -192,9 +192,6 @@ IsValueAboutToBeFinalized(Value *v);
 
 /*** Slot Marking ***/
 
-bool
-IsSlotMarked(HeapSlot *s);
-
 void
 MarkSlot(JSTracer *trc, HeapSlot *s, const char *name);
 

@@ -6,7 +6,6 @@
 
 /* Private maps (hashtables). */
 
-#include "mozilla/MemoryReporting.h"
 #include "xpcprivate.h"
 
 #include "js/HashTable.h"
@@ -139,7 +138,7 @@ Native2WrappedNativeMap::~Native2WrappedNativeMap()
 }
 
 size_t
-Native2WrappedNativeMap::SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf)
+Native2WrappedNativeMap::SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf)
 {
     size_t n = 0;
     n += mallocSizeOf(this);
@@ -149,7 +148,7 @@ Native2WrappedNativeMap::SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf)
 
 /* static */ size_t
 Native2WrappedNativeMap::SizeOfEntryExcludingThis(PLDHashEntryHdr *hdr,
-                                                  mozilla::MallocSizeOf mallocSizeOf, void *)
+                                                  JSMallocSizeOfFun mallocSizeOf, void *)
 {
     return mallocSizeOf(((Native2WrappedNativeMap::Entry*)hdr)->value);
 }
@@ -228,7 +227,7 @@ IID2NativeInterfaceMap::~IID2NativeInterfaceMap()
 }
 
 size_t
-IID2NativeInterfaceMap::SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf)
+IID2NativeInterfaceMap::SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf)
 {
     size_t n = 0;
     n += mallocSizeOf(this);
@@ -238,7 +237,7 @@ IID2NativeInterfaceMap::SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf)
 
 /* static */ size_t
 IID2NativeInterfaceMap::SizeOfEntryExcludingThis(PLDHashEntryHdr *hdr,
-                                                 mozilla::MallocSizeOf mallocSizeOf, void *)
+                                                 JSMallocSizeOfFun mallocSizeOf, void *)
 {
     XPCNativeInterface *iface = ((IID2NativeInterfaceMap::Entry*)hdr)->value;
     return iface->SizeOfIncludingThis(mallocSizeOf);
@@ -271,7 +270,7 @@ ClassInfo2NativeSetMap::~ClassInfo2NativeSetMap()
 }
 
 size_t
-ClassInfo2NativeSetMap::ShallowSizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf)
+ClassInfo2NativeSetMap::ShallowSizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf)
 {
     size_t n = 0;
     n += mallocSizeOf(this);
@@ -311,7 +310,7 @@ ClassInfo2WrappedNativeProtoMap::~ClassInfo2WrappedNativeProtoMap()
 }
 
 size_t
-ClassInfo2WrappedNativeProtoMap::SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf)
+ClassInfo2WrappedNativeProtoMap::SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf)
 {
     size_t n = 0;
     n += mallocSizeOf(this);
@@ -321,7 +320,7 @@ ClassInfo2WrappedNativeProtoMap::SizeOfIncludingThis(mozilla::MallocSizeOf mallo
 
 /* static */ size_t
 ClassInfo2WrappedNativeProtoMap::SizeOfEntryExcludingThis(PLDHashEntryHdr *hdr,
-                                                          mozilla::MallocSizeOf mallocSizeOf, void *)
+                                                          JSMallocSizeOfFun mallocSizeOf, void *)
 {
     return mallocSizeOf(((ClassInfo2WrappedNativeProtoMap::Entry*)hdr)->value);
 }
@@ -435,7 +434,7 @@ NativeSetMap::~NativeSetMap()
 }
 
 size_t
-NativeSetMap::SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf)
+NativeSetMap::SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf)
 {
     size_t n = 0;
     n += mallocSizeOf(this);
@@ -444,7 +443,7 @@ NativeSetMap::SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf)
 }
 
 /* static */ size_t
-NativeSetMap::SizeOfEntryExcludingThis(PLDHashEntryHdr *hdr, mozilla::MallocSizeOf mallocSizeOf, void *)
+NativeSetMap::SizeOfEntryExcludingThis(PLDHashEntryHdr *hdr, JSMallocSizeOfFun mallocSizeOf, void *)
 {
     XPCNativeSet *set = ((NativeSetMap::Entry*)hdr)->key_value;
     return set->SizeOfIncludingThis(mallocSizeOf);

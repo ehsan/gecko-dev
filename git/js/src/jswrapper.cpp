@@ -13,8 +13,6 @@
 #include "jsgc.h"
 #include "jsiter.h"
 
-#include "vm/ErrorObject.h"
-
 #include "jsobjinlines.h"
 
 #include "builtin/Iterator-inl.h"
@@ -140,9 +138,7 @@ ErrorCopier::~ErrorCopier()
     JSContext *cx = ac.ref().context();
     if (ac.ref().origin() != cx->compartment() && cx->isExceptionPending()) {
         RootedValue exc(cx, cx->getPendingException());
-        if (exc.isObject() && exc.toObject().is<ErrorObject>() &&
-            exc.toObject().as<ErrorObject>().getExnPrivate())
-        {
+        if (exc.isObject() && exc.toObject().isError() && exc.toObject().getPrivate()) {
             cx->clearPendingException();
             ac.destroy();
             Rooted<JSObject*> errObj(cx, &exc.toObject());

@@ -94,6 +94,9 @@ enum extab_cmd_flags {
   ARM_EXIDX_VFP_FSTMD = 1 << 17, // distinguishes FSTMxxD from FSTMxxX
 };
 
+const string kRA = ".ra";
+const string kCFA = ".cfa";
+
 static const char* const regnames[] = {
  "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7",
  "r8", "r9", "r10", "r11", "r12", "sp", "lr", "pc",
@@ -115,10 +118,10 @@ class ARMExToModule {
  private:
   Module* module_;
   Module::StackFrameEntry* stack_frame_entry_;
-  Module::Expr vsp_;
+  string vsp_;
   int TranslateCmd(const struct extab_data* edata,
                    Module::StackFrameEntry* entry,
-                   Module::Expr& vsp);
+                   string& vsp);
 };
 
 } // namespace arm_ex_to_module

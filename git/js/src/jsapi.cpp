@@ -64,9 +64,7 @@
 #include "ion/AsmJS.h"
 #include "ion/PcScriptCache.h"
 #include "js/CharacterEncoding.h"
-#include "vm/DateObject.h"
 #include "vm/Debugger.h"
-#include "vm/ErrorObject.h"
 #include "vm/Interpreter.h"
 #include "vm/NumericConversions.h"
 #include "vm/Shape.h"
@@ -664,7 +662,7 @@ JS_IsBuiltinEvalFunction(JSFunction *fun)
 JS_PUBLIC_API(JSBool)
 JS_IsBuiltinFunctionConstructor(JSFunction *fun)
 {
-    return fun->isBuiltinFunctionConstructor();
+    return IsBuiltinFunctionConstructor(fun);
 }
 
 /************************************************************************/
@@ -1805,13 +1803,13 @@ StdNameToPropertyName(JSContext *cx, const JSStdName *stdn)
 static const JSStdName standard_class_atoms[] = {
     {js_InitFunctionClass,              EAGER_CLASS_ATOM(Function), &JSFunction::class_},
     {js_InitObjectClass,                EAGER_ATOM_AND_CLASP(Object)},
-    {js_InitArrayClass,                 EAGER_ATOM_AND_OCLASP(Array)},
+    {js_InitArrayClass,                 EAGER_ATOM_AND_CLASP(Array)},
     {js_InitBooleanClass,               EAGER_ATOM_AND_OCLASP(Boolean)},
-    {js_InitDateClass,                  EAGER_ATOM_AND_OCLASP(Date)},
+    {js_InitDateClass,                  EAGER_ATOM_AND_CLASP(Date)},
     {js_InitMathClass,                  EAGER_ATOM_AND_CLASP(Math)},
     {js_InitNumberClass,                EAGER_ATOM_AND_OCLASP(Number)},
     {js_InitStringClass,                EAGER_ATOM_AND_OCLASP(String)},
-    {js_InitExceptionClasses,           EAGER_ATOM_AND_OCLASP(Error)},
+    {js_InitExceptionClasses,           EAGER_ATOM_AND_CLASP(Error)},
     {js_InitRegExpClass,                EAGER_ATOM_AND_OCLASP(RegExp)},
 #if JS_HAS_GENERATORS
     {js_InitIteratorClasses,            EAGER_ATOM_AND_OCLASP(StopIteration)},
@@ -1859,14 +1857,14 @@ static const JSStdName standard_class_names[] = {
 #endif
 
     /* Exception constructors. */
-    {js_InitExceptionClasses,   EAGER_CLASS_ATOM(Error), OCLASP(Error)},
-    {js_InitExceptionClasses,   EAGER_CLASS_ATOM(InternalError), OCLASP(Error)},
-    {js_InitExceptionClasses,   EAGER_CLASS_ATOM(EvalError), OCLASP(Error)},
-    {js_InitExceptionClasses,   EAGER_CLASS_ATOM(RangeError), OCLASP(Error)},
-    {js_InitExceptionClasses,   EAGER_CLASS_ATOM(ReferenceError), OCLASP(Error)},
-    {js_InitExceptionClasses,   EAGER_CLASS_ATOM(SyntaxError), OCLASP(Error)},
-    {js_InitExceptionClasses,   EAGER_CLASS_ATOM(TypeError), OCLASP(Error)},
-    {js_InitExceptionClasses,   EAGER_CLASS_ATOM(URIError), OCLASP(Error)},
+    {js_InitExceptionClasses,   EAGER_CLASS_ATOM(Error), CLASP(Error)},
+    {js_InitExceptionClasses,   EAGER_CLASS_ATOM(InternalError), CLASP(Error)},
+    {js_InitExceptionClasses,   EAGER_CLASS_ATOM(EvalError), CLASP(Error)},
+    {js_InitExceptionClasses,   EAGER_CLASS_ATOM(RangeError), CLASP(Error)},
+    {js_InitExceptionClasses,   EAGER_CLASS_ATOM(ReferenceError), CLASP(Error)},
+    {js_InitExceptionClasses,   EAGER_CLASS_ATOM(SyntaxError), CLASP(Error)},
+    {js_InitExceptionClasses,   EAGER_CLASS_ATOM(TypeError), CLASP(Error)},
+    {js_InitExceptionClasses,   EAGER_CLASS_ATOM(URIError), CLASP(Error)},
 
     {js_InitIteratorClasses,    EAGER_CLASS_ATOM(Iterator), &PropertyIteratorObject::class_},
 
@@ -3028,7 +3026,7 @@ JS_IdArrayGet(JSContext *cx, JSIdArray *ida, int index)
 JS_PUBLIC_API(void)
 JS_DestroyIdArray(JSContext *cx, JSIdArray *ida)
 {
-    cx->runtime()->defaultFreeOp()->free_(ida);
+    DestroyIdArray(cx->runtime()->defaultFreeOp(), ida);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -4495,7 +4493,7 @@ prop_iter_finalize(FreeOp *fop, JSObject *obj)
     if (obj->getSlot(JSSLOT_ITER_INDEX).toInt32() >= 0) {
         /* Non-native case: destroy the ida enumerated when obj was created. */
         JSIdArray *ida = (JSIdArray *) pdata;
-        fop->free_(ida);
+        DestroyIdArray(fop, ida);
     }
 }
 

@@ -10,7 +10,6 @@
  * utility methods for subclasses, and so forth.
  */
 
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/Util.h"
 #include "mozilla/Likely.h"
 
@@ -594,7 +593,7 @@ FragmentOrElement::nsDOMSlots::Unlink(bool aIsXUL)
 }
 
 size_t
-FragmentOrElement::nsDOMSlots::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
+FragmentOrElement::nsDOMSlots::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = aMallocSizeOf(this);
 
@@ -1835,7 +1834,7 @@ FragmentOrElement::FireNodeRemovedForChildren()
 }
 
 size_t
-FragmentOrElement::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
+FragmentOrElement::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = 0;
   n += nsIContent::SizeOfExcludingThis(aMallocSizeOf);

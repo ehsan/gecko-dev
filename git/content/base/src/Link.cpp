@@ -6,7 +6,6 @@
 
 #include "Link.h"
 
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/Element.h"
 #include "nsEventStates.h"
 #include "nsIURL.h"
@@ -501,7 +500,7 @@ Link::SetHrefAttribute(nsIURI *aURI)
 }
 
 size_t
-Link::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+Link::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = 0;
 

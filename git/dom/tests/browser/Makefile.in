@@ -28,7 +28,7 @@ MOCHITEST_BROWSER_FILES := \
   page_privatestorageevent.html
   $(NULL)
 
-ifdef MOZ_B2G
+ifeq (,$(filter-out Linux WINNT,$(OS_ARCH)))
 MOCHITEST_BROWSER_FILES += \
   browser_webapps_permissions.js \
   test-webapp.webapp \

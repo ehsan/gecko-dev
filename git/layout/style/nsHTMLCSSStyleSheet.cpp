@@ -8,7 +8,6 @@
  */
 
 #include "nsHTMLCSSStyleSheet.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/css/StyleRule.h"
 #include "nsIStyleRuleProcessor.h"
 #include "nsPresContext.h"
@@ -134,13 +133,13 @@ nsHTMLCSSStyleSheet::MediumFeaturesChanged(nsPresContext* aPresContext)
 }
 
 /* virtual */ size_t
-nsHTMLCSSStyleSheet::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsHTMLCSSStyleSheet::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   return 0;
 }
 
 /* virtual */ size_t
-nsHTMLCSSStyleSheet::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsHTMLCSSStyleSheet::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
 }

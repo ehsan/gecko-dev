@@ -16,7 +16,6 @@
 #include "nsStyleUtil.h"
 #include "CSSCalc.h"
 #include "nsNetUtil.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/css/ImageLoader.h"
 #include "mozilla/Likely.h"
 
@@ -1236,7 +1235,7 @@ nsCSSValue::AppendToString(nsCSSProperty aProperty, nsAString& aResult) const
 }
 
 size_t
-nsCSSValue::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsCSSValue::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = 0;
 
@@ -1437,7 +1436,7 @@ nsCSSValueList::operator==(const nsCSSValueList& aOther) const
 }
 
 size_t
-nsCSSValueList::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsCSSValueList::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = 0;
   const nsCSSValueList* v = this;
@@ -1450,7 +1449,7 @@ nsCSSValueList::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
 }
 
 size_t
-nsCSSValueList_heap::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsCSSValueList_heap::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = aMallocSizeOf(this);
   n += mValue.SizeOfExcludingThis(aMallocSizeOf);
@@ -1523,7 +1522,7 @@ void nsCSSRect::SetAllSidesTo(const nsCSSValue& aValue)
 }
 
 size_t
-nsCSSRect_heap::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsCSSRect_heap::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = aMallocSizeOf(this);
   n += mTop   .SizeOfExcludingThis(aMallocSizeOf);
@@ -1558,7 +1557,7 @@ nsCSSValuePair::AppendToString(nsCSSProperty aProperty,
 }
 
 size_t
-nsCSSValuePair::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsCSSValuePair::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = 0;
   n += mXValue.SizeOfExcludingThis(aMallocSizeOf);
@@ -1567,7 +1566,7 @@ nsCSSValuePair::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
 }
 
 size_t
-nsCSSValuePair_heap::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsCSSValuePair_heap::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = aMallocSizeOf(this);
   n += mXValue.SizeOfExcludingThis(aMallocSizeOf);
@@ -1593,7 +1592,7 @@ nsCSSValueTriplet::AppendToString(nsCSSProperty aProperty,
 }
 
 size_t
-nsCSSValueTriplet_heap::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsCSSValueTriplet_heap::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = aMallocSizeOf(this);
   n += mXValue.SizeOfExcludingThis(aMallocSizeOf);
@@ -1666,7 +1665,7 @@ nsCSSValuePairList::operator==(const nsCSSValuePairList& aOther) const
 }
 
 size_t
-nsCSSValuePairList::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsCSSValuePairList::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = 0;
   const nsCSSValuePairList* v = this;
@@ -1680,7 +1679,7 @@ nsCSSValuePairList::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) con
 }
 
 size_t
-nsCSSValuePairList_heap::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsCSSValuePairList_heap::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = aMallocSizeOf(this);
   n += mXValue.SizeOfExcludingThis(aMallocSizeOf);
@@ -1690,7 +1689,7 @@ nsCSSValuePairList_heap::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf
 }
 
 size_t
-nsCSSValue::Array::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsCSSValue::Array::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = aMallocSizeOf(this);
   for (size_t i = 0; i < mCount; i++) {
@@ -1777,7 +1776,7 @@ css::URLValue::GetURI() const
 }
 
 size_t
-css::URLValue::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+css::URLValue::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = aMallocSizeOf(this);
 
@@ -1868,7 +1867,7 @@ nsCSSValueGradientStop::~nsCSSValueGradientStop()
 }
 
 size_t
-nsCSSValueGradientStop::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsCSSValueGradientStop::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = 0;
   n += mLocation.SizeOfExcludingThis(aMallocSizeOf);
@@ -1890,7 +1889,7 @@ nsCSSValueGradient::nsCSSValueGradient(bool aIsRadial,
 }
 
 size_t
-nsCSSValueGradient::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsCSSValueGradient::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = aMallocSizeOf(this);
   n += mBgPos.SizeOfExcludingThis(aMallocSizeOf);

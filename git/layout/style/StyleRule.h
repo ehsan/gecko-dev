@@ -14,7 +14,6 @@
 #include "mozilla/Attributes.h"
 
 #include "mozilla/Attributes.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/css/Rule.h"
 
 #include "nsString.h"
@@ -37,7 +36,7 @@ public:
   /** Do a deep clone.  Should be used only on the first in the linked list. */
   nsAtomList* Clone() const { return Clone(true); }
 
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
   nsCOMPtr<nsIAtom> mAtom;
   nsAtomList*       mNext;
@@ -60,7 +59,7 @@ public:
   /** Do a deep clone.  Should be used only on the first in the linked list. */
   nsPseudoClassList* Clone() const { return Clone(true); }
 
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
   union {
     // For a given value of mType, we have either:
@@ -190,7 +189,7 @@ public:
     mPseudoType = static_cast<int16_t>(aType);
   }
 
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
   // For case-sensitive documents, mLowercaseTag is the same as mCasedTag,
   // but in case-insensitive documents (HTML) mLowercaseTag is lowercase.
@@ -248,7 +247,7 @@ struct nsCSSSelectorList {
    */
   nsCSSSelectorList* Clone() const { return Clone(true); }
 
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
   nsCSSSelector*     mSelectors;
   int32_t            mWeight;
@@ -366,7 +365,7 @@ public:
   virtual void List(FILE* out = stdout, int32_t aIndent = 0) const MOZ_OVERRIDE;
 #endif
 
-  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
 private:
   ~StyleRule();

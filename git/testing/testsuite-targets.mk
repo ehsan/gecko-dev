@@ -399,7 +399,6 @@ package-tests: \
   stage-tps \
   stage-modules \
   stage-marionette \
-  stage-cppunittests \
   $(NULL)
 else
 # This staging area has been built for us by universal/flight.mk
@@ -485,12 +484,6 @@ stage-tps: make-stage-dir
 stage-modules: make-stage-dir
 	$(NSINSTALL) -D $(PKG_STAGE)/modules
 	cp -RL $(DEPTH)/_tests/modules $(PKG_STAGE)
-
-stage-cppunittests:
-	$(NSINSTALL) -D $(PKG_STAGE)/cppunittests
-	$(NSINSTALL) $(topsrcdir)/testing/runcppunittests.py $(PKG_STAGE)/cppunittests
-	$(NSINSTALL) $(topsrcdir)/testing/remotecppunittests.py $(PKG_STAGE)/cppunittests
-	cp -RL $(DIST)/cppunittests $(PKG_STAGE)
 
 MARIONETTE_DIR=$(PKG_STAGE)/marionette
 stage-marionette: make-stage-dir

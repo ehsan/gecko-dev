@@ -7,7 +7,6 @@
 #ifndef imgFrame_h
 #define imgFrame_h
 
-#include "mozilla/MemoryReporting.h"
 #include "nsRect.h"
 #include "nsPoint.h"
 #include "nsSize.h"
@@ -105,7 +104,7 @@ public:
 
   size_t SizeOfExcludingThisWithComputedFallbackIfHeap(
            gfxASurface::MemoryLocation aLocation,
-           mozilla::MallocSizeOf aMallocSizeOf) const;
+           nsMallocSizeOfFun aMallocSizeOf) const;
 
   uint8_t GetPaletteDepth() const { return mPaletteDepth; }
   uint32_t PaletteDataLength() const {

@@ -9,8 +9,6 @@
 
 #ifdef JS_ION
 
-#include "mozilla/MemoryReporting.h"
-
 #include "IonCode.h"
 #include "jsweakcache.h"
 #include "js/Value.h"
@@ -66,7 +64,7 @@ typedef Vector<IonBuilder*, 0, SystemAllocPolicy> OffThreadCompilationVector;
 // Optimized stubs are allocated per-compartment and are always purged when
 // JIT-code is discarded. Fallback stubs are allocated per BaselineScript and
 // are only destroyed when the BaselineScript is destroyed.
-class ICStubSpace
+struct ICStubSpace
 {
   protected:
     LifoAlloc allocator_;
@@ -82,7 +80,7 @@ class ICStubSpace
 
     JS_DECLARE_NEW_METHODS(allocate, alloc, inline)
 
-    size_t sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf) const {
+    size_t sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf) const {
         return allocator_.sizeOfExcludingThis(mallocSizeOf);
     }
 };

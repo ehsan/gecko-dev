@@ -9,7 +9,6 @@
 #include "xpcprivate.h"
 #include "nsCxPusher.h"
 
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/XPTInterfaceInfoManager.h"
 
 using namespace JS;
@@ -389,7 +388,7 @@ XPCNativeInterface::DestroyInstance(XPCNativeInterface* inst)
 }
 
 size_t
-XPCNativeInterface::SizeOfIncludingThis(MallocSizeOf mallocSizeOf)
+XPCNativeInterface::SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf)
 {
     return mallocSizeOf(this);
 }
@@ -799,7 +798,7 @@ XPCNativeSet::DestroyInstance(XPCNativeSet* inst)
 }
 
 size_t
-XPCNativeSet::SizeOfIncludingThis(MallocSizeOf mallocSizeOf)
+XPCNativeSet::SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf)
 {
     return mallocSizeOf(this);
 }

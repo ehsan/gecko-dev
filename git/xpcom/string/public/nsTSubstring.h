@@ -6,8 +6,6 @@
 
 // IWYU pragma: private, include "nsAString.h"
 
-#include "mozilla/MemoryReporting.h"
-
 #ifndef MOZILLA_INTERNAL_API
 #error Cannot use internal string classes without MOZILLA_INTERNAL_API defined. Use the frozen header nsStringAPI.h instead.
 #endif
@@ -628,14 +626,14 @@ class nsTSubstring_CharT
           mFlags(flags) {}
 #endif /* DEBUG || FORCE_BUILD_REFCNT_LOGGING */
 
-      size_t SizeOfExcludingThisMustBeUnshared(mozilla::MallocSizeOf mallocSizeOf)
+      size_t SizeOfExcludingThisMustBeUnshared(nsMallocSizeOfFun mallocSizeOf)
         const;
-      size_t SizeOfIncludingThisMustBeUnshared(mozilla::MallocSizeOf mallocSizeOf)
+      size_t SizeOfIncludingThisMustBeUnshared(nsMallocSizeOfFun mallocSizeOf)
         const;
 
-      size_t SizeOfExcludingThisIfUnshared(mozilla::MallocSizeOf mallocSizeOf)
+      size_t SizeOfExcludingThisIfUnshared(nsMallocSizeOfFun mallocSizeOf)
         const;
-      size_t SizeOfIncludingThisIfUnshared(mozilla::MallocSizeOf mallocSizeOf)
+      size_t SizeOfIncludingThisIfUnshared(nsMallocSizeOfFun mallocSizeOf)
         const;
 
         /**
@@ -644,9 +642,9 @@ class nsTSubstring_CharT
          * you do use them, please explain clearly in a comment why it's safe
          * and won't lead to double-counting.
          */
-      size_t SizeOfExcludingThisEvenIfShared(mozilla::MallocSizeOf mallocSizeOf)
+      size_t SizeOfExcludingThisEvenIfShared(nsMallocSizeOfFun mallocSizeOf)
         const;
-      size_t SizeOfIncludingThisEvenIfShared(mozilla::MallocSizeOf mallocSizeOf)
+      size_t SizeOfIncludingThisEvenIfShared(nsMallocSizeOfFun mallocSizeOf)
         const;
 
     protected:

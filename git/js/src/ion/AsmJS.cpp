@@ -697,10 +697,12 @@ ExtractNumericLiteral(ParseNode *pn)
         d = NumberNodeValue(numberNode);
     }
 
-    if (NumberNodeHasFrac(numberNode) || IsNegativeZero(d))
+    if (NumberNodeHasFrac(numberNode))
         return NumLit(NumLit::Double, DoubleValue(d));
 
     int64_t i64 = int64_t(d);
+    if (d != double(i64))
+        return NumLit(NumLit::OutOfRangeInt, UndefinedValue());
 
     if (i64 >= 0) {
         if (i64 <= INT32_MAX)
@@ -5275,18 +5277,17 @@ TryEnablingIon(JSContext *cx, AsmJSModule::ExitDatum *exitDatum, int32_t argc, V
     const AsmJSModule &module =
         cx->mainThread().asmJSActivationStackFromOwnerThread()->module();
 
-    // Normally the types should corresond, since we just ran with those types,
-    // but there are reports this is asserting. Therefore doing it as a check, instead of DEBUG only.
-    if (!types::TypeScript::ThisTypes(script)->hasType(types::Type::UndefinedType()))
-        return true;
+#ifdef DEBUG
+    // The types should correspond, since we just run through invoke, before testing this.
+    JS_ASSERT(types::TypeScript::ThisTypes(script)->hasType(types::Type::UndefinedType()));
     for(uint32_t i = 0; i < exitDatum->fun->nargs; i++) {
         types::StackTypeSet *typeset = types::TypeScript::ArgTypes(script, i);
         types::Type type = types::Type::DoubleType();
         if (!argv[i].isDouble())
             type = types::Type::PrimitiveType(argv[i].extractNonDoubleType());
-        if (!typeset->hasType(type))
-            return true;
+        JS_ASSERT(typeset->hasType(type));
     }
+#endif
 
     // Enable
     IonScript *ionScript = script->ionScript();

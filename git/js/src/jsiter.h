@@ -10,9 +10,6 @@
 /*
  * JavaScript iterators.
  */
-
-#include "mozilla/MemoryReporting.h"
-
 #include "jscntxt.h"
 
 #include "gc/Barrier.h"
@@ -122,7 +119,7 @@ class PropertyIteratorObject : public JSObject
     inline NativeIterator *getNativeIterator() const;
     inline void setNativeIterator(js::NativeIterator *ni);
 
-    size_t sizeOfMisc(mozilla::MallocSizeOf mallocSizeOf) const;
+    size_t sizeOfMisc(JSMallocSizeOfFun mallocSizeOf) const;
 
   private:
     static void trace(JSTracer *trc, JSObject *obj);

@@ -28,7 +28,8 @@ public:
   }
   ~FFTBlock()
   {
-    Clear();
+    free(mFFT);
+    free(mIFFT);
   }
 
   void PerformFFT(const float* aData)
@@ -67,7 +68,7 @@ public:
     mFFTSize = aSize;
     mOutputBuffer.SetLength(aSize / 2 + 1);
     PodZero(mOutputBuffer.Elements(), aSize / 2 + 1);
-    Clear();
+    mFFT = mIFFT = nullptr;
   }
 
   uint32_t FFTSize() const
@@ -95,12 +96,6 @@ private:
     if (!mIFFT) {
       mIFFT = kiss_fftr_alloc(mFFTSize, 1, nullptr, nullptr);
     }
-  }
-  void Clear()
-  {
-    free(mFFT);
-    free(mIFFT);
-    mFFT = mIFFT = nullptr;
   }
 
 private:

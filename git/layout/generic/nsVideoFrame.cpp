@@ -503,8 +503,7 @@ nsSize nsVideoFrame::ComputeSize(nsRenderingContext *aRenderingContext,
   intrinsicSize.width.SetCoordValue(size.width);
   intrinsicSize.height.SetCoordValue(size.height);
 
-  // Only video elements have an intrinsic ratio.
-  nsSize intrinsicRatio = HasVideoElement() ? size : nsSize(0, 0);
+  nsSize& intrinsicRatio = size; // won't actually be used
 
   return nsLayoutUtils::ComputeSizeWithIntrinsicDimensions(aRenderingContext,
                                                            this,
@@ -532,11 +531,6 @@ nscoord nsVideoFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
 
 nsSize nsVideoFrame::GetIntrinsicRatio()
 {
-  if (!HasVideoElement()) {
-    // Audio elements have no intrinsic ratio.
-    return nsSize(0, 0);
-  }
-
   return GetVideoIntrinsicSize(nullptr);
 }
 
@@ -572,9 +566,12 @@ nsVideoFrame::GetVideoIntrinsicSize(nsRenderingContext *aRenderingContext)
 {
   // Defaulting size to 300x150 if no size given.
   nsIntSize size(300, 150);
-
+  
   if (!HasVideoElement()) {
-    if (!mFrames.FirstChild()) {
+    if (!aRenderingContext || !mFrames.FirstChild()) {
+      // We just want our intrinsic ratio, but audio elements need no
+      // intrinsic ratio, so just return "no ratio". Also, if there's
+      // no controls frame, we prefer to be zero-sized.
       return nsSize(0, 0);
     }
 

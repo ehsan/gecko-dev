@@ -12,7 +12,6 @@
 #include "prclist.h"
 #include "nsStyleAnimation.h"
 #include "nsCSSProperty.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/Element.h"
 #include "nsSMILKeySpline.h"
 #include "nsStyleStruct.h"
@@ -43,9 +42,9 @@ public:
   virtual nsRestyleHint
     HasAttributeDependentStyle(AttributeRuleProcessorData* aData) MOZ_OVERRIDE;
   virtual bool MediumFeaturesChanged(nsPresContext* aPresContext) MOZ_OVERRIDE;
-  virtual size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf)
+  virtual size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf)
     const MOZ_MUST_OVERRIDE MOZ_OVERRIDE;
-  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf)
+  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
     const MOZ_MUST_OVERRIDE MOZ_OVERRIDE;
 
   /**
@@ -65,8 +64,8 @@ public:
 protected:
   friend struct CommonElementAnimationData; // for ElementDataRemoved
 
-  virtual void AddElementData(CommonElementAnimationData* aData) = 0;
-  virtual void ElementDataRemoved() = 0;
+  void AddElementData(CommonElementAnimationData* aData);
+  void ElementDataRemoved();
   void RemoveAllElementData();
 
   PRCList mElementData;

@@ -22,7 +22,7 @@
 #include "builtin/Eval.h"
 #include "gc/Nursery.h"
 #include "vm/ForkJoin.h"
-#include "ParallelSafetyAnalysis.h"
+#include "ParallelArrayAnalysis.h"
 
 #include "vm/Interpreter-inl.h"
 #include "vm/StringObject-inl.h"

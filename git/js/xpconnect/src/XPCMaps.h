@@ -9,8 +9,6 @@
 #ifndef xpcmaps_h___
 #define xpcmaps_h___
 
-#include "mozilla/MemoryReporting.h"
-
 #include "js/HashTable.h"
 
 // Maps...
@@ -70,7 +68,7 @@ public:
 
     void ShutdownMarker(JSRuntime* rt);
 
-    size_t SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf) {
+    size_t SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf) {
         size_t n = mallocSizeOf(this);
         n += mTable.sizeOfExcludingThis(mallocSizeOf);
         return n;
@@ -138,14 +136,14 @@ public:
     inline uint32_t Enumerate(PLDHashEnumerator f, void *arg)
         {return PL_DHashTableEnumerate(mTable, f, arg);}
 
-    size_t SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf);
+    size_t SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf);
 
     ~Native2WrappedNativeMap();
 private:
     Native2WrappedNativeMap();    // no implementation
     Native2WrappedNativeMap(int size);
 
-    static size_t SizeOfEntryExcludingThis(PLDHashEntryHdr *hdr, mozilla::MallocSizeOf mallocSizeOf, void *);
+    static size_t SizeOfEntryExcludingThis(PLDHashEntryHdr *hdr, JSMallocSizeOfFun mallocSizeOf, void *);
 
 private:
     PLDHashTable *mTable;
@@ -257,14 +255,14 @@ public:
     inline uint32_t Enumerate(PLDHashEnumerator f, void *arg)
         {return PL_DHashTableEnumerate(mTable, f, arg);}
 
-    size_t SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf);
+    size_t SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf);
 
     ~IID2NativeInterfaceMap();
 private:
     IID2NativeInterfaceMap();    // no implementation
     IID2NativeInterfaceMap(int size);
 
-    static size_t SizeOfEntryExcludingThis(PLDHashEntryHdr *hdr, mozilla::MallocSizeOf mallocSizeOf, void *);
+    static size_t SizeOfEntryExcludingThis(PLDHashEntryHdr *hdr, JSMallocSizeOfFun mallocSizeOf, void *);
 
 private:
     PLDHashTable *mTable;
@@ -320,7 +318,7 @@ public:
     // So we don't want to count those XPCNativeSets, because they are better
     // counted elsewhere (i.e. in XPCJSRuntime::mNativeSetMap, which holds
     // pointers to *all* XPCNativeSets).  Hence the "Shallow".
-    size_t ShallowSizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf);
+    size_t ShallowSizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf);
 
     ~ClassInfo2NativeSetMap();
 private:
@@ -376,14 +374,14 @@ public:
     inline uint32_t Enumerate(PLDHashEnumerator f, void *arg)
         {return PL_DHashTableEnumerate(mTable, f, arg);}
 
-    size_t SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf);
+    size_t SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf);
 
     ~ClassInfo2WrappedNativeProtoMap();
 private:
     ClassInfo2WrappedNativeProtoMap();    // no implementation
     ClassInfo2WrappedNativeProtoMap(int size);
 
-    static size_t SizeOfEntryExcludingThis(PLDHashEntryHdr *hdr, mozilla::MallocSizeOf mallocSizeOf, void *);
+    static size_t SizeOfEntryExcludingThis(PLDHashEntryHdr *hdr, JSMallocSizeOfFun mallocSizeOf, void *);
 
 private:
     PLDHashTable *mTable;
@@ -449,14 +447,14 @@ public:
     inline uint32_t Enumerate(PLDHashEnumerator f, void *arg)
         {return PL_DHashTableEnumerate(mTable, f, arg);}
 
-    size_t SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf);
+    size_t SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf);
 
     ~NativeSetMap();
 private:
     NativeSetMap();    // no implementation
     NativeSetMap(int size);
 
-    static size_t SizeOfEntryExcludingThis(PLDHashEntryHdr *hdr, mozilla::MallocSizeOf mallocSizeOf, void *);
+    static size_t SizeOfEntryExcludingThis(PLDHashEntryHdr *hdr, JSMallocSizeOfFun mallocSizeOf, void *);
 
 private:
     PLDHashTable *mTable;

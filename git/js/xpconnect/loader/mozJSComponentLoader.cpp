@@ -1144,7 +1144,8 @@ mozJSComponentLoader::UnloadModules()
 
     mModules.Enumerate(ClearModules, NULL);
 
-    JS_DestroyContextNoGC(mContext);
+    // Destroying our context will force a GC.
+    JS_DestroyContext(mContext);
     mContext = nullptr;
 
     mRuntimeService = nullptr;

@@ -48,7 +48,7 @@ js::Nursery::init()
     // were marked as uncommitted, but it's a little complicated to avoid
     // clobbering pre-existing unrelated mappings.
     while (IsPoisonedPtr(heap) || IsPoisonedPtr((void*)(uintptr_t(heap) + NurserySize)))
-        heap = MapAlignedPages(runtime(), NurserySize, Alignment);
+        heap = MapAlignedPages(NurserySize, Alignment);
 #endif
     if (!heap)
         return false;
@@ -58,9 +58,7 @@ js::Nursery::init()
     rt->gcNurseryEnd_ = chunk(LastNurseryChunk).end();
     numActiveChunks_ = 1;
     setCurrentChunk(0);
-#ifdef DEBUG
     JS_POISON(heap, FreshNursery, NurserySize);
-#endif
     for (int i = 0; i < NumNurseryChunks; ++i)
         chunk(i).runtime = rt;
 
@@ -110,9 +108,7 @@ js::Nursery::allocate(size_t size)
     void *thing = (void *)position();
     position_ = position() + size;
 
-#ifdef DEBUG
     JS_POISON(thing, AllocatedThing, size);
-#endif
     return thing;
 }
 
@@ -220,7 +216,6 @@ class MinorCollectionTracer : public JSTracer
     RelocationOverlay **tail;
 
     /* Save and restore all of the runtime state we use during MinorGC. */
-    bool savedRuntimeNeedBarrier;
     AutoDisableProxyCheck disableStrictProxyChecking;
 
     /* Insert the given relocation entry into the list of things to visit. */
@@ -237,26 +232,11 @@ class MinorCollectionTracer : public JSTracer
         tenuredSize(0),
         head(NULL),
         tail(&head),
-        savedRuntimeNeedBarrier(rt->needsBarrier()),
         disableStrictProxyChecking(rt)
     {
         JS_TracerInit(this, rt, Nursery::MinorGCCallback);
         eagerlyTraceWeakMaps = TraceWeakMapKeysValues;
         rt->gcNumber++;
-
-        /*
-         * We disable the runtime needsBarrier() check so that pre-barriers do
-         * not fire on objects that have been relocated. The pre-barrier's
-         * call to obj->zone() will try to look through shape_, which is now
-         * the relocation magic and will crash. However, zone->needsBarrier()
-         * must still be set correctly so that allocations we make in minor
-         * GCs between incremental slices will allocate their objects marked.
-         */
-        rt->setNeedsBarrier(false);
-    }
-
-    ~MinorCollectionTracer() {
-        runtime->setNeedsBarrier(savedRuntimeNeedBarrier);
     }
 };
 
@@ -266,7 +246,7 @@ class MinorCollectionTracer : public JSTracer
 static AllocKind
 GetObjectAllocKindForCopy(JSRuntime *rt, JSObject *obj)
 {
-    if (obj->is<ArrayObject>()) {
+    if (obj->isArray()) {
         JS_ASSERT(obj->numFixedSlots() == 0);
 
         /* Use minimal size object if we are just going to copy the pointer. */
@@ -325,7 +305,7 @@ js::Nursery::moveObjectToTenured(JSObject *dst, JSObject *src, AllocKind dstKind
      * We deal with this by copying elements manually, possibly re-inlining
      * them if there is adequate room inline in dst.
      */
-    if (src->is<ArrayObject>())
+    if (src->isArray())
         srcSize = sizeof(ObjectImpl);
 
     js_memcpy(dst, src, srcSize);
@@ -394,7 +374,7 @@ js::Nursery::moveElementsToTenured(JSObject *dst, JSObject *src, AllocKind dstKi
     size_t nslots = ObjectElements::VALUES_PER_HEADER + srcHeader->capacity;
 
     /* Unlike other objects, Arrays can have fixed elements. */
-    if (src->is<ArrayObject>() && nslots <= GetGCKindSlots(dstKind)) {
+    if (src->isArray() && nslots <= GetGCKindSlots(dstKind)) {
         dst->setFixedElements();
         dstHeader = dst->getElementsHeader();
         js_memcpy(dstHeader, srcHeader, nslots * sizeof(HeapSlot));

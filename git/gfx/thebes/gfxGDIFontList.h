@@ -6,7 +6,6 @@
 #ifndef GFX_GDIFONTLIST_H
 #define GFX_GDIFONTLIST_H
 
-#include "mozilla/MemoryReporting.h"
 #include "gfxWindowsPlatform.h"
 #include "gfxPlatformFontList.h"
 #include "nsGkAtoms.h"
@@ -240,7 +239,7 @@ public:
 
     virtual bool TestCharacterMap(uint32_t aCh);
 
-    virtual void SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+    virtual void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                      FontListSizes*    aSizes) const;
 
     // create a font entry for a font with a given name
@@ -322,9 +321,9 @@ public:
     virtual bool ResolveFontName(const nsAString& aFontName,
                                    nsAString& aResolvedFontName);
 
-    virtual void SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+    virtual void SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                      FontListSizes*    aSizes) const;
-    virtual void SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+    virtual void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                      FontListSizes*    aSizes) const;
 
 private:

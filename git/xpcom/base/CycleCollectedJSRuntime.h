@@ -7,7 +7,6 @@
 #ifndef mozilla_CycleCollectedJSRuntime_h__
 #define mozilla_CycleCollectedJSRuntime_h__
 
-#include "mozilla/MemoryReporting.h"
 #include "jsprvtd.h"
 #include "jsapi.h"
 
@@ -89,7 +88,7 @@ protected:
     return mJSRuntime;
   }
 
-  size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
   void UnmarkSkippableJSHolders();
 
   virtual void TraverseAdditionalNativeRoots(nsCycleCollectionNoteRootCallback& aCb) = 0;

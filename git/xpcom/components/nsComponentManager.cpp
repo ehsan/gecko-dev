@@ -36,7 +36,6 @@
 #include "nsCategoryManager.h"
 #include "nsCategoryManagerUtils.h"
 #include "xptiprivate.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/XPTInterfaceInfoManager.h"
 #include "nsIConsoleService.h"
 #include "nsIMemoryReporter.h"
@@ -1681,7 +1680,7 @@ nsComponentManagerImpl::ContractIDToCID(const char *aContractID,
 static size_t
 SizeOfFactoriesEntryExcludingThis(nsIDHashKey::KeyType aKey,
                                   nsFactoryEntry* const &aData,
-                                  MallocSizeOf aMallocSizeOf,
+                                  nsMallocSizeOfFun aMallocSizeOf,
                                   void* aUserArg)
 {
     return aData->SizeOfIncludingThis(aMallocSizeOf);
@@ -1690,7 +1689,7 @@ SizeOfFactoriesEntryExcludingThis(nsIDHashKey::KeyType aKey,
 static size_t
 SizeOfContractIDsEntryExcludingThis(nsCStringHashKey::KeyType aKey,
                                     nsFactoryEntry* const &aData,
-                                    MallocSizeOf aMallocSizeOf,
+                                    nsMallocSizeOfFun aMallocSizeOf,
                                     void* aUserArg)
 {
     // We don't measure the nsFactoryEntry data because its owned by mFactories
@@ -1699,7 +1698,7 @@ SizeOfContractIDsEntryExcludingThis(nsCStringHashKey::KeyType aKey,
 }
 
 size_t
-nsComponentManagerImpl::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf)
+nsComponentManagerImpl::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
 {
     size_t n = aMallocSizeOf(this);
     n += mLoaderMap.SizeOfExcludingThis(nullptr, aMallocSizeOf);
@@ -1803,7 +1802,7 @@ nsFactoryEntry::GetFactory()
 }
 
 size_t
-nsFactoryEntry::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf)
+nsFactoryEntry::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
 {
     size_t n = aMallocSizeOf(this);
 

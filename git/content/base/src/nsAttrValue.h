@@ -21,7 +21,6 @@
 #include "SVGAttrValueWrapper.h"
 #include "nsTArrayForwardDeclare.h"
 #include "nsIAtom.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/BindingDeclarations.h"
 
 class nsAString;
@@ -372,7 +371,7 @@ public:
   bool ParseStyleAttribute(const nsAString& aString,
                            nsStyledElementNotElementCSSInlineStyle* aElement);
 
-  size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
 private:
   // These have to be the same as in ValueType

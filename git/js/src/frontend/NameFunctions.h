@@ -12,7 +12,7 @@ struct JSContext;
 namespace js {
 namespace frontend {
 
-class ParseNode;
+struct ParseNode;
 
 bool
 NameFunctions(JSContext *cx, ParseNode *pn);

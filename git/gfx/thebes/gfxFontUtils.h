@@ -23,7 +23,6 @@
 #include "nsAutoPtr.h"
 #include "mozilla/Likely.h"
 #include "mozilla/Endian.h"
-#include "mozilla/MemoryReporting.h"
 
 #include "zlib.h"
 #include <algorithm>
@@ -258,7 +257,7 @@ public:
         }
     }
 
-    size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const {
+    size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const {
         size_t total = mBlocks.SizeOfExcludingThis(aMallocSizeOf);
         for (uint32_t i = 0; i < mBlocks.Length(); i++) {
             if (mBlocks[i]) {
@@ -268,7 +267,7 @@ public:
         return total;
     }
 
-    size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const {
+    size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const {
         return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
     }
 

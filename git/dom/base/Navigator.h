@@ -7,7 +7,6 @@
 #ifndef mozilla_dom_Navigator_h
 #define mozilla_dom_Navigator_h
 
-#include "mozilla/MemoryReporting.h"
 #include "nsIDOMNavigator.h"
 #include "nsIDOMNavigatorGeolocation.h"
 #include "nsIDOMNavigatorDeviceStorage.h"
@@ -201,7 +200,7 @@ public:
 
   static bool HasDesktopNotificationSupport();
 
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
   /**
    * For use during document.write where our inner window changes.

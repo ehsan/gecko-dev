@@ -77,7 +77,6 @@
 
 #include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/StandardInteger.h"
 #include "mozilla/Util.h"
 
@@ -838,7 +837,7 @@ public:
     static void CTypesActivityCallback(JSContext *cx,
                                        js::CTypesActivityType type);
 
-    size_t SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf);
+    size_t SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf);
 
     AutoMarkingPtr**  GetAutoRootsAdr() {return &mAutoRoots;}
 
@@ -1409,10 +1408,10 @@ public:
     DebugDump(int16_t depth);
 
     static size_t
-    SizeOfAllScopesIncludingThis(mozilla::MallocSizeOf mallocSizeOf);
+    SizeOfAllScopesIncludingThis(nsMallocSizeOfFun mallocSizeOf);
 
     size_t
-    SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf);
+    SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf);
 
     JSBool
     IsValid() const {return mRuntime != nullptr;}
@@ -1636,7 +1635,7 @@ class XPCNativeInterface
 
     static void DestroyInstance(XPCNativeInterface* inst);
 
-    size_t SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf);
+    size_t SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf);
 
   protected:
     static XPCNativeInterface* NewInstance(nsIInterfaceInfo* aInfo);
@@ -1804,7 +1803,7 @@ class XPCNativeSet
 
     static void DestroyInstance(XPCNativeSet* inst);
 
-    size_t SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf);
+    size_t SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf);
 
   protected:
     static XPCNativeSet* NewInstance(XPCNativeInterface** array,

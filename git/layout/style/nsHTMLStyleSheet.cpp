@@ -30,7 +30,6 @@
 #include "nsError.h"
 #include "nsRuleProcessorData.h"
 #include "nsCSSRuleProcessor.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/Element.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsHashKeys.h"
@@ -373,13 +372,13 @@ nsHTMLStyleSheet::MediumFeaturesChanged(nsPresContext* aPresContext)
 }
 
 /* virtual */ size_t
-nsHTMLStyleSheet::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
+nsHTMLStyleSheet::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   return 0; // nsHTMLStyleSheets are charged to the DOM, not layout
 }
 
 /* virtual */ size_t
-nsHTMLStyleSheet::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
+nsHTMLStyleSheet::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   return 0; // nsHTMLStyleSheets are charged to the DOM, not layout
 }
@@ -528,7 +527,7 @@ nsHTMLStyleSheet::LangRuleFor(const nsString& aLanguage)
 
 static size_t
 SizeOfAttributesEntryExcludingThis(PLDHashEntryHdr* aEntry,
-                                   MallocSizeOf aMallocSizeOf,
+                                   nsMallocSizeOfFun aMallocSizeOf,
                                    void* aArg)
 {
   NS_PRECONDITION(aEntry, "The entry should not be null!");
@@ -539,7 +538,7 @@ SizeOfAttributesEntryExcludingThis(PLDHashEntryHdr* aEntry,
 }
 
 size_t
-nsHTMLStyleSheet::DOMSizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
+nsHTMLStyleSheet::DOMSizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = aMallocSizeOf(this);
 

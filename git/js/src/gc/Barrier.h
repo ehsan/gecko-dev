@@ -384,14 +384,8 @@ class EncapsulatedValue : public ValueOperations<EncapsulatedValue>
     }
     inline ~EncapsulatedValue();
 
-    void init(const Value &v) {
-        JS_ASSERT(!IsPoisonedValue(v));
-        value = v;
-    }
-    void init(JSRuntime *rt, const Value &v) {
-        JS_ASSERT(!IsPoisonedValue(v));
-        value = v;
-    }
+    inline void init(const Value &v);
+    inline void init(JSRuntime *rt, const Value &v);
 
     inline EncapsulatedValue &operator=(const Value &v);
     inline EncapsulatedValue &operator=(const EncapsulatedValue &v);

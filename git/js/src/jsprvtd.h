@@ -148,10 +148,10 @@ struct Token;
 struct TokenPos;
 class TokenStream;
 class ParseMapPool;
-class ParseNode;
+struct ParseNode;
 
 template <typename ParseHandler>
-class Parser;
+struct Parser;
 
 } /* namespace frontend */
 

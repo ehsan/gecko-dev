@@ -4,7 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/HTMLAnchorElement.h"
 #include "mozilla/dom/HTMLAnchorElementBinding.h"
 
@@ -414,7 +413,7 @@ HTMLAnchorElement::IntrinsicState() const
 }
 
 size_t
-HTMLAnchorElement::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+HTMLAnchorElement::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   return nsGenericHTMLElement::SizeOfExcludingThis(aMallocSizeOf) +
          Link::SizeOfExcludingThis(aMallocSizeOf);

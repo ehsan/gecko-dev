@@ -7,7 +7,6 @@
 #include "ctypes/CTypes.h"
 
 #include "mozilla/FloatingPoint.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/StandardInteger.h"
 
 #include <limits>
@@ -1338,7 +1337,7 @@ JS_SetCTypesCallbacks(JSObject *ctypesObj, JSCTypesCallbacks* callbacks)
 namespace js {
 
 JS_FRIEND_API(size_t)
-SizeOfDataIfCDataObject(mozilla::MallocSizeOf mallocSizeOf, JSObject *obj)
+SizeOfDataIfCDataObject(JSMallocSizeOfFun mallocSizeOf, JSObject *obj)
 {
     if (!CData::IsCData(obj))
         return 0;

@@ -35,7 +35,6 @@
 #include "nsStyleConsts.h"
 #include "mozilla/FloatingPoint.h"
 #include "mozilla/Likely.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
 #include "mozilla/Telemetry.h"
@@ -326,10 +325,10 @@ public:
         mHashKey = 0;
     }
 
-    size_t SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const {
+    size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const {
         return mTableData.SizeOfExcludingThis(aMallocSizeOf);
     }
-    size_t SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const {
+    size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const {
         return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
     }
 
@@ -440,33 +439,6 @@ gfxFontEntry::ShareFontTableAndGetBlob(uint32_t aTag,
     }
 
     return entry->ShareTableAndGetBlob(*aBuffer, &mFontTableCache);
-}
-
-static int
-DirEntryCmp(const void* aKey, const void* aItem)
-{
-    int32_t tag = *static_cast<const int32_t*>(aKey);
-    const TableDirEntry* entry = static_cast<const TableDirEntry*>(aItem);
-    return tag - int32_t(entry->tag);
-}
-
-hb_blob_t*
-gfxFontEntry::GetTableFromFontData(const void* aFontData, uint32_t aTableTag)
-{
-    const SFNTHeader* header =
-        reinterpret_cast<const SFNTHeader*>(aFontData);
-    const TableDirEntry* dir =
-        reinterpret_cast<const TableDirEntry*>(header + 1);
-    dir = static_cast<const TableDirEntry*>
-        (bsearch(&aTableTag, dir, uint16_t(header->numTables),
-                 sizeof(TableDirEntry), DirEntryCmp));
-    if (dir) {
-        return hb_blob_create(reinterpret_cast<const char*>(aFontData) +
-                                  dir->offset, dir->length,
-                              HB_MEMORY_MODE_READONLY, nullptr, nullptr);
-
-    }
-    return nullptr;
 }
 
 hb_blob_t *
@@ -604,7 +576,7 @@ gfxFontEntry::CheckForGraphiteTables()
 /* static */ size_t
 gfxFontEntry::FontTableHashEntry::SizeOfEntryExcludingThis
     (FontTableHashEntry *aEntry,
-     MallocSizeOf   aMallocSizeOf,
+     nsMallocSizeOfFun   aMallocSizeOf,
      void*               aUserArg)
 {
     FontListSizes *sizes = static_cast<FontListSizes*>(aUserArg);
@@ -622,7 +594,7 @@ gfxFontEntry::FontTableHashEntry::SizeOfEntryExcludingThis
 }
 
 void
-gfxFontEntry::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
+gfxFontEntry::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                   FontListSizes*    aSizes) const
 {
     aSizes->mFontListSize += mName.SizeOfExcludingThisIfUnshared(aMallocSizeOf);
@@ -639,7 +611,7 @@ gfxFontEntry::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
 }
 
 void
-gfxFontEntry::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
+gfxFontEntry::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                   FontListSizes*    aSizes) const
 {
     aSizes->mFontListSize += aMallocSizeOf(this);
@@ -1225,7 +1197,7 @@ gfxFontFamily::FindFont(const nsAString& aPostscriptName)
 }
 
 void
-gfxFontFamily::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
+gfxFontFamily::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                    FontListSizes*    aSizes) const
 {
     aSizes->mFontListSize +=
@@ -1244,7 +1216,7 @@ gfxFontFamily::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
 }
 
 void
-gfxFontFamily::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
+gfxFontFamily::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                    FontListSizes*    aSizes) const
 {
     aSizes->mFontListSize += aMallocSizeOf(this);
@@ -1504,7 +1476,7 @@ gfxFontCache::ClearCachedWordsForFont(HashEntry* aHashEntry, void* aUserData)
 /*static*/
 size_t
 gfxFontCache::SizeOfFontEntryExcludingThis(HashEntry*        aHashEntry,
-                                           MallocSizeOf aMallocSizeOf,
+                                           nsMallocSizeOfFun aMallocSizeOf,
                                            void*             aUserArg)
 {
     HashEntry *entry = static_cast<HashEntry*>(aHashEntry);
@@ -1517,7 +1489,7 @@ gfxFontCache::SizeOfFontEntryExcludingThis(HashEntry*        aHashEntry,
 }
 
 void
-gfxFontCache::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
+gfxFontCache::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                   FontCacheSizes*   aSizes) const
 {
     // TODO: add the overhead of the expiration tracker (generation arrays)
@@ -1527,7 +1499,7 @@ gfxFontCache::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
 }
 
 void
-gfxFontCache::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
+gfxFontCache::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                   FontCacheSizes*   aSizes) const
 {
     aSizes->mFontInstances += aMallocSizeOf(this);
@@ -3699,14 +3671,14 @@ gfxFont::SynthesizeSpaceWidth(uint32_t aCh)
 
 /*static*/ size_t
 gfxFont::WordCacheEntrySizeOfExcludingThis(CacheHashEntry*   aHashEntry,
-                                           MallocSizeOf aMallocSizeOf,
+                                           nsMallocSizeOfFun aMallocSizeOf,
                                            void*             aUserArg)
 {
     return aMallocSizeOf(aHashEntry->mShapedWord.get());
 }
 
 void
-gfxFont::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
+gfxFont::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
                              FontCacheSizes*   aSizes) const
 {
     for (uint32_t i = 0; i < mGlyphExtentsArray.Length(); ++i) {
@@ -3719,7 +3691,7 @@ gfxFont::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
 }
 
 void
-gfxFont::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
+gfxFont::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
                              FontCacheSizes*   aSizes) const
 {
     aSizes->mFontInstances += aMallocSizeOf(this);
@@ -3776,7 +3748,7 @@ gfxGlyphExtents::GlyphWidths::~GlyphWidths()
 }
 
 uint32_t
-gfxGlyphExtents::GlyphWidths::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
+gfxGlyphExtents::GlyphWidths::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
     uint32_t i;
     uint32_t size = mBlocks.SizeOfExcludingThis(aMallocSizeOf);
@@ -3840,14 +3812,14 @@ gfxGlyphExtents::SetTightGlyphExtents(uint32_t aGlyphID, const gfxRect& aExtents
 }
 
 size_t
-gfxGlyphExtents::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
+gfxGlyphExtents::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
     return mContainedGlyphWidths.SizeOfExcludingThis(aMallocSizeOf) +
         mTightGlyphExtents.SizeOfExcludingThis(nullptr, aMallocSizeOf);
 }
 
 size_t
-gfxGlyphExtents::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
+gfxGlyphExtents::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
     return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
 }
@@ -6575,7 +6547,7 @@ gfxTextRun::ClusterIterator::ClusterAdvance(PropertyProvider *aProvider) const
 }
 
 size_t
-gfxTextRun::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf)
+gfxTextRun::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf)
 {
     // The second arg is how much gfxTextRun::AllocateStorage would have
     // allocated.
@@ -6589,7 +6561,7 @@ gfxTextRun::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf)
 }
 
 size_t
-gfxTextRun::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf)
+gfxTextRun::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
 {
     return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
 }

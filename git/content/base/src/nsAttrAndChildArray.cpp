@@ -8,7 +8,6 @@
  * the two is unified to minimize footprint.
  */
 
-#include "mozilla/MemoryReporting.h"
 #include "nsAttrAndChildArray.h"
 #include "nsMappedAttributeElement.h"
 #include "prbit.h"
@@ -837,7 +836,7 @@ nsAttrAndChildArray::SetChildAtPos(void** aPos, nsIContent* aChild,
 }
 
 size_t
-nsAttrAndChildArray::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsAttrAndChildArray::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = 0;
   if (mImpl) {

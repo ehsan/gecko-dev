@@ -10,7 +10,6 @@
 #define jsapi_h
 
 #include "mozilla/FloatingPoint.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/RangedPtr.h"
 #include "mozilla/StandardInteger.h"
 #include "mozilla/ThreadLocal.h"
@@ -131,8 +130,7 @@ class JS_PUBLIC_API(AutoGCRooter) {
         OBJU32HASHMAP=-24, /* js::AutoObjectUnsigned32HashMap */
         OBJHASHSET =  -25, /* js::AutoObjectHashSet */
         JSONPARSER =  -26, /* js::JSONParser */
-        CUSTOM =      -27, /* js::CustomAutoRooter */
-        FUNVECTOR =   -28  /* js::AutoFunctionVector */
+        CUSTOM =      -27  /* js::CustomAutoRooter */
     };
 
   private:
@@ -380,10 +378,10 @@ class AutoHashMapRooter : protected AutoGCRooter
         return map.capacity();
     }
 
-    size_t sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf) const {
+    size_t sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf) const {
         return map.sizeOfExcludingThis(mallocSizeOf);
     }
-    size_t sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf) const {
+    size_t sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf) const {
         return map.sizeOfIncludingThis(mallocSizeOf);
     }
 
@@ -495,10 +493,10 @@ class AutoHashSetRooter : protected AutoGCRooter
         return set.capacity();
     }
 
-    size_t sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf) const {
+    size_t sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf) const {
         return set.sizeOfExcludingThis(mallocSizeOf);
     }
-    size_t sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf) const {
+    size_t sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf) const {
         return set.sizeOfIncludingThis(mallocSizeOf);
     }
 
@@ -567,19 +565,6 @@ class AutoObjectVector : public AutoVectorRooter<JSObject *>
     explicit AutoObjectVector(JSContext *cx
                               MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
         : AutoVectorRooter<JSObject *>(cx, OBJVECTOR)
-    {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-    }
-
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
-};
-
-class AutoFunctionVector : public AutoVectorRooter<JSFunction *>
-{
-  public:
-    explicit AutoFunctionVector(JSContext *cx
-                              MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-        : AutoVectorRooter<JSFunction *>(cx, FUNVECTOR)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
     }
@@ -5111,7 +5096,6 @@ using JS::Latin1CharsZ;
 using JS::AutoIdVector;
 using JS::AutoValueVector;
 using JS::AutoObjectVector;
-using JS::AutoFunctionVector;
 using JS::AutoScriptVector;
 using JS::AutoIdArray;
 

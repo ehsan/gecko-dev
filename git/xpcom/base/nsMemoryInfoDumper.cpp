@@ -184,7 +184,7 @@ public:
    * function is also called when you're at eof (read() returns 0 in this case).
    */
   virtual void OnFileCanReadWithoutBlocking(int aFd) = 0;
-  virtual void OnFileCanWriteWithoutBlocking(int aFd) {};
+  virtual void OnFileCanWriteWithoutBlocking(int Afd) {};
 
   NS_DECL_ISUPPORTS
 

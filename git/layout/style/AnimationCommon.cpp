@@ -15,7 +15,6 @@
 #include "Layers.h"
 #include "FrameLayerBuilder.h"
 #include "nsDisplayList.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/Preferences.h"
 
 using namespace mozilla::layers;
@@ -60,6 +59,28 @@ CommonAnimationManager::Disconnect()
 }
 
 void
+CommonAnimationManager::AddElementData(CommonElementAnimationData* aData)
+{
+  if (PR_CLIST_IS_EMPTY(&mElementData)) {
+    // We need to observe the refresh driver.
+    nsRefreshDriver *rd = mPresContext->RefreshDriver();
+    rd->AddRefreshObserver(this, Flush_Style);
+  }
+
+  PR_INSERT_BEFORE(aData, &mElementData);
+}
+
+void
+CommonAnimationManager::ElementDataRemoved()
+{
+  // If we have no transitions or animations left, remove ourselves from
+  // the refresh driver.
+  if (PR_CLIST_IS_EMPTY(&mElementData)) {
+    mPresContext->RefreshDriver()->RemoveRefreshObserver(this, Flush_Style);
+  }
+}
+
+void
 CommonAnimationManager::RemoveAllElementData()
 {
   while (!PR_CLIST_IS_EMPTY(&mElementData)) {
@@ -100,7 +121,7 @@ CommonAnimationManager::MediumFeaturesChanged(nsPresContext* aPresContext)
 }
 
 /* virtual */ size_t
-CommonAnimationManager::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+CommonAnimationManager::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   // Measurement of the following members may be added later if DMD finds it is
   // worthwhile:
@@ -113,7 +134,7 @@ CommonAnimationManager::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf)
 }
 
 /* virtual */ size_t
-CommonAnimationManager::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+CommonAnimationManager::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
 }
@@ -239,7 +260,7 @@ CommonElementAnimationData::CanAnimatePropertyOnCompositor(const dom::Element *a
     return false;
   }
 
-  nsIFrame* frame = nsLayoutUtils::GetStyleFrame(aElement);
+  nsIFrame* frame = aElement->GetPrimaryFrame();
   if (IsGeometricProperty(aProperty)) {
     if (shouldLog) {
       nsCString message;
@@ -331,8 +352,8 @@ CommonElementAnimationData::CanThrottleTransformChanges(TimeStamp aTime)
 
   // If the nearest scrollable ancestor has overflow:hidden,
   // we don't care about overflow.
-  nsIScrollableFrame* scrollable = nsLayoutUtils::GetNearestScrollableFrame(
-                                     nsLayoutUtils::GetStyleFrame(mElement));
+  nsIScrollableFrame* scrollable =
+    nsLayoutUtils::GetNearestScrollableFrame(mElement->GetPrimaryFrame());
   if (!scrollable) {
     return true;
   }
@@ -350,7 +371,7 @@ CommonElementAnimationData::CanThrottleTransformChanges(TimeStamp aTime)
 bool
 CommonElementAnimationData::CanThrottleAnimation(TimeStamp aTime)
 {
-  nsIFrame* frame = nsLayoutUtils::GetStyleFrame(mElement);
+  nsIFrame* frame = mElement->GetPrimaryFrame();
   if (!frame) {
     return false;
   }

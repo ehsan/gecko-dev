@@ -192,7 +192,20 @@ StackFrame::createRestParameter(JSContext *cx)
     unsigned nformal = fun()->nargs - 1, nactual = numActualArgs();
     unsigned nrest = (nactual > nformal) ? nactual - nformal : 0;
     Value *restvp = argv() + nformal;
-    return NewDenseCopiedArray(cx, nrest, restvp, NULL);
+    RootedObject obj(cx, NewDenseCopiedArray(cx, nrest, restvp, NULL));
+    if (!obj)
+        return NULL;
+
+    RootedTypeObject type(cx, types::GetTypeCallerInitObject(cx, JSProto_Array));
+    if (!type)
+        return NULL;
+    obj->setType(type);
+
+    /* Ensure that values in the rest array are represented in the type of the array. */
+    for (unsigned i = 0; i < nrest; i++)
+        types::AddTypePropertyId(cx, obj, JSID_VOID, restvp[i]);
+
+    return obj;
 }
 
 static inline void
@@ -1288,20 +1301,6 @@ js::CheckLocalUnaliased(MaybeCheckAliasing checkAliasing, JSScript *script,
     }
 }
 #endif
-
-void
-Activation::setActive(bool active)
-{
-    // Only allowed to deactivate/activate if activation is top.
-    // (Not tested and will probably fail in other situations.)
-    JS_ASSERT(cx()->mainThread().activation_ == this);
-    JS_ASSERT(active != active_);
-    active_ = active;
-
-    // Restore ionTop
-    if (!active && isJit())
-        cx()->mainThread().ionTop = asJit()->prevIonTop();
-}
 
 ion::JitActivation::JitActivation(JSContext *cx, bool firstFrameIsConstructing, bool active)
   : Activation(cx, Jit, active),

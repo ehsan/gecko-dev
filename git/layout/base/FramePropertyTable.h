@@ -6,7 +6,6 @@
 #ifndef FRAMEPROPERTYTABLE_H_
 #define FRAMEPROPERTYTABLE_H_
 
-#include "mozilla/MemoryReporting.h"
 #include "nsTArray.h"
 #include "nsTHashtable.h"
 #include "nsHashKeys.h"
@@ -124,7 +123,7 @@ public:
    */
   void DeleteAll();
 
-  size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
 protected:
   /**
@@ -151,7 +150,7 @@ protected:
       }
     }
 
-    size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) {
+    size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) {
       size_t n = 0;
       // We don't need to measure mProperty because it always points to static
       // memory.  As for mValue:  if it's a single value we can't measure it,
@@ -204,7 +203,7 @@ protected:
   static PLDHashOperator DeleteEnumerator(Entry* aEntry, void* aArg);
 
   static size_t SizeOfPropertyTableEntryExcludingThis(Entry* aEntry,
-                  mozilla::MallocSizeOf aMallocSizeOf, void *);
+                  nsMallocSizeOfFun aMallocSizeOf, void *);
 
   nsTHashtable<Entry> mEntries;
   nsIFrame* mLastFrame;

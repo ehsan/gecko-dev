@@ -11,7 +11,6 @@
 
 #include "mozilla/Attributes.h"
 
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/css/GroupRule.h"
 #include "mozilla/Preferences.h"
 #include "nsIDOMCSSConditionRule.h"
@@ -92,7 +91,7 @@ public:
   // @media rule methods
   nsresult SetMedia(nsMediaList* aMedia);
   
-  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf)
+  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
     const MOZ_MUST_OVERRIDE;
 
 protected:
@@ -170,7 +169,7 @@ public:
 
   void SetURLs(URL *aURLs) { mURLs = aURLs; }
 
-  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf)
+  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
     const MOZ_MUST_OVERRIDE;
 
 protected:
@@ -260,7 +259,7 @@ public:
   void SetDesc(nsCSSFontDesc aDescID, nsCSSValue const & aValue);
   void GetDesc(nsCSSFontDesc aDescID, nsCSSValue & aValue);
 
-  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const MOZ_OVERRIDE;
+  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const MOZ_OVERRIDE;
 
 protected:
   friend class nsCSSFontFaceStyleDecl;
@@ -331,7 +330,7 @@ public:
     return mFeatureValues;
   }
 
-  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const MOZ_OVERRIDE;
+  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const MOZ_OVERRIDE;
 
   static bool PrefEnabled()
   {
@@ -377,7 +376,7 @@ public:
   NS_IMETHOD GetEncoding(nsAString& aEncoding) MOZ_OVERRIDE;
   NS_IMETHOD SetEncoding(const nsAString& aEncoding) MOZ_OVERRIDE;
 
-  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
 private:
   nsString  mEncoding;
@@ -452,7 +451,7 @@ public:
 
   void ChangeDeclaration(mozilla::css::Declaration* aDeclaration);
 
-  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const MOZ_OVERRIDE;
+  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const MOZ_OVERRIDE;
 
   void DoGetKeyText(nsAString &aKeyText) const;
 
@@ -506,7 +505,7 @@ public:
 
   const nsString& GetName() { return mName; }
 
-  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const MOZ_OVERRIDE;
+  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const MOZ_OVERRIDE;
 
 private:
   uint32_t FindRuleIndexForKey(const nsAString& aKey);
@@ -580,7 +579,7 @@ public:
 
   mozilla::css::ImportantRule* GetImportantRule();
 
-  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const MOZ_OVERRIDE;
+  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const MOZ_OVERRIDE;
 private:
   nsAutoPtr<mozilla::css::Declaration>    mDeclaration;
   // lazily created when needed:
@@ -630,7 +629,7 @@ public:
   // nsIDOMCSSSupportsRule interface
   NS_DECL_NSIDOMCSSSUPPORTSRULE
 
-  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
   static bool PrefEnabled()
   {

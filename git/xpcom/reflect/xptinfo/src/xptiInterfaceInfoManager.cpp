@@ -5,7 +5,6 @@
 
 /* Implementation of xptiInterfaceInfoManager. */
 
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/XPTInterfaceInfoManager.h"
 
 #include "xptiprivate.h"
@@ -31,7 +30,7 @@ static int gCallCount = 0;
 NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(XPTMallocSizeOf)
 
 size_t
-XPTInterfaceInfoManager::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf)
+XPTInterfaceInfoManager::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
 {
     size_t n = aMallocSizeOf(this);
     ReentrantMonitorAutoEnter monitor(mWorkingSet.mTableReentrantMonitor);

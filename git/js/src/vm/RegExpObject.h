@@ -8,7 +8,6 @@
 #define vm_RegExpObject_h
 
 #include "mozilla/Attributes.h"
-#include "mozilla/MemoryReporting.h"
 
 #include <stddef.h>
 #include "jscntxt.h"
@@ -280,7 +279,7 @@ class RegExpCompartment
     /* Like 'get', but compile 'maybeOpt' (if non-null). */
     bool get(JSContext *cx, HandleAtom source, JSString *maybeOpt, RegExpGuard *g);
 
-    size_t sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf);
+    size_t sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf);
 };
 
 class RegExpObject : public JSObject

@@ -12,7 +12,6 @@
 
 #include <string.h>
 
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/PodOperations.h"
 
 #include "jstypes.h"
@@ -1357,7 +1356,7 @@ ScriptSource::destroy()
 }
 
 size_t
-ScriptSource::sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf)
+ScriptSource::sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf)
 {
     // |data| is a union, but both members are pointers to allocated memory,
     // |emptySource|, or NULL, so just using |data.compressed| will work.
@@ -1954,7 +1953,7 @@ JSScript::computedSizeOfData()
 }
 
 size_t
-JSScript::sizeOfData(mozilla::MallocSizeOf mallocSizeOf)
+JSScript::sizeOfData(JSMallocSizeOfFun mallocSizeOf)
 {
     return mallocSizeOf(data);
 }
@@ -2255,21 +2254,9 @@ js_GetScriptLineExtent(JSScript *script)
 }
 
 void
-js::CurrentScriptFileLineOrigin(JSContext *cx, const char **file, unsigned *linenop,
-                                JSPrincipals **origin, LineOption opt)
+js::CurrentScriptFileLineOriginSlow(JSContext *cx, const char **file, unsigned *linenop,
+                                    JSPrincipals **origin)
 {
-    if (opt == CALLED_FROM_JSOP_EVAL) {
-        JSScript *script = NULL;
-        jsbytecode *pc = NULL;
-        types::TypeScript::GetPcScript(cx, &script, &pc);
-        JS_ASSERT(JSOp(*pc) == JSOP_EVAL);
-        JS_ASSERT(*(pc + JSOP_EVAL_LENGTH) == JSOP_LINENO);
-        *file = script->filename();
-        *linenop = GET_UINT16(pc + JSOP_EVAL_LENGTH);
-        *origin = script->originPrincipals;
-        return;
-    }
-
     NonBuiltinScriptFrameIter iter(cx);
 
     if (iter.done()) {

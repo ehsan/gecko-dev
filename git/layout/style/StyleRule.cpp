@@ -9,7 +9,6 @@
  * declarations
  */
 
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/css/StyleRule.h"
 #include "mozilla/css/GroupRule.h"
 #include "mozilla/css/Declaration.h"
@@ -83,7 +82,7 @@ nsAtomList::Clone(bool aDeep) const
 }
 
 size_t
-nsAtomList::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsAtomList::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = 0;
   const nsAtomList* a = this;
@@ -178,7 +177,7 @@ nsPseudoClassList::Clone(bool aDeep) const
 }
 
 size_t
-nsPseudoClassList::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsPseudoClassList::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = 0;
   const nsPseudoClassList* p = this;
@@ -810,7 +809,7 @@ nsCSSSelector::CanBeNamespaced(bool aIsNegated) const
 }
 
 size_t
-nsCSSSelector::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsCSSSelector::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = 0;
   const nsCSSSelector* s = this;
@@ -900,7 +899,7 @@ nsCSSSelectorList::Clone(bool aDeep) const
 }
 
 size_t
-nsCSSSelectorList::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsCSSSelectorList::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = 0;
   const nsCSSSelectorList* s = this;
@@ -1502,7 +1501,7 @@ StyleRule::SetSelectorText(const nsAString& aSelectorText)
 }
 
 /* virtual */ size_t
-StyleRule::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+StyleRule::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = aMallocSizeOf(this);
   n += mSelector ? mSelector->SizeOfIncludingThis(aMallocSizeOf) : 0;

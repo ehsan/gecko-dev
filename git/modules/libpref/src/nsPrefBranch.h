@@ -21,7 +21,6 @@
 #include "prbit.h"
 #include "nsTraceRefcnt.h"
 #include "mozilla/HashFunctions.h"
-#include "mozilla/MemoryReporting.h"
 
 class nsPrefBranch;
 
@@ -188,7 +187,7 @@ public:
 
   static nsresult NotifyObserver(const char *newpref, void *data);
 
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf);
+  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf);
 
 protected:
   nsPrefBranch()    /* disallow use of this constructer */

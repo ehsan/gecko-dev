@@ -13,7 +13,6 @@
 #define nsStyleSet_h_
 
 #include "mozilla/Attributes.h"
-#include "mozilla/MemoryReporting.h"
 
 #include "nsIStyleRuleProcessor.h"
 #include "nsCSSStyleSheet.h"
@@ -62,7 +61,7 @@ class nsStyleSet
  public:
   nsStyleSet();
 
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
   void Init(nsPresContext *aPresContext);
 

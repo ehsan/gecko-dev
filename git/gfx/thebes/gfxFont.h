@@ -25,7 +25,6 @@
 #include "mozilla/HashFunctions.h"
 #include "nsIMemoryReporter.h"
 #include "gfxFontFeatures.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/gfx/Types.h"
 #include "mozilla/Attributes.h"
 #include <algorithm>
@@ -197,7 +196,7 @@ public:
 
     void CalcHash() { mHash = GetChecksum(); }
 
-    size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const {
+    size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const {
         return gfxSparseBitSet::SizeOfExcludingThis(aMallocSizeOf);
     }
 
@@ -412,9 +411,9 @@ public:
     virtual void ReleaseGrFace(gr_face* aFace);
     
     // For memory reporting
-    virtual void SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+    virtual void SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                      FontListSizes*    aSizes) const;
-    virtual void SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+    virtual void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                      FontListSizes*    aSizes) const;
 
     nsString         mName;
@@ -508,14 +507,7 @@ protected:
         return NS_ERROR_FAILURE;
     }
 
-    // Return a blob that wraps a table found within a buffer of font data.
-    // The blob does NOT own its data; caller guarantees that the buffer
-    // will remain valid at least as long as the blob.
-    // Returns null if the specified table is not found.
-    // This method assumes aFontData is valid 'sfnt' data; before using this,
-    // caller is responsible to do any sanitization/validation necessary.
-    hb_blob_t* GetTableFromFontData(const void* aFontData, uint32_t aTableTag);
-
+protected:
     // Shaper-specific face objects, shared by all instantiations of the same
     // physical font, regardless of size.
     // Usually, only one of these will actually be created for any given font
@@ -628,7 +620,7 @@ private:
 
         static size_t
         SizeOfEntryExcludingThis(FontTableHashEntry *aEntry,
-                                 mozilla::MallocSizeOf   aMallocSizeOf,
+                                 nsMallocSizeOfFun   aMallocSizeOf,
                                  void*               aUserArg);
 
     private:
@@ -789,9 +781,9 @@ public:
     void CheckForSimpleFamily();
 
     // For memory reporter
-    virtual void SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+    virtual void SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                      FontListSizes*    aSizes) const;
-    virtual void SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+    virtual void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                      FontListSizes*    aSizes) const;
 
     // Only used for debugging checks - does a linear search
@@ -957,9 +949,9 @@ public:
         mFonts.EnumerateEntries(ClearCachedWordsForFont, nullptr);
     }
 
-    void SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+    void SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
                              FontCacheSizes*   aSizes) const;
-    void SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+    void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
                              FontCacheSizes*   aSizes) const;
 
 protected:
@@ -1004,7 +996,7 @@ protected:
     };
 
     static size_t SizeOfFontEntryExcludingThis(HashEntry*        aHashEntry,
-                                               mozilla::MallocSizeOf aMallocSizeOf,
+                                               nsMallocSizeOfFun aMallocSizeOf,
                                                void*             aUserArg);
 
     nsTHashtable<HashEntry> mFonts;
@@ -1178,8 +1170,8 @@ public:
 
     int32_t GetAppUnitsPerDevUnit() { return mAppUnitsPerDevUnit; }
 
-    size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
-    size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+    size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
+    size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
 private:
     class HashEntry : public nsUint32HashKey {
@@ -1216,7 +1208,7 @@ private:
             return widths[indexInBlock];
         }
 
-        uint32_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+        uint32_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
         
         ~GlyphWidths();
 
@@ -1683,9 +1675,9 @@ public:
         }
     }
 
-    virtual void SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+    virtual void SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                      FontCacheSizes*   aSizes) const;
-    virtual void SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+    virtual void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                      FontCacheSizes*   aSizes) const;
 
     typedef enum {
@@ -1893,7 +1885,7 @@ protected:
 
     static size_t
     WordCacheEntrySizeOfExcludingThis(CacheHashEntry*   aHashEntry,
-                                      mozilla::MallocSizeOf aMallocSizeOf,
+                                      nsMallocSizeOfFun aMallocSizeOf,
                                       void*             aUserArg);
 
     nsTHashtable<CacheHashEntry> mWordCache;
@@ -2386,7 +2378,7 @@ protected:
             return details;
         }
 
-        size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) {
+        size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) {
             return aMallocSizeOf(this) +
                 mDetails.SizeOfExcludingThis(aMallocSizeOf) +
                 mOffsetToIndex.SizeOfExcludingThis(aMallocSizeOf);
@@ -3144,13 +3136,13 @@ public:
     
     // return storage used by this run, for memory reporter;
     // nsTransformedTextRun needs to override this as it holds additional data
-    virtual size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf)
+    virtual size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf)
       MOZ_MUST_OVERRIDE;
-    virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf)
+    virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
       MOZ_MUST_OVERRIDE;
 
     // Get the size, if it hasn't already been gotten, marking as it goes.
-    size_t MaybeSizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf)  {
+    size_t MaybeSizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)  {
         if (mFlags & gfxTextRunFactory::TEXT_RUN_SIZE_ACCOUNTED) {
             return 0;
         }

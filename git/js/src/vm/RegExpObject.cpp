@@ -6,8 +6,6 @@
 
 #include "vm/RegExpObject.h"
 
-#include "mozilla/MemoryReporting.h"
-
 #include "frontend/TokenStream.h"
 
 #include "vm/MatchPairs.h"
@@ -726,7 +724,7 @@ RegExpCompartment::get(JSContext *cx, HandleAtom atom, JSString *opt, RegExpGuar
 }
 
 size_t
-RegExpCompartment::sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf)
+RegExpCompartment::sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf)
 {
     size_t n = 0;
     n += map_.sizeOfExcludingThis(mallocSizeOf);
