@@ -55,13 +55,7 @@ var FindHelper = {
     }
 
     this._targetTab = BrowserApp.selectedTab;
-    try {
-      this._finder = this._targetTab.browser.finder;
-    } catch (e) {
-      throw new Error("FindHelper: " + e + "\n" +
-        "JS stack: \n" + (e.stack || Components.stack.formattedStack));
-    }
-
+    this._finder = this._targetTab.browser.finder;
     this._finder.addResultListener(this);
     this._initialViewport = JSON.stringify(this._targetTab.getViewport());
     this._viewportChanged = false;

@@ -224,8 +224,7 @@ public class FindInPageBar extends LinearLayout implements TextWatcher, View.OnC
                 updateResult(total, current);
             }
 
-            @Override
-            public void onError(NativeJSObject error) {
+            public void onError() {
                 // Gecko didn't respond due to state change, javascript error, etc.
                 updateResult(0, 0);
                 Log.d(LOGTAG, "No response from Gecko on request to match string: [" +
