@@ -59,9 +59,7 @@ ScopedXErrorHandler::ErrorHandler(Display *, XErrorEvent *ev)
 
 ScopedXErrorHandler::ScopedXErrorHandler()
 {
-    // Off main thread usage is not safe in general, but OMTC GL layers uses this
-    // with the main thread blocked, which makes it safe.
-    NS_WARN_IF_FALSE(NS_IsMainThread(), "ScopedXErrorHandler being called off main thread, may cause issues");
+    MOZ_ASSERT(NS_IsMainThread());
     // let sXErrorPtr point to this object's mXError object, but don't reset this mXError object!
     // think of the case of nested ScopedXErrorHandler's.
     mOldXErrorPtr = sXErrorPtr;

@@ -242,4 +242,12 @@ public:
     sSVGAnimatedRectTearoffTable;
 };
 
+namespace mozilla {
+template<>
+struct HasDangerousPublicDestructor<nsSVGViewBox>
+{
+  static const bool value = true;
+};
+}
+
 #endif // __NS_SVGVIEWBOX_H__

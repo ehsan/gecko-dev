@@ -521,11 +521,6 @@ public:
     return mozilla::HashString(aKey);
   }
 
-  size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf)
-  {
-    return aMallocSizeOf(mKey);
-  }
-
   enum { ALLOW_MEMMOVE = true };
 
 private:

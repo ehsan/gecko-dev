@@ -322,7 +322,7 @@ private:
   // Returns mResult as an ArrayBufferView, or an error
   virtual void Resolve() MOZ_OVERRIDE
   {
-    TypedArrayCreator<ArrayBuffer> ret(mResult);
+    TypedArrayCreator<Uint8Array> ret(mResult);
     mResultPromise->MaybeResolve(ret);
   }
 };
@@ -987,7 +987,7 @@ private:
   {
     if (mSign) {
       // Return the computed MAC
-      TypedArrayCreator<ArrayBuffer> ret(mResult);
+      TypedArrayCreator<Uint8Array> ret(mResult);
       mResultPromise->MaybeResolve(ret);
     } else {
       // Compare the MAC to the provided signature
@@ -1116,7 +1116,7 @@ private:
   virtual void Resolve() MOZ_OVERRIDE
   {
     if (mSign) {
-      TypedArrayCreator<ArrayBuffer> ret(mSignature);
+      TypedArrayCreator<Uint8Array> ret(mSignature);
       mResultPromise->MaybeResolve(ret);
     } else {
       mResultPromise->MaybeResolve(mVerified);
@@ -1745,7 +1745,7 @@ private:
       return;
     }
 
-    TypedArrayCreator<ArrayBuffer> ret(mResult);
+    TypedArrayCreator<Uint8Array> ret(mResult);
     mResultPromise->MaybeResolve(ret);
   }
 };

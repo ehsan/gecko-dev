@@ -260,7 +260,6 @@ WEBIDL_FILES = [
     'MozMobileMessageManager.webidl',
     'MozNamedAttrMap.webidl',
     'MozPowerManager.webidl',
-    'MozSelfSupport.webidl',
     'MozTimeManager.webidl',
     'MozWakeLock.webidl',
     'MutationEvent.webidl',

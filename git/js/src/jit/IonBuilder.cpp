@@ -1712,9 +1712,6 @@ IonBuilder::inspectOpcode(JSOp op)
       case JSOP_REGEXP:
         return jsop_regexp(info().getRegExp(pc));
 
-      case JSOP_CALLSITEOBJ:
-        return pushConstant(ObjectValue(*(info().getObject(pc))));
-
       case JSOP_OBJECT:
         return jsop_object(info().getObject(pc));
 

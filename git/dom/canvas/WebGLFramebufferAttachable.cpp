@@ -11,6 +11,20 @@
 
 using namespace mozilla;
 
+WebGLFramebufferAttachable::AttachmentPoint*
+WebGLFramebufferAttachable::Contains(const WebGLFramebuffer* fb, GLenum attachment)
+{
+    AttachmentPoint* first = mAttachmentPoints.begin();
+    AttachmentPoint* last = mAttachmentPoints.end();
+
+    for (; first != last; ++first) {
+        if (first->mFB == fb && first->mAttachment == attachment)
+            return first;
+    }
+
+    return nullptr;
+}
+
 void
 WebGLFramebufferAttachable::AttachTo(WebGLFramebuffer* fb, GLenum attachment)
 {
@@ -18,10 +32,10 @@ WebGLFramebufferAttachable::AttachTo(WebGLFramebuffer* fb, GLenum attachment)
     if (!fb)
         return;
 
-    if (mAttachmentPoints.Contains(AttachmentPoint(fb, attachment)))
+    if (Contains(fb, attachment))
         return; // Already attached. Ignore.
 
-    mAttachmentPoints.AppendElement(AttachmentPoint(fb, attachment));
+    mAttachmentPoints.append(AttachmentPoint(fb, attachment));
 }
 
 void
@@ -31,21 +45,20 @@ WebGLFramebufferAttachable::DetachFrom(WebGLFramebuffer* fb, GLenum attachment)
     if (!fb)
         return;
 
-    const size_t i = mAttachmentPoints.IndexOf(AttachmentPoint(fb, attachment));
-    if (i == mAttachmentPoints.NoIndex) {
+    AttachmentPoint* point = Contains(fb, attachment);
+    if (!point) {
         MOZ_ASSERT(false, "Is not attached to FB");
         return;
     }
 
-    mAttachmentPoints.RemoveElementAt(i);
+    mAttachmentPoints.erase(point);
 }
 
 void
 WebGLFramebufferAttachable::NotifyFBsStatusChanged()
 {
-    for (size_t i = 0; i < mAttachmentPoints.Length(); ++i) {
-        MOZ_ASSERT(mAttachmentPoints[i].mFB,
-                   "Unexpected null pointer; seems that a WebGLFramebuffer forgot to call DetachFrom before dying");
-        mAttachmentPoints[i].mFB->NotifyAttachableChanged();
-    }
+    AttachmentPoint* first = mAttachmentPoints.begin();
+    AttachmentPoint* last = mAttachmentPoints.end();
+    for ( ; first != last; ++first)
+        first->mFB->NotifyAttachableChanged();
 }

@@ -1516,7 +1516,7 @@ void
 nsPresContext::SetContainer(nsIDocShell* aDocShell)
 {
   if (aDocShell) {
-    mContainer = static_cast<nsDocShell*>(aDocShell);
+    mContainer = static_cast<nsDocShell*>(aDocShell)->asWeakPtr();
   } else {
     mContainer = WeakPtr<nsDocShell>();
   }

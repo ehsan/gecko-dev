@@ -108,13 +108,16 @@ nsresult runTest(uint32_t aExpectedPolicyCount, // this should be 0 for policies
   // arguments can be nullptrs.
   csp->SetRequestContext(selfURI,
                          nullptr,  // nsIURI* aReferrer
+                         nullptr,  // nsIPrincipal* aDocumentPrincipal
                          dummyChannel);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // append a policy
   nsString policyStr;
   policyStr.AssignASCII(aPolicy);
-  rv = csp->AppendPolicy(policyStr, false);
+  // Second argument in AppendPolicy needs to be a nullptr,
+  // because we are using the selfURI set in SetRequestingContext
+  rv = csp->AppendPolicy(policyStr, nullptr, false);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // when executing fuzzy tests we do not care about the actual output

@@ -24,7 +24,7 @@ class imgStatusTrackerObserver : public imgDecoderObserver
 {
 public:
   imgStatusTrackerObserver(imgStatusTracker* aTracker)
-  : mTracker(aTracker)
+  : mTracker(aTracker->asWeakPtr())
   {
     MOZ_ASSERT(aTracker);
   }
@@ -32,7 +32,7 @@ public:
   void SetTracker(imgStatusTracker* aTracker)
   {
     MOZ_ASSERT(aTracker);
-    mTracker = aTracker;
+    mTracker = aTracker->asWeakPtr();
   }
 
   /** imgDecoderObserver methods **/
@@ -553,7 +553,7 @@ imgStatusTracker::SyncNotify(imgRequestProxy* proxy)
   }
 
   ProxyArray array;
-  array.AppendElement(proxy);
+  array.AppendElement(proxy->asWeakPtr());
   SyncNotifyState(array, !!mImage, mState, r, mHadLastPart);
 }
 
@@ -584,7 +584,7 @@ void
 imgStatusTracker::AddConsumer(imgRequestProxy* aConsumer)
 {
   MOZ_ASSERT(NS_IsMainThread());
-  mConsumers.AppendElementUnlessExists(aConsumer);
+  mConsumers.AppendElementUnlessExists(aConsumer->asWeakPtr());
 }
 
 // XXX - The last argument should go away.

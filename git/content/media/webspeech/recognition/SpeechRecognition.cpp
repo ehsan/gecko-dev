@@ -700,7 +700,7 @@ SpeechRecognition::Start(const Optional<NonNull<DOMMediaStream>>& aStream, Error
   mRecognitionService = do_GetService(speechRecognitionServiceCID.get(), &rv);
   NS_ENSURE_SUCCESS_VOID(rv);
 
-  rv = mRecognitionService->Initialize(this);
+  rv = mRecognitionService->Initialize(this->asWeakPtr());
   NS_ENSURE_SUCCESS_VOID(rv);
 
   MediaStreamConstraints constraints;
