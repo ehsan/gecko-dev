@@ -1409,7 +1409,6 @@ this.XPIDatabase = {
 
   /**
    * Writes out the XPI add-ons list for the platform to read.
-   * @return true if the file was successfully updated, false otherwise
    */
   writeAddonsList: function XPIDB_writeAddonsList() {
     if (!this.addonDB) {
@@ -1474,36 +1473,22 @@ this.XPIDatabase = {
     if (fullCount > 0) {
       LOG("Writing add-ons list");
 
-      try {
-        let addonsListTmp = FileUtils.getFile(KEY_PROFILEDIR, [FILE_XPI_ADDONS_LIST + ".tmp"],
-                                              true);
-        var fos = FileUtils.openFileOutputStream(addonsListTmp);
-        fos.write(text, text.length);
-        fos.close();
-        addonsListTmp.moveTo(addonsListTmp.parent, FILE_XPI_ADDONS_LIST);
+      let addonsListTmp = FileUtils.getFile(KEY_PROFILEDIR, [FILE_XPI_ADDONS_LIST + ".tmp"],
+                                            true);
+      var fos = FileUtils.openFileOutputStream(addonsListTmp);
+      fos.write(text, text.length);
+      fos.close();
+      addonsListTmp.moveTo(addonsListTmp.parent, FILE_XPI_ADDONS_LIST);
 
-        Services.prefs.setCharPref(PREF_EM_ENABLED_ADDONS, enabledAddons.join(","));
-      }
-      catch (e) {
-        ERROR("Failed to write add-ons list to " + addonsListTmp.parent + "/" +
-              FILE_XPI_ADDONS_LIST, e);
-        return false;
-      }
+      Services.prefs.setCharPref(PREF_EM_ENABLED_ADDONS, enabledAddons.join(","));
     }
     else {
       if (addonsList.exists()) {
         LOG("Deleting add-ons list");
-        try {
-          addonsList.remove(false);
-        }
-        catch (e) {
-          ERROR("Failed to remove " + addonsList.path, e);
-          return false;
-        }
+        addonsList.remove(false);
       }
 
       Services.prefs.clearUserPref(PREF_EM_ENABLED_ADDONS);
     }
-    return true;
   }
 };

@@ -136,16 +136,6 @@ DeviceStorageRequestChild::
       break;
     }
 
-    case DeviceStorageResponseValue::TStorageStatusResponse:
-    {
-      StorageStatusResponse r = aValue;
-      AutoJSContext cx;
-      JS::Rooted<JS::Value> result(
-        cx, StringToJsval(mRequest->GetOwner(), r.storageStatus()));
-      mRequest->FireSuccess(result);
-      break;
-    }
-
     case DeviceStorageResponseValue::TFormatStorageResponse:
     {
       FormatStorageResponse r = aValue;

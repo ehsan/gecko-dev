@@ -40,8 +40,6 @@ interface DeviceStorage : EventTarget {
   [Throws]
   DOMRequest available();
   [Throws]
-  DOMRequest storageStatus();
-  [Throws]
   DOMRequest format();
 
   // Note that the storageName is just a name (like sdcard), and doesn't

@@ -41,9 +41,22 @@ public:
 
 // 14496-15 5.3.4.1 'Sample description name and format'
 // Box type: 'avc1'
-class AVCSampleEntry : public VisualSampleEntry {
+class VisualSampleEntry : public SampleEntryBox {
 public:
   // ISO BMFF members
+  uint8_t reserved[16];
+  uint16_t width;
+  uint16_t height;
+
+  uint32_t horizresolution; // 72 dpi
+  uint32_t vertresolution;  // 72 dpi
+  uint32_t reserved2;
+  uint16_t frame_count;     // 1, defined in 14496-12 8.5.2.2
+
+  uint8_t compressorName[32];
+  uint16_t depth;       // 0x0018, defined in 14496-12 8.5.2.2;
+  uint16_t pre_defined; // -1, defined in 14496-12 8.5.2.2;
+
   nsRefPtr<AVCConfigurationBox> avcConfigBox;
 
   // MuxerOperation methods
@@ -51,8 +64,8 @@ public:
   nsresult Write() MOZ_OVERRIDE;
 
   // VisualSampleEntry methods
-  AVCSampleEntry(ISOControl* aControl);
-  ~AVCSampleEntry();
+  VisualSampleEntry(ISOControl* aControl);
+  ~VisualSampleEntry();
 };
 
 }

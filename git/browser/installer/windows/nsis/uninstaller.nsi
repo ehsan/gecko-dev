@@ -294,9 +294,7 @@ Section "Uninstall"
 
 !ifdef MOZ_METRO
   ${If} ${AtLeastWin8}
-    ${un.CleanupMetroBrowserHandlerValues} ${DELEGATE_EXECUTE_HANDLER_ID} \
-                                           "FirefoxURL" \
-                                           "FirefoxHTML"
+    ${un.CleanupMetroBrowserHandlerValues} ${DELEGATE_EXECUTE_HANDLER_ID}
   ${EndIf}
   ${ResetWin8PromptKeys}
   ${ResetWin8MetroSplash}
