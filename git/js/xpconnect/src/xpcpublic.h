@@ -161,15 +161,19 @@ xpc_FastGetCachedWrapper(nsWrapperCache *cache, JSObject *scope)
 
 // The JS GC marks objects gray that are held alive directly or
 // indirectly by an XPConnect root. The cycle collector explores only
-// this subset of the JS heap.
+// this subset of the JS heap.  JSStaticAtoms cause this to crash,
+// because they are statically allocated in the data segment and thus
+// are not really GCThings.
 inline JSBool
 xpc_IsGrayGCThing(void *thing)
 {
-    return js::GCThingIsMarkedGray(thing);
+    return js_GCThingIsMarked(thing, js::gc::GRAY);
 }
 
-// The cycle collector only cares about some kinds of GCthings that are
-// reachable from an XPConnect root. Implemented in nsXPConnect.cpp.
+// The cycle collector only cares about JS objects and XML objects that
+// are held alive directly or indirectly by an XPConnect root.  This
+// version is preferred to xpc_IsGrayGCThing when it isn't known if thing
+// is a JSString or not. Implemented in nsXPConnect.cpp.
 extern JSBool
 xpc_GCThingIsGrayCCThing(void *thing);
 
@@ -224,12 +228,10 @@ namespace mozilla {
 namespace xpconnect {
 namespace memory {
 
-// This reports all the stats in |rtStats| that belong in the "explicit" tree,
-// (which isn't all of them).
 void
-ReportJSRuntimeExplicitTreeStats(const JS::RuntimeStats &rtStats, const nsACString &pathPrefix,
-                                 nsIMemoryMultiReporterCallback *callback,
-                                 nsISupports *closure);
+ReportJSRuntimeStats(const JS::RuntimeStats &rtStats, const nsACString &pathPrefix,
+                     nsIMemoryMultiReporterCallback *callback,
+                     nsISupports *closure);
 
 } // namespace memory
 } // namespace xpconnect

@@ -41,7 +41,6 @@
 #include "nsDebug.h"
 
 #import <QuartzCore/QuartzCore.h>
-#import <AppKit/NSOpenGL.h>
 #include <dlfcn.h>
 
 #define IOSURFACE_FRAMEWORK_PATH \
@@ -384,11 +383,10 @@ nsIOSurface::GetAsSurface() {
 }
 
 CGLError 
-nsIOSurface::CGLTexImageIOSurface2D(void *c,
+nsIOSurface::CGLTexImageIOSurface2D(NSOpenGLContext *ctxt,
                                     GLenum internalFormat, GLenum format, 
                                     GLenum type, GLuint plane)
 {
-  NSOpenGLContext *ctxt = static_cast<NSOpenGLContext*>(c);
   return nsIOSurfaceLib::CGLTexImageIOSurface2D((CGLContextObj)[ctxt CGLContextObj],
                                                 GL_TEXTURE_RECTANGLE_ARB,
                                                 internalFormat,

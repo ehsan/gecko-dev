@@ -68,7 +68,7 @@ protected:
    * forwards them along to the iframe so it can fire a mozbrowsertitlechange
    * event if appropriate.
    */
-  class TitleChangedListener MOZ_FINAL : public nsIDOMEventListener
+  class TitleChangedListener : public nsIDOMEventListener
   {
   public:
     TitleChangedListener(nsGenericHTMLFrameElement *aElement,

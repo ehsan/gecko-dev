@@ -81,7 +81,9 @@ ifdef MOZ_TOOLKIT_SEARCH
 DEFINES += -DMOZ_TOOLKIT_SEARCH
 endif
 
-TEST_DIRS += tests
+ifdef ENABLE_TESTS
+DIRS += tests
+endif
 
 EXTRA_JS_MODULES = \
   Geometry.jsm \

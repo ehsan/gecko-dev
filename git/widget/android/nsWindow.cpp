@@ -1216,6 +1216,9 @@ nsWindow::OnDraw(AndroidGeckoEvent *ae)
         return;
     }
 
+    nsIntPoint renderOffset;
+    client.GetRenderOffset(renderOffset);
+
     nsIntRect dirtyRect = ae->Rect().Intersect(nsIntRect(0, 0, gAndroidBounds.width, gAndroidBounds.height));
 
     unsigned char *bits = NULL;
@@ -1238,24 +1241,26 @@ nsWindow::OnDraw(AndroidGeckoEvent *ae)
 
         int offset = 0;
 
-        for (int y = 0; y < gAndroidBounds.height; y += tileHeight) {
-            for (int x = 0; x < gAndroidBounds.width; x += tileWidth) {
-                int width = NS_MIN(tileWidth, gAndroidBounds.width - x);
-                int height = NS_MIN(tileHeight, gAndroidBounds.height - y);
+        // It is assumed that the buffer has been over-allocated so that not
+        // only is the tile-size constant, but that a render-offset of anything
+        // up to (but not including) the tile size could be accommodated.
+        for (int y = 0; y < gAndroidBounds.height + gAndroidTileSize.height; y += tileHeight) {
+            for (int x = 0; x < gAndroidBounds.width + gAndroidTileSize.width; x += tileWidth) {
 
                 nsRefPtr<gfxImageSurface> targetSurface =
                     new gfxImageSurface(bits + offset,
-                                        gfxIntSize(width, height),
-                                        width * 2,
+                                        gfxIntSize(tileWidth, tileHeight),
+                                        tileWidth * 2,
                                         gfxASurface::ImageFormatRGB16_565);
 
-                offset += width * height * 2;
+                offset += tileWidth * tileHeight * 2;
 
                 if (targetSurface->CairoStatus()) {
                     ALOG("### Failed to create a valid surface from the bitmap");
                     break;
                 } else {
-                    targetSurface->SetDeviceOffset(gfxPoint(-x, -y));
+                    targetSurface->SetDeviceOffset(gfxPoint(renderOffset.x - x,
+                                                            renderOffset.y - y));
                     DrawTo(targetSurface, dirtyRect);
                 }
             }
@@ -1574,11 +1579,11 @@ nsWindow::DispatchMultitouchEvent(nsTouchEvent &event, AndroidGeckoEvent *ae)
 
     nsEventStatus status;
     DispatchEvent(&event, status);
-    bool preventPanning = (status == nsEventStatus_eConsumeNoDefault);
-    if (preventPanning || action == AndroidMotionEvent::ACTION_MOVE) {
-        AndroidBridge::Bridge()->SetPreventPanning(preventPanning);
+    if (status == nsEventStatus_eConsumeNoDefault) {
+        AndroidBridge::Bridge()->PreventPanning();
+        return true;
     }
-    return preventPanning;
+    return false;
 }
 
 void

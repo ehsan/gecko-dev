@@ -49,6 +49,7 @@ import android.graphics.drawable.Drawable;
 import android.os.AsyncTask;
 import android.os.SystemClock;
 import android.util.AttributeSet;
+import android.util.Base64;
 import android.util.Log;
 import android.util.Pair;
 import android.view.LayoutInflater;
@@ -134,7 +135,7 @@ public class AwesomeBarTabs extends TabHost {
             ImageView favicon = (ImageView) childView.findViewById(R.id.favicon);
 
             if (b == null) {
-                favicon.setImageDrawable(null);
+                favicon.setImageResource(R.drawable.favicon);
             } else {
                 Bitmap bitmap = BitmapFactory.decodeByteArray(b, 0, b.length);
                 favicon.setImageBitmap(bitmap);
@@ -150,7 +151,7 @@ public class AwesomeBarTabs extends TabHost {
             ImageView favicon = (ImageView) view;
 
             if (b == null) {
-                favicon.setImageDrawable(null);
+                favicon.setImageResource(R.drawable.favicon);
             } else {
                 Bitmap bitmap = BitmapFactory.decodeByteArray(b, 0, b.length);
                 favicon.setImageBitmap(bitmap);
@@ -474,7 +475,7 @@ public class AwesomeBarTabs extends TabHost {
             String base64 = dataURI.substring(dataURI.indexOf(',') + 1);
             Drawable drawable = null;
             try {
-                byte[] bytes = GeckoAppShell.decodeBase64(base64);
+                byte[] bytes = Base64.decode(base64, Base64.DEFAULT);
                 ByteArrayInputStream stream = new ByteArrayInputStream(bytes);
                 drawable = Drawable.createFromStream(stream, "src");
                 stream.close();

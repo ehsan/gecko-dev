@@ -193,8 +193,9 @@ AllocateTextureIOSurface(MacIOSurfaceImage *aIOImage, mozilla::gl::GLContext* aG
                      LOCAL_GL_NEAREST);
 
   void *nativeCtx = aGL->GetNativeData(GLContext::NativeGLContext);
+  NSOpenGLContext* nsCtx = (NSOpenGLContext*)nativeCtx;
 
-  aIOImage->GetIOSurface()->CGLTexImageIOSurface2D(nativeCtx,
+  aIOImage->GetIOSurface()->CGLTexImageIOSurface2D(nsCtx,
                                      LOCAL_GL_RGBA, LOCAL_GL_BGRA,
                                      LOCAL_GL_UNSIGNED_INT_8_8_8_8_REV, 0);
 

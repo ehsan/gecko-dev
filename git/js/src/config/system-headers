@@ -1050,5 +1050,4 @@ tremor/ivorbiscodec.h
 ogg/ogg.h
 ogg/os_types.h
 nestegg/nestegg.h
-cubeb/cubeb.h
 #endif

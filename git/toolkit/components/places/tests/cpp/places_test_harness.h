@@ -334,7 +334,6 @@ static const char TOPIC_PLACES_CONNECTION_CLOSED[] = "places-connection-closed";
 
 class WaitForConnectionClosed : public nsIObserver
 {
-  nsRefPtr<WaitForTopicSpinner> mSpinner;
 public:
   NS_DECL_ISUPPORTS
 
@@ -346,7 +345,6 @@ public:
     if (os) {
       MOZ_ALWAYS_TRUE(NS_SUCCEEDED(os->AddObserver(this, TOPIC_PROFILE_CHANGE, false)));
     }
-    mSpinner = new WaitForTopicSpinner(TOPIC_PLACES_CONNECTION_CLOSED);
   }
 
   NS_IMETHOD Observe(nsISupports* aSubject,
@@ -360,7 +358,9 @@ public:
       MOZ_ALWAYS_TRUE(NS_SUCCEEDED(os->RemoveObserver(this, aTopic)));
     }
 
-    mSpinner->Spin();
+    nsRefPtr<WaitForTopicSpinner> spinner =
+      new WaitForTopicSpinner(TOPIC_PLACES_CONNECTION_CLOSED);
+    spinner->Spin();
 
     return NS_OK;
   }

@@ -22,7 +22,6 @@
  *
  * Contributor(s):
  *   Benjamin Smedberg <bsmedberg@covad.net>
- *   David Rajchenbach-Teller <dteller@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -48,13 +47,6 @@
 
 #include "nsINativeAppSupport.h"
 #include "nsIAppShell.h"
-
-#if defined(XP_WIN)
-//XPerf-backed probes
-#include "mozilla/perfprobe.h"
-#include "nsAutoPtr.h"
-#endif //defined(XP_WIN)
-
 
 struct PLEvent;
 
@@ -93,15 +85,6 @@ private:
   bool mAttemptingQuit; // Quit(eAttemptQuit) still trying
   bool mRestart;        // Quit(eRestart)
   bool mInterrupted;    // Was startup interrupted by an interactive prompt?
-
-#if defined(XP_WIN)
-  //Interaction with OS-provided profiling probes
-  typedef mozilla::probes::ProbeManager ProbeManager;
-  typedef mozilla::probes::Probe        Probe;
-  nsRefPtr<ProbeManager> mProbesManager;
-  nsRefPtr<Probe> mPlacesInitCompleteProbe;
-  nsRefPtr<Probe> mSessionWindowRestoredProbe;
-#endif
 };
 
 #endif // nsAppStartup_h__

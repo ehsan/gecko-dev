@@ -45,8 +45,7 @@
 
 class gfxASurface;
 class _CGLContextObject;
-// We would like to forward declare NSOpenGLContext, but it is an @interface and this
-// file is also used from c++.
+class NSOpenGLContext;
 
 typedef _CGLContextObject* CGLContextObj;
 typedef uint32_t IOSurfaceID;
@@ -67,7 +66,7 @@ public:
   size_t GetBytesPerRow();
   void Lock();
   void Unlock();
-  CGLError CGLTexImageIOSurface2D(void *ctxt,
+  CGLError CGLTexImageIOSurface2D(NSOpenGLContext *ctxt,
                                   GLenum internalFormat, GLenum format,
                                   GLenum type, GLuint plane);
   already_AddRefed<gfxASurface> GetAsSurface();

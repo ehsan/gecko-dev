@@ -12,6 +12,7 @@
 #include "jscompat.h"
 #include "jscpucfg.h"
 #include "jspubtd.h"
+#include "jsstdint.h"
 #include "jstypes.h"
 #include "jsval.h"
 #include "jsxdrapi.h"

@@ -135,6 +135,8 @@ public:
 
   NPError SetWindowless(bool aWindowless);
 
+  NPError SetWindowlessLocal(bool aWindowlessLocal);
+
   NPError SetTransparent(bool aTransparent);
 
   NPError SetWantsAllNetworkStreams(bool aWantsAllNetworkStreams);
@@ -244,6 +246,7 @@ protected:
   // these are used to store the windowless properties
   // which the browser will later query
   bool mWindowless;
+  bool mWindowlessLocal;
   bool mTransparent;
   bool mCached;
   bool mUsesDOMForCursor;
