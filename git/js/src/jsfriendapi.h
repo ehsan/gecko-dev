@@ -610,7 +610,7 @@ SizeOfJSContext();
     D(TOO_MUCH_MALLOC)                          \
     D(ALLOC_TRIGGER)                            \
     D(DEBUG_GC)                                 \
-    D(UNUSED2) /* was SHAPE */                  \
+    D(DEBUG_MODE_GC)                            \
     D(UNUSED3) /* was REFILL */                 \
                                                 \
     /* Reasons from Firefox */                  \
@@ -649,6 +649,9 @@ PrepareCompartmentForGC(JSCompartment *comp);
 
 extern JS_FRIEND_API(void)
 PrepareForFullGC(JSRuntime *rt);
+
+extern JS_FRIEND_API(bool)
+IsGCScheduled(JSRuntime *rt);
 
 /*
  * When triggering a GC using one of the functions below, it is first necessary
