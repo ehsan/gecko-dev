@@ -20,12 +20,6 @@ const RecordingModel = function (options={}) {
   this._front = options.front;
   this._performance = options.performance;
   this._label = options.label || "";
-
-  this._configuration = {
-    withTicks: options.withTicks || false,
-    withMemory: options.withMemory || false,
-    withAllocations: options.withAllocations || false
-  };
 };
 
 RecordingModel.prototype = {
@@ -35,7 +29,6 @@ RecordingModel.prototype = {
   _profilerStartTime: 0,
   _timelineStartTime: 0,
   _memoryStartTime: 0,
-  _configuration: {},
 
   // Serializable fields, necessary and sufficient for import and export.
   _label: "",
@@ -106,9 +99,12 @@ RecordingModel.prototype = {
 
   /**
    * Stops recording with the PerformanceFront.
+   *
+   * @param object options
+   *        @see RecordingModel.prototype.startRecording
    */
-  stopRecording: Task.async(function *() {
-    let info = yield this._front.stopRecording(this.getConfiguration());
+  stopRecording: Task.async(function *(options) {
+    let info = yield this._front.stopRecording(options);
     this._profile = info.profile;
     this._duration = info.profilerEndTime - this._profilerStartTime;
     this._recording = false;
@@ -145,15 +141,6 @@ RecordingModel.prototype = {
     } else {
       return this._duration;
     }
-  },
-
-  /**
-   * Returns configuration object of specifying whether the recording
-   * was started withTicks, withMemory and withAllocations.
-   * @return object
-   */
-  getConfiguration: function () {
-    return this._configuration;
   },
 
   /**

@@ -220,6 +220,9 @@ struct JSCompartment
     inline void initGlobal(js::GlobalObject &global);
 
   public:
+    /* Type information about the scripts and objects in this compartment. */
+    js::types::TypeCompartment   types;
+
     void                         *data;
 
   private:
@@ -273,10 +276,14 @@ struct JSCompartment
     js::InitialShapeSet          initialShapes;
     void sweepInitialShapeTable();
 
-    // Object group tables and other state in the compartment.
-    js::ObjectGroupCompartment   objectGroups;
+    /* Set of default 'new' or lazy groups in the compartment. */
+    js::types::NewObjectGroupTable newObjectGroups;
+    js::types::NewObjectGroupTable lazyObjectGroups;
+    void sweepNewObjectGroupTable(js::types::NewObjectGroupTable &table);
 
 #ifdef JSGC_HASH_TABLE_CHECKS
+    void checkObjectGroupTablesAfterMovingGC();
+    void checkObjectGroupTableAfterMovingGC(js::types::NewObjectGroupTable &table);
     void checkInitialShapesTableAfterMovingGC();
     void checkWrapperMapAfterMovingGC();
     void checkBaseShapeTableAfterMovingGC();
@@ -301,9 +308,6 @@ struct JSCompartment
 
     // Map from typed objects to array buffers lazily created for them.
     js::LazyArrayBufferTable *lazyArrayBuffers;
-
-    // All unboxed layouts in the compartment.
-    mozilla::LinkedList<js::UnboxedLayout> unboxedLayouts;
 
     /* During GC, stores the index of this compartment in rt->compartments. */
     unsigned                     gcIndex;
@@ -382,6 +386,7 @@ struct JSCompartment
 
     void sweepInnerViews();
     void sweepCrossCompartmentWrappers();
+    void sweepObjectGroupTables();
     void sweepSavedStacks();
     void sweepGlobalObject(js::FreeOp *fop);
     void sweepSelfHostingScriptSource();
@@ -395,6 +400,7 @@ struct JSCompartment
     void clearTables();
 
     void fixupInitialShapeTable();
+    void fixupNewObjectGroupTable(js::types::NewObjectGroupTable &table);
     void fixupAfterMovingGC();
     void fixupGlobal();
     void fixupBaseShapeTable();

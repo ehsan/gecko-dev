@@ -235,7 +235,7 @@ public:
     // XXX/cjones: it's not clear what we gain by hiding these
     // message-sending functions under a layer of indirection and
     // eating the return values
-    void Show(const nsIntSize& size, bool aParentIsActive);
+    void Show(const nsIntSize& size);
     void UpdateDimensions(const nsIntRect& rect, const nsIntSize& size,
                           const nsIntPoint& chromeDisp);
     void UpdateFrame(const layers::FrameMetrics& aFrameMetrics);
@@ -445,15 +445,19 @@ private:
     // When true, we create a pan/zoom controller for our frame and
     // notify it of input events targeting us.
     bool UseAsyncPanZoom();
-    // Update state prior to routing an APZ-aware event to the child process.
+    // If we have a render frame currently, notify it that we're about
+    // to dispatch |aEvent| to our child.  If there's a relevant
+    // transform in place, |aEvent| will be transformed in-place so that
+    // it is ready to be dispatched to content.
     // |aOutTargetGuid| will contain the identifier
     // of the APZC instance that handled the event. aOutTargetGuid may be
     // null.
     // |aOutInputBlockId| will contain the identifier of the input block
     // that this event was added to, if there was one. aOutInputBlockId may
     // be null.
-    void ApzAwareEventRoutingToChild(ScrollableLayerGuid* aOutTargetGuid,
-                                     uint64_t* aOutInputBlockId);
+    nsEventStatus MaybeForwardEventToRenderFrame(WidgetInputEvent& aEvent,
+                                                 ScrollableLayerGuid* aOutTargetGuid,
+                                                 uint64_t* aOutInputBlockId);
     // The offset for the child process which is sampled at touch start. This
     // means that the touch events are relative to where the frame was at the
     // start of the touch. We need to look for a better solution to this

@@ -230,9 +230,7 @@ let RecordingsView = Heritage.extend(WidgetMethods, {
       let recordingItem = this.getItemForElement(e.target);
       this.emit(EVENTS.UI_EXPORT_RECORDING, recordingItem.attachment, fp.file);
     }});
-  },
-
-  toString: () => "[object RecordingsView]"
+  }
 });
 
 /**

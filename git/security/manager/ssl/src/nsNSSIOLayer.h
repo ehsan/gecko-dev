@@ -235,10 +235,7 @@ public:
   bool isInsecureFallbackSite(const nsACString& hostname);
 
   bool mFalseStartRequireNPN;
-  // Use the static list of sites that require insecure fallback
-  // to TLS 1.0 if true, set by the pref
-  // security.tls.insecure_fallback_hosts.use_static_list.
-  bool mUseStaticFallbackList;
+  bool mFalseStartRequireForwardSecrecy;
   uint16_t mVersionFallbackLimit;
 private:
   mozilla::Mutex mutex;

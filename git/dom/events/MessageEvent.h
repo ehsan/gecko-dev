@@ -58,7 +58,10 @@ public:
   void SetPorts(MessagePortList* aPorts);
 
   // Non WebIDL methods
-  void SetSource(mozilla::dom::MessagePort* aPort);
+  void SetSource(mozilla::dom::MessagePort* aPort)
+  {
+    mPortSource = aPort;
+  }
 
   void SetSource(nsPIDOMWindow* aWindow)
   {

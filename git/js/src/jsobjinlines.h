@@ -75,8 +75,8 @@ JSObject::setSingleton(js::ExclusiveContext *cx, js::HandleObject obj)
 {
     MOZ_ASSERT_IF(cx->isJSContext(), !IsInsideNursery(obj));
 
-    js::ObjectGroup *group = js::ObjectGroup::lazySingletonGroup(cx, obj->getClass(),
-                                                                 obj->getTaggedProto());
+    js::types::ObjectGroup *group = cx->getLazySingletonGroup(obj->getClass(),
+                                                              obj->getTaggedProto());
     if (!group)
         return false;
 
@@ -84,7 +84,7 @@ JSObject::setSingleton(js::ExclusiveContext *cx, js::HandleObject obj)
     return true;
 }
 
-inline js::ObjectGroup*
+inline js::types::ObjectGroup*
 JSObject::getGroup(JSContext *cx)
 {
     MOZ_ASSERT(cx->compartment() == compartment());
@@ -98,7 +98,7 @@ JSObject::getGroup(JSContext *cx)
 }
 
 inline void
-JSObject::setGroup(js::ObjectGroup *group)
+JSObject::setGroup(js::types::ObjectGroup *group)
 {
     MOZ_ASSERT(group);
     MOZ_ASSERT(!isSingleton());

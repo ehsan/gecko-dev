@@ -19,6 +19,7 @@ DIRS += [
     'sessionstore',
     'shell',
     'selfsupport',
+    'sidebar',
     'tabview',
     'uitour',
     'translation',

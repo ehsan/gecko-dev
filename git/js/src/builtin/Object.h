@@ -9,8 +9,6 @@
 
 #include "jsapi.h"
 
-#include "vm/NativeObject.h"
-
 namespace JS {
 class CallArgs;
 class Value;

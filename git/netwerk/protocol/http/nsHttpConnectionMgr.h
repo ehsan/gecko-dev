@@ -364,7 +364,7 @@ private:
         // mSpdyPreferred. The mapping is maintained in the connection mananger
         // mSpdyPreferred hash.
         //
-        nsTArray<nsCString> mCoalescingKeys;
+        nsCString mCoalescingKey;
 
         // The value of a recevied SPDY settings type 5 previously received
         // for this connection entry and the time it was set.
@@ -382,7 +382,7 @@ private:
         // minimized so that we can multiplex on a single spdy connection.
         bool mTestedSpdy;
 
-        bool mInPreferredHash;
+        bool mSpdyPreferred;
 
         // Flags to remember our happy-eyeballs decision.
         // Reset only by Ctrl-F5 reload.
@@ -589,9 +589,7 @@ private:
 
     // Manage the preferred spdy connection entry for this address
     nsConnectionEntry *GetSpdyPreferredEnt(nsConnectionEntry *aOriginalEntry);
-    nsConnectionEntry *LookupPreferredHash(nsConnectionEntry *ent);
-    void               StorePreferredHash(nsConnectionEntry *ent);
-    void               RemovePreferredHash(nsConnectionEntry *ent);
+    void               RemoveSpdyPreferredEnt(nsACString &aDottedDecimal);
     nsHttpConnection  *GetSpdyPreferredConn(nsConnectionEntry *ent);
     nsDataHashtable<nsCStringHashKey, nsConnectionEntry *>   mSpdyPreferredHash;
     nsConnectionEntry *LookupConnectionEntry(nsHttpConnectionInfo *ci,

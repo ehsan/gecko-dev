@@ -51,11 +51,12 @@ let AboutReader = function(mm, win) {
 
   win.addEventListener("unload", this, false);
   win.addEventListener("scroll", this, false);
+  win.addEventListener("popstate", this, false);
   win.addEventListener("resize", this, false);
 
   doc.addEventListener("visibilitychange", this, false);
 
-  this._setupStyleDropdown();
+  this._setupAllDropdowns();
   this._setupButton("toggle-button", this._onReaderToggle.bind(this));
   this._setupButton("share-button", this._onShare.bind(this));
 
@@ -200,6 +201,10 @@ AboutReader.prototype = {
         let isScrollingUp = this._scrollOffset > aEvent.pageY;
         this._setToolbarVisibility(isScrollingUp);
         this._scrollOffset = aEvent.pageY;
+        break;
+      case "popstate":
+        if (!aEvent.state)
+          this._closeAllDropdowns();
         break;
       case "resize":
         this._updateImageMargins();
@@ -400,8 +405,9 @@ AboutReader.prototype = {
   },
 
   _setToolbarVisibility: function Reader_setToolbarVisibility(visible) {
-    let dropdown = this._doc.getElementById("style-dropdown");
-    dropdown.classList.remove("open");
+    let win = this._win;
+    if (win.history.state)
+      win.history.back();
 
     if (!this._toolbarEnabled)
       return;
@@ -691,53 +697,97 @@ AboutReader.prototype = {
     }, true);
   },
 
-  _setupStyleDropdown: function Reader_setupStyleDropdown() {
+  _setupAllDropdowns: function Reader_setupAllDropdowns() {
     let doc = this._doc;
     let win = this._win;
 
-    let dropdown = doc.getElementById("style-dropdown");
+    let dropdowns = doc.getElementsByClassName("dropdown");
 
-    let dropdownToggle = dropdown.querySelector(".dropdown-toggle");
-    let dropdownPopup = dropdown.querySelector(".dropdown-popup");
-    let dropdownArrow = dropdown.querySelector(".dropdown-arrow");
+    for (let i = dropdowns.length - 1; i >= 0; i--) {
+      let dropdown = dropdowns[i];
 
-    let updatePopupPosition = function() {
-      let popupWidth = dropdownPopup.offsetWidth + 30;
-      let arrowWidth = dropdownArrow.offsetWidth;
-      let toggleWidth = dropdownToggle.offsetWidth;
-      let toggleLeft = dropdownToggle.offsetLeft;
+      let dropdownToggle = dropdown.getElementsByClassName("dropdown-toggle")[0];
+      let dropdownPopup = dropdown.getElementsByClassName("dropdown-popup")[0];
 
-      let popupShift = (toggleWidth - popupWidth) / 2;
-      let popupLeft = Math.max(0, Math.min(win.innerWidth - popupWidth, toggleLeft + popupShift));
-      dropdownPopup.style.left = popupLeft + "px";
+      if (!dropdownToggle || !dropdownPopup)
+        continue;
 
-      let arrowShift = (toggleWidth - arrowWidth) / 2;
-      let arrowLeft = toggleLeft - popupLeft + arrowShift;
-      dropdownArrow.style.left = arrowLeft + "px";
-    };
+      let dropdownArrow = doc.createElement("div");
+      dropdownArrow.className = "dropdown-arrow";
+      dropdownPopup.appendChild(dropdownArrow);
 
-    win.addEventListener("resize", event => {
-      if (!event.isTrusted)
-        return;
+      let updatePopupPosition = function() {
+        let popupWidth = dropdownPopup.offsetWidth + 30;
+        let arrowWidth = dropdownArrow.offsetWidth;
+        let toggleWidth = dropdownToggle.offsetWidth;
+        let toggleLeft = dropdownToggle.offsetLeft;
 
-      // Wait for reflow before calculating the new position of the popup.
-      win.setTimeout(updatePopupPosition, 0);
-    }, true);
+        let popupShift = (toggleWidth - popupWidth) / 2;
+        let popupLeft = Math.max(0, Math.min(win.innerWidth - popupWidth, toggleLeft + popupShift));
+        dropdownPopup.style.left = popupLeft + "px";
 
-    dropdownToggle.addEventListener("click", event => {
-      if (!event.isTrusted)
-        return;
+        let arrowShift = (toggleWidth - arrowWidth) / 2;
+        let arrowLeft = toggleLeft - popupLeft + arrowShift;
+        dropdownArrow.style.left = arrowLeft + "px";
+      };
 
-      event.stopPropagation();
+      win.addEventListener("resize", function(aEvent) {
+        if (!aEvent.isTrusted)
+          return;
 
-      if (!this._getToolbarVisibility())
-        return;
+        // Wait for reflow before calculating the new position of the popup.
+        win.setTimeout(updatePopupPosition, 0);
+      }, true);
 
-      if (dropdown.classList.contains("open")) {
-        dropdown.classList.remove("open");
-      } else {
-        dropdown.classList.add("open");
-      }
-    }, true);
+      dropdownToggle.addEventListener("click", function(aEvent) {
+        if (!aEvent.isTrusted)
+          return;
+
+        aEvent.stopPropagation();
+
+        if (!this._getToolbarVisibility())
+          return;
+
+        let dropdownClasses = dropdown.classList;
+
+        if (dropdownClasses.contains("open")) {
+          win.history.back();
+        } else {
+          updatePopupPosition();
+          if (!this._closeAllDropdowns())
+            this._pushDropdownState();
+
+          dropdownClasses.add("open");
+        }
+      }.bind(this), true);
+    }
+  },
+
+  _pushDropdownState: function Reader_pushDropdownState() {
+    // FIXME: We're getting a NS_ERROR_UNEXPECTED error when we try
+    // to do win.history.pushState() here (see bug 682296). This is
+    // a workaround that allows us to push history state on the target
+    // content document.
+
+    let doc = this._doc;
+    let body = doc.body;
+
+    if (this._pushStateScript)
+      body.removeChild(this._pushStateScript);
+
+    this._pushStateScript = doc.createElement('script');
+    this._pushStateScript.type = "text/javascript";
+    this._pushStateScript.innerHTML = 'history.pushState({ dropdown: 1 }, document.title);';
+
+    body.appendChild(this._pushStateScript);
+  },
+
+  _closeAllDropdowns : function Reader_closeAllDropdowns() {
+    let dropdowns = this._doc.querySelectorAll(".dropdown.open");
+    for (let i = dropdowns.length - 1; i >= 0; i--) {
+      dropdowns[i].classList.remove("open");
+    }
+
+    return (dropdowns.length > 0)
   }
 };

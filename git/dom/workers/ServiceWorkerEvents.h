@@ -9,7 +9,12 @@
 #include "mozilla/dom/Event.h"
 #include "mozilla/dom/ExtendableEventBinding.h"
 #include "mozilla/dom/InstallEventBinding.h"
-#include "mozilla/dom/Promise.h"
+
+namespace mozilla {
+namespace dom {
+  class Promise;
+} // namespace dom
+} // namespace mozilla
 
 BEGIN_WORKERS_NAMESPACE
 

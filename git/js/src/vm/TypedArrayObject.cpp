@@ -305,8 +305,7 @@ class TypedArrayObjectTemplate : public TypedArrayObject
         if (!obj)
             return nullptr;
 
-        ObjectGroup *group = ObjectGroup::defaultNewGroup(cx, obj->getClass(),
-                                                          TaggedProto(proto.get()));
+        types::ObjectGroup *group = cx->getNewGroup(obj->getClass(), TaggedProto(proto.get()));
         if (!group)
             return nullptr;
         obj->setGroup(group);
@@ -327,17 +326,16 @@ class TypedArrayObjectTemplate : public TypedArrayObject
 
         jsbytecode *pc;
         RootedScript script(cx, cx->currentScript(&pc));
-        NewObjectKind newKind = GenericObject;
-        if (script && ObjectGroup::useSingletonForAllocationSite(script, pc, clasp))
-            newKind = SingletonObject;
+        NewObjectKind newKind = script
+                                ? UseSingletonForInitializer(script, pc, clasp)
+                                : GenericObject;
         RootedObject obj(cx, NewBuiltinClassInstance(cx, clasp, allocKind, newKind));
         if (!obj)
             return nullptr;
 
-        if (script && !ObjectGroup::setAllocationSiteObjectGroup(cx, script, pc, obj,
-                                                                 newKind == SingletonObject))
-        {
-            return nullptr;
+        if (script) {
+            if (!types::SetInitializerObjectGroup(cx, script, pc, obj, newKind))
+                return nullptr;
         }
 
         return &obj->as<TypedArrayObject>();
@@ -974,9 +972,9 @@ DataViewNewObjectKind(JSContext *cx, uint32_t byteLength, JSObject *proto)
         return SingletonObject;
     jsbytecode *pc;
     JSScript *script = cx->currentScript(&pc);
-    if (script && ObjectGroup::useSingletonForAllocationSite(script, pc, &DataViewObject::class_))
-        return SingletonObject;
-    return GenericObject;
+    if (!script)
+        return GenericObject;
+    return types::UseSingletonForInitializer(script, pc, &DataViewObject::class_);
 }
 
 inline DataViewObject *
@@ -1002,7 +1000,7 @@ DataViewObject::create(JSContext *cx, uint32_t byteOffset, uint32_t byteLength,
         return nullptr;
 
     if (proto) {
-        ObjectGroup *group = ObjectGroup::defaultNewGroup(cx, &class_, TaggedProto(proto));
+        types::ObjectGroup *group = cx->getNewGroup(&class_, TaggedProto(proto));
         if (!group)
             return nullptr;
         obj->setGroup(group);
@@ -1011,10 +1009,9 @@ DataViewObject::create(JSContext *cx, uint32_t byteOffset, uint32_t byteLength,
     } else {
         jsbytecode *pc;
         RootedScript script(cx, cx->currentScript(&pc));
-        if (script && !ObjectGroup::setAllocationSiteObjectGroup(cx, script, pc, obj,
-                                                                 newKind == SingletonObject))
-        {
-            return nullptr;
+        if (script) {
+            if (!types::SetInitializerObjectGroup(cx, script, pc, obj, newKind))
+                return nullptr;
         }
     }
 

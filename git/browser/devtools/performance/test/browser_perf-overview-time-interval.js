@@ -24,14 +24,11 @@ function spawnTest () {
   }
 
   yield startRecording(panel);
+  busyWait(100);
 
-  yield Promise.all([
-    once(OverviewView, EVENTS.FRAMERATE_GRAPH_RENDERED),
-    once(OverviewView, EVENTS.MARKERS_GRAPH_RENDERED),
-    once(OverviewView, EVENTS.OVERVIEW_RENDERED)
-  ]);
-
+  let rendered = once(OverviewView, EVENTS.OVERVIEW_RENDERED);
   yield stopRecording(panel);
+  yield rendered;
 
   // Get/set the time interval and wait for the event propagation.
 

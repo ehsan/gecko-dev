@@ -58,26 +58,15 @@ function run_test()
             getService(Ci.nsIIOService);
 
   // Test that the default icon has the content type of image/png.
-  let (channel = ios.newChannelFromURI2(fs.defaultFavicon,
-                                        null,      // aLoadingNode
-                                        Services.scriptSecurityManager.getSystemPrincipal(),
-                                        null,      // aTriggeringPrincipal
-                                        Ci.nsILoadInfo.SEC_NORMAL,
-                                        Ci.nsIContentPolicy.TYPE_IMAGE)) {
+  let (channel = ios.newChannelFromURI(fs.defaultFavicon)) {
     channel.asyncOpen(new streamListener("image/png"), null);
     do_test_pending();
   }
 
   // Test URI that we don't know anything about.  Will end up being the default
   // icon, so expect image/png.
-  let (channel = ios.newChannel2(moz_anno_favicon_prefix + "http://mozilla.org",
-                                 null,
-                                 null,
-                                 null,      // aLoadingNode
-                                 Services.scriptSecurityManager.getSystemPrincipal(),
-                                 null,      // aTriggeringPrincipal
-                                 Ci.nsILoadInfo.SEC_NORMAL,
-                                 Ci.nsIContentPolicy.TYPE_IMAGE)) {
+  let (channel = ios.newChannel(moz_anno_favicon_prefix + "http://mozilla.org",
+                                null, null)) {
     channel.asyncOpen(new streamListener("image/png"), null);
     do_test_pending();
   }
@@ -89,14 +78,8 @@ function run_test()
                                      (Date.now() + 60 * 60 * 24 * 1000) * 1000);
 
     // Open the channel
-    let channel = ios.newChannel2(moz_anno_favicon_prefix + testURI.spec,
-                                  null,
-                                  null,
-                                  null,      // aLoadingNode
-                                  Services.scriptSecurityManager.getSystemPrincipal(),
-                                  null,      // aTriggeringPrincipal
-                                  Ci.nsILoadInfo.SEC_NORMAL,
-                                  Ci.nsIContentPolicy.TYPE_IMAGE);
+    let channel = ios.newChannel(moz_anno_favicon_prefix + testURI.spec, null,
+                                 null);
     channel.asyncOpen(new streamListener("image/png"), null);
     do_test_pending();
   }

@@ -218,12 +218,11 @@ class Test(MachCommandBase):
                 if res:
                     status = res
 
-        buckets = {}
+        flavors = {}
         for test in run_tests:
-            key = (test['flavor'], test['subsuite'])
-            buckets.setdefault(key, []).append(test)
+            flavors.setdefault(test['flavor'], []).append(test)
 
-        for (flavor, subsuite), tests in sorted(buckets.items()):
+        for flavor, tests in sorted(flavors.items()):
             if flavor not in TEST_FLAVORS:
                 print(UNKNOWN_FLAVOR % flavor)
                 status = 1
@@ -235,12 +234,9 @@ class Test(MachCommandBase):
                 status = 1
                 continue
 
-            kwargs = dict(m['kwargs'])
-            kwargs['subsuite'] = subsuite
-
             res = self._mach_context.commands.dispatch(
                     m['mach_command'], self._mach_context,
-                    test_objects=tests, **kwargs)
+                    test_objects=tests, **m['kwargs'])
             if res:
                 status = res
 

@@ -2303,7 +2303,7 @@ DefineProperty(JSContext *cx, HandleObject obj, const char *name, HandleValue va
 
     RootedId id(cx);
     if (attrs & JSPROP_INDEX) {
-        id = INT_TO_JSID(intptr_t(name));
+        id.set(INT_TO_JSID(intptr_t(name)));
         attrs &= ~JSPROP_INDEX;
     } else {
         JSAtom *atom = Atomize(cx, name, strlen(name));
@@ -2624,6 +2624,46 @@ JS::ParsePropertyDescriptorObject(JSContext *cx,
     return true;
 }
 
+static bool
+GetPropertyDescriptorById(JSContext *cx, HandleObject obj, HandleId id,
+                          MutableHandle<PropertyDescriptor> desc)
+{
+    RootedObject obj2(cx);
+    RootedShape shape(cx);
+
+    if (!LookupProperty(cx, obj, id, &obj2, &shape))
+        return false;
+
+    desc.clear();
+    if (!shape)
+        return true;
+
+    desc.object().set(obj2);
+    if (obj2->isNative()) {
+        if (IsImplicitDenseOrTypedArrayElement(shape)) {
+            desc.setEnumerable();
+            desc.value().set(obj2->as<NativeObject>().getDenseOrTypedArrayElement(JSID_TO_INT(id)));
+        } else {
+            desc.setAttributes(shape->attributes());
+            desc.setGetter(shape->getter());
+            desc.setSetter(shape->setter());
+            MOZ_ASSERT(desc.value().isUndefined());
+            if (shape->hasSlot())
+                desc.value().set(obj2->as<NativeObject>().getSlot(shape->slot()));
+        }
+
+        return true;
+    }
+
+    // When we hit a proxy during lookup, the property might be
+    // on the prototype of the proxy, thus use getPropertyDescriptor.
+    if (obj2->is<ProxyObject>())
+        return Proxy::getPropertyDescriptor(cx, obj2, id, desc);
+
+    // Assume other non-natives (i.e. TypedObjects) behave in a sane way.
+    return GetOwnPropertyDescriptor(cx, obj2, id, desc);
+}
+
 JS_PUBLIC_API(bool)
 JS_GetOwnPropertyDescriptorById(JSContext *cx, HandleObject obj, HandleId id,
                                 MutableHandle<JSPropertyDescriptor> desc)
@@ -2649,7 +2689,7 @@ JS_PUBLIC_API(bool)
 JS_GetPropertyDescriptorById(JSContext *cx, HandleObject obj, HandleId id,
                              MutableHandle<JSPropertyDescriptor> desc)
 {
-    return GetPropertyDescriptor(cx, obj, id, desc);
+    return GetPropertyDescriptorById(cx, obj, id, desc);
 }
 
 JS_PUBLIC_API(bool)
