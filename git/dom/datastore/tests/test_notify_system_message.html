@@ -89,9 +89,7 @@
     function() {
       SpecialPowers.setAllAppsLaunchable(true);
       // No confirmation needed when an app is installed.
-      SpecialPowers.autoConfirmAppInstall(() => {
-        SpecialPowers.autoConfirmAppUninstall(runTest);
-      });
+      SpecialPowers.autoConfirmAppInstall(runTest);
     },
 
     function() {

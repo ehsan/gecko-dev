@@ -383,11 +383,7 @@ exports.AppManager = AppManager = {
     let client = this.connection.client;
     let actor = this._listTabsResponse.webappsActor;
     let manifest = this.getProjectManifestURL(this.selectedProject);
-    if (!this.isProjectRunning()) {
-      return AppActorFront.launchApp(client, actor, manifest);
-    } else {
-      return AppActorFront.reloadApp(client, actor, manifest);
-    }
+    return AppActorFront.launchApp(client, actor, manifest);
   },
 
   installAndRunProject: function() {

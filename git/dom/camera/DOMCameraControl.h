@@ -82,8 +82,6 @@ public:
   already_AddRefed<dom::CameraCapabilities> Capabilities();
   void GetIsoMode(nsString& aMode, ErrorResult& aRv);
   void SetIsoMode(const nsAString& aMode, ErrorResult& aRv);
-  double GetPictureQuality(ErrorResult& aRv);
-  void SetPictureQuality(double aQuality, ErrorResult& aRv);
 
   // Unsolicited event handlers.
   dom::CameraShutterCallback* GetOnShutter();
