@@ -7798,6 +7798,11 @@ nsDocShell::CheckClassifier(nsIChannel *aChannel)
     if (!classifier) return NS_ERROR_OUT_OF_MEMORY;
 
     nsresult rv = classifier->Start(aChannel, PR_FALSE);
+    if (rv == NS_ERROR_FACTORY_NOT_REGISTERED ||
+        rv == NS_ERROR_NOT_AVAILABLE) {
+        // no URI classifier => ignored cases
+        return NS_OK;
+    }
     NS_ENSURE_SUCCESS(rv, rv);
 
     mClassifier = classifier;
@@ -9744,12 +9749,7 @@ nsClassifierCallback::Run()
 
     nsCOMPtr<nsIURIClassifier> uriClassifier =
         do_GetService(NS_URICLASSIFIERSERVICE_CONTRACTID, &rv);
-    if (rv == NS_ERROR_FACTORY_NOT_REGISTERED ||
-        rv == NS_ERROR_NOT_AVAILABLE) {
-        // no URI classifier, ignore this failure.
-        return NS_OK;
-    }
-    NS_ENSURE_SUCCESS(rv, rv);
+    if (NS_FAILED(rv)) return rv;
 
     PRBool expectCallback;
     rv = uriClassifier->Classify(uri, this, &expectCallback);
