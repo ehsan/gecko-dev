@@ -673,19 +673,14 @@ nsXULTreeGridRowAccessible::GetName(nsAString& aName)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  // XXX: the row name sholdn't be a concatenation of cell names (bug 664384).
-  nsCOMPtr<nsITreeColumn> column = nsCoreUtils::GetFirstSensibleColumn(mTree);
-  while (column) {
-    if (!aName.IsEmpty())
-      aName.AppendLiteral(" ");
-
-    nsAutoString cellName;
-    GetCellName(column, cellName);
-    aName.Append(cellName);
-
-    column = nsCoreUtils::GetNextSensibleColumn(column);
+  nsCOMPtr<nsITreeColumns> columns;
+  mTree->GetColumns(getter_AddRefs(columns));
+  if (columns) {
+    nsCOMPtr<nsITreeColumn> primaryColumn;
+    columns->GetPrimaryColumn(getter_AddRefs(primaryColumn));
+    if (primaryColumn)
+      GetCellName(primaryColumn, aName);
   }
-
   return NS_OK;
 }
 

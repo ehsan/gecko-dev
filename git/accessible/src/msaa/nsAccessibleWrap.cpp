@@ -484,22 +484,18 @@ STDMETHODIMP nsAccessibleWrap::get_accKeyboardShortcut(
       /* [retval][out] */ BSTR __RPC_FAR *pszKeyboardShortcut)
 {
 __try {
-  if (!pszKeyboardShortcut)
-    return E_INVALIDARG;
-
   *pszKeyboardShortcut = NULL;
   nsAccessible *xpAccessible = GetXPAccessibleFor(varChild);
-  if (!xpAccessible || xpAccessible->IsDefunct())
-    return E_FAIL;
+  if (xpAccessible) {
+    nsAutoString shortcut;
+    nsresult rv = xpAccessible->GetKeyboardShortcut(shortcut);
+    if (NS_FAILED(rv))
+      return E_FAIL;
 
-  nsAutoString shortcut;
-  nsresult rv = xpAccessible->GetKeyboardShortcut(shortcut);
-  if (NS_FAILED(rv))
-    return GetHRESULT(rv);
-
-  *pszKeyboardShortcut = ::SysAllocStringLen(shortcut.get(),
-                                             shortcut.Length());
-  return *pszKeyboardShortcut ? S_OK : E_OUTOFMEMORY;
+    *pszKeyboardShortcut = ::SysAllocStringLen(shortcut.get(),
+                                               shortcut.Length());
+    return *pszKeyboardShortcut ? S_OK : E_OUTOFMEMORY;
+  }
 } __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   return E_FAIL;
 }
