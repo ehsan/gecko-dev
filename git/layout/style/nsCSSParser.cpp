@@ -1332,7 +1332,7 @@ CSSParserImpl::ExpectEndProperty()
     return PR_TRUE;
 
   // If we're here, we read something incorrect, so we should report it.
-  REPORT_UNEXPECTED_TOKEN(PEExpectEndValue);
+  REPORT_UNEXPECTED_TOKEN(PRExpectEndValue);
   return PR_FALSE;
 }
 

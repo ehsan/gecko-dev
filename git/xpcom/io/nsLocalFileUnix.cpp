@@ -275,12 +275,21 @@ nsLocalFile::nsLocalFileConstructor(nsISupports *outer,
 
 PRBool 
 nsLocalFile::FillStatCache() {
-    if (STAT(mPath.get(), &mCachedStat) == -1) {
+#ifdef HAVE_STAT64
+    if (stat64(mPath.get(), &mCachedStat) == -1) {
         // try lstat it may be a symlink
-        if (LSTAT(mPath.get(), &mCachedStat) == -1) {
+        if (lstat64(mPath.get(), &mCachedStat) == -1) {
             return PR_FALSE;
         }
     }
+#else
+    if (stat(mPath.get(), &mCachedStat) == -1) {
+        // try lstat it may be a symlink
+        if (lstat(mPath.get(), &mCachedStat) == -1) {
+            return PR_FALSE;
+        }
+    }
+#endif
     return PR_TRUE;
 }
 
@@ -1010,8 +1019,8 @@ nsLocalFile::GetLastModifiedTimeOfLink(PRInt64 *aLastModTimeOfLink)
     CHECK_mPath();
     NS_ENSURE_ARG(aLastModTimeOfLink);
 
-    struct STAT sbuf;
-    if (LSTAT(mPath.get(), &sbuf) == -1)
+    struct stat sbuf;
+    if (lstat(mPath.get(), &sbuf) == -1)
         return NSRESULT_FOR_ERRNO();
     LL_I2L(*aLastModTimeOfLink, (PRInt32)sbuf.st_mtime);
 
@@ -1054,8 +1063,8 @@ nsLocalFile::GetPermissionsOfLink(PRUint32 *aPermissionsOfLink)
     CHECK_mPath();
     NS_ENSURE_ARG(aPermissionsOfLink);
 
-    struct STAT sbuf;
-    if (LSTAT(mPath.get(), &sbuf) == -1)
+    struct stat sbuf;
+    if (lstat(mPath.get(), &sbuf) == -1)
         return NSRESULT_FOR_ERRNO();
     *aPermissionsOfLink = NORMALIZE_PERMS(sbuf.st_mode);
     return NS_OK;
@@ -1099,7 +1108,11 @@ nsLocalFile::GetFileSize(PRInt64 *aFileSize)
 #endif
 
     if (!S_ISDIR(mCachedStat.st_mode)) {
-        *aFileSize = (PRInt64)mCachedStat.st_size;
+#ifdef HAVE_STAT64
+        *aFileSize = mCachedStat.st_size;
+#else
+        LL_UI2L(*aFileSize, (PRUint32)mCachedStat.st_size);
+#endif
     }
     return NS_OK;
 }
@@ -1109,14 +1122,11 @@ nsLocalFile::SetFileSize(PRInt64 aFileSize)
 {
     CHECK_mPath();
 
-#ifdef HAVE_TRUNCATE64
-    if (truncate64(mPath.get(), (off64_t)aFileSize) == -1)
+    PRInt32 size;
+    LL_L2I(size, aFileSize);
+    /* XXX truncate64? */
+    if (truncate(mPath.get(), (off_t)size) == -1)
         return NSRESULT_FOR_ERRNO();
-#else
-    off_t size = (off_t)aFileSize;
-    if (truncate(mPath.get(), size) == -1)
-        return NSRESULT_FOR_ERRNO();
-#endif
     return NS_OK;
 }
 
@@ -1126,11 +1136,17 @@ nsLocalFile::GetFileSizeOfLink(PRInt64 *aFileSize)
     CHECK_mPath();
     NS_ENSURE_ARG(aFileSize);
 
-    struct STAT sbuf;
-    if (LSTAT(mPath.get(), &sbuf) == -1)
+#ifdef HAVE_LSTAT64
+    struct stat64 sbuf;
+    if (lstat64(mPath.get(), &sbuf) == -1)
         return NSRESULT_FOR_ERRNO();
-
-    *aFileSize = (PRInt64)sbuf.st_size;
+    *aFileSize = sbuf.st_size;
+#else
+    struct stat sbuf;
+    if (lstat(mPath.get(), &sbuf) == -1)
+        return NSRESULT_FOR_ERRNO();
+    LL_UI2L(*aFileSize, (PRUint32)sbuf.st_size);
+#endif
     return NS_OK;
 }
 
@@ -1141,7 +1157,7 @@ nsLocalFile::GetDiskSpaceAvailable(PRInt64 *aDiskSpaceAvailable)
 
     // These systems have the operations necessary to check disk space.
 
-#ifdef STATFS
+#if defined(HAVE_SYS_STATFS_H) || defined(HAVE_SYS_STATVFS_H)
 
     // check to make sure that mPath is properly initialized
     CHECK_mPath();
@@ -1172,8 +1188,11 @@ nsLocalFile::GetDiskSpaceAvailable(PRInt64 *aDiskSpaceAvailable)
      * a non-superuser, minus one as a fudge factor, multiplied by the size
      * of the aforementioned blocks.
      */
-    *aDiskSpaceAvailable = (PRInt64)fs_buf.f_bsize * (fs_buf.f_bavail - 1);
+    PRInt64 bsize, bavail;
 
+    LL_I2L(bsize, fs_buf.f_bsize);
+    LL_I2L(bavail, fs_buf.f_bavail - 1);
+    LL_MUL(*aDiskSpaceAvailable, bsize, bavail);
     return NS_OK;
 
 #else
@@ -1190,7 +1209,7 @@ nsLocalFile::GetDiskSpaceAvailable(PRInt64 *aDiskSpaceAvailable)
 #endif
     return NS_ERROR_NOT_IMPLEMENTED;
 
-#endif /* STATFS */
+#endif /* HAVE_SYS_STATFS_H or HAVE_SYS_STATVFS_H */
 
 }
 
@@ -1250,9 +1269,9 @@ nsLocalFile::Exists(PRBool *_retval)
 {
     CHECK_mPath();
     NS_ENSURE_ARG_POINTER(_retval);
-    struct STAT buf;
+    struct stat buf;
 
-    *_retval = (STAT(mPath.get(), &buf) == 0);
+    *_retval = (stat(mPath.get(), &buf) == 0);
     return NS_OK;
 }
 
@@ -1261,9 +1280,9 @@ nsLocalFile::IsWritable(PRBool *_retval)
 {
     CHECK_mPath();
     NS_ENSURE_ARG_POINTER(_retval);
-    struct STAT buf;
+    struct stat buf;
 
-    *_retval = (STAT(mPath.get(), &buf) == 0);
+    *_retval = (stat(mPath.get(), &buf) == 0);
     if (*_retval || errno == EACCES) {
         *_retval = *_retval && (buf.st_mode & (S_IWUSR | S_IWGRP | S_IWOTH ));
         return NS_OK;
@@ -1276,9 +1295,9 @@ nsLocalFile::IsReadable(PRBool *_retval)
 {
     CHECK_mPath();
     NS_ENSURE_ARG_POINTER(_retval);
-    struct STAT buf;
+    struct stat buf;
 
-    *_retval = (STAT(mPath.get(), &buf) == 0);
+    *_retval = (stat(mPath.get(), &buf) == 0);
     if (*_retval || errno == EACCES) {
         *_retval = *_retval && (buf.st_mode & (S_IRUSR | S_IRGRP | S_IROTH ));
         return NS_OK;
@@ -1291,9 +1310,9 @@ nsLocalFile::IsExecutable(PRBool *_retval)
 {
     CHECK_mPath();
     NS_ENSURE_ARG_POINTER(_retval);
-    struct STAT buf;
+    struct stat buf;
 
-    *_retval = (STAT(mPath.get(), &buf) == 0);
+    *_retval = (stat(mPath.get(), &buf) == 0);
     if (*_retval || errno == EACCES) {
         *_retval = *_retval && (buf.st_mode & (S_IXUSR | S_IXGRP | S_IXOTH ));
         return NS_OK;
@@ -1385,8 +1404,8 @@ nsLocalFile::IsSymlink(PRBool *_retval)
     NS_ENSURE_ARG_POINTER(_retval);
     CHECK_mPath();
 
-    struct STAT symStat;
-    if (LSTAT(mPath.get(), &symStat) == -1)
+    struct stat symStat;
+    if (lstat(mPath.get(), &symStat) == -1)
         return NSRESULT_FOR_ERRNO();
     *_retval=S_ISLNK(symStat.st_mode);
     return NS_OK;
@@ -1456,8 +1475,8 @@ nsLocalFile::GetNativeTarget(nsACString &_retval)
     CHECK_mPath();
     _retval.Truncate();
 
-    struct STAT symStat;
-    if (LSTAT(mPath.get(), &symStat) == -1)
+    struct stat symStat;
+    if (lstat(mPath.get(), &symStat) == -1)
         return NSRESULT_FOR_ERRNO();
 
     if (!S_ISLNK(symStat.st_mode))
@@ -1503,7 +1522,7 @@ nsLocalFile::GetNativeTarget(nsACString &_retval)
 
         // Any failure in testing the current target we'll just interpret
         // as having reached our destiny.
-        if (LSTAT(flatRetval.get(), &symStat) == -1)
+        if (lstat(flatRetval.get(), &symStat) == -1)
             break;
 
         // And of course we're done if it isn't a symlink.

@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * vim: sw=2 ts=2 et lcs=trail\:.,tab\:>~ :
+ * vim: sw=2 ts=2 sts=2 et :
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -210,10 +210,10 @@ Service::OpenSpecialDatabase(const char *aStorageKey,
     return NS_ERROR_INVALID_ARG;
   }
 
-  Connection *msc = new Connection(this);
+  mozStorageConnection *msc = new mozStorageConnection(this);
   NS_ENSURE_TRUE(msc, NS_ERROR_OUT_OF_MEMORY);
 
-  rv = msc->initialize(storageFile);
+  rv = msc->Initialize(storageFile);
   NS_ENSURE_SUCCESS(rv, rv);
 
   NS_ADDREF(*_connection = msc);
@@ -224,12 +224,12 @@ NS_IMETHODIMP
 Service::OpenDatabase(nsIFile *aDatabaseFile,
                       mozIStorageConnection **_connection)
 {
-  nsRefPtr<Connection> msc = new Connection(this);
+  nsRefPtr<mozStorageConnection> msc = new mozStorageConnection(this);
   NS_ENSURE_TRUE(msc, NS_ERROR_OUT_OF_MEMORY);
 
   {
     nsAutoLock lock(mLock);
-    nsresult rv = msc->initialize(aDatabaseFile);
+    nsresult rv = msc->Initialize(aDatabaseFile);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -241,7 +241,7 @@ NS_IMETHODIMP
 Service::OpenUnsharedDatabase(nsIFile *aDatabaseFile,
                               mozIStorageConnection **_connection)
 {
-  nsRefPtr<Connection> msc = new Connection(this);
+  nsRefPtr<mozStorageConnection> msc = new mozStorageConnection(this);
   NS_ENSURE_TRUE(msc, NS_ERROR_OUT_OF_MEMORY);
 
   // Initialize the connection, temporarily turning off shared caches so the
@@ -257,7 +257,7 @@ Service::OpenUnsharedDatabase(nsIFile *aDatabaseFile,
     if (rc != SQLITE_OK)
       return ConvertResultCode(rc);
 
-    rv = msc->initialize(aDatabaseFile);
+    rv = msc->Initialize(aDatabaseFile);
 
     rc = ::sqlite3_enable_shared_cache(1);
     if (rc != SQLITE_OK)

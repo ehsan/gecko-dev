@@ -236,9 +236,8 @@ var listener = {
 
       current_test++;
       tests[current_test]();
-    } else {
-      do_test_pending();
-      httpserv.stop(do_test_finished);
+    } else { 
+      httpserv.stop();
     }
 
     do_test_finished();

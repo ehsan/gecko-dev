@@ -1797,17 +1797,23 @@ PrepareSortPattern(FcPattern *aPattern, double aFallbackSize,
 }
 
 static void
-gfx_pango_font_map_default_substitute(PangoFcFontMap *fontmap,
+gfx_pango_font_map_context_substitute(PangoFcFontMap *fontmap,
+                                      PangoContext *context,
                                       FcPattern *pattern)
 {
-    // The context is not available here but most of our rendering is for the
-    // screen so aIsPrinterFont is set to FALSE.
-    PrepareSortPattern(pattern, 18.0, 1.0, FALSE);
+    // owned by the context
+    PangoFontDescription *desc = pango_context_get_font_description(context);
+    double size = pango_font_description_get_size(desc) / FLOAT_PANGO_SCALE;
+    gfxPangoFontGroup *fontGroup = GetFontGroup(context);
+    PRBool usePrinterFont = fontGroup && fontGroup->GetStyle()->printerFont;
+    PrepareSortPattern(pattern, size, 1.0, usePrinterFont);
 }
 
 static PangoFcFont *
-gfx_pango_font_map_new_font(PangoFcFontMap *fontmap,
-                            FcPattern *pattern)
+gfx_pango_font_map_create_font(PangoFcFontMap *fontmap,
+                               PangoContext *context,
+                               const PangoFontDescription *desc,
+                               FcPattern *pattern)
 {
     return PANGO_FC_FONT(g_object_new(GFX_TYPE_PANGO_FC_FONT,
                                       "pattern", pattern, NULL));
@@ -1830,14 +1836,10 @@ gfx_pango_font_map_class_init(gfxPangoFontMapClass *klass)
     // context_key_* virtual functions are only necessary if we want to
     // dynamically respond to changes in the screen cairo_font_options_t.
 
-    // The APIs for context_substitute/fontset_key_substitute and create_font
-    //   changed between Pango 1.22 and 1.24 so default_substitute and
-    //   new_font are provided instead.
-    // default_substitute and new_font are not likely to be used but
-    //   implemented because the class makes them available and an
-    //   implementation should provide either create_font or new_font.
-    fcfontmap_class->default_substitute = gfx_pango_font_map_default_substitute;
-    fcfontmap_class->new_font = gfx_pango_font_map_new_font;
+    // context_substitute and get_font are not likely to be used but
+    //   implemented because the class makes them available.
+    fcfontmap_class->context_substitute = gfx_pango_font_map_context_substitute;
+    fcfontmap_class->create_font = gfx_pango_font_map_create_font;
 }
 
 /**

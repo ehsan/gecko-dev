@@ -84,7 +84,7 @@ class nsIScrollableView;
 class nsContentList;
 struct nsRect;
 
-typedef PRUptrdiff PtrBits;
+typedef unsigned long PtrBits;
 
 /**
  * Class that implements the nsIDOMNodeList interface (a list of children of

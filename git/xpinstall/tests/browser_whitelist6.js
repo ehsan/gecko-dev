@@ -16,9 +16,7 @@ function test() {
   gBrowser.loadURI(TESTROOT + "installchrome.html? " + encodeURIComponent(TESTROOT + "unsigned.xpi"));
 }
 
-function allow_blocked(installInfo) {
-  is(installInfo.originatingWindow, gBrowser.contentWindow, "Install should have been triggered by the right window");
-  is(installInfo.originatingURI.spec, gBrowser.currentURI.spec, "Install should have been triggered by the right uri");
+function allow_blocked() {
   return false;
 }
 

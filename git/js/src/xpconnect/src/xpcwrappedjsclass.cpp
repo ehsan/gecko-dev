@@ -490,36 +490,36 @@ NS_IMETHODIMP xpcProperty::GetValue(nsIVariant * *aValue)
 NS_IMPL_ISUPPORTS1(xpcPropertyBagEnumerator, nsISimpleEnumerator)
 
 xpcPropertyBagEnumerator::xpcPropertyBagEnumerator(PRUint32 count)
-    : mIndex(0)
+    : mIndex(0), mCount(0)
 {
-    mArray.SetCapacity(count);
+    mArray.SizeTo(count);
 }
 
 JSBool xpcPropertyBagEnumerator::AppendElement(nsISupports* element)
 {
-    if(!mArray.AppendObject(element))
+    if(!mArray.AppendElement(element))
         return JS_FALSE;
+    mCount++;
     return JS_TRUE;
 }
 
 /* boolean hasMoreElements (); */
 NS_IMETHODIMP xpcPropertyBagEnumerator::HasMoreElements(PRBool *_retval)
 {
-    *_retval = mIndex < mArray.Count();
+    *_retval = mIndex < mCount;
     return NS_OK;
 }
 
 /* nsISupports getNext (); */
 NS_IMETHODIMP xpcPropertyBagEnumerator::GetNext(nsISupports **_retval)
 {
-    if(!(mIndex < mArray.Count()))
+    if(!(mIndex < mCount))
     {
         NS_ERROR("Bad nsISimpleEnumerator caller!");
         return NS_ERROR_FAILURE;    
     }
     
-    *_retval = mArray.ObjectAt(mIndex++);
-    NS_IF_ADDREF(*_retval);
+    *_retval = mArray.ElementAt(mIndex++);
     return *_retval ? NS_OK : NS_ERROR_FAILURE;
 }
 
@@ -1512,7 +1512,7 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16 methodIndex,
         if(param.IsOut())
         {
             // create an 'out' object
-            JSObject* out_obj = NewOutObject(cx, obj);
+            JSObject* out_obj = NewOutObject(cx);
             if(!out_obj)
             {
                 retval = NS_ERROR_OUT_OF_MEMORY;
@@ -1869,9 +1869,9 @@ nsXPCWrappedJSClass::GetInterfaceName()
 }
 
 JSObject*
-nsXPCWrappedJSClass::NewOutObject(JSContext* cx, JSObject* scope)
+nsXPCWrappedJSClass::NewOutObject(JSContext* cx)
 {
-    return JS_NewObject(cx, nsnull, nsnull, JS_GetGlobalForObject(cx, scope));
+    return JS_NewObject(cx, nsnull, nsnull, nsnull);
 }
 
 

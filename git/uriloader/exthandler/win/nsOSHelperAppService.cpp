@@ -535,7 +535,7 @@ already_AddRefed<nsMIMEInfoWin> nsOSHelperAppService::GetByExtension(const nsAFl
   else {
     nsAutoString temp;
     if (NS_FAILED(regKey->ReadStringValue(NS_LITERAL_STRING("Content Type"),
-                  temp)) || temp.IsEmpty()) {
+                  temp))) {
       return nsnull; 
     }
     // Content-Type is always in ASCII

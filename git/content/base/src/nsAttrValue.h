@@ -50,7 +50,7 @@
 #include "nsColor.h"
 #include "nsCaseTreatment.h"
 
-typedef PRUptrdiff PtrBits;
+typedef unsigned long PtrBits;
 class nsAString;
 class nsIAtom;
 class nsICSSStyleRule;

@@ -1069,7 +1069,8 @@ NS_IMETHODIMP nsNavHistoryQuery::SetUriIsPrefix(PRBool aIsPrefix)
 /* attribute nsIURI uri; */
 NS_IMETHODIMP nsNavHistoryQuery::GetUri(nsIURI** aUri)
 {
-  NS_IF_ADDREF(*aUri = mUri);
+  *aUri = mUri;
+  NS_ADDREF(*aUri);
   return NS_OK;
 }
 NS_IMETHODIMP nsNavHistoryQuery::SetUri(nsIURI* aUri)

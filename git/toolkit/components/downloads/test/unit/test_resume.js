@@ -123,7 +123,9 @@ function run_test()
         do_check_eq(data.length, aDl.amountTransferred);
         do_check_eq(data.length, aDl.size);
 
-        httpserv.stop(do_test_finished);
+        httpserv.stop();
+        // we're done with the test!
+        do_test_finished();
       }
     },
     onStateChange: function(a, b, aState, d, aDl) {

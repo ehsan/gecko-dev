@@ -3849,18 +3849,7 @@ nsDocShell::Destroy()
         mScriptGlobal = nsnull;
     }
 
-    if (mSessionHistory) {
-        // We want to destroy these content viewers now rather than
-        // letting their destruction wait for the session history
-        // entries to get garbage collected.  (Bug 488394)
-        nsCOMPtr<nsISHistoryInternal> shPrivate =
-            do_QueryInterface(mSessionHistory);
-        if (shPrivate) {
-            shPrivate->EvictAllContentViewers();
-        }
-        mSessionHistory = nsnull;
-    }
-
+    mSessionHistory = nsnull;
     SetTreeOwner(nsnull);
 
     // required to break ref cycle
@@ -6918,8 +6907,8 @@ nsDocShell::InternalLoad(nsIURI * aURI,
         // One more twist: Don't inherit the owner for external loads.
         if (aLoadType != LOAD_NORMAL_EXTERNAL && !owner &&
             (aFlags & INTERNAL_LOAD_FLAGS_INHERIT_OWNER) &&
-            NS_SUCCEEDED(URIInheritsSecurityContext(aURI, &inherits)) &&
-            inherits) {
+            ((NS_SUCCEEDED(URIInheritsSecurityContext(aURI, &inherits)) &&
+              inherits) || URIIsLocalFile(aURI))) {
 
             // Don't allow loads that would inherit our security context
             // if this document came from an unsafe channel.

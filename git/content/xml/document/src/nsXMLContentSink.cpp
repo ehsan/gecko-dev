@@ -843,12 +843,6 @@ nsXMLContentSink::GetTarget()
   return mDocument;
 }
 
-PRBool
-nsXMLContentSink::IsScriptExecuting()
-{
-  return IsScriptExecutingImpl();
-}
-
 nsresult
 nsXMLContentSink::FlushText(PRBool aReleaseTextNode)
 {

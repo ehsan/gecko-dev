@@ -38,38 +38,32 @@
 
 /* General URL Construction Tests */
 
-const URL_PREFIX = URL_HOST + DIR_DATA + "/";
+const DIR_DATA   = "data"
+const URL_PREFIX = "http://localhost:4444/" + DIR_DATA + "/";
 
 const PREF_APP_UPDATE_CHANNEL        = "app.update.channel";
+const PREF_APP_UPDATE_URL_OVERRIDE   = "app.update.url.override";
 const PREF_PARTNER_BRANCH            = "app.partner.";
 const PREF_APP_DISTRIBUTION          = "distribution.id";
 const PREF_APP_DISTRIBUTION_VERSION  = "distribution.version";
 
 var gAppInfo;
+var gCheckFunc;
 var gInstallationLocale = "@AB_CD@";
 
 function run_test() {
   do_test_pending();
-  removeUpdateDirsAndFiles();
-  // The mock XMLHttpRequest is MUCH faster
-  overrideXHR(callHandleEvent);
   startAUS();
-  startUpdateChecker();
   gAppInfo = AUS_Cc["@mozilla.org/xre/app-info;1"]
                .getService(AUS_Ci.nsIXULAppInfo)
                .QueryInterface(AUS_Ci.nsIXULRuntime);
+  start_httpserver(DIR_DATA);
   do_timeout(0, "run_test_pt1()");
 }
 
 function end_test() {
- do_test_finished();
-}
-
-// Callback function used by the custom XMLHttpRequest implemetation to
-// call the nsIDOMEventListener's handleEvent method for onload.
-function callHandleEvent() {
-  var e = { target: gXHR };
-  gXHR.onload.handleEvent(e);
+  do_test_finished();
+  stop_httpserver();
 }
 
 // Helper function for parsing the result from the contructed url
@@ -86,8 +80,8 @@ function run_test_pt1() {
   gUpdateChecker.checkForUpdates(updateCheckListener, true);
 }
 
-function check_test_pt1() {
-  do_check_eq(getResult(gRequestURL), gAppInfo.name);
+function check_test_pt1(aResult) {
+  do_check_eq(aResult, gAppInfo.name);
   run_test_pt2();
 }
 
@@ -100,8 +94,8 @@ function run_test_pt2() {
   gUpdateChecker.checkForUpdates(updateCheckListener, true);
 }
 
-function check_test_pt2() {
-  do_check_eq(getResult(gRequestURL), gAppInfo.version);
+function check_test_pt2(aResult) {
+  do_check_eq(aResult, gAppInfo.version);
   run_test_pt3();
 }
 
@@ -114,8 +108,8 @@ function run_test_pt3() {
   gUpdateChecker.checkForUpdates(updateCheckListener, true);
 }
 
-function check_test_pt3() {
-  do_check_eq(getResult(gRequestURL), gAppInfo.appBuildID);
+function check_test_pt3(aResult) {
+  do_check_eq(aResult, gAppInfo.appBuildID);
   run_test_pt4();
 }
 
@@ -129,7 +123,7 @@ function run_test_pt4() {
   gUpdateChecker.checkForUpdates(updateCheckListener, true);
 }
 
-function check_test_pt4() {
+function check_test_pt4(aResult) {
   try {
     abi = gAppInfo.XPCOMABI;
   }
@@ -148,7 +142,7 @@ function check_test_pt4() {
     abi = "Universal-gcc3";
 #endif
 
-  do_check_eq(getResult(gRequestURL), gAppInfo.OS + "_" + abi);
+  do_check_eq(aResult, gAppInfo.OS + "_" + abi);
   run_test_pt5();
 }
 
@@ -162,8 +156,8 @@ function run_test_pt5() {
   gUpdateChecker.checkForUpdates(updateCheckListener, true);
 }
 
-function check_test_pt5() {
-  do_check_eq(getResult(gRequestURL), gInstallationLocale);
+function check_test_pt5(aResult) {
+  do_check_eq(aResult, gInstallationLocale);
   run_test_pt6();
 }
 
@@ -179,8 +173,8 @@ function run_test_pt6() {
   gUpdateChecker.checkForUpdates(updateCheckListener, true);
 }
 
-function check_test_pt6() {
-  do_check_eq(getResult(gRequestURL), "bogus_channel");
+function check_test_pt6(aResult) {
+  do_check_eq(aResult, "bogus_channel");
   run_test_pt7();
 }
 
@@ -197,8 +191,8 @@ function run_test_pt7() {
   gUpdateChecker.checkForUpdates(updateCheckListener, true);
 }
 
-function check_test_pt7() {
-  do_check_eq(getResult(gRequestURL), "bogus_channel-cck-bogus_partner1-bogus_partner2");
+function check_test_pt7(aResult) {
+  do_check_eq(aResult, "bogus_channel-cck-bogus_partner1-bogus_partner2");
   run_test_pt8();
 }
 
@@ -211,8 +205,8 @@ function run_test_pt8() {
   gUpdateChecker.checkForUpdates(updateCheckListener, true);
 }
 
-function check_test_pt8() {
-  do_check_eq(getResult(gRequestURL), gAppInfo.platformVersion);
+function check_test_pt8(aResult) {
+  do_check_eq(aResult, gAppInfo.platformVersion);
   run_test_pt9();
 }
 
@@ -225,7 +219,7 @@ function run_test_pt9() {
   gUpdateChecker.checkForUpdates(updateCheckListener, true);
 }
 
-function check_test_pt9() {
+function check_test_pt9(aResult) {
   var osVersion;
   var sysInfo = AUS_Cc["@mozilla.org/system-info;1"]
                   .getService(AUS_Ci.nsIPropertyBag2);
@@ -236,13 +230,12 @@ function check_test_pt9() {
       osVersion += " (" + sysInfo.getProperty("secondaryLibrary") + ")";
     }
     catch (e) {
-      // Not all platforms have a secondary widget library, so an error is
-      // nothing to worry about.
+      // Not all platforms have a secondary widget library, so an error is nothing to worry about.
     }
     osVersion = encodeURIComponent(osVersion);
   }
 
-  do_check_eq(getResult(gRequestURL), osVersion);
+  do_check_eq(aResult, osVersion);
   run_test_pt10();
 }
 
@@ -258,8 +251,8 @@ function run_test_pt10() {
   gUpdateChecker.checkForUpdates(updateCheckListener, true);
 }
 
-function check_test_pt10() {
-  do_check_eq(getResult(gRequestURL), "bogus_distro");
+function check_test_pt10(aResult) {
+  do_check_eq(aResult, "bogus_distro");
   run_test_pt11();
 }
 
@@ -275,8 +268,8 @@ function run_test_pt11() {
   gUpdateChecker.checkForUpdates(updateCheckListener, true);
 }
 
-function check_test_pt11() {
-  do_check_eq(getResult(gRequestURL), "bogus_distro_version");
+function check_test_pt11(aResult) {
+  do_check_eq(aResult, "bogus_distro_version");
   run_test_pt12();
 }
 
@@ -289,8 +282,8 @@ function run_test_pt12() {
   gUpdateChecker.checkForUpdates(updateCheckListener, true);
 }
 
-function check_test_pt12() {
-  do_check_eq(getResult(gRequestURL), "?force=1");
+function check_test_pt12(aResult) {
+  do_check_eq(aResult, "?force=1");
   run_test_pt13();
 }
 
@@ -303,7 +296,36 @@ function run_test_pt13() {
   gUpdateChecker.checkForUpdates(updateCheckListener, true);
 }
 
-function check_test_pt13() {
-  do_check_eq(getResult(gRequestURL), "?bogus=param&force=1");
+function check_test_pt13(aResult) {
+  do_check_eq(aResult, "?bogus=param&force=1");
   end_test();
 }
+
+// Update check listener
+const updateCheckListener = {
+  onProgress: function(request, position, totalSize) {
+  },
+
+  onCheckComplete: function(request, updates, updateCount) {
+    var url = request.channel.originalURI.spec;
+    dump("onCheckComplete url = " + url + "\n\n");
+    var result = getResult(url);
+    // Use a timeout to allow the XHR to complete
+    do_timeout(0, "gCheckFunc('" + result + "')");
+  },
+
+  onError: function(request, update) {
+    var url = request.channel.originalURI.spec;
+    dump("onError url = " + url + "\n\n");
+    var result = getResult(url);
+    // Use a timeout to allow the XHR to complete
+    do_timeout(0, "gCheckFunc('" + result + "')");
+  },
+
+  QueryInterface: function(aIID) {
+    if (!aIID.equals(AUS_Ci.nsIUpdateCheckListener) &&
+        !aIID.equals(AUS_Ci.nsISupports))
+      throw AUS_Cr.NS_ERROR_NO_INTERFACE;
+    return this;
+  }
+};

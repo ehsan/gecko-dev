@@ -61,8 +61,7 @@ function run_test()
                 "");
     do_check_eq(srv.getState("/state2.sjs", "private-value"),
                 "newPrivate5");
-    do_test_pending();
-    srv.stop(function() { do_test_finished(); });
+    srv.stop();
   }
 
   runHttpTests(tests, done);

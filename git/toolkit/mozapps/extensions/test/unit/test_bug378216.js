@@ -124,7 +124,8 @@ onUpdateStarted: function()
 
 onUpdateEnded: function()
 {
-  server.stop(do_test_finished);
+  server.stop();
+  do_test_finished();
 },
 
 onAddonUpdateStarted: function(addon)

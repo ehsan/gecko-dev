@@ -106,8 +106,7 @@ function run_test_iteration(index) {
         sniffing_enabled = false;
         index = listener._iteration = 1;
     } else {
-        do_test_pending();
-        httpserv.stop(do_test_finished);
+        httpserv.stop();
         return; // we're done
     }
   }
