@@ -142,13 +142,11 @@ function checkPrediction(res, prediction) {
   var name = prediction.name;
   var value = prediction.value;
 
-  // resources don't need context so cheat and pass in null
-  var context = null;
-  return res.parseString(name, context).then(function(conversion) {
+  return res.parseString(name).then(function(conversion) {
     assert.is(conversion.getStatus(), Status.VALID, 'status VALID for ' + name);
     assert.is(conversion.value, value, 'value for ' + name);
 
-    var strung = res.stringify(value, context);
+    var strung = res.stringify(value);
     assert.is(strung, name, 'stringify for ' + name);
 
     assert.is(typeof value.loadContents, 'function', 'resource for ' + name);

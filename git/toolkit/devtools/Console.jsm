@@ -74,12 +74,6 @@ function fmt(aStr, aMaxLen, aMinLen, aOptions) {
  *        The constructor name
  */
 function getCtorName(aObj) {
-  if (aObj === null) {
-    return "null";
-  }
-  if (aObj === undefined) {
-    return "undefined";
-  }
   if (aObj.constructor && aObj.constructor.name) {
     return aObj.constructor.name;
   }

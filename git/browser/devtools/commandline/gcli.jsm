@@ -88,7 +88,7 @@ var mozl10n = {};
 
 })(mozl10n);
 
-define('gcli/index', ['require', 'exports', 'module' , 'gcli/types/basic', 'gcli/types/command', 'gcli/types/javascript', 'gcli/types/node', 'gcli/types/resource', 'gcli/types/setting', 'gcli/types/selection', 'gcli/settings', 'gcli/ui/intro', 'gcli/ui/focus', 'gcli/ui/fields/basic', 'gcli/ui/fields/javascript', 'gcli/ui/fields/selection', 'gcli/commands/help', 'gcli/commands/pref', 'gcli/canon', 'gcli/converters', 'gcli/ui/ffdisplay'], function(require, exports, module) {
+define('gcli/index', ['require', 'exports', 'module' , 'gcli/types/basic', 'gcli/types/command', 'gcli/types/javascript', 'gcli/types/node', 'gcli/types/resource', 'gcli/types/setting', 'gcli/types/selection', 'gcli/settings', 'gcli/ui/intro', 'gcli/ui/focus', 'gcli/ui/fields/basic', 'gcli/ui/fields/javascript', 'gcli/ui/fields/selection', 'gcli/commands/help', 'gcli/commands/pref', 'gcli/canon', 'gcli/ui/ffdisplay'], function(require, exports, module) {
 
   'use strict';
 
@@ -120,8 +120,6 @@ define('gcli/index', ['require', 'exports', 'module' , 'gcli/types/basic', 'gcli
   // The API for use by command authors
   exports.addCommand = require('gcli/canon').addCommand;
   exports.removeCommand = require('gcli/canon').removeCommand;
-  exports.addConverter = require('gcli/converters').addConverter;
-  exports.removeConverter = require('gcli/converters').removeConverter;
   exports.lookup = mozl10n.lookup;
   exports.lookupFormat = mozl10n.lookupFormat;
 
@@ -213,14 +211,14 @@ function StringType(typeSpec) {
 
 StringType.prototype = Object.create(Type.prototype);
 
-StringType.prototype.stringify = function(value, context) {
+StringType.prototype.stringify = function(value) {
   if (value == null) {
     return '';
   }
   return value.toString();
 };
 
-StringType.prototype.parse = function(arg, context) {
+StringType.prototype.parse = function(arg) {
   if (arg.text == null || arg.text === '') {
     return Promise.resolve(new Conversion(undefined, arg, Status.INCOMPLETE, ''));
   }
@@ -258,7 +256,7 @@ function NumberType(typeSpec) {
 
 NumberType.prototype = Object.create(Type.prototype);
 
-NumberType.prototype.stringify = function(value, context) {
+NumberType.prototype.stringify = function(value) {
   if (value == null) {
     return '';
   }
@@ -289,7 +287,7 @@ NumberType.prototype.getMax = function() {
   return undefined;
 };
 
-NumberType.prototype.parse = function(arg, context) {
+NumberType.prototype.parse = function(arg) {
   if (arg.text.replace(/^\s*-?/, '').length === 0) {
     return Promise.resolve(new Conversion(undefined, arg, Status.INCOMPLETE, ''));
   }
@@ -327,7 +325,7 @@ NumberType.prototype.parse = function(arg, context) {
   return Promise.resolve(new Conversion(value, arg));
 };
 
-NumberType.prototype.decrement = function(value, context) {
+NumberType.prototype.decrement = function(value) {
   if (typeof value !== 'number' || isNaN(value)) {
     return this.getMax() || 1;
   }
@@ -337,7 +335,7 @@ NumberType.prototype.decrement = function(value, context) {
   return this._boundsCheck(newValue);
 };
 
-NumberType.prototype.increment = function(value, context) {
+NumberType.prototype.increment = function(value) {
   if (typeof value !== 'number' || isNaN(value)) {
     var min = this.getMin();
     return min != null ? min : 0;
@@ -394,17 +392,17 @@ BooleanType.prototype.lookup = [
   { name: 'true', value: true }
 ];
 
-BooleanType.prototype.parse = function(arg, context) {
+BooleanType.prototype.parse = function(arg) {
   if (arg.type === 'TrueNamedArgument') {
     return Promise.resolve(new Conversion(true, arg));
   }
   if (arg.type === 'FalseNamedArgument') {
     return Promise.resolve(new Conversion(false, arg));
   }
-  return SelectionType.prototype.parse.call(this, arg, context);
+  return SelectionType.prototype.parse.call(this, arg);
 };
 
-BooleanType.prototype.stringify = function(value, context) {
+BooleanType.prototype.stringify = function(value) {
   if (value == null) {
     return '';
   }
@@ -437,37 +435,33 @@ function DelegateType(typeSpec) {
  * Child types should implement this method to return an instance of the type
  * that should be used. If no type is available, or some sort of temporary
  * placeholder is required, BlankType can be used.
- * @param context An ExecutionContext to allow access to information about the
- * current state of the command line, or null if one is not available. A
- * context is available for stringify, parse*, [in|de]crement and getType
- * functions but not for isImportant
  */
-DelegateType.prototype.delegateType = function(context) {
+DelegateType.prototype.delegateType = function() {
   throw new Error('Not implemented');
 };
 
 DelegateType.prototype = Object.create(Type.prototype);
 
-DelegateType.prototype.stringify = function(value, context) {
-  return this.delegateType(context).stringify(value, context);
+DelegateType.prototype.stringify = function(value) {
+  return this.delegateType().stringify(value);
 };
 
-DelegateType.prototype.parse = function(arg, context) {
-  return this.delegateType(context).parse(arg, context);
+DelegateType.prototype.parse = function(arg) {
+  return this.delegateType().parse(arg);
 };
 
-DelegateType.prototype.decrement = function(value, context) {
-  var delegated = this.delegateType(context);
-  return (delegated.decrement ? delegated.decrement(value, context) : undefined);
+DelegateType.prototype.decrement = function(value) {
+  var delegated = this.delegateType();
+  return (delegated.decrement ? delegated.decrement(value) : undefined);
 };
 
-DelegateType.prototype.increment = function(value, context) {
-  var delegated = this.delegateType(context);
-  return (delegated.increment ? delegated.increment(value, context) : undefined);
+DelegateType.prototype.increment = function(value) {
+  var delegated = this.delegateType();
+  return (delegated.increment ? delegated.increment(value) : undefined);
 };
 
-DelegateType.prototype.getType = function(context) {
-  return this.delegateType(context);
+DelegateType.prototype.getType = function() {
+  return this.delegateType();
 };
 
 Object.defineProperty(DelegateType.prototype, 'isImportant', {
@@ -491,11 +485,11 @@ function BlankType(typeSpec) {
 
 BlankType.prototype = Object.create(Type.prototype);
 
-BlankType.prototype.stringify = function(value, context) {
+BlankType.prototype.stringify = function(value) {
   return '';
 };
 
-BlankType.prototype.parse = function(arg, context) {
+BlankType.prototype.parse = function(arg) {
   return Promise.resolve(new Conversion(undefined, arg));
 };
 
@@ -522,7 +516,7 @@ function ArrayType(typeSpec) {
 
 ArrayType.prototype = Object.create(Type.prototype);
 
-ArrayType.prototype.stringify = function(values, context) {
+ArrayType.prototype.stringify = function(values) {
   if (values == null) {
     return '';
   }
@@ -530,7 +524,7 @@ ArrayType.prototype.stringify = function(values, context) {
   return values.join(' ');
 };
 
-ArrayType.prototype.parse = function(arg, context) {
+ArrayType.prototype.parse = function(arg) {
   if (arg.type !== 'ArrayArgument') {
     console.error('non ArrayArgument to ArrayType.parse', arg);
     throw new Error('non ArrayArgument to ArrayType.parse');
@@ -541,10 +535,10 @@ ArrayType.prototype.parse = function(arg, context) {
   // the status of individual conversions in addition to the overall state.
   // |subArg.conversion| allows us to do that easily.
   var subArgParse = function(subArg) {
-    return this.subtype.parse(subArg, context).then(function(conversion) {
+    return this.subtype.parse(subArg).then(function(conversion) {
       subArg.conversion = conversion;
       return conversion;
-    }.bind(this));
+    }.bind(this), console.error);
   }.bind(this);
 
   var conversionPromises = arg.getArguments().map(subArgParse);
@@ -957,22 +951,6 @@ exports.promiseEach = function(array, action, scope) {
   return deferred.promise;
 };
 
-/**
- * Catching errors from promises isn't as simple as:
- *   promise.then(handler, console.error);
- * for a number of reasons:
- * - chrome's console doesn't have bound functions (why?)
- * - we don't get stack traces out from console.error(ex);
- */
-exports.errorHandler = function(ex) {
-  console.error(ex);
-  if (ex instanceof Error) {
-    // Bizarrely the error message is part of the stack on node, but we'd
-    // rather have it twice than not at all
-    console.error(ex.stack);
-  }
-};
-
 
 //------------------------------------------------------------------------------
 
@@ -1145,18 +1123,6 @@ exports.setContents = function(elem, contents) {
       throw ex;
     }
   }
-};
-
-/**
- * Utility to find elements with href attributes and add a target=_blank
- * attribute to make sure that opened links will open in a new window.
- */
-exports.linksToNewTab = function(element) {
-  var links = element.ownerDocument.querySelectorAll('*[href]');
-  for (var i = 0; i < links.length; i++) {
-    links[i].setAttribute('target', '_blank');
-  }
-  return element;
 };
 
 /**
@@ -1594,11 +1560,10 @@ exports.lookupFormat = function(key, swaps) {
  * limitations under the License.
  */
 
-define('gcli/types', ['require', 'exports', 'module' , 'util/util', 'util/promise', 'gcli/argument'], function(require, exports, module) {
+define('gcli/types', ['require', 'exports', 'module' , 'util/promise', 'gcli/argument'], function(require, exports, module) {
 
 'use strict';
 
-var util = require('util/util');
 var Promise = require('util/promise');
 var Argument = require('gcli/argument').Argument;
 var BlankArgument = require('gcli/argument').BlankArgument;
@@ -1715,7 +1680,7 @@ function Conversion(value, arg, status, message, predictions) {
       if (!Array.isArray(value)) {
         throw new Error('prediction resolves to non array');
       }
-    }, util.errorHandler);
+    }, console.error);
   }
 
   this._status = status || Status.VALID;
@@ -1929,10 +1894,8 @@ function Type() {
  * Convert the given <tt>value</tt> to a string representation.
  * Where possible, there should be round-tripping between values and their
  * string representations.
- * @param value The object to convert into a string
- * @param context An ExecutionContext to allow basic Requisition access
  */
-Type.prototype.stringify = function(value, context) {
+Type.prototype.stringify = function(value) {
   throw new Error('Not implemented');
 };
 
@@ -1941,10 +1904,9 @@ Type.prototype.stringify = function(value, context) {
  * Where possible, there should be round-tripping between values and their
  * string representations.
  * @param arg An instance of <tt>Argument</tt> to convert.
- * @param context An ExecutionContext to allow basic Requisition access
  * @return Conversion
  */
-Type.prototype.parse = function(arg, context) {
+Type.prototype.parse = function(arg) {
   throw new Error('Not implemented');
 };
 
@@ -1953,8 +1915,8 @@ Type.prototype.parse = function(arg, context) {
  * but instead have a string.
  * @see #parse(arg)
  */
-Type.prototype.parseString = function(str, context) {
-  return this.parse(new Argument(str), context);
+Type.prototype.parseString = function(str) {
+  return this.parse(new Argument(str));
 };
 
 /**
@@ -1969,7 +1931,7 @@ Type.prototype.name = undefined;
  * If there is some concept of a higher value, return it,
  * otherwise return undefined.
  */
-Type.prototype.increment = function(value, context) {
+Type.prototype.increment = function(value) {
   return undefined;
 };
 
@@ -1977,7 +1939,7 @@ Type.prototype.increment = function(value, context) {
  * If there is some concept of a lower value, return it,
  * otherwise return undefined.
  */
-Type.prototype.decrement = function(value, context) {
+Type.prototype.decrement = function(value) {
   return undefined;
 };
 
@@ -1995,9 +1957,8 @@ Type.prototype.getBlank = function() {
  * This is something of a hack for the benefit of DelegateType which needs to
  * be able to lie about it's type for fields to accept it as one of their own.
  * Sub-types can ignore this unless they're DelegateType.
- * @param context An ExecutionContext to allow basic Requisition access
  */
-Type.prototype.getType = function(context) {
+Type.prototype.getType = function() {
   return this;
 };
 
@@ -2764,7 +2725,7 @@ function SelectionType(typeSpec) {
 
 SelectionType.prototype = Object.create(Type.prototype);
 
-SelectionType.prototype.stringify = function(value, context) {
+SelectionType.prototype.stringify = function(value) {
   if (value == null) {
     return '';
   }
@@ -2971,12 +2932,18 @@ SelectionType.prototype._addToPredictions = function(predictions, option, arg) {
   predictions.push(option);
 };
 
-SelectionType.prototype.parse = function(arg, context) {
+SelectionType.prototype.parse = function(arg) {
   return this._findPredictions(arg).then(function(predictions) {
     if (predictions.length === 0) {
       var msg = l10n.lookupFormat('typesSelectionNomatch', [ arg.text ]);
       return new Conversion(undefined, arg, Status.ERROR, msg,
                             Promise.resolve(predictions));
+    }
+
+    // This is something of a hack it basically allows us to tell the
+    // setting type to forget its last setting hack.
+    if (this.noMatch) {
+      this.noMatch();
     }
 
     if (predictions[0].name === arg.text) {
@@ -2996,7 +2963,7 @@ SelectionType.prototype.getBlank = function() {
       return lookup.filter(function(option) {
         return !option.value.hidden;
       }).slice(0, Conversion.maxPredictions - 1);
-    });
+    }, console.error);
   }.bind(this);
 
   return new Conversion(undefined, new BlankArgument(), Status.INCOMPLETE, '',
@@ -3010,7 +2977,7 @@ SelectionType.prototype.getBlank = function() {
  * for SelectionType, up is down and down is up.
  * Sorry.
  */
-SelectionType.prototype.decrement = function(value, context) {
+SelectionType.prototype.decrement = function(value) {
   var lookup = util.synchronize(this.getLookup());
   var index = this._findValue(lookup, value);
   if (index === -1) {
@@ -3026,7 +2993,7 @@ SelectionType.prototype.decrement = function(value, context) {
 /**
  * See note on SelectionType.decrement()
  */
-SelectionType.prototype.increment = function(value, context) {
+SelectionType.prototype.increment = function(value) {
   var lookup = util.synchronize(this.getLookup());
   var index = this._findValue(lookup, value);
   if (index === -1) {
@@ -3264,9 +3231,9 @@ ParamType.prototype.lookup = function() {
   return displayedParams;
 };
 
-ParamType.prototype.parse = function(arg, context) {
+ParamType.prototype.parse = function(arg) {
   if (this.isIncompleteName) {
-    return SelectionType.prototype.parse.call(this, arg, context);
+    return SelectionType.prototype.parse.call(this, arg);
   }
   else {
     var message = l10n.lookup('cliUnusedArg');
@@ -3314,7 +3281,7 @@ CommandType.prototype._addToPredictions = function(predictions, option, arg) {
   }
 };
 
-CommandType.prototype.parse = function(arg, context) {
+CommandType.prototype.parse = function(arg) {
   // Especially at startup, predictions live over the time that things change
   // so we provide a completion function rather than completion values
   var predictFunc = function() {
@@ -3463,26 +3430,27 @@ function Command(commandSpec) {
   // parameter groups.
   var usingGroups = false;
 
+  if (this.returnType == null) {
+    this.returnType = 'string';
+  }
+
   // In theory this could easily be made recursive, so param groups could
   // contain nested param groups. Current thinking is that the added
   // complexity for the UI probably isn't worth it, so this implementation
   // prevents nesting.
   paramSpecs.forEach(function(spec) {
     if (!spec.group) {
-      var param = new Parameter(spec, this, null);
-      this.params.push(param);
-
-      if (!param.isPositionalAllowed) {
-        this.hasNamedParameters = true;
-      }
-
-      if (usingGroups && param.groupName == null) {
+      if (usingGroups) {
         throw new Error('Parameters can\'t come after param groups.' +
                         ' Ignoring ' + this.name + '/' + spec.name);
       }
+      else {
+        var param = new Parameter(spec, this, null);
+        this.params.push(param);
 
-      if (param.groupName != null) {
-        usingGroups = true;
+        if (!param.isPositionalAllowed) {
+          this.hasNamedParameters = true;
+        }
       }
     }
     else {
@@ -3512,20 +3480,7 @@ function Parameter(paramSpec, command, groupName) {
   this.paramSpec = paramSpec;
   this.name = this.paramSpec.name;
   this.type = this.paramSpec.type;
-
   this.groupName = groupName;
-  if (this.groupName != null) {
-    if (this.paramSpec.option != null) {
-      throw new Error('Can\'t have a "option" property in a nested parameter');
-    }
-  }
-  else {
-    if (this.paramSpec.option != null) {
-      this.groupName = this.paramSpec.option === true ?
-              l10n.lookup('canonDefaultGroupName') :
-              '' + this.paramSpec.option;
-    }
-  }
 
   if (!this.name) {
     throw new Error('In ' + this.command.name +
@@ -3555,18 +3510,14 @@ function Parameter(paramSpec, command, groupName) {
   // optional, neither are required to parse and stringify.
   if (this._defaultValue != null) {
     try {
-      // Passing null in for a context is bound to get us into trouble some day
-      // in which case we'll need to mock one up in some way
-      var context = null;
-      var defaultText = this.type.stringify(this.paramSpec.defaultValue, context);
-      var parsed = this.type.parseString(defaultText, context);
-      parsed.then(function(defaultConversion) {
+      var defaultText = this.type.stringify(this.paramSpec.defaultValue);
+      this.type.parseString(defaultText).then(function(defaultConversion) {
         if (defaultConversion.getStatus() !== Status.VALID) {
           console.error('In ' + this.command.name + '/' + this.name +
                         ': Error round tripping defaultValue. status = ' +
                         defaultConversion.getStatus());
         }
-      }.bind(this), util.errorHandler);
+      }.bind(this), console.error);
     }
     catch (ex) {
       throw new Error('In ' + this.command.name + '/' + this.name + ': ' + ex);
@@ -3880,7 +3831,7 @@ function JavascriptType(typeSpec) {
 
 JavascriptType.prototype = Object.create(Type.prototype);
 
-JavascriptType.prototype.stringify = function(value, context) {
+JavascriptType.prototype.stringify = function(value) {
   if (value == null) {
     return '';
   }
@@ -3893,7 +3844,7 @@ JavascriptType.prototype.stringify = function(value, context) {
  */
 JavascriptType.MAX_COMPLETION_MATCHES = 10;
 
-JavascriptType.prototype.parse = function(arg, context) {
+JavascriptType.prototype.parse = function(arg) {
   var typed = arg.text;
   var scope = globalObject;
 
@@ -4459,14 +4410,14 @@ function NodeType(typeSpec) {
 
 NodeType.prototype = Object.create(Type.prototype);
 
-NodeType.prototype.stringify = function(value, context) {
+NodeType.prototype.stringify = function(value) {
   if (value == null) {
     return '';
   }
   return value.__gcliQuery || 'Error';
 };
 
-NodeType.prototype.parse = function(arg, context) {
+NodeType.prototype.parse = function(arg) {
   if (arg.text === '') {
     return Promise.resolve(new Conversion(undefined, arg, Status.INCOMPLETE));
   }
@@ -4530,14 +4481,14 @@ NodeListType.prototype.getBlank = function() {
   return new Conversion(exports._empty, new BlankArgument(), Status.VALID);
 };
 
-NodeListType.prototype.stringify = function(value, context) {
+NodeListType.prototype.stringify = function(value) {
   if (value == null) {
     return '';
   }
   return value.__gcliQuery || 'Error';
 };
 
-NodeListType.prototype.parse = function(arg, context) {
+NodeListType.prototype.parse = function(arg) {
   if (arg.text === '') {
     return Promise.resolve(new Conversion(undefined, arg, Status.INCOMPLETE));
   }
@@ -4968,6 +4919,18 @@ exports.shutdown = function() {
 };
 
 /**
+ * This is a whole new level of nasty. 'setting' and 'settingValue' are a pair
+ * for obvious reasons. settingValue is a delegate type - it delegates to the
+ * type of the setting, but how do we implement the defer function - how does
+ * it work out its paired setting?
+ * In another parallel universe we pass the requisition to all the parse
+ * methods so we can extract the args in SettingValueType.parse, however that
+ * seems like a lot of churn for a simple way to connect 2 things. So we're
+ * hacking. SettingType tries to keep 'lastSetting' up to date.
+ */
+var lastSetting = null;
+
+/**
  * A type for selecting a known setting
  */
 function SettingType(typeSpec) {
@@ -4984,30 +4947,41 @@ SettingType.prototype.lookup = function() {
   });
 };
 
+SettingType.prototype.noMatch = function() {
+  lastSetting = null;
+};
+
+SettingType.prototype.stringify = function(option) {
+  lastSetting = option;
+  return SelectionType.prototype.stringify.call(this, option);
+};
+
+SettingType.prototype.parse = function(arg) {
+  var promise = SelectionType.prototype.parse.call(this, arg);
+  promise.then(function(conversion) {
+    lastSetting = conversion.value;
+  });
+  return promise;
+};
+
 SettingType.prototype.name = 'setting';
 
 
 /**
  * A type for entering the value of a known setting
- * @param typeSpec Customization object, can contain the following:
- * - settingParamName The name of the setting parameter so we can customize the
- *   type that we are expecting to read
  */
 function SettingValueType(typeSpec) {
-  this.settingParamName = typeSpec.settingParamName || 'setting';
 }
 
 SettingValueType.prototype = Object.create(DelegateType.prototype);
 
-SettingValueType.prototype.delegateType = function(context) {
-  if (context != null) {
-    var setting = context.getArgsObject()[this.settingParamName];
-    if (setting != null) {
-      return setting.type;
-    }
+SettingValueType.prototype.delegateType = function() {
+  if (lastSetting != null) {
+    return lastSetting.type;
   }
-
-  return types.getType('blank');
+  else {
+    return types.getType('blank');
+  }
 };
 
 SettingValueType.prototype.name = 'settingValue';
@@ -5325,78 +5299,76 @@ exports.removeSetting = function() { };
 
 define('gcli/ui/intro', ['require', 'exports', 'module' , 'util/util', 'util/l10n', 'gcli/settings', 'gcli/ui/view', 'gcli/cli', 'text!gcli/ui/intro.html'], function(require, exports, module) {
 
-'use strict';
+  'use strict';
 
-var util = require('util/util');
-var l10n = require('util/l10n');
-var settings = require('gcli/settings');
-var view = require('gcli/ui/view');
-var Output = require('gcli/cli').Output;
+  var util = require('util/util');
+  var l10n = require('util/l10n');
+  var settings = require('gcli/settings');
+  var view = require('gcli/ui/view');
+  var Output = require('gcli/cli').Output;
 
-/**
- * Record if the user has clicked on 'Got It!'
- */
-var hideIntroSettingSpec = {
-  name: 'hideIntro',
-  type: 'boolean',
-  description: l10n.lookup('hideIntroDesc'),
-  defaultValue: false
-};
-var hideIntro;
+  /**
+   * Record if the user has clicked on 'Got It!'
+   */
+  var hideIntroSettingSpec = {
+    name: 'hideIntro',
+    type: 'boolean',
+    description: l10n.lookup('hideIntroDesc'),
+    defaultValue: false
+  };
+  var hideIntro;
 
-/**
- * Register (and unregister) the hide-intro setting
- */
-exports.startup = function() {
-  hideIntro = settings.addSetting(hideIntroSettingSpec);
-};
+  /**
+   * Register (and unregister) the hide-intro setting
+   */
+  exports.startup = function() {
+    hideIntro = settings.addSetting(hideIntroSettingSpec);
+  };
 
-exports.shutdown = function() {
-  settings.removeSetting(hideIntroSettingSpec);
-  hideIntro = undefined;
-};
+  exports.shutdown = function() {
+    settings.removeSetting(hideIntroSettingSpec);
+    hideIntro = undefined;
+  };
 
-/**
- * Called when the UI is ready to add a welcome message to the output
- */
-exports.maybeShowIntro = function(commandOutputManager, context) {
-  if (hideIntro.value) {
-    return;
-  }
-
-  var output = new Output();
-  output.type = 'view';
-  commandOutputManager.onOutput({ output: output });
-
-  var viewData = this.createView(context, output);
-
-  output.complete(viewData);
-};
-
-/**
- * Called when the UI is ready to add a welcome message to the output
- */
-exports.createView = function(context, output) {
-  return view.createView({
-    html: require('text!gcli/ui/intro.html'),
-    options: { stack: 'intro.html' },
-    data: {
-      l10n: l10n.propertyLookup,
-      onclick: function(ev) {
-        util.updateCommand(ev.currentTarget, context);
-      },
-      ondblclick: function(ev) {
-        util.executeCommand(ev.currentTarget, context);
-      },
-      showHideButton: (output != null),
-      onGotIt: function(ev) {
-        hideIntro.value = true;
-        output.onClose();
-      }
+  /**
+   * Called when the UI is ready to add a welcome message to the output
+   */
+  exports.maybeShowIntro = function(commandOutputManager, context) {
+    if (hideIntro.value) {
+      return;
     }
-  });
-};
 
+    var output = new Output();
+    commandOutputManager.onOutput({ output: output });
+
+    var viewData = this.createView(context, output);
+
+    output.complete(viewData);
+  };
+
+  /**
+   * Called when the UI is ready to add a welcome message to the output
+   */
+  exports.createView = function(context, output) {
+    return view.createView({
+      html: require('text!gcli/ui/intro.html'),
+      options: { stack: 'intro.html' },
+      data: {
+        l10n: l10n.propertyLookup,
+        onclick: function(ev) {
+          util.updateCommand(ev.currentTarget, context);
+        },
+        ondblclick: function(ev) {
+          util.executeCommand(ev.currentTarget, context);
+        },
+        showHideButton: (output != null),
+        onGotIt: function(ev) {
+          hideIntro.value = true;
+          output.onClose();
+        }
+      }
+    });
+  };
 });
 /*
  * Copyright 2012, Mozilla Foundation and contributors
@@ -5672,7 +5644,7 @@ Assignment.prototype.getPredictionAt = function(index) {
       index = predictions.length + index;
     }
     return predictions[index];
-  }.bind(this));
+  }.bind(this), console.error);
 };
 
 /**
@@ -5685,6 +5657,31 @@ Assignment.prototype.getPredictionAt = function(index) {
 Assignment.prototype.isInName = function() {
   return this.conversion.arg.type === 'NamedArgument' &&
          this.conversion.arg.prefix.slice(-1) !== ' ';
+};
+
+/**
+ * Make sure that there is some content for this argument by using an
+ * Argument of '' if needed.
+ */
+Assignment.prototype.ensureVisibleArgument = function() {
+  // It isn't clear if we should be sending events from this method.
+  // It should only be called when structural changes are happening in which
+  // case we're going to ignore the event anyway. But on the other hand
+  // perhaps this function shouldn't need to know how it is used, and should
+  // do the inefficient thing.
+  if (this.conversion.arg.type !== 'BlankArgument') {
+    return false;
+  }
+
+  var arg = this.conversion.arg.beget({
+    text: '',
+    prefixSpace: this.param instanceof CommandAssignment
+  });
+  // For trivial input like { test: '' }, parse() should be synchronous ...
+  this.conversion = util.synchronize(this.param.type.parse(arg));
+  this.conversion.assign(this);
+
+  return true;
 };
 
 /**
@@ -5845,8 +5842,7 @@ function UnassignedAssignment(requisition, arg) {
   this.onAssignmentChange = util.createEvent('UnassignedAssignment.onAssignmentChange');
 
   // synchronize is ok because we can be sure that param type is synchronous
-  var parsed = this.param.type.parse(arg, requisition.context);
-  this.conversion = util.synchronize(parsed);
+  this.conversion = util.synchronize(this.param.type.parse(arg));
   this.conversion.assign(this);
 }
 
@@ -5897,8 +5893,6 @@ function Requisition(environment, doc, commandOutputManager) {
       // Ignore
     }
   }
-  this.context = exports.createExecutionContext(this);
-
   this.commandOutputManager = commandOutputManager || new CommandOutputManager();
 
   // The command that we are about to execute.
@@ -6197,10 +6191,9 @@ Requisition.prototype.setAssignment = function(assignment, arg, options) {
     setAssignmentInternal(arg);
   }
   else {
-    var parsed = assignment.param.type.parse(arg, this.context);
-    return parsed.then(function(conversion) {
+    return assignment.param.type.parse(arg).then(function(conversion) {
       setAssignmentInternal(conversion);
-    }.bind(this));
+    }.bind(this), console.error);
   }
 
   return Promise.resolve(undefined);
@@ -6327,10 +6320,9 @@ Requisition.prototype._addSpace = function(assignment) {
  * Replace the current value with the lower value if such a concept exists.
  */
 Requisition.prototype.decrement = function(assignment) {
-  var replacement = assignment.param.type.decrement(assignment.conversion.value,
-                                                    this.context);
+  var replacement = assignment.param.type.decrement(assignment.conversion.value);
   if (replacement != null) {
-    var str = assignment.param.type.stringify(replacement, this.context);
+    var str = assignment.param.type.stringify(replacement);
     var arg = assignment.conversion.arg.beget({ text: str });
     var promise = this.setAssignment(assignment, arg);
     util.synchronize(promise);
@@ -6341,10 +6333,9 @@ Requisition.prototype.decrement = function(assignment) {
  * Replace the current value with the higher value if such a concept exists.
  */
 Requisition.prototype.increment = function(assignment) {
-  var replacement = assignment.param.type.increment(assignment.conversion.value,
-                                                    this.context);
+  var replacement = assignment.param.type.increment(assignment.conversion.value);
   if (replacement != null) {
-    var str = assignment.param.type.stringify(replacement, this.context);
+    var str = assignment.param.type.stringify(replacement);
     var arg = assignment.conversion.arg.beget({ text: str });
     var promise = this.setAssignment(assignment, arg);
     util.synchronize(promise);
@@ -6370,7 +6361,7 @@ Requisition.prototype.toCanonicalString = function() {
     // named parameters in place of positional params. Both can wait.
     if (assignment.value !== assignment.param.defaultValue) {
       line.push(' ');
-      line.push(type.stringify(assignment.value, this.context));
+      line.push(type.stringify(assignment.value));
     }
   }, this);
 
@@ -6660,20 +6651,12 @@ Requisition.prototype.exec = function(options) {
 
   this.commandOutputManager.onOutput({ output: output });
 
-  var onDone = function(data) {
-    output.complete(data, false);
-  };
-
-  var onError = function(ex) {
-    output.complete({
-      isTypedData: true,
-      data: ex,
-      type: "exception"
-    }, true);
-  };
+  var onDone = function(data) { output.complete(data, false); };
+  var onError = function(error) { output.complete(error, true); };
 
   try {
-    var reply = command.exec(args, this.context);
+    var context = exports.createExecutionContext(this);
+    var reply = command.exec(args, context);
 
     this._then(reply, onDone, onError);
   }
@@ -6708,7 +6691,7 @@ Requisition.prototype.clear = function() {
   this._args = [ arg ];
 
   var commandType = this.commandAssignment.param.type;
-  var conversion = util.synchronize(commandType.parse(arg, this.context));
+  var conversion = util.synchronize(commandType.parse(arg));
   this.setAssignment(this.commandAssignment, conversion,
                      { skipArgUpdate: true });
 
@@ -7052,7 +7035,7 @@ Requisition.prototype._split = function(args) {
               new MergedArgument(args, 0, argsUsed);
     // Making this promise synchronous is OK because we know that commandType
     // is a synchronous type.
-    conversion = util.synchronize(commandType.parse(arg, this.context));
+    conversion = util.synchronize(commandType.parse(arg));
 
     // We only want to carry on if this command is a parent command,
     // which means that there is a commandAssignment, but not one with
@@ -7244,7 +7227,6 @@ function Output(options) {
   this.canonical = options.canonical || '';
   this.hidden = options.hidden === true ? true : false;
 
-  this.type = this.command.returnType;
   this.data = undefined;
   this.completed = false;
   this.error = false;
@@ -7266,16 +7248,7 @@ function Output(options) {
  * data structure has changed
  */
 Output.prototype.changed = function(data, ev) {
-  if (data != null && data.isTypedData) {
-    this.data = data.data;
-    this.type = data.type;
-  }
-  else {
-    this.data = data;
-    if (this.type == null) {
-      this.type = typeof this.data;
-    }
-  }
+  this.data = data;
 
   ev = ev || {};
   ev.output = this;
@@ -7302,6 +7275,81 @@ Output.prototype.complete = function(data, error, ev) {
   }
 };
 
+/**
+ * Convert to a DOM element for display.
+ * @param element The DOM node to which the data should be written. Existing
+ * content of 'element' will be removed before 'outputData' is added.
+ */
+Output.prototype.toDom = function(element) {
+  util.clearElement(element);
+  var document = element.ownerDocument;
+
+  var output = this.data;
+  if (output == null) {
+    return;
+  }
+
+  var node;
+  if (typeof HTMLElement !== 'undefined' && output instanceof HTMLElement) {
+    node = output;
+  }
+  else if (output.isView) {
+    node = output.toDom(document);
+  }
+  else {
+    if (this.command.returnType === 'terminal') {
+      if (Array.isArray(output)) {
+        node = util.createElement(document, 'div');
+        output.forEach(function() {
+          var child = util.createElement(document, 'textarea');
+          child.classList.add('gcli-row-subterminal');
+          child.readOnly = true;
+
+          node.appendChild(child);
+        });
+      }
+      else {
+        node = util.createElement(document, 'textarea');
+        node.classList.add('gcli-row-terminal');
+        node.readOnly = true;
+      }
+    }
+    else {
+      node = util.createElement(document, 'p');
+    }
+
+    if (this.command.returnType === 'string') {
+      node.textContent = output;
+    }
+    else {
+      util.setContents(node, output.toString());
+    }
+  }
+
+  // Make sure that links open in a new window.
+  var links = node.querySelectorAll('*[href]');
+  for (var i = 0; i < links.length; i++) {
+    links[i].setAttribute('target', '_blank');
+  }
+
+  element.appendChild(node);
+};
+
+/**
+ * Convert this object to a string so GCLI can be used in traditional character
+ * based terminals.
+ */
+Output.prototype.toString = function(document) {
+  if (this.data.isView) {
+    return this.data.toDom(document).textContent;
+  }
+
+  if (typeof HTMLElement !== 'undefined' && this.data instanceof HTMLElement) {
+    return this.data.textContent;
+  }
+  return this.data == null ? '' : this.data.toString();
+};
+
 exports.Output = Output;
 
 /**
@@ -7315,14 +7363,6 @@ exports.createExecutionContext = function(requisition) {
     document: requisition.document,
     environment: requisition.environment,
     createView: view.createView,
-    typedData: function(data, type) {
-      return {
-        isTypedData: true,
-        data: data,
-        type: type
-      };
-    },
-    getArgsObject: requisition.getArgsObject.bind(requisition),
     defer: function() {
       return Promise.defer();
     },
@@ -7869,10 +7909,10 @@ StringField.prototype.setConversion = function(conversion) {
 StringField.prototype.getConversion = function() {
   // This tweaks the prefix/suffix of the argument to fit
   this.arg = this.arg.beget({ text: this.element.value, prefixSpace: true });
-  return this.type.parse(this.arg, this.requisition.context);
+  return this.type.parse(this.arg);
 };
 
-StringField.claim = function(type, context) {
+StringField.claim = function(type) {
   return type instanceof StringType ? Field.MATCH : Field.BASIC;
 };
 
@@ -7904,7 +7944,7 @@ function NumberField(type, options) {
 
 NumberField.prototype = Object.create(Field.prototype);
 
-NumberField.claim = function(type, context) {
+NumberField.claim = function(type) {
   return type instanceof NumberType ? Field.MATCH : Field.NO_MATCH;
 };
 
@@ -7924,7 +7964,7 @@ NumberField.prototype.setConversion = function(conversion) {
 
 NumberField.prototype.getConversion = function() {
   this.arg = this.arg.beget({ text: this.element.value, prefixSpace: true });
-  return this.type.parse(this.arg, this.requisition.context);
+  return this.type.parse(this.arg);
 };
 
 
@@ -7949,7 +7989,7 @@ function BooleanField(type, options) {
 
 BooleanField.prototype = Object.create(Field.prototype);
 
-BooleanField.claim = function(type, context) {
+BooleanField.claim = function(type) {
   return type instanceof BooleanType ? Field.MATCH : Field.NO_MATCH;
 };
 
@@ -7976,7 +8016,7 @@ BooleanField.prototype.getConversion = function() {
   else {
     arg = new Argument(' ' + this.element.checked);
   }
-  return this.type.parse(arg, this.requisition.context);
+  return this.type.parse(arg);
 };
 
 
@@ -8016,7 +8056,7 @@ DelegateField.prototype.update = function() {
   this.element.appendChild(this.field.element);
 };
 
-DelegateField.claim = function(type, context) {
+DelegateField.claim = function(type) {
   return type instanceof DelegateType ? Field.MATCH : Field.NO_MATCH;
 };
 
@@ -8078,7 +8118,7 @@ function ArrayField(type, options) {
 
 ArrayField.prototype = Object.create(Field.prototype);
 
-ArrayField.claim = function(type, context) {
+ArrayField.claim = function(type) {
   return type instanceof ArrayType ? Field.MATCH : Field.NO_MATCH;
 };
 
@@ -8104,7 +8144,7 @@ ArrayField.prototype.getConversion = function() {
     Promise.resolve(this.members[i].field.getConversion()).then(function(conversion) {
       conversions.push(conversion);
       arrayArg.addArgument(conversion.arg);
-    }.bind(this), util.errorHandler);
+    }.bind(this), console.error);
   }
   return new ArrayConversion(conversions, arrayArg);
 };
@@ -8121,7 +8161,7 @@ ArrayField.prototype._onAdd = function(ev, subConversion) {
     Promise.resolve(this.getConversion()).then(function(conversion) {
       this.onFieldChange({ conversion: conversion });
       this.setMessage(conversion.message);
-    }.bind(this), util.errorHandler);
+    }.bind(this), console.error);
   }, this);
 
   if (subConversion) {
@@ -8265,7 +8305,7 @@ Field.prototype.onInputChange = function(ev) {
     if (ev.keyCode === KeyEvent.DOM_VK_RETURN) {
       this.requisition.exec();
     }
-  }.bind(this), util.errorHandler);
+  }.bind(this), console.error);
 };
 
 /**
@@ -8279,7 +8319,7 @@ Field.prototype.isImportant = false;
  * to a type. This allows claims of various strength to be weighted up.
  * See the Field.*MATCH values.
  */
-Field.claim = function(type, context) {
+Field.claim = function() {
   throw new Error('Field should not be used directly');
 };
 
@@ -8356,7 +8396,7 @@ exports.getField = function(type, options) {
   var ctor;
   var highestClaim = -1;
   fieldCtors.forEach(function(fieldCtor) {
-    var claim = fieldCtor.claim(type, options.requisition.context);
+    var claim = fieldCtor.claim(type);
     if (claim > highestClaim) {
       highestClaim = claim;
       ctor = fieldCtor;
@@ -8390,7 +8430,7 @@ function BlankField(type, options) {
 
 BlankField.prototype = Object.create(Field.prototype);
 
-BlankField.claim = function(type, context) {
+BlankField.claim = function(type) {
   return type instanceof BlankType ? Field.MATCH : Field.NO_MATCH;
 };
 
@@ -8399,7 +8439,7 @@ BlankField.prototype.setConversion = function(conversion) {
 };
 
 BlankField.prototype.getConversion = function() {
-  return this.type.parse(new Argument(), this.requisition.context);
+  return this.type.parse(new Argument());
 };
 
 exports.addField(BlankField);
@@ -8488,7 +8528,7 @@ function JavascriptField(type, options) {
 
 JavascriptField.prototype = Object.create(Field.prototype);
 
-JavascriptField.claim = function(type, context) {
+JavascriptField.claim = function(type) {
   return type instanceof JavascriptType ? Field.TOOLTIP_MATCH : Field.NO_MATCH;
 };
 
@@ -8532,15 +8572,14 @@ JavascriptField.prototype.setConversion = function(conversion) {
       }
     }, this);
     this.menu.show(items);
-  }.bind(this), util.errorHandler);
+  }.bind(this), console.error);
 };
 
 JavascriptField.prototype.itemClicked = function(ev) {
-  var parsed = this.type.parse(ev.arg, this.requisition.context);
-  Promise.resolve(parsed).then(function(conversion) {
+  Promise.resolve(this.type.parse(ev.arg)).then(function(conversion) {
     this.onFieldChange({ conversion: conversion });
     this.setMessage(conversion.message);
-  }.bind(this), util.errorHandler);
+  }.bind(this), console.error);
 };
 
 JavascriptField.prototype.onInputChange = function(ev) {
@@ -8548,13 +8587,13 @@ JavascriptField.prototype.onInputChange = function(ev) {
   Promise.resolve(this.getConversion()).then(function(conversion) {
     this.onFieldChange({ conversion: conversion });
     this.setMessage(conversion.message);
-  }.bind(this), util.errorHandler);
+  }.bind(this), console.error);
 };
 
 JavascriptField.prototype.getConversion = function() {
   // This tweaks the prefix/suffix of the argument to fit
   this.arg = new ScriptArgument(this.input.value, '{ ', ' }');
-  return this.type.parse(this.arg, this.requisition.context);
+  return this.type.parse(this.arg);
 };
 
 JavascriptField.DEFAULT_VALUE = '__JavascriptField.DEFAULT_VALUE';
@@ -8877,7 +8916,7 @@ function SelectionField(type, options) {
 
   Promise.resolve(this.type.getLookup()).then(function(lookup) {
     lookup.forEach(this._addOption, this);
-  }.bind(this), util.errorHandler);
+  }.bind(this), console.error);
 
   this.onInputChange = this.onInputChange.bind(this);
   this.element.addEventListener('change', this.onInputChange, false);
@@ -8887,7 +8926,7 @@ function SelectionField(type, options) {
 
 SelectionField.prototype = Object.create(Field.prototype);
 
-SelectionField.claim = function(type, context) {
+SelectionField.claim = function(type) {
   if (type instanceof BooleanType) {
     return Field.BASIC;
   }
@@ -8949,8 +8988,8 @@ function SelectionTooltipField(type, options) {
 
 SelectionTooltipField.prototype = Object.create(Field.prototype);
 
-SelectionTooltipField.claim = function(type, context) {
-  return type.getType(context) instanceof SelectionType ?
+SelectionTooltipField.claim = function(type) {
+  return type.getType() instanceof SelectionType ?
       Field.TOOLTIP_MATCH :
       Field.NO_MATCH;
 };
@@ -8976,15 +9015,14 @@ SelectionTooltipField.prototype.setConversion = function(conversion) {
       return prediction.value.description ? prediction.value : prediction;
     }, this);
     this.menu.show(items, conversion.arg.text);
-  }.bind(this), util.errorHandler);
+  }.bind(this), console.error);
 };
 
 SelectionTooltipField.prototype.itemClicked = function(ev) {
-  var parsed = this.type.parse(ev.arg, this.requisition.context);
-  Promise.resolve(parsed).then(function(conversion) {
+  Promise.resolve(this.type.parse(ev.arg)).then(function(conversion) {
     this.onFieldChange({ conversion: conversion });
     this.setMessage(conversion.message);
-  }.bind(this), util.errorHandler);
+  }.bind(this), console.error);
 };
 
 SelectionTooltipField.prototype.onInputChange = function(ev) {
@@ -8992,13 +9030,13 @@ SelectionTooltipField.prototype.onInputChange = function(ev) {
   Promise.resolve(this.getConversion()).then(function(conversion) {
     this.onFieldChange({ conversion: conversion });
     this.setMessage(conversion.message);
-  }.bind(this), util.errorHandler);
+  }.bind(this), console.error);
 };
 
 SelectionTooltipField.prototype.getConversion = function() {
   // This tweaks the prefix/suffix of the argument to fit
   this.arg = this.arg.beget({ text: this.input.value });
-  return this.type.parse(this.arg, this.requisition.context);
+  return this.type.parse(this.arg);
 };
 
 /**
@@ -9075,7 +9113,7 @@ var helpCommandSpec = {
       defaultValue: null
     }
   ],
-  returnType: 'view',
+  returnType: 'html',
 
   exec: function(args, context) {
     var match = canon.getCommand(args.search || undefined);
@@ -9299,13 +9337,12 @@ define("text!gcli/commands/help.css", [], "");
  * limitations under the License.
  */
 
-define('gcli/commands/pref', ['require', 'exports', 'module' , 'util/l10n', 'gcli/canon', 'gcli/converters', 'gcli/settings', 'text!gcli/commands/pref_set_check.html'], function(require, exports, module) {
+define('gcli/commands/pref', ['require', 'exports', 'module' , 'util/l10n', 'gcli/canon', 'gcli/settings', 'text!gcli/commands/pref_set_check.html'], function(require, exports, module) {
 
 'use strict';
 
 var l10n = require('util/l10n');
 var canon = require('gcli/canon');
-var converters = require('gcli/converters');
 var settings = require('gcli/settings');
 
 /**
@@ -9344,8 +9381,7 @@ var prefShowCmdSpec = {
     }
   ],
   exec: function Command_prefShow(args, context) {
-    return l10n.lookupFormat('prefShowSettingValue',
-                             [ args.setting.name, args.setting.value ]);
+    return l10n.lookupFormat('prefShowSettingValue', [ args.setting.name, args.setting.value ]);
   }
 };
 
@@ -9370,30 +9406,22 @@ var prefSetCmdSpec = {
       manual: l10n.lookup('prefSetValueManual')
     }
   ],
-  exec: function(args, context) {
+  exec: function Command_prefSet(args, context) {
     if (!exports.allowSet.value &&
-        args.setting.name !== exports.allowSet.name) {
-      return context.typedData(null, 'prefSetWarning');
-    }
-
-    args.setting.value = args.value;
-  }
-};
-
-var prefSetWarningConverterSpec = {
-  from: 'prefSetWarning',
-  to: 'view',
-  exec: function(data, context) {
-    return context.createView({
-      html: require('text!gcli/commands/pref_set_check.html'),
-      options: { allowEval: true, stack: 'pref_set_check.html' },
-      data: {
-        l10n: l10n.propertyLookup,
-        activate: function() {
-          context.exec('pref set ' + exports.allowSet.name + ' true');
+            args.setting.name !== exports.allowSet.name) {
+      return context.createView({
+        html: require('text!gcli/commands/pref_set_check.html'),
+        options: { allowEval: true, stack: 'pref_set_check.html' },
+        data: {
+          l10n: l10n.propertyLookup,
+          activate: function() {
+            context.exec('pref set ' + exports.allowSet.name + ' true');
+          }
         }
-      }
-    });
+      });
+    }
+    args.setting.value = args.value;
+    return null;
   }
 };
 
@@ -9412,8 +9440,9 @@ var prefResetCmdSpec = {
       manual: l10n.lookup('prefResetSettingManual')
     }
   ],
-  exec: function(args, context) {
+  exec: function Command_prefReset(args, context) {
     args.setting.setDefault();
+    return null;
   }
 };
 
@@ -9427,7 +9456,6 @@ exports.startup = function() {
   canon.addCommand(prefShowCmdSpec);
   canon.addCommand(prefSetCmdSpec);
   canon.addCommand(prefResetCmdSpec);
-  converters.addConverter(prefSetWarningConverterSpec);
 };
 
 exports.shutdown = function() {
@@ -9435,250 +9463,10 @@ exports.shutdown = function() {
   canon.removeCommand(prefShowCmdSpec);
   canon.removeCommand(prefSetCmdSpec);
   canon.removeCommand(prefResetCmdSpec);
-  converters.removeConverter(prefSetWarningConverterSpec);
 
   settings.removeSetting(allowSetSettingSpec);
   exports.allowSet = undefined;
 };
-
-
-});
-/*
- * Copyright 2012, Mozilla Foundation and contributors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
-define('gcli/converters', ['require', 'exports', 'module' , 'util/util', 'util/promise'], function(require, exports, module) {
-
-'use strict';
-
-var util = require('util/util');
-var Promise = require('util/promise');
-
-// It's probably easiest to read this bottom to top
-
-/**
- * Best guess at creating a DOM element from random data
- */
-var fallbackDomConverter = {
-  from: '*',
-  to: 'dom',
-  exec: function(data, context) {
-    if (data == null) {
-      return context.document.createTextNode('');
-    }
-
-    if (typeof HTMLElement !== 'undefined' && data instanceof HTMLElement) {
-      return data;
-    }
-
-    var node = util.createElement(context.document, 'p');
-    util.setContents(node, data.toString());
-    return node;
-  }
-};
-
-/**
- * Best guess at creating a string from random data
- */
-var fallbackStringConverter = {
-  from: '*',
-  to: 'string',
-  exec: function(data, context) {
-    if (data.isView) {
-      return data.toDom(context.document).textContent;
-    }
-
-    if (typeof HTMLElement !== 'undefined' && data instanceof HTMLElement) {
-      return data.textContent;
-    }
-
-    return data == null ? '' : data.toString();
-  }
-};
-
-/**
- * Convert a view object to a DOM element
- */
-var viewDomConverter = {
-  from: 'view',
-  to: 'dom',
-  exec: function(data, context) {
-    return data.toDom(context.document);
-  }
-};
-
-/**
- * Convert a terminal object (to help traditional CLI integration) to an element
- */
-var terminalDomConverter = {
-  from: 'terminal',
-  to: 'dom',
-  createTextArea: function(text) {
-    var node = util.createElement(context.document, 'textarea');
-    node.classList.add('gcli-row-subterminal');
-    node.readOnly = true;
-    node.textContent = text;
-    return node;
-  },
-  exec: function(data, context) {
-    if (Array.isArray(data)) {
-      var node = util.createElement(context.document, 'div');
-      data.forEach(function(member) {
-        node.appendChild(this.createTextArea(member));
-      });
-      return node;
-    }
-    return this.createTextArea(data);
-  }
-};
-
-/**
- * Convert a string to a DOM element
- */
-var stringDomConverter = {
-  from: 'string',
-  to: 'dom',
-  exec: function(data, context) {
-    var node = util.createElement(context.document, 'p');
-    node.textContent = data;
-    return node;
-  }
-};
-
-/**
- * Convert a string to a DOM element
- */
-var exceptionDomConverter = {
-  from: 'exception',
-  to: 'dom',
-  exec: function(ex, context) {
-    var node = util.createElement(context.document, 'p');
-    node.className = "gcli-exception";
-    node.textContent = ex;
-    return node;
-  }
-};
-
-/**
- * Create a new converter by using 2 converters, one after the other
- */
-function getChainConverter(first, second) {
-  if (first.to !== second.from) {
-    throw new Error('Chain convert impossible: ' + first.to + '!=' + second.from);
-  }
-  return {
-    from: first.from,
-    to: second.to,
-    exec: function(data, context) {
-      var intermediate = first.exec(data, context);
-      return second.exec(intermediate, context);
-    }
-  };
-}
-
-/**
- * This is where we cache the converters that we know about
- */
-var converters = {
-  from: {}
-};
-
-/**
- * Add a new converter to the cache
- */
-exports.addConverter = function(converter) {
-  var fromMatch = converters.from[converter.from];
-  if (fromMatch == null) {
-    fromMatch = {};
-    converters.from[converter.from] = fromMatch;
-  }
-
-  fromMatch[converter.to] = converter;
-};
-
-/**
- * Remove an existing converter from the cache
- */
-exports.removeConverter = function(converter) {
-  var fromMatch = converters.from[converter.from];
-  if (fromMatch == null) {
-    return;
-  }
-
-  if (fromMatch[converter.to] === converter) {
-    fromMatch[converter.to] = null;
-  }
-};
-
-/**
- * Work out the best converter that we've got, for a given conversion.
- */
-function getConverter(from, to) {
-  var fromMatch = converters.from[from];
-  if (fromMatch == null) {
-    return getFallbackConverter(to);
-  }
-  var converter = fromMatch[to];
-  if (converter == null) {
-    // Someone is going to love writing a graph search algorithm to work out
-    // the smallest number of conversions, or perhaps the least 'lossy'
-    // conversion but for now the only 2 step conversion is foo->view->dom,
-    // which we are going to special case.
-    if (to === 'dom') {
-      converter = fromMatch['view'];
-      if (converter != null) {
-        return getChainConverter(converter, viewDomConverter);
-      }
-    }
-    return getFallbackConverter(to);
-  }
-  return converter;
-}
-
-/**
- * Helper for getConverter to pick the best fallback converter
- */
-function getFallbackConverter(to) {
-  if (to == 'dom') {
-    return fallbackDomConverter;
-  }
-  if (to == 'string') {
-    return fallbackStringConverter;
-  }
-  throw new Error('No conversion possible from ' + from + ' to ' + to + '.');
-}
-
-/**
- * Convert some data from one type to another
- * @param data The object to convert
- * @param from The type of the data right now
- * @param to The type that we would like the data in
- * @param context An execution context (i.e. simplified requisition) which is
- * often required for access to a document, or createView function
- */
-exports.convert = function(data, from, to, context) {
-  if (from === to) {
-    return data;
-  }
-  return Promise.resolve(getConverter(from, to).exec(data, context));
-};
-
-exports.addConverter(viewDomConverter);
-exports.addConverter(terminalDomConverter);
-exports.addConverter(stringDomConverter);
-exports.addConverter(exceptionDomConverter);
 
 
 });
@@ -10359,7 +10147,7 @@ Inputter.prototype.onKeyDown = function(ev) {
  * if something went wrong.
  */
 Inputter.prototype.onKeyUp = function(ev) {
-  this.handleKeyUp(ev).then(null, util.errorHandler);
+  this.handleKeyUp(ev).then(null, console.error);
 };
 
 /**
@@ -10414,7 +10202,7 @@ Inputter.prototype.handleKeyUp = function(ev) {
     else {
       // See notes above for the UP key
       if (this.assignment.getStatus() === Status.VALID) {
-        this.requisition.decrement(this.assignment, this.requisition.context);
+        this.requisition.decrement(this.assignment);
         // See notes on focusManager.onInputChange in onKeyDown
         if (this.focusManager) {
           this.focusManager.onInputChange();
@@ -10772,13 +10560,6 @@ Completer.prototype._getCompleterTemplateData = function() {
     predictionPromise = current.getPredictionAt(this.choice);
   }
 
-  // If anything goes wrong, we pass the error on to all the child promises
-  var onError = function(ex) {
-    promisedDirectTabText.reject(ex);
-    promisedArrowTabText.reject(ex);
-    promisedEmptyParameters.reject(ex);
-  };
-
   Promise.resolve(predictionPromise).then(function(prediction) {
     // directTabText is for when the current input is a prefix of the completion
     // arrowTabText is for when we need to use an -> to show what will be used
@@ -10893,7 +10674,7 @@ Completer.prototype._getCompleterTemplateData = function() {
     promisedDirectTabText.resolve(directTabText);
     promisedArrowTabText.resolve(arrowTabText);
     promisedEmptyParameters.resolve(emptyParameters);
-  }.bind(this), onError);
+  }.bind(this), console.error);
 
   return {
     statusMarkup: this._getStatusMarkup(input),
@@ -11142,7 +10923,7 @@ Tooltip.prototype.choiceChanged = function(ev) {
     var conversion = this.assignment.conversion;
     conversion.constrainPredictionIndex(ev.choice).then(function(choice) {
       this.field.setChoiceIndex(choice);
-    }.bind(this)).then(null, util.errorHandler);
+    }.bind(this)).then(null, console.error);
   }
 };
 
