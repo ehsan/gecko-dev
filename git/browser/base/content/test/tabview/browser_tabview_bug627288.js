@@ -15,24 +15,22 @@ function test() {
 
       cw.TabItems.pauseReconnecting();
       tab = gBrowser.loadOneTab('http://mochi.test:8888/', {inBackground: true});
+      cw.Storage.saveTab(tab, data);
 
-      afterAllTabsLoaded(function () {
+      whenTabAttrModified(tab, function () {
         tabItem = tab._tabViewTabItem;
 
-        tabItem.addSubscriber(tabItem, "savedCachedImageData", function () {
-          tabItem.removeSubscriber(tabItem, "savedCachedImageData");
+        // Hook into loadedCachedImageData since loading cached thumbnails 
+        // is asynchronous.
+        tabItem.addSubscriber(tabItem, "loadedCachedImageData", function(item) {
+          item.removeSubscriber(item, "loadedCachedImageData");
 
-          tabItem.addSubscriber(tabItem, "loadedCachedImageData", function () {
-            tabItem.removeSubscriber(tabItem, "loadedCachedImageData");
+          ok(tabItem.isShowingCachedData(), 'tabItem shows cached data');
 
-            ok(tabItem.isShowingCachedData(), 'tabItem shows cached data');
-            testChangeUrlAfterReconnect();
-          });
-
-          cw.TabItems.resumeReconnecting();
+          testChangeUrlAfterReconnect();
         });
 
-        cw.Storage.saveTab(tab, data);
+        cw.TabItems.resumeReconnecting();
       });
     });
   }
