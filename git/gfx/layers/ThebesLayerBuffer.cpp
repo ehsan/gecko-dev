@@ -161,7 +161,6 @@ RotatedBuffer::DrawBufferQuadrant(gfx::DrawTarget* aTarget,
                                   XSide aXSide, YSide aYSide,
                                   ContextSource aSource,
                                   float aOpacity,
-                                  gfx::CompositionOp aOperator,
                                   gfx::SourceSurface* aMask,
                                   const gfx::Matrix* aMaskTransform) const
 {
@@ -194,26 +193,14 @@ RotatedBuffer::DrawBufferQuadrant(gfx::DrawTarget* aTarget,
   SurfacePattern source(snapshot, EXTEND_CLAMP, transform);
 #endif
 
-  if (aOperator == OP_SOURCE) {
-    // OP_SOURCE is unbounded in Azure, and we really don't want that behaviour here.
-    // We also can't do a ClearRect+FillRect since we need the drawing to happen
-    // as an atomic operation (to prevent flickering).
-    aTarget->PushClipRect(gfx::Rect(fillRect.x, fillRect.y,
-                                    fillRect.width, fillRect.height));
-  }
-
   if (aMask) {
     SurfacePattern mask(aMask, EXTEND_CLAMP, *aMaskTransform);
 
-    aTarget->Mask(source, mask, DrawOptions(aOpacity, aOperator));
+    aTarget->Mask(source, mask, DrawOptions(aOpacity));
   } else {
     aTarget->FillRect(gfx::Rect(fillRect.x, fillRect.y,
                                 fillRect.width, fillRect.height),
-                      source, DrawOptions(aOpacity, aOperator));
-  }
-
-  if (aOperator == OP_SOURCE) {
-    aTarget->PopClip();
+                      source, DrawOptions(aOpacity));
   }
 
   aTarget->Flush();
@@ -237,7 +224,6 @@ RotatedBuffer::DrawBufferWithRotation(gfxContext* aTarget, ContextSource aSource
 void
 RotatedBuffer::DrawBufferWithRotation(gfx::DrawTarget *aTarget, ContextSource aSource,
                                       float aOpacity,
-                                      gfx::CompositionOp aOperator,
                                       gfx::SourceSurface* aMask,
                                       const gfx::Matrix* aMaskTransform) const
 {
@@ -245,10 +231,10 @@ RotatedBuffer::DrawBufferWithRotation(gfx::DrawTarget *aTarget, ContextSource aS
   // See above, in Azure Repeat should always be a safe, even faster choice
   // though! Particularly on D2D Repeat should be a lot faster, need to look
   // into that. TODO[Bas]
-  DrawBufferQuadrant(aTarget, LEFT, TOP, aSource, aOpacity, aOperator, aMask, aMaskTransform);
-  DrawBufferQuadrant(aTarget, RIGHT, TOP, aSource, aOpacity, aOperator, aMask, aMaskTransform);
-  DrawBufferQuadrant(aTarget, LEFT, BOTTOM, aSource, aOpacity, aOperator, aMask, aMaskTransform);
-  DrawBufferQuadrant(aTarget, RIGHT, BOTTOM, aSource, aOpacity, aOperator,aMask, aMaskTransform);
+  DrawBufferQuadrant(aTarget, LEFT, TOP, aSource, aOpacity, aMask, aMaskTransform);
+  DrawBufferQuadrant(aTarget, RIGHT, TOP, aSource, aOpacity, aMask, aMaskTransform);
+  DrawBufferQuadrant(aTarget, LEFT, BOTTOM, aSource, aOpacity, aMask, aMaskTransform);
+  DrawBufferQuadrant(aTarget, RIGHT, BOTTOM, aSource, aOpacity, aMask, aMaskTransform);
 }
 
 /* static */ bool
@@ -320,8 +306,7 @@ ThebesLayerBuffer::DrawTo(ThebesLayer* aLayer,
       maskTransform = ToMatrix(*aMaskTransform);
     }
 
-    CompositionOp op = CompositionOpForOp(aTarget->CurrentOperator());
-    DrawBufferWithRotation(dt, BUFFER_BLACK, aOpacity, op, mask, &maskTransform);
+    DrawBufferWithRotation(dt, BUFFER_BLACK, aOpacity, mask, &maskTransform);
     if (clipped) {
       dt->PopClip();
     }
@@ -438,10 +423,6 @@ ThebesLayerBuffer::IsAzureBuffer()
   }
   if (mBuffer) {
     return false;
-  }
-  if (mBufferProvider) {
-    return gfxPlatform::GetPlatform()->SupportsAzureContentForType(
-      mBufferProvider->BackendType());
   }
   return SupportsAzureContent();
 }
@@ -670,9 +651,13 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
           // We can't do a real self-copy because the buffer is rotated.
           // So allocate a new buffer for the destination.
           destBufferRect = ComputeBufferRect(neededRegion.GetBounds());
-          CreateBuffer(contentType, destBufferRect, bufferFlags,
-                       getter_AddRefs(destBuffer), getter_AddRefs(destBufferOnWhite),
-                       &destDTBuffer, &destDTBufferOnWhite);
+          if (IsAzureBuffer()) {
+            MOZ_ASSERT(!mBuffer);
+            destDTBuffer = CreateDTBuffer(contentType, destBufferRect, bufferFlags, &destDTBufferOnWhite);
+          } else {
+            MOZ_ASSERT(!mDTBuffer);
+            destBuffer = CreateBuffer(contentType, destBufferRect, bufferFlags, getter_AddRefs(destBufferOnWhite));
+          }
           if (!destBuffer && !destDTBuffer)
             return result;
         }
@@ -689,9 +674,13 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
     }
   } else {
     // The buffer's not big enough, so allocate a new one
-    CreateBuffer(contentType, destBufferRect, bufferFlags,
-                 getter_AddRefs(destBuffer), getter_AddRefs(destBufferOnWhite),
-                 &destDTBuffer, &destDTBufferOnWhite);
+    if (IsAzureBuffer()) {
+      MOZ_ASSERT(!mBuffer);
+      destDTBuffer = CreateDTBuffer(contentType, destBufferRect, bufferFlags, &destDTBufferOnWhite);
+    } else {
+      MOZ_ASSERT(!mDTBuffer);
+      destBuffer = CreateBuffer(contentType, destBufferRect, bufferFlags, getter_AddRefs(destBufferOnWhite));
+    }
     if (!destBuffer && !destDTBuffer)
       return result;
   }
@@ -738,7 +727,7 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
       destDTBuffer->SetTransform(mat);
       EnsureBuffer();
       MOZ_ASSERT(mDTBuffer, "Have we got a Thebes buffer for some reason?");
-      DrawBufferWithRotation(destDTBuffer, BUFFER_BLACK, 1.0, OP_SOURCE);
+      DrawBufferWithRotation(destDTBuffer, BUFFER_BLACK);
       destDTBuffer->SetTransform(Matrix());
 
       if (mode == Layer::SURFACE_COMPONENT_ALPHA) {
@@ -746,7 +735,7 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
         destDTBufferOnWhite->SetTransform(mat);
         EnsureBufferOnWhite();
         MOZ_ASSERT(destDTBufferOnWhite, "Have we got a Thebes buffer for some reason?");
-        DrawBufferWithRotation(destDTBufferOnWhite, BUFFER_WHITE, 1.0, OP_SOURCE);
+        DrawBufferWithRotation(destDTBufferOnWhite, BUFFER_WHITE);
         destDTBufferOnWhite->SetTransform(Matrix());
       }
     }

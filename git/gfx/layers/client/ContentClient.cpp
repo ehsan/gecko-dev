@@ -77,26 +77,13 @@ ContentClientBasic::ContentClientBasic(CompositableForwarder* aForwarder,
 : ContentClient(aForwarder), ThebesLayerBuffer(ContainsVisibleBounds), mManager(aManager)
 {}
 
-void
+already_AddRefed<gfxASurface>
 ContentClientBasic::CreateBuffer(ContentType aType,
                                  const nsIntRect& aRect,
                                  uint32_t aFlags,
-                                 gfxASurface** aBlackSurface,
-                                 gfxASurface** aWhiteSurface,
-                                 RefPtr<gfx::DrawTarget>* aBlackDT,
-                                 RefPtr<gfx::DrawTarget>* aWhiteDT)
+                                 gfxASurface**)
 {
   MOZ_ASSERT(!(aFlags & BUFFER_COMPONENT_ALPHA));
-  if (gfxPlatform::GetPlatform()->SupportsAzureContent()) {
-    gfxASurface::gfxImageFormat format =
-      gfxPlatform::GetPlatform()->OptimalFormatForContent(aType);
-
-    *aBlackDT = gfxPlatform::GetPlatform()->CreateOffscreenContentDrawTarget(
-      IntSize(aRect.width, aRect.height),
-      ImageFormatToSurfaceFormat(format));
-    return;
-  }
-
   nsRefPtr<gfxASurface> referenceSurface = GetBuffer();
   if (!referenceSurface) {
     gfxContext* defaultTarget = mManager->GetDefaultTarget();
@@ -109,9 +96,23 @@ ContentClientBasic::CreateBuffer(ContentType aType,
       }
     }
   }
-  nsRefPtr<gfxASurface> ret = referenceSurface->CreateSimilarSurface(
+  return referenceSurface->CreateSimilarSurface(
     aType, gfxIntSize(aRect.width, aRect.height));
-  *aBlackSurface = ret.forget().get();
+}
+
+TemporaryRef<DrawTarget>
+ContentClientBasic::CreateDTBuffer(ContentType aType,
+                                   const nsIntRect& aRect,
+                                   uint32_t aFlags,
+                                   RefPtr<DrawTarget>* aWhiteDT)
+{
+  MOZ_ASSERT(!(aFlags & BUFFER_COMPONENT_ALPHA));
+  gfxASurface::gfxImageFormat format =
+    gfxPlatform::GetPlatform()->OptimalFormatForContent(aType);
+
+  return gfxPlatform::GetPlatform()->CreateOffscreenContentDrawTarget(
+    IntSize(aRect.width, aRect.height),
+    ImageFormatToSurfaceFormat(format));
 }
 
 void
@@ -224,37 +225,46 @@ ContentClientBasic::SupportsAzureContent() const
 bool
 ContentClientRemoteBuffer::SupportsAzureContent() const
 {
-  MOZ_ASSERT(mDeprecatedTextureClient);
+  if (!mDeprecatedTextureClient) {
+    // Hopefully we don't call this method before we have a texture client. But if
+    // we do, then we have no idea if we can support Azure for whatever surface the
+    // texture client might come up with.
+    return false;
+  }
 
   return gfxPlatform::GetPlatform()->SupportsAzureContentForType(
     mDeprecatedTextureClient->BackendType());
 }
 
-void
-ContentClientRemoteBuffer::CreateBuffer(ContentType aType,
-                                        const nsIntRect& aRect,
-                                        uint32_t aFlags,
-                                        gfxASurface** aBlackSurface,
-                                        gfxASurface** aWhiteSurface,
-                                        RefPtr<gfx::DrawTarget>* aBlackDT,
-                                        RefPtr<gfx::DrawTarget>* aWhiteDT)
+TemporaryRef<DrawTarget>
+ContentClientRemoteBuffer::CreateDTBuffer(ContentType aType,
+                                          const nsIntRect& aRect,
+                                          uint32_t aFlags,
+                                          RefPtr<gfx::DrawTarget>* aWhiteDT)
 {
   BuildDeprecatedTextureClients(aType, aRect, aFlags);
 
-  if (gfxPlatform::GetPlatform()->SupportsAzureContentForType(
-        mDeprecatedTextureClient->BackendType())) {
-    *aBlackDT = mDeprecatedTextureClient->LockDrawTarget();
-    if (aFlags & BUFFER_COMPONENT_ALPHA) {
-      *aWhiteDT = mDeprecatedTextureClientOnWhite->LockDrawTarget();
-    }
-  } else {
-    nsRefPtr<gfxASurface> ret = mDeprecatedTextureClient->LockSurface();
-    *aBlackSurface = ret.forget().get();
-    if (aFlags & BUFFER_COMPONENT_ALPHA) {
-     nsRefPtr<gfxASurface> retWhite = mDeprecatedTextureClientOnWhite->LockSurface();
-      *aWhiteSurface = retWhite.forget().get();
-    }
+  RefPtr<DrawTarget> ret = mDeprecatedTextureClient->LockDrawTarget();
+  if (aFlags & BUFFER_COMPONENT_ALPHA) {
+    *aWhiteDT = mDeprecatedTextureClientOnWhite->LockDrawTarget();
   }
+  return ret.forget();
+}
+
+already_AddRefed<gfxASurface>
+ContentClientRemoteBuffer::CreateBuffer(ContentType aType,
+                                        const nsIntRect& aRect,
+                                        uint32_t aFlags,
+                                        gfxASurface** aWhiteSurface)
+{
+  BuildDeprecatedTextureClients(aType, aRect, aFlags);
+
+  nsRefPtr<gfxASurface> ret = mDeprecatedTextureClient->LockSurface();
+  if (aFlags & BUFFER_COMPONENT_ALPHA) {
+    nsRefPtr<gfxASurface> retWhite = mDeprecatedTextureClientOnWhite->LockSurface();
+    *aWhiteSurface = retWhite.forget().get();
+  }
+  return ret.forget();
 }
 
 nsIntRegion
@@ -527,7 +537,11 @@ ContentClientDoubleBuffered::UpdateDestinationFrom(const RotatedBuffer& aSource,
 
   if (SupportsAzureContent()) {
     MOZ_ASSERT(!destCtx->IsCairo());
-    aSource.DrawBufferWithRotation(destCtx->GetDrawTarget(), BUFFER_BLACK, 1.0, OP_SOURCE);
+
+    if (destCtx->GetDrawTarget()->GetFormat() == FORMAT_B8G8R8A8) {
+      destCtx->GetDrawTarget()->ClearRect(Rect(0, 0, mFrontBufferRect.width, mFrontBufferRect.height));
+    }
+    aSource.DrawBufferWithRotation(destCtx->GetDrawTarget(), BUFFER_BLACK);
   } else {
     aSource.DrawBufferWithRotation(destCtx, BUFFER_BLACK);
   }
@@ -545,7 +559,11 @@ ContentClientDoubleBuffered::UpdateDestinationFrom(const RotatedBuffer& aSource,
 
     if (SupportsAzureContent()) {
       MOZ_ASSERT(!destCtx->IsCairo());
-      aSource.DrawBufferWithRotation(destCtx->GetDrawTarget(), BUFFER_WHITE, 1.0, OP_SOURCE);
+
+      if (destCtx->GetDrawTarget()->GetFormat() == FORMAT_B8G8R8A8) {
+        destCtx->GetDrawTarget()->ClearRect(Rect(0, 0, mFrontBufferRect.width, mFrontBufferRect.height));
+      }
+      aSource.DrawBufferWithRotation(destCtx->GetDrawTarget(), BUFFER_WHITE);
     } else {
       aSource.DrawBufferWithRotation(destCtx, BUFFER_WHITE);
     }

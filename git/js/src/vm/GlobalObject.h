@@ -444,7 +444,9 @@ class GlobalObject : public JSObject
             return true;
         if (!cx->runtime()->cloneSelfHostedValue(cx, name, value))
             return false;
-        return JS_DefinePropertyById(cx, holder, id, value, NULL, NULL, 0);
+        mozilla::DebugOnly<bool> ok = JS_DefinePropertyById(cx, holder, id, value, NULL, NULL, 0);
+        JS_ASSERT(ok);
+        return true;
     }
 
     bool setIntrinsicValue(JSContext *cx, PropertyName *name, HandleValue value) {

@@ -13,6 +13,7 @@
 #include "nsITimer.h"
 #include "nsIDOMDeviceLightEvent.h"
 #include "nsIDOMDeviceOrientationEvent.h"
+#include "nsIDOMDeviceProximityEvent.h"
 #include "nsIDOMUserProximityEvent.h"
 #include "nsIDOMDeviceMotionEvent.h"
 #include "nsDOMDeviceMotionEvent.h"

@@ -175,7 +175,7 @@ class RuntimePolicy : public TypePolicy
 };
 
 template <unsigned Op>
-class NoFloatPolicy : public TypePolicy
+class NoFloatPolicy
 {
   public:
     static bool staticAdjustInputs(MInstruction *def);

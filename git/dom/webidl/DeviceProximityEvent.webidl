@@ -4,7 +4,7 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-[Constructor(DOMString type, optional DeviceProximityEventInit eventInitDict)]
+[Constructor(DOMString type, optional DeviceProximityEventInit eventInitDict), HeaderFile="GeneratedEventClasses.h"]
 interface DeviceProximityEvent : Event
 {
   readonly attribute double value;

@@ -49,7 +49,8 @@ static RedirEntry kRedirMap[] = {
       nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
       nsIAboutModule::ALLOW_SCRIPT |
       nsIAboutModule::HIDE_FROM_ABOUTABOUT },
-    { "compartments", "chrome://global/content/aboutCompartments.xhtml",
+    // aboutMemory.xhtml implements about:compartments
+    { "compartments", "chrome://global/content/aboutMemory.xhtml",
       nsIAboutModule::ALLOW_SCRIPT },
     { "memory", "chrome://global/content/aboutMemory.xhtml",
       nsIAboutModule::ALLOW_SCRIPT },

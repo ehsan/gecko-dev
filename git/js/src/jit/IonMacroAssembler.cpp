@@ -1535,8 +1535,8 @@ MacroAssembler::convertTypedOrValueToDouble(TypedOrValueRegister src, FloatRegis
 }
 
 void
-MacroAssembler::convertDoubleToInt(FloatRegister src, Register output, Label *truncateFail,
-                                   Label *fail, IntConversionBehavior behavior)
+MacroAssembler::convertDoubleToInt(FloatRegister src, Register output, Label *fail,
+                                   IntConversionBehavior behavior)
 {
     switch (behavior) {
       case IntConversion_Normal:
@@ -1544,7 +1544,7 @@ MacroAssembler::convertDoubleToInt(FloatRegister src, Register output, Label *tr
         convertDoubleToInt32(src, output, fail, behavior == IntConversion_NegativeZeroCheck);
         break;
       case IntConversion_Truncate:
-        branchTruncateDouble(src, output, truncateFail ? truncateFail : fail);
+        branchTruncateDouble(src, output, fail);
         break;
       case IntConversion_ClampToUint8:
         clampDoubleToUint8(src, output);
@@ -1555,7 +1555,6 @@ MacroAssembler::convertDoubleToInt(FloatRegister src, Register output, Label *tr
 void
 MacroAssembler::convertValueToInt(ValueOperand value, MDefinition *maybeInput,
                                   Label *handleStringEntry, Label *handleStringRejoin,
-                                  Label *truncateDoubleSlow,
                                   Register stringReg, FloatRegister temp, Register output,
                                   Label *fail, IntConversionBehavior behavior)
 {
@@ -1614,7 +1613,7 @@ MacroAssembler::convertValueToInt(ValueOperand value, MDefinition *maybeInput,
         if (handleStrings)
             bind(handleStringRejoin);
 
-        convertDoubleToInt(temp, output, truncateDoubleSlow, fail, behavior);
+        convertDoubleToInt(temp, output, fail, behavior);
         jump(&done);
     }
 
@@ -1725,7 +1724,7 @@ MacroAssembler::convertTypedOrValueToInt(TypedOrValueRegister src, FloatRegister
             move32(src.typedReg().gpr(), output);
         break;
       case MIRType_Double:
-        convertDoubleToInt(src.typedReg().fpu(), output, NULL, fail, behavior);
+        convertDoubleToInt(src.typedReg().fpu(), output, fail, behavior);
         break;
       case MIRType_String:
       case MIRType_Object:

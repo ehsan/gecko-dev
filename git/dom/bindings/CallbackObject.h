@@ -104,9 +104,6 @@ private:
     mozilla::HoldJSObjects(this);
   }
 
-  CallbackObject(const CallbackObject&) MOZ_DELETE;
-  CallbackObject& operator =(const CallbackObject&) MOZ_DELETE;
-
 protected:
   void DropCallback()
   {

@@ -975,7 +975,6 @@ public:
   // Main thread only
   static MediaStreamGraph* GetInstance();
   static MediaStreamGraph* CreateNonRealtimeInstance();
-  // Idempotent
   static void DestroyNonRealtimeInstance(MediaStreamGraph* aGraph);
 
   // Control API.
@@ -1023,8 +1022,6 @@ public:
    * in main-thread stream state.
    */
   int64_t GetCurrentGraphUpdateIndex() { return mGraphUpdatesSent; }
-
-  bool IsNonRealtime() const;
   /**
    * Start processing non-realtime for a specific number of ticks.
    */
