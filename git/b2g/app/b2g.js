@@ -397,11 +397,7 @@ pref("browser.link.open_newwindow.restriction", 0);
 pref("dom.mozBrowserFramesEnabled", true);
 pref("dom.mozBrowserFramesWhitelist", "http://homescreen.gaiamobile.org,http://browser.gaiamobile.org");
 
-#ifdef XP_WIN
-pref("dom.ipc.tabs.disabled", true);
-#else
 pref("dom.ipc.tabs.disabled", false);
-#endif
 
 pref("dom.ipc.browser_frames.oop_by_default", false);
 
@@ -491,3 +487,9 @@ pref("ui.click_hold_context_menus.delay", 1000);
 pref("device.storage.enabled", true);
 
 pref("media.plugins.enabled", true);
+
+// Disable printing (particularly, window.print())
+pref("dom.disable_window_print", true);
+
+// Disable window.showModalDialog
+pref("dom.disable_window_showModalDialog", true);

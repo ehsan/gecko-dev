@@ -96,7 +96,7 @@ public class AwesomeBarTabs extends TabHost {
         public TextView titleView;
         public TextView urlView;
         public ImageView faviconView;
-        public ImageView starView;
+        public ImageView bookmarkIconView;
     }
 
     private class SearchEntryViewHolder {
@@ -127,7 +127,7 @@ public class AwesomeBarTabs extends TabHost {
                 viewHolder.titleView = (TextView) convertView.findViewById(R.id.title);
                 viewHolder.urlView = (TextView) convertView.findViewById(R.id.url);
                 viewHolder.faviconView = (ImageView) convertView.findViewById(R.id.favicon);
-                viewHolder.starView = (ImageView) convertView.findViewById(R.id.bookmark_star);
+                viewHolder.bookmarkIconView = (ImageView) convertView.findViewById(R.id.bookmark_icon);
 
                 convertView.setTag(viewHolder);
             } else {
@@ -157,11 +157,16 @@ public class AwesomeBarTabs extends TabHost {
             }
 
             Integer bookmarkId = (Integer) historyItem.get(Combined.BOOKMARK_ID);
+            Integer display = (Integer) historyItem.get(Combined.DISPLAY);
 
             // The bookmark id will be 0 (null in database) when the url
-            // is not a bookmark.
-            int visibility = (bookmarkId == 0 ? View.GONE : View.VISIBLE);
-            viewHolder.starView.setVisibility(visibility);
+            // is not a bookmark. Reading list items are irrelevant in history
+            // tab. We should never show any sign or them.
+            int visibility = (bookmarkId != 0 && display != Combined.DISPLAY_READER ?
+                              View.VISIBLE : View.GONE);
+
+            viewHolder.bookmarkIconView.setVisibility(visibility);
+            viewHolder.bookmarkIconView.setImageResource(R.drawable.ic_awesomebar_star);
 
             return convertView;
         }
@@ -418,7 +423,6 @@ public class AwesomeBarTabs extends TabHost {
         private static final long MS_PER_WEEK = MS_PER_DAY * 7;
 
         protected Pair<GroupList,List<ChildrenList>> doInBackground(Void... arg0) {
-            Pair<GroupList, List<ChildrenList>> result = null;
             Cursor cursor = BrowserDB.getRecentHistory(mContentResolver, MAX_RESULTS);
 
             Date now = new Date();
@@ -430,9 +434,9 @@ public class AwesomeBarTabs extends TabHost {
 
             // Split the list of urls into separate date range groups
             // and show it in an expandable list view.
-            List<ChildrenList> childrenLists = null;
+            List<ChildrenList> childrenLists = new LinkedList<ChildrenList>();
             ChildrenList children = null;
-            GroupList groups = null;
+            GroupList groups = new GroupList();
             HistorySection section = null;
 
             // Move cursor before the first row in preparation
@@ -446,12 +450,6 @@ public class AwesomeBarTabs extends TabHost {
             while (cursor.moveToNext()) {
                 long time = cursor.getLong(cursor.getColumnIndexOrThrow(URLColumns.DATE_LAST_VISITED));
                 HistorySection itemSection = getSectionForTime(time, today);
-
-                if (groups == null)
-                    groups = new GroupList();
-
-                if (childrenLists == null)
-                    childrenLists = new LinkedList<ChildrenList>();
 
                 if (section != itemSection) {
                     if (section != null) {
@@ -476,11 +474,8 @@ public class AwesomeBarTabs extends TabHost {
             // Close the query cursor as we won't use it anymore
             cursor.close();
 
-            if (groups != null && childrenLists != null) {
-                result = Pair.<GroupList,List<ChildrenList>>create(groups, childrenLists);
-            }
-
-            return result;
+            // groups and childrenLists will be empty lists if there's no history
+            return Pair.<GroupList,List<ChildrenList>>create(groups, childrenLists);
         }
 
         public Map<String,Object> createHistoryItem(Cursor cursor) {
@@ -491,6 +486,7 @@ public class AwesomeBarTabs extends TabHost {
             byte[] favicon = cursor.getBlob(cursor.getColumnIndexOrThrow(URLColumns.FAVICON));
             Integer bookmarkId = cursor.getInt(cursor.getColumnIndexOrThrow(Combined.BOOKMARK_ID));
             Integer historyId = cursor.getInt(cursor.getColumnIndexOrThrow(Combined.HISTORY_ID));
+            Integer display = cursor.getInt(cursor.getColumnIndexOrThrow(Combined.DISPLAY));
 
             // Use the URL instead of an empty title for consistency with the normal URL
             // bar view - this is the equivalent of getDisplayTitle() in Tab.java
@@ -505,6 +501,7 @@ public class AwesomeBarTabs extends TabHost {
 
             historyItem.put(Combined.BOOKMARK_ID, bookmarkId);
             historyItem.put(Combined.HISTORY_ID, historyId);
+            historyItem.put(Combined.DISPLAY, display);
 
             return historyItem;
         }
@@ -561,10 +558,6 @@ public class AwesomeBarTabs extends TabHost {
         }
 
         protected void onPostExecute(Pair<GroupList,List<ChildrenList>> result) {
-            // FIXME: display some sort of message when there's no history
-            if (result == null)
-                return;
-
             mHistoryAdapter = new HistoryListAdapter(
                 mContext,
                 result.first,
@@ -780,7 +773,7 @@ public class AwesomeBarTabs extends TabHost {
                     viewHolder.titleView = (TextView) convertView.findViewById(R.id.title);
                     viewHolder.urlView = (TextView) convertView.findViewById(R.id.url);
                     viewHolder.faviconView = (ImageView) convertView.findViewById(R.id.favicon);
-                    viewHolder.starView = (ImageView) convertView.findViewById(R.id.bookmark_star);
+                    viewHolder.bookmarkIconView = (ImageView) convertView.findViewById(R.id.bookmark_icon);
 
                     convertView.setTag(viewHolder);
                 } else {
@@ -795,7 +788,7 @@ public class AwesomeBarTabs extends TabHost {
                 updateTitle(viewHolder.titleView, cursor);
                 updateUrl(viewHolder.urlView, cursor);
                 updateFavicon(viewHolder.faviconView, cursor);
-                updateBookmarkStar(viewHolder.starView, cursor);
+                updateBookmarkIcon(viewHolder.bookmarkIconView, cursor);
             }
 
             return convertView;
@@ -1098,14 +1091,23 @@ public class AwesomeBarTabs extends TabHost {
         urlView.setText(url);
     }
 
-    private void updateBookmarkStar(ImageView starView, Cursor cursor) {
+    private void updateBookmarkIcon(ImageView bookmarkIconView, Cursor cursor) {
         int bookmarkIdIndex = cursor.getColumnIndexOrThrow(Combined.BOOKMARK_ID);
         long id = cursor.getLong(bookmarkIdIndex);
+
+        int displayIndex = cursor.getColumnIndexOrThrow(Combined.DISPLAY);
+        int display = cursor.getInt(displayIndex);
 
         // The bookmark id will be 0 (null in database) when the url
         // is not a bookmark.
         int visibility = (id == 0 ? View.GONE : View.VISIBLE);
-        starView.setVisibility(visibility);
+        bookmarkIconView.setVisibility(visibility);
+
+        if (display == Combined.DISPLAY_READER) {
+            bookmarkIconView.setImageResource(R.drawable.ic_awesomebar_reader);
+        } else {
+            bookmarkIconView.setImageResource(R.drawable.ic_awesomebar_star);
+        }
     }
 
     public void setOnUrlOpenListener(OnUrlOpenListener listener) {

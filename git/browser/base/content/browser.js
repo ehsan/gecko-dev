@@ -3479,10 +3479,7 @@ function OpenBrowserWindow()
 }
 
 var gCustomizeSheet = false;
-// Returns a reference to the window in which the toolbar
-// customization document is loaded.
-function BrowserCustomizeToolbar()
-{
+function BrowserCustomizeToolbar() {
   // Disable the toolbar context menu items
   var menubar = document.getElementById("main-menubar");
   for (var i = 0; i < menubar.childNodes.length; ++i)
@@ -3507,19 +3504,13 @@ function BrowserCustomizeToolbar()
   gCustomizeSheet = getBoolPref("toolbar.customization.usesheet", false);
 
   if (gCustomizeSheet) {
-    var sheetFrame = document.getElementById("customizeToolbarSheetIFrame");
-    var panel = document.getElementById("customizeToolbarSheetPopup");
-    sheetFrame.hidden = false;
+    let sheetFrame = document.createElement("iframe");
+    let panel = document.getElementById("customizeToolbarSheetPopup");
+    sheetFrame.id = "customizeToolbarSheetIFrame";
     sheetFrame.toolbox = gNavToolbox;
     sheetFrame.panel = panel;
-
-    // The document might not have been loaded yet, if this is the first time.
-    // If it is already loaded, reload it so that the onload initialization code
-    // re-runs.
-    if (sheetFrame.getAttribute("src") == customizeURL)
-      sheetFrame.contentWindow.location.reload()
-    else
-      sheetFrame.setAttribute("src", customizeURL);
+    sheetFrame.setAttribute("style", panel.getAttribute("sheetstyle"));
+    panel.appendChild(sheetFrame);
 
     // Open the panel, but make it invisible until the iframe has loaded so
     // that the user doesn't see a white flash.
@@ -3528,20 +3519,23 @@ function BrowserCustomizeToolbar()
       gNavToolbox.removeEventListener("beforecustomization", onBeforeCustomization, false);
       panel.style.removeProperty("visibility");
     }, false);
+
+    sheetFrame.setAttribute("src", customizeURL);
+
     panel.openPopup(gNavToolbox, "after_start", 0, 0);
-    return sheetFrame.contentWindow;
   } else {
-    return window.openDialog(customizeURL,
-                             "CustomizeToolbar",
-                             "chrome,titlebar,toolbar,location,resizable,dependent",
-                             gNavToolbox);
+    window.openDialog(customizeURL,
+                      "CustomizeToolbar",
+                      "chrome,titlebar,toolbar,location,resizable,dependent",
+                      gNavToolbox);
   }
 }
 
 function BrowserToolboxCustomizeDone(aToolboxChanged) {
   if (gCustomizeSheet) {
-    document.getElementById("customizeToolbarSheetIFrame").hidden = true;
     document.getElementById("customizeToolbarSheetPopup").hidePopup();
+    let iframe = document.getElementById("customizeToolbarSheetIFrame");
+    iframe.parentNode.removeChild(iframe);
   }
 
   // Update global UI elements that may have been added or removed
@@ -7175,25 +7169,9 @@ let gPrivateBrowsingUI = {
    * and the setter should only be used in tests.
    */
   get privateWindow() {
-    return window.QueryInterface(Ci.nsIInterfaceRequestor)
-                 .getInterface(Ci.nsIWebNavigation)
-                 .QueryInterface(Ci.nsIDocShellTreeItem)
-                 .treeOwner
-                 .QueryInterface(Ci.nsIInterfaceRequestor)
-                 .getInterface(Ci.nsIXULWindow)
-                 .docShell.QueryInterface(Ci.nsILoadContext)
-                 .usePrivateBrowsing;
-  },
-
-  set privateWindow(val) {
-    return window.QueryInterface(Ci.nsIInterfaceRequestor)
-                 .getInterface(Ci.nsIWebNavigation)
-                 .QueryInterface(Ci.nsIDocShellTreeItem)
-                 .treeOwner
-                 .QueryInterface(Ci.nsIInterfaceRequestor)
-                 .getInterface(Ci.nsIXULWindow)
-                 .docShell.QueryInterface(Ci.nsILoadContext)
-                 .usePrivateBrowsing = val;
+    return gBrowser.selectedTab.linkedBrowser
+                               .docShell.QueryInterface(Ci.nsILoadContext)
+                               .usePrivateBrowsing;
   }
 };
 

@@ -76,6 +76,7 @@
 #include "sampler.h"
 #include "mozilla/dom/XMLHttpRequestBinding.h"
 #include "nsIDOMFormData.h"
+#include "DictionaryHelpers.h"
 
 #include "nsWrapperCacheInlines.h"
 #include "nsStreamListenerWrapper.h"
@@ -451,7 +452,9 @@ nsXMLHttpRequest::nsXMLHttpRequest()
     mFirstStartRequestSeen(false),
     mInLoadProgressEvent(false),
     mResultJSON(JSVAL_VOID),
-    mResultArrayBuffer(nsnull)
+    mResultArrayBuffer(nsnull),
+    mIsAnon(false),
+    mIsSystem(false)
 {
   nsLayoutStatics::AddRef();
 
@@ -491,41 +494,16 @@ nsXMLHttpRequest::RootResultArrayBuffer()
 nsresult
 nsXMLHttpRequest::Init()
 {
-  // Set the original mPrincipal, if available.
-  // Get JSContext from stack.
-  nsCOMPtr<nsIJSContextStack> stack =
-    do_GetService("@mozilla.org/js/xpc/ContextStack;1");
-
-  if (!stack) {
-    return NS_OK;
-  }
-
-  JSContext *cx;
-
-  if (NS_FAILED(stack->Peek(&cx)) || !cx) {
-    return NS_OK;
-  }
-
-  nsIScriptSecurityManager *secMan = nsContentUtils::GetSecurityManager();
+  nsIScriptSecurityManager* secMan = nsContentUtils::GetSecurityManager();
   nsCOMPtr<nsIPrincipal> subjectPrincipal;
   if (secMan) {
-    nsresult rv = secMan->GetSubjectPrincipal(getter_AddRefs(subjectPrincipal));
-    NS_ENSURE_SUCCESS(rv, rv);
+    secMan->GetSystemPrincipal(getter_AddRefs(subjectPrincipal));
   }
   NS_ENSURE_STATE(subjectPrincipal);
-
-  nsIScriptContext* context = GetScriptContextFromJSContext(cx);
-  nsCOMPtr<nsPIDOMWindow> window;
-  if (context) {
-    window = do_QueryInterface(context->GetGlobalObject());
-    if (window) {
-      window = window->GetCurrentInnerWindow();
-    }
-  }
-
-  Construct(subjectPrincipal, window);
+  Construct(subjectPrincipal, nsnull);
   return NS_OK;
 }
+
 /**
  * This Init method should only be called by C++ consumers.
  */
@@ -561,6 +539,41 @@ nsXMLHttpRequest::Initialize(nsISupports* aOwner, JSContext* cx, JSObject* obj,
   NS_ENSURE_STATE(scriptPrincipal);
 
   Construct(scriptPrincipal->GetPrincipal(), owner);
+  if (argc) {
+    nsresult rv = InitParameters(cx, argv);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+  return NS_OK;
+}
+
+nsresult
+nsXMLHttpRequest::InitParameters(JSContext* aCx, const jsval* aParams)
+{
+  XMLHttpRequestParameters* params = new XMLHttpRequestParameters();
+  nsresult rv = params->Init(aCx, aParams);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // Check for permissions.
+  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(GetOwner());
+  NS_ENSURE_TRUE(window && window->GetDocShell(), NS_OK);
+
+  // Chrome is always allowed access, so do the permission check only
+  // for non-chrome pages.
+  if (!nsContentUtils::IsCallerChrome()) {
+    nsCOMPtr<nsIDocument> doc = do_QueryInterface(window->GetExtantDocument());
+    NS_ENSURE_TRUE(doc, NS_OK);
+
+    nsCOMPtr<nsIURI> uri;
+    doc->NodePrincipal()->GetURI(getter_AddRefs(uri));
+
+    if (!nsContentUtils::URIIsChromeOrInPref(uri, "dom.systemXHR.whitelist")) {
+      return NS_OK;
+    }
+  }
+
+  mIsAnon = params->mozAnon;
+  mIsSystem = params->mozSystem;
+
   return NS_OK;
 }
 
@@ -1711,7 +1724,7 @@ nsXMLHttpRequest::GetCurrentHttpChannel()
 bool
 nsXMLHttpRequest::IsSystemXHR()
 {
-  return !!nsContentUtils::IsSystemPrincipal(mPrincipal);
+  return mIsSystem || nsContentUtils::IsSystemPrincipal(mPrincipal);
 }
 
 nsresult
@@ -2284,7 +2297,7 @@ nsXMLHttpRequest::OnStartRequest(nsIRequest *request, nsISupports *ctxt)
     mResponseXML = do_QueryInterface(responseDoc);
     mResponseXML->SetPrincipal(documentPrincipal);
 
-    if (IsSystemXHR()) {
+    if (nsContentUtils::IsSystemPrincipal(mPrincipal)) {
       mResponseXML->ForceEnableXULXBL();
     }
 
@@ -3047,6 +3060,10 @@ nsXMLHttpRequest::Send(JSContext *aCx, nsIVariant* aVariant, const Nullable<Requ
     // created a listener around 'this', do so now.
 
     listener = new nsStreamListenerWrapper(listener);
+  }
+
+  if (mIsAnon) {
+    AddLoadFlags(mChannel, nsIRequest::LOAD_ANONYMOUS);
   }
 
   NS_ASSERTION(listener != this,
@@ -3888,6 +3905,32 @@ nsXMLHttpRequest::GetUpload(nsIXMLHttpRequestUpload** aUpload)
 {
   nsRefPtr<nsXMLHttpRequestUpload> upload = GetUpload();
   upload.forget(aUpload);
+  return NS_OK;
+}
+
+bool
+nsXMLHttpRequest::GetMozAnon()
+{
+  return mIsAnon;
+}
+
+NS_IMETHODIMP
+nsXMLHttpRequest::GetMozAnon(bool* aAnon)
+{
+  *aAnon = GetMozAnon();
+  return NS_OK;
+}
+
+bool
+nsXMLHttpRequest::GetMozSystem()
+{
+  return IsSystemXHR();
+}
+
+NS_IMETHODIMP
+nsXMLHttpRequest::GetMozSystem(bool* aSystem)
+{
+  *aSystem = GetMozSystem();
   return NS_OK;
 }
 
