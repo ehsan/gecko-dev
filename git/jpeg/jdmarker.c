@@ -79,9 +79,7 @@ typedef enum {			/* JPEG marker codes */
   M_JPG13 = 0xfd,
   M_COM   = 0xfe,
   
-  M_TEM   = 0x01,
-  
-  M_ERROR = 0x100
+  M_TEM   = 0x01
 } JPEG_MARKER;
 
 

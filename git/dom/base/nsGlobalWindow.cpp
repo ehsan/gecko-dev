@@ -30,7 +30,6 @@
  *   Mark Hammond <mhammond@skippinet.com.au>
  *   Ryan Jones <sciguyryan@gmail.com>
  *   Jeff Walden <jwalden+code@mit.edu>
- *   Ben Bucksch <ben.bucksch  beonex.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -68,8 +67,6 @@
 #include "nsReadableUtils.h"
 #include "nsDOMClassInfo.h"
 #include "nsJSEnvironment.h"
-#include "nsCharSeparatedTokenizer.h" // for Accept-Language parsing
-#include "nsUnicharUtils.h"
 
 // Other Classes
 #include "nsIEventListenerManager.h"
@@ -111,6 +108,7 @@
 #include "nsIDOMCrypto.h"
 #endif
 #include "nsIDOMDocument.h"
+#include "nsIDOM3Document.h"
 #include "nsIDOMNSDocument.h"
 #include "nsIDOMDocumentView.h"
 #include "nsIDOMElement.h"
@@ -235,7 +233,6 @@
 #include "mozilla/dom/indexedDB/IndexedDatabaseManager.h"
 
 #include "nsRefreshDriver.h"
-#include "mozAutoDocUpdate.h"
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo* gDOMLeakPRLog;
@@ -275,14 +272,9 @@ static PRBool               gDOMWindowDumpEnabled      = PR_FALSE;
 
 // The default shortest interval/timeout we permit
 #define DEFAULT_MIN_TIMEOUT_VALUE 10 // 10ms
-#define DEFAULT_MIN_BACKGROUND_TIMEOUT_VALUE 1000 // 1000ms
 static PRInt32 gMinTimeoutValue;
-static PRInt32 gMinBackgroundTimeoutValue;
-inline PRInt32
-nsGlobalWindow::DOMMinTimeoutValue() const {
-  PRBool isBackground = !mOuterWindow || mOuterWindow->IsBackground();
-  return
-    NS_MAX(isBackground ? gMinBackgroundTimeoutValue : gMinTimeoutValue, 0);
+static inline PRInt32 DOMMinTimeoutValue() {
+  return NS_MAX(gMinTimeoutValue, 0);
 }
 
 // The number of nested timeouts before we start clamping. HTML5 says 1, WebKit
@@ -754,8 +746,7 @@ nsPIDOMWindow::nsPIDOMWindow(nsPIDOMWindow *aOuterWindow)
   mIsHandlingResizeEvent(PR_FALSE), mIsInnerWindow(aOuterWindow != nsnull),
   mMayHavePaintEventListener(PR_FALSE), mMayHaveTouchEventListener(PR_FALSE),
   mMayHaveAudioAvailableEventListener(PR_FALSE), mIsModalContentWindow(PR_FALSE),
-  mIsActive(PR_FALSE), mIsBackground(PR_FALSE),
-  mInnerWindow(nsnull), mOuterWindow(aOuterWindow),
+  mIsActive(PR_FALSE), mInnerWindow(nsnull), mOuterWindow(aOuterWindow),
   // Make sure no actual window ends up with mWindowID == 0
   mWindowID(++gNextWindowID), mHasNotifiedGlobalCreated(PR_FALSE)
  {}
@@ -904,9 +895,6 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
     nsContentUtils::AddIntPrefVarCache("dom.min_timeout_value",
                                        &gMinTimeoutValue,
                                        DEFAULT_MIN_TIMEOUT_VALUE);
-    nsContentUtils::AddIntPrefVarCache("dom.min_background_timeout_value",
-                                       &gMinBackgroundTimeoutValue,
-                                       DEFAULT_MIN_BACKGROUND_TIMEOUT_VALUE);
   }
 
   if (gDumpFile == nsnull) {
@@ -2470,10 +2458,6 @@ nsGlobalWindow::SetDocShell(nsIDocShell* aDocShell)
       }
       else NS_NewWindowRoot(this, getter_AddRefs(mChromeEventHandler));
     }
-
-    PRBool docShellActive;
-    mDocShell->GetIsActive(&docShellActive);
-    mIsBackground = !docShellActive;
   }
 }
 
@@ -7605,11 +7589,15 @@ nsGlobalWindow::SetKeyboardIndicators(UIStateChangeType aShowAccelerators,
     }
   }
 
-  if (mHasFocus && mFocusedNode) { // send content state notifications
-    nsIDocument *doc = mFocusedNode->GetCurrentDoc();
-    if (doc) {
-      MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
-      doc->ContentStateChanged(mFocusedNode, NS_EVENT_STATE_FOCUSRING);
+  if (mHasFocus) {
+    // send content state notifications
+    nsCOMPtr<nsPresContext> presContext;
+    if (mDocShell) {
+      mDocShell->GetPresContext(getter_AddRefs(presContext));
+      if (presContext) {
+        presContext->EventStateManager()->
+          SetContentState(mFocusedNode, NS_EVENT_STATE_FOCUS);
+      }
     }
   }
 }
@@ -7955,7 +7943,9 @@ nsGlobalWindow::GetSessionStorage(nsIDOMStorage ** aSessionStorage)
     *aSessionStorage = nsnull;
 
     nsString documentURI;
-    mDocument->GetDocumentURI(documentURI);
+    nsCOMPtr<nsIDOM3Document> document3 = do_QueryInterface(mDoc);
+    if (document3)
+        document3->GetDocumentURI(documentURI);
 
     nsresult rv = docShell->GetSessionStorageForPrincipal(principal,
                                                           documentURI,
@@ -8039,7 +8029,9 @@ nsGlobalWindow::GetLocalStorage(nsIDOMStorage ** aLocalStorage)
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsString documentURI;
-    mDocument->GetDocumentURI(documentURI);
+    nsCOMPtr<nsIDOM3Document> document3 = do_QueryInterface(mDoc);
+    if (document3)
+        document3->GetDocumentURI(documentURI);
 
     rv = storageManager->GetLocalStorageForPrincipal(principal,
                                                      documentURI,
@@ -8739,14 +8731,18 @@ nsGlobalWindow::SetTimeoutOrInterval(nsIScriptTimeoutHandler *aHandler,
   }
 
   PRUint32 nestingLevel = sNestingLevel + 1;
-  if (aIsInterval || nestingLevel >= DOM_CLAMP_TIMEOUT_NESTING_LEVEL) {
-    // Don't allow timeouts less than DOMMinTimeoutValue() from
-    // now...
-    interval = NS_MAX(interval, DOMMinTimeoutValue());
-  }
-  else if (interval < 0) {
-    // Clamp negative intervals to 0.
-    interval = 0;
+  if (interval < DOMMinTimeoutValue()) {
+    if (aIsInterval || nestingLevel >= DOM_CLAMP_TIMEOUT_NESTING_LEVEL) {
+      // Don't allow timeouts less than DOMMinTimeoutValue() from
+      // now...
+
+      interval = DOMMinTimeoutValue();;
+    }
+    else if (interval < 0) {
+      // Clamp negative intervals to 0.
+
+      interval = 0;
+    }
   }
 
   NS_ASSERTION(interval >= 0, "DOMMinTimeoutValue() lies");
@@ -10568,56 +10564,19 @@ nsNavigator::GetAppName(nsAString& aAppName)
   return NS_GetNavigatorAppName(aAppName);
 }
 
-/**
- * JS property navigator.language, exposed to web content.
- * Take first value from Accept-Languages (HTTP header), which is
- * the "content language" freely set by the user in the Pref window.
- *
- * Do not use UI language (chosen app locale) here.
- * See RFC 2616, Section 15.1.4 "Privacy Issues Connected to Accept Headers"
- *
- * "en", "en-US" and "i-cherokee" and "" are valid.
- * Fallback in case of invalid pref should be "" (empty string), to
- * let site do fallback, e.g. to site's local language.
- */
 NS_IMETHODIMP
 nsNavigator::GetLanguage(nsAString& aLanguage)
 {
-  // e.g. "de-de, en-us,en"
-  const nsAdoptingString& acceptLang =
-      nsContentUtils::GetLocalizedStringPref("intl.accept_languages");
-  // take everything before the first "," or ";", without trailing space
-  nsCharSeparatedTokenizer langTokenizer(acceptLang, ',');
-  const nsSubstring &firstLangPart = langTokenizer.nextToken();
-  nsCharSeparatedTokenizer qTokenizer(firstLangPart, ';');
-  aLanguage.Assign(qTokenizer.nextToken());
-
-  // checks and fixups
-  // replace "_" with "-", to avoid POSIX/Windows "en_US" notation
-  if (aLanguage.Length() > 2 && aLanguage[2] == PRUnichar('_'))
-    aLanguage.Replace(2, 1, PRUnichar('-')); // TODO replace all
-  // use uppercase for country part, e.g. "en-US", not "en-us", see BCP47
-  // only uppercase 2-letter country codes, not "zh-Hant", "de-DE-x-goethe"
-  if (aLanguage.Length() > 2)
-  {
-    nsCharSeparatedTokenizer localeTokenizer(aLanguage, '-');
-    PRInt32 pos = 0;
-    bool first = true;
-    while (localeTokenizer.hasMoreTokens())
-    {
-      const nsSubstring &code = localeTokenizer.nextToken();
-      if (code.Length() == 2 && !first)
-      {
-        nsAutoString upper(code);
-        ::ToUpperCase(upper);
-        aLanguage.Replace(pos, code.Length(), upper);
-      }
-      pos += code.Length() + 1; // 1 is the separator
-      if (first)
-        first = false;
-    }
+  nsresult rv;
+  nsCOMPtr<nsIHttpProtocolHandler>
+    service(do_GetService(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "http", &rv));
+  if (NS_SUCCEEDED(rv)) {
+    nsCAutoString lang;
+    rv = service->GetLanguage(lang);
+    CopyASCIItoUTF16(lang, aLanguage);
   }
-  return NS_OK;
+
+  return rv;
 }
 
 NS_IMETHODIMP

@@ -88,7 +88,7 @@ NS_IMPL_CI_INTERFACE_GETTER1(nsThreadManager, nsIThreadManager)
 nsresult
 nsThreadManager::Init()
 {
-  mLock = nsAutoLock::NewLock("nsThreadManager::mLock");
+  mLock = PR_NewLock();
   if (!mLock)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -185,7 +185,7 @@ nsThreadManager::Shutdown()
   PR_SetThreadPrivate(mCurThreadIndex, nsnull);
 
   // We don't need this lock anymore.
-  nsAutoLock::DestroyLock(mLock);
+  PR_DestroyLock(mLock);
   mLock = nsnull;
 }
 

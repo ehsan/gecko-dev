@@ -52,6 +52,7 @@
 #include "nsTArray.h"
 #include "nsHashSets.h"
 #include "nsIDOMXMLDocument.h"
+#include "nsIDOM3Document.h"
 #include "nsIDOMDocumentView.h"
 #include "nsIDOMDocumentXBL.h"
 #include "nsIDOMNSDocument.h"
@@ -508,6 +509,7 @@ class nsDocument : public nsIDocument,
                    public nsIDOMDocumentRange,
                    public nsIDOMDocumentTraversal,
                    public nsIDOMDocumentXBL,
+                   public nsIDOM3Document,
                    public nsSupportsWeakReference,
                    public nsIDOMEventTarget,
                    public nsIDOM3EventTarget,
@@ -706,8 +708,9 @@ public:
   virtual void SetReadyStateInternal(ReadyState rs);
   virtual ReadyState GetReadyStateEnum();
 
-  virtual void ContentStateChanged(nsIContent* aContent,
-                                   nsEventStates aStateMask);
+  virtual void ContentStatesChanged(nsIContent* aContent1,
+                                    nsIContent* aContent2,
+                                    nsEventStates aStateMask);
   virtual void DocumentStatesChanged(nsEventStates aStateMask);
 
   virtual void StyleRuleChanged(nsIStyleSheet* aStyleSheet,
@@ -801,6 +804,9 @@ public:
 
   // nsIDOMDocument
   NS_DECL_NSIDOMDOCUMENT
+
+  // nsIDOM3Document
+  NS_DECL_NSIDOM3DOCUMENT
 
   // nsIDOMXMLDocument
   NS_DECL_NSIDOMXMLDOCUMENT
@@ -1052,7 +1058,7 @@ protected:
                               const nsAString& aType,
                               PRBool aPersisted);
 
-  virtual nsPIDOMWindow *GetWindowInternal() const;
+  virtual nsPIDOMWindow *GetWindowInternal();
   virtual nsPIDOMWindow *GetInnerWindowInternal();
   virtual nsIScriptGlobalObject* GetScriptHandlingObjectInternal() const;
   virtual PRBool InternalAllowXULXBL();
@@ -1201,11 +1207,6 @@ private:
   void EnableStyleSheetsForSetInternal(const nsAString& aSheetSet,
                                        PRBool aUpdateCSSLoader);
 
-  // Revoke any pending notifications due to mozRequestAnimationFrame calls
-  void RevokeAnimationFrameNotifications();
-  // Reschedule any notifications we need to handle mozRequestAnimationFrame
-  void RescheduleAnimationFrameNotifications();
-
   // These are not implemented and not supported.
   nsDocument(const nsDocument& aOther);
   nsDocument& operator=(const nsDocument& aOther);
@@ -1273,6 +1274,7 @@ protected:
   NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMDocumentTraversal,         \
                                      nsDocument)                              \
   NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMEventTarget, nsDocument)   \
-  NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMNode, nsDocument)
+  NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMNode, nsDocument)          \
+  NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOM3Document, nsDocument)
 
 #endif /* nsDocument_h___ */

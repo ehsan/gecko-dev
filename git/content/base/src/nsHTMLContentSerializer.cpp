@@ -72,9 +72,6 @@
 #include "nsIEditorDocShell.h"
 #include "nsIEditor.h"
 #include "nsIHTMLEditor.h"
-#include "mozilla/dom/Element.h"
-
-using namespace mozilla::dom;
 
 static const PRInt32 kLongLineLen = 128;
 
@@ -231,8 +228,8 @@ nsHTMLContentSerializer::SerializeHTMLAttributes(nsIContent* aContent,
 }
 
 NS_IMETHODIMP
-nsHTMLContentSerializer::AppendElementStart(Element* aElement,
-                                            Element* aOriginalElement,
+nsHTMLContentSerializer::AppendElementStart(nsIContent *aElement,
+                                            nsIContent *aOriginalElement,
                                             nsAString& aStr)
 {
   NS_ENSURE_ARG(aElement);
@@ -345,7 +342,7 @@ nsHTMLContentSerializer::AppendElementStart(Element* aElement,
 }
   
 NS_IMETHODIMP 
-nsHTMLContentSerializer::AppendElementEnd(Element* aElement,
+nsHTMLContentSerializer::AppendElementEnd(nsIContent *aElement,
                                           nsAString& aStr)
 {
   NS_ENSURE_ARG(aElement);

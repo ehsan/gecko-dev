@@ -53,6 +53,7 @@
 #include "mozilla/dom/Element.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
+#include "nsIDOM3Document.h"
 #include "nsIDOMNSDocument.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMStorageObsolete.h"
@@ -4841,12 +4842,6 @@ nsDocShell::SetIsActive(PRBool aIsActive)
   GetPresShell(getter_AddRefs(pshell));
   if (pshell)
     pshell->SetIsActive(aIsActive);
-
-  // Tell the window about it
-  nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(mScriptGlobal);
-  if (win) {
-      win->SetIsBackground(!aIsActive);
-  }
 
   // Recursively tell all of our children
   PRInt32 n = mChildList.Count();

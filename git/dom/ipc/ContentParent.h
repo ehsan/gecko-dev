@@ -118,8 +118,6 @@ private:
     ContentParent();
     virtual ~ContentParent();
 
-    void Init();
-
     virtual PBrowserParent* AllocPBrowser(const PRUint32& aChromeFlags);
     virtual bool DeallocPBrowser(PBrowserParent* frame);
 

@@ -334,13 +334,13 @@ SECStatus nsNSSHttpRequestSession::trySendAndReceiveFcn(PRPollDesc **pPollDesc,
 void
 nsNSSHttpRequestSession::AddRef()
 {
-  NS_AtomicIncrementRefcnt(mRefCount);
+  PR_AtomicIncrement(&mRefCount);
 }
 
 void
 nsNSSHttpRequestSession::Release()
 {
-  PRInt32 newRefCount = NS_AtomicDecrementRefcnt(mRefCount);
+  PRInt32 newRefCount = PR_AtomicDecrement(&mRefCount);
   if (!newRefCount) {
     delete this;
   }
@@ -568,14 +568,14 @@ nsHTTPListener::nsHTTPListener()
 
 nsresult nsHTTPListener::InitLocks()
 {
-  mLock = nsAutoLock::NewLock("nsHttpListener::mLock");
+  mLock = PR_NewLock();
   if (!mLock)
     return NS_ERROR_OUT_OF_MEMORY;
   
   mCondition = PR_NewCondVar(mLock);
   if (!mCondition)
   {
-    nsAutoLock::DestroyLock(mLock);
+    PR_DestroyLock(mLock);
     mLock = nsnull;
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -592,7 +592,7 @@ nsHTTPListener::~nsHTTPListener()
     PR_DestroyCondVar(mCondition);
   
   if (mLock)
-    nsAutoLock::DestroyLock(mLock);
+    PR_DestroyLock(mLock);
 
   if (mLoader) {
     nsCOMPtr<nsIThread> mainThread(do_GetMainThread());
@@ -1099,16 +1099,16 @@ SECStatus PR_CALLBACK AuthCertificateCallback(void* client_data, PRFileDesc* fd,
         }
 
         // We have found a signer cert that we want to remember.
-        char* nickname = nsNSSCertificate::defaultServerNickname(node->cert);
-        if (nickname && *nickname) {
+        nsCAutoString nickname;
+        nickname = nsNSSCertificate::defaultServerNickname(node->cert);
+        if (!nickname.IsEmpty()) {
           PK11SlotInfo *slot = PK11_GetInternalKeySlot();
           if (slot) {
             PK11_ImportCert(slot, node->cert, CK_INVALID_HANDLE, 
-                            nickname, PR_FALSE);
+                            const_cast<char*>(nickname.get()), PR_FALSE);
             PK11_FreeSlot(slot);
           }
         }
-        PR_FREEIF(nickname);
       }
 
       CERT_DestroyCertList(certList);

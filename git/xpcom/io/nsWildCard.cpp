@@ -207,7 +207,7 @@ static int
 _scan_and_copy(const T *expr, T stop1, T stop2, T *dest)
 {
     register int sx;     /* source index */
-    register T cc;
+    register char cc;
 
     for (sx = 0; (cc = expr[sx]) && cc != stop1 && cc != stop2; sx++) {
         if (cc == '\\') {

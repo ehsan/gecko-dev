@@ -418,8 +418,8 @@ nsUserFontSet::StartLoad(gfxFontEntry *aFontToLoad,
     rv = channel->AsyncOpen(streamLoader, nsnull);
   } else {
     nsCOMPtr<nsIStreamListener> listener =
-      new nsCORSListenerProxy(streamLoader, principal, channel, 
-                              PR_FALSE, &rv);
+      new nsCrossSiteListenerProxy(streamLoader, principal, channel, 
+                                   PR_FALSE, &rv);
     if (NS_FAILED(rv)) {
       fontLoader->DropChannel();  // explicitly need to break ref cycle
     }

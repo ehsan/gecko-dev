@@ -49,12 +49,11 @@
 #include "nsComputedDOMStyle.h"
 #include "nsCSSParser.h"
 #include "mozilla/css/Declaration.h"
-#include "mozilla/dom/Element.h"
+#include "nsCSSStruct.h"
 #include "prlog.h"
 #include <math.h>
 
 namespace css = mozilla::css;
-namespace dom = mozilla::dom;
 
 // HELPER METHODS
 // --------------
@@ -1781,7 +1780,7 @@ nsStyleAnimation::AddWeighted(nsCSSProperty aProperty,
 
 already_AddRefed<css::StyleRule>
 BuildStyleRule(nsCSSProperty aProperty,
-               dom::Element* aTargetElement,
+               nsIContent* aTargetElement,
                const nsAString& aSpecifiedValue,
                PRBool aUseSVGMode)
 {
@@ -1823,14 +1822,15 @@ BuildStyleRule(nsCSSProperty aProperty,
 
 inline
 already_AddRefed<nsStyleContext>
-LookupStyleContext(dom::Element* aElement)
+LookupStyleContext(nsIContent* aElement)
 {
   nsIDocument* doc = aElement->GetCurrentDoc();
   nsIPresShell* shell = doc->GetShell();
   if (!shell) {
     return nsnull;
   }
-  return nsComputedDOMStyle::GetStyleContextForElement(aElement, nsnull, shell);
+  return nsComputedDOMStyle::GetStyleContextForElement(aElement->AsElement(),
+                                                       nsnull, shell);
 }
 
 
@@ -1855,7 +1855,7 @@ LookupStyleContext(dom::Element* aElement)
  */
 already_AddRefed<nsStyleContext>
 StyleWithDeclarationAdded(nsCSSProperty aProperty,
-                          dom::Element* aTargetElement,
+                          nsIContent* aTargetElement,
                           const nsAString& aSpecifiedValue,
                           PRBool aUseSVGMode)
 {
@@ -1888,11 +1888,12 @@ StyleWithDeclarationAdded(nsCSSProperty aProperty,
 
 PRBool
 nsStyleAnimation::ComputeValue(nsCSSProperty aProperty,
-                               dom::Element* aTargetElement,
+                               nsIContent* aTargetElement,
                                const nsAString& aSpecifiedValue,
                                PRBool aUseSVGMode,
                                Value& aComputedValue)
 {
+  // XXXbz aTargetElement should be an Element
   NS_ABORT_IF_FALSE(aTargetElement, "null target element");
   NS_ABORT_IF_FALSE(aTargetElement->GetCurrentDoc(),
                     "we should only be able to actively animate nodes that "

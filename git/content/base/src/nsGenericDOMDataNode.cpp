@@ -1115,10 +1115,11 @@ nsGenericDOMDataNode::WalkContentStyleRules(nsRuleWalker* aRuleWalker)
 }
 
 #ifdef MOZ_SMIL
-nsIDOMCSSStyleDeclaration*
-nsGenericDOMDataNode::GetSMILOverrideStyle()
+nsresult
+nsGenericDOMDataNode::GetSMILOverrideStyle(nsIDOMCSSStyleDeclaration** aStyle)
 {
-  return nsnull;
+  *aStyle = nsnull;
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 css::StyleRule*

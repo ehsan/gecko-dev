@@ -575,8 +575,6 @@ pref("dom.send_after_paint_to_content", false);
 
 // Timeout clamp in ms for timeouts we clamp
 pref("dom.min_timeout_value", 10);
-// And for background windows
-pref("dom.min_background_timeout_value", 1000);
 
 // Parsing perf prefs. For now just mimic what the old code did.
 #ifndef XP_WIN
@@ -1014,10 +1012,10 @@ pref("intl.menuitems.insertseparatorbeforeaccesskeys","chrome://global/locale/in
 pref("intl.charsetmenu.browser.static",     "chrome://global/locale/intl.properties");
 pref("intl.charsetmenu.browser.more1",      "ISO-8859-1, ISO-8859-15, IBM850, x-mac-roman, windows-1252, ISO-8859-14, ISO-8859-7, x-mac-greek, windows-1253, x-mac-icelandic, ISO-8859-10, ISO-8859-3");
 pref("intl.charsetmenu.browser.more2",      "ISO-8859-4, ISO-8859-13, windows-1257, IBM852, ISO-8859-2, x-mac-ce, windows-1250, x-mac-croatian, IBM855, ISO-8859-5, ISO-IR-111, KOI8-R, x-mac-cyrillic, windows-1251, IBM866, KOI8-U, x-mac-ukrainian, ISO-8859-16, x-mac-romanian");
-pref("intl.charsetmenu.browser.more3",      "GB2312, gbk, gb18030, HZ-GB-2312, ISO-2022-CN, Big5, Big5-HKSCS, x-euc-tw, EUC-JP, ISO-2022-JP, Shift_JIS, EUC-KR, x-windows-949, x-johab, ISO-2022-KR");
+pref("intl.charsetmenu.browser.more3",      "GB2312, x-gbk, gb18030, HZ-GB-2312, ISO-2022-CN, Big5, Big5-HKSCS, x-euc-tw, EUC-JP, ISO-2022-JP, Shift_JIS, EUC-KR, x-windows-949, x-johab, ISO-2022-KR");
 pref("intl.charsetmenu.browser.more4",      "armscii-8, GEOSTD8, TIS-620, ISO-8859-11, windows-874, IBM857, ISO-8859-9, x-mac-turkish, windows-1254, x-viet-tcvn5712, VISCII, x-viet-vps, windows-1258, x-mac-devanagari, x-mac-gujarati, x-mac-gurmukhi");
 pref("intl.charsetmenu.browser.more5",      "ISO-8859-6, windows-1256, IBM864, ISO-8859-8-I, windows-1255, ISO-8859-8, IBM862");
-pref("intl.charsetmenu.browser.unicode",    "UTF-8, UTF-16LE, UTF-16BE");
+pref("intl.charsetmenu.browser.unicode",    "UTF-8, UTF-16LE, UTF-16BE, UTF-32, UTF-32LE, UTF-32BE");
 pref("intl.charsetmenu.mailedit",           "chrome://global/locale/intl.properties");
 pref("intl.charsetmenu.browser.cache",      "");
 pref("intl.charsetmenu.mailview.cache",     "");
@@ -3000,6 +2998,32 @@ pref("mousewheel.system_scroll_override_on_root_content.enabled", false);
 # XP_UNIX
 #endif
 #endif
+#endif
+
+#if OS_ARCH==OpenVMS
+
+pref("mail.use_builtin_movemail", false);
+
+pref("helpers.global_mime_types_file", "/sys$manager/netscape/mime.types");
+pref("helpers.global_mailcap_file", "/sys$manager/netscape/mailcap");
+pref("helpers.private_mime_types_file", "/sys$login/.mime.types");
+pref("helpers.private_mailcaptypes_file", "/sys$login/.mailcap");
+
+pref("applications.telnet", "create /term /detach \"telnet %h %p\"");
+pref("applications.tn3270", "create /term /detach \"telnet /term=IBM-3278-5 %h %p\"");
+pref("applications.rlogin", "create /term /detach \"rlogin %h\"");
+pref("applications.rlogin_with_user", "create /term /detach \"rlogin %h -l %u\"");
+
+/* PostScript module specific (see unix.js for additional configuration details) */
+pref("print.postscript.print_command", "print /delete");
+/* Print module independent */
+pref("print.print_command", "print /delete");
+pref("print.print_color", false);
+
+pref("browser.cache.disk.capacity", 4096);
+pref("plugin.soname.list", "");
+
+# OpenVMS
 #endif
 
 #if OS_ARCH==AIX

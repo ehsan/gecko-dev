@@ -108,7 +108,6 @@
 #endif
 #include "nsAutoPtr.h"
 
-#include "nsBidiFrames.h"
 #include "nsBidiPresUtils.h"
 #include "nsBidiUtils.h"
 
@@ -290,7 +289,8 @@ struct TextRunMappedFlow {
  */
 struct TextRunUserData {
   TextRunMappedFlow* mMappedFlows;
-  PRUint32           mMappedFlowCount;
+  PRInt32            mMappedFlowCount;
+
   PRUint32           mLastFlowIndex;
 };
 
@@ -476,7 +476,7 @@ UnhookTextRunFromFrames(gfxTextRun* aTextRun, nsTextFrame* aStartContinuation)
     TextRunUserData* userData =
       static_cast<TextRunUserData*>(aTextRun->GetUserData());
     PRInt32 destroyFromIndex = aStartContinuation ? -1 : 0;
-    for (PRUint32 i = 0; i < userData->mMappedFlowCount; ++i) {
+    for (PRInt32 i = 0; i < userData->mMappedFlowCount; ++i) {
       nsTextFrame* userDataFrame = userData->mMappedFlows[i].mStartFrame;
       PRBool found =
         ClearAllTextRunReferences(userDataFrame, aTextRun,
@@ -498,9 +498,9 @@ UnhookTextRunFromFrames(gfxTextRun* aTextRun, nsTextFrame* aStartContinuation)
       aTextRun->SetUserData(nsnull);
     }
     else {
-      userData->mMappedFlowCount = PRUint32(destroyFromIndex);
-      if (userData->mLastFlowIndex >= PRUint32(destroyFromIndex)) {
-        userData->mLastFlowIndex = PRUint32(destroyFromIndex) - 1;
+      userData->mMappedFlowCount = destroyFromIndex;
+      if (userData->mLastFlowIndex >= destroyFromIndex) {
+        userData->mLastFlowIndex = destroyFromIndex - 1;
       }
     }
   }
@@ -560,6 +560,9 @@ MakeTextRun(const PRUnichar *aText, PRUint32 aLength,
         gTextRuns->RemoveFromCache(textRun);
         return nsnull;
     }
+#ifdef NOISY_BIDI
+    printf("Created textrun\n");
+#endif
     return textRun.forget();
 }
 
@@ -584,6 +587,9 @@ MakeTextRun(const PRUint8 *aText, PRUint32 aLength,
         gTextRuns->RemoveFromCache(textRun);
         return nsnull;
     }
+#ifdef NOISY_BIDI
+    printf("Created textrun\n");
+#endif
     return textRun.forget();
 }
 
@@ -1301,7 +1307,7 @@ PRBool BuildTextRunsScanner::IsTextRunValidForMappedFlows(gfxTextRun* aTextRun)
       mMappedFlows[0].mEndFrame == nsnull;
 
   TextRunUserData* userData = static_cast<TextRunUserData*>(aTextRun->GetUserData());
-  if (userData->mMappedFlowCount != mMappedFlows.Length())
+  if (userData->mMappedFlowCount != PRInt32(mMappedFlows.Length()))
     return PR_FALSE;
   PRUint32 i;
   for (i = 0; i < mMappedFlows.Length(); ++i) {
@@ -2066,15 +2072,15 @@ FindFlowForContent(TextRunUserData* aUserData, nsIContent* aContent)
   PRInt32 sign = 1;
   // Search starting at the current position and examine close-by
   // positions first, moving further and further away as we go.
-  while (i >= 0 && PRUint32(i) < aUserData->mMappedFlowCount) {
+  while (i >= 0 && i < aUserData->mMappedFlowCount) {
     TextRunMappedFlow* flow = &aUserData->mMappedFlows[i];
     if (flow->mStartFrame->GetContent() == aContent) {
       return flow;
     }
 
     i += delta;
+    delta = -delta - sign;
     sign = -sign;
-    delta = -delta + sign;
   }
 
   // We ran into an array edge.  Add |delta| to |i| once more to get
@@ -2082,7 +2088,7 @@ FindFlowForContent(TextRunUserData* aUserData, nsIContent* aContent)
   // the |sign| direction.
   i += delta;
   if (sign > 0) {
-    for (; i < PRInt32(aUserData->mMappedFlowCount); ++i) {
+    for (; i < aUserData->mMappedFlowCount; ++i) {
       TextRunMappedFlow* flow = &aUserData->mMappedFlows[i];
       if (flow->mStartFrame->GetContent() == aContent) {
         return flow;
@@ -2122,7 +2128,7 @@ BuildTextRunsScanner::AssignTextRun(gfxTextRun* aTextRun)
           TextRunUserData* userData =
             static_cast<TextRunUserData*>(textRun->GetUserData());
          
-          if (userData->mMappedFlowCount >= mMappedFlows.Length() ||
+          if (PRUint32(userData->mMappedFlowCount) >= mMappedFlows.Length() ||
               userData->mMappedFlows[userData->mMappedFlowCount - 1].mStartFrame !=
               mMappedFlows[userData->mMappedFlowCount - 1].mStartFrame) {
             NS_WARNING("REASSIGNING MULTIFLOW TEXT RUN (not append)!");
@@ -2219,7 +2225,7 @@ nsTextFrame::EnsureTextRun(gfxContext* aReferenceContext, nsIFrame* aLineContain
   if (flow) {
     // Since textruns can only contain one flow for a given content element,
     // this must be our flow.
-    PRUint32 flowIndex = flow - userData->mMappedFlows;
+    PRInt32 flowIndex = flow - userData->mMappedFlows;
     userData->mLastFlowIndex = flowIndex;
     gfxSkipCharsIterator iter(mTextRun->GetSkipChars(),
                               flow->mDOMOffsetToBeforeTransformOffset, mContentOffset);
@@ -6070,18 +6076,12 @@ nsTextFrame::AddInlineMinWidthForFlow(nsIRenderingContext *aRenderingContext,
   // If we're hyphenating, the PropertyProvider needs the actual length;
   // otherwise we can just pass PR_INT32_MAX to mean "all the text"
   PRInt32 len = PR_INT32_MAX;
-  PRBool hyphenating = frag->GetLength() > 0 &&
+  PRBool hyphenating =
     (mTextRun->GetFlags() & gfxTextRunFactory::TEXT_ENABLE_HYPHEN_BREAKS) != 0;
   if (hyphenating) {
-    len = frag->GetLength() - iter.GetOriginalOffset();
-#ifdef DEBUG
-    // check that the length we're going to pass to PropertyProvider matches
-    // the expected range of text in the run
-    gfxSkipCharsIterator tmpIter(iter);
-    tmpIter.AdvanceOriginal(len);
-    NS_ASSERTION(tmpIter.GetSkippedOffset() == flowEndInTextRun,
-                 "nsTextFragment length mismatch?");
-#endif
+    gfxSkipCharsIterator tmp(iter);
+    len =
+      tmp.ConvertSkippedToOriginal(flowEndInTextRun) - iter.GetOriginalOffset();
   }
   PropertyProvider provider(mTextRun, textStyle, frag, this,
                             iter, len, nsnull, 0);
@@ -6605,6 +6605,10 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
       nsBlinkTimer::RemoveBlinkFrame(this);
     }
   }
+
+#ifdef NOISY_BIDI
+    printf("Reflowed textframe\n");
+#endif
 
   const nsStyleText* textStyle = GetStyleText();
 

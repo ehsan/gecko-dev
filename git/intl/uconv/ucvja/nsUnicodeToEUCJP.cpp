@@ -49,23 +49,26 @@ static const PRInt16 g0201ShiftOutTable[] =  {
         ShiftOutCell(u1BytePrefix8EChar, 2, 0x00, 0xA1, 0x00, 0xDF)
 };
 
-#define SIZE_OF_TABLES 3
+#define SIZE_OF_TABLES 4
 static const uScanClassID gScanClassIDs[SIZE_OF_TABLES] = {
   u2BytesGRCharset,
   u2BytesGRCharset,
-  uMultibytesCharset
+  uMultibytesCharset,
+  u2BytesGRPrefix8FCharset
 };
 
 static const PRInt16 *gShiftTables[SIZE_OF_TABLES] =  {
     0,
     0,
-    g0201ShiftOutTable
+    g0201ShiftOutTable,
+    0
 };
 
 static const PRUint16 *gMappingTables[SIZE_OF_TABLES] = {
     g_uf0208Mapping,
     g_uf0208extMapping,
-    g_uf0201Mapping
+    g_uf0201Mapping,
+    g_uf0212Mapping
 };
 
 nsresult

@@ -6578,10 +6578,17 @@ nsIFrame::IsFocusable(PRInt32 *aTabIndex, PRBool aWithMouse)
         // When clicked on, the selection position within the element 
         // will be enough to make them keyboard scrollable.
         nsIScrollableFrame *scrollFrame = do_QueryFrame(this);
-        if (scrollFrame && !scrollFrame->GetActualScrollbarSizes().IsZero()) {
+        if (scrollFrame) {
+          nsIScrollableFrame::ScrollbarStyles styles =
+            scrollFrame->GetScrollbarStyles();
+          if (styles.mVertical == NS_STYLE_OVERFLOW_SCROLL ||
+              styles.mVertical == NS_STYLE_OVERFLOW_AUTO ||
+              styles.mHorizontal == NS_STYLE_OVERFLOW_SCROLL ||
+              styles.mHorizontal == NS_STYLE_OVERFLOW_AUTO) {
             // Scroll bars will be used for overflow
             isFocusable = PR_TRUE;
             tabIndex = 0;
+          }
         }
       }
     }
@@ -7592,8 +7599,8 @@ DR_FrameTypeInfo::DR_FrameTypeInfo(nsIAtom* aFrameType,
                                    const char* aFrameName)
 {
   mType = aFrameType;
-  PL_strncpyz(mNameAbbrev, aFrameNameAbbrev, sizeof(mNameAbbrev));
-  PL_strncpyz(mName, aFrameName, sizeof(mName));
+  strcpy(mNameAbbrev, aFrameNameAbbrev);
+  strcpy(mName, aFrameName);
 }
 
 struct DR_FrameTreeNode

@@ -47,7 +47,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS1(nsNSSCertCache, nsINSSCertCache)
 nsNSSCertCache::nsNSSCertCache()
 :mCertList(nsnull)
 {
-  mutex = nsAutoLock::NewLock("nsNSSCertCache::mutex");
+  mutex = PR_NewLock();
 }
 
 nsNSSCertCache::~nsNSSCertCache()
@@ -71,7 +71,7 @@ void nsNSSCertCache::destructorSafeDestroyNSSReference()
     return;
 
   if (mutex) {
-    nsAutoLock::DestroyLock(mutex);
+    PR_DestroyLock(mutex);
     mutex = nsnull;
   }
 }

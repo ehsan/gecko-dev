@@ -213,13 +213,6 @@ function TabItem(tab, options) {
 
 TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // ----------
-  // Function: toString
-  // Prints [TabItem (tab)] for debug use
-  toString: function TabItem_toString() {
-    return "[TabItem (" + this.tab + ")]";
-  },
-
-  // ----------
   // Function: forceCanvasSize
   // Repaints the thumbnail with the given resolution, and forces it
   // to stay that resolution until unforceCanvasSize is called.
@@ -679,8 +672,6 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       let transform = this.getZoomTransform();
       TabItems.pausePainting();
 
-      if (this.parent && this.parent.expanded)
-        $tabEl.removeClass("stack-trayed");
       $tabEl.addClass("front");
       $canvas
         .css({ '-moz-transform-origin': transform.transformOrigin })
@@ -721,7 +712,6 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         complete();
     };
 
-    UI.setActiveTab(this);
     TabItems._update(this.tab, {force: true});
 
     $tab.addClass("front");
@@ -823,13 +813,6 @@ let TabItems = {
   tabItemPadding: {},
 
   // ----------
-  // Function: toString
-  // Prints [TabItems count=count] for debug use
-  toString: function TabItems_toString() {
-    return "[TabItems count=" + this.items.length + "]";
-  },
-
-  // ----------
   // Function: init
   // Set up the necessary tracking to maintain the <TabItems>s.
   init: function TabItems_init() {
@@ -872,9 +855,7 @@ let TabItems = {
       if (tab.ownerDocument.defaultView != gWindow || tab.pinned)
         return;
 
-      // XXX bug #635975 - don't unlink the tab if the dom window is closing.
-      if (!UI.isDOMWindowClosing)
-        self.unlink(tab);
+      self.unlink(tab);
     }
     for (let name in this._eventListeners) {
       AllTabs.register(name, this._eventListeners[name]);
@@ -1358,13 +1339,6 @@ TabPriorityQueue.prototype = {
   _high: [], // high priority queue
 
   // ----------
-  // Function: toString
-  // Prints [TabPriorityQueue count=count] for debug use
-  toString: function TabPriorityQueue_toString() {
-    return "[TabPriorityQueue count=" + (this._low.length + this._high.length) + "]";
-  },
-
-  // ----------
   // Function: clear
   // Empty the update queue
   clear: function TabPriorityQueue_clear() {
@@ -1465,13 +1439,6 @@ function TabCanvas(tab, canvas) {
 };
 
 TabCanvas.prototype = {
-  // ----------
-  // Function: toString
-  // Prints [TabCanvas (tab)] for debug use
-  toString: function TabCanvas_toString() {
-    return "[TabCanvas (" + this.tab + ")]";
-  },
-
   // ----------
   // Function: paint
   paint: function TabCanvas_paint(evt) {

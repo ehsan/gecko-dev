@@ -111,7 +111,7 @@ nsIOThreadPool::Init()
     mNumIdleThreads = 0;
     mShutdown = PR_FALSE;
 
-    mLock = nsAutoLock::NewLock("nsIOThreadPool::mLock");
+    mLock = PR_NewLock();
     if (!mLock)
         return NS_ERROR_OUT_OF_MEMORY;
 
@@ -146,7 +146,7 @@ nsIOThreadPool::~nsIOThreadPool()
     if (mExitThreadCV)
         PR_DestroyCondVar(mExitThreadCV);
     if (mLock)
-        nsAutoLock::DestroyLock(mLock);
+        PR_DestroyLock(mLock);
 }
 
 void

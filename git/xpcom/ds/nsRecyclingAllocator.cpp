@@ -78,7 +78,7 @@ nsRecyclingAllocator::nsRecyclingAllocator(PRUint32 nbucket, PRUint32 recycleAft
     , mId(id), mNAllocated(0)
 #endif
 {
-    mLock = nsAutoLock::NewLock("nsRecyclingAllocatior::mLock");
+    mLock = PR_NewLock();
     NS_ASSERTION(mLock, "Recycling allocator cannot get lock");
 }
 
@@ -105,7 +105,7 @@ nsRecyclingAllocator::~nsRecyclingAllocator()
 
     if (mLock)
     {
-        nsAutoLock::DestroyLock(mLock);
+        PR_DestroyLock(mLock);
         mLock = nsnull;
     }
 }

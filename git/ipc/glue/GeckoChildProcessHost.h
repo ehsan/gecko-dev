@@ -111,8 +111,6 @@ protected:
   bool mChannelInitialized;
   FilePath mProcessPath;
 
-  static PRInt32 mChildCounter;
-
 #ifdef XP_WIN
   void InitWindowsGroupID();
   nsString mGroupId;
@@ -131,10 +129,6 @@ protected:
 
 private:
   DISALLOW_EVIL_CONSTRUCTORS(GeckoChildProcessHost);
-
-  // Does the actual work for AsyncLaunch, on the IO thread.
-  bool PerformAsyncLaunchInternal(std::vector<std::string>& aExtraOpts,
-                                  base::ProcessArchitecture arch);
 };
 
 } /* namespace ipc */

@@ -90,7 +90,7 @@ public:
     virtual ~MyCopier()
     {
         if (mLock)
-            nsAutoLock::DestroyLock(mLock);
+            PR_DestroyLock(mLock);
         if (mInput)
             mInput->Close();
         if (mOutput)
@@ -151,7 +151,7 @@ public:
 
     nsresult AsyncCopy(nsITransport *srcTrans, nsITransport *destTrans)
     {
-        mLock = nsAutoLock::NewLock("MyCopier::mLock");
+        mLock = PR_NewLock();
         if (!mLock)
             return NS_ERROR_OUT_OF_MEMORY;
 

@@ -79,7 +79,7 @@
 #include "nsCCUncollectableMarker.h"
 #include "nsTextFragment.h"
 #include "nsCSSRuleProcessor.h"
-#include "nsCrossSiteListenerProxy.h"
+#include "nsXMLHttpRequest.h"
 #include "nsWebSocket.h"
 #include "nsDOMThreadService.h"
 #include "nsHTMLDNSPrefetch.h"
@@ -108,8 +108,10 @@
 #include "nsMathMLOperators.h"
 #endif
 
+#ifndef MOZILLA_PLAINTEXT_EDITOR_ONLY
 #include "nsHTMLEditor.h"
 #include "nsTextServicesDocument.h"
+#endif
 
 #ifdef MOZ_MEDIA
 #include "nsMediaDecoder.h"
@@ -220,8 +222,10 @@ nsLayoutStatics::Initialize()
   nsMathMLOperators::AddRefTable();
 #endif
 
+#ifndef MOZILLA_PLAINTEXT_EDITOR_ONLY
   nsEditProperty::RegisterAtoms();
   nsTextServicesDocument::RegisterAtoms();
+#endif
 
 #ifdef DEBUG
   nsFrame::DisplayReflowStartup();
@@ -275,7 +279,7 @@ nsLayoutStatics::Initialize()
   nsIPresShell::InitializeStatics();
   nsRefreshDriver::InitializeStatics();
 
-  nsCORSListenerProxy::Startup();
+  nsCrossSiteListenerProxy::Startup();
 
   rv = nsFrameList::Init();
   if (NS_FAILED(rv)) {
@@ -356,8 +360,10 @@ nsLayoutStatics::Shutdown()
   nsXBLWindowKeyHandler::ShutDown();
   nsAutoCopyListener::Shutdown();
 
+#ifndef MOZILLA_PLAINTEXT_EDITOR_ONLY
   nsHTMLEditor::Shutdown();
   nsTextServicesDocument::Shutdown();
+#endif
 
   nsDOMThreadService::Shutdown();
 
@@ -365,7 +371,7 @@ nsLayoutStatics::Shutdown()
   nsAudioStream::ShutdownLibrary();
 #endif
 
-  nsCORSListenerProxy::Shutdown();
+  nsXMLHttpRequest::ShutdownACCache();
   
   nsWebSocket::ReleaseGlobals();
   

@@ -117,10 +117,8 @@ def _actorName(pname, side):
 def _actorIdType():
     return Type('int32')
 
-def _actorId(actor=None):
-    if actor is not None:
-        return ExprSelect(actor, '->', 'mId')
-    return ExprVar('mId')
+def _actorId(actor):
+    return ExprSelect(actor, '->', 'mId')
 
 def _actorHId(actorhandle):
     return ExprSelect(actorhandle, '.', 'mId')
@@ -443,7 +441,6 @@ class _DestroyReason:
     AncestorDeletion = ExprVar('AncestorDeletion')
     NormalShutdown = ExprVar('NormalShutdown')
     AbnormalShutdown = ExprVar('AbnormalShutdown')
-    FailedConstructor = ExprVar('FailedConstructor')
 
 ##-----------------------------------------------------------------------------
 ## Intermediate representation (IR) nodes used during lowering
@@ -2963,24 +2960,13 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
             destroysubtreevar.name,
             params=[ Decl(_DestroyReason.Type(), whyvar.name) ]))
 
-        if ptype.isManaged():
-            destroysubtree.addstmt(
-                Whitespace('// Unregister from our manager.\n', indent=1))
-            destroysubtree.addstmts(self.unregisterActor())
-            destroysubtree.addstmt(Whitespace.NL)
-
         if ptype.isManager():
             # only declare this for managers to avoid unused var warnings
             destroysubtree.addstmts([
                 StmtDecl(
                     Decl(_DestroyReason.Type(), subtreewhyvar.name),
                     init=ExprConditional(
-                        ExprBinary(
-                            ExprBinary(whyvar, '==',
-                                       _DestroyReason.Deletion),
-                            '||',
-                            ExprBinary(whyvar, '==',
-                                       _DestroyReason.FailedConstructor)),
+                        ExprBinary(_DestroyReason.Deletion, '==', whyvar),
                         _DestroyReason.AncestorDeletion, whyvar)),
                 Whitespace.NL
             ])
@@ -3005,15 +2991,10 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
                 foreachdestroy,
             ])
             destroysubtree.addstmt(block)
-
-        if len(ptype.manages):
-            destroysubtree.addstmt(Whitespace.NL)
-        destroysubtree.addstmts([ Whitespace('// Finally, destroy "us".\n',
-                                             indent=1),
-                                  StmtExpr(ExprCall(_destroyMethod(),
-                                                    args=[ whyvar ]))
-                                ])
-
+        # finally, destroy "us"
+        destroysubtree.addstmt(StmtExpr(
+            ExprCall(_destroyMethod(), args=[ whyvar ])))
+        
         self.cls.addstmts([ destroysubtree, Whitespace.NL ])
 
         ## DeallocSubtree()
@@ -4180,11 +4161,14 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
 
     def failCtorIf(self, md, cond):
         actorvar = md.actorDecl().var()
-        type = md.decl.type.constructedType()
         failif = StmtIf(cond)
-        failif.addifstmts(self.destroyActor(md, actorvar,
-                                            why=_DestroyReason.FailedConstructor)
-                          + [ StmtReturn(ExprLiteral.NULL) ])
+        failif.addifstmts(
+            self.unregisterActor(actorvar)
+            + [ StmtExpr(self.callRemoveActor(
+                    actorvar,
+                    ipdltype=md.decl.type.constructedType())),
+                StmtReturn(ExprLiteral.NULL),
+            ])
         return [ failif ]
 
     def genHelperCtor(self, md):
@@ -4255,24 +4239,17 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
 
         return method
 
-    def destroyActor(self, md, actorexpr, why=_DestroyReason.Deletion):
-        if md.decl.type.isCtor():
-            destroyedType = md.decl.type.constructedType()
-        else:
-            destroyedType = self.protocol.decl.type
-        return ([ StmtExpr(self.callActorDestroy(actorexpr, why)),
-                  StmtExpr(self.callDeallocSubtree(md, actorexpr)),
-                  StmtExpr(self.callRemoveActor(
-                      actorexpr,
-                      manager=self.protocol.managerVar(actorexpr),
-                      ipdltype=destroyedType))
-                ])
-
     def dtorPrologue(self, actorexpr):
         return [ self.failIfNullActor(actorexpr), Whitespace.NL ]
 
     def dtorEpilogue(self, md, actorexpr):
-        return self.destroyActor(md, actorexpr)
+        return (self.unregisterActor(actorexpr)
+                + [ StmtExpr(self.callActorDestroy(actorexpr)),
+                    StmtExpr(self.callDeallocSubtree(md, actorexpr)),
+                    StmtExpr(self.callRemoveActor(
+                        actorexpr,
+                        manager=self.protocol.managerVar(actorexpr)))
+                  ])
 
     def genAsyncSendMethod(self, md):
         method = MethodDefn(self.makeSendMethodDecl(md))
@@ -4393,7 +4370,7 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
         failif.addifstmt(StmtReturn(retOnNull))
         return failif
 
-    def unregisterActor(self, actorexpr=None):
+    def unregisterActor(self, actorexpr):
         return [ StmtExpr(ExprCall(self.protocol.unregisterMethod(actorexpr),
                                    args=[ _actorId(actorexpr) ])),
                  StmtExpr(ExprAssn(_actorId(actorexpr), _FREED_ACTOR_ID)) ]

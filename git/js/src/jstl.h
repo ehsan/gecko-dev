@@ -175,9 +175,6 @@ template <> struct IsPodType<double>          { static const bool result = true;
 template <class T, size_t N> inline T *ArraySize(T (&)[N]) { return N; }
 template <class T, size_t N> inline T *ArrayEnd(T (&arr)[N]) { return arr + N; }
 
-template <bool cond, typename T, T v1, T v2> struct If        { static const T result = v1; };
-template <typename T, T v1, T v2> struct If<false, T, v1, v2> { static const T result = v2; };
-
 } /* namespace tl */
 
 /* Useful for implementing containers that assert non-reentrancy */
@@ -314,9 +311,6 @@ class LazilyConstructed
 
     T &asT() { return *storage.addr(); }
 
-    explicit LazilyConstructed(const LazilyConstructed &other);
-    const LazilyConstructed &operator=(const LazilyConstructed &other);
-
   public:
     LazilyConstructed() { constructed = false; }
     ~LazilyConstructed() { if (constructed) asT().~T(); }
@@ -370,11 +364,6 @@ class LazilyConstructed
     void destroy() {
         ref().~T();
         constructed = false;
-    }
-
-    void destroyIfConstructed() {
-        if (!empty())
-            destroy();
     }
 };
 

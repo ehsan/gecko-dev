@@ -650,11 +650,6 @@ nsDocAccessible::Shutdown()
 
   RemoveEventListeners();
 
-  // Mark the document as shutdown before AT is notified about the document
-  // removal from its container (valid for root documents on ATK).
-  nsCOMPtr<nsIDocument> kungFuDeathGripDoc = mDocument;
-  mDocument = nsnull;
-
   if (mParent) {
     nsDocAccessible* parentDocument = mParent->GetDocAccessible();
     if (parentDocument)
@@ -676,6 +671,9 @@ nsDocAccessible::Shutdown()
   mDependentIDsHash.Clear();
   mNodeToAccessibleMap.Clear();
   ClearCache(mAccessibleCache);
+
+  nsCOMPtr<nsIDocument> kungFuDeathGripDoc = mDocument;
+  mDocument = nsnull;
 
   nsHyperTextAccessibleWrap::Shutdown();
 
@@ -1231,17 +1229,19 @@ void nsDocAccessible::ContentAppended(nsIDocument *aDocument,
 {
 }
 
-void nsDocAccessible::ContentStateChanged(nsIDocument* aDocument,
-                                          nsIContent* aContent,
-                                          nsEventStates aStateMask)
+void nsDocAccessible::ContentStatesChanged(nsIDocument* aDocument,
+                                           nsIContent* aContent1,
+                                           nsIContent* aContent2,
+                                           nsEventStates aStateMask)
 {
   if (aStateMask.HasState(NS_EVENT_STATE_CHECKED)) {
-    nsHTMLSelectOptionAccessible::SelectionChangedIfOption(aContent);
+    nsHTMLSelectOptionAccessible::SelectionChangedIfOption(aContent1);
+    nsHTMLSelectOptionAccessible::SelectionChangedIfOption(aContent2);
   }
 
   if (aStateMask.HasState(NS_EVENT_STATE_INVALID)) {
     nsRefPtr<AccEvent> event =
-      new AccStateChangeEvent(aContent, nsIAccessibleStates::STATE_INVALID,
+      new AccStateChangeEvent(aContent1, nsIAccessibleStates::STATE_INVALID,
                               PR_FALSE, PR_TRUE);
     FireDelayedAccessibleEvent(event);
    }
@@ -1472,10 +1472,7 @@ nsDocAccessible::NotifyOfCachingEnd(nsAccessible* aAccessible)
         // Make sure we keep children updated. While we're inside of caching
         // loop then we must exist it with cached children.
         nsAccessible* container = GetContainerAccessible(content);
-        NS_ASSERTION(container,
-                     "Got a referenced element that is not in document!");
-        if (container)
-          container->UpdateChildren();
+        container->UpdateChildren();
       }
     }
     mInvalidationList.Clear();
@@ -1953,9 +1950,8 @@ nsDocAccessible::CacheChildrenInSubtree(nsAccessible* aRoot)
   PRUint32 count = aRoot->GetChildCount();
   for (PRUint32 idx = 0; idx < count; idx++)  {
     nsAccessible* child = aRoot->GetChildAt(idx);
-    NS_ASSERTION(child, "Illicit tree change while tree is created!");
     // Don't cross document boundaries.
-    if (child && child->IsContent())
+    if (child->IsContent())
       CacheChildrenInSubtree(child);
   }
 }

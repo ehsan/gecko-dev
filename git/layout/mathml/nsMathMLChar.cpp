@@ -1156,8 +1156,7 @@ public:
                      nscoord              aTargetSize,
                      PRUint32             aStretchHint,
                      nsBoundingMetrics&   aStretchedMetrics,
-                     const nsAString&     aFamilies,
-                     PRBool&              aGlyphFound)
+                     const nsAString&     aFamilies)
     : mChar(aChar),
       mPresContext(aPresContext),
       mRenderingContext(aRenderingContext),
@@ -1167,8 +1166,7 @@ public:
       mBoundingMetrics(aStretchedMetrics),
       mFamilies(aFamilies),
       mTryVariants(PR_TRUE),
-      mTryParts(PR_TRUE),
-      mGlyphFound(aGlyphFound) {}
+      mTryParts(PR_TRUE) {}
 
   static PRBool
   EnumCallback(const nsString& aFamily, PRBool aGeneric, void *aData);
@@ -1197,7 +1195,6 @@ public:
 private:
   nsAutoTArray<nsGlyphTable*,16> mTablesTried;
   nsGlyphTable* mGlyphTable; // for this callback
-  PRBool&       mGlyphFound;
 };
 
 
@@ -1253,7 +1250,6 @@ nsMathMLChar::StretchEnumContext::TryVariants(nsGlyphTable*    aGlyphTable,
 
       if (largeopOnly ||
           IsSizeBetter(charSize, bestSize, mTargetSize, mStretchHint)) {
-        mGlyphFound = PR_TRUE;
         if (maxWidth) {
           // IsSizeBetter() checked that charSize < maxsize;
           // Leave ascent, descent, and bestsize as these contain maxsize.
@@ -1324,7 +1320,6 @@ nsMathMLChar::StretchEnumContext::TryParts(nsGlyphTable*    aGlyphTable,
 
     // all went well, painting will be delegated from now on to children
     mChar->mGlyph = kNullGlyph; // this will tell paint to build by parts
-    mGlyphFound = PR_TRUE;
     mChar->mGlyphTable = aGlyphTable;
     mBoundingMetrics = compositeSize;
     return PR_TRUE; // no more searching
@@ -1452,7 +1447,6 @@ nsMathMLChar::StretchEnumContext::TryParts(nsGlyphTable*    aGlyphTable,
     mBoundingMetrics.leftBearing = 0;
     mBoundingMetrics.rightBearing = computedSize;
   }
-  mGlyphFound = PR_TRUE;
   if (maxWidth)
     return PR_FALSE; // Continue to check other sizes
 
@@ -1571,6 +1565,7 @@ nsMathMLChar::StretchInternal(nsPresContext*           aPresContext,
   }
 
   if (!maxWidth) {
+    mScaleY = mScaleX = 1.0;
     mUnscaledAscent = aDesiredStretchSize.ascent;
   }
 
@@ -1660,7 +1655,6 @@ nsMathMLChar::StretchInternal(nsPresContext*           aPresContext,
   // 2/3. Search for a glyph or set of part glyphs of appropriate size
   ////////////////////////////////////////////////////////////////////////////////////
 
-  PRBool glyphFound = PR_FALSE;
   nsAutoString cssFamilies;
 
   if (!done) {
@@ -1675,7 +1669,7 @@ nsMathMLChar::StretchInternal(nsPresContext*           aPresContext,
 
     StretchEnumContext enumData(this, aPresContext, aRenderingContext,
                                 aStretchDirection, targetSize, aStretchHint,
-                                aDesiredStretchSize, font.name, glyphFound);
+                                aDesiredStretchSize, font.name);
     enumData.mTryParts = PR_FALSE;
 
     done = !font.EnumerateFamilies(StretchEnumContext::EnumCallback, &enumData);
@@ -1689,7 +1683,7 @@ nsMathMLChar::StretchInternal(nsPresContext*           aPresContext,
 
     StretchEnumContext enumData(this, aPresContext, aRenderingContext,
                                 aStretchDirection, targetSize, aStretchHint,
-                                aDesiredStretchSize, font.name, glyphFound);
+                                aDesiredStretchSize, font.name);
     enumData.mTryVariants = PR_FALSE;
 
     done = !font.EnumerateFamilies(StretchEnumContext::EnumCallback, &enumData);
@@ -1710,7 +1704,7 @@ nsMathMLChar::StretchInternal(nsPresContext*           aPresContext,
 #endif
     StretchEnumContext enumData(this, aPresContext, aRenderingContext,
                                 aStretchDirection, targetSize, aStretchHint,
-                                aDesiredStretchSize, font.name, glyphFound);
+                                aDesiredStretchSize, font.name);
     enumData.mTryParts = !largeopOnly;
 
     font.EnumerateFamilies(StretchEnumContext::EnumCallback, &enumData);
@@ -1719,7 +1713,7 @@ nsMathMLChar::StretchInternal(nsPresContext*           aPresContext,
   if (!maxWidth) {
     // Now, we know how we are going to draw the char. Update the member
     // variables accordingly.
-    mDrawNormal = !glyphFound;
+    mDrawNormal = (mGlyph.font == -1);
     mUnscaledAscent = aDesiredStretchSize.ascent;
   }
     
@@ -1731,9 +1725,7 @@ nsMathMLChar::StretchInternal(nsPresContext*           aPresContext,
         (aDesiredStretchSize.ascent + aDesiredStretchSize.descent);
       if (!largeop || scale > 1.0) {
         // make the character match the desired height.
-        if (!maxWidth) {
-          mScaleY *= scale;
-        }
+        mScaleY *= scale;
         aDesiredStretchSize.ascent *= scale;
         aDesiredStretchSize.descent *= scale;
       }
@@ -1743,9 +1735,7 @@ nsMathMLChar::StretchInternal(nsPresContext*           aPresContext,
         (aDesiredStretchSize.rightBearing - aDesiredStretchSize.leftBearing);
       if (!largeop || scale > 1.0) {
         // make the character match the desired width.
-        if (!maxWidth) {
-          mScaleX *= scale;
-        }
+        mScaleX *= scale;
         aDesiredStretchSize.leftBearing *= scale;
         aDesiredStretchSize.rightBearing *= scale;
         aDesiredStretchSize.width *= scale;
@@ -1755,7 +1745,7 @@ nsMathMLChar::StretchInternal(nsPresContext*           aPresContext,
 
   // We do not have a char variant for this largeop in display mode, so we
   // apply a scale transform to the base char.
-  if (!glyphFound && largeop) {
+  if (mGlyph.font == -1 && largeop) {
     float scale;
     float largeopFactor = M_SQRT2;
 
@@ -1766,9 +1756,7 @@ nsMathMLChar::StretchInternal(nsPresContext*           aPresContext,
       scale = (largeopFactor *
                (initialSize.rightBearing - initialSize.leftBearing)) /
         (aDesiredStretchSize.rightBearing - aDesiredStretchSize.leftBearing);
-      if (!maxWidth) {
-        mScaleX *= scale;
-      }
+      mScaleX *= scale;
       aDesiredStretchSize.leftBearing *= scale;
       aDesiredStretchSize.rightBearing *= scale;
       aDesiredStretchSize.width *= scale;
@@ -1785,9 +1773,7 @@ nsMathMLChar::StretchInternal(nsPresContext*           aPresContext,
       scale = (largeopFactor *
                (initialSize.ascent + initialSize.descent)) /
         (aDesiredStretchSize.ascent + aDesiredStretchSize.descent);
-      if (!maxWidth) {
-        mScaleY *= scale;
-      }
+      mScaleY *= scale;
       aDesiredStretchSize.ascent *= scale;
       aDesiredStretchSize.descent *= scale;
     }
@@ -1809,8 +1795,9 @@ nsMathMLChar::Stretch(nsPresContext*           aPresContext,
                    NS_STRETCH_INTEGRAL)),
                "Unexpected stretch flags");
 
-  mDrawNormal = PR_TRUE;
-  mScaleY = mScaleX = 1.0;
+  // This will be updated if a better match than the base character is found
+  mGlyph.font = -1;
+
   mDirection = aStretchDirection;
   nsresult rv =
     StretchInternal(aPresContext, aRenderingContext, mDirection,

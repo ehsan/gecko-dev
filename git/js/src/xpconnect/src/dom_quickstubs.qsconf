@@ -106,9 +106,6 @@ members = [
     'nsIDOMDocument.createElementNS',
     'nsIDOMDocument.importNode',
     'nsIDOMDocument.createTextNode',
-    'nsIDOMDocument.documentURI',
-    'nsIDOMDocument.adoptNode',
-    'nsIDOMDocument.renameNode',
     'nsIDOMElement.removeAttributeNS',
     'nsIDOMElement.removeAttribute',
     'nsIDOMElement.getAttribute',
@@ -148,6 +145,9 @@ members = [
     'nsIDOMNodeSelector.querySelector',
     'nsIDOMNodeSelector.querySelectorAll',
     'nsIDOMText.splitText',
+    'nsIDOM3Document.documentURI',
+    'nsIDOM3Document.adoptNode',
+    'nsIDOM3Document.renameNode',
     'nsIDOM3Node.*',
     'nsIDOMDOMImplementation.*',
     'nsIDOMDOMStringList.*',
@@ -890,6 +890,9 @@ customMethodCalls = {
         'canFail': False
         },
     'nsIDOMNSDocument_': {
+        'thisType': 'nsDocument'
+        },
+    'nsIDOM3Document_': {
         'thisType': 'nsDocument'
         },
     'nsIDOMElement_': {

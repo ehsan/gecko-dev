@@ -80,6 +80,7 @@
 #include "nsIAttribute.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
+#include "nsIDOM3Document.h"
 #include "nsIDOMXMLDocument.h"
 #include "nsIDOMNSDocument.h"
 #include "nsIDOMEvent.h"
@@ -313,7 +314,6 @@
 #include "nsIDOMNSHTMLTextAreaElement.h"
 #include "nsIDOMHTMLTitleElement.h"
 #include "nsIDOMHTMLUListElement.h"
-#include "nsIDOMHTMLUnknownElement.h"
 #include "nsIDOMMediaError.h"
 #include "nsIDOMTimeRanges.h"
 #include "nsIDOMHTMLSourceElement.h"
@@ -2193,6 +2193,7 @@ nsDOMClassInfo::WrapNativeParent(JSContext *cx, JSObject *scope,
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMDocumentXBL)                                \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)                              \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)                                \
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOM3Document)                                  \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOM3Node)                                      \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMXPathEvaluator)                             \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNodeSelector)
@@ -2824,8 +2825,8 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN(HTMLUnknownElement, nsIDOMHTMLUnknownElement)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLUnknownElement)
+  DOM_CLASSINFO_MAP_BEGIN_NO_CLASS_IF(HTMLUnknownElement, nsIDOMHTMLElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLElement)
     DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 

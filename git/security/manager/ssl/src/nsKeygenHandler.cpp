@@ -513,6 +513,7 @@ nsKeygenFormProcessor::GetPublicKey(nsAString& aValue, nsAString& aChallenge,
     KeyType type;
     PRUint32 keyGenMechanism;
     PRInt32 primeBits;
+    PQGParams *pqgParams;
     PK11SlotInfo *slot = nsnull;
     PK11RSAGenParams rsaParams;
     SECOidTag algTag;
@@ -565,21 +566,18 @@ nsKeygenFormProcessor::GetPublicKey(nsAString& aValue, nsAString& aChallenge,
         if (strcmp(keyparamsString, "null") == 0)
             goto loser;
         str = keyparamsString;
-        PRBool found_match = PR_FALSE;
         do {
             end = strchr(str, ',');
             if (end != nsnull)
                 *end = '\0';
             primeBits = pqg_prime_bits(str);
-            if (keysize == primeBits) {
-                found_match = PR_TRUE;
-                break;
-            }
+            if (keysize == primeBits)
+                goto found_match;
             str = end + 1;
         } while (end != nsnull);
-        if (!found_match) {
-            goto loser;
-        }
+        goto loser;
+found_match:
+        pqgParams = decode_pqg_params(str);
     } else if (aKeyType.LowerCaseEqualsLiteral("ec")) {
         keyparamsString = ToNewCString(aKeyParams);
         if (!keyparamsString) {
@@ -599,7 +597,7 @@ nsKeygenFormProcessor::GetPublicKey(nsAString& aValue, nsAString& aChallenge,
     if (NS_FAILED(rv)) {
         goto loser;
     }
-    switch (keyGenMechanism) {
+      switch (keyGenMechanism) {
         case CKM_RSA_PKCS_KEY_PAIR_GEN:
             rsaParams.keySizeInBits = keysize;
             rsaParams.pe = DEFAULT_RSA_KEYGEN_PE;
@@ -658,7 +656,7 @@ nsKeygenFormProcessor::GetPublicKey(nsAString& aValue, nsAString& aChallenge,
     /* Make sure token is initialized. */
     rv = setPassword(slot, m_ctx);
     if (NS_FAILED(rv))
-        goto loser;
+    goto loser;
 
     sec_rv = PK11_Authenticate(slot, PR_TRUE, m_ctx);
     if (sec_rv != SECSuccess) {
@@ -671,7 +669,9 @@ nsKeygenFormProcessor::GetPublicKey(nsAString& aValue, nsAString& aChallenge,
 
     if (NS_SUCCEEDED(rv)) {
         KeygenRunnable = new nsKeygenThread();
-        NS_IF_ADDREF(KeygenRunnable);
+        if (KeygenRunnable) {
+            NS_ADDREF(KeygenRunnable);
+        }
     }
 
     if (NS_FAILED(rv) || !KeygenRunnable) {
@@ -774,7 +774,7 @@ loser:
         }
     }
     if ( spkInfo ) {
-        SECKEY_DestroySubjectPublicKeyInfo(spkInfo);
+      SECKEY_DestroySubjectPublicKeyInfo(spkInfo);
     }
     if ( publicKey ) {
         SECKEY_DestroyPublicKey(publicKey);
@@ -783,13 +783,13 @@ loser:
         SECKEY_DestroyPrivateKey(privateKey);
     }
     if ( arena ) {
-        PORT_FreeArena(arena, PR_TRUE);
+      PORT_FreeArena(arena, PR_TRUE);
     }
     if (slot != nsnull) {
         PK11_FreeSlot(slot);
     }
     if (KeygenRunnable) {
-        NS_RELEASE(KeygenRunnable);
+      NS_RELEASE(KeygenRunnable);
     }
     if (keyparamsString) {
         nsMemory::Free(keyparamsString);
