@@ -169,7 +169,7 @@ LayerManagerOGL::CreateContext()
   return context.forget();
 }
 
-bool
+PRBool
 LayerManagerOGL::Initialize(nsRefPtr<GLContext> aContext)
 {
   ScopedGfxFeatureReporter reporter("GL Layers");
@@ -541,7 +541,7 @@ LayerManagerOGL::RootLayer() const
   return static_cast<LayerOGL*>(mRoot->ImplData());
 }
 
-bool LayerManagerOGL::sDrawFPS = false;
+PRBool LayerManagerOGL::sDrawFPS = PR_FALSE;
 
 /* This function tries to stick to portable C89 as much as possible
  * so that it can be easily copied into other applications */

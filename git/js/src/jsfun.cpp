@@ -1689,7 +1689,7 @@ fun_finalize(JSContext *cx, JSObject *obj)
  * does not bloat every instance, only those on which reserved slots are set,
  * and those on which ad-hoc properties are defined.
  */
-JS_FRIEND_DATA(Class) js::FunctionClass = {
+JS_PUBLIC_DATA(Class) js::FunctionClass = {
     js_Function_str,
     JSCLASS_HAS_PRIVATE | JSCLASS_NEW_RESOLVE |
     JSCLASS_HAS_RESERVED_SLOTS(JSFunction::CLASS_RESERVED_SLOTS) |
@@ -1716,7 +1716,7 @@ JSString *
 fun_toStringHelper(JSContext *cx, JSObject *obj, uintN indent)
 {
     if (!obj->isFunction()) {
-        if (IsFunctionProxy(obj))
+        if (obj->isFunctionProxy())
             return Proxy::fun_toString(cx, obj, indent);
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                              JSMSG_INCOMPATIBLE_PROTO,
@@ -2182,8 +2182,8 @@ Function(JSContext *cx, uintN argc, Value *vp)
          * for a terminating 0.  Mark cx->tempPool for later release, to free
          * collected_args and its tokenstream in one swoop.
          */
-        LifoAllocScope las(&cx->tempLifoAlloc());
-        jschar *cp = cx->tempLifoAlloc().newArray<jschar>(args_length + 1);
+        AutoArenaAllocator aaa(&cx->tempPool);
+        jschar *cp = aaa.alloc<jschar>(args_length + 1);
         if (!cp) {
             js_ReportOutOfMemory(cx);
             return false;

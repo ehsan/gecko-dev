@@ -166,19 +166,19 @@ GfxInfo::Init()
 }
 
 NS_IMETHODIMP
-GfxInfo::GetD2DEnabled(bool *aEnabled)
+GfxInfo::GetD2DEnabled(PRBool *aEnabled)
 {
   return NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP
-GfxInfo::GetAzureEnabled(bool *aEnabled)
+GfxInfo::GetAzureEnabled(PRBool *aEnabled)
 {
   return NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP
-GfxInfo::GetDWriteEnabled(bool *aEnabled)
+GfxInfo::GetDWriteEnabled(PRBool *aEnabled)
 {
   return NS_ERROR_FAILURE;
 }
@@ -304,7 +304,7 @@ GfxInfo::GetAdapterDeviceID2(PRUint32 *aAdapterDeviceID)
 
 /* readonly attribute boolean isGPU2Active; */
 NS_IMETHODIMP
-GfxInfo::GetIsGPU2Active(bool* aIsGPU2Active)
+GfxInfo::GetIsGPU2Active(PRBool* aIsGPU2Active)
 {
   return NS_ERROR_FAILURE;
 }
@@ -334,7 +334,7 @@ GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature, PRInt32* aStatus,
 {
   NS_ENSURE_ARG_POINTER(aStatus);
 
-  aSuggestedDriverVersion.SetIsVoid(true);
+  aSuggestedDriverVersion.SetIsVoid(PR_TRUE);
 
   PRInt32 status = nsIGfxInfo::FEATURE_NO_INFO;
 
@@ -354,10 +354,10 @@ GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature, PRInt32* aStatus,
   }
 
   if (aFeature == nsIGfxInfo::FEATURE_OPENGL_LAYERS) {
-    bool foundGoodDevice = false;
+    PRBool foundGoodDevice = PR_FALSE;
 
     if (!IsATIRadeonX1000(mAdapterVendorID, mAdapterDeviceID)) {
-      foundGoodDevice = true;
+      foundGoodDevice = PR_TRUE;
     }
 
 #if 0
@@ -392,7 +392,7 @@ GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature, PRInt32* aStatus,
           break;
         default:
           if (mRendererIDs[i])
-            foundGoodDevice = true;
+            foundGoodDevice = PR_TRUE;
       }
     }
 #endif

@@ -195,7 +195,7 @@ XBLResolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
 
 
   // Now we either resolve or fail
-  bool didInstall;
+  PRBool didInstall;
   nsresult rv = field->InstallField(context, origObj,
                                     content->NodePrincipal(),
                                     protoBinding->DocURI(),
@@ -346,7 +346,7 @@ nsXBLBinding::InstallAnonymousContent(nsIContent* aAnonParent, nsIContent* aElem
   // (2) The children's parent back pointer should not be to this synthetic root
   // but should instead point to the enclosing parent element.
   nsIDocument* doc = aElement->GetCurrentDoc();
-  bool allowScripts = AllowScripts();
+  PRBool allowScripts = AllowScripts();
 
   nsAutoScriptBlocker scriptBlocker;
   for (nsIContent* child = aAnonParent->GetFirstChild();
@@ -406,7 +406,7 @@ nsXBLBinding::SetBoundElement(nsIContent* aElement)
     mNextBinding->SetBoundElement(aElement);
 }
 
-bool
+PRBool
 nsXBLBinding::HasStyleSheets() const
 {
   // Find out if we need to re-resolve style.  We'll need to do this
@@ -624,8 +624,8 @@ nsXBLBinding::GenerateAnonymousContent()
   PRUint32 contentCount = content->GetChildCount();
 
   // Plan to build the content by default.
-  bool hasContent = (contentCount > 0);
-  bool hasInsertionPoints = mPrototypeBinding->HasInsertionPoints();
+  PRBool hasContent = (contentCount > 0);
+  PRBool hasInsertionPoints = mPrototypeBinding->HasInsertionPoints();
 
 #ifdef DEBUG
   // See if there's an includes attribute.
@@ -708,7 +708,7 @@ nsXBLBinding::GenerateAnonymousContent()
         // We need to place the children
         // at their respective insertion points.
         PRUint32 index = 0;
-        bool multiplePoints = false;
+        PRBool multiplePoints = PR_FALSE;
         nsIContent *singlePoint = GetSingleInsertionPoint(&index,
                                                           &multiplePoints);
       
@@ -833,9 +833,9 @@ nsXBLBinding::InstallEventHandlers()
       if (!manager)
         return;
 
-      bool isChromeDoc =
+      PRBool isChromeDoc =
         nsContentUtils::IsChromeDoc(mBoundElement->GetOwnerDoc());
-      bool isChromeBinding = mPrototypeBinding->IsChrome();
+      PRBool isChromeBinding = mPrototypeBinding->IsChrome();
       nsXBLPrototypeHandler* curr;
       for (curr = handlerChain; curr; curr = curr->GetNextHandler()) {
         // Fetch the event type.
@@ -859,7 +859,7 @@ nsXBLBinding::InstallEventHandlers()
             flags |= NS_EVENT_FLAG_SYSTEM_EVENT;
           }
 
-          bool hasAllowUntrustedAttr = curr->HasAllowUntrustedAttr();
+          PRBool hasAllowUntrustedAttr = curr->HasAllowUntrustedAttr();
           if ((hasAllowUntrustedAttr && curr->AllowUntrustedEvents()) ||
               (!hasAllowUntrustedAttr && !isChromeDoc)) {
             flags |= NS_PRIV_EVENT_UNTRUSTED_PERMITTED;
@@ -938,7 +938,7 @@ nsXBLBinding::GetBaseTag(PRInt32* aNameSpaceID)
 
 void
 nsXBLBinding::AttributeChanged(nsIAtom* aAttribute, PRInt32 aNameSpaceID,
-                               bool aRemoveFlag, bool aNotify)
+                               PRBool aRemoveFlag, PRBool aNotify)
 {
   // XXX Change if we ever allow multiple bindings in a chain to contribute anonymous content
   if (!mContent) {
@@ -983,7 +983,7 @@ nsXBLBinding::UnhookEventHandlers()
       return;
     }
                                       
-    bool isChromeBinding = mPrototypeBinding->IsChrome();
+    PRBool isChromeBinding = mPrototypeBinding->IsChrome();
     nsXBLPrototypeHandler* curr;
     for (curr = handlerChain; curr; curr = curr->GetNextHandler()) {
       nsXBLEventHandler* handler = curr->GetCachedEventHandler();
@@ -1186,7 +1186,7 @@ nsXBLBinding::ChangeDocument(nsIDocument* aOldDocument, nsIDocument* aNewDocumen
   }
 }
 
-bool
+PRBool
 nsXBLBinding::InheritsStyle() const
 {
   // XXX Will have to change if we ever allow multiple bindings to contribute anonymous content.
@@ -1364,7 +1364,7 @@ nsXBLBinding::DoInitJSClass(JSContext *cx, JSObject *global, JSObject *obj,
   return NS_OK;
 }
 
-bool
+PRBool
 nsXBLBinding::AllowScripts()
 {
   if (!mPrototypeBinding->GetAllowScripts())
@@ -1397,7 +1397,7 @@ nsXBLBinding::AllowScripts()
 
   nsCOMPtr<nsIDocument> ourDocument =
     mPrototypeBinding->XBLDocumentInfo()->GetDocument();
-  bool canExecute;
+  PRBool canExecute;
   nsresult rv =
     mgr->CanExecuteScripts(cx, ourDocument->NodePrincipal(), &canExecute);
   if (NS_FAILED(rv) || !canExecute) {
@@ -1406,13 +1406,13 @@ nsXBLBinding::AllowScripts()
 
   // Now one last check: make sure that we're not allowing a privilege
   // escalation here.
-  bool haveCert;
+  PRBool haveCert;
   doc->NodePrincipal()->GetHasCertificate(&haveCert);
   if (!haveCert) {
     return PR_TRUE;
   }
 
-  bool subsumes;
+  PRBool subsumes;
   rv = ourDocument->NodePrincipal()->Subsumes(doc->NodePrincipal(), &subsumes);
   return NS_SUCCEEDED(rv) && subsumes;
 }
@@ -1442,7 +1442,7 @@ nsXBLBinding::RemoveInsertionParent(nsIContent* aParent)
   }
 }
 
-bool
+PRBool
 nsXBLBinding::HasInsertionParent(nsIContent* aParent)
 {
   if (mInsertionPointTable) {
@@ -1514,7 +1514,7 @@ nsXBLBinding::GetInsertionPoint(const nsIContent* aChild, PRUint32* aIndex)
 
 nsIContent*
 nsXBLBinding::GetSingleInsertionPoint(PRUint32* aIndex,
-                                      bool* aMultipleInsertionPoints)
+                                      PRBool* aMultipleInsertionPoints)
 {
   *aMultipleInsertionPoints = PR_FALSE;
   if (mContent) {
@@ -1548,7 +1548,7 @@ nsXBLBinding::GetFirstStyleBinding()
   return mNextBinding ? mNextBinding->GetFirstStyleBinding() : nsnull;
 }
 
-bool
+PRBool
 nsXBLBinding::ResolveAllFields(JSContext *cx, JSObject *obj) const
 {
   if (!mPrototypeBinding->ResolveAllFields(cx, obj)) {
@@ -1569,7 +1569,7 @@ nsXBLBinding::MarkForDeath()
   ExecuteDetachedHandler();
 }
 
-bool
+PRBool
 nsXBLBinding::ImplementsInterface(REFNSIID aIID) const
 {
   return mPrototypeBinding->ImplementsInterface(aIID) ||

@@ -81,7 +81,7 @@ namespace nsStyleTransformMatrix {
   gfx3DMatrix ReadTransforms(const nsCSSValueList* aList,
                              nsStyleContext* aContext,
                              nsPresContext* aPresContext,
-                             bool &aCanStoreInRuleTree,
+                             PRBool &aCanStoreInRuleTree,
                              nsRect& aBounds,
                              float aAppUnitsPerMatrixUnit);
 

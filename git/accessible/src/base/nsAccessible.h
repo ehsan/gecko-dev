@@ -280,9 +280,9 @@ public:
   /**
    * Append/insert/remove a child. Return true if operation was successful.
    */
-  virtual bool AppendChild(nsAccessible* aChild);
-  virtual bool InsertChildAt(PRUint32 aIndex, nsAccessible* aChild);
-  virtual bool RemoveChild(nsAccessible* aChild);
+  virtual PRBool AppendChild(nsAccessible* aChild);
+  virtual PRBool InsertChildAt(PRUint32 aIndex, nsAccessible* aChild);
+  virtual PRBool RemoveChild(nsAccessible* aChild);
 
   //////////////////////////////////////////////////////////////////////////////
   // Accessible tree traverse methods
@@ -315,7 +315,7 @@ public:
   /**
    * Return true if accessible has children;
    */
-  bool HasChildren() { return !!GetChildAt(0); }
+  PRBool HasChildren() { return !!GetChildAt(0); }
 
   /**
    * Return first/last/next/previous sibling of the accessible.
@@ -380,7 +380,7 @@ public:
   /**
    * Return true if there are accessible children in anonymous content
    */
-  virtual bool GetAllowsAnonChildAccessibles();
+  virtual PRBool GetAllowsAnonChildAccessibles();
 
   /**
    * Returns text of accessible if accessible has text role otherwise empty
@@ -657,7 +657,7 @@ protected:
 
   virtual nsIFrame* GetBoundsFrame();
   virtual void GetBoundsRect(nsRect& aRect, nsIFrame** aRelativeFrame);
-  bool IsVisible(bool *aIsOffscreen); 
+  PRBool IsVisible(PRBool *aIsOffscreen); 
 
   //////////////////////////////////////////////////////////////////////////////
   // Name helpers

@@ -203,7 +203,7 @@ nsApplicationAccessible::GetBounds(PRInt32 *aX, PRInt32 *aY,
 }
 
 NS_IMETHODIMP
-nsApplicationAccessible::SetSelected(bool aIsSelected)
+nsApplicationAccessible::SetSelected(PRBool aIsSelected)
 {
   return NS_OK;
 }
@@ -314,7 +314,7 @@ nsApplicationAccessible::IsDefunct() const
   return nsAccessibilityService::IsShutdown();
 }
 
-bool
+PRBool
 nsApplicationAccessible::Init()
 {
   mAppInfo = do_GetService("@mozilla.org/xre/app-info;1");
@@ -391,7 +391,7 @@ nsApplicationAccessible::CacheChildren()
   if (NS_FAILED(rv))
     return;
 
-  bool hasMore = false;
+  PRBool hasMore = PR_FALSE;
   windowEnumerator->HasMoreElements(&hasMore);
   while (hasMore) {
     nsCOMPtr<nsISupports> window;

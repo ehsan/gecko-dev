@@ -98,7 +98,7 @@ class nsNativeAudioStream : public nsAudioStream
   void Resume();
   PRInt64 GetPosition();
   PRInt64 GetPositionInFrames();
-  bool IsPaused();
+  PRBool IsPaused();
   PRInt32 GetMinWriteSize();
 
  private:
@@ -110,11 +110,11 @@ class nsNativeAudioStream : public nsAudioStream
 
   SampleFormat mFormat;
 
-  // True if this audio stream is paused.
-  bool mPaused;
+  // PR_TRUE if this audio stream is paused.
+  PRPackedBool mPaused;
 
-  // True if this stream has encountered an error.
-  bool mInError;
+  // PR_TRUE if this stream has encountered an error.
+  PRPackedBool mInError;
 
 };
 
@@ -136,7 +136,7 @@ class nsRemotedAudioStream : public nsAudioStream
   void Resume();
   PRInt64 GetPosition();
   PRInt64 GetPositionInFrames();
-  bool IsPaused();
+  PRBool IsPaused();
   PRInt32 GetMinWriteSize();
 
 private:
@@ -148,8 +148,8 @@ private:
 
   PRInt32 mBytesPerFrame;
 
-  // True if this audio stream is paused.
-  bool mPaused;
+  // PR_TRUE if this audio stream is paused.
+  PRPackedBool mPaused;
 
   friend class AudioInitEvent;
 };
@@ -269,7 +269,7 @@ class AudioDrainEvent : public nsRunnable
 class AudioPauseEvent : public nsRunnable
 {
  public:
-  AudioPauseEvent(AudioChild* aChild, bool pause)
+  AudioPauseEvent(AudioChild* aChild, PRBool pause)
   {
     mAudioChild = aChild;
     mPause = pause;
@@ -289,7 +289,7 @@ class AudioPauseEvent : public nsRunnable
   }
 
   nsRefPtr<AudioChild> mAudioChild;
-  bool mPause;
+  PRBool mPause;
 };
 
 
@@ -393,8 +393,8 @@ nsNativeAudioStream::nsNativeAudioStream() :
   mRate(0),
   mChannels(0),
   mFormat(FORMAT_S16_LE),
-  mPaused(false),
-  mInError(false)
+  mPaused(PR_FALSE),
+  mInError(PR_FALSE)
 {
 }
 
@@ -418,7 +418,7 @@ nsresult nsNativeAudioStream::Init(PRInt32 aNumChannels, PRInt32 aRate, SampleFo
                            aRate,
                            aNumChannels) != SA_SUCCESS) {
     mAudioHandle = nsnull;
-    mInError = true;
+    mInError = PR_TRUE;
     PR_LOG(gAudioStreamLog, PR_LOG_ERROR, ("nsNativeAudioStream: sa_stream_create_pcm error"));
     return NS_ERROR_FAILURE;
   }
@@ -426,11 +426,11 @@ nsresult nsNativeAudioStream::Init(PRInt32 aNumChannels, PRInt32 aRate, SampleFo
   if (sa_stream_open(static_cast<sa_stream_t*>(mAudioHandle)) != SA_SUCCESS) {
     sa_stream_destroy(static_cast<sa_stream_t*>(mAudioHandle));
     mAudioHandle = nsnull;
-    mInError = true;
+    mInError = PR_TRUE;
     PR_LOG(gAudioStreamLog, PR_LOG_ERROR, ("nsNativeAudioStream: sa_stream_open error"));
     return NS_ERROR_FAILURE;
   }
-  mInError = false;
+  mInError = PR_FALSE;
 
   return NS_OK;
 }
@@ -442,7 +442,7 @@ void nsNativeAudioStream::Shutdown()
 
   sa_stream_destroy(static_cast<sa_stream_t*>(mAudioHandle));
   mAudioHandle = nsnull;
-  mInError = true;
+  mInError = PR_TRUE;
 }
 
 nsresult nsNativeAudioStream::Write(const void* aBuf, PRUint32 aFrames)
@@ -501,7 +501,7 @@ nsresult nsNativeAudioStream::Write(const void* aBuf, PRUint32 aFrames)
                         samples * sizeof(short)) != SA_SUCCESS)
     {
       PR_LOG(gAudioStreamLog, PR_LOG_ERROR, ("nsNativeAudioStream: sa_stream_write error"));
-      mInError = true;
+      mInError = PR_TRUE;
       return NS_ERROR_FAILURE;
     }
   }
@@ -528,7 +528,7 @@ void nsNativeAudioStream::SetVolume(double aVolume)
 #if defined(SA_PER_STREAM_VOLUME)
   if (sa_stream_set_volume_abs(static_cast<sa_stream_t*>(mAudioHandle), aVolume) != SA_SUCCESS) {
     PR_LOG(gAudioStreamLog, PR_LOG_ERROR, ("nsNativeAudioStream: sa_stream_set_volume_abs error"));
-    mInError = true;
+    mInError = PR_TRUE;
   }
 #else
   mVolume = aVolume;
@@ -545,7 +545,7 @@ void nsNativeAudioStream::Drain()
   int r = sa_stream_drain(static_cast<sa_stream_t*>(mAudioHandle));
   if (r != SA_SUCCESS && r != SA_ERROR_INVALID) {
     PR_LOG(gAudioStreamLog, PR_LOG_ERROR, ("nsNativeAudioStream: sa_stream_drain error"));
-    mInError = true;
+    mInError = PR_TRUE;
   }
 }
 
@@ -553,7 +553,7 @@ void nsNativeAudioStream::Pause()
 {
   if (mInError)
     return;
-  mPaused = true;
+  mPaused = PR_TRUE;
   sa_stream_pause(static_cast<sa_stream_t*>(mAudioHandle));
 }
 
@@ -561,7 +561,7 @@ void nsNativeAudioStream::Resume()
 {
   if (mInError)
     return;
-  mPaused = false;
+  mPaused = PR_FALSE;
   sa_stream_resume(static_cast<sa_stream_t*>(mAudioHandle));
 }
 
@@ -593,7 +593,7 @@ PRInt64 nsNativeAudioStream::GetPositionInFrames()
   return -1;
 }
 
-bool nsNativeAudioStream::IsPaused()
+PRBool nsNativeAudioStream::IsPaused()
 {
   return mPaused;
 }
@@ -617,7 +617,7 @@ nsRemotedAudioStream::nsRemotedAudioStream()
    mRate(0),
    mChannels(0),
    mBytesPerFrame(0),
-   mPaused(false)
+   mPaused(PR_FALSE)
 {}
 
 nsRemotedAudioStream::~nsRemotedAudioStream()
@@ -715,20 +715,20 @@ nsRemotedAudioStream::Drain()
 void
 nsRemotedAudioStream::Pause()
 {
-  mPaused = true;
+  mPaused = PR_TRUE;
   if (!mAudioChild)
     return;
-  nsCOMPtr<nsIRunnable> event = new AudioPauseEvent(mAudioChild, true);
+  nsCOMPtr<nsIRunnable> event = new AudioPauseEvent(mAudioChild, PR_TRUE);
   NS_DispatchToMainThread(event);
 }
 
 void
 nsRemotedAudioStream::Resume()
 {
-  mPaused = false;
+  mPaused = PR_FALSE;
   if (!mAudioChild)
     return;
-  nsCOMPtr<nsIRunnable> event = new AudioPauseEvent(mAudioChild, false);
+  nsCOMPtr<nsIRunnable> event = new AudioPauseEvent(mAudioChild, PR_FALSE);
   NS_DispatchToMainThread(event);
 }
 
@@ -757,7 +757,7 @@ nsRemotedAudioStream::GetPositionInFrames()
   return result;
 }
 
-bool
+PRBool
 nsRemotedAudioStream::IsPaused()
 {
   return mPaused;

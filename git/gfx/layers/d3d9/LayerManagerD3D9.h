@@ -103,7 +103,7 @@ public:
    *
    * \return True is initialization was succesful, false when it was not.
    */
-  bool Initialize();
+  PRBool Initialize();
 
   /*
    * Sets the clipping region for this layer manager. This is important on
@@ -180,7 +180,7 @@ public:
   /*
    * Helper methods.
    */
-  void SetClippingEnabled(bool aEnabled);
+  void SetClippingEnabled(PRBool aEnabled);
 
   void SetShaderMode(DeviceManagerD3D9::ShaderMode aMode)
     { mDeviceManager->SetShaderMode(aMode); }

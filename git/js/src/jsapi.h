@@ -3941,7 +3941,7 @@ Call(JSContext *cx, jsval thisv, JSObject *funObj, uintN argc, jsval *argv, jsva
     return Call(cx, thisv, OBJECT_TO_JSVAL(funObj), argc, argv, rval);
 }
 
-} /* namespace JS */
+} /* namespace js */
 
 JS_BEGIN_EXTERN_C
 #endif /* __cplusplus */

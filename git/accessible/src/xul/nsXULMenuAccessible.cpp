@@ -186,7 +186,7 @@ nsXULSelectableAccessible::AddItemToSelection(PRUint32 aIndex)
   if (!itemElm)
     return false;
 
-  bool isItemSelected = false;
+  PRBool isItemSelected = PR_FALSE;
   itemElm->GetSelected(&isItemSelected);
   if (isItemSelected)
     return true;
@@ -214,7 +214,7 @@ nsXULSelectableAccessible::RemoveItemFromSelection(PRUint32 aIndex)
   if (!itemElm)
     return false;
 
-  bool isItemSelected = false;
+  PRBool isItemSelected = PR_FALSE;
   itemElm->GetSelected(&isItemSelected);
   if (!isItemSelected)
     return true;
@@ -242,7 +242,7 @@ nsXULSelectableAccessible::IsItemSelected(PRUint32 aIndex)
   if (!itemElm)
     return false;
 
-  bool isItemSelected = false;
+  PRBool isItemSelected = PR_FALSE;
   itemElm->GetSelected(&isItemSelected);
   return isItemSelected;
 }
@@ -343,17 +343,17 @@ nsXULMenuitemAccessible::NativeState()
   }
 
   // Combo box listitem
-  bool isComboboxOption = (Role() == nsIAccessibleRole::ROLE_COMBOBOX_OPTION);
+  PRBool isComboboxOption = (Role() == nsIAccessibleRole::ROLE_COMBOBOX_OPTION);
   if (isComboboxOption) {
     // Is selected?
-    bool isSelected = false;
+    PRBool isSelected = PR_FALSE;
     nsCOMPtr<nsIDOMXULSelectControlItemElement>
       item(do_QueryInterface(mContent));
     NS_ENSURE_TRUE(item, state);
     item->GetSelected(&isSelected);
 
     // Is collapsed?
-    bool isCollapsed = false;
+    PRBool isCollapsed = PR_FALSE;
     nsAccessible* parent = Parent();
     if (parent && parent->State() & states::INVISIBLE)
       isCollapsed = PR_TRUE;
@@ -561,7 +561,7 @@ nsXULMenuitemAccessible::GetPositionAndSizeInternal(PRInt32 *aPosInSet,
                                                     aSetSize);
 }
 
-bool
+PRBool
 nsXULMenuitemAccessible::GetAllowsAnonChildAccessibles()
 {
   // That indicates we don't walk anonymous children for menuitems
@@ -714,7 +714,7 @@ nsXULMenupopupAccessible::NativeState()
 
 #ifdef DEBUG_A11Y
   // We are onscreen if our parent is active
-  bool isActive = mContent->HasAttr(kNameSpaceID_None,
+  PRBool isActive = mContent->HasAttr(kNameSpaceID_None,
                                       nsGkAtoms::menuactive);
   if (!isActive) {
     nsAccessible* parent = Parent();

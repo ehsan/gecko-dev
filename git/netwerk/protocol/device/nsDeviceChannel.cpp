@@ -98,7 +98,7 @@ nsDeviceChannel::Init(nsIURI* aUri)
 }
 
 nsresult
-nsDeviceChannel::OpenContentStream(bool aAsync,
+nsDeviceChannel::OpenContentStream(PRBool aAsync,
                                    nsIInputStream** aStream,
                                    nsIChannel** aChannel)
 {
@@ -166,7 +166,7 @@ nsDeviceChannel::OpenContentStream(bool aAsync,
     captureParams.frameLimit = 60000;
 #ifdef ANDROID
     // only enable if "device.camera.enabled" is true.
-    if (mozilla::Preferences::GetBool("device.camera.enabled", false) == true)
+    if (mozilla::Preferences::GetBool("device.camera.enabled", PR_FALSE) == PR_TRUE)
       capture = GetAndroidCaptureProvider();
 #endif
   } else {

@@ -49,18 +49,18 @@ public:
   ~nsWaveReader();
 
   virtual nsresult Init(nsBuiltinDecoderReader* aCloneDonor);
-  virtual bool DecodeAudioData();
-  virtual bool DecodeVideoFrame(bool &aKeyframeSkip,
+  virtual PRBool DecodeAudioData();
+  virtual PRBool DecodeVideoFrame(PRBool &aKeyframeSkip,
                                   PRInt64 aTimeThreshold);
 
-  virtual bool HasAudio()
+  virtual PRBool HasAudio()
   {
-    return true;
+    return PR_TRUE;
   }
 
-  virtual bool HasVideo()
+  virtual PRBool HasVideo()
   {
-    return false;
+    return PR_FALSE;
   }
 
   virtual nsresult ReadMetadata(nsVideoInfo* aInfo);
@@ -68,11 +68,11 @@ public:
   virtual nsresult GetBuffered(nsTimeRanges* aBuffered, PRInt64 aStartTime);
 
 private:
-  bool ReadAll(char* aBuf, PRInt64 aSize, PRInt64* aBytesRead = nsnull);
-  bool LoadRIFFChunk();
-  bool ScanForwardUntil(PRUint32 aWantedChunk, PRUint32* aChunkSize);
-  bool LoadFormatChunk();
-  bool FindDataOffset();
+  PRBool ReadAll(char* aBuf, PRInt64 aSize, PRInt64* aBytesRead = nsnull);
+  PRBool LoadRIFFChunk();
+  PRBool ScanForwardUntil(PRUint32 aWantedChunk, PRUint32* aChunkSize);
+  PRBool LoadFormatChunk();
+  PRBool FindDataOffset();
 
   // Returns the number of seconds that aBytes represents based on the
   // current audio parameters.  e.g.  176400 bytes is 1 second at 16-bit

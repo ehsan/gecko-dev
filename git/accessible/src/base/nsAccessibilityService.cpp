@@ -117,7 +117,7 @@ using namespace mozilla::a11y;
 ////////////////////////////////////////////////////////////////////////////////
 
 nsAccessibilityService *nsAccessibilityService::gAccessibilityService = nsnull;
-bool nsAccessibilityService::gIsShutdown = true;
+PRBool nsAccessibilityService::gIsShutdown = PR_TRUE;
 
 nsAccessibilityService::nsAccessibilityService() :
   nsAccDocManager(), FocusManager()
@@ -178,7 +178,7 @@ nsAccessibilityService::FireAccessibleEvent(PRUint32 aEvent,
 
 nsAccessible*
 nsAccessibilityService::GetRootDocumentAccessible(nsIPresShell* aPresShell,
-                                                  bool aCanCreate)
+                                                  PRBool aCanCreate)
 {
   nsIDocument* documentNode = aPresShell->GetDocument();
   if (documentNode) {
@@ -876,7 +876,7 @@ nsAccessibilityService::GetAccessibleOrContainer(nsINode* aNode,
   return document ? document->GetAccessibleOrContainer(aNode) : nsnull;
 }
 
-static bool HasRelatedContent(nsIContent *aContent)
+static PRBool HasRelatedContent(nsIContent *aContent)
 {
   nsAutoString id;
   if (!aContent || !nsCoreUtils::GetID(aContent, id) || id.IsEmpty()) {
@@ -961,22 +961,9 @@ nsAccessibilityService::GetOrCreateAccessible(nsINode* aNode,
     // elements return the image frame as their primary frame. The main content
     // for the image frame is the image content. If the frame is not an image
     // frame or the node is not an area element then null is returned.
-    // This setup will change when bug 135040 is fixed. Make sure we don't
-    // create area accessible here. Hopefully assertion below will handle that.
-
-#ifdef DEBUG
-  nsImageFrame* imageFrame = do_QueryFrame(weakFrame.GetFrame());
-  NS_ASSERTION(imageFrame && content->IsHTML() && content->Tag() == nsGkAtoms::area,
-               "Unknown case of not main content for the frame!");
-#endif
-    return nsnull;
+    // This setup will change when bug 135040 is fixed.
+    return GetAreaAccessible(weakFrame.GetFrame(), aNode, aWeakShell);
   }
-
-#ifdef DEBUG
-  nsImageFrame* imageFrame = do_QueryFrame(weakFrame.GetFrame());
-  NS_ASSERTION(!imageFrame || !content->IsHTML() || content->Tag() != nsGkAtoms::area,
-               "Image map manages the area accessible creation!");
-#endif
 
   nsDocAccessible* docAcc =
     GetAccService()->GetDocAccessible(aNode->GetOwnerDoc());
@@ -1008,7 +995,7 @@ nsAccessibilityService::GetOrCreateAccessible(nsINode* aNode,
     return nsnull;
   }
 
-  bool isHTML = content->IsHTML();
+  PRBool isHTML = content->IsHTML();
   if (isHTML && content->Tag() == nsGkAtoms::map) {
     // Create hyper text accessible for HTML map if it is used to group links
     // (see http://www.w3.org/TR/WCAG10-HTML-TECHS/#group-bypass). If the HTML
@@ -1044,11 +1031,11 @@ nsAccessibilityService::GetOrCreateAccessible(nsINode* aNode,
   }
 
   if (weakFrame.IsAlive() && !newAcc && isHTML) {  // HTML accessibles
-    bool tryTagNameOrFrame = true;
+    PRBool tryTagNameOrFrame = PR_TRUE;
 
     nsIAtom *frameType = weakFrame.GetFrame()->GetType();
 
-    bool partOfHTMLTable =
+    PRBool partOfHTMLTable =
       frameType == nsGkAtoms::tableCaptionFrame ||
       frameType == nsGkAtoms::tableCellFrame ||
       frameType == nsGkAtoms::tableRowGroupFrame ||
@@ -1222,7 +1209,7 @@ nsAccessibilityService::GetOrCreateAccessible(nsINode* aNode,
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessibilityService private
 
-bool
+PRBool
 nsAccessibilityService::Init()
 {
   // Initialize accessible document manager.
@@ -1268,7 +1255,7 @@ nsAccessibilityService::Shutdown()
   nsAccessNodeWrap::ShutdownAccessibility();
 }
 
-bool
+PRBool
 nsAccessibilityService::HasUniversalAriaProperty(nsIContent *aContent)
 {
   // ARIA attributes that take token values (NMTOKEN, bool) are special cased
@@ -1289,6 +1276,50 @@ nsAccessibilityService::HasUniversalAriaProperty(nsIContent *aContent)
          nsAccUtils::HasDefinedARIAToken(aContent, nsGkAtoms::aria_live) ||
          nsAccUtils::HasDefinedARIAToken(aContent, nsGkAtoms::aria_owns) ||
          nsAccUtils::HasDefinedARIAToken(aContent, nsGkAtoms::aria_relevant);
+}
+
+nsAccessible*
+nsAccessibilityService::GetAreaAccessible(nsIFrame* aImageFrame,
+                                          nsINode* aAreaNode,
+                                          nsIWeakReference* aWeakShell,
+                                          nsAccessible** aImageAccessible)
+{
+  // Check if frame is an image frame, and content is <area>.
+  nsImageFrame *imageFrame = do_QueryFrame(aImageFrame);
+  if (!imageFrame)
+    return nsnull;
+
+  nsCOMPtr<nsIDOMHTMLAreaElement> areaElmt = do_QueryInterface(aAreaNode);
+  if (!areaElmt)
+    return nsnull;
+
+  // Try to get image map accessible from the global cache or create it
+  // if failed.
+  nsRefPtr<nsAccessible> image =
+    GetAccessibleInWeakShell(aImageFrame->GetContent(), aWeakShell);
+  if (!image) {
+    image = CreateHTMLImageAccessible(aImageFrame->GetContent(),
+                                      aImageFrame->PresContext()->PresShell());
+
+    nsDocAccessible* document =
+      GetAccService()->GetDocAccessible(aAreaNode->GetOwnerDoc());
+    if (!document) {
+      NS_NOTREACHED("No document for accessible being created!");
+      return nsnull;
+    }
+
+    if (!document->BindToDocument(image, nsnull))
+      return nsnull;
+  }
+
+  if (aImageAccessible)
+    *aImageAccessible = image;
+
+  // Make sure <area> accessible children of the image map are cached so
+  // that they should be available in global cache.
+  image->EnsureChildren();
+
+  return GetAccessibleInWeakShell(aAreaNode, aWeakShell);
 }
 
 already_AddRefed<nsAccessible>

@@ -111,14 +111,14 @@ nsDOMDesktopNotification::nsDOMDesktopNotification(const nsAString & title,
   mOwner = aWindow;
   mScriptContext = aScriptContext;
 
-  if (Preferences::GetBool("notification.disabled", false)) {
+  if (Preferences::GetBool("notification.disabled", PR_FALSE)) {
     return;
   }
 
   // If we are in testing mode (running mochitests, for example)
   // and we are suppose to allow requests, then just post an allow event.
-  if (Preferences::GetBool("notification.prompt.testing", false) &&
-      Preferences::GetBool("notification.prompt.testing.allow", true)) {
+  if (Preferences::GetBool("notification.prompt.testing", PR_FALSE) &&
+      Preferences::GetBool("notification.prompt.testing.allow", PR_TRUE)) {
     mAllow = PR_TRUE;
     return;
   }
@@ -182,7 +182,7 @@ nsDOMDesktopNotification::DispatchNotificationEvent(const nsString& aName)
 }
 
 void
-nsDOMDesktopNotification::SetAllow(bool aAllow)
+nsDOMDesktopNotification::SetAllow(PRBool aAllow)
 {
   mAllow = aAllow;
 

@@ -74,7 +74,7 @@ AccessCheck::isSameOrigin(JSCompartment *a, JSCompartment *b)
     if (!aprin || !bprin)
         return true;
 
-    bool equals;
+    PRBool equals;
     nsresult rv = aprin->EqualsIgnoringDomain(bprin, &equals);
     if (NS_FAILED(rv)) {
         NS_ERROR("unable to ask about equality");
@@ -87,15 +87,14 @@ AccessCheck::isSameOrigin(JSCompartment *a, JSCompartment *b)
 bool
 AccessCheck::isLocationObjectSameOrigin(JSContext *cx, JSObject *wrapper)
 {
-    JSObject *obj = js::GetObjectParent(js::UnwrapObject(wrapper));
-    if (!js::GetObjectClass(obj)->ext.innerObject) {
-        obj = js::UnwrapObject(obj);
-        JS_ASSERT(js::GetObjectClass(obj)->ext.innerObject);
+    JSObject *obj = wrapper->unwrap()->getParent();
+    if (!obj->getClass()->ext.innerObject) {
+        obj = obj->unwrap();
+        JS_ASSERT(obj->getClass()->ext.innerObject);
     }
-    obj = JS_ObjectToInnerObject(cx, obj);
+    OBJ_TO_INNER_OBJECT(cx, obj);
     return obj &&
-           (isSameOrigin(js::GetObjectCompartment(wrapper),
-                         js::GetObjectCompartment(obj)) ||
+           (isSameOrigin(wrapper->compartment(), obj->compartment()) ||
             documentDomainMakesSameOrigin(cx, obj));
 }
 
@@ -107,7 +106,7 @@ AccessCheck::isChrome(JSCompartment *compartment)
         return false;
     }
 
-    bool privileged;
+    PRBool privileged;
     nsIPrincipal *principal = GetCompartmentPrincipal(compartment);
     return NS_SUCCEEDED(ssm->IsSystemPrincipal(principal, &privileged)) && privileged;
 }
@@ -221,7 +220,7 @@ GetPrincipal(JSObject *obj)
 {
     NS_ASSERTION(!IS_SLIM_WRAPPER(obj), "global object is a slim wrapper?");
     if (!IS_WN_WRAPPER(obj)) {
-        NS_ASSERTION(!(~js::GetObjectClass(obj)->flags &
+        NS_ASSERTION(!(~obj->getClass()->flags &
                        (JSCLASS_PRIVATE_IS_NSISUPPORTS | JSCLASS_HAS_PRIVATE)),
                      "bad object");
         nsCOMPtr<nsIScriptObjectPrincipal> objPrin =
@@ -277,7 +276,7 @@ AccessCheck::documentDomainMakesSameOrigin(JSContext *cx, JSObject *obj)
         object = GetPrincipal(JS_GetGlobalForObject(cx, obj));
     }
 
-    bool subsumes;
+    PRBool subsumes;
     return NS_SUCCEEDED(subject->Subsumes(object, &subsumes)) && subsumes;
 }
 
@@ -294,7 +293,7 @@ AccessCheck::isCrossOriginAccessPermitted(JSContext *cx, JSObject *wrapper, jsid
     JSObject *obj = Wrapper::wrappedObject(wrapper);
 
     const char *name;
-    js::Class *clasp = js::GetObjectClass(obj);
+    js::Class *clasp = obj->getClass();
     NS_ASSERTION(Jsvalify(clasp) != &XrayUtils::HolderClass, "shouldn't have a holder here");
     if (clasp->ext.innerObject)
         name = "Window";
@@ -347,7 +346,7 @@ AccessCheck::isSystemOnlyAccessPermitted(JSContext *cx)
         fp = NULL;
     }
 
-    bool privileged;
+    PRBool privileged;
     if (NS_SUCCEEDED(ssm->IsSystemPrincipal(principal, &privileged)) &&
         privileged) {
         return true;
@@ -358,7 +357,7 @@ AccessCheck::isSystemOnlyAccessPermitted(JSContext *cx)
     static const char prefix[] = "chrome://global/";
     const char *filename;
     if (fp &&
-        (filename = JS_GetScriptFilename(cx, JS_GetFrameScript(cx, fp))) &&
+        (filename = JS_GetFrameScript(cx, fp)->filename) &&
         !strncmp(filename, prefix, NS_ARRAY_LENGTH(prefix) - 1)) {
         return true;
     }
@@ -372,17 +371,17 @@ AccessCheck::needsSystemOnlyWrapper(JSObject *obj)
     if (!IS_WN_WRAPPER(obj))
         return false;
 
-    XPCWrappedNative *wn = static_cast<XPCWrappedNative *>(js::GetObjectPrivate(obj));
+    XPCWrappedNative *wn = static_cast<XPCWrappedNative *>(obj->getPrivate());
     return wn->NeedsSOW();
 }
 
 bool
 AccessCheck::isScriptAccessOnly(JSContext *cx, JSObject *wrapper)
 {
-    JS_ASSERT(js::IsWrapper(wrapper));
+    JS_ASSERT(wrapper->isWrapper());
 
     uintN flags;
-    JSObject *obj = js::UnwrapObject(wrapper, &flags);
+    JSObject *obj = wrapper->unwrap(&flags);
 
     // If the wrapper indicates script-only access, we are done.
     if (flags & WrapperFactory::SCRIPT_ACCESS_ONLY_FLAG) {
@@ -397,13 +396,13 @@ AccessCheck::isScriptAccessOnly(JSContext *cx, JSObject *wrapper)
             return true;
 
         // Bypass script-only status if UniversalXPConnect is enabled.
-        bool privileged;
+        PRBool privileged;
         return !NS_SUCCEEDED(ssm->IsCapabilityEnabled("UniversalXPConnect", &privileged)) ||
                !privileged;
     }
 
     // In addition, chrome objects can explicitly opt-in by setting .scriptOnly to true.
-    if (js::GetProxyHandler(wrapper) == &FilteringWrapper<CrossCompartmentWrapper,
+    if (wrapper->getProxyHandler() == &FilteringWrapper<CrossCompartmentWrapper,
         CrossOriginAccessiblePropertiesOnly>::singleton) {
         jsid scriptOnlyId = GetRTIdByIndex(cx, XPCJSRuntime::IDX_SCRIPTONLY);
         jsval scriptOnly;
@@ -458,7 +457,7 @@ PermitIfUniversalXPConnect(JSContext *cx, jsid id, Wrapper::Action act,
     if (!ssm) {
         return false;
     }
-    bool privileged;
+    PRBool privileged;
     if (NS_SUCCEEDED(ssm->IsCapabilityEnabled("UniversalXPConnect", &privileged)) &&
         privileged) {
         perm = ExposedPropertiesOnly::PermitPropertyAccess;

@@ -162,7 +162,7 @@ nsXULListboxAccessible::QueryInterface(REFNSIID aIID, void** aInstancePtr)
   return NS_ERROR_NO_INTERFACE;
 }
 
-bool
+PRBool
 nsXULListboxAccessible::IsMulticolumn()
 {
   PRInt32 numColumns = 0;
@@ -440,7 +440,7 @@ nsXULListboxAccessible::GetRowDescription(PRInt32 aRow, nsAString& aDescription)
 }
 
 NS_IMETHODIMP
-nsXULListboxAccessible::IsColumnSelected(PRInt32 aColumn, bool *aIsSelected)
+nsXULListboxAccessible::IsColumnSelected(PRInt32 aColumn, PRBool *aIsSelected)
 {
   NS_ENSURE_ARG_POINTER(aIsSelected);
   *aIsSelected = PR_FALSE;
@@ -466,7 +466,7 @@ nsXULListboxAccessible::IsColumnSelected(PRInt32 aColumn, bool *aIsSelected)
 }
 
 NS_IMETHODIMP
-nsXULListboxAccessible::IsRowSelected(PRInt32 aRow, bool *aIsSelected)
+nsXULListboxAccessible::IsRowSelected(PRInt32 aRow, PRBool *aIsSelected)
 {
   NS_ENSURE_ARG_POINTER(aIsSelected);
   *aIsSelected = PR_FALSE;
@@ -488,7 +488,7 @@ nsXULListboxAccessible::IsRowSelected(PRInt32 aRow, bool *aIsSelected)
 
 NS_IMETHODIMP
 nsXULListboxAccessible::IsCellSelected(PRInt32 aRowIndex, PRInt32 aColumnIndex,
-                                       bool *aIsSelected)
+                                       PRBool *aIsSelected)
 {
   return IsRowSelected(aRowIndex, aIsSelected);
 }
@@ -827,7 +827,7 @@ nsXULListboxAccessible::UnselectColumn(PRInt32 aColumn)
 }
 
 NS_IMETHODIMP
-nsXULListboxAccessible::IsProbablyForLayout(bool *aIsProbablyForLayout)
+nsXULListboxAccessible::IsProbablyForLayout(PRBool *aIsProbablyForLayout)
 {
   NS_ENSURE_ARG_POINTER(aIsProbablyForLayout);
   *aIsProbablyForLayout = PR_FALSE;
@@ -852,7 +852,7 @@ nsXULListboxAccessible::IsActiveWidget() const
       do_QueryInterface(mContent->GetParent());
 
     if (autoCompletePopupElm) {
-      bool isOpen = false;
+      PRBool isOpen = PR_FALSE;
       autoCompletePopupElm->GetPopupOpen(&isOpen);
       return isOpen;
     }
@@ -868,7 +868,7 @@ nsXULListboxAccessible::AreItemsOperable() const
       do_QueryInterface(mContent->GetParent());
 
     if (autoCompletePopupElm) {
-      bool isOpen = false;
+      PRBool isOpen = PR_FALSE;
       autoCompletePopupElm->GetPopupOpen(&isOpen);
       return isOpen;
     }
@@ -1001,7 +1001,7 @@ nsXULListitemAccessible::NativeState()
     do_QueryInterface(mContent);
 
   if (listItem) {
-    bool isSelected;
+    PRBool isSelected;
     listItem->GetSelected(&isSelected);
     if (isSelected)
       states |= states::SELECTED;
@@ -1029,7 +1029,7 @@ NS_IMETHODIMP nsXULListitemAccessible::GetActionName(PRUint8 aIndex, nsAString& 
   return NS_ERROR_INVALID_ARG;
 }
 
-bool
+PRBool
 nsXULListitemAccessible::GetAllowsAnonChildAccessibles()
 {
   // That indicates we should walk anonymous children for listitems
@@ -1248,7 +1248,7 @@ nsXULListCellAccessible::GetRowHeaderCells(nsIArray **aHeaderCells)
 }
 
 NS_IMETHODIMP
-nsXULListCellAccessible::IsSelected(bool *aIsSelected)
+nsXULListCellAccessible::IsSelected(PRBool *aIsSelected)
 {
   NS_ENSURE_ARG_POINTER(aIsSelected);
   *aIsSelected = PR_FALSE;

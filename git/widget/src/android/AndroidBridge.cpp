@@ -48,6 +48,7 @@
 #include "nsOSHelperAppService.h"
 #include "nsWindow.h"
 #include "mozilla/Preferences.h"
+#include "nsINetworkLinkService.h"
 
 #ifdef DEBUG
 #define ALOG_BRIDGE(args...) ALOG(args)
@@ -96,7 +97,7 @@ AndroidBridge::ConstructBridge(JNIEnv *jEnv,
     return sBridge;
 }
 
-bool
+PRBool
 AndroidBridge::Init(JNIEnv *jEnv,
                     jclass jGeckoAppShellClass)
 {
@@ -142,6 +143,7 @@ AndroidBridge::Init(JNIEnv *jEnv,
     jSetKeepScreenOn = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "setKeepScreenOn", "(Z)V");
     jIsNetworkLinkUp = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "isNetworkLinkUp", "()Z");
     jIsNetworkLinkKnown = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "isNetworkLinkKnown", "()Z");
+    jGetNetworkLinkType = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "getNetworkLinkType", "()I");
     jSetSelectedLocale = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "setSelectedLocale", "(Ljava/lang/String;)V");
     jScanMedia = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "scanMedia", "(Ljava/lang/String;Ljava/lang/String;)V");
     jGetSystemColors = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "getSystemColors", "()[I");
@@ -169,7 +171,7 @@ AndroidBridge::Init(JNIEnv *jEnv,
 }
 
 JNIEnv *
-AndroidBridge::AttachThread(bool asDaemon)
+AndroidBridge::AttachThread(PRBool asDaemon)
 {
     // If we already have a env, return it
     JNIEnv *jEnv = NULL;
@@ -208,7 +210,7 @@ AndroidBridge::AttachThread(bool asDaemon)
     return jEnv;
 }
 
-bool
+PRBool
 AndroidBridge::SetMainThread(void *thr)
 {
     ALOG_BRIDGE("AndroidBridge::SetMainThread");
@@ -393,7 +395,7 @@ getHandlersFromStringArray(JNIEnv *aJNIEnv, jobjectArray jArr, jsize aLen,
     }
 }
 
-bool
+PRBool
 AndroidBridge::GetHandlersForMimeType(const char *aMimeType,
                                       nsIMutableArray *aHandlersArray,
                                       nsIHandlerApp **aDefaultApp,
@@ -427,7 +429,7 @@ AndroidBridge::GetHandlersForMimeType(const char *aMimeType,
     return PR_TRUE;
 }
 
-bool
+PRBool
 AndroidBridge::GetHandlersForURL(const char *aURL,
                                       nsIMutableArray* aHandlersArray,
                                       nsIHandlerApp **aDefaultApp,
@@ -458,7 +460,7 @@ AndroidBridge::GetHandlersForURL(const char *aURL,
     return PR_TRUE;
 }
 
-bool
+PRBool
 AndroidBridge::OpenUriExternal(const nsACString& aUriSpec, const nsACString& aMimeType,
                                const nsAString& aPackageName, const nsAString& aClassName,
                                const nsAString& aAction, const nsAString& aTitle)
@@ -644,7 +646,7 @@ AndroidBridge::ShowFilePicker(nsAString& aFilePath, nsAString& aFilters)
 }
 
 void
-AndroidBridge::SetFullScreen(bool aFullScreen)
+AndroidBridge::SetFullScreen(PRBool aFullScreen)
 {
     ALOG_BRIDGE("AndroidBridge::SetFullScreen");
     mJNIEnv->CallStaticVoidMethod(mGeckoAppShellClass, jSetFullScreen, aFullScreen);
@@ -662,7 +664,7 @@ AndroidBridge::HideProgressDialogOnce()
 }
 
 void
-AndroidBridge::PerformHapticFeedback(bool aIsLongPress)
+AndroidBridge::PerformHapticFeedback(PRBool aIsLongPress)
 {
     ALOG_BRIDGE("AndroidBridge::PerformHapticFeedback");
     mJNIEnv->CallStaticVoidMethod(mGeckoAppShellClass,
@@ -681,6 +683,13 @@ AndroidBridge::IsNetworkLinkKnown()
 {
     ALOG_BRIDGE("AndroidBridge::IsNetworkLinkKnown");
     return !!mJNIEnv->CallStaticBooleanMethod(mGeckoAppShellClass, jIsNetworkLinkKnown);
+}
+
+int
+AndroidBridge::GetNetworkLinkType()
+{
+    ALOG_BRIDGE("AndroidBridge::GetNetworkLinkType");
+    return (int) mJNIEnv->CallStaticIntMethod(mGeckoAppShellClass, jGetNetworkLinkType);
 }
 
 void
@@ -873,7 +882,7 @@ AndroidBridge::SetKeepScreenOn(bool on)
 }
 
 // Available for places elsewhere in the code to link to.
-bool
+PRBool
 mozilla_AndroidBridge_SetMainThread(void *thr)
 {
     return AndroidBridge::Bridge()->SetMainThread(thr);
@@ -886,7 +895,7 @@ mozilla_AndroidBridge_GetJavaVM()
 }
 
 JNIEnv *
-mozilla_AndroidBridge_AttachThread(bool asDaemon)
+mozilla_AndroidBridge_AttachThread(PRBool asDaemon)
 {
     return AndroidBridge::Bridge()->AttachThread(asDaemon);
 }
@@ -933,7 +942,7 @@ AndroidBridge::CreateShortcut(const nsAString& aTitle, const nsAString& aURI, co
 }
 
 void
-AndroidBridge::PostToJavaThread(nsIRunnable* aRunnable, bool aMainThread)
+AndroidBridge::PostToJavaThread(nsIRunnable* aRunnable, PRBool aMainThread)
 {
     __android_log_print(ANDROID_LOG_INFO, "GeckoBridge", "%s", __PRETTY_FUNCTION__);
     JNIEnv* env = AndroidBridge::AttachThread(false);
@@ -979,8 +988,6 @@ AndroidBridge::OpenGraphicsLibraries()
         // Try to dlopen libjnigraphics.so for direct bitmap access on
         // Android 2.2+ (API level 8)
         mOpenedGraphicsLibraries = true;
-        mHasNativeWindowAccess = false;
-        mHasNativeBitmapAccess = false;
 
         void *handle = dlopen("/system/lib/libjnigraphics.so", RTLD_LAZY | RTLD_LOCAL);
         if (handle) {
@@ -988,9 +995,7 @@ AndroidBridge::OpenGraphicsLibraries()
             AndroidBitmap_lockPixels = (int (*)(JNIEnv *, jobject, void **))dlsym(handle, "AndroidBitmap_lockPixels");
             AndroidBitmap_unlockPixels = (int (*)(JNIEnv *, jobject))dlsym(handle, "AndroidBitmap_unlockPixels");
 
-            mHasNativeBitmapAccess = AndroidBitmap_getInfo && AndroidBitmap_lockPixels && AndroidBitmap_unlockPixels;
-
-            ALOG_BRIDGE("Successfully opened libjnigraphics.so, have native bitmap access? %d", mHasNativeBitmapAccess);
+            ALOG_BRIDGE("Successfully opened libjnigraphics.so");
         }
 
         // Try to dlopen libandroid.so for and native window access on
@@ -1002,11 +1007,12 @@ AndroidBridge::OpenGraphicsLibraries()
             ANativeWindow_setBuffersGeometry = (int (*)(void*, int, int, int)) dlsym(handle, "ANativeWindow_setBuffersGeometry");
             ANativeWindow_lock = (int (*)(void*, void*, void*)) dlsym(handle, "ANativeWindow_lock");
             ANativeWindow_unlockAndPost = (int (*)(void*))dlsym(handle, "ANativeWindow_unlockAndPost");
-
-            mHasNativeWindowAccess = ANativeWindow_fromSurface && ANativeWindow_release && ANativeWindow_lock && ANativeWindow_unlockAndPost;
-
-            ALOG_BRIDGE("Successfully opened libandroid.so, have native window access? %d", mHasNativeWindowAccess);
+ 
+            ALOG_BRIDGE("Successfully opened libandroid.so");
         }
+
+        mHasNativeBitmapAccess = AndroidBitmap_getInfo && AndroidBitmap_lockPixels && AndroidBitmap_unlockPixels;
+        mHasNativeWindowAccess = ANativeWindow_fromSurface && ANativeWindow_release && ANativeWindow_lock && ANativeWindow_unlockAndPost;
     }
 }
 

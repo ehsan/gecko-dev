@@ -58,7 +58,6 @@
 #include "nsIXPConnect.h"
 #include "jsapi.h"
 #include "jscntxt.h"
-#include "jsfriendapi.h"
 #include "jstypedarray.h"
 #include "nsJSUtils.h"
 
@@ -126,7 +125,7 @@ nsHTMLAudioElement::Initialize(nsISupports* aOwner, JSContext* aContext,
   // 'preload' set to 'auto' (since the script must intend to
   // play the audio)
   nsresult rv = SetAttr(kNameSpaceID_None, nsGkAtoms::preload,
-                        NS_LITERAL_STRING("auto"), true);
+                        NS_LITERAL_STRING("auto"), PR_TRUE);
   if (NS_FAILED(rv))
     return rv;
 
@@ -144,7 +143,7 @@ nsHTMLAudioElement::Initialize(nsISupports* aOwner, JSContext* aContext,
   if (!str.init(aContext, jsstr))
     return NS_ERROR_FAILURE;
 
-  rv = SetAttr(kNameSpaceID_None, nsGkAtoms::src, str, true);
+  rv = SetAttr(kNameSpaceID_None, nsGkAtoms::src, str, PR_TRUE);
   if (NS_FAILED(rv))
     return rv;
 
@@ -201,7 +200,7 @@ nsHTMLAudioElement::MozWriteAudio(const jsval &aData, JSContext *aCx, PRUint32 *
   JSObject *tsrc = NULL;
 
   // Allow either Float32Array or plain JS Array
-  if (js::GetObjectClass(darray) == &js::TypedArray::fastClasses[js::TypedArray::TYPE_FLOAT32])
+  if (darray->getClass() == &js::TypedArray::fastClasses[js::TypedArray::TYPE_FLOAT32])
   {
     tsrc = js::TypedArray::getTypedArray(darray);
   } else if (JS_IsArrayObject(aCx, darray)) {
@@ -268,5 +267,5 @@ nsresult nsHTMLAudioElement::SetAcceptHeader(nsIHttpChannel* aChannel)
 
     return aChannel->SetRequestHeader(NS_LITERAL_CSTRING("Accept"),
                                       value,
-                                      false);
+                                      PR_FALSE);
 }

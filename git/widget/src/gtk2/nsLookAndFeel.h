@@ -53,7 +53,7 @@ public:
     virtual nsresult GetFloatImpl(FloatID aID, float &aResult);
     virtual void RefreshImpl();
     virtual PRUnichar GetPasswordCharacterImpl();
-    virtual bool GetEchoPasswordImpl();
+    virtual PRBool GetEchoPasswordImpl();
 
 protected:
     GtkStyle *mStyle;
@@ -79,7 +79,7 @@ protected:
     static nscolor sComboBoxBackground;
     static PRUnichar sInvisibleCharacter;
     static float   sCaretRatio;
-    static bool    sMenuSupportsDrag;
+    static PRBool  sMenuSupportsDrag;
 
     static void InitLookAndFeel();
     void InitWidget() {

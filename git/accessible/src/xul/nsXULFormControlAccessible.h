@@ -89,7 +89,7 @@ protected:
   virtual void CacheChildren();
 
   // nsXULButtonAccessible
-  bool ContainsMenu();
+  PRBool ContainsMenu();
 };
 
 
@@ -135,7 +135,7 @@ public:
   virtual PRUint8 ActionCount();
 
 private:
-  bool DropmarkerOpen(bool aToggleOpen);
+  PRBool DropmarkerOpen(PRBool aToggleOpen);
 };
 
 /**
@@ -213,7 +213,7 @@ public:
                                           PRInt32 *aSetSize);
 
   // nsXULToolbarButtonAccessible
-  static bool IsSeparator(nsAccessible *aAccessible);
+  static PRBool IsSeparator(nsAccessible *aAccessible);
 };
 
 /**
@@ -267,7 +267,7 @@ public:
   virtual void ApplyARIAState(PRUint64* aState);
   virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
-  virtual bool GetAllowsAnonChildAccessibles();
+  virtual PRBool GetAllowsAnonChildAccessibles();
 
   // ActionAccessible
   virtual PRUint8 ActionCount();

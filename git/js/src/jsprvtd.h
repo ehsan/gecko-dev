@@ -164,8 +164,6 @@ class CrossCompartmentWrapper;
 class TempAllocPolicy;
 class RuntimeAllocPolicy;
 
-class GlobalObject;
-
 template <class T,
           size_t MinInlineCapacity = 0,
           class AllocPolicy = TempAllocPolicy>
@@ -189,8 +187,6 @@ template <typename K,
           typename V,
           size_t InlineElems>
 class InlineMap;
-
-class LifoAlloc;
 
 class PropertyCache;
 struct PropertyCacheEntry;
@@ -218,26 +214,6 @@ typedef JSNative             Native;
 typedef JSPropertyOp         PropertyOp;
 typedef JSStrictPropertyOp   StrictPropertyOp;
 typedef JSPropertyDescriptor PropertyDescriptor;
-
-namespace analyze {
-
-struct LifetimeVariable;
-class LoopAnalysis;
-class ScriptAnalysis;
-class SlotValue;
-class SSAValue;
-class SSAUseChain;
-
-} /* namespace analyze */
-
-namespace types {
-
-class TypeSet;
-struct TypeCallsite;
-struct TypeObject;
-struct TypeCompartment;
-
-} /* namespace types */
 
 } /* namespace js */
 
@@ -398,6 +374,13 @@ typedef JSObject *
 #else
 extern JSBool js_CStringsAreUTF8;
 #endif
+
+/*
+ * Hack to expose obj->getOps()->outer to the C implementation of the debugger
+ * interface.
+ */
+extern JS_FRIEND_API(JSObject *)
+js_ObjectToOuterObject(JSContext *cx, JSObject *obj);
 
 JS_END_EXTERN_C
 

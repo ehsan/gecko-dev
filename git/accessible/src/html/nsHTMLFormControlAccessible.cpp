@@ -119,7 +119,7 @@ nsHTMLCheckboxAccessible::NativeState()
   PRUint64 state = nsFormControlAccessible::NativeState();
 
   state |= states::CHECKABLE;
-  bool checkState = false;   // Radio buttons and check boxes can be checked or mixed
+  PRBool checkState = PR_FALSE;   // Radio buttons and check boxes can be checked or mixed
 
   nsCOMPtr<nsIDOMHTMLInputElement> htmlCheckboxElement =
     do_QueryInterface(mContent);
@@ -140,16 +140,6 @@ nsHTMLCheckboxAccessible::NativeState()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// nsHTMLCheckboxAccessible: Widgets
-
-bool
-nsHTMLCheckboxAccessible::IsWidget() const
-{
-  return true;
-}
-
-
-////////////////////////////////////////////////////////////////////////////////
 // nsHTMLRadioButtonAccessible
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -166,7 +156,7 @@ nsHTMLRadioButtonAccessible::NativeState()
 
   state |= states::CHECKABLE;
   
-  bool checked = false;   // Radio buttons and check boxes can be checked
+  PRBool checked = PR_FALSE;   // Radio buttons and check boxes can be checked
 
   nsCOMPtr<nsIDOMHTMLInputElement> htmlRadioElement =
     do_QueryInterface(mContent);
@@ -278,8 +268,8 @@ nsHTMLButtonAccessible::NativeState()
 {
   PRUint64 state = nsHyperTextAccessibleWrap::NativeState();
 
-  nsEventStates elmState = mContent->AsElement()->State();
-  if (elmState.HasState(NS_EVENT_STATE_DEFAULT))
+  if (mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::type,
+                            nsGkAtoms::submit, eIgnoreCase))
     state |= states::DEFAULT;
 
   return state;
@@ -322,15 +312,6 @@ nsHTMLButtonAccessible::GetNameInternal(nsAString& aName)
   aName = name;
 
   return NS_OK;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// nsHTMLButtonAccessible: Widgets
-
-bool
-nsHTMLButtonAccessible::IsWidget() const
-{
-  return true;
 }
 
 
@@ -382,20 +363,11 @@ nsHTML4ButtonAccessible::NativeState()
 
   state |= states::FOCUSABLE;
 
-  nsEventStates elmState = mContent->AsElement()->State();
-  if (elmState.HasState(NS_EVENT_STATE_DEFAULT))
+  if (mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::type,
+                            nsGkAtoms::submit, eIgnoreCase))
     state |= states::DEFAULT;
 
   return state;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// nsHTML4ButtonAccessible: Widgets
-
-bool
-nsHTML4ButtonAccessible::IsWidget() const
-{
-  return true;
 }
 
 
@@ -578,7 +550,7 @@ NS_IMETHODIMP nsHTMLTextFieldAccessible::GetAssociatedEditor(nsIEditor **aEditor
   // whatever script is currently running.
   nsCOMPtr<nsIJSContextStack> stack =
     do_GetService("@mozilla.org/js/xpc/ContextStack;1");
-  bool pushed = stack && NS_SUCCEEDED(stack->Push(nsnull));
+  PRBool pushed = stack && NS_SUCCEEDED(stack->Push(nsnull));
 
   nsCOMPtr<nsIEditor> editor;
   nsresult rv = editableElt->GetEditor(aEditor);

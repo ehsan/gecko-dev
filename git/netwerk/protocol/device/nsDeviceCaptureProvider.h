@@ -43,8 +43,8 @@
 #include "nsIInputStream.h"
 
 struct nsCaptureParams {
-  bool captureAudio;
-  bool captureVideo;
+  PRPackedBool captureAudio;
+  PRPackedBool captureVideo;
   PRUint32 frameRate;
   PRUint32 frameLimit;
   PRUint32 timeLimit;

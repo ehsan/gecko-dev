@@ -90,7 +90,7 @@ class AudioParent : public PAudioParent, public nsITimerCallback
 private:
     void Shutdown();
 
-    bool mIPCOpen;
+    PRPackedBool mIPCOpen;
 };
 } // namespace dom
 } // namespace mozilla

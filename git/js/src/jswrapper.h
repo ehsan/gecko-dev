@@ -87,7 +87,7 @@ class JS_FRIEND_API(Wrapper) : public ProxyHandler
     virtual bool nativeCall(JSContext *cx, JSObject *wrapper, Class *clasp, Native native, CallArgs args);
     virtual bool hasInstance(JSContext *cx, JSObject *wrapper, const Value *vp, bool *bp);
     virtual JSType typeOf(JSContext *cx, JSObject *proxy);
-    virtual bool objectClassIs(JSObject *obj, ESClassValue classValue, JSContext *cx);
+    virtual bool classPropertyIs(JSContext *cx, JSObject *obj, ESClassValue classValue);
     virtual JSString *obj_toString(JSContext *cx, JSObject *wrapper);
     virtual JSString *fun_toString(JSContext *cx, JSObject *wrapper, uintN indent);
     virtual bool defaultValue(JSContext *cx, JSObject *wrapper, JSType hint, Value *vp);
@@ -175,14 +175,51 @@ class JS_FRIEND_API(ForceFrame)
     bool enter();
 };
 
+class AutoCompartment
+{
+  public:
+    JSContext * const context;
+    JSCompartment * const origin;
+    JSObject * const target;
+    JSCompartment * const destination;
+  private:
+    Maybe<DummyFrameGuard> frame;
+    bool entered;
+
+  public:
+    AutoCompartment(JSContext *cx, JSObject *target);
+    ~AutoCompartment();
+
+    bool enter();
+    void leave();
+
+  private:
+    // Prohibit copying.
+    AutoCompartment(const AutoCompartment &);
+    AutoCompartment & operator=(const AutoCompartment &);
+};
+
+/*
+ * Use this to change the behavior of an AutoCompartment slightly on error. If
+ * the exception happens to be an Error object, copy it to the origin compartment
+ * instead of wrapping it.
+ */
+class ErrorCopier
+{
+    AutoCompartment &ac;
+    JSObject *scope;
+
+  public:
+    ErrorCopier(AutoCompartment &ac, JSObject *scope) : ac(ac), scope(scope) {
+        JS_ASSERT(scope->compartment() == ac.origin);
+    }
+    ~ErrorCopier();
+};
+
 extern JSObject *
 TransparentObjectWrapper(JSContext *cx, JSObject *obj, JSObject *wrappedProto, JSObject *parent,
                          uintN flags);
 
-JS_FRIEND_API(bool) IsWrapper(const JSObject *obj);
-JS_FRIEND_API(JSObject *) UnwrapObject(JSObject *obj, uintN *flagsp = NULL);
-bool IsCrossCompartmentWrapper(const JSObject *obj);
-
-} /* namespace js */
+}
 
 #endif

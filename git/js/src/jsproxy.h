@@ -44,7 +44,7 @@
 
 #include "jsapi.h"
 #include "jscntxt.h"
-#include "jsfriendapi.h"
+#include "jsobj.h"
 
 namespace js {
 
@@ -82,7 +82,7 @@ class JS_FRIEND_API(ProxyHandler) {
     virtual bool nativeCall(JSContext *cx, JSObject *proxy, Class *clasp, Native native, CallArgs args);
     virtual bool hasInstance(JSContext *cx, JSObject *proxy, const Value *vp, bool *bp);
     virtual JSType typeOf(JSContext *cx, JSObject *proxy);
-    virtual bool objectClassIs(JSObject *obj, ESClassValue classValue, JSContext *cx);
+    virtual bool classPropertyIs(JSContext *cx, JSObject *obj, ESClassValue classValue);
     virtual JSString *obj_toString(JSContext *cx, JSObject *proxy);
     virtual JSString *fun_toString(JSContext *cx, JSObject *proxy, uintN indent);
     virtual bool defaultValue(JSContext *cx, JSObject *obj, JSType hint, Value *vp);
@@ -131,28 +131,10 @@ class Proxy {
     static bool nativeCall(JSContext *cx, JSObject *proxy, Class *clasp, Native native, CallArgs args);
     static bool hasInstance(JSContext *cx, JSObject *proxy, const Value *vp, bool *bp);
     static JSType typeOf(JSContext *cx, JSObject *proxy);
-    static bool objectClassIs(JSObject *obj, ESClassValue classValue, JSContext *cx);
     static JSString *obj_toString(JSContext *cx, JSObject *proxy);
     static JSString *fun_toString(JSContext *cx, JSObject *proxy, uintN indent);
     static bool defaultValue(JSContext *cx, JSObject *obj, JSType hint, Value *vp);
 };
-
-inline bool IsObjectProxy(const JSObject *obj)
-{
-    Class *clasp = GetObjectClass(obj);
-    return clasp == &js::ObjectProxyClass || clasp == &js::OuterWindowProxyClass;
-}
-
-inline bool IsFunctionProxy(const JSObject *obj)
-{
-    Class *clasp = GetObjectClass(obj);
-    return clasp == &js::FunctionProxyClass;
-}
-
-inline bool IsProxy(const JSObject *obj)
-{
-    return IsObjectProxy(obj) || IsFunctionProxy(obj);
-}
 
 /* Shared between object and function proxies. */
 const uint32 JSSLOT_PROXY_HANDLER = 0;
@@ -162,50 +144,54 @@ const uint32 JSSLOT_PROXY_EXTRA   = 2;
 const uint32 JSSLOT_PROXY_CALL = 3;
 const uint32 JSSLOT_PROXY_CONSTRUCT = 4;
 
-inline ProxyHandler *
-GetProxyHandler(const JSObject *obj)
+}  /* namespace js */
+
+inline js::ProxyHandler *
+JSObject::getProxyHandler() const
 {
-    JS_ASSERT(IsProxy(obj));
-    return (ProxyHandler *) GetReservedSlot(obj, JSSLOT_PROXY_HANDLER).toPrivate();
+    JS_ASSERT(isProxy());
+    return (js::ProxyHandler *) getSlot(js::JSSLOT_PROXY_HANDLER).toPrivate();
 }
 
-inline const Value &
-GetProxyPrivate(const JSObject *obj)
+inline const js::Value &
+JSObject::getProxyPrivate() const
 {
-    JS_ASSERT(IsProxy(obj));
-    return GetReservedSlot(obj, JSSLOT_PROXY_PRIVATE);
-}
-
-inline void
-SetProxyPrivate(JSObject *obj, const Value &priv)
-{
-    JS_ASSERT(IsProxy(obj));
-    SetReservedSlot(obj, JSSLOT_PROXY_PRIVATE, priv);
-}
-
-inline const Value &
-GetProxyExtra(const JSObject *obj)
-{
-    JS_ASSERT(IsProxy(obj));
-    return GetReservedSlot(obj, JSSLOT_PROXY_EXTRA);
+    JS_ASSERT(isProxy());
+    return getSlot(js::JSSLOT_PROXY_PRIVATE);
 }
 
 inline void
-SetProxyExtra(JSObject *obj, const Value &extra)
+JSObject::setProxyPrivate(const js::Value &priv)
 {
-    JS_ASSERT(IsProxy(obj));
-    SetReservedSlot(obj, JSSLOT_PROXY_EXTRA, extra);
+    JS_ASSERT(isProxy());
+    setSlot(js::JSSLOT_PROXY_PRIVATE, priv);
 }
+
+inline const js::Value &
+JSObject::getProxyExtra() const
+{
+    JS_ASSERT(isProxy());
+    return getSlot(js::JSSLOT_PROXY_EXTRA);
+}
+
+inline void
+JSObject::setProxyExtra(const js::Value &extra)
+{
+    JS_ASSERT(isProxy());
+    setSlot(js::JSSLOT_PROXY_EXTRA, extra);
+}
+
+namespace js {
 
 JS_FRIEND_API(JSObject *)
-NewProxyObject(JSContext *cx, ProxyHandler *handler, const Value &priv,
+NewProxyObject(JSContext *cx, ProxyHandler *handler, const js::Value &priv,
                JSObject *proto, JSObject *parent,
                JSObject *call = NULL, JSObject *construct = NULL);
 
 JS_FRIEND_API(JSBool)
 FixProxy(JSContext *cx, JSObject *proxy, JSBool *bp);
 
-} /* namespace js */
+}
 
 JS_BEGIN_EXTERN_C
 
