@@ -49,7 +49,6 @@
 #include "nsIUploadChannel.h"
 #include "nsIProxiedChannel.h"
 #include "nsIResumableChannel.h"
-#include "nsIChildChannel.h"
 
 #include "nsIStreamListener.h"
 
@@ -67,18 +66,14 @@ class FTPChannelChild : public PFTPChannelChild
                       , public nsIUploadChannel
                       , public nsIResumableChannel
                       , public nsIProxiedChannel
-                      , public nsIChildChannel
                       , public ChannelEventQueue<FTPChannelChild>
 {
 public:
-  typedef ::nsIStreamListener nsIStreamListener;
-
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIFTPCHANNEL
   NS_DECL_NSIUPLOADCHANNEL
   NS_DECL_NSIRESUMABLECHANNEL
   NS_DECL_NSIPROXIEDCHANNEL
-  NS_DECL_NSICHILDCHANNEL
 
   NS_IMETHOD Cancel(nsresult status);
   NS_IMETHOD Suspend();
@@ -90,7 +85,7 @@ public:
   void AddIPDLReference();
   void ReleaseIPDLReference();
 
-  NS_IMETHOD AsyncOpen(nsIStreamListener* listener, nsISupports* aContext);
+  NS_IMETHOD AsyncOpen(::nsIStreamListener* listener, nsISupports* aContext);
 
   // Note that we handle this ourselves, overriding the nsBaseChannel
   // default behavior, in order to be e10s-friendly.
@@ -113,7 +108,6 @@ protected:
                                        const PRUint32& count);
   NS_OVERRIDE bool RecvOnStopRequest(const nsresult& statusCode);
   NS_OVERRIDE bool RecvCancelEarly(const nsresult& statusCode);
-  NS_OVERRIDE bool RecvDeleteSelf();
 
   void DoOnStartRequest(const PRInt32& aContentLength,
                         const nsCString& aContentType,
@@ -125,13 +119,11 @@ protected:
                          const PRUint32& count);
   void DoOnStopRequest(const nsresult& statusCode);
   void DoCancelEarly(const nsresult& statusCode);
-  void DoDeleteSelf();
 
   friend class FTPStartRequestEvent;
   friend class FTPDataAvailableEvent;
   friend class FTPStopRequestEvent;
   friend class FTPCancelEarlyEvent;
-  friend class FTPDeleteSelfEvent;
 
 private:
   nsCOMPtr<nsIInputStream> mUploadStream;

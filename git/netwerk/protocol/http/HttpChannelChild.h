@@ -61,8 +61,6 @@
 #include "nsITraceableChannel.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "nsIAssociatedContentSecurity.h"
-#include "nsIChildChannel.h"
-#include "nsIHttpChannelChild.h"
 
 namespace mozilla {
 namespace net {
@@ -75,8 +73,6 @@ class HttpChannelChild : public PHttpChannelChild
                        , public nsIApplicationCacheChannel
                        , public nsIAsyncVerifyRedirectCallback
                        , public nsIAssociatedContentSecurity
-                       , public nsIChildChannel
-                       , public nsIHttpChannelChild
                        , public ChannelEventQueue<HttpChannelChild>
 {
 public:
@@ -88,8 +84,6 @@ public:
   NS_DECL_NSIAPPLICATIONCACHECHANNEL
   NS_DECL_NSIASYNCVERIFYREDIRECTCALLBACK
   NS_DECL_NSIASSOCIATEDCONTENTSECURITY
-  NS_DECL_NSICHILDCHANNEL
-  NS_DECL_NSIHTTPCHANNELCHILD
 
   HttpChannelChild();
   virtual ~HttpChannelChild();
@@ -113,6 +107,10 @@ public:
   NS_IMETHOD SetPriority(PRInt32 value);
   // nsIResumableChannel
   NS_IMETHOD ResumeAt(PRUint64 startPos, const nsACString& entityID);
+
+  // Final setup when redirect has proceeded successfully in chrome
+  nsresult CompleteRedirectSetup(nsIStreamListener *listener, 
+                                 nsISupports *aContext);
 
   // IPDL holds a reference while the PHttpChannel protocol is live (starting at
   // AsyncOpen, and ending at either OnStopRequest or any IPDL error, either of
@@ -138,7 +136,7 @@ protected:
   bool RecvOnProgress(const PRUint64& progress, const PRUint64& progressMax);
   bool RecvOnStatus(const nsresult& status, const nsString& statusArg);
   bool RecvCancelEarly(const nsresult& status);
-  bool RecvRedirect1Begin(const PRUint32& newChannel,
+  bool RecvRedirect1Begin(PHttpChannelChild* newChannel,
                           const URI& newURI,
                           const PRUint32& redirectFlags,
                           const nsHttpResponseHead& responseHead);
@@ -151,7 +149,7 @@ protected:
 
 private:
   RequestHeaderTuples mRequestHeaders;
-  nsCOMPtr<nsIChildChannel> mRedirectChannelChild;
+  nsRefPtr<HttpChannelChild> mRedirectChannelChild;
   nsCOMPtr<nsIURI> mRedirectOriginalURI;
   nsCOMPtr<nsISupports> mSecurityInfo;
 
@@ -183,8 +181,7 @@ private:
   void OnProgress(const PRUint64& progress, const PRUint64& progressMax);
   void OnStatus(const nsresult& status, const nsString& statusArg);
   void OnCancel(const nsresult& status);
-  void Redirect1Begin(const PRUint32& newChannelId,
-                      const URI& newUri,
+  void Redirect1Begin(PHttpChannelChild* newChannel, const URI& newURI,
                       const PRUint32& redirectFlags,
                       const nsHttpResponseHead& responseHead);
   void Redirect3Complete();
