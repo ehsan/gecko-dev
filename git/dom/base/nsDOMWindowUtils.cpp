@@ -49,7 +49,6 @@
 #include "nsIEventStateManager.h"
 #include "nsEventStateManager.h"
 #include "nsFrameManager.h"
-#include "nsRefreshDriver.h"
 
 #include "nsIScrollableFrame.h"
 
@@ -1643,30 +1642,6 @@ ComputeAnimationValue(nsCSSProperty aProperty,
   }
 
   return PR_TRUE;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::AdvanceTimeAndRefresh(PRInt64 aMilliseconds)
-{
-  if (!IsUniversalXPConnectCapable()) {
-    return NS_ERROR_DOM_SECURITY_ERR;
-  }
-
-  GetPresContext()->RefreshDriver()->AdvanceTimeAndRefresh(aMilliseconds);
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::RestoreNormalRefresh()
-{
-  if (!IsUniversalXPConnectCapable()) {
-    return NS_ERROR_DOM_SECURITY_ERR;
-  }
-
-  GetPresContext()->RefreshDriver()->RestoreNormalRefresh();
-
-  return NS_OK;
 }
 
 NS_IMETHODIMP

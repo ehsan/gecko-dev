@@ -190,12 +190,6 @@ public:
     eDOMEvents_MozTouchUp,
     eDOMEvents_MozScrolledAreaChanged,
     eDOMEvents_transitionend
-#ifdef MOZ_CSS_ANIMATIONS
-    ,
-    eDOMEvents_animationstart,
-    eDOMEvents_animationend,
-    eDOMEvents_animationiteration
-#endif
   };
 
   nsDOMEvent(nsPresContext* aPresContext, nsEvent* aEvent);

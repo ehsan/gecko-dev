@@ -676,6 +676,15 @@ js_InitRuntimeScriptState(JSRuntime *rt);
 extern void
 js_FreeRuntimeScriptState(JSRuntime *rt);
 
+extern const char *
+js_SaveScriptFilename(JSContext *cx, const char *filename);
+
+extern const char *
+js_SaveScriptFilenameRT(JSRuntime *rt, const char *filename, uint32 flags);
+
+extern uint32
+js_GetScriptFilenameFlags(const char *filename);
+
 extern void
 js_MarkScriptFilename(const char *filename);
 

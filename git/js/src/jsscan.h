@@ -470,12 +470,12 @@ class TokenStream
     /*
      * Get the next token from the stream if its kind is |tt|.
      */
-    bool matchToken(TokenKind tt, uintN withFlags = 0) {
+    JSBool matchToken(TokenKind tt, uintN withFlags = 0) {
         Flagger flagger(this, withFlags);
         if (getToken() == tt)
-            return true;
+            return JS_TRUE;
         ungetToken();
-        return false;
+        return JS_FALSE;
     }
 
   private:
@@ -579,19 +579,15 @@ class TokenStream
     bool peekUnicodeEscape(int32 *c);
     bool matchUnicodeEscapeIdStart(int32 *c);
     bool matchUnicodeEscapeIdent(int32 *c);
-    bool peekChars(intN n, jschar *cp);
-    bool getAtLine();
+    JSBool peekChars(intN n, jschar *cp);
+    JSBool getXMLEntity();
 
-    bool getXMLEntity();
-    bool getXMLTextOrTag(TokenKind *ttp, Token **tpp);
-    bool getXMLMarkup(TokenKind *ttp, Token **tpp);
-
-    bool matchChar(int32 expect) {
+    JSBool matchChar(int32 expect) {
         int32 c = getChar();
         if (c == expect)
-            return true;
+            return JS_TRUE;
         ungetChar(c);
-        return false;
+        return JS_FALSE;
     }
 
     int32 peekChar() {

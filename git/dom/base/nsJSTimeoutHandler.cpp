@@ -314,9 +314,11 @@ nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, PRBool *aIsInterval,
 
     mExpr = expr;
 
+    nsIPrincipal *prin = aWindow->GetPrincipal();
+
     // Get the calling location.
     const char *filename;
-    if (nsJSUtils::GetCallingLocation(cx, &filename, &mLineNo)) {
+    if (nsJSUtils::GetCallingLocation(cx, &filename, &mLineNo, prin)) {
       mFileName.Assign(filename);
     }
   } else if (funobj) {
