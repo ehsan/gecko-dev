@@ -69,6 +69,7 @@ class nsIDOMEvent;
 class nsIDeviceContext;
 class nsIParser;
 class nsIDOMNode;
+class nsIDOMElement;
 class nsIDOMDocumentFragment;
 class nsILineBreaker;
 class nsIWordBreaker;
@@ -96,8 +97,8 @@ class nsFrameLoader;
 
 // IID for the nsIDocument interface
 #define NS_IDOCUMENT_IID      \
-{ 0x92b19d1c, 0x8f37, 0x4d4b, \
-  { 0xa3, 0x42, 0xb5, 0xc6, 0x8b, 0x54, 0xde, 0x6c } }
+{ 0x6304ae8e, 0x2634, 0x45ed, \
+  { 0x9e, 0x09, 0x83, 0x09, 0x5b, 0x46, 0x72, 0x8b } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -677,6 +678,10 @@ public:
   virtual void ResetToURI(nsIURI *aURI, nsILoadGroup* aLoadGroup,
                           nsIPrincipal* aPrincipal) = 0;
 
+  virtual void AddReference(void *aKey, nsISupports *aReference) = 0;
+  virtual nsISupports *GetReference(void *aKey) = 0;
+  virtual void RemoveReference(void *aKey) = 0;
+
   /**
    * Set the container (docshell) for this document.
    */
@@ -913,6 +918,17 @@ public:
    */
   virtual nsresult GetContentListFor(nsIContent* aContent,
                                      nsIDOMNodeList** aResult) = 0;
+
+  /**
+   * Helper for nsIDOMNSDocument::elementFromPoint implementation that allows
+   * ignoring the scroll frame and/or avoiding layout flushes.
+   *
+   * @see nsIDOMWindowUtils::elementFromPoint
+   */
+  virtual nsresult ElementFromPointHelper(PRInt32 aX, PRInt32 aY,
+                                          PRBool aIgnoreRootScrollFrame,
+                                          PRBool aFlushLayout,
+                                          nsIDOMElement** aReturn) = 0;
 
   /**
    * See FlushSkinBindings on nsBindingManager
