@@ -368,24 +368,15 @@ mjit::Compiler::jsop_binary_double(FrameEntry *lhs, FrameEntry *rhs, JSOp op,
         isDouble.linkTo(masm.label(), &masm);
     }
 
-    /*
-     * Inference needs to know about any operation on integers that produces a
-     * double result. Unless the pushed type set already contains the double
-     * type, we need to call a stub rather than push. Note that looking at
-     * the pushed type tag is not sufficient, as it will be UNKNOWN if
-     * we do not yet know the possible types of the division's operands.
-     */
-    types::TypeSet *resultTypes = pushedTypeSet(0);
-    if (resultTypes && !resultTypes->hasType(types::TYPE_DOUBLE)) {
+    if (type == JSVAL_TYPE_INT32) {
         /*
-         * Call a stub and try harder to convert to int32, failing that trigger
+         * Integer conversion failed, but the result is expected to be an integer.
+         * Call a stub and try harder to convert to int32, or failing that trigger
          * recompilation of this script.
          */
         stubcc.linkExit(masm.jump(), Uses(2));
-    } else {
-        JS_ASSERT(type != JSVAL_TYPE_INT32);
-        if (type != JSVAL_TYPE_DOUBLE)
-            masm.storeDouble(fpLeft, frame.addressOf(lhs));
+    } else if (type != JSVAL_TYPE_DOUBLE) {
+        masm.storeDouble(fpLeft, frame.addressOf(lhs));
     }
 
     if (done.isSet())
@@ -1123,10 +1114,6 @@ mjit::Compiler::jsop_equality_int_string(JSOp op, BoolStub stub, jsbytecode *tar
 
         RegisterID tempReg = frame.allocReg();
 
-        frame.pop();
-        frame.pop();
-        frame.discardFrame();
-
         JaegerSpew(JSpew_Insns, " ---- BEGIN STUB CALL CODE ---- \n");
 
         RESERVE_OOL_SPACE(stubcc.masm);
@@ -1137,6 +1124,12 @@ mjit::Compiler::jsop_equality_int_string(JSOp op, BoolStub stub, jsbytecode *tar
         /* The lhs/rhs need to be synced in the stub call path. */
         frame.ensureValueSynced(stubcc.masm, lhs, lvr);
         frame.ensureValueSynced(stubcc.masm, rhs, rvr);
+
+        bool needIntPath = (!lhs->isTypeKnown() || lhsInt) && (!rhs->isTypeKnown() || rhsInt);
+
+        frame.pop();
+        frame.pop();
+        frame.discardFrame();
 
         bool needStub = true;
         
@@ -1182,7 +1175,7 @@ mjit::Compiler::jsop_equality_int_string(JSOp op, BoolStub stub, jsbytecode *tar
         Jump fast;
         MaybeJump firstStubJump;
 
-        if ((!lhs->isTypeKnown() || lhsInt) && (!rhs->isTypeKnown() || rhsInt)) {
+        if (needIntPath) {
             if (!lhsInt) {
                 Jump lhsFail = masm.testInt32(Assembler::NotEqual, lvr.typeReg());
                 stubcc.linkExitDirect(lhsFail, stubEntry);
