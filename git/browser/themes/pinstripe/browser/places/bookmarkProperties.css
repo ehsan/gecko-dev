@@ -19,7 +19,6 @@
  *
  * Contributor(s):
  *   Myk Melez <myk@mozilla.org>
- *   Asaf Romano <mano@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -54,38 +53,35 @@
 }
 
 .menulist-icon {
-	margin: 0 !important;
+	margin: 0px !important;
 }
 
 /**** folder tree ****/
-
-#editBMPanel_folderTree {
+#folderTree {
    margin: 6px 0;
 }
 
-/**** expanders ****/
-
-.expander-up,
-.expander-down {
+/**** expander ****/
+#expander {
   -moz-appearance: none;
   margin-left: 8px;
   padding: 0;
   min-width: 0;
 }
 
-.expander-up {
+.up {
 	list-style-image: url("chrome://browser/skin/places/expander-open.png") !important;
 }
 
-.expander-down {
+.down {
 	list-style-image: url("chrome://browser/skin/places/expander-closed.png") !important;
 }
 
-.expander-down:hover:active {
+.down:hover:active {
 	list-style-image: url("chrome://browser/skin/places/expander-closed-active.png") !important;
 }
 
-.expander-up:hover:active {
+.up:hover:active {
 	list-style-image: url("chrome://browser/skin/places/expander-open-active.png") !important;
 }
 
@@ -94,7 +90,8 @@
 /* Make the microsummary picker look like a regular textbox instead of 
  * an editable menulist when no microsummaries are available.
  */
-#editBMPanel_namePicker[droppable="false"] {
+
+menulist#namePicker[droppable="false"] {
   -moz-appearance: none;
   margin: 0px;
   border: none;
@@ -102,39 +99,28 @@
   height: auto !important;
 }
 
-#editBMPanel_namePicker[droppable="false"] > .menulist-dropmarker {
+menulist#namePicker[droppable="false"] > .menulist-dropmarker {
   display: none;
 }
 
-#editBMPanel_namePicker[droppable="false"] > .menulist-editable-box {
+menulist#namePicker[droppable="false"] > .menulist-editable-box {
   /* These rules are duplicates of the rules for the textbox element
    * in textbox.css and should track changes in that file.
    */
   -moz-appearance: textfield;
   cursor: text;
-  margin: 4px 4px;
-  border: 3px solid;
-  -moz-border-top-colors: transparent #888888 #000000;
-  -moz-border-right-colors: transparent #FFFFFF #000000;
-  -moz-border-bottom-colors: transparent #FFFFFF #000000;
-  -moz-border-left-colors: transparent #888888 #000000;
-  -moz-border-radius-topright: 2px;
-  -moz-border-radius-bottomleft: 2px;
-  padding: 0;
+  margin: 2px 4px;
+  border: 2px solid;
+  -moz-border-top-colors: ThreeDShadow ThreeDDarkShadow;
+  -moz-border-right-colors: ThreeDHighlight ThreeDLightShadow;
+  -moz-border-bottom-colors: ThreeDHighlight ThreeDLightShadow;
+  -moz-border-left-colors: ThreeDShadow ThreeDDarkShadow;
+  padding: 2px 2px 3px 4px;
   background-color: -moz-Field;
   color: -moz-FieldText;
 }
 
-#editBMPanel_namePicker[droppable="false"][disabled="true"] > .menulist-editable-box {
-  cursor: default;
-  -moz-border-top-colors: transparent ThreeDShadow -moz-Dialog;
-  -moz-border-right-colors: transparent ThreeDShadow -moz-Dialog;
-  -moz-border-bottom-colors: transparent ThreeDShadow -moz-Dialog;
-  -moz-border-left-colors: transparent ThreeDShadow -moz-Dialog;
-  color: GrayText;
-}
-
-#editBMPanel_namePicker[droppable="false"] > .menulist-editable-box > html|*.textbox-input {
+menulist#namePicker[droppable="false"] > .menulist-editable-box > html|*.textbox-input {
   margin: 0px !important;
   border: none !important;
   padding: 0px !important;
@@ -145,10 +131,10 @@
 
 /* Hide the drop marker and the popup. */
 
-#editBMPanel_namePicker[droppable="false"] > .menulist-dropmarker {
+menulist#namePicker[droppable="false"] > .menulist-dropmarker {
   display: none;
 }
 
-#editBMPanel_namePicker[droppable="false"] > menupopup {
+menulist#namePicker[droppable="false"] > menupopup {
   display: none;
 }

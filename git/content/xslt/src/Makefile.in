@@ -42,10 +42,10 @@ VPATH           = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-PARALLEL_DIRS   = base xml xpath xslt 
+DIRS            = base xml xpath xslt 
 
 ifdef MOZ_XSLT_STANDALONE
-PARALLEL_DIRS += main
+DIRS += main
 endif
 
 include $(topsrcdir)/config/rules.mk
