@@ -596,6 +596,13 @@ nsWindow::Create(nsIWidget *aParent,
     return NS_ERROR_FAILURE;
   }
 
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
+  if (mIsRTL && nsUXThemeData::dwmSetWindowAttributePtr) {
+    DWORD dwAttribute = TRUE;    
+    nsUXThemeData::dwmSetWindowAttributePtr(mWnd, DWMWA_NONCLIENT_RTL_LAYOUT, &dwAttribute, sizeof dwAttribute);
+  }
+#endif
+
   if (nsWindow::sTrackPointHack &&
       mWindowType != eWindowType_plugin &&
       mWindowType != eWindowType_invisible) {
@@ -1279,7 +1286,8 @@ void nsWindow::ClearThemeRegion()
 {
 #ifndef WINCE
   if (nsUXThemeData::sIsVistaOrLater && !HasGlass() &&
-      mWindowType == eWindowType_popup && (mPopupType == ePopupTypeTooltip || mPopupType == ePopupTypePanel)) {
+      (mWindowType == eWindowType_popup && !IsPopupWithTitleBar() &&
+       (mPopupType == ePopupTypeTooltip || mPopupType == ePopupTypePanel))) {
     SetWindowRgn(mWnd, NULL, false);
   }
 #endif
@@ -1294,7 +1302,8 @@ void nsWindow::SetThemeRegion()
   // state values from nsNativeThemeWin's GetThemePartAndState, but currently windows that
   // change shape based on state haven't come up.
   if (nsUXThemeData::sIsVistaOrLater && !HasGlass() &&
-      mWindowType == eWindowType_popup && (mPopupType == ePopupTypeTooltip || mPopupType == ePopupTypePanel)) {
+      (mWindowType == eWindowType_popup && !IsPopupWithTitleBar() &&
+       (mPopupType == ePopupTypeTooltip || mPopupType == ePopupTypePanel))) {
     HRGN hRgn = nsnull;
     RECT rect = {0,0,mBounds.width,mBounds.height};
     

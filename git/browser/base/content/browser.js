@@ -151,7 +151,7 @@ __defineSetter__("PluralForm", function (val) {
 #ifdef MOZ_SERVICES_SYNC
 XPCOMUtils.defineLazyGetter(this, "Weave", function() {
   let tmp = {};
-  Cu.import("resource://services-sync/service.js", tmp);
+  Cu.import("resource://services-sync/main.js", tmp);
   return tmp.Weave;
 });
 #endif
@@ -2870,25 +2870,7 @@ var browserDragAndDrop = {
   },
 
   drop: function (aEvent, aName) Services.droppedLinkHandler.dropLink(aEvent, aName)
-}
-
-var proxyIconDNDObserver = {
-  onDragStart: function (aEvent, aXferData, aDragAction)
-    {
-      if (gProxyFavIcon.getAttribute("pageproxystate") != "valid")
-        return;
-
-      var value = content.location.href;
-      var urlString = value + "\n" + content.document.title;
-      var htmlString = "<a href=\"" + value + "\">" + value + "</a>";
-
-      var dt = aEvent.dataTransfer;
-      dt.setData("text/x-moz-url", urlString);
-      dt.setData("text/uri-list", value);
-      dt.setData("text/plain", value);
-      dt.setData("text/html", htmlString);
-    }
-}
+};
 
 var homeButtonObserver = {
   onDrop: function (aEvent)
@@ -7225,6 +7207,22 @@ var gIdentityHandler = {
 
     // Now open the popup, anchored off the primary chrome element
     this._identityPopup.openPopup(this._identityBox, position);
+  },
+
+  onDragStart: function (event) {
+    if (gURLBar.getAttribute("pageproxystate") != "valid")
+      return;
+
+    var value = content.location.href;
+    var urlString = value + "\n" + content.document.title;
+    var htmlString = "<a href=\"" + value + "\">" + value + "</a>";
+
+    var dt = event.dataTransfer;
+    dt.setData("text/x-moz-url", urlString);
+    dt.setData("text/uri-list", value);
+    dt.setData("text/plain", value);
+    dt.setData("text/html", htmlString);
+    dt.setDragImage(event.currentTarget, 0, 0);
   }
 };
 
@@ -7684,12 +7682,42 @@ var LightWeightThemeWebInstaller = {
     notificationBar.persistence = 1;
   },
 
-  _install: function (newTheme) {
-    var previousTheme = this._manager.currentTheme;
-    this._manager.currentTheme = newTheme;
-    if (this._manager.currentTheme &&
-        this._manager.currentTheme.id == newTheme.id)
-      this._postInstallNotification(newTheme, previousTheme);
+  _install: function (newLWTheme) {
+    var previousLWTheme = this._manager.currentTheme;
+
+    var listener = {
+      onEnabling: function(aAddon, aRequiresRestart) {
+        if (!aRequiresRestart)
+          return;
+
+        let messageString = gNavigatorBundle.getFormattedString("lwthemeNeedsRestart.message",
+          [aAddon.name], 1);
+
+        let action = {
+          label: gNavigatorBundle.getString("lwthemeNeedsRestart.button"),
+          accessKey: gNavigatorBundle.getString("lwthemeNeedsRestart.accesskey"),
+          callback: function () {
+            Application.restart();
+          }
+        };
+
+        let options = {
+          timeout: Date.now() + 30000
+        };
+
+        PopupNotifications.show(gBrowser.selectedBrowser, "addon-theme-change",
+                                messageString, "addons-notification-icon",
+                                action, null, options);
+      },
+
+      onEnabled: function(aAddon) {
+        LightWeightThemeWebInstaller._postInstallNotification(newLWTheme, previousLWTheme);
+      }
+    };
+
+    AddonManager.addAddonListener(listener);
+    this._manager.currentTheme = newLWTheme;
+    AddonManager.removeAddonListener(listener);
   },
 
   _postInstallNotification: function (newTheme, previousTheme) {
