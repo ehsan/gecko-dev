@@ -119,7 +119,7 @@ GLIB_VERSION=1.2.0
 LIBIDL_VERSION=0.6.3
 PERL_VERSION=5.006
 PYTHON_VERSION=2.5
-CAIRO_VERSION=1.8.8
+CAIRO_VERSION=1.10
 PANGO_VERSION=1.14.0
 GTK2_VERSION=2.10.0
 WINDRES_VERSION=2.14.90
@@ -4919,7 +4919,7 @@ MOZ_AUTH_EXTENSION=1
 MOZ_NO_ACTIVEX_SUPPORT=1
 MOZ_NO_FAST_LOAD=
 MOZ_OGG=1
-MOZ_RAW=1
+MOZ_RAW=
 MOZ_SYDNEYAUDIO=
 MOZ_VORBIS=
 MOZ_WAVE=1
@@ -5196,7 +5196,6 @@ cairo-qt)
     MOZ_WEBGL=1
     MOZ_WEBGL_GLX=1
     USE_ELF_DYNSTR_GC=
-    NS_PRINTING=
 
     AC_DEFINE(MOZ_X11)
     MOZ_X11=1
@@ -5845,11 +5844,6 @@ MOZ_ARG_DISABLE_BOOL(printing,
 [  --disable-printing      Disable printing support],
     NS_PRINTING=,
     NS_PRINTING=1)
-
-if test "$MOZ_WIDGET_TOOLKIT" = "qt"; then
-    AC_MSG_WARN([Printing does not work with Qt at this time. Omitting printing support.])
-    NS_PRINTING=
-fi
 
 if test "$NS_PRINTING"; then
     AC_DEFINE(NS_PRINTING)
@@ -8433,7 +8427,11 @@ if test "$MOZ_TREE_CAIRO"; then
         fi
 
         AC_CHECK_HEADER(d3d9.h, MOZ_ENABLE_D3D9_LAYER=1)
-        AC_CHECK_HEADER(d3d10.h, MOZ_ENABLE_D3D10_LAYER=1)
+
+        dnl D3D10 Layers depend on D2D Surfaces.
+        if test -n "$WIN32_D2D_SURFACE_FEATURE"; then
+          AC_CHECK_HEADER(d3d10.h, MOZ_ENABLE_D3D10_LAYER=1)
+        fi
 
         AC_TRY_COMPILE([#include <ddraw.h>], [int foo = DDLOCK_WAITNOTBUSY;], HAS_DDRAW=1, HAS_DDRAW=)
         if test -z "$HAS_DDRAW"; then

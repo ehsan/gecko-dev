@@ -191,15 +191,13 @@ nsHtml5TreeBuilder::characters(const PRUnichar* buf, PRInt32 start, PRInt32 leng
     }
     needToDropLF = PR_FALSE;
   }
-  if (inForeign) {
-    accumulateCharacters(buf, start, length);
-    return;
-  }
   switch(mode) {
     case NS_HTML5TREE_BUILDER_IN_BODY:
     case NS_HTML5TREE_BUILDER_IN_CELL:
     case NS_HTML5TREE_BUILDER_IN_CAPTION: {
-      reconstructTheActiveFormattingElements();
+      if (!inForeign) {
+        reconstructTheActiveFormattingElements();
+      }
     }
     case NS_HTML5TREE_BUILDER_TEXT: {
       accumulateCharacters(buf, start, length);
@@ -243,8 +241,10 @@ nsHtml5TreeBuilder::characters(const PRUnichar* buf, PRInt32 start, PRInt32 leng
                   accumulateCharacters(buf, start, i - start);
                   start = i;
                 }
-                flushCharacters();
-                reconstructTheActiveFormattingElements();
+                if (!inForeign) {
+                  flushCharacters();
+                  reconstructTheActiveFormattingElements();
+                }
                 NS_HTML5_BREAK(charactersloop);
               }
               case NS_HTML5TREE_BUILDER_IN_SELECT:
@@ -343,8 +343,10 @@ nsHtml5TreeBuilder::characters(const PRUnichar* buf, PRInt32 start, PRInt32 leng
                   accumulateCharacters(buf, start, i - start);
                   start = i;
                 }
-                flushCharacters();
-                reconstructTheActiveFormattingElements();
+                if (!inForeign) {
+                  flushCharacters();
+                  reconstructTheActiveFormattingElements();
+                }
                 NS_HTML5_BREAK(charactersloop);
               }
               case NS_HTML5TREE_BUILDER_IN_TABLE:
@@ -3180,7 +3182,7 @@ nsHtml5TreeBuilder::removeFromListOfActiveFormattingElements(PRInt32 pos)
 void 
 nsHtml5TreeBuilder::adoptionAgencyEndTag(nsIAtom* name)
 {
-  for (; ; ) {
+  for (PRInt32 i = 0; i < NS_HTML5TREE_BUILDER_AAA_MAX_ITERATIONS; ++i) {
     PRInt32 formattingEltListPos = listPtr;
     while (formattingEltListPos > -1) {
       nsHtml5StackNode* listNode = listOfActiveFormattingElements[formattingEltListPos];
@@ -3238,7 +3240,7 @@ nsHtml5TreeBuilder::adoptionAgencyEndTag(nsIAtom* name)
     PRInt32 bookmark = formattingEltListPos;
     PRInt32 nodePos = furthestBlockPos;
     nsHtml5StackNode* lastNode = furthestBlock;
-    for (; ; ) {
+    for (PRInt32 j = 0; j < NS_HTML5TREE_BUILDER_AAA_MAX_ITERATIONS; ++j) {
       nodePos--;
       nsHtml5StackNode* node = stack[nodePos];
       PRInt32 nodeListPos = findInListOfActiveFormattingElements(node);

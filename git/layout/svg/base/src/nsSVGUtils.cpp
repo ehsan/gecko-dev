@@ -1324,7 +1324,8 @@ nsSVGUtils::GetBBox(nsIFrame *aFrame)
     // filter to text. When one of these facilities is applied to text
     // the bounding box is the entire ‘text’ element in all
     // cases.
-    nsSVGTextContainerFrame* metrics = do_QueryFrame(aFrame);
+    nsSVGTextContainerFrame* metrics = do_QueryFrame(
+      GetFirstNonAAncestorFrame(aFrame));
     if (metrics) {
       while (aFrame->GetType() != nsGkAtoms::svgTextFrame) {
         aFrame = aFrame->GetParent();
@@ -1535,18 +1536,18 @@ nsSVGUtils::GetNumberListValue(nsIDOMSVGNumberList *aList, PRUint32 aIndex)
 // ----------------------------------------------------------------------
 
 nsSVGRenderState::nsSVGRenderState(nsIRenderingContext *aContext) :
-  mRenderMode(NORMAL), mRenderingContext(aContext)
+  mRenderMode(NORMAL), mRenderingContext(aContext), mPaintingToWindow(PR_FALSE)
 {
   mGfxContext = aContext->ThebesContext();
 }
 
 nsSVGRenderState::nsSVGRenderState(gfxContext *aContext) :
-  mRenderMode(NORMAL), mGfxContext(aContext)
+  mRenderMode(NORMAL), mGfxContext(aContext), mPaintingToWindow(PR_FALSE)
 {
 }
 
 nsSVGRenderState::nsSVGRenderState(gfxASurface *aSurface) :
-  mRenderMode(NORMAL)
+  mRenderMode(NORMAL), mPaintingToWindow(PR_FALSE)
 {
   mGfxContext = new gfxContext(aSurface);
 }
