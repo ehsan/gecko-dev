@@ -6,6 +6,7 @@
 
 #include "vm/UnboxedObject.h"
 
+#include "jsinferinlines.h"
 #include "jsobjinlines.h"
 
 #include "vm/Shape-inl.h"

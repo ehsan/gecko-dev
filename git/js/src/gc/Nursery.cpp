@@ -11,6 +11,7 @@
 
 #include "jscompartment.h"
 #include "jsgc.h"
+#include "jsinfer.h"
 #include "jsutil.h"
 #include "prmjtime.h"
 
@@ -23,7 +24,6 @@
 #include "vm/ScopeObject.h"
 #endif
 #include "vm/TypedArrayObject.h"
-#include "vm/TypeInference.h"
 
 #include "jsgcinlines.h"
 

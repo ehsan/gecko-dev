@@ -6,6 +6,7 @@
 
 #include "jit/MacroAssembler.h"
 
+#include "jsinfer.h"
 #include "jsprf.h"
 
 #include "builtin/TypedObject.h"
@@ -21,6 +22,7 @@
 #include "vm/TraceLogging.h"
 
 #include "jsgcinlines.h"
+#include "jsinferinlines.h"
 #include "jsobjinlines.h"
 #include "vm/Interpreter-inl.h"
 

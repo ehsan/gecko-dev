@@ -8,6 +8,7 @@
 
 #include "jscompartment.h"
 #include "jsgcinlines.h"
+#include "jsinferinlines.h"
 #include "jsobjinlines.h"
 
 using namespace js;

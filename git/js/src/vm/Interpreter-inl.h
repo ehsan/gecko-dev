@@ -10,6 +10,7 @@
 #include "vm/Interpreter.h"
 
 #include "jscompartment.h"
+#include "jsinfer.h"
 #include "jsnum.h"
 #include "jsstr.h"
 
@@ -17,6 +18,7 @@
 #include "vm/ArgumentsObject.h"
 
 #include "jsatominlines.h"
+#include "jsinferinlines.h"
 #include "jsobjinlines.h"
 
 #include "vm/ScopeObject-inl.h"

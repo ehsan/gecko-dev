@@ -8,9 +8,8 @@
 #define vm_UnboxedObject_h
 
 #include "jsgc.h"
+#include "jsinfer.h"
 #include "jsobj.h"
-
-#include "vm/TypeInference.h"
 
 namespace js {
 

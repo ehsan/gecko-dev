@@ -103,7 +103,7 @@ public:
   {
     EnterCriticalSection(&critical_section);
 #ifdef DEBUG
-    assert(owner != GetCurrentThreadId() && "recursive locking");
+    assert(owner != GetCurrentThreadId(), "recursive locking");
     owner = GetCurrentThreadId();
 #endif
   }

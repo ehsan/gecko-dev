@@ -11,6 +11,7 @@
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/PodOperations.h"
 
+#include "jsinfer.h"
 #include "jstypes.h"
 
 #include "gc/Heap.h"
@@ -19,7 +20,6 @@
 #include "jit/IonTypes.h"
 #include "js/UbiNode.h"
 #include "vm/TraceLogging.h"
-#include "vm/TypeInference.h"
 
 namespace js {
 

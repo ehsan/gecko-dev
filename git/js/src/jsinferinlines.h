@@ -6,10 +6,10 @@
 
 /* Inline members for javascript type inference. */
 
-#ifndef vm_TypeInference_inl_h
-#define vm_TypeInference_inl_h
+#ifndef jsinferinlines_h
+#define jsinferinlines_h
 
-#include "vm/TypeInference.h"
+#include "jsinfer.h"
 
 #include "mozilla/PodOperations.h"
 
@@ -1142,4 +1142,4 @@ JSScript::ensureHasTypes(JSContext *cx)
     return types() || makeTypes(cx);
 }
 
-#endif /* vm_TypeInference_inl_h */
+#endif /* jsinferinlines_h */

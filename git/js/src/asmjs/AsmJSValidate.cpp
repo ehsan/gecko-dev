@@ -44,6 +44,7 @@
 #include "vm/HelperThreads.h"
 #include "vm/Interpreter.h"
 
+#include "jsinferinlines.h"
 #include "jsobjinlines.h"
 
 #include "frontend/ParseNode-inl.h"

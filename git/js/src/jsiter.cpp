@@ -33,6 +33,8 @@
 #include "vm/StopIterationObject.h"
 #include "vm/TypedArrayCommon.h"
 
+#include "jsinferinlines.h"
+#include "jsobjinlines.h"
 #include "jsscriptinlines.h"
 
 #include "vm/NativeObject-inl.h"
