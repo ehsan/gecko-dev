@@ -42,7 +42,8 @@ EnableLogging(const char* aModulesStr)
     { "docload", logging::eDocLoad },
     { "doccreate", logging::eDocCreate },
     { "docdestroy", logging::eDocDestroy },
-    { "doclifecycle", logging::eDocLifeCycle }
+    { "doclifecycle", logging::eDocLifeCycle },
+    { "platforms", logging::ePlatforms }
   };
 
   const char* token = aModulesStr;
@@ -431,7 +432,7 @@ logging::DocDestroy(const char* aMsg, nsIDocument* aDocumentNode,
 }
 
 void
-logging::Address(const char* aDescr, nsAccessible* aAcc)
+logging::Address(const char* aDescr, Accessible* aAcc)
 {
   nsINode* node = aAcc->GetNode();
   nsIDocument* docNode = aAcc->GetDocumentNode();

@@ -805,7 +805,8 @@ MediaStreamGraphImpl::UpdateCurrentTime()
     NS_ASSERTION(prevCurrentTime == nextCurrentTime, "Time can't go backwards!");
     // This could happen due to low clock resolution, maybe?
     LOG(PR_LOG_DEBUG, ("Time did not advance"));
-    return;
+    // There's not much left to do here, but the code below that notifies
+    // listeners that streams have ended still needs to run.
   }
 
   for (PRUint32 i = 0; i < mStreams.Length(); ++i) {
@@ -838,7 +839,7 @@ MediaStreamGraphImpl::UpdateCurrentTime()
     // AdvanceTimeVaryingValuesToCurrentTime can rely on the value of mBlocked.
     stream->mBlocked.AdvanceCurrentTime(nextCurrentTime);
 
-    if (blockedTime < nextCurrentTime - mCurrentTime) {
+    if (blockedTime < nextCurrentTime - prevCurrentTime) {
       for (PRUint32 i = 0; i < stream->mListeners.Length(); ++i) {
         MediaStreamListener* l = stream->mListeners[i];
         l->NotifyOutput(this);
@@ -1305,11 +1306,17 @@ MediaStreamGraphImpl::RunThread()
       if (mForceShutDown || (IsEmpty() && mMessageQueue.IsEmpty())) {
         // Enter shutdown mode. The stable-state handler will detect this
         // and complete shutdown. Destroy any streams immediately.
-        for (PRUint32 i = 0; i < mStreams.Length(); ++i) {
-          mStreams[i]->DestroyImpl();
-        }
         LOG(PR_LOG_DEBUG, ("MediaStreamGraph %p waiting for main thread cleanup", this));
         mLifecycleState = LIFECYCLE_WAITING_FOR_MAIN_THREAD_CLEANUP;
+        {
+          MonitorAutoUnlock unlock(mMonitor);
+          // Unlock mMonitor while destroying our streams, since
+          // SourceMediaStream::DestroyImpl needs to take its lock while
+          // we're not holding mMonitor.
+          for (PRUint32 i = 0; i < mStreams.Length(); ++i) {
+            mStreams[i]->DestroyImpl();
+          }
+        }
         return;
       }
 
