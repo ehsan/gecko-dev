@@ -14,9 +14,6 @@
 #include "nsFocusManager.h"
 #include "nsIFrame.h"
 
-using namespace mozilla;
-using namespace mozilla::dom;
-
 NS_IMPL_NS_NEW_HTML_ELEMENT(Legend)
 
 
@@ -140,31 +137,27 @@ nsHTMLLegendElement::UnbindFromTree(bool aDeep, bool aNullParent)
   nsGenericHTMLElement::UnbindFromTree(aDeep, aNullParent);
 }
 
-void
-nsHTMLLegendElement::Focus(ErrorResult& aError)
+NS_IMETHODIMP
+nsHTMLLegendElement::Focus()
 {
   nsIFrame* frame = GetPrimaryFrame();
-  if (!frame) {
-    return;
-  }
+  if (!frame)
+    return NS_OK;
 
   int32_t tabIndex;
-  if (frame->IsFocusable(&tabIndex, false)) {
-    nsGenericHTMLElement::Focus(aError);
-    return;
-  }
+  if (frame->IsFocusable(&tabIndex, false))
+    return nsGenericHTMLElement::Focus();
 
   // If the legend isn't focusable, focus whatever is focusable following
   // the legend instead, bug 81481.
   nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-  if (!fm) {
-    return;
-  }
+  if (!fm)
+    return NS_OK;
 
   nsCOMPtr<nsIDOMElement> result;
-  aError = fm->MoveFocus(nullptr, this, nsIFocusManager::MOVEFOCUS_FORWARD,
-                         nsIFocusManager::FLAG_NOPARENTFRAME,
-                         getter_AddRefs(result));
+  return fm->MoveFocus(nullptr, this, nsIFocusManager::MOVEFOCUS_FORWARD,
+                       nsIFocusManager::FLAG_NOPARENTFRAME,
+                       getter_AddRefs(result));
 }
 
 void
@@ -172,7 +165,6 @@ nsHTMLLegendElement::PerformAccesskey(bool aKeyCausesActivation,
                                       bool aIsTrustedEvent)
 {
   // just use the same behaviour as the focus method
-  mozilla::ErrorResult rv;
-  Focus(rv);
+  Focus();
 }
 

@@ -194,7 +194,7 @@ public:
       return NS_OK;
     }
 
-    nsCOMPtr<nsIDocument> topDoc = window->GetExtantDoc();
+    nsCOMPtr<nsIDocument> topDoc = do_QueryInterface(window->GetExtantDocument());
     if (topDoc && topDoc->GetReadyStateEnum() == nsIDocument::READYSTATE_COMPLETE) {
       return NS_OK;
     }
@@ -202,9 +202,7 @@ public:
     // If something is focused in the same document, ignore autofocus.
     if (!fm->GetFocusedContent() ||
         fm->GetFocusedContent()->OwnerDoc() != document) {
-      mozilla::ErrorResult rv;
-      mElement->Focus(rv);
-      return rv.ErrorCode();
+      return mElement->Focus();
     }
 
     return NS_OK;
@@ -256,6 +254,7 @@ NS_INTERFACE_TABLE_HEAD(nsGenericHTMLElementTearoff)
   NS_INTERFACE_TABLE_TO_MAP_SEGUE_CYCLE_COLLECTION(nsGenericHTMLElementTearoff)
 NS_INTERFACE_MAP_END_AGGREGATED(mElement)
 
+NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsGenericHTMLElement, TabIndex, tabindex, -1)
 NS_IMPL_BOOL_ATTR(nsGenericHTMLElement, Hidden, hidden)
 
 nsresult
@@ -1291,10 +1290,9 @@ nsGenericHTMLElement::GetMarkup(bool aIncludeSelf, nsAString& aMarkup)
   return rv;
 }
 
-void
-nsGenericHTMLElement::GetInnerHTML(nsAString& aInnerHTML, ErrorResult& aError)
-{
-  aError = GetMarkup(false, aInnerHTML);
+nsresult
+nsGenericHTMLElement::GetInnerHTML(nsAString& aInnerHTML) {
+  return GetMarkup(false, aInnerHTML);
 }
 
 NS_IMETHODIMP
@@ -1324,9 +1322,8 @@ nsGenericHTMLElement::FireMutationEventsForDirectParsing(nsIDocument* aDoc,
   }
 }
 
-void
-nsGenericHTMLElement::SetInnerHTML(const nsAString& aInnerHTML,
-                                   ErrorResult& aError)
+NS_IMETHODIMP
+nsGenericHTMLElement::SetInnerHTML(const nsAString& aInnerHTML)
 {
   nsIDocument* doc = OwnerDoc();
 
@@ -1347,37 +1344,38 @@ nsGenericHTMLElement::SetInnerHTML(const nsAString& aInnerHTML,
   mb.RemovalDone();
 
   nsAutoScriptLoaderDisabler sld(doc);
-
+  
+  nsresult rv = NS_OK;
   if (doc->IsHTML()) {
     int32_t oldChildCount = GetChildCount();
-    aError = nsContentUtils::ParseFragmentHTML(aInnerHTML,
-                                               this,
-                                               Tag(),
-                                               GetNameSpaceID(),
-                                               doc->GetCompatibilityMode() ==
-                                                 eCompatibility_NavQuirks,
-                                               true);
+    rv = nsContentUtils::ParseFragmentHTML(aInnerHTML,
+                                           this,
+                                           Tag(),
+                                           GetNameSpaceID(),
+                                           doc->GetCompatibilityMode() ==
+                                             eCompatibility_NavQuirks,
+                                           true);
     mb.NodesAdded();
     // HTML5 parser has notified, but not fired mutation events.
     FireMutationEventsForDirectParsing(doc, this, oldChildCount);
   } else {
     nsCOMPtr<nsIDOMDocumentFragment> df;
-    aError = nsContentUtils::CreateContextualFragment(this, aInnerHTML,
-                                                      true,
-                                                      getter_AddRefs(df));
+    rv = nsContentUtils::CreateContextualFragment(this, aInnerHTML,
+                                                  true,
+                                                  getter_AddRefs(df));
     nsCOMPtr<nsINode> fragment = do_QueryInterface(df);
-    if (!aError.Failed()) {
+    if (NS_SUCCEEDED(rv)) {
       // Suppress assertion about node removal mutation events that can't have
       // listeners anyway, because no one has had the chance to register mutation
       // listeners on the fragment that comes from the parser.
       nsAutoScriptBlockerSuppressNodeRemoved scriptBlocker;
 
-      nsresult rv = NS_OK;
       static_cast<nsINode*>(this)->AppendChild(fragment, &rv);
-      aError = rv;
       mb.NodesAdded();
     }
   }
+
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -1657,6 +1655,22 @@ nsGenericHTMLElement::SetSpellcheck(bool aSpellcheck)
   }
 
   return SetAttrHelper(nsGkAtoms::spellcheck, NS_LITERAL_STRING("false"));
+}
+
+NS_IMETHODIMP
+nsGenericHTMLElement::GetDraggable(bool* aDraggable)
+{
+  *aDraggable = AttrValueIs(kNameSpaceID_None, nsGkAtoms::draggable,
+                             nsGkAtoms::_true, eIgnoreCase);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsGenericHTMLElement::SetDraggable(bool aDraggable)
+{
+  return SetAttrHelper(nsGkAtoms::draggable,
+                       aDraggable ? NS_LITERAL_STRING("true")
+                                  : NS_LITERAL_STRING("false"));
 }
 
 bool
@@ -3803,21 +3817,18 @@ nsGenericHTMLElement::Blur()
   return (win && fm) ? fm->ClearFocus(win) : NS_OK;
 }
 
-void
-nsGenericHTMLElement::Focus(ErrorResult& aError)
+nsresult
+nsGenericHTMLElement::Focus()
 {
   nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-  if (fm) {
-    nsCOMPtr<nsIDOMElement> elem = do_QueryInterface(this);
-    aError = fm->SetFocus(elem, 0);
-  }
+  nsCOMPtr<nsIDOMElement> elem = do_QueryInterface(this);
+  return fm ? fm->SetFocus(elem, 0) : NS_OK;
 }
 
-void
-nsGenericHTMLElement::Click()
+nsresult nsGenericHTMLElement::Click()
 {
   if (HasFlag(NODE_HANDLING_CLICK))
-    return;
+    return NS_OK;
 
   // Strong in case the event kills it
   nsCOMPtr<nsIDocument> doc = GetCurrentDoc();
@@ -3843,6 +3854,7 @@ nsGenericHTMLElement::Click()
   nsEventDispatcher::Dispatch(this, context, &event);
 
   UnsetFlags(NODE_HANDLING_CLICK);
+  return NS_OK;
 }
 
 bool

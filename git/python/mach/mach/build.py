@@ -7,16 +7,13 @@ from __future__ import unicode_literals
 import logging
 import os
 
-from mach.base import CommandProvider
-from mach.base import Command
+from mach.base import ArgumentProvider
 from mozbuild.base import MozbuildObject
 
 
-@CommandProvider
-class Build(MozbuildObject):
+class Build(MozbuildObject, ArgumentProvider):
     """Interface to build the tree."""
 
-    @Command('build', help='Build the tree.')
     def build(self):
         # This code is only meant to be temporary until the more robust tree
         # building code in bug 780329 lands.
@@ -52,3 +49,8 @@ class Build(MozbuildObject):
             '{count} compiler warnings present.')
 
         warnings_database.save_to_file(warnings_path)
+
+    @staticmethod
+    def populate_argparse(parser):
+        build = parser.add_parser('build', help='Build the tree.')
+        build.set_defaults(cls=Build, method='build')
