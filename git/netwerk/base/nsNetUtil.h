@@ -1546,7 +1546,7 @@ NS_ReadInputStreamToString(nsIInputStream *aInputStream,
                            nsACString &aDest,
                            uint32_t aCount)
 {
-    if (!aDest.SetLength(aCount, mozilla::fallible))
+    if (!aDest.SetLength(aCount, mozilla::fallible_t()))
         return NS_ERROR_OUT_OF_MEMORY;
     void* dest = aDest.BeginWriting();
     return NS_ReadInputStreamToBuffer(aInputStream, &dest, aCount);

@@ -298,8 +298,8 @@ GonkGPSGeolocationProvider::GonkGPSGeolocationProvider()
   , mRilDataServiceId(0)
   , mNumberOfRilServices(1)
   , mObservingNetworkConnStateChange(false)
-#endif
   , mObservingSettingsChange(false)
+#endif
   , mSupportsSingleShot(false)
   , mSupportsTimeInjection(false)
   , mGpsInterface(nullptr)
@@ -1071,9 +1071,7 @@ GonkGPSGeolocationProvider::Observe(nsISupports* aSubject,
       gDebug_isLoggingEnabled =
         setting.mValue.isBoolean() ? setting.mValue.toBoolean() : false;
       return NS_OK;
-    }
-#ifdef MOZ_B2G_RIL
-    else if (setting.mKey.EqualsASCII(kSettingRilDefaultServiceId)) {
+    } else if (setting.mKey.EqualsASCII(kSettingRilDefaultServiceId)) {
       if (!setting.mValue.isNumber() ||
           !IsValidRilServiceId(setting.mValue.toNumber())) {
         return NS_ERROR_UNEXPECTED;
@@ -1083,7 +1081,6 @@ GonkGPSGeolocationProvider::Observe(nsISupports* aSubject,
       UpdateRadioInterface();
       return NS_OK;
     }
-#endif
   }
 
   return NS_OK;

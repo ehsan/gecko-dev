@@ -1074,10 +1074,9 @@ nsGenericDOMDataNode::AppendTextTo(nsAString& aResult)
 }
 
 bool
-nsGenericDOMDataNode::AppendTextTo(nsAString& aResult,
-                                   const mozilla::fallible_t& aFallible)
+nsGenericDOMDataNode::AppendTextTo(nsAString& aResult, const mozilla::fallible_t&)
 {
-  return mText.AppendTo(aResult, aFallible);
+  return mText.AppendTo(aResult, mozilla::fallible_t());
 }
 
 already_AddRefed<nsIAtom>

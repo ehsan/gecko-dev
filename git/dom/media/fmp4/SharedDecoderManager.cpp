@@ -237,11 +237,4 @@ SharedDecoderProxy::ReleaseDecoder()
     mManager->mDecoder->ReleaseMediaResources();
   }
 }
-
-bool
-SharedDecoderProxy::IsHardwareAccelerated() const
-{
-  return mManager->mDecoder->IsHardwareAccelerated();
-}
-
 }

@@ -1087,9 +1087,7 @@ pref("dom.requestSync.enabled", true);
 #if ANDROID_VERSION == 19 || ANDROID_VERSION == 21 || ANDROID_VERSION == 15
 pref("gfx.vsync.hw-vsync.enabled", true);
 pref("gfx.vsync.compositor", true);
-pref("gfx.touch.resample", true);
 #else
 pref("gfx.vsync.hw-vsync.enabled", false);
 pref("gfx.vsync.compositor", false);
-pref("gfx.touch.resample", false);
 #endif

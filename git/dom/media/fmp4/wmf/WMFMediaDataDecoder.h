@@ -46,9 +46,6 @@ public:
 
   // Destroys all resources.
   virtual void Shutdown() = 0;
-
-  virtual bool IsHardwareAccelerated() const { return false; }
-
 };
 
 // Decodes audio and video using Windows Media Foundation. Samples are decoded
@@ -78,7 +75,6 @@ public:
   virtual void AllocateMediaResources() MOZ_OVERRIDE;
   virtual void ReleaseMediaResources() MOZ_OVERRIDE;
   virtual void ReleaseDecoder() MOZ_OVERRIDE;
-  virtual bool IsHardwareAccelerated() const MOZ_OVERRIDE;
 
 private:
 

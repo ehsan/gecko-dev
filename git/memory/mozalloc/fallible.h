@@ -2,10 +2,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "fallible.h"
+#ifndef mozilla_fallible_h
+#define mozilla_fallible_h
 
 namespace mozilla {
 
-const fallible_t fallible = {};
+struct fallible_t { };
 
-}
+} // namespace mozilla
+
+#endif // mozilla_fallible_h

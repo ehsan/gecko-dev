@@ -10,6 +10,7 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 
+#include "mozilla/fallible.h"
 #include "mozilla/gfx/2D.h" // for StrokeOptions
 #include "mozilla/gfx/Matrix.h"
 #include "mozilla/RangedPtr.h"
@@ -110,7 +111,8 @@ public:
         mDashPattern = mSmallArray;
         return mSmallArray;
       }
-      Float* nonConstArray = new (mozilla::fallible) Float[aDashCount];
+      static const mozilla::fallible_t fallible = mozilla::fallible_t();
+      Float* nonConstArray = new (fallible) Float[aDashCount];
       mDashPattern = nonConstArray;
       return nonConstArray;
     }

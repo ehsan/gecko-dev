@@ -472,7 +472,7 @@ CopyUnicodeTo( const nsScannerIterator& aSrcStart,
                nsAString& aDest )
   {
     nsAString::iterator writer;
-    if (!aDest.SetLength(Distance(aSrcStart, aSrcEnd), mozilla::fallible)) {
+    if (!aDest.SetLength(Distance(aSrcStart, aSrcEnd), mozilla::fallible_t())) {
       aDest.Truncate();
       return; // out of memory
     }
@@ -505,7 +505,7 @@ AppendUnicodeTo( const nsScannerIterator& aSrcStart,
   {
     nsAString::iterator writer;
     uint32_t oldLength = aDest.Length();
-    if (!aDest.SetLength(oldLength + Distance(aSrcStart, aSrcEnd), mozilla::fallible))
+    if (!aDest.SetLength(oldLength + Distance(aSrcStart, aSrcEnd), mozilla::fallible_t()))
       return; // out of memory
     aDest.BeginWriting(writer).advance(oldLength);
     nsScannerIterator fromBegin(aSrcStart);

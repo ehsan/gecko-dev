@@ -12,7 +12,6 @@
 
 #include "mozilla/LinkedList.h"
 
-#include "jit/BaselineInspector.h"
 #include "jit/BytecodeAnalysis.h"
 #include "jit/IonAnalysis.h"
 #include "jit/IonOptimizationLevels.h"
@@ -26,6 +25,7 @@ namespace jit {
 
 class CodeGenerator;
 class CallInfo;
+class BaselineInspector;
 class BaselineFrameInspector;
 
 // Records information about a baseline frame for compilation that is stable
@@ -423,8 +423,6 @@ class IonBuilder
                             types::TemporaryTypeSet *types);
     bool getPropTryDefiniteSlot(bool *emitted, MDefinition *obj, PropertyName *name,
                                 BarrierKind barrier, types::TemporaryTypeSet *types);
-    bool getPropTryUnboxed(bool *emitted, MDefinition *obj, PropertyName *name,
-                           BarrierKind barrier, types::TemporaryTypeSet *types);
     bool getPropTryCommonGetter(bool *emitted, MDefinition *obj, PropertyName *name,
                                 types::TemporaryTypeSet *types);
     bool getPropTryInlineAccess(bool *emitted, MDefinition *obj, PropertyName *name,
@@ -455,9 +453,6 @@ class IonBuilder
     bool setPropTryDefiniteSlot(bool *emitted, MDefinition *obj,
                                 PropertyName *name, MDefinition *value,
                                 bool barrier, types::TemporaryTypeSet *objTypes);
-    bool setPropTryUnboxed(bool *emitted, MDefinition *obj,
-                           PropertyName *name, MDefinition *value,
-                           bool barrier, types::TemporaryTypeSet *objTypes);
     bool setPropTryInlineAccess(bool *emitted, MDefinition *obj,
                                 PropertyName *name, MDefinition *value,
                                 bool barrier, types::TemporaryTypeSet *objTypes);
@@ -883,16 +878,8 @@ class IonBuilder
     bool testSingletonPropertyTypes(MDefinition *obj, JSObject *singleton, PropertyName *name,
                                     bool *testObject, bool *testString);
     uint32_t getDefiniteSlot(types::TemporaryTypeSet *types, PropertyName *name);
-    uint32_t getUnboxedOffset(types::TemporaryTypeSet *types, PropertyName *name,
-                              JSValueType *punboxedType);
-    MInstruction *loadUnboxedProperty(MDefinition *obj, size_t offset, JSValueType unboxedType,
-                                      BarrierKind barrier, types::TemporaryTypeSet *types);
-    MInstruction *storeUnboxedProperty(MDefinition *obj, size_t offset, JSValueType unboxedType,
-                                       MDefinition *value);
     bool freezePropTypeSets(types::TemporaryTypeSet *types,
                             JSObject *foundProto, PropertyName *name);
-    bool canInlinePropertyOpShapes(const BaselineInspector::ShapeVector &nativeShapes,
-                                   const BaselineInspector::TypeObjectVector &unboxedTypes);
 
     types::TemporaryTypeSet *bytecodeTypes(jsbytecode *pc);
 

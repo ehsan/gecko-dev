@@ -674,7 +674,8 @@ bool
 MemoryTextureClient::Allocate(uint32_t aSize)
 {
   MOZ_ASSERT(!mBuffer);
-  mBuffer = new (fallible) uint8_t[aSize];
+  static const fallible_t fallible = fallible_t();
+  mBuffer = new(fallible) uint8_t[aSize];
   if (!mBuffer) {
     NS_WARNING("Failed to allocate buffer");
     return false;

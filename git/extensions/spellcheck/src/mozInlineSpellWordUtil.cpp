@@ -576,7 +576,7 @@ mozInlineSpellWordUtil::BuildSoftText()
           DOMTextMapping(NodeOffset(node, firstOffsetInNode), mSoftText.Length(), len));
 
         bool ok = textFragment->AppendTo(mSoftText, firstOffsetInNode, len,
-                                         mozilla::fallible);
+                                         mozilla::fallible_t());
         if (!ok) {
             // probably out of memory, remove from mSoftTextDOMMapping
             mSoftTextDOMMapping.RemoveElementAt(mSoftTextDOMMapping.Length() - 1);

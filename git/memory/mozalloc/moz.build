@@ -6,6 +6,7 @@
 NO_VISIBILITY_FLAGS = True
 
 EXPORTS.mozilla += [
+    'fallible.h',
     'mozalloc.h',
     'mozalloc_abort.h',
     'mozalloc_oom.h',

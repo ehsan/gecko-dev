@@ -80,15 +80,12 @@ SetElemICInspector::sawTypedArrayWrite() const
 }
 
 bool
-BaselineInspector::maybeInfoForPropertyOp(jsbytecode *pc,
-                                          ShapeVector &nativeShapes,
-                                          TypeObjectVector &unboxedTypes)
+BaselineInspector::maybeShapesForPropertyOp(jsbytecode *pc, ShapeVector &shapes)
 {
-    // Return lists of native shapes and unboxed objects seen by the baseline
-    // IC for the current op. Empty lists indicate no shapes/types are known,
-    // or there was an uncacheable access.
-    MOZ_ASSERT(nativeShapes.empty());
-    MOZ_ASSERT(unboxedTypes.empty());
+    // Return a list of shapes seen by the baseline IC for the current op.
+    // An empty list indicates no shapes are known, or there was an uncacheable
+    // access.
+    MOZ_ASSERT(shapes.empty());
 
     if (!hasBaselineScript())
         return true;
@@ -98,66 +95,43 @@ BaselineInspector::maybeInfoForPropertyOp(jsbytecode *pc,
 
     ICStub *stub = entry.firstStub();
     while (stub->next()) {
-        Shape *shape = nullptr;
-        types::TypeObject *type = nullptr;
+        Shape *shape;
         if (stub->isGetProp_Native()) {
             shape = stub->toGetProp_Native()->shape();
         } else if (stub->isSetProp_Native()) {
             shape = stub->toSetProp_Native()->shape();
-        } else if (stub->isGetProp_Unboxed()) {
-            type = stub->toGetProp_Unboxed()->type();
-        } else if (stub->isSetProp_Unboxed()) {
-            type = stub->toSetProp_Unboxed()->type();
         } else {
-            nativeShapes.clear();
-            unboxedTypes.clear();
+            shapes.clear();
             return true;
         }
 
-        // Don't add the same shape/type twice (this can happen if there are
-        // multiple SetProp_Native stubs with different TypeObject's).
-        if (shape) {
-            bool found = false;
-            for (size_t i = 0; i < nativeShapes.length(); i++) {
-                if (nativeShapes[i] == shape) {
-                    found = true;
-                    break;
-                }
+        // Don't add the same shape twice (this can happen if there are multiple
+        // SetProp_Native stubs with different TypeObject's).
+        bool found = false;
+        for (size_t i = 0; i < shapes.length(); i++) {
+            if (shapes[i] == shape) {
+                found = true;
+                break;
             }
-            if (!found && !nativeShapes.append(shape))
-                return false;
-        } else {
-            bool found = false;
-            for (size_t i = 0; i < unboxedTypes.length(); i++) {
-                if (unboxedTypes[i] == type) {
-                    found = true;
-                    break;
-                }
-            }
-            if (!found && !unboxedTypes.append(type))
-                return false;
         }
+
+        if (!found && !shapes.append(shape))
+            return false;
 
         stub = stub->next();
     }
 
     if (stub->isGetProp_Fallback()) {
-        if (stub->toGetProp_Fallback()->hadUnoptimizableAccess()) {
-            nativeShapes.clear();
-            unboxedTypes.clear();
-        }
+        if (stub->toGetProp_Fallback()->hadUnoptimizableAccess())
+            shapes.clear();
     } else {
-        if (stub->toSetProp_Fallback()->hadUnoptimizableAccess()) {
-            nativeShapes.clear();
-            unboxedTypes.clear();
-        }
+        if (stub->toSetProp_Fallback()->hadUnoptimizableAccess())
+            shapes.clear();
     }
 
-    // Don't inline if there are more than 5 shapes/types.
-    if (nativeShapes.length() + unboxedTypes.length() > 5) {
-        nativeShapes.clear();
-        unboxedTypes.clear();
-    }
+    // Don't inline if there are more than 5 shapes.
+    if (shapes.length() > 5)
+        shapes.clear();
 
     return true;
 }
@@ -439,7 +413,7 @@ BaselineInspector::hasSeenDoubleResult(jsbytecode *pc)
     return false;
 }
 
-JSObject *
+NativeObject *
 BaselineInspector::getTemplateObject(jsbytecode *pc)
 {
     if (!hasBaselineScript())
@@ -455,7 +429,7 @@ BaselineInspector::getTemplateObject(jsbytecode *pc)
           case ICStub::Rest_Fallback:
             return stub->toRest_Fallback()->templateObject();
           case ICStub::Call_Scripted:
-            if (JSObject *obj = stub->toCall_Scripted()->templateObject())
+            if (NativeObject *obj = stub->toCall_Scripted()->templateObject())
                 return obj;
             break;
           default:
