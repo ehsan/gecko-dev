@@ -32,34 +32,21 @@
 namespace js {
 namespace jit {
 
-IonFrameIterator::IonFrameIterator(JSContext *cx)
-  : current_(cx->mainThread().ionTop),
-    type_(IonFrame_Exit),
-    returnAddressToFp_(nullptr),
-    frameSize_(0),
-    cachedSafepointIndex_(nullptr),
-    activation_(nullptr),
-    mode_(SequentialExecution)
-{
-}
-
 IonFrameIterator::IonFrameIterator(const ActivationIterator &activations)
     : current_(activations.jitTop()),
       type_(IonFrame_Exit),
       returnAddressToFp_(nullptr),
       frameSize_(0),
       cachedSafepointIndex_(nullptr),
-      activation_(activations.activation()->asJit()),
-      mode_(SequentialExecution)
+      activation_(activations.activation()->asJit())
 {
 }
 
-IonFrameIterator::IonFrameIterator(IonJSFrameLayout *fp, ExecutionMode mode)
+IonFrameIterator::IonFrameIterator(IonJSFrameLayout *fp)
   : current_((uint8_t *)fp),
     type_(IonFrame_OptimizedJS),
     returnAddressToFp_(fp->returnAddress()),
-    frameSize_(fp->prevFrameLocalSize()),
-    mode_(mode)
+    frameSize_(fp->prevFrameLocalSize())
 {
 }
 
@@ -78,9 +65,9 @@ IonFrameIterator::checkInvalidation(IonScript **ionScriptOut) const
     // N.B. the current IonScript is not the same as the frame's
     // IonScript if the frame has since been invalidated.
     bool invalidated;
-    if (mode_ == ParallelExecution) {
-        // Parallel execution does not have invalidating bailouts.
-        invalidated = false;
+    if (isParallelFunctionFrame()) {
+        invalidated = !script->hasParallelIonScript() ||
+            !script->parallelIonScript()->containsReturnAddress(returnAddr);
     } else {
         invalidated = !script->hasIonScript() ||
             !script->ionScript()->containsReturnAddress(returnAddr);
@@ -106,14 +93,16 @@ JSFunction *
 IonFrameIterator::callee() const
 {
     JS_ASSERT(isScripted());
-    JS_ASSERT(isFunctionFrame());
-    return CalleeTokenToFunction(calleeToken());
+    JS_ASSERT(isFunctionFrame() || isParallelFunctionFrame());
+    if (isFunctionFrame())
+        return CalleeTokenToFunction(calleeToken());
+    return CalleeTokenToParallelFunction(calleeToken());
 }
 
 JSFunction *
 IonFrameIterator::maybeCallee() const
 {
-    if (isScripted() && (isFunctionFrame()))
+    if (isScripted() && (isFunctionFrame() || isParallelFunctionFrame()))
         return callee();
     return nullptr;
 }
@@ -162,6 +151,12 @@ bool
 IonFrameIterator::isFunctionFrame() const
 {
     return CalleeTokenIsFunction(calleeToken());
+}
+
+bool
+IonFrameIterator::isParallelFunctionFrame() const
+{
+    return GetCalleeTokenTag(calleeToken()) == CalleeToken_ParallelFunction;
 }
 
 JSScript *
@@ -531,7 +526,7 @@ HandleException(ResumeFromException *rfe)
     if (cx->runtime()->hasIonReturnOverride())
         cx->runtime()->takeIonReturnOverride();
 
-    IonFrameIterator iter(cx);
+    IonFrameIterator iter(cx->mainThread().ionTop);
     while (!iter.isEntry()) {
         bool overrecursed = false;
         if (iter.isOptimizedJS()) {
@@ -621,14 +616,14 @@ void
 HandleParallelFailure(ResumeFromException *rfe)
 {
     ForkJoinSlice *slice = ForkJoinSlice::Current();
-    IonFrameIterator iter(slice->perThreadData->ionTop, ParallelExecution);
+    IonFrameIterator iter(slice->perThreadData->ionTop);
 
     parallel::Spew(parallel::SpewBailouts, "Bailing from VM reentry");
 
     while (!iter.isEntry()) {
         if (iter.isScripted()) {
-            slice->bailoutRecord->updateCause(ParallelBailoutUnsupportedVM,
-                                              iter.script(), iter.script(), nullptr);
+            slice->bailoutRecord->setCause(ParallelBailoutFailedIC,
+                                           iter.script(), iter.script(), nullptr);
             break;
         }
         ++iter;
@@ -859,7 +854,7 @@ MarkBaselineStubFrame(JSTracer *trc, const IonFrameIterator &frame)
 void
 JitActivationIterator::jitStackRange(uintptr_t *&min, uintptr_t *&end)
 {
-    IonFrameIterator frames(jitTop(), SequentialExecution);
+    IonFrameIterator frames(jitTop());
 
     if (frames.isFakeExitFrame()) {
         min = reinterpret_cast<uintptr_t *>(frames.fp());
@@ -1099,7 +1094,7 @@ GetPcScript(JSContext *cx, JSScript **scriptRes, jsbytecode **pcRes)
     JSRuntime *rt = cx->runtime();
 
     // Recover the return address.
-    IonFrameIterator it(rt->mainThread.ionTop, SequentialExecution);
+    IonFrameIterator it(rt->mainThread.ionTop);
 
     // If the previous frame is a rectifier frame (maybe unwound),
     // skip past it.
@@ -1323,7 +1318,9 @@ IonFrameIterator::ionScript() const
     switch (GetCalleeTokenTag(calleeToken())) {
       case CalleeToken_Function:
       case CalleeToken_Script:
-        return mode_ == ParallelExecution ? script()->parallelIonScript() : script()->ionScript();
+        return script()->ionScript();
+      case CalleeToken_ParallelFunction:
+        return script()->parallelIonScript();
       default:
         MOZ_ASSUME_UNREACHABLE("unknown callee token type");
     }

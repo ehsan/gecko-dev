@@ -1916,7 +1916,7 @@ AnalyzePoppedThis(JSContext *cx, types::TypeObject *type,
     if (ins->isCallSetProperty()) {
         MCallSetProperty *setprop = ins->toCallSetProperty();
 
-        if (setprop->object() != thisValue)
+        if (setprop->obj() != thisValue)
             return true;
 
         // Don't use GetAtomId here, we need to watch for SETPROP on

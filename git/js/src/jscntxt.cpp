@@ -349,11 +349,6 @@ PopulateReportBlame(JSContext *cx, JSErrorReport *report)
 void
 js_ReportOutOfMemory(ThreadSafeContext *cxArg)
 {
-    if (cxArg->isForkJoinSlice()) {
-        cxArg->asForkJoinSlice()->setPendingAbortFatal(ParallelBailoutOutOfMemory);
-        return;
-    }
-
     if (!cxArg->isJSContext())
         return;
     JSContext *cx = cxArg->asJSContext();
@@ -423,15 +418,7 @@ js_ReportOverRecursed(ThreadSafeContext *cx)
 void
 js_ReportAllocationOverflow(ThreadSafeContext *cxArg)
 {
-    if (!cxArg)
-        return;
-
-    if (cxArg->isForkJoinSlice()) {
-        cxArg->asForkJoinSlice()->setPendingAbortFatal(ParallelBailoutOutOfMemory);
-        return;
-    }
-
-    if (!cxArg->isJSContext())
+    if (!cxArg || !cxArg->isJSContext())
         return;
     JSContext *cx = cxArg->asJSContext();
 

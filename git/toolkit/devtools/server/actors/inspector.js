@@ -1325,13 +1325,11 @@ var WalkerActor = protocol.ActorClass({
    * @param string selector
    */
   querySelector: method(function(baseNode, selector) {
-    if (!baseNode) {
-      return {}
-    };
     let node = baseNode.rawNode.querySelector(selector);
 
     if (!node) {
-      return {}
+      return {
+      }
     };
 
     let node = this._ref(node);

@@ -59,13 +59,7 @@ public:
     void SetHasEverBeenBound(bool x) { mHasEverBeenBound = x; }
     GLuint GLName() const { return mGLName; }
 
-    bool EnsureAttrib(GLuint index, const char *info);
-    bool HasAttrib(GLuint index) {
-        return index < mAttribs.Length();
-    }
-    bool IsAttribArrayEnabled(GLuint index) {
-        return HasAttrib(index) && mAttribs[index].enabled;
-    }
+    bool EnsureAttribIndex(GLuint index, const char *info);
 
 
 // -----------------------------------------------------------------------------
@@ -77,7 +71,7 @@ private:
 
     GLuint mGLName;
     bool mHasEverBeenBound;
-    nsTArray<WebGLVertexAttribData> mAttribs;
+    nsTArray<WebGLVertexAttribData> mAttribBuffers;
     WebGLRefPtr<WebGLBuffer> mBoundElementArrayBuffer;
 
 

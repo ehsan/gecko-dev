@@ -530,9 +530,6 @@ private:
     bool mIsANGLE;
 };
 
-extern GLLibraryEGL sEGLLibrary;
-#define EGL_DISPLAY()        sEGLLibrary.Display()
-
 } /* namespace gl */
 } /* namespace mozilla */
 

@@ -4356,16 +4356,14 @@ class LCallDeleteElement : public LCallInstructionHelper<1, 2 * BOX_PIECES, 0>
 
 // Patchable jump to stubs generated for a SetProperty cache, which stores a
 // boxed value.
-class LSetPropertyCacheV : public LInstructionHelper<0, 1 + BOX_PIECES, 2>
+class LSetPropertyCacheV : public LInstructionHelper<0, 1 + BOX_PIECES, 1>
 {
   public:
     LIR_HEADER(SetPropertyCacheV)
 
-    LSetPropertyCacheV(const LAllocation &object, const LDefinition &slots,
-                       const LDefinition &temp) {
+    LSetPropertyCacheV(const LAllocation &object, const LDefinition &slots) {
         setOperand(0, object);
         setTemp(0, slots);
-        setTemp(1, temp);
     }
 
     static const size_t Value = 1;
@@ -4373,15 +4371,11 @@ class LSetPropertyCacheV : public LInstructionHelper<0, 1 + BOX_PIECES, 2>
     const MSetPropertyCache *mir() const {
         return mir_->toSetPropertyCache();
     }
-
-    const LDefinition *tempForDispatchCache() {
-        return getTemp(1);
-    }
 };
 
 // Patchable jump to stubs generated for a SetProperty cache, which stores a
 // value of a known type.
-class LSetPropertyCacheT : public LInstructionHelper<0, 2, 2>
+class LSetPropertyCacheT : public LInstructionHelper<0, 2, 1>
 {
     MIRType valueType_;
 
@@ -4389,14 +4383,12 @@ class LSetPropertyCacheT : public LInstructionHelper<0, 2, 2>
     LIR_HEADER(SetPropertyCacheT)
 
     LSetPropertyCacheT(const LAllocation &object, const LDefinition &slots,
-                       const LAllocation &value, const LDefinition &temp,
-                       MIRType valueType)
+                       const LAllocation &value, MIRType valueType)
         : valueType_(valueType)
     {
         setOperand(0, object);
         setOperand(1, value);
         setTemp(0, slots);
-        setTemp(1, temp);
     }
 
     const MSetPropertyCache *mir() const {
@@ -4407,10 +4399,6 @@ class LSetPropertyCacheT : public LInstructionHelper<0, 2, 2>
     }
     const char *extraName() const {
         return StringFromMIRType(valueType_);
-    }
-
-    const LDefinition *tempForDispatchCache() {
-        return getTemp(1);
     }
 };
 

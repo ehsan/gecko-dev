@@ -76,6 +76,8 @@ function RuleViewTool(aInspector, aWindow, aIFrame)
   this.refresh = this.refresh.bind(this);
   this.inspector.on("layout-change", this.refresh);
 
+  this.panelSelected = this.panelSelected.bind(this);
+  this.inspector.sidebar.on("ruleview-selected", this.panelSelected);
   this.inspector.selection.on("pseudoclass", this.refresh);
   if (this.inspector.highlighter) {
     this.inspector.highlighter.on("locked", this._onSelect);
@@ -88,6 +90,10 @@ exports.RuleViewTool = RuleViewTool;
 
 RuleViewTool.prototype = {
   onSelect: function RVT_onSelect(aEvent) {
+    if (!this.isActive()) {
+      // We'll update when the panel is selected.
+      return;
+    }
     this.view.setPageStyle(this.inspector.pageStyle);
 
     if (!this.inspector.selection.isConnected() ||
@@ -111,12 +117,27 @@ RuleViewTool.prototype = {
     }
   },
 
+  isActive: function RVT_isActive() {
+    return this.inspector.sidebar.getCurrentTabID() == "ruleview";
+  },
+
   refresh: function RVT_refresh() {
-    this.view.nodeChanged();
+    if (this.isActive()) {
+      this.view.nodeChanged();
+    }
+  },
+
+  panelSelected: function() {
+    if (this.inspector.selection.nodeFront === this.view.viewedElement) {
+      this.view.nodeChanged();
+    } else {
+      this.onSelect();
+    }
   },
 
   destroy: function RVT_destroy() {
     this.inspector.off("layout-change", this.refresh);
+    this.inspector.sidebar.off("ruleview-selected", this.refresh);
     this.inspector.selection.off("pseudoclass", this.refresh);
     this.inspector.selection.off("new-node-front", this._onSelect);
     if (this.inspector.highlighter) {
@@ -160,6 +181,8 @@ function ComputedViewTool(aInspector, aWindow, aIFrame)
   this.refresh = this.refresh.bind(this);
   this.inspector.on("layout-change", this.refresh);
   this.inspector.selection.on("pseudoclass", this.refresh);
+  this.panelSelected = this.panelSelected.bind(this);
+  this.inspector.sidebar.on("computedview-selected", this.panelSelected);
 
   this.view.highlight(null);
 
@@ -171,6 +194,11 @@ exports.ComputedViewTool = ComputedViewTool;
 ComputedViewTool.prototype = {
   onSelect: function CVT_onSelect(aEvent)
   {
+    if (!this.isActive()) {
+      // We'll try again when we're selected.
+      return;
+    }
+
     this.view.setPageStyle(this.inspector.pageStyle);
 
     if (!this.inspector.selection.isConnected() ||
@@ -198,8 +226,22 @@ ComputedViewTool.prototype = {
     }
   },
 
+  isActive: function CVT_isActive() {
+    return this.inspector.sidebar.getCurrentTabID() == "computedview";
+  },
+
   refresh: function CVT_refresh() {
-    this.view.refreshPanel();
+    if (this.isActive()) {
+      this.view.refreshPanel();
+    }
+  },
+
+  panelSelected: function() {
+    if (this.inspector.selection.nodeFront === this.view.viewedElement) {
+      this.view.refreshPanel();
+    } else {
+      this.onSelect();
+    }
   },
 
   destroy: function CVT_destroy(aContext)

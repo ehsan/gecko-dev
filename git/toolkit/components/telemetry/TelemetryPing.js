@@ -62,8 +62,6 @@ XPCOMUtils.defineLazyServiceGetter(this, "idleService",
                                    "nsIIdleService");
 XPCOMUtils.defineLazyModuleGetter(this, "UpdateChannel",
                                   "resource://gre/modules/UpdateChannel.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "AddonManagerPrivate",
-                                  "resource://gre/modules/AddonManager.jsm");
 
 function generateUUID() {
   let str = Cc["@mozilla.org/uuid-generator;1"].getService(Ci.nsIUUIDGenerator).generateUUID().toString();
@@ -160,7 +158,9 @@ TelemetryPing.prototype = {
       appTimestamps = o.TelemetryTimestamps.get();
     } catch (ex) {}
     try {
-      ret.addonManager = AddonManagerPrivate.getSimpleMeasures();
+      let o = {};
+      Cu.import("resource://gre/modules/AddonManager.jsm", o);
+      ret.addonManager = o.AddonManagerPrivate.getSimpleMeasures();
     } catch (ex) {}
 
     if (si.process) {
@@ -545,7 +545,6 @@ TelemetryPing.prototype = {
       chromeHangs: Telemetry.chromeHangs,
       lateWrites: Telemetry.lateWrites,
       addonHistograms: this.getAddonHistograms(),
-      addonDetails: AddonManagerPrivate.getTelemetryDetails(),
       info: info
     };
 
@@ -690,7 +689,7 @@ TelemetryPing.prototype = {
     let observer = {
       buffer: "",
       onStreamComplete: function(loader, context, status, length, result) {
-        this.buffer = String.fromCharCode.apply(this, result);
+	this.buffer = String.fromCharCode.apply(this, result);
       }
     };
 

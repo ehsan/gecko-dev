@@ -65,7 +65,7 @@ WebGLProgram::UpdateInfo()
         mContext->gl->fGetActiveAttrib(mGLName, i, mAttribMaxNameLength, &attrnamelen, &attrsize, &attrtype, nameBuf);
         if (attrnamelen > 0) {
             GLint loc = mContext->gl->fGetAttribLocation(mGLName, nameBuf);
-            MOZ_ASSERT(loc >= 0, "major oops in managing the attributes of a WebGL program");
+            NS_ABORT_IF_FALSE(loc >= 0, "major oops in managing the attributes of a WebGL program");
             if (loc < mContext->mGLMaxVertexAttribs) {
                 mAttribsInUse[loc] = true;
             } else {
@@ -491,7 +491,7 @@ uint32_t WebGLContext::GetBitsPerTexel(GLenum format, GLenum type)
         return 16;
     }
 
-    MOZ_ASSERT(false);
+    NS_ABORT();
     return 0;
 }
 
@@ -766,7 +766,7 @@ WebGLContext::ValidateUniformSetter(const char* name, WebGLUniformLocation *loca
 
 bool WebGLContext::ValidateAttribIndex(GLuint index, const char *info)
 {
-    return mBoundVertexArray->EnsureAttrib(index, info);
+    return mBoundVertexArray->EnsureAttribIndex(index, info);
 }
 
 bool WebGLContext::ValidateStencilParamsForDrawCall()
@@ -998,7 +998,7 @@ WebGLContext::InitAndValidateGL()
     }
 
     mDefaultVertexArray = new WebGLVertexArray(this);
-    mDefaultVertexArray->mAttribs.SetLength(mGLMaxVertexAttribs);
+    mDefaultVertexArray->mAttribBuffers.SetLength(mGLMaxVertexAttribs);
     mBoundVertexArray = mDefaultVertexArray;
 
     return true;

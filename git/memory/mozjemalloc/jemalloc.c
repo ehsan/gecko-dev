@@ -299,7 +299,7 @@ typedef unsigned char uint8_t;
 typedef unsigned uint32_t;
 typedef unsigned long long uint64_t;
 typedef unsigned long long uintmax_t;
-#if defined(_WIN64)
+#if defined(MOZ_MEMORY_SIZEOF_PTR_2POW) && (MOZ_MEMORY_SIZEOF_PTR_2POW == 3)
 typedef long long ssize_t;
 #else
 typedef long ssize_t;
@@ -469,8 +469,8 @@ static const bool isthreaded = true;
 
 /* Minimum alignment of non-tiny allocations is 2^QUANTUM_2POW_MIN bytes. */
 #  define QUANTUM_2POW_MIN      4
-#if defined(_WIN64) || defined(__LP64__)
-#  define SIZEOF_PTR_2POW       3
+#ifdef MOZ_MEMORY_SIZEOF_PTR_2POW
+#  define SIZEOF_PTR_2POW		MOZ_MEMORY_SIZEOF_PTR_2POW
 #else
 #  define SIZEOF_PTR_2POW       2
 #endif

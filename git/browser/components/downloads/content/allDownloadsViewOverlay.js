@@ -259,7 +259,7 @@ DownloadElementShell.prototype = {
       }.bind(this),
 
       function onFailure(aReason) {
-        if (aReason instanceof OS.File.Error && aReason.becauseNoSuchFile) {
+        if (reason instanceof OS.File.Error && reason.becauseNoSuchFile) {
           this._targetFileInfoFetched = true;
           this._targetFileExists = false;
         }

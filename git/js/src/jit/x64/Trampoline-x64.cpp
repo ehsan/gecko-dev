@@ -363,6 +363,7 @@ IonRuntime::generateArgumentsRectifier(JSContext *cx, ExecutionMode mode, void *
 
     // Load the number of |undefined|s to push into %rcx.
     masm.loadPtr(Address(rsp, IonRectifierFrameLayout::offsetOfCalleeToken()), rax);
+    masm.clearCalleeTag(rax, mode);
     masm.movzwl(Operand(rax, offsetof(JSFunction, nargs)), rcx);
     masm.subq(r8, rcx);
 
@@ -405,7 +406,7 @@ IonRuntime::generateArgumentsRectifier(JSContext *cx, ExecutionMode mode, void *
 
     // Construct IonJSFrameLayout.
     masm.push(rdx); // numActualArgs
-    masm.push(rax); // callee token
+    masm.pushCalleeToken(rax, mode);
     masm.push(r9); // descriptor
 
     // Call the target function.
@@ -624,6 +625,10 @@ IonRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
       case Type_Bool:
         masm.testb(rax, rax);
         masm.j(Assembler::Zero, masm.failureLabel(f.executionMode));
+        break;
+      case Type_ParallelResult:
+        masm.branchPtr(Assembler::NotEqual, rax, Imm32(TP_SUCCESS),
+                       masm.failureLabel(f.executionMode));
         break;
       default:
         MOZ_ASSUME_UNREACHABLE("unknown failure kind");

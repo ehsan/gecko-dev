@@ -2494,6 +2494,7 @@ public:
 #ifdef MOZ_WIDGET_GONK
     virtual EGLImage CreateEGLImageForNativeBuffer(void* buffer) = 0;
     virtual void DestroyEGLImage(EGLImage image) = 0;
+    virtual EGLImage GetNullEGLImage() = 0;
 #endif
 
     virtual already_AddRefed<TextureImage>
@@ -3578,13 +3579,13 @@ protected:
 
 private:
     void Init(GLenum target) {
+        MOZ_ASSERT(target == LOCAL_GL_TEXTURE_2D ||
+                   target == LOCAL_GL_TEXTURE_RECTANGLE_ARB);
         mTarget = target;
         mOldTex = 0;
-        GLenum bindingTarget = (target == LOCAL_GL_TEXTURE_2D) ? LOCAL_GL_TEXTURE_BINDING_2D
-                             : (target == LOCAL_GL_TEXTURE_RECTANGLE_ARB) ? LOCAL_GL_TEXTURE_BINDING_RECTANGLE_ARB
-                             : (target == LOCAL_GL_TEXTURE_CUBE_MAP) ? LOCAL_GL_TEXTURE_BINDING_CUBE_MAP
-                             : LOCAL_GL_NONE;
-        MOZ_ASSERT(bindingTarget != LOCAL_GL_NONE);
+        GLenum bindingTarget = (target == LOCAL_GL_TEXTURE_2D) ?
+                               LOCAL_GL_TEXTURE_BINDING_2D :
+                               LOCAL_GL_TEXTURE_BINDING_RECTANGLE_ARB;
         mGL->GetUIntegerv(bindingTarget, &mOldTex);
     }
 
