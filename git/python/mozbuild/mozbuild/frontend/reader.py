@@ -22,7 +22,6 @@ import inspect
 import logging
 import os
 import sys
-import textwrap
 import time
 import tokenize
 import traceback
@@ -60,7 +59,6 @@ from .context import (
     VARIABLES,
     DEPRECATION_HINTS,
     SPECIAL_VARIABLES,
-    TemplateContext,
 )
 
 if sys.version_info.major == 2:
@@ -381,7 +379,7 @@ class MozbuildSandbox(Sandbox):
         func, code, path = template
 
         def template_function(*args, **kwargs):
-            context = TemplateContext(VARIABLES, self._context.config)
+            context = Context(VARIABLES, self._context.config)
             context.add_source(self._execution_stack[-1])
             for p in self._context.all_paths:
                 context.add_source(p)
@@ -392,10 +390,6 @@ class MozbuildSandbox(Sandbox):
 
             sandbox.exec_source(code, path)
 
-            # This is gross, but allows the merge to happen. Eventually, the
-            # merging will go away and template contexts emitted independently.
-            klass = self._context.__class__
-            self._context.__class__ = TemplateContext
             # The sandbox will do all the necessary checks for these merges.
             for key, value in context.items():
                 if isinstance(value, dict):
@@ -404,7 +398,6 @@ class MozbuildSandbox(Sandbox):
                     self[key] += value
                 else:
                     self[key] = value
-            self._context.__class__ = klass
 
             for p in context.all_paths:
                 self._context.add_source(p)
@@ -675,8 +668,7 @@ class BuildReaderError(Exception):
             s.write('\n')
 
             if inner.args[2] in DEPRECATION_HINTS:
-                s.write('%s\n' %
-                    textwrap.dedent(DEPRECATION_HINTS[inner.args[2]]).strip())
+                s.write('%s\n' % DEPRECATION_HINTS[inner.args[2]])
                 return
 
             s.write('Please change the file to not use this variable.\n')

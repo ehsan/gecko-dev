@@ -8,7 +8,9 @@ SOURCES += [
     'crashinjectdll.cpp',
 ]
 
-SharedLibrary('crashinjectdll')
+LIBRARY_NAME = 'crashinjectdll'
+
+FORCE_SHARED_LIB = True
 
 DEFFILE = SRCDIR + '/crashinjectdll.def'
 

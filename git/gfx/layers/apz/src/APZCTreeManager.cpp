@@ -207,18 +207,6 @@ ComputeTouchSensitiveRegion(GeckoContentController* aController,
   return unobscured;
 }
 
-void
-APZCTreeManager::PrintAPZCInfo(const LayerMetricsWrapper& aLayer,
-                               const AsyncPanZoomController* apzc)
-{
-  const FrameMetrics& metrics = aLayer.Metrics();
-  mApzcTreeLog << "APZC " << apzc->GetGuid() << "\tcb=" << metrics.mCompositionBounds
-               << "\tsr=" << metrics.mScrollableRect
-               << (aLayer.IsScrollInfoLayer() ? "\tscrollinfo" : "")
-               << (apzc->HasScrollgrab() ? "\tscrollgrab" : "") << "\t"
-               << metrics.GetContentDescription().get();
-}
-
 AsyncPanZoomController*
 APZCTreeManager::PrepareAPZCForLayer(const LayerMetricsWrapper& aLayer,
                                      const FrameMetrics& aMetrics,
@@ -251,7 +239,6 @@ APZCTreeManager::PrepareAPZCForLayer(const LayerMetricsWrapper& aLayer,
   auto insertResult = aState.mApzcMap.insert(std::make_pair(guid, static_cast<AsyncPanZoomController*>(nullptr)));
   if (!insertResult.second) {
     apzc = insertResult.first->second;
-    PrintAPZCInfo(aLayer, apzc);
   }
   APZCTM_LOG("Found APZC %p for layer %p with identifiers %lld %lld\n", apzc, aLayer.GetLayer(), guid.mLayersId, guid.mScrollId);
 
@@ -316,7 +303,12 @@ APZCTreeManager::PrepareAPZCForLayer(const LayerMetricsWrapper& aLayer,
     APZCTM_LOG("Setting region %s as visible region for APZC %p\n",
         Stringify(unobscured).c_str(), apzc);
 
-    PrintAPZCInfo(aLayer, apzc);
+    mApzcTreeLog << "APZC " << guid
+                 << "\tcb=" << aMetrics.mCompositionBounds
+                 << "\tsr=" << aMetrics.mScrollableRect
+                 << (aLayer.GetVisibleRegion().IsEmpty() ? "\tscrollinfo" : "")
+                 << (apzc->HasScrollgrab() ? "\tscrollgrab" : "")
+                 << "\t" << aMetrics.GetContentDescription().get();
 
     // Bind the APZC instance into the tree of APZCs
     if (aNextSibling) {

@@ -54,7 +54,7 @@ class VisitURIObserver MOZ_FINAL : public nsIObserver
 public:
   NS_DECL_ISUPPORTS
 
-  explicit VisitURIObserver(int aExpectedVisits = 1) :
+  VisitURIObserver(int aExpectedVisits = 1) :
     mVisits(0),
     mExpectedVisits(aExpectedVisits)
   {

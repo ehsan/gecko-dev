@@ -423,9 +423,13 @@ else:
 if CONFIG['_MSC_VER'] != '1600':
     MSVC_ENABLE_PGO = True
 
-HostSimplePrograms([
-    'host_jskwgen',
-])
+HOST_SOURCES += [
+    'jskwgen.cpp',
+]
+
+HOST_SIMPLE_PROGRAMS += [
+    'host_%s' % f.replace('.cpp', '') for f in HOST_SOURCES
+]
 
 # JavaScript must be built shared, even for static builds, as it is used by
 # other modules which are always built shared. Failure to do so results in
@@ -435,12 +439,12 @@ HostSimplePrograms([
 # In fact, we now build both a static and a shared library, as the
 # JS shell would like to link to the static library.
 
+LIBRARY_NAME = 'js'
+
 if CONFIG['JS_SHARED_LIBRARY']:
-    SharedLibrary('js')
+    FORCE_SHARED_LIB = True
     SHARED_LIBRARY_NAME = CONFIG['JS_LIBRARY_NAME']
     SDK_LIBRARY = True
-else:
-    Library('js')
 
 FORCE_STATIC_LIB = True
 STATIC_LIBRARY_NAME = 'js_static'

@@ -6,7 +6,6 @@
 #ifndef nsMaybeWeakPtr_h_
 #define nsMaybeWeakPtr_h_
 
-#include "mozilla/Attributes.h"
 #include "nsCOMPtr.h"
 #include "nsWeakReference.h"
 #include "nsTArray.h"
@@ -28,9 +27,9 @@ template<class T>
 class nsMaybeWeakPtr : private nsMaybeWeakPtr_base
 {
 public:
-  MOZ_IMPLICIT nsMaybeWeakPtr(nsISupports *ref) { mPtr = ref; }
-  MOZ_IMPLICIT nsMaybeWeakPtr(const nsCOMPtr<nsIWeakReference> &ref) { mPtr = ref; }
-  MOZ_IMPLICIT nsMaybeWeakPtr(const nsCOMPtr<T> &ref) { mPtr = ref; }
+  nsMaybeWeakPtr(nsISupports *ref) { mPtr = ref; }
+  nsMaybeWeakPtr(const nsCOMPtr<nsIWeakReference> &ref) { mPtr = ref; }
+  nsMaybeWeakPtr(const nsCOMPtr<T> &ref) { mPtr = ref; }
 
   bool operator==(const nsMaybeWeakPtr<T> &other) const {
     return mPtr == other.mPtr;

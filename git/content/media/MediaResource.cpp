@@ -534,7 +534,7 @@ ChannelMediaResource::OnDataAvailable(nsIRequest* aRequest,
   CopySegmentClosure closure;
   nsIScriptSecurityManager* secMan = nsContentUtils::GetSecurityManager();
   if (secMan && mChannel) {
-    secMan->GetChannelResultPrincipal(mChannel, getter_AddRefs(closure.mPrincipal));
+    secMan->GetChannelPrincipal(mChannel, getter_AddRefs(closure.mPrincipal));
   }
   closure.mResource = this;
 
@@ -1406,7 +1406,7 @@ already_AddRefed<nsIPrincipal> FileMediaResource::GetCurrentPrincipal()
   nsIScriptSecurityManager* secMan = nsContentUtils::GetSecurityManager();
   if (!secMan || !mChannel)
     return nullptr;
-  secMan->GetChannelResultPrincipal(mChannel, getter_AddRefs(principal));
+  secMan->GetChannelPrincipal(mChannel, getter_AddRefs(principal));
   return principal.forget();
 }
 

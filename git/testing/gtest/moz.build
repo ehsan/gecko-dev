@@ -62,7 +62,7 @@ if CONFIG['ENABLE_TESTS']:
         'mozilla/GTestRunner.cpp',
     ]
 
-    Library('gtest')
+    LIBRARY_NAME = 'gtest'
 
     SOURCES += [
         'mozilla/SanityTest.cpp',
