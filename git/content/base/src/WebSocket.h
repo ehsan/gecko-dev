@@ -74,7 +74,7 @@ public:
 public: // static helpers:
 
   // Determine if preferences allow WebSocket
-  static bool PrefEnabled(JSContext* aCx = nullptr, JSObject* aGlobal = nullptr);
+  static bool PrefEnabled();
 
 public: // WebIDL interface:
 

@@ -881,7 +881,7 @@ nsTableRowGroupFrame::CreateContinuingRowFrame(nsPresContext& aPresContext,
   mFrames.InsertFrame(nullptr, &aRowFrame, *aContRowFrame);
 
   // Push the continuing row frame and the frames that follow
-  PushChildren(*aContRowFrame, &aRowFrame);
+  PushChildren(&aPresContext, *aContRowFrame, &aRowFrame);
 }
 
 // Reflow the cells with rowspan > 1 which originate between aFirstRow
@@ -1243,7 +1243,7 @@ nsTableRowGroupFrame::SplitRowGroup(nsPresContext*           aPresContext,
       if (NS_FRAME_IS_NOT_COMPLETE(aStatus) && !contRow) {
         nsTableRowFrame* nextRow = lastRowThisPage->GetNextRow();
         if (nextRow) {
-          PushChildren(nextRow, lastRowThisPage);
+          PushChildren(aPresContext, nextRow, lastRowThisPage);
         }
       }
       break;
@@ -1254,7 +1254,7 @@ nsTableRowGroupFrame::SplitRowGroup(nsPresContext*           aPresContext,
       // see if there is a page break after the row
       nsTableRowFrame* nextRow = rowFrame->GetNextRow();
       if (nextRow && nsTableFrame::PageBreakAfter(rowFrame, nextRow)) {
-        PushChildren(nextRow, rowFrame);
+        PushChildren(aPresContext, nextRow, rowFrame);
         aStatus = NS_FRAME_NOT_COMPLETE;
         break;
       }
@@ -1297,7 +1297,7 @@ nsTableRowGroupFrame::Reflow(nsPresContext*           aPresContext,
   }
 
   // Check for an overflow list
-  MoveOverflowToChildList();
+  MoveOverflowToChildList(aPresContext);
 
   // Reflow the existing frames. 
   bool splitDueToPageBreak = false;

@@ -5,20 +5,27 @@
 
 package org.mozilla.gecko.home;
 
+import android.util.Log;
+import org.mozilla.gecko.favicons.Favicons;
 import org.mozilla.gecko.R;
-import org.mozilla.gecko.db.BrowserContract.HomeItems;
-
-import com.squareup.picasso.Picasso;
+import org.mozilla.gecko.Tab;
+import org.mozilla.gecko.Tabs;
+import org.mozilla.gecko.db.BrowserContract.Combined;
+import org.mozilla.gecko.db.BrowserDB.URLColumns;
+import org.mozilla.gecko.favicons.OnFaviconLoadedListener;
+import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.gecko.widget.FaviconView;
 
 import android.content.Context;
 import android.database.Cursor;
+import android.graphics.Bitmap;
+import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.view.View;
-import android.widget.ImageView;
+
+import java.lang.ref.WeakReference;
 
 public class PanelListRow extends TwoLineRow {
-
-    private final ImageView mIcon;
 
     public PanelListRow(Context context) {
         this(context, null);
@@ -27,7 +34,10 @@ public class PanelListRow extends TwoLineRow {
     public PanelListRow(Context context, AttributeSet attrs) {
         super(context, attrs);
 
-        mIcon = (ImageView) findViewById(R.id.icon);
+        // XXX: Never show icon for now. We have to figure out
+        // how the images will be passed through the cursor.
+        final View iconView = findViewById(R.id.icon);
+        iconView.setVisibility(View.GONE);
     }
 
     @Override
@@ -39,20 +49,12 @@ public class PanelListRow extends TwoLineRow {
         // XXX: This will have to be updated once we come up with the
         // final schema for Panel datasets (see bug 942288).
 
-        int titleIndex = cursor.getColumnIndexOrThrow(HomeItems.TITLE);
+        int titleIndex = cursor.getColumnIndexOrThrow(URLColumns.TITLE);
         final String title = cursor.getString(titleIndex);
-        setTitle(title);
+        setPrimaryText(title);
 
-        int urlIndex = cursor.getColumnIndexOrThrow(HomeItems.URL);
+        int urlIndex = cursor.getColumnIndexOrThrow(URLColumns.URL);
         final String url = cursor.getString(urlIndex);
-        setDescription(url);
-
-        int imageIndex = cursor.getColumnIndexOrThrow(HomeItems.IMAGE_URL);
-        final String imageUrl = cursor.getString(imageIndex);
-
-        Picasso.with(getContext())
-               .load(imageUrl)
-               .error(R.drawable.favicon)
-               .into(mIcon);
+        setSecondaryText(url);
     }
 }

@@ -12,7 +12,7 @@
 
 .theme-body {
   color: hsl(210,100%,85%) !important;
-  box-sizing: border-box;
+  -moz-box-sizing: border-box;
 }
 
 #main {

@@ -844,7 +844,7 @@ CustomizeMode.prototype = {
 
   _onToolbarVisibilityChange: function(aEvent) {
     let toolbar = aEvent.target;
-    if (aEvent.detail.visible && toolbar.getAttribute("customizable") == "true") {
+    if (aEvent.detail.visible) {
       toolbar.setAttribute("customizing", "true");
     } else {
       toolbar.removeAttribute("customizing");

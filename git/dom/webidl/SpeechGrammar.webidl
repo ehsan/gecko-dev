@@ -10,8 +10,7 @@
  * liability, trademark and document use rules apply.
  */
 
-[Constructor,
- Pref="media.webspeech.recognition.enable"]
+[Constructor, PrefControlled]
 interface SpeechGrammar {
     [Throws]
     attribute DOMString src;

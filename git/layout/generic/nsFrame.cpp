@@ -474,7 +474,7 @@ nsFrame::Init(nsIContent*      aContent,
 
     // Make bits that are currently off (see constructor) the same:
     mState |= state & (NS_FRAME_INDEPENDENT_SELECTION |
-                       NS_FRAME_PART_OF_IBSPLIT |
+                       NS_FRAME_IS_SPECIAL |
                        NS_FRAME_MAY_BE_TRANSFORMED |
                        NS_FRAME_MAY_HAVE_GENERATED_CONTENT |
                        NS_FRAME_CAN_HAVE_ABSPOS_CHILDREN);
@@ -500,7 +500,7 @@ nsFrame::Init(nsIContent*      aContent,
       !(mState & NS_FRAME_IS_NONDISPLAY) &&
       !disp->IsInnerTableStyle()) {
     // Note that we only add first continuations, but we really only
-    // want to add first continuation-or-ib-split-siblings.  But since we
+    // want to add first continuation-or-special-siblings.  But since we
     // don't yet know if we're a later part of a block-in-inline split,
     // we'll just add later members of a block-in-inline split here, and
     // then StickyScrollContainer will remove them later.
@@ -619,28 +619,28 @@ nsFrame::DestroyFrom(nsIFrame* aDestructRoot)
     }
   }
 
-  // If we have any IB split siblings, clear their references to us.
+  // If we have any IB split special siblings, clear their references to us.
   // (Note: This has to happen before we call shell->NotifyDestroyingFrame,
   // because that clears our Properties() table.)
-  if (mState & NS_FRAME_PART_OF_IBSPLIT) {
+  if (mState & NS_FRAME_IS_SPECIAL) {
     // Delete previous sibling's reference to me.
     nsIFrame* prevSib = static_cast<nsIFrame*>
-      (Properties().Get(nsIFrame::IBSplitPrevSibling()));
+      (Properties().Get(nsIFrame::IBSplitSpecialPrevSibling()));
     if (prevSib) {
       NS_WARN_IF_FALSE(this ==
-         prevSib->Properties().Get(nsIFrame::IBSplitSibling()),
+         prevSib->Properties().Get(nsIFrame::IBSplitSpecialSibling()),
          "IB sibling chain is inconsistent");
-      prevSib->Properties().Delete(nsIFrame::IBSplitSibling());
+      prevSib->Properties().Delete(nsIFrame::IBSplitSpecialSibling());
     }
 
     // Delete next sibling's reference to me.
     nsIFrame* nextSib = static_cast<nsIFrame*>
-      (Properties().Get(nsIFrame::IBSplitSibling()));
+      (Properties().Get(nsIFrame::IBSplitSpecialSibling()));
     if (nextSib) {
       NS_WARN_IF_FALSE(this ==
-         nextSib->Properties().Get(nsIFrame::IBSplitPrevSibling()),
+         nextSib->Properties().Get(nsIFrame::IBSplitSpecialPrevSibling()),
          "IB sibling chain is inconsistent");
-      nextSib->Properties().Delete(nsIFrame::IBSplitPrevSibling());
+      nextSib->Properties().Delete(nsIFrame::IBSplitSpecialPrevSibling());
     }
   }
 
@@ -5327,13 +5327,13 @@ nsIFrame::ListGeneric(nsACString& aTo, const char* aPrefix, uint32_t aFlags) con
     aTo += nsPrintfCString(" next-%s=%p", fluid?"in-flow":"continuation",
             static_cast<void*>(GetNextContinuation()));
   }
-  void* IBsibling = Properties().Get(IBSplitSibling());
+  void* IBsibling = Properties().Get(IBSplitSpecialSibling());
   if (IBsibling) {
-    aTo += nsPrintfCString(" IBSplitSibling=%p", IBsibling);
+    aTo += nsPrintfCString(" IBSplitSpecialSibling=%p", IBsibling);
   }
-  void* IBprevsibling = Properties().Get(IBSplitPrevSibling());
+  void* IBprevsibling = Properties().Get(IBSplitSpecialPrevSibling());
   if (IBprevsibling) {
-    aTo += nsPrintfCString(" IBSplitPrevSibling=%p", IBprevsibling);
+    aTo += nsPrintfCString(" IBSplitSpecialPrevSibling=%p", IBprevsibling);
   }
   aTo += nsPrintfCString(" {%d,%d,%d,%d}", mRect.x, mRect.y, mRect.width, mRect.height);
   nsIFrame* f = const_cast<nsIFrame*>(this);
@@ -6021,12 +6021,10 @@ FindBlockFrameOrBR(nsIFrame* aFrame, nsDirection aDirection)
     return result;
   
   // Check the frame itself
-  // Fall through block-in-inline split frames because their mContent is
-  // the content of the inline frames they were created from. The
-  // first/last child of such frames is the real block frame we're
-  // looking for.
-  if ((nsLayoutUtils::GetAsBlock(aFrame) &&
-       !(aFrame->GetStateBits() & NS_FRAME_PART_OF_IBSPLIT)) ||
+  // Fall through "special" block frames because their mContent is the content
+  // of the inline frames they were created from. The first/last child of
+  // such frames is the real block frame we're looking for.
+  if ((nsLayoutUtils::GetAsBlock(aFrame) && !(aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL)) ||
       aFrame->GetType() == nsGkAtoms::brFrame) {
     nsIContent* content = aFrame->GetContent();
     result.mContent = content->GetParent();
@@ -7163,20 +7161,19 @@ nsFrame::ConsiderChildOverflow(nsOverflowAreas& aOverflowAreas,
 }
 
 /**
- * This function takes a frame that is part of a block-in-inline split,
- * and _if_ that frame is an anonymous block created by an ib split it
- * returns the block's preceding inline.  This is needed because the
- * split inline's style context is the parent of the anonymous block's
- * style context.
+ * This function takes a "special" frame and _if_ that frame is an anonymous
+ * block created by an ib split it returns the block's preceding inline.  This
+ * is needed because the split inline's style context is the parent of the
+ * anonymous block's style context.
  *
  * If aFrame is not an anonymous block, null is returned.
  */
 static nsIFrame*
-GetIBSplitSiblingForAnonymousBlock(const nsIFrame* aFrame)
+GetIBSpecialSiblingForAnonymousBlock(const nsIFrame* aFrame)
 {
   NS_PRECONDITION(aFrame, "Must have a non-null frame!");
-  NS_ASSERTION(aFrame->GetStateBits() & NS_FRAME_PART_OF_IBSPLIT,
-               "GetIBSplitSibling should only be called on ib-split frames");
+  NS_ASSERTION(aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL,
+               "GetIBSpecialSibling should not be called on a non-special frame");
 
   nsIAtom* type = aFrame->StyleContext()->GetPseudo();
   if (type != nsCSSAnonBoxes::mozAnonymousBlock &&
@@ -7190,13 +7187,13 @@ GetIBSplitSiblingForAnonymousBlock(const nsIFrame* aFrame)
   aFrame = aFrame->FirstContinuation();
 
   /*
-   * Now look up the nsGkAtoms::IBSplitPrevSibling
+   * Now look up the nsGkAtoms::IBSplitSpecialPrevSibling
    * property.
    */
-  nsIFrame *ibSplitSibling = static_cast<nsIFrame*>
-    (aFrame->Properties().Get(nsIFrame::IBSplitPrevSibling()));
-  NS_ASSERTION(ibSplitSibling, "Broken frame tree?");
-  return ibSplitSibling;
+  nsIFrame *specialSibling = static_cast<nsIFrame*>
+    (aFrame->Properties().Get(nsIFrame::IBSplitSpecialPrevSibling()));
+  NS_ASSERTION(specialSibling, "Broken frame tree?");
+  return specialSibling;
 }
 
 /**
@@ -7240,8 +7237,8 @@ nsFrame::CorrectStyleParentFrame(nsIFrame* aProspectiveParent,
       nsCSSAnonBoxes::IsAnonBox(aChildPseudo)) {
     NS_ASSERTION(aChildPseudo != nsCSSAnonBoxes::mozAnonymousBlock &&
                  aChildPseudo != nsCSSAnonBoxes::mozAnonymousPositionedBlock,
-                 "Should have dealt with kids that have "
-                 "NS_FRAME_PART_OF_IBSPLIT elsewhere");
+                 "Should have dealt with kids that have NS_FRAME_IS_SPECIAL "
+                 "elsewhere");
     return aProspectiveParent;
   }
 
@@ -7250,8 +7247,8 @@ nsFrame::CorrectStyleParentFrame(nsIFrame* aProspectiveParent,
   // style data to be out of sync with the frame tree.
   nsIFrame* parent = aProspectiveParent;
   do {
-    if (parent->GetStateBits() & NS_FRAME_PART_OF_IBSPLIT) {
-      nsIFrame* sibling = GetIBSplitSiblingForAnonymousBlock(parent);
+    if (parent->GetStateBits() & NS_FRAME_IS_SPECIAL) {
+      nsIFrame* sibling = GetIBSpecialSiblingForAnonymousBlock(parent);
 
       if (sibling) {
         // |parent| was a block in an {ib} split; use the inline as
@@ -7302,12 +7299,12 @@ nsFrame::DoGetParentStyleContextFrame() const
     /*
      * If this frame is an anonymous block created when an inline with a block
      * inside it got split, then the parent style context is on its preceding
-     * inline. We can get to it using GetIBSplitSiblingForAnonymousBlock.
+     * inline. We can get to it using GetIBSpecialSiblingForAnonymousBlock.
      */
-    if (mState & NS_FRAME_PART_OF_IBSPLIT) {
-      nsIFrame* ibSplitSibling = GetIBSplitSiblingForAnonymousBlock(this);
-      if (ibSplitSibling) {
-        return ibSplitSibling;
+    if (mState & NS_FRAME_IS_SPECIAL) {
+      nsIFrame* specialSibling = GetIBSpecialSiblingForAnonymousBlock(this);
+      if (specialSibling) {
+        return specialSibling;
       }
     }
 

@@ -16,13 +16,15 @@
 
 #include "mozilla/Attributes.h"
 
+#include "EnableWebSpeechRecognitionCheck.h"
 #include "SpeechRecognitionAlternative.h"
 
 namespace mozilla {
 namespace dom {
 
 class SpeechRecognitionResult MOZ_FINAL : public nsISupports,
-                                          public nsWrapperCache
+                                          public nsWrapperCache,
+                                          public EnableWebSpeechRecognitionCheck
 {
 public:
   SpeechRecognitionResult(SpeechRecognition* aParent);
