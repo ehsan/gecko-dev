@@ -4388,16 +4388,11 @@ var BrowserEventHandler = {
               element = ElementTouchHelper.anyElementFromPoint(x, y);
             }
 
-            // Was the element already focused before it was clicked?
-            let isFocused = (element == BrowserApp.getFocusedInput(BrowserApp.selectedBrowser, true));
-
             this._sendMouseEvent("mousemove", element, x, y);
             this._sendMouseEvent("mousedown", element, x, y);
             this._sendMouseEvent("mouseup",   element, x, y);
 
-            // If the element was previously focused, show the caret attached to it.
-            if (isFocused)
-              SelectionHandler.attachCaret(element);
+            SelectionHandler.attachCaret(element);
 
             // scrollToFocusedInput does its own checks to find out if an element should be zoomed into
             BrowserApp.scrollToFocusedInput(BrowserApp.selectedBrowser);

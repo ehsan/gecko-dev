@@ -6,55 +6,34 @@
 
 #expand <menu id="__ID_PREFIX__charsetMenu"
     label="&charsetMenu.label;"
-#ifndef OMIT_ACCESSKEYS
     accesskey="&charsetMenu.accesskey;"
-#endif
     oncommand="MultiplexHandler(event)"
-#ifdef OMIT_ACCESSKEYS
     onpopupshowing="CharsetMenu.build(event);"
-#else
-    onpopupshowing="CharsetMenu.build(event, true);"
-#endif
     onpopupshown="UpdateMenus(event);">
   <menupopup>
     <menu label="&charsetMenuAutodet.label;"
-#ifndef OMIT_ACCESSKEYS
-          accesskey="&charsetMenuAutodet.accesskey;"
-#endif
-        >
+          accesskey="&charsetMenuAutodet.accesskey;">
       <menupopup>
         <menuitem type="radio"
                   name="detectorGroup"
-#expand           id="__ID_PREFIX__chardet.off"
+                  id="chardet.off"
                   label="&charsetMenuAutodet.off.label;"
-#ifndef OMIT_ACCESSKEYS
-                  accesskey="&charsetMenuAutodet.off.accesskey;"
-#endif
-                  />
+                  accesskey="&charsetMenuAutodet.off.accesskey;"/>
         <menuitem type="radio"
                   name="detectorGroup"
-#expand           id="__ID_PREFIX__chardet.ja_parallel_state_machine"
+                  id="chardet.ja_parallel_state_machine"
                   label="&charsetMenuAutodet.ja.label;"
-#ifndef OMIT_ACCESSKEYS
-                  accesskey="&charsetMenuAutodet.ja.accesskey;"
-#endif
-                  />
+                  accesskey="&charsetMenuAutodet.ja.accesskey;"/>
         <menuitem type="radio"
                   name="detectorGroup"
-#expand           id="__ID_PREFIX__chardet.ruprob"
+                  id="chardet.ruprob"
                   label="&charsetMenuAutodet.ru.label;"
-#ifndef OMIT_ACCESSKEYS
-                  accesskey="&charsetMenuAutodet.ru.accesskey;"
-#endif
-                  />
+                  accesskey="&charsetMenuAutodet.ru.accesskey;"/>
         <menuitem type="radio"
                   name="detectorGroup"
-#expand           id="__ID_PREFIX__chardet.ukprob"
+                  id="chardet.ukprob"
                   label="&charsetMenuAutodet.uk.label;"
-#ifndef OMIT_ACCESSKEYS
-                  accesskey="&charsetMenuAutodet.uk.accesskey;"
-#endif
-                  />
+                  accesskey="&charsetMenuAutodet.uk.accesskey;"/>
       </menupopup>
     </menu>
     <menuseparator/>

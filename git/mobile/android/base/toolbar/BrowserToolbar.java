@@ -115,12 +115,8 @@ public class BrowserToolbar extends GeckoRelativeLayout
     private ShapedButton mTabs;
     private ImageButton mBack;
     private ImageButton mForward;
-    private ImageButton mStop;
-
-    // To de-bounce sets.
-    private Bitmap mLastFavicon;
     private ImageButton mFavicon;
-
+    private ImageButton mStop;
     private ImageButton mSiteSecurity;
     private PageActionLayout mPageActionLayout;
     private Animation mProgressSpinner;
@@ -432,7 +428,7 @@ public class BrowserToolbar extends GeckoRelativeLayout
 
         mFavicon.setOnClickListener(faviconListener);
         mSiteSecurity.setOnClickListener(faviconListener);
-
+        
         mStop.setOnClickListener(new Button.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -536,7 +532,6 @@ public class BrowserToolbar extends GeckoRelativeLayout
 
     @Override
     public void onTabChanged(Tab tab, Tabs.TabEvents msg, Object data) {
-        Log.d(LOGTAG, "onTabChanged: " + msg);
         final Tabs tabs = Tabs.getInstance();
 
         // These conditions are split into three phases:
@@ -588,12 +583,7 @@ public class BrowserToolbar extends GeckoRelativeLayout
                 case LOCATION_CHANGE:
                     // A successful location change will cause Tab to notify
                     // us of a title change, so we don't update the title here.
-                    // And there's no point in refreshing the UI
-                    // if the page is the same.
-                    final String oldURL = (String) data;
-                    if (!TextUtils.equals(oldURL, tab.getURL())) {
-                        refresh();
-                    }
+                    refresh();
                     break;
 
                 case CLOSED:
@@ -751,15 +741,12 @@ public class BrowserToolbar extends GeckoRelativeLayout
     }
 
     public void setProgressVisibility(boolean visible) {
-        Log.d(LOGTAG, "setProgressVisibility: " + visible);
         // The "Throbber start" and "Throbber stop" log messages in this method
         // are needed by S1/S2 tests (http://mrcote.info/phonedash/#).
         // See discussion in Bug 804457. Bug 805124 tracks paring these down.
         if (visible) {
             mFavicon.setImageResource(R.drawable.progress_spinner);
-            mLastFavicon = null;
-
-            // To stop the glitch caused by multiple start() calls.
+            //To stop the glitch caused by mutiple start() calls.
             if (!mSpinnerVisible) {
                 setPageActionVisibility(true);
                 mFavicon.setAnimation(mProgressSpinner);
@@ -769,9 +756,8 @@ public class BrowserToolbar extends GeckoRelativeLayout
             Log.i(LOGTAG, "zerdatime " + SystemClock.uptimeMillis() + " - Throbber start");
         } else {
             Tab selectedTab = Tabs.getInstance().getSelectedTab();
-            if (selectedTab != null) {
+            if (selectedTab != null)
                 setFavicon(selectedTab.getFavicon());
-            }
 
             if (mSpinnerVisible) {
                 setPageActionVisibility(false);
@@ -882,15 +868,15 @@ public class BrowserToolbar extends GeckoRelativeLayout
         setContentDescription(title != null ? title : mTitle.getHint());
     }
 
-    // Sets the toolbar title according to the selected tab, obeying the mShowUrl preference.
+    // Sets the toolbar title according to the selected tab, obeying the mShowUrl prference.
     private void updateTitle() {
-        final Tab tab = Tabs.getInstance().getSelectedTab();
+        Tab tab = Tabs.getInstance().getSelectedTab();
         // Keep the title unchanged if there's no selected tab, or if the tab is entering reader mode.
         if (tab == null || tab.isEnteringReaderMode()) {
             return;
         }
 
-        final String url = tab.getURL();
+        String url = tab.getURL();
 
         if (!isEditing()) {
             mUrlEditLayout.setText(url);
@@ -937,17 +923,8 @@ public class BrowserToolbar extends GeckoRelativeLayout
     }
 
     private void setFavicon(Bitmap image) {
-        Log.d(LOGTAG, "setFavicon(" + image + ")");
-        if (Tabs.getInstance().getSelectedTab().getState() == Tab.STATE_LOADING) {
+        if (Tabs.getInstance().getSelectedTab().getState() == Tab.STATE_LOADING)
             return;
-        }
-
-        if (image == mLastFavicon) {
-            Log.d(LOGTAG, "Ignoring favicon set: new favicon is identical to previous favicon.");
-            return;
-        }
-
-        mLastFavicon = image;     // Cache the original so we can debounce without scaling.
 
         if (image != null) {
             image = Bitmap.createScaledBitmap(image, mFaviconSize, mFaviconSize, false);
@@ -956,7 +933,7 @@ public class BrowserToolbar extends GeckoRelativeLayout
             mFavicon.setImageDrawable(null);
         }
     }
-
+    
     private void setSecurityMode(String mode) {
         int imageLevel = SiteIdentityPopup.getSecurityImageLevel(mode);
         mSiteSecurity.setImageLevel(imageLevel);
@@ -1594,7 +1571,6 @@ public class BrowserToolbar extends GeckoRelativeLayout
 
     @Override
     public void handleMessage(String event, JSONObject message) {
-        Log.d(LOGTAG, "handleMessage: " + event);
         if (event.equals("Reader:Click")) {
             Tab tab = Tabs.getInstance().getSelectedTab();
             if (tab != null) {
