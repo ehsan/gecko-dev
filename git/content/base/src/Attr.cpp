@@ -23,8 +23,10 @@
 #include "nsCOMArray.h"
 #include "nsNameSpaceManager.h"
 #include "nsNodeUtils.h"
+#include "nsEventListenerManager.h"
 #include "nsTextNode.h"
 #include "mozAutoDocUpdate.h"
+#include "nsAsyncDOMEvent.h"
 #include "nsWrapperCacheInlines.h"
 
 nsIAttribute::nsIAttribute(nsDOMAttributeMap* aAttrMap,

@@ -7,7 +7,6 @@
 #include "WorkerScope.h"
 
 #include "jsapi.h"
-#include "mozilla/EventListenerManager.h"
 #include "mozilla/dom/FunctionBinding.h"
 #include "mozilla/dom/DedicatedWorkerGlobalScopeBinding.h"
 #include "mozilla/dom/SharedWorkerGlobalScopeBinding.h"
@@ -143,7 +142,7 @@ WorkerGlobalScope::GetOnerror()
 {
   mWorkerPrivate->AssertIsOnWorkerThread();
 
-  EventListenerManager* elm = GetExistingListenerManager();
+  nsEventListenerManager *elm = GetExistingListenerManager();
   return elm ? elm->GetOnErrorEventHandler() : nullptr;
 }
 
@@ -152,7 +151,7 @@ WorkerGlobalScope::SetOnerror(OnErrorEventHandlerNonNull* aHandler)
 {
   mWorkerPrivate->AssertIsOnWorkerThread();
 
-  EventListenerManager* elm = GetOrCreateListenerManager();
+  nsEventListenerManager *elm = GetOrCreateListenerManager();
   if (elm) {
     elm->SetEventHandler(aHandler);
   }

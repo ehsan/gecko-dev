@@ -18,6 +18,7 @@
 #include "mozilla/gfx/Rect.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Telemetry.h"
+#include "nsAsyncDOMEvent.h"
 #include "nsAttrValueInlines.h"
 #include "nsContentUtils.h"
 #include "nsDisplayList.h"
@@ -780,7 +781,7 @@ HTMLCanvasElement::UpdateContext(JSContext* aCx, JS::Handle<JS::Value> aNewConte
 
   nsIntSize sz = GetWidthHeight();
 
-  nsresult rv = mCurrentContext->SetIsOpaque(HasAttr(kNameSpaceID_None, nsGkAtoms::moz_opaque));
+  nsresult rv = mCurrentContext->SetIsOpaque(GetIsOpaque());
   if (NS_FAILED(rv)) {
     mCurrentContext = nullptr;
     mCurrentContextId.Truncate();
@@ -902,10 +903,6 @@ HTMLCanvasElement::GetContextAtIndex(int32_t index)
 bool
 HTMLCanvasElement::GetIsOpaque()
 {
-  if (mCurrentContext) {
-    return mCurrentContext->GetIsOpaque();
-  }
-
   return HasAttr(kNameSpaceID_None, nsGkAtoms::moz_opaque);
 }
 

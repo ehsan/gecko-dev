@@ -10,7 +10,6 @@
 #include "prprf.h"
 #include "nsGlobalWindow.h"
 #include "ScriptSettings.h"
-#include "mozilla/EventListenerManager.h"
 #include "mozilla/Likely.h"
 
 using namespace mozilla;
@@ -157,7 +156,7 @@ nsDOMEventTargetHelper::RemoveEventListener(const nsAString& aType,
                                             nsIDOMEventListener* aListener,
                                             bool aUseCapture)
 {
-  EventListenerManager* elm = GetExistingListenerManager();
+  nsEventListenerManager* elm = GetExistingListenerManager();
   if (elm) {
     elm->RemoveEventListener(aType, aListener, aUseCapture);
   }
@@ -184,7 +183,7 @@ nsDOMEventTargetHelper::AddEventListener(const nsAString& aType,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  EventListenerManager* elm = GetOrCreateListenerManager();
+  nsEventListenerManager* elm = GetOrCreateListenerManager();
   NS_ENSURE_STATE(elm);
   elm->AddEventListener(aType, aListener, aUseCapture, aWantsUntrusted);
   return NS_OK;
@@ -208,7 +207,7 @@ nsDOMEventTargetHelper::AddEventListener(const nsAString& aType,
     wantsUntrusted = aWantsUntrusted.Value();
   }
 
-  EventListenerManager* elm = GetOrCreateListenerManager();
+  nsEventListenerManager* elm = GetOrCreateListenerManager();
   if (!elm) {
     aRv.Throw(NS_ERROR_UNEXPECTED);
     return;
@@ -321,17 +320,17 @@ nsDOMEventTargetHelper::DispatchDOMEvent(WidgetEvent* aEvent,
                                         aEventStatus);
 }
 
-EventListenerManager*
+nsEventListenerManager*
 nsDOMEventTargetHelper::GetOrCreateListenerManager()
 {
   if (!mListenerManager) {
-    mListenerManager = new EventListenerManager(this);
+    mListenerManager = new nsEventListenerManager(this);
   }
 
   return mListenerManager;
 }
 
-EventListenerManager*
+nsEventListenerManager*
 nsDOMEventTargetHelper::GetExistingListenerManager() const
 {
   return mListenerManager;

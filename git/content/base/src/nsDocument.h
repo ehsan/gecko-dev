@@ -61,7 +61,6 @@
 #include "nsISecurityEventSink.h"
 #include "nsIChannelEventSink.h"
 #include "imgIRequest.h"
-#include "mozilla/EventListenerManager.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/DOMImplementation.h"
 #include "nsIDOMTouchEvent.h"
@@ -77,6 +76,7 @@
 #define XML_DECLARATION_BITS_STANDALONE_YES       (1 << 3)
 
 
+class nsEventListenerManager;
 class nsDOMStyleSheetList;
 class nsDOMStyleSheetSetList;
 class nsIOutputStream;
@@ -903,10 +903,8 @@ public:
 
   // nsIDOMEventTarget
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
-  virtual mozilla::EventListenerManager*
-    GetOrCreateListenerManager() MOZ_OVERRIDE;
-  virtual mozilla::EventListenerManager*
-    GetExistingListenerManager() const MOZ_OVERRIDE;
+  virtual nsEventListenerManager* GetOrCreateListenerManager() MOZ_OVERRIDE;
+  virtual nsEventListenerManager* GetExistingListenerManager() const MOZ_OVERRIDE;
 
   // nsIScriptObjectPrincipal
   virtual nsIPrincipal* GetPrincipal() MOZ_OVERRIDE;
@@ -1422,7 +1420,7 @@ public:
   // The "registry" from the web components spec.
   nsRefPtr<Registry> mRegistry;
 
-  nsRefPtr<mozilla::EventListenerManager> mListenerManager;
+  nsRefPtr<nsEventListenerManager> mListenerManager;
   nsCOMPtr<nsIDOMStyleSheetList> mDOMStyleSheets;
   nsRefPtr<nsDOMStyleSheetSetList> mStyleSheetSetList;
   nsRefPtr<nsScriptLoader> mScriptLoader;
